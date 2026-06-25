@@ -1,0 +1,148 @@
+// Pipelined QMMA GEMV — software prefetch of next tile during QMMA compute
+//
+// Strategy: double-buffered A/B loads
+// While QMMA processes tile K using registers R0-R5:
+//   LDG prefetches tile K+1 into registers R36-R41
+// Then swap buffer pointers and repeat.
+//
+// This hides LDG latency (~200 cycles) within QMMA stall (~11 cycles + pipeline).
+// Expected: ~40% speedup over non-pipelined loop.
+//
+// Register allocation (hand-tuned, 48 regs total):
+//   R0-R3:   A buffer 0 (a0,a1,a2,a3)
+//   R4-R5:   B buffer 0 (b0,b1)
+//   R8-R11:  QMMA accumulators (c0,c1,c2,c3)
+//   R12-R15: d_out pointer (R12:R13), d_a base (R14:R15)
+//   R16:     lane ID
+//   R18-R19: d_b base
+//   R20-R21: scratch address
+//   R22-R23: A_base pointer (incremented per tile)
+//   R24:     blockIdx.x
+//   R25-R29: scratch
+//   R30:     loop counter
+//   R31:     Kt param
+//   R34-R35: B_base pointer (incremented per tile)
+//   R36-R39: A buffer 1 (prefetch)
+//   R40-R41: B buffer 1 (prefetch)
+
+.entry qmma_gemv_pipelined
+    .param u64 d_out
+    .param u64 d_a
+    .param u64 d_b
+    .param u32 Kt
+    .param u32 stride_u32
+
+    // Prologue: load params
+    LDCU.64 UR14, c[0x0][0x358] ;
+    LDCU UR8, c[0x0][0x39c] ;
+    S2R R16, SR_TID.X ;
+    S2R R24, SR_CTAID.X ;
+    LDC.64 R12, c[0x0][0x380] ;
+    LDC.64 R14, c[0x0][0x388] ;
+    LDC.64 R18, c[0x0][0x390] ;
+    LDC R31, c[0x0][0x398] ;
+
+    // Address setup
+    LOP3.LUT R16, R16, 0x1f, RZ, 0xc0, !PT ;
+    SHF.L.U32 R26, R16, 0x2, RZ ;
+    SHF.L.U32 R27, R16, 0x3, RZ ;
+    IMAD R25, R24, UR8, RZ ;
+    IADD3 R25, PT, PT, R25, R26, RZ ;
+    IMAD.WIDE.U32 R22, R25, 0x4, R14 ;
+    IMAD.WIDE.U32 R34, R27, 0x1, R18 ;
+
+    // Zero accumulators
+    MOV R8, RZ ;
+    MOV R9, RZ ;
+    MOV R10, RZ ;
+    MOV R11, RZ ;
+    MOV R30, RZ ;
+
+    // === PREFETCH first tile into buffer 0 ===
+    LDG.E.64 R0, desc[UR14][R22.64] ;
+    IADD3 R28, PT, PT, R22, 0x8, RZ ;
+    IADD3 R29, PT, PT, R23, RZ, RZ ;
+    LDG.E.64 R2, desc[UR14][R28.64] ;
+    LDG.E.64 R4, desc[UR14][R34.64] ;
+
+    // Advance pointers for next tile
+    IADD3 R22, PT, PT, R22, 0x200, RZ ;
+    IADD3 R23, PT, PT, R23, RZ, RZ ;
+    IADD3 R34, PT, PT, R34, 0x100, RZ ;
+    IADD3 R35, PT, PT, R35, RZ, RZ ;
+    IADD R30, R30, 0x1 ;
+
+    // Check if only 1 tile (skip pipelined loop)
+    ISETP.GE.AND P0, PT, R30, R31, PT ;
+    @P0 BRA epilogue_last ;
+    BRA k_pipe_loop ;
+
+epilogue_last:
+    // Single tile: just QMMA on buffer 0 (drain auto-inserted by cubit)
+    QMMA.16832.F32.E4M3.E4M3 R8, R0, R4, R8 ;
+    BRA store_output ;
+
+k_pipe_loop:
+    // === PREFETCH next tile into buffer 1 (overlaps with QMMA below) ===
+    LDG.E.64 R36, desc[UR14][R22.64] ;
+    IADD3 R28, PT, PT, R22, 0x8, RZ ;
+    IADD3 R29, PT, PT, R23, RZ, RZ ;
+    LDG.E.64 R38, desc[UR14][R28.64] ;
+    LDG.E.64 R40, desc[UR14][R34.64] ;
+
+    // === QMMA on buffer 0 (runs while prefetch completes) ===
+    QMMA.16832.F32.E4M3.E4M3 R8, R0, R4, R8 ;
+
+    // Advance pointers
+    IADD3 R22, PT, PT, R22, 0x200, RZ ;
+    IADD3 R23, PT, PT, R23, RZ, RZ ;
+    IADD3 R34, PT, PT, R34, 0x100, RZ ;
+    IADD3 R35, PT, PT, R35, RZ, RZ ;
+    IADD R30, R30, 0x1 ;
+    ISETP.GE.AND P0, PT, R30, R31, PT ;
+    @P0 BRA epilogue_buf1 ;
+
+    // === PREFETCH next tile into buffer 0 (overlaps with QMMA below) ===
+    LDG.E.64 R0, desc[UR14][R22.64] ;
+    IADD3 R28, PT, PT, R22, 0x8, RZ ;
+    IADD3 R29, PT, PT, R23, RZ, RZ ;
+    LDG.E.64 R2, desc[UR14][R28.64] ;
+    LDG.E.64 R4, desc[UR14][R34.64] ;
+
+    // === QMMA on buffer 1 ===
+    QMMA.16832.F32.E4M3.E4M3 R8, R36, R40, R8 ;
+
+    // Advance pointers
+    IADD3 R22, PT, PT, R22, 0x200, RZ ;
+    IADD3 R23, PT, PT, R23, RZ, RZ ;
+    IADD3 R34, PT, PT, R34, 0x100, RZ ;
+    IADD3 R35, PT, PT, R35, RZ, RZ ;
+    IADD R30, R30, 0x1 ;
+    ISETP.NE.AND P0, PT, R30, R31, PT ;
+    @P0 BRA k_pipe_loop ;
+
+    // Fall through: last data is in buffer 0
+    QMMA.16832.F32.E4M3.E4M3 R8, R0, R4, R8 ;
+    BRA store_output ;
+
+epilogue_buf1:
+    // Last data is in buffer 1
+    QMMA.16832.F32.E4M3.E4M3 R8, R36, R40, R8 ;
+
+store_output:
+    SHF.L.U32 R25, R24, 0x7, RZ ;
+    IADD3 R25, PT, PT, R25, R26, RZ ;
+    IMAD.WIDE.U32 R20, R25, 0x4, R12 ;
+    STG.E desc[UR14][R20.64], R8 ;
+    IADD3 R28, PT, PT, R25, 0x1, RZ ;
+    IMAD.WIDE.U32 R20, R28, 0x4, R12 ;
+    STG.E desc[UR14][R20.64], R9 ;
+    IADD3 R28, PT, PT, R25, 0x2, RZ ;
+    IMAD.WIDE.U32 R20, R28, 0x4, R12 ;
+    STG.E desc[UR14][R20.64], R10 ;
+    IADD3 R28, PT, PT, R25, 0x3, RZ ;
+    IMAD.WIDE.U32 R20, R28, 0x4, R12 ;
+    STG.E desc[UR14][R20.64], R11 ;
+    EXIT ;
+    BRA 0x0 ;
+.endentry

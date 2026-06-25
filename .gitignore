@@ -1,0 +1,15 @@
+# Rust build artifacts
+/target/
+
+# Python
+*.pyc
+__pycache__/
+.venv/
+*.so
+
+# Generated ISA-discovery artifacts (regenerate with tools/)
+tables/records.jsonl
+tables/lookup.bin
+
+# Build outputs / scratch
+*.cubin

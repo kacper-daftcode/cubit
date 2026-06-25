@@ -1,0 +1,104 @@
+// QMMA.SP Sparse FP8 GEMV — standalone cubin (no desc[] addressing)
+//
+// 2:4 structured sparsity: compressed A tile (half size) + dense B + metadata
+// Uses QMMA.SP.16832.F32.E4M3.E4M3 tensor core instruction
+//
+// Parameters:
+//   d_out      (u64): output buffer (Mt × 128 × 4 bytes)
+//   d_a        (u64): compressed weight matrix (Mt × Kt × 256 bytes per tile)
+//   d_b        (u64): dense activation vector (Kt × 256 bytes per tile)
+//   d_meta     (u64): sparsity metadata (Mt × Kt × 128 bytes per tile)
+//   Kt         (u32): K-tile iterations
+//
+// Layout (per K-tile):
+//   A: 256 bytes (compressed, 8 bytes per thread → R0-R1)
+//   B: 256 bytes (dense, 8 bytes per thread → R4-R5)
+//   Meta: 128 bytes (4 bytes per thread → R2, 4-byte aligned)
+//
+// Launch: gridDim.x = Mt, blockDim.x = 32
+
+.entry qmma_sp_gemv
+    .param u64 d_out
+    .param u64 d_a
+    .param u64 d_b
+    .param u64 d_meta
+    .param u32 Kt
+
+    // Load parameters
+    LDC.64 R12, c[0x0][0x380] ;
+    LDC.64 R14, c[0x0][0x388] ;
+    LDC.64 R18, c[0x0][0x390] ;
+    LDC.64 R36, c[0x0][0x398] ;
+    LDC R7, c[0x0][0x3a0] ;
+    S2R R16, SR_TID.X ;
+    S2R R24, SR_CTAID.X ;
+
+    // lane_id = tid & 31
+    LOP3.LUT R16, R16, 0x1f, RZ, 0xc0, !PT ;
+
+    // A_base: d_a + (bid_x * Kt * 256 + lane_id * 8) bytes
+    SHF.L.U32 R26, R16, 0x3, RZ ;
+    IMAD R25, R24, R7, RZ ;
+    SHF.L.U32 R25, R25, 0x8, RZ ;
+    IADD3 R25, PT, PT, R25, R26, RZ ;
+    IMAD.WIDE.U32 R22, R25, 0x1, R14 ;
+
+    // B_base: d_b + lane_id * 8
+    IMAD.WIDE.U32 R34, R26, 0x1, R18 ;
+
+    // Meta_base: d_meta + (bid_x * Kt * 128 + lane_id * 4) bytes
+    SHF.L.U32 R26, R16, 0x2, RZ ;
+    IMAD R25, R24, R7, RZ ;
+    SHF.L.U32 R25, R25, 0x7, RZ ;
+    IADD3 R25, PT, PT, R25, R26, RZ ;
+    IMAD.WIDE.U32 R36, R25, 0x1, R36 ;
+
+    // Zero accumulators
+    MOV R8, RZ ;
+    MOV R9, RZ ;
+    MOV R10, RZ ;
+    MOV R11, RZ ;
+    MOV R31, RZ ;
+
+k_loop:
+    // Load compressed A tile (8 bytes)
+    SHF.L.U32 R25, R31, 0x8, RZ ;
+    IMAD.WIDE.U32 R20, R25, 0x1, R22 ;
+    LDG.E.64 R0, [R20] ;
+
+    // Load dense B tile (8 bytes)
+    SHF.L.U32 R25, R31, 0x8, RZ ;
+    IMAD.WIDE.U32 R20, R25, 0x1, R34 ;
+    LDG.E.64 R4, [R20] ;
+
+    // Load metadata (4 bytes per thread, 128-byte stride per K-tile)
+    SHF.L.U32 R25, R31, 0x7, RZ ;
+    IMAD.WIDE.U32 R20, R25, 0x1, R36 ;
+    LDG.E R2, [R20] ;
+
+    // QMMA.SP sparse tensor core accumulate
+    QMMA.SP.16832.F32.E4M3.E4M3 R8, R0, R4, R8, R2, 0x0 ;
+
+    // Advance loop counter
+    IADD R31, R31, 0x1 ;
+    ISETP.NE.AND P0, PT, R31, R7, PT ;
+    @P0 BRA k_loop ;
+
+    // Store output (4 F32 values per thread)
+    SHF.L.U32 R25, R24, 0x7, RZ ;
+    SHF.L.U32 R26, R16, 0x2, RZ ;
+    IADD3 R25, PT, PT, R25, R26, RZ ;
+    IMAD.WIDE.U32 R20, R25, 0x4, R12 ;
+    STG.E [R20], R8 ;
+    IADD3 R28, PT, PT, R25, 0x1, RZ ;
+    IMAD.WIDE.U32 R20, R28, 0x4, R12 ;
+    STG.E [R20], R9 ;
+    IADD3 R28, PT, PT, R25, 0x2, RZ ;
+    IMAD.WIDE.U32 R20, R28, 0x4, R12 ;
+    STG.E [R20], R10 ;
+    IADD3 R28, PT, PT, R25, 0x3, RZ ;
+    IMAD.WIDE.U32 R20, R28, 0x4, R12 ;
+    STG.E [R20], R11 ;
+    EXIT ;
+    BRA 0x0 ;
+.endentry

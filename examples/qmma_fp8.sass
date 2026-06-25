@@ -1,0 +1,251 @@
+// QMMA FP8 examples — standalone SASS kernels for NVIDIA Blackwell (SM120a)
+//
+// These kernels use QMMA (Quantized Matrix Multiply-Accumulate) tensor core
+// instructions with FP8 data types — something that was previously only
+// accessible through nvcc/ptxas. cubit assembles them directly to .cubin.
+//
+// FP8 E4M3 encoding: 1 sign + 4 exponent + 3 mantissa, bias=7
+//   1.0  = 0x38  (0_0111_000)
+//   2.0  = 0x40  (0_1000_000)
+//   0.5  = 0x30  (0_0110_000)
+//  -1.0  = 0xB8  (1_0111_000)
+//
+// FP8 E5M2 encoding: 1 sign + 5 exponent + 2 mantissa, bias=15
+//   1.0  = 0x3C  (0_01111_00)
+//
+// STATUS: Encoding verified correct (matches cuBLAS records byte-for-byte).
+// Standalone cubin needs Mercury stub upgrade for FP8 tensor core ops.
+// QMMA works in cubins built with --template from cuBLAS/CUTLASS sources.
+//
+// Usage:
+//   cubit asm examples/qmma_fp8.sass -o qmma_fp8.cubin
+//   sass_test qmma_fp8.cubin qmma_16816_f16_e4m3 1 32 0
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// Example 1: QMMA.16816.F16.E4M3.E4M3
+//
+// Matrix multiply: C[16×8] = A[16×16] × B[16×8], all elements = 1.0 (FP8)
+// Expected output: each F16 element = 16.0 (sum of 16 products of 1.0×1.0)
+// D[0] = 0x4C004C00 (two F16 values: 16.0, 16.0)
+// ═══════════════════════════════════════════════════════════════════════════
+
+.entry qmma_16816_f16_e4m3
+    .reg R0-R31
+    .param u64 out_ptr
+
+    // A matrix: 4 registers × 4 packed FP8 E4M3 values = 16 elements per thread
+    // All 1.0 in E4M3 = 0x38, packed 4× = 0x38383838
+    MOV R8,  0x38383838 ;
+    MOV R9,  0x38383838 ;
+    MOV R10, 0x38383838 ;
+    MOV R11, 0x38383838 ;
+
+    // B matrix: 4 registers packed FP8
+    MOV R16, 0x38383838 ;
+    MOV R17, 0x38383838 ;
+    MOV R18, 0x38383838 ;
+    MOV R19, 0x38383838 ;
+
+    // Accumulator = zero (RZ expands to 4 zero registers)
+    MOV R4, 0x0 ;
+    MOV R5, 0x0 ;
+    MOV R6, 0x0 ;
+    MOV R7, 0x0 ;
+
+    // Tensor core FP8 matrix multiply-accumulate
+    QMMA.16816.F16.E4M3.E4M3 R4, R8.ROW, R16.COL, R4 ;
+
+    // Store result: thread 0 writes R4 (first two F16 outputs)
+    S2R R0, SR_TID.X ;
+    ISETP.NE.AND P0, PT, R0, RZ, PT ;
+    @!P0 LDCU.64 UR6, c[0x0][0x380] ;
+    @!P0 MOV R2, UR6 ;
+    @!P0 MOV R3, UR7 ;
+    @!P0 LDCU.64 UR4, c[0x0][0x358] ;
+    @!P0 STG.E desc[UR4][R2.64], R4 ;
+    EXIT ;
+    BRA 0x0 ;
+.endentry
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Example 2: QMMA.16832.F32.E4M3.E4M3
+//
+// Wider K dimension (K=32): C[16×8] = A[16×32] × B[32×8]
+// Expected: each F32 element = 32.0 (sum of 32 products)
+// D[0] = 0x42000000 (F32: 32.0)
+// ═══════════════════════════════════════════════════════════════════════════
+
+.entry qmma_16832_f32_e4m3
+    .reg R0-R31
+    .param u64 out_ptr
+
+    // A matrix: 8 registers for K=32 (32 FP8 values per thread)
+    MOV R8,  0x38383838 ;
+    MOV R9,  0x38383838 ;
+    MOV R10, 0x38383838 ;
+    MOV R11, 0x38383838 ;
+    MOV R12, 0x38383838 ;
+    MOV R13, 0x38383838 ;
+    MOV R14, 0x38383838 ;
+    MOV R15, 0x38383838 ;
+
+    // B matrix: 8 registers
+    MOV R16, 0x38383838 ;
+    MOV R17, 0x38383838 ;
+    MOV R18, 0x38383838 ;
+    MOV R19, 0x38383838 ;
+    MOV R20, 0x38383838 ;
+    MOV R21, 0x38383838 ;
+    MOV R22, 0x38383838 ;
+    MOV R23, 0x38383838 ;
+
+    // Accumulator = zero, F32 output uses 8 registers
+    MOV R0, 0x0 ;
+    MOV R1, 0x0 ;
+    MOV R2, 0x0 ;
+    MOV R3, 0x0 ;
+    MOV R4, 0x0 ;
+    MOV R5, 0x0 ;
+    MOV R6, 0x0 ;
+    MOV R7, 0x0 ;
+
+    // Tensor core FP8 GEMM with F32 accumulation
+    QMMA.16832.F32.E4M3.E4M3 R0, R8.ROW, R16.COL, R0 ;
+
+    // Store R0 (first F32 output) from thread 0
+    S2R R24, SR_TID.X ;
+    ISETP.NE.AND P0, PT, R24, RZ, PT ;
+    @!P0 LDCU.64 UR6, c[0x0][0x380] ;
+    @!P0 MOV R26, UR6 ;
+    @!P0 MOV R27, UR7 ;
+    @!P0 LDCU.64 UR4, c[0x0][0x358] ;
+    @!P0 STG.E desc[UR4][R26.64], R0 ;
+    EXIT ;
+    BRA 0x0 ;
+.endentry
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Example 3: QMMA.16816.F32.E5M2.E4M3  (mixed FP8 types)
+//
+// Mixed precision: A uses E5M2 (wider range), B uses E4M3 (more precision)
+// A elements = 2.0 in E5M2 = 0x40 (0_10000_00)
+// B elements = 1.0 in E4M3 = 0x38
+// Expected: each F32 element = 16 × 2.0 × 1.0 = 32.0
+// D[0] = 0x42000000 (F32: 32.0)
+// ═══════════════════════════════════════════════════════════════════════════
+
+.entry qmma_mixed_e5m2_e4m3
+    .reg R0-R31
+    .param u64 out_ptr
+
+    // A matrix (E5M2): 2.0 = 0x40, packed 4× = 0x40404040
+    MOV R8,  0x40404040 ;
+    MOV R9,  0x40404040 ;
+    MOV R10, 0x40404040 ;
+    MOV R11, 0x40404040 ;
+
+    // B matrix (E4M3): 1.0 = 0x38
+    MOV R16, 0x38383838 ;
+    MOV R17, 0x38383838 ;
+    MOV R18, 0x38383838 ;
+    MOV R19, 0x38383838 ;
+
+    // Accumulator = zero
+    MOV R4, 0x0 ;
+    MOV R5, 0x0 ;
+    MOV R6, 0x0 ;
+    MOV R7, 0x0 ;
+
+    // Mixed-precision FP8 tensor core op
+    QMMA.16816.F32.E5M2.E4M3 R4, R8.ROW, R16.COL, R4 ;
+
+    // Store from thread 0
+    S2R R0, SR_TID.X ;
+    ISETP.NE.AND P0, PT, R0, RZ, PT ;
+    @!P0 LDCU.64 UR6, c[0x0][0x380] ;
+    @!P0 MOV R2, UR6 ;
+    @!P0 MOV R3, UR7 ;
+    @!P0 LDCU.64 UR4, c[0x0][0x358] ;
+    @!P0 STG.E desc[UR4][R2.64], R4 ;
+    EXIT ;
+    BRA 0x0 ;
+.endentry
+
+// ========================================================================
+// QMMA GEMV Loop Kernel — the first standalone cubit-assembled QMMA loop
+// that produces correct output on RTX 5090
+//
+// Verified: Kt=1→72.0, Kt=2→144.0, Kt=4→288.0 (all-0x3c test data)
+// Build: cubit asm examples/qmma_fp8.sass -o qmma_gemv.cubin
+// Launch: <<<Mt, 32>>> where Mt = M/16
+// Params: (float *out, uint8_t *a, uint8_t *b, int Kt, int stride)
+//   stride = Kt * 128 (register-sized stride per M-tile row)
+//
+// Key scheduling patterns:
+// - Back-edge drain: [B012345:S1] before BRA clears loop barriers
+// - QMMA: auto-inserted drain + stall=11 by cubit scheduling pass
+// - Prologue barriers: auto-managed by alloc_barrier + pending_drain
+// ========================================================================
+
+.entry qmma_gemv_loop
+    .param u64 d_out
+    .param u64 d_a
+    .param u64 d_b
+    .param u32 Kt
+    .param u32 stride_u32
+
+    LDCU.64 UR14, c[0x0][0x358] ;
+    LDCU UR8, c[0x0][0x39c] ;
+    S2R R16, SR_TID.X ;
+    S2R R24, SR_CTAID.X ;
+    LDC.64 R12, c[0x0][0x380] ;
+    LDC.64 R14, c[0x0][0x388] ;
+    LDC.64 R18, c[0x0][0x390] ;
+    LDC R6, c[0x0][0x398] ;
+
+    LOP3.LUT R16, R16, 0x1f, RZ, 0xc0, !PT ;
+    SHF.L.U32 R26, R16, 0x2, RZ ;
+    SHF.L.U32 R27, R16, 0x3, RZ ;
+    IMAD R25, R24, UR8, RZ ;
+    IADD3 R25, PT, PT, R25, R26, RZ ;
+    IMAD.WIDE.U32 R22, R25, 0x4, R14 ;
+    IMAD.WIDE.U32 R34, R27, 0x1, R18 ;
+
+    MOV R8, RZ ;
+    MOV R9, RZ ;
+    MOV R10, RZ ;
+    MOV R11, RZ ;
+    MOV R31, RZ ;
+
+k_loop:
+    LDG.E.64 R0, desc[UR14][R22.64] ;
+    IADD3 R28, PT, PT, R22, 0x8, RZ ;
+    IADD3 R29, PT, PT, R23, RZ, RZ ;
+    LDG.E.64 R2, desc[UR14][R28.64] ;
+    LDG.E.64 R4, desc[UR14][R34.64] ;
+    QMMA.16832.F32.E4M3.E4M3 R8, R0, R4, R8 ;
+    IADD3 R22, PT, PT, R22, 0x200, RZ ;
+    IADD3 R23, PT, PT, R23, RZ, RZ ;
+    IADD3 R34, PT, PT, R34, 0x100, RZ ;
+    IADD3 R35, PT, PT, R35, RZ, RZ ;
+    IADD R31, R31, 0x1 ;
+    ISETP.NE.AND P0, PT, R31, R6, PT ;
+    UIADD3 URZ, UPT, UPT, URZ, URZ, URZ ;  [B012345:R-:W-:-:S1]
+    @P0 BRA k_loop ;
+
+    SHF.L.U32 R25, R24, 0x7, RZ ;
+    IADD3 R25, PT, PT, R25, R26, RZ ;
+    IMAD.WIDE.U32 R20, R25, 0x4, R12 ;
+    STG.E desc[UR14][R20.64], R8 ;
+    IADD3 R28, PT, PT, R25, 0x1, RZ ;
+    IMAD.WIDE.U32 R20, R28, 0x4, R12 ;
+    STG.E desc[UR14][R20.64], R9 ;
+    IADD3 R28, PT, PT, R25, 0x2, RZ ;
+    IMAD.WIDE.U32 R20, R28, 0x4, R12 ;
+    STG.E desc[UR14][R20.64], R10 ;
+    IADD3 R28, PT, PT, R25, 0x3, RZ ;
+    IMAD.WIDE.U32 R20, R28, 0x4, R12 ;
+    STG.E desc[UR14][R20.64], R11 ;
+    EXIT ;
+    BRA 0x0 ;
+.endentry

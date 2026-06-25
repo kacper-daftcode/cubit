@@ -1,0 +1,12 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "cubit"
+version = "0.1.0"
+description = "SM120 CUDA assembler — encode, decode, patch SASS instructions"
+requires-python = ">=3.8"
+
+[tool.maturin]
+features = ["python"]

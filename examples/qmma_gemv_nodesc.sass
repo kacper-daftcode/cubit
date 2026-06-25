@@ -1,0 +1,80 @@
+// QMMA GEMV Loop — no desc[] addressing (compatible with runtime API context)
+//
+// Same as qmma_gemv_loop but uses raw LDG/STG [Rn] instead of desc[UR14][Rn].
+// This works when loaded via cuModuleLoad into an existing CUDA runtime context
+// (e.g., an LLM inference pipeline).
+//
+// Parameters: same as qmma_gemv_loop
+//   d_out (u64), d_a (u64), d_b (u64), Kt (u32), stride_u32 (u32)
+
+.entry qmma_gemv_loop
+    .param u64 d_out
+    .param u64 d_a
+    .param u64 d_b
+    .param u32 Kt
+    .param u32 stride_u32
+
+    // Load params from constant memory (no UR14 descriptor needed)
+    LDC R6, c[0x0][0x39c] ;
+    S2R R16, SR_TID.X ;
+    S2R R24, SR_CTAID.X ;
+    LDC.64 R12, c[0x0][0x380] ;
+    LDC.64 R14, c[0x0][0x388] ;
+    LDC.64 R18, c[0x0][0x390] ;
+    LDC R7, c[0x0][0x398] ;
+
+    // Address setup
+    LOP3.LUT R16, R16, 0x1f, RZ, 0xc0, !PT ;
+    SHF.L.U32 R26, R16, 0x2, RZ ;
+    SHF.L.U32 R27, R16, 0x3, RZ ;
+    IMAD R25, R24, R6, RZ ;
+    IADD3 R25, PT, PT, R25, R26, RZ ;
+    IMAD.WIDE.U32 R22, R25, 0x4, R14 ;
+    IMAD.WIDE.U32 R34, R27, 0x1, R18 ;
+
+    // Zero accumulators
+    MOV R8, RZ ;
+    MOV R9, RZ ;
+    MOV R10, RZ ;
+    MOV R11, RZ ;
+    MOV R31, RZ ;
+
+k_loop:
+    // Load A tile (16 bytes = 2x .64 loads)
+    LDG.E.64 R0, [R22] ;
+    IADD3 R28, PT, PT, R22, 0x8, RZ ;
+    IADD3 R29, PT, PT, R23, RZ, RZ ;
+    LDG.E.64 R2, [R28] ;
+    // Load B tile (8 bytes)
+    LDG.E.64 R4, [R34] ;
+
+    // QMMA tensor core accumulate
+    QMMA.16832.F32.E4M3.E4M3 R8, R0, R4, R8 ;
+
+    // Advance pointers
+    IADD3 R22, PT, PT, R22, 0x200, RZ ;
+    IADD3 R23, PT, PT, R23, RZ, RZ ;
+    IADD3 R34, PT, PT, R34, 0x100, RZ ;
+    IADD3 R35, PT, PT, R35, RZ, RZ ;
+    IADD R31, R31, 0x1 ;
+    ISETP.NE.AND P0, PT, R31, R7, PT ;
+    UIADD3 URZ, UPT, UPT, URZ, URZ, URZ ;  [B012345:R-:W-:-:S1]
+    @P0 BRA k_loop ;
+
+    // Store output (raw pointers)
+    SHF.L.U32 R25, R24, 0x7, RZ ;
+    IADD3 R25, PT, PT, R25, R26, RZ ;
+    IMAD.WIDE.U32 R20, R25, 0x4, R12 ;
+    STG.E [R20], R8 ;
+    IADD3 R28, PT, PT, R25, 0x1, RZ ;
+    IMAD.WIDE.U32 R20, R28, 0x4, R12 ;
+    STG.E [R20], R9 ;
+    IADD3 R28, PT, PT, R25, 0x2, RZ ;
+    IMAD.WIDE.U32 R20, R28, 0x4, R12 ;
+    STG.E [R20], R10 ;
+    IADD3 R28, PT, PT, R25, 0x3, RZ ;
+    IMAD.WIDE.U32 R20, R28, 0x4, R12 ;
+    STG.E [R20], R11 ;
+    EXIT ;
+    BRA 0x0 ;
+.endentry

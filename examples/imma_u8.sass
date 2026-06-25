@@ -1,0 +1,120 @@
+// IMMA U8 examples — standalone SASS kernels for NVIDIA Blackwell (SM120a)
+//
+// IMMA.16832.U8.U8 — Integer Matrix Multiply-Accumulate, tensor core
+//   A: [M=16, K=32] unsigned 8-bit  (512 U8 total, 16 bytes per thread)
+//   B: [K=32, N=8]  unsigned 8-bit  (256 U8 total,  8 bytes per thread)
+//   C/D: [M=16, N=8] signed 32-bit  (128 S32 total,  4 S32 per thread)
+//
+// Per thread register layout (32-thread warp):
+//   A: R8..R11  (4 regs × 4 packed U8 = 16 bytes)
+//   B: R12..R15 (4 regs, driver uses first 2: R12..R13 = 8 bytes)
+//   D: R4..R7   (4 × S32 accumulators)
+//   C: RZ       (zero accumulator → fresh multiply)
+//
+// All U8 inputs = 2: each output = sum(32 × 2×3) = 192 per accumulator
+//   D[0] = 192 = 0x000000C0
+//
+// STATUS: ✅ readback working — imma_harness2 / imma_run binary
+//   D[0]=32 confirmed for A=B=1 (32 × 1×1 = 32), see imma32_standalone_test
+//
+// Usage:
+//   cubit asm examples/imma_u8.sass -o imma_u8.cubin
+//   ./imma_run imma_u8.cubin imma_u8_verify     # expect D[0]=192
+//   ./imma_run imma_u8.cubin imma_u8_all1       # expect D[0]=32
+//
+// Harness source: /tmp/imma_harness2.c
+//   gcc -O2 -o imma_run /tmp/imma_harness2.c -lcuda -I/usr/local/cuda/include
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// Example 1: IMMA.16832.U8.U8 — A=2, B=3 → D[0]=192
+//
+// IMMA.16832.U8.U8 R4, R8, R12, RZ
+//   32 threads × (16 U8 × 8 U8) = 4096 multiplications per warp per instruction
+//   Each output element: sum over K=32 of (A_k × B_k) = 32 × 2 × 3 = 192
+// ═══════════════════════════════════════════════════════════════════════════
+
+.entry imma_u8_verify
+    .reg R0-R19
+    .param u64 out_ptr
+
+    S2R R0, SR_TID.X ;
+
+    // A matrix: 4 registers × 4 packed U8 = 16 values per thread
+    // All 2 in U8 packed as 0x02020202
+    MOV R8,  0x02020202 ;
+    MOV R9,  0x02020202 ;
+    MOV R10, 0x02020202 ;
+    MOV R11, 0x02020202 ;
+
+    // B matrix: 2 registers × 4 packed U8 = 8 values per thread
+    // All 3 in U8 packed as 0x03030303
+    MOV R12, 0x03030303 ;
+    MOV R13, 0x03030303 ;
+    MOV R14, 0x03030303 ;
+    MOV R15, 0x03030303 ;
+
+    // Accumulator D = 0 (fresh multiply, C=RZ)
+    MOV R4, 0x0 ;
+    MOV R5, 0x0 ;
+    MOV R6, 0x0 ;
+    MOV R7, 0x0 ;
+
+    // Integer matrix multiply: D = A × B + C (C=0)
+    // All 32 threads participate — warp-cooperative operation
+    // Expected: each D[i] = 32 × (2×3) = 192 = 0x000000C0
+    IMMA.16832.U8.U8 R4, R8, R12, RZ ;
+
+    // Thread 0 stores result: D[0..3] to out_ptr
+    ISETP.NE.AND P0, PT, R0, RZ, PT ;
+    @P0 EXIT ;
+
+    // Load output pointer from kernel parameter (c[0x0][0x380])
+    LDC.64 R2, c[0x0][0x380] ;
+    // Load global memory descriptor (set up by driver via Mercury stub)
+    LDCU.64 UR4, c[0x0][0x358] ;
+    // Store 4 × S32 = 16 bytes using descriptor addressing
+    STG.E.128 desc[UR4][R2.64], R4 ;
+
+    EXIT ;
+    BRA 0x0 ;
+.endentry
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Example 2: IMMA.16832.U8.U8 — A=1, B=1 → D[0]=32
+//
+// Baseline test: expected D[0] = 32 (32 × 1×1 = 32)
+// Matches /tmp/imma32_standalone_test.cubin (verified ✅)
+// ═══════════════════════════════════════════════════════════════════════════
+
+.entry imma_u8_all1
+    .reg R0-R19
+    .param u64 out_ptr
+
+    S2R R0, SR_TID.X ;
+
+    MOV R8,  0x01010101 ;
+    MOV R9,  0x01010101 ;
+    MOV R10, 0x01010101 ;
+    MOV R11, 0x01010101 ;
+    MOV R12, 0x01010101 ;
+    MOV R13, 0x01010101 ;
+    MOV R14, 0x01010101 ;
+    MOV R15, 0x01010101 ;
+
+    MOV R4, 0x0 ;
+    MOV R5, 0x0 ;
+    MOV R6, 0x0 ;
+    MOV R7, 0x0 ;
+
+    IMMA.16832.U8.U8 R4, R8, R12, RZ ;
+
+    ISETP.NE.AND P0, PT, R0, RZ, PT ;
+    @P0 EXIT ;
+
+    LDC.64 R2, c[0x0][0x380] ;
+    LDCU.64 UR4, c[0x0][0x358] ;
+    STG.E.128 desc[UR4][R2.64], R4 ;
+
+    EXIT ;
+    BRA 0x0 ;
+.endentry
