@@ -62,12 +62,14 @@ fn parse_register(s: &str) -> Option<Operand> {
     let inv = s.starts_with('~');
     let s = s.trim_start_matches('~');
 
-    // Strip .reuse BEFORE checking abs so that |R18|.reuse is parsed correctly
-    let (s, reuse) = if let Some(base) = s.strip_suffix(".reuse") {
-        (base, true)
+    // Strip .reuse wherever it sits in the modifier chain (R5.reuse,
+    // |R18|.reuse, R132.reuse.ROW)
+    let (owned, reuse) = if s.contains(".reuse") {
+        (s.replace(".reuse", ""), true)
     } else {
-        (s, false)
+        (s.to_string(), false)
     };
+    let s = owned.as_str();
 
     let abs = s.starts_with('|') && s.ends_with('|');
     let s = s.trim_matches('|');
@@ -84,11 +86,11 @@ fn parse_register(s: &str) -> Option<Operand> {
         }
     }
     if base == "URZ" {
-        return Some(Operand::UReg { num: 63, neg, reuse, is_zero: true });
+        return Some(Operand::UReg { num: 63, neg, abs, inv, reuse, is_zero: true });
     }
     if let Some(num_str) = base.strip_prefix("UR") {
         if let Ok(num) = num_str.parse::<u8>() {
-            return Some(Operand::UReg { num, neg, reuse, is_zero: false });
+            return Some(Operand::UReg { num, neg, abs, inv, reuse, is_zero: false });
         }
     }
     None
@@ -131,6 +133,9 @@ fn parse_immediate(s: &str, is_float_context: bool) -> Option<Operand> {
     if s.eq_ignore_ascii_case("NAN") || s.eq_ignore_ascii_case("+NAN") || s.eq_ignore_ascii_case("-NAN") {
         return Some(Operand::FloatImm(f64::NAN.to_bits()));
     }
+    // QNAN intentionally NOT special-cased: corpus shows per-instruction,
+    // bimodal QNAN bit lanes (FSEL +QNAN=0x7FC00000/0x7FF80000, MUFU
+    // -QNAN=0xFFC00000) with no text-visible discriminator — park as quirk.
 
     // Hex float: 0x<exactly 8 hex digits>F (trailing 'F' marks f32 raw bits).
     // Only treat as float when EXACTLY 8 hex digits precede the marker — a full
@@ -288,17 +293,27 @@ fn parse_single_operand(s: &str, is_float_context: bool) -> Operand {
         return op;
     }
 
-    // Barrier: B0-B7 (SM120 supports up to 7)
+    // Barrier: B0-B15 (sm_103a BSSY uses B8-B15)
     if let Some(num_str) = s.strip_prefix('B') {
         if let Ok(n) = num_str.parse::<u8>() {
-            if n <= 7 {
+            if n <= 15 {
                 return Operand::Barrier(n);
             }
         }
     }
 
-    // System register: SR_TID.X, SR_CTAID.X
-    if s.starts_with("SR_") {
+    // Scoreboard barrier: SB0-SB7 (DEPBAR.LE SB<n>, imm). Encoded as a small
+    // barrier-number field; treating it as an immediate keeps the II key.
+    if let Some(num_str) = s.strip_prefix("SB") {
+        if let Ok(n) = num_str.parse::<u8>() {
+            if n <= 7 {
+                return Operand::Imm32(n as i64);
+            }
+        }
+    }
+
+    // System register: SR_TID.X, SR_CTAID.X, SRZ (zero; encodes as 0xff)
+    if s.starts_with("SR_") || s == "SRZ" {
         return Operand::SysReg(s.to_string());
     }
 

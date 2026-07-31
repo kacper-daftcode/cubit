@@ -28,6 +28,9 @@ enum Commands {
         table: PathBuf,
         #[arg(short, long, default_value = "tables/records.jsonl")]
         records: PathBuf,
+        /// Write failing records (with re-encoded code) to this JSONL file.
+        #[arg(long)]
+        dump_failures: Option<PathBuf>,
     },
     /// Encode a single SASS instruction.
     Encode {
@@ -64,6 +67,11 @@ enum Commands {
         /// (the scheduler is bypassed) — for faithful round-trips and bisection.
         #[arg(long)]
         frozen: bool,
+        /// Proceed even if the cubin's ELF arch (e_flags SM field) does not match
+        /// the ISA table's target arch. Default: refuse (mis-decoding sm_100 words
+        /// with an sm_103 table silently produces wrong SASS).
+        #[arg(long)]
+        allow_arch_mismatch: bool,
     },
     /// Round-trip test: read cubin, disassemble, re-encode, compare.
     Roundtrip {
@@ -72,6 +80,9 @@ enum Commands {
         #[arg(short, long, default_value = "tables/records.jsonl")]
         records: PathBuf,
         inputs: Vec<PathBuf>,
+        /// Report arch mismatches but keep comparing (do not refuse).
+        #[arg(long)]
+        allow_arch_mismatch: bool,
     },
     /// Patch a cubin: disassemble → re-encode → write patched cubin.
     Patch {
@@ -82,6 +93,9 @@ enum Commands {
         input: PathBuf,
         #[arg(short, long)]
         output: PathBuf,
+        /// Proceed even if the cubin arch does not match the table's target arch.
+        #[arg(long)]
+        allow_arch_mismatch: bool,
     },
     /// Assemble a .sass file into a cubin.
     Asm {
@@ -141,14 +155,16 @@ enum Commands {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
-        Commands::Validate { table, records } => cmd_validate(&table, &records),
+        Commands::Validate { table, records, dump_failures } => {
+            cmd_validate(&table, &records, dump_failures.as_deref())
+        }
         Commands::Encode { table, addr, sass } => cmd_encode(&table, &addr, &sass),
         Commands::Decode { table, addr, code } => cmd_decode(&table, &addr, &code),
-        Commands::Disassemble { table, input, kernel, output, frozen } =>
-            cmd_disassemble(&table, &input, kernel.as_deref(), output.as_deref(), frozen),
-        Commands::Roundtrip { table, records, inputs } => cmd_roundtrip(&table, &records, &inputs),
-        Commands::Patch { table, records, input, output } =>
-            cmd_patch(&table, &records, &input, &output),
+        Commands::Disassemble { table, input, kernel, output, frozen, allow_arch_mismatch } =>
+            cmd_disassemble(&table, &input, kernel.as_deref(), output.as_deref(), frozen, allow_arch_mismatch),
+        Commands::Roundtrip { table, records, inputs, allow_arch_mismatch } => cmd_roundtrip(&table, &records, &inputs, allow_arch_mismatch),
+        Commands::Patch { table, records, input, output, allow_arch_mismatch } =>
+            cmd_patch(&table, &records, &input, &output, allow_arch_mismatch),
         Commands::Asm { table, input, template, eiattr_from, output, kernel, mercury_stub } =>
             cmd_asm(&table, &input, template.as_deref(), eiattr_from.as_deref(), &output, kernel.as_deref(), mercury_stub.as_deref()),
         Commands::AsmText { table, addr, code, format } =>
@@ -271,7 +287,7 @@ const SCHED_MASK: u128 = (cubit::scheduling::CC_MASK as u128) << 64;
 
 // ── commands ──────────────────────────────────────────────────────────────────
 
-fn cmd_validate(table_path: &Path, records_path: &Path) -> Result<()> {
+fn cmd_validate(table_path: &Path, records_path: &Path, dump_failures: Option<&Path>) -> Result<()> {
     let table = IsaTable::load(table_path)?;
     println!("Loaded {} keys, {} groups from {}", table.num_keys(), table.num_groups(), table_path.display());
 
@@ -281,6 +297,10 @@ fn cmd_validate(table_path: &Path, records_path: &Path) -> Result<()> {
     let mut total = 0usize;
     let mut passed = 0usize;
     let mut by_key: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut dump: Option<std::io::BufWriter<std::fs::File>> = match dump_failures {
+        Some(p) => Some(std::io::BufWriter::new(std::fs::File::create(p)?)),
+        None => None,
+    };
 
     for rec in &records {
         total += 1;
@@ -291,14 +311,41 @@ fn cmd_validate(table_path: &Path, records_path: &Path) -> Result<()> {
         if insn.key != rec.key && table.get_key(&rec.key).is_some() {
             insn.key = rec.key.clone();
         }
+        // Extract scheduling (incl. yield flag) from the original code so that
+        // fields like YieldInv — which depend on yield — encode correctly.
+        let orig_upper32 = (rec.code >> 96) as u32;
+        insn.ctrl = cubit::scheduling::decode_sched_upper32(orig_upper32);
         let code = match cubit::encoder::encode_instruction(&insn, &table) {
             Ok(c) => c,
-            Err(_) => { *by_key.entry(format!("{} [enc]", rec.key)).or_default() += 1; continue; }
+            Err(e) => {
+                *by_key.entry(format!("{} [enc]", rec.key)).or_default() += 1;
+                if let Some(w) = dump.as_mut() {
+                    use std::io::Write;
+                    let line = serde_json::json!({
+                        "key": rec.key, "mg": rec.mod_group, "addr": rec.addr,
+                        "code": format!("0x{:032x}", rec.code),
+                        "error": e.to_string(),
+                        "asm": rec.asm,
+                    });
+                    writeln!(w, "{line}")?;
+                }
+                continue;
+            }
         };
         if (code & !SCHED_MASK) == (rec.code & !SCHED_MASK) {
             passed += 1;
         } else {
             *by_key.entry(rec.key.clone()).or_default() += 1;
+            if let Some(w) = dump.as_mut() {
+                use std::io::Write;
+                let line = serde_json::json!({
+                    "key": rec.key, "mg": rec.mod_group, "addr": rec.addr,
+                    "code": format!("0x{:032x}", rec.code),
+                    "reenc": format!("0x{:032x}", code),
+                    "asm": rec.asm,
+                });
+                writeln!(w, "{line}")?;
+            }
         }
     }
 
@@ -398,17 +445,32 @@ fn cmd_decode(table_path: &Path, addr_str: &str, code_parts: &[String]) -> Resul
     Ok(())
 }
 
+/// Refuse to process a cubin whose ELF arch differs from the table's target
+/// SM arch (mis-decoding cross-arch words silently produces wrong SASS, e.g.
+/// sm_100 MOV occupies the sm_103 LDC.64 encoding slot).
+fn check_arch(table: &IsaTable, sm: cubit::elf::SmVersion, path: &Path, allow: bool) -> Result<()> {
+    let want = table.target_sm();
+    let got = sm.sm;
+    if want == 0 || got == 0 || want == got { return Ok(()); }
+    let msg = format!(
+        "arch mismatch: {} is sm_{} but the table targets sm_{};          pass --allow-arch-mismatch to force",
+        path.display(), got, want);
+    if allow { eprintln!("warning: {msg}"); Ok(()) } else { anyhow::bail!("{msg}") }
+}
+
 fn cmd_disassemble(
     table_path: &Path,
     input: &Path,
     only_kernel: Option<&str>,
     output_path: Option<&std::path::Path>,
     frozen: bool,
+    allow_arch_mismatch: bool,
 ) -> Result<()> {
     let table = IsaTable::load(table_path)?;
     let index = cubit::decoder::DecodeIndex::build(&table);
 
     let cubin = cubit::elf::CubinFile::load(input)?;
+    check_arch(&table, cubin.sm, input, allow_arch_mismatch)?;
     let mut lines: Vec<String> = Vec::new();
 
     for (sec_idx, (sec_name, _off, _size)) in cubin.text_sections.iter().enumerate() {
@@ -575,14 +637,24 @@ fn cmd_disassemble(
                 // Branches round-trip via label resolution (re-encode depends on addr).
                 if is_branch(&d.text) {
                     let mut text = d.text.clone();
+                    let mut relabeled = false;
                     if let Some(t) = last_hex(&text) {
                         let hexs = format!("0x{t:x}");
                         if let Some(pos) = text.rfind(&hexs) {
-                            text.replace_range(pos..pos + hexs.len(), &format!("L_{t:x}"));
+                            // Only ABSOLUTE targets get labels. BRX "-0xN" is a
+                            // reg-relative byte offset: rewrite would fabricate
+                            // "-L_x" (unparseable) and lose the value.
+                            if !text[..pos].trim_end().ends_with('-') {
+                                text.replace_range(pos..pos + hexs.len(), &format!("L_{t:x}"));
+                                relabeled = true;
+                            }
                         }
                     }
-                    lines.push(format!("{label}[{cc_str}] {text} ;"));
-                    continue;
+                    if relabeled {
+                        lines.push(format!("{label}[{cc_str}] {text} ;"));
+                        continue;
+                    }
+                    // offset-form branch: fall through to the fidelity check below
                 }
                 // Non-branch: verify decode -> re-encode is byte-faithful (non-sched
                 // bits). If a table gap makes it lossy, emit exact bytes as __raw__ so
@@ -628,7 +700,7 @@ fn cmd_disassemble(
     Ok(())
 }
 
-fn cmd_roundtrip(table_path: &Path, _records_path: &PathBuf, inputs: &[PathBuf]) -> Result<()> {
+fn cmd_roundtrip(table_path: &Path, _records_path: &PathBuf, inputs: &[PathBuf], allow_arch_mismatch: bool) -> Result<()> {
     let table = IsaTable::load(table_path)?;
     println!("Loaded {} keys, {} groups", table.num_keys(), table.num_groups());
 
@@ -637,6 +709,9 @@ fn cmd_roundtrip(table_path: &Path, _records_path: &PathBuf, inputs: &[PathBuf])
     for input in inputs {
         println!("\n{}", "=".repeat(60));
         println!("File: {}", input.display());
+        if let Ok(cub) = cubit::elf::CubinFile::load(input) {
+            check_arch(&table, cub.sm, input, allow_arch_mismatch)?;
+        }
         let sass = load_cuobjdump_sass(input)?;
         let func_insns = parse_cuobjdump_output(&sass);
 
@@ -690,12 +765,13 @@ fn cmd_roundtrip(table_path: &Path, _records_path: &PathBuf, inputs: &[PathBuf])
     Ok(())
 }
 
-fn cmd_patch(table_path: &Path, _records_path: &PathBuf, input: &PathBuf, output: &PathBuf) -> Result<()> {
+fn cmd_patch(table_path: &Path, _records_path: &PathBuf, input: &PathBuf, output: &PathBuf, allow_arch_mismatch: bool) -> Result<()> {
     use cubit::elf::CubinFile;
     use cubit::decoder::DecodeIndex;
     let table = IsaTable::load(table_path)?;
     let index = DecodeIndex::build(&table);
     let mut cubin = CubinFile::load(input.as_path())?;
+    check_arch(&table, cubin.sm, input, allow_arch_mismatch)?;
     println!("Input: {} (SM{}, {} text sections)", input.display(), cubin.sm.sm, cubin.text_sections.len());
 
     for sec_idx in 0..cubin.text_sections.len() {
@@ -1192,8 +1268,8 @@ fn cmd_asm_build_elf(
             .collect();
         rebuild_cubin(&ref_bytes, &patches)?
     } else {
-        use cubit::elf_builder::build_cubin_mercury;
-        build_cubin_mercury(&entries)?
+        use cubit::elf_builder::build_cubin_mercury_for_arch;
+        build_cubin_mercury_for_arch(&entries, table.ef_flags)?
     };
 
     std::fs::write(output_path, &cubin_bytes)?;
@@ -1312,12 +1388,12 @@ fn cmd_asm_directive_format(
                     addr: 0, opcode: "UIADD3".into(), opcode_full: "UIADD3".into(),
                     key: "UIADD3_UR_UP_UP_UR_UR_UR/".into(), guard: None,
                     operands: vec![
-                        cubit::ir::Operand::UReg { num: 63, neg: false, reuse: false, is_zero: true },
+                        cubit::ir::Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true },
                         cubit::ir::Operand::UPred { num: 7, neg: false },
                         cubit::ir::Operand::UPred { num: 7, neg: false },
-                        cubit::ir::Operand::UReg { num: 63, neg: false, reuse: false, is_zero: true },
-                        cubit::ir::Operand::UReg { num: 63, neg: false, reuse: false, is_zero: true },
-                        cubit::ir::Operand::UReg { num: 63, neg: false, reuse: false, is_zero: true },
+                        cubit::ir::Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true },
+                        cubit::ir::Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true },
+                        cubit::ir::Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true },
                     ],
                     modifiers: vec![],
                     // stall>=12: a UIADD3 drain carrying a wait_mask needs >=12 cycles for the
@@ -1421,12 +1497,12 @@ fn cmd_asm_directive_format(
                 key: "UIADD3_UR_UP_UP_UR_UR_UR".into(),
                 guard: Some(cubit::ir::Guard { pred: 7, negated: true, uniform: true }),
                 operands: vec![
-                    cubit::ir::Operand::UReg { num: 63, neg: false, reuse: false, is_zero: true },
+                    cubit::ir::Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true },
                     cubit::ir::Operand::UPred { num: 7, neg: false },
                     cubit::ir::Operand::UPred { num: 7, neg: false },
-                    cubit::ir::Operand::UReg { num: 63, neg: false, reuse: false, is_zero: true },
-                    cubit::ir::Operand::UReg { num: 63, neg: false, reuse: false, is_zero: true },
-                    cubit::ir::Operand::UReg { num: 63, neg: false, reuse: false, is_zero: true },
+                    cubit::ir::Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true },
+                    cubit::ir::Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true },
+                    cubit::ir::Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true },
                 ],
                 modifiers: vec![],
                 ctrl: cubit::ir::ControlCode { stall, wait_mask: 0, ..Default::default() },
@@ -1820,7 +1896,7 @@ fn cmd_asm_directive_format(
             let pad_count: usize = std::env::var("CUBIT_UNIFORM_PAD").ok()
                 .and_then(|s| s.parse().ok()).unwrap_or(1);
             for (idx, _wm, is_pad) in inserts.iter().rev() {
-                let urz = || cubit::ir::Operand::UReg { num: 63, neg: false, reuse: false, is_zero: true };
+                let urz = || cubit::ir::Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true };
                 let upt = || cubit::ir::Operand::UPred { num: 7, neg: false };
                 let mk = |stall: u8, wm: u8, txt: &str| cubit::ir::Instruction {
                     opcode: "UIADD3".into(),
@@ -1986,21 +2062,10 @@ fn cmd_asm_directive_format(
         println!("  {}: regcount={}, params={}, barriers={}",
             def.name, meta.regcount, meta.params.len(), meta.num_barriers);
 
-        // Debug: dump LDG instruction bytes
-        for (i, insn) in insns_with_ctrl.iter().enumerate() {
-            if insn.opcode == "LDG" {
-                let off = i * 16;
-                let lo = u64::from_le_bytes(code_bytes[off..off+8].try_into().unwrap());
-                let hi = u64::from_le_bytes(code_bytes[off+8..off+16].try_into().unwrap());
-                eprintln!("[bytes] LDG i={i} lo=0x{lo:016x} hi=0x{hi:016x} upper32=0x{:08x}", (hi >> 32) as u32);
-            }
-        }
-        let has_merc = mercury_stub.is_some();
         entries.push(KernelEntry {
             name: def.name.clone(), code: code_bytes, meta,
             mercury_stub: mercury_stub.map(|s| s.to_vec()),
         });
-        eprintln!("[debug] entry {} mercury_stub={}", def.name, has_merc);
     }
 
     if entries.is_empty() {
@@ -2021,8 +2086,8 @@ fn cmd_asm_directive_format(
             .map(|e| (e.name.as_str(), e.code.clone(), e.mercury_stub.clone())).collect();
         rebuild_cubin(&ref_bytes, &patches)?
     } else {
-        use cubit::elf_builder::build_cubin_mercury;
-        build_cubin_mercury(&entries)?
+        use cubit::elf_builder::build_cubin_mercury_for_arch;
+        build_cubin_mercury_for_arch(&entries, table.ef_flags)?
     };
 
     std::fs::write(output_path, &cubin_bytes)

@@ -61,6 +61,10 @@ pub enum Extraction {
     // Flags
     Neg, NegShl1, Reuse, Inv, Abs, NegAbs,
     ByteSel,
+    // Half-register pair selector parsed from raw text (.H0_H0/.H0_H1/.H1_H1):
+    // sm_103a fp16x2-class ops encode it as 2 bits (none=0, H0_H1=1, H0_H0=2,
+    // H1_H1=3), empirically pure over the corpus.
+    HalfSel,
     // System register
     SysReg, SysRegLo7, SysRegLo4, SysRegHi4, SysRegHi1,
     // Register bit-shifted (for double-precision, S64, etc.)
@@ -75,6 +79,34 @@ pub enum Extraction {
     // re-encoded from the modifier text. Used for comparison modes (EQ/NE/LT/LE/GT/GE),
     // reduction functions (AND/OR/XOR/SUM/MIN/MAX), signed flags, combine modes (AND/OR/XOR).
     OpaqueModifier,
+    // Operand-attached modifier flag: 1 if the raw SASS text of the operand
+    // carries ".NAME" (e.g. opmod:HI_LO for "R106.F32x2.HI_LO"). sm_103a
+    // paired-FFMA2 class encodings are partly controlled by these.
+    OpModFlag(String),
+    // Instruction mnemonic mod at ordered position: "mnemod1:F32" is 1 when
+    // the first suffix of the instruction name is F32 (distinguishes
+    // F2F.F32.F64 from F2F.F64.F32 within the same sorted mod group).
+    MnemMod(u8, String),
+    // Bfloat16 immediate (f64 -> f32 -> bf16 round-to-nearest-even)
+    BF16,
+    // Number scraped from a Label operand's raw text: the parser keeps
+    // tcgen05 tmem[UR4+0x10] / gdesc[UR24] / idesc[UR23] / desc[UR6] forms
+    // as labels; the pattern name selects which number to read.
+    // "tdesc_*" patterns accept any of the four descriptor kinds (mixed-kind
+    // operand positions), "dsel2" reads the 2-bit kind tag.
+    LblPat(String),
+    // Explicit "+URZ" addressing-mode flag read from the operand's raw text
+    // (STS.64 [R3+URZ+...]); UrExplInv is the inverse-polarity twin.
+    UrExpl,
+    UrExplInv,
+    // Address sub-UR number minus one: sibling-pair convention where the
+    // second [URx] operand shares the first's slot (UGETNEXTWORKID.BROADCAST
+    // corpus records: URb == URa + 1 in one 8-bit window).
+    SubURm1(u8),
+    // Derived from the scheduling yield flag (inverted): 1 when yield is false.
+    // Used by barrier/sync instructions where yield=0 triggers additional
+    // hi-dword bits (122/124 in DEPBAR on sm_103a) that the SCHED mask doesn't cover.
+    YieldInv,
     // Unknown (no extraction, use 0)
     None,
 }
@@ -104,6 +136,7 @@ fn parse_extraction(s: &str) -> Extraction {
         "abs" => Extraction::Abs,
         "neg_abs" => Extraction::NegAbs,
         "byte_sel" => Extraction::ByteSel,
+        "hsel" => Extraction::HalfSel,
         "sysreg" => Extraction::SysReg,
         "sysreg_lo7" => Extraction::SysRegLo7,
         "sysreg_lo4" => Extraction::SysRegLo4,
@@ -126,10 +159,41 @@ fn parse_extraction(s: &str) -> Extraction {
         "sub_ur1_shr1" => Extraction::SubURShr(1, 1),
         "sub_imm1_shr1" => Extraction::SubImmShr(1, 1),
         "sub_imm2_shr1" => Extraction::SubImmShr(2, 1),
+        s if s.starts_with("sub_imm") && s.contains("_shr") => {
+            // generic "sub_imm{i}_shr{n}" (sm_103a wide-desc offsets scale the
+            // immediate; e.g. ENL2.256 desc stores off>>5)
+            let body = &s[7..];
+            if let Some((i, n)) = body.split_once("_shr") {
+                Extraction::SubImmShr(i.parse().unwrap_or(0), n.parse().unwrap_or(1))
+            } else {
+                Extraction::None
+            }
+        }
         "cm16_off" => Extraction::Cm16Off,
         "cm17_off" => Extraction::Cm17Off,
         "opaque_mod" => Extraction::OpaqueModifier,
+        "bf16" => Extraction::BF16,
         "" => Extraction::None,
+        s if matches!(s, "tmem_ur" | "tmem_off" | "gdesc_ur" | "gdesc_off"
+                        | "idesc_ur" | "desc_ur"
+                        | "tdesc_ur" | "tdesc_off" | "dsel2") => {
+            Extraction::LblPat(s.to_string())
+        }
+        "urz_expl" => Extraction::UrExpl,
+        "urz_expl_inv" => Extraction::UrExplInv,
+        s if s.starts_with("sub_ur") && s.ends_with("_m1") => {
+            let i: u8 = s[6..s.len() - 3].parse().unwrap_or(0);
+            Extraction::SubURm1(i)
+        }
+        s if s.starts_with("opmod:") => {
+            Extraction::OpModFlag(s[6..].to_string())
+        }
+        s if s.starts_with("mnemod") => {
+            let rest = &s[6..];
+            let (i, name) = rest.split_once(':')
+                .unwrap_or(("1", rest));
+            Extraction::MnemMod(i.parse::<u8>().unwrap_or(1), name.to_string())
+        }
         s if s.starts_with("reg_shr") => {
             let n: u8 = s[7..].parse().unwrap_or(0);
             Extraction::RegShr(n)
@@ -161,6 +225,7 @@ fn parse_extraction(s: &str) -> Extraction {
             let shr: u8 = parts.get(2).and_then(|p| p.strip_prefix("shr")).and_then(|n| n.parse().ok()).unwrap_or(0);
             Extraction::SubImmShr(idx, shr)
         }
+        "yield_inv" => Extraction::YieldInv,
         _ => {
             eprintln!("warning: unknown extraction '{s}', using None");
             Extraction::None
@@ -211,6 +276,22 @@ pub struct InsKeyEntry {
 pub struct IsaTable {
     /// Map from InsKey to modifier groups.
     pub entries: HashMap<String, InsKeyEntry>,
+    /// ELF e_flags for the target architecture (from _meta.architecture).
+    pub ef_flags: u32,
+}
+
+impl Default for IsaTable {
+    fn default() -> Self {
+        Self { entries: HashMap::new(), ef_flags: crate::elf_builder::EF_CUDA_SM120 }
+    }
+}
+
+/// Map _meta.architecture (e.g. "SM103a") to CUDA ELF e_flags.
+fn arch_ef_flags(arch: &str) -> Option<u32> {
+    let a = arch.to_ascii_lowercase();
+    if a.contains("103") { Some(0x0600_6702) }      // sm_103 / sm_103a (B300)
+    else if a.contains("120") { Some(0x0600_7802) } // sm_120
+    else { None }
 }
 
 fn parse_hex_u128(s: &str) -> Result<u128> {
@@ -220,6 +301,11 @@ fn parse_hex_u128(s: &str) -> Result<u128> {
 }
 
 impl IsaTable {
+    /// Numeric SM arch this table targets (from _meta.architecture e_flags).
+    pub fn target_sm(&self) -> u32 {
+        crate::elf::sm_from_ef_flags(self.ef_flags)
+    }
+
     /// Load from a per-modifier-group JSON file.
     /// Load from default location: CUBIT_TABLE env var, then tables/sm120.json.
     pub fn load_default() -> Result<Self> {
@@ -285,7 +371,12 @@ impl IsaTable {
             }
         }
 
-        Ok(IsaTable { entries })
+        let ef_flags = raw.get("_meta")
+            .and_then(|m| m.get("architecture"))
+            .and_then(|v| v.as_str())
+            .and_then(arch_ef_flags)
+            .unwrap_or(crate::elf_builder::EF_CUDA_SM120);
+        Ok(IsaTable { entries, ef_flags })
     }
 
     /// Resolve _meta.ctrl_classes + _meta.ctrl_epochs into a map from
@@ -364,7 +455,7 @@ impl IsaTable {
             entries.insert(key, InsKeyEntry { mod_groups, ctrl_class: None, epoch_upper32: None });
         }
 
-        Ok(IsaTable { entries })
+        Ok(IsaTable { entries, ef_flags: crate::elf_builder::EF_CUDA_SM120 })
     }
 
     /// Look up encoding for (InsKey, modifier_group).

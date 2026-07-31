@@ -75,8 +75,10 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             };
             return format!("{guard_prefix}{opcode} {barrier_str}, 0x{target:x}");
         }
-        // BRA.U: uniform predicate at bits[26:24], negation at bit 27
-        if insn.opcode == "BRA.U" {
+        // BRA.U: uniform predicate at bits[26:24], negation at bit 27.
+        // DecodedInst.opcode is the base "BRA" (the .U suffix lives in the
+        // mod group), so key off the InsKey which carries the UP operand sig.
+        if insn.opcode == "BRA.U" || insn.key.starts_with("BRA_UP_") {
             let lo64 = insn.raw_code as u64;
             let upred = (lo64 >> 24) & 0x7;
             let upred_neg = (lo64 >> 27) & 1;
@@ -91,6 +93,19 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             };
             return format!("{guard_prefix}{opcode} {upred_str}, 0x{target:x}");
         }
+        // BRX: register at bits[31:24] plus signed byte offset; sm_103a layout
+        // imm17 = rq[5:0]@[23:18] | rq[16:6]@[50:34], sext [63:45], off=rq<<4
+        // (inverse of the encoder's verified BRX path; corpus prints
+        // "BRX R2 -0x890" with an optional BRANCH_TARGETS comment).
+        if insn.opcode == "BRX" {
+            let lo64 = insn.raw_code as u64;
+            let reg = (lo64 >> 24) & 0xFF;
+            let rq = ((lo64 >> 18) & 0x3F) | (((lo64 >> 34) & 0x7FF) << 6);
+            let rq = if rq & 0x10000 != 0 { rq | !0x1FFFFu64 } else { rq } as i64;
+            let off = rq << 4;
+            let off_s = if off < 0 { format!("-0x{:x}", -off) } else { format!("0x{off:x}") };
+            return format!("{guard_prefix}{opcode} R{reg}, {off_s}");
+        }
         // RET/RET.NODEC: register at bits[31:24], then branch target
         if insn.opcode.starts_with("RET") {
             let lo64 = insn.raw_code as u64;
@@ -98,6 +113,14 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             if reg != 0 && reg != 255 {
                 return format!("{guard_prefix}{opcode} R{reg}, 0x{target:x}");
             }
+        }
+        // BRA.DIV URn, target (InsKey BRA_UR_II, mg "DIV"): the exception-weight
+        // uniform register operand lives at bits[31:24]; without this the text
+        // silently drops it and the round-trip loses the operand.
+        if insn.key.starts_with("BRA_UR_") {
+            let lo64 = insn.raw_code as u64;
+            let ur = (lo64 >> 24) & 0xFF;
+            return format!("{guard_prefix}{opcode} UR{ur}, 0x{target:x}");
         }
         return format!("{guard_prefix}{opcode} 0x{target:x}");
     }
@@ -108,12 +131,37 @@ pub fn to_sass(insn: &DecodedInst) -> String {
     for (i, op_type) in op_types.iter().enumerate() {
         let tok = (i + 1) as i32;
         let fields = by_token.get(&tok).map(Vec::as_slice).unwrap_or(&[]);
+        let has_desc_family = fields.iter().any(|f| {
+            let e = norm_ext(&f.extraction);
+            matches!(e.as_str(),
+                "tdesc_ur" | "gdesc_ur" | "tmem_ur" | "idesc_ur" | "dsel2"
+                | "gdesc_off" | "tmem_off" | "idesc_off" | "tdesc_off"
+                | "desc_ur" | "desc_off")
+        });
         // S2R/S2UR: second operand is always a system register
         // (may be stored as '?', 'II', or 'L' in InsKey depending on decoder match)
         let s = if is_s2r && i >= 1 {
             format_sysreg(fields, raw)
         } else if op_type == "?" && is_s2r {
             format_sysreg(fields, raw)
+        } else if op_type == "dARI" {
+            // Descriptor-with-base form: must print the full desc[UR][R.64+off]
+            // pair (a lone desc[URn] loses base_reg/offset on the round-trip).
+            format_desc_addr(fields, raw)
+        } else if op_type == "II" && insn.key.starts_with("WARPSYNC_R_") {
+            // WARPSYNC.COLLECTIVE Rn, <partner target>: the encoded field is the
+            // number of 16-byte slots ahead; nvdisasm prints the RESOLVED address
+            // target = addr + 16 + (field << 4). Printing the raw field (e.g. "0x2")
+            // breaks our own text->encode roundtrip (encoder treats it as address).
+            let v = (((raw >> 18) & 0x3F) as u64) | ((((raw >> 34) & 0x3FF) as u64) << 6);
+            format!("0x{:x}", insn.addr as u64 + 16 + (v << 4))
+        } else if has_desc_family {
+            // tcgen05 descriptor operand: InsKey sig may read II but the text
+            // form is kind[URN(+0xoff)] — gdesc[]/tmem[]/idesc[] (UTCHMMA,
+            // UTCQMMA, LDTM, STTM, …). UTC tok5 (idesc) may have NO field:
+            // hardware then derives UR_idesc == UR_tmem2 + 1 (run27 rule).
+            format_utc_desc(tok, by_token.get(&tok).map(Vec::as_slice).unwrap_or(&[]),
+                            by_token.get(&4).map(Vec::as_slice).unwrap_or(&[]))
         } else {
             format_operand(op_type, fields, &insn.mod_group, &insn.key, tok, raw)
         };
@@ -492,7 +540,30 @@ fn format_operand(
             let e = norm_ext(&f.extraction);
             e.starts_with("imm") && !e.contains("shr")
         }) => format_imm(fields, mod_group, ins_key),
-        "R"     => format_reg(fields, mod_group, tok, raw, ins_key),
+        // R with a byte_sel field (R2P/I2F "R0.B1" form): append .B<n> when set.
+        "R"     => {
+            let s = format_reg(fields, mod_group, tok, raw, ins_key);
+            let bsel = fields.iter()
+                .find(|f| matches!(norm_ext(&f.extraction).as_str(),
+                    "byte_sel" | "bytesel") && f.value != 0)
+                .map(|f| f.value);
+            match bsel {
+                Some(b) => format!("{s}.B{b}"),
+                None => s,
+            }
+        },
+        // R2P destination: always the predicate-register file token "PR"
+        // (parsed as imm-0 in the corpus; printing the numeral round-trips
+        // but loses the architectural form nvdisasm emits).
+        "II" if ins_key.starts_with("R2P") && tok == 1 => "PR".to_string(),
+        // DEPBAR first operand is a scoreboard id; nvdisasm prints SB<n>.
+        "II" if ins_key.starts_with("DEPBAR") && tok == 1 => {
+            let n = fields.iter()
+                .find(|f| norm_ext(&f.extraction) == "imm")
+                .map(|f| f.value)
+                .unwrap_or(0);
+            format!("SB{n}")
+        },
         // For LOP3/LOP2/ULOP3 last P/UP operand: decode inv from bit 90 (not bit 87).
         // The trailing pred for these instructions uses bits[90:87]: bit90=inv, bits[89:87]=pred.
         // Only applies to LOP3/LOP2/ULOP3 (NOT PLOP3 which has different pred layout).
@@ -536,13 +607,14 @@ fn format_operand(
         // These are the same bracket address forms as ARURI (the address entry
         // may still carry an `imm` offset field). STS/LDS/LDSM print [R+UR+off];
         // everything else mirrors ARURI's desc[UR][R.64+off] form.
-        "ARUR" | "AUR" | "AURI" | "AURR" | "ARURR" if {
+        "AURI" => format_auri_uronly(fields, raw),
+        "ARUR" | "AUR" | "AURR" | "ARURR" if {
             let op = ins_key.split('_').next().unwrap_or("");
             op.starts_with("STS") || op.starts_with("LDS") || op.starts_with("LDSM")
         } => format_sts_lds_addr(fields, raw),
-        "ARUR" | "AUR" | "AURI" | "AURR" | "ARURR" => format_aruri(fields, raw),
+        "ARUR" | "AUR" | "AURR" | "ARURR" => format_aruri(fields, raw),
         "dARI"  => format_desc_addr(fields, raw),
-        "cAI"   => format_const_addr(fields),
+        "cAI" | "cARI" => format_const_addr(fields),
         "B"     => format_barrier(fields),
         // Unknown token type "?" — treat as UR register (raw fallback)
         "?"     => format_ureg_raw(fields, raw),
@@ -637,6 +709,7 @@ fn format_reg(fields: &[&DecodedField], _mod_group: &str, tok: i32, raw: u128, i
     let mut abs = false;
     let mut inv = false;
     let mut reuse = false;
+    let mut opmods: Vec<String> = Vec::new();
 
     for f in fields {
         let e = norm_ext(&f.extraction);
@@ -653,6 +726,22 @@ fn format_reg(fields: &[&DecodedField], _mod_group: &str, tok: i32, raw: u128, i
             "reuse"     => reuse = f.value != 0,
             _ => {}
         }
+        // Operand-level modifier flags (.F32x2.HI_LO etc.) live as opmod:NAME
+        // fields; when set non-zero they must be printed, else the encoder
+        // drops the bits (FMUL2 Rn, Rn.F32x2.HI_LO, R0.reuse.F32).
+        // NOTE: take the RAW extraction string (norm_ext lowercases
+        // "opmod:F32x2" → "opmod:f32x2"); the parser is case-sensitive here.
+        // Half-selectors (.H0_H0/.H0_H1/.H1_H1) come from the field-level
+        // "hsel" extraction (encoder op_hsel maps the same strings back).
+        if norm_ext(&f.extraction) == "hsel" && f.value != 0 {
+            let h = match f.value { 3 => "H1_H1", 2 => "H0_H0", 1 => "H0_H1", _ => "" };
+            if !h.is_empty() { opmods.push(h.to_string()); }
+        }
+        if let Some(name) = f.extraction.strip_prefix("opmod:") {
+            if f.value != 0 {
+                opmods.push(name.to_string());
+            }
+        }
     }
 
     // Fallback: when the register is baked into and_base (no variable field),
@@ -668,7 +757,9 @@ fn format_reg(fields: &[&DecodedField], _mod_group: &str, tok: i32, raw: u128, i
             255 // RZ
         } else { v };
         reg = Some(v);
-        if !neg && reg != Some(255) && is_fp_ins(ins_key) {
+        if !neg && is_fp_ins(ins_key) {
+            // Also for RZ: nvdisasm prints "-RZ" when the sign bit is set, and the
+            // encoder must see it to reproduce the bit (HADD2.F32 Rn, -RZ, …).
             if let Some(neg_shift) = neg_bit_for_tok(tok, ins_key) {
                 neg = ((raw >> neg_shift) & 1) != 0;
             }
@@ -704,7 +795,20 @@ fn format_reg(fields: &[&DecodedField], _mod_group: &str, tok: i32, raw: u128, i
             else if neg         { format!("-{base}") }
             else                { base };
 
-    if reuse { format!("{s}.reuse") } else { s }
+    // Canonical operand-mod order in SASS text: data-type modifiers first
+    // (F32x2/BF16x2/…), lane/selector mods last (HI_LO, LO_HI, H0, H1).
+    let rank = |m: &str| -> u8 {
+        if m.ends_with("X2") || m.ends_with("x2") { 0 }
+        else if matches!(m, "F32" | "F16" | "BF16" | "TF32" | "F64"
+                          | "E4M3" | "E5M2" | "E3M2" | "E2M3" | "E2M1"
+                          | "S32" | "U32" | "S64" | "U64" | "S16" | "U16"
+                          | "S8" | "U8" | "FP8" | "BF16x2") { 1 }
+        else { 2 }
+    };
+    opmods.sort_by_key(|m| rank(m));
+    let mods = if opmods.is_empty() { String::new() }
+               else { format!(".{}", opmods.join(".")) };
+    if reuse { format!("{s}.reuse{mods}") } else { format!("{s}{mods}") }
 }
 
 /// Format an "II" operand — can be immediate OR register (when IMAD.SHL uses
@@ -853,13 +957,16 @@ fn format_imm(fields: &[&DecodedField], _mod_group: &str, ins_key: &str) -> Stri
                 // Sign-extend for "medium" immediates (12-62 bits).
                 // Small fields (<12 bits: shift amounts, LUT values) stay unsigned.
                 // Large 64-bit fields stay as raw unsigned.
+                // OR-accumulate (not overwrite): split-window immediates pair a
+                // plain "imm" slice with an "imm_shrN" sibling on one token
+                // (PLOP3.LUT tok6 = [66:64] | [76:72]<<3 -> "0x80").
                 let val = if f.bits >= 12 && f.bits < 64 {
                     sign_extend(f.value, f.bits)
                 } else {
                     f.value as i64
                 };
-                imm = val;
-                imm_bits = f.bits;
+                imm |= val;
+                imm_bits = imm_bits.max(f.bits);
                 has_imm = true;
             }
             s if s.starts_with("imm_shr") => {
@@ -919,13 +1026,19 @@ fn format_imm(fields: &[&DecodedField], _mod_group: &str, ins_key: &str) -> Stri
 
 fn format_float_imm(fields: &[&DecodedField]) -> String {
     let mut bits: Option<u32> = None;
+    let mut f64_hi: Option<u32> = None;
     let mut neg = false;
 
     for f in fields {
         let e = norm_ext(&f.extraction);
         match e.as_str() {
             "f16" | "f16_d" => bits = Some(half_to_f32_bits(f.value as u16)),
+            // BF16 immediate: top-half of an f32 (HFMA2.BF16_V2 0x3f80 -> "1").
+            "bf16"          => bits = Some((f.value as u32) << 16),
             "f32"           => bits = Some(f.value as u32),
+            // FP64 immediate carried as its high dword (DFMA/DADD/etc.);
+            // low 32 bits are zero in this encoding.
+            "f64hi"         => f64_hi = Some(f.value as u32),
             "imm"           => {
                 if f.bits >= 32 {
                     bits = Some(f.value as u32);
@@ -938,6 +1051,9 @@ fn format_float_imm(fields: &[&DecodedField]) -> String {
         }
     }
 
+    if let Some(h) = f64_hi {
+        return format_double(f64::from_bits((h as u64) << 32), neg);
+    }
     match bits {
         Some(b) => format_float(f32::from_bits(b), neg),
         None    => "0".to_string(),
@@ -1037,6 +1153,108 @@ fn format_addr(fields: &[&DecodedField], raw: u128) -> String {
     format!("[{inner}]")
 }
 
+// ── UTC* — tcgen05 MMA descriptor operands (gdesc/tmem/idesc) ───────────────
+
+fn format_utc_desc(tok: i32, fields: &[&DecodedField], tok4_fields: &[&DecodedField]) -> String {
+    let mut ur: Option<u64> = None;
+    let mut off: u64 = 0;
+    let mut dsel: Option<u64> = None;
+    for f in fields {
+        let e = norm_ext(&f.extraction);
+        match e.as_str() {
+            "tdesc_ur" | "gdesc_ur" | "tmem_ur" | "idesc_ur" => ur = Some(f.value),
+            // plain desc_ur (UTMALDG/UTMASTG single-bracket desc[URn]) carried
+            // the value but never assigned it — desc[URZ] was printed always.
+            "desc_ur" => ur = Some(f.value),
+            "dsel2" => dsel = Some(f.value),
+            s if s.ends_with("_off") => off |= f.value,
+            _ => {}
+        }
+    }
+    // Kind selection: tok1 may be mixed-kind (dsel2: gdesc=1, tmem=2);
+    // idesc slot defaults to UR_tmem2+1 when hardware holds no own field.
+    // Kind: prefer the extraction family actually present on this token
+    // (works for LDTM/STTM tmem[] tokens as well); UTC tok1 is mixed-kind
+    // and selects via dsel2 (gdesc=1, tmem=2).
+    let kind = if fields.iter().any(|f| norm_ext(&f.extraction).starts_with("gdesc")) {
+        "gdesc"
+    } else if fields.iter().any(|f| norm_ext(&f.extraction).starts_with("tmem")) {
+        "tmem"
+    } else if fields.iter().any(|f| norm_ext(&f.extraction).starts_with("idesc")) {
+        "idesc"
+    } else if fields.iter().any(|f| norm_ext(&f.extraction).starts_with("desc_")) {
+        // UTMALDG/UTMASTG single-bracket desc[URx(+0xoff)] operand.
+        "desc"
+    } else {
+        match tok {
+            1 => if dsel == Some(2) { "tmem" } else { "gdesc" },
+            2 => "gdesc",
+            3 | 4 => "tmem",
+            _ => "idesc",
+        }
+    };
+    if ur.is_none() && tok == 5 {
+        for f in tok4_fields {
+            if norm_ext(&f.extraction) == "tmem_ur" {
+                ur = Some(f.value.wrapping_add(1));
+                break;
+            }
+        }
+    }
+    let ur_s = match ur {
+        Some(63) | Some(255) | None => "URZ".to_string(),
+        Some(n) => format!("UR{n}"),
+    };
+    if off != 0 {
+        format!("{kind}[{ur_s}+0x{off:x}]")
+    } else {
+        format!("{kind}[{ur_s}]")
+    }
+}
+
+// ── AURI — UR-only indirect address ──────────────────────────────────────────
+// Records store this form literally as "[URN]" / "[URN+0xN]" (UTMALDG/UTMASTG/
+// SYNCS/UTMACCTL); the parser maps that bracket text back to an AURI operand.
+// Printing the ARURI desc[UR][R.64] form here would fabricate a base register
+// (raw-fallback reads the UR slot as R!) and produces text that re-parses as
+// Desc — unencodable under an _AURI key.
+fn format_auri_uronly(fields: &[&DecodedField], raw: u128) -> String {
+    let mut ur: Option<u64> = None;
+    let mut offset: i64 = 0;
+    let mut has_off_from_field = false;
+    for f in fields {
+        let e = norm_ext(&f.extraction);
+        match e.as_str() {
+            "sub_ur0" | "sub_ur1" | "ureg" | "tdesc_ur" | "gdesc_ur" =>
+                ur = Some(f.value),
+            "sub_ur0_shr1" | "sub_ur1_shr1" => ur = Some(f.value << 1),
+            s if s.starts_with("sub_imm") => {
+                let sh = parse_shr_suffix(s);
+                offset |= sign_extend(f.value, f.bits) << sh;
+                has_off_from_field = true;
+            }
+            "imm" if f.bits >= 8 => {
+                offset = sign_extend(f.value, f.bits);
+                has_off_from_field = true;
+            }
+            _ => {}
+        }
+    }
+    // UR index fallback: uniform datapath register field at bits[31:24].
+    let un = ur.unwrap_or(((raw >> 24) as u64) & 0xFF);
+    let ur_s = if un == 255 || un == 63 { "URZ".to_string() } else { format!("UR{un}") };
+    if !has_off_from_field {
+        offset = 0;
+    }
+    if offset != 0 {
+        if offset < 0 {
+            return format!("[{ur_s}+-0x{:x}]", (-offset) as u64);
+        }
+        return format!("[{ur_s}+0x{offset:x}]");
+    }
+    format!("[{ur_s}]")
+}
+
 // ── ARURI — descriptor address via UR ────────────────────────────────────────
 // Format: desc[UR][R.64+off]
 
@@ -1053,7 +1271,7 @@ fn format_aruri(fields: &[&DecodedField], raw: u128) -> String {
             "sub_r1" | "sub_r0"                => base_reg = Some(f.value),
             "sub_r1_shr1" | "sub_r0_shr1"      => base_reg = Some(f.value << 1),
             "reg"                               => { if base_reg.is_none() { base_reg = Some(f.value); } }
-            "sub_ur0" | "sub_ur1" | "ureg"      => ur_reg = Some(f.value),
+            "sub_ur0" | "sub_ur1" | "ureg" | "desc_ur"  => ur_reg = Some(f.value),
             "sub_ur0_shr1" | "sub_ur1_shr1"    => ur_reg = Some(f.value << 1),
             s if s.starts_with("sub_imm") => {
                 let shift = parse_shr_suffix(s);
@@ -1158,19 +1376,43 @@ fn format_sts_lds_addr(fields: &[&DecodedField], raw: u128) -> String {
 // ── cAI — constant memory ─────────────────────────────────────────────────────
 
 fn format_const_addr(fields: &[&DecodedField]) -> String {
-    let mut val: u64 = 0;
-    let mut base_reg: Option<u64> = None;
-    let mut bank_shift: u32 = 16;  // cm16_off uses 16, cm17_off uses 17
+    // Encoder-side inverse: bank = SubImm(0), offset = highest-index SubImm(k)
+    // (c[B][off] → k=1, c[B][R+off] → k=2), cm16_off/cm17_off carry the
+    // combined bank<<shift|offset when no split fields exist. Multiple fields
+    // per token are common (e.g. LDC.64: cm16_off@38 + sub_imm0@50), so the
+    // naive "last write wins" loses the offset whenever sub_imm0 (=bank) is
+    // listed last. Compose instead of overwrite.
+    let mut cm_val: Option<u64> = None;
+    let mut bank_shift: u32 = 16;
     let mut is_cm17 = false;
+    let mut bank_field: Option<(u32, u64)> = None;   // (bits, value) of SubImm(0)
+    let mut off_field: Option<(u32, u64, u8)> = None; // (bits, value, idx) best so far
+    let mut base_reg: Option<u64> = None;
 
     for f in fields {
         let e = norm_ext(&f.extraction);
         if e == "cm17off" {
-            val = f.value;
+            cm_val = Some(f.value);
             bank_shift = 17;
             is_cm17 = true;
-        } else if e == "cm16off" || e.starts_with("sub_imm") {
-            val = f.value;
+        } else if e == "cm16off" {
+            cm_val = Some(f.value);
+            bank_shift = 16;
+        } else if e.starts_with("sub_imm") {
+            // sub_imm{i}[...] — extract the leading sub-index digit.
+            let idx = e.trim_start_matches("sub_imm").chars().next()
+                .and_then(|ch| ch.to_digit(10)).map(|d| d as u8);
+            match idx {
+                Some(0) => bank_field = Some((f.bits, f.value)),
+                Some(k) => {
+                    let better = off_field.map(|(_, _, ok)| k >= ok).unwrap_or(true);
+                    if better { off_field = Some((f.bits, f.value, k)); }
+                }
+                None => {
+                    // generic sub_imm{...} without parseable index: treat as offset
+                    off_field = Some((f.bits, f.value, 99));
+                }
+            }
         }
         // SubR(1) = base register for indirect constant access (c[bank][R+off])
         if e.starts_with("sub_r") {
@@ -1180,8 +1422,22 @@ fn format_const_addr(fields: &[&DecodedField]) -> String {
     }
 
     let off_mask = (1u64 << bank_shift) - 1;
-    let bank   = (val >> bank_shift) & 0x1f;
-    let offset = val & off_mask;
+    let (bank, offset) = if let Some((_bits, v, _k)) = off_field {
+        // Offset window may include bank copies in its high bits (widened fits);
+        // bank itself comes from the dedicated SubImm(0) or the combined field.
+        let bank = bank_field.map(|(_, b)| b)
+            .or_else(|| cm_val.map(|cv| (cv >> bank_shift) & 0x1f))
+            .unwrap_or(0);
+        // Canonical form: window high bits can hold a widened copy of the
+        // bank (the encoder rebuilds them via SubImm(0) anyway).
+        (bank, v & off_mask)
+    } else if let Some(cv) = cm_val {
+        ((cv >> bank_shift) & 0x1f, cv & off_mask)
+    } else if let Some((_, b)) = bank_field {
+        (b, 0)
+    } else {
+        (0, 0)
+    };
 
     // If base register is present and non-RZ (255), include it: c[bank][R+off]
     if let Some(reg) = base_reg {
@@ -1217,6 +1473,7 @@ static SYSREG_NAMES: &[(u32, &str)] = &[
     (0x50, "SR_CLOCKLO"),
     (0x51, "SR_CLOCKHI"),
     (0x88, "SR_CgaCtaId"),
+    (0xff, "SRZ"),
     // Additional from literature / probing:
     (0x28, "SR_NTID.X"),
     (0x29, "SR_NTID.Y"),
@@ -1307,9 +1564,22 @@ fn half_to_f32_bits(hf: u16) -> u32 {
 
 fn format_float(f: f32, neg: bool) -> String {
     let neg_s = if neg { "-" } else { "" };
-    if f.is_infinite() { return format!("{neg_s}+INF "); }
-    if f.is_nan()      { return format!("{neg_s}QNAN "); }
-    if f == 0.0        { return "0".to_string(); }
+    if f.is_infinite() {
+        // Sign lives in the value bits themselves (e.g. FSEL's literal
+        // 0xff800000 = -INF); a bare "+INF" would re-encode as +INF and drop
+        // bit31. Compose with the explicit neg flag when present.
+        let sneg = neg != f.is_sign_negative();
+        return if sneg { "-INF ".to_string() } else { "+INF ".to_string() };
+    }
+    // QNAN stays unparsed-by-design (bimodal lanes, see parser.rs comment);
+    // print the bare form the parser accepts.
+    if f.is_nan() { return format!("{neg_s}QNAN "); }
+    if f == 0.0 {
+        // -0.0 is a distinct bit pattern (0x80000000); nvdisasm prints "-0" and
+        // the encoder must hear the sign (HFMA2 imm pair "0, -0").
+        let neg0 = neg || (f.is_sign_negative());
+        return if neg0 { "-0.0".to_string() } else { "0".to_string() };
+    }
     let s = normalize_sci_exp(format!("{neg_s}{:.18e}", f));
     // Verify roundtrip: string→f64→f32 must give same bits
     let rt: f32 = s.parse::<f64>().map(|d| d as f32).unwrap_or(0.0);

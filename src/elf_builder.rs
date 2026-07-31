@@ -95,7 +95,7 @@ const STT_SECTION:u8 = 3;
 const STV_DEFAULT:  u8 = 0;
 const STV_HIDDEN:   u8 = 0x10; // used in Mercury symtab function entry
 
-const EF_CUDA_SM120: u32 = 0x0600_7802;
+pub const EF_CUDA_SM120: u32 = 0x0600_7802;
 
 // ── Hardcoded blobs matching CUDA 12.8 SM120 nvcc output ─────────────────────
 
@@ -263,8 +263,6 @@ pub fn generate_mercury_from_sass(code: &[u8], kernel_id: u32) -> Vec<u8> {
 
     // Tail
     buf.extend_from_slice(&[0xd0, 0x07]);
-
-    eprintln!("[mercury-gen] n_instr={} size={}B", n_instr, buf.len());
     buf
 }
 
@@ -301,6 +299,11 @@ pub fn build_cubin(kernels: &[KernelEntry]) -> Result<Vec<u8>> {
     CubinBuilder::new().build_no_mercury(kernels)
 }
 
+/// `build_cubin` with explicit target e_flags (e.g. SM103a on B300).
+pub fn build_cubin_for_arch(kernels: &[KernelEntry], ef_flags: u32) -> Result<Vec<u8>> {
+    CubinBuilder::new().with_ef_flags(ef_flags).build_no_mercury(kernels)
+}
+
 /// Build a standalone cubin with Mercury sections.
 ///
 /// Only use this when you have a correct Mercury stub (via
@@ -309,6 +312,11 @@ pub fn build_cubin(kernels: &[KernelEntry]) -> Result<Vec<u8>> {
 /// The default `CAPMERC_EXIT_STUB` only covers simple STG.E kernels.
 pub fn build_cubin_mercury(kernels: &[KernelEntry]) -> Result<Vec<u8>> {
     CubinBuilder::new().build(kernels)
+}
+
+/// `build_cubin_mercury` with explicit target e_flags.
+pub fn build_cubin_mercury_for_arch(kernels: &[KernelEntry], ef_flags: u32) -> Result<Vec<u8>> {
+    CubinBuilder::new().with_ef_flags(ef_flags).build(kernels)
 }
 
 /// One patch for [`rebuild_cubin`]: `(kernel name, encoded SASS bytes, optional Mercury stub)`.
@@ -382,16 +390,13 @@ pub fn rebuild_cubin(template_bytes: &[u8], patches: &[CubinPatch<'_>]) -> Resul
         cubin.patch_text(sec_idx, &code)?;
 
         // Patch Mercury section if stub provided
-        eprintln!("[rebuild] checking mercury: patch_merc.is_some()={} patch_name={} kernel_name={}", patch_merc.is_some(), patch_name, kernel_name);
         if let Some(merc_data) = patch_merc {
-            eprintln!("[mercury] have stub ({} bytes), patch_name={}, kernel_name={}", merc_data.len(), patch_name, kernel_name);
             let merc_name = format!(".nv.capmerc.text.{}", patch_name);
             if let Some(merc_idx) = cubin.find_section(&merc_name) {
                 cubin.patch_section(merc_idx, merc_data)?;
             } else {
                 // Try matching by kernel name from template
-                eprintln!("[mercury] trying merc_name2=.nv.capmerc.text.{}", kernel_name);
-            let merc_name2 = format!(".nv.capmerc.text.{}", kernel_name);
+                let merc_name2 = format!(".nv.capmerc.text.{}", kernel_name);
                 if let Some(merc_idx) = cubin.find_section(&merc_name2) {
                     cubin.patch_section(merc_idx, merc_data)?;
                 }
@@ -488,6 +493,7 @@ fn rename_kernel_in_elf(bytes: &mut [u8], old_name: &str, new_name: &str) -> Res
 struct CubinBuilder {
     shstrtab: StrTable,
     strtab:   StrTable,
+    ef_flags: u32,
 }
 
 struct StrTable {
@@ -524,7 +530,14 @@ impl CubinBuilder {
         Self {
             shstrtab: StrTable::new(),
             strtab:   StrTable::new(),
+            ef_flags: EF_CUDA_SM120,
         }
+    }
+
+    /// Target a non-default architecture (e.g. SM103a → e_flags 0x06006702).
+    pub fn with_ef_flags(mut self, ef_flags: u32) -> Self {
+        self.ef_flags = ef_flags;
+        self
     }
 
     /// Build a cubin matching the 11-section layout proven on driver 570.211.
@@ -741,11 +754,11 @@ impl CubinBuilder {
         let sh_offset = offset;
         let sh_table_size = (total_sections as u64) * 64;
 
-        const EF_CUDA_SM120: u32 = 0x0600_7802;
+        let ef_flags = self.ef_flags;
         let total_file_size = (sh_offset + sh_table_size) as usize;
         let mut buf = vec![0u8; total_file_size];
         write_elf_header_flags(&mut buf, sh_offset, total_sections as u16,
-                               IDX_SHSTR as u16, ph_offset, n_phdrs, EF_CUDA_SM120);
+                               IDX_SHSTR as u16, ph_offset, n_phdrs, ef_flags);
 
         // Write section data
         for (i, (_, sh_type, _, data, _, _, _, _)) in sections.iter().enumerate() {
@@ -1395,8 +1408,8 @@ impl CubinBuilder {
 
         // ── Finalise ELF header ───────────────────────────────────────────
         let e_shnum = total_sections as u16;
-        write_elf_header(&mut out[..64], e_shoff, e_shnum, IDX_SHSTR as u16,
-                         e_phoff, PHDR_COUNT);
+        write_elf_header_flags(&mut out[..64], e_shoff, e_shnum, IDX_SHSTR as u16,
+                               e_phoff, PHDR_COUNT, self.ef_flags);
 
         Ok(out)
     }
@@ -1567,6 +1580,7 @@ impl KernelMeta {
 
 // ── ELF writing helpers ───────────────────────────────────────────────────────
 
+#[allow(dead_code)]
 fn write_elf_header(buf: &mut [u8], e_shoff: u64, e_shnum: u16, e_shstrndx: u16,
                     e_phoff: u64, e_phnum: u16) {
     write_elf_header_flags(buf, e_shoff, e_shnum, e_shstrndx, e_phoff, e_phnum, EF_CUDA_SM120);
