@@ -21,8 +21,11 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         let e = norm_ext(&f.extraction);
         e == "guard" || e == "guard_neg"
     });
+    // Uniform-datapath instructions print their guard as @UPn/@!UPn (nvdisasm);
+    // the guard bits [15:12] encode only (pred, neg) — uniformness follows the family.
+    let is_uni = insn.key.starts_with('U') || insn.key.starts_with("LDCU");
     let guard = if has_guard_field {
-        format_guard(tok0_fields)
+        format_guard_uni(tok0_fields, is_uni)
     } else {
         // Extract 4-bit guard from raw bits [15:12] directly.
         let raw_guard = (raw >> 12) & 0xF;
@@ -456,6 +459,9 @@ fn mod_priority(m: &str) -> u8 {
         "HI" => 7,
         // Boolean operators
         "AND"| "OR"| "XOR" => 7,
+        // EX (second-output-predicate present) prints LAST in nvdisasm syntax:
+        // "ISETP.GE.U32.AND.EX", never "ISETP.GE.EX.U32.AND".
+        "EX" => 9,
         // Barrier/convergence qualifiers
         "DEFER_BLOCKING"| "RECONVERGENT"| "RELIABLE"| "NODEP" => 8,
         // X (carry-in) comes after data types/sizes
@@ -484,6 +490,9 @@ fn format_opcode(base: &str, mod_group: &str) -> String {
 
 /// Opcode-aware modifier priority (overrides generic mod_priority for specific cases).
 fn mod_priority_for(base: &str, m: &str) -> u8 {
+    // HSETP2.BF16_V2.NEU.AND — the vector-width modifier precedes the comparison
+    // in nvdisasm output for the half-precision setp family.
+    if m == "BF16_V2" && matches!(base, "HSETP" | "HSETP2") { return 0; }
     // IMAD.HI means "high-half product" and appears BEFORE the data type: IMAD.HI.U32
     if m == "HI" && matches!(base, "IMAD" | "IMAD_U32" | "IMAD_S32") { return 4; }
     // SH (shift-count hint) in FLO comes AFTER the data type: FLO.U32.SH
@@ -507,6 +516,10 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
 // ── guard ─────────────────────────────────────────────────────────────────────
 
 fn format_guard(fields: &[&DecodedField]) -> String {
+    format_guard_uni(fields, false)
+}
+
+fn format_guard_uni(fields: &[&DecodedField], uni: bool) -> String {
     let mut guard_val: Option<u64> = None;
     let mut extra_neg = false;
 
@@ -528,7 +541,13 @@ fn format_guard(fields: &[&DecodedField]) -> String {
     }
     let neg_s = if neg { "!" } else { "" };
     // pred==7 + neg → @!PT or @!UPT (uniform)
-    let pt_name = if pred == 7 { "PT" } else { &format!("P{pred}") };
+    let pt_name = if pred == 7 {
+        if uni { "UPT".to_string() } else { "PT".to_string() }
+    } else if uni {
+        format!("UP{pred}")
+    } else {
+        format!("P{pred}")
+    };
     format!("@{neg_s}{pt_name}")
 }
 
@@ -753,6 +772,14 @@ fn format_reg(fields: &[&DecodedField], _mod_group: &str, tok: i32, raw: u128, i
         }
     }
 
+    // HSETP/HSETP2 with no hsel field: nvdisasm prints the default half-selector
+    // ".H0_H0" on every R operand (corpus: 100% of HSETP2 records).
+    if ins_key.starts_with("HSETP")
+        && !fields.iter().any(|f| norm_ext(&f.extraction) == "hsel")
+    {
+        opmods.push("H0_H0".to_string());
+    }
+
     // Fallback: when the register is baked into and_base (no variable field),
     // extract it from the raw instruction at the standard bit position.
     if reg.is_none() {
@@ -921,9 +948,11 @@ fn format_ureg_raw(fields: &[&DecodedField], raw: u128) -> String {
     for f in fields {
         let e = norm_ext(&f.extraction);
         match e.as_str() {
-            // Both 6-bit (63=URZ) and 8-bit (255=URZ) encodings map to URZ.
-            "ureg"     => ureg = Some(if f.value == 255 { 63 } else { f.value }),
-            "ureg_ff"  => ureg = Some(if f.value == 255 { 63 } else { f.value }),
+            // 8-bit ureg fields: 255 = URZ (sink), 63 = UR63 (a real architectural
+            // register — e.g. "ULEA UR63, ...", "LDS.128 R8, [UR63]").
+            // 6-bit ureg fields: 63 = URZ. Keep the source width to tell them apart.
+            "ureg"     => { ureg = Some(f.value | (if f.bits >= 8 { 0x100 } else { 0 })); }
+            "ureg_ff"  => { ureg = Some(f.value | 0x100); }
             "ureg_shr3" => ureg = Some(f.value << 3),
             "neg"      => neg = f.value != 0,
             "inv"      => inv = f.value != 0,
@@ -942,8 +971,17 @@ fn format_ureg_raw(fields: &[&DecodedField], raw: u128) -> String {
         }
     }
 
+    // ureg stores (value | 0x100) when it came from an 8-bit field: 255 = URZ
+    // there; 63 is then the real UR63 register. 6-bit/none: 63 = URZ.
     let un = ureg.unwrap_or(63);
-    let base = if un == 63 { "URZ".to_string() } else { format!("UR{un}") };
+    let base = if un & 0x100 != 0 {
+        let v = un & 0xFF;
+        if v == 255 { "URZ".to_string() } else { format!("UR{v}") }
+    } else if un == 63 {
+        "URZ".to_string()
+    } else {
+        format!("UR{un}")
+    };
     let s = if inv { format!("~{base}") } else if neg { format!("-{base}") } else { base };
     if reuse { format!("{s}.reuse") } else { s }
 }
@@ -1012,7 +1050,12 @@ fn format_imm(fields: &[&DecodedField], _mod_group: &str, ins_key: &str) -> Stri
             let abs_val = (-imm) as u64;
             let is_unsigned_op = ins_key.starts_with("MOV") || ins_key.starts_with("UMOV")
                 || ins_key.starts_with("SHF") || ins_key.starts_with("USHF");
-            if is_unsigned_op {
+            // ISETP/UISETP immediates: nvdisasm always prints two's-complement signed
+            // hex for negative s32 values regardless of .U32 (e.g. -0x1, -0x3400000).
+            let is_setp = ins_key.starts_with("ISETP") || ins_key.starts_with("UISETP");
+            if is_setp {
+                return format!("-0x{abs_val:x}");
+            } else if is_unsigned_op {
                 // MOV/UMOV: show as unsigned hex, using full immediate field width
                 let mask = if imm_bits >= 64 { u64::MAX } else { (1u64 << imm_bits) - 1 };
                 return format!("0x{:x}", imm as u64 & mask);
@@ -1590,6 +1633,15 @@ fn format_float(f: f32, neg: bool) -> String {
         let neg0 = neg || (f.is_sign_negative());
         return if neg0 { "-0.0".to_string() } else { "0".to_string() };
     }
+    // Integral values print bare (nvdisasm: "FFMA R0, R1, R2, 1" not "1.0e+00").
+    if f == f.trunc() && f.abs() < 16_777_216.0 {
+        return format!("{neg_s}{}", f as i64);
+    }
+    // Non-integral: nvdisasm prints C %.20g of the value ("4.1917929649353027344").
+    let s = format_g20((if neg { -f } else { f }) as f64);
+    if !s.is_empty() {
+        return s;
+    }
     let s = normalize_sci_exp(format!("{neg_s}{:.18e}", f));
     // Verify roundtrip: string→f64→f32 must give same bits
     let rt: f32 = s.parse::<f64>().map(|d| d as f32).unwrap_or(0.0);
@@ -1603,10 +1655,43 @@ fn format_float(f: f32, neg: bool) -> String {
 
 fn format_double(f: f64, neg: bool) -> String {
     let neg_s = if neg { "-" } else { "" };
-    if f.is_infinite() { return format!("{neg_s}INF "); }
+    // nvdisasm always signs INF ("+INF"/"-INF") in FP64-immediate context.
+    if f.is_infinite() { return format!("{}INF ", if neg || f.is_sign_negative() { "-" } else { "+" }); }
     if f.is_nan()      { return format!("{neg_s}QNAN "); }
     if f == 0.0        { return "1".to_string(); } // integer 1 used as double constant
+    if f == f.trunc() && f.abs() < 16_777_216.0 {
+        return format!("{neg_s}{}", f as i64);
+    }
+    let s = format_g20(if neg { -f } else { f });
+    if !s.is_empty() {
+        return normalize_sci_exp(s);
+    }
     normalize_sci_exp(format!("{neg_s}{:.16e}", f))
+}
+
+/// nvdisasm float-immediate style: C `%.20g` on the f64 value
+/// ("4.1917929649353027344", "0.0034000000450760126114", "1.1641532182693481445e-10").
+fn format_g20(f: f64) -> String {
+    if f == 0.0 || !f.is_finite() {
+        return String::new();
+    }
+    let a = f.abs();
+    if (1e-4..1e9).contains(&a) {
+        // fixed notation with 20 significant digits: decimals = 20 - floor(log10(a)) - 1
+        let f10 = a.log10().floor() as i32;
+        let dec = (19 - f10).max(0) as usize;
+        let s = format!("{:.*}", dec, f);
+        // strip trailing zeros but keep the number parseable
+        if s.contains('.') {
+            let t = s.trim_end_matches('0').trim_end_matches('.');
+            return t.to_string();
+        }
+        s
+    } else {
+        // scientific: mantissa with 19 decimals after the point (20 sig digits)
+        let s = format!("{:.19e}", f);
+        normalize_sci_exp(s)
+    }
 }
 
 /// Normalize scientific notation: pad exponent to 2 digits and strip trailing zeros.
