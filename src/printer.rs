@@ -114,6 +114,15 @@ pub fn to_sass(insn: &DecodedInst) -> String {
                 return format!("{guard_prefix}{opcode} R{reg}, 0x{target:x}");
             }
         }
+        // BRA-with-predicate-operand (InsKey BRA_P_II): nvdisasm prints
+        // "@Pg BRA [!]Pn, target" — Pn = bits[89:87], neg = bit90.
+        if insn.key.starts_with("BRA_P_") {
+            let p = ((insn.raw_code >> 87) & 0x7) as u8;
+            let n = ((insn.raw_code >> 90) & 1) as u8;
+            let pred = if p == 7 && n == 0 { "PT".to_string() }
+                       else { format!("{}P{}", if n == 1 { "!" } else { "" }, p) };
+            return format!("{guard_prefix}{opcode} {pred}, 0x{target:x}");
+        }
         // BRA.DIV URn, target (InsKey BRA_UR_II, mg "DIV"): the exception-weight
         // uniform register operand lives at bits[31:24]; without this the text
         // silently drops it and the round-trip loses the operand.
@@ -781,6 +790,7 @@ fn format_reg(fields: &[&DecodedField], _mod_group: &str, tok: i32, raw: u128, i
         let abs_shift: Option<u32> = match reg_shift {
             Some(24) => Some(73),   // Ra abs at hi bit 9 (overall bit 73)
             Some(32) => Some(62),   // Rb abs at lo bit 62
+            Some(64) => Some(74),   // Rc abs at bit 74 (FSETP/DSETP third source)
             _ => None,
         };
         if let Some(s) = abs_shift {

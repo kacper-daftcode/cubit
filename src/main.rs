@@ -673,6 +673,10 @@ fn cmd_disassemble(
                     lines.push(format!("{label}__raw__0x{:032x} ;", d.code));
                 }
             }
+            // Close the block: without .endentry a following .entry would silently
+            // discard this kernel's body (parser used to lose every kernel but the
+            // last in multi-kernel frozen outputs).
+            lines.push(".endentry".to_string());
         } else {
             lines.push(format!("// {kernel_name}"));
             if shared_size > 0 {

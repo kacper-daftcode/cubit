@@ -59,6 +59,18 @@ pub fn parse_sass_file_str(text: &str) -> anyhow::Result<SassFile> {
 
         // .entry <name> or .func <name>
         if let Some(rest) = t.strip_prefix(".entry").or_else(|| t.strip_prefix(".func")) {
+            // A new .entry while another kernel is still open implicitly closes it
+            // (emitters without .endentry previously lost all but the last kernel).
+            if let Some(prev) = current_name.take() {
+                let body = body_lines.join("\n");
+                let insns = parse_kernel_body(&body, &mut current_res);
+                kernels.push(KernelDef {
+                    name: prev,
+                    resources: current_res.clone(),
+                    instructions: insns,
+                    base_addr: 0,
+                });
+            }
             let name = rest.trim().to_string();
             current_name = Some(name);
             current_res = KernelResources::default();
