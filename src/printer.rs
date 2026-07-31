@@ -1273,13 +1273,14 @@ fn format_utc_desc(tok: i32, fields: &[&DecodedField], tok4_fields: &[&DecodedFi
 // Desc — unencodable under an _AURI key.
 fn format_auri_uronly(fields: &[&DecodedField], raw: u128) -> String {
     let mut ur: Option<u64> = None;
+    let mut ur_wide = false; // pole istnieje i jest 8-bitowe: wtedy 63 to UR63, nie URZ
     let mut offset: i64 = 0;
     let mut has_off_from_field = false;
     for f in fields {
         let e = norm_ext(&f.extraction);
         match e.as_str() {
             "sub_ur0" | "sub_ur1" | "ureg" | "tdesc_ur" | "gdesc_ur" =>
-                ur = Some(f.value),
+                { ur = Some(f.value); ur_wide = f.bits >= 8; }
             "sub_ur0_shr1" | "sub_ur1_shr1" => ur = Some(f.value << 1),
             s if s.starts_with("sub_imm") => {
                 let sh = parse_shr_suffix(s);
@@ -1295,7 +1296,10 @@ fn format_auri_uronly(fields: &[&DecodedField], raw: u128) -> String {
     }
     // UR index fallback: uniform datapath register field at bits[31:24].
     let un = ur.unwrap_or(((raw >> 24) as u64) & 0xFF);
-    let ur_s = if un == 255 || un == 63 { "URZ".to_string() } else { format!("UR{un}") };
+    // 255 = URZ always. 63 = URZ unless it came from a wide (8-bit) field,
+    // where it is the real UR63 register (corpus: "LDS.128 R8, [UR63]").
+    let ur_s = if un == 255 || (un == 63 && !ur_wide) { "URZ".to_string() }
+               else { format!("UR{un}") };
     if !has_off_from_field {
         offset = 0;
     }
@@ -1373,6 +1377,7 @@ fn format_desc_addr(fields: &[&DecodedField], raw: u128) -> String {
 fn format_sts_lds_addr(fields: &[&DecodedField], raw: u128) -> String {
     let mut base_reg: Option<u64> = None;
     let mut ur_reg:   Option<u64> = None;
+    let mut ur_wide = false;   // pole ureg/sub_ur* o >= 8 bitach: 63 = UR63 (realny)
     let mut offset:   i64 = 0;
     let mut has_off   = false;
 
@@ -1382,7 +1387,7 @@ fn format_sts_lds_addr(fields: &[&DecodedField], raw: u128) -> String {
             "sub_r1" | "sub_r0"             => base_reg = Some(f.value),
             "sub_r1_shr1" | "sub_r0_shr1"  => base_reg = Some(f.value << 1),
             "reg"                           => { if base_reg.is_none() { base_reg = Some(f.value); } }
-            "sub_ur0" | "sub_ur1" | "ureg"  => ur_reg = Some(f.value),
+            "sub_ur0" | "sub_ur1" | "ureg"  => { ur_reg = Some(f.value); ur_wide = f.bits >= 8; }
             "sub_ur0_shr1" | "sub_ur1_shr1" => ur_reg = Some(f.value << 1),
             s if s.starts_with("sub_imm") => {
                 let shift = parse_shr_suffix(s);
@@ -1412,7 +1417,20 @@ fn format_sts_lds_addr(fields: &[&DecodedField], raw: u128) -> String {
     let rn = base_reg.unwrap_or(0);
     let reg_s = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
     let un = ur_reg.unwrap_or(63);
-    let ur_s = if un == 63 { "URZ".to_string() } else { format!("UR{un}") };
+    let ur_s = if un == 63 && !ur_wide { "URZ".to_string() } else { format!("UR{un}") };
+
+    // No UR component at all -> print base only ("[RZ]", "[R10]", "[R66+0x80]").
+    if ur_reg.is_none() {
+        if has_off && offset != 0 {
+            let off_s = if offset < 0 {
+                format!("-0x{:x}", (-offset) as u64)
+            } else {
+                format!("+0x{offset:x}")
+            };
+            return format!("[{reg_s}{off_s}]");
+        }
+        return format!("[{reg_s}]");
+    }
 
     if has_off && offset != 0 {
         let off_s = if offset < 0 {
@@ -1420,8 +1438,17 @@ fn format_sts_lds_addr(fields: &[&DecodedField], raw: u128) -> String {
         } else {
             format!("+0x{offset:x}")
         };
-        format!("[{reg_s}+{ur_s}{off_s}]")
+        if rn == 255 {
+            // nvdisasm never prints "[RZ+UR…]" — RZ is a silent sink in addresses:
+            // "[UR63]", "[UR63+0x10]".
+            format!("[{ur_s}{off_s}]")
+        } else {
+            format!("[{reg_s}+{ur_s}{off_s}]")
+        }
     } else {
+        if rn == 255 {
+            return format!("[{ur_s}]");
+        }
         format!("[{reg_s}+{ur_s}]")
     }
 }
