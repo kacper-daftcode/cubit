@@ -342,9 +342,16 @@ impl DecodeIndex {
                     ((code_clean ^ c.and_base) & free).count_ones() as i32
                 })
                 .unwrap_or(0);
-            // Sort order: (is_negative, priority, undiscovered_penalty, unexplained_var, adjusted_len, -score, neg_popcount, neg_mg_len)
+            // Sort order: (priority, is_negative, undiscovered_penalty, ...) — match
+            // strength dominates: a strict (prio 0) candidate with a weak key-consistency
+            // score must still beat any relaxed/prio3 candidate (e.g. 6-op EX XSETP
+            // forms scoring 0 would otherwise hijack strict-matching 5-op words).
             // neg_mg_len last: only tiebreaks between same key+popcount
-            (is_negative as i32, *priority as i32, opaque_penalty, plain_addr_penalty, undiscovered_penalty + bra_p_penalty, unexplained_var, adjusted_len, -score, neg_andbase_in_code, neg_popcount, neg_mg_len)
+            let tup = (*priority as i32, is_negative as i32, opaque_penalty, plain_addr_penalty, undiscovered_penalty + bra_p_penalty, unexplained_var, adjusted_len, -score, neg_andbase_in_code, neg_popcount, neg_mg_len);
+            if std::env::var_os("CUBIT_DEBUG_DECODE").is_some() {
+                eprintln!("CAND {:?} prio={:?} tup={:?}", (c.key.clone(), c.mod_group.clone()), priority, tup);
+            }
+            tup
         });
 
         let matches: Vec<&DecodeCandidate> = matches.into_iter().map(|(c, _)| c).collect();
@@ -391,8 +398,13 @@ impl DecodeIndex {
             if is_alu {
                 let optypes: Vec<&str> = matched.key.split('_').skip(1).collect();
                 let skip_preds = optypes.iter().take_while(|t| **t == "P" || **t == "UP").count();
-                let ra_tok = (skip_preds + 2) as i32;
-                let rb_tok = (skip_preds + 3) as i32;
+                // Token indexing mirrors the encoder (ra_idx/rb_idx there), including
+                // the predicate-dest offset: [..P, Ra, Rb..] — Ra = ops[skip_preds].
+                // (Previously skip+2/skip+3, off-by-one for _P_/_P_P_-prefixed keys —
+                // FSETP/DSETP raise/abs then landed on the adjacent operand.)
+                let dest_is_reg = optypes.first().map(|t| *t == "R" || *t == "UR").unwrap_or(false);
+                let ra_tok = if dest_is_reg { (skip_preds + 2) as i32 } else { (skip_preds + 1) as i32 };
+                let rb_tok = if dest_is_reg { (skip_preds + 3) as i32 } else { (skip_preds + 2) as i32 };
                 // A table field already covers this bit (immediate, named modifier, …) —
                 // leave it to that field (mirrors encoder's has_field_* guard + avoids
                 // double-decoding an immediate bit as a sign flag).
@@ -454,6 +466,16 @@ impl DecodeIndex {
     }
 }
 
+/// Recompute the prio-0 strict mask-match for a candidate (as in decode()'s
+/// candidate filter). Used by select_best_candidate fallbacks: a heuristic may
+/// only swap `first` for an alternative that ALSO strictly matches the word —
+/// never for a weaker relaxed/prio3 match (e.g. DSETP AND,LT [prio0] must not
+/// be displaced by LT,OR [prio3] through the trailing-pred heuristic).
+fn cand_strict(c: &DecodeCandidate, code_clean: u128) -> bool {
+    let guard_mask: u128 = 0xF000;
+    (code_clean & c.match_mask & !guard_mask) == (c.and_base & c.match_mask & !guard_mask)
+}
+
 /// Select the best matching candidate from a sorted list.
 ///
 /// The sorted list already prefers shorter keys. This function applies one additional
@@ -485,6 +507,7 @@ fn select_best_candidate<'a>(
                     // The instruction has no real output predicate.
                     // Try to find a matching candidate without an output-pred operand.
                     for alt in matches {
+                        if !cand_strict(alt, code_clean) { continue; }
                         if !key_has_output_pred_field(&alt.key, &alt.mod_group, table) {
                             return Some(alt);
                         }
@@ -514,10 +537,24 @@ fn select_best_candidate<'a>(
     // "Trailing" means shift in [87, 90] range (distinct from output pred at bits[83:81]).
     let trailing_pred_bits = (code_clean >> 87) & 0xF;  // 4 bits at [90:87]
     if trailing_pred_bits != 0x7 && trailing_pred_bits != 0xF {
+        // If `first` already decodes a pred field on its LAST operand token
+        // (any shift — e.g. SM103a DSETP AND,LT carries the combine pred at
+        // [22:19], not [90:87]), nothing is lost: do not divert to a sibling
+        // (e.g. LT,OR) just because it has a literal [90:87] field.
+        let first_explains_trailing = table.get(&first.key, &first.mod_group)
+            .map(|e| {
+                let last_tok = parse_ins_key_op_types(&first.key).len() as i32;
+                e.fields.iter().any(|f| {
+                    f.token_idx >= last_tok
+                        && matches!(f.extraction, crate::table::Extraction::Pred)
+                })
+            })
+            .unwrap_or(false);
         // For LEA/ULEA: prefer _P suffix variant whose trailing pred field has a
         // unique high token_idx (dedicated trailing-pred operand, not shared with
         // output pred). This avoids the _II variant where tok=2 is shared.
         let is_lea = first.key.starts_with("LEA_") || first.key.starts_with("ULEA_");
+        if !first_explains_trailing {
         if is_lea {
             let output_is_pt = ((code_clean >> 81) & 0x7) == 7;
             for candidate in matches {
@@ -540,6 +577,7 @@ fn select_best_candidate<'a>(
         }
         // General fallback: any candidate with pred field at shift >= 87.
         for candidate in matches {
+            if !cand_strict(candidate, code_clean) { continue; }
             if let Some(entry) = table.get(&candidate.key, &candidate.mod_group) {
                 let has_trailing_pred = entry.fields.iter().any(|f| {
                     f.shift >= 87 && matches!(f.extraction, crate::table::Extraction::Pred)
@@ -548,6 +586,7 @@ fn select_best_candidate<'a>(
                     return Some(candidate);
                 }
             }
+        }
         }
     }
 
@@ -568,9 +607,20 @@ fn select_best_candidate<'a>(
     // - tok=1 covers P-prefix InsKeys (e.g. LOP3_P_..., LOP3.LUT P0, Rd, ...)
     // - tok=2 covers P-middle InsKeys (e.g. LEA_R_P_R_R_II_P)
     // Explicitly exclude large tok values (tok >= 4) which encode non-output preds.
+    //
+    // BUT: when the leading candidate already has ANY field covering [83:81] (e.g. the
+    // ISETP/UISETP `_P_P` EX-form with a second dest-pred at tok5/6 on [83:81]), those
+    // bits are semantically claimed by it and nothing is lost — do NOT divert to a
+    // shorter sibling (e.g. plain `UISETP_UP_UP_UR_UR_UP`), which would drop the EX
+    // operand and misrender the second pred slot as a fabricated `-URn`.
     let output_pred_bits = (code_clean >> 81) & 0x7;
     if output_pred_bits != 7 {  // P0..P6 = real output pred
+        let first_covers = table.get(&first.key, &first.mod_group).map(|e| {
+            e.fields.iter().any(|f| f.shift <= 81 && f.shift + f.bits >= 84)
+        }).unwrap_or(false);
+        if !first_covers {
         for candidate in matches {
+            if !cand_strict(candidate, code_clean) { continue; }
             if let Some(entry) = table.get(&candidate.key, &candidate.mod_group) {
                 let has_output_pred = entry.fields.iter().any(|f| {
                     f.token_idx >= 1 && f.token_idx <= 3
@@ -581,6 +631,7 @@ fn select_best_candidate<'a>(
                     return Some(candidate);
                 }
             }
+        }
         }
     }
 
@@ -596,6 +647,7 @@ fn select_best_candidate<'a>(
                .iter().any(|t| t == "P" || t == "UP");
         if first_has_middle_pred {
             for alt in matches {
+                if !cand_strict(alt, code_clean) { continue; }
                 let alt_op_types = parse_ins_key_op_types(&alt.key);
                 let alt_has_middle_pred = alt_op_types.len() > 2
                     && alt_op_types[1..alt_op_types.len()-1]

@@ -567,9 +567,10 @@ mod sm103a {
         let Some(tab) = t() else { return };
         let w: u128 = 0x000e0000020100003ff000000e04742b & !(0xFFFFu128 << 112); // placeholder-safe
         let _ = w;
-        // encode path is what carries the invariant: f64hi immediates must print "1.0e+00"
+        // encode path is what carries the invariant: f64hi immediates with integral
+        // values print bare like nvdisasm ("DFMA R4, -R14, R2, 1").
         let s = rt(&tab, "DFMA R4, -R14, R2, 1.0 ;", 0);
-        assert!(s.contains("1.0e+00"), "f64hi printing: {s}");
+        assert!(s.trim_end_matches([';', ' ']).ends_with(", 1"), "f64hi printing: {s}");
     }
 
     #[test]
