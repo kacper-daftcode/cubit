@@ -480,3 +480,147 @@ fn test_uisetp_uniform_ne_reg_encoding() {
     assert_eq!(lo, 0x000000ff0500728c,
         "UISETP.NE.AND uniform reg-reg form must encode like ptxas (opcode 0x28c + URZ cmp)");
 }
+
+// ===========================================================================
+// SM103a (B300) regression battery — one test per landed fix class.
+// All expectations bit-frozen from the run31g table; sched window [121:105]
+// masked where we compare against corpus-observed words.
+// ===========================================================================
+#[cfg(test)]
+mod sm103a {
+    use cubit::encoder::encode_instruction;
+    use cubit::parser::parse_sass;
+    use cubit::table::IsaTable;
+    use cubit::decoder::DecodeIndex;
+    use cubit::printer::to_sass;
+
+    const SCHED_MASK: u128 = (0x1FFFFu128) << 105;
+
+    fn t() -> Option<IsaTable> {
+        IsaTable::load(std::path::Path::new("tables/sm103a.json")).ok()
+    }
+    fn eq_masked(a: u128, b: u128) -> bool { (a & !SCHED_MASK) == (b & !SCHED_MASK) }
+    fn rt(table: &IsaTable, sass: &str, addr: u32) -> String {
+        let ix = DecodeIndex::build(table);
+        let (_, hi) = {
+            let c = encode_instruction(&parse_sass(sass, addr).unwrap(), table).unwrap();
+            (c as u64, (c >> 64) as u64)
+        };
+        let _ = hi;
+        let d = ix.decode(encode_instruction(&parse_sass(sass, addr).unwrap(), table).unwrap(), addr, table).unwrap();
+        to_sass(&d)
+    }
+
+    #[test]
+    fn bra_div_rel16() {
+        let Some(tab) = t() else { return };
+        let c = encode_instruction(
+            &parse_sass("@!P0 BRA.DIV UR10, 0x3e20 ;", 0x11f0).unwrap(), &tab).unwrap();
+        assert!(eq_masked(c, 0x000fc2000b8000000000002e0a088947),
+            "BRA.DIV must use the REL16 layout with the UR operand preserved: got {c:032x}");
+        assert!(rt(&tab, "@!P0 BRA.DIV UR10, 0x3e20 ;", 0x11f0).contains("UR10"));
+    }
+
+    #[test]
+    fn bra_p_predicate_operand() {
+        // "@!P3 BRA !P1, target": the branch P-operand lives at pred@[89:87]+neg@90.
+        let Some(tab) = t() else { return };
+        let c = encode_instruction(
+            &parse_sass("@!P3 BRA !P1, 0xe050 ;", 56240).unwrap(), &tab).unwrap();
+        assert!(eq_masked(c, 0x000fc20004800000000000040024b947), "{c:032x}");
+    }
+
+    #[test]
+    fn warpsync_collective_target_resolution() {
+        // WARPSYNC.COLLECTIVE Rn, <partner>: field = slots-of-16B ahead;
+        // print resolved absolute target, encode must recover the raw field.
+        let Some(tab) = t() else { return };
+        let c = encode_instruction(
+            &parse_sass("WARPSYNC.COLLECTIVE R10, 0x430 ;", 0x400).unwrap(), &tab).unwrap();
+        assert!(eq_masked(c, 0x000fc20003c00000000000000a087348), "{c:032x}");
+    }
+
+    #[test]
+    fn hadd2_hsel_and_neg_rz() {
+        let Some(tab) = t() else { return };
+        let c = encode_instruction(
+            &parse_sass("HADD2.F32 R18, RZ, R24.H1_H1 ;", 0).unwrap(), &tab).unwrap();
+        assert!(eq_masked(c, 0x000fc2000000410030000018ff127230), "{c:032x}");
+    }
+
+    #[test]
+    fn reuse_124_decoded_from_full_word() {
+        // reuse@122-124 must come from the full 128-bit word (not the stripped
+        // code_clean) — otherwise the text round-trip silently drops .reuse.
+        let Some(tab) = t() else { return };
+        let ix = DecodeIndex::build(&tab);
+        let w: u128 = 0x104fe400000041002000002eff34a230;
+        let d = ix.decode(w, 0, &tab).unwrap();
+        let s = to_sass(&d);
+        assert!(s.contains(".reuse"), "reuse@124 lost on decode: {s}");
+        let re = encode_instruction(&parse_sass(&format!("{s};"), 0).unwrap(), &tab).unwrap();
+        assert!(eq_masked(re, w));
+    }
+
+    #[test]
+    fn dfma_f64hi_immediate() {
+        let Some(tab) = t() else { return };
+        let w: u128 = 0x000e0000020100003ff000000e04742b & !(0xFFFFu128 << 112); // placeholder-safe
+        let _ = w;
+        // encode path is what carries the invariant: f64hi immediates must print "1.0e+00"
+        let s = rt(&tab, "DFMA R4, -R14, R2, 1.0 ;", 0);
+        assert!(s.contains("1.0e+00"), "f64hi printing: {s}");
+    }
+
+    #[test]
+    fn syncs_phasechk_descriptor_form() {
+        let Some(tab) = t() else { return };
+        let c = encode_instruction(
+            &parse_sass("SYNCS.PHASECHK.TRANS64.TRYWAIT P1, desc[UR29][R2.64+0xd0], R3 ;", 0)
+                .unwrap(), &tab).unwrap();
+        assert!(eq_masked(c, 0x000fc2000802111d0000d003020075a7), "{c:032x}");
+    }
+
+    #[test]
+    fn desc_ur_not_dropped() {
+        let Some(tab) = t() else { return };
+        let c = encode_instruction(
+            &parse_sass("UTMALDG.2CTA.3D.MULTICAST [UR16], [UR24], UR15, desc[UR4] ;", 0)
+                .unwrap(), &tab).unwrap();
+        assert!(eq_masked(c, 0x000fc2000821180f00000410180073b4), "{c:032x}");
+    }
+
+    #[test]
+    fn hfma2_negative_zero_literal() {
+        let Some(tab) = t() else { return };
+        let c = encode_instruction(
+            &parse_sass("HFMA2 R3, RZ, RZ, -0.0, 0 ;", 0).unwrap(), &tab).unwrap();
+        assert!(eq_masked(c, 0x000fc200000001ff80000000ff037431), "{c:032x}");
+    }
+
+    #[test]
+    fn sysreg_unknown_hex_preserved() {
+        let Some(tab) = t() else { return };
+        let c = encode_instruction(
+            &parse_sass("CS2R.32 R40, SR_0x008a ;", 0).unwrap(), &tab).unwrap();
+        assert!(eq_masked(c, 0x000fc20000008a000000000000287805), "{c:032x}");
+    }
+
+    #[test]
+    fn ef_flags_arch_detection() {
+        assert_eq!(cubit::elf::sm_from_ef_flags(0x06006402), 100);
+        assert_eq!(cubit::elf::sm_from_ef_flags(0x06006702), 103);
+        assert_eq!(cubit::elf::sm_from_ef_flags(0x06007802), 120);
+    }
+
+    #[test]
+    fn sass_parser_multi_entry_without_endentry() {
+        // `.entry` without `.endentry` must close the previous kernel
+        // (frozen disasm output had all-but-last kernels eaten).
+        let src = ".entry k1\n  NOP ;\n.entry k2\n  NOP ;\n";
+        let f = cubit::sass_file::parse_sass_file_str(src).unwrap();
+        assert_eq!(f.kernels.len(), 2);
+        assert_eq!(f.kernels[0].name, "k1");
+        assert_eq!(f.kernels[1].name, "k2");
+    }
+}

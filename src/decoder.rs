@@ -315,6 +315,16 @@ impl DecodeIndex {
             let undiscovered_penalty: i32 = if has_undiscovered { 50 }
                                             else if has_excess_trailing { 30 }
                                             else { 0 };
+            // BRA_P_* owns the branch predicate-operand slot [89:87]+neg@90
+            // (nvdisasm prints "@Pg BRA [!]Pn, target"). A plain BRA_II must not
+            // claim words carrying a real operand there — otherwise decode prints
+            // without Pn and the round-trip loses the bits. Corpus convention has
+            // PT (=7)+no-neg only for true plain BRAs.
+            let bra_p_penalty: i32 =
+                if c.key.starts_with("BRA_II")
+                    && (((code_clean >> 87) & 0x7) != 0x7 || ((code_clean >> 90) & 1) != 0) {
+                    5
+                } else { 0 };
             // Unexplained-variance tiebreak: bits that are variable per the learned
             // variable_mask but belong to NO declared field and differ between the
             // code and this entry's and_base. The RIGHT mod_group explains all its
@@ -334,7 +344,7 @@ impl DecodeIndex {
                 .unwrap_or(0);
             // Sort order: (is_negative, priority, undiscovered_penalty, unexplained_var, adjusted_len, -score, neg_popcount, neg_mg_len)
             // neg_mg_len last: only tiebreaks between same key+popcount
-            (is_negative as i32, *priority as i32, opaque_penalty, plain_addr_penalty, undiscovered_penalty, unexplained_var, adjusted_len, -score, neg_andbase_in_code, neg_popcount, neg_mg_len)
+            (is_negative as i32, *priority as i32, opaque_penalty, plain_addr_penalty, undiscovered_penalty + bra_p_penalty, unexplained_var, adjusted_len, -score, neg_andbase_in_code, neg_popcount, neg_mg_len)
         });
 
         let matches: Vec<&DecodeCandidate> = matches.into_iter().map(|(c, _)| c).collect();
