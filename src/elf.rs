@@ -270,6 +270,11 @@ impl CubinFile {
     }
 }
 
+/// Derive the numeric SM arch (e.g. 100, 103, 120) from CUDA ELF e_flags.
+pub fn sm_from_ef_flags(flags: u32) -> u32 {
+    parse_sm_version(flags).sm
+}
+
 fn parse_sm_version(flags: u32) -> SmVersion {
     let sm_field = flags & 0xFF;
     if sm_field < 10 {

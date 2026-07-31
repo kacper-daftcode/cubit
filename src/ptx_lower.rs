@@ -185,8 +185,9 @@ fn operand_to_sass(op: &Operand) -> String {
             let name = if *num == 7 { "PT".to_string() } else { format!("P{}", num) };
             if *neg { format!("!{}", name) } else { name }
         }
-        Operand::UReg { num, neg, is_zero, .. } => {
-            let name = if *is_zero || *num == 63 { "URZ".to_string() } else { format!("UR{}", num) };
+        Operand::UReg { num, neg, inv, is_zero, .. } => {
+            let name = if *is_zero { "URZ".to_string() } else { format!("UR{}", num) };
+            let name = if *inv { format!("~{}", name) } else { name };
             if *neg { format!("-{}", name) } else { name }
         }
         Operand::Imm32(v) => {
@@ -355,7 +356,7 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
     // LDCU.64 UR4 = global memory descriptor (c[0x0][0x358])
     // Required for desc[UR4] addressing on SM120
     insns.push(make_insn(addr, "LDCU.64",
-        vec![Operand::UReg { num: 4, neg: false, reuse: false, is_zero: false },
+        vec![Operand::UReg { num: 4, neg: false, abs: false, inv: false, reuse: false, is_zero: false },
              Operand::ConstMem { bank: 0, base_reg: None, ur_reg: None, offset: 0x358 }],
         None));
     addr += 16;
@@ -884,7 +885,7 @@ fn lower_mma(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guar
         operands.push(ptx_op_to_sass(&insn.operands[4], alloc, false));
         operands.push(ptx_op_to_sass(&insn.operands[5], alloc, false));
         // 7th operand: UR selector (uniform register, always URZ for now)
-        operands.push(Operand::UReg { num: 63, neg: false, reuse: false, is_zero: true });
+        operands.push(Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true });
     }
 
     Some(make_insn(addr, &opf, operands, guard))

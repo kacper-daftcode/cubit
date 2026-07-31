@@ -64,6 +64,7 @@ pub struct DecodeIndex {
     opcode_map: HashMap<u16, Vec<DecodeCandidate>>,
 }
 
+#[derive(Clone)]
 struct DecodeCandidate {
     key: String,
     mod_group: String,
@@ -144,15 +145,39 @@ impl DecodeIndex {
                 let _ = std_reg_mask; // used below in broad_relaxed_match_mask
                 let broad_relaxed_match_mask = relaxed_match_mask & !std_reg_mask;
 
-                opcode_map.entry(opcode_lo16).or_default().push(DecodeCandidate {
+                // Derived sm_103a tables AND the corpus' scheduling words into
+                // the high32 of and_base (e.g. mode bits 113..115), but decode()
+                // strips code's upper32 before matching. Strip and_base too, so
+                // the strict mask compare is over operand/opcode bits only.
+                let and_base = mg.and_base & !(0xFFFFFFFF_u128 << 96);
+                let c = DecodeCandidate {
                     key: key.clone(),
                     mod_group: mods.clone(),
-                    and_base: mg.and_base,
+                    and_base,
                     match_mask,
                     relaxed_match_mask,
                     broad_relaxed_match_mask,
                     record_count: 0,
-                });
+                };
+                // The opcode map key uses and_base bits [11:0], but declared
+                // fields may own some of those bits (e.g. UTCHMMA dsel2@10):
+                // real instructions then carry different opcode-key values and
+                // would INDEX-MISS entirely. Register the candidate under every
+                // key variant reachable by toggling field-owned bits < 12.
+                let fm12 = field_mask & 0x0FFF;
+                let varbits: Vec<u32> = (0..12).filter(|b| (fm12 >> b) & 1 == 1).collect();
+                if !varbits.is_empty() && varbits.len() <= 8 {
+                    let base12 = opcode_lo16 & !fm12 as u16;
+                    for comb in 0u32..(1u32 << varbits.len()) {
+                        let mut k = base12;
+                        for (i, b) in varbits.iter().enumerate() {
+                            if (comb >> i) & 1 == 1 { k |= 1 << b; }
+                        }
+                        opcode_map.entry(k).or_default().push(c.clone());
+                    }
+                } else {
+                    opcode_map.entry(opcode_lo16).or_default().push(c);
+                }
             }
         }
 
@@ -204,6 +229,23 @@ impl DecodeIndex {
             if no_fields || is_mem_addr {
                 let broad = (code_clean & c.broad_relaxed_match_mask & !guard_mask) == (c.and_base & c.broad_relaxed_match_mask & !guard_mask);
                 if broad { return Some((c, 2u8)); }    // priority 2 = broad-only
+            }
+            // Priority 3 (last resort): ALU sign-bit tolerant match. The generic
+            // abs/neg modifier bits (Rb: 62/63, Ra: 72/73, Rc: 74/75) are added
+            // AFTER matching by the is_alu block below; entries whose variable_mask
+            // never covered them (training set had no signed sample) otherwise fail
+            // to decode entirely (e.g. DFMA R16, R32, |R36|, R16 in cusolver).
+            let base = c.key.split('_').next().unwrap_or("").split('.').next().unwrap_or("");
+            let is_memlike = matches!(base,
+                "LDG" | "LDL" | "LDS" | "LDC" | "LDCU" | "STG" | "STL" | "STS" |
+                "ATOM" | "RED" | "BRA" | "BSSY" | "BSYNC" | "EXIT" | "RET" |
+                "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "QMMA");
+            if !is_memlike {
+                let sign_bits: u128 = (3u128 << 62) | (3u128 << 72) | (3u128 << 74);
+                let m2 = c.match_mask & !sign_bits;
+                if (code_clean & m2 & !guard_mask) == (c.and_base & m2 & !guard_mask) {
+                    return Some((c, 3u8));
+                }
             }
             None
         }).collect();
@@ -273,9 +315,26 @@ impl DecodeIndex {
             let undiscovered_penalty: i32 = if has_undiscovered { 50 }
                                             else if has_excess_trailing { 30 }
                                             else { 0 };
-            // Sort order: (is_negative, priority, undiscovered_penalty, adjusted_len, -score, neg_popcount, neg_mg_len)
+            // Unexplained-variance tiebreak: bits that are variable per the learned
+            // variable_mask but belong to NO declared field and differ between the
+            // code and this entry's and_base. The RIGHT mod_group explains all its
+            // set/clear bits via fields+constants and scores 0; a wrong sibling
+            // (e.g. LDC mg='64' on a 32-bit LDC word) must absorb its signature
+            // bits as unexplained variance and scores >0.
+            let unexplained_var: i32 = table.get(&c.key, &c.mod_group)
+                .map(|e| {
+                    let mut fm: u128 = 0;
+                    for f in &e.fields {
+                        fm |= if f.bits >= 128 { u128::MAX }
+                              else { ((1u128 << f.bits) - 1) << f.shift };
+                    }
+                    let free = e.variable_mask & !fm;
+                    ((code_clean ^ c.and_base) & free).count_ones() as i32
+                })
+                .unwrap_or(0);
+            // Sort order: (is_negative, priority, undiscovered_penalty, unexplained_var, adjusted_len, -score, neg_popcount, neg_mg_len)
             // neg_mg_len last: only tiebreaks between same key+popcount
-            (is_negative as i32, *priority as i32, opaque_penalty, plain_addr_penalty, undiscovered_penalty, adjusted_len, -score, neg_andbase_in_code, neg_popcount, neg_mg_len)
+            (is_negative as i32, *priority as i32, opaque_penalty, plain_addr_penalty, undiscovered_penalty, unexplained_var, adjusted_len, -score, neg_andbase_in_code, neg_popcount, neg_mg_len)
         });
 
         let matches: Vec<&DecodeCandidate> = matches.into_iter().map(|(c, _)| c).collect();
@@ -294,7 +353,10 @@ impl DecodeIndex {
         let mut fields = Vec::with_capacity(entry.fields.len());
         for f in &entry.fields {
             let mask = if f.bits >= 64 { u64::MAX } else { (1u64 << f.bits) - 1 };
-            let value = ((code_clean >> f.shift) as u64) & mask;
+            // Fields are extracted from the FULL word (not code_clean, which has
+            // bits [127:96] stripped): reuse/pred fields live at 122..124 and would
+            // otherwise decode as constant 0 (lost in decode->text->encode).
+            let value = ((code >> f.shift) as u64) & mask;
             let name = field_name(f);
             let extraction = extraction_name(&f.extraction);
             fields.push(DecodedField {
@@ -665,6 +727,11 @@ fn extraction_name(e: &Extraction) -> String {
         Extraction::SubImmShr(n, s) => format!("sub_imm{n}_shr{s}"),
         Extraction::SubImmS24(n) => format!("sub_imm{n}_s24"),
         Extraction::OpaqueModifier => "opaque_mod".into(),
+        Extraction::OpModFlag(n) => format!("opmod:{n}"),
+        Extraction::HalfSel => "hsel".into(),
+        Extraction::BF16 => "bf16".into(),
+        Extraction::MnemMod(i, n) => format!("mnemod{}:{}", i, n),
+        Extraction::LblPat(p) => p.clone(),
         _ => format!("{:?}", e).to_lowercase(),
     }
 }

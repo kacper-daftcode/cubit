@@ -325,7 +325,7 @@ fn synthetic_mismatched_table() -> IsaTable {
     let mut entries = HashMap::new();
     entries.insert("ISETP_P_P_R_II_P".to_string(),
         InsKeyEntry { mod_groups, ctrl_class: None, epoch_upper32: None });
-    IsaTable { entries }
+    IsaTable { entries, ..Default::default() }
 }
 
 #[test]
@@ -359,7 +359,7 @@ fn test_reject_imm_form_entry_for_reg_operand() {
     let mut entries = HashMap::new();
     entries.insert("VIMNMX_R_R_R_P".to_string(),
         InsKeyEntry { mod_groups, ctrl_class: None, epoch_upper32: None });
-    let table = IsaTable { entries };
+    let table = IsaTable { entries, ..Default::default() };
 
     let insn = parse_sass("VIMNMX.U32 R4, R4, R5, PT ;", 0).unwrap();
     let err = encode_instruction(&insn, &table).unwrap_err().to_string();
@@ -387,7 +387,7 @@ fn test_reject_fully_baked_entry_for_varying_regs() {
     let mut entries = HashMap::new();
     entries.insert("FSETP_P_P_R_R_P".to_string(),
         InsKeyEntry { mod_groups, ctrl_class: None, epoch_upper32: None });
-    let table = IsaTable { entries };
+    let table = IsaTable { entries, ..Default::default() };
 
     let insn = parse_sass("FSETP.GT.AND P2, PT, R8, RZ, PT ;", 0).unwrap();
     let err = encode_instruction(&insn, &table).unwrap_err().to_string();

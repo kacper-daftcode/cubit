@@ -40,9 +40,10 @@ impl Default for ControlCode {
 pub enum Operand {
     /// General register R0-R255 (RZ = 255).
     Reg { num: u8, neg: bool, abs: bool, inv: bool, reuse: bool },
-    /// Uniform register UR0-UR63 (URZ = 63).
-    /// `is_zero` distinguishes "URZ" (zero register) from "UR63" (same encoding, different semantics).
-    UReg { num: u8, neg: bool, reuse: bool, is_zero: bool },
+    /// Uniform register UR0-UR63. `is_zero` distinguishes "URZ" (architectural
+    /// zero, encodes as 0xFF in 8-bit slots on sm_103a) from "UR63" (a real
+    /// register, encodes as 63).
+    UReg { num: u8, neg: bool, abs: bool, inv: bool, reuse: bool, is_zero: bool },
     /// Predicate P0-P6, PT=7.
     Pred { num: u8, neg: bool },
     /// Uniform predicate UP0-UP6, UPT=7.
