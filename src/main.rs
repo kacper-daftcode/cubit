@@ -285,6 +285,21 @@ fn parse_sass_file_full(text: &str) -> ParsedSassFile
 
 const SCHED_MASK: u128 = (cubit::scheduling::CC_MASK as u128) << 64;
 
+/// Compute the `!rsd[b:v, ...]` annotation carrying every bit the text cannot
+/// reproduce (outside the scheduling window; that one is owned by the
+/// control-code prefix / @sched comment). Returns None when fully faithful.
+fn rsd_annotation(orig: u128, reenc: u128) -> Option<String> {
+    let d = (orig ^ reenc) & !SCHED_MASK;
+    if d == 0 { return None; }
+    let mut items: Vec<String> = Vec::new();
+    for b in 0..128u32 {
+        if (d >> b) & 1 == 1 {
+            items.push(format!("{}:{}", b, (orig >> b) & 1));
+        }
+    }
+    if items.is_empty() { None } else { Some(format!("!rsd[{}]", items.join(","))) }
+}
+
 // ── commands ──────────────────────────────────────────────────────────────────
 
 fn cmd_validate(table_path: &Path, records_path: &Path, dump_failures: Option<&Path>) -> Result<()> {
@@ -651,7 +666,17 @@ fn cmd_disassemble(
                         }
                     }
                     if relabeled {
-                        lines.push(format!("{label}[{cc_str}] {text} ;"));
+                        // Labeled branches skipped the fidelity check below: verify the
+                        // numeric form at the ORIGINAL addr; annotate residual bits
+                        // (e.g. convergence-barrier IDs at [31:24], negative CALL
+                        // sign-extension windows) so the frozen flow stays exact.
+                        let ann = cubit::parse_sass(&d.text, d.addr)
+                            .and_then(|insn| cubit::encoder::encode_instruction(&insn, &table))
+                            .ok()
+                            .and_then(|rc| rsd_annotation(d.code, rc))
+                            .map(|a| format!(" {a}"))
+                            .unwrap_or_default();
+                        lines.push(format!("{label}[{cc_str}] {text}{ann} ;"));
                         continue;
                     }
                     // offset-form branch: fall through to the fidelity check below
@@ -659,18 +684,25 @@ fn cmd_disassemble(
                 // Non-branch: verify decode -> re-encode is byte-faithful (non-sched
                 // bits). If a table gap makes it lossy, emit exact bytes as __raw__ so
                 // the round-trip stays bit-perfect (scheduler/encoder bypassed).
-                let faithful = cubit::parse_sass(&d.text, 0)
-                    .and_then(|insn| cubit::encoder::encode_instruction(&insn, &table))
-                    .map(|reenc| (reenc & !SCHED_MASK) == (d.code & !SCHED_MASK))
-                    .unwrap_or(false);
-                if faithful {
-                    lines.push(format!("{label}[{cc_str}] {} ;", d.text));
-                } else {
-                    // Should not happen for a complete table — surface it as a decode/encode
-                    // fidelity bug to fix (the bytes are still preserved exactly).
-                    eprintln!("  WARN [{kernel_name}] 0x{:04x}: decode->encode not byte-faithful, \
-                               emitting __raw__ (FIX THE TABLE): {:?}", d.addr, d.text);
-                    lines.push(format!("{label}__raw__0x{:032x} ;", d.code));
+                let reenc = cubit::parse_sass(&d.text, 0)
+                    .and_then(|insn| cubit::encoder::encode_instruction(&insn, &table));
+                match reenc {
+                    Ok(rc) if (rc & !SCHED_MASK) == (d.code & !SCHED_MASK) => {
+                        lines.push(format!("{label}[{cc_str}] {} ;", d.text));
+                    }
+                    Ok(rc) => {
+                        // Lossy in bits the text never shows -> carry them inline:
+                        // `!rsd[..]` keeps the instruction editable/readable while
+                        // the encoder reproduces the exact word (overlay, applied
+                        // last). __raw__ remains only for true non-decoding words.
+                        let ann = rsd_annotation(d.code, rc).unwrap_or_default();
+                        lines.push(format!("{label}[{cc_str}] {} {ann} ;", d.text));
+                    }
+                    Err(_) => {
+                        eprintln!("  WARN [{kernel_name}] 0x{:04x}: decode->encode failed, \
+                                   emitting __raw__: {:?}", d.addr, d.text);
+                        lines.push(format!("{label}__raw__0x{:032x} ;", d.code));
+                    }
                 }
             }
             // Close the block: without .endentry a following .entry would silently
@@ -686,9 +718,17 @@ fn cmd_disassemble(
                 if d.unknown {
                     lines.push(format!("  /*{:04x}*/  {}", d.addr, d.text));
                 } else {
+                    // Fidelity check: annotate with !rsd[..] when the text alone
+                    // does not re-encode to the original non-sched bits.
+                    let ann = cubit::parse_sass(&d.text, d.addr)
+                        .and_then(|insn| cubit::encoder::encode_instruction(&insn, &table))
+                        .ok()
+                        .and_then(|rc| rsd_annotation(d.code, rc))
+                        .map(|a| format!(" {a}"))
+                        .unwrap_or_default();
                     // @sched BEFORE the ; so the re-encode path captures it.
-                    lines.push(format!("  /*{:04x}*/  {} /* @sched 0x{:05x} */ ;",
-                        d.addr, d.text, d.sched));
+                    lines.push(format!("  /*{:04x}*/  {}{} /* @sched 0x{:05x} */ ;",
+                        d.addr, d.text, ann, d.sched));
                 }
             }
         }
@@ -1408,6 +1448,7 @@ fn cmd_asm_directive_format(
                     // only at 1 CTA/SM.) 15 = max, safe across occupancy.
                     ctrl: cubit::ir::ControlCode { stall: 15, wait_mask: wm, ..Default::default() },
                     hand_sched: false,
+                    rsd: None,
                     raw_text: "/* QMMA barrier drain */".into(),
                 };
                 insns_with_ctrl.insert(idx, drain);
@@ -1511,6 +1552,7 @@ fn cmd_asm_directive_format(
                 modifiers: vec![],
                 ctrl: cubit::ir::ControlCode { stall, wait_mask: 0, ..Default::default() },
                 hand_sched: false,
+                rsd: None,
                 raw_text: "/* QMMA writeback sync drain (@!UPT) */".into(),
             };
 
@@ -1912,6 +1954,7 @@ fn cmd_asm_directive_format(
                     modifiers: vec![],
                     ctrl: cubit::ir::ControlCode { stall, wait_mask: wm, ..Default::default() },
                     hand_sched: false,
+                    rsd: None,
                     raw_text: txt.into(),
                 };
                 if *is_pad {
@@ -2053,9 +2096,13 @@ fn cmd_asm_directive_format(
         }
 
         // Post-encoding: set BRA convergence barrier IDs from BSSY regions.
-        cubit::scheduling_pass::apply_convergence_barriers(
-            &mut code_bytes, &insns_with_ctrl,
-        );
+        // SKIP for fully-frozen kernels: their branch byte-3 barrier IDs are the
+        // author's own (a re-analysis would renumber and break byte fidelity).
+        if !fully_frozen {
+            cubit::scheduling_pass::apply_convergence_barriers(
+                &mut code_bytes, &insns_with_ctrl,
+            );
+        }
 
         total_enc += enc;
         total_fail += fail;

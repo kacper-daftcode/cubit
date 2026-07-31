@@ -652,7 +652,19 @@ pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> 
                   insn.opcode, insn.ctrl.wait_mask, insn.ctrl.write_bar);
     }
     let new_hi64 = ((final_upper32 as u64) << 32) | (lo32_hi as u64);
-    Ok(((new_hi64 as u128) << 64) | (lo64 as u128))
+    let mut out = ((new_hi64 as u128) << 64) | (lo64 as u128);
+    // !rsd[...] bit-residue overlay: author's explicit bit assignments, applied
+    // LAST — after fields, branch/reuse paths, scheduling and epoch merge (the
+    // final u128 is fully composed at this point). This is the escape hatch that
+    // makes strict round-trips exact even where the ISA table has no field for
+    // a hardware detail (disassemble emits !rsd only where text fidelity would
+    // otherwise be lost).
+    if let Some(rsd) = &insn.rsd {
+        for &(bit, val) in rsd {
+            if val != 0 { out |= 1u128 << bit; } else { out &= !(1u128 << bit); }
+        }
+    }
+    Ok(out)
 }
 
 // ---------------------------------------------------------------------------

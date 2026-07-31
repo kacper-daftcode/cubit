@@ -370,6 +370,36 @@ fn operand_type_label(op: &Operand) -> &'static str {
 // ---------------------------------------------------------------------------
 
 /// Parse bare SASS text (no control code prefix).
+
+/// Parse `!rsd[b:v, b:v, [hi:lo]=0x..]` — explicit bit-level residue annotations.
+/// Forms: single bits `75:1` / `84:0`, or ranges `[31:24]=0x05`.
+pub fn parse_rsd_annotations(s: &str) -> Vec<(u8, u8)> {
+    let mut out = Vec::new();
+    for item in s.split(',') {
+        let item = item.trim();
+        if item.is_empty() { continue; }
+        if let Some(rest) = item.strip_prefix('[') {
+            // [hi:lo]=0xVAL
+            if let Some((rng, val)) = rest.split_once("]=") {
+                if let Some((hi, lo)) = rng.split_once(':') {
+                    if let (Ok(hi), Ok(lo), Ok(v)) = (hi.parse::<u8>(),
+                                                     lo.parse::<u8>(),
+                                                     u64::from_str_radix(val.trim_start_matches("0x"), 16)) {
+                        for b in lo..=hi {
+                            out.push((b, ((v >> (b - lo)) & 1) as u8));
+                        }
+                    }
+                }
+            }
+        } else if let Some((b, v)) = item.split_once(':') {
+            if let (Ok(b), Ok(v)) = (b.parse::<u8>(), v.parse::<u8>()) {
+                out.push((b, v & 1));
+            }
+        }
+    }
+    out
+}
+
 pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
     // Raw verbatim instruction: `__raw__0x<128-bit hex>` — emitted unchanged by the
     // encoder (no re-encode, no rescheduling). Used by `disassemble --frozen` for any
@@ -386,6 +416,7 @@ pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
             modifiers: Vec::new(),
             ctrl: ControlCode::default(),
             hand_sched: true,
+            rsd: None,
             raw_text: format!("__raw__0x{}", hex.trim()),
         });
     }
@@ -396,6 +427,21 @@ pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
         .unwrap()
         .replace_all(text_clean, "")
         .to_string();
+    // Bit-residue annotations from `disassemble` (fidelity markers): !rsd[...]
+    // carries bits the nvdisasm-compatible text cannot express. Extracted here,
+    // applied verbatim by the encoder overlay at the very end of encoding.
+    let mut rsd: Option<Vec<(u8, u8)>> = None;
+    let text_clean = if let Some(pos) = text_clean.find("!rsd[") {
+        if let Some(end) = text_clean[pos..].find(']') {
+            let body = &text_clean[pos + 5..pos + end];
+            let v = parse_rsd_annotations(body);
+            if !v.is_empty() { rsd = Some(v); }
+            let mut t2 = String::new();
+            t2.push_str(&text_clean[..pos]);
+            t2.push_str(&text_clean[pos + end + 1..]);
+            t2.trim().to_string()
+        } else { text_clean }
+    } else { text_clean };
 
     let caps = RE_INS
         .captures(&text_clean)
@@ -480,6 +526,7 @@ pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
         modifiers,
         ctrl: ControlCode::default(),
         hand_sched: false,
+        rsd,
         raw_text: text.to_string(),
     })
 }

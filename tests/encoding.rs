@@ -614,6 +614,27 @@ mod sm103a {
     }
 
     #[test]
+    fn rsd_overlay_bit_exact() {
+        // Residue annotations: bits the text cannot express are carried inline
+        // and applied by the encoder at the very end (after sched/epoch merge).
+        let Some(tab) = t() else { return };
+        let c = encode_instruction(
+            &parse_sass("F2F.F32.F64 R18, R19 !rsd[75:1,84:0];", 0).unwrap(), &tab).unwrap();
+        // canonical encode writes (75,84)=(0,1); the annotation flips to (1,0),
+        // reproducing the corpus-observed second flavor bit-for-bit.
+        assert_eq!(c & !SCHED_MASK, 0x000fc200002018000000001300127310 & !SCHED_MASK);
+        let c2 = encode_instruction(
+            &parse_sass("F2F.F32.F64 R18, R19;", 0).unwrap(), &tab).unwrap();
+        assert_ne!(c & !SCHED_MASK, c2 & !SCHED_MASK);
+    }
+
+    #[test]
+    fn rsd_range_form_and_parse() {
+        let v = cubit::parser::parse_rsd_annotations("75:1, [24:23]=0x2");
+        assert_eq!(v, vec![(75u8, 1u8), (23u8, 0u8), (24u8, 1u8)]);
+    }
+
+    #[test]
     fn sass_parser_multi_entry_without_endentry() {
         // `.entry` without `.endentry` must close the previous kernel
         // (frozen disasm output had all-but-last kernels eaten).

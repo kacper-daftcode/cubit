@@ -147,6 +147,25 @@ tools/               ISA discovery and validation scripts
 docs/                SM120 scheduling and optimization notes
 ```
 
+## Strict round-trips: `!rsd[...]` residue annotations
+
+Some hardware bits are invisible in nvdisasm-compatible SASS text (convergence
+barrier IDs in branch byte 3, F2F mnemod order bits, epoch-window edges, ...).
+For those, `disassemble` / `disassemble --frozen` append an explicit annotation:
+
+```
+[B------:R-:W-:Y:S05]  @P1 BRA L_2310 !rsd[24:1] ;
+F2F.F64.F32 R18, R19 !rsd[75:1,84:0] ;
+```
+
+The parser collects `!rsd[b:v, [hi:lo]=0x..]` into `Instruction::rsd`; the
+encoder applies it as the **last** overlay stage (after fields, branch/reuse,
+scheduling, epoch merge). Result: frozen round-trips are bit-exact *by
+construction* on every decodable instruction; `__raw__` remains only for
+binary blobs inside `.text`. Default text stays nvdisasm-compatible — the
+annotation appears only where fidelity would otherwise be lost, so its count
+in a disassembly is a self-measuring table-completeness metric.
+
 ## Limitations
 
 - SM120 only (Blackwell: RTX 5090/5080/5070 Ti, DGX Spark).

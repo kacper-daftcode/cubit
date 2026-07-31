@@ -109,6 +109,11 @@ pub struct Instruction {
     /// untouched and the MMA writeback-drain post-pass skips them (the author owns the
     /// schedule, e.g. an nvcc-mirrored PV loop). Defaults to false.
     pub hand_sched: bool,
+    /// Bit-level residue overlay from `!rsd[...]` annotations: (bit, value)
+    /// assignments applied at the END of encoding. Emitted by `disassemble`
+    /// whenever decoded text would otherwise lose bits that nvdisasm's surface
+    /// syntax never shows (e.g. F2F mnemod pair bits [75,84], BRA token slots).
+    pub rsd: Option<Vec<(u8, u8)>>,
     /// Raw SASS text (for diagnostics only — encoder does NOT use this).
     pub raw_text: String,
 }

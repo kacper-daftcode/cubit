@@ -2555,6 +2555,7 @@ pub fn insert_stall_gaps(insns: &mut Vec<Instruction>, table: Option<&IsaTable>)
                     modifiers: vec![],
                     ctrl: crate::ir::ControlCode { stall: 15, ..Default::default() },
                     hand_sched: false,
+                    rsd: None,
                     raw_text: format!("/* stall gap {}/{} */", j + 1, nops),
                 };
                 insns.insert(i, delay_insn);
