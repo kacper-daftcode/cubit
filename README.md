@@ -136,6 +136,20 @@ cubit patch kernel.cubin -o patched.cubin
 
 The patched cubin works with both driver API and runtime API (`cudaLaunchKernel`).
 
+### Mercury sections and `cubit asm`
+
+`cubit asm` chooses the Mercury layout per kernel automatically:
+
+- Plain kernels keep the static Mercury stub (needed for driver-side
+  descriptor/param setup when using `LDG.E desc[…]`/`STG.E`).
+- Kernels containing tcgen05/TMA-class instructions (`UTCHMMA`, `UTCQMMA`,
+  TMA `UTMALDG`/`UTMASTG`, `UTCBAR`, …) are emitted **Mercury-free** unless
+  you pass `--mercury-stub <blob>`: the driver then falls back to analysing
+  `.text` directly, which configures resources correctly. Confidence evidence
+  (B300, CUDA 13.1): a Mercury-free FA4-class cubin passes
+  `cuModuleLoadData` + symbol resolution, and the no-Mercury smoke kernel
+  (LDCU/STG/BRA/DEPBAR) runs correctly end-to-end.
+
 ## Project layout
 
 ```

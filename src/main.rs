@@ -1115,6 +1115,7 @@ fn cmd_asm_build_elf(
     let mut total_enc = 0u64;
     let mut total_fail = 0u64;
     let mut total_insns = 0u64;
+    let mut tensor_class_kernels = false;
 
     for (kernel_name, insns) in sass_kernels {
         if let Some(only) = only_kernel {
@@ -1293,6 +1294,23 @@ fn cmd_asm_build_elf(
         println!("  {kernel_name}: regcount={}, barriers={}, exits={}",
             meta.regcount, meta.num_barriers, meta.exit_offsets.len());
 
+        // tcgen05/TMA-class instruction mix: the static CAPMERC_EXIT_STUB does
+        // not describe tensor-core resources. A wrong stub is worse than none:
+        // with no Mercury sections the driver falls back to analysing .text
+        // (SM120 evidence: works for QMMA; SM103a: FA4-class cubin loads and
+        // resolves fine — see blackwell-isa MERCURY_SM103A_STATUS).
+        let has_tensor_class = insns.iter().any(|(_a, asm)| {
+            let m = asm.split_whitespace().find(|t| !t.starts_with('@')).unwrap_or("");
+            let base = m.split('.').next().unwrap_or("");
+            matches!(base,
+                "UTCHMMA" | "UTCQMMA" | "UTCIMMA" | "UTCMXQMMA" | "UDLCQMMA" |
+                "UDLCIMMA" | "UDLCFIMMA" | "QMMA" | "UTMALDG" | "UTMASTG" |
+                "UTCBAR" | "TCBAR" | "TPCOMMIT")
+        });
+        if has_tensor_class {
+            tensor_class_kernels = true;
+        }
+
         entries.push(KernelEntry { name: kernel_name.clone(), code: code_bytes, meta, mercury_stub: mercury_stub_data.map(|s| s.to_vec()) });
     }
 
@@ -1302,19 +1320,27 @@ fn cmd_asm_build_elf(
 
     // If --eiattr-from is provided, use rebuild_cubin (copies ELF structure +
     // EIATTR from reference, replaces only .text sections with new instruction bytes)
-    let cubin_bytes = if let Some(ref_path) = eiattr_path {
-        use cubit::elf_builder::rebuild_cubin;
-        println!("Using EIATTR from: {}", ref_path.display());
-        let ref_bytes = std::fs::read(ref_path)
-            .with_context(|| format!("cannot read {}", ref_path.display()))?;
-        let patches: Vec<cubit::elf_builder::CubinPatch> = entries.iter()
-            .map(|e| (e.name.as_str(), e.code.clone(), e.mercury_stub.clone()))
-            .collect();
-        rebuild_cubin(&ref_bytes, &patches)?
-    } else {
-        use cubit::elf_builder::build_cubin_mercury_for_arch;
-        build_cubin_mercury_for_arch(&entries, table.ef_flags)?
-    };
+        let cubin_bytes = if let Some(ref_path) = eiattr_path {
+            use cubit::elf_builder::rebuild_cubin;
+            println!("Using EIATTR from: {}", ref_path.display());
+            let ref_bytes = std::fs::read(ref_path)
+                .with_context(|| format!("cannot read {}", ref_path.display()))?;
+            let patches: Vec<cubit::elf_builder::CubinPatch> = entries.iter()
+                .map(|e| (e.name.as_str(), e.code.clone(), e.mercury_stub.clone()))
+                .collect();
+            rebuild_cubin(&ref_bytes, &patches)?
+        } else {
+            use cubit::elf_builder::{build_cubin_for_arch, build_cubin_mercury_for_arch};
+            if tensor_class_kernels {
+                eprintln!("note: tcgen05/TMA-class instructions present and no explicit \
+                           --mercury-stub — emitting a Mercury-free cubin so the driver \
+                           falls back to .text analysis (the static stub does not \
+                           describe tensor-core resources).");
+                build_cubin_for_arch(&entries, table.ef_flags)?
+            } else {
+                build_cubin_mercury_for_arch(&entries, table.ef_flags)?
+            }
+        };
 
     std::fs::write(output_path, &cubin_bytes)?;
 
@@ -1353,9 +1379,26 @@ fn cmd_asm_directive_format(
     let mut sass_file = parse_sass_file_str(sass_text)
         .context("failed to parse .sass file")?;
 
+    let mut tensor_class_kernels = false;
+
     // Auto-detect register counts if not declared
     for def in &mut sass_file.kernels {
         auto_detect_resources(def);
+    }
+
+    // tcgen05 (UTCHMMA & friends) / TMA gate: route to the Mercury-free builder
+    // unless the user supplied an explicit stub. See blackwell-isa-internal
+    // docs/MERCURY_SM103A_STATUS.md for the evidence trail.
+    {
+        let tensor_hit = sass_file.kernels.iter().any(|def| {
+            def.instructions.iter().any(|ins| {
+                matches!(ins.opcode.as_str(),
+                    "UTCHMMA" | "UTCQMMA" | "UTCIMMA" | "UTCMXQMMA" | "UDLCQMMA" |
+                    "UDLCIMMA" | "UDLCFIMMA" | "QMMA" | "UTMALDG" | "UTMASTG" |
+                    "UTCBAR" | "TCBAR" | "TPCOMMIT")
+            })
+        });
+        if tensor_hit { tensor_class_kernels = true; }
     }
 
     if sass_file.kernels.is_empty() {
@@ -2137,8 +2180,15 @@ fn cmd_asm_directive_format(
             .map(|e| (e.name.as_str(), e.code.clone(), e.mercury_stub.clone())).collect();
         rebuild_cubin(&ref_bytes, &patches)?
     } else {
-        use cubit::elf_builder::build_cubin_mercury_for_arch;
-        build_cubin_mercury_for_arch(&entries, table.ef_flags)?
+        use cubit::elf_builder::{build_cubin_for_arch, build_cubin_mercury_for_arch};
+        if tensor_class_kernels {
+            eprintln!("note: tcgen05/TMA-class instructions present and no explicit \
+                       --mercury-stub — emitting a Mercury-free cubin (driver .text \
+                       fallback); the static stub does not describe these resources.");
+            build_cubin_for_arch(&entries, table.ef_flags)?
+        } else {
+            build_cubin_mercury_for_arch(&entries, table.ef_flags)?
+        }
     };
 
     std::fs::write(output_path, &cubin_bytes)
