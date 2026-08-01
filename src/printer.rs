@@ -946,6 +946,7 @@ fn format_pred_raw(fields: &[&DecodedField], uniform: bool, raw: u128) -> String
 fn format_ureg_raw(fields: &[&DecodedField], raw: u128) -> String {
     let mut ureg: Option<u64> = None;
     let mut neg = false;
+    let mut abs_u = false;
     let mut inv = false;
     let mut reuse = false;
     let mut hsel: u64 = 0;
@@ -960,6 +961,7 @@ fn format_ureg_raw(fields: &[&DecodedField], raw: u128) -> String {
             "ureg_ff"  => { ureg = Some(f.value | 0x100); }
             "ureg_shr3" => ureg = Some(f.value << 3),
             "neg"      => neg = f.value != 0,
+            "abs"      => abs_u = f.value != 0,
             "inv"      => inv = f.value != 0,
             "reuse"    => reuse = f.value != 0,
             "hsel"     => hsel = f.value,
@@ -988,7 +990,12 @@ fn format_ureg_raw(fields: &[&DecodedField], raw: u128) -> String {
     } else {
         format!("UR{un}")
     };
-    let s = if inv { format!("~{base}") } else if neg { format!("-{base}") } else { base };
+    // nvdisasm prints |URn| / -|URn| on uniform ALU sources (e.g. "FFMA R8, R3, |UR16|, RZ").
+    let s = if inv { format!("~{base}") }
+            else if neg && abs_u { format!("-|{base}|") }
+            else if abs_u { format!("|{base}|") }
+            else if neg { format!("-{base}") }
+            else { base };
     // HMUL2.BF16_V2 prints lane selection on the uniform source too ("UR8.H1_H1").
     let hs = match hsel { 3 => ".H1_H1", 2 => ".H0_H0", 1 => ".H0_H1", _ => "" };
     let s2 = format!("{s}{hs}");
