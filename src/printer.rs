@@ -439,6 +439,10 @@ fn mod_priority(m: &str) -> u8 {
         "NAN"| "NUM"| "GEF"| "NEF" => 1,
         // Wrap/mode qualifiers (SHF.R.W = wrap comes AFTER direction): priority 4
         "W" => 4,
+        // CALL.REL.NOINC / RET.REL.NODEC — nvdisasm prints the addr form (REL/ABS)
+        // before the control qualifier (NOINC/NODEC).
+        "REL" | "ABS" => 2,
+        "NOINC" | "NODEC" => 8,
         // Direction qualifiers (SHF.R = right, SHF.L = left, WIDE, etc.)
         // Note: HI (half result) comes AFTER data-size modifiers (e.g. SHF.R.S32.HI, USHF.L.U64.HI)
         // Note: X (carry-in/out) comes AFTER data-size/type modifiers (e.g. IADD.64.X, IMAD.WIDE.U32.X)
@@ -944,6 +948,7 @@ fn format_ureg_raw(fields: &[&DecodedField], raw: u128) -> String {
     let mut neg = false;
     let mut inv = false;
     let mut reuse = false;
+    let mut hsel: u64 = 0;
 
     for f in fields {
         let e = norm_ext(&f.extraction);
@@ -957,6 +962,7 @@ fn format_ureg_raw(fields: &[&DecodedField], raw: u128) -> String {
             "neg"      => neg = f.value != 0,
             "inv"      => inv = f.value != 0,
             "reuse"    => reuse = f.value != 0,
+            "hsel"     => hsel = f.value,
             _ => {}
         }
     }
@@ -983,7 +989,10 @@ fn format_ureg_raw(fields: &[&DecodedField], raw: u128) -> String {
         format!("UR{un}")
     };
     let s = if inv { format!("~{base}") } else if neg { format!("-{base}") } else { base };
-    if reuse { format!("{s}.reuse") } else { s }
+    // HMUL2.BF16_V2 prints lane selection on the uniform source too ("UR8.H1_H1").
+    let hs = match hsel { 3 => ".H1_H1", 2 => ".H0_H0", 1 => ".H0_H1", _ => "" };
+    let s2 = format!("{s}{hs}");
+    if reuse { format!("{s2}.reuse") } else { s2 }
 }
 
 // ── II / IM / LO — immediate ──────────────────────────────────────────────────
