@@ -368,25 +368,38 @@ pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> 
                     f.token_idx == tok && matches!(f.extraction, Extraction::Abs))
             };
 
-            if !has_field_abs(rb_tok) {
-                if let Some(Operand::Reg { abs: true, .. }) = insn.operands.get(rb_idx) {
-                    code |= 1u128 << 62;  // abs Rb
-                }
+            // abs/neg on UR source operands counts too (e.g. FFMA R8, R3, |UR16|, RZ
+            // needs abs-Rb bit62 set; the earlier Reg-only match dropped it silently).
+            let is_abs = |o: Option<&Operand>| -> bool {
+                matches!(o, Some(Operand::Reg { abs: true, .. })
+                         | Some(Operand::UReg { abs: true, .. }))
+            };
+            let is_neg = |o: Option<&Operand>| -> bool {
+                matches!(o, Some(Operand::Reg { neg: true, .. })
+                         | Some(Operand::UReg { neg: true, .. }))
+            };
+
+            if !has_field_abs(rb_tok) && is_abs(insn.operands.get(rb_idx)) {
+                code |= 1u128 << 62;  // abs Rb
             }
-            if !has_field_neg(rb_tok) {
-                if let Some(Operand::Reg { neg: true, .. }) = insn.operands.get(rb_idx) {
-                    code |= 1u128 << 63;  // neg Rb
-                }
+            if !has_field_neg(rb_tok) && is_neg(insn.operands.get(rb_idx)) {
+                code |= 1u128 << 63;  // neg Rb
             }
-            if !has_field_abs(ra_tok) {
-                if let Some(Operand::Reg { abs: true, .. }) = insn.operands.get(ra_idx) {
-                    code |= 1u128 << 73;  // abs Ra (hi bit 9)
-                }
+            if !has_field_abs(ra_tok) && is_abs(insn.operands.get(ra_idx)) {
+                code |= 1u128 << 73;  // abs Ra (hi bit 9)
             }
-            if !has_field_neg(ra_tok) {
-                if let Some(Operand::Reg { neg: true, .. }) = insn.operands.get(ra_idx) {
-                    code |= 1u128 << 72;  // neg Ra (hi bit 8)
-                }
+            if !has_field_neg(ra_tok) && is_neg(insn.operands.get(ra_idx)) {
+                code |= 1u128 << 72;  // neg Ra (hi bit 8)
+            }
+            // Third source (Rc slot, e.g. Ops[3] in DSETP/FFMA): abs at 74, neg at 75,
+            // mirroring the Ra slot pair. Guards via has_field_* as above.
+            let rc_idx = rb_idx + 1;
+            let rc_tok = rb_tok + 1;
+            if !has_field_abs(rc_tok) && is_abs(insn.operands.get(rc_idx)) {
+                code |= 1u128 << 74;
+            }
+            if !has_field_neg(rc_tok) && is_neg(insn.operands.get(rc_idx)) {
+                code |= 1u128 << 75;
             }
         }
     }
