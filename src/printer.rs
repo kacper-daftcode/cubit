@@ -76,7 +76,13 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             return format!("{guard_prefix}{opcode} {barrier_str}, 0x{target:x}");
         }
         // BRA.U: uniform predicate at bits[26:24], negation at bit 27
-        if insn.opcode == "BRA.U" {
+        // NOTE: `insn.opcode` holds the BASE opcode ("BRA"); the ".U" lives in
+        // `mod_group`, so comparing against "BRA.U" never matched and this whole
+        // branch was dead code. The generic table path then mis-rendered the
+        // operand (reading the negation bit as part of the predicate number),
+        // e.g. emitting `UP4` where cuobjdump shows `!UP0`.
+        if insn.opcode == "BRA.U"
+            || (insn.opcode == "BRA" && insn.mod_group.split(',').any(|m| m.trim() == "U")) {
             let lo64 = insn.raw_code as u64;
             let upred = (lo64 >> 24) & 0x7;
             let upred_neg = (lo64 >> 27) & 1;
