@@ -7,14 +7,18 @@
 #![allow(clippy::too_many_arguments)]
 
 use anyhow::{Context, Result};
-use object::read::elf::{ElfFile, FileHeader, SectionHeader as _};
-use object::{elf, Endianness};
 use clap::{Parser, Subcommand};
 use cubit::table::IsaTable;
+use object::read::elf::{ElfFile, FileHeader, SectionHeader as _};
+use object::{elf, Endianness};
 use std::path::{Path, PathBuf};
 
 #[derive(Parser)]
-#[command(name = "cubit", version, about = "SM120 CUDA assembler — bitfield encoding")]
+#[command(
+    name = "cubit",
+    version,
+    about = "SM120 CUDA assembler — bitfield encoding"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -97,6 +101,17 @@ enum Commands {
         #[arg(long)]
         allow_arch_mismatch: bool,
     },
+    /// Dump parsed Mercury (capmerc) sections of a cubin.
+    MercDump {
+        /// Input cubin file.
+        input: PathBuf,
+        /// Kernel name filter (default: all kernels).
+        #[arg(short, long)]
+        kernel: Option<String>,
+        /// Reject unknown record tags (default: lenient).
+        #[arg(long)]
+        strict: bool,
+    },
     /// Assemble a .sass file into a cubin.
     Asm {
         #[arg(short, long, default_value = "tables/sm120.json")]
@@ -155,20 +170,69 @@ enum Commands {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
-        Commands::Validate { table, records, dump_failures } => {
-            cmd_validate(&table, &records, dump_failures.as_deref())
-        }
+        Commands::Validate {
+            table,
+            records,
+            dump_failures,
+        } => cmd_validate(&table, &records, dump_failures.as_deref()),
         Commands::Encode { table, addr, sass } => cmd_encode(&table, &addr, &sass),
         Commands::Decode { table, addr, code } => cmd_decode(&table, &addr, &code),
-        Commands::Disassemble { table, input, kernel, output, frozen, allow_arch_mismatch } =>
-            cmd_disassemble(&table, &input, kernel.as_deref(), output.as_deref(), frozen, allow_arch_mismatch),
-        Commands::Roundtrip { table, records, inputs, allow_arch_mismatch } => cmd_roundtrip(&table, &records, &inputs, allow_arch_mismatch),
-        Commands::Patch { table, records, input, output, allow_arch_mismatch } =>
-            cmd_patch(&table, &records, &input, &output, allow_arch_mismatch),
-        Commands::Asm { table, input, template, eiattr_from, output, kernel, mercury_stub } =>
-            cmd_asm(&table, &input, template.as_deref(), eiattr_from.as_deref(), &output, kernel.as_deref(), mercury_stub.as_deref()),
-        Commands::AsmText { table, addr, code, format } =>
-            cmd_asm_text(&table, &addr, code.as_deref(), &format),
+        Commands::Disassemble {
+            table,
+            input,
+            kernel,
+            output,
+            frozen,
+            allow_arch_mismatch,
+        } => cmd_disassemble(
+            &table,
+            &input,
+            kernel.as_deref(),
+            output.as_deref(),
+            frozen,
+            allow_arch_mismatch,
+        ),
+        Commands::Roundtrip {
+            table,
+            records,
+            inputs,
+            allow_arch_mismatch,
+        } => cmd_roundtrip(&table, &records, &inputs, allow_arch_mismatch),
+        Commands::Patch {
+            table,
+            records,
+            input,
+            output,
+            allow_arch_mismatch,
+        } => cmd_patch(&table, &records, &input, &output, allow_arch_mismatch),
+        Commands::Asm {
+            table,
+            input,
+            template,
+            eiattr_from,
+            output,
+            kernel,
+            mercury_stub,
+        } => cmd_asm(
+            &table,
+            &input,
+            template.as_deref(),
+            eiattr_from.as_deref(),
+            &output,
+            kernel.as_deref(),
+            mercury_stub.as_deref(),
+        ),
+        Commands::AsmText {
+            table,
+            addr,
+            code,
+            format,
+        } => cmd_asm_text(&table, &addr, code.as_deref(), &format),
+        Commands::MercDump {
+            input,
+            kernel,
+            strict,
+        } => cmd_merc_dump(&input, kernel.as_deref(), strict),
         Commands::Info { table } => cmd_info(&table),
     }
 }
@@ -192,18 +256,18 @@ fn load_cuobjdump_sass(path: &Path) -> Result<String> {
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
-fn parse_cuobjdump_output(sass: &str)
-    -> std::collections::HashMap<String, Vec<(u32, u128, String)>>
-{
+fn parse_cuobjdump_output(
+    sass: &str,
+) -> std::collections::HashMap<String, Vec<(u32, u128, String)>> {
     use once_cell::sync::Lazy;
-    static RE_FUNC: Lazy<regex::Regex> = Lazy::new(||
-        regex::Regex::new(r"Function\s*:\s*(\S+)").unwrap());
-    static RE_INSN: Lazy<regex::Regex> = Lazy::new(||
-        regex::Regex::new(r"/\*([0-9a-f]+)\*/\s+(.+?)\s+/\*\s*0x([0-9a-fA-F]+)\s*\*/").unwrap());
-    static RE_HI: Lazy<regex::Regex> = Lazy::new(||
-        regex::Regex::new(r"/\*\s*0x([0-9a-fA-F]+)\s*\*/").unwrap());
-    static RE_ANN: Lazy<regex::Regex> = Lazy::new(||
-        regex::Regex::new(r"\s*[?&]\S+").unwrap());
+    static RE_FUNC: Lazy<regex::Regex> =
+        Lazy::new(|| regex::Regex::new(r"Function\s*:\s*(\S+)").unwrap());
+    static RE_INSN: Lazy<regex::Regex> = Lazy::new(|| {
+        regex::Regex::new(r"/\*([0-9a-f]+)\*/\s+(.+?)\s+/\*\s*0x([0-9a-fA-F]+)\s*\*/").unwrap()
+    });
+    static RE_HI: Lazy<regex::Regex> =
+        Lazy::new(|| regex::Regex::new(r"/\*\s*0x([0-9a-fA-F]+)\s*\*/").unwrap());
+    static RE_ANN: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r"\s*[?&]\S+").unwrap());
 
     let mut out: std::collections::HashMap<String, Vec<(u32, u128, String)>> =
         std::collections::HashMap::new();
@@ -212,7 +276,9 @@ fn parse_cuobjdump_output(sass: &str)
     let mut i = 0;
     while i < lines.len() {
         let line = lines[i].trim();
-        if let Some(c) = RE_FUNC.captures(line) { cur_func = c[1].to_string(); }
+        if let Some(c) = RE_FUNC.captures(line) {
+            cur_func = c[1].to_string();
+        }
         if let Some(c) = RE_INSN.captures(line) {
             if i + 1 < lines.len() {
                 if let Some(c2) = RE_HI.captures(lines[i + 1]) {
@@ -220,10 +286,17 @@ fn parse_cuobjdump_output(sass: &str)
                     let lo = u64::from_str_radix(&c[3], 16).unwrap_or(0);
                     let hi = u64::from_str_radix(&c2[1], 16).unwrap_or(0);
                     let code = ((hi as u128) << 64) | lo as u128;
-                    let asm = RE_ANN.replace_all(c[2].trim(), "")
-                        .trim().trim_end_matches(';').trim().to_string();
-                    out.entry(cur_func.clone()).or_default().push((addr, code, asm));
-                    i += 2; continue;
+                    let asm = RE_ANN
+                        .replace_all(c[2].trim(), "")
+                        .trim()
+                        .trim_end_matches(';')
+                        .trim()
+                        .to_string();
+                    out.entry(cur_func.clone())
+                        .or_default()
+                        .push((addr, code, asm));
+                    i += 2;
+                    continue;
                 }
             }
         }
@@ -238,21 +311,20 @@ struct ParsedSassFile {
     shared_sizes: std::collections::HashMap<String, u32>,
 }
 
-fn parse_sass_file_full(text: &str) -> ParsedSassFile
-{
+fn parse_sass_file_full(text: &str) -> ParsedSassFile {
     use once_cell::sync::Lazy;
-    static RE_INSN: Lazy<regex::Regex> = Lazy::new(||
-        regex::Regex::new(r"^\s*/\*([0-9a-f]+)\*/\s+(.+?)\s*;").unwrap());
+    static RE_INSN: Lazy<regex::Regex> =
+        Lazy::new(|| regex::Regex::new(r"^\s*/\*([0-9a-f]+)\*/\s+(.+?)\s*;").unwrap());
     // Also match raw instruction comments: /*addr*/  /* ? 0xNNNN...NNNN */
-    static RE_RAW: Lazy<regex::Regex> = Lazy::new(||
-        regex::Regex::new(r"^\s*/\*([0-9a-f]+)\*/\s+/\*\s*\?\s*0x([0-9a-fA-F]+)\s*\*/").unwrap());
-    static RE_SHARED: Lazy<regex::Regex> = Lazy::new(||
-        regex::Regex::new(r"^\.shared\s+smem\[(\d+)\]").unwrap());
+    static RE_RAW: Lazy<regex::Regex> = Lazy::new(|| {
+        regex::Regex::new(r"^\s*/\*([0-9a-f]+)\*/\s+/\*\s*\?\s*0x([0-9a-fA-F]+)\s*\*/").unwrap()
+    });
+    static RE_SHARED: Lazy<regex::Regex> =
+        Lazy::new(|| regex::Regex::new(r"^\.shared\s+smem\[(\d+)\]").unwrap());
 
     let mut out: std::collections::HashMap<String, Vec<(u32, String)>> =
         std::collections::HashMap::new();
-    let mut shared_sizes: std::collections::HashMap<String, u32> =
-        std::collections::HashMap::new();
+    let mut shared_sizes: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
     let mut cur_kernel = String::new();
 
     for line in text.lines() {
@@ -261,7 +333,9 @@ fn parse_sass_file_full(text: &str) -> ParsedSassFile
             cur_kernel = t[3..].trim().to_string();
             continue;
         }
-        if cur_kernel.is_empty() { continue; }
+        if cur_kernel.is_empty() {
+            continue;
+        }
         // Parse .shared smem[N] directive
         if let Some(c) = RE_SHARED.captures(t) {
             if let Ok(sz) = c[1].parse::<u32>() {
@@ -273,14 +347,19 @@ fn parse_sass_file_full(text: &str) -> ParsedSassFile
             let addr = u32::from_str_radix(&c[1], 16).unwrap_or(0);
             let raw_hex = c[2].to_string();
             // Store as special __raw__ prefix so encoder can emit raw bytes
-            out.entry(cur_kernel.clone()).or_default().push((addr, format!("__raw__0x{}", raw_hex)));
+            out.entry(cur_kernel.clone())
+                .or_default()
+                .push((addr, format!("__raw__0x{}", raw_hex)));
         } else if let Some(c) = RE_INSN.captures(t) {
             let addr = u32::from_str_radix(&c[1], 16).unwrap_or(0);
             let asm = c[2].trim().to_string();
             out.entry(cur_kernel.clone()).or_default().push((addr, asm));
         }
     }
-    ParsedSassFile { kernels: out, shared_sizes }
+    ParsedSassFile {
+        kernels: out,
+        shared_sizes,
+    }
 }
 
 const SCHED_MASK: u128 = (cubit::scheduling::CC_MASK as u128) << 64;
@@ -290,24 +369,43 @@ const SCHED_MASK: u128 = (cubit::scheduling::CC_MASK as u128) << 64;
 /// control-code prefix / @sched comment). Returns None when fully faithful.
 fn rsd_annotation(orig: u128, reenc: u128) -> Option<String> {
     let d = (orig ^ reenc) & !SCHED_MASK;
-    if d == 0 { return None; }
+    if d == 0 {
+        return None;
+    }
     let mut items: Vec<String> = Vec::new();
     for b in 0..128u32 {
         if (d >> b) & 1 == 1 {
             items.push(format!("{}:{}", b, (orig >> b) & 1));
         }
     }
-    if items.is_empty() { None } else { Some(format!("!rsd[{}]", items.join(","))) }
+    if items.is_empty() {
+        None
+    } else {
+        Some(format!("!rsd[{}]", items.join(",")))
+    }
 }
 
 // ── commands ──────────────────────────────────────────────────────────────────
 
-fn cmd_validate(table_path: &Path, records_path: &Path, dump_failures: Option<&Path>) -> Result<()> {
+fn cmd_validate(
+    table_path: &Path,
+    records_path: &Path,
+    dump_failures: Option<&Path>,
+) -> Result<()> {
     let table = IsaTable::load(table_path)?;
-    println!("Loaded {} keys, {} groups from {}", table.num_keys(), table.num_groups(), table_path.display());
+    println!(
+        "Loaded {} keys, {} groups from {}",
+        table.num_keys(),
+        table.num_groups(),
+        table_path.display()
+    );
 
     let records = cubit::table::load_records(records_path)?;
-    println!("Loaded {} records from {}", records.len(), records_path.display());
+    println!(
+        "Loaded {} records from {}",
+        records.len(),
+        records_path.display()
+    );
 
     let mut total = 0usize;
     let mut passed = 0usize;
@@ -321,7 +419,10 @@ fn cmd_validate(table_path: &Path, records_path: &Path, dump_failures: Option<&P
         total += 1;
         let mut insn = match cubit::parse_sass(&rec.asm, rec.addr) {
             Ok(i) => i,
-            Err(_) => { *by_key.entry(format!("{} [parse]", rec.key)).or_default() += 1; continue; }
+            Err(_) => {
+                *by_key.entry(format!("{} [parse]", rec.key)).or_default() += 1;
+                continue;
+            }
         };
         if insn.key != rec.key && table.get_key(&rec.key).is_some() {
             insn.key = rec.key.clone();
@@ -368,9 +469,14 @@ fn cmd_validate(table_path: &Path, records_path: &Path, dump_failures: Option<&P
         let mut sorted: Vec<_> = by_key.iter().collect();
         sorted.sort_by(|a, b| b.1.cmp(a.1));
         println!("Failures by key (top 20):");
-        for (k, n) in sorted.iter().take(20) { println!("  {k}: {n}"); }
+        for (k, n) in sorted.iter().take(20) {
+            println!("  {k}: {n}");
+        }
     }
-    println!("\nValidation: {passed}/{total} ({:.4}%)", 100.0 * passed as f64 / total as f64);
+    println!(
+        "\nValidation: {passed}/{total} ({:.4}%)",
+        100.0 * passed as f64 / total as f64
+    );
     Ok(())
 }
 
@@ -391,8 +497,7 @@ fn cmd_asm_text(table_path: &Path, addr_str: &str, code: Option<&str>, format: &
         }
     };
 
-    let (bytes, count) = cubit::assemble(&text, base_addr, &table)
-        .context("assembly failed")?;
+    let (bytes, count) = cubit::assemble(&text, base_addr, &table).context("assembly failed")?;
 
     match format {
         "raw" => {
@@ -436,7 +541,9 @@ fn cmd_decode(table_path: &Path, addr_str: &str, code_parts: &[String]) -> Resul
     let index = cubit::decoder::DecodeIndex::build(&table);
     let addr = parse_hex_addr(addr_str)?;
     let code: u128 = if code_parts.len() == 1 {
-        let s = code_parts[0].trim_start_matches("0x").trim_start_matches("0X");
+        let s = code_parts[0]
+            .trim_start_matches("0x")
+            .trim_start_matches("0X");
         u128::from_str_radix(s, 16).context("invalid 128-bit hex")?
     } else if code_parts.len() == 2 {
         let lo = u64::from_str_radix(code_parts[0].trim_start_matches("0x"), 16)?;
@@ -450,12 +557,22 @@ fn cmd_decode(table_path: &Path, addr_str: &str, code_parts: &[String]) -> Resul
     println!("ModGroup:   {:?}", d.mod_group);
     println!("Opcode:     {}", d.opcode);
     println!("SASS:       {d}");
-    println!("Scheduling: stall={} yield={} wbar={} rbar={} wait=0x{:02x}",
-        d.ctrl.stall, d.ctrl.yield_flag as u8, d.ctrl.write_bar, d.ctrl.read_bar, d.ctrl.wait_mask);
+    println!(
+        "Scheduling: stall={} yield={} wbar={} rbar={} wait=0x{:02x}",
+        d.ctrl.stall, d.ctrl.yield_flag as u8, d.ctrl.write_bar, d.ctrl.read_bar, d.ctrl.wait_mask
+    );
     println!("Fields:");
     for f in &d.fields {
-        println!("  {:8} [{:3}:{:3}] = {:6} (0x{:x})  tok={} ext={}",
-            f.name, f.shift + f.bits - 1, f.shift, f.value, f.value, f.token_idx, f.extraction);
+        println!(
+            "  {:8} [{:3}:{:3}] = {:6} (0x{:x})  tok={} ext={}",
+            f.name,
+            f.shift + f.bits - 1,
+            f.shift,
+            f.value,
+            f.value,
+            f.token_idx,
+            f.extraction
+        );
     }
     Ok(())
 }
@@ -466,11 +583,18 @@ fn cmd_decode(table_path: &Path, addr_str: &str, code_parts: &[String]) -> Resul
 fn check_arch(table: &IsaTable, sm: cubit::elf::SmVersion, path: &Path, allow: bool) -> Result<()> {
     let want = table.target_sm();
     let got = sm.sm;
-    if want == 0 || got == 0 || want == got { return Ok(()); }
+    if want == 0 || got == 0 || want == got {
+        return Ok(());
+    }
     let msg = format!(
         "arch mismatch: {} is sm_{} but the table targets sm_{};          pass --allow-arch-mismatch to force",
         path.display(), got, want);
-    if allow { eprintln!("warning: {msg}"); Ok(()) } else { anyhow::bail!("{msg}") }
+    if allow {
+        eprintln!("warning: {msg}");
+        Ok(())
+    } else {
+        anyhow::bail!("{msg}")
+    }
 }
 
 fn cmd_disassemble(
@@ -491,10 +615,14 @@ fn cmd_disassemble(
     for (sec_idx, (sec_name, _off, _size)) in cubin.text_sections.iter().enumerate() {
         let kernel_name = sec_name.strip_prefix(".text.").unwrap_or(sec_name);
         if let Some(only) = only_kernel {
-            if kernel_name != only { continue; }
+            if kernel_name != only {
+                continue;
+            }
         }
 
-        if !lines.is_empty() { lines.push(String::new()); }
+        if !lines.is_empty() {
+            lines.push(String::new());
+        }
 
         // Resolve from EIATTR (.nv.info.<kernel>): .shared smem[N] and the kernel
         // parameter layout (KPARAM_INFO, attr 0x17 — one 12-byte record per param:
@@ -505,7 +633,9 @@ fn cmd_disassemble(
                 ElfFile::parse(cubin.bytes.as_slice()).expect("failed to re-parse ELF");
             let endian = elf_obj.endian();
             let hdr = elf_obj.elf_header();
-            let sections = hdr.sections(endian, cubin.bytes.as_slice()).expect("sections");
+            let sections = hdr
+                .sections(endian, cubin.bytes.as_slice())
+                .expect("sections");
             let mut shared_size: u32 = 0;
             let shared_sec_name = format!(".nv.shared.{kernel_name}");
             for section in sections.iter() {
@@ -515,7 +645,9 @@ fn cmd_disassemble(
                 };
                 if sname == shared_sec_name {
                     let sz = section.sh_size(endian);
-                    if sz > 0 { shared_size = sz as u32; }
+                    if sz > 0 {
+                        shared_size = sz as u32;
+                    }
                     break;
                 }
             }
@@ -537,17 +669,26 @@ fn cmd_disassemble(
                             let attr = data[pos + 1];
                             let dsz = u16::from_le_bytes([data[pos + 2], data[pos + 3]]) as usize;
                             pos += 4;
-                            if pos + dsz > data.len() { break; }
+                            if pos + dsz > data.len() {
+                                break;
+                            }
                             let payload = &data[pos..pos + dsz];
                             if fmt == 0x04 && attr == 0x08 && dsz >= 4 && shared_size == 0 {
-                                let v = u32::from_le_bytes(
-                                    [payload[0], payload[1], payload[2], payload[3]]);
-                                if v > 0 { shared_size = v; }
+                                let v = u32::from_le_bytes([
+                                    payload[0], payload[1], payload[2], payload[3],
+                                ]);
+                                if v > 0 {
+                                    shared_size = v;
+                                }
                             }
                             if fmt == 0x04 && attr == 0x17 && dsz >= 12 {
                                 let ordinal = u16::from_le_bytes([payload[4], payload[5]]) as u32;
-                                let sizefield = u32::from_le_bytes(
-                                    [payload[8], payload[9], payload[10], payload[11]]);
+                                let sizefield = u32::from_le_bytes([
+                                    payload[8],
+                                    payload[9],
+                                    payload[10],
+                                    payload[11],
+                                ]);
                                 kparams.push((ordinal, sizefield >> 18));
                             }
                             pos += dsz;
@@ -560,22 +701,39 @@ fn cmd_disassemble(
         };
 
         // Decode all instructions in this section.
-        struct Dec { addr: u32, text: String, sched: u64, unknown: bool, code: u128 }
+        struct Dec {
+            addr: u32,
+            text: String,
+            sched: u64,
+            unknown: bool,
+            code: u128,
+        }
         let bytes = cubin.text_bytes(sec_idx)?;
         let mut decoded: Vec<Dec> = Vec::new();
         let mut addr = 0u32;
         for chunk in bytes.chunks(16) {
-            if chunk.len() < 16 { break; }
+            if chunk.len() < 16 {
+                break;
+            }
             let lo = u64::from_le_bytes(chunk[0..8].try_into().unwrap());
             let hi = u64::from_le_bytes(chunk[8..16].try_into().unwrap());
             let code = ((hi as u128) << 64) | lo as u128;
             let (text, unknown) = match index.decode(code, addr, &table) {
-                Ok(d)  => (format!("{d}"), false),
+                Ok(d) => (format!("{d}"), false),
                 Err(_) => (format!("/* ? 0x{code:032x} */"), true),
             };
             let sched = (hi >> 41) & 0x1FFFF;
-            let text = text.trim_end_matches(" ;").trim_end_matches(";").to_string();
-            decoded.push(Dec { addr, text, sched, unknown, code });
+            let text = text
+                .trim_end_matches(" ;")
+                .trim_end_matches(";")
+                .to_string();
+            decoded.push(Dec {
+                addr,
+                text,
+                sched,
+                unknown,
+                code,
+            });
             addr += 16;
         }
 
@@ -584,16 +742,31 @@ fn cmd_disassemble(
             let t = t.trim();
             let rest = if let Some(s) = t.strip_prefix('@') {
                 s.split_once(char::is_whitespace).map(|x| x.1).unwrap_or("")
-            } else { t };
-            rest.trim().split(|c: char| c.is_whitespace() || c == '.').next().unwrap_or("").to_string()
+            } else {
+                t
+            };
+            rest.trim()
+                .split(|c: char| c.is_whitespace() || c == '.')
+                .next()
+                .unwrap_or("")
+                .to_string()
         };
-        let is_branch = |t: &str| matches!(opcode_of(t).as_str(),
-            "BRA" | "JMP" | "CALL" | "BRX" | "BSSY" | "BSYNC");
+        let is_branch = |t: &str| {
+            matches!(
+                opcode_of(t).as_str(),
+                "BRA" | "JMP" | "CALL" | "BRX" | "BSSY" | "BSYNC"
+            )
+        };
         // last 0xHEX token in a string (= branch target operand).
         let last_hex = |t: &str| -> Option<u32> {
             let mut found = None;
-            for cap in regex::Regex::new(r"0x([0-9a-fA-F]+)").unwrap().captures_iter(t) {
-                if let Ok(v) = u32::from_str_radix(&cap[1], 16) { found = Some(v); }
+            for cap in regex::Regex::new(r"0x([0-9a-fA-F]+)")
+                .unwrap()
+                .captures_iter(t)
+            {
+                if let Ok(v) = u32::from_str_radix(&cap[1], 16) {
+                    found = Some(v);
+                }
             }
             found
         };
@@ -606,7 +779,9 @@ fn cmd_disassemble(
             let mut targets: BTreeSet<u32> = BTreeSet::new();
             for d in &decoded {
                 if !d.unknown && is_branch(&d.text) {
-                    if let Some(t) = last_hex(&d.text) { targets.insert(t); }
+                    if let Some(t) = last_hex(&d.text) {
+                        targets.insert(t);
+                    }
                 }
             }
             let re_reg = regex::Regex::new(r"\bR(\d+)\b").unwrap();
@@ -614,7 +789,9 @@ fn cmd_disassemble(
             for d in &decoded {
                 for cap in re_reg.captures_iter(&d.text) {
                     if let Ok(n) = cap[1].parse::<u32>() {
-                        if n != 255 && n > max_reg { max_reg = n; }
+                        if n != 255 && n > max_reg {
+                            max_reg = n;
+                        }
                     }
                 }
             }
@@ -642,7 +819,8 @@ fn cmd_disassemble(
                     "    ".to_string()
                 };
                 let cc_str = cubit::scheduling::format_control_code(
-                    &cubit::scheduling::decode_control_code(d.sched as u32));
+                    &cubit::scheduling::decode_control_code(d.sched as u32),
+                );
 
                 // Undecodable -> emit exact bytes.
                 if d.unknown {
@@ -699,8 +877,11 @@ fn cmd_disassemble(
                         lines.push(format!("{label}[{cc_str}] {} {ann} ;", d.text));
                     }
                     Err(_) => {
-                        eprintln!("  WARN [{kernel_name}] 0x{:04x}: decode->encode failed, \
-                                   emitting __raw__: {:?}", d.addr, d.text);
+                        eprintln!(
+                            "  WARN [{kernel_name}] 0x{:04x}: decode->encode failed, \
+                                   emitting __raw__: {:?}",
+                            d.addr, d.text
+                        );
                         lines.push(format!("{label}__raw__0x{:032x} ;", d.code));
                     }
                 }
@@ -727,8 +908,10 @@ fn cmd_disassemble(
                         .map(|a| format!(" {a}"))
                         .unwrap_or_default();
                     // @sched BEFORE the ; so the re-encode path captures it.
-                    lines.push(format!("  /*{:04x}*/  {}{} /* @sched 0x{:05x} */ ;",
-                        d.addr, d.text, ann, d.sched));
+                    lines.push(format!(
+                        "  /*{:04x}*/  {}{} /* @sched 0x{:05x} */ ;",
+                        d.addr, d.text, ann, d.sched
+                    ));
                 }
             }
         }
@@ -744,11 +927,21 @@ fn cmd_disassemble(
     Ok(())
 }
 
-fn cmd_roundtrip(table_path: &Path, _records_path: &PathBuf, inputs: &[PathBuf], allow_arch_mismatch: bool) -> Result<()> {
+fn cmd_roundtrip(
+    table_path: &Path,
+    _records_path: &PathBuf,
+    inputs: &[PathBuf],
+    allow_arch_mismatch: bool,
+) -> Result<()> {
     let table = IsaTable::load(table_path)?;
-    println!("Loaded {} keys, {} groups", table.num_keys(), table.num_groups());
+    println!(
+        "Loaded {} keys, {} groups",
+        table.num_keys(),
+        table.num_groups()
+    );
 
-    let (mut grand_total, mut grand_match, mut grand_mismatch, mut grand_error) = (0u64,0u64,0u64,0u64);
+    let (mut grand_total, mut grand_match, mut grand_mismatch, mut grand_error) =
+        (0u64, 0u64, 0u64, 0u64);
 
     for input in inputs {
         println!("\n{}", "=".repeat(60));
@@ -760,11 +953,19 @@ fn cmd_roundtrip(table_path: &Path, _records_path: &PathBuf, inputs: &[PathBuf],
         let func_insns = parse_cuobjdump_output(&sass);
 
         let all_insns: Vec<_> = func_insns.values().flatten().collect();
-        println!("  {} instructions, {} functions", all_insns.len(), func_insns.len());
+        println!(
+            "  {} instructions, {} functions",
+            all_insns.len(),
+            func_insns.len()
+        );
 
         let (mut n_match, mut n_mismatch, mut n_error) = (0u64, 0u64, 0u64);
         let mut examples: Vec<String> = Vec::new();
-        let example_cap = if std::env::var("CUBIT_RT_ALL").is_ok() { usize::MAX } else { 3 };
+        let example_cap = if std::env::var("CUBIT_RT_ALL").is_ok() {
+            usize::MAX
+        } else {
+            3
+        };
 
         for (addr, expected, asm) in &all_insns {
             match (|| -> Result<u128> {
@@ -772,14 +973,17 @@ fn cmd_roundtrip(table_path: &Path, _records_path: &PathBuf, inputs: &[PathBuf],
                 cubit::encoder::encode_instruction(&insn, &table)
             })() {
                 Ok(code) => {
-                    if (code & !SCHED_MASK) == (expected & !SCHED_MASK) { n_match += 1; }
-                    else {
+                    if (code & !SCHED_MASK) == (expected & !SCHED_MASK) {
+                        n_match += 1;
+                    } else {
                         n_mismatch += 1;
                         if examples.len() < example_cap {
                             examples.push(format!(
                                 "    0x{addr:04x}: {}\n      exp: 0x{:032x}\n      got: 0x{:032x}",
                                 &asm[..asm.len().min(50)],
-                                expected & !SCHED_MASK, code & !SCHED_MASK));
+                                expected & !SCHED_MASK,
+                                code & !SCHED_MASK
+                            ));
                         }
                     }
                 }
@@ -793,30 +997,54 @@ fn cmd_roundtrip(table_path: &Path, _records_path: &PathBuf, inputs: &[PathBuf],
         }
 
         let total = all_insns.len() as u64;
-        let pct = if total > 0 { 100.0 * n_match as f64 / total as f64 } else { 0.0 };
-        println!("  Match: {n_match}/{total} ({pct:.1}%)  Mismatch: {n_mismatch}  Error: {n_error}");
-        for ex in &examples { println!("{ex}"); }
-        grand_total += total; grand_match += n_match;
-        grand_mismatch += n_mismatch; grand_error += n_error;
+        let pct = if total > 0 {
+            100.0 * n_match as f64 / total as f64
+        } else {
+            0.0
+        };
+        println!(
+            "  Match: {n_match}/{total} ({pct:.1}%)  Mismatch: {n_mismatch}  Error: {n_error}"
+        );
+        for ex in &examples {
+            println!("{ex}");
+        }
+        grand_total += total;
+        grand_match += n_match;
+        grand_mismatch += n_mismatch;
+        grand_error += n_error;
     }
 
     println!("\n{}", "=".repeat(60));
     println!("ROUNDTRIP SUMMARY");
     println!("  Total: {grand_total}");
-    println!("  Match: {grand_match} ({:.1}%)", 100.0 * grand_match as f64 / grand_total as f64);
+    println!(
+        "  Match: {grand_match} ({:.1}%)",
+        100.0 * grand_match as f64 / grand_total as f64
+    );
     println!("  Mismatch: {grand_mismatch}");
     println!("  Error: {grand_error}");
     Ok(())
 }
 
-fn cmd_patch(table_path: &Path, _records_path: &PathBuf, input: &PathBuf, output: &PathBuf, allow_arch_mismatch: bool) -> Result<()> {
-    use cubit::elf::CubinFile;
+fn cmd_patch(
+    table_path: &Path,
+    _records_path: &PathBuf,
+    input: &PathBuf,
+    output: &PathBuf,
+    allow_arch_mismatch: bool,
+) -> Result<()> {
     use cubit::decoder::DecodeIndex;
+    use cubit::elf::CubinFile;
     let table = IsaTable::load(table_path)?;
     let index = DecodeIndex::build(&table);
     let mut cubin = CubinFile::load(input.as_path())?;
     check_arch(&table, cubin.sm, input, allow_arch_mismatch)?;
-    println!("Input: {} (SM{}, {} text sections)", input.display(), cubin.sm.sm, cubin.text_sections.len());
+    println!(
+        "Input: {} (SM{}, {} text sections)",
+        input.display(),
+        cubin.sm.sm,
+        cubin.text_sections.len()
+    );
 
     for sec_idx in 0..cubin.text_sections.len() {
         let sec_name = cubin.text_sections[sec_idx].0.clone();
@@ -827,13 +1055,17 @@ fn cmd_patch(table_path: &Path, _records_path: &PathBuf, input: &PathBuf, output
 
         for i in 0..n_insns {
             let offset = i * 16;
-            let orig_code = u128::from_le_bytes(code_bytes[offset..offset+16].try_into().unwrap());
+            let orig_code =
+                u128::from_le_bytes(code_bytes[offset..offset + 16].try_into().unwrap());
             let addr = (i * 16) as u32;
 
             // Decode with our own decoder
             let decoded = match index.decode(orig_code, addr, &table) {
                 Ok(d) => d,
-                Err(_) => { kept += 1; continue; }
+                Err(_) => {
+                    kept += 1;
+                    continue;
+                }
             };
 
             // Print to SASS text
@@ -865,11 +1097,13 @@ fn cmd_patch(table_path: &Path, _records_path: &PathBuf, input: &PathBuf, output
                     let final_code = ((orig_hi as u128) << 64) | enc_lo as u128;
                     let lo = final_code as u64;
                     let hi = (final_code >> 64) as u64;
-                    new_code[offset..offset+8].copy_from_slice(&lo.to_le_bytes());
-                    new_code[offset+8..offset+16].copy_from_slice(&hi.to_le_bytes());
+                    new_code[offset..offset + 8].copy_from_slice(&lo.to_le_bytes());
+                    new_code[offset + 8..offset + 16].copy_from_slice(&hi.to_le_bytes());
                     encoded += 1;
                 }
-                Err(_) => { kept += 1; }
+                Err(_) => {
+                    kept += 1;
+                }
             }
         }
         cubin.patch_text(sec_idx, &new_code)?;
@@ -880,8 +1114,14 @@ fn cmd_patch(table_path: &Path, _records_path: &PathBuf, input: &PathBuf, output
     println!("Written: {}", output.display());
     let orig = std::fs::read(input)?;
     let new = std::fs::read(output)?;
-    if orig == new { println!("PERFECT: byte-identical to input"); }
-    else { println!("Differences: {} bytes", orig.iter().zip(new.iter()).filter(|(a,b)| a!=b).count()); }
+    if orig == new {
+        println!("PERFECT: byte-identical to input");
+    } else {
+        println!(
+            "Differences: {} bytes",
+            orig.iter().zip(new.iter()).filter(|(a, b)| a != b).count()
+        );
+    }
     Ok(())
 }
 
@@ -890,10 +1130,12 @@ fn cmd_patch(table_path: &Path, _records_path: &PathBuf, input: &PathBuf, output
 fn apply_dependency_ctrl(insn: &mut cubit::Instruction) {
     use cubit::ir::Operand;
     // Skip user-overridden control codes.
-    if insn.ctrl.write_bar != 7 || insn.ctrl.wait_mask != 0 { return; }
+    if insn.ctrl.write_bar != 7 || insn.ctrl.wait_mask != 0 {
+        return;
+    }
     const NO_WRITE_OPS: &[&str] = &[
-        "EXIT", "BRA", "NOP", "RET", "BREAK", "CONT", "KILL",
-        "STG", "STS", "ST", "STL", "STGX", "MEMBAR", "BAR", "BARRIER", "FENCE",
+        "EXIT", "BRA", "NOP", "RET", "BREAK", "CONT", "KILL", "STG", "STS", "ST", "STL", "STGX",
+        "MEMBAR", "BAR", "BARRIER", "FENCE",
     ];
     let op = insn.opcode.as_str();
     if insn.guard.is_none() && !NO_WRITE_OPS.contains(&op) {
@@ -907,8 +1149,8 @@ fn apply_dependency_ctrl(insn: &mut cubit::Instruction) {
 
 /// Infer KernelMeta from encoded instruction bytes using the decoder.
 fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::eiattr::KernelMeta {
-    use cubit::eiattr::KernelMeta;
     use cubit::decoder::DecodeIndex;
+    use cubit::eiattr::KernelMeta;
 
     let index = DecodeIndex::build(table);
     let mut max_reg: u32 = 0;
@@ -916,7 +1158,9 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
     let mut barrier_seen = [false; 8];
 
     for (i, chunk) in code_bytes.chunks(16).enumerate() {
-        if chunk.len() < 16 { break; }
+        if chunk.len() < 16 {
+            break;
+        }
         let lo = u64::from_le_bytes(chunk[0..8].try_into().unwrap());
         let hi = u64::from_le_bytes(chunk[8..16].try_into().unwrap());
         let code = ((hi as u128) << 64) | lo as u128;
@@ -928,7 +1172,9 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
                 let e = f.extraction.as_str();
                 if e == "reg" || e == "Reg" {
                     let r = f.value as u32;
-                    if r < 255 && r > max_reg { max_reg = r; }
+                    if r < 255 && r > max_reg {
+                        max_reg = r;
+                    }
                 }
             }
             // Detect EXIT by opcode
@@ -954,14 +1200,20 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
                 } else {
                     (hi & 0xFF) as u32
                 };
-                if r < 255 && r > max_reg { max_reg = r; }
+                if r < 255 && r > max_reg {
+                    max_reg = r;
+                }
             }
             // Check opcode for EXIT (0x7918) and BSSY (0x7945)
             let opcode = lo & 0x0FFF;
-            if opcode == 0x0918 { exit_offsets.push(addr); }
+            if opcode == 0x0918 {
+                exit_offsets.push(addr);
+            }
             if opcode == 0x0945 {
                 let b = ((lo >> 16) & 0x7) as usize;
-                if b < 8 { barrier_seen[b] = true; }
+                if b < 8 {
+                    barrier_seen[b] = true;
+                }
             }
         }
     }
@@ -1004,19 +1256,29 @@ fn cmd_asm(
         .with_context(|| format!("cannot read {}", sass_path.display()))?;
 
     let mercury_stub = if let Some(p) = mercury_stub_path {
-        Some(std::fs::read(p).with_context(|| format!("cannot read Mercury stub {}", p.display()))?)
+        Some(
+            std::fs::read(p)
+                .with_context(|| format!("cannot read Mercury stub {}", p.display()))?,
+        )
     } else {
         None
     };
 
     // Detect format: .entry/.endentry directives vs /*addr*/ cubit format
-    let is_directive_format = sass_text.lines()
+    let is_directive_format = sass_text
+        .lines()
         .any(|l| l.trim().starts_with(".entry") || l.trim().starts_with(".func"));
 
     if is_directive_format {
         return cmd_asm_directive_format(
-            &table, &sass_text, template_path, eiattr_path, output_path, only_kernel,
-            mercury_stub.as_deref());
+            &table,
+            &sass_text,
+            template_path,
+            eiattr_path,
+            output_path,
+            only_kernel,
+            mercury_stub.as_deref(),
+        );
     }
 
     let parsed = parse_sass_file_full(&sass_text);
@@ -1025,29 +1287,53 @@ fn cmd_asm(
 
     // ── no-template path: use ELF builder with optional EIATTR reference ─────
     if template_path.is_none() {
-        return cmd_asm_build_elf(&table, &sass_text, &sass_kernels, &shared_sizes,
-            eiattr_path, output_path, only_kernel, mercury_stub.as_deref());
+        return cmd_asm_build_elf(
+            &table,
+            &sass_text,
+            &sass_kernels,
+            &shared_sizes,
+            eiattr_path,
+            output_path,
+            only_kernel,
+            mercury_stub.as_deref(),
+        );
     }
 
     let mut cubin = CubinFile::load(template_path.unwrap())?;
 
-    println!("Template: SM{}, {} sections", cubin.sm.sm, cubin.text_sections.len());
-    println!("SASS: {} chars, kernels: {:?}", sass_text.len(), sass_kernels.keys().collect::<Vec<_>>());
+    println!(
+        "Template: SM{}, {} sections",
+        cubin.sm.sm,
+        cubin.text_sections.len()
+    );
+    println!(
+        "SASS: {} chars, kernels: {:?}",
+        sass_text.len(),
+        sass_kernels.keys().collect::<Vec<_>>()
+    );
 
     let (mut total_enc, mut total_fail) = (0u64, 0u64);
     let mut total_insns = 0u64;
 
     for sec_idx in 0..cubin.text_sections.len() {
         let sec_name = cubin.text_sections[sec_idx].0.clone();
-        let kernel_name = sec_name.strip_prefix(".text.").unwrap_or(&sec_name).to_string();
+        let kernel_name = sec_name
+            .strip_prefix(".text.")
+            .unwrap_or(&sec_name)
+            .to_string();
 
         if let Some(only) = only_kernel {
-            if kernel_name != only { continue; }
+            if kernel_name != only {
+                continue;
+            }
         }
 
         let sass_insns = match sass_kernels.get(&kernel_name) {
             Some(v) => v,
-            None => { println!("  {sec_name}: not in sass file — skipping"); continue; }
+            None => {
+                println!("  {sec_name}: not in sass file — skipping");
+                continue;
+            }
         };
 
         let orig_bytes = cubin.text_bytes(sec_idx)?.to_vec();
@@ -1056,10 +1342,14 @@ fn cmd_asm(
 
         for (addr, asm) in sass_insns {
             let offset = *addr as usize;
-            if offset + 16 > new_code.len() { skipped += 1; continue; }
+            if offset + 16 > new_code.len() {
+                skipped += 1;
+                continue;
+            }
 
-            let orig_lo = u64::from_le_bytes(orig_bytes[offset..offset+8].try_into().unwrap());
-            let orig_hi = u64::from_le_bytes(orig_bytes[offset+8..offset+16].try_into().unwrap());
+            let orig_lo = u64::from_le_bytes(orig_bytes[offset..offset + 8].try_into().unwrap());
+            let orig_hi =
+                u64::from_le_bytes(orig_bytes[offset + 8..offset + 16].try_into().unwrap());
             let _orig_code = ((orig_hi as u128) << 64) | orig_lo as u128;
 
             match (|| -> Result<u128> {
@@ -1068,7 +1358,7 @@ fn cmd_asm(
             })() {
                 Ok(code) => {
                     let enc_lo = code as u64;
-                    new_code[offset..offset+8].copy_from_slice(&enc_lo.to_le_bytes());
+                    new_code[offset..offset + 8].copy_from_slice(&enc_lo.to_le_bytes());
                     encoded += 1;
                 }
                 Err(e) => {
@@ -1082,20 +1372,25 @@ fn cmd_asm(
 
         cubin.patch_text(sec_idx, &new_code)?;
         let total = sass_insns.len() as u64;
-        total_enc += encoded; total_fail += failed; total_insns += total;
+        total_enc += encoded;
+        total_fail += failed;
+        total_insns += total;
         println!("  {sec_name}: {encoded}/{total} encoded, {failed} failed, {skipped} skipped");
     }
 
     cubin.write(output_path.as_path())?;
 
     let orig = std::fs::read(template_path.unwrap())?;
-    let new  = std::fs::read(output_path)?;
-    let diff = orig.iter().zip(new.iter()).filter(|(a,b)| a!=b).count();
+    let new = std::fs::read(output_path)?;
+    let diff = orig.iter().zip(new.iter()).filter(|(a, b)| a != b).count();
 
     println!("\nWritten: {}", output_path.display());
     println!("Total:   {total_enc}/{total_insns} encoded ({total_fail} failed)");
-    if diff == 0 { println!("PERFECT: byte-identical to template!"); }
-    else         { println!("Diff vs template: {diff} bytes changed"); }
+    if diff == 0 {
+        println!("PERFECT: byte-identical to template!");
+    } else {
+        println!("Diff vs template: {diff} bytes changed");
+    }
     Ok(())
 }
 
@@ -1119,11 +1414,14 @@ fn cmd_asm_build_elf(
 
     for (kernel_name, insns) in sass_kernels {
         if let Some(only) = only_kernel {
-            if kernel_name != only { continue; }
+            if kernel_name != only {
+                continue;
+            }
         }
 
         // Encode all instructions into a flat byte buffer
-        let text_size = insns.iter()
+        let text_size = insns
+            .iter()
             .map(|(addr, _)| *addr as usize + 16)
             .max()
             .unwrap_or(0);
@@ -1138,8 +1436,8 @@ fn cmd_asm_build_elf(
                     if off + 16 <= code_bytes.len() {
                         let lo = code as u64;
                         let hi = (code >> 64) as u64;
-                        code_bytes[off..off+8].copy_from_slice(&lo.to_le_bytes());
-                        code_bytes[off+8..off+16].copy_from_slice(&hi.to_le_bytes());
+                        code_bytes[off..off + 8].copy_from_slice(&lo.to_le_bytes());
+                        code_bytes[off + 8..off + 16].copy_from_slice(&hi.to_le_bytes());
                         enc += 1;
                     }
                 }
@@ -1149,7 +1447,10 @@ fn cmd_asm_build_elf(
             // Parse @sched annotation if present (from cubit disassemble output)
             let sched_override: Option<u64> = if let Some(idx) = asm.find("/* @sched 0x") {
                 let start = idx + 12;
-                let end = asm[start..].find(' ').map(|e| start + e).unwrap_or(asm.len());
+                let end = asm[start..]
+                    .find(' ')
+                    .map(|e| start + e)
+                    .unwrap_or(asm.len());
                 let end = asm[start..].find("*/").map(|e| start + e).unwrap_or(end);
                 u64::from_str_radix(asm[start..end].trim(), 16).ok()
             } else {
@@ -1180,15 +1481,17 @@ fn cmd_asm_build_elf(
                             let sched_mask: u64 = 0x1FFFF << 41;
                             hi = (hi & !sched_mask) | ((sched & 0x1FFFF) << 41);
                         }
-                        code_bytes[off..off+8].copy_from_slice(&lo.to_le_bytes());
-                        code_bytes[off+8..off+16].copy_from_slice(&hi.to_le_bytes());
+                        code_bytes[off..off + 8].copy_from_slice(&lo.to_le_bytes());
+                        code_bytes[off + 8..off + 16].copy_from_slice(&hi.to_le_bytes());
                         enc += 1;
                     }
                 }
                 Err(e) => {
                     fail += 1;
                     if fail <= 5 {
-                        eprintln!("  WARN 0x{addr:04x} [{kernel_name}]: {e}  |  src: {clean_asm:?}");
+                        eprintln!(
+                            "  WARN 0x{addr:04x} [{kernel_name}]: {e}  |  src: {clean_asm:?}"
+                        );
                     }
                 }
             }
@@ -1197,8 +1500,10 @@ fn cmd_asm_build_elf(
         total_enc += enc;
         total_fail += fail;
         total_insns += insns.len() as u64;
-        println!("  {kernel_name}: {enc}/{} encoded ({fail} failed)",
-            insns.len());
+        println!(
+            "  {kernel_name}: {enc}/{} encoded ({fail} failed)",
+            insns.len()
+        );
 
         let mut meta = infer_kernel_meta(kernel_name, &code_bytes, table);
 
@@ -1214,25 +1519,39 @@ fn cmd_asm_build_elf(
             use std::collections::BTreeSet;
             let re_cbank = regex::Regex::new(r"c\[0x0\]\[0x([0-9a-fA-F]+)\]").unwrap();
             let re_desc = regex::Regex::new(r"desc\[UR(\d+)\]").unwrap();
-            let re_ldcu64 = regex::Regex::new(r"LDCU\.64\s+UR(\d+),\s*c\[0x0\]\[0x([0-9a-fA-F]+)\]").unwrap();
+            let re_ldcu64 =
+                regex::Regex::new(r"LDCU\.64\s+UR(\d+),\s*c\[0x0\]\[0x([0-9a-fA-F]+)\]").unwrap();
 
             let mut cbank_offsets: BTreeSet<u32> = BTreeSet::new();
             let mut desc_urs: BTreeSet<u32> = BTreeSet::new();
-            let mut ldcu64_map: std::collections::HashMap<u32, u32> = std::collections::HashMap::new();
+            let mut ldcu64_map: std::collections::HashMap<u32, u32> =
+                std::collections::HashMap::new();
 
             for (_addr, asm) in insns {
-                let clean = if let Some(idx) = asm.find("/* @sched") { &asm[..idx] } else { asm.as_str() };
+                let clean = if let Some(idx) = asm.find("/* @sched") {
+                    &asm[..idx]
+                } else {
+                    asm.as_str()
+                };
                 for cap in re_cbank.captures_iter(clean) {
                     if let Ok(off) = u32::from_str_radix(&cap[1], 16) {
-                        if off >= 0x380 { cbank_offsets.insert(off); }
+                        if off >= 0x380 {
+                            cbank_offsets.insert(off);
+                        }
                     }
                 }
                 for cap in re_desc.captures_iter(clean) {
-                    if let Ok(ur) = cap[1].parse::<u32>() { desc_urs.insert(ur); }
+                    if let Ok(ur) = cap[1].parse::<u32>() {
+                        desc_urs.insert(ur);
+                    }
                 }
                 for cap in re_ldcu64.captures_iter(clean) {
-                    if let (Ok(ur), Ok(off)) = (cap[1].parse::<u32>(), u32::from_str_radix(&cap[2], 16)) {
-                        if off >= 0x380 { ldcu64_map.insert(ur, off); }
+                    if let (Ok(ur), Ok(off)) =
+                        (cap[1].parse::<u32>(), u32::from_str_radix(&cap[2], 16))
+                    {
+                        if off >= 0x380 {
+                            ldcu64_map.insert(ur, off);
+                        }
                     }
                 }
             }
@@ -1240,7 +1559,9 @@ fn cmd_asm_build_elf(
             // Offsets loaded via LDCU.64 into UR regs that appear in desc[URn] are pointers
             let mut pointer_offsets: BTreeSet<u32> = BTreeSet::new();
             for (&ur, &off) in &ldcu64_map {
-                if desc_urs.contains(&ur) { pointer_offsets.insert(off); }
+                if desc_urs.contains(&ur) {
+                    pointer_offsets.insert(off);
+                }
             }
 
             if !cbank_offsets.is_empty() {
@@ -1252,31 +1573,53 @@ fn cmd_asm_build_elf(
                     let start = offsets[i];
                     let is_desc_ptr = pointer_offsets.contains(&start);
                     let is_ldc64 = insns.iter().any(|(_a, asm)| {
-                        let clean = if let Some(idx) = asm.find("/* @sched") { &asm[..idx] } else { asm.as_str() };
-                        clean.contains(&format!("c[0x0][0x{:x}]", start)) && clean.contains("LDC.64")
+                        let clean = if let Some(idx) = asm.find("/* @sched") {
+                            &asm[..idx]
+                        } else {
+                            asm.as_str()
+                        };
+                        clean.contains(&format!("c[0x0][0x{:x}]", start))
+                            && clean.contains("LDC.64")
                     });
-                    let is_ldcu64_nondesc = ldcu64_map.values().any(|&v| v == start) && !is_desc_ptr;
+                    let is_ldcu64_nondesc =
+                        ldcu64_map.values().any(|&v| v == start) && !is_desc_ptr;
 
                     if is_desc_ptr || is_ldc64 {
                         // 8-byte pointer or 64-bit value
-                        if i + 1 < offsets.len() && offsets[i + 1] == start + 4 { i += 2; } else { i += 1; }
+                        if i + 1 < offsets.len() && offsets[i + 1] == start + 4 {
+                            i += 2;
+                        } else {
+                            i += 1;
+                        }
                         params.push(cubit::eiattr::KernelParam {
-                            index: 0, ordinal: params.len() as u32, offset: start - base, size: 8,
+                            index: 0,
+                            ordinal: params.len() as u32,
+                            offset: start - base,
+                            size: 8,
                         });
                     } else if is_ldcu64_nondesc {
                         // LDCU.64 but NOT desc[] -> two consecutive 4-byte scalars
                         let off1 = start - base;
                         params.push(cubit::eiattr::KernelParam {
-                            index: 0, ordinal: params.len() as u32, offset: off1, size: 4,
+                            index: 0,
+                            ordinal: params.len() as u32,
+                            offset: off1,
+                            size: 4,
                         });
                         params.push(cubit::eiattr::KernelParam {
-                            index: 0, ordinal: params.len() as u32, offset: off1 + 4, size: 4,
+                            index: 0,
+                            ordinal: params.len() as u32,
+                            offset: off1 + 4,
+                            size: 4,
                         });
                         i += 1;
                     } else {
                         // 4-byte scalar
                         params.push(cubit::eiattr::KernelParam {
-                            index: 0, ordinal: params.len() as u32, offset: start - base, size: 4,
+                            index: 0,
+                            ordinal: params.len() as u32,
+                            offset: start - base,
+                            size: 4,
                         });
                         i += 1;
                     }
@@ -1285,14 +1628,20 @@ fn cmd_asm_build_elf(
                 let total = params.iter().map(|p| p.offset + p.size).max().unwrap_or(0);
                 meta.cbank_param_size = ((total + 7) & !7) as u16;
                 meta.params = params;
-                eprintln!("  {kernel_name}: inferred {} params, cbank_param_size=0x{:x}",
-                    meta.params.len(), meta.cbank_param_size);
+                eprintln!(
+                    "  {kernel_name}: inferred {} params, cbank_param_size=0x{:x}",
+                    meta.params.len(),
+                    meta.cbank_param_size
+                );
             }
         }
 
-
-        println!("  {kernel_name}: regcount={}, barriers={}, exits={}",
-            meta.regcount, meta.num_barriers, meta.exit_offsets.len());
+        println!(
+            "  {kernel_name}: regcount={}, barriers={}, exits={}",
+            meta.regcount,
+            meta.num_barriers,
+            meta.exit_offsets.len()
+        );
 
         // tcgen05/TMA-class instruction mix: the static CAPMERC_EXIT_STUB does
         // not describe tensor-core resources. A wrong stub is worse than none:
@@ -1300,18 +1649,50 @@ fn cmd_asm_build_elf(
         // (SM120 evidence: works for QMMA; SM103a: FA4-class cubin loads and
         // resolves fine — see blackwell-isa MERCURY_SM103A_STATUS).
         let has_tensor_class = insns.iter().any(|(_a, asm)| {
-            let m = asm.split_whitespace().find(|t| !t.starts_with('@')).unwrap_or("");
+            let m = asm
+                .split_whitespace()
+                .find(|t| !t.starts_with('@'))
+                .unwrap_or("");
             let base = m.split('.').next().unwrap_or("");
-            matches!(base,
-                "UTCHMMA" | "UTCQMMA" | "UTCIMMA" | "UTCMXQMMA" | "UDLCQMMA" |
-                "UDLCIMMA" | "UDLCFIMMA" | "QMMA" | "UTMALDG" | "UTMASTG" |
-                "UTCBAR" | "TCBAR" | "TPCOMMIT")
+            matches!(
+                base,
+                "UTCHMMA"
+                    | "UTCQMMA"
+                    | "UTCIMMA"
+                    | "UTCMXQMMA"
+                    | "UDLCQMMA"
+                    | "UDLCIMMA"
+                    | "UDLCFIMMA"
+                    | "QMMA"
+                    | "UTMALDG"
+                    | "UTMASTG"
+                    | "UTCBAR"
+                    | "TCBAR"
+                    | "TPCOMMIT"
+            )
         });
         if has_tensor_class {
             tensor_class_kernels = true;
         }
 
-        entries.push(KernelEntry { name: kernel_name.clone(), code: code_bytes, meta, mercury_stub: mercury_stub_data.map(|s| s.to_vec()) });
+        entries.push(KernelEntry {
+            name: kernel_name.clone(),
+            code: code_bytes,
+            meta,
+            mercury_stub: mercury_stub_data.map(|s| s.to_vec()),
+            opcodes: Some(
+                insns
+                    .iter()
+                    .map(|(_a, asm)| {
+                        let m = asm
+                            .split_whitespace()
+                            .find(|t| !t.starts_with('@'))
+                            .unwrap_or("");
+                        m.split('.').next().unwrap_or("").to_string()
+                    })
+                    .collect(),
+            ),
+        });
     }
 
     if entries.is_empty() {
@@ -1320,31 +1701,38 @@ fn cmd_asm_build_elf(
 
     // If --eiattr-from is provided, use rebuild_cubin (copies ELF structure +
     // EIATTR from reference, replaces only .text sections with new instruction bytes)
-        let cubin_bytes = if let Some(ref_path) = eiattr_path {
-            use cubit::elf_builder::rebuild_cubin;
-            println!("Using EIATTR from: {}", ref_path.display());
-            let ref_bytes = std::fs::read(ref_path)
-                .with_context(|| format!("cannot read {}", ref_path.display()))?;
-            let patches: Vec<cubit::elf_builder::CubinPatch> = entries.iter()
-                .map(|e| (e.name.as_str(), e.code.clone(), e.mercury_stub.clone()))
-                .collect();
-            rebuild_cubin(&ref_bytes, &patches)?
-        } else {
-            use cubit::elf_builder::{build_cubin_for_arch, build_cubin_mercury_for_arch};
-            if tensor_class_kernels {
-                eprintln!("note: tcgen05/TMA-class instructions present and no explicit \
+    let cubin_bytes = if let Some(ref_path) = eiattr_path {
+        use cubit::elf_builder::rebuild_cubin;
+        println!("Using EIATTR from: {}", ref_path.display());
+        let ref_bytes = std::fs::read(ref_path)
+            .with_context(|| format!("cannot read {}", ref_path.display()))?;
+        let patches: Vec<cubit::elf_builder::CubinPatch> = entries
+            .iter()
+            .map(|e| (e.name.as_str(), e.code.clone(), e.mercury_stub.clone()))
+            .collect();
+        rebuild_cubin(&ref_bytes, &patches)?
+    } else {
+        use cubit::elf_builder::{build_cubin_for_arch, build_cubin_mercury_for_arch};
+        if tensor_class_kernels {
+            eprintln!(
+                "note: tcgen05/TMA-class instructions present and no explicit \
                            --mercury-stub — emitting a Mercury-free cubin so the driver \
                            falls back to .text analysis (the static stub does not \
-                           describe tensor-core resources).");
-                build_cubin_for_arch(&entries, table.ef_flags)?
-            } else {
-                build_cubin_mercury_for_arch(&entries, table.ef_flags)?
-            }
-        };
+                           describe tensor-core resources)."
+            );
+            build_cubin_for_arch(&entries, table.ef_flags)?
+        } else {
+            build_cubin_mercury_for_arch(&entries, table.ef_flags)?
+        }
+    };
 
     std::fs::write(output_path, &cubin_bytes)?;
 
-    println!("\nWritten: {} ({} bytes)", output_path.display(), cubin_bytes.len());
+    println!(
+        "\nWritten: {} ({} bytes)",
+        output_path.display(),
+        cubin_bytes.len()
+    );
     println!("Total:   {total_enc}/{total_insns} encoded ({total_fail} failed)");
     if eiattr_path.is_none() {
         println!("Note: metadata inferred from instructions — parameters/stack may be incomplete.");
@@ -1373,11 +1761,10 @@ fn cmd_asm_directive_format(
     only_kernel: Option<&str>,
     mercury_stub: Option<&[u8]>,
 ) -> Result<()> {
-    use cubit::sass_file::{parse_sass_file_str, auto_detect_resources, kernel_def_to_meta};
     use cubit::elf_builder::KernelEntry;
+    use cubit::sass_file::{auto_detect_resources, kernel_def_to_meta, parse_sass_file_str};
 
-    let mut sass_file = parse_sass_file_str(sass_text)
-        .context("failed to parse .sass file")?;
+    let mut sass_file = parse_sass_file_str(sass_text).context("failed to parse .sass file")?;
 
     let mut tensor_class_kernels = false;
 
@@ -1392,13 +1779,27 @@ fn cmd_asm_directive_format(
     {
         let tensor_hit = sass_file.kernels.iter().any(|def| {
             def.instructions.iter().any(|ins| {
-                matches!(ins.opcode.as_str(),
-                    "UTCHMMA" | "UTCQMMA" | "UTCIMMA" | "UTCMXQMMA" | "UDLCQMMA" |
-                    "UDLCIMMA" | "UDLCFIMMA" | "QMMA" | "UTMALDG" | "UTMASTG" |
-                    "UTCBAR" | "TCBAR" | "TPCOMMIT")
+                matches!(
+                    ins.opcode.as_str(),
+                    "UTCHMMA"
+                        | "UTCQMMA"
+                        | "UTCIMMA"
+                        | "UTCMXQMMA"
+                        | "UDLCQMMA"
+                        | "UDLCIMMA"
+                        | "UDLCFIMMA"
+                        | "QMMA"
+                        | "UTMALDG"
+                        | "UTMASTG"
+                        | "UTCBAR"
+                        | "TCBAR"
+                        | "TPCOMMIT"
+                )
             })
         });
-        if tensor_hit { tensor_class_kernels = true; }
+        if tensor_hit {
+            tensor_class_kernels = true;
+        }
     }
 
     if sass_file.kernels.is_empty() {
@@ -1419,7 +1820,9 @@ fn cmd_asm_directive_format(
 
     for def in &sass_file.kernels {
         if let Some(only) = only_kernel {
-            if def.name != only { continue; }
+            if def.name != only {
+                continue;
+            }
         }
 
         // Scheduling pass: register dependency tracking + multi-barrier allocation.
@@ -1431,8 +1834,8 @@ fn cmd_asm_directive_format(
         // drains, store WAR read-barriers, etc.) do NOT — so for a frozen kernel they must be
         // skipped wholesale, otherwise they rewrite ptxas's exact control codes (observed:
         // dropped barrier-waits, shortened branch/BAR stalls, reallocated rb, inserted drains).
-        let fully_frozen = !insns_with_ctrl.is_empty()
-            && insns_with_ctrl.iter().all(|x| x.hand_sched);
+        let fully_frozen =
+            !insns_with_ctrl.is_empty() && insns_with_ctrl.iter().all(|x| x.hand_sched);
         cubit::scheduling_pass::schedule(&mut insns_with_ctrl, Some(table));
         // Barrier allocation: the unified interval-based allocator (reallocate_barriers, run
         // at the END below, after all instruction insertions) re-derives RAW write-barriers +
@@ -1460,247 +1863,365 @@ fn cmd_asm_directive_format(
         // accumulator distance. In the new-allocator path reallocate_barriers (at the end)
         // re-derives the load/store barriers on top; here we keep the MMA stall/drain timing.
         if !fully_frozen {
-        {
-            let is_mma = |op: &str| matches!(op, "QMMA" | "HMMA" | "IMMA" | "DMMA");
-            let mut inserts: Vec<(usize, u8)> = Vec::new();
-            for (i, insn) in insns_with_ctrl.iter().enumerate() {
-                // hand-scheduled MMAs own their input drain — don't auto-insert one.
-                // CUBIT_MMA_WAIT: the wait stays on the MMA itself, so no pre-drain at all.
-                if is_mma(&insn.opcode) && insn.ctrl.wait_mask != 0 && !insn.hand_sched && !mma_wait {
-                    inserts.push((i, insn.ctrl.wait_mask));
-                }
-            }
-            for (idx, wm) in inserts.into_iter().rev() {
-                let drain = cubit::Instruction {
-                    addr: 0, opcode: "UIADD3".into(), opcode_full: "UIADD3".into(),
-                    key: "UIADD3_UR_UP_UP_UR_UR_UR/".into(), guard: None,
-                    operands: vec![
-                        cubit::ir::Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true },
-                        cubit::ir::Operand::UPred { num: 7, neg: false },
-                        cubit::ir::Operand::UPred { num: 7, neg: false },
-                        cubit::ir::Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true },
-                        cubit::ir::Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true },
-                        cubit::ir::Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true },
-                    ],
-                    modifiers: vec![],
-                    // stall>=12: a UIADD3 drain carrying a wait_mask needs >=12 cycles for the
-                    // waited barriers to RETIRE before the consumer (the MMA) issues. At <12 the
-                    // retirement is incomplete at high occupancy (2+ CTAs/SM = 4+ warps/SMSP) and
-                    // the MMA reads STALE inputs -> deterministic wrong output. (SM120 barrier
-                    // retirement latency; see SM120_BARRIER_SCHEDULING Finding 1. stall=1 worked
-                    // only at 1 CTA/SM.) 15 = max, safe across occupancy.
-                    ctrl: cubit::ir::ControlCode { stall: 15, wait_mask: wm, ..Default::default() },
-                    hand_sched: false,
-                    rsd: None,
-                    raw_text: "/* QMMA barrier drain */".into(),
-                };
-                insns_with_ctrl.insert(idx, drain);
-            }
-            // SM120 does NOT honor a write_bar on cooperative MMA writeback (empirically
-            // re-confirmed: a drain waiting the MMA's assigned barrier still reads a stale
-            // accumulator at 2 CTAs/SM). The barrier is cleared; writeback sync is timing-based.
-            // The MMA's own stall is part of the timing-based writeback sync. Default 11
-            // (cubit heuristic); ptxas uses stall=1 on the cooperative HMMA and moves the
-            // settle onto the following NOP/back-edge. CUBIT_MMA_STALL forces an exact value
-            // (experiment: match ptxas's stall=1).
-            let mma_stall_override: Option<u8> = std::env::var("CUBIT_MMA_STALL")
-                .ok().and_then(|s| s.parse().ok());
-            for insn in insns_with_ctrl.iter_mut() {
-                // Bug fix: never rewrite ctrl of frozen (hand-scheduled) MMAs — the author
-                // owns their schedule. (Independent of CUBIT_MMA_WAIT.)
-                if is_mma(&insn.opcode) && !insn.hand_sched {
-                    insn.ctrl.write_bar = 7;
-                    // CUBIT_MMA_WAIT: KEEP the scheduler-assigned wait_mask on the MMA
-                    // (ptxas puts the barrier wait directly on the HMMA). Default strips it.
-                    if !mma_wait {
-                        insn.ctrl.wait_mask = 0;
-                    }
-                    insn.ctrl.yield_flag = true;
-                    insn.ctrl.stall = match mma_stall_override {
-                        Some(v) => v,
-                        // CUBIT_MMA_WAIT: ptxas runs the cooperative HMMA tight (small stall)
-                        // and settles on the following NOP; default uses the heavy .max(11).
-                        None => if mma_wait { insn.ctrl.stall.max(2) } else { insn.ctrl.stall.max(11) },
-                    };
-                }
-            }
-            // CUBIT_MMA_WAIT/SCHED2: settle the cooperative writeback with a stall on the
-            // instruction right AFTER the MMA (ptxas emits `NOP S13` there), rather than
-            // cubit's @!UPT drain block. The MMA already waits its input barrier; this
-            // guarantees the F32 accumulator (R4..R7) is fully committed to the register
-            // file before the next iteration's MMA reads it back as the C accumulator and
-            // before the loop-exit store reads D. Too short a settle leaves the LAST-
-            // committed accumulator register (empirically R6/c2) stale on ~half the
-            // d-slices -> wrong output. Tunable via CUBIT_MMA_WAIT_STALL (default 13).
-            if mma_wait {
-                let settle: u8 = std::env::var("CUBIT_MMA_WAIT_STALL")
-                    .ok().and_then(|s| s.parse().ok()).unwrap_or(13);
-                let mut bumps: Vec<usize> = Vec::new();
+            {
+                let is_mma = |op: &str| matches!(op, "QMMA" | "HMMA" | "IMMA" | "DMMA");
+                let mut inserts: Vec<(usize, u8)> = Vec::new();
                 for (i, insn) in insns_with_ctrl.iter().enumerate() {
-                    if is_mma(&insn.opcode) && !insn.hand_sched
-                        && insns_with_ctrl.get(i + 1).is_some_and(|n| !n.hand_sched) {
+                    // hand-scheduled MMAs own their input drain — don't auto-insert one.
+                    // CUBIT_MMA_WAIT: the wait stays on the MMA itself, so no pre-drain at all.
+                    if is_mma(&insn.opcode)
+                        && insn.ctrl.wait_mask != 0
+                        && !insn.hand_sched
+                        && !mma_wait
+                    {
+                        inserts.push((i, insn.ctrl.wait_mask));
+                    }
+                }
+                for (idx, wm) in inserts.into_iter().rev() {
+                    let drain = cubit::Instruction {
+                        addr: 0,
+                        opcode: "UIADD3".into(),
+                        opcode_full: "UIADD3".into(),
+                        key: "UIADD3_UR_UP_UP_UR_UR_UR/".into(),
+                        guard: None,
+                        operands: vec![
+                            cubit::ir::Operand::UReg {
+                                num: 63,
+                                neg: false,
+                                abs: false,
+                                inv: false,
+                                reuse: false,
+                                is_zero: true,
+                            },
+                            cubit::ir::Operand::UPred { num: 7, neg: false },
+                            cubit::ir::Operand::UPred { num: 7, neg: false },
+                            cubit::ir::Operand::UReg {
+                                num: 63,
+                                neg: false,
+                                abs: false,
+                                inv: false,
+                                reuse: false,
+                                is_zero: true,
+                            },
+                            cubit::ir::Operand::UReg {
+                                num: 63,
+                                neg: false,
+                                abs: false,
+                                inv: false,
+                                reuse: false,
+                                is_zero: true,
+                            },
+                            cubit::ir::Operand::UReg {
+                                num: 63,
+                                neg: false,
+                                abs: false,
+                                inv: false,
+                                reuse: false,
+                                is_zero: true,
+                            },
+                        ],
+                        modifiers: vec![],
+                        // stall>=12: a UIADD3 drain carrying a wait_mask needs >=12 cycles for the
+                        // waited barriers to RETIRE before the consumer (the MMA) issues. At <12 the
+                        // retirement is incomplete at high occupancy (2+ CTAs/SM = 4+ warps/SMSP) and
+                        // the MMA reads STALE inputs -> deterministic wrong output. (SM120 barrier
+                        // retirement latency; see SM120_BARRIER_SCHEDULING Finding 1. stall=1 worked
+                        // only at 1 CTA/SM.) 15 = max, safe across occupancy.
+                        ctrl: cubit::ir::ControlCode {
+                            stall: 15,
+                            wait_mask: wm,
+                            ..Default::default()
+                        },
+                        hand_sched: false,
+                        rsd: None,
+                        raw_text: "/* QMMA barrier drain */".into(),
+                    };
+                    insns_with_ctrl.insert(idx, drain);
+                }
+                // SM120 does NOT honor a write_bar on cooperative MMA writeback (empirically
+                // re-confirmed: a drain waiting the MMA's assigned barrier still reads a stale
+                // accumulator at 2 CTAs/SM). The barrier is cleared; writeback sync is timing-based.
+                // The MMA's own stall is part of the timing-based writeback sync. Default 11
+                // (cubit heuristic); ptxas uses stall=1 on the cooperative HMMA and moves the
+                // settle onto the following NOP/back-edge. CUBIT_MMA_STALL forces an exact value
+                // (experiment: match ptxas's stall=1).
+                let mma_stall_override: Option<u8> = std::env::var("CUBIT_MMA_STALL")
+                    .ok()
+                    .and_then(|s| s.parse().ok());
+                for insn in insns_with_ctrl.iter_mut() {
+                    // Bug fix: never rewrite ctrl of frozen (hand-scheduled) MMAs — the author
+                    // owns their schedule. (Independent of CUBIT_MMA_WAIT.)
+                    if is_mma(&insn.opcode) && !insn.hand_sched {
+                        insn.ctrl.write_bar = 7;
+                        // CUBIT_MMA_WAIT: KEEP the scheduler-assigned wait_mask on the MMA
+                        // (ptxas puts the barrier wait directly on the HMMA). Default strips it.
+                        if !mma_wait {
+                            insn.ctrl.wait_mask = 0;
+                        }
+                        insn.ctrl.yield_flag = true;
+                        insn.ctrl.stall = match mma_stall_override {
+                            Some(v) => v,
+                            // CUBIT_MMA_WAIT: ptxas runs the cooperative HMMA tight (small stall)
+                            // and settles on the following NOP; default uses the heavy .max(11).
+                            None => {
+                                if mma_wait {
+                                    insn.ctrl.stall.max(2)
+                                } else {
+                                    insn.ctrl.stall.max(11)
+                                }
+                            }
+                        };
+                    }
+                }
+                // CUBIT_MMA_WAIT/SCHED2: settle the cooperative writeback with a stall on the
+                // instruction right AFTER the MMA (ptxas emits `NOP S13` there), rather than
+                // cubit's @!UPT drain block. The MMA already waits its input barrier; this
+                // guarantees the F32 accumulator (R4..R7) is fully committed to the register
+                // file before the next iteration's MMA reads it back as the C accumulator and
+                // before the loop-exit store reads D. Too short a settle leaves the LAST-
+                // committed accumulator register (empirically R6/c2) stale on ~half the
+                // d-slices -> wrong output. Tunable via CUBIT_MMA_WAIT_STALL (default 13).
+                if mma_wait {
+                    let settle: u8 = std::env::var("CUBIT_MMA_WAIT_STALL")
+                        .ok()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(13);
+                    let mut bumps: Vec<usize> = Vec::new();
+                    for (i, insn) in insns_with_ctrl.iter().enumerate() {
+                        if is_mma(&insn.opcode)
+                            && !insn.hand_sched
+                            && insns_with_ctrl.get(i + 1).is_some_and(|n| !n.hand_sched)
+                        {
                             bumps.push(i + 1);
                         }
-                }
-                for idx in bumps {
-                    insns_with_ctrl[idx].ctrl.stall = insns_with_ctrl[idx].ctrl.stall.max(settle);
-                    // CUBIT_SCHED2 RULE 2: the settle stall is applied AFTER the scheduler
-                    // set the yield, so re-apply the yield rule for the bumped instruction
-                    // (a >=12 settle clears Y — ptxas emits the post-HMMA `NOP S13` as -Y).
-                    if std::env::var("CUBIT_SCHED2").is_ok()
-                        && std::env::var("CUBIT_SCHED2_NOYIELD").is_err()
-                        && insns_with_ctrl[idx].ctrl.stall >= 12 {
-                        insns_with_ctrl[idx].ctrl.yield_flag = false;
                     }
-                }
-            }
-            for (i, insn) in insns_with_ctrl.iter_mut().enumerate() {
-                insn.addr = (i * 16) as u32;
-            }
-        }
-
-        // Post-scheduling: insert @!UPT UIADD3 URZ writeback drains after QMMA.
-        //
-        // SM120 QMMA cooperative writeback is NOT visible to ALU instructions
-        // (FMUL, FADD, etc.) without explicit synchronization. Stores also need the
-        // writeback to be committed: a STG.E.128 reading the full F32 accumulator
-        // (R0..R3) will store a stale high half (R2,R3) unless enough delay follows
-        // the drains (see drain #2 stall below).
-        //
-        // nvcc emits 2x `@!UPT UIADD3 URZ, UPT, UPT, URZ, URZ, URZ` immediately
-        // after QMMA to force writeback. The @!UPT guard (bit 15 = 1) is the
-        // hardware-recognized QMMA writeback sync pattern.
-        //
-        // CRITICAL: drains must be IMMEDIATELY after QMMA (0 instructions between).
-        // Loop instructions (IADD/ISETP/BRA) between QMMA and drain break sync.
-        // Drains INSIDE a loop reset accumulation (all zeros).
-        //
-        // Strategy:
-        // - Standalone QMMA: insert 2x @!UPT drain immediately after
-        // - QMMA in loop: WARN — kernel must be unrolled for correct ALU access.
-        //   (STG-based output still works without drains.)
-        {
-            let wb_drain = |stall: u8| cubit::ir::Instruction {
-                addr: 0, opcode: "UIADD3".into(), opcode_full: "UIADD3".into(),
-                key: "UIADD3_UR_UP_UP_UR_UR_UR".into(),
-                guard: Some(cubit::ir::Guard { pred: 7, negated: true, uniform: true }),
-                operands: vec![
-                    cubit::ir::Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true },
-                    cubit::ir::Operand::UPred { num: 7, neg: false },
-                    cubit::ir::Operand::UPred { num: 7, neg: false },
-                    cubit::ir::Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true },
-                    cubit::ir::Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true },
-                    cubit::ir::Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true },
-                ],
-                modifiers: vec![],
-                ctrl: cubit::ir::ControlCode { stall, wait_mask: 0, ..Default::default() },
-                hand_sched: false,
-                rsd: None,
-                raw_text: "/* QMMA writeback sync drain (@!UPT) */".into(),
-            };
-
-            // Detect which QMMAs are inside loops.
-            // A QMMA is "in a loop" if there's a backward BRA AFTER the QMMA
-            // whose target is AT OR BEFORE the QMMA (i.e., the loop body spans the QMMA).
-            struct LoopRegion { target: u32, bra_addr: u32 }
-            let mut loops: Vec<LoopRegion> = Vec::new();
-            for insn in insns_with_ctrl.iter() {
-                // Conditional backward BRA = loop back-edge. The condition is either a
-                // per-lane guard (@P3 BRA) OR a uniform predicate operand (BRA.U UP3) —
-                // uniform branches carry the predicate as an operand, not a guard.
-                let is_conditional = insn.guard.is_some()
-                    || insn.operands.iter().any(|o| match o {
-                        cubit::ir::Operand::Pred { num, .. }
-                        | cubit::ir::Operand::UPred { num, .. } => *num != 7,
-                        _ => false,
-                    });
-                if insn.opcode == "BRA" && is_conditional {
-                    // Only conditional BRAs are loop back-edges (unconditional = tail BRA)
-                    if let Some(target) = insn.operands.iter().find_map(|o| match o {
-                        cubit::ir::Operand::Imm32(v) => Some(*v as u32),
-                        cubit::ir::Operand::BranchTarget(a) => Some(*a),
-                        _ => None,
-                    }) {
-                        if target < insn.addr {
-                            loops.push(LoopRegion { target, bra_addr: insn.addr });
+                    for idx in bumps {
+                        insns_with_ctrl[idx].ctrl.stall =
+                            insns_with_ctrl[idx].ctrl.stall.max(settle);
+                        // CUBIT_SCHED2 RULE 2: the settle stall is applied AFTER the scheduler
+                        // set the yield, so re-apply the yield rule for the bumped instruction
+                        // (a >=12 settle clears Y — ptxas emits the post-HMMA `NOP S13` as -Y).
+                        if std::env::var("CUBIT_SCHED2").is_ok()
+                            && std::env::var("CUBIT_SCHED2_NOYIELD").is_err()
+                            && insns_with_ctrl[idx].ctrl.stall >= 12
+                        {
+                            insns_with_ctrl[idx].ctrl.yield_flag = false;
                         }
                     }
                 }
+                for (i, insn) in insns_with_ctrl.iter_mut().enumerate() {
+                    insn.addr = (i * 16) as u32;
+                }
             }
 
-            let is_mma = |op: &str| matches!(op, "QMMA" | "HMMA" | "IMMA" | "DMMA");
-
-            // ── HARDENING GUARD (detect-only, no auto-rewrite) ──────────────────────────
-            // SM120 hazard: a load whose address register is produced by `MOV Raddr, Rsrc`
-            // (a fresh copy of an advancing base, refreshed every iteration) INSIDE a loop
-            // that also contains an MMA returns WRONG data — even with byte-identical @sched
-            // to the working form. ptxas never emits this: it uses base+immediate-offset
-            // addressing and advances the base IN PLACE with IADD. We only WARN here (no
-            // rewrite); the fix in the .sass is to advance the pointer in place
-            // (`IADD[.64] Raddr, Raddr, <stride>`).
+            // Post-scheduling: insert @!UPT UIADD3 URZ writeback drains after QMMA.
             //
-            // The SAFE idiom — reset a pointer to a loop-INVARIANT base in an outer loop and
-            // then advance it in place in the inner loop — must NOT be flagged. We therefore
-            // require BOTH: (1) the load base is written by a register-source MOV in the loop,
-            // AND (2) the load base is NOT advanced in place anywhere in that loop (no
-            // IADD/IADD3/IMAD whose dest is the base and reads the base). In-place advance is
-            // the ptxas-canonical pattern, so its presence means the address is safe.
+            // SM120 QMMA cooperative writeback is NOT visible to ALU instructions
+            // (FMUL, FADD, etc.) without explicit synchronization. Stores also need the
+            // writeback to be committed: a STG.E.128 reading the full F32 accumulator
+            // (R0..R3) will store a stale high half (R2,R3) unless enough delay follows
+            // the drains (see drain #2 stall below).
+            //
+            // nvcc emits 2x `@!UPT UIADD3 URZ, UPT, UPT, URZ, URZ, URZ` immediately
+            // after QMMA to force writeback. The @!UPT guard (bit 15 = 1) is the
+            // hardware-recognized QMMA writeback sync pattern.
+            //
+            // CRITICAL: drains must be IMMEDIATELY after QMMA (0 instructions between).
+            // Loop instructions (IADD/ISETP/BRA) between QMMA and drain break sync.
+            // Drains INSIDE a loop reset accumulation (all zeros).
+            //
+            // Strategy:
+            // - Standalone QMMA: insert 2x @!UPT drain immediately after
+            // - QMMA in loop: WARN — kernel must be unrolled for correct ALU access.
+            //   (STG-based output still works without drains.)
             {
-                use std::collections::{HashMap, HashSet};
-                let is_load = |op: &str| matches!(op,
-                    "LDG" | "LD" | "LDS" | "LDL" | "LDSM");
-                let load_base = |insn: &cubit::ir::Instruction| -> Option<u8> {
-                    insn.operands.iter().find_map(|o| match o {
-                        cubit::ir::Operand::Addr { base_reg, .. } => *base_reg,
-                        cubit::ir::Operand::Desc { base_reg, .. } => *base_reg,
-                        cubit::ir::Operand::ConstMem { base_reg, .. } => *base_reg,
-                        _ => None,
-                    })
+                let wb_drain = |stall: u8| cubit::ir::Instruction {
+                    addr: 0,
+                    opcode: "UIADD3".into(),
+                    opcode_full: "UIADD3".into(),
+                    key: "UIADD3_UR_UP_UP_UR_UR_UR".into(),
+                    guard: Some(cubit::ir::Guard {
+                        pred: 7,
+                        negated: true,
+                        uniform: true,
+                    }),
+                    operands: vec![
+                        cubit::ir::Operand::UReg {
+                            num: 63,
+                            neg: false,
+                            abs: false,
+                            inv: false,
+                            reuse: false,
+                            is_zero: true,
+                        },
+                        cubit::ir::Operand::UPred { num: 7, neg: false },
+                        cubit::ir::Operand::UPred { num: 7, neg: false },
+                        cubit::ir::Operand::UReg {
+                            num: 63,
+                            neg: false,
+                            abs: false,
+                            inv: false,
+                            reuse: false,
+                            is_zero: true,
+                        },
+                        cubit::ir::Operand::UReg {
+                            num: 63,
+                            neg: false,
+                            abs: false,
+                            inv: false,
+                            reuse: false,
+                            is_zero: true,
+                        },
+                        cubit::ir::Operand::UReg {
+                            num: 63,
+                            neg: false,
+                            abs: false,
+                            inv: false,
+                            reuse: false,
+                            is_zero: true,
+                        },
+                    ],
+                    modifiers: vec![],
+                    ctrl: cubit::ir::ControlCode {
+                        stall,
+                        wait_mask: 0,
+                        ..Default::default()
+                    },
+                    hand_sched: false,
+                    rsd: None,
+                    raw_text: "/* QMMA writeback sync drain (@!UPT) */".into(),
                 };
-                // MOV Rdst, Rsrc — only a register source is the advancing-base hazard;
-                // an immediate-source MOV materializes a constant address and is fine.
-                let mov_reg_dest = |insn: &cubit::ir::Instruction| -> Option<u8> {
-                    if insn.opcode != "MOV" { return None; }
-                    if !matches!(insn.operands.get(1), Some(cubit::ir::Operand::Reg { .. })) {
-                        return None;
+
+                // Detect which QMMAs are inside loops.
+                // A QMMA is "in a loop" if there's a backward BRA AFTER the QMMA
+                // whose target is AT OR BEFORE the QMMA (i.e., the loop body spans the QMMA).
+                struct LoopRegion {
+                    target: u32,
+                    bra_addr: u32,
+                }
+                let mut loops: Vec<LoopRegion> = Vec::new();
+                for insn in insns_with_ctrl.iter() {
+                    // Conditional backward BRA = loop back-edge. The condition is either a
+                    // per-lane guard (@P3 BRA) OR a uniform predicate operand (BRA.U UP3) —
+                    // uniform branches carry the predicate as an operand, not a guard.
+                    let is_conditional = insn.guard.is_some()
+                        || insn.operands.iter().any(|o| match o {
+                            cubit::ir::Operand::Pred { num, .. }
+                            | cubit::ir::Operand::UPred { num, .. } => *num != 7,
+                            _ => false,
+                        });
+                    if insn.opcode == "BRA" && is_conditional {
+                        // Only conditional BRAs are loop back-edges (unconditional = tail BRA)
+                        if let Some(target) = insn.operands.iter().find_map(|o| match o {
+                            cubit::ir::Operand::Imm32(v) => Some(*v as u32),
+                            cubit::ir::Operand::BranchTarget(a) => Some(*a),
+                            _ => None,
+                        }) {
+                            if target < insn.addr {
+                                loops.push(LoopRegion {
+                                    target,
+                                    bra_addr: insn.addr,
+                                });
+                            }
+                        }
                     }
-                    match insn.operands.first() {
-                        Some(cubit::ir::Operand::Reg { num, .. }) => Some(*num),
-                        _ => None,
-                    }
-                };
-                // dest of an in-place self-update: IADD/IADD3/IMAD where dest reg also appears
-                // as a source (Rd = Rd + …) — i.e. the canonical in-place pointer advance.
-                let inplace_dest = |insn: &cubit::ir::Instruction| -> Option<u8> {
-                    if !matches!(insn.opcode.as_str(), "IADD" | "IADD3" | "IMAD") { return None; }
-                    let dest = match insn.operands.first() {
-                        Some(cubit::ir::Operand::Reg { num, .. }) => *num,
-                        _ => return None,
+                }
+
+                let is_mma = |op: &str| matches!(op, "QMMA" | "HMMA" | "IMMA" | "DMMA");
+
+                // ── HARDENING GUARD (detect-only, no auto-rewrite) ──────────────────────────
+                // SM120 hazard: a load whose address register is produced by `MOV Raddr, Rsrc`
+                // (a fresh copy of an advancing base, refreshed every iteration) INSIDE a loop
+                // that also contains an MMA returns WRONG data — even with byte-identical @sched
+                // to the working form. ptxas never emits this: it uses base+immediate-offset
+                // addressing and advances the base IN PLACE with IADD. We only WARN here (no
+                // rewrite); the fix in the .sass is to advance the pointer in place
+                // (`IADD[.64] Raddr, Raddr, <stride>`).
+                //
+                // The SAFE idiom — reset a pointer to a loop-INVARIANT base in an outer loop and
+                // then advance it in place in the inner loop — must NOT be flagged. We therefore
+                // require BOTH: (1) the load base is written by a register-source MOV in the loop,
+                // AND (2) the load base is NOT advanced in place anywhere in that loop (no
+                // IADD/IADD3/IMAD whose dest is the base and reads the base). In-place advance is
+                // the ptxas-canonical pattern, so its presence means the address is safe.
+                {
+                    use std::collections::{HashMap, HashSet};
+                    let is_load = |op: &str| matches!(op, "LDG" | "LD" | "LDS" | "LDL" | "LDSM");
+                    let load_base = |insn: &cubit::ir::Instruction| -> Option<u8> {
+                        insn.operands.iter().find_map(|o| match o {
+                            cubit::ir::Operand::Addr { base_reg, .. } => *base_reg,
+                            cubit::ir::Operand::Desc { base_reg, .. } => *base_reg,
+                            cubit::ir::Operand::ConstMem { base_reg, .. } => *base_reg,
+                            _ => None,
+                        })
                     };
-                    let self_read = insn.operands.iter().skip(1).any(|o|
-                        matches!(o, cubit::ir::Operand::Reg { num, .. } if *num == dest));
-                    if self_read { Some(dest) } else { None }
-                };
-                let mut warned_loads: HashSet<u32> = HashSet::new();
-                for l in loops.iter() {
-                    let has_mma = insns_with_ctrl.iter()
-                        .any(|x| is_mma(&x.opcode) && l.target <= x.addr && x.addr <= l.bra_addr);
-                    if !has_mma { continue; }
-                    let mut mov_bases: HashMap<u8, u32> = HashMap::new();
-                    let mut inplace: HashSet<u8> = HashSet::new();
-                    for x in insns_with_ctrl.iter()
-                        .filter(|x| l.target <= x.addr && x.addr <= l.bra_addr) {
-                        if let Some(d) = mov_reg_dest(x) { mov_bases.entry(d).or_insert(x.addr); }
-                        if let Some(d) = inplace_dest(x) { inplace.insert(d); }
-                    }
-                    if mov_bases.is_empty() { continue; }
-                    for ld in insns_with_ctrl.iter()
-                        .filter(|x| is_load(&x.opcode) && l.target <= x.addr && x.addr <= l.bra_addr) {
-                        if let Some(b) = load_base(ld) {
-                            if inplace.contains(&b) { continue; } // safe: advanced in place
-                            if let Some(&mov_addr) = mov_bases.get(&b) {
-                                if warned_loads.insert(ld.addr) {
-                                    eprintln!("  WARN: SM120 MOV->load-address hazard: {} at 0x{:04x} \
+                    // MOV Rdst, Rsrc — only a register source is the advancing-base hazard;
+                    // an immediate-source MOV materializes a constant address and is fine.
+                    let mov_reg_dest = |insn: &cubit::ir::Instruction| -> Option<u8> {
+                        if insn.opcode != "MOV" {
+                            return None;
+                        }
+                        if !matches!(insn.operands.get(1), Some(cubit::ir::Operand::Reg { .. })) {
+                            return None;
+                        }
+                        match insn.operands.first() {
+                            Some(cubit::ir::Operand::Reg { num, .. }) => Some(*num),
+                            _ => None,
+                        }
+                    };
+                    // dest of an in-place self-update: IADD/IADD3/IMAD where dest reg also appears
+                    // as a source (Rd = Rd + …) — i.e. the canonical in-place pointer advance.
+                    let inplace_dest = |insn: &cubit::ir::Instruction| -> Option<u8> {
+                        if !matches!(insn.opcode.as_str(), "IADD" | "IADD3" | "IMAD") {
+                            return None;
+                        }
+                        let dest = match insn.operands.first() {
+                            Some(cubit::ir::Operand::Reg { num, .. }) => *num,
+                            _ => return None,
+                        };
+                        let self_read = insn.operands.iter().skip(1).any(
+                            |o| matches!(o, cubit::ir::Operand::Reg { num, .. } if *num == dest),
+                        );
+                        if self_read {
+                            Some(dest)
+                        } else {
+                            None
+                        }
+                    };
+                    let mut warned_loads: HashSet<u32> = HashSet::new();
+                    for l in loops.iter() {
+                        let has_mma = insns_with_ctrl.iter().any(|x| {
+                            is_mma(&x.opcode) && l.target <= x.addr && x.addr <= l.bra_addr
+                        });
+                        if !has_mma {
+                            continue;
+                        }
+                        let mut mov_bases: HashMap<u8, u32> = HashMap::new();
+                        let mut inplace: HashSet<u8> = HashSet::new();
+                        for x in insns_with_ctrl
+                            .iter()
+                            .filter(|x| l.target <= x.addr && x.addr <= l.bra_addr)
+                        {
+                            if let Some(d) = mov_reg_dest(x) {
+                                mov_bases.entry(d).or_insert(x.addr);
+                            }
+                            if let Some(d) = inplace_dest(x) {
+                                inplace.insert(d);
+                            }
+                        }
+                        if mov_bases.is_empty() {
+                            continue;
+                        }
+                        for ld in insns_with_ctrl.iter().filter(|x| {
+                            is_load(&x.opcode) && l.target <= x.addr && x.addr <= l.bra_addr
+                        }) {
+                            if let Some(b) = load_base(ld) {
+                                if inplace.contains(&b) {
+                                    continue;
+                                } // safe: advanced in place
+                                if let Some(&mov_addr) = mov_bases.get(&b) {
+                                    if warned_loads.insert(ld.addr) {
+                                        eprintln!("  WARN: SM120 MOV->load-address hazard: {} at 0x{:04x} \
                                                reads [R{}] whose address is set by `MOV R{}, <reg>` at \
                                                0x{:04x} (no in-place advance) inside an MMA loop \
                                                [0x{:04x}..0x{:04x}]. This pattern returns WRONG data on \
@@ -1709,355 +2230,420 @@ fn cmd_asm_directive_format(
                                                base+imm / in-place-advance codegen).",
                                               ld.opcode, ld.addr, b, b, mov_addr,
                                               l.target, l.bra_addr, b, b);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Experimental "nvcc-style" writeback settle for accumulating MMA loops
+                // (the sparse-MLA PV loop): instead of a rigid fixed-stall drain block right
+                // after the MMA, settle the cooperative writeback the way nvcc does — a stall
+                // on the loop back-edge branch plus the natural loop body. This keeps cubit's
+                // correct barrier assignment but removes the rigid per-iteration block that
+                // makes co-resident CTAs phase-lock. Gated (default = legacy rigid drain).
+                //   CUBIT_PV_SETTLE=backedge          enable
+                //   CUBIT_PV_SETTLE_STALL=<n>         per-back-edge stall (default 15, nvcc's)
+                let pv_backedge =
+                    std::env::var("CUBIT_PV_SETTLE").ok().as_deref() == Some("backedge");
+                let backedge_stall: u8 = std::env::var("CUBIT_PV_SETTLE_STALL")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(15);
+                let mut backedge_bras: Vec<u32> = Vec::new();
+                let mut inserts: Vec<usize> = Vec::new();
+                for (i, insn) in insns_with_ctrl.iter().enumerate() {
+                    if !is_mma(&insn.opcode) {
+                        continue;
+                    }
+                    // Hand-scheduled MMA (`[CC]` in source): the author owns the writeback
+                    // settle (e.g. an nvcc-mirrored PV loop). Skip the auto writeback-drain.
+                    if insn.hand_sched {
+                        continue;
+                    }
+                    // MMA is in a loop if any loop region [target, bra_addr] spans it
+                    let in_loop = loops
+                        .iter()
+                        .any(|l| l.target <= insn.addr && insn.addr <= l.bra_addr);
+                    if in_loop {
+                        // Two kinds of in-loop MMA:
+                        //  - ACCUMULATING (e.g. K-loop QK): the accumulator is loop-carried and
+                        //    the result is read AFTER the loop. A mid-loop @!UPT drain resets the
+                        //    tensor-core accumulation -> must be skipped.
+                        //  - INDEPENDENT-per-iteration (e.g. PV: zero->MMA->store each iter): the
+                        //    output is consumed WITHIN the loop body, so it needs the writeback
+                        //    drain before that consumer (else the store reads the stale/zero accum).
+                        // Distinguish by looking for an in-loop consumer of the MMA destination
+                        // (a source read of D..D+3) between the MMA and the loop back-edge.
+                        let dest_base = match insn.operands.first() {
+                            Some(cubit::ir::Operand::Reg { num, .. }) => Some(*num),
+                            _ => None,
+                        };
+                        let bra_addr = loops
+                            .iter()
+                            .filter(|l| l.target <= insn.addr && insn.addr <= l.bra_addr)
+                            .map(|l| l.bra_addr)
+                            .min()
+                            .unwrap_or(insn.addr);
+                        // SM120 cooperative-MMA writeback is UNSCOREBOARDED (wb=- forced), so the
+                        // ONLY guarantee that the accumulator D..D+4 has committed before a reader is
+                        // a timing settle. We must insert that settle after the MMA for EVERY consumer
+                        // of D. A "consumer" reads D as a SOURCE operand (skip the dest, operand 0).
+                        let reads_dest = |x: &cubit::ir::Instruction| -> bool {
+                            match dest_base {
+                                Some(base) => {
+                                    let hi = base.saturating_add(4);
+                                    x.operands.iter().skip(1).any(|o| matches!(o,
+                                    cubit::ir::Operand::Reg { num, .. } if *num >= base && *num < hi))
+                                }
+                                None => false,
+                            }
+                        };
+                        // Three consumer patterns, each needing the post-MMA writeback settle:
+                        //  - INDEPENDENT-per-iter: a consumer (store) reads D within the loop body.
+                        //  - LOOP-CARRIED accumulator: the MMA reads its own D as C-input, so the
+                        //    NEXT iteration's MMA is the consumer and the settle must cover the loop
+                        //    tail. (Previously MISSED -> no settle -> stale accumulator read, wrong
+                        //    even at 1 CTA/SM. This was the systemic gap.)
+                        //  - LOOP-EXIT: the instruction right after the back-edge reads D.
+                        // An in-loop drain after the MMA does NOT reset accumulation (the cooperative
+                        // writeback commits to the register file; the next MMA reads it back as C).
+                        let consumed = insns_with_ctrl
+                            .iter()
+                            .filter(|x| x.addr > insn.addr && x.addr <= bra_addr)
+                            .any(&reads_dest);
+                        let bra_idx = insns_with_ctrl.iter().position(|x| x.addr == bra_addr);
+                        let post = bra_idx
+                            .and_then(|bidx| insns_with_ctrl.get(bidx + 1))
+                            .is_some_and(|nxt| !is_mma(&nxt.opcode) && reads_dest(nxt));
+                        // LOOP-CARRIED accumulator (MMA reads its own D as C): the consumer is the
+                        // NEXT iteration's MMA. Only force a writeback drain if the loop's NATURAL
+                        // settle (sum of stalls around the back-edge, MMA->bra->top->MMA) is below
+                        // the commit target. A long K-loop already has ample natural settle, so
+                        // piling on rigid drains there is pure waste AND worsens the 2-CTA writeback
+                        // resonance (measured: it dropped our kernel 9/16 -> 2/16). A TIGHT
+                        // accumulator loop (e.g. a bare P*V k-loop) has no natural settle and would
+                        // otherwise read a stale accumulator (wrong even at 1 CTA/SM).
+                        let accum_needs_settle = if reads_dest(insn) && !consumed && !post {
+                            let target = std::env::var("CUBIT_MMA_WB_DRAIN")
+                                .ok()
+                                .and_then(|s| s.parse::<u32>().ok())
+                                .unwrap_or(46);
+                            let loop_top = loops
+                                .iter()
+                                .filter(|l| l.target <= insn.addr && insn.addr <= l.bra_addr)
+                                .map(|l| l.target)
+                                .min()
+                                .unwrap_or(insn.addr);
+                            // approx issue-cycle distance from this MMA around the back-edge back to it
+                            let natural: u32 = insn.ctrl.stall as u32
+                                + insns_with_ctrl
+                                    .iter()
+                                    .filter(|x| {
+                                        (x.addr > insn.addr && x.addr <= bra_addr)
+                                            || (x.addr >= loop_top && x.addr < insn.addr)
+                                    })
+                                    .map(|x| x.ctrl.stall as u32 + 1)
+                                    .sum::<u32>();
+                            natural < target
+                        } else {
+                            false
+                        };
+                        if consumed || post || accum_needs_settle {
+                            inserts.push(i + 1);
+                            // nvcc-style settle (gated): bulk delay on the loop back-edge.
+                            if pv_backedge {
+                                backedge_bras.push(bra_addr);
+                            }
+                        } else if reads_dest(insn) {
+                            // loop-carried accumulator with ample natural settle -> no drain needed
+                        } else {
+                            eprintln!(
+                                "  WARN: {} at 0x{:04x} is inside a loop but its accumulator has \
+                                   no detected consumer; writeback settle NOT inserted.",
+                                insn.opcode, insn.addr
+                            );
+                        }
+                    } else {
+                        // Standalone MMA: insert drains immediately after
+                        inserts.push(i + 1);
+                    }
+                }
+                inserts.sort();
+                inserts.dedup();
+                // MMA writeback commit delay (cycles AFTER the MMA's own stall).
+                //
+                // The SM120 cooperative MMA writeback commits to the register file some cycles
+                // after issue; a consumer reading earlier (the next iteration's MMA reading the
+                // accumulator back as its C input, or a STG.E.128 of R0..R3 — whose high half
+                // R2,R3 commits last) gets a STALE/partial result.
+                //
+                // CRITICAL: this delay SCALES WITH OCCUPANCY. At 1 warp/SMSP the commit lands
+                // ~+19 cycles (so QMMA(11)+1+10 = +22 sufficed). At 2 warps/SMSP (e.g. 8
+                // warps/CTA) the tensor core is shared and the commit lands ~2x later, so the
+                // old +22 raced intermittently (worse with more loop iterations). cubit cannot
+                // know the launch occupancy at assembly time, so the delay is a tunable knob:
+                // the default (46 drain cycles → ~57 total) is solid up to 2 warps/SMSP; raise
+                // CUBIT_MMA_WB_DRAIN if you push occupancy higher and see flaky MMA results.
+                //
+                // drain #1 (stall=1) must stay IMMEDIATELY after the MMA (writeback trigger
+                // window); the remaining drains supply the commit delay (ALU stall caps at 15).
+                let drain_total: u32 = std::env::var("CUBIT_MMA_WB_DRAIN")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(46);
+                // CUBIT_MMA_WAIT: ptxas emits a SINGLE NOP S13 after the cooperative HMMA rather
+                // than cubit's long multi-drain block. With the wait kept on the MMA, the bursty
+                // writeback block is what makes co-resident CTAs phase-lock and fail at 2 CTAs/SM.
+                // Tunable for iteration (the unset env keeps the legacy multi-drain scheme):
+                //   CUBIT_MMA_WAIT_DRAINS=<n>  number of post-MMA @!UPT drains (default 1)
+                //   CUBIT_MMA_WAIT_STALL=<s>   stall per drain               (default 13)
+                // n=0 skips the writeback drains entirely (rely on the MMA's own wait + stall).
+                // In back-edge settle mode, keep only the minimal stall=1 "writeback trigger"
+                // right after the MMA; the bulk settle moves onto the loop back-edge below.
+                // Post-MMA writeback drain. The `inserts` list only contains MMAs that NEED a
+                // separate settle: STANDALONE MMAs (e.g. pv_cache: HMMA → STG, no loop to hide the
+                // commit latency) and in-loop MMAs whose natural settle is too short. A LONG K-loop
+                // MMA (the PV gate kernel) has ample natural settle so it is NOT in `inserts` — its
+                // writeback settle is the post-MMA NOP bumped to S13 in the MMA-stall pass above.
+                // So whenever a drain IS inserted it must be the FULL commit delay (≈46), including
+                // under CUBIT_MMA_WAIT/SCHED2: the earlier "single NOP S13" reduction starved the
+                // standalone cooperative writeback (pv_cache read a stale/zero accumulator).
+                let mut drains: Vec<u8> = vec![1];
+                if !pv_backedge {
+                    let mut rem = drain_total.saturating_sub(1);
+                    while rem > 0 {
+                        let s = rem.min(15) as u8;
+                        drains.push(s);
+                        rem -= s as u32;
+                    }
+                }
+                // Move the settle onto the loop back-edge (nvcc-style). cubit's BRA is largely
+                // static-ctrl (encoder ignores its stall), so place the stall on the last
+                // non-static instruction BEFORE the back-edge BRA (covers the loop-exit store
+                // settle; the next-iteration HMMA is already covered by the whole loop body).
+                if pv_backedge && backedge_stall > 0 {
+                    backedge_bras.sort();
+                    backedge_bras.dedup();
+                    for &ba in &backedge_bras {
+                        if let Some(bidx) = insns_with_ctrl
+                            .iter()
+                            .position(|x| x.addr == ba && x.opcode == "BRA")
+                        {
+                            insns_with_ctrl[bidx].ctrl.stall =
+                                insns_with_ctrl[bidx].ctrl.stall.max(backedge_stall);
+                            if bidx > 0 && !insns_with_ctrl[bidx - 1].hand_sched {
+                                insns_with_ctrl[bidx - 1].ctrl.stall =
+                                    insns_with_ctrl[bidx - 1].ctrl.stall.max(backedge_stall);
+                            }
+                        }
+                    }
+                    if std::env::var("CUBIT_DEBUG").is_ok() {
+                        eprintln!(
+                            "  [pv_backedge] settle={} on back-edges {:x?}",
+                            backedge_stall, backedge_bras
+                        );
+                    }
+                }
+                for idx in inserts.into_iter().rev() {
+                    for &s in drains.iter().rev() {
+                        insns_with_ctrl.insert(idx, wb_drain(s));
+                    }
+                }
+                for (i, insn) in insns_with_ctrl.iter_mut().enumerate() {
+                    insn.addr = (i * 16) as u32;
+                }
+            }
+
+            // ── SM120 cooperative-MMA accumulator-store WAR read-barrier ────────────────
+            // A store that reads an MMA accumulator (the F32 result, e.g. STG of R0.. /
+            // R12..) must set a READ-BARRIER so the next MMA that re-writes that accumulator
+            // waits for the store's read to complete. The MMA writeback is UNSCOREBOARDED
+            // (wb=- forced on SM120), so without this the next MMA (next d-slice / next loop
+            // iteration, possibly across a back-edge) overwrites the accumulator while the
+            // store is still reading it (WAR). At 1 CTA/SM the natural spacing usually hides
+            // it; at >=2 CTAs/SM the store/MMA latency shifts and the store captures a
+            // half-overwritten accumulator -> the intermittent ~5e-2 PV error. ptxas sets rb
+            // on the store; cubit previously relied only on a 4-cycle producer stall, which
+            // cannot cross a loop back-edge. scheduling_pass reserved barrier 0 (no load
+            // aliases it); here we set rb=0 on the accumulator stores and make every MMA
+            // input-drain wait B0 before the MMA re-writes the accumulator.
+            if std::env::var("CUBIT_WAR_RB").ok().as_deref() != Some("0") {
+                const WAR_RB: u8 = 0;
+                let is_mma = |op: &str| matches!(op, "QMMA" | "HMMA" | "IMMA" | "DMMA");
+                let accs: Vec<u8> = insns_with_ctrl
+                    .iter()
+                    .filter(|x| is_mma(&x.opcode))
+                    .filter_map(|x| match x.operands.first() {
+                        Some(cubit::ir::Operand::Reg { num, .. }) => Some(*num),
+                        _ => None,
+                    })
+                    .collect();
+                let is_store = |op: &str| matches!(op, "STG" | "STS" | "STL" | "ST" | "STGX");
+                let mut any_acc_store = false;
+                for insn in insns_with_ctrl.iter_mut() {
+                    if is_store(&insn.opcode)
+                        && insn.operands.iter().any(|o| {
+                            matches!(o,
+                    cubit::ir::Operand::Reg { num, .. }
+                        if accs.iter().any(|&a| *num >= a && *num < a.saturating_add(4)))
+                        })
+                    {
+                        insn.ctrl.read_bar = WAR_RB;
+                        any_acc_store = true;
+                    }
+                }
+                if any_acc_store {
+                    // Every MMA input-drain (the `@!UPT/UIADD3 ... barrier drain` inserted
+                    // before each MMA) now also waits the accumulator-store read barrier, so
+                    // the MMA cannot overwrite the accumulator until the prior store read it.
+                    //
+                    // CUBIT_MMA_WAIT has NO input pre-drain (the input wait lives on the MMA),
+                    // so the WAR read-barrier must be carried by the MMA itself: OR B0 into the
+                    // MMA's wait_mask so it cannot overwrite the accumulator until the prior
+                    // store has read it. (ptxas achieves the same WAR ordering by waiting B0 on
+                    // the next iteration's address advance; waiting it on the MMA is equivalent
+                    // and strictly safer.)
+                    for insn in insns_with_ctrl.iter_mut() {
+                        let carries_war = insn.raw_text.contains("barrier drain")
+                            || (mma_wait && is_mma(&insn.opcode) && !insn.hand_sched);
+                        if carries_war {
+                            insn.ctrl.wait_mask |= 1 << WAR_RB;
+                        }
+                    }
+                }
+            }
+
+            // Post-scheduling: insert UIADD3 URZ drain before backward BRA.
+            // BRA has CtrlClass::CtrlFlow → encoder uses static upper32 (ignores scheduling).
+            // So we can't put wait_mask on BRA itself. Instead, insert a drain instruction.
+            {
+                // (idx, wait_mask, is_pad). is_pad=true entries are HW-timing pads for
+                // uniform backward branches; is_pad=false are barrier drains.
+                let mut inserts: Vec<(usize, u8, bool)> = Vec::new();
+                for (i, insn) in insns_with_ctrl.iter_mut().enumerate() {
+                    if insn.opcode == "BRA" {
+                        if let Some(target) = insn.operands.iter().find_map(|o| match o {
+                            cubit::ir::Operand::Imm32(v) => Some(*v as u32),
+                            cubit::ir::Operand::BranchTarget(a) => Some(*a),
+                            _ => None,
+                        }) {
+                            if target < insn.addr {
+                                let wm = insn.ctrl.wait_mask;
+                                // Uniform conditional branch = carries a real UPred operand.
+                                let is_uniform_cond = insn.operands.iter().any(|o| {
+                                    matches!(o,
+                                cubit::ir::Operand::UPred { num, .. } if *num != 7)
+                                });
+                                if wm != 0 {
+                                    inserts.push((i, wm, false));
+                                    insn.ctrl.wait_mask = 0;
+                                } else if is_uniform_cond {
+                                    // SM120 HW quirk: a uniform conditional backward branch
+                                    // (BRA.U UPx) needs >=1 instruction of loop-body latency
+                                    // before it, else the loop over-runs (the per-lane @P BRA
+                                    // form does not). The @sched is identical with/without —
+                                    // only the instruction count matters. Insert a benign pad.
+                                    inserts.push((i, 0, true));
+                                }
+                            }
+                        }
+                    }
+                }
+                let pad_count: usize = std::env::var("CUBIT_UNIFORM_PAD")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(1);
+                for (idx, _wm, is_pad) in inserts.iter().rev() {
+                    let urz = || cubit::ir::Operand::UReg {
+                        num: 63,
+                        neg: false,
+                        abs: false,
+                        inv: false,
+                        reuse: false,
+                        is_zero: true,
+                    };
+                    let upt = || cubit::ir::Operand::UPred { num: 7, neg: false };
+                    let mk = |stall: u8, wm: u8, txt: &str| cubit::ir::Instruction {
+                        opcode: "UIADD3".into(),
+                        opcode_full: "UIADD3".into(),
+                        key: "UIADD3_UR_UP_UP_UR_UR_UR".into(),
+                        addr: 0,
+                        guard: None,
+                        operands: vec![urz(), upt(), upt(), urz(), urz(), urz()],
+                        modifiers: vec![],
+                        ctrl: cubit::ir::ControlCode {
+                            stall,
+                            wait_mask: wm,
+                            ..Default::default()
+                        },
+                        hand_sched: false,
+                        rsd: None,
+                        raw_text: txt.into(),
+                    };
+                    if *is_pad {
+                        // pad: latency only, no barrier wait. SM120 uniform backward branch
+                        // needs loop-body padding; 4 warps/SMSP may need >1 instruction.
+                        let n = pad_count.max(1);
+                        for _ in 0..n {
+                            insns_with_ctrl.insert(
+                                *idx,
+                                mk(2, 0, "/* uniform backward-branch pad (drain) */"),
+                            );
+                        }
+                    } else {
+                        insns_with_ctrl
+                            .insert(*idx, mk(12, 0x3F, "/* loop back-edge barrier drain */"));
+                    }
+                }
+                if !inserts.is_empty() {
+                    for (i, insn) in insns_with_ctrl.iter_mut().enumerate() {
+                        insn.addr = (i * 16) as u32;
+                    }
+                }
+            }
+
+            // Fixup BRA targets after all insertions.
+            // When a drain UIADD3 was inserted before instruction X, BRA targets
+            // that pointed to X should now point to the drain (so the drain executes
+            // before X). We map each original address to the FIRST instruction at
+            // that logical position — which is the drain if one was inserted.
+            {
+                use std::collections::HashMap;
+                let mut addr_map: HashMap<u32, u32> = HashMap::new();
+                let mut old_addr: u32 = 0;
+                for insn in insns_with_ctrl.iter() {
+                    if insn.raw_text.contains("drain") {
+                        // Drain was inserted before the next original instruction.
+                        // Map the next original instruction's old address to this drain's
+                        // new address (so BRAs land on the drain first).
+                        // Don't advance old_addr — the drain doesn't consume an original slot.
+                        addr_map.entry(old_addr).or_insert(insn.addr);
+                    } else {
+                        // Original instruction. Map old_addr → current addr,
+                        // but only if no drain already claimed this slot.
+                        addr_map.entry(old_addr).or_insert(insn.addr);
+                        old_addr += 16;
+                    }
+                }
+                for insn in insns_with_ctrl.iter_mut() {
+                    for op in insn.operands.iter_mut() {
+                        if let cubit::ir::Operand::BranchTarget(ref mut target) = op {
+                            if let Some(&new_addr) = addr_map.get(target) {
+                                *target = new_addr;
+                            }
+                        }
+                        if let cubit::ir::Operand::Imm32(ref mut v) = op {
+                            if insn.opcode == "BRA" || insn.opcode == "BSSY" {
+                                if let Some(&new_addr) = addr_map.get(&(*v as u32)) {
+                                    *v = new_addr as i64;
                                 }
                             }
                         }
                     }
                 }
             }
-
-            // Experimental "nvcc-style" writeback settle for accumulating MMA loops
-            // (the sparse-MLA PV loop): instead of a rigid fixed-stall drain block right
-            // after the MMA, settle the cooperative writeback the way nvcc does — a stall
-            // on the loop back-edge branch plus the natural loop body. This keeps cubit's
-            // correct barrier assignment but removes the rigid per-iteration block that
-            // makes co-resident CTAs phase-lock. Gated (default = legacy rigid drain).
-            //   CUBIT_PV_SETTLE=backedge          enable
-            //   CUBIT_PV_SETTLE_STALL=<n>         per-back-edge stall (default 15, nvcc's)
-            let pv_backedge = std::env::var("CUBIT_PV_SETTLE").ok().as_deref() == Some("backedge");
-            let backedge_stall: u8 = std::env::var("CUBIT_PV_SETTLE_STALL").ok()
-                .and_then(|s| s.parse().ok()).unwrap_or(15);
-            let mut backedge_bras: Vec<u32> = Vec::new();
-            let mut inserts: Vec<usize> = Vec::new();
-            for (i, insn) in insns_with_ctrl.iter().enumerate() {
-                if !is_mma(&insn.opcode) { continue; }
-                // Hand-scheduled MMA (`[CC]` in source): the author owns the writeback
-                // settle (e.g. an nvcc-mirrored PV loop). Skip the auto writeback-drain.
-                if insn.hand_sched { continue; }
-                // MMA is in a loop if any loop region [target, bra_addr] spans it
-                let in_loop = loops.iter().any(|l| l.target <= insn.addr && insn.addr <= l.bra_addr);
-                if in_loop {
-                    // Two kinds of in-loop MMA:
-                    //  - ACCUMULATING (e.g. K-loop QK): the accumulator is loop-carried and
-                    //    the result is read AFTER the loop. A mid-loop @!UPT drain resets the
-                    //    tensor-core accumulation -> must be skipped.
-                    //  - INDEPENDENT-per-iteration (e.g. PV: zero->MMA->store each iter): the
-                    //    output is consumed WITHIN the loop body, so it needs the writeback
-                    //    drain before that consumer (else the store reads the stale/zero accum).
-                    // Distinguish by looking for an in-loop consumer of the MMA destination
-                    // (a source read of D..D+3) between the MMA and the loop back-edge.
-                    let dest_base = match insn.operands.first() {
-                        Some(cubit::ir::Operand::Reg { num, .. }) => Some(*num),
-                        _ => None,
-                    };
-                    let bra_addr = loops.iter()
-                        .filter(|l| l.target <= insn.addr && insn.addr <= l.bra_addr)
-                        .map(|l| l.bra_addr).min().unwrap_or(insn.addr);
-                    // SM120 cooperative-MMA writeback is UNSCOREBOARDED (wb=- forced), so the
-                    // ONLY guarantee that the accumulator D..D+4 has committed before a reader is
-                    // a timing settle. We must insert that settle after the MMA for EVERY consumer
-                    // of D. A "consumer" reads D as a SOURCE operand (skip the dest, operand 0).
-                    let reads_dest = |x: &cubit::ir::Instruction| -> bool {
-                        match dest_base {
-                            Some(base) => {
-                                let hi = base.saturating_add(4);
-                                x.operands.iter().skip(1).any(|o| matches!(o,
-                                    cubit::ir::Operand::Reg { num, .. } if *num >= base && *num < hi))
-                            }
-                            None => false,
-                        }
-                    };
-                    // Three consumer patterns, each needing the post-MMA writeback settle:
-                    //  - INDEPENDENT-per-iter: a consumer (store) reads D within the loop body.
-                    //  - LOOP-CARRIED accumulator: the MMA reads its own D as C-input, so the
-                    //    NEXT iteration's MMA is the consumer and the settle must cover the loop
-                    //    tail. (Previously MISSED -> no settle -> stale accumulator read, wrong
-                    //    even at 1 CTA/SM. This was the systemic gap.)
-                    //  - LOOP-EXIT: the instruction right after the back-edge reads D.
-                    // An in-loop drain after the MMA does NOT reset accumulation (the cooperative
-                    // writeback commits to the register file; the next MMA reads it back as C).
-                    let consumed = insns_with_ctrl.iter()
-                        .filter(|x| x.addr > insn.addr && x.addr <= bra_addr).any(&reads_dest);
-                    let bra_idx = insns_with_ctrl.iter().position(|x| x.addr == bra_addr);
-                    let post = bra_idx.and_then(|bidx| insns_with_ctrl.get(bidx + 1))
-                        .is_some_and(|nxt| !is_mma(&nxt.opcode) && reads_dest(nxt));
-                    // LOOP-CARRIED accumulator (MMA reads its own D as C): the consumer is the
-                    // NEXT iteration's MMA. Only force a writeback drain if the loop's NATURAL
-                    // settle (sum of stalls around the back-edge, MMA->bra->top->MMA) is below
-                    // the commit target. A long K-loop already has ample natural settle, so
-                    // piling on rigid drains there is pure waste AND worsens the 2-CTA writeback
-                    // resonance (measured: it dropped our kernel 9/16 -> 2/16). A TIGHT
-                    // accumulator loop (e.g. a bare P*V k-loop) has no natural settle and would
-                    // otherwise read a stale accumulator (wrong even at 1 CTA/SM).
-                    let accum_needs_settle = if reads_dest(insn) && !consumed && !post {
-                        let target = std::env::var("CUBIT_MMA_WB_DRAIN").ok()
-                            .and_then(|s| s.parse::<u32>().ok()).unwrap_or(46);
-                        let loop_top = loops.iter()
-                            .filter(|l| l.target <= insn.addr && insn.addr <= l.bra_addr)
-                            .map(|l| l.target).min().unwrap_or(insn.addr);
-                        // approx issue-cycle distance from this MMA around the back-edge back to it
-                        let natural: u32 = insn.ctrl.stall as u32
-                            + insns_with_ctrl.iter()
-                                .filter(|x| (x.addr > insn.addr && x.addr <= bra_addr)
-                                         || (x.addr >= loop_top && x.addr < insn.addr))
-                                .map(|x| x.ctrl.stall as u32 + 1).sum::<u32>();
-                        natural < target
-                    } else { false };
-                    if consumed || post || accum_needs_settle {
-                        inserts.push(i + 1);
-                        // nvcc-style settle (gated): bulk delay on the loop back-edge.
-                        if pv_backedge { backedge_bras.push(bra_addr); }
-                    } else if reads_dest(insn) {
-                        // loop-carried accumulator with ample natural settle -> no drain needed
-                    } else {
-                        eprintln!("  WARN: {} at 0x{:04x} is inside a loop but its accumulator has \
-                                   no detected consumer; writeback settle NOT inserted.",
-                                  insn.opcode, insn.addr);
-                    }
-                } else {
-                    // Standalone MMA: insert drains immediately after
-                    inserts.push(i + 1);
-                }
-            }
-        inserts.sort();
-        inserts.dedup();
-        // MMA writeback commit delay (cycles AFTER the MMA's own stall).
-        //
-        // The SM120 cooperative MMA writeback commits to the register file some cycles
-        // after issue; a consumer reading earlier (the next iteration's MMA reading the
-        // accumulator back as its C input, or a STG.E.128 of R0..R3 — whose high half
-        // R2,R3 commits last) gets a STALE/partial result.
-        //
-        // CRITICAL: this delay SCALES WITH OCCUPANCY. At 1 warp/SMSP the commit lands
-        // ~+19 cycles (so QMMA(11)+1+10 = +22 sufficed). At 2 warps/SMSP (e.g. 8
-        // warps/CTA) the tensor core is shared and the commit lands ~2x later, so the
-        // old +22 raced intermittently (worse with more loop iterations). cubit cannot
-        // know the launch occupancy at assembly time, so the delay is a tunable knob:
-        // the default (46 drain cycles → ~57 total) is solid up to 2 warps/SMSP; raise
-        // CUBIT_MMA_WB_DRAIN if you push occupancy higher and see flaky MMA results.
-        //
-        // drain #1 (stall=1) must stay IMMEDIATELY after the MMA (writeback trigger
-        // window); the remaining drains supply the commit delay (ALU stall caps at 15).
-        let drain_total: u32 = std::env::var("CUBIT_MMA_WB_DRAIN")
-            .ok().and_then(|s| s.parse().ok()).unwrap_or(46);
-        // CUBIT_MMA_WAIT: ptxas emits a SINGLE NOP S13 after the cooperative HMMA rather
-        // than cubit's long multi-drain block. With the wait kept on the MMA, the bursty
-        // writeback block is what makes co-resident CTAs phase-lock and fail at 2 CTAs/SM.
-        // Tunable for iteration (the unset env keeps the legacy multi-drain scheme):
-        //   CUBIT_MMA_WAIT_DRAINS=<n>  number of post-MMA @!UPT drains (default 1)
-        //   CUBIT_MMA_WAIT_STALL=<s>   stall per drain               (default 13)
-        // n=0 skips the writeback drains entirely (rely on the MMA's own wait + stall).
-        // In back-edge settle mode, keep only the minimal stall=1 "writeback trigger"
-        // right after the MMA; the bulk settle moves onto the loop back-edge below.
-        // Post-MMA writeback drain. The `inserts` list only contains MMAs that NEED a
-        // separate settle: STANDALONE MMAs (e.g. pv_cache: HMMA → STG, no loop to hide the
-        // commit latency) and in-loop MMAs whose natural settle is too short. A LONG K-loop
-        // MMA (the PV gate kernel) has ample natural settle so it is NOT in `inserts` — its
-        // writeback settle is the post-MMA NOP bumped to S13 in the MMA-stall pass above.
-        // So whenever a drain IS inserted it must be the FULL commit delay (≈46), including
-        // under CUBIT_MMA_WAIT/SCHED2: the earlier "single NOP S13" reduction starved the
-        // standalone cooperative writeback (pv_cache read a stale/zero accumulator).
-        let mut drains: Vec<u8> = vec![1];
-        if !pv_backedge {
-            let mut rem = drain_total.saturating_sub(1);
-            while rem > 0 { let s = rem.min(15) as u8; drains.push(s); rem -= s as u32; }
-        }
-        // Move the settle onto the loop back-edge (nvcc-style). cubit's BRA is largely
-        // static-ctrl (encoder ignores its stall), so place the stall on the last
-        // non-static instruction BEFORE the back-edge BRA (covers the loop-exit store
-        // settle; the next-iteration HMMA is already covered by the whole loop body).
-        if pv_backedge && backedge_stall > 0 {
-            backedge_bras.sort();
-            backedge_bras.dedup();
-            for &ba in &backedge_bras {
-                if let Some(bidx) = insns_with_ctrl.iter().position(|x| x.addr == ba && x.opcode == "BRA") {
-                    insns_with_ctrl[bidx].ctrl.stall = insns_with_ctrl[bidx].ctrl.stall.max(backedge_stall);
-                    if bidx > 0 && !insns_with_ctrl[bidx - 1].hand_sched {
-                        insns_with_ctrl[bidx - 1].ctrl.stall =
-                            insns_with_ctrl[bidx - 1].ctrl.stall.max(backedge_stall);
-                    }
-                }
-            }
-            if std::env::var("CUBIT_DEBUG").is_ok() {
-                eprintln!("  [pv_backedge] settle={} on back-edges {:x?}", backedge_stall, backedge_bras);
-            }
-        }
-        for idx in inserts.into_iter().rev() {
-            for &s in drains.iter().rev() {
-                insns_with_ctrl.insert(idx, wb_drain(s));
-            }
-        }
-            for (i, insn) in insns_with_ctrl.iter_mut().enumerate() {
-                insn.addr = (i * 16) as u32;
-            }
-        }
-
-        // ── SM120 cooperative-MMA accumulator-store WAR read-barrier ────────────────
-        // A store that reads an MMA accumulator (the F32 result, e.g. STG of R0.. /
-        // R12..) must set a READ-BARRIER so the next MMA that re-writes that accumulator
-        // waits for the store's read to complete. The MMA writeback is UNSCOREBOARDED
-        // (wb=- forced on SM120), so without this the next MMA (next d-slice / next loop
-        // iteration, possibly across a back-edge) overwrites the accumulator while the
-        // store is still reading it (WAR). At 1 CTA/SM the natural spacing usually hides
-        // it; at >=2 CTAs/SM the store/MMA latency shifts and the store captures a
-        // half-overwritten accumulator -> the intermittent ~5e-2 PV error. ptxas sets rb
-        // on the store; cubit previously relied only on a 4-cycle producer stall, which
-        // cannot cross a loop back-edge. scheduling_pass reserved barrier 0 (no load
-        // aliases it); here we set rb=0 on the accumulator stores and make every MMA
-        // input-drain wait B0 before the MMA re-writes the accumulator.
-        if std::env::var("CUBIT_WAR_RB").ok().as_deref() != Some("0") {
-            const WAR_RB: u8 = 0;
-            let is_mma = |op: &str| matches!(op, "QMMA" | "HMMA" | "IMMA" | "DMMA");
-            let accs: Vec<u8> = insns_with_ctrl.iter()
-                .filter(|x| is_mma(&x.opcode))
-                .filter_map(|x| match x.operands.first() {
-                    Some(cubit::ir::Operand::Reg { num, .. }) => Some(*num),
-                    _ => None,
-                }).collect();
-            let is_store = |op: &str| matches!(op, "STG" | "STS" | "STL" | "ST" | "STGX");
-            let mut any_acc_store = false;
-            for insn in insns_with_ctrl.iter_mut() {
-                if is_store(&insn.opcode) && insn.operands.iter().any(|o| matches!(o,
-                    cubit::ir::Operand::Reg { num, .. }
-                        if accs.iter().any(|&a| *num >= a && *num < a.saturating_add(4))))
-                {
-                    insn.ctrl.read_bar = WAR_RB;
-                    any_acc_store = true;
-                }
-            }
-            if any_acc_store {
-                // Every MMA input-drain (the `@!UPT/UIADD3 ... barrier drain` inserted
-                // before each MMA) now also waits the accumulator-store read barrier, so
-                // the MMA cannot overwrite the accumulator until the prior store read it.
-                //
-                // CUBIT_MMA_WAIT has NO input pre-drain (the input wait lives on the MMA),
-                // so the WAR read-barrier must be carried by the MMA itself: OR B0 into the
-                // MMA's wait_mask so it cannot overwrite the accumulator until the prior
-                // store has read it. (ptxas achieves the same WAR ordering by waiting B0 on
-                // the next iteration's address advance; waiting it on the MMA is equivalent
-                // and strictly safer.)
-                for insn in insns_with_ctrl.iter_mut() {
-                    let carries_war = insn.raw_text.contains("barrier drain")
-                        || (mma_wait && is_mma(&insn.opcode) && !insn.hand_sched);
-                    if carries_war {
-                        insn.ctrl.wait_mask |= 1 << WAR_RB;
-                    }
-                }
-            }
-        }
-
-        // Post-scheduling: insert UIADD3 URZ drain before backward BRA.
-        // BRA has CtrlClass::CtrlFlow → encoder uses static upper32 (ignores scheduling).
-        // So we can't put wait_mask on BRA itself. Instead, insert a drain instruction.
-        {
-            // (idx, wait_mask, is_pad). is_pad=true entries are HW-timing pads for
-            // uniform backward branches; is_pad=false are barrier drains.
-            let mut inserts: Vec<(usize, u8, bool)> = Vec::new();
-            for (i, insn) in insns_with_ctrl.iter_mut().enumerate() {
-                if insn.opcode == "BRA" {
-                    if let Some(target) = insn.operands.iter().find_map(|o| {
-                        match o {
-                            cubit::ir::Operand::Imm32(v) => Some(*v as u32),
-                            cubit::ir::Operand::BranchTarget(a) => Some(*a),
-                            _ => None,
-                        }
-                    }) {
-                        if target < insn.addr {
-                            let wm = insn.ctrl.wait_mask;
-                            // Uniform conditional branch = carries a real UPred operand.
-                            let is_uniform_cond = insn.operands.iter().any(|o| matches!(o,
-                                cubit::ir::Operand::UPred { num, .. } if *num != 7));
-                            if wm != 0 {
-                                inserts.push((i, wm, false));
-                                insn.ctrl.wait_mask = 0;
-                            } else if is_uniform_cond {
-                                // SM120 HW quirk: a uniform conditional backward branch
-                                // (BRA.U UPx) needs >=1 instruction of loop-body latency
-                                // before it, else the loop over-runs (the per-lane @P BRA
-                                // form does not). The @sched is identical with/without —
-                                // only the instruction count matters. Insert a benign pad.
-                                inserts.push((i, 0, true));
-                            }
-                        }
-                    }
-                }
-            }
-            let pad_count: usize = std::env::var("CUBIT_UNIFORM_PAD").ok()
-                .and_then(|s| s.parse().ok()).unwrap_or(1);
-            for (idx, _wm, is_pad) in inserts.iter().rev() {
-                let urz = || cubit::ir::Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true };
-                let upt = || cubit::ir::Operand::UPred { num: 7, neg: false };
-                let mk = |stall: u8, wm: u8, txt: &str| cubit::ir::Instruction {
-                    opcode: "UIADD3".into(),
-                    opcode_full: "UIADD3".into(),
-                    key: "UIADD3_UR_UP_UP_UR_UR_UR".into(),
-                    addr: 0,
-                    guard: None,
-                    operands: vec![ urz(), upt(), upt(), urz(), urz(), urz() ],
-                    modifiers: vec![],
-                    ctrl: cubit::ir::ControlCode { stall, wait_mask: wm, ..Default::default() },
-                    hand_sched: false,
-                    rsd: None,
-                    raw_text: txt.into(),
-                };
-                if *is_pad {
-                    // pad: latency only, no barrier wait. SM120 uniform backward branch
-                    // needs loop-body padding; 4 warps/SMSP may need >1 instruction.
-                    let n = pad_count.max(1);
-                    for _ in 0..n {
-                        insns_with_ctrl.insert(*idx, mk(2, 0, "/* uniform backward-branch pad (drain) */"));
-                    }
-                } else {
-                    insns_with_ctrl.insert(*idx, mk(12, 0x3F, "/* loop back-edge barrier drain */"));
-                }
-            }
-            if !inserts.is_empty() {
-                for (i, insn) in insns_with_ctrl.iter_mut().enumerate() {
-                    insn.addr = (i * 16) as u32;
-                }
-            }
-        }
-
-        // Fixup BRA targets after all insertions.
-        // When a drain UIADD3 was inserted before instruction X, BRA targets
-        // that pointed to X should now point to the drain (so the drain executes
-        // before X). We map each original address to the FIRST instruction at
-        // that logical position — which is the drain if one was inserted.
-        {
-            use std::collections::HashMap;
-            let mut addr_map: HashMap<u32, u32> = HashMap::new();
-            let mut old_addr: u32 = 0;
-            for insn in insns_with_ctrl.iter() {
-                if insn.raw_text.contains("drain") {
-                    // Drain was inserted before the next original instruction.
-                    // Map the next original instruction's old address to this drain's
-                    // new address (so BRAs land on the drain first).
-                    // Don't advance old_addr — the drain doesn't consume an original slot.
-                    addr_map.entry(old_addr).or_insert(insn.addr);
-                } else {
-                    // Original instruction. Map old_addr → current addr,
-                    // but only if no drain already claimed this slot.
-                    addr_map.entry(old_addr).or_insert(insn.addr);
-                    old_addr += 16;
-                }
-            }
-            for insn in insns_with_ctrl.iter_mut() {
-                for op in insn.operands.iter_mut() {
-                    if let cubit::ir::Operand::BranchTarget(ref mut target) = op {
-                        if let Some(&new_addr) = addr_map.get(target) {
-                            *target = new_addr;
-                        }
-                    }
-                    if let cubit::ir::Operand::Imm32(ref mut v) = op {
-                        if insn.opcode == "BRA" || insn.opcode == "BSSY" {
-                            if let Some(&new_addr) = addr_map.get(&(*v as u32)) {
-                                *v = new_addr as i64;
-                            }
-                        }
-                    }
-                }
-            }
-        }
         } // end `if !fully_frozen` — preserve mode keeps a [CC]-frozen kernel byte-exact
 
         // DEFAULT correct allocator: re-derive the entire scoreboard (RAW write-barriers +
@@ -2085,16 +2671,22 @@ fn cmd_asm_directive_format(
         for (i, insn) in insns_with_ctrl.iter().enumerate() {
             // Raw verbatim instruction (`__raw__0x...`): emit the 128-bit code unchanged.
             if insn.opcode == "__raw__" {
-                if let Some(code) = insn.raw_text.strip_prefix("__raw__0x")
+                if let Some(code) = insn
+                    .raw_text
+                    .strip_prefix("__raw__0x")
                     .and_then(|h| u128::from_str_radix(h.trim(), 16).ok())
                 {
                     let off = i * 16;
-                    code_bytes[off..off+8].copy_from_slice(&(code as u64).to_le_bytes());
-                    code_bytes[off+8..off+16].copy_from_slice(&((code>>64) as u64).to_le_bytes());
+                    code_bytes[off..off + 8].copy_from_slice(&(code as u64).to_le_bytes());
+                    code_bytes[off + 8..off + 16]
+                        .copy_from_slice(&((code >> 64) as u64).to_le_bytes());
                     enc += 1;
                 } else {
                     fail += 1;
-                    eprintln!("  WARN [{}]: malformed __raw__: {:?}", def.name, insn.raw_text);
+                    eprintln!(
+                        "  WARN [{}]: malformed __raw__: {:?}",
+                        def.name, insn.raw_text
+                    );
                 }
                 continue;
             }
@@ -2125,14 +2717,18 @@ fn cmd_asm_directive_format(
                         code128 = cubit::scheduling::inject_sched_into_code128(code128, sched);
                     }
                     let off = i * 16;
-                    code_bytes[off..off+8].copy_from_slice(&(code128 as u64).to_le_bytes());
-                    code_bytes[off+8..off+16].copy_from_slice(&((code128>>64) as u64).to_le_bytes());
+                    code_bytes[off..off + 8].copy_from_slice(&(code128 as u64).to_le_bytes());
+                    code_bytes[off + 8..off + 16]
+                        .copy_from_slice(&((code128 >> 64) as u64).to_le_bytes());
                     enc += 1;
                 }
                 Err(e) => {
                     fail += 1;
                     if fail <= 5 {
-                        eprintln!("  WARN 0x{:04x} [{}]: {e}  |  src: {:?}", insn.addr, def.name, insn.raw_text);
+                        eprintln!(
+                            "  WARN 0x{:04x} [{}]: {e}  |  src: {:?}",
+                            insn.addr, def.name, insn.raw_text
+                        );
                     }
                 }
             }
@@ -2142,9 +2738,7 @@ fn cmd_asm_directive_format(
         // SKIP for fully-frozen kernels: their branch byte-3 barrier IDs are the
         // author's own (a re-analysis would renumber and break byte fidelity).
         if !fully_frozen {
-            cubit::scheduling_pass::apply_convergence_barriers(
-                &mut code_bytes, &insns_with_ctrl,
-            );
+            cubit::scheduling_pass::apply_convergence_barriers(&mut code_bytes, &insns_with_ctrl);
         }
 
         total_enc += enc;
@@ -2153,12 +2747,21 @@ fn cmd_asm_directive_format(
         println!("  {}: {enc}/{n} encoded ({fail} failed)", def.name);
 
         let meta = kernel_def_to_meta(def, &code_bytes);
-        println!("  {}: regcount={}, params={}, barriers={}",
-            def.name, meta.regcount, meta.params.len(), meta.num_barriers);
+        println!(
+            "  {}: regcount={}, params={}, barriers={}",
+            def.name,
+            meta.regcount,
+            meta.params.len(),
+            meta.num_barriers
+        );
 
+        let kops: Vec<String> = def.instructions.iter().map(|i| i.opcode.clone()).collect();
         entries.push(KernelEntry {
-            name: def.name.clone(), code: code_bytes, meta,
+            name: def.name.clone(),
+            code: code_bytes,
+            meta,
             mercury_stub: mercury_stub.map(|s| s.to_vec()),
+            opcodes: Some(kops),
         });
     }
 
@@ -2170,21 +2773,27 @@ fn cmd_asm_directive_format(
     let cubin_bytes = if let Some(tmpl) = template_path {
         use cubit::elf_builder::rebuild_cubin;
         let tmpl_bytes = std::fs::read(tmpl)?;
-        let patches: Vec<cubit::elf_builder::CubinPatch> = entries.iter()
-            .map(|e| (e.name.as_str(), e.code.clone(), e.mercury_stub.clone())).collect();
+        let patches: Vec<cubit::elf_builder::CubinPatch> = entries
+            .iter()
+            .map(|e| (e.name.as_str(), e.code.clone(), e.mercury_stub.clone()))
+            .collect();
         rebuild_cubin(&tmpl_bytes, &patches)?
     } else if let Some(ref_path) = eiattr_path {
         use cubit::elf_builder::rebuild_cubin;
         let ref_bytes = std::fs::read(ref_path)?;
-        let patches: Vec<cubit::elf_builder::CubinPatch> = entries.iter()
-            .map(|e| (e.name.as_str(), e.code.clone(), e.mercury_stub.clone())).collect();
+        let patches: Vec<cubit::elf_builder::CubinPatch> = entries
+            .iter()
+            .map(|e| (e.name.as_str(), e.code.clone(), e.mercury_stub.clone()))
+            .collect();
         rebuild_cubin(&ref_bytes, &patches)?
     } else {
         use cubit::elf_builder::{build_cubin_for_arch, build_cubin_mercury_for_arch};
         if tensor_class_kernels {
-            eprintln!("note: tcgen05/TMA-class instructions present and no explicit \
+            eprintln!(
+                "note: tcgen05/TMA-class instructions present and no explicit \
                        --mercury-stub — emitting a Mercury-free cubin (driver .text \
-                       fallback); the static stub does not describe these resources.");
+                       fallback); the static stub does not describe these resources."
+            );
             build_cubin_for_arch(&entries, table.ef_flags)?
         } else {
             build_cubin_mercury_for_arch(&entries, table.ef_flags)?
@@ -2203,10 +2812,77 @@ fn cmd_info(table_path: &Path) -> Result<()> {
     println!("ISA table: {}", table_path.display());
     println!("InsKeys:        {}", table.num_keys());
     println!("Mod groups:     {}", table.num_groups());
-    let total_fields: usize = table.entries.values()
+    let total_fields: usize = table
+        .entries
+        .values()
         .flat_map(|e| e.mod_groups.values())
-        .map(|mg| mg.fields.len()).sum();
+        .map(|mg| mg.fields.len())
+        .sum();
     println!("Total fields:   {total_fields}");
-    println!("Avg fields/grp: {:.1}", total_fields as f64 / table.num_groups() as f64);
+    println!(
+        "Avg fields/grp: {:.1}",
+        total_fields as f64 / table.num_groups() as f64
+    );
+    Ok(())
+}
+
+fn cmd_merc_dump(input: &Path, kernel: Option<&str>, strict: bool) -> Result<()> {
+    use cubit::mercury::CapMerc;
+    let bytes =
+        std::fs::read(input).with_context(|| format!("failed to read {}", input.display()))?;
+    let elf: ElfFile<'_, elf::FileHeader64<Endianness>> =
+        ElfFile::parse(bytes.as_slice()).context("failed to parse ELF")?;
+    let endian = elf.endian();
+    let header = elf.elf_header();
+    let sections = header.sections(endian, bytes.as_slice())?;
+    let mut shown = 0usize;
+    for section in sections.iter() {
+        let name = match sections.section_name(endian, section) {
+            Ok(n) => std::str::from_utf8(n).unwrap_or("").to_string(),
+            Err(_) => continue,
+        };
+        let Some(ksuffix) = name.strip_prefix(".nv.capmerc.text.") else {
+            continue;
+        };
+        if let Some(k) = kernel {
+            if !ksuffix.starts_with(k) {
+                continue;
+            }
+        }
+        let off = section.sh_offset(endian) as usize;
+        let size = section.sh_size(endian) as usize;
+        let blob = &bytes[off..off + size];
+        match CapMerc::parse(blob, strict) {
+            Ok(cm) => {
+                shown += 1;
+                println!(
+                    "{ksuffix}: ord={} B={} records={} tail={:#06x}{} bitmap_bits={}",
+                    cm.ordinal,
+                    cm.n_nonnop,
+                    cm.records.len(),
+                    cm.tail,
+                    if cm.tail_consistent() {
+                        " (consistent)"
+                    } else {
+                        " (MISMATCH)"
+                    },
+                    cm.set_bits().len(),
+                );
+                for (t, c) in cm.tag_histogram() {
+                    println!("    tag {} x{}", t, c);
+                }
+                if cm.trailing_slop != 0 {
+                    println!("    WARN trailing slop: {} bytes", cm.trailing_slop);
+                }
+            }
+            Err(e) => {
+                shown += 1;
+                println!("{ksuffix}: PARSE-ERROR: {e}");
+            }
+        }
+    }
+    if shown == 0 {
+        println!("no .nv.capmerc.text.* sections found");
+    }
     Ok(())
 }
