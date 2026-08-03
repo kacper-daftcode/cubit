@@ -367,6 +367,8 @@ pub struct KernelMeta {
     pub merc_param_order: Option<Vec<u32>>,
     /// Bitmaska parametrow zapisywanych (pierwsze uzycie pamieci = store).
     pub merc_param_write: u32,
+    /// LDG z rejestrowo-dynamicznym adresowaniem ([Rx.64+0x..]) obecne.
+    pub merc_dynldg: bool,
     /// Per-STG: pozycja desc-parametru w kolejce first-use (STG binding).
     pub merc_stg_desc_pos: Vec<u32>,
     /// Jakakolwiek BAR pod predykatem (wariant rekordu BAR payload[0]=01).
@@ -408,6 +410,7 @@ impl KernelMeta {
             shared_size: 0,
             merc_param_order: None,
             merc_param_write: 0,
+            merc_dynldg: false,
             merc_stg_desc_pos: Vec::new(),
             merc_bar_pred: false,
         };
@@ -738,6 +741,7 @@ mod tests {
             shared_size: 0,
             merc_param_order: None,
             merc_param_write: 0,
+            merc_dynldg: false,
             merc_stg_desc_pos: Vec::new(),
             merc_bar_pred: false,
         };

@@ -210,6 +210,8 @@ pub struct MercFeatures {
     pub os_shfl: bool,
     pub os_call: bool,
     pub os_mma: bool,
+    /// LDG z rejestrowym offsetem (desc-structure) -> cflow 0x40 (era sm_103a).
+    pub os_dynldg: bool,
     /// Dialekt emitera: true = sm_100-era (m.in. BAR0 przed CBANK), false = sm_103a.
     pub era_sm100: bool,
     /// Jakakolwiek szeroka transakcja zapisu (STG.E.64/128) — zmienia STG-desc.
@@ -256,12 +258,13 @@ impl MercFeatures {
         // LDG-dynamic-path; zero kolizji na gold-zbiorze)
         f.cflow = (meta.exit_offsets.len() > 1 || n_bra > 1
             || f.n_atom > 0 || f.cflow_bssy || f.os_shfl
-            || f.os_uses_s2r)
+            || f.os_uses_s2r || f.os_dynldg)
             && !opcodes.iter().any(|o| o.starts_with("RET"));
         f.smem_static = meta.shared_size > 0;
         f.n_stg = opcodes.iter().filter(|o| o.starts_with("STG")).count() as u32;
         f.bar_count = meta.num_barriers as u32;
         f.os_call = opcodes.iter().any(|o| o.starts_with("CALL"));
+        f.os_dynldg = meta.merc_dynldg;
         f.stg_wide = opcodes
             .iter()
             .any(|o| o.starts_with("STG") && (o.contains(".64") || o.contains(".128")));
@@ -365,7 +368,8 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
         // bit 0x40 w bajcie[10]: BSSY / SHFL / MMA (empirycznie k_shfl, k_mma;
         // k_diverge-predykacja zostaje bez) — residuum: LDG-dynamic-addr
         // (k_ld/k_ldcg/k_ldg2) nieustalone.
-        if feat.cflow_bssy || feat.os_shfl || feat.os_mma {
+        if feat.cflow_bssy || feat.os_shfl || feat.os_mma
+            || (feat.os_dynldg && !feat.era_sm100) {
             cf[10] |= 0x40;
         }
         if feat.os_mma {
