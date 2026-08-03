@@ -40,16 +40,21 @@ pub fn tail_for_instr_count(n_nonnop: u32) -> u16 {
 /// | 0x41xx  |   4   | scalar mini-record (4B, `41 vv vv kk`)             |
 /// | 0x42xx  |   4   | scalar mini-record                                 |
 /// | 0x51xx  |  18   | pinned record (`51 01 01 09 <2B> f8 00 ...`)         |
+/// | 0x31xx  |  16   | tcgen05-family record (FA4-class; phase metadata)   |
 /// | d10102* |  34   | extended record (rare, older-toolkit style)        |
 ///
 /// Streams ending in `d0 00`-chains or zero padding are tolerated by the
-/// lenient parser (they precede the 2B tail). tcgen05-heavy kernels (FA4-class,
-/// tags `31 02 00 20`, phase-bitmap bodies) are flagged v2-WIP.
+/// lenient parser (they precede the 2B tail). Unknown classes (`d1 01 00`,
+/// `d0 *` nie-dopasowane) sa resync-owane do najblizszego znanego tagu —
+/// FA4-class (tcgen05) parsuje sie w ~99.6% bajtow (1622+/1664 rekordow).
 pub fn record_len(tag: &[u8; 4]) -> Option<usize> {
     match tag[0] {
         0x01 => Some(16),
         0x02 => Some(32),
         0x03 => Some(16),
+        // tag-klasy potwierdzone na tcgen05-kernelach (FA4/mkvmem):
+        // 0x31 = 16B (FA4 prolog records), patrz MERCURY_UPLIFT_SM103A.md
+        0x31 => Some(16),
         0x41 | 0x42 => Some(4),
         0x51 => Some(18),
         0xd1 if tag[1] == 0x01 && tag[2] == 0x02 => Some(34),
@@ -136,12 +141,26 @@ impl CapMerc {
                     if strict {
                         return Err(MercError::MalformedRecord { offset: off, tag });
                     }
+                    // lenient: resync do najblizszego znanego tagu
+                    let mut nxt = None;
+                    let mut p = off + 2;
+                    while p + 4 <= end && p < off + 96 {
+                        if record_len(blob[p..p + 4].try_into().unwrap_or(&[0; 4])).is_some() {
+                            nxt = Some(p);
+                            break;
+                        }
+                        p += 2;
+                    }
+                    let mut stop = nxt.unwrap_or(end);
+                    if stop < off + 4 {
+                        stop = (off + 4).min(end);
+                    }
                     records.push(Record {
                         offset: off,
                         tag,
-                        payload: blob[off + 4..end].to_vec(),
+                        payload: blob[off + 4..stop].to_vec(),
                     });
-                    break;
+                    off = stop;
                 }
             }
         }
