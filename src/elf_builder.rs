@@ -184,6 +184,192 @@ pub fn generate_mercury_from_sass(code: &[u8], kernel_id: u32) -> Vec<u8> {
     generate_mercury_with_ops(code, kernel_id, None)
 }
 
+/// Feature switchboard for the grammar-v1 generator (per-feature records,
+/// empirisch verankert an nvcc-Mikrolab-Deltas; siehe internal docs
+/// MERCURY_UPLIFT_SM103A.md, iter U).
+#[derive(Debug, Clone, Default)]
+pub struct MercFeatures {
+    /// Used 8-byte (pointer-class) kernel parameters -> per-param desc records.
+    pub used_params: u32,
+    /// Used scalar (<=4B class) parameters -> 02220806-class records.
+    pub used_scalar_params: u32,
+    pub smem_static: bool,
+    pub bar_count: u32,
+    pub n_stg: u32,
+    pub n_atom: u32,
+    pub extra_exit: bool,
+}
+
+impl MercFeatures {
+    pub fn from_parts(meta: &KernelMeta, opcodes: &[String]) -> Self {
+        let mut f = MercFeatures {
+            used_params: meta.params.len() as u32,
+            ..Default::default()
+        };
+        f.extra_exit = meta.exit_offsets.len() > 1;
+        f.smem_static = meta.shared_size > 0;
+        f.n_stg = opcodes.iter().filter(|o| o.starts_with("STG")).count() as u32;
+        f.n_atom = opcodes
+            .iter()
+            .filter(|o| o.starts_with("REDG") || o.starts_with("ATOMS") || o.starts_with("ATOMG"))
+            .count() as u32;
+        f.bar_count = meta.num_barriers as u32;
+        f
+    }
+}
+
+const REC_PROLOG: [u8; 16] = [
+    0x01, 0x0b, 0x04, 0x0a, 0xf8, 0x00, 0x04, 0x00,
+    0x00, 0x00, 0x41, 0x00, 0x00, 0x04, 0x00, 0x00,
+];
+const REC_PARAM_DESC: [u8; 32] = [
+    0x02, 0x22, 0x0e, 0x06, 0xf8, 0x00, 0x52, 0x00,
+    0x00, 0x00, 0x83, 0x00, 0x40, 0x00, 0x02, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const REC_CBANK: [u8; 16] = [
+    0x01, 0x0b, 0x0e, 0x0a, 0xfa, 0x00, 0x05, 0x00,
+    0x00, 0x00, 0x03, 0x01, 0x39, 0x04, 0x00, 0x00,
+];
+const REC_BAR: [u8; 16] = [
+    0x01, 0x47, 0x5a, 0x16, 0xf8, 0x00, 0x04, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+];
+const REC_SMEM: [u8; 16] = [
+    0x01, 0x0b, 0x06, 0x0a, 0xfa, 0x00, 0x04, 0x00,
+    0x00, 0x00, 0x41, 0x01, 0x2c, 0x02, 0x00, 0x00,
+];
+const REC_STG: [u8; 32] = [
+    0x02, 0x38, 0x0e, 0x32, 0xf8, 0x00, 0x40, 0x11,
+    0x00, 0x00, 0x00, 0x00, 0x82, 0x00, 0x0a, 0x00,
+    0x00, 0x02, 0x01, 0x40, 0x01, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const REC_ATOM: [u8; 32] = [
+    0x02, 0x4d, 0x24, 0x32, 0x00, 0x00, 0x00, 0xa0,
+    0x01, 0x00, 0x00, 0x00, 0x82, 0x00, 0x0a, 0x00,
+    0x00, 0x02, 0x01, 0x40, 0x01, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const REC_EXTRA_EXIT: [u8; 16] = [
+    0x01, 0x0b, 0x04, 0x0a, 0xf8, 0x00, 0x04, 0x00,
+    0x00, 0x00, 0x01, 0x00, 0x01, 0x02, 0x00, 0x00,
+];
+const REC_SCALAR_PARAM: [u8; 32] = [
+    0x02, 0x22, 0x08, 0x06, 0xfa, 0x00, 0x42, 0x00,
+    0x00, 0x00, 0x81, 0x01, 0x40, 0x00, 0x02, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00,
+];
+
+/// Emit the capability-record stream given measured per-kernel features.
+/// Layout mirrors nvcc output for simple kernels (gold-tested in tests).
+fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
+    out.extend_from_slice(&REC_PROLOG);
+    if feat.extra_exit {
+        out.extend_from_slice(&REC_EXTRA_EXIT);
+    }
+    let total_params = feat.used_params + feat.used_scalar_params;
+    if total_params > 0 {
+        for _ in 0..feat.used_params {
+            out.extend_from_slice(&REC_PARAM_DESC);
+        }
+        if feat.bar_count > 0 {
+            out.extend_from_slice(&REC_BAR);
+        }
+        out.extend_from_slice(&REC_CBANK);
+        for _ in 0..feat.used_scalar_params {
+            out.extend_from_slice(&REC_SCALAR_PARAM);
+        }
+        if feat.smem_static {
+            out.extend_from_slice(&REC_SMEM);
+        }
+        for _ in 1..total_params {
+            let mut alt = REC_PARAM_DESC;
+            alt[8] = 0x03;
+            alt[9] = 0x01;
+            out.extend_from_slice(&alt);
+        }
+        for _ in 0..feat.n_stg {
+            out.extend_from_slice(&REC_STG);
+        }
+        for _ in 0..feat.n_atom {
+            out.extend_from_slice(&REC_ATOM);
+        }
+        for _ in 1..feat.bar_count {
+            out.extend_from_slice(&REC_BAR);
+        }
+    } else if feat.bar_count > 0 || feat.smem_static {
+        for _ in 0..feat.bar_count {
+            out.extend_from_slice(&REC_BAR);
+        }
+        if feat.smem_static {
+            out.extend_from_slice(&REC_SMEM);
+        }
+    }
+}
+
+/// Grammar-v1 generator with measured per-feature record emission.
+/// Used by cubit's Mercury build path when no external stub is provided.
+pub fn generate_mercury_full(
+    code: &[u8],
+    kernel_id: u32,
+    opcodes: Option<&[String]>,
+    meta: &KernelMeta,
+) -> Vec<u8> {
+    use crate::mercury::{opcode_tracked_hint, tail_for_instr_count};
+    let n_instr = code.len() / 16;
+    let is_nop = |i: usize| {
+        if let Some(ops) = opcodes {
+            if i < ops.len() {
+                return ops[i] == "NOP";
+            }
+        }
+        let w = &code[i * 16..i * 16 + 2];
+        w[0] == 0x18 && w[1] == 0x79
+    };
+    let mut bitmap: Vec<u32> = Vec::new();
+    let mut cur = 0u32;
+    let mut b_index = 0usize;
+    for i in 0..n_instr {
+        if is_nop(i) {
+            continue;
+        }
+        let tracked = match opcodes {
+            Some(ops) if i < ops.len() => opcode_tracked_hint(&ops[i]),
+            _ => true,
+        };
+        if tracked {
+            cur |= 1u32 << (b_index % 32);
+        }
+        b_index += 1;
+        if b_index % 32 == 0 {
+            bitmap.push(cur);
+            cur = 0;
+        }
+    }
+    if b_index % 32 != 0 {
+        bitmap.push(cur);
+    }
+    let n_nonnop = b_index as u32;
+
+    let mut buf: Vec<u8> = Vec::new();
+    buf.extend_from_slice(&kernel_id.to_le_bytes());
+    buf.extend_from_slice(&crate::mercury::CAPMERC_MAGIC.to_le_bytes());
+    buf.extend_from_slice(&n_nonnop.to_le_bytes());
+    for w in &bitmap {
+        buf.extend_from_slice(&w.to_le_bytes());
+    }
+    let feat = match opcodes {
+        Some(ops) => MercFeatures::from_parts(meta, ops),
+        None => MercFeatures::default(),
+    };
+    emit_feature_records(&mut buf, &feat);
+    buf.extend_from_slice(&tail_for_instr_count(n_nonnop).to_le_bytes());
+    buf
+}
+
 /// Mercury section generator (CUDA 13.x wire format, empirical 2026-08):
 /// header {ordinal, 0xC0000001, B=#non-NOP}, bitmap ceil(B/32)*4
 /// (bit = instruction tracked by scoreboard/replay, by opcode class),
@@ -1714,7 +1900,12 @@ impl CubinBuilder {
             let stub = if let Some(s) = kernels[ki].mercury_stub.as_deref() {
                 s
             } else {
-                stub_owned = generate_mercury_from_sass(&kernels[ki].code, ki as u32 + 0x20);
+                stub_owned = generate_mercury_full(
+                    &kernels[ki].code,
+                    ki as u32 + 0x20,
+                    kernels[ki].opcodes.as_deref(),
+                    &kernels[ki].meta,
+                );
                 &stub_owned
             };
             sec!(
