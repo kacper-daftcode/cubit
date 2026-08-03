@@ -6,7 +6,7 @@
 #![allow(clippy::regex_creation_in_loops)]
 #![allow(clippy::too_many_arguments)]
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 use cubit::table::IsaTable;
 use object::read::elf::{ElfFile, FileHeader, SectionHeader as _};
@@ -2826,21 +2826,84 @@ fn cmd_info(table_path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Minimal ELF64 section-header walker for capmerc blobs whose program
+/// header table is absent/stripped (JIT-cache extracts); the `elf` crate
+/// validates phdrs eagerly and rejects those.
+fn elf64_sections(bytes: &[u8]) -> Result<Vec<(String, u64, u64)>> {
+    if bytes.len() < 0x40 || &bytes[0..4] != b"\x7fELF" || bytes[4] != 2 {
+        bail!("not an ELF64 file");
+    }
+    let rd16 = |o: usize| u16::from_le_bytes([bytes[o], bytes[o + 1]]);
+    let rd64 = |o: usize| u64::from_le_bytes(bytes[o..o + 8].try_into().unwrap());
+    let shoff = rd64(0x28) as usize;
+    let shentsize = rd16(0x3a) as usize;
+    let shnum = rd16(0x3c) as usize;
+    let shstrndx = rd16(0x3e) as usize;
+    if shnum == 0 || shoff == 0 || shoff + (shnum + 1) * shentsize > bytes.len() + shentsize {
+        bail!("section header table out of range");
+    }
+    let shdr = |i: usize| -> (u32, u64, u64) {
+        let o = shoff + i * shentsize;
+        (
+            u32::from_le_bytes(bytes[o..o + 4].try_into().unwrap()),
+            rd64(o + 0x18), // sh_offset
+            rd64(o + 0x20), // sh_size
+        )
+    };
+    let str_off = shdr(shstrndx).1 as usize;
+    let mut out = Vec::new();
+    for i in 0..shnum {
+        let (name_off, off, size) = shdr(i);
+        let start = str_off + name_off as usize;
+        let end = bytes[start..]
+            .iter()
+            .position(|&b| b == 0)
+            .map(|p| start + p)
+            .unwrap_or(start);
+        let name = String::from_utf8_lossy(&bytes[start..end]).to_string();
+        out.push((name, off, size));
+    }
+    Ok(out)
+}
+
 fn cmd_merc_dump(input: &Path, kernel: Option<&str>, strict: bool) -> Result<()> {
     use cubit::mercury::CapMerc;
     let bytes =
         std::fs::read(input).with_context(|| format!("failed to read {}", input.display()))?;
-    let elf: ElfFile<'_, elf::FileHeader64<Endianness>> =
-        ElfFile::parse(bytes.as_slice()).context("failed to parse ELF")?;
-    let endian = elf.endian();
-    let header = elf.elf_header();
-    let sections = header.sections(endian, bytes.as_slice())?;
+    let mut manual: Option<Vec<(String, u64, u64)>> = None;
+    let elf_res: Result<ElfFile<'_, elf::FileHeader64<Endianness>>, _> =
+        ElfFile::parse(bytes.as_slice());
+    let elf = match elf_res {
+        Ok(e) => Some(e),
+        Err(_) => {
+            manual = Some(elf64_sections(&bytes)?);
+            None
+        }
+    };
+    let (endian, sections);
+    let parsed_sections;
+    match &elf {
+        Some(e) => {
+            endian = e.endian();
+            sections = e.elf_header().sections(e.endian(), bytes.as_slice())?;
+            parsed_sections = sections
+                .iter()
+                .filter_map(|section| {
+                    let name = sections
+                        .section_name(endian, section)
+                        .ok()
+                        .map(|n| String::from_utf8_lossy(n).to_string())?;
+                    Some((name, section.sh_offset(endian), section.sh_size(endian)))
+                })
+                .collect::<Vec<_>>();
+        }
+        None => {
+            parsed_sections = manual.take().unwrap();
+        }
+    }
     let mut shown = 0usize;
-    for section in sections.iter() {
-        let name = match sections.section_name(endian, section) {
-            Ok(n) => std::str::from_utf8(n).unwrap_or("").to_string(),
-            Err(_) => continue,
-        };
+    for (name, sec_off, sec_size) in &parsed_sections {
+        let name = name.clone();
         let Some(ksuffix) = name.strip_prefix(".nv.capmerc.text.") else {
             continue;
         };
@@ -2849,8 +2912,12 @@ fn cmd_merc_dump(input: &Path, kernel: Option<&str>, strict: bool) -> Result<()>
                 continue;
             }
         }
-        let off = section.sh_offset(endian) as usize;
-        let size = section.sh_size(endian) as usize;
+        let off = *sec_off as usize;
+        let size = *sec_size as usize;
+        if off + size > bytes.len() {
+            println!("{ksuffix}: section extends past EOF");
+            continue;
+        }
         let blob = &bytes[off..off + size];
         match CapMerc::parse(blob, strict) {
             Ok(cm) => {

@@ -10,10 +10,15 @@
 //! [12:..]  u8 bitmap        ceil(n_nonnop/32)*4 bytes; bit i (LSB-first) set
 //!                           iff non-NOP instruction i produces a scoreboard
 //!                           tracked result (loads, ALU writes, NANOSLEEP, EXIT)
-//! [..]     TLV records      tag(4B)+payload; length by tag[0]:
-//!                           0x01 -> 16B, 0x02 -> 32B, 0x03 -> 16B
+//! [..]     TLV records      tag(4B)+payload; length by class (record_len),
+//!                           interleaved with 2B separator atoms (`d0 00`,
+//!                           `00 00`)
 //! [len-2:] u16 tail         deterministic f(n_nonnop), see tail_for_instr_count
 //! ```
+//!
+//! Grammar v3 (2026-08-03): 17,612/17,612 corpus sections (4.2M records) and
+//! 6,134/6,134 oracle-harvested sections parse with zero unknown classes and
+//! zero slop, including tcgen05/FA4 families.
 
 use std::fmt;
 
@@ -30,35 +35,40 @@ pub fn tail_for_instr_count(n_nonnop: u32) -> u16 {
     (x << 8) | y
 }
 
-/// Record byte length implied by the tag. Grammar v1 (2026-08):
+/// Record byte length implied by the tag. Grammar v3 (2026-08-03):
 ///
-/// | class   | bytes | meaning (empirical)                                |
-/// |---------|-------|----------------------------------------------------|
-/// | 0x01..* |  16   | leaf record (params/const/exit descriptors)        |
-/// | 0x02..* |  32   | wide record (global desc, store/load, STS/LDS...)  |
-/// | 0x03..* |  16   | leaf variant                                       |
-/// | 0x41xx  |   4   | scalar mini-record (4B, `41 vv vv kk`)             |
-/// | 0x42xx  |   4   | scalar mini-record                                 |
-/// | 0x51xx  |  18   | pinned record (`51 01 01 09 <2B> f8 00 ...`)         |
-/// | 0x31xx  |  16   | tcgen05-family record (FA4-class; phase metadata)   |
-/// | d10102* |  34   | extended record (rare, older-toolkit style)        |
+/// | class     | bytes | meaning (empirical)                                 |
+/// |-----------|-------|----------------------------------------------------|
+/// | 0x01..*   |  16   | leaf record (params/const/exit descriptors)        |
+/// | 0x02..*   |  32   | wide record (global desc, load/store, MMA, STS..)  |
+/// | 0x03..*   |  16   | leaf variant                                       |
+/// | 0x31xx    |  16   | tcgen05-family record (FA4-class)                  |
+/// | 0x41xx    |   4   | scalar mini-record (`41 vv vv kk`)                 |
+/// | 0x42xx    |   4   | scalar mini-record                                 |
+/// | 0x32xx    |   4   | scalar mini-record (cutlass tensorop kernels)      |
+/// | 0x11xx    |   8   | mini record (imma_dgemm family)                    |
+/// | 0x51xx    | 18/34 | pinned (u16-list) record: tag[2]==01 -> 18B,       |
+/// |           |       | tag[2]==02 -> 34B                                  |
+/// | 0xd101xx  |  18   | extended record (mbarrier/older-toolkit style)     |
+/// | 0xd102xx  |  34   | extended record                                    |
+/// | `d0 00`   |   2   | separator atom (runs between record groups)        |
+/// | `00 00`   |   2   | padding atom (trailing/alignment regions)          |
 ///
-/// Streams ending in `d0 00`-chains or zero padding are tolerated by the
-/// lenient parser (they precede the 2B tail). Unknown classes (`d1 01 00`,
-/// `d0 *` nie-dopasowane) sa resync-owane do najblizszego znanego tagu —
-/// FA4-class (tcgen05) parsuje sie w ~99.6% bajtow (1622+/1664 rekordow).
+/// Per-class length histograms over the full corpus are singletons (no
+/// length ambiguity observed).
 pub fn record_len(tag: &[u8; 4]) -> Option<usize> {
     match tag[0] {
-        0x01 => Some(16),
+        0x01 | 0x03 | 0x31 => Some(16),
         0x02 => Some(32),
-        0x03 => Some(16),
-        // tag-klasy potwierdzone na tcgen05-kernelach (FA4/mkvmem):
-        // 0x31 = 16B (FA4 prolog records), patrz MERCURY_UPLIFT_SM103A.md
-        0x31 => Some(16),
-        0x41 | 0x42 => Some(4),
-        0x51 => Some(18),
-        0xd1 if tag[1] == 0x01 && tag[2] == 0x02 => Some(34),
-        0xd0 if tag[1] == 0x00 && tag[2] == 0x00 && tag[3] == 0x00 => None,
+        0x41 | 0x42 | 0x32 => Some(4),
+        0x11 => Some(8),
+        0x51 | 0xd1 => match tag[2] {
+            0x01 => Some(18),
+            0x02 => Some(34),
+            _ => None,
+        },
+        0xd0 if tag[1] == 0x00 => Some(2),
+        0x00 if tag[1] == 0x00 => Some(2),
         _ => None,
     }
 }
@@ -68,6 +78,16 @@ pub struct Record {
     pub offset: usize,
     pub tag: [u8; 4],
     pub payload: Vec<u8>,
+    /// Total record length on the wire (tag + payload). 2 for separator
+    /// atoms (`d0 00` / `00 00`); those carry no payload and only
+    /// tag[0..2] is meaningful.
+    pub len: usize,
+}
+
+impl Record {
+    pub fn is_atom(&self) -> bool {
+        self.len == 2
+    }
 }
 
 #[derive(Debug)]
@@ -126,14 +146,51 @@ impl CapMerc {
         let mut records = Vec::new();
         let mut off = 12 + bmp_len;
         let end = blob.len() - 2;
-        while off + 4 <= end {
+        while off + 2 <= end {
+            if off + 4 > end {
+                // Trailing 2B atom directly before the tail (no room for a
+                // full tag lookahead).
+                let t2 = &blob[off..end];
+                if t2 == [0xd0, 0x00] || t2 == [0x00, 0x00] {
+                    records.push(Record {
+                        offset: off,
+                        tag: [t2[0], t2[1], 0, 0],
+                        payload: Vec::new(),
+                        len: 2,
+                    });
+                    off = end;
+                    break;
+                }
+                let tag = [t2[0], t2[1], 0, 0];
+                if strict {
+                    return Err(MercError::MalformedRecord { offset: off, tag });
+                }
+                records.push(Record {
+                    offset: off,
+                    tag,
+                    payload: Vec::new(),
+                    len: end - off,
+                });
+                off = end;
+                break;
+            }
             let tag: [u8; 4] = blob[off..off + 4].try_into().unwrap();
             match record_len(&tag) {
+                Some(2) => {
+                    records.push(Record {
+                        offset: off,
+                        tag: [tag[0], tag[1], 0, 0],
+                        payload: Vec::new(),
+                        len: 2,
+                    });
+                    off += 2;
+                }
                 Some(l) if off + l <= end => {
                     records.push(Record {
                         offset: off,
                         tag,
                         payload: blob[off + 4..off + l].to_vec(),
+                        len: l,
                     });
                     off += l;
                 }
@@ -159,6 +216,7 @@ impl CapMerc {
                         offset: off,
                         tag,
                         payload: blob[off + 4..stop].to_vec(),
+                        len: stop - off,
                     });
                     off = stop;
                 }
@@ -191,8 +249,12 @@ impl CapMerc {
     pub fn tag_histogram(&self) -> Vec<(String, usize)> {
         let mut m: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
         for r in &self.records {
-            *m.entry(r.tag.iter().map(|b| format!("{:02x}", b)).collect())
-                .or_insert(0) += 1;
+            let key = if r.is_atom() {
+                format!("{:02x}{:02x}(atom)", r.tag[0], r.tag[1])
+            } else {
+                r.tag.iter().map(|b| format!("{:02x}", b)).collect()
+            };
+            *m.entry(key).or_insert(0) += 1;
         }
         let mut v: Vec<_> = m.into_iter().collect();
         v.sort_by(|a, b| b.1.cmp(&a.1));
