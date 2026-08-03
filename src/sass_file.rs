@@ -208,6 +208,7 @@ pub fn kernel_def_to_meta(
 
     let (merc_param_order, merc_param_write, merc_stg_desc_pos, merc_bar_pred) =
         merc_param_scan(&def.instructions);
+    let (merc_bar_pos, merc_stg_pos) = merc_exec_positions(&def.instructions);
 
     KernelMeta {
         name: def.name.clone(),
@@ -226,6 +227,8 @@ pub fn kernel_def_to_meta(
         merc_stg_desc_pos,
         merc_bar_pred,
         merc_dynldg: merc_select_dynldg(&def.instructions),
+        merc_bar_pos,
+        merc_stg_pos,
     }
 }
 
@@ -241,6 +244,20 @@ fn merc_select_dynldg(instructions: &[Instruction]) -> bool {
         ins.opcode == "LDG"
             && (t.contains(".64+0x") || t.contains(".64]") && t.contains('['))
     })
+}
+
+fn merc_exec_positions(instructions: &[Instruction]) -> (Vec<u32>, Vec<u32>) {
+    let mut bar_pos = Vec::new();
+    let mut stg_pos = Vec::new();
+    for ins in instructions {
+        let slot = (ins.addr / 16) as u32;
+        match ins.opcode.as_str() {
+            "BAR" | "SYNCS" => bar_pos.push(slot),
+            "STG" => stg_pos.push(slot),
+            _ => {}
+        }
+    }
+    (bar_pos, stg_pos)
 }
 
 fn merc_param_scan(instructions: &[Instruction]) -> (Option<Vec<u32>>, u32, Vec<u32>, bool) {

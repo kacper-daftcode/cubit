@@ -41,6 +41,8 @@ fn meta(name: &str, n_params: u32, exits: u32, smem: u32, bars: u8, cbank: u16) 
         merc_stg_desc_pos: Vec::new(),
         merc_bar_pred: false,
         merc_dynldg: false,
+        merc_bar_pos: Vec::new(),
+        merc_stg_pos: Vec::new(),
     }
 }
 

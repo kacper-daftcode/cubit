@@ -369,6 +369,10 @@ pub struct KernelMeta {
     pub merc_param_write: u32,
     /// LDG z rejestrowo-dynamicznym adresowaniem ([Rx.64+0x..]) obecne.
     pub merc_dynldg: bool,
+    /// Pozycje (16B-slot indeksy) BAR/SYNC w strumieniu (kolejnosc kodowa).
+    pub merc_bar_pos: Vec<u32>,
+    /// Pozycje STG (era-record binding ordering).
+    pub merc_stg_pos: Vec<u32>,
     /// Per-STG: pozycja desc-parametru w kolejce first-use (STG binding).
     pub merc_stg_desc_pos: Vec<u32>,
     /// Jakakolwiek BAR pod predykatem (wariant rekordu BAR payload[0]=01).
@@ -411,6 +415,8 @@ impl KernelMeta {
             merc_param_order: None,
             merc_param_write: 0,
             merc_dynldg: false,
+            merc_bar_pos: Vec::new(),
+            merc_stg_pos: Vec::new(),
             merc_stg_desc_pos: Vec::new(),
             merc_bar_pred: false,
         };
@@ -742,6 +748,8 @@ mod tests {
             merc_param_order: None,
             merc_param_write: 0,
             merc_dynldg: false,
+            merc_bar_pos: Vec::new(),
+            merc_stg_pos: Vec::new(),
             merc_stg_desc_pos: Vec::new(),
             merc_bar_pred: false,
         };

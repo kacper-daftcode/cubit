@@ -212,6 +212,10 @@ pub struct MercFeatures {
     pub os_mma: bool,
     /// LDG z rejestrowym offsetem (desc-structure) -> cflow 0x40 (era sm_103a).
     pub os_dynldg: bool,
+    /// Pozycje kodowe BAR/SYNCS.
+    pub bar_pos: Vec<u32>,
+    /// Pozycje kodowe STG.
+    pub stg_pos: Vec<u32>,
     /// Dialekt emitera: true = sm_100-era (m.in. BAR0 przed CBANK), false = sm_103a.
     pub era_sm100: bool,
     /// Jakakolwiek szeroka transakcja zapisu (STG.E.64/128) — zmienia STG-desc.
@@ -270,6 +274,8 @@ impl MercFeatures {
             .any(|o| o.starts_with("STG") && (o.contains(".64") || o.contains(".128")));
         f.param_order = meta.merc_param_order.clone();
         f.param_write = meta.merc_param_write;
+        f.bar_pos = meta.merc_bar_pos.clone();
+        f.stg_pos = meta.merc_stg_pos.clone();
         f.stg_desc_pos = meta.merc_stg_desc_pos.clone();
         f.bar_pred = meta.merc_bar_pred;
         f.stg_u8 = opcodes.iter().any(|o| o.starts_with("STG") && o.contains(".U8"));
@@ -432,55 +438,111 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
         if order.is_empty() {
             // zero-param kerneli z bar/smem (dawniej sciezka else)
         }
-        if feat.bar_count > 0 && !bar0_pre {
-            for _ in 0..feat.bar_count {
-                out.extend_from_slice(bar_rec);
-            }
-        }
         for _ in 0..feat.used_scalar_params {
             out.extend_from_slice(&REC_SCALAR_PARAM);
         }
-        let stg_narrow = feat.stg_u8;
-        for stg_i in 0..feat.n_stg {
-            let mut stg = REC_STG;
-            if stg_narrow {
-                // STG.E.U8: bajty [6],[18],[19] = 0 (zmierzone: s_u8)
-                stg[6] = 0x00;
-                stg[18] = 0x00;
-                stg[19] = 0x00;
-            } else if feat.stg_wide {
-                // STG.64/128 (zmierzone na v_p1i64/v_ldg_u64/b_wmma):
-                // rekord bajt[6]: 0x40 -> 0x50, bajt[19]: 0x40 -> 0x02.
-                stg[6] = 0x50;
-                stg[19] = 0x02;
+        // Lane wykonawcza: BAR/STG/ATOM w kolejnosci kodu (nvcc pipeline;
+        // dowody: d_2seq, v_bar2, k_smem). Gdy pozycje nieznane -> legacy
+        // kolejnosc grupowa (bar-y pierwsze).
+        let have_pos = feat.bar_pos.len() == feat.bar_count as usize
+            && feat.stg_pos.len() == feat.n_stg as usize
+            && (feat.n_stg + feat.bar_count) > 0
+            && (!feat.bar_pos.is_empty() || !feat.stg_pos.is_empty());
+        if have_pos && !bar0_pre {
+            #[derive(Clone, Copy, PartialEq, Eq)]
+            enum Ev { Bar, Stg, Atom }
+            let mut ev: Vec<(u32, Ev, u32)> = Vec::new();
+            for (i, &pos) in feat.bar_pos.iter().enumerate() {
+                ev.push((pos, Ev::Bar, i as u32));
             }
-            // binding do desc: pola [12],[13],[19] wg pozycji desc
-            // (domyslnie idx STG@%2; jesli znana pozycja desc — z niej).
-            let dp = feat
-                .stg_desc_pos
-                .get(stg_i as usize)
-                .copied()
-                .unwrap_or(stg_i % 2);
-            if !stg_narrow && !feat.stg_wide && (feat.n_stg > 1 || dp > 0) {
-                if dp % 2 == 1 {
-                    stg[12] = 0x02;
-                    stg[13] = 0x01;
-                    stg[19] = 0xc0;
-                } else {
-                    stg[19] = 0x40;
-                }
-                if feat.n_stg > 1 {
-                    stg[26] = 4u8.saturating_mul((stg_i % 4) as u8);
+            for (i, &pos) in feat.stg_pos.iter().enumerate() {
+                ev.push((pos, Ev::Stg, i as u32));
+            }
+            ev.sort_by_key(|&(pos, kind, _)| (pos, if kind == Ev::Bar { 1 } else { 0 }));
+            for (_, kind, idx) in ev {
+                match kind {
+                    Ev::Bar => out.extend_from_slice(bar_rec),
+                    Ev::Atom => out.extend_from_slice(&REC_ATOM),
+                    Ev::Stg => {
+                        let stg_i = idx as usize;
+                        let mut stg = REC_STG;
+                        let stg_narrow = feat.stg_u8;
+                        if stg_narrow {
+                            stg[6] = 0x00;
+                            stg[18] = 0x00;
+                            stg[19] = 0x00;
+                        } else if feat.stg_wide {
+                            stg[6] = 0x50;
+                            stg[19] = 0x02;
+                        }
+                        let dp = feat
+                            .stg_desc_pos
+                            .get(stg_i as usize)
+                            .copied()
+                            .unwrap_or(stg_i as u32 % 2);
+                        if !stg_narrow && !feat.stg_wide && (feat.n_stg > 1 || dp > 0) {
+                            if dp % 2 == 1 {
+                                stg[12] = 0x02;
+                                stg[13] = 0x01;
+                                stg[19] = 0xc0;
+                            } else {
+                                stg[19] = 0x40;
+                            }
+                            if feat.n_stg > 1 {
+                                stg[26] = 4u8.saturating_mul((stg_i % 4) as u8);
+                            }
+                        }
+                        out.extend_from_slice(&stg);
+                    }
                 }
             }
-            out.extend_from_slice(&stg);
-        }
-        for _ in 0..feat.n_atom {
-            out.extend_from_slice(&REC_ATOM);
-        }
-        if bar0_pre {
-            for _ in 1..feat.bar_count {
-                out.extend_from_slice(bar_rec);
+            for _ in 0..feat.n_atom {
+                out.extend_from_slice(&REC_ATOM);
+            }
+        } else {
+            if feat.bar_count > 0 && !bar0_pre {
+                for _ in 0..feat.bar_count {
+                    out.extend_from_slice(bar_rec);
+                }
+            }
+            let stg_narrow = feat.stg_u8;
+            for stg_i in 0..feat.n_stg {
+                let mut stg = REC_STG;
+                if stg_narrow {
+                    // STG.E.U8: bajty [6],[18],[19] = 0 (zmierzone: s_u8)
+                    stg[6] = 0x00;
+                    stg[18] = 0x00;
+                    stg[19] = 0x00;
+                } else if feat.stg_wide {
+                    stg[6] = 0x50;
+                    stg[19] = 0x02;
+                }
+                let dp = feat
+                    .stg_desc_pos
+                    .get(stg_i as usize)
+                    .copied()
+                    .unwrap_or(stg_i % 2);
+                if !stg_narrow && !feat.stg_wide && (feat.n_stg > 1 || dp > 0) {
+                    if dp % 2 == 1 {
+                        stg[12] = 0x02;
+                        stg[13] = 0x01;
+                        stg[19] = 0xc0;
+                    } else {
+                        stg[19] = 0x40;
+                    }
+                    if feat.n_stg > 1 {
+                        stg[26] = 4u8.saturating_mul((stg_i % 4) as u8);
+                    }
+                }
+                out.extend_from_slice(&stg);
+            }
+            for _ in 0..feat.n_atom {
+                out.extend_from_slice(&REC_ATOM);
+            }
+            if bar0_pre {
+                for _ in 1..feat.bar_count {
+                    out.extend_from_slice(bar_rec);
+                }
             }
         }
     } else if feat.bar_count > 0 || feat.smem_static {
