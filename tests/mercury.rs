@@ -80,17 +80,18 @@ fn tail_table_empirical() {
 
 #[test]
 fn strict_rejects_unknown_tag_class() {
-    // klasa 0x31 (tcgen05-family, v2 WIP) = nieznana dla v1
+    // klasa 0xd1 01 01 .. (poza znana mapa d10102xx) = nieznana
     let blob = hx(&[
         "0c000000010000c003000000",
         "02000000",
-        "31020020000101170000000000000000",
+        "d101011b00000117",
         "5007",
     ]);
     assert!(CapMerc::parse(&blob, true).is_err());
     let cm = CapMerc::parse(&blob, false).unwrap();
-    assert_eq!(cm.records.len(), 1);
-    assert_eq!(cm.records[0].tag[0], 0x31);
+    // lenient: resync chwyta pozniejsze klasy; pierwszy rekord = nasz 0xd1
+    assert!(!cm.records.is_empty());
+    assert_eq!(cm.records[0].tag[0], 0xd1);
 }
 
 #[test]
