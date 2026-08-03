@@ -214,6 +214,16 @@ pub struct MercFeatures {
     pub era_sm100: bool,
     /// Jakakolwiek szeroka transakcja zapisu (STG.E.64/128) — zmienia STG-desc.
     pub stg_wide: bool,
+    /// STG.E.U8 obecny (wariant STG-desc).
+    pub stg_u8: bool,
+    /// Per-STG: pozycja desc-parametru (u31 = unknown → fallback idx-row).
+    pub stg_desc_pos: Vec<u32>,
+    /// BAR pod predykatem obecny.
+    pub bar_pred: bool,
+    /// Kolejnosc pierwszego uzycia parametrow (z KernelMeta.merc_param_order).
+    pub param_order: Option<Vec<u32>>,
+    /// Bitmaska parametrow write-first (KernelMeta.merc_param_write).
+    pub param_write: u32,
 }
 
 impl MercFeatures {
@@ -242,9 +252,11 @@ impl MercFeatures {
             let b = o.split('.').next().unwrap_or(o);
             matches!(b, "HMMA" | "IMMA" | "DMMA" | "QMMA" | "OMMA")
         });
-        // obecnosc: >1 EXIT | >1 BRA | atom | BSSY | SHFL (era-nuance w doc)
+        // obecnosc: >1 EXIT | >1 BRA | atom | BSSY | SHFL | S2R (era 103a
+        // LDG-dynamic-path; zero kolizji na gold-zbiorze)
         f.cflow = (meta.exit_offsets.len() > 1 || n_bra > 1
-            || f.n_atom > 0 || f.cflow_bssy || f.os_shfl)
+            || f.n_atom > 0 || f.cflow_bssy || f.os_shfl
+            || f.os_uses_s2r)
             && !opcodes.iter().any(|o| o.starts_with("RET"));
         f.smem_static = meta.shared_size > 0;
         f.n_stg = opcodes.iter().filter(|o| o.starts_with("STG")).count() as u32;
@@ -253,6 +265,11 @@ impl MercFeatures {
         f.stg_wide = opcodes
             .iter()
             .any(|o| o.starts_with("STG") && (o.contains(".64") || o.contains(".128")));
+        f.param_order = meta.merc_param_order.clone();
+        f.param_write = meta.merc_param_write;
+        f.stg_desc_pos = meta.merc_stg_desc_pos.clone();
+        f.bar_pred = meta.merc_bar_pred;
+        f.stg_u8 = opcodes.iter().any(|o| o.starts_with("STG") && o.contains(".U8"));
         f
     }
 }
@@ -330,6 +347,14 @@ const REC_SCALAR_PARAM: [u8; 32] = [
 /// kernele tcgen05/FA4-class dostaja osobne rekordy (0x31/025a/024e...) ktorych
 /// emisja payloadowa nie jest jeszcze byte-exact.
 fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
+    let bar_bytes: [u8; 16] = if feat.bar_pred {
+        let mut br = REC_BAR;
+        br[4] = 0x01; // BAR pod predykatem/if: payload[0] = 01 (v_barx-era100)
+        br
+    } else {
+        REC_BAR
+    };
+    let bar_rec = &bar_bytes;
     out.extend_from_slice(&REC_PROLOG);
     let cflow_rec = |feat: &MercFeatures| {
         let mut cf = REC_EXTRA_EXIT;
@@ -354,57 +379,95 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
     }
     let total_params = feat.used_params + feat.used_scalar_params;
     if total_params > 0 {
-        let mut first_desc = REC_PARAM_DESC;
-        let n_tail0 = if feat.used_params > 0 { feat.used_params } else { 1 };
-        // tail-dw pierwszego desc: 4 * (pozostale sloty param+dalej)... model
-        // korpusowy: maleje o 4 na rekord; baza = 4 * (n_ptr + stg/..) — uproszczone
-        // do 8*(used_params-1) jak w v_p2/v_p3 (bajtowo param-bytes).
-        let tail0 = 8u32.saturating_mul(n_tail0.saturating_sub(1));
-        first_desc[28..32].copy_from_slice(&tail0.to_le_bytes());
-        if feat.used_params > 0 {
-            out.extend_from_slice(&first_desc);
-        }
-        // era sm_100: BAR0 stoi PRZED cbank, reszta po STG; era sm_103a: po.
-        let bar0_pre = feat.era_sm100 && !feat.smem_static && feat.bar_count > 0;
-        if bar0_pre {
-            out.extend_from_slice(&REC_BAR);
-        }
-        out.extend_from_slice(if feat.smem_static { &REC_CBANK_SMEM } else { &REC_CBANK });
-        if feat.smem_static {
-            out.extend_from_slice(&REC_SMEM);
-        }
-        if smem_mid {
-            out.extend_from_slice(&cflow_rec(feat));
-        }
-        for i in 1..feat.used_params {
-            let mut alt = REC_PARAM_DESC;
-            let last = i == feat.used_params - 1;
-            if feat.used_params == 2 && last {
-                alt[10] = 0x03;
-                alt[11] = 0x01;
+        // Descs w kolejnosci pierwszego uzycia parametru (regula mk8/v_*):
+        // tail-dw bajtow[28..32] = 8 * idx-sygnaturowy parametru.
+        // role (b10,b11): (83,00)=param iterowany pierwszy; (03,01)=kolejne
+        // parametry (wетеj) badz write dla n_ptr<=2; (83,01)=write dla n_ptr>=3.
+        let order: Vec<u32> = match &feat.param_order {
+            Some(o) if !o.is_empty() => o.clone(),
+            _ => (0..feat.used_params).collect(),
+        };
+        let bar0_pre =
+            feat.era_sm100 && !feat.smem_static && feat.bar_count > 0 && !feat.bar_pred;
+        let mut descs: Vec<[u8; 32]> = Vec::new();
+        for (j, &pi) in order.iter().enumerate() {
+            let mut d = REC_PARAM_DESC;
+            let is_write = (feat.param_write >> pi) & 1 == 1;
+            let (b10, b11) = if feat.used_params == 1 {
+                (0x83, 0x00)
+            } else if is_write {
+                if feat.used_params <= 2 { (0x03, 0x01) } else { (0x83, 0x01) }
+            } else if j == 0 {
+                (0x83, 0x00)
             } else {
-                alt[10] = 0x83;
-                alt[11] = (i - 1) as u8;
+                (0x03, 0x01)
+            };
+            d[10] = b10;
+            d[11] = b11;
+            d[28..32].copy_from_slice(&(8 * pi).to_le_bytes());
+            descs.push(d);
+        }
+        for (j, d) in descs.iter().enumerate() {
+            if j == 0 {
+                out.extend_from_slice(d);
+                // era sm_100: BAR0 stoi PRZED cbank, reszta po STG.
+                if bar0_pre {
+                    out.extend_from_slice(bar_rec);
+                }
+                out.extend_from_slice(if feat.smem_static { &REC_CBANK_SMEM } else { &REC_CBANK });
+                if feat.smem_static {
+                    out.extend_from_slice(&REC_SMEM);
+                }
+                if smem_mid {
+                    out.extend_from_slice(&cflow_rec(feat));
+                }
+            } else {
+                out.extend_from_slice(d);
             }
-            let t = 8u32.saturating_mul(feat.used_params.saturating_sub(1 + i));
-            alt[28..32].copy_from_slice(&t.to_le_bytes());
-            out.extend_from_slice(&alt);
+        }
+        if order.is_empty() {
+            // zero-param kerneli z bar/smem (dawniej sciezka else)
         }
         if feat.bar_count > 0 && !bar0_pre {
             for _ in 0..feat.bar_count {
-                out.extend_from_slice(&REC_BAR);
+                out.extend_from_slice(bar_rec);
             }
         }
         for _ in 0..feat.used_scalar_params {
             out.extend_from_slice(&REC_SCALAR_PARAM);
         }
-        for _ in 0..feat.n_stg {
+        let stg_narrow = feat.stg_u8;
+        for stg_i in 0..feat.n_stg {
             let mut stg = REC_STG;
-            if feat.stg_wide {
+            if stg_narrow {
+                // STG.E.U8: bajty [6],[18],[19] = 0 (zmierzone: s_u8)
+                stg[6] = 0x00;
+                stg[18] = 0x00;
+                stg[19] = 0x00;
+            } else if feat.stg_wide {
                 // STG.64/128 (zmierzone na v_p1i64/v_ldg_u64/b_wmma):
                 // rekord bajt[6]: 0x40 -> 0x50, bajt[19]: 0x40 -> 0x02.
                 stg[6] = 0x50;
                 stg[19] = 0x02;
+            }
+            // binding do desc: pola [12],[13],[19] wg pozycji desc
+            // (domyslnie idx STG@%2; jesli znana pozycja desc — z niej).
+            let dp = feat
+                .stg_desc_pos
+                .get(stg_i as usize)
+                .copied()
+                .unwrap_or(stg_i % 2);
+            if !stg_narrow && !feat.stg_wide && (feat.n_stg > 1 || dp > 0) {
+                if dp % 2 == 1 {
+                    stg[12] = 0x02;
+                    stg[13] = 0x01;
+                    stg[19] = 0xc0;
+                } else {
+                    stg[19] = 0x40;
+                }
+                if feat.n_stg > 1 {
+                    stg[26] = 4u8.saturating_mul((stg_i % 4) as u8);
+                }
             }
             out.extend_from_slice(&stg);
         }
@@ -413,7 +476,7 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
         }
         if bar0_pre {
             for _ in 1..feat.bar_count {
-                out.extend_from_slice(&REC_BAR);
+                out.extend_from_slice(bar_rec);
             }
         }
     } else if feat.bar_count > 0 || feat.smem_static {
@@ -421,7 +484,7 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
             // samo smem bez parametrow — nieobserwowane; zachowaj pole
         }
         for _ in 0..feat.bar_count {
-            out.extend_from_slice(&REC_BAR);
+            out.extend_from_slice(bar_rec);
         }
         if feat.smem_static {
             out.extend_from_slice(&REC_SMEM);

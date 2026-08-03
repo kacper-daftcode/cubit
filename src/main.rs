@@ -1237,6 +1237,10 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         params: Vec::new(),
         cuda_api_version: 0x83,
         shared_size: 0,
+        merc_param_order: None,
+        merc_param_write: 0,
+        merc_stg_desc_pos: Vec::new(),
+        merc_bar_pred: false,
     }
 }
 

@@ -362,6 +362,15 @@ pub struct KernelMeta {
     pub cuda_api_version: u32,
     /// Static shared memory size in bytes (from .shared directives).
     pub shared_size: u32,
+    /// Mercury: parametry w kolejnosci pierwszego uzycia w SASS (scan
+    /// `LDC(.64)? Rx, c[0x0][0x380+8k]`); None = kolejnosc sygnaturowa.
+    pub merc_param_order: Option<Vec<u32>>,
+    /// Bitmaska parametrow zapisywanych (pierwsze uzycie pamieci = store).
+    pub merc_param_write: u32,
+    /// Per-STG: pozycja desc-parametru w kolejce first-use (STG binding).
+    pub merc_stg_desc_pos: Vec<u32>,
+    /// Jakakolwiek BAR pod predykatem (wariant rekordu BAR payload[0]=01).
+    pub merc_bar_pred: bool,
 }
 
 /// Kernel parameter info.
@@ -397,6 +406,10 @@ impl KernelMeta {
             params: Vec::new(),
             cuda_api_version: 0x83,
             shared_size: 0,
+            merc_param_order: None,
+            merc_param_write: 0,
+            merc_stg_desc_pos: Vec::new(),
+            merc_bar_pred: false,
         };
 
         // Extract from global section (REGCOUNT, FRAME_SIZE, MIN_STACK_SIZE)
@@ -723,6 +736,10 @@ mod tests {
             ],
             cuda_api_version: 0x83,
             shared_size: 0,
+            merc_param_order: None,
+            merc_param_write: 0,
+            merc_stg_desc_pos: Vec::new(),
+            merc_bar_pred: false,
         };
 
         let global = meta.to_global_records(8);

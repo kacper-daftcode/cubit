@@ -19,13 +19,17 @@ fn main() {
         let ops: Vec<String> = g.ops.iter().map(|s| s.to_string()).collect();
         let code = vec![0u8; ops.len() * 16];
         let params = (0..(g.ptr + g.scal))
-            .map(|i| KernelParam { index: i, ordinal: i, offset: i * 8, size: 8 })
+            .map(|i| KernelParam { index: i, ordinal: i, offset: i * 8, size: if i < g.ptr { 8 } else { 4 } })
             .collect();
         let meta = KernelMeta {
             name: g.name.into(), regcount: 16, frame_size: 0, min_stack_size: 0,
             maxreg_count: 0xFF, num_barriers: g.bars,
             exit_offsets: (0..g.exits).map(|i| i * 16).collect(),
             cbank_param_size: g.cbank, params, cuda_api_version: 0x83, shared_size: g.smem,
+            merc_param_order: if g.pord.is_empty() { None } else { Some(g.pord.to_vec()) },
+            merc_param_write: g.pwrite,
+            merc_stg_desc_pos: Vec::new(),
+            merc_bar_pred: false,
         };
         let out = generate_mercury_full(&code, g.ord, Some(&ops), &meta, g.sm100 == 1);
         let gold = hx(g.gold);
