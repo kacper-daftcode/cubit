@@ -1241,6 +1241,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_param_write: 0,
         merc_stg_desc_pos: Vec::new(),
         merc_bar_pred: false,
+        merc_dynldg: false,
     }
 }
 

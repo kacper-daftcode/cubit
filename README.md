@@ -56,12 +56,21 @@ cubit merc-dump kernel.cubin -k my_kernel [--strict]
 ```
 
 `src/mercury.rs` implements the CUDA-13.x Mercury wire format (kernel ordinal,
-non-NOP bitmap of tracked instructions, TLV capability records, f(B) tail).
+instruction-count field, TLV capability records, f(trim-count) tail).
 The driver consumes these sections to transcode foreign-arch SASS to native
-("Mercury uplift"); on the native path they are inert. Grammar v1 covers
-~91.5% of a 27,790-section corpus (tcgen05/TMA "phase-bitmap" sections like
-FA4's are flagged v2 WIP). `elf_builder::generate_mercury_with_ops` emits
-spec-conformant sections (historically-tail values verified against nvcc).
+("Mercury uplift"); on the native path they are inert. Grammar v3 parses
+**17,612/17,612 corpus sections (100%)** end-to-end (including tcgen05/FA4-class
+sections), with 2-byte separator atoms (`d0 00`/`00 00`), dual-length
+51/d1 records and mini-records 41/42 modelled.
+
+Generator: `elf_builder::generate_mercury_full` reproduces nvcc-13.3 sections
+byte-exactly for the canonical kernel family (lab gold suite: 50/91 true-equal,
+remaining cases enumerated with named residual fields). Rules inside:
+`tail = f(trim)` (100% on a 27.8k-kernel corpus), bitmap length
+`B = trim - w0 - 2*n_ENDCOLLECTIVE` with w0 = {MEMBAR,ERRBAR,CGAERRBAR,DEPBAR,
+LDGDEPBAR,LDGSTS,B2R}; record ordering/param-role/STG-field rules reproduced
+from the nvcc emitter pipeline (see blackwell-isa-internal
+MERCURY_UPLIFT_SM103A.md, iters X..X5).
 
 ## Scheduling
 

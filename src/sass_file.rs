@@ -225,6 +225,7 @@ pub fn kernel_def_to_meta(
         merc_param_write,
         merc_stg_desc_pos,
         merc_bar_pred,
+        merc_dynldg: merc_select_dynldg(&def.instructions),
     }
 }
 
@@ -232,6 +233,16 @@ pub fn kernel_def_to_meta(
 /// (param slot k) i pierwszych uzyciach adresowych; zwraca
 /// (kolejnosc pierwszego uzycia parametrow, bitmaska write-first).
 /// Model zmierzony na mikrolabie r_*/s_* (mk8).
+/// true gdy kernel ma LDG z rejestrowym offsetem [Rx.64+0x...] (era-103a
+/// wyzwalacz rekordu cflow 0x41; dane: k_ld/k_ldcg/k_ldg2/c_ld_dyn vs c_ld_fix).
+fn merc_select_dynldg(instructions: &[Instruction]) -> bool {
+    instructions.iter().any(|ins| {
+        let t = &ins.raw_text;
+        ins.opcode == "LDG"
+            && (t.contains(".64+0x") || t.contains(".64]") && t.contains('['))
+    })
+}
+
 fn merc_param_scan(instructions: &[Instruction]) -> (Option<Vec<u32>>, u32, Vec<u32>, bool) {
     let mut reg_of: Vec<(String, u32)> = Vec::new(); // lead-reg name -> param idx
     let mut order: Vec<u32> = Vec::new();

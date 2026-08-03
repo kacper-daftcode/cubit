@@ -30,6 +30,7 @@ fn main() {
             merc_param_write: g.pwrite,
             merc_stg_desc_pos: Vec::new(),
             merc_bar_pred: false,
+            merc_dynldg: g.dynldg == 1,
         };
         let out = generate_mercury_full(&code, g.ord, Some(&ops), &meta, g.sm100 == 1);
         let gold = hx(g.gold);
