@@ -43,7 +43,7 @@ fn meta(name: &str, n_params: u32, exits: u32, smem: u32, bars: u8, cbank: u16) 
 #[test]
 fn gen_v_base_matches_nvcc() {
     let ops = vec!["LDC".to_string(), "EXIT".to_string(), "BRA".to_string()];
-    let out = generate_mercury_full(&dummy_code(3), 0x0c, Some(&ops), &meta("v_base", 0, 1, 0, 0, 0));
+    let out = generate_mercury_full(&dummy_code(3), 0x0c, Some(&ops), &meta("v_base", 0, 1, 0, 0, 0), true);
     let gold = hx("0c000000010000c00300000002000000010b040af800040000004100000400005007");
     assert_eq!(out, gold);
 }
@@ -53,7 +53,7 @@ fn gen_v_base_matches_nvcc() {
 fn gen_v_p1_matches_nvcc() {
     let ops: Vec<String> = ["LDC", "LDC", "LDCU", "MOV", "STG", "EXIT", "BRA"]
         .iter().map(|s| s.to_string()).collect();
-    let out = generate_mercury_full(&dummy_code(7), 0x0c, Some(&ops), &meta("v_p1", 1, 1, 0, 0, 8));
+    let out = generate_mercury_full(&dummy_code(7), 0x0c, Some(&ops), &meta("v_p1", 1, 1, 0, 0, 8), true);
     let gold = hx(concat!(
         "0c000000010000c00700000028000000",
         "010b040af80004000000410000040000",
@@ -71,7 +71,7 @@ fn gen_v_bar2_matches_nvcc() {
     let ops: Vec<String> =
         ["LDC", "LDC", "LDC", "MOV", "STG", "BAR", "LDC", "EXIT", "BRA"]
             .iter().map(|s| s.to_string()).collect();
-    let out = generate_mercury_full(&dummy_code(9), 0x0c, Some(&ops), &meta("v_bar2", 1, 1, 0, 2, 8));
+    let out = generate_mercury_full(&dummy_code(9), 0x0c, Some(&ops), &meta("v_bar2", 1, 1, 0, 2, 8), true);
     let gold = hx(concat!(
         "0c000000010000c00900000088000000",
         "010b040af80004000000410000040000",

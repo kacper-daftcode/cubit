@@ -197,23 +197,62 @@ pub struct MercFeatures {
     pub bar_count: u32,
     pub n_stg: u32,
     pub n_atom: u32,
-    pub extra_exit: bool,
+    /// Control-flow record (second `01 0b 04 0a`): emitted when the kernel has
+    /// >1 EXIT or >1 branch (99.5% corpus rule; known residuals: kernels with
+    /// ABI CALLs suppress it, rare early-exit patterns add it).
+    pub cflow: bool,
+    /// Atom-variant of the cflow record payload (n_atom > 0).
+    pub cflow_atom: bool,
+    /// Divergent-branch bit in the cflow record payload (BSSY present).
+    pub cflow_bssy: bool,
+    /// sm_103a-era: kernel dotyka S2R / SHFL (41-wariant rekordu cflow).
+    pub os_uses_s2r: bool,
+    pub os_shfl: bool,
+    pub os_call: bool,
+    pub os_mma: bool,
+    /// Dialekt emitera: true = sm_100-era (m.in. BAR0 przed CBANK), false = sm_103a.
+    pub era_sm100: bool,
+    /// Jakakolwiek szeroka transakcja zapisu (STG.E.64/128) — zmienia STG-desc.
+    pub stg_wide: bool,
 }
 
 impl MercFeatures {
     pub fn from_parts(meta: &KernelMeta, opcodes: &[String]) -> Self {
         let mut f = MercFeatures {
-            used_params: meta.params.len() as u32,
+            used_params: meta.params.iter().filter(|p| p.size > 4).count() as u32,
+            used_scalar_params: meta.params.iter().filter(|p| p.size <= 4).count() as u32,
             ..Default::default()
         };
-        f.extra_exit = meta.exit_offsets.len() > 1;
-        f.smem_static = meta.shared_size > 0;
-        f.n_stg = opcodes.iter().filter(|o| o.starts_with("STG")).count() as u32;
+        let n_bra = opcodes
+            .iter()
+            .filter(|o| {
+                let b = o.split('.').next().unwrap_or(o);
+                matches!(b, "BRA" | "BRX" | "JMP" | "JMPX")
+            })
+            .count();
         f.n_atom = opcodes
             .iter()
             .filter(|o| o.starts_with("REDG") || o.starts_with("ATOMS") || o.starts_with("ATOMG"))
             .count() as u32;
+        f.cflow_atom = f.n_atom > 0;
+        f.cflow_bssy = opcodes.iter().any(|o| o.starts_with("BSSY"));
+        f.os_uses_s2r = opcodes.iter().any(|o| o.starts_with("S2R"));
+        f.os_shfl = opcodes.iter().any(|o| o.starts_with("SHFL"));
+        f.os_mma = opcodes.iter().any(|o| {
+            let b = o.split('.').next().unwrap_or(o);
+            matches!(b, "HMMA" | "IMMA" | "DMMA" | "QMMA" | "OMMA")
+        });
+        // obecnosc: >1 EXIT | >1 BRA | atom | BSSY | SHFL (era-nuance w doc)
+        f.cflow = (meta.exit_offsets.len() > 1 || n_bra > 1
+            || f.n_atom > 0 || f.cflow_bssy || f.os_shfl)
+            && !opcodes.iter().any(|o| o.starts_with("RET"));
+        f.smem_static = meta.shared_size > 0;
+        f.n_stg = opcodes.iter().filter(|o| o.starts_with("STG")).count() as u32;
         f.bar_count = meta.num_barriers as u32;
+        f.os_call = opcodes.iter().any(|o| o.starts_with("CALL"));
+        f.stg_wide = opcodes
+            .iter()
+            .any(|o| o.starts_with("STG") && (o.contains(".64") || o.contains(".128")));
         f
     }
 }
@@ -231,6 +270,12 @@ const REC_PARAM_DESC: [u8; 32] = [
 const REC_CBANK: [u8; 16] = [
     0x01, 0x0b, 0x0e, 0x0a, 0xfa, 0x00, 0x05, 0x00,
     0x00, 0x00, 0x03, 0x01, 0x39, 0x04, 0x00, 0x00,
+];
+/// Wariant cbank przy kernels z shared memory (payload[6] |= 0x80; dane lab:
+/// v_sm128/v_dyn_smem/k_lds/k_smem maja 83, bez-smem 03).
+const REC_CBANK_SMEM: [u8; 16] = [
+    0x01, 0x0b, 0x0e, 0x0a, 0xfa, 00, 0x05, 0x00,
+    0x00, 0x00, 0x83, 0x01, 0x39, 0x04, 0x00, 0x00,
 ];
 const REC_BAR: [u8; 16] = [
     0x01, 0x47, 0x5a, 0x16, 0xf8, 0x00, 0x04, 0x00,
@@ -263,44 +308,118 @@ const REC_SCALAR_PARAM: [u8; 32] = [
     0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00,
 ];
 
-/// Emit the capability-record stream given measured per-kernel features.
-/// Layout mirrors nvcc output for simple kernels (gold-tested in tests).
+/// nvcc kanoniczny porzadek rekordow (zminowany na 6,3k sekcji korpusu +
+/// mikrolab mk4-mk7):
+///
+/// ```text
+/// PROLOG
+/// [CFLOW]                gdy exits>1 | bra>1 (residua: CALL-ABI, early-exit)
+/// desc(param0)           role 83 00
+/// CBANK
+/// [SMEM]
+/// desc(param1..)         role 03 01 (ostatni przy n=2) / serie 83 00+ (n>=3)
+/// [BAR x bar_count]
+/// scalar-descs
+/// STG x n_stg
+/// ATOM x n_atom
+/// ```
+///
+/// Znane residua (udokumentowane w MERCURY_UPLIFT_SM103A.md): pozycja rekordu
+/// BAR wzgledem CBANK odstaje w ~4% kerneli (v_bar2-klasa), pola STG-counter
+/// i desc-tail dw-zaleznosci od parametrow maja wyjatki (k_stg2/k_loop8);
+/// kernele tcgen05/FA4-class dostaja osobne rekordy (0x31/025a/024e...) ktorych
+/// emisja payloadowa nie jest jeszcze byte-exact.
 fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
     out.extend_from_slice(&REC_PROLOG);
-    if feat.extra_exit {
-        out.extend_from_slice(&REC_EXTRA_EXIT);
+    let cflow_rec = |feat: &MercFeatures| {
+        let mut cf = REC_EXTRA_EXIT;
+        // wariant atom: bajt[12]=00 (k_atom/v_atom); wariant cflow/exit: 01
+        if feat.cflow_atom {
+            cf[12] = 0x00;
+        }
+        // bit 0x40 w bajcie[10]: BSSY / SHFL / MMA (empirycznie k_shfl, k_mma;
+        // k_diverge-predykacja zostaje bez) — residuum: LDG-dynamic-addr
+        // (k_ld/k_ldcg/k_ldg2) nieustalone.
+        if feat.cflow_bssy || feat.os_shfl || feat.os_mma {
+            cf[10] |= 0x40;
+        }
+        if feat.os_mma {
+            cf[12] = 0x00;
+        }
+        cf
+    };
+    let smem_mid = feat.smem_static && feat.cflow;
+    if feat.cflow && !smem_mid {
+        out.extend_from_slice(&cflow_rec(feat));
     }
     let total_params = feat.used_params + feat.used_scalar_params;
     if total_params > 0 {
-        for _ in 0..feat.used_params {
-            out.extend_from_slice(&REC_PARAM_DESC);
+        let mut first_desc = REC_PARAM_DESC;
+        let n_tail0 = if feat.used_params > 0 { feat.used_params } else { 1 };
+        // tail-dw pierwszego desc: 4 * (pozostale sloty param+dalej)... model
+        // korpusowy: maleje o 4 na rekord; baza = 4 * (n_ptr + stg/..) — uproszczone
+        // do 8*(used_params-1) jak w v_p2/v_p3 (bajtowo param-bytes).
+        let tail0 = 8u32.saturating_mul(n_tail0.saturating_sub(1));
+        first_desc[28..32].copy_from_slice(&tail0.to_le_bytes());
+        if feat.used_params > 0 {
+            out.extend_from_slice(&first_desc);
         }
-        if feat.bar_count > 0 {
+        // era sm_100: BAR0 stoi PRZED cbank, reszta po STG; era sm_103a: po.
+        let bar0_pre = feat.era_sm100 && !feat.smem_static && feat.bar_count > 0;
+        if bar0_pre {
             out.extend_from_slice(&REC_BAR);
         }
-        out.extend_from_slice(&REC_CBANK);
-        for _ in 0..feat.used_scalar_params {
-            out.extend_from_slice(&REC_SCALAR_PARAM);
-        }
+        out.extend_from_slice(if feat.smem_static { &REC_CBANK_SMEM } else { &REC_CBANK });
         if feat.smem_static {
             out.extend_from_slice(&REC_SMEM);
         }
-        for _ in 1..total_params {
+        if smem_mid {
+            out.extend_from_slice(&cflow_rec(feat));
+        }
+        for i in 1..feat.used_params {
             let mut alt = REC_PARAM_DESC;
-            alt[8] = 0x03;
-            alt[9] = 0x01;
+            let last = i == feat.used_params - 1;
+            if feat.used_params == 2 && last {
+                alt[10] = 0x03;
+                alt[11] = 0x01;
+            } else {
+                alt[10] = 0x83;
+                alt[11] = (i - 1) as u8;
+            }
+            let t = 8u32.saturating_mul(feat.used_params.saturating_sub(1 + i));
+            alt[28..32].copy_from_slice(&t.to_le_bytes());
             out.extend_from_slice(&alt);
         }
+        if feat.bar_count > 0 && !bar0_pre {
+            for _ in 0..feat.bar_count {
+                out.extend_from_slice(&REC_BAR);
+            }
+        }
+        for _ in 0..feat.used_scalar_params {
+            out.extend_from_slice(&REC_SCALAR_PARAM);
+        }
         for _ in 0..feat.n_stg {
-            out.extend_from_slice(&REC_STG);
+            let mut stg = REC_STG;
+            if feat.stg_wide {
+                // STG.64/128 (zmierzone na v_p1i64/v_ldg_u64/b_wmma):
+                // rekord bajt[6]: 0x40 -> 0x50, bajt[19]: 0x40 -> 0x02.
+                stg[6] = 0x50;
+                stg[19] = 0x02;
+            }
+            out.extend_from_slice(&stg);
         }
         for _ in 0..feat.n_atom {
             out.extend_from_slice(&REC_ATOM);
         }
-        for _ in 1..feat.bar_count {
-            out.extend_from_slice(&REC_BAR);
+        if bar0_pre {
+            for _ in 1..feat.bar_count {
+                out.extend_from_slice(&REC_BAR);
+            }
         }
     } else if feat.bar_count > 0 || feat.smem_static {
+        if feat.smem_static && feat.bar_count == 0 {
+            // samo smem bez parametrow — nieobserwowane; zachowaj pole
+        }
         for _ in 0..feat.bar_count {
             out.extend_from_slice(&REC_BAR);
         }
@@ -317,8 +436,9 @@ pub fn generate_mercury_full(
     kernel_id: u32,
     opcodes: Option<&[String]>,
     meta: &KernelMeta,
+    era_sm100: bool,
 ) -> Vec<u8> {
-    use crate::mercury::{opcode_tracked_hint, tail_for_instr_count};
+    use crate::mercury::{opcode_tracked_hint, tail_for_instr_count, word_is_nop_hint};
     let n_instr = code.len() / 16;
     let is_nop = |i: usize| {
         if let Some(ops) = opcodes {
@@ -326,14 +446,25 @@ pub fn generate_mercury_full(
                 return ops[i] == "NOP";
             }
         }
-        let w = &code[i * 16..i * 16 + 2];
-        w[0] == 0x18 && w[1] == 0x79
+        word_is_nop_hint(&code[i * 16..i * 16 + 2])
     };
+    let is_w0 = |i: usize| -> bool {
+        match opcodes {
+            Some(ops) if i < ops.len() => crate::mercury::opcode_bitmap_zero_weight(&ops[i]),
+            _ => false,
+        }
+    };
+    // trim: ucinanie WYLACZNIE koncowych NOPow (midstream NOPy zajmuja sloty!)
+    let mut end = n_instr;
+    while end > 0 && is_nop(end - 1) {
+        end -= 1;
+    }
+    // B = liczba slotow 0..end minus klasy zerowej wagi (nie dostaja bitu)
     let mut bitmap: Vec<u32> = Vec::new();
     let mut cur = 0u32;
     let mut b_index = 0usize;
-    for i in 0..n_instr {
-        if is_nop(i) {
+    for i in 0..end {
+        if is_w0(i) {
             continue;
         }
         let tracked = match opcodes {
@@ -352,21 +483,23 @@ pub fn generate_mercury_full(
     if b_index % 32 != 0 {
         bitmap.push(cur);
     }
-    let n_nonnop = b_index as u32;
+    let n_counted = b_index as u32;
 
     let mut buf: Vec<u8> = Vec::new();
     buf.extend_from_slice(&kernel_id.to_le_bytes());
     buf.extend_from_slice(&crate::mercury::CAPMERC_MAGIC.to_le_bytes());
-    buf.extend_from_slice(&n_nonnop.to_le_bytes());
+    buf.extend_from_slice(&n_counted.to_le_bytes());
     for w in &bitmap {
         buf.extend_from_slice(&w.to_le_bytes());
     }
-    let feat = match opcodes {
+    let mut feat = match opcodes {
         Some(ops) => MercFeatures::from_parts(meta, ops),
         None => MercFeatures::default(),
     };
+    feat.era_sm100 = era_sm100;
     emit_feature_records(&mut buf, &feat);
-    buf.extend_from_slice(&tail_for_instr_count(n_nonnop).to_le_bytes());
+    // regula tail: f(trim-count) — NIE f(B)! (100% na 27,846-korpusie)
+    buf.extend_from_slice(&tail_for_instr_count(end as u32).to_le_bytes());
     buf
 }
 
@@ -384,7 +517,7 @@ pub fn generate_mercury_with_ops(
     kernel_id: u32,
     opcodes: Option<&[String]>,
 ) -> Vec<u8> {
-    use crate::mercury::{opcode_tracked_hint, tail_for_instr_count};
+    use crate::mercury::{opcode_tracked_hint, tail_for_instr_count, word_is_nop_hint};
     let n_instr = code.len() / 16;
     let is_nop = |i: usize| {
         if let Some(ops) = opcodes {
@@ -392,34 +525,31 @@ pub fn generate_mercury_with_ops(
                 return ops[i] == "NOP";
             }
         }
-        let w = &code[i * 16..i * 16 + 2];
-        w[0] == 0x18 && w[1] == 0x79
+        word_is_nop_hint(&code[i * 16..i * 16 + 2])
     };
-    let tracked: Vec<bool> = (0..n_instr)
-        .map(|i| {
-            if is_nop(i) {
-                return false;
-            }
-            match opcodes {
-                Some(ops) if i < ops.len() => opcode_tracked_hint(&ops[i]),
-                _ => true,
-            }
-        })
-        .collect();
-    // Non-NOP index space: bit i corresponds to i-th non-NOP instruction.
+    // trim: tylko koncowe NOP-y (midstream NOP-y maja sloty w bitmapie).
+    let mut end = n_instr;
+    while end > 0 && is_nop(end - 1) {
+        end -= 1;
+    }
+    // Bitmap space: sloty 0..end minus klasy zerowej wagi (DEPBAR & co.).
     let mut bitmap_bits: Vec<u8> = Vec::new();
     let mut cur = 0u32;
-    let mut cur_bits = 0u8;
     let mut b_index = 0usize;
-    for i in 0..n_instr {
-        if is_nop(i) {
-            continue;
+    for i in 0..end {
+        if let Some(ops) = opcodes {
+            if i < ops.len() && crate::mercury::opcode_bitmap_zero_weight(&ops[i]) {
+                continue;
+            }
         }
-        if tracked[i] {
+        let tracked = match opcodes {
+            Some(ops) if i < ops.len() => opcode_tracked_hint(&ops[i]) && ops[i] != "NOP",
+            _ => true,
+        };
+        if tracked {
             cur |= 1u32 << (b_index % 32);
         }
         b_index += 1;
-        cur_bits += 1;
         if b_index % 32 == 0 {
             bitmap_bits.extend_from_slice(&cur.to_le_bytes());
             cur = 0;
@@ -459,7 +589,7 @@ pub fn generate_mercury_with_ops(
         0x00, 0x00, 0x02, 0x01, 0x40, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00,
     ]);
-    buf.extend_from_slice(&tail_for_instr_count(n_nonnop).to_le_bytes());
+    buf.extend_from_slice(&tail_for_instr_count(end as u32).to_le_bytes());
     buf
 }
 
@@ -1905,6 +2035,7 @@ impl CubinBuilder {
                     ki as u32 + 0x20,
                     kernels[ki].opcodes.as_deref(),
                     &kernels[ki].meta,
+                    crate::elf::sm_from_ef_flags(self.ef_flags) == 100,
                 );
                 &stub_owned
             };

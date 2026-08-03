@@ -301,3 +301,21 @@ pub fn opcode_tracked_hint(op: &str) -> bool {
             | "PREEXIT"
     )
 }
+
+/// NOP detection heuristic for raw words (first two bytes of the sm_100/103
+/// NOP encoding; used when no opcode list is provided).
+pub fn word_is_nop_hint(w: &[u8]) -> bool {
+    w[0] == 0x18 && w[1] == 0x79
+}
+
+/// Classes that consume NO bitmap slot (weight-0 in the B model
+/// `B = trim_count - n_w0`, verified on lab + corpus: MEMBAR/ERRBAR/CGAERRBAR
+/// (fence probes), DEPBAR/LDGDEPBAR/LDGSTS (cp.async probes), B2R
+/// (voting/divergence kernels)).
+pub fn opcode_bitmap_zero_weight(op: &str) -> bool {
+    let base = op.split('.').next().unwrap_or(op);
+    matches!(
+        base,
+        "MEMBAR" | "ERRBAR" | "CGAERRBAR" | "DEPBAR" | "LDGDEPBAR" | "LDGSTS" | "B2R"
+    )
+}
