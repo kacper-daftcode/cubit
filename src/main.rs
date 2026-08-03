@@ -2929,9 +2929,9 @@ fn cmd_merc_dump(input: &Path, kernel: Option<&str>, strict: bool) -> Result<()>
                     cm.records.len(),
                     cm.tail,
                     if cm.tail_consistent() {
-                        " (consistent)"
+                        " (tail=f(B))"
                     } else {
-                        " (MISMATCH)"
+                        " (tail!=f(B): normalne dla klas wag-0/tcgen05 — regula to f(trim))"
                     },
                     cm.set_bits().len(),
                 );
