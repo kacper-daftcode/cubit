@@ -36,6 +36,10 @@ fn meta(name: &str, n_params: u32, exits: u32, smem: u32, bars: u8, cbank: u16) 
         params,
         cuda_api_version: 0x83,
         shared_size: smem,
+        merc_param_order: None,
+        merc_param_write: 0,
+        merc_stg_desc_pos: Vec::new(),
+        merc_bar_pred: false,
     }
 }
 

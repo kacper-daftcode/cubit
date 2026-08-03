@@ -206,6 +206,9 @@ pub fn kernel_def_to_meta(
     let min_regs = if has_qmma { 48 } else { 4 };
     let regcount = def.resources.reg_count().max(min_regs);
 
+    let (merc_param_order, merc_param_write, merc_stg_desc_pos, merc_bar_pred) =
+        merc_param_scan(&def.instructions);
+
     KernelMeta {
         name: def.name.clone(),
         regcount,
@@ -218,5 +221,82 @@ pub fn kernel_def_to_meta(
         params,
         cuda_api_version: 0x83,  // SM120 CUDA 12.8 API version
         shared_size: def.resources.shared_size(),
+        merc_param_order,
+        merc_param_write,
+        merc_stg_desc_pos,
+        merc_bar_pred,
     }
+}
+
+/// Mercury desc-order support: skanuje SASS po `LDC(.64)?.U?Rx, c[0x0][0x380+8k]`
+/// (param slot k) i pierwszych uzyciach adresowych; zwraca
+/// (kolejnosc pierwszego uzycia parametrow, bitmaska write-first).
+/// Model zmierzony na mikrolabie r_*/s_* (mk8).
+fn merc_param_scan(instructions: &[Instruction]) -> (Option<Vec<u32>>, u32, Vec<u32>, bool) {
+    let mut reg_of: Vec<(String, u32)> = Vec::new(); // lead-reg name -> param idx
+    let mut order: Vec<u32> = Vec::new();
+    let mut write_mask: u32 = 0;
+    let mut stg_desc_pos: Vec<u32> = Vec::new();
+    let mut bar_predicated = false;
+    for ins in instructions {
+        let t = ins.raw_text.as_str();
+        // LDC / LDCU load z okna parametrow [0x380..]
+        if ins.opcode == "LDC" || ins.opcode == "LDCU" {
+            if let Some(cp) = t.find("c[0x0][0x") {
+                let hexs = &t[cp + 9..];
+                let end = hexs.find(']').unwrap_or(0);
+                if let Ok(off) = u32::from_str_radix(&hexs[..end], 16) {
+                    if off >= 0x380 && (off - 0x380) % 8 == 0 {
+                        let pi = (off - 0x380) / 8;
+                        // lead operand = dest reg
+                        let depth = t.find(',').unwrap_or(t.len());
+                        let dest = t[..depth]
+                            .split_whitespace()
+                            .nth(1)
+                            .unwrap_or("")
+                            .trim_end_matches(".64")
+                            .to_string();
+                        if !dest.is_empty() {
+                            reg_of.push((dest, pi.min(31)));
+                        }
+                    }
+                }
+            }
+        }
+        // memory-desc use: desc[URx][Ry.64] / plain [Rx]
+        let base = ins.opcode_full.split('.').next().unwrap_or("");
+        let is_mem = matches!(
+            base,
+            "LDG" | "STG" | "ATOMG" | "ATOMS" | "RED" | "REDG" | "LDS" | "STS" | "LD" | "ST"
+        );
+        if is_mem {
+            for (rn, pi) in &reg_of {
+                // uzycie jako baza adresu: [Rx ...] lub desc[...Rx...]
+                let needle1 = format!("[{}.", rn);
+                let needle2 = format!("[{},", rn);
+                let needle3 = format!("[{}]", rn);
+                let used = t.contains(&needle1) || t.contains(&needle2) || t.contains(&needle3);
+                if used && !order.contains(pi) {
+                    order.push(*pi);
+                    if matches!(base, "STG" | "ATOMG" | "ATOMS" | "RED" | "REDG" | "STS" | "ST") {
+                        write_mask |= 1u32 << pi;
+                    }
+                }
+                if used
+                    && matches!(base, "STG" | "ATOMG" | "ATOMS" | "RED" | "REDG")
+                    && order.contains(pi)
+                {
+                    let pos = order.iter().position(|p| p == pi).unwrap_or(0) as u32;
+                    stg_desc_pos.push(pos);
+                }
+            }
+        }
+        if matches!(base, "BAR") && ins.guard.is_some() {
+            bar_predicated = true;
+        }
+    }
+    (if order.is_empty() { None } else { Some(order) },
+     write_mask,
+     stg_desc_pos,
+     bar_predicated)
 }
