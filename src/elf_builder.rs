@@ -522,12 +522,40 @@ pub fn generate_mercury_full(
     while end > 0 && is_nop(end - 1) {
         end -= 1;
     }
+    // Regula regionowa (mk9+q_bsync_pair): bloki [WARPSYNC, NOP, ENDCOLLECTIVE]
+    // (kolektywne epilogi) wyjmują z bitmapy WARPSYNC i NOP (2 sloty na blok;
+    // ENDCOLLECTIVE zostaje, =1). Korpus: +42.8pp exact (40.4 -> 83.2%).
+    let region_drop: Vec<bool> = match opcodes {
+        Some(ops) => {
+            let mut dr = vec![false; n_instr];
+            for i in 0..end {
+                if ops[i].starts_with("ENDCOLLECTIVE") {
+                    // najblizszy poprzedzajacy WARPSYNC w oknie 6 i NOP miedzy
+                    let start = i.saturating_sub(6);
+                    let mut ws = None;
+                    let mut nop = None;
+                    for k in (start..i).rev() {
+                        if ws.is_none() && ops[k].starts_with("WARPSYNC") {
+                            ws = Some(k);
+                        }
+                        if nop.is_none() && ops[k] == "NOP" {
+                            nop = Some(k);
+                        }
+                    }
+                    if let Some(k) = ws { dr[k] = true; }
+                    if let Some(k) = nop { dr[k] = true; }
+                }
+            }
+            dr
+        }
+        None => Vec::new(),
+    };
     // B = liczba slotow 0..end minus klasy zerowej wagi (nie dostaja bitu)
     let mut bitmap: Vec<u32> = Vec::new();
     let mut cur = 0u32;
     let mut b_index = 0usize;
     for i in 0..end {
-        if is_w0(i) {
+        if is_w0(i) || region_drop.get(i).copied().unwrap_or(false) {
             continue;
         }
         let tracked = match opcodes {
