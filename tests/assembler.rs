@@ -21,8 +21,8 @@ fn load_table() -> Option<IsaTable> {
 
 /// Helper: full SASS→cubin pipeline using the public module APIs.
 fn assemble_to_cubin(sass_text: &str, table: &IsaTable) -> anyhow::Result<Vec<u8>> {
-    use cubit::elf_builder::{KernelEntry, build_cubin};
-    use cubit::sass_file::{parse_sass_file_str, auto_detect_resources, kernel_def_to_meta};
+    use cubit::elf_builder::{build_cubin, KernelEntry};
+    use cubit::sass_file::{auto_detect_resources, kernel_def_to_meta, parse_sass_file_str};
     use cubit::scheduling_pass;
 
     let mut file = parse_sass_file_str(sass_text)?;
@@ -54,6 +54,7 @@ fn assemble_to_cubin(sass_text: &str, table: &IsaTable) -> anyhow::Result<Vec<u8
             code: code_bytes,
             meta,
             mercury_stub: None,
+            opcodes: None,
         });
     }
     build_cubin(&entries)
@@ -95,7 +96,10 @@ fn test_label_resolution() {
 
     match &insns[0].operands[0] {
         cubit::ir::Operand::BranchTarget(addr) => {
-            assert_eq!(*addr, 0x20, "label 'end' is at instruction index 2 → addr 0x20");
+            assert_eq!(
+                *addr, 0x20,
+                "label 'end' is at instruction index 2 → addr 0x20"
+            );
         }
         other => panic!("Expected BranchTarget, got {:?}", other),
     }
@@ -143,7 +147,8 @@ fn test_scheduling_ldg_barrier() {
     assert!(
         has_barrier_dep || has_high_stall,
         "FADD should have barrier wait or high stall for LDG dep, got stall={} wait=0x{:02x}",
-        parsed[1].ctrl.stall, parsed[1].ctrl.wait_mask
+        parsed[1].ctrl.stall,
+        parsed[1].ctrl.wait_mask
     );
 }
 
@@ -231,7 +236,8 @@ fn test_forced_recycle_drains_reused_barrier() {
         0,
         "forced barrier recycle must drain (wait) the reused barrier before the new \
          producer sets it; got wait=0x{:02x} write_bar={}",
-        seventh.ctrl.wait_mask, seventh.ctrl.write_bar
+        seventh.ctrl.wait_mask,
+        seventh.ctrl.write_bar
     );
 }
 
@@ -249,7 +255,7 @@ fn test_consumed_barrier_recycles_without_drain() {
     // no self-drain (the previous producer was already waited by its consumer).
     let lines = [
         "LDG.E.64 R0, desc[UR4][R20.64] ;",
-        "FADD R12, R0, R1 ;",   // consumes R0:R1 -> waits the load's barrier
+        "FADD R12, R0, R1 ;", // consumes R0:R1 -> waits the load's barrier
         "LDG.E.64 R2, desc[UR4][R20.64] ;",
         "FADD R13, R2, R3 ;",
         "LDG.E.64 R4, desc[UR4][R20.64] ;",
@@ -303,8 +309,11 @@ fn test_schedule_via_direct_api() {
     assert_eq!(insns.len(), 2);
     // Consumer should get barrier wait or high stall for LDG dependency
     let has_dep = insns[1].ctrl.wait_mask != 0 || insns[1].ctrl.stall >= 10;
-    assert!(has_dep, "FADD needs LDG dep: stall={} wait=0x{:02x}",
-            insns[1].ctrl.stall, insns[1].ctrl.wait_mask);
+    assert!(
+        has_dep,
+        "FADD needs LDG dep: stall={} wait=0x{:02x}",
+        insns[1].ctrl.stall, insns[1].ctrl.wait_mask
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -422,7 +431,13 @@ fn test_rebuild_cubin_renames_kernel() {
     let result = cubit::elf_builder::rebuild_cubin(&template_cubin, &patches).unwrap();
 
     let result_str = String::from_utf8_lossy(&result);
-    assert!(result_str.contains("my_kern"), "should contain new name 'my_kern'");
-    assert!(!result_str.contains("template_kern"), "should NOT contain old name 'template_kern'");
+    assert!(
+        result_str.contains("my_kern"),
+        "should contain new name 'my_kern'"
+    );
+    assert!(
+        !result_str.contains("template_kern"),
+        "should NOT contain old name 'template_kern'"
+    );
     assert!(result.starts_with(b"\x7fELF"));
 }

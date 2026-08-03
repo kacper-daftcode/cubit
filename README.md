@@ -47,6 +47,22 @@ cubit asm kernel.sass -o modified.cubin
 With `--frozen`, the scheduler is bypassed — what you write is what you get.
 Without it, cubit re-schedules automatically.
 
+
+## Mercury (capmerc) support
+
+```bash
+# Parse and dump .nv.capmerc.text.* sections of any sm_100+ cubin
+cubit merc-dump kernel.cubin -k my_kernel [--strict]
+```
+
+`src/mercury.rs` implements the CUDA-13.x Mercury wire format (kernel ordinal,
+non-NOP bitmap of tracked instructions, TLV capability records, f(B) tail).
+The driver consumes these sections to transcode foreign-arch SASS to native
+("Mercury uplift"); on the native path they are inert. Grammar v1 covers
+~91.5% of a 27,790-section corpus (tcgen05/TMA "phase-bitmap" sections like
+FA4's are flagged v2 WIP). `elf_builder::generate_mercury_with_ops` emits
+spec-conformant sections (historically-tail values verified against nvcc).
+
 ## Scheduling
 
 cubit assigns scheduling metadata (stalls, barriers, yields) automatically.

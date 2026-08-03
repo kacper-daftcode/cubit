@@ -30,6 +30,7 @@ pub mod elf;
 pub mod elf_builder;
 pub mod encoder;
 pub mod ir;
+pub mod mercury;
 pub mod parser;
 pub mod printer;
 #[cfg(feature = "python")]
@@ -40,7 +41,7 @@ pub mod scheduling_pass;
 pub mod table;
 
 pub use ir::{ControlCode, Instruction};
-pub use parser::{parse_cuasm_line, parse_sass, parse_multi_sass, resolve_labels, Statement};
+pub use parser::{parse_cuasm_line, parse_multi_sass, parse_sass, resolve_labels, Statement};
 pub use table::IsaTable;
 
 /// Assemble multiple SASS instructions with label resolution.
