@@ -216,6 +216,9 @@ pub struct MercFeatures {
     pub bar_pos: Vec<u32>,
     /// Pozycje kodowe STG.
     pub stg_pos: Vec<u32>,
+    /// Shift-region record (51010109): BSSY+BSYNC bez BRA.DIV i bez epilogow
+    /// kolektywnych (WARPSYNC/ENDCOLLECTIVE) — mikrolab: sw*, p_ldsm, b_bulk_cp.
+    pub diverge_region: bool,
     /// Dialekt emitera: true = sm_100-era (m.in. BAR0 przed CBANK), false = sm_103a.
     pub era_sm100: bool,
     /// Jakakolwiek szeroka transakcja zapisu (STG.E.64/128) — zmienia STG-desc.
@@ -269,6 +272,12 @@ impl MercFeatures {
         f.bar_count = meta.num_barriers as u32;
         f.os_call = opcodes.iter().any(|o| o.starts_with("CALL"));
         f.os_dynldg = meta.merc_dynldg;
+        let n_bssy = opcodes.iter().filter(|o| o.starts_with("BSSY")).count();
+        let n_bsync = opcodes.iter().filter(|o| o.starts_with("BSYNC")).count();
+        let n_bradiv = opcodes.iter().filter(|o| o.starts_with("BRA.DIV")).count();
+        let n_ec = opcodes.iter().filter(|o| o.starts_with("ENDCOLLECTIVE")).count();
+        let n_ws = opcodes.iter().filter(|o| o.starts_with("WARPSYNC")).count();
+        f.diverge_region = n_bssy > 0 && n_bsync > 0 && n_bradiv == 0 && n_ec == 0 && n_ws == 0;
         f.stg_wide = opcodes
             .iter()
             .any(|o| o.starts_with("STG") && (o.contains(".64") || o.contains(".128")));
@@ -303,6 +312,14 @@ const REC_CBANK_SMEM: [u8; 16] = [
     0x01, 0x0b, 0x0e, 0x0a, 0xfa, 00, 0x05, 0x00,
     0x00, 0x00, 0x83, 0x01, 0x39, 0x04, 0x00, 0x00,
 ];
+/// Rekord regionu divergent (51010109); payload staly (zmierzone na 5 kernelach
+/// mk10: sw4..sw64 oraz b_bulk_cp/p_ldsm); emisja gdy BSSY+BSYNC bez BRX/BRA.DIV
+/// i bez kolektyw-epilogow.
+const REC_SHIFT_REGION: [u8; 18] = [
+    0x51, 0x01, 0x01, 0x09, 0x02, 0x0a, 0xf8, 0x00, 0x01, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
 const REC_BAR: [u8; 16] = [
     0x01, 0x47, 0x5a, 0x16, 0xf8, 0x00, 0x04, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
@@ -430,6 +447,9 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
                 }
                 if smem_mid {
                     out.extend_from_slice(&cflow_rec(feat));
+                }
+                if feat.diverge_region {
+                    out.extend_from_slice(&REC_SHIFT_REGION);
                 }
             } else {
                 out.extend_from_slice(d);
