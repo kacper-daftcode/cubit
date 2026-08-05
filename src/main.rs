@@ -1244,6 +1244,9 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_dynldg: false,
         merc_bar_pos: Vec::new(),
         merc_stg_pos: Vec::new(),
+        merc_param_uniform: 0,
+        merc_param_regpath: 0,
+        merc_param_width: Vec::new(),
     }
 }
 
@@ -1571,6 +1574,140 @@ fn cmd_asm_build_elf(
                 }
             }
 
+            // Rozszerzenie (fs-lab 2026-08-05): param wskaznikowy moze isc przez
+            // LDCU.64 do UR i NZ stac w desc[URn] — wartosc laduje w R przez
+            // IADD3/IMAD.X i zula dopiero w desc[URx][Ry.64]. Sledz prosty
+            // przeplyw UR->R (alias), by poprawnie klasyfikowac taki slot jako
+            // 8B-wskaznik i ustawic merc_param_uniform.
+            let re_ldc64 = regex::Regex::new(
+                r"LDC\.64\s+R(\d+),\s*c\[0x0\]\[0x([0-9a-fA-F]+)\]",
+            )
+            .unwrap();
+            let re_ldcu_any = regex::Regex::new(
+                r"LDCU(?:\.64|\.128|\.U8|\.U16)?\s+UR(\d+),\s*c\[0x0\]\[0x([0-9a-fA-F]+)\]",
+            )
+            .unwrap();
+            let re_alu = regex::Regex::new(
+                r"^(?:\s*\/\*[0-9a-f]+\*\/\s*)?(?:@!?U?P\w+\s+)?(?:MOV|IMAD(?:\.[A-Z0-9]+)*|IADD3(?:\.[A-Z0-9]+)*|LEA(?:\.[A-Z0-9]+)*|SHF(?:\.[A-Z0-9]+)*|UIADD3(?:\.[A-Z0-9]+)*|UMOV)\s+((?:U?R)\d+)\s*,\s*(.*?)(?:;|\s*/\*|$)",
+            )
+            .unwrap();
+            let re_reg = regex::Regex::new(r"(?:U?R)\d+").unwrap();
+            // regname -> cbank off
+            let mut reg_off: std::collections::HashMap<String, u32> =
+                std::collections::HashMap::new();
+            let mut unif_at: std::collections::HashMap<u32, bool> =
+                std::collections::HashMap::new();
+            let mut width_at: std::collections::HashMap<u32, u8> =
+                std::collections::HashMap::new();
+            for (_addr, asm) in insns {
+                let clean = if let Some(idx) = asm.find("/* @sched") {
+                    &asm[..idx]
+                } else {
+                    asm.as_str()
+                };
+                for cap in re_ldcu_any.captures_iter(clean) {
+                    if let (Ok(ur), Ok(off)) =
+                        (cap[1].parse::<u32>(), u32::from_str_radix(&cap[2], 16))
+                    {
+                        if off >= 0x380 {
+                            let w: u8 = if clean.contains(".128") {
+                                16
+                            } else if clean.contains(".64") {
+                                8
+                            } else if clean.contains(".U16") {
+                                2
+                            } else if clean.contains(".U8") {
+                                1
+                            } else {
+                                4
+                            };
+                            reg_off.insert(format!("UR{}", ur), off);
+                            if w >= 8 {
+                                reg_off.insert(format!("UR{}", ur + 1), off);
+                            }
+                            unif_at.insert(off, true);
+                            width_at
+                                .entry(off)
+                                .and_modify(|cw| *cw = (*cw).max(w))
+                                .or_insert(w);
+                        }
+                    }
+                }
+                for cap in re_ldc64.captures_iter(clean) {
+                    if let (Ok(r), Ok(off)) =
+                        (cap[1].parse::<u32>(), u32::from_str_radix(&cap[2], 16))
+                    {
+                        if off >= 0x380 {
+                            reg_off.insert(format!("R{}", r), off);
+                            reg_off.insert(format!("R{}", r + 1), off);
+                            unif_at.insert(off, false);
+                            width_at.entry(off).and_modify(|cw| *cw = (*cw).max(8)).or_insert(8);
+                        }
+                    }
+                }
+            }
+            // fixpoint: propagacja wartosci przez lane ALU/MOV
+            for _ in 0..8 {
+                let mut changed = false;
+                for (_addr, asm) in insns {
+                    let clean = if let Some(idx) = asm.find("/* @sched") {
+                        &asm[..idx]
+                    } else {
+                        asm.as_str()
+                    };
+                    for cap in re_alu.captures_iter(clean) {
+                        let dest = cap[1].to_string();
+                        let rest = &cap[2];
+                        let mut src_off = None;
+                        for rm in re_reg.find_iter(rest) {
+                            if let Some(&off) = reg_off.get(rm.as_str()) {
+                                src_off = Some(off);
+                                break;
+                            }
+                        }
+                        if let Some(off) = src_off {
+                            match reg_off.get(&dest) {
+                                Some(&cur) if cur == off => {}
+                                _ => {
+                                    reg_off.insert(dest, off);
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+                }
+                if !changed {
+                    break;
+                }
+            }
+            // uzycie jako adres: kazdy token [R.. w bracketach instrukcji pamieci
+            for (_addr, asm) in insns {
+                let clean = if let Some(idx) = asm.find("/* @sched") {
+                    &asm[..idx]
+                } else {
+                    asm.as_str()
+                };
+                let op_head = clean
+                    .split_whitespace()
+                    .find(|t| !t.starts_with('@'))
+                    .unwrap_or("");
+                let base0 = op_head.split('.').next().unwrap_or("");
+                if !matches!(
+                    base0,
+                    "LDG" | "STG" | "ATOMG" | "ATOMS" | "RED" | "REDG" | "LDGSTS"
+                ) {
+                    continue;
+                }
+                // tylko brackety adresowe
+                for bm in regex::Regex::new(r"\[([^\]]+)\]").unwrap().captures_iter(clean) {
+                    for rm in re_reg.find_iter(&bm[1]) {
+                        if let Some(&off) = reg_off.get(rm.as_str()) {
+                            pointer_offsets.insert(off);
+                        }
+                    }
+                }
+            }
+
             if !cbank_offsets.is_empty() {
                 let offsets: Vec<u32> = cbank_offsets.iter().copied().collect();
                 let mut params: Vec<cubit::eiattr::KernelParam> = Vec::new();
@@ -1635,11 +1772,120 @@ fn cmd_asm_build_elf(
                 let total = params.iter().map(|p| p.offset + p.size).max().unwrap_or(0);
                 meta.cbank_param_size = ((total + 7) & !7) as u16;
                 meta.params = params;
+                // Mercury param-load metadata (variant/b6-width deskryptorow 0222):
+                // z alias-flow reg_off/unif_at/width_at zebranymi wyzej.
+                let mut punif = 0u32;
+                let mut preg = 0u32;
+                let mut pwid: Vec<u8> = Vec::new();
+                for p in &meta.params {
+                    let off = 0x380 + p.offset;
+                    let pi = (off - 0x380) / 8;
+                    if (pi as usize) >= pwid.len() {
+                        pwid.resize(pi as usize + 1, 0);
+                    }
+                    match unif_at.get(&off) {
+                        Some(true) => {
+                            punif |= 1u32 << pi;
+                            pwid[pi as usize] = *width_at.get(&off).unwrap_or(&8);
+                        }
+                        Some(false) => {
+                            preg |= 1u32 << pi;
+                            pwid[pi as usize] = *width_at.get(&off).unwrap_or(&8);
+                        }
+                        None => {}
+                    }
+                }
+                meta.merc_param_uniform = punif;
+                meta.merc_param_regpath = preg;
+                meta.merc_param_width = pwid;
                 eprintln!(
                     "  {kernel_name}: inferred {} params, cbank_param_size=0x{:x}",
                     meta.params.len(),
                     meta.cbank_param_size
                 );
+            }
+
+            // Mercury lane positions + dynldg z tekstu sass (fs-lab 2026-08-05):
+            // BAR/STG positions po indeksach instrukcji; dynldg: taint S2R ->
+            // lane ALU/MOV -> LDG z takim rejestrem w adresie (regula z
+            // mercv3/mk_gold.py).
+            {
+                let mut bar_pos: Vec<u32> = Vec::new();
+                let mut stg_pos: Vec<u32> = Vec::new();
+                let mut bar_pred = false;
+                let re_s2r = regex::Regex::new(r"S2R\s+").unwrap();
+                let re_regw = regex::Regex::new(r"^(?:U?R)\d+$").unwrap();
+                let mut lastw: std::collections::HashMap<String, &str> =
+                    std::collections::HashMap::new();
+                let mut dynldg = false;
+                let re_alu2 = regex::Regex::new(
+                    r"^(?:\s*\/\*[0-9a-f]+\*\/\s*)?(?:@!?U?P\w+\s+)?([A-Z][A-Za-z0-9.]*)\s*([^;]*?);?\s*$",
+                )
+                .unwrap();
+                for (ii, (_addr, asm)) in insns.iter().enumerate() {
+                    let clean = if let Some(idx) = asm.find("/* @sched") {
+                        &asm[..idx]
+                    } else {
+                        asm.as_str()
+                    };
+                    let clean = clean.trim();
+                    let m = re_alu2.captures_iter(clean).next();
+                    let (base, rest) = match &m {
+                        Some(c) => (c.get(1).unwrap().as_str(), c.get(2).unwrap().as_str()),
+                        None => continue,
+                    };
+                    let base0 = base.split('.').next().unwrap_or(base);
+                    if base0 == "BAR" {
+                        bar_pos.push(ii as u32);
+                        if clean.starts_with('@') {
+                            bar_pred = true;
+                        }
+                    }
+                    if base0 == "STG" {
+                        stg_pos.push(ii as u32);
+                    }
+                    let parts: Vec<String> = rest
+                        .split(',')
+                        .map(|s| s.trim().to_string())
+                        .collect();
+                    let outreg = parts.first().cloned().unwrap_or_default();
+                    let readers: Vec<&str> = regex::Regex::new(r"(?:U?R)\d+")
+                        .unwrap()
+                        .find_iter(rest)
+                        .map(|mm| mm.as_str())
+                        .collect();
+                    if base0 == "LDG" {
+                        for rn in &readers[1..] {
+                            if lastw.get(*rn) == Some(&"MID") {
+                                dynldg = true;
+                            }
+                        }
+                    }
+                    if re_regw.is_match(&outreg) {
+                        if re_s2r.is_match(clean) {
+                            lastw.insert(outreg.clone(), "MID");
+                        } else if readers.iter().skip(1).any(|rn| lastw.get(*rn) == Some(&"MID")) {
+                            lastw.insert(outreg.clone(), "MID");
+                        } else {
+                            lastw.insert(outreg.clone(), base0);
+                        }
+                    }
+                }
+                if !bar_pos.is_empty() && meta.num_barriers == 0 {
+                    meta.num_barriers = bar_pos.len() as u8;
+                }
+                if !bar_pos.is_empty() {
+                    meta.merc_bar_pos = bar_pos;
+                }
+                if !stg_pos.is_empty() {
+                    meta.merc_stg_pos = stg_pos;
+                }
+                if bar_pred {
+                    meta.merc_bar_pred = true;
+                }
+                if dynldg {
+                    meta.merc_dynldg = true;
+                }
             }
         }
 

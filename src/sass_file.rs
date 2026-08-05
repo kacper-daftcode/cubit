@@ -206,7 +206,8 @@ pub fn kernel_def_to_meta(
     let min_regs = if has_qmma { 48 } else { 4 };
     let regcount = def.resources.reg_count().max(min_regs);
 
-    let (merc_param_order, merc_param_write, merc_stg_desc_pos, merc_bar_pred) =
+    let (merc_param_order, merc_param_write, merc_stg_desc_pos, merc_bar_pred,
+         merc_param_uniform, merc_param_regpath, merc_param_width) =
         merc_param_scan(&def.instructions);
     let (merc_bar_pos, merc_stg_pos) = merc_exec_positions(&def.instructions);
 
@@ -229,6 +230,9 @@ pub fn kernel_def_to_meta(
         merc_dynldg: merc_select_dynldg(&def.instructions),
         merc_bar_pos,
         merc_stg_pos,
+        merc_param_uniform,
+        merc_param_regpath,
+        merc_param_width,
     }
 }
 
@@ -260,16 +264,29 @@ fn merc_exec_positions(instructions: &[Instruction]) -> (Vec<u32>, Vec<u32>) {
     (bar_pos, stg_pos)
 }
 
-fn merc_param_scan(instructions: &[Instruction]) -> (Option<Vec<u32>>, u32, Vec<u32>, bool) {
+fn merc_param_scan(
+    instructions: &[Instruction],
+) -> (Option<Vec<u32>>, u32, Vec<u32>, bool, u32, u32, Vec<u8>) {
     let mut reg_of: Vec<(String, u32)> = Vec::new(); // lead-reg name -> param idx
     let mut order: Vec<u32> = Vec::new();
     let mut write_mask: u32 = 0;
     let mut stg_desc_pos: Vec<u32> = Vec::new();
     let mut bar_predicated = false;
+    let mut uniform_mask: u32 = 0; // bit pi: slot zaladowany przez LDCU*
+    let mut regpath_mask: u32 = 0; // bit pi: slot zaladowany przez LDC*
+    let mut widths: Vec<u8> = Vec::new(); // per-param: max transfer bytes
+
+    #[allow(clippy::too_many_arguments)]
+    fn note(m: &mut u32, pi: u32) {
+        if pi < 32 {
+            *m |= 1u32 << pi;
+        }
+    }
     for ins in instructions {
         let t = ins.raw_text.as_str();
         // LDC / LDCU load z okna parametrow [0x380..]
-        if ins.opcode == "LDC" || ins.opcode == "LDCU" {
+        let is_ldcu = ins.opcode == "LDCU";
+        if ins.opcode == "LDC" || is_ldcu {
             if let Some(cp) = t.find("c[0x0][0x") {
                 let hexs = &t[cp + 9..];
                 let end = hexs.find(']').unwrap_or(0);
@@ -285,7 +302,85 @@ fn merc_param_scan(instructions: &[Instruction]) -> (Option<Vec<u32>>, u32, Vec<
                             .trim_end_matches(".64")
                             .to_string();
                         if !dest.is_empty() {
-                            reg_of.push((dest, pi.min(31)));
+                            reg_of.push((dest.clone(), pi.min(31)));
+                            // wide loads: high-half rejestrow pary (UR7 dla LDCU.64 UR6 itd.)
+                            let full = ins.opcode_full.as_str();
+                            if full.contains(".64") || full.contains(".128") {
+                                let num: Option<(bool, u32)> =
+                                    if let Some(n) = dest.strip_prefix("UR") {
+                                        n.parse::<u32>().ok().map(|v| (true, v))
+                                    } else if let Some(n) = dest.strip_prefix('R') {
+                                        n.parse::<u32>().ok().map(|v| (false, v))
+                                    } else {
+                                        None
+                                    };
+                                if let Some((is_u, n)) = num {
+                                    let pfx = if is_u { "UR" } else { "R" };
+                                    reg_of.push((format!("{}{}", pfx, n + 1), pi.min(31)));
+                                }
+                            }
+                        }
+                        if is_ldcu {
+                            note(&mut uniform_mask, pi);
+                        } else {
+                            note(&mut regpath_mask, pi);
+                        }
+                        // transfer width: .U8=1 .U16=2 plain=4 .64=8 .128=16
+                        let full = ins.opcode_full.as_str();
+                        let w: u8 = if full.contains(".128") {
+                            16
+                        } else if full.contains(".64") {
+                            8
+                        } else if full.contains(".U16") {
+                            2
+                        } else if full.contains(".U8") {
+                            1
+                        } else {
+                            4
+                        };
+                        if (pi as usize) >= widths.len() {
+                            widths.resize(pi as usize + 1, 0);
+                        }
+                        if widths[pi as usize] < w {
+                            widths[pi as usize] = w;
+                        }
+                    }
+                }
+            }
+        }
+        // alias-flow UR/R: dest <- zrodla sledzone (shape IADD3 R2, P0, PT, R0, UR6, RZ)
+        let b0 = ins.opcode_full.split('.').next().unwrap_or("");
+        if matches!(
+            b0,
+            "MOV" | "IMAD" | "IADD3" | "LEA" | "SHF" | "SEL" | "UIADD3" | "UMOV" | "IMNMX"
+                | "PRMT" | "IABS" | "SHFL"
+        ) {
+            if let Some(ci) = t.find(',') {
+                let dest = t[..ci]
+                    .split_whitespace()
+                    .last()
+                    .unwrap_or("")
+                    .trim_matches(|c: char| !c.is_alphanumeric());
+                if !dest.is_empty()
+                    && (dest.starts_with('R') || dest.starts_with('U'))
+                    && dest.chars().skip(1).all(|c| c == 'Z' || c.is_ascii_digit())
+                {
+                    let srcs = &t[ci + 1..];
+                    for (rn, pi) in &reg_of {
+                        // pasuj gole wystapienie tokenu rejestru w operandach zrodlowych
+                        let mut hit = false;
+                        for m in srcs.match_indices(rn.as_str()) {
+                            let at = m.0;
+                            let after = srcs[at + rn.len()..].chars().next();
+                            let ok_end = after.map(|c| !c.is_ascii_digit()).unwrap_or(true);
+                            if ok_end {
+                                hit = true;
+                                break;
+                            }
+                        }
+                        if hit {
+                            reg_of.push((dest.to_string(), *pi));
+                            break;
                         }
                     }
                 }
@@ -326,5 +421,8 @@ fn merc_param_scan(instructions: &[Instruction]) -> (Option<Vec<u32>>, u32, Vec<
     (if order.is_empty() { None } else { Some(order) },
      write_mask,
      stg_desc_pos,
-     bar_predicated)
+     bar_predicated,
+     uniform_mask,
+     regpath_mask,
+     widths)
 }

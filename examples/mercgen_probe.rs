@@ -30,6 +30,9 @@ fn main() {
             merc_param_write: g.pwrite,
             merc_stg_desc_pos: g.stgpos.to_vec(),
             merc_bar_pred: false,
+            merc_param_uniform: g.punif,
+            merc_param_regpath: g.preg,
+            merc_param_width: (0..8).map(|i| ((g.pwid >> (8 * i)) & 0xff) as u8).collect(),
             merc_dynldg: g.dynldg == 1,
             merc_bar_pos: g.barpos.to_vec(),
             merc_stg_pos: g.stgseq.to_vec(),
@@ -42,6 +45,11 @@ fn main() {
             println!("{}: DIFF (emit {}B vs nvcc {}B)", g.name, out.len(), gold.len());
             let op = max_prefix(&out, &gold);
             println!("  common prefix: {}B", op);
+            if std::env::var("PROBE_FULL").is_ok() {
+                println!("  EMIT {}", out.iter().map(|b| format!("{b:02x}")).collect::<String>());
+                println!("  GOLD {}", gold.iter().map(|b| format!("{b:02x}")).collect::<String>());
+                continue;
+            }
             println!("  emit @{:#x}: {}", op, hexs(&out, op));
             println!("  gold @{:#x}: {}", op, hexs(&gold, op));
         }

@@ -286,6 +286,9 @@ pub fn opcode_tracked_hint(op: &str) -> bool {
             | "BSSY"
             | "BSYNC"
             | "NOP"
+            // ELECT: config/sync klasa — bez bitu t4-flag1; dostaje wlasny
+            // mini-rekord 41 64 00 0a w lane (mk7 p_elect, fs-lab 2026-08-05).
+            | "ELECT"
             | "HMMA"
             | "UTCHMMA"
             | "UTCQMMA"
