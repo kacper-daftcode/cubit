@@ -211,6 +211,7 @@ pub fn kernel_def_to_meta(
         merc_param_scan(&def.instructions);
     let (merc_bar_pos, merc_stg_pos, merc_stg_off) = merc_exec_positions(&def.instructions);
     let merc_xor = merc_xor_scan(&def.instructions);
+    let merc_stg_ser = merc_stg_series(&def.instructions);
 
     KernelMeta {
         name: def.name.clone(),
@@ -236,6 +237,7 @@ pub fn kernel_def_to_meta(
         merc_param_width,
         merc_xor,
         merc_stg_off,
+        merc_stg_ser,
     }
 }
 
@@ -286,6 +288,48 @@ fn merc_exec_positions(instructions: &[Instruction]) -> (Vec<u32>, Vec<u32>, Vec
 /// or/and (lut 0xfc/0xc0) zostaja zwyklymi bitami; nor/neg-formy rowniez nie.
 /// lane takiej instrukcji NIE dostaje bitu bitmapy (rekord pelny zastepuje
 /// wezel typu4-flag1).
+/// mk10b: indeks STG w biezacej serii blokowej + null-tail flag (bit7).
+/// Granice serii: instrukcja-bedaca-targetem skoku oraz pozycja po EXIT/RET/
+/// CALL/BRA/BRX/JMP/BREAK/BSSY/BSYNC (navic odpowiednia na s_stg_branch).
+fn merc_stg_series(instructions: &[Instruction]) -> Vec<u8> {
+    let mut bounds: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    for ins in instructions {
+        let base = ins.opcode.as_str();
+        if matches!(base,
+            "BRA" | "BRX" | "JMP" | "JMPX" | "CALL" | "RET" | "EXIT" | "BREAK" |
+            "BSSY" | "BSYNC") {
+            bounds.insert(ins.addr / 16 + 1);
+        }
+        // target absolutny skoku (cubit drukuje 0xHEX w 16B-adresach)
+        if matches!(base, "BRA" | "BRX" | "JMP" | "JMPX" | "CALL") {
+            if let Some(pos) = ins.raw_text.find("0x") {
+                let h = &ins.raw_text[pos + 2..];
+                let hexdig: String =
+                    h.chars().take_while(|c| c.is_ascii_hexdigit()).collect();
+                if let Ok(tv) = u32::from_str_radix(&hexdig, 16) {
+                    if tv % 16 == 0 {
+                        bounds.insert(tv / 16);
+                    }
+                }
+            }
+        }
+    }
+    let mut out = Vec::new();
+    let mut ser = 0u8;
+    for ins in instructions {
+        let slot = ins.addr / 16;
+        if bounds.contains(&slot) {
+            ser = 0;
+        }
+        if ins.opcode == "STG" {
+            let nulltail = ins.raw_text.trim_end_matches([';', ' ']).ends_with(", RZ");
+            out.push(((nulltail as u8) << 7) | ser.min(126));
+            ser = ser.saturating_add(1);
+        }
+    }
+    out
+}
+
 fn merc_xor_scan(instructions: &[Instruction]) -> Vec<(u32, u32, u32, u32, u8)> {
     let mut out = Vec::new();
     for ins in instructions {
