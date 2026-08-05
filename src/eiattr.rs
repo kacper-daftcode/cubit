@@ -396,6 +396,10 @@ pub struct KernelMeta {
     /// Mercury: per-STG natychmiastowy offset adresu ([Rx.64+0x..]) w bajtach
     /// — trafia do bajta 28 rekordu 02 38 (fs10-grid 2026-08-05).
     pub merc_stg_off: Vec<u32>,
+    /// Mercury mk10b: per-STG pakiet kursora serii: bit7=null-tail
+    /// (value==RZ, off==0), bity[6:0] = indeks w serii blokowej (reset na
+    /// krawedziach cflow: targety skokow + po EXIT/RET/CALL/BRA/BRX/itd.).
+    pub merc_stg_ser: Vec<u8>,
 }
 
 
@@ -444,6 +448,7 @@ impl KernelMeta {
             merc_param_width: Vec::new(),
             merc_xor: Vec::new(),
             merc_stg_off: Vec::new(),
+            merc_stg_ser: Vec::new(),
         };
 
         // Extract from global section (REGCOUNT, FRAME_SIZE, MIN_STACK_SIZE)
@@ -782,6 +787,7 @@ mod tests {
             merc_param_width: Vec::new(),
             merc_xor: Vec::new(),
             merc_stg_off: Vec::new(),
+            merc_stg_ser: Vec::new(),
         };
 
         let global = meta.to_global_records(8);

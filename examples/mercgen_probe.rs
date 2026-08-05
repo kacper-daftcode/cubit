@@ -38,6 +38,7 @@ fn main() {
             merc_stg_pos: g.stgseq.to_vec(),
             merc_xor: g.pxor.to_vec(),
             merc_stg_off: g.stgoff.to_vec(),
+            merc_stg_ser: g.stgser.to_vec(),
         };
         let out = generate_mercury_full(&code, g.ord, Some(&ops), &meta, g.sm100 == 1);
         let gold = hx(g.gold);

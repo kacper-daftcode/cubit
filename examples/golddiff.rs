@@ -31,6 +31,7 @@ fn meta_for(g: &GoldRow) -> KernelMeta {
         merc_dynldg: g.dynldg == 1, merc_bar_pos: g.barpos.to_vec(),
         merc_stg_pos: g.stgseq.to_vec(), merc_xor: g.pxor.to_vec(),
         merc_stg_off: g.stgoff.to_vec(),
+        merc_stg_ser: g.stgser.to_vec(),
     }
 }
 

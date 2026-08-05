@@ -249,6 +249,9 @@ pub struct MercFeatures {
     /// Per-STG natychmiastowy offset adresu (bajty; bajt 28 rekordu 02 38;
     /// fs10-grid 2026-08-05).
     pub stg_off: Vec<u32>,
+    /// mk10b: per-STG pakiet (nulltail<<7)|series_idx-z-blokow (sass scan).
+    /// Uzywane TYLKO gdy wszystkie dp==0 (same-desc seria), inaczej legacy.
+    pub stg_ser: Vec<u8>,
     /// Pozycje kodowe ACQBULK (rekord 01 62 00 0a w lane, bez bitu bitmapy;
     /// gold w_depsync / mk10c).
     pub acqbulk_pos: Vec<u32>,
@@ -327,6 +330,7 @@ impl MercFeatures {
             .map(|(i, _)| i as u32)
             .collect();
         f.stg_off = meta.merc_stg_off.clone();
+        f.stg_ser = meta.merc_stg_ser.clone();
         f.acqbulk_pos = opcodes
             .iter()
             .enumerate()
@@ -464,6 +468,25 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize) -> [u8; 32] {
         .get(stg_i)
         .copied()
         .unwrap_or(stg_i as u32 % 2);
+    // mk10b kursor serii (same-desc sciezka; swiadectwo: s_stg*/k_bra/
+    // t_branct/d_2seq/i in.): b19 = 40 | parity<<7, b20 = 1 + (i>>1);
+    // null-tail (STG value RZ, offset 0) wymusza (c0, ff).
+    let same_desc = !feat.stg_desc_pos.is_empty()
+        && feat.stg_desc_pos.iter().all(|&d| d == 0)
+        && feat.stg_desc_pos.len() == feat.n_stg as usize;
+    if !stg_narrow && !feat.stg_wide && same_desc && !feat.stg_ser.is_empty() {
+        let pack = feat.stg_ser.get(stg_i).copied().unwrap_or(0);
+        let (nulltail, ser) = (pack >> 7 != 0, pack & 0x7f);
+        if nulltail {
+            stg[19] = 0xc0;
+            stg[20] = 0xff;
+        } else {
+            stg[19] = 0x40 | ((ser & 1) << 7);
+            stg[20] = 1 + (ser >> 1);
+        }
+        stg[28] = feat.stg_off.get(stg_i).copied().unwrap_or(0) as u8;
+        return stg;
+    }
     if !stg_narrow && !feat.stg_wide && (feat.n_stg > 1 || dp > 0) {
         // slot desc-stream (fs10b 2026-08-05): b12 = 82/02 po parzystosci
         // slotu, b13 = (s+1)>>1 (s=0 -> (82,00); zachowanie b19 jak dawniej)
