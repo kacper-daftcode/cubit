@@ -258,6 +258,12 @@ pub struct MercFeatures {
     /// Pozycje kodowe CCTL.* (marker 51 02 + rekord 01 49 10 0a w lane,
     /// bez bitu; gold p_fence).
     pub cctl_pos: Vec<u32>,
+    /// mk11: instrukcje MMA -> rekord 025a w lane: (lane, cls, d, a, b, c, b8f).
+    pub mma_lanes: Vec<(u32, u8, u8, u8, u8, u8, u8)>,
+    /// mk11: DMUL/DADD z imm f64 -> rekord 020f/020c w lane: (lane, var, d, a, imm_top).
+    pub f64_lanes: Vec<(u32, u8, u8, u8, u32)>,
+    /// mk11: lane UIADD3 (killpad uniform) -> atom d0 00 w lane.
+    pub pad_pos: Vec<u32>,
 }
 
 impl MercFeatures {
@@ -343,6 +349,10 @@ impl MercFeatures {
             .filter(|(_, o)| o.split('.').next() == Some("CCTL"))
             .map(|(i, _)| i as u32)
             .collect();
+        f.pad_pos = meta.merc_pad_pos.clone();
+        f.mma_lanes = meta.merc_mma.clone();
+        f.f64_lanes = meta.merc_f64imm.clone();
+
         f
     }
 }
@@ -471,6 +481,23 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize) -> [u8; 32] {
     // mk10b kursor serii (same-desc sciezka; swiadectwo: s_stg*/k_bra/
     // t_branct/d_2seq/i in.): b19 = 40 | parity<<7, b20 = 1 + (i>>1);
     // null-tail (STG value RZ, offset 0) wymusza (c0, ff).
+    // mk11: wide seria (STG.E.64 w serii, dp nieznane) — model z k_mma:
+    // stala karta b11=00,b12=02,b13=01,b17=02,b18=01; b19=02|par<<7;
+    // b20 schodzi parami od n_stg: 4-(ser>>1) przy n_stg=4 (jedna probka —
+    // doprecyzowac gdy mk-lab objmie wide-serie); imm offset jako u16 LE.
+    if feat.stg_wide && feat.stg_desc_pos.is_empty() && !feat.stg_ser.is_empty() {
+        let pack = feat.stg_ser.get(stg_i).copied().unwrap_or(0);
+        let ser = pack & 0x7f;
+        stg[11] = 0x00;
+        stg[12] = 0x02;
+        stg[13] = 0x01;
+        stg[18] = 0x01;
+        stg[19] = 0x02 | ((ser & 1) << 7);
+        stg[20] = (feat.n_stg as u8).saturating_sub((ser >> 1) as u8);
+        let off = feat.stg_off.get(stg_i).copied().unwrap_or(0) as u16;
+        stg[28..30].copy_from_slice(&off.to_le_bytes());
+        return stg;
+    }
     let same_desc = !feat.stg_desc_pos.is_empty()
         && feat.stg_desc_pos.iter().all(|&d| d == 0)
         && feat.stg_desc_pos.len() == feat.n_stg as usize;
@@ -484,7 +511,8 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize) -> [u8; 32] {
             stg[19] = 0x40 | ((ser & 1) << 7);
             stg[20] = 1 + (ser >> 1);
         }
-        stg[28] = feat.stg_off.get(stg_i).copied().unwrap_or(0) as u8;
+        let off = feat.stg_off.get(stg_i).copied().unwrap_or(0) as u16;
+        stg[28..30].copy_from_slice(&off.to_le_bytes());
         return stg;
     }
     if !stg_narrow && !feat.stg_wide && (feat.n_stg > 1 || dp > 0) {
@@ -502,7 +530,8 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize) -> [u8; 32] {
             stg[19] |= 0x40;
         }
     }
-    stg[28] = feat.stg_off.get(stg_i).copied().unwrap_or(0) as u8;
+    let off = feat.stg_off.get(stg_i).copied().unwrap_or(0) as u16;
+    stg[28..30].copy_from_slice(&off.to_le_bytes());
     stg
 }
 
@@ -573,7 +602,21 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
             feat.era_sm100 && !feat.smem_static && feat.bar_count > 0 && !feat.bar_pred;
         let mut descs: Vec<[u8; 32]> = Vec::new();
         let atom_async = feat.n_atom > 0;
+        // mk11 (k_mma): slot pokryty przez 128-bit load sasiada (pi-1 ma
+        // width 16, a sam nie ma wlasnego loadu [width 0, brak bitow unif/reg])
+        // nie dostaje wlasnego desca — dane trafiaja rekordem sasiada.
+        let covered = |pi: u32| -> bool {
+            let i = pi as usize;
+            i > 0
+                && feat.param_width.get(i).copied().unwrap_or(0) == 0
+                && feat.param_width.get(i - 1).copied().unwrap_or(0) == 16
+                && ((feat.param_uniform >> pi) & 1) == 0
+                && ((feat.param_regpath >> pi) & 1) == 0
+        };
         for (j, &pi) in order.iter().enumerate() {
+            if covered(pi) {
+                continue;
+            }
             let w = feat
                 .param_width
                 .get(pi as usize)
@@ -675,7 +718,7 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
         if have_pos && !bar0_pre {
             #[derive(Clone, Copy, PartialEq, Eq)]
             #[allow(dead_code)]
-            enum Ev { Bar, Stg, Atom, Elect, Xor, AcqBulk, Cctl }
+            enum Ev { Bar, Stg, Atom, Elect, Xor, AcqBulk, Cctl, Pad, Mma, F64i }
             const REC_MINI_ELECT: [u8; 4] = [0x41, 0x64, 0x00, 0x0a];
             let mut ev: Vec<(u32, Ev, u32)> = Vec::new();
             enum Ev2 {}
@@ -697,11 +740,21 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
             for &pos in &feat.cctl_pos {
                 ev.push((pos, Ev::Cctl, 0));
             }
+            for &pos in &feat.pad_pos {
+                ev.push((pos, Ev::Pad, 0));
+            }
+            for (i, m) in feat.mma_lanes.iter().enumerate() {
+                ev.push((m.0, Ev::Mma, i as u32));
+            }
+            for (i, m) in feat.f64_lanes.iter().enumerate() {
+                ev.push((m.0, Ev::F64i, i as u32));
+            }
             ev.sort_by_key(|&(pos, kind, _)| (pos, match kind {
                 Ev::Bar => 1,
                 Ev::Elect => 2,
                 _ => 0,
             }));
+            // spojnosc: sort stabilny utrzymuje kolejnosc rejestracji przy remisie
             for (_, kind, idx) in ev {
                 match kind {
                     Ev::Xor => {
@@ -710,6 +763,23 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
                     }
                     Ev::AcqBulk => out.extend_from_slice(&REC_ACQBULK),
                     Ev::Cctl => out.extend_from_slice(&REC_CCTL),
+                    Ev::Pad => out.extend_from_slice(&crate::mercury::MERC_LANE_PAD),
+                    Ev::Mma => {
+                        let m = feat.mma_lanes[idx as usize];
+                        if crate::mercury::merc_mma_is_mini(m.1) {
+                            out.extend_from_slice(&crate::mercury::MERC_MMA_MINI_SAT);
+                        } else {
+                            out.extend_from_slice(&crate::mercury::build_mma_rec(
+                                m.1, m.2, m.3, m.4, m.5, m.6,
+                            ));
+                        }
+                    }
+                    Ev::F64i => {
+                        let m = feat.f64_lanes[idx as usize];
+                        out.extend_from_slice(&crate::mercury::build_f64imm_rec(
+                            m.1, m.2, m.3, m.4,
+                        ));
+                    }
                     Ev::Bar => out.extend_from_slice(bar_rec),
                     Ev::Elect => out.extend_from_slice(&REC_MINI_ELECT),
                     Ev::Atom => out.extend_from_slice(&REC_ATOM),
@@ -824,6 +894,9 @@ pub fn generate_mercury_full(
     };
     let xor_lane_set: Vec<u32> =
         meta.merc_xor.iter().map(|&(lane, _, _, _, _)| lane).collect();
+    let feat_f64_set: Vec<u32> =
+        meta.merc_f64imm.iter().map(|&(lane, _, _, _, _)| lane).collect();
+    let pad_set: Vec<u32> = meta.merc_pad_pos.clone();
     // B = liczba slotow 0..end minus klasy zerowej wagi (nie dostaja bitu)
     let mut bitmap: Vec<u32> = Vec::new();
     let mut cur = 0u32;
@@ -836,9 +909,13 @@ pub fn generate_mercury_full(
             Some(ops) if i < ops.len() => opcode_tracked_hint(&ops[i]),
             _ => true,
         };
-        // 0229-xor lane: pelny rekord zastepuje wezel typu4 (fs6: brak bitu)
+        // 0229-xor lane: pelny rekord zastepuje wezel typu4 (fs6: brak bitu);
+        // mk11: to samo dla MMA-025a (niepotrzebne — MMA i tak untracked),
+        // dla DMUL/DADD-imm (020f/020c) i dla lane-padow UIADD3 (hint).
         let xor_here = xor_lane_set.contains(&(i as u32));
-        if tracked && !xor_here {
+        let f64_here = feat_f64_set.contains(&(i as u32));
+        let pad_here = pad_set.contains(&(i as u32));
+        if tracked && !xor_here && !f64_here && !pad_here {
             cur |= 1u32 << (b_index % 32);
         }
         b_index += 1;

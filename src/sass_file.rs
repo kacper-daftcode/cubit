@@ -212,6 +212,14 @@ pub fn kernel_def_to_meta(
     let (merc_bar_pos, merc_stg_pos, merc_stg_off) = merc_exec_positions(&def.instructions);
     let merc_xor = merc_xor_scan(&def.instructions);
     let merc_stg_ser = merc_stg_series(&def.instructions);
+    let merc_mma = merc_mma_scan(&def.instructions);
+    let merc_f64imm = merc_f64imm_scan(&def.instructions);
+    let merc_pad_pos: Vec<u32> = def
+        .instructions
+        .iter()
+        .filter(|i| crate::mercury::is_uiadd3_killpad(&i.raw_text))
+        .map(|i| (i.addr / 16) as u32)
+        .collect();
 
     KernelMeta {
         name: def.name.clone(),
@@ -238,6 +246,9 @@ pub fn kernel_def_to_meta(
         merc_xor,
         merc_stg_off,
         merc_stg_ser,
+        merc_mma,
+        merc_f64imm,
+        merc_pad_pos,
     }
 }
 
@@ -369,6 +380,90 @@ fn merc_xor_scan(instructions: &[Instruction]) -> Vec<(u32, u32, u32, u32, u8)> 
             continue;
         };
         out.push(((ins.addr / 16) as u32, dst, src, imm, guard));
+    }
+    out
+}
+
+/// Mercury mk11: instrukcje MMA (HMMA/DMMA/IMMA/...) -> rekord 025a w lane.
+/// Model byte-exact (mma_model.py, korpus 15.6k rekordow). Rekord trzyma
+/// numery rejestrow D/A/B/C z tekstu SASS (znaki/-NIE istotne, .reuse tez).
+/// b8flags (code63/code72) dopelnia main.rs po enkodacji (pole lane->word).
+fn merc_mma_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u8, u8, u8, u8)> {
+    let mut out = Vec::new();
+    let regno = |t: &str| -> Option<u8> {
+        let t = t.trim_end_matches(';').trim().trim_start_matches(['-', '+']);
+        let t = t.split('.').next().unwrap_or(t);
+        if t == "RZ" {
+            return Some(255);
+        }
+        let d = t.strip_prefix('R')?;
+        if d.chars().all(|c| c.is_ascii_digit()) {
+            d.parse::<u8>().ok()
+        } else {
+            None
+        }
+    };
+    for ins in instructions {
+        let mut toks = ins.raw_text.split_whitespace();
+        let mut first = toks.next().unwrap_or("");
+        if first.starts_with('@') {
+            first = toks.next().unwrap_or("");
+        }
+        let Some(cls) = crate::mercury::merc_mma_class(first) else {
+            continue;
+        };
+        let rest = toks.collect::<Vec<_>>().join(" ");
+        let rest = rest.trim_end_matches(';');
+        let parts: Vec<&str> = rest.split(',').map(|x| x.trim()).collect();
+        if parts.len() < 4 {
+            continue;
+        }
+        let (Some(d), Some(a), Some(b), Some(c)) =
+            (regno(parts[0]), regno(parts[1]), regno(parts[2]), regno(parts[3]))
+        else {
+            continue;
+        };
+        out.push(((ins.addr / 16) as u32, cls, d, a, b, c, 0u8));
+    }
+    out
+}
+
+/// Mercury mk11: DMUL/DADD z natychmiastowym f64 -> rekord 020f/020c.
+/// Ostatni operand musi byc literalnym floatem (drukas: "%.*g" / decimal).
+fn merc_f64imm_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u8, u32)> {
+    let mut out = Vec::new();
+    for ins in instructions {
+        let mut toks = ins.raw_text.split_whitespace();
+        let mut first = toks.next().unwrap_or("");
+        if first.starts_with('@') {
+            first = toks.next().unwrap_or("");
+        }
+        let variant = if first.starts_with("DMUL") {
+            0u8
+        } else if first.starts_with("DADD") {
+            1u8
+        } else {
+            continue;
+        };
+        let rest = toks.collect::<Vec<_>>().join(" ");
+        let rest = rest.trim_end_matches(';');
+        let parts: Vec<&str> = rest.split(',').map(|x| x.trim()).collect();
+        if parts.len() < 3 {
+            continue;
+        }
+        let Some(immf) = parts[2].parse::<f64>().ok() else {
+            continue; // forma reg-reg — bez rekordu (potwierdzenie: mk11-lab)
+        };
+        let regno = |t: &str| -> Option<u8> {
+            let t = t.trim().split('.').next().unwrap_or(t.trim());
+            let d = t.strip_prefix('R')?;
+            if d.chars().all(|c| c.is_ascii_digit()) { d.parse::<u8>().ok() } else { None }
+        };
+        let (Some(d), Some(a)) = (regno(parts[0]), regno(parts[1])) else {
+            continue;
+        };
+        let imm_top = ((immf.to_bits()) >> 32) as u32;
+        out.push(((ins.addr / 16) as u32, variant, d, a, imm_top));
     }
     out
 }
