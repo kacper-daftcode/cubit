@@ -377,7 +377,18 @@ pub struct KernelMeta {
     pub merc_stg_desc_pos: Vec<u32>,
     /// Jakakolwiek BAR pod predykatem (wariant rekordu BAR payload[0]=01).
     pub merc_bar_pred: bool,
+
+    /// Mercury: bit per param — slot zaladowany przez LDCU* (uniform datapath).
+    /// Deskryptor 0222 dla takiego parametru ma wariant tagu 08 06 / b4=fa
+    /// (register-path LDC* daje 0e 06 / f8) — dekod fs-lab 2026-08-05.
+    pub merc_param_uniform: u32,
+    /// Mercury: bit per param — slot zaladowany przez LDC(.64) (register path).
+    pub merc_param_regpath: u32,
+    /// Mercury: per-param szerokosc transferu loadu z cbank (1/2/4/8/16 B;
+    /// 0 = nieznana). Steruje bajtem b6 rekordu desc (ladder 02/22/42/52/62).
+    pub merc_param_width: Vec<u8>,
 }
+
 
 /// Kernel parameter info.
 #[derive(Debug, Clone)]
@@ -419,6 +430,9 @@ impl KernelMeta {
             merc_stg_pos: Vec::new(),
             merc_stg_desc_pos: Vec::new(),
             merc_bar_pred: false,
+            merc_param_uniform: 0,
+            merc_param_regpath: 0,
+            merc_param_width: Vec::new(),
         };
 
         // Extract from global section (REGCOUNT, FRAME_SIZE, MIN_STACK_SIZE)
@@ -752,6 +766,9 @@ mod tests {
             merc_stg_pos: Vec::new(),
             merc_stg_desc_pos: Vec::new(),
             merc_bar_pred: false,
+            merc_param_uniform: 0,
+            merc_param_regpath: 0,
+            merc_param_width: Vec::new(),
         };
 
         let global = meta.to_global_records(8);

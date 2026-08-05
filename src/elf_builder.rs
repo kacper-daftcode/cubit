@@ -233,6 +233,15 @@ pub struct MercFeatures {
     pub param_order: Option<Vec<u32>>,
     /// Bitmaska parametrow write-first (KernelMeta.merc_param_write).
     pub param_write: u32,
+    /// Bitmaska parametrow ladowanych przez LDCU* (uniform datapath) —
+    /// deskryptor 0222 w wariancie `08 06` + b4=fa zamiast `0e 06` + f8.
+    pub param_uniform: u32,
+    /// Bitmaska parametrow ladowanych przez LDC* (register path).
+    pub param_regpath: u32,
+    /// Per-param szerokosc transferu loadu cbank (1/2/4/8/16 B; 0=nieznana→8).
+    pub param_width: Vec<u8>,
+    /// Pozycje kodowe ELECT (mini-rekord 41 64 00 0a w lane kodu).
+    pub elect_pos: Vec<u32>,
 }
 
 impl MercFeatures {
@@ -283,11 +292,20 @@ impl MercFeatures {
             .any(|o| o.starts_with("STG") && (o.contains(".64") || o.contains(".128")));
         f.param_order = meta.merc_param_order.clone();
         f.param_write = meta.merc_param_write;
+        f.param_uniform = meta.merc_param_uniform;
+        f.param_regpath = meta.merc_param_regpath;
+        f.param_width = meta.merc_param_width.clone();
         f.bar_pos = meta.merc_bar_pos.clone();
         f.stg_pos = meta.merc_stg_pos.clone();
         f.stg_desc_pos = meta.merc_stg_desc_pos.clone();
         f.bar_pred = meta.merc_bar_pred;
         f.stg_u8 = opcodes.iter().any(|o| o.starts_with("STG") && o.contains(".U8"));
+        f.elect_pos = opcodes
+            .iter()
+            .enumerate()
+            .filter(|(_, o)| o.starts_with("ELECT"))
+            .map(|(i, _)| i as u32)
+            .collect();
         f
     }
 }
@@ -395,6 +413,11 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
             || (feat.os_dynldg && !feat.era_sm100) {
             cf[10] |= 0x40;
         }
+        // b11=01 dla sm_103a-era z dynldg (mikrolab: p_bar/k_ld/k_shfl/...);
+        // znane odstepstwa: multi-anchor (c_ld_dyn2...) oraz q_tail_call.
+        if feat.os_dynldg && !feat.era_sm100 {
+            cf[11] |= 0x01;
+        }
         if feat.os_mma {
             cf[12] = 0x00;
         }
@@ -409,7 +432,11 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
         // Descs w kolejnosci pierwszego uzycia parametru (regula mk8/v_*):
         // tail-dw bajtow[28..32] = 8 * idx-sygnaturowy parametru.
         // role (b10,b11): (83,00)=param iterowany pierwszy; (03,01)=kolejne
-        // parametry (wетеj) badz write dla n_ptr<=2; (83,01)=write dla n_ptr>=3.
+        // parametr write-first dla n_ptr<=2; (83,01)=write dla n_ptr>=3.
+        // Wariant [b2/b4] wg mechanizmu ladowania slotu (fs-lab 2026-08-05):
+        // slot przez LDCU* => 08 06 + b4=fa; przez LDC* => 0e 06 + f8.
+        // Jeden desc NA INSTRUKCJE LADOWANIA (powtorne => wiele descs;
+        // LDCU.128 pokrywa dwa sloty => 1 desc (07,02)).
         let order: Vec<u32> = match &feat.param_order {
             Some(o) if !o.is_empty() => o.clone(),
             _ => (0..feat.used_params).collect(),
@@ -417,22 +444,71 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
         let bar0_pre =
             feat.era_sm100 && !feat.smem_static && feat.bar_count > 0 && !feat.bar_pred;
         let mut descs: Vec<[u8; 32]> = Vec::new();
+        let atom_async = feat.n_atom > 0;
         for (j, &pi) in order.iter().enumerate() {
-            let mut d = REC_PARAM_DESC;
-            let is_write = (feat.param_write >> pi) & 1 == 1;
-            let (b10, b11) = if feat.used_params == 1 {
-                (0x83, 0x00)
-            } else if is_write {
-                if feat.used_params <= 2 { (0x03, 0x01) } else { (0x83, 0x01) }
-            } else if j == 0 {
-                (0x83, 0x00)
-            } else {
-                (0x03, 0x01)
+            let w = feat
+                .param_width
+                .get(pi as usize)
+                .copied()
+                .unwrap_or(0);
+            let w = if w == 0 { 8 } else { w };
+            // width ladder -> b6 (fs-lab): 1=>02, 2=>22, 4=>42, 8=>52, 16=>62
+            let b6: u8 = match w {
+                1 => 0x02,
+                2 => 0x22,
+                4 => 0x42,
+                16 => 0x62,
+                _ => 0x52,
             };
-            d[10] = b10;
-            d[11] = b11;
-            d[28..32].copy_from_slice(&(8 * pi).to_le_bytes());
-            descs.push(d);
+            let uniform = (feat.param_uniform >> pi) & 1 == 1;
+            let regp = (feat.param_regpath >> pi) & 1 == 1;
+            let regp = regp || !uniform; // brak danych o sciezce => register path
+            if uniform {
+                let mut d = REC_PARAM_DESC;
+                d[2] = 0x08;
+                d[4] = 0xfa;
+                d[6] = b6;
+                let (r0, r1) = match w {
+                    16 => (0x07, 0x02),
+                    4 => (0x81, 0x01),
+                    1 | 2 => (0x01, 0x01),
+                    _ => {
+                        if atom_async {
+                            (0x03, 0x02)
+                        } else {
+                            (0x83, 0x01)
+                        }
+                    }
+                };
+                d[10] = r0;
+                d[11] = r1;
+                d[28..32].copy_from_slice(&(8 * pi).to_le_bytes());
+                descs.push(d);
+            }
+            if regp {
+                let mut d = REC_PARAM_DESC;
+                let is_write = (feat.param_write >> pi) & 1 == 1;
+                let (b10, b11) = if feat.used_params == 1 {
+                    (0x83, 0x00)
+                } else if is_write {
+                    if feat.used_params <= 2 { (0x03, 0x01) } else { (0x83, 0x01) }
+                } else if j == 0 {
+                    (0x83, 0x00)
+                } else {
+                    (0x03, 0x01)
+                };
+                d[6] = b6;
+                if b6 != 0x52 {
+                    // scalar-ish reg-path (k_stg2: (41,02) przy b6=42)
+                    d[10] = 0x41;
+                    d[11] = 0x02;
+                } else {
+                    d[10] = b10;
+                    d[11] = b11;
+                }
+                d[28..32].copy_from_slice(&(8 * pi).to_le_bytes());
+                descs.push(d);
+            }
         }
         for (j, d) in descs.iter().enumerate() {
             if j == 0 {
@@ -470,18 +546,29 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
             && (!feat.bar_pos.is_empty() || !feat.stg_pos.is_empty());
         if have_pos && !bar0_pre {
             #[derive(Clone, Copy, PartialEq, Eq)]
-            enum Ev { Bar, Stg, Atom }
+            #[allow(dead_code)]
+            enum Ev { Bar, Stg, Atom, Elect }
+            const REC_MINI_ELECT: [u8; 4] = [0x41, 0x64, 0x00, 0x0a];
             let mut ev: Vec<(u32, Ev, u32)> = Vec::new();
+            enum Ev2 {}
             for (i, &pos) in feat.bar_pos.iter().enumerate() {
                 ev.push((pos, Ev::Bar, i as u32));
             }
             for (i, &pos) in feat.stg_pos.iter().enumerate() {
                 ev.push((pos, Ev::Stg, i as u32));
             }
-            ev.sort_by_key(|&(pos, kind, _)| (pos, if kind == Ev::Bar { 1 } else { 0 }));
+            for (i, &pos) in feat.elect_pos.iter().enumerate() {
+                ev.push((pos, Ev::Elect, i as u32));
+            }
+            ev.sort_by_key(|&(pos, kind, _)| (pos, match kind {
+                Ev::Bar => 1,
+                Ev::Elect => 2,
+                _ => 0,
+            }));
             for (_, kind, idx) in ev {
                 match kind {
                     Ev::Bar => out.extend_from_slice(bar_rec),
+                    Ev::Elect => out.extend_from_slice(&REC_MINI_ELECT),
                     Ev::Atom => out.extend_from_slice(&REC_ATOM),
                     Ev::Stg => {
                         let stg_i = idx as usize;
