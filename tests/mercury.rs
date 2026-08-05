@@ -193,3 +193,85 @@ fn parse_v3_trailing_d0_atom_before_tail() {
     assert_eq!(last.tag, [0xd0, 0x00, 0, 0]);
     assert!(cm.tail_consistent());
 }
+
+
+// ===== mk11 (2026-08-05): buildery rekordow 025a MMA + 020f/020c f64-imm =====
+// Wartosci-oczekiwane = doslowne bajty z lab/korpusu (mma_model.py: 15,104
+// rekordow corpus-cover byte-exact; f64imm_harvest: 221/221).
+
+use cubit::mercury::{build_f64imm_rec, build_mma_rec, merc_mma_class};
+
+fn hexs(b: &[u8]) -> String {
+    b.iter().map(|x| format!("{x:02x}")).collect()
+}
+
+#[test]
+fn mma_rec_kmma_pair() {
+    // k_mma: HMMA.16816.F32 R16,R4.reuse,R12,RZ / R12,R4,R14,RZ
+    let hmma = merc_mma_class("HMMA.16816.F32").unwrap();
+    let r1 = build_mma_rec(hmma, 16, 4, 12, 255, 0);
+    assert_eq!(
+        hexs(&r1),
+        "025a0026f80081800200000007040601000203c0ff00f8000000000000000000"
+    );
+    let r2 = build_mma_rec(hmma, 12, 4, 14, 255, 0);
+    assert_eq!(
+        hexs(&r2),
+        "025a0026f80081800200000007030601008203c0ff00f8000000000000000000"
+    );
+}
+
+#[test]
+fn mma_rec_pmma_and_dmma() {
+    // p_mma16816: HMMA.16816.F32 R8,R4,R4,R8
+    let hmma = merc_mma_class("HMMA.16816.F32").unwrap();
+    assert_eq!(
+        hexs(&build_mma_rec(hmma, 8, 4, 4, 8, 0)),
+        "025a0026f80081800200000007020601000201060200f8000000000000000000"
+    );
+    // p_dmma: DMMA.8x8x4 R4,R4,R6,RZ
+    let dmma = merc_mma_class("DMMA.8x8x4").unwrap();
+    assert_eq!(
+        hexs(&build_mma_rec(dmma, 4, 4, 6, 255, 0)),
+        "025a0426f80000000800000007010201008201c0ff00f8000000000000000000"
+    );
+}
+
+#[test]
+fn mma_rec_corpus_spot_bmma() {
+    // b_mma_f16: HMMA.16816.F32 R16,R8.reuse,R12.reuse,RZ
+    let hmma = merc_mma_class("HMMA.16816.F32").unwrap();
+    assert_eq!(
+        hexs(&build_mma_rec(hmma, 16, 8, 12, 255, 0)),
+        "025a0026f80081800200000007040602000203c0ff00f8000000000000000000"
+    );
+    // b_mma_f64 #2: DMMA.8x8x4 R8,R2,R4,R8
+    let dmma = merc_mma_class("DMMA.8x8x4").unwrap();
+    assert_eq!(
+        hexs(&build_mma_rec(dmma, 8, 2, 4, 8, 0)),
+        "025a0426f80000000800000007028200000201060200f8000000000000000000"
+    );
+}
+
+#[test]
+fn mma_mini_sat() {
+    assert_eq!(merc_mma_class("IMMA.16832.S8.S8.SAT"), Some(7));
+    assert!(cubit::mercury::merc_mma_is_mini(7));
+    assert_eq!(cubit::mercury::MERC_MMA_MINI_SAT, [0x42, 0x5a, 0x08, 0x26]);
+    assert!(merc_mma_class("UTCHMMA.2CTA").is_none());
+}
+
+#[test]
+fn f64imm_rec_pdmma() {
+    // DMUL R4, R4, 0.5 -> top32(0.5) = 0x3fe00000; DADD R6, R4, 1.0 -> 0x3ff00000
+    let r1 = build_f64imm_rec(0, 4, 4, 0x3fe00000);
+    assert_eq!(
+        hexs(&r1),
+        "020f120ef800080000000301020113000000000000000000000000000000e03f"
+    );
+    let r2 = build_f64imm_rec(1, 6, 4, 0x3ff00000);
+    assert_eq!(
+        hexs(&r2),
+        "020c1e0ef800080000008301020113000000000000000000000000000000f03f"
+    );
+}

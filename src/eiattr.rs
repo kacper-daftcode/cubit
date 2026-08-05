@@ -400,6 +400,18 @@ pub struct KernelMeta {
     /// (value==RZ, off==0), bity[6:0] = indeks w serii blokowej (reset na
     /// krawedziach cflow: targety skokow + po EXIT/RET/CALL/BRA/BRX/itd.).
     pub merc_stg_ser: Vec<u8>,
+    /// Mercury mk11: instrukcje MMA -> rekord 025a w lane. Krotka
+    /// (lane, cls, d, a, b, c, b8flags); cls wg `mercury::merc_mma_class`.
+    /// Model bajtowy 025a dekodowany byte-exact na pelnej probce korpusu
+    /// (mma_model.py); b8flags = (code63?0x80)|(code72?0x20) ze slowa SASS.
+    pub merc_mma: Vec<(u32, u8, u8, u8, u8, u8, u8)>,
+    /// Mercury mk11: DMUL/DADD z natychmiastowym f64 -> rekord 020f/020c
+    /// w lane: (lane, variant [0=DMUL,1=DADD], d, a, imm_top32).
+    pub merc_f64imm: Vec<(u32, u8, u8, u8, u32)>,
+    /// Mercury mk11: pozycje killpad-UIADD3 (`UIADD3 URZ, UPT, UPT, URZ,
+    /// URZ, URZ`) — brak bitu bitmapy, w lane atom 2B (empiria: tyko ta
+    /// forma; live UIADD3 maja bit, korpus 32.5k vs 18).
+    pub merc_pad_pos: Vec<u32>,
 }
 
 
@@ -449,6 +461,9 @@ impl KernelMeta {
             merc_xor: Vec::new(),
             merc_stg_off: Vec::new(),
             merc_stg_ser: Vec::new(),
+            merc_mma: Vec::new(),
+            merc_f64imm: Vec::new(),
+            merc_pad_pos: Vec::new(),
         };
 
         // Extract from global section (REGCOUNT, FRAME_SIZE, MIN_STACK_SIZE)
@@ -788,6 +803,9 @@ mod tests {
             merc_xor: Vec::new(),
             merc_stg_off: Vec::new(),
             merc_stg_ser: Vec::new(),
+            merc_mma: Vec::new(),
+            merc_f64imm: Vec::new(),
+            merc_pad_pos: Vec::new(),
         };
 
         let global = meta.to_global_records(8);

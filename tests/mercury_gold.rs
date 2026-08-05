@@ -49,6 +49,9 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
         merc_xor: g.pxor.to_vec(),
         merc_stg_off: g.stgoff.to_vec(),
         merc_stg_ser: g.stgser.to_vec(),
+        merc_mma: g.mma.to_vec(),
+        merc_f64imm: g.f64i.to_vec(),
+        merc_pad_pos: g.pads.to_vec(),
     }
 }
 
@@ -71,7 +74,6 @@ static EXPECTED_DIFF: &[(&str, &str)] = &[
     ("k_ldg2",        "cflow 0xc1"),
     ("k_lds",         "smem double-coding"),
     ("k_loop8",       "STG midfields + loop-LDG"),
-    ("k_mma",         "HMMA rekordy"),
     ("k_smem",        "p2-mid + cbank variant"),
     ("k_stg2",        "desc 41 02 + STG binding"),
     ("lp1",           "loop LDG regiony"),
@@ -82,13 +84,13 @@ static EXPECTED_DIFF: &[(&str, &str)] = &[
     ("p_call",        "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_cas",         "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_cctl",        "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
-    ("p_dmma",        "mk7: DMMA extra desk (025a) + rekordy sportu"),
+    ("p_dmma",        "anchor#2 payload (01,02,01) + STG b19=0xc0 kursor (mk10c)"),
     ("p_exit2",       "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_ldgsts",      "mk7: LDGSTS (cp.async) seria rekordow"),
     ("p_lds",         " mk7-ldz-event + rekordy"),
     ("p_ldsm",        "mk7: pinned-51 + event rekordy (01290004/LDSM-wiazania)"),
     ("p_loop4",       "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
-    ("p_mma16816",    "mk7: HMMA rekordy 025a0026"),
+    ("p_mma16816",    "anchor#2 payload (01,01,01) (mk7f region payload)"),
     ("p_namedbar",    "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_redux",       "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_stg2",        "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),

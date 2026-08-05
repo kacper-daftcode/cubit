@@ -327,3 +327,117 @@ pub fn opcode_bitmap_zero_weight(op: &str) -> bool {
         "MEMBAR" | "ERRBAR" | "CGAERRBAR" | "DEPBAR" | "LDGDEPBAR" | "LDGSTS" | "B2R"
     )
 }
+
+
+/// ===== Rekordy 025a (MMA) / 020f,020c (DMUL/DADD z f64-imm) =====
+/// Model zweryfikowany byte-exact na calej probce korpusu (mma_harvest2/
+/// mma_model/f64imm_harvest, 2026-08-05): 15,104 rekordow 025a + 512 mini
+/// + 221 rekordow f64-imm, zero niedopasowan.
+///
+/// Klasyfikator mnemonika SASS -> id klasy 025a.
+pub fn merc_mma_class(mnem: &str) -> Option<u8> {
+    Some(match mnem {
+        "HMMA.16816.F32" => 0,
+        "HMMA.16816.F32.BF16" => 1,
+        "HMMA.1688.F32.TF32" => 2,
+        "HMMA.16816.F16" => 3,
+        "DMMA.8x8x4" => 4,
+        "IMMA.16832.S8.S8" => 5,
+        "IMMA.16816.S8.S8.SAT" => 6,
+        "IMMA.16832.S8.S8.SAT" => 7,
+        _ => return None,
+    })
+}
+
+/// Histogram korpusowy wykazal klase mini (4B) tylko dla IMMA.16832.*.SAT.
+pub fn merc_mma_is_mini(cls: u8) -> bool {
+    cls == 7
+}
+
+/// Zbuduj rekord 025a dla instrukcji MMA.
+/// (b2,b6,b7,b8base) per (klasa/dtype); bajty [12..=20]: bity-operandow:
+/// b12 = base | (D&2)<<6 | w F16: base=03 (brak bitu D&2 observacji? nie,
+/// tam tez D&2 -> 0x80); b13 = D>>2; b14 = base | (A&2)<<6; b15 = A>>2;
+/// b17 = base | (B&3)<<6; b18 = B>>2; C: b19 = base | (C&3)<<6, b20 = C>>2;
+/// C=RZ -> (c0, ff). b8 |= 0x80 gdy bit 63 slowa instrukcji, |= 0x20 gdy 72.
+pub fn build_mma_rec(cls: u8, d: u8, a: u8, b: u8, c: u8, b8flags: u8) -> [u8; 32] {
+    const T: [(u8, u8, u8, u8, u8, u8, u8, u8); 8] = [
+        // b2    b6    b7    b8    b12base b14base b17base b19base
+        (0x00, 0x81, 0x80, 0x02, 0x07, 0x06, 0x02, 0x06), // HMMA.16816.F32
+        (0x00, 0x81, 0x92, 0x02, 0x07, 0x06, 0x02, 0x06), // HMMA.16816.F32.BF16
+        (0x00, 0x80, 0xa4, 0x02, 0x07, 0x06, 0x02, 0x06), // HMMA.1688.F32.TF32
+        (0x00, 0x01, 0x00, 0x02, 0x03, 0x06, 0x02, 0x02), // HMMA.16816.F16
+        (0x04, 0x00, 0x00, 0x08, 0x07, 0x02, 0x02, 0x06), // DMMA.8x8x4
+        (0x08, 0x05, 0x44, 0x40, 0x07, 0x06, 0x02, 0x06), // IMMA.16832.S8.S8
+        (0x08, 0x04, 0x44, 0x50, 0x07, 0x02, 0x00, 0x06), // IMMA.16816.S8.S8.SAT
+        (0x08, 0x05, 0x44, 0x40, 0x07, 0x06, 0x02, 0x06), // (mini nie uzywa)
+    ];
+    let (b2, b6, b7, b8, c12, c14, c17, c19) = T[cls as usize];
+    let mut r = [0u8; 32];
+    r[0] = 0x02;
+    r[1] = 0x5a;
+    r[2] = b2;
+    r[3] = 0x26;
+    r[4] = 0xf8;
+    r[6] = b6;
+    r[7] = b7;
+    r[8] = b8 | b8flags;
+    r[12] = c12 | ((d & 2) << 6);
+    r[13] = (d >> 2) & 0x3f;
+    r[14] = c14 | ((a & 2) << 6);
+    r[15] = a >> 2;
+    r[17] = c17 | ((b & 3) << 6);
+    r[18] = b >> 2;
+    if c == 255 {
+        r[19] = 0xc0;
+        r[20] = 0xff;
+    } else {
+        r[19] = c19 | ((c & 3) << 6);
+        r[20] = (c >> 2) & 0x3f;
+    }
+    r[22] = 0xf8;
+    r
+}
+
+/// Mini-rekord dla IMMA.16832.*.SAT.
+pub const MERC_MMA_MINI_SAT: [u8; 4] = [0x42, 0x5a, 0x08, 0x26];
+
+/// Rekord 020f (DMUL z imm) / 020c (DADD z imm): imm = gorne 32 bity stalej
+/// f64 na [28:32]; bajty-operandy: b10 = 03|(D&2)<<6, b11 = D>>2,
+/// b12 = 02|(A&2)<<6, b13 = A>>2, b14 = 0x13 const. Wariant: 0=DMUL, 1=DADD.
+pub fn build_f64imm_rec(variant: u8, d: u8, a: u8, imm_top: u32) -> [u8; 32] {
+    let mut r = [0u8; 32];
+    r[0] = 0x02;
+    let (t1, t2) = if variant == 0 { (0x0f, 0x12) } else { (0x0c, 0x1e) };
+    r[1] = t1;
+    r[2] = t2;
+    r[3] = 0x0e;
+    r[4] = 0xf8;
+    r[6] = 0x08;
+    r[10] = 0x03 | ((d & 2) << 6);
+    r[11] = (d >> 2) & 0x3f;
+    r[12] = 0x02 | ((a & 2) << 6);
+    r[13] = a >> 2;
+    r[14] = 0x13;
+    r[28..32].copy_from_slice(&imm_top.to_le_bytes());
+    r
+}
+
+/// Atom wypelniajacy lane dla UIADD3-killpad. UWAGA korpus (uiadd3_bitmap2):
+/// killpad = _dokladna_ forma `UIADD3 URZ, UPT, UPT, URZ, URZ, URZ` — tylko
+/// wtedy brak bitu bitmapy + atom w lane. LIVE UIADD3 (dest URn) ma bit
+/// (32,490 vs 18 pomiarowow). Dlatego lane-pady sa explicite w meta.
+pub const MERC_LANE_PAD: [u8; 2] = [0xd0, 0x00];
+
+/// True gdy tekst SASS to killpad uniform-datapath (atom d0 00 w lane).
+/// Guard-tokeny (@Pn/@!UPT) sa tolerowane (mk11: drukarka dopisuje @!UPT).
+pub fn is_uiadd3_killpad(text: &str) -> bool {
+    let mut t = text.trim_end_matches(';').trim();
+    while let Some(rest) = t.strip_prefix('@') {
+        t = rest.split_whitespace().next().map(|_| {
+            let sp = rest.find(char::is_whitespace).map(|i| i + 1).unwrap_or(rest.len());
+            rest[sp..].trim_start()
+        }).unwrap_or("");
+    }
+    t == "UIADD3 URZ, UPT, UPT, URZ, URZ, URZ"
+}
