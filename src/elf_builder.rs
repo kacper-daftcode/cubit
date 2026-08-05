@@ -242,6 +242,19 @@ pub struct MercFeatures {
     pub param_width: Vec<u8>,
     /// Pozycje kodowe ELECT (mini-rekord 41 64 00 0a w lane kodu).
     pub elect_pos: Vec<u32>,
+    /// Rekordy 0229 (C-level `xor Rd, Rs, imm32`; SASS LOP3.LUT lut=0x3c):
+    /// (lane, dst, src, imm, b4) z b4 = 0xf8 brak predykatu / 0x00 @Pn /
+    /// 0x01 @!Pn (fs6/fs7-lab 2026-08-05). Lane NIE dostaje bitu bitmapy.
+    pub xor_lanes: Vec<(u32, u32, u32, u32, u8)>,
+    /// Per-STG natychmiastowy offset adresu (bajty; bajt 28 rekordu 02 38;
+    /// fs10-grid 2026-08-05).
+    pub stg_off: Vec<u32>,
+    /// Pozycje kodowe ACQBULK (rekord 01 62 00 0a w lane, bez bitu bitmapy;
+    /// gold w_depsync / mk10c).
+    pub acqbulk_pos: Vec<u32>,
+    /// Pozycje kodowe CCTL.* (marker 51 02 + rekord 01 49 10 0a w lane,
+    /// bez bitu; gold p_fence).
+    pub cctl_pos: Vec<u32>,
 }
 
 impl MercFeatures {
@@ -295,6 +308,13 @@ impl MercFeatures {
         f.param_uniform = meta.merc_param_uniform;
         f.param_regpath = meta.merc_param_regpath;
         f.param_width = meta.merc_param_width.clone();
+        f.xor_lanes = meta
+            .merc_xor
+            .iter()
+            .map(|&(lane, d, src, imm, g)| {
+                (lane, d, src, imm, match g { 0 => 0xf8, 1 => 0x00, _ => 0x01 })
+            })
+            .collect();
         f.bar_pos = meta.merc_bar_pos.clone();
         f.stg_pos = meta.merc_stg_pos.clone();
         f.stg_desc_pos = meta.merc_stg_desc_pos.clone();
@@ -304,6 +324,19 @@ impl MercFeatures {
             .iter()
             .enumerate()
             .filter(|(_, o)| o.starts_with("ELECT"))
+            .map(|(i, _)| i as u32)
+            .collect();
+        f.stg_off = meta.merc_stg_off.clone();
+        f.acqbulk_pos = opcodes
+            .iter()
+            .enumerate()
+            .filter(|(_, o)| o.split('.').next() == Some("ACQBULK"))
+            .map(|(i, _)| i as u32)
+            .collect();
+        f.cctl_pos = opcodes
+            .iter()
+            .enumerate()
+            .filter(|(_, o)| o.split('.').next() == Some("CCTL"))
             .map(|(i, _)| i as u32)
             .collect();
         f
@@ -390,6 +423,78 @@ const REC_SCALAR_PARAM: [u8; 32] = [
 /// i desc-tail dw-zaleznosci od parametrow maja wyjatki (k_stg2/k_loop8);
 /// kernele tcgen05/FA4-class dostaja osobne rekordy (0x31/025a/024e...) ktorych
 /// emisja payloadowa nie jest jeszcze byte-exact.
+/// Rekord 0229 (rekord PTX-level `xor Rd, Rs, imm32`, fs6-lab):
+/// [4]=b4 guard variant (f8 brak / 00 @Pn / 01 @!Pn), [12:16]=
+/// {u16 LE dst*0x40+1, u16 LE src*0x40}, [28:32]=imm LE (fs7 siatka
+/// rejestrow: R0->0x0001, R4->0x0101, R5->0x0141 ... 0x40/reg).
+/// Rekord ACQBULK (gold w_depsync): lane event przy GRIDDEPCONTROL acquire.
+const REC_ACQBULK: [u8; 16] = [
+    0x01, 0x62, 0x00, 0x0a, 0xf8, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
+/// Rekord CCTL.IVALL (gold p_fence): marker typ5 (f10=2,f20=1) + blob 16B.
+const REC_CCTL: [u8; 18] = [
+    0x51, 0x02, 0x01, 0x49, 0x10, 0x0a, 0xf8, 0x00, 0x0c, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
+/// Zlozenie rekordu 02 38 (per-STG, fs10-grid/mapowanie na manifest gold):
+/// - b6: width-ladder transferu (U8=00 / 4B=40 / .64=50 / .128=60)
+/// - b12/b13: indeks slotu desc-stream powiazanego parametru:
+///   s parzysty -> (82, s>>1), s nieparzysty -> (02, (s+1)>>1); s=0 -> (82,00)
+///   (zbior: dp0=(82,00) dp1=(02,01) dp2=(82,01); 8B rejestruje odmiennie —
+///   resid-wariant zostawiony bez zmian do fali mk10b)
+/// - b18/b19: kursor biegu regionu (alt 0x40/0xc0) — OTWARTE (resid mk10b)
+/// - b28: natychmiastowy offset adresu [Rx.64+imm] w bajtach (k_bra/e_loop:
+///   +0,+4,+8,+c,+0 -> 00,04,08,0c,00)
+fn rec_stg(feat: &MercFeatures, stg_i: usize) -> [u8; 32] {
+    let mut stg = REC_STG;
+    let stg_narrow = feat.stg_u8;
+    if stg_narrow {
+        stg[6] = 0x00;
+        stg[18] = 0x00;
+        stg[19] = 0x00;
+    } else if feat.stg_wide {
+        stg[6] = 0x50;
+        stg[19] = 0x02;
+    }
+    let dp = feat
+        .stg_desc_pos
+        .get(stg_i)
+        .copied()
+        .unwrap_or(stg_i as u32 % 2);
+    if !stg_narrow && !feat.stg_wide && (feat.n_stg > 1 || dp > 0) {
+        // slot desc-stream (fs10b 2026-08-05): b12 = 82/02 po parzystosci
+        // slotu, b13 = (s+1)>>1 (s=0 -> (82,00); zachowanie b19 jak dawniej)
+        if dp % 2 == 1 {
+            stg[12] = 0x02;
+            stg[13] = ((dp + 1) >> 1) as u8;
+            stg[19] = 0xc0;
+        } else {
+            stg[13] = (dp >> 1) as u8;
+            if stg[13] > 0 {
+                stg[12] = 0x82;
+            }
+            stg[19] |= 0x40;
+        }
+    }
+    stg[28] = feat.stg_off.get(stg_i).copied().unwrap_or(0) as u8;
+    stg
+}
+
+fn rec_xor(dst: u32, src: u32, imm: u32, b4: u8) -> [u8; 32] {
+    let mut r = [0u8; 32];
+    r[0] = 0x02; r[1] = 0x29; r[2] = 0x04; r[3] = 0x06;
+    r[4] = b4; r[6] = 0x04;
+    r[10] = 0x01; r[11] = 0xf8;
+    r[12..14].copy_from_slice(&(((dst << 6) | 1) as u16).to_le_bytes());
+    r[14..16].copy_from_slice(&((src << 6) as u16).to_le_bytes());
+    r[17] = 0x02;
+    r[28..32].copy_from_slice(&imm.to_le_bytes());
+    r
+}
+
 fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
     let bar_bytes: [u8; 16] = if feat.bar_pred {
         let mut br = REC_BAR;
@@ -547,7 +652,7 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
         if have_pos && !bar0_pre {
             #[derive(Clone, Copy, PartialEq, Eq)]
             #[allow(dead_code)]
-            enum Ev { Bar, Stg, Atom, Elect }
+            enum Ev { Bar, Stg, Atom, Elect, Xor, AcqBulk, Cctl }
             const REC_MINI_ELECT: [u8; 4] = [0x41, 0x64, 0x00, 0x0a];
             let mut ev: Vec<(u32, Ev, u32)> = Vec::new();
             enum Ev2 {}
@@ -560,6 +665,15 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
             for (i, &pos) in feat.elect_pos.iter().enumerate() {
                 ev.push((pos, Ev::Elect, i as u32));
             }
+            for (i, xl) in feat.xor_lanes.iter().enumerate() {
+                ev.push((xl.0, Ev::Xor, i as u32));
+            }
+            for &pos in &feat.acqbulk_pos {
+                ev.push((pos, Ev::AcqBulk, 0));
+            }
+            for &pos in &feat.cctl_pos {
+                ev.push((pos, Ev::Cctl, 0));
+            }
             ev.sort_by_key(|&(pos, kind, _)| (pos, match kind {
                 Ev::Bar => 1,
                 Ev::Elect => 2,
@@ -567,39 +681,18 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
             }));
             for (_, kind, idx) in ev {
                 match kind {
+                    Ev::Xor => {
+                        let xl = feat.xor_lanes[idx as usize];
+                        out.extend_from_slice(&rec_xor(xl.1, xl.2, xl.3, xl.4));
+                    }
+                    Ev::AcqBulk => out.extend_from_slice(&REC_ACQBULK),
+                    Ev::Cctl => out.extend_from_slice(&REC_CCTL),
                     Ev::Bar => out.extend_from_slice(bar_rec),
                     Ev::Elect => out.extend_from_slice(&REC_MINI_ELECT),
                     Ev::Atom => out.extend_from_slice(&REC_ATOM),
                     Ev::Stg => {
                         let stg_i = idx as usize;
-                        let mut stg = REC_STG;
-                        let stg_narrow = feat.stg_u8;
-                        if stg_narrow {
-                            stg[6] = 0x00;
-                            stg[18] = 0x00;
-                            stg[19] = 0x00;
-                        } else if feat.stg_wide {
-                            stg[6] = 0x50;
-                            stg[19] = 0x02;
-                        }
-                        let dp = feat
-                            .stg_desc_pos
-                            .get(stg_i as usize)
-                            .copied()
-                            .unwrap_or(stg_i as u32 % 2);
-                        if !stg_narrow && !feat.stg_wide && (feat.n_stg > 1 || dp > 0) {
-                            if dp % 2 == 1 {
-                                stg[12] = 0x02;
-                                stg[13] = 0x01;
-                                stg[19] = 0xc0;
-                            } else {
-                                stg[19] = 0x40;
-                            }
-                            if feat.n_stg > 1 {
-                                stg[26] = 4u8.saturating_mul((stg_i % 4) as u8);
-                            }
-                        }
-                        out.extend_from_slice(&stg);
+                        out.extend_from_slice(&rec_stg(feat, stg_i));
                     }
                 }
             }
@@ -607,41 +700,24 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
                 out.extend_from_slice(&REC_ATOM);
             }
         } else {
+            // brak pozycji kodowych — zachowanie grupowe: rekordy xor za
+            // sekcja prologowa (anchor/desc/cbank), przed grupowym bar/stg.
+            for xl in &feat.xor_lanes {
+                out.extend_from_slice(&rec_xor(xl.1, xl.2, xl.3, xl.4));
+            }
+            for _ in 0..feat.acqbulk_pos.len() {
+                out.extend_from_slice(&REC_ACQBULK);
+            }
+            for _ in 0..feat.cctl_pos.len() {
+                out.extend_from_slice(&REC_CCTL);
+            }
             if feat.bar_count > 0 && !bar0_pre {
                 for _ in 0..feat.bar_count {
                     out.extend_from_slice(bar_rec);
                 }
             }
-            let stg_narrow = feat.stg_u8;
             for stg_i in 0..feat.n_stg {
-                let mut stg = REC_STG;
-                if stg_narrow {
-                    // STG.E.U8: bajty [6],[18],[19] = 0 (zmierzone: s_u8)
-                    stg[6] = 0x00;
-                    stg[18] = 0x00;
-                    stg[19] = 0x00;
-                } else if feat.stg_wide {
-                    stg[6] = 0x50;
-                    stg[19] = 0x02;
-                }
-                let dp = feat
-                    .stg_desc_pos
-                    .get(stg_i as usize)
-                    .copied()
-                    .unwrap_or(stg_i % 2);
-                if !stg_narrow && !feat.stg_wide && (feat.n_stg > 1 || dp > 0) {
-                    if dp % 2 == 1 {
-                        stg[12] = 0x02;
-                        stg[13] = 0x01;
-                        stg[19] = 0xc0;
-                    } else {
-                        stg[19] = 0x40;
-                    }
-                    if feat.n_stg > 1 {
-                        stg[26] = 4u8.saturating_mul((stg_i % 4) as u8);
-                    }
-                }
-                out.extend_from_slice(&stg);
+                out.extend_from_slice(&rec_stg(feat, stg_i as usize));
             }
             for _ in 0..feat.n_atom {
                 out.extend_from_slice(&REC_ATOM);
@@ -723,6 +799,8 @@ pub fn generate_mercury_full(
         }
         None => Vec::new(),
     };
+    let xor_lane_set: Vec<u32> =
+        meta.merc_xor.iter().map(|&(lane, _, _, _, _)| lane).collect();
     // B = liczba slotow 0..end minus klasy zerowej wagi (nie dostaja bitu)
     let mut bitmap: Vec<u32> = Vec::new();
     let mut cur = 0u32;
@@ -735,7 +813,9 @@ pub fn generate_mercury_full(
             Some(ops) if i < ops.len() => opcode_tracked_hint(&ops[i]),
             _ => true,
         };
-        if tracked {
+        // 0229-xor lane: pelny rekord zastepuje wezel typu4 (fs6: brak bitu)
+        let xor_here = xor_lane_set.contains(&(i as u32));
+        if tracked && !xor_here {
             cur |= 1u32 << (b_index % 32);
         }
         b_index += 1;

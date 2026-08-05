@@ -209,7 +209,8 @@ pub fn kernel_def_to_meta(
     let (merc_param_order, merc_param_write, merc_stg_desc_pos, merc_bar_pred,
          merc_param_uniform, merc_param_regpath, merc_param_width) =
         merc_param_scan(&def.instructions);
-    let (merc_bar_pos, merc_stg_pos) = merc_exec_positions(&def.instructions);
+    let (merc_bar_pos, merc_stg_pos, merc_stg_off) = merc_exec_positions(&def.instructions);
+    let merc_xor = merc_xor_scan(&def.instructions);
 
     KernelMeta {
         name: def.name.clone(),
@@ -233,6 +234,8 @@ pub fn kernel_def_to_meta(
         merc_param_uniform,
         merc_param_regpath,
         merc_param_width,
+        merc_xor,
+        merc_stg_off,
     }
 }
 
@@ -250,18 +253,80 @@ fn merc_select_dynldg(instructions: &[Instruction]) -> bool {
     })
 }
 
-fn merc_exec_positions(instructions: &[Instruction]) -> (Vec<u32>, Vec<u32>) {
+fn merc_exec_positions(instructions: &[Instruction]) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
     let mut bar_pos = Vec::new();
     let mut stg_pos = Vec::new();
+    let mut stg_off = Vec::new();
     for ins in instructions {
         let slot = (ins.addr / 16) as u32;
         match ins.opcode.as_str() {
             "BAR" | "SYNCS" => bar_pos.push(slot),
-            "STG" => stg_pos.push(slot),
+            "STG" => {
+                stg_pos.push(slot);
+                // [Rx.64+0x..] — imm w slicie adresowym
+                let off = match ins.raw_text.find(".64+0x") {
+                    Some(k) => {
+                        let h = &ins.raw_text[k + 6..];
+                        let e = h.find(']').unwrap_or(h.len());
+                        u32::from_str_radix(&h[..e], 16).unwrap_or(0)
+                    }
+                    None => 0,
+                };
+                stg_off.push(off);
+            }
             _ => {}
         }
     }
-    (bar_pos, stg_pos)
+    (bar_pos, stg_pos, stg_off)
+}
+
+/// Mercury 0229: skan `LOP3.LUT Rd, Rs, imm32, RZ, 0x3c` (= SASS-forma C-level
+/// `xor dst, src, imm`). Zwraca (lane, dst, src, imm, guard). fs6-lab:
+/// tylko lut=0x3c z imm w slocie srcB i RZ w slocie srcC dostaje rekord 0229;
+/// or/and (lut 0xfc/0xc0) zostaja zwyklymi bitami; nor/neg-formy rowniez nie.
+/// lane takiej instrukcji NIE dostaje bitu bitmapy (rekord pelny zastepuje
+/// wezel typu4-flag1).
+fn merc_xor_scan(instructions: &[Instruction]) -> Vec<(u32, u32, u32, u32, u8)> {
+    let mut out = Vec::new();
+    for ins in instructions {
+        if ins.opcode != "LOP3" {
+            continue;
+        }
+        let mut toks = ins.raw_text.split_whitespace();
+        let mut first = toks.next().unwrap_or("");
+        let mut guard = 0u8;
+        if first.starts_with('@') {
+            guard = if first.starts_with("@!") { 2 } else { 1 };
+            first = toks.next().unwrap_or("");
+        }
+        if !first.starts_with("LOP3") {
+            continue;
+        }
+        let rest = toks.collect::<Vec<_>>().join(" ");
+        let rest = rest.trim_end_matches(';');
+        let parts: Vec<&str> = rest.split(',').map(|x| x.trim()).collect();
+        if parts.len() < 5 {
+            continue;
+        }
+        if parts[4] != "0x3c" || !parts[3].starts_with("RZ") {
+            continue;
+        }
+        let Some(imm) = parts[2]
+            .strip_prefix("0x")
+            .and_then(|h| u32::from_str_radix(h, 16).ok())
+        else {
+            continue;
+        };
+        let reg = |t: &str| -> Option<u32> {
+            t.strip_prefix('R')
+                .and_then(|d| if d.chars().all(|c| c.is_ascii_digit()) { d.parse::<u32>().ok() } else { None })
+        };
+        let (Some(dst), Some(src)) = (reg(parts[0]), reg(parts[1])) else {
+            continue;
+        };
+        out.push(((ins.addr / 16) as u32, dst, src, imm, guard));
+    }
+    out
 }
 
 fn merc_param_scan(

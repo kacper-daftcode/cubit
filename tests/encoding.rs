@@ -645,4 +645,19 @@ mod sm103a {
         assert_eq!(f.kernels[0].name, "k1");
         assert_eq!(f.kernels[1].name, "k2");
     }
+
+    /// IMAD.U32 Rd, RZ, RZ, URn — reczny MOV-from-UR (handoff LDCU param ->
+    /// rejestr, ktest e2e). Wejscie wymaga fallbacku (key,"") przy mg "U32":
+    /// rekord tabeli IMAD_R_R_R_UR/'' niesie ureg@32 tok4 + reg@64 tok2/3.
+    #[test]
+    fn imad_u32_mov_from_ur_fallback_key() {
+        let Some(tab) = t() else { return };
+        let c = encode_instruction(
+            &parse_sass("IMAD.U32 R2, RZ, RZ, UR4 ;", 0).unwrap(), &tab).unwrap();
+        assert_eq!(c as u64, 21458222628u64, "{c:032x}");
+        assert_eq!((c >> 64) as u64, 4435430167412991u64, "{c:032x}");
+        assert_eq!(rt(&tab, "IMAD.U32 R2, RZ, RZ, UR4 ;", 0),
+                   "IMAD.U32 R2, RZ, RZ, UR4");
+    }
 }
+

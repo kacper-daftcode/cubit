@@ -387,6 +387,15 @@ pub struct KernelMeta {
     /// Mercury: per-param szerokosc transferu loadu z cbank (1/2/4/8/16 B;
     /// 0 = nieznana). Steruje bajtem b6 rekordu desc (ladder 02/22/42/52/62).
     pub merc_param_width: Vec<u8>,
+    /// Mercury: rekordy 0229 dla PTX-level `xor Rd, Rs, imm32` (SASS:
+    /// `LOP3.LUT Rd, Rs, imm, RZ, 0x3c, !PT` — fs6-lab 2026-08-05). Krotka:
+    /// (lane, dst_reg, src_reg, imm, guard) gdzie guard: 0=brak (b4=0xf8),
+    /// 1=@Pn (b4=0x00), 2=@!Pn (b4=0x01). Lane takich instrukcji NIE
+    /// dostaje bitu bitmapy (rekord zastepuje wezel typu4).
+    pub merc_xor: Vec<(u32, u32, u32, u32, u8)>,
+    /// Mercury: per-STG natychmiastowy offset adresu ([Rx.64+0x..]) w bajtach
+    /// — trafia do bajta 28 rekordu 02 38 (fs10-grid 2026-08-05).
+    pub merc_stg_off: Vec<u32>,
 }
 
 
@@ -433,6 +442,8 @@ impl KernelMeta {
             merc_param_uniform: 0,
             merc_param_regpath: 0,
             merc_param_width: Vec::new(),
+            merc_xor: Vec::new(),
+            merc_stg_off: Vec::new(),
         };
 
         // Extract from global section (REGCOUNT, FRAME_SIZE, MIN_STACK_SIZE)
@@ -769,6 +780,8 @@ mod tests {
             merc_param_uniform: 0,
             merc_param_regpath: 0,
             merc_param_width: Vec::new(),
+            merc_xor: Vec::new(),
+            merc_stg_off: Vec::new(),
         };
 
         let global = meta.to_global_records(8);

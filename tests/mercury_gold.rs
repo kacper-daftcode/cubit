@@ -46,6 +46,8 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
         merc_dynldg: g.dynldg == 1,
         merc_bar_pos: g.barpos.to_vec(),
         merc_stg_pos: g.stgseq.to_vec(),
+        merc_xor: g.pxor.to_vec(),
+        merc_stg_off: g.stgoff.to_vec(),
     }
 }
 
@@ -78,14 +80,11 @@ static EXPECTED_DIFF: &[(&str, &str)] = &[
     ("m_ld.100a",     "desc warianty"),
     ("p_atomg",       "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_atoms",       "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
-    ("p_base",        "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
-    ("p_branchy",     "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_call",        "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_cas",         "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_cctl",        "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_dmma",        "mk7: DMMA extra desk (025a) + rekordy sportu"),
     ("p_exit2",       "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
-    ("p_fence",       "mk7: fence.rekordy (CGAERRBAR/ERRBAR/MEMBAR w B-bitmapie)"),
     ("p_ldgsts",      "mk7: LDGSTS (cp.async) seria rekordow"),
     ("p_lds",         " mk7-ldz-event + rekordy"),
     ("p_ldsm",        "mk7: pinned-51 + event rekordy (01290004/LDSM-wiazania)"),
@@ -132,7 +131,6 @@ static EXPECTED_DIFF: &[(&str, &str)] = &[
     ("v_sm128",       "STG tail-dw smem"),
     ("v_sm2k",        "STG tail-dw smem"),
     ("v_stg2",        "STG binding"),
-    ("w_depsync",     "griddepcontrol: ACQBULK -> rekord 0162000a"),
 ];
 
 #[test]
