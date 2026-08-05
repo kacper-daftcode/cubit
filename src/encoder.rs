@@ -287,6 +287,10 @@ pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> 
         (fk.clone(), mod_group.clone()),
         (insn.key.clone(), mod_group.clone()),
         (fk.clone(), String::new()),
+        // base key bez modow: harvest trzyma niektore formy modifiy pod bazowym
+        // kluczem z grupe "" (np. IMAD.U32 z UR-sorcem = MOV-idiom; ktest sass
+        // 2026-08-05: (IMAD_R_R_R_UR, "U32") REJ. rodzajowo, (fk,"") brak).
+        (insn.key.clone(), String::new()),
         (format!("{fk}_?"), String::new()),
     ];
     // cuobjdump prints SM120 LDGSTS.128 as `LDGSTS.E.128`, while the harvested

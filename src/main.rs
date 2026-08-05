@@ -1244,6 +1244,8 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_dynldg: false,
         merc_bar_pos: Vec::new(),
         merc_stg_pos: Vec::new(),
+        merc_xor: Vec::new(),
+        merc_stg_off: Vec::new(),
         merc_param_uniform: 0,
         merc_param_regpath: 0,
         merc_param_width: Vec::new(),
@@ -1822,6 +1824,8 @@ fn cmd_asm_build_elf(
                     r"^(?:\s*\/\*[0-9a-f]+\*\/\s*)?(?:@!?U?P\w+\s+)?([A-Z][A-Za-z0-9.]*)\s*([^;]*?);?\s*$",
                 )
                 .unwrap();
+                let mut xor_lanes: Vec<(u32, u32, u32, u32, u8)> = Vec::new();
+                let mut stg_off: Vec<u32> = Vec::new();
                 for (ii, (_addr, asm)) in insns.iter().enumerate() {
                     let clean = if let Some(idx) = asm.find("/* @sched") {
                         &asm[..idx]
@@ -1834,6 +1838,47 @@ fn cmd_asm_build_elf(
                         Some(c) => (c.get(1).unwrap().as_str(), c.get(2).unwrap().as_str()),
                         None => continue,
                     };
+                    // 0229: LOP3.LUT Rd, Rs, imm, RZ, 0x3c (fs6-lab) — lane bez
+                    // bitu bitmapy + pelny rekord; guard polarity -> b4.
+                    if base.split('.').next() == Some("LOP3") {
+                        let parts5: Vec<&str> =
+                            rest.split(',').map(|x| x.trim().trim_end_matches(';')).collect();
+                        if parts5.len() >= 5
+                            && parts5[4] == "0x3c"
+                            && parts5[3].starts_with("RZ")
+                            && parts5.len() >= 5
+                        {
+                            let preg = |t: &str| -> Option<u32> {
+                                t.strip_prefix('R').and_then(|d| {
+                                    if d.chars().all(|c| c.is_ascii_digit()) {
+                                        d.parse::<u32>().ok()
+                                    } else {
+                                        None
+                                    }
+                                })
+                            };
+                            if let Some(ih) =
+                                parts5[2].strip_prefix("0x").and_then(|h| u32::from_str_radix(h, 16).ok())
+                            {
+                                if let (Some(dreg), Some(sreg)) = (preg(parts5[0]), preg(parts5[1])) {
+                                    // guard z surowego tekstu: komentarz /*addr*/
+                                    // moze poprzedzac predykat — obetnij go.
+                                    let body = match clean.find("*/") {
+                                        Some(k) => clean[k + 2..].trim_start(),
+                                        None => clean,
+                                    };
+                                    let guard: u8 = if body.starts_with("@!") {
+                                        2
+                                    } else if body.starts_with('@') {
+                                        1
+                                    } else {
+                                        0
+                                    };
+                                    xor_lanes.push((ii as u32, dreg, sreg, ih, guard));
+                                }
+                            }
+                        }
+                    }
                     let base0 = base.split('.').next().unwrap_or(base);
                     if base0 == "BAR" {
                         bar_pos.push(ii as u32);
@@ -1843,6 +1888,15 @@ fn cmd_asm_build_elf(
                     }
                     if base0 == "STG" {
                         stg_pos.push(ii as u32);
+                        let off = match clean.find(".64+0x") {
+                            Some(k) => {
+                                let h = &clean[k + 6..];
+                                let e = h.find(']').unwrap_or(h.len());
+                                u32::from_str_radix(&h[..e], 16).unwrap_or(0)
+                            }
+                            None => 0,
+                        };
+                        stg_off.push(off);
                     }
                     let parts: Vec<String> = rest
                         .split(',')
@@ -1885,6 +1939,12 @@ fn cmd_asm_build_elf(
                 }
                 if dynldg {
                     meta.merc_dynldg = true;
+                }
+                if !xor_lanes.is_empty() {
+                    meta.merc_xor = xor_lanes;
+                }
+                if !stg_off.is_empty() {
+                    meta.merc_stg_off = stg_off;
                 }
             }
         }

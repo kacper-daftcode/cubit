@@ -289,6 +289,11 @@ pub fn opcode_tracked_hint(op: &str) -> bool {
             // ELECT: config/sync klasa — bez bitu t4-flag1; dostaje wlasny
             // mini-rekord 41 64 00 0a w lane (mk7 p_elect, fs-lab 2026-08-05).
             | "ELECT"
+            // ACQBULK: lane-rekord 01 62 00 0a (gold w_depsync; mk10c).
+            | "ACQBULK"
+            // CCTL (IVALL itd.): marker 51 02 + rekord 01 49 10 0a w lane,
+            // bez bitu (gold p_fence, fs8/9-grid 2026-08-05).
+            | "CCTL"
             | "HMMA"
             | "UTCHMMA"
             | "UTCQMMA"
