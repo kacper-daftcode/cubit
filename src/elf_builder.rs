@@ -343,7 +343,14 @@ impl MercFeatures {
             || f.n_atom > 0 || f.cflow_bssy || f.os_shfl
             || f.os_uses_s2r || f.os_dynldg)
             && !opcodes.iter().any(|o| o.starts_with("RET"));
-        f.smem_static = meta.shared_size > 0;
+        // mk13: rekord smem dla kazdego kernela dotykajacego smem — statyczne
+        // (.shared -> shared_size>0) LUB dynamiczne (extern __shared__ wchodzi
+        // tylko przez operacje STS/LDS/LDSM; gold v_dyn_smem: 010b060a +
+        // cbank-variant 8301 mimo shared_size==0 z EIATTR).
+        let smem_ops = opcodes
+            .iter()
+            .any(|o| matches!(o.split('.').next(), Some("STS") | Some("LDS") | Some("LDSM")));
+        f.smem_static = meta.shared_size > 0 || smem_ops;
         f.n_stg = opcodes.iter().filter(|o| o.starts_with("STG")).count() as u32;
         f.bar_count = meta.num_barriers as u32;
         f.os_call = opcodes.iter().any(|o| o.starts_with("CALL"));
