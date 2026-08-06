@@ -55,6 +55,10 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
         merc_mma: g.mma.to_vec(),
         merc_f64imm: g.f64i.to_vec(),
         merc_pad_pos: g.pads.to_vec(),
+        merc_param_loads: g.loads.to_vec(),
+        merc_cbank_lane: if g.cblane >= 0 { Some(g.cblane as u32) } else { None },
+        merc_s2r_lanes: g.s2r.to_vec(),
+        merc_predmem: g.predmem != 0,
     }
 }
 
@@ -63,15 +67,12 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
 /// inne byly byte-exact, (b) te nie zaczely "przechodzic" przypadkiem bez
 /// aktualizacji dokumentu.
 static EXPECTED_DIFF: &[(&str, &str)] = &[
-    ("c_ld_dyn2",     "podwójny cflow + 0xc1"),
-    ("d_ifearly_exit",  "mk10b: kolejnosc rekordow po pozycji kodu/pred-memop variants"),
-    ("d_sw4_store",   "mk10b: kolejnosc rekordow po pozycji kodu/pred-memop variants"),
-    ("k_ldg2",        "cflow 0xc1"),
-    ("k_stg2",        "desc 41 02 + STG binding"),
+    ("c_ld_dyn2",     "mk10c: trzeci anchor (S2R#2 lane4): f4n0=9 f4n1=0x204 — model multi-anchor mk13"),
+    ("d_sw4_store",   "mk13: mini-rekord 42 2a 02 06 (LOP3 z P-write) w lane + bitmap slot6"),
     ("lp1",           "loop LDG regiony"),
     ("p_atomg",       "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_atoms",       "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
-    ("p_call",        "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
+    ("p_call",        "mk13: bitmap: CALL/RET sasiedztwo — bit slot11 (rekordy OK po mk10c, anchor po S2R)"),
     ("p_cas",         "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_cctl",        "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_exit2",       "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
@@ -80,25 +81,19 @@ static EXPECTED_DIFF: &[(&str, &str)] = &[
     ("p_ldsm",        "mk7: pinned-51 + event rekordy (01290004/LDSM-wiazania)"),
     ("p_namedbar",    "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_redux",       "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
-    ("p_stg2",        "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_sts2",        "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_warpsync",    "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("q_bsync_pair",  "mk9: epilogi divergent"),
     ("q_callloop",    "mk9: epilogi divergent"),
-    ("q_switch",      "mk9: epilogi divergent"),
+    ("q_switch",      "mk13: bitmap: predykowany BRA @lane5 dostaje bit (rekordy OK po mk10c)"),
     ("q_tail_call",   "RET-w-loop/collective epilog rodzina"),
-    ("s_stg2diff",    "multi-STG"),
-    ("s_stg2rev",     "multi-STG"),
-    ("s_stg_branch",  "branch-region"),
-    ("sw16",          "switch-chain: pinned 51 + B-carve"),
-    ("sw32",          "switch-chain: pinned 51 + B-carve"),
-    ("sw4",           "switch-chain: pinned 51 + B-carve"),
-    ("sw64",          "switch-chain: pinned 51 + B-carve"),
-    ("sw8",           "switch-chain: pinned 51 + B-carve"),
+    ("sw16",          "mk9: switch-chain: bitmap B/region-carve (rekordy permutuja czysto)"),
+    ("sw32",          "mk9: switch-chain: bitmap B/region-carve (rekordy permutuja czysto)"),
+    ("sw4",           "mk9: switch-chain: bitmap B/region-carve (rekordy permutuja czysto)"),
+    ("sw64",          "mk9: switch-chain: bitmap B/region-carve (rekordy permutuja czysto)"),
+    ("sw8",           "mk9: switch-chain: bitmap B/region-carve (rekordy permutuja czysto)"),
     ("v_dyn_smem",    "smem dyn"),
-    ("v_ldg_u64",     "desc tail+STG wide"),
-    ("v_p3",          "desc 3-param order"),
-    ("v_stg2",        "STG binding"),
+    ("v_ldg_u64",     "mk10c-park: STG slot (82,01)=s2 wykraczajacy pul`e wide (jedyna odchyłka)" ),
 ];
 
 #[test]
