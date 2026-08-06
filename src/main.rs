@@ -1263,6 +1263,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_guarded_bra: Vec::new(),
         merc_ldgconst: Vec::new(),
         merc_xor_reg: Vec::new(),
+        merc_bar_args: Vec::new(),
         merc_s2r_sr: Vec::new(),
         merc_lop3_pdest: Vec::new(),
     }
@@ -1831,6 +1832,7 @@ fn cmd_asm_build_elf(
                 let mut bar_pos: Vec<u32> = Vec::new();
                 let mut stg_pos: Vec<u32> = Vec::new();
                 let mut bar_pred = false;
+                let mut bar_args: Vec<(u32, u32)> = Vec::new();
                 let re_s2r = regex::Regex::new(r"S2R\s+").unwrap();
                 let re_regw = regex::Regex::new(r"^(?:U?R)\d+$").unwrap();
                 let mut lastw: std::collections::HashMap<String, &str> =
@@ -1909,6 +1911,20 @@ fn cmd_asm_build_elf(
                         if clean.starts_with('@') {
                             bar_pred = true;
                         }
+                        // mk13: named-barrier args `BAR.SYNC... 0x1, 0x20`
+                        // -> (id, cnt); szablon bezargumentowy -> (0, 0).
+                        let pa = |t: &str| -> u32 {
+                            let t = t.trim().trim_end_matches(';');
+                            if let Some(h) = t.strip_prefix("0x") {
+                                u32::from_str_radix(h, 16).unwrap_or(0)
+                            } else {
+                                t.parse::<u32>().unwrap_or(0)
+                            }
+                        };
+                        let mut it = rest.split(',');
+                        let bid = it.next().map(pa).unwrap_or(0);
+                        let bcnt = it.next().map(pa).unwrap_or(0);
+                        bar_args.push((bid, bcnt));
                     }
                     if base0 == "STG" {
                         stg_pos.push(ii as u32);
@@ -1982,6 +1998,7 @@ fn cmd_asm_build_elf(
                 }
                 if !bar_pos.is_empty() {
                     meta.merc_bar_pos = bar_pos;
+                    meta.merc_bar_args = bar_args;
                 }
                 if !stg_pos.is_empty() {
                     meta.merc_stg_pos = stg_pos;

@@ -28,7 +28,7 @@ fn meta_for(g: &GoldRow) -> KernelMeta {
         merc_param_write: g.pwrite, merc_stg_desc_pos: g.stgpos.to_vec(),
         merc_bar_pred: g.barpred != 0, merc_param_uniform: g.punif, merc_param_regpath: g.preg,
         merc_param_width: (0..8).map(|i| ((g.pwid >> (8 * i)) & 0xff) as u8).collect(),
-        merc_dynldg: g.dynldg == 1, merc_bar_pos: g.barpos.to_vec(),
+        merc_dynldg: g.dynldg == 1, merc_bar_pos: g.barpos.to_vec(), merc_bar_args: g.barg.to_vec(),
         merc_stg_pos: g.stgseq.to_vec(), merc_xor: g.pxor.to_vec(),
         merc_stg_off: g.stgoff.to_vec(),
         merc_stg_ser: g.stgser.to_vec(),

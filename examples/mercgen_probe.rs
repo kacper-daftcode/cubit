@@ -35,6 +35,7 @@ fn main() {
             merc_param_width: (0..8).map(|i| ((g.pwid >> (8 * i)) & 0xff) as u8).collect(),
             merc_dynldg: g.dynldg == 1,
             merc_bar_pos: g.barpos.to_vec(),
+            merc_bar_args: g.barg.to_vec(),
             merc_stg_pos: g.stgseq.to_vec(),
             merc_xor: g.pxor.to_vec(),
             merc_stg_off: g.stgoff.to_vec(),

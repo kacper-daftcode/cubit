@@ -447,6 +447,11 @@ pub struct KernelMeta {
     /// uzycia). Gold v_ldg_u64: STG pi1 dostaje slot s=2 bo LDG.C@3 zajmuje
     /// s=1 (pi0,2). (lane, pi).
     pub merc_ldgconst: Vec<(u32, u32)>,
+    /// Mercury mk13: argumenty named-barrier per lane BAR (rownolegle do
+    /// merc_bar_pos): (id, count) — gold p_namedbar: bar.sync 1,32 -> rekord
+    /// 0147 b10=id, b11=01, b12=00, b13=cnt (JEDNA probka — fallback (0,0)
+    /// daje stary szablon). Pusty gdy zaden BAR nie ma argumentow.
+    pub merc_bar_args: Vec<(u32, u32)>,
     /// Mercury mk13: LOP3-xor w formie REJESTROWEJ (Rd, Ra, Rb, RZ, 0x3c) —
     /// rekord 0129 (16B: dst@[10], srcA@[12], srcB@[14]); lane bez bitu.
     /// (lane, dst, srcA, srcB, guard).
@@ -520,6 +525,7 @@ impl KernelMeta {
             merc_guarded_bra: Vec::new(),
             merc_ldgconst: Vec::new(),
             merc_xor_reg: Vec::new(),
+            merc_bar_args: Vec::new(),
             merc_s2r_sr: Vec::new(),
             merc_lop3_pdest: Vec::new(),
         };
@@ -874,6 +880,7 @@ mod tests {
             merc_guarded_bra: Vec::new(),
             merc_ldgconst: Vec::new(),
             merc_xor_reg: Vec::new(),
+            merc_bar_args: Vec::new(),
             merc_s2r_sr: Vec::new(),
             merc_lop3_pdest: Vec::new(),
         };
