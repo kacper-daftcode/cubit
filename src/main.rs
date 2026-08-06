@@ -1256,6 +1256,10 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_param_uniform: 0,
         merc_param_regpath: 0,
         merc_param_width: Vec::new(),
+        merc_param_loads: Vec::new(),
+        merc_cbank_lane: None,
+        merc_s2r_lanes: Vec::new(),
+        merc_predmem: false,
     }
 }
 

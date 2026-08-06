@@ -38,6 +38,10 @@ fn meta_for(g: &GoldRow) -> KernelMeta {
         merc_mma: g.mma.to_vec(),
         merc_f64imm: g.f64i.to_vec(),
         merc_pad_pos: g.pads.to_vec(),
+        merc_param_loads: g.loads.to_vec(),
+        merc_cbank_lane: if g.cblane >= 0 { Some(g.cblane as u32) } else { None },
+        merc_s2r_lanes: g.s2r.to_vec(),
+        merc_predmem: g.predmem != 0,
     }
 }
 

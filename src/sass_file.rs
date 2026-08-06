@@ -207,7 +207,8 @@ pub fn kernel_def_to_meta(
     let regcount = def.resources.reg_count().max(min_regs);
 
     let (merc_param_order, merc_param_write, merc_stg_desc_pos, merc_bar_pred,
-         merc_param_uniform, merc_param_regpath, merc_param_width) =
+         merc_param_uniform, merc_param_regpath, merc_param_width,
+         merc_param_loads, merc_cbank_lane, merc_s2r_lanes, merc_predmem) =
         merc_param_scan(&def.instructions);
     let (merc_bar_pos, merc_stg_pos, merc_stg_off) = merc_exec_positions(&def.instructions);
     let merc_xor = merc_xor_scan(&def.instructions);
@@ -253,6 +254,10 @@ pub fn kernel_def_to_meta(
         merc_mma,
         merc_f64imm,
         merc_pad_pos,
+        merc_param_loads,
+        merc_cbank_lane,
+        merc_s2r_lanes,
+        merc_predmem,
     }
 }
 
@@ -523,8 +528,9 @@ fn merc_f64imm_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u8, u32)>
 
 fn merc_param_scan(
     instructions: &[Instruction],
-) -> (Option<Vec<u32>>, u32, Vec<u32>, bool, u32, u32, Vec<u8>) {
-    let mut reg_of: Vec<(String, u32)> = Vec::new(); // lead-reg name -> param idx
+) -> (Option<Vec<u32>>, u32, Vec<u32>, bool, u32, u32, Vec<u8>, Vec<(u32, u32, u8, u8, u8)>, Option<u32>, Vec<u32>, bool) {
+    // reg name -> (param idx, idx w puli deskryptorow (pi,mech))
+    let mut reg_of: Vec<(String, u32, u32)> = Vec::new();
     let mut order: Vec<u32> = Vec::new();
     let mut write_mask: u32 = 0;
     let mut stg_desc_pos: Vec<u32> = Vec::new();
@@ -532,8 +538,13 @@ fn merc_param_scan(
     let mut uniform_mask: u32 = 0; // bit pi: slot zaladowany przez LDCU*
     let mut regpath_mask: u32 = 0; // bit pi: slot zaladowany przez LDC*
     let mut widths: Vec<u8> = Vec::new(); // per-param: max transfer bytes
+    // mk10c: per-load rekordy + lane + pula deskryptorow (pi, unif01)
+    let mut loads: Vec<(u32, u32, u8, u8, u8)> = Vec::new();
+    let mut cbank_lane: Option<u32> = None;
+    let mut s2r_lanes: Vec<u32> = Vec::new();
+    let mut predmem = false;
+    let mut pool: Vec<(u32, u8)> = Vec::new();
 
-    #[allow(clippy::too_many_arguments)]
     fn note(m: &mut u32, pi: u32) {
         if pi < 32 {
             *m |= 1u32 << pi;
@@ -541,6 +552,23 @@ fn merc_param_scan(
     }
     for ins in instructions {
         let t = ins.raw_text.as_str();
+        let lane = (ins.addr / 16) as u32;
+        let guard_v: u8 = match &ins.guard {
+            None => 0,
+            Some(g) => {
+                if g.pred == 7 && !g.negated {
+                    0
+                } else if g.negated {
+                    2
+                } else {
+                    1
+                }
+            }
+        };
+        let base0 = ins.opcode_full.split('.').next().unwrap_or("");
+        if base0 == "S2R" {
+            s2r_lanes.push(lane);
+        }
         // LDC / LDCU load z okna parametrow [0x380..]
         let is_ldcu = ins.opcode == "LDCU";
         if ins.opcode == "LDC" || is_ldcu {
@@ -548,8 +576,12 @@ fn merc_param_scan(
                 let hexs = &t[cp + 9..];
                 let end = hexs.find(']').unwrap_or(0);
                 if let Ok(off) = u32::from_str_radix(&hexs[..end], 16) {
+                    if off == 0x358 && is_ldcu && cbank_lane.is_none() {
+                        cbank_lane = Some(lane);
+                    }
                     if off >= 0x380 && (off - 0x380) % 8 == 0 {
                         let pi = (off - 0x380) / 8;
+                        let uflag: u8 = if is_ldcu { 1 } else { 0 };
                         // lead operand = dest reg
                         let depth = t.find(',').unwrap_or(t.len());
                         let dest = t[..depth]
@@ -558,31 +590,7 @@ fn merc_param_scan(
                             .unwrap_or("")
                             .trim_end_matches(".64")
                             .to_string();
-                        if !dest.is_empty() {
-                            reg_of.push((dest.clone(), pi.min(31)));
-                            // wide loads: high-half rejestrow pary (UR7 dla LDCU.64 UR6 itd.)
-                            let full = ins.opcode_full.as_str();
-                            if full.contains(".64") || full.contains(".128") {
-                                let num: Option<(bool, u32)> =
-                                    if let Some(n) = dest.strip_prefix("UR") {
-                                        n.parse::<u32>().ok().map(|v| (true, v))
-                                    } else if let Some(n) = dest.strip_prefix('R') {
-                                        n.parse::<u32>().ok().map(|v| (false, v))
-                                    } else {
-                                        None
-                                    };
-                                if let Some((is_u, n)) = num {
-                                    let pfx = if is_u { "UR" } else { "R" };
-                                    reg_of.push((format!("{}{}", pfx, n + 1), pi.min(31)));
-                                }
-                            }
-                        }
-                        if is_ldcu {
-                            note(&mut uniform_mask, pi);
-                        } else {
-                            note(&mut regpath_mask, pi);
-                        }
-                        // transfer width: .U8=1 .U16=2 plain=4 .64=8 .128=16
+                        // szerokosc transferu
                         let full = ins.opcode_full.as_str();
                         let w: u8 = if full.contains(".128") {
                             16
@@ -595,6 +603,44 @@ fn merc_param_scan(
                         } else {
                             4
                         };
+                        loads.push((lane, pi, uflag, w, guard_v));
+                        // pula deskryptorow (pi, mechanizm) — TYLKO loady
+                        // szerokie (>=8B); skalarne (4B) rekordy nie maja
+                        // slotu w puli STG-binding (k_stg2: (41,02) bez slota).
+                        let pool_idx = if w >= 8 {
+                            match pool.iter().position(|&e| e == (pi, uflag)) {
+                                Some(k) => k as u32,
+                                None => {
+                                    pool.push((pi, uflag));
+                                    (pool.len() - 1) as u32
+                                }
+                            }
+                        } else {
+                            u32::MAX
+                        };
+                        if !dest.is_empty() {
+                            reg_of.push((dest.clone(), pi.min(31), pool_idx));
+                            // wide loads: high-half rejestrow pary (UR7 dla LDCU.64 UR6 itd.)
+                            if full.contains(".64") || full.contains(".128") {
+                                let num: Option<(bool, u32)> =
+                                    if let Some(n) = dest.strip_prefix("UR") {
+                                        n.parse::<u32>().ok().map(|v| (true, v))
+                                    } else if let Some(n) = dest.strip_prefix('R') {
+                                        n.parse::<u32>().ok().map(|v| (false, v))
+                                    } else {
+                                        None
+                                    };
+                                if let Some((is_u, n)) = num {
+                                    let pfx = if is_u { "UR" } else { "R" };
+                                    reg_of.push((format!("{}{}", pfx, n + 1), pi.min(31), pool_idx));
+                                }
+                            }
+                        }
+                        if is_ldcu {
+                            note(&mut uniform_mask, pi);
+                        } else {
+                            note(&mut regpath_mask, pi);
+                        }
                         if (pi as usize) >= widths.len() {
                             widths.resize(pi as usize + 1, 0);
                         }
@@ -606,9 +652,8 @@ fn merc_param_scan(
             }
         }
         // alias-flow UR/R: dest <- zrodla sledzone (shape IADD3 R2, P0, PT, R0, UR6, RZ)
-        let b0 = ins.opcode_full.split('.').next().unwrap_or("");
         if matches!(
-            b0,
+            base0,
             "MOV" | "IMAD" | "IADD3" | "LEA" | "SHF" | "SEL" | "UIADD3" | "UMOV" | "IMNMX"
                 | "PRMT" | "IABS" | "SHFL"
         ) {
@@ -623,7 +668,7 @@ fn merc_param_scan(
                     && dest.chars().skip(1).all(|c| c == 'Z' || c.is_ascii_digit())
                 {
                     let srcs = &t[ci + 1..];
-                    for (rn, pi) in &reg_of {
+                    for (rn, pi, pidx) in &reg_of {
                         // pasuj gole wystapienie tokenu rejestru w operandach zrodlowych
                         let mut hit = false;
                         for m in srcs.match_indices(rn.as_str()) {
@@ -636,7 +681,7 @@ fn merc_param_scan(
                             }
                         }
                         if hit {
-                            reg_of.push((dest.to_string(), *pi));
+                            reg_of.push((dest.to_string(), *pi, *pidx));
                             break;
                         }
                     }
@@ -644,13 +689,15 @@ fn merc_param_scan(
             }
         }
         // memory-desc use: desc[URx][Ry.64] / plain [Rx]
-        let base = ins.opcode_full.split('.').next().unwrap_or("");
         let is_mem = matches!(
-            base,
+            base0,
             "LDG" | "STG" | "ATOMG" | "ATOMS" | "RED" | "REDG" | "LDS" | "STS" | "LD" | "ST"
         );
         if is_mem {
-            for (rn, pi) in &reg_of {
+            if guard_v != 0 {
+                predmem = true;
+            }
+            for (rn, pi, pidx) in &reg_of {
                 // uzycie jako baza adresu: [Rx ...] lub desc[...Rx...]
                 let needle1 = format!("[{}.", rn);
                 let needle2 = format!("[{},", rn);
@@ -658,20 +705,22 @@ fn merc_param_scan(
                 let used = t.contains(&needle1) || t.contains(&needle2) || t.contains(&needle3);
                 if used && !order.contains(pi) {
                     order.push(*pi);
-                    if matches!(base, "STG" | "ATOMG" | "ATOMS" | "RED" | "REDG" | "STS" | "ST") {
-                        write_mask |= 1u32 << pi;
-                    }
                 }
+                // mk10c: write-bit przy kazdym store-uzyciu (nie tylko przy
+                // pierwszym) — r2_wr dowod, ze read->write param ginie inaczej.
                 if used
-                    && matches!(base, "STG" | "ATOMG" | "ATOMS" | "RED" | "REDG")
-                    && order.contains(pi)
+                    && matches!(base0, "STG" | "ATOMG" | "ATOMS" | "RED" | "REDG" | "STS" | "ST")
                 {
-                    let pos = order.iter().position(|p| p == pi).unwrap_or(0) as u32;
-                    stg_desc_pos.push(pos);
+                    write_mask |= 1u32 << pi;
+                }
+                // mk10c: STG binding -> indeks PULI deskryptorow (pi, mech)
+                // zrodlowego loadu roota adresowego (nie pozycja param-queue).
+                if used && matches!(base0, "STG" | "ATOMG" | "ATOMS" | "RED" | "REDG") {
+                    stg_desc_pos.push(*pidx);
                 }
             }
         }
-        if matches!(base, "BAR") && ins.guard.is_some() {
+        if base0 == "BAR" && ins.guard.is_some() {
             bar_predicated = true;
         }
     }
@@ -681,5 +730,9 @@ fn merc_param_scan(
      bar_predicated,
      uniform_mask,
      regpath_mask,
-     widths)
+     widths,
+     loads,
+     cbank_lane,
+     s2r_lanes,
+     predmem)
 }

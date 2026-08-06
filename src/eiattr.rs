@@ -373,7 +373,11 @@ pub struct KernelMeta {
     pub merc_bar_pos: Vec<u32>,
     /// Pozycje STG (era-record binding ordering).
     pub merc_stg_pos: Vec<u32>,
-    /// Per-STG: pozycja desc-parametru w kolejce first-use (STG binding).
+    /// Per-STG: binding do deskryptora parametru — indeks w PULI
+    /// deskryptorow (pi, mech) w kolejnosci pierwszego pojawienia loadu
+    /// (mk10c; rozjem parametru przez LDCU i LDC to osobne pozycje puli;
+    /// stary model: pozycja param-queue — zgodne gdy 1 deskryptor/param).
+    /// u32::MAX = nieznane (fallback emitera).
     pub merc_stg_desc_pos: Vec<u32>,
     /// Jakakolwiek BAR pod predykatem (wariant rekordu BAR payload[0]=01).
     pub merc_bar_pred: bool,
@@ -418,6 +422,22 @@ pub struct KernelMeta {
     /// URZ, URZ`) — brak bitu bitmapy, w lane atom 2B (empiria: tyko ta
     /// forma; live UIADD3 maja bit, korpus 32.5k vs 18).
     pub merc_pad_pos: Vec<u32>,
+    /// Mercury mk10c: strumien ladowan cbank-parametrow jako rekordy lane:
+    /// (lane, pi, uniform [0=LDC*,1=LDCU*], width_bajty, guard [0/1/2]) per
+    /// instrukcja LDC/LDCU z okna c[0x0][0x380+]. nvcc emituje rekord 0222
+    /// NA KAZDY LOAD (powtorne loady tego samego slotu => wiele rekordow),
+    /// strumien posortowany po pozycjach kodu. Pusty = sciezka legacy
+    /// (blok desc wg param_order).
+    pub merc_param_loads: Vec<(u32, u32, u8, u8, u8)>,
+    /// Mercury mk10c: lane instrukcji LDCU.64 c[0x0][0x358] (rekord cbank
+    /// 010b0e0a zajmuje lane swojego loadu w strumieniu; None = po desc[0]).
+    pub merc_cbank_lane: Option<u32>,
+    /// Mercury mk10c: lane kazdego S2R — anchor-rekord 010b040a powstaje
+    /// per S2R (pek w gold: #anchors-1 == #S2R na 148/148 jadrach).
+    pub merc_s2r_lanes: Vec<u32>,
+    /// Mercury mk10c: predykowana operacja pamieci (@P LDG/STG/LDS/STS/
+    /// ATOMS/REDG) obecna — gasi bramke f4=7 (d_ifelse_ld: 0, k_ldg2: 7).
+    pub merc_predmem: bool,
 }
 
 
@@ -473,6 +493,10 @@ impl KernelMeta {
             merc_mma: Vec::new(),
             merc_f64imm: Vec::new(),
             merc_pad_pos: Vec::new(),
+            merc_param_loads: Vec::new(),
+            merc_cbank_lane: None,
+            merc_s2r_lanes: Vec::new(),
+            merc_predmem: false,
         };
 
         // Extract from global section (REGCOUNT, FRAME_SIZE, MIN_STACK_SIZE)
@@ -818,6 +842,10 @@ mod tests {
             merc_mma: Vec::new(),
             merc_f64imm: Vec::new(),
             merc_pad_pos: Vec::new(),
+            merc_param_loads: Vec::new(),
+            merc_cbank_lane: None,
+            merc_s2r_lanes: Vec::new(),
+            merc_predmem: false,
         };
 
         let global = meta.to_global_records(8);

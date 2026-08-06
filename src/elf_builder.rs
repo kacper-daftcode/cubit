@@ -277,6 +277,18 @@ pub struct MercFeatures {
     pub anchor_f4: u32,
     /// mk12: >=2 instrukcje MMA rodziny (HMMA/IMMA) kasuja b12 rekordu anchor.
     pub os_mma_multi: bool,
+    /// mk10c: loady param-window z kodu: (lane, pi, uniform01, width, guard).
+    /// Puste = sciezka legacy (blok desc).
+    pub param_loads: Vec<(u32, u32, u8, u8, u8)>,
+    /// mk10c: lane loadu c[0x358] (rekord cbank/D).
+    pub cbank_lane: Option<u32>,
+    /// mk10c: lane instrukcji S2R (anchor 010b040a per S2R).
+    pub s2r_lanes: Vec<u32>,
+    /// mk10c: kernel ma predykowane operacje pamieci (gaszenie bramki f4=7).
+    pub predmem: bool,
+    /// mk10c: LDGSTS obecne — rekord desc uniform przy atomikach/async
+    /// p_lgsts (03,02).
+    pub n_ldgsts: u32,
 }
 
 impl MercFeatures {
@@ -379,6 +391,10 @@ impl MercFeatures {
             7
         } else if bssy > 0 && ldg >= 1 && sts >= 1 {
             7
+        } else if ldg >= 1 && stg >= 1 && ldg + stg >= 3 && !meta.merc_predmem {
+            // mk12a (k_ldg2/p_stg2/c_ld_dyn2: 7 vs d_ifelse_ld: 0 — gasi
+            // bramke predykowana pamiec @P LDG/STG; pozostale gate'y pokrywaja)
+            7
         } else if isetp >= 6 && bssy == 0 {
             4
         } else if sts >= 1 && lds >= 1 && bar >= 1 && bssy == 0 {
@@ -409,6 +425,11 @@ impl MercFeatures {
         f.pad_pos = meta.merc_pad_pos.clone();
         f.mma_lanes = meta.merc_mma.clone();
         f.f64_lanes = meta.merc_f64imm.clone();
+        f.param_loads = meta.merc_param_loads.clone();
+        f.cbank_lane = meta.merc_cbank_lane;
+        f.s2r_lanes = meta.merc_s2r_lanes.clone();
+        f.predmem = meta.merc_predmem;
+        f.n_ldgsts = opcodes.iter().filter(|o| o.starts_with("LDGSTS")).count() as u32;
 
         f
     }
@@ -528,21 +549,32 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize) -> [u8; 32] {
         stg[6] = 0x50;
         stg[19] = 0x02;
     }
-    let dp = feat
-        .stg_desc_pos
-        .get(stg_i)
-        .copied()
-        .unwrap_or(stg_i as u32 % 2);
+    let dp = match feat.stg_desc_pos.get(stg_i).copied() {
+        Some(u32::MAX) | None => stg_i as u32 % 2, // sentinel: nieznane
+        Some(v) => v,
+    };
     // mk10b wide-serie (STG.E.64 w serii, dp nieznane) — model z k_mma:
     // stala karta b11=00,b12=02,b13=01,b17=02,b18=01; b19=02|par<<7;
     // b20 schodzi parami od n_stg: 4-(ser>>1) przy n_stg=4 (jedna probka —
     // doprecyzowac gdy mk-lab objmie wide-serie); imm offset jako u16 LE.
-    if feat.stg_wide && feat.stg_desc_pos.is_empty() && !feat.stg_ser.is_empty() {
+    if feat.stg_wide && !feat.stg_ser.is_empty() {
         let pack = feat.stg_ser.get(stg_i).copied().unwrap_or(0);
         let ser = pack & 0x7f;
         stg[11] = 0x00;
-        stg[12] = 0x02;
-        stg[13] = 0x01;
+        // mk10c: slot z puli deskryptorow gdy znany (mak10b hardkodowal dp=1)
+        let dp = match feat.stg_desc_pos.get(stg_i).copied() {
+            Some(u32::MAX) | None => 1,
+            Some(v) => v,
+        };
+        if dp % 2 == 1 {
+            stg[12] = 0x02;
+            stg[13] = ((dp + 1) >> 1) as u8;
+        } else {
+            stg[13] = (dp >> 1) as u8;
+            if stg[13] > 0 {
+                stg[12] = 0x82;
+            }
+        }
         stg[18] = 0x01;
         stg[19] = 0x02 | ((ser & 1) << 7);
         stg[20] = (feat.n_stg as u8).saturating_sub((ser >> 1) as u8);
@@ -616,6 +648,284 @@ fn rec_xor(dst: u32, src: u32, imm: u32, b4: u8) -> [u8; 32] {
     r
 }
 
+/// mk10c: role (b10,b11) rekordu desc 0222 z puli loadow. Tabela z fitu
+/// pelnej macierzy gold fala mk10c (iter AF2-analiza + mk12a):
+/// - uniform (0806): 16B->(07,02), 4B->(81,01), 1/2B->(01,01),
+///   8B: atom-async/LDGSTS -> (03,02), inaczej (83,01).
+///   [park: (03,01) dla p_cas/p_exit2/p_lds/p_ldsm — mk7-regiony, otwarte]
+/// - regpath (0e06, w>=8): param tez ladowany przez LDCU -> (03,01);
+///   n_w==1 -> (83,00);
+///   n_w==2: oba STG-wiazane: pierwszy w kodzie (83,00), drugi (03,01);
+///     inaczej read->(83,00), write->(83,01) przy STG.64/128 / (03,01);
+///   n_w>=3: write->(83,01); najnizszy pi wsrod read -> (83,00); reszta read
+///     -> (03,01).
+/// - regpath w<=4 (skalar): (41,02) (k_stg2).
+fn mk10c_roles(
+    loads: &[(u32, u32, u8, u8, u8)],
+    stg_write_pis: &std::collections::BTreeSet<u32>,
+    n_atom: u32,
+    n_ldgsts: u32,
+    stg_wide: bool,
+) -> Vec<(u8, u8)> {
+    let mut roles = Vec::with_capacity(loads.len());
+    // distinktywne pi wsrod szerokich regpath-loadow
+    let mut wide_r: Vec<u32> = Vec::new();
+    for &(_, pi, unif, w, _) in loads {
+        if unif == 0 && w >= 8 && !wide_r.contains(&pi) {
+            wide_r.push(pi);
+        }
+    }
+    let uni_pis: std::collections::BTreeSet<u32> =
+        loads.iter().filter(|l| l.2 == 1).map(|l| l.1).collect();
+    let atomish = n_atom > 0 || n_ldgsts > 0;
+    let n = wide_r.len();
+    // pierwszy (najwczesniejszy lane) wsrod wide_r — do reguly 2-write
+    let first_lane_pi = wide_r
+        .iter()
+        .copied()
+        .min_by_key(|&piq| {
+            loads
+                .iter()
+                .find(|l| l.1 == piq && l.2 == 0)
+                .map(|l| l.0)
+                .unwrap_or(u32::MAX)
+        })
+        .unwrap_or(u32::MAX);
+    let lowest_read: u32 = wide_r
+        .iter()
+        .copied()
+        .filter(|pi| !stg_write_pis.contains(pi))
+        .min()
+        .unwrap_or(u32::MAX);
+    for &(_, pi, unif, w, _) in loads {
+        let role = if unif == 1 {
+            match w {
+                16 => (0x07u8, 0x02u8),
+                4 => (0x81, 0x01),
+                1 | 2 => (0x01, 0x01),
+                _ => {
+                    if atomish { (0x03, 0x02) } else { (0x83, 0x01) }
+                }
+            }
+        } else if w <= 4 {
+            (0x41, 0x02)
+        } else if uni_pis.contains(&pi) {
+            (0x03, 0x01)
+        } else if n == 1 {
+            (0x83, 0x00)
+        } else if n == 2 {
+            let is_w = stg_write_pis.contains(&pi);
+            let other_w = wide_r.iter().any(|&q| q != pi && stg_write_pis.contains(&q));
+            if is_w && other_w {
+                // oba wiazane STG: pierwszy w kodzie = (83,00)
+                if pi == first_lane_pi { (0x83, 0x00) } else { (0x03, 0x01) }
+            } else if is_w {
+                if stg_wide { (0x83, 0x01) } else { (0x03, 0x01) }
+            } else {
+                (0x83, 0x00)
+            }
+        } else {
+            let is_w = stg_write_pis.contains(&pi);
+            if is_w {
+                (0x83, 0x01)
+            } else if pi == lowest_read {
+                (0x83, 0x00)
+            } else {
+                (0x03, 0x01)
+            }
+        };
+        roles.push(role);
+    }
+    roles
+}
+
+/// mk10c: budowa rekordu desc z pojedynczego loadu (wariant wg mechanizmu,
+/// width-ladder b6, b4=guard, tail-dw=8*pi).
+fn mk10c_rec_desc(ld: (u32, u32, u8, u8, u8), role: (u8, u8)) -> [u8; 32] {
+    let (_, pi, unif, w, guard) = ld;
+    let mut d = REC_PARAM_DESC;
+    let b6: u8 = match w {
+        1 => 0x02,
+        2 => 0x22,
+        4 => 0x42,
+        16 => 0x62,
+        _ => 0x52,
+    };
+    d[6] = b6;
+    if unif == 1 {
+        d[2] = 0x08;
+        d[4] = 0xfa;
+    } else {
+        d[4] = match guard {
+            1 => 0x00,
+            2 => 0x01,
+            _ => 0xf8,
+        };
+    }
+    d[10] = role.0;
+    d[11] = role.1;
+    d[28..32].copy_from_slice(&(8 * pi).to_le_bytes());
+    d
+}
+
+/// mk10c (dowody: mercv3/order_* + mk10c-lane): strumien rekordow = sort po
+/// pozycji kodowej ich instrukcji zrodlowej. Rekordy bez instr-korzeni
+/// (cbank D = lane loadu c[358]; smem i pinned po cbanku; boot-anchor zawsze
+/// pierwszy — emitowany przez wywolujacego). Anchory per S2R (lane).
+fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &[u8; 16]) {
+    #[derive(Clone, Copy)]
+    enum Ev {
+        Desc(usize),
+        Cbank,
+        Smem,
+        ShiftRegion,
+        Anchor,
+        Bar,
+        Stg(usize),
+        Elect(usize),
+        Xor(usize),
+        AcqBulk,
+        Cctl,
+        Pad,
+        Mma(usize),
+        F64i(usize),
+    }
+    // mk10c: zbior parametrow STG-wiazanych z PULI deskryptorow (nie ze
+    // starej maski param_write — ta traci read->write gdy param czytany
+    // wczesniej; r2_wr/r2_ww dowod).
+    let mut pool: Vec<(u32, u8)> = Vec::new();
+    let mut poolidx_of_load: Vec<u32> = Vec::new();
+    for &(_, pi, unif, w, _) in &feat.param_loads {
+        if w >= 8 {
+            let k = (pi, unif);
+            let ix = match pool.iter().position(|e| *e == k) {
+                Some(x) => x as u32,
+                None => {
+                    pool.push(k);
+                    (pool.len() - 1) as u32
+                }
+            };
+            poolidx_of_load.push(ix);
+        } else {
+            poolidx_of_load.push(u32::MAX);
+        }
+    }
+    let mut stg_write_pis: std::collections::BTreeSet<u32> = std::collections::BTreeSet::new();
+    for &dp in &feat.stg_desc_pos {
+        if dp != u32::MAX {
+            if let Some(&(pi, _)) = pool.get(dp as usize) {
+                stg_write_pis.insert(pi);
+            }
+        }
+    }
+    let roles = mk10c_roles(
+        &feat.param_loads,
+        &stg_write_pis,
+        feat.n_atom,
+        feat.n_ldgsts,
+        feat.stg_wide,
+    );
+    let mut ev: Vec<(u32, u8, Ev)> = Vec::new();
+    for (j, ld) in feat.param_loads.iter().enumerate() {
+        ev.push((ld.0, 20, Ev::Desc(j)));
+    }
+    let clane = feat.cbank_lane.unwrap_or(u32::MAX - 64);
+    ev.push((clane, 10, Ev::Cbank));
+    if feat.smem_static {
+        ev.push((clane, 11, Ev::Smem));
+    }
+    if feat.diverge_region {
+        ev.push((clane, 12, Ev::ShiftRegion));
+    }
+    for (k, &l) in feat.s2r_lanes.iter().enumerate() {
+        let _ = k;
+        ev.push((l, 20, Ev::Anchor));
+    }
+    for (i, &pos) in feat.bar_pos.iter().enumerate() {
+        let _ = i;
+        ev.push((pos, 20, Ev::Bar));
+    }
+    for (i, &pos) in feat.stg_pos.iter().enumerate() {
+        ev.push((pos, 20, Ev::Stg(i)));
+    }
+    for (i, &pos) in feat.elect_pos.iter().enumerate() {
+        ev.push((pos, 20, Ev::Elect(i)));
+    }
+    for (i, xl) in feat.xor_lanes.iter().enumerate() {
+        let _ = xl;
+        ev.push((feat.xor_lanes[i].0, 20, Ev::Xor(i)));
+    }
+    for &pos in &feat.acqbulk_pos {
+        ev.push((pos, 20, Ev::AcqBulk));
+    }
+    for &pos in &feat.cctl_pos {
+        ev.push((pos, 20, Ev::Cctl));
+    }
+    for &pos in &feat.pad_pos {
+        ev.push((pos, 20, Ev::Pad));
+    }
+    for (i, m) in feat.mma_lanes.iter().enumerate() {
+        ev.push((m.0, 20, Ev::Mma(i.min(255) as usize)));
+    }
+    for (i, m) in feat.f64_lanes.iter().enumerate() {
+        let _ = i;
+        ev.push((m.0, 20, Ev::F64i(i)));
+    }
+    ev.sort_by_key(|&(lane, tier, _)| (lane, tier));
+    // payload anchor (jak cflow_rec legacy)
+    let anchor_bytes = {
+        let mut cf = REC_EXTRA_EXIT;
+        let v: u32 = (feat.anchor_f4 << 6) | 1;
+        cf[10] = (v & 0xff) as u8;
+        cf[11] = (v >> 8) as u8;
+        if feat.cflow_atom || feat.os_mma_multi {
+            cf[12] = 0x00;
+        }
+        cf
+    };
+    for (_, _, kind) in ev {
+        match kind {
+            Ev::Desc(j) => out.extend_from_slice(&mk10c_rec_desc(feat.param_loads[j], roles[j])),
+            Ev::Cbank => out.extend_from_slice(if feat.smem_static {
+                &REC_CBANK_SMEM
+            } else {
+                &REC_CBANK
+            }),
+            Ev::Smem => out.extend_from_slice(&REC_SMEM),
+            Ev::ShiftRegion => out.extend_from_slice(&REC_SHIFT_REGION),
+            Ev::Anchor => out.extend_from_slice(&anchor_bytes),
+            Ev::Bar => out.extend_from_slice(bar_rec),
+            Ev::Stg(i) => out.extend_from_slice(&rec_stg(feat, i)),
+            Ev::Elect(_) => out.extend_from_slice(&[0x41, 0x64, 0x00, 0x0a]),
+            Ev::Xor(i) => {
+                let xl = feat.xor_lanes[i];
+                out.extend_from_slice(&rec_xor(xl.1, xl.2, xl.3, xl.4));
+            }
+            Ev::AcqBulk => out.extend_from_slice(&REC_ACQBULK),
+            Ev::Cctl => out.extend_from_slice(&REC_CCTL),
+            Ev::Pad => out.extend_from_slice(&crate::mercury::MERC_LANE_PAD),
+            Ev::Mma(i) => {
+                let m = feat.mma_lanes[i];
+                if crate::mercury::merc_mma_is_mini(m.1) {
+                    out.extend_from_slice(&crate::mercury::MERC_MMA_MINI_SAT);
+                } else {
+                    out.extend_from_slice(&crate::mercury::build_mma_rec(
+                        m.1, m.2, m.3, m.4, m.5, m.6,
+                    ));
+                }
+            }
+            Ev::F64i(i) => {
+                let m = feat.f64_lanes[i];
+                out.extend_from_slice(&crate::mercury::build_f64imm_rec(m.1, m.2, m.3, m.4));
+            }
+        }
+    }
+    // ATOM-klasa: po strumieniu (jak w sciezce legacy; lane nieznane).
+    for _ in 0..feat.n_atom {
+        out.extend_from_slice(&REC_ATOM);
+    }
+}
+
 fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
     let bar_bytes: [u8; 16] = if feat.bar_pred {
         let mut br = REC_BAR;
@@ -626,6 +936,10 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
     };
     let bar_rec = &bar_bytes;
     out.extend_from_slice(&REC_PROLOG);
+    if !feat.param_loads.is_empty() {
+        emit_feature_records_laned(out, feat, bar_rec);
+        return;
+    }
     let cflow_rec = |feat: &MercFeatures| {
         let mut cf = REC_EXTRA_EXIT;
         // mk12 (iter AD, zweryfikowane na secie gold 70/70): payload =
