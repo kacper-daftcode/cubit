@@ -400,6 +400,8 @@ pub struct KernelMeta {
     /// (value==RZ, off==0), bity[6:0] = indeks w serii blokowej (reset na
     /// krawedziach cflow: targety skokow + po EXIT/RET/CALL/BRA/BRX/itd.).
     pub merc_stg_ser: Vec<u8>,
+    /// mk12: per-STG numer rejestru danych (kursor b19/b20 = dreg<<6; 255=RZ).
+    pub merc_stg_dreg: Vec<u8>,
     /// Mercury mk11: instrukcje MMA -> rekord 025a w lane. Krotka
     /// (lane, cls, d, a, b, c, b8flags); cls wg `mercury::merc_mma_class`.
     /// Model bajtowy 025a dekodowany byte-exact na pelnej probce korpusu
@@ -461,6 +463,7 @@ impl KernelMeta {
             merc_xor: Vec::new(),
             merc_stg_off: Vec::new(),
             merc_stg_ser: Vec::new(),
+            merc_stg_dreg: Vec::new(),
             merc_mma: Vec::new(),
             merc_f64imm: Vec::new(),
             merc_pad_pos: Vec::new(),
@@ -803,6 +806,7 @@ mod tests {
             merc_xor: Vec::new(),
             merc_stg_off: Vec::new(),
             merc_stg_ser: Vec::new(),
+            merc_stg_dreg: Vec::new(),
             merc_mma: Vec::new(),
             merc_f64imm: Vec::new(),
             merc_pad_pos: Vec::new(),

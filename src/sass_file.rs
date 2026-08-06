@@ -212,6 +212,7 @@ pub fn kernel_def_to_meta(
     let (merc_bar_pos, merc_stg_pos, merc_stg_off) = merc_exec_positions(&def.instructions);
     let merc_xor = merc_xor_scan(&def.instructions);
     let merc_stg_ser = merc_stg_series(&def.instructions);
+    let merc_stg_dreg = merc_stg_dreg(&def.instructions);
     let merc_mma = merc_mma_scan(&def.instructions);
     let merc_f64imm = merc_f64imm_scan(&def.instructions);
     let merc_pad_pos: Vec<u32> = def
@@ -246,6 +247,7 @@ pub fn kernel_def_to_meta(
         merc_xor,
         merc_stg_off,
         merc_stg_ser,
+        merc_stg_dreg,
         merc_mma,
         merc_f64imm,
         merc_pad_pos,
@@ -302,6 +304,34 @@ fn merc_exec_positions(instructions: &[Instruction]) -> (Vec<u32>, Vec<u32>, Vec
 /// mk10b: indeks STG w biezacej serii blokowej + null-tail flag (bit7).
 /// Granice serii: instrukcja-bedaca-targetem skoku oraz pozycja po EXIT/RET/
 /// CALL/BRA/BRX/JMP/BREAK/BSSY/BSYNC (navic odpowiednia na s_stg_branch).
+/// mk12: per-STG numer rejestru danych (0..=255; 255=RZ). Kursor rekordu
+/// 02 38 w bajtach [19],[20] (u16 LE) = dreg << 6; RZ kodowany jako 0x3ff
+/// (fit na pelnej macierzy gold: R3->0x00c0, R5->0x0140, R7->0x01c0,
+/// R9->0x0240, R11->0x02c0, R21->0x0540, RZ->0xffc0). Zastepuje model mk10b
+/// (b19=40|parity<<7, b20=1+(ser>>1)), rownowazny tylko dla serii R5+2n.
+fn merc_stg_dreg(instructions: &[Instruction]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for ins in instructions {
+        if ins.opcode != "STG" {
+            continue;
+        }
+        let tail = ins.raw_text.trim_end_matches([';', ' ']);
+        let last = tail.rsplit(',').next().unwrap_or("").trim();
+        let d = if last == "RZ" {
+            255u8
+        } else {
+            last
+                .strip_prefix('R')
+                .filter(|s| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()))
+                .and_then(|s| s.parse::<u32>().ok())
+                .map(|v| v.min(255) as u8)
+                .unwrap_or(255)
+        };
+        out.push(d);
+    }
+    out
+}
+
 fn merc_stg_series(instructions: &[Instruction]) -> Vec<u8> {
     let mut bounds: std::collections::HashSet<u32> = std::collections::HashSet::new();
     for ins in instructions {
