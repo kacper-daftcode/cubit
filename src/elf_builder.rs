@@ -296,6 +296,10 @@ pub struct MercFeatures {
     /// mk13: uzycia desc przez LDG.E.CONSTANT (lane, pi) — wpis (pi,2) w
     /// puli slotow STG (v_ldg_u64 s=2 przy 2 deskryptorach wide).
     pub ldgconst: Vec<(u32, u32)>,
+    /// mk13: wariant roli (03,01) dla deskryptora uniform-8B zamiast (83,01)
+    /// — gold: p_exit2 (exits>=2), p_cas (ATOMG.CAS), p_lds/p_ldsm/p_sts2
+    /// (LDS/STS/LDSM). LDGSTS ma pierwszenstwo i dalej daje (03,02).
+    pub u_role_alt1: bool,
     /// mk10c: LDGSTS obecne — rekord desc uniform przy atomikach/async
     /// p_lgsts (03,02).
     pub n_ldgsts: u32,
@@ -443,6 +447,15 @@ impl MercFeatures {
         f.s2r_sr = meta.merc_s2r_sr.clone();
         f.ldgconst = meta.merc_ldgconst.clone();
         f.n_ldgsts = opcodes.iter().filter(|o| o.starts_with("LDGSTS")).count() as u32;
+        // mk13: MercFeatures.u_role_alt1 — klasy opcode'ow (full mnemonics
+        // zawieraja .CAS) + liczba EXIT-ow.
+        f.u_role_alt1 = meta.exit_offsets.len() >= 2
+            || opcodes.iter().any(|o| {
+                o.contains(".CAS")
+                    || o.split('.').next() == Some("STS")
+                    || o.split('.').next() == Some("LDSM")
+                    || o.split('.').next() == Some("LDS")
+            });
 
         f
     }
@@ -679,6 +692,7 @@ fn mk10c_roles(
     n_atom: u32,
     n_ldgsts: u32,
     stg_wide: bool,
+    u_role_alt1: bool,
 ) -> Vec<(u8, u8)> {
     let mut roles = Vec::with_capacity(loads.len());
     // distinktywne pi wsrod szerokich regpath-loadow
@@ -717,7 +731,16 @@ fn mk10c_roles(
                 4 => (0x81, 0x01),
                 1 | 2 => (0x01, 0x01),
                 _ => {
-                    if atomish { (0x03, 0x02) } else { (0x83, 0x01) }
+                    // mk13: kolejnosc wazna — grupa (03,01) obejmuje CAS/
+                    // exits>=2/LDS-klase; LDGSTS-licznik ja wygrywa (p_ldgsts
+                    // ma LDS x3 i zostaje przy 03,02); potem reszta atomow.
+                    if u_role_alt1 && n_ldgsts == 0 {
+                        (0x03, 0x01)
+                    } else if atomish {
+                        (0x03, 0x02)
+                    } else {
+                        (0x83, 0x01)
+                    }
                 }
             }
         } else if w <= 4 {
@@ -840,6 +863,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         feat.n_atom,
         feat.n_ldgsts,
         feat.stg_wide,
+        feat.u_role_alt1,
     );
     let mut ev: Vec<(u32, u8, Ev)> = Vec::new();
     for (j, ld) in feat.param_loads.iter().enumerate() {
