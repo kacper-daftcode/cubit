@@ -300,6 +300,9 @@ pub struct MercFeatures {
     /// — gold: p_exit2 (exits>=2), p_cas (ATOMG.CAS), p_lds/p_ldsm/p_sts2
     /// (LDS/STS/LDSM). LDGSTS ma pierwszenstwo i dalej daje (03,02).
     pub u_role_alt1: bool,
+    /// mk13: CCTL.E.RML2 (discard.global.L2) = mini-rekord 41 0e 02 0c w lane
+    /// ZAMIAST markera 51 02 + rekordu 01 49 10 0a (gold p_cctl vs p_fence).
+    pub cctl_rml2_pos: Vec<u32>,
     /// mk10c: LDGSTS obecne — rekord desc uniform przy atomikach/async
     /// p_lgsts (03,02).
     pub n_ldgsts: u32,
@@ -430,10 +433,21 @@ impl MercFeatures {
             .filter(|(_, o)| o.split('.').next() == Some("ACQBULK"))
             .map(|(i, _)| i as u32)
             .collect();
+        // mk13: CCTL.E.RML2 ma wlasny mini-atom; pozostale CCTL -> cctl_pos.
+        f.cctl_rml2_pos = opcodes
+            .iter()
+            .enumerate()
+            .filter(|(_, o)| {
+                o.split('.').next() == Some("CCTL") && o.contains(".RML2")
+            })
+            .map(|(i, _)| i as u32)
+            .collect();
         f.cctl_pos = opcodes
             .iter()
             .enumerate()
-            .filter(|(_, o)| o.split('.').next() == Some("CCTL"))
+            .filter(|(_, o)| {
+                o.split('.').next() == Some("CCTL") && !o.contains(".RML2")
+            })
             .map(|(i, _)| i as u32)
             .collect();
         f.pad_pos = meta.merc_pad_pos.clone();
@@ -822,6 +836,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         Xor(usize),
         AcqBulk,
         Cctl,
+        CctlRml2(usize),
         Pad,
         Mma(usize),
         F64i(usize),
@@ -900,6 +915,9 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for &pos in &feat.cctl_pos {
         ev.push((pos, 20, Ev::Cctl));
     }
+    for (k, &pos) in feat.cctl_rml2_pos.iter().enumerate() {
+        ev.push((pos, 20, Ev::CctlRml2(k)));
+    }
     for &pos in &feat.pad_pos {
         ev.push((pos, 20, Ev::Pad));
     }
@@ -948,6 +966,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             }
             Ev::AcqBulk => out.extend_from_slice(&REC_ACQBULK),
             Ev::Cctl => out.extend_from_slice(&REC_CCTL),
+            Ev::CctlRml2(_) => out.extend_from_slice(&[0x41, 0x0e, 0x02, 0x0c]),
             Ev::Pad => out.extend_from_slice(&crate::mercury::MERC_LANE_PAD),
             Ev::Lop3P => out.extend_from_slice(&crate::mercury::MERC_LOP3_PWRITE_MINI),
             Ev::Mma(i) => {
@@ -1139,7 +1158,7 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
         if have_pos && !bar0_pre {
             #[derive(Clone, Copy, PartialEq, Eq)]
             #[allow(dead_code)]
-            enum Ev { Bar, Stg, Atom, Elect, Xor, AcqBulk, Cctl, Pad, Mma, F64i }
+            enum Ev { Bar, Stg, Atom, Elect, Xor, AcqBulk, Cctl, CctlRml2, Pad, Mma, F64i }
             const REC_MINI_ELECT: [u8; 4] = [0x41, 0x64, 0x00, 0x0a];
             let mut ev: Vec<(u32, Ev, u32)> = Vec::new();
             enum Ev2 {}
@@ -1160,6 +1179,9 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
             }
             for &pos in &feat.cctl_pos {
                 ev.push((pos, Ev::Cctl, 0));
+            }
+            for &pos in &feat.cctl_rml2_pos {
+                ev.push((pos, Ev::CctlRml2, 0));
             }
             for &pos in &feat.pad_pos {
                 ev.push((pos, Ev::Pad, 0));
@@ -1184,6 +1206,7 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
                     }
                     Ev::AcqBulk => out.extend_from_slice(&REC_ACQBULK),
                     Ev::Cctl => out.extend_from_slice(&REC_CCTL),
+                    Ev::CctlRml2 => out.extend_from_slice(&[0x41, 0x0e, 0x02, 0x0c]),
                     Ev::Pad => out.extend_from_slice(&crate::mercury::MERC_LANE_PAD),
                     Ev::Mma => {
                         let m = feat.mma_lanes[idx as usize];
