@@ -1997,6 +1997,149 @@ fn cmd_asm_build_elf(
                 if !stg_guard.is_empty() {
                     meta.merc_stg_guard = stg_guard;
                 }
+
+                // mk10c: rekordy-lane dla strumienia capmerc (lustro
+                // mercv3/mk_gold.py v7 i sass_file::merc_param_scan):
+                // - loads: (lane, pi, unif01, widthB, guard) per LDC/LDCU
+                //   param-window; - cbank_lane: LDCU.64 c[0x358];
+                // - s2r_lanes; - predmem (@P na operacji pamieci);
+                // - stg_desc_pos: binding STG -> indeks puli (pi, mech)
+                //   wide-loadow.
+                {
+                    let re_load = regex::Regex::new(
+                        r"^(?:@!?U?P\w+\s+)?(LDCU?)(\.64|\.128|\.U8|\.U16)?\s+(U?R\d+),\s*c\[0x0\]\[0x([0-9a-fA-F]+)\]",
+                    )
+                    .unwrap();
+                    let re_s2r2 = regex::Regex::new(r"(?:^| )S2R\s").unwrap();
+                    let re_brak = regex::Regex::new(r"\[([A-Z0-9]+)(?:\.\w+)?[^\]]*\]").unwrap();
+                    let re_tok = regex::Regex::new(r"^(?:@!?U?P\w+\s+)?([A-Z][A-Za-z0-9.]*)\s*(.*)$").unwrap();
+                    let alias_ops = [
+                        "MOV", "IMAD", "IADD3", "LEA", "SHF", "SEL", "UIADD3", "UMOV",
+                        "IMNMX", "PRMT", "IABS", "SHFL",
+                    ];
+                    let mem_ops = [
+                        "LDG", "STG", "ATOMG", "ATOMS", "RED", "REDG", "LDS", "STS", "LD",
+                        "ST", "LDGSTS",
+                    ];
+                    let mut loads: Vec<(u32, u32, u8, u8, u8)> = Vec::new();
+                    let mut s2r_lanes: Vec<u32> = Vec::new();
+                    let mut cbank_lane: Option<u32> = None;
+                    let mut predmem = false;
+                    let mut pool: Vec<(u32, u8)> = Vec::new();
+                    let mut regpool: std::collections::HashMap<String, u32> =
+                        std::collections::HashMap::new();
+                    let mut stg_pos2: Vec<u32> = Vec::new();
+                    for (ii, (_addr, asm)) in insns.iter().enumerate() {
+                        let clean = if let Some(idx) = asm.find("/* @sched") {
+                            &asm[..idx]
+                        } else {
+                            asm.as_str()
+                        };
+                        let body = match clean.find("*/") {
+                            Some(k) if clean.starts_with("/*") => clean[k + 2..].trim(),
+                            _ => clean.trim(),
+                        };
+                        let guard_m: u8 = if body.starts_with("@!") {
+                            2
+                        } else if body.starts_with('@') {
+                            1
+                        } else {
+                            0
+                        };
+                        let m2 = match re_tok.captures(body) {
+                            Some(x) => x,
+                            None => continue,
+                        };
+                        let base0 = m2.get(1).unwrap().as_str().split('.').next().unwrap_or("");
+                        let rest = m2.get(2).map(|x| x.as_str()).unwrap_or("");
+                        if base0 == "S2R" {
+                            s2r_lanes.push(ii as u32);
+                        }
+                        if guard_m != 0 && mem_ops.contains(&base0) {
+                            predmem = true;
+                        }
+                        if let Some(cap) = re_load.captures(body) {
+                            let off = u32::from_str_radix(&cap[4], 16).unwrap_or(0);
+                            let wv: u8 = match cap.get(2).map(|x| x.as_str()) {
+                                Some(".128") => 16,
+                                Some(".64") => 8,
+                                Some(".U16") => 2,
+                                Some(".U8") => 1,
+                                _ => 4,
+                            };
+                            if off == 0x358 && &cap[1] == "LDCU" && cbank_lane.is_none() {
+                                cbank_lane = Some(ii as u32);
+                            }
+                            if off >= 0x380 && (off - 0x380) % 8 == 0 {
+                                let pi = (off - 0x380) / 8;
+                                let unif: u8 = if &cap[1] == "LDCU" { 1 } else { 0 };
+                                loads.push((ii as u32, pi, unif, wv, guard_m));
+                                let mut pidx = u32::MAX;
+                                if wv >= 8 {
+                                    pidx = match pool.iter().position(|e| *e == (pi, unif)) {
+                                        Some(k) => k as u32,
+                                        None => {
+                                            pool.push((pi, unif));
+                                            (pool.len() - 1) as u32
+                                        }
+                                    };
+                                }
+                                let dname = cap[2 + 1].to_string();
+                                regpool.insert(dname.clone(), pidx);
+                                if wv >= 8 {
+                                    if let Ok(n_) = dname[2..].parse::<u32>() {
+                                        let mut hn = dname.clone();
+                                        hn.replace_range(1.., &(n_ + 1).to_string());
+                                        regpool.insert(hn, pidx);
+                                    }
+                                }
+                            }
+                        }
+                        if alias_ops.contains(&base0) && rest.contains(',') {
+                            if let Some(ci) = rest.find(',') {
+                                let dst = rest[..ci]
+                                    .trim()
+                                    .trim_matches(|c: char| !c.is_alphanumeric())
+                                    .to_string();
+                                let srcs = &rest[ci + 1..];
+                                if !dst.is_empty() {
+                                    for (rn, pidx) in regpool.clone().iter() {
+                                        let mut ok = false;
+                                        for mm in srcs.match_indices(rn.as_str()) {
+                                            let after =
+                                                srcs[mm.0 + rn.len()..].chars().next();
+                                            if after.map(|c| !c.is_ascii_digit()).unwrap_or(true)
+                                            {
+                                                ok = true;
+                                                break;
+                                            }
+                                        }
+                                        if ok {
+                                            regpool.insert(dst.clone(), *pidx);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if base0 == "STG" {
+                            let bks: Vec<String> = re_brak
+                                .captures_iter(body)
+                                .map(|c| c[1].to_string())
+                                .collect();
+                            if let Some(last) = bks.last() {
+                                stg_pos2.push(*regpool.get(last).unwrap_or(&u32::MAX));
+                            }
+                        }
+                    }
+                    meta.merc_param_loads = loads;
+                    meta.merc_cbank_lane = cbank_lane;
+                    meta.merc_s2r_lanes = s2r_lanes;
+                    meta.merc_predmem = predmem;
+                    if !stg_pos2.is_empty() {
+                        meta.merc_stg_desc_pos = stg_pos2;
+                    }
+                }
             }
         }
 
