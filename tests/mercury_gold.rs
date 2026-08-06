@@ -85,11 +85,6 @@ static EXPECTED_DIFF: &[(&str, &str)] = &[
     ("p_warpsync",    "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("q_bsync_pair",  "mk9: epilogi divergent"),
     ("q_tail_call",   "RET-w-loop/collective epilog rodzina"),
-    ("sw16",          "mk9: switch-chain: bitmap B/region-carve (rekordy permutuja czysto)"),
-    ("sw32",          "mk9: switch-chain: bitmap B/region-carve (rekordy permutuja czysto)"),
-    ("sw4",           "mk9: switch-chain: bitmap B/region-carve (rekordy permutuja czysto)"),
-    ("sw64",          "mk9: switch-chain: bitmap B/region-carve (rekordy permutuja czysto)"),
-    ("sw8",           "mk9: switch-chain: bitmap B/region-carve (rekordy permutuja czysto)"),
 ];
 
 #[test]
