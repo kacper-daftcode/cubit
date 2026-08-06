@@ -1248,6 +1248,8 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_stg_off: Vec::new(),
         merc_stg_ser: Vec::new(),
         merc_stg_dreg: Vec::new(),
+        merc_stg_dur: Vec::new(),
+        merc_stg_guard: Vec::new(),
         merc_mma: Vec::new(),
         merc_f64imm: Vec::new(),
         merc_pad_pos: Vec::new(),
@@ -1832,6 +1834,8 @@ fn cmd_asm_build_elf(
                 let mut xor_lanes: Vec<(u32, u32, u32, u32, u8)> = Vec::new();
                 let mut stg_off: Vec<u32> = Vec::new();
                 let mut stg_dreg: Vec<u8> = Vec::new();
+                let mut stg_dur: Vec<u8> = Vec::new();
+                let mut stg_guard: Vec<u8> = Vec::new();
                 for (ii, (_addr, asm)) in insns.iter().enumerate() {
                     let clean = if let Some(idx) = asm.find("/* @sched") {
                         &asm[..idx]
@@ -1916,6 +1920,21 @@ fn cmd_asm_build_elf(
                                 .unwrap_or(255)
                         };
                         stg_dreg.push(d);
+                        let dur8: u8 = clean
+                            .find("desc[UR")
+                            .and_then(|k| {
+                                clean[k + 7..]
+                                    .chars()
+                                    .take_while(|c2| c2.is_ascii_digit())
+                                    .collect::<String>()
+                                    .parse::<u32>()
+                                    .ok()
+                            })
+                            .map(|v| v.min(255) as u8)
+                            .unwrap_or(4);
+                        stg_dur.push(dur8);
+                        let tt8 = clean.trim_start();
+                        stg_guard.push(if tt8.starts_with("@!") { 2 } else if tt8.starts_with('@') { 1 } else { 0 });
                     }
                     let parts: Vec<String> = rest
                         .split(',')
@@ -1967,6 +1986,12 @@ fn cmd_asm_build_elf(
                 }
                 if !stg_dreg.is_empty() {
                     meta.merc_stg_dreg = stg_dreg;
+                }
+                if !stg_dur.is_empty() {
+                    meta.merc_stg_dur = stg_dur;
+                }
+                if !stg_guard.is_empty() {
+                    meta.merc_stg_guard = stg_guard;
                 }
             }
         }

@@ -254,6 +254,9 @@ pub struct MercFeatures {
     pub stg_ser: Vec<u8>,
     /// mk12: per-STG rejestr danych (kursor 0238 b19/b20 = dreg<<6, LE).
     pub stg_dreg: Vec<u8>,
+    /// fala A: per-STG desc-UR i wariant guardu (b17/b18, b4).
+    pub stg_dur: Vec<u8>,
+    pub stg_guard: Vec<u8>,
     /// Pozycje kodowe ACQBULK (rekord 01 62 00 0a w lane, bez bitu bitmapy;
     /// gold w_depsync / mk10c).
     pub acqbulk_pos: Vec<u32>,
@@ -389,6 +392,8 @@ impl MercFeatures {
         };
         f.stg_ser = meta.merc_stg_ser.clone();
         f.stg_dreg = meta.merc_stg_dreg.clone();
+        f.stg_dur = meta.merc_stg_dur.clone();
+        f.stg_guard = meta.merc_stg_guard.clone();
         f.acqbulk_pos = opcodes
             .iter()
             .enumerate()
@@ -519,8 +524,6 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize) -> [u8; 32] {
     let stg_narrow = feat.stg_u8;
     if stg_narrow {
         stg[6] = 0x00;
-        stg[18] = 0x00;
-        stg[19] = 0x00;
     } else if feat.stg_wide {
         stg[6] = 0x50;
         stg[19] = 0x02;
@@ -585,6 +588,16 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize) -> [u8; 32] {
         let cur = dreg << 6;
         stg[19] = (cur & 0xff) as u8;
         stg[20] = (cur >> 8) as u8;
+        // fala A: desc-UR na b17/b18 = (ur<<6)|2 (UR6 -> 0x0182; k_lds,
+        // v_sm*, k_smem; UR4 = szablon). domyslnie UR4 gdy brak metadanej.
+        let dur = feat.stg_dur.get(stg_i).copied().unwrap_or(4) as u16;
+        stg[17..19].copy_from_slice(&((dur << 6) | 2).to_le_bytes());
+        // fala A: wariant predykatu na b4 (00=@Pn, 01=@!Pn, f8=brak).
+        match feat.stg_guard.get(stg_i).copied().unwrap_or(0) {
+            1 => stg[4] = 0x00,
+            2 => stg[4] = 0x01,
+            _ => {}
+        }
     }
     let off = feat.stg_off.get(stg_i).copied().unwrap_or(0) as u16;
     stg[28..30].copy_from_slice(&off.to_le_bytes());
