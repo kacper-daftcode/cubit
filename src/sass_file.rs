@@ -222,6 +222,23 @@ pub fn kernel_def_to_meta(
         .filter(|i| crate::mercury::is_uiadd3_killpad(&i.raw_text))
         .map(|i| (i.addr / 16) as u32)
         .collect();
+    // mk13: predykowany BRA -> bit bitmapy; LOP3 z destem Pn -> bez bitu,
+    // mini-rekord 42 2a 02 06 w lane (gold q_switch/p_call/d_sw4_store).
+    let mut merc_guarded_bra: Vec<u32> = Vec::new();
+    let mut merc_lop3_pdest: Vec<u32> = Vec::new();
+    for ins in &def.instructions {
+        let lane = (ins.addr / 16) as u32;
+        if ins.opcode == "BRA" {
+            if let Some(g) = &ins.guard {
+                if g.pred != 7 {
+                    merc_guarded_bra.push(lane);
+                }
+            }
+        }
+        if ins.opcode == "LOP3" && crate::mercury::lop3_writes_pred(&ins.raw_text) {
+            merc_lop3_pdest.push(lane);
+        }
+    }
 
     KernelMeta {
         name: def.name.clone(),
@@ -258,6 +275,8 @@ pub fn kernel_def_to_meta(
         merc_cbank_lane,
         merc_s2r_lanes,
         merc_predmem,
+        merc_guarded_bra,
+        merc_lop3_pdest,
     }
 }
 

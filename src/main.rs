@@ -1260,6 +1260,8 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_cbank_lane: None,
         merc_s2r_lanes: Vec::new(),
         merc_predmem: false,
+        merc_guarded_bra: Vec::new(),
+        merc_lop3_pdest: Vec::new(),
     }
 }
 
@@ -2029,6 +2031,8 @@ fn cmd_asm_build_elf(
                     let mut regpool: std::collections::HashMap<String, u32> =
                         std::collections::HashMap::new();
                     let mut stg_pos2: Vec<u32> = Vec::new();
+                    let mut guarded_bra: Vec<u32> = Vec::new();
+                    let mut lop3_pdest: Vec<u32> = Vec::new();
                     for (ii, (_addr, asm)) in insns.iter().enumerate() {
                         let clean = if let Some(idx) = asm.find("/* @sched") {
                             &asm[..idx]
@@ -2131,11 +2135,31 @@ fn cmd_asm_build_elf(
                                 stg_pos2.push(*regpool.get(last).unwrap_or(&u32::MAX));
                             }
                         }
+                        // mk13: predykowany BRA dostaje bit bitmapy (q_switch
+                        // slot5); guard @PT/@UPT = de facto brak predykatu.
+                        if base0 == "BRA" && guard_m != 0 {
+                            let gk = body
+                                .split_whitespace()
+                                .next()
+                                .unwrap_or("")
+                                .trim_start_matches('@')
+                                .trim_start_matches('!');
+                            if gk != "PT" && gk != "UPT" {
+                                guarded_bra.push(ii as u32);
+                            }
+                        }
+                        // mk13: LOP3 z destem predykatowym (LOP3.LUT Pn, ..)
+                        // bez bitu + mini-rekord w lane (d_sw4_store slot6).
+                        if base0 == "LOP3" && cubit::mercury::lop3_writes_pred(body) {
+                            lop3_pdest.push(ii as u32);
+                        }
                     }
                     meta.merc_param_loads = loads;
                     meta.merc_cbank_lane = cbank_lane;
                     meta.merc_s2r_lanes = s2r_lanes;
                     meta.merc_predmem = predmem;
+                    meta.merc_guarded_bra = guarded_bra;
+                    meta.merc_lop3_pdest = lop3_pdest;
                     if !stg_pos2.is_empty() {
                         meta.merc_stg_desc_pos = stg_pos2;
                     }
