@@ -211,7 +211,8 @@ pub fn kernel_def_to_meta(
          merc_param_loads, merc_cbank_lane, merc_s2r_lanes, merc_predmem,
          merc_ldgconst) =
         merc_param_scan(&def.instructions);
-    let (merc_bar_pos, merc_stg_pos, merc_stg_off) = merc_exec_positions(&def.instructions);
+    let (merc_bar_pos, merc_stg_pos, merc_stg_off, merc_bar_args) =
+        merc_exec_positions(&def.instructions);
     let (merc_xor, merc_xor_reg) = merc_xor_scan(&def.instructions);
     let merc_stg_ser = merc_stg_series(&def.instructions);
     let (merc_stg_dreg, merc_stg_dur, merc_stg_guard) = merc_stg_meta(&def.instructions);
@@ -266,6 +267,7 @@ pub fn kernel_def_to_meta(
         merc_bar_pred,
         merc_dynldg: merc_select_dynldg(&def.instructions),
         merc_bar_pos,
+        merc_bar_args,
         merc_stg_pos,
         merc_param_uniform,
         merc_param_regpath,
@@ -305,14 +307,43 @@ fn merc_select_dynldg(instructions: &[Instruction]) -> bool {
     })
 }
 
-fn merc_exec_positions(instructions: &[Instruction]) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
+fn merc_exec_positions(
+    instructions: &[Instruction],
+) -> (Vec<u32>, Vec<u32>, Vec<u32>, Vec<(u32, u32)>) {
     let mut bar_pos = Vec::new();
+    let mut bar_args = Vec::new();
     let mut stg_pos = Vec::new();
     let mut stg_off = Vec::new();
     for ins in instructions {
         let slot = (ins.addr / 16) as u32;
         match ins.opcode.as_str() {
-            "BAR" | "SYNCS" => bar_pos.push(slot),
+            "BAR" | "SYNCS" => {
+                bar_pos.push(slot);
+                // mk13: named barrier args `BAR.SYNC.DEFER_BLOCKING 0x1, 0x20`
+                // -> (id, cnt); zwykly BAR bez argumentow -> (0, 0).
+                let tt = ins.raw_text.trim();
+                let g2 = if tt.starts_with('@') {
+                    tt.find(char::is_whitespace).map(|k| tt[k..].trim()).unwrap_or("")
+                } else {
+                    tt
+                };
+                let rest = g2
+                    .find(char::is_whitespace)
+                    .map(|k| g2[k..].trim())
+                    .unwrap_or("");
+                let mut it = rest.split(',');
+                let pa = |t: &str| -> u32 {
+                    let t = t.trim().trim_end_matches(';');
+                    if let Some(h) = t.strip_prefix("0x") {
+                        u32::from_str_radix(h, 16).unwrap_or(0)
+                    } else {
+                        t.parse::<u32>().unwrap_or(0)
+                    }
+                };
+                let id = it.next().map(pa).unwrap_or(0);
+                let cnt = it.next().map(pa).unwrap_or(0);
+                bar_args.push((id, cnt));
+            }
             "STG" => {
                 stg_pos.push(slot);
                 // [Rx.64+0x..] — imm w slicie adresowym
@@ -329,7 +360,7 @@ fn merc_exec_positions(instructions: &[Instruction]) -> (Vec<u32>, Vec<u32>, Vec
             _ => {}
         }
     }
-    (bar_pos, stg_pos, stg_off)
+    (bar_pos, stg_pos, stg_off, bar_args)
 }
 
 /// Mercury 0229: skan `LOP3.LUT Rd, Rs, imm32, RZ, 0x3c` (= SASS-forma C-level

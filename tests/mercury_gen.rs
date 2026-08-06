@@ -64,6 +64,7 @@ fn meta(name: &str, n_params: u32, exits: u32, smem: u32, bars: u8, cbank: u16) 
         merc_lop3_pdest: Vec::new(),
         merc_ldgconst: Vec::new(),
         merc_xor_reg: Vec::new(),
+        merc_bar_args: Vec::new(),
     }
 }
 

@@ -303,9 +303,20 @@ pub struct MercFeatures {
     /// mk13: CCTL.E.RML2 (discard.global.L2) = mini-rekord 41 0e 02 0c w lane
     /// ZAMIAST markera 51 02 + rekordu 01 49 10 0a (gold p_cctl vs p_fence).
     pub cctl_rml2_pos: Vec<u32>,
+    /// mk13: argumenty named-barrier per rekord BAR w strumieniu (rownolegle
+    /// merc_bar_args po indeksie bar_pos): przy id!=0||cnt!=0 bajty b10=id,
+    /// b11=01, b12=00, b13=cnt; (0,0) = szablon REC_BAR. Gold: p_namedbar
+    /// (bar.sync 1,32). JEDNA probka gold.
+    pub bar_args: Vec<(u32, u32)>,
     /// mk13: rejestrowa forma LOP3-xor (Rd, Ra, Rb, RZ, 0x3c) -> rekord 0129
     /// (16B) w lane; (lane, dst, srcA, srcB, b4 jak xor_lanes).
     pub xor_reg_lanes: Vec<(u32, u32, u32, u32, u8)>,
+    /// mk13: REDUX.* (warp-reduce) -> event-rekord 01 32 10 0a (16B) w lane;
+    /// lane NIE dostaje bitu bitmapy (rekord zastepuje wezel t4; gold p_redux
+    /// slot10). Bajty [6]=0x4d + [10,11]=(lane-bity?) — jedna probka gold,
+    /// model = stala obserwowana + dostosowanie [10..12] po rejestrze dest?
+    /// (park: jesli drugi wzorzec REDUX sie pojawi, dopasowac b10/11).
+    pub redux_pos: Vec<u32>,
     /// mk10c: LDGSTS obecne — rekord desc uniform przy atomikach/async
     /// p_lgsts (03,02).
     pub n_ldgsts: u32,
@@ -377,6 +388,7 @@ impl MercFeatures {
             })
             .collect();
         f.bar_pos = meta.merc_bar_pos.clone();
+        f.bar_args = meta.merc_bar_args.clone();
         f.stg_pos = meta.merc_stg_pos.clone();
         f.stg_desc_pos = meta.merc_stg_desc_pos.clone();
         f.bar_pred = meta.merc_bar_pred;
@@ -461,6 +473,12 @@ impl MercFeatures {
             .map(|(i, _)| i as u32)
             .collect();
         f.pad_pos = meta.merc_pad_pos.clone();
+        f.redux_pos = opcodes
+            .iter()
+            .enumerate()
+            .filter(|(_, o)| o.split('.').next() == Some("REDUX"))
+            .map(|(i, _)| i as u32)
+            .collect();
         f.xor_reg_lanes = meta
             .merc_xor_reg
             .iter()
@@ -866,7 +884,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         Smem,
         ShiftRegion,
         Anchor(usize),
-        Bar,
+        Bar(usize),
         Stg(usize),
         Elect(usize),
         Xor(usize),
@@ -878,6 +896,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         F64i(usize),
         Lop3P,
         XorReg(usize),
+        Redux,
     }
     // mk10c: zbior parametrow STG-wiazanych z PULI deskryptorow (nie ze
     // starej maski param_write — ta traci read->write gdy param czytany
@@ -933,8 +952,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         ev.push((l, 20, Ev::Anchor(k)));
     }
     for (i, &pos) in feat.bar_pos.iter().enumerate() {
-        let _ = i;
-        ev.push((pos, 20, Ev::Bar));
+        ev.push((pos, 20, Ev::Bar(i)));
     }
     for (i, &pos) in feat.stg_pos.iter().enumerate() {
         ev.push((pos, 20, Ev::Stg(i)));
@@ -949,6 +967,9 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for (i, xr) in feat.xor_reg_lanes.iter().enumerate() {
         let _ = xr;
         ev.push((feat.xor_reg_lanes[i].0, 20, Ev::XorReg(i)));
+    }
+    for &pos in &feat.redux_pos {
+        ev.push((pos, 20, Ev::Redux));
     }
     for &pos in &feat.acqbulk_pos {
         ev.push((pos, 20, Ev::AcqBulk));
@@ -998,7 +1019,18 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 cf[12] = feat.s2r_sr.get(k).copied().unwrap_or(1);
                 out.extend_from_slice(&cf);
             }
-            Ev::Bar => out.extend_from_slice(bar_rec),
+            Ev::Bar(i) => {
+                let mut br = *bar_rec;
+                if let Some(&(id, cnt)) = feat.bar_args.get(i) {
+                    if id != 0 || cnt != 0 {
+                        // mk13: named barrier: b11=id, b14=cnt (b12=01 stale;
+                        // gold p_namedbar: bar.sync 1,32 -> b11=01 b14=0x20).
+                        br[11] = id as u8;
+                        br[14] = cnt as u8;
+                    }
+                }
+                out.extend_from_slice(&br);
+            }
             Ev::Stg(i) => out.extend_from_slice(&rec_stg(feat, i)),
             Ev::Elect(_) => out.extend_from_slice(&[0x41, 0x64, 0x00, 0x0a]),
             Ev::Xor(i) => {
@@ -1014,6 +1046,11 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::CctlRml2(_) => out.extend_from_slice(&[0x41, 0x0e, 0x02, 0x0c]),
             Ev::Pad => out.extend_from_slice(&crate::mercury::MERC_LANE_PAD),
             Ev::Lop3P => out.extend_from_slice(&crate::mercury::MERC_LOP3_PWRITE_MINI),
+            Ev::Redux => out.extend_from_slice(
+                // gold p_redux lane10: 0132 100a f8 00 4d 00 00 00 81 01 ...
+                &[0x01, 0x32, 0x10, 0x0a, 0xf8, 0x00, 0x4d, 0x00,
+                  0x00, 0x00, 0x81, 0x01, 0x00, 0x00, 0x00, 0x00],
+            ),
             Ev::Mma(i) => {
                 let m = feat.mma_lanes[i];
                 if crate::mercury::merc_mma_is_mini(m.1) {
@@ -1269,7 +1306,16 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
                             m.1, m.2, m.3, m.4,
                         ));
                     }
-                    Ev::Bar => out.extend_from_slice(bar_rec),
+                    Ev::Bar => {
+                        let mut br = *bar_rec;
+                        if let Some(&(id, cnt)) = feat.bar_args.get(idx as usize) {
+                            if id != 0 || cnt != 0 {
+                                br[11] = id as u8;
+                                br[14] = cnt as u8;
+                            }
+                        }
+                        out.extend_from_slice(&br);
+                    }
                     Ev::Elect => out.extend_from_slice(&REC_MINI_ELECT),
                     Ev::Atom => out.extend_from_slice(&REC_ATOM),
                     Ev::Stg => {
@@ -1449,6 +1495,10 @@ pub fn generate_mercury_full(
                 // mk13d: wnetrze spanu BSSY — wszystko tracked (sw*-fit).
                 if in_bssy_span.get(i).copied().unwrap_or(false) {
                     t = true;
+                }
+                // mk13: REDUX -> rekord 0132 zamiast bitu (gold p_redux).
+                if base_i == "REDUX" {
+                    t = false;
                 }
                 t
             }
