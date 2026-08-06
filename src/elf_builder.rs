@@ -303,6 +303,9 @@ pub struct MercFeatures {
     /// mk13: CCTL.E.RML2 (discard.global.L2) = mini-rekord 41 0e 02 0c w lane
     /// ZAMIAST markera 51 02 + rekordu 01 49 10 0a (gold p_cctl vs p_fence).
     pub cctl_rml2_pos: Vec<u32>,
+    /// mk13: rejestrowa forma LOP3-xor (Rd, Ra, Rb, RZ, 0x3c) -> rekord 0129
+    /// (16B) w lane; (lane, dst, srcA, srcB, b4 jak xor_lanes).
+    pub xor_reg_lanes: Vec<(u32, u32, u32, u32, u8)>,
     /// mk10c: LDGSTS obecne — rekord desc uniform przy atomikach/async
     /// p_lgsts (03,02).
     pub n_ldgsts: u32,
@@ -451,6 +454,13 @@ impl MercFeatures {
             .map(|(i, _)| i as u32)
             .collect();
         f.pad_pos = meta.merc_pad_pos.clone();
+        f.xor_reg_lanes = meta
+            .merc_xor_reg
+            .iter()
+            .map(|&(lane, d, a, b, g)| {
+                (lane, d, a, b, match g { 0 => 0xf8, 1 => 0x00, _ => 0x01 })
+            })
+            .collect();
         f.mma_lanes = meta.merc_mma.clone();
         f.f64_lanes = meta.merc_f64imm.clone();
         f.param_loads = meta.merc_param_loads.clone();
@@ -676,6 +686,25 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize) -> [u8; 32] {
     stg
 }
 
+/// mk13: rekord 0129 dla rejestrowej formy LOP3-xor (0x3c, 3 rejestry):
+/// 16B; dst@[10..12]=(d<<6)|1, srcA@[12..14]=a<<6, srcB@[14..16]=b<<6;
+/// b4 = wariant guarda jak w 0229 (f8/00/01). Gold: lp1 lane5
+/// (R5,R5,R0 -> ... 41 01 40 01 00 00), p_lds (R7,R6,R5 -> c1 01 80 01 40 01).
+fn rec_xor_reg(dst: u32, src_a: u32, src_b: u32, b4: u8) -> [u8; 16] {
+    let mut r = [0u8; 16];
+    r[0] = 0x01;
+    r[1] = 0x29;
+    r[3] = 0x04;
+    r[4] = b4;
+    r[6] = 0x04;
+    r[8] = 0x01;
+    r[9] = 0xf8;
+    r[10..12].copy_from_slice(&(((dst << 6) | 1) as u16).to_le_bytes());
+    r[12..14].copy_from_slice(&((src_a << 6) as u16).to_le_bytes());
+    r[14..16].copy_from_slice(&((src_b << 6) as u16).to_le_bytes());
+    r
+}
+
 fn rec_xor(dst: u32, src: u32, imm: u32, b4: u8) -> [u8; 32] {
     let mut r = [0u8; 32];
     r[0] = 0x02; r[1] = 0x29; r[2] = 0x04; r[3] = 0x06;
@@ -841,6 +870,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         Mma(usize),
         F64i(usize),
         Lop3P,
+        XorReg(usize),
     }
     // mk10c: zbior parametrow STG-wiazanych z PULI deskryptorow (nie ze
     // starej maski param_write — ta traci read->write gdy param czytany
@@ -909,6 +939,10 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         let _ = xl;
         ev.push((feat.xor_lanes[i].0, 20, Ev::Xor(i)));
     }
+    for (i, xr) in feat.xor_reg_lanes.iter().enumerate() {
+        let _ = xr;
+        ev.push((feat.xor_reg_lanes[i].0, 20, Ev::XorReg(i)));
+    }
     for &pos in &feat.acqbulk_pos {
         ev.push((pos, 20, Ev::AcqBulk));
     }
@@ -963,6 +997,10 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::Xor(i) => {
                 let xl = feat.xor_lanes[i];
                 out.extend_from_slice(&rec_xor(xl.1, xl.2, xl.3, xl.4));
+            }
+            Ev::XorReg(i) => {
+                let xr = feat.xor_reg_lanes[i];
+                out.extend_from_slice(&rec_xor_reg(xr.1, xr.2, xr.3, xr.4));
             }
             Ev::AcqBulk => out.extend_from_slice(&REC_ACQBULK),
             Ev::Cctl => out.extend_from_slice(&REC_CCTL),
@@ -1336,8 +1374,10 @@ pub fn generate_mercury_full(
         }
         None => Vec::new(),
     };
-    let xor_lane_set: Vec<u32> =
+    let mut xor_lane_set: Vec<u32> =
         meta.merc_xor.iter().map(|&(lane, _, _, _, _)| lane).collect();
+    // mk13: rejestrowa forma xor tez zastepuje wezel typu4 (brak bitu).
+    xor_lane_set.extend(meta.merc_xor_reg.iter().map(|&(lane, _, _, _, _)| lane));
     let feat_f64_set: Vec<u32> =
         meta.merc_f64imm.iter().map(|&(lane, _, _, _, _)| lane).collect();
     let pad_set: Vec<u32> = meta.merc_pad_pos.clone();

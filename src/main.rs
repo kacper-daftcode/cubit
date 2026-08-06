@@ -1262,6 +1262,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_predmem: false,
         merc_guarded_bra: Vec::new(),
         merc_ldgconst: Vec::new(),
+        merc_xor_reg: Vec::new(),
         merc_s2r_sr: Vec::new(),
         merc_lop3_pdest: Vec::new(),
     }
@@ -1840,6 +1841,7 @@ fn cmd_asm_build_elf(
                 )
                 .unwrap();
                 let mut xor_lanes: Vec<(u32, u32, u32, u32, u8)> = Vec::new();
+                let mut xor_reg_l: Vec<(u32, u32, u32, u32, u8)> = Vec::new();
                 let mut stg_off: Vec<u32> = Vec::new();
                 let mut stg_dreg: Vec<u8> = Vec::new();
                 let mut stg_dur: Vec<u8> = Vec::new();
@@ -1875,25 +1877,29 @@ fn cmd_asm_build_elf(
                                     }
                                 })
                             };
+                            let body_x = match clean.find("*/") {
+                                Some(k) => clean[k + 2..].trim_start(),
+                                None => clean,
+                            };
+                            let guard_x: u8 = if body_x.starts_with("@!") {
+                                2
+                            } else if body_x.starts_with('@') {
+                                1
+                            } else {
+                                0
+                            };
                             if let Some(ih) =
                                 parts5[2].strip_prefix("0x").and_then(|h| u32::from_str_radix(h, 16).ok())
                             {
                                 if let (Some(dreg), Some(sreg)) = (preg(parts5[0]), preg(parts5[1])) {
-                                    // guard z surowego tekstu: komentarz /*addr*/
-                                    // moze poprzedzac predykat — obetnij go.
-                                    let body = match clean.find("*/") {
-                                        Some(k) => clean[k + 2..].trim_start(),
-                                        None => clean,
-                                    };
-                                    let guard: u8 = if body.starts_with("@!") {
-                                        2
-                                    } else if body.starts_with('@') {
-                                        1
-                                    } else {
-                                        0
-                                    };
-                                    xor_lanes.push((ii as u32, dreg, sreg, ih, guard));
+                                    xor_lanes.push((ii as u32, dreg, sreg, ih, guard_x));
                                 }
+                            } else if let (Some(dreg), Some(sa), Some(sb)) =
+                                (preg(parts5[0]), preg(parts5[1]), preg(parts5[2]))
+                            {
+                                // mk13: forma rejestrowa 0x3c (3 rejestry)
+                                // -> rekord 0129 (16B); lane bez bitu.
+                                xor_reg_l.push((ii as u32, dreg, sa, sb, guard_x));
                             }
                         }
                     }
@@ -1988,6 +1994,9 @@ fn cmd_asm_build_elf(
                 }
                 if !xor_lanes.is_empty() {
                     meta.merc_xor = xor_lanes;
+                }
+                if !xor_reg_l.is_empty() {
+                    meta.merc_xor_reg = xor_reg_l;
                 }
                 if !stg_off.is_empty() {
                     meta.merc_stg_off = stg_off;

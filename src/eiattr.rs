@@ -447,6 +447,10 @@ pub struct KernelMeta {
     /// uzycia). Gold v_ldg_u64: STG pi1 dostaje slot s=2 bo LDG.C@3 zajmuje
     /// s=1 (pi0,2). (lane, pi).
     pub merc_ldgconst: Vec<(u32, u32)>,
+    /// Mercury mk13: LOP3-xor w formie REJESTROWEJ (Rd, Ra, Rb, RZ, 0x3c) —
+    /// rekord 0129 (16B: dst@[10], srcA@[12], srcB@[14]); lane bez bitu.
+    /// (lane, dst, srcA, srcB, guard).
+    pub merc_xor_reg: Vec<(u32, u32, u32, u32, u8)>,
     /// Mercury mk13: enum SR per lane S2R (rownolegle do merc_s2r_lanes) —
     /// bajt b12 anchor-rekordu 010b040a (mk13; patrz mercury::merc_s2r_sr_enum).
     pub merc_s2r_sr: Vec<u8>,
@@ -515,6 +519,7 @@ impl KernelMeta {
             merc_predmem: false,
             merc_guarded_bra: Vec::new(),
             merc_ldgconst: Vec::new(),
+            merc_xor_reg: Vec::new(),
             merc_s2r_sr: Vec::new(),
             merc_lop3_pdest: Vec::new(),
         };
@@ -868,6 +873,7 @@ mod tests {
             merc_predmem: false,
             merc_guarded_bra: Vec::new(),
             merc_ldgconst: Vec::new(),
+            merc_xor_reg: Vec::new(),
             merc_s2r_sr: Vec::new(),
             merc_lop3_pdest: Vec::new(),
         };
