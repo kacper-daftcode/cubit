@@ -402,6 +402,11 @@ pub fn build_mma_rec(cls: u8, d: u8, a: u8, b: u8, c: u8, b8flags: u8) -> [u8; 3
 /// Mini-rekord dla IMMA.16832.*.SAT.
 pub const MERC_MMA_MINI_SAT: [u8; 4] = [0x42, 0x5a, 0x08, 0x26];
 
+/// Mini-rekord dla LOP3 z destem predykatowym (`LOP3.LUT Pn, ..`): lane NIE
+/// dostaje bitu bitmapy (w przeciwienstwie do LOP3 z destem Rn), zamiast
+/// tego 4-bajtowy atom w lane (gold d_sw4_store slot6, mk13 2026-08-06).
+pub const MERC_LOP3_PWRITE_MINI: [u8; 4] = [0x42, 0x2a, 0x02, 0x06];
+
 /// Rekord 020f (DMUL z imm) / 020c (DADD z imm): imm = gorne 32 bity stalej
 /// f64 na [28:32]; bajty-operandy: b10 = 03|(D&2)<<6, b11 = D>>2,
 /// b12 = 02|(A&2)<<6, b13 = A>>2, b14 = 0x13 const. Wariant: 0=DMUL, 1=DADD.
@@ -421,6 +426,43 @@ pub fn build_f64imm_rec(variant: u8, d: u8, a: u8, imm_top: u32) -> [u8; 32] {
     r[14] = 0x13;
     r[28..32].copy_from_slice(&imm_top.to_le_bytes());
     r
+}
+
+/// True gdy tekst LOP3 to wariant DUAL-WRITE (R-dest != RZ + zapis
+/// predykatu): nvdisasm drukuje go `LOP3.LUT Pn, ...` (gubi jawny R-dest —
+/// rozroznienie mozliwe tylko po slowie kodu), cubit drukuje
+/// `LOP3.LUT R0, R0, 0x3, RZ, 0xc0, !P1`. Gold d_sw4_store slot6: taki lane
+/// NIE dostaje bitu bitmapy; zamiast niego mini-rekord 42 2a 02 06. Wariant
+/// pred-only (dest RZ, np. `LOP3.LUT RZ, R0, 0x1, RZ, 0xc0, !P0`) dostaje
+/// bit normalnie (c_sel/d_ifelse2/sw2 exact; mk13 2026-08-06).
+pub fn lop3_writes_pred(text: &str) -> bool {
+    let mut t = text.trim_end_matches([';', ' ']).trim();
+    while let Some(rest) = t.strip_prefix('@') {
+        t = rest
+            .split_once(char::is_whitespace)
+            .map(|(_, r)| r.trim_start())
+            .unwrap_or("");
+    }
+    // odetnij mnemonik
+    let body = match t.split_once(char::is_whitespace) {
+        Some((_, r)) => r,
+        None => return false,
+    };
+    let toks: Vec<&str> = body
+        .split(',')
+        .map(|x| x.trim().trim_end_matches([';', ',']).trim_start_matches('!'))
+        .collect();
+    let is_p = |tok: &str| {
+        tok.len() >= 2 && tok.starts_with('P') && tok[1..].chars().all(|c| c.is_ascii_digit())
+    };
+    let is_rdest = |tok: &str| {
+        tok.len() >= 2 && tok != "RZ" && tok.starts_with('R')
+            && tok[1..].chars().all(|c| c.is_ascii_digit())
+    };
+    match (toks.first(), toks.last()) {
+        (Some(d), Some(p)) => is_rdest(d) && is_p(p),
+        _ => false,
+    }
 }
 
 /// Atom wypelniajacy lane dla UIADD3-killpad. UWAGA korpus (uiadd3_bitmap2):

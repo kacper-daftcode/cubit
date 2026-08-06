@@ -49,6 +49,8 @@ fn main() {
             merc_cbank_lane: if g.cblane >= 0 { Some(g.cblane as u32) } else { None },
             merc_s2r_lanes: g.s2r.to_vec(),
             merc_predmem: g.predmem != 0,
+            merc_guarded_bra: g.gbra.to_vec(),
+            merc_lop3_pdest: g.lpd.to_vec(),
         };
         let out = generate_mercury_full(&code, g.ord, Some(&ops), &meta, g.sm100 == 1);
         let gold = hx(g.gold);

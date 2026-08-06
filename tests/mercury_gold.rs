@@ -59,6 +59,8 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
         merc_cbank_lane: if g.cblane >= 0 { Some(g.cblane as u32) } else { None },
         merc_s2r_lanes: g.s2r.to_vec(),
         merc_predmem: g.predmem != 0,
+        merc_guarded_bra: g.gbra.to_vec(),
+        merc_lop3_pdest: g.lpd.to_vec(),
     }
 }
 
@@ -68,11 +70,9 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
 /// aktualizacji dokumentu.
 static EXPECTED_DIFF: &[(&str, &str)] = &[
     ("c_ld_dyn2",     "mk10c: trzeci anchor (S2R#2 lane4): f4n0=9 f4n1=0x204 — model multi-anchor mk13"),
-    ("d_sw4_store",   "mk13: mini-rekord 42 2a 02 06 (LOP3 z P-write) w lane + bitmap slot6"),
     ("lp1",           "loop LDG regiony"),
     ("p_atomg",       "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_atoms",       "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
-    ("p_call",        "mk13: bitmap: CALL/RET sasiedztwo — bit slot11 (rekordy OK po mk10c, anchor po S2R)"),
     ("p_cas",         "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_cctl",        "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_exit2",       "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
@@ -84,8 +84,6 @@ static EXPECTED_DIFF: &[(&str, &str)] = &[
     ("p_sts2",        "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_warpsync",    "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("q_bsync_pair",  "mk9: epilogi divergent"),
-    ("q_callloop",    "mk9: epilogi divergent"),
-    ("q_switch",      "mk13: bitmap: predykowany BRA @lane5 dostaje bit (rekordy OK po mk10c)"),
     ("q_tail_call",   "RET-w-loop/collective epilog rodzina"),
     ("sw16",          "mk9: switch-chain: bitmap B/region-carve (rekordy permutuja czysto)"),
     ("sw32",          "mk9: switch-chain: bitmap B/region-carve (rekordy permutuja czysto)"),

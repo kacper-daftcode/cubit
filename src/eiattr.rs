@@ -438,6 +438,14 @@ pub struct KernelMeta {
     /// Mercury mk10c: predykowana operacja pamieci (@P LDG/STG/LDS/STS/
     /// ATOMS/REDG) obecna — gasi bramke f4=7 (d_ifelse_ld: 0, k_ldg2: 7).
     pub merc_predmem: bool,
+    /// Mercury mk13: lane'y BRA pod predykatem (@Pn BRA) — dostaja bit
+    /// bitmapy (niepredykowany BRA, w tym koncowy po EXIT, bitu nie ma;
+    /// gold q_switch slot5). Zrodlo: guard z sass.
+    pub merc_guarded_bra: Vec<u32>,
+    /// Mercury mk13: lane'y LOP3 z destem predykatowym (LOP3.LUT Pn, ...) —
+    /// NIE dostaja bitu bitmapy, za to mini-rekord 42 2a 02 06 w lane
+    /// (gold d_sw4_store slot6).
+    pub merc_lop3_pdest: Vec<u32>,
 }
 
 
@@ -497,6 +505,8 @@ impl KernelMeta {
             merc_cbank_lane: None,
             merc_s2r_lanes: Vec::new(),
             merc_predmem: false,
+            merc_guarded_bra: Vec::new(),
+            merc_lop3_pdest: Vec::new(),
         };
 
         // Extract from global section (REGCOUNT, FRAME_SIZE, MIN_STACK_SIZE)
@@ -846,6 +856,8 @@ mod tests {
             merc_cbank_lane: None,
             merc_s2r_lanes: Vec::new(),
             merc_predmem: false,
+            merc_guarded_bra: Vec::new(),
+            merc_lop3_pdest: Vec::new(),
         };
 
         let global = meta.to_global_records(8);

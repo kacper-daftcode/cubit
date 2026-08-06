@@ -286,6 +286,10 @@ pub struct MercFeatures {
     pub s2r_lanes: Vec<u32>,
     /// mk10c: kernel ma predykowane operacje pamieci (gaszenie bramki f4=7).
     pub predmem: bool,
+    /// mk13: lane'y LOP3 z destem predykatowym -> mini-rekord 42 2a 02 06
+    /// w lane (lane same w sobie bitow bitmapy nie dostaja — obslugiwane
+    /// w generate_mercury_full).
+    pub lop3_pdest: Vec<u32>,
     /// mk10c: LDGSTS obecne — rekord desc uniform przy atomikach/async
     /// p_lgsts (03,02).
     pub n_ldgsts: u32,
@@ -429,6 +433,7 @@ impl MercFeatures {
         f.cbank_lane = meta.merc_cbank_lane;
         f.s2r_lanes = meta.merc_s2r_lanes.clone();
         f.predmem = meta.merc_predmem;
+        f.lop3_pdest = meta.merc_lop3_pdest.clone();
         f.n_ldgsts = opcodes.iter().filter(|o| o.starts_with("LDGSTS")).count() as u32;
 
         f
@@ -789,6 +794,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         Pad,
         Mma(usize),
         F64i(usize),
+        Lop3P,
     }
     // mk10c: zbior parametrow STG-wiazanych z PULI deskryptorow (nie ze
     // starej maski param_write — ta traci read->write gdy param czytany
@@ -864,6 +870,9 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for &pos in &feat.pad_pos {
         ev.push((pos, 20, Ev::Pad));
     }
+    for &pos in &feat.lop3_pdest {
+        ev.push((pos, 20, Ev::Lop3P));
+    }
     for (i, m) in feat.mma_lanes.iter().enumerate() {
         ev.push((m.0, 20, Ev::Mma(i.min(255) as usize)));
     }
@@ -904,6 +913,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::AcqBulk => out.extend_from_slice(&REC_ACQBULK),
             Ev::Cctl => out.extend_from_slice(&REC_CCTL),
             Ev::Pad => out.extend_from_slice(&crate::mercury::MERC_LANE_PAD),
+            Ev::Lop3P => out.extend_from_slice(&crate::mercury::MERC_LOP3_PWRITE_MINI),
             Ev::Mma(i) => {
                 let m = feat.mma_lanes[i];
                 if crate::mercury::merc_mma_is_mini(m.1) {
@@ -1272,6 +1282,8 @@ pub fn generate_mercury_full(
     let feat_f64_set: Vec<u32> =
         meta.merc_f64imm.iter().map(|&(lane, _, _, _, _)| lane).collect();
     let pad_set: Vec<u32> = meta.merc_pad_pos.clone();
+    let bra_guard_set: Vec<u32> = meta.merc_guarded_bra.clone();
+    let lop3_pdest_set: Vec<u32> = meta.merc_lop3_pdest.clone();
     // B = liczba slotow 0..end minus klasy zerowej wagi (nie dostaja bitu)
     let mut bitmap: Vec<u32> = Vec::new();
     let mut cur = 0u32;
@@ -1281,7 +1293,26 @@ pub fn generate_mercury_full(
             continue;
         }
         let tracked = match opcodes {
-            Some(ops) if i < ops.len() => opcode_tracked_hint(&ops[i]),
+            Some(ops) if i < ops.len() => {
+                let mut t = opcode_tracked_hint(&ops[i]);
+                let base_i = ops[i].split('.').next().unwrap_or(ops[i].as_str());
+                // mk13: CALL dostaje bit bitmapy (gold p_call slot11; RET ma
+                // bit zawsze — nie figuruje w opcode_tracked_hint-exclude).
+                if !t && base_i == "CALL" {
+                    t = true;
+                }
+                // mk13: predykowany BRA dostaje bit (gold q_switch slot5);
+                // koncowy BRA bez predykatu dalej bez bitu.
+                if !t && base_i == "BRA" && bra_guard_set.contains(&(i as u32)) {
+                    t = true;
+                }
+                // mk13: LOP3 z destem predykatowym bez bitu (mini-rekord
+                // 42 2a 02 06 w lane, gold d_sw4_store slot6).
+                if t && base_i == "LOP3" && lop3_pdest_set.contains(&(i as u32)) {
+                    t = false;
+                }
+                t
+            }
             _ => true,
         };
         // 0229-xor lane: pelny rekord zastepuje wezel typu4 (fs6: brak bitu);
