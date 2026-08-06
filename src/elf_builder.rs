@@ -1381,6 +1381,33 @@ pub fn generate_mercury_full(
         }
         None => Vec::new(),
     };
+    // mk13d: spany [BSSY..BSYNC) (mikrolab sw4/8/16/32/64): wewnatrz spanu
+    // WSZYSTKIE instrukcje dostaja bit bitmapy (takze BRA/BSSY/...), NOP
+    // w spanie nie zajmuje slotu B-space (B zlicza mniej), BSYNC zamyka
+    // span (sam bez bitu, ale slot zachowuje). Zgodnosc fitu: 5/5 wierszy.
+    let in_bssy_span: Vec<bool> = match opcodes {
+        Some(ops) => {
+            let mut v = vec![false; n_instr];
+            let mut st: Option<usize> = None;
+            for i in 0..end {
+                let b = ops[i].split('.').next().unwrap_or(ops[i].as_str());
+                if b == "BSSY" {
+                    st = Some(i);
+                    v[i] = true;
+                } else if let Some(s0) = st {
+                    if i > s0 {
+                        v[i] = true;
+                    }
+                }
+                if b == "BSYNC" && st.is_some() {
+                    v[i] = false;
+                    st = None;
+                }
+            }
+            v
+        }
+        None => Vec::new(),
+    };
     let mut xor_lane_set: Vec<u32> =
         meta.merc_xor.iter().map(|&(lane, _, _, _, _)| lane).collect();
     // mk13: rejestrowa forma xor tez zastepuje wezel typu4 (brak bitu).
@@ -1395,7 +1422,9 @@ pub fn generate_mercury_full(
     let mut cur = 0u32;
     let mut b_index = 0usize;
     for i in 0..end {
-        if is_w0(i) || region_drop.get(i).copied().unwrap_or(false) {
+        let nop_span_skip = in_bssy_span.get(i).copied().unwrap_or(false)
+            && matches!(opcodes, Some(ops) if ops[i] == "NOP");
+        if is_w0(i) || region_drop.get(i).copied().unwrap_or(false) || nop_span_skip {
             continue;
         }
         let tracked = match opcodes {
@@ -1416,6 +1445,10 @@ pub fn generate_mercury_full(
                 // 42 2a 02 06 w lane, gold d_sw4_store slot6).
                 if t && base_i == "LOP3" && lop3_pdest_set.contains(&(i as u32)) {
                     t = false;
+                }
+                // mk13d: wnetrze spanu BSSY — wszystko tracked (sw*-fit).
+                if in_bssy_span.get(i).copied().unwrap_or(false) {
+                    t = true;
                 }
                 t
             }
