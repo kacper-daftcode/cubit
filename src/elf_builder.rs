@@ -264,6 +264,14 @@ pub struct MercFeatures {
     pub f64_lanes: Vec<(u32, u8, u8, u8, u32)>,
     /// mk11: lane UIADD3 (killpad uniform) -> atom d0 00 w lane.
     pub pad_pos: Vec<u32>,
+    /// mk12 (iter AD): payload rekordu cflow-anchor `01 0b 04 0a`:
+    /// (b10,b11) = (f4<<6)|1, gdzie f4 = metryka regionu ptxas. Model
+    /// empiryczny dopasowany na secie gold (70/70 pozycji; oraculum
+    /// gdb-zmierzone, patrz anal/merclab/mk17). Pełna semantyka pola
+    /// (region-tree node+0x38, klasa 1) = osobny watek mk12.
+    pub anchor_f4: u32,
+    /// mk12: >=2 instrukcje MMA rodziny (HMMA/IMMA) kasuja b12 rekordu anchor.
+    pub os_mma_multi: bool,
 }
 
 impl MercFeatures {
@@ -336,6 +344,47 @@ impl MercFeatures {
             .map(|(i, _)| i as u32)
             .collect();
         f.stg_off = meta.merc_stg_off.clone();
+        // mk12: metryka f4 anchor#2 (pelna regula empiryczna z fitu gold+pommiary
+        // gdb; klasa bramkowana per obecnosc klas opkodu w kernelu).
+        let cnt = |pat: &str| {
+            opcodes.iter().filter(|o| o.split('.').next() == Some(pat)).count() as u32
+        };
+        let ldg = cnt("LDG");
+        let stg = cnt("STG");
+        let mma_f = cnt("HMMA") + cnt("IMMA");
+        f.os_mma_multi = mma_f >= 2;
+        let f64g = cnt("DMMA") + cnt("DMUL") + cnt("DADD");
+        let ldgsts = cnt("LDGSTS");
+        let cctl = cnt("CCTL");
+        let membar = cnt("MEMBAR");
+        let bssy = cnt("BSSY");
+        let sts = cnt("STS");
+        let lds = cnt("LDS");
+        let bar = cnt("BAR");
+        let isetp = cnt("ISETP");
+        let i2fp = cnt("I2FP");
+        let f2i = cnt("F2I");
+        f.anchor_f4 = if f64g > 0 {
+            8
+        } else if mma_f > 0 {
+            if mma_f == 1 { 4 } else { 5 }
+        } else if ldgsts > 0 || ldg >= 4 {
+            11
+        } else if cctl > 0 && membar == 0 {
+            7
+        } else if bssy > 0 && ldg >= 1 && sts >= 1 {
+            7
+        } else if isetp >= 6 && bssy == 0 {
+            4
+        } else if sts >= 1 && lds >= 1 && bar >= 1 && bssy == 0 {
+            0
+        } else if i2fp >= 1 && f2i >= 1 {
+            0
+        } else if ldg >= 1 && ldg + stg >= 2 && f.os_dynldg {
+            5
+        } else {
+            0
+        };
         f.stg_ser = meta.merc_stg_ser.clone();
         f.acqbulk_pos = opcodes
             .iter()
@@ -559,23 +608,15 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
     out.extend_from_slice(&REC_PROLOG);
     let cflow_rec = |feat: &MercFeatures| {
         let mut cf = REC_EXTRA_EXIT;
-        // wariant atom: bajt[12]=00 (k_atom/v_atom); wariant cflow/exit: 01
-        if feat.cflow_atom {
-            cf[12] = 0x00;
-        }
-        // bit 0x40 w bajcie[10]: BSSY / SHFL / MMA (empirycznie k_shfl, k_mma;
-        // k_diverge-predykacja zostaje bez) — residuum: LDG-dynamic-addr
-        // (k_ld/k_ldcg/k_ldg2) nieustalone.
-        if feat.cflow_bssy || feat.os_shfl || feat.os_mma
-            || (feat.os_dynldg && !feat.era_sm100) {
-            cf[10] |= 0x40;
-        }
-        // b11=01 dla sm_103a-era z dynldg (mikrolab: p_bar/k_ld/k_shfl/...);
-        // znane odstepstwa: multi-anchor (c_ld_dyn2...) oraz q_tail_call.
-        if feat.os_dynldg && !feat.era_sm100 {
-            cf[11] |= 0x01;
-        }
-        if feat.os_mma {
+        // mk12 (iter AD, zweryfikowane na secie gold 70/70): payload =
+        // (f4<<6)|1 na bajtach [10:11]; f4 = MercFeatures.anchor_f4.
+        // znane residua: multi-anchor seryjnosci (c_ld_dyn2, p_atomg/p_atoms),
+        // q_tail_call, d_ifelse_ld (pred-merge LDG), k_ldg2 (STG b20 kursora).
+        let v: u32 = (feat.anchor_f4 << 6) | 1;
+        cf[10] = (v & 0xff) as u8;
+        cf[11] = (v >> 8) as u8;
+        // wariant atom lub multi-MMA: bajt[12]=00, inaczej 01 (szablon 02 w b13).
+        if feat.cflow_atom || feat.os_mma_multi {
             cf[12] = 0x00;
         }
         cf
