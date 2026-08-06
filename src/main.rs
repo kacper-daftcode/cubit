@@ -1268,6 +1268,8 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_lop3_pdest: Vec::new(),
         merc_syncwarp: Vec::new(),
         merc_atoms: Vec::new(),
+        merc_ldgsts_pin: Vec::new(),
+        merc_ldgsts_wait: Vec::new(),
     }
 }
 
@@ -2310,6 +2312,21 @@ fn cmd_asm_build_elf(
                     meta.merc_guarded_bra = guarded_bra;
                     meta.merc_lop3_pdest = lop3_pdest;
                     meta.merc_atoms = atoms_scan;
+                    // mk14.3: LDGSTS pinned/wait hosty (lustro merc_ldgsts_scan).
+                    {
+                        let lines: Vec<(u32, String)> = insns
+                            .iter()
+                            .enumerate()
+                            .map(|(ii, (_a, t))| (ii as u32, t.clone()))
+                            .collect();
+                        let (pin, wait) = cubit::mercury::merc_ldgsts_scan(&lines);
+                        if let Some(p3) = pin {
+                            meta.merc_ldgsts_pin = vec![p3];
+                        }
+                        if let Some(w) = wait {
+                            meta.merc_ldgsts_wait = vec![w];
+                        }
+                    }
                     if !stg_pos2.is_empty() {
                         meta.merc_stg_desc_pos = stg_pos2;
                     }

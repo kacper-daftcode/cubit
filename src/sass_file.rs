@@ -215,6 +215,17 @@ pub fn kernel_def_to_meta(
         merc_exec_positions(&def.instructions);
     let (merc_xor, merc_xor_reg) = merc_xor_scan(&def.instructions);
     let merc_atoms = merc_atom_scan(&def.instructions);
+    // mk14.3: LDGSTS pinned/wait (wspoldzielony skaner tekstowy).
+    let (merc_ldgsts_pin, merc_ldgsts_wait) = {
+        let lines: Vec<(u32, String)> = def
+            .instructions
+            .iter()
+            .map(|i| ((i.addr / 16) as u32, i.raw_text.clone()))
+            .collect();
+        let (pn, wt) = crate::mercury::merc_ldgsts_scan(&lines);
+        (pn.map(|x| vec![x]).unwrap_or_default(),
+         wt.map(|x| vec![x]).unwrap_or_default())
+    };
     let merc_stg_ser = merc_stg_series(&def.instructions);
     let (merc_stg_dreg, merc_stg_dur, merc_stg_guard) = merc_stg_meta(&def.instructions);
     let merc_mma = merc_mma_scan(&def.instructions);
@@ -294,6 +305,8 @@ pub fn kernel_def_to_meta(
         // mk14: duchy syncwarp widoczne tylko w EIATTR (nie w tekscie sass).
         merc_syncwarp: Vec::new(),
         merc_atoms,
+        merc_ldgsts_pin,
+        merc_ldgsts_wait,
     }
 }
 

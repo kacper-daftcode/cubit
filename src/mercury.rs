@@ -280,6 +280,8 @@ pub fn opcode_tracked_hint(op: &str) -> bool {
             // mk14: AShared ATOMS tez bez bitu (gold p_atoms slot15 bit=0;
             // wszystkie klasy atomowe bez bitu — mk14/atombits.py).
             | "ATOMS"
+            // mk14.3: LDSM bez bitu (gold p_ldsm slot31 bit=0).
+            | "LDSM"
             | "BRA"
             | "BRX"
             | "JMP"
@@ -516,6 +518,142 @@ pub const MERC_SYNCWARP_GHOST: [u8; 16] = [
     0x01, 0x47, 0x6c, 0x0a, 0xf8, 0x00, 0x04, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
+
+/// mk14.3: blob 32B rekordu pinned `51 02` + 0223 3034 (LDGSTS/cp.async).
+/// Pola (3 probki m15-lab): dst(smem R)@[12..14)=(r<<6), addr-src(global
+/// R lancucha desc)@[17..19)=(a<<6)|2; blob[9]=01, [19]=09 stale; blob[16]
+/// niezdekodowane (modal 0x00; wariant noldg 0x01 — do mk16).
+pub fn build_ldgsts_blob(dst: u8, addr_src: u8) -> [u8; 34] {
+    let mut b = [0u8; 34];
+    b[0] = 0x51;
+    b[1] = 0x02;
+    // blob 32B
+    b[2] = 0x02;
+    b[3] = 0x23;
+    b[4] = 0x30;
+    b[5] = 0x34;
+    b[6] = 0xf8;
+    b[8] = 0x24;
+    b[9] = 0x10;
+    b[11] = 0x01;
+    if dst != 255 {
+        let v = (dst as u16) << 6;
+        b[14] = (v & 0xff) as u8;
+        b[15] = (v >> 8) as u8;
+    }
+    b[16] = 0x0a;
+    b[17] = 0x01;
+    if addr_src != 255 {
+        let v = ((addr_src as u16) << 6) | 2;
+        b[19] = (v & 0xff) as u8;
+        b[20] = (v >> 8) as u8;
+    }
+    b[21] = 0x09;
+    b[23] = 0x82;
+    b[24] = 0x01;
+    b[26] = 0xf8;
+    b
+}
+
+/// mk14.3: event 0123-400a (16B) — host = ostatnia instrukcja ze slotem
+/// przed DEPBAR(.LE) zamykajacym grupe cp.async; gryzie bit bitmapy hosta.
+pub const MERC_LDGSTS_WAIT: [u8; 16] = [
+    0x01, 0x23, 0x40, 0x0a, 0xf8, 0x00, 0x08, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
+/// mk14.3: mini-rekord LDSM (4B) w lane (gold p_ldsm: 42 5b 02 06 przed
+/// rekordem 0129 xor-rega; rekord zastepuje wezel t4 — bit LDSM = 0).
+pub const MERC_LDSM_MINI: [u8; 4] = [0x42, 0x5b, 0x02, 0x06];
+
+/// mk14.3: skan LDGSTS/cp.async po tekscie SASS: zwraca
+/// (pin=(lane,dst,src) rekordu pinned 5102+02233034, wait=lane 0123400a).
+/// - pin host = pierwszy killpad `@!PT LDS RZ, [RZ]` (iadla LDGSTS; 3/3 m15).
+/// - wait host = ostatnia instrukcja ze slotem przed pierwszym DEPBAR(.LE)
+///   po ostatnim LDGSTS (pomijamy klasy bez slotu: W0-lista).
+/// Brak LDGSTS albo brak killpada => None (nie emitujemy blobu).
+pub fn merc_ldgsts_scan(lines: &[(u32, String)]) -> (Option<(u32, u8, u8)>, Option<u32>) {
+    let reg_of = |t: &str| -> u8 {
+        let t = t.trim().trim_end_matches([';', ')', ']']);
+        if t == "RZ" || t == "URZ" {
+            return 255;
+        }
+        let d = t.trim_start_matches(['R', 'U']);
+        if !d.is_empty() && d.chars().all(|c| c.is_ascii_digit()) {
+            d.parse::<u32>().ok().map(|v| v.min(255) as u8).unwrap_or(255)
+        } else {
+            255
+        }
+    };
+    let norm = |t: &str| -> String {
+        let mut x = t.trim().to_string();
+        while x.starts_with('@') {
+            x = match x.split_once(' ') {
+                Some((_, r)) => r.trim().to_string(),
+                None => return x,
+            };
+        }
+        x
+    };
+    let base_of = |t: &str| -> String {
+        norm(t).split_whitespace().next().unwrap_or("").to_string()
+    };
+    let mut ldgsts: Option<(u32, u8, u8)> = None;
+    let mut killpads: Vec<u32> = Vec::new();
+    let mut dep_bar: Option<u32> = None;
+    let mut last_ldgsts_lane = 0u32;
+    for (lane, text) in lines {
+        let b = base_of(text);
+        let bb = b.split('.').next().unwrap_or("");
+        if bb == "LDGSTS" {
+            // LDGSTS.E [R7], desc[UR6][R4.64]
+            let tx = text.replace(';', "");
+            let parts: Vec<&str> = tx.split(',').map(|x| x.trim()).collect();
+            let mut dst = 255u8;
+            let mut src = 255u8;
+            if let Some(first) = parts.first() {
+                if let Some(o) = first.rfind('[') {
+                    let inner = &first[o + 1..];
+                    let end = inner.find(']').unwrap_or(inner.len());
+                    dst = reg_of(inner[..end].split('.').next().unwrap_or(""));
+                }
+                if parts.len() >= 2 {
+                    let ap = parts[1];
+                    if let Some(o) = ap.rfind('[') {
+                        let inner = &ap[o + 1..];
+                        let end = inner.find(']').unwrap_or(inner.len());
+                        src = reg_of(inner[..end].split('.').next().unwrap_or(""));
+                    }
+                }
+            }
+            ldgsts = Some((*lane, dst, src));
+            last_ldgsts_lane = *lane;
+        } else if bb == "LDS" {
+            let n = norm(text);
+            if n == "LDS RZ, [RZ]" {
+                killpads.push(*lane);
+            }
+        } else if bb == "DEPBAR" && ldgsts.is_some() && *lane > last_ldgsts_lane && dep_bar.is_none() {
+            dep_bar = Some(*lane);
+        }
+    }
+    let pin = match (ldgsts, killpads.first()) {
+        (Some((_, d, s)), Some(&kpl)) => Some((kpl, d, s)),
+        _ => None,
+    };
+    let wait = dep_bar.and_then(|dl| {
+        lines
+            .iter()
+            .rev()
+            .filter(|(l, _)| *l < dl)
+            .find(|(_, t)| {
+                let b = base_of(t);
+                !opcode_bitmap_zero_weight(&b)
+            })
+            .map(|(l, _)| *l)
+    });
+    (pin.filter(|_| ldgsts.is_some()), wait)
+}
 
 /// mk14: klasa rekordu atomowego 02 4d/02 4e.
 pub const MERC_ATOM_CLS_RED: u8 = 0;   // REDG/RED (fire-and-forget) -> 024d (legacy)
