@@ -212,7 +212,7 @@ pub fn kernel_def_to_meta(
          merc_ldgconst) =
         merc_param_scan(&def.instructions);
     let (merc_bar_pos, merc_stg_pos, merc_stg_off) = merc_exec_positions(&def.instructions);
-    let merc_xor = merc_xor_scan(&def.instructions);
+    let (merc_xor, merc_xor_reg) = merc_xor_scan(&def.instructions);
     let merc_stg_ser = merc_stg_series(&def.instructions);
     let (merc_stg_dreg, merc_stg_dur, merc_stg_guard) = merc_stg_meta(&def.instructions);
     let merc_mma = merc_mma_scan(&def.instructions);
@@ -271,6 +271,7 @@ pub fn kernel_def_to_meta(
         merc_param_regpath,
         merc_param_width,
         merc_xor,
+        merc_xor_reg,
         merc_stg_off,
         merc_stg_ser,
         merc_stg_dreg,
@@ -428,8 +429,11 @@ fn merc_stg_series(instructions: &[Instruction]) -> Vec<u8> {
     out
 }
 
-fn merc_xor_scan(instructions: &[Instruction]) -> Vec<(u32, u32, u32, u32, u8)> {
+fn merc_xor_scan(
+    instructions: &[Instruction],
+) -> (Vec<(u32, u32, u32, u32, u8)>, Vec<(u32, u32, u32, u32, u8)>) {
     let mut out = Vec::new();
+    let mut out_reg = Vec::new();
     for ins in instructions {
         if ins.opcode != "LOP3" {
             continue;
@@ -453,22 +457,34 @@ fn merc_xor_scan(instructions: &[Instruction]) -> Vec<(u32, u32, u32, u32, u8)> 
         if parts[4] != "0x3c" || !parts[3].starts_with("RZ") {
             continue;
         }
-        let Some(imm) = parts[2]
-            .strip_prefix("0x")
-            .and_then(|h| u32::from_str_radix(h, 16).ok())
-        else {
-            continue;
-        };
         let reg = |t: &str| -> Option<u32> {
             t.strip_prefix('R')
                 .and_then(|d| if d.chars().all(|c| c.is_ascii_digit()) { d.parse::<u32>().ok() } else { None })
         };
-        let (Some(dst), Some(src)) = (reg(parts[0]), reg(parts[1])) else {
-            continue;
-        };
-        out.push(((ins.addr / 16) as u32, dst, src, imm, guard));
+        match parts[2]
+            .strip_prefix("0x")
+            .and_then(|h| u32::from_str_radix(h, 16).ok())
+        {
+            Some(imm) => {
+                let (Some(dst), Some(src)) = (reg(parts[0]), reg(parts[1])) else {
+                    continue;
+                };
+                out.push(((ins.addr / 16) as u32, dst, src, imm, guard));
+            }
+            None => {
+                // mk13: forma rejestrowa A^B (0x3c, trzy rejestry) — osobny
+                // 16B rekord 0129: dst@[10]=(d<<6)|1, srcA@[12]=a<<6,
+                // srcB@[14]=b<<6; lane bez bitu bitmapy jak 0229 (gold lp1).
+                let (Some(dst), Some(src_a), Some(src_b)) =
+                    (reg(parts[0]), reg(parts[1]), reg(parts[2]))
+                else {
+                    continue;
+                };
+                out_reg.push(((ins.addr / 16) as u32, dst, src_a, src_b, guard));
+            }
+        }
     }
-    out
+    (out, out_reg)
 }
 
 /// Mercury mk11: instrukcje MMA (HMMA/DMMA/IMMA/...) -> rekord 025a w lane.

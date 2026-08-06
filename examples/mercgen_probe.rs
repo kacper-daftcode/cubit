@@ -53,6 +53,7 @@ fn main() {
             merc_guarded_bra: g.gbra.to_vec(),
             merc_lop3_pdest: g.lpd.to_vec(),
             merc_ldgconst: g.ldgc.to_vec(),
+            merc_xor_reg: g.pxr.to_vec(),
         };
         let out = generate_mercury_full(&code, g.ord, Some(&ops), &meta, g.sm100 == 1);
         let gold = hx(g.gold);

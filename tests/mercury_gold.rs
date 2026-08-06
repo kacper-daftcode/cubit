@@ -63,6 +63,7 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
         merc_guarded_bra: g.gbra.to_vec(),
         merc_lop3_pdest: g.lpd.to_vec(),
         merc_ldgconst: g.ldgc.to_vec(),
+        merc_xor_reg: g.pxr.to_vec(),
     }
 }
 
@@ -72,7 +73,6 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
 /// aktualizacji dokumentu.
 static EXPECTED_DIFF: &[(&str, &str)] = &[
     ("c_ld_dyn2",     "mk10c: trzeci anchor (S2R#2 lane4): f4n0=9 f4n1=0x204 — model multi-anchor mk13"),
-    ("lp1",           "loop LDG regiony"),
     ("p_atomg",       "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_atoms",       "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("p_cas",         "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
