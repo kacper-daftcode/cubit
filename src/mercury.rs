@@ -277,6 +277,9 @@ pub fn opcode_tracked_hint(op: &str) -> bool {
             | "REDG"
             | "RED"
             | "ATOMG"
+            // mk14: AShared ATOMS tez bez bitu (gold p_atoms slot15 bit=0;
+            // wszystkie klasy atomowe bez bitu — mk14/atombits.py).
+            | "ATOMS"
             | "BRA"
             | "BRX"
             | "JMP"
@@ -505,6 +508,70 @@ pub fn lop3_writes_pred(text: &str) -> bool {
 /// (32,490 vs 18 pomiarowow). Dlatego lane-pady sa explicite w meta.
 pub const MERC_LANE_PAD: [u8; 2] = [0xd0, 0x00];
 
+/// mk14: rekord-event ducha `__syncwarp()` (ptxas eliduje bezwarunkowy
+/// syncwarp do NOP; site'y z EIATTR 0x28 z maska 0xffffffff). Lane bez
+/// bitu bitmapy spoza spanow BSSY; payload stale (gold: p_warpsync/p_lds/
+/// p_sts2/p_ldsm/p_ldgsts/q_bsync_pair x2 — wszystkie identyczne).
+pub const MERC_SYNCWARP_GHOST: [u8; 16] = [
+    0x01, 0x47, 0x6c, 0x0a, 0xf8, 0x00, 0x04, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
+/// mk14: klasa rekordu atomowego 02 4d/02 4e.
+pub const MERC_ATOM_CLS_RED: u8 = 0;   // REDG/RED (fire-and-forget) -> 024d (legacy)
+pub const MERC_ATOM_CLS_G4: u8 = 1;    // ATOMG.E.<op> 4B global -> 024e5232
+pub const MERC_ATOM_CLS_CAS: u8 = 2;   // ATOMG.E.CAS.* -> 024e2432 (2 data regs)
+pub const MERC_ATOM_CLS_SHARED: u8 = 3;// ATOMS.<op> -> 024e8432
+
+fn merc_put16(b: &mut [u8; 32], off: usize, v: u16) {
+    b[off] = (v & 0xff) as u8;
+    b[off + 1] = (v >> 8) as u8;
+}
+
+/// Siatka rejestru jak w 0229/02 38: (r<<6)|flagi; RZ formy specjalne.
+fn merc_grid1(r: u8) -> u16 { if r == 255 { 0xffc1 } else { ((r as u16) << 6) | 1 } }
+fn merc_grid0(r: u8) -> u16 { if r == 255 { 0xffc0 } else { (r as u16) << 6 } }
+
+/// mk14: rekordy atomowe z rejestrami (dekod mk14/atommodel.py)
+/// istotnych zgodnych): guard_b4 = 0xf8 brak / 0x00 @Pn / 0x01 @!Pn.
+/// G4: [6]=subop (EXCH=0x80), dst@[14..16) grid1, addr@[17..19)=(a<<6)|2,
+/// value@[23..25) grid0. CAS: cmp@[21], swp@[23]. SHARED: dst@[12..14),
+/// [14..16)=0xffc0 stale, value@[21..23).
+pub fn build_atom_rec(
+    cls: u8, guard_b4: u8, subop6: u8, dst: u8, addr: u8, v1: u8, v2: u8,
+) -> [u8; 32] {
+    let mut b = [0u8; 32];
+    b[0] = 0x02; b[1] = 0x4e; b[3] = 0x32;
+    b[4] = guard_b4;
+    match cls {
+        MERC_ATOM_CLS_G4 => {
+            b[2] = 0x52; b[6] = subop6; b[7] = 0x40; b[8] = 0x03;
+            b[12] = 0x01; b[13] = 0xf8;
+            merc_put16(&mut b, 14, merc_grid1(dst));
+            if addr != 255 { merc_put16(&mut b, 17, ((addr as u16) << 6) | 2); }
+            b[19] = 0x0a; b[21] = 0x02; b[22] = 0x01;
+            merc_put16(&mut b, 23, merc_grid0(v1));
+        }
+        MERC_ATOM_CLS_CAS => {
+            b[2] = 0x24; b[7] = 0x88;
+            b[12] = 0x01; b[13] = 0xf8;
+            merc_put16(&mut b, 14, merc_grid1(dst));
+            if addr != 255 { merc_put16(&mut b, 17, ((addr as u16) << 6) | 2); }
+            b[19] = 0x0a;
+            merc_put16(&mut b, 21, merc_grid0(v1));
+            merc_put16(&mut b, 23, merc_grid0(v2));
+        }
+        MERC_ATOM_CLS_SHARED => {
+            b[2] = 0x84; b[6] = 0x04; b[7] = 0x60; b[8] = 0x01;
+            merc_put16(&mut b, 12, merc_grid1(dst));
+            merc_put16(&mut b, 14, 0xffc0);
+            b[18] = 0x01; b[19] = 0x0a;
+            merc_put16(&mut b, 21, merc_grid0(v1));
+        }
+        _ => {}
+    }
+    b
+}
 /// True gdy tekst SASS to killpad uniform-datapath (atom d0 00 w lane).
 /// Guard-tokeny (@Pn/@!UPT) sa tolerowane (mk11: drukarka dopisuje @!UPT).
 pub fn is_uiadd3_killpad(text: &str) -> bool {

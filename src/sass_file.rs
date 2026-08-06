@@ -214,6 +214,7 @@ pub fn kernel_def_to_meta(
     let (merc_bar_pos, merc_stg_pos, merc_stg_off, merc_bar_args) =
         merc_exec_positions(&def.instructions);
     let (merc_xor, merc_xor_reg) = merc_xor_scan(&def.instructions);
+    let merc_atoms = merc_atom_scan(&def.instructions);
     let merc_stg_ser = merc_stg_series(&def.instructions);
     let (merc_stg_dreg, merc_stg_dur, merc_stg_guard) = merc_stg_meta(&def.instructions);
     let merc_mma = merc_mma_scan(&def.instructions);
@@ -290,6 +291,9 @@ pub fn kernel_def_to_meta(
         merc_guarded_bra,
         merc_s2r_sr,
         merc_lop3_pdest,
+        // mk14: duchy syncwarp widoczne tylko w EIATTR (nie w tekscie sass).
+        merc_syncwarp: Vec::new(),
+        merc_atoms,
     }
 }
 
@@ -455,6 +459,108 @@ fn merc_stg_series(instructions: &[Instruction]) -> Vec<u8> {
             let nulltail = ins.raw_text.trim_end_matches([';', ' ']).ends_with(", RZ");
             out.push(((nulltail as u8) << 7) | ser.min(126));
             ser = ser.saturating_add(1);
+        }
+    }
+    out
+}
+
+/// mk14: skan rekordow atomowych ATOMG/ATOMS (RED* obsluguje legacy REC_ATOM).
+/// Format tuple zgodny z eiattr::KernelMeta::merc_atoms.
+fn merc_atom_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u8, u8, u8, u8, u8)> {
+    let mut out = Vec::new();
+    let reg_of = |t: &str| -> u8 {
+        let t = t.trim().trim_end_matches(';').trim_end_matches(')');
+        if t == "RZ" || t == "URZ" {
+            return 255;
+        }
+        let d = t.trim_start_matches(['R', 'U']);
+        if d.chars().all(|c| c.is_ascii_digit()) && !d.is_empty() {
+            d.parse::<u32>().ok().map(|v| v.min(255) as u8).unwrap_or(255)
+        } else {
+            255
+        }
+    };
+    for ins in instructions {
+        let lane = (ins.addr / 16) as u32;
+        let base = ins.opcode.as_str();
+        if !base.starts_with("ATOM") {
+            continue;
+        }
+        let mut toks = ins.raw_text.split_whitespace();
+        let mut first = toks.next().unwrap_or("");
+        let mut guard = 0u8;
+        if first.starts_with('@') {
+            guard = if first.starts_with("@!") { 2 } else { 1 };
+            first = toks.next().unwrap_or("");
+        }
+        if !base.starts_with("ATOMS") && !first.starts_with(base) && !first.starts_with("ATOM") {
+            continue;
+        }
+        let rest: Vec<&str> = toks.collect();
+        let rest = rest.join(" ");
+        let rest = rest.trim_end_matches(';');
+        let parts: Vec<&str> = rest.split(',').map(|x| x.trim()).collect();
+        let is_cas = base.contains("CAS");
+        if base.starts_with("ATOMS") {
+            // ATOMS.<op> Rd, [URx], Rv
+            if parts.len() < 3 {
+                continue;
+            }
+            out.push((lane, crate::mercury::MERC_ATOM_CLS_SHARED, guard,
+                      reg_of(parts[0]), 255, reg_of(parts[2]), 255, 0));
+        } else {
+            // ATOMG.E.<sub>.STRONG.<scope> PT, Rd, <addr>, Rv[, Rd2]
+            if parts.len() < 3 {
+                continue;
+            }
+            let dst = reg_of(parts[0].trim_start_matches("PT,").trim());
+            // dest tok moze zawierac "PT, R5" jako parts[0] po split(',')?
+            // split(',') dzieli "PT" i "R5" osobno — obsluga ponizej.
+            let (dst_idx, addr_idx) = if parts[0].contains("PT") && !parts[0].contains('R') {
+                (1usize, 2usize)
+            } else {
+                (0usize, 1usize)
+            };
+            let dst = if dst_idx < parts.len() { reg_of(parts[dst_idx]) } else { dst };
+            if addr_idx >= parts.len() {
+                continue;
+            }
+            let addr_part = parts[addr_idx];
+            // adres: [R4] albo desc[UR4][R2.64] — ostatni wewnetrzny [..]
+            let addr = {
+                let mut a = 255u8;
+                let mut s2 = addr_part;
+                while let Some(o) = s2.rfind('[') {
+                    let inner = &addr_part[o + 1..];
+                    let end = inner.find(']').unwrap_or(inner.len());
+                    let tok = &inner[..end];
+                    let r = reg_of(tok.split('+').next().unwrap_or("").split('.').next().unwrap_or(""));
+                    if r != 255 {
+                        a = r;
+                        break;
+                    }
+                    s2 = &addr_part[..o];
+                }
+                a
+            };
+            if is_cas {
+                if parts.len() < addr_idx + 3 {
+                    continue;
+                }
+                out.push((lane, crate::mercury::MERC_ATOM_CLS_CAS, guard, dst, addr,
+                          reg_of(parts[addr_idx + 1]), reg_of(parts[addr_idx + 2]), 0));
+            } else {
+                if parts.len() < addr_idx + 2 {
+                    continue;
+                }
+                let sub6: u8 = if base.starts_with("ATOMG") && ins.raw_text.contains(".EXCH") {
+                    0x80
+                } else {
+                    0
+                };
+                out.push((lane, crate::mercury::MERC_ATOM_CLS_G4, guard, dst, addr,
+                          reg_of(parts[addr_idx + 1]), 255, sub6));
+            }
         }
     }
     out
