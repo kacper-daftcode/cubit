@@ -90,7 +90,6 @@ static EXPECTED_DIFF: &[(&str, &str)] = &[
     ("sw4",           "mk9: switch-chain: bitmap B/region-carve (rekordy permutuja czysto)"),
     ("sw64",          "mk9: switch-chain: bitmap B/region-carve (rekordy permutuja czysto)"),
     ("sw8",           "mk9: switch-chain: bitmap B/region-carve (rekordy permutuja czysto)"),
-    ("v_dyn_smem",    "smem dyn"),
 ];
 
 #[test]
