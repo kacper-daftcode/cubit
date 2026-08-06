@@ -50,6 +50,8 @@ fn meta(name: &str, n_params: u32, exits: u32, smem: u32, bars: u8, cbank: u16) 
         merc_stg_off: Vec::new(),
         merc_stg_ser: Vec::new(),
         merc_stg_dreg: Vec::new(),
+        merc_stg_dur: Vec::new(),
+        merc_stg_guard: Vec::new(),
         merc_mma: Vec::new(),
         merc_f64imm: Vec::new(),
         merc_pad_pos: Vec::new(),
