@@ -252,6 +252,8 @@ pub struct MercFeatures {
     /// mk10b: per-STG pakiet (nulltail<<7)|series_idx-z-blokow (sass scan).
     /// Uzywane TYLKO gdy wszystkie dp==0 (same-desc seria), inaczej legacy.
     pub stg_ser: Vec<u8>,
+    /// mk12: per-STG rejestr danych (kursor 0238 b19/b20 = dreg<<6, LE).
+    pub stg_dreg: Vec<u8>,
     /// Pozycje kodowe ACQBULK (rekord 01 62 00 0a w lane, bez bitu bitmapy;
     /// gold w_depsync / mk10c).
     pub acqbulk_pos: Vec<u32>,
@@ -386,6 +388,7 @@ impl MercFeatures {
             0
         };
         f.stg_ser = meta.merc_stg_ser.clone();
+        f.stg_dreg = meta.merc_stg_dreg.clone();
         f.acqbulk_pos = opcodes
             .iter()
             .enumerate()
@@ -527,10 +530,7 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize) -> [u8; 32] {
         .get(stg_i)
         .copied()
         .unwrap_or(stg_i as u32 % 2);
-    // mk10b kursor serii (same-desc sciezka; swiadectwo: s_stg*/k_bra/
-    // t_branct/d_2seq/i in.): b19 = 40 | parity<<7, b20 = 1 + (i>>1);
-    // null-tail (STG value RZ, offset 0) wymusza (c0, ff).
-    // mk11: wide seria (STG.E.64 w serii, dp nieznane) — model z k_mma:
+    // mk10b wide-serie (STG.E.64 w serii, dp nieznane) — model z k_mma:
     // stala karta b11=00,b12=02,b13=01,b17=02,b18=01; b19=02|par<<7;
     // b20 schodzi parami od n_stg: 4-(ser>>1) przy n_stg=4 (jedna probka —
     // doprecyzowac gdy mk-lab objmie wide-serie); imm offset jako u16 LE.
@@ -551,33 +551,40 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize) -> [u8; 32] {
         && feat.stg_desc_pos.iter().all(|&d| d == 0)
         && feat.stg_desc_pos.len() == feat.n_stg as usize;
     if !stg_narrow && !feat.stg_wide && same_desc && !feat.stg_ser.is_empty() {
-        let pack = feat.stg_ser.get(stg_i).copied().unwrap_or(0);
-        let (nulltail, ser) = (pack >> 7 != 0, pack & 0x7f);
-        if nulltail {
-            stg[19] = 0xc0;
-            stg[20] = 0xff;
-        } else {
-            stg[19] = 0x40 | ((ser & 1) << 7);
-            stg[20] = 1 + (ser >> 1);
-        }
-        let off = feat.stg_off.get(stg_i).copied().unwrap_or(0) as u16;
-        stg[28..30].copy_from_slice(&off.to_le_bytes());
-        return stg;
+        // seria same-desc: slot desc zostaje (82,00); kursor b19/b20 = dreg<<6
+        // liczony wspolnie na koncu (mk12 zastepuje model mk10b).
     }
     if !stg_narrow && !feat.stg_wide && (feat.n_stg > 1 || dp > 0) {
         // slot desc-stream (fs10b 2026-08-05): b12 = 82/02 po parzystosci
-        // slotu, b13 = (s+1)>>1 (s=0 -> (82,00); zachowanie b19 jak dawniej)
+        // slotu, b13 = (s+1)>>1 (s=0 -> (82,00)); kursor b19/b20 ponizej
         if dp % 2 == 1 {
             stg[12] = 0x02;
             stg[13] = ((dp + 1) >> 1) as u8;
-            stg[19] = 0xc0;
         } else {
             stg[13] = (dp >> 1) as u8;
             if stg[13] > 0 {
                 stg[12] = 0x82;
             }
-            stg[19] |= 0x40;
         }
+    }
+    // mk12: kursor STG (bajty 19/20, u16 LE) = numer rejestru danych << 6
+    // (RZ -> 0x3ff<<6 = 0xffc0). Fit na pelnej macierzy gold (mk12-harvest:
+    // R3->0x00c0, R5->0x0140, R7->0x01c0, R9->0x0240, R11->0x02c0,
+    // R21->0x0540). Bez metadanej stg_dreg fallback na model mk10b
+    // (rownowazny dreg = 5+2*ser, nulltail = RZ) dla zgodnosci wstecz.
+    if !feat.stg_wide {
+        let dreg: u16 = match feat.stg_dreg.get(stg_i) {
+            Some(&d) => {
+                if d == 255 { 0x3ff } else { d as u16 }
+            }
+            None => {
+                let pack = feat.stg_ser.get(stg_i).copied().unwrap_or(0);
+                if pack >> 7 != 0 { 0x3ff } else { 5 + 2 * ((pack & 0x7f) as u16) }
+            }
+        };
+        let cur = dreg << 6;
+        stg[19] = (cur & 0xff) as u8;
+        stg[20] = (cur >> 8) as u8;
     }
     let off = feat.stg_off.get(stg_i).copied().unwrap_or(0) as u16;
     stg[28..30].copy_from_slice(&off.to_le_bytes());

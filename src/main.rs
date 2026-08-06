@@ -1247,6 +1247,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_xor: Vec::new(),
         merc_stg_off: Vec::new(),
         merc_stg_ser: Vec::new(),
+        merc_stg_dreg: Vec::new(),
         merc_mma: Vec::new(),
         merc_f64imm: Vec::new(),
         merc_pad_pos: Vec::new(),
@@ -1830,6 +1831,7 @@ fn cmd_asm_build_elf(
                 .unwrap();
                 let mut xor_lanes: Vec<(u32, u32, u32, u32, u8)> = Vec::new();
                 let mut stg_off: Vec<u32> = Vec::new();
+                let mut stg_dreg: Vec<u8> = Vec::new();
                 for (ii, (_addr, asm)) in insns.iter().enumerate() {
                     let clean = if let Some(idx) = asm.find("/* @sched") {
                         &asm[..idx]
@@ -1901,6 +1903,19 @@ fn cmd_asm_build_elf(
                             None => 0,
                         };
                         stg_off.push(off);
+                        let tail = clean.trim_end_matches([';', ' ']);
+                        let last = tail.rsplit(',').next().unwrap_or("").trim();
+                        let d: u8 = if last == "RZ" {
+                            255
+                        } else {
+                            last
+                                .strip_prefix('R')
+                                .filter(|s| !s.is_empty() && s.bytes().all(|b2| b2.is_ascii_digit()))
+                                .and_then(|s| s.parse::<u32>().ok())
+                                .map(|v| v.min(255) as u8)
+                                .unwrap_or(255)
+                        };
+                        stg_dreg.push(d);
                     }
                     let parts: Vec<String> = rest
                         .split(',')
@@ -1949,6 +1964,9 @@ fn cmd_asm_build_elf(
                 }
                 if !stg_off.is_empty() {
                     meta.merc_stg_off = stg_off;
+                }
+                if !stg_dreg.is_empty() {
+                    meta.merc_stg_dreg = stg_dreg;
                 }
             }
         }
