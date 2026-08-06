@@ -59,8 +59,10 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
         merc_cbank_lane: if g.cblane >= 0 { Some(g.cblane as u32) } else { None },
         merc_s2r_lanes: g.s2r.to_vec(),
         merc_predmem: g.predmem != 0,
+        merc_s2r_sr: g.s2rsr.to_vec(),
         merc_guarded_bra: g.gbra.to_vec(),
         merc_lop3_pdest: g.lpd.to_vec(),
+        merc_ldgconst: g.ldgc.to_vec(),
     }
 }
 
@@ -91,7 +93,6 @@ static EXPECTED_DIFF: &[(&str, &str)] = &[
     ("sw64",          "mk9: switch-chain: bitmap B/region-carve (rekordy permutuja czysto)"),
     ("sw8",           "mk9: switch-chain: bitmap B/region-carve (rekordy permutuja czysto)"),
     ("v_dyn_smem",    "smem dyn"),
-    ("v_ldg_u64",     "mk10c-park: STG slot (82,01)=s2 wykraczajacy pul`e wide (jedyna odchyłka)" ),
 ];
 
 #[test]

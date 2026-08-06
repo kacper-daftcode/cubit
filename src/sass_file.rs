@@ -208,7 +208,8 @@ pub fn kernel_def_to_meta(
 
     let (merc_param_order, merc_param_write, merc_stg_desc_pos, merc_bar_pred,
          merc_param_uniform, merc_param_regpath, merc_param_width,
-         merc_param_loads, merc_cbank_lane, merc_s2r_lanes, merc_predmem) =
+         merc_param_loads, merc_cbank_lane, merc_s2r_lanes, merc_predmem,
+         merc_ldgconst) =
         merc_param_scan(&def.instructions);
     let (merc_bar_pos, merc_stg_pos, merc_stg_off) = merc_exec_positions(&def.instructions);
     let merc_xor = merc_xor_scan(&def.instructions);
@@ -226,8 +227,15 @@ pub fn kernel_def_to_meta(
     // mini-rekord 42 2a 02 06 w lane (gold q_switch/p_call/d_sw4_store).
     let mut merc_guarded_bra: Vec<u32> = Vec::new();
     let mut merc_lop3_pdest: Vec<u32> = Vec::new();
+    let mut merc_s2r_sr: Vec<u8> = Vec::new();
     for ins in &def.instructions {
         let lane = (ins.addr / 16) as u32;
+        if ins.opcode == "S2R" {
+            // mk13: enum SR -> b12 anchor-rekordu (rownolegle do
+            // merc_s2r_lanes z merc_param_scan — oba w kolejnosci adresow).
+            let sr = crate::mercury::s2r_sr_name(&ins.raw_text);
+            merc_s2r_sr.push(crate::mercury::merc_s2r_sr_enum(&sr));
+        }
         if ins.opcode == "BRA" {
             if let Some(g) = &ins.guard {
                 if g.pred != 7 {
@@ -275,7 +283,9 @@ pub fn kernel_def_to_meta(
         merc_cbank_lane,
         merc_s2r_lanes,
         merc_predmem,
+        merc_ldgconst,
         merc_guarded_bra,
+        merc_s2r_sr,
         merc_lop3_pdest,
     }
 }
@@ -547,7 +557,7 @@ fn merc_f64imm_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u8, u32)>
 
 fn merc_param_scan(
     instructions: &[Instruction],
-) -> (Option<Vec<u32>>, u32, Vec<u32>, bool, u32, u32, Vec<u8>, Vec<(u32, u32, u8, u8, u8)>, Option<u32>, Vec<u32>, bool) {
+) -> (Option<Vec<u32>>, u32, Vec<u32>, bool, u32, u32, Vec<u8>, Vec<(u32, u32, u8, u8, u8)>, Option<u32>, Vec<u32>, bool, Vec<(u32, u32)>) {
     // reg name -> (param idx, idx w puli deskryptorow (pi,mech))
     let mut reg_of: Vec<(String, u32, u32)> = Vec::new();
     let mut order: Vec<u32> = Vec::new();
@@ -563,6 +573,7 @@ fn merc_param_scan(
     let mut s2r_lanes: Vec<u32> = Vec::new();
     let mut predmem = false;
     let mut pool: Vec<(u32, u8)> = Vec::new();
+    let mut ldgconst: Vec<(u32, u32)> = Vec::new();
 
     fn note(m: &mut u32, pi: u32) {
         if pi < 32 {
@@ -570,7 +581,18 @@ fn merc_param_scan(
         }
     }
     for ins in instructions {
-        let t = ins.raw_text.as_str();
+        // mk13b: tekst roboczy BEZ guarda prowadzacego (@Pn/@!Pn/@UPn) —
+        // dest-parse LDC bral dotad nth(1) po surowym tekscie, co dla
+        // predykowanych loadow dawalo smiec ("LDC.64" zamiast R2) i gubilo
+        // binding STG (d_ifearly_exit/d_ifearly_stg: STG dp=MAX).
+        let t_full = ins.raw_text.as_str();
+        let t: &str = match t_full.trim_start().strip_prefix('@') {
+            Some(rest) => rest
+                .split_once(char::is_whitespace)
+                .map(|(_, r)| r.trim_start())
+                .unwrap_or(t_full),
+            None => t_full,
+        };
         let lane = (ins.addr / 16) as u32;
         let guard_v: u8 = match &ins.guard {
             None => 0,
@@ -670,6 +692,27 @@ fn merc_param_scan(
                 }
             }
         }
+        // mk13: LDG.E.CONSTANT przez desc[URx][Rn.64] = osobny klucz puli
+        // (pi, 2) w kolejnosci kodu — nvcc numeruje sloty STG z tym wpisem
+        // (gold v_ldg_u64: STG pi1 -> s=2, bo LDG.C@3 = (pi0,2) -> s=1).
+        if base0 == "LDG" && ins.opcode_full.contains(".CONSTANT") {
+            if let Some(lb) = t.rfind('[') {
+                let inner = &t[lb + 1..t[lb + 1..].find(']').map(|e| lb + 1 + e).unwrap_or(t.len())];
+                let root: String = inner
+                    .chars()
+                    .take_while(|c| c.is_ascii_alphanumeric())
+                    .collect();
+                if let Some((_, pi, pidx)) = reg_of.iter().find(|(rn, _, _)| *rn == root) {
+                    if *pidx != u32::MAX {
+                        let key = (*pi, 2u8);
+                        if !pool.contains(&key) {
+                            pool.push(key);
+                        }
+                        ldgconst.push((lane, *pi));
+                    }
+                }
+            }
+        }
         // alias-flow UR/R: dest <- zrodla sledzone (shape IADD3 R2, P0, PT, R0, UR6, RZ)
         if matches!(
             base0,
@@ -712,6 +755,7 @@ fn merc_param_scan(
             base0,
             "LDG" | "STG" | "ATOMG" | "ATOMS" | "RED" | "REDG" | "LDS" | "STS" | "LD" | "ST"
         );
+        let mut stg_binding: Option<u32> = None;
         if is_mem {
             if guard_v != 0 {
                 predmem = true;
@@ -734,9 +778,36 @@ fn merc_param_scan(
                 }
                 // mk10c: STG binding -> indeks PULI deskryptorow (pi, mech)
                 // zrodlowego loadu roota adresowego (nie pozycja param-queue).
-                if used && matches!(base0, "STG" | "ATOMG" | "ATOMS" | "RED" | "REDG") {
-                    stg_desc_pos.push(*pidx);
+                // mk13b: NIE pushowac tutaj (aliasowe duplikaty reg_of dawaly
+                // wiele wpisow na STG) — jeden binding per instrukcja, patrz
+                // nizej.
+                if used
+                    && matches!(base0, "STG" | "ATOMG" | "ATOMS" | "RED" | "REDG")
+                    && stg_binding.is_none()
+                {
+                    stg_binding = Some(*pidx);
                 }
+            }
+            // mk13b: nvcc numeruje slot per INSTRUKCJA STG — dokladnie jeden
+            // wpis. Root adresu = ostatni nawias kwadratowy (jak mk_gold /
+            // main-rs mirror); fallback = binding z petli, inaczej UNKNOWN.
+            if matches!(base0, "STG" | "ATOMG" | "ATOMS" | "RED" | "REDG") {
+                let binding = if let Some(lb) = t.rfind('[') {
+                    let end = t[lb..].find(']').map(|e| lb + e).unwrap_or(t.len());
+                    let root: String = t[lb + 1..end]
+                        .chars()
+                        .take_while(|c| c.is_ascii_alphanumeric())
+                        .collect();
+                    reg_of
+                        .iter()
+                        .find(|(rn, _, _)| *rn == root)
+                        .map(|(_, _, p)| *p)
+                        .or(stg_binding)
+                        .unwrap_or(u32::MAX)
+                } else {
+                    stg_binding.unwrap_or(u32::MAX)
+                };
+                stg_desc_pos.push(binding);
             }
         }
         if base0 == "BAR" && ins.guard.is_some() {
@@ -753,5 +824,6 @@ fn merc_param_scan(
      loads,
      cbank_lane,
      s2r_lanes,
-     predmem)
+     predmem,
+     ldgconst)
 }
