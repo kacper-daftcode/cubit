@@ -1261,6 +1261,8 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_s2r_lanes: Vec::new(),
         merc_predmem: false,
         merc_guarded_bra: Vec::new(),
+        merc_ldgconst: Vec::new(),
+        merc_s2r_sr: Vec::new(),
         merc_lop3_pdest: Vec::new(),
     }
 }
@@ -2033,6 +2035,8 @@ fn cmd_asm_build_elf(
                     let mut stg_pos2: Vec<u32> = Vec::new();
                     let mut guarded_bra: Vec<u32> = Vec::new();
                     let mut lop3_pdest: Vec<u32> = Vec::new();
+                    let mut s2r_sr: Vec<u8> = Vec::new();
+                    let mut ldgconst: Vec<(u32, u32)> = Vec::new();
                     for (ii, (_addr, asm)) in insns.iter().enumerate() {
                         let clean = if let Some(idx) = asm.find("/* @sched") {
                             &asm[..idx]
@@ -2058,6 +2062,17 @@ fn cmd_asm_build_elf(
                         let rest = m2.get(2).map(|x| x.as_str()).unwrap_or("");
                         if base0 == "S2R" {
                             s2r_lanes.push(ii as u32);
+                            // mk13: enum SR -> b12 anchor-rekordu
+                            let sr_full = match rest.split("SR_").nth(1) {
+                                Some(t) => {
+                                    let e = t
+                                        .find(|c: char| !(c.is_alphanumeric() || c == '.'))
+                                        .unwrap_or(t.len());
+                                    format!("SR_{}", &t[..e])
+                                }
+                                None => String::new(),
+                            };
+                            s2r_sr.push(cubit::mercury::merc_s2r_sr_enum(&sr_full));
                         }
                         if guard_m != 0 && mem_ops.contains(&base0) {
                             predmem = true;
@@ -2135,6 +2150,26 @@ fn cmd_asm_build_elf(
                                 stg_pos2.push(*regpool.get(last).unwrap_or(&u32::MAX));
                             }
                         }
+                        // mk13: LDG.E.CONSTANT przez desc = osobny wpis puli
+                        // slotow (klucz (pi,2)) w porzadku kodu (v_ldg_u64).
+                        if base0 == "LDG" && m2.get(1).map(|x| x.as_str().contains(".CONSTANT")).unwrap_or(false) {
+                            let bks: Vec<String> = re_brak
+                                .captures_iter(body)
+                                .map(|c| c[1].to_string())
+                                .collect();
+                            if let Some(last) = bks.last() {
+                                if let Some(&pidx) = regpool.get(last) {
+                                    if pidx != u32::MAX {
+                                        let pi = pool[pidx as usize].0;
+                                        let key = (pi, 2u8);
+                                        if !pool.contains(&key) {
+                                            pool.push(key);
+                                        }
+                                        ldgconst.push((ii as u32, pi));
+                                    }
+                                }
+                            }
+                        }
                         // mk13: predykowany BRA dostaje bit bitmapy (q_switch
                         // slot5); guard @PT/@UPT = de facto brak predykatu.
                         if base0 == "BRA" && guard_m != 0 {
@@ -2157,6 +2192,8 @@ fn cmd_asm_build_elf(
                     meta.merc_param_loads = loads;
                     meta.merc_cbank_lane = cbank_lane;
                     meta.merc_s2r_lanes = s2r_lanes;
+                    meta.merc_s2r_sr = s2r_sr;
+                    meta.merc_ldgconst = ldgconst;
                     meta.merc_predmem = predmem;
                     meta.merc_guarded_bra = guarded_bra;
                     meta.merc_lop3_pdest = lop3_pdest;
@@ -2219,7 +2256,8 @@ fn cmd_asm_build_elf(
                             .split_whitespace()
                             .find(|t| !t.starts_with('@'))
                             .unwrap_or("");
-                        m.split('.').next().unwrap_or("").to_string()
+                        // mk13a: pelny mnemoniczek (patrz kops w cmd_asm).
+                        m.to_string()
                     })
                     .collect(),
             ),
@@ -3286,7 +3324,11 @@ fn cmd_asm_directive_format(
             meta.num_barriers
         );
 
-        let kops: Vec<String> = def.instructions.iter().map(|i| i.opcode.clone()).collect();
+        // mk13a: PELNE mnemoniczki (opcode_full) — bitmap/scany i tak biora
+        // baze split('.'), a stg_wide/u8 + modele mk12/13 potrzebuja
+        // modyfikatorow (.64/.128/.CONSTANT). Spojne z ops[] manifestu gold.
+        let kops: Vec<String> =
+            def.instructions.iter().map(|i| i.opcode_full.clone()).collect();
         entries.push(KernelEntry {
             name: def.name.clone(),
             code: code_bytes,

@@ -402,6 +402,40 @@ pub fn build_mma_rec(cls: u8, d: u8, a: u8, b: u8, c: u8, b8flags: u8) -> [u8; 3
 /// Mini-rekord dla IMMA.16832.*.SAT.
 pub const MERC_MMA_MINI_SAT: [u8; 4] = [0x42, 0x5a, 0x08, 0x26];
 
+/// mk13: bajt b12 rekordu anchor 010b040a = enum rejestru SR czytanego przez
+/// S2R, ktoremu anchor odpowiada (b13=0x02 stale; boot-anchor = 0x0400).
+/// Zmierzone na gold: SR_LANEID=0, SR_TID.X=1, SR_CTAID.X=4, SR_LTMASK=8
+/// (p_atomg/p_atoms/c_ld_dyn2/k_mma/k_atom — po 2+ probki; zastepuje stary
+/// hack "cf[12]=0 dla atom/mma", kAtom/kMma czytaja wlasnie LANEID).
+/// Fallback 1 (TID.X = dominanta korpusowa).
+pub fn merc_s2r_sr_enum(sr: &str) -> u8 {
+    match sr {
+        "SR_LANEID" => 0,
+        "SR_TID.X" => 1,
+        "SR_TID.Y" => 2,
+        "SR_TID.Z" => 3,
+        "SR_CTAID.X" => 4,
+        "SR_CTAID.Y" => 5,
+        "SR_CTAID.Z" => 6,
+        "SR_LTMASK" => 8,
+        _ => 1,
+    }
+}
+
+/// mk13: wyciaga nazwe SR_ z linii S2R (`S2R R5, SR_LANEID ;` -> "SR_LANEID";
+/// guard @Pn tolerowany).
+pub fn s2r_sr_name(text: &str) -> String {
+    match text.split("SR_").nth(1) {
+        Some(t) => {
+            let e = t
+                .find(|c: char| !(c.is_alphanumeric() || c == '.'))
+                .unwrap_or(t.len());
+            format!("SR_{}", &t[..e])
+        }
+        None => String::new(),
+    }
+}
+
 /// Mini-rekord dla LOP3 z destem predykatowym (`LOP3.LUT Pn, ..`): lane NIE
 /// dostaje bitu bitmapy (w przeciwienstwie do LOP3 z destem Rn), zamiast
 /// tego 4-bajtowy atom w lane (gold d_sw4_store slot6, mk13 2026-08-06).

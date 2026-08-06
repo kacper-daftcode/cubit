@@ -442,6 +442,14 @@ pub struct KernelMeta {
     /// bitmapy (niepredykowany BRA, w tym koncowy po EXIT, bitu nie ma;
     /// gold q_switch slot5). Zrodlo: guard z sass.
     pub merc_guarded_bra: Vec<u32>,
+    /// Mercury mk13: LDG.E.CONSTANT przez desc[URx][Rn.64] = dodatkowy wpis
+    /// w puli slotow deskryptorow (klucz (pi, mech=2), pozycja = lane
+    /// uzycia). Gold v_ldg_u64: STG pi1 dostaje slot s=2 bo LDG.C@3 zajmuje
+    /// s=1 (pi0,2). (lane, pi).
+    pub merc_ldgconst: Vec<(u32, u32)>,
+    /// Mercury mk13: enum SR per lane S2R (rownolegle do merc_s2r_lanes) —
+    /// bajt b12 anchor-rekordu 010b040a (mk13; patrz mercury::merc_s2r_sr_enum).
+    pub merc_s2r_sr: Vec<u8>,
     /// Mercury mk13: lane'y LOP3 z destem predykatowym (LOP3.LUT Pn, ...) —
     /// NIE dostaja bitu bitmapy, za to mini-rekord 42 2a 02 06 w lane
     /// (gold d_sw4_store slot6).
@@ -506,6 +514,8 @@ impl KernelMeta {
             merc_s2r_lanes: Vec::new(),
             merc_predmem: false,
             merc_guarded_bra: Vec::new(),
+            merc_ldgconst: Vec::new(),
+            merc_s2r_sr: Vec::new(),
             merc_lop3_pdest: Vec::new(),
         };
 
@@ -857,6 +867,8 @@ mod tests {
             merc_s2r_lanes: Vec::new(),
             merc_predmem: false,
             merc_guarded_bra: Vec::new(),
+            merc_ldgconst: Vec::new(),
+            merc_s2r_sr: Vec::new(),
             merc_lop3_pdest: Vec::new(),
         };
 

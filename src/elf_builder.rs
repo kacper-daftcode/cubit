@@ -290,6 +290,12 @@ pub struct MercFeatures {
     /// w lane (lane same w sobie bitow bitmapy nie dostaja — obslugiwane
     /// w generate_mercury_full).
     pub lop3_pdest: Vec<u32>,
+    /// mk13: enum SR per anchor-S2R (rownolegle do s2r_lanes) — b12 rekordu
+    /// 010b040a (korpus: LANEID=0 -> b12=0 TID.X=1 CTAID.X=4 LTMASK=8).
+    pub s2r_sr: Vec<u8>,
+    /// mk13: uzycia desc przez LDG.E.CONSTANT (lane, pi) — wpis (pi,2) w
+    /// puli slotow STG (v_ldg_u64 s=2 przy 2 deskryptorach wide).
+    pub ldgconst: Vec<(u32, u32)>,
     /// mk10c: LDGSTS obecne — rekord desc uniform przy atomikach/async
     /// p_lgsts (03,02).
     pub n_ldgsts: u32,
@@ -434,6 +440,8 @@ impl MercFeatures {
         f.s2r_lanes = meta.merc_s2r_lanes.clone();
         f.predmem = meta.merc_predmem;
         f.lop3_pdest = meta.merc_lop3_pdest.clone();
+        f.s2r_sr = meta.merc_s2r_sr.clone();
+        f.ldgconst = meta.merc_ldgconst.clone();
         f.n_ldgsts = opcodes.iter().filter(|o| o.starts_with("LDGSTS")).count() as u32;
 
         f
@@ -784,7 +792,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         Cbank,
         Smem,
         ShiftRegion,
-        Anchor,
+        Anchor(usize),
         Bar,
         Stg(usize),
         Elect(usize),
@@ -799,21 +807,23 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     // mk10c: zbior parametrow STG-wiazanych z PULI deskryptorow (nie ze
     // starej maski param_write — ta traci read->write gdy param czytany
     // wczesniej; r2_wr/r2_ww dowod).
-    let mut pool: Vec<(u32, u8)> = Vec::new();
-    let mut poolidx_of_load: Vec<u32> = Vec::new();
-    for &(_, pi, unif, w, _) in &feat.param_loads {
+    // mk13: pula slotow = wpisy (pi, mech) w KOLEJNOSCI LANE: loady wide
+    // (mech = unif01) + uzycia desc przez LDG.E.CONSTANT (mech = 2).
+    // mk10c zakladal same loady; LDG.C zajmuje slot (v_ldg_u64: s=2).
+    let mut pool_ev: Vec<(u32, (u32, u8))> = Vec::new();
+    for &(lane, pi, unif, w, _) in &feat.param_loads {
         if w >= 8 {
-            let k = (pi, unif);
-            let ix = match pool.iter().position(|e| *e == k) {
-                Some(x) => x as u32,
-                None => {
-                    pool.push(k);
-                    (pool.len() - 1) as u32
-                }
-            };
-            poolidx_of_load.push(ix);
-        } else {
-            poolidx_of_load.push(u32::MAX);
+            pool_ev.push((lane, (pi, unif)));
+        }
+    }
+    for &(lane, pi) in &feat.ldgconst {
+        pool_ev.push((lane, (pi, 2)));
+    }
+    pool_ev.sort_by_key(|&(lane, _)| lane);
+    let mut pool: Vec<(u32, u8)> = Vec::new();
+    for &(_, k) in &pool_ev {
+        if !pool.contains(&k) {
+            pool.push(k);
         }
     }
     let mut stg_write_pis: std::collections::BTreeSet<u32> = std::collections::BTreeSet::new();
@@ -844,8 +854,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         ev.push((clane, 12, Ev::ShiftRegion));
     }
     for (k, &l) in feat.s2r_lanes.iter().enumerate() {
-        let _ = k;
-        ev.push((l, 20, Ev::Anchor));
+        ev.push((l, 20, Ev::Anchor(k)));
     }
     for (i, &pos) in feat.bar_pos.iter().enumerate() {
         let _ = i;
@@ -882,14 +891,13 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     }
     ev.sort_by_key(|&(lane, tier, _)| (lane, tier));
     // payload anchor (jak cflow_rec legacy)
-    let anchor_bytes = {
+    // mk13: b13=0x02 stale; b12 = enum SR czytanego przez S2R per anchor
+    // (zastepuje hack cf[12]=0 dla atom/mma — zbiezny z LANEID=0).
+    let anchor_base = {
         let mut cf = REC_EXTRA_EXIT;
         let v: u32 = (feat.anchor_f4 << 6) | 1;
         cf[10] = (v & 0xff) as u8;
         cf[11] = (v >> 8) as u8;
-        if feat.cflow_atom || feat.os_mma_multi {
-            cf[12] = 0x00;
-        }
         cf
     };
     for (_, _, kind) in ev {
@@ -902,7 +910,11 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             }),
             Ev::Smem => out.extend_from_slice(&REC_SMEM),
             Ev::ShiftRegion => out.extend_from_slice(&REC_SHIFT_REGION),
-            Ev::Anchor => out.extend_from_slice(&anchor_bytes),
+            Ev::Anchor(k) => {
+                let mut cf = anchor_base;
+                cf[12] = feat.s2r_sr.get(k).copied().unwrap_or(1);
+                out.extend_from_slice(&cf);
+            }
             Ev::Bar => out.extend_from_slice(bar_rec),
             Ev::Stg(i) => out.extend_from_slice(&rec_stg(feat, i)),
             Ev::Elect(_) => out.extend_from_slice(&[0x41, 0x64, 0x00, 0x0a]),
