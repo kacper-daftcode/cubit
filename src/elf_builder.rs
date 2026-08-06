@@ -320,11 +320,24 @@ pub struct MercFeatures {
     /// mk10c: LDGSTS obecne — rekord desc uniform przy atomikach/async
     /// p_lgsts (03,02).
     pub n_ldgsts: u32,
+    /// mk14: rekordy atomowe per-instrukcja (lane, cls, guard, dst, addr,
+    /// src1, src2, subop_b6); puste = zachowanie legacy (trailing REC_ATOM).
+    pub atoms: Vec<(u32, u8, u8, u8, u8, u8, u8, u8)>,
+    /// mk14: cbank wariant 8301 takze przy CAS.SYS (gold p_cas: kernel bez
+    /// smem, cbank b10=0x83). Aktywne w Ev::Cbank obok smem_static.
+    pub cbank83_cas: bool,
+    /// mk14: lane'y duchow __syncwarp (z KernelMeta.merc_syncwarp; EIATTR
+    /// 0x28+0x29): rekord 01476c0a w lane; lane NIE traci slotu B w spanie
+    /// BSSY (q_bsync_pair), w bitmapie zachowuje sie jak zwykly NOP
+    /// (poza spanem: bez bitu; w spanie: bit per regula spanowa).
+    pub syncwarp: Vec<u32>,
 }
 
 impl MercFeatures {
     pub fn from_parts(meta: &KernelMeta, opcodes: &[String]) -> Self {
         let mut f = MercFeatures {
+            syncwarp: meta.merc_syncwarp.clone(),
+            atoms: meta.merc_atoms.clone(),
             used_params: meta.params.iter().filter(|p| p.size > 4).count() as u32,
             used_scalar_params: meta.params.iter().filter(|p| p.size <= 4).count() as u32,
             ..Default::default()
@@ -362,6 +375,10 @@ impl MercFeatures {
             .iter()
             .any(|o| matches!(o.split('.').next(), Some("STS") | Some("LDS") | Some("LDSM")));
         f.smem_static = meta.shared_size > 0 || smem_ops;
+        // mk14: cbank 8301 takze dla ATOMG.E.CAS.STRONG.SYS (gold p_cas).
+        f.cbank83_cas = opcodes
+            .iter()
+            .any(|o| o.starts_with("ATOMG") && o.contains("CAS") && o.contains(".SYS"));
         f.n_stg = opcodes.iter().filter(|o| o.starts_with("STG")).count() as u32;
         f.bar_count = meta.num_barriers as u32;
         f.os_call = opcodes.iter().any(|o| o.starts_with("CALL"));
@@ -897,6 +914,8 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         Lop3P,
         XorReg(usize),
         Redux,
+        Syncwarp,
+        Atom(usize),
     }
     // mk10c: zbior parametrow STG-wiazanych z PULI deskryptorow (nie ze
     // starej maski param_write — ta traci read->write gdy param czytany
@@ -971,6 +990,16 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for &pos in &feat.redux_pos {
         ev.push((pos, 20, Ev::Redux));
     }
+    // mk14: ghost __syncwarp (rekord 01476c0a) — lane ducha-NOP.
+    for &pos in &feat.syncwarp {
+        ev.push((pos, 21, Ev::Syncwarp));
+    }
+    // mk14: rekordy atomowe w lane swoich instrukcji (byly: trailing append).
+    for (i, a) in feat.atoms.iter().enumerate() {
+        if a.1 != crate::mercury::MERC_ATOM_CLS_RED {
+            ev.push((a.0, 20, Ev::Atom(i)));
+        }
+    }
     for &pos in &feat.acqbulk_pos {
         ev.push((pos, 20, Ev::AcqBulk));
     }
@@ -1007,7 +1036,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for (_, _, kind) in ev {
         match kind {
             Ev::Desc(j) => out.extend_from_slice(&mk10c_rec_desc(feat.param_loads[j], roles[j])),
-            Ev::Cbank => out.extend_from_slice(if feat.smem_static {
+            Ev::Cbank => out.extend_from_slice(if feat.smem_static || feat.cbank83_cas {
                 &REC_CBANK_SMEM
             } else {
                 &REC_CBANK
@@ -1046,6 +1075,14 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::CctlRml2(_) => out.extend_from_slice(&[0x41, 0x0e, 0x02, 0x0c]),
             Ev::Pad => out.extend_from_slice(&crate::mercury::MERC_LANE_PAD),
             Ev::Lop3P => out.extend_from_slice(&crate::mercury::MERC_LOP3_PWRITE_MINI),
+            Ev::Syncwarp => out.extend_from_slice(&crate::mercury::MERC_SYNCWARP_GHOST),
+            Ev::Atom(i) => {
+                let a = feat.atoms[i];
+                let gb4 = match a.2 { 1 => 0x00, 2 => 0x01, _ => 0xf8 };
+                out.extend_from_slice(&crate::mercury::build_atom_rec(
+                    a.1, gb4, a.7, a.3, a.4, a.5, a.6,
+                ));
+            }
             Ev::Redux => out.extend_from_slice(
                 // gold p_redux lane10: 0132 100a f8 00 4d 00 00 00 81 01 ...
                 &[0x01, 0x32, 0x10, 0x0a, 0xf8, 0x00, 0x4d, 0x00,
@@ -1067,9 +1104,18 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             }
         }
     }
-    // ATOM-klasa: po strumieniu (jak w sciezce legacy; lane nieznane).
-    for _ in 0..feat.n_atom {
-        out.extend_from_slice(&REC_ATOM);
+    // ATOM-klasa legacy: po strumieniu tylko gdy brak per-lane metadanych
+    // (mk14). Klasy nie-RED emitowane juz w lane (Ev::Atom); RED zostaja tu.
+    if feat.atoms.is_empty() {
+        for _ in 0..feat.n_atom {
+            out.extend_from_slice(&REC_ATOM);
+        }
+    } else {
+        for a in &feat.atoms {
+            if a.1 == crate::mercury::MERC_ATOM_CLS_RED {
+                out.extend_from_slice(&REC_ATOM);
+            }
+        }
     }
 }
 
@@ -1454,6 +1500,9 @@ pub fn generate_mercury_full(
         }
         None => Vec::new(),
     };
+    // mk14: ghost __syncwarp NOP-y ZACHOWUJA sloty B nawet w spanie BSSY
+    // (sa na liscie site'ow EIATTR-0x28 -> rekord 01476c0a).
+    let syncwarp_set: Vec<u32> = meta.merc_syncwarp.clone();
     let mut xor_lane_set: Vec<u32> =
         meta.merc_xor.iter().map(|&(lane, _, _, _, _)| lane).collect();
     // mk13: rejestrowa forma xor tez zastepuje wezel typu4 (brak bitu).
@@ -1469,7 +1518,8 @@ pub fn generate_mercury_full(
     let mut b_index = 0usize;
     for i in 0..end {
         let nop_span_skip = in_bssy_span.get(i).copied().unwrap_or(false)
-            && matches!(opcodes, Some(ops) if ops[i] == "NOP");
+            && matches!(opcodes, Some(ops) if ops[i] == "NOP")
+            && !syncwarp_set.contains(&(i as u32));
         if is_w0(i) || region_drop.get(i).copied().unwrap_or(false) || nop_span_skip {
             continue;
         }

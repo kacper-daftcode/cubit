@@ -1266,6 +1266,26 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_bar_args: Vec::new(),
         merc_s2r_sr: Vec::new(),
         merc_lop3_pdest: Vec::new(),
+        merc_syncwarp: Vec::new(),
+        merc_atoms: Vec::new(),
+    }
+}
+
+/// mk14: dociagnij ghost __syncwarp z referencji --eiattr-from (EIATTR
+/// 0x28/0x29 niewidoczne w tekscie sass; reszta merc-meta pochodzi ze skanu).
+fn merge_syncwarp_from_reference(
+    entries: &mut [cubit::elf_builder::KernelEntry],
+    eiattr_path: Option<&std::path::Path>,
+) {
+    let Some(p) = eiattr_path else { return };
+    let Ok(bytes) = std::fs::read(p) else { return };
+    let Ok(refmeta) = cubit::eiattr::parse_cubin_metadata(&bytes) else { return };
+    for e in entries.iter_mut() {
+        if let Some(rm) = refmeta.get(&e.name) {
+            if !rm.merc_syncwarp.is_empty() && e.meta.merc_syncwarp.is_empty() {
+                e.meta.merc_syncwarp = rm.merc_syncwarp.clone();
+            }
+        }
     }
 }
 
@@ -2063,6 +2083,7 @@ fn cmd_asm_build_elf(
                     let mut lop3_pdest: Vec<u32> = Vec::new();
                     let mut s2r_sr: Vec<u8> = Vec::new();
                     let mut ldgconst: Vec<(u32, u32)> = Vec::new();
+                    let mut atoms_scan: Vec<(u32, u8, u8, u8, u8, u8, u8, u8)> = Vec::new();
                     for (ii, (_addr, asm)) in insns.iter().enumerate() {
                         let clean = if let Some(idx) = asm.find("/* @sched") {
                             &asm[..idx]
@@ -2214,6 +2235,71 @@ fn cmd_asm_build_elf(
                         if base0 == "LOP3" && cubit::mercury::lop3_writes_pred(body) {
                             lop3_pdest.push(ii as u32);
                         }
+                        // mk14: rekordy atomowe (lustro sass_file::merc_atom_scan).
+                        if base0.starts_with("ATOM") {
+                            let reg_of = |t: &str| -> u8 {
+                                let t = t.trim().trim_end_matches(';').trim_end_matches(')');
+                                if t == "RZ" || t == "URZ" {
+                                    return 255;
+                                }
+                                let d = t.trim_start_matches(['R', 'U']);
+                                if !d.is_empty() && d.chars().all(|c| c.is_ascii_digit()) {
+                                    d.parse::<u32>().ok().map(|v| v.min(255) as u8).unwrap_or(255)
+                                } else {
+                                    255
+                                }
+                            };
+                            let bfull = body
+                                .split_whitespace()
+                                .skip_while(|t| t.starts_with('@'))
+                                .collect::<Vec<_>>()
+                                .join(" ");
+                            let parts: Vec<&str> = bfull
+                                .trim_end_matches(';')
+                                .splitn(2, ' ')
+                                .nth(1)
+                                .unwrap_or("")
+                                .split(',')
+                                .map(|x| x.trim())
+                                .collect();
+                            if base0.starts_with("ATOMS") {
+                                if parts.len() >= 3 {
+                                    atoms_scan.push((ii as u32, cubit::mercury::MERC_ATOM_CLS_SHARED,
+                                                     guard_m, reg_of(parts[0]), 255,
+                                                     reg_of(parts[2]), 255, 0));
+                                }
+                            } else if parts.len() >= 3 {
+                                let (di, ai) = if parts[0] == "PT" { (1usize, 2usize) } else { (0, 1) };
+                                if ai < parts.len() {
+                                    let dst = if di < parts.len() { reg_of(parts[di]) } else { 255 };
+                                    let mut addr = 255u8;
+                                    let mut s2 = parts[ai];
+                                    while let Some(o) = s2.rfind('[') {
+                                        let inner = &parts[ai][o + 1..];
+                                        let end = inner.find(']').unwrap_or(inner.len());
+                                        let tok = &inner[..end];
+                                        let r = reg_of(tok.split('+').next().unwrap_or("").split('.').next().unwrap_or(""));
+                                        if r != 255 {
+                                            addr = r;
+                                            break;
+                                        }
+                                        s2 = &parts[ai][..o];
+                                    }
+                                    if base0.contains("CAS") || body.contains(".CAS") {
+                                        if parts.len() >= ai + 3 {
+                                            atoms_scan.push((ii as u32, cubit::mercury::MERC_ATOM_CLS_CAS,
+                                                             guard_m, dst, addr,
+                                                             reg_of(parts[ai + 1]), reg_of(parts[ai + 2]), 0));
+                                        }
+                                    } else if parts.len() >= ai + 2 {
+                                        let sub6: u8 = if body.contains(".EXCH") { 0x80 } else { 0 };
+                                        atoms_scan.push((ii as u32, cubit::mercury::MERC_ATOM_CLS_G4,
+                                                         guard_m, dst, addr,
+                                                         reg_of(parts[ai + 1]), 255, sub6));
+                                    }
+                                }
+                            }
+                        }
                     }
                     meta.merc_param_loads = loads;
                     meta.merc_cbank_lane = cbank_lane;
@@ -2223,6 +2309,7 @@ fn cmd_asm_build_elf(
                     meta.merc_predmem = predmem;
                     meta.merc_guarded_bra = guarded_bra;
                     meta.merc_lop3_pdest = lop3_pdest;
+                    meta.merc_atoms = atoms_scan;
                     if !stg_pos2.is_empty() {
                         meta.merc_stg_desc_pos = stg_pos2;
                     }
@@ -2294,6 +2381,7 @@ fn cmd_asm_build_elf(
         anyhow::bail!("no kernels assembled (check --kernel filter or sass file format)");
     }
 
+    merge_syncwarp_from_reference(&mut entries, eiattr_path);
     // If --eiattr-from is provided, use rebuild_cubin (copies ELF structure +
     // EIATTR from reference, replaces only .text sections with new instruction bytes)
     let cubin_bytes = if let Some(ref_path) = eiattr_path {
@@ -3368,6 +3456,7 @@ fn cmd_asm_directive_format(
         anyhow::bail!("no kernels assembled (check --kernel filter)");
     }
 
+    merge_syncwarp_from_reference(&mut entries, eiattr_path);
     // Build cubin
     let cubin_bytes = if let Some(tmpl) = template_path {
         use cubit::elf_builder::rebuild_cubin;

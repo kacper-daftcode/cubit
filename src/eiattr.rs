@@ -463,6 +463,18 @@ pub struct KernelMeta {
     /// NIE dostaja bitu bitmapy, za to mini-rekord 42 2a 02 06 w lane
     /// (gold d_sw4_store slot6).
     pub merc_lop3_pdest: Vec<u32>,
+    /// Mercury mk14: rekordy atomowe (ATOMG/ATOMS) per instrukcja:
+    /// (lane, cls [mercury::MERC_ATOM_CLS_*], guard 0/1/2, dst, addr,
+    /// src1, src2, subop_b6); rejestry: 255 = RZ/brak. RED* zostaja na
+    /// sciezce legacy REC_ATOM (k_atom/v_atom byte-exact).
+    pub merc_atoms: Vec<(u32, u8, u8, u8, u8, u8, u8, u8)>,
+    /// Mercury mk14: lane'y duchow __syncwarp (elided do NOP przez ptxas) —
+    /// zrodlo: EIATTR attr 0x28 (site offsets) + 0x29 (masks; ghost tylko
+    /// gdy maska==0xffffffff i instrukcja w tej lane to NOP). Rekord
+    /// 01476c0a w lane (bez bitu bitmapy); lane ZACHOWUJE slot B nawet
+    /// wewnatrz spanu BSSY (q_bsync_pair). Puste dla sass-only (tekst
+    /// niewidoczny — ghost-NOP jest bit-identyczny z zwyklym NOP).
+    pub merc_syncwarp: Vec<u32>,
 }
 
 
@@ -528,6 +540,8 @@ impl KernelMeta {
             merc_bar_args: Vec::new(),
             merc_s2r_sr: Vec::new(),
             merc_lop3_pdest: Vec::new(),
+            merc_syncwarp: Vec::new(),
+            merc_atoms: Vec::new(),
         };
 
         // Extract from global section (REGCOUNT, FRAME_SIZE, MIN_STACK_SIZE)
@@ -590,6 +604,36 @@ impl KernelMeta {
                     }
                 }
                 _ => {}
+            }
+        }
+
+        // Mercury mk14: ghost __syncwarp sites. attr 0x28 = SVAL lista offsetow
+        // (bajtowych) punktow warp-sync; rownolegle attr 0x29 = maski per site.
+        // Duch (rekord 01476c0a) powstaje tylko dla site'a z maska
+        // 0xffffffff (bezwarunkowy __syncwarp elidowany do NOP; site'y przy
+        // realnych WARPSYNC.COLLECTIVE maja inne maski).
+        {
+            let mut sites: Vec<u32> = Vec::new();
+            let mut masks: Vec<u32> = Vec::new();
+            for rec in &per_kernel.records {
+                if rec.attr == 0x0028 {
+                    sites = rec
+                        .data
+                        .chunks_exact(4)
+                        .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+                        .collect();
+                } else if rec.attr == 0x0029 {
+                    masks = rec
+                        .data
+                        .chunks_exact(4)
+                        .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+                        .collect();
+                }
+            }
+            for (k, &addr) in sites.iter().enumerate() {
+                if masks.get(k).copied().unwrap_or(0xffff_ffff) == 0xffff_ffff {
+                    meta.merc_syncwarp.push(addr / 16);
+                }
             }
         }
 
@@ -883,6 +927,8 @@ mod tests {
             merc_bar_args: Vec::new(),
             merc_s2r_sr: Vec::new(),
             merc_lop3_pdest: Vec::new(),
+            merc_syncwarp: Vec::new(),
+            merc_atoms: Vec::new(),
         };
 
         let global = meta.to_global_records(8);

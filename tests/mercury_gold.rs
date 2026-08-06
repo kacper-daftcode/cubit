@@ -63,6 +63,8 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
         merc_s2r_sr: g.s2rsr.to_vec(),
         merc_guarded_bra: g.gbra.to_vec(),
         merc_lop3_pdest: g.lpd.to_vec(),
+        merc_syncwarp: g.swlanes.to_vec(),
+        merc_atoms: g.atoms.to_vec(),
         merc_ldgconst: g.ldgc.to_vec(),
         merc_xor_reg: g.pxr.to_vec(),
     }
@@ -74,14 +76,10 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
 /// aktualizacji dokumentu.
 static EXPECTED_DIFF: &[(&str, &str)] = &[
     ("c_ld_dyn2",     "mk10c: trzeci anchor (S2R#2 lane4): f4n0=9 f4n1=0x204 — model multi-anchor mk13"),
-    ("p_atomg",       "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
-    ("p_atoms",       "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
-    ("p_cas",         "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
+    ("p_atomg",       "mk14.2: rekord ATOM 024e OK; residuum = anchor f4 multi (5,4,0: metryka regionu ptxas, mk17-park) + role desc (83,00) przy pi wspoldzielonym uni/reg"),
+    ("p_atoms",       "mk14.2: rekord ATOMS 024e84 OK + bitmap; residuum = anchor f4 multi (3,2,0) + pozycja rekordu smem (przed desc/cbank) przy ATOMS"),
     ("p_ldgsts",      "mk7: LDGSTS (cp.async) seria rekordow"),
-    ("p_lds",         " mk7-ldz-event + rekordy"),
     ("p_ldsm",        "mk7: pinned-51 + event rekordy (01290004/LDSM-wiazania)"),
-    ("p_sts2",        "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
-    ("p_warpsync",    "mk7-rodzina: desc-tag-variant (02220806/fa) + event rekordy (01290004, 0132100a, 01476c0a, 021b*, pinned 51**)"),
     ("q_bsync_pair",  "mk9: epilogi divergent"),
     ("q_tail_call",   "RET-w-loop/collective epilog rodzina"),
 ];

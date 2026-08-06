@@ -45,6 +45,8 @@ fn meta_for(g: &GoldRow) -> KernelMeta {
         merc_s2r_sr: g.s2rsr.to_vec(),
         merc_guarded_bra: g.gbra.to_vec(),
         merc_lop3_pdest: g.lpd.to_vec(),
+        merc_syncwarp: g.swlanes.to_vec(),
+        merc_atoms: g.atoms.to_vec(),
         merc_ldgconst: g.ldgc.to_vec(),
         merc_xor_reg: g.pxr.to_vec(),
     }
