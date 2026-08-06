@@ -326,6 +326,12 @@ pub struct MercFeatures {
     /// mk14: cbank wariant 8301 takze przy CAS.SYS (gold p_cas: kernel bez
     /// smem, cbank b10=0x83). Aktywne w Ev::Cbank obok smem_static.
     pub cbank83_cas: bool,
+    /// mk14.3: pinned LDGSTS (lane,dst,src) -> marker 51 02 + blob 02233034;
+    /// host traci bit bitmapy. wait-lane -> 0123400a (host tez traci bit).
+    pub ldgsts_pin: Option<(u32, u8, u8)>,
+    pub ldgsts_wait: Option<u32>,
+    /// mk14.3: lane'y LDSM -> mini 42 5b 02 06 (rekord zastepuje wezel t4).
+    pub ldsm_lanes: Vec<u32>,
     /// mk14: lane'y duchow __syncwarp (z KernelMeta.merc_syncwarp; EIATTR
     /// 0x28+0x29): rekord 01476c0a w lane; lane NIE traci slotu B w spanie
     /// BSSY (q_bsync_pair), w bitmapie zachowuje sie jak zwykly NOP
@@ -338,6 +344,14 @@ impl MercFeatures {
         let mut f = MercFeatures {
             syncwarp: meta.merc_syncwarp.clone(),
             atoms: meta.merc_atoms.clone(),
+            ldgsts_pin: meta.merc_ldgsts_pin.first().copied(),
+            ldgsts_wait: meta.merc_ldgsts_wait.first().copied(),
+            ldsm_lanes: opcodes
+                .iter()
+                .enumerate()
+                .filter(|(_, o)| o.starts_with("LDSM"))
+                .map(|(i, _)| i as u32)
+                .collect(),
             used_params: meta.params.iter().filter(|p| p.size > 4).count() as u32,
             used_scalar_params: meta.params.iter().filter(|p| p.size <= 4).count() as u32,
             ..Default::default()
@@ -916,6 +930,9 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         Redux,
         Syncwarp,
         Atom(usize),
+        LdgstsPin,
+        LdgstsWait,
+        LdsmMini,
     }
     // mk10c: zbior parametrow STG-wiazanych z PULI deskryptorow (nie ze
     // starej maski param_write — ta traci read->write gdy param czytany
@@ -961,8 +978,11 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     }
     let clane = feat.cbank_lane.unwrap_or(u32::MAX - 64);
     ev.push((clane, 10, Ev::Cbank));
+    // mk14.3: przy LDGSTS rekord smem poprzedza cbank (gold p_ldgsts: smem@[3]
+    // przed cbank@[4]; bez LDGSTS: po (p_lds/p_sts2 exact — tier 11).
+    let smem_tier = if feat.n_ldgsts > 0 { 9 } else { 11 };
     if feat.smem_static {
-        ev.push((clane, 11, Ev::Smem));
+        ev.push((clane, smem_tier, Ev::Smem));
     }
     if feat.diverge_region {
         ev.push((clane, 12, Ev::ShiftRegion));
@@ -999,6 +1019,16 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         if a.1 != crate::mercury::MERC_ATOM_CLS_RED {
             ev.push((a.0, 20, Ev::Atom(i)));
         }
+    }
+    // mk14.3: LDGSTS pinned-blob + wait-event + LDSM mini.
+    if let Some((pl, _, _)) = feat.ldgsts_pin {
+        ev.push((pl, 20, Ev::LdgstsPin));
+    }
+    if let Some(wl) = feat.ldgsts_wait {
+        ev.push((wl, 20, Ev::LdgstsWait));
+    }
+    for &ll in &feat.ldsm_lanes {
+        ev.push((ll, 20, Ev::LdsmMini));
     }
     for &pos in &feat.acqbulk_pos {
         ev.push((pos, 20, Ev::AcqBulk));
@@ -1076,6 +1106,12 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::Pad => out.extend_from_slice(&crate::mercury::MERC_LANE_PAD),
             Ev::Lop3P => out.extend_from_slice(&crate::mercury::MERC_LOP3_PWRITE_MINI),
             Ev::Syncwarp => out.extend_from_slice(&crate::mercury::MERC_SYNCWARP_GHOST),
+            Ev::LdgstsPin => {
+                let (_, d, sr) = feat.ldgsts_pin.unwrap_or((0, 255, 255));
+                out.extend_from_slice(&crate::mercury::build_ldgsts_blob(d, sr));
+            }
+            Ev::LdgstsWait => out.extend_from_slice(&crate::mercury::MERC_LDGSTS_WAIT),
+            Ev::LdsmMini => out.extend_from_slice(&crate::mercury::MERC_LDSM_MINI),
             Ev::Atom(i) => {
                 let a = feat.atoms[i];
                 let gb4 = match a.2 { 1 => 0x00, 2 => 0x01, _ => 0xf8 };
@@ -1503,6 +1539,13 @@ pub fn generate_mercury_full(
     // mk14: ghost __syncwarp NOP-y ZACHOWUJA sloty B nawet w spanie BSSY
     // (sa na liscie site'ow EIATTR-0x28 -> rekord 01476c0a).
     let syncwarp_set: Vec<u32> = meta.merc_syncwarp.clone();
+    // mk14.3: lane'y gryzione przez eventy LDGSTS.
+    let feat_host_zero: Vec<u32> = meta
+        .merc_ldgsts_pin
+        .iter()
+        .map(|p| p.0)
+        .chain(meta.merc_ldgsts_wait.iter().copied())
+        .collect();
     let mut xor_lane_set: Vec<u32> =
         meta.merc_xor.iter().map(|&(lane, _, _, _, _)| lane).collect();
     // mk13: rejestrowa forma xor tez zastepuje wezel typu4 (brak bitu).
@@ -1543,11 +1586,21 @@ pub fn generate_mercury_full(
                     t = false;
                 }
                 // mk13d: wnetrze spanu BSSY — wszystko tracked (sw*-fit).
+                // mk14.3: WYJATEK — klasy semantycznie niesledzone (LDC/S2R/
+                // S2UR/LDCU config-uniform) bitu nie dostaja nawet w spanie
+                // (gold p_ldsm slot12 S2UR=0; q_bsync_pair slot4 LDC.64=0).
                 if in_bssy_span.get(i).copied().unwrap_or(false) {
-                    t = true;
+                    if !matches!(base_i, "LDC" | "LDCU" | "S2R" | "S2UR") {
+                        t = true;
+                    }
                 }
                 // mk13: REDUX -> rekord 0132 zamiast bitu (gold p_redux).
                 if base_i == "REDUX" {
+                    t = false;
+                }
+                // mk14.3: hosty rekordow-event LDGSTS (pinned-blob + wait)
+                // traca bit (rekord zastepuje wezel t4) — m15 lab 3/3.
+                if t && feat_host_zero.contains(&(i as u32)) {
                     t = false;
                 }
                 t

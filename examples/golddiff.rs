@@ -47,6 +47,8 @@ fn meta_for(g: &GoldRow) -> KernelMeta {
         merc_lop3_pdest: g.lpd.to_vec(),
         merc_syncwarp: g.swlanes.to_vec(),
         merc_atoms: g.atoms.to_vec(),
+        merc_ldgsts_pin: g.ldgpin.to_vec(),
+        merc_ldgsts_wait: if g.ldgwait < 0 { Vec::new() } else { vec![g.ldgwait as u32] },
         merc_ldgconst: g.ldgc.to_vec(),
         merc_xor_reg: g.pxr.to_vec(),
     }
