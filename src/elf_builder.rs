@@ -200,6 +200,11 @@ pub struct MercFeatures {
     /// a cbank zostaje w wariancie 0301 (nie 83).
     pub smem_atoms_only: bool,
     pub s2ur_first_lane: u32,
+    /// mk15b: kernel laduje parametry przez LDCU/ULDC (cbank fa/0e vs f8/0c).
+    pub has_ldcu: bool,
+    /// mk15b: liczba blokow kolektywnych (ENDCOLLECTIVE) przy plain-BSSY;
+    /// kazdy dostaje staly rekord d1-34B po glownym torze rekordow.
+    pub plain_collectives: u32,
     pub bar_count: u32,
     pub n_stg: u32,
     pub n_atom: u32,
@@ -404,6 +409,15 @@ impl MercFeatures {
             .position(|o| o.split('.').next() == Some("S2UR"))
             .map(|i| i as u32)
             .unwrap_or(u32::MAX);
+        f.has_ldcu = opcodes.iter().any(|o| {
+            let b = o.split('.').next().unwrap_or(o.as_str());
+            b == "LDCU" || b == "ULDC"
+        });
+        f.plain_collectives = if opcodes.iter().any(|o| o.as_str() == "BSSY") {
+            opcodes.iter().filter(|o| o.starts_with("ENDCOLLECTIVE")).count() as u32
+        } else {
+            0
+        };
         // mk14: cbank 8301 takze dla ATOMG.E.CAS.STRONG.SYS (gold p_cas).
         f.cbank83_cas = opcodes
             .iter()
@@ -584,6 +598,20 @@ const REC_SHIFT_REGION: [u8; 18] = [
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
+/// mk15b: wariant cbank dla kerneli ladujacych parametry czystym LDC.
+/// (bez LDCU): b2=0x0c, b4=0xf8 (gold q_bsync_pair); wariant korpus-dominujacy.
+const REC_CBANK_LDC: [u8; 16] = [
+    0x01, 0x0b, 0x0c, 0x0a, 0xf8, 0x00, 0x05, 0x00,
+    0x00, 0x00, 0x03, 0x01, 0x39, 0x04, 0x00, 0x00,
+];
+/// mk15b: rekord-epilog kolektywny przy plain-BSSY (gold q_bsync_pair: 2x
+/// identyczne, po torze rekordow). 34B stala.
+const REC_D1_COLLECTIVE: [u8; 34] = [
+    0xd1, 0x01, 0x02, 0x47, 0x7c, 0x06, 0xf8, 0x00, 0x10, 0x00,
+    0x00, 0x00, 0x00, 0xf8, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+];
 const REC_BAR: [u8; 16] = [
     0x01, 0x47, 0x5a, 0x16, 0xf8, 0x00, 0x04, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
@@ -995,7 +1023,16 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for (j, ld) in feat.param_loads.iter().enumerate() {
         ev.push((ld.0, 20, Ev::Desc(j)));
     }
-    let clane = feat.cbank_lane.unwrap_or(u32::MAX - 64);
+    // mk15b: gdy brak lane hosta cbank (LDCU c[358]), nvcc sadza cbank tuz przed
+    // pierwszym desc-em parametru (gold q_bsync_pair: lane=first-load-1 = 3).
+    let clane = feat.cbank_lane.unwrap_or_else(|| {
+        feat.param_loads
+            .iter()
+            .map(|l| l.0)
+            .min()
+            .map(|l0| l0.saturating_sub(1))
+            .unwrap_or(u32::MAX - 64)
+    });
     ev.push((clane, 10, Ev::Cbank));
     // mk14.3: przy LDGSTS rekord smem poprzedza cbank (gold p_ldgsts: smem@[3]
     // przed cbank@[4]; bez LDGSTS: po (p_lds/p_sts2 exact — tier 11).
@@ -1095,7 +1132,9 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for (_, _, kind) in ev {
         match kind {
             Ev::Desc(j) => out.extend_from_slice(&mk10c_rec_desc(feat.param_loads[j], roles[j])),
-            Ev::Cbank => out.extend_from_slice(if feat.smem_static || feat.cbank83_cas {
+            Ev::Cbank => out.extend_from_slice(if !feat.has_ldcu {
+                &REC_CBANK_LDC
+            } else if feat.smem_static || feat.cbank83_cas {
                 &REC_CBANK_SMEM
             } else {
                 &REC_CBANK
@@ -1168,6 +1207,11 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 out.extend_from_slice(&crate::mercury::build_f64imm_rec(m.1, m.2, m.3, m.4));
             }
         }
+    }
+    // mk15b: rekordy d1-34B za blokami kolektywnymi plain-BSSY (gold
+    // q_bsync_pair x2, identyczne stale, po glownym torze).
+    for _ in 0..feat.plain_collectives {
+        out.extend_from_slice(&REC_D1_COLLECTIVE);
     }
     // ATOM-klasa legacy: po strumieniu tylko gdy brak per-lane metadanych
     // (mk14). Klasy nie-RED emitowane juz w lane (Ev::Atom); RED zostaja tu.
@@ -1546,6 +1590,11 @@ pub fn generate_mercury_full(
     // WSZYSTKIE instrukcje dostaja bit bitmapy (takze BRA/BSSY/...), NOP
     // w spanie nie zajmuje slotu B-space (B zlicza mniej), BSYNC zamyka
     // span (sam bez bitu, ale slot zachowuje). Zgodnosc fitu: 5/5 wierszy.
+    // mk16.3 (gold q_bsync_pair): TWO span dialects. Surowe "BSSY" (bez
+    // .RECONVERGENT): ghost-NOP w spanie BEZ bitu, BSYNC-zamkniecie Z bitem,
+    // ENDCOLLECTIVE bez bitu, BRA tuz po bloku kolektywnym/zamknieciu Z bitem.
+    let plain_bssy = matches!(opcodes, Some(ops) if ops.iter().any(|o| o == "BSSY"));
+    let mut bssy_close_lanes: Vec<u32> = Vec::new();
     let in_bssy_span: Vec<bool> = match opcodes {
         Some(ops) => {
             let mut v = vec![false; n_instr];
@@ -1562,6 +1611,7 @@ pub fn generate_mercury_full(
                 }
                 if b == "BSYNC" && st.is_some() {
                     v[i] = false;
+                    bssy_close_lanes.push(i as u32);
                     st = None;
                 }
             }
@@ -1625,6 +1675,26 @@ pub fn generate_mercury_full(
                 if in_bssy_span.get(i).copied().unwrap_or(false) {
                     if !matches!(base_i, "LDC" | "LDCU" | "S2R" | "S2UR") {
                         t = true;
+                    }
+                }
+                if plain_bssy {
+                    if base_i == "NOP" {
+                        t = false; // ghost-NOP w plain-spanie: slot tak, bit nie
+                    }
+                    if bssy_close_lanes.contains(&(i as u32)) {
+                        t = true; // BSYNC zamykajacy plain-span: bit tak
+                    }
+                    if base_i == "ENDCOLLECTIVE" {
+                        t = false;
+                    }
+                    if base_i == "BRA" && i > 0 {
+                        let prev_plain_block = matches!(opcodes, Some(ops) if {
+                            let p = ops[i - 1].split('.').next().unwrap_or(ops[i - 1].as_str());
+                            p == "ENDCOLLECTIVE" || bssy_close_lanes.contains(&((i - 1) as u32))
+                        });
+                        if prev_plain_block {
+                            t = true; // BRA tuz po ENDCOLLECTIVE/BSYNC-close: bit tak
+                        }
                     }
                 }
                 // mk13: REDUX -> rekord 0132 zamiast bitu (gold p_redux).

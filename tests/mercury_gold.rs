@@ -80,7 +80,6 @@ static EXPECTED_DIFF: &[(&str, &str)] = &[
     ("c_ld_dyn2",     "mk10c: trzeci anchor (S2R#2 lane4): f4n0=9 f4n1=0x204 — model multi-anchor mk13"),
     ("p_atomg",       "mk14.2: rekord ATOM 024e OK; residuum = anchor f4 multi (5,4,0: metryka regionu ptxas, mk17-park) + role desc (83,00) przy pi wspoldzielonym uni/reg"),
     ("p_atoms",       "mk15: rekord smem 010b060a przy lane S2UR WDROZONY (ok); residuum = anchor f4 multi (3,2,0) — mk16.1"),
-    ("q_bsync_pair",  "mk9: epilogi divergent"),
     ("q_tail_call",   "RET-w-loop/collective epilog rodzina"),
 ];
 
