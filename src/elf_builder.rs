@@ -845,6 +845,10 @@ fn mk10c_roles(
         } else if w <= 4 {
             (0x41, 0x02)
         } else if uni_pis.contains(&pi) {
+            // mk14.4 (ODRZUCONA hipoteza, straz gold: p_cctl/p_stg2): "pierwszy
+            // wide regpath -> (83,00)" NIE trzyma; prawdziwy dyskryminator =
+            // region po CALL (mk16): q_tail_call ma regpath PO CALL i dostaje
+            // (83,00); p_cctl/p_stg2 uni-pierwszy bez CALL -> (03,01).
             (0x03, 0x01)
         } else if n == 1 {
             (0x83, 0x00)
