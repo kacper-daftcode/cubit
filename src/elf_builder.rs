@@ -194,6 +194,12 @@ pub struct MercFeatures {
     /// Used scalar (<=4B class) parameters -> 02220806-class records.
     pub used_scalar_params: u32,
     pub smem_static: bool,
+    /// mk15: smem dotknieta WYLACZNIE przez ATOMS (bez STS/LDS/LDSM i bez
+    /// .shared) — nvcc emituje rekord 010b060a przy lane pierwszego S2UR
+    /// (producer bazowy okna smem; gold p_atoms: miedzy anchor@1 a anchor@6),
+    /// a cbank zostaje w wariancie 0301 (nie 83).
+    pub smem_atoms_only: bool,
+    pub s2ur_first_lane: u32,
     pub bar_count: u32,
     pub n_stg: u32,
     pub n_atom: u32,
@@ -389,6 +395,15 @@ impl MercFeatures {
             .iter()
             .any(|o| matches!(o.split('.').next(), Some("STS") | Some("LDS") | Some("LDSM")));
         f.smem_static = meta.shared_size > 0 || smem_ops;
+        let atoms_ops = opcodes
+            .iter()
+            .any(|o| o.split('.').next() == Some("ATOMS"));
+        f.smem_atoms_only = atoms_ops && !f.smem_static;
+        f.s2ur_first_lane = opcodes
+            .iter()
+            .position(|o| o.split('.').next() == Some("S2UR"))
+            .map(|i| i as u32)
+            .unwrap_or(u32::MAX);
         // mk14: cbank 8301 takze dla ATOMG.E.CAS.STRONG.SYS (gold p_cas).
         f.cbank83_cas = opcodes
             .iter()
@@ -987,9 +1002,19 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     let smem_tier = if feat.n_ldgsts > 0 { 9 } else { 11 };
     if feat.smem_static {
         ev.push((clane, smem_tier, Ev::Smem));
+    } else if feat.smem_atoms_only && feat.s2ur_first_lane < u32::MAX {
+        // mk15: rekord smem hostowany przy lane pierwszego S2UR (gold p_atoms).
+        ev.push((feat.s2ur_first_lane, 20, Ev::Smem));
     }
     if feat.diverge_region {
         ev.push((clane, 12, Ev::ShiftRegion));
+        // mk15 (2026-08-07): powdroczony rekord smem 010b060a tuz po rekordzie
+        // regionu divergent 51010109 — tylko gdy kernel ma statyczna smem.
+        // Lab: p_ldsm + b_bulk_cp (1 pin -> dokladnie 1 dup, bajty identyczne
+        // z podstawowym rekordem smem); sw* (BSSY, bez smem): brak dupa.
+        if feat.smem_static {
+            ev.push((clane, 13, Ev::Smem));
+        }
     }
     for (k, &l) in feat.s2r_lanes.iter().enumerate() {
         ev.push((l, 20, Ev::Anchor(k)));
@@ -1305,6 +1330,10 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
                 }
                 if feat.diverge_region {
                     out.extend_from_slice(&REC_SHIFT_REGION);
+                    // mk15: patrz laned-path — dup rekordu smem po regionie.
+                    if feat.smem_static {
+                        out.extend_from_slice(&REC_SMEM);
+                    }
                 }
             } else {
                 out.extend_from_slice(d);

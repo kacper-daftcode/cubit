@@ -79,8 +79,7 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
 static EXPECTED_DIFF: &[(&str, &str)] = &[
     ("c_ld_dyn2",     "mk10c: trzeci anchor (S2R#2 lane4): f4n0=9 f4n1=0x204 — model multi-anchor mk13"),
     ("p_atomg",       "mk14.2: rekord ATOM 024e OK; residuum = anchor f4 multi (5,4,0: metryka regionu ptxas, mk17-park) + role desc (83,00) przy pi wspoldzielonym uni/reg"),
-    ("p_atoms",       "mk14.2: rekord ATOMS 024e84 OK + bitmap; residuum = anchor f4 multi (3,2,0) + pozycja rekordu smem (przed desc/cbank) przy ATOMS"),
-    ("p_ldsm",        "mk14.3 residuum: DUPLIKAT rekordu smem 010b060a @[6] (region BSSY?) + mini LDSM 425b po ghost@28 — oba 1-probkowe (mk15b lab), bitmapa/0129/STG czyste"),
+    ("p_atoms",       "mk15: rekord smem 010b060a przy lane S2UR WDROZONY (ok); residuum = anchor f4 multi (3,2,0) — mk16.1"),
     ("q_bsync_pair",  "mk9: epilogi divergent"),
     ("q_tail_call",   "RET-w-loop/collective epilog rodzina"),
 ];
