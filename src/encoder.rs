@@ -273,11 +273,6 @@ pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> 
         (fk.clone(), String::new()),
         (format!("{fk}_?"), String::new()),
     ];
-    // cuobjdump prints SM120 LDGSTS.128 as `LDGSTS.E.128`, while the harvested
-    // table records the same encoding under the more explicit cache-policy group.
-    if insn.opcode == "LDGSTS" && mod_group == "128,E" {
-        candidates.push((insn.key.clone(), "128,BYPASS,E,LTC128B".to_string()));
-    }
     candidates.dedup();
 
     let mut attempts: Vec<String> = Vec::new();
@@ -520,36 +515,13 @@ pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> 
         }
     }
 
-    // LDGSTS.E.128 descriptor form used by SM120 FlashAttention:
-    //   LDGSTS.E.128 [Ra], desc[URd][Rb.64]
-    //
-    // The harvested table has the right opcode family but incomplete descriptor
-    // fields, so rebuild the operand portion from the observed SM120 layout:
-    //   lo[15:12] = guard, lo[23:16] = shared Ra, lo[31:24] = global Rb
-    //   hi[31:0]  = 0x0b9a180e for E.128 descriptor copies.
-    {
-        let uses_addr = insn.operands.iter().any(|op| matches!(op, Operand::Addr { .. }));
-        let desc = insn.operands.iter().find_map(|op| match op {
-            Operand::Desc { ur_idx, base_reg, .. } => Some((*ur_idx, *base_reg)),
-            _ => None,
-        });
-        if insn.opcode == "LDGSTS" && insn.opcode_full.contains(".128") && uses_addr {
-            if let Some((_ur_idx, Some(desc_r))) = desc {
-                let shared_r = insn.operands.iter().find_map(|op| match op {
-                    Operand::Addr { base_reg: Some(r), .. } => Some(*r as u128),
-                    _ => None,
-                }).unwrap_or(255);
-                let guard = guard_val(insn) as u128;
-                let hi_upper32 = (code >> 96) & 0xFFFFFFFF;
-                code = (hi_upper32 << 96)
-                    | (0x0b9a180e_u128 << 64)
-                    | ((desc_r as u128) << 24)
-                    | (shared_r << 16)
-                    | (guard << 12)
-                    | 0x0fae_u128;
-            }
-        }
-    }
+    // LDGSTS.E.128 descriptor copies (SM120 cp.async: FlashAttention and the
+    // exl3 wave GEMV ring) are now fully table-driven: the LDGSTS desc forms in
+    // the ISA DB carry the descriptor UR, both immediates and the size / L1-alloc
+    // (BYPASS) / L2-hint (LTC) / ZFILL modifier bits. The former hardcoded rebuild
+    // here baked hi[31:0]=0x0b9a180e, which pinned the descriptor UR to 14 and
+    // forced L1-allocate — silently wrong for any other UR and for every
+    // BYPASS/LTC/ZFILL form. Removed; see the LDGSTS _discovery in the table.
 
     // QMMA.SP: bit80 is the Structured Sparsity feature gate.
     // RTX 5090 (SM120) rejects bit80=1 with ILLEGAL_INSTRUCTION (715).

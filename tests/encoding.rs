@@ -283,6 +283,29 @@ fn test_flashattention_sm120_roundtrip_forms() {
                0x000000000000000000000000000079af);
     assert_eq!(enc_clean(&table, "DEPBAR.LE SB0, 0x1 ;"),
                0x0000000000000000000080400000791a);
+
+    // Full LDGSTS descriptor family, recovered from an nvcc 13.0 cp.async
+    // corpus and silicon-validated (frozen-[CC] round-trip on RTX PRO 6000).
+    // The descriptor UR, both immediates and the size / L1-alloc (BYPASS) /
+    // L2-hint (LTC) / ZFILL modifier bits are all table-driven now: the former
+    // hardcoded 0x0b9a180e rebuild pinned UR to 14 and forced L1-allocate.
+    assert_eq!(enc_clean(&table, "LDGSTS.E [R9+0x10], desc[UR6][R6.64+-0x800] ;"),
+               0x000000000b9a10060001080006097fae);
+    assert_eq!(enc_clean(&table, "LDGSTS.E.64 [R9+0x20], desc[UR6][R4.64+0x400] ;"),
+               0x000000000b9a14060002040004097fae);
+    assert_eq!(enc_clean(&table, "LDGSTS.E.BYPASS.128 [R9+0x40], desc[UR6][R4.64+0x100] ;"),
+               0x000000000b9818060004010004097fae);
+    assert_eq!(enc_clean(&table, "LDGSTS.E.LTC128B [R7+0x10], desc[UR6][R4.64+0x100] ;"),
+               0x000000000b9a12060001010004077fae);
+    assert_eq!(enc_clean(&table, "LDGSTS.E.128.ZFILL [R7+0x70], desc[UR6][R4.64+0x708] ;"),
+               0x000000000b9e18060007070804077fae);
+    // DEPBAR.LE group-count field: the harvested 1-bit field at [38] silently
+    // encoded count 0 for any N>=2 (widened to [43:38] from the corpus).
+    assert_eq!(enc_clean(&table, "DEPBAR.LE SB0, 0x2 ;"),
+               0x0000000000000000000080800000791a);
+    // LDS.128 [R+UR+imm]: the '128'/'64' groups had no immediate field.
+    assert_eq!(enc_clean(&table, "LDS.128 R16, [R0+UR5+0x800] ;"),
+               0x0000000008000c000008000500107984);
     assert_eq!(enc_clean(&table, "STS.U16 [R20+UR13+0x4008], R129 ;"),
                0x000000000800040d0040088114007988);
     assert_eq!(enc_clean(&table, "FSEL R12, R3, RZ, P3 ;"),
