@@ -519,7 +519,10 @@ fn merc_atom_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u8, u8, u8,
         let rest = rest.join(" ");
         let rest = rest.trim_end_matches(';');
         let parts: Vec<&str> = rest.split(',').map(|x| x.trim()).collect();
-        let is_cas = base.contains("CAS");
+        // mk19: dekoder trzyma CAS w grupie modyfikatorow (bazowy
+        // opcode to "ATOMG") — detekcja po pelnym mnemoniku, jak
+        // w lustrze main.rs (base0 || body.contains(".CAS")).
+        let is_cas = base.contains("CAS") || first.contains(".CAS");
         if base.starts_with("ATOMS") {
             // ATOMS.<op> Rd, [URx], Rv
             if parts.len() < 3 {
