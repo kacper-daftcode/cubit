@@ -32,22 +32,8 @@ static DECODE_INDEX: OnceLock<crate::decoder::DecodeIndex> = OnceLock::new();
 
 #[cfg(feature = "python")]
 fn get_table() -> &'static crate::table::IsaTable {
-    TABLE.get_or_init(|| {
-        // 1. Env var takes priority
-        if let Ok(p) = std::env::var("CUBIT_TABLE") {
-            if let Ok(t) = crate::table::IsaTable::load(std::path::Path::new(&p)) {
-                return t;
-            }
-        }
-        // 2. Try common locations relative to the working directory
-        let paths = ["tables/sm120.json", "sm120.json"];
-        for p in &paths {
-            if let Ok(t) = crate::table::IsaTable::load(std::path::Path::new(p)) {
-                return t;
-            }
-        }
-        panic!("Cannot find sm120.json. Set the CUBIT_TABLE env var or run from the repo root (tables/sm120.json).");
-    })
+    TABLE.get_or_init(|| crate::table::IsaTable::load_default()
+        .expect("failed to load the configured or bundled SM120 table"))
 }
 
 #[cfg(feature = "python")]

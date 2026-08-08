@@ -5,10 +5,9 @@ use cubit::parser::parse_sass;
 use cubit::encoder::encode_instruction;
 
 fn load_table() -> Option<IsaTable> {
-    match IsaTable::load_default() {
-        Ok(t) => Some(t),
-        Err(e) => { eprintln!("Skipping: {e}"); None }
-    }
+    Some(IsaTable::load_default().expect(
+        "SM120 table must load; tests must not silently skip table failures"
+    ))
 }
 
 #[test]
@@ -44,10 +43,7 @@ fn test_hadd2_f32_source_register() {
     // operand 2) must be encoded at bits[39:32]. The table field was token_idx:0
     // (get_op is 1-based -> None -> 0), so the source was silently dropped; fixed to
     // token_idx:3. Bit-exact vs ptxas sm_120a: HADD2.F32 R7,-RZ,R0.H0_H0 -> 0x...ff077230.
-    // Use the shipped table (tables/sm120.json) explicitly.
-    let table = match IsaTable::load(std::path::Path::new("tables/sm120.json")) {
-        Ok(t) => t, Err(_) => return,
-    };
+    let table = match load_table() { Some(t) => t, None => return };
     let enc = |s: &str| -> u64 {
         let insn = parse_sass(s, 0).unwrap();
         encode_instruction(&insn, &table).unwrap() as u64
@@ -64,9 +60,7 @@ fn test_lds_u16_addr_encoding() {
     // cubit's LDS.U16_R_ARI had base at shift 25 (encoded R<<1) and offset at shift 44;
     // fixed to the LDS_R_ARI layout (sub_r0 @24, sub_imm1 @40). Bit-exact vs ptxas
     // sm_120a: LDS.U16 R7,[R5+0x2000] -> 0x0020000005077984. (Uses tables/sm120.json.)
-    let table = match IsaTable::load(std::path::Path::new("tables/sm120.json")) {
-        Ok(t) => t, Err(_) => return,
-    };
+    let table = match load_table() { Some(t) => t, None => return };
     let insn = parse_sass("LDS.U16 R7, [R5+0x2000] ;", 0).unwrap();
     let code = encode_instruction(&insn, &table).unwrap() as u64;
     assert_eq!(code, 0x0020000005077984, "LDS.U16 base+offset bit-exact vs ptxas");
@@ -79,9 +73,7 @@ fn test_ldg_u16_desc_offset_encoding() {
     // operand), so op_sub_imm read the wrong operand and the immediate offset was
     // dropped (b0=b1=b2=b3 in transposing gathers). Fixed token_idx 1->2.
     // Offset 0x400 must land at [63:40]; base R26 at [31:24]; dest R56 at [23:16].
-    let table = match IsaTable::load(std::path::Path::new("tables/sm120.json")) {
-        Ok(t) => t, Err(_) => return,
-    };
+    let table = match load_table() { Some(t) => t, None => return };
     let with = encode_instruction(&parse_sass("LDG.E.U16 R56, desc[UR4][R26.64+0x400] ;", 0).unwrap(), &table).unwrap() as u64;
     let without = encode_instruction(&parse_sass("LDG.E.U16 R56, desc[UR4][R26.64] ;", 0).unwrap(), &table).unwrap() as u64;
     // Offset 0x400 at [63:40]; descriptor UR4 at [39:32]=0x04 (verified vs cuobjdump
@@ -198,7 +190,7 @@ fn test_metadata_from_table() {
 const PV_SCHED_MASK: u128 = 0x1FFFF_u128 << (64 + 41);
 
 fn pv_table() -> Option<IsaTable> {
-    IsaTable::load(std::path::Path::new("tables/sm120.json")).ok()
+    load_table()
 }
 
 fn enc_clean(table: &IsaTable, s: &str) -> u128 {
@@ -248,6 +240,45 @@ fn test_fmul_immediate_rounding_forms() {
         let sass = format!("FMUL{suffix} R5, R5, 1.5 ;");
         assert_eq!(enc_clean(&table, &sass), expected, "{sass} ptxas mismatch");
     }
+}
+
+#[test]
+fn test_ldg_ltc128b_vector_layout() {
+    let table = match pv_table() { Some(t) => t, None => return };
+    assert_eq!(
+        enc_clean(&table, "LDG.E.LTC128B.128 R4, desc[UR4][R2.64] ;"),
+        0x000000000c1e1d200000000402047981
+    );
+    assert_eq!(
+        enc_clean(&table, "LDG.E.LTC128B.128 R8, desc[UR4][R2.64+0x110] ;"),
+        0x000000000c1e1d200001100402087981
+    );
+}
+
+#[test]
+fn test_qmma_sf_type_and_scale_operand_layout() {
+    let table = match pv_table() { Some(t) => t, None => return };
+    assert_eq!(
+        enc_clean(
+            &table,
+            "QMMA.SF.16832.F32.E4M3.E4M3.E8 R12, R8, R4, R12, R0, R0, UR6 ;"
+        ),
+        0x000000000000000c60000004080c747a
+    );
+    assert_eq!(
+        enc_clean(
+            &table,
+            "QMMA.SF.16832.F32.E2M1.E3M2.E8 R12, R8, R4, R12, R0, R0, UR6 ;"
+        ),
+        0x000000000018c00c60000004080c747a
+    );
+    assert_eq!(
+        enc_clean(
+            &table,
+            "QMMA.SF.16832.F32.E4M3.E4M3.E8 R12, R8, -R4, R12, R16, R16, UR5 ;"
+        ),
+        0x000000000000000cd1001004080c747a
+    );
 }
 
 #[test]
@@ -565,9 +596,7 @@ fn test_uisetp_uniform_ne_reg_encoding() {
     // loops (UISETP -> BRA.U UP0), the form ptxas uses for warp-uniform loops.
     // ptxas encodes  UISETP.NE.AND UP0, UPT, UR5, URZ, UPT  as lo=0x000000ff0500728c.
     // (The hi word's upper bits are scheduling-epoch and are injected separately.)
-    let table = match IsaTable::load(std::path::Path::new("tables/sm120.json")) {
-        Ok(t) => t, Err(_) => return,
-    };
+    let table = match load_table() { Some(t) => t, None => return };
     let lo = encode_instruction(
         &parse_sass("UISETP.NE.AND UP0, UPT, UR5, URZ, UPT ;", 0).unwrap(), &table)
         .unwrap() as u64;
