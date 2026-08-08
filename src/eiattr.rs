@@ -463,6 +463,13 @@ pub struct KernelMeta {
     /// merc_s2r_sr) — payload f4 anchor-rekordu 010b040a = (dest<<6)|1.
     /// Puste = legacy fallback na bramkowany anchor_f4 (iter AE model).
     pub merc_s2r_dest: Vec<u32>,
+    /// Mercury mk18: flagi per wpis merc_param_loads (rownolegle):
+    /// bit0 = wartosc loadu feeduje adres operacji atomowej (RED*/ATOM*),
+    /// bit1 = load lezy PO instrukcji CALL (granica regionu ptxas).
+    pub merc_load_flags: Vec<u8>,
+    /// mk18: klucze puli deskryptorow (pi, mech) trafione adresem
+    /// instrukcji atomowej (RED*/ATOM*; rekordy 024d/024e): rola (83,00).
+    pub merc_atom_pool_hits: Vec<(u32, u8)>,
     /// Mercury mk13: lane'y LOP3 z destem predykatowym (LOP3.LUT Pn, ...) —
     /// NIE dostaja bitu bitmapy, za to mini-rekord 42 2a 02 06 w lane
     /// (gold d_sw4_store slot6).
@@ -548,6 +555,8 @@ impl KernelMeta {
             merc_bar_args: Vec::new(),
             merc_s2r_sr: Vec::new(),
             merc_s2r_dest: Vec::new(),
+            merc_load_flags: Vec::new(),
+            merc_atom_pool_hits: Vec::new(),
             merc_lop3_pdest: Vec::new(),
             merc_syncwarp: Vec::new(),
             merc_atoms: Vec::new(),
@@ -938,6 +947,8 @@ mod tests {
             merc_bar_args: Vec::new(),
             merc_s2r_sr: Vec::new(),
             merc_s2r_dest: Vec::new(),
+            merc_load_flags: Vec::new(),
+            merc_atom_pool_hits: Vec::new(),
             merc_lop3_pdest: Vec::new(),
             merc_syncwarp: Vec::new(),
             merc_atoms: Vec::new(),

@@ -39,6 +39,8 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
         merc_predmem: g.predmem != 0,
         merc_s2r_sr: g.s2rsr.to_vec(),
         merc_s2r_dest: g.s2rd.to_vec(),
+        merc_load_flags: g.loadfl.to_vec(),
+        merc_atom_pool_hits: g.atompool.to_vec(),
         merc_guarded_bra: g.gbra.to_vec(),
         merc_lop3_pdest: g.lpd.to_vec(),
         merc_syncwarp: g.swlanes.to_vec(),

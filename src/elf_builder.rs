@@ -309,6 +309,10 @@ pub struct MercFeatures {
     /// mk20-oraculum: 90/90 anchorow. Krotki/pusty wektor = fallback na
     /// bramkowany MercFeatures.anchor_f4 (model iter AE).
     pub s2r_dest: Vec<u32>,
+    /// mk18: flagi per param_loads (bit1 = post-CALL); klucze puli (pi,mech)
+    /// trafione adresem atomowym — oba steruja rola desc (83,00).
+    pub load_flags: Vec<u8>,
+    pub atom_pool_hits: Vec<(u32, u8)>,
     /// mk13: uzycia desc przez LDG.E.CONSTANT (lane, pi) — wpis (pi,2) w
     /// puli slotow STG (v_ldg_u64 s=2 przy 2 deskryptorach wide).
     pub ldgconst: Vec<(u32, u32)>,
@@ -565,6 +569,8 @@ impl MercFeatures {
         f.lop3_pdest = meta.merc_lop3_pdest.clone();
         f.s2r_sr = meta.merc_s2r_sr.clone();
         f.s2r_dest = meta.merc_s2r_dest.clone();
+        f.load_flags = meta.merc_load_flags.clone();
+        f.atom_pool_hits = meta.merc_atom_pool_hits.clone();
         f.ldgconst = meta.merc_ldgconst.clone();
         f.n_ldgsts = opcodes.iter().filter(|o| o.starts_with("LDGSTS")).count() as u32;
         // mk13: MercFeatures.u_role_alt1 — klasy opcode'ow (full mnemonics
@@ -846,6 +852,8 @@ fn mk10c_roles(
     n_ldgsts: u32,
     stg_wide: bool,
     u_role_alt1: bool,
+    load_flags: &[u8],
+    atom_pool_hits: &[(u32, u8)],
 ) -> Vec<(u8, u8)> {
     let mut roles = Vec::with_capacity(loads.len());
     // distinktywne pi wsrod szerokich regpath-loadow
@@ -877,7 +885,7 @@ fn mk10c_roles(
         .filter(|pi| !stg_write_pis.contains(pi))
         .min()
         .unwrap_or(u32::MAX);
-    for &(_, pi, unif, w, _) in loads {
+    for (j, &(_, pi, unif, w, _)) in loads.iter().enumerate() {
         let role = if unif == 1 {
             match w {
                 16 => (0x07u8, 0x02u8),
@@ -899,11 +907,16 @@ fn mk10c_roles(
         } else if w <= 4 {
             (0x41, 0x02)
         } else if uni_pis.contains(&pi) {
-            // mk14.4 (ODRZUCONA hipoteza, straz gold: p_cctl/p_stg2): "pierwszy
-            // wide regpath -> (83,00)" NIE trzyma; prawdziwy dyskryminator =
-            // region po CALL (mk16): q_tail_call ma regpath PO CALL i dostaje
-            // (83,00); p_cctl/p_stg2 uni-pierwszy bez CALL -> (03,01).
-            (0x03, 0x01)
+            // mk18 (2026-08-08, lab v_a..v_d + gold): dual reg+unif tego pi.
+            // (83,00) gdy: (a) wartosc loadu feeduje adres atom-family
+            // [p_atomg; v_b/v_c], (b) load PO CALL [q_tail_call + mk14.4-nutka].
+            // Inaczej (03,01) [p_cctl (CCTL), p_stg2/v_d/v_a (STG)].
+            let fl = load_flags.get(j).copied().unwrap_or(0);
+            if (fl & 2) != 0 || atom_pool_hits.contains(&(pi, 0)) {
+                (0x83, 0x00)
+            } else {
+                (0x03, 0x01)
+            }
         } else if n == 1 {
             (0x83, 0x00)
         } else if n == 2 {
@@ -1029,6 +1042,8 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         feat.n_ldgsts,
         feat.stg_wide,
         feat.u_role_alt1,
+        &feat.load_flags,
+        &feat.atom_pool_hits,
     );
     let mut ev: Vec<(u32, u8, Ev)> = Vec::new();
     for (j, ld) in feat.param_loads.iter().enumerate() {

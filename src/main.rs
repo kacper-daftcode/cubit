@@ -1266,6 +1266,8 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_bar_args: Vec::new(),
         merc_s2r_sr: Vec::new(),
         merc_s2r_dest: Vec::new(),
+        merc_load_flags: Vec::new(),
+        merc_atom_pool_hits: Vec::new(),
         merc_lop3_pdest: Vec::new(),
         merc_syncwarp: Vec::new(),
         merc_atoms: Vec::new(),
@@ -2086,6 +2088,10 @@ fn cmd_asm_build_elf(
                     let mut lop3_pdest: Vec<u32> = Vec::new();
                     let mut s2r_sr: Vec<u8> = Vec::new();
                     let mut s2r_dest: Vec<u32> = Vec::new();
+                    let mut call_lanes: Vec<u32> = Vec::new();
+                    let mut load_flags: Vec<u8> = Vec::new();
+                    let mut atom_pool_hits: std::collections::BTreeSet<(u32, u8)> =
+                        std::collections::BTreeSet::new();
                     let mut ldgconst: Vec<(u32, u32)> = Vec::new();
                     let mut atoms_scan: Vec<(u32, u8, u8, u8, u8, u8, u8, u8)> = Vec::new();
                     for (ii, (_addr, asm)) in insns.iter().enumerate() {
@@ -2111,6 +2117,9 @@ fn cmd_asm_build_elf(
                         };
                         let base0 = m2.get(1).unwrap().as_str().split('.').next().unwrap_or("");
                         let rest = m2.get(2).map(|x| x.as_str()).unwrap_or("");
+                        if base0 == "CALL" {
+                            call_lanes.push(ii as u32);
+                        }
                         if base0 == "S2R" {
                             s2r_lanes.push(ii as u32);
                             // mk13: enum SR -> b12 anchor-rekordu
@@ -2148,6 +2157,8 @@ fn cmd_asm_build_elf(
                                 let pi = (off - 0x380) / 8;
                                 let unif: u8 = if &cap[1] == "LDCU" { 1 } else { 0 };
                                 loads.push((ii as u32, pi, unif, wv, guard_m));
+                                // mk18 bit1: load PO CALL.
+                                load_flags.push(if call_lanes.is_empty() { 0 } else { 2 });
                                 let mut pidx = u32::MAX;
                                 if wv >= 8 {
                                     pidx = match pool.iter().position(|e| *e == (pi, unif)) {
@@ -2202,7 +2213,18 @@ fn cmd_asm_build_elf(
                                 .map(|c| c[1].to_string())
                                 .collect();
                             if let Some(last) = bks.last() {
-                                stg_pos2.push(*regpool.get(last).unwrap_or(&u32::MAX));
+                                let mut bp = *regpool.get(last).unwrap_or(&u32::MAX);
+                                // mk18: post-CALL STG -> pierwszy wpis puli tego pi
+                                if !call_lanes.is_empty() && bp != u32::MAX {
+                                    if let Some(&(pi_s, _)) = pool.get(bp as usize) {
+                                        if let Some(f0) =
+                                            pool.iter().position(|&(pp, _)| pp == pi_s)
+                                        {
+                                            bp = f0 as u32;
+                                        }
+                                    }
+                                }
+                                stg_pos2.push(bp);
                             }
                         }
                         // mk13: LDG.E.CONSTANT przez desc = osobny wpis puli
@@ -2293,6 +2315,18 @@ fn cmd_asm_build_elf(
                                         }
                                         s2 = &parts[ai][..o];
                                     }
+                                    // mk18: oznacz wpis puli trafiony adresem atomu
+                                    if addr != 255 {
+                                        if let Some(&ph) =
+                                            regpool.get(&format!("R{}", addr))
+                                        {
+                                            if ph != u32::MAX {
+                                                if let Some(&(pa, ma)) = pool.get(ph as usize) {
+                                                    atom_pool_hits.insert((pa, ma));
+                                                }
+                                            }
+                                        }
+                                    }
                                     if base0.contains("CAS") || body.contains(".CAS") {
                                         if parts.len() >= ai + 3 {
                                             atoms_scan.push((ii as u32, cubit::mercury::MERC_ATOM_CLS_CAS,
@@ -2310,6 +2344,8 @@ fn cmd_asm_build_elf(
                         }
                     }
                     meta.merc_param_loads = loads;
+                    meta.merc_load_flags = load_flags;
+                    meta.merc_atom_pool_hits = atom_pool_hits.into_iter().collect();
                     meta.merc_cbank_lane = cbank_lane;
                     meta.merc_s2r_lanes = s2r_lanes;
                     meta.merc_s2r_sr = s2r_sr;
@@ -3461,6 +3497,13 @@ fn cmd_asm_directive_format(
             meta.params.len(),
             meta.num_barriers
         );
+        if std::env::var("CUBIT_DEBUG_META").is_ok() {
+            eprintln!(
+                "  DBG meta: loads={:?} load_flags={:?} atom_pool_hits={:?} s2r_dest={:?} stg_desc_pos={:?}",
+                meta.merc_param_loads, meta.merc_load_flags, meta.merc_atom_pool_hits,
+                meta.merc_s2r_dest, meta.merc_stg_desc_pos
+            );
+        }
 
         // mk13a: PELNE mnemoniczki (opcode_full) — bitmap/scany i tak biora
         // baze split('.'), a stg_wide/u8 + modele mk12/13 potrzebuja
