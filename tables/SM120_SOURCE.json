@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "repository": "https://github.com/kacper-daftcode/blackwell-isa",
-  "revision": "4efc659daca2df2c518516f4239ea23955a645f9",
+  "revision": "c61f5456ee595ccb5891f9c8fc7863651aff0eda",
   "path": "sm120.json",
-  "sha256": "ccad77b174bd5ccb867a3408a7e32b38ab0d9286a64754316fefce45269e57f6",
+  "sha256": "1c50ff15d7bb3b441dda98ee40050e0d38aff7317cb4d294cf776af5febf2f85",
   "instruction_forms": 2001,
   "encoding_variants": 2872,
   "sched_only_entries": 593
