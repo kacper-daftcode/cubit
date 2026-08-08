@@ -56,21 +56,31 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
         merc_mma: g.mma.to_vec(),
         merc_f64imm: g.f64i.to_vec(),
         merc_pad_pos: g.pads.to_vec(),
-        merc_param_loads: g.loads.to_vec(),
+        // mk19: manifest trzyma pi (sloty 8B); meta/elf_builder dziala na
+        // surowych offsetach bajtowych rel = 8*pi (c_off - 0x380).
+        merc_param_loads: g
+            .loads
+            .iter()
+            .map(|&(ln, pi, u, w, g2)| (ln, pi * 8, u, w, g2))
+            .collect(),
         merc_cbank_lane: if g.cblane >= 0 { Some(g.cblane as u32) } else { None },
         merc_s2r_lanes: g.s2r.to_vec(),
         merc_predmem: g.predmem != 0,
         merc_s2r_sr: g.s2rsr.to_vec(),
         merc_s2r_dest: g.s2rd.to_vec(),
         merc_load_flags: g.loadfl.to_vec(),
-        merc_atom_pool_hits: g.atompool.to_vec(),
+        merc_atom_pool_hits: g
+            .atompool
+            .iter()
+            .map(|&(pi, m)| (pi * 8, m))
+            .collect(),
         merc_guarded_bra: g.gbra.to_vec(),
         merc_lop3_pdest: g.lpd.to_vec(),
         merc_syncwarp: g.swlanes.to_vec(),
         merc_atoms: g.atoms.to_vec(),
         merc_ldgsts_pin: g.ldgpin.to_vec(),
         merc_ldgsts_wait: if g.ldgwait < 0 { Vec::new() } else { vec![g.ldgwait as u32] },
-        merc_ldgconst: g.ldgc.to_vec(),
+        merc_ldgconst: g.ldgc.iter().map(|&(ln, pi)| (ln, pi * 8)).collect(),
         merc_xor_reg: g.pxr.to_vec(),
     }
 }

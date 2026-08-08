@@ -2055,8 +2055,10 @@ fn cmd_asm_build_elf(
 
                 // mk10c: rekordy-lane dla strumienia capmerc (lustro
                 // mercv3/mk_gold.py v7 i sass_file::merc_param_scan):
-                // - loads: (lane, pi, unif01, widthB, guard) per LDC/LDCU
-                //   param-window; - cbank_lane: LDCU.64 c[0x358];
+                // - loads: (lane, REL(off-0x380), unif01, widthB, guard)
+                //   per LDC/LDCU param-window (mk19: dziedzina BAJTOWA,
+                //   dowod join2/join3 19666/19666); - cbank_lane: LDCU.64
+                //   c[0x358];
                 // - s2r_lanes; - predmem (@P na operacji pamieci);
                 // - stg_desc_pos: binding STG -> indeks puli (pi, mech)
                 //   wide-loadow.
@@ -2153,18 +2155,20 @@ fn cmd_asm_build_elf(
                             if off == 0x358 && &cap[1] == "LDCU" && cbank_lane.is_none() {
                                 cbank_lane = Some(ii as u32);
                             }
-                            if off >= 0x380 && (off - 0x380) % 8 == 0 {
-                                let pi = (off - 0x380) / 8;
+                            if off >= 0x380 {
+                                // mk19 (lustro sass_file): kluczem jest surowy
+                                // offset rel = off-0x380, nie indeks 8B (pi).
+                                let rel = off - 0x380;
                                 let unif: u8 = if &cap[1] == "LDCU" { 1 } else { 0 };
-                                loads.push((ii as u32, pi, unif, wv, guard_m));
+                                loads.push((ii as u32, rel, unif, wv, guard_m));
                                 // mk18 bit1: load PO CALL.
                                 load_flags.push(if call_lanes.is_empty() { 0 } else { 2 });
                                 let mut pidx = u32::MAX;
                                 if wv >= 8 {
-                                    pidx = match pool.iter().position(|e| *e == (pi, unif)) {
+                                    pidx = match pool.iter().position(|e| *e == (rel, unif)) {
                                         Some(k) => k as u32,
                                         None => {
-                                            pool.push((pi, unif));
+                                            pool.push((rel, unif));
                                             (pool.len() - 1) as u32
                                         }
                                     };

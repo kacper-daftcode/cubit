@@ -802,8 +802,13 @@ fn merc_param_scan(
                     if off == 0x358 && is_ldcu && cbank_lane.is_none() {
                         cbank_lane = Some(lane);
                     }
-                    if off >= 0x380 && (off - 0x380) % 8 == 0 {
-                        let pi = (off - 0x380) / 8;
+                    if off >= 0x380 {
+                        // mk19: rekordy desc sa kluczowane SUROWYM offsetem
+                        // (rel = off-0x380), nie indeksem 8B (pi). Dowod
+                        // korpusowy join2/join3: 19666/19666 match tail==rel.
+                        // pi (rel>>3) zostaje tylko do masek bitowych/widths.
+                        let rel = off - 0x380;
+                        let pi = rel / 8;
                         let uflag: u8 = if is_ldcu { 1 } else { 0 };
                         // lead operand = dest reg
                         let depth = t.find(',').unwrap_or(t.len());
@@ -826,7 +831,7 @@ fn merc_param_scan(
                         } else {
                             4
                         };
-                        loads.push((lane, pi, uflag, w, guard_v));
+                        loads.push((lane, rel, uflag, w, guard_v));
                         // mk18 bit1: load PO ktoregokolwiek CALL (skan jest
                         // w kolejnosci kodu — call_lanes zawiera tylko wczesniejsze).
                         let fl: u8 = if call_lanes.is_empty() { 0 } else { 2 };
@@ -835,10 +840,10 @@ fn merc_param_scan(
                         // szerokie (>=8B); skalarne (4B) rekordy nie maja
                         // slotu w puli STG-binding (k_stg2: (41,02) bez slota).
                         let pool_idx = if w >= 8 {
-                            match pool.iter().position(|&e| e == (pi, uflag)) {
+                            match pool.iter().position(|&e| e == (rel, uflag)) {
                                 Some(k) => k as u32,
                                 None => {
-                                    pool.push((pi, uflag));
+                                    pool.push((rel, uflag));
                                     (pool.len() - 1) as u32
                                 }
                             }
@@ -846,7 +851,9 @@ fn merc_param_scan(
                             u32::MAX
                         };
                         if !dest.is_empty() {
-                            reg_of.push((dest.clone(), pi.min(31), pool_idx));
+                            // mk19: reg_of[*.1] = rel (surowy) — klucze puli i
+                            // atom-hits potrzebuja exact; maski schodza >>3.
+                            reg_of.push((dest.clone(), rel, pool_idx));
                             // wide loads: high-half rejestrow pary (UR7 dla LDCU.64 UR6 itd.)
                             if full.contains(".64") || full.contains(".128") {
                                 let num: Option<(bool, u32)> =
@@ -859,7 +866,7 @@ fn merc_param_scan(
                                     };
                                 if let Some((is_u, n)) = num {
                                     let pfx = if is_u { "UR" } else { "R" };
-                                    reg_of.push((format!("{}{}", pfx, n + 1), pi.min(31), pool_idx));
+                                    reg_of.push((format!("{}{}", pfx, n + 1), rel, pool_idx));
                                 }
                             }
                         }
@@ -952,15 +959,16 @@ fn merc_param_scan(
                 let needle2 = format!("[{},", rn);
                 let needle3 = format!("[{}]", rn);
                 let used = t.contains(&needle1) || t.contains(&needle2) || t.contains(&needle3);
-                if used && !order.contains(pi) {
-                    order.push(*pi);
+                let opi = (*pi >> 3).min(31);
+                if used && !order.contains(&opi) {
+                    order.push(opi);
                 }
                 // mk10c: write-bit przy kazdym store-uzyciu (nie tylko przy
                 // pierwszym) — r2_wr dowod, ze read->write param ginie inaczej.
                 if used
                     && matches!(base0, "STG" | "ATOMG" | "ATOMS" | "RED" | "REDG" | "STS" | "ST")
                 {
-                    write_mask |= 1u32 << pi;
+                    write_mask |= 1u32 << (*pi >> 3).min(31);
                 }
                 // mk18: atom-family (24d/24e rekordy) zjada adres -> oznacz
                 // KLUCZ puli (pi, mech) — odporny na wstawki ldgconst (pi,2).
