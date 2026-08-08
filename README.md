@@ -3,7 +3,9 @@
 Open-source SASS assembler and disassembler for NVIDIA SM120 (Blackwell).
 
 Assembles, disassembles, schedules, patches, and round-trips SM120 machine code.
-100% decode rate across 47,244 instructions. No nvcc or ptxas required.
+100% decode rate across 47,244 instructions. Assembly and disassembly require
+no nvcc or ptxas; the `roundtrip` validation command uses `cuobjdump` as an
+independent reference oracle.
 
 ## Install
 
@@ -48,8 +50,8 @@ cubit disassemble kernel.cubin -k my_kernel
 # Round-trip: binary → SASS text → binary (bit-exact)
 cubit roundtrip kernel.cubin
 
-# Patch an nvcc-compiled cubin (re-encode SASS, keep ELF metadata)
-cubit patch nvcc_kernel.cubin -o patched.cubin
+# Rebuild edited SASS while preserving an nvcc cubin's ELF metadata
+cubit asm modified.sass --template nvcc_kernel.cubin -o patched.cubin
 
 # Encode a single instruction
 cubit encode "IADD3 R5, PT, PT, R9, R4, R5 ;"
@@ -96,9 +98,7 @@ No manual scheduling annotations needed. Output verified on RTX 5090.
 
     LDCU.64 UR14, c[0x0][0x358] ;
     S2R R16, SR_TID.X ;
-    LDCU.64 UR6, c[0x0][0x380] ;
-    MOV R12, UR6 ;
-    MOV R13, UR7 ;
+    LDC.64 R12, c[0x0][0x380] ;
     QMMA.16832.F32.E4M3.E4M3 R8, R0, R4, R8 ;
     EXIT ;
 .endentry
@@ -109,8 +109,9 @@ cubit asm gemv.sass -o gemv.cubin
 # Load with cuModuleLoad + cuLaunchKernel
 ```
 
-On SM120, kernel params live in the uniform constant bank — use `LDCU`, not `LDC`.
-cubit warns if it sees `LDC` reading param offsets in a standalone kernel.
+On SM120, kernel parameters live in the regular constant bank: use `LDC` /
+`LDC.64` for offsets beginning at `c[0x0][0x380]`. `LDCU` remains appropriate
+for uniform descriptors such as `c[0x0][0x358]`.
 
 A `.sass` file can contain multiple kernels (`.entry` / `.endentry` blocks) —
 cubit assembles them all into a single multi-kernel cubin.
@@ -152,12 +153,14 @@ to modify the SASS:
 
 ```bash
 nvcc -arch=sm_120 -cubin kernel.cu -o kernel.cubin
-cubit disassemble kernel.cubin -k my_kernel > kernel.sass
+cubit disassemble kernel.cubin -k my_kernel --frozen > kernel.sass
 # ... edit kernel.sass ...
-cubit patch kernel.cubin -o patched.cubin
+cubit asm kernel.sass --template kernel.cubin -o patched.cubin
 ```
 
 The patched cubin works with both driver API and runtime API (`cudaLaunchKernel`).
+The separate `cubit patch` command is a diagnostic decode/re-encode normalizer;
+it does not consume an edited SASS file.
 
 ## Project layout
 
