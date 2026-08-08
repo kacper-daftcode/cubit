@@ -56,7 +56,10 @@ def canonical_repository(source: Path) -> tuple[Path, str, str]:
             "Commit blackwell-isa first so the vendored table has immutable provenance."
         )
 
-    revision = run_git(repo, "rev-parse", "HEAD")
+    # Pin the commit that last changed the table, not an unrelated newer docs
+    # commit at repository HEAD. The clean-file check above guarantees that this
+    # revision still describes the bytes being synchronized.
+    revision = run_git(repo, "log", "-1", "--format=%H", "--", relative)
     remote = run_git(repo, "remote", "get-url", "origin")
     if remote.startswith("git@github.com:"):
         remote = "https://github.com/" + remote.removeprefix("git@github.com:")
