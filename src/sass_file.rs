@@ -209,7 +209,7 @@ pub fn kernel_def_to_meta(
     let (merc_param_order, merc_param_write, merc_stg_desc_pos, merc_bar_pred,
          merc_param_uniform, merc_param_regpath, merc_param_width,
          merc_param_loads, merc_cbank_lane, merc_s2r_lanes, merc_predmem,
-         merc_ldgconst) =
+         merc_ldgconst, merc_load_flags, merc_atom_pool_hits) =
         merc_param_scan(&def.instructions);
     let (merc_bar_pos, merc_stg_pos, merc_stg_off, merc_bar_args) =
         merc_exec_positions(&def.instructions);
@@ -302,6 +302,8 @@ pub fn kernel_def_to_meta(
         merc_s2r_lanes,
         merc_predmem,
         merc_ldgconst,
+        merc_load_flags,
+        merc_atom_pool_hits,
         merc_guarded_bra,
         merc_s2r_sr,
         merc_s2r_dest,
@@ -727,7 +729,7 @@ fn merc_f64imm_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u8, u32)>
 
 fn merc_param_scan(
     instructions: &[Instruction],
-) -> (Option<Vec<u32>>, u32, Vec<u32>, bool, u32, u32, Vec<u8>, Vec<(u32, u32, u8, u8, u8)>, Option<u32>, Vec<u32>, bool, Vec<(u32, u32)>) {
+) -> (Option<Vec<u32>>, u32, Vec<u32>, bool, u32, u32, Vec<u8>, Vec<(u32, u32, u8, u8, u8)>, Option<u32>, Vec<u32>, bool, Vec<(u32, u32)>, Vec<u8>, Vec<(u32, u8)>) {
     // reg name -> (param idx, idx w puli deskryptorow (pi,mech))
     let mut reg_of: Vec<(String, u32, u32)> = Vec::new();
     let mut order: Vec<u32> = Vec::new();
@@ -744,6 +746,10 @@ fn merc_param_scan(
     let mut predmem = false;
     let mut pool: Vec<(u32, u8)> = Vec::new();
     let mut ldgconst: Vec<(u32, u32)> = Vec::new();
+    // mk18: lane'y CALL (granice regioni) + flagi per-load + targi atomowe puli
+    let mut call_lanes: Vec<u32> = Vec::new();
+    let mut load_flags: Vec<u8> = Vec::new();
+    let mut atom_pool_hits: std::collections::BTreeSet<(u32, u8)> = std::collections::BTreeSet::new();
 
     fn note(m: &mut u32, pi: u32) {
         if pi < 32 {
@@ -780,6 +786,9 @@ fn merc_param_scan(
         if base0 == "S2R" {
             s2r_lanes.push(lane);
         }
+        if base0 == "CALL" {
+            call_lanes.push(lane);
+        }
         // LDC / LDCU load z okna parametrow [0x380..]
         let is_ldcu = ins.opcode == "LDCU";
         if ins.opcode == "LDC" || is_ldcu {
@@ -815,6 +824,10 @@ fn merc_param_scan(
                             4
                         };
                         loads.push((lane, pi, uflag, w, guard_v));
+                        // mk18 bit1: load PO ktoregokolwiek CALL (skan jest
+                        // w kolejnosci kodu — call_lanes zawiera tylko wczesniejsze).
+                        let fl: u8 = if call_lanes.is_empty() { 0 } else { 2 };
+                        load_flags.push(fl);
                         // pula deskryptorow (pi, mechanizm) — TYLKO loady
                         // szerokie (>=8B); skalarne (4B) rekordy nie maja
                         // slotu w puli STG-binding (k_stg2: (41,02) bez slota).
@@ -946,6 +959,16 @@ fn merc_param_scan(
                 {
                     write_mask |= 1u32 << pi;
                 }
+                // mk18: atom-family (24d/24e rekordy) zjada adres -> oznacz
+                // KLUCZ puli (pi, mech) — odporny na wstawki ldgconst (pi,2).
+                if used
+                    && *pidx != u32::MAX
+                    && matches!(base0, "ATOMG" | "ATOMS" | "RED" | "REDG")
+                {
+                    if let Some(&(_, mech)) = pool.get(*pidx as usize) {
+                        atom_pool_hits.insert((*pi, mech));
+                    }
+                }
                 // mk10c: STG binding -> indeks PULI deskryptorow (pi, mech)
                 // zrodlowego loadu roota adresowego (nie pozycja param-queue).
                 // mk13b: NIE pushowac tutaj (aliasowe duplikaty reg_of dawaly
@@ -962,7 +985,7 @@ fn merc_param_scan(
             // wpis. Root adresu = ostatni nawias kwadratowy (jak mk_gold /
             // main-rs mirror); fallback = binding z petli, inaczej UNKNOWN.
             if matches!(base0, "STG" | "ATOMG" | "ATOMS" | "RED" | "REDG") {
-                let binding = if let Some(lb) = t.rfind('[') {
+                let mut binding = if let Some(lb) = t.rfind('[') {
                     let end = t[lb..].find(']').map(|e| lb + e).unwrap_or(t.len());
                     let root: String = t[lb + 1..end]
                         .chars()
@@ -977,7 +1000,23 @@ fn merc_param_scan(
                 } else {
                     stg_binding.unwrap_or(u32::MAX)
                 };
-                stg_desc_pos.push(binding);
+                // mk18: STG po granicy CALL — nvcc wiąże slot z PIERWSZYM
+                // wpisem puli tego samego pi (q_tail_call: post-CALL reload
+                // REG dostaje s=0 = wpis UNIF; v_a/p_call: flow juz dawalo 0).
+                if base0 == "STG" && !call_lanes.is_empty() && binding != u32::MAX {
+                    if let Some((pi_of, _)) = pool.get(binding as usize) {
+                        if let Some(first) = pool.iter().position(|&(pp, _)| pp == *pi_of) {
+                            binding = first as u32;
+                        }
+                    }
+                }
+                // mk18: wpis slota TYLKO dla STG (mk_gold/main.rs mirror
+                // dyscyplina: b0==STG). Rekordy atomowe maja slot wlasny
+                // (build_atom_rec z krotki) — push dla nich przesuwal
+                // indeksy stg_i vs manifest (p_atomg E2E off-by-one).
+                if base0 == "STG" {
+                    stg_desc_pos.push(binding);
+                }
             }
         }
         if base0 == "BAR" && ins.guard.is_some() {
@@ -995,5 +1034,7 @@ fn merc_param_scan(
      cbank_lane,
      s2r_lanes,
      predmem,
-     ldgconst)
+     ldgconst,
+     load_flags,
+     atom_pool_hits.into_iter().collect())
 }

@@ -62,6 +62,8 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
         merc_predmem: g.predmem != 0,
         merc_s2r_sr: g.s2rsr.to_vec(),
         merc_s2r_dest: g.s2rd.to_vec(),
+        merc_load_flags: g.loadfl.to_vec(),
+        merc_atom_pool_hits: g.atompool.to_vec(),
         merc_guarded_bra: g.gbra.to_vec(),
         merc_lop3_pdest: g.lpd.to_vec(),
         merc_syncwarp: g.swlanes.to_vec(),
@@ -77,10 +79,7 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
 /// kazdy wpis = (kernel-prefix, przyczyna). Test pilnuje, by (a) wszystkie
 /// inne byly byte-exact, (b) te nie zaczely "przechodzic" przypadkiem bez
 /// aktualizacji dokumentu.
-static EXPECTED_DIFF: &[(&str, &str)] = &[
-    ("p_atomg",       "mk17a: anchor f4 ROZWIAZANY (f4 = numer R dest S2R; 90/90 mk20); residuum = rola desc REG-path (83,00) vs (03,01) przy wspoldzielonym pi z UNIF — generator siatki rol ptxas (mk18-scope)"),
-    ("q_tail_call",   "mk17a: anchor f4 OK (S2R R0 -> 0); residuum = rola desc REG (83,00) + STG slot s=0 (preferencja wpisu UNIF pi0 / reset regionu po CALL) — mk18 scope"),
-];
+static EXPECTED_DIFF: &[(&str, &str)] = &[];
 
 #[test]
 fn gold_all_kernels_byte_exact() {

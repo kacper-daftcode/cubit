@@ -12,5 +12,7 @@ fn main() {
         println!("  stg_pos: {:?}", m.merc_stg_pos);
         println!("  ldgconst: {:?}", m.merc_ldgconst);
         println!("  guarded_bra: {:?}  lop3_pdest: {:?}  s2r_sr: {:?}", m.merc_guarded_bra, m.merc_lop3_pdest, m.merc_s2r_sr);
+        println!("  s2r_dest: {:?}  load_flags: {:?}  atom_pool_hits: {:?}", m.merc_s2r_dest, m.merc_load_flags, m.merc_atom_pool_hits);
+        println!("  atoms: {:?}", m.merc_atoms);
     }
 }
