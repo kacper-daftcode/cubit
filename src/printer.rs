@@ -97,6 +97,14 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             };
             return format!("{guard_prefix}{opcode} {upred_str}, 0x{target:x}");
         }
+        // BRA.DIV/BRA.CONV carry a uniform register at bits[28:24].
+        let register_branch = matches!(insn.opcode.as_str(), "BRA.DIV" | "BRA.CONV")
+            || (insn.opcode == "BRA"
+                && insn.mod_group.split(',').any(|m| matches!(m.trim(), "DIV" | "CONV")));
+        if register_branch && insn.key.contains("_UR_") {
+            let ureg = ((insn.raw_code as u64) >> 24) & 0x1f;
+            return format!("{guard_prefix}{opcode} UR{ureg}, 0x{target:x}");
+        }
         // RET/RET.NODEC: register at bits[31:24], then branch target
         if insn.opcode.starts_with("RET") {
             let lo64 = insn.raw_code as u64;
@@ -210,7 +218,9 @@ fn is_last_token(tok: i32, ins_key: &str) -> bool {
 fn is_branch_op(opcode: &str) -> bool {
     // BRA, CALL, JMP, RET, BSSY need branch target decoding
     // BSYNC/BREAK do NOT have target addresses (just barrier operands)
-    matches!(opcode, "BRA" | "BRA.U" | "BRX" | "BRXU" | "CALL" | "JMP" | "RET" | "RET.NODEC" | "BSSY")
+    opcode == "BRA"
+        || opcode.starts_with("BRA.")
+        || matches!(opcode, "BRX" | "BRXU" | "CALL" | "JMP" | "RET" | "RET.NODEC" | "BSSY")
 }
 
 fn is_bssy_op(opcode: &str) -> bool {
@@ -1442,5 +1452,45 @@ mod tests {
         assert_eq!(sign_extend(0xffffff8, 24), -8);
         assert_eq!(sign_extend(0x100, 32), 256);
         assert_eq!(sign_extend(0x80000000, 32), i32::MIN as i64);
+    }
+
+    fn branch_inst(opcode: &str, key: &str, mod_group: &str, raw_code: u128) -> DecodedInst {
+        DecodedInst {
+            key: key.to_string(),
+            mod_group: mod_group.to_string(),
+            opcode: opcode.to_string(),
+            fields: Vec::new(),
+            ctrl: crate::decoder::scheduling_decode::DecodedCtrl {
+                stall: 0,
+                yield_flag: false,
+                write_bar: 7,
+                read_bar: 7,
+                wait_mask: 0,
+            },
+            raw_code,
+            addr: 0,
+        }
+    }
+
+    #[test]
+    fn test_bra_u_base_opcode_prints_negated_uniform_predicate() {
+        let inst = branch_inst(
+            "BRA",
+            "BRA_UP_II",
+            "U",
+            0x000fea000b8000000000042108407547,
+        );
+        assert_eq!(to_sass(&inst), "BRA.U !UP0, 0x42110");
+    }
+
+    #[test]
+    fn test_bra_div_prints_uniform_register_operand() {
+        let inst = branch_inst(
+            "BRA.DIV",
+            "BRA.DIV_UR_II",
+            "",
+            0x000fc600000000000000049e04487947,
+        );
+        assert_eq!(to_sass(&inst), "BRA.DIV UR4, 0x49d30");
     }
 }

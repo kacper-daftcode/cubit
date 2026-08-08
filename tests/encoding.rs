@@ -251,6 +251,33 @@ fn test_fmul_immediate_rounding_forms() {
 }
 
 #[test]
+fn test_uniform_branch_modes_decode_and_reencode_faithfully() {
+    let table = match pv_table() { Some(t) => t, None => return };
+    let index = cubit::decoder::DecodeIndex::build(&table);
+    let cases = [
+        (
+            0x000fea000b8000000000042108407547_u128,
+            "BRA.U_UP_II",
+            "BRA.U !UP0, 0x42110",
+        ),
+        (
+            0x000fc600000000000000049e04487947_u128,
+            "BRA.DIV_UR_II",
+            "BRA.DIV UR4, 0x49d30",
+        ),
+    ];
+
+    for (raw, expected_key, expected_sass) in cases {
+        let decoded = index.decode(raw, 0, &table).unwrap();
+        assert_eq!(decoded.key, expected_key);
+        let sass = cubit::printer::to_sass(&decoded);
+        assert_eq!(sass, expected_sass);
+        let reencoded = encode_instruction(&parse_sass(&sass, 0).unwrap(), &table).unwrap();
+        assert_eq!(reencoded & !PV_SCHED_MASK, raw & !PV_SCHED_MASK);
+    }
+}
+
+#[test]
 fn test_imad_wide_signed_encoding() {
     // Signed IMAD.WIDE (no .U32) shares the low opcode 0x7225 with IMAD.WIDE.U32 and
     // only differs by the S32 bit (73). The IMAD_R_R_R_R::WIDE and_base had the wrong

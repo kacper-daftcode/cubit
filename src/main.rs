@@ -572,6 +572,19 @@ fn cmd_disassemble(
                     lines.push(format!("{label}__raw__0x{:032x} ;", d.code));
                     continue;
                 }
+                // Verify fidelity before rewriting numeric branch targets to labels.
+                // Branches previously bypassed this safety net and could silently
+                // change machine code when their opcode or predicate decoded lossy.
+                let faithful = cubit::parse_sass(&d.text, d.addr)
+                    .and_then(|insn| cubit::encoder::encode_instruction(&insn, &table))
+                    .map(|reenc| (reenc & !SCHED_MASK) == (d.code & !SCHED_MASK))
+                    .unwrap_or(false);
+                if !faithful {
+                    eprintln!("  WARN [{kernel_name}] 0x{:04x}: decode->encode not byte-faithful, \
+                               emitting __raw__ (FIX THE TABLE): {:?}", d.addr, d.text);
+                    lines.push(format!("{label}__raw__0x{:032x} ;", d.code));
+                    continue;
+                }
                 // Branches round-trip via label resolution (re-encode depends on addr).
                 if is_branch(&d.text) {
                     let mut text = d.text.clone();
@@ -584,22 +597,7 @@ fn cmd_disassemble(
                     lines.push(format!("{label}[{cc_str}] {text} ;"));
                     continue;
                 }
-                // Non-branch: verify decode -> re-encode is byte-faithful (non-sched
-                // bits). If a table gap makes it lossy, emit exact bytes as __raw__ so
-                // the round-trip stays bit-perfect (scheduler/encoder bypassed).
-                let faithful = cubit::parse_sass(&d.text, 0)
-                    .and_then(|insn| cubit::encoder::encode_instruction(&insn, &table))
-                    .map(|reenc| (reenc & !SCHED_MASK) == (d.code & !SCHED_MASK))
-                    .unwrap_or(false);
-                if faithful {
-                    lines.push(format!("{label}[{cc_str}] {} ;", d.text));
-                } else {
-                    // Should not happen for a complete table — surface it as a decode/encode
-                    // fidelity bug to fix (the bytes are still preserved exactly).
-                    eprintln!("  WARN [{kernel_name}] 0x{:04x}: decode->encode not byte-faithful, \
-                               emitting __raw__ (FIX THE TABLE): {:?}", d.addr, d.text);
-                    lines.push(format!("{label}__raw__0x{:032x} ;", d.code));
-                }
+                lines.push(format!("{label}[{cc_str}] {} ;", d.text));
             }
         } else {
             lines.push(format!("// {kernel_name}"));
