@@ -57,6 +57,10 @@ pub struct KernelResources {
     pub max_pred: Option<u32>,
     /// Number of barriers declared.
     pub num_barriers: u32,
+    /// mk19: lane'y duchow __syncwarp z dyrektywy `.merc_syncwarp`
+    /// (EIATTR 0x28/0x29 nie ma odpowiednika w SASS; `disassemble --frozen`
+    /// emituje, `asm` konsumuje).
+    pub merc_syncwarp: Vec<u32>,
     /// Kernel parameters in declaration order.
     pub params: Vec<KernelParam>,
     /// Shared memory declarations.
@@ -126,6 +130,20 @@ pub fn parse_directive(line: &str, res: &mut KernelResources) -> bool {
         let rest = rest.trim();
         if let Some(n) = parse_bar_count(rest) {
             res.num_barriers = res.num_barriers.max(n);
+        }
+        return true;
+    }
+
+    if let Some(rest) = line.strip_prefix(".merc_syncwarp") {
+        // .merc_syncwarp 0x<off>|<off-dzies> — lane = offset bajtowy / 16
+        let t = rest.trim().trim_end_matches(';');
+        let v = if let Some(h) = t.strip_prefix("0x") {
+            u32::from_str_radix(h, 16).ok()
+        } else {
+            t.parse::<u32>().ok()
+        };
+        if let Some(v) = v {
+            res.merc_syncwarp.push(v / 16);
         }
         return true;
     }
