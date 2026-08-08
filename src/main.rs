@@ -610,6 +610,10 @@ fn cmd_disassemble(
 
     let cubin = cubit::elf::CubinFile::load(input)?;
     check_arch(&table, cubin.sm, input, allow_arch_mismatch)?;
+    // mk19: EIATTR kernel-metry (m.in. merc_syncwarp — duchy __syncwarp,
+    // niewidoczne w SASS) do znacznikow .merc_syncwarp w --frozen.
+    let eiattr_meta: std::collections::BTreeMap<String, cubit::eiattr::KernelMeta> =
+        cubit::eiattr::parse_cubin_metadata(&cubin.bytes).unwrap_or_default();
     let mut lines: Vec<String> = Vec::new();
 
     for (sec_idx, (sec_name, _off, _size)) in cubin.text_sections.iter().enumerate() {
@@ -811,6 +815,14 @@ fn cmd_disassemble(
             }
             if shared_size > 0 {
                 lines.push(format!("    .shared smem[{shared_size}]"));
+            }
+            // mk19: duchy __syncwarp (EIATTR 0x28/0x29, elidowane do NOP)
+            // jako dyrektywy — asm odtworzy rekordy 01476c0a i sloty bitmapy.
+            if let Some(m) = eiattr_meta.get(kernel_name) {
+                let proven = ghost_lanes_proven(&cubin.bytes, kernel_name, &m.merc_syncwarp);
+                for &gl in &proven {
+                    lines.push(format!("    .merc_syncwarp 0x{:x}", gl * 16));
+                }
             }
             for d in &decoded {
                 let label = if targets.contains(&d.addr) {
@@ -1278,6 +1290,42 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
 
 /// mk14: dociagnij ghost __syncwarp z referencji --eiattr-from (EIATTR
 /// 0x28/0x29 niewidoczne w tekscie sass; reszta merc-meta pochodzi ze skanu).
+/// mk19b: filtr dowodowy duchow __syncwarp. EIATTR 0x28/0x29 listuje KAZDY
+/// site __sync-family intrinsika (rowniez pochlonienty przez realna
+/// instrukcje SHFL/REDUX/MATCH); rekord ghost 01476c0a powstaje tylko dla
+/// podzbioru (ptxas eliduje WARPSYNC do NOP). Regula: liczba rekordow
+/// 01476c0a w ORYGINALNEJ sekcji .nv.capmerc.text.<K> jest dowodem;
+/// site'y parujemy po kolejnosci (lab: p_warpsync 1=1, q_bsync_pair 2=2;
+/// p_shfl/k_shfl/p_redux/p_matchany: site bez rekordu -> 0 markerow).
+fn ghost_lanes_proven(bytes: &[u8], kernel_name: &str, sites: &[u32]) -> Vec<u32> {
+    if sites.is_empty() {
+        return Vec::new();
+    }
+    let sec_name = format!(".nv.capmerc.text.{kernel_name}");
+    let keep_all = || sites.to_vec();
+    let Ok(sections) = elf64_sections(bytes) else { return keep_all() };
+    let Some((_, off, size)) = sections.into_iter().find(|(n, _, _)| n == &sec_name)
+    else {
+        return keep_all(); // cubin bez capmerc (np. nasz build) — stara regula
+    };
+    let (off, size) = (off as usize, size as usize);
+    if off + size > bytes.len() {
+        return keep_all();
+    }
+    let n_ghost = match cubit::mercury::CapMerc::parse(&bytes[off..off + size], false) {
+        Ok(cm) => cm.records.iter().filter(|r| r.tag == [0x01, 0x47, 0x6c, 0x0a]).count(),
+        Err(_) => sites.len(),
+    };
+    let n = n_ghost.min(sites.len());
+    if n != sites.len() {
+        eprintln!(
+            "  note [{kernel_name}]: EIATTR lists {} syncwarp site(s), capmerc proves {n_ghost} ghost record(s); marking first {n}",
+            sites.len()
+        );
+    }
+    sites.iter().copied().take(n).collect()
+}
+
 fn merge_syncwarp_from_reference(
     entries: &mut [cubit::elf_builder::KernelEntry],
     eiattr_path: Option<&std::path::Path>,
@@ -1288,7 +1336,8 @@ fn merge_syncwarp_from_reference(
     for e in entries.iter_mut() {
         if let Some(rm) = refmeta.get(&e.name) {
             if !rm.merc_syncwarp.is_empty() && e.meta.merc_syncwarp.is_empty() {
-                e.meta.merc_syncwarp = rm.merc_syncwarp.clone();
+                // mk19b: tylko site'y z dowodem w oryginalnym capmerc.
+                e.meta.merc_syncwarp = ghost_lanes_proven(&bytes, &e.name, &rm.merc_syncwarp);
             }
         }
     }

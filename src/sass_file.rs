@@ -308,8 +308,14 @@ pub fn kernel_def_to_meta(
         merc_s2r_sr,
         merc_s2r_dest,
         merc_lop3_pdest,
-        // mk14: duchy syncwarp widoczne tylko w EIATTR (nie w tekscie sass).
-        merc_syncwarp: Vec::new(),
+        // mk19: duchy syncwarp z dyrektywy .merc_syncwarp (znacznik z
+        // disassemble --frozen; bez znacznika — pusto, jak dawniej).
+        merc_syncwarp: {
+            let mut v = def.resources.merc_syncwarp.clone();
+            v.sort_unstable();
+            v.dedup();
+            v
+        },
         merc_atoms,
         merc_ldgsts_pin,
         merc_ldgsts_wait,
