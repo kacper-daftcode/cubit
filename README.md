@@ -13,6 +13,20 @@ cargo build --release
 
 Rust 1.70+. The ISA table (`tables/sm120.json`) ships with the repo.
 
+### ISA table provenance
+
+`tables/sm120.json` is a generated, byte-identical copy of the canonical
+[`blackwell-isa`](https://github.com/kacper-daftcode/blackwell-isa) database.
+Its pinned source commit and SHA-256 are recorded in `tables/SM120_SOURCE.json`;
+do not edit the vendored table directly.
+
+From sibling checkouts, update or verify it with:
+
+```bash
+python3 tools/sync_table.py
+python3 tools/sync_table.py --check
+```
+
 ## What it does
 
 ```bash
@@ -140,10 +154,12 @@ The patched cubin works with both driver API and runtime API (`cudaLaunchKernel`
 
 ```
 src/                 Rust crate (lib + CLI binary)
-tables/sm120.json    ISA bitfield table (~1,995 instruction forms)
+tables/sm120.json    ISA bitfield table (2,001 instruction forms)
+tables/SM120_SOURCE.json
+                     canonical blackwell-isa revision and table digest
 examples/            tensor-core kernel examples (.sass, .cu host harnesses)
 tests/               encoding roundtrip + full assembler integration tests
-tools/               ISA discovery and validation scripts
+tools/               ISA discovery, synchronization, and validation scripts
 docs/                SM120 scheduling and optimization notes
 ```
 

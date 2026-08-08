@@ -207,6 +207,50 @@ fn enc_clean(table: &IsaTable, s: &str) -> u128 {
 }
 
 #[test]
+fn test_canonical_table_has_no_baked_control_bits() {
+    let table = match pv_table() { Some(t) => t, None => return };
+    for (key, entry) in &table.entries {
+        for (group, variant) in &entry.mod_groups {
+            assert_eq!(
+                variant.and_base >> 105,
+                0,
+                "{key}::{group} bakes scheduling/reuse bits [127:105] into and_base"
+            );
+        }
+    }
+}
+
+#[test]
+fn test_hadd2_register_form_is_not_mislabeled_as_immediate() {
+    let table = match pv_table() { Some(t) => t, None => return };
+    assert!(
+        table.get_key("HADD2_R_R_II").is_none(),
+        "0x7230 bits[39:32] are Rb; the historical immediate key was a duplicate"
+    );
+    assert_eq!(
+        enc_clean(&table, "HADD2 R48, R48, R61 ;"),
+        0x00000000000000000000003d30307230,
+        "register form must match the recovered nvcc encoding"
+    );
+}
+
+#[test]
+fn test_fmul_immediate_rounding_forms() {
+    let table = match pv_table() { Some(t) => t, None => return };
+    let suffixes = [
+        ("",   0x00000000004000003fc0000005057820_u128),
+        (".FTZ", 0x00000000004100003fc0000005057820_u128),
+        (".RM",  0x00000000004040003fc0000005057820_u128),
+        (".RP",  0x00000000004080003fc0000005057820_u128),
+        (".RZ",  0x000000000040c0003fc0000005057820_u128),
+    ];
+    for (suffix, expected) in suffixes {
+        let sass = format!("FMUL{suffix} R5, R5, 1.5 ;");
+        assert_eq!(enc_clean(&table, &sass), expected, "{sass} ptxas mismatch");
+    }
+}
+
+#[test]
 fn test_imad_wide_signed_encoding() {
     // Signed IMAD.WIDE (no .U32) shares the low opcode 0x7225 with IMAD.WIDE.U32 and
     // only differs by the S32 bit (73). The IMAD_R_R_R_R::WIDE and_base had the wrong
