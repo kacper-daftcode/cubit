@@ -441,6 +441,32 @@ pub fn s2r_sr_name(text: &str) -> String {
     }
 }
 
+/// mk17a (2026-08-07): numer rejestru docelowego S2R -> payload f4 rekordu
+/// anchor 010b040a: bajty [10:11] = (dest<<6)|1. Empirycznie 90/90 anchorow
+/// mk20-datasetu (oraculum gdb na ptxas): f4 == numer R dest S2R, na ktorym
+/// stoi anchor; boot-anchor (REC_PROLOG) ma f4=1 const. Potwierdzone tez
+/// RE pisarza: FUN_00ad93f0 zapisuje node+0x44 = pozycja skanu first-fit
+/// alokatora rejestrow, a reader anchorowy (FUN_00bd2fb0) czyta wlasnie te
+/// pozycje dla wiersza S2R. RZ -> 0x3f (konwencja 6-bit jak URZ; brak
+/// probek korpusowych). None gdy tekst nieparsowalny.
+pub fn merc_s2r_dest_reg(text: &str) -> Option<u32> {
+    let mut toks = text.split_whitespace();
+    for t in &mut toks {
+        if t.starts_with('@') {
+            continue;
+        }
+        if t.split('.').next() == Some("S2R") {
+            break;
+        }
+    }
+    let dest = toks.next()?.trim_end_matches(',');
+    if dest == "RZ" {
+        return Some(0x3f);
+    }
+    let n = dest.strip_prefix('R')?;
+    n.parse::<u32>().ok()
+}
+
 /// Mini-rekord dla LOP3 z destem predykatowym (`LOP3.LUT Pn, ..`): lane NIE
 /// dostaje bitu bitmapy (w przeciwienstwie do LOP3 z destem Rn), zamiast
 /// tego 4-bajtowy atom w lane (gold d_sw4_store slot6, mk13 2026-08-06).

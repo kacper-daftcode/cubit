@@ -1265,6 +1265,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_xor_reg: Vec::new(),
         merc_bar_args: Vec::new(),
         merc_s2r_sr: Vec::new(),
+        merc_s2r_dest: Vec::new(),
         merc_lop3_pdest: Vec::new(),
         merc_syncwarp: Vec::new(),
         merc_atoms: Vec::new(),
@@ -2084,6 +2085,7 @@ fn cmd_asm_build_elf(
                     let mut guarded_bra: Vec<u32> = Vec::new();
                     let mut lop3_pdest: Vec<u32> = Vec::new();
                     let mut s2r_sr: Vec<u8> = Vec::new();
+                    let mut s2r_dest: Vec<u32> = Vec::new();
                     let mut ldgconst: Vec<(u32, u32)> = Vec::new();
                     let mut atoms_scan: Vec<(u32, u8, u8, u8, u8, u8, u8, u8)> = Vec::new();
                     for (ii, (_addr, asm)) in insns.iter().enumerate() {
@@ -2122,6 +2124,10 @@ fn cmd_asm_build_elf(
                                 None => String::new(),
                             };
                             s2r_sr.push(cubit::mercury::merc_s2r_sr_enum(&sr_full));
+                            // mk17a: numer R dest -> payload f4 anchor-rekordu.
+                            s2r_dest.push(
+                                cubit::mercury::merc_s2r_dest_reg(body).unwrap_or(0),
+                            );
                         }
                         if guard_m != 0 && mem_ops.contains(&base0) {
                             predmem = true;
@@ -2307,6 +2313,7 @@ fn cmd_asm_build_elf(
                     meta.merc_cbank_lane = cbank_lane;
                     meta.merc_s2r_lanes = s2r_lanes;
                     meta.merc_s2r_sr = s2r_sr;
+                    meta.merc_s2r_dest = s2r_dest;
                     meta.merc_ldgconst = ldgconst;
                     meta.merc_predmem = predmem;
                     meta.merc_guarded_bra = guarded_bra;

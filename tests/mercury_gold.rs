@@ -61,6 +61,7 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
         merc_s2r_lanes: g.s2r.to_vec(),
         merc_predmem: g.predmem != 0,
         merc_s2r_sr: g.s2rsr.to_vec(),
+        merc_s2r_dest: g.s2rd.to_vec(),
         merc_guarded_bra: g.gbra.to_vec(),
         merc_lop3_pdest: g.lpd.to_vec(),
         merc_syncwarp: g.swlanes.to_vec(),
@@ -77,10 +78,8 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
 /// inne byly byte-exact, (b) te nie zaczely "przechodzic" przypadkiem bez
 /// aktualizacji dokumentu.
 static EXPECTED_DIFF: &[(&str, &str)] = &[
-    ("c_ld_dyn2",     "mk10c: trzeci anchor (S2R#2 lane4): f4n0=9 f4n1=0x204 — model multi-anchor mk13"),
-    ("p_atomg",       "mk14.2: rekord ATOM 024e OK; residuum = anchor f4 multi (5,4,0: metryka regionu ptxas, mk17-park) + role desc (83,00) przy pi wspoldzielonym uni/reg"),
-    ("p_atoms",       "mk15: rekord smem 010b060a przy lane S2UR WDROZONY (ok); residuum = anchor f4 multi (3,2,0) — mk16.1"),
-    ("q_tail_call",   "RET-w-loop/collective epilog rodzina"),
+    ("p_atomg",       "mk17a: anchor f4 ROZWIAZANY (f4 = numer R dest S2R; 90/90 mk20); residuum = rola desc REG-path (83,00) vs (03,01) przy wspoldzielonym pi z UNIF — generator siatki rol ptxas (mk18-scope)"),
+    ("q_tail_call",   "mk17a: anchor f4 OK (S2R R0 -> 0); residuum = rola desc REG (83,00) + STG slot s=0 (preferencja wpisu UNIF pi0 / reset regionu po CALL) — mk18 scope"),
 ];
 
 #[test]

@@ -275,3 +275,17 @@ fn f64imm_rec_pdmma() {
         "020c1e0ef800080000008301020113000000000000000000000000000000f03f"
     );
 }
+
+
+#[test]
+fn s2r_dest_reg_f4_payload() {
+    // mk17a: payload f4 rekordu anchor = (numer R dest S2R). Empiria:
+    // mk20 oraculum gdb 90/90 + bajty gold (c_ld_dyn2: R7->c1 01, R9->41 02).
+    use cubit::mercury::merc_s2r_dest_reg as f;
+    assert_eq!(f("S2R R7, SR_TID.X"), Some(7));
+    assert_eq!(f("S2R R9, SR_CTAID.X"), Some(9));
+    assert_eq!(f("S2R R0, SR_TID.X"), Some(0));
+    assert_eq!(f("@P0 S2R R5, SR_LANEID"), Some(5));
+    assert_eq!(f("S2R RZ, SR_TID.X"), Some(0x3f));
+    assert_eq!(f("MOV R1, R2"), None);
+}
