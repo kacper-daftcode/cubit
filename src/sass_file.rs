@@ -241,6 +241,7 @@ pub fn kernel_def_to_meta(
     let mut merc_guarded_bra: Vec<u32> = Vec::new();
     let mut merc_lop3_pdest: Vec<u32> = Vec::new();
     let mut merc_s2r_sr: Vec<u8> = Vec::new();
+    let mut merc_s2r_dest: Vec<u32> = Vec::new();
     for ins in &def.instructions {
         let lane = (ins.addr / 16) as u32;
         if ins.opcode == "S2R" {
@@ -248,6 +249,8 @@ pub fn kernel_def_to_meta(
             // merc_s2r_lanes z merc_param_scan — oba w kolejnosci adresow).
             let sr = crate::mercury::s2r_sr_name(&ins.raw_text);
             merc_s2r_sr.push(crate::mercury::merc_s2r_sr_enum(&sr));
+            // mk17a: numer R dest -> payload f4 anchor-rekordu.
+            merc_s2r_dest.push(crate::mercury::merc_s2r_dest_reg(&ins.raw_text).unwrap_or(0));
         }
         if ins.opcode == "BRA" {
             if let Some(g) = &ins.guard {
@@ -301,6 +304,7 @@ pub fn kernel_def_to_meta(
         merc_ldgconst,
         merc_guarded_bra,
         merc_s2r_sr,
+        merc_s2r_dest,
         merc_lop3_pdest,
         // mk14: duchy syncwarp widoczne tylko w EIATTR (nie w tekscie sass).
         merc_syncwarp: Vec::new(),

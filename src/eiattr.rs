@@ -459,6 +459,10 @@ pub struct KernelMeta {
     /// Mercury mk13: enum SR per lane S2R (rownolegle do merc_s2r_lanes) —
     /// bajt b12 anchor-rekordu 010b040a (mk13; patrz mercury::merc_s2r_sr_enum).
     pub merc_s2r_sr: Vec<u8>,
+    /// Mercury mk17a: numer R dest per S2R (rownolegle do merc_s2r_lanes/
+    /// merc_s2r_sr) — payload f4 anchor-rekordu 010b040a = (dest<<6)|1.
+    /// Puste = legacy fallback na bramkowany anchor_f4 (iter AE model).
+    pub merc_s2r_dest: Vec<u32>,
     /// Mercury mk13: lane'y LOP3 z destem predykatowym (LOP3.LUT Pn, ...) —
     /// NIE dostaja bitu bitmapy, za to mini-rekord 42 2a 02 06 w lane
     /// (gold d_sw4_store slot6).
@@ -543,6 +547,7 @@ impl KernelMeta {
             merc_xor_reg: Vec::new(),
             merc_bar_args: Vec::new(),
             merc_s2r_sr: Vec::new(),
+            merc_s2r_dest: Vec::new(),
             merc_lop3_pdest: Vec::new(),
             merc_syncwarp: Vec::new(),
             merc_atoms: Vec::new(),
@@ -932,6 +937,7 @@ mod tests {
             merc_xor_reg: Vec::new(),
             merc_bar_args: Vec::new(),
             merc_s2r_sr: Vec::new(),
+            merc_s2r_dest: Vec::new(),
             merc_lop3_pdest: Vec::new(),
             merc_syncwarp: Vec::new(),
             merc_atoms: Vec::new(),
