@@ -27,6 +27,15 @@ python3 tools/sync_table.py
 python3 tools/sync_table.py --check
 ```
 
+`sync` rejects malformed masks, out-of-range fields, unknown extraction rules,
+and baked control/reuse bits, then runs the Cargo suite against the candidate
+before replacing the vendored copy. Tests honor `CUBIT_TABLE` and fail on table
+load errors instead of skipping.
+
+Release binaries and Python wheels embed the same vendored snapshot as a
+working-directory-independent fallback. An explicit `CUBIT_TABLE` remains a
+strict override: a missing or malformed override is an error, not a fallback.
+
 ## What it does
 
 ```bash

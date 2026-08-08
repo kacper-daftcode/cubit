@@ -24,14 +24,14 @@ struct Cli {
 enum Commands {
     /// Validate encoder against records.jsonl.
     Validate {
-        #[arg(short, long, default_value = "tables/sm120.json")]
+        #[arg(short, long, default_value = "@bundled")]
         table: PathBuf,
         #[arg(short, long, default_value = "tables/records.jsonl")]
         records: PathBuf,
     },
     /// Encode a single SASS instruction.
     Encode {
-        #[arg(short, long, default_value = "tables/sm120.json")]
+        #[arg(short, long, default_value = "@bundled")]
         table: PathBuf,
         #[arg(short, long, default_value = "0")]
         addr: String,
@@ -39,7 +39,7 @@ enum Commands {
     },
     /// Decode a 128-bit instruction from hex.
     Decode {
-        #[arg(short, long, default_value = "tables/sm120.json")]
+        #[arg(short, long, default_value = "@bundled")]
         table: PathBuf,
         #[arg(short, long, default_value = "0")]
         addr: String,
@@ -47,7 +47,7 @@ enum Commands {
     },
     /// Disassemble a cubin or host ELF to SASS text (no cuobjdump required).
     Disassemble {
-        #[arg(short, long, default_value = "tables/sm120.json")]
+        #[arg(short, long, default_value = "@bundled")]
         table: PathBuf,
         /// Input cubin file.
         input: PathBuf,
@@ -67,7 +67,7 @@ enum Commands {
     },
     /// Round-trip test: read cubin, disassemble, re-encode, compare.
     Roundtrip {
-        #[arg(short, long, default_value = "tables/sm120.json")]
+        #[arg(short, long, default_value = "@bundled")]
         table: PathBuf,
         #[arg(short, long, default_value = "tables/records.jsonl")]
         records: PathBuf,
@@ -75,7 +75,7 @@ enum Commands {
     },
     /// Patch a cubin: disassemble → re-encode → write patched cubin.
     Patch {
-        #[arg(short, long, default_value = "tables/sm120.json")]
+        #[arg(short, long, default_value = "@bundled")]
         table: PathBuf,
         #[arg(short, long, default_value = "tables/records.jsonl")]
         records: PathBuf,
@@ -85,7 +85,7 @@ enum Commands {
     },
     /// Assemble a .sass file into a cubin.
     Asm {
-        #[arg(short, long, default_value = "tables/sm120.json")]
+        #[arg(short, long, default_value = "@bundled")]
         table: PathBuf,
         /// Input .sass file. Two formats supported:
         ///
@@ -118,13 +118,13 @@ enum Commands {
     },
     /// Show ISA table info.
     Info {
-        #[arg(short, long, default_value = "tables/sm120.json")]
+        #[arg(short, long, default_value = "@bundled")]
         table: PathBuf,
     },
     /// Assemble multiple SASS instructions from a string (Keystone-like API).
     /// Handles labels, multi-instruction blocks, and branch target resolution.
     AsmText {
-        #[arg(short, long, default_value = "tables/sm120.json")]
+        #[arg(short, long, default_value = "@bundled")]
         table: PathBuf,
         /// Base address for first instruction (hex).
         #[arg(short, long, default_value = "0")]

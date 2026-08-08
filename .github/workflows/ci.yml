@@ -30,5 +30,5 @@ jobs:
         with:
           components: clippy
       - run: cargo build --release
-      - run: cargo test
+      - run: CUBIT_TABLE="$PWD/.canonical/blackwell-isa/sm120.json" cargo test
       - run: cargo clippy -- -D warnings -A clippy::if_same_then_else

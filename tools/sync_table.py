@@ -10,6 +10,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -24,6 +26,86 @@ DEFAULT_METADATA = ROOT / "tables" / "SM120_SOURCE.json"
 
 class SyncError(RuntimeError):
     """A provenance or synchronization invariant failed."""
+
+
+FIXED_EXTRACTIONS = {
+    "",
+    "abs",
+    "barrier",
+    "byte_sel",
+    "cm16_off",
+    "cm17_off",
+    "f16",
+    "f16_d",
+    "f32",
+    "f64hi",
+    "guard",
+    "guard_lo3",
+    "guard_neg",
+    "imm",
+    "imm_dec",
+    "imm_dec_u32",
+    "inv",
+    "neg",
+    "neg_abs",
+    "neg_shl1",
+    "opaque_mod",
+    "pred",
+    "reg",
+    "reg_ff",
+    "reuse",
+    "sub_imm0",
+    "sub_imm0_s24",
+    "sub_imm1",
+    "sub_imm1_s24",
+    "sub_imm2",
+    "sub_imm2_s24",
+    "sub_r0",
+    "sub_r1",
+    "sub_r2",
+    "sub_ur0",
+    "sub_ur1",
+    "sysreg",
+    "sysreg_hi1",
+    "sysreg_hi4",
+    "sysreg_lo4",
+    "sysreg_lo7",
+    "upred",
+    "ureg",
+    "ureg_ff",
+}
+EXTRACTION_PATTERN = re.compile(
+    r"(?:reg|ureg|imm)_shr\d+|"
+    r"sub_(?:r|ur|imm)\d+_shr\d+"
+)
+U128_MAX = (1 << 128) - 1
+
+
+def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise SyncError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def parse_u128(value: Any, context: str) -> int:
+    if not isinstance(value, str):
+        raise SyncError(f"{context} must be a hexadecimal string")
+    try:
+        parsed = int(value, 16)
+    except ValueError as exc:
+        raise SyncError(f"{context} is not valid hexadecimal: {value}") from exc
+    if parsed < 0 or parsed > U128_MAX:
+        raise SyncError(f"{context} does not fit in 128 bits: {value}")
+    return parsed
+
+
+def known_extraction(value: Any) -> bool:
+    return isinstance(value, str) and (
+        value in FIXED_EXTRACTIONS or EXTRACTION_PATTERN.fullmatch(value) is not None
+    )
 
 
 def run_git(repo: Path, *args: str, check: bool = True) -> str:
@@ -74,31 +156,78 @@ def digest(data: bytes) -> str:
 
 def validate_table(data: bytes) -> dict[str, int]:
     try:
-        table: dict[str, Any] = json.loads(data)
+        table: dict[str, Any] = json.loads(data, object_pairs_hook=unique_object)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise SyncError(f"canonical table is not valid UTF-8 JSON: {exc}") from exc
+
+    allowed_top_level = {"_meta", "instructions", "sched_only", "pipeline_config"}
+    extra_top_level = sorted(set(table) - allowed_top_level)
+    if extra_top_level:
+        raise SyncError(f"unexpected top-level records: {', '.join(extra_top_level)}")
 
     meta = table.get("_meta", {})
     if meta.get("architecture") != "SM120" or meta.get("instruction_width") != 128:
         raise SyncError("canonical table is not an SM120 128-bit ISA database")
-    if "FMUL_R_R_FI" in table:
-        raise SyncError("canonical table contains the obsolete top-level FMUL_R_R_FI record")
 
     instructions = table.get("instructions")
     if not isinstance(instructions, dict) or not instructions:
         raise SyncError("canonical table has no instruction map")
 
+    ctrl_classes = set(meta.get("ctrl_classes", {}))
+    legacy_ctrl_classes = {"none", "static_ctrl"}
     variants = 0
     high_bit_entries: list[str] = []
     for key, entry in instructions.items():
-        for group, variant in entry.get("mod_groups", {}).items():
+        if not isinstance(entry, dict):
+            raise SyncError(f"{key} must be an object")
+        ctrl_class = entry.get("ctrl_class")
+        if (
+            ctrl_class is not None
+            and ctrl_class not in ctrl_classes
+            and ctrl_class not in legacy_ctrl_classes
+        ):
+            raise SyncError(f"{key} references unknown ctrl_class {ctrl_class!r}")
+        groups = entry.get("mod_groups", {})
+        if not isinstance(groups, dict):
+            raise SyncError(f"{key}.mod_groups must be an object")
+
+        for group, variant in groups.items():
             variants += 1
-            try:
-                and_base = int(variant["and_base"], 16)
-            except (KeyError, TypeError, ValueError) as exc:
-                raise SyncError(f"{key}::{group} has an invalid and_base") from exc
+            context = f"{key}::{group}"
+            if not isinstance(variant, dict):
+                raise SyncError(f"{context} must be an object")
+            and_base = parse_u128(variant.get("and_base"), f"{context}.and_base")
             if and_base >> 105:
-                high_bit_entries.append(f"{key}::{group}")
+                high_bit_entries.append(context)
+
+            variable_mask = variant.get("variable_mask")
+            if variable_mask is not None:
+                parse_u128(variable_mask, f"{context}.variable_mask")
+
+            fields = variant.get("fields", [])
+            if not isinstance(fields, list):
+                raise SyncError(f"{context}.fields must be an array")
+            for index, field in enumerate(fields):
+                field_context = f"{context}.fields[{index}]"
+                if not isinstance(field, dict):
+                    raise SyncError(f"{field_context} must be an object")
+                shift = field.get("shift")
+                bits = field.get("bits")
+                token_idx = field.get("token_idx")
+                if not isinstance(shift, int) or not isinstance(bits, int):
+                    raise SyncError(f"{field_context} shift/bits must be integers")
+                if shift < 0 or bits <= 0 or shift + bits > 128:
+                    raise SyncError(
+                        f"{field_context} exceeds the 128-bit instruction: "
+                        f"shift={shift}, bits={bits}"
+                    )
+                if not isinstance(token_idx, int) or token_idx < 0:
+                    raise SyncError(f"{field_context}.token_idx must be non-negative")
+                extraction = field.get("extraction", "")
+                if not known_extraction(extraction):
+                    raise SyncError(
+                        f"{field_context} uses unknown extraction {extraction!r}"
+                    )
 
     if high_bit_entries:
         sample = ", ".join(high_bit_entries[:5])
@@ -168,6 +297,14 @@ def write_sync(
     metadata_path.write_text(json.dumps(metadata, indent=2) + "\n")
 
 
+def test_candidate(source: Path) -> None:
+    env = os.environ.copy()
+    env["CUBIT_TABLE"] = str(source)
+    result = subprocess.run(["cargo", "test"], cwd=ROOT, env=env, check=False)
+    if result.returncode:
+        raise SyncError(f"candidate table failed cargo test: {source}")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
@@ -198,6 +335,7 @@ def main() -> int:
         check_sync(source_data, args.destination, args.metadata, metadata)
         action = "verified"
     else:
+        test_candidate(source)
         write_sync(source_data, args.destination, args.metadata, metadata)
         action = "synchronized"
 
