@@ -428,6 +428,9 @@ pub struct KernelMeta {
     /// NA KAZDY LOAD (powtorne loady tego samego slotu => wiele rekordow),
     /// strumien posortowany po pozycjach kodu. Pusty = sciezka legacy
     /// (blok desc wg param_order).
+    /// Mercury mk10c+: per-load rekordy desc: (lane, REL, unif01, widthB,
+    /// guard). mk19: drugie pole = SUROWY offset bajtowy c_off-0x380
+    /// (wczesniej indeks 8B pi; korpus ma paramy 4B-pakowane pod 0x384).
     pub merc_param_loads: Vec<(u32, u32, u8, u8, u8)>,
     /// Mercury mk10c: lane instrukcji LDCU.64 c[0x0][0x358] (rekord cbank
     /// 010b0e0a zajmuje lane swojego loadu w strumieniu; None = po desc[0]).
@@ -446,6 +449,7 @@ pub struct KernelMeta {
     /// w puli slotow deskryptorow (klucz (pi, mech=2), pozycja = lane
     /// uzycia). Gold v_ldg_u64: STG pi1 dostaje slot s=2 bo LDG.C@3 zajmuje
     /// s=1 (pi0,2). (lane, pi).
+    /// (lane, REL) — mk19: takze w dziedzinie bajtowej jak merc_param_loads.
     pub merc_ldgconst: Vec<(u32, u32)>,
     /// Mercury mk13: argumenty named-barrier per lane BAR (rownolegle do
     /// merc_bar_pos): (id, count) — gold p_namedbar: bar.sync 1,32 -> rekord

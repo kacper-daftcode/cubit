@@ -946,9 +946,11 @@ fn mk10c_roles(
 }
 
 /// mk10c: budowa rekordu desc z pojedynczego loadu (wariant wg mechanizmu,
-/// width-ladder b6, b4=guard, tail-dw=8*pi).
+/// width-ladder b6, b4=guard, tail-dw=REL(off-0x380)).
+/// mk19: dziedzina BAJTOWA klucza (nie 8*pi) — dowod korpusowy join2/join3
+/// (19666/19666 rekordow: tail == c_off - 0x380; 4B paramy pod 0x384 itd.).
 fn mk10c_rec_desc(ld: (u32, u32, u8, u8, u8), role: (u8, u8)) -> [u8; 32] {
-    let (_, pi, unif, w, guard) = ld;
+    let (_, rel, unif, w, guard) = ld;
     let mut d = REC_PARAM_DESC;
     let b6: u8 = match w {
         1 => 0x02,
@@ -970,7 +972,7 @@ fn mk10c_rec_desc(ld: (u32, u32, u8, u8, u8), role: (u8, u8)) -> [u8; 32] {
     }
     d[10] = role.0;
     d[11] = role.1;
-    d[28..32].copy_from_slice(&(8 * pi).to_le_bytes());
+    d[28..32].copy_from_slice(&rel.to_le_bytes());
     d
 }
 
@@ -1297,7 +1299,9 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
     let total_params = feat.used_params + feat.used_scalar_params;
     if total_params > 0 {
         // Descs w kolejnosci pierwszego uzycia parametru (regula mk8/v_*):
-        // tail-dw bajtow[28..32] = 8 * idx-sygnaturowy parametru.
+        // tail-dw bajtow[28..32] = 8 * idx-sygnaturowy parametru
+        // (sciezka legacy BEZ param_loads: order w dziedzinie pi = slotow 8B;
+        // paramy 8B-wyrowane => 8*pi == rel, mk19).
         // role (b10,b11): (83,00)=param iterowany pierwszy; (03,01)=kolejne
         // parametr write-first dla n_ptr<=2; (83,01)=write dla n_ptr>=3.
         // Wariant [b2/b4] wg mechanizmu ladowania slotu (fs-lab 2026-08-05):
