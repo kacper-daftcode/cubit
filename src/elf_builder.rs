@@ -357,12 +357,27 @@ pub struct MercFeatures {
     /// BSSY (q_bsync_pair), w bitmapie zachowuje sie jak zwykly NOP
     /// (poza spanem: bez bitu; w spanie: bit per regula spanowa).
     pub syncwarp: Vec<u32>,
+    /// mk27: UTCATOMSWS (lane, kind 0=FIND_AND_SET/1=AND/2=inny).
+    pub utca: Vec<(u32, u8)>,
+    /// mk27: ATOMS z imm w adresie [URx+imm]: (lane, imm, op 0=OR/1=AND/2=inny).
+    pub atom_smem: Vec<(u32, u32, u8)>,
+    /// mk27: wszystkie lane'y S2UR (rekord smem-anchor 010b060a per S2UR,
+    /// gold mkvmem: lane 4 i 27); puste poza 0-param sciezka pozycyjna.
+    pub s2ur_lanes: Vec<u32>,
+    /// mk27: ghost-lane pokryte REALNA instrukcja kolektywna (site == nie-NOP)
+    /// -> mini 41 47 76 0a zamiast pelnego 01 47 6c 0a (mkvmem lane 26).
+    pub ghost_mini76: Vec<u32>,
+    /// mk27: kernel zawiera wewnetrzne funkcje z RET (guardrail traps) —
+    /// ogon strumienia ghostowy (mkvmem: czwarty ghost 01476c0a).
+    pub has_ret_internal: bool,
 }
 
 impl MercFeatures {
     pub fn from_parts(meta: &KernelMeta, opcodes: &[String]) -> Self {
         let mut f = MercFeatures {
             syncwarp: meta.merc_syncwarp.clone(),
+            utca: meta.merc_utca.clone(),
+            atom_smem: meta.merc_atom_smem.clone(),
             atoms: meta.merc_atoms.clone(),
             ldgsts_pin: meta.merc_ldgsts_pin.first().copied(),
             ldgsts_wait: meta.merc_ldgsts_wait.first().copied(),
@@ -423,10 +438,29 @@ impl MercFeatures {
             .position(|o| o.split('.').next() == Some("S2UR"))
             .map(|i| i as u32)
             .unwrap_or(u32::MAX);
+        f.s2ur_lanes = opcodes
+            .iter()
+            .enumerate()
+            .filter(|(_, o)| o.split('.').next() == Some("S2UR"))
+            .map(|(i, _)| i as u32)
+            .collect();
+        // ghost pokryty realna instrukcja (nie-NOP) -> mini 76-wariant
+        f.ghost_mini76 = f
+            .syncwarp
+            .iter()
+            .copied()
+            .filter(|&l| {
+                opcodes
+                    .get(l as usize)
+                    .map(|o| o.split('.').next() != Some("NOP") && o.as_str() != "NOP")
+                    .unwrap_or(false)
+            })
+            .collect();
         f.has_ldcu = opcodes.iter().any(|o| {
             let b = o.split('.').next().unwrap_or(o.as_str());
             b == "LDCU" || b == "ULDC"
         });
+        f.has_ret_internal = opcodes.iter().any(|o| o.split('.').next() == Some("RET"));
         f.plain_collectives = if opcodes.iter().any(|o| o.as_str() == "BSSY") {
             opcodes.iter().filter(|o| o.starts_with("ENDCOLLECTIVE")).count() as u32
         } else {
@@ -636,6 +670,32 @@ const REC_BAR: [u8; 16] = [
 const REC_SMEM: [u8; 16] = [
     0x01, 0x0b, 0x06, 0x0a, 0xfa, 0x00, 0x04, 0x00,
     0x00, 0x00, 0x41, 0x01, 0x2c, 0x02, 0x00, 0x00,
+];
+/// mk27: mini-ghost pod realna instrukcja kolektywna (mkvmem lane26
+/// WARPSYNC): krotka forma 4B klasy 0x47 ghosta (zamiast MERC_SYNCWARP_GHOST).
+const REC_MINI_GHOST76: [u8; 4] = [0x41, 0x47, 0x76, 0x0a];
+/// mk27: UTCATOMSWS.FIND_AND_SET — rekord 18B (prefiks 51 01 + cialo
+/// kandydata 0163 04 0a); b17 = 0x02 dla pierwszego w kodzie, 0x01 dla
+/// kolejnych (spin-retry, mkvmem lanes 11/18).
+const REC_UTCA_FNS: [u8; 18] = [
+    0x51, 0x01, 0x01, 0x63, 0x04, 0x0a, 0xfa, 0x00,
+    0x10, 0x48, 0x01, 0x00, 0x01, 0x00, 0x01, 0x01, 0x00, 0x02,
+];
+/// mk27: UTCATOMSWS.AND — mini 4B (mkvmem lane 47).
+const REC_MINI_UTCA_AND: [u8; 4] = [0x41, 0x63, 0x08, 0x0a];
+/// mk27: ATOMS.OR z imm w [URx+imm] — wariant b4=f8 (mkvmem lanes 23/24);
+/// tail[28:32] = imm smem. ATOMS.AND — wariant b4=00 (lanes 48/49).
+const REC_ATOMS_SMEM_OR: [u8; 32] = [
+    0x02, 0x4e, 0x84, 0x32, 0xf8, 0x00, 0x64, 0x60,
+    0x03, 0x00, 0x00, 0x00, 0xc1, 0xff, 0xc0, 0xff,
+    0x00, 0xc0, 0x01, 0x0a, 0x00, 0x80, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const REC_ATOMS_SMEM_AND: [u8; 32] = [
+    0x02, 0x4e, 0x84, 0x32, 0x00, 0x00, 0x54, 0x60,
+    0x03, 0x00, 0x00, 0x00, 0xc1, 0xff, 0xc0, 0xff,
+    0x00, 0x40, 0x01, 0x0a, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 const REC_STG: [u8; 32] = [
     0x02, 0x38, 0x0e, 0x32, 0xf8, 0x00, 0x40, 0x11,
@@ -1263,6 +1323,98 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     }
 }
 
+/// mk27: sciezka zero-param pozycyjna (mkvmem: kolejnosc rekordow po lane).
+/// PROLOG wypisany juz przez wywolujacego. Brak redux/cbank w tym scope
+/// (kandydat 0132 mkvmem odrzucany przez merger ptxas — patrz mk26 capture).
+fn emit_zero_param_positioned(out: &mut Vec<u8>, feat: &MercFeatures) {
+    #[derive(Clone, Copy)]
+    enum ZE {
+        Elect,
+        Ghost,
+        Ghost76,
+        SmemA,
+        Utca(usize),
+        AtomSmem(usize),
+        S2r(usize),
+    }
+    let mut ev: Vec<(u32, u8, ZE)> = Vec::new();
+    for &l in &feat.elect_pos {
+        ev.push((l, 1, ZE::Elect));
+    }
+    for &l in &feat.syncwarp {
+        if feat.ghost_mini76.contains(&l) {
+            ev.push((l, 2, ZE::Ghost76));
+        } else {
+            ev.push((l, 2, ZE::Ghost));
+        }
+    }
+    for &l in &feat.s2ur_lanes {
+        ev.push((l, 3, ZE::SmemA));
+    }
+    for (k, _) in feat.utca.iter().enumerate() {
+        ev.push((feat.utca[k].0, 4, ZE::Utca(k)));
+    }
+    for (k, _x) in feat.atom_smem.iter().enumerate() {
+        ev.push((feat.atom_smem[k].0, 5, ZE::AtomSmem(k)));
+    }
+    for (k, &l) in feat.s2r_lanes.iter().enumerate() {
+        ev.push((l, 6, ZE::S2r(k)));
+    }
+    ev.sort_by_key(|&(l, t, _)| (l, t));
+    let anchor_base = {
+        let mut cf = REC_EXTRA_EXIT;
+        let v: u32 = (feat.anchor_f4 << 6) | 1;
+        cf[10] = (v & 0xff) as u8;
+        cf[11] = (v >> 8) as u8;
+        cf
+    };
+    let mut utca_fns_idx = 0usize;
+    for (_, _, k) in &ev {
+        match *k {
+            ZE::Elect => out.extend_from_slice(&[0x41, 0x64, 0x00, 0x0a]),
+            ZE::Ghost => out.extend_from_slice(&crate::mercury::MERC_SYNCWARP_GHOST),
+            ZE::Ghost76 => out.extend_from_slice(&REC_MINI_GHOST76),
+            ZE::SmemA => out.extend_from_slice(&REC_SMEM),
+            ZE::Utca(i) => {
+                match feat.utca[i].1 {
+                    0 => {
+                        let mut rc = REC_UTCA_FNS;
+                        rc[17] = if utca_fns_idx == 0 { 0x02 } else { 0x01 };
+                        utca_fns_idx += 1;
+                        out.extend_from_slice(&rc);
+                    }
+                    1 => out.extend_from_slice(&REC_MINI_UTCA_AND),
+                    _ => {}
+                }
+            }
+            ZE::AtomSmem(i) => {
+                let (_, imm, op) = feat.atom_smem[i];
+                let mut rc = if op == 1 { REC_ATOMS_SMEM_AND } else { REC_ATOMS_SMEM_OR };
+                rc[28..32].copy_from_slice(&imm.to_le_bytes());
+                out.extend_from_slice(&rc);
+            }
+            ZE::S2r(i) => {
+                let mut cf = anchor_base;
+                if let Some(&d) = feat.s2r_dest.get(i) {
+                    let v: u32 = ((d as u32) << 6) | 1;
+                    cf[10] = (v & 0xff) as u8;
+                    cf[11] = (v >> 8) as u8;
+                }
+                if let Some(&sr) = feat.s2r_sr.get(i) {
+                    cf[12] = sr;
+                }
+                out.extend_from_slice(&cf);
+            }
+        }
+    }
+    // mk27: mkvmem ma 4. rekord 01476c0a po wszystkich atomach (kandydat
+    // mk26 i82, przed trailerem) gdy kernel ma wewnetrzne fn z RET —
+    // mechanizm dokladny mk27-otwarty; empiria: 1x za kernel z RET+utca.
+    if feat.has_ret_internal && !feat.utca.is_empty() {
+        out.extend_from_slice(&crate::mercury::MERC_SYNCWARP_GHOST);
+    }
+}
+
 fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
     let bar_bytes: [u8; 16] = if feat.bar_pred {
         let mut br = REC_BAR;
@@ -1277,6 +1429,16 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
         emit_feature_records_laned(out, feat, bar_rec);
         return;
     }
+    // mk27: zero-param kernel z pozycyjnymi rodzinami (mkvmem: UTCATOMSWS,
+    // ATOMS z imm, ghosty, ELECT, smem-anchory per S2UR) — harmonogram po
+    // lane kodu, jak u nvcc (final TLV = podciag strumienia kandydatow po
+    // soff, zmierzony oraculum mk26 na FUN_004ad1d0).
+    if !feat.utca.is_empty() || !feat.atom_smem.is_empty() {
+        emit_zero_param_positioned(out, feat);
+        return;
+    }
+    // (mk27 note: pozny 4. ghost 01476c0a po lane 49 w mkvmem — emitowany
+    // w sciezce zero-param-pozycyjnej gdy kernel ma wewnetrzne fn z RET)
     let cflow_rec = |feat: &MercFeatures| {
         let mut cf = REC_EXTRA_EXIT;
         // mk12 (iter AD, zweryfikowane na secie gold 70/70): payload =
@@ -1675,6 +1837,10 @@ pub fn generate_mercury_full(
     let pad_set: Vec<u32> = meta.merc_pad_pos.clone();
     let bra_guard_set: Vec<u32> = meta.merc_guarded_bra.clone();
     let lop3_pdest_set: Vec<u32> = meta.merc_lop3_pdest.clone();
+    // mk27: dialekt tcgen05/mkvmem (kernel z UTCATOMSWS na stosie
+    // zero-param): bitmapa ustawia BRA.U/REDUX, kasuje UTCATOMSWS/WARPSYNC
+    // (fit mk27 na mkvmem: 9 bitow rozbieznosci -> reguly klasowe).
+    let dialect_utca = !meta.merc_utca.is_empty();
     // B = liczba slotow 0..end minus klasy zerowej wagi (nie dostaja bitu)
     let mut bitmap: Vec<u32> = Vec::new();
     let mut cur = 0u32;
@@ -1694,6 +1860,16 @@ pub fn generate_mercury_full(
                 // bit zawsze — nie figuruje w opcode_tracked_hint-exclude).
                 if !t && base_i == "CALL" {
                     t = true;
+                }
+                // mk27: dialekt UTCA (tcgen05/mkvmem): UTCATOMSWS i WARPSYNC
+                // bez bitu; BRA.U i REDUX z bitem.
+                if dialect_utca {
+                    if base_i == "UTCATOMSWS" || base_i == "WARPSYNC" {
+                        t = false;
+                    }
+                    if ops[i] == "BRA.U" || base_i == "REDUX" {
+                        t = true;
+                    }
                 }
                 // mk13: predykowany BRA dostaje bit (gold q_switch slot5);
                 // koncowy BRA bez predykatu dalej bez bitu.
@@ -1735,7 +1911,8 @@ pub fn generate_mercury_full(
                     }
                 }
                 // mk13: REDUX -> rekord 0132 zamiast bitu (gold p_redux).
-                if base_i == "REDUX" {
+                // mk27: dialekt UTCA STAWIA bit z powrotem (mkvmem slot41).
+                if base_i == "REDUX" && !dialect_utca {
                     t = false;
                 }
                 // mk14.3: hosty rekordow-event LDGSTS (pinned-blob + wait)
@@ -3314,7 +3491,8 @@ impl CubinBuilder {
             } else {
                 stub_owned = generate_mercury_full(
                     &kernels[ki].code,
-                    ki as u32 + 0x20,
+                    text_k(ki) as u32, // mk27: ordinal = shndx .text.K (nvcc: t103=12, mkvmem=13)
+                    
                     kernels[ki].opcodes.as_deref(),
                     &kernels[ki].meta,
                     crate::elf::sm_from_ef_flags(self.ef_flags) == 100,

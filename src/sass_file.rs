@@ -226,6 +226,8 @@ pub fn kernel_def_to_meta(
         (pn.map(|x| vec![x]).unwrap_or_default(),
          wt.map(|x| vec![x]).unwrap_or_default())
     };
+    let merc_utca = merc_utca_scan(&def.instructions);
+    let merc_atom_smem = merc_atom_smem_scan(&def.instructions);
     let merc_stg_ser = merc_stg_series(&def.instructions);
     let (merc_stg_dreg, merc_stg_dur, merc_stg_guard) = merc_stg_meta(&def.instructions);
     let merc_mma = merc_mma_scan(&def.instructions);
@@ -325,6 +327,8 @@ pub fn kernel_def_to_meta(
         merc_atoms,
         merc_ldgsts_pin,
         merc_ldgsts_wait,
+        merc_utca,
+        merc_atom_smem,
     }
 }
 
@@ -596,6 +600,51 @@ fn merc_atom_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u8, u8, u8,
                           reg_of(parts[addr_idx + 1]), 255, sub6));
             }
         }
+    }
+    out
+}
+
+/// mk27: UTCATOMSWS (tcgen05 tmem alloc na oknie smem): (lane, kind).
+/// kind 0 = FIND_AND_SET, 1 = AND (inne podoperacje na pozniej).
+fn merc_utca_scan(instructions: &[Instruction]) -> Vec<(u32, u8)> {
+    let mut out = Vec::new();
+    for ins in instructions {
+        if ins.opcode != "UTCATOMSWS" {
+            continue;
+        }
+        let t = &ins.raw_text;
+        let kind = if t.contains("FIND_AND_SET") { 0u8 } else if t.contains(".AND") { 1 } else { 2 };
+        out.push(((ins.addr / 16) as u32, kind));
+    }
+    out
+}
+
+/// mk27: ATOMS z imm w adresie [URx+0xNN]: (lane, imm_bajty, op 0=OR/1=AND/2=inny).
+fn merc_atom_smem_scan(instructions: &[Instruction]) -> Vec<(u32, u32, u8)> {
+    let mut out = Vec::new();
+    for ins in instructions {
+        if !ins.opcode.starts_with("ATOMS") {
+            continue;
+        }
+        // adres-klamra z imm
+        let t = &ins.raw_text;
+        let Some(ob) = t.find('[') else { continue };
+        let inner = &t[ob + 1..];
+        let Some(cb) = inner.find(']') else { continue };
+        let tok = &inner[..cb];
+        let Some(p) = tok.find('+') else { continue };
+        let im = tok[p + 1..].trim();
+        let imm = u32::from_str_radix(im.trim_start_matches("0x"), 16)
+            .or_else(|_| im.parse::<u32>())
+            .unwrap_or(0);
+        let op = if t.contains(".OR") {
+            0u8
+        } else if t.contains(".AND") {
+            1
+        } else {
+            2
+        };
+        out.push(((ins.addr / 16) as u32, imm, op));
     }
     out
 }

@@ -1282,6 +1282,8 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_atom_pool_hits: Vec::new(),
         merc_lop3_pdest: Vec::new(),
         merc_syncwarp: Vec::new(),
+        merc_utca: Vec::new(),
+        merc_atom_smem: Vec::new(),
         merc_atoms: Vec::new(),
         merc_ldgsts_pin: Vec::new(),
         merc_ldgsts_wait: Vec::new(),
@@ -2408,6 +2410,54 @@ fn cmd_asm_build_elf(
                     meta.merc_guarded_bra = guarded_bra;
                     meta.merc_lop3_pdest = lop3_pdest;
                     meta.merc_atoms = atoms_scan;
+                    // mk27: lustra dla UTCATOMSWS i ATOMS-smem-imm
+                    // (sass_file::merc_utca_scan / merc_atom_smem_scan).
+                    let mut utca_v: Vec<(u32, u8)> = Vec::new();
+                    let mut atom_smem_v: Vec<(u32, u32, u8)> = Vec::new();
+                    for (ii, (_aa, body)) in insns.iter().enumerate() {
+                        let bt = body.trim();
+                        let fword = bt.split_whitespace().next().unwrap_or("");
+                        let base0u = fword.split('.').next().unwrap_or("");
+                        if base0u == "UTCATOMSWS" {
+                            let kind = if bt.contains("FIND_AND_SET") {
+                                0u8
+                            } else if bt.contains(".AND") {
+                                1
+                            } else {
+                                2
+                            };
+                            utca_v.push((ii as u32, kind));
+                        }
+                        if base0u == "ATOMS" {
+                            if let Some(ob) = bt.find('[') {
+                                let inner = &bt[ob + 1..];
+                                if let Some(cb) = inner.find(']') {
+                                    let tok = &inner[..cb];
+                                    if let Some(pp) = tok.find('+') {
+                                        let im = tok[pp + 1..].trim();
+                                        let imm = u32::from_str_radix(
+                                            im.trim_start_matches("0x"),
+                                            16,
+                                        )
+                                        .or_else(|_| im.parse::<u32>())
+                                        .unwrap_or(0);
+                                        if imm != 0 {
+                                            let op = if bt.contains(".OR") {
+                                                0u8
+                                            } else if bt.contains(".AND") {
+                                                1
+                                            } else {
+                                                2
+                                            };
+                                            atom_smem_v.push((ii as u32, imm, op));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    meta.merc_utca = utca_v;
+                    meta.merc_atom_smem = atom_smem_v;
                     // mk14.3: LDGSTS pinned/wait hosty (lustro merc_ldgsts_scan).
                     {
                         let lines: Vec<(u32, String)> = insns
