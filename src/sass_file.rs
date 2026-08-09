@@ -270,7 +270,13 @@ pub fn kernel_def_to_meta(
         frame_size: 0,
         min_stack_size: 0,
         maxreg_count: 0xFF,
-        num_barriers: def.resources.num_barriers as u8,
+        // mk20: brak dyrektywy .bar -> wyprowadz z instrukcji BAR/SYNCS
+        // (EIATTR num_barriers = max(id)+1). Sciezka legacy emituje rekordy
+        // BAR per-count i bez tego gubila k_sync (__syncthreads, zero loadow
+        // -> legacy-path) w E2E asm-path.
+        num_barriers: (def.resources.num_barriers as u8).max(
+            merc_bar_args.iter().map(|&(id, _)| (id + 1) as u8).max().unwrap_or(0),
+        ),
         exit_offsets,
         cbank_param_size,
         params,
