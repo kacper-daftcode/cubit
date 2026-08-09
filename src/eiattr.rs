@@ -494,6 +494,13 @@ pub struct KernelMeta {
     /// wewnatrz spanu BSSY (q_bsync_pair). Puste dla sass-only (tekst
     /// niewidoczny — ghost-NOP jest bit-identyczny z zwyklym NOP).
     pub merc_syncwarp: Vec<u32>,
+    /// Mercury mk27: UTCATOMSWS (tcgen05 tmem alloc/dealloc na oknie smem):
+    /// (lane, kind): 0 = FIND_AND_SET, 1 = AND. Rekord 51 01 01 63 (18B)
+    /// dla FIND_AND_SET, mini 41 63 08 0a dla AND (gold mkvmem).
+    pub merc_utca: Vec<(u32, u8)>,
+    /// mk27: ATOMS.<op> z imm w adresie [URx+imm]: (lane, imm_bajty, op)
+    /// op: 0 = OR, 1 = AND, 2 = inny. Rekord 024e8432 z imm w tail [28:32].
+    pub merc_atom_smem: Vec<(u32, u32, u8)>,
 }
 
 
@@ -563,6 +570,8 @@ impl KernelMeta {
             merc_atom_pool_hits: Vec::new(),
             merc_lop3_pdest: Vec::new(),
             merc_syncwarp: Vec::new(),
+            merc_utca: Vec::new(),
+            merc_atom_smem: Vec::new(),
             merc_atoms: Vec::new(),
             merc_ldgsts_pin: Vec::new(),
             merc_ldgsts_wait: Vec::new(),
@@ -955,6 +964,8 @@ mod tests {
             merc_atom_pool_hits: Vec::new(),
             merc_lop3_pdest: Vec::new(),
             merc_syncwarp: Vec::new(),
+            merc_utca: Vec::new(),
+            merc_atom_smem: Vec::new(),
             merc_atoms: Vec::new(),
             merc_ldgsts_pin: Vec::new(),
             merc_ldgsts_wait: Vec::new(),

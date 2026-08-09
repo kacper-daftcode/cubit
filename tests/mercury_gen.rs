@@ -66,6 +66,8 @@ fn meta(name: &str, n_params: u32, exits: u32, smem: u32, bars: u8, cbank: u16) 
         merc_guarded_bra: Vec::new(),
         merc_lop3_pdest: Vec::new(),
         merc_syncwarp: Vec::new(),
+        merc_utca: Vec::new(),
+        merc_atom_smem: Vec::new(),
         merc_atoms: Vec::new(),
         merc_ldgsts_pin: Vec::new(),
         merc_ldgsts_wait: Vec::new(),
