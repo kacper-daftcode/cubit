@@ -338,7 +338,7 @@ impl NvInfoSection {
 // ---------------------------------------------------------------------------
 
 /// High-level kernel metadata extracted from EIATTR records.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct KernelMeta {
     /// Kernel function name.
     pub name: String,
@@ -521,6 +521,53 @@ pub struct KernelMeta {
     /// sekcja .rela.text.K) / strukturalny BSSY (tez 0x1e).
     pub has_call: bool,
     pub has_bssy: bool,
+
+    // ==== mk30: rodziny b_* (SYNCS/mbarrier/TMA/minis; sciezka laned) ====
+    /// SYNCS.EXCH.64: (lane, guarded, addr_ur, val_ur) — rekord 021b5e06
+    /// (+ marker 51 01 gdy BSSY w kernelu) + blob d1-011b36 przy
+    /// UIADD3-count-prologu.
+    pub merc_mc_exch: Vec<(u32, bool, u8, u8)>,
+    /// SYNCS.ARRIVE.TRANS64: (lane, b4-guard 0xf8/0x00/0x01) — 021b2c32.
+    pub merc_mc_arrive: Vec<(u32, u8)>,
+    /// SYNCS.PHASECHK.TRANS64.TRYWAIT: lane — rekord 021b4c32.
+    pub merc_mc_phase: Vec<u32>,
+    /// UIADD3 z immediatem 0x100000 (mbarrier count-prolog): (lane, guarded).
+    pub merc_mc_d1: Vec<(u32, bool)>,
+    /// USHF.L z imm==0x1 majaca siostre USHF imm==0xb (prolog): mini 414c.
+    pub merc_mc_ushf_fin: Vec<u32>,
+    /// VOTEU.ALL (kazde wystapienie): mini 414c. (mk26 CLS=0x11d.)
+    pub merc_mc_voteu_all: Vec<u32>,
+    /// MOV Rn, 0x400 w rodzinie mbarrier (prolog register-path): bez rekordu,
+    /// bez bitu gdy EXCH-family (b_mbarrier lane17); park: m_wait/m_arr
+    /// maja bit (rozniecie regionowe, mk30b-next).
+    pub merc_mc_mov400: Vec<u32>,
+    /// LEA Rd, Rs, Rs2, 0x18 w rodzinie mbarrier: mini 41 00 00 0a.
+    pub merc_mc_lea18: Vec<u32>,
+    /// WARPSYNC.ALL: (lane, b2): 0x6e gdy region za nim zawiera BAR.SYNC,
+    /// inaczej 0x76.
+    pub merc_ws_minis: Vec<(u32, u8)>,
+    /// UVIRTCOUNT.DEALLOC.*: mini 41 44 00 3c; lane ZACHOWUJE bit.
+    pub merc_uvcount: Vec<u32>,
+    /// UMOV URx, URy (reg-reg): mini 41 00 10 0a; lane kasuje bit.
+    pub merc_umov_rr: Vec<u32>,
+    /// UBLKCP (__raw__ passthrough, slowo ...73ba): lane -> rekord 02232826.
+    pub merc_ublkcp: Vec<u32>,
+    /// PLOP3-signatury sekwencji expect_tx: (lane, klasa 0=A/1=B/2=C).
+    pub merc_plop3_tx: Vec<(u32, u8)>,
+    /// FENCE.*ASYNC.*: lane (wszystkie w kolku inwentarza bitowego — mk30b).
+    pub merc_fence_async: Vec<u32>,
+    /// LDGSTS z .128 (BYPASS.E.128) — wariant pinned-blob (b8=0x20, b10|=0x10).
+    pub merc_ldgsts_b128: bool,
+    /// HFMA2 z oboma zrodlami RZ + imm (stala materializacja): bez bitu.
+    pub merc_hfma2_const: Vec<u32>,
+    /// mk30: S2UR ?, SR_CgaCtaId: (lane, guarded) — rekord 010b060a per lane.
+    pub merc_s2ur_cga: Vec<(u32, bool)>,
+    /// mk30: lane'y BSYNC (zamkniecie spanu BSSY) — rekord 51+010109 regionu.
+    pub merc_bsync_close: Vec<u32>,
+    /// mk30b: ULEA prologu mbarrier (dest == addr EXCH, imm 0x18) — bez bitu.
+    pub merc_mc_ulea_x: Vec<u32>,
+    /// mk30b: braided BRA bez " PT," w rodzinie mbarrier — bez bitu.
+    pub merc_mc_bra_np: Vec<u32>,
 }
 
 
@@ -598,6 +645,26 @@ impl KernelMeta {
             merc_cgmasks: Vec::new(),
             has_call: false,
             has_bssy: false,
+            merc_mc_exch: Vec::new(),
+            merc_mc_arrive: Vec::new(),
+            merc_mc_phase: Vec::new(),
+            merc_mc_d1: Vec::new(),
+            merc_mc_ushf_fin: Vec::new(),
+            merc_mc_voteu_all: Vec::new(),
+            merc_mc_mov400: Vec::new(),
+            merc_mc_lea18: Vec::new(),
+            merc_ws_minis: Vec::new(),
+            merc_uvcount: Vec::new(),
+            merc_umov_rr: Vec::new(),
+            merc_ublkcp: Vec::new(),
+            merc_plop3_tx: Vec::new(),
+            merc_fence_async: Vec::new(),
+            merc_ldgsts_b128: false,
+            merc_hfma2_const: Vec::new(),
+            merc_s2ur_cga: Vec::new(),
+            merc_bsync_close: Vec::new(),
+            merc_mc_ulea_x: Vec::new(),
+            merc_mc_bra_np: Vec::new(),
             merc_atoms: Vec::new(),
             merc_ldgsts_pin: Vec::new(),
             merc_ldgsts_wait: Vec::new(),
@@ -1002,6 +1069,26 @@ mod tests {
             merc_cgmasks: Vec::new(),
             has_call: false,
             has_bssy: false,
+            merc_mc_exch: Vec::new(),
+            merc_mc_arrive: Vec::new(),
+            merc_mc_phase: Vec::new(),
+            merc_mc_d1: Vec::new(),
+            merc_mc_ushf_fin: Vec::new(),
+            merc_mc_voteu_all: Vec::new(),
+            merc_mc_mov400: Vec::new(),
+            merc_mc_lea18: Vec::new(),
+            merc_ws_minis: Vec::new(),
+            merc_uvcount: Vec::new(),
+            merc_umov_rr: Vec::new(),
+            merc_ublkcp: Vec::new(),
+            merc_plop3_tx: Vec::new(),
+            merc_fence_async: Vec::new(),
+            merc_ldgsts_b128: false,
+            merc_hfma2_const: Vec::new(),
+            merc_s2ur_cga: Vec::new(),
+            merc_bsync_close: Vec::new(),
+            merc_mc_ulea_x: Vec::new(),
+            merc_mc_bra_np: Vec::new(),
             merc_atoms: Vec::new(),
             merc_ldgsts_pin: Vec::new(),
             merc_ldgsts_wait: Vec::new(),

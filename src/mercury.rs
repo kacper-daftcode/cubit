@@ -615,6 +615,308 @@ pub const MERC_LDGSTS_WAIT: [u8; 16] = [
 /// rekordem 0129 xor-rega; rekord zastepuje wezel t4 — bit LDSM = 0).
 pub const MERC_LDSM_MINI: [u8; 4] = [0x42, 0x5b, 0x02, 0x06];
 
+// ==== mk30: tekstowa wersja skanu mc (lustro dla main.rs asm-path) ====
+pub struct McScanText {
+    pub lane: u32,
+    pub base: String,
+    pub full: String,
+    pub text: String,
+    pub guarded: bool,
+}
+
+pub struct McScanOut {
+    pub exch: Vec<(u32, bool, u8, u8)>,
+    pub arrive: Vec<(u32, u8)>,
+    pub phase: Vec<u32>,
+    pub uiadd3_1m: Vec<(u32, bool)>,
+    pub ushf_fin: Vec<u32>,
+    pub voteu_all: Vec<u32>,
+    pub mov400: Vec<u32>,
+    pub lea18: Vec<u32>,
+    pub ws: Vec<(u32, u8)>,
+    pub uvcount: Vec<u32>,
+    pub umov_rr: Vec<u32>,
+    pub ublkcp: Vec<u32>,
+    pub plop3_tx: Vec<(u32, u8)>,
+    pub fence_async: Vec<u32>,
+    pub ldgsts_b128: bool,
+    pub s2ur_cga: Vec<(u32, bool)>,
+    pub bsync_close: Vec<u32>,
+    pub hfma2_const: Vec<u32>,
+    pub ulea_x: Vec<u32>,
+    pub bra_np_loop: Vec<u32>,
+}
+
+pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
+    let mut o = McScanOut {
+        exch: Vec::new(),
+        arrive: Vec::new(),
+        phase: Vec::new(),
+        uiadd3_1m: Vec::new(),
+        ushf_fin: Vec::new(),
+        voteu_all: Vec::new(),
+        mov400: Vec::new(),
+        lea18: Vec::new(),
+        ws: Vec::new(),
+        uvcount: Vec::new(),
+        umov_rr: Vec::new(),
+        ublkcp: Vec::new(),
+        plop3_tx: Vec::new(),
+        fence_async: Vec::new(),
+        ldgsts_b128: false,
+        s2ur_cga: Vec::new(),
+        bsync_close: Vec::new(),
+        hfma2_const: Vec::new(),
+        ulea_x: Vec::new(),
+        bra_np_loop: Vec::new(),
+    };
+    let bar_lanes: Vec<u32> = items
+        .iter()
+        .filter(|i| i.base == "BAR")
+        .map(|i| i.lane)
+        .collect();
+    let ws_lanes: Vec<u32> = items
+        .iter()
+        .filter(|i| i.base == "WARPSYNC" && i.full.contains(".ALL"))
+        .map(|i| i.lane)
+        .collect();
+    let mut saw_ushf_0b = false;
+    for it in items {
+        let lane = it.lane;
+        let t = it.text.as_str();
+        match it.base.as_str() {
+            "SYNCS" => {
+                if t.contains("EXCH") {
+                    let mut urs = t
+                        .split(|c: char| c == '[' || c == ']' || c == ',' || c == ' ')
+                        .filter_map(|tok| {
+                            let tk = tok.trim().trim_end_matches(';');
+                            tk.strip_prefix("UR").and_then(|n| n.parse::<u8>().ok())
+                        });
+                    let addr = urs.next().unwrap_or(6);
+                    let val = urs.next().unwrap_or(4);
+                    o.exch.push((lane, it.guarded, addr, val));
+                } else if t.contains("ARRIVE") {
+                    let b4: u8 = if !it.guarded { 0xf8 } else { 0x01 };
+                    o.arrive.push((lane, b4));
+                } else if t.contains("PHASECHK") {
+                    o.phase.push(lane);
+                }
+            }
+            "UIADD3" if t.contains("0x100000") => o.uiadd3_1m.push((lane, it.guarded)),
+            "VOTEU" if it.full.contains(".ALL") => o.voteu_all.push(lane),
+            "MOV" if t.contains(", 0x400") => o.mov400.push(lane),
+            "LEA" if t.contains(", 0x18") && !it.full.contains("HI") => o.lea18.push(lane),
+            "UMOV" => {
+                let body = t.trim();
+                let rest = body.trim_start_matches("UMOV").trim_start();
+                let mut it2 = rest.split(',');
+                let d = it2.next().unwrap_or("").trim();
+                let s = it2.next().unwrap_or("").trim().trim_end_matches(';');
+                if d.starts_with("UR") && s.starts_with("UR") {
+                    o.umov_rr.push(lane);
+                }
+            }
+            "UVIRTCOUNT" if it.full.contains("DEALLOC") => o.uvcount.push(lane),
+            "FENCE" if t.contains("ASYNC") => o.fence_async.push(lane),
+            "PLOP3" => {
+                if !it.guarded && t.contains("P0, PT, PT, PT, PT, 0x80, 0x8") {
+                    o.plop3_tx.push((lane, 0));
+                } else if t.contains("P0, PT, P1, PT, PT, 0x8, 0x80") {
+                    o.plop3_tx.push((lane, 1));
+                } else if !it.guarded && t.contains("P1, PT, PT, PT, PT, 0x8, 0x80") {
+                    o.plop3_tx.push((lane, 2));
+                }
+            }
+            "LDGSTS" if it.full.contains(".128") => o.ldgsts_b128 = true,
+            "S2UR" if t.contains("SR_CgaCtaId") => o.s2ur_cga.push((lane, it.guarded)),
+            "BSYNC" => o.bsync_close.push(lane),
+            "HFMA2" if t.matches("RZ").count() >= 2 => o.hfma2_const.push(lane),
+            _ => {}
+        }
+        if it.base == "USHF" {
+            let parts: Vec<&str> = t.split(',').collect();
+            let imm = parts.get(2).map(|s| s.trim());
+            if imm == Some("0xb") {
+                saw_ushf_0b = true;
+            } else if imm == Some("0x1") && saw_ushf_0b {
+                o.ushf_fin.push(lane);
+            }
+        }
+        if it.base.starts_with("__raw__") || it.full.starts_with("__raw__") {
+            let tx = t.trim().trim_end_matches(';');
+            if tx.ends_with("0073ba") || it.full.trim_end_matches(';').ends_with("0073ba") {
+                o.ublkcp.push(lane);
+            }
+        }
+    }
+    if o.exch.is_empty() && o.arrive.is_empty() && o.phase.is_empty() {
+        o.mov400.clear();
+        o.lea18.clear();
+    } else if o.exch.is_empty() {
+        o.mov400.clear();
+    }
+    // ULEA prologu mbarrier: dest == addr EXCH, imm 0x18 (bit kasowany).
+    let exchs = o.exch.clone();
+    for &(_l, _g, addr, _val) in &exchs {
+        for it in items {
+            if it.base == "ULEA" && it.text.contains(", 0x18") {
+                let d = it.text.split(',').next().unwrap_or("")
+                    .trim_start_matches("ULEA").trim();
+                if d == format!("UR{}", addr) && it.lane < _l {
+                    o.ulea_x.push(it.lane);
+                }
+            }
+        }
+    }
+    // braided-BRA m-family bez " PT, ": nvcc kasuje bit (b_mbarrier 21/34).
+    if !o.exch.is_empty() || !o.arrive.is_empty() || !o.phase.is_empty() {
+        for it in items {
+            if it.base == "BRA" && it.guarded && !it.text.contains(" PT,") {
+                o.bra_np_loop.push(it.lane);
+            }
+        }
+    }
+    for (k, &wl) in ws_lanes.iter().enumerate() {
+        let end = ws_lanes.get(k + 1).copied().unwrap_or(u32::MAX);
+        let has_bar = bar_lanes.iter().any(|&b| b > wl && b < end);
+        o.ws.push((wl, if has_bar { 0x6e_u8 } else { 0x76_u8 }));
+    }
+    o
+}
+
+
+// ==== mk30: rodziny rekordow b_* (SYNCS/mbarrier/TMA/minis) ====
+// Rodowod: mk26-capture (oraculum kandydata->final) + mikrolab mk30
+// (m_init/m_arr/m_wait/bulk1/uvc/m_min — nvcc 13.3.73, sm_103a).
+
+/// mini 4B: VOTEU.ALL (klasa 014c -> 41 4c 02 0a; mk26 CLS 0x11d).
+pub const MERC_MINI_VOTEU: [u8; 4] = [0x41, 0x4c, 0x02, 0x0a];
+/// mini 4B: LEA R,R,R,0x18 w prologu mbarrier-register-path
+/// (kand. 01 00 00 0a; m_arr/m_wait/b_mbarrier).
+pub const MERC_MINI_LEA18: [u8; 4] = [0x41, 0x00, 0x00, 0x0a];
+/// mini 4B: UMOV URx, URy (reg-reg) — b_ldmatrix lane3 (bit kasowany).
+pub const MERC_MINI_UMOV_RR: [u8; 4] = [0x41, 0x00, 0x10, 0x0a];
+/// mini 4B: UVIRTCOUNT.DEALLOC.SMPOOL (b_tcgen05 @lane35; bit ZOSTAJE).
+pub const MERC_MINI_UVIRT: [u8; 4] = [0x41, 0x44, 0x00, 0x3c];
+/// mini 4B: WARPSYNC.ALL — b2 = 0x6e gdy w regionie az do kolejnego
+/// WARPSYNC/konca jest BAR.SYNC; inaczej 0x76. (mk26 CLS: kand. 0147xx0a;
+/// potwierdzone na b_mbarrier(6e), b_tcgen05(76/76/6e), uvc(76/76/6e),
+/// mkvmem(76).) Zgodne bajtowo z REC_MINI_GHOST76 (mk27).
+pub const MERC_MINI_WS6E: [u8; 4] = [0x41, 0x47, 0x6e, 0x0a];
+pub const MERC_MINI_WS76: [u8; 4] = [0x41, 0x47, 0x76, 0x0a];
+
+/// d1-marker + blob 01 1b 36 0a (16B): mbarrier-init count-prolog
+/// (UIADD3 UR?, UPT, UPT, +/-UR?, 0x100000, URZ). b4: 0x03 gdy prolog jest
+/// predykowany (@!UPx i @!Px rowno — m_init/b_mbarrier), 0xfa gdy nie.
+/// uklad kabla: [d1 01] marker (2B) + 16B rekord.
+pub fn merc_mbar_d1_blob(guarded: bool) -> [u8; 18] {
+    // marker d1 01, potem 16B rekord 01 1b 36 0a + payload
+    let body = [
+        0x01, 0x1b, 0x36, 0x0a,
+        if guarded { 0x03 } else { 0xfa }, 0x00, 0x53, 0x00,
+        0x00, 0x00, 0x03, 0x01, 0x00, 0x01, 0xc0, 0xff,
+    ];
+    let mut r = [0u8; 18];
+    r[0] = 0xd1;
+    r[1] = 0x01;
+    r[2..18].copy_from_slice(&body);
+    r
+}
+
+/// 02 1b 5e 06 (32B, marker 51 01 gdy kernel ma BSSY): SYNCS.EXCH.64.
+/// b4: guard EXCH (0x03 predykat / 0xfa brak); [10..12) = u16 addrUR<<6;
+/// [12] = 0x0a; [14..16) = u16 (valUR<<6)|2.
+pub fn merc_exch_rec(guarded: bool, bssy: bool, addr_ur: u8, val_ur: u8) -> Vec<u8> {
+    let mut r = [0u8; 32];
+    r[0] = 0x02;
+    r[1] = 0x1b;
+    r[2] = 0x5e;
+    r[3] = 0x06;
+    r[4] = if guarded { 0x03 } else { 0xfa };
+    r[6] = 0x41;
+    r[7] = 0x05;
+    r[10..12].copy_from_slice(&((addr_ur as u16) << 6).to_le_bytes());
+    r[12] = 0x0a;
+    r[14..16].copy_from_slice(&(((val_ur as u16) << 6) | 2).to_le_bytes());
+    let mut v = Vec::with_capacity(34);
+    if bssy {
+        v.extend_from_slice(&[0x51, 0x01]);
+    }
+    v.extend_from_slice(&r);
+    v
+}
+
+/// 02 1b 2c 32 (32B): SYNCS.ARRIVE.TRANS64.A1T0  (tran64, dst RZ).
+/// b4 = guard (f8 brak / 01 @!Pn / 00 @Pn); reszta stala z probek.
+pub fn merc_arrive_rec(b4: u8) -> [u8; 32] {
+    let mut r = [0u8; 32];
+    r[0] = 0x02;
+    r[1] = 0x1b;
+    r[2] = 0x2c;
+    r[3] = 0x32;
+    r[4] = b4;
+    r[6] = 0x40;
+    r[7] = 0x28;
+    r[8] = 0x01;
+    r[12] = 0xc1;
+    r[13] = 0xff;
+    r[17] = 0xc0;
+    r[18] = 0xff;
+    r[19] = 0x0a;
+    r
+}
+
+/// 02 1b 4c 32 (32B): SYNCS.PHASECHK.TRANS64.TRYWAIT — forma [R0]/[R0+URZ]
+/// z kerneli z ramka if(tid==0) (b_mbarrier/m_wait x2: stala).
+/// UWAGA (otwarte): m_min (bez ramki) ma inny uklad b14..17 (grid RZ wczesniej).
+pub fn merc_phasechk_rec() -> [u8; 32] {
+    let mut r = [0u8; 32];
+    r[0] = 0x02;
+    r[1] = 0x1b;
+    r[2] = 0x4c;
+    r[3] = 0x32;
+    r[4] = 0xf8;
+    r[6] = 0x51;
+    r[7] = 0x4a;
+    r[12] = 0x01;
+    r[17] = 0xc0;
+    r[18] = 0xff;
+    r[19] = 0x0a;
+    r[21] = 0xc0;
+    r[22] = 0xff;
+    r
+}
+
+/// 01 10 06 0a (16B): elementy sekwencji cp.async.bulk (mbarrier::complete_tx).
+/// Trzy stale warianty po podpisie PLOP3 (b_bulk_cp/bulk1/bulk2):
+/// A: `PLOP3.LUT P0, PT, PT, PT, PT, 0x80, 0x8` (bez guarda)
+/// B: `@P1 PLOP3.LUT P0, PT, P1, PT, PT, 0x8, 0x80`
+/// C: `PLOP3.LUT P1, PT, PT, PT, PT, 0x8, 0x80` (bez guarda)
+pub const MERC_TMA_A: [u8; 16] = [
+    0x01, 0x10, 0x06, 0x0a, 0xf8, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x01, 0x00, 0x00, 0xf8, 0x00, 0xf8,
+];
+pub const MERC_TMA_B: [u8; 16] = [
+    0x01, 0x10, 0x06, 0x0a, 0x08, 0x00, 0x00, 0x01,
+    0x00, 0x00, 0x01, 0x00, 0x00, 0x08, 0x00, 0xf8,
+];
+pub const MERC_TMA_C: [u8; 16] = [
+    0x01, 0x10, 0x06, 0x0a, 0xf8, 0x00, 0x00, 0x01,
+    0x00, 0x00, 0x01, 0x08, 0x00, 0xf8, 0x00, 0xf8,
+];
+
+/// 02 23 28 26 (32B): rekord UBLKCP.S.G. Pola zaleza od puli deskryptorow /
+/// rejestrow; ZMEASURED const dla ukladu b_bulk_cp/bulk1 (src-pool UR-desc z
+/// LDCU.64 parametru, dst UR pair, size UR). bulk2 pokazuje odmienne pola —
+/// pelny dekod: OTWARTE (mk30b-next).
+pub const MERC_UBLKCP: [u8; 32] = [
+    0x02, 0x23, 0x28, 0x26, 0xfa, 0x00, 0x40, 0x01,
+    0x02, 0x01, 0x00, 0x00, 0x80, 0x01, 0xc0, 0x01,
+    0x00, 0x82, 0x02, 0x00, 0x01, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
 /// mk14.3: skan LDGSTS/cp.async po tekscie SASS: zwraca
 /// (pin=(lane,dst,src) rekordu pinned 5102+02233034, wait=lane 0123400a).
 /// - pin host = pierwszy killpad `@!PT LDS RZ, [RZ]` (iadla LDGSTS; 3/3 m15).

@@ -76,6 +76,7 @@ fn base_meta(name: &str) -> KernelMeta {
         merc_cgmasks: Vec::new(),
         has_call: false,
         has_bssy: false,
+        ..Default::default()
     }
 }
 
@@ -126,9 +127,10 @@ fn utca_bra_bitmap_rule() {
     m.merc_bra_selfloop = vec![1]; // lane1 = samo-petla
 
     let out = generate_mercury_full(&code, 0, Some(&ops), &m, false);
-    // hdr: [ordinal4][magic c0000001][B=3][bitmap dword]
+    // hdr: [ordinal4][magic c0000001][B][bitmap dword]
     assert_eq!(&out[4..8], &0xC0000001u32.to_le_bytes());
-    assert_eq!(&out[8..12], &3u32.to_le_bytes(), "3 sloty B (brak klas w0)");
+    // mk30b: n = ostatni ustawiony bit + 2 (17612/17612 korpus); tu bitmax=2.
+    assert_eq!(&out[8..12], &4u32.to_le_bytes(), "B = bitmax+2");
     // bit0 = BRA (zwykly, dialekt UTCA), bit1 = pusty (samo-petla), bit2 = EXIT
     assert_eq!(
         out[12], 0b101,
