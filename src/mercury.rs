@@ -334,6 +334,26 @@ pub fn opcode_bitmap_zero_weight(op: &str) -> bool {
 }
 
 
+/// mk28: klasyfikator operacji warp-wide dla EIATTR 0x31
+/// (INT_WARP_WIDE_INSTR_OFFSETS — nvcc listuje bajtowe offsety tych opow,
+/// gdy kernel zawiera VOTEU). Korpus labu: VOTEU, SHFL, REDUX, MATCHANY.
+/// Zwrotka: Some(b'v') dla VOTEU (bramka emisji), Some(inna litera) dla
+/// reszty klasikow, None poza tym.
+pub fn wwide_class(opcode_full: &str, base: &str) -> Option<u8> {
+    let b = if base.is_empty() {
+        opcode_full.split('.').next().unwrap_or(opcode_full)
+    } else {
+        base
+    };
+    match b {
+        "VOTEU" => Some(b'v'),
+        "SHFL" => Some(b's'),
+        "REDUX" => Some(b'r'),
+        "MATCH" | "MATCHANY" => Some(b'm'),
+        _ => None,
+    }
+}
+
 /// ===== Rekordy 025a (MMA) / 020f,020c (DMUL/DADD z f64-imm) =====
 /// Model zweryfikowany byte-exact na calej probce korpusu (mma_harvest2/
 /// mma_model/f64imm_harvest, 2026-08-05): 15,104 rekordow 025a + 512 mini
@@ -423,6 +443,9 @@ pub fn merc_s2r_sr_enum(sr: &str) -> u8 {
         "SR_CTAID.Y" => 5,
         "SR_CTAID.Z" => 6,
         "SR_LTMASK" => 8,
+        // mk28: SR_CgaCtaId -> 0x2c (E2E b_cluster/b_mbarrier/b_tcgen05;
+        // b12 rekordu anchor 010b040a = enum SR czytanego przez S2R).
+        "SR_CgaCtaId" => 0x2c,
         _ => 1,
     }
 }

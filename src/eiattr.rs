@@ -501,6 +501,26 @@ pub struct KernelMeta {
     /// mk27: ATOMS.<op> z imm w adresie [URx+imm]: (lane, imm_bajty, op)
     /// op: 0 = OR, 1 = AND, 2 = inny. Rekord 024e8432 z imm w tail [28:32].
     pub merc_atom_smem: Vec<(u32, u32, u8)>,
+    /// mk28: lane'y samo-petli BRA (`BRA L_x` gdzie cel == wlasny adres;
+    /// martwy spin-trap za strefa funkcji wewnetrznych). W dialekcie UTCA
+    /// (merc_utca niepuste) zwykly BRA dostaje bit bitmapy, ALE samo-petla
+    /// nie (gold mkvmem sloty 48/51 tak, slot62 BRA L_400 nie).
+    pub merc_bra_selfloop: Vec<u32>,
+    /// mk28: EIATTR 0x31 (INT_WARP_WIDE_INSTR_OFFSETS): bajtowe offsety
+    /// operacji warp-wide (VOTEU/SHFL/REDUX/MATCHANY) — nvcc listuje je,
+    /// gdy kernel zawiera VOTEU (bramka laboratoryjna; korpus 119: 5 takich
+    /// kerneli = wszystkie z VOTEU, zero bez). Puste = brak atrybutu.
+    pub merc_wwide_sites: Vec<u32>,
+    /// mk28: EIATTR 0x28/0x29 SUROWE listy (COOP_GROUP_INSTR_OFFSETS i
+    /// COOP_GROUP_MASK_REGIDS) — pelna lista site'ow __syncwarp z oryginalu,
+    /// NIE tylko udowodnione duchy (merc_syncwarp). Zrodlo: dyrektywa
+    /// `.merc_cgsites` (disasm --frozen) albo parse z cubina. Bajtowe offsety.
+    pub merc_cgsites: Vec<u32>,
+    pub merc_cgmasks: Vec<u32>,
+    /// mk28: kernel zawiera CALL (rekord EIATTR 0x1e CRS_STACK_SIZE + pusta
+    /// sekcja .rela.text.K) / strukturalny BSSY (tez 0x1e).
+    pub has_call: bool,
+    pub has_bssy: bool,
 }
 
 
@@ -572,6 +592,12 @@ impl KernelMeta {
             merc_syncwarp: Vec::new(),
             merc_utca: Vec::new(),
             merc_atom_smem: Vec::new(),
+            merc_bra_selfloop: Vec::new(),
+            merc_wwide_sites: Vec::new(),
+            merc_cgsites: Vec::new(),
+            merc_cgmasks: Vec::new(),
+            has_call: false,
+            has_bssy: false,
             merc_atoms: Vec::new(),
             merc_ldgsts_pin: Vec::new(),
             merc_ldgsts_wait: Vec::new(),
@@ -668,6 +694,10 @@ impl KernelMeta {
                     meta.merc_syncwarp.push(addr / 16);
                 }
             }
+            // mk28: surowa kompletna lista 0x28/0x29 do re-emisji EIATTR
+            // (disasm --frozen drukuje ja jako `.merc_cgsites`).
+            meta.merc_cgsites = sites;
+            meta.merc_cgmasks = masks;
         }
 
         meta
@@ -966,6 +996,12 @@ mod tests {
             merc_syncwarp: Vec::new(),
             merc_utca: Vec::new(),
             merc_atom_smem: Vec::new(),
+            merc_bra_selfloop: Vec::new(),
+            merc_wwide_sites: Vec::new(),
+            merc_cgsites: Vec::new(),
+            merc_cgmasks: Vec::new(),
+            has_call: false,
+            has_bssy: false,
             merc_atoms: Vec::new(),
             merc_ldgsts_pin: Vec::new(),
             merc_ldgsts_wait: Vec::new(),

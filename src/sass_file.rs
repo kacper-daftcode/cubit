@@ -244,8 +244,38 @@ pub fn kernel_def_to_meta(
     let mut merc_lop3_pdest: Vec<u32> = Vec::new();
     let mut merc_s2r_sr: Vec<u8> = Vec::new();
     let mut merc_s2r_dest: Vec<u32> = Vec::new();
+    // mk28: samo-petle BRA (spin-trap po strefie funkcji wewnetrznych),
+    // flagi klas CALL/BSSY (EIATTR 0x1e + pusta .rela.text.K) oraz liste
+    // site'ow operacji warp-wide do EIATTR 0x31 (INT_WARP_WIDE).
+    let mut merc_bra_selfloop: Vec<u32> = Vec::new();
+    let mut n_call = 0u32;
+    let mut has_bssy = false;
+    let mut has_voteu = false;
+    let mut wwide: Vec<u32> = Vec::new();
     for ins in &def.instructions {
         let lane = (ins.addr / 16) as u32;
+        if ins.opcode == "CALL" {
+            n_call += 1;
+        }
+        if ins.opcode == "BSSY" {
+            has_bssy = true;
+        }
+        match crate::mercury::wwide_class(&ins.opcode_full, &ins.opcode) {
+            Some(b'v') => {
+                has_voteu = true;
+                wwide.push(ins.addr);
+            }
+            Some(_) => wwide.push(ins.addr),
+            None => {}
+        }
+        if ins.opcode == "BRA"
+            && ins
+                .operands
+                .iter()
+                .any(|o| matches!(o, crate::ir::Operand::BranchTarget(t) if *t == ins.addr))
+        {
+            merc_bra_selfloop.push(lane);
+        }
         if ins.opcode == "S2R" {
             // mk13: enum SR -> b12 anchor-rekordu (rownolegle do
             // merc_s2r_lanes z merc_param_scan — oba w kolejnosci adresow).
@@ -329,6 +359,15 @@ pub fn kernel_def_to_meta(
         merc_ldgsts_wait,
         merc_utca,
         merc_atom_smem,
+        merc_bra_selfloop,
+        // nvcc (EIATTR 0x31): liste site'ow warp-wide emituje tylko gdy
+        // kernel zawiera VOTEU (fit na 119 kernelach labu: 5/5 z VOTEU maja
+        // atrybut, zaden bez VOTEU).
+        merc_wwide_sites: if has_voteu { wwide } else { Vec::new() },
+        merc_cgsites: def.resources.merc_cgsites.iter().map(|&(s, _)| s).collect(),
+        merc_cgmasks: def.resources.merc_cgsites.iter().map(|&(_, m)| m).collect(),
+        has_call: n_call > 0,
+        has_bssy,
     }
 }
 

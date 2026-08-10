@@ -61,6 +61,10 @@ pub struct KernelResources {
     /// (EIATTR 0x28/0x29 nie ma odpowiednika w SASS; `disassemble --frozen`
     /// emituje, `asm` konsumuje).
     pub merc_syncwarp: Vec<u32>,
+    /// mk28: SUROWE site'y __syncwarp z oryginalu (EIATTR 0x28) + maski
+    /// (0x29): `.merc_cgsites 0x20[:ffffffff] ...` — journal EIATTR 28/29
+    /// w .nv.info.K; edykcyjny podzbior (duchy) = `.merc_syncwarp`.
+    pub merc_cgsites: Vec<(u32, u32)>,
     /// Kernel parameters in declaration order.
     pub params: Vec<KernelParam>,
     /// Shared memory declarations.
@@ -130,6 +134,31 @@ pub fn parse_directive(line: &str, res: &mut KernelResources) -> bool {
         let rest = rest.trim();
         if let Some(n) = parse_bar_count(rest) {
             res.num_barriers = res.num_barriers.max(n);
+        }
+        return true;
+    }
+
+    if let Some(rest) = line.strip_prefix(".merc_cgsites") {
+        // .merc_cgsites 0x20 0x1a0 .. LUB 0x20:ffffffff .. (site[:maska])
+        for tok in rest.trim().trim_end_matches(';').split([' ', ',', '\t']) {
+            let tok = tok.trim();
+            if tok.is_empty() {
+                continue;
+            }
+            let (sv, mv) = match tok.split_once(':') {
+                Some((s, m)) => (s, m),
+                None => (tok, "ffffffff"),
+            };
+            let parse = |t: &str| -> Option<u32> {
+                if let Some(h) = t.strip_prefix("0x") {
+                    u32::from_str_radix(h, 16).ok()
+                } else {
+                    t.parse::<u32>().ok()
+                }
+            };
+            if let (Some(s), Some(m)) = (parse(sv), parse(mv)) {
+                res.merc_cgsites.push((s, m));
+            }
         }
         return true;
     }
