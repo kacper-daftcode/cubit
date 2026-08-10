@@ -1836,6 +1836,7 @@ pub fn generate_mercury_full(
         meta.merc_f64imm.iter().map(|&(lane, _, _, _, _)| lane).collect();
     let pad_set: Vec<u32> = meta.merc_pad_pos.clone();
     let bra_guard_set: Vec<u32> = meta.merc_guarded_bra.clone();
+    let bra_selfloop_set: Vec<u32> = meta.merc_bra_selfloop.clone();
     let lop3_pdest_set: Vec<u32> = meta.merc_lop3_pdest.clone();
     // mk27: dialekt tcgen05/mkvmem (kernel z UTCATOMSWS na stosie
     // zero-param): bitmapa ustawia BRA.U/REDUX, kasuje UTCATOMSWS/WARPSYNC
@@ -1868,6 +1869,16 @@ pub fn generate_mercury_full(
                         t = false;
                     }
                     if ops[i] == "BRA.U" || base_i == "REDUX" {
+                        t = true;
+                    }
+                    // mk28: zwykly BRA w dialekcie UTCA tez dostaje bit
+                    // (epilog: BRA przeskakujacy strefy CALL thunkow do
+                    // wspolnego landing NOP/EXIT; mkvmem sloty 48/51).
+                    // WYJATEK: samo-petla spin (BRA L_x -> wlasny adres),
+                    // martwy trap za obszarem funkcji wewnetrznych — bez
+                    // bitu (mkvmem slot62 BRA L_400; dowod: orig dword1
+                    // bitmapy 0x3fbf1fdf vs nasze 0x3fb61fdf).
+                    if base_i == "BRA" && !bra_selfloop_set.contains(&(i as u32)) {
                         t = true;
                     }
                 }
@@ -2886,32 +2897,54 @@ impl CubinBuilder {
         const IDX_TKINFO: usize = 5;
         let base = 8usize; // first per-kernel slot
 
+        // mk28: kolejnosc sekcji zgodna z nvcc (sm_103a era):
+        //   [7]  .nv.info
+        //   [8]  .nv.compat            <- compat PRZED .nv.info.K (bylo po)
+        //   [9..9+n) .nv.info.Ki
+        //   [9+n]    .nv.callgraph
+        //   []       .rela.text.Ki     <- pusta sekcja, TYLKO gdy kernel ma
+        //                              CALL lub statyczny smem (nvcc regula,
+        //                              fit 119 lab-kerneli: 0 pomyłek)
+        //   []       .rela.debug_frame
+        //   []       .text.Ki
+        //   []       .nv.shared.Ki     <- per-kernel shared PRZED reserved
+        //   []       .nv.shared.reserved.0
+        //   []       .nv.constant0.Ki, .nv.capmerc.text.Ki, merc-rodzina.
+        let kernel_needs_rela_text: Vec<bool> = kernels
+            .iter()
+            .map(|k| k.meta.has_call || k.meta.shared_size as u64 > 0)
+            .collect();
+        let n_rela_text = kernel_needs_rela_text.iter().filter(|b| **b).count();
+
+        // .nv.compat pod fixed-numeracja
+        let idx_compat = base;
         // Per-kernel: .nv.info.K
-        let _nv_info_k = |ki: usize| base + ki;
-        // Fixed after info
-        let idx_compat = base + n;
-        let idx_cg = base + n + 1;
-        let _idx_rela_dbg = base + n + 2;
+        let _nv_info_k = |ki: usize| base + 1 + ki;
+        let idx_cg = base + 1 + n;
+        // per-kernel .rela.text.Ki (subset transformowany na ciagly blok)
+        // (indeksy wynikaja z rzedu push-ow; blok rela.text liczony jako
+        // n_rela_text — patrz formuly ponizej)
+        let _idx_rela_dbg = idx_cg + 1 + n_rela_text;
         // Per-kernel: .text.K
-        let text_k = |ki: usize| base + n + 3 + ki;
+        let text_k = |ki: usize| idx_cg + 2 + n_rela_text + ki;
+        // Per-kernel: .nv.shared.<kernel> (PRZED reserved.0)
+        let shared_k = |ki: usize| idx_cg + 2 + n_rela_text + n + ki;
         // Shared reservation
-        let idx_shared = base + 2 * n + 3;
-        // Per-kernel: .nv.shared.<kernel>
-        let shared_k = |ki: usize| base + 2 * n + 4 + ki;
+        let idx_shared = idx_cg + 2 + n_rela_text + 2 * n;
         // Per-kernel: .nv.constant0.K
-        let const0_k = |ki: usize| base + 3 * n + 4 + ki;
+        let const0_k = |ki: usize| idx_cg + 3 + n_rela_text + 2 * n + ki;
         // Per-kernel: .nv.capmerc.text.K
-        let capmerc_k = |ki: usize| base + 4 * n + 4 + ki;
+        let capmerc_k = |ki: usize| idx_cg + 3 + n_rela_text + 3 * n + ki;
         // Fixed Mercury
-        let idx_merc_dbg = base + 5 * n + 4;
-        let _idx_merc_info = base + 5 * n + 5;
+        let idx_merc_dbg = idx_cg + 3 + n_rela_text + 4 * n;
+        let _idx_merc_info = idx_merc_dbg + 1;
         // Per-kernel: .nv.merc.nv.info.K
-        let _merc_info_k = |ki: usize| base + 5 * n + 6 + ki;
+        let _merc_info_k = |ki: usize| idx_merc_dbg + 2 + ki;
         // Fixed Mercury (rest)
-        let _idx_merc_rela = base + 6 * n + 6;
-        let idx_merc_shared = base + 6 * n + 7;
-        let idx_merc_symtab = base + 6 * n + 8;
-        let total_sections = base + 6 * n + 9;
+        let _idx_merc_rela = idx_merc_dbg + 2 + n;
+        let idx_merc_shared = idx_merc_dbg + 3 + n;
+        let idx_merc_symtab = idx_merc_dbg + 4 + n;
+        let total_sections = idx_merc_dbg + 5 + n;
 
         // ── Build string tables & symbol tables ───────────────────────────
         // Populate shstrtab with all section names in order.
@@ -2943,6 +2976,7 @@ impl CubinBuilder {
         let mut shn_capmerc_k: Vec<u32> = Vec::new();
         let mut shn_merc_info_k: Vec<u32> = Vec::new();
         let mut shn_shared_k: Vec<u32> = Vec::new();
+        let mut shn_rela_text_k: Vec<u32> = Vec::new();
         for k in kernels {
             shn_nv_info_k.push(self.shstrtab.add(&format!(".nv.info.{}", k.name)));
             shn_text_k.push(self.shstrtab.add(&format!(".text.{}", k.name)));
@@ -2950,6 +2984,7 @@ impl CubinBuilder {
             shn_shared_k.push(self.shstrtab.add(&format!(".nv.shared.{}", k.name)));
             shn_capmerc_k.push(self.shstrtab.add(&format!(".nv.capmerc.text.{}", k.name)));
             shn_merc_info_k.push(self.shstrtab.add(&format!(".nv.merc.nv.info.{}", k.name)));
+            shn_rela_text_k.push(self.shstrtab.add(&format!(".rela.text.{}", k.name)));
         }
 
         // ── Build symbol table ────────────────────────────────────────────
@@ -3292,8 +3327,9 @@ impl CubinBuilder {
         for k in kernels {
             // Parameters start at offset 0x380 in cbank0.
             // The section must cover bytes 0x0 .. 0x380 + total_param_bytes.
-            // Minimum cbank size 0x3A0 (928B) to ensure COMPAT descriptor space at 0x358.
-            let cbank_size = (0x380usize + k.meta.cbank_param_size as usize).max(0x3A0);
+            // mk28: nvcc sm_103a nie ma progu 0x3A0 (fit na 119 labach:
+            // 0x380 dla bezparametrowych, 0x388..0x3a0 dla parametryzowanych).
+            let cbank_size = 0x380usize + k.meta.cbank_param_size as usize;
             const0_data.push(vec![0u8; pad_to(cbank_size, 4)]);
         }
 
@@ -3364,7 +3400,20 @@ impl CubinBuilder {
             0
         );
 
-        // Per-kernel .nv.info.K (8..8+N)
+        // mk28: .nv.compat PRZED .nv.info.K (kolejnosc nvcc sm_103a;
+        // dawniej po — rozjazd listy sekcji z oryginalem).
+        sec!(
+            shn_compat,
+            SHT_CUDA_COMPAT,
+            0,
+            NV_COMPAT.to_vec(),
+            4,
+            0,
+            0,
+            0
+        );
+
+        // Per-kernel .nv.info.K
         for ki in 0..n {
             sec!(
                 shn_nv_info_k[ki],
@@ -3378,17 +3427,7 @@ impl CubinBuilder {
             );
         }
 
-        // .nv.compat, .nv.callgraph, .rela.debug_frame
-        sec!(
-            shn_compat,
-            SHT_CUDA_COMPAT,
-            0,
-            NV_COMPAT.to_vec(),
-            4,
-            0,
-            0,
-            0
-        );
+        // .nv.callgraph
         sec!(
             shn_cg,
             SHT_CUDA_CALLGRAPH,
@@ -3399,6 +3438,26 @@ impl CubinBuilder {
             0,
             8
         );
+
+        // mk28: pusta .rela.text.K per kernel z CALL lub statycznym smem
+        // (regula nvcc: sekcja RELA obecna z zerem wpisow; fit 119 labow).
+        for ki in 0..n {
+            if kernel_needs_rela_text[ki] {
+                sec!(
+                    shn_rela_text_k[ki],
+                    SHT_RELA,
+                    SHF_INFO_LINK,
+                    vec![],
+                    8,
+                    IDX_SYMTAB as u32,
+                    text_k(ki) as u32,
+                    24
+                );
+            }
+        }
+
+        // .rela.debug_frame (tresc: mk30 — wpisy FDE wymagaja parystej
+        // par frames/symboli wewnetrznych; sekcja bez tresci gdy pusto)
         sec!(
             shn_rela_dbg,
             SHT_RELA,
@@ -3424,21 +3483,9 @@ impl CubinBuilder {
             );
         }
 
-        // .nv.shared.reserved.0 (NOBITS, always 64 bytes minimum)
-        sec!(
-            shn_shared,
-            SHT_NOBITS,
-            SHF_WRITE | SHF_ALLOC,
-            vec![],
-            1,
-            0,
-            0,
-            0,
-            nobits(0x40)
-        );
-
         // Per-kernel .nv.shared.<kernel> (NOBITS, actual shared memory size)
         // sh_info = text section index (via SHF_INFO_LINK), sh_link = 0 (matches nvcc)
+        // mk28: kolejnosc nvcc — per-kernel .nv.shared.K PRZED reserved.0.
         for ki in 0..n {
             let sh_size = kernels[ki].meta.shared_size as u64;
             if sh_size > 0 {
@@ -3468,6 +3515,25 @@ impl CubinBuilder {
                 ));
             }
         }
+
+        // mk28: .nv.shared.reserved.0 PO per-kernel sekcjach; 0x60 gdy kernel
+        // uzywa tmem (UTCA — mkvmem/b_tcgen05), inaczej 0x40 (fit korpusu).
+        let reserved_sz: u64 = if kernels.iter().any(|k| !k.meta.merc_utca.is_empty()) {
+            0x60
+        } else {
+            0x40
+        };
+        sec!(
+            shn_shared,
+            SHT_NOBITS,
+            SHF_WRITE | SHF_ALLOC,
+            vec![],
+            1,
+            0,
+            0,
+            0,
+            nobits(reserved_sz)
+        );
 
         // Per-kernel .nv.constant0.K
         for ki in 0..n {
@@ -3559,12 +3625,13 @@ impl CubinBuilder {
             idx_merc_dbg as u32,
             24
         );
-        // .nv.merc.nv.shared.reserved.0 (NOBITS size=0)
+        // .nv.merc.nv.shared.reserved.0 (mk28: nvcc emituje 32 bajty zer;
+        // dawniej 0)
         sec!(
             shn_merc_sh,
             SHT_MERC_RESERVED_SH,
             SHF_MERC | SHF_WRITE | SHF_ALLOC,
-            vec![],
+            vec![0u8; 32],
             1,
             0,
             0,
@@ -3874,19 +3941,40 @@ impl KernelMeta {
         use crate::eiattr::{EiFmt, EiRecord, NvInfoSection};
         let mut records = Vec::new();
 
-        // 1. CUDA_API_VERSION (attr=0x37)
+        // mk28: kanoniczna kolejnosc rekordow nvcc 13.x (era sm_103a) —
+        // dopasowana na 119 kernelach labu (minieto bramki per atrybut):
+        //   66 LANGUAGE=PTX(3), 37 API=0x85, 17 KPARAM*, [tmem: 4f,41],
+        //   50 SPARSE_MMA, [tmem: 51], 1b MAXREG=ff, [4c NUM_BARRIERS jesli
+        //   bary], 5f MERC-1.1, [31 INT_WARP_WIDE jesli VOTEU],
+        //   [29+28 COOP_SITE jesli .merc_cgsites], 4a VRC_CTA_INIT,
+        //   1c EXIT_OFFS, [1e CRS_STACK jesli call/bssy/bar+voteu/utca+bar],
+        //   [19 CBANK_SIZE + 0a PARAM_CBANK jesli paramy], 36 SW_WAR=8,
+        //   6b NVSAL_SW_WAR=1.
+        let has_utca = !self.merc_utca.is_empty();
+        let has_voteu_sites = !self.merc_wwide_sites.is_empty();
+
+        // 1. EIATTR_LANGUAGE = PTX (0x66, SVAL u32=3)
+        records.push(EiRecord {
+            attr: 0x0066,
+            fmt: EiFmt::Sized,
+            data: 3u32.to_le_bytes().to_vec(),
+        });
+
+        // 2. CUDA_API_VERSION (attr=0x37); era sm_103a = nvcc 13.1 -> 0x85
+        //    (lab: 213/214 kerneli ma 0x85; 0x82/0x83 = starsze nvcc).
         let api_ver = if self.cuda_api_version != 0 {
             self.cuda_api_version
         } else {
-            0x83
+            0x85
         };
+        let api_ver = if api_ver == 0x83 { 0x85 } else { api_ver };
         records.push(EiRecord {
             attr: 0x0037,
             fmt: EiFmt::Sized,
             data: api_ver.to_le_bytes().to_vec(),
         });
 
-        // 2. KPARAM_INFO (attr=0x17): one 12-byte record per parameter,
+        // 3. KPARAM_INFO (attr=0x17): one 12-byte record per parameter,
         // in REVERSE ordinal order (matching working Tungsten cubins).
         // Format: [u32 index=0][u8 ordinal][u8 pad][u16 offset][u32 size_space_cbank]
         for param in self.params.iter().rev() {
@@ -3896,19 +3984,11 @@ impl KernelMeta {
             let off16 = param.offset as u16;
             d[6] = (off16 & 0xFF) as u8;
             d[7] = (off16 >> 8) as u8;
-            // SM120 KPARAM_INFO word2 encodes: size class, address space, cbank.
-            // Space 0x5 = GLOBAL (pointer params) — tells driver to set up address
-            // translation for desc[] loads. Without this, desc[UR][R.64] gets wrong data.
-            // Space 0x0 = scalar (no address translation).
-            // KPARAM_INFO word2 byte layout (SM120, verified against nvcc 13.1):
-            // d[8]  = logAlignment (0 for all params)
-            // d[9]  = Space (0x5 = GLOBAL for pointer params, 0x0 for scalars)
-            //         High nibble: additional flags (0xF0 observed in some cubins)
-            // d[10] = size_class | (cbank << 4): e.g. 0x21 = 8-byte, cbank=2?
-            //         nvcc uses 0x1f for cbank=31 in the cuobjdump output
-            // d[11] = 0
             d[8] = 0x00; // logAlignment (always 0)
-            d[9] = 0xf0; // address space flags (always 0xf0, matching nvcc SM120)
+            // mk28 (korpus lab): d[9] = 0xF0 | Space; Space 0x5 = GLOBAL dla
+            // 8B (pointer-class), 0x0 dla skalarow (korpus: 190x F5/0x21 dla
+            // 8B; 7x F0/0x11 dla u32-skalarow).
+            d[9] = 0xf0 | if param.size == 8 { 0x05 } else { 0x00 };
             d[10] = match param.size {
                 1 | 2 => 0x01,
                 4 => 0x11,
@@ -3924,44 +4004,111 @@ impl KernelMeta {
             });
         }
 
-        // 3. Static metadata records
+        // 4. TMEM/UTCA (mkvmem, b_tcgen05): 4f AT_ENTRY_FRAGMENTS=TMEM_CTA1_V2,
+        //    41 RESERVED_SMEM_USED (NVAL)
+        if has_utca {
+            records.push(EiRecord {
+                attr: 0x004f,
+                fmt: EiFmt::Sized,
+                data: 6u32.to_le_bytes().to_vec(),
+            });
+            records.push(EiRecord {
+                attr: 0x0041,
+                fmt: EiFmt::BValAlt,
+                data: vec![],
+            });
+        }
+
+        // 5. SPARSE_MMA_MASK (attr 0x50, BVAL 0) — zawsze
         records.push(EiRecord {
             attr: 0x0050,
             fmt: EiFmt::Byte,
             data: vec![0],
         });
+
+        // 6. TCGEN05_1CTA_USED (attr 0x51, NVAL) — tylko tmem
+        if has_utca {
+            records.push(EiRecord {
+                attr: 0x0051,
+                fmt: EiFmt::BValAlt,
+                data: vec![],
+            });
+        }
+
+        // 7. MAXREG_COUNT (attr 0x1b = 0xff) — zawsze
         records.push(EiRecord {
             attr: 0x001b,
             fmt: EiFmt::Byte,
             data: vec![0xff],
         });
-        // MAXREG_COUNT (attr 0x4c, HVAL, val=1) — required by SM120 driver
-        records.push(EiRecord {
-            attr: 0x004c,
-            fmt: EiFmt::Half,
-            data: vec![1, 0],
-        });
-        // SM120 capability flag (attr 0x5f, present in all nvcc SM120 cubins)
-        // nvcc emits 0x035f0101 = fmt=Byte, attr=0x5f, bval=0x0101
+
+        // 8. NUM_BARRIERS (attr 0x4c, HVAL=num_barriers) — gdy kernel ma bary
+        //    (mk28: dawniej bezwarunkowo val=1; nvcc emituje tylko dla
+        //    kerneli z BAR/SYNCS, val = liczba barrierow, p_namedbar=2)
+        if self.num_barriers > 0 {
+            records.push(EiRecord {
+                attr: 0x004c,
+                fmt: EiFmt::Half,
+                data: vec![self.num_barriers, 0],
+            });
+        }
+
+        // 9. MERCURY_ISA_VERSION 1.1 (attr 0x5f) — zawsze
         records.push(EiRecord {
             attr: 0x005f,
             fmt: EiFmt::Byte,
             data: vec![1, 1],
         });
+
+        // 10. INT_WARP_WIDE_INSTR_OFFSETS (attr 0x31) — site'y operacji
+        //     warp-wide (VOTEU/SHFL/REDUX/MATCHANY), nvcc: tylko gdy VOTEU
+        //     w kernelu (sass_file::kernel_def_to_meta filtruje)
+        if has_voteu_sites {
+            let mut d = Vec::with_capacity(self.merc_wwide_sites.len() * 4);
+            for off in &self.merc_wwide_sites {
+                d.extend_from_slice(&off.to_le_bytes());
+            }
+            records.push(EiRecord {
+                attr: 0x0031,
+                fmt: EiFmt::Sized,
+                data: d,
+            });
+        }
+
+        // 11+12. COOP_GROUP masks(0x29) + sites(0x28) — surowa lista z
+        //        `.merc_cgsites` (disasm --frozen); maski z oryginalu,
+        //        brakujace = ff.
+        if !self.merc_cgsites.is_empty() {
+            let n = self.merc_cgsites.len();
+            let mut m29 = Vec::with_capacity(4 * n);
+            for i in 0..n {
+                let m = self.merc_cgmasks.get(i).copied().unwrap_or(0xffff_ffff);
+                m29.extend_from_slice(&m.to_le_bytes());
+            }
+            records.push(EiRecord {
+                attr: 0x0029,
+                fmt: EiFmt::Sized,
+                data: m29,
+            });
+            let mut s28 = Vec::with_capacity(4 * n);
+            for s in &self.merc_cgsites {
+                s28.extend_from_slice(&s.to_le_bytes());
+            }
+            records.push(EiRecord {
+                attr: 0x0028,
+                fmt: EiFmt::Sized,
+                data: s28,
+            });
+        }
+
+        // 13. VRC_CTA_INIT_COUNT (attr 0x4a, HVAL = 0x80 dla tmem, inaczej 0)
         records.push(EiRecord {
             attr: 0x004a,
             fmt: EiFmt::Half,
-            data: vec![0, 0],
+            data: if has_utca { vec![0x80, 0] } else { vec![0, 0] },
         });
 
-        // NUM_BARRIERS (attr 0x25) is intentionally omitted here: the SM120 driver
-        // rejects the standalone cubin when this record is present, so it is never
-        // emitted on this path (see `self.num_barriers` use in eiattr.rs for context).
-
-        // Note: shared_size is conveyed via .nv.shared section size, NOT via EIATTR attr 0x08
-        // (working nvcc cubins do not include shared_size in per-kernel EIATTR blob)
-
-        // 4. EXIT_INSTR_OFFSETS
+        // 14. EXIT_INSTR_OFFSETS
         if self.exit_offsets.is_empty() {
             records.push(EiRecord {
                 attr: 0x001c,
@@ -3980,17 +4127,31 @@ impl KernelMeta {
             });
         }
 
-        // 5. CBANK_PARAM_SIZE
-        records.push(EiRecord {
-            attr: 0x0019,
-            fmt: EiFmt::Byte,
-            data: vec![self.cbank_param_size as u8],
-        });
+        // 15. CRS_STACK_SIZE (attr 0x1e, SVAL 0) — bramka (mk28, fit na
+        //     korpusie): CALL | BSSY | (bary & VOTEU) | (UTCA & bary).
+        //     WYJATEK znany: q_switch (switch-select z multi-EXIT) ma 1e
+        //     bez powyzszych cech -> residual mk30.
+        let has_1e = self.has_call
+            || self.has_bssy
+            || (self.num_barriers > 0 && has_voteu_sites)
+            || (has_utca && self.num_barriers > 0);
+        if has_1e {
+            records.push(EiRecord {
+                attr: 0x001e,
+                fmt: EiFmt::Sized,
+                data: 0u32.to_le_bytes().to_vec(),
+            });
+        }
 
-        // 6. PARAM_CBANK (attr=0x0a): combined record for the parameter block
-        // in constant bank 0. word0 = const0 symbol index,
-        // word1 = (total_param_bytes << 16) | cbank_base_offset (0x380).
+        // 16+17. CBANK_PARAM_SIZE + PARAM_CBANK — tylko dla kerneli z
+        //        parametrami (mk28: dawniej 19 bezwarunkowo -> mkvmem mial
+        //        nadmiarowy rekord)
         if !self.params.is_empty() {
+            records.push(EiRecord {
+                attr: 0x0019,
+                fmt: EiFmt::Byte,
+                data: vec![self.cbank_param_size as u8],
+            });
             let total = self.cbank_param_size as u32;
             let kparam_w1 = (total << 16) | 0x0380u32;
             let mut kparam_data = Vec::with_capacity(8);
@@ -4003,11 +4164,19 @@ impl KernelMeta {
             });
         }
 
-        // 7. IMAGE_SIZE (CTAID_OFFSETS removed — working nvcc cubins don't include it)
+        // 18. SW_WAR (attr 0x36 = 8) — software war na era sm_103a (korpus:
+        //     214/214 val=8; cubit dawniej emitowal 0)
         records.push(EiRecord {
             attr: 0x0036,
             fmt: EiFmt::Sized,
-            data: 0u32.to_le_bytes().to_vec(),
+            data: 8u32.to_le_bytes().to_vec(),
+        });
+
+        // 19. NVSAL_SW_WAR (attr 0x6b = 1) — era sm_103a
+        records.push(EiRecord {
+            attr: 0x006b,
+            fmt: EiFmt::Byte,
+            data: vec![1],
         });
 
         NvInfoSection {

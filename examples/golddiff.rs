@@ -56,6 +56,12 @@ fn meta_for(g: &GoldRow) -> KernelMeta {
         merc_ldgsts_wait: if g.ldgwait < 0 { Vec::new() } else { vec![g.ldgwait as u32] },
         merc_ldgconst: g.ldgc.to_vec(),
         merc_xor_reg: g.pxr.to_vec(),
+        merc_bra_selfloop: Vec::new(),
+        merc_wwide_sites: Vec::new(),
+        merc_cgsites: Vec::new(),
+        merc_cgmasks: Vec::new(),
+        has_call: false,
+        has_bssy: false,
     }
 }
 

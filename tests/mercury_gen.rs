@@ -74,6 +74,12 @@ fn meta(name: &str, n_params: u32, exits: u32, smem: u32, bars: u8, cbank: u16) 
         merc_ldgconst: Vec::new(),
         merc_xor_reg: Vec::new(),
         merc_bar_args: Vec::new(),
+        merc_bra_selfloop: Vec::new(),
+        merc_wwide_sites: Vec::new(),
+        merc_cgsites: Vec::new(),
+        merc_cgmasks: Vec::new(),
+        has_call: false,
+        has_bssy: false,
     }
 }
 

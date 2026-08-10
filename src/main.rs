@@ -823,6 +823,17 @@ fn cmd_disassemble(
                 for &gl in &proven {
                     lines.push(format!("    .merc_syncwarp 0x{:x}", gl * 16));
                 }
+                // mk28: surowa lista site'ow __syncwarp (EIATTR 0x28/0x29) —
+                // by asm mogl odtworzyc atrybuty 0x28/0x29 w .nv.info.K
+                // (mkvmem: site 0x380 NIE jest duchem, ale stoi w 0x28).
+                if !m.merc_cgsites.is_empty() {
+                    let mut toks: Vec<String> = Vec::new();
+                    for (i, &s) in m.merc_cgsites.iter().enumerate() {
+                        let mask = m.merc_cgmasks.get(i).copied().unwrap_or(0xffff_ffff);
+                        toks.push(format!("0x{s:x}:0x{mask:08x}"));
+                    }
+                    lines.push(format!("    .merc_cgsites {}", toks.join(" ")));
+                }
             }
             for d in &decoded {
                 let label = if targets.contains(&d.addr) {
@@ -1287,6 +1298,12 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_atoms: Vec::new(),
         merc_ldgsts_pin: Vec::new(),
         merc_ldgsts_wait: Vec::new(),
+        merc_bra_selfloop: Vec::new(),
+        merc_wwide_sites: Vec::new(),
+        merc_cgsites: Vec::new(),
+        merc_cgmasks: Vec::new(),
+        has_call: false,
+        has_bssy: false,
     }
 }
 
@@ -2414,7 +2431,51 @@ fn cmd_asm_build_elf(
                     // (sass_file::merc_utca_scan / merc_atom_smem_scan).
                     let mut utca_v: Vec<(u32, u8)> = Vec::new();
                     let mut atom_smem_v: Vec<(u32, u32, u8)> = Vec::new();
+                    // mk28 (lustro sass_file): samo-petle BRA (spin-trap),
+                    // site'y warp-wide do EIATTR 0x31, flagi CALL/BSSY
+                    // (EIATTR 0x1e, pusta .rela.text.K).
+                    let mut bra_sl_v: Vec<u32> = Vec::new();
+                    let mut wwide_v: Vec<u32> = Vec::new();
+                    let mut has_voteu = false;
+                    let re_bra_lbl =
+                        regex::Regex::new(r"^BRA(\.[A-Z0-9]+)?\s+(?:PT,\s+)?L_([0-9a-fA-F]+)")
+                            .unwrap();
                     for (ii, (_aa, body)) in insns.iter().enumerate() {
+                        let btrim = body.trim();
+                        let fw = btrim.split_whitespace().next().unwrap_or("");
+                        let base_w = if fw.starts_with('@') {
+                            btrim.split_whitespace().nth(1).unwrap_or("")
+                        } else {
+                            fw
+                        }
+                        .split('.')
+                        .next()
+                        .unwrap_or("");
+                        // mk28: samo-petla `BRA L_x` gdzie cel == wlasny offset
+                        // (martwy spin-trap za strefa RET; mkvmem BRA L_400).
+                        if base_w == "BRA" {
+                            if let Some(c) = re_bra_lbl.captures(btrim) {
+                                let tgt = u32::from_str_radix(c.get(2).unwrap().as_str(), 16)
+                                    .unwrap_or(0);
+                                if tgt as usize == ii * 16 {
+                                    bra_sl_v.push(ii as u32);
+                                }
+                            }
+                        }
+                        match cubit::mercury::wwide_class(base_w, "") {
+                            Some(b'v') => {
+                                has_voteu = true;
+                                wwide_v.push((ii * 16) as u32);
+                            }
+                            Some(_) => wwide_v.push((ii * 16) as u32),
+                            None => {}
+                        }
+                        if base_w == "CALL" {
+                            meta.has_call = true;
+                        }
+                        if base_w == "BSSY" {
+                            meta.has_bssy = true;
+                        }
                         let bt = body.trim();
                         let fword = bt.split_whitespace().next().unwrap_or("");
                         let base0u = fword.split('.').next().unwrap_or("");
@@ -2458,6 +2519,10 @@ fn cmd_asm_build_elf(
                     }
                     meta.merc_utca = utca_v;
                     meta.merc_atom_smem = atom_smem_v;
+                    meta.merc_bra_selfloop = bra_sl_v;
+                    if has_voteu {
+                        meta.merc_wwide_sites = wwide_v;
+                    }
                     // mk14.3: LDGSTS pinned/wait hosty (lustro merc_ldgsts_scan).
                     {
                         let lines: Vec<(u32, String)> = insns
