@@ -370,6 +370,30 @@ pub struct MercFeatures {
     /// mk27: kernel zawiera wewnetrzne funkcje z RET (guardrail traps) —
     /// ogon strumienia ghostowy (mkvmem: czwarty ghost 01476c0a).
     pub has_ret_internal: bool,
+
+    // ==== mk30: rodziny b_* (lustro z KernelMeta) ====
+    pub mc_exch: Vec<(u32, bool, u8, u8)>,
+    pub mc_arrive: Vec<(u32, u8)>,
+    pub mc_phase: Vec<u32>,
+    pub mc_d1: Vec<(u32, bool)>,
+    pub mc_ushf_fin: Vec<u32>,
+    pub mc_voteu_all: Vec<u32>,
+    pub mc_mov400: Vec<u32>,
+    pub mc_lea18: Vec<u32>,
+    pub ws_minis: Vec<(u32, u8)>,
+    pub uvcount: Vec<u32>,
+    pub umov_rr: Vec<u32>,
+    pub ublkcp: Vec<u32>,
+    pub plop3_tx: Vec<(u32, u8)>,
+    pub fence_async: Vec<u32>,
+    pub ldgsts_b128: bool,
+    pub s2ur_cga: Vec<(u32, bool)>,
+    pub bsync_close: Vec<u32>,
+    pub hfma2_const: Vec<u32>,
+    /// mk30b: ULEA prologu mbarrier (dest==addr EXCH) — bez bitu (kasowany).
+    pub mc_ulea_x: Vec<u32>,
+    /// mk30b: braided BRA bez " PT," w rodzinie mbarrier — bez bitu.
+    pub mc_bra_np: Vec<u32>,
 }
 
 impl MercFeatures {
@@ -389,8 +413,58 @@ impl MercFeatures {
                 .collect(),
             used_params: meta.params.iter().filter(|p| p.size > 4).count() as u32,
             used_scalar_params: meta.params.iter().filter(|p| p.size <= 4).count() as u32,
+            // mk30: rodziny b_* z meta (skan sass_file / lustro main.rs).
+            mc_exch: meta.merc_mc_exch.clone(),
+            mc_arrive: meta.merc_mc_arrive.clone(),
+            mc_phase: meta.merc_mc_phase.clone(),
+            mc_d1: meta.merc_mc_d1.clone(),
+            mc_ushf_fin: meta.merc_mc_ushf_fin.clone(),
+            mc_voteu_all: meta.merc_mc_voteu_all.clone(),
+            mc_mov400: meta.merc_mc_mov400.clone(),
+            mc_lea18: meta.merc_mc_lea18.clone(),
+            ws_minis: meta.merc_ws_minis.clone(),
+            uvcount: meta.merc_uvcount.clone(),
+            umov_rr: meta.merc_umov_rr.clone(),
+            ublkcp: meta.merc_ublkcp.clone(),
+            plop3_tx: meta.merc_plop3_tx.clone(),
+            fence_async: meta.merc_fence_async.clone(),
+            ldgsts_b128: meta.merc_ldgsts_b128,
+            s2ur_cga: meta.merc_s2ur_cga.clone(),
+            bsync_close: meta.merc_bsync_close.clone(),
+            hfma2_const: meta.merc_hfma2_const.clone(),
+            mc_ulea_x: meta.merc_mc_ulea_x.clone(),
+            mc_bra_np: meta.merc_mc_bra_np.clone(),
             ..Default::default()
         };
+        // mk30b: sciezki bez skanu sass (gold/manifest) wyprowadzaja
+        // bsync_close/ws_minis z samych opcode'ow.
+        if f.bsync_close.is_empty() {
+            f.bsync_close = opcodes
+                .iter()
+                .enumerate()
+                .filter(|(_, o)| o.starts_with("BSYNC"))
+                .map(|(i, _)| i as u32)
+                .collect();
+        }
+        if f.ws_minis.is_empty() {
+            let bar_lanes: Vec<u32> = opcodes
+                .iter()
+                .enumerate()
+                .filter(|(_, o)| o.starts_with("BAR.SYNC"))
+                .map(|(i, _)| i as u32)
+                .collect();
+            let ws: Vec<u32> = opcodes
+                .iter()
+                .enumerate()
+                .filter(|(_, o)| o.starts_with("WARPSYNC.ALL"))
+                .map(|(i, _)| i as u32)
+                .collect();
+            for (k, w) in ws.iter().enumerate() {
+                let end = ws.get(k + 1).copied().unwrap_or(u32::MAX);
+                let has_bar = bar_lanes.iter().any(|&b| b > *w && b < end);
+                f.ws_minis.push((*w, if has_bar { 0x6e_u8 } else { 0x76_u8 }));
+            }
+        }
         let n_bra = opcodes
             .iter()
             .filter(|o| {
@@ -420,9 +494,13 @@ impl MercFeatures {
         // (.shared -> shared_size>0) LUB dynamiczne (extern __shared__ wchodzi
         // tylko przez operacje STS/LDS/LDSM; gold v_dyn_smem: 010b060a +
         // cbank-variant 8301 mimo shared_size==0 z EIATTR).
+        // mk30b: rekord smem wymaga okna UR (S2UR SR_CgaCtaId) — b_ldmatrix
+        // (LDSM przez generic-adres, BEZ S2UR) zadnego nie dostaje (ani
+        // wariantu cbank 83). Gold z S2UR zostaje (p_ldsm, v_dyn_smem).
         let smem_ops = opcodes
             .iter()
-            .any(|o| matches!(o.split('.').next(), Some("STS") | Some("LDS") | Some("LDSM")));
+            .any(|o| matches!(o.split('.').next(), Some("STS") | Some("LDS") | Some("LDSM")))
+            && !meta.merc_s2ur_cga.is_empty();
         // mk17b (2026-08-08): ptxas NIE promuje wariantu smem dla martwego
         // .shared — gate'uje wylacznie operacjami smem w kodzie. Dowod:
         // p_atoms ma __shared__ int sh[1] (1028B w .nv.shared) a nvcc
@@ -766,7 +844,9 @@ const REC_CCTL: [u8; 18] = [
 /// - b18/b19: kursor biegu regionu (alt 0x40/0xc0) — OTWARTE (resid mk10b)
 /// - b28: natychmiastowy offset adresu [Rx.64+imm] w bajtach (k_bra/e_loop:
 ///   +0,+4,+8,+c,+0 -> 00,04,08,0c,00)
-fn rec_stg(feat: &MercFeatures, stg_i: usize) -> [u8; 32] {
+/// mk30b: `wire` — opcjonalna mapa dp->slot nvcc (podpula: REG + LDG.C +
+/// UNIF-(83,01)); None = zachowanie legacy (pool-pozycja globalna).
+fn rec_stg(feat: &MercFeatures, stg_i: usize, wire: Option<&[u32]>) -> [u8; 32] {
     let mut stg = REC_STG;
     let stg_narrow = feat.stg_u8;
     if stg_narrow {
@@ -775,9 +855,13 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize) -> [u8; 32] {
         stg[6] = 0x50;
         stg[19] = 0x02;
     }
-    let dp = match feat.stg_desc_pos.get(stg_i).copied() {
+    let dp_legacy = match feat.stg_desc_pos.get(stg_i).copied() {
         Some(u32::MAX) | None => stg_i as u32 % 2, // sentinel: nieznane
         Some(v) => v,
+    };
+    let dp = match wire {
+        Some(w) => w.get(stg_i).copied().unwrap_or(dp_legacy),
+        None => dp_legacy,
     };
     // mk10b wide-serie (STG.E.64 w serii, dp nieznane) — model z k_mma:
     // stala karta b11=00,b12=02,b13=01,b17=02,b18=01; b19=02|par<<7;
@@ -788,9 +872,18 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize) -> [u8; 32] {
         let ser = pack & 0x7f;
         stg[11] = 0x00;
         // mk10c: slot z puli deskryptorow gdy znany (mak10b hardkodowal dp=1)
-        let dp = match feat.stg_desc_pos.get(stg_i).copied() {
-            Some(u32::MAX) | None => 1,
-            Some(v) => v,
+        let dp = match wire {
+            Some(w) => match w.get(stg_i).copied() {
+                Some(v) => v,
+                None => match feat.stg_desc_pos.get(stg_i).copied() {
+                    Some(u32::MAX) | None => 1,
+                    Some(v) => v,
+                },
+            },
+            None => match feat.stg_desc_pos.get(stg_i).copied() {
+                Some(u32::MAX) | None => 1,
+                Some(v) => v,
+            },
         };
         if dp % 2 == 1 {
             stg[12] = 0x02;
@@ -1066,6 +1159,23 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         LdgstsPin,
         LdgstsWait,
         LdsmMini,
+        // mk30: rodziny b_*
+        SmemCga(usize),
+        McD1(usize),
+        McExch(usize),
+        McArrive(usize),
+        McPhase(usize),
+        McMiniVoteu(usize),
+        McMiniUshf(usize),
+        McMiniLea(usize),
+        McMiniWs(usize),
+        McMiniUvirt(usize),
+        McMiniUmovRR(usize),
+        McUblkcp(usize),
+        McPlop3(usize),
+        ShiftAt(usize),
+        Utca(usize),
+        AtomSmem(usize),
     }
     // mk10c: zbior parametrow STG-wiazanych z PULI deskryptorow (nie ze
     // starej maski param_write — ta traci read->write gdy param czytany
@@ -1111,6 +1221,9 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for (j, ld) in feat.param_loads.iter().enumerate() {
         ev.push((ld.0, 20, Ev::Desc(j)));
     }
+    // mk30b (PARKED, skontrawerifikowane): podpula-slot-model dla 0238 —
+    // k_mma ma identyczna strukture co b_wmma i nvcc daje tam s=1 a tu 0.
+    // Decyzja: zostaje legacy pool-pozycja; temat = RE oraculum mk30b-next.
     // mk15b: gdy brak lane hosta cbank (LDCU c[358]), nvcc sadza cbank tuz przed
     // pierwszym desc-em parametru (gold q_bsync_pair: lane=first-load-1 = 3).
     let clane = feat.cbank_lane.unwrap_or_else(|| {
@@ -1124,20 +1237,39 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     ev.push((clane, 10, Ev::Cbank));
     // mk14.3: przy LDGSTS rekord smem poprzedza cbank (gold p_ldgsts: smem@[3]
     // przed cbank@[4]; bez LDGSTS: po (p_lds/p_sts2 exact — tier 11).
-    let smem_tier = if feat.n_ldgsts > 0 { 9 } else { 11 };
-    if feat.smem_static {
-        ev.push((clane, smem_tier, Ev::Smem));
-    } else if feat.smem_atoms_only && feat.s2ur_first_lane < u32::MAX {
-        // mk15: rekord smem hostowany przy lane pierwszego S2UR (gold p_atoms).
-        ev.push((feat.s2ur_first_lane, 20, Ev::Smem));
+    // mk30: rekord smem-anchor 010b060a przy KAZDEJ lane S2UR CgaCtaId
+    // (mk15-uwaga uogolniona; gold zgodny: p_ldsm 2x na 2 S2UR itd.).
+    // Zastepuje legacy-clane gdy s2ur_cga niepuste; wpp legacy jak dawniej.
+    let smem_via_s2ur = !feat.s2ur_cga.is_empty();
+    if smem_via_s2ur {
+        for (k, &(l, _g)) in feat.s2ur_cga.iter().enumerate() {
+            ev.push((l, 20, Ev::SmemCga(k)));
+        }
+    } else {
+        let smem_tier = if feat.n_ldgsts > 0 { 9 } else { 11 };
+        if feat.smem_static {
+            ev.push((clane, smem_tier, Ev::Smem));
+        } else if feat.smem_atoms_only && feat.s2ur_first_lane < u32::MAX {
+            // mk15: rekord smem hostowany przy lane pierwszego S2UR (gold p_atoms).
+            ev.push((feat.s2ur_first_lane, 20, Ev::Smem));
+        }
     }
     if feat.diverge_region {
-        ev.push((clane, 12, Ev::ShiftRegion));
+        // mk30b: rekord regionu przy lane zamkniecia BSYNC (nie przy cbank) —
+        // gold sw*/p_ldsm: nierozroznialne (nic miedzy); b_bulk_cp rozstrzyga.
+        let region_lane = feat
+            .bsync_close
+            .first()
+            .copied()
+            .unwrap_or(clane);
+        ev.push((region_lane, 12, Ev::ShiftAt(0)));
         // mk15 (2026-08-07): powdroczony rekord smem 010b060a tuz po rekordzie
         // regionu divergent 51010109 — tylko gdy kernel ma statyczna smem.
         // Lab: p_ldsm + b_bulk_cp (1 pin -> dokladnie 1 dup, bajty identyczne
         // z podstawowym rekordem smem); sw* (BSSY, bez smem): brak dupa.
-        if feat.smem_static {
+        // mk30b: przy sciezce per-S2UR dup jest ZBEDNY (p_ldsm/b_bulk_cp maja
+        // 2 S2UR = 2 rekordy smem lacznie z oryginalem mk15-dup).
+        if feat.smem_static && !smem_via_s2ur {
             ev.push((clane, 13, Ev::Smem));
         }
     }
@@ -1170,6 +1302,10 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     }
     // mk14: rekordy atomowe w lane swoich instrukcji (byly: trailing append).
     for (i, a) in feat.atoms.iter().enumerate() {
+        // mk30b: ATOMS z [URx+imm] obsluguje AtomSmem (nie generyczne).
+        if feat.atom_smem.iter().any(|&(l, _, _)| l == a.0) {
+            continue;
+        }
         if a.1 != crate::mercury::MERC_ATOM_CLS_RED {
             ev.push((a.0, 20, Ev::Atom(i)));
         }
@@ -1206,7 +1342,58 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         let _ = i;
         ev.push((m.0, 20, Ev::F64i(i)));
     }
+    // mk30: rodziny b_* (SYNCS/TMA/minis) — wszystko w lane swej klasy,
+    // tier 20-21 (porzadek jak w finalnym strumieniu nvcc).
+    if !smem_via_s2ur {
+    } else {
+        // (rekordy SmemCga wlozone wyzej)
+    }
+    for (k, _) in feat.mc_d1.iter().enumerate() {
+        ev.push((feat.mc_d1[k].0, 20, Ev::McD1(k)));
+    }
+    for (k, _) in feat.mc_exch.iter().enumerate() {
+        ev.push((feat.mc_exch[k].0, 20, Ev::McExch(k)));
+    }
+    for (k, _) in feat.mc_arrive.iter().enumerate() {
+        ev.push((feat.mc_arrive[k].0, 20, Ev::McArrive(k)));
+    }
+    for (k, _) in feat.mc_phase.iter().enumerate() {
+        ev.push((feat.mc_phase[k], 20, Ev::McPhase(k)));
+    }
+    for (k, _) in feat.mc_voteu_all.iter().enumerate() {
+        ev.push((feat.mc_voteu_all[k], 20, Ev::McMiniVoteu(k)));
+    }
+    // mk30b-korekta: minis 414c TYLKO na VOTEU.ALL (m_init/b_mbarrier:
+    // 2 VOTEU -> 2 minis; wczesniejsza regula USHF-fin to artefakt
+    // zip-driftu capture'u mk26). Bit na USHF-fin nadal kasowany.
+    for (k, _) in feat.mc_lea18.iter().enumerate() {
+        ev.push((feat.mc_lea18[k], 20, Ev::McMiniLea(k)));
+    }
+    for (k, _) in feat.ws_minis.iter().enumerate() {
+        ev.push((feat.ws_minis[k].0, 20, Ev::McMiniWs(k)));
+    }
+    for (k, _) in feat.uvcount.iter().enumerate() {
+        ev.push((feat.uvcount[k], 20, Ev::McMiniUvirt(k)));
+    }
+    for (k, _) in feat.umov_rr.iter().enumerate() {
+        ev.push((feat.umov_rr[k], 20, Ev::McMiniUmovRR(k)));
+    }
+    for (k, _) in feat.ublkcp.iter().enumerate() {
+        ev.push((feat.ublkcp[k], 20, Ev::McUblkcp(k)));
+    }
+    for (k, _) in feat.plop3_tx.iter().enumerate() {
+        ev.push((feat.plop3_tx[k].0, 20, Ev::McPlop3(k)));
+    }
+    // mk30b: UTCA piny + ATOMS z imm [UR+off] takze w sciezce laned
+    // (b_tcgen05; mk27 robil to dla zero-param mkvmem).
+    for (k, _) in feat.utca.iter().enumerate() {
+        ev.push((feat.utca[k].0, 4, Ev::Utca(k)));
+    }
+    for (k, _) in feat.atom_smem.iter().enumerate() {
+        ev.push((feat.atom_smem[k].0, 5, Ev::AtomSmem(k)));
+    }
     ev.sort_by_key(|&(lane, tier, _)| (lane, tier));
+    let mut utca_fns_seen = 0usize;
     // payload anchor (jak cflow_rec legacy)
     // mk13: b13=0x02 stale; b12 = enum SR czytanego przez S2R per anchor
     // (zastepuje hack cf[12]=0 dla atom/mma — zbiezny z LANEID=0).
@@ -1220,13 +1407,33 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for (_, _, kind) in ev {
         match kind {
             Ev::Desc(j) => out.extend_from_slice(&mk10c_rec_desc(feat.param_loads[j], roles[j])),
-            Ev::Cbank => out.extend_from_slice(if !feat.has_ldcu {
-                &REC_CBANK_LDC
-            } else if feat.smem_static || feat.cbank83_cas {
-                &REC_CBANK_SMEM
-            } else {
-                &REC_CBANK
-            }),
+            Ev::Cbank => {
+                // mk30b: bramki rodzin (b_*); bazowo (03,01) / (83,01).
+                // utca -> (83,02); EXCH -> (03, b11=2 gdy cbank-early);
+                // ARRIVE-only -> (03,01); PHASECHK -> (83,01).
+                let base = if !feat.utca.is_empty() {
+                    let mut r = REC_CBANK_SMEM;
+                    r[11] = 0x02;
+                    r
+                } else if !feat.mc_exch.is_empty() {
+                    let mut r = REC_CBANK;
+                    if feat.cbank_lane.map(|l| l <= 8).unwrap_or(false) {
+                        r[11] = 0x02;
+                    }
+                    r
+                } else if !feat.mc_arrive.is_empty() {
+                    REC_CBANK
+                } else if !feat.mc_phase.is_empty() {
+                    REC_CBANK_SMEM
+                } else if !feat.has_ldcu {
+                    REC_CBANK_LDC
+                } else if feat.smem_static || feat.cbank83_cas {
+                    REC_CBANK_SMEM
+                } else {
+                    REC_CBANK
+                };
+                out.extend_from_slice(&base);
+            }
             Ev::Smem => out.extend_from_slice(&REC_SMEM),
             Ev::ShiftRegion => out.extend_from_slice(&REC_SHIFT_REGION),
             Ev::Anchor(k) => {
@@ -1253,7 +1460,10 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 }
                 out.extend_from_slice(&br);
             }
-            Ev::Stg(i) => out.extend_from_slice(&rec_stg(feat, i)),
+            // mk30b: podpula-slot model b_wmma/b_cpasync SKONTRAWERFIKOWANY
+            // przez k_mma (identyczny ksztalt -> nvcc chce tam s=1, tu 0).
+            // STG-slot region/dialect-dependent — wrocic oraculum gdb.
+            Ev::Stg(i) => out.extend_from_slice(&rec_stg(feat, i, None)),
             Ev::Elect(_) => out.extend_from_slice(&[0x41, 0x64, 0x00, 0x0a]),
             Ev::Xor(i) => {
                 let xl = feat.xor_lanes[i];
@@ -1271,7 +1481,14 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::Syncwarp => out.extend_from_slice(&crate::mercury::MERC_SYNCWARP_GHOST),
             Ev::LdgstsPin => {
                 let (_, d, sr) = feat.ldgsts_pin.unwrap_or((0, 255, 255));
-                out.extend_from_slice(&crate::mercury::build_ldgsts_blob(d, sr));
+                let mut blob = crate::mercury::build_ldgsts_blob(d, sr);
+                if feat.ldgsts_b128 {
+                    // mk30b: LDGSTS.BYPASS.E.128 (cp.async 16B): b8=0x20
+                    // (zamiast 0x24), b10=0x10. Zmierzone: b_cpasync.
+                    blob[8] = 0x20;
+                    blob[10] = 0x10;
+                }
+                out.extend_from_slice(&blob);
             }
             Ev::LdgstsWait => out.extend_from_slice(&crate::mercury::MERC_LDGSTS_WAIT),
             Ev::LdsmMini => out.extend_from_slice(&crate::mercury::MERC_LDSM_MINI),
@@ -1300,6 +1517,88 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::F64i(i) => {
                 let m = feat.f64_lanes[i];
                 out.extend_from_slice(&crate::mercury::build_f64imm_rec(m.1, m.2, m.3, m.4));
+            }
+            // mk30: rodziny b_*
+            Ev::SmemCga(k) => {
+                let (_l, pred) = feat.s2ur_cga[k];
+                let mut r = REC_SMEM;
+                if pred {
+                    // wariant predykowany (m_init/b_mbarrier): b4=03, b10=c1
+                    r[4] = 0x03;
+                    r[10] = 0xc1;
+                } else if k == 0
+                    && !feat.bsync_close.is_empty()
+                    && !(feat.mc_exch.is_empty() && feat.mc_arrive.is_empty()
+                        && feat.mc_phase.is_empty())
+                {
+                    // wariant pierwszego okna TYLKO w rodzinie mbarrier-EXCH
+                    // (bulk1/b_bulk_cp); p_ldsm ma BSSY+BSYNC ale b10 zostaje
+                    // 0x41 (zgold-test p_ldsm = (41,01)).
+                    r[10] = 0x01;
+                    r[11] = 0x02;
+                }
+                out.extend_from_slice(&r);
+            }
+            Ev::McD1(k) => {
+                let (_l, g) = feat.mc_d1[k];
+                out.extend_from_slice(&crate::mercury::merc_mbar_d1_blob(g));
+            }
+            Ev::McExch(k) => {
+                let (_l, g, addr, val) = feat.mc_exch[k];
+                out.extend_from_slice(&crate::mercury::merc_exch_rec(
+                    g, feat.cflow_bssy, addr, val,
+                ));
+            }
+            Ev::McArrive(k) => {
+                let (_l, b4) = feat.mc_arrive[k];
+                out.extend_from_slice(&crate::mercury::merc_arrive_rec(b4));
+            }
+            Ev::McPhase(_k) => {
+                out.extend_from_slice(&crate::mercury::merc_phasechk_rec());
+            }
+            Ev::McMiniVoteu(_) | Ev::McMiniUshf(_) => {
+                out.extend_from_slice(&crate::mercury::MERC_MINI_VOTEU);
+            }
+            Ev::McMiniLea(_) => out.extend_from_slice(&crate::mercury::MERC_MINI_LEA18),
+            Ev::McMiniWs(k) => {
+                let (_l, b2) = feat.ws_minis[k];
+                out.extend_from_slice(if b2 == 0x6e {
+                    &crate::mercury::MERC_MINI_WS6E
+                } else {
+                    &crate::mercury::MERC_MINI_WS76
+                });
+            }
+            Ev::McMiniUvirt(_) => out.extend_from_slice(&crate::mercury::MERC_MINI_UVIRT),
+            Ev::McMiniUmovRR(_) => out.extend_from_slice(&crate::mercury::MERC_MINI_UMOV_RR),
+            Ev::McUblkcp(_) => out.extend_from_slice(&crate::mercury::MERC_UBLKCP),
+            Ev::McPlop3(k) => out.extend_from_slice(match feat.plop3_tx[k].1 {
+                0 => &crate::mercury::MERC_TMA_A,
+                1 => &crate::mercury::MERC_TMA_B,
+                _ => &crate::mercury::MERC_TMA_C,
+            }),
+            Ev::ShiftAt(_) => out.extend_from_slice(&REC_SHIFT_REGION),
+            Ev::Utca(k) => {
+                match feat.utca[k].1 {
+                    0 => {
+                        // mk27-rule: pierwszy FNS b17=0x02, kolejne 0x01.
+                        let mut rc = REC_UTCA_FNS;
+                        rc[17] = if utca_fns_seen == 0 { 0x02 } else { 0x01 };
+                        utca_fns_seen += 1;
+                        out.extend_from_slice(&rc);
+                    }
+                    1 => out.extend_from_slice(&REC_MINI_UTCA_AND),
+                    _ => {}
+                }
+            }
+            Ev::AtomSmem(k) => {
+                let (_l, imm, op) = feat.atom_smem[k];
+                let mut rc = if op == 1 {
+                    REC_ATOMS_SMEM_AND
+                } else {
+                    REC_ATOMS_SMEM_OR
+                };
+                rc[28..32].copy_from_slice(&imm.to_le_bytes());
+                out.extend_from_slice(&rc);
             }
         }
     }
@@ -1678,7 +1977,7 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
                     Ev::Atom => out.extend_from_slice(&REC_ATOM),
                     Ev::Stg => {
                         let stg_i = idx as usize;
-                        out.extend_from_slice(&rec_stg(feat, stg_i));
+                        out.extend_from_slice(&rec_stg(feat, stg_i, None));
                     }
                 }
             }
@@ -1703,7 +2002,7 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
                 }
             }
             for stg_i in 0..feat.n_stg {
-                out.extend_from_slice(&rec_stg(feat, stg_i as usize));
+                out.extend_from_slice(&rec_stg(feat, stg_i as usize, None));
             }
             for _ in 0..feat.n_atom {
                 out.extend_from_slice(&REC_ATOM);
@@ -1842,6 +2141,87 @@ pub fn generate_mercury_full(
     // zero-param): bitmapa ustawia BRA.U/REDUX, kasuje UTCATOMSWS/WARPSYNC
     // (fit mk27 na mkvmem: 9 bitow rozbieznosci -> reguly klasowe).
     let dialect_utca = !meta.merc_utca.is_empty();
+    let mut force_bit: std::collections::BTreeSet<u32> = std::collections::BTreeSet::new();
+    // mk30: rodziny b_* — lane z kandydatem-rekordem (mini/pelny) albo
+    // regionowe kasowanie bitow. m-family == kernel z klasa SYNCS.*.
+    let m_family = !meta.merc_mc_exch.is_empty()
+        || !meta.merc_mc_arrive.is_empty()
+        || !meta.merc_mc_phase.is_empty();
+    let mut bit0: std::collections::BTreeSet<u32> = std::collections::BTreeSet::new();
+    for &(l, _) in &meta.merc_mc_d1 {
+        bit0.insert(l);
+    }
+    for &l in &meta.merc_mc_voteu_all {
+        bit0.insert(l);
+    }
+    for &l in &meta.merc_mc_ushf_fin {
+        bit0.insert(l);
+    }
+    // lea4100-mini: mk26 — wezel zastapiony; bit kasowany.
+    for &l in &meta.merc_mc_lea18 {
+        bit0.insert(l);
+    }
+    for &l in &meta.merc_umov_rr {
+        bit0.insert(l);
+    }
+    for &(l, _) in &meta.merc_ws_minis {
+        bit0.insert(l);
+    }
+    // mk30b-korekta (slot-space'): HFMA2-const ZACHOWUJE bit (nvcc slot31 =
+    // lane33 w b_tcgen05 — wczesniejszy odczyt lane-space byly pomylka).
+    // Natomiast UVIRTCOUNT.DEALLOC z mini 4144 KASUJE bit wlasnej lane
+    // (nvcc nie ustawia slotu 33; mini zastepuje wezel t4).
+    for &l in &meta.merc_uvcount {
+        bit0.insert(l);
+    }
+    if m_family {
+        // mk30b: S2UR CgaCtaId #2+ DOSTAJE bit gdy POZA spanem BSSY
+        // (b_mbarrier slot23; b_tcgen05 31/39); pierwszy nigdy (wszystkie
+        // probki: m_* / b_* / p_*). W spanie BSSY reguly spanowe juz rzadza.
+        let s2ur_extra: Vec<u32> = meta
+            .merc_s2ur_cga
+            .iter()
+            .skip(1)
+            .map(|&(l, _)| l)
+            .collect();
+        for l in s2ur_extra {
+            let in_span = in_bssy_span.get(l as usize).copied().unwrap_or(false);
+            if !in_span {
+                force_bit.insert(l);
+            }
+        }
+        // PHASECHK z rekordem 1b4c: bez bitu (m_wait oba, mbarrier#1);
+        // STAN ROZNIECLY: b_mbarrier#2 zachowuje bit (region; mk30b-open).
+        for &l in &meta.merc_mc_phase {
+            bit0.insert(l);
+        }
+        // ARRIVE pod predykatem — bez bitu (m_arr); b_mbarrier unpred keep.
+        for &(l, b4) in &meta.merc_mc_arrive {
+            if b4 != 0xf8 {
+                bit0.insert(l);
+            }
+        }
+        // MOV R?,0x400 prologu register-path (b_mbarrier lane17): bez bitu.
+        for &l in &meta.merc_mc_mov400 {
+            bit0.insert(l);
+        }
+        // mk30b: ULEA prologu EXCH (dest == addr UR) — nvcc kasuje bit
+        // (Rekord 1b5e idzie w lane EXCH z bitem; kolejnosc strumienia ta sama).
+        for &l in &meta.merc_mc_ulea_x {
+            bit0.insert(l);
+        }
+        // mk30b: braided-BRA bez PT w m-family — bez bitu (b_mbarrier 21/34).
+        for &l in &meta.merc_mc_bra_np {
+            bit0.insert(l);
+        }
+    }
+    // debug mk30: wypisz bit0/dialekt pod CUBIT_DEBUG_MC=1
+    if std::env::var_os("CUBIT_DEBUG_MC").is_some() {
+        eprintln!(
+            "[mc] {}: m_family={} utca={} bit0={:?} hfma2c={:?} utca_meta={:?}",
+            meta.name, m_family, dialect_utca, bit0, meta.merc_hfma2_const, meta.merc_utca
+        );
+    }
     // B = liczba slotow 0..end minus klasy zerowej wagi (nie dostaja bitu)
     let mut bitmap: Vec<u32> = Vec::new();
     let mut cur = 0u32;
@@ -1935,13 +2315,17 @@ pub fn generate_mercury_full(
             }
             _ => true,
         };
+        // mk30b: wymuszenie bitu (S2UR#2+ poza spanem; region-fit mk30b).
+        let tracked = tracked || force_bit.contains(&(i as u32));
         // 0229-xor lane: pelny rekord zastepuje wezel typu4 (fs6: brak bitu);
         // mk11: to samo dla MMA-025a (niepotrzebne — MMA i tak untracked),
         // dla DMUL/DADD-imm (020f/020c) i dla lane-padow UIADD3 (hint).
         let xor_here = xor_lane_set.contains(&(i as u32));
         let f64_here = feat_f64_set.contains(&(i as u32));
         let pad_here = pad_set.contains(&(i as u32));
-        if tracked && !xor_here && !f64_here && !pad_here {
+        // mk30: b_* rodziny (rekord zastepuje wezel / reguly regionowe).
+        let mc_here = bit0.contains(&(i as u32));
+        if tracked && !xor_here && !f64_here && !pad_here && !mc_here {
             cur |= 1u32 << (b_index % 32);
         }
         b_index += 1;
@@ -1953,7 +2337,18 @@ pub fn generate_mercury_full(
     if b_index % 32 != 0 {
         bitmap.push(cur);
     }
-    let n_counted = b_index as u32;
+    // mk30b: n = ostatni ustawiony bit + 2 (TWARDY inwariant producenta:
+    // 17612/17612 blobow korpusu capmerc_all). Zastepuje heurystyke
+    // trim-count — rozchodzily sie przy ogonkach po-EXIT (m-family:
+    // YIELD/PHASECHK/BRA-trampoliny za EXIT) oraz przy padach BRA.
+    let mut bitmax: i64 = -1;
+    for (wi, w) in bitmap.iter().enumerate() {
+        if *w != 0 {
+            bitmax = (wi * 32 + (31 - w.leading_zeros() as usize)) as i64;
+        }
+    }
+    let n_counted = (bitmax + 2).max(0) as u32;
+    bitmap.truncate(((n_counted as usize) + 31) / 32);
 
     let mut buf: Vec<u8> = Vec::new();
     buf.extend_from_slice(&kernel_id.to_le_bytes());

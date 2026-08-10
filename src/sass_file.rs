@@ -296,6 +296,9 @@ pub fn kernel_def_to_meta(
         }
     }
 
+    // mk30: rodziny b_* (SYNCS/mbarrier/TMA/minis) — glowny skan.
+    let mc = merc_mc_scan(&def.instructions);
+
     KernelMeta {
         name: def.name.clone(),
         regcount,
@@ -368,6 +371,26 @@ pub fn kernel_def_to_meta(
         merc_cgmasks: def.resources.merc_cgsites.iter().map(|&(_, m)| m).collect(),
         has_call: n_call > 0,
         has_bssy,
+        merc_mc_exch: mc.exch,
+        merc_mc_arrive: mc.arrive,
+        merc_mc_phase: mc.phase,
+        merc_mc_d1: mc.uiadd3_1m,
+        merc_mc_ushf_fin: mc.ushf_fin,
+        merc_mc_voteu_all: mc.voteu_all,
+        merc_mc_mov400: mc.mov400,
+        merc_mc_lea18: mc.lea18,
+        merc_ws_minis: mc.ws,
+        merc_uvcount: mc.uvcount,
+        merc_umov_rr: mc.umov_rr,
+        merc_ublkcp: mc.ublkcp,
+        merc_plop3_tx: mc.plop3_tx,
+        merc_fence_async: mc.fence_async,
+        merc_ldgsts_b128: mc.ldgsts_b128,
+        merc_s2ur_cga: mc.s2ur_cga,
+        merc_bsync_close: mc.bsync_close,
+        merc_hfma2_const: mc.hfma2_const,
+        merc_mc_ulea_x: mc.ulea_x,
+        merc_mc_bra_np: mc.bra_np_loop,
     }
 }
 
@@ -395,7 +418,10 @@ fn merc_exec_positions(
     for ins in instructions {
         let slot = (ins.addr / 16) as u32;
         match ins.opcode.as_str() {
-            "BAR" | "SYNCS" => {
+            // mk30b: rekordy 01475a16 dostaja TYLKO prawdziwe BAR.SYNC;
+            // SYNCS.* (mbarrier EXCH/ARRIVE/PHASECHK/...) maja wlasne
+            // rodziny rekordow (mk30: 011b36/021b2c/021b4c/021b5e).
+            "BAR" => {
                 bar_pos.push(slot);
                 // mk13: named barrier args `BAR.SYNC.DEFER_BLOCKING 0x1, 0x20`
                 // -> (id, cnt); zwykly BAR bez argumentow -> (0, 0).
@@ -641,6 +667,192 @@ fn merc_atom_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u8, u8, u8,
         }
     }
     out
+}
+
+
+/// mk30: skan rodziny mikrokernlowej b_* (mbarrier/TMA/minis; sciezka laned).
+/// Rodowod: analysis/merclab/mk30/ + /tmp/mk30/lab (m_init/m_arr/m_wait/
+/// bulk1/uvc) + capture mk26 na tych kernelach.
+#[derive(Default)]
+pub struct MercMcScan {
+    pub exch: Vec<(u32, bool, u8, u8)>, // SYNCS.EXCH.64: (lane, guarded, addrUR, valUR)
+    pub arrive: Vec<(u32, u8)>,         // SYNCS.ARRIVE.TRANS64: (lane, b4-guard)
+    pub phase: Vec<u32>,                // SYNCS.PHASECHK lanes
+    pub uiadd3_1m: Vec<(u32, bool)>,    // UIADD3 ...0x100000 (host blobow d1)
+    pub ushf_fin: Vec<u32>,             // USHF.L imm==1 po USHF imm==0xb (mini 414c)
+    pub voteu_all: Vec<u32>,            // VOTEU.*.ALL lanes (mini 414c)
+    pub mov400: Vec<u32>,               // MOV Rn, 0x400 w rodzinie mbarrier
+    pub lea18: Vec<u32>,                // LEA R0, R*, R0, 0x18 (mini 4100)
+    pub ws: Vec<(u32, u8)>,             // WARPSYNC.ALL: (lane, 0x76/0x6e)
+    pub uvcount: Vec<u32>,              // UVIRTCOUNT.DEALLOC (mini 4144)
+    pub umov_rr: Vec<u32>,              // UMOV URx, URy (mini 4100-10)
+    pub ublkcp: Vec<u32>,               // __raw__ UBLKCP (rekord 02232826)
+    pub plop3_tx: Vec<(u32, u8)>,       // PLOP3 expect_tx: (lane, 0/1/2 = A/B/C)
+    pub fence_async: Vec<u32>,          // FENCE.*ASYNC* lanes
+    pub ldgsts_b128: bool,              // LDGSTS .128 (pinned-blob wariant)
+    pub s2ur_cga: Vec<(u32, bool)>,     // S2UR ?, SR_CgaCtaId: (lane, guarded)
+    pub bsync_close: Vec<u32>,          // BSYNC lanes (rekord 51-010109 regionu)
+    pub hfma2_const: Vec<u32>,          // HFMA2 R?,RZ,RZ,<imm> (bez bitu)
+    pub ulea_x: Vec<u32>,               // ULEA ... 0x18 z dest == EXCH addr UR (bit 0)
+    pub bra_np_loop: Vec<u32>,          // braided BRA bez " PT, " w m-family (bit 0)
+}
+
+pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
+    let mut o = MercMcScan::default();
+    let bar_lanes: Vec<u32> = instructions
+        .iter()
+        .filter(|i| i.opcode == "BAR")
+        .map(|i| (i.addr / 16) as u32)
+        .collect();
+    let ws_lanes: Vec<u32> = instructions
+        .iter()
+        .filter(|i| i.opcode == "WARPSYNC" && i.opcode_full.contains(".ALL"))
+        .map(|i| (i.addr / 16) as u32)
+        .collect();
+    let mut saw_ushf_0b = false;
+    for ins in instructions {
+        let lane = (ins.addr / 16) as u32;
+        let t = &ins.raw_text;
+        let guarded = ins.guard.as_ref().map(|g| g.pred != 7).unwrap_or(false);
+        match ins.opcode.as_str() {
+            "SYNCS" => {
+                if t.contains("EXCH") {
+                    // SYNCS.EXCH.64 URZ, [UR6], UR4 -> addr=UR6 val=UR4:
+                    // UR-tokeny w kolejnosci tekstowej; dst URZ pomijany
+                    // (Z nie parsuje sie do liczby).
+                    let mut urs = t
+                        .split(|c: char| c == '[' || c == ']' || c == ',' || c == ' ')
+                        .filter_map(|tok| {
+                            let tk = tok.trim().trim_end_matches(';');
+                            tk.strip_prefix("UR").and_then(|n| n.parse::<u8>().ok())
+                        });
+                    let addr = urs.next().unwrap_or(6);
+                    let val = urs.next().unwrap_or(4);
+                    o.exch.push((lane, guarded, addr, val));
+                } else if t.contains("ARRIVE") {
+                    let b4: u8 = match &ins.guard {
+                        Some(g) if g.pred != 7 && g.negated => 0x01,
+                        Some(g) if g.pred != 7 => 0x00,
+                        _ => 0xf8,
+                    };
+                    o.arrive.push((lane, b4));
+                } else if t.contains("PHASECHK") {
+                    o.phase.push(lane);
+                }
+            }
+            "UIADD3" if t.contains("0x100000") => o.uiadd3_1m.push((lane, guarded)),
+            "VOTEU" if ins.opcode_full.contains(".ALL") => o.voteu_all.push(lane),
+            "MOV" if t.contains(", 0x400") => o.mov400.push(lane),
+            "LEA" if t.contains(", 0x18") && !ins.opcode_full.contains("HI") => {
+                o.lea18.push(lane)
+            }
+            "UMOV" => {
+                // strip prowadzacy guard @.. (frozen/surowy tekst z pikladem)
+                let body0 = t.trim();
+                let body = match body0.strip_prefix('@') {
+                    Some(r) => r.split_once(char::is_whitespace).map(|(_, x)| x.trim_start()).unwrap_or(body0),
+                    None => body0,
+                };
+                let rest = body.trim_start_matches("UMOV").trim_start();
+                let mut it = rest.split(',');
+                let d = it.next().unwrap_or("").trim();
+                let s = it.next().unwrap_or("").trim().trim_end_matches(';');
+                if d.starts_with("UR") && s.starts_with("UR") {
+                    o.umov_rr.push(lane);
+                }
+            }
+            "UVIRTCOUNT" if ins.opcode_full.contains("DEALLOC") => o.uvcount.push(lane),
+            "FENCE" if t.contains("ASYNC") => o.fence_async.push(lane),
+            "PLOP3" => {
+                if !guarded && t.contains("P0, PT, PT, PT, PT, 0x80, 0x8") {
+                    o.plop3_tx.push((lane, 0));
+                } else if t.contains("P0, PT, P1, PT, PT, 0x8, 0x80") {
+                    o.plop3_tx.push((lane, 1));
+                } else if !guarded && t.contains("P1, PT, PT, PT, PT, 0x8, 0x80") {
+                    o.plop3_tx.push((lane, 2));
+                }
+            }
+            "LDGSTS" if ins.opcode_full.contains(".128") => o.ldgsts_b128 = true,
+            "S2UR" if t.contains("SR_CgaCtaId") => o.s2ur_cga.push((lane, guarded)),
+            "BSYNC" => o.bsync_close.push(lane),
+            "HFMA2" if t.matches("RZ").count() >= 2 => o.hfma2_const.push(lane),
+            _ => {}
+        }
+        if ins.opcode == "USHF" {
+            let parts: Vec<&str> = t.split(',').collect();
+            let imm = parts.get(2).map(|s| s.trim());
+            if imm == Some("0xb") {
+                saw_ushf_0b = true;
+            } else if imm == Some("0x1") && saw_ushf_0b {
+                o.ushf_fin.push(lane);
+            }
+        }
+        if ins.opcode == "__raw__" {
+            // UBLKCP.S.G — slowo z niskimi bajtami 0x73ba (lab bulk1/bulk2/
+            // b_bulk_cp; mk30 wzorzec passthrough `__raw__0x...0073ba`).
+            let tx = t.trim().trim_end_matches(';');
+            if tx.ends_with("0073ba") {
+                o.ublkcp.push(lane);
+            }
+        }
+    }
+    // mov400: tylko w rodzinie mbarrier; poza nia MOV zostaje zwyklym MOV.
+    if o.exch.is_empty() && o.arrive.is_empty() && o.phase.is_empty() {
+        o.mov400.clear();
+    } else if o.exch.is_empty() {
+        // m_wait/m_arr: MOV-400 zachowuje bit (rozniecie regionowe —
+        // mk30b-next); kasuj bit tylko przy EXCH (b_mbarrier lane17).
+        o.mov400.clear();
+        let _ = &o.mov400;
+    }
+    // lea18 mini: tylko w rodzinie mbarrier (dowolna SYNCS-klasa).
+    if o.exch.is_empty() && o.arrive.is_empty() && o.phase.is_empty() {
+        o.lea18.clear();
+    }
+    // ULEA prologu (dest == addr EXCH): traci bit (rekord 1b5e = EXCH-host —
+    // kolejnosc strumienia tozsama; nvcc: b_mbarrier lane11 clear, EXCH set).
+    for &(lane, _g, addr, _val) in o.exch.clone().iter() {
+        for ins in instructions {
+            if ins.opcode == "ULEA" && ins.raw_text.contains(", 0x18") {
+                let lane2 = (ins.addr / 16) as u32;
+                if lane2 < lane {
+                    // dest-token check: "ULEA URd, ..." (toleruje guard @..)
+                    let t2 = ins.raw_text.trim();
+                    let t2 = match t2.strip_prefix('@') {
+                        Some(r) => r.split_once(char::is_whitespace)
+                            .map(|(_, x)| x.trim_start())
+                            .unwrap_or(t2),
+                        None => t2,
+                    };
+                    let d = t2.split(',').next().unwrap_or("")
+                        .trim_start_matches("ULEA").trim();
+                    let want = format!("UR{}", addr);
+                    if d == want {
+                        o.ulea_x.push(lane2);
+                    }
+                }
+            }
+        }
+    }
+    // braided-BRA w m-family BEZ znacznika PT (petle spin): nvcc kasuje bit
+    // (b_mbarrier lanes 21/34). z "PT" (przejscie epilogowe) ZACHOWUJE.
+    if !o.exch.is_empty() || !o.arrive.is_empty() || !o.phase.is_empty() {
+        for ins in instructions {
+            if ins.opcode == "BRA" {
+                let g = ins.guard.as_ref().map(|g| g.pred != 7).unwrap_or(false);
+                if g && !ins.raw_text.contains(" PT,") {
+                    o.bra_np_loop.push((ins.addr / 16) as u32);
+                }
+            }
+        }
+    }
+    // WARPSYNC.ALL minis: b2 = 0x6e gdy w (lane, next-ws] jest BAR.SYNC.
+    for (k, &wl) in ws_lanes.iter().enumerate() {
+        let end = ws_lanes.get(k + 1).copied().unwrap_or(u32::MAX);
+        let has_bar = bar_lanes.iter().any(|&b| b > wl && b < end);
+        o.ws.push((wl, if has_bar { 0x6e_u8 } else { 0x76_u8 }));
+    }
+    o
 }
 
 /// mk27: UTCATOMSWS (tcgen05 tmem alloc na oknie smem): (lane, kind).

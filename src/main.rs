@@ -1304,6 +1304,26 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_cgmasks: Vec::new(),
         has_call: false,
         has_bssy: false,
+        merc_mc_exch: Vec::new(),
+        merc_mc_arrive: Vec::new(),
+        merc_mc_phase: Vec::new(),
+        merc_mc_d1: Vec::new(),
+        merc_mc_ushf_fin: Vec::new(),
+        merc_mc_voteu_all: Vec::new(),
+        merc_mc_mov400: Vec::new(),
+        merc_mc_lea18: Vec::new(),
+        merc_ws_minis: Vec::new(),
+        merc_uvcount: Vec::new(),
+        merc_umov_rr: Vec::new(),
+        merc_ublkcp: Vec::new(),
+        merc_plop3_tx: Vec::new(),
+        merc_fence_async: Vec::new(),
+        merc_ldgsts_b128: false,
+        merc_s2ur_cga: Vec::new(),
+        merc_bsync_close: Vec::new(),
+        merc_hfma2_const: Vec::new(),
+        merc_mc_ulea_x: Vec::new(),
+        merc_mc_bra_np: Vec::new(),
     }
 }
 
@@ -2540,6 +2560,54 @@ fn cmd_asm_build_elf(
                     }
                     if !stg_pos2.is_empty() {
                         meta.merc_stg_desc_pos = stg_pos2;
+                    }
+                    // mk30: lustro merc_mc_scan (tekstowe; b_* rodziny).
+                    {
+                        use cubit::mercury::{McScanText as MC, mc_scan_lines};
+                        let items: Vec<MC> = insns
+                            .iter()
+                            .enumerate()
+                            .map(|(ii, (_a, asm))| {
+                                let bt = asm.trim();
+                                let (guard, rest) = if let Some(st) = bt.strip_prefix("@!") {
+                                    (2u8, st.trim_start())
+                                } else if let Some(st) = bt.strip_prefix('@') {
+                                    (1u8, st.trim_start())
+                                } else {
+                                    (0u8, bt)
+                                };
+                                let fw = rest.split_whitespace().next().unwrap_or("");
+                                let base = fw.split('.').next().unwrap_or("").to_string();
+                                MC {
+                                    lane: ii as u32,
+                                    base,
+                                    full: fw.to_string(),
+                                    text: rest.to_string(),
+                                    guarded: guard != 0,
+                                }
+                            })
+                            .collect();
+                        let mc = mc_scan_lines(&items);
+                        meta.merc_mc_exch = mc.exch;
+                        meta.merc_mc_arrive = mc.arrive;
+                        meta.merc_mc_phase = mc.phase;
+                        meta.merc_mc_d1 = mc.uiadd3_1m;
+                        meta.merc_mc_ushf_fin = mc.ushf_fin;
+                        meta.merc_mc_voteu_all = mc.voteu_all;
+                        meta.merc_mc_mov400 = mc.mov400;
+                        meta.merc_mc_lea18 = mc.lea18;
+                        meta.merc_ws_minis = mc.ws;
+                        meta.merc_uvcount = mc.uvcount;
+                        meta.merc_umov_rr = mc.umov_rr;
+                        meta.merc_ublkcp = mc.ublkcp;
+                        meta.merc_plop3_tx = mc.plop3_tx;
+                        meta.merc_fence_async = mc.fence_async;
+                        meta.merc_ldgsts_b128 = mc.ldgsts_b128;
+                        meta.merc_s2ur_cga = mc.s2ur_cga;
+                        meta.merc_bsync_close = mc.bsync_close;
+                        meta.merc_hfma2_const = mc.hfma2_const;
+                        meta.merc_mc_ulea_x = mc.ulea_x;
+                        meta.merc_mc_bra_np = mc.bra_np_loop;
                     }
                 }
             }

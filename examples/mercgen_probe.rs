@@ -70,6 +70,7 @@ fn main() {
             merc_cgmasks: Vec::new(),
             has_call: false,
             has_bssy: false,
+            ..Default::default()
         };
         let out = generate_mercury_full(&code, g.ord, Some(&ops), &meta, g.sm100 == 1);
         let gold = hx(g.gold);

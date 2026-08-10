@@ -57,6 +57,11 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
         merc_cgmasks: Vec::new(),
         has_call: false,
         has_bssy: false,
+        merc_s2ur_cga: g.ops.iter().enumerate()
+            .filter(|(_, o)| o.starts_with("S2UR"))
+            .map(|(i, _)| (i as u32, false))
+            .collect(),
+        ..Default::default()
     }
 }
 
