@@ -645,6 +645,10 @@ pub struct McScanOut {
     pub hfma2_const: Vec<u32>,
     pub ulea_x: Vec<u32>,
     pub bra_np_loop: Vec<u32>,
+    /// mk34 (node-model g5b): lane'y bez wezla w liscie capmerc — NIE zajmuja
+    /// slotu bitmapy (b_mbarrier: para USHF licznika mbarrier po d1-UIADD3;
+    /// b_bulk_cp: te + FENCE.ASYNC). Tylko m-family (SYNCS.*).
+    pub nodeless: Vec<u32>,
 }
 
 pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
@@ -669,6 +673,7 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
         hfma2_const: Vec::new(),
         ulea_x: Vec::new(),
         bra_np_loop: Vec::new(),
+        nodeless: Vec::new(),
     };
     let bar_lanes: Vec<u32> = items
         .iter()
@@ -680,7 +685,7 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
         .filter(|i| i.base == "WARPSYNC" && i.full.contains(".ALL"))
         .map(|i| i.lane)
         .collect();
-    let mut saw_ushf_0b = false;
+    let mut saw_ushf_0b: Option<u32> = None;
     for it in items {
         let lane = it.lane;
         let t = it.text.as_str();
@@ -738,9 +743,14 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
             let parts: Vec<&str> = t.split(',').collect();
             let imm = parts.get(2).map(|s| s.trim());
             if imm == Some("0xb") {
-                saw_ushf_0b = true;
-            } else if imm == Some("0x1") && saw_ushf_0b {
+                saw_ushf_0b = Some(lane);
+            } else if imm == Some("0x1") && saw_ushf_0b.is_some() {
                 o.ushf_fin.push(lane);
+                // mk34: prolog licznika mbarrier ("USHF ..,0xb" + "USHF ..,0x1"
+                // po d1-UIADD3) nie ma zadnych wezlow (g5b: b_mbarrier l9/10,
+                // b_bulk_cp l12/13) — lane'e wypadaja z przestrzeni bitmapy.
+                o.nodeless.push(saw_ushf_0b.unwrap());
+                o.nodeless.push(lane);
             }
         }
         if it.base.starts_with("__raw__") || it.full.starts_with("__raw__") {
@@ -753,34 +763,33 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
     if o.exch.is_empty() && o.arrive.is_empty() && o.phase.is_empty() {
         o.mov400.clear();
         o.lea18.clear();
+        o.nodeless.clear(); // para ushf poza m-family nie obowiazuje
+        o.nodeless.shrink_to_fit();
     } else if o.exch.is_empty() {
         o.mov400.clear();
     }
-    // ULEA prologu mbarrier: dest == addr EXCH, imm 0x18 (bit kasowany).
-    let exchs = o.exch.clone();
-    for &(_l, _g, addr, _val) in &exchs {
-        for it in items {
-            if it.base == "ULEA" && it.text.contains(", 0x18") {
-                let d = it.text.split(',').next().unwrap_or("")
-                    .trim_start_matches("ULEA").trim();
-                if d == format!("UR{}", addr) && it.lane < _l {
-                    o.ulea_x.push(it.lane);
-                }
-            }
-        }
-    }
-    // braided-BRA m-family bez " PT, ": nvcc kasuje bit (b_mbarrier 21/34).
-    if !o.exch.is_empty() || !o.arrive.is_empty() || !o.phase.is_empty() {
-        for it in items {
-            if it.base == "BRA" && it.guarded && !it.text.contains(" PT,") {
-                o.bra_np_loop.push(it.lane);
-            }
-        }
-    }
+    // mk34 ODSLOWIENIE (node-model g5b): ulea_x i bra_np_loop pozostaja puste.
+    // Wczesniejsze fitowano lane-space na zamienionych indeksach bitmapy; we
+    // wlasciwej przestrzeni NODE nvcc ULEA prologu EXCH i braided-BRA maja
+    // wezly t4 z flaga=1 (b_mbarrier n09/lane11, n19/n21, n32/n34, n33/n35;
+    // b_bulk_cp n14/n16, n15/n17, n25/lane28).
     for (k, &wl) in ws_lanes.iter().enumerate() {
         let end = ws_lanes.get(k + 1).copied().unwrap_or(u32::MAX);
         let has_bar = bar_lanes.iter().any(|&b| b > wl && b < end);
         o.ws.push((wl, if has_bar { 0x6e_u8 } else { 0x76_u8 }));
+    }
+    // mk34: FENCE.ASYNC tez bez wezla (b_bulk_cp lane18; g5b: brak nodu
+    // miedzy ULEA#2 a EXCH).
+    let m_fam2 = !(o.exch.is_empty() && o.arrive.is_empty() && o.phase.is_empty());
+    if m_fam2 {
+        let fl = o.fence_async.clone();
+        for l in fl {
+            if !o.nodeless.contains(&l) {
+                o.nodeless.push(l);
+            }
+        }
+        o.nodeless.sort_unstable();
+        o.nodeless.dedup();
     }
     o
 }

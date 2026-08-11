@@ -570,6 +570,9 @@ pub struct KernelMeta {
     pub merc_mc_ulea_x: Vec<u32>,
     /// mk30b: braided BRA bez " PT," w rodzinie mbarrier — bez bitu.
     pub merc_mc_bra_np: Vec<u32>,
+    /// mk34 (node-model g5b): lane'e bez wezla capmerc (para USHF licznika
+    /// mbarrier + FENCE.ASYNC w m-family) — NIE zajmuja slotu bitmapy.
+    pub merc_mc_nodeless: Vec<u32>,
 }
 
 
@@ -668,6 +671,7 @@ impl KernelMeta {
             merc_bsync_close: Vec::new(),
             merc_mc_ulea_x: Vec::new(),
             merc_mc_bra_np: Vec::new(),
+            merc_mc_nodeless: Vec::new(),
             merc_atoms: Vec::new(),
             merc_ldgsts_pin: Vec::new(),
             merc_ldgsts_wait: Vec::new(),
@@ -1093,6 +1097,7 @@ mod tests {
             merc_bsync_close: Vec::new(),
             merc_mc_ulea_x: Vec::new(),
             merc_mc_bra_np: Vec::new(),
+            merc_mc_nodeless: Vec::new(),
             merc_atoms: Vec::new(),
             merc_ldgsts_pin: Vec::new(),
             merc_ldgsts_wait: Vec::new(),
