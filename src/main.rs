@@ -1273,6 +1273,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_stg_dreg: Vec::new(),
         merc_stg_dur: Vec::new(),
         merc_stg_guard: Vec::new(),
+        merc_stg_areg: Vec::new(),
         merc_mma: Vec::new(),
         merc_f64imm: Vec::new(),
         merc_pad_pos: Vec::new(),
@@ -1961,6 +1962,7 @@ fn cmd_asm_build_elf(
                 let mut stg_dreg: Vec<u8> = Vec::new();
                 let mut stg_dur: Vec<u8> = Vec::new();
                 let mut stg_guard: Vec<u8> = Vec::new();
+                let mut stg_areg: Vec<u8> = Vec::new();
                 for (ii, (_addr, asm)) in insns.iter().enumerate() {
                     let clean = if let Some(idx) = asm.find("/* @sched") {
                         &asm[..idx]
@@ -2063,6 +2065,27 @@ fn cmd_asm_build_elf(
                                 .unwrap_or(255)
                         };
                         stg_dreg.push(d);
+                        // mk32: niski rejestr pary adresowej [R<num>.64]
+                        // (ost. wystapienie "[R" przed koncem operandow).
+                        let a: u8 = {
+                            let mut out = 255u8;
+                            let mut pos = 0usize;
+                            while let Some(k) = clean[pos..].find("[R") {
+                                let k2 = pos + k + 2;
+                                let digits: String = clean[k2..]
+                                    .chars()
+                                    .take_while(|c2| c2.is_ascii_digit())
+                                    .collect();
+                                if !digits.is_empty() {
+                                    if let Ok(v) = digits.parse::<u32>() {
+                                        out = v.min(255) as u8;
+                                    }
+                                }
+                                pos = k2;
+                            }
+                            out
+                        };
+                        stg_areg.push(a);
                         let dur8: u8 = clean
                             .find("desc[UR")
                             .and_then(|k| {
@@ -2133,6 +2156,9 @@ fn cmd_asm_build_elf(
                 }
                 if !stg_dreg.is_empty() {
                     meta.merc_stg_dreg = stg_dreg;
+                }
+                if !stg_areg.is_empty() {
+                    meta.merc_stg_areg = stg_areg;
                 }
                 if !stg_dur.is_empty() {
                     meta.merc_stg_dur = stg_dur;

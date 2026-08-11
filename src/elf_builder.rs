@@ -238,6 +238,11 @@ pub struct MercFeatures {
     pub stg_u8: bool,
     /// Per-STG: pozycja desc-parametru (u31 = unknown → fallback idx-row).
     pub stg_desc_pos: Vec<u32>,
+    /// mk32: per-STG niski rejestr pary adresowej [R<num>.64] (255=gdy
+    /// brak/nieznany). Zrodlo prawdy dla (b12,b13) rekordu 0238:
+    /// u16 = (areg<<6)|2. Wypiera mk10b..mk31 modele "pozycji w puli
+    /// deskryptorow" (zbiezne bo nvcc-styl allokacji); 144/144 lab.
+    pub stg_areg: Vec<u8>,
     /// BAR pod predykatem obecny.
     pub bar_pred: bool,
     /// Kolejnosc pierwszego uzycia parametrow (z KernelMeta.merc_param_order).
@@ -684,6 +689,7 @@ impl MercFeatures {
         f.load_flags = meta.merc_load_flags.clone();
         f.atom_pool_hits = meta.merc_atom_pool_hits.clone();
         f.ldgconst = meta.merc_ldgconst.clone();
+        f.stg_areg = meta.merc_stg_areg.clone();
         f.n_ldgsts = opcodes.iter().filter(|o| o.starts_with("LDGSTS")).count() as u32;
         // mk13: MercFeatures.u_role_alt1 — klasy opcode'ow (full mnemonics
         // zawieraja .CAS) + liczba EXIT-ow.
@@ -853,102 +859,63 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize, wire: Option<&[u32]>) -> [u8; 32] 
         stg[6] = 0x00;
     } else if feat.stg_wide {
         stg[6] = 0x50;
-        stg[19] = 0x02;
     }
+    // mk32 DOMKNIECIE siatki 0238 (rekurencyjna formula rejestrowa r<<6|f,
+    // ta sama co w 0229/0129/atomach 024d/024e; zastepuje modele korelacyjne
+    // "pozycja w puli desc" (mk10b..mk31) i "kursor serii" (mk10b/AC)):
+    // - (b12,b13) = (areg<<6)|2: niski rejestr pary adresowej [R<num>.64]
+    //   STG (dowod mk32: 144/144 gold+mk-lab; k_mma R4->(02,01),
+    //   b_wmma R2->(82,00); taki sam rozklad dla s_*/p_*/r2_*/q_*);
+    // - (b17,b18) = (desc_UR<<6)|2 (mk12a);
+    // - (b19,b20) = (dreg<<6)|(2 dla .64, 0 dla wezszych) (RZ -> 0x3ff<<6);
+    // - b4 = wariant guardu (mk12a), b28..b30 = imm offset adresu (mk10b).
     let dp_legacy = match feat.stg_desc_pos.get(stg_i).copied() {
         Some(u32::MAX) | None => stg_i as u32 % 2, // sentinel: nieznane
         Some(v) => v,
     };
-    let dp = match wire {
-        Some(w) => w.get(stg_i).copied().unwrap_or(dp_legacy),
-        None => dp_legacy,
+    let dp_wire = match wire {
+        Some(w) => w.get(stg_i).copied(),
+        None => None,
     };
-    // mk10b wide-serie (STG.E.64 w serii, dp nieznane) — model z k_mma:
-    // stala karta b11=00,b12=02,b13=01,b17=02,b18=01; b19=02|par<<7;
-    // b20 schodzi parami od n_stg: 4-(ser>>1) przy n_stg=4 (jedna probka —
-    // doprecyzowac gdy mk-lab objmie wide-serie); imm offset jako u16 LE.
-    if feat.stg_wide && !feat.stg_ser.is_empty() {
-        let pack = feat.stg_ser.get(stg_i).copied().unwrap_or(0);
-        let ser = pack & 0x7f;
-        stg[11] = 0x00;
-        // mk10c: slot z puli deskryptorow gdy znany (mak10b hardkodowal dp=1)
-        let dp = match wire {
-            Some(w) => match w.get(stg_i).copied() {
-                Some(v) => v,
-                None => match feat.stg_desc_pos.get(stg_i).copied() {
-                    Some(u32::MAX) | None => 1,
-                    Some(v) => v,
-                },
-            },
-            None => match feat.stg_desc_pos.get(stg_i).copied() {
-                Some(u32::MAX) | None => 1,
-                Some(v) => v,
-            },
-        };
-        if dp % 2 == 1 {
-            stg[12] = 0x02;
-            stg[13] = ((dp + 1) >> 1) as u8;
-        } else {
-            stg[13] = (dp >> 1) as u8;
-            if stg[13] > 0 {
-                stg[12] = 0x82;
-            }
-        }
-        stg[18] = 0x01;
-        stg[19] = 0x02 | ((ser & 1) << 7);
-        stg[20] = (feat.n_stg as u8).saturating_sub((ser >> 1) as u8);
-        let off = feat.stg_off.get(stg_i).copied().unwrap_or(0) as u16;
-        stg[28..30].copy_from_slice(&off.to_le_bytes());
-        return stg;
-    }
-    let same_desc = !feat.stg_desc_pos.is_empty()
-        && feat.stg_desc_pos.iter().all(|&d| d == 0)
-        && feat.stg_desc_pos.len() == feat.n_stg as usize;
-    if !stg_narrow && !feat.stg_wide && same_desc && !feat.stg_ser.is_empty() {
-        // seria same-desc: slot desc zostaje (82,00); kursor b19/b20 = dreg<<6
-        // liczony wspolnie na koncu (mk12 zastepuje model mk10b).
-    }
-    if !stg_narrow && !feat.stg_wide && (feat.n_stg > 1 || dp > 0) {
-        // slot desc-stream (fs10b 2026-08-05): b12 = 82/02 po parzystosci
-        // slotu, b13 = (s+1)>>1 (s=0 -> (82,00)); kursor b19/b20 ponizej
-        if dp % 2 == 1 {
-            stg[12] = 0x02;
-            stg[13] = ((dp + 1) >> 1) as u8;
-        } else {
-            stg[13] = (dp >> 1) as u8;
-            if stg[13] > 0 {
-                stg[12] = 0x82;
+    let areg = feat.stg_areg.get(stg_i).copied().unwrap_or(255);
+    if areg != 255 {
+        let v = ((areg as u16) << 6) | 2;
+        stg[12] = (v & 0xff) as u8;
+        stg[13] = (v >> 8) as u8;
+    } else {
+        let dp = dp_wire.unwrap_or(dp_legacy);
+        if !stg_narrow && (feat.n_stg > 1 || dp > 0) {
+            // legacy (stg_desc_pos/pool): slot desc-stream (fs10b): parzysty
+            // -> (82, s>>1); nieparzysty -> (02, (s+1)>>1); 0 -> (82,00).
+            if dp % 2 == 1 {
+                stg[12] = 0x02;
+                stg[13] = ((dp + 1) >> 1) as u8;
+            } else {
+                stg[13] = (dp >> 1) as u8;
+                if stg[13] > 0 {
+                    stg[12] = 0x82;
+                }
             }
         }
     }
-    // mk12: kursor STG (bajty 19/20, u16 LE) = numer rejestru danych << 6
-    // (RZ -> 0x3ff<<6 = 0xffc0). Fit na pelnej macierzy gold (mk12-harvest:
-    // R3->0x00c0, R5->0x0140, R7->0x01c0, R9->0x0240, R11->0x02c0,
-    // R21->0x0540). Bez metadanej stg_dreg fallback na model mk10b
-    // (rownowazny dreg = 5+2*ser, nulltail = RZ) dla zgodnosci wstecz.
-    if !feat.stg_wide {
-        let dreg: u16 = match feat.stg_dreg.get(stg_i) {
-            Some(&d) => {
-                if d == 255 { 0x3ff } else { d as u16 }
-            }
-            None => {
-                let pack = feat.stg_ser.get(stg_i).copied().unwrap_or(0);
-                if pack >> 7 != 0 { 0x3ff } else { 5 + 2 * ((pack & 0x7f) as u16) }
-            }
-        };
-        let cur = dreg << 6;
-        stg[19] = (cur & 0xff) as u8;
-        stg[20] = (cur >> 8) as u8;
-        // fala A: desc-UR na b17/b18 = (ur<<6)|2 (UR6 -> 0x0182; k_lds,
-        // v_sm*, k_smem; UR4 = szablon). domyslnie UR4 gdy brak metadanej.
-        let dur = feat.stg_dur.get(stg_i).copied().unwrap_or(4) as u16;
-        stg[17..19].copy_from_slice(&((dur << 6) | 2).to_le_bytes());
-        // fala A: wariant predykatu na b4 (00=@Pn, 01=@!Pn, f8=brak).
-        match feat.stg_guard.get(stg_i).copied().unwrap_or(0) {
-            1 => stg[4] = 0x00,
-            2 => stg[4] = 0x01,
-            _ => {}
+    let dreg: u16 = match feat.stg_dreg.get(stg_i) {
+        Some(&d) => {
+            if d == 255 { 0x3ff } else { d as u16 }
         }
+        None => {
+            let pack = feat.stg_ser.get(stg_i).copied().unwrap_or(0);
+            if pack >> 7 != 0 { 0x3ff } else { 5 + 2 * ((pack & 0x7f) as u16) }
+        }
+    };
+    let cur = (dreg << 6) | if feat.stg_wide { 2 } else { 0 };
+    stg[19] = (cur & 0xff) as u8;
+    stg[20] = (cur >> 8) as u8;
+    let dur = feat.stg_dur.get(stg_i).copied().unwrap_or(4) as u16;
+    stg[17..19].copy_from_slice(&((dur << 6) | 2).to_le_bytes());
+    match feat.stg_guard.get(stg_i).copied().unwrap_or(0) {
+        1 => stg[4] = 0x00,
+        2 => stg[4] = 0x01,
+        _ => {}
     }
     let off = feat.stg_off.get(stg_i).copied().unwrap_or(0) as u16;
     stg[28..30].copy_from_slice(&off.to_le_bytes());
@@ -986,6 +953,7 @@ fn rec_xor(dst: u32, src: u32, imm: u32, b4: u8) -> [u8; 32] {
     r
 }
 
+
 /// mk10c: role (b10,b11) rekordu desc 0222 z puli loadow. Tabela z fitu
 /// pelnej macierzy gold fala mk10c (iter AF2-analiza + mk12a):
 /// - uniform (0806): 16B->(07,02), 4B->(81,01), 1/2B->(01,01),
@@ -1007,6 +975,7 @@ fn mk10c_roles(
     u_role_alt1: bool,
     load_flags: &[u8],
     atom_pool_hits: &[(u32, u8)],
+    has_ublkcp: bool,
 ) -> Vec<(u8, u8)> {
     let mut roles = Vec::with_capacity(loads.len());
     // distinktywne pi wsrod szerokich regpath-loadow
@@ -1042,9 +1011,18 @@ fn mk10c_roles(
         let role = if unif == 1 {
             match w {
                 16 => (0x07u8, 0x02u8),
+                // mk31: kernely z UBLKCP (klasa __raw__ TMA bulk-copy) maja
+                // dialekt rol unif: 4B skalar przez LDCU -> (41,02) jak przy
+                // regpath; 8B LDCU -> (83,02). Dowod: b_bulk_cp (rekordy
+                // @68/@134); korpus 17612 capmerc bez markerow UBLKCP
+                // (regresja zero), 1-probkowe az do rozszerzenia siatki.
+                4 if has_ublkcp => (0x41, 0x02),
                 4 => (0x81, 0x01),
                 1 | 2 => (0x01, 0x01),
                 _ => {
+                    if has_ublkcp {
+                        (0x83, 0x02)
+                    } else
                     // mk13: kolejnosc wazna — grupa (03,01) obejmuje CAS/
                     // exits>=2/LDS-klase; LDGSTS-licznik ja wygrywa (p_ldgsts
                     // ma LDS x3 i zostaje przy 03,02); potem reszta atomow.
@@ -1216,6 +1194,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         feat.u_role_alt1,
         &feat.load_flags,
         &feat.atom_pool_hits,
+        !feat.ublkcp.is_empty(),
     );
     let mut ev: Vec<(u32, u8, Ev)> = Vec::new();
     for (j, ld) in feat.param_loads.iter().enumerate() {

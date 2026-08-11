@@ -229,7 +229,7 @@ pub fn kernel_def_to_meta(
     let merc_utca = merc_utca_scan(&def.instructions);
     let merc_atom_smem = merc_atom_smem_scan(&def.instructions);
     let merc_stg_ser = merc_stg_series(&def.instructions);
-    let (merc_stg_dreg, merc_stg_dur, merc_stg_guard) = merc_stg_meta(&def.instructions);
+    let (merc_stg_dreg, merc_stg_dur, merc_stg_guard, merc_stg_areg) = merc_stg_meta(&def.instructions);
     let merc_mma = merc_mma_scan(&def.instructions);
     let merc_f64imm = merc_f64imm_scan(&def.instructions);
     let merc_pad_pos: Vec<u32> = def
@@ -335,6 +335,7 @@ pub fn kernel_def_to_meta(
         merc_stg_dreg,
         merc_stg_dur,
         merc_stg_guard,
+        merc_stg_areg,
         merc_mma,
         merc_f64imm,
         merc_pad_pos,
@@ -483,11 +484,12 @@ fn merc_exec_positions(
 /// == seria R5+2n). dur: desc-UR -> (b17,b18) = (dur<<6)|2 (fala A:
 /// UR6 -> 0x0182 dla k_lds/v_sm*/k_smem). guard: @Pn -> b4=00,
 /// @!Pn -> b4=01, brak -> f8 (jak w rekordzie 0229; d_ifearly_stg).
-fn merc_stg_meta(instructions: &[Instruction]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+fn merc_stg_meta(instructions: &[Instruction]) -> (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>) {
     // mk12 (kursor) + fala A: per-STG (dreg danych, desc-UR, wariant guardu).
     let mut dreg = Vec::new();
     let mut dur = Vec::new();
     let mut guard = Vec::new();
+    let mut areg = Vec::new();
     for ins in instructions {
         if ins.opcode != "STG" {
             continue;
@@ -518,11 +520,33 @@ fn merc_stg_meta(instructions: &[Instruction]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
             .map(|v| v.min(255) as u8)
             .unwrap_or(4);
         dur.push(u);
+        // mk32: niski rejestr pary adresowej [R<num>.64] (ostatni nawias
+        // [R.. w operandach STG; kursor dp (b12/b13) rekordu 0238 ==
+        // (areg<<6)|2 — dowod mk32/matrix 144/144). UR-absolutny/RZ -> 255.
+        let a: u8 = {
+            let mut out = 255u8;
+            let mut pos = 0usize;
+            while let Some(k) = txt[pos..].find("[R") {
+                let k2 = pos + k + 2;
+                let digits: String = txt[k2..]
+                    .chars()
+                    .take_while(|c| c.is_ascii_digit())
+                    .collect();
+                if !digits.is_empty() {
+                    if let Ok(v) = digits.parse::<u32>() {
+                        out = v.min(255) as u8;
+                    }
+                }
+                pos = k2;
+            }
+            out
+        };
+        areg.push(a);
         let t = txt.trim_start();
         let g: u8 = if t.starts_with("@!") { 2 } else if t.starts_with('@') { 1 } else { 0 };
         guard.push(g);
     }
-    (dreg, dur, guard)
+    (dreg, dur, guard, areg)
 }
 
 fn merc_stg_series(instructions: &[Instruction]) -> Vec<u8> {
