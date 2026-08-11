@@ -1325,6 +1325,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_hfma2_const: Vec::new(),
         merc_mc_ulea_x: Vec::new(),
         merc_mc_bra_np: Vec::new(),
+        merc_mc_nodeless: Vec::new(),
     }
 }
 
@@ -2634,6 +2635,7 @@ fn cmd_asm_build_elf(
                         meta.merc_hfma2_const = mc.hfma2_const;
                         meta.merc_mc_ulea_x = mc.ulea_x;
                         meta.merc_mc_bra_np = mc.bra_np_loop;
+                        meta.merc_mc_nodeless = mc.nodeless;
                     }
                 }
             }

@@ -399,6 +399,8 @@ pub struct MercFeatures {
     pub mc_ulea_x: Vec<u32>,
     /// mk30b: braided BRA bez " PT," w rodzinie mbarrier — bez bitu.
     pub mc_bra_np: Vec<u32>,
+    /// mk34 (node-model g5b): lane'e bez wezlow capmerc = bez slotu bitmapy.
+    pub mc_nodeless: Vec<u32>,
 }
 
 impl MercFeatures {
@@ -439,6 +441,7 @@ impl MercFeatures {
             hfma2_const: meta.merc_hfma2_const.clone(),
             mc_ulea_x: meta.merc_mc_ulea_x.clone(),
             mc_bra_np: meta.merc_mc_bra_np.clone(),
+            mc_nodeless: meta.merc_mc_nodeless.clone(),
             ..Default::default()
         };
         // mk30b: sciezki bez skanu sass (gold/manifest) wyprowadzaja
@@ -2127,15 +2130,16 @@ pub fn generate_mercury_full(
         || !meta.merc_mc_arrive.is_empty()
         || !meta.merc_mc_phase.is_empty();
     let mut bit0: std::collections::BTreeSet<u32> = std::collections::BTreeSet::new();
+    let mc_nodeless: std::collections::BTreeSet<u32> =
+        meta.merc_mc_nodeless.iter().copied().collect();
     for &(l, _) in &meta.merc_mc_d1 {
         bit0.insert(l);
     }
     for &l in &meta.merc_mc_voteu_all {
         bit0.insert(l);
     }
-    for &l in &meta.merc_mc_ushf_fin {
-        bit0.insert(l);
-    }
+    // mk34: ushf_fin NIE kasuje bitu — lane'e prologu USHF sa NODELESS
+    // (mc_nodeless; usuniecie calego slotu, nie tylko bitu).
     // lea4100-mini: mk26 — wezel zastapiony; bit kasowany.
     for &l in &meta.merc_mc_lea18 {
         bit0.insert(l);
@@ -2154,51 +2158,39 @@ pub fn generate_mercury_full(
         bit0.insert(l);
     }
     if m_family {
-        // mk30b: S2UR CgaCtaId #2+ DOSTAJE bit gdy POZA spanem BSSY
-        // (b_mbarrier slot23; b_tcgen05 31/39); pierwszy nigdy (wszystkie
-        // probki: m_* / b_* / p_*). W spanie BSSY reguly spanowe juz rzadza.
-        let s2ur_extra: Vec<u32> = meta
-            .merc_s2ur_cga
-            .iter()
-            .skip(1)
-            .map(|&(l, _)| l)
-            .collect();
-        for l in s2ur_extra {
-            let in_span = in_bssy_span.get(l as usize).copied().unwrap_or(false);
-            if !in_span {
-                force_bit.insert(l);
-            }
-        }
-        // PHASECHK z rekordem 1b4c: bez bitu (m_wait oba, mbarrier#1);
-        // STAN ROZNIECLY: b_mbarrier#2 zachowuje bit (region; mk30b-open).
+        // mk34 (node-model, g5b na b_mbarrier bulk_cp): Pelny zestaw regul
+        // m-family — walker nvcc daje lane'om wezly typu:
+        //  * PHASECHK -> rekord 021b4c — bez bitu,
         for &l in &meta.merc_mc_phase {
             bit0.insert(l);
         }
-        // ARRIVE pod predykatem — bez bitu (m_arr); b_mbarrier unpred keep.
-        for &(l, b4) in &meta.merc_mc_arrive {
-            if b4 != 0xf8 {
-                bit0.insert(l);
-            }
-        }
-        // MOV R?,0x400 prologu register-path (b_mbarrier lane17): bez bitu.
-        for &l in &meta.merc_mc_mov400 {
+        //  * ARRIVE (wszystkie warianty b4) -> rekord 021b2c — bez bitu,
+        for &(l, _b4) in &meta.merc_mc_arrive {
             bit0.insert(l);
         }
-        // mk30b: ULEA prologu EXCH (dest == addr UR) — nvcc kasuje bit
-        // (Rekord 1b5e idzie w lane EXCH z bitem; kolejnosc strumienia ta sama).
-        for &l in &meta.merc_mc_ulea_x {
+        //  * EXCH -> rekord 021b5e — bez bitu,
+        for &(l, _, _, _) in &meta.merc_mc_exch {
             bit0.insert(l);
         }
-        // mk30b: braided-BRA bez PT w m-family — bez bitu (b_mbarrier 21/34).
-        for &l in &meta.merc_mc_bra_np {
+        //  * PLOP3 expect_tx -> trio rekordow 0110060a — bez bitu,
+        for &(l, _) in &meta.merc_plop3_tx {
             bit0.insert(l);
         }
+        //  * UBLKCP -> rekord 02232826 — bez bitu,
+        for &l in &meta.merc_ublkcp {
+            bit0.insert(l);
+        }
+        //  * S2UR CgaCtaId -> smem-anchor 010b060a — NIGDY bit (kasowanie
+        //    mk30b s2ur_extra bylo lane-space artefaktem: nvcc node21
+        //    b_mbarrier ma flag=0);
+        //  * MOV R?,0x400 / ULEA prologu / braided-BRA: MAJA bity
+        //    (g5b: n15/n17/n21/n32/n33) — reguly kasujace mk30b usuniete.
     }
     // debug mk30: wypisz bit0/dialekt pod CUBIT_DEBUG_MC=1
     if std::env::var_os("CUBIT_DEBUG_MC").is_some() {
         eprintln!(
-            "[mc] {}: m_family={} utca={} bit0={:?} hfma2c={:?} utca_meta={:?}",
-            meta.name, m_family, dialect_utca, bit0, meta.merc_hfma2_const, meta.merc_utca
+            "[mc] {}: m_family={} utca={} bit0={:?} nodeless={:?} hfma2c={:?} utca_meta={:?}",
+            meta.name, m_family, dialect_utca, bit0, mc_nodeless, meta.merc_hfma2_const, meta.merc_utca
         );
     }
     // B = liczba slotow 0..end minus klasy zerowej wagi (nie dostaja bitu)
@@ -2209,7 +2201,13 @@ pub fn generate_mercury_full(
         let nop_span_skip = in_bssy_span.get(i).copied().unwrap_or(false)
             && matches!(opcodes, Some(ops) if ops[i] == "NOP")
             && !syncwarp_set.contains(&(i as u32));
-        if is_w0(i) || region_drop.get(i).copied().unwrap_or(false) || nop_span_skip {
+        // mk34: lane'e bez wezlow capmerc (mc_nodeless) wypadaja z
+        // przestrzeni bitmapy calkowicie — brak slotu (g5b node-count).
+        if is_w0(i)
+            || region_drop.get(i).copied().unwrap_or(false)
+            || nop_span_skip
+            || mc_nodeless.contains(&(i as u32))
+        {
             continue;
         }
         let tracked = match opcodes {
@@ -2246,6 +2244,12 @@ pub fn generate_mercury_full(
                 if !t && base_i == "BRA" && bra_guard_set.contains(&(i as u32)) {
                     t = true;
                 }
+                // mk34 (node-model g5b): w m-family KAZDY BRA ma wezel t4
+                // z flaga=1 (b_mbarrier 15/21/34/35, b_bulk_cp 4/28), chyba
+                // ze samo-petla spin (bez wezla — mk28/mk33).
+                if m_family && base_i == "BRA" && !bra_selfloop_set.contains(&(i as u32)) {
+                    t = true;
+                }
                 // mk13: LOP3 z destem predykatowym bez bitu (mini-rekord
                 // 42 2a 02 06 w lane, gold d_sw4_store slot6).
                 if t && base_i == "LOP3" && lop3_pdest_set.contains(&(i as u32)) {
@@ -2256,7 +2260,9 @@ pub fn generate_mercury_full(
                 // S2UR/LDCU config-uniform) bitu nie dostaja nawet w spanie
                 // (gold p_ldsm slot12 S2UR=0; q_bsync_pair slot4 LDC.64=0).
                 if in_bssy_span.get(i).copied().unwrap_or(false) {
-                    if !matches!(base_i, "LDC" | "LDCU" | "S2R" | "S2UR") {
+                    // mk34: ELECT tez bez bitu w spanie (b_bulk_cp lane24:
+                    // tylko mini 41 64 00 0a; g5b n21 flag=0).
+                    if !matches!(base_i, "LDC" | "LDCU" | "S2R" | "S2UR" | "ELECT") {
                         t = true;
                     }
                 }

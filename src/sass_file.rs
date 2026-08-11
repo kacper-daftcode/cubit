@@ -392,6 +392,7 @@ pub fn kernel_def_to_meta(
         merc_hfma2_const: mc.hfma2_const,
         merc_mc_ulea_x: mc.ulea_x,
         merc_mc_bra_np: mc.bra_np_loop,
+        merc_mc_nodeless: mc.nodeless,
     }
 }
 
@@ -719,6 +720,9 @@ pub struct MercMcScan {
     pub hfma2_const: Vec<u32>,          // HFMA2 R?,RZ,RZ,<imm> (bez bitu)
     pub ulea_x: Vec<u32>,               // ULEA ... 0x18 z dest == EXCH addr UR (bit 0)
     pub bra_np_loop: Vec<u32>,          // braided BRA bez " PT, " w m-family (bit 0)
+    /// mk34 (node-model g5b): lane'e bez wezlow capmerc = bez slotu bitmapy
+    /// (para USHF licznika mbarrier + FENCE.ASYNC; tylko m-family).
+    pub nodeless: Vec<u32>,
 }
 
 pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
@@ -733,7 +737,7 @@ pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
         .filter(|i| i.opcode == "WARPSYNC" && i.opcode_full.contains(".ALL"))
         .map(|i| (i.addr / 16) as u32)
         .collect();
-    let mut saw_ushf_0b = false;
+    let mut saw_ushf_0b: Option<u32> = None;
     for ins in instructions {
         let lane = (ins.addr / 16) as u32;
         let t = &ins.raw_text;
@@ -806,9 +810,11 @@ pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
             let parts: Vec<&str> = t.split(',').collect();
             let imm = parts.get(2).map(|s| s.trim());
             if imm == Some("0xb") {
-                saw_ushf_0b = true;
-            } else if imm == Some("0x1") && saw_ushf_0b {
+                saw_ushf_0b = Some(lane);
+            } else if imm == Some("0x1") && saw_ushf_0b.is_some() {
                 o.ushf_fin.push(lane);
+                o.nodeless.push(saw_ushf_0b.unwrap());
+                o.nodeless.push(lane);
             }
         }
         if ins.opcode == "__raw__" {
@@ -821,55 +827,30 @@ pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
         }
     }
     // mov400: tylko w rodzinie mbarrier; poza nia MOV zostaje zwyklym MOV.
-    if o.exch.is_empty() && o.arrive.is_empty() && o.phase.is_empty() {
+    let m_fam = !(o.exch.is_empty() && o.arrive.is_empty() && o.phase.is_empty());
+    if !m_fam {
         o.mov400.clear();
-    } else if o.exch.is_empty() {
-        // m_wait/m_arr: MOV-400 zachowuje bit (rozniecie regionowe —
-        // mk30b-next); kasuj bit tylko przy EXCH (b_mbarrier lane17).
+        o.nodeless.clear();
+    } else {
+        // mk34: MOV-400 ma wezel t4 z flaga (g5b b_mbarrier n15/lane17) —
+        // ushf-fin-era regula kasujaca byla w przestrzeni lane, nie node.
         o.mov400.clear();
-        let _ = &o.mov400;
+        // FENCE.ASYNC bez wezla (b_bulk_cp lane18)
+        let fl = o.fence_async.clone();
+        for l in fl {
+            if !o.nodeless.contains(&l) {
+                o.nodeless.push(l);
+            }
+        }
+        o.nodeless.sort_unstable();
+        o.nodeless.dedup();
     }
     // lea18 mini: tylko w rodzinie mbarrier (dowolna SYNCS-klasa).
     if o.exch.is_empty() && o.arrive.is_empty() && o.phase.is_empty() {
         o.lea18.clear();
     }
-    // ULEA prologu (dest == addr EXCH): traci bit (rekord 1b5e = EXCH-host —
-    // kolejnosc strumienia tozsama; nvcc: b_mbarrier lane11 clear, EXCH set).
-    for &(lane, _g, addr, _val) in o.exch.clone().iter() {
-        for ins in instructions {
-            if ins.opcode == "ULEA" && ins.raw_text.contains(", 0x18") {
-                let lane2 = (ins.addr / 16) as u32;
-                if lane2 < lane {
-                    // dest-token check: "ULEA URd, ..." (toleruje guard @..)
-                    let t2 = ins.raw_text.trim();
-                    let t2 = match t2.strip_prefix('@') {
-                        Some(r) => r.split_once(char::is_whitespace)
-                            .map(|(_, x)| x.trim_start())
-                            .unwrap_or(t2),
-                        None => t2,
-                    };
-                    let d = t2.split(',').next().unwrap_or("")
-                        .trim_start_matches("ULEA").trim();
-                    let want = format!("UR{}", addr);
-                    if d == want {
-                        o.ulea_x.push(lane2);
-                    }
-                }
-            }
-        }
-    }
-    // braided-BRA w m-family BEZ znacznika PT (petle spin): nvcc kasuje bit
-    // (b_mbarrier lanes 21/34). z "PT" (przejscie epilogowe) ZACHOWUJE.
-    if !o.exch.is_empty() || !o.arrive.is_empty() || !o.phase.is_empty() {
-        for ins in instructions {
-            if ins.opcode == "BRA" {
-                let g = ins.guard.as_ref().map(|g| g.pred != 7).unwrap_or(false);
-                if g && !ins.raw_text.contains(" PT,") {
-                    o.bra_np_loop.push((ins.addr / 16) as u32);
-                }
-            }
-        }
-    }
+    // mk34 ODSLOWIENIE (node-model g5b): ulea_x/bra_np_loop zostaja puste —
+    // patrz adnotacja przy McScanOut.nodeless w mercury.rs.
     // WARPSYNC.ALL minis: b2 = 0x6e gdy w (lane, next-ws] jest BAR.SYNC.
     for (k, &wl) in ws_lanes.iter().enumerate() {
         let end = ws_lanes.get(k + 1).copied().unwrap_or(u32::MAX);
