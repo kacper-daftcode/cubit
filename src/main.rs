@@ -1326,6 +1326,11 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_mc_ulea_x: Vec::new(),
         merc_mc_bra_np: Vec::new(),
         merc_mc_nodeless: Vec::new(),
+        merc_param_load_dreg: Vec::new(),
+        merc_bar_guard: Vec::new(),
+        merc_isetp_ur: Vec::new(),
+        merc_redux: Vec::new(),
+        merc_cbank358_dreg: None,
     }
 }
 
@@ -2211,6 +2216,12 @@ fn cmd_asm_build_elf(
                         std::collections::BTreeSet::new();
                     let mut ldgconst: Vec<(u32, u32)> = Vec::new();
                     let mut atoms_scan: Vec<(u32, u8, u8, u8, u8, u8, u8, u8)> = Vec::new();
+                    // mk35: lustra sass_file::merc_mk35_scan
+                    let mut load_dregs35: Vec<u8> = Vec::new();
+                    let mut bar_guard35: Vec<u8> = Vec::new();
+                    let mut isetp_ur35: Vec<u32> = Vec::new();
+                    let mut redux35: Vec<(u32, u8, u8)> = Vec::new();
+                    let mut cbank358_dreg35: Option<u8> = None;
                     for (ii, (_addr, asm)) in insns.iter().enumerate() {
                         let clean = if let Some(idx) = asm.find("/* @sched") {
                             &asm[..idx]
@@ -2234,6 +2245,29 @@ fn cmd_asm_build_elf(
                         };
                         let base0 = m2.get(1).unwrap().as_str().split('.').next().unwrap_or("");
                         let rest = m2.get(2).map(|x| x.as_str()).unwrap_or("");
+                        // mk35: BAR guard (rownolegle do bar_pos z petli-1)
+                        if base0 == "BAR" {
+                            bar_guard35.push(guard_m);
+                        }
+                        // mk35 (lustro): ISETP z operandem UR bez .EX — mini
+                        // 42 10 32 14 w lane (nvcc bar_if2 n05).
+                        if base0 == "ISETP" && body.contains(".NE") && !body.contains(".EX") && body.contains(", UR") {
+                            isetp_ur35.push(ii as u32);
+                        }
+                        // mk35 (lustro): 0132-rekordy tylko dla typowanego
+                        // REDUX i CREDUX; goly REDUX = bit (zob. bitmap).
+                        if base0 == "REDUX" || base0 == "CREDUX" {
+                            let dest = rest.split(',').next().unwrap_or("").trim();
+                            let dd = dest.trim_start_matches(['R','U']);
+                            let dreg = if !dd.is_empty() && dd.chars().all(|c| c.is_ascii_digit()) {
+                                dd.parse::<u32>().unwrap_or(255).min(255) as u8
+                            } else { 255 };
+                            if base0 == "CREDUX" {
+                                redux35.push((ii as u32, 1, dreg));
+                            } else if body.contains("REDUX.") {
+                                redux35.push((ii as u32, 0, dreg));
+                            }
+                        }
                         if base0 == "CALL" {
                             call_lanes.push(ii as u32);
                         }
@@ -2267,6 +2301,13 @@ fn cmd_asm_build_elf(
                                 Some(".U8") => 1,
                                 _ => 4,
                             };
+                            if off == 0x358 && cbank358_dreg35.is_none() {
+                                // mk35: dst loadu okna 0x358 (dowolny mech);
+                                // b10/b11 cbank = (dreg<<6)|3 (k_atom UR4 ->
+                                // 03 01; at_and/min UR6 -> 83 01).
+                                let dd = cap[3].trim_start_matches(['R', 'U']);
+                                cbank358_dreg35 = dd.parse::<u32>().ok().map(|v| v.min(255) as u8);
+                            }
                             if off == 0x358 && &cap[1] == "LDCU" && cbank_lane.is_none() {
                                 cbank_lane = Some(ii as u32);
                             }
@@ -2276,6 +2317,9 @@ fn cmd_asm_build_elf(
                                 let rel = off - 0x380;
                                 let unif: u8 = if &cap[1] == "LDCU" { 1 } else { 0 };
                                 loads.push((ii as u32, rel, unif, wv, guard_m));
+                                // mk35: dst-reg loadu (rownolegle do loads).
+                                let ddb = cap[3].trim_start_matches(['R', 'U']);
+                                load_dregs35.push(ddb.parse::<u32>().ok().map(|v| v.min(255) as u8).unwrap_or(255));
                                 // mk18 bit1: load PO CALL.
                                 load_flags.push(if call_lanes.is_empty() { 0 } else { 2 });
                                 let mut pidx = u32::MAX;
@@ -2383,6 +2427,37 @@ fn cmd_asm_build_elf(
                         // bez bitu + mini-rekord w lane (d_sw4_store slot6).
                         if base0 == "LOP3" && cubit::mercury::lop3_writes_pred(body) {
                             lop3_pdest.push(ii as u32);
+                        }
+                        // mk35: REDG desc-form (lustro sass_file::merc_atom_scan)
+                        if base0 == "REDG" && body.contains("desc[") {
+                            let reg35 = |t: &str| -> u32 {
+                                let d = t.trim().trim_end_matches(';').trim_start_matches('R');
+                                if !d.is_empty() && d.chars().all(|c| c.is_ascii_digit()) {
+                                    d.parse::<u32>().unwrap_or(255)
+                                } else {
+                                    255
+                                }
+                            };
+                            let descur = body
+                                .find("desc[UR")
+                                .and_then(|k| body[k + 7..].find(']').map(|e| &body[k + 7..k + 7 + e]))
+                                .and_then(|d| d.parse::<u32>().ok())
+                                .unwrap_or(255)
+                                .min(127) as u8;
+                            let after_desc = body.rfind('[').map(|k| &body[k + 1..]).unwrap_or("");
+                            let areg = after_desc
+                                .split(&['.', ']'][..])
+                                .next()
+                                .unwrap_or("")
+                                .trim_start_matches('R')
+                                .parse::<u32>()
+                                .unwrap_or(255)
+                                .min(255) as u8;
+                            let dval = body.rsplit(',').next().unwrap_or("").trim().trim_start_matches('R').parse::<u32>().unwrap_or(255).min(255) as u8;
+                            let sub6: u8 = if body.contains(".AND") { 0x50 } else if body.contains(".MIN") { 0x10 } else { 0 };
+                            let s32bit: u8 = if body.contains(".S32") { 0x80 } else { 0 };
+                            atoms_scan.push((ii as u32, cubit::mercury::MERC_ATOM_CLS_REDG_D,
+                                             guard_m, 255, areg, dval, descur | s32bit, sub6));
                         }
                         // mk14: rekordy atomowe (lustro sass_file::merc_atom_scan).
                         if base0.starts_with("ATOM") {
@@ -2636,6 +2711,11 @@ fn cmd_asm_build_elf(
                         meta.merc_mc_ulea_x = mc.ulea_x;
                         meta.merc_mc_bra_np = mc.bra_np_loop;
                         meta.merc_mc_nodeless = mc.nodeless;
+                        meta.merc_param_load_dreg = load_dregs35.clone();
+                        meta.merc_bar_guard = bar_guard35.clone();
+                        meta.merc_isetp_ur = isetp_ur35.clone();
+                        meta.merc_redux = redux35.clone();
+                        meta.merc_cbank358_dreg = cbank358_dreg35;
                     }
                 }
             }

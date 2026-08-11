@@ -1020,6 +1020,7 @@ pub const MERC_ATOM_CLS_RED: u8 = 0;   // REDG/RED (fire-and-forget) -> 024d (le
 pub const MERC_ATOM_CLS_G4: u8 = 1;    // ATOMG.E.<op> 4B global -> 024e5232
 pub const MERC_ATOM_CLS_CAS: u8 = 2;   // ATOMG.E.CAS.* -> 024e2432 (2 data regs)
 pub const MERC_ATOM_CLS_SHARED: u8 = 3;// ATOMS.<op> -> 024e8432
+pub const MERC_ATOM_CLS_REDG_D: u8 = 4; // REDG.E.<op>.STRONG.<sc> desc[UR][R.64] -> 024d2432
 
 fn merc_put16(b: &mut [u8; 32], off: usize, v: u16) {
     b[off] = (v & 0xff) as u8;
@@ -1065,6 +1066,23 @@ pub fn build_atom_rec(
             merc_put16(&mut b, 14, 0xffc0);
             b[18] = 0x01; b[19] = 0x0a;
             merc_put16(&mut b, 21, merc_grid0(v1));
+        }
+        // mk35 (probki k_atom REDG.ADD / at_and REDG.AND / at_min REDG.MIN.S32,
+        // wszystkie desc[URx][Ry.64], Rv):
+        //   b1=4d b2=24; b6 = subop (ADD=00, MIN=10, AND=50 — inne: do domkniecia
+        //   gdy probka sie pojawi); b7 = a0 (+0x02 gdy wariant .S32);
+        //   [12:14] = (areg<<6)|2; [14]=0x0a; [17:19] = (desc_ur<<6)|2;
+        //   [19:21] = dataR<<6 (bez flagi). b8=01 jest czescia szablonu.
+        MERC_ATOM_CLS_REDG_D => {
+            b[1] = 0x4d; b[2] = 0x24;
+            b[6] = subop6;
+            b[7] = 0xa0 | (if v2 & 0x80 != 0 { 0x02 } else { 0x00 });
+            b[8] = 0x01;
+            if addr != 255 { merc_put16(&mut b, 12, ((addr as u16) << 6) | 2); }
+            b[14] = 0x0a;
+            let dur = v2 & 0x7f;
+            if dur != 0x7f { merc_put16(&mut b, 17, ((dur as u16) << 6) | 2); }
+            merc_put16(&mut b, 19, (v1 as u16) << 6);
         }
         _ => {}
     }
