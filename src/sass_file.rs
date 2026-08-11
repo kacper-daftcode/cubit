@@ -298,6 +298,20 @@ pub fn kernel_def_to_meta(
 
     // mk30: rodziny b_* (SYNCS/mbarrier/TMA/minis) — glowny skan.
     let mc = merc_mc_scan(&def.instructions);
+    // mk35: skan pomocniczy (dst-reg siatki rec desc/0132, guardy BAR, ...).
+    let m35 = merc_mk35_scan(&def.instructions);
+    let m35_dreg_map: std::collections::HashMap<u32, u8> =
+        m35.load_dreg.iter().copied().collect();
+    let m35_bar_map: std::collections::HashMap<u32, u8> =
+        m35.bar_guard.iter().copied().collect();
+    let m35_load_dreg_par: Vec<u8> = merc_param_loads
+        .iter()
+        .map(|&(lane, _, _, _, _)| m35_dreg_map.get(&lane).copied().unwrap_or(255))
+        .collect();
+    let m35_bar_guard_par: Vec<u8> = merc_bar_pos
+        .iter()
+        .map(|&lane| m35_bar_map.get(&lane).copied().unwrap_or(0))
+        .collect();
 
     KernelMeta {
         name: def.name.clone(),
@@ -393,6 +407,11 @@ pub fn kernel_def_to_meta(
         merc_mc_ulea_x: mc.ulea_x,
         merc_mc_bra_np: mc.bra_np_loop,
         merc_mc_nodeless: mc.nodeless,
+        merc_param_load_dreg: m35_load_dreg_par,
+        merc_bar_guard: m35_bar_guard_par,
+        merc_isetp_ur: m35.isetp_ur,
+        merc_redux: m35.redux,
+        merc_cbank358_dreg: m35.cbank358_dreg,
     }
 }
 
@@ -608,6 +627,53 @@ fn merc_atom_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u8, u8, u8,
     for ins in instructions {
         let lane = (ins.addr / 16) as u32;
         let base = ins.opcode.as_str();
+        // mk35: REDG.E.<op>.STRONG.<scope> desc[URx][Ry.64], Rv (tablica
+        // desc; typowa forma mbarrier-free atomiczna labow at_*/k_atom):
+        // rekord 024d2432, sloty: addrR@[12:14], descUR@[17:19], data@[19:21].
+        if base == "REDG" && ins.raw_text.contains("desc[") {
+            let mut guard = 0u8;
+            let mut t: &str = ins.raw_text.trim();
+            if let Some(rest) = t.strip_prefix('@') {
+                guard = if rest.starts_with('!') { 2 } else { 1 };
+                t = rest[1..].split_once(char::is_whitespace).map(|(_, r)| r).unwrap_or("");
+            }
+            // desc[URn][Rm.64], Rv
+            let descur = t
+                .find("desc[UR")
+                .and_then(|k| t[k + 7..].find(']').map(|e| t[k + 7..k + 7 + e].to_string()))
+                .and_then(|d| d.parse::<u32>().ok())
+                .unwrap_or(255)
+                .min(127) as u8;
+            let after_desc = t.rfind('[').map(|k| &t[k + 1..]).unwrap_or("");
+            let areg = after_desc
+                .split(&['.', ']'][..])
+                .next()
+                .unwrap_or("")
+                .trim_start_matches('R')
+                .parse::<u32>()
+                .unwrap_or(255)
+                .min(255) as u8;
+            let dval = t
+                .rsplit(',')
+                .next()
+                .unwrap_or("")
+                .trim()
+                .trim_start_matches('R')
+                .parse::<u32>()
+                .unwrap_or(255)
+                .min(255) as u8;
+            let sub6: u8 = if ins.raw_text.contains(".AND") {
+                0x50
+            } else if ins.raw_text.contains(".MIN") {
+                0x10
+            } else {
+                0x00
+            };
+            let s32bit: u8 = if ins.raw_text.contains(".S32") { 0x80 } else { 0x00 };
+            out.push((lane, crate::mercury::MERC_ATOM_CLS_REDG_D, guard,
+                      255, areg, dval, descur | s32bit, sub6));
+            continue;
+        }
         if !base.starts_with("ATOM") {
             continue;
         }
@@ -723,6 +789,110 @@ pub struct MercMcScan {
     /// mk34 (node-model g5b): lane'e bez wezlow capmerc = bez slotu bitmapy
     /// (para USHF licznika mbarrier + FENCE.ASYNC; tylko m-family).
     pub nodeless: Vec<u32>,
+}
+
+/// mk35: skany pomocnicze domkniecia mk35 (REDUX/CREDUX dst-grid,
+/// ISETP-UR mini, guardy BAR per-lane, dst-reg loadow param, dst loadu
+/// c[0x358]). Oddzielna funkcja (nie rozbudowujemy krotki merc_param_scan).
+pub struct MercMk35 {
+    /// (lane, dreg) dla loadow param-window LDC/LDCU (c[0x380..]).
+    pub load_dreg: Vec<(u32, u8)>,
+    /// (lane, dowod-cstack? nie) guard per BAR-lane (0=brak,1=@P,2=@!P).
+    pub bar_guard: Vec<(u32, u8)>,
+    /// lane'y ISETP.* z operandem UR i bez .EX — bar_if2 klasa minis
+    /// 42 10 32 14 (zakres 1-probkowy mk35; NE+UR, bez EX).
+    pub isetp_ur: Vec<u32>,
+    /// rekordy 0132: (lane, kind 0=typed-REDUX/1=CREDUX, dreg).
+    pub redux: Vec<(u32, u8, u8)>,
+    /// dst-reg loadu okna c[0x358] (cbank-variant ladder: (dreg<<6)|3).
+    pub cbank358_dreg: Option<u8>,
+}
+
+pub fn merc_mk35_scan(instructions: &[Instruction]) -> MercMk35 {
+    let mut o = MercMk35 {
+        load_dreg: Vec::new(),
+        bar_guard: Vec::new(),
+        isetp_ur: Vec::new(),
+        redux: Vec::new(),
+        cbank358_dreg: None,
+    };
+    let regnum = |tok: &str| -> Option<u8> {
+        let tok = tok.trim().trim_end_matches(';').trim_end_matches(|c| c == ')' || c == ']');
+        let d = tok.trim_start_matches(['R', 'U']);
+        if !d.is_empty() && d.chars().all(|c| c.is_ascii_digit()) {
+            d.parse::<u32>().ok().map(|v| v.min(255) as u8)
+        } else {
+            None
+        }
+    };
+    for ins in instructions {
+        let lane = (ins.addr / 16) as u32;
+        let guard: u8 = match &ins.guard {
+            None => 0,
+            Some(g) => {
+                if g.pred == 7 && !g.negated { 0 } else if g.negated { 2 } else { 1 }
+            }
+        };
+        let base = ins.opcode.as_str();
+        let full = ins.opcode_full.as_str();
+        let t = ins.raw_text.as_str();
+        if base == "BAR" {
+            o.bar_guard.push((lane, guard));
+        }
+        if base == "LDC" || base == "LDCU" {
+            if let Some(cp) = t.find("c[0x0][0x") {
+                let hexs = &t[cp + 9..];
+                let end = hexs.find(']').unwrap_or(0);
+                if let Ok(off) = u32::from_str_radix(&hexs[..end], 16) {
+                    // dest = pierwszy token po opcode (tekst ze stripped powiazane
+                    // przez guard: bierzemy z raw_text po '@'-przecinku)
+                    let body = t.trim_start();
+                    let body = match body.strip_prefix('@') {
+                        Some(r) => r.split_once(char::is_whitespace).map(|(_, x)| x.trim_start()).unwrap_or(body),
+                        None => body,
+                    };
+                    let dest = body.split(',').next().unwrap_or("")
+                        .split_whitespace().last().unwrap_or("");
+                    if off == 0x358 && o.cbank358_dreg.is_none() {
+                        o.cbank358_dreg = regnum(dest);
+                    }
+                    if off >= 0x380 {
+                        if let Some(d) = regnum(dest) {
+                            o.load_dreg.push((lane, d));
+                        }
+                    }
+                }
+            }
+        }
+        if base == "ISETP" && full.contains(".NE") && !full.contains(".EX") && t.contains(", UR") { // mk35a: tylko NE (k_atom EQ+UR ma bit!)
+            o.isetp_ur.push(lane);
+        }
+        if base == "REDUX" {
+            // gole REDUX (full=="REDUX") = stary warp-vote: bit, bez rekordu;
+            // typowane -> rekord 0132 z dst-grid. at_and vs p_redux (mk35).
+            if full != "REDUX" {
+                let body = t.trim_start();
+                let body = match body.strip_prefix('@') {
+                    Some(r) => r.split_once(char::is_whitespace).map(|(_, x)| x.trim_start()).unwrap_or(body),
+                    None => body,
+                };
+                let d = body.split(',').next().unwrap_or("")
+                    .split_whitespace().last().unwrap_or("");
+                o.redux.push((lane, 0u8, regnum(d).unwrap_or(255)));
+            }
+        }
+        if base == "CREDUX" {
+            let body = t.trim_start();
+            let body = match body.strip_prefix('@') {
+                Some(r) => r.split_once(char::is_whitespace).map(|(_, x)| x.trim_start()).unwrap_or(body),
+                None => body,
+            };
+            let d = body.split(',').next().unwrap_or("")
+                .split_whitespace().last().unwrap_or("");
+            o.redux.push((lane, 1u8, regnum(d).unwrap_or(255)));
+        }
+    }
+    o
 }
 
 pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {

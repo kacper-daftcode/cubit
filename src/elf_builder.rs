@@ -236,6 +236,9 @@ pub struct MercFeatures {
     pub stg_wide: bool,
     /// STG.E.U8 obecny (wariant STG-desc).
     pub stg_u8: bool,
+    /// mk35: kernel zawiera STG.E.128 (rekord 0238: b6=0x60, flaga dreg=6;
+    /// nvcc stg128/ld128).
+    pub stg_w128: bool,
     /// Per-STG: pozycja desc-parametru (u31 = unknown → fallback idx-row).
     pub stg_desc_pos: Vec<u32>,
     /// mk32: per-STG niski rejestr pary adresowej [R<num>.64] (255=gdy
@@ -401,6 +404,17 @@ pub struct MercFeatures {
     pub mc_bra_np: Vec<u32>,
     /// mk34 (node-model g5b): lane'e bez wezlow capmerc = bez slotu bitmapy.
     pub mc_nodeless: Vec<u32>,
+    /// mk35: dst-reg per param-load (siatka (R<<6)|C w rolach desc).
+    pub param_load_dreg: Vec<u8>,
+    /// mk35: guard per BAR (rownolegle bar_pos): 0=brak 1=@P 2=@!P.
+    pub bar_guard: Vec<u8>,
+    /// mk35: ISETP-UR (bez .EX) — mini 42 10 32 14, bez bitu.
+    pub isetp_ur: Vec<u32>,
+    /// mk35: redukcyjne rekordy 0132: (lane, kind, dreg); kind 0=REDUX
+    /// typowany, 1=CREDUX. Goly REDUX nie dostaje rekordu (bit zostaje).
+    pub redux: Vec<(u32, u8, u8)>,
+    /// mk35: dst-reg loadu c[0x358] dla wariantu cbank (b10,b11).
+    pub cbank358_dreg: Option<u8>,
 }
 
 impl MercFeatures {
@@ -442,6 +456,11 @@ impl MercFeatures {
             mc_ulea_x: meta.merc_mc_ulea_x.clone(),
             mc_bra_np: meta.merc_mc_bra_np.clone(),
             mc_nodeless: meta.merc_mc_nodeless.clone(),
+            param_load_dreg: meta.merc_param_load_dreg.clone(),
+            bar_guard: meta.merc_bar_guard.clone(),
+            isetp_ur: meta.merc_isetp_ur.clone(),
+            redux: meta.merc_redux.clone(),
+            cbank358_dreg: meta.merc_cbank358_dreg,
             ..Default::default()
         };
         // mk30b: sciezki bez skanu sass (gold/manifest) wyprowadzaja
@@ -587,6 +606,9 @@ impl MercFeatures {
         f.stg_desc_pos = meta.merc_stg_desc_pos.clone();
         f.bar_pred = meta.merc_bar_pred;
         f.stg_u8 = opcodes.iter().any(|o| o.starts_with("STG") && o.contains(".U8"));
+        f.stg_w128 = opcodes
+            .iter()
+            .any(|o| o.starts_with("STG") && o.contains(".128"));
         f.elect_pos = opcodes
             .iter()
             .enumerate()
@@ -667,12 +689,30 @@ impl MercFeatures {
             .map(|(i, _)| i as u32)
             .collect();
         f.pad_pos = meta.merc_pad_pos.clone();
+        // mk35: rekord 0132 tylko dla TYPOWANYCH REDUX (z kropka/modami)
+        // + CREDUX; goly "REDUX" zachowuje bit bitmapy (at_and slot6).
         f.redux_pos = opcodes
             .iter()
             .enumerate()
-            .filter(|(_, o)| o.split('.').next() == Some("REDUX"))
+            .filter(|(_, o)| {
+                let b = o.split('.').next().unwrap_or(o);
+                (b == "REDUX" && o.as_str() != "REDUX") || b == "CREDUX"
+            })
             .map(|(i, _)| i as u32)
             .collect();
+        // gold/manifest path (brak meta.merc_redux): syntetyzuj wpis z
+        // opcode'ow; dreg=6 odtwarza historyczny szablon (UR6-shadow).
+        if f.redux.is_empty() && !f.redux_pos.is_empty() {
+            for &pos in &f.redux_pos {
+                let kind: u8 = if opcodes[pos as usize].split('.').next() == Some("CREDUX") {
+                    1
+                } else {
+                    0
+                };
+                f.redux.push((pos, kind, 6));
+            }
+            f.redux.sort();
+        }
         f.xor_reg_lanes = meta
             .merc_xor_reg
             .iter()
@@ -855,10 +895,18 @@ const REC_CCTL: [u8; 18] = [
 ///   +0,+4,+8,+c,+0 -> 00,04,08,0c,00)
 /// mk30b: `wire` — opcjonalna mapa dp->slot nvcc (podpula: REG + LDG.C +
 /// UNIF-(83,01)); None = zachowanie legacy (pool-pozycja globalna).
+/// mk35: true gdy barwnik cbank base ma domyslna siatke b10/b11
+/// ((03,01)/(83,01) — wolne do nadpisania siatka rejestrowa).
+fn feature_region_override_is_default(base: &[u8; 16]) -> bool {
+    (base[10] == 0x03 || base[10] == 0x83) && base[11] == 0x01
+}
+
 fn rec_stg(feat: &MercFeatures, stg_i: usize, wire: Option<&[u32]>) -> [u8; 32] {
     let mut stg = REC_STG;
     let stg_narrow = feat.stg_u8;
-    if stg_narrow {
+    if feat.stg_w128 {
+        stg[6] = 0x60;
+    } else if stg_narrow {
         stg[6] = 0x00;
     } else if feat.stg_wide {
         stg[6] = 0x50;
@@ -910,7 +958,16 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize, wire: Option<&[u32]>) -> [u8; 32] 
             if pack >> 7 != 0 { 0x3ff } else { 5 + 2 * ((pack & 0x7f) as u16) }
         }
     };
-    let cur = (dreg << 6) | if feat.stg_wide { 2 } else { 0 };
+    // flaga dreg (mk35): (w/4-1)*2 -> 4B->0, 8B->2, 16B->6 (nvcc:
+    // stg128 R4->0x106, ld128 R8->0x206; mk32: .64 -> |2).
+    let wflg: u16 = if feat.stg_w128 {
+        6
+    } else if feat.stg_wide {
+        2
+    } else {
+        0
+    };
+    let cur = (dreg << 6) | wflg;
     stg[19] = (cur & 0xff) as u8;
     stg[20] = (cur >> 8) as u8;
     let dur = feat.stg_dur.get(stg_i).copied().unwrap_or(4) as u16;
@@ -979,6 +1036,11 @@ fn mk10c_roles(
     load_flags: &[u8],
     atom_pool_hits: &[(u32, u8)],
     has_ublkcp: bool,
+    // mk35: numery dst-rejestrow loadow (rownolegle `loads`; 255=nieznany).
+    // Gdy znany -> b10/b11 = (dreg<<6)|C, C = drabinka szerokosci
+    // (16B->7, 8B->3, <8B->1). Wczesniejsza macierz rol mk10c..mk18 =
+    // cien alokacji rejestrow nvcc (R2/R4/R6...). Puste = legacy.
+    load_dregs: &[u8],
 ) -> Vec<(u8, u8)> {
     let mut roles = Vec::with_capacity(loads.len());
     // distinktywne pi wsrod szerokich regpath-loadow
@@ -1011,6 +1073,15 @@ fn mk10c_roles(
         .min()
         .unwrap_or(u32::MAX);
     for (j, &(_, pi, unif, w, _)) in loads.iter().enumerate() {
+        // mk35: dokladna regula jesli znamy dst-reg loadu.
+        if let Some(&rg) = load_dregs.get(j) {
+            if rg != 255 {
+                let cf: u16 = if w == 16 { 7 } else if w >= 8 { 3 } else { 1 };
+                let v = ((rg as u16) << 6) | cf;
+                roles.push(((v & 0xff) as u8, (v >> 8) as u8));
+                continue;
+            }
+        }
         let role = if unif == 1 {
             match w {
                 16 => (0x07u8, 0x02u8),
@@ -1134,7 +1205,8 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         F64i(usize),
         Lop3P,
         XorReg(usize),
-        Redux,
+        Redux(usize),
+        IsetpUr,
         Syncwarp,
         Atom(usize),
         LdgstsPin,
@@ -1198,6 +1270,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         &feat.load_flags,
         &feat.atom_pool_hits,
         !feat.ublkcp.is_empty(),
+        &feat.param_load_dreg,
     );
     let mut ev: Vec<(u32, u8, Ev)> = Vec::new();
     for (j, ld) in feat.param_loads.iter().enumerate() {
@@ -1216,7 +1289,17 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             .map(|l0| l0.saturating_sub(1))
             .unwrap_or(u32::MAX - 64)
     });
-    ev.push((clane, 10, Ev::Cbank));
+    // mk35: nvcc emituje rekord cbank TYLKO gdy kernel laduje c[0x358]
+    // (135-kernel falsyfikacja-zero na sealed+mk34-labach; at_cas = jedyne
+    // poprzednio-nadmiarowe zrodlo rozjazdu — brak 358-loadu). Legacy
+    // q_bsync_pair ma load przez LDC (nie LDCU) — wystarcza sama obecnosc.
+    let has358 = feat.cbank358_dreg.is_some() || feat.cbank_lane.is_some();
+    // ...ale sciezki bez swiezego skanu mk35 (gold manifest) zachowuja
+    // dotychczasowe zachowanie (q_bsync_pair: fallback clane w mk15b).
+    let legacy_emit = feat.param_load_dreg.is_empty();
+    if has358 || legacy_emit {
+        ev.push((clane, 10, Ev::Cbank));
+    }
     // mk14.3: przy LDGSTS rekord smem poprzedza cbank (gold p_ldgsts: smem@[3]
     // przed cbank@[4]; bez LDGSTS: po (p_lds/p_sts2 exact — tier 11).
     // mk30: rekord smem-anchor 010b060a przy KAZDEJ lane S2UR CgaCtaId
@@ -1275,8 +1358,11 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         let _ = xr;
         ev.push((feat.xor_reg_lanes[i].0, 20, Ev::XorReg(i)));
     }
-    for &pos in &feat.redux_pos {
-        ev.push((pos, 20, Ev::Redux));
+    for (i, &(lane, _, _)) in feat.redux.iter().enumerate() {
+        ev.push((lane, 20, Ev::Redux(i)));
+    }
+    for &pos in &feat.isetp_ur {
+        ev.push((pos, 20, Ev::IsetpUr));
     }
     // mk14: ghost __syncwarp (rekord 01476c0a) — lane ducha-NOP.
     for &pos in &feat.syncwarp {
@@ -1414,6 +1500,16 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 } else {
                     REC_CBANK
                 };
+                // mk35: (b10,b11) = (dst358 << 6) | 3 gdy znamy rejestr
+                // loadu c[0x358] (k_atom UR4->03 01; at_and/min UR6->83 01).
+                let mut base = base;
+                if let Some(d) = feat.cbank358_dreg {
+                    if crate::elf_builder::feature_region_override_is_default(&base) {
+                        let g: u16 = ((d as u16) << 6) | 3;
+                        base[10] = (g & 0xff) as u8;
+                        base[11] = (g >> 8) as u8;
+                    }
+                }
                 out.extend_from_slice(&base);
             }
             Ev::Smem => out.extend_from_slice(&REC_SMEM),
@@ -1432,6 +1528,11 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             }
             Ev::Bar(i) => {
                 let mut br = *bar_rec;
+                // mk35: b4 = guard per-lane (1=@P->00, 2=@!P->01; 0=f8);
+                // nvcc bar_if2 (@P0 BAR -> 00) vs legacy bar_pred-global.
+                if let Some(&g) = feat.bar_guard.get(i) {
+                    br[4] = match g { 1 => 0x00, 2 => 0x01, 0 => 0xf8, _ => br[4] };
+                }
                 if let Some(&(id, cnt)) = feat.bar_args.get(i) {
                     if id != 0 || cnt != 0 {
                         // mk13: named barrier: b11=id, b14=cnt (b12=01 stale;
@@ -1481,10 +1582,25 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                     a.1, gb4, a.7, a.3, a.4, a.5, a.6,
                 ));
             }
-            Ev::Redux => out.extend_from_slice(
+            Ev::Redux(i) => {
                 // gold p_redux lane10: 0132 100a f8 00 4d 00 00 00 81 01 ...
-                &[0x01, 0x32, 0x10, 0x0a, 0xf8, 0x00, 0x4d, 0x00,
-                  0x00, 0x00, 0x81, 0x01, 0x00, 0x00, 0x00, 0x00],
+                // mk35: b6=4d typowany REDUX; b6=51,b13=01 CREDUX (at_min);
+                // [10:12] = (dstUR<<6)|1 (p_redux UR6 -> 01 81; at_min
+                // CREDUX.MIN.S32 UR5 -> 01 41).
+                let (lane, kind, dreg) = feat.redux[i];
+                let _ = lane;
+                let b6: u8 = if kind == 1 { 0x51 } else { 0x4d };
+                let b13: u8 = if kind == 1 { 0x01 } else { 0x00 };
+                let g: u16 = (((if dreg==255 {6} else {dreg}) as u16) << 6) | 1;
+                out.extend_from_slice(&[
+                    0x01, 0x32, 0x10, 0x0a, 0xf8, 0x00, b6, 0x00,
+                    0x00, 0x00, (g & 0xff) as u8, (g >> 8) as u8, 0x00, b13, 0x00, 0x00,
+                ]);
+            }
+            Ev::IsetpUr => out.extend_from_slice(
+                // mk35 (g5b bar_if2 n05): ISETP.NE z operandem UR, bez .EX
+                // -> mini, zajelanej lane bez bitu; klasa 02103214 flag0.
+                &[0x42, 0x10, 0x32, 0x14],
             ),
             Ev::Mma(i) => {
                 let m = feat.mma_lanes[i];
@@ -1740,7 +1856,12 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
         out.extend_from_slice(&cflow_rec(feat));
     }
     let total_params = feat.used_params + feat.used_scalar_params;
-    if total_params > 0 {
+    // mk35: nvcc NIE emituje desc/cbank dla kerneli z parametrami, ktorych
+    // nic nie laduje (div3/v_scalar/v_gconst: samo LDC envreg + EXIT).
+    // Sciezka legacy fabrykuje rekordy z metadanych param — zamknieta dla
+    // ery sm103 natywnej (bez param-loadow). Era sm100 zostaje.
+    let legacy_fabricate = feat.era_sm100;
+    if total_params > 0 && legacy_fabricate {
         // Descs w kolejnosci pierwszego uzycia parametru (regula mk8/v_*):
         // tail-dw bajtow[28..32] = 8 * idx-sygnaturowy parametru
         // (sciezka legacy BEZ param_loads: order w dziedzinie pi = slotow 8B;
@@ -2186,6 +2307,11 @@ pub fn generate_mercury_full(
         //  * MOV R?,0x400 / ULEA prologu / braided-BRA: MAJA bity
         //    (g5b: n15/n17/n21/n32/n33) — reguly kasujace mk30b usuniete.
     }
+    // mk35: ISETP z operandem UR (bez .EX) — mini 42 10 32 14 zastepuje
+    // wezel t4, lane bez bitu (nvcc bar_if2 g5b).
+    for &l in &meta.merc_isetp_ur {
+        bit0.insert(l);
+    }
     // debug mk30: wypisz bit0/dialekt pod CUBIT_DEBUG_MC=1
     if std::env::var_os("CUBIT_DEBUG_MC").is_some() {
         eprintln!(
@@ -2286,9 +2412,15 @@ pub fn generate_mercury_full(
                         }
                     }
                 }
-                // mk13: REDUX -> rekord 0132 zamiast bitu (gold p_redux).
-                // mk27: dialekt UTCA STAWIA bit z powrotem (mkvmem slot41).
-                if base_i == "REDUX" && !dialect_utca {
+                // mk13: typowany REDUX -> rekord 0132 zamiast bitu
+                // (gold p_redux). mk35 (node-model/g5b): CREDUX tez rekord
+                // (at_min), ale GOLY "REDUX" = wezel t4 z bitem, bez
+                // rekordu (at_and slot6/slot-bit6). mk27: dialekt UTCA
+                // STAWIA bit z powrotem (mkvmem slot41).
+                if base_i == "CREDUX" {
+                    t = false;
+                }
+                if base_i == "REDUX" && !dialect_utca && ops[i] != "REDUX" {
                     t = false;
                 }
                 // mk14.3: hosty rekordow-event LDGSTS (pinned-blob + wait)

@@ -508,7 +508,9 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     // ATOMG/REDG/ATOMS: E first, then operation, then consistency (STRONG), then scope (GPU/SYS)
     if matches!(base, "ATOMG" | "REDG" | "ATOMS" | "ATOM") {
         match m {
-            "ADD" | "MIN" | "MAX" | "CAS" | "INC" | "DEC" | "EXCH" => return 4,
+            "ADD" | "MIN" | "MAX" | "CAS" | "INC" | "DEC" | "EXCH"
+            // mk35: boolowe tez jako subop (REDG.E.AND.STRONG.GPU; AND/AND? nie LOP3)
+            | "AND" | "OR" | "XOR" => return 4,
             "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" => return 5,
             "GPU" | "SYS" | "CTA" | "GL" | "IL" | "MMU" => return 6,
             _ => {}

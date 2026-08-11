@@ -573,6 +573,23 @@ pub struct KernelMeta {
     /// mk34 (node-model g5b): lane'e bez wezla capmerc (para USHF licznika
     /// mbarrier + FENCE.ASYNC w m-family) — NIE zajmuja slotu bitmapy.
     pub merc_mc_nodeless: Vec<u32>,
+    /// mk35: dst-reg loadu param per wpis merc_param_loads (siatka
+    /// (R<<6)|C w (b10,b11) rekordow desc — patrz mk35/README; 255=nieznany).
+    pub merc_param_load_dreg: Vec<u8>,
+    /// mk35: guard per wpis merc_bar_pos: 0=brak, 1=@Pn, 2=@!Pn (b4 rekordu
+    /// BAR: 00/01/f8; nvcc bar_if2 vs v_barx).
+    pub merc_bar_guard: Vec<u8>,
+    /// mk35: ISETP.NE z operandem UR, bez .EX — mini 42 10 32 14, bez bitu
+    /// (bar_if2 lane5; 1-probkowe, node-blob g5b tag 02103214 flag0).
+    pub merc_isetp_ur: Vec<u32>,
+    /// mk35: rekordy 0132 lane-sorted: (lane, kind, dreg);
+    /// kind 0 = REDUX.*-typowane (b6=4d), 1 = CREDUX (b6=51, b13=01);
+    /// dreg = numer docelowego UR -> grid [10:12]=(dreg<<6)|1.
+    /// Goly "REDUX" (bez kropki) rekordu NIE dostaje — zachowuje bit
+    /// bitmapy (at_and lane6, mkvmem) — nie trafia do tej listy.
+    pub merc_redux: Vec<(u32, u8, u8)>,
+    /// mk35: dst-reg loadu c[0x358] (wariant cbank (b10,b11)=(dreg<<6)|3).
+    pub merc_cbank358_dreg: Option<u8>,
 }
 
 
@@ -672,6 +689,11 @@ impl KernelMeta {
             merc_mc_ulea_x: Vec::new(),
             merc_mc_bra_np: Vec::new(),
             merc_mc_nodeless: Vec::new(),
+            merc_param_load_dreg: Vec::new(),
+            merc_bar_guard: Vec::new(),
+            merc_isetp_ur: Vec::new(),
+            merc_redux: Vec::new(),
+            merc_cbank358_dreg: None,
             merc_atoms: Vec::new(),
             merc_ldgsts_pin: Vec::new(),
             merc_ldgsts_wait: Vec::new(),
@@ -1098,6 +1120,11 @@ mod tests {
             merc_mc_ulea_x: Vec::new(),
             merc_mc_bra_np: Vec::new(),
             merc_mc_nodeless: Vec::new(),
+            merc_param_load_dreg: Vec::new(),
+            merc_bar_guard: Vec::new(),
+            merc_isetp_ur: Vec::new(),
+            merc_redux: Vec::new(),
+            merc_cbank358_dreg: None,
             merc_atoms: Vec::new(),
             merc_ldgsts_pin: Vec::new(),
             merc_ldgsts_wait: Vec::new(),
