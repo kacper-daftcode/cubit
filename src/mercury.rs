@@ -628,6 +628,8 @@ pub struct McScanText {
     pub full: String,
     pub text: String,
     pub guarded: bool,
+    /// mk44: kod guarda jak merc_guard_code (0xf8 = brak; (n<<3)|neg|u*2).
+    pub guard_code: u8,
 }
 
 pub struct McScanOut {
@@ -646,6 +648,9 @@ pub struct McScanOut {
     pub umov_rr: Vec<u32>,
     pub ublkcp: Vec<u32>,
     pub plop3_tx: Vec<(u32, u8)>,
+    /// mk44: generalne rekordy 0110060a — (lane, 16B gotowych bajtow),
+    /// z bramka dual-output (nibswap-LUT) i bez operandow UP.
+    pub plop3_rec: Vec<(u32, [u8; 16])>,
     pub fence_async: Vec<u32>,
     pub ldgsts_b128: bool,
     /// mk41: (lane, guarded, dst-UR) — payload smem-anchora z dst.
@@ -676,6 +681,7 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
         umov_rr: Vec::new(),
         ublkcp: Vec::new(),
         plop3_tx: Vec::new(),
+        plop3_rec: Vec::new(),
         fence_async: Vec::new(),
         ldgsts_b128: false,
         s2ur_cga: Vec::new(),
@@ -741,6 +747,10 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
                     o.plop3_tx.push((lane, 1));
                 } else if !it.guarded && t.contains("P1, PT, PT, PT, PT, 0x8, 0x80") {
                     o.plop3_tx.push((lane, 2));
+                }
+                // mk44: generyczny rekord 0110060a (dual-output, bez UP).
+                if let Some(r) = merc_plop3_record(t, it.guard_code) {
+                    o.plop3_rec.push((lane, r));
                 }
             }
             "LDGSTS" if it.full.contains(".128") => o.ldgsts_b128 = true,
@@ -934,6 +944,111 @@ pub const MERC_TMA_C: [u8; 16] = [
     0x01, 0x10, 0x06, 0x0a, 0xf8, 0x00, 0x00, 0x01,
     0x00, 0x00, 0x01, 0x08, 0x00, 0xf8, 0x00, 0xf8,
 ];
+
+/// mk44: generalizacja 0110060a (korpus sm_100: EQ 5902/5902 kerneli).
+/// Rekord dla KAZDEGO lane'a PLOP3.LUT dwu-wyjsciowego "dual-output"
+/// (l1,l2 para nibswap: l2 == rot4(l1)) BEZ operandow UP (UPLOP3/i UPn
+/// w Pd/Ps/Pa/Pb/Pc/... zawsze bez rekordu; lane'y z l2 != nibswap(l1)
+/// — np. (0xe0,0x00) z trsv — tez zawsze bez; 527 kerneli-czyste dowod).
+/// Era-inwariantne (sondy nvcc: sm_100a == sm_103a; mk44/probe).
+/// Bajty: [4]=kod guarda (jak merc_guard_code); [6],[7]=klasa lut pary;
+/// [10]=0x01; [11]=Pd; [13]=Pa; [15]=Pb; PT -> 0xf8 (Pa/Pb); '!' -> |1.
+/// Mapa (l1,l2)->(b6,b7) eksperymentalna (8 kluczy korpus + (0x28,0x82) lab).
+pub fn merc_plop3_lut_flags(l1: u8, l2: u8) -> Option<(u8, u8)> {
+    // nibswap guard: l2 musi byc rotacja nibli l1 (dual-output form)
+    if l2 != ((l1 & 0x0f) << 4) | (l1 >> 4) {
+        return None;
+    }
+    Some(match (l1, l2) {
+        (0x08, 0x80) => (0x00, 0x01),
+        (0x80, 0x08) => (0x00, 0x00),
+        (0x02, 0x20) => (0x00, 0x03),
+        (0x20, 0x02) => (0x00, 0x02),
+        (0x8f, 0xf8) => (0x20, 0x01),
+        (0xf8, 0x8f) => (0x20, 0x00),
+        (0xf2, 0x2f) => (0x20, 0x02),
+        (0x2f, 0xf2) => (0x20, 0x03),
+        (0x28, 0x82) => (0x40, 0x00),
+        _ => return None,
+    })
+}
+
+/// parse pred-token 'P3'/'PT'/'!P2'/'UP1' -> kod jak merc_guard_code;
+/// None gdy token nie jest predem.
+fn merc_plop3_pred_code(tok: &str) -> Option<u8> {
+    let t = tok.trim().trim_end_matches(';');
+    let (neg, t2) = match t.strip_prefix('!') {
+        Some(r) => (true, r),
+        None => (false, t),
+    };
+    let (uni, t3) = match t2.strip_prefix('U') {
+        Some(r) => (true, r),
+        None => (false, t2),
+    };
+    let t4 = t3.strip_prefix('P')?;
+    if t4 == "T" {
+        return Some(0xf8);
+    }
+    let n: u8 = t4.parse().ok()?;
+    if n > 6 {
+        return None;
+    }
+    Some((n << 3) | (if uni { 2 } else { 0 }) | (if neg { 1 } else { 0 }))
+}
+
+/// mk44: z tekstu lane'a PLOP3.LUT buduj 16B rekord 0110060a (albo None
+/// gdy lane nie podpada — UP-operandy albo nietypowa para LUT).
+/// `text` = surowy tekst lane (z ewentualnym prowadzacym guardem '@.. ').
+pub fn merc_plop3_record(text: &str, guard_code: u8) -> Option<[u8; 16]> {
+    let body0 = text.trim();
+    let body = match body0.strip_prefix('@') {
+        Some(r) => r.split_once(char::is_whitespace).map(|(_, x)| x.trim_start()).unwrap_or(body0),
+        None => body0,
+    };
+    if !body.starts_with("PLOP3.LUT") {
+        return None;
+    }
+    let rest = body["PLOP3.LUT".len()..].trim();
+    let toks: Vec<&str> = rest.split(',').collect();
+    if toks.len() < 7 {
+        return None;
+    }
+    let pd = merc_plop3_pred_code(toks[0])?;
+    let ps = merc_plop3_pred_code(toks[1])?;
+    let pa = merc_plop3_pred_code(toks[2])?;
+    let pb = merc_plop3_pred_code(toks[3])?;
+    let pc = merc_plop3_pred_code(toks[4])?;
+    // UP-operandy gdziekolwiek (0x2 w kodzie) => lane NIE kwalifikuje sie.
+    // Pd == PT (0xf8 w slocie dst) nie wystepuje w korpusie; tez odrzucamy.
+    for c in [pd, ps, pa, pb, pc] {
+        if c & 0x02 != 0 {
+            return None;
+        }
+    }
+    if pd == 0xf8 {
+        return None;
+    }
+    let lut_tok = |t: &str| -> Option<u8> {
+        let t2 = t.trim().trim_end_matches(';').trim();
+        u8::from_str_radix(t2.strip_prefix("0x").unwrap_or(t2), 16).ok()
+    };
+    let l1 = lut_tok(toks[5])?;
+    let l2 = lut_tok(toks[6])?;
+    let (b6, b7) = merc_plop3_lut_flags(l1, l2)?;
+    let mut r = [0u8; 16];
+    r[0] = 0x01;
+    r[1] = 0x10;
+    r[2] = 0x06;
+    r[3] = 0x0a;
+    r[4] = guard_code;
+    r[6] = b6;
+    r[7] = b7;
+    r[10] = 0x01;
+    r[11] = pd;
+    r[13] = pa;
+    r[15] = pb;
+    Some(r)
+}
 
 /// 02 23 28 26 (32B): rekord UBLKCP.S.G. Pola zaleza od puli deskryptorow /
 /// rejestrow; ZMEASURED const dla ukladu b_bulk_cp/bulk1 (src-pool UR-desc z

@@ -1342,6 +1342,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_era100: false,
         merc_redux: Vec::new(),
         merc_cbank358_dreg: None,
+        merc_plop3_rec: Vec::new(),
     }
 }
 
@@ -3020,12 +3021,38 @@ fn cmd_asm_build_elf(
                             .enumerate()
                             .map(|(ii, (_a, asm))| {
                                 let bt = asm.trim();
-                                let (guard, rest) = if let Some(st) = bt.strip_prefix("@!") {
-                                    (2u8, st.trim_start())
-                                } else if let Some(st) = bt.strip_prefix('@') {
-                                    (1u8, st.trim_start())
-                                } else {
-                                    (0u8, bt)
+                                let (guard, rest, gcode) = {
+                                    let st0 = bt.strip_prefix('@');
+                                    match st0 {
+                                        Some(st) => {
+                                            let (neg, st1) = match st.strip_prefix('!') {
+                                                Some(r) => (true, r),
+                                                None => (false, st),
+                                            };
+                                            // mk44: peelen kod pred guarda
+                                            // ( idx<<3 |u2|neg1; PT/absent -> f8).
+                                            let mut w = st1.split_whitespace();
+                                            let pt = w.next().unwrap_or("");
+                                            let (uni, pn) = match pt.strip_prefix('U') {
+                                                Some(r) => (true, r),
+                                                None => (false, pt),
+                                            };
+                                            let num = pn.strip_prefix('P')
+                                                .and_then(|n| n.parse::<u8>().ok());
+                                            let code = match num {
+                                                Some(n) if n <= 6 => (n << 3)
+                                                    | (if uni { 2 } else { 0 })
+                                                    | (if neg { 1 } else { 0 }),
+                                                _ => 0xf8,
+                                            };
+                                            let rest = match st1.find(char::is_whitespace) {
+                                                Some(k) => st1[k..].trim_start(),
+                                                None => st1,
+                                            };
+                                            (if neg { 2u8 } else { 1u8 }, rest, code)
+                                        }
+                                        None => (0u8, bt, 0xf8),
+                                    }
                                 };
                                 let fw = rest.split_whitespace().next().unwrap_or("");
                                 let base = fw.split('.').next().unwrap_or("").to_string();
@@ -3035,6 +3062,7 @@ fn cmd_asm_build_elf(
                                     full: fw.to_string(),
                                     text: rest.to_string(),
                                     guarded: guard != 0,
+                                    guard_code: gcode,
                                 }
                             })
                             .collect();
@@ -3052,6 +3080,7 @@ fn cmd_asm_build_elf(
                         meta.merc_umov_rr = mc.umov_rr;
                         meta.merc_ublkcp = mc.ublkcp;
                         meta.merc_plop3_tx = mc.plop3_tx;
+                        meta.merc_plop3_rec = mc.plop3_rec;
                         meta.merc_fence_async = mc.fence_async;
                         meta.merc_ldgsts_b128 = mc.ldgsts_b128;
                         meta.merc_s2ur_cga = mc.s2ur_cga;

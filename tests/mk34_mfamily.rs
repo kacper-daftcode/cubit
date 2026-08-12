@@ -127,6 +127,7 @@ fn mk34_scan_nodeless_ushf_pair_and_fence_gating() {
         full: full.to_string(),
         text: text.to_string(),
         guarded,
+        guard_code: if guarded { 0 } else { 0xf8 },
     };
     // m-family: SYNCS.EXCH obecne
     let items = vec![
