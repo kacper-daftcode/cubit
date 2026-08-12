@@ -905,7 +905,16 @@ fn rec_store2(st: (u32, u8, u8, u16, u16, u16, i32, u8)) -> [u8; 32]
 {
     let (_lane, cls, wsel, areg, dur, dreg, imm, _b4) = st;
     let mut r = [0u8; 32];
-    let wflag: u16 = if wsel == 3 { 2 } else if wsel == 4 { 6 } else { 0 };
+    // flaga szerokosci NIE dotyczy RZ (korpus: STL.128 [R1], RZ -> c0ff).
+    let wflag: u16 = if dreg == 0x3ff {
+        0
+    } else if wsel == 3 {
+        2
+    } else if wsel == 4 {
+        6
+    } else {
+        0
+    };
     if cls == 1 {
         r[0] = 0x02; r[1] = 0x38; r[2] = 0x2a; r[3] = 0x32;
         r[4] = 0xf8; // ST.E: f8 ZAWSZE (takze przy @Pn) — mk40/stgfields
