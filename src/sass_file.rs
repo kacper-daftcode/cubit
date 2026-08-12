@@ -450,6 +450,7 @@ pub fn kernel_def_to_meta(
         merc_ublkcp: mc.ublkcp,
         merc_plop3_tx: mc.plop3_tx,
         merc_plop3_rec: mc.plop3_rec,
+        merc_cs2r_rec: mc.cs2r_rec,
         merc_fence_async: mc.fence_async,
         merc_ldgsts_b128: mc.ldgsts_b128,
         merc_s2ur_cga: mc.s2ur_cga,
@@ -889,6 +890,8 @@ pub struct MercMcScan {
     pub plop3_tx: Vec<(u32, u8)>,       // PLOP3 expect_tx: (lane, 0/1/2 = A/B/C)
     /// mk44: generalne rekordy 0110060a (dual-output, bez UP) — (lane, 16B).
     pub plop3_rec: Vec<(u32, [u8; 16])>,
+    /// mk45: rekordy 010b0c0a (CS2R Rd, SRZ) — (lane, 16B).
+    pub cs2r_rec: Vec<(u32, [u8; 16])>,
     pub fence_async: Vec<u32>,          // FENCE.*ASYNC* lanes
     pub ldgsts_b128: bool,              // LDGSTS .128 (pinned-blob wariant)
     pub s2ur_cga: Vec<(u32, bool, u8)>, // S2UR ?, SR_CgaCtaId: (lane, guarded, dstUR) mk41
@@ -1167,6 +1170,12 @@ pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
                 // mk44: generyczny rekord 0110060a (korpus EQ 5902/5902).
                 if let Some(r) = crate::mercury::merc_plop3_record(t, merc_guard_code(ins.guard.as_ref())) {
                     o.plop3_rec.push((lane, r));
+                }
+            }
+            "CS2R" => {
+                // mk45: rekord 010b0c0a (CS2R R<d>, SRZ).
+                if let Some(r) = crate::mercury::merc_cs2r_srz_record(t, merc_guard_code(ins.guard.as_ref())) {
+                    o.cs2r_rec.push((lane, r));
                 }
             }
             "LDGSTS" if ins.opcode_full.contains(".128") => o.ldgsts_b128 = true,
