@@ -616,6 +616,18 @@ pub struct KernelMeta {
     /// merc_stg_pos; puste = legacy (kernel-globalne stg_u8/wide/w128 —
     /// laboratoria jednolite pod tym wzgledem; korpus mieszany).
     pub merc_stg_wsel: Vec<u8>,
+    /// mk42: rekordy-krawedzie DEF-USE (tag 02 22 32 32) dla LD generic z
+    /// desc[URm][Ry.64(+off)]. Selekcja EXACT na korpusie sm_100
+    /// (mk42/edge9: 1721/1721 kerneli multiset (X,Y,C,off) == rekordy,
+    /// duplikaty zgodne). Payload: b4=pred (pelny kod mk41), b6=klasa
+    /// rozmiaru (U8=0x10,S8=0x11,U16=0x12,S16=0x13,32=0x14,64=0x15,
+    /// 128=0x16), (b7,b8)=(08,00) lub (10,01) dla STRONG.SYS,
+    /// b12..13=(X<<6)|C, b14..15=(Y<<6)|2, b22=0xf8, b28..32=off (u32 LE),
+    /// [19:21) = (merc_edge_maxur<<6)|2 stale per kernel.
+    /// Krotki: (lane, b4, b6, b7, b8, X, Y, C, off).
+    pub merc_edge_ld: Vec<(u32, u8, u8, u8, u8, u16, u16, u8, u32)>,
+    /// mk42: maksymalny numer UR w desc[URn] calego kernela (0 gdy brak).
+    pub merc_edge_maxur: u16,
 }
 
 
@@ -693,6 +705,8 @@ impl KernelMeta {
             merc_store2: Vec::new(),
             merc_mini2: Vec::new(),
             merc_stg_wsel: Vec::new(),
+            merc_edge_ld: Vec::new(),
+            merc_edge_maxur: 0,
             merc_wwide_sites: Vec::new(),
             merc_cgsites: Vec::new(),
             merc_cgmasks: Vec::new(),
@@ -1130,6 +1144,8 @@ mod tests {
             merc_store2: Vec::new(),
             merc_mini2: Vec::new(),
             merc_stg_wsel: Vec::new(),
+            merc_edge_ld: Vec::new(),
+            merc_edge_maxur: 0,
             merc_wwide_sites: Vec::new(),
             merc_cgsites: Vec::new(),
             merc_cgmasks: Vec::new(),
