@@ -415,6 +415,15 @@ pub struct MercFeatures {
     pub redux: Vec<(u32, u8, u8)>,
     /// mk35: dst-reg loadu c[0x358] dla wariantu cbank (b10,b11).
     pub cbank358_dreg: Option<u8>,
+    /// mk40: store-matrix rekordow 0238 dla ST.E (2a32) / STL (2006).
+    /// (lane, cls 1=ST.E 2=STL, wsel 0=U8/1=U16/2=4B/3=64/4=128,
+    /// areg/dur [0xffff=N/A], dreg [0x3ff=RZ], imm, b4).
+    pub store2: Vec<(u32, u8, u8, u16, u16, u16, i32, u8)>,
+    /// mk40: mini-slownik (lane, u32 LE 4B rekordu); lane bez bitu.
+    pub mini2: Vec<(u32, u32)>,
+    /// mk40 (podkmatryca mk32): per-STG width (wsel) rownolegle do stg_pos;
+    /// puste = legacy (kernel-global stg_u8/stg_wide/stg_w128).
+    pub stg_wsel: Vec<u8>,
 }
 
 impl MercFeatures {
@@ -461,6 +470,9 @@ impl MercFeatures {
             isetp_ur: meta.merc_isetp_ur.clone(),
             redux: meta.merc_redux.clone(),
             cbank358_dreg: meta.merc_cbank358_dreg,
+            store2: meta.merc_store2.clone(),
+            mini2: meta.merc_mini2.clone(),
+            stg_wsel: meta.merc_stg_wsel.clone(),
             ..Default::default()
         };
         // mk30b: sciezki bez skanu sass (gold/manifest) wyprowadzaja
@@ -878,6 +890,50 @@ const REC_ACQBULK: [u8; 16] = [
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
+/// mk40: rekordy store-matrix (stale korpusowe sm_100, mk40/stgfields fits
+/// 192k+/56k+/22k+ przykladow; layout siatki (R<<6)|flag jak mk32/35):
+/// - STG (0e32; legacy rec_stg — width-ladder b6: 00/20/40/50/60);
+/// - ST.E (2a32): jak STG lecz b2=2a i b6-subladder 10/12/14/15/16;
+///   brak desc[URx] -> [17:19] powtarza areg; b4=f8 stale (takze przy @Pn);
+/// - STL (2006): [10:12]=areg<<6 (bez |2), [12:14]=0a00, [14:16]=
+///   dreg<<6|wflag, b6-subladder 21/31/41/51/61, b4=(pidx<<3)|neg.
+/// Subladder wflag dreg: (wsel==64b -> 2, ==128b -> 6, inaczej 0).
+const STG_B6: [u8; 5] = [0x00, 0x20, 0x40, 0x50, 0x60];
+const STE_B6: [u8; 5] = [0x10, 0x12, 0x14, 0x15, 0x16];
+const STL_B6: [u8; 5] = [0x21, 0x31, 0x41, 0x51, 0x61];
+fn rec_store2(st: (u32, u8, u8, u16, u16, u16, i32, u8)) -> [u8; 32]
+{
+    let (_lane, cls, wsel, areg, dur, dreg, imm, _b4) = st;
+    let mut r = [0u8; 32];
+    let wflag: u16 = if wsel == 3 { 2 } else if wsel == 4 { 6 } else { 0 };
+    if cls == 1 {
+        r[0] = 0x02; r[1] = 0x38; r[2] = 0x2a; r[3] = 0x32;
+        r[4] = 0xf8; // ST.E: f8 ZAWSZE (takze przy @Pn) — mk40/stgfields
+        r[6] = STE_B6[(wsel as usize).min(4)];
+        r[7] = 0x01;
+        let a: u16 = ((areg.min(0x3ff)) << 6) | 2;
+        r[12..14].copy_from_slice(&a.to_le_bytes());
+        r[14] = 0x0a;
+        let d2: u16 = ((if dur == 0xffff { areg.min(0x3ff) } else { dur.min(0x3ff) }) << 6) | 2;
+        r[17..19].copy_from_slice(&d2.to_le_bytes());
+        let dr: u16 = (dreg.min(0x3ff) << 6) | wflag;
+        r[19..21].copy_from_slice(&dr.to_le_bytes());
+        r[28..32].copy_from_slice(&imm.to_le_bytes());
+    } else {
+        r[0] = 0x02; r[1] = 0x38; r[2] = 0x20; r[3] = 0x06;
+        r[4] = _b4;
+        r[6] = STL_B6[(wsel as usize).min(4)];
+        r[7] = 0x01;
+        let a: u16 = areg.min(0x3ff) << 6;
+        r[10..12].copy_from_slice(&a.to_le_bytes());
+        r[12] = 0x0a;
+        let dr: u16 = (dreg.min(0x3ff) << 6) | wflag;
+        r[14..16].copy_from_slice(&dr.to_le_bytes());
+        r[28..32].copy_from_slice(&imm.to_le_bytes());
+    }
+    r
+}
+
 /// Rekord CCTL.IVALL (gold p_fence): marker typ5 (f10=2,f20=1) + blob 16B.
 const REC_CCTL: [u8; 18] = [
     0x51, 0x02, 0x01, 0x49, 0x10, 0x0a, 0xf8, 0x00, 0x0c, 0x00,
@@ -904,7 +960,11 @@ fn feature_region_override_is_default(base: &[u8; 16]) -> bool {
 fn rec_stg(feat: &MercFeatures, stg_i: usize, wire: Option<&[u32]>) -> [u8; 32] {
     let mut stg = REC_STG;
     let stg_narrow = feat.stg_u8;
-    if feat.stg_w128 {
+    // mk40: per-lane width (korpus mieszany) nadrzedne nad kernel-global.
+    let wsel_l: Option<u8> = feat.stg_wsel.get(stg_i).copied();
+    if let Some(w) = wsel_l {
+        stg[6] = STG_B6[(w as usize).min(4)];
+    } else if feat.stg_w128 {
         stg[6] = 0x60;
     } else if stg_narrow {
         stg[6] = 0x00;
@@ -960,7 +1020,9 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize, wire: Option<&[u32]>) -> [u8; 32] 
     };
     // flaga dreg (mk35): (w/4-1)*2 -> 4B->0, 8B->2, 16B->6 (nvcc:
     // stg128 R4->0x106, ld128 R8->0x206; mk32: .64 -> |2).
-    let wflg: u16 = if feat.stg_w128 {
+    let wflg: u16 = if let Some(w) = wsel_l {
+        if w == 3 { 2 } else if w == 4 { 6 } else { 0 }
+    } else if feat.stg_w128 {
         6
     } else if feat.stg_wide {
         2
@@ -1229,6 +1291,8 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         ShiftAt(usize),
         Utca(usize),
         AtomSmem(usize),
+        Store2(usize),
+        Mini2(usize),
     }
     // mk10c: zbior parametrow STG-wiazanych z PULI deskryptorow (nie ze
     // starej maski param_write — ta traci read->write gdy param czytany
@@ -1448,6 +1512,13 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     }
     for (k, _) in feat.ublkcp.iter().enumerate() {
         ev.push((feat.ublkcp[k], 20, Ev::McUblkcp(k)));
+    }
+    // mk40: store-matrix (ST.E/STL) + mini-slownik korpusowy.
+    for (k, _) in feat.store2.iter().enumerate() {
+        ev.push((feat.store2[k].0, 20, Ev::Store2(k)));
+    }
+    for (k, _) in feat.mini2.iter().enumerate() {
+        ev.push((feat.mini2[k].0, 20, Ev::Mini2(k)));
     }
     for (k, _) in feat.plop3_tx.iter().enumerate() {
         ev.push((feat.plop3_tx[k].0, 20, Ev::McPlop3(k)));
@@ -1675,6 +1746,8 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 _ => &crate::mercury::MERC_TMA_C,
             }),
             Ev::ShiftAt(_) => out.extend_from_slice(&REC_SHIFT_REGION),
+            Ev::Store2(k) => out.extend_from_slice(&rec_store2(feat.store2[k])),
+            Ev::Mini2(k) => out.extend_from_slice(&feat.mini2[k].1.to_le_bytes()),
             Ev::Utca(k) => {
                 match feat.utca[k].1 {
                     0 => {
@@ -2310,6 +2383,12 @@ pub fn generate_mercury_full(
     // mk35: ISETP z operandem UR (bez .EX) — mini 42 10 32 14 zastepuje
     // wezel t4, lane bez bitu (nvcc bar_if2 g5b).
     for &l in &meta.merc_isetp_ur {
+        bit0.insert(l);
+    }
+    // mk40: mini-slownik korpusowy (FFMA2/HADD2/F2I.U64.FT/...): rekord
+    // zastepuje wezel t4 — lane bez bitu (inwarinat EXACT count-match;
+    // residuum: FFMA2 22% lanow z bitem wg korpusu = flag-rule mk41).
+    for &(l, _) in &meta.merc_mini2 {
         bit0.insert(l);
     }
     // debug mk30: wypisz bit0/dialekt pod CUBIT_DEBUG_MC=1

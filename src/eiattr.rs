@@ -590,6 +590,22 @@ pub struct KernelMeta {
     pub merc_redux: Vec<(u32, u8, u8)>,
     /// mk35: dst-reg loadu c[0x358] (wariant cbank (b10,b11)=(dreg<<6)|3).
     pub merc_cbank358_dreg: Option<u8>,
+    /// mk40 (store-matrix z korpusu sm_100, analysis/merclab/mk40): lane'y
+    /// ST.E (generic, rekord 0238 b2=2a b3=32) i STL (local, b2=20 b3=06).
+    /// Krotki: (lane, cls 1=ST.E/2=STL, wsel 0=U8/1=U16/2=4B/3=64/4=128,
+    /// areg [0xffff=N/A], dur [0xffff=brak desc], dreg [0x3ff=RZ], imm, b4
+    /// = 0xf8 bez guarda / (pidx<<3)|neg).
+    /// STG zostaje w legacy merc_stg_* (rekord 0238 0e32 nie ruszony).
+    pub merc_store2: Vec<(u32, u8, u8, u16, u16, u16, i32, u8)>,
+    /// mk40: mini-slownik korpusowy per-lane (klasy z EXACT count-match,
+    /// mk40/minidict): (lane, rekord-mini jako u32 LE). Klasy tracked
+    /// kasuja bit bitmapy (rekord zastepuje wezel t4); untracked dodaja
+    /// tylko rekord. Emisja lane-sorted tier 20.
+    pub merc_mini2: Vec<(u32, u32)>,
+    /// mk40: per-STG width (0=U8 1=U16 2=4B 3=64 4=128), rownolegle do
+    /// merc_stg_pos; puste = legacy (kernel-globalne stg_u8/wide/w128 —
+    /// laboratoria jednolite pod tym wzgledem; korpus mieszany).
+    pub merc_stg_wsel: Vec<u8>,
 }
 
 
@@ -663,6 +679,9 @@ impl KernelMeta {
             merc_utca: Vec::new(),
             merc_atom_smem: Vec::new(),
             merc_bra_selfloop: Vec::new(),
+            merc_store2: Vec::new(),
+            merc_mini2: Vec::new(),
+            merc_stg_wsel: Vec::new(),
             merc_wwide_sites: Vec::new(),
             merc_cgsites: Vec::new(),
             merc_cgmasks: Vec::new(),
@@ -1094,6 +1113,9 @@ mod tests {
             merc_utca: Vec::new(),
             merc_atom_smem: Vec::new(),
             merc_bra_selfloop: Vec::new(),
+            merc_store2: Vec::new(),
+            merc_mini2: Vec::new(),
+            merc_stg_wsel: Vec::new(),
             merc_wwide_sites: Vec::new(),
             merc_cgsites: Vec::new(),
             merc_cgmasks: Vec::new(),
