@@ -229,7 +229,8 @@ pub fn kernel_def_to_meta(
     let merc_utca = merc_utca_scan(&def.instructions);
     let merc_atom_smem = merc_atom_smem_scan(&def.instructions);
     let merc_stg_ser = merc_stg_series(&def.instructions);
-    let (merc_stg_dreg, merc_stg_dur, merc_stg_guard, merc_stg_areg) = merc_stg_meta(&def.instructions);
+    let (merc_stg_dreg, merc_stg_dur, merc_stg_guard, merc_stg_areg, merc_stg_wsel) =
+        merc_stg_meta(&def.instructions);
     let merc_mma = merc_mma_scan(&def.instructions);
     let merc_f64imm = merc_f64imm_scan(&def.instructions);
     let merc_pad_pos: Vec<u32> = def
@@ -298,6 +299,9 @@ pub fn kernel_def_to_meta(
 
     // mk30: rodziny b_* (SYNCS/mbarrier/TMA/minis) — glowny skan.
     let mc = merc_mc_scan(&def.instructions);
+    // mk40: store-matrix (ST.E/STL) + mini-slownik korpusowy.
+    let merc_store2 = merc_store2_scan(&def.instructions);
+    let merc_mini2 = merc_mini2_scan(&def.instructions);
     // mk35: skan pomocniczy (dst-reg siatki rec desc/0132, guardy BAR, ...).
     let m35 = merc_mk35_scan(&def.instructions);
     let m35_dreg_map: std::collections::HashMap<u32, u8> =
@@ -350,6 +354,7 @@ pub fn kernel_def_to_meta(
         merc_stg_dur,
         merc_stg_guard,
         merc_stg_areg,
+        merc_stg_wsel,
         merc_mma,
         merc_f64imm,
         merc_pad_pos,
@@ -378,6 +383,8 @@ pub fn kernel_def_to_meta(
         merc_utca,
         merc_atom_smem,
         merc_bra_selfloop,
+        merc_store2,
+        merc_mini2,
         // nvcc (EIATTR 0x31): liste site'ow warp-wide emituje tylko gdy
         // kernel zawiera VOTEU (fit na 119 kernelach labu: 5/5 z VOTEU maja
         // atrybut, zaden bez VOTEU).
@@ -504,17 +511,32 @@ fn merc_exec_positions(
 /// == seria R5+2n). dur: desc-UR -> (b17,b18) = (dur<<6)|2 (fala A:
 /// UR6 -> 0x0182 dla k_lds/v_sm*/k_smem). guard: @Pn -> b4=00,
 /// @!Pn -> b4=01, brak -> f8 (jak w rekordzie 0229; d_ifearly_stg).
-fn merc_stg_meta(instructions: &[Instruction]) -> (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>) {
+fn merc_stg_meta(
+    instructions: &[Instruction],
+) -> (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>) {
     // mk12 (kursor) + fala A: per-STG (dreg danych, desc-UR, wariant guardu).
+    // mk40: + wsel (width per-STG; korpus miesza szerokosci w kernelu).
     let mut dreg = Vec::new();
     let mut dur = Vec::new();
     let mut guard = Vec::new();
     let mut areg = Vec::new();
+    let mut wsel = Vec::new();
     for ins in instructions {
         if ins.opcode != "STG" {
             continue;
         }
         let txt = ins.raw_text.trim_end_matches([';', ' ']);
+        wsel.push(if ins.opcode_full.contains(".128") {
+            4
+        } else if ins.opcode_full.contains(".64") {
+            3
+        } else if ins.opcode_full.contains(".U16") || ins.opcode_full.contains(".S16") {
+            1
+        } else if ins.opcode_full.contains(".U8") || ins.opcode_full.contains(".S8") {
+            0
+        } else {
+            2
+        });
         let tail = txt.rsplit(',').next().unwrap_or("").trim();
         let d = if tail == "RZ" {
             255u8
@@ -566,7 +588,7 @@ fn merc_stg_meta(instructions: &[Instruction]) -> (Vec<u8>, Vec<u8>, Vec<u8>, Ve
         let g: u8 = if t.starts_with("@!") { 2 } else if t.starts_with('@') { 1 } else { 0 };
         guard.push(g);
     }
-    (dreg, dur, guard, areg)
+    (dreg, dur, guard, areg, wsel)
 }
 
 fn merc_stg_series(instructions: &[Instruction]) -> Vec<u8> {
@@ -1535,4 +1557,138 @@ fn merc_param_scan(
      ldgconst,
      load_flags,
      atom_pool_hits.into_iter().collect())
+}
+
+/// mk40 (korpus sm_100; analysis/merclab/mk40/stgfields.rs, EXACT fits):
+/// slownik klas mini-rekordow 4B emitowanych per-lane. Rekord = LE u32
+/// bajtow b0..b3. Wszystkie te klasy maja w korpusie bit bitmapy = 0
+/// (rekord zastepuje wezel t4); klasy untracked (BREAK/PREEXIT/BAR) bit=0
+/// z definicji tracked-listy.
+pub fn merc_mini2_scan(instructions: &[Instruction]) -> Vec<(u32, u32)> {
+    let mut out: Vec<(u32, u32)> = Vec::new();
+    for ins in instructions {
+        let lane = (ins.addr / 16) as u32;
+        let full = ins.opcode_full.as_str();
+        let m = match ins.opcode.as_str() {
+            "FFMA2" => 0x26140d42,                    // 42 0d 14 26 (EXACT)
+            "HADD2" => 0x0a260c41,                    // 41 0c 26 0a (HADD2+HADD2.BF16 EXACT)
+            "BREAK" => 0x0a000541,                    // 41 05 00 0a (EXACT, untracked)
+            "PREEXIT" => 0x0a026241,                  // 41 62 02 0a (EXACT, untracked)
+            "BAR" if full.contains(".ARV") => 0x16124741, // 41 47 12 16 (EXACT, untracked)
+            "F2I" if full.starts_with("F2I.U64.TRUNC") => 0x45241241, // 41 12 24 45
+            "F2F" if full.starts_with("F2F.BF16.F32") => 0x0a0e1241,  // 41 12 0e 0a
+            "IMAD" if full == "IMAD.WIDE.U32.X" => 0x06342042,        // 42 20 34 06
+            "UIMAD" if full == "UIMAD.WIDE.U32.X" => 0x06382042,      // 42 20 38 06
+            _ => continue,
+        };
+        out.push((lane, m));
+    }
+    out.sort_by_key(|&(l, _)| l);
+    out
+}
+
+/// mk40: store-matrix (mk40/stgfields): lane'y ST.E (rekord 0238 b2=0x2a,
+/// b3=0x32) i STL (b2=0x20, b3=0x06). STG zostaje na legacy merc_stg_*.
+/// Krotki: (lane, cls, wsel, areg, dur, dreg, imm, b4) z dokladnoscia do
+/// nieznanych pol opisanych w eiattr.rs: merc_store2.
+pub fn merc_store2_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u16, u16, u16, i32, u8)> {
+    let mut out = Vec::new();
+    for ins in instructions {
+        let cls: u8 = match ins.opcode.as_str() {
+            "ST" => 1,
+            "STL" => 2,
+            _ => continue,
+        };
+        let lane = (ins.addr / 16) as u32;
+        let full = ins.opcode_full.as_str();
+        if full.contains("ENL2") {
+            continue; // mk40-park: ENL2.256 (28 rekordow w korpusie)
+        }
+        let wsel: u8 = if full.contains(".128") {
+            4
+        } else if full.contains(".64") {
+            3
+        } else if full.contains(".U16") || full.contains(".S16") {
+            1
+        } else if full.contains(".U8") || full.contains(".S8") {
+            0
+        } else {
+            2
+        };
+        // parse operandow z raw_text: adres = ostatnia grupa [...]
+        let t = ins.raw_text.as_str();
+        let mut dur: u16 = 0xffff;
+        let mut areg: u16 = 0xffff;
+        let mut dreg: u16 = 0x3ff;
+        let mut imm: i32 = 0;
+        if let Some(dp) = t.find("desc[UR") {
+            let rest = &t[dp + 7..];
+            if let Some(end) = rest.find(']') {
+                if let Ok(v) = rest[..end].trim().parse::<u16>() {
+                    dur = v.min(0x3ff);
+                }
+            }
+        }
+        if let Some(lb) = t.rfind('[') {
+            if let Some(rb) = t[lb..].find(']') {
+                let inner = &t[lb + 1..lb + rb];
+                // token R<num> na poczatku (np. "R2.64+0x4", "R98", "R9+UR4")
+                let bytes = inner.as_bytes();
+                if bytes.first() == Some(&b'R') {
+                    let mut k = 1;
+                    while k < bytes.len() && bytes[k].is_ascii_digit() {
+                        k += 1;
+                    }
+                    if let Ok(v) = inner[1..k].parse::<u16>() {
+                        areg = v.min(0x3ff);
+                    }
+                }
+                // imm: "+0x.." lub "+-0x.." (bez UR-skladnika)
+                if let Some(pl) = inner.rfind('+') {
+                    let tail = &inner[pl + 1..];
+                    if !tail.starts_with('U') {
+                        let tail = tail.trim();
+                        let neg = tail.starts_with('-');
+                        let tt = tail.trim_start_matches('-');
+                        if let Ok(v) = i32::from_str_radix(
+                            tt.trim_start_matches("0x"),
+                            if tt.starts_with("0x") { 16 } else { 10 },
+                        ) {
+                            imm = if neg { -v } else { v };
+                        }
+                    }
+                }
+                // dreg: pierwszy token R<num>|RZ po zamykajacym ']'
+                let after = &t[lb + rb + 1..];
+                if let Some(cm) = after.find(',') {
+                    let tok = after[cm + 1..]
+                        .split(',')
+                        .next()
+                        .unwrap_or("")
+                        .trim()
+                        .trim_end_matches(';');
+                    if tok == "RZ" {
+                        dreg = 0x3ff;
+                    } else if let Some(rn) = tok.strip_prefix('R') {
+                        if let Ok(v) = rn.parse::<u16>() {
+                            dreg = v.min(0x3ff);
+                        }
+                    }
+                }
+            }
+        }
+        let b4: u8 = match &ins.guard {
+            Some(g) if g.pred != 7 => {
+                let mut v = g.pred << 3;
+                if g.negated {
+                    v |= 1;
+                }
+                v
+            }
+            _ => 0xf8,
+        };
+        out.push((lane, cls, wsel, areg, dur, dreg, imm, b4));
+    }
+    out.sort_by_key(|r| r.0);
+    out
 }

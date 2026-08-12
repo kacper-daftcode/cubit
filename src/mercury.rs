@@ -274,6 +274,10 @@ pub fn opcode_tracked_hint(op: &str) -> bool {
             | "S2R"
             | "S2UR"
             | "STG"
+            // mk40: store-matrix — ST.E/STL dostaja rekordy 0238 (b2=2a/20),
+            // zastepuja wezel t4: lane bez bitu (korpus mk40 stg-fields).
+            | "ST"
+            | "STL"
             | "REDG"
             | "RED"
             | "ATOMG"

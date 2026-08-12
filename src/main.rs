@@ -1300,6 +1300,9 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_ldgsts_pin: Vec::new(),
         merc_ldgsts_wait: Vec::new(),
         merc_bra_selfloop: Vec::new(),
+        merc_store2: Vec::new(),
+        merc_mini2: Vec::new(),
+        merc_stg_wsel: Vec::new(),
         merc_wwide_sites: Vec::new(),
         merc_cgsites: Vec::new(),
         merc_cgmasks: Vec::new(),
@@ -2220,6 +2223,10 @@ fn cmd_asm_build_elf(
                     let mut load_dregs35: Vec<u8> = Vec::new();
                     let mut bar_guard35: Vec<u8> = Vec::new();
                     let mut isetp_ur35: Vec<u32> = Vec::new();
+                    // mk40: lustra merc_store2_scan / merc_mini2_scan / wsel.
+                    let mut store2m: Vec<(u32, u8, u8, u16, u16, u16, i32, u8)> = Vec::new();
+                    let mut mini2m: Vec<(u32, u32)> = Vec::new();
+                    let mut stg_wselv: Vec<u8> = Vec::new();
                     let mut redux35: Vec<(u32, u8, u8)> = Vec::new();
                     let mut cbank358_dreg35: Option<u8> = None;
                     for (ii, (_addr, asm)) in insns.iter().enumerate() {
@@ -2253,6 +2260,135 @@ fn cmd_asm_build_elf(
                         // 42 10 32 14 w lane (nvcc bar_if2 n05).
                         if base0 == "ISETP" && body.contains(".NE") && !body.contains(".EX") && body.contains(", UR") {
                             isetp_ur35.push(ii as u32);
+                        }
+                        // mk40 (lustro): mini-slownik korpusowy per-lane.
+                        let mini40: u32 = match base0 {
+                            "FFMA2" => 0x26140d42,
+                            "HADD2" => 0x0a260c41,
+                            "BREAK" => 0x0a000541,
+                            "PREEXIT" => 0x0a026241,
+                            "BAR" if m2.get(1).map(|x| x.as_str()).unwrap_or("").contains(".ARV") => 0x16124741,
+                            "F2I" if m2.get(1).map(|x| x.as_str()).unwrap_or("").starts_with("F2I.U64.TRUNC") => 0x45241241,
+                            "F2F" if m2.get(1).map(|x| x.as_str()).unwrap_or("").starts_with("F2F.BF16.F32") => 0x0a0e1241,
+                            "IMAD" if m2.get(1).map(|x| x.as_str()).unwrap_or("") == "IMAD.WIDE.U32.X" => 0x06342042,
+                            "UIMAD" if m2.get(1).map(|x| x.as_str()).unwrap_or("") == "UIMAD.WIDE.U32.X" => 0x06382042,
+                            _ => 0,
+                        };
+                        if mini40 != 0 {
+                            mini2m.push((ii as u32, mini40));
+                        }
+                        // mk40 (lustro): wsel per-STG (width; mieszane korpusy)
+                        if base0 == "STG" {
+                            let opf = m2.get(1).map(|x| x.as_str()).unwrap_or("");
+                            stg_wselv.push(if opf.contains(".128") {
+                                4
+                            } else if opf.contains(".64") {
+                                3
+                            } else if opf.contains(".U16") || opf.contains(".S16") {
+                                1
+                            } else if opf.contains(".U8") || opf.contains(".S8") {
+                                0
+                            } else {
+                                2
+                            });
+                        }
+                        // mk40 (lustro): store-matrix ST.E/STL.
+                        if base0 == "ST" || base0 == "STL" {
+                            let opf = m2.get(1).map(|x| x.as_str()).unwrap_or("");
+                            if !opf.contains("ENL2") {
+                                let wsel: u8 = if opf.contains(".128") {
+                                    4
+                                } else if opf.contains(".64") {
+                                    3
+                                } else if opf.contains(".U16") || opf.contains(".S16") {
+                                    1
+                                } else if opf.contains(".U8") || opf.contains(".S8") {
+                                    0
+                                } else {
+                                    2
+                                };
+                                let mut dur: u16 = 0xffff;
+                                let mut areg: u16 = 0xffff;
+                                let mut dreg: u16 = 0x3ff;
+                                let mut imm: i32 = 0;
+                                if let Some(dp) = body.find("desc[UR") {
+                                    let rest9 = &body[dp + 7..];
+                                    if let Some(end) = rest9.find(']') {
+                                        if let Ok(v) = rest9[..end].trim().parse::<u16>() {
+                                            dur = v.min(0x3ff);
+                                        }
+                                    }
+                                }
+                                if let Some(lb) = body.rfind('[') {
+                                    if let Some(rb2) = body[lb..].find(']') {
+                                        let inner = &body[lb + 1..lb + rb2];
+                                        let bb = inner.as_bytes();
+                                        if bb.first() == Some(&b'R') {
+                                            let mut k = 1;
+                                            while k < bb.len() && bb[k].is_ascii_digit() {
+                                                k += 1;
+                                            }
+                                            if let Ok(v) = inner[1..k].parse::<u16>() {
+                                                areg = v.min(0x3ff);
+                                            }
+                                        }
+                                        if let Some(pl) = inner.rfind('+') {
+                                            let tail = inner[pl + 1..].trim();
+                                            if !tail.starts_with('U') {
+                                                let neg = tail.starts_with('-');
+                                                let tt = tail.trim_start_matches('-');
+                                                if let Ok(v) = i32::from_str_radix(
+                                                    tt.trim_start_matches("0x"),
+                                                    if tt.starts_with("0x") { 16 } else { 10 },
+                                                ) {
+                                                    imm = if neg { -v } else { v };
+                                                }
+                                            }
+                                        }
+                                        let after = &body[lb + rb2 + 1..];
+                                        if let Some(cm) = after.find(',') {
+                                            let tok = after[cm + 1..]
+                                                .split(',')
+                                                .next()
+                                                .unwrap_or("")
+                                                .trim()
+                                                .trim_end_matches(';');
+                                            if tok == "RZ" {
+                                                dreg = 0x3ff;
+                                            } else if let Some(rn) = tok.strip_prefix('R') {
+                                                if let Ok(v) = rn.parse::<u16>() {
+                                                    dreg = v.min(0x3ff);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                // b4: (pidx<<3)|neg dla STL; ST.E zawsze f8
+                                // (korpus mk40/stgfields); emisja decyduje w
+                                // elf_builder szablonem 2a/20.
+                                let gk = body
+                                    .split_whitespace()
+                                    .next()
+                                    .unwrap_or("");
+                                let b4: u8 = if gk.starts_with('@')
+                                    && gk != "@PT"
+                                    && gk != "@UPT"
+                                {
+                                    let neg = gk.starts_with("@!");
+                                    let digits: String = gk
+                                        .trim_start_matches('@')
+                                        .trim_start_matches('!')
+                                        .trim_start_matches('P')
+                                        .chars()
+                                        .take_while(|c| c.is_ascii_digit())
+                                        .collect();
+                                    let pidx = digits.parse::<u8>().unwrap_or(0);
+                                    ((pidx.min(7)) << 3) | (neg as u8)
+                                } else {
+                                    0xf8
+                                };
+                                store2m.push((ii as u32, if base0 == "ST" { 1 } else { 2 }, wsel, areg, dur, dreg, imm, b4));
+                            }
                         }
                         // mk35 (lustro): 0132-rekordy tylko dla typowanego
                         // REDUX i CREDUX; goly REDUX = bit (zob. bitmap).
@@ -2714,6 +2850,9 @@ fn cmd_asm_build_elf(
                         meta.merc_param_load_dreg = load_dregs35.clone();
                         meta.merc_bar_guard = bar_guard35.clone();
                         meta.merc_isetp_ur = isetp_ur35.clone();
+                        meta.merc_store2 = store2m;
+                        meta.merc_mini2 = mini2m;
+                        meta.merc_stg_wsel = stg_wselv;
                         meta.merc_redux = redux35.clone();
                         meta.merc_cbank358_dreg = cbank358_dreg35;
                     }
