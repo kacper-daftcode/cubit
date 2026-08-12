@@ -399,7 +399,7 @@ pub struct KernelMeta {
     pub merc_xor: Vec<(u32, u32, u32, u32, u8)>,
     /// Mercury: per-STG natychmiastowy offset adresu ([Rx.64+0x..]) w bajtach
     /// — trafia do bajta 28 rekordu 02 38 (fs10-grid 2026-08-05).
-    pub merc_stg_off: Vec<u32>,
+    pub merc_stg_off: Vec<i32>,
     /// Mercury mk10b: per-STG pakiet kursora serii: bit7=null-tail
     /// (value==RZ, off==0), bity[6:0] = indeks w serii blokowej (reset na
     /// krawedziach cflow: targety skokow + po EXIT/RET/CALL/BRA/BRX/itd.).
@@ -465,6 +465,9 @@ pub struct KernelMeta {
     /// Mercury mk13: enum SR per lane S2R (rownolegle do merc_s2r_lanes) —
     /// bajt b12 anchor-rekordu 010b040a (mk13; patrz mercury::merc_s2r_sr_enum).
     pub merc_s2r_sr: Vec<u8>,
+    /// mk41: pelny kod predykatu per lane S2R (rownolegle merc_s2r_lanes);
+    /// 0xf8 = bez guarda. Rekord-anchor 010b040a nosi b4=guard.
+    pub merc_s2r_guard: Vec<u8>,
     /// Mercury mk17a: numer R dest per S2R (rownolegle do merc_s2r_lanes/
     /// merc_s2r_sr) — payload f4 anchor-rekordu 010b040a = (dest<<6)|1.
     /// Puste = legacy fallback na bramkowany anchor_f4 (iter AE model).
@@ -563,7 +566,8 @@ pub struct KernelMeta {
     /// HFMA2 z oboma zrodlami RZ + imm (stala materializacja): bez bitu.
     pub merc_hfma2_const: Vec<u32>,
     /// mk30: S2UR ?, SR_CgaCtaId: (lane, guarded) — rekord 010b060a per lane.
-    pub merc_s2ur_cga: Vec<(u32, bool)>,
+    /// mk41: (lane, guarded, dst-UR) — payload smem-anchora z dst.
+    pub merc_s2ur_cga: Vec<(u32, bool, u8)>,
     /// mk30: lane'y BSYNC (zamkniecie spanu BSSY) — rekord 51+010109 regionu.
     pub merc_bsync_close: Vec<u32>,
     /// mk30b: ULEA prologu mbarrier (dest == addr EXCH, imm 0x18) — bez bitu.
@@ -582,6 +586,12 @@ pub struct KernelMeta {
     /// mk35: ISETP.NE z operandem UR, bez .EX — mini 42 10 32 14, bez bitu
     /// (bar_if2 lane5; 1-probkowe, node-blob g5b tag 02103214 flag0).
     pub merc_isetp_ur: Vec<u32>,
+    /// mk41: minis XSETP-par EX (korpu/lab): (lane HEAD-a, klasa taga).
+    /// klasa: 0=42102e14 (para czysto-rejestrowa), 1=42103006 (imm w head),
+    /// 2=42103214 (operand UR w parze). Head-lane traci bit bitmapy.
+    pub merc_xsetp_pairs: Vec<(u32, u8)>,
+    /// mk41: zrodlo sm_100 (marker ;; era=sm100 przez disasm --frozen).
+    pub merc_era100: bool,
     /// mk35: rekordy 0132 lane-sorted: (lane, kind, dreg);
     /// kind 0 = REDUX.*-typowane (b6=4d), 1 = CREDUX (b6=51, b13=01);
     /// dreg = numer docelowego UR -> grid [10:12]=(dreg<<6)|1.
@@ -665,6 +675,7 @@ impl KernelMeta {
             merc_param_loads: Vec::new(),
             merc_cbank_lane: None,
             merc_s2r_lanes: Vec::new(),
+            merc_s2r_guard: Vec::new(),
             merc_predmem: false,
             merc_guarded_bra: Vec::new(),
             merc_ldgconst: Vec::new(),
@@ -711,6 +722,8 @@ impl KernelMeta {
             merc_param_load_dreg: Vec::new(),
             merc_bar_guard: Vec::new(),
             merc_isetp_ur: Vec::new(),
+            merc_xsetp_pairs: Vec::new(),
+            merc_era100: false,
             merc_redux: Vec::new(),
             merc_cbank358_dreg: None,
             merc_atoms: Vec::new(),
@@ -1099,6 +1112,7 @@ mod tests {
             merc_param_loads: Vec::new(),
             merc_cbank_lane: None,
             merc_s2r_lanes: Vec::new(),
+            merc_s2r_guard: Vec::new(),
             merc_predmem: false,
             merc_guarded_bra: Vec::new(),
             merc_ldgconst: Vec::new(),
@@ -1145,6 +1159,8 @@ mod tests {
             merc_param_load_dreg: Vec::new(),
             merc_bar_guard: Vec::new(),
             merc_isetp_ur: Vec::new(),
+            merc_xsetp_pairs: Vec::new(),
+            merc_era100: false,
             merc_redux: Vec::new(),
             merc_cbank358_dreg: None,
             merc_atoms: Vec::new(),

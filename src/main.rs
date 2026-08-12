@@ -940,7 +940,10 @@ fn cmd_disassemble(
         }
     }
 
-    let out = lines.join("\n") + "\n";
+    // mk41: marker ery zrodla capmerc (era-100 vs 103a roznia sie w
+    // niektorych mini-klasach). Czytane z powrotem przez parser sass.
+    let era_hdr = if frozen && cubin.sm.sm == 100 { ";; era=sm100\n" } else { "" };
+    let out = format!("{era_hdr}{}\n", lines.join("\n"));
     if let Some(path) = output_path {
         std::fs::write(path, &out)?;
         println!("Written {} lines to {}", lines.len(), path.display());
@@ -1289,6 +1292,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_xor_reg: Vec::new(),
         merc_bar_args: Vec::new(),
         merc_s2r_sr: Vec::new(),
+        merc_s2r_guard: Vec::new(),
         merc_s2r_dest: Vec::new(),
         merc_load_flags: Vec::new(),
         merc_atom_pool_hits: Vec::new(),
@@ -1332,6 +1336,8 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_param_load_dreg: Vec::new(),
         merc_bar_guard: Vec::new(),
         merc_isetp_ur: Vec::new(),
+        merc_xsetp_pairs: Vec::new(),
+        merc_era100: false,
         merc_redux: Vec::new(),
         merc_cbank358_dreg: None,
     }
@@ -1967,7 +1973,7 @@ fn cmd_asm_build_elf(
                 .unwrap();
                 let mut xor_lanes: Vec<(u32, u32, u32, u32, u8)> = Vec::new();
                 let mut xor_reg_l: Vec<(u32, u32, u32, u32, u8)> = Vec::new();
-                let mut stg_off: Vec<u32> = Vec::new();
+                let mut stg_off: Vec<i32> = Vec::new();
                 let mut stg_dreg: Vec<u8> = Vec::new();
                 let mut stg_dur: Vec<u8> = Vec::new();
                 let mut stg_guard: Vec<u8> = Vec::new();
@@ -2052,11 +2058,29 @@ fn cmd_asm_build_elf(
                     }
                     if base0 == "STG" {
                         stg_pos.push(ii as u32);
-                        let off = match clean.find(".64+0x") {
-                            Some(k) => {
-                                let h = &clean[k + 6..];
-                                let e = h.find(']').unwrap_or(h.len());
-                                u32::from_str_radix(&h[..e], 16).unwrap_or(0)
+                        // mk41: imm z ostatniego '[' — dowolna szerokosc + '+-0x..'
+                        let off: i32 = match clean.rfind('[') {
+                            Some(lb) => {
+                                let rb = clean[lb..].find(']').map(|k| lb + k).unwrap_or(clean.len());
+                                let inner = &clean[lb + 1..rb];
+                                match inner.rfind('+') {
+                                    Some(pl) => {
+                                        let tail = inner[pl + 1..].trim();
+                                        if tail.starts_with('U') {
+                                            0
+                                        } else {
+                                            let neg = tail.starts_with('-');
+                                            let tt = tail.trim_start_matches('-');
+                                            i32::from_str_radix(
+                                                tt.trim_start_matches("0x"),
+                                                if tt.starts_with("0x") { 16 } else { 10 },
+                                            )
+                                            .map(|v| if neg { -v } else { v })
+                                            .unwrap_or(0)
+                                        }
+                                    }
+                                    None => 0,
+                                }
                             }
                             None => 0,
                         };
@@ -2109,7 +2133,26 @@ fn cmd_asm_build_elf(
                             .unwrap_or(4);
                         stg_dur.push(dur8);
                         let tt8 = clean.trim_start();
-                        stg_guard.push(if tt8.starts_with("@!") { 2 } else if tt8.starts_with('@') { 1 } else { 0 });
+                        let g8: u8 = {
+                            if !tt8.starts_with('@') {
+                                0xf8
+                            } else {
+                                let neg = tt8.starts_with("@!");
+                                let rest = tt8[1 + (neg as usize)..].trim_start();
+                                if rest.starts_with("PT") || rest.starts_with("UPT") {
+                                    0xf8
+                                } else {
+                                    let unif = rest.starts_with('U');
+                                    let r2 = if unif { &rest[1..] } else { rest };
+                                    let r3 = if let Some(x) = r2.strip_prefix('P') { x } else { r2 };
+                                    let digits: String =
+                                        r3.chars().take_while(|c| c.is_ascii_digit()).collect();
+                                    let idx = digits.parse::<u8>().unwrap_or(0).min(7);
+                                    (idx << 3) | if unif { 2 } else { 0 } | (neg as u8)
+                                }
+                            }
+                        };
+                        stg_guard.push(g8);
                     }
                     let parts: Vec<String> = rest
                         .split(',')
@@ -2222,7 +2265,12 @@ fn cmd_asm_build_elf(
                     // mk35: lustra sass_file::merc_mk35_scan
                     let mut load_dregs35: Vec<u8> = Vec::new();
                     let mut bar_guard35: Vec<u8> = Vec::new();
+                    let mut s2r_guard35: Vec<u8> = Vec::new();
                     let mut isetp_ur35: Vec<u32> = Vec::new();
+                    // mk41: XSETP-pary (lustro sass_file::merc_xsetp_scan)
+                    let mut xsetp_pairs35: Vec<(u32, u8)> = Vec::new();
+                    let mut xsetp_lastp: std::collections::HashMap<String, (u32, bool, bool)> =
+                        std::collections::HashMap::new();
                     // mk40: lustra merc_store2_scan / merc_mini2_scan / wsel.
                     let mut store2m: Vec<(u32, u8, u8, u16, u16, u16, i32, u8)> = Vec::new();
                     let mut mini2m: Vec<(u32, u32)> = Vec::new();
@@ -2246,6 +2294,28 @@ fn cmd_asm_build_elf(
                         } else {
                             0
                         };
+                        // mk41: pelny kod predykatu (lustro merc_guard_code):
+                        // 0xf8 brak; @Pn -> n<<3; @!Pn -> n<<3|1; UPn -> |2.
+                        let guard_fc: u8 = {
+                            let b2 = body.trim_start();
+                            if !b2.starts_with('@') {
+                                0xf8
+                            } else {
+                                let neg = b2.starts_with("@!");
+                                let rest = b2[1 + (neg as usize)..].trim_start();
+                                if rest.starts_with("PT") || rest.starts_with("UPT") {
+                                    0xf8
+                                } else {
+                                    let unif = rest.starts_with('U');
+                                    let r2 = if unif { &rest[1..] } else { rest };
+                                    let r3 = if let Some(x) = r2.strip_prefix('P') { x } else { r2 };
+                                    let digits: String =
+                                        r3.chars().take_while(|c| c.is_ascii_digit()).collect();
+                                    let idx = digits.parse::<u8>().unwrap_or(0).min(7);
+                                    (idx << 3) | if unif { 2 } else { 0 } | (neg as u8)
+                                }
+                            }
+                        };
                         let m2 = match re_tok.captures(body) {
                             Some(x) => x,
                             None => continue,
@@ -2254,12 +2324,53 @@ fn cmd_asm_build_elf(
                         let rest = m2.get(2).map(|x| x.as_str()).unwrap_or("");
                         // mk35: BAR guard (rownolegle do bar_pos z petli-1)
                         if base0 == "BAR" {
-                            bar_guard35.push(guard_m);
+                            bar_guard35.push(guard_fc);
                         }
-                        // mk35 (lustro): ISETP z operandem UR bez .EX — mini
-                        // 42 10 32 14 w lane (nvcc bar_if2 n05).
-                        if base0 == "ISETP" && body.contains(".NE") && !body.contains(".EX") && body.contains(", UR") {
-                            isetp_ur35.push(ii as u32);
+                        // mk41: para ISETP(non-EX)+ISETP.EX -> mini na head.
+                        // (zastepuje zawezona regule mk35 NE+UR-noEX.)
+                        if base0 == "ISETP" {
+                            // body zaczyna sie od opkodu+gwardu? guard piklej
+                            // strip zrobiony wyzej (body po ...); odciete nizej
+                            let body_xs = match body.find(char::is_whitespace) {
+                                Some(k) => body[k..].trim_start(),
+                                None => continue,
+                            };
+                            let toks: Vec<&str> = body_xs.split(',').map(|s| s.trim().trim_end_matches(';').trim_end()).collect();
+                            let dstp = toks.first().copied().unwrap_or("");
+                            if dstp.starts_with('P') && dstp != "PT" {
+                                let has_ur = {
+                                    let b = body.as_bytes();
+                                    let mut f = false;
+                                    let mut i = 0;
+                                    while i + 2 < b.len() {
+                                        if b[i] == b'U' && b[i + 1] == b'R' && b[i + 2].is_ascii_digit()
+                                            && (i == 0 || !(b[i - 1].is_ascii_alphanumeric() || b[i - 1] == b'_'))
+                                        {
+                                            f = true;
+                                        }
+                                        i += 1;
+                                    }
+                                    f
+                                };
+                                let has_imm = toks.iter().skip(1).any(|tk| {
+                                    let tk = tk.trim();
+                                    tk.starts_with("0x")
+                                        || tk.starts_with("-0x")
+                                        || tk
+                                            .trim_start_matches('-')
+                                            .chars()
+                                            .all(|c| c.is_ascii_digit())
+                                            && !tk.is_empty()
+                                });
+                                if body.contains(".EX") {
+                                    let last = toks.last().copied().unwrap_or("").trim_start_matches('!');
+                                    if let Some(&(hlane, hu, hi)) = xsetp_lastp.get(last) {
+                                        xsetp_pairs35.push((hlane, if hu || has_ur { 2u8 } else if hi { 1 } else { 0 }));
+                                    }
+                                } else {
+                                    xsetp_lastp.insert(dstp.to_string(), (ii as u32, has_ur, has_imm));
+                                }
+                            }
                         }
                         // mk40 (lustro): mini-slownik korpusowy per-lane.
                         let mini40: u32 = match base0 {
@@ -2409,6 +2520,7 @@ fn cmd_asm_build_elf(
                         }
                         if base0 == "S2R" {
                             s2r_lanes.push(ii as u32);
+                            s2r_guard35.push(guard_fc);
                             // mk13: enum SR -> b12 anchor-rekordu
                             let sr_full = match rest.split("SR_").nth(1) {
                                 Some(t) => {
@@ -2452,7 +2564,7 @@ fn cmd_asm_build_elf(
                                 // offset rel = off-0x380, nie indeks 8B (pi).
                                 let rel = off - 0x380;
                                 let unif: u8 = if &cap[1] == "LDCU" { 1 } else { 0 };
-                                loads.push((ii as u32, rel, unif, wv, guard_m));
+                                loads.push((ii as u32, rel, unif, wv, guard_fc));
                                 // mk35: dst-reg loadu (rownolegle do loads).
                                 let ddb = cap[3].trim_start_matches(['R', 'U']);
                                 load_dregs35.push(ddb.parse::<u32>().ok().map(|v| v.min(255) as u8).unwrap_or(255));
@@ -2679,6 +2791,7 @@ fn cmd_asm_build_elf(
                     meta.merc_cbank_lane = cbank_lane;
                     meta.merc_s2r_lanes = s2r_lanes;
                     meta.merc_s2r_sr = s2r_sr;
+                    meta.merc_s2r_guard = s2r_guard35;
                     meta.merc_s2r_dest = s2r_dest;
                     meta.merc_ldgconst = ldgconst;
                     meta.merc_predmem = predmem;
@@ -2850,6 +2963,7 @@ fn cmd_asm_build_elf(
                         meta.merc_param_load_dreg = load_dregs35.clone();
                         meta.merc_bar_guard = bar_guard35.clone();
                         meta.merc_isetp_ur = isetp_ur35.clone();
+                        meta.merc_xsetp_pairs = xsetp_pairs35.clone();
                         meta.merc_store2 = store2m;
                         meta.merc_mini2 = mini2m;
                         meta.merc_stg_wsel = stg_wselv;

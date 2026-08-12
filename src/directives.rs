@@ -69,6 +69,9 @@ pub struct KernelResources {
     pub params: Vec<KernelParam>,
     /// Shared memory declarations.
     pub shared: Vec<SharedMemDecl>,
+    /// mk41: marker ery zrodla z `;; era=sm100` (disasm --frozen):
+    /// era-100 ptxas-pipeline rozni sie od 103a w niektorych klasach mini.
+    pub era100: bool,
 }
 
 impl KernelResources {
