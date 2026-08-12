@@ -34,7 +34,7 @@ fn mb_meta() -> KernelMeta {
         merc_mc_d1: vec![(8, true)],
         merc_mc_nodeless: vec![9, 10],
         merc_mc_voteu_all: vec![5, 12],
-        merc_s2ur_cga: vec![(6, true), (23, false)],
+        merc_s2ur_cga: vec![(6, true, 6), (23, false, 5)],
         merc_ws_minis: vec![(22, 0x6e)],
         merc_mc_lea18: vec![18],
         // celowo ustawione: mk34 ma IGNOROWAC te pole (MOV-400 ma wezel z
@@ -98,7 +98,7 @@ fn mk34_bulk_cp_bitmap_node_model() {
         merc_mc_exch: vec![(19, false, 7, 4)],
         merc_mc_d1: vec![(11, false)],
         merc_mc_nodeless: vec![12, 13, 18],
-        merc_s2ur_cga: vec![(5, false), (31, false)],
+        merc_s2ur_cga: vec![(5, false, 5), (31, false, 5)],
         merc_plop3_tx: vec![(7, 0), (26, 1), (27, 2)],
         merc_ublkcp: vec![25],
         merc_bsync_close: vec![30],

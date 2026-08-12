@@ -46,7 +46,7 @@ fn desc_role(cm: &CapMerc) -> (u8, u8) {
 #[test]
 fn mk35_role_grid_reg8() {
     // REG-path 8B load z dst R4 -> (b10,b11) = (4<<6)|3 = (03,01)
-    let m = meta_with_loads(vec![(1, 0, 0, 8, 0)], vec![4]);
+    let m = meta_with_loads(vec![(1, 0, 0, 8, 0xf8)], vec![4]);
     let o = ops(8);
     let out = generate_mercury_full(&dummy_code(8), 0x0c, Some(&o), &m, false);
     let cm = CapMerc::parse(&out, true).unwrap();
@@ -56,7 +56,7 @@ fn mk35_role_grid_reg8() {
 #[test]
 fn mk35_role_grid_unif16() {
     // UNIF 16B load z dst UR8 -> (07,02)
-    let m = meta_with_loads(vec![(1, 0, 1, 16, 0)], vec![8]);
+    let m = meta_with_loads(vec![(1, 0, 1, 16, 0xf8)], vec![8]);
     let o = ops(8);
     let out = generate_mercury_full(&dummy_code(8), 0x0c, Some(&o), &m, false);
     let cm = CapMerc::parse(&out, true).unwrap();
@@ -69,7 +69,7 @@ fn mk35_redux_bare_vs_typed() {
     let mut o = ops(4);
     o[1] = "LDC".into();
     o[2] = "REDUX".into();
-    let m = meta_with_loads(vec![(1, 0, 0, 8, 0)], vec![2]);
+    let m = meta_with_loads(vec![(1, 0, 0, 8, 0xf8)], vec![2]);
     let out = generate_mercury_full(&dummy_code(4), 0x0c, Some(&o), &m, false);
     let cm = CapMerc::parse(&out, true).unwrap();
     assert!(cm.set_bits().contains(&2), "goly REDUX trzyma bit");
@@ -84,7 +84,7 @@ fn mk35_credux_record_payload() {
     let mut o = ops(4);
     o[1] = "LDC".into();
     o[2] = "CREDUX.MIN.S32".into();
-    let mut m = meta_with_loads(vec![(1, 0, 0, 8, 0)], vec![2]);
+    let mut m = meta_with_loads(vec![(1, 0, 0, 8, 0xf8)], vec![2]);
     m.merc_redux = vec![(2, 1, 5)];
     let out = generate_mercury_full(&dummy_code(4), 0x0c, Some(&o), &m, false);
     let cm = CapMerc::parse(&out, true).unwrap();
@@ -107,10 +107,10 @@ fn mk35_bar_guard_ladder() {
     o[1] = "LDC".into();
     o[3] = "BAR.SYNC".into(); // @P
     o[4] = "BAR.SYNC".into(); // bez guarda
-    let mut m = meta_with_loads(vec![(1, 0, 0, 8, 0)], vec![2]);
+    let mut m = meta_with_loads(vec![(1, 0, 0, 8, 0xf8)], vec![2]);
     m.num_barriers = 2;
     m.merc_bar_pos = vec![3, 4];
-    m.merc_bar_guard = vec![1, 0];
+    m.merc_bar_guard = vec![0x00u8, 0xf8]; // mk41: pelne kody
     let out = generate_mercury_full(&dummy_code(8), 0x0c, Some(&o), &m, false);
     let cm = CapMerc::parse(&out, true).unwrap();
     let bars: Vec<&cubit::mercury::Record> = cm
@@ -128,7 +128,7 @@ fn mk35_isetp_ur_mini_no_bit() {
     let mut o = ops(6);
     o[1] = "LDC".into();
     o[2] = "ISETP.NE.U32.AND".into();
-    let mut m = meta_with_loads(vec![(1, 0, 0, 8, 0)], vec![2]);
+    let mut m = meta_with_loads(vec![(1, 0, 0, 8, 0xf8)], vec![2]);
     m.merc_isetp_ur = vec![2];
     let out = generate_mercury_full(&dummy_code(6), 0x0c, Some(&o), &m, false);
     let cm = CapMerc::parse(&out, true).unwrap();

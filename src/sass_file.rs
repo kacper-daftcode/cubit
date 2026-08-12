@@ -46,8 +46,15 @@ pub fn parse_sass_file_str(text: &str) -> anyhow::Result<SassFile> {
     let mut current_res = KernelResources::default();
     let mut body_lines: Vec<String> = Vec::new();
 
+    let mut file_era100 = false;
+
     for line in text.lines() {
         let t = line.trim();
+
+        if t.starts_with(";; era=sm100") {
+            file_era100 = true;
+            continue;
+        }
 
         // Skip blank lines and comments at top level
         if t.is_empty() || t.starts_with("//") || t.starts_with('#') {
@@ -74,6 +81,7 @@ pub fn parse_sass_file_str(text: &str) -> anyhow::Result<SassFile> {
             let name = rest.trim().to_string();
             current_name = Some(name);
             current_res = KernelResources::default();
+            current_res.era100 = file_era100;
             body_lines.clear();
             continue;
         }
@@ -304,6 +312,9 @@ pub fn kernel_def_to_meta(
     let merc_mini2 = merc_mini2_scan(&def.instructions);
     // mk35: skan pomocniczy (dst-reg siatki rec desc/0132, guardy BAR, ...).
     let m35 = merc_mk35_scan(&def.instructions);
+    // mk41: bramka rodziny dla lea18 (przed borrowami w literalu KernelMeta).
+    let mf_lea_gate =
+        !(mc.exch.is_empty() && mc.arrive.is_empty() && mc.phase.is_empty());
     let m35_dreg_map: std::collections::HashMap<u32, u8> =
         m35.load_dreg.iter().copied().collect();
     let m35_bar_map: std::collections::HashMap<u32, u8> =
@@ -314,7 +325,7 @@ pub fn kernel_def_to_meta(
         .collect();
     let m35_bar_guard_par: Vec<u8> = merc_bar_pos
         .iter()
-        .map(|&lane| m35_bar_map.get(&lane).copied().unwrap_or(0))
+        .map(|&lane| m35_bar_map.get(&lane).copied().unwrap_or(0xf8))
         .collect();
 
     KernelMeta {
@@ -361,6 +372,12 @@ pub fn kernel_def_to_meta(
         merc_param_loads,
         merc_cbank_lane,
         merc_s2r_lanes,
+        merc_s2r_guard: def
+            .instructions
+            .iter()
+            .filter(|i| i.opcode == "S2R")
+            .map(|i| merc_guard_code(i.guard.as_ref()))
+            .collect(),
         merc_predmem,
         merc_ldgconst,
         merc_load_flags,
@@ -400,7 +417,24 @@ pub fn kernel_def_to_meta(
         merc_mc_ushf_fin: mc.ushf_fin,
         merc_mc_voteu_all: mc.voteu_all,
         merc_mc_mov400: mc.mov400,
-        merc_mc_lea18: mc.lea18,
+        // mk41 (rozbicie bramki korpusowo-labowej):
+        //  era-100 && !m-family -> mini dla LEA I ULEA z 0x18 (korpus sm_100);
+        //  m-family            -> tylko LEA-0x18 (mk30, mkvmem* itd.);
+        //  era-103a bez famil  -> brak mini (k_lds: ULEA bez minia).
+        // mk41 stan: mini 4100000a dla site'ow LEA ..., 0x18:
+        //  - era-103a: jak przed mk41 (mk30: tylko m-family; ULEA nigdy).
+        //  - era-100 : m-family -> LEA; poza m-family -> tez LEA (korpus).
+        //  ULEA-0x18: NIEPEWNE (mkvmem2.sm_100 brak minia vs xlab ulea z nim)
+        //  — parked (mk41-resid).
+        merc_mc_lea18: {
+            let m_family = mf_lea_gate;
+            if m_family || def.resources.era100 {
+                mc.lea18.clone()
+            } else {
+                Vec::new()
+            }
+        },
+        merc_era100: def.resources.era100,
         merc_ws_minis: mc.ws,
         merc_uvcount: mc.uvcount,
         merc_umov_rr: mc.umov_rr,
@@ -417,6 +451,7 @@ pub fn kernel_def_to_meta(
         merc_param_load_dreg: m35_load_dreg_par,
         merc_bar_guard: m35_bar_guard_par,
         merc_isetp_ur: m35.isetp_ur,
+        merc_xsetp_pairs: merc_xsetp_scan(&def.instructions),
         merc_redux: m35.redux,
         merc_cbank358_dreg: m35.cbank358_dreg,
     }
@@ -438,11 +473,11 @@ fn merc_select_dynldg(instructions: &[Instruction]) -> bool {
 
 fn merc_exec_positions(
     instructions: &[Instruction],
-) -> (Vec<u32>, Vec<u32>, Vec<u32>, Vec<(u32, u32)>) {
+) -> (Vec<u32>, Vec<u32>, Vec<i32>, Vec<(u32, u32)>) {
     let mut bar_pos = Vec::new();
     let mut bar_args = Vec::new();
     let mut stg_pos = Vec::new();
-    let mut stg_off = Vec::new();
+    let mut stg_off: Vec<i32> = Vec::new();
     for ins in instructions {
         let slot = (ins.addr / 16) as u32;
         match ins.opcode.as_str() {
@@ -478,12 +513,24 @@ fn merc_exec_positions(
             }
             "STG" => {
                 stg_pos.push(slot);
-                // [Rx.64+0x..] — imm w slicie adresowym
-                let off = match ins.raw_text.find(".64+0x") {
-                    Some(k) => {
-                        let h = &ins.raw_text[k + 6..];
-                        let e = h.find(']').unwrap_or(h.len());
-                        u32::from_str_radix(&h[..e], 16).unwrap_or(0)
+                // mk41: imm z ostatniego nawiasu [R..64(+0x..|+-0x..)] —
+                // dowolna szerokosc transferu i ujemne przesuniecia.
+                let off: i32 = match ins.raw_text.rfind('[') {
+                    Some(lb) => {
+                        let rb = ins.raw_text[lb..].find(']').map(|k| lb + k).unwrap_or(ins.raw_text.len());
+                        let inner = &ins.raw_text[lb + 1..rb];
+                        match inner.rfind('+') {
+                            Some(pl) => {
+                                let tail = inner[pl + 1..].trim();
+                                if tail.starts_with('U') { 0 } else {
+                                    let neg = tail.starts_with('-');
+                                    let tt = tail.trim_start_matches('-');
+                                    i32::from_str_radix(tt.trim_start_matches("0x"),
+                                        if tt.starts_with("0x") { 16 } else { 10 }).map(|v| if neg { -v } else { v }).unwrap_or(0)
+                                }
+                            }
+                            None => 0,
+                        }
                     }
                     None => 0,
                 };
@@ -511,6 +558,25 @@ fn merc_exec_positions(
 /// == seria R5+2n). dur: desc-UR -> (b17,b18) = (dur<<6)|2 (fala A:
 /// UR6 -> 0x0182 dla k_lds/v_sm*/k_smem). guard: @Pn -> b4=00,
 /// @!Pn -> b4=01, brak -> f8 (jak w rekordzie 0229; d_ifearly_stg).
+
+/// mk41: pelny kod predykatu rekordow capmerc: 0xf8 = brak guarda,
+/// @Pn -> (n<<3), @!Pn -> (n<<3)|1, @UPn -> (n<<3)|2, @!UPn -> (n<<3)|3.
+pub fn merc_guard_code(g: Option<&crate::ir::Guard>) -> u8 {
+    match g {
+        Some(g) if !(g.pred == 7 && !g.negated) => {
+            let mut v = g.pred << 3;
+            if g.uniform {
+                v |= 2;
+            }
+            if g.negated {
+                v |= 1;
+            }
+            v
+        }
+        _ => 0xf8,
+    }
+}
+
 fn merc_stg_meta(
     instructions: &[Instruction],
 ) -> (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>) {
@@ -584,8 +650,16 @@ fn merc_stg_meta(
             out
         };
         areg.push(a);
-        let t = txt.trim_start();
-        let g: u8 = if t.starts_with("@!") { 2 } else if t.starts_with('@') { 1 } else { 0 };
+        // mk41: pelny kod predykatu (0xf8 = brak, Pn<<3|neg / UPn<<3|2|neg)
+        let g: u8 = match &ins.guard {
+            Some(g) if !(g.pred == 7 && !g.negated) => {
+                let mut v = g.pred << 3;
+                if g.uniform { v |= 2; }
+                if g.negated { v |= 1; }
+                v
+            }
+            _ => 0xf8,
+        };
         guard.push(g);
     }
     (dreg, dur, guard, areg, wsel)
@@ -796,6 +870,8 @@ pub struct MercMcScan {
     pub voteu_all: Vec<u32>,            // VOTEU.*.ALL lanes (mini 414c)
     pub mov400: Vec<u32>,               // MOV Rn, 0x400 w rodzinie mbarrier
     pub lea18: Vec<u32>,                // LEA R0, R*, R0, 0x18 (mini 4100)
+    /// mk41: ULEA ..., 0x18 — mini tylko w erze-100.
+    pub ulea18: Vec<u32>,
     pub ws: Vec<(u32, u8)>,             // WARPSYNC.ALL: (lane, 0x76/0x6e)
     pub uvcount: Vec<u32>,              // UVIRTCOUNT.DEALLOC (mini 4144)
     pub umov_rr: Vec<u32>,              // UMOV URx, URy (mini 4100-10)
@@ -803,7 +879,7 @@ pub struct MercMcScan {
     pub plop3_tx: Vec<(u32, u8)>,       // PLOP3 expect_tx: (lane, 0/1/2 = A/B/C)
     pub fence_async: Vec<u32>,          // FENCE.*ASYNC* lanes
     pub ldgsts_b128: bool,              // LDGSTS .128 (pinned-blob wariant)
-    pub s2ur_cga: Vec<(u32, bool)>,     // S2UR ?, SR_CgaCtaId: (lane, guarded)
+    pub s2ur_cga: Vec<(u32, bool, u8)>, // S2UR ?, SR_CgaCtaId: (lane, guarded, dstUR) mk41
     pub bsync_close: Vec<u32>,          // BSYNC lanes (rekord 51-010109 regionu)
     pub hfma2_const: Vec<u32>,          // HFMA2 R?,RZ,RZ,<imm> (bez bitu)
     pub ulea_x: Vec<u32>,               // ULEA ... 0x18 z dest == EXCH addr UR (bit 0)
@@ -849,12 +925,7 @@ pub fn merc_mk35_scan(instructions: &[Instruction]) -> MercMk35 {
     };
     for ins in instructions {
         let lane = (ins.addr / 16) as u32;
-        let guard: u8 = match &ins.guard {
-            None => 0,
-            Some(g) => {
-                if g.pred == 7 && !g.negated { 0 } else if g.negated { 2 } else { 1 }
-            }
-        };
+        let guard: u8 = merc_guard_code(ins.guard.as_ref());
         let base = ins.opcode.as_str();
         let full = ins.opcode_full.as_str();
         let t = ins.raw_text.as_str();
@@ -886,9 +957,10 @@ pub fn merc_mk35_scan(instructions: &[Instruction]) -> MercMk35 {
                 }
             }
         }
-        if base == "ISETP" && full.contains(".NE") && !full.contains(".EX") && t.contains(", UR") { // mk35a: tylko NE (k_atom EQ+UR ma bit!)
-            o.isetp_ur.push(lane);
-        }
+        // mk41: regula mk35 (NE+UR bez .EX) WYGASZONA — falszywie zakladala
+        // mini na pojedynczym ISETP; prawdziwe zrodlo = para z .EX
+        // (merc_xsetp_scan). Pole isetp_ur zostaje puste.
+        let _ = (base, full, t);
         if base == "REDUX" {
             // gole REDUX (full=="REDUX") = stary warp-vote: bit, bez rekordu;
             // typowane -> rekord 0132 z dst-grid. at_and vs p_redux (mk35).
@@ -915,6 +987,92 @@ pub fn merc_mk35_scan(instructions: &[Instruction]) -> MercMk35 {
         }
     }
     o
+}
+
+/// mk41: para ISETP(non-EX) [head] + ISETP.*.EX [tail] -> JEDEN mini na lane
+/// heada. Klasy: 0=para czysto-rejestrowa (42102e14); 1=imm w head (42103006);
+/// 2=operand UR w parze (42103214). Head kasuje bit bitmapy.
+/// (Zmiana mk35: poprzednia regula NE+UR-noEX strzelala faux w korpusie.)
+pub fn merc_xsetp_scan(instructions: &[Instruction]) -> Vec<(u32, u8)> {
+    let mut last_by_p: std::collections::HashMap<String, (u32, bool, bool)> =
+        std::collections::HashMap::new();
+    let mut out: Vec<(u32, u8)> = Vec::new();
+    for ins in instructions {
+        if ins.opcode != "ISETP" {
+            continue;
+        }
+        let full = ins.opcode_full.as_str();
+        let b0 = ins.raw_text.as_str().trim_start();
+        let body = match b0.strip_prefix('@') {
+            Some(r) => r
+                .split_once(char::is_whitespace)
+                .map(|(_, x)| x.trim_start())
+                .unwrap_or(b0),
+            None => b0,
+        };
+        // odcinam slowo opkodu (opcode ze spacja-przed operandami)
+        let body_ops = match body.find(char::is_whitespace) {
+            Some(k) => body[k..].trim_start(),
+            None => continue,
+        };
+        let toks: Vec<&str> = body_ops.split(',').map(|s| s.trim().trim_end_matches(';').trim_end()).collect();
+        if toks.is_empty() {
+            continue;
+        }
+        let dst_pred = toks[0];
+        if !dst_pred.starts_with('P') || dst_pred == "PT" {
+            continue;
+        }
+        let has_ur = {
+            let mut found = false;
+            for m in regex_like_ur(body) {
+                found = true;
+                let _ = m;
+            }
+            found
+        };
+        let has_imm = toks.iter().skip(1).any(|tk| {
+            let tk = tk.trim();
+            tk.starts_with("0x")
+                || tk.starts_with("-0x")
+                || tk
+                    .trim_start_matches('-')
+                    .chars()
+                    .all(|c| c.is_ascii_digit())
+                    && !tk.is_empty()
+        });
+        if full.contains(".EX") {
+            let last = toks.last().copied().unwrap_or("").trim_start_matches('!');
+            if let Some(&(hlane, h_ur, h_imm)) = last_by_p.get(last) {
+                let cls: u8 = if h_ur || has_ur { 2 } else if h_imm { 1 } else { 0 };
+                out.push((hlane, cls));
+            }
+        } else {
+            last_by_p.insert(
+                dst_pred.to_string(),
+                ((ins.addr / 16) as u32, has_ur, has_imm),
+            );
+        }
+    }
+    out.sort_by_key(|x| x.0);
+    out
+}
+
+/// mk41: wykrycie operandu UR<num> (nie URZ — to stala) w tekscie instrukcji.
+fn regex_like_ur(body: &str) -> Vec<()> {
+    let b = body.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i + 2 < b.len() {
+        if b[i] == b'U' && b[i + 1] == b'R' && b[i + 2].is_ascii_digit() {
+            let prev_ok = i == 0 || !(b[i - 1].is_ascii_alphanumeric() || b[i - 1] == b'_');
+            if prev_ok {
+                out.push(());
+            }
+        }
+        i += 1;
+    }
+    out
 }
 
 pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
@@ -963,8 +1121,11 @@ pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
             "UIADD3" if t.contains("0x100000") => o.uiadd3_1m.push((lane, guarded)),
             "VOTEU" if ins.opcode_full.contains(".ALL") => o.voteu_all.push(lane),
             "MOV" if t.contains(", 0x400") => o.mov400.push(lane),
-            "LEA" if t.contains(", 0x18") && !ins.opcode_full.contains("HI") => {
-                o.lea18.push(lane)
+            // mk41: mini 4100000a = kazdy LEA/ULEA z imm 0x18 (korpus sm_100:
+            // nr_orow == n_sitow w 90%+; mk30-wyjasnienie po m-family bylo
+            // artefaktem bramki SYNCS).
+            x if (x == "LEA" || x == "ULEA") && t.contains(", 0x18") && !ins.opcode_full.contains("HI") => {
+                if x == "ULEA" { o.ulea18.push(lane) } else { o.lea18.push(lane) }
             }
             "UMOV" => {
                 // strip prowadzacy guard @.. (frozen/surowy tekst z pikladem)
@@ -993,7 +1154,18 @@ pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
                 }
             }
             "LDGSTS" if ins.opcode_full.contains(".128") => o.ldgsts_b128 = true,
-            "S2UR" if t.contains("SR_CgaCtaId") => o.s2ur_cga.push((lane, guarded)),
+            "S2UR" if t.contains("SR_CgaCtaId") => {
+                // mk41: dst UR z tekstu (S2UR UR5, SR_CgaCtaId) — payload
+                // smem-anchora (b10,b11) = (dstUR<<6)|1.
+                let d = t.find("S2UR").and_then(|k| {
+                    let r = &t[k + 4..];
+                    r.find("UR").and_then(|u| {
+                        let ds: String = r[u + 2..].chars().take_while(|c| c.is_ascii_digit()).collect();
+                        ds.parse::<u32>().ok().map(|v| v.min(255) as u8)
+                    })
+                }).unwrap_or(5);
+                o.s2ur_cga.push((lane, guarded, d))
+            }
             "BSYNC" => o.bsync_close.push(lane),
             "HFMA2" if t.matches("RZ").count() >= 2 => o.hfma2_const.push(lane),
             _ => {}
@@ -1037,10 +1209,9 @@ pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
         o.nodeless.sort_unstable();
         o.nodeless.dedup();
     }
-    // lea18 mini: tylko w rodzinie mbarrier (dowolna SYNCS-klasa).
-    if o.exch.is_empty() && o.arrive.is_empty() && o.phase.is_empty() {
-        o.lea18.clear();
-    }
+    // mk41 ODSLOWIENIE bramki mk30: korpus sm_100 ma mini 4100000a przy
+    // KAZDYM LEA/ULEA ..., 0x18 (rekord-count == site-count; 90%+ kerneli).
+    // Bramka m-family mk30 = artefakt probkowania.
     // mk34 ODSLOWIENIE (node-model g5b): ulea_x/bra_np_loop zostaja puste —
     // patrz adnotacja przy McScanOut.nodeless w mercury.rs.
     // WARPSYNC.ALL minis: b2 = 0x6e gdy w (lane, next-ws] jest BAR.SYNC.
@@ -1282,18 +1453,7 @@ fn merc_param_scan(
             None => t_full,
         };
         let lane = (ins.addr / 16) as u32;
-        let guard_v: u8 = match &ins.guard {
-            None => 0,
-            Some(g) => {
-                if g.pred == 7 && !g.negated {
-                    0
-                } else if g.negated {
-                    2
-                } else {
-                    1
-                }
-            }
-        };
+        let guard_v: u8 = merc_guard_code(ins.guard.as_ref());
         let base0 = ins.opcode_full.split('.').next().unwrap_or("");
         if base0 == "S2R" {
             s2r_lanes.push(lane);
@@ -1459,7 +1619,7 @@ fn merc_param_scan(
         );
         let mut stg_binding: Option<u32> = None;
         if is_mem {
-            if guard_v != 0 {
+            if guard_v != 0xf8 {
                 predmem = true;
             }
             for (rn, pi, pidx) in &reg_of {
@@ -1680,6 +1840,9 @@ pub fn merc_store2_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u16, 
         let b4: u8 = match &ins.guard {
             Some(g) if g.pred != 7 => {
                 let mut v = g.pred << 3;
+                if g.uniform {
+                    v |= 2;
+                }
                 if g.negated {
                     v |= 1;
                 }

@@ -450,6 +450,8 @@ pub fn merc_s2r_sr_enum(sr: &str) -> u8 {
         // mk28: SR_CgaCtaId -> 0x2c (E2E b_cluster/b_mbarrier/b_tcgen05;
         // b12 rekordu anchor 010b040a = enum SR czytanego przez S2R).
         "SR_CgaCtaId" => 0x2c,
+        "SR_SWINHI" => 0x2d,
+        // mk41: korpus sm_100 010b040a b12: SWINHI=0x2d (2751/6071 exact-par)
         _ => 1,
     }
 }
@@ -637,6 +639,8 @@ pub struct McScanOut {
     pub voteu_all: Vec<u32>,
     pub mov400: Vec<u32>,
     pub lea18: Vec<u32>,
+    /// mk41: ULEA ..., 0x18 (era-100 tylko; wybor przy budowie meta).
+    pub ulea18: Vec<u32>,
     pub ws: Vec<(u32, u8)>,
     pub uvcount: Vec<u32>,
     pub umov_rr: Vec<u32>,
@@ -644,7 +648,8 @@ pub struct McScanOut {
     pub plop3_tx: Vec<(u32, u8)>,
     pub fence_async: Vec<u32>,
     pub ldgsts_b128: bool,
-    pub s2ur_cga: Vec<(u32, bool)>,
+    /// mk41: (lane, guarded, dst-UR) — payload smem-anchora z dst.
+    pub s2ur_cga: Vec<(u32, bool, u8)>,
     pub bsync_close: Vec<u32>,
     pub hfma2_const: Vec<u32>,
     pub ulea_x: Vec<u32>,
@@ -665,6 +670,7 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
         voteu_all: Vec::new(),
         mov400: Vec::new(),
         lea18: Vec::new(),
+        ulea18: Vec::new(),
         ws: Vec::new(),
         uvcount: Vec::new(),
         umov_rr: Vec::new(),
@@ -715,7 +721,7 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
             "UIADD3" if t.contains("0x100000") => o.uiadd3_1m.push((lane, it.guarded)),
             "VOTEU" if it.full.contains(".ALL") => o.voteu_all.push(lane),
             "MOV" if t.contains(", 0x400") => o.mov400.push(lane),
-            "LEA" if t.contains(", 0x18") && !it.full.contains("HI") => o.lea18.push(lane),
+            x if (x == "LEA" || x == "ULEA") && t.contains(", 0x18") && !it.full.contains("HI") => { if x == "ULEA" { o.ulea18.push(lane) } else { o.lea18.push(lane) } },
             "UMOV" => {
                 let body = t.trim();
                 let rest = body.trim_start_matches("UMOV").trim_start();
@@ -738,7 +744,18 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
                 }
             }
             "LDGSTS" if it.full.contains(".128") => o.ldgsts_b128 = true,
-            "S2UR" if t.contains("SR_CgaCtaId") => o.s2ur_cga.push((lane, it.guarded)),
+            "S2UR" if t.contains("SR_CgaCtaId") => {
+                // mk41: dst UR z tekstu — payload smem-anchora (dstUR<<6)|1.
+                let d = {
+                    let tt = it.text.as_str();
+                    let body = tt.find("S2UR").map(|k| &tt[k + 4..]).unwrap_or(tt);
+                    body.find("UR").and_then(|u| {
+                        let ds: String = body[u + 2..].chars().take_while(|c| c.is_ascii_digit()).collect();
+                        ds.parse::<u32>().ok().map(|v| v.min(255) as u8)
+                    }).unwrap_or(5)
+                };
+                o.s2ur_cga.push((lane, it.guarded, d))
+            }
             "BSYNC" => o.bsync_close.push(lane),
             "HFMA2" if t.matches("RZ").count() >= 2 => o.hfma2_const.push(lane),
             _ => {}
@@ -766,7 +783,6 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
     }
     if o.exch.is_empty() && o.arrive.is_empty() && o.phase.is_empty() {
         o.mov400.clear();
-        o.lea18.clear();
         o.nodeless.clear(); // para ushf poza m-family nie obowiazuje
         o.nodeless.shrink_to_fit();
     } else if o.exch.is_empty() {

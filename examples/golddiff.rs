@@ -30,15 +30,15 @@ fn meta_for(g: &GoldRow) -> KernelMeta {
         merc_param_width: (0..8).map(|i| ((g.pwid >> (8 * i)) & 0xff) as u8).collect(),
         merc_dynldg: g.dynldg == 1, merc_bar_pos: g.barpos.to_vec(), merc_bar_args: g.barg.to_vec(),
         merc_stg_pos: g.stgseq.to_vec(), merc_xor: g.pxor.to_vec(),
-        merc_stg_off: g.stgoff.to_vec(),
+        merc_stg_off: g.stgoff.iter().map(|&v| v as i32).collect(),
         merc_stg_ser: g.stgser.to_vec(),
         merc_stg_dreg: g.dreg.to_vec(),
         merc_stg_dur: g.dur.to_vec(),
-        merc_stg_guard: g.guard.to_vec(),
+        merc_stg_guard: g.guard.iter().map(|&v| match v { 1 => 0x00u8, 2 => 0x01, _ => 0xf8 }).collect(),
         merc_mma: g.mma.to_vec(),
         merc_f64imm: g.f64i.to_vec(),
         merc_pad_pos: g.pads.to_vec(),
-        merc_param_loads: g.loads.to_vec(),
+        merc_param_loads: g.loads.iter().map(|&(ln, pi, u, w, g2)| (ln, pi, u, w, match g2 { 1 => 0x00u8, 2 => 0x01, _ => 0xf8u8 })).collect::<Vec<_>>(),
         merc_cbank_lane: if g.cblane >= 0 { Some(g.cblane as u32) } else { None },
         merc_s2r_lanes: g.s2r.to_vec(),
         merc_predmem: g.predmem != 0,
@@ -64,7 +64,7 @@ fn meta_for(g: &GoldRow) -> KernelMeta {
         has_bssy: false,
         merc_s2ur_cga: g.ops.iter().enumerate()
             .filter(|(_, o)| o.starts_with("S2UR"))
-            .map(|(i, _)| (i as u32, false))
+            .map(|(i, _)| (i as u32, false, 5u8))
             .collect(),
         ..Default::default()
     }

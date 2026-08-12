@@ -267,7 +267,7 @@ pub struct MercFeatures {
     pub xor_lanes: Vec<(u32, u32, u32, u32, u8)>,
     /// Per-STG natychmiastowy offset adresu (bajty; bajt 28 rekordu 02 38;
     /// fs10-grid 2026-08-05).
-    pub stg_off: Vec<u32>,
+    pub stg_off: Vec<i32>,
     /// mk10b: per-STG pakiet (nulltail<<7)|series_idx-z-blokow (sass scan).
     /// Uzywane TYLKO gdy wszystkie dp==0 (same-desc seria), inaczej legacy.
     pub stg_ser: Vec<u8>,
@@ -312,6 +312,8 @@ pub struct MercFeatures {
     /// mk13: enum SR per anchor-S2R (rownolegle do s2r_lanes) — b12 rekordu
     /// 010b040a (korpus: LANEID=0 -> b12=0 TID.X=1 CTAID.X=4 LTMASK=8).
     pub s2r_sr: Vec<u8>,
+    /// mk41: pelny kod guarda per S2R (0xf8 domyslnie).
+    pub s2r_guard: Vec<u8>,
     /// mk17a: numer R dest per anchor-S2R (rownolegle do s2r_lanes/s2r_sr) —
     /// payload f4 rekordu 010b040a bajty [10:11] = (dest<<6)|1. Empiria
     /// mk20-oraculum: 90/90 anchorow. Krotki/pusty wektor = fallback na
@@ -395,7 +397,9 @@ pub struct MercFeatures {
     pub plop3_tx: Vec<(u32, u8)>,
     pub fence_async: Vec<u32>,
     pub ldgsts_b128: bool,
-    pub s2ur_cga: Vec<(u32, bool)>,
+    /// mk41: (lane, guarded, dst-UR) dla S2UR SR_CgaCtaId — payload
+    /// smem-anchora b10/b11 = (dstUR<<6)|1 (corpus-exact smemfit 12151/12151).
+    pub s2ur_cga: Vec<(u32, bool, u8)>,
     pub bsync_close: Vec<u32>,
     pub hfma2_const: Vec<u32>,
     /// mk30b: ULEA prologu mbarrier (dest==addr EXCH) — bez bitu (kasowany).
@@ -410,6 +414,10 @@ pub struct MercFeatures {
     pub bar_guard: Vec<u8>,
     /// mk35: ISETP-UR (bez .EX) — mini 42 10 32 14, bez bitu.
     pub isetp_ur: Vec<u32>,
+    /// mk41: XSETP EX-pair minis: (head-lane, klasa).
+    pub xsetp_pairs: Vec<(u32, u8)>,
+    /// mk41: marker ery zrodla.
+    pub era100: bool,
     /// mk35: redukcyjne rekordy 0132: (lane, kind, dreg); kind 0=REDUX
     /// typowany, 1=CREDUX. Goly REDUX nie dostaje rekordu (bit zostaje).
     pub redux: Vec<(u32, u8, u8)>,
@@ -468,6 +476,8 @@ impl MercFeatures {
             param_load_dreg: meta.merc_param_load_dreg.clone(),
             bar_guard: meta.merc_bar_guard.clone(),
             isetp_ur: meta.merc_isetp_ur.clone(),
+            xsetp_pairs: meta.merc_xsetp_pairs.clone(),
+            era100: meta.merc_era100,
             redux: meta.merc_redux.clone(),
             cbank358_dreg: meta.merc_cbank358_dreg,
             store2: meta.merc_store2.clone(),
@@ -740,6 +750,7 @@ impl MercFeatures {
         f.predmem = meta.merc_predmem;
         f.lop3_pdest = meta.merc_lop3_pdest.clone();
         f.s2r_sr = meta.merc_s2r_sr.clone();
+        f.s2r_guard = meta.merc_s2r_guard.clone();
         f.s2r_dest = meta.merc_s2r_dest.clone();
         f.load_flags = meta.merc_load_flags.clone();
         f.atom_pool_hits = meta.merc_atom_pool_hits.clone();
@@ -917,8 +928,10 @@ fn rec_store2(st: (u32, u8, u8, u16, u16, u16, i32, u8)) -> [u8; 32]
     };
     if cls == 1 {
         r[0] = 0x02; r[1] = 0x38; r[2] = 0x2a; r[3] = 0x32;
-        r[4] = 0xf8; // ST.E: f8 ZAWSZE (takze przy @Pn) — mk40/stgfields
+        r[4] = _b4; // mk41: ST.E b4 = pelny kod predykatu (korpus; mk40 f8 bylo bledem)
         r[6] = STE_B6[(wsel as usize).min(4)];
+        // mk41: b7=0x01 jest dominanta korpusowa (14066/15000+); warianty
+        // 0x22/0x1a = niepoznany sub-driver (parked; mk41-resid store-b7).
         r[7] = 0x01;
         let a: u16 = ((areg.min(0x3ff)) << 6) | 2;
         r[12..14].copy_from_slice(&a.to_le_bytes());
@@ -1043,13 +1056,13 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize, wire: Option<&[u32]>) -> [u8; 32] 
     stg[20] = (cur >> 8) as u8;
     let dur = feat.stg_dur.get(stg_i).copied().unwrap_or(4) as u16;
     stg[17..19].copy_from_slice(&((dur << 6) | 2).to_le_bytes());
-    match feat.stg_guard.get(stg_i).copied().unwrap_or(0) {
-        1 => stg[4] = 0x00,
-        2 => stg[4] = 0x01,
+    // mk41: pelny kod predykatu (0xf8 = brak); legacy {0,1,2} mapowane.
+    match feat.stg_guard.get(stg_i).copied().unwrap_or(0xf8) {
+        g if g != 0xf8 => stg[4] = g,
         _ => {}
     }
-    let off = feat.stg_off.get(stg_i).copied().unwrap_or(0) as u16;
-    stg[28..30].copy_from_slice(&off.to_le_bytes());
+    let off = feat.stg_off.get(stg_i).copied().unwrap_or(0) as i32;
+    stg[28..32].copy_from_slice(&off.to_le_bytes());
     stg
 }
 
@@ -1226,6 +1239,9 @@ fn mk10c_roles(
 /// mk19: dziedzina BAJTOWA klucza (nie 8*pi) — dowod korpusowy join2/join3
 /// (19666/19666 rekordow: tail == c_off - 0x380; 4B paramy pod 0x384 itd.).
 fn mk10c_rec_desc(ld: (u32, u32, u8, u8, u8), role: (u8, u8)) -> [u8; 32] {
+    // mk41: slot `guard` niesie pelny kod predykatu: 0xf8 = brak,
+    // @Pn -> (n<<3), @!Pn -> (n<<3)|1, @UPn -> (n<<3)|2, @!UPn -> (n<<3)|3
+    // (korpus pred41: desc/store/BAR 99.5%+ zgodne na 570k+ parach).
     let (_, rel, unif, w, guard) = ld;
     let mut d = REC_PARAM_DESC;
     let b6: u8 = match w {
@@ -1238,13 +1254,9 @@ fn mk10c_rec_desc(ld: (u32, u32, u8, u8, u8), role: (u8, u8)) -> [u8; 32] {
     d[6] = b6;
     if unif == 1 {
         d[2] = 0x08;
-        d[4] = 0xfa;
+        d[4] = if guard == 0xf8 { 0xfa } else { guard | 2 };
     } else {
-        d[4] = match guard {
-            1 => 0x00,
-            2 => 0x01,
-            _ => 0xf8,
-        };
+        d[4] = guard;
     }
     d[10] = role.0;
     d[11] = role.1;
@@ -1278,6 +1290,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         XorReg(usize),
         Redux(usize),
         IsetpUr,
+        XsetpPair(u8),
         Syncwarp,
         Atom(usize),
         LdgstsPin,
@@ -1380,7 +1393,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     // Zastepuje legacy-clane gdy s2ur_cga niepuste; wpp legacy jak dawniej.
     let smem_via_s2ur = !feat.s2ur_cga.is_empty();
     if smem_via_s2ur {
-        for (k, &(l, _g)) in feat.s2ur_cga.iter().enumerate() {
+        for (k, &(l, _g, _d)) in feat.s2ur_cga.iter().enumerate() {
             ev.push((l, 20, Ev::SmemCga(k)));
         }
     } else {
@@ -1436,6 +1449,10 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     }
     for &pos in &feat.isetp_ur {
         ev.push((pos, 20, Ev::IsetpUr));
+    }
+    // mk41: para ISETP(non-EX)+ISETP.EX -> JEDEN mini na lane HEAD-a.
+    for &(hl, cls) in &feat.xsetp_pairs {
+        ev.push((hl, 20, Ev::XsetpPair(cls)));
     }
     // mk14: ghost __syncwarp (rekord 01476c0a) — lane ducha-NOP.
     for &pos in &feat.syncwarp {
@@ -1596,6 +1613,10 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::ShiftRegion => out.extend_from_slice(&REC_SHIFT_REGION),
             Ev::Anchor(k) => {
                 let mut cf = anchor_base;
+                // mk41: b4 = pelny kod predykatu lane S2R (korpus: @!Pn -> n<<3|1).
+                if let Some(&g) = feat.s2r_guard.get(k) {
+                    cf[4] = g;
+                }
                 cf[12] = feat.s2r_sr.get(k).copied().unwrap_or(1);
                 // mk17a: f4 = numer R dest S2R tego anchora (mk20: 90/90);
                 // zastepuje bramkowany anchor_base gdy meta niesie skan.
@@ -1610,8 +1631,9 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 let mut br = *bar_rec;
                 // mk35: b4 = guard per-lane (1=@P->00, 2=@!P->01; 0=f8);
                 // nvcc bar_if2 (@P0 BAR -> 00) vs legacy bar_pred-global.
+                // mk41: pelny kod predykatu (0xf8 = brak, Pn<<3|neg...).
                 if let Some(&g) = feat.bar_guard.get(i) {
-                    br[4] = match g { 1 => 0x00, 2 => 0x01, 0 => 0xf8, _ => br[4] };
+                    br[4] = g;
                 }
                 if let Some(&(id, cnt)) = feat.bar_args.get(i) {
                     if id != 0 || cnt != 0 {
@@ -1682,6 +1704,12 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 // -> mini, zajelanej lane bez bitu; klasa 02103214 flag0.
                 &[0x42, 0x10, 0x32, 0x14],
             ),
+            // mk41: tagi mini XSETP-par wg operandow heada/pary
+            // (lab sm_100a i sm_103a identyczne — era-inwariant).
+            Ev::XsetpPair(0) => out.extend_from_slice(&[0x42, 0x10, 0x2e, 0x14]),
+            Ev::XsetpPair(1) => out.extend_from_slice(&[0x42, 0x10, 0x30, 0x06]),
+            Ev::XsetpPair(2) => out.extend_from_slice(&[0x42, 0x10, 0x32, 0x14]),
+            Ev::XsetpPair(_) => out.extend_from_slice(&[0x42, 0x10, 0x2e, 0x14]),
             Ev::Mma(i) => {
                 let m = feat.mma_lanes[i];
                 if crate::mercury::merc_mma_is_mini(m.1) {
@@ -1698,13 +1726,13 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             }
             // mk30: rodziny b_*
             Ev::SmemCga(k) => {
-                let (_l, pred) = feat.s2ur_cga[k];
+                let (_l, pred, dst) = feat.s2ur_cga[k];
                 let mut r = REC_SMEM;
                 if pred {
                     // wariant predykowany (m_init/b_mbarrier): b4=03, b10=c1
                     r[4] = 0x03;
                     r[10] = 0xc1;
-                } else if k == 0
+                } else if k == 0 && dst == 5
                     && !feat.bsync_close.is_empty()
                     && !(feat.mc_exch.is_empty() && feat.mc_arrive.is_empty()
                         && feat.mc_phase.is_empty())
@@ -1714,6 +1742,12 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                     // 0x41 (zgold-test p_ldsm = (41,01)).
                     r[10] = 0x01;
                     r[11] = 0x02;
+                } else if dst != 5 {
+                    // mk41: siatka rol = (dstUR<<6)|1 (korpus sm_100; domysl
+                    // 0x41,01 to dokladnie przypadek dst=5 — bez zmian tam).
+                    let v: u16 = ((dst as u16) << 6) | 1;
+                    r[10] = (v & 0xff) as u8;
+                    r[11] = (v >> 8) as u8;
                 }
                 out.extend_from_slice(&r);
             }
@@ -2392,6 +2426,10 @@ pub fn generate_mercury_full(
     // mk35: ISETP z operandem UR (bez .EX) — mini 42 10 32 14 zastepuje
     // wezel t4, lane bez bitu (nvcc bar_if2 g5b).
     for &l in &meta.merc_isetp_ur {
+        bit0.insert(l);
+    }
+    // mk41: head XSETP-pary traci bit (mini zamiast wezla t4; lab bitmapa).
+    for &(l, _) in &meta.merc_xsetp_pairs {
         bit0.insert(l);
     }
     // mk40: mini-slownik korpusowy (FFMA2/HADD2/F2I.U64.FT/...): rekord
