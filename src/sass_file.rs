@@ -1744,8 +1744,14 @@ pub fn merc_mini2_scan(instructions: &[Instruction]) -> Vec<(u32, u32)> {
             "BREAK" => 0x0a000541,                    // 41 05 00 0a (EXACT, untracked)
             "PREEXIT" => 0x0a026241,                  // 41 62 02 0a (EXACT, untracked)
             "BAR" if full.contains(".ARV") => 0x16124741, // 41 47 12 16 (EXACT, untracked)
-            "F2I" if full.starts_with("F2I.U64.TRUNC") => 0x45241241, // 41 12 24 45
+            // mk43: pisownia nvdisasm (mk40): "F2I.U64.TRUNC"; printer cubit
+            // emituje suffiksy w odwrotnej kolejnosci: "F2I.[FTZ.][NTZ.]TRUNC.U64".
+            "F2I" if full.contains("TRUNC") && full.ends_with(".U64") => 0x45241241, // 41 12 24 45
             "F2F" if full.starts_with("F2F.BF16.F32") => 0x0a0e1241,  // 41 12 0e 0a
+            // mk43: F2FP TF32 (cubit: "F2FP.F32.PACK_B.TF32"; nvdisasm:
+            // F2FP.TF32.F32.PACK) — EXACT 384==384 na 2 kernelach
+            // cutlass_80_tensorop (korpus); bit t4 kasowany jak reszta mini2.
+            "F2FP" if full.contains("TF32") => 0x0b6c1241,
             "IMAD" if full == "IMAD.WIDE.U32.X" => 0x06342042,        // 42 20 34 06
             "UIMAD" if full == "UIMAD.WIDE.U32.X" => 0x06382042,      // 42 20 38 06
             _ => continue,
