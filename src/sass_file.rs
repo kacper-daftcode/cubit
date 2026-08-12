@@ -449,6 +449,7 @@ pub fn kernel_def_to_meta(
         merc_umov_rr: if def.resources.era100 { Vec::new() } else { mc.umov_rr },
         merc_ublkcp: mc.ublkcp,
         merc_plop3_tx: mc.plop3_tx,
+        merc_plop3_rec: mc.plop3_rec,
         merc_fence_async: mc.fence_async,
         merc_ldgsts_b128: mc.ldgsts_b128,
         merc_s2ur_cga: mc.s2ur_cga,
@@ -886,6 +887,8 @@ pub struct MercMcScan {
     pub umov_rr: Vec<u32>,              // UMOV URx, URy (mini 4100-10)
     pub ublkcp: Vec<u32>,               // __raw__ UBLKCP (rekord 02232826)
     pub plop3_tx: Vec<(u32, u8)>,       // PLOP3 expect_tx: (lane, 0/1/2 = A/B/C)
+    /// mk44: generalne rekordy 0110060a (dual-output, bez UP) — (lane, 16B).
+    pub plop3_rec: Vec<(u32, [u8; 16])>,
     pub fence_async: Vec<u32>,          // FENCE.*ASYNC* lanes
     pub ldgsts_b128: bool,              // LDGSTS .128 (pinned-blob wariant)
     pub s2ur_cga: Vec<(u32, bool, u8)>, // S2UR ?, SR_CgaCtaId: (lane, guarded, dstUR) mk41
@@ -1160,6 +1163,10 @@ pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
                     o.plop3_tx.push((lane, 1));
                 } else if !guarded && t.contains("P1, PT, PT, PT, PT, 0x8, 0x80") {
                     o.plop3_tx.push((lane, 2));
+                }
+                // mk44: generyczny rekord 0110060a (korpus EQ 5902/5902).
+                if let Some(r) = crate::mercury::merc_plop3_record(t, merc_guard_code(ins.guard.as_ref())) {
+                    o.plop3_rec.push((lane, r));
                 }
             }
             "LDGSTS" if ins.opcode_full.contains(".128") => o.ldgsts_b128 = true,

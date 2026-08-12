@@ -395,6 +395,7 @@ pub struct MercFeatures {
     pub umov_rr: Vec<u32>,
     pub ublkcp: Vec<u32>,
     pub plop3_tx: Vec<(u32, u8)>,
+    pub plop3_rec: Vec<(u32, [u8; 16])>,
     pub fence_async: Vec<u32>,
     pub ldgsts_b128: bool,
     /// mk41: (lane, guarded, dst-UR) dla S2UR SR_CgaCtaId — payload
@@ -469,6 +470,7 @@ impl MercFeatures {
             umov_rr: meta.merc_umov_rr.clone(),
             ublkcp: meta.merc_ublkcp.clone(),
             plop3_tx: meta.merc_plop3_tx.clone(),
+            plop3_rec: meta.merc_plop3_rec.clone(),
             fence_async: meta.merc_fence_async.clone(),
             ldgsts_b128: meta.merc_ldgsts_b128,
             s2ur_cga: meta.merc_s2ur_cga.clone(),
@@ -1345,7 +1347,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         McMiniUvirt(usize),
         McMiniUmovRR(usize),
         McUblkcp(usize),
-        McPlop3(usize),
+        McPlop3Rec(usize),
         ShiftAt(usize),
         Utca(usize),
         AtomSmem(usize),
@@ -1588,8 +1590,10 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for (k, _) in feat.edge_ld.iter().enumerate() {
         ev.push((feat.edge_ld[k].0, 20, Ev::EdgeLd(k)));
     }
-    for (k, _) in feat.plop3_tx.iter().enumerate() {
-        ev.push((feat.plop3_tx[k].0, 20, Ev::McPlop3(k)));
+    // mk44: generyczne rekordy 0110060a (subsumuja legacy trio A/B/C —
+    // te same bajty); tier 20 jak dotad.
+    for (k, _) in feat.plop3_rec.iter().enumerate() {
+        ev.push((feat.plop3_rec[k].0, 20, Ev::McPlop3Rec(k)));
     }
     // mk30b: UTCA piny + ATOMS z imm [UR+off] takze w sciezce laned
     // (b_tcgen05; mk27 robil to dla zero-param mkvmem).
@@ -1825,11 +1829,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::McMiniUvirt(_) => out.extend_from_slice(&crate::mercury::MERC_MINI_UVIRT),
             Ev::McMiniUmovRR(_) => out.extend_from_slice(&crate::mercury::MERC_MINI_UMOV_RR),
             Ev::McUblkcp(_) => out.extend_from_slice(&crate::mercury::MERC_UBLKCP),
-            Ev::McPlop3(k) => out.extend_from_slice(match feat.plop3_tx[k].1 {
-                0 => &crate::mercury::MERC_TMA_A,
-                1 => &crate::mercury::MERC_TMA_B,
-                _ => &crate::mercury::MERC_TMA_C,
-            }),
+            Ev::McPlop3Rec(k) => out.extend_from_slice(&feat.plop3_rec[k].1),
             Ev::ShiftAt(_) => out.extend_from_slice(&REC_SHIFT_REGION),
             Ev::Store2(k) => out.extend_from_slice(&rec_store2(feat.store2[k])),
             Ev::Mini2(k) => out.extend_from_slice(&feat.mini2[k].1.to_le_bytes()),
@@ -2479,6 +2479,13 @@ pub fn generate_mercury_full(
     // zastepuje wezel t4 — lane bez bitu (inwarinat EXACT count-match;
     // residuum: FFMA2 22% lanow z bitem wg korpusu = flag-rule mk41).
     for &(l, _) in &meta.merc_mini2 {
+        bit0.insert(l);
+    }
+    // mk44: rekord 0110060a (PLOP3 dual-output nibswap-LUT) zastepuje
+    // wezel t4 — lane bez bitu (lab brute k2/k7: slot == lane rekordu,
+    // bit=0; tylko lane'owe rekordy z meta.merc_plop3_rec, nie-elig
+    // PLOP3 (UP/nietyp-LUT) zachowuja dotychczasowe zachowanie).
+    for &(l, _) in &meta.merc_plop3_rec {
         bit0.insert(l);
     }
     // debug mk30: wypisz bit0/dialekt pod CUBIT_DEBUG_MC=1
