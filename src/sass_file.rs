@@ -310,6 +310,8 @@ pub fn kernel_def_to_meta(
     // mk40: store-matrix (ST.E/STL) + mini-slownik korpusowy.
     let merc_store2 = merc_store2_scan(&def.instructions);
     let merc_mini2 = merc_mini2_scan(&def.instructions);
+    // mk42: edge-rekordy LD-desc (02223232) + maxUR deskryptorow.
+    let (merc_edge_ld, merc_edge_maxur) = merc_edge_ld_scan(&def.instructions);
     // mk35: skan pomocniczy (dst-reg siatki rec desc/0132, guardy BAR, ...).
     let m35 = merc_mk35_scan(&def.instructions);
     // mk41: bramka rodziny dla lea18 (przed borrowami w literalu KernelMeta).
@@ -402,6 +404,8 @@ pub fn kernel_def_to_meta(
         merc_bra_selfloop,
         merc_store2,
         merc_mini2,
+        merc_edge_ld,
+        merc_edge_maxur,
         // nvcc (EIATTR 0x31): liste site'ow warp-wide emituje tylko gdy
         // kernel zawiera VOTEU (fit na 119 kernelach labu: 5/5 z VOTEU maja
         // atrybut, zaden bez VOTEU).
@@ -1745,6 +1749,137 @@ pub fn merc_mini2_scan(instructions: &[Instruction]) -> Vec<(u32, u32)> {
     }
     out.sort_by_key(|&(l, _)| l);
     out
+}
+
+/// mk42 (dekod mk37/mk38 + domkniecie w mk42/edge9..edge13): kazdy LD
+/// (generic, base "LD") z adresem w formie desc[URm][Ry.64(+off)] dostaje
+/// rekord edge 02 22 32 32. Selekcja EXACT (1721/1721 kerneli korpusu
+/// sm_100; duplikaty loop-instancji zgodne). LD bez desc-bracket: brak
+/// rekordu (10 kerneli gate-fail w korpusie = LD plain). Rekord niesie
+/// (X,Y,C,off) z gridem i stala per-kernel [19:21)=(maxDescUR<<6)|2.
+/// Era sm_103a: brak nosnikow LD-desc w dostepnych probkach (FA4, lab-119
+/// nie zawieraja LD.E w ogole) — regula bez bramki ery (otwarty temat).
+pub fn merc_edge_ld_scan(
+    instructions: &[Instruction],
+) -> (Vec<(u32, u8, u8, u8, u8, u16, u16, u8, u32)>, u16) {
+    let mut out = Vec::new();
+    let mut maxur: u16 = 0;
+    for ins in instructions {
+        let t = ins.raw_text.as_str();
+        // max UR w desc[URn] (wszystkie instrukcje kernela)
+        let mut p = 0usize;
+        while let Some(pos) = t[p..].find("desc[UR") {
+            let s2 = &t[p + pos + 7..];
+            let k = s2.bytes().take_while(|c| c.is_ascii_digit()).count();
+            if k > 0 {
+                if let Ok(v) = s2[..k].parse::<u16>() {
+                    maxur = maxur.max(v);
+                }
+            }
+            p += pos + 7 + k.max(1);
+        }
+        if ins.opcode != "LD" || !t.contains("desc[UR") {
+            continue;
+        }
+        let full = ins.opcode_full.as_str();
+        let c: u8 = if full.contains(".128") {
+            7
+        } else if full.contains(".64") {
+            3
+        } else {
+            1
+        };
+        let b6: u8 = if full.contains(".U8") {
+            0x10
+        } else if full.contains(".S8") {
+            0x11
+        } else if full.contains(".U16") {
+            0x12
+        } else if full.contains(".S16") {
+            0x13
+        } else if full.contains(".128") {
+            0x16
+        } else if full.contains(".64") {
+            0x15
+        } else {
+            0x14
+        };
+        let (b7, b8) = if full.contains("STRONG.SYS") {
+            (0x10u8, 0x01u8)
+        } else {
+            (0x08u8, 0x00u8)
+        };
+        // dst: token "R<num>" miedzy op-tokenem a pierwszym przecinkiem
+        let x: u16 = {
+            let mut it = t.splitn(2, ',');
+            let head = it.next().unwrap_or("");
+            let toks: Vec<&str> = head.split_whitespace().collect();
+            let dst = toks.last().copied().unwrap_or("");
+            let dst = dst.trim_start_matches(['!', '-', '|', '@']).trim();
+            let ddst = dst.strip_prefix('R').and_then(|r| {
+                let r = r.trim_end_matches(';');
+                if !r.is_empty() && r.bytes().all(|c| c.is_ascii_digit()) {
+                    r.parse::<u16>().ok()
+                } else {
+                    None
+                }
+            });
+            match ddst {
+                Some(v) => v,
+                None => continue, // RZ / UR / nieznany — korpus: brak rekordu
+            }
+        };
+        // bracket adresu: grupa "[" tuz po zamknieciu desc[URm]
+        let dp = match t.find("desc[UR") {
+            Some(v) => v,
+            None => continue,
+        };
+        let dclose = match t[dp..].find(']') {
+            Some(v) => dp + v,
+            None => continue,
+        };
+        let rest = &t[dclose + 1..];
+        if !rest.starts_with('[') {
+            continue;
+        }
+        let gclose = match rest.find(']') {
+            Some(v) => v,
+            None => continue,
+        };
+        let inner = &rest[1..gclose];
+        let ib = inner.as_bytes();
+        if ib.first() != Some(&b'R') {
+            continue;
+        }
+        let k = ib.iter().skip(1).take_while(|c| c.is_ascii_digit()).count();
+        if k == 0 {
+            continue;
+        }
+        let y: u16 = match inner[1..1 + k].parse() {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        let off: u32 = if let Some(pl) = inner[1 + k..].find('+') {
+            let tail = inner[1 + k + pl + 1..].trim();
+            if tail.starts_with('U') || tail.starts_with("UR") {
+                continue; // [Ry+URn] — poza modelem (korpus: brak przypadkow)
+            }
+            let neg = tail.starts_with('-');
+            let tt = tail.trim_start_matches('-');
+            let radix = if tt.starts_with("0x") { 16 } else { 10 };
+            match i64::from_str_radix(tt.trim_start_matches("0x"), radix) {
+                Ok(v) => (if neg { -v } else { v }) as u32,
+                Err(_) => continue,
+            }
+        } else {
+            0
+        };
+        let lane = (ins.addr / 16) as u32;
+        let b4 = merc_guard_code(ins.guard.as_ref());
+        out.push((lane, b4, b6, b7, b8, x, y, c, off));
+    }
+    out.sort_by_key(|e| e.0);
+    (out, maxur)
 }
 
 /// mk40: store-matrix (mk40/stgfields): lane'y ST.E (rekord 0238 b2=0x2a,

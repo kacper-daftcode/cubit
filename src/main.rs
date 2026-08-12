@@ -1307,6 +1307,8 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_store2: Vec::new(),
         merc_mini2: Vec::new(),
         merc_stg_wsel: Vec::new(),
+        merc_edge_ld: Vec::new(),
+        merc_edge_maxur: 0,
         merc_wwide_sites: Vec::new(),
         merc_cgsites: Vec::new(),
         merc_cgmasks: Vec::new(),
@@ -2274,6 +2276,8 @@ fn cmd_asm_build_elf(
                     // mk40: lustra merc_store2_scan / merc_mini2_scan / wsel.
                     let mut store2m: Vec<(u32, u8, u8, u16, u16, u16, i32, u8)> = Vec::new();
                     let mut mini2m: Vec<(u32, u32)> = Vec::new();
+                    let mut edge_ldm: Vec<(u32, u8, u8, u8, u8, u16, u16, u8, u32)> = Vec::new();
+                    let mut edge_maxur_m: u16 = 0;
                     let mut stg_wselv: Vec<u8> = Vec::new();
                     let mut redux35: Vec<(u32, u8, u8)> = Vec::new();
                     let mut cbank358_dreg35: Option<u8> = None;
@@ -2499,6 +2503,101 @@ fn cmd_asm_build_elf(
                                     0xf8
                                 };
                                 store2m.push((ii as u32, if base0 == "ST" { 1 } else { 2 }, wsel, areg, dur, dreg, imm, b4));
+                            }
+                        }
+                        // mk42 (lustro): edge LD -> rekord 02223232 + descmax.
+                        {
+                            let mut p = 0usize;
+                            while let Some(pos) = body[p..].find("desc[UR") {
+                                let s2 = &body[p + pos + 7..];
+                                let k = s2.bytes().take_while(|c| c.is_ascii_digit()).count();
+                                if k > 0 {
+                                    if let Ok(v) = s2[..k].parse::<u16>() {
+                                        edge_maxur_m = edge_maxur_m.max(v);
+                                    }
+                                }
+                                p += pos + 7 + k.max(1);
+                            }
+                        }
+                        if base0 == "LD" && body.contains("desc[UR") {
+                            let opf = m2.get(1).map(|x| x.as_str()).unwrap_or("");
+                            let c6: u8 = if opf.contains(".128") {
+                                7
+                            } else if opf.contains(".64") {
+                                3
+                            } else {
+                                1
+                            };
+                            let b6: u8 = if opf.contains(".U8") {
+                                0x10
+                            } else if opf.contains(".S8") {
+                                0x11
+                            } else if opf.contains(".U16") {
+                                0x12
+                            } else if opf.contains(".S16") {
+                                0x13
+                            } else if opf.contains(".128") {
+                                0x16
+                            } else if opf.contains(".64") {
+                                0x15
+                            } else {
+                                0x14
+                            };
+                            let (b7, b8) = if opf.contains("STRONG.SYS") {
+                                (0x10u8, 0x01u8)
+                            } else {
+                                (0x08u8, 0x00u8)
+                            };
+                            let dst_tok = rest.split(',').next().unwrap_or("").trim();
+                            let dst_tok = dst_tok.trim_start_matches(['!', '-', '|']);
+                            let xv: Option<u16> = dst_tok.strip_prefix('R').and_then(|r| {
+                                let r = r.trim_end_matches(';');
+                                if !r.is_empty() && r.bytes().all(|c| c.is_ascii_digit()) {
+                                    r.parse::<u16>().ok()
+                                } else {
+                                    None
+                                }
+                            });
+                            if let Some(xv) = xv {
+                                if let Some(dp) = body.find("desc[UR") {
+                                    let mut parsed: Option<(u16, u32)> = None;
+                                    if let Some(dc) = body[dp..].find(']') {
+                                        let rest9 = &body[dp + dc + 1..];
+                                        if rest9.starts_with('[') {
+                                            if let Some(gc) = rest9.find(']') {
+                                                parsed = (|| {
+                                                    let inner = &rest9[1..gc];
+                                                    let ib = inner.as_bytes();
+                                                    if ib.first() != Some(&b'R') {
+                                                        return None;
+                                                    }
+                                                    let k = ib.iter().skip(1).take_while(|c| c.is_ascii_digit()).count();
+                                                    if k == 0 {
+                                                        return None;
+                                                    }
+                                                    let y: u16 = inner[1..1 + k].parse().ok()?;
+                                                    let off: u32 = if let Some(pl) = inner[1 + k..].find('+') {
+                                                        let tail = inner[1 + k + pl + 1..].trim();
+                                                        if tail.starts_with('U') {
+                                                            return None;
+                                                        }
+                                                        let neg = tail.starts_with('-');
+                                                        let tt = tail.trim_start_matches('-');
+                                                        let radix = if tt.starts_with("0x") { 16 } else { 10 };
+                                                        let v = i64::from_str_radix(tt.trim_start_matches("0x"), radix).ok()?;
+                                                        (if neg { -v } else { v }) as u32
+                                                    } else {
+                                                        0
+                                                    };
+                                                    Some((y, off))
+                                                })();
+                                            }
+                                        }
+                                    }
+                                    if let Some((yv, off)) = parsed {
+                                        edge_ldm.push((ii as u32, guard_fc, b6, b7, b8, xv, yv, c6, off));
+                                    }
+                                }
                             }
                         }
                         // mk35 (lustro): 0132-rekordy tylko dla typowanego
@@ -2966,6 +3065,9 @@ fn cmd_asm_build_elf(
                         meta.merc_xsetp_pairs = xsetp_pairs35.clone();
                         meta.merc_store2 = store2m;
                         meta.merc_mini2 = mini2m;
+                        edge_ldm.sort_by_key(|e| e.0);
+                        meta.merc_edge_ld = edge_ldm;
+                        meta.merc_edge_maxur = edge_maxur_m;
                         meta.merc_stg_wsel = stg_wselv;
                         meta.merc_redux = redux35.clone();
                         meta.merc_cbank358_dreg = cbank358_dreg35;
