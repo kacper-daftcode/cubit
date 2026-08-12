@@ -441,7 +441,12 @@ pub fn kernel_def_to_meta(
         merc_era100: def.resources.era100,
         merc_ws_minis: mc.ws,
         merc_uvcount: mc.uvcount,
-        merc_umov_rr: mc.umov_rr,
+        // mk43: mini 4100100a (UMOV URn, URm) tylko era sm_103a (lab
+        // b_ldmatrix: 1 site, 1 rekord). Korpus sm_100: nvcc ich NIE
+        // emituje, a nasza nad-emisja psula i rekordy i bitmape (kasowanie
+        // bitow t4). Wyjatki corpusowe csrmv_v3 x3 (para UMOV-RR -> LDS
+        // [UR4] tuz za) = parked.
+        merc_umov_rr: if def.resources.era100 { Vec::new() } else { mc.umov_rr },
         merc_ublkcp: mc.ublkcp,
         merc_plop3_tx: mc.plop3_tx,
         merc_fence_async: mc.fence_async,
