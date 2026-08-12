@@ -561,6 +561,8 @@ pub struct KernelMeta {
     pub merc_plop3_tx: Vec<(u32, u8)>,
     /// mk44: rekordy 0110060a generalne (dual-output PLOP3, bez UP).
     pub merc_plop3_rec: Vec<(u32, [u8; 16])>,
+    /// mk45: rekordy 010b0c0a generalne (CS2R Rd, SRZ).
+    pub merc_cs2r_rec: Vec<(u32, [u8; 16])>,
     /// FENCE.*ASYNC.*: lane (wszystkie w kolku inwentarza bitowego — mk30b).
     pub merc_fence_async: Vec<u32>,
     /// LDGSTS z .128 (BYPASS.E.128) — wariant pinned-blob (b8=0x20, b10|=0x10).
@@ -728,6 +730,7 @@ impl KernelMeta {
             merc_ublkcp: Vec::new(),
             merc_plop3_tx: Vec::new(),
             merc_plop3_rec: Vec::new(),
+            merc_cs2r_rec: Vec::new(),
             merc_fence_async: Vec::new(),
             merc_ldgsts_b128: false,
             merc_hfma2_const: Vec::new(),
@@ -1168,6 +1171,7 @@ mod tests {
             merc_ublkcp: Vec::new(),
             merc_plop3_tx: Vec::new(),
             merc_plop3_rec: Vec::new(),
+            merc_cs2r_rec: Vec::new(),
             merc_fence_async: Vec::new(),
             merc_ldgsts_b128: false,
             merc_hfma2_const: Vec::new(),

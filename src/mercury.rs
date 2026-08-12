@@ -651,6 +651,8 @@ pub struct McScanOut {
     /// mk44: generalne rekordy 0110060a — (lane, 16B gotowych bajtow),
     /// z bramka dual-output (nibswap-LUT) i bez operandow UP.
     pub plop3_rec: Vec<(u32, [u8; 16])>,
+    /// mk45: rekordy 010b0c0a (CS2R Rd, SRZ) — (lane, 16B gotowych bajtow).
+    pub cs2r_rec: Vec<(u32, [u8; 16])>,
     pub fence_async: Vec<u32>,
     pub ldgsts_b128: bool,
     /// mk41: (lane, guarded, dst-UR) — payload smem-anchora z dst.
@@ -682,6 +684,7 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
         ublkcp: Vec::new(),
         plop3_tx: Vec::new(),
         plop3_rec: Vec::new(),
+        cs2r_rec: Vec::new(),
         fence_async: Vec::new(),
         ldgsts_b128: false,
         s2ur_cga: Vec::new(),
@@ -751,6 +754,12 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
                 // mk44: generyczny rekord 0110060a (dual-output, bez UP).
                 if let Some(r) = merc_plop3_record(t, it.guard_code) {
                     o.plop3_rec.push((lane, r));
+                }
+            }
+            "CS2R" => {
+                // mk45: generyczny rekord 010b0c0a (CS2R R<d>, SRZ).
+                if let Some(r) = merc_cs2r_srz_record(t, it.guard_code) {
+                    o.cs2r_rec.push((lane, r));
                 }
             }
             "LDGSTS" if it.full.contains(".128") => o.ldgsts_b128 = true,
@@ -1047,6 +1056,58 @@ pub fn merc_plop3_record(text: &str, guard_code: u8) -> Option<[u8; 16]> {
     r[11] = pd;
     r[13] = pa;
     r[15] = pb;
+    Some(r)
+}
+
+/// mk45: rekordy 01 0b 0c 0a (16B): lane CS2R Rd, SRZ (korpus sm_100:
+/// 10951/10989 kerneli count-exact, payload 184252/184361 par EXACT +
+/// 109 RZ-special). Bramka: TYLKO SR == SRZ (SR_GLOBALTIMERLO: 240 rekordow
+/// w symv_tma_ws — kernel-level gate nieznany, PARKED; SR_CgaSize i inne
+/// SR: zawsze bez rekordu — 8 kerneli czystych dowodem).
+/// Payload: b4=kod guarda (jak merc_guard_code); b6=0x05; b10 =
+/// 0x03 | ((dst&3)<<6), b11 = dst>>2; dst==RZ -> b10=0xc1, b11=0xff;
+/// b12=0xff, b13=0x0f; reszta zer.
+pub fn merc_cs2r_srz_record(text: &str, guard_code: u8) -> Option<[u8; 16]> {
+    let body0 = text.trim();
+    let body = match body0.strip_prefix('@') {
+        Some(r) => r
+            .split_once(char::is_whitespace)
+            .map(|(_, x)| x.trim_start())
+            .unwrap_or(body0),
+        None => body0,
+    };
+    let rest = body.strip_prefix("CS2R")?;
+    let rest = rest
+        .trim_start_matches(|c: char| matches!(c, '.' | 'Z' | '3' | '2' | '6' | '4'))
+        .trim_start();
+    let mut it = rest.split(',');
+    let dst = it.next()?.trim().trim_end_matches(';').trim_end();
+    let sr = it.next().unwrap_or("").trim().trim_end_matches(';').trim_end();
+    if sr != "SRZ" {
+        return None;
+    }
+    let (b10, b11) = if dst == "RZ" {
+        (0xc1u8, 0xffu8)
+    } else if let Some(dig) = dst.strip_prefix('R') {
+        let d: u32 = dig.parse().ok()?;
+        if d > 255 {
+            return None;
+        }
+        (0x03 | (((d as u8) & 3) << 6), (d >> 2) as u8)
+    } else {
+        return None;
+    };
+    let mut r = [0u8; 16];
+    r[0] = 0x01;
+    r[1] = 0x0b;
+    r[2] = 0x0c;
+    r[3] = 0x0a;
+    r[4] = guard_code;
+    r[6] = 0x05;
+    r[10] = b10;
+    r[11] = b11;
+    r[12] = 0xff;
+    r[13] = 0x0f;
     Some(r)
 }
 

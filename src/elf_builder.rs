@@ -396,6 +396,7 @@ pub struct MercFeatures {
     pub ublkcp: Vec<u32>,
     pub plop3_tx: Vec<(u32, u8)>,
     pub plop3_rec: Vec<(u32, [u8; 16])>,
+    pub cs2r_rec: Vec<(u32, [u8; 16])>,
     pub fence_async: Vec<u32>,
     pub ldgsts_b128: bool,
     /// mk41: (lane, guarded, dst-UR) dla S2UR SR_CgaCtaId — payload
@@ -471,6 +472,7 @@ impl MercFeatures {
             ublkcp: meta.merc_ublkcp.clone(),
             plop3_tx: meta.merc_plop3_tx.clone(),
             plop3_rec: meta.merc_plop3_rec.clone(),
+            cs2r_rec: meta.merc_cs2r_rec.clone(),
             fence_async: meta.merc_fence_async.clone(),
             ldgsts_b128: meta.merc_ldgsts_b128,
             s2ur_cga: meta.merc_s2ur_cga.clone(),
@@ -1348,6 +1350,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         McMiniUmovRR(usize),
         McUblkcp(usize),
         McPlop3Rec(usize),
+        McCs2rRec(usize),
         ShiftAt(usize),
         Utca(usize),
         AtomSmem(usize),
@@ -1595,6 +1598,10 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for (k, _) in feat.plop3_rec.iter().enumerate() {
         ev.push((feat.plop3_rec[k].0, 20, Ev::McPlop3Rec(k)));
     }
+    // mk45: rekordy 010b0c0a (CS2R SRZ); tier 20 jak PLOP3.
+    for (k, _) in feat.cs2r_rec.iter().enumerate() {
+        ev.push((feat.cs2r_rec[k].0, 20, Ev::McCs2rRec(k)));
+    }
     // mk30b: UTCA piny + ATOMS z imm [UR+off] takze w sciezce laned
     // (b_tcgen05; mk27 robil to dla zero-param mkvmem).
     for (k, _) in feat.utca.iter().enumerate() {
@@ -1830,6 +1837,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::McMiniUmovRR(_) => out.extend_from_slice(&crate::mercury::MERC_MINI_UMOV_RR),
             Ev::McUblkcp(_) => out.extend_from_slice(&crate::mercury::MERC_UBLKCP),
             Ev::McPlop3Rec(k) => out.extend_from_slice(&feat.plop3_rec[k].1),
+            Ev::McCs2rRec(k) => out.extend_from_slice(&feat.cs2r_rec[k].1),
             Ev::ShiftAt(_) => out.extend_from_slice(&REC_SHIFT_REGION),
             Ev::Store2(k) => out.extend_from_slice(&rec_store2(feat.store2[k])),
             Ev::Mini2(k) => out.extend_from_slice(&feat.mini2[k].1.to_le_bytes()),
@@ -2486,6 +2494,12 @@ pub fn generate_mercury_full(
     // bit=0; tylko lane'owe rekordy z meta.merc_plop3_rec, nie-elig
     // PLOP3 (UP/nietyp-LUT) zachowuja dotychczasowe zachowanie).
     for &(l, _) in &meta.merc_plop3_rec {
+        bit0.insert(l);
+    }
+    // mk45: rekord 010b0c0a zastepuje wezel t4 — lane CS2R bez bitu
+    // (lanebits: 43621 bit=0 / 6853 bit=1, odczyty bit=1 = misalign-artefakt
+    // big-kerneli jak w mk44; doktryna 'rekord zastepuje wezel').
+    for &(l, _) in &meta.merc_cs2r_rec {
         bit0.insert(l);
     }
     // debug mk30: wypisz bit0/dialekt pod CUBIT_DEBUG_MC=1
