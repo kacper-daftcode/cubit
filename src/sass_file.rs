@@ -489,6 +489,7 @@ pub fn kernel_def_to_meta(
         merc_uplop3_rec: mc.uplop3_rec,
         merc_dsetpimm_rec: mc.dsetpimm_rec,
         merc_cs2r_rec: mc.cs2r_rec,
+        merc_d1wc47: Some(mc.d1wc47),
         merc_geo_rec: mc.geo_rec,
         merc_lop3not_rec: mc.lop3not_rec,
         merc_ulop3not_rec: mc.ulop3not_rec,
@@ -924,6 +925,8 @@ pub struct MercMcScan {
     pub hfma2_const: Vec<u32>,          // HFMA2 R?,RZ,RZ,<imm> (bez bitu)
     pub ulea_x: Vec<u32>,               // ULEA ... 0x18 z dest == EXCH addr UR (bit 0)
     pub bra_np_loop: Vec<u32>,          // braided BRA bez " PT, " w m-family (bit 0)
+    /// mk59: d1-47 per WC-site (NOP-region) -> (lane WC, reg maski).
+    pub d1wc47: Vec<(u32, u8)>,         // mk59 (lustro mercury::mc_scan_lines)
     /// mk34 (node-model g5b): lane'e bez wezlow capmerc = bez slotu bitmapy
     /// (para USHF licznika mbarrier + FENCE.ASYNC; tylko m-family).
     pub nodeless: Vec<u32>,
@@ -1222,6 +1225,42 @@ pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
         .filter(|i| i.opcode == "WARPSYNC" && i.opcode_full.contains(".ALL"))
         .map(|i| (i.addr / 16) as u32)
         .collect();
+    // mk59: d1-47 per WC-site (region (WC..ENDCOLLECTIVE) = same NOP-y).
+    // Fail-closed: guard, .ALL, maska spoza R<n>, region pusty/nie-NOP.
+    for (i, ins) in instructions.iter().enumerate() {
+        if ins.opcode != "WARPSYNC"
+            || !ins.opcode_full.contains(".COLLECTIVE")
+            || ins.opcode_full.contains(".ALL")
+        {
+            continue;
+        }
+        if ins.guard.as_ref().map(|g| g.pred != 7).unwrap_or(false) {
+            continue;
+        }
+        let mask = match crate::mercury::merc_d1wc_mask_reg(&ins.raw_text) {
+            Some(m) => m,
+            None => continue,
+        };
+        let lane = (ins.addr / 16) as u32;
+        let mut j = i + 1;
+        let mut ok = false;
+        let mut nnop = 0usize;
+        while j < instructions.len() {
+            let b2 = instructions[j].opcode.as_str();
+            if b2 == "ENDCOLLECTIVE" {
+                ok = nnop >= 1;
+                break;
+            } else if b2 == "NOP" {
+                nnop += 1;
+                j += 1;
+            } else {
+                break;
+            }
+        }
+        if ok {
+            o.d1wc47.push((lane, mask));
+        }
+    }
     let mut saw_ushf_0b: Option<u32> = None;
     for ins in instructions {
         let lane = (ins.addr / 16) as u32;

@@ -795,6 +795,9 @@ pub struct McScanOut {
     pub hfma2_const: Vec<u32>,
     pub ulea_x: Vec<u32>,
     pub bra_np_loop: Vec<u32>,
+    /// mk59: rekord d1-34B wariant 47 per WARPSYNC.COLLECTIVE (nie-.ALL)
+    /// z regionem same NOP-y -> (lane WC, reg maski). Patrz merc_d1wc47_record.
+    pub d1wc47: Vec<(u32, u8)>,
     /// mk34 (node-model g5b): lane'y bez wezla w liscie capmerc — NIE zajmuja
     /// slotu bitmapy (b_mbarrier: para USHF licznika mbarrier po d1-UIADD3;
     /// b_bulk_cp: te + FENCE.ASYNC). Tylko m-family (SYNCS.*).
@@ -835,6 +838,7 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
         ulea_x: Vec::new(),
         bra_np_loop: Vec::new(),
         nodeless: Vec::new(),
+        d1wc47: Vec::new(),
     };
     let bar_lanes: Vec<u32> = items
         .iter()
@@ -846,6 +850,38 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
         .filter(|i| i.base == "WARPSYNC" && i.full.contains(".ALL"))
         .map(|i| i.lane)
         .collect();
+    // mk59: d1-47 per WC-site (region (WC..ENDCOLLECTIVE) = same NOP-y).
+    // Fail-closed: guard, .ALL, maska spoza R<n>, region pusty/nie-NOP.
+    for (i, it) in items.iter().enumerate() {
+        if it.base != "WARPSYNC" || !it.full.contains(".COLLECTIVE") || it.full.contains(".ALL") {
+            continue;
+        }
+        if it.guarded {
+            continue;
+        }
+        let mask = match merc_d1wc_mask_reg(&it.text) {
+            Some(m) => m,
+            None => continue,
+        };
+        let mut j = i + 1;
+        let mut ok = false;
+        let mut nnop = 0usize;
+        while j < items.len() {
+            let b2 = items[j].base.as_str();
+            if b2 == "ENDCOLLECTIVE" {
+                ok = nnop >= 1;
+                break;
+            } else if b2 == "NOP" {
+                nnop += 1;
+                j += 1;
+            } else {
+                break;
+            }
+        }
+        if ok {
+            o.d1wc47.push((it.lane, mask));
+        }
+    }
     let mut saw_ushf_0b: Option<u32> = None;
     for it in items {
         let lane = it.lane;
@@ -1057,6 +1093,52 @@ pub fn merc_mbar_d1_blob(guarded: bool) -> [u8; 18] {
     r[1] = 0x01;
     r[2..18].copy_from_slice(&body);
     r
+}
+
+/// mk59: rekord 34B `d1 01 02 47` (wariant 47 = "pusty region kolektywny")
+/// per site `WARPSYNC.COLLECTIVE R<mask>, L` (nie-.ALL), ktorego region
+/// (WC..ENDCOLLECTIVE) zawiera wylacznie NOP-y. Dekod korpusowy merclab/mk59
+/// (c1..c10; l2 676 plikow, 18932 kerneli):
+/// - licznik: rekord per WC-site (4412/4464 kerneli #rekordow == #WC-sitow;
+///   wyjatki = strony 4c/23, fail-closed);
+/// - 47-body: b8=0x10, b12=0x00, b13=0xf8, (b14,b15)=LE16(mask<<6)
+///   [19935/19935 rekordow: F0 == mask<<6; 47-only kerneli b30=0 zawsze
+///   (15711/15711)]; maska zawsze klasa R<n> (0xUR/RZ bez wystapien).
+/// - warianty wykryte i zaparkowane (region-tree mk29): 4b = region z
+///   pojedynczym SHFL (F=[(dst<<6)|1, srcA<<6, srcB<<6, srcC<<6, mask<<6],
+///   b8=0x20|kind{IDX,UP,DOWN,BFLY}; b13/b30 = koordynaty drzewa regionow);
+///   4c = region z VOTE.ANY/ALL; 23 = kernele bez WC-sitow.
+pub fn merc_d1wc47_record(mask: u8) -> [u8; 34] {
+    let mut r = [0u8; 34];
+    r[0] = 0xd1;
+    r[1] = 0x01;
+    r[2] = 0x02;
+    r[3] = 0x47;
+    r[4] = 0x7c;
+    r[5] = 0x06;
+    r[6] = 0xf8;
+    r[8] = 0x10;
+    r[13] = 0xf8;
+    let v = (mask as u16) << 6;
+    r[14] = (v & 0xff) as u8;
+    r[15] = (v >> 8) as u8;
+    r[16] = 0x02;
+    r
+}
+
+/// Skan pomocniczy mk59 (wspoldzielony przez mc_scan_lines z main.rs):
+/// tekst maski `WARPSYNC.COLLECTIVE R<n>, ...` -> n (brak -> None).
+pub fn merc_d1wc_mask_reg(text: &str) -> Option<u8> {
+    // text = tresc instrukcji bez guarda; pierwszy token po mnemonicu.
+    let t = text.trim();
+    // pomijaj formy .ALL (bez operandu maski)
+    if t.contains("WARPSYNC.COLLECTIVE.ALL") {
+        return None;
+    }
+    let body = t.split_once("WARPSYNC.COLLECTIVE")?.1;
+    let first = body.trim_start().split(',').next()?.trim();
+    let n = first.strip_prefix('R')?.parse::<u8>().ok()?;
+    Some(n)
 }
 
 /// 02 1b 5e 06 (32B, marker 51 01 gdy kernel ma BSSY): SYNCS.EXCH.64.

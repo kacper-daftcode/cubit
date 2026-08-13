@@ -204,7 +204,6 @@ pub struct MercFeatures {
     pub has_ldcu: bool,
     /// mk15b: liczba blokow kolektywnych (ENDCOLLECTIVE) przy plain-BSSY;
     /// kazdy dostaje staly rekord d1-34B po glownym torze rekordow.
-    pub plain_collectives: u32,
     pub bar_count: u32,
     pub n_stg: u32,
     pub n_atom: u32,
@@ -415,6 +414,12 @@ pub struct MercFeatures {
     pub lop3not_rec: Vec<(u32, [u8; 16])>,
     /// mk58: rekordy 012b080a (ULOP3 NOT-MOV).
     pub ulop3not_rec: Vec<(u32, [u8; 16])>,
+    /// mk59: rekordy d10102-47 per WC-site (NOP-region) — (lane, maska R).
+    pub d1wc47: Vec<(u32, u8)>,
+    /// mk59: skan tekstowy dostepny (Some) vs mk15b-legacy fallback.
+    pub d1wc47_scanned: bool,
+    /// mk15b-legacy: liczba rekordow const (fallback gdy !d1wc47_scanned).
+    pub d1wc47_legacy: u32,
     /// mk48: rekordy 024d*32 (REDG desc/non-desc) — (lane, 32B pelny payload).
     pub redg2_rec: Vec<(u32, [u8; 32])>,
     /// mk49: rekordy 024e*32 (ATOM.E/ATOMG/ATOMS) — (lane, 32B pelny payload).
@@ -511,6 +516,15 @@ impl MercFeatures {
             cs2r_rec: meta.merc_cs2r_rec.clone(),
             lop3not_rec: meta.merc_lop3not_rec.clone(),
             ulop3not_rec: meta.merc_ulop3not_rec.clone(),
+            d1wc47: meta.merc_d1wc47.clone().unwrap_or_default(),
+            d1wc47_scanned: meta.merc_d1wc47.is_some(),
+            // mk15b-legacy (sciezki bez skanu tekstu, np. microlab-gold surowe
+            // mnemonic-listy): d1-34B const (maska R0) per ENDCOLLECTIVE gdy BSSY.
+            d1wc47_legacy: if opcodes.iter().any(|o| o.as_str() == "BSSY") {
+                opcodes.iter().filter(|o| o.starts_with("ENDCOLLECTIVE")).count() as u32
+            } else {
+                0
+            },
             redg2_rec: meta.merc_redg2_rec.clone(),
             atomg2_rec: meta.merc_atomg2_rec.clone(),
             geo_rec: meta.merc_geo_rec.clone(),
@@ -647,11 +661,6 @@ impl MercFeatures {
             b == "LDCU" || b == "ULDC"
         });
         f.has_ret_internal = opcodes.iter().any(|o| o.split('.').next() == Some("RET"));
-        f.plain_collectives = if opcodes.iter().any(|o| o.as_str() == "BSSY") {
-            opcodes.iter().filter(|o| o.starts_with("ENDCOLLECTIVE")).count() as u32
-        } else {
-            0
-        };
         // mk14: cbank 8301 takze dla ATOMG.E.CAS.STRONG.SYS (gold p_cas).
         f.cbank83_cas = opcodes
             .iter()
@@ -865,14 +874,6 @@ const REC_SHIFT_REGION: [u8; 18] = [
 const REC_CBANK_LDC: [u8; 16] = [
     0x01, 0x0b, 0x0c, 0x0a, 0xf8, 0x00, 0x05, 0x00,
     0x00, 0x00, 0x03, 0x01, 0x39, 0x04, 0x00, 0x00,
-];
-/// mk15b: rekord-epilog kolektywny przy plain-BSSY (gold q_bsync_pair: 2x
-/// identyczne, po torze rekordow). 34B stala.
-const REC_D1_COLLECTIVE: [u8; 34] = [
-    0xd1, 0x01, 0x02, 0x47, 0x7c, 0x06, 0xf8, 0x00, 0x10, 0x00,
-    0x00, 0x00, 0x00, 0xf8, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00,
 ];
 const REC_BAR: [u8; 16] = [
     0x01, 0x47, 0x5a, 0x16, 0xf8, 0x00, 0x04, 0x00,
@@ -1445,6 +1446,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         McCs2rRec(usize),
         McLop3NotRec(usize),
         McUlop3NotRec(usize),
+        McD1Wc47(usize),
         McRedg2(usize),
         McAtomg2(usize),
         ShiftAt(usize),
@@ -1761,6 +1763,10 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for (k, _) in feat.ulop3not_rec.iter().enumerate() {
         ev.push((feat.ulop3not_rec[k].0, 20, Ev::McUlop3NotRec(k)));
     }
+    // mk59: rekordy d10102-47 per WC-site (NOP-region); tier 20, lane WC.
+    for (k, _) in feat.d1wc47.iter().enumerate() {
+        ev.push((feat.d1wc47[k].0, 20, Ev::McD1Wc47(k)));
+    }
     // mk48: rekordy 024d*32 (REDG); tier 20 jak Ev::Atom/mk44-47.
     for (k, _) in feat.redg2_rec.iter().enumerate() {
         ev.push((feat.redg2_rec[k].0, 20, Ev::McRedg2(k)));
@@ -2075,6 +2081,10 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::McCs2rRec(k) => out.extend_from_slice(&feat.cs2r_rec[k].1),
             Ev::McLop3NotRec(k) => out.extend_from_slice(&feat.lop3not_rec[k].1),
             Ev::McUlop3NotRec(k) => out.extend_from_slice(&feat.ulop3not_rec[k].1),
+            // mk59: d10102-47 z rzeczywistym regiem maski (lane WC-site).
+            Ev::McD1Wc47(k) => {
+                out.extend_from_slice(&crate::mercury::merc_d1wc47_record(feat.d1wc47[k].1))
+            }
             Ev::McRedg2(k) => out.extend_from_slice(&feat.redg2_rec[k].1),
             Ev::McAtomg2(k) => out.extend_from_slice(&feat.atomg2_rec[k].1),
             Ev::ShiftAt(_) => out.extend_from_slice(&REC_SHIFT_REGION),
@@ -2107,10 +2117,12 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             }
         }
     }
-    // mk15b: rekordy d1-34B za blokami kolektywnymi plain-BSSY (gold
-    // q_bsync_pair x2, identyczne stale, po glownym torze).
-    for _ in 0..feat.plain_collectives {
-        out.extend_from_slice(&REC_D1_COLLECTIVE);
+    // mk15b/mk59-legacy: rekordy d1-34B za blokami kolektywnymi plain-BSSY
+    // TYLKO gdy sciezka nie miala skanu tekstu (gold q_bsync_pair x2).
+    if !feat.d1wc47_scanned {
+        for _ in 0..feat.d1wc47_legacy {
+            out.extend_from_slice(&crate::mercury::merc_d1wc47_record(0));
+        }
     }
     // ATOM-klasa legacy: po strumieniu tylko gdy brak per-lane metadanych
     // (mk14). Klasy nie-RED emitowane juz w lane (Ev::Atom); RED zostaja tu.
