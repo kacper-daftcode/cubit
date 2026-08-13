@@ -2631,9 +2631,14 @@ fn cmd_asm_build_elf(
                         }
                         // mk40 (lustro): mini-slownik korpusowy per-lane.
                         let mini40: u32 = match base0 {
+                            // mk67 (lustro): FFMA mini tylko w dialekcie xmma-fp32.
+                            "FFMA" if cubit::sass_file::merc_ffma_fp32_dialect(kernel_name) => 0x0a101741,
                             "FFMA2" => 0x26140d42,
-                            "HADD2" => 0x0a260c41,
-                            "BREAK" => 0x0a000541,
+                            // mk67 (lustro): HADD2.F32 i HADD2 z literalem imm bez mini.
+                            "HADD2" if !m2.get(1).map(|x| x.as_str()).unwrap_or("").starts_with("HADD2.F32")
+                                && !cubit::sass_file::merc_txt_has_imm_literal(body) => 0x0a260c41,
+                            // mk67 (lustro): bez BREAK.RELIABLE.
+                            "BREAK" if !m2.get(1).map(|x| x.as_str()).unwrap_or("").contains(".RELIABLE") => 0x0a000541,
                             "PREEXIT" => 0x0a026241,
                             "BAR" if m2.get(1).map(|x| x.as_str()).unwrap_or("").contains(".ARV") => 0x16124741,
                             "F2I" if { let opf = m2.get(1).map(|x| x.as_str()).unwrap_or(""); opf.contains("TRUNC") && opf.ends_with(".U64") } => 0x45241241,
