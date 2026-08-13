@@ -452,6 +452,10 @@ pub fn merc_s2r_sr_enum(sr: &str) -> u8 {
         // mk56: korpus 1:1 (merclab/mk56 c10): LE=09, GT=0a.
         "SR_LEMASK" => 9,
         "SR_GTMASK" => 10,
+        // mk57: korpus 1:1 (merclab/mk57 c4/c5/c6): GEMASK=0b; zamyka
+        // 92 kernele residuum M02/E02 (cub thrust; 581/607 domknietych
+        // rekordow b12=11; reszta = dup-def pierwszego dopasowania).
+        "SR_GEMASK" => 11,
         // mk28: SR_CgaCtaId -> 0x2c (E2E b_cluster/b_mbarrier/b_tcgen05;
         // b12 rekordu anchor 010b040a = enum SR czytanego przez S2R).
         "SR_CgaCtaId" => 0x2c,
@@ -509,6 +513,8 @@ pub fn merc_s2r_dest_reg(text: &str) -> Option<u32> {
 /// 0x374->5, 0x378->6 (ta sama numeracja geometrii co enum SR mk13;
 /// empirycznie ~98-100% tych offsetow; reszta offsetow ma b12 z
 /// value-analysis ptxas -> poza zakresem, fail-closed zwraca None).
+/// mk57: 0x2f8->0x44 (merclab/mk57 c5: 12 rekordow/9 kerneli cusparse,
+/// bijekcja lane<->rekord 1:1, zero FP; domyka 18932/18932 EXACT).
 /// Tylko golony opcode "LDC" (NIE LDC.64/LDC.U8/LDCU). Zwraca
 /// (dest=R-numer, b12). None dla RZ/UR/parse-fail — fail-closed.
 pub fn merc_ldc_geo(text: &str) -> Option<(u32, u8)> {
@@ -544,6 +550,7 @@ pub fn merc_ldc_geo(text: &str) -> Option<(u32, u8)> {
         0x370 => 4,
         0x374 => 5,
         0x378 => 6,
+        0x2f8 => 0x44,
         _ => return None,
     };
     Some((d, b12))
