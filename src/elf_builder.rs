@@ -401,6 +401,7 @@ pub struct MercFeatures {
     pub mc_mov400: Vec<u32>,
     pub mc_lea18: Vec<u32>,
     pub ws_minis: Vec<(u32, u8)>,
+    pub wsreg_minis: Vec<(u32, u8)>,
     pub uvcount: Vec<u32>,
     pub umov_rr: Vec<u32>,
     pub ublkcp: Vec<u32>,
@@ -519,6 +520,7 @@ impl MercFeatures {
             mc_mov400: meta.merc_mc_mov400.clone(),
             mc_lea18: meta.merc_mc_lea18.clone(),
             ws_minis: meta.merc_ws_minis.clone(),
+            wsreg_minis: meta.merc_wsreg_minis.clone(),
             uvcount: meta.merc_uvcount.clone(),
             umov_rr: meta.merc_umov_rr.clone(),
             ublkcp: meta.merc_ublkcp.clone(),
@@ -1468,6 +1470,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         McMiniUshf(usize),
         McMiniLea(usize),
         McMiniWs(usize),
+        McMiniWsReg(usize),
         McMiniUvirt(usize),
         McMiniUmovRR(usize),
         McUblkcp(usize),
@@ -1756,6 +1759,10 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     }
     for (k, _) in feat.ws_minis.iter().enumerate() {
         ev.push((feat.ws_minis[k].0, 20, Ev::McMiniWs(k)));
+    }
+    // mk65: reg-form WARPSYNC (0x78 site / 0x70 nie-site).
+    for (k, _) in feat.wsreg_minis.iter().enumerate() {
+        ev.push((feat.wsreg_minis[k].0, 20, Ev::McMiniWsReg(k)));
     }
     for (k, _) in feat.uvcount.iter().enumerate() {
         ev.push((feat.uvcount[k], 20, Ev::McMiniUvirt(k)));
@@ -2124,6 +2131,14 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                     &crate::mercury::MERC_MINI_WS6E
                 } else {
                     &crate::mercury::MERC_MINI_WS76
+                });
+            }
+            Ev::McMiniWsReg(k) => {
+                let (_l, b2) = feat.wsreg_minis[k];
+                out.extend_from_slice(if b2 == 0x78 {
+                    &crate::mercury::MERC_MINI_WS78
+                } else {
+                    &crate::mercury::MERC_MINI_WS70
                 });
             }
             Ev::McMiniUvirt(_) => out.extend_from_slice(&crate::mercury::MERC_MINI_UVIRT),
@@ -2780,6 +2795,10 @@ pub fn generate_mercury_full(
         bit0.insert(l);
     }
     for &(l, _) in &meta.merc_ws_minis {
+        bit0.insert(l);
+    }
+    // mk65: mini zastepuja wezel t4 (bit kasowany) — jak ws_minis.
+    for &(l, _) in &meta.merc_wsreg_minis {
         bit0.insert(l);
     }
     // mk30b-korekta (slot-space'): HFMA2-const ZACHOWUJE bit (nvcc slot31 =

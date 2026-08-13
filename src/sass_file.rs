@@ -485,6 +485,7 @@ pub fn kernel_def_to_meta(
         },
         merc_era100: def.resources.era100,
         merc_ws_minis: mc.ws,
+        merc_wsreg_minis: mc.ws_reg,
         merc_uvcount: mc.uvcount,
         // mk43: mini 4100100a (UMOV URn, URm) tylko era sm_103a (lab
         // b_ldmatrix: 1 site, 1 rekord). Korpus sm_100: nvcc ich NIE
@@ -560,7 +561,9 @@ fn merc_exec_positions(
             // mk30b: rekordy 01475a16 dostaja TYLKO prawdziwe BAR.SYNC;
             // SYNCS.* (mbarrier EXCH/ARRIVE/PHASECHK/...) maja wlasne
             // rodziny rekordow (mk30: 011b36/021b2c/021b4c/021b5e).
-            "BAR" => {
+            // mk65: BAR.ARV nie dostaje 01475a16 (nadprodukcja ~64/kern w
+            // cublasLt.536); ma wlasne mini 41471216 (mk65 c7 EXACT).
+            "BAR" if !ins.opcode_full.contains("ARV") => {
                 bar_pos.push(slot);
                 // mk13: named barrier args `BAR.SYNC.DEFER_BLOCKING 0x1, 0x20`
                 // -> (id, cnt); zwykly BAR bez argumentow -> (0, 0).
@@ -967,6 +970,8 @@ pub struct MercMcScan {
     /// mk41: ULEA ..., 0x18 — mini tylko w erze-100.
     pub ulea18: Vec<u32>,
     pub ws: Vec<(u32, u8)>,             // WARPSYNC.ALL: (lane, 0x76/0x6e)
+    /// mk65: WARPSYNC reg-form (plain/EXCLUSIVE): (lane, 0x78 site / 0x70 poza).
+    pub ws_reg: Vec<(u32, u8)>,
     pub uvcount: Vec<u32>,              // UVIRTCOUNT.DEALLOC (mini 4144)
     pub umov_rr: Vec<u32>,              // UMOV URx, URy (mini 4100-10)
     pub ublkcp: Vec<u32>,               // __raw__ UBLKCP (rekord 02232826)
@@ -1614,6 +1619,22 @@ pub fn merc_mc_scan(instructions: &[Instruction], cg_sites: &std::collections::B
     // regula); goldy b_tcgen05 (76/76/6e per lane 5/30/38), mkvmem (76@26).
     for &wl in ws_lanes.iter() {
         o.ws.push((wl, if cg_sites.contains(&wl) { 0x76_u8 } else { 0x6e_u8 }));
+    }
+    // mk65: minis WARPSYNC reg-form 4147780a/4147700a.
+    // Korpus EXACT obustronnie (merclab/mk65 c9: 18932/18932 kern):
+    //  * reg-form WARPSYNC / WARPSYNC.EXCLUSIVE (lane'inie maski w R<n>):
+    //    b2 = 0x78 iff lane jest site'em EIATTR-0x28, inaczej 0x70
+    //    (jak 76/6e dla .ALL); EXCLUSIVE nigdy nie jest site'em (16/16).
+    //  (BAR.ARV ma mini 41471216 juz od mk40 przez slownik mini2.)
+    for ins in instructions {
+        let lane = (ins.addr / 16) as u32;
+        if ins.opcode == "WARPSYNC"
+            && !ins.opcode_full.contains(".ALL")
+            && !ins.opcode_full.contains(".COLLECTIVE")
+        {
+            o.ws_reg
+                .push((lane, if cg_sites.contains(&lane) { 0x78_u8 } else { 0x70_u8 }));
+        }
     }
     o
 }

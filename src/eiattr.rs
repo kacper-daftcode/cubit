@@ -567,6 +567,9 @@ pub struct KernelMeta {
     /// WARPSYNC.ALL: (lane, b2): 0x6e gdy region za nim zawiera BAR.SYNC,
     /// inaczej 0x76.
     pub merc_ws_minis: Vec<(u32, u8)>,
+    /// mk65: WARPSYNC reg-form (plain/EXCLUSIVE): (lane, b2): 0x78 gdy lane
+    /// jest site'em EIATTR-0x28 (.merc_cgsites), inaczej 0x70.
+    pub merc_wsreg_minis: Vec<(u32, u8)>,
     /// UVIRTCOUNT.DEALLOC.*: mini 41 44 00 3c; lane ZACHOWUJE bit.
     pub merc_uvcount: Vec<u32>,
     /// UMOV URx, URy (reg-reg): mini 41 00 10 0a; lane kasuje bit.
@@ -801,6 +804,7 @@ impl KernelMeta {
             merc_mc_mov400: Vec::new(),
             merc_mc_lea18: Vec::new(),
             merc_ws_minis: Vec::new(),
+            merc_wsreg_minis: Vec::new(),
             merc_uvcount: Vec::new(),
             merc_umov_rr: Vec::new(),
             merc_ublkcp: Vec::new(),
@@ -1261,6 +1265,7 @@ mod tests {
             merc_mc_mov400: Vec::new(),
             merc_mc_lea18: Vec::new(),
             merc_ws_minis: Vec::new(),
+            merc_wsreg_minis: Vec::new(),
             merc_uvcount: Vec::new(),
             merc_umov_rr: Vec::new(),
             merc_ublkcp: Vec::new(),
