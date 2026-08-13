@@ -2615,6 +2615,10 @@ fn cmd_asm_build_elf(
                                             usetp_minis35.push((hlane, if head_imm || has_imm { 1 } else { 0 }));
                                             if !has_imm {
                                                 usetp_minis35.push((hlane, 2));
+                                            } else if head_imm {
+                                                // mk68 (lustro): para imm+imm -> mini
+                                                // 42103e06 na lane EX-tail (c4/c6 mk68).
+                                                usetp_minis35.push((ii as u32, 3));
                                             }
                                         }
                                     }
@@ -2644,8 +2648,13 @@ fn cmd_asm_build_elf(
                             "F2I" if { let opf = m2.get(1).map(|x| x.as_str()).unwrap_or(""); opf.contains("TRUNC") && opf.ends_with(".U64") } => 0x45241241,
                             "F2F" if m2.get(1).map(|x| x.as_str()).unwrap_or("").starts_with("F2F.BF16.F32") => 0x0a0e1241,
                             "F2FP" if m2.get(1).map(|x| x.as_str()).unwrap_or("").contains("TF32") => 0x0b6c1241,
+                            // mk68 (lustro): F2FP fp8 SATFINITE/UNPACK_B.
+                            "F2FP" if { let f = m2.get(1).map(|x| x.as_str()).unwrap_or(""); f.contains("SATFINITE") && (f.contains("E4M3") || f.contains("E5M2")) } => 0x26ec1242,
+                            "F2FP" if { let f = m2.get(1).map(|x| x.as_str()).unwrap_or(""); f.contains("UNPACK_B") && (f.contains("E4M3") || f.contains("E5M2")) } => 0x0a721241,
                             "IMAD" if m2.get(1).map(|x| x.as_str()).unwrap_or("") == "IMAD.WIDE.U32.X" => 0x06342042,
                             "UIMAD" if m2.get(1).map(|x| x.as_str()).unwrap_or("") == "UIMAD.WIDE.U32.X" => 0x06382042,
+                            // mk68 (lustro): ULOP3 0606 klasy (A)/(B).
+                            "ULOP3" if cubit::sass_file::merc_ulop3_0606(body) => 0x06062a42,
                             _ => 0,
                         };
                         if mini40 != 0 {
