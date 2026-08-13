@@ -781,6 +781,8 @@ pub struct McScanOut {
     pub geo_rec: Vec<(u32, [u8; 16])>,
     /// mk47: rekordy 012b{00|04}0a (LOP3.LUT NOT-MOV LUT=0x33) — (lane, 16B).
     pub lop3not_rec: Vec<(u32, [u8; 16])>,
+    /// mk58: rekordy 012b080a (ULOP3.LUT NOT-MOV LUT=0x33) — (lane, 16B).
+    pub ulop3not_rec: Vec<(u32, [u8; 16])>,
     /// mk48: rekordy 024d*32 (REDG desc/non-desc) — (lane, 32B).
     pub redg2_rec: Vec<(u32, [u8; 32])>,
     /// mk49: rekordy 024e*32 (ATOM.E/ATOMG/ATOMS) — (lane, 32B).
@@ -822,6 +824,7 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
         cs2r_rec: Vec::new(),
         geo_rec: Vec::new(),
         lop3not_rec: Vec::new(),
+        ulop3not_rec: Vec::new(),
         redg2_rec: Vec::new(),
         atomg2_rec: Vec::new(),
         fence_async: Vec::new(),
@@ -921,6 +924,12 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
                 // mk47: rekord 012b{00|04}0a (LOP3.LUT NOT-MOV, LUT=0x33).
                 if let Some(r) = merc_lop3_not_record(t, it.guard_code) {
                     o.lop3not_rec.push((lane, r));
+                }
+            }
+            "ULOP3" => {
+                // mk58: rekord 012b080a (ULOP3.LUT NOT-MOV, LUT=0x33).
+                if let Some(r) = merc_ulop3_not_record(t, it.guard_code) {
+                    o.ulop3not_rec.push((lane, r));
                 }
             }
             "REDG" => {
@@ -1624,6 +1633,80 @@ pub fn merc_lop3_not_record(text: &str, guard_code: u8) -> Option<[u8; 16]> {
     r[2] = cls;
     r[3] = 0x0a;
     r[4] = guard_code;
+    r[6] = 0x04;
+    r[10] = 0x01;
+    r[11] = 0xf8;
+    let dv = (rd << 6) | 1;
+    r[12] = (dv & 0xff) as u8;
+    r[13] = (dv >> 8) as u8;
+    let sv = rs << 6;
+    r[14] = (sv & 0xff) as u8;
+    r[15] = (sv >> 8) as u8;
+    Some(r)
+}
+
+/// mk58: rekord 01 2b 08 0a (16B) = per-lane "ULOP3 NOT-MOV" — uniformna
+/// siostra mk47. Host = lane `ULOP3.LUT URd, URZ, URs, URZ, 0x33, !UPT`
+/// (+opc. guard @!UPn). Korpus sm_100 (676 plikow, 18932 kerneli): multiset
+/// (guard,URd,URs) EXACT 975/975 kerneli z rekordami (1630 rekordow) +
+/// bramka odwrotna 0 kerneli z lane-wzorcem bez rekordu (merclab/mk58 c3/c4).
+/// Payload: [4]=guard (0xfa brak — bit |2 wzgledem mk47; @!UPn -> (n<<3)|3;
+/// pozytywny @UPn nie wystepuje korpusowo -> fail-closed), [6]=04,
+/// [10]=01, [11]=f8, (b12,b13)=LE16((URd<<6)|1), (b14,b15)=LE16(URs<<6).
+/// Lane hosta bez bitu bitmapy (675 bit=0 / 134 bit=1, ogony = misalign
+/// big-kerneli jak mk44/47; doktryna 'rekord zastepuje wezel t4').
+pub fn merc_ulop3_not_record(text: &str, guard_code: u8) -> Option<[u8; 16]> {
+    let body0 = text.trim();
+    let body = match body0.strip_prefix('@') {
+        Some(r) => r
+            .split_once(char::is_whitespace)
+            .map(|(_, x)| x.trim_start())
+            .unwrap_or(body0),
+        None => body0,
+    };
+    if !body.starts_with("ULOP3.LUT") {
+        return None;
+    }
+    let rest = body["ULOP3.LUT".len()..].trim();
+    let toks: Vec<&str> = rest.split(',').collect();
+    if toks.len() < 6 {
+        return None;
+    }
+    fn clean(s: &str) -> &str {
+        let t = s.trim();
+        let t = t.strip_suffix(';').map(str::trim_end).unwrap_or(t);
+        t.strip_suffix(".reuse").unwrap_or(t)
+    }
+    // guard: brak/@UPT -> 0xfa (uniformna wersja 0xf8); korpusowo tylko
+    // zanegowane @!UPn ((n<<3)|3). Pozytywny @UPn / P-space -> brak rekordu.
+    let g4: u8 = if guard_code == 0xf8 {
+        0xfa
+    } else if (guard_code & 0x07) == 0x03 {
+        guard_code
+    } else {
+        return None;
+    };
+    let rd_tok = clean(toks[0]);
+    if clean(toks[1]) != "URZ" || clean(toks[3]) != "URZ" {
+        return None;
+    }
+    if clean(toks[4]) != "0x33" || clean(toks[5]) != "!UPT" {
+        return None;
+    }
+    let rd: u32 = rd_tok.strip_prefix("UR")?.parse().ok()?;
+    if rd > 0x3ff {
+        return None;
+    }
+    let rs: u32 = clean(toks[2]).strip_prefix("UR")?.parse().ok()?;
+    if rs > 0x3ff {
+        return None;
+    }
+    let mut r = [0u8; 16];
+    r[0] = 0x01;
+    r[1] = 0x2b;
+    r[2] = 0x08;
+    r[3] = 0x0a;
+    r[4] = g4;
     r[6] = 0x04;
     r[10] = 0x01;
     r[11] = 0xf8;
