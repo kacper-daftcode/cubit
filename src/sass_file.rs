@@ -334,6 +334,7 @@ pub fn kernel_def_to_meta(
         .map(|&lane| m35_bar_map.get(&lane).copied().unwrap_or(0xf8))
         .collect();
 
+    let usetp52 = merc_usetp_scan(&def.instructions);
     KernelMeta {
         name: def.name.clone(),
         regcount,
@@ -473,6 +474,11 @@ pub fn kernel_def_to_meta(
         merc_bar_guard: m35_bar_guard_par,
         merc_isetp_ur: m35.isetp_ur,
         merc_xsetp_pairs: merc_xsetp_scan(&def.instructions),
+        merc_usetp_minis: {
+            let (m, _) = &usetp52;
+            m.clone()
+        },
+        merc_ulea_upco: usetp52.1.clone(),
         merc_redux: m35.redux,
         merc_cbank358_dreg: m35.cbank358_dreg,
     }
@@ -1050,6 +1056,101 @@ pub fn merc_xsetp_scan(instructions: &[Instruction]) -> Vec<(u32, u8)> {
     }
     out.sort_by_key(|x| x.0);
     out
+}
+
+/// mk52: minis UISETP (UP-dst) + ULEA carry-out (korpus sm_100, merclab/mk52
+/// c1..c26 — walidacja licznikowo-emulatorowa + bitmapa korpusu):
+///  * para UISETP(non-EX, dst UPn) [head] i UISETP.*.EX (..., UPn ostatnim
+///    operandem) [tail] -> mini klasowe na lane heada: 42103406 gdy head LUB
+///    tail ma literal imm; 42103614 w przeciwnym razie. Bezposrednio po nim
+///    mini 42104014 — gdy tail sam imm NIE ma.
+///  * UISETP non-EX lancuch (ostatni operand = !?UP<num>, pisarz dowolny):
+///    pojedyncze mini na wlasnym lane — 42103406 gdy ma imm, inaczej 42103614.
+///  * ULEA z carry-out (2. token = UP<num>): mini 42254214 na wlasnym lane.
+///    (ULEA.HI.X z samym carry-in: bez rekordu; zweryfikowane ormtr-9/9.)
+/// kind: 0=42103614, 1=42103406, 2=42104014. Kolejnosc elementow = kolejnosc
+/// lane (sort stabilny wstrzykuje pare (class,4014) na tym samym lane).
+pub fn merc_usetp_scan(instructions: &[Instruction]) -> (Vec<(u32, u8)>, Vec<u32>) {
+    let mut heads: std::collections::HashMap<String, (u32, bool)> =
+        std::collections::HashMap::new();
+    let mut minis: Vec<(u32, u8)> = Vec::new();
+    let mut ulea: Vec<u32> = Vec::new();
+    for ins in instructions {
+        let lane = (ins.addr / 16) as u32;
+        let b0 = ins.raw_text.as_str().trim_start();
+        let body = match b0.strip_prefix('@') {
+            Some(r) => r
+                .split_once(char::is_whitespace)
+                .map(|(_, x)| x.trim_start())
+                .unwrap_or(b0),
+            None => b0,
+        };
+        let body_ops = match body.find(char::is_whitespace) {
+            Some(k) => body[k..].trim_start(),
+            None => "",
+        };
+        let toks: Vec<&str> = body_ops
+            .split(',')
+            .map(|s| s.trim().trim_end_matches(';').trim_end())
+            .filter(|s| !s.is_empty())
+            .collect();
+        let is_up = |t: &str| -> bool {
+            let t = t.trim_start_matches('!');
+            t.len() > 2 && t.starts_with("UP") && t[2..].chars().all(|c| c.is_ascii_digit())
+        };
+        if ins.opcode == "ULEA" {
+            // forma: ULEA URd, UPcout, srcA, srcB[, shift]
+            if toks.len() >= 2 && is_up(toks[1]) {
+                ulea.push(lane);
+            }
+            continue;
+        }
+        if ins.opcode != "UISETP" {
+            continue;
+        }
+        if toks.is_empty() {
+            continue;
+        }
+        let dstp = toks[0];
+        let imm = merc_lane_has_imm(&toks[1..]);
+        if ins.opcode_full.contains(".EX") {
+            let last = toks.last().copied().unwrap_or("").trim_start_matches('!');
+            if is_up(last) {
+                if let Some(&(hlane, head_imm)) = heads.get(last) {
+                    minis.push((hlane, if head_imm || imm { 1 } else { 0 }));
+                    if !imm {
+                        minis.push((hlane, 2));
+                    }
+                }
+            }
+        } else {
+            let last = toks.last().copied().unwrap_or("").trim_start_matches('!');
+            if is_up(last) {
+                // lancuch: wynik UPn konsumowany U-sekventialnie — mini wg
+                // wlasnego imm (klasa 3406/3614), na wlasnym lane.
+                minis.push((lane, if imm { 1 } else { 0 }));
+            }
+        }
+        let dstv = dstp.trim_start_matches('!');
+        if dstv.len() > 2 && dstv.starts_with("UP") && dstv[2..].chars().all(|c| c.is_ascii_digit()) {
+            heads.insert(dstv.to_string(), (lane, imm));
+        }
+    }
+    (minis, ulea)
+}
+
+/// mk52: literal imm wsrod tokenow — definicja jak w merc_xsetp_scan (mk41).
+fn merc_lane_has_imm(toks: &[&str]) -> bool {
+    toks.iter().any(|tk| {
+        let tk = tk.trim();
+        tk.starts_with("0x")
+            || tk.starts_with("-0x")
+            || (tk
+                .trim_start_matches('-')
+                .chars()
+                .all(|c| c.is_ascii_digit())
+                && !tk.is_empty())
+    })
 }
 
 /// mk41: wykrycie operandu UR<num> (nie URZ — to stala) w tekscie instrukcji.

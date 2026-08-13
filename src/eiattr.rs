@@ -609,6 +609,12 @@ pub struct KernelMeta {
     /// klasa: 0=42102e14 (para czysto-rejestrowa), 1=42103006 (imm w head),
     /// 2=42103214 (operand UR w parze). Head-lane traci bit bitmapy.
     pub merc_xsetp_pairs: Vec<(u32, u8)>,
+    /// mk52: minis UISETP-par EX/lancuchow (lane, kind): kind 0=42103614,
+    /// 1=42103406, 2=42104014 (kolejnosc = lane-asc; para class-mini+4014
+    /// na lane heada). Bitmapowe bity NIE ruszane (decyzja po harnessie).
+    pub merc_usetp_minis: Vec<(u32, u8)>,
+    /// mk52: mini 42254214 — ULEA z carry-out (2. token UP<num>), wlasny lane.
+    pub merc_ulea_upco: Vec<u32>,
     /// mk41: zrodlo sm_100 (marker ;; era=sm100 przez disasm --frozen).
     pub merc_era100: bool,
     /// mk35: rekordy 0132 lane-sorted: (lane, kind, dreg);
@@ -776,6 +782,8 @@ impl KernelMeta {
             merc_bar_guard: Vec::new(),
             merc_isetp_ur: Vec::new(),
             merc_xsetp_pairs: Vec::new(),
+            merc_usetp_minis: Vec::new(),
+            merc_ulea_upco: Vec::new(),
             merc_era100: false,
             merc_redux: Vec::new(),
             merc_cbank358_dreg: None,
@@ -1223,6 +1231,8 @@ mod tests {
             merc_bar_guard: Vec::new(),
             merc_isetp_ur: Vec::new(),
             merc_xsetp_pairs: Vec::new(),
+            merc_usetp_minis: Vec::new(),
+            merc_ulea_upco: Vec::new(),
             merc_era100: false,
             merc_redux: Vec::new(),
             merc_cbank358_dreg: None,

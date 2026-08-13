@@ -1341,6 +1341,8 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_bar_guard: Vec::new(),
         merc_isetp_ur: Vec::new(),
         merc_xsetp_pairs: Vec::new(),
+        merc_usetp_minis: Vec::new(),
+        merc_ulea_upco: Vec::new(),
         merc_era100: false,
         merc_redux: Vec::new(),
         merc_cbank358_dreg: None,
@@ -2283,6 +2285,12 @@ fn cmd_asm_build_elf(
                     let mut xsetp_pairs35: Vec<(u32, u8)> = Vec::new();
                     let mut xsetp_lastp: std::collections::HashMap<String, (u32, bool, bool)> =
                         std::collections::HashMap::new();
+                    // mk52: lustro sass_file::merc_usetp_scan (UISETP minis +
+                    // ULEA carry-out 42254214).
+                    let mut usetp_minis35: Vec<(u32, u8)> = Vec::new();
+                    let mut usetp_heads35: std::collections::HashMap<String, (u32, bool)> =
+                        std::collections::HashMap::new();
+                    let mut ulea_upco35: Vec<u32> = Vec::new();
                     // mk40: lustra merc_store2_scan / merc_mini2_scan / wsel.
                     let mut store2m: Vec<(u32, u8, u8, u16, u16, u16, i32, u8)> = Vec::new();
                     let mut mini2m: Vec<(u32, u32)> = Vec::new();
@@ -2437,6 +2445,59 @@ fn cmd_asm_build_elf(
                                     }
                                 } else {
                                     xsetp_lastp.insert(dstp.to_string(), (ii as u32, has_ur, has_imm));
+                                }
+                            }
+                        }
+                        // mk52 (lustro): UISETP minis + ULEA carry-out.
+                        if base0 == "UISETP" || base0 == "ULEA" {
+                            let body_u = match body.find(char::is_whitespace) {
+                                Some(k) => body[k..].trim_start(),
+                                None => "",
+                            };
+                            let toks: Vec<&str> = body_u
+                                .split(',')
+                                .map(|s| s.trim().trim_end_matches(';').trim_end())
+                                .filter(|s| !s.is_empty())
+                                .collect();
+                            let is_up = |t: &str| -> bool {
+                                let t = t.trim_start_matches('!');
+                                t.len() > 2
+                                    && t.starts_with("UP")
+                                    && t[2..].chars().all(|c| c.is_ascii_digit())
+                            };
+                            if base0 == "ULEA" {
+                                if toks.len() >= 2 && is_up(toks[1]) {
+                                    ulea_upco35.push(ii as u32);
+                                }
+                            } else if !toks.is_empty() {
+                                let has_imm = toks.iter().skip(1).any(|tk| {
+                                    let tk = tk.trim();
+                                    tk.starts_with("0x")
+                                        || tk.starts_with("-0x")
+                                        || tk
+                                            .trim_start_matches('-')
+                                            .chars()
+                                            .all(|c| c.is_ascii_digit())
+                                            && !tk.is_empty()
+                                });
+                                let last = toks.last().copied().unwrap_or("").trim_start_matches('!');
+                                if body.contains(".EX") {
+                                    if is_up(last) {
+                                        if let Some(&(hlane, head_imm)) = usetp_heads35.get(last) {
+                                            usetp_minis35.push((hlane, if head_imm || has_imm { 1 } else { 0 }));
+                                            if !has_imm {
+                                                usetp_minis35.push((hlane, 2));
+                                            }
+                                        }
+                                    }
+                                } else if is_up(last) {
+                                    usetp_minis35.push((ii as u32, if has_imm { 1 } else { 0 }));
+                                }
+                                let dv = toks[0].trim_start_matches('!');
+                                if dv.len() > 2 && dv.starts_with("UP")
+                                    && dv[2..].chars().all(|c| c.is_ascii_digit())
+                                {
+                                    usetp_heads35.insert(dv.to_string(), (ii as u32, has_imm));
                                 }
                             }
                         }
@@ -3300,6 +3361,9 @@ fn cmd_asm_build_elf(
                         meta.merc_bar_guard = bar_guard35.clone();
                         meta.merc_isetp_ur = isetp_ur35.clone();
                         meta.merc_xsetp_pairs = xsetp_pairs35.clone();
+                        usetp_minis35.sort_by_key(|e| e.0);
+                        meta.merc_usetp_minis = usetp_minis35.clone();
+                        meta.merc_ulea_upco = ulea_upco35.clone();
                         meta.merc_store2 = store2m;
                         meta.merc_f64imm = f64imm_sc;
                         meta.merc_dfmaimm = dfmaim_sc;
