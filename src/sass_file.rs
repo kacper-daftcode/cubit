@@ -491,6 +491,7 @@ pub fn kernel_def_to_meta(
         merc_cs2r_rec: mc.cs2r_rec,
         merc_geo_rec: mc.geo_rec,
         merc_lop3not_rec: mc.lop3not_rec,
+        merc_ulop3not_rec: mc.ulop3not_rec,
         merc_redg2_rec: mc.redg2_rec,
         merc_atomg2_rec: mc.atomg2_rec,
         merc_fence_async: mc.fence_async,
@@ -910,6 +911,8 @@ pub struct MercMcScan {
     pub geo_rec: Vec<(u32, [u8; 16])>,
     /// mk47: rekordy 012b{00|04}0a (LOP3.LUT NOT-MOV LUT=0x33) — (lane, 16B).
     pub lop3not_rec: Vec<(u32, [u8; 16])>,
+    /// mk58: rekordy 012b080a (ULOP3.LUT NOT-MOV LUT=0x33) — (lane, 16B).
+    pub ulop3not_rec: Vec<(u32, [u8; 16])>,
     /// mk48: rekordy 024d*32 (REDG desc/non-desc) — (lane, 32B).
     pub redg2_rec: Vec<(u32, [u8; 32])>,
     /// mk49: rekordy 024e*32 (ATOM.E/ATOMG/ATOMS) — (lane, 32B).
@@ -1315,6 +1318,12 @@ pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
                 // mk47: rekord 012b{00|04}0a (LOP3.LUT NOT-MOV, LUT=0x33).
                 if let Some(r) = crate::mercury::merc_lop3_not_record(t, merc_guard_code(ins.guard.as_ref())) {
                     o.lop3not_rec.push((lane, r));
+                }
+            }
+            "ULOP3" => {
+                // mk58: rekord 012b080a (ULOP3.LUT NOT-MOV, LUT=0x33).
+                if let Some(r) = crate::mercury::merc_ulop3_not_record(t, merc_guard_code(ins.guard.as_ref())) {
+                    o.ulop3not_rec.push((lane, r));
                 }
             }
             "REDG" => {
