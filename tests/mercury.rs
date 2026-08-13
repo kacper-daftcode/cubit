@@ -264,12 +264,12 @@ fn mma_mini_sat() {
 #[test]
 fn f64imm_rec_pdmma() {
     // DMUL R4, R4, 0.5 -> top32(0.5) = 0x3fe00000; DADD R6, R4, 1.0 -> 0x3ff00000
-    let r1 = build_f64imm_rec(0, 4, 4, 0x3fe00000);
+    let r1 = build_f64imm_rec(0, 4, 4, 0x3fe00000, 0xf8, 0);
     assert_eq!(
         hexs(&r1),
         "020f120ef800080000000301020113000000000000000000000000000000e03f"
     );
-    let r2 = build_f64imm_rec(1, 6, 4, 0x3ff00000);
+    let r2 = build_f64imm_rec(1, 6, 4, 0x3ff00000, 0xf8, 0);
     assert_eq!(
         hexs(&r2),
         "020c1e0ef800080000008301020113000000000000000000000000000000f03f"

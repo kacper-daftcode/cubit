@@ -503,24 +503,82 @@ pub fn merc_s2r_dest_reg(text: &str) -> Option<u32> {
 /// tego 4-bajtowy atom w lane (gold d_sw4_store slot6, mk13 2026-08-06).
 pub const MERC_LOP3_PWRITE_MINI: [u8; 4] = [0x42, 0x2a, 0x02, 0x06];
 
-/// Rekord 020f (DMUL z imm) / 020c (DADD z imm): imm = gorne 32 bity stalej
-/// f64 na [28:32]; bajty-operandy: b10 = 03|(D&2)<<6, b11 = D>>2,
-/// b12 = 02|(A&2)<<6, b13 = A>>2, b14 = 0x13 const. Wariant: 0=DMUL, 1=DADD.
-pub fn build_f64imm_rec(variant: u8, d: u8, a: u8, imm_top: u32) -> [u8; 32] {
+/// Rekord 020f120e (DMUL z imm) / 020c1e0e (DADD z imm): imm = gorne 32 bity
+/// stalej f64 na [28:32] (rownowazne minimalnemu ogonowi mk51 — LSB stalej
+/// sa w praktyce zerowe); siatka rejestrowa (d<<6)|3 / (a<<6)|2, ZRODLO RZ
+/// bez flagi |2 (0xffc0, jak mk49/store2). mk51: b4 = pelny kod predykatu
+/// mk41 (korpus 020c1e0e: 106 predkowanych), b7 = 2*negA + 4*absA
+/// (korpus: 1828x 00 / 1203x 02). Wariant: 0=DMUL, 1=DADD.
+pub fn build_f64imm_rec(
+    variant: u8,
+    d: u16,
+    a: u16,
+    imm_top: u32,
+    pred: u8,
+    b7: u8,
+) -> [u8; 32] {
     let mut r = [0u8; 32];
     r[0] = 0x02;
     let (t1, t2) = if variant == 0 { (0x0f, 0x12) } else { (0x0c, 0x1e) };
     r[1] = t1;
     r[2] = t2;
     r[3] = 0x0e;
-    r[4] = 0xf8;
+    r[4] = pred;
     r[6] = 0x08;
-    r[10] = 0x03 | ((d & 2) << 6);
-    r[11] = (d >> 2) & 0x3f;
-    r[12] = 0x02 | ((a & 2) << 6);
-    r[13] = a >> 2;
+    r[7] = b7;
+    r[10..12].copy_from_slice(&(((d.min(0x3ff)) << 6) | 3).to_le_bytes());
+    let aflag: u16 = if a == 0x3ff { 0 } else { 2 }; // zrodlo RZ bez |2
+    r[12..14].copy_from_slice(&(((a.min(0x3ff)) << 6) | aflag).to_le_bytes());
     r[14] = 0x13;
     r[28..32].copy_from_slice(&imm_top.to_le_bytes());
+    r
+}
+
+/// mk51: rekordy DFMA z natychmiastowym f64 (emulator korpusowy
+/// merclab/mk51 c10: 18932/18932 kerneli byte-exact, obustronnie):
+///   020d1c0e = DFMA Rd, sA, sB, imm   (imm LAST;   72255 rekordow korpusu)
+///   020d1a0e = DFMA Rd, sA, imm, sB   (imm MIDDLE;  4256 rekordow)
+/// Layout: b4=pred (mk41), b6=0x08, b7=2*negA+8*negB+4*absA+16*absB;
+/// b10/11=(dst<<6)|3, b12/13=(A<<6)|2, B w [14:16] + marker 0x13 na b17
+/// (wariant last) albo marker b14=0x13 i B w [17:19] (wariant mid).
+/// Zrodlo RZ bez flagi |2 (0xffc0). Ogon imm: MINIMALNE gorne bajty stalej
+/// f64 wyrownane do b31 (co najmniej 2): 1.0 -> [30:32]=f0 3f;
+/// stala z bitem w dolnym slowie wypelnia wiecej (0x40c81c80.. -> [28:32]).
+pub fn build_dfmaimm_rec(
+    mid: bool,
+    pred: u8,
+    b7: u8,
+    d: u16,
+    a: u16,
+    b: u16,
+    imm: u64,
+) -> [u8; 32] {
+    let mut r = [0u8; 32];
+    r[0] = 0x02;
+    r[1] = 0x0d;
+    r[2] = if mid { 0x1a } else { 0x1c };
+    r[3] = 0x0e;
+    r[4] = pred;
+    r[6] = 0x08;
+    r[7] = b7;
+    r[10..12].copy_from_slice(&(((d.min(0x3ff)) << 6) | 3).to_le_bytes());
+    let sf = |x: u16| -> u16 { if x == 0x3ff { 0 } else { 2 } };
+    r[12..14].copy_from_slice(&(((a.min(0x3ff)) << 6) | sf(a)).to_le_bytes());
+    if mid {
+        r[14] = 0x13;
+        r[17..19].copy_from_slice(&(((b.min(0x3ff)) << 6) | sf(b)).to_le_bytes());
+    } else {
+        r[14..16].copy_from_slice(&(((b.min(0x3ff)) << 6) | sf(b)).to_le_bytes());
+        r[17] = 0x13;
+    }
+    let mut v = imm;
+    let mut m = 0u32;
+    while m < 6 && v & 0xff == 0 {
+        v >>= 8;
+        m += 1;
+    }
+    let nb = (8 - m) as usize;
+    r[32 - nb..32].copy_from_slice(&v.to_le_bytes()[..nb]);
     r
 }
 

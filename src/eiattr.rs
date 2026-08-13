@@ -417,9 +417,16 @@ pub struct KernelMeta {
     /// Model bajtowy 025a dekodowany byte-exact na pelnej probce korpusu
     /// (mma_model.py); b8flags = (code63?0x80)|(code72?0x20) ze slowa SASS.
     pub merc_mma: Vec<(u32, u8, u8, u8, u8, u8, u8)>,
-    /// Mercury mk11: DMUL/DADD z natychmiastowym f64 -> rekord 020f/020c
-    /// w lane: (lane, variant [0=DMUL,1=DADD], d, a, imm_top32).
-    pub merc_f64imm: Vec<(u32, u8, u8, u8, u32)>,
+    /// Mercury mk11+mk51: DMUL/DADD z natychmiastowym f64 -> rekord
+    /// 020f120e/020c1e0e w lane:
+    /// (lane, variant [0=DMUL,1=DADD], d, a, imm_top32, pred [mk41], b7).
+    /// b7 = 2*negA + 4*absA; zrodlo RZ kodowane jako 0x3ff.
+    pub merc_f64imm: Vec<(u32, u8, u16, u16, u32, u8, u8)>,
+    /// Mercury mk51: DFMA z natychmiastowym f64 -> rekord 020d1c0e
+    /// (imm ostatni) / 020d1a0e (imm srodkowy) w lane:
+    /// (lane, variant [0=last,1=middle], pred, b7 = 2*negA+8*negB+4*absA
+    /// +16*absB, d, a, b, imm64bits). Lane traci bit bitmapy jak mk11-f64.
+    pub merc_dfmaimm: Vec<(u32, u8, u8, u8, u16, u16, u16, u64)>,
     /// Mercury mk11: pozycje killpad-UIADD3 (`UIADD3 URZ, UPT, UPT, URZ,
     /// URZ, URZ`) — brak bitu bitmapy, w lane atom 2B (empiria: tyko ta
     /// forma; live UIADD3 maja bit, korpus 32.5k vs 18).
@@ -707,6 +714,7 @@ impl KernelMeta {
             merc_stg_areg: Vec::new(),
             merc_mma: Vec::new(),
             merc_f64imm: Vec::new(),
+            merc_dfmaimm: Vec::new(),
             merc_pad_pos: Vec::new(),
             merc_param_loads: Vec::new(),
             merc_cbank_lane: None,
@@ -1153,6 +1161,7 @@ mod tests {
             merc_stg_areg: Vec::new(),
             merc_mma: Vec::new(),
             merc_f64imm: Vec::new(),
+            merc_dfmaimm: Vec::new(),
             merc_pad_pos: Vec::new(),
             merc_param_loads: Vec::new(),
             merc_cbank_lane: None,

@@ -1279,6 +1279,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_stg_areg: Vec::new(),
         merc_mma: Vec::new(),
         merc_f64imm: Vec::new(),
+        merc_dfmaimm: Vec::new(),
         merc_pad_pos: Vec::new(),
         merc_param_uniform: 0,
         merc_param_regpath: 0,
@@ -2292,6 +2293,12 @@ fn cmd_asm_build_elf(
                     // sass_file::merc_edge_ldg_scan). Pre-pass: desc-UR-y
                     // uzywane wylacznie przez lane'y bazowe LDG.
                     let mut edge_ldgm: Vec<(u32, u8, u8, u16, u16, u8, u16, u32)> = Vec::new();
+                    // mk51: lustra sass_file::merc_f64imm_scan /
+                    // merc_dfmaimm_scan (rekordy 020f120e/020c1e0e oraz
+                    // 020d1c0e/020d1a0e — D-FP z natychmiastowym f64).
+                    let mut f64imm_sc: Vec<(u32, u8, u16, u16, u32, u8, u8)> = Vec::new();
+                    let mut dfmaim_sc: Vec<(u32, u8, u8, u8, u16, u16, u16, u64)> =
+                        Vec::new();
                     let mut ldg_only_urs: std::collections::HashSet<u16> =
                         std::collections::HashSet::new();
                     if kernel_name.contains("annotated_ptr") {
@@ -2755,6 +2762,65 @@ fn cmd_asm_build_elf(
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+                        // mk51 (lustro): rekordy DFMA/DMUL/DADD z imm f64.
+                        if base0 == "DFMA" || base0 == "DMUL" || base0 == "DADD" {
+                            use cubit::sass_file::{merc_f64_lit, merc_f64_reg};
+                            let parts: Vec<&str> =
+                                rest.split(',').map(|x| x.trim()).collect();
+                            if base0 == "DFMA" && parts.len() == 4 {
+                                if let Some((d, _, _)) = merc_f64_reg(parts[0]) {
+                                    if let (Some((a, n1, ab1)), Some((b, n2, ab2)), Some(im)) = (
+                                        merc_f64_reg(parts[1]),
+                                        merc_f64_reg(parts[2]),
+                                        merc_f64_lit(parts[3]),
+                                    ) {
+                                        let b7: u8 = (if n1 { 2 } else { 0 })
+                                            | (if n2 { 8 } else { 0 })
+                                            | (if ab1 { 4 } else { 0 })
+                                            | (if ab2 { 16 } else { 0 });
+                                        dfmaim_sc.push((
+                                            ii as u32, 0u8, guard_fc, b7, d, a, b,
+                                            im.to_bits(),
+                                        ));
+                                    } else if let (
+                                        Some((a, n1, ab1)),
+                                        Some(im),
+                                        Some((b, n2, ab2)),
+                                    ) = (
+                                        merc_f64_reg(parts[1]),
+                                        merc_f64_lit(parts[2]),
+                                        merc_f64_reg(parts[3]),
+                                    ) {
+                                        let b7: u8 = (if n1 { 2 } else { 0 })
+                                            | (if n2 { 8 } else { 0 })
+                                            | (if ab1 { 4 } else { 0 })
+                                            | (if ab2 { 16 } else { 0 });
+                                        dfmaim_sc.push((
+                                            ii as u32, 1u8, guard_fc, b7, d, a, b,
+                                            im.to_bits(),
+                                        ));
+                                    }
+                                }
+                            } else if parts.len() == 3 {
+                                if let (Some((d, _, _)), Some((a, n1, ab1)), Some(im)) = (
+                                    merc_f64_reg(parts[0]),
+                                    merc_f64_reg(parts[1]),
+                                    merc_f64_lit(parts[2]),
+                                ) {
+                                    let b7: u8 = (if n1 { 2 } else { 0 })
+                                        | (if ab1 { 4 } else { 0 });
+                                    f64imm_sc.push((
+                                        ii as u32,
+                                        if base0 == "DMUL" { 0u8 } else { 1u8 },
+                                        d,
+                                        a,
+                                        (im.to_bits() >> 32) as u32,
+                                        guard_fc,
+                                        b7,
+                                    ));
                                 }
                             }
                         }
@@ -3235,6 +3301,8 @@ fn cmd_asm_build_elf(
                         meta.merc_isetp_ur = isetp_ur35.clone();
                         meta.merc_xsetp_pairs = xsetp_pairs35.clone();
                         meta.merc_store2 = store2m;
+                        meta.merc_f64imm = f64imm_sc;
+                        meta.merc_dfmaimm = dfmaim_sc;
                         meta.merc_mini2 = mini2m;
                         edge_ldm.sort_by_key(|e| e.0);
                         meta.merc_edge_ld = edge_ldm;

@@ -31,7 +31,10 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
         merc_stg_dur: g.dur.to_vec(),
         merc_stg_guard: g.guard.iter().map(|&v| match v { 1 => 0x00u8, 2 => 0x01, _ => 0xf8 }).collect(),
         merc_mma: g.mma.to_vec(),
-        merc_f64imm: g.f64i.to_vec(),
+        merc_f64imm: g.f64i
+            .iter()
+            .map(|&(l, v, d, a, i)| (l, v, d as u16, a as u16, i, 0xf8u8, 0u8))
+            .collect(),
         merc_pad_pos: g.pads.to_vec(),
         merc_param_loads: g.loads.iter().map(|&(ln, pi, u, w, g2)| (ln, pi, u, w, match g2 { 1 => 0x00u8, 2 => 0x01, _ => 0xf8u8 })).collect::<Vec<_>>(),
         merc_cbank_lane: if g.cblane >= 0 { Some(g.cblane as u32) } else { None },

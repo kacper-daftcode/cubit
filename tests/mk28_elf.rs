@@ -48,6 +48,7 @@ fn base_meta(name: &str) -> KernelMeta {
         merc_stg_guard: Vec::new(),
         merc_mma: Vec::new(),
         merc_f64imm: Vec::new(),
+        merc_dfmaimm: Vec::new(),
         merc_pad_pos: Vec::new(),
         merc_param_loads: Vec::new(),
         merc_cbank_lane: None,

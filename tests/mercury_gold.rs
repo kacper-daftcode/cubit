@@ -54,7 +54,10 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
         merc_stg_dur: g.dur.to_vec(),
         merc_stg_guard: g.guard.iter().map(|&v| match v { 1 => 0x00u8, 2 => 0x01, _ => 0xf8 }).collect(),
         merc_mma: g.mma.to_vec(),
-        merc_f64imm: g.f64i.to_vec(),
+        merc_f64imm: g.f64i
+            .iter()
+            .map(|&(l, v, d, a, i)| (l, v, d as u16, a as u16, i, 0xf8u8, 0u8))
+            .collect(),
         merc_pad_pos: g.pads.to_vec(),
         // mk19: manifest trzyma pi (sloty 8B); meta/elf_builder dziala na
         // surowych offsetach bajtowych rel = 8*pi (c_off - 0x380).
