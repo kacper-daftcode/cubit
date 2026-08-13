@@ -345,7 +345,7 @@ pub fn kernel_def_to_meta(
     let mc = merc_mc_scan(&def.instructions, &cg_lane_set);
     // mk40: store-matrix (ST.E/STL) + mini-slownik korpusowy.
     let merc_store2 = merc_store2_scan(&def.instructions);
-    let merc_mini2 = merc_mini2_scan(&def.instructions);
+    let merc_mini2 = merc_mini2_scan(&def.name, &def.instructions);
     // mk42: edge-rekordy LD-desc (02223232) + maxUR deskryptorow.
     let (merc_edge_ld, merc_edge_maxur) = merc_edge_ld_scan(&def.instructions);
     // mk50: edge-rekordy LDG-desc (02221e32) w kernelach annotated_ptr.
@@ -2263,20 +2263,67 @@ fn merc_param_scan(
      atom_pool_hits.into_iter().collect())
 }
 
+/// mk67: literal imm wsrod operandow (int/hex/float) — dla mini2 HADD2.
+/// mocniejsze niz merc_lane_has_imm (mk52): lapie tez literaly float
+/// ("-1.875", "1.0"); NIE ruszamy tamtej (wspoldzielona z regulami mk41/52).
+pub fn merc_txt_has_imm_literal(line: &str) -> bool {
+    let mut parts = line.split(',');
+    let _ = parts.next(); // pierwszy segment zawiera opcode+dest
+    for p in parts {
+        let t = p.trim().trim_end_matches(';').trim();
+        // literal: liczba (int/float, opcjonalny minus) albo 0x-hex
+        let core = t.strip_suffix(".reuse").unwrap_or(t);
+        if core.is_empty() {
+            continue;
+        }
+        if core.starts_with("0x") || core.starts_with("-0x") {
+            return true;
+        }
+        let c0 = core.chars().next().unwrap();
+        if (c0 == '-' || c0.is_ascii_digit()) && core.parse::<f64>().is_ok() {
+            return true;
+        }
+    }
+    false
+}
+
+/// mk67: dialekt legacy-xmma fp32 (cublasLt.so.1170..1436): JEDYNE kerny
+/// korpusu, gdzie lane'y FFMA dostaja mini 41 17 10 0a (kandydatura (b)
+/// z frontu po mk66; EXACT 18932/18932 korpus: 141 kerneli `*xmma*ffma_fp32*`
+/// wszyscy z rekordami po 1/FFMA; 233 kernele `*xmma*cp32*` (complex<f32>)
+/// i 10473 pozostale z FFMA — zadnych rekordow). To dialekt producenta
+/// (offline-built szablony Ampere), nie cecha instrukcji.
+pub fn merc_ffma_fp32_dialect(kernel_name: &str) -> bool {
+    kernel_name.contains("xmma") && kernel_name.contains("ffma_fp32")
+}
+
 /// mk40 (korpus sm_100; analysis/merclab/mk40/stgfields.rs, EXACT fits):
 /// slownik klas mini-rekordow 4B emitowanych per-lane. Rekord = LE u32
 /// bajtow b0..b3. Wszystkie te klasy maja w korpusie bit bitmapy = 0
 /// (rekord zastepuje wezel t4); klasy untracked (BREAK/PREEXIT/BAR) bit=0
 /// z definicji tracked-listy.
-pub fn merc_mini2_scan(instructions: &[Instruction]) -> Vec<(u32, u32)> {
+pub fn merc_mini2_scan(kernel_name: &str, instructions: &[Instruction]) -> Vec<(u32, u32)> {
+    let ffma_dialect = merc_ffma_fp32_dialect(kernel_name);
     let mut out: Vec<(u32, u32)> = Vec::new();
     for ins in instructions {
         let lane = (ins.addr / 16) as u32;
         let full = ins.opcode_full.as_str();
         let m = match ins.opcode.as_str() {
+            "FFMA" if ffma_dialect => 0x0a101741,     // mk67: 41 17 10 0a (xmma fp32)
             "FFMA2" => 0x26140d42,                    // 42 0d 14 26 (EXACT)
-            "HADD2" => 0x0a260c41,                    // 41 0c 26 0a (HADD2+HADD2.BF16 EXACT)
-            "BREAK" => 0x0a000541,                    // 41 05 00 0a (EXACT, untracked)
+            // mk67: HADD2.F32 (widening f16->f32) NIE dostaje mini; formy
+            // z literalem imm ("HADD2 R11, RZ, -1.875, -1.875") tez nie
+            // (cublasLt.so.197 epilogue x3 + cusparse.766 x2). Finalna regula
+            // plain-no-F32-no-imm EXACT 2527/2527 kerneli (merclab/mk67 c22).
+            "HADD2"
+                if !full.starts_with("HADD2.F32")
+                    && !merc_txt_has_imm_literal(ins.raw_text.as_str()) =>
+            {
+                0x0a260c41 // 41 0c 26 0a
+            }
+            // mk67: BREAK.RELIABLE NIE dostaje mini (atrybucja mk67/c18 na
+            // gemmk1 cublasLt.203; regula plain-only EXACT 2723/2723 korpus).
+            "BREAK" if !full.contains(".RELIABLE") => 0x0a000541,  // 41 05 00 0a (untracked)
             "PREEXIT" => 0x0a026241,                  // 41 62 02 0a (EXACT, untracked)
             "BAR" if full.contains(".ARV") => 0x16124741, // 41 47 12 16 (EXACT, untracked)
             // mk43: pisownia nvdisasm (mk40): "F2I.U64.TRUNC"; printer cubit
