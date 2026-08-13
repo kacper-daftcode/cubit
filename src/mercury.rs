@@ -1165,6 +1165,12 @@ pub const MERC_MINI_UVIRT: [u8; 4] = [0x41, 0x44, 0x00, 0x3c];
 pub const MERC_MINI_WS6E: [u8; 4] = [0x41, 0x47, 0x6e, 0x0a];
 pub const MERC_MINI_WS76: [u8; 4] = [0x41, 0x47, 0x76, 0x0a];
 
+/// mini 4B: WARPSYNC reg-form / WARPSYNC.EXCLUSIVE (maska w R<n>) —
+/// mk65 (merclab/mk65 c9: korpus EXACT obustronnie 18932/18932):
+/// b2 = 0x78 iff lane jest site'em EIATTR-0x28, inaczej 0x70.
+pub const MERC_MINI_WS78: [u8; 4] = [0x41, 0x47, 0x78, 0x0a];
+pub const MERC_MINI_WS70: [u8; 4] = [0x41, 0x47, 0x70, 0x0a];
+
 /// d1-marker + blob 01 1b 36 0a (16B): mbarrier-init count-prolog
 /// (UIADD3 UR?, UPT, UPT, +/-UR?, 0x100000, URZ). b4: 0x03 gdy prolog jest
 /// predykowany (@!UPx i @!Px rowno — m_init/b_mbarrier), 0xfa gdy nie.
