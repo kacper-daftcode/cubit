@@ -2565,11 +2565,16 @@ fn cmd_asm_build_elf(
                                 });
                                 if body.contains(".EX") {
                                     let last = toks.last().copied().unwrap_or("").trim_start_matches('!');
-                                    if let Some(&(hlane, hu, hi)) = xsetp_lastp.get(last) {
-                                        xsetp_pairs35.push((hlane, if hu || has_ur { 2u8 } else if hi { 1 } else { 0 }));
+                                    // mk69 (lustro sass_file::merc_xsetp_scan): pop +
+                                    // klasa z heada; head z last-tok!=PT kasowany.
+                                    if let Some((hlane, hu, hi)) = xsetp_lastp.remove(last) {
+                                        xsetp_pairs35.push((hlane, if hu { 2u8 } else if hi { 1 } else { 0 }));
+                                        let _ = has_ur;
                                     }
-                                } else {
+                                } else if toks.last().copied().unwrap_or("") == "PT" {
                                     xsetp_lastp.insert(dstp.to_string(), (ii as u32, has_ur, has_imm));
+                                } else {
+                                    xsetp_lastp.remove(dstp);
                                 }
                             }
                         }

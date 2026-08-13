@@ -1108,6 +1108,16 @@ pub fn merc_mk35_scan(instructions: &[Instruction]) -> MercMk35 {
 /// heada. Klasy: 0=para czysto-rejestrowa (42102e14); 1=imm w head (42103006);
 /// 2=operand UR w parze (42103214). Head kasuje bit bitmapy.
 /// (Zmiana mk35: poprzednia regula NE+UR-noEX strzelala faux w korpusie.)
+/// mk69 (merclab/mk69 c2..c12, EXACT-kierunek na korpusie): doprecyzowania —
+///  * head jest KONSUMWOWANY przez pierwszy pasujacy tail (pop): powtorna
+///    EX z tym samym pred-carry na odleglym lane NIC nie emituje
+///    (rot_kernel libcublas.141: head 12 +EX 13 +EX 119 down — orig liczy 1);
+///  * head-eligibility: non-EX ISETP zapisujacy Pn z ostatnim tokenem != PT
+///    (idiom bool-join `ISETP... Pn, PT, a, b, Pm`) NIE jest headem i KASUJE
+///    dopietego starszego heada (przepisanie predykatu);
+///  * klasa z HEADa wylacznie: UR/imm w tailu (np. `RZ, UR13` w
+///    sphpr2 cublas.339) NIE podnosi klasy (orig daje 42102e14; a w mk68
+///    text-modelu bylo 42103214).
 pub fn merc_xsetp_scan(instructions: &[Instruction]) -> Vec<(u32, u8)> {
     let mut last_by_p: std::collections::HashMap<String, (u32, bool, bool)> =
         std::collections::HashMap::new();
@@ -1158,15 +1168,20 @@ pub fn merc_xsetp_scan(instructions: &[Instruction]) -> Vec<(u32, u8)> {
         });
         if full.contains(".EX") {
             let last = toks.last().copied().unwrap_or("").trim_start_matches('!');
-            if let Some(&(hlane, h_ur, h_imm)) = last_by_p.get(last) {
-                let cls: u8 = if h_ur || has_ur { 2 } else if h_imm { 1 } else { 0 };
+            // mk69: pop — head mozna skonsumowac tylko raz.
+            if let Some((hlane, h_ur, h_imm)) = last_by_p.remove(last) {
+                let cls: u8 = if h_ur { 2 } else if h_imm { 1 } else { 0 };
+                let _ = has_ur;
                 out.push((hlane, cls));
             }
-        } else {
+        } else if toks.last().copied().unwrap_or("") == "PT" {
             last_by_p.insert(
                 dst_pred.to_string(),
                 ((ins.addr / 16) as u32, has_ur, has_imm),
             );
+        } else {
+            // mk69: bool-join head (carry-in != PT) kasuje starszego heada.
+            last_by_p.remove(dst_pred);
         }
     }
     out.sort_by_key(|x| x.0);
