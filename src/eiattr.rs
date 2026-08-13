@@ -573,6 +573,12 @@ pub struct KernelMeta {
     pub merc_plop3_tx: Vec<(u32, u8)>,
     /// mk44: rekordy 0110060a generalne (dual-output PLOP3, bez UP).
     pub merc_plop3_rec: Vec<(u32, [u8; 16])>,
+    /// mk54: rekordy 02100214 (PLOP3.LUT z uniform Pc).
+    pub merc_plop3u_rec: Vec<(u32, [u8; 32])>,
+    /// mk54: rekordy 02100414 (UPLOP3.LUT).
+    pub merc_uplop3_rec: Vec<(u32, [u8; 32])>,
+    /// mk54: rekordy 0210160e/02100a0e (DSETP z imm f64).
+    pub merc_dsetpimm_rec: Vec<(u32, [u8; 32])>,
     /// mk45: rekordy 010b0c0a generalne (CS2R Rd, SRZ).
     pub merc_cs2r_rec: Vec<(u32, [u8; 16])>,
     /// mk47: rekordy 012b{00|04}0a (LOP3.LUT NOT-MOV) — (lane, 16B).
@@ -770,6 +776,9 @@ impl KernelMeta {
             merc_ublkcp: Vec::new(),
             merc_plop3_tx: Vec::new(),
             merc_plop3_rec: Vec::new(),
+            merc_plop3u_rec: Vec::new(),
+            merc_uplop3_rec: Vec::new(),
+            merc_dsetpimm_rec: Vec::new(),
             merc_cs2r_rec: Vec::new(),
             merc_lop3not_rec: Vec::new(),
             merc_redg2_rec: Vec::new(),
@@ -1221,6 +1230,9 @@ mod tests {
             merc_ublkcp: Vec::new(),
             merc_plop3_tx: Vec::new(),
             merc_plop3_rec: Vec::new(),
+            merc_plop3u_rec: Vec::new(),
+            merc_uplop3_rec: Vec::new(),
+            merc_dsetpimm_rec: Vec::new(),
             merc_cs2r_rec: Vec::new(),
             merc_lop3not_rec: Vec::new(),
             merc_redg2_rec: Vec::new(),

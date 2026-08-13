@@ -1349,6 +1349,9 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_redux: Vec::new(),
         merc_cbank358_dreg: None,
         merc_plop3_rec: Vec::new(),
+        merc_plop3u_rec: Vec::new(),
+        merc_uplop3_rec: Vec::new(),
+        merc_dsetpimm_rec: Vec::new(),
         merc_cs2r_rec: Vec::new(),
         merc_lop3not_rec: Vec::new(),
         merc_redg2_rec: Vec::new(),
@@ -3362,6 +3365,9 @@ fn cmd_asm_build_elf(
                         meta.merc_ublkcp = mc.ublkcp;
                         meta.merc_plop3_tx = mc.plop3_tx;
                         meta.merc_plop3_rec = mc.plop3_rec;
+                        meta.merc_plop3u_rec = mc.plop3u_rec;
+                        meta.merc_uplop3_rec = mc.uplop3_rec;
+                        meta.merc_dsetpimm_rec = mc.dsetpimm_rec;
                         meta.merc_fence_async = mc.fence_async;
                         meta.merc_ldgsts_b128 = mc.ldgsts_b128;
                         meta.merc_s2ur_cga = mc.s2ur_cga;
