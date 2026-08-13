@@ -655,6 +655,8 @@ pub struct McScanOut {
     pub cs2r_rec: Vec<(u32, [u8; 16])>,
     /// mk46: rekordy 010b060a geo-anchor (S2UR-geo + LDCU okno drivera).
     pub geo_rec: Vec<(u32, [u8; 16])>,
+    /// mk47: rekordy 012b{00|04}0a (LOP3.LUT NOT-MOV LUT=0x33) — (lane, 16B).
+    pub lop3not_rec: Vec<(u32, [u8; 16])>,
     pub fence_async: Vec<u32>,
     pub ldgsts_b128: bool,
     /// mk41: (lane, guarded, dst-UR) — payload smem-anchora z dst.
@@ -688,6 +690,7 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
         plop3_rec: Vec::new(),
         cs2r_rec: Vec::new(),
         geo_rec: Vec::new(),
+        lop3not_rec: Vec::new(),
         fence_async: Vec::new(),
         ldgsts_b128: false,
         s2ur_cga: Vec::new(),
@@ -763,6 +766,12 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
                 // mk45: generyczny rekord 010b0c0a (CS2R R<d>, SRZ).
                 if let Some(r) = merc_cs2r_srz_record(t, it.guard_code) {
                     o.cs2r_rec.push((lane, r));
+                }
+            }
+            "LOP3" => {
+                // mk47: rekord 012b{00|04}0a (LOP3.LUT NOT-MOV, LUT=0x33).
+                if let Some(r) = merc_lop3_not_record(t, it.guard_code) {
+                    o.lop3not_rec.push((lane, r));
                 }
             }
             "LDGSTS" if it.full.contains(".128") => o.ldgsts_b128 = true,
@@ -1115,6 +1124,79 @@ pub fn merc_cs2r_srz_record(text: &str, guard_code: u8) -> Option<[u8; 16]> {
     r[11] = b11;
     r[12] = 0xff;
     r[13] = 0x0f;
+    Some(r)
+}
+
+/// mk47: rekordy 01 2b {00|04} 0a (16B). Host = lane
+/// `LOP3.LUT Rd, RZ, Rs, RZ, 0x33, !PT` (kanoniczny NOT-MOV; LUT 0x33 = !B
+/// przy pozostalych wejsciach martwych). Rd zawsze R<n>; klasa (bajt 2 tagu):
+/// 0x00 gdy Rs = R<n>, 0x04 gdy Rs = UR<n>. Bramka korpusowa (sm_100, 676
+/// plikow): multiset (guard,Rd,Rs,cls) EXACT 7305/7305 kerneli z rekordami;
+/// reverse 0 kerneli z lane-wzorcem bez rekordu (17684 rekordy ogolem:
+/// 16478 klasy R + 1206 klasy UR). Payload: b4=kod guarda (merc_guard_code);
+/// b6=0x04; b10=0x01; b11=0xf8; (b12,b13)=LE16((Rd<<6)|1);
+/// (b14,b15)=LE16(Rs<<6); reszta zer. Lane rekordu bez bitu bitmapy
+/// (lanebits: 3922 bit=0 / 549 bit=1 — ogony = misalign big-kerneli jak mk44;
+/// doktryna 'rekord zastepuje wezel t4').
+pub fn merc_lop3_not_record(text: &str, guard_code: u8) -> Option<[u8; 16]> {
+    let body0 = text.trim();
+    let body = match body0.strip_prefix('@') {
+        Some(r) => r
+            .split_once(char::is_whitespace)
+            .map(|(_, x)| x.trim_start())
+            .unwrap_or(body0),
+        None => body0,
+    };
+    if !body.starts_with("LOP3.LUT") {
+        return None;
+    }
+    let rest = body["LOP3.LUT".len()..].trim();
+    let toks: Vec<&str> = rest.split(',').collect();
+    if toks.len() < 6 {
+        return None;
+    }
+    fn clean(s: &str) -> &str {
+        let t = s.trim();
+        let t = t.strip_suffix(';').map(str::trim_end).unwrap_or(t);
+        t.strip_suffix(".reuse").unwrap_or(t)
+    }
+    let rd_tok = clean(toks[0]);
+    if clean(toks[1]) != "RZ" || clean(toks[3]) != "RZ" {
+        return None;
+    }
+    if clean(toks[4]) != "0x33" || clean(toks[5]) != "!PT" {
+        return None;
+    }
+    let rd: u32 = rd_tok.strip_prefix('R')?.parse().ok()?;
+    if rd > 0x3ff {
+        return None;
+    }
+    let rs_tok = clean(toks[2]);
+    let (rs, cls): (u32, u8) = if let Some(d) = rs_tok.strip_prefix("UR") {
+        (d.parse().ok()?, 0x04)
+    } else if let Some(d) = rs_tok.strip_prefix('R') {
+        (d.parse().ok()?, 0x00)
+    } else {
+        return None;
+    };
+    if rs > 0x3ff {
+        return None;
+    }
+    let mut r = [0u8; 16];
+    r[0] = 0x01;
+    r[1] = 0x2b;
+    r[2] = cls;
+    r[3] = 0x0a;
+    r[4] = guard_code;
+    r[6] = 0x04;
+    r[10] = 0x01;
+    r[11] = 0xf8;
+    let dv = (rd << 6) | 1;
+    r[12] = (dv & 0xff) as u8;
+    r[13] = (dv >> 8) as u8;
+    let sv = rs << 6;
+    r[14] = (sv & 0xff) as u8;
+    r[15] = (sv >> 8) as u8;
     Some(r)
 }
 
