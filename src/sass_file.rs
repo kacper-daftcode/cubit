@@ -224,15 +224,26 @@ pub fn kernel_def_to_meta(
     let (merc_xor, merc_xor_reg) = merc_xor_scan(&def.instructions);
     let merc_atoms = merc_atom_scan(&def.instructions);
     // mk14.3: LDGSTS pinned/wait (wspoldzielony skaner tekstowy).
-    let (merc_ldgsts_pin, merc_ldgsts_wait) = {
+    // mk53: pelny silnik blobow 02233034/3434 (nadrzedny; mk14-pin zostaje
+    // jako fallback dla kerneli bez desc-form LDGSTS).
+    let (merc_ldgsts_pin, merc_ldgsts_wait, merc_ldgsts2, merc_ldgsts2_waits) = {
         let lines: Vec<(u32, String)> = def
             .instructions
             .iter()
             .map(|i| ((i.addr / 16) as u32, i.raw_text.clone()))
             .collect();
+        let l2 = crate::mercury::merc_ldgsts2_scan(&lines, &def.name);
+        let l2w: Vec<(u32, u8)> = Vec::new(); // mk54: merc_ldgsts2_waits(&lines)
         let (pn, wt) = crate::mercury::merc_ldgsts_scan(&lines);
-        (pn.map(|x| vec![x]).unwrap_or_default(),
-         wt.map(|x| vec![x]).unwrap_or_default())
+        let pin_legacy = if l2.is_empty() {
+            pn.map(|x| vec![x]).unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        // mk53: legacy wait (mk14.3) zostaje ZAWSZE — nowy per-DEPBAR silnik
+        // parked (atlas53d nadprodukcja); mk54 zawezi regule okna.
+        let wait_legacy = wt.map(|x| vec![x]).unwrap_or_default();
+        (pin_legacy, wait_legacy, l2, l2w)
     };
     let merc_utca = merc_utca_scan(&def.instructions);
     let merc_atom_smem = merc_atom_smem_scan(&def.instructions);
@@ -405,6 +416,8 @@ pub fn kernel_def_to_meta(
         merc_atoms,
         merc_ldgsts_pin,
         merc_ldgsts_wait,
+        merc_ldgsts2,
+        merc_ldgsts2_waits,
         merc_utca,
         merc_atom_smem,
         merc_bra_selfloop,

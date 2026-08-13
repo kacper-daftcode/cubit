@@ -1304,6 +1304,8 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_atoms: Vec::new(),
         merc_ldgsts_pin: Vec::new(),
         merc_ldgsts_wait: Vec::new(),
+        merc_ldgsts2: Vec::new(),
+        merc_ldgsts2_waits: Vec::new(),
         merc_bra_selfloop: Vec::new(),
         merc_store2: Vec::new(),
         merc_mini2: Vec::new(),
@@ -3263,15 +3265,27 @@ fn cmd_asm_build_elf(
                         meta.merc_wwide_sites = wwide_v;
                     }
                     // mk14.3: LDGSTS pinned/wait hosty (lustro merc_ldgsts_scan).
+                    // mk53: pelny silnik blobow (nadrzedny nad mk14-pin).
                     {
                         let lines: Vec<(u32, String)> = insns
                             .iter()
                             .enumerate()
                             .map(|(ii, (_a, t))| (ii as u32, t.clone()))
                             .collect();
+                        let l2 = cubit::mercury::merc_ldgsts2_scan(&lines, kernel_name);
+                        let l2w = cubit::mercury::merc_ldgsts2_waits(&lines);
                         let (pin, wait) = cubit::mercury::merc_ldgsts_scan(&lines);
-                        if let Some(p3) = pin {
-                            meta.merc_ldgsts_pin = vec![p3];
+                        let l2_nonempty = !l2.is_empty();
+                        if l2_nonempty {
+                            meta.merc_ldgsts2 = l2;
+                            meta.merc_ldgsts2_waits = l2w;
+                        }
+                        // legacy pin/wait tylko gdy silnik mk53 pusty;
+                        // legacy wait ZAWSZE gdy jest (mk14.3 nie nadprodukuje).
+                        if !l2_nonempty {
+                            if let Some(p3) = pin {
+                                meta.merc_ldgsts_pin = vec![p3];
+                            }
                         }
                         if let Some(w) = wait {
                             meta.merc_ldgsts_wait = vec![w];

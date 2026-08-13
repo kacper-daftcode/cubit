@@ -1481,6 +1481,295 @@ fn merc_put16(b: &mut [u8; 32], off: usize, v: u16) {
 
 /// Siatka rejestru jak w 0229/02 38: (r<<6)|flagi; RZ formy specjalne.
 fn merc_grid1(r: u8) -> u16 { if r == 255 { 0xffc1 } else { ((r as u16) << 6) | 1 } }
+
+/// === mk53: pelny silnik rekordow 02 23 {b2} 34 (LDGSTS pinned blobs) ===
+/// Korpus (merclab/mk53 c1..c37, 677/744 kerneli byte-exact "clean"):
+/// - jeden blob 32B na kazdy lane `LDGSTS... [R..(+imm)], desc[URm][Rs.64..]`
+///   (forma z deskryptorem; [UR]-dst i non-desc bez rekordow);
+/// - rekord bajtowo: 02 23 30 34 | b4=guard (PT->f8, @Pn->n<<3, @!Pn->n<<3|1)
+///   b6=0x20 gdy BYPASS inaczej 0x24; b7=0x10; b8=widthE(.64=0x08,.128=0x10)
+///   |0x02 gdy LTC128B; b9=01; b12/13=LE16(dstbase<<6); b14/15=0a 01; b16=00;
+///   b17/18=LE16((srcreg<<6)|2); b19=09; b20=00; b21/b22=const per kernel
+///   (domkniete tylko dla 1-blob kerneli: 0x82/0x01; mk54 sweep); b23=00;
+///   b24 = notify-pred<<3 (3. operand P#; brak -> 0xf8; zanegowany: bez neg);
+///   b25..27=00 (u16@26 parked: wartosci 04/08/... czesciowo; mk54);
+///   u32@28 = imm smem-dst RAW.
+/// - marker 51 02 (2B) przed blobem k-tego lane'a gdy miedzy poprzednim
+///   blob-lane'em a tym stoi run killpadow `@!PT LDS RZ,[RZ]` (host pinu =
+///   pierwszy killpad runu; mk14.3 domknieto to dla 1-grupowych kerneli).
+/// - era cutlass_80 (libcublas sm_100 v1070/Lt-548): tag 02 23 34 34 dla
+///   form z LTC128B (zamiast 30 34); 02 23 3a 34 pozostaje parked (mk54).
+#[derive(Debug, Clone)]
+pub struct Ldgsts2Blob {
+    pub lane: u32,
+    pub pin: bool,
+    pub pin_host: Option<u32>,
+    /// imm strony src (desc[URm][Rs.64+0ximm]) — u16@26-27 RAW (K1: 0x40).
+    pub simm: u32,
+    pub guard: u8,
+    pub b6: u8,
+    pub b8: u8,
+    pub tag3434: bool,
+    pub dreg: u32,
+    pub dimm: u32,
+    pub sreg: Option<u32>,
+    pub npred: Option<u8>,
+}
+
+/// Parsuje lane SASS LDGSTS -> Some(blob) gdy forma z desc[UR..] i R-dst.
+/// Skadnia: [@!Pn] LDGSTS.<warianty> [Rd(+0ximm)(..)], desc[URm][Rs.64(+..)](, Pn)?
+pub fn ldgsts2_parse_mode(
+    text: &str,
+    nodesc: bool,
+) -> Option<(u8, u8, u8, u32, u32, Option<u32>, Option<u8>, u32)> {
+    let mut t = text.trim_end_matches(';').trim();
+    let mut guard = 0xf8u8;
+    if let Some(rest) = t.strip_prefix('@') {
+        let mut sp = rest.find(char::is_whitespace).unwrap_or(rest.len());
+        let g = &rest[..sp];
+        sp = sp.min(rest.len());
+        let p = g.trim_start_matches('!');
+        let neg = g.starts_with('!') as u8;
+        if let Some(num) = p.strip_prefix('P').and_then(|d| d.parse::<u8>().ok()) {
+            guard = (num << 3) | neg;
+        } else if p != "PT" {
+            return None; // @UPn / inne: fail-closed
+        }
+        t = rest[sp..].trim_start();
+    }
+    if !t.starts_with("LDGSTS") {
+        return None;
+    }
+    let opend = t.find(char::is_whitespace).unwrap_or(t.len());
+    let opfull = &t[..opend];
+    if !t.contains("desc[UR") && !nodesc {
+        return None;
+    }
+    // dst: pierwszy nawias kwadratowy z R (nie UR).
+    let b0 = t.find('[')?;
+    let b1 = t[b0..].find(']').map(|i| b0 + i)?;
+    let dst_inner = &t[b0 + 1..b1];
+    if !dst_inner.starts_with('R') {
+        return None; // [UR..]/inne: brak rekordu (korpus mk53)
+    }
+    let dreg_str = dst_inner.strip_prefix('R')?;
+    let dreg_digits: String = dreg_str.chars().take_while(|c| c.is_ascii_digit()).collect();
+    let dreg: u32 = dreg_digits.parse().ok()?;
+    let dimm: u32 = (|| {
+        let plus = dst_inner.find("+0x")?;
+        let raw: String = dst_inner[plus + 3..]
+            .chars()
+            .take_while(|c| c.is_ascii_hexdigit())
+            .collect();
+        u32::from_str_radix(&raw, 16).ok()
+    })()
+    .unwrap_or(0);
+    // src: po desc[URm] albo (nodesc) od razu drugi nawias [Rs.64..].
+    let b2s = if let Some(desc_pos) = t.find("desc[UR") {
+        t[desc_pos + 6..].find('[').map(|i| desc_pos + 6 + i)?
+    } else {
+        t[b1 + 1..].find('[').map(|i| b1 + 1 + i)?
+    };
+    let b2e = t[b2s..].find(']').map(|i| b2s + i)?;
+    let src_inner = &t[b2s + 1..b2e];
+    let s_digits: String = src_inner
+        .strip_prefix('R')?
+        .chars()
+        .take_while(|c| c.is_ascii_digit())
+        .collect();
+    let sreg: Option<u32> = s_digits.parse().ok();
+    let simm: u32 = (|| {
+        let plus = src_inner.find("+0x")?;
+        let raw: String = src_inner[plus + 3..]
+            .chars()
+            .take_while(|c| c.is_ascii_hexdigit())
+            .collect();
+        u32::from_str_radix(&raw, 16).ok()
+    })()
+    .unwrap_or(0);
+    // notify-pred: ostatni token po przecinku to (!)P<cyfra>.
+    let npred = t.rsplit(',').find_map(|tk| {
+        let tk = tk.trim();
+        let tk = tk.strip_prefix('!').unwrap_or(tk);
+        let d = tk.strip_prefix('P')?;
+        d.parse::<u8>().ok()
+    });
+    let b6: u8 = if opfull.contains("BYPASS") { 0x20 } else { 0x24 };
+    let mut b8: u8 = 0;
+    if opfull.contains("LTC128B") {
+        b8 |= 0x02;
+    }
+    if opfull.contains(".64") {
+        b8 |= 0x08;
+    }
+    if opfull.contains(".128") {
+        b8 |= 0x10;
+    }
+    Some((guard, b6, b8, dreg, dimm, sreg, npred, simm))
+}
+
+/// Kompat dla testow: tryb desc.
+#[allow(dead_code)]
+pub fn ldgsts2_parse(text: &str) -> Option<(u8, u8, u8, u32, u32, Option<u32>, Option<u8>, u32)> {
+    ldgsts2_parse_mode(text, false)
+}
+
+/// Czy tekst to killpad `@!PT LDS RZ, [RZ]` (dowolny guard tolerate).
+pub fn is_ldgsts_killpad(text: &str) -> bool {
+    let mut t = text.trim_end_matches(';').trim();
+    while let Some(rest) = t.strip_prefix('@') {
+        let sp = rest.find(char::is_whitespace).map(|i| i + 1).unwrap_or(rest.len());
+        t = rest[sp..].trim_start();
+    }
+    t.replace(' ', "") == "LDSRZ,[RZ]"
+}
+
+/// Pelny skan: blob per lane + pin wg runu killpadow od poprzedniego blobu.
+pub fn merc_ldgsts2_scan(lines: &[(u32, String)], kern_name: &str) -> Vec<Ldgsts2Blob> {
+    let mut out: Vec<Ldgsts2Blob> = Vec::new();
+    let mut kill_run: Vec<u32> = Vec::new();
+    let era74 = kern_name.contains("cutlass_80");
+    for (lane, text) in lines {
+        if is_ldgsts_killpad(text) {
+            kill_run.push(*lane);
+            continue;
+        }
+        let base = text
+            .trim_end_matches(';')
+            .trim()
+            .strip_prefix('@')
+            .map(|r| {
+                let sp = r.find(char::is_whitespace).map(|i| i + 1).unwrap_or(0);
+                r[sp..].trim_start()
+            })
+            .unwrap_or_else(|| text.trim());
+        if !base.starts_with("LDGSTS") {
+            if !kill_run.is_empty() && !base.starts_with("LDS ") {
+                kill_run.clear();
+            }
+            continue;
+        }
+        let Some((guard, b6, b8, dreg, dimm, sreg, npred, simm)) = ldgsts2_parse_mode(
+            text,
+            era74 && text.contains("LTC128B"),
+        ) else {
+            kill_run.clear();
+            continue;
+        };
+        let pin = !kill_run.is_empty();
+        out.push(Ldgsts2Blob {
+            lane: *lane,
+            pin,
+            pin_host: if pin { Some(kill_run[0]) } else { None },
+            simm,
+            guard,
+            b6,
+            b8,
+            tag3434: era74 && b8 & 0x02 != 0,
+            dreg,
+            dimm,
+            sreg,
+            npred,
+        });
+        kill_run.clear();
+    }
+    out
+}
+
+/// mk53-w: wait-event 01 23 40 0a (16B) per DEPBAR (b11 = arg imm DEPBAR),
+/// host = ostatnia instrukcja ze slotem przed DEPBARem (regula mk14.3 uogol.
+/// na wszystkie DEPBARy; korpus c43: #wait == #DEPBAR w nosnikach LDGSTS).
+pub fn merc_ldgsts2_waits(lines: &[(u32, String)]) -> Vec<(u32, u8)> {
+    let mut out = Vec::new();
+    let base_of = |t: &str| -> String {
+        let mut x = t.trim().to_string();
+        while x.starts_with('@') {
+            x = match x.split_once(' ') {
+                Some((_, r)) => r.trim().to_string(),
+                None => return x,
+            };
+        }
+        x.split_whitespace().next().unwrap_or("").to_string()
+    };
+    for (lane, text) in lines {
+        let b = base_of(text);
+        let bb = b.split('.').next().unwrap_or("");
+        if bb == "DEPBAR" {
+            // arg imm: ostatni ', 0xN' w tekscie
+            let imm = text
+                .rsplit(',')
+                .find_map(|tk| {
+                    let tk = tk.trim().trim_end_matches(';');
+                    tk.strip_prefix("0x")
+                        .and_then(|h| u32::from_str_radix(h, 16).ok())
+                })
+                .unwrap_or(0)
+                .min(255) as u8;
+            let host = lines
+                .iter()
+                .rev()
+                .filter(|(l, _)| *l < *lane)
+                .find(|(_, t)| {
+                    let b2 = base_of(t);
+                    !opcode_bitmap_zero_weight(&b2)
+                })
+                .map(|(l, _)| *l);
+            if let Some(h) = host {
+                out.push((h, imm));
+            }
+        }
+    }
+    out
+}
+
+/// 16B wait: b4=f8, b6=08, b11=imm.
+pub fn build_ldgsts2_wait(imm: u8) -> [u8; 16] {
+    let mut r = [0u8; 16];
+    r[0] = 0x01;
+    r[1] = 0x23;
+    r[2] = 0x40;
+    r[3] = 0x0a;
+    r[4] = 0xf8;
+    r[6] = 0x08;
+    r[11] = imm;
+    r
+}
+
+/// Blob 32B (bez markera). single = kernel ma dokladnie 1 blob (gold m15:
+/// b21=0x82, b22=0x01; multi-blob domknije mk54 sweep, na razie modal).
+pub fn build_ldgsts2_blob(x: &Ldgsts2Blob, single: bool) -> [u8; 32] {
+    let mut r = [0u8; 32];
+    let tag: [u8; 4] = if x.tag3434 {
+        [0x02, 0x23, 0x34, 0x34]
+    } else {
+        [0x02, 0x23, 0x30, 0x34]
+    };
+    r[..4].copy_from_slice(&tag);
+    r[4] = x.guard;
+    r[6] = x.b6;
+    r[7] = 0x10;
+    r[8] = x.b8;
+    r[9] = 0x01;
+    let v = (x.dreg.min(0x3ff) as u16) << 6;
+    r[12] = (v & 0xff) as u8;
+    r[13] = (v >> 8) as u8;
+    r[14] = 0x0a;
+    r[15] = 0x01;
+    if let Some(s) = x.sreg {
+        let s16 = ((s.min(0x3ff) as u16) << 6) | 2;
+        r[17] = (s16 & 0xff) as u8;
+        r[18] = (s16 >> 8) as u8;
+    }
+    r[19] = 0x09;
+    r[21] = if single { 0x82 } else { 0x02 };
+    r[26] = (x.simm & 0xff) as u8;
+    r[27] = (x.simm >> 8) as u8;
+    r[22] = if single { 0x01 } else { 0x03 };
+    r[24] = x.npred.map(|p| p << 3).unwrap_or(0xf8);
+    r[28..32].copy_from_slice(&x.dimm.to_le_bytes());
+    r
+}
+
 fn merc_grid0(r: u8) -> u16 { if r == 255 { 0xffc0 } else { (r as u16) << 6 } }
 
 /// mk14: rekordy atomowe z rejestrami (dekod mk14/atommodel.py)

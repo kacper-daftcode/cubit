@@ -365,6 +365,10 @@ pub struct MercFeatures {
     /// host traci bit bitmapy. wait-lane -> 0123400a (host tez traci bit).
     pub ldgsts_pin: Option<(u32, u8, u8)>,
     pub ldgsts_wait: Option<u32>,
+    /// mk53: bloby 02233034/3434 per desc-form LDGSTS (silnik nadrzedny).
+    pub ldgsts2: Vec<crate::mercury::Ldgsts2Blob>,
+    /// mk53-w: (lane, imm) wait-eventow 0123400a per DEPBAR (silnik mk53).
+    pub ldgsts2_waits: Vec<(u32, u8)>,
     /// mk14.3: lane'y LDSM -> mini 42 5b 02 06 (rekord zastepuje wezel t4).
     pub ldsm_lanes: Vec<u32>,
     /// mk14: lane'y duchow __syncwarp (z KernelMeta.merc_syncwarp; EIATTR
@@ -469,6 +473,8 @@ impl MercFeatures {
             atoms: meta.merc_atoms.clone(),
             ldgsts_pin: meta.merc_ldgsts_pin.first().copied(),
             ldgsts_wait: meta.merc_ldgsts_wait.first().copied(),
+            ldgsts2: meta.merc_ldgsts2.clone(),
+            ldgsts2_waits: meta.merc_ldgsts2_waits.clone(),
             ldsm_lanes: opcodes
                 .iter()
                 .enumerate()
@@ -1400,6 +1406,8 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         Atom(usize),
         LdgstsPin,
         LdgstsWait,
+        Ldgsts2(usize),
+        Ldgsts2Wait(usize),
         LdsmMini,
         // mk30: rodziny b_*
         SmemCga(usize),
@@ -1598,8 +1606,25 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         }
     }
     // mk14.3: LDGSTS pinned-blob + wait-event + LDSM mini.
-    if let Some((pl, _, _)) = feat.ldgsts_pin {
-        ev.push((pl, 20, Ev::LdgstsPin));
+    // mk53: pelny silnik blobow (lane per desc-form LDGSTS; legacy pin tylko
+    // gdy silnik pusty).
+    // klucz porzadku = host pinu (killpad) gdy pin, inaczej lane bloba —
+    // inaczej czekaj 0123400a wskoczyloby miedzy pin a blob (b_cpasync).
+    for (i2, x2) in feat.ldgsts2.iter().enumerate() {
+        ev.push((x2.pin_host.unwrap_or(x2.lane), 20, Ev::Ldgsts2(i2)));
+    }
+    // mk53-w wip: regula per-DEPBAR przepiekla (atlas53d: new-only 0123400a
+    // =208 na keep-400; getrf rozbija prosta korelacje #wait==#DEPBAR).
+    // Legacy single-wait (mk14.3) nie nadprodukuje — zostaje jedyna sciezka.
+    if false {
+        for (w2, (wl2, _imm)) in feat.ldgsts2_waits.iter().enumerate() {
+            ev.push((*wl2, 20, Ev::Ldgsts2Wait(w2)));
+        }
+    }
+    if feat.ldgsts2.is_empty() {
+        if let Some((pl, _, _)) = feat.ldgsts_pin {
+            ev.push((pl, 20, Ev::LdgstsPin));
+        }
     }
     if let Some(wl) = feat.ldgsts_wait {
         ev.push((wl, 20, Ev::LdgstsWait));
@@ -1837,6 +1862,21 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 out.extend_from_slice(&blob);
             }
             Ev::LdgstsWait => out.extend_from_slice(&crate::mercury::MERC_LDGSTS_WAIT),
+            // mk53: marker 51 02 (gdy pin) + blob 32B.
+            Ev::Ldgsts2(i2) => {
+                let x = &feat.ldgsts2[i2];
+                if x.pin {
+                    out.extend_from_slice(&[0x51, 0x02]);
+                }
+                out.extend_from_slice(&crate::mercury::build_ldgsts2_blob(
+                    x,
+                    feat.ldgsts2.len() == 1,
+                ));
+            }
+            Ev::Ldgsts2Wait(w2) => {
+                let (_l2, imm2) = feat.ldgsts2_waits[w2];
+                out.extend_from_slice(&crate::mercury::build_ldgsts2_wait(imm2));
+            }
             Ev::LdsmMini => out.extend_from_slice(&crate::mercury::MERC_LDSM_MINI),
             Ev::Atom(i) => {
                 let a = feat.atoms[i];
@@ -2549,12 +2589,20 @@ pub fn generate_mercury_full(
     // (sa na liscie site'ow EIATTR-0x28 -> rekord 01476c0a).
     let syncwarp_set: Vec<u32> = meta.merc_syncwarp.clone();
     // mk14.3: lane'y gryzione przez eventy LDGSTS.
-    let feat_host_zero: Vec<u32> = meta
+    let mut feat_host_zero: Vec<u32> = meta
         .merc_ldgsts_pin
         .iter()
         .map(|p| p.0)
         .chain(meta.merc_ldgsts_wait.iter().copied())
         .collect();
+    if !meta.merc_ldgsts2.is_empty() {
+        feat_host_zero = meta
+            .merc_ldgsts2
+            .iter()
+            .filter_map(|x| x.pin_host)
+            .chain(meta.merc_ldgsts_wait.iter().copied())
+            .collect();
+    }
     let mut xor_lane_set: Vec<u32> =
         meta.merc_xor.iter().map(|&(lane, _, _, _, _)| lane).collect();
     // mk13: rejestrowa forma xor tez zastepuje wezel typu4 (brak bitu).
