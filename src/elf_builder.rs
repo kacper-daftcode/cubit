@@ -399,6 +399,8 @@ pub struct MercFeatures {
     pub cs2r_rec: Vec<(u32, [u8; 16])>,
     /// mk47: rekordy 012b{00|04}0a (LOP3.LUT NOT-MOV LUT=0x33).
     pub lop3not_rec: Vec<(u32, [u8; 16])>,
+    /// mk48: rekordy 024d*32 (REDG desc/non-desc) — (lane, 32B pelny payload).
+    pub redg2_rec: Vec<(u32, [u8; 32])>,
     /// mk46: rekordy 010b060a geo-anchor (lane, 16B pelny payload).
     pub geo_rec: Vec<(u32, [u8; 16])>,
     pub fence_async: Vec<u32>,
@@ -478,6 +480,7 @@ impl MercFeatures {
             plop3_rec: meta.merc_plop3_rec.clone(),
             cs2r_rec: meta.merc_cs2r_rec.clone(),
             lop3not_rec: meta.merc_lop3not_rec.clone(),
+            redg2_rec: meta.merc_redg2_rec.clone(),
             geo_rec: meta.merc_geo_rec.clone(),
             fence_async: meta.merc_fence_async.clone(),
             ldgsts_b128: meta.merc_ldgsts_b128,
@@ -1360,6 +1363,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         McPlop3Rec(usize),
         McCs2rRec(usize),
         McLop3NotRec(usize),
+        McRedg2(usize),
         ShiftAt(usize),
         Utca(usize),
         AtomSmem(usize),
@@ -1624,6 +1628,10 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for (k, _) in feat.lop3not_rec.iter().enumerate() {
         ev.push((feat.lop3not_rec[k].0, 20, Ev::McLop3NotRec(k)));
     }
+    // mk48: rekordy 024d*32 (REDG); tier 20 jak Ev::Atom/mk44-47.
+    for (k, _) in feat.redg2_rec.iter().enumerate() {
+        ev.push((feat.redg2_rec[k].0, 20, Ev::McRedg2(k)));
+    }
     // mk30b: UTCA piny + ATOMS z imm [UR+off] takze w sciezce laned
     // (b_tcgen05; mk27 robil to dla zero-param mkvmem).
     for (k, _) in feat.utca.iter().enumerate() {
@@ -1882,6 +1890,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::McPlop3Rec(k) => out.extend_from_slice(&feat.plop3_rec[k].1),
             Ev::McCs2rRec(k) => out.extend_from_slice(&feat.cs2r_rec[k].1),
             Ev::McLop3NotRec(k) => out.extend_from_slice(&feat.lop3not_rec[k].1),
+            Ev::McRedg2(k) => out.extend_from_slice(&feat.redg2_rec[k].1),
             Ev::ShiftAt(_) => out.extend_from_slice(&REC_SHIFT_REGION),
             Ev::Store2(k) => out.extend_from_slice(&rec_store2(feat.store2[k])),
             Ev::Mini2(k) => out.extend_from_slice(&feat.mini2[k].1.to_le_bytes()),
@@ -1919,7 +1928,10 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     // ATOM-klasa legacy: po strumieniu tylko gdy brak per-lane metadanych
     // (mk14). Klasy nie-RED emitowane juz w lane (Ev::Atom); RED zostaja tu.
     if feat.atoms.is_empty() {
-        for _ in 0..feat.n_atom {
+        // mk48: lane'y REDG z wlasnymi rekordami (redg2_rec) nie dostaja
+        // legacy trailing REC_ATOM (k_atom/v_atom: dublet po mk48-fixie).
+        let covered = feat.redg2_rec.len() as u32;
+        for _ in 0..feat.n_atom.saturating_sub(covered) {
             out.extend_from_slice(&REC_ATOM);
         }
     } else {
