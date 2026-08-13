@@ -1243,6 +1243,13 @@ pub fn merc_usetp_scan(instructions: &[Instruction]) -> (Vec<(u32, u8)>, Vec<u32
                     minis.push((hlane, if head_imm || imm { 1 } else { 0 }));
                     if !imm {
                         minis.push((hlane, 2));
+                    } else if head_imm {
+                        // mk68: para UISETP z imm w head ORAZ imm w tail.EX
+                        // dostaje DODATKOWO mini 42103e06 na lane EX-taily
+                        // (EXACT 279/279=243 kern l2, merclab/mk68 c3/c4;
+                        // next-min-to-prawo ma lane > tailem: c6 gemv2T
+                        // atrybucja TLV [3406@h][3214@L26][3e06@L27]).
+                        minis.push((lane, 3));
                     }
                 }
             }
@@ -2302,6 +2309,46 @@ pub fn merc_ffma_fp32_dialect(kernel_name: &str) -> bool {
 /// bajtow b0..b3. Wszystkie te klasy maja w korpusie bit bitmapy = 0
 /// (rekord zastepuje wezel t4); klasy untracked (BREAK/PREEXIT/BAR) bit=0
 /// z definicji tracked-listy.
+/// mk68: mini 42 2a 06 06 dla ULOP3.LUT (merclab/mk68 c20..c24):
+///  (A) lane z zapisem predykatu UPn: `ULOP3.LUT UPn, URm, ...` (7-tok,
+///      tok1 = UR<num> NIE URZ — forma 'UPn, URZ, URm, imm' NIE nosi),
+///  (B) lane ULOP3 z imm 0x80000000 i lut 0xb8 (idiom symv sign-mask;
+///      6-tok, dst URn).
+/// EXACT 18918/18932 kerneli l2 (c25); nie nadprodukuje nigdzie.
+/// Residua park mk69 (22 rekordy w 14 kernelach): cublasLt.474/497/502 gemvx
+/// (lane UP0-write a=URZ z c=0x3 LUB UR-write 6tok c=0x3), cublas.936 trsm_ln,
+/// cusolver.1744 lasr, cusolver.985 getrf — alternatywne formy ULOP3.
+pub fn merc_ulop3_0606(text: &str) -> bool {
+    let mut t = text.trim_end_matches([';', ' ']).trim();
+    while let Some(rest) = t.strip_prefix('@') {
+        t = rest
+            .split_once(char::is_whitespace)
+            .map(|(_, r)| r.trim_start())
+            .unwrap_or("");
+    }
+    let body = match t.split_once(char::is_whitespace) {
+        Some((_, r)) => r,
+        None => return false,
+    };
+    let toks: Vec<&str> = body
+        .split(',')
+        .map(|x| x.trim().trim_end_matches([';', ',']))
+        .collect();
+    if toks.iter().any(|x| *x == "0xb8") && toks.iter().any(|x| *x == "0x80000000")
+    {
+        return true; // klasa (B)
+    }
+    // klasa (A): dst UPn + dlugosc 7 + tok1 == UR<num> (nie URZ, negacje ok)
+    let dst = toks[0].trim_start_matches('!');
+    let is_upn = dst.len() > 2 && dst.starts_with("UP")
+        && dst[2..].chars().all(|c| c.is_ascii_digit());
+    let t1 = toks.get(1).copied().unwrap_or("");
+    let t1n = t1.trim_start_matches('-');
+    let is_urn = t1n.len() > 2 && t1n.starts_with("UR")
+        && t1n[2..].chars().all(|c| c.is_ascii_digit());
+    is_upn && toks.len() == 7 && is_urn
+}
+
 pub fn merc_mini2_scan(kernel_name: &str, instructions: &[Instruction]) -> Vec<(u32, u32)> {
     let ffma_dialect = merc_ffma_fp32_dialect(kernel_name);
     let mut out: Vec<(u32, u32)> = Vec::new();
@@ -2334,8 +2381,21 @@ pub fn merc_mini2_scan(kernel_name: &str, instructions: &[Instruction]) -> Vec<(
             // F2FP.TF32.F32.PACK) — EXACT 384==384 na 2 kernelach
             // cutlass_80_tensorop (korpus); bit t4 kasowany jak reszta mini2.
             "F2FP" if full.contains("TF32") => 0x0b6c1241,
+            // mk68: F2FP SATFINITE fp8 (cubit: F2FP.{E4M3,E5M2}.F32.PACK_AB_
+            // MERGE_C.SATFINITE; nvdis: F2FP.SATFINITE.{E4M3,E5M2}.F32.PACK) —
+            // EXACT korpusowo 1062/1062 w l2 (merclab/mk68 c-pairs-fit;
+            // pliki cublasLt.191/197/551).
+            "F2FP" if full.contains("SATFINITE")
+                && (full.contains("E4M3") || full.contains("E5M2")) =>
+                0x26ec1242, // 42 12 ec 26
+            // mk68: F2FP fp8->f16 UNPACK (cubit: F2FP.{E4M3,E5M2}.F16.UNPACK_B;
+            // nvdis: F2FP.F16.{E4M3,E5M2}.UNPACK) — EXACT 400/400 w l2.
+            "F2FP" if full.contains("UNPACK_B")
+                && (full.contains("E4M3") || full.contains("E5M2")) =>
+                0x0a721241, // 41 12 72 0a
             "IMAD" if full == "IMAD.WIDE.U32.X" => 0x06342042,        // 42 20 34 06
             "UIMAD" if full == "UIMAD.WIDE.U32.X" => 0x06382042,      // 42 20 38 06
+            "ULOP3" if merc_ulop3_0606(ins.raw_text.as_str()) => 0x06062a42, // mk68: 42 2a 06 06
             _ => continue,
         };
         out.push((lane, m));

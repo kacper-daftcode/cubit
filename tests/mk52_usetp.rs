@@ -74,7 +74,8 @@ fn mk52_skan_par_i_lancuchow() {
         // thrust: head z imm -> 3406 + 4014 (head lane 6)
         mk_ins(6, "UISETP", "UISETP.GE.U32.AND UP1, UPT, UR6, 0x200, UPT ;", None),
         mk_ins(7, "UISETP.GE.AND.EX", "UISETP.GE.AND.EX UP1, UPT, UR7, URZ, UPT, UP1 ;", None),
-        // gemv2: imm w head i w tail -> TYLKO 3406 (head lane 9; 4014 zgaszone)
+        // gemv2: imm w head i w tail -> 3406 (head lane 9; 4014 zgaszone) PLUS
+        // mk68: mini 42103e06 na lane EX-tail (10) — merclab/mk68 c3/c4/c6.
         mk_ins(9, "UISETP", "UISETP.GT.U32.AND UP2, UPT, UR8, 0x7f, UPT ;", None),
         mk_ins(10, "UISETP.GT.AND.EX", "UISETP.GT.AND.EX UP2, UPT, UR9, -0x1, UPT, UP2 ;", None),
         // sam EX bez znanego heada -> nic (fail-closed)
@@ -90,7 +91,7 @@ fn mk52_skan_par_i_lancuchow() {
     let (m, u) = merc_usetp_scan(&ins);
     assert_eq!(
         m,
-        vec![(3, 0), (3, 2), (6, 1), (6, 2), (9, 1), (14, 1), (16, 0)]
+        vec![(3, 0), (3, 2), (6, 1), (6, 2), (9, 1), (10, 3), (14, 1), (16, 0)]
     );
     assert!(u.is_empty());
 }

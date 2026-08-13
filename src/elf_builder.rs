@@ -2082,6 +2082,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             // mk52
             Ev::UsetpMini(1) => out.extend_from_slice(&[0x42, 0x10, 0x34, 0x06]),
             Ev::UsetpMini(2) => out.extend_from_slice(&[0x42, 0x10, 0x40, 0x14]),
+            Ev::UsetpMini(3) => out.extend_from_slice(&[0x42, 0x10, 0x3e, 0x06]),
             Ev::UsetpMini(_) => out.extend_from_slice(&[0x42, 0x10, 0x36, 0x14]),
             Ev::UleaUpco => out.extend_from_slice(&[0x42, 0x25, 0x42, 0x14]),
             Ev::Mma(i) => {
