@@ -499,6 +499,11 @@ pub fn kernel_def_to_meta(
         merc_ldgsts_b128: mc.ldgsts_b128,
         merc_s2ur_cga: mc.s2ur_cga,
         merc_bsync_close: mc.bsync_close,
+        merc_region09: if mc.region09_ok {
+            Some(mc.region09.clone())
+        } else {
+            None
+        },
         merc_hfma2_const: mc.hfma2_const,
         merc_mc_ulea_x: mc.ulea_x,
         merc_mc_bra_np: mc.bra_np_loop,
@@ -928,6 +933,10 @@ pub struct MercMcScan {
     pub bra_np_loop: Vec<u32>,          // braided BRA bez " PT, " w m-family (bit 0)
     /// mk59: d1-47 per WC-site (NOP-region) -> (lane WC, reg maski).
     pub d1wc47: Vec<(u32, u8)>,         // mk59 (lustro mercury::mc_scan_lines)
+    /// mk62: rekordy 51010109 per zamkniecie regionu BSSY.RECONVERGENT:
+    /// (close_lane, barrier); ok=false -> niespojne pary (legacy path).
+    pub region09: Vec<(u32, u8)>,
+    pub region09_ok: bool,
     /// mk34 (node-model g5b): lane'e bez wezlow capmerc = bez slotu bitmapy
     /// (para USHF licznika mbarrier + FENCE.ASYNC; tylko m-family).
     pub nodeless: Vec<u32>,
@@ -1264,6 +1273,44 @@ fn regex_like_ur(body: &str) -> Vec<()> {
 
 pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
     let mut o = MercMcScan::default();
+    // mk62: regiony BSSY->BSYNC (rekord 51010109 per RECONVERGENT-close).
+    {
+        let mut ok = true;
+        let mut stacks: [Vec<bool>; 8] = Default::default();
+        for ins in instructions {
+            let lane = (ins.addr / 16) as u32;
+            match ins.opcode.as_str() {
+                "BSSY" => match crate::mercury::merc_barrier_id(&ins.raw_text) {
+                    Some(b) => stacks[b as usize].push(ins.opcode_full.contains("RECONVERGENT")),
+                    None => {
+                        ok = false;
+                        break;
+                    }
+                },
+                "BSYNC" => match crate::mercury::merc_barrier_id(&ins.raw_text) {
+                    Some(b) => match stacks[b as usize].pop() {
+                        Some(rec) => {
+                            if rec {
+                                o.region09.push((lane, b));
+                            }
+                        }
+                        None => {
+                            ok = false;
+                            break;
+                        }
+                    },
+                    None => {
+                        ok = false;
+                        break;
+                    }
+                },
+                _ => {}
+            }
+        }
+        if ok && stacks.iter().all(|s| s.is_empty()) {
+            o.region09_ok = true;
+        }
+    }
     let bar_lanes: Vec<u32> = instructions
         .iter()
         .filter(|i| i.opcode == "BAR")

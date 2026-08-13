@@ -432,6 +432,8 @@ pub struct MercFeatures {
     /// smem-anchora b10/b11 = (dstUR<<6)|1 (corpus-exact smemfit 12151/12151).
     pub s2ur_cga: Vec<(u32, bool, u8)>,
     pub bsync_close: Vec<u32>,
+    /// mk62: regiony 51010109 z tekstu: (close_lane, barrier); None = legacy.
+    pub region09: Option<Vec<(u32, u8)>>,
     pub hfma2_const: Vec<u32>,
     /// mk30b: ULEA prologu mbarrier (dest==addr EXCH) — bez bitu (kasowany).
     pub mc_ulea_x: Vec<u32>,
@@ -536,6 +538,7 @@ impl MercFeatures {
             ldgsts_b128: meta.merc_ldgsts_b128,
             s2ur_cga: meta.merc_s2ur_cga.clone(),
             bsync_close: meta.merc_bsync_close.clone(),
+            region09: meta.merc_region09.clone(),
             hfma2_const: meta.merc_hfma2_const.clone(),
             mc_ulea_x: meta.merc_mc_ulea_x.clone(),
             mc_bra_np: meta.merc_mc_bra_np.clone(),
@@ -1563,14 +1566,28 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         }
     }
     if feat.diverge_region {
-        // mk30b: rekord regionu przy lane zamkniecia BSYNC (nie przy cbank) —
-        // gold sw*/p_ldsm: nierozroznialne (nic miedzy); b_bulk_cp rozstrzyga.
-        let region_lane = feat
-            .bsync_close
-            .first()
-            .copied()
-            .unwrap_or(clane);
-        ev.push((region_lane, 12, Ev::ShiftAt(0)));
+        // mk62: rekord 51010109 PER ZAMKNIECIE regionu BSSY.RECONVERGENT
+        // (korpus: +2001 kerneli TLV-exact vs sciezka pojedyncza; dolac[z]one
+        // sa WYLACZNIE regiony RECONVERGENT; plain-flavor = dialekty starych
+        // producentow — patrz SM103A_MK62_SHIFT09.md). Payload dw[12:16]=2*b.
+        // Bez skanu (region09=None) zostaje legacy single-record.
+        match &feat.region09 {
+            Some(regs) if !regs.is_empty() => {
+                for (k, &(l, _b)) in regs.iter().enumerate() {
+                    ev.push((l, 12, Ev::ShiftAt(k)));
+                }
+            }
+            _ => {
+                // mk30b: rekord regionu przy lane zamkniecia BSYNC (nie przy
+                // cbank) — gold sw*/p_ldsm: nierozroznialne; b_bulk_cp rozstrz.
+                let region_lane = feat
+                    .bsync_close
+                    .first()
+                    .copied()
+                    .unwrap_or(clane);
+                ev.push((region_lane, 12, Ev::ShiftAt(usize::MAX)));
+            }
+        }
         // mk15 (2026-08-07): powdroczony rekord smem 010b060a tuz po rekordzie
         // regionu divergent 51010109 — tylko gdy kernel ma statyczna smem.
         // Lab: p_ldsm + b_bulk_cp (1 pin -> dokladnie 1 dup, bajty identyczne
@@ -2099,7 +2116,14 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::Redux2(k) => out.extend_from_slice(&feat.redux2[k].1),
             Ev::McRedg2(k) => out.extend_from_slice(&feat.redg2_rec[k].1),
             Ev::McAtomg2(k) => out.extend_from_slice(&feat.atomg2_rec[k].1),
-            Ev::ShiftAt(_) => out.extend_from_slice(&REC_SHIFT_REGION),
+            Ev::ShiftAt(k) => {
+                let b = if k == usize::MAX {
+                    0u8
+                } else {
+                    feat.region09.as_ref().map(|v| v[k].1).unwrap_or(0)
+                };
+                out.extend_from_slice(&crate::mercury::merc_region09_record(b));
+            }
             Ev::Store2(k) => out.extend_from_slice(&rec_store2(feat.store2[k])),
             Ev::Mini2(k) => out.extend_from_slice(&feat.mini2[k].1.to_le_bytes()),
             Ev::EdgeLd(k) => out.extend_from_slice(&rec_edge32(feat.edge_ld[k], feat.edge_v)),

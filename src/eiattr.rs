@@ -610,6 +610,9 @@ pub struct KernelMeta {
     pub merc_s2ur_cga: Vec<(u32, bool, u8)>,
     /// mk30: lane'y BSYNC (zamkniecie spanu BSSY) — rekord 51+010109 regionu.
     pub merc_bsync_close: Vec<u32>,
+    /// mk62: rekordy 51010109 per zamkniecie regionu BSSY.RECONVERGENT:
+    /// (close_lane, barrier_id). None = sciezka legacy (microlab-gold).
+    pub merc_region09: Option<Vec<(u32, u8)>>,
     /// mk30b: ULEA prologu mbarrier (dest == addr EXCH, imm 0x18) — bez bitu.
     pub merc_mc_ulea_x: Vec<u32>,
     /// mk30b: braided BRA bez " PT," w rodzinie mbarrier — bez bitu.
@@ -804,6 +807,7 @@ impl KernelMeta {
             merc_hfma2_const: Vec::new(),
             merc_s2ur_cga: Vec::new(),
             merc_bsync_close: Vec::new(),
+            merc_region09: None,
             merc_mc_ulea_x: Vec::new(),
             merc_mc_bra_np: Vec::new(),
             merc_mc_nodeless: Vec::new(),
@@ -1262,6 +1266,7 @@ mod tests {
             merc_hfma2_const: Vec::new(),
             merc_s2ur_cga: Vec::new(),
             merc_bsync_close: Vec::new(),
+            merc_region09: None,
             merc_mc_ulea_x: Vec::new(),
             merc_mc_bra_np: Vec::new(),
             merc_mc_nodeless: Vec::new(),

@@ -1336,6 +1336,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_ldgsts_b128: false,
         merc_s2ur_cga: Vec::new(),
         merc_bsync_close: Vec::new(),
+        merc_region09: None,
         merc_hfma2_const: Vec::new(),
         merc_mc_ulea_x: Vec::new(),
         merc_mc_bra_np: Vec::new(),
@@ -3384,6 +3385,11 @@ fn cmd_asm_build_elf(
                         meta.merc_s2ur_cga = mc.s2ur_cga;
                         meta.merc_geo_rec = mc.geo_rec;
                         meta.merc_bsync_close = mc.bsync_close;
+                        meta.merc_region09 = if mc.region09_ok {
+                            Some(mc.region09)
+                        } else {
+                            None
+                        };
                         meta.merc_d1wc47 = Some(mc.d1wc47);
                         meta.merc_hfma2_const = mc.hfma2_const;
                         meta.merc_mc_ulea_x = mc.ulea_x;
