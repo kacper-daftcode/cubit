@@ -50,7 +50,7 @@ fn mk40_ste64_layout() {
     // 02382a32 f8 00 15 01(mk41: ->0x1a dla desc-formy) 00000000 | [12:14]=8200 (R2|2) 0a00
     // [17:19]=0203 (UR12|2) [19:21]=0201 (R4|flag2) [28:32]=0.
     let mut m = meta_with_load();
-    m.merc_store2 = vec![(3, 1, 3, 2, 12, 4, 0, 0xf8)];
+    m.merc_store2 = vec![(3, 1, 3, 2, 12, 4, 0, 0xf8, 0)];
     let o = ops(8);
     let out = generate_mercury_full(&dummy_code(8), 0x0c, Some(&o), &m, false);
     let cm = CapMerc::parse(&out, true).unwrap();
@@ -69,7 +69,7 @@ fn mk40_stl128_layout() {
     // STL.128 [R1+0x10], RZ -> 02382006 f8 00 61 01 | 00 00 [10:12]=0040
     // 0a00 [14:16]=c0ff ... [28:32]=1000
     let mut m = meta_with_load();
-    m.merc_store2 = vec![(3, 2, 4, 1, 0xffff, 0x3ff, 0x10, 0xf8)];
+    m.merc_store2 = vec![(3, 2, 4, 1, 0xffff, 0x3ff, 0x10, 0xf8, 0)];
     let o = ops(8);
     let out = generate_mercury_full(&dummy_code(8), 0x0c, Some(&o), &m, false);
     let cm = CapMerc::parse(&out, true).unwrap();

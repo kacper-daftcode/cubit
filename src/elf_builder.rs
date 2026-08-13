@@ -467,7 +467,7 @@ pub struct MercFeatures {
     /// mk40: store-matrix rekordow 0238 dla ST.E (2a32) / STL (2006).
     /// (lane, cls 1=ST.E 2=STL, wsel 0=U8/1=U16/2=4B/3=64/4=128,
     /// areg/dur [0xffff=N/A], dreg [0x3ff=RZ], imm, b4).
-    pub store2: Vec<(u32, u8, u8, u16, u16, u16, i32, u8)>,
+    pub store2: Vec<(u32, u8, u8, u16, u16, u16, i32, u8, u8)>,
     /// mk40: mini-slownik (lane, u32 LE 4B rekordu); lane bez bitu.
     pub mini2: Vec<(u32, u32)>,
     /// mk42: rekordy edge LD-desc (layout: eiattr.rs merc_edge_ld).
@@ -480,6 +480,14 @@ pub struct MercFeatures {
     /// mk40 (podkmatryca mk32): per-STG width (wsel) rownolegle do stg_pos;
     /// puste = legacy (kernel-global stg_u8/stg_wide/stg_w128).
     pub stg_wsel: Vec<u8>,
+    /// mk63: per-STG semafor (rownolegle), patrz eiattr::merc_stg_sem.
+    pub stg_sem: Vec<u8>,
+}
+
+/// mk63: lane STG pomijany w emisji rekordu 02380e32 (ENL2 park /
+/// terminal-STRONG z MEMBAR.ALL w epilogu; korpus mk63 c17..c25 EXACT).
+fn stg_skip(feat: &MercFeatures, stg_i: usize) -> bool {
+    feat.stg_sem.get(stg_i).copied().unwrap_or(0) & 0xc0 != 0
 }
 
 impl MercFeatures {
@@ -560,6 +568,7 @@ impl MercFeatures {
             edge_v: meta.merc_edge_maxur,
             edge_ldg: meta.merc_edge_ldg.clone(),
             stg_wsel: meta.merc_stg_wsel.clone(),
+            stg_sem: meta.merc_stg_sem.clone(),
             ..Default::default()
         };
         // mk30b: sciezki bez skanu sass (gold/manifest) wyprowadzaja
@@ -983,9 +992,9 @@ const REC_ACQBULK: [u8; 16] = [
 const STG_B6: [u8; 5] = [0x00, 0x20, 0x40, 0x50, 0x60];
 const STE_B6: [u8; 5] = [0x10, 0x12, 0x14, 0x15, 0x16];
 const STL_B6: [u8; 5] = [0x21, 0x31, 0x41, 0x51, 0x61];
-fn rec_store2(st: (u32, u8, u8, u16, u16, u16, i32, u8)) -> [u8; 32]
+fn rec_store2(st: (u32, u8, u8, u16, u16, u16, i32, u8, u8)) -> [u8; 32]
 {
-    let (_lane, cls, wsel, areg, dur, dreg, imm, _b4) = st;
+    let (_lane, cls, wsel, areg, dur, dreg, imm, _b4, sem) = st;
     let mut r = [0u8; 32];
     // flaga szerokosci NIE dotyczy RZ (korpus: STL.128 [R1], RZ -> c0ff).
     let wflag: u16 = if dreg == 0x3ff {
@@ -1001,9 +1010,10 @@ fn rec_store2(st: (u32, u8, u8, u16, u16, u16, i32, u8)) -> [u8; 32]
         r[0] = 0x02; r[1] = 0x38; r[2] = 0x2a; r[3] = 0x32;
         r[4] = _b4; // mk41: ST.E b4 = pelny kod predykatu (korpus; mk40 f8 bylo bledem)
         r[6] = STE_B6[(wsel as usize).min(4)];
-        // mk41: b7=0x01 jest dominanta korpusowa (14066/15000+); warianty
-        // 0x22/0x1a = niepoznany sub-driver (parked; mk41-resid store-b7).
-        r[7] = 0x01;
+        // mk63: park mk41-resid ZAMKNIETY — b7 = kwalifikator semantyczny
+        // ST.E (korpus mk63 c17/c13 zip EXACT): STRONG.SYS -> 0x22,
+        // STRONG.GPU -> 0x1a, reszta 0x01 (b8 = 0 zawsze).
+        r[7] = match sem { 2 => 0x22, 3 => 0x1a, _ => 0x01 };
         let a: u16 = ((areg.min(0x3ff)) << 6) | 2;
         r[12..14].copy_from_slice(&a.to_le_bytes());
         r[14] = 0x0a;
@@ -1111,6 +1121,16 @@ fn feature_region_override_is_default(base: &[u8; 16]) -> bool {
 
 fn rec_stg(feat: &MercFeatures, stg_i: usize, wire: Option<&[u32]>) -> [u8; 32] {
     let mut stg = REC_STG;
+    // mk63: (b7,b8) = kwalifikator semantyczny magazynu (mk63 c13, zip
+    // EXACT korpus): STRONG.SYS (0x21,0x02) / STRONG.GPU (0xa1,0x01) /
+    // STRONG.SM (0xa1,0x00) / EF (0x10,0x00); plain zostaje (0x11,0).
+    match feat.stg_sem.get(stg_i).copied().unwrap_or(0) & 0x7 {
+        1 => { stg[7] = 0x10; stg[8] = 0x00; }
+        2 => { stg[7] = 0x21; stg[8] = 0x02; }
+        3 => { stg[7] = 0xa1; stg[8] = 0x01; }
+        4 => { stg[7] = 0xa1; stg[8] = 0x00; }
+        _ => {}
+    }
     let stg_narrow = feat.stg_u8;
     // mk40: per-lane width (korpus mieszany) nadrzedne nad kernel-global.
     let wsel_l: Option<u8> = feat.stg_wsel.get(stg_i).copied();
@@ -1181,7 +1201,10 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize, wire: Option<&[u32]>) -> [u8; 32] 
     } else {
         0
     };
-    let cur = (dreg << 6) | wflg;
+    // mk63: flaga szerokosci NIE dotyczy RZ-dreg (jak rec_store2 mk41):
+    // korpus 5899 rekordow STG z dana RZ ma zawsze (b19,b20)=(0xc0,0xff)
+    // (c13 zip); OR wflag psul -> byte-diffy keep (c11: c0->c2/c6 x1208).
+    let cur = (dreg << 6) | (if dreg == 0x3ff { 0 } else { wflg });
     stg[19] = (cur & 0xff) as u8;
     stg[20] = (cur >> 8) as u8;
     let dur = feat.stg_dur.get(stg_i).copied().unwrap_or(4) as u16;
@@ -1915,7 +1938,11 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             // mk30b: podpula-slot model b_wmma/b_cpasync SKONTRAWERFIKOWANY
             // przez k_mma (identyczny ksztalt -> nvcc chce tam s=1, tu 0).
             // STG-slot region/dialect-dependent — wrocic oraculum gdb.
-            Ev::Stg(i) => out.extend_from_slice(&rec_stg(feat, i, None)),
+            Ev::Stg(i) => {
+                if !stg_skip(feat, i) {
+                    out.extend_from_slice(&rec_stg(feat, i, None));
+                }
+            }
             Ev::Elect(_) => out.extend_from_slice(&[0x41, 0x64, 0x00, 0x0a]),
             Ev::Xor(i) => {
                 let xl = feat.xor_lanes[i];
@@ -2547,7 +2574,9 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
                     Ev::Atom => out.extend_from_slice(&REC_ATOM),
                     Ev::Stg => {
                         let stg_i = idx as usize;
-                        out.extend_from_slice(&rec_stg(feat, stg_i, None));
+                        if !stg_skip(feat, stg_i) {
+                            out.extend_from_slice(&rec_stg(feat, stg_i, None));
+                        }
                     }
                 }
             }
@@ -2572,6 +2601,9 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
                 }
             }
             for stg_i in 0..feat.n_stg {
+                if stg_skip(feat, stg_i as usize) {
+                    continue;
+                }
                 out.extend_from_slice(&rec_stg(feat, stg_i as usize, None));
             }
             for _ in 0..feat.n_atom {

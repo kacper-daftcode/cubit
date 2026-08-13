@@ -657,7 +657,12 @@ pub struct KernelMeta {
     /// areg [0xffff=N/A], dur [0xffff=brak desc], dreg [0x3ff=RZ], imm, b4
     /// = 0xf8 bez guarda / (pidx<<3)|neg).
     /// STG zostaje w legacy merc_stg_* (rekord 0238 0e32 nie ruszony).
-    pub merc_store2: Vec<(u32, u8, u8, u16, u16, u16, i32, u8)>,
+    /// mk63: 9. pole = semafor b7 rekordu (ST.E: STRONG.SYS -> 0x22,
+    /// STRONG.GPU -> 0x1a, inne 0x01; STL zawsze 0x01). Lane'e BEZ wpisu:
+    /// STL z adresem czysto-uniform [URx..] (bez rekordu; c23/c15 getrf/
+    /// trsv) i terminalny ST.E STRONG.* tuza przed EXIT z MEMBAR.ALL.* w
+    /// epilogu (c24: skip 583/583 kerneli, KEEP tylko przy SC/brak).
+    pub merc_store2: Vec<(u32, u8, u8, u16, u16, u16, i32, u8, u8)>,
     /// mk40: mini-slownik korpusowy per-lane (klasy z EXACT count-match,
     /// mk40/minidict): (lane, rekord-mini jako u32 LE). Klasy tracked
     /// kasuja bit bitmapy (rekord zastepuje wezel t4); untracked dodaja
@@ -667,6 +672,14 @@ pub struct KernelMeta {
     /// merc_stg_pos; puste = legacy (kernel-globalne stg_u8/wide/w128 —
     /// laboratoria jednolite pod tym wzgledem; korpus mieszany).
     pub merc_stg_wsel: Vec<u8>,
+    /// mk63: per-STG semafor (rownolegle do merc_stg_pos), bity [2:0]:
+    /// kwalifikator semantyczny rekordu 02380e32 — 0 plain / 1 EF /
+    /// 2 STRONG.SYS / 3 STRONG.GPU / 4 STRONG.SM, czyli (b7,b8) =
+    /// (0x11,0)/(0x10,0)/(0x21,2)/(0xa1,1)/(0xa1,0) (korpus mk63 c13:
+    /// EXACT zip 219277 rekordow); bit6 = ENL2.256 (02385232 park — NIE
+    /// emitowac falszywego 0e32); bit7 = terminal-STRONG skip (jak mk63
+    /// store2: STRONG tuz przed EXIT + MEMBAR.ALL.* w epilogu, syherk).
+    pub merc_stg_sem: Vec<u8>,
     /// mk42: rekordy-krawedzie DEF-USE (tag 02 22 32 32) dla LD generic z
     /// desc[URm][Ry.64(+off)]. Selekcja EXACT na korpusie sm_100
     /// (mk42/edge9: 1721/1721 kerneli multiset (X,Y,C,off) == rekordy,
@@ -770,6 +783,7 @@ impl KernelMeta {
             merc_store2: Vec::new(),
             merc_mini2: Vec::new(),
             merc_stg_wsel: Vec::new(),
+            merc_stg_sem: Vec::new(),
             merc_edge_ld: Vec::new(),
             merc_edge_maxur: 0,
             merc_edge_ldg: Vec::new(),
@@ -1229,6 +1243,7 @@ mod tests {
             merc_store2: Vec::new(),
             merc_mini2: Vec::new(),
             merc_stg_wsel: Vec::new(),
+            merc_stg_sem: Vec::new(),
             merc_edge_ld: Vec::new(),
             merc_edge_maxur: 0,
             merc_edge_ldg: Vec::new(),

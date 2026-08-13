@@ -1311,6 +1311,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_store2: Vec::new(),
         merc_mini2: Vec::new(),
         merc_stg_wsel: Vec::new(),
+        merc_stg_sem: Vec::new(),
         merc_edge_ld: Vec::new(),
         merc_edge_maxur: 0,
         merc_edge_ldg: Vec::new(),
@@ -1999,7 +2000,41 @@ fn cmd_asm_build_elf(
                 let mut stg_dreg: Vec<u8> = Vec::new();
                 let mut stg_dur: Vec<u8> = Vec::new();
                 let mut stg_guard: Vec<u8> = Vec::new();
+                let mut stg_sem: Vec<u8> = Vec::new();
                 let mut stg_areg: Vec<u8> = Vec::new();
+                // mk63: lane'e do pomijania (lustro sass_file::
+                // merc_store_term_skip): terminalny STRONG.* z nastepnikiem
+                // EXIT i MEMBAR.ALL.* w oknie epilogu (<=14, stop na
+                // EXIT/BAR/BRA/ST*).
+                let term_skip63: std::collections::HashSet<u32> = {
+                    let mut sk = std::collections::HashSet::new();
+                    let mnems: Vec<String> = insns
+                        .iter()
+                        .map(|(_a, s)| {
+                            let t = if let Some(i2) = s.find("/* @sched") { &s[..i2] } else { s.as_str() };
+                            let t = match t.find("*/") { Some(k2) if t.trim_start().starts_with("/*") => &t[k2 + 2..], _ => t };
+                            let mut it = t.trim().trim_end_matches(';').split_whitespace();
+                            let mut tk = it.next().unwrap_or("");
+                            if tk.starts_with('@') { tk = it.next().unwrap_or(""); }
+                            tk.to_string()
+                        })
+                        .collect();
+                    for (jj, tk) in mnems.iter().enumerate() {
+                        if !tk.contains("STRONG") { continue; }
+                        let mut jx = jj + 1;
+                        while jx < mnems.len() && mnems[jx] == "NOP" { jx += 1; }
+                        if jx >= mnems.len() || mnems[jx] != "EXIT" { continue; }
+                        let mut kx = jj as i32 - 1;
+                        while kx >= 0 && (jj as i32 - kx) <= 14 {
+                            let km = &mnems[kx as usize];
+                            if km.starts_with("MEMBAR.ALL") { sk.insert(jj as u32); break; }
+                            if km.starts_with("EXIT") || km.starts_with("BAR")
+                                || km.starts_with("BRA") || km.starts_with("ST") { break; }
+                            kx -= 1;
+                        }
+                    }
+                    sk
+                };
                 for (ii, (_addr, asm)) in insns.iter().enumerate() {
                     let clean = if let Some(idx) = asm.find("/* @sched") {
                         &asm[..idx]
@@ -2175,6 +2210,24 @@ fn cmd_asm_build_elf(
                             }
                         };
                         stg_guard.push(g8);
+                        // mk63: semafor (lustro sass_file::merc_stg_meta).
+                        let mut sq: u8 = if base.contains("ENL2") {
+                            0x40
+                        } else if base.contains(".EF") {
+                            1
+                        } else if base.contains("STRONG.SYS") {
+                            2
+                        } else if base.contains("STRONG.GPU") {
+                            3
+                        } else if base.contains("STRONG.SM") {
+                            4
+                        } else {
+                            0
+                        };
+                        if term_skip63.contains(&(ii as u32)) {
+                            sq |= 0x80;
+                        }
+                        stg_sem.push(sq);
                     }
                     let parts: Vec<String> = rest
                         .split(',')
@@ -2240,6 +2293,9 @@ fn cmd_asm_build_elf(
                 if !stg_guard.is_empty() {
                     meta.merc_stg_guard = stg_guard;
                 }
+                if !stg_sem.is_empty() {
+                    meta.merc_stg_sem = stg_sem;
+                }
 
                 // mk10c: rekordy-lane dla strumienia capmerc (lustro
                 // mercv3/mk_gold.py v7 i sass_file::merc_param_scan):
@@ -2304,7 +2360,7 @@ fn cmd_asm_build_elf(
                         std::collections::HashMap::new();
                     let mut ulea_upco35: Vec<u32> = Vec::new();
                     // mk40: lustra merc_store2_scan / merc_mini2_scan / wsel.
-                    let mut store2m: Vec<(u32, u8, u8, u16, u16, u16, i32, u8)> = Vec::new();
+                    let mut store2m: Vec<(u32, u8, u8, u16, u16, u16, i32, u8, u8)> = Vec::new();
                     let mut mini2m: Vec<(u32, u32)> = Vec::new();
                     let mut edge_ldm: Vec<(u32, u8, u8, u8, u8, u16, u16, u8, u32)> = Vec::new();
                     let mut edge_maxur_m: u16 = 0;
@@ -2365,6 +2421,35 @@ fn cmd_asm_build_elf(
                     let mut stg_wselv: Vec<u8> = Vec::new();
                     let mut redux35: Vec<(u32, u8, u8)> = Vec::new();
                     let mut cbank358_dreg35: Option<u8> = None;
+                    let term_skip63b: std::collections::HashSet<u32> = {
+                        let mut sk = std::collections::HashSet::new();
+                        let mnems: Vec<String> = insns
+                            .iter()
+                            .map(|(_a, s)| {
+                                let t = if let Some(i2) = s.find("/* @sched") { &s[..i2] } else { s.as_str() };
+                                let t = match t.find("*/") { Some(k2) if t.trim_start().starts_with("/*") => &t[k2 + 2..], _ => t };
+                                let mut it = t.trim().trim_end_matches(';').split_whitespace();
+                                let mut tk = it.next().unwrap_or("");
+                                if tk.starts_with('@') { tk = it.next().unwrap_or(""); }
+                                tk.to_string()
+                            })
+                            .collect();
+                        for (jj, tk) in mnems.iter().enumerate() {
+                            if !tk.contains("STRONG") { continue; }
+                            let mut jx = jj + 1;
+                            while jx < mnems.len() && mnems[jx] == "NOP" { jx += 1; }
+                            if jx >= mnems.len() || mnems[jx] != "EXIT" { continue; }
+                            let mut kx = jj as i32 - 1;
+                            while kx >= 0 && (jj as i32 - kx) <= 14 {
+                                let km = &mnems[kx as usize];
+                                if km.starts_with("MEMBAR.ALL") { sk.insert(jj as u32); break; }
+                                if km.starts_with("EXIT") || km.starts_with("BAR")
+                                    || km.starts_with("BRA") || km.starts_with("ST") { break; }
+                                kx -= 1;
+                            }
+                        }
+                        sk
+                    };
                     for (ii, (_addr, asm)) in insns.iter().enumerate() {
                         let clean = if let Some(idx) = asm.find("/* @sched") {
                             &asm[..idx]
@@ -2551,7 +2636,7 @@ fn cmd_asm_build_elf(
                         // mk40 (lustro): store-matrix ST.E/STL.
                         if base0 == "ST" || base0 == "STL" {
                             let opf = m2.get(1).map(|x| x.as_str()).unwrap_or("");
-                            if !opf.contains("ENL2") {
+                            if !opf.contains("ENL2") && !(base0 == "ST" && term_skip63b.contains(&(ii as u32))) {
                                 let wsel: u8 = if opf.contains(".128") {
                                     4
                                 } else if opf.contains(".64") {
@@ -2643,7 +2728,39 @@ fn cmd_asm_build_elf(
                                 } else {
                                     0xf8
                                 };
-                                store2m.push((ii as u32, if base0 == "ST" { 1 } else { 2 }, wsel, areg, dur, dreg, imm, b4));
+                                // mk63 (lustro): STL z adresem czysto-uniform
+                                // ([UR..] bez R<num>) bez rekordu 02382006.
+                                let has_raddr63: bool = {
+                                    let mut f = false;
+                                    if let Some(lb6) = body.rfind('[') {
+                                        if let Some(rb6) = body[lb6..].find(']') {
+                                            let bb6 = body[lb6 + 1..lb6 + rb6].as_bytes();
+                                            let mut k6 = 0;
+                                            while k6 + 1 < bb6.len() {
+                                                if bb6[k6] == b'R'
+                                                    && (k6 == 0 || !(bb6[k6 - 1]).is_ascii_alphanumeric())
+                                                    && bb6[k6 + 1].is_ascii_digit()
+                                                { f = true; break; }
+                                                k6 += 1;
+                                            }
+                                        }
+                                    }
+                                    f
+                                };
+                                // mk63: semafor b7: ST STRONG.SYS -> 2,
+                                // STRONG.GPU -> 3 (rec_store2 -> 0x22/0x1a).
+                                let sem63: u8 = if base0 == "ST" && opf.contains("STRONG.SYS") {
+                                    2
+                                } else if base0 == "ST" && opf.contains("STRONG.GPU") {
+                                    3
+                                } else {
+                                    0
+                                };
+                                if base0 == "STL" && !has_raddr63 {
+                                    // pomijany lane (korpus mk63 c15/c22)
+                                } else {
+                                    store2m.push((ii as u32, if base0 == "ST" { 1 } else { 2 }, wsel, areg, dur, dreg, imm, b4, sem63));
+                                }
                             }
                         }
                         // mk42 (lustro): edge LD -> rekord 02223232 + descmax.
