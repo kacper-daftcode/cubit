@@ -443,6 +443,9 @@ pub struct MercFeatures {
     pub edge_ld: Vec<(u32, u8, u8, u8, u8, u16, u16, u8, u32)>,
     /// mk42: stala per-kernel [19:21) = (edge_v<<6)|2 (max desc-UR).
     pub edge_v: u16,
+    /// mk50: rekordy edge 02 22 1e 32 = LDG-desc w kernelach annotated_ptr
+    /// (bramka: sass_file::merc_edge_ldg_scan; krotki (lane,b4,b6,X,Y,C,V,off)).
+    pub edge_ldg: Vec<(u32, u8, u8, u16, u16, u8, u16, u32)>,
     /// mk40 (podkmatryca mk32): per-STG width (wsel) rownolegle do stg_pos;
     /// puste = legacy (kernel-global stg_u8/stg_wide/stg_w128).
     pub stg_wsel: Vec<u8>,
@@ -504,6 +507,7 @@ impl MercFeatures {
             mini2: meta.merc_mini2.clone(),
             edge_ld: meta.merc_edge_ld.clone(),
             edge_v: meta.merc_edge_maxur,
+            edge_ldg: meta.merc_edge_ldg.clone(),
             stg_wsel: meta.merc_stg_wsel.clone(),
             ..Default::default()
         };
@@ -1032,6 +1036,35 @@ fn rec_edge32(e: (u32, u8, u8, u8, u8, u16, u16, u8, u32), v: u16) -> [u8; 32] {
     d
 }
 
+/// mk50: rekord edge 02 22 1e 32 (LDG-desc, "sibling" — dekod mk50 c1..c8).
+/// Pola jak rec_edge32 poza: b6 = 0x40/0x50/0x60 (4B/8B/16B),
+/// (b7,b8) = (0x81,0x40) stale per kernel, a [19:21) = (V<<6)|2 z
+/// V = desc-UR SAMEGO lane'u (mk42 trzyma max-desc-UR kernela).
+fn rec_edge1e32(e: (u32, u8, u8, u16, u16, u8, u16, u32)) -> [u8; 32] {
+    let mut d = [0u8; 32];
+    d[0] = 0x02;
+    d[1] = 0x22;
+    d[2] = 0x1e;
+    d[3] = 0x32;
+    d[4] = e.1;
+    d[6] = e.2;
+    d[7] = 0x81;
+    d[8] = 0x40;
+    let xv = (e.3 << 6) | (e.5 as u16);
+    d[12] = (xv & 0xff) as u8;
+    d[13] = (xv >> 8) as u8;
+    let yv = (e.4 << 6) | 2;
+    d[14] = (yv & 0xff) as u8;
+    d[15] = (yv >> 8) as u8;
+    d[17] = 0x0a;
+    let vv = (e.6 << 6) | 2;
+    d[19] = (vv & 0xff) as u8;
+    d[20] = (vv >> 8) as u8;
+    d[22] = 0xf8;
+    d[28..32].copy_from_slice(&e.7.to_le_bytes());
+    d
+}
+
 fn feature_region_override_is_default(base: &[u8; 16]) -> bool {
     (base[10] == 0x03 || base[10] == 0x83) && base[11] == 0x01
 }
@@ -1379,6 +1412,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         Store2(usize),
         Mini2(usize),
         EdgeLd(usize),
+        EdgeLdg(usize),
     }
     // mk10c: zbior parametrow STG-wiazanych z PULI deskryptorow (nie ze
     // starej maski param_write — ta traci read->write gdy param czytany
@@ -1623,6 +1657,11 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     // strumienia == adresy rosnaco, 1721/1721 kerneli).
     for (k, _) in feat.edge_ld.iter().enumerate() {
         ev.push((feat.edge_ld[k].0, 20, Ev::EdgeLd(k)));
+    }
+    // mk50: edge LDG-desc w kernelach annotated_ptr (tier 20, lane-rosnaco —
+    // korpus mk50/c8b: porzadek strumienia == adresy rosnaco, 72/72).
+    for (k, _) in feat.edge_ldg.iter().enumerate() {
+        ev.push((feat.edge_ldg[k].0, 20, Ev::EdgeLdg(k)));
     }
     // mk44: generyczne rekordy 0110060a (subsumuja legacy trio A/B/C —
     // te same bajty); tier 20 jak dotad.
@@ -1909,6 +1948,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::Store2(k) => out.extend_from_slice(&rec_store2(feat.store2[k])),
             Ev::Mini2(k) => out.extend_from_slice(&feat.mini2[k].1.to_le_bytes()),
             Ev::EdgeLd(k) => out.extend_from_slice(&rec_edge32(feat.edge_ld[k], feat.edge_v)),
+            Ev::EdgeLdg(k) => out.extend_from_slice(&rec_edge1e32(feat.edge_ldg[k])),
             Ev::Utca(k) => {
                 match feat.utca[k].1 {
                     0 => {

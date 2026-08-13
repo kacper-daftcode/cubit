@@ -640,6 +640,18 @@ pub struct KernelMeta {
     pub merc_edge_ld: Vec<(u32, u8, u8, u8, u8, u16, u16, u8, u32)>,
     /// mk42: maksymalny numer UR w desc[URn] calego kernela (0 gdy brak).
     pub merc_edge_maxur: u16,
+    /// mk50: rekordy-krawedzie (tag 02 22 1e 32) dla LDG z
+    /// desc[URm][Ry.64(+off)] w kernelach *annotated_ptr* (korpus: tylko
+    /// libcublas.so.72 sm_100, 72/72 kerneli EXACT — merclab/mk50 c8b;
+    /// zero falszywych trafien na 18227 pozostalych kernelach korpusu).
+    /// Dodatkowa bramka per UR: desc[URm] uzywany wylacznie przez lane'y
+    /// bazowe LDG (wspoldzielenie ze STG/LDGSTS/REDG wylacza emisje —
+    /// konfiguracja UR4 vs UR10/14 w cuds_symv). Payload: b4=pred (pelny
+    /// kod mk41), b6=0x40/0x50/0x60 dla 4B/8B/16B, (b7,b8)=(0x81,0x40),
+    /// b12..13=(X<<6)|C, b14..15=(Y<<6)|2, b17=0x0a,
+    /// [19:21)=(V<<6)|2 z V = desc-UR LANE'U (odmienie niz mk42 maxur!),
+    /// b22=0xf8, b28..32=off (u32 LE). Krotki: (lane, b4, b6, X, Y, C, V, off).
+    pub merc_edge_ldg: Vec<(u32, u8, u8, u16, u16, u8, u16, u32)>,
 }
 
 
@@ -719,6 +731,7 @@ impl KernelMeta {
             merc_stg_wsel: Vec::new(),
             merc_edge_ld: Vec::new(),
             merc_edge_maxur: 0,
+            merc_edge_ldg: Vec::new(),
             merc_wwide_sites: Vec::new(),
             merc_cgsites: Vec::new(),
             merc_cgmasks: Vec::new(),
@@ -1164,6 +1177,7 @@ mod tests {
             merc_stg_wsel: Vec::new(),
             merc_edge_ld: Vec::new(),
             merc_edge_maxur: 0,
+            merc_edge_ldg: Vec::new(),
             merc_wwide_sites: Vec::new(),
             merc_cgsites: Vec::new(),
             merc_cgmasks: Vec::new(),

@@ -1309,6 +1309,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_stg_wsel: Vec::new(),
         merc_edge_ld: Vec::new(),
         merc_edge_maxur: 0,
+        merc_edge_ldg: Vec::new(),
         merc_wwide_sites: Vec::new(),
         merc_cgsites: Vec::new(),
         merc_cgmasks: Vec::new(),
@@ -2286,6 +2287,54 @@ fn cmd_asm_build_elf(
                     let mut mini2m: Vec<(u32, u32)> = Vec::new();
                     let mut edge_ldm: Vec<(u32, u8, u8, u8, u8, u16, u16, u8, u32)> = Vec::new();
                     let mut edge_maxur_m: u16 = 0;
+                    // mk50: rekordy 02221e32 (LDG-desc w kernelach annotated_ptr
+                    // — dlugosci (lane,b4,b6,X,Y,C,V,off); lustro
+                    // sass_file::merc_edge_ldg_scan). Pre-pass: desc-UR-y
+                    // uzywane wylacznie przez lane'y bazowe LDG.
+                    let mut edge_ldgm: Vec<(u32, u8, u8, u16, u16, u8, u16, u32)> = Vec::new();
+                    let mut ldg_only_urs: std::collections::HashSet<u16> =
+                        std::collections::HashSet::new();
+                    if kernel_name.contains("annotated_ptr") {
+                        let mut ur_ldg = std::collections::HashSet::<u16>::new();
+                        let mut ur_oth = std::collections::HashSet::<u16>::new();
+                        for (_a2, asm2) in insns.iter() {
+                            let c2 = if let Some(idx) = asm2.find("/* @sched") {
+                                &asm2[..idx]
+                            } else {
+                                asm2.as_str()
+                            };
+                            let b2t = match c2.find("*/") {
+                                Some(k) if c2.starts_with("/*") => c2[k + 2..].trim(),
+                                _ => c2.trim(),
+                            };
+                            let base2 = match re_tok.captures(b2t) {
+                                Some(c2m) => c2m
+                                    .get(1)
+                                    .map(|x| x.as_str())
+                                    .unwrap_or("")
+                                    .split('.')
+                                    .next()
+                                    .unwrap_or(""),
+                                None => "",
+                            };
+                            let mut p = 0usize;
+                            while let Some(pos) = b2t[p..].find("desc[UR") {
+                                let s2 = &b2t[p + pos + 7..];
+                                let k2 = s2.bytes().take_while(|c| c.is_ascii_digit()).count();
+                                if k2 > 0 {
+                                    if let Ok(v) = s2[..k2].parse::<u16>() {
+                                        if base2 == "LDG" {
+                                            ur_ldg.insert(v);
+                                        } else {
+                                            ur_oth.insert(v);
+                                        }
+                                    }
+                                }
+                                p += pos + 7 + k2.max(1);
+                            }
+                        }
+                        ldg_only_urs = ur_ldg.difference(&ur_oth).copied().collect();
+                    }
                     let mut stg_wselv: Vec<u8> = Vec::new();
                     let mut redux35: Vec<(u32, u8, u8)> = Vec::new();
                     let mut cbank358_dreg35: Option<u8> = None;
@@ -2605,6 +2654,106 @@ fn cmd_asm_build_elf(
                                     }
                                     if let Some((yv, off)) = parsed {
                                         edge_ldm.push((ii as u32, guard_fc, b6, b7, b8, xv, yv, c6, off));
+                                    }
+                                }
+                            }
+                        }
+                        // mk50 (lustro): rekord 02221e32 dla LDG-desc lane'ow
+                        // w kernelach annotated_ptr z ldg-only UR.
+                        if !ldg_only_urs.is_empty()
+                            && base0 == "LDG"
+                            && body.contains("desc[UR")
+                        {
+                            let opf = m2.get(1).map(|x| x.as_str()).unwrap_or("");
+                            let b6c6: Option<(u8, u8)> = if opf.contains(".128") {
+                                Some((0x60, 7))
+                            } else if opf.contains(".64") {
+                                Some((0x50, 3))
+                            } else if opf == "LDG.E" {
+                                Some((0x40, 1))
+                            } else {
+                                None // LDG.E.U8/.U16/STRONG... — korpusowo bez rekordow
+                            };
+                            if let Some((b6, c6)) = b6c6 {
+                                let dst_tok = rest.split(',').next().unwrap_or("").trim();
+                                let dst_tok = dst_tok.trim_start_matches(['!', '-', '|']);
+                                let xv: Option<u16> = dst_tok.strip_prefix('R').and_then(|r| {
+                                    let r = r.trim_end_matches(';');
+                                    if !r.is_empty() && r.bytes().all(|c| c.is_ascii_digit()) {
+                                        r.parse::<u16>().ok()
+                                    } else {
+                                        None
+                                    }
+                                });
+                                if let Some(xv) = xv {
+                                    if let Some(dp) = body.find("desc[UR") {
+                                        let vv: Option<u16> = {
+                                            let s2 = &body[dp + 7..];
+                                            let k2 =
+                                                s2.bytes().take_while(|c| c.is_ascii_digit()).count();
+                                            if k2 == 0 {
+                                                None
+                                            } else {
+                                                s2[..k2].parse::<u16>().ok()
+                                            }
+                                        };
+                                        let mut parsed: Option<(u16, u32)> = None;
+                                        if let Some(dc) = body[dp..].find(']') {
+                                            let rest9 = &body[dp + dc + 1..];
+                                            if rest9.starts_with('[') {
+                                                if let Some(gc) = rest9.find(']') {
+                                                    parsed = (|| {
+                                                        let inner = &rest9[1..gc];
+                                                        let ib = inner.as_bytes();
+                                                        if ib.first() != Some(&b'R') {
+                                                            return None;
+                                                        }
+                                                        let k = ib
+                                                            .iter()
+                                                            .skip(1)
+                                                            .take_while(|c| c.is_ascii_digit())
+                                                            .count();
+                                                        if k == 0 {
+                                                            return None;
+                                                        }
+                                                        // wymagana forma .64 (mk50 korpus)
+                                                        if !inner[1 + k..].starts_with(".64") {
+                                                            return None;
+                                                        }
+                                                        let y: u16 = inner[1..1 + k].parse().ok()?;
+                                                        let off: u32 = if let Some(pl) =
+                                                            inner[1 + k..].find('+')
+                                                        {
+                                                            let tail =
+                                                                inner[1 + k + pl + 1..].trim();
+                                                            if tail.starts_with('U') {
+                                                                return None;
+                                                            }
+                                                            let neg = tail.starts_with('-');
+                                                            let tt = tail.trim_start_matches('-');
+                                                            let radix =
+                                                                if tt.starts_with("0x") { 16 } else { 10 };
+                                                            let v = i64::from_str_radix(
+                                                                tt.trim_start_matches("0x"),
+                                                                radix,
+                                                            )
+                                                            .ok()?;
+                                                            (if neg { -v } else { v }) as u32
+                                                        } else {
+                                                            0
+                                                        };
+                                                        Some((y, off))
+                                                    })();
+                                                }
+                                            }
+                                        }
+                                        if let (Some(vldc), Some((yv, off))) = (vv, parsed) {
+                                            if ldg_only_urs.contains(&vldc) {
+                                                edge_ldgm.push((
+                                                    ii as u32, guard_fc, b6, xv, yv, c6, vldc, off,
+                                                ));
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -3090,6 +3239,8 @@ fn cmd_asm_build_elf(
                         edge_ldm.sort_by_key(|e| e.0);
                         meta.merc_edge_ld = edge_ldm;
                         meta.merc_edge_maxur = edge_maxur_m;
+                        edge_ldgm.sort_by_key(|e| e.0);
+                        meta.merc_edge_ldg = edge_ldgm;
                         meta.merc_stg_wsel = stg_wselv;
                         meta.merc_redux = redux35.clone();
                         meta.merc_cbank358_dreg = cbank358_dreg35;
