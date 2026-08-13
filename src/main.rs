@@ -1344,6 +1344,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_cbank358_dreg: None,
         merc_plop3_rec: Vec::new(),
         merc_cs2r_rec: Vec::new(),
+        merc_geo_rec: Vec::new(),
     }
 }
 
@@ -3085,6 +3086,7 @@ fn cmd_asm_build_elf(
                         meta.merc_fence_async = mc.fence_async;
                         meta.merc_ldgsts_b128 = mc.ldgsts_b128;
                         meta.merc_s2ur_cga = mc.s2ur_cga;
+                        meta.merc_geo_rec = mc.geo_rec;
                         meta.merc_bsync_close = mc.bsync_close;
                         meta.merc_hfma2_const = mc.hfma2_const;
                         meta.merc_mc_ulea_x = mc.ulea_x;
