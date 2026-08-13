@@ -818,8 +818,25 @@ fn cmd_disassemble(
             }
             // mk19: duchy __syncwarp (EIATTR 0x28/0x29, elidowane do NOP)
             // jako dyrektywy — asm odtworzy rekordy 01476c0a i sloty bitmapy.
+            // mk64: regula teksowa nad maska -1 (korpus l2 EXACT obustronnie:
+            // 3513 kern z rekordami + 3311 z site'ami bez rekordow,
+            // 30554/30554) — rekord 01476c0a dla KAZDEGO site'a 0x28 z instr
+            // NOP w .text, POZA srodkiem triple'a [WARPSYNC*;NOP;ENDCOLLECTIVE]
+            // (maski 0x050000xx tez daja rekordy; np. symv cublas.255).
             if let Some(m) = eiattr_meta.get(kernel_name) {
-                let proven = ghost_lanes_proven(&cubin.bytes, kernel_name, &m.merc_syncwarp);
+                let laneop: std::collections::HashMap<u32, String> = decoded
+                    .iter()
+                    .map(|d| (d.addr / 16, opcode_of(&d.text)))
+                    .collect();
+                let utca_ret = laneop.values().any(|o| o == "UTCATOMSWS")
+                    && laneop.values().any(|o| o == "RET");
+                let proven = cubit::mercury::merc_ghost64_lanes(
+                    &m.merc_cgsites,
+                    &|ln: u32| laneop.get(&ln).cloned(),
+                    capmerc_ghost_count(&cubin.bytes, kernel_name),
+                    utca_ret,
+                    &m.merc_syncwarp,
+                );
                 for &gl in &proven {
                     lines.push(format!("    .merc_syncwarp 0x{:x}", gl * 16));
                 }
@@ -1379,20 +1396,9 @@ fn ghost_lanes_proven(bytes: &[u8], kernel_name: &str, sites: &[u32]) -> Vec<u32
     if sites.is_empty() {
         return Vec::new();
     }
-    let sec_name = format!(".nv.capmerc.text.{kernel_name}");
     let keep_all = || sites.to_vec();
-    let Ok(sections) = elf64_sections(bytes) else { return keep_all() };
-    let Some((_, off, size)) = sections.into_iter().find(|(n, _, _)| n == &sec_name)
-    else {
+    let Some(n_ghost) = capmerc_ghost_count(bytes, kernel_name) else {
         return keep_all(); // cubin bez capmerc (np. nasz build) — stara regula
-    };
-    let (off, size) = (off as usize, size as usize);
-    if off + size > bytes.len() {
-        return keep_all();
-    }
-    let n_ghost = match cubit::mercury::CapMerc::parse(&bytes[off..off + size], false) {
-        Ok(cm) => cm.records.iter().filter(|r| r.tag == [0x01, 0x47, 0x6c, 0x0a]).count(),
-        Err(_) => sites.len(),
     };
     let n = n_ghost.min(sites.len());
     if n != sites.len() {
@@ -1403,6 +1409,27 @@ fn ghost_lanes_proven(bytes: &[u8], kernel_name: &str, sites: &[u32]) -> Vec<u32
     }
     sites.iter().copied().take(n).collect()
 }
+
+/// mk64: liczba rekordow-duchow 01476c0a w oryginalnym .nv.capmerc.text.<K>
+/// (None gdy sekcji brak / nieparsowalna).
+fn capmerc_ghost_count(bytes: &[u8], kernel_name: &str) -> Option<usize> {
+    let sec_name = format!(".nv.capmerc.text.{kernel_name}");
+    let Ok(sections) = elf64_sections(bytes) else { return None };
+    let (_, off, size) = sections.into_iter().find(|(n, _, _)| n == &sec_name)?;
+    let (off, size) = (off as usize, size as usize);
+    if off + size > bytes.len() {
+        return None;
+    }
+    Some(
+        cubit::mercury::CapMerc::parse(&bytes[off..off + size], false)
+            .ok()?
+            .records
+            .iter()
+            .filter(|r| r.tag == [0x01, 0x47, 0x6c, 0x0a])
+            .count(),
+    )
+}
+
 
 fn merge_syncwarp_from_reference(
     entries: &mut [cubit::elf_builder::KernelEntry],
