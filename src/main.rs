@@ -1295,6 +1295,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_s2r_sr: Vec::new(),
         merc_s2r_guard: Vec::new(),
         merc_s2r_dest: Vec::new(),
+        merc_ldcgeo: Vec::new(),
         merc_load_flags: Vec::new(),
         merc_atom_pool_hits: Vec::new(),
         merc_lop3_pdest: Vec::new(),
@@ -2273,6 +2274,8 @@ fn cmd_asm_build_elf(
                     let mut lop3_pdest: Vec<u32> = Vec::new();
                     let mut s2r_sr: Vec<u8> = Vec::new();
                     let mut s2r_dest: Vec<u32> = Vec::new();
+                    // mk56: geo-anchory LDC 010b040a b13=04 (lane,dest,b12,guard).
+                    let mut ldcgeo35: Vec<(u32, u32, u8, u8)> = Vec::new();
                     let mut call_lanes: Vec<u32> = Vec::new();
                     let mut load_flags: Vec<u8> = Vec::new();
                     let mut atom_pool_hits: std::collections::BTreeSet<(u32, u8)> =
@@ -2926,6 +2929,13 @@ fn cmd_asm_build_elf(
                                 cubit::mercury::merc_s2r_dest_reg(body).unwrap_or(0),
                             );
                         }
+                        if base0 == "LDC" {
+                            // mk56: geo-anchor b13=04 (fail-closed w helperze
+                            // na LDC.64/U8, UR/RZ dest, offset spoza okna).
+                            if let Some((d, b12)) = cubit::mercury::merc_ldc_geo(body) {
+                                ldcgeo35.push((ii as u32, d, b12, guard_fc));
+                            }
+                        }
                         if guard_m != 0 && mem_ops.contains(&base0) {
                             predmem = true;
                         }
@@ -3164,6 +3174,7 @@ fn cmd_asm_build_elf(
                     meta.merc_s2r_sr = s2r_sr;
                     meta.merc_s2r_guard = s2r_guard35;
                     meta.merc_s2r_dest = s2r_dest;
+                    meta.merc_ldcgeo = ldcgeo35;
                     meta.merc_ldgconst = ldgconst;
                     meta.merc_predmem = predmem;
                     meta.merc_guarded_bra = guarded_bra;

@@ -449,6 +449,9 @@ pub fn merc_s2r_sr_enum(sr: &str) -> u8 {
         "SR_CTAID.Y" => 5,
         "SR_CTAID.Z" => 6,
         "SR_LTMASK" => 8,
+        // mk56: korpus 1:1 (merclab/mk56 c10): LE=09, GT=0a.
+        "SR_LEMASK" => 9,
+        "SR_GTMASK" => 10,
         // mk28: SR_CgaCtaId -> 0x2c (E2E b_cluster/b_mbarrier/b_tcgen05;
         // b12 rekordu anchor 010b040a = enum SR czytanego przez S2R).
         "SR_CgaCtaId" => 0x2c,
@@ -496,6 +499,54 @@ pub fn merc_s2r_dest_reg(text: &str) -> Option<u32> {
     }
     let n = dest.strip_prefix('R')?;
     n.parse::<u32>().ok()
+}
+
+/// mk56: rekord geo-anchor LDC `01 0b 04 0a` z b13=0x04. Nosnik: KAZDY lane
+/// `LDC Rn, c[0x0][0x3XX]` z okna geometrii launcha drivera (per-lane —
+/// dup-def desta nosi rekord per instrukcja; merclab/mk56 c6/c7:
+/// 17951/18932 kerneli multiset+byte EXACT reguly boot+S2R+LDC-geo).
+/// Mapa stalego okna c[0x0]: 0x360->1, 0x364->2, 0x368->3, 0x370->4,
+/// 0x374->5, 0x378->6 (ta sama numeracja geometrii co enum SR mk13;
+/// empirycznie ~98-100% tych offsetow; reszta offsetow ma b12 z
+/// value-analysis ptxas -> poza zakresem, fail-closed zwraca None).
+/// Tylko golony opcode "LDC" (NIE LDC.64/LDC.U8/LDCU). Zwraca
+/// (dest=R-numer, b12). None dla RZ/UR/parse-fail — fail-closed.
+pub fn merc_ldc_geo(text: &str) -> Option<(u32, u8)> {
+    let mut toks = text.split_whitespace();
+    let mut opc = "";
+    for t in &mut toks {
+        if t.starts_with('@') {
+            continue;
+        }
+        opc = t.trim_end_matches(';');
+        break;
+    }
+    if opc != "LDC" {
+        return None;
+    }
+    let dest = toks.next()?.trim_end_matches(',');
+    if dest == "RZ" || !dest.starts_with('R') {
+        return None;
+    }
+    let d: u32 = dest[1..].parse().ok()?;
+    let marker = "c[0x0][0x";
+    let pos = text.find(marker)?;
+    let hexstart = pos + marker.len();
+    let hexdigits: String = text[hexstart..]
+        .chars()
+        .take_while(|c| c.is_ascii_hexdigit())
+        .collect();
+    let off = u32::from_str_radix(&hexdigits, 16).ok()?;
+    let b12 = match off {
+        0x360 => 1,
+        0x364 => 2,
+        0x368 => 3,
+        0x370 => 4,
+        0x374 => 5,
+        0x378 => 6,
+        _ => return None,
+    };
+    Some((d, b12))
 }
 
 /// Mini-rekord dla LOP3 z destem predykatowym (`LOP3.LUT Pn, ..`): lane NIE

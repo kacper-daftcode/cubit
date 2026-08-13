@@ -272,6 +272,8 @@ pub fn kernel_def_to_meta(
     let mut merc_lop3_pdest: Vec<u32> = Vec::new();
     let mut merc_s2r_sr: Vec<u8> = Vec::new();
     let mut merc_s2r_dest: Vec<u32> = Vec::new();
+    // mk56: geo-anchory LDC (b13=04) per lane.
+    let mut merc_ldcgeo: Vec<(u32, u32, u8, u8)> = Vec::new();
     // mk28: samo-petle BRA (spin-trap po strefie funkcji wewnetrznych),
     // flagi klas CALL/BSSY (EIATTR 0x1e + pusta .rela.text.K) oraz liste
     // site'ow operacji warp-wide do EIATTR 0x31 (INT_WARP_WIDE).
@@ -311,6 +313,12 @@ pub fn kernel_def_to_meta(
             merc_s2r_sr.push(crate::mercury::merc_s2r_sr_enum(&sr));
             // mk17a: numer R dest -> payload f4 anchor-rekordu.
             merc_s2r_dest.push(crate::mercury::merc_s2r_dest_reg(&ins.raw_text).unwrap_or(0));
+        }
+        if ins.opcode == "LDC" {
+            // mk56: rekord geo-anchor 010b040a b13=04 (okno c[0x0][0x360..78]).
+            if let Some((d, b12)) = crate::mercury::merc_ldc_geo(&ins.raw_text) {
+                merc_ldcgeo.push((lane, d, b12, merc_guard_code(ins.guard.as_ref())));
+            }
         }
         if ins.opcode == "BRA" {
             if let Some(g) = &ins.guard {
@@ -410,6 +418,7 @@ pub fn kernel_def_to_meta(
         merc_guarded_bra,
         merc_s2r_sr,
         merc_s2r_dest,
+        merc_ldcgeo,
         merc_lop3_pdest,
         // mk19: duchy syncwarp z dyrektywy .merc_syncwarp (znacznik z
         // disassemble --frozen; bez znacznika — pusto, jak dawniej).
