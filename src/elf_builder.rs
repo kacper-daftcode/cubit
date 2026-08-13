@@ -281,6 +281,14 @@ pub struct MercFeatures {
     /// Pozycje kodowe CCTL.* (marker 51 02 + rekord 01 49 10 0a w lane,
     /// bez bitu; gold p_fence).
     pub cctl_pos: Vec<u32>,
+    /// mk66: CCTL z rekordem (lane, b1, b8) — dekod merclab/mk66 (c3..c25,
+    /// EXACT obustronnie na 1931 kernelach z kontekstem): rekord TYLKO dla
+    /// ctx-CCTL ([i-2]==ERRBAR && [i-1]==CGAERRBAR); nie-ctx CCTL.IVALL nigdy
+    /// (find_colors cusparse.318, petle xmma). b1=0x04 gdy kernel ma cp.async
+    /// (LDGSTS lub LDGDEPBAR w tekscie — zawsze wspolne korpusowo),
+    /// inaczej 0x02; b8=0x0d gdy b1==0x04 i [i-3]==MEMBAR.GPU.ALL (pisownia
+    /// cubit; nvdis: MEMBAR.ALL.GPU — imma_emu w cublasLt.548), inaczej 0x0c.
+    pub cctl_rec: Vec<(u32, u8, u8)>,
     /// mk11: instrukcje MMA -> rekord 025a w lane: (lane, cls, d, a, b, c, b8f).
     pub mma_lanes: Vec<(u32, u8, u8, u8, u8, u8, u8)>,
     /// mk11+mk51: DMUL/DADD z imm f64 -> rekordy 020f120e/020c1e0e w lane:
@@ -593,7 +601,7 @@ impl MercFeatures {
             let ws: Vec<u32> = opcodes
                 .iter()
                 .enumerate()
-                .filter(|(_, o)| o.starts_with("WARPSYNC.ALL"))
+                .filter(|(_, o)| o.starts_with("WARPSYNC.ALL") && !o.contains("COLLECTIVE"))
                 .map(|(i, _)| i as u32)
                 .collect();
             for (k, w) in ws.iter().enumerate() {
@@ -797,6 +805,38 @@ impl MercFeatures {
                 o.split('.').next() == Some("CCTL") && !o.contains(".RML2")
             })
             .map(|(i, _)| i as u32)
+            .collect();
+        // mk66: rekord tylko dla ctx-CCTL (patrz pole cctl_rec). Bramka
+        // wariantu 04: cp.async w kernelu. Korpusowo LDGSTS i LDGDEPBAR
+        // wystepuja zawsze RAZEM (c25: 279/279 obie, 1652/1652 zadna);
+        // LDGDEPBAR jest zapasowym kanalemp, bo czesc LDGSTS (imma_emu49)
+        // wypada z dekodu tabeli do __raw__ (dial cutlass-80-z884).
+        let has_ldgsts = opcodes.iter().any(|o| {
+            let b = o.split('.').next();
+            b == Some("LDGSTS") || b == Some("LDGDEPBAR")
+        });
+        f.cctl_rec = f
+            .cctl_pos
+            .iter()
+            .filter_map(|&pos| {
+                let i = pos as usize;
+                let ctx = i >= 2
+                    && opcodes[i - 2].split('.').next() == Some("ERRBAR")
+                    && opcodes[i - 1].split('.').next() == Some("CGAERRBAR");
+                if !ctx {
+                    return None;
+                }
+                let b1 = if has_ldgsts { 0x04_u8 } else { 0x02_u8 };
+                let b8 = if b1 == 0x04
+                    && i >= 3
+                    && opcodes[i - 3].as_str() == "MEMBAR.GPU.ALL"
+                {
+                    0x0d_u8
+                } else {
+                    0x0c_u8
+                };
+                Some((pos, b1, b8))
+            })
             .collect();
         f.pad_pos = meta.merc_pad_pos.clone();
         // mk35: rekord 0132 tylko dla TYPOWANYCH REDUX (z kropka/modami)
@@ -1044,6 +1084,13 @@ const REC_CCTL: [u8; 18] = [
     0x51, 0x02, 0x01, 0x49, 0x10, 0x0a, 0xf8, 0x00, 0x0c, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
+/// mk66: wariant rekordu CCTL: b1 (0x02/0x04) i b8 (0x0c/0x0d).
+fn rec_cctl_v(b1: u8, b8: u8) -> [u8; 18] {
+    let mut r = REC_CCTL;
+    r[1] = b1;
+    r[8] = b8;
+    r
+}
 
 /// Zlozenie rekordu 02 38 (per-STG, fs10-grid/mapowanie na manifest gold):
 /// - b6: width-ladder transferu (U8=00 / 4B=40 / .64=50 / .128=60)
@@ -1438,7 +1485,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         Elect(usize),
         Xor(usize),
         AcqBulk,
-        Cctl,
+        Cctl(usize),
         CctlRml2(usize),
         Pad,
         Mma(usize),
@@ -1707,8 +1754,8 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for &pos in &feat.acqbulk_pos {
         ev.push((pos, 20, Ev::AcqBulk));
     }
-    for &pos in &feat.cctl_pos {
-        ev.push((pos, 20, Ev::Cctl));
+    for (k, &(pos, _, _)) in feat.cctl_rec.iter().enumerate() {
+        ev.push((pos, 20, Ev::Cctl(k)));
     }
     for (k, &pos) in feat.cctl_rml2_pos.iter().enumerate() {
         ev.push((pos, 20, Ev::CctlRml2(k)));
@@ -1960,7 +2007,10 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 out.extend_from_slice(&rec_xor_reg(xr.1, xr.2, xr.3, xr.4));
             }
             Ev::AcqBulk => out.extend_from_slice(&REC_ACQBULK),
-            Ev::Cctl => out.extend_from_slice(&REC_CCTL),
+            Ev::Cctl(k) => {
+                let (_l, b1, b8) = feat.cctl_rec.get(k).copied().unwrap_or((0, 0x02, 0x0c));
+                out.extend_from_slice(&rec_cctl_v(b1, b8));
+            }
             Ev::CctlRml2(_) => out.extend_from_slice(&[0x41, 0x0e, 0x02, 0x0c]),
             Ev::Pad => out.extend_from_slice(&crate::mercury::MERC_LANE_PAD),
             Ev::Lop3P => out.extend_from_slice(&crate::mercury::MERC_LOP3_PWRITE_MINI),
@@ -2519,8 +2569,8 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
             for &pos in &feat.acqbulk_pos {
                 ev.push((pos, Ev::AcqBulk, 0));
             }
-            for &pos in &feat.cctl_pos {
-                ev.push((pos, Ev::Cctl, 0));
+            for (k, &(pos, _, _)) in feat.cctl_rec.iter().enumerate() {
+                ev.push((pos, Ev::Cctl, k as u32));
             }
             for &pos in &feat.cctl_rml2_pos {
                 ev.push((pos, Ev::CctlRml2, 0));
@@ -2550,7 +2600,11 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
                         out.extend_from_slice(&rec_xor(xl.1, xl.2, xl.3, xl.4));
                     }
                     Ev::AcqBulk => out.extend_from_slice(&REC_ACQBULK),
-                    Ev::Cctl => out.extend_from_slice(&REC_CCTL),
+                    Ev::Cctl => {
+                        let (_l, b1, b8) =
+                            feat.cctl_rec.get(idx as usize).copied().unwrap_or((0, 0x02, 0x0c));
+                        out.extend_from_slice(&rec_cctl_v(b1, b8));
+                    }
                     Ev::CctlRml2 => out.extend_from_slice(&[0x41, 0x0e, 0x02, 0x0c]),
                     Ev::Pad => out.extend_from_slice(&crate::mercury::MERC_LANE_PAD),
                     Ev::Mma => {
@@ -2607,8 +2661,8 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
             for _ in 0..feat.acqbulk_pos.len() {
                 out.extend_from_slice(&REC_ACQBULK);
             }
-            for _ in 0..feat.cctl_pos.len() {
-                out.extend_from_slice(&REC_CCTL);
+            for &(_, b1, b8) in &feat.cctl_rec {
+                out.extend_from_slice(&rec_cctl_v(b1, b8));
             }
             if feat.bar_count > 0 && !bar0_pre {
                 for _ in 0..feat.bar_count {
@@ -2770,7 +2824,7 @@ pub fn generate_mercury_full(
     // zero-param): bitmapa ustawia BRA.U/REDUX, kasuje UTCATOMSWS/WARPSYNC
     // (fit mk27 na mkvmem: 9 bitow rozbieznosci -> reguly klasowe).
     let dialect_utca = !meta.merc_utca.is_empty();
-    let mut force_bit: std::collections::BTreeSet<u32> = std::collections::BTreeSet::new();
+    let force_bit: std::collections::BTreeSet<u32> = std::collections::BTreeSet::new();
     // mk30: rodziny b_* — lane z kandydatem-rekordem (mini/pelny) albo
     // regionowe kasowanie bitow. m-family == kernel z klasa SYNCS.*.
     let m_family = !meta.merc_mc_exch.is_empty()

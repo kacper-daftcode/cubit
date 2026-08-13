@@ -927,7 +927,7 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
         .collect();
     let ws_lanes: Vec<u32> = items
         .iter()
-        .filter(|i| i.base == "WARPSYNC" && i.full.contains(".ALL"))
+        .filter(|i| i.base == "WARPSYNC" && i.full.contains(".ALL") && !i.full.contains(".COLLECTIVE"))
         .map(|i| i.lane)
         .collect();
     // mk59: d1-47 per WC-site (region (WC..ENDCOLLECTIVE) = same NOP-y).
