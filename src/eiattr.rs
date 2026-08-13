@@ -494,6 +494,11 @@ pub struct KernelMeta {
     /// i lane hosta wait-event 0123400a (ostatni slot przed DEPBAR).
     pub merc_ldgsts_pin: Vec<(u32, u8, u8)>,
     pub merc_ldgsts_wait: Vec<u32>,
+    /// mk53: bloby 02233034/3434 per desc-form LDGSTS (pelny silnik; mk14.3
+    /// pin = fallback gdy brak desc-form).
+    pub merc_ldgsts2: Vec<crate::mercury::Ldgsts2Blob>,
+    /// mk53-w: (lane, imm) dla wait-eventow 0123400a per DEPBAR.
+    pub merc_ldgsts2_waits: Vec<(u32, u8)>,
     /// Mercury mk14: rekordy atomowe (ATOMG/ATOMS) per instrukcja:
     /// (lane, cls [mercury::MERC_ATOM_CLS_*], guard 0/1/2, dst, addr,
     /// src1, src2, subop_b6); rejestry: 255 = RZ/brak. RED* zostaja na
@@ -790,6 +795,8 @@ impl KernelMeta {
             merc_atoms: Vec::new(),
             merc_ldgsts_pin: Vec::new(),
             merc_ldgsts_wait: Vec::new(),
+            merc_ldgsts2: Vec::new(),
+            merc_ldgsts2_waits: Vec::new(),
         };
 
         // Extract from global section (REGCOUNT, FRAME_SIZE, MIN_STACK_SIZE)
@@ -1239,6 +1246,8 @@ mod tests {
             merc_atoms: Vec::new(),
             merc_ldgsts_pin: Vec::new(),
             merc_ldgsts_wait: Vec::new(),
+            merc_ldgsts2: Vec::new(),
+            merc_ldgsts2_waits: Vec::new(),
         };
 
         let global = meta.to_global_records(8);
