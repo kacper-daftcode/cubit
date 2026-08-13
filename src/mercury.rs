@@ -657,6 +657,8 @@ pub struct McScanOut {
     pub geo_rec: Vec<(u32, [u8; 16])>,
     /// mk47: rekordy 012b{00|04}0a (LOP3.LUT NOT-MOV LUT=0x33) — (lane, 16B).
     pub lop3not_rec: Vec<(u32, [u8; 16])>,
+    /// mk48: rekordy 024d*32 (REDG desc/non-desc) — (lane, 32B).
+    pub redg2_rec: Vec<(u32, [u8; 32])>,
     pub fence_async: Vec<u32>,
     pub ldgsts_b128: bool,
     /// mk41: (lane, guarded, dst-UR) — payload smem-anchora z dst.
@@ -691,6 +693,7 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
         cs2r_rec: Vec::new(),
         geo_rec: Vec::new(),
         lop3not_rec: Vec::new(),
+        redg2_rec: Vec::new(),
         fence_async: Vec::new(),
         ldgsts_b128: false,
         s2ur_cga: Vec::new(),
@@ -772,6 +775,12 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
                 // mk47: rekord 012b{00|04}0a (LOP3.LUT NOT-MOV, LUT=0x33).
                 if let Some(r) = merc_lop3_not_record(t, it.guard_code) {
                     o.lop3not_rec.push((lane, r));
+                }
+            }
+            "REDG" => {
+                // mk48: rekordy 024d{0e|24|2e}32 (REDG desc/non-desc).
+                if let Some(r) = merc_redg_record(t, it.guard_code) {
+                    o.redg2_rec.push((lane, r));
                 }
             }
             "LDGSTS" if it.full.contains(".128") => o.ldgsts_b128 = true,
@@ -1409,6 +1418,153 @@ fn merc_grid0(r: u8) -> u16 { if r == 255 { 0xffc0 } else { (r as u16) << 6 } }
 /// G4: [6]=subop (EXCH=0x80), dst@[14..16) grid1, addr@[17..19)=(a<<6)|2,
 /// value@[23..25) grid0. CAS: cmp@[21], swp@[23]. SHARED: dst@[12..14),
 /// [14..16)=0xffc0 stale, value@[21..23).
+/// mk48: rekordy REDG 02 4d {b2} 32 (32B) — DOMKNIECIE swapu 024d0e32<->024d2432.
+///
+/// Hosty (korpus sm_100, 676 plikow; parowanie po (addr,descUR,data,imm)
+/// multiset==lane-set; pelna zgodnosc bajtowa 22342/22342 rekordow,
+/// 1322/1335 kerneli, reszta = forma non-desc S32 tez obsluzona):
+///
+///   REDG.E.<OP>[.<typ>][.FTZ][.RN].STRONG.<scope> desc[URn][Rm.64(+0xIMM)], Rv
+///   REDG.E.<OP>.<typ>.STRONG.<scope> [Rn], Rv            (forma non-desc)
+///
+/// Tabela bajtow klasy:
+///   float ADD:   b2=0x0e b6=0x80; F32 -> b7=0x44, F64 -> b7=0x47; b8=0x03
+///   int desc:    b2=0x24 b8=0x01;  b6 = drabina op (ADD 00, MIN 10, MAX 20,
+///                AND 50, OR 60);   b7 = 0xa0 | kod-typu (.S32 -> 2, .64 -> 3)
+///   int non-desc: b2=0x2e (korpus: wylacznie ADD.S32 w cublasLt.548)
+/// Sloty: [12:14)=(areg<<6)|2; b14=0x0a;
+///   desc:     [17:19)=(descUR<<6)|2, [19:21)=(data<<6)|dflag
+///   non-desc: [17:19)=(data<<6)|dflag, [19:21)=0
+///   dflag=1<<1 gdy dane 64-bit (F64 / .64), inaczej 0.
+///   [28:32) = imm adresu (i32 LE, np. "-0x8" -> f8ffffff); reszta bajtow 0.
+/// b4 = guard_code (drabina mk41: idx<<3|neg / UPn<<3|2 / 0xf8).
+/// Bitmapa bez zmian (lane atomowy nigdy nie tracil bitu — doktryna mk14).
+pub fn merc_redg_record(text: &str, guard_code: u8) -> Option<[u8; 32]> {
+    let body0 = text.trim();
+    let body = match body0.strip_prefix('@') {
+        Some(r) => r
+            .split_once(char::is_whitespace)
+            .map(|(_, x)| x.trim_start())
+            .unwrap_or(body0),
+        None => body0,
+    };
+    if !body.starts_with("REDG.") {
+        return None;
+    }
+    let (opstr, ops0) = body.split_once(char::is_whitespace)?;
+    let ops = ops0.trim().trim_end_matches(';');
+    let f32v = opstr.contains(".F32");
+    let f64v = opstr.contains(".F64");
+    let (b2_int, b6, b7, b8) = if f32v {
+        (0x0e_u8, 0x80_u8, 0x44_u8, 0x03_u8)
+    } else if f64v {
+        (0x0e_u8, 0x80_u8, 0x47_u8, 0x03_u8)
+    } else {
+        let sub: u8 = if opstr.contains(".MIN") {
+            0x10
+        } else if opstr.contains(".MAX") {
+            0x20
+        } else if opstr.contains(".AND") {
+            0x50
+        } else if opstr.contains(".OR") {
+            0x60
+        } else {
+            0x00
+        };
+        let tcode: u8 = if opstr.contains(".64") {
+            3
+        } else if opstr.contains(".S32") {
+            2
+        } else {
+            0
+        };
+        (0x24_u8, sub, 0xa0_u8 | tcode, 0x01_u8)
+    };
+    let dflag: u16 = if f64v || opstr.contains(".64") { 2 } else { 0 };
+    let regnum = |tok: &str| -> Option<u32> {
+        tok.strip_prefix('R')?.parse::<u32>().ok().filter(|v| *v < 0x4000)
+    };
+    // adres: desc[URn][Rm.64(+/-0ximm)] albo [Rn] (non-desc)
+    let (areg, descur, data, imm, is_desc): (u32, Option<u32>, u32, i32, bool) =
+        if let Some(dp) = ops.find("desc[UR") {
+            let rest = &ops[dp + 7..];
+            let end = rest.find(']')?;
+            let d: u32 = rest[..end].parse().ok()?;
+            let bp = rest[end..].find('[').map(|p| p + end)?;
+            let bend = rest[bp..].find(']').map(|e| e + bp)?;
+            let inner = &rest[bp + 1..bend]; // "R18.64+0x4" / "R10.64+-0x8"
+            let a: u32 = regnum(inner.split('.').next()?)?;
+            let imm: i32 = match inner.find("0x") {
+                Some(h) => {
+                    let hexs: String = inner[h + 2..]
+                        .chars()
+                        .take_while(|c| c.is_ascii_hexdigit())
+                        .collect();
+                    let v = i32::from_str_radix(&hexs, 16).ok()?;
+                    if inner[..h].contains('-') { -v } else { v }
+                }
+                None => 0,
+            };
+            // data = ostatni operand po przecinku top-level
+            let dtok = ops.rsplit(',').next()?.trim();
+            let dv = regnum(dtok)?;
+            (a, Some(d), dv, imm, true)
+        } else if ops.starts_with('[') {
+            let bend = ops.find(']')?;
+            let inner = &ops[1..bend];
+            if !inner.is_empty() && inner.starts_with('R')
+                && inner[1..].chars().all(|c| c.is_ascii_digit())
+            {
+                let a = regnum(inner)?;
+                let dtok = ops[bend + 1..].trim_start_matches(',').trim();
+                let dv = regnum(dtok)?;
+                (a, None, dv, 0, false)
+            } else {
+                return None;
+            }
+        } else {
+            return None;
+        };
+    if f32v || f64v {
+        if !is_desc {
+            return None; // float non-desc: forma nieobserwowana
+        }
+    }
+    let b2: u8 = if f32v || f64v {
+        0x0e
+    } else if is_desc {
+        b2_int
+    } else {
+        0x2e
+    };
+    let mut b = [0u8; 32];
+    b[0] = 0x02;
+    b[1] = 0x4d;
+    b[2] = b2;
+    b[3] = 0x32;
+    b[4] = guard_code;
+    b[6] = b6;
+    b[7] = b7;
+    b[8] = b8;
+    let put = |b: &mut [u8; 32], off: usize, v: u16| {
+        b[off] = (v & 0xff) as u8;
+        b[off + 1] = (v >> 8) as u8;
+    };
+    put(&mut b, 12, ((areg as u16) << 6) | 2);
+    b[14] = 0x0a;
+    match descur {
+        Some(d) => {
+            put(&mut b, 17, ((d as u16) << 6) | 2);
+            put(&mut b, 19, ((data as u16) << 6) | dflag);
+        }
+        None => {
+            put(&mut b, 17, ((data as u16) << 6) | dflag);
+        }
+    }
+    b[28..32].copy_from_slice(&imm.to_le_bytes());
+    Some(b)
+}
+
 pub fn build_atom_rec(
     cls: u8, guard_b4: u8, subop6: u8, dst: u8, addr: u8, v1: u8, v2: u8,
 ) -> [u8; 32] {

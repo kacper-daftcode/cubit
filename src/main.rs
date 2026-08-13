@@ -1345,6 +1345,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_plop3_rec: Vec::new(),
         merc_cs2r_rec: Vec::new(),
         merc_lop3not_rec: Vec::new(),
+        merc_redg2_rec: Vec::new(),
         merc_geo_rec: Vec::new(),
     }
 }
@@ -2268,6 +2269,7 @@ fn cmd_asm_build_elf(
                         std::collections::BTreeSet::new();
                     let mut ldgconst: Vec<(u32, u32)> = Vec::new();
                     let mut atoms_scan: Vec<(u32, u8, u8, u8, u8, u8, u8, u8)> = Vec::new();
+                    let mut redg2_scan: Vec<(u32, [u8; 32])> = Vec::new();
                     // mk35: lustra sass_file::merc_mk35_scan
                     let mut load_dregs35: Vec<u8> = Vec::new();
                     let mut bar_guard35: Vec<u8> = Vec::new();
@@ -2780,36 +2782,12 @@ fn cmd_asm_build_elf(
                         if base0 == "LOP3" && cubit::mercury::lop3_writes_pred(body) {
                             lop3_pdest.push(ii as u32);
                         }
-                        // mk35: REDG desc-form (lustro sass_file::merc_atom_scan)
-                        if base0 == "REDG" && body.contains("desc[") {
-                            let reg35 = |t: &str| -> u32 {
-                                let d = t.trim().trim_end_matches(';').trim_start_matches('R');
-                                if !d.is_empty() && d.chars().all(|c| c.is_ascii_digit()) {
-                                    d.parse::<u32>().unwrap_or(255)
-                                } else {
-                                    255
-                                }
-                            };
-                            let descur = body
-                                .find("desc[UR")
-                                .and_then(|k| body[k + 7..].find(']').map(|e| &body[k + 7..k + 7 + e]))
-                                .and_then(|d| d.parse::<u32>().ok())
-                                .unwrap_or(255)
-                                .min(127) as u8;
-                            let after_desc = body.rfind('[').map(|k| &body[k + 1..]).unwrap_or("");
-                            let areg = after_desc
-                                .split(&['.', ']'][..])
-                                .next()
-                                .unwrap_or("")
-                                .trim_start_matches('R')
-                                .parse::<u32>()
-                                .unwrap_or(255)
-                                .min(255) as u8;
-                            let dval = body.rsplit(',').next().unwrap_or("").trim().trim_start_matches('R').parse::<u32>().unwrap_or(255).min(255) as u8;
-                            let sub6: u8 = if body.contains(".AND") { 0x50 } else if body.contains(".MIN") { 0x10 } else { 0 };
-                            let s32bit: u8 = if body.contains(".S32") { 0x80 } else { 0 };
-                            atoms_scan.push((ii as u32, cubit::mercury::MERC_ATOM_CLS_REDG_D,
-                                             guard_m, 255, areg, dval, descur | s32bit, sub6));
+                        // mk48 (lustro): REDG desc/non-desc -> rekord 024d*32
+                        // (pelna tabela klas; zastepuje mk35-tuple REDG_D).
+                        if base0 == "REDG" {
+                            if let Some(r) = cubit::mercury::merc_redg_record(body, guard_fc) {
+                                redg2_scan.push((ii as u32, r));
+                            }
                         }
                         // mk14: rekordy atomowe (lustro sass_file::merc_atom_scan).
                         if base0.starts_with("ATOM") {
@@ -2902,6 +2880,7 @@ fn cmd_asm_build_elf(
                     meta.merc_guarded_bra = guarded_bra;
                     meta.merc_lop3_pdest = lop3_pdest;
                     meta.merc_atoms = atoms_scan;
+                    meta.merc_redg2_rec = redg2_scan;
                     // mk27: lustra dla UTCATOMSWS i ATOMS-smem-imm
                     // (sass_file::merc_utca_scan / merc_atom_smem_scan).
                     let mut utca_v: Vec<(u32, u8)> = Vec::new();

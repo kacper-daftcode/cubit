@@ -453,6 +453,7 @@ pub fn kernel_def_to_meta(
         merc_cs2r_rec: mc.cs2r_rec,
         merc_geo_rec: mc.geo_rec,
         merc_lop3not_rec: mc.lop3not_rec,
+        merc_redg2_rec: mc.redg2_rec,
         merc_fence_async: mc.fence_async,
         merc_ldgsts_b128: mc.ldgsts_b128,
         merc_s2ur_cga: mc.s2ur_cga,
@@ -736,53 +737,6 @@ fn merc_atom_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u8, u8, u8,
     for ins in instructions {
         let lane = (ins.addr / 16) as u32;
         let base = ins.opcode.as_str();
-        // mk35: REDG.E.<op>.STRONG.<scope> desc[URx][Ry.64], Rv (tablica
-        // desc; typowa forma mbarrier-free atomiczna labow at_*/k_atom):
-        // rekord 024d2432, sloty: addrR@[12:14], descUR@[17:19], data@[19:21].
-        if base == "REDG" && ins.raw_text.contains("desc[") {
-            let mut guard = 0u8;
-            let mut t: &str = ins.raw_text.trim();
-            if let Some(rest) = t.strip_prefix('@') {
-                guard = if rest.starts_with('!') { 2 } else { 1 };
-                t = rest[1..].split_once(char::is_whitespace).map(|(_, r)| r).unwrap_or("");
-            }
-            // desc[URn][Rm.64], Rv
-            let descur = t
-                .find("desc[UR")
-                .and_then(|k| t[k + 7..].find(']').map(|e| t[k + 7..k + 7 + e].to_string()))
-                .and_then(|d| d.parse::<u32>().ok())
-                .unwrap_or(255)
-                .min(127) as u8;
-            let after_desc = t.rfind('[').map(|k| &t[k + 1..]).unwrap_or("");
-            let areg = after_desc
-                .split(&['.', ']'][..])
-                .next()
-                .unwrap_or("")
-                .trim_start_matches('R')
-                .parse::<u32>()
-                .unwrap_or(255)
-                .min(255) as u8;
-            let dval = t
-                .rsplit(',')
-                .next()
-                .unwrap_or("")
-                .trim()
-                .trim_start_matches('R')
-                .parse::<u32>()
-                .unwrap_or(255)
-                .min(255) as u8;
-            let sub6: u8 = if ins.raw_text.contains(".AND") {
-                0x50
-            } else if ins.raw_text.contains(".MIN") {
-                0x10
-            } else {
-                0x00
-            };
-            let s32bit: u8 = if ins.raw_text.contains(".S32") { 0x80 } else { 0x00 };
-            out.push((lane, crate::mercury::MERC_ATOM_CLS_REDG_D, guard,
-                      255, areg, dval, descur | s32bit, sub6));
-            continue;
-        }
         if !base.starts_with("ATOM") {
             continue;
         }
@@ -898,6 +852,8 @@ pub struct MercMcScan {
     pub geo_rec: Vec<(u32, [u8; 16])>,
     /// mk47: rekordy 012b{00|04}0a (LOP3.LUT NOT-MOV LUT=0x33) — (lane, 16B).
     pub lop3not_rec: Vec<(u32, [u8; 16])>,
+    /// mk48: rekordy 024d*32 (REDG desc/non-desc) — (lane, 32B).
+    pub redg2_rec: Vec<(u32, [u8; 32])>,
     pub fence_async: Vec<u32>,          // FENCE.*ASYNC* lanes
     pub ldgsts_b128: bool,              // LDGSTS .128 (pinned-blob wariant)
     pub s2ur_cga: Vec<(u32, bool, u8)>, // S2UR ?, SR_CgaCtaId: (lane, guarded, dstUR) mk41
@@ -1188,6 +1144,12 @@ pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
                 // mk47: rekord 012b{00|04}0a (LOP3.LUT NOT-MOV, LUT=0x33).
                 if let Some(r) = crate::mercury::merc_lop3_not_record(t, merc_guard_code(ins.guard.as_ref())) {
                     o.lop3not_rec.push((lane, r));
+                }
+            }
+            "REDG" => {
+                // mk48: rekordy 024d{0e|24|2e}32 (REDG desc/non-desc).
+                if let Some(r) = crate::mercury::merc_redg_record(t, merc_guard_code(ins.guard.as_ref())) {
+                    o.redg2_rec.push((lane, r));
                 }
             }
             "LDGSTS" if ins.opcode_full.contains(".128") => o.ldgsts_b128 = true,
