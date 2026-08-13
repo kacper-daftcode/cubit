@@ -284,8 +284,13 @@ pub struct MercFeatures {
     pub cctl_pos: Vec<u32>,
     /// mk11: instrukcje MMA -> rekord 025a w lane: (lane, cls, d, a, b, c, b8f).
     pub mma_lanes: Vec<(u32, u8, u8, u8, u8, u8, u8)>,
-    /// mk11: DMUL/DADD z imm f64 -> rekord 020f/020c w lane: (lane, var, d, a, imm_top).
-    pub f64_lanes: Vec<(u32, u8, u8, u8, u32)>,
+    /// mk11+mk51: DMUL/DADD z imm f64 -> rekordy 020f120e/020c1e0e w lane:
+    /// (lane, var, d, a, imm_top32, pred, b7=2*negA+4*absA; RZ-src = 0x3ff).
+    pub f64_lanes: Vec<(u32, u8, u16, u16, u32, u8, u8)>,
+    /// mk51: DFMA z imm f64 -> rekordy 020d1c0e (imm-last) / 020d1a0e
+    /// (imm-middle) w lane: (lane, variant[0=last,1=mid], pred, b7, d, a, b,
+    /// imm64bits; b7 = 2*negA+8*negB+4*absA+16*absB). Lane bez bitu bitmapy.
+    pub dfmaim: Vec<(u32, u8, u8, u8, u16, u16, u16, u64)>,
     /// mk11: lane UIADD3 (killpad uniform) -> atom d0 00 w lane.
     pub pad_pos: Vec<u32>,
     /// mk12 (iter AD): payload rekordu cflow-anchor `01 0b 04 0a`:
@@ -775,6 +780,7 @@ impl MercFeatures {
             .collect();
         f.mma_lanes = meta.merc_mma.clone();
         f.f64_lanes = meta.merc_f64imm.clone();
+        f.dfmaim = meta.merc_dfmaimm.clone();
         f.param_loads = meta.merc_param_loads.clone();
         f.cbank_lane = meta.merc_cbank_lane;
         f.s2r_lanes = meta.merc_s2r_lanes.clone();
@@ -1376,6 +1382,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         Pad,
         Mma(usize),
         F64i(usize),
+        DfmaImm(usize),
         Lop3P,
         XorReg(usize),
         Redux(usize),
@@ -1604,8 +1611,12 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         ev.push((m.0, 20, Ev::Mma(i.min(255) as usize)));
     }
     for (i, m) in feat.f64_lanes.iter().enumerate() {
-        let _ = i;
         ev.push((m.0, 20, Ev::F64i(i)));
+    }
+    // mk51: rekordy DFMA-imm 020d1c0e/020d1a0e — tier 20, strumien
+    // lane-rosnaco (emulator korpusowy c10: 18932/18932 byte-exact).
+    for (i, m) in feat.dfmaim.iter().enumerate() {
+        ev.push((m.0, 20, Ev::DfmaImm(i)));
     }
     // mk30: rodziny b_* (SYNCS/TMA/minis) — wszystko w lane swej klasy,
     // tier 20-21 (porzadek jak w finalnym strumieniu nvcc).
@@ -1857,7 +1868,15 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             }
             Ev::F64i(i) => {
                 let m = feat.f64_lanes[i];
-                out.extend_from_slice(&crate::mercury::build_f64imm_rec(m.1, m.2, m.3, m.4));
+                out.extend_from_slice(&crate::mercury::build_f64imm_rec(
+                    m.1, m.2, m.3, m.4, m.5, m.6,
+                ));
+            }
+            Ev::DfmaImm(i) => {
+                let m = feat.dfmaim[i];
+                out.extend_from_slice(&crate::mercury::build_dfmaimm_rec(
+                    m.1 == 1, m.2, m.3, m.4, m.5, m.6, m.7,
+                ));
             }
             // mk30: rodziny b_*
             Ev::GeoRec(k) => {
@@ -2277,7 +2296,7 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
         if have_pos && !bar0_pre {
             #[derive(Clone, Copy, PartialEq, Eq)]
             #[allow(dead_code)]
-            enum Ev { Bar, Stg, Atom, Elect, Xor, AcqBulk, Cctl, CctlRml2, Pad, Mma, F64i }
+            enum Ev { Bar, Stg, Atom, Elect, Xor, AcqBulk, Cctl, CctlRml2, Pad, Mma, F64i, DfmaImm }
             const REC_MINI_ELECT: [u8; 4] = [0x41, 0x64, 0x00, 0x0a];
             let mut ev: Vec<(u32, Ev, u32)> = Vec::new();
             enum Ev2 {}
@@ -2311,6 +2330,9 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
             for (i, m) in feat.f64_lanes.iter().enumerate() {
                 ev.push((m.0, Ev::F64i, i as u32));
             }
+            for (i, m) in feat.dfmaim.iter().enumerate() {
+                ev.push((m.0, Ev::DfmaImm, i as u32));
+            }
             ev.sort_by_key(|&(pos, kind, _)| (pos, match kind {
                 Ev::Bar => 1,
                 Ev::Elect => 2,
@@ -2340,7 +2362,13 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
                     Ev::F64i => {
                         let m = feat.f64_lanes[idx as usize];
                         out.extend_from_slice(&crate::mercury::build_f64imm_rec(
-                            m.1, m.2, m.3, m.4,
+                            m.1, m.2, m.3, m.4, m.5, m.6,
+                        ));
+                    }
+                    Ev::DfmaImm => {
+                        let m = feat.dfmaim[idx as usize];
+                        out.extend_from_slice(&crate::mercury::build_dfmaimm_rec(
+                            m.1 == 1, m.2, m.3, m.4, m.5, m.6, m.7,
                         ));
                     }
                     Ev::Bar => {
@@ -2511,8 +2539,12 @@ pub fn generate_mercury_full(
         meta.merc_xor.iter().map(|&(lane, _, _, _, _)| lane).collect();
     // mk13: rejestrowa forma xor tez zastepuje wezel typu4 (brak bitu).
     xor_lane_set.extend(meta.merc_xor_reg.iter().map(|&(lane, _, _, _, _)| lane));
-    let feat_f64_set: Vec<u32> =
-        meta.merc_f64imm.iter().map(|&(lane, _, _, _, _)| lane).collect();
+    let feat_f64_set: Vec<u32> = meta
+        .merc_f64imm
+        .iter()
+        .map(|&(lane, ..)| lane)
+        .chain(meta.merc_dfmaimm.iter().map(|&(lane, ..)| lane))
+        .collect();
     let pad_set: Vec<u32> = meta.merc_pad_pos.clone();
     let bra_guard_set: Vec<u32> = meta.merc_guarded_bra.clone();
     let bra_selfloop_set: Vec<u32> = meta.merc_bra_selfloop.clone();

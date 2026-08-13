@@ -241,6 +241,8 @@ pub fn kernel_def_to_meta(
         merc_stg_meta(&def.instructions);
     let merc_mma = merc_mma_scan(&def.instructions);
     let merc_f64imm = merc_f64imm_scan(&def.instructions);
+    // mk51: DFMA z natychmiastowym f64 (020d1c0e/020d1a0e).
+    let merc_dfmaimm = merc_dfmaimm_scan(&def.instructions);
     let merc_pad_pos: Vec<u32> = def
         .instructions
         .iter()
@@ -372,6 +374,7 @@ pub fn kernel_def_to_meta(
         merc_stg_wsel,
         merc_mma,
         merc_f64imm,
+        merc_dfmaimm,
         merc_pad_pos,
         merc_param_loads,
         merc_cbank_lane,
@@ -1401,16 +1404,86 @@ fn merc_mma_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u8, u8, u8, 
     out
 }
 
-/// Mercury mk11: DMUL/DADD z natychmiastowym f64 -> rekord 020f/020c.
-/// Ostatni operand musi byc literalnym floatem (drukas: "%.*g" / decimal).
-fn merc_f64imm_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u8, u32)> {
+/// mk51: parser operandu R-bank z flagami nvdisasm — zwraca
+/// (reg, neg, abs); RZ -> 0x3ff (siatka rekordow (r<<6)|f uzywa 10 bitow);
+/// URZ/URn/c[..]/inne -> None (fail-closed jak mk48/49/50).
+pub fn merc_f64_reg(t: &str) -> Option<(u16, bool, bool)> {
+    let mut t = t.trim().trim_end_matches(';').trim();
+    let mut neg = false;
+    if let Some(r) = t.strip_prefix('-') {
+        neg = true;
+        t = r;
+    }
+    let abs = t.len() > 1 && t.starts_with('|') && t.ends_with('|');
+    if abs {
+        t = t[1..t.len() - 1].trim();
+        if let Some(r) = t.strip_prefix('-') {
+            neg = true;
+            t = r;
+        }
+    }
+    let t = t.split('.').next().unwrap_or(t); // .reuse itd.
+    if t == "RZ" {
+        return Some((0x3ff, neg, abs));
+    }
+    let ds = t.strip_prefix('R')?;
+    if !ds.is_empty() && ds.bytes().all(|c| c.is_ascii_digit()) {
+        Some((ds.parse::<u16>().ok()?, neg, abs))
+    } else {
+        None
+    }
+}
+
+/// mk51: literal imm f64 w stylach nvdisasm ORAZ cubit-print
+/// ("1", "+INF"/"-INF", "NAN"/"QNAN", dlugie decymale %.20g).
+pub fn merc_f64_lit(t: &str) -> Option<f64> {
+    let t = t.trim().trim_end_matches(';').trim();
+    if t.is_empty() {
+        return None;
+    }
+    let up = t.to_ascii_uppercase();
+    match up.as_str() {
+        "INF" | "+INF" | "INFINITY" | "+INFINITY" => return Some(f64::INFINITY),
+        "-INF" | "-INFINITY" => return Some(f64::NEG_INFINITY),
+        "NAN" | "+NAN" | "-NAN" | "QNAN" | "+QNAN" | "-QNAN" => return Some(f64::NAN),
+        _ => {}
+    }
+    if up.contains('P') || up.contains("0X") {
+        return None; // staloprzecinkowe/szesnastkowe poza modelem (korpus: brak)
+    }
+    t.parse::<f64>().ok()
+}
+
+/// mk51: podzial raw_text na (mnemonik, operandy) z pominieciem guarda.
+fn merc_f64_split(raw: &str) -> Option<(String, Vec<String>)> {
+    let mut toks = raw.split_whitespace();
+    let mut first = toks.next().unwrap_or("");
+    if first.starts_with('@') {
+        first = toks.next().unwrap_or("");
+    }
+    let rest = toks.collect::<Vec<_>>().join(" ");
+    let rest = rest.trim_end_matches(';');
+    if rest.is_empty() {
+        return None;
+    }
+    Some((
+        first.to_string(),
+        rest.split(',').map(|x| x.trim().to_string()).collect(),
+    ))
+}
+
+/// Mercury mk11+mk51: DMUL/DADD z natychmiastowym f64 -> rekordy
+/// 020f120e/020c1e0e. Ostatni operand musi byc literalnym floatem.
+/// mk51: (lane, variant, d, a, imm_top32, pred, b7=2*negA+4*absA);
+/// zrodlo RZ kodowane jako 0x3ff (korpusowe 0xffc0 bez flagi |2).
+pub fn merc_f64imm_scan(
+    instructions: &[Instruction],
+) -> Vec<(u32, u8, u16, u16, u32, u8, u8)> {
     let mut out = Vec::new();
     for ins in instructions {
-        let mut toks = ins.raw_text.split_whitespace();
-        let mut first = toks.next().unwrap_or("");
-        if first.starts_with('@') {
-            first = toks.next().unwrap_or("");
-        }
+        let Some((first, parts)) = merc_f64_split(&ins.raw_text) else {
+            continue;
+        };
         let variant = if first.starts_with("DMUL") {
             0u8
         } else if first.starts_with("DADD") {
@@ -1418,25 +1491,79 @@ fn merc_f64imm_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u8, u32)>
         } else {
             continue;
         };
-        let rest = toks.collect::<Vec<_>>().join(" ");
-        let rest = rest.trim_end_matches(';');
-        let parts: Vec<&str> = rest.split(',').map(|x| x.trim()).collect();
-        if parts.len() < 3 {
+        if parts.len() != 3 {
             continue;
         }
-        let Some(immf) = parts[2].parse::<f64>().ok() else {
+        let Some(immf) = merc_f64_lit(&parts[2]) else {
             continue; // forma reg-reg — bez rekordu (potwierdzenie: mk11-lab)
         };
-        let regno = |t: &str| -> Option<u8> {
-            let t = t.trim().split('.').next().unwrap_or(t.trim());
-            let d = t.strip_prefix('R')?;
-            if d.chars().all(|c| c.is_ascii_digit()) { d.parse::<u8>().ok() } else { None }
-        };
-        let (Some(d), Some(a)) = (regno(parts[0]), regno(parts[1])) else {
+        let (Some((d, _, _)), Some((a, nega, absa))) =
+            (merc_f64_reg(&parts[0]), merc_f64_reg(&parts[1]))
+        else {
             continue;
         };
         let imm_top = ((immf.to_bits()) >> 32) as u32;
-        out.push(((ins.addr / 16) as u32, variant, d, a, imm_top));
+        let pred = merc_guard_code(ins.guard.as_ref());
+        let b7: u8 = (if nega { 2 } else { 0 }) | (if absa { 4 } else { 0 });
+        out.push(((ins.addr / 16) as u32, variant, d, a, imm_top, pred, b7));
+    }
+    out
+}
+
+/// mk51: DFMA z natychmiastowym f64 -> rekordy 020d1c0e (imm w ostatnim
+/// slocie) / 020d1a0e (imm w srodkowym slocie) w lane.
+/// (lane, variant [0=last,1=mid], pred, b7, d, a, b, imm64bits).
+/// b7 = 2*negA + 8*negB + 4*absA + 16*absB (merclab/mk51 c9/c10 EXACT).
+pub fn merc_dfmaimm_scan(
+    instructions: &[Instruction],
+) -> Vec<(u32, u8, u8, u8, u16, u16, u16, u64)> {
+    let mut out = Vec::new();
+    for ins in instructions {
+        let Some((first, parts)) = merc_f64_split(&ins.raw_text) else {
+            continue;
+        };
+        if !first.starts_with("DFMA") || parts.len() != 4 {
+            continue;
+        }
+        let Some((d, _, _)) = merc_f64_reg(&parts[0]) else {
+            continue;
+        };
+        let pred = merc_guard_code(ins.guard.as_ref());
+        if let (Some((a, n1, ab1)), Some((b, n2, ab2)), Some(immf)) =
+            (merc_f64_reg(&parts[1]), merc_f64_reg(&parts[2]), merc_f64_lit(&parts[3]))
+        {
+            let b7: u8 = (if n1 { 2 } else { 0 })
+                | (if n2 { 8 } else { 0 })
+                | (if ab1 { 4 } else { 0 })
+                | (if ab2 { 16 } else { 0 });
+            out.push((
+                (ins.addr / 16) as u32,
+                0u8,
+                pred,
+                b7,
+                d,
+                a,
+                b,
+                immf.to_bits(),
+            ));
+        } else if let (Some((a, n1, ab1)), Some(immf), Some((b, n2, ab2))) =
+            (merc_f64_reg(&parts[1]), merc_f64_lit(&parts[2]), merc_f64_reg(&parts[3]))
+        {
+            let b7: u8 = (if n1 { 2 } else { 0 })
+                | (if n2 { 8 } else { 0 })
+                | (if ab1 { 4 } else { 0 })
+                | (if ab2 { 16 } else { 0 });
+            out.push((
+                (ins.addr / 16) as u32,
+                1u8,
+                pred,
+                b7,
+                d,
+                a,
+                b,
+                immf.to_bits(),
+            ));
+        }
     }
     out
 }
