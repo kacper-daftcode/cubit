@@ -1102,6 +1102,15 @@ pub fn merc_xsetp_scan(instructions: &[Instruction]) -> Vec<(u32, u8)> {
 ///    pojedyncze mini na wlasnym lane — 42103406 gdy ma imm, inaczej 42103614.
 ///  * ULEA z carry-out (2. token = UP<num>): mini 42254214 na wlasnym lane.
 ///    (ULEA.HI.X z samym carry-in: bez rekordu; zweryfikowane ormtr-9/9.)
+/// mk61 (merclab/mk61 c1..c22, EXACT 14117/14119 kerneli count + 9556/9556
+/// okien porzadku): reguly ULEA zawężone/scalone do sygnatur korpusowych —
+///  * klasa-1: [UR|URZ, UPn, UR|URZ, UR|URZ, imm] (dokladnie 5 tokenow;
+///    forma z imm-srcB np. 'ULEA UR24, UP0, UR8, 0xffffffe0, 0x5' NIE nosi);
+///  * klasa-2 (mk52-park 'ULEA bez UP' domkniety): [UR|URZ, UR|URZ, UR|URZ,
+///    imm<=15] — 4 tokeny, bez .HI/.X, negacje dozwolone ('-UR5').
+///  * URZ dozwolony w kazdym slocie UR (m.in. dst=URZ w gemmSN/csrmm).
+///  * residuum park: 2 kernele cusparse-cub so.838 (brak 1 minia przy
+///    imm 0x18/0x1e wieloznacznym tekstowo) — mk62+.
 /// kind: 0=42103614, 1=42103406, 2=42104014. Kolejnosc elementow = kolejnosc
 /// lane (sort stabilny wstrzykuje pare (class,4014) na tym samym lane).
 pub fn merc_usetp_scan(instructions: &[Instruction]) -> (Vec<(u32, u8)>, Vec<u32>) {
@@ -1133,8 +1142,7 @@ pub fn merc_usetp_scan(instructions: &[Instruction]) -> (Vec<(u32, u8)>, Vec<u32
             t.len() > 2 && t.starts_with("UP") && t[2..].chars().all(|c| c.is_ascii_digit())
         };
         if ins.opcode == "ULEA" {
-            // forma: ULEA URd, UPcout, srcA, srcB[, shift]
-            if toks.len() >= 2 && is_up(toks[1]) {
+            if merc_ulea_rec(&toks, &ins.opcode_full) {
                 ulea.push(lane);
             }
             continue;
@@ -1171,6 +1179,56 @@ pub fn merc_usetp_scan(instructions: &[Instruction]) -> (Vec<(u32, u8)>, Vec<u32
         }
     }
     (minis, ulea)
+}
+
+/// mk61: sygnatury mini 42254214 dla ULEA (korpus sm_100; patrz docstring
+/// merc_usetp_scan). Token UR dopuszcza negacje ('-UR5') i URZ.
+pub fn merc_ulea_rec(toks: &[&str], opfull: &str) -> bool {
+    let is_urz = |t: &str| -> bool {
+        let t = t.trim_start_matches(['-', '!']);
+        t == "URZ"
+            || (t.len() > 2 && t.starts_with("UR") && t[2..].chars().all(|c| c.is_ascii_digit()))
+    };
+    let is_up2 = |t: &str| -> bool {
+        let t = t.trim_start_matches('!');
+        t.len() > 2 && t.starts_with("UP") && t[2..].chars().all(|c| c.is_ascii_digit())
+    };
+    let imm_val = |t: &str| -> Option<i64> {
+        let t = t.trim();
+        let (sgn, t2) = match t.strip_prefix('-') {
+            Some(x) => (-1i64, x),
+            None => (1i64, t),
+        };
+        if let Some(h) = t2.strip_prefix("0x") {
+            i64::from_str_radix(h, 16).ok().map(|v| sgn * v)
+        } else if !t2.is_empty() && t2.chars().all(|c| c.is_ascii_digit()) {
+            t2.parse::<i64>().ok().map(|v| sgn * v)
+        } else {
+            None
+        }
+    };
+    // klasa-1: [UR|URZ, UPn, UR|URZ, UR|URZ, imm]
+    if toks.len() == 5
+        && is_urz(toks[0])
+        && is_up2(toks[1])
+        && is_urz(toks[2])
+        && is_urz(toks[3])
+        && imm_val(toks[4]).is_some()
+    {
+        return true;
+    }
+    // klasa-2: [UR|URZ, UR|URZ, UR|URZ, imm<=15], bez .HI/.X
+    if toks.len() == 4
+        && !opfull.contains(".HI")
+        && !opfull.contains(".X")
+        && is_urz(toks[0])
+        && is_urz(toks[1])
+        && is_urz(toks[2])
+        && imm_val(toks[3]).map_or(false, |v| v <= 15)
+    {
+        return true;
+    }
+    false
 }
 
 /// mk52: literal imm wsrod tokenow — definicja jak w merc_xsetp_scan (mk41).

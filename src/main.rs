@@ -2477,7 +2477,10 @@ fn cmd_asm_build_elf(
                                     && t[2..].chars().all(|c| c.is_ascii_digit())
                             };
                             if base0 == "ULEA" {
-                                if toks.len() >= 2 && is_up(toks[1]) {
+                                // mk61 (lustro): scisle sygnatury klasa-1 +
+                                // klasa-2 z merc_usetp_scan (patrz sass_file).
+                                let opw = body.split_whitespace().next().unwrap_or("");
+                                if cubit::sass_file::merc_ulea_rec(&toks, opw) {
                                     ulea_upco35.push(ii as u32);
                                 }
                             } else if !toks.is_empty() {
