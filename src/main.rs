@@ -1346,6 +1346,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_cs2r_rec: Vec::new(),
         merc_lop3not_rec: Vec::new(),
         merc_redg2_rec: Vec::new(),
+        merc_atomg2_rec: Vec::new(),
         merc_geo_rec: Vec::new(),
     }
 }
@@ -2270,6 +2271,7 @@ fn cmd_asm_build_elf(
                     let mut ldgconst: Vec<(u32, u32)> = Vec::new();
                     let mut atoms_scan: Vec<(u32, u8, u8, u8, u8, u8, u8, u8)> = Vec::new();
                     let mut redg2_scan: Vec<(u32, [u8; 32])> = Vec::new();
+                    let mut atomg2_scan: Vec<(u32, [u8; 32])> = Vec::new();
                     // mk35: lustra sass_file::merc_mk35_scan
                     let mut load_dregs35: Vec<u8> = Vec::new();
                     let mut bar_guard35: Vec<u8> = Vec::new();
@@ -2791,6 +2793,11 @@ fn cmd_asm_build_elf(
                         }
                         // mk14: rekordy atomowe (lustro sass_file::merc_atom_scan).
                         if base0.starts_with("ATOM") {
+                            // mk49 (lustro): rekordy 024e*32 konsumuja lane;
+                            // CAST.SPIN/ATOM.E.CAS.* sa bezrekordowe (bez tuple).
+                            if let Some(r) = cubit::mercury::merc_atomg2_record(body, guard_fc) {
+                                atomg2_scan.push((ii as u32, r));
+                            } else if !cubit::mercury::merc_atomg2_recordless(body) {
                             let reg_of = |t: &str| -> u8 {
                                 let t = t.trim().trim_end_matches(';').trim_end_matches(')');
                                 if t == "RZ" || t == "URZ" {
@@ -2865,6 +2872,7 @@ fn cmd_asm_build_elf(
                                     }
                                 }
                             }
+                            }
                         }
                     }
                     meta.merc_param_loads = loads;
@@ -2881,6 +2889,7 @@ fn cmd_asm_build_elf(
                     meta.merc_lop3_pdest = lop3_pdest;
                     meta.merc_atoms = atoms_scan;
                     meta.merc_redg2_rec = redg2_scan;
+                    meta.merc_atomg2_rec = atomg2_scan;
                     // mk27: lustra dla UTCATOMSWS i ATOMS-smem-imm
                     // (sass_file::merc_utca_scan / merc_atom_smem_scan).
                     let mut utca_v: Vec<(u32, u8)> = Vec::new();

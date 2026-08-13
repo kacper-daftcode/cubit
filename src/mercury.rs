@@ -281,6 +281,8 @@ pub fn opcode_tracked_hint(op: &str) -> bool {
             | "REDG"
             | "RED"
             | "ATOMG"
+            // mk49: sm_100 ATOM.E.* (desc-rodzina) — jak wszystkie atomowe.
+            | "ATOM"
             // mk14: AShared ATOMS tez bez bitu (gold p_atoms slot15 bit=0;
             // wszystkie klasy atomowe bez bitu — mk14/atombits.py).
             | "ATOMS"
@@ -659,6 +661,8 @@ pub struct McScanOut {
     pub lop3not_rec: Vec<(u32, [u8; 16])>,
     /// mk48: rekordy 024d*32 (REDG desc/non-desc) — (lane, 32B).
     pub redg2_rec: Vec<(u32, [u8; 32])>,
+    /// mk49: rekordy 024e*32 (ATOM.E/ATOMG/ATOMS) — (lane, 32B).
+    pub atomg2_rec: Vec<(u32, [u8; 32])>,
     pub fence_async: Vec<u32>,
     pub ldgsts_b128: bool,
     /// mk41: (lane, guarded, dst-UR) — payload smem-anchora z dst.
@@ -694,6 +698,7 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
         geo_rec: Vec::new(),
         lop3not_rec: Vec::new(),
         redg2_rec: Vec::new(),
+        atomg2_rec: Vec::new(),
         fence_async: Vec::new(),
         ldgsts_b128: false,
         s2ur_cga: Vec::new(),
@@ -781,6 +786,13 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
                 // mk48: rekordy 024d{0e|24|2e}32 (REDG desc/non-desc).
                 if let Some(r) = merc_redg_record(t, it.guard_code) {
                     o.redg2_rec.push((lane, r));
+                }
+            }
+            "ATOM" | "ATOMG" | "ATOMS" => {
+                // mk49: rekordy 024e*32 (ATOM.E desc, ATOMG float/int/CAS,
+                // ATOMS shared POPC/ADD/MINMAX). CAST.SPIN/ATOM.E.CAS bez rekordu.
+                if let Some(r) = merc_atomg2_record(t, it.guard_code) {
+                    o.atomg2_rec.push((lane, r));
                 }
             }
             "LDGSTS" if it.full.contains(".128") => o.ldgsts_b128 = true,
@@ -1563,6 +1575,396 @@ pub fn merc_redg_record(text: &str, guard_code: u8) -> Option<[u8; 32]> {
     }
     b[28..32].copy_from_slice(&imm.to_le_bytes());
     Some(b)
+}
+
+/// mk49: rekordy 02 4e {b2} 32 (32B) — rodzina ATOM.E/ATOMG/ATOMS (korpus
+/// sm_100, 2929 kerneli; byte-exact 11898/11898, porzadek strumienia lane-asc
+/// 2929/2929; lab merclab/mk49). Zastepuje mk14-tuple dla nowych klas.
+///
+/// Wspolne: b0=02 b1=4e b3=32 b4=guard_code (drabina mk41); siatka rejestrow
+/// (r<<6)|flag LE16; grid1 = |1, grid0 = |0; RZ/URZ = 255 -> 0xffc1/0xffc0.
+/// imm adresu = i32 LE w [28:32). Bitmapa: lane atomowy bez bitu (doktryna
+/// mk14/mk30b). CAST.SPIN / ATOM.E.CAS.* sa bezrekordowe (patrz
+/// merc_atomg2_recordless).
+///
+/// Klasy (b2):
+///   20  ATOM.E desc float: F16x2->b6=00, BF16x2->18, F32->48, F64->78; b7=34.
+///   68  ATOM.E desc int:   ADD -> b6=00; ADD.64 -> 60; MAX.S32 -> 42;
+///       MAX.S64 -> a2 (wzor: op<<4 | tmod; tmod S32=2, dane .64 => +0x60|2).
+///   30  ATOMG float [Rn(+imm)]: b6=80; b7 F32=44 / F64=47; b8=03.
+///   24  ATOMG.E.CAS: b6=00; b7: GPU=68 / SYS=88 / .64 SYS=89; b8=00.
+///   52  ATOMG int [Rn]/desc: b6: ADD=00 MIN=10 MAX=20 INC=30 EXCH=80;
+///       b7 = 40 | (04 gdy .S32); b8=03. (Ladder mk14 b21/b22: descUR albo
+///       powtorzony addr gdy brak desc; wczesniej stal sie to przez gold R4.)
+///   82  ATOMS [Rn(+imm)]: tylko ADD w korpusie — b6=04 b7=60 b8=03.
+///   84  ATOMS [URn(+imm)]: b6: MIN=14 MAX=24 AND=54 OR=64; b7=.S32?64:60;
+///       b8=03. Wariant OR/AND z imm!=0 zostaje przy mk27 AtomSmem (tu None).
+///   8a  ATOMS.POPC.INC.32 [Rn+URZ(+imm)]: b6=b4 b7=62 b8=03.
+///   (b8=01 zamiast 03 w 82/8a = libcusparse.so.782 sub-driver — parked jak
+///    mk41 STL b7-variant.)
+///
+/// Sloty:
+///   20/68: b12=01, b13 = predykat-dst (PT=f8 / Pn=n<<3), [14:16)=grid1(dst)
+///          (68 non-RZ: |1|df), [17:19)=(addr<<6)|2, b19=0a,
+///          [21:23)=(descUR<<6)|2, [23:25)=(data<<6)|df, [28:32)=imm.
+///          df=2 dla 64-bit danych (F64 / int .64|S64); RZ nie dostaje df.
+///   30:    jak 20 lecz [21:23)=(data<<6)|df, brak desc.
+///   24:    [14:16)=(dst<<6)|(1, lub 3 gdy .64); [17:19)=(addr<<6)|2; b19=0a;
+///          [21:23)=(cmp<<6)|(2 gdy .64); [23:25)=(swp<<6)|(2 gdy .64).
+///   52:    [12]=01, b13=pred-dst; [14:16)=grid1(dst); [17:19)=(addr<<6)|2;
+///          b19=0a; [21:23)=(descUR|addr)<<6|2; [23:25)=grid0(data); imm.
+///   82:    [12:14)=grid1(dst); [14:16)=grid0(addr); b17=0a; [19:21)=grid0(val);
+///          imm.
+///   84:    [12:14)=grid1(dst); [14:16)=ffc0; [17:19)=grid0(UR); b19=0a;
+///          [21:23)=grid0(val); imm.
+///   8a:    [12:14)=grid1(dst); [14:16)=grid0(addrR); [17:19)=grid0(UR);
+///          b19=0a; imm.
+pub fn merc_atomg2_record(text: &str, guard_code: u8) -> Option<[u8; 32]> {
+    let body0 = text.trim().trim_end_matches(';').trim();
+    let body = match body0.strip_prefix('@') {
+        Some(r) => r
+            .split_once(char::is_whitespace)
+            .map(|(_, x)| x.trim_start())
+            .unwrap_or(body0),
+        None => body0,
+    };
+    if !body.starts_with("ATOM") || merc_atomg2_recordless(body) {
+        return None;
+    }
+    let pc = |tok: &str| -> Option<u8> {
+        let t = tok.trim();
+        if t == "PT" {
+            return Some(0xf8);
+        }
+        let d = t.strip_prefix('P')?;
+        d.parse::<u8>().ok().filter(|v| *v < 8).map(|v| v << 3)
+    };
+    // u16 LE do siatki
+    let put = |b: &mut [u8; 32], off: usize, v: u16| {
+        b[off] = (v & 0xff) as u8;
+        b[off + 1] = (v >> 8) as u8;
+    };
+    let mut b = [0u8; 32];
+    b[0] = 0x02;
+    b[1] = 0x4e;
+    b[3] = 0x32;
+    b[4] = guard_code;
+
+    // ---- parser operandow: rozdziel po przecinkach top-level ----
+    // (mnemonik F16/BF16 ma spacje: "ATOM.E.ADD.F16 x2.RN... P4, ...")
+    let parts: Vec<&str> = body.split(',').map(|x| x.trim()).collect();
+    fn last_word(t: &str) -> &str { t.split_whitespace().last().unwrap_or(t) }
+    let reg = |tok: &str| -> Option<u32> {
+        match last_word(tok) {
+            "RZ" | "URZ" => Some(255),
+            w => {
+                let d = w.strip_prefix('R')?;
+                if d.is_empty() || !d.bytes().all(|c| c.is_ascii_digit()) {
+                    return None;
+                }
+                d.parse::<u32>().ok().filter(|v| *v < 0x4000)
+            }
+        }
+    };
+    let uregr = |tok: &str| -> Option<u32> {
+        match last_word(tok) {
+            "URZ" => Some(255),
+            w => {
+                let d = w.strip_prefix("UR")?;
+                if d.is_empty() || !d.bytes().all(|c| c.is_ascii_digit()) {
+                    return None;
+                }
+                d.parse::<u32>().ok().filter(|v| *v < 0x4000)
+            }
+        }
+    };
+    // imm w opisie nawiasu: "+0x400" / "+-0xc" / "+-0x8"
+    let imm_of = |inner: &str| -> i32 {
+        match inner.find("0x") {
+            Some(h) => {
+                let hexs: String = inner[h + 2..]
+                    .chars()
+                    .take_while(|c| c.is_ascii_hexdigit())
+                    .collect();
+                let v = i32::from_str_radix(&hexs, 16).unwrap_or(0);
+                if inner[..h].contains('-') {
+                    -v
+                } else {
+                    v
+                }
+            }
+            None => 0,
+        }
+    };
+
+    if body.starts_with("ATOM.E.") {
+        // desc[URn][Rm.64(+imm)]
+        let dp = body.find("desc[UR")?;
+        let rest = &body[dp + 7..];
+        let end = rest.find(']')?;
+        let descur: u32 = rest[..end].parse().ok()?;
+        let bp = rest[end..].find('[').map(|p| p + end)?;
+        let bend = rest[bp..].find(']').map(|e| e + bp)?;
+        let inner = &rest[bp + 1..bend]; // "R10.64+0x4"
+        let addr = reg(inner.split('.').next()?)?;
+        let imm = imm_of(inner);
+        // dst = ostatni token przed desc[ ; data = token po zamknieciu ']'
+        let head = &body[..dp];
+        let hparts: Vec<&str> = head.split(',').map(|x| x.trim()).collect();
+        if hparts.len() < 2 {
+            return None;
+        }
+        let pdc = pc(last_word(hparts[0]))?;
+        let dst = reg(hparts[1])?;
+        let data = reg(&rest[bend + 1..].trim_start_matches(',').trim())?;
+        // klasa: float vs int
+        let (tag2, b6, df): (u8, u8, u16) = if body.contains(".F64") {
+            (0x20, 0x78, 2)
+        } else if body.contains(".F32") {
+            (0x20, 0x48, 0)
+        } else if body.contains(".BF16") {
+            (0x20, 0x18, 0)
+        } else if body.contains(".F16") {
+            (0x20, 0x00, 0)
+        } else if body.contains(".ADD.64") {
+            (0x68, 0x60, 2)
+        } else if body.contains(".MAX.S64") {
+            (0x68, 0xa2, 2)
+        } else if body.contains(".MAX.S32") {
+            (0x68, 0x42, 0)
+        } else if body.contains(".ADD") {
+            (0x68, 0x00, 0)
+        } else {
+            return None; // MIN/AND/OR/... nieobserwowane w korpusie
+        };
+        b[2] = tag2;
+        b[6] = b6;
+        b[7] = 0x34;
+        b[12] = 0x01;
+        b[13] = pdc;
+        let dg = if tag2 == 0x68 && dst != 255 {
+            ((dst as u16) << 6) | 1 | df
+        } else {
+            merc_grid1(dst as u8)
+        };
+        put(&mut b, 14, dg);
+        put(&mut b, 17, ((addr as u16) << 6) | 2);
+        b[19] = 0x0a;
+        put(&mut b, 21, ((descur as u16) << 6) | 2);
+        put(&mut b, 23, ((data as u16) << 6) | df);
+        b[28..32].copy_from_slice(&imm.to_le_bytes());
+        return Some(b);
+    }
+
+    if body.starts_with("ATOMG.") {
+        // shift: pierwszy token (po mnemoniku) moze byc predykatem Pn|PT
+        let pdw = last_word(parts.get(0)?);
+        let (pdc, sh) = match pc(pdw) {
+            Some(c) => (c, 1usize),
+            None => (0xf8, 0usize),
+        };
+        if body.contains(".CAS") {
+            // [PT,] Rd, [Rn], Rcmp, Rswp
+            if parts.len() < sh + 4 {
+                return None;
+            }
+            let w64 = body.contains(".CAS.64");
+            let sys = body.contains(".SYS");
+            let dst = reg(parts[sh])?;
+            let bp = parts[sh + 1].find('[')?;
+            let bend = parts[sh + 1].find(']')?;
+            let addr = reg(&parts[sh + 1][bp + 1..bend])?;
+            let cmp = reg(parts[sh + 2])?;
+            let swp = reg(parts[sh + 3])?;
+            let wf: u16 = if w64 { 3 } else { 1 };
+            b[2] = 0x24;
+            b[6] = 0;
+            b[7] = if w64 {
+                0x89
+            } else if sys {
+                0x88
+            } else {
+                0x68
+            };
+            b[12] = 0x01;
+            b[13] = pdc;
+            // RZ nie dostaje flagi szerokosci (jak mk49 0x68 / mk40 store2).
+            let dg = if dst == 255 {
+                merc_grid1(255)
+            } else {
+                ((dst as u16) << 6) | wf
+            };
+            put(&mut b, 14, dg);
+            put(&mut b, 17, ((addr as u16) << 6) | 2);
+            b[19] = 0x0a;
+            put(&mut b, 21, ((cmp as u16) << 6) | if w64 { 2 } else { 0 });
+            put(&mut b, 23, ((swp as u16) << 6) | if w64 { 2 } else { 0 });
+            return Some(b);
+        }
+        if parts.len() < sh + 3 {
+            return None;
+        }
+        let dst = reg(parts[sh])?;
+        let addr_tok = parts[sh + 1];
+        let (addr, desc, imm) = if addr_tok.contains("desc[UR") {
+            let dp = addr_tok.find("desc[UR")?;
+            let rest = &addr_tok[dp + 7..];
+            let end = rest.find(']')?;
+            let d32: u32 = rest[..end].parse().ok()?;
+            let bp2 = rest[end..].find('[').map(|p| p + end)?;
+            let bend = rest[bp2..].find(']').map(|e| e + bp2)?;
+            let inner = &rest[bp2 + 1..bend];
+            (
+                reg(inner.split('.').next()?)?,
+                Some(d32),
+                imm_of(inner),
+            )
+        } else {
+            let bo = addr_tok.find('[')?;
+            let bc = addr_tok.find(']')?;
+            let inner = &addr_tok[bo + 1..bc];
+            (reg(inner.split('+').next()?)?, None, imm_of(inner))
+        };
+        let data = reg(parts[sh + 2])?;
+        if body.contains(".F64") || body.contains(".F32") {
+            let f64v = body.contains(".F64");
+            b[2] = 0x30;
+            b[6] = 0x80;
+            b[7] = if f64v { 0x47 } else { 0x44 };
+            b[8] = 0x03;
+            b[12] = 0x01;
+            b[13] = pdc;
+            put(&mut b, 14, merc_grid1(dst as u8));
+            put(&mut b, 17, ((addr as u16) << 6) | 2);
+            b[19] = 0x0a;
+            put(&mut b, 21, ((data as u16) << 6) | if f64v { 2 } else { 0 });
+            b[28..32].copy_from_slice(&imm.to_le_bytes());
+            return Some(b);
+        }
+        // g52: int
+        let mut sub = 0u8;
+        for (s, v) in [
+            (".MIN", 0x10u8),
+            (".MAX", 0x20u8),
+            (".INC", 0x30u8),
+            (".EXCH", 0x80u8),
+        ] {
+            if body.contains(s) {
+                sub = v;
+            }
+        }
+        b[2] = 0x52;
+        b[6] = sub;
+        b[7] = 0x40 | if body.contains(".S32") { 4 } else { 0 };
+        b[8] = 0x03;
+        b[12] = 0x01;
+        b[13] = pdc;
+        put(&mut b, 14, merc_grid1(dst as u8));
+        put(&mut b, 17, ((addr as u16) << 6) | 2);
+        b[19] = 0x0a;
+        put(&mut b, 21, ((desc.unwrap_or(addr) as u16) << 6) | 2);
+        put(&mut b, 23, (data as u16) << 6);
+        b[28..32].copy_from_slice(&imm.to_le_bytes());
+        return Some(b);
+    }
+
+    if body.starts_with("ATOMS.") {
+        let ob = body.find('[')?;
+        let cb = body.find(']')?;
+        let inner = &body[ob + 1..cb];
+        let dst = reg(parts.get(0)?)?;
+        let val = {
+            let after = body[cb + 1..].trim_start_matches(',').trim();
+            if after.is_empty() {
+                None
+            } else {
+                reg(after)
+            }
+        };
+        if inner.contains("+URZ") || (inner.contains("+UR") && !inner.starts_with("UR")) {
+            // [Rn+URZ(+imm)] -> POPC 8a
+            if !body.contains(".POPC") {
+                return None;
+            }
+            let addr = reg(inner.split('+').next()?)?;
+            let imm = imm_of(inner);
+            b[2] = 0x8a;
+            b[6] = 0xb4;
+            b[7] = 0x62;
+            b[8] = 0x03;
+            put(&mut b, 12, merc_grid1(dst as u8));
+            put(&mut b, 14, (addr as u16) << 6);
+            put(&mut b, 17, merc_grid0(255));
+            b[19] = 0x0a;
+            b[28..32].copy_from_slice(&imm.to_le_bytes());
+            return Some(b);
+        }
+        if inner.starts_with("UR") {
+            // [URn(+imm)]
+            let ur = uregr(inner.split('+').next()?)?;
+            let imm = imm_of(inner);
+            let val = val?;
+            let sub: u8 = if body.contains(".MIN") {
+                0x14
+            } else if body.contains(".MAX") {
+                0x24
+            } else if body.contains(".AND") {
+                0x54
+            } else if body.contains(".OR") {
+                0x64
+            } else {
+                return None;
+            };
+            if imm != 0 && (body.contains(".AND") || body.contains(".OR")) {
+                return None; // mk27 AtomSmem (tier 5) trzyma OR/AND+imm
+            }
+            b[2] = 0x84;
+            b[6] = sub;
+            b[7] = if body.contains(".S32") { 0x64 } else { 0x60 };
+            b[8] = 0x03;
+            put(&mut b, 12, merc_grid1(dst as u8));
+            put(&mut b, 14, 0xffc0);
+            put(&mut b, 17, (ur as u16) << 6);
+            b[19] = 0x0a;
+            put(&mut b, 21, (val as u16) << 6);
+            b[28..32].copy_from_slice(&imm.to_le_bytes());
+            return Some(b);
+        }
+        // [Rn(+imm)] — korpus: wylacznie ADD
+        if !body.contains(".ADD") {
+            return None;
+        }
+        let addr = reg(inner.split('+').next()?)?;
+        let imm = imm_of(inner);
+        let val = val?;
+        b[2] = 0x82;
+        b[6] = 0x04;
+        b[7] = 0x60;
+        b[8] = 0x03;
+        put(&mut b, 12, merc_grid1(dst as u8));
+        put(&mut b, 14, (addr as u16) << 6);
+        b[17] = 0x0a;
+        put(&mut b, 19, (val as u16) << 6);
+        b[28..32].copy_from_slice(&imm.to_le_bytes());
+        return Some(b);
+    }
+    None
+}
+
+/// mk49: lane ATOM-rodziny ktory NIE dostaje rekordu capmerc (spin-loop CAS):
+/// ATOMS.CAST.SPIN(,.64), ATOM.E.CAST.SPIN(,.64), ATOM.E.CAS.* (1536+7041
+/// lane'ow korpusu — zadne nie ma rekordu 024e; dowod c8: po ich pomieciu
+/// parowanie rekordow jest 1:1 w 2929/2929 kernelach).
+pub fn merc_atomg2_recordless(text: &str) -> bool {
+    let t0 = text.trim();
+    let t = match t0.strip_prefix('@') {
+        Some(r) => r
+            .split_once(char::is_whitespace)
+            .map(|(_, x)| x.trim_start())
+            .unwrap_or(t0),
+        None => t0,
+    };
+    t.contains(".CAST.SPIN") || t.starts_with("ATOM.E.CAS.")
 }
 
 pub fn build_atom_rec(

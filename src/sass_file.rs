@@ -454,6 +454,7 @@ pub fn kernel_def_to_meta(
         merc_geo_rec: mc.geo_rec,
         merc_lop3not_rec: mc.lop3not_rec,
         merc_redg2_rec: mc.redg2_rec,
+        merc_atomg2_rec: mc.atomg2_rec,
         merc_fence_async: mc.fence_async,
         merc_ldgsts_b128: mc.ldgsts_b128,
         merc_s2ur_cga: mc.s2ur_cga,
@@ -750,6 +751,14 @@ fn merc_atom_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u8, u8, u8,
         if !base.starts_with("ATOMS") && !first.starts_with(base) && !first.starts_with("ATOM") {
             continue;
         }
+        // mk49: lane'y z rekordami 024e*32 NIE dostaja mk14-tuple;
+        // CAST.SPIN / ATOM.E.CAS.* sa bezrekordowe (merc_atomg2_recordless).
+        if crate::mercury::merc_atomg2_record(&ins.raw_text, merc_guard_code(ins.guard.as_ref()))
+            .is_some()
+            || crate::mercury::merc_atomg2_recordless(&ins.raw_text)
+        {
+            continue;
+        }
         let rest: Vec<&str> = toks.collect();
         let rest = rest.join(" ");
         let rest = rest.trim_end_matches(';');
@@ -854,6 +863,8 @@ pub struct MercMcScan {
     pub lop3not_rec: Vec<(u32, [u8; 16])>,
     /// mk48: rekordy 024d*32 (REDG desc/non-desc) — (lane, 32B).
     pub redg2_rec: Vec<(u32, [u8; 32])>,
+    /// mk49: rekordy 024e*32 (ATOM.E/ATOMG/ATOMS) — (lane, 32B).
+    pub atomg2_rec: Vec<(u32, [u8; 32])>,
     pub fence_async: Vec<u32>,          // FENCE.*ASYNC* lanes
     pub ldgsts_b128: bool,              // LDGSTS .128 (pinned-blob wariant)
     pub s2ur_cga: Vec<(u32, bool, u8)>, // S2UR ?, SR_CgaCtaId: (lane, guarded, dstUR) mk41
@@ -1150,6 +1161,14 @@ pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
                 // mk48: rekordy 024d{0e|24|2e}32 (REDG desc/non-desc).
                 if let Some(r) = crate::mercury::merc_redg_record(t, merc_guard_code(ins.guard.as_ref())) {
                     o.redg2_rec.push((lane, r));
+                }
+            }
+            "ATOM" | "ATOMG" | "ATOMS" => {
+                // mk49: rekordy 024e*32 (ATOM.E/ATOMG/ATOMS).
+                if let Some(r) =
+                    crate::mercury::merc_atomg2_record(t, merc_guard_code(ins.guard.as_ref()))
+                {
+                    o.atomg2_rec.push((lane, r));
                 }
             }
             "LDGSTS" if ins.opcode_full.contains(".128") => o.ldgsts_b128 = true,
