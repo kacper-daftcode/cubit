@@ -431,6 +431,10 @@ pub struct MercFeatures {
     pub isetp_ur: Vec<u32>,
     /// mk41: XSETP EX-pair minis: (head-lane, klasa).
     pub xsetp_pairs: Vec<(u32, u8)>,
+    /// mk52: UISETP minis (lane, kind): 0=42103614, 1=42103406, 2=42104014.
+    pub usetp_minis: Vec<(u32, u8)>,
+    /// mk52: ULEA carry-out -> mini 42254214 (lane).
+    pub ulea_upco: Vec<u32>,
     /// mk41: marker ery zrodla.
     pub era100: bool,
     /// mk35: redukcyjne rekordy 0132: (lane, kind, dreg); kind 0=REDUX
@@ -505,6 +509,8 @@ impl MercFeatures {
             bar_guard: meta.merc_bar_guard.clone(),
             isetp_ur: meta.merc_isetp_ur.clone(),
             xsetp_pairs: meta.merc_xsetp_pairs.clone(),
+            usetp_minis: meta.merc_usetp_minis.clone(),
+            ulea_upco: meta.merc_ulea_upco.clone(),
             era100: meta.merc_era100,
             redux: meta.merc_redux.clone(),
             cbank358_dreg: meta.merc_cbank358_dreg,
@@ -1388,6 +1394,8 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         Redux(usize),
         IsetpUr,
         XsetpPair(u8),
+        UsetpMini(u8),
+        UleaUpco,
         Syncwarp,
         Atom(usize),
         LdgstsPin,
@@ -1567,6 +1575,13 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     // mk41: para ISETP(non-EX)+ISETP.EX -> JEDEN mini na lane HEAD-a.
     for &(hl, cls) in &feat.xsetp_pairs {
         ev.push((hl, 20, Ev::XsetpPair(cls)));
+    }
+    // mk52: UISETP minis (kolejnosc z minis — stabilna dla par (class,4014)).
+    for &(l, k) in &feat.usetp_minis {
+        ev.push((l, 20, Ev::UsetpMini(k)));
+    }
+    for &l in &feat.ulea_upco {
+        ev.push((l, 20, Ev::UleaUpco));
     }
     // mk14: ghost __syncwarp (rekord 01476c0a) — lane ducha-NOP.
     for &pos in &feat.syncwarp {
@@ -1856,6 +1871,11 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::XsetpPair(1) => out.extend_from_slice(&[0x42, 0x10, 0x30, 0x06]),
             Ev::XsetpPair(2) => out.extend_from_slice(&[0x42, 0x10, 0x32, 0x14]),
             Ev::XsetpPair(_) => out.extend_from_slice(&[0x42, 0x10, 0x2e, 0x14]),
+            // mk52
+            Ev::UsetpMini(1) => out.extend_from_slice(&[0x42, 0x10, 0x34, 0x06]),
+            Ev::UsetpMini(2) => out.extend_from_slice(&[0x42, 0x10, 0x40, 0x14]),
+            Ev::UsetpMini(_) => out.extend_from_slice(&[0x42, 0x10, 0x36, 0x14]),
+            Ev::UleaUpco => out.extend_from_slice(&[0x42, 0x25, 0x42, 0x14]),
             Ev::Mma(i) => {
                 let m = feat.mma_lanes[i];
                 if crate::mercury::merc_mma_is_mini(m.1) {
