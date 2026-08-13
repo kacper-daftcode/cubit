@@ -3082,3 +3082,74 @@ pub fn is_uiadd3_killpad(text: &str) -> bool {
     }
     t == "UIADD3 URZ, UPT, UPT, URZ, URZ, URZ"
 }
+
+// ==== mk64: rodzina duchow __syncwarp 01476c0a (pelna regula tekstowa) ====
+/// Dekompozycja site'ow EIATTR-0x28 na kandydatow pelnego rekordu-ducha
+/// 01476c0a i mini (mk64, merclab/mk64 c4/c5 — korpus l2 EXACT obustronnie:
+/// 3513 kern z rekordami + 3311 z site'ami bez rekordow, 30554/30554):
+/// - pelny rekord dla site'a z instr NOP w .text (maska 0x29 bez znaczenia —
+///   maski 0x050000xx tez daja rekordy, np. symv cublas.255),
+/// - mini (realna instrukcja na lane) zachowana osobno (mk14 ghost_mini76),
+/// - srodek triple'a [WARPSYNC*;NOP;ENDCOLLECTIVE] NIE dostaje niczego
+///   (pokryty przez rekordy kolektywu d10102-47, mk59).
+/// `op(lane)` -> bazowy opcode (bez kropki) lane'a lub None poza kodem.
+pub fn merc_ghost64_split<F: Fn(u32) -> Option<String>>(
+    cgsites: &[u32],
+    op: F,
+) -> (Vec<u32>, Vec<u32>) {
+    let is = |l: u32, want: &str| op(l).as_deref() == Some(want);
+    let wcmid = |ln: u32| {
+        ln.checked_sub(1).map(|p| is(p, "WARPSYNC")).unwrap_or(false)
+            && is(ln + 1, "ENDCOLLECTIVE")
+    };
+    let mut full = Vec::new();
+    let mut mini = Vec::new();
+    for &s in cgsites {
+        let ln = s / 16;
+        if wcmid(ln) {
+            continue;
+        }
+        if is(ln, "NOP") {
+            full.push(ln);
+        } else {
+            mini.push(ln);
+        }
+    }
+    full.sort_unstable();
+    full.dedup();
+    mini.sort_unstable();
+    mini.dedup();
+    (full, mini)
+}
+
+/// mk64: finalna lista lane'ow do dyrektywy .merc_syncwarp.
+/// Dowod: n_ghost_recs = liczba rekordow 01476c0a w oryginalnym capmerc
+/// (None gdy cubin bez capmerc — wtedy keep-all na legacy jak mk19b).
+/// utca_ret = dialekt zero-param (kernel z UTCATOMSWS i wewnetrznym RET):
+/// ostatni lone-NOP site pokrywa tail-special (mk27/mk28, mkvmem), a site'y
+/// z realna instrukcja dostaja mini 4147760a — sklejone w jednej liscie
+/// (elf_builder rozpoznaje pelny-vs-mini po opcode lane'a: feat.ghost_mini76).
+pub fn merc_ghost64_lanes(
+    cgsites: &[u32],
+    op: &dyn Fn(u32) -> Option<String>,
+    n_ghost_recs: Option<usize>,
+    utca_ret: bool,
+    legacy: &[u32],
+) -> Vec<u32> {
+    if cgsites.is_empty() {
+        return Vec::new();
+    }
+    let (mut full, mini) = merc_ghost64_split(cgsites, op);
+    match n_ghost_recs {
+        Some(n) if n == full.len() => {
+            if utca_ret {
+                full.pop();
+                full.extend_from_slice(&mini);
+                full.sort_unstable();
+            }
+            full
+        }
+        Some(n) => legacy.iter().copied().take(n).collect(),
+        None => legacy.to_vec(),
+    }
+}
