@@ -254,7 +254,7 @@ pub fn kernel_def_to_meta(
     let merc_utca = merc_utca_scan(&def.instructions);
     let merc_atom_smem = merc_atom_smem_scan(&def.instructions);
     let merc_stg_ser = merc_stg_series(&def.instructions);
-    let (merc_stg_dreg, merc_stg_dur, merc_stg_guard, merc_stg_areg, merc_stg_wsel) =
+    let (merc_stg_dreg, merc_stg_dur, merc_stg_guard, merc_stg_areg, merc_stg_wsel, merc_stg_sem) =
         merc_stg_meta(&def.instructions);
     let merc_mma = merc_mma_scan(&def.instructions);
     let merc_f64imm = merc_f64imm_scan(&def.instructions);
@@ -398,6 +398,7 @@ pub fn kernel_def_to_meta(
         merc_stg_guard,
         merc_stg_areg,
         merc_stg_wsel,
+        merc_stg_sem,
         merc_mma,
         merc_f64imm,
         merc_dfmaimm,
@@ -643,16 +644,56 @@ pub fn merc_guard_code(g: Option<&crate::ir::Guard>) -> u8 {
     }
 }
 
+/// mk63: lane'e magazynow BEZ rekordow 0238**: terminalny STRONG.* —
+/// nastepny nie-NOP = EXIT i okno epilogu (<=14 lane'ow wstecz, stop na
+/// EXIT/BAR/BRA/ST*) zawiera MEMBAR.ALL.* (korpus mk63 c20..c25: STG
+/// 360 SKIP-ALL@ALL vs KEEP przy SC/braku; ST.E 583/583 SKIP). Fail-closed:
+/// brak MEMBAR.ALL w oknie -> lane zostaje.
+pub fn merc_store_term_skip(instructions: &[Instruction]) -> std::collections::HashSet<u32> {
+    let mut out = std::collections::HashSet::new();
+    let n = instructions.len();
+    for (i, ins) in instructions.iter().enumerate() {
+        if !ins.opcode_full.contains("STRONG") {
+            continue;
+        }
+        let mut j = i + 1;
+        while j < n && instructions[j].opcode == "NOP" {
+            j += 1;
+        }
+        if j >= n || instructions[j].opcode != "EXIT" {
+            continue;
+        }
+        let mut k = i as i32 - 1;
+        while k >= 0 && (i as i32 - k) <= 14 {
+            let ki = &instructions[k as usize];
+            if ki.raw_text.contains("MEMBAR.ALL") {
+                out.insert(ins.addr / 16);
+                break;
+            }
+            let op = ki.opcode.as_str();
+            if op.starts_with("EXIT") || op.starts_with("BAR") || op.starts_with("BRA")
+                || op.starts_with("ST") {
+                break;
+            }
+            k -= 1;
+        }
+    }
+    out
+}
+
 fn merc_stg_meta(
     instructions: &[Instruction],
-) -> (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>) {
+) -> (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>) {
     // mk12 (kursor) + fala A: per-STG (dreg danych, desc-UR, wariant guardu).
     // mk40: + wsel (width per-STG; korpus miesza szerokosci w kernelu).
+    // mk63: + sem (kwalifikator + flagi skip/park; eiattr::merc_stg_sem).
     let mut dreg = Vec::new();
     let mut dur = Vec::new();
     let mut guard = Vec::new();
     let mut areg = Vec::new();
     let mut wsel = Vec::new();
+    let mut sem = Vec::new();
+    let term_skip = merc_store_term_skip(instructions);
     for ins in instructions {
         if ins.opcode != "STG" {
             continue;
@@ -727,8 +768,25 @@ fn merc_stg_meta(
             _ => 0xf8,
         };
         guard.push(g);
+        let mut sq: u8 = if ins.opcode_full.contains("ENL2") {
+            0x40
+        } else if ins.opcode_full.contains(".EF") {
+            1
+        } else if ins.opcode_full.contains("STRONG.SYS") {
+            2
+        } else if ins.opcode_full.contains("STRONG.GPU") {
+            3
+        } else if ins.opcode_full.contains("STRONG.SM") {
+            4
+        } else {
+            0
+        };
+        if term_skip.contains(&(ins.addr / 16)) {
+            sq |= 0x80;
+        }
+        sem.push(sq);
     }
-    (dreg, dur, guard, areg, wsel)
+    (dreg, dur, guard, areg, wsel, sem)
 }
 
 fn merc_stg_series(instructions: &[Instruction]) -> Vec<u8> {
@@ -2496,8 +2554,9 @@ pub fn merc_edge_ldg_scan(
 /// b3=0x32) i STL (b2=0x20, b3=0x06). STG zostaje na legacy merc_stg_*.
 /// Krotki: (lane, cls, wsel, areg, dur, dreg, imm, b4) z dokladnoscia do
 /// nieznanych pol opisanych w eiattr.rs: merc_store2.
-pub fn merc_store2_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u16, u16, u16, i32, u8)> {
+pub fn merc_store2_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u16, u16, u16, i32, u8, u8)> {
     let mut out = Vec::new();
+    let term_skip = merc_store_term_skip(instructions);
     for ins in instructions {
         let cls: u8 = match ins.opcode.as_str() {
             "ST" => 1,
@@ -2508,6 +2567,11 @@ pub fn merc_store2_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u16, 
         let full = ins.opcode_full.as_str();
         if full.contains("ENL2") {
             continue; // mk40-park: ENL2.256 (28 rekordow w korpusie)
+        }
+        // mk63: terminalny ST.E STRONG.* przed EXIT (MEMBAR.ALL w epilogu)
+        // nie dostaje rekordu 2a32 (korpus c23/c24: 583 kern, getf5).
+        if term_skip.contains(&lane) {
+            continue;
         }
         let wsel: u8 = if full.contains(".128") {
             4
@@ -2534,9 +2598,26 @@ pub fn merc_store2_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u16, 
                 }
             }
         }
+        let mut has_raddr = false;
         if let Some(lb) = t.rfind('[') {
             if let Some(rb) = t[lb..].find(']') {
                 let inner = &t[lb + 1..lb + rb];
+                // mk63: adres z rejestrem R<num> gdziekolwiek w nawiasie
+                // (regex korpusu \bR\d+; "UR18" sie NIE liczy).
+                {
+                    let bb0 = inner.as_bytes();
+                    let mut k0 = 0;
+                    while k0 + 1 < bb0.len() {
+                        if bb0[k0] == b'R'
+                            && (k0 == 0 || !(bb0[k0 - 1]).is_ascii_alphanumeric())
+                            && bb0[k0 + 1].is_ascii_digit()
+                        {
+                            has_raddr = true;
+                            break;
+                        }
+                        k0 += 1;
+                    }
+                }
                 // token R<num> na poczatku (np. "R2.64+0x4", "R98", "R9+UR4")
                 let bytes = inner.as_bytes();
                 if bytes.first() == Some(&b'R') {
@@ -2582,6 +2663,12 @@ pub fn merc_store2_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u16, 
                 }
             }
         }
+        // mk63: STL z adresem czysto-uniform ([URx..] bez R<num>) NIE
+        // dostaje rekordu 02382006 (korpus c15/c22: getrf/trsv cublas;
+        // zamyka new-only 02382006 3690 i czesciowe pokrycia).
+        if cls == 2 && !has_raddr {
+            continue;
+        }
         let b4: u8 = match &ins.guard {
             Some(g) if g.pred != 7 => {
                 let mut v = g.pred << 3;
@@ -2595,7 +2682,16 @@ pub fn merc_store2_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u16, 
             }
             _ => 0xf8,
         };
-        out.push((lane, cls, wsel, areg, dur, dreg, imm, b4));
+        // mk63: semafor b7 (rec_store2): ST.E STRONG.SYS -> 2, STRONG.GPU
+        // -> 3, inne 0.
+        let sem: u8 = if cls == 1 && full.contains("STRONG.SYS") {
+            2
+        } else if cls == 1 && full.contains("STRONG.GPU") {
+            3
+        } else {
+            0
+        };
+        out.push((lane, cls, wsel, areg, dur, dreg, imm, b4, sem));
     }
     out.sort_by_key(|r| r.0);
     out
