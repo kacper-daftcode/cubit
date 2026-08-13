@@ -84,7 +84,7 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
         merc_atom_smem: Vec::new(),
         merc_atoms: g.atoms.to_vec(),
         merc_ldgsts_pin: g.ldgpin.to_vec(),
-        merc_ldgsts_wait: if g.ldgwait < 0 { Vec::new() } else { vec![g.ldgwait as u32] },
+        merc_ldgsts_wait: if g.ldgwait < 0 { Vec::new() } else { vec![(g.ldgwait as u32, 0u8)] }, // gold-legacy: imm=0 (p_ldgsts DEPBAR SB0,0x0)
         merc_ldgconst: g.ldgc.iter().map(|&(ln, pi)| (ln, pi * 8)).collect(),
         merc_xor_reg: g.pxr.to_vec(),
         merc_bra_selfloop: Vec::new(),

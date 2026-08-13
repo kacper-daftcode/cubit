@@ -233,15 +233,21 @@ pub fn kernel_def_to_meta(
             .map(|i| ((i.addr / 16) as u32, i.raw_text.clone()))
             .collect();
         let l2 = crate::mercury::merc_ldgsts2_scan(&lines, &def.name);
-        let l2w: Vec<(u32, u8)> = Vec::new(); // mk54: merc_ldgsts2_waits(&lines)
+        // mk55: multi-wait per DEPBAR.SB0 na sciezce desc-form (2619/2619
+        // EXACT korpusowo); detect legacy zostaje ZAWSZE (host karmi
+        // feat_host_zero — bitmapa jak mk53/54), ale REKORD legacy-wait
+        // emituje dopiero elf_builder i tylko gdy silnik blobow pusty.
+        let l2w: Vec<(u32, u8)> = if l2.is_empty() {
+            Vec::new()
+        } else {
+            crate::mercury::merc_ldgsts2_waits(&lines)
+        };
         let (pn, wt) = crate::mercury::merc_ldgsts_scan(&lines);
         let pin_legacy = if l2.is_empty() {
             pn.map(|x| vec![x]).unwrap_or_default()
         } else {
             Vec::new()
         };
-        // mk53: legacy wait (mk14.3) zostaje ZAWSZE — nowy per-DEPBAR silnik
-        // parked (atlas53d nadprodukcja); mk54 zawezi regule okna.
         let wait_legacy = wt.map(|x| vec![x]).unwrap_or_default();
         (pin_legacy, wait_legacy, l2, l2w)
     };
