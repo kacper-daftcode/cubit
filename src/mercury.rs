@@ -798,12 +798,48 @@ pub struct McScanOut {
     /// mk59: rekord d1-34B wariant 47 per WARPSYNC.COLLECTIVE (nie-.ALL)
     /// z regionem same NOP-y -> (lane WC, reg maski). Patrz merc_d1wc47_record.
     pub d1wc47: Vec<(u32, u8)>,
+    /// mk62: regiony BSSY.RECONVERGENT -> rekord 51010109 na lane zamkniecia
+    /// BSYNC; (close_lane, barrier_id). Payload: stale + dw[12:16]=2*barrier.
+    pub region09: Vec<(u32, u8)>,
+    /// mk62: False gdy para BSSY/BSYNC niespojna -> elf_builder bierze legacy.
+    pub region09_ok: bool,
     /// mk60: rekordy 0132100a (REDUX.SUM.S32/CREDUX) — (lane, 16B).
     pub redux2: Vec<(u32, [u8; 16])>,
     /// mk34 (node-model g5b): lane'y bez wezla w liscie capmerc — NIE zajmuja
     /// slotu bitmapy (b_mbarrier: para USHF licznika mbarrier po d1-UIADD3;
     /// b_bulk_cp: te + FENCE.ASYNC). Tylko m-family (SYNCS.*).
     pub nodeless: Vec<u32>,
+}
+
+/// mk62: id bariery z tekstu operandow BSSY/BSYNC ("B0, `(.L_x_7)" -> 0).
+pub fn merc_barrier_id(text: &str) -> Option<u8> {
+    let t = text.trim().trim_end_matches(';');
+    // skanuj tokeny (opcode/guard/operandy): pierwszy "B<n>" wygrywa.
+    for tok in t.split(|c: char| c == ' ' || c == ',') {
+        let tok = tok.trim();
+        if let Some(n) = tok.strip_prefix('B') {
+            if !n.is_empty() && n.bytes().all(|c| c.is_ascii_digit()) {
+                if let Ok(v) = n.parse::<u8>() {
+                    if v < 8 {
+                        return Some(v);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// mk62: rekord 51010109 (18B): staly szkielet + dw[12:16] = 2*barrier_id.
+/// Dowod korpusowy (mk62 c9/c21): multiset(dw/2) == multiset(barier) zawsze
+/// gdy count sie zgadza (3267/3267 kerneli, byte-exactness pelna).
+pub fn merc_region09_record(barrier: u8) -> [u8; 18] {
+    let mut r: [u8; 18] = [
+        0x51, 0x01, 0x01, 0x09, 0x02, 0x0a, 0xf8, 0x00, 0x01, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ];
+    r[12..16].copy_from_slice(&(2u32 * barrier as u32).to_le_bytes());
+    r
 }
 
 pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
@@ -841,8 +877,49 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
         bra_np_loop: Vec::new(),
         nodeless: Vec::new(),
         d1wc47: Vec::new(),
+        region09: Vec::new(),
+        region09_ok: false,
         redux2: Vec::new(),
     };
+    // mk62: regiony BSSY/BSYNC (stack per barrier-id) — rekord 51010109
+    // per zamkniecie regionu o flavorze RECONVERGENT.
+    {
+        let mut ok = true;
+        let mut stacks: [Vec<(u32, bool)>; 8] = Default::default();
+        for it in items.iter() {
+            match it.base.as_str() {
+                "BSSY" => match merc_barrier_id(&it.text) {
+                    Some(b) => stacks[b as usize]
+                        .push((it.lane, it.full.contains("RECONVERGENT"))),
+                    None => {
+                        ok = false;
+                        break;
+                    }
+                },
+                "BSYNC" => match merc_barrier_id(&it.text) {
+                    Some(b) => match stacks[b as usize].pop() {
+                        Some((_, rec)) => {
+                            if rec {
+                                o.region09.push((it.lane, b));
+                            }
+                        }
+                        None => {
+                            ok = false;
+                            break;
+                        }
+                    },
+                    None => {
+                        ok = false;
+                        break;
+                    }
+                },
+                _ => {}
+            }
+        }
+        if ok && stacks.iter().all(|s| s.is_empty()) {
+            o.region09_ok = true;
+        }
+    }
     let bar_lanes: Vec<u32> = items
         .iter()
         .filter(|i| i.base == "BAR")
