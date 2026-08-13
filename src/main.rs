@@ -2658,6 +2658,11 @@ fn cmd_asm_build_elf(
                             "F2FP" if { let f = m2.get(1).map(|x| x.as_str()).unwrap_or(""); f.contains("UNPACK_B") && (f.contains("E4M3") || f.contains("E5M2")) } => 0x0a721241,
                             "IMAD" if m2.get(1).map(|x| x.as_str()).unwrap_or("") == "IMAD.WIDE.U32.X" => 0x06342042,
                             "UIMAD" if m2.get(1).map(|x| x.as_str()).unwrap_or("") == "UIMAD.WIDE.U32.X" => 0x06382042,
+                            // mk70 (lustro): minis 28-family przed 0606.
+                            "ULOP3" if cubit::sass_file::merc_fold28(body).is_some() =>
+                                cubit::sass_file::merc_fold28(body).unwrap(),
+                            "LOP3" if cubit::sass_file::merc_fold28(body).is_some() =>
+                                cubit::sass_file::merc_fold28(body).unwrap(),
                             // mk68 (lustro): ULOP3 0606 klasy (A)/(B).
                             "ULOP3" if cubit::sass_file::merc_ulop3_0606(body) => 0x06062a42,
                             _ => 0,

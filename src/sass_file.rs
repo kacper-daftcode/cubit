@@ -2333,6 +2333,113 @@ pub fn merc_ffma_fp32_dialect(kernel_name: &str) -> bool {
 /// Residua park mk69 (22 rekordy w 14 kernelach): cublasLt.474/497/502 gemvx
 /// (lane UP0-write a=URZ z c=0x3 LUB UR-write 6tok c=0x3), cublas.936 trsm_ln,
 /// cusolver.1744 lasr, cusolver.985 getrf — alternatywne formy ULOP3.
+/// mk70: minis rodziny 28 (early-exit prolog idiom cublas-COMMONS:
+/// OR-fold predykatow przez (U)LOP3.LUT zakonczony @P EXIT / BRA[.U]).
+/// Wartosci little-endian dwojtagow 4B:
+///   41 27 10 04 = ULOP3.LUT 6tok, lut=0xc0, pin=!UPT, tok1/tok2 bez imm
+///                 (korpus-l2 resid: klaster cublasLt-xmma selfimm, park mk71)
+///   41 28 10 04 = ULOP3.LUT lut=0xfc pin=!UPT: 6tok dst=UR<n> bez imm
+///                 LUB 7tok dst=UP<n>
+///   42 28 24 14 = ULOP3.LUT 7tok dst=UP<n>, lut=0xfc, cin=UP<n> (EXACT korpus)
+///   42 28 14 14 = LOP3.LUT 7tok dst=P<n>,  lut=0xfc, cin=P<n> (EXACT korpus)
+/// Atrybucja: merclab/mk70 c1..c19 (c7/c8 joint-matching, c16 bilans l2
+/// 18932/18932 dla 4228*, rotm-dd tight-window (36,44): TLV19->L41,
+/// TLV20->L42).
+fn merc_tok_imm70(t: &str) -> bool {
+    let t = t.trim().trim_end_matches([';', ',']);
+    t.starts_with("0x")
+        || t.starts_with("-0x")
+        || {
+            let u = t.trim_start_matches('-');
+            !u.is_empty() && u.chars().all(|c| c.is_ascii_digit())
+        }
+}
+pub fn merc_fold28(text: &str) -> Option<u32> {
+    let mut t = text.trim_end_matches([';', ' ']).trim();
+    while let Some(rest) = t.strip_prefix('@') {
+        t = rest
+            .split_once(char::is_whitespace)
+            .map(|(_, r)| r.trim_start())
+            .unwrap_or("");
+    }
+    let (op, body) = match t.split_once(char::is_whitespace) {
+        Some(p) => p,
+        None => return None,
+    };
+    let is_u = op == "ULOP3.LUT";
+    let is_l = op == "LOP3.LUT";
+    if !is_u && !is_l {
+        return None;
+    }
+    let toks: Vec<&str> = body
+        .split(',')
+        .map(|x| x.trim().trim_end_matches([';', ',']))
+        .filter(|x| !x.is_empty())
+        .collect();
+    let n = toks.len();
+    if n != 6 && n != 7 {
+        return None;
+    }
+    let lut = toks[n - 2].trim_start_matches("0x");
+    let lutv = u32::from_str_radix(lut, 16).ok()?;
+    let pin = toks[n - 1];
+    let dst = toks[0].trim_start_matches('!');
+    let is_upn = dst.len() > 2
+        && dst.starts_with("UP")
+        && dst[2..].chars().all(|c| c.is_ascii_digit());
+    let is_urn = {
+        let d = dst.trim_start_matches('-');
+        d.len() > 2 && d.starts_with("UR") && d[2..].chars().all(|c| c.is_ascii_digit())
+    };
+    let is_pn = dst.len() > 1
+        && dst.starts_with("P")
+        && dst[1..].chars().all(|c| c.is_ascii_digit());
+    let noimm12 = !merc_tok_imm70(toks[1]) && !merc_tok_imm70(toks[2]);
+    if is_u {
+        if lutv == 0xc0 && n == 6 && pin == "!UPT" && noimm12 {
+            return Some(0x04102741); // 41 27 10 04
+        }
+        if lutv == 0xfc && pin == "!UPT" && noimm12 && ((n == 6 && is_urn) || (n == 7 && is_upn)) {
+            return Some(0x04102841); // 41 28 10 04 (magma-URdst / nvdis-UPdst)
+        }
+        // mk70b: pisownia cubit dla nvdis-7tok `UP0, URZ, a, b, URZ, 0xfc, !UPT`
+        // to 6tok `URZ, a, b, URZ, 0xfc, !UP0` (rot/rotm prologi, c14).
+        if lutv == 0xfc && n == 6 && dst == "URZ" && noimm12 {
+            let pn = pin.trim_start_matches('!');
+            if pin.starts_with('!')
+                && pn.len() > 2
+                && pn.starts_with("UP")
+                && pn[2..].chars().all(|c| c.is_ascii_digit())
+            {
+                return Some(0x04102841); // 41 28 10 04 (cubit-neg-forma)
+            }
+        }
+        let cinn = pin.trim_start_matches('!');
+        if lutv == 0xfc
+            && n == 7
+            && is_upn
+            && !pin.starts_with('!')
+            && pin != "UPT"
+            && cinn.len() > 2
+            && cinn.starts_with("UP")
+            && cinn[2..].chars().all(|c| c.is_ascii_digit())
+        {
+            return Some(0x14242842); // 42 28 24 14
+        }
+    } else if lutv == 0xfc && n == 7 && is_pn {
+        let cinn = pin;
+        if !pin.starts_with('!')
+            && pin != "PT"
+            && cinn.len() > 1
+            && cinn.starts_with("P")
+            && cinn[1..].chars().all(|c| c.is_ascii_digit())
+        {
+            return Some(0x14142842); // 42 28 14 14
+        }
+    }
+    None
+}
+
 pub fn merc_ulop3_0606(text: &str) -> bool {
     let mut t = text.trim_end_matches([';', ' ']).trim();
     while let Some(rest) = t.strip_prefix('@') {
@@ -2410,6 +2517,12 @@ pub fn merc_mini2_scan(kernel_name: &str, instructions: &[Instruction]) -> Vec<(
                 0x0a721241, // 41 12 72 0a
             "IMAD" if full == "IMAD.WIDE.U32.X" => 0x06342042,        // 42 20 34 06
             "UIMAD" if full == "UIMAD.WIDE.U32.X" => 0x06382042,      // 42 20 38 06
+            // mk70: minis 28-family (early-exit OR-fold) przed 0606; brak
+            // kolizji klas (korpus-l2: fc-7tok-UPdst-!UPT z tok1=UR<num> = 0).
+            "ULOP3" if merc_fold28(ins.raw_text.as_str()).is_some() =>
+                merc_fold28(ins.raw_text.as_str()).unwrap(),
+            "LOP3" if merc_fold28(ins.raw_text.as_str()).is_some() =>
+                merc_fold28(ins.raw_text.as_str()).unwrap(),
             "ULOP3" if merc_ulop3_0606(ins.raw_text.as_str()) => 0x06062a42, // mk68: 42 2a 06 06
             _ => continue,
         };
