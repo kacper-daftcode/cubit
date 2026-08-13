@@ -711,6 +711,12 @@ pub struct McScanOut {
     /// mk44: generalne rekordy 0110060a — (lane, 16B gotowych bajtow),
     /// z bramka dual-output (nibswap-LUT) i bez operandow UP.
     pub plop3_rec: Vec<(u32, [u8; 16])>,
+    /// mk54: rekordy 02100214 (PLOP3.LUT z uniform Pc) — (lane, 32B).
+    pub plop3u_rec: Vec<(u32, [u8; 32])>,
+    /// mk54: rekordy 02100414 (UPLOP3.LUT) — (lane, 32B).
+    pub uplop3_rec: Vec<(u32, [u8; 32])>,
+    /// mk54: rekordy 0210160e/02100a0e (DSETP z imm f64) — (lane, 32B).
+    pub dsetpimm_rec: Vec<(u32, [u8; 32])>,
     /// mk45: rekordy 010b0c0a (CS2R Rd, SRZ) — (lane, 16B gotowych bajtow).
     pub cs2r_rec: Vec<(u32, [u8; 16])>,
     /// mk46: rekordy 010b060a geo-anchor (S2UR-geo + LDCU okno drivera).
@@ -752,6 +758,9 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
         ublkcp: Vec::new(),
         plop3_tx: Vec::new(),
         plop3_rec: Vec::new(),
+        plop3u_rec: Vec::new(),
+        uplop3_rec: Vec::new(),
+        dsetpimm_rec: Vec::new(),
         cs2r_rec: Vec::new(),
         geo_rec: Vec::new(),
         lop3not_rec: Vec::new(),
@@ -826,6 +835,22 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
                 // mk44: generyczny rekord 0110060a (dual-output, bez UP).
                 if let Some(r) = merc_plop3_record(t, it.guard_code) {
                     o.plop3_rec.push((lane, r));
+                }
+                // mk54: rekord 02100214 (PLOP3.LUT z uniform Pc).
+                if let Some(r) = merc_plop3u_record(t, it.guard_code) {
+                    o.plop3u_rec.push((lane, r));
+                }
+            }
+            "UPLOP3" => {
+                // mk54: rekord 02100414.
+                if let Some(r) = merc_uplop3_record(t, it.guard_code) {
+                    o.uplop3_rec.push((lane, r));
+                }
+            }
+            "DSETP" => {
+                // mk54: rekordy 0210160e/02100a0e (DSETP z imm f64).
+                if let Some(r) = merc_dsetpimm_record(t, it.guard_code) {
+                    o.dsetpimm_rec.push((lane, r));
                 }
             }
             "CS2R" => {
@@ -1151,6 +1176,280 @@ pub fn merc_plop3_record(text: &str, guard_code: u8) -> Option<[u8; 16]> {
     r[11] = pd;
     r[13] = pa;
     r[15] = pb;
+    Some(r)
+}
+
+// ================= mk54: rodzina 02 10 (rekordy klasy SETP) =================
+// Dekod korpusowy merclab/mk54 (c1..c23): 4347/4347 kerneli multiset+sekwencja
+// EXACT, dwustronnie vs korpus (emulator c20; bitmapa rozwarstwiona — nietknieta,
+// jak mk52).
+
+/// mk54: pred-pole rekordow 02 10: 'P3'/'PT'/'!P1'/'UP2'/'UPT'
+/// -> (kod slotu: n<<3 albo 0xf8 dla *T, uniform-space?, zanegowany?).
+fn merc_pred10(tok: &str) -> Option<(u8, bool, bool)> {
+    let t = tok.trim().trim_end_matches(';').trim();
+    let (neg, t) = match t.strip_prefix('!') { Some(r) => (true, r), None => (false, t) };
+    let (uni, t) = match t.strip_prefix('U') { Some(r) => (true, r), None => (false, t) };
+    let rest = t.strip_prefix('P')?;
+    if rest == "T" {
+        return Some((0xf8, uni, neg));
+    }
+    let n: u8 = rest.parse().ok()?;
+    if n > 6 {
+        return None;
+    }
+    Some((n << 3, uni, neg))
+}
+
+/// mk54: rozbicie tekstu lane (z opcjonalnym guardem) na (opcode-full, operandy).
+fn merc0210_body(text: &str) -> Option<(&str, &str)> {
+    let body0 = text.trim();
+    let body = match body0.strip_prefix('@') {
+        Some(r) => r
+            .split_once(char::is_whitespace)
+            .map(|(_, x)| x.trim_start())
+            .unwrap_or(body0),
+        None => body0,
+    };
+    body.split_once(char::is_whitespace)
+}
+
+fn merc_lut_tok(t: &str) -> Option<u8> {
+    let t2 = t.trim().trim_end_matches(';').trim();
+    u8::from_str_radix(t2.strip_prefix("0x").unwrap_or(t2), 16).ok()
+}
+
+/// mk54: rekord 02 10 02 14 (32B) — lane `PLOP3.LUT Pd, PT, Pa, Pb, UPc, l1, l2`
+/// (Pc w przestrzeni UNIFORM; rodzenstwo mk44 = Pc zwykle/PT).
+/// Bramka: nibswap LUT (l2==rot4(l1)) + tabela b7 po parze (l1,l2)
+/// {80/08->00, 40/04->20, ea/ae->01, d5/5d->21, 5d/d5->29}; Pd=Pn n<=6 (b11),
+/// Pt==PT (b13=f8), Pa=PT|Pn (b15), Pb==PT (b18=f8), Pc=UPn (b20=n<<3);
+/// guard: korpus zawsze bez guarda (b4=f8). Kolejnosc tier20 lane-asc.
+pub fn merc_plop3u_record(text: &str, guard_code: u8) -> Option<[u8; 32]> {
+    let (op, ops0) = merc0210_body(text)?;
+    if op != "PLOP3.LUT" {
+        return None;
+    }
+    if guard_code != 0xf8 {
+        return None;
+    }
+    let toks: Vec<&str> = ops0.trim().trim_end_matches(';').split(',').collect();
+    if toks.len() != 7 {
+        return None;
+    }
+    let (pd, du, dn) = merc_pred10(toks[0])?;
+    if du || dn || pd == 0xf8 {
+        return None;
+    }
+    let (pt, tu, tn) = merc_pred10(toks[1])?;
+    if tu || tn || pt != 0xf8 {
+        return None;
+    }
+    let (pa, au, an) = merc_pred10(toks[2])?;
+    if au || an {
+        return None;
+    }
+    let (pb, bu, bn) = merc_pred10(toks[3])?;
+    if bu || bn || pb != 0xf8 {
+        return None;
+    }
+    let (pc, cu, cn) = merc_pred10(toks[4])?;
+    if !cu || cn || pc == 0xf8 {
+        return None;
+    }
+    let l1 = merc_lut_tok(toks[5])?;
+    let l2 = merc_lut_tok(toks[6])?;
+    if ((l1 & 0x0f) << 4) | (l1 >> 4) != l2 {
+        return None;
+    }
+    let b7 = match (l1, l2) {
+        (0x80, 0x08) => 0x00,
+        (0x40, 0x04) => 0x20,
+        (0xea, 0xae) => 0x01,
+        (0xd5, 0x5d) => 0x21,
+        (0x5d, 0xd5) => 0x29,
+        _ => return None,
+    };
+    let mut r = [0u8; 32];
+    r[0] = 0x02; r[1] = 0x10; r[2] = 0x02; r[3] = 0x14;
+    r[4] = 0xf8;
+    r[7] = b7;
+    r[10] = 0x01; r[11] = pd;
+    r[12] = 0x01; r[13] = 0xf8;
+    r[15] = pa;
+    r[18] = 0xf8;
+    r[20] = pc;
+    Some(r)
+}
+
+/// mk54: rekord 02 10 04 14 (32B) — lane `UPLOP3.LUT UPd, UPT, UPT, UPT, UPc,
+/// l1, l2` (wszystkie predy w przestrzeni uniform; Pt/Pa/Pb == UPT w korpusie,
+/// nibswap LUT, pary (80,08)->b7=00 / (40,04)->b7=20). b4 = kod guarda w
+/// wersji UNIFORM: brak guarda -> 0xfa (nie f8!), '@UPn'/'@!UPn' -> mk41
+/// (n<<3)|2|neg; guard P-space -> fail-closed (korpus: brak).
+pub fn merc_uplop3_record(text: &str, guard_code: u8) -> Option<[u8; 32]> {
+    let (op, ops0) = merc0210_body(text)?;
+    if op != "UPLOP3.LUT" {
+        return None;
+    }
+    let toks: Vec<&str> = ops0.trim().trim_end_matches(';').split(',').collect();
+    if toks.len() != 7 {
+        return None;
+    }
+    let (pd, du, dn) = merc_pred10(toks[0])?;
+    if !du || dn || pd == 0xf8 {
+        return None;
+    }
+    for i in 1..=3 {
+        let (p, u, n) = merc_pred10(toks[i])?;
+        if !u || n || p != 0xf8 {
+            return None;
+        }
+    }
+    let (pc, cu, cn) = merc_pred10(toks[4])?;
+    if !cu || cn {
+        return None;
+    }
+    let l1 = merc_lut_tok(toks[5])?;
+    let l2 = merc_lut_tok(toks[6])?;
+    if ((l1 & 0x0f) << 4) | (l1 >> 4) != l2 {
+        return None;
+    }
+    let b7 = match (l1, l2) {
+        (0x80, 0x08) => 0x00,
+        (0x40, 0x04) => 0x20,
+        _ => return None,
+    };
+    let b4 = if guard_code == 0xf8 {
+        0xfa
+    } else if guard_code & 0x02 != 0 {
+        guard_code
+    } else {
+        return None;
+    };
+    let mut r = [0u8; 32];
+    r[0] = 0x02; r[1] = 0x10; r[2] = 0x04; r[3] = 0x14;
+    r[4] = b4;
+    r[7] = b7;
+    r[10] = 0x01; r[11] = pd;
+    r[12] = 0x01; r[13] = 0xf8;
+    r[15] = 0xf8;
+    r[18] = 0xf8;
+    r[20] = pc;
+    Some(r)
+}
+
+/// mk54: rekordy 02 10 16 0e / 02 10 0a 0e (32B) — lane DSETP z literalem f64
+/// w 4. slocie: `DSETP.<cmp>.<bool> Pd, Pt, [neg?]Ra[.reuse], imm, [!]Pc`.
+/// Selektor klasy (korpus merclab/mk54): Pt==PT i Pc==PT -> 16-forma
+/// (marker 0x13@b14); inaczej 0a-forma (marker 0x13@b17 + pola Pt@b13 i
+/// Pc@b20). b6 = 0x08 | C<<5, C: LT1 EQ2 LE3 GT4 NE5 GE6 MAX7 (sufiks -U
+/// tej samej klasy). b7 = 8*absA | 1*(U lub MAX) | 4*(bool==OR, tylko 0a)
+/// | 0x80*!Pc (tylko 0a). b4 = mk41 kod guarda (f8/(@!P0)=01/@!P1=09 ...).
+/// Ogon imm: minimalne gorne bajty f64 (>=2B), wyrownane do b31 (jak mk51;
+/// 1.0 -> f0 3f, +INF -> f0 7f, MAX_DENORM -> 00 10 00; b16 b(o29)=ga gdy
+/// bajt5 mantysy != 0). Fail-closed: Ra slot RZ/UR/neg, imm-first/NAN,
+/// 16-forma tylko dla {EQ,GT,NE,GE}[U].AND (innych klas w korpusie brak).
+pub fn merc_dsetpimm_record(text: &str, guard_code: u8) -> Option<[u8; 32]> {
+    let (op, ops0) = merc0210_body(text)?;
+    let mm = op.strip_prefix("DSETP.")?;
+    let mut jit = mm.split('.');
+    let cmp_full = jit.next()?;
+    let boolop = jit.next()?;
+    if jit.next().is_some() {
+        return None;
+    }
+    if boolop != "AND" && boolop != "OR" {
+        return None;
+    }
+    let uu = cmp_full.ends_with('U');
+    let cbase = cmp_full.strip_suffix('U').unwrap_or(cmp_full);
+    let cnum: u8 = match cbase {
+        "LT" => 1,
+        "EQ" => 2,
+        "LE" => 3,
+        "GT" => 4,
+        "NE" => 5,
+        "GE" => 6,
+        "MAX" => 7,
+        _ => return None,
+    };
+    let toks: Vec<&str> = ops0.trim().trim_end_matches(';').split(',').collect();
+    if toks.len() != 5 {
+        return None;
+    }
+    let (pd, du, dn) = merc_pred10(toks[0])?;
+    if du || dn || pd == 0xf8 {
+        return None;
+    }
+    let (pt, tu, tn) = merc_pred10(toks[1])?;
+    if tu || tn {
+        return None;
+    }
+    let (pc, cu, cn) = merc_pred10(toks[4])?;
+    if cu {
+        return None;
+    }
+    let t = toks[2].trim().trim_end_matches(';').trim();
+    let t0 = t.strip_suffix(".reuse").unwrap_or(t);
+    let (abs, t1) = if t0.len() > 1 && t0.starts_with('|') && t0.ends_with('|') {
+        (true, &t0[1..t0.len() - 1])
+    } else {
+        (false, t0)
+    };
+    if t1.starts_with('-') {
+        return None;
+    }
+    let rn: u16 = t1.strip_prefix('R')?.trim().parse().ok()?;
+    if rn > 0x3ff {
+        return None;
+    }
+    let immf = crate::sass_file::merc_f64_lit(toks[3])?;
+    if immf.is_nan() {
+        return None;
+    }
+    let bits = immf.to_bits().to_le_bytes();
+    let mut k = 2usize;
+    while 8 - k > 0 && bits[8 - k - 1] != 0 {
+        k += 1;
+    }
+    let b6 = 0x08 | (cnum << 5);
+    let mut r = [0u8; 32];
+    r[0] = 0x02;
+    r[1] = 0x10;
+    r[4] = guard_code;
+    r[6] = b6;
+    let u16a = (rn << 6) | 2;
+    if pt == 0xf8 && pc == 0xf8 && !cn {
+        // 16-forma: tylko klasy obserwowane (korpus: EQ/GT/NE/GE [+U], .AND).
+        if boolop != "AND" || matches!(cbase, "LT" | "LE" | "MAX") {
+            return None;
+        }
+        r[2] = 0x16;
+        r[3] = 0x0e;
+        r[7] = (if abs { 8 } else { 0 }) | (if uu { 1 } else { 0 });
+        r[10] = 0x01;
+        r[11] = pd;
+        r[12] = (u16a & 0xff) as u8;
+        r[13] = (u16a >> 8) as u8;
+        r[14] = 0x13;
+    } else {
+        r[2] = 0x0a;
+        r[3] = 0x0e;
+        r[7] = (if abs { 8 } else { 0 })
+            | (if uu || cbase == "MAX" { 1 } else { 0 })
+            | (if boolop == "OR" { 4 } else { 0 })
+            | (if cn { 0x80 } else { 0 });
+        r[10] = 0x01;
+        r[11] = pd;
+        r[12] = 0x01;
+        r[13] = pt;
+        r[14] = (u16a & 0xff) as u8;
+        r[15] = (u16a >> 8) as u8;
+        r[17] = 0x13;
+        r[20] = pc;
+    }
+    r[32 - k..].copy_from_slice(&bits[8 - k..]);
     Some(r)
 }
 

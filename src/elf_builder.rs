@@ -405,6 +405,9 @@ pub struct MercFeatures {
     pub ublkcp: Vec<u32>,
     pub plop3_tx: Vec<(u32, u8)>,
     pub plop3_rec: Vec<(u32, [u8; 16])>,
+    pub plop3u_rec: Vec<(u32, [u8; 32])>,
+    pub uplop3_rec: Vec<(u32, [u8; 32])>,
+    pub dsetpimm_rec: Vec<(u32, [u8; 32])>,
     pub cs2r_rec: Vec<(u32, [u8; 16])>,
     /// mk47: rekordy 012b{00|04}0a (LOP3.LUT NOT-MOV LUT=0x33).
     pub lop3not_rec: Vec<(u32, [u8; 16])>,
@@ -498,6 +501,9 @@ impl MercFeatures {
             ublkcp: meta.merc_ublkcp.clone(),
             plop3_tx: meta.merc_plop3_tx.clone(),
             plop3_rec: meta.merc_plop3_rec.clone(),
+            plop3u_rec: meta.merc_plop3u_rec.clone(),
+            uplop3_rec: meta.merc_uplop3_rec.clone(),
+            dsetpimm_rec: meta.merc_dsetpimm_rec.clone(),
             cs2r_rec: meta.merc_cs2r_rec.clone(),
             lop3not_rec: meta.merc_lop3not_rec.clone(),
             redg2_rec: meta.merc_redg2_rec.clone(),
@@ -1425,6 +1431,9 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         McMiniUmovRR(usize),
         McUblkcp(usize),
         McPlop3Rec(usize),
+        McPlop3uRec(usize),
+        McUplop3Rec(usize),
+        McDsetpImmRec(usize),
         McCs2rRec(usize),
         McLop3NotRec(usize),
         McRedg2(usize),
@@ -1718,6 +1727,16 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     // te same bajty); tier 20 jak dotad.
     for (k, _) in feat.plop3_rec.iter().enumerate() {
         ev.push((feat.plop3_rec[k].0, 20, Ev::McPlop3Rec(k)));
+    }
+    // mk54: rekordy 0210* (PLOP3-UP / UPLOP3 / DSETP-imm); tier 20.
+    for (k, _) in feat.plop3u_rec.iter().enumerate() {
+        ev.push((feat.plop3u_rec[k].0, 20, Ev::McPlop3uRec(k)));
+    }
+    for (k, _) in feat.uplop3_rec.iter().enumerate() {
+        ev.push((feat.uplop3_rec[k].0, 20, Ev::McUplop3Rec(k)));
+    }
+    for (k, _) in feat.dsetpimm_rec.iter().enumerate() {
+        ev.push((feat.dsetpimm_rec[k].0, 20, Ev::McDsetpImmRec(k)));
     }
     // mk45: rekordy 010b0c0a (CS2R SRZ); tier 20 jak PLOP3.
     for (k, _) in feat.cs2r_rec.iter().enumerate() {
@@ -2019,6 +2038,9 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::McMiniUmovRR(_) => out.extend_from_slice(&crate::mercury::MERC_MINI_UMOV_RR),
             Ev::McUblkcp(_) => out.extend_from_slice(&crate::mercury::MERC_UBLKCP),
             Ev::McPlop3Rec(k) => out.extend_from_slice(&feat.plop3_rec[k].1),
+            Ev::McPlop3uRec(k) => out.extend_from_slice(&feat.plop3u_rec[k].1),
+            Ev::McUplop3Rec(k) => out.extend_from_slice(&feat.uplop3_rec[k].1),
+            Ev::McDsetpImmRec(k) => out.extend_from_slice(&feat.dsetpimm_rec[k].1),
             Ev::McCs2rRec(k) => out.extend_from_slice(&feat.cs2r_rec[k].1),
             Ev::McLop3NotRec(k) => out.extend_from_slice(&feat.lop3not_rec[k].1),
             Ev::McRedg2(k) => out.extend_from_slice(&feat.redg2_rec[k].1),

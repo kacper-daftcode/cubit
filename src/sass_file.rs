@@ -470,6 +470,9 @@ pub fn kernel_def_to_meta(
         merc_ublkcp: mc.ublkcp,
         merc_plop3_tx: mc.plop3_tx,
         merc_plop3_rec: mc.plop3_rec,
+        merc_plop3u_rec: mc.plop3u_rec,
+        merc_uplop3_rec: mc.uplop3_rec,
+        merc_dsetpimm_rec: mc.dsetpimm_rec,
         merc_cs2r_rec: mc.cs2r_rec,
         merc_geo_rec: mc.geo_rec,
         merc_lop3not_rec: mc.lop3not_rec,
@@ -880,6 +883,12 @@ pub struct MercMcScan {
     pub plop3_tx: Vec<(u32, u8)>,       // PLOP3 expect_tx: (lane, 0/1/2 = A/B/C)
     /// mk44: generalne rekordy 0110060a (dual-output, bez UP) — (lane, 16B).
     pub plop3_rec: Vec<(u32, [u8; 16])>,
+    /// mk54: rekordy 02100214 (PLOP3.LUT z uniform Pc) — (lane, 32B).
+    pub plop3u_rec: Vec<(u32, [u8; 32])>,
+    /// mk54: rekordy 02100414 (UPLOP3.LUT) — (lane, 32B).
+    pub uplop3_rec: Vec<(u32, [u8; 32])>,
+    /// mk54: rekordy 0210160e/02100a0e (DSETP z imm f64) — (lane, 32B).
+    pub dsetpimm_rec: Vec<(u32, [u8; 32])>,
     /// mk45: rekordy 010b0c0a (CS2R Rd, SRZ) — (lane, 16B).
     pub cs2r_rec: Vec<(u32, [u8; 16])>,
     /// mk46: rekordy 010b060a geo-anchor (S2UR-geo + LDCU okno drivera).
@@ -1263,6 +1272,22 @@ pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
                 // mk44: generyczny rekord 0110060a (korpus EQ 5902/5902).
                 if let Some(r) = crate::mercury::merc_plop3_record(t, merc_guard_code(ins.guard.as_ref())) {
                     o.plop3_rec.push((lane, r));
+                }
+                // mk54: rekord 02100214 (PLOP3.LUT z uniform Pc).
+                if let Some(r) = crate::mercury::merc_plop3u_record(t, merc_guard_code(ins.guard.as_ref())) {
+                    o.plop3u_rec.push((lane, r));
+                }
+            }
+            "UPLOP3" => {
+                // mk54: rekord 02100414.
+                if let Some(r) = crate::mercury::merc_uplop3_record(t, merc_guard_code(ins.guard.as_ref())) {
+                    o.uplop3_rec.push((lane, r));
+                }
+            }
+            "DSETP" => {
+                // mk54: rekordy 0210160e/02100a0e (DSETP z imm f64).
+                if let Some(r) = crate::mercury::merc_dsetpimm_record(t, merc_guard_code(ins.guard.as_ref())) {
+                    o.dsetpimm_rec.push((lane, r));
                 }
             }
             "CS2R" => {
