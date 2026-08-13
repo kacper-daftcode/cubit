@@ -333,7 +333,16 @@ pub fn kernel_def_to_meta(
     }
 
     // mk30: rodziny b_* (SYNCS/mbarrier/TMA/minis) — glowny skan.
-    let mc = merc_mc_scan(&def.instructions);
+    // mk64b: mini WARPSYNC.ALL 76/6e: 76 gdy lane jest site'em EIATTR-0x28
+    // (regula site; zastepuje mk26-odczyt BAR-w-regionie — falsyfikacja
+    // korpusowa c14/c15; dowod c19/c20 + goldy b_tcgen05/mkvmem/b_mbarrier).
+    let cg_lane_set: std::collections::BTreeSet<u32> = def
+        .resources
+        .merc_cgsites
+        .iter()
+        .map(|&(s2, _)| s2 / 16)
+        .collect();
+    let mc = merc_mc_scan(&def.instructions, &cg_lane_set);
     // mk40: store-matrix (ST.E/STL) + mini-slownik korpusowy.
     let merc_store2 = merc_store2_scan(&def.instructions);
     let merc_mini2 = merc_mini2_scan(&def.instructions);
@@ -1329,7 +1338,7 @@ fn regex_like_ur(body: &str) -> Vec<()> {
     out
 }
 
-pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
+pub fn merc_mc_scan(instructions: &[Instruction], cg_sites: &std::collections::BTreeSet<u32>) -> MercMcScan {
     let mut o = MercMcScan::default();
     // mk62: regiony BSSY->BSYNC (rekord 51010109 per RECONVERGENT-close).
     {
@@ -1369,11 +1378,6 @@ pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
             o.region09_ok = true;
         }
     }
-    let bar_lanes: Vec<u32> = instructions
-        .iter()
-        .filter(|i| i.opcode == "BAR")
-        .map(|i| (i.addr / 16) as u32)
-        .collect();
     let ws_lanes: Vec<u32> = instructions
         .iter()
         .filter(|i| i.opcode == "WARPSYNC" && i.opcode_full.contains(".ALL"))
@@ -1604,11 +1608,12 @@ pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
     // Bramka m-family mk30 = artefakt probkowania.
     // mk34 ODSLOWIENIE (node-model g5b): ulea_x/bra_np_loop zostaja puste —
     // patrz adnotacja przy McScanOut.nodeless w mercury.rs.
-    // WARPSYNC.ALL minis: b2 = 0x6e gdy w (lane, next-ws] jest BAR.SYNC.
-    for (k, &wl) in ws_lanes.iter().enumerate() {
-        let end = ws_lanes.get(k + 1).copied().unwrap_or(u32::MAX);
-        let has_bar = bar_lanes.iter().any(|&b| b > wl && b < end);
-        o.ws.push((wl, if has_bar { 0x6e_u8 } else { 0x76_u8 }));
+    // WARPSYNC.ALL minis (mk64b): b2 = 0x76 gdy lane jest site'em
+    // EIATTR-0x28 (journal .merc_cgsites), inaczej 0x6e. Korpus: EXACT
+    // per-instr (6545 kern czystych + 2 mieszane cusparse.254 spojne z
+    // regula); goldy b_tcgen05 (76/76/6e per lane 5/30/38), mkvmem (76@26).
+    for &wl in ws_lanes.iter() {
+        o.ws.push((wl, if cg_sites.contains(&wl) { 0x76_u8 } else { 0x6e_u8 }));
     }
     o
 }
