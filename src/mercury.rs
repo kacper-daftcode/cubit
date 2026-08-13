@@ -653,6 +653,8 @@ pub struct McScanOut {
     pub plop3_rec: Vec<(u32, [u8; 16])>,
     /// mk45: rekordy 010b0c0a (CS2R Rd, SRZ) — (lane, 16B gotowych bajtow).
     pub cs2r_rec: Vec<(u32, [u8; 16])>,
+    /// mk46: rekordy 010b060a geo-anchor (S2UR-geo + LDCU okno drivera).
+    pub geo_rec: Vec<(u32, [u8; 16])>,
     pub fence_async: Vec<u32>,
     pub ldgsts_b128: bool,
     /// mk41: (lane, guarded, dst-UR) — payload smem-anchora z dst.
@@ -685,6 +687,7 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
         plop3_tx: Vec::new(),
         plop3_rec: Vec::new(),
         cs2r_rec: Vec::new(),
+        geo_rec: Vec::new(),
         fence_async: Vec::new(),
         ldgsts_b128: false,
         s2ur_cga: Vec::new(),
@@ -763,17 +766,21 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
                 }
             }
             "LDGSTS" if it.full.contains(".128") => o.ldgsts_b128 = true,
-            "S2UR" if t.contains("SR_CgaCtaId") => {
-                // mk41: dst UR z tekstu — payload smem-anchora (dstUR<<6)|1.
-                let d = {
-                    let tt = it.text.as_str();
-                    let body = tt.find("S2UR").map(|k| &tt[k + 4..]).unwrap_or(tt);
-                    body.find("UR").and_then(|u| {
-                        let ds: String = body[u + 2..].chars().take_while(|c| c.is_ascii_digit()).collect();
-                        ds.parse::<u32>().ok().map(|v| v.min(255) as u8)
-                    }).unwrap_or(5)
-                };
-                o.s2ur_cga.push((lane, it.guarded, d))
+            "S2UR" => {
+                // mk46: geo-anchor 010b060a (CTAID.* / CgaCtaId / SWINHI).
+                if let Some((d, role, cls)) = merc_geo_anchor(t, "S2UR", &it.full) {
+                    o.geo_rec.push((lane, merc_geo_record(d, role, cls, it.guard_code)));
+                    if t.contains("SR_CgaCtaId") {
+                        // mk41: dst UR z tekstu — payload smem-anchora (dstUR<<6)|1.
+                        o.s2ur_cga.push((lane, it.guarded, d.min(255) as u8));
+                    }
+                }
+            }
+            "LDCU" => {
+                // mk46: LDCU z okna stalych drivera -> geo-anchor 010b060a.
+                if let Some((d, role, cls)) = merc_geo_anchor(t, "LDCU", &it.full) {
+                    o.geo_rec.push((lane, merc_geo_record(d, role, cls, it.guard_code)));
+                }
             }
             "BSYNC" => o.bsync_close.push(lane),
             "HFMA2" if t.matches("RZ").count() >= 2 => o.hfma2_const.push(lane),
@@ -1109,6 +1116,94 @@ pub fn merc_cs2r_srz_record(text: &str, guard_code: u8) -> Option<[u8; 16]> {
     r[12] = 0xff;
     r[13] = 0x0f;
     Some(r)
+}
+
+/// mk46: rozpoznanie lane'a-geometrycznego (rodzina rekordow 01 0b 06 0a,
+/// 16B). Host = lane S2UR ze specjalnym SR geometrii (rola == id sysreg:
+/// SR_CTAID.X/Y/Z -> 4/5/6, SR_CgaCtaId -> 0x2c, SR_SWINHI -> 0x2d; klasa
+/// b13=2) ALBO lane LDCU .32 ladowania stalej drivera z okna c[0x0][off]
+/// (0x360->1, 0x364->2, 0x368->3, 0x370->4, 0x374->5, 0x378->6; rzadkie
+/// 0x2f8->68 / 0x2fc->69; klasa b13=4). Korpus sm_100 (676 plikow,
+/// 18932 kerneli): multiset (klasa,rola,dst) EXACT 17674/17674 kerneli
+/// z rekordami, porzadek strumienia == porzadek lane (17674/17674).
+/// Zwraca (dstUR, rola-b12, klasa-b13) albo None.
+pub fn merc_geo_anchor(text: &str, base: &str, full: &str) -> Option<(u32, u8, u8)> {
+    let body0 = text.trim();
+    let body = match body0.strip_prefix('@') {
+        Some(r) => r
+            .split_once(char::is_whitespace)
+            .map(|(_, x)| x.trim_start())
+            .unwrap_or(body0),
+        None => body0,
+    };
+    let parse_ur = |s: &str| -> Option<u32> {
+        let d = s.trim().trim_end_matches(';').trim();
+        d.strip_prefix("UR")?.parse::<u32>().ok()
+    };
+    if base == "S2UR" {
+        let rest = body.strip_prefix("S2UR")?.trim_start();
+        let mut it = rest.split(',');
+        let dst = parse_ur(it.next()?)?;
+        let sr = it.next().unwrap_or("").trim().trim_end_matches(';').trim();
+        let role = match sr {
+            "SR_CTAID.X" => 4u8,
+            "SR_CTAID.Y" => 5,
+            "SR_CTAID.Z" => 6,
+            "SR_CgaCtaId" => 0x2c,
+            "SR_SWINHI" => 0x2d,
+            _ => return None,
+        };
+        return Some((dst.min(1023), role, 2));
+    }
+    if base == "LDCU" {
+        if full.contains(".64") {
+            return None;
+        }
+        let rest = body.strip_prefix("LDCU")?.trim_start();
+        let mut it = rest.split(',');
+        let dst = parse_ur(it.next()?)?;
+        let src = it.next().unwrap_or("");
+        let off = (|| {
+            let mut k = src.find("c[0x0][")? + 7;
+            if src[k..].starts_with("0x") {
+                k += 2;
+            }
+            let h: String = src[k..].chars().take_while(|c| c.is_ascii_hexdigit()).collect();
+            u32::from_str_radix(&h, 16).ok()
+        })()?;
+        let role = match off {
+            0x360 => 1u8,
+            0x364 => 2,
+            0x368 => 3,
+            0x370 => 4,
+            0x374 => 5,
+            0x378 => 6,
+            0x2f8 => 68,
+            0x2fc => 69,
+            _ => return None,
+        };
+        return Some((dst.min(1023), role, 4));
+    }
+    None
+}
+
+/// mk46: payload rekordu 01 0b 06 0a: b4 = guard_code|0x02 (0xf8->0xfa PT;
+/// korpus: 89391/89401 fa, guarded np. @!P0 -> 0x03, @UP2 -> 0x12), b6 = 4,
+/// (b10,b11) = LE16((dstUR<<6)|1), b12 = rola, b13 = klasa; reszta zer.
+pub fn merc_geo_record(dst: u32, role: u8, cls: u8, guard_code: u8) -> [u8; 16] {
+    let mut r = [0u8; 16];
+    r[0] = 0x01;
+    r[1] = 0x0b;
+    r[2] = 0x06;
+    r[3] = 0x0a;
+    r[4] = guard_code | 0x02;
+    r[6] = 0x04;
+    let v = (dst.min(1023) << 6) | 1;
+    r[10] = (v & 0xff) as u8;
+    r[11] = (v >> 8) as u8;
+    r[12] = role;
+    r[13] = cls;
+    r
 }
 
 /// 02 23 28 26 (32B): rekord UBLKCP.S.G. Pola zaleza od puli deskryptorow /

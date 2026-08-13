@@ -451,6 +451,7 @@ pub fn kernel_def_to_meta(
         merc_plop3_tx: mc.plop3_tx,
         merc_plop3_rec: mc.plop3_rec,
         merc_cs2r_rec: mc.cs2r_rec,
+        merc_geo_rec: mc.geo_rec,
         merc_fence_async: mc.fence_async,
         merc_ldgsts_b128: mc.ldgsts_b128,
         merc_s2ur_cga: mc.s2ur_cga,
@@ -892,6 +893,8 @@ pub struct MercMcScan {
     pub plop3_rec: Vec<(u32, [u8; 16])>,
     /// mk45: rekordy 010b0c0a (CS2R Rd, SRZ) — (lane, 16B).
     pub cs2r_rec: Vec<(u32, [u8; 16])>,
+    /// mk46: rekordy 010b060a geo-anchor (S2UR-geo + LDCU okno drivera).
+    pub geo_rec: Vec<(u32, [u8; 16])>,
     pub fence_async: Vec<u32>,          // FENCE.*ASYNC* lanes
     pub ldgsts_b128: bool,              // LDGSTS .128 (pinned-blob wariant)
     pub s2ur_cga: Vec<(u32, bool, u8)>, // S2UR ?, SR_CgaCtaId: (lane, guarded, dstUR) mk41
@@ -1179,17 +1182,27 @@ pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
                 }
             }
             "LDGSTS" if ins.opcode_full.contains(".128") => o.ldgsts_b128 = true,
-            "S2UR" if t.contains("SR_CgaCtaId") => {
-                // mk41: dst UR z tekstu (S2UR UR5, SR_CgaCtaId) — payload
-                // smem-anchora (b10,b11) = (dstUR<<6)|1.
-                let d = t.find("S2UR").and_then(|k| {
-                    let r = &t[k + 4..];
-                    r.find("UR").and_then(|u| {
-                        let ds: String = r[u + 2..].chars().take_while(|c| c.is_ascii_digit()).collect();
-                        ds.parse::<u32>().ok().map(|v| v.min(255) as u8)
-                    })
-                }).unwrap_or(5);
-                o.s2ur_cga.push((lane, guarded, d))
+            "S2UR" => {
+                // mk46: geo-anchor 010b060a (CTAID.* / CgaCtaId / SWINHI).
+                if let Some((d, role, cls)) =
+                    crate::mercury::merc_geo_anchor(t, "S2UR", &ins.opcode_full)
+                {
+                    o.geo_rec
+                        .push((lane, crate::mercury::merc_geo_record(d, role, cls, crate::sass_file::merc_guard_code(ins.guard.as_ref()))));
+                    if t.contains("SR_CgaCtaId") {
+                        // mk41: payload smem-anchora (b10,b11) = (dstUR<<6)|1.
+                        o.s2ur_cga.push((lane, guarded, d.min(255) as u8));
+                    }
+                }
+            }
+            "LDCU" => {
+                // mk46: LDCU z okna stalych drivera -> geo-anchor 010b060a.
+                if let Some((d, role, cls)) =
+                    crate::mercury::merc_geo_anchor(t, "LDCU", &ins.opcode_full)
+                {
+                    o.geo_rec
+                        .push((lane, crate::mercury::merc_geo_record(d, role, cls, crate::sass_file::merc_guard_code(ins.guard.as_ref()))));
+                }
             }
             "BSYNC" => o.bsync_close.push(lane),
             "HFMA2" if t.matches("RZ").count() >= 2 => o.hfma2_const.push(lane),

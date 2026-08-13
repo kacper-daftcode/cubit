@@ -397,6 +397,8 @@ pub struct MercFeatures {
     pub plop3_tx: Vec<(u32, u8)>,
     pub plop3_rec: Vec<(u32, [u8; 16])>,
     pub cs2r_rec: Vec<(u32, [u8; 16])>,
+    /// mk46: rekordy 010b060a geo-anchor (lane, 16B pelny payload).
+    pub geo_rec: Vec<(u32, [u8; 16])>,
     pub fence_async: Vec<u32>,
     pub ldgsts_b128: bool,
     /// mk41: (lane, guarded, dst-UR) dla S2UR SR_CgaCtaId — payload
@@ -473,6 +475,7 @@ impl MercFeatures {
             plop3_tx: meta.merc_plop3_tx.clone(),
             plop3_rec: meta.merc_plop3_rec.clone(),
             cs2r_rec: meta.merc_cs2r_rec.clone(),
+            geo_rec: meta.merc_geo_rec.clone(),
             fence_async: meta.merc_fence_async.clone(),
             ldgsts_b128: meta.merc_ldgsts_b128,
             s2ur_cga: meta.merc_s2ur_cga.clone(),
@@ -1338,6 +1341,8 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         LdsmMini,
         // mk30: rodziny b_*
         SmemCga(usize),
+        // mk46: geo-anchor 010b060a (payload prebaked, b12=rola, b13=klasa)
+        GeoRec(usize),
         McD1(usize),
         McExch(usize),
         McArrive(usize),
@@ -1433,8 +1438,17 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     // mk30: rekord smem-anchor 010b060a przy KAZDEJ lane S2UR CgaCtaId
     // (mk15-uwaga uogolniona; gold zgodny: p_ldsm 2x na 2 S2UR itd.).
     // Zastepuje legacy-clane gdy s2ur_cga niepuste; wpp legacy jak dawniej.
-    let smem_via_s2ur = !feat.s2ur_cga.is_empty();
-    if smem_via_s2ur {
+    // mk46: rodzina 010b060a = geo-anchory (S2UR-CTAID.*/CgaCtaId/SWINHI +
+    // LDCU okna stalych drivera; korpus sm_100 17674/17674 EXACT multiset
+    // (klasa,rola,dst), porzadek == porzadek lane). Niepusty zbior geo
+    // wygasza legacy-rekord smem (korpus: rekordy == dokladnie multiset geo).
+    let geo_nonempty = !feat.geo_rec.is_empty();
+    let smem_via_s2ur = geo_nonempty || !feat.s2ur_cga.is_empty();
+    if geo_nonempty {
+        for (k, &(l, _)) in feat.geo_rec.iter().enumerate() {
+            ev.push((l, 20, Ev::GeoRec(k)));
+        }
+    } else if !feat.s2ur_cga.is_empty() {
         for (k, &(l, _g, _d)) in feat.s2ur_cga.iter().enumerate() {
             ev.push((l, 20, Ev::SmemCga(k)));
         }
@@ -1778,6 +1792,27 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 out.extend_from_slice(&crate::mercury::build_f64imm_rec(m.1, m.2, m.3, m.4));
             }
             // mk30: rodziny b_*
+            Ev::GeoRec(k) => {
+                let mut r = feat.geo_rec[k].1;
+                // mk30-bulk1 carve-out: pierwszy anchor CgaCtaId niepredyko-
+                // wany z dst==5 przy BSSY i mbarrier-EXCH -> (b10,b11)=(01,02)
+                // (gold bulk1; p_ldsm bez EXCH zostaje z generic (41,01)).
+                let dst = ((r[10] as u16) | ((r[11] as u16) << 8)) >> 6;
+                if r[13] == 2 && r[12] == 0x2c
+                    && r[4] == 0xfa
+                    && dst == 5
+                    && feat.geo_rec[..k]
+                        .iter()
+                        .all(|(_, g)| !(g[13] == 2 && g[12] == 0x2c))
+                    && !feat.bsync_close.is_empty()
+                    && !(feat.mc_exch.is_empty() && feat.mc_arrive.is_empty()
+                        && feat.mc_phase.is_empty())
+                {
+                    r[10] = 0x01;
+                    r[11] = 0x02;
+                }
+                out.extend_from_slice(&r);
+            }
             Ev::SmemCga(k) => {
                 let (_l, pred, dst) = feat.s2ur_cga[k];
                 let mut r = REC_SMEM;
