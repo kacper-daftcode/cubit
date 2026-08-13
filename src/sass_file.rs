@@ -1385,9 +1385,13 @@ pub fn merc_mc_scan(instructions: &[Instruction], cg_sites: &std::collections::B
     }
     let ws_lanes: Vec<u32> = instructions
         .iter()
-        .filter(|i| i.opcode == "WARPSYNC" && i.opcode_full.contains(".ALL"))
+        .filter(|i| i.opcode == "WARPSYNC"
+            && i.opcode_full.contains(".ALL")
+            && !i.opcode_full.contains(".COLLECTIVE"))
         .map(|i| (i.addr / 16) as u32)
         .collect();
+    // (mk66: .COLLECTIVE.ALL wylaczone z ws_lanes — orig NIE emituje mini
+    // 76/6e dla tych lane'ow; cusparse.318 find_colors: 57 lane'ow, 0 rek.)
     // mk59: d1-47 per WC-site (region (WC..ENDCOLLECTIVE) = same NOP-y).
     // Fail-closed: guard, .ALL, maska spoza R<n>, region pusty/nie-NOP.
     for (i, ins) in instructions.iter().enumerate() {
