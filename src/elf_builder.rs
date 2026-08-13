@@ -364,7 +364,7 @@ pub struct MercFeatures {
     /// mk14.3: pinned LDGSTS (lane,dst,src) -> marker 51 02 + blob 02233034;
     /// host traci bit bitmapy. wait-lane -> 0123400a (host tez traci bit).
     pub ldgsts_pin: Option<(u32, u8, u8)>,
-    pub ldgsts_wait: Option<u32>,
+    pub ldgsts_wait: Option<(u32, u8)>,
     /// mk53: bloby 02233034/3434 per desc-form LDGSTS (silnik nadrzedny).
     pub ldgsts2: Vec<crate::mercury::Ldgsts2Blob>,
     /// mk53-w: (lane, imm) wait-eventow 0123400a per DEPBAR (silnik mk53).
@@ -1622,21 +1622,19 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for (i2, x2) in feat.ldgsts2.iter().enumerate() {
         ev.push((x2.pin_host.unwrap_or(x2.lane), 20, Ev::Ldgsts2(i2)));
     }
-    // mk53-w wip: regula per-DEPBAR przepiekla (atlas53d: new-only 0123400a
-    // =208 na keep-400; getrf rozbija prosta korelacje #wait==#DEPBAR).
-    // Legacy single-wait (mk14.3) nie nadprodukuje — zostaje jedyna sciezka.
-    if false {
-        for (w2, (wl2, _imm)) in feat.ldgsts2_waits.iter().enumerate() {
-            ev.push((*wl2, 20, Ev::Ldgsts2Wait(w2)));
-        }
+    // mk55: multi-wait 0123400a per DEPBAR.SB0 (regula korpusowa c2/c3:
+    // 2619/2619 EXACT; SB5 rekordu nie nosi). Tylko na sciezce blobow —
+    // legacy single-wait (mk14.3) obsluguje kernele bez desc-form.
+    for (w2, (wl2, _imm)) in feat.ldgsts2_waits.iter().enumerate() {
+        ev.push((*wl2, 20, Ev::Ldgsts2Wait(w2)));
     }
     if feat.ldgsts2.is_empty() {
         if let Some((pl, _, _)) = feat.ldgsts_pin {
             ev.push((pl, 20, Ev::LdgstsPin));
         }
-    }
-    if let Some(wl) = feat.ldgsts_wait {
-        ev.push((wl, 20, Ev::LdgstsWait));
+        if let Some((wl, _)) = feat.ldgsts_wait {
+            ev.push((wl, 20, Ev::LdgstsWait));
+        }
     }
     for &ll in &feat.ldsm_lanes {
         ev.push((ll, 20, Ev::LdsmMini));
@@ -1880,7 +1878,10 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 }
                 out.extend_from_slice(&blob);
             }
-            Ev::LdgstsWait => out.extend_from_slice(&crate::mercury::MERC_LDGSTS_WAIT),
+            Ev::LdgstsWait => {
+                let (_l, imm) = feat.ldgsts_wait.unwrap_or((0, 0));
+                out.extend_from_slice(&crate::mercury::build_ldgsts2_wait(imm));
+            }
             // mk53: marker 51 02 (gdy pin) + blob 32B.
             Ev::Ldgsts2(i2) => {
                 let x = &feat.ldgsts2[i2];
@@ -2615,14 +2616,14 @@ pub fn generate_mercury_full(
         .merc_ldgsts_pin
         .iter()
         .map(|p| p.0)
-        .chain(meta.merc_ldgsts_wait.iter().copied())
+        .chain(meta.merc_ldgsts_wait.iter().map(|&(l, _)| l))
         .collect();
     if !meta.merc_ldgsts2.is_empty() {
         feat_host_zero = meta
             .merc_ldgsts2
             .iter()
             .filter_map(|x| x.pin_host)
-            .chain(meta.merc_ldgsts_wait.iter().copied())
+            .chain(meta.merc_ldgsts_wait.iter().map(|&(l, _)| l))
             .collect();
     }
     let mut xor_lane_set: Vec<u32> =

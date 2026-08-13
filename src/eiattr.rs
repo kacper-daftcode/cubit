@@ -493,7 +493,7 @@ pub struct KernelMeta {
     /// Mercury mk14.3: rekord pinned LDGSTS (lane, dst, src) — 0/1 elem;
     /// i lane hosta wait-event 0123400a (ostatni slot przed DEPBAR).
     pub merc_ldgsts_pin: Vec<(u32, u8, u8)>,
-    pub merc_ldgsts_wait: Vec<u32>,
+    pub merc_ldgsts_wait: Vec<(u32, u8)>, // (host, imm) — mk55: imm z DEPBAR SB0
     /// mk53: bloby 02233034/3434 per desc-form LDGSTS (pelny silnik; mk14.3
     /// pin = fallback gdy brak desc-form).
     pub merc_ldgsts2: Vec<crate::mercury::Ldgsts2Blob>,

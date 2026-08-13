@@ -3283,8 +3283,11 @@ fn cmd_asm_build_elf(
                             meta.merc_ldgsts2 = l2;
                             meta.merc_ldgsts2_waits = l2w;
                         }
-                        // legacy pin/wait tylko gdy silnik mk53 pusty;
-                        // legacy wait ZAWSZE gdy jest (mk14.3 nie nadprodukuje).
+                        // mk55: legacy pin tylko gdy silnik mk53 pusty; legacy
+                        // wait-host ustawiany ZAWSZE (karmi feat_host_zero w
+                        // bitmapie — jak mk53/54); emisje REKORDU w obu
+                        // przypadkach rozstrzyga elf_builder (tylko sciezka
+                        // bez desc-form; imm niesione od mk55).
                         if !l2_nonempty {
                             if let Some(p3) = pin {
                                 meta.merc_ldgsts_pin = vec![p3];

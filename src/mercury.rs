@@ -1683,7 +1683,7 @@ pub const MERC_UBLKCP: [u8; 32] = [
 /// - wait host = ostatnia instrukcja ze slotem przed pierwszym DEPBAR(.LE)
 ///   po ostatnim LDGSTS (pomijamy klasy bez slotu: W0-lista).
 /// Brak LDGSTS albo brak killpada => None (nie emitujemy blobu).
-pub fn merc_ldgsts_scan(lines: &[(u32, String)]) -> (Option<(u32, u8, u8)>, Option<u32>) {
+pub fn merc_ldgsts_scan(lines: &[(u32, String)]) -> (Option<(u32, u8, u8)>, Option<(u32, u8)>) {
     let reg_of = |t: &str| -> u8 {
         let t = t.trim().trim_end_matches([';', ')', ']']);
         if t == "RZ" || t == "URZ" {
@@ -1711,7 +1711,7 @@ pub fn merc_ldgsts_scan(lines: &[(u32, String)]) -> (Option<(u32, u8, u8)>, Opti
     };
     let mut ldgsts: Option<(u32, u8, u8)> = None;
     let mut killpads: Vec<u32> = Vec::new();
-    let mut dep_bar: Option<u32> = None;
+    let mut dep_bar: Option<(u32, u8)> = None; // (lane, imm)
     let mut last_ldgsts_lane = 0u32;
     for (lane, text) in lines {
         let b = base_of(text);
@@ -1745,14 +1745,31 @@ pub fn merc_ldgsts_scan(lines: &[(u32, String)]) -> (Option<(u32, u8, u8)>, Opti
                 killpads.push(*lane);
             }
         } else if bb == "DEPBAR" && ldgsts.is_some() && *lane > last_ldgsts_lane && dep_bar.is_none() {
-            dep_bar = Some(*lane);
+            // mk55: legacy wait wybiera pierwszy DEPBAR klasy SB0 po ostatnim
+            // LDGSTS (SB5 rekordu nie nosi; korpus mk55 c5: no-blob kernele
+            // to dokladnie (1 wait, 1 SB0-DEPBAR)); imm w b11 rekordu.
+            let n2 = norm(text);
+            let imm_sb0 = n2.split_once(char::is_whitespace).and_then(|(_, rest)| {
+                let mut o = rest.trim().trim_end_matches(';').split(',').map(|s| s.trim());
+                if o.next()? != "SB0" {
+                    return None;
+                }
+                let im = o.next()?;
+                im.strip_prefix("0x")
+                    .and_then(|h| u32::from_str_radix(h, 16).ok())
+                    .or_else(|| im.parse::<u32>().ok())
+                    .map(|v| v.min(255) as u8)
+            });
+            if let Some(imm) = imm_sb0 {
+                dep_bar = Some((*lane, imm));
+            }
         }
     }
     let pin = match (ldgsts, killpads.first()) {
         (Some((_, d, s)), Some(&kpl)) => Some((kpl, d, s)),
         _ => None,
     };
-    let wait = dep_bar.and_then(|dl| {
+    let wait = dep_bar.and_then(|(dl, dimm)| {
         lines
             .iter()
             .rev()
@@ -1761,7 +1778,7 @@ pub fn merc_ldgsts_scan(lines: &[(u32, String)]) -> (Option<(u32, u8, u8)>, Opti
                 let b = base_of(t);
                 !opcode_bitmap_zero_weight(&b)
             })
-            .map(|(l, _)| *l)
+            .map(|(l, _)| (*l, dimm))
     });
     (pin.filter(|_| ldgsts.is_some()), wait)
 }
@@ -1975,12 +1992,19 @@ pub fn merc_ldgsts2_scan(lines: &[(u32, String)], kern_name: &str) -> Vec<Ldgsts
     out
 }
 
-/// mk53-w: wait-event 01 23 40 0a (16B) per DEPBAR (b11 = arg imm DEPBAR),
-/// host = ostatnia instrukcja ze slotem przed DEPBARem (regula mk14.3 uogol.
-/// na wszystkie DEPBARy; korpus c43: #wait == #DEPBAR w nosnikach LDGSTS).
+/// mk55: wait-event 01 23 40 0a (16B) per `DEPBAR.* SB0, 0xN` (b11 = imm N).
+/// Regula korpusowa mk55 c2/c3 (2619/2619 rekordow, 1250/1250 kerneli EXACT
+/// multiset+porzadek, 0 FP/FN): rekord dostaje WYLACZNIE klasa SB0 (DEPBAR
+/// SB5 go nie ma — stad "przepiekla" proba per-DEPBAR z mk53 robila +208
+/// new-only), guardowany DEPBAR: fail-closed (korpus: brak; b4=f8 zawsze).
+/// host = ostatnia instrukcja ze slotem przed DEPBARem (DEPBAR jest
+/// zero-weight; mk14.3); bity bitmapy waity NIE gryza (mk55 c8/c9: mix
+/// bit=0/1 na hostach, decyduje zwykly model bitmapy — feat_host_zero
+/// zostawiony na legacy-host jak mk53/54).
 pub fn merc_ldgsts2_waits(lines: &[(u32, String)]) -> Vec<(u32, u8)> {
     let mut out = Vec::new();
-    let base_of = |t: &str| -> String {
+    // norm: bez guarda i bez ';'; base_of: sam mnemonic bez guarda.
+    let norm = |t: &str| -> String {
         let mut x = t.trim().to_string();
         while x.starts_with('@') {
             x = match x.split_once(' ') {
@@ -1988,34 +2012,51 @@ pub fn merc_ldgsts2_waits(lines: &[(u32, String)]) -> Vec<(u32, u8)> {
                 None => return x,
             };
         }
-        x.split_whitespace().next().unwrap_or("").to_string()
+        x.trim().trim_end_matches(';').trim().to_string()
+    };
+    let base_of = |t: &str| -> String {
+        norm(t).split_whitespace().next().unwrap_or("").to_string()
+    };
+    // (op0=="SB0", imm) z "DEPBAR.LE SB0, 0xN"; None gdy forma niestandardowa.
+    let sb0_imm = |t: &str| -> Option<u8> {
+        let n = norm(t);
+        let (_op, rest) = n.split_once(char::is_whitespace)?;
+        let mut ops = rest.split(',').map(|s| s.trim());
+        if ops.next()? != "SB0" {
+            return None;
+        }
+        let im = ops.next()?;
+        let v = im
+            .strip_prefix("0x")
+            .and_then(|h| u32::from_str_radix(h, 16).ok())
+            .or_else(|| im.parse::<u32>().ok())?;
+        Some(v.min(255) as u8)
     };
     for (lane, text) in lines {
         let b = base_of(text);
         let bb = b.split('.').next().unwrap_or("");
-        if bb == "DEPBAR" {
-            // arg imm: ostatni ', 0xN' w tekscie
-            let imm = text
-                .rsplit(',')
-                .find_map(|tk| {
-                    let tk = tk.trim().trim_end_matches(';');
-                    tk.strip_prefix("0x")
-                        .and_then(|h| u32::from_str_radix(h, 16).ok())
-                })
-                .unwrap_or(0)
-                .min(255) as u8;
-            let host = lines
-                .iter()
-                .rev()
-                .filter(|(l, _)| *l < *lane)
-                .find(|(_, t)| {
-                    let b2 = base_of(t);
-                    !opcode_bitmap_zero_weight(&b2)
-                })
-                .map(|(l, _)| *l);
-            if let Some(h) = host {
-                out.push((h, imm));
-            }
+        if bb != "DEPBAR" {
+            continue;
+        }
+        if text.trim_start().starts_with('@') {
+            continue; // fail-closed: guardowany DEPBAR (brak w korpusie)
+        }
+        // 1. operand musi byc SB0 (SB5 wait-rekordu nie nosi — mk55 c2).
+        let imm = match sb0_imm(text) {
+            Some(v) => v,
+            None => continue, // fail-closed: SB5 / forma niestandardowa
+        };
+        let host = lines
+            .iter()
+            .rev()
+            .filter(|(l, _)| *l < *lane)
+            .find(|(_, t)| {
+                let b2 = base_of(t);
+                !opcode_bitmap_zero_weight(&b2)
+            })
+            .map(|(l, _)| *l);
+        if let Some(h) = host {
+            out.push((h, imm));
         }
     }
     out
