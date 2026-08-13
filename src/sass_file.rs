@@ -512,7 +512,8 @@ pub fn kernel_def_to_meta(
             m.clone()
         },
         merc_ulea_upco: usetp52.1.clone(),
-        merc_redux: m35.redux,
+        merc_redux: Vec::new(), // mk60: legacy tuple wylaczone (patrz redux2)
+        merc_redux2: Some(m35.redux2),
         merc_cbank358_dreg: m35.cbank358_dreg,
     }
 }
@@ -945,6 +946,8 @@ pub struct MercMk35 {
     pub isetp_ur: Vec<u32>,
     /// rekordy 0132: (lane, kind 0=typed-REDUX/1=CREDUX, dreg).
     pub redux: Vec<(u32, u8, u8)>,
+    /// mk60: rekordy 0132100a pelny dekod (lane, 16B) — zastepuje redux.
+    pub redux2: Vec<(u32, [u8; 16])>,
     /// dst-reg loadu okna c[0x358] (cbank-variant ladder: (dreg<<6)|3).
     pub cbank358_dreg: Option<u8>,
 }
@@ -955,6 +958,7 @@ pub fn merc_mk35_scan(instructions: &[Instruction]) -> MercMk35 {
         bar_guard: Vec::new(),
         isetp_ur: Vec::new(),
         redux: Vec::new(),
+        redux2: Vec::new(),
         cbank358_dreg: None,
     };
     let regnum = |tok: &str| -> Option<u8> {
@@ -1004,29 +1008,16 @@ pub fn merc_mk35_scan(instructions: &[Instruction]) -> MercMk35 {
         // mini na pojedynczym ISETP; prawdziwe zrodlo = para z .EX
         // (merc_xsetp_scan). Pole isetp_ur zostaje puste.
         let _ = (base, full, t);
-        if base == "REDUX" {
-            // gole REDUX (full=="REDUX") = stary warp-vote: bit, bez rekordu;
-            // typowane -> rekord 0132 z dst-grid. at_and vs p_redux (mk35).
-            if full != "REDUX" {
-                let body = t.trim_start();
-                let body = match body.strip_prefix('@') {
-                    Some(r) => r.split_once(char::is_whitespace).map(|(_, x)| x.trim_start()).unwrap_or(body),
-                    None => body,
-                };
-                let d = body.split(',').next().unwrap_or("")
-                    .split_whitespace().last().unwrap_or("");
-                o.redux.push((lane, 0u8, regnum(d).unwrap_or(255)));
+        if base == "REDUX" || base == "CREDUX" {
+            // mk60: pelny klasyfikator 0132100a (mercury::merc_redux2_record)
+            // — nosza CREDUX.{MAX.S32,MIN.S32,MIN} + REDUX.SUM.S32 (dst!=UR79);
+            // REDUX.OR/goly REDUX/guardy bez rekordu (fail-closed).
+            let _ = (full,);
+            if ins.guard.is_none() {
+                if let Some(r) = crate::mercury::merc_redux2_record(t) {
+                    o.redux2.push((lane, r));
+                }
             }
-        }
-        if base == "CREDUX" {
-            let body = t.trim_start();
-            let body = match body.strip_prefix('@') {
-                Some(r) => r.split_once(char::is_whitespace).map(|(_, x)| x.trim_start()).unwrap_or(body),
-                None => body,
-            };
-            let d = body.split(',').next().unwrap_or("")
-                .split_whitespace().last().unwrap_or("");
-            o.redux.push((lane, 1u8, regnum(d).unwrap_or(255)));
         }
     }
     o

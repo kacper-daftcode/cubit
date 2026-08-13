@@ -643,7 +643,9 @@ pub struct KernelMeta {
     /// dreg = numer docelowego UR -> grid [10:12]=(dreg<<6)|1.
     /// Goly "REDUX" (bez kropki) rekordu NIE dostaje — zachowuje bit
     /// bitmapy (at_and lane6, mkvmem) — nie trafia do tej listy.
-    pub merc_redux: Vec<(u32, u8, u8)>,
+    pub merc_redux: Vec<(u32, u8, u8)>,   // mk60: legacy (tylko gold-synth)
+    /// mk60: rekordy 0132100a ze skanu tekstu (lane, 16B). None = brak skanu.
+    pub merc_redux2: Option<Vec<(u32, [u8; 16])>>,
     /// mk35: dst-reg loadu c[0x358] (wariant cbank (b10,b11)=(dreg<<6)|3).
     pub merc_cbank358_dreg: Option<u8>,
     /// mk40 (store-matrix z korpusu sm_100, analysis/merclab/mk40): lane'y
@@ -813,6 +815,7 @@ impl KernelMeta {
             merc_ulea_upco: Vec::new(),
             merc_era100: false,
             merc_redux: Vec::new(),
+            merc_redux2: None,
             merc_cbank358_dreg: None,
             merc_atoms: Vec::new(),
             merc_ldgsts_pin: Vec::new(),
@@ -1270,6 +1273,7 @@ mod tests {
             merc_ulea_upco: Vec::new(),
             merc_era100: false,
             merc_redux: Vec::new(),
+            merc_redux2: None,
             merc_cbank358_dreg: None,
             merc_atoms: Vec::new(),
             merc_ldgsts_pin: Vec::new(),

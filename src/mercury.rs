@@ -798,6 +798,8 @@ pub struct McScanOut {
     /// mk59: rekord d1-34B wariant 47 per WARPSYNC.COLLECTIVE (nie-.ALL)
     /// z regionem same NOP-y -> (lane WC, reg maski). Patrz merc_d1wc47_record.
     pub d1wc47: Vec<(u32, u8)>,
+    /// mk60: rekordy 0132100a (REDUX.SUM.S32/CREDUX) — (lane, 16B).
+    pub redux2: Vec<(u32, [u8; 16])>,
     /// mk34 (node-model g5b): lane'y bez wezla w liscie capmerc — NIE zajmuja
     /// slotu bitmapy (b_mbarrier: para USHF licznika mbarrier po d1-UIADD3;
     /// b_bulk_cp: te + FENCE.ASYNC). Tylko m-family (SYNCS.*).
@@ -839,6 +841,7 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
         bra_np_loop: Vec::new(),
         nodeless: Vec::new(),
         d1wc47: Vec::new(),
+        redux2: Vec::new(),
     };
     let bar_lanes: Vec<u32> = items
         .iter()
@@ -887,6 +890,14 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
         let lane = it.lane;
         let t = it.text.as_str();
         match it.base.as_str() {
+            "REDUX" | "CREDUX" => {
+                // mk60: rekord 0132100a (klasyfikator pelny, fail-closed).
+                if !it.guarded {
+                    if let Some(r) = merc_redux2_record(&it.text) {
+                        o.redux2.push((lane, r));
+                    }
+                }
+            }
             "SYNCS" => {
                 if t.contains("EXCH") {
                     let mut urs = t
@@ -1124,6 +1135,59 @@ pub fn merc_d1wc47_record(mask: u8) -> [u8; 34] {
     r[15] = (v >> 8) as u8;
     r[16] = 0x02;
     r
+}
+
+/// mk60: rekord 0132100a (16B) per lane REDUX/CREDUX — pelny dekod
+/// korpusowy (merclab/mk60; l2 676 plikow, 18932 kerneli):
+/// nosza: CREDUX.MAX.S32 -> b6=55, CREDUX.MIN.S32 -> b6=51,
+///        CREDUX.MIN -> b6=50, REDUX.SUM.S32 -> b6=4d (ale NIE gd
+///        dst==UR79: 88/88 bez rekordu — rejestr zarezerwowany ptxas);
+/// NIE nosza: REDUX.OR (3376 lane'ow), goly REDUX, guardy (brak w
+/// korpusie -> fail-closed). Pola: (b10,b11)=LE16((URd<<6)|1),
+/// (b12,b13)=LE16(src<<6) (RZ -> 0x3ff<<6 = ffc0); (b14,b15)=0.
+/// Wymagane dokladnie 2 operandy: UR-dst + R/RZ-src.
+/// Uwaga: druk cubit pisze REDUX.S32.SUM (kolejnosc legacy) — akceptujemy
+/// obie formy.
+pub fn merc_redux2_record(text: &str) -> Option<[u8; 16]> {
+    let t = text.trim();
+    if t.starts_with('@') {
+        return None; // guard: brak korpusowy
+    }
+    let (op, ops) = t.split_once(char::is_whitespace)?;
+    let op = op.trim();
+    let b6: u8 = match op {
+        "CREDUX.MAX.S32" => 0x55,
+        "CREDUX.MIN.S32" => 0x51,
+        "CREDUX.MIN" => 0x50,
+        "REDUX.SUM.S32" | "REDUX.S32.SUM" => 0x4d,
+        _ => return None, // REDUX.OR, goly REDUX, inne: fail-closed
+    };
+    let mut parts = ops.splitn(3, ',');
+    let dst = parts.next().unwrap_or("").trim();
+    let src = parts.next().unwrap_or("").trim();
+    if parts.next().is_some() {
+        return None; // >2 operandow: fail-closed
+    }
+    let dst = dst.trim_end_matches(';').trim();
+    let src = src.trim_end_matches(';').trim();
+    let dn: u16 = dst.strip_prefix("UR")?.parse().ok()?;
+    if op.contains("REDUX") && dn == 79 {
+        return None; // UR79 = rezerwa ptxas (korpus: 88/88 bez rekordu)
+    }
+    let f1: u16 = (dn << 6) | 1;
+    let f2: u16 = if src == "RZ" {
+        0x3ff << 6
+    } else {
+        let sn: u16 = src.strip_prefix('R')?.parse().ok()?;
+        sn << 6
+    };
+    let mut r = [0u8; 16];
+    r[0..4].copy_from_slice(&[0x01, 0x32, 0x10, 0x0a]);
+    r[4] = 0xf8;
+    r[6] = b6;
+    r[10..12].copy_from_slice(&f1.to_le_bytes());
+    r[12..14].copy_from_slice(&f2.to_le_bytes());
+    Some(r)
 }
 
 /// Skan pomocniczy mk59 (wspoldzielony przez mc_scan_lines z main.rs):

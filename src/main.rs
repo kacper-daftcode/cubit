@@ -1348,6 +1348,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_ulea_upco: Vec::new(),
         merc_era100: false,
         merc_redux: Vec::new(),
+        merc_redux2: None,
         merc_cbank358_dreg: None,
         merc_plop3_rec: Vec::new(),
         merc_plop3u_rec: Vec::new(),
@@ -2897,18 +2898,9 @@ fn cmd_asm_build_elf(
                         }
                         // mk35 (lustro): 0132-rekordy tylko dla typowanego
                         // REDUX i CREDUX; goly REDUX = bit (zob. bitmap).
-                        if base0 == "REDUX" || base0 == "CREDUX" {
-                            let dest = rest.split(',').next().unwrap_or("").trim();
-                            let dd = dest.trim_start_matches(['R','U']);
-                            let dreg = if !dd.is_empty() && dd.chars().all(|c| c.is_ascii_digit()) {
-                                dd.parse::<u32>().unwrap_or(255).min(255) as u8
-                            } else { 255 };
-                            if base0 == "CREDUX" {
-                                redux35.push((ii as u32, 1, dreg));
-                            } else if body.contains("REDUX.") {
-                                redux35.push((ii as u32, 0, dreg));
-                            }
-                        }
+                        // mk60: rekordy 0132 pelnym klasyfikatorem
+                        // (merc_redux2_record) przez lustro mc.redux2.
+                        let _ = redux35.len();
                         if base0 == "CALL" {
                             call_lanes.push(ii as u32);
                         }
@@ -3411,7 +3403,8 @@ fn cmd_asm_build_elf(
                         edge_ldgm.sort_by_key(|e| e.0);
                         meta.merc_edge_ldg = edge_ldgm;
                         meta.merc_stg_wsel = stg_wselv;
-                        meta.merc_redux = redux35.clone();
+                        meta.merc_redux = Vec::new(); // mk60: legacy off
+                        meta.merc_redux2 = Some(mc.redux2.clone());
                         meta.merc_cbank358_dreg = cbank358_dreg35;
                     }
                 }

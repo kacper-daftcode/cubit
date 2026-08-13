@@ -455,7 +455,11 @@ pub struct MercFeatures {
     pub era100: bool,
     /// mk35: redukcyjne rekordy 0132: (lane, kind, dreg); kind 0=REDUX
     /// typowany, 1=CREDUX. Goly REDUX nie dostaje rekordu (bit zostaje).
-    pub redux: Vec<(u32, u8, u8)>,
+    pub redux: Vec<(u32, u8, u8)>,   // legacy (gold-synth; mk60: redux2)
+    /// mk60: rekordy 0132100a ze skanu — (lane, 16B pelny rekord).
+    pub redux2: Vec<(u32, [u8; 16])>,
+    /// mk60: skan dostepny (wylacza legacy-synth z samych opcode'ow).
+    pub redux2_scanned: bool,
     /// mk35: dst-reg loadu c[0x358] dla wariantu cbank (b10,b11).
     pub cbank358_dreg: Option<u8>,
     /// mk40: store-matrix rekordow 0238 dla ST.E (2a32) / STL (2006).
@@ -544,6 +548,8 @@ impl MercFeatures {
             ulea_upco: meta.merc_ulea_upco.clone(),
             era100: meta.merc_era100,
             redux: meta.merc_redux.clone(),
+            redux2: meta.merc_redux2.clone().unwrap_or_default(),
+            redux2_scanned: meta.merc_redux2.is_some(),
             cbank358_dreg: meta.merc_cbank358_dreg,
             store2: meta.merc_store2.clone(),
             mini2: meta.merc_mini2.clone(),
@@ -792,7 +798,7 @@ impl MercFeatures {
             .collect();
         // gold/manifest path (brak meta.merc_redux): syntetyzuj wpis z
         // opcode'ow; dreg=6 odtwarza historyczny szablon (UR6-shadow).
-        if f.redux.is_empty() && !f.redux_pos.is_empty() {
+        if f.redux.is_empty() && !f.redux_pos.is_empty() && !f.redux2_scanned {
             for &pos in &f.redux_pos {
                 let kind: u8 = if opcodes[pos as usize].split('.').next() == Some("CREDUX") {
                     1
@@ -1447,6 +1453,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         McLop3NotRec(usize),
         McUlop3NotRec(usize),
         McD1Wc47(usize),
+        Redux2(usize),
         McRedg2(usize),
         McAtomg2(usize),
         ShiftAt(usize),
@@ -1767,6 +1774,10 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for (k, _) in feat.d1wc47.iter().enumerate() {
         ev.push((feat.d1wc47[k].0, 20, Ev::McD1Wc47(k)));
     }
+    // mk60: rekordy 0132100a (redux2); tier 20, lane REDUX/CREDUX.
+    for (k, _) in feat.redux2.iter().enumerate() {
+        ev.push((feat.redux2[k].0, 20, Ev::Redux2(k)));
+    }
     // mk48: rekordy 024d*32 (REDG); tier 20 jak Ev::Atom/mk44-47.
     for (k, _) in feat.redg2_rec.iter().enumerate() {
         ev.push((feat.redg2_rec[k].0, 20, Ev::McRedg2(k)));
@@ -2085,6 +2096,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::McD1Wc47(k) => {
                 out.extend_from_slice(&crate::mercury::merc_d1wc47_record(feat.d1wc47[k].1))
             }
+            Ev::Redux2(k) => out.extend_from_slice(&feat.redux2[k].1),
             Ev::McRedg2(k) => out.extend_from_slice(&feat.redg2_rec[k].1),
             Ev::McAtomg2(k) => out.extend_from_slice(&feat.atomg2_rec[k].1),
             Ev::ShiftAt(_) => out.extend_from_slice(&REC_SHIFT_REGION),
