@@ -452,6 +452,7 @@ pub fn kernel_def_to_meta(
         merc_plop3_rec: mc.plop3_rec,
         merc_cs2r_rec: mc.cs2r_rec,
         merc_geo_rec: mc.geo_rec,
+        merc_lop3not_rec: mc.lop3not_rec,
         merc_fence_async: mc.fence_async,
         merc_ldgsts_b128: mc.ldgsts_b128,
         merc_s2ur_cga: mc.s2ur_cga,
@@ -895,6 +896,8 @@ pub struct MercMcScan {
     pub cs2r_rec: Vec<(u32, [u8; 16])>,
     /// mk46: rekordy 010b060a geo-anchor (S2UR-geo + LDCU okno drivera).
     pub geo_rec: Vec<(u32, [u8; 16])>,
+    /// mk47: rekordy 012b{00|04}0a (LOP3.LUT NOT-MOV LUT=0x33) — (lane, 16B).
+    pub lop3not_rec: Vec<(u32, [u8; 16])>,
     pub fence_async: Vec<u32>,          // FENCE.*ASYNC* lanes
     pub ldgsts_b128: bool,              // LDGSTS .128 (pinned-blob wariant)
     pub s2ur_cga: Vec<(u32, bool, u8)>, // S2UR ?, SR_CgaCtaId: (lane, guarded, dstUR) mk41
@@ -1179,6 +1182,12 @@ pub fn merc_mc_scan(instructions: &[Instruction]) -> MercMcScan {
                 // mk45: rekord 010b0c0a (CS2R R<d>, SRZ).
                 if let Some(r) = crate::mercury::merc_cs2r_srz_record(t, merc_guard_code(ins.guard.as_ref())) {
                     o.cs2r_rec.push((lane, r));
+                }
+            }
+            "LOP3" => {
+                // mk47: rekord 012b{00|04}0a (LOP3.LUT NOT-MOV, LUT=0x33).
+                if let Some(r) = crate::mercury::merc_lop3_not_record(t, merc_guard_code(ins.guard.as_ref())) {
+                    o.lop3not_rec.push((lane, r));
                 }
             }
             "LDGSTS" if ins.opcode_full.contains(".128") => o.ldgsts_b128 = true,
