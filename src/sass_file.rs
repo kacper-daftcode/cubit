@@ -312,6 +312,8 @@ pub fn kernel_def_to_meta(
     let merc_mini2 = merc_mini2_scan(&def.instructions);
     // mk42: edge-rekordy LD-desc (02223232) + maxUR deskryptorow.
     let (merc_edge_ld, merc_edge_maxur) = merc_edge_ld_scan(&def.instructions);
+    // mk50: edge-rekordy LDG-desc (02221e32) w kernelach annotated_ptr.
+    let merc_edge_ldg = merc_edge_ldg_scan(&def.name, &def.instructions);
     // mk35: skan pomocniczy (dst-reg siatki rec desc/0132, guardy BAR, ...).
     let m35 = merc_mk35_scan(&def.instructions);
     // mk41: bramka rodziny dla lea18 (przed borrowami w literalu KernelMeta).
@@ -406,6 +408,7 @@ pub fn kernel_def_to_meta(
         merc_mini2,
         merc_edge_ld,
         merc_edge_maxur,
+        merc_edge_ldg,
         // nvcc (EIATTR 0x31): liste site'ow warp-wide emituje tylko gdy
         // kernel zawiera VOTEU (fit na 119 kernelach labu: 5/5 z VOTEU maja
         // atrybut, zaden bez VOTEU).
@@ -1910,6 +1913,158 @@ pub fn merc_edge_ld_scan(
     }
     out.sort_by_key(|e| e.0);
     (out, maxur)
+}
+
+/// mk50: rekordy 02 22 1e 32 = krawedzie DEF-USE dla LDG z deskryptorem w
+/// kernelach *annotated_ptr* (cuda::annotated_ptr — korpusowo tylko
+/// libcublas.so.72 sm_100; cuds_symv_*). Bramka dwustopniowa (c8/c8b):
+///  1) nazwa kernela zawiera "annotated_ptr" (c8: bez tego kroku 133
+///     falszywych predykcji w cusolver.438/456 + cublasLt.567 — lane'y
+///     tekstowo identyczne; zero wspolnych kerneli z rodzina 02223232);
+///  2) desc[URm] uzywany w formie desc WYLACZNIE przez lane'y bazowe LDG
+///     (c7b: 238 UR-ow LDG-only maja rekordy; 40+32 dzielone ze
+///     STG/REDG/LDGSTS — zadne — oraz 68 LDCU-only tez nie; regula pelna
+///     daje EXACT 72/72 z porzadkiem lane-rosnaco).
+/// Payload: jak merc_edge_ld, poza b6 = 16*(log2B-2)+0x40 (0x40/0x50/0x60
+/// dla 4B/8B/16B; inne formy LDG (.U8/.U16/.CONSTANT/...) — niewiadome,
+/// fail-closed bez rekordu) oraz V = desc-UR lane'u (NIE max globalny).
+pub fn merc_edge_ldg_scan(
+    name: &str,
+    instructions: &[Instruction],
+) -> Vec<(u32, u8, u8, u16, u16, u8, u16, u32)> {
+    let mut out = Vec::new();
+    if !name.contains("annotated_ptr") {
+        return out;
+    }
+    let mut ur_ldg = std::collections::HashSet::<u16>::new();
+    let mut ur_other = std::collections::HashSet::<u16>::new();
+    for ins in instructions {
+        let t = ins.raw_text.as_str();
+        let mut p = 0usize;
+        while let Some(pos) = t[p..].find("desc[UR") {
+            let s2 = &t[p + pos + 7..];
+            let k = s2.bytes().take_while(|c| c.is_ascii_digit()).count();
+            if k > 0 {
+                if let Ok(v) = s2[..k].parse::<u16>() {
+                    if ins.opcode == "LDG" {
+                        ur_ldg.insert(v);
+                    } else {
+                        ur_other.insert(v);
+                    }
+                }
+            }
+            p += pos + 7 + k.max(1);
+        }
+    }
+    let ldg_only: std::collections::HashSet<u16> =
+        ur_ldg.difference(&ur_other).copied().collect();
+    if ldg_only.is_empty() {
+        return out;
+    }
+    for ins in instructions {
+        if ins.opcode != "LDG" {
+            continue;
+        }
+        let t = ins.raw_text.as_str();
+        if !t.contains("desc[UR") {
+            continue;
+        }
+        let full = ins.opcode_full.as_str();
+        let (b6, c): (u8, u8) = if full.contains(".128") {
+            (0x60, 7)
+        } else if full.contains(".64") {
+            (0x50, 3)
+        } else if full == "LDG.E" {
+            (0x40, 1)
+        } else {
+            continue; // LDG.E.U8/.U16/.S8/.STRONG itd. — korpusowo bez rekordow
+        };
+        let x: u16 = {
+            let mut it = t.splitn(2, ',');
+            let head = it.next().unwrap_or("");
+            let toks: Vec<&str> = head.split_whitespace().collect();
+            let dst = toks.last().copied().unwrap_or("");
+            let dst = dst.trim_start_matches(['!', '-', '|', '@']).trim();
+            match dst.strip_prefix('R').and_then(|r| {
+                let r = r.trim_end_matches(';');
+                if !r.is_empty() && r.bytes().all(|c| c.is_ascii_digit()) {
+                    r.parse::<u16>().ok()
+                } else {
+                    None
+                }
+            }) {
+                Some(v) => v,
+                None => continue,
+            }
+        };
+        let dp = match t.find("desc[UR") {
+            Some(v) => v,
+            None => continue,
+        };
+        let v: u16 = {
+            let s2 = &t[dp + 7..];
+            let k = s2.bytes().take_while(|c| c.is_ascii_digit()).count();
+            if k == 0 {
+                continue;
+            }
+            match s2[..k].parse() {
+                Ok(v) => v,
+                Err(_) => continue,
+            }
+        };
+        if !ldg_only.contains(&v) {
+            continue;
+        }
+        let dclose = match t[dp..].find(']') {
+            Some(v2) => dp + v2,
+            None => continue,
+        };
+        let rest = &t[dclose + 1..];
+        if !rest.starts_with('[') {
+            continue;
+        }
+        let gclose = match rest.find(']') {
+            Some(v2) => v2,
+            None => continue,
+        };
+        let inner = &rest[1..gclose];
+        let ib = inner.as_bytes();
+        if ib.first() != Some(&b'R') {
+            continue;
+        }
+        let k = ib.iter().skip(1).take_while(|c| c.is_ascii_digit()).count();
+        if k == 0 {
+            continue;
+        }
+        // wymagamy formy .64 (korpus: wszystkie rekordy maja pary .64)
+        if !inner[1 + k..].starts_with(".64") {
+            continue;
+        }
+        let y: u16 = match inner[1..1 + k].parse() {
+            Ok(v2) => v2,
+            Err(_) => continue,
+        };
+        let off: u32 = if let Some(pl) = inner[1 + k..].find('+') {
+            let tail = inner[1 + k + pl + 1..].trim();
+            if tail.starts_with('U') {
+                continue; // [Ry.64+URn] — poza modelem
+            }
+            let neg = tail.starts_with('-');
+            let tt = tail.trim_start_matches('-');
+            let radix = if tt.starts_with("0x") { 16 } else { 10 };
+            match i64::from_str_radix(tt.trim_start_matches("0x"), radix) {
+                Ok(v3) => (if neg { -v3 } else { v3 }) as u32,
+                Err(_) => continue,
+            }
+        } else {
+            0
+        };
+        let lane = (ins.addr / 16) as u32;
+        let b4 = merc_guard_code(ins.guard.as_ref());
+        out.push((lane, b4, b6, x, y, c, v, off));
+    }
+    out.sort_by_key(|e| e.0);
+    out
 }
 
 /// mk40: store-matrix (mk40/stgfields): lane'y ST.E (rekord 0238 b2=0x2a,
