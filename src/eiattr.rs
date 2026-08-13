@@ -479,6 +479,10 @@ pub struct KernelMeta {
     /// merc_s2r_sr) — payload f4 anchor-rekordu 010b040a = (dest<<6)|1.
     /// Puste = legacy fallback na bramkowany anchor_f4 (iter AE model).
     pub merc_s2r_dest: Vec<u32>,
+    /// mk56: geo-anchory LDC (rekord 010b040a b13=04) per lane:
+    /// (lane, dest, b12-geometria, guard mk41). Per-LDC-lane, nie
+    /// per-first-def (dup-def desta nosi rekord per instrukcja; mk56 c6).
+    pub merc_ldcgeo: Vec<(u32, u32, u8, u8)>,
     /// Mercury mk18: flagi per wpis merc_param_loads (rownolegle):
     /// bit0 = wartosc loadu feeduje adres operacji atomowej (RED*/ATOM*),
     /// bit1 = load lezy PO instrukcji CALL (granica regionu ptxas).
@@ -744,6 +748,7 @@ impl KernelMeta {
             merc_bar_args: Vec::new(),
             merc_s2r_sr: Vec::new(),
             merc_s2r_dest: Vec::new(),
+            merc_ldcgeo: Vec::new(),
             merc_load_flags: Vec::new(),
             merc_atom_pool_hits: Vec::new(),
             merc_lop3_pdest: Vec::new(),
@@ -1198,6 +1203,7 @@ mod tests {
             merc_bar_args: Vec::new(),
             merc_s2r_sr: Vec::new(),
             merc_s2r_dest: Vec::new(),
+            merc_ldcgeo: Vec::new(),
             merc_load_flags: Vec::new(),
             merc_atom_pool_hits: Vec::new(),
             merc_lop3_pdest: Vec::new(),

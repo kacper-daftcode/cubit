@@ -324,6 +324,8 @@ pub struct MercFeatures {
     /// mk20-oraculum: 90/90 anchorow. Krotki/pusty wektor = fallback na
     /// bramkowany MercFeatures.anchor_f4 (model iter AE).
     pub s2r_dest: Vec<u32>,
+    /// mk56: geo-anchory LDC 010b040a b13=04: (lane, dest, b12, guard).
+    pub ldcgeo: Vec<(u32, u32, u8, u8)>,
     /// mk18: flagi per param_loads (bit1 = post-CALL); klucze puli (pi,mech)
     /// trafione adresem atomowym — oba steruja rola desc (83,00).
     pub load_flags: Vec<u8>,
@@ -807,6 +809,7 @@ impl MercFeatures {
         f.s2r_sr = meta.merc_s2r_sr.clone();
         f.s2r_guard = meta.merc_s2r_guard.clone();
         f.s2r_dest = meta.merc_s2r_dest.clone();
+        f.ldcgeo = meta.merc_ldcgeo.clone();
         f.load_flags = meta.merc_load_flags.clone();
         f.atom_pool_hits = meta.merc_atom_pool_hits.clone();
         f.ldgconst = meta.merc_ldgconst.clone();
@@ -1390,6 +1393,8 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         Smem,
         ShiftRegion,
         Anchor(usize),
+        // mk56: geo-anchor LDC (b13=04) — indeks do feat.ldcgeo.
+        AnchorGeo(usize),
         Bar(usize),
         Stg(usize),
         Elect(usize),
@@ -1565,6 +1570,10 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     }
     for (k, &l) in feat.s2r_lanes.iter().enumerate() {
         ev.push((l, 20, Ev::Anchor(k)));
+    }
+    // mk56: geo-anchory LDC — ten sam tier 20, lane = lane instrukcji LDC.
+    for (k, &(l, _, _, _)) in feat.ldcgeo.iter().enumerate() {
+        ev.push((l, 20, Ev::AnchorGeo(k)));
     }
     for (i, &pos) in feat.bar_pos.iter().enumerate() {
         ev.push((pos, 20, Ev::Bar(i)));
@@ -1828,6 +1837,19 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                     cf[10] = (v & 0xff) as u8;
                     cf[11] = (v >> 8) as u8;
                 }
+                out.extend_from_slice(&cf);
+            }
+            Ev::AnchorGeo(k) => {
+                // mk56: b13=04 (klasa geometrii okna c[0x0][0x360..78]);
+                // b12 = geometria, payload = (dest<<6)|1, b4 = guard.
+                let (_, d, b12, g) = feat.ldcgeo[k];
+                let mut cf = anchor_base;
+                cf[4] = g;
+                let v: u32 = (d << 6) | 1;
+                cf[10] = (v & 0xff) as u8;
+                cf[11] = (v >> 8) as u8;
+                cf[12] = b12;
+                cf[13] = 0x04;
                 out.extend_from_slice(&cf);
             }
             Ev::Bar(i) => {
