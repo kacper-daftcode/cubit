@@ -1735,9 +1735,12 @@ fn merc_xor_scan(
         }
         let mut toks = ins.raw_text.split_whitespace();
         let mut first = toks.next().unwrap_or("");
-        let mut guard = 0u8;
+        // mk73: pelny kod guarda (merc_guard_code: pred<<3|uni<<1|neg,
+        // brak/@P7 -> 0xf8) zamiast troj-stanu 0/1/2 — korpus l2 exact
+        // 19374/19374 payload+b4 (merclab/mk73 c3: trsv @P0->0x00 / @!P0->
+        // 0x01 / sphpmv @!P4->0x21). Korekta rowniez dla kanalu imm 0229.
+        let guard = merc_guard_code(ins.guard.as_ref());
         if first.starts_with('@') {
-            guard = if first.starts_with("@!") { 2 } else { 1 };
             first = toks.next().unwrap_or("");
         }
         if !first.starts_with("LOP3") {
@@ -1749,14 +1752,22 @@ fn merc_xor_scan(
         if parts.len() < 5 {
             continue;
         }
-        if parts[4] != "0x3c" || !parts[3].starts_with("RZ") {
+        // mk73: .reuse tolerowane (nvdis l2 opuszcza suffix, frozen-sass
+        // drukuje) — orig rekordy dla takich lane'ow istnieja (trsv/sphpr/
+        // sphpmv; resid atlas 01290004 oo 87 -> 0).
+        fn clean73(t: &str) -> &str {
+            let t = t.trim().trim_end_matches(';').trim_end();
+            t.strip_suffix(".reuse").unwrap_or(t)
+        }
+        if clean73(parts[4]) != "0x3c" || !clean73(parts[3]).starts_with("RZ") {
             continue;
         }
         let reg = |t: &str| -> Option<u32> {
-            t.strip_prefix('R')
+            clean73(t)
+                .strip_prefix('R')
                 .and_then(|d| if d.chars().all(|c| c.is_ascii_digit()) { d.parse::<u32>().ok() } else { None })
         };
-        match parts[2]
+        match clean73(parts[2])
             .strip_prefix("0x")
             .and_then(|h| u32::from_str_radix(h, 16).ok())
         {
