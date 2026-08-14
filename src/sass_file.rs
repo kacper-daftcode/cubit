@@ -2502,6 +2502,120 @@ pub fn merc_ulop3_0606(text: &str) -> bool {
     is_upn && toks.len() == 7 && is_urn
 }
 
+
+/// mk74: mini-rodzina carry IADD3.X (korpus sm_100, merclab/mk74 c1..c10;
+/// EXACT licznikowo 5893/5893 kerneli l2: 421d0a06 305/305, 421d0814
+/// 7233/7233; atrybucja bitmapowa c3/c5 + window-TLV c1 + fit c9/quasi-final).
+/// Forma (dokladnie 8 tokenow): IADD3.X Rd, PT, PT, x, y, RZ, p, q.
+///  * tok1==tok2=="PT", tok5=="RZ", guard dowolny;
+///  * zaden token nie ma UR<num> (fail-closed — korpus: zero takich hostow);
+///  * literal imm (0x..|dziesietne, tez ujemne) w x lub y -> 42 1d 0a 06
+///    i ogon (tok6,tok7)==(Pn,Pn);
+///  * x,y oba z klasy rejestrowej ('-'/'~'/'.reuse' ok) -> 42 1d 08 14
+///    i ogon (Pn,Pn) albo (PT,PT) [PTPT tylko w chase_bulge hseqr — 14/14].
+/// Host kasuje bit bitmapy jak reszta mini2 (c3: off0 bit=0 20/20).
+pub fn merc_iadd3x_carry(text: &str) -> Option<u32> {
+    let mut t = text.trim_end_matches([';', ' ']).trim();
+    while let Some(rest) = t.strip_prefix('@') {
+        t = rest
+            .split_once(char::is_whitespace)
+            .map(|(_, r)| r.trim_start())
+            .unwrap_or("");
+    }
+    let (op, body) = match t.split_once(char::is_whitespace) {
+        Some(pr) => pr,
+        None => return None,
+    };
+    if op != "IADD3.X" {
+        return None;
+    }
+    let toks: Vec<&str> = body
+        .split(',')
+        .map(|x| x.trim().trim_end_matches([';', ',']))
+        .filter(|x| !x.is_empty())
+        .collect();
+    if toks.len() != 8 || toks[1] != "PT" || toks[2] != "PT" || toks[5] != "RZ" {
+        return None;
+    }
+    let has_ur = toks.iter().any(|tk| {
+        let t2 = tk.trim_start_matches(['-', '~', '!']).replace(".reuse", "");
+        t2.len() > 2 && t2.starts_with("UR") && t2[2..].chars().all(|c| c.is_ascii_digit())
+    });
+    if has_ur {
+        return None;
+    }
+    let is_imm = |tk: &str| -> bool {
+        let t2 = tk.trim_start_matches('-');
+        t2.starts_with("0x") || (!t2.is_empty() && t2.chars().all(|c| c.is_ascii_digit()))
+    };
+    let is_rx = |tk: &str| -> bool {
+        let t2 = tk.trim_start_matches(['-', '~']).replace(".reuse", "");
+        t2 == "RZ"
+            || (t2.len() > 1 && t2.starts_with('R') && t2[1..].chars().all(|c| c.is_ascii_digit()))
+    };
+    let is_pnum = |tk: &str| -> bool {
+        let t2 = tk.trim_start_matches('!');
+        t2.len() > 1 && t2.starts_with('P') && t2[1..].chars().all(|c| c.is_ascii_digit())
+    };
+    let t3 = toks[3].replace(".reuse", "");
+    let t4 = toks[4].replace(".reuse", "");
+    if is_imm(t3.as_str()) || is_imm(t4.as_str()) {
+        if is_pnum(toks[6]) && is_pnum(toks[7]) {
+            return Some(0x060a1d42); // 42 1d 0a 06
+        }
+        return None;
+    }
+    if !is_rx(t3.as_str()) || !is_rx(t4.as_str()) {
+        return None;
+    }
+    if (is_pnum(toks[6]) && is_pnum(toks[7])) || (toks[6] == "PT" && toks[7] == "PT") {
+        return Some(0x14081d42); // 42 1d 08 14
+    }
+    None
+}
+
+/// mk74: mini 42280c06 = ULOP3.LUT z literalem imm w tok2 (korpus EXACT
+/// 527/527; merclab/mk74 c5 bit-host + histogram: lut ZAWSZE 0xfc —
+/// 0xc0 1699 / 0x3c 53 / 0x0c 12 bez rekordu; forma R LOP3.LUT bez rekordu).
+/// Dokladnie 6 tokenow: ULOP3.LUT URd, URb, imm, URZ, 0xfc, !UPT, bez guarda.
+pub fn merc_ulop3_fcimm(text: &str) -> Option<u32> {
+    let t = text.trim_end_matches([';', ' ']).trim();
+    if t.starts_with('@') {
+        return None; // guarded: fail-closed (zero instancji w korpusie)
+    }
+    let (op, body) = match t.split_once(char::is_whitespace) {
+        Some(pr) => pr,
+        None => return None,
+    };
+    if op != "ULOP3.LUT" {
+        return None;
+    }
+    let toks: Vec<&str> = body
+        .split(',')
+        .map(|x| x.trim().trim_end_matches([';', ',']))
+        .filter(|x| !x.is_empty())
+        .collect();
+    if toks.len() != 6 || toks[3] != "URZ" || toks[5] != "!UPT" {
+        return None;
+    }
+    let lutv = u32::from_str_radix(toks[4].trim_start_matches("0x").trim_end_matches(".reuse"), 16).ok()?;
+    if lutv != 0xfc {
+        return None;
+    }
+    let is_ur = |tk: &str| -> bool {
+        let t2 = tk.trim_start_matches(['-', '~', '!']);
+        t2 == "URZ"
+            || (t2.len() > 2 && t2.starts_with("UR") && t2[2..].chars().all(|c| c.is_ascii_digit()))
+    };
+    let t2i = toks[2].trim_start_matches('-');
+    let is_imm = t2i.starts_with("0x")
+        || (!t2i.is_empty() && t2i.chars().all(|c| c.is_ascii_digit()));
+    if !is_ur(toks[0]) || !is_ur(toks[1]) || !is_imm {
+        return None;
+    }
+    Some(0x060c2842) // 42 28 0c 06
+}
+
 pub fn merc_mini2_scan(kernel_name: &str, instructions: &[Instruction]) -> Vec<(u32, u32)> {
     let ffma_dialect = merc_ffma_fp32_dialect(kernel_name);
     let mut out: Vec<(u32, u32)> = Vec::new();
@@ -2550,10 +2664,15 @@ pub fn merc_mini2_scan(kernel_name: &str, instructions: &[Instruction]) -> Vec<(
             "UIMAD" if full == "UIMAD.WIDE.U32.X" => 0x06382042,      // 42 20 38 06
             // mk70: minis 28-family (early-exit OR-fold) przed 0606; brak
             // kolizji klas (korpus-l2: fc-7tok-UPdst-!UPT z tok1=UR<num> = 0).
+            // mk74: minis-carry IADD3.X (421d0a06 imm / 421d0814 reg).
+            "IADD3" if full == "IADD3.X" && merc_iadd3x_carry(ins.raw_text.as_str()).is_some() =>
+                merc_iadd3x_carry(ins.raw_text.as_str()).unwrap(),
             "ULOP3" if merc_fold28(ins.raw_text.as_str()).is_some() =>
                 merc_fold28(ins.raw_text.as_str()).unwrap(),
             "LOP3" if merc_fold28(ins.raw_text.as_str()).is_some() =>
                 merc_fold28(ins.raw_text.as_str()).unwrap(),
+            // mk74: ULOP3.LUT imm w tok2 + lut 0xfc -> 42 28 0c 06 (po fold28/0606; klasy rozlaczne).
+            "ULOP3" if merc_ulop3_fcimm(ins.raw_text.as_str()).is_some() => 0x060c2842,
             "ULOP3" if merc_ulop3_0606(ins.raw_text.as_str()) => 0x06062a42, // mk68: 42 2a 06 06
             _ => continue,
         };
