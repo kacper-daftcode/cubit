@@ -504,6 +504,7 @@ pub fn kernel_def_to_meta(
         merc_geo_rec: mc.geo_rec,
         merc_lop3not_rec: mc.lop3not_rec,
         merc_ulop3not_rec: mc.ulop3not_rec,
+        merc_ulop3xor_rec: mc.ulop3xor_rec,
         merc_redg2_rec: mc.redg2_rec,
         merc_atomg2_rec: mc.atomg2_rec,
         merc_fence_async: mc.fence_async,
@@ -992,6 +993,8 @@ pub struct MercMcScan {
     pub lop3not_rec: Vec<(u32, [u8; 16])>,
     /// mk58: rekordy 012b080a (ULOP3.LUT NOT-MOV LUT=0x33) — (lane, 16B).
     pub ulop3not_rec: Vec<(u32, [u8; 16])>,
+    /// mk71: rekordy 01291004 (ULOP3.LUT xor LUT=0x3c, 3xUR) — (lane, 16B).
+    pub ulop3xor_rec: Vec<(u32, [u8; 16])>,
     /// mk48: rekordy 024d*32 (REDG desc/non-desc) — (lane, 32B).
     pub redg2_rec: Vec<(u32, [u8; 32])>,
     /// mk49: rekordy 024e*32 (ATOM.E/ATOMG/ATOMS) — (lane, 32B).
@@ -1552,6 +1555,10 @@ pub fn merc_mc_scan(instructions: &[Instruction], cg_sites: &std::collections::B
                 // mk58: rekord 012b080a (ULOP3.LUT NOT-MOV, LUT=0x33).
                 if let Some(r) = crate::mercury::merc_ulop3_not_record(t, merc_guard_code(ins.guard.as_ref())) {
                     o.ulop3not_rec.push((lane, r));
+                }
+                // mk71: rekord 01291004 (ULOP3.LUT xor LUT=0x3c, 3xUR).
+                if let Some(r) = crate::mercury::merc_ulop3_xor_record(t, merc_guard_code(ins.guard.as_ref())) {
+                    o.ulop3xor_rec.push((lane, r));
                 }
             }
             "REDG" => {
@@ -2336,7 +2343,8 @@ pub fn merc_ffma_fp32_dialect(kernel_name: &str) -> bool {
 /// mk70: minis rodziny 28 (early-exit prolog idiom cublas-COMMONS:
 /// OR-fold predykatow przez (U)LOP3.LUT zakonczony @P EXIT / BRA[.U]).
 /// Wartosci little-endian dwojtagow 4B:
-///   41 27 10 04 = ULOP3.LUT 6tok, lut=0xc0, pin=!UPT, tok1/tok2 bez imm
+///   41 27 10 04 = ULOP3.LUT 6tok, lut in {0xc0,0x30,0x0c} (mk71 AND-fam),
+///     pin=!UPT, tok1/tok2 bez imm
 ///                 (korpus-l2 resid: klaster cublasLt-xmma selfimm, park mk71)
 ///   41 28 10 04 = ULOP3.LUT lut=0xfc pin=!UPT: 6tok dst=UR<n> bez imm
 ///                 LUB 7tok dst=UP<n>
@@ -2396,10 +2404,15 @@ pub fn merc_fold28(text: &str) -> Option<u32> {
         && dst[1..].chars().all(|c| c.is_ascii_digit());
     let noimm12 = !merc_tok_imm70(toks[1]) && !merc_tok_imm70(toks[2]);
     if is_u {
-        if lutv == 0xc0 && n == 6 && pin == "!UPT" && noimm12 {
+        // mk71: klasa 41271004 = rodzina AND 2-op (a&b=0xc0, a&~b=0x30,
+        // !a&b=0x0c) — korpus-l2 1395/1395 EXACT (merclab/mk71 c4/c8:
+        // 0x30 218 + 0x0c 2, zero over; bitmap: 212/218 host-bit=0 jak mk58).
+        if (lutv == 0xc0 || lutv == 0x30 || lutv == 0x0c) && n == 6 && pin == "!UPT" && noimm12 {
             return Some(0x04102741); // 41 27 10 04
         }
-        if lutv == 0xfc && pin == "!UPT" && noimm12 && ((n == 6 && is_urn) || (n == 7 && is_upn)) {
+        // mk71: klasa 41281004 = rodzina OR 2-op: 0xfc (a|b) + 0xf3
+        // (a|!b; xmma f3 185/185 EXACT, wszystkie 6tok URdst, bitmap 185/185).
+        if (lutv == 0xfc || lutv == 0xf3) && pin == "!UPT" && noimm12 && ((n == 6 && is_urn) || (n == 7 && is_upn)) {
             return Some(0x04102841); // 41 28 10 04 (magma-URdst / nvdis-UPdst)
         }
         // mk70b: pisownia cubit dla nvdis-7tok `UP0, URZ, a, b, URZ, 0xfc, !UPT`

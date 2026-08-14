@@ -1377,6 +1377,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         merc_cs2r_rec: Vec::new(),
         merc_lop3not_rec: Vec::new(),
         merc_ulop3not_rec: Vec::new(),
+        merc_ulop3xor_rec: Vec::new(),
         merc_d1wc47: None,
         merc_redg2_rec: Vec::new(),
         merc_atomg2_rec: Vec::new(),

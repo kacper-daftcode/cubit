@@ -783,6 +783,8 @@ pub struct McScanOut {
     pub lop3not_rec: Vec<(u32, [u8; 16])>,
     /// mk58: rekordy 012b080a (ULOP3.LUT NOT-MOV LUT=0x33) — (lane, 16B).
     pub ulop3not_rec: Vec<(u32, [u8; 16])>,
+    /// mk71: rekordy 01291004 (ULOP3.LUT xor LUT=0x3c, 3xUR) — (lane, 16B).
+    pub ulop3xor_rec: Vec<(u32, [u8; 16])>,
     /// mk48: rekordy 024d*32 (REDG desc/non-desc) — (lane, 32B).
     pub redg2_rec: Vec<(u32, [u8; 32])>,
     /// mk49: rekordy 024e*32 (ATOM.E/ATOMG/ATOMS) — (lane, 32B).
@@ -866,6 +868,7 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
         geo_rec: Vec::new(),
         lop3not_rec: Vec::new(),
         ulop3not_rec: Vec::new(),
+        ulop3xor_rec: Vec::new(),
         redg2_rec: Vec::new(),
         atomg2_rec: Vec::new(),
         fence_async: Vec::new(),
@@ -1054,6 +1057,10 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
                 // mk58: rekord 012b080a (ULOP3.LUT NOT-MOV, LUT=0x33).
                 if let Some(r) = merc_ulop3_not_record(t, it.guard_code) {
                     o.ulop3not_rec.push((lane, r));
+                }
+                // mk71: rekord 01291004 (ULOP3.LUT xor LUT=0x3c, 3xUR).
+                if let Some(r) = merc_ulop3_xor_record(t, it.guard_code) {
+                    o.ulop3xor_rec.push((lane, r));
                 }
             }
             "REDG" => {
@@ -1871,6 +1878,72 @@ pub fn merc_lop3_not_record(text: &str, guard_code: u8) -> Option<[u8; 16]> {
     let sv = rs << 6;
     r[14] = (sv & 0xff) as u8;
     r[15] = (sv >> 8) as u8;
+    Some(r)
+}
+
+/// mk71: rozpoznanie lane'a xor-U (`ULOP3.LUT URd, URa, URb, URZ, 0x3c, !UPT`)
+/// -> rekord 01 29 10 04 (16B, layout jak 0129-R / rec_xor_reg: marker
+/// 01 f8 @[8..10], dst@[10..12]=(d<<6)|1, srcA@[12..14]=a<<6,
+/// srcB@[14..16]=b<<6). Korpus l2: 491/491 EXACT (licznik per kernel),
+/// parkowanie payloadu potwierdzone na wszystkich 491 parach
+/// (merclab/mk71 c7: b4=0xfa zawsze, wszystkie lane'y niegarded,
+/// naglowek staly 01 29 10 04 fa 00 04 00 01 f8). imm-forma 0x3c (348)
+/// bez rekordu; formy z innym LUT/pin/tokenami poza klasa.
+pub fn merc_ulop3_xor_record(text: &str, guard_code: u8) -> Option<[u8; 16]> {
+    let body0 = text.trim();
+    let body = match body0.strip_prefix('@') {
+        Some(r) => r
+            .split_once(char::is_whitespace)
+            .map(|(_, x)| x.trim_start())
+            .unwrap_or(body0),
+        None => body0,
+    };
+    if !body.starts_with("ULOP3.LUT") {
+        return None;
+    }
+    let rest = body["ULOP3.LUT".len()..].trim();
+    let toks: Vec<&str> = rest.split(',').collect();
+    if toks.len() == 6 {
+        // jedyna forma korpusowa: 6 tok = dst,a,b,URZ,0x3c,!UPT.
+    } else {
+        return None;
+    }
+    fn clean(s: &str) -> &str {
+        let t = s.trim();
+        let t = t.strip_suffix(';').map(str::trim_end).unwrap_or(t);
+        t.strip_suffix(".reuse").unwrap_or(t)
+    }
+    // guard jak mk58 (012b080a): brak -> 0xfa; korpusowo @!UPn = (n<<3)|3
+    // (nieobserwowane dla 0x3c; symetria rodziny 012x), pozytywny -> brak.
+    let g4: u8 = if guard_code == 0xf8 {
+        0xfa
+    } else if (guard_code & 0x07) == 0x03 {
+        guard_code
+    } else {
+        return None;
+    };
+    if clean(toks[3]) != "URZ" || clean(toks[4]) != "0x3c" || clean(toks[5]) != "!UPT" {
+        return None;
+    }
+    // imm-formy poza klasa (348 w l2): a/b musza byc czystymi UR<n>.
+    let rd: u32 = clean(toks[0]).strip_prefix("UR")?.parse().ok()?;
+    let ra: u32 = clean(toks[1]).strip_prefix("UR")?.parse().ok()?;
+    let rb: u32 = clean(toks[2]).strip_prefix("UR")?.parse().ok()?;
+    if rd > 0x3ff || ra > 0x3ff || rb > 0x3ff {
+        return None;
+    }
+    let mut r = [0u8; 16];
+    r[0] = 0x01;
+    r[1] = 0x29;
+    r[2] = 0x10;
+    r[3] = 0x04;
+    r[4] = g4;
+    r[6] = 0x04;
+    r[8] = 0x01;
+    r[9] = 0xf8;
+    r[10..12].copy_from_slice(&(((rd << 6) | 1) as u16).to_le_bytes());
+    r[12..14].copy_from_slice(&((ra << 6) as u16).to_le_bytes());
+    r[14..16].copy_from_slice(&((rb << 6) as u16).to_le_bytes());
     Some(r)
 }
 
