@@ -2087,7 +2087,11 @@ fn cmd_asm_build_elf(
                             && parts5[3].starts_with("RZ")
                             && parts5.len() >= 5
                         {
+                            // mk73: .reuse tolerowane (lustro sass_file
+                            // merc_xor_scan; resid trsv/sphpr/sphpmv).
                             let preg = |t: &str| -> Option<u32> {
+                                let t = t.trim();
+                                let t = t.strip_suffix(".reuse").unwrap_or(t);
                                 t.strip_prefix('R').and_then(|d| {
                                     if d.chars().all(|c| c.is_ascii_digit()) {
                                         d.parse::<u32>().ok()
@@ -2100,12 +2104,33 @@ fn cmd_asm_build_elf(
                                 Some(k) => clean[k + 2..].trim_start(),
                                 None => clean,
                             };
-                            let guard_x: u8 = if body_x.starts_with("@!") {
-                                2
-                            } else if body_x.starts_with('@') {
-                                1
-                            } else {
-                                0
+                            // mk73: pelny kod guarda jak merc_guard_code
+                            // (pred<<3|uni<<1|neg; brak/@P7 -> 0xf8) —
+                            // korpus l2 exact 19374/19374 (merclab/mk73 c3).
+                            let guard_x: u8 = match body_x.strip_prefix('@') {
+                                None => 0xf8,
+                                Some(gr) => {
+                                    let (neg, gr2) = match gr.strip_prefix('!') {
+                                        Some(x) => (true, x),
+                                        None => (false, gr),
+                                    };
+                                    let (uni, gr3) = match gr2.strip_prefix('U') {
+                                        Some(x) => (true, x),
+                                        None => (false, gr2),
+                                    };
+                                    let gr3 = gr3.trim_start_matches('P');
+                                    let digits: String = gr3
+                                        .chars()
+                                        .take_while(|c| c.is_ascii_digit())
+                                        .collect();
+                                    match (digits.parse::<u8>(), neg) {
+                                        (Ok(7), false) => 0xf8,
+                                        (Ok(pd), _) => {
+                                            (pd << 3) | ((uni as u8) << 1) | (neg as u8)
+                                        }
+                                        _ => 0xf8,
+                                    }
+                                }
                             };
                             if let Some(ih) =
                                 parts5[2].strip_prefix("0x").and_then(|h| u32::from_str_radix(h, 16).ok())

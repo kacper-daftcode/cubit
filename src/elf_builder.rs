@@ -717,13 +717,10 @@ impl MercFeatures {
         f.param_uniform = meta.merc_param_uniform;
         f.param_regpath = meta.merc_param_regpath;
         f.param_width = meta.merc_param_width.clone();
-        f.xor_lanes = meta
-            .merc_xor
-            .iter()
-            .map(|&(lane, d, src, imm, g)| {
-                (lane, d, src, imm, match g { 0 => 0xf8, 1 => 0x00, _ => 0x01 })
-            })
-            .collect();
+        // mk73: guard byte juz finalny w meta (0xf8 / pred<<3|uni<<1|neg) —
+        // skany (sass_file merc_xor_scan + main.rs lustro) licza pelny kod
+        // korpusowy; mapowanie legacy 0/1/2 usuniete.
+        f.xor_lanes = meta.merc_xor.clone();
         f.bar_pos = meta.merc_bar_pos.clone();
         f.bar_args = meta.merc_bar_args.clone();
         f.stg_pos = meta.merc_stg_pos.clone();
@@ -869,13 +866,7 @@ impl MercFeatures {
             }
             f.redux.sort();
         }
-        f.xor_reg_lanes = meta
-            .merc_xor_reg
-            .iter()
-            .map(|&(lane, d, a, b, g)| {
-                (lane, d, a, b, match g { 0 => 0xf8, 1 => 0x00, _ => 0x01 })
-            })
-            .collect();
+        f.xor_reg_lanes = meta.merc_xor_reg.clone();
         f.mma_lanes = meta.merc_mma.clone();
         f.f64_lanes = meta.merc_f64imm.clone();
         f.dfmaim = meta.merc_dfmaimm.clone();
