@@ -425,6 +425,8 @@ pub struct MercFeatures {
     pub ulop3not_rec: Vec<(u32, [u8; 16])>,
     /// mk71: rekordy 01291004 (ULOP3 xor 0x3c, 3xUR).
     pub ulop3xor_rec: Vec<(u32, [u8; 16])>,
+    /// mk72: rekordy 01290804 (LOP3 xor 0x3c, R,R,UR).
+    pub lop3xorur_rec: Vec<(u32, [u8; 16])>,
     /// mk59: rekordy d10102-47 per WC-site (NOP-region) — (lane, maska R).
     pub d1wc47: Vec<(u32, u8)>,
     /// mk59: skan tekstowy dostepny (Some) vs mk15b-legacy fallback.
@@ -543,6 +545,7 @@ impl MercFeatures {
             lop3not_rec: meta.merc_lop3not_rec.clone(),
             ulop3not_rec: meta.merc_ulop3not_rec.clone(),
             ulop3xor_rec: meta.merc_ulop3xor_rec.clone(),
+            lop3xorur_rec: meta.merc_lop3xorur_rec.clone(),
             d1wc47: meta.merc_d1wc47.clone().unwrap_or_default(),
             d1wc47_scanned: meta.merc_d1wc47.is_some(),
             // mk15b-legacy (sciezki bez skanu tekstu, np. microlab-gold surowe
@@ -1532,6 +1535,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         McLop3NotRec(usize),
         McUlop3NotRec(usize),
         McUlop3XorRec(usize),
+        McLop3XorUrRec(usize),
         McD1Wc47(usize),
         Redux2(usize),
         McRedg2(usize),
@@ -1871,6 +1875,10 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for (k, _) in feat.ulop3xor_rec.iter().enumerate() {
         ev.push((feat.ulop3xor_rec[k].0, 20, Ev::McUlop3XorRec(k)));
     }
+    // mk72: rekordy 01290804 (LOP3 xor R,R,UR) — tier 20 jak mk71.
+    for (k, _) in feat.lop3xorur_rec.iter().enumerate() {
+        ev.push((feat.lop3xorur_rec[k].0, 20, Ev::McLop3XorUrRec(k)));
+    }
     // mk59: rekordy d10102-47 per WC-site (NOP-region); tier 20, lane WC.
     for (k, _) in feat.d1wc47.iter().enumerate() {
         ev.push((feat.d1wc47[k].0, 20, Ev::McD1Wc47(k)));
@@ -1907,7 +1915,9 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         cf[11] = (v >> 8) as u8;
         cf
     };
-    for (_, _, kind) in ev {
+    let tlv_trace = std::env::var_os("CUBIT_TLV_TRACE").is_some();
+    for (tl_lane, tl_tier, kind) in ev {
+        let tl_before = out.len();
         match kind {
             Ev::Desc(j) => out.extend_from_slice(&mk10c_rec_desc(feat.param_loads[j], roles[j])),
             Ev::Cbank => {
@@ -2210,6 +2220,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::McLop3NotRec(k) => out.extend_from_slice(&feat.lop3not_rec[k].1),
             Ev::McUlop3NotRec(k) => out.extend_from_slice(&feat.ulop3not_rec[k].1),
             Ev::McUlop3XorRec(k) => out.extend_from_slice(&feat.ulop3xor_rec[k].1),
+            Ev::McLop3XorUrRec(k) => out.extend_from_slice(&feat.lop3xorur_rec[k].1),
             // mk59: d10102-47 z rzeczywistym regiem maski (lane WC-site).
             Ev::McD1Wc47(k) => {
                 out.extend_from_slice(&crate::mercury::merc_d1wc47_record(feat.d1wc47[k].1))
@@ -2252,6 +2263,11 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 rc[28..32].copy_from_slice(&imm.to_le_bytes());
                 out.extend_from_slice(&rc);
             }
+        }
+        if tlv_trace {
+            let rec = &out[tl_before..];
+            let tag: String = rec.iter().take(4).map(|b| format!("{b:02x}")).collect();
+            eprintln!("TLVTRACE lane={tl_lane} tier={tl_tier} tag={tag} n={}", rec.len());
         }
     }
     // mk15b/mk59-legacy: rekordy d1-34B za blokami kolektywnymi plain-BSSY
@@ -2941,6 +2957,11 @@ pub fn generate_mercury_full(
     for &(l, _) in &meta.merc_ulop3xor_rec {
         bit0.insert(l);
     }
+    // mk72: jak mk71 — lane LOP3 xor-mieszany (R,R,UR) bez bitu bitmapy
+    // (rodzina 012x zastepuje wezel t4; korpusowe lane'y niegarded).
+    for &(l, _) in &meta.merc_lop3xorur_rec {
+        bit0.insert(l);
+    }
     // debug mk30: wypisz bit0/dialekt pod CUBIT_DEBUG_MC=1
     if std::env::var_os("CUBIT_DEBUG_MC").is_some() {
         eprintln!(
@@ -3108,6 +3129,9 @@ pub fn generate_mercury_full(
         None => MercFeatures::default(),
     };
     feat.era_sm100 = era_sm100;
+    if std::env::var_os("CUBIT_TLV_TRACE").is_some() {
+        eprintln!("TLVKERNEL {}", meta.name);
+    }
     emit_feature_records(&mut buf, &feat);
     // regula tail: f(trim-count) — NIE f(B)! (100% na 27,846-korpusie)
     buf.extend_from_slice(&tail_for_instr_count(end as u32).to_le_bytes());
