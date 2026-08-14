@@ -785,6 +785,8 @@ pub struct McScanOut {
     pub ulop3not_rec: Vec<(u32, [u8; 16])>,
     /// mk71: rekordy 01291004 (ULOP3.LUT xor LUT=0x3c, 3xUR) — (lane, 16B).
     pub ulop3xor_rec: Vec<(u32, [u8; 16])>,
+    /// mk72: rekordy 01290804 (LOP3.LUT xor LUT=0x3c, Rd=R,Ra=R,srcB=UR) — (lane, 16B).
+    pub lop3xorur_rec: Vec<(u32, [u8; 16])>,
     /// mk48: rekordy 024d*32 (REDG desc/non-desc) — (lane, 32B).
     pub redg2_rec: Vec<(u32, [u8; 32])>,
     /// mk49: rekordy 024e*32 (ATOM.E/ATOMG/ATOMS) — (lane, 32B).
@@ -869,6 +871,7 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
         lop3not_rec: Vec::new(),
         ulop3not_rec: Vec::new(),
         ulop3xor_rec: Vec::new(),
+        lop3xorur_rec: Vec::new(),
         redg2_rec: Vec::new(),
         atomg2_rec: Vec::new(),
         fence_async: Vec::new(),
@@ -1051,6 +1054,10 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
                 // mk47: rekord 012b{00|04}0a (LOP3.LUT NOT-MOV, LUT=0x33).
                 if let Some(r) = merc_lop3_not_record(t, it.guard_code) {
                     o.lop3not_rec.push((lane, r));
+                }
+                // mk72: rekord 01290804 (LOP3.LUT xor LUT=0x3c, R,R,UR).
+                if let Some(r) = merc_lop3_xor_ur_record(t, it.guard_code) {
+                    o.lop3xorur_rec.push((lane, r));
                 }
             }
             "ULOP3" => {
@@ -1938,6 +1945,67 @@ pub fn merc_ulop3_xor_record(text: &str, guard_code: u8) -> Option<[u8; 16]> {
     r[2] = 0x10;
     r[3] = 0x04;
     r[4] = g4;
+    r[6] = 0x04;
+    r[8] = 0x01;
+    r[9] = 0xf8;
+    r[10..12].copy_from_slice(&(((rd << 6) | 1) as u16).to_le_bytes());
+    r[12..14].copy_from_slice(&((ra << 6) as u16).to_le_bytes());
+    r[14..16].copy_from_slice(&((rb << 6) as u16).to_le_bytes());
+    Some(r)
+}
+
+/// mk72: rozpoznanie lane'a xor-mieszanego R/R/UR (`LOP3.LUT Rd, Ra, URb, RZ,
+/// 0x3c, !PT`) -> rekord 01 29 08 04 (16B, layout jak 0129-R / rec_xor_reg
+/// z b2=0x08; b4=0xf8 stale — wszystkie 271 lane'ow korpusowych niegarded,
+/// formy guarded nieobserwowane -> fail-closed). dst@[10..12]=(d<<6)|1,
+/// srcA@[12..14]=a<<6, srcB@[14..16]=b<<6. Korpus l2: 271/271 EXACT
+/// licznikowo (liczba rekordow == liczba kandydatow per kernel, zero
+/// wyjatkow) i payloadowo (k-ty rekord <-> k-ty kandydat, naglowek staly
+/// 01 29 08 04 f8 00 04 00 01 f8 — merclab/mk72 c11/c12). Pozostale formy
+/// xor poza klasa: (R,R,R)->01290004 mk13, (R,R,imm)->kanal imm mk13,
+/// (UR,UR,UR)->01291004 mk71, guarded/brak pina/inne litery -> brak.
+pub fn merc_lop3_xor_ur_record(text: &str, guard_code: u8) -> Option<[u8; 16]> {
+    let body0 = text.trim();
+    let body = match body0.strip_prefix('@') {
+        Some(r) => r
+            .split_once(char::is_whitespace)
+            .map(|(_, x)| x.trim_start())
+            .unwrap_or(body0),
+        None => body0,
+    };
+    if !body.starts_with("LOP3.LUT") {
+        return None;
+    }
+    let rest = body["LOP3.LUT".len()..].trim();
+    let toks: Vec<&str> = rest.split(',').collect();
+    // jedyna forma korpusowa: 6 tok = Rd,Ra,URb,RZ,0x3c,!PT.
+    if toks.len() != 6 {
+        return None;
+    }
+    fn clean(s: &str) -> &str {
+        let t = s.trim();
+        let t = t.strip_suffix(';').map(str::trim_end).unwrap_or(t);
+        t.strip_suffix(".reuse").unwrap_or(t)
+    }
+    // korpusowo wylacznie brak guarda (b4=0xf8); pozostale kody -> fail-closed.
+    if guard_code != 0xf8 {
+        return None;
+    }
+    if clean(toks[3]) != "RZ" || clean(toks[4]) != "0x3c" || clean(toks[5]) != "!PT" {
+        return None;
+    }
+    let rd: u32 = clean(toks[0]).strip_prefix('R')?.parse().ok()?;
+    let ra: u32 = clean(toks[1]).strip_prefix('R')?.parse().ok()?;
+    let rb: u32 = clean(toks[2]).strip_prefix("UR")?.parse().ok()?;
+    if rd > 0x3ff || ra > 0x3ff || rb > 0x3ff {
+        return None;
+    }
+    let mut r = [0u8; 16];
+    r[0] = 0x01;
+    r[1] = 0x29;
+    r[2] = 0x08;
+    r[3] = 0x04;
+    r[4] = 0xf8;
     r[6] = 0x04;
     r[8] = 0x01;
     r[9] = 0xf8;
