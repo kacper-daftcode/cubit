@@ -423,6 +423,8 @@ pub struct MercFeatures {
     pub lop3not_rec: Vec<(u32, [u8; 16])>,
     /// mk58: rekordy 012b080a (ULOP3 NOT-MOV).
     pub ulop3not_rec: Vec<(u32, [u8; 16])>,
+    /// mk71: rekordy 01291004 (ULOP3 xor 0x3c, 3xUR).
+    pub ulop3xor_rec: Vec<(u32, [u8; 16])>,
     /// mk59: rekordy d10102-47 per WC-site (NOP-region) — (lane, maska R).
     pub d1wc47: Vec<(u32, u8)>,
     /// mk59: skan tekstowy dostepny (Some) vs mk15b-legacy fallback.
@@ -540,6 +542,7 @@ impl MercFeatures {
             cs2r_rec: meta.merc_cs2r_rec.clone(),
             lop3not_rec: meta.merc_lop3not_rec.clone(),
             ulop3not_rec: meta.merc_ulop3not_rec.clone(),
+            ulop3xor_rec: meta.merc_ulop3xor_rec.clone(),
             d1wc47: meta.merc_d1wc47.clone().unwrap_or_default(),
             d1wc47_scanned: meta.merc_d1wc47.is_some(),
             // mk15b-legacy (sciezki bez skanu tekstu, np. microlab-gold surowe
@@ -1528,6 +1531,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         McCs2rRec(usize),
         McLop3NotRec(usize),
         McUlop3NotRec(usize),
+        McUlop3XorRec(usize),
         McD1Wc47(usize),
         Redux2(usize),
         McRedg2(usize),
@@ -1863,6 +1867,9 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     // mk58: rekordy 012b080a (ULOP3 NOT-MOV); tier 20 jak mk47.
     for (k, _) in feat.ulop3not_rec.iter().enumerate() {
         ev.push((feat.ulop3not_rec[k].0, 20, Ev::McUlop3NotRec(k)));
+    }
+    for (k, _) in feat.ulop3xor_rec.iter().enumerate() {
+        ev.push((feat.ulop3xor_rec[k].0, 20, Ev::McUlop3XorRec(k)));
     }
     // mk59: rekordy d10102-47 per WC-site (NOP-region); tier 20, lane WC.
     for (k, _) in feat.d1wc47.iter().enumerate() {
@@ -2202,6 +2209,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::McCs2rRec(k) => out.extend_from_slice(&feat.cs2r_rec[k].1),
             Ev::McLop3NotRec(k) => out.extend_from_slice(&feat.lop3not_rec[k].1),
             Ev::McUlop3NotRec(k) => out.extend_from_slice(&feat.ulop3not_rec[k].1),
+            Ev::McUlop3XorRec(k) => out.extend_from_slice(&feat.ulop3xor_rec[k].1),
             // mk59: d10102-47 z rzeczywistym regiem maski (lane WC-site).
             Ev::McD1Wc47(k) => {
                 out.extend_from_slice(&crate::mercury::merc_d1wc47_record(feat.d1wc47[k].1))
@@ -2927,6 +2935,10 @@ pub fn generate_mercury_full(
     }
     // mk58: jak mk47 — lane ULOP3 NOT-MOV bez bitu (675/134 c5).
     for &(l, _) in &meta.merc_ulop3not_rec {
+        bit0.insert(l);
+    }
+    // mk71: jak mk58 — lane ULOP3 xor-0x3c bez bitu (host bit=0, c3/c9).
+    for &(l, _) in &meta.merc_ulop3xor_rec {
         bit0.insert(l);
     }
     // debug mk30: wypisz bit0/dialekt pod CUBIT_DEBUG_MC=1

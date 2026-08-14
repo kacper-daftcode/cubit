@@ -592,6 +592,8 @@ pub struct KernelMeta {
     pub merc_lop3not_rec: Vec<(u32, [u8; 16])>,
     /// mk58: rekordy 012b080a (ULOP3.LUT NOT-MOV) — (lane, 16B).
     pub merc_ulop3not_rec: Vec<(u32, [u8; 16])>,
+    /// mk71: rekordy 01291004 (ULOP3.LUT xor LUT=0x3c, 3xUR) — (lane, 16B).
+    pub merc_ulop3xor_rec: Vec<(u32, [u8; 16])>,
     /// mk59: rekordy d10102 wariant 47 per WC-site NOP-region — (lane, maska R).
     /// None = sciezka bez skanu tekstu (mk15b-legacy fallback w elf_builder),
     /// Some(vec) = skan po instrukcjach (kernel_def_to_meta / mc_scan_lines).
@@ -816,6 +818,7 @@ impl KernelMeta {
             merc_cs2r_rec: Vec::new(),
             merc_lop3not_rec: Vec::new(),
             merc_ulop3not_rec: Vec::new(),
+            merc_ulop3xor_rec: Vec::new(),
             merc_d1wc47: None,
             merc_redg2_rec: Vec::new(),
             merc_atomg2_rec: Vec::new(),
@@ -1277,6 +1280,7 @@ mod tests {
             merc_cs2r_rec: Vec::new(),
             merc_lop3not_rec: Vec::new(),
             merc_ulop3not_rec: Vec::new(),
+            merc_ulop3xor_rec: Vec::new(),
             merc_d1wc47: None,
             merc_redg2_rec: Vec::new(),
             merc_atomg2_rec: Vec::new(),
