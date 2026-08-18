@@ -23,7 +23,8 @@ pub fn to_sass(insn: &DecodedInst) -> String {
     });
     // Uniform-datapath instructions print their guard as @UPn/@!UPn (nvdisasm);
     // the guard bits [15:12] encode only (pred, neg) — uniformness follows the family.
-    let is_uni = insn.key.starts_with('U') || insn.key.starts_with("LDCU");
+    let is_uni = insn.key.starts_with('U') || insn.key.starts_with("LDCU")
+        || insn.key.starts_with("SYNCS_UR") || insn.key.starts_with("S2UR");
     let guard = if has_guard_field {
         format_guard_uni(tok0_fields, is_uni)
     } else {
@@ -35,12 +36,14 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             String::new() // PT = no guard (unconditional)
         } else if pred == 7 && neg != 0 {
             // @!UPT (uniform) or @!PT (regular) — QMMA drain pattern
-            let uni = insn.key.starts_with("UIADD3") || insn.key.starts_with("U");
+            let uni = insn.key.starts_with("UIADD3") || insn.key.starts_with("U")
+                || insn.key.starts_with("SYNCS_UR") || insn.key.starts_with("S2UR");
             if uni { "@!UPT".to_string() } else { "@!PT".to_string() }
         } else {
             let neg_s = if neg != 0 { "!" } else { "" };
             // Detect uniform predicates from instruction opcode family
-            let uni = insn.key.starts_with("UIADD3") || insn.key.starts_with("U");
+            let uni = insn.key.starts_with("UIADD3") || insn.key.starts_with("U")
+                || insn.key.starts_with("SYNCS_UR") || insn.key.starts_with("S2UR");
             if uni { format!("@{neg_s}UP{pred}") } else { format!("@{neg_s}P{pred}") }
         }
     };
@@ -139,6 +142,15 @@ pub fn to_sass(insn: &DecodedInst) -> String {
 
     let is_s2r = matches!(insn.opcode.as_str(), "S2R" | "S2UR" | "CS2R");
 
+    // Instruction-level descriptor-family marker: true when ANY token carries
+    // a tcgen05 descriptor field (used to route the field-less UTC idesc tok5).
+    let inst_is_utc_desc = insn.fields.iter().any(|f| {
+        let e = norm_ext(&f.extraction);
+        matches!(e.as_str(),
+            "tdesc_ur" | "gdesc_ur" | "tmem_ur" | "idesc_ur"
+            | "gdesc_off" | "tmem_off" | "idesc_off" | "tdesc_off")
+    });
+
     let mut operands: Vec<String> = Vec::new();
     for (i, op_type) in op_types.iter().enumerate() {
         let tok = (i + 1) as i32;
@@ -167,11 +179,13 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             // breaks our own text->encode roundtrip (encoder treats it as address).
             let v = (((raw >> 18) & 0x3F) as u64) | ((((raw >> 34) & 0x3FF) as u64) << 6);
             format!("0x{:x}", insn.addr as u64 + 16 + (v << 4))
-        } else if has_desc_family {
+        } else if has_desc_family || (inst_is_utc_desc && tok == 5) {
             // tcgen05 descriptor operand: InsKey sig may read II but the text
             // form is kind[URN(+0xoff)] — gdesc[]/tmem[]/idesc[] (UTCHMMA,
             // UTCQMMA, LDTM, STTM, …). UTC tok5 (idesc) may have NO field:
             // hardware then derives UR_idesc == UR_tmem2 + 1 (run27 rule).
+            // The empty-fields tok5 still must route here (else the generic
+            // operand path prints "0x0" — F3).
             format_utc_desc(tok, by_token.get(&tok).map(Vec::as_slice).unwrap_or(&[]),
                             by_token.get(&4).map(Vec::as_slice).unwrap_or(&[]))
         } else {
@@ -497,6 +511,16 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     // HSETP2.BF16_V2.NEU.AND — the vector-width modifier precedes the comparison
     // in nvdisasm output for the half-precision setp family.
     if m == "BF16_V2" && matches!(base, "HSETP" | "HSETP2") { return 0; }
+    // op18: UTCATOMSWS — nvdisasm order: 2CTA < op (FIND_AND_SET/AND) < ALIGN
+    // (UTCATOMSWS.2CTA.FIND_AND_SET.ALIGN, UTCATOMSWS.FIND_AND_SET.ALIGN).
+    if base == "UTCATOMSWS" {
+        match m {
+            "2CTA" => return 1,
+            "FIND_AND_SET" | "AND" | "OR" | "XOR" | "EXCH" => return 4,
+            "ALIGN" => return 5,
+            _ => {}
+        }
+    }
     // IMAD.HI means "high-half product" and appears BEFORE the data type: IMAD.HI.U32
     if m == "HI" && matches!(base, "IMAD" | "IMAD_U32" | "IMAD_S32") { return 4; }
     // SH (shift-count hint) in FLO comes AFTER the data type: FLO.U32.SH
@@ -505,6 +529,18 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     if m == "SX32" && base == "LEA" { return 9; }
     // ULEA.HI.X.SX32 — same
     if m == "SX32" && base == "ULEA" { return 9; }
+    // UTMA* (TMEM/tensor descriptor ops): nvdisasm order is
+    // L2 hint < dimensionality < MULTICAST < 2CTA < op
+    // (UTMAPF.L2.3D, UTMALDG.3D.MULTICAST.2CTA, UTMAREDG.3D.ADD).
+    if matches!(base, "UTMALDG" | "UTMASTG" | "UTMAPF" | "UTMAREDG" | "UTMACCTL") {
+        match m {
+            "L2" => return 1,
+            "2D" | "3D" | "4D" | "5D" => return 2,
+            "MULTICAST" => return 3,
+            "2CTA" => return 4,
+            _ => {}
+        }
+    }
     // ATOMG/REDG/ATOMS: E first, then operation, then consistency (STRONG), then scope (GPU/SYS)
     if matches!(base, "ATOMG" | "REDG" | "ATOMS" | "ATOM") {
         match m {
@@ -1066,11 +1102,22 @@ fn format_imm(fields: &[&DecodedField], _mod_group: &str, ins_key: &str) -> Stri
         // For other instructions: show as signed hex if abs <= 0xFFFFFF, else unsigned.
         if imm < 0 {
             let abs_val = (-imm) as u64;
-            let is_unsigned_op = ins_key.starts_with("MOV") || ins_key.starts_with("UMOV")
-                || ins_key.starts_with("SHF") || ins_key.starts_with("USHF");
-            // ISETP/UISETP immediates: nvdisasm always prints two's-complement signed
-            // hex for negative s32 values regardless of .U32 (e.g. -0x1, -0x3400000).
-            let is_setp = ins_key.starts_with("ISETP") || ins_key.starts_with("UISETP");
+            // Whole-mnemonic sign families measured on the sm_103a corpus (op16):
+            // unsigned always: VIADD-family (prefix order matters:
+            // VIADDMNMX before VIADD), LOP3/ULOP3, SEL/USEL, LEA/ULEA, MOV/UMOV,
+            // SHF/USHF. Signed always (incl abs > 0xFFFFFF): *SETP, IADD3/UIADD3,
+            // IMAD/UIMAD, VIMNMX.
+            let is_unsigned_op = ins_key.starts_with("VIADDMNMX")
+                || ins_key.starts_with("MOV") || ins_key.starts_with("UMOV")
+                || ins_key.starts_with("SHF") || ins_key.starts_with("USHF")
+                || ins_key.starts_with("VIADD") || ins_key.starts_with("SEL")
+                || ins_key.starts_with("USEL") || ins_key.starts_with("LEA")
+                || ins_key.starts_with("ULEA") || ins_key.starts_with("LOP3")
+                || ins_key.starts_with("ULOP3");
+            let is_setp = ins_key.starts_with("ISETP") || ins_key.starts_with("UISETP")
+                || ins_key.starts_with("IADD3") || ins_key.starts_with("UIADD3")
+                || ins_key.starts_with("IMAD") || ins_key.starts_with("UIMAD")
+                || ins_key.starts_with("VIMNMX");
             if is_setp {
                 return format!("-0x{abs_val:x}");
             } else if is_unsigned_op {
@@ -1272,8 +1319,10 @@ fn format_utc_desc(tok: i32, fields: &[&DecodedField], tok4_fields: &[&DecodedFi
             }
         }
     }
+    // nvdisasm prints UR63 literally for desc operands (idesc[UR63]); only
+    // 255 aliases to URZ in this family.
     let ur_s = match ur {
-        Some(63) | Some(255) | None => "URZ".to_string(),
+        Some(255) | None => "URZ".to_string(),
         Some(n) => format!("UR{n}"),
     };
     if off != 0 {

@@ -342,12 +342,33 @@ impl DecodeIndex {
                     ((code_clean ^ c.and_base) & free).count_ones() as i32
                 })
                 .unwrap_or(0);
+            // Family-hijack detector: bits claimed by this entry's FIELDS but NOT
+            // marked variable (constant in the training slice) that DISAGREE with
+            // and_base. Wide composite fields can swallow opcode/family
+            // discriminator bits (e.g. UTCHMMA's 17-bit gdesc_off spanning the
+            // byte9 H/Q/I family code): a sibling-family word then matches the
+            // entry's match_mask, and the pure popcount tiebreak picks the wrong
+            // family (UTCQMMA printed as UTCHMMA). The true entry explains those
+            // bits as constants and scores 0 here. Insertion point: after -score
+            // (key consistency), before neg_andbase_in_code — ties that previously
+            // fell to raw popcount.
+            let field_ab_disagree: i32 = table.get(&c.key, &c.mod_group)
+                .map(|e| {
+                    let mut fm: u128 = 0;
+                    for f in &e.fields {
+                        fm |= if f.bits >= 128 { u128::MAX }
+                              else { ((1u128 << f.bits) - 1) << f.shift };
+                    }
+                    let probe = fm & !e.variable_mask & !(0xFFFFFFFF_u128 << 96);
+                    ((code_clean ^ c.and_base) & probe).count_ones() as i32
+                })
+                .unwrap_or(0);
             // Sort order: (priority, is_negative, undiscovered_penalty, ...) — match
             // strength dominates: a strict (prio 0) candidate with a weak key-consistency
             // score must still beat any relaxed/prio3 candidate (e.g. 6-op EX XSETP
             // forms scoring 0 would otherwise hijack strict-matching 5-op words).
             // neg_mg_len last: only tiebreaks between same key+popcount
-            let tup = (*priority as i32, is_negative as i32, opaque_penalty, plain_addr_penalty, undiscovered_penalty + bra_p_penalty, unexplained_var, adjusted_len, -score, neg_andbase_in_code, neg_popcount, neg_mg_len);
+            let tup = (*priority as i32, is_negative as i32, opaque_penalty, plain_addr_penalty, undiscovered_penalty + bra_p_penalty, unexplained_var, adjusted_len, -score, field_ab_disagree, neg_andbase_in_code, neg_popcount, neg_mg_len);
             if std::env::var_os("CUBIT_DEBUG_DECODE").is_some() {
                 eprintln!("CAND {:?} prio={:?} tup={:?}", (c.key.clone(), c.mod_group.clone()), priority, tup);
             }
@@ -508,6 +529,7 @@ fn select_best_candidate<'a>(
                     // Try to find a matching candidate without an output-pred operand.
                     for alt in matches {
                         if !cand_strict(alt, code_clean) { continue; }
+                        if key_root(&alt.key) != key_root(&first.key) { continue; } // BUG-007
                         if !key_has_output_pred_field(&alt.key, &alt.mod_group, table) {
                             return Some(alt);
                         }
@@ -523,8 +545,9 @@ fn select_best_candidate<'a>(
     // IMAD.SHL always requires Rc=RZ (baked into and_base as constant 0xff at bits[71:64]).
     // Only prefer SHL if it's a non-negative-scoring candidate (avoid bad key matches).
     let rc_bits = (code_clean >> 64) & 0xff;
-    if rc_bits == 0xff {
+    if rc_bits == 0xff && key_root(&first.key) == "IMAD" {
         for candidate in matches {
+            if key_root(&candidate.key) != "IMAD" { continue; } // BUG-007
             let score = key_field_consistency_score(&candidate.key, &candidate.mod_group, table);
             if score >= 0 && candidate.mod_group.contains("SHL") {
                 return Some(candidate);
@@ -578,6 +601,7 @@ fn select_best_candidate<'a>(
         // General fallback: any candidate with pred field at shift >= 87.
         for candidate in matches {
             if !cand_strict(candidate, code_clean) { continue; }
+            if key_root(&candidate.key) != key_root(&first.key) { continue; } // BUG-007
             if let Some(entry) = table.get(&candidate.key, &candidate.mod_group) {
                 let has_trailing_pred = entry.fields.iter().any(|f| {
                     f.shift >= 87 && matches!(f.extraction, crate::table::Extraction::Pred)
@@ -621,6 +645,7 @@ fn select_best_candidate<'a>(
         if !first_covers {
         for candidate in matches {
             if !cand_strict(candidate, code_clean) { continue; }
+            if key_root(&candidate.key) != key_root(&first.key) { continue; } // BUG-007
             if let Some(entry) = table.get(&candidate.key, &candidate.mod_group) {
                 let has_output_pred = entry.fields.iter().any(|f| {
                     f.token_idx >= 1 && f.token_idx <= 3
@@ -648,6 +673,7 @@ fn select_best_candidate<'a>(
         if first_has_middle_pred {
             for alt in matches {
                 if !cand_strict(alt, code_clean) { continue; }
+                if key_root(&alt.key) != key_root(&first.key) { continue; } // BUG-007
                 let alt_op_types = parse_ins_key_op_types(&alt.key);
                 let alt_has_middle_pred = alt_op_types.len() > 2
                     && alt_op_types[1..alt_op_types.len()-1]
@@ -667,6 +693,20 @@ fn select_best_candidate<'a>(
 /// Also returns true if the InsKey itself declares P/UP operand tokens — this handles
 /// underdiscovered `_?` entries that have P tokens in the key name but missing pred fields
 /// in the table (so they shouldn't be treated as "simpler/no-pred" variants).
+/// Opcode-family root of an InsKey (text up to the first '_' or '.').
+/// Used to confine the disambiguation diverts below to SAME-family siblings:
+/// the output/trailing/middle-pred diverts were built for LOP3_P_ vs LOP3_,
+/// IMAD variants, LEA _P forms — but they once diverted an STG.E word to an
+/// LDG.E.LTC128B key (BUG-007, iter68): the store's desc/size bits alias the
+/// "output predicate" slot [83:81], the LDG candidate had a pred field there,
+/// and the unscoped divert picked it, printing a load that never re-assembles
+/// back. Cross-family diverts are never legitimate when both candidates match
+/// the SAME word strictly: same-family preference is enforced instead.
+fn key_root(key: &str) -> &str {
+    let before_ops = key.split('_').next().unwrap_or(key);
+    before_ops.split('.').next().unwrap_or(before_ops)
+}
+
 fn key_has_output_pred_field(key: &str, mod_group: &str, table: &IsaTable) -> bool {
     // Check key structure: if key declares P or UP operand tokens, treat as having pred.
     // This prevents underdiscovered _? entries (with P in key but no field in table) from

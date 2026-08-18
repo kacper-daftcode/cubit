@@ -205,6 +205,51 @@ binary blobs inside `.text`. Default text stays nvdisasm-compatible — the
 annotation appears only where fidelity would otherwise be lost, so its count
 in a disassembly is a self-measuring table-completeness metric.
 
+## Errata — silicon findings (2026-08-18, BUG-001..011)
+
+Tool-level traps found by silicon probing on the RTX 5090. All are fixed at the
+source; silent versions of these *must not* come back. Conventions to write by:
+
+- **PRMT operand order is hardware order `(d, a, sel, b)`** (BUG-001) — the
+  selector is operand 3, like `nvdisasm` prints it: `PRMT R6, RZ, 0x7610, R6`.
+  PTX's `prmt.b32 d, a, b, c` puts the selector last; all-register text written
+  in PTX order assembles silently with sel/b swapped. The lookup error for the
+  imm-selector PTX spelling now carries the hint.
+- **`IMAD.HI[.U32]` is not encodable on sm_120** (BUG-002) — silicon executes
+  the harvested "HI" encodings as `IMAD.WIDE.U32` (`Rd` = LOW half, `Rd+1`
+  clobbered). The assembler is fail-closed; use `IMAD.WIDE[.U32] Rd, Ra, Rb, RZ`
+  and read the high half from `Rd+1`, or the 5-operand pout form.
+- **Predicate index 7 is PT** (BUG-004) — literal `P7`/`UP7` (and `P8`+,
+  guards included) is a hard assembler error now; it used to alias to the
+  always-true PT silently.
+- **Plain `WARPSYNC R<n>` warns on sm_120** (BUG-005) — cubit+nvdisasm accept
+  the word, silicon legality depends on the surrounding schedule. Use
+  `WARPSYNC.ALL ;`, or reorder to not need it (intra-warp `STS`→`LDS` works
+  bare).
+- **Carry-in negation is encoded on `.X` forms** (BUG-006) — `IADD3.X` cin1 and
+  `IMAD.WIDE.U32.X` cin (`..., !PT` = constant-false carry idiom) gain the
+  neg@90 emit. A negated carry-in that has no bit in the selected form is a
+  hard error (never a silent downgrade); note the LOP3-family trailing `!PT`
+  is a printer convention, not a read operand, so it is intentionally exempt.
+- **`STG.E desc[UR][R.64]` decodes as STG again** (BUG-007) — a disambiguation
+  divert cross-family-hijacked the decode to a phantom `LDG.E.LTC128B`; diverts
+  are confined to same-opcode families now.
+- **4-operand `IMAD.WIDE*` with `c != RZ` warns on sm_120** (BUG-008) — the c
+  accumulator of a wide IMAD is the 64-bit *pair* `(Rc, Rc+1)`; canonical
+  spellings: 5-op pout form or `c = RZ`.
+- **Frozen `DEPBAR`/`MEMBAR` keep their control word** (BUG-010) — fully-static
+  barrier classes no longer discard the `[B:R:W:Y:S]` prefix on re-encode
+  (e.g. `[B------:R-:W-:Y:S04] DEPBAR.LE SB0, 0x9`).
+- **REGCOUNT is driver-legal** (BUG-011) — clamped to the 255 hardware maximum
+  (`.reg R0-R255` used to emit 256), and `--eiattr-from` rebuilds treat the
+  template's REGCOUNT as a floor (a 255-reg reference was truncated to 128 →
+  "illegal instruction" at launch).
+- **BUG-009 absorbed**: `IMAD.WIDE.U32.X` with an immediate b operand is in the
+  shipped table (was pod-local only, iter75).
+
+`CUBIT_DISABLE_ERRATA=1` disables the guard layer (escape hatch for table
+archeology only — production flows must not need it).
+
 ## Limitations
 
 - SM120 only (Blackwell: RTX 5090/5080/5070 Ti, DGX Spark).

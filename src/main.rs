@@ -524,6 +524,9 @@ fn cmd_encode(table_path: &Path, addr_str: &str, sass: &str) -> Result<()> {
         addr_str.parse::<u32>().context("invalid address")?
     };
     let insn = cubit::parse_sass(sass, addr)?;
+    for w in cubit::encoder::errata_warnings(&insn, &table) {
+        eprintln!("  WARN: {w}");
+    }
     let mod_group = cubit::table::extract_mod_group(&insn.raw_text);
     println!("InsKey:     {}", insn.key);
     println!("ModGroup:   {:?}", mod_group);
@@ -1262,7 +1265,9 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
     }
 
     // regcount: SM120 allocates registers in blocks of 32
-    let regcount = ((max_reg + 32) & !31).max(32);
+    // BUG-011: clamp at 255 — R255 is the RZ alias, REGCOUNT=256 is not a
+    // legal driver value (used to come out of `.reg R0-R255` as 256).
+    let regcount = ((max_reg + 32) & !31).max(32).min(255);
     let num_barriers = barrier_seen.iter().filter(|&&x| x).count() as u8;
 
     KernelMeta {
@@ -4675,6 +4680,9 @@ fn cmd_asm_directive_format(
                     );
                 }
                 continue;
+            }
+            for w in cubit::encoder::errata_warnings(insn, table) {
+                eprintln!("  WARN [{}] 0x{:04x}: {}", def.name, insn.addr, w);
             }
             match cubit::encoder::encode_instruction(insn, table) {
                 Ok(mut code128) => {

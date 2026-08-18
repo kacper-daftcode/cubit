@@ -273,8 +273,222 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// Errata guards — sm120lab silicon findings (results/cubit-bugs BUG-001..011,
+// 2026-08-18). Each rule converts a previously SILENT mis-encode into a hard
+// assembler error (fail-closed) or, where the encoding exists, a table fix.
+// ---------------------------------------------------------------------------
+
+/// BUG-004 (+guards): predicate literals >= 7 are not real predicates. Index 7
+/// is the always-true PT/UPT; text `P7` used to alias to it SILENTLY
+/// (3-bit field), making every @P7 / ->P7 fire on all lanes. `P8+` is worse:
+/// the parser produced a truncated/garbage index. Scan raw_text (the IR alone
+/// cannot tell `PT` from literal `P7`) and refuse with a clear message.
+fn check_pred_literal_errata(insn: &Instruction) -> Result<()> {
+    use std::sync::LazyLock;
+    static RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+        // Candidate: optional guard-marker/'!', optional U, 'P', digits.
+        // (Delimiter checks are done in code — the regex crate has no
+        // lookahead.) Labels like `P8_loop` and opcodes like `R2P` are
+        // rejected by the boundary tests below.
+        regex::Regex::new(r"!?(?:UP|P)[0-9]+").unwrap()
+    });
+    let bytes = insn.raw_text.as_bytes();
+    let is_ident = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
+    for m in RE.find_iter(&insn.raw_text) {
+        // Left boundary: start / whitespace / ',' / '@' / '!'. Right boundary:
+        // whitespace / ',' / ';' / ']' / ')' / '+' / end.
+        let left_ok = m.start() == 0
+            || matches!(bytes[m.start() - 1], b' ' | b'\t' | b',' | b'@' | b'!');
+        let right_ok = m.end() == insn.raw_text.len()
+            || !is_ident(bytes[m.end()]);
+        if !left_ok || !right_ok {
+            continue;
+        }
+        let digits_start = insn.raw_text[m.start()..].find(|c: char| c.is_ascii_digit())
+            .map(|i| i + m.start()).unwrap_or(m.end());
+        let n: u32 = insn.raw_text[digits_start..m.end()].parse().unwrap_or(0);
+        if n >= 7 {
+            let tok = insn.raw_text[m.start()..m.end()].trim_start_matches('!');
+            anyhow::bail!(
+                "invalid predicate literal `{tok}` in {:?}: predicate space is P0..P6                  plus PT (always-true). Predicate index 7 *is* PT — writing `{tok}` used                  to alias to PT silently, firing on ALL lanes (BUG-004). Use PT (or a real                  predicate P0..P6).",
+                insn.raw_text.trim()
+            );
+        }
+    }
+    // IR-level belt: operand/guard predicate indices >= 8 can also arrive via
+    // programmatic IR construction (no raw_text token to catch them).
+    for op in &insn.operands {
+        let n = match op {
+            Operand::Pred { num, .. } | Operand::UPred { num, .. } => Some(*num),
+            _ => None,
+        };
+        if let Some(n) = n {
+            if n > 7 {
+                anyhow::bail!(
+                    "predicate index {n} out of range (P0..P6 + PT=7) in {:?}",
+                    insn.raw_text.trim()
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+/// BUG-002: `IMAD.HI[.U32]` on sm_120. The table once carried harvested
+/// "HI" encodings, but silicon runs those words as IMAD.WIDE.U32: Rd gets the
+/// LOW half and Rd+1 is CLOBBERED by the high half (iter60 hi_t.sass). The
+/// poisoned entries were removed from tables/sm120.json; this guard keeps any
+/// `.HI` IMAD text fail-closed unless the chosen table entry actually carries
+/// the HI modifier (i.e. a future, hardware-true HI encoding would pass).
+fn check_imad_hi_erratum(insn: &Instruction, table: &IsaTable, sel_key: &str, sel_mg: &str) -> Result<()> {
+    let is_imad = insn.opcode == "IMAD";
+    let has_hi = insn.modifiers.iter().any(|m| m == ".HI");
+    if !is_imad || !has_hi {
+        return Ok(());
+    }
+    let key_covers_hi = sel_key.starts_with("IMAD.HI") || sel_key.contains(".HI_") || sel_key.contains(".HI.");
+    let mg_covers_hi = sel_mg.split(',').any(|m| m == "HI");
+    if table.target_sm() != 120 && (key_covers_hi || mg_covers_hi) {
+        return Ok(()); // entry explicitly encodes the HI modifier (non-120 arch)
+    }
+    // On sm_120 no harvested entry is trustworthy: silicon proved the "HI"
+    // encodings execute as IMAD.WIDE.U32 regardless of which entry matched.
+    anyhow::bail!(
+        "IMAD.HI is NOT encodable on this target: sm_120 silicon executes the          harvested `IMAD.HI` encodings as IMAD.WIDE.U32 — Rd receives the LOW half          and Rd+1 is silently CLOBBERED (BUG-002, silicon-verified). Use          `IMAD.WIDE[.U32] Rd, Ra, Rb, RZ` (or the 5-operand pout form) and read the          high half from Rd+1."
+    )
+}
+
+/// BUG-008 shape detector: 4+-operand `IMAD.WIDE[.U32][.X]` WITHOUT a
+/// destination predicate whose c accumulator is not RZ. Silicon reads the c
+/// operand of a wide IMAD as the 64-BIT PAIR (Rc, Rc+1) — so the encoded word
+/// implicitly consumes a register the text never names (Rc+1), and the hi half
+/// of the result silently includes its content. The 5-operand pout form
+/// (`IMAD.WIDE.U32 Rd, Pn, Ra, Rb, Rc`, PT legal) makes the pair-c semantics
+/// canonical; `c = RZ` zero-extends safely. ptxas emits the bare 4-op form too,
+/// so this stays a WARNING (the word itself is encodable/possibly-intended).
+fn imad_wide_implicit_cpair(insn: &Instruction, table: &IsaTable) -> bool {
+    if insn.opcode != "IMAD" || !insn.modifiers.iter().any(|m| m == ".WIDE") {
+        return false;
+    }
+    if table.target_sm() != 120 {
+        return false;
+    }
+    if matches!(insn.operands.get(1), Some(Operand::Pred { .. } | Operand::UPred { .. })) {
+        return false;
+    }
+    let n = insn.operands.len();
+    if n < 4 {
+        return false;
+    }
+    let has_x = insn.modifiers.iter().any(|m| m == ".X");
+    let c_idx = if has_x && matches!(insn.operands.last(), Some(Operand::Pred { .. } | Operand::UPred { .. })) {
+        n - 2
+    } else {
+        n - 1
+    };
+    if c_idx < 3 {
+        return false;
+    }
+    match &insn.operands[c_idx] {
+        Operand::Reg { num, .. } => *num != 255,
+        _ => true,
+    }
+}
+
+/// BUG-006: a NEGATED predicate operand whose slot has no negation encoding in
+/// the selected form must never silently degrade to the non-negated predicate
+/// (silicon then reads the un-negated value — iter64 measured exactly that on
+/// IMAD.WIDE.U32.X carry-in). Re-encode with the negation flipped; a
+/// bit-identical word proves the neg bit has no representation here.
+fn check_pred_neg_encoded(insn: &Instruction, table: &IsaTable, out: u128) -> Result<()> {
+    // Scoped to `.X` carry-chain forms: their tail carry-in predicate is a
+    // REAL architectural operand (silicon reads cin — iter64 measured the
+    // dropped-neg failure). Elsewhere a trailing `!PT` is a vestigial
+    // print-convention (LOP3.LUT's operand 6 is always !PT in production
+    // cubins and is not silicon-read), so dropping neg there is pre-existing,
+    // harmless behavior that must not become a hard error.
+    if !insn.modifiers.iter().any(|m| m == ".X") {
+        return Ok(());
+    }
+    for (i, op) in insn.operands.iter().enumerate() {
+        let negated = matches!(op,
+            Operand::Pred { neg: true, .. } | Operand::UPred { neg: true, .. });
+        if !negated {
+            continue;
+        }
+        let mut flipped = insn.clone();
+        match &mut flipped.operands[i] {
+            Operand::Pred { neg, .. } | Operand::UPred { neg, .. } => *neg = false,
+            _ => unreachable!(),
+        }
+        if let Ok(other) = encode_instruction_inner(&flipped, table, false) {
+            if other == out {
+                anyhow::bail!(
+                    "operand {} of {:?} is a negated predicate but this form has no                      negation bit for that slot: the `!` would be silently DROPPED                      (BUG-006; silicon reads the UN-negated predicate). Negate the                      producer instead (e.g. ISETP into a dedicated always-false                      predicate), or pick a form whose carry/predicate slot supports                      negation.",
+                    i + 1,
+                    insn.raw_text.trim()
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Soft errata (warn, don't refuse): conditions that encode fine but are
+/// silicon traps on specific targets. Human-facing drivers print these
+/// (deduplicated). Hard errata live in the encode path itself.
+pub fn errata_warnings(insn: &Instruction, table: &IsaTable) -> Vec<String> {
+    let mut out = Vec::new();
+    // BUG-005: plain `WARPSYNC R<n>` (register membermask) on sm_120. cubit and
+    // nvdisasm both accept the word, but iter60 measured ILLEGAL_INSTRUCTION on
+    // silicon depending on the surrounding schedule (context-sensitive). The
+    // immediate-mask form is the safe spelling.
+    if table.target_sm() == 120
+        && insn.opcode == "WARPSYNC"
+        && insn.modifiers.is_empty()
+        && insn.operands.len() == 1
+        && matches!(insn.operands[0], Operand::Reg { num, .. } if num != 255)
+    {
+        out.push(format!(
+            "WARPSYNC with a register membermask ({:?}) is context-sensitive on sm_120              silicon (BUG-005: accepted by cubit+nvdisasm, ILLEGAL depending on              surrounding schedule). Safer: the corpus-blessed barrier-wide form `WARPSYNC.ALL ;`, or drop WARPSYNC entirely when intra-warp ordering suffices (sm_120 honors STS->LDS without a sync; iter60)",
+            insn.raw_text.trim()));
+    }
+    // BUG-008: 4-op IMAD.WIDE with c != RZ — the word encodes fine and ptxas
+    // emits it, but the c operand of a wide IMAD is read by silicon as the
+    // 64-bit pair (Rc, Rc+1): the assembly consumes a register the text never
+    // names. (iter71 probes first flagged this form as "silicon runs IMAD-32";
+    // their own data — Rd+1 == R(c+1) — equally proves correct wide execution
+    // with a 64-bit c. Either way the form is treacherous; spell it out or use
+    // the canonical 5-operand pout form.)
+    if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none()
+        && imad_wide_implicit_cpair(insn, table)
+    {
+        out.push(format!(
+            "{:?} is a 4-operand IMAD.WIDE with c != RZ (BUG-008): silicon reads c \
+             as the 64-bit pair (Rc, Rc+1), so the result's hi half silently \
+             includes R{}, a register the text never names. Canonical:              `IMAD.WIDE[.U32] Rd, Pn(PT), Ra, Rb, Rc` (5-op pout) or c=RZ.",
+            insn.raw_text.trim(),
+            match &insn.operands[insn.operands.len()-1] {
+                Operand::Reg { num, .. } => (num + 1).to_string(),
+                _ => "?".to_string(),
+            }));
+    }
+    out
+}
+
 /// Encode a parsed instruction using the per-modifier-group table.
 pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> {
+    encode_instruction_inner(insn, table, true)
+}
+
+fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_checks: bool) -> Result<u128> {
+    // Fail-closed operand errata (parser-level admission can't error here: the
+    // .sass file reader silently drops lines whose parse fails — so the encoder
+    // is the last place that can refuse a bad instruction noisily).
+    if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() {
+        check_pred_literal_errata(insn)?;
+    }
     let mod_group = crate::table::extract_mod_group(&insn.raw_text);
 
     // Lookup chain: compound-opcode key with exact mod_group first, then base key,
@@ -302,18 +516,52 @@ pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> 
 
     let mut attempts: Vec<String> = Vec::new();
     let mut entry = Option::<&crate::table::ModGroupEntry>::None;
+    let mut sel_key = String::new();
+    let mut sel_mg = String::new();
     for (k, mg) in &candidates {
         match table.get(k, mg) {
             Some(e) => match entry_matches_operands(insn, e) {
-                Ok(()) => { entry = Some(e); break; }
+                Ok(()) => {
+                    entry = Some(e);
+                    sel_key = k.clone();
+                    sel_mg = mg.clone();
+                    break;
+                }
                 Err(why) => attempts.push(format!("({k}, \"{mg}\") REJECTED: {why}")),
             },
             None => attempts.push(format!("({k}, \"{mg}\") not in table")),
         }
     }
-    let entry = entry.with_context(|| format!(
-        "no operand-compatible table entry; attempted keys: [{}]",
-        attempts.join("; ")))?;
+    let entry = entry.with_context(|| {
+        let mut msg = format!(
+            "no operand-compatible table entry; attempted keys: [{}]",
+            attempts.join("; "));
+        // BUG-001: PRMT's silent swap trap — authors coming from PTX write
+        // `prmt.b32 d, a, b, c` (selector LAST), but the SASS/nvdisasm operand
+        // order is (d, a, sel, b) — selector THIRD. All-register text is
+        // accepted either way and encodes the operands in hardware order, so a
+        // PTX-order line silently swaps the selector and b. Say so at the one
+        // place the mismatch becomes visible (a failing form lookup).
+        if insn.opcode == "PRMT" {
+            msg.push_str(
+                ". PRMT note: SASS operand order is (d, a, sel, b) — the selector is                  operand 3 (PTX prmt.b32 is d, a, b, c). PTX-order text swaps sel and b                  SILENTLY for the all-register form; write hardware order (see README                  errata, BUG-001)");
+        }
+        if insn.opcode == "IMAD" && insn.modifiers.iter().any(|m| m == ".HI") {
+            msg.push_str(
+                ". IMAD.HI note (BUG-002): on sm_120 the harvested `IMAD.HI` encodings \
+                 are executed by silicon as IMAD.WIDE.U32 (Rd = LOW half, Rd+1 \
+                 CLOBBERED); the bogus entries were removed, so the text now fails \
+                 fail-closed. Use `IMAD.WIDE[.U32] Rd, Ra, Rb, RZ` and read Rd+1, \
+                 or the 5-operand pout form");
+        }
+        msg
+    })?;
+    // BUG-002 guard: IMAD.HI text must never ride an entry that does not
+    // encode the HI modifier (silicon: such words are IMAD.WIDE.U32 and
+    // clobber Rd+1).
+    if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() {
+        check_imad_hi_erratum(insn, table, &sel_key, &sel_mg)?;
+    }
     if std::env::var("CUBIT_DEBUG_LOOKUP").is_ok() {
         eprintln!("[lookup] fk={} key={} mod_group={:?} -> fields={:?}",
             fk, insn.key, mod_group,
@@ -654,7 +902,21 @@ pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> 
         let non_sched = (epoch_upper32_static & !scheduling::SCHED_UPPER32_MASK) | reuse_bits;
         non_sched | scheduling::encode_sched_upper32(&insn.ctrl)
     } else if is_fully_static {
-        epoch_upper32_static | reuse_bits
+        if insn.hand_sched {
+            // BUG-010: fully_static classes (DEPBAR/MEMBAR/BAR/ctrl-flow/EXIT)
+            // used to take the epoch upper32 VERBATIM, discarding the parsed
+            // [B..:R..:W..:Y..S..] control word — frozen round-trips of e.g.
+            // `DEPBAR.LE SB0, 0x9` lost b104..111 (0x000fe800 orig came back
+            // 0x000fe200, and MEMBAR.GPU.SC's 0x000fcc00/0x...01 ctrl word
+            // degraded likewise). The disassembler prints the control prefix
+            // for these lines precisely so the assembler can reproduce the
+            // word; merge it like the NOP path does. Text WITHOUT a control
+            // prefix (fresh asm) keeps the table epoch default unchanged.
+            let non_sched = (epoch_upper32_static & !scheduling::SCHED_UPPER32_MASK) | reuse_bits;
+            non_sched | scheduling::encode_sched_upper32(&insn.ctrl)
+        } else {
+            epoch_upper32_static | reuse_bits
+        }
     } else {
         // Replace scheduling field [25:9] with the scheduling pass result.
         let non_sched = (epoch_upper32_default & !scheduling::SCHED_UPPER32_MASK) | reuse_bits;
@@ -680,6 +942,13 @@ pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> 
         for &(bit, val) in rsd {
             if val != 0 { out |= 1u128 << bit; } else { out &= !(1u128 << bit); }
         }
+    }
+    // BUG-006 guard (fail-closed): a negated predicate operand whose slot
+    // lacks a negation encoding must not silently degrade to the non-negated
+    // predicate. Runs after the full pipeline; skipped for __raw__ (no
+    // operands) and for the internal flipped-variant re-encodes.
+    if run_errata_checks && std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() {
+        check_pred_neg_encoded(insn, table, out)?;
     }
     Ok(out)
 }
