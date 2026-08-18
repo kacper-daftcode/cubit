@@ -3347,8 +3347,13 @@ pub fn rebuild_cubin(template_bytes: &[u8], patches: &[CubinPatch<'_>]) -> Resul
         // Always update regcount from the new code (template may have lower limit)
         {
             let max_reg = detect_max_register(&code);
-            let regcount = ((max_reg + 32) & !31).max(32);
-            patch_regcount_in_elf(&mut cubin.bytes, regcount);
+            // BUG-011: never LOWER the template's REGCOUNT. The byte-lane
+            // heuristic stops at R127 (higher values in reg slots are usually
+            // immediates/RZ), so rebuilding a 255-reg reference kernel used to
+            // TRUNCATE REGCOUNT 255 -> 128 and the driver rejected the cubin
+            // with "illegal instruction" at launch (iter77, silicon-verified).
+            let derived = ((max_reg + 32) & !31).max(32).min(255);
+            patch_regcount_in_elf_floor(&mut cubin.bytes, derived);
         }
 
         cubin.patch_text(sec_idx, &code)?;
@@ -3413,20 +3418,75 @@ fn detect_max_register(code: &[u8]) -> u32 {
 
 /// Patch REGCOUNT EIATTR records in the raw ELF bytes.
 /// Finds SVAL attr=0x002f records in .nv.info sections and updates the regcount value.
-fn patch_regcount_in_elf(bytes: &mut [u8], new_regcount: u32) {
+/// BUG-011: this is only allowed to RAISE each record — the template's value
+/// is the floor. Per-record independence keeps mixed templates (e.g. a
+/// 255-reg kernel next to an 8-reg stub) intact.
+///
+/// Scope is restricted to the real `.nv.info` / `.nv.info.<kernel>` sections:
+/// the `.nv.merc.nv.info.*` Mercury metadata carries its OWN small REGCOUNT
+/// (8 for the dispatch stub) that has nothing to do with the patched code's
+/// register pressure — a blind whole-file sweep truncated/rewrote those too
+/// (iter77: merc-info REGCOUNT 8 -> 128, driver-visible corruption).
+fn patch_regcount_in_elf_floor(bytes: &mut [u8], new_regcount: u32) {
     // EIATTR REGCOUNT format: [0x04][0x2f][size_lo=0x08][size_hi=0x00][sym4bytes][regcount4bytes]
     let pattern: [u8; 4] = [0x04, 0x2f, 0x08, 0x00];
-    let rc_bytes = new_regcount.to_le_bytes();
-    let mut i = 0;
-    while i + 12 <= bytes.len() {
-        if bytes[i..i + 4] == pattern {
-            // Patch regcount at offset +8 (after 4-byte header + 4-byte sym)
-            bytes[i + 8..i + 12].copy_from_slice(&rc_bytes);
-            i += 12;
-        } else {
-            i += 1;
+    let ranges = nv_info_section_ranges(bytes);
+    for (start, size) in ranges {
+        let end = (start + size).min(bytes.len());
+        let mut i = start;
+        while i + 12 <= end {
+            if bytes[i..i + 4] == pattern {
+                // Patch regcount at offset +8 (after 4-byte header + 4-byte sym)
+                let cur = u32::from_le_bytes(bytes[i + 8..i + 12].try_into().unwrap());
+                let v = cur.max(new_regcount);
+                bytes[i + 8..i + 12].copy_from_slice(&v.to_le_bytes());
+                i += 12;
+            } else {
+                i += 1;
+            }
         }
     }
+}
+
+/// Byte ranges of `.nv.info*` sections EXCLUDING the Mercury metadata
+/// (`.nv.merc.nv.info*`). Empty-handed ELF parse failures yield an empty list
+/// (no patching — safer than a blind sweep).
+fn nv_info_section_ranges(bytes: &[u8]) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    if bytes.len() < 0x40 || &bytes[0..4] != b"\x7fELF" {
+        return out;
+    }
+    let e_shoff = u64::from_le_bytes(bytes[0x28..0x30].try_into().unwrap()) as usize;
+    let e_shentsize = u16::from_le_bytes(bytes[0x3A..0x3C].try_into().unwrap()) as usize;
+    let e_shnum = u16::from_le_bytes(bytes[0x3C..0x3E].try_into().unwrap()) as usize;
+    let e_shstrndx = u16::from_le_bytes(bytes[0x3E..0x40].try_into().unwrap()) as usize;
+    if e_shoff == 0 || e_shnum == 0 || e_shstrndx >= e_shnum {
+        return out;
+    }
+    let sh = |i: usize| -> Option<(u32, u64, u64)> {
+        let base = e_shoff + i * e_shentsize;
+        if base + e_shentsize > bytes.len() { return None; }
+        let name = u32::from_le_bytes(bytes[base..base+4].try_into().unwrap());
+        let off = u64::from_le_bytes(bytes[base+0x18..base+0x20].try_into().unwrap());
+        let size = u64::from_le_bytes(bytes[base+0x20..base+0x28].try_into().unwrap());
+        Some((name, off, size))
+    };
+    let Some((_, shstr_off, shstr_sz)) = sh(e_shstrndx) else { return out; };
+    let shstr_off = shstr_off as usize;
+    let shstr_end = shstr_off + shstr_sz as usize;
+    if shstr_end > bytes.len() { return out; }
+    for i in 0..e_shnum {
+        let Some((name_off, off, size)) = sh(i) else { continue; };
+        let no = shstr_off + name_off as usize;
+        if no >= shstr_end { continue; }
+        let end = bytes[no..shstr_end].iter().position(|&b| b == 0)
+            .map(|p| p + no).unwrap_or(shstr_end);
+        let Ok(name) = std::str::from_utf8(&bytes[no..end]) else { continue; };
+        if name.starts_with(".nv.info") && !name.contains("merc") {
+            out.push((off as usize, size as usize));
+        }
+    }
+    out
 }
 
 /// Rename a kernel in the raw ELF bytes (in-place replacement in string tables).

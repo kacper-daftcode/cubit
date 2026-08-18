@@ -86,7 +86,10 @@ impl KernelResources {
     /// whose index falls outside the allocated block.
     pub fn reg_count(&self) -> u32 {
         let raw = self.max_reg.map(|r| r + 1).unwrap_or(32).max(2);
-        ((raw + 31) & !31).max(32)
+        // BUG-011: hardware caps REGCOUNT at 255 (R255 is the RZ alias — a
+        // `.reg R0-R255` kernel is exactly 255 regs). The block-rounding used
+        // to produce 256 there, an invalid driver value.
+        ((raw + 31) & !31).max(32).min(255)
     }
 
     /// Total shared memory in bytes (sum of all shared declarations).

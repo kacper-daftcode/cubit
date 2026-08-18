@@ -48,6 +48,20 @@ fn is_long_latency(op: &str) -> bool {
     )
 }
 
+/// tcgen05 / uniform-datapath control ops whose result arrives asynchronously
+/// (SM103a F1): UTCATOMSWS.* returns (UP, UR) — the TMEM bitmap find/set completes
+/// unboundedly late (pool contention in the retry loop). Without a scoreboard write
+/// barrier a consumer reads the STALE UP/UR (observed: UP0=0 on the first attempt ->
+/// the retry re-enters FIND_AND_SET while the in-flight one completes -> ILLEGAL_
+/// INSTRUCTION). nvcc/ptxas assigns these a write barrier and puts the matching wait
+/// bit on every UR/UP consumer (probe.cubin: wbar=4/0 on the op, wait bit4/bit0 on the
+/// consuming IMAD.U32; the UR4 consumer covers BRA.U UP0 transitively). LDTM returns
+/// GPRs from TMEM with the same async behavior (nvcc: wbar on LDTM, waited consumers),
+/// so it belongs to the same producer class.
+fn is_udp_async_result(op: &str) -> bool {
+    matches!(op, "UTCATOMSWS" | "LDTM")
+}
+
 fn is_store(op: &str) -> bool {
     matches!(op, "STG" | "STS" | "STL" | "ST" | "STGX")
 }
@@ -196,6 +210,10 @@ fn insn_needs_write_bar(insn: &Instruction, table: Option<&IsaTable>, sched2: bo
     // e.g. SHFL is tagged 'alu_simple' in the table, which would otherwise drop the
     // barrier and let a consumer read a stale cross-lane result.
     if is_long_latency(op) && !is_store(op) { return true; }
+    // tcgen05 UDP-result producers (UTCATOMSWS, LDTM): asynchronous UR/UP/GPR result
+    // — unconditionally need a scoreboard write barrier (takes precedence like the
+    // long-latency class above; ctrl_class has no opinion for these keys).
+    if is_udp_async_result(op) { return true; }
     // CUBIT_SCHED2: enforce the learned variable-latency set so the consumer WAITS the
     // write barrier (occupancy-robust) rather than using a fixed stall. Covers the
     // special-register / conversion / bit-count producers (S2UR/B2R/MUFU/F2I/I2F/FLO/POPC)
@@ -687,7 +705,8 @@ struct PredDef {
 
 struct SchedulerState {
     gpr_defs: [Option<RegDef>; 256],
-    ureg_defs: [Option<RegDef>; 64],
+    /// 0..63 = uniform registers; 64..70 = uniform predicates UP0..UP6
+    ureg_defs: [Option<RegDef>; 72],
     pred_defs: [Option<PredDef>; 8],
     barrier_age: [usize; NUM_BARRIERS],
     /// Bitmask: bit i set = barrier i has a *pending consumer* — it has been
@@ -894,6 +913,20 @@ fn dest_regs(insn: &Instruction) -> Vec<(bool, u8)> {
             _ => {}
         }
     }
+    // UDP async results (see is_udp_async_result): in the predicated form
+    // `UTCATOMSWS.* UPk, URr, URn` the op writes BOTH its uniform predicate
+    // (operand 0) and its uniform register (operand 1, the bitmap find/set result).
+    // The generic first-operand match above misses the UPred form entirely; track
+    // both so the write-barrier/wait machinery covers every consumer. (The 2-operand
+    // `UTCATOMSWS.* URd, URn` form is already covered by the generic UReg match.)
+    if op == "UTCATOMSWS" {
+        if let Some(Operand::UPred { num, .. }) = insn.operands.first() {
+            if *num < 7 { out.push((true, 64 + *num)); }
+            if let Some(Operand::UReg { num, .. }) = insn.operands.get(1) {
+                if *num < 255 { out.push((true, *num)); }
+            }
+        }
+    }
     // SHFL: operand 0 is the dst PREDICATE, the register result is operand 1.
     // Record the register so consumers see SHFL (with its write barrier) as producer.
     if op == "SHFL" {
@@ -970,6 +1003,19 @@ fn src_regs(insn: &Instruction) -> Vec<(bool, u8)> {
                 if let Some(u) = ur_reg { out.push((true, *u)); }
             }
             _ => {}
+        }
+    }
+    // A control-flow op carries its branch predicate as OPERAND 0 (`BRA.U UP0, lbl`),
+    // not as a guard — the skip-1 loop above misses it. Track it so the producer of
+    // that uniform/vector predicate (UTCATOMSWS UP0, ...) is waited before the branch
+    // resolves (same mechanism as the guard-operand below).
+    if is_control_flow(op) {
+        if let Some(first) = insn.operands.first() {
+            match first {
+                Operand::Pred { num, .. } if *num < 7 => out.push((false, 128 + *num)),
+                Operand::UPred { num, .. } if *num < 7 => out.push((true, 64 + *num)),
+                _ => {}
+            }
         }
     }
     // Guard predicate is a source
@@ -1846,7 +1892,7 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<String> {
     }
 
     let mut gpr_owner: [Option<(usize, Option<u8>)>; 256] = [None; 256];
-    let mut ureg_owner: [Option<(usize, Option<u8>)>; 64] = [None; 64];
+    let mut ureg_owner: [Option<(usize, Option<u8>)>; 72] = [None; 72];
     let mut armed: [Option<usize>; NUM_BARRIERS] = [None; NUM_BARRIERS];
     let mut out: Vec<String> = Vec::new();
     let mut seen: std::collections::HashSet<(u32, bool, u8)> = std::collections::HashSet::new();
@@ -1878,7 +1924,7 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<String> {
         let wb = if insn.ctrl.write_bar < NUM_BARRIERS as u8 { Some(insn.ctrl.write_bar) } else { None };
         for (is_u, reg) in dest_regs(insn) {
             if reg >= 128 { continue; }
-            if is_u { if (reg as usize) < 64 { ureg_owner[reg as usize] = Some((i, wb)); } }
+            if is_u { if (reg as usize) < 72 { ureg_owner[reg as usize] = Some((i, wb)); } }
             else { gpr_owner[reg as usize] = Some((i, wb)); }
         }
         if let Some(b) = wb {
