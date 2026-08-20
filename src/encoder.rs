@@ -76,7 +76,7 @@ fn extraction_accepts(ext: &Extraction, op: &Operand) -> bool {
         // attributes (neg/abs/reuse/...) and legitimately default to 0.
         Guard | GuardLo3 | GuardNeg | Neg | NegShl1 | Reuse | Inv | Abs | NegAbs
         | ByteSel | HalfSel | OpaqueModifier | OpModFlag(_) | MnemMod(..)
-        | UrExpl | UrExplInv | YieldInv | None => true,
+        | UrExpl | UrExplInv | YieldInv | AddrScale | None => true,
 
         Reg | RegShr(_) => matches!(op,
             Operand::Reg { .. } | Operand::Addr { .. } | Operand::Desc { .. }),
@@ -816,7 +816,19 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         let uses_raw_addr = insn.operands.iter().any(|op| matches!(op, Operand::Addr { .. }));
         let uses_desc = insn.operands.iter().any(|op| matches!(op, Operand::Desc { .. }));
 
-        if !sm103a_derived && uses_raw_addr && !uses_desc
+        // BUG-038: when the selected table entry actually OWNS the address
+        // (a ureg field bound to the Addr token — the plain [Rn.U32+URm] form),
+        // this hardcoded rebuild must not run: it has no UR slot at all and
+        // overwrites the entry's mode/width dword with a desc-era template.
+        let addr_tok = insn.operands.iter()
+            .position(|op| matches!(op, Operand::Addr { .. }))
+            .map(|i| i as i32 + 1);
+        let entry_covers_addr_ur = addr_tok.is_some_and(|tok| {
+            entry.fields.iter().any(|f| f.token_idx == tok
+                && ext_encodes_ureg(&f.extraction))
+        });
+
+        if !sm103a_derived && uses_raw_addr && !uses_desc && !entry_covers_addr_ur
             && (insn.opcode == "LDG" || insn.opcode == "STG") {
             let is_64 = insn.opcode_full.contains(".64");
             let is_128 = insn.opcode_full.contains(".128");
@@ -1082,6 +1094,7 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
             }
             Ok(op_lbl_scrape(insn, field.token_idx, pat) & mk)
         },
+        Extraction::AddrScale => Ok(op_addr_scale(insn, field.token_idx) & mk),
         Extraction::UrExpl => Ok(op_urz_flag(insn, field.token_idx) & mk),
         Extraction::UrExplInv => Ok((1 - op_urz_flag(insn, field.token_idx)) & mk),
         Extraction::HalfSel => Ok(op_hsel(insn, field.token_idx) & mk),
@@ -1192,6 +1205,22 @@ fn op_pred(insn: &Instruction, tok: i32) -> u64 {
     match get_op(insn, tok) {
         Some(Operand::Pred { num, .. }) | Some(Operand::UPred { num, .. }) => *num as u64,
         _ => 7, // PT
+    }
+}
+
+/// Address scale selector from the base-register suffix of an Addr operand
+/// ([R9.X8] / [R9.X16]): none/"U32" = 0, X4 = 1, X8 = 2, X16 = 3.
+/// i108 golden attribution (BUG-038): LDS.64 `[R.X8]` carries bits[79:78]=2,
+/// LDS.128 `[R.X16]` = 3 at the same window.
+fn op_addr_scale(insn: &Instruction, tok: i32) -> u64 {
+    match get_op(insn, tok) {
+        Some(Operand::Addr { base_reg_suffix: Some(sfx), .. }) => match sfx.as_str() {
+            "X4" => 1,
+            "X8" => 2,
+            "X16" => 3,
+            _ => 0,
+        },
+        _ => 0,
     }
 }
 

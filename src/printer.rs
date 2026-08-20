@@ -664,6 +664,12 @@ fn format_operand(
         "FI"    => format_float_imm(fields),
         "L" | "SR"
                 => format_lit_or_sysreg(fields, mod_group, raw),
+        // BUG-038: LDS with a scaled-index address ([R9.X8+..]/[R9.X16+..]) —
+        // the addr_scale field carries the suffix. Scale=0 prints exactly like
+        // format_addr (historical shape preserved for every existing entry).
+        "ARI" if ins_key.starts_with("LDS")
+            && fields.iter().any(|f| norm_ext(&f.extraction) == "addr_scale")
+            => format_lds_scaled_addr(fields),
         "ARI" | "AI"
                 => format_addr(fields, raw),
         // STS/LDS/LDSM use [R+UR+off] format, not desc[UR][R.64+off].
@@ -672,6 +678,11 @@ fn format_operand(
             let op = ins_key.split('_').next().unwrap_or("");
             op.starts_with("STS") || op.starts_with("LDS") || op.starts_with("LDSM")
         } => format_sts_lds_addr(fields, raw),
+        // BUG-038: plain uniform-indexed LDG.E/STG.E forms (class bytes 0x81/0x86)
+        // render as [Rn.U32+URm(+0xoff)], not desc[UR][R.64] (that's the dARI world).
+        "ARURI" if ins_key.starts_with("LDG.E") || ins_key.starts_with("STG.E")
+            || ins_key.starts_with("REDG.E") || ins_key.starts_with("ATOMG.E")
+            => format_plain_u32_ur(fields),
         "ARURI" => format_aruri(fields, raw),
         // No-immediate / UR-only address variants (ARUR/AUR/AURI/AURR/ARURR).
         // These are the same bracket address forms as ARURI (the address entry
@@ -1212,6 +1223,66 @@ fn format_lit_or_sysreg(fields: &[&DecodedField], mod_group: &str, raw: u128) ->
 }
 
 // ── ARI — address expression [R+off] or [R.64+UR+off] ───────────────────────
+
+/// BUG-038 plain uniform-indexed global address: LDG.E/STG.E of class bytes
+/// 0x81/0x86 render natively as "[Rn.U32+URm(+0xoff)]" (i108 goldens).
+fn format_plain_u32_ur(fields: &[&DecodedField]) -> String {
+    let mut base: Option<u64> = None;
+    let mut ur: Option<u64> = None;
+    let mut off: u64 = 0;
+    for f in fields {
+        match norm_ext(&f.extraction).as_str() {
+            "reg" | "sub_r0" | "sub_r1" => { if base.is_none() { base = Some(f.value); } }
+            "ureg" => ur = Some(f.value),
+            "imm" => off = f.value,
+            _ => {}
+        }
+    }
+    let b = match base {
+        Some(255) => "RZ".to_string(),
+        Some(v) => format!("R{v}"),
+        None => "R0".to_string(),
+    };
+    let u = format!("UR{}", ur.unwrap_or(0));
+    let o = if off != 0 { format!("+0x{off:x}") } else { String::new() };
+    format!("[{b}.U32+{u}{o}]")
+}
+
+/// BUG-038 LDS scaled shared address: "[R9.X16+0xc000]". The scale suffix comes
+/// from the addr_scale field (2=X8, 3=X16; 1=X4 structural inverse). Scale=0
+/// intentionally reproduces format_addr's plain output byte-for-byte.
+fn format_lds_scaled_addr(fields: &[&DecodedField]) -> String {
+    let mut base: Option<u64> = None;
+    let mut off: i64 = 0;
+    let mut has_off = false;
+    let mut scale = 0u64;
+    for f in fields {
+        let e = norm_ext(&f.extraction);
+        match e.as_str() {
+            "reg" | "sub_r0" | "sub_r1" => { if base.is_none() { base = Some(f.value); } }
+            "addr_scale" => scale = f.value,
+            s if s.starts_with("sub_imm") => {
+                let sh = parse_shr_suffix(s);
+                off |= sign_extend(f.value, f.bits) << sh;
+                has_off = true;
+            }
+            "imm" => { off = f.value as i64; has_off = true; }
+            _ => {}
+        }
+    }
+    let rn = base.unwrap_or(0);
+    let reg_s = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
+    let sfx = match scale { 1 => ".X4", 2 => ".X8", 3 => ".X16", _ => "" };
+    let mut inner = format!("{reg_s}{sfx}");
+    if has_off && off != 0 {
+        if off < 0 {
+            inner.push_str(&format!("+-0x{:x}", (-off) as u64));
+        } else {
+            inner.push_str(&format!("+0x{off:x}"));
+        }
+    }
+    format!("[{inner}]")
+}
 
 fn format_addr(fields: &[&DecodedField], raw: u128) -> String {
     let mut base_reg: Option<u64> = None;

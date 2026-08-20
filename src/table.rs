@@ -107,6 +107,9 @@ pub enum Extraction {
     // Used by barrier/sync instructions where yield=0 triggers additional
     // hi-dword bits (122/124 in DEPBAR on sm_103a) that the SCHED mask doesn't cover.
     YieldInv,
+    // Address scale from the base-register suffix ([R9.X8]/[R9.X16]):
+    // 0 none, 1=X4, 2=X8, 3=X16 (i108 golden attribution, BUG-038).
+    AddrScale,
     // Unknown (no extraction, use 0)
     None,
 }
@@ -137,6 +140,7 @@ fn parse_extraction(s: &str) -> Extraction {
         "neg_abs" => Extraction::NegAbs,
         "byte_sel" => Extraction::ByteSel,
         "hsel" => Extraction::HalfSel,
+        "addr_scale" => Extraction::AddrScale,
         "sysreg" => Extraction::SysReg,
         "sysreg_lo7" => Extraction::SysRegLo7,
         "sysreg_lo4" => Extraction::SysRegLo4,

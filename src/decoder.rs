@@ -831,6 +831,7 @@ fn extraction_name(e: &Extraction) -> String {
         Extraction::OpaqueModifier => "opaque_mod".into(),
         Extraction::OpModFlag(n) => format!("opmod:{n}"),
         Extraction::HalfSel => "hsel".into(),
+        Extraction::AddrScale => "addr_scale".into(),
         Extraction::BF16 => "bf16".into(),
         Extraction::MnemMod(i, n) => format!("mnemod{}:{}", i, n),
         Extraction::LblPat(p) => p.clone(),
