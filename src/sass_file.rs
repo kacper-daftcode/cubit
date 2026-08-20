@@ -18,7 +18,7 @@
 
 use crate::directives::{KernelResources, parse_directive};
 use crate::ir::Instruction;
-use crate::parser::{parse_multi_sass, resolve_labels};
+use crate::parser::{parse_multi_sass, parse_multi_sass_strict, resolve_labels};
 
 /// A parsed kernel definition from a .sass source file.
 #[derive(Debug, Clone)]
@@ -41,6 +41,17 @@ pub struct SassFile {
 
 /// Parse a .sass source file string into a SassFile.
 pub fn parse_sass_file_str(text: &str) -> anyhow::Result<SassFile> {
+    parse_sass_file_str_impl(text, false)
+}
+
+/// Strict sibling: instruction lines that fail to parse are hard errors
+/// (fail-closed; M2 pred-liveness gate provability). Directives and label
+/// lines are unaffected.
+pub fn parse_sass_file_str_strict(text: &str) -> anyhow::Result<SassFile> {
+    parse_sass_file_str_impl(text, true)
+}
+
+fn parse_sass_file_str_impl(text: &str, strict: bool) -> anyhow::Result<SassFile> {
     let mut kernels = Vec::new();
     let mut current_name: Option<String> = None;
     let mut current_res = KernelResources::default();
@@ -70,7 +81,7 @@ pub fn parse_sass_file_str(text: &str) -> anyhow::Result<SassFile> {
             // (emitters without .endentry previously lost all but the last kernel).
             if let Some(prev) = current_name.take() {
                 let body = body_lines.join("\n");
-                let insns = parse_kernel_body(&body, &mut current_res);
+                let insns = parse_kernel_body_impl(&body, &mut current_res, strict)?;
                 kernels.push(KernelDef {
                     name: prev,
                     resources: current_res.clone(),
@@ -90,7 +101,7 @@ pub fn parse_sass_file_str(text: &str) -> anyhow::Result<SassFile> {
         if t.starts_with(".endentry") || t.starts_with(".endfunc") {
             if let Some(name) = current_name.take() {
                 let body = body_lines.join("\n");
-                let insns = parse_kernel_body(&body, &mut current_res);
+                let insns = parse_kernel_body_impl(&body, &mut current_res, strict)?;
                 kernels.push(KernelDef {
                     name,
                     resources: current_res.clone(),
@@ -111,7 +122,7 @@ pub fn parse_sass_file_str(text: &str) -> anyhow::Result<SassFile> {
     // If file ended without .endentry, finalize any open kernel
     if let Some(name) = current_name {
         let body = body_lines.join("\n");
-        let insns = parse_kernel_body(&body, &mut current_res);
+        let insns = parse_kernel_body_impl(&body, &mut current_res, strict)?;
         kernels.push(KernelDef {
             name,
             resources: current_res,
@@ -124,7 +135,11 @@ pub fn parse_sass_file_str(text: &str) -> anyhow::Result<SassFile> {
 }
 
 /// Parse the body of a kernel: resource directives + instruction lines + labels.
-fn parse_kernel_body(body: &str, res: &mut KernelResources) -> Vec<Instruction> {
+fn parse_kernel_body_impl(
+    body: &str,
+    res: &mut KernelResources,
+    strict: bool,
+) -> anyhow::Result<Vec<Instruction>> {
     // Separate directive lines from instruction lines
     let mut instr_text = String::new();
 
@@ -150,8 +165,12 @@ fn parse_kernel_body(body: &str, res: &mut KernelResources) -> Vec<Instruction> 
     }
 
     // Use the multi-instruction parser + label resolver
-    let stmts = parse_multi_sass(&instr_text, 0);
-    resolve_labels(stmts, 0)
+    let stmts = if strict {
+        parse_multi_sass_strict(&instr_text, 0)?
+    } else {
+        parse_multi_sass(&instr_text, 0)
+    };
+    Ok(resolve_labels(stmts, 0))
 }
 
 /// Auto-detect max register from instruction list and update resources.

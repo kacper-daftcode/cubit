@@ -32,6 +32,7 @@ pub mod encoder;
 pub mod ir;
 pub mod mercury;
 pub mod parser;
+pub mod pred_liveness;
 pub mod printer;
 #[cfg(feature = "python")]
 pub mod python;

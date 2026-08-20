@@ -358,6 +358,64 @@ fn current_table() -> String {
     TABLE_STATE.read().unwrap().current.clone()
 }
 
+/// Predicate liveness over a whole .sass source (M2/BARRACUDA).
+///
+/// Returns one dict per kernel:
+///   { "name": str, "n": int, "unknown_ops": [str],
+///     "ins": [ { "addr", "op", "raw", "defs", "uses", "udefs", "uuses",
+///                "live_in", "live_out", "ulive_in", "known" } ] }
+/// Predicate sets are register numbers (0..6); PT/UPT never appear.
+/// `mode`: "strict" (documented superset semantics, tracks UP domain too)
+/// or "compat" (bit-parity with the s6 reference predcheck.py, P only).
+/// Parsing is strict: any unparseable instruction line is a hard error
+/// (fail-closed; index space provably matches the source).
+#[cfg(feature = "python")]
+#[pyfunction]
+#[pyo3(signature = (text, mode="strict"))]
+fn pred_liveness<'py>(
+    py: Python<'py>,
+    text: &str,
+    mode: &str,
+) -> PyResult<Vec<Bound<'py, PyDict>>> {
+    let m = match mode {
+        "strict" => crate::pred_liveness::XferMode::Strict,
+        "compat" => crate::pred_liveness::XferMode::Compat,
+        other => {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "unknown mode '{other}'; expected 'strict' or 'compat'"
+            )))
+        }
+    };
+    let kernels = crate::pred_liveness::liveness_file(text, m)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("liveness error: {e}")))?;
+    let mut out = Vec::new();
+    for k in kernels {
+        let kd = PyDict::new(py);
+        kd.set_item("name", &k.name)?;
+        kd.set_item("n", k.ins.len())?;
+        kd.set_item("unknown_ops", k.unknown_ops.clone())?;
+        let mut rows = Vec::with_capacity(k.ins.len());
+        for r in &k.ins {
+            let d = PyDict::new(py);
+            d.set_item("addr", r.addr)?;
+            d.set_item("op", &r.opcode_full)?;
+            d.set_item("raw", &r.raw_text)?;
+            d.set_item("defs", r.defs.iter().map(|v| *v as u32).collect::<Vec<u32>>())?;
+            d.set_item("uses", r.uses.iter().map(|v| *v as u32).collect::<Vec<u32>>())?;
+            d.set_item("udefs", r.udefs.iter().map(|v| *v as u32).collect::<Vec<u32>>())?;
+            d.set_item("uuses", r.uuses.iter().map(|v| *v as u32).collect::<Vec<u32>>())?;
+            d.set_item("live_in", r.live_in.iter().map(|v| *v as u32).collect::<Vec<u32>>())?;
+            d.set_item("live_out", r.live_out.iter().map(|v| *v as u32).collect::<Vec<u32>>())?;
+            d.set_item("ulive_in", r.ulive_in.iter().map(|v| *v as u32).collect::<Vec<u32>>())?;
+            d.set_item("known", r.known)?;
+            rows.push(d);
+        }
+        kd.set_item("ins", rows)?;
+        out.push(kd);
+    }
+    Ok(out)
+}
+
 /// Python module definition.
 #[cfg(feature = "python")]
 #[pymodule]
@@ -370,5 +428,6 @@ fn cubit(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(current_table, m)?)?;
     m.add_function(wrap_pyfunction!(to_sass, m)?)?;
     m.add_function(wrap_pyfunction!(asm, m)?)?;
+    m.add_function(wrap_pyfunction!(pred_liveness, m)?)?;
     Ok(())
 }

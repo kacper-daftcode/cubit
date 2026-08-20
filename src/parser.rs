@@ -549,6 +549,28 @@ pub enum Statement {
 /// Handles labels (`name:`), comments (`//`, `#`), and instruction lines.
 /// Instructions can be separated by `;` or newlines.
 pub fn parse_multi_sass(text: &str, base_addr: u32) -> Vec<Statement> {
+    parse_multi_sass_impl(text, base_addr, false).unwrap_or_else(|e| {
+        // Infallible in non-strict mode by construction; keep the legacy
+        // signature for existing callers.
+        panic!("parse_multi_sass infallible path errored: {e}")
+    })
+}
+
+/// Strict sibling: any non-empty, non-directive, non-label segment that
+/// fails to parse as an instruction is a hard error (fail-closed; used by
+/// the M2 pred-liveness pass so index spaces provably match the source).
+pub fn parse_multi_sass_strict(
+    text: &str,
+    base_addr: u32,
+) -> anyhow::Result<Vec<Statement>> {
+    parse_multi_sass_impl(text, base_addr, true)
+}
+
+fn parse_multi_sass_impl(
+    text: &str,
+    base_addr: u32,
+    strict: bool,
+) -> anyhow::Result<Vec<Statement>> {
     let mut stmts: Vec<Statement> = Vec::new();
     let mut addr = base_addr;
 
@@ -590,10 +612,19 @@ pub fn parse_multi_sass(text: &str, base_addr: u32) -> Vec<Statement> {
                 // Fall through to parse the instruction part after the label
                 let line = &rest_part;
                 if !line.is_empty() {
-                    if let Ok(mut insn) = parse_cuasm_line(line, addr) {
-                        insn.addr = addr;
-                        addr = addr.wrapping_add(16);
-                        stmts.push(Statement::Instruction(insn));
+                    match parse_cuasm_line(line, addr) {
+                        Ok(mut insn) => {
+                            insn.addr = addr;
+                            addr = addr.wrapping_add(16);
+                            stmts.push(Statement::Instruction(insn));
+                        }
+                        Err(e) => {
+                            if strict {
+                                return Err(e.context(format!(
+                                    "strict parse: unparseable label+instr segment at addr 0x{addr:x}: {line:?}"
+                                )));
+                            }
+                        }
                     }
                 }
                 continue;
@@ -607,13 +638,18 @@ pub fn parse_multi_sass(text: &str, base_addr: u32) -> Vec<Statement> {
                     addr = addr.wrapping_add(16);
                     stmts.push(Statement::Instruction(insn));
                 }
-                Err(_) => {
+                Err(e) => {
                     // Skip lines that can't be parsed (directives, etc.)
+                    if strict {
+                        return Err(e.context(format!(
+                            "strict parse: unparseable instruction segment at addr 0x{addr:x}: {line:?}"
+                        )));
+                    }
                 }
             }
         }
     }
-    stmts
+    Ok(stmts)
 }
 
 /// Resolve labels in a list of statements: replace Operand::Label(name) with
