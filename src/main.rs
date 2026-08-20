@@ -4779,8 +4779,15 @@ fn cmd_asm_directive_format(
         // mk13a: PELNE mnemoniczki (opcode_full) — bitmap/scany i tak biora
         // baze split('.'), a stg_wide/u8 + modele mk12/13 potrzebuja
         // modyfikatorow (.64/.128/.CONSTANT). Spojne z ops[] manifestu gold.
-        let kops: Vec<String> =
-            def.instructions.iter().map(|i| i.opcode_full.clone()).collect();
+        // BUG-026: build the name list from the POST-INSERTION instruction vec
+        // (insns_with_ctrl), not from the parsed def.instructions — the uniform
+        // backward-branch pad / drain / MMA-drain insertions grow the code but
+        // not the def, and generate_mercury_full indexed names by code slot
+        // (OOB panic on any backward-branching loop with uniform activity).
+        let kops: Vec<String> = insns_with_ctrl
+            .iter()
+            .map(|i| i.opcode_full.clone())
+            .collect();
         entries.push(KernelEntry {
             name: def.name.clone(),
             code: code_bytes,

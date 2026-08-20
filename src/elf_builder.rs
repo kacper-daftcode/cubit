@@ -2724,6 +2724,18 @@ pub fn generate_mercury_full(
 ) -> Vec<u8> {
     use crate::mercury::{opcode_tracked_hint, tail_for_instr_count, word_is_nop_hint};
     let n_instr = code.len() / 16;
+    // BUG-026: name list must cover every emitted slot (slot i <-> op name i).
+    // A shorter list used to index OOB here when producers mixed pre-/post-
+    // insertion instruction counts; fail loudly with the sizes instead.
+    if let Some(ops) = opcodes {
+        assert!(
+            ops.len() >= n_instr,
+            "generate_mercury_full: opcodes.len()={} < n_instr={} (code {} bytes) —              producer must pass the post-insertion instruction list",
+            ops.len(),
+            n_instr,
+            code.len()
+        );
+    }
     let is_nop = |i: usize| {
         if let Some(ops) = opcodes {
             if i < ops.len() {
