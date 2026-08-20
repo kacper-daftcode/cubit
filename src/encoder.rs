@@ -437,6 +437,32 @@ fn check_pred_neg_encoded(insn: &Instruction, table: &IsaTable, out: u128) -> Re
 
 /// Soft errata (warn, don't refuse): conditions that encode fine but are
 /// silicon traps on specific targets. Human-facing drivers print these
+/// BUG-034 (HW quirk, sm_120 silicon, results/s4/i94_b34): the dest-UP
+/// selector (3 bits @[83:81]) is encodable and nvdisasm-renderable for every
+/// value 0..7, but on the UIADD3 cout slot values 0 and 1 are DEAD WRITES
+/// (the carry result silently never lands in UP0/UP1), and on the UFSETP dest
+/// slot value 0 is a DEAD WRITE. VOTEU writes UP0..UP3 fine — the quirk is
+/// specific to the UIADD3/UFSETP dest slots. The encoding itself is legal and
+/// corpus-nvcc emits it, so this is a WARN, not a hard error.
+fn bug034_dead_write_dest_up(insn: &Instruction, table: &IsaTable) -> Option<String> {
+    if table.target_sm() != 120 {
+        return None;
+    }
+    let (idx, dead_max) = match insn.opcode.as_str() {
+        "UIADD3" => (1usize, 1u8),   // cout slot: UP0 and UP1 dead
+        "UFSETP" => (0usize, 0u8),   // dest slot: UP0 dead
+        _ => return None,
+    };
+    if let Some(Operand::UPred { num, .. }) = insn.operands.get(idx) {
+        if *num <= dead_max {
+            return Some(format!(
+                "{:?} writes its result to UP{num}, a DEAD WRITE on sm_120 silicon                  (BUG-034: encodable and rendered, but the hardware silently drops                  the write on the {op} dest slot). Move the result to UP2..UP6, or                  sink it to UPT.",
+                insn.raw_text.trim(), num = num, op = insn.opcode));
+        }
+    }
+    None
+}
+
 /// (deduplicated). Hard errata live in the encode path itself.
 pub fn errata_warnings(insn: &Instruction, table: &IsaTable) -> Vec<String> {
     let mut out = Vec::new();
@@ -473,6 +499,12 @@ pub fn errata_warnings(insn: &Instruction, table: &IsaTable) -> Vec<String> {
                 Operand::Reg { num, .. } => (num + 1).to_string(),
                 _ => "?".to_string(),
             }));
+    }
+    // BUG-034: dead-write dest-UP selector (see helper; corpus-legal, so WARN).
+    if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() {
+        if let Some(w) = bug034_dead_write_dest_up(insn, table) {
+            out.push(w);
+        }
     }
     out
 }

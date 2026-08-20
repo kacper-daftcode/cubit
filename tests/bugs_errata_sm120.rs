@@ -441,3 +441,152 @@ fn bug028_sp16832_also_restored() {
     let w = enc(&t, "QMMA.SP.16832.F16.E4M3.E4M3 R8, R40, R44, R8, R17, 0x0 ;");
     assert_eq!((w >> 80) & 1, 1, "QMMA.SP.16832 bit80 must be 1");
 }
+
+// ── BUG-034 ─────────────────────────────────────────────────────────────────
+// dest-UP selector = 3 bits @[83:81] STRAIGHT (silicon, results/s4/i94_b34,
+// iter94): UIADD3 cout and UFSETP dest route through it; UPT = sel 7.
+// UIADD3-family words carry bit80=1, UFSETP-family bit80=0. The sm120 table
+// had the sel fixed to 7 in and_base (cout=UPT only) — non-UPT dests were
+// REJECTED by the completeness check — and the UFSETP II-form entry was a
+// half-harvest (no imm/reg-wide fields, junk 4b@25 ureg). Fix = table data
+// (3b upred fields @81 dest / @84 second-UP, II-form completed to the GT.AND
+// shape, UFSETP added to FLOAT_OPCODES since its immediate is an f32) + a
+// dead-write WARN: silicon silently drops the write for sel=0 (both families)
+// and sel=1 (UIADD3 cout only) — encodable/nvdisasm-renderable, but dead.
+//
+// Silicon reference words (bug package, s4/i94_b34): base words with the sel
+// field [83:81] patched; scheduling upper32 masked out at compare.
+const BUG034_UIADD3_LO: u64 = 0x0000_0008_0908_7290; // UIADD3 UR8,UPc,UPT,UR9,UR8,URZ
+const BUG034_UIADD3_HI: u64 = 0x000f_e200_0ff1_e0ff;
+const BUG034_UFSETP_LO: u64 = 0x3f80_0000_1700_7853; // UFSETP.NEU.AND UPd,UPT,UR23,1,UPT
+const NO_SCHED: u128 = !(0xFFFF_FFFFu128 << 96);
+
+fn bug034_word(hi: u64, lo: u64, sel: u64) -> u128 {
+    (((hi & !(7u64 << 17)) | (sel << 17)) as u128) << 64 | lo as u128
+}
+
+#[test]
+fn bug034_uiadd3_cout_up_sels_byte_exact() {
+    let t = t120();
+    // src variant of the measured corpus word (UR_UR_UR sig)
+    for sel in 0..=7u64 {
+        let dst = if sel == 7 { "UPT".to_string() } else { format!("UP{sel}") };
+        let src = format!("UIADD3 UR8, {dst}, UPT, UR9, UR8, URZ ;");
+        let w = enc(&t, &src) & NO_SCHED;
+        let want = bug034_word(BUG034_UIADD3_HI, BUG034_UIADD3_LO, sel) & NO_SCHED;
+        assert_eq!(w, want, "{src} must encode the silicon sel word");
+    }
+}
+
+#[test]
+fn bug034_ufsetp_dest_up_sels_byte_exact() {
+    let t = t120();
+    let hi = 0x000f_cc00_0bf0_d000u64;
+    for sel in 0..=7u64 {
+        let dst = if sel == 7 { "UPT".to_string() } else { format!("UP{sel}") };
+        // nvdisasm render: bare integral float ("1"); parser reads it as f32
+        // in the UFSETP float context -> 0x3f800000 at [63:32].
+        let src = format!("UFSETP.NEU.AND {dst}, UPT, UR23, 1, UPT ;");
+        let w = enc(&t, &src) & NO_SCHED;
+        let want = bug034_word(hi, BUG034_UFSETP_LO, sel) & NO_SCHED;
+        assert_eq!(w, want, "{src} must encode the silicon sel word");
+    }
+}
+
+#[test]
+fn bug034_upt_and_existing_forms_unchanged() {
+    let t = t120();
+    // Pre-fix behavior (cout=UPT) must stay byte-identical: field UPT(7)
+    // restores exactly the bits the old and_base carried.
+    let cases: [(&str, u128); 3] = [
+        ("UIADD3 UR8, UPT, UPT, UR9, UR8, URZ ;",
+         0x000f_ca00_0fff_e0ff_0000_0008_0908_7290),
+        ("UIADD3 UR9, UPT, UPT, URZ, -0x1, URZ ;",
+         0x000f_ca00_0fff_e0ff_ffff_ffff_ff09_7890),
+        ("UIADD3.64 UR9, UPT, UPT, URZ, -0x1, URZ ;",
+         0x000f_ca00_0fff_e0ff_ffff_ffff_ff09_7897),
+    ];
+    for (src, want) in cases {
+        let w = enc(&t, src) & NO_SCHED;
+        assert_eq!(w, want & NO_SCHED, "{src} regressed");
+    }
+    // UFSETP cout=UPT now encodes (was a REJECT before the fix: no imm field).
+    let w = enc(&t, "UFSETP.NEU.AND UPT, UPT, UR23, 1, UPT ;") & NO_SCHED;
+    assert_eq!(w, bug034_word(0x000f_cc00_0bf0_d000, BUG034_UFSETP_LO, 7) & NO_SCHED);
+}
+
+#[test]
+fn bug034_dead_write_warns_precisely() {
+    let t = t120();
+    // UIADD3 cout: UP0 and UP1 are dead writes on sm_120 silicon.
+    for dst in ["UP0", "UP1"] {
+        let ws = warns(&t, &format!("UIADD3 UR8, {dst}, UPT, UR9, UR8, URZ ;"));
+        assert!(ws.iter().any(|w| w.contains("BUG-034") && w.contains("DEAD WRITE")),
+            "{dst} must warn: {ws:?}");
+    }
+    // UFSETP dest: only UP0 dead.
+    let ws = warns(&t, "UFSETP.NEU.AND UP0, UPT, UR23, 1, UPT ;");
+    assert!(ws.iter().any(|w| w.contains("BUG-034")));
+    // Writable sels stay quiet — and VOTEU genuinely writes UP0 (silicon-proven).
+    for src in [
+        "UIADD3 UR8, UP2, UPT, UR9, UR8, URZ ;",
+        "UIADD3 UR8, UP6, UPT, UR9, UR8, URZ ;",
+        "UIADD3 UR8, UPT, UPT, UR9, UR8, URZ ;",
+        "UFSETP.NEU.AND UP1, UPT, UR23, 1, UPT ;",
+        "UFSETP.NEU.AND UPT, UPT, UR23, 1, UPT ;",
+        "VOTEU.ANY UP0, P0 ;",
+    ] {
+        let ws = warns(&t, src);
+        assert!(!ws.iter().any(|w| w.contains("BUG-034")), "{src} must not warn: {ws:?}");
+    }
+    // sm_103a: quirk unmeasured there — stays quiet.
+    let t103 = t103a();
+    let ws = warns(&t103, "UIADD3 UR8, UP0, UPT, UR9, UR8, URZ ;");
+    assert!(!ws.iter().any(|w| w.contains("BUG-034")), "sm_103a must stay quiet: {ws:?}");
+}
+
+#[test]
+fn bug034_silicon_words_decode_render_roundtrip() {
+    let t = t120();
+    let idx = DecodeIndex::build(&t);
+    // UFSETP sweep: decode must now render the canonical text (was raw-fallback
+    // for sel!=0 and garbage UR11/0x0 for sel=0 before the fix).
+    let hi = 0x000f_cc00_0bf0_d000u64;
+    for sel in 0..=7u64 {
+        let w = bug034_word(hi, BUG034_UFSETP_LO, sel);
+        let d = idx.decode(w, 0, &t).unwrap();
+        let text = cubit::printer::to_sass(&d);
+        let dst = if sel == 7 { "UPT".to_string() } else { format!("UP{sel}") };
+        assert_eq!(text, format!("UFSETP.NEU.AND {dst}, UPT, UR23, 1, UPT"),
+            "UFSETP sel={sel} render");
+        let insn = parse_sass(&text, 0).unwrap();
+        let w2 = encode_instruction(&insn, &t).unwrap();
+        assert_eq!(w & NO_SCHED, w2 & NO_SCHED, "UFSETP sel={sel} roundtrip");
+    }
+    // UIADD3 sweep: sel is printed on the cout slot and round-trips byte-exact.
+    for sel in 0..=7u64 {
+        let w = bug034_word(BUG034_UIADD3_HI, BUG034_UIADD3_LO, sel);
+        let d = idx.decode(w, 0, &t).unwrap();
+        let text = cubit::printer::to_sass(&d);
+        let dst = if sel == 7 { "UPT".to_string() } else { format!("UP{sel}") };
+        assert!(text.starts_with(&format!("UIADD3 UR8, {dst},")),
+            "UIADD3 sel={sel} render: {text}");
+        let insn = parse_sass(&text, 0).unwrap();
+        let w2 = encode_instruction(&insn, &t).unwrap();
+        assert_eq!(w & NO_SCHED, w2 & NO_SCHED, "UIADD3 sel={sel} roundtrip: {text}");
+    }
+}
+
+#[test]
+fn bug034_uiadd3_64_dest_up_too() {
+    // The .64 variants carried the same hole (sel baked 7 in and_base).
+    let t = t120();
+    for sel in [0u64, 3, 7] {
+        let dst = if sel == 7 { "UPT".to_string() } else { format!("UP{sel}") };
+        let src = format!("UIADD3.64 UR9, {dst}, UPT, URZ, -0x1, URZ ;");
+        let w = enc(&t, &src);
+        assert_eq!((w >> 81) & 7, sel as u128, "{src}: sel@[83:81]");
+        assert_eq!((w >> 80) & 1, 1, "{src}: UIADD3-family bit80 must be 1");
+        assert_eq!((w >> 84) & 7, 7, "{src}: cin UPT at [86:84]");
+    }
+}
