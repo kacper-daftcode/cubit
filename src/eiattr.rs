@@ -895,7 +895,13 @@ impl KernelMeta {
                     }
                 }
                 0x0019 => { // CBANK_PARAM_SIZE
-                    if let Some(v) = rec.as_u16() { meta.cbank_param_size = v; }
+                    // Emitted as BVAL (single value byte) by this crate; HVAL
+                    // in nvcc cubins. as_u16 needs 2 data bytes -> misses the
+                    // BVAL shape, leaving 0 (BUG-044 pre-flight blind spot).
+                    meta.cbank_param_size = rec.as_u16()
+                        .filter(|_| rec.data.len() >= 2)
+                        .or_else(|| rec.as_u8().map(u16::from))
+                        .unwrap_or(0);
                 }
                 0x0037 => { // CUDA_API_VERSION
                     if let Some(v) = rec.as_u32() { meta.cuda_api_version = v; }

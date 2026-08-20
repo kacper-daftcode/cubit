@@ -1717,6 +1717,41 @@ fn cmd_asm(
     Ok(())
 }
 
+/// BUG-044 (fail-closed, sm120 i120): rebuild_cubin copies the reference's
+/// EIATTR + .nv.constant0 VERBATIM. If a kernel's sass declares a different
+/// .param footprint than the reference records, the driver sizes the copied
+/// parameter block per the REFERENCE metadata — trailing params never arrive
+/// (report: 3rd `.param u32` read garbage; c[0x0][0x38c] undelivered).
+/// Mismatch of the cbank param size is a hard error; an unparsable reference
+/// only downgrades to a note (nothing to compare against).
+fn preflight_param_footprint_vs_reference(
+    ref_bytes: &[u8],
+    entries: &[cubit::elf_builder::KernelEntry],
+    via: &str,
+) -> Result<()> {
+    match cubit::eiattr::parse_cubin_metadata(ref_bytes) {
+        Ok(ref_meta) => {
+            for e in entries {
+                let sass_size = e.meta.cbank_param_size;
+                if let Some(rm) = ref_meta.get(&e.name) {
+                    if rm.cbank_param_size != sass_size {
+                        anyhow::bail!(
+                            "asm {via}: kernel '{}' declares {} byte(s) of .params but the                              reference records {} byte(s) in EIATTR — that metadata is copied                              verbatim, so the driver would shape the parameter block per the                              REFERENCE and the tail params would read garbage. Use a reference                              with a matching .param signature or assemble without {via}.",
+                            e.name, sass_size, rm.cbank_param_size
+                        );
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!(
+                "note: cannot parse reference EIATTR for the BUG-044 param-size                  pre-flight ({e}); assuming the .param signatures match"
+            );
+        }
+    }
+    Ok(())
+}
+
 fn cmd_asm_build_elf(
     table: &IsaTable,
     _sass_text: &str,
@@ -3812,6 +3847,7 @@ fn cmd_asm_build_elf(
         println!("Using EIATTR from: {}", ref_path.display());
         let ref_bytes = std::fs::read(ref_path)
             .with_context(|| format!("cannot read {}", ref_path.display()))?;
+        preflight_param_footprint_vs_reference(&ref_bytes, &entries, "--eiattr-from")?;
         let patches: Vec<cubit::elf_builder::CubinPatch> = entries
             .iter()
             .map(|e| (e.name.as_str(), e.code.clone(), e.mercury_stub.clone()))
@@ -4950,6 +4986,7 @@ fn cmd_asm_directive_format(
     let cubin_bytes = if let Some(tmpl) = template_path {
         use cubit::elf_builder::rebuild_cubin;
         let tmpl_bytes = std::fs::read(tmpl)?;
+        preflight_param_footprint_vs_reference(&tmpl_bytes, &entries, "-T")?;
         let patches: Vec<cubit::elf_builder::CubinPatch> = entries
             .iter()
             .map(|e| (e.name.as_str(), e.code.clone(), e.mercury_stub.clone()))
@@ -4958,6 +4995,7 @@ fn cmd_asm_directive_format(
     } else if let Some(ref_path) = eiattr_path {
         use cubit::elf_builder::rebuild_cubin;
         let ref_bytes = std::fs::read(ref_path)?;
+        preflight_param_footprint_vs_reference(&ref_bytes, &entries, "--eiattr-from")?;
         let patches: Vec<cubit::elf_builder::CubinPatch> = entries
             .iter()
             .map(|e| (e.name.as_str(), e.code.clone(), e.mercury_stub.clone()))
