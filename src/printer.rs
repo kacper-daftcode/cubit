@@ -694,10 +694,11 @@ fn format_operand(
         "FI"    => format_float_imm(fields),
         "L" | "SR"
                 => format_lit_or_sysreg(fields, mod_group, raw),
-        // BUG-038: LDS with a scaled-index address ([R9.X8+..]/[R9.X16+..]) —
-        // the addr_scale field carries the suffix. Scale=0 prints exactly like
-        // format_addr (historical shape preserved for every existing entry).
-        "ARI" if ins_key.starts_with("LDS")
+        // BUG-038/017: LDS/STS with a scaled-index address ([R9.X8+..]/
+        // [R9.X16+..]) — the addr_scale field carries the suffix. Scale=0
+        // prints exactly like format_addr (historical shape preserved for
+        // every existing entry).
+        "ARI" if (ins_key.starts_with("LDS") || ins_key.starts_with("STS"))
             && fields.iter().any(|f| norm_ext(&f.extraction) == "addr_scale")
             => format_lds_scaled_addr(fields),
         "ARI" | "AI"

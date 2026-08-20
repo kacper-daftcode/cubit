@@ -246,7 +246,7 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
                     return missing(&format!("B{b}"));
                 }
             }
-            Operand::Addr { ur_reg, offset, .. } => {
+            Operand::Addr { ur_reg, offset, base_reg_suffix, .. } => {
                 // base_reg is placed at bits[31:24] by the encoder fixup when the
                 // entry lacks the field, so it is always encodable.
                 if ur_reg.is_some_and(|u| u != 63)
@@ -255,6 +255,16 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
                 }
                 if *offset != 0 && !fields_for_tok().any(|f| ext_encodes_imm(&f.extraction)) {
                     return missing(&format!("addr offset 0x{offset:x}"));
+                }
+                // BUG-017: a scaled-index suffix (.X4/.X8/.X16) is real silicon
+                // state (addr_scale field [79:78]); an entry without the field
+                // would DROP it silently — refuse instead of miss-encoding.
+                if let Some(sfx) = base_reg_suffix.as_deref() {
+                    if matches!(sfx, "X4" | "X8" | "X16")
+                        && !fields_for_tok().any(|f| matches!(f.extraction,
+                            Extraction::AddrScale)) {
+                        return missing(&format!("addr scale suffix .{sfx}"));
+                    }
                 }
             }
             Operand::Desc { base_reg, offset, .. } => {
