@@ -292,6 +292,19 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         opcode
     };
 
+    // BUG-045: ULOP3 UP-dest == UPT is the hardware encoding of the
+    // dest-less form — every i93 no-dest golden word has dest-sel 7 (UPT)
+    // baked. nvdisasm omits the operand; drop the leading "UPT" so render
+    // matches nvdisasm and the text re-encodes through the UR_* rows
+    // byte-identically (their and_base fixes sel=7). Data: 7 gold words,
+    // results/cubitfix/045/gold.json (class "cosmetic").
+    if insn.opcode == "ULOP3"
+        && op_types.first().map(|t| t == "UP").unwrap_or(false)
+        && operands.first().map(|s| s == "UPT").unwrap_or(false)
+    {
+        operands.remove(0);
+    }
+
     if operands.is_empty() {
         format!("{guard_prefix}{opcode}")
     } else {
