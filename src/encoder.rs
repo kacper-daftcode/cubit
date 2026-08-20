@@ -1711,12 +1711,37 @@ fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm
             }
             return code;
         }
+        // BRXU.U URn, imm (dispatch-table form, two operands): the imm token
+        // is a raw byte offset — legacy semantics, legacy layout.
         if let Some(Operand::Imm32(offset)) = insn.operands.get(1) {
             let rq = if *offset >= 0 { *offset >> 2 } else { -((-*offset) >> 2) };
             code = (code & !(0xFF_u128 << 16)) | (((rq & 0xFF) as u128) << 16);
             let t32 = (((rq >> 8) << 2) as u64) & 0xFFFFFFFF;
             code = (code & !(0xFFFFFFFF_u128 << 32)) | ((t32 as u128) << 32);
             if *offset < 0 { code |= 0x3FFFF_u128 << 64; }
+            return code;
+        }
+        // BUG-027 (sm_120): single-token absolute-target form (`BRXU 0xT` /
+        // label). The disassembler renders this form in the nvdisasm absolute
+        // convention (`pc + 0x10 + rel`, rel = rq*4, rq at [23:16] with the
+        // rest at [63:32]>>2<<8) — the same dword-split layout as BRA. The
+        // legacy path only fired on a second immediate operand, so the
+        // single-token form fell back to the harvest-artifact BRXU_II table
+        // field imm@[39:19], whose absolute-target value aliased into the
+        // dword-split region and silently dropped offset bits (observed:
+        // rendered target off by -0x200 for (pc,T)=(0x9cc0,0xc840)/
+        // (0x9b60,0xc6e0); silicon HANG on a shifted-layout kernel). Encode
+        // the absolute target like BRA does, shadowing the bogus table-field
+        // write over the branch-owned region.
+        if insn.operands.len() == 1 {
+            if let Some(target) = find_branch_target(insn) {
+                let rel = target - insn.addr as i64 - 16;
+                let rq = if rel >= 0 { rel >> 2 } else { -((-rel) >> 2) };
+                code = (code & !(0xFF_u128 << 16)) | (((rq & 0xFF) as u128) << 16);
+                let t32 = (((rq >> 8) << 2) as u64) & 0xFFFFFFFF;
+                code = (code & !(0xFFFFFFFF_u128 << 32)) | ((t32 as u128) << 32);
+                if rel < 0 { code |= 0x3FFFF_u128 << 64; }
+            }
         }
         return code;
     }

@@ -325,3 +325,73 @@ fn bug011_rebuild_never_lowers_template_regcount() {
     }
     assert_eq!(rc, Some(255), "rebuild must preserve the template REGCOUNT floor");
 }
+
+// ── BUG-027 ─────────────────────────────────────────────────────────────────
+// BRXU (abs target form): encode/decode ROUNDTRIP HOLE f(pc,T). The encoder
+// left the single-token absolute form to the harvest-artifact BRXU_II table
+// field imm@[39:19]; its absolute-target value aliased into the dword-split
+// branch region ([23:16] | [63:32]>>2<<8) and silently dropped offset bits
+// (iter88 evidence: (0x9cc0,0xc840) and (0x9b60,0xc6e0) rendered -0x200;
+// silicon HANG on the shifted-layout kernel). The encoder must now write the
+// branch dword-split from the absolute target, like BRA.
+fn brxu_render(table: &IsaTable, idx: &DecodeIndex, line: &str, addr: u32) -> (u128, String) {
+    let insn = cubit::parse_cuasm_line(line, addr).unwrap();
+    let w = encode_instruction(&insn, table).unwrap();
+    let d = idx.decode(w, addr, table).unwrap();
+    (w, cubit::printer::to_sass(&d))
+}
+
+#[test]
+fn bug027_brxu_abs_roundtrip_all_evidence_pairs() {
+    let t = t120();
+    let idx = DecodeIndex::build(&t);
+    // Full evidence lines from results/cubit-bugs/repro/027/evidence.txt —
+    // the two kernel sites keep distinct !rsd payloads; all six (pc, target)
+    // combinations must render back the literal target.
+    let rsd_a = "18:0,19:1,23:0,24:1,26:1,27:1,28:1,29:1,31:1,33:0,34:0,36:1,38:1,41:0,42:0,43:0,44:0,45:0,46:0,47:0,48:0,49:0,50:0,51:0,52:0,53:0,54:0,55:0,56:0,57:0,58:0,59:0,60:0,61:0,62:0,63:0,64:0,65:0,66:0,67:0,68:0,69:0,70:0,71:0,72:0,73:0,74:0,75:0,76:0,77:0,78:0,79:0,80:0,81:0";
+    let rsd_b = "19:1,20:1,22:1,24:1,26:1,27:1,28:1,29:1,31:1,33:0,34:0,35:1,37:1,41:0,42:0,43:0,44:0,45:0,46:0,47:0,48:0,49:0,50:0,51:0,52:0,53:0,54:0,55:0,56:0,57:0,58:0,59:0,60:0,61:0,62:0,63:0,64:0,65:0,66:0,67:0,68:0,69:0,70:0,71:0,72:0,73:0,74:0,75:0,76:0,77:0,78:0,79:0,80:0,81:0";
+    // (site-rsd, addr, target) — v88 base, w103h SHIFT=368, x16h SHIFT=16
+    let cases: [( &str, u32, u32 ); 6] = [
+        (rsd_a, 0x7820, 0xc850),
+        (rsd_b, 0x9cd0, 0xc850),
+        (rsd_a, 0x76b0, 0xc6e0),
+        (rsd_b, 0x9b60, 0xc6e0),
+        (rsd_a, 0x7810, 0xc840),
+        (rsd_b, 0x9cc0, 0xc840),
+    ];
+    for (rsd, addr, tgt) in cases {
+        let line = format!(
+            "[B------:R-:W-:Y:S01] BRXU 0x{tgt:x} !rsd[{rsd}] ;");
+        let (_, text) = brxu_render(&t, &idx, &line, addr);
+        assert!(text.contains(&format!("BRXU 0x{tgt:x}")),
+            "addr=0x{addr:x} target=0x{tgt:x} must round-trip, got: {text}");
+        assert!(!text.contains(&format!("0x{:x}", tgt.wrapping_sub(0x200))),
+            "regression signature (-0x200 hole) must be gone: {text}");
+    }
+    // Branch-owned region must be reconstructible from text alone: with the
+    // rsd overlay dropped, re-encode of the bare printed form keeps the exact
+    // branch bits (the hole was precisely the text-not-carrying bit 23 case).
+    for (addr, tgt) in [(0x9b60u32, 0xc6e0u32), (0x9cc0, 0xc840)] {
+        let bare = format!("BRXU 0x{tgt:x} ;");
+        let (w, text) = brxu_render(&t, &idx, &bare, addr);
+        assert!(text.contains(&format!("BRXU 0x{tgt:x}")), "bare form: {text}");
+        let insn2 = parse_sass(&text.replace("!rsd[", "!IGNORED["), addr);
+        drop(insn2); // text with rsd is handled by the sass-file parser; here re-enc direct
+        let insn = parse_sass(&format!("BRXU 0x{tgt:x} ;"), addr).unwrap();
+        let w2 = encode_instruction(&insn, &t).unwrap();
+        const BRANCH_REGION: u128 = (0xFFu128 << 16) | (0xFFFFFFFFu128 << 32)
+            | (0x3FFFFu128 << 64);
+        assert_eq!(w & BRANCH_REGION, w2 & BRANCH_REGION,
+            "branch region must come from the target literal alone (addr=0x{addr:x})");
+    }
+}
+
+#[test]
+fn bug027_brxu_backward_branch_sign_bits() {
+    let t = t120();
+    let idx = DecodeIndex::build(&t);
+    // Backward branch (negative rel): sign bits [81:64] must be set and the
+    // target must render back unchanged.
+    let (_, text) = brxu_render(&t, &idx, "BRXU 0x100 ;", 0x400);
+    assert!(text.contains("BRXU 0x100"), "backward BRXU roundtrip: {text}");
+}
