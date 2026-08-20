@@ -55,7 +55,9 @@ fn t_uniform_alu() {
 fn t_load_widths_and_desc_ur() {
     let x = xfer("LDG.E.LTC128B.128 R0, desc[UR38][R210.64] ;");
     assert_eq!(x.rdefs, v(&[0, 1, 2, 3]), "128-bit load: 4-reg span");
-    assert_eq!(x.ruses, v(&[210, 211]), ".64 address pair");
+    // M3.5 Q1 (census 2026-08-20): desc-form base is ONE 32-bit offset reg;
+    // printed .64 = effective-address width, not a pair (R211 never def'd).
+    assert_eq!(x.ruses, v(&[210]), "desc .64 base: single offset register");
     assert_eq!(x.uuses, v(&[38]), "descriptor UR read");
     let x = xfer("LDG.E.NA.EFL2.256.STRONG.GPU R96, desc[UR0][R4.64] ;");
     assert_eq!(x.rdefs.len(), 8);
@@ -69,10 +71,12 @@ fn t_store_no_def_data_span() {
     let x = xfer("STG.E.EL.ELL2.256.STRONG.GPU desc[UR20][R26.64], R44, R44 ;");
     assert!(x.rdefs.is_empty() && x.udefs.is_empty());
     assert_eq!(x.uuses, v(&[20]));
-    assert!(x.ruses.contains(&26) && x.ruses.contains(&27));
-    // 256-bit data: both R44 tokens span R44..R51 (conservative superset)
-    for r in 44..52 {
+    assert!(x.ruses.contains(&26));
+    assert!(!x.ruses.contains(&27), "Q1: desc base is a single offset reg");
+    // M3.5 2quad: .256 two-reg store -> each printed data reg spans width/2
+    for r in 44..48 {
         assert!(x.ruses.contains(&r));
+        assert!(!x.ruses.contains(&(r + 4)), "no span overreach past the quad");
     }
     let x = xfer("STS.128 [R4], R8 ;");
     assert!(x.rdefs.is_empty());
@@ -164,7 +168,8 @@ fn t_shfl_dest_is_first_reg_not_pred() {
 fn t_atomg_return_pair_def_redg_no_def() {
     let x = xfer("ATOMG.E.ADD.EL.STRONG.GPU PT, R214, desc[UR38][R82.64], R77 ;");
     assert_eq!(x.rdefs, v(&[214, 215]), "old-value return pair");
-    assert_eq!(x.ruses.intersection(&v(&[82, 83, 77])).count(), 3);
+    assert_eq!(x.ruses.intersection(&v(&[82, 77])).count(), 2);
+    assert!(!x.ruses.contains(&83), "Q1: desc base single offset reg");
     assert_eq!(x.uuses, v(&[38]));
     let x = xfer("REDG.E.ADD.EL.STRONG.GPU PT, desc[UR6][RZ.64], R81 ;");
     assert!(x.rdefs.is_empty());
@@ -177,4 +182,29 @@ fn t_x16_is_scale_not_span() {
     assert!(x.ruses.contains(&5));
     assert!(!x.ruses.contains(&6), "X16 is address scaling, not a reg span");
     assert!(x.rdefs.is_empty());
+}
+
+#[test]
+fn t_q1_desc_odd_base_is_single_offset() {
+    // Census R0b canonical (md5 9962e535): bases 69/83/85/209 (odd) and
+    // 6/210/214/218 never have base+1 anywhere in the certified kernel;
+    // producers are 32-bit MOV/IADD3(PT,PT) - no carry chain exists.
+    let x = xfer("LDG.E.LTC128B.128 R104, desc[UR26][R85.64] ;");
+    assert_eq!(x.rdefs, v(&[104, 105, 106, 107]));
+    assert_eq!(x.ruses, v(&[85]));
+    assert!(!x.ruses.contains(&86));
+    assert_eq!(x.uuses, v(&[26]));
+    let x = xfer("LDG.E.LTC128B.128 R8, desc[UR8][R6.64] ;");
+    assert_eq!(x.ruses, v(&[6]));
+}
+
+#[test]
+fn t_ldg256_two_reg_two_quads() {
+    // .256 load prints two .128 bases (LDG R48, R44, desc[..]): census
+    // edge-votes DEF on pos1. Defs = two quads, pos1 is NOT a use.
+    let x = xfer("LDG.E.EL.ELL2.256.STRONG.GPU R48, R44, desc[UR4][R24.64] ;");
+    assert_eq!(x.rdefs, v(&[44, 45, 46, 47, 48, 49, 50, 51]));
+    assert_eq!(x.ruses, v(&[24]));
+    assert_eq!(x.uuses, v(&[4]));
+    assert!(x.known);
 }
