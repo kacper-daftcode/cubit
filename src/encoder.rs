@@ -146,9 +146,19 @@ fn ext_encodes_imm(ext: &Extraction) -> bool {
 /// Fields referencing tokens beyond the operand list are ignored — that is the
 /// documented `{fk}_?` wildcard-suffix behavior (extra trailing operand defaults).
 fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntry) -> std::result::Result<(), String> {
-    // Branch-family operands (targets, RET register, BRA.U upred) are encoded by
-    // apply_branch_encoding, not by table fields.
-    if BRANCH_OPS.iter().any(|&o| insn.opcode == o) { return Ok(()); }
+    // Branch-family targets (and the RET register / BRA.U upred) are encoded by
+    // apply_branch_encoding, not by table fields. Until BUG-023 this skipped
+    // ALL checks for branch ops, which let wrong-shape harvest artifacts (a
+    // stale `BRA.DIV_P_UR_II` key carrying UR_II-shaped fields) shadow the
+    // correct entry in the fk-first lookup chain and silently drop predicate /
+    // uniform-register operands (encode "BRA.DIV P0, URZ, 0x.." wrote the
+    // artifact's and_base: pred=7, ureg=0). Branch ops therefore skip only what
+    // the fixup owns (imm/label targets, RET's register, BRA.U's upred); the
+    // register-class completeness below still applies. The per-field type
+    // check stays skipped for branches: legacy fixup-shadowed entries carry
+    // intentionally loose field/token pairings (BRXU_L, BRXU_II) that only the
+    // fixup makes coherent.
+    let is_branch = BRANCH_OPS.iter().any(|&o| insn.opcode == o);
     // Raw-address LDG/STG bypass the field system entirely (full lo64 rebuild).
     if (insn.opcode == "LDG" || insn.opcode == "STG")
         && insn.operands.iter().any(|op| matches!(op, Operand::Addr { .. }))
@@ -156,7 +166,8 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
         return Ok(());
     }
 
-    // 1. Type check
+    // 1. Type check (non-branch ops only, see above)
+    if !is_branch {
     for field in &entry.fields {
         if let Some(op) = get_op(insn, field.token_idx) {
             if !extraction_accepts(&field.extraction, op) {
@@ -167,6 +178,7 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
                     crate::parser::operand_type_label_pub(op)));
             }
         }
+    }
     }
 
     // 2. Completeness check
@@ -179,6 +191,13 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
         let missing = |what: &str| Err(format!(
             "operand {tok} ({what}) has no field able to encode it"));
         match op {
+            // BUG-023: operands owned by apply_branch_encoding are exempt from
+            // field-carry requirements (their bits come from the fixup).
+            Operand::Imm32(_) | Operand::Imm64(_) | Operand::Label(_)
+                if is_branch => continue,
+            Operand::Reg { .. } if is_branch && insn.opcode.starts_with("RET") => continue,
+            Operand::UPred { .. } if is_branch
+                && (insn.opcode == "BRA" || insn.opcode == "BRA.U") => continue,
             Operand::Reg { num, .. } if *num != 255 => {
                 // Memory-load destination (operand 1) is placed at bits[23:16] by the
                 // encoder fixup even when the entry lacks the field.

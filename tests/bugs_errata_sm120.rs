@@ -716,3 +716,109 @@ fn bug022_render_reencodes_byte_exact() {
     }
 }
 
+
+// ── BUG-023 ─────────────────────────────────────────────────────────────────
+// Encoder-side half of the BRA.DIV trap: entry_matches_operands skipped ALL
+// checks for branch-family ops, so a wrong-shape harvest artifact (a stale
+// `BRA.DIV_P_UR_II` key carrying UR_II-shaped fields, present in the promoted
+// tb_i82 table) won the fk-first lookup against the 3-operand text
+// "BRA.DIV P0, URZ, 0x2910" and encoded its own and_base — pred=7, ureg=0x00,
+// bit82 lost (bug-package repro word 0x000fe2000b8000000000002a00407947).
+// The matcher now skips only what apply_branch_encoding owns (imm/label
+// targets, RET's register, BRA.U's upred); register-class operands still
+// require a covering field. Consequence: legacy silent-garbage branch forms
+// (second operand never encoded by any field) now fail closed.
+
+#[test]
+fn bug023_div_conv_p_ur_ii_encode_byte_exact() {
+    let t = t120();
+    assert_eq!(enc_clean(&t, "BRA.DIV P0, URZ, 0x2910 ;"), BUG022_DIV & !SCHED);
+    assert_eq!(enc_clean(&t, "BRA.CONV P0, URZ, 0x2910 ;"), BUG022_CONV & !SCHED);
+    assert_eq!(enc_clean(&t, "BRA.DIV !P2, URZ, 0x2910 ;"), BUG022_NEG & !SCHED);
+    assert_eq!(enc_clean(&t, "@P1 BRA.DIV P2, UR5, 0x2900 ;"), BUG022_LIVE & !SCHED);
+}
+
+/// Table with the harvest artifact grafted next to the correct row.
+fn bug023_shadow_table() -> IsaTable {
+    let mut v: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string("tables/sm120.json").unwrap()).unwrap();
+    let ins = v["instructions"].as_object_mut().unwrap();
+    let artifact = ins["BRA_UR_II"].clone(); // the UR_II-shaped record family
+    ins.insert("BRA.DIV_P_UR_II".into(), artifact);
+    let path = std::env::temp_dir()
+        .join(format!("cubit_bug023_shadow_{}.json", std::process::id()));
+    std::fs::write(&path, serde_json::to_string(&v).unwrap()).unwrap();
+    IsaTable::load(&path).unwrap()
+}
+
+#[test]
+fn bug023_artifact_key_cannot_shadow_correct_entry() {
+    // Pre-fix the fk-first chain picked the artifact and emitted ITS and_base
+    // (pred=7, ureg=0, bit82=0). The artifact's fields cover no register-class
+    // operand of the text, so the matcher must now reject it and advance to
+    // the correct (BRA_P_UR_II, "DIV") row: byte-exact golden either way.
+    let t = bug023_shadow_table();
+    assert_eq!(enc_clean(&t, "BRA.DIV P0, URZ, 0x2910 ;"), BUG022_DIV & !SCHED);
+    // decode side also keeps the correct key with the artifact present
+    let idx = DecodeIndex::build(&t);
+    assert_eq!(render_word(&t, &idx, BUG022_DIV, 0), "BRA.DIV P0, URZ, 0x2910");
+}
+
+#[test]
+fn bug023_artifact_only_table_fails_closed() {
+    // Artifact present but the correct row absent: pre-fix this SILENTLY
+    // encoded the artifact's and_base (the original bug report); now the
+    // lookup must reject the artifact and error out.
+    let mut v: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string("tables/sm120.json").unwrap()).unwrap();
+    let ins = v["instructions"].as_object_mut().unwrap();
+    let artifact = ins["BRA_UR_II"].clone();
+    ins.insert("BRA.DIV_P_UR_II".into(), artifact);
+    ins.remove("BRA_P_UR_II");
+    let path = std::env::temp_dir()
+        .join(format!("cubit_bug023_failclosed_{}.json", std::process::id()));
+    std::fs::write(&path, serde_json::to_string(&v).unwrap()).unwrap();
+    let t = IsaTable::load(&path).unwrap();
+    let insn = cubit::parse_cuasm_line("BRA.DIV P0, URZ, 0x2910 ;", 0).unwrap();
+    let e = encode_instruction(&insn, &t).unwrap_err().to_string();
+    assert!(e.contains("no operand-compatible table entry"), "{e}");
+    assert!(e.contains("BRA.DIV_P_UR_II") && e.contains("REJECTED"),
+            "the artifact's rejection must be visible in the attempt log: {e}");
+}
+
+#[test]
+fn bug023_legacy_branch_battery_unchanged() {
+    // Working legacy forms must keep their pre-fix words bit-for-bit
+    // (baseline captured pre-fix on 1e1305d; sched upper bits masked).
+    let t = t120();
+    let cases: [(&str, u128); 6] = [
+        ("BRA 0x50 ;",            0x000fe200038000000000000000107947),
+        ("@P2 BRA 0x50 ;",        0x000fe200038000000000000000102947),
+        ("BRA.U UP3, 0x50 ;",     0x000fe2000b8000000000000103107547),
+        ("BSSY B0, 0x50 ;",       0x000fe200038000000000004000007945),
+        ("CALL.REL.NOINC 0x50 ;", 0x000fe20003c000000000000000107944),
+        ("BRA P2, 0x50 ;",        0x000fe200010000000000000000107947),
+    ];
+    for (s, gold) in cases {
+        assert_eq!(enc_clean(&t, s), gold & !SCHED, "legacy drift: {s}");
+    }
+    // Silent-garbage forms (operand provably not carried by any field) are
+    // now explicit errors instead of wrong words:
+    let e = enc_err(&t, "BRA P2, P3, 0x50 ;");
+    assert!(e.contains("P3"), "second predicate drop must be named: {e}");
+    let e = enc_err(&t, "BRA UR4, 0x50 ;");
+    assert!(e.contains("UR4"), "uniform-register drop must be named: {e}");
+}
+
+#[test]
+fn bug023_sm103a_branch_rows_quiet() {
+    // The sm_103a table already carries healthy branch rows (guard + ureg
+    // fields); the matcher refinement must not disturb them.
+    let t = t103a();
+    assert_eq!(enc_clean(&t, "BRA.DIV UR4, 0x2900 ;"),
+               0x000fc2000b8000000000002a043c7947 & !SCHED);
+    assert_eq!(enc_clean(&t, "BRA P2, 0x2900 ;"),
+               0x000fc2000100000000000028003c7947 & !SCHED);
+    assert_eq!(enc_clean(&t, "BRA.U UP1, 0x2900 ;"),
+               0x000fc2000b80000000000029013c7547 & !SCHED);
+}
