@@ -447,6 +447,21 @@ pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
         } else { text_clean }
     } else { text_clean };
 
+    // BUG-042 (fail-closed): two guard predicates on one instruction
+    // (`@P2 @P5 MOV ...`) have no encoding (SASS carries a single guard
+    // field). RE_INS does not match such a line, and the lenient
+    // multi-parser used to drop the whole instruction from the stream
+    // under rc=0. Reject explicitly so every caller reports the real cause.
+    static RE_DOUBLE_PRED: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"^@!?U?P\w+\s+@!?U?P\w+").unwrap()
+    });
+    if RE_DOUBLE_PRED.is_match(&text_clean) {
+        anyhow::bail!(
+            "multiple guard predicates on one instruction are not encodable \
+             (SASS has a single guard field): {text:?}"
+        );
+    }
+
     let caps = RE_INS
         .captures(&text_clean)
         .with_context(|| format!("unrecognized SASS: {text:?}"))?;

@@ -44,14 +44,20 @@ pub mod scheduling_pass;
 pub mod table;
 
 pub use ir::{ControlCode, Instruction};
-pub use parser::{parse_cuasm_line, parse_multi_sass, parse_sass, resolve_labels, Statement};
+pub use parser::{
+    parse_cuasm_line, parse_multi_sass, parse_multi_sass_strict, parse_sass, resolve_labels,
+    Statement,
+};
 pub use table::IsaTable;
 
 /// Assemble multiple SASS instructions with label resolution.
 /// Returns `(bytes, count)` where `bytes` is raw 128-bit instruction bytes (little-endian)
 /// and `count` is the number of instructions assembled.
 pub fn assemble(code: &str, base_addr: u32, table: &IsaTable) -> anyhow::Result<(Vec<u8>, usize)> {
-    let stmts = parse_multi_sass(code, base_addr);
+    // BUG-042 (fail-closed): strict parsing — an unparseable segment used to
+    // vanish from the stream under Ok(..), desynchronising the byte count
+    // from the source line count.
+    let stmts = parse_multi_sass_strict(code, base_addr)?;
     let mut insns = resolve_labels(stmts, base_addr);
     scheduling_pass::schedule(&mut insns, Some(table));
     scheduling_pass::reallocate_barriers(&mut insns, Some(table));

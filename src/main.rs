@@ -3868,9 +3868,14 @@ fn cmd_asm_directive_format(
     mercury_stub: Option<&[u8]>,
 ) -> Result<()> {
     use cubit::elf_builder::KernelEntry;
-    use cubit::sass_file::{auto_detect_resources, kernel_def_to_meta, parse_sass_file_str};
+    use cubit::sass_file::{auto_detect_resources, kernel_def_to_meta, parse_sass_file_str_strict};
 
-    let mut sass_file = parse_sass_file_str(sass_text).context("failed to parse .sass file")?;
+    // BUG-042 (fail-closed): strict body parsing. The lenient variant used to
+    // skip any unparseable segment (e.g. `@P2 @P5 MOV ...` — double predicate
+    // matches no production) so the instruction vanished from the stream while
+    // the encoder counter reported the parsed remainder as fully encoded.
+    let mut sass_file = parse_sass_file_str_strict(sass_text)
+        .context("failed to parse .sass file")?;
 
     // BUG-039 pre-flight (-T/--eiattr-from): the in-place rename limit is the
     // TEMPLATE kernel name length. Older builds hit it only at final rebuild —
