@@ -542,6 +542,29 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     }
     let mod_group = crate::table::extract_mod_group(&insn.raw_text);
 
+    // BUG-012: IMAD.MOV is an ALIAS of plain IMAD — nvdisasm prints it when both
+    // multiplier operands are RZ. Accept the alias only in that exact shape
+    // (fail-closed otherwise) and encode via the plain rows.
+    let mov_alias = insn.opcode == "IMAD"
+        && mod_group.split(',').any(|m| m == "MOV");
+    if mov_alias {
+        let is_rz = |o: &Operand| matches!(o,
+            Operand::Reg { num: 255, neg: false, abs: false, inv: false, .. });
+        let ok = insn.operands.len() >= 3
+            && is_rz(&insn.operands[1]) && is_rz(&insn.operands[2]);
+        if !ok {
+            anyhow::bail!(
+                "IMAD.MOV alias requires multiplier operands RZ, RZ (got: {})",
+                insn.raw_text
+            );
+        }
+    }
+    let mod_group = if mov_alias {
+        mod_group.split(',').filter(|m| *m != "MOV").collect::<Vec<_>>().join(",")
+    } else {
+        mod_group
+    };
+
     // Lookup chain: compound-opcode key with exact mod_group first, then base key,
     // then compound key with empty mods, then wildcard suffix. An entry whose field
     // extractions don't match the actual operand kinds is REJECTED and the chain

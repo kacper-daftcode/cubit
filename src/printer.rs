@@ -278,6 +278,20 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         }
     }
 
+    // BUG-012: IMAD.MOV idiom alias — with both multiplier operands RZ the
+    // instruction is a pure move; nvdisasm prints `.MOV`. Render it so the text
+    // matches nvdisasm (encoder accepts the alias, rejecting non-RZ misuse).
+    let opcode = if insn.opcode == "IMAD"
+        && insn.mod_group.split(',').all(|m| m.trim().is_empty())
+        && operands.len() >= 3
+        && operands[1] == "RZ"
+        && operands[2] == "RZ"
+    {
+        format!("{opcode}.MOV")
+    } else {
+        opcode
+    };
+
     if operands.is_empty() {
         format!("{guard_prefix}{opcode}")
     } else {

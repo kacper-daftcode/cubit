@@ -530,6 +530,10 @@ fn select_best_candidate<'a>(
                     for alt in matches {
                         if !cand_strict(alt, code_clean) { continue; }
                         if key_root(&alt.key) != key_root(&first.key) { continue; } // BUG-007
+                        // BUG-012: underdiscovered `_?` keys have incomplete field
+                        // coverage — diverting to them drops/halves operands (SHFL.BFLY
+                        // dst [23:16] printed as [24:17], imm slot lost, phantom UR0).
+                        if alt.key.ends_with("_?") || alt.key.contains("_?_") { continue; }
                         if !key_has_output_pred_field(&alt.key, &alt.mod_group, table) {
                             return Some(alt);
                         }
@@ -602,6 +606,11 @@ fn select_best_candidate<'a>(
         for candidate in matches {
             if !cand_strict(candidate, code_clean) { continue; }
             if key_root(&candidate.key) != key_root(&first.key) { continue; } // BUG-007
+            // BUG-012: the divert must stay inside the SAME mod_group — a sibling mg
+            // is a different instruction variant whose discriminator bits also live at
+            // [90:87] (BAR RED.OR stole SYNC words under the "trailing pred" claim).
+            if candidate.mod_group != first.mod_group { continue; }
+            if candidate.key.ends_with("_?") || candidate.key.contains("_?_") { continue; }
             if let Some(entry) = table.get(&candidate.key, &candidate.mod_group) {
                 let has_trailing_pred = entry.fields.iter().any(|f| {
                     f.shift >= 87 && matches!(f.extraction, crate::table::Extraction::Pred)
