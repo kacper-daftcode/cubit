@@ -661,3 +661,58 @@ fn bug039_dropped_entries_reported() {
     let one = bug039_template(&["k"]);
     assert!(template_dropped_entries(&one, &["other".to_string()]).is_empty());
 }
+
+// ── BUG-022 ─────────────────────────────────────────────────────────────────
+// Renderer dropped the uniform-register operand of BRA_P_UR_II (sm_120
+// DIV/CONV diverge/converge form): the generic `BRA_P_` arm printed only
+// "{pred}, target", so re-assembling the render landed on the BRA_P_II entry
+// and failed encode-verify (__raw__ in frozen round-trips — 20/24 tail words
+// of the R0 kernel). The correct render is the 3-token form
+// "BRA.DIV P0, URZ, 0x2910 ;" (UR slot: 8 bits at [31:24], 0xff = URZ).
+// Golden words: results/cubit-bugs/021 repro + i82 postfixer evidence
+// (postfixer used to correct {ureg@24-31, bit82, pred@87-89} for 10x BRA.DIV
+// to reach a bit-exact cubin — those corrected words are the goldens).
+const BUG022_DIV: u128  = 0x000fe200080400000000002aff407947; // BRA.DIV P0, URZ, 0x2910 @0
+const BUG022_NEG: u128  = 0x000fe2000d0400000000002aff407947; // BRA.DIV !P2, URZ, 0x2910 @0
+const BUG022_LIVE: u128 = 0x000fe200090400000000002a053c1947; // @P1 BRA.DIV P2, UR5, 0x2900 @0
+const BUG022_CONV: u128 = 0x000fe200080400000000002bff407947; // BRA.CONV P0, URZ, 0x2910 @0
+
+fn render_word(table: &IsaTable, idx: &DecodeIndex, w: u128, addr: u32) -> String {
+    let d = idx.decode(w, addr, table).unwrap();
+    cubit::printer::to_sass(&d)
+}
+
+#[test]
+fn bug022_bra_p_ur_ii_render_keeps_ureg_operand() {
+    let t = t120();
+    let idx = DecodeIndex::build(&t);
+    assert_eq!(render_word(&t, &idx, BUG022_DIV, 0),
+               "BRA.DIV P0, URZ, 0x2910");
+    assert_eq!(render_word(&t, &idx, BUG022_NEG, 0),
+               "BRA.DIV !P2, URZ, 0x2910");
+    assert_eq!(render_word(&t, &idx, BUG022_LIVE, 0),
+               "@P1 BRA.DIV P2, UR5, 0x2900");
+}
+
+#[test]
+fn bug022_bra_p_ii_render_stays_two_token() {
+    // Plain BRA_P_II words must keep the 2-token render (no phantom UR).
+    let t = t120();
+    let idx = DecodeIndex::build(&t);
+    let w: u128 = (2u128 << 87) | 0x7947; // P_II '' ab, pred=2, guard=PT
+    assert_eq!(render_word(&t, &idx, w, 0), "BRA P2, 0x10");
+}
+
+#[test]
+fn bug022_render_reencodes_byte_exact() {
+    // The dropped operand made re-encode land on a different key; the full
+    // text path must now close the round-trip (sched bits [127:105] masked).
+    let t = t120();
+    let idx = DecodeIndex::build(&t);
+    for gold in [BUG022_DIV, BUG022_NEG, BUG022_LIVE, BUG022_CONV] {
+        let text = render_word(&t, &idx, gold, 0);
+        assert_eq!(enc_clean(&t, &text), gold & !SCHED,
+                   "roundtrip mismatch for: {text}");
+    }
+}
+

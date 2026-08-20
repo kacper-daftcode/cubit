@@ -120,6 +120,22 @@ pub fn to_sass(insn: &DecodedInst) -> String {
                 return format!("{guard_prefix}{opcode} R{reg}, 0x{target:x}");
             }
         }
+        // BRA-with-predicate-AND-uniform-register operands (InsKey
+        // BRA_P_UR_II — the sm_120 DIV/CONV diverge/converge form): nvdisasm
+        // prints "@Pg BRA.DIV [!]Pn, URn, target". The generic BRA_P_ arm
+        // below prints only two tokens, silently dropping the UR operand
+        // (BUG-022) — re-assembling that render lands on the BRA_P_II entry
+        // and fails encode-verify (-> __raw__). UR field: 8 bits at [31:24];
+        // 0xff is the URZ sink by the same convention as format_ureg_raw.
+        if insn.key.starts_with("BRA_P_UR_") {
+            let p = ((insn.raw_code >> 87) & 0x7) as u8;
+            let n = ((insn.raw_code >> 90) & 1) as u8;
+            let pred = if p == 7 && n == 0 { "PT".to_string() }
+                       else { format!("{}P{}", if n == 1 { "!" } else { "" }, p) };
+            let ur = ((insn.raw_code >> 24) & 0xFF) as u64;
+            let ur_s = if ur == 0xFF { "URZ".to_string() } else { format!("UR{ur}") };
+            return format!("{guard_prefix}{opcode} {pred}, {ur_s}, 0x{target:x}");
+        }
         // BRA-with-predicate-operand (InsKey BRA_P_II): nvdisasm prints
         // "@Pg BRA [!]Pn, target" — Pn = bits[89:87], neg = bit90.
         if insn.key.starts_with("BRA_P_") {
