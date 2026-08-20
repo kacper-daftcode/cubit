@@ -50,7 +50,9 @@ fn bug026_variants_still_assemble() {
     let fwd = ".entry t\n    .reg R0-R120\n    LDCU.64 UR4, c[0x0][0x358] ;\n    LDC.64 R2, c[0x0][0x380] ;\n    LDC R6, c[0x0][0x390] ;\n    @P1 BRA L_out ;\n    MOV R72, R20 ;\nL_out:\n    EXIT ;\n";
     asm_ok(fwd, "fwd");
     // backward branch bez LDC
-    let noldc = ".entry t\n    .reg R0-R120\nL_loop:\n    IADD3 R4, R4, 0x1, RZ ;\n    @P1 BRA L_loop ;\n    EXIT ;\n";
+    // BUG-043: asm jest teraz fail-closed — cialo petli musi byc kanonicznym
+    // ksztaltem sm120 (IADD3 z PT-slotami); gola forma 4-token nie ma wiersza.
+    let noldc = ".entry t\n    .reg R0-R120\nL_loop:\n    IADD3 R4, PT, PT, R4, 0x1, RZ ;\n    @P1 BRA L_loop ;\n    EXIT ;\n";
     asm_ok(noldc, "noldc");
 }
 

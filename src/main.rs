@@ -1664,6 +1664,16 @@ fn cmd_asm(
         println!("  {sec_name}: {encoded}/{total} encoded, {failed} failed, {skipped} skipped");
     }
 
+    if total_fail > 0 {
+        // BUG-043: fail-closed. A failed slot used to keep template bytes (here)
+        // or become a zero word (directive/ELF paths), both under rc=0 — the
+        // caller could not tell a corrupt cubin from a clean one.
+        anyhow::bail!(
+            "asm: {total_fail} of {total_insns} instruction(s) failed to encode;              refusing to write {} (per-slot attempted-keys diagnostics above;              use explicit __raw__0x... lines in the sass for an intentional raw slot)",
+            output_path.display()
+        );
+    }
+
     cubin.write(output_path.as_path())?;
 
     let orig = std::fs::read(template_path.unwrap())?;
@@ -3759,6 +3769,14 @@ fn cmd_asm_build_elf(
         anyhow::bail!("no kernels assembled (check --kernel filter or sass file format)");
     }
 
+    if total_fail > 0 {
+        // BUG-043: fail-closed (see cmd_asm template path comment).
+        anyhow::bail!(
+            "asm: {total_fail} of {total_insns} instruction(s) failed to encode;              refusing to write {} (per-slot attempted-keys diagnostics above;              use explicit __raw__0x... lines in the sass for an intentional raw slot)",
+            output_path.display()
+        );
+    }
+
     merge_syncwarp_from_reference(&mut entries, eiattr_path);
     // If --eiattr-from is provided, use rebuild_cubin (copies ELF structure +
     // EIATTR from reference, replaces only .text sections with new instruction bytes)
@@ -3898,6 +3916,7 @@ fn cmd_asm_directive_format(
     let mut entries: Vec<KernelEntry> = Vec::new();
     let mut total_enc = 0u64;
     let mut total_fail = 0u64;
+    let mut total_insns = 0u64;
 
     for def in &sass_file.kernels {
         if let Some(only) = only_kernel {
@@ -4828,6 +4847,7 @@ fn cmd_asm_directive_format(
         total_enc += enc;
         total_fail += fail;
         let n = def.instructions.len() as u64;
+        total_insns += n;
         println!("  {}: {enc}/{n} encoded ({fail} failed)", def.name);
 
         let meta = kernel_def_to_meta(def, &code_bytes);
@@ -4886,6 +4906,14 @@ fn cmd_asm_directive_format(
             );
         }
     }
+    if total_fail > 0 {
+        // BUG-043: fail-closed (see cmd_asm template path comment).
+        anyhow::bail!(
+            "asm: {total_fail} of {total_insns} instruction(s) failed to encode;              refusing to write {} (per-slot attempted-keys diagnostics above;              use explicit __raw__0x... lines in the sass for an intentional raw slot)",
+            output_path.display()
+        );
+    }
+
     // Build cubin
     let cubin_bytes = if let Some(tmpl) = template_path {
         use cubit::elf_builder::rebuild_cubin;
