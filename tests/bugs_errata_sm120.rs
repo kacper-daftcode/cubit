@@ -590,3 +590,74 @@ fn bug034_uiadd3_64_dest_up_too() {
         assert_eq!((w >> 84) & 7, 7, "{src}: cin UPT at [86:84]");
     }
 }
+
+// ── BUG-039 ─────────────────────────────────────────────────────────────────
+// Tooling trap (i115): `asm -T <template>` with an entry name longer than the
+// template kernel name ended in a late internal RenameError — after per-kernel
+// "encoded" lines — and the reported binary printed success with NO output
+// file. Fix: fail-closed PRE-FLIGHT before any encoding (message names both
+// names + the real limit = template name length), plus a soft WARN for entries
+// that would silently be dropped from a multi-kernel template.
+fn bug039_template(entries: &[&str]) -> Vec<u8> {
+    use cubit::elf_builder::{build_cubin_for_arch, KernelEntry};
+    let t = t120();
+    let mut es: Vec<KernelEntry> = Vec::new();
+    for name in entries {
+        let sass = format!(".entry {name}\n    .reg R0-R31\n    EXIT ;\n.endentry\n");
+        let mut f = parse_sass_file_str(&sass).unwrap();
+        for def in &mut f.kernels { auto_detect_resources(def); }
+        let def = &f.kernels[0];
+        let mut insns = def.instructions.clone();
+        cubit::scheduling_pass::schedule(&mut insns, Some(&t));
+        let mut code = vec![0u8; insns.len() * 16];
+        for (i, in_) in insns.iter().enumerate() {
+            let w = encode_instruction(in_, &t).unwrap();
+            code[i * 16..i * 16 + 8].copy_from_slice(&(w as u64).to_le_bytes());
+            code[i * 16 + 8..i * 16 + 16].copy_from_slice(&((w >> 64) as u64).to_le_bytes());
+        }
+        let meta = kernel_def_to_meta(def, &code);
+        es.push(KernelEntry { name: name.to_string(), code, meta,
+            mercury_stub: None, opcodes: None });
+    }
+    build_cubin_for_arch(&es, t.ef_flags).unwrap()
+}
+
+#[test]
+fn bug039_long_entry_fails_preflight_with_real_limit() {
+    use cubit::elf_builder::validate_template_renames;
+    let tmpl = bug039_template(&["k"]); // single-kernel template, 1-char name
+    // single×single fallback renames regardless of patch name — but only if it fits
+    let e = validate_template_renames(&tmpl, &["dluga_nazwa_entry".to_string()])
+        .unwrap_err().to_string();
+    assert!(e.contains("BUG-039"), "message must cite the bug: {e}");
+    assert!(e.contains("dluga_nazwa_entry") && e.contains("'k'"),
+        "message must name both names: {e}");
+    assert!(e.contains("(1 chars)") || e.contains("(1 char)"), "real limit: {e}");
+    // a Fitting name passes (including same-length and shorter renames)
+    validate_template_renames(&tmpl, &["x".to_string()]).unwrap();
+}
+
+#[test]
+fn bug039_matching_names_never_blocked() {
+    use cubit::elf_builder::validate_template_renames;
+    let tmpl = bug039_template(&["KernelA", "KernelB"]);
+    // exact section matches never rename — length is irrelevant
+    validate_template_renames(&tmpl,
+        &["KernelA".to_string(), "KernelB".to_string()]).unwrap();
+    // multi-section template + unmatched name: no rename planned -> no error,
+    // the entry is just dropped (WARN side covers this)
+    validate_template_renames(&tmpl, &["SomethingLongerThanTemplate".to_string(),
+                                       "KernelA".to_string()]).unwrap();
+}
+
+#[test]
+fn bug039_dropped_entries_reported() {
+    use cubit::elf_builder::template_dropped_entries;
+    let tmpl = bug039_template(&["KernelA", "KernelB"]);
+    let dropped = template_dropped_entries(&tmpl,
+        &["KernelA".to_string(), "ExtraLongKernelName".to_string()]);
+    assert_eq!(dropped, vec!["ExtraLongKernelName".to_string()]);
+    // single×single fallback: renamed in place, never "dropped"
+    let one = bug039_template(&["k"]);
+    assert!(template_dropped_entries(&one, &["other".to_string()]).is_empty());
+}

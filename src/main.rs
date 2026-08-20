@@ -3757,6 +3757,26 @@ fn cmd_asm_directive_format(
 
     let mut sass_file = parse_sass_file_str(sass_text).context("failed to parse .sass file")?;
 
+    // BUG-039 pre-flight (-T/--eiattr-from): the in-place rename limit is the
+    // TEMPLATE kernel name length. Older builds hit it only at final rebuild —
+    // after printing per-kernel "encoded" lines — and could end with no output
+    // file at all. Fail now, naming both names and the real limit.
+    let rename_check: Option<(Vec<u8>, Vec<String>)> = template_path
+        .or(eiattr_path)
+        .map(|p| -> anyhow::Result<(Vec<u8>, Vec<String>)> {
+            let bytes = std::fs::read(p)
+                .with_context(|| format!("cannot read template {}", p.display()))?;
+            let names: Vec<String> = sass_file
+                .kernels
+                .iter()
+                .filter(|d| only_kernel.map_or(true, |o| d.name == o))
+                .map(|d| d.name.clone())
+                .collect();
+            cubit::elf_builder::validate_template_renames(&bytes, &names)?;
+            Ok((bytes, names))
+        })
+        .transpose()?;
+
     let mut tensor_class_kernels = false;
 
     // Auto-detect register counts if not declared
@@ -4775,6 +4795,20 @@ fn cmd_asm_directive_format(
     }
 
     merge_syncwarp_from_reference(&mut entries, eiattr_path);
+
+    // BUG-039 soft half: WARN about entries that will not land in the output
+    // (no matching .text.<name> section, no single×single fallback rename).
+    // The build proceeds — patch subsets on multi-kernel templates are legit.
+    if let Some((ref bytes, _)) = rename_check {
+        let entry_names: Vec<String> = entries.iter().map(|e| e.name.clone()).collect();
+        for dropped in cubit::elf_builder::template_dropped_entries(bytes, &entry_names) {
+            eprintln!(
+                "  WARN: entry '{dropped}' has no matching .text section in the template \
+                 and no single-kernel fallback applies — it will NOT appear in the output \
+                 cubin (rename the .entry, use --kernel, or check the template)"
+            );
+        }
+    }
     // Build cubin
     let cubin_bytes = if let Some(tmpl) = template_path {
         use cubit::elf_builder::rebuild_cubin;

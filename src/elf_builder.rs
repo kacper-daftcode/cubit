@@ -3489,6 +3489,71 @@ fn nv_info_section_ranges(bytes: &[u8]) -> Vec<(usize, usize)> {
     out
 }
 
+/// BUG-039 pre-flight for `-T/--eiattr-from` rebuilds. Kernel renaming patches
+/// the template's string tables IN PLACE, so a new name must fit the old span.
+/// Older binaries discovered this only at the final rebuild — after printing
+/// per-kernel "encoded" lines — and (worst) reported success while writing no
+/// file at all. Validate before any encoding work: bail with both names and
+/// the real limit (the template name length, not a fixed constant).
+///
+/// Mirrors the matching rules of `rebuild_cubin` exactly (by section name, or
+/// the single-kernel×single-patch fallback rename).
+pub fn validate_template_renames(template_bytes: &[u8], patch_names: &[String]) -> Result<()> {
+    use crate::elf::CubinFile;
+    let cubin = CubinFile::from_bytes(template_bytes.to_vec())?;
+    let n_sec = cubin.text_sections.len();
+    for (sec_name, _, _) in &cubin.text_sections {
+        let kernel_name = sec_name.strip_prefix(".text.").unwrap_or(sec_name);
+        let matched = patch_names.iter().find(|n| n.as_str() == kernel_name);
+        let patch_name = if let Some(n) = matched {
+            n.as_str()
+        } else if n_sec == 1 && patch_names.len() == 1 {
+            patch_names[0].as_str()
+        } else {
+            continue;
+        };
+        if patch_name.len() > kernel_name.len() {
+            anyhow::bail!(
+                "entry name '{patch_name}' ({} chars) is longer than the template kernel \
+                 '{kernel_name}' ({} chars): -T/--eiattr-from renames patch the ELF string \
+                 tables in place, so the new name must fit the old span (BUG-039). Rename \
+                 the .entry to at most {} character{}, or rebuild against a longer-named \
+                 template.",
+                patch_name.len(), kernel_name.len(), kernel_name.len(),
+                if kernel_name.len() == 1 { "" } else { "s" })
+            ;
+        }
+    }
+    Ok(())
+}
+
+/// Kernel names the rebuild would silently DROP (BUG-039 tooling trap, soft
+/// half): a patch whose name matches no `.text.<name>` section and does not
+/// take the single×single fallback never lands in the output file, while the
+/// assembler reports "n/n encoded". Caller WARNs; the build proceeds (patch
+/// subsets on multi-kernel templates are a legitimate workflow).
+pub fn template_dropped_entries(template_bytes: &[u8], patch_names: &[String]) -> Vec<String> {
+    use crate::elf::CubinFile;
+    let cubin = match CubinFile::from_bytes(template_bytes.to_vec()) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    let n_sec = cubin.text_sections.len();
+    let single_fallback = n_sec == 1 && patch_names.len() == 1;
+    if single_fallback {
+        return Vec::new();
+    }
+    patch_names
+        .iter()
+        .filter(|n| {
+            !cubin.text_sections.iter().any(|(sec, _, _)| {
+                sec.strip_prefix(".text.").unwrap_or(sec) == n.as_str()
+            })
+        })
+        .cloned()
+        .collect()
+}
+
 /// Rename a kernel in the raw ELF bytes (in-place replacement in string tables).
 /// New name must be no longer than old name.
 fn rename_kernel_in_elf(bytes: &mut [u8], old_name: &str, new_name: &str) -> Result<()> {
