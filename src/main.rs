@@ -4926,6 +4926,38 @@ fn cmd_asm_directive_format(
             meta.params.len(),
             meta.num_barriers
         );
+
+        // BUG-040 (sm_120 silicon, i115): a declared regcount of N leaves
+        // R0..R(N-3) usable — touching R(N-2)/R(N-1) is ILLEGAL_INSTRUCTION
+        // on hardware (the last two registers are the allocation-granule
+        // shadow). WARN, not error: tools accept the text and the shadow
+        // depends on the final regcount, not on the instruction form.
+        if table.target_sm() == 120 && std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() {
+            let n = meta.regcount;
+            if n >= 3 {
+                let mut shadowed = Vec::new();
+                for insn in &insns_with_ctrl {
+                    for op in &insn.operands {
+                        if let cubit::ir::Operand::Reg { num, .. } = op {
+                            if *num != 255 && (*num as u32) >= n - 2 && (*num as u32) < n {
+                                shadowed.push(*num);
+                            }
+                        }
+                    }
+                }
+                if !shadowed.is_empty() {
+                    shadowed.sort_unstable();
+                    shadowed.dedup();
+                    eprintln!(
+                        "  WARN {}: uses R{} with regcount={} — BUG-040: on sm_120 silicon                          only R0..R{} are usable (the last 2 registers are the granule                          shadow); these read/write as ILLEGAL (measured i115: rc=64 ->                          R62/R63 illegal, rc=66 fine). Raise the declared .reg count by 2                          or remap the affected registers.",
+                        def.name,
+                        shadowed.iter().map(|r| r.to_string()).collect::<Vec<_>>().join("/R"),
+                        n,
+                        n - 3
+                    );
+                }
+            }
+        }
         if std::env::var("CUBIT_DEBUG_META").is_ok() {
             eprintln!(
                 "  DBG meta: loads={:?} load_flags={:?} atom_pool_hits={:?} s2r_dest={:?} stg_desc_pos={:?}",
