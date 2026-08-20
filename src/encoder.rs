@@ -528,6 +528,42 @@ fn check_mma_reg_alignment(insn: &Instruction) -> Result<()> {
     Ok(())
 }
 
+/// BUG-030: UPLOP3.LUT's two trailing immediates are NOT 8-bit LUTs — in the
+/// silicon-blessed encoding (i93 corpus, 2635 words, nvdisasm-strict render)
+/// tok5 lives in a 2-bit field @75 rendered as `value<<6` ({0,0x40,0x80,0xc0})
+/// and tok6 in a 2-bit field @18 rendered as `value<<2` ({0,0x4,0x8,0xc}).
+/// The encoder used to accept arbitrary values and write a word OUTSIDE the
+/// decodable space (nvdisasm: "undefined value 0x1e for TABLES_opex_1"). The
+/// scaled imm fields truncate silently, so out-of-lattice values are refused
+/// here instead of being dropped.
+fn check_uplop3_lut_lattice(insn: &Instruction) -> Result<()> {
+    if insn.opcode != "UPLOP3" || insn.operands.len() < 7 {
+        return Ok(());
+    }
+    for (oi, shift) in [(5usize, 6u32), (6usize, 2u32)] {
+        let v = match &insn.operands[oi] {
+            Operand::Imm32(v) => *v,
+            Operand::Imm64(v) => *v as i64,
+            _ => continue,
+        };
+        let bad = v < 0 || (v & ((1 << shift) - 1)) != 0 || (v >> shift) > 3;
+        if bad {
+            anyhow::bail!(
+                "{:?}: operand {} of UPLOP3.LUT is a 2-BIT lattice immediate, \\
+                 rendered as value<<{shift} — only {{0x0, {:#x}, {:#x}, {:#x}}} \\
+                 are representable in this form (BUG-030; the previous encoder \\
+                 silently emitted an undecodable word).",
+                insn.raw_text.trim(),
+                oi + 1,
+                1u64 << shift,
+                2u64 << shift,
+                3u64 << shift,
+            );
+        }
+    }
+    Ok(())
+}
+
 /// Soft errata (warn, don't refuse): conditions that encode fine but are
 /// silicon traps on specific targets. Human-facing drivers print these
 /// BUG-034 (HW quirk, sm_120 silicon, results/s4/i94_b34): the dest-UP
@@ -614,6 +650,7 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() {
         check_pred_literal_errata(insn)?;
         check_mma_reg_alignment(insn)?;
+        check_uplop3_lut_lattice(insn)?;
     }
     let mod_group = crate::table::extract_mod_group(&insn.raw_text);
 
@@ -729,6 +766,15 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
                  CLOBBERED); the bogus entries were removed, so the text now fails \
                  fail-closed. Use `IMAD.WIDE[.U32] Rd, Ra, Rb, RZ` and read Rd+1, \
                  or the 5-operand pout form");
+        }
+        if matches!(insn.opcode.as_str(), "ULOP3" | "UPLOP3") {
+            msg.push_str(
+                ". UP-write note (BUG-030): the silicon-blessed UP-writing form is \
+                 `ULOP3.LUT UPd, URd, URa, imm_b, URc, lut8, !UPx` (7 operands; the \
+                 short UP-write shape was a harvest phantom and was removed). \
+                 UPLOP3.LUT takes UPd, UPT, UPT, UPT, UPc_src and two tiny lattice \
+                 immediates (value<<6 / value<<2), e.g. \
+                 `UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, 0x80, 0x8`");
         }
         msg
     })?;
