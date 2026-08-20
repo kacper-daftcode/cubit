@@ -15,34 +15,65 @@ use anyhow::{Context, Result};
 // ---------------------------------------------------------------------------
 // System register IDs
 // ---------------------------------------------------------------------------
-fn sysreg_id(name: &str) -> u64 {
-    match name {
+/// Name -> raw encoded value. Grounded in an nvdisasm-13.3 sm_120 name sweep
+/// (BUG-r043, F2-iter7): all 256 codes probed through the encoder's SR_0x<hex>
+/// escape hatch and read back with nvdisasm; every name below matches the
+/// nvdisasm render word-for-word. SR_NTID (0x28) additionally silicon-verified
+/// (sm120 i120: returns blockDim). sm_120 has NO codes for SR_NTID.Y/.Z,
+/// SR_NCTAID.*, SR_WARPID, SR_SMID or SR_GRIDID — literature values (0x29/0x2a,
+/// 0x2c..0x2e, 0x40/0x42/0x44) name OTHER registers in the nvdisasm sm_120
+/// table, so mapping them there would re-create the BUG it fixes. Unknown
+/// names are fail-closed (None) instead of silently encoding as SR_LANEID(0).
+fn sysreg_id(name: &str) -> Option<u64> {
+    let id = match name {
         "SR_LANEID" => 0x00,
+        "SR_ORDERING_TICKET" => 0x0f,
+        "SR_TID" => 0x20,
         "SR_TID.X" | "SR_TID_X" => 0x21,
         "SR_TID.Y" | "SR_TID_Y" => 0x22,
         "SR_TID.Z" | "SR_TID_Z" => 0x23,
         "SR_CTAID.X" | "SR_CTAID_X" => 0x25,
         "SR_CTAID.Y" | "SR_CTAID_Y" => 0x26,
         "SR_CTAID.Z" | "SR_CTAID_Z" => 0x27,
-        "SR_SWINHI" | "SR_0x002f" => 0x2f,
+        "SR_NTID" | "SR_NTID.X" | "SR_NTID_X" => 0x28,
+        "SR_SWINHI" => 0x2f,
+        "SR_SWINLO" => 0x30,
+        "SR_SWINSZ" => 0x31,
+        "SR_SMEMSZ" => 0x32,
+        "SR_SMEMBANKS" => 0x33,
+        "SR_LWINLO" => 0x34,
+        "SR_LWINSZ" => 0x35,
+        "SR_LMEMLOSZ" => 0x36,
+        "SR_LMEMHIOFF" => 0x37,
+        "SR_EQMASK" => 0x38,
         "SR_LTMASK" => 0x39,
         "SR_LEMASK" => 0x3a,
         "SR_GTMASK" => 0x3b,
         "SR_GEMASK" => 0x3c,
+        "SR_GLOBALERRORSTATUS" => 0x40,
+        "SR_CGAERRORSTATUS" => 0x41,
+        "SR_WARPERRORSTATUS" => 0x42,
         "SR_VIRTUALSMID" => 0x43,
+        "SR_VIRTUALENGINEID" => 0x44,
         "SR_CLOCKLO" => 0x50,
         "SR_CLOCKHI" => 0x51,
         "SR_GLOBALTIMERLO" => 0x52,
+        "SR_GLOBALTIMERHI" => 0x53,
+        "SR_VARIABLE_RATE" => 0x84,
         "SR_CgaCtaId" => 0x88,
+        "SR_GpcLocalCgaId" => 0x89,
         "SR_CgaSize" => 0x8a,
+        "SR_CTARegPoolSz" => 0x8b,
+        "SR_TMemSz" => 0x8d,
         "SRZ" => 0xff,
-        // Unknown/arch-specific SR printed by the decoder as SR_0x<hex> —
-        // keep the raw code bit-exact instead of dropping it to 0.
+        // Numeric escape hatch: SR_0x<hex> keeps any raw code (also unknown to
+        // nvdisasm) encodable bit-exactly.
         _ => match name.strip_prefix("SR_0x") {
-            Some(h) => u64::from_str_radix(h, 16).unwrap_or(0),
-            None => 0,
+            Some(h) => u64::from_str_radix(h, 16).ok()?,
+            None => return None,
         },
-    }
+    };
+    Some(id)
 }
 
 // ---------------------------------------------------------------------------
@@ -234,10 +265,16 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
                     return missing("float imm");
                 }
             }
-            Operand::SysReg(name) if sysreg_id(name) != 0 => {
-                if !fields_for_tok().any(|f| matches!(f.extraction,
-                    Extraction::SysReg | Extraction::SysRegLo7 | Extraction::SysRegLo4
-                    | Extraction::SysRegHi4 | Extraction::SysRegHi1)) {
+            Operand::SysReg(name) => {
+                // BUG-r043 fail-closed: an unknown SR name must NOT degrade to
+                // SR_LANEID (0). Numeric escape hatch remains SR_0x<hex>.
+                let id = sysreg_id(name).ok_or_else(|| format!(
+                    "unknown sysreg {name:?} for this arch (encode the raw code                      as SR_0x<hex> if intentional)"))?;
+                if id != 0
+                    && !fields_for_tok().any(|f| matches!(f.extraction,
+                        Extraction::SysReg | Extraction::SysRegLo7 | Extraction::SysRegLo4
+                        | Extraction::SysRegHi4 | Extraction::SysRegHi1))
+                {
                     return missing(name);
                 }
             }
@@ -1771,7 +1808,9 @@ fn op_mod_flag_value(insn: &Instruction, tok: i32, name: &str) -> u64 {
 
 fn op_sysreg(insn: &Instruction, tok: i32) -> u64 {
     match get_op(insn, tok) {
-        Some(Operand::SysReg(name)) => sysreg_id(name),
+        // Unreachable for unknown names: the validation pass above rejects
+        // them before field extraction runs.
+        Some(Operand::SysReg(name)) => sysreg_id(name).unwrap_or(0),
         _ => 0,
     }
 }

@@ -1722,35 +1722,60 @@ fn format_const_addr(fields: &[&DecodedField]) -> String {
 // ── SR / L — system register ─────────────────────────────────────────────────
 
 /// Sysreg names keyed by the RAW encoded value from the instruction field
-/// (as returned by the decoder).  Source: encoder.rs::sysreg_id() + probing.
+/// (as returned by the decoder).  Names match the nvdisasm-13.3 sm_120
+/// render verbatim (BUG-r043 sweep of all 256 codes through SR_0x<hex>;
+/// SR_NTID additionally silicon-verified on sm120, i120).  The earlier
+/// literature block was wrong for this arch: 0x29/0x2a are
+/// SR_CirQueueIncrMinusOne / SR_NLATC (not NTID.Y/.Z), 0x2c..0x2e are
+/// SR_SM_SPA_VERSION / SR_MULTIPASSSHADERINFO / SR_LWINHI (not NCTAID.*),
+/// and 0x40/0x42/0x44 are *ERRORSTATUS / VIRTUALENGINEID (not
+/// WARPID/SMID/GRIDID).
 static SYSREG_NAMES: &[(u32, &str)] = &[
     (0x00, "SR_LANEID"),
+    (0x0f, "SR_ORDERING_TICKET"),
+    (0x20, "SR_TID"),
     (0x21, "SR_TID.X"),
     (0x22, "SR_TID.Y"),
     (0x23, "SR_TID.Z"),
     (0x25, "SR_CTAID.X"),
     (0x26, "SR_CTAID.Y"),
     (0x27, "SR_CTAID.Z"),
+    (0x28, "SR_NTID"),
+    (0x29, "SR_CirQueueIncrMinusOne"),
+    (0x2a, "SR_NLATC"),
+    (0x2c, "SR_SM_SPA_VERSION"),
+    (0x2d, "SR_MULTIPASSSHADERINFO"),
+    (0x2e, "SR_LWINHI"),
+    (0x2f, "SR_SWINHI"),
+    (0x30, "SR_SWINLO"),
+    (0x31, "SR_SWINSZ"),
+    (0x32, "SR_SMEMSZ"),
+    (0x33, "SR_SMEMBANKS"),
+    (0x34, "SR_LWINLO"),
+    (0x35, "SR_LWINSZ"),
+    (0x36, "SR_LMEMLOSZ"),
+    (0x37, "SR_LMEMHIOFF"),
+    (0x38, "SR_EQMASK"),
     (0x39, "SR_LTMASK"),
+    (0x3a, "SR_LEMASK"),
+    (0x3b, "SR_GTMASK"),
+    (0x3c, "SR_GEMASK"),
+    (0x40, "SR_GLOBALERRORSTATUS"),
+    (0x41, "SR_CGAERRORSTATUS"),
+    (0x42, "SR_WARPERRORSTATUS"),
+    (0x43, "SR_VIRTUALSMID"),
+    (0x44, "SR_VIRTUALENGINEID"),
     (0x50, "SR_CLOCKLO"),
     (0x51, "SR_CLOCKHI"),
+    (0x52, "SR_GLOBALTIMERLO"),
+    (0x53, "SR_GLOBALTIMERHI"),
+    (0x84, "SR_VARIABLE_RATE"),
     (0x88, "SR_CgaCtaId"),
+    (0x89, "SR_GpcLocalCgaId"),
+    (0x8a, "SR_CgaSize"),
+    (0x8b, "SR_CTARegPoolSz"),
+    (0x8d, "SR_TMemSz"),
     (0xff, "SRZ"),
-    // Additional from literature / probing:
-    (0x28, "SR_NTID.X"),
-    (0x29, "SR_NTID.Y"),
-    (0x2a, "SR_NTID.Z"),
-    (0x2c, "SR_NCTAID.X"),
-    (0x2d, "SR_NCTAID.Y"),
-    (0x2e, "SR_NCTAID.Z"),
-    (0x2f, "SR_SWINHI"),
-    (0x35, "SR_LANEMASKEQ"),
-    (0x36, "SR_LANEMASKLT"),
-    (0x37, "SR_LANEMASKLE"),
-    (0x38, "SR_LANEMASKGT"),
-    (0x40, "SR_WARPID"),
-    (0x42, "SR_SMID"),
-    (0x44, "SR_GRIDID"),
 ];
 
 fn format_sysreg(fields: &[&DecodedField], raw: u128) -> String {
