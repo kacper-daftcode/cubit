@@ -458,6 +458,43 @@ fn reg_liveness<'py>(py: Python<'py>, text: &str) -> PyResult<Vec<Bound<'py, PyD
     Ok(out)
 }
 
+/// Register-allocation pass over a whole .sass source (M4.1/BARRACUDA).
+///
+/// Modes: "identity" (M4.1). Returns one dict per kernel:
+///   name, n, r_used, ur_used, r_max, ur_max, changed, unknown_ops.
+/// Raises ValueError on strict-parse failure, unknown role families,
+/// plan gaps, span violations, or a nonzero change count in identity mode
+/// (all fail-closed -- see ra.rs).
+#[cfg(feature = "python")]
+#[pyfunction]
+#[pyo3(signature = (text, mode = "identity"))]
+fn ra_plan<'py>(
+    py: Python<'py>,
+    text: &str,
+    mode: &str,
+) -> PyResult<Vec<Bound<'py, PyDict>>> {
+    let parsed = crate::ra::parse_mode(mode)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("{e:#}")))?;
+    let (_file, rep) = crate::ra::run_file(text, parsed)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("ra error: {e:#}")))?;
+    let mut out = Vec::new();
+    for k in &rep.kernels {
+        let kd = PyDict::new(py);
+        kd.set_item("name", &k.name)?;
+        kd.set_item("n", k.n_ins)?;
+        kd.set_item("r_used", k.r_used.iter().map(|v| *v as u32).collect::<Vec<u32>>())?;
+        kd.set_item("ur_used", k.ur_used.iter().map(|v| *v as u32).collect::<Vec<u32>>())?;
+        kd.set_item("r_max", k.r_max.map(|v| v as u32))?;
+        kd.set_item("ur_max", k.ur_max.map(|v| v as u32))?;
+        kd.set_item("changed", k.changed)?;
+        kd.set_item("unknown_ops", k.unknown_ops.clone())?;
+        kd.set_item("span_notes", k.span_notes.clone())?;
+        kd.set_item("span_notes_total", k.span_notes_total)?;
+        out.push(kd);
+    }
+    Ok(out)
+}
+
 /// Python module definition.
 #[cfg(feature = "python")]
 #[pymodule]
@@ -472,5 +509,6 @@ fn cubit(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(asm, m)?)?;
     m.add_function(wrap_pyfunction!(pred_liveness, m)?)?;
     m.add_function(wrap_pyfunction!(reg_liveness, m)?)?;
+    m.add_function(wrap_pyfunction!(ra_plan, m)?)?;
     Ok(())
 }

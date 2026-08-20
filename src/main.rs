@@ -88,6 +88,30 @@ enum Commands {
         #[arg(long)]
         allow_arch_mismatch: bool,
     },
+    /// Register-allocation pass over a .sass file (M4.1/BARRACUDA).
+    ///
+    /// M4.1 implements `--mode identity` only: the plan maps every
+    /// structurally-used register 1:1 and the pass PROVES it observed all
+    /// of them (span-expanded transfer sets, coverage check, rewriter
+    /// reporting zero changed numerals). Output text is byte-verbatim from
+    /// the input; non-identity modes will go through the printer (M4.2).
+    /// Fail-closed: strict parse, unknown role families, plan gaps and
+    /// span violations (odd WIDE/.64 pairs, misaligned .128/.256 quads,
+    /// domain crossing) all stop the run.
+    Ra {
+        /// Allocation mode (M4.1: only "identity").
+        #[arg(long, default_value = "identity")]
+        mode: String,
+        /// Input .sass file (directive format).
+        input: PathBuf,
+        /// Output .sass file. Omit to only validate and report.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Write the per-kernel JSON report here (default: stdout when -o
+        /// is given, to keep stdout free for piping the sass).
+        #[arg(long)]
+        report: Option<PathBuf>,
+    },
     /// Patch a cubin: disassemble → re-encode → write patched cubin.
     Patch {
         #[arg(short, long, default_value = "tables/sm120.json")]
@@ -198,6 +222,12 @@ fn main() -> Result<()> {
             inputs,
             allow_arch_mismatch,
         } => cmd_roundtrip(&table, &records, &inputs, allow_arch_mismatch),
+        Commands::Ra {
+            mode,
+            input,
+            output,
+            report,
+        } => cmd_ra(&mode, &input, output.as_deref(), report.as_deref()),
         Commands::Patch {
             table,
             records,
@@ -238,6 +268,46 @@ fn main() -> Result<()> {
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
+
+/// `cubit ra` — M4.1 identity-mode register-allocation pass driver.
+///
+/// Output discipline: identity mode is byte-conservative. The emitted text
+/// is the input text VERBATIM, and the pass hands back a machine proof that
+/// nothing needed changing (changed == 0 enforced inside ra::run_file).
+/// Modes that actually renumber (M4.2+) must switch to printer-based
+/// emission before writing anything.
+fn cmd_ra(mode: &str, input: &Path, output: Option<&Path>, report: Option<&Path>) -> Result<()> {
+    let parsed = cubit::ra::parse_mode(mode)?;
+    let text = std::fs::read_to_string(input)
+        .with_context(|| format!("cannot read {}", input.display()))?;
+    let (_file, rep) = cubit::ra::run_file(&text, parsed)
+        .with_context(|| format!("ra pass failed on {}", input.display()))?;
+    let json = serde_json::to_string_pretty(&rep)?;
+    if let Some(out) = output {
+        std::fs::write(out, &text).with_context(|| format!("cannot write {}", out.display()))?;
+        match report {
+            Some(rp) => std::fs::write(rp, &json)
+                .with_context(|| format!("cannot write {}", rp.display()))?,
+            None => println!("{json}"),
+        }
+        let total: usize = rep.kernels.iter().map(|k| k.changed).sum();
+        eprintln!(
+            "ra [{mode}] {} kernel(s), {} instruction(s), {} numeral(s) changed -> {}",
+            rep.kernels.len(),
+            rep.kernels.iter().map(|k| k.n_ins).sum::<usize>(),
+            total,
+            out.display()
+        );
+    } else {
+        // no text output requested: report (or validation error) IS the result
+        match report {
+            Some(rp) => std::fs::write(rp, &json)
+                .with_context(|| format!("cannot write {}", rp.display()))?,
+            None => println!("{json}"),
+        }
+    }
+    Ok(())
+}
 
 fn parse_hex_addr(s: &str) -> Result<u32> {
     if s.starts_with("0x") || s.starts_with("0X") {

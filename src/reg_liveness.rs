@@ -67,6 +67,34 @@ fn addr_widths() -> &'static AddrWidths {
     &roles_table()._meta.address_suffix_widths
 }
 
+/// Register domain of a span record (M4.1/RA).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RegDom {
+    R,
+    UR,
+}
+
+/// Structural register span (base + width + direction), recorded alongside
+/// the transfer sets during the SAME role-driven classification pass
+/// (M4.1/RA). The liveness sets stay the semantic output; spans carry the
+/// (base, width) pairing the RA validator needs for alignment checks
+/// (even WIDE/.64 pairs, .128 quads, .256 two-quads) without re-deriving
+/// roles. Recorded BEFORE domain clipping so domain-crossing spans stay
+/// visible to the validator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RegSpan {
+    pub base: u8,
+    pub width: usize,
+    pub dom: RegDom,
+    pub is_def: bool,
+    /// True when this "UR" number is actually a descriptor-table index
+    /// (desc[URx]): an 8-bit namespace distinct from architectural URs
+    /// (certified kernels routinely use desc[UR64..UR252]; the liveness
+    /// sets still clip at 64). RA validation must not apply UR-domain
+    /// rules to these.
+    pub desc_ns: bool,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct RegXfer {
     pub rdefs: BTreeSet<u8>,
@@ -74,6 +102,8 @@ pub struct RegXfer {
     pub udefs: BTreeSet<u8>,
     pub uuses: BTreeSet<u8>,
     pub known: bool,
+    /// Span records parallel to the sets above (unsorted, un-deduped).
+    pub spans: Vec<RegSpan>,
 }
 
 /// Destination span in 32-bit registers from opcode modifiers.
@@ -102,7 +132,36 @@ fn suffix_width(suffix: &Option<String>) -> usize {
     }
 }
 
-fn put(set: &mut BTreeSet<u8>, num: u8, w: usize, dom_max_excl: u32) {
+fn put(
+    set: &mut BTreeSet<u8>,
+    spans: &mut Vec<RegSpan>,
+    num: u8,
+    w: usize,
+    dom: RegDom,
+    dom_max_excl: u32,
+    is_def: bool,
+) {
+    put_ns(set, spans, num, w, dom, dom_max_excl, is_def, false);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn put_ns(
+    set: &mut BTreeSet<u8>,
+    spans: &mut Vec<RegSpan>,
+    num: u8,
+    w: usize,
+    dom: RegDom,
+    dom_max_excl: u32,
+    is_def: bool,
+    desc_ns: bool,
+) {
+    spans.push(RegSpan {
+        base: num,
+        width: w,
+        dom,
+        is_def,
+        desc_ns,
+    });
     for k in 0..w as u32 {
         let r = num as u32 + k;
         if r < dom_max_excl {
@@ -117,12 +176,12 @@ fn use_operand(o: &Operand, x: &mut RegXfer, width: usize) {
     match o {
         Operand::Reg { num, .. } => {
             if *num != 255 {
-                put(&mut x.ruses, *num, width, 255);
+                put(&mut x.ruses, &mut x.spans, *num, width, RegDom::R, 255, false);
             }
         }
         Operand::UReg { num, is_zero, .. } => {
             if !is_zero {
-                put(&mut x.uuses, *num, width, 64);
+                put(&mut x.uuses, &mut x.spans, *num, width, RegDom::UR, 64, false);
             }
         }
         Operand::Addr {
@@ -133,11 +192,11 @@ fn use_operand(o: &Operand, x: &mut RegXfer, width: usize) {
         } => {
             if let Some(b) = base_reg {
                 if *b != 255 {
-                    put(&mut x.ruses, *b, suffix_width(base_reg_suffix), 255);
+                    put(&mut x.ruses, &mut x.spans, *b, suffix_width(base_reg_suffix), RegDom::R, 255, false);
                 }
             }
             if let Some(u) = ur_reg {
-                put(&mut x.uuses, *u, 1, 64);
+                put(&mut x.uuses, &mut x.spans, *u, 1, RegDom::UR, 64, false);
             }
         }
         Operand::Desc {
@@ -145,13 +204,22 @@ fn use_operand(o: &Operand, x: &mut RegXfer, width: usize) {
             base_reg,
             ..
         } => {
-            put(&mut x.uuses, *ur_idx, 1, 64);
+            put_ns(
+                &mut x.uuses,
+                &mut x.spans,
+                *ur_idx,
+                1,
+                RegDom::UR,
+                64,
+                false,
+                true, // desc[URx] is the descriptor-table namespace, not an architectural UR
+            );
             if let Some(b) = base_reg {
                 if *b != 255 {
                     // Q1: desc-form base is a single 32-bit offset register;
                     // the printed .64 is the effective-address width, not a
                     // register pair (table: address_suffix_widths.desc_base).
-                    put(&mut x.ruses, *b, addr_widths().desc_base, 255);
+                    put(&mut x.ruses, &mut x.spans, *b, addr_widths().desc_base, RegDom::R, 255, false);
                 }
             }
         }
@@ -160,11 +228,11 @@ fn use_operand(o: &Operand, x: &mut RegXfer, width: usize) {
         } => {
             if let Some(b) = base_reg {
                 if *b != 255 {
-                    put(&mut x.ruses, *b, 1, 255);
+                    put(&mut x.ruses, &mut x.spans, *b, 1, RegDom::R, 255, false);
                 }
             }
             if let Some(u) = ur_reg {
-                put(&mut x.uuses, *u, 1, 64);
+                put(&mut x.uuses, &mut x.spans, *u, 1, RegDom::UR, 64, false);
             }
         }
         _ => {}
@@ -174,9 +242,11 @@ fn use_operand(o: &Operand, x: &mut RegXfer, width: usize) {
 /// Def the destination operand (position 0) with modifier-derived width.
 fn def_operand0(insn: &Instruction, x: &mut RegXfer, w: usize) {
     match insn.operands.first() {
-        Some(Operand::Reg { num, .. }) if *num != 255 => put(&mut x.rdefs, *num, w, 255),
+        Some(Operand::Reg { num, .. }) if *num != 255 => {
+            put(&mut x.rdefs, &mut x.spans, *num, w, RegDom::R, 255, true)
+        }
         Some(Operand::UReg { num, is_zero, .. }) if !is_zero => {
-            put(&mut x.udefs, *num, w, 64)
+            put(&mut x.udefs, &mut x.spans, *num, w, RegDom::UR, 64, true)
         }
         _ => {}
     }
@@ -244,10 +314,10 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
                     .find(|o| !matches!(o, Operand::Pred { .. } | Operand::UPred { .. }));
                 match c {
                     Some(Operand::Reg { num, .. }) if *num != 255 => {
-                        put(&mut x.ruses, *num, 2, 255);
+                        put(&mut x.ruses, &mut x.spans, *num, 2, RegDom::R, 255, false);
                     }
                     Some(Operand::UReg { num, is_zero, .. }) if !is_zero => {
-                        put(&mut x.uuses, *num, 2, 64);
+                        put(&mut x.uuses, &mut x.spans, *num, 2, RegDom::UR, 64, false);
                     }
                     _ => {}
                 }
@@ -262,7 +332,7 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
                 def_operand0(insn, &mut x, 4);
                 if let Some(Operand::Reg { num, .. }) = insn.operands.get(1) {
                     if *num != 255 {
-                        put(&mut x.rdefs, *num, 4, 255);
+                        put(&mut x.rdefs, &mut x.spans, *num, 4, RegDom::R, 255, true);
                     }
                 }
                 for o in &insn.operands[2.min(insn.operands.len())..] {
@@ -300,7 +370,7 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
             for o in &insn.operands {
                 match o {
                     Operand::Reg { num, .. } if !first_reg_seen && *num != 255 => {
-                        put(&mut x.rdefs, *num, 2, 255);
+                        put(&mut x.rdefs, &mut x.spans, *num, 2, RegDom::R, 255, true);
                         first_reg_seen = true;
                     }
                     Operand::Reg { .. } => use_operand(o, &mut x, w),
@@ -321,7 +391,7 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
             for o in &insn.operands {
                 match o {
                     Operand::Reg { num, .. } if !first_reg_seen && *num != 255 => {
-                        put(&mut x.rdefs, *num, 1, 255);
+                        put(&mut x.rdefs, &mut x.spans, *num, 1, RegDom::R, 255, true);
                         first_reg_seen = true;
                     }
                     _ => {
