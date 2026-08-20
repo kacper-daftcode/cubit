@@ -76,11 +76,14 @@ pub fn pred_xfer(insn: &Instruction, mode: XferMode) -> PredXfer {
         known: true,
         ..Default::default()
     };
-    // Guard reads its predicate (guard domain decides P vs UP lane).
+    // Guard reads its predicate. P guards: both modes. UP guards: Strict
+    // only -- Compat mirrors predcheck.py, which is blind to the UP domain.
     if let Some(g) = &insn.guard {
         if g.pred < 7 {
             if g.uniform {
-                x.uuses.insert(g.pred);
+                if mode == XferMode::Strict {
+                    x.uuses.insert(g.pred);
+                }
             } else {
                 x.uses.insert(g.pred);
             }
@@ -395,47 +398,60 @@ pub struct InsLive {
     pub known: bool,
 }
 
+/// Shared backward dataflow over a CFG: IN = use ∪ (OUT − def),
+/// OUT = union of successors' IN. Iterates in reverse order to a fixpoint.
+/// Used by both the predicate and register liveness passes.
+pub fn backward_liveness(
+    succ: &[Vec<usize>],
+    defs: &[BTreeSet<u8>],
+    uses: &[BTreeSet<u8>],
+) -> (Vec<BTreeSet<u8>>, Vec<BTreeSet<u8>>) {
+    let n = succ.len();
+    let mut live_in: Vec<BTreeSet<u8>> = vec![BTreeSet::new(); n];
+    let mut live_out: Vec<BTreeSet<u8>> = vec![BTreeSet::new(); n];
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for i in (0..n).rev() {
+            let mut o: BTreeSet<u8> = BTreeSet::new();
+            for &s2 in &succ[i] {
+                for v in &live_in[s2] {
+                    o.insert(*v);
+                }
+            }
+            let mut ni = o.clone();
+            for v in &defs[i] {
+                ni.remove(v);
+            }
+            for v in &uses[i] {
+                ni.insert(*v);
+            }
+            if o != live_out[i] || ni != live_in[i] {
+                live_out[i] = o;
+                live_in[i] = ni;
+                changed = true;
+            }
+        }
+    }
+    (live_in, live_out)
+}
+
 /// Run predicate liveness over one kernel's instruction list.
 pub fn liveness(insns: &[Instruction], mode: XferMode) -> Vec<InsLive> {
     let n = insns.len();
     let xfer: Vec<PredXfer> = insns.iter().map(|i| pred_xfer(i, mode)).collect();
     let succ: Vec<Vec<usize>> = (0..n).map(|i| cfg_successors(insns, i)).collect();
 
-    let mut live_in: Vec<BTreeSet<u8>> = vec![BTreeSet::new(); n];
-    let mut live_out: Vec<BTreeSet<u8>> = vec![BTreeSet::new(); n];
-    let mut ulive_in: Vec<BTreeSet<u8>> = vec![BTreeSet::new(); n];
-    let mut ulive_out: Vec<BTreeSet<u8>> = vec![BTreeSet::new(); n];
-
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for i in (0..n).rev() {
-            let x = &xfer[i];
-            for (inp, outp, uses, defs) in [
-                (&mut live_in, &mut live_out, &x.uses, &x.defs),
-                (&mut ulive_in, &mut ulive_out, &x.uuses, &x.udefs),
-            ] {
-                let mut o: BTreeSet<u8> = BTreeSet::new();
-                for &s in &succ[i] {
-                    for v in &inp[s] {
-                        o.insert(*v);
-                    }
-                }
-                let mut ni = o.clone();
-                for v in defs {
-                    ni.remove(v);
-                }
-                for v in uses {
-                    ni.insert(*v);
-                }
-                if o != outp[i] || ni != inp[i] {
-                    outp[i] = o;
-                    inp[i] = ni;
-                    changed = true;
-                }
-            }
-        }
-    }
+    let (live_in, live_out) = backward_liveness(
+        &succ,
+        &xfer.iter().map(|x| x.defs.clone()).collect::<Vec<_>>(),
+        &xfer.iter().map(|x| x.uses.clone()).collect::<Vec<_>>(),
+    );
+    let (ulive_in, _) = backward_liveness(
+        &succ,
+        &xfer.iter().map(|x| x.udefs.clone()).collect::<Vec<_>>(),
+        &xfer.iter().map(|x| x.uuses.clone()).collect::<Vec<_>>(),
+    );
 
     insns
         .iter()
