@@ -118,22 +118,35 @@ enum Commands {
         #[arg(long)]
         report: Option<PathBuf>,
     },
-    /// Instruction-reordering scheduler pass (M4.5/BARRACUDA b1).
+    /// Instruction-reordering scheduler pass (M4.5/M4.6 BARRACUDA b1).
     ///
     /// `--mode identity` (M4.5): builds the reordering-legality dependency
     /// graph (register roles from the M3.5 data table, Strict predicate
     /// roles, ctrl classes from --table), verifies the zero permutation
     /// against every edge with the same checker mutating modes must pass,
-    /// and emits the input byte-verbatim. Fail-closed: strict parse,
-    /// unknown operand roles or unclassifiable ctrl classes stop the run.
-    /// Windowed list scheduling (m9 cost plugin) is M4.6.
+    /// and emits the input byte-verbatim. `--mode list` (M4.6): windowed
+    /// list scheduling priced by the m9 cost model (--plan + --cost);
+    /// mover lines are emitted verbatim reordered inside their window,
+    /// everything else byte-verbatim, legality machine-checked by
+    /// verify_permutation plus a full re-parse proof. Fail-closed: strict
+    /// parse, unknown roles/classes, plan/cost contract violations, or a
+    /// cost-model regression all stop the run with no output.
     Sched {
-        /// Scheduling mode: "identity" (M4.5).
+        /// Scheduling mode: "identity" (M4.5) or "list" (M4.6 windowed
+        /// list scheduling; requires --plan and --cost).
         #[arg(long, default_value = "identity")]
         mode: String,
         /// ISA table for ctrl-class lookup (same role as `cubit asm -t`).
         #[arg(short, long, default_value = "tables/sm120.json")]
         table: PathBuf,
+        /// Window plan JSON (only with --mode list):
+        /// {"kernels":{"<name>":{"windows":[[s,e),...]}}}
+        #[arg(long)]
+        plan: Option<PathBuf>,
+        /// m9 cost model JSON (only with --mode list), e.g.
+        /// tables/cost_sm103a.json.
+        #[arg(long)]
+        cost: Option<PathBuf>,
         /// Input .sass file (directive format).
         input: PathBuf,
         /// Output .sass file. Omit to only validate and report.
@@ -264,10 +277,20 @@ fn main() -> Result<()> {
         Commands::Sched {
             mode,
             table,
+            plan,
+            cost,
             input,
             output,
             report,
-        } => cmd_sched(&mode, &table, &input, output.as_deref(), report.as_deref()),
+        } => cmd_sched(
+            &mode,
+            &table,
+            plan.as_deref(),
+            cost.as_deref(),
+            &input,
+            output.as_deref(),
+            report.as_deref(),
+        ),
         Commands::Patch {
             table,
             records,
@@ -378,20 +401,44 @@ fn cmd_ra(
 fn cmd_sched(
     mode: &str,
     table: &Path,
+    plan: Option<&Path>,
+    cost: Option<&Path>,
     input: &Path,
     output: Option<&Path>,
     report: Option<&Path>,
 ) -> Result<()> {
-    match cubit::sched::parse_mode_kind(mode)? {
-        "identity" => {}
-        (other) => anyhow::bail!("sched: mode {other:?} not handled"),
-    }
+    let mode_name = cubit::sched::parse_mode_kind(mode)?;
     let t = cubit::table::IsaTable::load(table)
         .with_context(|| format!("cannot load ISA table {}", table.display()))?;
     let text = std::fs::read_to_string(input)
         .with_context(|| format!("cannot read {}", input.display()))?;
-    let run = cubit::sched::run_file(&text, cubit::sched::SchedMode::Identity, &t)
-        .with_context(|| format!("sched pass failed on {}", input.display()))?;
+    let run = match mode_name {
+        "identity" => {
+            if plan.is_some() || cost.is_some() {
+                anyhow::bail!("sched: --plan/--cost belong to --mode list (identity takes none)");
+            }
+            cubit::sched::run_file_cost(
+                &text,
+                cubit::sched::SchedMode::Identity,
+                &t,
+                None,
+            )
+        }
+        "list" => {
+            let plan_path = plan
+                .ok_or_else(|| anyhow::anyhow!("sched: mode 'list' requires --plan <json>"))?;
+            let cost_path = cost
+                .ok_or_else(|| anyhow::anyhow!("sched: mode 'list' requires --cost <json> (m9 data, e.g. tables/cost_sm103a.json)"))?;
+            let plan_text = std::fs::read_to_string(plan_path)
+                .with_context(|| format!("cannot read {}", plan_path.display()))?;
+            let plan: cubit::sched::SchedPlan = serde_json::from_str(&plan_text)
+                .with_context(|| format!("sched: plan {} is not valid M4.6 JSON", plan_path.display()))?;
+            let cm = cubit::sched::CostModel::load(cost_path)?;
+            cubit::sched::run_file_cost(&text, cubit::sched::SchedMode::List(plan), &t, Some(&cm))
+        }
+        other => anyhow::bail!("sched: mode {other:?} not handled"),
+    }
+    .with_context(|| format!("sched pass failed on {}", input.display()))?;
     let rep = &run.report;
     let json = serde_json::to_string_pretty(rep)?;
     if let Some(out) = output {

@@ -549,6 +549,11 @@ fn sched_run<'py>(
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("{e:#}")))?
     {
         "identity" => {}
+        "list" => {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "sched: mode 'list' carries plan+cost -- use sched_apply (M4.6)",
+            ))
+        }
         other => {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "sched: mode {other:?} not handled"
@@ -595,6 +600,69 @@ fn ra_apply<'py>(
     Ok((run.out_text, reports))
 }
 
+/// M4.6: windowed list scheduling (pyo3 entry). `plan` /
+/// `cost` are INLINE JSON strings (same schema as the CLI --plan/--cost
+/// files: {"kernels":{"<name>":{"windows":[[s,e),...]}}} and the m9 cost
+/// model of tables/cost_sm103a.json). Returns (output_text, per-kernel
+/// reports with per-window blocks). Fail-closed like the CLI.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn sched_apply<'py>(
+    py: Python<'py>,
+    text: &str,
+    plan: &str,
+    cost: &str,
+) -> PyResult<(String, Vec<Bound<'py, PyDict>>)> {
+    let plan: crate::sched::SchedPlan = serde_json::from_str(plan)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("sched plan JSON: {e:#}")))?;
+    let cm = crate::sched::CostModel::from_str_json(cost)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("sched cost JSON: {e:#}")))?;
+    let table = get_table();
+    let run = crate::sched::run_file_cost(
+        text,
+        crate::sched::SchedMode::List(plan),
+        &table,
+        Some(&cm),
+    )
+    .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("sched error: {e:#}")))?;
+    let mut out = Vec::new();
+    for k in &run.report.kernels {
+        let kd = PyDict::new(py);
+        kd.set_item("name", &k.name)?;
+        kd.set_item("n", k.n_ins)?;
+        kd.set_item("anchors", k.anchors)?;
+        kd.set_item("hand_sched", k.hand_sched)?;
+        kd.set_item("scoreboard_bound", k.scoreboard_bound)?;
+        kd.set_item("edges_total", k.edges_total)?;
+        kd.set_item("live_peak_r", k.live_peak_r)?;
+        kd.set_item("live_peak_ur", k.live_peak_ur)?;
+        kd.set_item("moved", k.moved)?;
+        kd.set_item("class_fallback", k.class_fallback)?;
+        kd.set_item("credits_defaulted", k.credits_defaulted)?;
+        let wl = pyo3::types::PyList::empty(py);
+        for w in &k.windows {
+            let wd = PyDict::new(py);
+            wd.set_item("start", w.start)?;
+            wd.set_item("end", w.end)?;
+            wd.set_item("movers", w.movers)?;
+            wd.set_item("pinned", w.pinned)?;
+            let pr = PyDict::new(py);
+            for (reason, cnt) in &w.pin_reasons {
+                pr.set_item(reason, cnt)?;
+            }
+            wd.set_item("pin_reasons", pr)?;
+            wd.set_item("segments", w.segments)?;
+            wd.set_item("cost_before", w.cost_before)?;
+            wd.set_item("cost_after", w.cost_after)?;
+            wd.set_item("moved", w.moved)?;
+            wl.append(wd)?;
+        }
+        kd.set_item("windows", wl)?;
+        out.push(kd);
+    }
+    Ok((run.out_text, out))
+}
+
 /// Python module definition.
 #[cfg(feature = "python")]
 #[pymodule]
@@ -612,5 +680,6 @@ fn cubit(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(ra_plan, m)?)?;
     m.add_function(wrap_pyfunction!(ra_apply, m)?)?;
     m.add_function(wrap_pyfunction!(sched_run, m)?)?;
+    m.add_function(wrap_pyfunction!(sched_apply, m)?)?;
     Ok(())
 }

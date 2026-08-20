@@ -29,14 +29,12 @@ fn run(text: &str) -> (String, cubit::sched::SchedRunReport) {
 #[test]
 fn t_mode_parse() {
     assert_eq!(parse_mode_kind("identity").unwrap(), "identity");
-    for bad in ["list", "sched", "", "Identity", "pin"] {
+    // M4.6: "list" is a real mode now (windowed list scheduler, plan+cost
+    // carried separately); the remaining spellings stay fail-closed.
+    assert_eq!(parse_mode_kind("list").unwrap(), "list");
+    for bad in ["sched", "", "Identity", "pin"] {
         assert!(parse_mode_kind(bad).is_err(), "mode {bad:?} must fail closed");
     }
-    let e = parse_mode_kind("list").unwrap_err();
-    assert!(
-        format!("{e:#}").contains("M4.6"),
-        "list-mode error must point at M4.6: {e:#}"
-    );
 }
 
 // ------------------------------------------------------- graph construction

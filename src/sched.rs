@@ -45,24 +45,107 @@ use crate::pred_liveness::{self, XferMode};
 use crate::reg_liveness;
 use crate::table::IsaTable;
 use anyhow::{bail, Context, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-/// Scheduling mode. M4.5 gates `identity`; the mutating mode arrives in
-/// M4.6 (windowed list scheduler with the m9 cost plugin).
+/// Scheduling mode. M4.5 gates `identity`; M4.6 adds `list` (windowed list
+/// scheduler with the m9 cost plugin, plan-driven like RA's pin mode).
 #[derive(Debug, Clone)]
 pub enum SchedMode {
     Identity,
+    List(SchedPlan),
 }
 
-/// CLI/pyo3 mode spelling.
+/// CLI/pyo3 mode spelling. `list` carries its plan separately, so this only
+/// validates the name; builders live in main.rs / python.rs.
 pub fn parse_mode_kind(s: &str) -> Result<&'static str> {
     match s {
         "identity" => Ok("identity"),
+        "list" => Ok("list"),
         other => bail!(
-            "sched: unknown mode '{other}' (implemented: 'identity' -- M4.5; \
-             windowed list scheduling is M4.6)"
+            "sched: unknown mode '{other}' (implemented: 'identity' -- M4.5, \
+             'list' -- M4.6 windowed list scheduling)"
         ),
+    }
+}
+
+/// Windowed scheduling plan for ONE kernel (M4.6). Moves apply ONLY inside
+/// the declared windows ([start, end) instruction indices, 0-based,
+/// end-exclusive -- G8b-window convention, same as RA's pin plan).
+/// Everything outside the windows keeps its line byte-verbatim (splice
+/// semantics), and pinned interior instructions keep their positions.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct SchedKernelPlan {
+    #[serde(default)]
+    pub windows: Vec<(u32, u32)>,
+}
+
+/// Whole-file scheduling plan, keyed by kernel name.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct SchedPlan {
+    #[serde(default)]
+    pub kernels: BTreeMap<String, SchedKernelPlan>,
+}
+
+/// m9-derived cost model (DATA per arch, e.g. tables/cost_sm103a.json).
+/// The scheduler never invents physics: it reads credits and the
+/// quantum-masked dependency latency from this file; anything the file
+/// does not classify takes `credits_default` and is counted in the
+/// `credits_defaulted` tripwire (explicit, like the M4.5 class fallback).
+#[derive(Debug, Clone, Deserialize)]
+pub struct CostModel {
+    pub arch: String,
+    /// Dispatch quantum estimate in cycles (m9 warp-ipc inversion).
+    pub quantum_cy: f64,
+    /// Producer->consumer link latency in issue slots (quantum-masked ALU
+    /// dependency distance on sm_103a/sm_120, ceil(quantum)).
+    pub dep_link_latency_slots: f64,
+    pub credits_default: f64,
+    #[serde(default)]
+    pub credits: BTreeMap<String, f64>,
+}
+
+impl CostModel {
+    pub fn load(path: &std::path::Path) -> Result<Self> {
+        let text = std::fs::read_to_string(path)
+            .with_context(|| format!("sched: cannot read cost model {}", path.display()))?;
+        let mut cm: CostModel = serde_json::from_str(&text)
+            .with_context(|| format!("sched: cost model {} is not valid M4.6 JSON", path.display()))?;
+        if cm.arch.is_empty() || cm.quantum_cy <= 0.0 || cm.dep_link_latency_slots < 0.0 {
+            bail!(
+                "sched: cost model {} fails sanity (arch/quantum/dep_link)",
+                path.display()
+            );
+        }
+        cm.credits.retain(|_, v| *v >= 0.0);
+        Ok(cm)
+    }
+
+    pub fn from_str_json(text: &str) -> Result<Self> {
+        let cm: CostModel = serde_json::from_str(text)
+            .context("sched: inline cost model is not valid M4.6 JSON")?;
+        if cm.arch.is_empty() || cm.quantum_cy <= 0.0 || cm.dep_link_latency_slots < 0.0 {
+            bail!("sched: inline cost model fails sanity (arch/quantum/dep_link)");
+        }
+        Ok(cm)
+    }
+
+    /// Issue-slot cost of one instruction. Lookup order: full opcode
+    /// (`IMAD.WIDE.MOV`), then base + each single modifier (`IMAD.WIDE`),
+    /// then base opcode (`IMAD`), then `credits_default` (counted).
+    pub fn credit_of(&self, ins: &Instruction, defaulted: &mut usize) -> f64 {
+        let mut cand: Vec<String> = vec![ins.opcode_full.clone()];
+        for m in &ins.modifiers {
+            cand.push(format!("{}{}", ins.opcode, m));
+        }
+        cand.push(ins.opcode.clone());
+        for c in cand {
+            if let Some(v) = self.credits.get(&c) {
+                return *v;
+            }
+        }
+        *defaulted += 1;
+        self.credits_default
     }
 }
 
@@ -149,6 +232,34 @@ pub struct KernelSchedReport {
     /// recorded for the report on the validation path).
     pub unknown_ops: Vec<String>,
     pub unknown_classes: Vec<String>,
+    /// M4.6 list mode: per-window outcome (empty in identity mode).
+    #[serde(default)]
+    pub windows: Vec<WindowSchedReport>,
+    /// M4.6 list mode: instructions priced via `credits_default` because
+    /// the cost model names neither their full opcode nor their base
+    /// (tripwire for cost-table completion, like `class_fallback`).
+    #[serde(default)]
+    pub credits_defaulted: usize,
+}
+
+/// M4.6 per-window report entry.
+#[derive(Debug, Clone, Serialize)]
+pub struct WindowSchedReport {
+    pub start: u32,
+    pub end: u32,
+    /// Instructions eligible to move (not pinned).
+    pub movers: usize,
+    /// In-window instructions holding their position, by reason.
+    pub pinned: usize,
+    pub pin_reasons: BTreeMap<String, usize>,
+    /// Segments = maximal mover runs between pins/anchors.
+    pub segments: usize,
+    /// Ready-time model span of the original in-segment order.
+    pub cost_before: f64,
+    /// Same model applied to the scheduled order.
+    pub cost_after: f64,
+    /// Movers that actually changed position inside the window.
+    pub moved: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -332,6 +443,18 @@ fn is_anchor_class(cc: &CtrlClass) -> bool {
 /// (Strict mode), or a ctrl class the active table cannot classify stops
 /// the pass with attribution.
 pub fn build_graph(insns: &[Instruction], table: &IsaTable) -> Result<DepGraph> {
+    build_graph_ex(insns, table, &BTreeSet::new())
+}
+
+/// `build_graph` with the M4.6 anchor override: indices in `movable` lose
+/// their hand_sched freeze (a declared scheduling window un-pins owner
+/// control words ONLY there). Anchor-CLASS membership is untouched -- the
+/// pass never unfreezes control flow / barriers / NOP / LDCU semantics.
+pub fn build_graph_ex(
+    insns: &[Instruction],
+    table: &IsaTable,
+    movable: &BTreeSet<u32>,
+) -> Result<DepGraph> {
     let n = insns.len();
     let rx: Vec<reg_liveness::RegXfer> = insns.iter().map(reg_liveness::reg_xfer).collect();
     let px: Vec<pred_liveness::PredXfer> =
@@ -436,7 +559,10 @@ pub fn build_graph(insns: &[Instruction], table: &IsaTable) -> Result<DepGraph> 
     // Anchors + their no-crossing edges (previous-anchor -> i -> next-anchor,
     // plus the consecutive-anchor chain; transitivity covers the rest).
     let anchors: Vec<u32> = (0..n)
-        .filter(|&i| insns[i].hand_sched || is_anchor_class(&classes[i]))
+        .filter(|&i| {
+            is_anchor_class(&classes[i])
+                || (insns[i].hand_sched && !movable.contains(&(i as u32)))
+        })
         .map(|i| i as u32)
         .collect();
     let aset: BTreeSet<u32> = anchors.iter().copied().collect();
@@ -520,7 +646,34 @@ pub fn verify_permutation(g: &DepGraph, perm: &[u32]) -> Result<()> {
 
 /// Run the pass over a whole SASS file.
 pub fn run_file(text: &str, mode: SchedMode, table: &IsaTable) -> Result<SchedRun> {
-    let SchedMode::Identity = mode;
+    match mode {
+        SchedMode::Identity => run_file_identity(text, table, None),
+        SchedMode::List(_) => bail!(
+            "sched: mode 'list' requires a cost model -- use run_file_cost()"
+        ),
+    }
+}
+
+/// M4.6 entry point: `run_file` plus the cost model the list scheduler
+/// prices moves with. Identity mode ignores the model (kept out of the
+/// report; the identity gates pin zero cost-table coupling).
+pub fn run_file_cost(
+    text: &str,
+    mode: SchedMode,
+    table: &IsaTable,
+    cost: Option<&CostModel>,
+) -> Result<SchedRun> {
+    match mode {
+        SchedMode::Identity => run_file_identity(text, table, None),
+        SchedMode::List(plan) => run_file_list(text, &plan, table, cost),
+    }
+}
+
+fn run_file_identity(
+    text: &str,
+    table: &IsaTable,
+    _plan: Option<&SchedPlan>,
+) -> Result<SchedRun> {
     let file = crate::sass_file::parse_sass_file_str_strict(text)
         .context("sched: strict parse failed")?;
 
@@ -556,6 +709,8 @@ pub fn run_file(text: &str, mode: SchedMode, table: &IsaTable) -> Result<SchedRu
             class_fallback: g.n_class_fallback,
             unknown_ops: Vec::new(),
             unknown_classes: Vec::new(),
+            windows: Vec::new(),
+            credits_defaulted: 0,
         });
     }
 
@@ -568,6 +723,798 @@ pub fn run_file(text: &str, mode: SchedMode, table: &IsaTable) -> Result<SchedRu
         out_text,
         report: SchedRunReport {
             mode: "identity".to_string(),
+            kernels: reports,
+        },
+    })
+}
+
+// ===========================================================================
+// M4.6: windowed list scheduling (m9 cost plugin)
+// ===========================================================================
+//
+// Mechanics (design.md sec.5 "M4.6 sched-move"):
+//   * declared windows un-pin the owner control words there and ONLY there;
+//     everything outside the windows stays byte-verbatim (splice doctrine,
+//     same as RA's pin mode);
+//   * an in-window instruction is PINNED (holds its position) when it is
+//     a label carrier (branch targets = absolute addresses, moving them
+//     would change bytes outside the window), a memory-chain member, a
+//     scoreboard participant (wait/read/write barrier bits set), or a NOP;
+//     control-flow / barrier / LDCU-class instructions inside a window
+//     ABORT the run (a scheduling window crossing those is a plan error);
+//   * pinned instructions are anchors, so the M4.5 anchor-edge construction
+//     confines every mover to its segment automatically -- the same
+//     `verify_permutation` checker proves segment discipline for free;
+//   * movers keep their ctrl words (stall fields ride with the seed --
+//     raise-only doctrine, BUG-036 cap 11); only the ORDER of lines is
+//     optimized, priced by the m9 cost model (ready-time + critical-path
+//     slack, single-warp issue stream).
+//
+// Emission: window lines are the ORIGINAL lines reordered (verbatim,
+// labels/prefixes/!rsd included); the result is proven by a full re-parse
+// equality against the planned permutation (mirrors ra::verify_splice_proof).
+
+/// Why an in-window instruction may not move.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PinReason {
+    Label,
+    MemChain,
+    Scoreboard,
+    Nop,
+}
+
+impl PinReason {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Label => "label",
+            Self::MemChain => "mem_chain",
+            Self::Scoreboard => "scoreboard",
+            Self::Nop => "nop",
+        }
+    }
+}
+
+/// Classification of one instruction line inside a body scan.
+#[derive(Debug, Clone)]
+enum BodyLine {
+    /// Instruction line; value = (instruction index, carries a label).
+    Ins(usize, bool),
+    /// Label-only line; value = instructions seen before it in this kernel.
+    LabelOnly(usize),
+    /// Anything else (directives, blanks, comments).
+    Other,
+}
+
+/// Scan one .entry body per kernel the way the strict parser counts
+/// instructions (same line-walk convention as ra::emit_spliced; aligned by
+/// the byte-exact gates). Returns per kernel (name, lines).
+fn scan_body_lines(text: &str) -> Vec<(String, Vec<BodyLine>)> {
+    use regex::Regex;
+    use std::sync::LazyLock;
+    static RE_LABEL: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"^[A-Za-z_][A-Za-z0-9_.$]*\s*:\s*").unwrap());
+
+    let mut out: Vec<(String, Vec<BodyLine>)> = Vec::new();
+    let mut in_kernel = false;
+    let mut cur_name = String::new();
+    let mut lines: Vec<BodyLine> = Vec::new();
+    let mut ins_count = 0usize;
+    for line in text.lines() {
+        let t = line.trim();
+        if t.starts_with(".entry") || t.starts_with(".func") {
+            if in_kernel {
+                out.push((std::mem::take(&mut cur_name), std::mem::take(&mut lines)));
+            }
+            in_kernel = true;
+            cur_name = t.split_whitespace().nth(1).unwrap_or("").to_string();
+            ins_count = 0;
+            continue;
+        }
+        if t.starts_with(".endentry") || t.starts_with(".endfunc") {
+            if in_kernel {
+                out.push((std::mem::take(&mut cur_name), std::mem::take(&mut lines)));
+            }
+            in_kernel = false;
+            continue;
+        }
+        if !in_kernel {
+            continue;
+        }
+        if t.is_empty() || t.starts_with("//") || t.starts_with('#') || t.starts_with('.') {
+            lines.push(BodyLine::Other);
+            continue;
+        }
+        let mut rest = t;
+        let mut had_label = false;
+        loop {
+            match RE_LABEL.captures(rest) {
+                Some(c) => {
+                    had_label = true;
+                    rest = &rest[c.get(0).unwrap().as_str().len()..];
+                }
+                None => break,
+            }
+        }
+        if rest.is_empty() {
+            lines.push(BodyLine::LabelOnly(ins_count));
+            continue;
+        }
+        lines.push(BodyLine::Ins(ins_count, had_label));
+        ins_count += 1;
+    }
+    if in_kernel {
+        out.push((cur_name, lines));
+    }
+    out
+}
+
+/// One permuted window for the emitter: lines of instructions
+/// [start, start + new_order.len()) re-emitted in `new_order` sequence
+/// (original indices; pinned entries hold their offsets).
+pub struct WindowEmit {
+    pub kernel_idx: usize,
+    pub start: u32,
+    pub new_order: Vec<u32>,
+}
+
+/// Emit the list-mode output text: outside windows byte-verbatim; inside a
+/// window the ORIGINAL instruction lines reordered per plan. One
+/// instruction per line is required (labels on the same line are fine);
+/// anything else aborts the run (fail-closed).
+pub fn emit_permuted_splice(original: &str, edits: &[WindowEmit]) -> Result<String> {
+    use regex::Regex;
+    use std::sync::LazyLock;
+    static RE_LABEL: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"^[A-Za-z_][A-Za-z0-9_.$]*\s*:\s*").unwrap());
+
+    // (kernel_idx, ins_idx) -> new position's source is derived per window:
+    // map each edited window to (start, set of covered indices).
+    let mut per_kernel: BTreeMap<usize, Vec<&WindowEmit>> = BTreeMap::new();
+    for e in edits {
+        per_kernel.entry(e.kernel_idx).or_default().push(e);
+    }
+    for (kidx, ws) in &per_kernel {
+        let mut covered: BTreeSet<u32> = BTreeSet::new();
+        for w in ws {
+            if w.new_order.is_empty() {
+                bail!("sched: emitter: empty window edit on kernel {kidx}");
+            }
+            let expect: Vec<u32> = (w.start..w.start + w.new_order.len() as u32).collect();
+            let mut sorted = w.new_order.clone();
+            sorted.sort();
+            if sorted != expect {
+                bail!(
+                    "sched: emitter: window @{kidx}[{}] new_order is not a \
+                     permutation of its own range",
+                    w.start
+                );
+            }
+            for &i in &w.new_order {
+                if !covered.insert(i) {
+                    bail!("sched: emitter: overlapping window edits on kernel {kidx}");
+                }
+            }
+        }
+    }
+
+    let mut out_lines: Vec<String> = Vec::new();
+    let mut in_kernel = false;
+    let mut kidx: isize = -1;
+    let mut ins_count = 0usize;
+    let mut pending: Option<(&WindowEmit, Vec<String>)> = None;
+
+    let mut lines_iter = original.lines().peekable();
+    while let Some(line) = lines_iter.next() {
+        let t = line.trim();
+        if t.starts_with(".entry") || t.starts_with(".func") {
+            in_kernel = true;
+            kidx += 1;
+            ins_count = 0;
+            out_lines.push(line.to_string());
+            continue;
+        }
+        if t.starts_with(".endentry") || t.starts_with(".endfunc") {
+            in_kernel = false;
+            out_lines.push(line.to_string());
+            continue;
+        }
+        if !in_kernel || t.is_empty() || t.starts_with("//") || t.starts_with('#') || t.starts_with('.')
+        {
+            out_lines.push(line.to_string());
+            continue;
+        }
+        let mut rest = t;
+        loop {
+            match RE_LABEL.captures(rest) {
+                Some(c) => {
+                    rest = &rest[c.get(0).unwrap().as_str().len()..];
+                }
+                None => break,
+            }
+        }
+        if rest.is_empty() {
+            out_lines.push(line.to_string()); // lone label line
+            continue;
+        }
+        let idx = ins_count;
+        ins_count += 1;
+        let cur_k = kidx as usize;
+        // inside a window? buffer; at window end, flush permuted.
+        let hit = per_kernel.get(&cur_k).and_then(|ws| {
+            ws.iter()
+                .find(|w| w.start <= idx as u32 && (idx as u32) < w.start + w.new_order.len() as u32)
+        });
+        match (pending.take(), hit) {
+            (None, None) => out_lines.push(line.to_string()),
+            (None, Some(w)) => pending = Some((w, vec![line.to_string()])),
+            (Some((w, mut buf)), Some(_)) => {
+                buf.push(line.to_string());
+                pending = Some((w, buf));
+            }
+            (Some((w, buf)), None) => {
+                bail!(
+                    "sched: emitter: window @{cur_k}[{}] underflow: got {} line(s)",
+                    w.start,
+                    buf.len()
+                );
+            }
+        }
+        if let Some((w, buf)) = &pending {
+            if buf.len() == w.new_order.len() {
+                let (w, buf) = pending.take().unwrap();
+                for &oi in &w.new_order {
+                    let off = (oi - w.start) as usize;
+                    out_lines.push(buf[off].clone());
+                }
+            }
+        }
+    }
+    if pending.is_some() {
+        bail!("sched: emitter: unterminated window buffer at EOF");
+    }
+    let mut out = out_lines.join("\n");
+    if original.ends_with('\n') {
+        out.push('\n');
+    }
+    Ok(out)
+}
+
+/// Field-level equality between the planned permutation of the IR and the
+/// re-parsed emitted text (mirrors ra::verify_splice_proof).
+fn verify_permute_proof(
+    orig: &crate::sass_file::SassFile,
+    out_text: &str,
+    perms: &BTreeMap<usize, Vec<u32>>,
+) -> Result<()> {
+    let re = crate::sass_file::parse_sass_file_str_strict(out_text)
+        .context("sched: permuted output failed strict re-parse")?;
+    if re.kernels.len() != orig.kernels.len() {
+        bail!("sched: permute proof: kernel count drifted");
+    }
+    for (kidx, (a, b)) in orig.kernels.iter().zip(re.kernels.iter()).enumerate() {
+        if a.name != b.name || a.instructions.len() != b.instructions.len() {
+            bail!("sched: permute proof: kernel {} shape drifted", a.name);
+        }
+        let identity: Vec<u32> = (0..a.instructions.len() as u32).collect();
+        let perm = perms.get(&kidx).unwrap_or(&identity);
+        for (p, (x, &src)) in b.instructions.iter().zip(perm.iter()).enumerate() {
+            let y = &a.instructions[src as usize];
+            if x.opcode_full != y.opcode_full
+                || x.modifiers != y.modifiers
+                || x.guard != y.guard
+                || x.operands != y.operands
+                || x.ctrl != y.ctrl
+                || x.rsd != y.rsd
+                || x.hand_sched != y.hand_sched
+            {
+                bail!(
+                    "sched: permute proof: instruction {p} of kernel {} does not \
+                     carry the fields of source instruction {src} ({})",
+                    a.name,
+                    y.opcode_full
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Critical-path height + ready-time evaluation live inline in
+/// `run_file_list` (baseline) and `schedule_segment` (policy).
+
+/// List-schedule one segment of movers. `edges_in`/`edges_out`: interior
+/// edges (both endpoints movers of this segment). Deterministic: priority
+/// tuple (earliest availability, -critical_path_height, original index).
+fn schedule_segment(
+    movers: &[u32],
+    insns: &[Instruction],
+    credits: &HashMap<u32, f64>,
+    lat: f64,
+    succ: &HashMap<u32, Vec<u32>>,
+    pred: &HashMap<u32, Vec<u32>>,
+    height: &HashMap<u32, f64>,
+) -> (Vec<u32>, f64) {
+    let mut indeg: HashMap<u32, usize> = movers.iter().map(|&m| (m, 0)).collect();
+    for (&s, ps) in pred {
+        indeg.insert(s, ps.len());
+    }
+    let mut avail: HashMap<u32, f64> = movers.iter().map(|&m| (m, 0.0)).collect();
+    let mut end: HashMap<u32, f64> = HashMap::new();
+    let mut ready: Vec<u32> = movers
+        .iter()
+        .copied()
+        .filter(|m| *indeg.get(m).unwrap_or(&0) == 0)
+        .collect();
+    let mut order = Vec::with_capacity(movers.len());
+    let mut cursor = 0.0f64;
+    let mut span = 0.0f64;
+    while !ready.is_empty() {
+        // No voluntary bubble while useful work exists: prefer the most
+        // critical node that can issue AT the cursor (avail <= cursor);
+        // only when nothing is issuable does the cursor jump to the
+        // earliest availability (a forced bubble), taking the most
+        // critical node there. Ties: min availability, then min index
+        // (deterministic).
+        const EPS: f64 = 1e-9;
+        let issuable: Vec<u32> = ready
+            .iter()
+            .copied()
+            .filter(|v| avail[v] <= cursor + EPS)
+            .collect();
+        let (pool, jump): (Vec<u32>, Option<f64>) = if issuable.is_empty() {
+            let nxt = ready.iter().map(|v| avail[v]).fold(f64::INFINITY, f64::min);
+            (ready.iter().copied().filter(|v| avail[v] <= nxt + EPS).collect(), Some(nxt))
+        } else {
+            (issuable, None)
+        };
+        let mut pool = pool;
+        pool.sort_by(|a, b| {
+            height[b]
+                .partial_cmp(&height[a])
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| avail[a].partial_cmp(&avail[b]).unwrap_or(std::cmp::Ordering::Equal))
+                .then_with(|| a.cmp(b))
+        });
+        let v = pool[0];
+        if let Some(j) = jump {
+            cursor = cursor.max(j);
+        }
+        ready.retain(|x| *x != v);
+        let t = cursor.max(avail[&v]);
+        let e = t + credits[&v] + insns[v as usize].ctrl.stall as f64;
+        end.insert(v, e);
+        cursor = e;
+        span = span.max(e);
+        order.push(v);
+        if let Some(ss) = succ.get(&v) {
+            for &s in ss {
+                let a = avail.entry(s).or_insert(0.0);
+                *a = a.max(e + lat);
+                let d = indeg.get_mut(&s).expect("segment indegree");
+                *d -= 1;
+                if *d == 0 {
+                    ready.push(s);
+                }
+            }
+        }
+    }
+    (order, span)
+}
+
+/// Run the M4.6 windowed list scheduler over a whole SASS file.
+fn run_file_list(
+    text: &str,
+    plan: &SchedPlan,
+    table: &IsaTable,
+    cost: Option<&CostModel>,
+) -> Result<SchedRun> {
+    let cost = cost
+        .ok_or_else(|| anyhow::anyhow!("sched: mode 'list' requires a cost model (--cost)"))?;
+    let file = crate::sass_file::parse_sass_file_str_strict(text)
+        .context("sched: strict parse failed")?;
+    for kname in plan.kernels.keys() {
+        if !file.kernels.iter().any(|k| &k.name == kname) {
+            bail!(
+                "sched: plan names unknown kernel {kname:?} (file has: {:?})",
+                file.kernels.iter().map(|k| &k.name).collect::<Vec<_>>()
+            );
+        }
+    }
+    let scans = scan_body_lines(text);
+    if scans.len() != file.kernels.len() {
+        bail!("sched: body-line scan and parser disagree on kernel count");
+    }
+
+    let mut perms: BTreeMap<usize, Vec<u32>> = BTreeMap::new();
+    let mut edits: Vec<WindowEmit> = Vec::new();
+    let mut reports = Vec::new();
+
+    for (kidx, k) in file.kernels.iter().enumerate() {
+        let n = k.instructions.len();
+        let (scan_name, scan_lines) = &scans[kidx];
+        if scan_name != &k.name {
+            bail!("sched: body-line scan / parser kernel-name mismatch ({scan_name} vs {})", k.name);
+        }
+        let scan_ins = scan_lines
+            .iter()
+            .filter(|l| matches!(l, BodyLine::Ins(_, _)))
+            .count();
+        if scan_ins != n {
+            bail!(
+                "sched: body-line scan counted {scan_ins} instructions in {} but \
+                 the parser sees {n}",
+                k.name
+            );
+        }
+        // label carriers and label-only lines
+        let mut labeled: BTreeSet<u32> = BTreeSet::new();
+        for l in scan_lines {
+            match l {
+                BodyLine::Ins(i, true) => {
+                    labeled.insert(*i as u32);
+                }
+                _ => {}
+            }
+        }
+        let kp = match plan.kernels.get(&k.name) {
+            None => {
+                // kernel not planned: identity; report via the shared census
+                // path so the run report stays complete for every kernel.
+                let g = build_graph(&k.instructions, table)
+                    .with_context(|| format!("sched: kernel {}", k.name))?;
+                let mut by_class: BTreeMap<String, usize> = BTreeMap::new();
+                for &(_, _, cls) in &g.edges {
+                    *by_class.entry(cls.name().to_string()).or_default() += 1;
+                }
+                reports.push(KernelSchedReport {
+                    name: k.name.clone(),
+                    n_ins: n,
+                    anchors: g.anchors.len(),
+                    hand_sched: g.n_hand_sched,
+                    scoreboard_bound: g.n_scoreboard_bound,
+                    edges_total: g.edges.len(),
+                    edges_by_class: by_class,
+                    live_peak_r: g.live_peak_r,
+                    live_peak_ur: g.live_peak_ur,
+                    moved: 0,
+                    class_fallback: g.n_class_fallback,
+                    unknown_ops: Vec::new(),
+                    unknown_classes: Vec::new(),
+                    windows: Vec::new(),
+                    credits_defaulted: 0,
+                });
+                continue;
+            }
+            Some(kp) => kp,
+        };
+        if kp.windows.is_empty() {
+            bail!("sched: plan for kernel {}: no windows (list mode needs >=1)", k.name);
+        }
+        let mut prev_e = 0u32;
+        let mut first = true;
+        for &(s, e) in &kp.windows {
+            if !first && s < prev_e {
+                bail!("sched: plan for {}: overlapping/unsorted windows (at [{s},{e}))", k.name);
+            }
+            first = false;
+            prev_e = e;
+            if s >= e {
+                bail!("sched: plan for {}: empty window [{s},{e})", k.name);
+            }
+            if e as usize > n {
+                bail!(
+                    "sched: plan for {}: window [{s},{e}) out of range ({n} instructions)",
+                    k.name
+                );
+            }
+        }
+
+        // classify + graph with movable override
+        let mut movable: BTreeSet<u32> = BTreeSet::new();
+        let mut pin_of: HashMap<u32, PinReason> = HashMap::new();
+        let classes: Vec<CtrlClass> = {
+            // reuse the M4.5 classification ladder per instruction
+            let mut v = Vec::with_capacity(n);
+            for (i, ins) in k.instructions.iter().enumerate() {
+                let cc = match table.ctrl_class(&ins.key).cloned() {
+                    Some(cc) if cc != CtrlClass::Unknown => cc,
+                    _ => fallback_class(ins).with_context(|| {
+                        format!(
+                            "sched: no ctrl_class for {} key {} @0x{:x} (idx {i})",
+                            ins.opcode_full, ins.key, ins.addr
+                        )
+                    })?,
+                };
+                v.push(cc);
+            }
+            v
+        };
+        for &(s, e) in &kp.windows {
+            for i in s..e {
+                let ins = &k.instructions[i as usize];
+                let cc = &classes[i as usize];
+                if is_anchor_class(cc) {
+                    if matches!(cc, CtrlClass::Nop) {
+                        pin_of.insert(i, PinReason::Nop);
+                        continue;
+                    }
+                    bail!(
+                        "sched: window [{s},{e}) of {} contains anchor-class \
+                         instruction {} (idx {i}, class {:?}) -- scheduling \
+                         windows must not cross control flow / barriers / LDCU",
+                        k.name,
+                        ins.opcode_full,
+                        cc
+                    );
+                }
+                if is_mem_chain_class(cc) {
+                    pin_of.insert(i, PinReason::MemChain);
+                    continue;
+                }
+                if ins.ctrl.wait_mask != 0 || ins.ctrl.write_bar != 7 || ins.ctrl.read_bar != 7 {
+                    pin_of.insert(i, PinReason::Scoreboard);
+                    continue;
+                }
+                if labeled.contains(&i) {
+                    pin_of.insert(i, PinReason::Label);
+                    continue;
+                }
+                movable.insert(i);
+            }
+            // label-only lines strictly inside the window text region would
+            // float under reordering -- refuse them (fail-closed).
+            for l in scan_lines {
+                if let BodyLine::LabelOnly(before) = l {
+                    let b = *before as u32;
+                    if s < b && b < e {
+                        bail!(
+                            "sched: window [{s},{e}) of {} contains a label-only \
+                             line after instruction {b} -- unsupported (put the \
+                             label on an instruction line)",
+                            k.name
+                        );
+                    }
+                }
+            }
+            // vacuous windows are plan errors (fail-closed)
+            let mv = (s..e).filter(|i| movable.contains(i)).count();
+            if mv == 0 {
+                bail!(
+                    "sched: window [{s},{e}) of {} has zero movable instructions",
+                    k.name
+                );
+            }
+        }
+
+        let g = build_graph_ex(&k.instructions, table, &movable)
+            .with_context(|| format!("sched: kernel {}", k.name))?;
+
+        // per-window scheduling
+        let mut perm: Vec<u32> = (0..n as u32).collect();
+        let mut win_reports = Vec::new();
+        let mut credits_defaulted = 0usize;
+        let mut credits: HashMap<u32, f64> = HashMap::new();
+        for i in 0..n as u32 {
+            if movable.contains(&i) {
+                let c = cost.credit_of(&k.instructions[i as usize], &mut credits_defaulted);
+                credits.insert(i, c);
+            }
+        }
+        for &(ws, we) in &kp.windows {
+            // segments = maximal mover runs
+            let mut segments: Vec<Vec<u32>> = Vec::new();
+            let mut cur: Vec<u32> = Vec::new();
+            for i in ws..we {
+                if movable.contains(&i) {
+                    cur.push(i);
+                } else if !cur.is_empty() {
+                    segments.push(std::mem::take(&mut cur));
+                }
+            }
+            if !cur.is_empty() {
+                segments.push(cur);
+            }
+            let in_win: BTreeSet<u32> = (ws..we).collect();
+            let mut succ: HashMap<u32, Vec<u32>> = HashMap::new();
+            let mut pred: HashMap<u32, Vec<u32>> = HashMap::new();
+            {
+                let mut seen: BTreeSet<(u32, u32)> = BTreeSet::new();
+                for &(a, b, cls) in &g.edges {
+                    if cls == EdgeClass::Anchor {
+                        continue;
+                    }
+                    if !in_win.contains(&a) || !in_win.contains(&b) {
+                        continue;
+                    }
+                    if !movable.contains(&a) || !movable.contains(&b) {
+                        // edges touching pins are position-guaranteed already
+                        continue;
+                    }
+                    if seen.insert((a, b)) {
+                        succ.entry(a).or_default().push(b);
+                        pred.entry(b).or_default().push(a);
+                    }
+                }
+            }
+            // critical-path heights on the interior DAG (movers only)
+            let mut height: HashMap<u32, f64> = HashMap::new();
+            {
+                // longest path to segment end: reverse topo (segments are
+                // small; simple relaxation over topological order).
+                let mut topo: Vec<u32> = Vec::new();
+                {
+                    let seg_set: BTreeSet<u32> = segments.iter().flatten().copied().collect();
+                    let mut ind: HashMap<u32, usize> =
+                        seg_set.iter().map(|&m| (m, 0)).collect();
+                    for (&b, ps) in &pred {
+                        if seg_set.contains(&b) {
+                            ind.insert(b, ps.len());
+                        }
+                    }
+                    let mut rq: Vec<u32> =
+                        ind.iter().filter(|(_, &d)| d == 0).map(|(&m, _)| m).collect();
+                    while let Some(v) = rq.pop() {
+                        topo.push(v);
+                        if let Some(ss) = succ.get(&v) {
+                            for &s2 in ss {
+                                let d = ind.get_mut(&s2).unwrap();
+                                *d -= 1;
+                                if *d == 0 {
+                                    rq.push(s2);
+                                }
+                            }
+                        }
+                    }
+                }
+                for &v in topo.iter().rev() {
+                    let h = succ.get(&v).map(|ss| {
+                        ss.iter()
+                            .map(|s2| height[s2] + cost.dep_link_latency_slots)
+                            .fold(0.0f64, f64::max)
+                    });
+                    height.insert(v, credits[&v] + h.unwrap_or(0.0));
+                }
+            }
+            let mut win_before = 0.0f64;
+            let mut win_after = 0.0f64;
+            let mut win_moved = 0usize;
+            for seg in &segments {
+                // interior edges of THIS segment only
+                let seg_set: BTreeSet<u32> = seg.iter().copied().collect();
+                let s_succ: HashMap<u32, Vec<u32>> = succ
+                    .iter()
+                    .filter(|(a, _)| seg_set.contains(a))
+                    .map(|(a, bs)| {
+                        (
+                            *a,
+                            bs.iter().copied().filter(|b| seg_set.contains(b)).collect(),
+                        )
+                    })
+                    .collect();
+                let s_pred: HashMap<u32, Vec<u32>> = pred
+                    .iter()
+                    .filter(|(b, _)| seg_set.contains(b))
+                    .map(|(b, as_)| {
+                        (
+                            *b,
+                            as_.iter().copied().filter(|a| seg_set.contains(a)).collect(),
+                        )
+                    })
+                    .collect();
+                // baseline: original order under the same model
+                let before = {
+                    let mut end: HashMap<u32, f64> = HashMap::new();
+                    let mut cursor = 0.0f64;
+                    let mut span = 0.0f64;
+                    for &i in seg {
+                        let mut avail = 0.0f64;
+                        if let Some(ps) = s_pred.get(&i) {
+                            for &p in ps {
+                                avail = avail.max(end[&p] + cost.dep_link_latency_slots);
+                            }
+                        }
+                        let t = cursor.max(avail);
+                        let e = t + credits[&i] + k.instructions[i as usize].ctrl.stall as f64;
+                        end.insert(i, e);
+                        cursor = e;
+                        span = span.max(e);
+                    }
+                    span
+                };
+                let (mut order, mut after) = schedule_segment(
+                    seg,
+                    &k.instructions,
+                    &credits,
+                    cost.dep_link_latency_slots,
+                    &s_succ,
+                    &s_pred,
+                    &height,
+                );
+                // Parity keeps the seed: on a cost-neutral segment the
+                // owner's order IS the optimum the model can see (mulmod
+                // is stall-saturated; measured physics already lives in
+                // the stall fields), so emit the original order rather
+                // than churning a certified schedule for zero gain.
+                if after >= before - 1e-9 {
+                    order = seg.clone();
+                    after = before;
+                }
+                win_before += before;
+                win_after += after;
+                for (slot, &ni) in seg.iter().zip(order.iter()) {
+                    win_moved += (slot != &ni) as usize;
+                    perm[*slot as usize] = ni;
+                }
+            }
+            let mut pin_reasons: BTreeMap<String, usize> = BTreeMap::new();
+            for i in ws..we {
+                if let Some(r) = pin_of.get(&i) {
+                    *pin_reasons.entry(r.name().to_string()).or_default() += 1;
+                }
+            }
+            if win_after > win_before + 1e-9 {
+                bail!(
+                    "sched: list policy made window [{ws},{we}) of {} WORSE by the \
+                     cost model ({win_before:.1} -> {win_after:.1}) -- refusing to \
+                     emit a regression",
+                    k.name
+                );
+            }
+            let new_order: Vec<u32> = (ws..we).map(|p| perm[p as usize]).collect();
+            edits.push(WindowEmit {
+                kernel_idx: kidx,
+                start: ws,
+                new_order,
+            });
+            win_reports.push(WindowSchedReport {
+                start: ws,
+                end: we,
+                movers: (ws..we).filter(|i| movable.contains(i)).count(),
+                pinned: (ws..we).filter(|i| pin_of.contains_key(&i)).count(),
+                pin_reasons,
+                segments: segments.len(),
+                cost_before: win_before,
+                cost_after: win_after,
+                moved: win_moved,
+            });
+        }
+
+        verify_permutation(&g, &perm)
+            .with_context(|| format!("sched: kernel {}", k.name))?;
+        let moved = perm.iter().enumerate().filter(|(p, &o)| o != *p as u32).count();
+        perms.insert(kidx, perm);
+
+        let mut by_class: BTreeMap<String, usize> = BTreeMap::new();
+        for &(_, _, cls) in &g.edges {
+            *by_class.entry(cls.name().to_string()).or_default() += 1;
+        }
+        reports.push(KernelSchedReport {
+            name: k.name.clone(),
+            n_ins: n,
+            anchors: g.anchors.len(),
+            hand_sched: g.n_hand_sched,
+            scoreboard_bound: g.n_scoreboard_bound,
+            edges_total: g.edges.len(),
+            edges_by_class: by_class,
+            live_peak_r: g.live_peak_r,
+            live_peak_ur: g.live_peak_ur,
+            moved,
+            class_fallback: g.n_class_fallback,
+            unknown_ops: Vec::new(),
+            unknown_classes: Vec::new(),
+            windows: win_reports,
+            credits_defaulted,
+        });
+    }
+
+    let out_text =
+        emit_permuted_splice(text, &edits).context("sched: permuted splice emission failed")?;
+    verify_permute_proof(&file, &out_text, &perms)?;
+    Ok(SchedRun {
+        file,
+        out_text,
+        report: SchedRunReport {
+            mode: "list".to_string(),
             kernels: reports,
         },
     })
