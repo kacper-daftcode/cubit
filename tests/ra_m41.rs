@@ -12,7 +12,7 @@ fn ksrc(body: &str) -> String {
 }
 
 fn run(text: &str) -> cubit::ra::RaRunReport {
-    run_file(text, RaMode::Identity).unwrap().1
+    run_file(text, RaMode::Identity).unwrap().report
 }
 
 // ---------------------------------------------------------------- mode parse
@@ -59,7 +59,7 @@ fn t_identity_rewriter_reports_zero_changes() {
     .map(|s| parse_sass(s, 0).unwrap())
     .collect();
     let xfers: Vec<_> = insns.iter().map(reg_xfer).collect();
-    let plan = plan_for_mode(RaMode::Identity, &xfers);
+    let plan = plan_for_mode(&RaMode::Identity, "k", &xfers).unwrap();
     let changed = apply_plan(&mut insns, &plan).unwrap();
     assert_eq!(changed, 0);
 }
@@ -78,7 +78,7 @@ fn t_apply_remaps_all_operand_shapes() {
     .map(|s| parse_sass(s, 0).unwrap())
     .collect();
     let xfers: Vec<_> = insns.iter().map(reg_xfer).collect();
-    let mut plan = plan_for_mode(RaMode::Identity, &xfers);
+    let mut plan = plan_for_mode(&RaMode::Identity, "k", &xfers).unwrap();
     // keep every other mapping identity, retarget the two registers
     plan.r.insert(4, 8);
     plan.r.insert(8, 8); // collision-free bookkeeping is the M4.2 allocator's job

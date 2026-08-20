@@ -88,20 +88,26 @@ enum Commands {
         #[arg(long)]
         allow_arch_mismatch: bool,
     },
-    /// Register-allocation pass over a .sass file (M4.1/BARRACUDA).
+    /// Register-allocation pass over a .sass file (M4/BARRACUDA).
     ///
-    /// M4.1 implements `--mode identity` only: the plan maps every
-    /// structurally-used register 1:1 and the pass PROVES it observed all
-    /// of them (span-expanded transfer sets, coverage check, rewriter
-    /// reporting zero changed numerals). Output text is byte-verbatim from
-    /// the input; non-identity modes will go through the printer (M4.2).
-    /// Fail-closed: strict parse, unknown role families, plan gaps and
-    /// span violations (odd WIDE/.64 pairs, misaligned .128/.256 quads,
-    /// domain crossing) all stop the run.
+    /// `--mode identity` (M4.1): the plan maps every structurally-used
+    /// register 1:1 and the pass PROVES it observed all of them (span-
+    /// expanded transfer sets, coverage check, rewriter reporting zero
+    /// changed numerals). Output text is byte-verbatim from the input.
+    /// `--mode pin` (M4.2): windowed pin-override splice; lines outside the
+    /// windows are byte-verbatim, window lines carry the renames, and a
+    /// re-parse proof must hold before anything is written.
+    /// Fail-closed: strict parse, unknown role families, plan gaps, pin
+    /// collisions / boundary-live pins / span tearing all stop the run.
     Ra {
-        /// Allocation mode (M4.1: only "identity").
+        /// Allocation mode: "identity" (M4.1) or "pin" (M4.2 windowed
+        /// pin-override; requires --plan).
         #[arg(long, default_value = "identity")]
         mode: String,
+        /// Pin-override plan JSON (only with --mode pin):
+        /// {"kernels":{"<name>":{"windows":[[s,e),...],"r":{"25":200},"ur":{}}}}
+        #[arg(long)]
+        plan: Option<PathBuf>,
         /// Input .sass file (directive format).
         input: PathBuf,
         /// Output .sass file. Omit to only validate and report.
@@ -224,10 +230,11 @@ fn main() -> Result<()> {
         } => cmd_roundtrip(&table, &records, &inputs, allow_arch_mismatch),
         Commands::Ra {
             mode,
+            plan,
             input,
             output,
             report,
-        } => cmd_ra(&mode, &input, output.as_deref(), report.as_deref()),
+        } => cmd_ra(&mode, plan.as_deref(), &input, output.as_deref(), report.as_deref()),
         Commands::Patch {
             table,
             records,
@@ -269,22 +276,42 @@ fn main() -> Result<()> {
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-/// `cubit ra` — M4.1 identity-mode register-allocation pass driver.
+/// `cubit ra` — register-allocation pass driver (M4.1 identity / M4.2 pin).
 ///
-/// Output discipline: identity mode is byte-conservative. The emitted text
-/// is the input text VERBATIM, and the pass hands back a machine proof that
-/// nothing needed changing (changed == 0 enforced inside ra::run_file).
-/// Modes that actually renumber (M4.2+) must switch to printer-based
-/// emission before writing anything.
-fn cmd_ra(mode: &str, input: &Path, output: Option<&Path>, report: Option<&Path>) -> Result<()> {
-    let parsed = cubit::ra::parse_mode(mode)?;
+/// Output discipline: identity mode is byte-conservative (the emitted text
+/// is the input VERBATIM, with the machine proof that nothing needed
+/// changing). Pin mode emits via the splice path: lines outside the windows
+/// are byte-verbatim, changed lines carry exactly the planned numerals, and
+/// ra::run_file refuses to produce the file unless the re-parse proof holds.
+fn cmd_ra(
+    mode: &str,
+    plan_path: Option<&Path>,
+    input: &Path,
+    output: Option<&Path>,
+    report: Option<&Path>,
+) -> Result<()> {
+    let parsed = match (cubit::ra::parse_mode_kind(mode)?, plan_path) {
+        ("identity", None) => cubit::ra::RaMode::Identity,
+        ("identity", Some(_)) => anyhow::bail!("ra: --plan is only valid with --mode pin"),
+        ("pin", Some(pp)) => {
+            let plan_text = std::fs::read_to_string(pp)
+                .with_context(|| format!("cannot read plan {}", pp.display()))?;
+            let plan: cubit::ra::PinPlan = serde_json::from_str(&plan_text)
+                .with_context(|| format!("bad pin plan JSON in {}", pp.display()))?;
+            cubit::ra::RaMode::Pin(plan)
+        }
+        ("pin", None) => anyhow::bail!("ra: --mode pin requires --plan <plan.json>"),
+        (other, _) => anyhow::bail!("ra: mode {other:?} not handled"),
+    };
     let text = std::fs::read_to_string(input)
         .with_context(|| format!("cannot read {}", input.display()))?;
-    let (_file, rep) = cubit::ra::run_file(&text, parsed)
+    let run = cubit::ra::run_file(&text, parsed)
         .with_context(|| format!("ra pass failed on {}", input.display()))?;
-    let json = serde_json::to_string_pretty(&rep)?;
+    let rep = &run.report;
+    let json = serde_json::to_string_pretty(rep)?;
     if let Some(out) = output {
-        std::fs::write(out, &text).with_context(|| format!("cannot write {}", out.display()))?;
+        std::fs::write(out, &run.out_text)
+            .with_context(|| format!("cannot write {}", out.display()))?;
         match report {
             Some(rp) => std::fs::write(rp, &json)
                 .with_context(|| format!("cannot write {}", rp.display()))?,

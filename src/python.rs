@@ -458,25 +458,19 @@ fn reg_liveness<'py>(py: Python<'py>, text: &str) -> PyResult<Vec<Bound<'py, PyD
     Ok(out)
 }
 
-/// Register-allocation pass over a whole .sass source (M4.1/BARRACUDA).
+/// Register-allocation pass over a whole .sass source (M4/BARRACUDA).
 ///
-/// Modes: "identity" (M4.1). Returns one dict per kernel:
+/// Modes: "identity" (M4.1), "pin" (M4.2, requires plan JSON).
+/// Returns one dict per kernel:
 ///   name, n, r_used, ur_used, r_max, ur_max, changed, unknown_ops.
 /// Raises ValueError on strict-parse failure, unknown role families,
-/// plan gaps, span violations, or a nonzero change count in identity mode
-/// (all fail-closed -- see ra.rs).
+/// plan gaps, pin-contract violations, or a nonzero change count in
+/// identity mode (all fail-closed -- see ra.rs).
 #[cfg(feature = "python")]
-#[pyfunction]
-#[pyo3(signature = (text, mode = "identity"))]
-fn ra_plan<'py>(
+fn ra_reports<'py>(
     py: Python<'py>,
-    text: &str,
-    mode: &str,
+    rep: &crate::ra::RaRunReport,
 ) -> PyResult<Vec<Bound<'py, PyDict>>> {
-    let parsed = crate::ra::parse_mode(mode)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("{e:#}")))?;
-    let (_file, rep) = crate::ra::run_file(text, parsed)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("ra error: {e:#}")))?;
     let mut out = Vec::new();
     for k in &rep.kernels {
         let kd = PyDict::new(py);
@@ -495,6 +489,63 @@ fn ra_plan<'py>(
     Ok(out)
 }
 
+#[cfg(feature = "python")]
+#[pyfunction]
+#[pyo3(signature = (text, mode="identity", plan=None))]
+fn ra_plan<'py>(
+    py: Python<'py>,
+    text: &str,
+    mode: &str,
+    plan: Option<&str>,
+) -> PyResult<Vec<Bound<'py, PyDict>>> {
+    let parsed = build_ra_mode(mode, plan)?;
+    let run = crate::ra::run_file(text, parsed)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("ra error: {e:#}")))?;
+    ra_reports(py, &run.report)
+}
+
+/// Build an RaMode from the (mode, plan-json) pair, fail-closed.
+#[cfg(feature = "python")]
+fn build_ra_mode(mode: &str, plan: Option<&str>) -> PyResult<crate::ra::RaMode> {
+    let kind = crate::ra::parse_mode_kind(mode)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("{e:#}")))?;
+    match (kind, plan) {
+        ("identity", None) => Ok(crate::ra::RaMode::Identity),
+        ("identity", Some(_)) => Err(pyo3::exceptions::PyValueError::new_err(
+            "ra: plan is only valid with mode='pin'",
+        )),
+        ("pin", Some(pj)) => {
+            let plan: crate::ra::PinPlan = serde_json::from_str(pj).map_err(|e| {
+                pyo3::exceptions::PyValueError::new_err(format!("ra: bad plan JSON: {e}"))
+            })?;
+            Ok(crate::ra::RaMode::Pin(plan))
+        }
+        ("pin", None) => Err(pyo3::exceptions::PyValueError::new_err(
+            "ra: mode='pin' requires a plan JSON",
+        )),
+        (other, _) => Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "ra: mode {other:?} not handled"
+        ))),
+    }
+}
+
+/// M4.2: apply a pin-override plan and return (spliced_text, reports).
+/// Fail-closed: validate_pin contract + splice re-parse proof inside
+/// ra::run_file; any violation raises ValueError and NO text is produced.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn ra_apply<'py>(
+    py: Python<'py>,
+    text: &str,
+    plan: &str,
+) -> PyResult<(String, Vec<Bound<'py, PyDict>>)> {
+    let parsed = build_ra_mode("pin", Some(plan))?;
+    let run = crate::ra::run_file(text, parsed)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("ra error: {e:#}")))?;
+    let reports = ra_reports(py, &run.report)?;
+    Ok((run.out_text, reports))
+}
+
 /// Python module definition.
 #[cfg(feature = "python")]
 #[pymodule]
@@ -510,5 +561,6 @@ fn cubit(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(pred_liveness, m)?)?;
     m.add_function(wrap_pyfunction!(reg_liveness, m)?)?;
     m.add_function(wrap_pyfunction!(ra_plan, m)?)?;
+    m.add_function(wrap_pyfunction!(ra_apply, m)?)?;
     Ok(())
 }
