@@ -532,6 +532,55 @@ fn build_ra_mode(mode: &str, plan: Option<&str>) -> PyResult<crate::ra::RaMode> 
 /// M4.2: apply a pin-override plan and return (spliced_text, reports).
 /// Fail-closed: validate_pin contract + splice re-parse proof inside
 /// ra::run_file; any violation raises ValueError and NO text is produced.
+/// M4.5: reordering-scheduler pass (identity mode). Returns
+/// (output_text, per-kernel reports). Identity emits the input
+/// byte-verbatim; the value is the dependency-graph census the M4.6 list
+/// scheduler will consume. Fail-closed doctrine identical to the RA pass
+/// (unknown operand roles / ctrl classes stop the run).
+#[cfg(feature = "python")]
+#[pyfunction]
+#[pyo3(signature = (text, mode="identity"))]
+fn sched_run<'py>(
+    py: Python<'py>,
+    text: &str,
+    mode: &str,
+) -> PyResult<(String, Vec<Bound<'py, PyDict>>)> {
+    match crate::sched::parse_mode_kind(mode)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("{e:#}")))?
+    {
+        "identity" => {}
+        other => {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "sched: mode {other:?} not handled"
+            )))
+        }
+    }
+    let table = get_table();
+    let run = crate::sched::run_file(text, crate::sched::SchedMode::Identity, &table)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("sched error: {e:#}")))?;
+    let mut out = Vec::new();
+    for k in &run.report.kernels {
+        let kd = PyDict::new(py);
+        kd.set_item("name", &k.name)?;
+        kd.set_item("n", k.n_ins)?;
+        kd.set_item("anchors", k.anchors)?;
+        kd.set_item("hand_sched", k.hand_sched)?;
+        kd.set_item("scoreboard_bound", k.scoreboard_bound)?;
+        kd.set_item("edges_total", k.edges_total)?;
+        let bc = PyDict::new(py);
+        for (cls, cnt) in &k.edges_by_class {
+            bc.set_item(cls, cnt)?;
+        }
+        kd.set_item("edges_by_class", bc)?;
+        kd.set_item("live_peak_r", k.live_peak_r)?;
+        kd.set_item("live_peak_ur", k.live_peak_ur)?;
+        kd.set_item("moved", k.moved)?;
+        kd.set_item("class_fallback", k.class_fallback)?;
+        out.push(kd);
+    }
+    Ok((run.out_text, out))
+}
+
 #[cfg(feature = "python")]
 #[pyfunction]
 fn ra_apply<'py>(
@@ -562,5 +611,6 @@ fn cubit(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(reg_liveness, m)?)?;
     m.add_function(wrap_pyfunction!(ra_plan, m)?)?;
     m.add_function(wrap_pyfunction!(ra_apply, m)?)?;
+    m.add_function(wrap_pyfunction!(sched_run, m)?)?;
     Ok(())
 }

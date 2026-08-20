@@ -39,6 +39,7 @@ pub mod printer;
 #[cfg(feature = "python")]
 pub mod python;
 pub mod sass_file;
+pub mod sched;
 pub mod scheduling;
 pub mod scheduling_pass;
 pub mod table;

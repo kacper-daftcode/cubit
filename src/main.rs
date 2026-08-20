@@ -118,6 +118,32 @@ enum Commands {
         #[arg(long)]
         report: Option<PathBuf>,
     },
+    /// Instruction-reordering scheduler pass (M4.5/BARRACUDA b1).
+    ///
+    /// `--mode identity` (M4.5): builds the reordering-legality dependency
+    /// graph (register roles from the M3.5 data table, Strict predicate
+    /// roles, ctrl classes from --table), verifies the zero permutation
+    /// against every edge with the same checker mutating modes must pass,
+    /// and emits the input byte-verbatim. Fail-closed: strict parse,
+    /// unknown operand roles or unclassifiable ctrl classes stop the run.
+    /// Windowed list scheduling (m9 cost plugin) is M4.6.
+    Sched {
+        /// Scheduling mode: "identity" (M4.5).
+        #[arg(long, default_value = "identity")]
+        mode: String,
+        /// ISA table for ctrl-class lookup (same role as `cubit asm -t`).
+        #[arg(short, long, default_value = "tables/sm120.json")]
+        table: PathBuf,
+        /// Input .sass file (directive format).
+        input: PathBuf,
+        /// Output .sass file. Omit to only validate and report.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Write the per-kernel JSON report here (default: stdout when -o
+        /// is given, to keep stdout free for piping the sass).
+        #[arg(long)]
+        report: Option<PathBuf>,
+    },
     /// Patch a cubin: disassemble → re-encode → write patched cubin.
     Patch {
         #[arg(short, long, default_value = "tables/sm120.json")]
@@ -235,6 +261,13 @@ fn main() -> Result<()> {
             output,
             report,
         } => cmd_ra(&mode, plan.as_deref(), &input, output.as_deref(), report.as_deref()),
+        Commands::Sched {
+            mode,
+            table,
+            input,
+            output,
+            report,
+        } => cmd_sched(&mode, &table, &input, output.as_deref(), report.as_deref()),
         Commands::Patch {
             table,
             records,
@@ -323,6 +356,60 @@ fn cmd_ra(
             rep.kernels.len(),
             rep.kernels.iter().map(|k| k.n_ins).sum::<usize>(),
             total,
+            out.display()
+        );
+    } else {
+        // no text output requested: report (or validation error) IS the result
+        match report {
+            Some(rp) => std::fs::write(rp, &json)
+                .with_context(|| format!("cannot write {}", rp.display()))?,
+            None => println!("{json}"),
+        }
+    }
+    Ok(())
+}
+
+/// `cubit sched` — reordering-scheduler pass driver (M4.5 identity).
+///
+/// Same output contract as cmd_ra: with -o, output text + report (stderr
+/// summary); without -o, run is validation-only and the report (or the
+/// error) is the result. In identity mode the output text is byte-verbatim
+/// input and the report carries the dependency-graph census.
+fn cmd_sched(
+    mode: &str,
+    table: &Path,
+    input: &Path,
+    output: Option<&Path>,
+    report: Option<&Path>,
+) -> Result<()> {
+    match cubit::sched::parse_mode_kind(mode)? {
+        "identity" => {}
+        (other) => anyhow::bail!("sched: mode {other:?} not handled"),
+    }
+    let t = cubit::table::IsaTable::load(table)
+        .with_context(|| format!("cannot load ISA table {}", table.display()))?;
+    let text = std::fs::read_to_string(input)
+        .with_context(|| format!("cannot read {}", input.display()))?;
+    let run = cubit::sched::run_file(&text, cubit::sched::SchedMode::Identity, &t)
+        .with_context(|| format!("sched pass failed on {}", input.display()))?;
+    let rep = &run.report;
+    let json = serde_json::to_string_pretty(rep)?;
+    if let Some(out) = output {
+        std::fs::write(out, &run.out_text)
+            .with_context(|| format!("cannot write {}", out.display()))?;
+        match report {
+            Some(rp) => std::fs::write(rp, &json)
+                .with_context(|| format!("cannot write {}", rp.display()))?,
+            None => println!("{json}"),
+        }
+        let total_edges: usize = rep.kernels.iter().map(|k| k.edges_total).sum();
+        let moved: usize = rep.kernels.iter().map(|k| k.moved).sum();
+        eprintln!(
+            "sched [{mode}] {} kernel(s), {} instruction(s), {} edge(s), {} moved -> {}",
+            rep.kernels.len(),
+            rep.kernels.iter().map(|k| k.n_ins).sum::<usize>(),
+            total_edges,
+            moved,
             out.display()
         );
     } else {
