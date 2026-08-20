@@ -995,14 +995,27 @@ fn format_pred_raw(fields: &[&DecodedField], uniform: bool, raw: u128) -> String
 
     let mut pred: Option<u64> = None;
     let mut inv = false;
+    let mut gate = false;
 
     for f in fields {
         let e = norm_ext(&f.extraction);
         match e.as_str() {
             "pred" | "upred" => pred = Some(f.value),
+            // BUG-032: MMA gate slot carries nvdisasm-INVERTED names
+            // (sel = 7 - n, UPT = sel 0); straight everywhere else.
+            "upred_gate"    => { pred = Some(f.value); gate = true; }
             "inv" | "neg"    => inv = f.value != 0,
             _ => {}
         }
+    }
+
+    if gate {
+        let sel = pred.unwrap_or(0);
+        let inv_s = if inv { "!" } else { "" };
+        if sel == 0 {
+            return if inv { format!("!{pt_name}") } else { pt_name.to_string() };
+        }
+        return format!("{inv_s}{prefix}{}", 7 - sel);
     }
 
     // Raw fallback: extract pred from bits [83:81] and inv from bit [87].

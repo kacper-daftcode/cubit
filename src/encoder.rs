@@ -85,6 +85,7 @@ fn extraction_accepts(ext: &Extraction, op: &Operand) -> bool {
             Operand::UReg { .. } | Operand::Addr { .. } | Operand::Desc { .. }),
         URegFf => matches!(op, Operand::UReg { .. }),
         Pred => matches!(op, Operand::Pred { .. } | Operand::UPred { .. }),
+        UPredGate => matches!(op, Operand::UPred { .. } | Operand::Pred { .. }),
         Barrier => matches!(op, Operand::Barrier(_)),
 
         // RZ/URZ are accepted by imm extractions: the helper returns 0, which is
@@ -212,7 +213,8 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
                 }
             }
             Operand::Pred { num, .. } | Operand::UPred { num, .. } if *num != 7 => {
-                if !fields_for_tok().any(|f| matches!(f.extraction, Extraction::Pred)) {
+                if !fields_for_tok().any(|f| matches!(f.extraction,
+                    Extraction::Pred | Extraction::UPredGate)) {
                     return missing(&format!("P{num}"));
                 }
             }
@@ -1217,6 +1219,13 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
         Extraction::RegFf => Ok(op_reg_ff(insn, field.token_idx) & mk),
         Extraction::URegFf => Ok(op_ureg_ff(insn, field.token_idx) & mk),
         Extraction::Pred => Ok(op_pred(insn, field.token_idx) & mk),
+        // BUG-032: nvdisasm gate naming is inverted (sel = 7 - n, UPT = sel 0);
+        // physical value (sel) is identical, only the name mapping flips.
+        Extraction::UPredGate => {
+            let n = op_pred(insn, field.token_idx);
+            let sel = if n == 7 { 0 } else { 7 - n };
+            Ok(sel & mk)
+        }
         Extraction::Barrier => Ok(op_barrier(insn, field.token_idx) & mk),
 
         // Immediate

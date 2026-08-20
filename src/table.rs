@@ -53,6 +53,11 @@ pub enum Extraction {
     Guard, GuardLo3, GuardNeg,
     // Register
     Reg, UReg, URegFf, RegFf, Pred, Barrier,
+    /// MMA accumulate-gate UP (QMMA/HMMA trailing UP operand @87 + inv@90).
+    /// BUG-032: ONLY this slot uses nvdisasm's INVERTED naming (sel = 7-n,
+    /// UPT = sel 0); every other upred field on sm_120 is straight (sel = n,
+    /// UPT = sel 7) per the i93 field census (206775 UP records).
+    UPredGate,
     // Immediate shifts (unmasked — field mask handles truncation)
     Imm, ImmShr(u8), // imm >> N
     ImmDec, ImmDecU32,
@@ -124,6 +129,7 @@ fn parse_extraction(s: &str) -> Extraction {
         "ureg_ff" => Extraction::URegFf,
         "reg_ff" => Extraction::RegFf,
         "pred" | "upred" => Extraction::Pred,
+        "upred_gate" => Extraction::UPredGate,
         "barrier" => Extraction::Barrier,
         "imm" => Extraction::Imm,
         "imm_dec" => Extraction::ImmDec,

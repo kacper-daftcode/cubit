@@ -824,6 +824,7 @@ fn extraction_name(e: &Extraction) -> String {
         Extraction::RegShr(n) => format!("reg_shr{n}"),
         Extraction::URegShr(n) => format!("ureg_shr{n}"),
         Extraction::Pred => "pred".into(),
+        Extraction::UPredGate => "upred_gate".into(),
         Extraction::Imm => "imm".into(),
         Extraction::ImmShr(n) => format!("imm_shr{n}"),
         Extraction::Reuse => "reuse".into(),
