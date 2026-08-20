@@ -512,6 +512,33 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     if insn.opcode == "LDGSTS" && mod_group == "128,E" {
         candidates.push((insn.key.clone(), "128,BYPASS,E,LTC128B".to_string()));
     }
+    // BUG-028: trailing immediates with DEFAULT (zero) payload are invisible to
+    // nvdisasm renders and carry no table field, so the harvested sig space
+    // only knows the short form (QMMA.SP.16864.***_R_R_R_R_R_II). For text
+    // that spells the zero tail out (`..., 0x0, 0x0`), try collapsed-sig
+    // candidates after the exact forms. entry_matches_operands still
+    // fail-closes on a nonzero trailing immediate.
+    let n_drop = insn.operands.iter().rev()
+        .take_while(|o| matches!(o, Operand::Imm32(0) | Operand::Imm64(0)))
+        .count();
+    if n_drop > 0 && n_drop < insn.operands.len() {
+        let clean_opcode: String = insn.opcode_full.split('.')
+            .filter(|part| !part.is_empty() && !part.starts_with('?'))
+            .collect::<Vec<_>>().join(".");
+        // Try every collapse level (drop 1, 2, ...): text like `..., 0x0, 0x0`
+        // must first try the harvested single-imm sig before shorter forms.
+        for d in 1..=n_drop {
+            let sig: String = insn.operands[..insn.operands.len() - d].iter()
+                .map(|op| format!("_{}", crate::parser::operand_type_label_pub(op)))
+                .collect();
+            let fk_c = format!("{clean_opcode}{sig}");
+            let k_c = format!("{}{}", insn.opcode, sig);
+            candidates.push((fk_c.clone(), mod_group.clone()));
+            candidates.push((k_c.clone(), mod_group.clone()));
+            candidates.push((fk_c, String::new()));
+            candidates.push((k_c, String::new()));
+        }
+    }
     candidates.dedup();
 
     let mut attempts: Vec<String> = Vec::new();
@@ -835,13 +862,14 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         }
     }
 
-    // QMMA.SP: bit80 is the Structured Sparsity feature gate.
-    // RTX 5090 (SM120) rejects bit80=1 with ILLEGAL_INSTRUCTION (715).
-    // Datacenter GPUs (B100/B200, SM120a) accept it.
-    // Clearing bit80 makes SP behave as dense QMMA (no perf benefit from sparsity).
-    if insn.opcode == "QMMA" && insn.opcode_full.contains(".SP") {
-        code &= !(1u128 << 80);
-    }
+    // BUG-028: removed blanket `code &= !(1u128 << 80)` for QMMA.SP. The hack
+    // zeroed the Structured-Sparsity gate bit for ALL 144 SP table entries on
+    // the claim "RTX 5090 rejects bit80=1 (ILLEGAL 715)" — contradicted by the
+    // corpus: nvcc-produced SM120 words carry bit80=1 (all SP and_base rows),
+    // nvdisasm renders them as valid SP, and the s4 0x14-form probes ran EXACT
+    // on the 5090 (605/605). With the clear active, QMMA.SP.16864 emitted
+    // byte10=0, which nvdisasm reads as QMMA.INVALID2 and silicon rejects.
+    // Table authority restored: each SP entry's own and_base decides bit80.
 
     // BSSY/BSYNC convergence barrier bits (bit73 for RECONVERGENT, bit72 for
     // RELIABLE) are encoded in the ISA table and_base per mod_group.

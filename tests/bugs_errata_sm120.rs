@@ -395,3 +395,49 @@ fn bug027_brxu_backward_branch_sign_bits() {
     let (_, text) = brxu_render(&t, &idx, "BRXU 0x100 ;", 0x400);
     assert!(text.contains("BRXU 0x100"), "backward BRXU roundtrip: {text}");
 }
+
+// ── BUG-028 ─────────────────────────────────────────────────────────────────
+// QMMA.SP encoder used to zero bit80 (the Structured-Sparsity gate) for every
+// `.SP` text via a blanket hack in the encoder, contradicting the corpus: all
+// 144 SP table entries carry bit80=1, nvcc emits such words on SM120, and the
+// s4 0x14-form probes ran EXACT on the 5090 (605/605). Result: QMMA.SP.16864
+// encoded as byte10=0, which nvdisasm reads as QMMA.INVALID2 and silicon
+// rejects. Also, the explicit 2-imm (7-token) form had no key (harvested sig
+// only covers the nvdisasm-visible single-imm form).
+// Corpus reference word (bug package repro/028): 7a72 0828 2c11 0000 0814 0100 00f6 0f00.
+// Full-word reference from the corpus; scheduling upper32 masked out at compare
+// (nvcc's stall choice 0x000ff600 vs the encoder default 0x000fc200).
+const BUG028_WORD: u128 = 0x000f_f600_0001_1408_0000_112c_2808_727a;
+
+#[test]
+fn bug028_sp16864_bit80_from_table_six_token_form() {
+    let t = t120();
+    let w = enc_clean(&t, "QMMA.SP.16864.F16.E4M3.E4M3 R8, R40, R44, R8, R17, 0x0 ;");
+    assert_eq!(w, BUG028_WORD & !(0xFFFF_FFFFu128 << 96),
+        "bit80 must come from the table and_base; word must equal the corpus reference");
+}
+
+#[test]
+fn bug028_sp16864_seven_token_zero_tail_collapses() {
+    let t = t120();
+    let w = enc_clean(&t, "QMMA.SP.16864.F16.E4M3.E4M3 R8, R40, R44, R8, R17, 0x0, 0x0 ;");
+    assert_eq!(w, BUG028_WORD & !(0xFFFF_FFFFu128 << 96),
+        "explicit zero 2nd immediate must collapse onto the single-imm sig");
+}
+
+#[test]
+fn bug028_sp16864_seven_token_nonzero_tail_fails_closed() {
+    let t = t120();
+    let e = enc_err(&t, "QMMA.SP.16864.F16.E4M3.E4M3 R8, R40, R44, R8, R17, 0x0, 0x1 ;");
+    assert!(e.contains("no operand-compatible table entry")
+        || e.contains("no field able to encode"), "nonzero tail must fail closed: {e}");
+}
+
+#[test]
+fn bug028_sp16832_also_restored() {
+    // The blanket hack hit every .SP entry, not just 16864: 16832 must also
+    // keep bit80=1 now (table authority).
+    let t = t120();
+    let w = enc(&t, "QMMA.SP.16832.F16.E4M3.E4M3 R8, R40, R44, R8, R17, 0x0 ;");
+    assert_eq!((w >> 80) & 1, 1, "QMMA.SP.16832 bit80 must be 1");
+}
