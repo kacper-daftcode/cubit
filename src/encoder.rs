@@ -454,6 +454,80 @@ fn check_pred_neg_encoded(insn: &Instruction, table: &IsaTable, out: u128) -> Re
     Ok(())
 }
 
+
+/// BUG-037: warp-level MMA register-operand alignment. Multi-register MMA
+/// operands must be aligned to their register-tuple width; silicon runs
+/// misaligned forms as ILLEGAL_INSTRUCTION while the encoder used to accept
+/// them silently (sm120 iter46/iter47 measured tables; BUG-037 repro:
+/// `IMMA.16832.S8.S8 R8, R42, R44, R8` with A=R42 -> silicon ILLEGAL).
+///
+/// Fail-closed ONLY on silicon-measured (opcode, shape, accum) combos —
+/// arithmetic width guesses were falsified by silicon (HMMA.1688.F32 A is
+/// quad-aligned despite a nominally narrower A), so unmeasured space
+/// (SP/SF forms, F16 accumulators, IMMA.16816, QMMA.16816, HMMA.1684,
+/// UR-space UTC*/DMMA) keeps its previous accept-behavior:
+///   IMMA.16832.* (acc S32):   D%4 A%4 B%2 C%4   (iter46)
+///   QMMA.16832.F32.*:         D%4 A%4 B%2 C%4   (iter47, E4M3)
+///   HMMA.16816.F32:           D%4 A%4 B%2 C%4   (iter47)
+///   HMMA.1688.F32:            D%4 A%4 Bany C%4  (iter47; B is single-reg)
+fn check_mma_reg_alignment(insn: &Instruction) -> Result<()> {
+    let has_mod = |m: &str| insn.modifiers.iter().any(|x| x == m);
+    // Dense warp-level forms only: .SP. (sparse, extra metadata operands) and
+    // .SF. (scale-factor) layouts are not silicon-mapped for alignment.
+    if has_mod(".SP") || has_mod(".SF") {
+        return Ok(());
+    }
+    // (require-D4, require-A4, require-B2, require-C4)
+    let (d4, a4, b2, c4) = match insn.opcode.as_str() {
+        "IMMA" if has_mod(".16832") => (true, true, true, true),
+        "QMMA" if has_mod(".16832") && has_mod(".F32") => (true, true, true, true),
+        "HMMA" if (has_mod(".16816") || has_mod(".1688")) && has_mod(".F32")
+            && !has_mod(".BF16") && !has_mod(".TF32") =>
+        {
+            // 1688 measured with a SINGLE-reg B (odd B legal); 16816 B is a pair.
+            (true, true, has_mod(".16816"), true)
+        }
+        _ => return Ok(()),
+    };
+    // First four top-level R operands are D, A, B, C (leading/interspersed
+    // predicates and UP gates are not Reg operands, so position in the
+    // reg-only stream is stable; forms with fewer regs are unmapped here).
+    let regs: Vec<u32> = insn
+        .operands
+        .iter()
+        .filter_map(|o| match o {
+            Operand::Reg { num, .. } => Some(*num as u32),
+            _ => None,
+        })
+        .collect();
+    if regs.len() < 4 {
+        return Ok(());
+    }
+    let (d, a, b, c) = (regs[0], regs[1], regs[2], regs[3]);
+    for (name, val, rule) in [
+        ("D", d, d4.then_some(4u32)),
+        ("A", a, a4.then_some(4)),
+        ("B", b, b2.then_some(2)),
+        ("C", c, c4.then_some(4)),
+    ] {
+        if let Some(align) = rule {
+            if val % align != 0 {
+                anyhow::bail!(
+                    "{:?} is ILLEGAL on silicon (BUG-037): the {name} operand of {} \
+                     spans {align} registers and @{val} is not {align}-aligned \
+                     (R{}..R{}). Multi-register MMA operands must start at \
+                     reg%{align}==0 (sm120 iter46/47 measured).",
+                    insn.raw_text.trim(),
+                    insn.opcode_full,
+                    val,
+                    val + align - 1,
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Soft errata (warn, don't refuse): conditions that encode fine but are
 /// silicon traps on specific targets. Human-facing drivers print these
 /// BUG-034 (HW quirk, sm_120 silicon, results/s4/i94_b34): the dest-UP
@@ -539,6 +613,7 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     // is the last place that can refuse a bad instruction noisily).
     if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() {
         check_pred_literal_errata(insn)?;
+        check_mma_reg_alignment(insn)?;
     }
     let mod_group = crate::table::extract_mod_group(&insn.raw_text);
 
