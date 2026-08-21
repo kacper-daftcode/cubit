@@ -720,6 +720,44 @@ fn sched_apply<'py>(
     Ok((run.out_text, out))
 }
 
+/// M5 (BARRACUDA author surface): pin/mover introspection for a scheduling
+/// plan. JSON contract identical to sched_apply's plan ({"kernels": {name:
+/// {"windows": [[s, e), ...]}}}); per window returns kernel/start/end,
+/// movable indices, pins {idx: reason} and segments (maximal mover runs).
+#[cfg(feature = "python")]
+#[pyfunction]
+fn sched_pins<'py>(
+    py: Python<'py>,
+    text: &str,
+    plan: &str,
+) -> PyResult<Vec<Bound<'py, PyDict>>> {
+    let plan: crate::sched::SchedPlan = serde_json::from_str(plan)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("sched plan JSON: {e:#}")))?;
+    let table = get_table();
+    let reps = crate::sched::window_pins(text, &plan, &table)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("sched error: {e:#}")))?;
+    let mut out = Vec::new();
+    for w in reps {
+        let wd = PyDict::new(py);
+        wd.set_item("kernel", &w.kernel)?;
+        wd.set_item("start", w.start)?;
+        wd.set_item("end", w.end)?;
+        wd.set_item("movable", w.movable)?;
+        let pd = PyDict::new(py);
+        for (i, r) in &w.pins {
+            pd.set_item(i, r)?;
+        }
+        wd.set_item("pins", pd)?;
+        let sl = pyo3::types::PyList::empty(py);
+        for run in &w.segments {
+            sl.append(run)?;
+        }
+        wd.set_item("segments", sl)?;
+        out.push(wd);
+    }
+    Ok(out)
+}
+
 /// Python module definition.
 #[cfg(feature = "python")]
 #[pymodule]
@@ -738,6 +776,7 @@ fn cubit(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(ra_apply, m)?)?;
     m.add_function(wrap_pyfunction!(sched_run, m)?)?;
     m.add_function(wrap_pyfunction!(sched_apply, m)?)?;
+    m.add_function(wrap_pyfunction!(sched_pins, m)?)?;
     m.add_function(wrap_pyfunction!(render, m)?)?;
     m.add_function(wrap_pyfunction!(ra_full, m)?)?;
     Ok(())

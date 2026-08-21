@@ -276,6 +276,21 @@ pub struct WindowSchedReport {
     pub replay: bool,
 }
 
+/// M5 (BARRACUDA author surface): pin/mover introspection entry for one
+/// scheduling window. `movable` = sorted instruction indices the author may
+/// permute; `pins` = fixed points with reasons; `segments` = maximal mover
+/// runs between pins (the true authoring units -- a mover can never cross
+/// a pin, `verify_permutation` already enforces it at apply time).
+#[derive(Debug, Clone, Serialize)]
+pub struct WindowPinsReport {
+    pub kernel: String,
+    pub start: u32,
+    pub end: u32,
+    pub movable: Vec<u32>,
+    pub pins: BTreeMap<u32, String>,
+    pub segments: Vec<Vec<u32>>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct SchedRunReport {
     pub mode: String,
@@ -1151,6 +1166,185 @@ fn schedule_segment(
 }
 
 /// Run the M4.6 windowed list scheduler over a whole SASS file.
+/// M5 (BARRACUDA author surface): pin/mover introspection for a
+/// scheduling plan. Read-only: same strict parse, same plan/window shape
+/// validation, same pin classification (`classify_window`) as the
+/// list/replay planner; no cost model, no emission. Fail-closed like the
+/// planner: any contract violation is an error and no partial report is
+/// produced for the offending kernel.
+pub fn window_pins(
+    text: &str,
+    plan: &SchedPlan,
+    table: &IsaTable,
+) -> Result<Vec<WindowPinsReport>> {
+    let file = crate::sass_file::parse_sass_file_str_strict(text)
+        .context("sched: strict parse failed")?;
+    for kname in plan.kernels.keys() {
+        if !file.kernels.iter().any(|k| &k.name == kname) {
+            bail!(
+                "sched: plan names unknown kernel {kname:?} (file has: {:?})",
+                file.kernels.iter().map(|k| &k.name).collect::<Vec<_>>()
+            );
+        }
+    }
+    let scans = scan_body_lines(text);
+    if scans.len() != file.kernels.len() {
+        bail!("sched: body-line scan and parser disagree on kernel count");
+    }
+    let mut out = Vec::new();
+    for (kidx, k) in file.kernels.iter().enumerate() {
+        let Some(kp) = plan.kernels.get(&k.name) else {
+            continue;
+        };
+        let n = k.instructions.len();
+        let (scan_name, scan_lines) = &scans[kidx];
+        if scan_name != &k.name {
+            bail!(
+                "sched: body-line scan / parser kernel-name mismatch ({scan_name} vs {})",
+                k.name
+            );
+        }
+        let scan_ins = scan_lines
+            .iter()
+            .filter(|l| matches!(l, BodyLine::Ins(_, _)))
+            .count();
+        if scan_ins != n {
+            bail!(
+                "sched: body-line scan counted {scan_ins} instructions in {} but \
+                 the parser sees {n}",
+                k.name
+            );
+        }
+        let mut labeled: BTreeSet<u32> = BTreeSet::new();
+        for l in scan_lines {
+            if let BodyLine::Ins(i, true) = l {
+                labeled.insert(*i as u32);
+            }
+        }
+        // identical window-shape validation as the list planner
+        let mut prev_e = 0u32;
+        let mut first = true;
+        for &(s, e) in &kp.windows {
+            if !first && s < prev_e {
+                bail!("sched: plan for {}: overlapping/unsorted windows (at [{s},{e}))", k.name);
+            }
+            first = false;
+            prev_e = e;
+            if s >= e {
+                bail!("sched: plan for {}: empty window [{s},{e})", k.name);
+            }
+            if e as usize > n {
+                bail!(
+                    "sched: plan for {}: window [{s},{e}) out of range ({n} instructions)",
+                    k.name
+                );
+            }
+        }
+        for &(s, e) in &kp.windows {
+            let (mv, pins) = classify_window(k, table, &labeled, scan_lines, s, e)
+                .with_context(|| format!("sched: kernel {}", k.name))?;
+            let mut segments: Vec<Vec<u32>> = Vec::new();
+            for &i in &mv {
+                match segments.last_mut() {
+                    Some(run) if *run.last().expect("nonempty run") + 1 == i => run.push(i),
+                    _ => segments.push(vec![i]),
+                }
+            }
+            out.push(WindowPinsReport {
+                kernel: k.name.clone(),
+                start: s,
+                end: e,
+                movable: mv.into_iter().collect(),
+                pins: pins
+                    .into_iter()
+                    .map(|(i, r)| (i, r.name().to_string()))
+                    .collect(),
+                segments,
+            });
+        }
+    }
+    Ok(out)
+}
+
+/// Classify one scheduling window into movers and pins; the single source
+/// of truth for pin semantics, shared by the list/replay planner
+/// (`run_file_list`) and the pin-introspection entry (`window_pins`, M5).
+/// Fail-closed: anchor-class crossing (non-NOP), label-only line strictly
+/// inside the window, or zero movable instructions.
+#[allow(clippy::too_many_arguments)]
+fn classify_window(
+    k: &crate::sass_file::KernelDef,
+    table: &IsaTable,
+    labeled: &BTreeSet<u32>,
+    scan_lines: &[BodyLine],
+    s: u32,
+    e: u32,
+) -> Result<(BTreeSet<u32>, Vec<(u32, PinReason)>)> {
+    let mut movable: BTreeSet<u32> = BTreeSet::new();
+    let mut pins: Vec<(u32, PinReason)> = Vec::new();
+    for i in s..e {
+        let ins = &k.instructions[i as usize];
+        let cc = match table.ctrl_class(&ins.key).cloned() {
+            Some(cc) if cc != CtrlClass::Unknown => cc,
+            _ => fallback_class(ins).with_context(|| {
+                format!(
+                    "sched: no ctrl_class for {} key {} @0x{:x} (idx {i})",
+                    ins.opcode_full, ins.key, ins.addr
+                )
+            })?,
+        };
+        if is_anchor_class(&cc) {
+            if matches!(cc, CtrlClass::Nop) {
+                pins.push((i, PinReason::Nop));
+                continue;
+            }
+            bail!(
+                "sched: window [{s},{e}) of {} contains anchor-class \
+                 instruction {} (idx {i}, class {:?}) -- scheduling \
+                 windows must not cross control flow / barriers / LDCU",
+                k.name,
+                ins.opcode_full,
+                cc
+            );
+        }
+        if is_mem_chain_class(&cc) {
+            pins.push((i, PinReason::MemChain));
+            continue;
+        }
+        if ins.ctrl.wait_mask != 0 || ins.ctrl.write_bar != 7 || ins.ctrl.read_bar != 7 {
+            pins.push((i, PinReason::Scoreboard));
+            continue;
+        }
+        if labeled.contains(&i) {
+            pins.push((i, PinReason::Label));
+            continue;
+        }
+        movable.insert(i);
+    }
+    // label-only lines strictly inside the window text region would float
+    // under reordering -- refuse them (fail-closed).
+    for l in scan_lines {
+        if let BodyLine::LabelOnly(before) = l {
+            let b = *before as u32;
+            if s < b && b < e {
+                bail!(
+                    "sched: window [{s},{e}) of {} contains a label-only \
+                     line after instruction {b} -- unsupported (put the \
+                     label on an instruction line)",
+                    k.name
+                );
+            }
+        }
+    }
+    if movable.is_empty() {
+        bail!(
+            "sched: window [{s},{e}) of {} has zero movable instructions",
+            k.name
+        );
+    }
+    Ok((movable, pins))
+}
+
 fn run_file_list(
     text: &str,
     plan: &SchedPlan,
@@ -1258,80 +1452,16 @@ fn run_file_list(
             }
         }
 
-        // classify + graph with movable override
+        // classify + graph with movable override (single source of truth:
+        // classify_window, shared with the M5 pin-introspection entry)
         let mut movable: BTreeSet<u32> = BTreeSet::new();
         let mut pin_of: HashMap<u32, PinReason> = HashMap::new();
-        let classes: Vec<CtrlClass> = {
-            // reuse the M4.5 classification ladder per instruction
-            let mut v = Vec::with_capacity(n);
-            for (i, ins) in k.instructions.iter().enumerate() {
-                let cc = match table.ctrl_class(&ins.key).cloned() {
-                    Some(cc) if cc != CtrlClass::Unknown => cc,
-                    _ => fallback_class(ins).with_context(|| {
-                        format!(
-                            "sched: no ctrl_class for {} key {} @0x{:x} (idx {i})",
-                            ins.opcode_full, ins.key, ins.addr
-                        )
-                    })?,
-                };
-                v.push(cc);
-            }
-            v
-        };
         for &(s, e) in &kp.windows {
-            for i in s..e {
-                let ins = &k.instructions[i as usize];
-                let cc = &classes[i as usize];
-                if is_anchor_class(cc) {
-                    if matches!(cc, CtrlClass::Nop) {
-                        pin_of.insert(i, PinReason::Nop);
-                        continue;
-                    }
-                    bail!(
-                        "sched: window [{s},{e}) of {} contains anchor-class \
-                         instruction {} (idx {i}, class {:?}) -- scheduling \
-                         windows must not cross control flow / barriers / LDCU",
-                        k.name,
-                        ins.opcode_full,
-                        cc
-                    );
-                }
-                if is_mem_chain_class(cc) {
-                    pin_of.insert(i, PinReason::MemChain);
-                    continue;
-                }
-                if ins.ctrl.wait_mask != 0 || ins.ctrl.write_bar != 7 || ins.ctrl.read_bar != 7 {
-                    pin_of.insert(i, PinReason::Scoreboard);
-                    continue;
-                }
-                if labeled.contains(&i) {
-                    pin_of.insert(i, PinReason::Label);
-                    continue;
-                }
-                movable.insert(i);
-            }
-            // label-only lines strictly inside the window text region would
-            // float under reordering -- refuse them (fail-closed).
-            for l in scan_lines {
-                if let BodyLine::LabelOnly(before) = l {
-                    let b = *before as u32;
-                    if s < b && b < e {
-                        bail!(
-                            "sched: window [{s},{e}) of {} contains a label-only \
-                             line after instruction {b} -- unsupported (put the \
-                             label on an instruction line)",
-                            k.name
-                        );
-                    }
-                }
-            }
-            // vacuous windows are plan errors (fail-closed)
-            let mv = (s..e).filter(|i| movable.contains(i)).count();
-            if mv == 0 {
-                bail!(
-                    "sched: window [{s},{e}) of {} has zero movable instructions",
-                    k.name
-                );
+            let (mv, pins) = classify_window(k, table, &labeled, scan_lines, s, e)
+                .with_context(|| format!("sched: kernel {}", k.name))?;
+            movable.extend(mv);
+            for (i, r) in pins {
+                pin_of.insert(i, r);
             }
         }
 
