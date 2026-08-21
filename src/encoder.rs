@@ -403,25 +403,30 @@ fn check_pred_literal_errata(insn: &Instruction) -> Result<()> {
     Ok(())
 }
 
-/// BUG-002: `IMAD.HI[.U32]` on sm_120. The table once carried harvested
-/// "HI" encodings, but silicon runs those words as IMAD.WIDE.U32: Rd gets the
-/// LOW half and Rd+1 is CLOBBERED by the high half (iter60 hi_t.sass). The
-/// poisoned entries were removed from tables/sm120.json; this guard keeps any
-/// `.HI` IMAD text fail-closed unless the chosen table entry actually carries
-/// the HI modifier (i.e. a future, hardware-true HI encoding would pass).
-fn check_imad_hi_erratum(insn: &Instruction, table: &IsaTable, sel_key: &str, sel_mg: &str) -> Result<()> {
+/// BUG-002 scoped per-arch (BUG-049 register: cubit encoder hard-rejected
+/// `IMAD.HI[.U32]` on EVERY target, but the broken-HI erratum is
+/// silicon-verified on sm_120 ONLY — sm_121a silicon (SPARK q3, GB10) runs
+/// nvcc's IMAD.HI.U32 encodings with correct hi32 and Rd+1 untouched, and
+/// the sm_103a corpus carries ptxas-emitted IMAD.HI forms hardware honors.
+/// On non-120 targets the table is authoritative exactly like for every
+/// other opcode: a matching entry encodes the text, a missing entry fails
+/// honestly at lookup (no operand-compatible entry). Additionally, the table
+/// loader now maps SM121A (_meta.architecture) to real e_flags, so a genuine
+/// sm_121a table no longer pretends to be sm_120 here.
+fn check_imad_hi_erratum(insn: &Instruction, table: &IsaTable) -> Result<()> {
     let is_imad = insn.opcode == "IMAD";
     let has_hi = insn.modifiers.iter().any(|m| m == ".HI");
     if !is_imad || !has_hi {
         return Ok(());
     }
-    let key_covers_hi = sel_key.starts_with("IMAD.HI") || sel_key.contains(".HI_") || sel_key.contains(".HI.");
-    let mg_covers_hi = sel_mg.split(',').any(|m| m == "HI");
-    if table.target_sm() != 120 && (key_covers_hi || mg_covers_hi) {
-        return Ok(()); // entry explicitly encodes the HI modifier (non-120 arch)
-    }
     // On sm_120 no harvested entry is trustworthy: silicon proved the "HI"
     // encodings execute as IMAD.WIDE.U32 regardless of which entry matched.
+    // The poisoned entries were removed from tables/sm120.json, and every
+    // `.HI` IMAD text stays fail-closed there. Other targets: silicon-truth
+    // is that of their own table (verified on sm_121a per BUG-049).
+    if table.target_sm() != 120 {
+        return Ok(());
+    }
     anyhow::bail!(
         "IMAD.HI is NOT encodable on this target: sm_120 silicon executes the          harvested `IMAD.HI` encodings as IMAD.WIDE.U32 — Rd receives the LOW half          and Rd+1 is silently CLOBBERED (BUG-002, silicon-verified). Use          `IMAD.WIDE[.U32] Rd, Ra, Rb, RZ` (or the 5-operand pout form) and read the          high half from Rd+1."
     )
@@ -778,15 +783,11 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
 
     let mut attempts: Vec<String> = Vec::new();
     let mut entry = Option::<&crate::table::ModGroupEntry>::None;
-    let mut sel_key = String::new();
-    let mut sel_mg = String::new();
     for (k, mg) in &candidates {
         match table.get(k, mg) {
             Some(e) => match entry_matches_operands(insn, e) {
                 Ok(()) => {
                     entry = Some(e);
-                    sel_key = k.clone();
-                    sel_mg = mg.clone();
                     break;
                 }
                 Err(why) => attempts.push(format!("({k}, \"{mg}\") REJECTED: {why}")),
@@ -809,12 +810,20 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
                 ". PRMT note: SASS operand order is (d, a, sel, b) — the selector is                  operand 3 (PTX prmt.b32 is d, a, b, c). PTX-order text swaps sel and b                  SILENTLY for the all-register form; write hardware order (see README                  errata, BUG-001)");
         }
         if insn.opcode == "IMAD" && insn.modifiers.iter().any(|m| m == ".HI") {
-            msg.push_str(
-                ". IMAD.HI note (BUG-002): on sm_120 the harvested `IMAD.HI` encodings \
-                 are executed by silicon as IMAD.WIDE.U32 (Rd = LOW half, Rd+1 \
-                 CLOBBERED); the bogus entries were removed, so the text now fails \
-                 fail-closed. Use `IMAD.WIDE[.U32] Rd, Ra, Rb, RZ` and read Rd+1, \
-                 or the 5-operand pout form");
+            if table.target_sm() == 120 {
+                msg.push_str(
+                    ". IMAD.HI note (BUG-002): on sm_120 the harvested `IMAD.HI` encodings \
+                     are executed by silicon as IMAD.WIDE.U32 (Rd = LOW half, Rd+1 \
+                     CLOBBERED); the bogus entries were removed, so the text now fails \
+                     fail-closed. Use `IMAD.WIDE[.U32] Rd, Ra, Rb, RZ` and read Rd+1, \
+                     or the 5-operand pout form");
+            } else {
+                msg.push_str(
+                    ". IMAD.HI note (BUG-049): the BUG-002 hard reject is scoped to \
+                     sm_120 silicon; on this target the table simply has no \
+                     operand-compatible entry for this IMAD.HI form (harvest gap), \
+                     so the text fails honestly here");
+            }
         }
         if matches!(insn.opcode.as_str(), "ULOP3" | "UPLOP3") {
             msg.push_str(
@@ -831,7 +840,7 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     // encode the HI modifier (silicon: such words are IMAD.WIDE.U32 and
     // clobber Rd+1).
     if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() {
-        check_imad_hi_erratum(insn, table, &sel_key, &sel_mg)?;
+        check_imad_hi_erratum(insn, table)?;
     }
     if std::env::var("CUBIT_DEBUG_LOOKUP").is_ok() {
         eprintln!("[lookup] fk={} key={} mod_group={:?} -> fields={:?}",

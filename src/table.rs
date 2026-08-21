@@ -299,7 +299,10 @@ impl Default for IsaTable {
 /// Map _meta.architecture (e.g. "SM103a") to CUDA ELF e_flags.
 fn arch_ef_flags(arch: &str) -> Option<u32> {
     let a = arch.to_ascii_lowercase();
-    if a.contains("103") { Some(0x0600_6702) }      // sm_103 / sm_103a (B300)
+    // Order matters: "121" contains "12" but not "120"/"103"; check the
+    // longer prefixes first and use exact 3-digit matches to stay unambiguous.
+    if a.contains("121") { Some(0x0600_7902) }      // sm_121 / sm_121a (GB10, BUG-049)
+    else if a.contains("103") { Some(0x0600_6702) } // sm_103 / sm_103a (B300)
     else if a.contains("120") { Some(0x0600_7802) } // sm_120
     else { None }
 }
