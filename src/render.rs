@@ -151,7 +151,14 @@ fn fmt_addr(
     Ok(format!("[{inner}]"))
 }
 
-pub fn render_operand(op: &Operand) -> Result<String> {
+/// Label names for branch targets: the parser resolved labels to absolute
+/// addresses, so by convention the renderer would print `L_<addr>`. When the
+/// source carried a NAMED label at that address (anchor map), the operand
+/// must reference THAT name -- otherwise the emitted reference would dangle
+/// or duplicate (m9 sonde corpus uses `roleA`-style names).
+pub type LabelResolver = std::collections::BTreeMap<u32, String>;
+
+pub fn render_operand_r(op: &Operand, labels: Option<&LabelResolver>) -> Result<String> {
     Ok(match op {
         Operand::Reg { num, neg, abs, inv, reuse } => {
             wrap_regish(reg_name(*num), *neg, *abs, *inv, *reuse)
@@ -200,7 +207,10 @@ pub fn render_operand(op: &Operand) -> Result<String> {
             let inner = fmt_addr(*base_reg, base_reg_suffix, None, *offset)?;
             format!("desc[{ur}]{inner}")
         }
-        Operand::BranchTarget(t) => format!("L_{t:x}"),
+        Operand::BranchTarget(t) => match labels.and_then(|m| m.get(t)) {
+            Some(name) => name.clone(),
+            None => format!("L_{t:x}"),
+        },
         Operand::Barrier(n) => format!("B{n}"),
         Operand::SysReg(s) => s.clone(),
         // Label operands are the parser's lossless fallback for exotic forms
@@ -209,7 +219,11 @@ pub fn render_operand(op: &Operand) -> Result<String> {
     })
 }
 
-fn render_payload(ins: &Instruction) -> Result<String> {
+pub fn render_operand(op: &Operand) -> Result<String> {
+    render_operand_r(op, None)
+}
+
+fn render_payload(ins: &Instruction, labels: Option<&LabelResolver>) -> Result<String> {
     // Raw verbatim words carry no structure; raw_text holds the canonical
     // `__raw__0x<hex>` token (parser contract).
     if ins.opcode == "__raw__" {
@@ -241,7 +255,7 @@ fn render_payload(ins: &Instruction) -> Result<String> {
         s.push(' ');
         let mut parts = Vec::with_capacity(ins.operands.len());
         for op in &ins.operands {
-            parts.push(render_operand(op)?);
+            parts.push(render_operand_r(op, labels)?);
         }
         s.push_str(&parts.join(", "));
     }
@@ -249,8 +263,8 @@ fn render_payload(ins: &Instruction) -> Result<String> {
 }
 
 /// One instruction line, WITHOUT label prefix / indent decision.
-fn render_insn_body(ins: &Instruction) -> Result<String> {
-    let payload = render_payload(ins)?;
+fn render_insn_body(ins: &Instruction, labels: Option<&LabelResolver>) -> Result<String> {
+    let payload = render_payload(ins, labels)?;
     let mut line = if ins.hand_sched && ins.opcode != "__raw__" {
         format!("[{}] {}", format_control_code(&ins.ctrl), payload)
     } else {
@@ -297,10 +311,11 @@ fn render_kernel(k: &KernelDef) -> Result<Vec<String>> {
         lines.push(format!("{IND}.param {} {}", param_type_str(&p.ty), p.name));
     }
     for s in &res.shared {
-        lines.push(format!(
-            "{IND}.shared .align {} .b8 {}[{}]",
-            s.align, s.name, s.size
-        ));
+        if s.align != 1 {
+            lines.push(format!("{IND}.shared .align {} {}[{}]", s.align, s.name, s.size));
+        } else {
+            lines.push(format!("{IND}.shared {}[{}]", s.name, s.size));
+        }
     }
     if !res.merc_cgsites.is_empty() {
         let toks: Vec<String> = res
@@ -322,10 +337,34 @@ fn render_kernel(k: &KernelDef) -> Result<Vec<String>> {
         lines.push(format!("{IND}.merc_syncwarp {}", toks.join(" ")));
     }
 
+    // resolver: addr -> printed label name (the carrier name = LAST anchor at
+    // that addr); plus synthesized anchors for branch targets with no stored
+    // label (a referenced target must exist textually or the assembler's
+    // label resolution would fail).
+    let mut labels: std::collections::BTreeMap<u32, Vec<String>> = k.labels.clone();
+    let mut resolver: LabelResolver = std::collections::BTreeMap::new();
+    for (addr, names) in &k.labels {
+        if let Some(last) = names.last() {
+            resolver.insert(*addr, last.clone());
+        }
+    }
+    for ins in &k.instructions {
+        for op in &ins.operands {
+            if let crate::ir::Operand::BranchTarget(t) = op {
+                let t = *t;
+                if !resolver.contains_key(&t) {
+                    let name = format!("L_{t:x}");
+                    labels.entry(t).or_default().push(name.clone());
+                    resolver.insert(t, name);
+                }
+            }
+        }
+    }
+
     let mut emitted: usize = 0;
     for ins in &k.instructions {
-        let body = render_insn_body(ins)?;
-        let anchored = k.labels.get(&ins.addr);
+        let body = render_insn_body(ins, Some(&resolver))?;
+        let anchored = labels.get(&ins.addr);
         match anchored {
             None => lines.push(format!("{IND}{body}")),
             Some(names) => {
@@ -341,7 +380,7 @@ fn render_kernel(k: &KernelDef) -> Result<Vec<String>> {
             bail!("render: empty instruction body at addr 0x{:x}", ins.addr);
         }
     }
-    let total: usize = k.labels.values().map(Vec::len).sum();
+    let total: usize = labels.values().map(Vec::len).sum();
     if emitted != total {
         bail!(
             "render: kernel {} has {} label(s) not anchored at any instruction \

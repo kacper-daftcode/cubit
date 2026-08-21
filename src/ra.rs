@@ -40,6 +40,15 @@ use std::collections::{BTreeMap, BTreeSet};
 pub enum RaMode {
     Identity,
     Pin(PinPlan),
+    /// M4.3b: full allocation FROM ZERO on the lifted kernel -- the plan is
+    /// computed by ra_full (linear-scan over liveness span groups) and APPLIED
+    /// whole-kernel; emission goes through the M4.3a renderer (no splicing).
+    Full,
+    /// M4.3b: apply an EXPLICIT whole-kernel renaming plan (the decode-
+    /// transfer gate's T0 side; also the future barracuda-side plan intake).
+    /// Span-aware by construction: ra_full::audit_injectivity machine-checks
+    /// the plan against the kernel liveness before anything is applied.
+    ApplyFile(ApplyPlan),
 }
 
 /// CLI/pyo3 mode spelling. `pin` carries its plan separately, so this only
@@ -48,9 +57,11 @@ pub fn parse_mode_kind(s: &str) -> Result<&'static str> {
     match s {
         "identity" => Ok("identity"),
         "pin" => Ok("pin"),
+        "full" => Ok("full"),
+        "apply" => Ok("apply"),
         other => bail!(
-            "ra: unknown mode '{other}' (implemented: 'identity', 'pin' -- \
-             pin-override needs a plan, M4.2)"
+            "ra: unknown mode '{other}' (implemented: 'identity', 'pin', 'full' -- \
+             pin-override needs a plan, M4.2; full = M4.3b allocate-from-zero)"
         ),
     }
 }
@@ -59,6 +70,7 @@ pub fn parse_mode_kind(s: &str) -> Result<&'static str> {
 pub fn parse_mode(s: &str) -> Result<RaMode> {
     match parse_mode_kind(s)? {
         "identity" => Ok(RaMode::Identity),
+        "full" => Ok(RaMode::Full),
         _ => bail!("ra: mode 'pin' requires a plan (use ra_apply / --plan)"),
     }
 }
@@ -86,6 +98,47 @@ pub struct PinPlan {
     pub kernels: BTreeMap<String, PinKernelPlan>,
 }
 
+/// M4.3b apply-plan for ONE kernel (string keys match the JSON mirrors).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct ApplyPlanKernel {
+    #[serde(default)]
+    pub r: BTreeMap<String, u8>,
+    #[serde(default)]
+    pub ur: BTreeMap<String, u8>,
+}
+
+impl ApplyPlanKernel {
+    pub fn to_plan(&self) -> Result<RegPlan> {
+        let mut p = RegPlan::default();
+        for (k, v) in &self.r {
+            let n: u8 = k.parse().with_context(|| format!("apply plan r key {k:?} not a u8"))?;
+            p.r.insert(n, *v);
+        }
+        for (k, v) in &self.ur {
+            let n: u8 = k.parse().with_context(|| format!("apply plan ur key {k:?} not a u8"))?;
+            p.ur.insert(n, *v);
+        }
+        Ok(p)
+    }
+}
+
+/// Whole-file apply plan, keyed by kernel name. Every kernel of the file
+/// must be named (fail-closed: partial application would number-space-mix
+/// renamed and unrenamed domains across the same file).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct ApplyPlan {
+    #[serde(default)]
+    pub kernels: BTreeMap<String, ApplyPlanKernel>,
+}
+
+impl ApplyPlan {
+    fn get(&self, kname: &str) -> Result<&ApplyPlanKernel> {
+        self.kernels.get(kname).with_context(|| {
+            format!("ra apply: plan does not name kernel {kname:?} (apply is whole-file)")
+        })
+    }
+}
+
 /// Whole-kernel register plan: virtual -> physical per domain.
 /// Identity mode: virtual numbers ARE the physical ones (text is already
 /// register-assigned; BARRACUDA kernels are static-shape, the RA contract
@@ -94,6 +147,23 @@ pub struct PinPlan {
 pub struct RegPlan {
     pub r: BTreeMap<u8, u8>,
     pub ur: BTreeMap<u8, u8>,
+}
+
+/// String-keyed JSON mirror (M4.3b reports / pin-plan compatibility:
+/// `{"r": {"25": 200}, ...}` matches PinKernelPlan's serde shape).
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct RegPlanJson {
+    pub r: BTreeMap<String, u8>,
+    pub ur: BTreeMap<String, u8>,
+}
+
+impl RegPlan {
+    pub fn to_json_maps(&self) -> RegPlanJson {
+        RegPlanJson {
+            r: self.r.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
+            ur: self.ur.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
+        }
+    }
 }
 
 /// Per-kernel pass report (JSON-serializable for the CLI --report stream).
@@ -119,6 +189,14 @@ pub struct KernelRaReport {
     /// entries; `span_notes_total` carries the full count.
     pub span_notes: Vec<String>,
     pub span_notes_total: usize,
+    /// M4.3b allocator stats (mode == "full" only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub full: Option<crate::ra_full::FullAllocStats>,
+    /// M4.3b: the computed renaming map (mode == "full" only) -- exported so
+    /// the decode-transfer gate can renumber the ORIGINAL kernel's decoded
+    /// stream and compare against the renamed kernel's decoded stream.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan: Option<RegPlanJson>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -248,6 +326,35 @@ pub struct OperandChange {
 ///   * INJECTIVITY: per instruction in the window, the map restricted to
 ///     the occupancy set (live_in + defs + uses, span-expanded) must be
 ///     injective -- the kernel soundness check against live-value clobber.
+/// M4.3b apply-mode coverage: every planned SOURCE numeral must occur in the
+/// kernel (typo trap; subset semantics otherwise) and targets stay inside
+/// the allocatable domain ends (RZ and the desc namespace stay out of plans).
+pub fn validate_coverage_apply(plan: &RegPlan, xfers: &[RegXfer]) -> Result<()> {
+    let mut r_occ: BTreeSet<u8> = BTreeSet::new();
+    let mut u_occ: BTreeSet<u8> = BTreeSet::new();
+    for x in xfers {
+        r_occ.extend(x.rdefs.iter().chain(x.ruses.iter()).copied());
+        u_occ.extend(x.udefs.iter().chain(x.uuses.iter()).copied());
+    }
+    for &k in plan.r.keys() {
+        if k == 255 {
+            bail!("ra apply: RZ is not allocatable (plan names R255)");
+        }
+        if !r_occ.contains(&k) {
+            bail!("ra apply: plan names R{k} which never occurs (typo trap)");
+        }
+    }
+    for &k in plan.ur.keys() {
+        if k >= 64 {
+            bail!("ra apply: UR{k}>=64 is the desc namespace -- not allocatable");
+        }
+        if !u_occ.contains(&k) {
+            bail!("ra apply: plan names UR{k} which never occurs (typo trap)");
+        }
+    }
+    Ok(())
+}
+
 pub fn validate_pin(
     kname: &str,
     n_ins: usize,
@@ -674,11 +781,12 @@ pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
     let file = crate::sass_file::parse_sass_file_str_strict(text)
         .context("ra: strict parse failed")?;
     let is_identity = matches!(mode, RaMode::Identity);
-    let mode_name = parse_mode_kind(match mode {
-        RaMode::Identity => "identity",
-        RaMode::Pin(_) => "pin",
-    })?
-    .to_string();
+    let mode_name = match &mode {
+        RaMode::Identity => "identity".to_string(),
+        RaMode::Pin(_) => "pin".to_string(),
+        RaMode::Full => "full".to_string(),
+        RaMode::ApplyFile(_) => "apply".to_string(),
+    };
     if let RaMode::Pin(pin) = &mode {
         // kernel-name typo trap: every planned kernel must exist.
         for kname in pin.kernels.keys() {
@@ -710,14 +818,38 @@ pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
                 unknown[..unknown.len().min(8)].join(", ")
             );
         }
-        let plan = plan_for_mode(&mode, &src_k.name, &xfers)?;
-        validate_coverage(&plan, &xfers)?;
+        let (plan, mut full_stats) = match &mode {
+            RaMode::Full => {
+                let live = reg_liveness::liveness(&src_k.instructions);
+                let (p, st) = crate::ra_full::plan_full_kernel_live(
+                    &src_k.name,
+                    &xfers,
+                    &live,
+                )?;
+                (p, Some(st))
+            }
+            RaMode::ApplyFile(ap) => {
+                let live = reg_liveness::liveness(&src_k.instructions);
+                // The plan is authoritative INPUT here; subset semantics:
+                // kernels/registers the plan does not name map to themselves.
+                let kp = ap.get(&src_k.name)?;
+                let p: RegPlan = kp.to_plan()?;
+                crate::ra_full::audit_injectivity_pub(&src_k.name, &live, &p)?;
+                validate_coverage_apply(&p, &xfers)?;
+                (p, None)
+            }
+            _ => {
+                let p = plan_for_mode(&mode, &src_k.name, &xfers)?;
+                validate_coverage(&p, &xfers)?;
+                (p, None)
+            }
+        };
         let notes_all = span_notes(&src_k.instructions, &xfers);
         let span_notes_total = notes_all.len();
         let span_notes: Vec<String> =
             notes_all.into_iter().take(SPAN_NOTES_REPORT_CAP).collect();
         let (changed, edits) = match &mode {
-            RaMode::Identity => {
+            RaMode::Identity | RaMode::Full | RaMode::ApplyFile(_) => {
                 let changed = apply_plan(&mut k.instructions, &plan)?;
                 (changed, Vec::new())
             }
@@ -749,6 +881,9 @@ pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
                 }
             },
         };
+        if let Some(st) = full_stats.as_mut() {
+            st.renamed = changed;
+        }
         if is_identity && changed != 0 {
             bail!(
                 "ra: identity mode changed {} numeral(s) in {} -- internal error",
@@ -772,10 +907,21 @@ pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
             unknown_ops: unknown,
             span_notes,
             span_notes_total,
+            full: full_stats,
+            plan: if matches!(mode, RaMode::Full | RaMode::ApplyFile(_)) {
+                Some(plan.to_json_maps())
+            } else {
+                None
+            },
         });
     }
     let out_text = if is_identity {
         text.to_string()
+    } else if matches!(mode, RaMode::Full | RaMode::ApplyFile(_)) {
+        // M4.3b: emission is RENDER, never splice -- every numeral may
+        // change. The renderer's own structural self-check runs below in
+        // verify_render_proof.
+        crate::render::render_file(&out).context("ra full/apply: render failed")?
     } else {
         emit_spliced(text, &all_edits).context("ra: splice emission failed")?
     };
@@ -787,7 +933,9 @@ pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
             kernels: reports,
         },
     };
-    if !is_identity {
+    if matches!(mode, RaMode::Full | RaMode::ApplyFile(_)) {
+        verify_render_proof(&run)?;
+    } else if !is_identity {
         verify_splice_proof(&run)?;
     }
     Ok(run)
@@ -831,6 +979,18 @@ fn verify_splice_proof(run: &RaRun) -> Result<()> {
 
 
 // ---------------------------------------------------------------------------
+/// M4.3b render proof: re-parse the rendered text and require structural
+/// equality with the rewritten IR (render::structural_eq covers
+/// opcode/guard/operands/ctrl/rsd and the label anchors). A renderer slip
+/// after a whole-kernel rename would otherwise become silent text drift.
+fn verify_render_proof(run: &RaRun) -> Result<()> {
+    let parsed = crate::sass_file::parse_sass_file_str_strict(&run.out_text)
+        .context("ra full: rendered output failed strict re-parse")?;
+    crate::render::structural_eq(&run.file, &parsed)
+        .context("ra full: render proof failed")?;
+    Ok(())
+}
+
 // Splice emitter (M4.2 pin mode)
 // ---------------------------------------------------------------------------
 //

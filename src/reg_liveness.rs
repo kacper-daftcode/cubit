@@ -87,6 +87,12 @@ pub struct RegSpan {
     pub width: usize,
     pub dom: RegDom,
     pub is_def: bool,
+    /// Required alignment of the span BASE (1 = none). Grounded rule data:
+    /// 4 for MMA-tuple positions (IMMA C/D/A/B quads -- the ENCODER rejects
+    /// misaligned tuples per BUG-037; the one silicon-proven alignment
+    /// rule, see the M4.1 corrigendum for the debunked LDG/.128 variants).
+    /// RA-full must honor it when picking group homes.
+    pub align: u8,
     /// True when this "UR" number is actually a descriptor-table index
     /// (desc[URx]): an 8-bit namespace distinct from architectural URs
     /// (certified kernels routinely use desc[UR64..UR252]; the liveness
@@ -144,6 +150,24 @@ fn put(
     put_ns(set, spans, num, w, dom, dom_max_excl, is_def, false);
 }
 
+/// Aligned sibling (MMA tuples, BUG-037): same set membership, span record
+/// carries the alignment requirement for the allocator.
+fn put_aligned(
+    set: &mut BTreeSet<u8>,
+    spans: &mut Vec<RegSpan>,
+    num: u8,
+    w: usize,
+    dom: RegDom,
+    dom_max_excl: u32,
+    is_def: bool,
+    align: u8,
+) {
+    put_ns(set, spans, num, w, dom, dom_max_excl, is_def, false);
+    if let Some(sp) = spans.last_mut() {
+        sp.align = align;
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn put_ns(
     set: &mut BTreeSet<u8>,
@@ -160,6 +184,7 @@ fn put_ns(
         width: w,
         dom,
         is_def,
+        align: 1,
         desc_ns,
     });
     for k in 0..w as u32 {
@@ -408,6 +433,37 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
         "branch" => {
             for o in &insn.operands {
                 use_operand(o, &mut x, 1);
+            }
+        }
+        // MMA tuple forms (IMMA.16832-era): C-accumulator and D-dest are
+        // 4-register tuples (encoder-validated quad alignment, BUG-037);
+        // A/B source tuples are quads on the grounded sond form. v0 keeps
+        // ONE width for every position (conservative; a narrower B-pair
+        // variant must land as data with evidence first).
+        "mma" => {
+            // MMA tuple quads. Alignment per operand position follows the
+            // silicon-measured BUG-037 legality table (encoder errata,
+            // iter46/47): for IMMA/QMMA.16832(.F32) and HMMA.16816.F32 the
+            // rule per position is D%4 A%4 B%2 C%4 (HMMA.1688.F32 has a
+            // single-register B of any alignment; unidentified families keep
+            // the encoder's previous acceptance -- mirrored loosely here as
+            // the same D/A/B/C vector, which is the measured common shape of
+            // the sond corpus IMMA.16832.S8.S8).
+            const MMA_ALIGN: [u8; 4] = [4, 4, 2, 4];
+            for (idx, o) in insn.operands.iter().enumerate() {
+                let is_dest = idx == 0;
+                let align = MMA_ALIGN.get(idx).copied().unwrap_or(4);
+                match o {
+                    Operand::Reg { num, .. } if *num != 255 => {
+                        let set = if is_dest { &mut x.rdefs } else { &mut x.ruses };
+                        put_aligned(set, &mut x.spans, *num, 4, RegDom::R, 255, is_dest, align);
+                    }
+                    Operand::UReg { num, is_zero, .. } if !is_zero => {
+                        let set = if is_dest { &mut x.udefs } else { &mut x.uuses };
+                        put_aligned(set, &mut x.spans, *num, 4, RegDom::UR, 64, is_dest, align);
+                    }
+                    _ => use_operand(o, &mut x, 1),
+                }
             }
         }
         // System-register reads / uniform moves: dest-only.

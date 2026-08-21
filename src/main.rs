@@ -100,8 +100,9 @@ enum Commands {
     /// Fail-closed: strict parse, unknown role families, plan gaps, pin
     /// collisions / boundary-live pins / span tearing all stop the run.
     Ra {
-        /// Allocation mode: "identity" (M4.1) or "pin" (M4.2 windowed
-        /// pin-override; requires --plan).
+        /// Allocation mode: "identity" (M4.1), "pin" (M4.2 windowed
+        /// pin-override; requires --plan) or "full" (M4.3b allocate-from-zero
+        /// via liveness span groups; emission through the M4.3a renderer).
         #[arg(long, default_value = "identity")]
         mode: String,
         /// Pin-override plan JSON (only with --mode pin):
@@ -380,6 +381,16 @@ fn cmd_ra(
             cubit::ra::RaMode::Pin(plan)
         }
         ("pin", None) => anyhow::bail!("ra: --mode pin requires --plan <plan.json>"),
+        ("full", None) => cubit::ra::RaMode::Full,
+        ("full", Some(_)) => anyhow::bail!("ra: --plan is only valid with --mode pin/apply"),
+        ("apply", Some(pp)) => {
+            let plan_text = std::fs::read_to_string(pp)
+                .with_context(|| format!("cannot read plan {}", pp.display()))?;
+            let plan: cubit::ra::ApplyPlan = serde_json::from_str(&plan_text)
+                .with_context(|| format!("bad apply plan JSON in {}", pp.display()))?;
+            cubit::ra::RaMode::ApplyFile(plan)
+        }
+        ("apply", None) => anyhow::bail!("ra: --mode apply requires --plan <plan.json>"),
         (other, _) => anyhow::bail!("ra: mode {other:?} not handled"),
     };
     let text = std::fs::read_to_string(input)
@@ -415,12 +426,6 @@ fn cmd_ra(
     Ok(())
 }
 
-/// `cubit sched` — reordering-scheduler pass driver (M4.5 identity).
-///
-/// Same output contract as cmd_ra: with -o, output text + report (stderr
-/// summary); without -o, run is validation-only and the report (or the
-/// error) is the result. In identity mode the output text is byte-verbatim
-/// input and the report carries the dependency-graph census.
 /// M4.3a: parse (strict) -> render from structured IR -> optional structural
 /// self-check (re-parse equality) -> write. No splicing of original lines.
 fn cmd_render(input: &Path, output: Option<&Path>, verify: bool) -> Result<()> {
@@ -438,6 +443,12 @@ fn cmd_render(input: &Path, output: Option<&Path>, verify: bool) -> Result<()> {
     Ok(())
 }
 
+/// `cubit sched` — scheduling pass driver (M4.5 identity / M4.6 list).
+///
+/// Same output contract as cmd_ra: with -o, output text + report (stderr
+/// summary); without -o, run is validation-only and the report (or the
+/// error) is the result. In identity mode the output text is byte-verbatim
+/// input and the report carries the dependency-graph census.
 fn cmd_sched(
     mode: &str,
     table: &Path,

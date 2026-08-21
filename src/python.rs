@@ -610,6 +610,52 @@ fn render(text: &str) -> PyResult<String> {
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("render error: {e:#}")))
 }
 
+/// M4.3b: full allocation FROM ZERO (pyo3 entry). Strict parse -> liveness
+/// span-group linear scan -> whole-kernel apply -> M4.3a render + render
+/// proof. Returns (output_text, per-kernel reports incl. full stats and the
+/// renaming plan maps). Fail-closed like the CLI.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn ra_full<'py>(py: Python<'py>, text: &str) -> PyResult<(String, Vec<Bound<'py, PyDict>>)> {
+    let run = crate::ra::run_file(text, crate::ra::RaMode::Full)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("ra full: {e:#}")))?;
+    let mut out = Vec::new();
+    for k in &run.report.kernels {
+        let kd = PyDict::new(py);
+        kd.set_item("name", &k.name)?;
+        kd.set_item("n", k.n_ins)?;
+        kd.set_item("changed", k.changed)?;
+        if let Some(f) = &k.full {
+            let fd = PyDict::new(py);
+            fd.set_item("r_watermark", f.r.watermark)?;
+            fd.set_item("r_old_max", f.r.old_max)?;
+            fd.set_item("r_groups", f.r.groups)?;
+            fd.set_item("ur_watermark", f.ur.watermark)?;
+            fd.set_item("ur_old_max", f.ur.old_max)?;
+            fd.set_item("ur_groups", f.ur.groups)?;
+            fd.set_item("entry_pins", &f.entry_pins)?;
+            fd.set_item("renamed", f.renamed)?;
+            kd.set_item("full", fd)?;
+        }
+        if let Some(p) = &k.plan {
+            let pd = PyDict::new(py);
+            let rd = PyDict::new(py);
+            for (a, b) in &p.r {
+                rd.set_item(a, b)?;
+            }
+            let ud = PyDict::new(py);
+            for (a, b) in &p.ur {
+                ud.set_item(a, b)?;
+            }
+            pd.set_item("r", rd)?;
+            pd.set_item("ur", ud)?;
+            kd.set_item("plan", pd)?;
+        }
+        out.push(kd);
+    }
+    Ok((run.out_text, out))
+}
+
 /// M4.6: windowed list scheduling (pyo3 entry). `plan` /
 /// `cost` are INLINE JSON strings (same schema as the CLI --plan/--cost
 /// files: {"kernels":{"<name>":{"windows":[[s,e),...]}}} and the m9 cost
@@ -692,5 +738,6 @@ fn cubit(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sched_run, m)?)?;
     m.add_function(wrap_pyfunction!(sched_apply, m)?)?;
     m.add_function(wrap_pyfunction!(render, m)?)?;
+    m.add_function(wrap_pyfunction!(ra_full, m)?)?;
     Ok(())
 }
