@@ -285,6 +285,64 @@ fn decode_kernel<'py>(py: Python<'py>, cubin_path: &str, kernel_name: &str) -> P
     Ok(results)
 }
 
+/// b8 PHASE-1: static control-word readback over all .text sections of a
+/// cubin. Returns one dict per kernel:
+///   { "name", "n", "n_unknown", "n_canon_err", "credits_defaulted",
+///     "rows": [ {addr, known, canon, key, mod_group, opcode, opcode_full,
+///                stall, yield_flag, write_bar, read_bar, wait_mask,
+///                credits, credits_defaulted} ] }
+/// `cost_path`: m9 cost model JSON (same tables/cost_<arch>.json the M4.6
+/// list scheduler consumes); pricing is credit_of on the canonical
+/// render->reparse chain -- identical candidate set as the scheduler.
+#[cfg(feature = "python")]
+#[pyfunction]
+#[pyo3(signature = (cubin_path, cost_path))]
+fn prof_cubin<'py>(
+    py: Python<'py>,
+    cubin_path: &str,
+    cost_path: &str,
+) -> PyResult<Vec<Bound<'py, PyDict>>> {
+    let table = get_table();
+    let idx = get_index();
+    let cost = crate::sched::CostModel::load(std::path::Path::new(cost_path))
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("prof: {e:#}")))?;
+    let kernels = crate::prof::prof_cubin(std::path::Path::new(cubin_path), &cost, &table, &idx)
+        .map_err(|e| pyo3::exceptions::PyIOError::new_err(format!("prof: {e:#}")))?;
+    let mut out = Vec::new();
+    for k in &kernels {
+        let kd = PyDict::new(py);
+        kd.set_item("name", &k.name)?;
+        kd.set_item("n", k.rows.len())?;
+        kd.set_item("n_unknown", k.n_unknown)?;
+        kd.set_item("n_canon_err", k.n_canon_err)?;
+        kd.set_item("credits_defaulted", k.credits_defaulted)?;
+        let mut rows = Vec::with_capacity(k.rows.len());
+        for r in &k.rows {
+            let d = PyDict::new(py);
+            d.set_item("addr", r.addr)?;
+            d.set_item("known", r.known)?;
+            d.set_item("canon", r.canon)?;
+            d.set_item("key", &r.key)?;
+            d.set_item("mod_group", &r.mod_group)?;
+            d.set_item("opcode", &r.opcode)?;
+            d.set_item("opcode_full", &r.opcode_full)?;
+            d.set_item("stall", r.stall)?;
+            d.set_item("yield_flag", r.yield_flag)?;
+            d.set_item("write_bar", r.write_bar)?;
+            d.set_item("read_bar", r.read_bar)?;
+            d.set_item("wait_mask", r.wait_mask)?;
+            d.set_item("credits", r.credits)?;
+            d.set_item("credits_defaulted", r.credits_defaulted)?;
+            d.set_item("raw_lo", r.raw_lo)?;
+            d.set_item("raw_hi", r.raw_hi)?;
+            rows.push(d);
+        }
+        kd.set_item("rows", rows)?;
+        out.push(kd);
+    }
+    Ok(out)
+}
+
 /// Get table info.
 #[cfg(feature = "python")]
 #[pyfunction]
@@ -779,5 +837,6 @@ fn cubit(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sched_pins, m)?)?;
     m.add_function(wrap_pyfunction!(render, m)?)?;
     m.add_function(wrap_pyfunction!(ra_full, m)?)?;
+    m.add_function(wrap_pyfunction!(prof_cubin, m)?)?;
     Ok(())
 }

@@ -38,6 +38,7 @@ pub mod ra_full;
 pub mod render;
 pub mod reg_liveness;
 pub mod printer;
+pub mod prof;
 #[cfg(feature = "python")]
 pub mod python;
 pub mod sass_file;
