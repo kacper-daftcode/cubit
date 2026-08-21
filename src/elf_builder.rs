@@ -2398,6 +2398,24 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
         REC_BAR
     };
     let bar_rec = &bar_bytes;
+    // BUG-061 (F2Q): the feature scan computes lane-anchored 024d/024e
+    // desc-atom records for every REDG/ATOM lane (mk48/mk49), but only the
+    // LANED path emits them. Kernels with no param loads take the
+    // zero-param-positioned / legacy paths, which have no lane model and
+    // drop the records SILENTLY (repro: zero-param sass with desc[UR4] atom
+    // and no LDC/LDCU yields capmerc without the 024d record). nvcc golds
+    // (sm_103a, zp/zp3 zero-param probes, 2026-08-21) always pair desc-atoms
+    // with lane loads, so gold-world never hits this; the loss affects
+    // hand-written minimal kernels. The zero-param paths have no
+    // gold-derived POSITION rule for these records, so we WARN (visibility),
+    // not fail: blindly appending records would diverge from the sealed
+    // corpus without an oracle.
+    if feat.param_loads.is_empty() && (!feat.redg2_rec.is_empty() || !feat.atomg2_rec.is_empty()) {
+        eprintln!(
+            "WARN capmerc (BUG-061): {} 024d/024e desc-atom record(s) computed but NOT emitted: no param loads in this kernel (laned path skipped; zero-param/legacy paths have no lane anchors). Driver descriptor patching may mis-apply; validate the cubin through gpucomp/self-check before silicon runs.",
+            feat.redg2_rec.len() + feat.atomg2_rec.len()
+        );
+    }
     out.extend_from_slice(&REC_PROLOG);
     if !feat.param_loads.is_empty() {
         emit_feature_records_laned(out, feat, bar_rec);
