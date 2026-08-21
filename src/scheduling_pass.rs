@@ -1915,6 +1915,23 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<HazardReport> {
     // by the auto path when a consumer cannot encode a wait. A producer->consumer
     // issue gap below this with no scoreboard cover is a stale-read candidate.
     const NOBAR_FLOOR: usize = 16;
+    // BUG-062 (sm120 i134/i135): flag-latency floor for PLOP3/ISETP predicate
+    // producers. Silicon fact: a consumer of a fresh flag (guard @Pn or predicate
+    // operand) issued less than 13 issue-clocks after the producer's issue reads
+    // the STALE predicate (BUG-046 family: trunc-loops / total-fail on INV bodies
+    // whose hand tags lowered flag stalls below the floor). Calibration: i134
+    // autosched census (flags S14), global class sweep (S12 FAIL / S13 SAFE) and
+    // the per-slot map (15/15 flag slots SAFE @ S13); i135 re-confirmed S13 as the
+    // target-safe point at production occupancy (24 warp/SM). Floors are
+    // occupancy-CONTEXTUAL (values measured @ low-occ ~1-2 warp/SMSP on the i134
+    // harness do NOT transfer verbatim to other kernels) -> this class is a WARN,
+    // never a hard gate.
+    const FLAG_FLOOR: usize = 13;
+    // Only the silicon-measured flag producer classes get a tracked producer;
+    // every other predicate writer (carry-outs, VOTE, LEA, FSETP, ...) resets the
+    // owner to None so we never invent floors for unmeasured classes.
+    let mut pred_owner: [Option<(usize, usize)>; 7] = [None; 7];
+    let mut seen_flag: std::collections::HashSet<(u32, u8)> = std::collections::HashSet::new();
 
     for &i in &seq {
         let insn = &insns[i];
@@ -1962,10 +1979,60 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<HazardReport> {
                 }
             }
         }
+        // 2b) BUG-062 flag-latency: a consumer of a freshly produced predicate
+        // (guard @Pn or predicate source operand) issued below the silicon floor
+        // reads the STALE flag. Same issue-clock model as the RAW audit
+        // (stall(i) spans issue(i) -> issue(i+1), so the producer's own stall is
+        // part of the gap, matching the i134 slotmap convention).
+        {
+            let mut flag_srcs: Vec<u8> = Vec::new();
+            if let Some(g) = &insn.guard {
+                if !g.uniform && g.pred < 7 { flag_srcs.push(g.pred); }
+            }
+            for (is_u, reg) in src_regs(insn) {
+                if !is_u && (128..135).contains(&reg) { flag_srcs.push(reg - 128); }
+            }
+            flag_srcs.sort_unstable();
+            flag_srcs.dedup();
+            for p in flag_srcs {
+                if let Some((pidx, pclock)) = pred_owner[p as usize] {
+                    let gap = my_clock.saturating_sub(pclock);
+                    if gap < FLAG_FLOOR && seen_flag.insert((insn.addr, p)) {
+                        // Falsified as an unconditional (fail-loud) class on the
+                        // certified R0b publish text (rt98, 5640 ins): 193 findings
+                        // at gaps 1..12cy on a kernel that passes silicon EXACT —
+                        // the i134 floor does NOT generalise across kernels
+                        // (i135's occupancy-context warning, confirmed by direct
+                        // measurement). Therefore this class is always reported
+                        // with frozen=false, i.e. printed only under CUBIT_HAZ as
+                        // a manual probe aid, never into a publish pipeline.
+                        out.push(HazardReport { frozen: false, msg: format!("FLAG-LATENCY @0x{:04x} {:36} reads P{} <- 0x{:04x} {} (gap {}cy < {}cy flag floor, i134 low-occ; heuristic - FP on high-quality schedules, see BUG-062 report)",
+                            insn.addr, insn.raw_text.split('/').next().unwrap_or(&insn.opcode).trim(),
+                            p, insns[pidx].addr, insns[pidx].opcode,
+                            gap, FLAG_FLOOR)});
+                    }
+                }
+            }
+        }
         // 3) record defs.
         let wb = if insn.ctrl.write_bar < NUM_BARRIERS as u8 { Some(insn.ctrl.write_bar) } else { None };
         for (is_u, reg) in dest_regs(insn) {
-            if reg >= 128 { continue; }
+            if reg >= 128 {
+                // predicate defs for the BUG-062 flag-latency audit: only the
+                // silicon-measured producer classes (ISETP*/PLOP3* family of the
+                // i134 census) register a floor; any other predicate writer makes
+                // the producer unknown (None) so unmeasured classes stay silent.
+                if !is_u && reg < 135 {
+                    let op = insn.opcode.as_str();
+                    pred_owner[(reg - 128) as usize] =
+                        if op.starts_with("ISETP") || op.starts_with("PLOP3") {
+                            Some((i, my_clock))
+                        } else {
+                            None
+                        };
+                }
+                continue;
+            }
             if is_u { if (reg as usize) < 72 { ureg_owner[reg as usize] = Some((i, wb, my_clock)); } }
             else { gpr_owner[reg as usize] = Some((i, wb, my_clock)); }
         }
