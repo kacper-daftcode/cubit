@@ -5012,9 +5012,16 @@ fn cmd_asm_directive_format(
         }
 
         // Encode instructions (use insns_with_ctrl.len() which may be larger after stall gap insertion)
-        if std::env::var("CUBIT_HAZ").is_ok() {
+        // Hazard report: findings that involve a hand_sched (`[CC]`) instruction are
+        // printed unconditionally (the scheduler cannot repair a frozen field; BUG-046
+        // class: tagged/white boundary under-wait was previously silent). The rest of
+        // the scoreboard audit stays behind CUBIT_HAZ.
+        {
+            let haz_all = std::env::var("CUBIT_HAZ").is_ok();
             for h in cubit::scheduling_pass::report_hazards(&insns_with_ctrl) {
-                eprintln!("  HAZ [{}] {}", def.name, h);
+                if h.frozen || haz_all {
+                    eprintln!("  WARN [{}] HAZ {}", def.name, h.msg);
+                }
             }
         }
 

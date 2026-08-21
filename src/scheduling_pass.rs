@@ -1861,13 +1861,27 @@ pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
     }
 }
 
+/// A single hazard finding of `report_hazards`.
+/// `frozen` = the hazard involves at least one hand_sched (`[CC]`-prefixed)
+/// instruction: the auto-scheduler could not repair it by construction, so callers
+/// print these unconditionally (fail-closed doctrine) instead of gating on CUBIT_HAZ.
+pub struct HazardReport {
+    pub msg: String,
+    pub frozen: bool,
+}
+
 /// Accurate barrier-RAW hazard checker: simulates the scoreboard over the final
 /// control codes using the EXACT src/dest extraction, replaying the first backward-
 /// branch body once to expose loop-carried hazards. Reports each source register read
 /// whose producer set a write-barrier that no intervening instruction waited (i.e. a
-/// missing wait → stale read). Used to diff a broken cubit schedule against a known-
+/// missing wait → stale read). Also reports reads of a long-latency producer that
+/// carries NO write barrier (reachable via a hand_sched `[W-]` tag on a load-like op,
+/// which freezes the barrier field off) when the issue-clock distance is below the
+/// fixed-latency floor — the consumer reads a stale value with zero tool indication
+/// (probe: tagged LDG + white consumer → S05, no wait, silent; BUG-046 family).
+/// Used to diff a broken cubit schedule against a known-
 /// good (frozen) one: hazards present only in the broken schedule are the bug.
-pub fn report_hazards(insns: &[Instruction]) -> Vec<String> {
+pub fn report_hazards(insns: &[Instruction]) -> Vec<HazardReport> {
     // Build the replay sequence: linear, plus one replay of the first conditional
     // backward-branch loop body (to surface loop-carried deps).
     let mut seq: Vec<usize> = (0..insns.len()).collect();
@@ -1891,14 +1905,21 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<String> {
         }
     }
 
-    let mut gpr_owner: [Option<(usize, Option<u8>)>; 256] = [None; 256];
-    let mut ureg_owner: [Option<(usize, Option<u8>)>; 72] = [None; 72];
+    let mut gpr_owner: [Option<(usize, Option<u8>, usize)>; 256] = [None; 256];
+    let mut ureg_owner: [Option<(usize, Option<u8>, usize)>; 72] = [None; 72];
     let mut armed: [Option<usize>; NUM_BARRIERS] = [None; NUM_BARRIERS];
-    let mut out: Vec<String> = Vec::new();
+    let mut out: Vec<HazardReport> = Vec::new();
     let mut seen: std::collections::HashSet<(u32, bool, u8)> = std::collections::HashSet::new();
+    let mut clock: usize = 0;
+    // Floor for barrier-less long-latency RAW: mirrors the LONG_LATENCY_ESTIMATE used
+    // by the auto path when a consumer cannot encode a wait. A producer->consumer
+    // issue gap below this with no scoreboard cover is a stale-read candidate.
+    const NOBAR_FLOOR: usize = 16;
 
     for &i in &seq {
         let insn = &insns[i];
+        let my_clock = clock;
+        clock += insn.ctrl.stall as usize;
         // 1) apply wait_mask: those barriers' producers are now satisfied.
         for b in 0..NUM_BARRIERS {
             if insn.ctrl.wait_mask & (1 << b) != 0 { armed[b] = None; }
@@ -1908,14 +1929,35 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<String> {
             if reg >= 128 { continue; } // predicate — no barrier mechanism
             let owner = if is_u { ureg_owner.get(reg as usize).copied().flatten() }
                         else { gpr_owner[reg as usize] };
-            if let Some((pidx, Some(b))) = owner {
-                if armed[b as usize] == Some(pidx) {
-                    let key = (insn.addr, is_u, reg);
-                    if seen.insert(key) {
-                        out.push(format!("RAW @0x{:04x} {:38} reads {}{} <- 0x{:04x} {} (wb{}, NOT waited)",
-                            insn.addr, insn.raw_text.split('/').next().unwrap_or(&insn.opcode).trim(),
-                            if is_u {"UR"} else {"R"}, reg,
-                            insns[pidx].addr, insns[pidx].opcode, b));
+            if let Some((pidx, maybe_wb, pclock)) = owner {
+                let frozen = insn.hand_sched || insns[pidx].hand_sched;
+                match maybe_wb {
+                    Some(b) => {
+                        if armed[b as usize] == Some(pidx) {
+                            let key = (insn.addr, is_u, reg);
+                            if seen.insert(key) {
+                                out.push(HazardReport { frozen, msg: format!("RAW @0x{:04x} {:38} reads {}{} <- 0x{:04x} {} (wb{}, NOT waited)",
+                                    insn.addr, insn.raw_text.split('/').next().unwrap_or(&insn.opcode).trim(),
+                                    if is_u {"UR"} else {"R"}, reg,
+                                    insns[pidx].addr, insns[pidx].opcode, b)});
+                            }
+                        }
+                    }
+                    None => {
+                        // Barrier-less producer: no scoreboard cover exists at all. Only
+                        // long-latency classes can outlive the issue gap; fixed-latency
+                        // ALU producers are covered by stalls and never reach this.
+                        let pop = insns[pidx].opcode.as_str();
+                        if is_long_latency(pop) && my_clock.saturating_sub(pclock) < NOBAR_FLOOR {
+                            let key = (insn.addr, is_u, reg);
+                            if seen.insert(key) {
+                                out.push(HazardReport { frozen, msg: format!("RAW @0x{:04x} {:38} reads {}{} <- 0x{:04x} {} (NO barrier, gap {}cy < {}cy floor)",
+                                    insn.addr, insn.raw_text.split('/').next().unwrap_or(&insn.opcode).trim(),
+                                    if is_u {"UR"} else {"R"}, reg,
+                                    insns[pidx].addr, insns[pidx].opcode,
+                                    my_clock.saturating_sub(pclock), NOBAR_FLOOR)});
+                            }
+                        }
                     }
                 }
             }
@@ -1924,8 +1966,8 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<String> {
         let wb = if insn.ctrl.write_bar < NUM_BARRIERS as u8 { Some(insn.ctrl.write_bar) } else { None };
         for (is_u, reg) in dest_regs(insn) {
             if reg >= 128 { continue; }
-            if is_u { if (reg as usize) < 72 { ureg_owner[reg as usize] = Some((i, wb)); } }
-            else { gpr_owner[reg as usize] = Some((i, wb)); }
+            if is_u { if (reg as usize) < 72 { ureg_owner[reg as usize] = Some((i, wb, my_clock)); } }
+            else { gpr_owner[reg as usize] = Some((i, wb, my_clock)); }
         }
         if let Some(b) = wb {
             // RECYCLE conflict: setting barrier b while it's still armed by a DIFFERENT
@@ -1934,9 +1976,10 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<String> {
             // THIS producer instead -> stale read. ptxas always drains before reuse.
             if let Some(prev) = armed[b as usize] {
                 if prev != i {
-                    out.push(format!("RECYCLE @0x{:04x} {:34} sets wb{} still armed by 0x{:04x} {} (no drain -> prior consumers orphaned)",
+                    let frozen = insn.hand_sched || insns[prev].hand_sched;
+                    out.push(HazardReport { frozen, msg: format!("RECYCLE @0x{:04x} {:34} sets wb{} still armed by 0x{:04x} {} (no drain -> prior consumers orphaned)",
                         insn.addr, insn.raw_text.split('/').next().unwrap_or(&insn.opcode).trim(),
-                        b, insns[prev].addr, insns[prev].opcode));
+                        b, insns[prev].addr, insns[prev].opcode)});
                 }
             }
             armed[b as usize] = Some(i);
