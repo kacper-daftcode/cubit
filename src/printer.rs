@@ -515,7 +515,7 @@ fn mod_priority(m: &str) -> u8 {
         "E4M3"| "E5M2"| "NTZ"| "NTB"| "TRUNC"|
         "F32X2"| "F16X2"| "BF16X2" => 5,
         // Data size
-        "128"| "64"| "32"| "16"| "8" => 6,
+        "256"| "128"| "64"| "32"| "16"| "8" => 6,
         // HI modifier (high half): comes after data size (SHF.R.S32.HI, USHF.L.U64.HI)
         "HI" => 7,
         // Boolean operators
@@ -592,6 +592,21 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             | "AND" | "OR" | "XOR" => return 4,
             "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" => return 5,
             "GPU" | "SYS" | "CTA" | "GL" | "IL" | "MMU" => return 6,
+            _ => {}
+        }
+    }
+    // b4fill: IMAD.WIDE.U32.X.B90 — the B90 tag prints after X (IMAD.WIDE.U32.X.B90)
+    if m == "B90" && base.starts_with("IMAD") { return 9; }
+    // b4fill: LDG cache-policy family — nvdisasm order is
+    // E < L1-hint(EL/NA) < L2-hint(ELL2/ENL2/EFL2) < size(256) < consistency < scope
+    // (LDG.E.EL.ELL2.256.STRONG.GPU).
+    if base == "LDG" || base == "STG" {
+        match m {
+            "EL" | "NA" | "EN" | "EF" => return 3,
+            "ELL2" | "ENL2" | "EFL2" | "RML2" => return 4,
+            "CONSTANT" => return 6,
+            "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" => return 7,
+            "GPU" | "SYS" | "SM" | "CTA" => return 8,
             _ => {}
         }
     }
