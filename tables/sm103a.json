@@ -4884,13 +4884,6 @@
        "_src": "2aE"
       },
       {
-       "shift": 63,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "neg",
-       "_src": "2aE"
-      },
-      {
        "shift": 123,
        "bits": 1,
        "token_idx": 5,
@@ -4945,10 +4938,17 @@
        "token_idx": 5,
        "extraction": "inv",
        "_src": "2aE"
+      },
+      {
+       "shift": 63,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg",
+       "_src": "2aE"
       }
      ],
      "count": 1197,
-     "_evidence": "b4fill2 gold-fit: cout pred@81 (was 84), ab/vm recomputed rt98:1197 | repairA2: bidirectional corpus<->era divergence -> vm | +inv@63 t5 restore (old-corpus-proven)"
+     "_evidence": "b4fill2 gold-fit: cout pred@81 (was 84), ab/vm recomputed rt98:1197 | repairA2: bidirectional corpus<->era divergence -> vm | +inv@63 t5 restore (old-corpus-proven) | field order fix: inv@63 before neg@63 (neg wins over inv; bug048 pin)"
     }
    },
    "scheduling": {
