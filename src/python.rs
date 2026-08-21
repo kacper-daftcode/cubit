@@ -711,6 +711,7 @@ fn sched_apply<'py>(
             wd.set_item("cost_before", w.cost_before)?;
             wd.set_item("cost_after", w.cost_after)?;
             wd.set_item("moved", w.moved)?;
+            wd.set_item("replay", w.replay)?;
             wl.append(wd)?;
         }
         kd.set_item("windows", wl)?;

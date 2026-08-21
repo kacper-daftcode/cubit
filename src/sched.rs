@@ -78,6 +78,17 @@ pub fn parse_mode_kind(s: &str) -> Result<&'static str> {
 pub struct SchedKernelPlan {
     #[serde(default)]
     pub windows: Vec<(u32, u32)>,
+    /// M4.7 replay: explicit per-window orders (OLD instruction indices in
+    /// NEW program order; each entry must be a permutation of its window
+    /// [s, e)). When present, the list optimizer is BYPASSED for that
+    /// window: the given order is machine-checked (pin fixed points +
+    /// verify_permutation over the whole kernel) and priced by the same
+    /// cost model, then emitted. This is the eDSL seed-mutation contract:
+    /// the author assigns the order by hand, the pass proves legality and
+    /// emits exactly it -- the scheduler never silently "repairs" an
+    /// authored schedule, it refuses illegal ones.
+    #[serde(default)]
+    pub orders: Option<Vec<Vec<u32>>>,
 }
 
 /// Whole-file scheduling plan, keyed by kernel name.
@@ -260,6 +271,9 @@ pub struct WindowSchedReport {
     pub cost_after: f64,
     /// Movers that actually changed position inside the window.
     pub moved: usize,
+    /// M4.7: true when the emitted order came from an explicit plan entry
+    /// (authored replay) rather than the list optimizer.
+    pub replay: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1025,6 +1039,41 @@ fn verify_permute_proof(
 /// List-schedule one segment of movers. `edges_in`/`edges_out`: interior
 /// edges (both endpoints movers of this segment). Deterministic: priority
 /// tuple (earliest availability, -critical_path_height, original index).
+/// Ready-time span of a GIVEN order over one segment (the same model the
+/// list scheduler prices moves with; M4.6 baseline + M4.7 replay share it).
+fn simulate_order_span(
+    order: &[u32],
+    insns: &[Instruction],
+    credits: &HashMap<u32, f64>,
+    lat: f64,
+    pred: &HashMap<u32, Vec<u32>>,
+) -> f64 {
+    let mut end: HashMap<u32, f64> = HashMap::new();
+    let mut cursor = 0.0f64;
+    let mut span = 0.0f64;
+    for &i in order {
+        let mut avail = 0.0f64;
+        if let Some(ps) = pred.get(&i) {
+            for &p in ps {
+                // Replay mode tolerates illegal authored orders through the
+                // SIMULATION (the mandatory verify_permutation afterwards is
+                // what refuses them): an uninverted producer is always in
+                // `end`; an inverted one is ignored here so the cost number
+                // is still well-defined for the report.
+                if let Some(&pe) = end.get(&p) {
+                    avail = avail.max(pe + lat);
+                }
+            }
+        }
+        let t = cursor.max(avail);
+        let e = t + credits[&i] + insns[i as usize].ctrl.stall as f64;
+        end.insert(i, e);
+        cursor = e;
+        span = span.max(e);
+    }
+    span
+}
+
 fn schedule_segment(
     movers: &[u32],
     insns: &[Instruction],
@@ -1289,6 +1338,40 @@ fn run_file_list(
         let g = build_graph_ex(&k.instructions, table, &movable)
             .with_context(|| format!("sched: kernel {}", k.name))?;
 
+        // M4.7 replay: validate explicit orders BEFORE any emission attempt
+        // (fail-closed; no partial output survives a contract violation).
+        if let Some(ords) = &kp.orders {
+            if ords.len() != kp.windows.len() {
+                bail!(
+                    "sched: plan for {}: orders has {} entries for {} windows",
+                    k.name,
+                    ords.len(),
+                    kp.windows.len()
+                );
+            }
+            for (&(ws, we), wo) in kp.windows.iter().zip(ords.iter()) {
+                let mut sorted = wo.clone();
+                sorted.sort();
+                let expect: Vec<u32> = (ws..we).collect();
+                if sorted != expect {
+                    bail!(
+                        "sched: replay order for {} [{ws},{we}) is not a                          permutation of its window range (gaps/duplicates/                         out-of-range entries)",
+                        k.name
+                    );
+                }
+                for (j, &oi) in wo.iter().enumerate() {
+                    let pos = ws + j as u32;
+                    if pin_of.contains_key(&pos) && oi != pos {
+                        bail!(
+                            "sched: replay order for {} [{ws},{we}) moves pinned                              instruction {pos} ({}) -- authored orders may only                              permute movable instructions",
+                            k.name,
+                            pin_of[&pos].name()
+                        );
+                    }
+                }
+            }
+        }
+
         // per-window scheduling
         let mut perm: Vec<u32> = (0..n as u32).collect();
         let mut win_reports = Vec::new();
@@ -1300,7 +1383,9 @@ fn run_file_list(
                 credits.insert(i, c);
             }
         }
-        for &(ws, we) in &kp.windows {
+        for (wi, &(ws, we)) in kp.windows.iter().enumerate() {
+            let replay_order: Option<Vec<u32>> =
+                kp.orders.as_ref().map(|ords| ords[wi].clone());
             // segments = maximal mover runs
             let mut segments: Vec<Vec<u32>> = Vec::new();
             let mut cur: Vec<u32> = Vec::new();
@@ -1402,43 +1487,52 @@ fn run_file_list(
                     })
                     .collect();
                 // baseline: original order under the same model
-                let before = {
-                    let mut end: HashMap<u32, f64> = HashMap::new();
-                    let mut cursor = 0.0f64;
-                    let mut span = 0.0f64;
-                    for &i in seg {
-                        let mut avail = 0.0f64;
-                        if let Some(ps) = s_pred.get(&i) {
-                            for &p in ps {
-                                avail = avail.max(end[&p] + cost.dep_link_latency_slots);
-                            }
-                        }
-                        let t = cursor.max(avail);
-                        let e = t + credits[&i] + k.instructions[i as usize].ctrl.stall as f64;
-                        end.insert(i, e);
-                        cursor = e;
-                        span = span.max(e);
-                    }
-                    span
-                };
-                let (mut order, mut after) = schedule_segment(
+                let before = simulate_order_span(
                     seg,
                     &k.instructions,
                     &credits,
                     cost.dep_link_latency_slots,
-                    &s_succ,
                     &s_pred,
-                    &height,
                 );
-                // Parity keeps the seed: on a cost-neutral segment the
-                // owner's order IS the optimum the model can see (mulmod
-                // is stall-saturated; measured physics already lives in
-                // the stall fields), so emit the original order rather
-                // than churning a certified schedule for zero gain.
-                if after >= before - 1e-9 {
-                    order = seg.clone();
-                    after = before;
-                }
+                let (order, after) = match &replay_order {
+                    Some(wo) => {
+                        // M4.7 replay: forced order -- the author's sequence
+                        // restricted to this segment's movers (pins are
+                        // fixed points, validated above). Priced by the same
+                        // model, never re-optimized, never parity-flattened.
+                        let forced: Vec<u32> =
+                            wo.iter().copied().filter(|x| seg_set.contains(x)).collect();
+                        let a = simulate_order_span(
+                            &forced,
+                            &k.instructions,
+                            &credits,
+                            cost.dep_link_latency_slots,
+                            &s_pred,
+                        );
+                        (forced, a)
+                    }
+                    None => {
+                        let (mut order, mut after) = schedule_segment(
+                            seg,
+                            &k.instructions,
+                            &credits,
+                            cost.dep_link_latency_slots,
+                            &s_succ,
+                            &s_pred,
+                            &height,
+                        );
+                        // Parity keeps the seed: on a cost-neutral segment the
+                        // owner's order IS the optimum the model can see (mulmod
+                        // is stall-saturated; measured physics already lives in
+                        // the stall fields), so emit the original order rather
+                        // than churning a certified schedule for zero gain.
+                        if after >= before - 1e-9 {
+                            order = seg.clone();
+                            after = before;
+                        }
+                        (order, after)
+                    }
+                };
                 win_before += before;
                 win_after += after;
                 for (slot, &ni) in seg.iter().zip(order.iter()) {
@@ -1452,7 +1546,20 @@ fn run_file_list(
                     *pin_reasons.entry(r.name().to_string()).or_default() += 1;
                 }
             }
-            if win_after > win_before + 1e-9 {
+            // Replay windows are legality-gated EARLY: the full-kernel
+            // permutation is complete up to and including this window
+            // (identity outside), so an authored edge inversion is refused
+            // here, before any cost bookkeeping or emission.
+            if replay_order.is_some() {
+                verify_permutation(&g, &perm).with_context(|| {
+                    format!("sched: replay order for {} [{ws},{we})", k.name)
+                })?;
+            }
+            // Regression refusal applies to OPTIMIZER-emitted orders only;
+            // a replayed (authored) order is reported with its cost delta
+            // and emitted as written -- author sovereignty (M4.7), the
+            // legality proof is still mandatory above.
+            if replay_order.is_none() && win_after > win_before + 1e-9 {
                 bail!(
                     "sched: list policy made window [{ws},{we}) of {} WORSE by the \
                      cost model ({win_before:.1} -> {win_after:.1}) -- refusing to \
@@ -1476,6 +1583,7 @@ fn run_file_list(
                 cost_before: win_before,
                 cost_after: win_after,
                 moved: win_moved,
+                replay: replay_order.is_some(),
             });
         }
 
