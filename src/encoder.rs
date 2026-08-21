@@ -711,6 +711,41 @@ pub fn errata_warnings(insn: &Instruction, table: &IsaTable) -> Vec<String> {
 /// sm120 cubins keeps working); the encoder fails closed here, scoped to the
 /// target with silicon evidence (sm_103a). UIMNMX/UVIMNMX (uniform path) are
 /// NOT covered -- no silicon probe either way.
+/// BUG-060 (silicon, B300/sm_103a): LDG.E.NA.EFL2.256.STRONG.GPU[.HINT] in the
+/// descriptor addressing form (desc[URm][Rn.64], vendor: [Rn.U32+URm]) requires
+/// an ODD address base register Rn on sm_103a. krun probes 7/7, 100% correlation
+/// with Rn LSB (bit24 of the word): even Rn -> CUDA_ERROR_ILLEGAL_INSTRUCTION,
+/// odd Rn -> executes (faults only on the dereference). Same era bytes ran fine
+/// on sm120, so this is a per-field silicon legality delta, subtler than BUG-059.
+/// The table rows stay decode-capable (RE of legacy cubins works); the encoder
+/// fails closed on the even-Rn form, scoped to sm_103a (the only target with
+/// silicon evidence). Sibling classes (ELL2/ENL2/LTC128B) are NOT covered --
+/// no parity probes for them yet (krun-audit queue from BUG-060).
+fn check_efl2_addr_parity_sm103(insn: &Instruction, table: &IsaTable) -> Result<()> {
+    if insn.opcode != "LDG" {
+        return Ok(());
+    }
+    if table.target_sm() != 103 {
+        return Ok(());
+    }
+    let mods = crate::table::extract_mod_group(&insn.raw_text);
+    let efl2_256 = mods.split(',').any(|m| m == "EFL2")
+        && mods.split(',').any(|m| m == "256");
+    if !efl2_256 {
+        return Ok(());
+    }
+    for op in &insn.operands {
+        if let Operand::Desc { base_reg: Some(r), .. } = op {
+            if r % 2 == 0 {
+                anyhow::bail!(
+                    "LDG.E.NA.EFL2.256 desc-form address base R{} is EVEN -- SILICON-ILLEGAL on sm_103a                     (BUG-060; B300 krun probes 7/7: the [Rn.U32+URm] form requires an ODD Rn on sm_103a,                     even Rn traps CUDA_ERROR_ILLEGAL_INSTRUCTION; R{} likely encodes a 64-bit pair where                     only the odd upper half carries a low partner). Renumber the address register (RA pin)                     instead of assembling the era word; decode stays full-fidelity for RE."
+                , r, r);
+            }
+        }
+    }
+    Ok(())
+}
+
 fn check_imnmx_sm103_erratum(insn: &Instruction, table: &IsaTable) -> Result<()> {
     if insn.opcode != "IMNMX" {
         return Ok(());
@@ -737,6 +772,7 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         check_mma_reg_alignment(insn)?;
         check_uplop3_lut_lattice(insn)?;
         check_imnmx_sm103_erratum(insn, table)?;
+        check_efl2_addr_parity_sm103(insn, table)?;
     }
     let mod_group = crate::table::extract_mod_group(&insn.raw_text);
 

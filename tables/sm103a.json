@@ -314,7 +314,7 @@
    "mod_groups": {
     "": {
      "and_base": "0x000fc000038000000000000000340947",
-     "variable_mask": "0x03f03e000003fffffffffffc00fcf000",
+     "variable_mask": "0x03f03e000003ffffffffffff00fcf000",
      "fields": [
       {
        "shift": 12,
@@ -323,7 +323,9 @@
        "extraction": "guard"
       }
      ],
-     "count": 12969
+     "count": 12969,
+     "_src": "b4forward3-2026-08-21",
+     "_evidence": "rt98 era n=17 (7947-klasa, sm120-lineage silicon) + korp sm103 n=12969; bity[33:32] poza oknem celu: dword-split target = lo8@[23:16] | hi30@[63:32]>>2 (nibbles 32-33 martwe dla targetu); dekodowane cele 17/17 in-range/align16, zgodne z renderem sm120-tabeli (0x170,0x9c0,...,0x85c0,0x85e0)"
     },
     "U": {
      "and_base": "0x000fc800038000000000000100440947",
@@ -52681,6 +52683,108 @@
      ],
      "count": 1,
      "_evidence": "gen103 native probes n=1; b4fill"
+    },
+    "256,E,EFL2,GPU,NA,STRONG": {
+     "and_base": "0x000824000850e100fe0000060008797e",
+     "variable_mask": "0x000fc600000000ff00fffffffffff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "b4forward3-2026-08-21"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "b4forward3-2026-08-21"
+      },
+      {
+       "shift": 24,
+       "bits": 9,
+       "token_idx": 3,
+       "extraction": "sub_r1",
+       "_src": "b4forward3-2026-08-21"
+      },
+      {
+       "shift": 32,
+       "bits": 5,
+       "token_idx": 3,
+       "extraction": "sub_ur0",
+       "_src": "b4forward3-2026-08-21"
+      },
+      {
+       "shift": 37,
+       "bits": 20,
+       "token_idx": 3,
+       "extraction": "sub_imm2_shr2",
+       "_src": "b4forward3-2026-08-21"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "b4forward3-2026-08-21"
+      }
+     ],
+     "count": 2,
+     "_src": "b4forward3-2026-08-21",
+     "_evidence": "rt98 era n=2 (sm120-lineage silicon; vendor nvdisasm13.3 render w BUG-060); bajt7=0xfe/b72[bit72]=1 piecztuje non-HINT; era-imm ','-token 0x0 bez pola (render-parity drop, znane)"
+    },
+    "256,E,EFL2,GPU,HINT,NA,STRONG": {
+     "and_base": "0x000824000850e0007e00000c0034797e",
+     "variable_mask": "0x000fc600000000ff00fffffffffff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "b4forward3-2026-08-21"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "b4forward3-2026-08-21"
+      },
+      {
+       "shift": 24,
+       "bits": 9,
+       "token_idx": 3,
+       "extraction": "sub_r1",
+       "_src": "b4forward3-2026-08-21"
+      },
+      {
+       "shift": 32,
+       "bits": 5,
+       "token_idx": 3,
+       "extraction": "sub_ur0",
+       "_src": "b4forward3-2026-08-21"
+      },
+      {
+       "shift": 37,
+       "bits": 20,
+       "token_idx": 3,
+       "extraction": "sub_imm2_shr2",
+       "_src": "b4forward3-2026-08-21"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "b4forward3-2026-08-21"
+      }
+     ],
+     "count": 2,
+     "_src": "b4forward3-2026-08-21",
+     "_evidence": "rt98 era n=2 (sm120-lineage silicon; vendor render ...HINT ...,0x3f w BUG-060); bajt7=0x7e(bit63=0,hint-val 0x3f@[62:57] piecztowane n=2)/b72=0; imm0x3f bez pola (render-parity drop, znane)"
     }
    },
    "scheduling": {
@@ -55089,6 +55193,100 @@
     "confidence": "corpus-family",
     "_src": "b4fill2-2026-08-21"
    }
+  },
+  "BRXU_L": {
+   "base_op": "BRXU",
+   "operand_sig": "L",
+   "mod_groups": {
+    "": {
+     "and_base": "0x000000000b8000000000000000007958",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 0,
+       "extraction": ""
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "ureg"
+      },
+      {
+       "shift": 34,
+       "bits": 48,
+       "token_idx": 0,
+       "extraction": ""
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 1,
+       "extraction": "reuse"
+      }
+     ],
+     "variable_mask": "0x1c0000000003fffffffffffcffff0000",
+     "count": 8,
+     "_src": "b4forward3-2026-08-21",
+     "_evidence": "port tables/sm120.json BRXU_L (count=8) + rt98 era n=2 slowa 7958-klasa; oba cele = 0xc850 (jump-table dispatch), dword-split jak BUG-027; nvdisasm-13.3 nie zna klasy (era-only)"
+    }
+   },
+   "scheduling": {
+    "opcode_id": null,
+    "pipe_class": 1,
+    "pipe_name": "CTRL_FLOW",
+    "def_latency": 0,
+    "throughput": 1,
+    "is_variable_latency": false,
+    "confidence": "synthetic",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "write_latency": 0,
+    "stall_base": 5,
+    "latency_source": "synthetic"
+   },
+   "ctrl_class": "ctrl_flow",
+   "mercury": []
+  },
+  "BRXU_II": {
+   "base_op": "BRXU",
+   "operand_sig": "II",
+   "mod_groups": {
+    "": {
+     "and_base": "0x000fe2000b80000000000000ff007958",
+     "fields": [
+      {
+       "shift": 34,
+       "bits": 5,
+       "token_idx": 1,
+       "extraction": "",
+       "_src": "b4forward3-2026-08-21",
+       "_note": "phantom (None): rejestruje klucz + zamyka broad-match-path; zapis 0 -- region celu nalezy do fixupu BUG-027"
+      }
+     ],
+     "variable_mask": "0x1c00000000000000fffffffe00ff0000",
+     "count": 2,
+     "_src": "b4forward3-2026-08-21",
+     "_evidence": "rt98 era n=2 (7958-klasa, sm120-lineage silicon): and_base/vm z AND probek (byte3=0xff, bity[81:64]=0, bit87=1 -- stale era); pola harvest (imm@19/ureg@26) odrzucone -- region celu nalezy do fixupu dword-split z BUG-027 (sm120 dowodl tego przez rsd[24..31]); operand 1-token wolny od completeness per BUG-023; sched-hi w vm z siostry BRXU_L ; bit32 wyjety z vm+phantom przesuniety na [38:34]: separator vs corpus BRXU.U (corpus=1, era-1tok=0) -- musi zostac w match_mask (strict/relaxed/prio3)"
+    }
+   },
+   "scheduling": {
+    "opcode_id": null,
+    "pipe_class": 1,
+    "pipe_name": "CTRL_FLOW",
+    "def_latency": 0,
+    "throughput": 1,
+    "is_variable_latency": false,
+    "confidence": "synthetic",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "write_latency": 0,
+    "stall_base": 5,
+    "latency_source": "synthetic"
+   },
+   "ctrl_class": "ctrl_flow",
+   "mercury": []
   }
  },
  "sched_only": {},
