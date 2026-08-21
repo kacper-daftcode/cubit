@@ -2,9 +2,9 @@
   "arch": "sm_103a",
   "schema": 1,
   "provenance": {
-    "derived": "2026-08-20 (M4.6, loop5 front MAIN)",
+    "derived": "2026-08-20 (M4.6, loop5 front MAIN); md5-bump 2026-08-21 iter17 (m9a_ldgch addendum; derivacja bez zmian)",
     "source_raw": "blindlab results/fe/M4/m9_103a_raw.json",
-    "source_raw_md5": "ad12f78866e8a2471e4b41a66f54a70e",
+    "source_raw_md5": "cc75d88dff97ea6bc6bbcbfd066bd7bc",
     "report": "blindlab results/fe/M4/m9_103a_report.md",
     "mirror": "barracuda/data_cost_sm103a.py (gate G12 recomputes it from raw; G13c pins JSON==py)",
     "convention": "credit = 1 dispatch slot of the FMA-class unified pipe per SMSP (IMAD=1, role-sum convention sm120)"
