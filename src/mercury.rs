@@ -2663,6 +2663,7 @@ pub fn merc_redg_record(text: &str, guard_code: u8) -> Option<[u8; 32]> {
     }
     let (opstr, ops0) = body.split_once(char::is_whitespace)?;
     let ops = ops0.trim().trim_end_matches(';');
+    let is_el = opstr.contains(".EL");
     let f32v = opstr.contains(".F32");
     let f64v = opstr.contains(".F64");
     let (b2_int, b6, b7, b8) = if f32v {
@@ -2764,7 +2765,22 @@ pub fn merc_redg_record(text: &str, guard_code: u8) -> Option<[u8; 32]> {
     b[14] = 0x0a;
     match descur {
         Some(d) => {
-            put(&mut b, 17, ((d as u16) << 6) | 2);
+            // mk48c (BUG-049): the `.EL` desc form is a DIFFERENT addressing
+            // class from the non-EL `desc[URn]` form. Non-EL: n is the
+            // descriptor-table index, embedded here directly (identical to
+            // the instruction's field @64 — sm_100 corpus, mk48 law).
+            // EL: the instruction's 8-bit field @64 carries the RAW uniform
+            // register of the address pair (nvdisasm canonical print
+            // `[R.U32+UR20+imm]`), while this record stores field/2 — nvcc
+            // evidence (rt98_pub KernelA ins1538): word field=20, record
+            // (10<<6)|2. Pre-049 legacy tables misrendered EL words in the
+            // non-EL glyph with the halved number (narrow fit read the imm
+            // top byte), which fed this routine an already-halved d and made
+            // identity embedding look right. With truthful text (UR20) the
+            // halving for the EL class must happen HERE; non-EL stays
+            // identity (mk48 corpus law, unchanged).
+            let d_eff = if is_el { d >> 1 } else { d };
+            put(&mut b, 17, ((d_eff as u16) << 6) | 2);
             put(&mut b, 19, ((data as u16) << 6) | dflag);
         }
         None => {
