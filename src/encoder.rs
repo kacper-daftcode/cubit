@@ -697,6 +697,32 @@ pub fn errata_warnings(insn: &Instruction, table: &IsaTable) -> Vec<String> {
     out
 }
 
+
+/// BUG-059 (silicon, B300/sm_103a): the consumer IMNMX opcode class
+/// (and_base 0x*817-family; era words such as
+/// `IMNMX.S64 P0, P0, |R218|, R218, 0x3ffff, PT, P0` from the sm120-era
+/// rt98 lineage) is ENCODABLE/DECODABLE per table but ILLEGAL on sm_103a
+/// silicon -- capsule KernelA+0x4640 traps CUDA_ERROR_ILLEGAL_INSTRUCTION
+/// even with every predicate slot forced PT (m48 probes P1-P3), and probe P5
+/// shows the sibling VIMNMX-with-predicate-output form is likewise illegal.
+/// ptxas never emits consumer IMNMX for sm_103a (u32 min/max -> VIMNMX.U32,
+/// s64 -> UISETP+USEL emulation), so there is no 1:1 legal substitute the
+/// tool could auto-apply. The table row stays DECODE-ONLY (RE of legacy
+/// sm120 cubins keeps working); the encoder fails closed here, scoped to the
+/// target with silicon evidence (sm_103a). UIMNMX/UVIMNMX (uniform path) are
+/// NOT covered -- no silicon probe either way.
+fn check_imnmx_sm103_erratum(insn: &Instruction, table: &IsaTable) -> Result<()> {
+    if insn.opcode != "IMNMX" {
+        return Ok(());
+    }
+    if table.target_sm() != 103 {
+        return Ok(());
+    }
+    anyhow::bail!(
+        "IMNMX (consumer min/max with predicate outputs) is SILICON-ILLEGAL on sm_103a          (BUG-059; B300 m48 probes P1-P3: CUDA_ERROR_ILLEGAL_INSTRUCTION for the exact          era bytes, guard-forced-PT variants included; P5: pred-output VIMNMX also illegal;          ptxas emits VIMNMX.U32 for 32-bit and UISETP+USEL for 64-bit instead). The table          row is decode-only for reverse engineering; port the text (VIMNMX.U32 + explicit          ISETP predicate materialization) instead of assembling era IMNMX words."
+    )
+}
+
 /// Encode a parsed instruction using the per-modifier-group table.
 pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> {
     encode_instruction_inner(insn, table, true)
@@ -710,6 +736,7 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         check_pred_literal_errata(insn)?;
         check_mma_reg_alignment(insn)?;
         check_uplop3_lut_lattice(insn)?;
+        check_imnmx_sm103_erratum(insn, table)?;
     }
     let mod_group = crate::table::extract_mod_group(&insn.raw_text);
 

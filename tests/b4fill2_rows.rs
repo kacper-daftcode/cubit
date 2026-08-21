@@ -29,8 +29,6 @@ static GOLD: &[(u128, &str)] = &[
     (0x080fe80007f3e4fffffffc2f74748810u128, "@!P0 IADD3.X R116, P1, PT, R116, -0x3d1, RZ, PT, !PT"),
     // LOP3.LUT.PAND predicated 7-token
     (0x000fe6000309c0ff0000080048ff7812u128, "LOP3.PAND.LUT P4, RZ, R72, 0x800, RZ, 0xc0, P6"),
-    // IMNMX.S64 with imm32 operand
-    (0x020fec00038002000003ffffdada7817u128, "IMNMX.S64 P0, P0, |R218|, R218, 0x3ffff, PT, P0"),
     // ATOMG/REDG .EL.STRONG.GPU descriptor forms
     (0x000f6400082ee10600000051ffda39a8u128, "@P3 ATOMG.E.ADD.EL.STRONG.GPU PT, R218, desc[UR6][RZ.64], R81"),
     (0x0009e4000820e11400000051d100498eu128, "@P4 REDG.E.ADD.EL.STRONG.GPU PT, desc[UR20][R209.64], R81"),
@@ -92,6 +90,10 @@ fn b4fill2_render_only() {
     let t = t103a();
     let idx = DecodeIndex::build(&t);
     for &(word, golden) in &[
+        // BUG-059: consumer IMNMX era words stay DECODE-ONLY on sm_103a
+        // (silicon-ILLEGAL per m48 P1-P3); encoder rejects them fail-closed
+        // (tests/bug059_imnmx_sm103.rs pins the reject + sm120 control).
+        (0x020fec00038002000003ffffdada7817u128, "IMNMX.S64 P0, P0, |R218|, R218, 0x3ffff, PT, P0"),
         (0x000fe200080400000000002aff407947u128, "BRA.DIV P0, URZ, 0x2910"),
         (0x000fe2000c04000000000003ff047947u128, "BRA.CONV !P0, URZ, 0x20"),
         (0x000ff2000b83ffffffffffdd1e7c7958u128, "BRXU.U UR30, -0x1"),

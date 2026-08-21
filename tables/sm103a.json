@@ -55077,7 +55077,7 @@
       }
      ],
      "count": 21,
-     "_evidence": "b4fill2 rt98:21; base-key+S64 mg (legacy IMNMX_P_P_R_R_II_P_P[S64]); imm32@32 t5"
+     "_evidence": "b4fill2 rt98:21; base-key+S64 mg (legacy IMNMX_P_P_R_R_II_P_P[S64]); imm32@32 t5; BUG-059 2026-08-21: row is DECODE-ONLY -- consumer IMNMX is silicon-ILLEGAL on sm_103a (B300 m48 probes P1-P3), encoder fails closed (check_imnmx_sm103_erratum)"
     }
    },
    "scheduling": {
