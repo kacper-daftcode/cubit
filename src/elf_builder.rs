@@ -435,6 +435,9 @@ pub struct MercFeatures {
     pub d1wc47_legacy: u32,
     /// mk48: rekordy 024d*32 (REDG desc/non-desc) — (lane, 32B pelny payload).
     pub redg2_rec: Vec<(u32, [u8; 32])>,
+    /// BUG-055: REDG.EL plain-range lanes (nvcc: bez rekordu) — wylaczone
+    /// z placeholder-math n_atom (galaz name-count ponizej).
+    pub redg2_suppressed: Vec<u32>,
     /// mk49: rekordy 024e*32 (ATOM.E/ATOMG/ATOMS) — (lane, 32B pelny payload).
     pub atomg2_rec: Vec<(u32, [u8; 32])>,
     /// mk46: rekordy 010b060a geo-anchor (lane, 16B pelny payload).
@@ -556,6 +559,7 @@ impl MercFeatures {
                 0
             },
             redg2_rec: meta.merc_redg2_rec.clone(),
+            redg2_suppressed: meta.merc_redg2_suppressed.clone(),
             atomg2_rec: meta.merc_atomg2_rec.clone(),
             geo_rec: meta.merc_geo_rec.clone(),
             fence_async: meta.merc_fence_async.clone(),
@@ -632,7 +636,7 @@ impl MercFeatures {
                     && !o.contains(".CAST.")
             })
             .count() as u32;
-        f.cflow_atom = f.n_atom > 0;
+                f.cflow_atom = f.n_atom > 0;
         f.cflow_bssy = opcodes.iter().any(|o| o.starts_with("BSSY"));
         f.os_uses_s2r = opcodes.iter().any(|o| o.starts_with("S2R"));
         f.os_shfl = opcodes.iter().any(|o| o.starts_with("SHFL"));
@@ -1879,7 +1883,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         ev.push((feat.redux2[k].0, 20, Ev::Redux2(k)));
     }
     // mk48: rekordy 024d*32 (REDG); tier 20 jak Ev::Atom/mk44-47.
-    for (k, _) in feat.redg2_rec.iter().enumerate() {
+        for (k, _) in feat.redg2_rec.iter().enumerate() {
         ev.push((feat.redg2_rec[k].0, 20, Ev::McRedg2(k)));
     }
     // mk49: rekordy 024e*32 (ATOM-family); tier 20 jak mk48.
@@ -2274,7 +2278,14 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         // mk48: lane'y REDG z wlasnymi rekordami (redg2_rec) nie dostaja
         // legacy trailing REC_ATOM (k_atom/v_atom: dublet po mk48-fixie).
         let covered = feat.redg2_rec.len() as u32 + feat.atomg2_rec.len() as u32;
-        for _ in 0..feat.n_atom.saturating_sub(covered) {
+        // BUG-055: REDG.EL plain-range lanes are recordless at nvcc level;
+        // they must not trigger placeholder backfill either (new-glyph text
+        // leaves the legacy tuple scan empty, reaching this name-count
+        // branch — era/v2 tuple paths never subtract and stay byte-stable).
+        let suppressed = feat.redg2_suppressed.len() as u32;
+        for _ in 0..feat
+            .n_atom
+            .saturating_sub(covered + suppressed) {
             out.extend_from_slice(&REC_ATOM);
         }
     } else {

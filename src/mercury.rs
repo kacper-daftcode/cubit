@@ -2649,6 +2649,128 @@ fn merc_grid0(r: u8) -> u16 { if r == 255 { 0xffc0 } else { (r as u16) << 6 } }
 ///   [28:32) = imm adresu (i32 LE, np. "-0x8" -> f8ffffff); reszta bajtow 0.
 /// b4 = guard_code (drabina mk41: idx<<3|neg / UPn<<3|2 / 0xf8).
 /// Bitmapa bez zmian (lane atomowy nigdy nie tracil bitu — doktryna mk14).
+pub struct RedgAddrParsed {
+    pub areg: u32,
+    pub descur: Option<u32>,
+    pub data: u32,
+    pub imm: i32,
+    pub is_desc: bool,
+}
+
+fn redg_regnum(tok: &str) -> Option<u32> {
+    tok.strip_prefix('R')?.parse::<u32>().ok().filter(|v| *v < 0x4000)
+}
+
+fn redg_scrape_imm(fragment: &str) -> Option<i32> {
+    let h = fragment.find("0x")?;
+    let hexs: String = fragment[h + 2..]
+        .chars()
+        .take_while(|c| c.is_ascii_hexdigit())
+        .collect();
+    let v = i32::from_str_radix(&hexs, 16).ok()?;
+    Some(if fragment[..h].contains('-') { -v } else { v })
+}
+
+/// Address+data parse for REDG record emission, both glyphs:
+/// legacy double-bracket `desc[URn][Rm.64(+/-0ximm)]` and the nvdisasm
+/// canonical `[Rn(.U32)+URm(+0ximm)]` / plain non-desc `[Rn]`.
+pub fn parse_redg_addr(ops: &str) -> Option<RedgAddrParsed> {
+    if let Some(dp) = ops.find("desc[UR") {
+        let rest = &ops[dp + 7..];
+        let end = rest.find(']')?;
+        let d: u32 = rest[..end].parse().ok()?;
+        let bp = rest[end..].find('[').map(|p| p + end)?;
+        let bend = rest[bp..].find(']').map(|e| e + bp)?;
+        let inner = &rest[bp + 1..bend]; // "R18.64+0x4" / "R10.64+-0x8"
+        let a: u32 = redg_regnum(inner.split('.').next()?)?;
+        let imm: i32 = redg_scrape_imm(inner).unwrap_or(0);
+        // data = ostatni operand po przecinku top-level
+        let dtok = ops.rsplit(',').next()?.trim();
+        let dv = redg_regnum(dtok)?;
+        Some(RedgAddrParsed { areg: a, descur: Some(d), data: dv, imm, is_desc: true })
+    } else if ops.starts_with('[') {
+        let bend = ops.find(']')?;
+        let inner = &ops[1..bend];
+        if !inner.is_empty()
+            && inner.starts_with('R')
+            && inner[1..].chars().all(|c| c.is_ascii_digit())
+        {
+            let a = redg_regnum(inner)?;
+            let dtok = ops[bend + 1..].trim_start_matches(',').trim();
+            let dv = redg_regnum(dtok)?;
+            Some(RedgAddrParsed { areg: a, descur: None, data: dv, imm: 0, is_desc: false })
+        } else if let Some(up) = inner.find("+UR") {
+            // nvdisasm-canonical EL glyph: [Rn.U32+URm(+0ximm)] /
+            // [RZ.U32+URm+0ximm] (BUG-055: repo decoder renders this form).
+            let bpart = &inner[..up];
+            let a: u32 = if bpart == "RZ" || bpart.starts_with("RZ.") {
+                255
+            } else {
+                redg_regnum(bpart.split('.').next()?)?
+            };
+            let urpart = &inner[up + 3..];
+            let d: u32 = match urpart.find(['+', '-']) {
+                Some(s) => urpart[..s].parse().ok()?,
+                None => urpart.trim_end_matches(')').parse().ok()?,
+            };
+            let imm = redg_scrape_imm(urpart).unwrap_or(0);
+            let dtok = ops[bend + 1..].trim_start_matches(',').trim();
+            let dv = redg_regnum(dtok)?;
+            Some(RedgAddrParsed { areg: a, descur: Some(d), data: dv, imm, is_desc: true })
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
+/// Strip a leading `@Pn`/`@!Pn` guard and return the instruction body
+/// starting at the opcode (REDG record emission conventions).
+fn redg_body(text: &str) -> &str {
+    let body0 = text.trim();
+    match body0.strip_prefix('@') {
+        Some(r) => r
+            .split_once(char::is_whitespace)
+            .map(|(_, x)| x.trim_start())
+            .unwrap_or(body0),
+        None => body0,
+    }
+}
+
+/// BUG-055 (nvcc gold rt98, 22/22 EL-desc lanes): for the `.EL` class the
+/// 024d*32 record embeds the descriptor-table slot carried by the address
+/// immediate's top byte (imm[23:16]); the slot is absent-and-recordless for
+/// plain-range offsets (imm[23:16]==0 but imm!=0 — gold KernelA ADD lanes
+/// +0x400/+0x100 carry no record). The immediate is invariant across text
+/// generations (era `desc[UR10]` / v2 `desc[UR20]` / nvdisasm
+/// `[R.U32+UR20]` glyphs all parse to the same imm), which keeps the record
+/// stable under decoder-lie migrations; glyph numbers mean different things
+/// per decoder generation and are ignored.
+fn redg_el_recordless(is_el: bool, is_desc: bool, imm: i32) -> bool {
+    is_el && is_desc && !(imm == 0 || (imm >> 16) != 0)
+}
+
+/// Tail-accounting probe (BUG-055): `text` is a REDG `.EL` desc-form lane
+/// that nvcc gives NO capmerc record — emitted-stream absence must be
+/// mirrored in the n_atom placeholder math by the name-count emitter path
+/// (era/v2 legacy-glyph paths are unaffected: their tuple branch balances
+/// without this count).
+pub fn merc_redg2_suppressed(text: &str) -> bool {
+    let body = redg_body(text);
+    if !body.starts_with("REDG.") {
+        return false;
+    }
+    let Some((opstr, ops0)) = body.split_once(char::is_whitespace) else {
+        return false;
+    };
+    let ops = ops0.trim().trim_end_matches(';');
+    let Some(p) = parse_redg_addr(ops) else {
+        return false;
+    };
+    redg_el_recordless(opstr.contains(".EL"), p.is_desc, p.imm)
+}
+
 pub fn merc_redg_record(text: &str, guard_code: u8) -> Option<[u8; 32]> {
     let body0 = text.trim();
     let body = match body0.strip_prefix('@') {
@@ -2692,50 +2814,11 @@ pub fn merc_redg_record(text: &str, guard_code: u8) -> Option<[u8; 32]> {
         (0x24_u8, sub, 0xa0_u8 | tcode, 0x01_u8)
     };
     let dflag: u16 = if f64v || opstr.contains(".64") { 2 } else { 0 };
-    let regnum = |tok: &str| -> Option<u32> {
-        tok.strip_prefix('R')?.parse::<u32>().ok().filter(|v| *v < 0x4000)
-    };
-    // adres: desc[URn][Rm.64(+/-0ximm)] albo [Rn] (non-desc)
-    let (areg, descur, data, imm, is_desc): (u32, Option<u32>, u32, i32, bool) =
-        if let Some(dp) = ops.find("desc[UR") {
-            let rest = &ops[dp + 7..];
-            let end = rest.find(']')?;
-            let d: u32 = rest[..end].parse().ok()?;
-            let bp = rest[end..].find('[').map(|p| p + end)?;
-            let bend = rest[bp..].find(']').map(|e| e + bp)?;
-            let inner = &rest[bp + 1..bend]; // "R18.64+0x4" / "R10.64+-0x8"
-            let a: u32 = regnum(inner.split('.').next()?)?;
-            let imm: i32 = match inner.find("0x") {
-                Some(h) => {
-                    let hexs: String = inner[h + 2..]
-                        .chars()
-                        .take_while(|c| c.is_ascii_hexdigit())
-                        .collect();
-                    let v = i32::from_str_radix(&hexs, 16).ok()?;
-                    if inner[..h].contains('-') { -v } else { v }
-                }
-                None => 0,
-            };
-            // data = ostatni operand po przecinku top-level
-            let dtok = ops.rsplit(',').next()?.trim();
-            let dv = regnum(dtok)?;
-            (a, Some(d), dv, imm, true)
-        } else if ops.starts_with('[') {
-            let bend = ops.find(']')?;
-            let inner = &ops[1..bend];
-            if !inner.is_empty() && inner.starts_with('R')
-                && inner[1..].chars().all(|c| c.is_ascii_digit())
-            {
-                let a = regnum(inner)?;
-                let dtok = ops[bend + 1..].trim_start_matches(',').trim();
-                let dv = regnum(dtok)?;
-                (a, None, dv, 0, false)
-            } else {
-                return None;
-            }
-        } else {
-            return None;
-        };
+    let p = parse_redg_addr(ops)?;
+    let (areg, descur, data, imm, is_desc) = (p.areg, p.descur, p.data, p.imm, p.is_desc);
+    if redg_el_recordless(is_el, is_desc, imm) {
+        return None;
+    }
     if f32v || f64v {
         if !is_desc {
             return None; // float non-desc: forma nieobserwowana
@@ -2765,21 +2848,18 @@ pub fn merc_redg_record(text: &str, guard_code: u8) -> Option<[u8; 32]> {
     b[14] = 0x0a;
     match descur {
         Some(d) => {
-            // mk48c (BUG-049): the `.EL` desc form is a DIFFERENT addressing
-            // class from the non-EL `desc[URn]` form. Non-EL: n is the
-            // descriptor-table index, embedded here directly (identical to
-            // the instruction's field @64 — sm_100 corpus, mk48 law).
-            // EL: the instruction's 8-bit field @64 carries the RAW uniform
-            // register of the address pair (nvdisasm canonical print
-            // `[R.U32+UR20+imm]`), while this record stores field/2 — nvcc
-            // evidence (rt98_pub KernelA ins1538): word field=20, record
-            // (10<<6)|2. Pre-049 legacy tables misrendered EL words in the
-            // non-EL glyph with the halved number (narrow fit read the imm
-            // top byte), which fed this routine an already-halved d and made
-            // identity embedding look right. With truthful text (UR20) the
-            // halving for the EL class must happen HERE; non-EL stays
-            // identity (mk48 corpus law, unchanged).
-            let d_eff = if is_el { d >> 1 } else { d };
+            // mk48c/BUG-055: the `.EL` desc form is a DIFFERENT addressing
+            // class from the non-EL `desc[URn]` form. Non-EL: n is embedded
+            // here directly (identity — sm_100 corpus, mk48 law, unchanged).
+            // EL: the record embeds imm[23:16] (the descriptor-table slot in
+            // the immediate's top byte), NOT a function of the glyph number —
+            // BUG-049's "word_field/2" law coincided with imm[23:16] on the
+            // AND/OR lanes (word 20, imm 0xa2400: both give 10) but broke the
+            // KernelB ADD lanes (word 20, imm 0: gold record is 0, not 10)
+            // and era-glyph text (desc[UR10] with imm 0xa2400 double-halved
+            // to 5 — BUG-055 publish drift). Glyph numbers are discarded for
+            // EL; the immediate alone decides.
+            let d_eff = if is_el { ((imm >> 16) & 0xff) as u32 } else { d };
             put(&mut b, 17, ((d_eff as u16) << 6) | 2);
             put(&mut b, 19, ((data as u16) << 6) | dflag);
         }

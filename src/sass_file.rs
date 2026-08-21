@@ -557,6 +557,7 @@ pub fn kernel_def_to_meta(
         merc_ulop3xor_rec: mc.ulop3xor_rec,
         merc_lop3xorur_rec: mc.lop3xorur_rec,
         merc_redg2_rec: mc.redg2_rec,
+        merc_redg2_suppressed: mc.redg2_suppressed,
         merc_atomg2_rec: mc.atomg2_rec,
         merc_fence_async: mc.fence_async,
         merc_ldgsts_b128: mc.ldgsts_b128,
@@ -1050,6 +1051,9 @@ pub struct MercMcScan {
     pub lop3xorur_rec: Vec<(u32, [u8; 16])>,
     /// mk48: rekordy 024d*32 (REDG desc/non-desc) — (lane, 32B).
     pub redg2_rec: Vec<(u32, [u8; 32])>,
+    /// BUG-055: lane'y REDG.EL plain-range imm (bez rekordu u nvcc) —
+    /// wylaczone z placeholder-math n_atom (galaz name-count, elf_builder).
+    pub redg2_suppressed: Vec<u32>,
     /// mk49: rekordy 024e*32 (ATOM.E/ATOMG/ATOMS) — (lane, 32B).
     pub atomg2_rec: Vec<(u32, [u8; 32])>,
     pub fence_async: Vec<u32>,          // FENCE.*ASYNC* lanes
@@ -1622,6 +1626,11 @@ pub fn merc_mc_scan(instructions: &[Instruction], cg_sites: &std::collections::B
                 // mk48: rekordy 024d{0e|24|2e}32 (REDG desc/non-desc).
                 if let Some(r) = crate::mercury::merc_redg_record(t, merc_guard_code(ins.guard.as_ref())) {
                     o.redg2_rec.push((lane, r));
+                } else if crate::mercury::merc_redg2_suppressed(t) {
+                    // BUG-055: lane REDG.EL plain-range (bez rekordu u nvcc)
+                    // musi byc wylaczony z placeholder-math n_atom (galaz
+                    // name-count w elf_builderze).
+                    o.redg2_suppressed.push(lane);
                 }
             }
             "ATOM" | "ATOMG" | "ATOMS" => {

@@ -602,6 +602,9 @@ pub struct KernelMeta {
     pub merc_d1wc47: Option<Vec<(u32, u8)>>,
     /// mk48: rekordy 024d*32 (REDG desc/non-desc) — (lane, 32B pelny payload).
     pub merc_redg2_rec: Vec<(u32, [u8; 32])>,
+    /// BUG-055: lane'y REDG.EL plain-range imm (nvcc: bez rekordu) —
+    /// korekta placeholder-math n_atom w elf_builder (galaz name-count).
+    pub merc_redg2_suppressed: Vec<u32>,
     /// mk49: rekordy 024e*32 (ATOM.E/ATOMG/ATOMS) — (lane, 32B pelny payload).
     pub merc_atomg2_rec: Vec<(u32, [u8; 32])>,
     /// mk46: rekordy 010b060a geo-anchor (lane, 16B).
@@ -824,6 +827,7 @@ impl KernelMeta {
             merc_lop3xorur_rec: Vec::new(),
             merc_d1wc47: None,
             merc_redg2_rec: Vec::new(),
+            merc_redg2_suppressed: Vec::new(),
             merc_atomg2_rec: Vec::new(),
             merc_geo_rec: Vec::new(),
             merc_fence_async: Vec::new(),
@@ -1293,6 +1297,7 @@ mod tests {
             merc_lop3xorur_rec: Vec::new(),
             merc_d1wc47: None,
             merc_redg2_rec: Vec::new(),
+            merc_redg2_suppressed: Vec::new(),
             merc_atomg2_rec: Vec::new(),
             merc_geo_rec: Vec::new(),
             merc_fence_async: Vec::new(),
