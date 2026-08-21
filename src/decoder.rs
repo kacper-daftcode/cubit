@@ -81,8 +81,22 @@ impl DecodeIndex {
     pub fn build(table: &IsaTable) -> Self {
         let mut opcode_map: HashMap<u16, Vec<DecodeCandidate>> = HashMap::new();
 
+        // BUG-068: iterate the table in a *deterministic* order. `table.entries`
+        // is a HashMap with a per-process random iteration order; candidates were
+        // pushed in that order and the stable tie sort below preserved it, so
+        // equal-score ties resolved differently across processes (FSETP.NEU
+        // AND/XOR, FMUL.FTZ 0/0x0/UR0, HFMA2 RZ-imma, IMAD.MOV/ISETP rsd runs).
+        // Sorted (key, mod_group) iteration + the terminal tiebreak make decode
+        // a pure function of (table, word).
+        let mut ordered: Vec<(&String, &_, &String, &_)> = Vec::new();
         for (key, ike) in &table.entries {
             for (mods, mg) in &ike.mod_groups {
+                ordered.push((key, ike, mods, mg));
+            }
+        }
+        ordered.sort_by(|a, b| (a.0, a.2).cmp(&(b.0, b.2)));
+        for (key, _ike, mods, mg) in ordered {
+            {
                 // Use bits [11:0] as opcode key (bits [15:12] are predicate guard, variable)
                 let opcode_lo16 = (mg.and_base & 0x0FFF) as u16;
                 // A declared field occupies OPERAND bits, which are variable by definition.
@@ -369,7 +383,12 @@ impl DecodeIndex {
             // score must still beat any relaxed/prio3 candidate (e.g. 6-op EX XSETP
             // forms scoring 0 would otherwise hijack strict-matching 5-op words).
             // neg_mg_len last: only tiebreaks between same key+popcount
-            let tup = (*priority as i32, is_negative as i32, opaque_penalty, plain_addr_penalty, undiscovered_penalty + bra_p_penalty, unexplained_var, adjusted_len, -score, field_ab_disagree, neg_andbase_in_code, neg_popcount, neg_mg_len);
+            // Terminal total-order tiebreak (BUG-068): (key, mod_group) is
+            // unique per table entry, so the ordering is a pure function of
+            // the table — independent of HashMap iteration order. Numerics
+            // are packed into [i64; 12] to stay under tuple-arity limits.
+            let nums: [i64; 12] = [*priority as i64, is_negative as i64, opaque_penalty as i64, plain_addr_penalty as i64, (undiscovered_penalty + bra_p_penalty) as i64, unexplained_var as i64, adjusted_len as i64, -score as i64, field_ab_disagree as i64, neg_andbase_in_code as i64, neg_popcount as i64, neg_mg_len as i64];
+            let tup = (nums, c.key.clone(), c.mod_group.clone());
             if std::env::var_os("CUBIT_DEBUG_DECODE").is_some() {
                 eprintln!("CAND {:?} prio={:?} tup={:?}", (c.key.clone(), c.mod_group.clone()), priority, tup);
             }
