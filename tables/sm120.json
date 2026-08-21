@@ -18993,7 +18993,7 @@
    "operand_sig": "R_R_II",
    "mod_groups": {
     "": {
-     "and_base": "0x00000000000000003f80000000007421",
+     "and_base": "0x00000000000000000000000000007421",
      "fields": [
       {
        "shift": 16,
@@ -19008,14 +19008,21 @@
        "extraction": "reg"
       },
       {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "f32"
+      },
+      {
        "shift": 122,
        "bits": 1,
        "token_idx": 2,
        "extraction": "reuse"
       }
      ],
-     "variable_mask": "0x1c00000000000300c0000000ffff0000",
-     "count": 150
+     "variable_mask": "0x1c00000000000300ffffffffffff0000",
+     "count": 150,
+     "_evidence": "BUG-071: harvest-artefact repair -- poprzedni wiersz mial zaszyte 1.0f (0x3f800000) w oknie imm (FADD 0x0 emitowal 1.0; FADD z niezerowym imm odrzucany). Ksztalt = vendor word FADD R0,R0,0.5 (ptxas13.3)."
     },
     "FTZ": {
      "and_base": "0x00000000000100000000000000000421",
@@ -19810,9 +19817,10 @@
       },
       {
        "shift": 32,
-       "bits": 4,
+       "bits": 8,
        "token_idx": 3,
-       "extraction": "ureg"
+       "extraction": "ureg",
+       "_evidence": "BUG-071: ureg 4b->8b @[39:32] (narrow-fit: URZ maskowal do UR15); sonda nvdisasm13.3 window sweep"
       },
       {
        "shift": 122,
@@ -19827,7 +19835,7 @@
        "extraction": "reuse"
       }
      ],
-     "variable_mask": "0x1c00000000000300c000000fffff7000",
+     "variable_mask": "0x1c00000000000300c00000ffffff7000",
      "count": 150
     },
     "FTZ": {
@@ -23534,7 +23542,7 @@
      "count": 5
     },
     "FTZ": {
-     "and_base": "0x00000000004100003f000000080c0820",
+     "and_base": "0x00000000004100000000000000007820",
      "fields": [
       {
        "shift": 12,
@@ -23555,14 +23563,21 @@
        "extraction": "reg"
       },
       {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "f32"
+      },
+      {
        "shift": 122,
        "bits": 1,
        "token_idx": 2,
        "extraction": "reuse"
       }
      ],
-     "variable_mask": "0x1c00000000000300c0000000fffff000",
-     "count": 2
+     "variable_mask": "0x1c00000000000300fffffffffffff000",
+     "count": 2,
+     "_evidence": "BUG-071: harvest-artefact repair -- poprzedni wiersz mial zaszyty payload 0.5f (and_base) i brak pola f32 (FMUL.FTZ 0x0 emitowal 0.5f). Ksztalt = vendor ptxas-13.3 sm_120 (FADD/FMUL imm words, work/f2-068/) + FTZ-discriminator bit80; junk bity (18,19,27) wyzerowane."
     },
     "RZ": {
      "and_base": "0x000000000040c0000000000000000820",
@@ -23656,7 +23671,7 @@
      "count": 150
     },
     "FTZ": {
-     "and_base": "0x00000000004100003f000000080c0820",
+     "and_base": "0x00000000004100000000000000007820",
      "fields": [
       {
        "shift": 12,
@@ -23677,14 +23692,21 @@
        "extraction": "reg"
       },
       {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "f32"
+      },
+      {
        "shift": 122,
        "bits": 1,
        "token_idx": 2,
        "extraction": "reuse"
       }
      ],
-     "variable_mask": "0x1c00000000000300c0000000fffff000",
-     "count": 2
+     "variable_mask": "0x1c00000000000300fffffffffffff000",
+     "count": 2,
+     "_evidence": "BUG-071: harvest-artefact repair -- poprzedni wiersz mial zaszyty payload 0.5f (and_base) i brak pola f32 (FMUL.FTZ 0x0 emitowal 0.5f). Ksztalt = vendor ptxas-13.3 sm_120 (FADD/FMUL imm words, work/f2-068/) + FTZ-discriminator bit80; junk bity (18,19,27) wyzerowane."
     },
     "RZ": {
      "and_base": "0x000000000040c0000000000000007820",
@@ -24068,7 +24090,7 @@
      "count": 150
     },
     "FTZ": {
-     "and_base": "0x00000000004100003f000000080c0820",
+     "and_base": "0x00000000084100000000000000007c20",
      "fields": [
       {
        "shift": 12,
@@ -24089,14 +24111,21 @@
        "extraction": "reg"
       },
       {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "ureg"
+      },
+      {
        "shift": 122,
        "bits": 1,
        "token_idx": 2,
        "extraction": "reuse"
       }
      ],
-     "variable_mask": "0x1c00000000000300c0000000fffff000",
-     "count": 2
+     "variable_mask": "0x1c00000000000300c00000fffffff000",
+     "count": 2,
+     "_evidence": "BUG-071: UR FTZ = nie-FTZ UR shape | bit80 (sonda nvdisasm13.3: slowo UR|bit80 renderuje FMUL.FTZ R4, R5, UR6); bit91 sygnatury UR zachowany. Poprzednio: duplikat and_base FI/II FTZ z zaszytym 0.5f, bez pola ureg."
     },
     "RZ": {
      "and_base": "0x000000000040c0003e22f98300000820",

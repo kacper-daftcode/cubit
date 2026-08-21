@@ -30,8 +30,10 @@ const SCHED: u128 = 0xFFFF_FFFFu128 << 96;
 
 static GOLD: &[(u128, &str)] = &[
     // FMUL zero-imm tie (FI "0" vs II "0x0" vs UR "UR0"; 5/4/3 pre-fix)
-    (0x000fcc00004100003f00000005047820u128, "FMUL.FTZ R4, R5, 0"),
-    (0x000fcc00004100003f000000070b0820u128, "@P0 FMUL.FTZ R11, R7, 0"),
+    // Canonical renders after BUG-071's row repair: the junk-window words
+    // genuinely carry 0.5f, which decode now surfaces (deterministic 4/4).
+    (0x000fcc00004100003f00000005047820u128, "FMUL.FTZ R4, R5, 0.5"),
+    (0x000fcc00004100003f000000070b0820u128, "@P0 FMUL.FTZ R11, R7, 0.5"),
     // FSETP.NEU AND vs XOR (+!rsd[75]) tie (4/2 pre-fix)
     (0x000fdc0003f0d200000000020300720bu128, "FSETP.NEU.AND P0, PT, |R3|, R2, PT"),
     // HFMA2 RZ-imma vs R171 tie (4/2 pre-fix)

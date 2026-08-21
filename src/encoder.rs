@@ -147,6 +147,65 @@ fn extraction_accepts(ext: &Extraction, op: &Operand) -> bool {
     }
 }
 
+/// BUG-071: detect harvest-artifact rows that would emit baked junk for a
+/// default-payload operand. `key` is the table key that matched (the sibling
+/// set); `entry` the concrete mod-group entry. Returns Some(reason) when an
+/// operand is default (immediate 0 or URZ) on a token the entry has NO field
+/// for, while a same-key sibling owns an imm/ureg-class field for that token
+/// and this entry's and_base carries non-zero bits inside the sibling window
+/// (that window is genuinely the operand's payload slot).
+fn zero_payload_junk(
+    insn: &Instruction,
+    key: &str,
+    entry: &crate::table::ModGroupEntry,
+    table: &IsaTable,
+) -> Option<String> {
+    // Branch targets (and other fixup-owned payloads) are encoded by
+    // apply_branch_encoding; and_base bits there are placeholders by design.
+    if BRANCH_OPS.iter().any(|&o| insn.opcode == o) {
+        return None;
+    }
+    let ike = table.entries.get(key)?;
+    // Sibling-proven imm/ureg payload windows per token.
+    let mut win: std::collections::HashMap<i32, u128> = std::collections::HashMap::new();
+    for sib in ike.mod_groups.values() {
+        for f in &sib.fields {
+            if f.token_idx <= 0 { continue; }
+            if ext_encodes_imm(&f.extraction) || ext_encodes_ureg(&f.extraction) {
+                let m: u128 = if f.bits >= 128 { u128::MAX }
+                    else { ((1u128 << f.bits) - 1) << f.shift };
+                *win.entry(f.token_idx).or_default() |= m;
+            }
+        }
+    }
+    if win.is_empty() {
+        return None;
+    }
+    for (oi, op) in insn.operands.iter().enumerate() {
+        let tok = (oi + 1) as i32;
+        let Some(w) = win.get(&tok) else { continue };
+        // Only default payloads are at risk (non-zero immediates are rejected by
+        // completeness when no field exists for their token).
+        let is_default = matches!(op,
+            Operand::Imm32(0) | Operand::Imm64(0) | Operand::UReg { is_zero: true, .. });
+        if !is_default {
+            continue;
+        }
+        if entry.fields.iter().any(|f| f.token_idx == tok) {
+            continue; // entry covers the token
+        }
+        let junk = entry.and_base & !(0xFFFFFFFF_u128 << 96) & w;
+        if junk != 0 {
+            return Some(format!(
+                "BUG-071-class: operand {tok} (default payload) has no field in \
+                 this entry, and and_base carries junk bits 0x{junk:x} in the \
+                 sibling-proven payload window; row would emit baked constants \
+                 (harvest artefact — needs a table repair, not assembly)"));
+        }
+    }
+    None
+}
+
 /// True when `ext` can encode a register NUMBER for the operand (not just RZ-ness).
 fn ext_encodes_reg(ext: &Extraction) -> bool {
     matches!(ext, Extraction::Reg | Extraction::RegShr(_)
@@ -856,6 +915,16 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         match table.get(k, mg) {
             Some(e) => match entry_matches_operands(insn, e) {
                 Ok(()) => {
+                    // BUG-071 guard: default-payload operand (imm 0 / URZ) on a
+                    // token the entry has no field for must not ride an entry
+                    // whose and_base carries junk in a sibling-proven imm/ureg
+                    // window for that token (harvest artefact: FADD 0x0 -> 1.0,
+                    // FMUL.FTZ 0x0 -> 0.5, FADD URZ -> UR15). Reject so the
+                    // chain either finds a well-formed sibling or fails loudly.
+                    if let Some(why) = zero_payload_junk(insn, k, e, table) {
+                        attempts.push(format!("({k}, \"{mg}\") REJECTED: {why}"));
+                        continue;
+                    }
                     entry = Some(e);
                     break;
                 }
