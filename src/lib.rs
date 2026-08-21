@@ -34,6 +34,7 @@ pub mod mercury;
 pub mod parser;
 pub mod pred_liveness;
 pub mod ra;
+pub mod render;
 pub mod reg_liveness;
 pub mod printer;
 #[cfg(feature = "python")]

@@ -31,6 +31,12 @@ pub struct KernelDef {
     pub instructions: Vec<Instruction>,
     /// Base address of first instruction (always 0 in a standalone file).
     pub base_addr: u32,
+    /// Label anchors: addr -> label names in source order (may be several per
+    /// addr; includes labels that are NOT branch targets -- metafix/block
+    /// anchors such as `L_8710:`). Kept at kernel level so instruction-level
+    /// passes (ra/sched) neither re-parse text nor lose presence info.
+    /// Populated by the file parser; empty for programmatically built kernels.
+    pub labels: std::collections::BTreeMap<u32, Vec<String>>,
 }
 
 /// A complete parsed .sass file.
@@ -81,12 +87,13 @@ fn parse_sass_file_str_impl(text: &str, strict: bool) -> anyhow::Result<SassFile
             // (emitters without .endentry previously lost all but the last kernel).
             if let Some(prev) = current_name.take() {
                 let body = body_lines.join("\n");
-                let insns = parse_kernel_body_impl(&body, &mut current_res, strict)?;
+                let (insns, labels) = parse_kernel_body_impl(&body, &mut current_res, strict)?;
                 kernels.push(KernelDef {
                     name: prev,
                     resources: current_res.clone(),
                     instructions: insns,
                     base_addr: 0,
+                    labels,
                 });
             }
             let name = rest.trim().to_string();
@@ -101,12 +108,13 @@ fn parse_sass_file_str_impl(text: &str, strict: bool) -> anyhow::Result<SassFile
         if t.starts_with(".endentry") || t.starts_with(".endfunc") {
             if let Some(name) = current_name.take() {
                 let body = body_lines.join("\n");
-                let insns = parse_kernel_body_impl(&body, &mut current_res, strict)?;
+                let (insns, labels) = parse_kernel_body_impl(&body, &mut current_res, strict)?;
                 kernels.push(KernelDef {
                     name,
                     resources: current_res.clone(),
                     instructions: insns,
                     base_addr: 0,
+                    labels,
                 });
             }
             body_lines.clear();
@@ -122,12 +130,13 @@ fn parse_sass_file_str_impl(text: &str, strict: bool) -> anyhow::Result<SassFile
     // If file ended without .endentry, finalize any open kernel
     if let Some(name) = current_name {
         let body = body_lines.join("\n");
-        let insns = parse_kernel_body_impl(&body, &mut current_res, strict)?;
+        let (insns, labels) = parse_kernel_body_impl(&body, &mut current_res, strict)?;
         kernels.push(KernelDef {
             name,
             resources: current_res,
             instructions: insns,
             base_addr: 0,
+            labels,
         });
     }
 
@@ -135,11 +144,15 @@ fn parse_sass_file_str_impl(text: &str, strict: bool) -> anyhow::Result<SassFile
 }
 
 /// Parse the body of a kernel: resource directives + instruction lines + labels.
+///
+/// Returns the resolved instructions plus the label anchor map (addr -> names
+/// in source order). Label presence survives the label->target resolution that
+/// [`resolve_labels`] performs -- the renderer needs it for byte-exact output.
 fn parse_kernel_body_impl(
     body: &str,
     res: &mut KernelResources,
     strict: bool,
-) -> anyhow::Result<Vec<Instruction>> {
+) -> anyhow::Result<(Vec<Instruction>, std::collections::BTreeMap<u32, Vec<String>>)> {
     // Separate directive lines from instruction lines
     let mut instr_text = String::new();
 
@@ -170,7 +183,25 @@ fn parse_kernel_body_impl(
     } else {
         parse_multi_sass(&instr_text, 0)
     };
-    Ok(resolve_labels(stmts, 0))
+    // Anchor every label statement at the address of the NEXT instruction
+    // (labels stack if several precede one instruction). A trailing label with
+    // no following instruction is recorded at end-addr; the renderer is
+    // fail-closed about emitting it (no instruction carries it).
+    let mut labels: std::collections::BTreeMap<u32, Vec<String>> =
+        std::collections::BTreeMap::new();
+    {
+        let mut addr: u32 = 0;
+        for stmt in &stmts {
+            match stmt {
+                crate::parser::Statement::Instruction(_) => addr = addr.wrapping_add(16),
+                crate::parser::Statement::Label(name) => {
+                    labels.entry(addr).or_default().push(name.clone());
+                }
+                crate::parser::Statement::Comment => {}
+            }
+        }
+    }
+    Ok((resolve_labels(stmts, 0), labels))
 }
 
 /// Auto-detect max register from instruction list and update resources.

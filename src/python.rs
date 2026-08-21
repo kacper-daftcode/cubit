@@ -600,6 +600,16 @@ fn ra_apply<'py>(
     Ok((run.out_text, reports))
 }
 
+/// M4.3a: standalone IR -> text renderer (pyo3 entry). Strict parse of
+/// `text`, render from structured IR, structural self-check ALWAYS on (the
+/// python caller never sees unproven text). Returns the rendered text.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn render(text: &str) -> PyResult<String> {
+    crate::render::run_file(text, true)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("render error: {e:#}")))
+}
+
 /// M4.6: windowed list scheduling (pyo3 entry). `plan` /
 /// `cost` are INLINE JSON strings (same schema as the CLI --plan/--cost
 /// files: {"kernels":{"<name>":{"windows":[[s,e),...]}}} and the m9 cost
@@ -681,5 +691,6 @@ fn cubit(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(ra_apply, m)?)?;
     m.add_function(wrap_pyfunction!(sched_run, m)?)?;
     m.add_function(wrap_pyfunction!(sched_apply, m)?)?;
+    m.add_function(wrap_pyfunction!(render, m)?)?;
     Ok(())
 }

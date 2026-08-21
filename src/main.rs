@@ -157,6 +157,26 @@ enum Commands {
         #[arg(long)]
         report: Option<PathBuf>,
     },
+    /// Standalone IR -> SASS text renderer (M4.3a BARRACUDA b1).
+    ///
+    /// Parses the input file (strict) and reprints it from the structured IR
+    /// alone -- no original lines are spliced. On the certified R0b corpus the
+    /// output is byte-identical to the input (gate G14a). `--verify` re-parses
+    /// the rendered text and requires full structural equality with the input
+    /// IR (opcode/guard/operands/ctrl/rsd/labels); a mismatch aborts with rc!=0
+    /// and no output file. Fail-closed: strict parse errors, unrenderable
+    /// operands and unemittted label anchors all stop the run.
+    Render {
+        /// Input .sass file (directive format).
+        input: PathBuf,
+        /// Output .sass file. Omit to print to stdout.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Re-parse the rendered text and require structural equality with the
+        /// input IR before writing/printing.
+        #[arg(long)]
+        verify: bool,
+    },
     /// Patch a cubin: disassemble → re-encode → write patched cubin.
     Patch {
         #[arg(short, long, default_value = "tables/sm120.json")]
@@ -291,6 +311,9 @@ fn main() -> Result<()> {
             output.as_deref(),
             report.as_deref(),
         ),
+        Commands::Render { input, output, verify } => {
+            cmd_render(&input, output.as_deref(), verify)
+        }
         Commands::Patch {
             table,
             records,
@@ -398,6 +421,23 @@ fn cmd_ra(
 /// summary); without -o, run is validation-only and the report (or the
 /// error) is the result. In identity mode the output text is byte-verbatim
 /// input and the report carries the dependency-graph census.
+/// M4.3a: parse (strict) -> render from structured IR -> optional structural
+/// self-check (re-parse equality) -> write. No splicing of original lines.
+fn cmd_render(input: &Path, output: Option<&Path>, verify: bool) -> Result<()> {
+    let text = std::fs::read_to_string(input)
+        .with_context(|| format!("cannot read {}", input.display()))?;
+    let sf = cubit::render::run_file(&text, verify)
+        .with_context(|| format!("render pass failed on {}", input.display()))?;
+    match output {
+        Some(out) => {
+            std::fs::write(out, &sf).with_context(|| format!("cannot write {}", out.display()))?;
+            eprintln!("render: {} -> {}", input.display(), out.display());
+        }
+        None => print!("{sf}"),
+    }
+    Ok(())
+}
+
 fn cmd_sched(
     mode: &str,
     table: &Path,

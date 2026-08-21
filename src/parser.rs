@@ -425,9 +425,14 @@ pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
         });
     }
 
-    // Clean annotations
+    // Clean annotations. Only WHITESPACE-SEPARATED `?tok`/`&tok` markers are
+    // stripped; `?`-chains ATTACHED to the opcode (`UISETP.?GT.?S32.?OR`) are
+    // part of the opcode surface and must survive into opcode_full so the
+    // M4.3a renderer can reprint the line byte-exact (the encoder already
+    // filters '?' parts from table keys in full_key and scrapes their values
+    // from raw_text for opaque fields).
     let text_clean = text.trim().trim_end_matches(';').trim();
-    let text_clean = regex::Regex::new(r"\s*[?&]\S+")
+    let text_clean = regex::Regex::new(r"\s+[?&]\S+")
         .unwrap()
         .replace_all(text_clean, "")
         .to_string();
