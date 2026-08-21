@@ -109,6 +109,9 @@ fn extraction_accepts(ext: &Extraction, op: &Operand) -> bool {
         | ByteSel | HalfSel | OpaqueModifier | OpModFlag(_) | MnemMod(..)
         | UrExpl | UrExplInv | YieldInv | AddrScale | None => true,
 
+        // Float immediates / value-cast float: read the value itself.
+        NegF32 | F32Cast => matches!(op, Operand::FloatImm(_) | Operand::Imm32(_)),
+
         Reg | RegShr(_) => matches!(op,
             Operand::Reg { .. } | Operand::Addr { .. } | Operand::Desc { .. }),
         RegFf => matches!(op, Operand::Reg { .. } | Operand::UReg { .. }),
@@ -161,7 +164,9 @@ fn ext_encodes_imm(ext: &Extraction) -> bool {
         | Extraction::ImmDecU32 | Extraction::F32 | Extraction::F64hi
         | Extraction::SubImm(_) | Extraction::SubImmS24(_) | Extraction::SubImmShr(..)
         | Extraction::Cm16Off | Extraction::Cm17Off
-        | Extraction::F16 | Extraction::F16d | Extraction::BF16)
+        | Extraction::F16 | Extraction::F16d | Extraction::BF16
+        // KAND-058: value-cast f32 payload carrier for float/int-immediates.
+        | Extraction::F32Cast)
 }
 
 /// Validate that a table entry's field extractions are compatible with the
@@ -1301,6 +1306,8 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
             let v = op_neg(insn, field.token_idx);
             if v == 0 { Ok(op_inv(insn, field.token_idx) & mk) } else { Ok(v & mk) }
         }
+        Extraction::NegF32 => Ok(op_neg_f32(insn, field.token_idx) & mk),
+        Extraction::F32Cast => Ok(op_f32_cast(insn, field.token_idx) & mk),
         Extraction::NegShl1 => Ok((op_neg(insn, field.token_idx) << 1) & mk),
         Extraction::Reuse => Ok(op_reuse(insn, field.token_idx) & mk),
         Extraction::Inv => Ok(op_inv(insn, field.token_idx) & mk),
@@ -1566,6 +1573,29 @@ fn op_neg(insn: &Instruction, tok: i32) -> u64 {
     match get_op(insn, tok) {
         Some(Operand::Reg { neg: true, .. }) => 1,
         Some(Operand::UReg { neg: true, .. }) => 1,
+        _ => 0,
+    }
+}
+
+/// KAND-058 (SPARK sm_121a, UFADD.UR imm): hardware mirrors the immediate's
+/// sign in a separate bit (UFADD imm bit2). Reachable only via this new
+/// extraction, so existing rows (Reg/UReg-only `neg`) are unaffected.
+fn op_neg_f32(insn: &Instruction, tok: i32) -> u64 {
+    match get_op(insn, tok) {
+        Some(Operand::FloatImm(v)) => f64::from_bits(*v).is_sign_negative() as u64,
+        Some(Operand::Imm32(v)) => (*v < 0) as u64,
+        _ => 0,
+    }
+}
+
+/// KAND-058: nvdisasm prints integral f32 patterns as decimal-looking ints
+/// (e.g. `UFADD UR7, UR6, -12583039` means f32(-12583039.0) = 0xcb40007f).
+/// This extraction emits the f32 bit pattern of the token VALUE; FloatImm
+/// keeps F32 behavior. Existing rows keep `f32` (raw IEEE bits for Imm32).
+fn op_f32_cast(insn: &Instruction, tok: i32) -> u64 {
+    match get_op(insn, tok) {
+        Some(Operand::FloatImm(v)) => (f64::from_bits(*v) as f32).to_bits() as u64,
+        Some(Operand::Imm32(v)) => ((*v as f32).to_bits() & 0xFFFF_FFFF) as u64,
         _ => 0,
     }
 }

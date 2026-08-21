@@ -65,6 +65,12 @@ pub enum Extraction {
     F32, F16, F16d, F64hi,
     // Flags
     Neg, NegShl1, Reuse, Inv, Abs, NegAbs,
+    /// KAND-058 (SPARK/UFADD): sign mirror for float/immediate tokens -
+    /// FloatImm sign bit, int-looking tokens sign. HW: UFADD imm bit2.
+    NegF32,
+    /// KAND-058: value-cast to f32 (int-looking imm -> f32 of value);
+    /// FloatImm behaves like F32.
+    F32Cast,
     ByteSel,
     // Half-register pair selector parsed from raw text (.H0_H0/.H0_H1/.H1_H1):
     // sm_103a fp16x2-class ops encode it as 2 bits (none=0, H0_H1=1, H0_H0=2,
@@ -139,6 +145,8 @@ fn parse_extraction(s: &str) -> Extraction {
         "f16_d" => Extraction::F16d,
         "f64hi" => Extraction::F64hi,
         "neg" => Extraction::Neg,
+        "neg_f32" => Extraction::NegF32,
+        "f32cast" => Extraction::F32Cast,
         "neg_shl1" => Extraction::NegShl1,
         "reuse" => Extraction::Reuse,
         "inv" => Extraction::Inv,
