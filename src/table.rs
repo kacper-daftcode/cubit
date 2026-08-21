@@ -84,6 +84,11 @@ pub enum Extraction {
     SubR(u8), SubUR(u8), SubImm(u8), SubImmS24(u8),
     // Address sub-parts, bit-shifted (for .64 addresses storing reg/2)
     SubRShr(u8, u8), SubURShr(u8, u8), SubImmShr(u8, u8),
+    /// BUG-070: unsigned scaled sub-offset ("sub_imm{i}_shr{n}u"). Same window
+    /// placement as SubImmShr but no sign extension (STG.256 desc offset is an
+    /// unsigned 16-bit window per nvdisasm-13.3 probes). Encoder is strict:
+    /// negative / sub-granule / overflowing offsets fail closed.
+    SubImmShrU(u8, u8),
     // Constant memory combined
     Cm16Off, Cm17Off,
     // Opaque modifier: decoded as raw value, printed as .modifier text,
@@ -177,6 +182,15 @@ fn parse_extraction(s: &str) -> Extraction {
         "sub_ur1_shr1" => Extraction::SubURShr(1, 1),
         "sub_imm1_shr1" => Extraction::SubImmShr(1, 1),
         "sub_imm2_shr1" => Extraction::SubImmShr(2, 1),
+        s if s.starts_with("sub_imm") && s.contains("_shr") && s.ends_with('u') => {
+            // unsigned variant "sub_imm{i}_shr{n}u" (BUG-070; STG.256 desc off)
+            let body = &s[7..s.len() - 1];
+            if let Some((i, n)) = body.split_once("_shr") {
+                Extraction::SubImmShrU(i.parse().unwrap_or(0), n.parse().unwrap_or(1))
+            } else {
+                Extraction::None
+            }
+        }
         s if s.starts_with("sub_imm") && s.contains("_shr") => {
             // generic "sub_imm{i}_shr{n}" (sm_103a wide-desc offsets scale the
             // immediate; e.g. ENL2.256 desc stores off>>5)

@@ -1334,8 +1334,7 @@ fn format_lds_scaled_addr(fields: &[&DecodedField]) -> String {
             "reg" | "sub_r0" | "sub_r1" => { if base.is_none() { base = Some(f.value); } }
             "addr_scale" => scale = f.value,
             s if s.starts_with("sub_imm") => {
-                let sh = parse_shr_suffix(s);
-                off |= sign_extend(f.value, f.bits) << sh;
+                off |= sub_imm_off(s, f.value, f.bits);
                 has_off = true;
             }
             "imm" => { off = f.value as i64; has_off = true; }
@@ -1372,8 +1371,7 @@ fn format_addr(fields: &[&DecodedField], raw: u128) -> String {
             "sub_ur0_shr1" | "sub_ur1_shr1"   => ur_reg = Some(f.value << 1),
             "sub_ur0" | "sub_ur1" | "ureg"    => ur_reg = Some(f.value),
             s if s.starts_with("sub_imm") => {
-                let shift = parse_shr_suffix(s);
-                offset |= sign_extend(f.value, f.bits) << shift;
+                offset |= sub_imm_off(s, f.value, f.bits);
                 has_offset = true;
             }
             "imm" => { offset = f.value as i64; has_offset = true; }
@@ -1493,8 +1491,7 @@ fn format_auri_uronly(fields: &[&DecodedField], raw: u128) -> String {
                 { ur = Some(f.value); ur_wide = f.bits >= 8; }
             "sub_ur0_shr1" | "sub_ur1_shr1" => ur = Some(f.value << 1),
             s if s.starts_with("sub_imm") => {
-                let sh = parse_shr_suffix(s);
-                offset |= sign_extend(f.value, f.bits) << sh;
+                offset |= sub_imm_off(s, f.value, f.bits);
                 has_off_from_field = true;
             }
             "imm" if f.bits >= 8 => {
@@ -1541,8 +1538,7 @@ fn format_aruri(fields: &[&DecodedField], raw: u128) -> String {
             "sub_ur0" | "sub_ur1" | "ureg" | "desc_ur"  => ur_reg = Some(f.value),
             "sub_ur0_shr1" | "sub_ur1_shr1"    => ur_reg = Some(f.value << 1),
             s if s.starts_with("sub_imm") => {
-                let shift = parse_shr_suffix(s);
-                offset |= sign_extend(f.value, f.bits) << shift;
+                offset |= sub_imm_off(s, f.value, f.bits);
                 has_off = true;
             }
             // Plain imm field in ARURI = address offset (large signed value)
@@ -1600,8 +1596,7 @@ fn format_sts_lds_addr(fields: &[&DecodedField], raw: u128) -> String {
             "sub_ur0" | "sub_ur1" | "ureg"  => { ur_reg = Some(f.value); ur_wide = f.bits >= 8; }
             "sub_ur0_shr1" | "sub_ur1_shr1" => ur_reg = Some(f.value << 1),
             s if s.starts_with("sub_imm") => {
-                let shift = parse_shr_suffix(s);
-                offset |= sign_extend(f.value, f.bits) << shift;
+                offset |= sub_imm_off(s, f.value, f.bits);
                 has_off = true;
             }
             "imm" if f.bits >= 8 => {
@@ -1996,6 +1991,23 @@ fn parse_shr_suffix(s: &str) -> u32 {
     } else {
         0
     }
+}
+
+/// sub_imm* field -> address-offset contribution. `_shr{n}u` marks the
+/// unsigned scaled window (BUG-070: STG.256 desc offset is an unsigned
+/// 16-bit field per nvdisasm-13.3 oracle) — no sign extension; every other
+/// sub_imm variant keeps sign-extending from its top bit.
+fn sub_imm_off(s: &str, value: u64, bits: u32) -> i64 {
+    let unsigned = s.ends_with('u') && s.contains("_shr");
+    let sh = parse_shr_suffix(s.strip_suffix('u').unwrap_or(s));
+    let v = if unsigned { value as i64 } else { sign_extend(value, bits) };
+    v << sh
+}
+
+/// Public sign-extension for the encoder's scaled-window validation (BUG-070
+/// fail-closed checks reuse the decoder's sign model verbatim).
+pub fn sign_extend_pub(val: u64, bits: u32) -> i64 {
+    sign_extend(val, bits)
 }
 
 fn sign_extend(val: u64, bits: u32) -> i64 {

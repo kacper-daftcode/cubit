@@ -124,6 +124,7 @@ impl DecodeIndex {
                         | crate::table::Extraction::SubRShr(_, _)
                         | crate::table::Extraction::SubURShr(_, _)
                         | crate::table::Extraction::SubImmShr(_, _)
+                        | crate::table::Extraction::SubImmShrU(_, _)
                         );
                     if is_imm {
                         let fm: u128 = if f.bits >= 128 { u128::MAX }
@@ -837,6 +838,7 @@ fn extraction_name(e: &Extraction) -> String {
         Extraction::SubRShr(n, s) => format!("sub_r{n}_shr{s}"),
         Extraction::SubURShr(n, s) => format!("sub_ur{n}_shr{s}"),
         Extraction::SubImmShr(n, s) => format!("sub_imm{n}_shr{s}"),
+        Extraction::SubImmShrU(n, s) => format!("sub_imm{n}_shr{s}u"),
         Extraction::SubImmS24(n) => format!("sub_imm{n}_s24"),
         Extraction::OpaqueModifier => "opaque_mod".into(),
         Extraction::OpModFlag(n) => format!("opmod:{n}"),

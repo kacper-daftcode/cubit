@@ -141,7 +141,7 @@ fn extraction_accepts(ext: &Extraction, op: &Operand) -> bool {
             matches!(op, Operand::SysReg(_)),
 
         SubR(_) | SubRShr(..) | SubUR(_) | SubURShr(..) | SubURm1(_)
-        | SubImm(_) | SubImmS24(_) | SubImmShr(..) => matches!(op,
+        | SubImm(_) | SubImmS24(_) | SubImmShr(..) | SubImmShrU(..) => matches!(op,
             Operand::Addr { .. } | Operand::Desc { .. } | Operand::ConstMem { .. }),
         Cm16Off | Cm17Off => matches!(op, Operand::ConstMem { .. }),
     }
@@ -163,6 +163,7 @@ fn ext_encodes_imm(ext: &Extraction) -> bool {
     matches!(ext, Extraction::Imm | Extraction::ImmShr(_) | Extraction::ImmDec
         | Extraction::ImmDecU32 | Extraction::F32 | Extraction::F64hi
         | Extraction::SubImm(_) | Extraction::SubImmS24(_) | Extraction::SubImmShr(..)
+        | Extraction::SubImmShrU(..)
         | Extraction::Cm16Off | Extraction::Cm17Off
         | Extraction::F16 | Extraction::F16d | Extraction::BF16
         // KAND-058: value-cast f32 payload carrier for float/int-immediates.
@@ -1421,7 +1422,38 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
         // Address sub-parts, bit-shifted (for .64 addresses storing reg/2)
         Extraction::SubRShr(i, n) => Ok((op_sub_reg(insn, field.token_idx, *i) >> n) & mk),
         Extraction::SubURShr(i, n) => Ok((op_sub_ureg(insn, field.token_idx, *i) >> n) & mk),
-        Extraction::SubImmShr(i, n) => Ok((op_sub_imm(insn, field.token_idx, *i) >> n) & mk),
+        Extraction::SubImmShr(i, n) => {
+            let imm = op_sub_imm(insn, field.token_idx, *i) as i64;
+            let gran = 1i64 << n;
+            // Fail closed instead of silently wrapping (BUG-070 class): the
+            // window is signed-offset, so the value must round-trip through
+            // sign-extend(bits) << n and be a granule multiple.
+            let shrunk = imm >> n;
+            if imm % gran != 0 || (shrunk << n) != imm
+                || crate::printer::sign_extend_pub(shrunk as u64, field.bits) != shrunk {
+                return Err(anyhow::anyhow!(
+                    "operand {} offset {imm:#x} not encodable in scaled \
+                     (>>{n}) signed {}-bit desc window",
+                    field.token_idx, field.bits));
+            }
+            Ok((shrunk as u64) & mk)
+        }
+        Extraction::SubImmShrU(i, n) => {
+            // BUG-070: unsigned scaled offset window (STG.256 desc). Any of
+            // negative / sub-granule / out-of-window was silently truncated
+            // by `& mk` (+0x20 -> -0x20, +0x40.. -> 0); fail closed (loud
+            // `cubit asm` failure per BUG-043).
+            let imm = op_sub_imm(insn, field.token_idx, *i) as i64;
+            let gran = 1i64 << n;
+            if imm < 0 || imm % gran != 0 || (imm >> n) as u64 > mk {
+                return Err(anyhow::anyhow!(
+                    "operand {} offset {imm:#x} not encodable in scaled \
+                     (>>{n}) unsigned {}-bit desc window (0 <= imm <= {:#x}, \
+                     multiple of {gran:#x})",
+                    field.token_idx, field.bits, (mk as i64) << n));
+            }
+            Ok(((imm >> n) as u64) & mk)
+        }
 
         // Constant memory
         Extraction::Cm16Off => Ok(op_cm_off(insn, field.token_idx, 16) & mk),

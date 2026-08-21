@@ -50705,9 +50705,16 @@
    "operand_sig": "dARI_R_R",
    "mod_groups": {
     "256,E,ENL2": {
-     "and_base": "0x0001e0000f121814f80000000000797f",
-     "variable_mask": "0x00020e0000000002000001ff3eff0000",
+     "and_base": "0x0001e0000f121814f80000000000097f",
+     "variable_mask": "0x00020e000000000200ffffff3efff000",
      "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "bug070-oracle"
+      },
       {
        "shift": 64,
        "bits": 9,
@@ -50724,10 +50731,10 @@
       },
       {
        "shift": 40,
-       "bits": 1,
+       "bits": 16,
        "token_idx": 1,
-       "extraction": "sub_imm2_shr5",
-       "_src": "2aE"
+       "extraction": "sub_imm2_shr5u",
+       "_src": "bug070-oracle"
       },
       {
        "shift": 32,
@@ -50744,7 +50751,8 @@
        "_src": "2aE"
       }
      ],
-     "count": 23
+     "count": 23,
+     "_evidence": "b4fill2 row repaired BUG-070: imm = unsigned 16b window @[55:40] (off=win<<5), guard @[15:12] -- nvdisasm13.3 sm103 byte-probes (results/cubitfix/070/); sibling-parity geometry"
     },
     "256,E,EL,ELL2,GPU,STRONG": {
      "and_base": "0x0009e0000f24e000f80000000000097f",
@@ -50774,7 +50782,7 @@
        "shift": 40,
        "bits": 16,
        "token_idx": 1,
-       "extraction": "sub_imm2_shr5",
+       "extraction": "sub_imm2_shr5u",
        "_src": "b4fill-2026-08-21"
       },
       {
@@ -50823,7 +50831,7 @@
        "shift": 40,
        "bits": 16,
        "token_idx": 1,
-       "extraction": "sub_imm2_shr5",
+       "extraction": "sub_imm2_shr5u",
        "_src": "b4fill-2026-08-21"
       },
       {
@@ -50872,7 +50880,7 @@
        "shift": 40,
        "bits": 16,
        "token_idx": 1,
-       "extraction": "sub_imm2_shr5",
+       "extraction": "sub_imm2_shr5u",
        "_src": "b4fill-2026-08-21"
       },
       {
@@ -50921,7 +50929,7 @@
        "shift": 40,
        "bits": 16,
        "token_idx": 1,
-       "extraction": "sub_imm2_shr5",
+       "extraction": "sub_imm2_shr5u",
        "_src": "b4fill-2026-08-21"
       },
       {
