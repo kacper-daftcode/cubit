@@ -863,6 +863,52 @@ fn check_stg_desc_pair_parity_sm103(insn: &Instruction, table: &IsaTable) -> Res
     Ok(())
 }
 
+/// BUG-077 (silicon, B300/sm_103a): LDG desc-form with a 64-bit address
+/// pair (desc[URm][Rn.64]) requires an EVEN pair base Rn for every class
+/// whose addressing mode is the true register pair (encoded word bit84=1).
+/// krunp probe matrix 2026-08-22 (idle windows; records in
+/// results/cubitfix/077/): odd base -> CUDA_ERROR_ILLEGAL_INSTRUCTION
+/// (pre-memory stage), even base -> executes.
+///   odd trap (deterministic or flaky-by-epoch, F2Q-066 flaky=poison
+///   policy): LDG.E 4/8 II, LDG.E.64 7/8, LDG.E.128 7/8, LDG.E.STRONG.GPU
+///   5/6, LDG.E.EF 5/6, LDG.E.U16 5/6, LDG.E.256.ENL2 8/8 this window
+///   (066-kand already showed ~50/80 flaky II for ENL2-load odd).
+///   odd executes (exempt): LTC128B class (0/7 II; era corpus carries 69
+///   such words), ELL2 256 (066: 20/20 both parities), EFL2 256
+///   (BUG-060: odd base REQUIRED there -- the even side already fails
+///   closed under check_efl2_addr_parity_sm103).
+/// Untested sub-classes (CONSTANT/SM/SYS/S8/U8/EL.ENL2-load) are guarded
+/// by the default rule: every tested non-exempt class traps; the exemptions
+/// are exactly the classes with silicon counter-evidence. LDGSTS combos
+/// carry LTC128B and ride the same exemption. Era corpus (rt98_ref.s103):
+/// odd desc-LDG = 69 LTC128B + 3 ELL2, zero trap-class words -> expected
+/// encoder-census delta = 0. Decode untouched.
+fn check_ldg_desc_pair_parity_sm103(insn: &Instruction, table: &IsaTable) -> Result<()> {
+    if insn.opcode != "LDG" {
+        return Ok(());
+    }
+    if table.target_sm() != 103 {
+        return Ok(());
+    }
+    let mods = crate::table::extract_mod_group(&insn.raw_text);
+    // Evidenced exemptions (silicon): LTC128B/ELL2 execute odd bases;
+    // EFL2 REQUIRES odd (BUG-060 reverse-polarity guard covers the even side).
+    const EXEMPT: [&str; 3] = ["LTC128B", "ELL2", "EFL2"];
+    if mods.split(',').any(|m| EXEMPT.contains(&m)) {
+        return Ok(());
+    }
+    for op in &insn.operands {
+        if let Operand::Desc { base_reg: Some(r), base_reg_suffix: Some(sfx), .. } = op {
+            if sfx == "64" && r % 2 == 1 {
+                anyhow::bail!(
+                    "LDG desc-form address pair R{}.64 has an ODD base -- SILICON-ILLEGAL on sm_103a                     (BUG-077; B300 krunp matrix 2026-08-22 + F2Q-066: odd base ->                     CUDA_ERROR_ILLEGAL_INSTRUCTION before the memory stage for the true-pair desc                     classes E/64/128/STRONG/EF/U16/ENL2-256; even base executes. Only LTC128B / ELL2                     classes tolerate odd, and EFL2.256 REQUIRES odd under BUG-060 -- the polarity is                     class-specific, not universal; renumber the address pair to an even base (RA pin)                     instead of assembling the odd-base word; decode stays full-fidelity for RE."
+                , r);
+            }
+        }
+    }
+    Ok(())
+}
+
 fn check_imnmx_sm103_erratum(insn: &Instruction, table: &IsaTable) -> Result<()> {
     if insn.opcode != "IMNMX" {
         return Ok(());
@@ -891,6 +937,7 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         check_imnmx_sm103_erratum(insn, table)?;
         check_efl2_addr_parity_sm103(insn, table)?;
         check_stg_desc_pair_parity_sm103(insn, table)?;
+        check_ldg_desc_pair_parity_sm103(insn, table)?;
     }
     let mod_group = crate::table::extract_mod_group(&insn.raw_text);
 
