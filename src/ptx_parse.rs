@@ -192,6 +192,30 @@ fn parse_operand(s: &str, reg_decls: &HashMap<String, String>, params: &[PtxPara
     }
 
     // Hex immediate
+    // PTX float literals: 0fXXXXXXXX (f32 raw bits) / 0dXXXXXXXXXXXXXXXX (f64),
+    // optional leading '-'. MUST run before the label fallback -- nvcc folds
+    // constants into arithmetic (`fma.rn.f32 %f, %f, 0f3F000000, 0f3E99999A`)
+    // and those would otherwise parse as *labels* (all-alnum) with no error.
+    {
+        let neg = s.starts_with('-');
+        let body = s.trim_start_matches('-');
+        let (pref, digits) = if body.starts_with("0f") || body.starts_with("0F") { ("f", &body[2..]) }
+            else if body.starts_with("0d") || body.starts_with("0D") { ("d", &body[2..]) }
+            else { ("", "") };
+        if pref == "f" && digits.len() == 8 && digits.bytes().all(|b| b.is_ascii_hexdigit()) {
+            if let Ok(bits) = u32::from_str_radix(digits, 16) {
+                let v = f32::from_bits(bits) as f64;
+                return PtxOperand::FloatImm(if neg { -v } else { v });
+            }
+        }
+        if pref == "d" && digits.len() == 16 && digits.bytes().all(|b| b.is_ascii_hexdigit()) {
+            if let Ok(bits) = u64::from_str_radix(digits, 16) {
+                let v = f64::from_bits(bits);
+                return PtxOperand::FloatImm(if neg { -v } else { v });
+            }
+        }
+    }
+
     if s.starts_with("0x") || s.starts_with("0X") || s.starts_with("-0x") || s.starts_with("-0X") {
         if let Some(v) = parse_int_literal(s) {
             return PtxOperand::IntImm(v);
@@ -216,11 +240,16 @@ fn parse_operand(s: &str, reg_decls: &HashMap<String, String>, params: &[PtxPara
     }
 
     // Could be a label
-    if s.chars().all(|c| c.is_alphanumeric() || c == '_') {
+    if is_ptx_label_name(s) {
         return PtxOperand::Label(s.to_string());
     }
 
     PtxOperand::Reg(s.to_string())
+}
+
+/// nvcc label syntax: `$L__BB0_2`, plus plain identifier labels.
+fn is_ptx_label_name(s: &str) -> bool {
+    s.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '$')
 }
 
 fn parse_int_literal(s: &str) -> Option<i64> {
@@ -368,7 +397,7 @@ pub fn parse_ptx(text: &str) -> Result<Vec<PtxKernel>> {
                 // Label?
                 if let Some(colon) = s.find(':') {
                     let label = s[..colon].trim();
-                    if !label.is_empty() && label.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                    if !label.is_empty() && is_ptx_label_name(label) {
                         body.push(PtxStmt::Label(label.to_string()));
                         let rest = s[colon+1..].trim();
                         if !rest.is_empty() {
@@ -411,12 +440,34 @@ fn extract_entry_name(line: &str) -> Option<String> {
 }
 
 fn collect_params(line: &str, params: &mut Vec<PtxParam>) {
-    let re = regex::Regex::new(r"\.param\s+\.(\w+)\s+(\w+)").unwrap();
-    for cap in re.captures_iter(line) {
-        let ty = cap[1].to_string();
-        let name = cap[2].to_string();
-        let size = ptx_type_size(&ty);
-        params.push(PtxParam { name, ty, size, offset: 0 });
+    // b9 phase-1: token-robust param scan. A param decl looks like
+    // `.param .u64 .ptr .align 1 name` (attributes between type and name;
+    // name is the LAST word token, possibly with an `[N]` array suffix).
+    // b8 phase-0 regression note: regex-first parsing silently dropped
+    // attributed params (u64 pointers!), which then fell back to offset
+    // 0x160 in the lowerer.
+    const KNOWN_TY: &[&str] = &[
+        "pred", "b8", "b16", "b32", "b64", "s8", "s16", "s32", "s64",
+        "u8", "u16", "u32", "u64", "f16", "f32", "f64",
+    ];
+    let mut rest = line;
+    while let Some(idx) = rest.find(".param") {
+        rest = &rest[idx + 6..];
+        let end = rest.find([',', ')']).unwrap_or(rest.len());
+        let decl = &rest[..end];
+        let toks: Vec<&str> = decl.split_whitespace().collect();
+        let ty = toks.iter().find_map(|t| {
+            let t = t.trim_start_matches('.');
+            if KNOWN_TY.contains(&t) { Some(t.to_string()) } else { None }
+        });
+        let name = toks.last().map(|t| t.split('[').next().unwrap_or("").to_string());
+        if let (Some(ty), Some(name)) = (ty, name) {
+            if !name.is_empty() {
+                let size = ptx_type_size(&ty);
+                params.push(PtxParam { name, ty, size, offset: 0 });
+            }
+        }
+        rest = &rest[end.min(rest.len())..];
     }
 }
 

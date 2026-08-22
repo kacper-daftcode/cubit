@@ -24,6 +24,7 @@ struct RegAlloc {
     free_gprs: Vec<u8>,
     free_pairs: Vec<u8>,   // even-aligned pairs
     free_quads: Vec<u8>,   // 4-aligned quads
+    free_preds: Vec<u8>,   // b9 phase-1: dead-predicate reuse pool
 }
 
 impl RegAlloc {
@@ -37,6 +38,7 @@ impl RegAlloc {
             free_gprs: Vec::new(),
             free_pairs: Vec::new(),
             free_quads: Vec::new(),
+            free_preds: Vec::new(),
         }
     }
 
@@ -71,10 +73,26 @@ impl RegAlloc {
 
     fn pred(&mut self, name: &str) -> u8 {
         if let Some(&p) = self.pred_map.get(name) { return p; }
+        // b9 phase-1: SASS has P0..P6. Reuse slots whose PTX pred is dead
+        // (last-use sweep in lower_kernel); fail-closed when truly exhausted
+        // instead of emitting P8+ (the asm layer rejects them per BUG-004).
+        if let Some(p) = self.free_preds.pop() {
+            self.pred_map.insert(name.to_string(), p);
+            return p;
+        }
+        if self.next_pred >= 7 {
+            panic!("ptx_lower: predicate space exhausted (P0..P6); kernel needs live-range-aware allocation");
+        }
         let p = self.next_pred;
         self.next_pred += 1;
         self.pred_map.insert(name.to_string(), p);
         p
+    }
+
+    fn free_pred(&mut self, name: &str) {
+        if let Some(p) = self.pred_map.remove(name) {
+            self.free_preds.push(p);
+        }
     }
 
     fn is_64bit(&self, name: &str) -> bool {
@@ -121,7 +139,18 @@ fn sreg_sass_name(ptx_name: &str) -> &'static str {
     }
 }
 
-// ── Operand conversion ───────────────────────────────────────────────────────
+// ── Label sanitization ───────────────────────────────────────────────────
+
+/// cubit's SASS parser accepts `[A-Za-z0-9_]` in label names only. nvcc emits
+/// `$L__BB0_2` style labels. Map deterministically: `$` -> `D` (dollar),
+/// every other accepted char passes through. Injective for nvcc output
+/// (plain `D`-prefixed BB labels are not emitted by nvcc); collisions are
+/// detected fail-closed at label-table construction.
+pub fn sass_label(name: &str) -> String {
+    name.chars().map(|c| if c == '$' { 'D' } else { c }).collect()
+}
+
+// ── Operand conversion ───────────────────────────────────────────────────
 
 fn ptx_op_to_sass(op: &PtxOperand, alloc: &mut RegAlloc, neg: bool) -> Operand {
     match op {
@@ -142,7 +171,7 @@ fn ptx_op_to_sass(op: &PtxOperand, alloc: &mut RegAlloc, neg: bool) -> Operand {
             let base_reg = alloc.resolve(base);
             Operand::Addr { base_reg: Some(base_reg), base_reg_suffix: None, ur_reg: None, offset: *offset }
         }
-        PtxOperand::Label(s) => Operand::Label(s.clone()),
+        PtxOperand::Label(s) => Operand::Label(sass_label(s)),
         PtxOperand::RegGroup(regs) => {
             let first = if regs.len() == 4 {
                 let base = alloc.gpr_quad(&regs[0]);
@@ -194,6 +223,21 @@ fn operand_to_sass(op: &Operand) -> String {
             if *v < 0 { format!("-0x{:x}", -v) }
             else { format!("0x{:x}", v) }
         }
+        Operand::FloatImm(bits) => {
+            // b9 phase-1: cubit's parser accepts f32 raw bits as `0x%08xF`.
+            // Use that form whenever the value is exactly f32-representable
+            // (bit-exact doctrine); otherwise emit a roundtrip decimal
+            // (f64 Display is shortest-roundtrip; ensure a float-typed token).
+            let v = f64::from_bits(*bits);
+            let f = v as f32;
+            if f as f64 == v {
+                format!("0x{:08x}F", f.to_bits())
+            } else {
+                let d = format!("{}", v);
+                if d.contains('.') || d.contains('e') || d.contains("inf") || d.contains("NaN") { d }
+                else { format!("{}.0", d) }
+            }
+        }
         Operand::Addr { base_reg, offset, .. } => {
             let base = base_reg.map_or("RZ".to_string(), |r| format!("R{}", r));
             if *offset != 0 { format!("[{}+0x{:x}]", base, offset) }
@@ -240,12 +284,13 @@ fn make_insn(addr: u32, opcode_full: &str, operands: Vec<Operand>, guard: Option
         addr, opcode: base_opcode, opcode_full: opcode_full.to_string(),
         key: String::new(), // cubit's parser will regenerate this
         guard, operands, modifiers,
-        ctrl: ControlCode::default(), hand_sched: false, raw_text,
+        ctrl: ControlCode::default(), hand_sched: false, rsd: None, raw_text,
     }
 }
 
 // ── Main lowering entry point ────────────────────────────────────────────────
 
+#[derive(Debug)]
 pub struct LoweredKernel {
     pub name: String,
     pub instructions: Vec<Instruction>,
@@ -286,18 +331,47 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
 
     // Label → address mapping (two-pass for forward branches)
     let mut label_addrs: HashMap<String, u32> = HashMap::new();
+    // sanitized -> original, fail-closed on collisions (b9 phase-1 doctrine)
+    let mut label_names: HashMap<String, String> = HashMap::new();
 
     // First pass: estimate addresses for labels
     let mut est_addr: u32 = 0;
     for stmt in &kernel.body {
         match stmt {
-            PtxStmt::Label(name) => { label_addrs.insert(name.clone(), est_addr); }
+            PtxStmt::Label(name) => {
+                let san = sass_label(name);
+                if let Some(prev) = label_names.get(&san) {
+                    if prev != name {
+                        anyhow::bail!("ptx label sanitization collision: {:?} and {:?} both -> {:?}", prev, name, san);
+                    }
+                }
+                label_names.insert(san, name.clone());
+                label_addrs.insert(name.clone(), est_addr);
+            }
             PtxStmt::Insn(insn) => {
                 let expansion_count = estimate_expansion_size(&insn.opcode);
                 est_addr += expansion_count * 16;
             }
         }
     }
+
+    // Unsupported opcodes collected across the whole body, reported as ONE
+    // hard error with the complete list (census-grade output, zero silent skips).
+    let mut unsupported: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+
+    // b9 phase-1: predicate last-use sweep (SSA-style nvcc output makes this
+    // exact; textual last use is also sound under later redefinition, since a
+    // redefining setp simply allocates a fresh slot afterwards).
+    let mut pred_last_use: HashMap<String, usize> = HashMap::new();
+    for (si, stmt) in kernel.body.iter().enumerate() {
+        if let PtxStmt::Insn(insn) = stmt {
+            if let Some(g) = &insn.guard_pred { pred_last_use.insert(g.clone(), si); }
+            for op in &insn.operands {
+                if let PtxOperand::Pred(name) = op { pred_last_use.insert(name.clone(), si); }
+            }
+        }
+    }
+    let mut dead_preds: Vec<String> = Vec::new();
 
     // Convert guard
     fn lower_guard(insn: &PtxInsn, alloc: &mut RegAlloc) -> Option<Guard> {
@@ -367,7 +441,7 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
     });
 
     // Second pass: emit instructions
-    for stmt in &kernel.body {
+    for (si, stmt) in kernel.body.iter().enumerate() {
         match stmt {
             PtxStmt::Label(name) => {
                 // Emit label for cubit's label resolution
@@ -375,8 +449,8 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                     addr, opcode: String::new(), opcode_full: String::new(),
                     key: String::new(), guard: None, operands: vec![],
                     modifiers: vec![], ctrl: crate::ir::ControlCode::default(),
-                    hand_sched: false,
-                    raw_text: format!("{}:", name),
+                    hand_sched: false, rsd: None,
+                    raw_text: format!("{}:", sass_label(name)),
                 });
                 // Labels don't consume address space
             }
@@ -422,7 +496,7 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                         }
 
                         SassTemplate::SpecialRegMov => {
-                            let i = lower_mov_or_sreg(addr, insn, &mut alloc, guard);
+                            let i = lower_mov_or_sreg(addr, insn, &mut alloc, guard)?;
                             let n = i.len() as u32;
                             insns.extend(i);
                             addr += n * 16;
@@ -473,15 +547,123 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                             addr += 16;
                         }
 
+                        SassTemplate::MulWide { unsigned } => {
+                            // mul.wide.s32/u32 %rd, %rA, B -> IMAD.WIDE[.U32] Rdp, Ra, B, RZ
+                            let d = insn.operands.get(0).ok_or_else(|| anyhow::anyhow!("mul.wide: missing dst"))?;
+                            let a = insn.operands.get(1).ok_or_else(|| anyhow::anyhow!("mul.wide: missing srcA"))?;
+                            let b_op = insn.operands.get(2).ok_or_else(|| anyhow::anyhow!("mul.wide: missing srcB"))?;
+                            let (d_lo, _) = match d {
+                                PtxOperand::Reg(name) => alloc.gpr_pair(name),
+                                _ => anyhow::bail!("mul.wide: dst must be a register, got {:?}", d),
+                            };
+                            let sa = match a {
+                                PtxOperand::Reg(name) if !alloc.is_64bit(name) =>
+                                    Operand::Reg { num: alloc.resolve(name), neg: false, abs: false, inv: false, reuse: false },
+                                PtxOperand::IntImm(v) => Operand::Imm32(*v),
+                                _ => anyhow::bail!("mul.wide: srcA must be a 32-bit register or imm, got {:?}", a),
+                            };
+                            let sb = match b_op {
+                                PtxOperand::Reg(name) if !alloc.is_64bit(name) =>
+                                    Operand::Reg { num: alloc.resolve(name), neg: false, abs: false, inv: false, reuse: false },
+                                PtxOperand::IntImm(v) => Operand::Imm32(*v),
+                                _ => anyhow::bail!("mul.wide: srcB must be a 32-bit register or imm, got {:?}", b_op),
+                            };
+                            let opf = if *unsigned { "IMAD.WIDE.U32" } else { "IMAD.WIDE" };
+                            insns.push(make_insn(addr, opf, vec![op_reg(d_lo), sa, sb, op_rz()], guard));
+                            addr += 16;
+                        }
+
+                        SassTemplate::AliasPair => {
+                            // cvta.to.global.u64 %rdD, %rdS: same VA on SM103a/120 —
+                            // unify the dst pair with the src pair, emit no code.
+                            match (insn.operands.get(0), insn.operands.get(1)) {
+                                (Some(PtxOperand::Reg(d)), Some(PtxOperand::Reg(src)))
+                                    if alloc.is_64bit(d) && alloc.is_64bit(src) =>
+                                {
+                                    let (lo, _) = alloc.gpr_pair(src);
+                                    alloc.gpr_map.insert(d.clone(), lo);
+                                }
+                                other => anyhow::bail!("cvta.to.global: expected (reg64, reg64), got {:?}", other),
+                            }
+                        }
+
                         SassTemplate::Nop => {
-                            // cvta.to.global — NOP on SM120
+                            // generic no-op lowering (kept for legacy rules)
                         }
                     }
                 } else {
-                    eprintln!("WARNING: unsupported PTX: {}", insn.opcode);
+                    // b9 phase-1 (doctrine fail-closed): never skip silently.
+                    unsupported.insert(insn.opcode.clone());
                 }
             }
         }
+
+        // free predicates whose last use is this statement (phase-1 sweep)
+        for (name, &lu) in pred_last_use.iter() {
+            if lu == si { dead_preds.push(name.clone()); }
+        }
+        for name in dead_preds.drain(..) { alloc.free_pred(&name); }
+    }
+
+    // b9 phase-1: immediate legalization. ISA arith forms carry at most ONE
+    // immediate slot; nvcc folds constants into PTX arith (mad.lo with two
+    // literals etc.). Policy mirrors ptxas (anchor: k2 probe): keep the LAST
+    // immediate in place, materialize every earlier one with a MOV. Applied
+    // to the contained arith set only -- LOP3.LUT legitimately carries a data
+    // imm + LUT immediate, so blanket imm-counting is unsound.
+    const IMM_LEGALIZE_OPS: &[&str] = &["IMAD", "IMAD.HI", "FFMA", "FMUL", "FADD", "SEL"];
+    {
+        let mut hoisted: Vec<(usize, Instruction)> = Vec::new();
+        let mut fixn = 0usize;
+        for (idx, insn) in insns.iter_mut().enumerate() {
+            if !IMM_LEGALIZE_OPS.contains(&insn.opcode.as_str()) { continue; }
+            if insn.guard.is_some() && insn.opcode.starts_with("LDC") { continue; }
+            let imm_pos: Vec<usize> = insn.operands.iter().enumerate()
+                .filter(|(_, o)| matches!(o, Operand::Imm32(_) | Operand::FloatImm(_)))
+                .map(|(i, _)| i).collect();
+            if imm_pos.len() <= 1 { continue; }
+            let keep = *imm_pos.last().unwrap();
+            for &pos in imm_pos.iter().take_while(|&&p| p != keep) {
+                let tmp = alloc.gpr(&format!("__immfix_{}", fixn));
+                fixn += 1;
+                let imm_op = insn.operands[pos].clone();
+                insn.operands[pos] = Operand::Reg { num: tmp, neg: false, abs: false, inv: false, reuse: false };
+                // Float constants materialize the ptxas way: raw f32 bits as an
+                // integer immediate via IMAD.MOV.U32 (anchor: k2 vendor probe).
+                // No MOV_R_FI form exists in the tables (observed fail-closed).
+                let mat = match &imm_op {
+                    Operand::FloatImm(bits) => {
+                        let v = f64::from_bits(*bits);
+                        let f = v as f32;
+                        if f as f64 != v {
+                            anyhow::bail!(
+                                "imm legalization: f64 literal {} needs 64-bit materialization (unsupported in phase-1)", v);
+                        }
+                        make_insn(0, "IMAD.MOV.U32",
+                            vec![op_reg(tmp), op_rz(), op_rz(), Operand::Imm32(f.to_bits() as i64)], None)
+                    }
+                    Operand::Imm32(_) => make_insn(0, "MOV", vec![op_reg(tmp), imm_op.clone()], None),
+                    _ => unreachable!(),
+                };
+                hoisted.push((idx, mat));
+            }
+            insn.raw_text = format!("{}{} {} ;",
+                insn.guard.as_ref().map(|g| if g.negated { format!("@!P{} ", g.pred) } else { format!("@P{} ", g.pred) }).unwrap_or_default(),
+                insn.opcode_full,
+                insn.operands.iter().map(|o| operand_to_sass(o)).collect::<Vec<_>>().join(", "));
+        }
+        for (off, (idx, mov)) in hoisted.into_iter().enumerate() {
+            insns.insert(idx + off, mov);
+        }
+    }
+
+    if !unsupported.is_empty() {
+        anyhow::bail!(
+            "unsupported PTX in kernel {}: {} op(s): {}",
+            kernel.name,
+            unsupported.len(),
+            unsupported.iter().cloned().collect::<Vec<_>>().join(", ")
+        );
     }
 
     // Scheduling fence before final STG (matches ptxas behavior)
@@ -530,7 +712,7 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                 guard: Some(Guard { pred: 7, negated: true, uniform: true }),
                 operands: vec![], modifiers: vec![],
                 ctrl: crate::ir::ControlCode::default(),
-                hand_sched: false,
+                hand_sched: false, rsd: None,
                 raw_text: fence_text,
             };
             insns.insert(stg_idx, fence.clone());
@@ -697,7 +879,7 @@ fn lower_ld_param(addr: u32, insn: &PtxInsn, params: &[crate::ptx_parse::PtxPara
     }
 }
 
-fn lower_mov_or_sreg(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>) -> Vec<Instruction> {
+fn lower_mov_or_sreg(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>) -> Result<Vec<Instruction>> {
     let d = &insn.operands[0];
     let src = &insn.operands[1];
 
@@ -705,13 +887,25 @@ fn lower_mov_or_sreg(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Opt
     if let PtxOperand::SReg(name) = src {
         let rd = ptx_op_to_sass(d, alloc, false);
         let sr = Operand::SysReg(sreg_sass_name(name).to_string());
-        return vec![make_insn(addr, "S2R", vec![rd, sr], guard)];
+        return Ok(vec![make_insn(addr, "S2R", vec![rd, sr], guard)]);
     }
 
     // Regular move
     let rd = ptx_op_to_sass(d, alloc, false);
+    // b9 phase-1: tables have no MOV_R_FI row (asm fail-closed). Float immediates
+    // materialize the ptxas way: raw f32 bits as int immediate via IMAD.MOV.U32.
+    if let PtxOperand::FloatImm(v) = src {
+        let f = *v as f32;
+        if f as f64 != *v {
+            anyhow::bail!("mov.f64 literal {}: 64-bit immediate materialization unsupported in phase-1", v);
+        }
+        let rn = match d { PtxOperand::Reg(name) => alloc.resolve(name), _ =>
+            return Err(anyhow::anyhow!("mov: dst must be a register")) };
+        return Ok(vec![make_insn(addr, "IMAD.MOV.U32",
+            vec![op_reg(rn), op_rz(), op_rz(), Operand::Imm32(f.to_bits() as i64)], guard)]);
+    }
     let rs = ptx_op_to_sass(src, alloc, false);
-    vec![make_insn(addr, "MOV", vec![rd, rs], guard)]
+    Ok(vec![make_insn(addr, "MOV", vec![rd, rs], guard)])
 }
 
 fn lower_setp(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>) -> Instruction {

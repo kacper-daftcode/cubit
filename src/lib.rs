@@ -39,6 +39,10 @@ pub mod render;
 pub mod reg_liveness;
 pub mod printer;
 pub mod prof;
+pub mod ptx_parse;
+pub mod ptx_map;
+pub mod ptx_opt;
+pub mod ptx_lower;
 #[cfg(feature = "python")]
 pub mod python;
 pub mod sass_file;

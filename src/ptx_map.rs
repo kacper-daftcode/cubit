@@ -61,6 +61,13 @@ pub enum SassTemplate {
     StGlobal,
     /// Address space conversion (NOP on SM120).
     Nop,
+    /// mul.wide.s32/u32 -> IMAD.WIDE / IMAD.WIDE.U32 (64-bit product pair,
+    /// zero addend). Vendor form anchored in b9 phase-1 (nvdisasm byte-parity
+    /// payload: IMAD.WIDE R2, R9, 0x4, R2 probe).
+    MulWide { unsigned: bool },
+    /// cvta.to.global.u64: register-pair alias (generic==global VA on
+    /// SM103a/120); emits NO code, unifies the dst pair with the src pair.
+    AliasPair,
 }
 
 /// A single PTX→SASS mapping rule.
@@ -81,10 +88,13 @@ pub static RULES: &[PtxRule] = &[
     PtxRule { pattern: "add.s64",       template: Add64 },
     // 32-bit
     // Use IADD (2-source) instead of IADD3 (3-source with RZ) to avoid Rc2=RZ ctrl word issue
-    PtxRule { pattern: "add.s32",       template: Single { opcode: "IADD", slots: &[Src(0), Src(1), Src(2)] } },
-    PtxRule { pattern: "add.u32",       template: Single { opcode: "IADD", slots: &[Src(0), Src(1), Src(2)] } },
-    PtxRule { pattern: "sub.s32",       template: Single { opcode: "IADD", slots: &[Src(0), Src(1), NegSrc(2)] } },
-    PtxRule { pattern: "sub.u32",       template: Single { opcode: "IADD", slots: &[Src(0), Src(1), NegSrc(2)] } },
+    // b9 phase-1: plain "IADD" does not exist in the sm_103a/120 tables;
+    // vendor shape is the carry-form IADD3 with PT ties (anchor: k2/k3 ptxas
+    // probes, e.g. `IADD3 R7, PT, PT, R0, R7, R5`).
+    PtxRule { pattern: "add.s32",       template: Single { opcode: "IADD3", slots: &[Src(0), PT, PT, Src(1), Src(2), RZ] } },
+    PtxRule { pattern: "add.u32",       template: Single { opcode: "IADD3", slots: &[Src(0), PT, PT, Src(1), Src(2), RZ] } },
+    PtxRule { pattern: "sub.s32",       template: Single { opcode: "IADD3", slots: &[Src(0), PT, PT, Src(1), NegSrc(2), RZ] } },
+    PtxRule { pattern: "sub.u32",       template: Single { opcode: "IADD3", slots: &[Src(0), PT, PT, Src(1), NegSrc(2), RZ] } },
     PtxRule { pattern: "mul.lo.s32",    template: Single { opcode: "IMAD",  slots: &[Src(0), Src(1), Src(2), RZ] } },
     PtxRule { pattern: "mul.lo.u32",    template: Single { opcode: "IMAD",  slots: &[Src(0), Src(1), Src(2), RZ] } },
     PtxRule { pattern: "mul.hi.s32",    template: Single { opcode: "IMAD.HI", slots: &[Src(0), Src(1), Src(2), RZ] } },
@@ -105,10 +115,12 @@ pub static RULES: &[PtxRule] = &[
     PtxRule { pattern: "or.b32",        template: Single { opcode: "LOP3.LUT", slots: &[Src(0), Src(1), Src(2), RZ, Imm(0xfc), NotPT] } },
     PtxRule { pattern: "xor.b32",       template: Single { opcode: "LOP3.LUT", slots: &[Src(0), Src(1), Src(2), RZ, Imm(0x3c), NotPT] } },
     PtxRule { pattern: "not.b32",       template: Single { opcode: "LOP3.LUT", slots: &[Src(0), Src(1), RZ, RZ, Imm(0x0f), NotPT] } },
-    PtxRule { pattern: "shl.b32",       template: Single { opcode: "SHF.L.U32", slots: &[Src(0), RZ, Src(2), Src(1)] } },
-    PtxRule { pattern: "shr.b32",       template: Single { opcode: "SHF.R.U32", slots: &[Src(0), Src(1), Src(2), RZ] } },
-    PtxRule { pattern: "shr.u32",       template: Single { opcode: "SHF.R.U32", slots: &[Src(0), Src(1), Src(2), RZ] } },
-    PtxRule { pattern: "shr.s32",       template: Single { opcode: "SHF.R.S32", slots: &[Src(0), Src(1), Src(2), RZ] } },
+    // b9 phase-1 (vendor-anchored byte-parity, probes in results/b9):
+    // SHF.L.U32 d, a, shift, RZ  /  SHF.R.[US]32.HI d, RZ, shift, a
+    PtxRule { pattern: "shl.b32",       template: Single { opcode: "SHF.L.U32", slots: &[Src(0), Src(1), Src(2), RZ] } },
+    PtxRule { pattern: "shr.b32",       template: Single { opcode: "SHF.R.U32.HI", slots: &[Src(0), RZ, Src(2), Src(1)] } },
+    PtxRule { pattern: "shr.u32",       template: Single { opcode: "SHF.R.U32.HI", slots: &[Src(0), RZ, Src(2), Src(1)] } },
+    PtxRule { pattern: "shr.s32",       template: Single { opcode: "SHF.R.S32.HI", slots: &[Src(0), RZ, Src(2), Src(1)] } },
     PtxRule { pattern: "popc.b32",      template: Single { opcode: "POPC",  slots: &[Src(0), Src(1)] } },
     PtxRule { pattern: "brev.b32",      template: Single { opcode: "BREV",  slots: &[Src(0), Src(1)] } },
     PtxRule { pattern: "clz.b32",       template: Single { opcode: "FLO.U32", slots: &[Src(0), Src(1)] } },
@@ -175,6 +187,9 @@ pub static RULES: &[PtxRule] = &[
     PtxRule { pattern: "setp.",          template: ISetp },  // catch-all for setp variants
 
     PtxRule { pattern: "selp.s32",      template: Single { opcode: "SEL", slots: &[Src(0), Src(1), Src(2), Src(3)] } },
+    PtxRule { pattern: "selp.b32",      template: Single { opcode: "SEL", slots: &[Src(0), Src(1), Src(2), Src(3)] } },
+    PtxRule { pattern: "mul.wide.s32",  template: MulWide { unsigned: false } },
+    PtxRule { pattern: "mul.wide.u32",  template: MulWide { unsigned: true } },
     PtxRule { pattern: "selp.u32",      template: Single { opcode: "SEL", slots: &[Src(0), Src(1), Src(2), Src(3)] } },
     PtxRule { pattern: "selp.f32",      template: Single { opcode: "SEL", slots: &[Src(0), Src(1), Src(2), Src(3)] } },
 
@@ -192,7 +207,9 @@ pub static RULES: &[PtxRule] = &[
     PtxRule { pattern: "exit",          template: Single { opcode: "EXIT", slots: &[] } },
 
     // ── Synchronization ──────────────────────────────────────────────────
-    PtxRule { pattern: "bar.sync",      template: Single { opcode: "BAR.SYNC", slots: &[Src(0)] } },
+    // b9 phase-1: vendor canonical for __syncthreads is DEFER_BLOCKING
+    // (anchor: k3 ptxas probe).
+    PtxRule { pattern: "bar.sync",      template: Single { opcode: "BAR.SYNC.DEFER_BLOCKING", slots: &[Src(0)] } },
     PtxRule { pattern: "membar.gl",     template: Single { opcode: "MEMBAR.SC.GL", slots: &[] } },
     PtxRule { pattern: "membar.cta",    template: Single { opcode: "MEMBAR.SC.CTA", slots: &[] } },
 
@@ -202,7 +219,7 @@ pub static RULES: &[PtxRule] = &[
 
     // ── Conversions ──────────────────────────────────────────────────────
     PtxRule { pattern: "cvt.",          template: Cvt },
-    PtxRule { pattern: "cvta.to.global.u64", template: Nop },
+    PtxRule { pattern: "cvta.to.global.u64", template: AliasPair },
 
     // ── MMA ──────────────────────────────────────────────────────────────
     PtxRule { pattern: "mma.sync.",     template: Mma },
