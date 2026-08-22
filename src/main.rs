@@ -1546,10 +1546,18 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
         }
     }
 
-    // regcount: SM120 allocates registers in blocks of 32
+    // regcount: BUG-075 (sm_103a silicon, F2-iter 2026-08-22): a declared
+    // regcount N leaves R0..R(N-3) usable — the top two registers under N
+    // are the allocation-granule shadow; any access faults with
+    // ILLEGAL_INSTRUCTION (band sweep: R in {N-2, N-1} fails, R>=N passes;
+    // controls: byte-identical vendor-word graft + REGCOUNT 128->136 patch;
+    // same physics measured on sm_120 i115, cf. BUG-040). The old &!31
+    // block formula let max_reg land in the shadow for max_reg % 32 in
+    // {30, 31}. Granule 8 is accepted by the driver (nvcc: 168 for 162;
+    // 136 silicon-verified in BUG-075 sweep).
     // BUG-011: clamp at 255 — R255 is the RZ alias, REGCOUNT=256 is not a
     // legal driver value (used to come out of `.reg R0-R255` as 256).
-    let regcount = ((max_reg + 32) & !31).max(32).min(255);
+    let regcount = ((max_reg + 3 + 7) & !7).max(32).min(255);
     let num_barriers = barrier_seen.iter().filter(|&&x| x).count() as u8;
 
     KernelMeta {
@@ -5125,7 +5133,7 @@ fn cmd_asm_directive_format(
         // on hardware (the last two registers are the allocation-granule
         // shadow). WARN, not error: tools accept the text and the shadow
         // depends on the final regcount, not on the instruction form.
-        if table.target_sm() == 120 && std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() {
+        if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() {
             let n = meta.regcount;
             if n >= 3 {
                 let mut shadowed = Vec::new();
@@ -5142,7 +5150,7 @@ fn cmd_asm_directive_format(
                     shadowed.sort_unstable();
                     shadowed.dedup();
                     eprintln!(
-                        "  WARN {}: uses R{} with regcount={} — BUG-040: on sm_120 silicon                          only R0..R{} are usable (the last 2 registers are the granule                          shadow); these read/write as ILLEGAL (measured i115: rc=64 ->                          R62/R63 illegal, rc=66 fine). Raise the declared .reg count by 2                          or remap the affected registers.",
+                        "  WARN {}: uses R{} with regcount={} — BUG-040/075: on sm_120 & sm_103a silicon                          only R0..R{} are usable (the last 2 registers are the granule                          shadow); these read/write as ILLEGAL (measured i115: rc=64 ->                          R62/R63 illegal, rc=66 fine). Raise the declared .reg count by 2                          or remap the affected registers.",
                         def.name,
                         shadowed.iter().map(|r| r.to_string()).collect::<Vec<_>>().join("/R"),
                         n,

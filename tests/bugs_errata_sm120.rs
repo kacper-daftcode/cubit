@@ -822,3 +822,28 @@ fn bug023_sm103a_branch_rows_quiet() {
     assert_eq!(enc_clean(&t, "BRA.U UP1, 0x2900 ;"),
                0x000fc2000b80000000000029013c7547 & !SCHED);
 }
+
+// ── BUG-075 ─────────────────────────────────────────────────────────────────
+// regcount granule shadow (sm_103a silicon, 2026-08-22; same physics as
+// BUG-040 on sm_120 i115): a declared regcount N leaves R0..R(N-3) usable —
+// R(N-2)/R(N-1) fault with ILLEGAL_INSTRUCTION. The old &!31 block formula
+// let max_reg % 32 in {30, 31} fall into the shadow (R126 @ N=128 faulted on
+// B300; band sweep over R96..R254 + graft/patch controls). Fix: N >=
+// max_used + 3 with granule 8.
+#[test]
+fn bug075_regcount_clears_shadow() {
+    let rc = |regs: &str| -> u32 {
+        let sass = format!(".entry k\n    .reg {regs}\n    EXIT ;\n.endentry\n");
+        let mut f = parse_sass_file_str(&sass).unwrap();
+        for def in &mut f.kernels { auto_detect_resources(def); }
+        kernel_def_to_meta(&f.kernels[0], &[0u8; 16]).regcount
+    };
+    assert_eq!(rc("R0-R10"), 32);
+    assert_eq!(rc("R0-R61"), 64);
+    assert_eq!(rc("R0-R62"), 72, "BUG-040 i115: rc=64 -> R62/63 ILLEGAL");
+    assert_eq!(rc("R0-R126"), 136, "BUG-075 repro: 128 faulted on sm_103a");
+    assert_eq!(rc("R0-R127"), 136);
+    assert_eq!(rc("R0-R162"), 168, "nvcc parity (vendor 162 -> 168)");
+    assert_eq!(rc("R0-R252"), 255, "clamp at hw max still covers 252");
+    assert_eq!(rc("R0-R253"), 255, "R253/254 stay shadowed at N=255 (documented)");
+}

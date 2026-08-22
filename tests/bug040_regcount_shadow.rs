@@ -4,7 +4,10 @@
 //! CUDA_ERROR_ILLEGAL_INSTRUCTION (rc=64: R62/R63 ILLEGAL; rc=66 OK).
 //! Fix: asm WARN-uje (nie odrzuca — narzedzia akceptuja forme) przy uzyciu
 //! R(N-2)/R(N-1) wzgledem finalnego regcount kernela, tylko dla targetu
-//! sm_120 (fakt mierzony wylacznie tam), honorujac CUBIT_DISABLE_ERRATA.
+//! sm_120 (i115) i sm_103a (BUG-075, 2026-08-22: band sweep R96..R254 +
+//! graft/patch controls), honorujac CUBIT_DISABLE_ERRATA. Od BUG-075 formuła
+//! regcount zawsze zostawia zapas +3, wiec WARN scopowany do jawnych
+//! under-deklaracji `.reg` (w praktyce wylacznie pasmo @N=255: R253/R254).
 
 use std::process::Command;
 
@@ -25,15 +28,18 @@ fn asm(table: &str, sass: &str, tag: &str) -> (String, String, bool) {
 
 const RC64_R62: &str = ".entry t\n    .reg R0-R63\n    .param u64 m\n    MOV R61, 0x1 ;\n    MOV R62, 0x2 ;\n    MOV R63, 0x3 ;\n    EXIT ;\n.endentry\n";
 const RC66_R62: &str = ".entry t\n    .reg R0-R65\n    .param u64 m\n    MOV R62, 0x2 ;\n    EXIT ;\n.endentry\n";
+const RC255_R253: &str = ".entry t\n    .reg R0-R255\n    .param u64 m\n    MOV R253, 0x1 ;\n    MOV R254, 0x2 ;\n    EXIT ;\n.endentry\n";
 
 #[test]
 fn bug040_shadowed_registers_warn_on_sm120() {
-    let (out, err, ok) = asm("tables/sm120.json", RC64_R62, "warn");
+    // post-BUG-075 pochodna regcount daje +3 zapasu nad wykryte max_reg,
+    // wiec scenariusz WARN wymaga zacisku na N=255 (R253/R254 nienaprawialne).
+    let (out, err, ok) = asm("tables/sm120.json", RC255_R253, "warn");
     assert!(ok, "WARN must not fail the build: {err}");
     assert!(err.contains("BUG-040"), "{err}");
-    assert!(err.contains("R62/R63"), "{err}");
-    assert!(err.contains("R0..R61"), "{err}");
-    assert!(out.contains("regcount=64"), "{out}");
+    assert!(err.contains("R253/R254"), "{err}");
+    assert!(err.contains("R0..R252"), "{err}");
+    assert!(out.contains("regcount=255"), "{out}");
 }
 
 #[test]
@@ -44,11 +50,11 @@ fn bug040_usable_registers_stay_quiet() {
 }
 
 #[test]
-fn bug040_warn_is_sm120_scoped() {
-    // Measured on sm_120 only; sm_103a has no silicon evidence -> no WARN.
-    let (_out, err, ok) = asm("tables/sm103a.json", RC64_R62, "archgate");
+fn bug040_075_warn_all_blackwell_archs() {
+    // Measured on sm_120 AND sm_103a (BUG-075) -> WARN na obu.
+    let (_out, err, ok) = asm("tables/sm103a.json", RC255_R253, "archgate");
     assert!(ok, "{err}");
-    assert!(!err.contains("BUG-040"), "{err}");
+    assert!(err.contains("BUG-040"), "{err}");
 }
 
 #[test]

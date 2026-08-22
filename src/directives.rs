@@ -89,7 +89,11 @@ impl KernelResources {
         // BUG-011: hardware caps REGCOUNT at 255 (R255 is the RZ alias — a
         // `.reg R0-R255` kernel is exactly 255 regs). The block-rounding used
         // to produce 256 there, an invalid driver value.
-        ((raw + 31) & !31).max(32).min(255)
+        // BUG-075: usable regs under a declared N are R0..R(N-3) (granule
+        // shadow; silicon sm_120 i115 + sm_103a band sweep 2026-08-22), so
+        // N must clear max_reg by 3. Granule 8 is driver-accepted (nvcc uses
+        // granule-8 values like 168; 136 silicon-verified in the sweep).
+        ((raw + 2 + 7) & !7).max(32).min(255)
     }
 
     /// Total shared memory in bytes (sum of all shared declarations).
