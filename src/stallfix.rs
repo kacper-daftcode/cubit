@@ -48,6 +48,29 @@
 //! Additionally every guard relation whose producer stall is >=
 //! `legacy_stall_risk_from` is emitted as a report-only risk row
 //! (postfix can neither lower nor fix it; elimination is the remedy).
+//!
+//! v2 (F-ss6, 2026-08-22, uniform-domain census on B300,
+//! results/stallsuf/F-SS2.md): the measured allowlist grows the UR/UP
+//! domain and the R2UR conversion boundary (rules are again DATA):
+//!   * R7-urpath (floor_global): uniform-ALU UR write -> same-domain
+//!     UR/UP-carry read at d0 needs S>=4 -- identical physics to the
+//!     vector ALU paths, so R1 already carries the floor; R7 only adds
+//!     rule attribution (ucarry = UIADD3.X dual-carry chain, uwide =
+//!     UIMAD.WIDE UR-pair chain, both measured at S04);
+//!   * R8-xread (`floor_xread_d0` = 6): uniform-ALU UR write consumed by
+//!     a VECTOR op (UR operand) at d0 -- cross-domain read costs +2;
+//!   * R9-r2ur (`floor_r2ur_d0` = 8): the R2UR conversion boundary in
+//!     EITHER direction at d0 (vector-ALU R write feeding R2UR, or an
+//!     R2UR-written UR feeding an ALU-class consumer) costs +4;
+//!   * R10-uguard (`floor_uguard_d0` = 10 / `floor_uguard_d1` = 8):
+//!     UISETP UP-write -> @UP/@!UP guard. Unlike the P-domain guard-D1
+//!     pathology, the uniform guard at D1 is REPAIRABLE with stalls
+//!     (measured clean band 8..=11); D2+ is clean at any stall. No
+//!     uniform-guard site is ever a hard error.
+//! Transfer sets come from the M3.5/M2 data-driven classifiers
+//! (reg_liveness::reg_xfer / pred_liveness::pred_xfer Strict) restricted
+//! to the measured class allowlist; unknown families simply carry no
+//! tracked state (same doctrine as the v0 P-domain classes).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -58,6 +81,9 @@ use std::sync::LazyLock;
 use crate::ir::Instruction;
 use crate::ir::Operand;
 use crate::sass_file::SassFile;
+
+use crate::pred_liveness::{pred_xfer, XferMode};
+use crate::reg_liveness::{reg_xfer, role_class};
 
 /// Measured rules (DATA). `arch` must match the plan's arch (scope lock).
 #[derive(Debug, Clone, Deserialize)]
@@ -86,10 +112,41 @@ pub struct StallRules {
     /// sm_103a; raise-only cannot help, elimination is the remedy).
     #[serde(default = "default_legacy_risk_from")]
     pub legacy_stall_risk_from: u8,
+    /// v2 R8: uniform-ALU UR write -> VECTOR consumer UR operand at d0
+    /// (cross-domain read; measured uxread class).
+    #[serde(default = "default_xread_d0")]
+    pub floor_xread_d0: u8,
+    /// v2 R9: R2UR conversion boundary at d0, either direction
+    /// (vector-ALU R write -> R2UR read, or R2UR UR write -> consumer).
+    #[serde(default = "default_r2ur_d0")]
+    pub floor_r2ur_d0: u8,
+    /// v2 R10: UISETP UP write -> uniform @UP guard at d0.
+    #[serde(default = "default_uguard_d0")]
+    pub floor_uguard_d0: u8,
+    /// v2 R10: UISETP UP write -> uniform @UP guard at d1 (REPAIRABLE
+    /// unlike the P-domain D1 pathology; measured clean band 8..=11).
+    #[serde(default = "default_uguard_d1")]
+    pub floor_uguard_d1: u8,
     #[serde(default)]
     pub rules_version: String,
     #[serde(default)]
     pub provenance: serde_json::Value,
+}
+
+fn default_xread_d0() -> u8 {
+    6
+}
+
+fn default_r2ur_d0() -> u8 {
+    8
+}
+
+fn default_uguard_d0() -> u8 {
+    10
+}
+
+fn default_uguard_d1() -> u8 {
+    8
 }
 
 fn default_d1_isetp_floor() -> u8 {
@@ -135,6 +192,10 @@ impl StallRules {
             ("floor_guard_d0", self.floor_guard_d0),
             ("floor_guard_d2", self.floor_guard_d2),
             ("guard_d1_isetp_floor", self.guard_d1_isetp_floor),
+            ("floor_xread_d0", self.floor_xread_d0),
+            ("floor_r2ur_d0", self.floor_r2ur_d0),
+            ("floor_uguard_d0", self.floor_uguard_d0),
+            ("floor_uguard_d1", self.floor_uguard_d1),
         ] {
             if f > self.cap_stall {
                 bail!(
@@ -331,6 +392,62 @@ fn guard_consumer_class(ins: &Instruction) -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
+// v2 uniform-domain / boundary classification (F-SS2 census, B300
+// 2026-08-22). Transfer sets come from the M3.5/M2 data-driven
+// classifiers; the producer/consumer sides below are restricted to the
+// classes the silicon census actually measured. Unknown families carry no
+// tracked state -- identical doctrine to the v0 P-domain allowlist.
+// ---------------------------------------------------------------------------
+
+/// Base opcode of a uniform-family op is U-prefixed (UIADD3/UIMAD/ULOP3/
+/// UMOV/UISETP/ULDC/...). The R2UR/UR2R converters are NOT uniform ops:
+/// they sit on the cross-domain boundary (rule R9).
+fn is_uniform_op(ins: &Instruction) -> bool {
+    ins.opcode.starts_with('U')
+}
+
+/// v2 producer-side tracked outputs of one instruction.
+#[derive(Default)]
+struct UProd {
+    /// Uniform-ALU UR defs (measured producers: UIADD3/UIMAD(.WIDE)) --
+    /// feeds R7 (uniform consumer) / R8 (vector consumer).
+    ur_alu: BTreeSet<u8>,
+    /// R2UR UR defs -- feeds R9 (boundary producer side).
+    ur_r2ur: BTreeSet<u8>,
+    /// Vector-ALU/cmp R defs -- feeds R9 (an R2UR consumer at d0).
+    r_vec: BTreeSet<u8>,
+    /// UISETP UP defs -- feeds R10 (uniform guard).
+    up_isetp: BTreeSet<u8>,
+    /// UIADD3.X UP carry-out defs -- R7 chain member (ucarry class).
+    up_carry: BTreeSet<u8>,
+}
+
+fn uprod(ins: &Instruction) -> UProd {
+    let mut p = UProd::default();
+    let rx = reg_xfer(ins);
+    if rx.known {
+        let cls = role_class(ins.opcode.as_str());
+        if is_uniform_op(ins) && cls == Some("alu") {
+            p.ur_alu = rx.udefs.clone();
+        }
+        if !is_uniform_op(ins) && matches!(cls, Some("alu") | Some("cmp")) {
+            p.r_vec = rx.rdefs.clone();
+        }
+        if ins.opcode == "R2UR" {
+            p.ur_r2ur = rx.udefs.clone();
+        }
+    }
+    let px = pred_xfer(ins, XferMode::Strict);
+    if ins.opcode == "UISETP" {
+        p.up_isetp = px.udefs.clone();
+    }
+    if ins.opcode == "UIADD3" && ins.modifiers.iter().any(|m| m == ".X") {
+        p.up_carry = px.udefs;
+    }
+    p
+}
+
+// ---------------------------------------------------------------------------
 // Core pass
 // ---------------------------------------------------------------------------
 
@@ -426,14 +543,33 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
 
         for (wpos, &(ws, we)) in kp.windows.iter().enumerate() {
             for i in ws..we {
-                let ws_set = p_writes(&k.instructions[i as usize]);
-                if ws_set.is_empty() {
+                let prod_ins = &k.instructions[i as usize];
+                let ws_set = p_writes(prod_ins);
+                let up = uprod(prod_ins);
+                let up_any = !up.ur_alu.is_empty()
+                    || !up.ur_r2ur.is_empty()
+                    || !up.r_vec.is_empty()
+                    || !up.up_isetp.is_empty()
+                    || !up.up_carry.is_empty();
+                if ws_set.is_empty() && !up_any {
                     continue;
                 }
                 let mut live: BTreeSet<u8> = ws_set.into_iter().collect();
+                let mut live_ur_alu = up.ur_alu.clone();
+                let mut live_ur_r2ur = up.ur_r2ur.clone();
+                let mut live_r_vec = up.r_vec.clone();
+                let mut live_up_isetp = up.up_isetp.clone();
+                let mut live_up_carry = up.up_carry.clone();
                 // scan consumers at slot distance 1..3 inside the same window
                 let mut d = 1u32;
-                while d <= 3 && !live.is_empty() {
+                while d <= 3
+                    && !(live.is_empty()
+                        && live_ur_alu.is_empty()
+                        && live_ur_r2ur.is_empty()
+                        && live_r_vec.is_empty()
+                        && live_up_isetp.is_empty()
+                        && live_up_carry.is_empty())
+                {
                     let j = i + d;
                     if j >= we || win_of[j as usize] != wpos as i64 {
                         break;
@@ -441,6 +577,69 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                     let cons = &k.instructions[j as usize];
                     let cin = p_read_cin(cons);
                     let grd = guard_pred(cons);
+                    // v2 consumer-side view: data-driven transfer sets.
+                    let crx = reg_xfer(cons);
+                    let cpx = pred_xfer(cons, XferMode::Strict);
+                    let cons_cls = role_class(cons.opcode.as_str());
+                    let cons_alu = crx.known && matches!(cons_cls, Some("alu") | Some("cmp"));
+                    if d == 1 {
+                        // R7/R8: live uniform-ALU UR defs consumed at d0 by
+                        // a same-domain op (R7, floor == R1) resp. a VECTOR
+                        // op reading the UR operand (R8, cross-domain +2).
+                        if !live_ur_alu.is_empty()
+                            && cons_alu
+                            && !crx.uuses.is_disjoint(&live_ur_alu)
+                        {
+                            let f = floors.get_mut(&(kidx, i)).unwrap();
+                            if is_uniform_op(cons) {
+                                meets(f, rules.floor_global, "R7-urpath");
+                            } else {
+                                meets(f, rules.floor_xread_d0, "R8-xread");
+                            }
+                        }
+                        // R7 chain member: dual carry-in of UIADD3.X (the
+                        // measured ucarry class; Strict uuses also carries
+                        // an @UP guard read here -- floor is R1's either
+                        // way, so the attribution is exact).
+                        if cons.opcode == "UIADD3" && !cpx.uuses.is_disjoint(&live_up_carry) {
+                            let f = floors.get_mut(&(kidx, i)).unwrap();
+                            meets(f, rules.floor_global, "R7-urpath");
+                        }
+                        // R9: R2UR conversion boundary at d0, either
+                        // direction (vector-ALU R write feeding the R2UR
+                        // read; R2UR-written UR feeding an ALU-class op).
+                        if cons.opcode == "R2UR" && !live_r_vec.is_empty() {
+                            let hit = cons.operands.iter().skip(1).any(|o| match o {
+                                Operand::Reg { num, .. } => *num != 255 && live_r_vec.contains(num),
+                                _ => false,
+                            });
+                            if hit {
+                                let f = floors.get_mut(&(kidx, i)).unwrap();
+                                meets(f, rules.floor_r2ur_d0, "R9-r2ur");
+                            }
+                        }
+                        if cons_alu && !crx.uuses.is_disjoint(&live_ur_r2ur) {
+                            let f = floors.get_mut(&(kidx, i)).unwrap();
+                            meets(f, rules.floor_r2ur_d0, "R9-r2ur");
+                        }
+                        // R10: UISETP UP write -> uniform @UP guard (d0).
+                        if let Some(g) = &cons.guard {
+                            if g.uniform && g.pred < 7 && live_up_isetp.contains(&g.pred) {
+                                let f = floors.get_mut(&(kidx, i)).unwrap();
+                                meets(f, rules.floor_uguard_d0, "R10-uguard-d0");
+                            }
+                        }
+                    } else if d == 2 {
+                        // R10: same pair at D1 is REPAIRABLE with stalls
+                        // (F-SS2: clean band 8..=11; unlike the P-domain
+                        // guard-D1 pathology it is never a hard error).
+                        if let Some(g) = &cons.guard {
+                            if g.uniform && g.pred < 7 && live_up_isetp.contains(&g.pred) {
+                                let f = floors.get_mut(&(kidx, i)).unwrap();
+                                meets(f, rules.floor_uguard_d1, "R10-uguard-d1");
+                            }
+                        }
+                    }
                     for p in live.clone() {
                         if d == 1 && cin.contains(&p) {
                             // cin chain at d0: dmix floor for IMAD* -> IADD3.X,
@@ -585,6 +784,22 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                     // that chain (its reads above already fired).
                     for p in p_writes(cons) {
                         live.remove(&p);
+                    }
+                    // v2 domain kills: a (re)write of a tracked UR/UP/R by
+                    // the consumer ends that chain. Unknown register-
+                    // carrying families do not kill (v0 doctrine).
+                    if crx.known {
+                        for u in &crx.udefs {
+                            live_ur_alu.remove(u);
+                            live_ur_r2ur.remove(u);
+                        }
+                        for r in &crx.rdefs {
+                            live_r_vec.remove(r);
+                        }
+                    }
+                    for u in &cpx.udefs {
+                        live_up_isetp.remove(u);
+                        live_up_carry.remove(u);
                     }
                     d += 1;
                 }

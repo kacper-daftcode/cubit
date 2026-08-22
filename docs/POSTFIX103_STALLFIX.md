@@ -98,3 +98,35 @@ files keep loading (serde defaults = v0 semantics).
 cap_stall=11 is now sm_103a-backed by measurement, not only inherited
 from BUG-036: at S12+ the D0 data/isetp dependency classes miscompute
 in non-monotonic, class/geometry-dependent pockets on B300.
+
+## v2 (F-ss6, 2026-08-22): uniform-domain census rules R7..R10
+
+Source measurement: results/stallsuf/F-SS2.md (B300 sm_103a idle-window
+census, gen_ss.py v3): the UR/UP domain follows "uniform ALU == vector
+ALU, cross-domain +2, R2UR +4, uniform guard +3".
+
+* R7-urpath (`floor_global`=4): uniform-ALU UR write (UIADD3/UIMAD(.
+  WIDE), role class `alu`) read by a same-domain (U-prefixed, `alu`/
+  `cmp` class) consumer at d0 -- covers the measured urpath, ucarry
+  (UIADD3.X dual-carry) and uwide (UIMAD.WIDE UR-pair) classes. The
+  floor is R1's own; R7 adds rule attribution only. D>=1 is free.
+* R8-xread (`floor_xread_d0`=6): uniform-ALU UR write consumed by a
+  VECTOR op through a UR operand at d0 (measured uxread class).
+* R9-r2ur (`floor_r2ur_d0`=8): the R2UR conversion boundary at d0 in
+  either direction -- a vector `alu`/`cmp` R write feeding an R2UR
+  read, or an R2UR-written UR feeding an `alu`/`cmp` consumer
+  (measured usr2ur class; both hops decompose-consistent at S08).
+* R10-uguard (`floor_uguard_d0`=10 / `floor_uguard_d1`=8): UISETP UP
+  write -> @UP/@!UP guard. Unlike the P-domain guard-D1 pathology,
+  the uniform guard at D1 is repairable with stalls (measured clean
+  band 8..=11, 2 occupancy tiers, replicated); D2+ is clean at any
+  stall. No uniform-guard configuration is ever a hard error.
+
+Detection is data-driven: transfer sets come from
+`reg_liveness::reg_xfer` (M3.5 operand_roles.json) and
+`pred_liveness::pred_xfer` in Strict mode (M2), restricted to the
+measured class allowlist above; unknown families carry no tracked
+state and never kill a chain (v0 doctrine). All v2 floors are
+window-scoped and raise-only like the rest of the pass; `rules_version`
+= "v2". Pre-v2 rules files keep loading (serde defaults = the measured
+values).

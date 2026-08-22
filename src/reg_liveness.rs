@@ -298,6 +298,14 @@ fn leading_reg_operands(insn: &Instruction) -> usize {
         .count()
 }
 
+/// Role class of a base opcode from tables/operand_roles.json (M3.5 data
+/// table). None when the family is not in the table. Exposed for passes
+/// that need the measured direction-class without the full transfer sets
+/// (POSTFIX-103 v2 stallfix uniform/boundary rules).
+pub fn role_class(base_op: &str) -> Option<&'static str> {
+    roles_table().base_ops.get(base_op).map(|e| e.cls.as_str())
+}
+
 /// Register transfer sets for one instruction. Roles come from
 /// tables/operand_roles.json (M3.5 data table); unknown base opcodes
 /// carrying registers stay fail-closed.

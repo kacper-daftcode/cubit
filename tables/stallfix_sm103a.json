@@ -8,8 +8,12 @@
  "guard_d1_forbid": true,
  "guard_d1_isetp_floor": 5,
  "legacy_stall_risk_from": 12,
- "rules_version": "v1",
- "comment": "POSTFIX-103 v1 rules. Silicon-measured minimum stall floors per dependency path on sm_103a (B300), consumer at the DIRECTLY next slot (d0) unless named. floor_global: rpath/P-carry ALU paths need S>=4 at d0 (S00..S03 physically insufficient @occupancy, S00 flaky everywhere). floor_dmix_d0: IMAD(.WIDE).X cout -> IADD3.X cin needs 5. floor_guard_d0: any P producer -> @P/@!P guard consumer needs 7 (isetp-class measured identical). floor_guard_d2: guard at distance 3 needs 5. guard-D1 (exactly one instruction between producer and guard consumer) is CLASS-RESOLVED by the consumer op (census-hi): isetp-class = LEGAL for producer stalls 5..11 (R6 floor guard_d1_isetp_floor; producer >=12 = measured bad band = violation); data-class = FLAKY at every S<=10 (S11 island = probe-geometry, not policy) = violation; atomic-class = the guarded forms are silicon-gated (guarded non-EL ATOMG silent-corrupts even with an always-true guard, .EL = ILLEGAL_ADDRESS on the default descriptor) = violation, remedy = descriptor-policy port (O1-road). legacy_stall_risk_from=12: producers at S>=12 inside guard relations d0/d2 are report-only risk rows (measured bad-zone pockets on sm_103a; raise-only cannot fix, eliminate instead). cap_stall=11 stands and is now sm_103a-backed (census-hi: D0 data/isetp classes miscompute at S12+ in dependency contexts, non-monotonic resonance pockets -- BUG-036-analog on B300). Raise-only doctrine: the pass never lowers a stall, never touches B/R/W/Y bits.",
+ "floor_xread_d0": 6,
+ "floor_r2ur_d0": 8,
+ "floor_uguard_d0": 10,
+ "floor_uguard_d1": 8,
+ "rules_version": "v2",
+ "comment": "POSTFIX-103 v2 rules = v1 (R/P domain) + uniform-domain census (results/stallsuf/F-SS2.md, B300 2026-08-22). R7-urpath: uniform-ALU UR write -> same-domain UR/UP-carry read at d0 needs S>=4, identical physics to the vector ALU paths -- floor_global already carries it (urpath/ucarry/uwide measured at S04, ucarry the cleanest; D>=1 free). R8-xread (floor_xread_d0=6): uniform-ALU UR write consumed by a VECTOR op through a UR operand at d0 -- cross-domain read costs +2. R9-r2ur (floor_r2ur_d0=8): the R2UR conversion boundary at d0 in EITHER direction (vector R write -> R2UR read; R2UR-written UR -> consumer) costs +4; both hops decompose-consistent at S08. R10-uguard (floor_uguard_d0=10 / floor_uguard_d1=8): UISETP UP write -> @UP/@!UP guard; the D1 uniform guard is REPAIRABLE with stalls (clean band 8..=11) unlike the P-domain guard-D1 pathology; D2+ clean at any stall; no uniform-guard site is ever a hard error. v1 text: POSTFIX-103 v1 rules. Silicon-measured minimum stall floors per dependency path on sm_103a (B300), consumer at the DIRECTLY next slot (d0) unless named. floor_global: rpath/P-carry ALU paths need S>=4 at d0 (S00..S03 physically insufficient @occupancy, S00 flaky everywhere). floor_dmix_d0: IMAD(.WIDE).X cout -> IADD3.X cin needs 5. floor_guard_d0: any P producer -> @P/@!P guard consumer needs 7 (isetp-class measured identical). floor_guard_d2: guard at distance 3 needs 5. guard-D1 (exactly one instruction between producer and guard consumer) is CLASS-RESOLVED by the consumer op (census-hi): isetp-class = LEGAL for producer stalls 5..11 (R6 floor guard_d1_isetp_floor; producer >=12 = measured bad band = violation); data-class = FLAKY at every S<=10 (S11 island = probe-geometry, not policy) = violation; atomic-class = the guarded forms are silicon-gated (guarded non-EL ATOMG silent-corrupts even with an always-true guard, .EL = ILLEGAL_ADDRESS on the default descriptor) = violation, remedy = descriptor-policy port (O1-road). legacy_stall_risk_from=12: producers at S>=12 inside guard relations d0/d2 are report-only risk rows (measured bad-zone pockets on sm_103a; raise-only cannot fix, eliminate instead). cap_stall=11 stands and is now sm_103a-backed (census-hi: D0 data/isetp classes miscompute at S12+ in dependency contexts, non-monotonic resonance pockets -- BUG-036-analog on B300). Raise-only doctrine: the pass never lowers a stall, never touches B/R/W/Y bits.",
  "provenance": {
   "census": "results/stallsuf/raw/census_canonical.txt",
   "census_md5": "82c07fe6aacfca83c09660e1677ae6d2",
@@ -31,6 +35,16 @@
   },
   "census_hi_generator_md5": "96efab8a38789e03f4253243c767cb13 (work/stallsuf/gen_ss.py, classes isetp2/atomg/atomv/atomt/atomte added; canonical classes byte-identical)",
   "census_hi_report": "results/stallsuf/F-SS4-CENSUS-HI.md",
-  "measured_hi": "2026-08-22 B300 sm_103a, brachain-D1 S07..S15 x {1x32,148x256,296x256}, isetp2 D0/D1 S05..S15 x {1x32,148x256,296x256} + replications, brachain/rpath D0 high-S, guarded-atomic forms (atomt/atomte/atomv)"
+  "measured_hi": "2026-08-22 B300 sm_103a, brachain-D1 S07..S15 x {1x32,148x256,296x256}, isetp2 D0/D1 S05..S15 x {1x32,148x256,296x256} + replications, brachain/rpath D0 high-S, guarded-atomic forms (atomt/atomte/atomv)",
+  "census_ss2": "results/stallsuf/fss2/raw/ (loop5 iter F-ss2, 2026-08-22)",
+  "census_ss2_md5": {
+   "census_ss2_canonical.txt": "b619b169e56f89de3c4f2e4ccf00183f",
+   "usr2ur_hops.txt": "3269a870317bcb1ad0a511154404dc93",
+   "replication_focus.txt": "1e13ad9634e0b161226c74c824d5d9b7",
+   "replication_r2ur_296.txt": "8913f16c8e53a233040d070a80ed6ffc"
+  },
+  "census_ss2_generator_md5": "e2f69e9156c2f4df0ef1f393527786c3 (work/stallsuf/gen_ss.py v3, classes urpath/ucarry/uwide/uxread/usr2ur[_a/_b]/usetp_g; canonical classes byte-stable modulo the pre-existing R60-seed drift documented in F-SS2)",
+  "census_ss2_report": "results/stallsuf/F-SS2.md",
+  "measured_ss2": "2026-08-22 B300 sm_103a, classes urpath/ucarry/uwide/uxread/usr2ur/usetp_g x S-sweep x {1x32,148x256,296x256} with replications; floors: urpath/ucarry/uwide S04@D0, uxread S06@D0, usr2ur S08@D0 both hops, usetp_g S10@D0 S08@D1 (clean band 8..11), D2 uniform-guard clean; usetp_gx class rejected as outside the ISA (cubit-bugs/013 silent demotion)"
  }
 }
