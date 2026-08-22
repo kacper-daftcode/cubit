@@ -59,3 +59,42 @@ the silicon-validated reference text of results/stallsuf/fss3/).
 Parity anchors (sm_103a O3 mulmod windows [20,363) x 3 kernels): 597
 raises S03->S04, cubin md5 49efe0fa.., diff vs era cubin = 597 bytes, all
 at slot byte 0xd.
+
+## v1 (2026-08-22, F-ss4 census-hi)
+
+guard-D1 (exactly one instruction between the P producer and the guard
+consumer) is no longer uniformly rejected: it is CLASS-RESOLVED by the
+consumer op. All classes below are silicon measurements on B300
+(results/stallsuf/F-SS4-CENSUS-HI.md, raw logs results/stallsuf/fss4/raw/);
+
+the pass invents no physics.
+
+* R6 `isetp` (@P on `ISETP.*`): LEGAL for producer stalls 5..=11
+  (det+match, 3 runs x 2 occupancy tiers incl. 296x256 and permuted
+  kernel order). The pass floors the producer at
+  `guard_d1_isetp_floor` (5) as usual (raise-only, cap 11).
+  Producer stall >= `legacy_stall_risk_from` (12): violation -- the
+  census bad band (S12/S13 flaky/mismatch; S14/15 clean is a resonance
+  pocket, not a policy target).
+* `data` (any other ALU consumer): forbidden at every S<=10 (census-hi
+  extended the flaky zone 8 -> 10; the S11 clean result replicated 4/4
+  but is a probe-geometry island, deliberately NOT a policy floor).
+* `atomic` (@P on `ATOM*`/`RED*`): violation independent of stall --
+  the guarded-atomic forms are silicon-gated on sm_103a: guarded
+  non-EL ATOMG silent-corrupts its target cell even with an
+  always-true guard (any stall, 1-warp included), while `.EL`
+  hits ILLEGAL_ADDRESS on the default descriptor (form needs the
+  descriptor-policy port, not postfix).
+
+Also new: `legacy_stall_risk_from` (12) emits report-only
+`high_stall_risk` rows (d0/d2 relations with producer stalls already in
+the legacy zone -- postfix cannot lower them, elimination is the
+remedy), and `d1_sites` enumerates every D1 pair per kernel with its
+class and the action taken. Violations no longer bail at the first
+site: the run aborts with the COMPLETE site map (JSON lines) for the
+D1-elimination pass. Rules JSON carries `rules_version`; pre-v1 rules
+files keep loading (serde defaults = v0 semantics).
+
+cap_stall=11 is now sm_103a-backed by measurement, not only inherited
+from BUG-036: at S12+ the D0 data/isetp dependency classes miscompute
+in non-monotonic, class/geometry-dependent pockets on B300.

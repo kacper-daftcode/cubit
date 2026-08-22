@@ -30,6 +30,24 @@
 //! operand 1/2), ISETP.* (dest at operand 0) and ".X"/IMAD.WIDE forms
 //! with cout at operand 1; cin consumers are IADD3.X (last two operands)
 //! and IMAD*.X (last operand); guards are non-uniform @Pn/@!Pn.
+//!
+//! v1 (F-ss4, 2026-08-22, census-hi on B300, results/stallsuf/
+//! F-SS4-CENSUS-HI.md): guard-D1 is class-resolved by the CONSUMER op:
+//!   * isetp-class (@P on ISETP.*): measured LEGAL for producer stalls
+//!     5..=11 (3 runs x 2 occupancy tiers); rule R6 floors the producer
+//!     at `guard_d1_isetp_floor` (raise-only, cap applies);
+//!   * isetp-class with producer stall >= `legacy_stall_risk_from` (12):
+//!     the measured bad band -- a violation (raise-only cannot lower);
+//!   * atomic-class (@P on ATOM*/RED*): a violation on sm_103a -- the
+//!     guarded-atomic forms are silicon-gated (non-EL guarded: silent
+//!     corruption even with an always-true guard; .EL: ILLEGAL_ADDRESS
+//!     with the default descriptor);
+//!   * data-class: forbidden as in v0 (FLAKY at every S<=8 under
+//!     occupancy; census-hi extended: S09/S10 flaky too, S11 was a
+//!     probe-geometry island -- not a policy-grade floor).
+//! Additionally every guard relation whose producer stall is >=
+//! `legacy_stall_risk_from` is emitted as a report-only risk row
+//! (postfix can neither lower nor fix it; elimination is the remedy).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -55,11 +73,31 @@ pub struct StallRules {
     pub floor_guard_d0: u8,
     /// guard with TWO instructions between producer and consumer.
     pub floor_guard_d2: u8,
-    /// guard with exactly ONE instruction between: flaky at any S<=8.
+    /// guard with exactly ONE instruction between: forbidden for the
+    /// data/atomic consumer classes (v1: isetp-class goes through R6).
     #[serde(default = "default_true")]
     pub guard_d1_forbid: bool,
+    /// v1 R6: producer floor for guard-D1 pairs whose consumer is an
+    /// ISETP-class op (measured legal band 5..=11 on B300).
+    #[serde(default = "default_d1_isetp_floor")]
+    pub guard_d1_isetp_floor: u8,
+    /// v1: producers with stall >= this inside a guard relation are
+    /// report-only risk rows (measured bad-zone pockets at 12/13 on
+    /// sm_103a; raise-only cannot help, elimination is the remedy).
+    #[serde(default = "default_legacy_risk_from")]
+    pub legacy_stall_risk_from: u8,
+    #[serde(default)]
+    pub rules_version: String,
     #[serde(default)]
     pub provenance: serde_json::Value,
+}
+
+fn default_d1_isetp_floor() -> u8 {
+    5
+}
+
+fn default_legacy_risk_from() -> u8 {
+    12
 }
 
 fn default_true() -> bool {
@@ -96,6 +134,7 @@ impl StallRules {
             ("floor_dmix_d0", self.floor_dmix_d0),
             ("floor_guard_d0", self.floor_guard_d0),
             ("floor_guard_d2", self.floor_guard_d2),
+            ("guard_d1_isetp_floor", self.guard_d1_isetp_floor),
         ] {
             if f > self.cap_stall {
                 bail!(
@@ -105,6 +144,9 @@ impl StallRules {
                     self.cap_stall
                 );
             }
+        }
+        if self.legacy_stall_risk_from > 15 {
+            bail!("stallfix: rules.legacy_stall_risk_from exceeds the 4-bit field");
         }
         Ok(())
     }
@@ -143,6 +185,34 @@ pub struct HistEntry {
     pub count: usize,
 }
 
+/// v1: one guard-D1 site (exactly one instruction between producer and
+/// guard consumer) with its measured consumer-class and the action the
+/// pass took (or would have to take) under the v1 class rules.
+#[derive(Debug, Clone, Serialize)]
+pub struct D1Site {
+    pub prod_idx: u32,
+    pub prod_op: String,
+    pub prod_stall: u8,
+    pub guard_idx: u32,
+    pub guard_op: String,
+    pub class: String,
+    pub action: String,
+}
+
+/// v1: a guard relation whose producer stall sits in the legacy S>=12
+/// zone (measured bad-band pockets on sm_103a for some classes; postfix
+/// can neither lower nor raise-legalize -- risk row, report-only).
+#[derive(Debug, Clone, Serialize)]
+pub struct HighStallRisk {
+    pub prod_idx: u32,
+    pub prod_op: String,
+    pub prod_stall: u8,
+    pub guard_idx: u32,
+    pub guard_op: String,
+    pub dist: u32,
+    pub class: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct KernelStallReport {
     pub name: String,
@@ -155,12 +225,20 @@ pub struct KernelStallReport {
     /// In-window input stalls already above the policy cap (left untouched,
     /// reported; raise-only never lowers them).
     pub input_above_cap: Vec<u32>,
+    /// v1: all guard-D1 sites seen in the windows (any class).
+    #[serde(default)]
+    pub d1_sites: Vec<D1Site>,
+    /// v1: guard relations with producer stall >= legacy_stall_risk_from.
+    #[serde(default)]
+    pub high_stall_risk: Vec<HighStallRisk>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct StallFixReport {
     pub arch: String,
     pub cap_stall: u8,
+    #[serde(default)]
+    pub rules_version: String,
     pub kernels: Vec<KernelStallReport>,
     pub total_raises: usize,
     pub provenance: serde_json::Value,
@@ -237,6 +315,21 @@ fn guard_pred(ins: &Instruction) -> Option<u8> {
         .and_then(|g| if !g.uniform && g.pred <= 6 { Some(g.pred) } else { None })
 }
 
+/// v1: measured consumer-class of a guard consumer (F-SS4 census-hi):
+/// ISETP.* consumers are their own physics class (P -> P path), ATOM*/RED*
+/// are the atomic-memory class (guarded forms silicon-gated on sm_103a),
+/// everything else is the generic data class of STALLSUF-1.
+fn guard_consumer_class(ins: &Instruction) -> &'static str {
+    let op = ins.opcode_full.as_str();
+    if op.starts_with("ISETP") {
+        "isetp"
+    } else if op.starts_with("ATOM") || op.starts_with("RED") {
+        "atomic"
+    } else {
+        "data"
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Core pass
 // ---------------------------------------------------------------------------
@@ -258,6 +351,11 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
     let mut floors: BTreeMap<(usize, u32), (u8, BTreeSet<&'static str>)> = BTreeMap::new();
     let mut above_cap: BTreeMap<usize, Vec<u32>> = BTreeMap::new();
     let mut n_annotated: BTreeMap<usize, usize> = BTreeMap::new();
+    // v1: pelne mapy zamiast bail-at-first -- uruchomienie jest albo czyste,
+    // albo odpada z KOMPLETNA lista stanowisk D1 (input dla eliminacji D1).
+    let mut d1_sites: BTreeMap<usize, Vec<D1Site>> = BTreeMap::new();
+    let mut risk_rows: BTreeMap<usize, Vec<HighStallRisk>> = BTreeMap::new();
+    let mut d1_violations: Vec<serde_json::Value> = Vec::new();
 
     for (kidx, k) in file.kernels.iter().enumerate() {
         let kp = match plan.kernels.get(&k.name) {
@@ -356,24 +454,129 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                         }
                         if grd == Some(p) {
                             let f = floors.get_mut(&(kidx, i)).unwrap();
+                            let prod = &k.instructions[i as usize];
+                            let prod_stall = prod.ctrl.stall;
+                            let class = guard_consumer_class(cons);
                             match d {
-                                1 => meets(f, rules.floor_guard_d0, "R3-guard-d0"),
-                                2 => {
-                                    if rules.guard_d1_forbid {
-                                        bail!(
-                                            "stallfix: kernel {}: guard consumer at ins {} \
-                                             has exactly one instruction between it and its P{} \
-                                             producer (ins {}): guard-D1 is FLAKY at every \
-                                             S<=8 under occupancy (STALLSUF-1) -- no stall \
-                                             legalizes this schedule, reorder instead",
-                                            k.name,
-                                            j,
-                                            p,
-                                            i
-                                        );
+                                1 => {
+                                    meets(f, rules.floor_guard_d0, "R3-guard-d0");
+                                    if prod_stall >= rules.legacy_stall_risk_from {
+                                        risk_rows.entry(kidx).or_default().push(HighStallRisk {
+                                            prod_idx: i,
+                                            prod_op: prod.opcode_full.clone(),
+                                            prod_stall,
+                                            guard_idx: j,
+                                            guard_op: cons.opcode_full.clone(),
+                                            dist: d,
+                                            class: class.to_string(),
+                                        });
                                     }
                                 }
-                                3 => meets(f, rules.floor_guard_d2, "R3-guard-d2"),
+                                2 => {
+                                    let mut site = D1Site {
+                                        prod_idx: i,
+                                        prod_op: prod.opcode_full.clone(),
+                                        prod_stall,
+                                        guard_idx: j,
+                                        guard_op: cons.opcode_full.clone(),
+                                        class: class.to_string(),
+                                        action: "noop".to_string(),
+                                    };
+                                    if !rules.guard_d1_forbid {
+                                        site.action = "allowed-by-rules".to_string();
+                                    } else {
+                                        match class {
+                                            // R6 (v1 census-hi): isetp-class D1 legal for
+                                            // producer stalls 5..=cap; >=12 measured bad.
+                                            "isetp" if prod_stall < rules.legacy_stall_risk_from => {
+                                                meets(f, rules.guard_d1_isetp_floor,
+                                                      "R6-guard-d1-isetp");
+                                                site.action =
+                                                    if prod_stall < rules.guard_d1_isetp_floor {
+                                                        format!("floor-raise:S{:02}->S{:02}",
+                                                                prod_stall,
+                                                                rules.guard_d1_isetp_floor)
+                                                    } else {
+                                                        "noop".to_string()
+                                                    };
+                                            }
+                                            "isetp" => {
+                                                site.action = "violation".to_string();
+                                                d1_violations.push(serde_json::json!({
+                                                    "kernel": k.name, "prod_idx": i,
+                                                    "prod_op": prod.opcode_full,
+                                                    "prod_stall": prod_stall,
+                                                    "guard_idx": j,
+                                                    "guard_op": cons.opcode_full,
+                                                    "class": class,
+                                                    "reason": "guard-D1 (isetp-class) with \
+                                                        producer stall >= 12: measured bad \
+                                                        band on sm_103a (F-SS4 census-hi: \
+                                                        S12/S13 FLAKY/MISMATCH at occupancy; \
+                                                        S14/15 clean is a resonance pocket, \
+                                                        not a policy target). Raise-only \
+                                                        cannot lower -- eliminate the D1 \
+                                                        distance instead."
+                                                }));
+                                            }
+                                            "atomic" => {
+                                                site.action = "violation".to_string();
+                                                d1_violations.push(serde_json::json!({
+                                                    "kernel": k.name, "prod_idx": i,
+                                                    "prod_op": prod.opcode_full,
+                                                    "prod_stall": prod_stall,
+                                                    "guard_idx": j,
+                                                    "guard_op": cons.opcode_full,
+                                                    "class": class,
+                                                    "reason": "guard-D1 on an atomic-memory \
+                                                        consumer: guarded-atomic forms are \
+                                                        silicon-gated on sm_103a (F-SS4 \
+                                                        census-hi: guarded non-EL ATOMG = \
+                                                        silent corruption even with an \
+                                                        always-true guard; .EL = \
+                                                        ILLEGAL_ADDRESS on the default \
+                                                        descriptor). No stall fixes this -- \
+                                                        the form needs the descriptor-policy \
+                                                        port (O1-road), not postfix."
+                                                }));
+                                            }
+                                            _ => {
+                                                site.action = "violation".to_string();
+                                                d1_violations.push(serde_json::json!({
+                                                    "kernel": k.name, "prod_idx": i,
+                                                    "prod_op": prod.opcode_full,
+                                                    "prod_stall": prod_stall,
+                                                    "guard_idx": j,
+                                                    "guard_op": cons.opcode_full,
+                                                    "class": class,
+                                                    "reason": "guard-D1 (data-class) is \
+                                                        FLAKY at every S<=10 under occupancy \
+                                                        (STALLSUF-1 + F-SS4 census-hi: \
+                                                        S09/S10 flaky too; S11 was a \
+                                                        probe-geometry island, not a \
+                                                        policy-grade floor). no stall \
+                                                        legalizes this schedule -- \
+                                                        eliminate the D1 distance instead."
+                                                }));
+                                            }
+                                        }
+                                    }
+                                    d1_sites.entry(kidx).or_default().push(site);
+                                }
+                                3 => {
+                                    meets(f, rules.floor_guard_d2, "R3-guard-d2");
+                                    if prod_stall >= rules.legacy_stall_risk_from {
+                                        risk_rows.entry(kidx).or_default().push(HighStallRisk {
+                                            prod_idx: i,
+                                            prod_op: prod.opcode_full.clone(),
+                                            prod_stall,
+                                            guard_idx: j,
+                                            guard_op: cons.opcode_full.clone(),
+                                            dist: d,
+                                            class: class.to_string(),
+                                        });
+                                    }
+                                }
                                 _ => unreachable!(),
                             }
                         }
@@ -387,6 +590,21 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                 }
             }
         }
+    }
+
+    // v1: zebrane naruszenia guard-D1 = jeden fail z kompletna mapa stanowisk
+    if !d1_violations.is_empty() {
+        bail!(
+            "stallfix: {} guard-D1 site(s) cannot be legalized in place under \
+             the v1 class rules (raise-only, cap {}):\n{}",
+            d1_violations.len(),
+            rules.cap_stall,
+            d1_violations
+                .iter()
+                .map(|v| serde_json::to_string(v).unwrap())
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
     }
 
     // plan kernels that name no kernel in the file are an error (strict plan)
@@ -441,6 +659,8 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
             n_raises,
             hist,
             input_above_cap: above_cap.get(&kidx).cloned().unwrap_or_default(),
+            d1_sites: d1_sites.get(&kidx).cloned().unwrap_or_default(),
+            high_stall_risk: risk_rows.get(&kidx).cloned().unwrap_or_default(),
         });
     }
 
@@ -455,6 +675,7 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
         report: StallFixReport {
             arch: rules.arch.clone(),
             cap_stall: rules.cap_stall,
+            rules_version: rules.rules_version.clone(),
             kernels: reports,
             total_raises,
             provenance: rules.provenance.clone(),

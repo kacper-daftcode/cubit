@@ -234,3 +234,145 @@ fn rules_sanity_rejects_bad_data() {
     .unwrap_err();
     assert!(format!("{err:#}").contains("4-bit"));
 }
+
+// -------------------------------------------------------------------
+// v1 (F-ss4 census-hi, 2026-08-22): class-resolved guard-D1.
+// -------------------------------------------------------------------
+
+#[test]
+fn r6_guard_d1_isetp_floor5_applies() {
+    // producer ISETP S01 -> one-instruction gap -> @P2 ISETP consumer:
+    // isetp-class D1 is measured LEGAL for producer stalls 5..=11
+    // (census-hi B300, 3 runs x 2 tiers); the pass floors the producer.
+    let src = kern(&[
+        "[B------:R-:W-:-:S01] ISETP.GT.U32.AND P2, PT, R0, R1, PT",
+        "[B------:R-:W-:-:S00] IADD3 R9, R7, R8, RZ",
+        "[B------:R-:W-:-:S00] @P2 ISETP.EQ.AND P3, PT, R2, R3, PT",
+        "EXIT",
+    ]);
+    let run = run_file(&src, &pl("[[0,3]]"), &rules()).unwrap();
+    let k = &run.report.kernels[0];
+    let prod = k.raises.iter().find(|r| r.ins_idx == 0).unwrap();
+    assert_eq!(prod.new_stall, 5);
+    assert!(prod.rules.iter().any(|r| r == "R6-guard-d1-isetp"), "{:?}", prod.rules);
+    assert_eq!(k.d1_sites.len(), 1);
+    assert_eq!(k.d1_sites[0].class, "isetp");
+    assert_eq!(k.d1_sites[0].action, "floor-raise:S01->S05");
+    assert!(k.high_stall_risk.is_empty());
+}
+
+#[test]
+fn r6_guard_d1_isetp_inband_noop() {
+    // producer already at S07: inside the measured legal band -> no raise,
+    // site enumerated as noop.
+    let src = kern(&[
+        "[B------:R-:W-:-:S07] ISETP.GT.U32.AND P2, PT, R0, R1, PT",
+        "[B------:R-:W-:-:S04] IADD3 R9, R7, R8, RZ",
+        "[B------:R-:W-:-:S04] @!P2 ISETP.NE.AND P3, PT, R2, R3, PT",
+        "EXIT",
+    ]);
+    let run = run_file(&src, &pl("[[0,3]]"), &rules()).unwrap();
+    let k = &run.report.kernels[0];
+    assert_eq!(k.n_raises, 0);
+    assert_eq!(k.d1_sites.len(), 1);
+    assert_eq!(k.d1_sites[0].action, "noop");
+}
+
+#[test]
+fn r6_guard_d1_isetp_bad_band_12_is_error() {
+    // producer at S13 with an isetp-class D1 consumer: measured bad band
+    // (S12/S13 flaky/mismatch); raise-only cannot lower -> violation.
+    let src = kern(&[
+        "[B------:R-:W-:-:S13] ISETP.GT.U32.AND P2, PT, R0, R1, PT",
+        "[B------:R-:W-:-:S04] IADD3 R9, R7, R8, RZ",
+        "[B------:R-:W-:-:S04] @P2 ISETP.EQ.AND P3, PT, R2, R3, PT",
+        "EXIT",
+    ]);
+    let err = run_file(&src, &pl("[[0,3]]"), &rules()).unwrap_err();
+    let msg = format!("{err:#}");
+    assert!(msg.contains("guard-D1"), "{msg}");
+    assert!(msg.contains("isetp-class"), "{msg}");
+    assert!(msg.contains("eliminate"), "{msg}");
+}
+
+#[test]
+fn r6_guard_d1_atomic_is_error() {
+    // guarded-atomic forms are silicon-gated on sm_103a (census-hi):
+    // any guard-D1 on a RED/ATOM op is a violation regardless of stall.
+    let src = kern(&[
+        "[B------:R-:W-:-:S07] ISETP.GT.U32.AND P2, PT, R0, R1, PT",
+        "[B------:R-:W-:-:S04] IADD3 R9, R7, R8, RZ",
+        "[B------:R-:W-:-:S04] @P2 REDG.E.ADD.EL.STRONG.GPU PT, desc[UR0][RZ.64], R5",
+        "EXIT",
+    ]);
+    let err = run_file(&src, &pl("[[0,3]]"), &rules()).unwrap_err();
+    let msg = format!("{err:#}");
+    assert!(msg.contains("guard-D1"), "{msg}");
+    assert!(msg.contains("silicon-gated"), "{msg}");
+}
+
+#[test]
+fn v1_high_stall_risk_is_report_only() {
+    // producer S13 with a d2 guard: floor satisfied (13 > 5), but the
+    // legacy S>=12 zone is a measured risk pocket -> report-only row,
+    // no raise, no error.
+    let src = kern(&[
+        "[B------:R-:W-:-:S13] ISETP.GT.U32.AND P2, PT, R0, R1, PT",
+        "[B------:R-:W-:-:S04] IADD3 R9, R7, R8, RZ",
+        "[B------:R-:W-:-:S04] IADD3 R8, R7, R6, RZ",
+        "[B------:R-:W-:-:S04] @P2 IADD3 R5, R3, R4, RZ",
+        "EXIT",
+    ]);
+    let run = run_file(&src, &pl("[[0,4]]"), &rules()).unwrap();
+    let k = &run.report.kernels[0];
+    assert_eq!(k.n_raises, 0);
+    assert_eq!(k.d1_sites.len(), 0);
+    assert_eq!(k.high_stall_risk.len(), 1);
+    assert_eq!(k.high_stall_risk[0].prod_stall, 13);
+    assert_eq!(k.high_stall_risk[0].dist, 3);
+    assert_eq!(k.high_stall_risk[0].class, "data");
+}
+
+#[test]
+fn v1_violations_collect_all_sites() {
+    // two bad D1 sites in one run: the error must enumerate BOTH (map
+    // for the D1-elimination pass, no bail-at-first).
+    let src = kern(&[
+        "[B------:R-:W-:-:S09] ISETP.GT.U32.AND P2, PT, R0, R1, PT",
+        "[B------:R-:W-:-:S04] IADD3 R9, R7, R8, RZ",
+        "[B------:R-:W-:-:S04] @P2 IADD3 R5, R3, R4, RZ",
+        "[B------:R-:W-:-:S09] ISETP.LT.U32.AND P4, PT, R6, R7, PT",
+        "[B------:R-:W-:-:S04] IADD3 R10, R7, R8, RZ",
+        "[B------:R-:W-:-:S04] @P4 LOP3.LUT R11, R3, R4, R5, 0x96, !PT",
+        "EXIT",
+    ]);
+    let err = run_file(&src, &pl("[[0,6]]"), &rules()).unwrap_err();
+    let msg = format!("{err:#}");
+    assert!(msg.contains("2 guard-D1 site(s)"), "{msg}");
+    assert!(msg.matches("\"prod_idx\":3").count() == 1, "{msg}");
+    assert!(msg.matches("\"prod_idx\":0").count() == 1, "{msg}");
+}
+
+#[test]
+fn v1_rules_version_flows_to_report() {
+    let r = rules();
+    assert_eq!(r.rules_version, "v1");
+    assert_eq!(r.guard_d1_isetp_floor, 5);
+    assert_eq!(r.legacy_stall_risk_from, 12);
+    let src = kern(&["[B------:R-:W-:-:S04] IADD3 R2, R0, R1, RZ", "EXIT"]);
+    let run = run_file(&src, &pl("[[0,1]]"), &r).unwrap();
+    assert_eq!(run.report.rules_version, "v1");
+}
+
+#[test]
+fn v1_defaults_keep_old_rules_files_loadable() {
+    // pre-v1 rules JSON (no new fields) must still parse and behave
+    // exactly like v0 semantics (serde defaults).
+    let v0 = r#"{"arch":"sm_103a","cap_stall":11,"floor_global":4,
+        "floor_dmix_d0":5,"floor_guard_d0":7,"floor_guard_d2":5,
+        "guard_d1_forbid":true}"#;
+    let r = StallRules::from_str_json(v0).unwrap();
+    assert_eq!(r.guard_d1_isetp_floor, 5);
+    assert_eq!(r.legacy_stall_risk_from, 12);
+    assert_eq!(r.rules_version, "");
+}

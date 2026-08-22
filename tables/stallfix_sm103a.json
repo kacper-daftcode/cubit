@@ -6,11 +6,31 @@
  "floor_guard_d0": 7,
  "floor_guard_d2": 5,
  "guard_d1_forbid": true,
- "comment": "POSTFIX-103 v0 rules. Silicon-measured minimum stall floors per dependency path on sm_103a (B300), consumer at the DIRECTLY next slot (d0) unless named. floor_global: rpath/P-carry ALU paths need S>=4 at d0 (S00..S03 physically insufficient @occupancy, S00 flaky everywhere). floor_dmix_d0: IMAD(.WIDE).X cout -> IADD3.X cin needs 5. floor_guard_d0: any P producer -> @P/@!P guard consumer needs 7. guard_d1_forbid: guard consumer with exactly one instruction between producer and consumer is FLAKY at every S<=8 (@occupancy) -- no stall legalizes it, the schedule itself is rejected. floor_guard_d2: guard at distance 3 needs 5. Stalls are a 4-bit field; cap_stall=11 is the BUG-036 policy cap (>=12 hangs measured kernels). Raise-only doctrine: the pass never lowers a stall, never touches B/R/W/Y bits.",
+ "guard_d1_isetp_floor": 5,
+ "legacy_stall_risk_from": 12,
+ "rules_version": "v1",
+ "comment": "POSTFIX-103 v1 rules. Silicon-measured minimum stall floors per dependency path on sm_103a (B300), consumer at the DIRECTLY next slot (d0) unless named. floor_global: rpath/P-carry ALU paths need S>=4 at d0 (S00..S03 physically insufficient @occupancy, S00 flaky everywhere). floor_dmix_d0: IMAD(.WIDE).X cout -> IADD3.X cin needs 5. floor_guard_d0: any P producer -> @P/@!P guard consumer needs 7 (isetp-class measured identical). floor_guard_d2: guard at distance 3 needs 5. guard-D1 (exactly one instruction between producer and guard consumer) is CLASS-RESOLVED by the consumer op (census-hi): isetp-class = LEGAL for producer stalls 5..11 (R6 floor guard_d1_isetp_floor; producer >=12 = measured bad band = violation); data-class = FLAKY at every S<=10 (S11 island = probe-geometry, not policy) = violation; atomic-class = the guarded forms are silicon-gated (guarded non-EL ATOMG silent-corrupts even with an always-true guard, .EL = ILLEGAL_ADDRESS on the default descriptor) = violation, remedy = descriptor-policy port (O1-road). legacy_stall_risk_from=12: producers at S>=12 inside guard relations d0/d2 are report-only risk rows (measured bad-zone pockets on sm_103a; raise-only cannot fix, eliminate instead). cap_stall=11 stands and is now sm_103a-backed (census-hi: D0 data/isetp classes miscompute at S12+ in dependency contexts, non-monotonic resonance pockets -- BUG-036-analog on B300). Raise-only doctrine: the pass never lowers a stall, never touches B/R/W/Y bits.",
  "provenance": {
   "census": "results/stallsuf/raw/census_canonical.txt",
   "census_md5": "82c07fe6aacfca83c09660e1677ae6d2",
   "report": "results/stallsuf/STALLSUF-1.md (loop5 iter23, 2026-08-22)",
-  "measured": "2026-08-22 B300 sm_103a, 254 canonical runs (run_census.sh), classes rpath/b1dual/b2single/c1wide/c2wide2/dmix/brachain x S-sweep x D-sweep x {1x32,148x256}"
+  "measured": "2026-08-22 B300 sm_103a, 254 canonical runs (run_census.sh), classes rpath/b1dual/b2single/c1wide/c2wide2/dmix/brachain x S-sweep x D-sweep x {1x32,148x256}",
+  "census_hi": "results/stallsuf/fss4/raw/ (loop5 iter F-ss4, 2026-08-22)",
+  "census_hi_md5": {
+   "x_d1h.txt": "c06f51f3b8c12a057c42d1386e05ae7e",
+   "x_d1h_focusA.txt": "343d7e9b9fde5d7f407354f5fe9587f2",
+   "x_d1h_focusB.txt": "257c240fe918aadc0987aad0e9355a46",
+   "p_hi.txt": "7dc1076790181d7be2e428431735d0eb",
+   "x_isetp2_d1h.txt": "5d0cc7c63e410f50f6745ed6a7573400",
+   "p_isetp2_h.txt": "0ff526a5235cb0852736dfaf2353f95f",
+   "x_isetp2_d1h_repl.txt": "827fd88044a15a95c927800eb986ff6b",
+   "x_atomg_d1h.txt": "9aca760748d114d317b748912e25f022",
+   "x_atomt_d1h.txt": "a5b3c6e4f4b8f2541a2c32b9ba67fbc5",
+   "x_atomte.txt": "c7dc31f7a1af0b0519a4d82f9fef603b",
+   "p_atomv.txt": "c860941ab01cea448900451641b27eb5"
+  },
+  "census_hi_generator_md5": "96efab8a38789e03f4253243c767cb13 (work/stallsuf/gen_ss.py, classes isetp2/atomg/atomv/atomt/atomte added; canonical classes byte-identical)",
+  "census_hi_report": "results/stallsuf/F-SS4-CENSUS-HI.md",
+  "measured_hi": "2026-08-22 B300 sm_103a, brachain-D1 S07..S15 x {1x32,148x256,296x256}, isetp2 D0/D1 S05..S15 x {1x32,148x256,296x256} + replications, brachain/rpath D0 high-S, guarded-atomic forms (atomt/atomte/atomv)"
  }
 }
