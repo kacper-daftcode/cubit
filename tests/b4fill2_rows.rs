@@ -39,9 +39,9 @@ static GOLD: &[(u128, &str)] = &[
     (0x000fe2000f8e003f00000100242278a4u128, "UIMAD.U32 UR34, UR36, 0x100, UR63"),
     // IMAD.X 5-token with pred
     (0x000fe200010e045d0000006408423224u128, "@P3 IMAD.X R66, R8, R100, R93, P2"),
-    // STS.128 with .X16 address scale
+    // STS.128 with .X16 address scale (note: the R204 era sibling moved to
+    // b4fill2_render_only under BUG-088 -- the encoder fails closed on it)
     (0x001be4000000cc00000000c805007388u128, "STS.128 [R5.X16], R200"),
-    (0x000be4000000cc00000010cc05007388u128, "STS.128 [R5.X16+0x10], R204"),
 ];
 
 #[test]
@@ -98,6 +98,12 @@ fn b4fill2_render_only() {
         (0x000fe2000c04000000000003ff047947u128, "BRA.CONV !P0, URZ, 0x20"),
         (0x000ff2000b83ffffffffffdd1e7c7958u128, "BRXU.U UR30, -0x1"),
         (0x000fe2000b80000000000005ff447958u128, "BRXU.U URZ, 0x11"),
+        // BUG-088: the R204-era STS.128 word violates the sm_103a .128 data
+        // alignment law (quad 51 odd, >=11 -- direct silicon probe of the
+        // verbatim era shape traps II; runtime-dead path in the certified
+        // kernel). Stay DECODE-ONLY; encoder reject is pinned in
+        // tests/bug088_wide_mem_reg_align.rs t4.
+        (0x000be4000000cc00000010cc05007388u128, "STS.128 [R5.X16+0x10], R204"),
     ] {
         let d = idx.decode(word, 0, &t).unwrap();
         assert_eq!(cubit::printer::to_sass(&d), golden);

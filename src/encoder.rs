@@ -1025,6 +1025,96 @@ fn check_imnmx_sm103_erratum(insn: &Instruction, table: &IsaTable) -> Result<()>
     )
 }
 
+
+/// BUG-088 (silicon, B300/sm_103a; F2Q-088-kand from the b12-full-2
+/// preflight, extended into a full probe matrix 2026-08-22): wide
+/// const/shared-memory accesses enforce DESTINATION/DATA register alignment
+/// laws that the encoder previously accepted silently -- the assembled word
+/// then traps CUDA_ERROR_ILLEGAL_INSTRUCTION at execution (same fail-closed
+/// doctrine as the BUG-060/076/077/078 family).
+///
+/// Probe matrix (probes work/f2-088/probes, records results/cubitfix/088/;
+/// krunp on B300, 2-3 replications, deterministic across epochs):
+///   LDC.64 dest R (cAI imm and cARI register-offset forms): ODD Rn ->
+///     II (R53/R201), even OK, RZ(255) exempt. Plain 32-bit LDC unconstrained.
+///   LDCU.64 dest UR: ODD URn -> II (UR5/UR61 -- REAL UR63 traps too),
+///     even OK, URZ exempt.
+///   LDS.64 dest / STS.64 data R: ODD -> II (R5/R201), even OK, RZ exempt.
+///   LDS.128 dest / STS.128 data R: legal iff RZ, Rn%8==0, or
+///     (Rn<44 && Rn%4==0). Rn%4!=0 -> II everywhere (R13/41/45/46/49/126);
+///     odd-quad (Rn/4)%2==1 with Rn>=44 -> II (R44/52/60/68/100/132/196/204).
+///   LDC.128: NO constraint observed (odd/q2 dest execute, cAI+cARI) --
+///     deliberately left unguarded; documented asymmetry.
+///
+/// Era corpus (rt98_ref.s103) carries exactly ONE word that now fails
+/// closed: `STS.128 [R5.X16+0x10], R204` in KernelA (R204 = quad 51, odd,
+/// >=11). The verbatim era shape traps II on silicon when executed; nothing
+/// observed it because the site is on a dead path at runtime. Encoder census
+/// delta = 1 documented slot (errs 21 -> 22), decode untouched.
+/// Scoped to target_sm()==103 (no sm120 silicon evidence);
+/// CUBIT_DISABLE_ERRATA unlocks for analysis, like the rest of the battery.
+fn check_wide_mem_reg_align_sm103(insn: &Instruction, table: &IsaTable) -> Result<()> {
+    if table.target_sm() != 103 {
+        return Ok(());
+    }
+    match insn.opcode.as_str() {
+        "LDC" | "LDCU" | "LDS" | "STS" => {}
+        _ => return Ok(()),
+    }
+    let mods = crate::table::extract_mod_group(&insn.raw_text);
+    let w64 = mods.split(',').any(|m| m == "64");
+    let w128 = mods.split(',').any(|m| m == "128");
+    if !w64 && !w128 {
+        return Ok(());
+    }
+    // The constrained register is the R-domain destination (LDC/LDS) or the
+    // data source (STS); for LDCU the uniform destination. Address registers
+    // live inside Addr/ConstMem/Desc operands, so the first Reg/UReg operand
+    // IS the data register.
+    if insn.opcode == "LDCU" {
+        if !w64 {
+            return Ok(());
+        }
+        if let Some((num, is_zero)) = insn.operands.iter().find_map(|o| match o {
+            Operand::UReg { num, is_zero, .. } => Some((*num, *is_zero)),
+            _ => None,
+        }) {
+            if !is_zero && num % 2 == 1 {
+                anyhow::bail!(
+                    "LDCU.64 uniform destination UR{} is ODD -- SILICON-ILLEGAL on sm_103a                     (BUG-088; B300 krunp matrix 2026-08-22: odd URn -> CUDA_ERROR_ILLEGAL_INSTRUCTION                     deterministically (UR5/UR61; note REAL UR63 traps -- only the URZ zero-constant                     encoding is exempt); even URn executes. Renumber to an even UR (RA pin) instead                     of assembling the odd-dest word; the real-constant URZ stays legal; decode                     stays full-fidelity for RE."
+                    , num
+                );
+            }
+        }
+        return Ok(());
+    }
+    let Some(num) = insn.operands.iter().find_map(|o| match o {
+        Operand::Reg { num, .. } => Some(*num),
+        _ => None,
+    }) else {
+        return Ok(());
+    };
+    if num == 255 {
+        return Ok(()); // RZ zero-constant encoding: silicon-exempt (probed).
+    }
+    if w64 && num % 2 == 1 {
+        anyhow::bail!(
+            "{}.64 data/destination register R{} is ODD -- SILICON-ILLEGAL on sm_103a             (BUG-088; B300 krunp matrix 2026-08-22: odd Rn -> CUDA_ERROR_ILLEGAL_INSTRUCTION             deterministically for LDC.64 dest (cAI and cARI forms alike) and LDS.64 dest /             STS.64 data; even Rn executes, RZ is exempt). Renumber to an even register (RA             pin) instead of assembling the odd-register word; decode stays full-fidelity for RE."
+            , insn.opcode, num
+        );
+    }
+    if w128 && insn.opcode != "LDC" {
+        let legal128 = num % 8 == 0 || (num < 44 && num % 4 == 0);
+        if !legal128 {
+            anyhow::bail!(
+                "{}.128 data/destination register R{} violates the sm_103a alignment law                 -- SILICON-ILLEGAL (BUG-088; B300 krunp matrix 2026-08-22: legal iff RZ,                 Rn%8==0, or Rn<44 with Rn%4==0; Rn%4!=0 traps EVERYWHERE tested                 (R13/41/45/46/49/126), odd-quad (Rn/4)>=11 traps (R44/52/60/68/100/132/196/204)).                 Renumber (RA pin) instead of assembling the word. NOTE: the era corpus carries                 exactly one such word (`STS.128 [R5.X16+0x10], R204`, quad 51) on a runtime-                 dead path; LDC.128 is deliberately NOT under this guard (silicon shows no                 constraint there). Decode stays full-fidelity for RE."
+                , insn.opcode, num
+            );
+        }
+    }
+    Ok(())
+}
+
 /// Encode a parsed instruction using the per-modifier-group table.
 pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> {
     encode_instruction_inner(insn, table, true)
@@ -1044,6 +1134,7 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         check_ldg_desc_pair_parity_sm103(insn, table)?;
         check_atom_desc_pair_parity_sm103(insn, table)?;
         check_guarded_atomic_sm103(insn, table)?;
+        check_wide_mem_reg_align_sm103(insn, table)?;
     }
     let mod_group = crate::table::extract_mod_group(&insn.raw_text);
 
