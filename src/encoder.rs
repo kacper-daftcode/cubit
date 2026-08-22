@@ -1496,8 +1496,24 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
             entry.fields.iter().any(|f| f.token_idx == tok
                 && ext_encodes_ureg(&f.extraction))
         });
+        // BUG-084: post-re-canonicalization the sm120 table carries complete
+        // sm103a-derived address geometry (base-register SubR + SubImm on the
+        // Addr token) for the raw-address LDG/STG family -- identical to the
+        // sm103a tables the legacy rebuild below already steps aside for
+        // ("would clobber them"). When the selected entry fully owns the
+        // address operand, its and_base+fields encode the vendor-exact word
+        // (2049-cubin census, 676,912 roundtrip anchors). Keep the legacy
+        // template only for entries with incomplete address coverage.
+        let entry_covers_addr_base_imm = addr_tok.is_some_and(|tok| {
+            entry.fields.iter().any(|f| f.token_idx == tok
+                && matches!(f.extraction,
+                    Extraction::SubR(..) | Extraction::SubRShr(..)))
+            && entry.fields.iter().any(|f| f.token_idx == tok
+                && ext_encodes_imm(&f.extraction))
+        });
 
-        if !sm103a_derived && uses_raw_addr && !uses_desc && !entry_covers_addr_ur
+        if !sm103a_derived && uses_raw_addr && !uses_desc
+            && !entry_covers_addr_ur && !entry_covers_addr_base_imm
             && (insn.opcode == "LDG" || insn.opcode == "STG") {
             let is_64 = insn.opcode_full.contains(".64");
             let is_128 = insn.opcode_full.contains(".128");
