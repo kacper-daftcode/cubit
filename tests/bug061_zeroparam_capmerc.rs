@@ -9,6 +9,9 @@
 //! ultra-minimalny ksztalt to kategoria recznie pisanych kerneli. Brak
 //! goldowej reguly pozycji dla zero-param => fix = WARN (widocznosc), nie
 //! fabrykacja rekordow bez oraculum.
+//! Fixtures 2026-08-22 (BUG-080): atomy przelaczone na produkcyjne formy era
+//! .EL (guarded non-EL atomy sa silicon-broken na sm_103a i encoder ich
+//! nie skleja; rekordy 024d/024e pokrywaja tez .EL -- era-korpus).
 use std::process::Command;
 
 fn run_asm(sass: &str, tag: &str) -> (std::process::Output, std::path::PathBuf) {
@@ -33,10 +36,10 @@ fn run_asm(sass: &str, tag: &str) -> (std::process::Output, std::path::PathBuf) 
 }
 
 // zero-load desc-atom: 024d record dropped -> WARN must fire
-const Z0_REDG: &str = ".entry z0\n    .param u64 p0\n    @P0 REDG.E.ADD.STRONG.GPU desc[UR4][R2.64], R5 ;\n    EXIT ;\n";
-const Z0_ATOMG: &str = ".entry z0a\n    .param u64 p0\n    @P0 ATOMG.E.ADD.STRONG.GPU PT, R5, desc[UR4][R2.64], R5 ;\n    EXIT ;\n";
+const Z0_REDG: &str = ".entry z0\n    .param u64 p0\n    @P0 REDG.E.ADD.EL.STRONG.GPU PT, desc[UR4][R2.64], R5 ;\n    EXIT ;\n";
+const Z0_ATOMG: &str = ".entry z0a\n    .param u64 p0\n    @P0 ATOMG.E.ADD.EL.STRONG.GPU PT, R5, desc[UR4][R2.64], R5 ;\n    EXIT ;\n";
 // control: lane loads present -> laned path, record emitted, no WARN
-const ZP: &str = ".entry zp\n    LDC R1, c[0x0][0x37c] ;\n    LDC.64 R2, c[0x0][0x380] ;\n    LDCU.64 UR4, c[0x0][0x358] ;\n    @P0 REDG.E.ADD.STRONG.GPU desc[UR4][R2.64], R5 ;\n    EXIT ;\n";
+const ZP: &str = ".entry zp\n    LDC R1, c[0x0][0x37c] ;\n    LDC.64 R2, c[0x0][0x380] ;\n    LDCU.64 UR4, c[0x0][0x358] ;\n    @P0 REDG.E.ADD.EL.STRONG.GPU PT, desc[UR4][R2.64], R5 ;\n    EXIT ;\n";
 
 #[test]
 fn t1_zeroparam_redg_warns_and_drops_record() {

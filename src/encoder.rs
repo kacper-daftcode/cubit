@@ -959,6 +959,60 @@ fn check_atom_desc_pair_parity_sm103(insn: &Instruction, table: &IsaTable) -> Re
     Ok(())
 }
 
+/// BUG-080 (silicon, B300/sm_103a): a guard-PREDICATED non-EL memory atomic
+/// (`@Pn` / `@!Pn` / `@UPn` on ATOM/ATOMS/ATOMG/RED/REDG) is SILENTLY BROKEN
+/// on sm_103a -- the operation returns garbage to memory with NO trap, at
+/// every producer stall and even with an always-true guard.
+///
+/// Silicon (B300, census-hi F-SS4, 2026-08-22; raws
+/// results/stallsuf/fss4/raw/{x_atomt_d1h,x_atomte,p_atomv}.txt):
+///   `@P2 ATOMG.E.ADD.STRONG.GPU PT, R22, desc[UR20][R34.64], R44` with
+///   P2 forced always-true -> destination cells hold NONDET garbage on a
+///   12-variant sweep x 4 replications (x_atomt_d1h), incl. the 1x32
+///   geometry (not an occupancy artifact). The UNGUARDED instance of the
+///   same word performs the service correctly (p_atomv count-analytic
+///   PASS). The .EL variant traps loudly (ILLEGAL_ADDRESS on the default
+///   descriptor) instead -- loud, hence not this guard's business.
+/// Mechanism unknown (the guarded-atom issue path itself reads broken --
+/// even a *true* guard corrupts), so the encoder fails closed on ANY
+/// non-trivial guard (`@!PT` rejected too: never-executing forms encode a
+/// distinct pred field that was never probed; fail-closed doctrine).
+/// Exemptions:
+///   * explicit `@PT` -- encodes bit-identical to the unguarded word
+///     (verified byte-wise), so it is the unguarded form spelled out;
+///   * .EL mod classes -- era production form; under real descriptors
+///     (=O1 descriptor-port road) legality is an open silicon question
+///     (078-open-Q / b12-full-2), and on the default descriptor they die
+///     loudly;
+///   * REDUX -- register-space reduction (UR dest, no memory operand),
+///     not a memory atomic; no silicon evidence.
+/// ATOM/ATOMS guarded were not probed; they ride the family guard by
+/// prevention (same atomic issue path as ATOMG, like BUG-078 covered
+/// REDG from ATOMG probes). Era corpus (rt98_ref.s103): all 22 guarded
+/// atom sites are .EL (F-SS4 guard census) -> encoder census delta = 0.
+/// Complements POSTFIX-103 v1, which already treats every guard-D1 atomic
+/// consumer as a violation; this guard closes the ENCODER side so the word
+/// cannot be minted at all. Scoped to sm_103a (no sm120 silicon).
+fn check_guarded_atomic_sm103(insn: &Instruction, table: &IsaTable) -> Result<()> {
+    const MEM_ATOMIC: &[&str] = &["ATOM", "ATOMS", "ATOMG", "RED", "REDG"];
+    if !MEM_ATOMIC.contains(&insn.opcode.as_str()) {
+        return Ok(());
+    }
+    if table.target_sm() != 103 {
+        return Ok(());
+    }
+    let mods = crate::table::extract_mod_group(&insn.raw_text);
+    if mods.split(',').any(|m| m == "EL") {
+        return Ok(());
+    }
+    match &insn.guard {
+        Some(g) if !(g.pred == 7 && !g.negated && !g.uniform) => anyhow::bail!(
+            "guard-predicated non-EL {} is SILENTLY BROKEN on sm_103a (BUG-080; B300             census-hi 2026-08-22: guarded ATOMG.E.ADD.STRONG.GPU with an ALWAYS-TRUE guard             wrote NONDET garbage to memory at every stall 04..15 and at 1x32 occupancy, no             trap; the unguarded word works). Do not assemble guarded atomics for sm_103a --             restructure (guard a BRA around the atomic) or use the .EL form with a real             descriptor (O1-road). Decode stays full-fidelity for RE."
+            , insn.opcode),
+        _ => Ok(()),
+    }
+}
+
 fn check_imnmx_sm103_erratum(insn: &Instruction, table: &IsaTable) -> Result<()> {
     if insn.opcode != "IMNMX" {
         return Ok(());
@@ -989,6 +1043,7 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         check_stg_desc_pair_parity_sm103(insn, table)?;
         check_ldg_desc_pair_parity_sm103(insn, table)?;
         check_atom_desc_pair_parity_sm103(insn, table)?;
+        check_guarded_atomic_sm103(insn, table)?;
     }
     let mod_group = crate::table::extract_mod_group(&insn.raw_text);
 
