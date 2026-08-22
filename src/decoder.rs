@@ -564,20 +564,12 @@ fn select_best_candidate<'a>(
         }
     }
 
-    // SHL disambiguation: if one candidate has "SHL" in its mod_group and the instruction
-    // bits[71:64]=0xff (Rc=RZ), prefer the SHL candidate over the non-SHL one.
-    // IMAD.SHL always requires Rc=RZ (baked into and_base as constant 0xff at bits[71:64]).
-    // Only prefer SHL if it's a non-negative-scoring candidate (avoid bad key matches).
-    let rc_bits = (code_clean >> 64) & 0xff;
-    if rc_bits == 0xff && key_root(&first.key) == "IMAD" {
-        for candidate in matches {
-            if key_root(&candidate.key) != "IMAD" { continue; } // BUG-007
-            let score = key_field_consistency_score(&candidate.key, &candidate.mod_group, table);
-            if score >= 0 && candidate.mod_group.contains("SHL") {
-                return Some(candidate);
-            }
-        }
-    }
+    // BUG-083: the former "SHL disambiguation" (Rc==RZ => prefer mg SHL) was a
+    // category error: plain `IMAD Rd, Rs, imm, RZ` (bit73=1, signed-id bit) also
+    // carries Rc=RZ and was hijacked into `IMAD.SHL.U32 ... |Ra|` (4,080 uniq in
+    // the 2049-cubin vendor census). SHL vs plain is fully decided by the row
+    // masks (SHL,U32 requires bit73=0; '' requires bit73=1, prio0 beats the
+    // sign-tolerant prio3 on ''), so no override is needed here.
 
     // Trailing pred disambiguation: if the instruction has a non-PT/non-!PT trailing
     // predicate at bits[90:87], prefer candidates with an explicit field covering those bits.

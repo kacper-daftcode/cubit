@@ -1141,8 +1141,16 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     // BUG-012: IMAD.MOV is an ALIAS of plain IMAD — nvdisasm prints it when both
     // multiplier operands are RZ. Accept the alias only in that exact shape
     // (fail-closed otherwise) and encode via the plain rows.
+    // BUG-083: the strip must apply ONLY to the bare `MOV` alias. `MOV,U32` is a
+    // real row (bit73=0, the U32/signed discriminator); stripping `MOV` from it
+    // left mg="U32" which does not exist for these keys, and the "" fallback
+    // silently encoded the SIGNED plain row (bit73=1) — 16,866 corpus words
+    // re-encoded with bit73 flipped before this fix.
     let mov_alias = insn.opcode == "IMAD"
         && mod_group.split(',').any(|m| m == "MOV");
+    // `MOV,U32` keeps its own mod_group (own table row); alias-shape still enforced.
+    let mov_u32 = mov_alias
+        && mod_group.split(',').any(|m| m == "U32");
     if mov_alias {
         let is_rz = |o: &Operand| matches!(o,
             Operand::Reg { num: 255, neg: false, abs: false, inv: false, .. });
@@ -1155,7 +1163,7 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
             );
         }
     }
-    let mod_group = if mov_alias {
+    let mod_group = if mov_alias && !mov_u32 {
         mod_group.split(',').filter(|m| *m != "MOV").collect::<Vec<_>>().join(",")
     } else {
         mod_group

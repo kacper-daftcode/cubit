@@ -1673,7 +1673,7 @@
     },
     "SHL,U32": {
      "and_base": "0x000fc000078e00ff0000000000000824",
-     "variable_mask": "0x07f03e000000000005b0fffefffff000",
+     "variable_mask": "0x07f03e000000000007b0fffefffff000",
      "fields": [
       {
        "shift": 12,
@@ -1717,7 +1717,8 @@
        "_src": "2c"
       }
      ],
-     "count": 16025
+     "count": 16025,
+     "_errata": "BUG-083: vm imm-window extended by bits 57/58 (vendor-proven SHL.U32 imm=2^25/2^26; keeps U32 0x10000/0x80000000 on fad-tiebreak)"
     },
     "U32": {
      "and_base": "0x000fc000078e00000000000000000824",
@@ -53679,7 +53680,7 @@
    "mod_groups": {
     "U32,WIDE,X": {
      "and_base": "0x000fc000000004000000000000000225",
-     "variable_mask": "0x1f802e00038e00fffffffffffffff000",
+     "variable_mask": "0x1f802e00078e00fffffffffffffff000",
      "fields": [
       {
        "shift": 12,
@@ -53749,6 +53750,13 @@
        "token_idx": 6,
        "extraction": "pred",
        "_src": "b4fill-2026-08-21"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 6,
+       "extraction": "neg",
+       "_src": "F2-083: encode-side cin neg@90 (\"!PT\")"
       }
      ],
      "count": 639,
@@ -53771,7 +53779,7 @@
    "mod_groups": {
     "U32,WIDE,X": {
      "and_base": "0x000fc000000004000000000000000825",
-     "variable_mask": "0x1c002e00038e00fffffffffffffff000",
+     "variable_mask": "0x1c002e00078e00fffffffffffffff000",
      "fields": [
       {
        "shift": 12,
@@ -53834,6 +53842,13 @@
        "token_idx": 6,
        "extraction": "pred",
        "_src": "b4fill-2026-08-21"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 6,
+       "extraction": "neg",
+       "_src": "F2-083: encode-side cin neg@90 (\"!PT\" text form); decode of bit90=1 words still routes to B90,U32,WIDE,X (marker convention preserved for era pins)"
       }
      ],
      "count": 60,
