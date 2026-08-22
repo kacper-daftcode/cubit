@@ -205,32 +205,45 @@ fn parse_address(s: &str) -> Option<Operand> {
         // Check for register with suffix like R4.64, R2.X8
         let base = part.split('.').next().unwrap_or(part);
 
+        // BUG-073: every '+'-separated bracket component must classify exactly
+        // once. Previously an immediate assigned `offset = ...` per part (the
+        // LAST one silently won, dropping e.g. the 0x8 in `[R26+0x8+0x4]`),
+        // and unparseable parts were ignored outright. Both classes silently
+        // corrupted the encoded address. Now: immediates fold arithmetically
+        // (checked), duplicate registers and unclassifiable parts fail closed.
         if base == "RZ" || base.starts_with('R') {
-            if let Some(num_str) = base.strip_prefix('R') {
-                if base == "RZ" {
-                    base_reg = Some(255u8);
-                } else if let Ok(n) = num_str.parse::<u8>() {
-                    base_reg = Some(n);
-                }
-                // Check for suffix
-                if part.contains('.') {
-                    base_reg_suffix = Some(part.split('.').skip(1).collect::<Vec<_>>().join("."));
-                }
+            let n = if base == "RZ" {
+                Some(255u8)
+            } else {
+                base.strip_prefix('R').and_then(|ns| ns.parse::<u8>().ok())
+            };
+            if base_reg.is_some() || n.is_none() {
+                return None;
+            }
+            base_reg = n;
+            // Check for suffix
+            if part.contains('.') {
+                base_reg_suffix = Some(part.split('.').skip(1).collect::<Vec<_>>().join("."));
             }
         } else if part.starts_with("UR") {
             let num_part = part.strip_prefix("UR").unwrap_or("0");
             let num_str = num_part.split('.').next().unwrap_or(num_part);
-            ur_reg = num_str.parse::<u8>().ok();
+            let n = num_str.parse::<u8>().ok();
+            if ur_reg.is_some() || n.is_none() {
+                return None;
+            }
+            ur_reg = n;
         } else if part.starts_with("0x") || part.starts_with("0X")
             || part.starts_with("-0x") || part.starts_with("-0X")
         {
             let neg = part.starts_with('-');
             let hex = part.trim_start_matches('-').trim_start_matches("0x").trim_start_matches("0X");
-            if let Ok(v) = u64::from_str_radix(hex, 16) {
-                offset = if neg { -(v as i64) } else { v as i64 };
-            }
+            let v = u64::from_str_radix(hex, 16).ok()?;
+            offset = offset.checked_add(if neg { (v as i64).checked_neg()? } else { v as i64 })?;
         } else if let Ok(v) = part.parse::<i64>() {
-            offset = v;
+            offset = offset.checked_add(v)?;
+        } else {
+            return None;
         }
     }
 
@@ -529,7 +542,18 @@ pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
         }
 
         for tok in &tokens {
-            operands.push(parse_single_operand(tok, is_float));
+            let op = parse_single_operand(tok, is_float);
+            // BUG-073: parse_address is strict (fold-or-fail); a bracketed
+            // token that fell through to Label means the address was rejected.
+            // Surface the real cause loudly instead of a generic encode miss.
+            if tok.starts_with('[') {
+                if let Operand::Label(_) = &op {
+                    anyhow::bail!(
+                        "unencodable memory address {tok:?}: every bracket component must classify once (base reg / UR / immediate); immediates fold, unknown or duplicate components are rejected"
+                    );
+                }
+            }
+            operands.push(op);
         }
     }
 
