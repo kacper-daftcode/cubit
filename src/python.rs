@@ -875,6 +875,33 @@ fn stallfix_run<'py>(
             ac.append(i)?;
         }
         kd.set_item("input_above_cap", ac)?;
+        // v1 (F-ss4): pełna mapa D1 per kernel + legacy-high-stall risk rows
+        let d1l = pyo3::types::PyList::empty(py);
+        for s in &k.d1_sites {
+            let sd = PyDict::new(py);
+            sd.set_item("prod_idx", s.prod_idx)?;
+            sd.set_item("prod_op", &s.prod_op)?;
+            sd.set_item("prod_stall", s.prod_stall)?;
+            sd.set_item("guard_idx", s.guard_idx)?;
+            sd.set_item("guard_op", &s.guard_op)?;
+            sd.set_item("class", &s.class)?;
+            sd.set_item("action", &s.action)?;
+            d1l.append(sd)?;
+        }
+        kd.set_item("d1_sites", d1l)?;
+        let hrl = pyo3::types::PyList::empty(py);
+        for r in &k.high_stall_risk {
+            let rd = PyDict::new(py);
+            rd.set_item("prod_idx", r.prod_idx)?;
+            rd.set_item("prod_op", &r.prod_op)?;
+            rd.set_item("prod_stall", r.prod_stall)?;
+            rd.set_item("guard_idx", r.guard_idx)?;
+            rd.set_item("guard_op", &r.guard_op)?;
+            rd.set_item("dist", r.dist)?;
+            rd.set_item("class", &r.class)?;
+            hrl.append(rd)?;
+        }
+        kd.set_item("high_stall_risk", hrl)?;
         out.push(kd);
     }
     Ok((run.out_text, out))
