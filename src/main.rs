@@ -158,6 +158,38 @@ enum Commands {
         #[arg(long)]
         report: Option<PathBuf>,
     },
+    /// POSTFIX-103 v0 -- stall-sufficiency legalizer for sm_103a
+    /// (BARRACUDA b1 / STALLSUF-1).
+    ///
+    /// Raises the stall digits of hand-scheduled windows to the
+    /// silicon-measured minimum floors (rules are DATA: --rules
+    /// tables/stallfix_sm103a.json, scope-locked by arch against --plan).
+    /// Raise-only: never lowers a stall, never touches B/R/W/Y bits --
+    /// the emission diff is exactly the stall field of each raised
+    /// instruction (1 byte per raise at slot +0xd), everything else
+    /// byte-verbatim, proven by a strict re-parse of the output.
+    /// Fail-closed: strict parse, arch mismatch, unknown kernel, window
+    /// out of range/overlap, a non-annotated instruction inside a window,
+    /// or the guard-D1 pathology (flaky at every S<=8, no stall
+    /// legalizes it) all stop the run with no output.
+    Stallfix {
+        /// Legalize plan JSON:
+        /// {"arch":"sm_103a","kernels":{"<name>":{"windows":[[s,e),...]}}}
+        #[arg(long)]
+        plan: PathBuf,
+        /// Measured rules JSON (e.g. tables/stallfix_sm103a.json).
+        #[arg(long)]
+        rules: PathBuf,
+        /// Input .sass file (directive format).
+        input: PathBuf,
+        /// Output .sass file. Omit to only validate and report.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Write the per-kernel JSON report here (default: stdout when -o
+        /// is given, to keep stdout free for piping the sass).
+        #[arg(long)]
+        report: Option<PathBuf>,
+    },
     /// Standalone IR -> SASS text renderer (M4.3a BARRACUDA b1).
     ///
     /// Parses the input file (strict) and reprints it from the structured IR
@@ -312,6 +344,13 @@ fn main() -> Result<()> {
             output.as_deref(),
             report.as_deref(),
         ),
+        Commands::Stallfix {
+            plan,
+            rules,
+            input,
+            output,
+            report,
+        } => cmd_stallfix(&plan, &rules, &input, output.as_deref(), report.as_deref()),
         Commands::Render { input, output, verify } => {
             cmd_render(&input, output.as_deref(), verify)
         }
@@ -512,6 +551,54 @@ fn cmd_sched(
         );
     } else {
         // no text output requested: report (or validation error) IS the result
+        match report {
+            Some(rp) => std::fs::write(rp, &json)
+                .with_context(|| format!("cannot write {}", rp.display()))?,
+            None => println!("{json}"),
+        }
+    }
+    Ok(())
+}
+
+/// `cubit stallfix` -- POSTFIX-103 v0 driver (STALLSUF-1 / BARRACUDA b1).
+///
+/// Same output contract as cmd_sched: with -o, output text + report
+/// (stderr summary); without -o, the run is validation-only and the report
+/// (or the error) is the result.
+fn cmd_stallfix(
+    plan: &Path,
+    rules: &Path,
+    input: &Path,
+    output: Option<&Path>,
+    report: Option<&Path>,
+) -> Result<()> {
+    let plan_text = std::fs::read_to_string(plan)
+        .with_context(|| format!("stallfix: cannot read plan {}", plan.display()))?;
+    let plan: cubit::stallfix::StallFixPlan = serde_json::from_str(&plan_text)
+        .with_context(|| format!("stallfix: plan {} is not valid POSTFIX-103 JSON", plan.display()))?;
+    let rules = cubit::stallfix::StallRules::load(rules)?;
+    let text = std::fs::read_to_string(input)
+        .with_context(|| format!("cannot read {}", input.display()))?;
+    let run = cubit::stallfix::run_file(&text, &plan, &rules)
+        .with_context(|| format!("stallfix pass failed on {}", input.display()))?;
+    let rep = &run.report;
+    let json = serde_json::to_string_pretty(rep)?;
+    if let Some(out) = output {
+        std::fs::write(out, &run.out_text)
+            .with_context(|| format!("cannot write {}", out.display()))?;
+        match report {
+            Some(rp) => std::fs::write(rp, &json)
+                .with_context(|| format!("cannot write {}", rp.display()))?,
+            None => println!("{json}"),
+        }
+        eprintln!(
+            "stallfix [{}] {} kernel(s), {} raise(s) -> {}",
+            rep.arch,
+            rep.kernels.len(),
+            rep.total_raises,
+            out.display()
+        );
+    } else {
         match report {
             Some(rp) => std::fs::write(rp, &json)
                 .with_context(|| format!("cannot write {}", rp.display()))?,

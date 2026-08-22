@@ -1,0 +1,16 @@
+{
+ "arch": "sm_103a",
+ "cap_stall": 11,
+ "floor_global": 4,
+ "floor_dmix_d0": 5,
+ "floor_guard_d0": 7,
+ "floor_guard_d2": 5,
+ "guard_d1_forbid": true,
+ "comment": "POSTFIX-103 v0 rules. Silicon-measured minimum stall floors per dependency path on sm_103a (B300), consumer at the DIRECTLY next slot (d0) unless named. floor_global: rpath/P-carry ALU paths need S>=4 at d0 (S00..S03 physically insufficient @occupancy, S00 flaky everywhere). floor_dmix_d0: IMAD(.WIDE).X cout -> IADD3.X cin needs 5. floor_guard_d0: any P producer -> @P/@!P guard consumer needs 7. guard_d1_forbid: guard consumer with exactly one instruction between producer and consumer is FLAKY at every S<=8 (@occupancy) -- no stall legalizes it, the schedule itself is rejected. floor_guard_d2: guard at distance 3 needs 5. Stalls are a 4-bit field; cap_stall=11 is the BUG-036 policy cap (>=12 hangs measured kernels). Raise-only doctrine: the pass never lowers a stall, never touches B/R/W/Y bits.",
+ "provenance": {
+  "census": "results/stallsuf/raw/census_canonical.txt",
+  "census_md5": "82c07fe6aacfca83c09660e1677ae6d2",
+  "report": "results/stallsuf/STALLSUF-1.md (loop5 iter23, 2026-08-22)",
+  "measured": "2026-08-22 B300 sm_103a, 254 canonical runs (run_census.sh), classes rpath/b1dual/b2single/c1wide/c2wide2/dmix/brachain x S-sweep x D-sweep x {1x32,148x256}"
+ }
+}

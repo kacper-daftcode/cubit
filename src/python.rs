@@ -816,6 +816,70 @@ fn sched_pins<'py>(
     Ok(out)
 }
 
+/// POSTFIX-103 v0 (BARRACUDA b1 / STALLSUF-1): stall-sufficiency legalizer
+/// for sm_103a. `plan` is {"arch":"sm_103a","kernels":{name:{"windows":
+/// [[s,e),...]}}}; `rules` is the measured rules JSON (e.g.
+/// tables/stallfix_sm103a.json). Returns (output_text, per-kernel reports);
+/// the output differs from the input ONLY in the stall digits of the raised
+/// instructions (raise-only, cap from rules; re-parse proof inside the
+/// pass). Fail-closed like the CLI: arch mismatch, unknown kernel, window
+/// violations, naked instruction inside a window, guard-D1 -> ValueError,
+/// and no text survives a refusal (the caller gets the exception, not text).
+#[cfg(feature = "python")]
+#[pyfunction]
+fn stallfix_run<'py>(
+    py: Python<'py>,
+    text: &str,
+    plan: &str,
+    rules: &str,
+) -> PyResult<(String, Vec<Bound<'py, PyDict>>)> {
+    let plan: crate::stallfix::StallFixPlan = serde_json::from_str(plan)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("stallfix plan JSON: {e:#}")))?;
+    let rules = crate::stallfix::StallRules::from_str_json(rules)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("stallfix rules JSON: {e:#}")))?;
+    let run = crate::stallfix::run_file(text, &plan, &rules)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("stallfix error: {e:#}")))?;
+    let mut out = Vec::new();
+    for k in &run.report.kernels {
+        let kd = PyDict::new(py);
+        kd.set_item("name", &k.name)?;
+        kd.set_item("n", k.n_ins)?;
+        kd.set_item("n_annotated", k.n_annotated)?;
+        kd.set_item("n_raises", k.n_raises)?;
+        let wl = pyo3::types::PyList::empty(py);
+        for w in &k.windows {
+            wl.append((w.0, w.1))?;
+        }
+        kd.set_item("windows", wl)?;
+        let rl = pyo3::types::PyList::empty(py);
+        for r in &k.raises {
+            let rd = PyDict::new(py);
+            rd.set_item("ins_idx", r.ins_idx)?;
+            rd.set_item("old_stall", r.old_stall)?;
+            rd.set_item("new_stall", r.new_stall)?;
+            let why = pyo3::types::PyList::empty(py);
+            for w2 in &r.rules {
+                why.append(w2)?;
+            }
+            rd.set_item("rules", why)?;
+            rl.append(rd)?;
+        }
+        kd.set_item("raises", rl)?;
+        let hl = pyo3::types::PyList::empty(py);
+        for h in &k.hist {
+            hl.append((h.old, h.new, h.count))?;
+        }
+        kd.set_item("hist", hl)?;
+        let ac = pyo3::types::PyList::empty(py);
+        for i in &k.input_above_cap {
+            ac.append(i)?;
+        }
+        kd.set_item("input_above_cap", ac)?;
+        out.push(kd);
+    }
+    Ok((run.out_text, out))
+}
+
 /// Python module definition.
 #[cfg(feature = "python")]
 #[pymodule]
@@ -838,5 +902,6 @@ fn cubit(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(render, m)?)?;
     m.add_function(wrap_pyfunction!(ra_full, m)?)?;
     m.add_function(wrap_pyfunction!(prof_cubin, m)?)?;
+    m.add_function(wrap_pyfunction!(stallfix_run, m)?)?;
     Ok(())
 }

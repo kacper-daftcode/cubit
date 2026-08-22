@@ -1,0 +1,634 @@
+//! POSTFIX-103 v0 -- stall-sufficiency legalizer for sm_103a (BARRACUDA b1).
+//!
+//! Silicon-measured minimum-stall floors per dependency path (STALLSUF-1
+//! census on B300, 2026-08-22: results/stallsuf/STALLSUF-1.md). The era
+//! stalls S00..S03 are physically insufficient when the consumer sits in
+//! the DIRECTLY NEXT slot (d0): rpath/P-carry ALU paths need >=4,
+//! IMAD(.WIDE).X cout -> IADD3.X cin needs 5, and a @P-guard consumer
+//! directly after its producer needs 7 -- while a guard with exactly one
+//! instruction in between is FLAKY at every S<=8 under occupancy, so no
+//! stall legalizes it (schedule rejected, fail-closed). Stalls are a 4-bit
+//! field with the BUG-036 policy cap at 11 (>=12 hangs).
+//!
+//! Doctrine:
+//!   * rules are DATA (tables/stallfix_sm103a.json), scope-locked by
+//!     `arch`; the pass invents no physics and arch mismatch is an error;
+//!   * raise-only: an existing stall is never lowered and B/R/W/Y bits are
+//!     never touched -- the emission diff is exactly the stall digits of
+//!     the `[B..:R..:W..:Y:Sxx]` prefix (1 byte per raise at slot +0xd);
+//!   * region contract: a declared window must consist of hand-scheduled
+//!     instructions (explicit ctrl prefixes); a naked instruction inside a
+//!     window aborts the run. Dependencies leaving a window are invisible
+//!     to v0 (documented; wrapper-independent consumers outside the
+//!     region keep their wrapper-assigned stalls);
+//!   * fail-closed everywhere: strict parse, plan/arch/window violations
+//!     and the guard-d1 pathology all stop the run with no output.
+//!
+//! Producer/consumer classes are the measured v0 allowlist (identical
+//! classification to the silicon-validated reference
+//! work/stallsuf/postfix_ss.py): producers are IADD3.X (dual cout at
+//! operand 1/2), ISETP.* (dest at operand 0) and ".X"/IMAD.WIDE forms
+//! with cout at operand 1; cin consumers are IADD3.X (last two operands)
+//! and IMAD*.X (last operand); guards are non-uniform @Pn/@!Pn.
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use anyhow::{bail, Context, Result};
+use serde::{Deserialize, Serialize};
+use std::sync::LazyLock;
+
+use crate::ir::Instruction;
+use crate::ir::Operand;
+use crate::sass_file::SassFile;
+
+/// Measured rules (DATA). `arch` must match the plan's arch (scope lock).
+#[derive(Debug, Clone, Deserialize)]
+pub struct StallRules {
+    pub arch: String,
+    /// 4-bit field; policy cap 11 (BUG-036: >=12 hangs).
+    pub cap_stall: u8,
+    /// R1 global floor for every in-window instruction.
+    pub floor_global: u8,
+    /// IMAD* cout -> IADD3.X cin, consumer directly next (d0).
+    pub floor_dmix_d0: u8,
+    /// any measured P producer -> @P guard, consumer directly next (d0).
+    pub floor_guard_d0: u8,
+    /// guard with TWO instructions between producer and consumer.
+    pub floor_guard_d2: u8,
+    /// guard with exactly ONE instruction between: flaky at any S<=8.
+    #[serde(default = "default_true")]
+    pub guard_d1_forbid: bool,
+    #[serde(default)]
+    pub provenance: serde_json::Value,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl StallRules {
+    pub fn load(path: &std::path::Path) -> Result<Self> {
+        let text = std::fs::read_to_string(path)
+            .with_context(|| format!("stallfix: cannot read rules {}", path.display()))?;
+        Self::from_str_json(&text)
+            .with_context(|| format!("stallfix: rules {}", path.display()))
+    }
+
+    pub fn from_str_json(text: &str) -> Result<Self> {
+        let r: StallRules = serde_json::from_str(text)
+            .context("stallfix: rules JSON is not valid POSTFIX-103 JSON")?;
+        r.sanity()?;
+        Ok(r)
+    }
+
+    fn sanity(&self) -> Result<()> {
+        if self.arch.is_empty() {
+            bail!("stallfix: rules.arch is empty");
+        }
+        if self.cap_stall > 15 {
+            bail!(
+                "stallfix: rules.cap_stall {} exceeds the 4-bit stall field",
+                self.cap_stall
+            );
+        }
+        for (name, f) in [
+            ("floor_global", self.floor_global),
+            ("floor_dmix_d0", self.floor_dmix_d0),
+            ("floor_guard_d0", self.floor_guard_d0),
+            ("floor_guard_d2", self.floor_guard_d2),
+        ] {
+            if f > self.cap_stall {
+                bail!(
+                    "stallfix: rules.{} ({}) > cap_stall ({}) -- malformed rules",
+                    name,
+                    f,
+                    self.cap_stall
+                );
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Windowed legalize plan for ONE kernel: [start, end) instruction indices,
+/// 0-based, end-exclusive (G8b convention, identical to ra/sched plans).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct StallKernelPlan {
+    #[serde(default)]
+    pub windows: Vec<(u32, u32)>,
+}
+
+/// Whole-file plan keyed by kernel name; `arch` scope-locks the run to the
+/// measured rules file.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct StallFixPlan {
+    pub arch: String,
+    #[serde(default)]
+    pub kernels: BTreeMap<String, StallKernelPlan>,
+}
+
+/// One applied raise, with the measured rule(s) responsible for the floor.
+#[derive(Debug, Clone, Serialize)]
+pub struct RaiseRecord {
+    pub ins_idx: u32,
+    pub old_stall: u8,
+    pub new_stall: u8,
+    pub rules: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct HistEntry {
+    pub old: u8,
+    pub new: u8,
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct KernelStallReport {
+    pub name: String,
+    pub n_ins: usize,
+    pub windows: Vec<(u32, u32)>,
+    pub n_annotated: usize,
+    pub raises: Vec<RaiseRecord>,
+    pub n_raises: usize,
+    pub hist: Vec<HistEntry>,
+    /// In-window input stalls already above the policy cap (left untouched,
+    /// reported; raise-only never lowers them).
+    pub input_above_cap: Vec<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct StallFixReport {
+    pub arch: String,
+    pub cap_stall: u8,
+    pub kernels: Vec<KernelStallReport>,
+    pub total_raises: usize,
+    pub provenance: serde_json::Value,
+}
+
+#[derive(Debug)]
+pub struct StallFixRun {
+    pub file: SassFile,
+    pub out_text: String,
+    pub report: StallFixReport,
+}
+
+// ---------------------------------------------------------------------------
+// Measured v0 classification (port of work/stallsuf/postfix_ss.py semantics
+// onto the typed IR; gate G-SS3a pins byte-identity of the two engines).
+// ---------------------------------------------------------------------------
+
+fn pred_num(o: &Operand) -> Option<u8> {
+    match o {
+        Operand::Pred { num, .. } => Some(*num),
+        _ => None,
+    }
+}
+
+/// Predicate cout set of the measured producer classes (P0..P6; PT never
+/// counts as a produced value here).
+fn p_writes(ins: &Instruction) -> Vec<u8> {
+    let op = ins.opcode_full.as_str();
+    let ops = &ins.operands;
+    let pick = |i: usize| -> Option<u8> { ops.get(i).and_then(pred_num).filter(|&n| n <= 6) };
+    if op == "IADD3.X" {
+        [pick(1), pick(2)].into_iter().flatten().collect()
+    } else if op.starts_with("ISETP") {
+        pick(0).into_iter().collect()
+    } else if op.contains(".X") || op.starts_with("IMAD.WIDE") {
+        pick(1).into_iter().collect()
+    } else {
+        Vec::new()
+    }
+}
+
+/// Carry-in predicate reads of the measured consumer classes (P0..P5).
+fn p_read_cin(ins: &Instruction) -> Vec<u8> {
+    let op = ins.opcode_full.as_str();
+    let ops = &ins.operands;
+    let take = |o: &Operand| -> Option<u8> {
+        match o {
+            Operand::Pred { num, neg } if !neg && *num <= 5 => Some(*num),
+            _ => None,
+        }
+    };
+    if op == "IADD3.X" {
+        let n = ops.len();
+        let mut out = Vec::new();
+        if n >= 1 {
+            out.extend(take(&ops[n - 1]));
+        }
+        if n >= 2 {
+            out.extend(take(&ops[n - 2]));
+        }
+        out
+    } else if op.starts_with("IMAD.WIDE.U32.X") || (op.contains(".X") && op.starts_with("IMAD")) {
+        ops.last().and_then(take).into_iter().collect()
+    } else {
+        Vec::new()
+    }
+}
+
+/// Non-uniform guard predicate (@Pn/@!Pn, P0..P6) if this instruction is
+/// predicate-guard executed.
+fn guard_pred(ins: &Instruction) -> Option<u8> {
+    ins.guard
+        .as_ref()
+        .and_then(|g| if !g.uniform && g.pred <= 6 { Some(g.pred) } else { None })
+}
+
+// ---------------------------------------------------------------------------
+// Core pass
+// ---------------------------------------------------------------------------
+
+pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<StallFixRun> {
+    rules.sanity()?;
+    if plan.arch != rules.arch {
+        bail!(
+            "stallfix: plan arch '{}' != rules arch '{}' -- the measured floors \
+             are scope-locked; refusing to run",
+            plan.arch,
+            rules.arch
+        );
+    }
+    let file = crate::sass_file::parse_sass_file_str_strict(text)
+        .context("stallfix: strict parse failed")?;
+
+    // Per (kernel_idx, ins_idx) floor computation with rule attribution.
+    let mut floors: BTreeMap<(usize, u32), (u8, BTreeSet<&'static str>)> = BTreeMap::new();
+    let mut above_cap: BTreeMap<usize, Vec<u32>> = BTreeMap::new();
+    let mut n_annotated: BTreeMap<usize, usize> = BTreeMap::new();
+
+    for (kidx, k) in file.kernels.iter().enumerate() {
+        let kp = match plan.kernels.get(&k.name) {
+            Some(p) => p,
+            None => continue,
+        };
+        // window validation: sorted, in-range, non-overlapping
+        let mut last_end = 0u32;
+        let n = k.instructions.len() as u32;
+        for &(s, e) in &kp.windows {
+            if s >= e {
+                bail!("stallfix: kernel {}: window [{s},{e}) is empty", k.name);
+            }
+            if e > n {
+                bail!(
+                    "stallfix: kernel {}: window [{s},{e}) past end (n_ins={})",
+                    k.name,
+                    n
+                );
+            }
+            if s < last_end {
+                bail!("stallfix: kernel {}: overlapping/unsorted windows", k.name);
+            }
+            last_end = e;
+        }
+        // window id per instruction index (same-window consumer rule)
+        let mut win_of: Vec<i64> = vec![-1; k.instructions.len()];
+        for (wpos, &(s, e)) in kp.windows.iter().enumerate() {
+            for i in s..e {
+                win_of[i as usize] = wpos as i64;
+                let ins = &k.instructions[i as usize];
+                if !ins.hand_sched {
+                    bail!(
+                        "stallfix: kernel {}: instruction {} inside window [{},{}) has \
+                         no ctrl prefix -- the legalize region must be fully \
+                         hand-scheduled (frozen)",
+                        k.name,
+                        i,
+                        s,
+                        e
+                    );
+                }
+                *n_annotated.entry(kidx).or_default() += 1;
+                if ins.ctrl.stall > rules.cap_stall {
+                    above_cap.entry(kidx).or_default().push(i);
+                }
+                floors
+                    .entry((kidx, i))
+                    .or_insert((0, BTreeSet::new()))
+                    .1
+                    .insert("R1");
+                let f = floors.get_mut(&(kidx, i)).unwrap();
+                if rules.floor_global > f.0 {
+                    f.0 = rules.floor_global;
+                }
+            }
+        }
+        if kp.windows.is_empty() {
+            continue;
+        }
+
+        let meets = |f: &mut (u8, BTreeSet<&'static str>), val: u8, why: &'static str| {
+            f.1.insert(why);
+            if val > f.0 {
+                f.0 = val;
+            }
+        };
+
+        for (wpos, &(ws, we)) in kp.windows.iter().enumerate() {
+            for i in ws..we {
+                let ws_set = p_writes(&k.instructions[i as usize]);
+                if ws_set.is_empty() {
+                    continue;
+                }
+                let mut live: BTreeSet<u8> = ws_set.into_iter().collect();
+                // scan consumers at slot distance 1..3 inside the same window
+                let mut d = 1u32;
+                while d <= 3 && !live.is_empty() {
+                    let j = i + d;
+                    if j >= we || win_of[j as usize] != wpos as i64 {
+                        break;
+                    }
+                    let cons = &k.instructions[j as usize];
+                    let cin = p_read_cin(cons);
+                    let grd = guard_pred(cons);
+                    for p in live.clone() {
+                        if d == 1 && cin.contains(&p) {
+                            // cin chain at d0: dmix floor for IMAD* -> IADD3.X,
+                            // everything else is covered by R1 (floor 4 >= 1..4).
+                            if cons.opcode_full == "IADD3.X"
+                                && k.instructions[i as usize].opcode_full.starts_with("IMAD")
+                            {
+                                let f = floors.get_mut(&(kidx, i)).unwrap();
+                                meets(f, rules.floor_dmix_d0, "R2-dmix-d0");
+                            }
+                        }
+                        if grd == Some(p) {
+                            let f = floors.get_mut(&(kidx, i)).unwrap();
+                            match d {
+                                1 => meets(f, rules.floor_guard_d0, "R3-guard-d0"),
+                                2 => {
+                                    if rules.guard_d1_forbid {
+                                        bail!(
+                                            "stallfix: kernel {}: guard consumer at ins {} \
+                                             has exactly one instruction between it and its P{} \
+                                             producer (ins {}): guard-D1 is FLAKY at every \
+                                             S<=8 under occupancy (STALLSUF-1) -- no stall \
+                                             legalizes this schedule, reorder instead",
+                                            k.name,
+                                            j,
+                                            p,
+                                            i
+                                        );
+                                    }
+                                }
+                                3 => meets(f, rules.floor_guard_d2, "R3-guard-d2"),
+                                _ => unreachable!(),
+                            }
+                        }
+                    }
+                    // kills: a consumer that (re)writes a tracked predicate ends
+                    // that chain (its reads above already fired).
+                    for p in p_writes(cons) {
+                        live.remove(&p);
+                    }
+                    d += 1;
+                }
+            }
+        }
+    }
+
+    // plan kernels that name no kernel in the file are an error (strict plan)
+    let known: BTreeSet<&str> = file.kernels.iter().map(|k| k.name.as_str()).collect();
+    for name in plan.kernels.keys() {
+        if !known.contains(name.as_str()) {
+            bail!("stallfix: plan names unknown kernel '{name}'");
+        }
+    }
+
+    // Apply raises (raise-only, capped; input above cap is left untouched).
+    let mut edits: BTreeMap<(usize, u32), u8> = BTreeMap::new();
+    let mut reports: Vec<KernelStallReport> = Vec::new();
+    let mut total_raises = 0usize;
+    for (kidx, k) in file.kernels.iter().enumerate() {
+        let kp = match plan.kernels.get(&k.name) {
+            Some(p) => p,
+            None => continue,
+        };
+        let mut raises: Vec<RaiseRecord> = Vec::new();
+        let mut hist: BTreeMap<(u8, u8), usize> = BTreeMap::new();
+        for (&(fk, i), &(fl, ref why)) in &floors {
+            if fk != kidx {
+                continue;
+            }
+            let ins = &k.instructions[i as usize];
+            let cur = ins.ctrl.stall;
+            let new = fl.min(rules.cap_stall);
+            if new > cur {
+                edits.insert((kidx, i), new);
+                *hist.entry((cur, new)).or_default() += 1;
+                total_raises += 1;
+                raises.push(RaiseRecord {
+                    ins_idx: i,
+                    old_stall: cur,
+                    new_stall: new,
+                    rules: why.iter().map(|s| s.to_string()).collect(),
+                });
+            }
+        }
+        let hist = hist
+            .into_iter()
+            .map(|((old, new), count)| HistEntry { old, new, count })
+            .collect();
+        let n_raises = raises.len();
+        reports.push(KernelStallReport {
+            name: k.name.clone(),
+            n_ins: k.instructions.len(),
+            windows: kp.windows.clone(),
+            n_annotated: *n_annotated.get(&kidx).unwrap_or(&0),
+            raises,
+            n_raises,
+            hist,
+            input_above_cap: above_cap.get(&kidx).cloned().unwrap_or_default(),
+        });
+    }
+
+    let out_text = emit_stall_splice(text, &edits)?;
+    // re-parse proof: the emitted text parses to exactly the input file with
+    // only the listed stall fields changed (mirrors ra::verify_splice_proof).
+    verify_splice(text, &out_text, &file, &edits)?;
+
+    Ok(StallFixRun {
+        file,
+        out_text,
+        report: StallFixReport {
+            arch: rules.arch.clone(),
+            cap_stall: rules.cap_stall,
+            kernels: reports,
+            total_raises,
+            provenance: rules.provenance.clone(),
+        },
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Emission: in-place stall-digit replacement of the ctrl prefix; every other
+// character of every line is byte-verbatim (raise-only, BUG-036 cap).
+// ---------------------------------------------------------------------------
+
+static CC_LINE_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"\[B[0-5-]{6}:R[0-5-]:W[0-5-]:[Y-]:S(\d{2})\]").unwrap()
+});
+
+pub fn emit_stall_splice(original: &str, edits: &BTreeMap<(usize, u32), u8>) -> Result<String> {
+    use std::collections::BTreeSet;
+
+    static RE_LABEL: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_.$]*\s*:\s*").unwrap()
+    });
+
+    let mut out_lines: Vec<String> = Vec::new();
+    let mut in_kernel = false;
+    let mut kidx: isize = -1;
+    let mut ins_count = 0u32;
+    for line in original.lines() {
+        let t = line.trim();
+        if t.starts_with(".entry") || t.starts_with(".func") {
+            in_kernel = true;
+            kidx += 1;
+            ins_count = 0;
+            out_lines.push(line.to_string());
+            continue;
+        }
+        if t.starts_with(".endentry") || t.starts_with(".endfunc") {
+            in_kernel = false;
+            out_lines.push(line.to_string());
+            continue;
+        }
+        if !in_kernel || t.is_empty() || t.starts_with("//") || t.starts_with('#') || t.starts_with('.')
+        {
+            out_lines.push(line.to_string());
+            continue;
+        }
+        let mut rest = t;
+        loop {
+            match RE_LABEL.captures(rest) {
+                Some(c) => {
+                    rest = &rest[c.get(0).unwrap().as_str().len()..];
+                }
+                None => break,
+            }
+        }
+        if rest.is_empty() {
+            out_lines.push(line.to_string()); // lone label line
+            continue;
+        }
+        let idx = ins_count;
+        ins_count += 1;
+        let want = edits.get(&(kidx as usize, idx)).copied();
+        match want {
+            None => out_lines.push(line.to_string()),
+            Some(new_stall) => {
+                let caps = CC_LINE_RE.captures(line).ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "stallfix: emitter: instruction line for raise has no ctrl \
+                         prefix: {line:?}"
+                    )
+                })?;
+                let digits = caps.get(1).unwrap().range();
+                let mut nl = line.to_string();
+                nl.replace_range(digits.clone(), &format!("{new_stall:02}"));
+                // character-level diff proof: only the two stall digits moved
+                if nl.len() != line.len() {
+                    bail!("stallfix: emitter: line length changed on raise: {line:?}");
+                }
+                let mut diffs = 0;
+                let mut diff_pos: BTreeSet<usize> = BTreeSet::new();
+                for (a, b) in line.bytes().zip(nl.bytes()) {
+                    if a != b {
+                        diffs += 1;
+                    }
+                }
+                for (pos, (a, b)) in line.bytes().zip(nl.bytes()).enumerate() {
+                    if a != b {
+                        diff_pos.insert(pos);
+                    }
+                }
+                if diffs > 2 || !diff_pos.iter().all(|&p| digits.contains(&p)) {
+                    bail!(
+                        "stallfix: emitter: raise changed bytes outside the stall \
+                         digits on {line:?}"
+                    );
+                }
+                out_lines.push(nl);
+            }
+        }
+    }
+    let mut out = out_lines;
+    if original.ends_with('\n') {
+        out.push(String::new());
+    }
+    Ok(out.join("\n"))
+}
+
+/// Emission proof: strict re-parse of the output; every instruction equals
+/// the input's (guard/opcode/operands/ctrl/rsd) except the raised stall
+/// fields, which equal the plan values. Also: identical instruction count
+/// per kernel.
+fn verify_splice(
+    original_text: &str,
+    out_text: &str,
+    input_file: &SassFile,
+    edits: &BTreeMap<(usize, u32), u8>,
+) -> Result<()> {
+    let reparsed = crate::sass_file::parse_sass_file_str_strict(out_text)
+        .context("stallfix: emission re-parse failed (internal drift)")?;
+    if reparsed.kernels.len() != input_file.kernels.len() {
+        bail!("stallfix: re-parse kernel count drift");
+    }
+    // whole-file line discipline: only lines carrying raises may differ
+    if original_text.lines().count() != out_text.lines().count() {
+        bail!("stallfix: emission changed the line count");
+    }
+    for (kidx, (kin, kout)) in input_file.kernels.iter().zip(&reparsed.kernels).enumerate() {
+        if kin.instructions.len() != kout.instructions.len() {
+            bail!("stallfix: kernel {}: instruction count drift", kin.name);
+        }
+        for (i, (a, b)) in kin.instructions.iter().zip(&kout.instructions).enumerate() {
+            let raised = edits.get(&(kidx, i as u32)).copied();
+            if a.opcode_full != b.opcode_full
+                || a.guard != b.guard
+                || a.operands != b.operands
+                || a.rsd != b.rsd
+                || a.hand_sched != b.hand_sched
+                || a.ctrl.write_bar != b.ctrl.write_bar
+                || a.ctrl.read_bar != b.ctrl.read_bar
+                || a.ctrl.wait_mask != b.ctrl.wait_mask
+                || a.ctrl.yield_flag != b.ctrl.yield_flag
+            {
+                bail!(
+                    "stallfix: re-parse drift at kernel {} ins {} (non-stall fields \
+                     must be invariant)",
+                    kin.name,
+                    i
+                );
+            }
+            match raised {
+                Some(ns) => {
+                    if b.ctrl.stall != ns {
+                        bail!(
+                            "stallfix: re-parse stall mismatch at {} ins {}: wanted {}, \
+                             got {}",
+                            kin.name,
+                            i,
+                            ns,
+                            b.ctrl.stall
+                        );
+                    }
+                }
+                None => {
+                    if a.ctrl.stall != b.ctrl.stall {
+                        bail!(
+                            "stallfix: re-parse stall drift at {} ins {} outside the \
+                             raise set",
+                            kin.name,
+                            i
+                        );
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
