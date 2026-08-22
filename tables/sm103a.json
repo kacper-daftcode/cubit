@@ -305,7 +305,8 @@
     ]
    }
   },
-  "sigfix": "run31h: sig-bit resync dla klas *SETP (iter N)"
+  "sigfix": "run31h: sig-bit resync dla klas *SETP (iter N)",
+  "_errata_2026_08_22": "BUG-079(ULEA family regen from 12887 vendor anchors: sm120 singleton-junk rows replaced, imm2 5b@75 window vs bit80 HI discriminator, neg@63/72 + inv@63 + ureg_ff + UP-in@81/6b + UP-out@87/4b; render-parity 12887/12887 both tables)"
  },
  "instructions": {
   "BRA_II": {
@@ -14883,102 +14884,6 @@
     "is_variable_latency": false
    }
   },
-  "ULEA_UR_UR_UR_II": {
-   "base_op": "ULEA",
-   "operand_sig": "UR_UR_UR_II",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000fc0000f8e00ff0000000000000291",
-     "variable_mask": "0x03f03e000000f8008000003f7f7ff000",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 16,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 63,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "neg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 75,
-       "bits": 6,
-       "token_idx": 4,
-       "extraction": "imm",
-       "_src": "2aE"
-      }
-     ],
-     "count": 4522
-    },
-    "HI,SX32": {
-     "and_base": "0x000fc4000f8ffaff0000000000007291",
-     "variable_mask": "0x00002a00000000000000001f0f1d0000",
-     "fields": [
-      {
-       "shift": 16,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 87,
-       "bits": 9,
-       "token_idx": 4,
-       "extraction": "imm",
-       "_src": "2c"
-      }
-     ],
-     "count": 9
-    }
-   },
-   "scheduling": {
-    "pipe_class": 0,
-    "pipe_name": "UNKNOWN",
-    "def_latency": 1,
-    "throughput": 1,
-    "is_variable_latency": false
-   }
-  },
   "BRA_UR_II": {
    "base_op": "BRA",
    "operand_sig": "UR_II",
@@ -26170,142 +26075,6 @@
       }
      ],
      "count": 1914
-    }
-   },
-   "scheduling": {
-    "pipe_class": 0,
-    "pipe_name": "UNKNOWN",
-    "def_latency": 1,
-    "throughput": 1,
-    "is_variable_latency": false
-   }
-  },
-  "ULEA_UR_UP_UR_UR_II": {
-   "base_op": "ULEA",
-   "operand_sig": "UR_UP_UR_UR_II",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000fc0000f8000ff0000000000000291",
-     "variable_mask": "0x03f03e00000e7900000000ff3ffff000",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 16,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 81,
-       "bits": 6,
-       "token_idx": 2,
-       "extraction": "pred",
-       "_src": "2aE"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 72,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "neg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 75,
-       "bits": 6,
-       "token_idx": 5,
-       "extraction": "imm",
-       "_src": "2aE"
-      }
-     ],
-     "count": 2380
-    }
-   },
-   "scheduling": {
-    "pipe_class": 0,
-    "pipe_name": "UNKNOWN",
-    "def_latency": 1,
-    "throughput": 1,
-    "is_variable_latency": false
-   }
-  },
-  "ULEA_UR_UR_UR_UR_II_UP": {
-   "base_op": "ULEA",
-   "operand_sig": "UR_UR_UR_UR_II_UP",
-   "mod_groups": {
-    "HI,X": {
-     "and_base": "0x000fc000080f04000000000000000291",
-     "variable_mask": "0x01f03e000380f8ff000000ff7f3ff000",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 16,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 64,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 75,
-       "bits": 5,
-       "token_idx": 5,
-       "extraction": "imm",
-       "_src": "2aE"
-      },
-      {
-       "shift": 87,
-       "bits": 4,
-       "token_idx": 6,
-       "extraction": "pred",
-       "_src": "2aE"
-      }
-     ],
-     "count": 2305
     }
    },
    "scheduling": {
@@ -40406,61 +40175,6 @@
     "is_variable_latency": false
    }
   },
-  "ULEA_UR_UR_UR_UR_II": {
-   "base_op": "ULEA",
-   "operand_sig": "UR_UR_UR_UR_II",
-   "mod_groups": {
-    "HI": {
-     "and_base": "0x000fc0000f8f00ff0000000000007291",
-     "variable_mask": "0x00703e000000f8000000007f3f3f0000",
-     "fields": [
-      {
-       "shift": 16,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 75,
-       "bits": 5,
-       "token_idx": 5,
-       "extraction": "imm",
-       "_src": "2aE"
-      },
-      {
-       "shift": 64,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "ureg",
-       "_src": "2c"
-      }
-     ],
-     "count": 759
-    }
-   },
-   "scheduling": {
-    "pipe_class": 0,
-    "pipe_name": "UNKNOWN",
-    "def_latency": 1,
-    "throughput": 1,
-    "is_variable_latency": false
-   }
-  },
   "R2P_II_R_II": {
    "base_op": "R2P",
    "operand_sig": "II_R_II",
@@ -43463,101 +43177,6 @@
     "is_variable_latency": false
    }
   },
-  "ULEA_UR_UR_II_II": {
-   "base_op": "ULEA",
-   "operand_sig": "UR_UR_II_II",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000fc0000f8e00ff0000000000000891",
-     "variable_mask": "0x1b03e000000f800ffffffff3f3f7000",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 16,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 3,
-       "extraction": "imm",
-       "_src": "2aE"
-      },
-      {
-       "shift": 75,
-       "bits": 5,
-       "token_idx": 4,
-       "extraction": "imm",
-       "_src": "2aE"
-      }
-     ],
-     "count": 212
-    },
-    "HI,SX32": {
-     "and_base": "0x000fc0000f8f02ff0000000100000891",
-     "variable_mask": "0x00002e000000f800fffffffe1f3f7000",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 16,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 3,
-       "extraction": "imm",
-       "_src": "2aE"
-      },
-      {
-       "shift": 75,
-       "bits": 5,
-       "token_idx": 4,
-       "extraction": "imm",
-       "_src": "2aE"
-      }
-     ],
-     "count": 41
-    }
-   },
-   "scheduling": {
-    "pipe_class": 0,
-    "pipe_name": "UNKNOWN",
-    "def_latency": 1,
-    "throughput": 1,
-    "is_variable_latency": false
-   }
-  },
   "LDG_R_ARI": {
    "base_op": "LDG",
    "operand_sig": "R_ARI",
@@ -45937,61 +45556,6 @@
     "is_variable_latency": false
    }
   },
-  "ULEA_UR_UR_II_UR_II": {
-   "base_op": "ULEA",
-   "operand_sig": "UR_UR_II_UR_II",
-   "mod_groups": {
-    "HI": {
-     "and_base": "0x000fc0000f8fc0ff0000000100007891",
-     "variable_mask": "0x00002e0000003800fffffffe3f3f0000",
-     "fields": [
-      {
-       "shift": 16,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 3,
-       "extraction": "imm",
-       "_src": "2aE"
-      },
-      {
-       "shift": 75,
-       "bits": 5,
-       "token_idx": 5,
-       "extraction": "imm",
-       "_src": "2aE"
-      },
-      {
-       "shift": 64,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "ureg",
-       "_src": "2c"
-      }
-     ],
-     "count": 122
-    }
-   },
-   "scheduling": {
-    "pipe_class": 0,
-    "pipe_name": "UNKNOWN",
-    "def_latency": 1,
-    "throughput": 1,
-    "is_variable_latency": false
-   }
-  },
   "F2IP_R_R_R_R": {
    "base_op": "F2IP",
    "operand_sig": "R_R_R_R",
@@ -46235,68 +45799,6 @@
       }
      ],
      "count": 63
-    }
-   },
-   "scheduling": {
-    "pipe_class": 0,
-    "pipe_name": "UNKNOWN",
-    "def_latency": 1,
-    "throughput": 1,
-    "is_variable_latency": false
-   }
-  },
-  "ULEA_UR_UP_UR_UR_UR_II": {
-   "base_op": "ULEA",
-   "operand_sig": "UR_UP_UR_UR_UR_II",
-   "mod_groups": {
-    "HI": {
-     "and_base": "0x000fc0000f8100ff0000000000007291",
-     "variable_mask": "0x02002e00000678000000003f3f7f0000",
-     "fields": [
-      {
-       "shift": 16,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 81,
-       "bits": 4,
-       "token_idx": 2,
-       "extraction": "pred",
-       "_src": "2aE"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 75,
-       "bits": 5,
-       "token_idx": 6,
-       "extraction": "imm",
-       "_src": "2aE"
-      },
-      {
-       "shift": 64,
-       "bits": 8,
-       "token_idx": 5,
-       "extraction": "ureg",
-       "_src": "2c"
-      }
-     ],
-     "count": 118
     }
    },
    "scheduling": {
@@ -47384,68 +46886,6 @@
     "is_variable_latency": false
    }
   },
-  "ULEA_UR_UR_UR_II_UP": {
-   "base_op": "ULEA",
-   "operand_sig": "UR_UR_UR_II_UP",
-   "mod_groups": {
-    "HI,SX32,X": {
-     "and_base": "0x000fc000080f0eff0000000000007291",
-     "variable_mask": "0x00002e000180e0008000001f1f1f0000",
-     "fields": [
-      {
-       "shift": 16,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 63,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "inv",
-       "_src": "2aE"
-      },
-      {
-       "shift": 75,
-       "bits": 5,
-       "token_idx": 4,
-       "extraction": "imm",
-       "_src": "2aE"
-      },
-      {
-       "shift": 87,
-       "bits": 4,
-       "token_idx": 5,
-       "extraction": "pred",
-       "_src": "2aE"
-      }
-     ],
-     "count": 84
-    }
-   },
-   "scheduling": {
-    "pipe_class": 0,
-    "pipe_name": "UNKNOWN",
-    "def_latency": 1,
-    "throughput": 1,
-    "is_variable_latency": false
-   }
-  },
   "LDSM_R_ARI": {
    "base_op": "LDSM",
    "operand_sig": "R_ARI",
@@ -47973,61 +47413,6 @@
       }
      ],
      "count": 28
-    }
-   },
-   "scheduling": {
-    "pipe_class": 0,
-    "pipe_name": "UNKNOWN",
-    "def_latency": 1,
-    "throughput": 1,
-    "is_variable_latency": false
-   }
-  },
-  "ULEA_UR_UP_UR_II_II": {
-   "base_op": "ULEA",
-   "operand_sig": "UR_UP_UR_II_II",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000fc0000f8000ff0000000000007891",
-     "variable_mask": "0x03c02e0000027800fffffffc7f3f0000",
-     "fields": [
-      {
-       "shift": 16,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 81,
-       "bits": 4,
-       "token_idx": 2,
-       "extraction": "pred",
-       "_src": "2aE"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "imm",
-       "_src": "2aE"
-      },
-      {
-       "shift": 75,
-       "bits": 6,
-       "token_idx": 5,
-       "extraction": "imm",
-       "_src": "2aE"
-      }
-     ],
-     "count": 66
     }
    },
    "scheduling": {
@@ -49937,68 +49322,6 @@
     "is_variable_latency": false
    }
   },
-  "ULEA_UR_UR_II_UR_II_UP": {
-   "base_op": "ULEA",
-   "operand_sig": "UR_UR_II_UR_II_UP",
-   "mod_groups": {
-    "HI,X": {
-     "and_base": "0x000fc000080f0400ffffffff00007891",
-     "variable_mask": "0x00003e000080781f000000001f0f0000",
-     "fields": [
-      {
-       "shift": 16,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 64,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 75,
-       "bits": 5,
-       "token_idx": 5,
-       "extraction": "imm",
-       "_src": "2aE"
-      },
-      {
-       "shift": 87,
-       "bits": 4,
-       "token_idx": 6,
-       "extraction": "pred",
-       "_src": "2aE"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 3,
-       "extraction": "imm",
-       "_src": "2c"
-      }
-     ],
-     "count": 33
-    }
-   },
-   "scheduling": {
-    "pipe_class": 0,
-    "pipe_name": "UNKNOWN",
-    "def_latency": 1,
-    "throughput": 1,
-    "is_variable_latency": false
-   }
-  },
   "SYNCS_R_ARURI_R": {
    "base_op": "SYNCS",
    "operand_sig": "R_ARURI_R",
@@ -51686,61 +51009,6 @@
       }
      ],
      "count": 3
-    }
-   },
-   "scheduling": {
-    "pipe_class": 0,
-    "pipe_name": "UNKNOWN",
-    "def_latency": 1,
-    "throughput": 1,
-    "is_variable_latency": false
-   }
-  },
-  "ULEA_UR_UR_II_II_UP": {
-   "base_op": "ULEA",
-   "operand_sig": "UR_UR_II_II_UP",
-   "mod_groups": {
-    "HI,SX32,X": {
-     "and_base": "0x000fc000080f0effffffffff00007891",
-     "variable_mask": "0x00003e0000800000000000001f1f0000",
-     "fields": [
-      {
-       "shift": 16,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "ureg",
-       "_src": "2aE"
-      },
-      {
-       "shift": 87,
-       "bits": 4,
-       "token_idx": 5,
-       "extraction": "pred",
-       "_src": "2aE"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 3,
-       "extraction": "imm",
-       "_src": "2c"
-      },
-      {
-       "shift": 75,
-       "bits": 5,
-       "token_idx": 4,
-       "extraction": "imm",
-       "_src": "2c"
-      }
-     ],
-     "count": 12
     }
    },
    "scheduling": {
@@ -55294,6 +54562,694 @@
     "latency_source": "synthetic"
    },
    "ctrl_class": "ctrl_flow",
+   "mercury": []
+  },
+  "ULEA_UR_UP_UR_II_II": {
+   "base_op": "ULEA",
+   "operand_sig": "UR_UP_UR_II_II",
+   "mod_groups": {
+    "": {
+     "and_base": "0x000fc0000f8000ff0000000000007891",
+     "fields": [
+      {
+       "token_idx": 1,
+       "shift": 16,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 2,
+       "shift": 81,
+       "bits": 6,
+       "extraction": "pred"
+      },
+      {
+       "token_idx": 3,
+       "shift": 24,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 4,
+       "shift": 32,
+       "bits": 32,
+       "extraction": "imm"
+      },
+      {
+       "token_idx": 5,
+       "shift": 75,
+       "bits": 5,
+       "extraction": "imm"
+      }
+     ],
+     "variable_mask": "0x03c02e00007ef800ffffffffffff0000",
+     "count": 47
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "ctrl_class": "alu_simple",
+   "mercury": []
+  },
+  "ULEA_UR_UP_UR_UR_II": {
+   "base_op": "ULEA",
+   "operand_sig": "UR_UP_UR_UR_II",
+   "mod_groups": {
+    "": {
+     "and_base": "0x000fc0000f8000ff0000000000000291",
+     "fields": [
+      {
+       "token_idx": 0,
+       "shift": 12,
+       "bits": 4,
+       "extraction": "guard"
+      },
+      {
+       "token_idx": 1,
+       "shift": 16,
+       "bits": 8,
+       "extraction": "ureg_ff"
+      },
+      {
+       "token_idx": 2,
+       "shift": 81,
+       "bits": 6,
+       "extraction": "pred"
+      },
+      {
+       "token_idx": 3,
+       "shift": 24,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 3,
+       "shift": 72,
+       "bits": 1,
+       "extraction": "neg"
+      },
+      {
+       "token_idx": 4,
+       "shift": 32,
+       "bits": 8,
+       "extraction": "ureg_ff"
+      },
+      {
+       "token_idx": 5,
+       "shift": 75,
+       "bits": 5,
+       "extraction": "imm"
+      }
+     ],
+     "variable_mask": "0x03f03e00007ef900000000fffffff000",
+     "count": 2863
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "ctrl_class": "alu_simple",
+   "mercury": []
+  },
+  "ULEA_UR_UP_UR_UR_UR_II": {
+   "base_op": "ULEA",
+   "operand_sig": "UR_UP_UR_UR_UR_II",
+   "mod_groups": {
+    "HI": {
+     "and_base": "0x000fc0000f8100000000000000007291",
+     "fields": [
+      {
+       "token_idx": 1,
+       "shift": 16,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 2,
+       "shift": 81,
+       "bits": 6,
+       "extraction": "pred"
+      },
+      {
+       "token_idx": 3,
+       "shift": 24,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 4,
+       "shift": 32,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 5,
+       "shift": 64,
+       "bits": 8,
+       "extraction": "ureg_ff"
+      },
+      {
+       "token_idx": 6,
+       "shift": 75,
+       "bits": 5,
+       "extraction": "imm"
+      }
+     ],
+     "variable_mask": "0x02002e00007ef8ff000000ffffff0000",
+     "count": 79
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "ctrl_class": "alu_simple",
+   "mercury": []
+  },
+  "ULEA_UR_UR_II_II": {
+   "base_op": "ULEA",
+   "operand_sig": "UR_UR_II_II",
+   "mod_groups": {
+    "": {
+     "and_base": "0x000fc0000f8e00ff0000000000000891",
+     "fields": [
+      {
+       "token_idx": 0,
+       "shift": 12,
+       "bits": 4,
+       "extraction": "guard"
+      },
+      {
+       "token_idx": 1,
+       "shift": 16,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 2,
+       "shift": 24,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 3,
+       "shift": 32,
+       "bits": 32,
+       "extraction": "imm"
+      },
+      {
+       "token_idx": 4,
+       "shift": 75,
+       "bits": 5,
+       "extraction": "imm"
+      }
+     ],
+     "variable_mask": "0x01b03e000000f800fffffffffffff000",
+     "count": 163
+    },
+    "HI,SX32": {
+     "and_base": "0x000fc0000f8f02ff0000000000000891",
+     "fields": [
+      {
+       "token_idx": 0,
+       "shift": 12,
+       "bits": 4,
+       "extraction": "guard"
+      },
+      {
+       "token_idx": 1,
+       "shift": 16,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 2,
+       "shift": 24,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 3,
+       "shift": 32,
+       "bits": 32,
+       "extraction": "imm"
+      },
+      {
+       "token_idx": 4,
+       "shift": 75,
+       "bits": 5,
+       "extraction": "imm"
+      }
+     ],
+     "variable_mask": "0x01b03e000000f800fffffffffffff000",
+     "count": 21
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "ctrl_class": "alu_simple",
+   "mercury": []
+  },
+  "ULEA_UR_UR_II_II_UP": {
+   "base_op": "ULEA",
+   "operand_sig": "UR_UR_II_II_UP",
+   "mod_groups": {
+    "HI,SX32,X": {
+     "and_base": "0x000fc000080f06ff0000000000007891",
+     "fields": [
+      {
+       "token_idx": 1,
+       "shift": 16,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 2,
+       "shift": 24,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 3,
+       "shift": 32,
+       "bits": 32,
+       "extraction": "imm"
+      },
+      {
+       "token_idx": 4,
+       "shift": 75,
+       "bits": 5,
+       "extraction": "imm"
+      },
+      {
+       "token_idx": 5,
+       "shift": 87,
+       "bits": 4,
+       "extraction": "pred"
+      }
+     ],
+     "variable_mask": "0x00003e000780f800ffffffffffff0000",
+     "count": 9
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "ctrl_class": "alu_simple",
+   "mercury": []
+  },
+  "ULEA_UR_UR_II_UR_II": {
+   "base_op": "ULEA",
+   "operand_sig": "UR_UR_II_UR_II",
+   "mod_groups": {
+    "HI": {
+     "and_base": "0x000fc0000f8f00000000000000007891",
+     "fields": [
+      {
+       "token_idx": 1,
+       "shift": 16,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 2,
+       "shift": 24,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 3,
+       "shift": 32,
+       "bits": 32,
+       "extraction": "imm"
+      },
+      {
+       "token_idx": 4,
+       "shift": 64,
+       "bits": 8,
+       "extraction": "ureg_ff"
+      },
+      {
+       "token_idx": 5,
+       "shift": 75,
+       "bits": 5,
+       "extraction": "imm"
+      }
+     ],
+     "variable_mask": "0x00002e000000f8ffffffffffffff0000",
+     "count": 73
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "ctrl_class": "alu_simple",
+   "mercury": []
+  },
+  "ULEA_UR_UR_II_UR_II_UP": {
+   "base_op": "ULEA",
+   "operand_sig": "UR_UR_II_UR_II_UP",
+   "mod_groups": {
+    "HI,X": {
+     "and_base": "0x000fc000080f04000000000000007891",
+     "fields": [
+      {
+       "token_idx": 1,
+       "shift": 16,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 2,
+       "shift": 24,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 3,
+       "shift": 32,
+       "bits": 32,
+       "extraction": "imm"
+      },
+      {
+       "token_idx": 4,
+       "shift": 64,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 5,
+       "shift": 75,
+       "bits": 5,
+       "extraction": "imm"
+      },
+      {
+       "token_idx": 6,
+       "shift": 87,
+       "bits": 4,
+       "extraction": "pred"
+      }
+     ],
+     "variable_mask": "0x00003e000780f8ffffffffffffff0000",
+     "count": 30
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "ctrl_class": "alu_simple",
+   "mercury": []
+  },
+  "ULEA_UR_UR_UR_II": {
+   "base_op": "ULEA",
+   "operand_sig": "UR_UR_UR_II",
+   "mod_groups": {
+    "": {
+     "and_base": "0x000fc0000f8e00ff0000000000000291",
+     "fields": [
+      {
+       "token_idx": 0,
+       "shift": 12,
+       "bits": 4,
+       "extraction": "guard"
+      },
+      {
+       "token_idx": 1,
+       "shift": 16,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 2,
+       "shift": 24,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 3,
+       "shift": 32,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 3,
+       "shift": 63,
+       "bits": 1,
+       "extraction": "neg"
+      },
+      {
+       "token_idx": 4,
+       "shift": 75,
+       "bits": 5,
+       "extraction": "imm"
+      }
+     ],
+     "variable_mask": "0x03f03e000000f800800000fffffff000",
+     "count": 6499
+    },
+    "HI,SX32": {
+     "and_base": "0x000fc0000f8f02ff0000000000007291",
+     "fields": [
+      {
+       "token_idx": 1,
+       "shift": 16,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 2,
+       "shift": 24,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 3,
+       "shift": 32,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 4,
+       "shift": 75,
+       "bits": 5,
+       "extraction": "imm"
+      }
+     ],
+     "variable_mask": "0x03f03e000000f800000000ffffff0000",
+     "count": 4
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "ctrl_class": "alu_simple",
+   "mercury": []
+  },
+  "ULEA_UR_UR_UR_II_UP": {
+   "base_op": "ULEA",
+   "operand_sig": "UR_UR_UR_II_UP",
+   "mod_groups": {
+    "HI,SX32,X": {
+     "and_base": "0x000fc000080f06ff0000000000007291",
+     "fields": [
+      {
+       "token_idx": 1,
+       "shift": 16,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 2,
+       "shift": 24,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 3,
+       "shift": 32,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 3,
+       "shift": 63,
+       "bits": 1,
+       "extraction": "inv"
+      },
+      {
+       "token_idx": 4,
+       "shift": 75,
+       "bits": 5,
+       "extraction": "imm"
+      },
+      {
+       "token_idx": 5,
+       "shift": 87,
+       "bits": 4,
+       "extraction": "pred"
+      }
+     ],
+     "variable_mask": "0x00002e000780f800800000ffffff0000",
+     "count": 50
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "ctrl_class": "alu_simple",
+   "mercury": []
+  },
+  "ULEA_UR_UR_UR_UR_II": {
+   "base_op": "ULEA",
+   "operand_sig": "UR_UR_UR_UR_II",
+   "mod_groups": {
+    "HI": {
+     "and_base": "0x000fc0000f8f00000000000000007291",
+     "fields": [
+      {
+       "token_idx": 1,
+       "shift": 16,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 2,
+       "shift": 24,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 3,
+       "shift": 32,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 4,
+       "shift": 64,
+       "bits": 8,
+       "extraction": "ureg_ff"
+      },
+      {
+       "token_idx": 5,
+       "shift": 75,
+       "bits": 5,
+       "extraction": "imm"
+      }
+     ],
+     "variable_mask": "0x00703e000000f8ff000000ffffff0000",
+     "count": 436
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "ctrl_class": "alu_simple",
+   "mercury": []
+  },
+  "ULEA_UR_UR_UR_UR_II_UP": {
+   "base_op": "ULEA",
+   "operand_sig": "UR_UR_UR_UR_II_UP",
+   "mod_groups": {
+    "HI,X": {
+     "and_base": "0x000fc000080f04000000000000000291",
+     "fields": [
+      {
+       "token_idx": 0,
+       "shift": 12,
+       "bits": 4,
+       "extraction": "guard"
+      },
+      {
+       "token_idx": 1,
+       "shift": 16,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 2,
+       "shift": 24,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 3,
+       "shift": 32,
+       "bits": 8,
+       "extraction": "ureg_ff"
+      },
+      {
+       "token_idx": 4,
+       "shift": 64,
+       "bits": 8,
+       "extraction": "ureg_ff"
+      },
+      {
+       "token_idx": 5,
+       "shift": 75,
+       "bits": 5,
+       "extraction": "imm"
+      },
+      {
+       "token_idx": 6,
+       "shift": 87,
+       "bits": 4,
+       "extraction": "pred"
+      }
+     ],
+     "variable_mask": "0x01f03e000780f8ff000000fffffff000",
+     "count": 2613
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "ctrl_class": "alu_simple",
    "mercury": []
   }
  },
