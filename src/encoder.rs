@@ -806,6 +806,63 @@ fn check_efl2_addr_parity_sm103(insn: &Instruction, table: &IsaTable) -> Result<
     Ok(())
 }
 
+/// BUG-076 (silicon, B300/sm_103a): STG desc-form with a 64-bit address
+/// pair (desc[URm][Rn.64], the vendor render for these rows) requires an
+/// EVEN pair base Rn on sm_103a -- OPPOSITE polarity to BUG-060
+/// (LDG.E.NA.EFL2.256 needs an ODD base). krun/krunp probe series on B300
+/// (GPU idle-windows 2026-08-22, records in results/cubitfix/076/): odd Rn
+/// -> CUDA_ERROR_ILLEGAL_INSTRUCTION (rejected before the memory stage),
+/// even Rn -> executes (the paramless probe env faults ILLEGAL_ADDRESS only
+/// on the dereference). Matrix over width/mod classes:
+///   deterministic trap (II):   STG.E (9/9), STG.E.64 (9/9),
+///                              STG.E.128 (~16/17), STG.E.STRONG.GPU (9/9),
+///                              STG.E.ENL2.256 (12/17)
+///   flaky trap (II in some device-state epochs, II/IA mixes observed):
+///                              STG.E.EF (4/6), STG.E.EL.ENL2.256.STRONG.GPU
+///                              (3/4) -- same fail-closed policy as F2Q-066
+///                              (flaky = poison; must-not-emit)
+///   never trapped (0 II in 20+ runs across epochs): the ELL2/EFL2 L2-policy
+///                              classes (EL.ELL2.256, NA.ELL2.256,
+///                              NA.EFL2.256, all STRONG.GPU). These render
+///                              [Rn.U32+URm] vendor-side = a different desc
+///                              addressing mode (encoded word bit84=0), and
+///                              their transactions are default-desc-rejected
+///                              at the memory stage on sm_103a anyway (B12).
+/// First seen by the B12 A/B O3 wrapper (work/o3/y_ur4_r59.sass R59.64
+/// ILLEGAL vs y_e58.sass R58.64 EXACT). The guard fails closed on every
+/// desc-pair STG with an odd base EXCEPT the ELL2/EFL2 classes (nvdisasm's
+/// own render split matches the exemption: desc[UR][Rn.64] vs [Rn.U32+URm]).
+/// LDG (non-EFL2) desc pairs are NOT covered (ENL2-load odd = 066-kand
+/// flaky, parked), REDG/ATOMG desc pairs likewise (era corpus carries odd
+/// bases, untested). Decode untouched: era odd-base words (3 x EL.ELL2 in
+/// rt98_ref.s103, exempt class) still disassemble; expected encoder-census
+/// delta = 0.
+fn check_stg_desc_pair_parity_sm103(insn: &Instruction, table: &IsaTable) -> Result<()> {
+    if insn.opcode != "STG" {
+        return Ok(());
+    }
+    if table.target_sm() != 103 {
+        return Ok(());
+    }
+    let mods = crate::table::extract_mod_group(&insn.raw_text);
+    // Evidenced exempt classes (silicon 2026-08-22: execute with any base
+    // parity; desc addressing mode bit 84 = 0 in the encoded word).
+    const EXEMPT: [&str; 2] = ["ELL2", "EFL2"];
+    if mods.split(',').any(|m| EXEMPT.contains(&m)) {
+        return Ok(());
+    }
+    for op in &insn.operands {
+        if let Operand::Desc { base_reg: Some(r), base_reg_suffix: Some(sfx), .. } = op {
+            if sfx == "64" && r % 2 == 1 {
+                anyhow::bail!(
+                    "STG desc-form address pair R{}.64 has an ODD base -- SILICON-ILLEGAL on sm_103a                     (BUG-076; B300 krun matrix 2026-08-22: odd base -> CUDA_ERROR_ILLEGAL_INSTRUCTION                     before the memory stage -- deterministic for E/64/128/STRONG/ENL2 desc-pair classes,                     flaky-epochal for EF/EL.ENL2 (fail-closed per F2Q-066 flaky=poison policy); even base                     executes. Opposite polarity to BUG-060 LDG-EFL2 (odd required there); only the                     ELL2/EFL2 L2-policy classes stay exempt (different desc addressing mode, vendor                     render [Rn.U32+URm], never trapped in 20+ runs; their transactions are                     default-desc-rejected at the memory stage on sm_103a anyway). Renumber the address                     pair to an even base (RA pin) instead of assembling the odd-base word; decode                     stays full-fidelity for RE."
+                , r);
+            }
+        }
+    }
+    Ok(())
+}
+
 fn check_imnmx_sm103_erratum(insn: &Instruction, table: &IsaTable) -> Result<()> {
     if insn.opcode != "IMNMX" {
         return Ok(());
@@ -833,6 +890,7 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         check_uplop3_lut_lattice(insn)?;
         check_imnmx_sm103_erratum(insn, table)?;
         check_efl2_addr_parity_sm103(insn, table)?;
+        check_stg_desc_pair_parity_sm103(insn, table)?;
     }
     let mod_group = crate::table::extract_mod_group(&insn.raw_text);
 
