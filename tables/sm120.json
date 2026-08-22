@@ -168329,34 +168329,45 @@
    "operand_sig": "UR_UR_II_UR_II",
    "mod_groups": {
     "": {
-     "and_base": "0x000000000f8f00ffffffffe000007891",
+     "and_base": "0x000000000f8f00000000000000007891",
      "fields": [
+      {
+       "shift": 16,
+       "bits": 8,
+       "extraction": "ureg",
+       "token_idx": 1,
+       "_src": "069-family122"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "extraction": "ureg",
+       "token_idx": 2,
+       "_src": "069-family122"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "extraction": "imm",
+       "token_idx": 3,
+       "_src": "069-family122"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "extraction": "ureg",
+       "token_idx": 4,
+       "_src": "069-family122"
+      },
       {
        "shift": 75,
        "bits": 5,
        "extraction": "imm",
-       "token_idx": 5
-      },
-      {
-       "shift": 16,
-       "bits": 5,
-       "extraction": "ureg",
-       "token_idx": 1
-      },
-      {
-       "shift": 24,
-       "bits": 5,
-       "extraction": "ureg",
-       "token_idx": 2
-      },
-      {
-       "shift": 32,
-       "bits": 5,
-       "extraction": "ureg",
-       "token_idx": 3
+       "token_idx": 5,
+       "_src": "069-family122"
       }
      ],
-     "variable_mask": "0x000000000000f8000000001f1f1f0000",
+     "variable_mask": "0x000000000000f8ffffffffff0000",
      "count": 1
     }
    },
@@ -168785,43 +168796,6 @@
      "variable_mask": "0x1c00000000001800fffffffd1f1f7000",
      "count": 150
     },
-    "HI": {
-     "and_base": "0xf8fc0ff0000000100007891",
-     "fields": [
-      {
-       "shift": 16,
-       "bits": 4,
-       "token_idx": 1,
-       "extraction": "ureg"
-      },
-      {
-       "shift": 24,
-       "bits": 5,
-       "token_idx": 2,
-       "extraction": "ureg"
-      },
-      {
-       "shift": 33,
-       "bits": 31,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 75,
-       "bits": 3,
-       "token_idx": 4,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000000003800fffffffe1f0f0000",
-     "count": 123
-    },
     "HI,X": {
      "and_base": "0x80f0400ffffffff00007891",
      "fields": [
@@ -168894,40 +168868,45 @@
    "operand_sig": "UR_UR_II_UR_II",
    "mod_groups": {
     "HI": {
-     "and_base": "0xf8fc0ff0000000100007891",
+     "and_base": "0x000000000f8f00000000000000007891",
      "fields": [
       {
        "shift": 16,
-       "bits": 4,
+       "bits": 8,
+       "extraction": "ureg",
        "token_idx": 1,
-       "extraction": "ureg"
+       "_src": "069-family122"
       },
       {
        "shift": 24,
-       "bits": 5,
+       "bits": 8,
+       "extraction": "ureg",
        "token_idx": 2,
-       "extraction": "ureg"
+       "_src": "069-family122"
       },
       {
-       "shift": 33,
-       "bits": 31,
-       "token_idx": 0,
-       "extraction": ""
+       "shift": 32,
+       "bits": 32,
+       "extraction": "imm",
+       "token_idx": 3,
+       "_src": "069-family122"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "extraction": "ureg",
+       "token_idx": 4,
+       "_src": "069-family122"
       },
       {
        "shift": 75,
-       "bits": 3,
+       "bits": 5,
+       "extraction": "imm",
        "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "reuse"
+       "_src": "069-family122"
       }
      ],
-     "variable_mask": "0x1c00000000003800fffffffe1f0f0000",
+     "variable_mask": "0x000000000000f8ffffffffff0000",
      "count": 123
     },
     "": {
@@ -169237,49 +169216,6 @@
      ],
      "variable_mask": "0x1c0000000000f800800000ffffff0000",
      "count": 28
-    },
-    "HI": {
-     "and_base": "0xf8fc0ff0000000100007891",
-     "fields": [
-      {
-       "shift": 16,
-       "bits": 4,
-       "token_idx": 1,
-       "extraction": "ureg"
-      },
-      {
-       "shift": 24,
-       "bits": 5,
-       "token_idx": 2,
-       "extraction": "ureg"
-      },
-      {
-       "shift": 33,
-       "bits": 31,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 75,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 63,
-       "bits": 1,
-       "extraction": "neg",
-       "token_idx": 3
-      }
-     ],
-     "variable_mask": "0x1c00000000003800fffffffe1f0f0000",
-     "count": 123
     },
     "HI,X": {
      "and_base": "0x80f0400ffffffff00007891",

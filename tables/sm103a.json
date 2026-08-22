@@ -43469,7 +43469,7 @@
    "mod_groups": {
     "": {
      "and_base": "0x000fc0000f8e00ff0000000000000891",
-     "variable_mask": "0x01b03e0000007800ffffffff3f3f7000",
+     "variable_mask": "0x1b03e000000f800ffffffff3f3f7000",
      "fields": [
       {
        "shift": 12,
@@ -43500,7 +43500,7 @@
       },
       {
        "shift": 75,
-       "bits": 6,
+       "bits": 5,
        "token_idx": 4,
        "extraction": "imm",
        "_src": "2aE"
