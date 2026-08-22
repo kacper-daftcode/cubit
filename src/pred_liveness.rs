@@ -183,6 +183,21 @@ pub fn pred_xfer(insn: &Instruction, mode: XferMode) -> PredXfer {
             }
             true
         }
+        "VOTE" => {
+            // VOTE.ANY/ALL/EQ Pd, Ps(, ...): first predicate operand is the
+            // warp-aggregate DEF, remaining predicate operands are
+            // vote-source USEs (negation does not change the read; PT drops
+            // out via pred_num_at). BUG-072 / sm120 REQ-063 (i139/i140):
+            // hopb divstep loop-exit `VOTE.ALL P1, !P0` previously stood
+            // outside every family -> known=false -> sched fail-closed.
+            if p.first() == Some(&0) {
+                def_at(&mut x, 0);
+            }
+            for &idx in p.iter().skip(if p.first() == Some(&0) { 1 } else { 0 }) {
+                use_at(&mut x, idx);
+            }
+            true
+        }
         "VOTEU" => {
             for &idx in p {
                 def_at(&mut x, idx);
