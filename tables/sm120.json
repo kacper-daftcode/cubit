@@ -424,7 +424,8 @@
    "sm_count": 170
   },
   "_errata_2026_08_22": "BUG-079(ULEA family regen from 12887 vendor anchors: sm120 singleton-junk rows replaced, imm2 5b@75 window vs bit80 HI discriminator, neg@63/72 + inv@63 + ureg_ff + UP-in@81/6b + UP-out@87/4b; render-parity 12887/12887 both tables)",
-  "_errata_2026_08_22B": "BUG-081(FSETP f32-literal family rebuilt from 7905 vendor anchors into FSETP_P_P_R_FI_P (14 rows incl OR-buckets EQ/GT/LEU/LTU); decode keys R_L_P/L_II_P/L_R_P deleted (harvest artifacts: baked imm in and_base, shifted arities, phantom compare-op routing); LEA P-family: R_P_R_II_II rebuilt (69A), new keys R_P_R_R_R_II/R_P_R_UR_R_II HI 6-token (668+2A; were FAIL/misdecode), R_P_R_R_II tok3 neg@72 (99A); UIMAD.WIDE family rebuild (20818+922+3379+2705 anchors incl URZ/neg), new UP-carrying keys UR_UP_UR_II_UR(274) + UR_UR_II_UR_UP.X(274))"
+  "_errata_2026_08_22B": "BUG-081(FSETP f32-literal family rebuilt from 7905 vendor anchors into FSETP_P_P_R_FI_P (14 rows incl OR-buckets EQ/GT/LEU/LTU); decode keys R_L_P/L_II_P/L_R_P deleted (harvest artifacts: baked imm in and_base, shifted arities, phantom compare-op routing); LEA P-family: R_P_R_II_II rebuilt (69A), new keys R_P_R_R_R_II/R_P_R_UR_R_II HI 6-token (668+2A; were FAIL/misdecode), R_P_R_R_II tok3 neg@72 (99A); UIMAD.WIDE family rebuild (20818+922+3379+2705 anchors incl URZ/neg), new UP-carrying keys UR_UP_UR_II_UR(274) + UR_UR_II_UR_UP.X(274))",
+  "_errata_2026_08_22C": "BUG-082: DSETP family in sm120.json was harvest junk (28 keys: 7-bit reg windows halving operand numbers, baked-PT dropping pred2, |abs| rendered as neg, literal rows stealing forms, 5951 corpus words decode-FAIL). Re-canonicalized to the sm103a 3-key geometry (FI/R/UR_P) proven 17042/17054 anchors on the 2049-cubin corpus, 12 remaining deltas = f64 print-precision cosmetics only. Removed keys: ['DSETP.EQ.AND_P_P_R_R_P', 'DSETP.EQ.AND_P_P_R_R_P_?', 'DSETP.EQ.AND_P_P_R_UR_P_?', 'DSETP.EQ.AND_P_P_R_UR_P_II_?', 'DSETP.EQ.AND_P_P_R_UR_UR', 'DSETP.EQ.OR_P_P_R_R_P', 'DSETP.EQ.OR_P_P_R_UR_P', 'DSETP.GE.AND_P_P_R_R_R', 'DSETP.GE.AND_P_P_R_UR_UR', 'DSETP.GEU.AND_P_P_R_R_P', 'DSETP.GEU.AND_P_P_R_R_R', 'DSETP.GEU.AND_P_P_R_UR_UR', 'DSETP.GT.AND_P_P_R_R_P', 'DSETP.MAX.AND_P_P_R_R_P', 'DSETP.MIN.AND_P_P_R_R_P', 'DSETP.NEU.AND_P_P_R_R_P', 'DSETP.NEU.AND_P_P_R_R_P_?', 'DSETP.NEU.AND_P_P_R_UR_UR', 'DSETP.NEU.OR_P_P_R_R_P', 'DSETP.NEU.OR_P_P_R_R_P_?', 'DSETP.NEU.OR_P_P_R_R_P_II_?', 'DSETP.NEU.OR_P_P_R_R_P_II_II_?', 'DSETP.NEU.OR_P_P_R_UR_UR', 'DSETP_P_P_R_FI_P', 'DSETP_P_P_R_II_P', 'DSETP_P_P_R_L_P', 'DSETP_P_P_R_R_P', 'DSETP_P_P_R_UR_P']; see results/cubitfix/082.md"
  },
  "instructions": {
   "ACQBULK": {
@@ -10216,3052 +10217,6 @@
     "stall_base": 4,
     "latency_source": "hw_measured",
     "hw_def_latency": 18
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.EQ.AND_P_P_R_R_P": {
-   "base_op": "DSETP.EQ.AND",
-   "operand_sig": "P_P_R_R_P",
-   "mod_groups": {
-    "": {
-     "and_base": "0x0000000000702000000000fc0000722a",
-     "fields": [
-      {
-       "shift": 82,
-       "bits": 2,
-       "extraction": "pred",
-       "token_idx": 1
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "extraction": "pred",
-       "token_idx": 5
-      },
-      {
-       "shift": 26,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 3
-      }
-     ],
-     "variable_mask": "0x00000000078c0300c0000003fc000000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.EQ.AND_P_P_R_R_P_?": {
-   "base_op": "DSETP.EQ.AND",
-   "operand_sig": "P_P_R_R_P_?",
-   "mod_groups": {
-    "": {
-     "and_base": "0x0000000004702000000000fc0000722a",
-     "fields": [
-      {
-       "shift": 26,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 3
-      }
-     ],
-     "variable_mask": "0x0000000000000300c0000003fc000000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.EQ.AND_P_P_R_UR_P_?": {
-   "base_op": "DSETP.EQ.AND",
-   "operand_sig": "P_P_R_UR_P_?",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c70200000000010ff007e2a",
-     "fields": [],
-     "variable_mask": "0x0000000000000300c000000000000000",
-     "count": 8
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.EQ.AND_P_P_R_UR_P_II_?": {
-   "base_op": "DSETP.EQ.AND",
-   "operand_sig": "P_P_R_UR_P_II_?",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c7020000000000cff007e2a",
-     "fields": [],
-     "variable_mask": "0x0000000000000300c000000000000000",
-     "count": 8
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.EQ.AND_P_P_R_UR_UR": {
-   "base_op": "DSETP.EQ.AND",
-   "operand_sig": "P_P_R_UR_UR",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c70200000000000ff007e2a",
-     "fields": [
-      {
-       "shift": 33,
-       "bits": 4,
-       "extraction": "ureg",
-       "token_idx": 4
-      }
-     ],
-     "variable_mask": "0x0000000000000300c000001e00000000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.EQ.OR_P_P_R_R_P": {
-   "base_op": "DSETP.EQ.OR",
-   "operand_sig": "P_P_R_R_P",
-   "mod_groups": {
-    "": {
-     "and_base": "0x0000000004702400000000ff0600722a",
-     "fields": [
-      {
-       "shift": 81,
-       "bits": 3,
-       "extraction": "pred",
-       "token_idx": 1
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "extraction": "pred",
-       "token_idx": 5
-      }
-     ],
-     "variable_mask": "0x00000000038e0300c000000000000000",
-     "count": 8
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.EQ.OR_P_P_R_UR_P": {
-   "base_op": "DSETP.EQ.OR",
-   "operand_sig": "P_P_R_UR_P",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c70240000000000ff007e2a",
-     "fields": [
-      {
-       "shift": 81,
-       "bits": 3,
-       "extraction": "pred",
-       "token_idx": 1
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "extraction": "pred",
-       "token_idx": 5
-      },
-      {
-       "shift": 33,
-       "bits": 4,
-       "extraction": "ureg",
-       "token_idx": 4
-      }
-     ],
-     "variable_mask": "0x00000000038e0300c000001e00000000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.GE.AND_P_P_R_R_R": {
-   "base_op": "DSETP.GE.AND",
-   "operand_sig": "P_P_R_R_R",
-   "mod_groups": {
-    "": {
-     "and_base": "0x0000000003f060000000000c0000722a",
-     "fields": [
-      {
-       "shift": 81,
-       "bits": 2,
-       "extraction": "pred",
-       "token_idx": 1
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 3
-      },
-      {
-       "shift": 36,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 4
-      }
-     ],
-     "variable_mask": "0x0000000000060300c0000ff1fe000000",
-     "count": 24
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.GE.AND_P_P_R_UR_UR": {
-   "base_op": "DSETP.GE.AND",
-   "operand_sig": "P_P_R_UR_UR",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000bf060000000000000007e2a",
-     "fields": [
-      {
-       "shift": 81,
-       "bits": 1,
-       "extraction": "pred",
-       "token_idx": 1
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 3
-      },
-      {
-       "shift": 33,
-       "bits": 4,
-       "extraction": "ureg",
-       "token_idx": 4
-      }
-     ],
-     "variable_mask": "0x0000000000020300c000001ffe000000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.GEU.AND_P_P_R_R_P": {
-   "base_op": "DSETP.GEU.AND",
-   "operand_sig": "P_P_R_R_P",
-   "mod_groups": {
-    "": {
-     "and_base": "0x0000000000000000000000000000022a",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 72,
-       "bits": 2,
-       "token_idx": 3,
-       "extraction": "neg"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 63,
-       "bits": 1,
-       "extraction": "neg",
-       "token_idx": 4
-      },
-      {
-       "shift": 62,
-       "bits": 1,
-       "extraction": "abs",
-       "token_idx": 4
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "neg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007fe0300c00000ffff00f000"
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.GEU.AND_P_P_R_R_R": {
-   "base_op": "DSETP.GEU.AND",
-   "operand_sig": "P_P_R_R_R",
-   "mod_groups": {
-    "": {
-     "and_base": "0x0000000003f0e000000000000000022a",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "extraction": "guard",
-       "token_idx": 0
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "extraction": "pred",
-       "token_idx": 1
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 3
-      },
-      {
-       "shift": 33,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 4
-      }
-     ],
-     "variable_mask": "0x00000000000e0300c00001fffe00f000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.GEU.AND_P_P_R_UR_UR": {
-   "base_op": "DSETP.GEU.AND",
-   "operand_sig": "P_P_R_UR_UR",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000bf0e0000000000200007e2a",
-     "fields": [
-      {
-       "shift": 81,
-       "bits": 2,
-       "extraction": "pred",
-       "token_idx": 1
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 3
-      },
-      {
-       "shift": 34,
-       "bits": 2,
-       "extraction": "ureg",
-       "token_idx": 4
-      }
-     ],
-     "variable_mask": "0x0000000000060300c000000dfe000000",
-     "count": 3
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.GT.AND_P_P_R_R_P": {
-   "base_op": "DSETP.GT.AND",
-   "operand_sig": "P_P_R_R_P",
-   "mod_groups": {
-    "": {
-     "and_base": "0x0000000000000000000000000000022a",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 72,
-       "bits": 2,
-       "token_idx": 3,
-       "extraction": "neg"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 63,
-       "bits": 1,
-       "extraction": "neg",
-       "token_idx": 4
-      },
-      {
-       "shift": 62,
-       "bits": 1,
-       "extraction": "abs",
-       "token_idx": 4
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "neg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007fe0300c00000ffff00f000"
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.MAX.AND_P_P_R_R_P": {
-   "base_op": "DSETP.MAX.AND",
-   "operand_sig": "P_P_R_R_P",
-   "mod_groups": {
-    "": {
-     "and_base": "0x0000000000000000000000000000022a",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 72,
-       "bits": 2,
-       "token_idx": 3,
-       "extraction": "neg"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 63,
-       "bits": 1,
-       "extraction": "neg",
-       "token_idx": 4
-      },
-      {
-       "shift": 62,
-       "bits": 1,
-       "extraction": "abs",
-       "token_idx": 4
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "neg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007fe0300c00000ffff00f000"
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.MIN.AND_P_P_R_R_P": {
-   "base_op": "DSETP.MIN.AND",
-   "operand_sig": "P_P_R_R_P",
-   "mod_groups": {
-    "": {
-     "and_base": "0x0000000000000000000000000000022a",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 72,
-       "bits": 2,
-       "token_idx": 3,
-       "extraction": "neg"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 63,
-       "bits": 1,
-       "extraction": "neg",
-       "token_idx": 4
-      },
-      {
-       "shift": 62,
-       "bits": 1,
-       "extraction": "abs",
-       "token_idx": 4
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "neg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007fe0300c00000ffff00f000"
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.NEU.AND_P_P_R_R_P": {
-   "base_op": "DSETP.NEU.AND",
-   "operand_sig": "P_P_R_R_P",
-   "mod_groups": {
-    "": {
-     "and_base": "0x0000000003f0d000000000fe0000722a",
-     "fields": [
-      {
-       "shift": 81,
-       "bits": 3,
-       "extraction": "pred",
-       "token_idx": 1
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 3
-      }
-     ],
-     "variable_mask": "0x00000000000e0300c0000001fe000000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.NEU.AND_P_P_R_R_P_?": {
-   "base_op": "DSETP.NEU.AND",
-   "operand_sig": "P_P_R_R_P_?",
-   "mod_groups": {
-    "": {
-     "and_base": "0x0000000003f0d000000000fe0000722a",
-     "fields": [
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 3
-      }
-     ],
-     "variable_mask": "0x0000000000000300c0000001fe000000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.NEU.AND_P_P_R_UR_UR": {
-   "base_op": "DSETP.NEU.AND",
-   "operand_sig": "P_P_R_UR_UR",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000bf0d00000000000ff007e2a",
-     "fields": [
-      {
-       "shift": 81,
-       "bits": 3,
-       "extraction": "pred",
-       "token_idx": 1
-      },
-      {
-       "shift": 33,
-       "bits": 4,
-       "extraction": "ureg",
-       "token_idx": 4
-      }
-     ],
-     "variable_mask": "0x00000000000e0300c000001e00000000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.NEU.OR_P_P_R_R_P": {
-   "base_op": "DSETP.NEU.OR",
-   "operand_sig": "P_P_R_R_P",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000070d400000000fc0000722a",
-     "fields": [
-      {
-       "shift": 81,
-       "bits": 1,
-       "extraction": "pred",
-       "token_idx": 1
-      },
-      {
-       "shift": 26,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 3
-      }
-     ],
-     "variable_mask": "0x0000000000020300c0000003fc000000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.NEU.OR_P_P_R_R_P_?": {
-   "base_op": "DSETP.NEU.OR",
-   "operand_sig": "P_P_R_R_P_?",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000070d400000000fc0000722a",
-     "fields": [
-      {
-       "shift": 26,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 3
-      }
-     ],
-     "variable_mask": "0x0000000000000300c0000003fc000000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.NEU.OR_P_P_R_R_P_II_?": {
-   "base_op": "DSETP.NEU.OR",
-   "operand_sig": "P_P_R_R_P_II_?",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000070d400000000fc0000722a",
-     "fields": [
-      {
-       "shift": 26,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 3
-      }
-     ],
-     "variable_mask": "0x0000000000000300c0000003fc000000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.NEU.OR_P_P_R_R_P_II_II_?": {
-   "base_op": "DSETP.NEU.OR",
-   "operand_sig": "P_P_R_R_P_II_II_?",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000070d400000000ff1c00722a",
-     "fields": [],
-     "variable_mask": "0x0000000000000300c000000000000000",
-     "count": 4
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP.NEU.OR_P_P_R_UR_UR": {
-   "base_op": "DSETP.NEU.OR",
-   "operand_sig": "P_P_R_UR_UR",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000870d40000000000ff007e2a",
-     "fields": [
-      {
-       "shift": 81,
-       "bits": 1,
-       "extraction": "pred",
-       "token_idx": 1
-      },
-      {
-       "shift": 33,
-       "bits": 4,
-       "extraction": "ureg",
-       "token_idx": 4
-      }
-     ],
-     "variable_mask": "0x0000000000020300c000001e00000000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP_P_P_R_FI_P": {
-   "base_op": "DSETP",
-   "operand_sig": "P_P_R_FI_P",
-   "mod_groups": {
-    "AND,GTU": {
-     "and_base": "0x0000000003f0c0003ff000000200742a",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000000000300c0000000ff000000",
-     "count": 2
-    },
-    "AND,GEU": {
-     "and_base": "0x0000000003f0e000001000000000742a",
-     "fields": [
-      {
-       "shift": 25,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 81,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      }
-     ],
-     "variable_mask": "0x1c00000000020300c00000001e000000",
-     "count": 56
-    },
-    "AND,NEU": {
-     "and_base": "0x0000000003f0d000000000000400742a",
-     "fields": [
-      {
-       "shift": 25,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 27,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 52,
-       "bits": 12,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 81,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      }
-     ],
-     "variable_mask": "0x1c00000000020300fff000001a000000",
-     "count": 24
-    },
-    "AND,GE": {
-     "and_base": "0x0000000003f06000017000000200742a",
-     "fields": [
-      {
-       "shift": 27,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 73,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "neg"
-      }
-     ],
-     "variable_mask": "0x1c00000000000300c000000018000000",
-     "count": 4
-    },
-    "AND,GT": {
-     "and_base": "0x0000000003f04000000000100000122a",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000e0300c00000ffff00f000",
-     "count": 4
-    },
-    "AND,MAX": {
-     "and_base": "0x0000000003a0f000000000000000022a",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000e0300c00000ffff00f000",
-     "count": 1
-    },
-    "AND,MIN": {
-     "and_base": "0x0000000003800000000000100200722a",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000007e0300c00000ffff000000",
-     "count": 2
-    },
-    "AND,NE": {
-     "and_base": "0x0000000003f05000000000000000022a",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000e0300c00000ffff00f000",
-     "count": 1
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP_P_P_R_II_P": {
-   "base_op": "DSETP",
-   "operand_sig": "P_P_R_II_P",
-   "mod_groups": {
-    "AND,GEU": {
-     "and_base": "0x0000000003f0e000001000000000742a",
-     "fields": [
-      {
-       "shift": 25,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 81,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      }
-     ],
-     "variable_mask": "0x1c00000000020300c00000001e000000",
-     "count": 56
-    },
-    "AND,NEU": {
-     "and_base": "0x0000000003f0d000000000000400742a",
-     "fields": [
-      {
-       "shift": 25,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 27,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 52,
-       "bits": 12,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 81,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      }
-     ],
-     "variable_mask": "0x1c00000000020300fff000001a000000",
-     "count": 24
-    },
-    "AND,GTU": {
-     "and_base": "0x0000000003f0c0003e7000000200742a",
-     "fields": [
-      {
-       "shift": 27,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 73,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "neg"
-      }
-     ],
-     "variable_mask": "0x1c00000000000300c000000018000000",
-     "count": 4
-    },
-    "AND,GE": {
-     "and_base": "0x0000000003f06000017000000200742a",
-     "fields": [
-      {
-       "shift": 27,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 73,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "neg"
-      }
-     ],
-     "variable_mask": "0x1c00000000000300c000000018000000",
-     "count": 4
-    },
-    "AND,GT": {
-     "and_base": "0x0000000003f04000000000100000122a",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000e0300c00000ffff00f000",
-     "count": 4
-    },
-    "AND,MAX": {
-     "and_base": "0x0000000003a0f000000000000000022a",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000e0300c00000ffff00f000",
-     "count": 1
-    },
-    "AND,MIN": {
-     "and_base": "0x0000000003800000000000100200722a",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000007e0300c00000ffff000000",
-     "count": 2
-    },
-    "AND,NE": {
-     "and_base": "0x0000000003f05000000000000000022a",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000e0300c00000ffff00f000",
-     "count": 1
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP_P_P_R_L_P": {
-   "base_op": "DSETP",
-   "operand_sig": "P_P_R_L_P",
-   "mod_groups": {
-    "AND,GTU": {
-     "and_base": "0x0000000003f0c0003e7000000000742a",
-     "fields": [
-      {
-       "shift": 25,
-       "bits": 5,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 55,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 56,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 62,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "neg"
-      },
-      {
-       "shift": 73,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "neg"
-      },
-      {
-       "shift": 81,
-       "bits": 2,
-       "token_idx": 1,
-       "extraction": "pred"
-      }
-     ],
-     "variable_mask": "0x1c00000000060300c18000003e000000",
-     "count": 150
-    },
-    "AND,GEU": {
-     "and_base": "0x0000000003f0e000001000000000742a",
-     "fields": [
-      {
-       "shift": 25,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 81,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      }
-     ],
-     "variable_mask": "0x1c00000000020300c00000001e000000",
-     "count": 56
-    },
-    "AND,NEU": {
-     "and_base": "0x0000000003f0d000000000000400742a",
-     "fields": [
-      {
-       "shift": 25,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 27,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 52,
-       "bits": 12,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 81,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      }
-     ],
-     "variable_mask": "0x1c00000000020300fff000001a000000",
-     "count": 24
-    },
-    "AND,GE": {
-     "and_base": "0x0000000003f06000017000000200742a",
-     "fields": [
-      {
-       "shift": 27,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 73,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "pred"
-      }
-     ],
-     "variable_mask": "0x1c00000000000300c000000018000000",
-     "count": 4
-    },
-    "AND,GT": {
-     "and_base": "0x0000000003f04000000000100000122a",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000e0300c00000ffff00f000",
-     "count": 4
-    },
-    "AND,MAX": {
-     "and_base": "0x0000000003a8f000000000180000722a",
-     "fields": [
-      {
-       "shift": 25,
-       "bits": 5,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 55,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 56,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 62,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "neg"
-      },
-      {
-       "shift": 73,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "neg"
-      },
-      {
-       "shift": 81,
-       "bits": 2,
-       "token_idx": 1,
-       "extraction": "pred"
-      }
-     ],
-     "variable_mask": "0x1c00000000060300c18000003e000000",
-     "count": 1
-    },
-    "AND,MIN": {
-     "and_base": "0x0000000003800000000000100200722a",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000007e0300c00000ffff000000",
-     "count": 2
-    },
-    "AND,NE": {
-     "and_base": "0x0000000003f05000000000ff0000722a",
-     "fields": [
-      {
-       "shift": 25,
-       "bits": 5,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 55,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 56,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 62,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "neg"
-      },
-      {
-       "shift": 73,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "neg"
-      },
-      {
-       "shift": 81,
-       "bits": 2,
-       "token_idx": 1,
-       "extraction": "pred"
-      }
-     ],
-     "variable_mask": "0x1c00000000060300c18000003e000000",
-     "count": 1
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP_P_P_R_R_P": {
-   "base_op": "DSETP",
-   "operand_sig": "P_P_R_R_P",
-   "mod_groups": {
-    "AND,GEU": {
-     "and_base": "0x0000000003f2e000000000ff0200722a",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000e0300c0000000ff000000",
-     "count": 2
-    },
-    "AND,GT": {
-     "and_base": "0x0000000003f04000000000100000122a",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000e0300c00000ffff00f000",
-     "count": 4
-    },
-    "AND,MAX": {
-     "and_base": "0x0000000003a0f000000000000000022a",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000e0300c00000ffff00f000",
-     "count": 1
-    },
-    "AND,MIN": {
-     "and_base": "0x0000000003800000000000100200722a",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000007e0300c00000ffff000000",
-     "count": 2
-    },
-    "AND,NE": {
-     "and_base": "0x0000000003f05000000000000000022a",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000e0300c00000ffff00f000",
-     "count": 1
-    },
-    "AND,NEU": {
-     "and_base": "0x0000000003f0d000000000000000022a",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000e0300c00000ffff00f000",
-     "count": 1
-    },
-    "AND,GTU": {
-     "and_base": "0x0000000003f0c0003ff000000200742a",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000000000300c0000000ff000000",
-     "count": 2
-    },
-    "AND,GE": {
-     "and_base": "0x0000000003f06000017000000200742a",
-     "fields": [
-      {
-       "shift": 27,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 73,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "neg"
-      }
-     ],
-     "variable_mask": "0x1c00000000000300c000000018000000",
-     "count": 4
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "DSETP_P_P_R_UR_P": {
-   "base_op": "DSETP",
-   "operand_sig": "P_P_R_UR_P",
-   "mod_groups": {
-    "AND,GEU": {
-     "and_base": "0x000000000bf0e0000000000400007e2a",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "ureg"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000e0300c00000ffff000000",
-     "count": 4
-    },
-    "AND,GTU": {
-     "and_base": "0x0000000003f0c0003ff000000200742a",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000000000300c0000000ff000000",
-     "count": 2
-    },
-    "AND,NEU": {
-     "and_base": "0x0000000003f0d000000000000400742a",
-     "fields": [
-      {
-       "shift": 25,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 27,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 52,
-       "bits": 12,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 81,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      }
-     ],
-     "variable_mask": "0x1c00000000020300fff000001a000000",
-     "count": 24
-    },
-    "AND,GE": {
-     "and_base": "0x0000000003f06000017000000200742a",
-     "fields": [
-      {
-       "shift": 27,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 73,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "neg"
-      }
-     ],
-     "variable_mask": "0x1c00000000000300c000000018000000",
-     "count": 4
-    },
-    "AND,GT": {
-     "and_base": "0x0000000003f04000000000100000122a",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000e0300c00000ffff00f000",
-     "count": 4
-    },
-    "AND,MAX": {
-     "and_base": "0x0000000003a0f000000000000000022a",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000e0300c00000ffff00f000",
-     "count": 1
-    },
-    "AND,MIN": {
-     "and_base": "0x0000000003800000000000100200722a",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000007e0300c00000ffff000000",
-     "count": 2
-    },
-    "AND,NE": {
-     "and_base": "0x0000000003f05000000000000000022a",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000e0300c00000ffff00f000",
-     "count": 1
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 9,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 9,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 33,
-      "name": "DSETP",
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "DSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 9,
-      "write_latency": 0
-     }
-    ]
    },
    "ctrl_class": "alu_simple",
    "mercury": []
@@ -191878,6 +188833,3286 @@
     ]
    },
    "ctrl_class": "alu_iadd3",
+   "mercury": []
+  },
+  "DSETP_P_P_R_FI_P": {
+   "base_op": "DSETP",
+   "operand_sig": "P_P_R_FI_P",
+   "mod_groups": {
+    "AND,GTU": {
+     "and_base": "0x0000000003f0c000002000000000042a",
+     "variable_mask": "0x077ffe00000e02007fd00000fe00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 4,
+       "extraction": "f64hi",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      }
+     ],
+     "count": 1262
+    },
+    "AND,NEU": {
+     "and_base": "0x0000000003f0d000000000000000042a",
+     "variable_mask": "0x03fffe00000e0200fff000007e00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 4,
+       "extraction": "f64hi",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 342
+    },
+    "AND,GEU": {
+     "and_base": "0x0000000003f0e000000000000000742a",
+     "variable_mask": "0x06fffe00000202007fff40007e000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 4,
+       "extraction": "f64hi",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      }
+     ],
+     "count": 122
+    },
+    "AND,GT": {
+     "and_base": "0x0000000000f0400000a000000000742a",
+     "variable_mask": "0x047efe00030200007f5f40003e000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 4,
+       "extraction": "f64hi",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      }
+     ],
+     "count": 48
+    },
+    "AND,EQ": {
+     "and_base": "0x000e0000007020003ff000000000042a",
+     "variable_mask": "0x01b1fe0003860000000000003e00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 59,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 4,
+       "extraction": "f64hi"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 36
+    },
+    "AND,NE": {
+     "and_base": "0x0000000003f052007ff000000000742a",
+     "variable_mask": "0x041fee00000e0000000000001e000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 60,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 60,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 4,
+       "extraction": "f64hi"
+      }
+     ],
+     "count": 32
+    },
+    "AND,GE": {
+     "and_base": "0x000e040003f06000400000000000742a",
+     "variable_mask": "0x0081fa00000202003ff000003e000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 4,
+       "extraction": "f64hi",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 29
+    },
+    "AND,MAX": {
+     "and_base": "0x000e20000380f0003ff000000000742a",
+     "variable_mask": "0x0070c60000300000000000003e000000",
+     "fields": [
+      {
+       "shift": 84,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 6,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 4,
+       "extraction": "f64hi"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 23
+    },
+    "NEU,OR": {
+     "and_base": "0x000fc0000070d4003ff000000000742a",
+     "variable_mask": "0x03f03e0004820000000000007e000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 4,
+       "extraction": "f64hi"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 21
+    },
+    "EQ,OR": {
+     "and_base": "0x000e4400007024003ff000000000742a",
+     "variable_mask": "0x0021b800040000000000000036000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 6,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 4,
+       "extraction": "f64hi"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 14
+    },
+    "LEU,OR": {
+     "and_base": "0x001e04000470b4003ff000000000742a",
+     "variable_mask": "0x0000380000000000000000005a000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 16,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 16,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 4,
+       "extraction": "f64hi"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 12
+    },
+    "AND,LE": {
+     "and_base": "0x001e220000703000035000000000742a",
+     "variable_mask": "0x0101c00000000000000000001e000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 16,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 16,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 4,
+       "extraction": "f64hi"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 5
+    },
+    "LE,OR": {
+     "and_base": "0x000e040001703400036000000000742a",
+     "variable_mask": "0x00007800000200000000000016000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 4,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 4,
+       "extraction": "f64hi"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 5
+    },
+    "AND,LT": {
+     "and_base": "0x00000400047010003ff000000000742a",
+     "variable_mask": "0x0437ba0000000000000000001e000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 109,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 111,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 16,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 16,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 4,
+       "extraction": "f64hi"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred"
+      }
+     ],
+     "count": 5
+    }
+   },
+   "scheduling": {
+    "opcode_id": null,
+    "pipe_class": 36,
+    "pipe_name": "FP_ARITH",
+    "def_latency": 9,
+    "throughput": 2,
+    "is_variable_latency": false,
+    "confidence": "hw_measured",
+    "ptxas_raw": null,
+    "read_latency": 9,
+    "write_latency": 0,
+    "stall_base": 4,
+    "latency_source": "hw_measured",
+    "_all_entries": [
+     {
+      "opcode_id": 33,
+      "name": "DSETP",
+      "pipe_name": "MEMORY",
+      "read_latency": 0,
+      "write_latency": 0
+     },
+     {
+      "opcode_id": null,
+      "name": "DSETP (synthetic)",
+      "pipe_name": "FP_ARITH",
+      "read_latency": 9,
+      "write_latency": 0
+     }
+    ]
+   },
+   "ctrl_class": "alu_simple",
+   "mercury": []
+  },
+  "DSETP_P_P_R_R_P": {
+   "base_op": "DSETP",
+   "operand_sig": "P_P_R_R_P",
+   "mod_groups": {
+    "AND,NEU": {
+     "and_base": "0x000000000070d000000000000000022a",
+     "variable_mask": "0x07fffe00038e0200000000fffe00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 84,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      }
+     ],
+     "count": 3196
+    },
+    "AND,GT": {
+     "and_base": "0x0000000000704000000000000000022a",
+     "variable_mask": "0x17fffe00078e0200400000fffe00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 62,
+       "bits": 1,
+       "token_idx": 4,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 124,
+       "bits": 1,
+       "token_idx": 4,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 84,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      }
+     ],
+     "count": 2890
+    },
+    "AND,MAX": {
+     "and_base": "0x000000000380f000000000000000022a",
+     "variable_mask": "0x17fffe00007e0200400000feff00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 84,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 62,
+       "bits": 1,
+       "token_idx": 4,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 124,
+       "bits": 1,
+       "token_idx": 4,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      }
+     ],
+     "count": 3386
+    },
+    "AND,GEU": {
+     "and_base": "0x000000000070e000000000000000022a",
+     "variable_mask": "0x17fffe00038e0200400000fffe00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 62,
+       "bits": 1,
+       "token_idx": 4,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 124,
+       "bits": 1,
+       "token_idx": 4,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      }
+     ],
+     "count": 3334
+    },
+    "AND,NAN": {
+     "and_base": "0x0000000003f08000000000000000722a",
+     "variable_mask": "0x17fffe00000e0200400000fefe000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 62,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 4,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 124,
+       "bits": 1,
+       "token_idx": 4,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      }
+     ],
+     "count": 909
+    },
+    "AND,EQ": {
+     "and_base": "0x0000000000702000000000000000022a",
+     "variable_mask": "0x07fffe00078e0000000000fffe00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 84,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      }
+     ],
+     "count": 1034
+    },
+    "AND,MIN": {
+     "and_base": "0x0000000003800000000000000000022a",
+     "variable_mask": "0x17fffe00007e02004000007eff00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 84,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 62,
+       "bits": 1,
+       "token_idx": 4,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 124,
+       "bits": 1,
+       "token_idx": 4,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      }
+     ],
+     "count": 906
+    },
+    "NEU,OR": {
+     "and_base": "0x000000000070d400000000000000222a",
+     "variable_mask": "0x03fffe00078e0000000000fffe005000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 84,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 688
+    },
+    "AND,NE": {
+     "and_base": "0x000e040003f05000000000ff0000722a",
+     "variable_mask": "0x0011f800000e0000000000007e000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2c"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 649
+    },
+    "AND,GE": {
+     "and_base": "0x0000000000f06000000000000000722a",
+     "variable_mask": "0x07fffe00030e0200400000fffe000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 62,
+       "bits": 1,
+       "token_idx": 4,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      }
+     ],
+     "count": 634
+    },
+    "AND,GTU": {
+     "and_base": "0x0000000003f0c000000000000000722a",
+     "variable_mask": "0x07fffe00000e0200400000ff7e000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 62,
+       "bits": 1,
+       "token_idx": 4,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      }
+     ],
+     "count": 633
+    },
+    "LT,OR": {
+     "and_base": "0x000e040000701400000000000000222a",
+     "variable_mask": "0x03f1fa00038e0000000000fefe00d000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 84,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 337
+    },
+    "EQ,OR": {
+     "and_base": "0x0000000000702400000000000000722a",
+     "variable_mask": "0x07fffe00078e0000000000ff7e000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      }
+     ],
+     "count": 272
+    },
+    "LEU,OR": {
+     "and_base": "0x000000000070b400000000000000722a",
+     "variable_mask": "0x03fffe00058e0000400000ff3e000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 62,
+       "bits": 1,
+       "token_idx": 4,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 123
+    },
+    "AND,LEU": {
+     "and_base": "0x000000000070b000000000000000722a",
+     "variable_mask": "0x000ffc00038602000000007e3e000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 73
+    },
+    "NAN,OR": {
+     "and_base": "0x0010000000708400000000000000722a",
+     "variable_mask": "0x000efe00000c0200400000fefe000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 62,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 4,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 16,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 47
+    },
+    "GTU,OR": {
+     "and_base": "0x000e00000070c400000000020000722a",
+     "variable_mask": "0x00b1fe0001860000000000fd3e000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 25
+    },
+    "AND,LT": {
+     "and_base": "0x0000400000701000000000000000722a",
+     "variable_mask": "0x00e6ae00000000000000000e1e000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 19,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 19,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 23
+    },
+    "GT,OR": {
+     "and_base": "0x0004220000724600000000000000722a",
+     "variable_mask": "0x000bc000018000000000003e2e000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 5,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 12
+    },
+    "LE,OR": {
+     "and_base": "0x000e040004f23600000000000000722a",
+     "variable_mask": "0x02307800000000000000007e7e000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 12
+    },
+    "GT,XOR": {
+     "and_base": "0x000e000000704800000000ff0000722a",
+     "variable_mask": "0x0000ea0002800000000000001e000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 15,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 37,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 10
+    },
+    "GE,OR": {
+     "and_base": "0x0000040000706400000000000000722a",
+     "variable_mask": "0x007ff800000000000000001e1e000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 19,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 19,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 9
+    },
+    "GEU,XOR": {
+     "and_base": "0x000e00000470e800000000ff0000722a",
+     "variable_mask": "0x02c0ee00030e0000000000000e000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2c"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 8
+    },
+    "LTU,OR": {
+     "and_base": "0x020e0400007094004000000c1800722a",
+     "variable_mask": "0x00007800008200000000000206000000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 25,
+       "bits": 1,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2d"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 4
+    },
+    "AND,NUM": {
+     "and_base": "0x004e0400047072004000000a0800722a",
+     "variable_mask": "0x00002800000000000000000000000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2c"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2c"
+      },
+      {
+       "shift": 19,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 19,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 4
+    }
+   },
+   "scheduling": {
+    "opcode_id": null,
+    "pipe_class": 36,
+    "pipe_name": "FP_ARITH",
+    "def_latency": 9,
+    "throughput": 2,
+    "is_variable_latency": false,
+    "confidence": "hw_measured",
+    "ptxas_raw": null,
+    "read_latency": 9,
+    "write_latency": 0,
+    "stall_base": 4,
+    "latency_source": "hw_measured",
+    "_all_entries": [
+     {
+      "opcode_id": 33,
+      "name": "DSETP",
+      "pipe_name": "MEMORY",
+      "read_latency": 0,
+      "write_latency": 0
+     },
+     {
+      "opcode_id": null,
+      "name": "DSETP (synthetic)",
+      "pipe_name": "FP_ARITH",
+      "read_latency": 9,
+      "write_latency": 0
+     }
+    ]
+   },
+   "ctrl_class": "alu_simple",
+   "mercury": []
+  },
+  "DSETP_P_P_R_UR_P": {
+   "base_op": "DSETP",
+   "operand_sig": "P_P_R_UR_P",
+   "mod_groups": {
+    "AND,GT": {
+     "and_base": "0x000000000bf040000000000000007e2a",
+     "variable_mask": "0x07fffe00000e02004000001e7e000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "ureg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 62,
+       "bits": 1,
+       "token_idx": 4,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      }
+     ],
+     "count": 1037
+    },
+    "AND,NEU": {
+     "and_base": "0x000e00000bf0d00000000000ff000e2a",
+     "variable_mask": "0x03f1fe00000e00000000003e0000f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "ureg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2c"
+      },
+      {
+       "shift": 9,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 9,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 383
+    },
+    "AND,GE": {
+     "and_base": "0x000000000bf060000000000000007e2a",
+     "variable_mask": "0x047ffe00000e02000000001e7e000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "ureg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      }
+     ],
+     "count": 197
+    },
+    "AND,GEU": {
+     "and_base": "0x000000000bf0e0000000000000007e2a",
+     "variable_mask": "0x03fffe00000e02000000000e7e000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "ureg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 195
+    },
+    "AND,GTU": {
+     "and_base": "0x000000000bf0c0000000000000007e2a",
+     "variable_mask": "0x07fffe00000e02000000001e7e000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "ureg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      }
+     ],
+     "count": 178
+    },
+    "EQ,OR": {
+     "and_base": "0x0000000008702400000000000e007e2a",
+     "variable_mask": "0x003ffe00078e00000000001ef1000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "ureg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 126
+    },
+    "NEU,OR": {
+     "and_base": "0x000e00000870d4000000000004007e2a",
+     "variable_mask": "0x03f1fe00008e00000000003efb000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "ureg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 111
+    },
+    "AND,EQ": {
+     "and_base": "0x000e00000870200000000000ff002e2a",
+     "variable_mask": "0x01f1fe00078e00000000003e00005000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "ureg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 9,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2c"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 100
+    },
+    "LTU,OR": {
+     "and_base": "0x00000000087094000000000000007e2a",
+     "variable_mask": "0x04fefe00008200000000001e3e000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "ureg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      }
+     ],
+     "count": 88
+    },
+    "AND,LT": {
+     "and_base": "0x000e00000bf010000000000000000e2a",
+     "variable_mask": "0x01716e00000602000000001eff007000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "ureg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 9,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 9,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 82
+    },
+    "AND,MAX": {
+     "and_base": "0x000e20000b80f0000000000000007e2a",
+     "variable_mask": "0x0030c600003202004000001e7e000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 84,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 62,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "ureg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "token_idx": 4,
+       "extraction": "abs",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 73
+    },
+    "LEU,OR": {
+     "and_base": "0x000e00000870b4000000000000007e2a",
+     "variable_mask": "0x00f0fe00038e00000000000e16000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "ureg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 22
+    },
+    "AND,MIN": {
+     "and_base": "0x000e24000b8000000000000000007e2a",
+     "variable_mask": "0x00300000007e00000000000e1e000000",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 84,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "ureg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 14
+    },
+    "GT,OR": {
+     "and_base": "0x004e84000c7044000000000810007e2a",
+     "variable_mask": "0x0000380000000000000000060e000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "ureg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 19,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 19,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 5,
+       "extraction": "neg"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 9
+    },
+    "AND,NE": {
+     "and_base": "0x001e04000bf0500000000004ff007e2a",
+     "variable_mask": "0x00003800000000000000000200000000",
+     "fields": [
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "ureg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 15,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2c"
+      },
+      {
+       "shift": 9,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 9,
+       "bits": 3,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 4
+    },
+    "AND,LE": {
+     "and_base": "0x000e62000bf0300000000008ff007e2a",
+     "variable_mask": "0x00018000000000000000000000000000",
+     "fields": [
+      {
+       "shift": 15,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 6,
+       "bits": 4,
+       "token_idx": 4,
+       "extraction": "ureg",
+       "_src": "2c"
+      },
+      {
+       "shift": 87,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 87,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "reuse"
+      }
+     ],
+     "count": 2
+    }
+   },
+   "scheduling": {
+    "opcode_id": null,
+    "pipe_class": 36,
+    "pipe_name": "FP_ARITH",
+    "def_latency": 9,
+    "throughput": 2,
+    "is_variable_latency": false,
+    "confidence": "hw_measured",
+    "ptxas_raw": null,
+    "read_latency": 9,
+    "write_latency": 0,
+    "stall_base": 4,
+    "latency_source": "hw_measured",
+    "_all_entries": [
+     {
+      "opcode_id": 33,
+      "name": "DSETP",
+      "pipe_name": "MEMORY",
+      "read_latency": 0,
+      "write_latency": 0
+     },
+     {
+      "opcode_id": null,
+      "name": "DSETP (synthetic)",
+      "pipe_name": "FP_ARITH",
+      "read_latency": 9,
+      "write_latency": 0
+     }
+    ]
+   },
+   "ctrl_class": "alu_simple",
    "mercury": []
   }
  },
