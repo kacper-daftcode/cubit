@@ -423,7 +423,8 @@
    },
    "sm_count": 170
   },
-  "_errata_2026_08_22": "BUG-079(ULEA family regen from 12887 vendor anchors: sm120 singleton-junk rows replaced, imm2 5b@75 window vs bit80 HI discriminator, neg@63/72 + inv@63 + ureg_ff + UP-in@81/6b + UP-out@87/4b; render-parity 12887/12887 both tables)"
+  "_errata_2026_08_22": "BUG-079(ULEA family regen from 12887 vendor anchors: sm120 singleton-junk rows replaced, imm2 5b@75 window vs bit80 HI discriminator, neg@63/72 + inv@63 + ureg_ff + UP-in@81/6b + UP-out@87/4b; render-parity 12887/12887 both tables)",
+  "_errata_2026_08_22B": "BUG-081(FSETP f32-literal family rebuilt from 7905 vendor anchors into FSETP_P_P_R_FI_P (14 rows incl OR-buckets EQ/GT/LEU/LTU); decode keys R_L_P/L_II_P/L_R_P deleted (harvest artifacts: baked imm in and_base, shifted arities, phantom compare-op routing); LEA P-family: R_P_R_II_II rebuilt (69A), new keys R_P_R_R_R_II/R_P_R_UR_R_II HI 6-token (668+2A; were FAIL/misdecode), R_P_R_R_II tok3 neg@72 (99A); UIMAD.WIDE family rebuild (20818+922+3379+2705 anchors incl URZ/neg), new UP-carrying keys UR_UP_UR_II_UR(274) + UR_UR_II_UR_UP.X(274))"
  },
  "instructions": {
   "ACQBULK": {
@@ -28220,852 +28221,6 @@
    "ctrl_class": "alu_simple",
    "mercury": []
   },
-  "FSETP_P_P_L_II_P": {
-   "base_op": "FSETP",
-   "operand_sig": "P_P_L_II_P",
-   "mod_groups": {
-    "AND,GEU": {
-     "and_base": "0x0000000003f0e000000000000000780b",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 52,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "imm"
-      },
-      {
-       "shift": 55,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 81,
-       "bits": 2,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000000060300c0900000ff000000",
-     "count": 150
-    },
-    "AND,GE": {
-     "and_base": "0x000000000000000007ce478000000800",
-     "fields": [
-      {
-       "shift": 0,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 62,
-       "bits": 2,
-       "token_idx": 3,
-       "extraction": "pred"
-      },
-      {
-       "shift": 72,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 74,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 75,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 77,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 79,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 80,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007ffff00c0000001ff00f003",
-     "count": 1
-    },
-    "AND,FTZ,NEU": {
-     "and_base": "0x0400000003f1d0003f8000000000780b",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 2,
-       "token_idx": 1,
-       "extraction": "pred"
-      }
-     ],
-     "variable_mask": "0x1c00000000060300c0000000ff000000",
-     "count": 150
-    },
-    "AND,FTZ,GE": {
-     "and_base": "0x0000000003f1600007ce47800200780b",
-     "fields": [
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      }
-     ],
-     "variable_mask": "0x1c000000000e0300c000000000000000",
-     "count": 2
-    },
-    "AND,NEU": {
-     "and_base": "0x00000000000000003f80000000000800",
-     "fields": [
-      {
-       "shift": 0,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 62,
-       "bits": 2,
-       "token_idx": 3,
-       "extraction": "pred"
-      },
-      {
-       "shift": 72,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 74,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 75,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 77,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 79,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 80,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007ffff00c0000001ff00f003",
-     "count": 1
-    },
-    "AND,GT": {
-     "and_base": "0x0000000003f04000001000000000780b",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      }
-     ],
-     "variable_mask": "0x1c00000000000300c0000000ff000000",
-     "count": 45
-    },
-    "AND,FTZ,GEU": {
-     "and_base": "0x0000000000000000000000fe00000200",
-     "fields": [
-      {
-       "shift": 0,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 62,
-       "bits": 2,
-       "token_idx": 3,
-       "extraction": "pred"
-      },
-      {
-       "shift": 72,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 74,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 75,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 77,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 79,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 80,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007ffff00c0000001ff00f003",
-     "count": 1
-    },
-    "AND,FTZ,GT": {
-     "and_base": "0x00000000000000000000000400000200",
-     "fields": [
-      {
-       "shift": 0,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 62,
-       "bits": 2,
-       "token_idx": 3,
-       "extraction": "pred"
-      },
-      {
-       "shift": 72,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 74,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 75,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 77,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 79,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 80,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007ffff00c0000001ff00f003",
-     "count": 1
-    },
-    "NEU,OR": {
-     "and_base": "0x000000000800000000000000ff000c0b",
-     "fields": [
-      {
-       "shift": 0,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 62,
-       "bits": 2,
-       "token_idx": 3,
-       "extraction": "pred"
-      },
-      {
-       "shift": 72,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 74,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 75,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 77,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 79,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 80,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007ffff00c0000001ff00f03b",
-     "count": 1
-    },
-    "AND,EQ": {
-     "and_base": "0x000000000800000000000000ff000c0b",
-     "fields": [
-      {
-       "shift": 0,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 62,
-       "bits": 2,
-       "token_idx": 3,
-       "extraction": "pred"
-      },
-      {
-       "shift": 72,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 74,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 75,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 77,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 79,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 80,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007ffff00c0000001ff00f03b",
-     "count": 1
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 3,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 3,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 55,
-      "name": "FSETP",
-      "pipe_name": "BARRIER",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "FSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 3,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
   "FSETP_P_P_L_L_P": {
    "base_op": "FSETP",
    "operand_sig": "P_P_L_L_P",
@@ -29996,2665 +29151,593 @@
    "ctrl_class": "alu_simple",
    "mercury": []
   },
-  "FSETP_P_P_L_R_P": {
-   "base_op": "FSETP",
-   "operand_sig": "P_P_L_R_P",
-   "mod_groups": {
-    "AND,GEU": {
-     "and_base": "0x0400000003f0e000000000000000720b",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000000020300c00000ffff000000",
-     "count": 84
-    },
-    "AND,GE": {
-     "and_base": "0x00000000000400000000000000000800",
-     "fields": [
-      {
-       "shift": 0,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 72,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "neg"
-      },
-      {
-       "shift": 73,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "abs"
-      },
-      {
-       "shift": 74,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 75,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 77,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 79,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 80,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 81,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007f3ff00ffffffffff00f003",
-     "count": 1
-    },
-    "AND,FTZ,NEU": {
-     "and_base": "0x0400000003f1d0003f8000000000780b",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 2,
-       "token_idx": 1,
-       "extraction": "pred"
-      }
-     ],
-     "variable_mask": "0x1c00000000060300c0000000ff000000",
-     "count": 150
-    },
-    "AND,FTZ,GE": {
-     "and_base": "0x0000000003f1600007ce47800200780b",
-     "fields": [
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      }
-     ],
-     "variable_mask": "0x1c000000000e0300c000000000000000",
-     "count": 2
-    },
-    "AND,NEU": {
-     "and_base": "0x00000000000000000000000000000800",
-     "fields": [
-      {
-       "shift": 0,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 72,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "neg"
-      },
-      {
-       "shift": 73,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "abs"
-      },
-      {
-       "shift": 74,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 75,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 77,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 79,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 80,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 81,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007f3ff00ffffffffff00f003",
-     "count": 1
-    },
-    "AND,GT": {
-     "and_base": "0x0000000003f04000001000000000780b",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      }
-     ],
-     "variable_mask": "0x1c00000000000300c0000000ff000000",
-     "count": 45
-    },
-    "AND,FTZ,GEU": {
-     "and_base": "0x00000000000000000000000000000200",
-     "fields": [
-      {
-       "shift": 0,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 72,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "neg"
-      },
-      {
-       "shift": 73,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "abs"
-      },
-      {
-       "shift": 74,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 75,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 77,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 79,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 80,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 81,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007f3ff00ffffffffff00f003",
-     "count": 1
-    },
-    "AND,FTZ,GT": {
-     "and_base": "0x00000000000000000000000000000200",
-     "fields": [
-      {
-       "shift": 0,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 72,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "neg"
-      },
-      {
-       "shift": 73,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "abs"
-      },
-      {
-       "shift": 74,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 75,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 77,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 79,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 80,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 81,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007f3ff00ffffffffff00f003",
-     "count": 1
-    },
-    "NEU,OR": {
-     "and_base": "0x000000000800000000000000ff000c0b",
-     "fields": [
-      {
-       "shift": 0,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "pred"
-      },
-      {
-       "shift": 62,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 72,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 74,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 75,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 77,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 79,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 80,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007ffff00c0000001ff00f03b",
-     "count": 1
-    },
-    "AND,EQ": {
-     "and_base": "0x000000000800000000000000ff000c0b",
-     "fields": [
-      {
-       "shift": 0,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "pred"
-      },
-      {
-       "shift": 62,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 72,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 74,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 75,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 77,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 79,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 80,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007ffff00c0000001ff00f03b",
-     "count": 1
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 3,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 3,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 55,
-      "name": "FSETP",
-      "pipe_name": "BARRIER",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "FSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 3,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
   "FSETP_P_P_R_FI_P": {
    "base_op": "FSETP",
    "operand_sig": "P_P_R_FI_P",
    "mod_groups": {
-    "AND,FTZ,GE": {
-     "and_base": "0x0000000000016000000000000000080b",
+    "AND,EQ": {
+     "and_base": "0x0000000000702000000000000000080b",
      "fields": [
       {
+       "token_idx": 0,
        "shift": 12,
        "bits": 4,
-       "token_idx": 0,
        "extraction": "guard"
       },
       {
+       "token_idx": 1,
        "shift": 81,
        "bits": 3,
-       "token_idx": 1,
        "extraction": "pred"
       },
       {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
+       "token_idx": 3,
        "shift": 24,
        "bits": 8,
-       "token_idx": 3,
        "extraction": "reg"
       },
       {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
+       "token_idx": 4,
        "shift": 32,
        "bits": 32,
-       "token_idx": 4,
        "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 1,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    },
-    "AND,FTZ,GTU": {
-     "and_base": "0x000000000001c000000000000000080b",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
       },
       {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
+       "token_idx": 5,
        "shift": 87,
        "bits": 3,
-       "token_idx": 5,
        "extraction": "pred"
       },
       {
+       "token_idx": 5,
        "shift": 90,
        "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
+       "extraction": "neg"
       }
      ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 1,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    },
-    "AND,FTZ,NEU": {
-     "and_base": "0x000000000001d000000000000000080b",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 1,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    },
-    "AND,GE": {
-     "and_base": "0x0000000000006000000000000000080b",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 2,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    },
-    "AND,GEU": {
-     "and_base": "0x000000000000e000000000000000080b",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 2,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    },
-    "AND,NEU": {
-     "and_base": "0x000000000000d000000000000000080b",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 2,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    },
-    "AND,GT": {
-     "and_base": "0x0000000000004000000000000000080b",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 2,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    },
-    "AND,GTU": {
-     "and_base": "0x000000000000c000000000000000080b",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 2,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    },
-    "AND,FTZ,GEU": {
-     "and_base": "0x000000000001e000000000000000080b",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 1,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
+     "variable_mask": "0x04000000078e0000ffffffffff00f000",
+     "count": 467
     },
     "AND,FTZ,GT": {
-     "and_base": "0x0000000000014000000000000000080b",
+     "and_base": "0x0000000000714000000000000000080b",
      "fields": [
       {
+       "token_idx": 0,
        "shift": 12,
        "bits": 4,
-       "token_idx": 0,
        "extraction": "guard"
       },
       {
+       "token_idx": 1,
        "shift": 81,
        "bits": 3,
-       "token_idx": 1,
        "extraction": "pred"
       },
       {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
+       "token_idx": 3,
        "shift": 24,
        "bits": 8,
-       "token_idx": 3,
        "extraction": "reg"
       },
       {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
        "token_idx": 3,
-       "extraction": "reuse"
+       "shift": 73,
+       "bits": 1,
+       "extraction": "abs"
       },
       {
+       "token_idx": 4,
        "shift": 32,
        "bits": 32,
-       "token_idx": 4,
        "extraction": "f32"
+      },
+      {
+       "token_idx": 5,
+       "shift": 87,
+       "bits": 3,
+       "extraction": "pred"
       }
      ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 1,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
+     "variable_mask": "0x04000000038e0200ffffffffff00f000",
+     "count": 4
     },
-    "NEU,OR": {
-     "and_base": "0x000000000000d400000000000000080b",
+    "AND,FTZ,GTU": {
+     "and_base": "0x000000000071c000000000000000080b",
      "fields": [
       {
+       "token_idx": 0,
        "shift": 12,
        "bits": 4,
-       "token_idx": 0,
        "extraction": "guard"
       },
       {
+       "token_idx": 1,
        "shift": 81,
        "bits": 3,
-       "token_idx": 1,
        "extraction": "pred"
       },
       {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
+       "token_idx": 3,
        "shift": 24,
        "bits": 8,
-       "token_idx": 3,
        "extraction": "reg"
       },
       {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
        "token_idx": 3,
-       "extraction": "reuse"
+       "shift": 73,
+       "bits": 1,
+       "extraction": "abs"
       },
       {
+       "token_idx": 4,
        "shift": 32,
        "bits": 32,
-       "token_idx": 4,
        "extraction": "f32"
+      },
+      {
+       "token_idx": 5,
+       "shift": 87,
+       "bits": 3,
+       "extraction": "pred"
       }
      ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 1,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
+     "variable_mask": "0x04000000038e0200ffffffffff00f000",
+     "count": 240
     },
-    "AND,EQ": {
-     "and_base": "0x0000000000002000000000000000080b",
+    "AND,FTZ,NEU": {
+     "and_base": "0x000000000071d000000000000000080b",
      "fields": [
       {
+       "token_idx": 0,
        "shift": 12,
        "bits": 4,
-       "token_idx": 0,
        "extraction": "guard"
       },
       {
+       "token_idx": 1,
        "shift": 81,
        "bits": 3,
-       "token_idx": 1,
        "extraction": "pred"
       },
       {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
+       "token_idx": 3,
        "shift": 24,
        "bits": 8,
-       "token_idx": 3,
        "extraction": "reg"
       },
       {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
        "token_idx": 3,
-       "extraction": "reuse"
+       "shift": 73,
+       "bits": 1,
+       "extraction": "abs"
       },
       {
+       "token_idx": 4,
        "shift": 32,
        "bits": 32,
-       "token_idx": 4,
        "extraction": "f32"
+      },
+      {
+       "token_idx": 5,
+       "shift": 87,
+       "bits": 3,
+       "extraction": "pred"
       }
      ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 2,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
+     "variable_mask": "0x04000000038e0200ffffffffff00f000",
+     "count": 334
     },
-    "AND,EQ,FTZ": {
-     "and_base": "0x0000000000012000000000000000080b",
+    "AND,GE": {
+     "and_base": "0x0000000000706000000000000000080b",
      "fields": [
       {
+       "token_idx": 0,
        "shift": 12,
        "bits": 4,
-       "token_idx": 0,
        "extraction": "guard"
       },
       {
+       "token_idx": 1,
        "shift": 81,
        "bits": 3,
-       "token_idx": 1,
        "extraction": "pred"
       },
       {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
+       "token_idx": 3,
        "shift": 24,
        "bits": 8,
-       "token_idx": 3,
        "extraction": "reg"
       },
       {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
        "token_idx": 3,
-       "extraction": "reuse"
+       "shift": 73,
+       "bits": 1,
+       "extraction": "abs"
       },
       {
+       "token_idx": 4,
        "shift": 32,
        "bits": 32,
-       "token_idx": 4,
        "extraction": "f32"
+      },
+      {
+       "token_idx": 5,
+       "shift": 87,
+       "bits": 3,
+       "extraction": "pred"
       }
      ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 1,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
+     "variable_mask": "0x04000000038e0200ffffffffff00f000",
+     "count": 50
     },
-    "AND,EQU": {
-     "and_base": "0x000000000000a000000000000000080b",
+    "AND,GEU": {
+     "and_base": "0x000000000070e000000000000000080b",
      "fields": [
       {
+       "token_idx": 0,
        "shift": 12,
        "bits": 4,
-       "token_idx": 0,
        "extraction": "guard"
       },
       {
+       "token_idx": 1,
        "shift": 81,
        "bits": 3,
-       "token_idx": 1,
        "extraction": "pred"
       },
       {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
+       "token_idx": 3,
        "shift": 24,
        "bits": 8,
-       "token_idx": 3,
        "extraction": "reg"
       },
       {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
        "token_idx": 3,
-       "extraction": "reuse"
+       "shift": 73,
+       "bits": 1,
+       "extraction": "abs"
       },
       {
+       "token_idx": 4,
        "shift": 32,
        "bits": 32,
-       "token_idx": 4,
        "extraction": "f32"
+      },
+      {
+       "token_idx": 5,
+       "shift": 87,
+       "bits": 3,
+       "extraction": "pred"
       }
      ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 2,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
+     "variable_mask": "0x04000000038e0200ffffffffff00f000",
+     "count": 3293
     },
-    "AND,EQU,FTZ": {
-     "and_base": "0x000000000001a000000000000000080b",
+    "AND,GT": {
+     "and_base": "0x0000000000704000000000000000080b",
      "fields": [
       {
+       "token_idx": 0,
        "shift": 12,
        "bits": 4,
-       "token_idx": 0,
        "extraction": "guard"
       },
       {
+       "token_idx": 1,
        "shift": 81,
        "bits": 3,
-       "token_idx": 1,
        "extraction": "pred"
       },
       {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
+       "token_idx": 3,
        "shift": 24,
        "bits": 8,
-       "token_idx": 3,
        "extraction": "reg"
       },
       {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
        "token_idx": 3,
-       "extraction": "reuse"
+       "shift": 73,
+       "bits": 1,
+       "extraction": "abs"
       },
       {
+       "token_idx": 4,
        "shift": 32,
        "bits": 32,
-       "token_idx": 4,
        "extraction": "f32"
+      },
+      {
+       "token_idx": 5,
+       "shift": 87,
+       "bits": 3,
+       "extraction": "pred"
       }
      ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 1,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
+     "variable_mask": "0x04000000038e0200ffffffffff00f000",
+     "count": 1575
     },
-    "AND,FTZ,LE": {
-     "and_base": "0x0000000000013000000000000000080b",
+    "AND,GTU": {
+     "and_base": "0x000000000070c000000000000000080b",
      "fields": [
       {
+       "token_idx": 0,
        "shift": 12,
        "bits": 4,
-       "token_idx": 0,
        "extraction": "guard"
       },
       {
+       "token_idx": 1,
        "shift": 81,
        "bits": 3,
-       "token_idx": 1,
        "extraction": "pred"
       },
       {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
+       "token_idx": 3,
        "shift": 24,
        "bits": 8,
-       "token_idx": 3,
        "extraction": "reg"
       },
       {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
        "token_idx": 3,
-       "extraction": "reuse"
+       "shift": 73,
+       "bits": 1,
+       "extraction": "abs"
       },
       {
+       "token_idx": 4,
        "shift": 32,
        "bits": 32,
-       "token_idx": 4,
        "extraction": "f32"
+      },
+      {
+       "token_idx": 5,
+       "shift": 87,
+       "bits": 3,
+       "extraction": "pred"
       }
      ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 1,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
+     "variable_mask": "0x04000000038e0200ffffffffff00f000",
+     "count": 173
     },
-    "AND,FTZ,LEU": {
-     "and_base": "0x000000000001b000000000000000080b",
+    "AND,NEU": {
+     "and_base": "0x000000000070d000000000000000080b",
      "fields": [
       {
+       "token_idx": 0,
        "shift": 12,
        "bits": 4,
-       "token_idx": 0,
        "extraction": "guard"
       },
       {
+       "token_idx": 1,
        "shift": 81,
        "bits": 3,
-       "token_idx": 1,
        "extraction": "pred"
       },
       {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
+       "token_idx": 3,
        "shift": 24,
        "bits": 8,
-       "token_idx": 3,
        "extraction": "reg"
       },
       {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
        "token_idx": 3,
-       "extraction": "reuse"
+       "shift": 73,
+       "bits": 1,
+       "extraction": "abs"
       },
       {
+       "token_idx": 4,
        "shift": 32,
        "bits": 32,
-       "token_idx": 4,
        "extraction": "f32"
+      },
+      {
+       "token_idx": 5,
+       "shift": 87,
+       "bits": 3,
+       "extraction": "pred"
       }
      ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 1,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
+     "variable_mask": "0x04000000038e0200ffffffffff00f000",
+     "count": 1616
     },
-    "AND,FTZ,LT": {
-     "and_base": "0x0000000000011000000000000000080b",
+    "EQ,OR": {
+     "and_base": "0x0000000000702400000000000000080b",
      "fields": [
       {
+       "token_idx": 0,
        "shift": 12,
        "bits": 4,
-       "token_idx": 0,
        "extraction": "guard"
       },
       {
+       "token_idx": 1,
        "shift": 81,
        "bits": 3,
-       "token_idx": 1,
        "extraction": "pred"
       },
       {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
+       "token_idx": 3,
        "shift": 24,
        "bits": 8,
-       "token_idx": 3,
        "extraction": "reg"
       },
       {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
+       "token_idx": 4,
        "shift": 32,
        "bits": 32,
-       "token_idx": 4,
        "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 1,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    },
-    "AND,FTZ,LTU": {
-     "and_base": "0x0000000000019000000000000000080b",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
       },
       {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
+       "token_idx": 5,
        "shift": 87,
        "bits": 3,
-       "token_idx": 5,
        "extraction": "pred"
       },
       {
+       "token_idx": 5,
        "shift": 90,
        "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
+       "extraction": "neg"
       }
      ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 1,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    },
-    "AND,FTZ,NAN": {
-     "and_base": "0x0000000000018000000000000000080b",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 1,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    },
-    "AND,FTZ,NE": {
-     "and_base": "0x0000000000015000000000000000080b",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 1,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    },
-    "AND,FTZ,NUM": {
-     "and_base": "0x0000000000017000000000000000080b",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 1,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    },
-    "AND,LE": {
-     "and_base": "0x0000000000003000000000000000080b",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 2,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    },
-    "AND,LEU": {
-     "and_base": "0x000000000000b000000000000000080b",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 2,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    },
-    "AND,LT": {
-     "and_base": "0x0000000000001000000000000000080b",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 2,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    },
-    "AND,LTU": {
-     "and_base": "0x0000000000009000000000000000080b",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 2,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    },
-    "AND,NAN": {
-     "and_base": "0x0000000000008000000000000000080b",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 2,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    },
-    "AND,NE": {
-     "and_base": "0x0000000000005000000000000000080b",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 2,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    },
-    "AND,NUM": {
-     "and_base": "0x0000000000007000000000000000080b",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 2,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
+     "variable_mask": "0x04000000078e0000ffffffffff00f000",
+     "count": 2
     },
     "GT,OR": {
-     "and_base": "0x0000000000004400000000000000080b",
+     "and_base": "0x0000000000704400000000000000080b",
      "fields": [
       {
+       "token_idx": 0,
        "shift": 12,
        "bits": 4,
-       "token_idx": 0,
        "extraction": "guard"
       },
       {
+       "token_idx": 1,
        "shift": 81,
        "bits": 3,
-       "token_idx": 1,
        "extraction": "pred"
       },
       {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
+       "token_idx": 3,
        "shift": 24,
        "bits": 8,
-       "token_idx": 3,
        "extraction": "reg"
       },
       {
+       "token_idx": 4,
+       "shift": 32,
+       "bits": 32,
+       "extraction": "f32"
+      },
+      {
+       "token_idx": 5,
        "shift": 87,
        "bits": 3,
-       "token_idx": 5,
        "extraction": "pred"
       },
       {
+       "token_idx": 5,
        "shift": 90,
        "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
+       "extraction": "neg"
       }
      ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 1,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
+     "variable_mask": "0x04000000078e0000ffffffffff00f000",
+     "count": 12
     },
-    "GT,XOR": {
-     "and_base": "0x0000000000004800000000000000080b",
+    "LEU,OR": {
+     "and_base": "0x000000000070b400000000000000080b",
      "fields": [
       {
+       "token_idx": 0,
        "shift": 12,
        "bits": 4,
-       "token_idx": 0,
        "extraction": "guard"
       },
       {
+       "token_idx": 1,
        "shift": 81,
        "bits": 3,
-       "token_idx": 1,
        "extraction": "pred"
       },
       {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
+       "token_idx": 3,
        "shift": 24,
        "bits": 8,
-       "token_idx": 3,
        "extraction": "reg"
       },
       {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 5,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
+       "token_idx": 4,
        "shift": 32,
        "bits": 32,
-       "token_idx": 4,
        "extraction": "f32"
+      },
+      {
+       "token_idx": 5,
+       "shift": 87,
+       "bits": 3,
+       "extraction": "pred"
       }
      ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 1,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
+     "variable_mask": "0x04000000038e0000ffffffffff00f000",
+     "count": 4
     },
-    "NEU,XOR": {
-     "and_base": "0x000000000000d800000000000000080b",
+    "LTU,OR": {
+     "and_base": "0x0000000000709400000000000000080b",
      "fields": [
       {
+       "token_idx": 0,
        "shift": 12,
        "bits": 4,
-       "token_idx": 0,
        "extraction": "guard"
       },
       {
+       "token_idx": 1,
        "shift": 81,
        "bits": 3,
-       "token_idx": 1,
        "extraction": "pred"
       },
       {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
+       "token_idx": 3,
        "shift": 24,
        "bits": 8,
-       "token_idx": 3,
        "extraction": "reg"
       },
       {
+       "token_idx": 4,
+       "shift": 32,
+       "bits": 32,
+       "extraction": "f32"
+      },
+      {
+       "token_idx": 5,
        "shift": 87,
        "bits": 3,
-       "token_idx": 5,
+       "extraction": "pred"
+      }
+     ],
+     "variable_mask": "0x04000000038e0000ffffffffff00f000",
+     "count": 60
+    },
+    "NEU,OR": {
+     "and_base": "0x000000000070d400000000000000080b",
+     "fields": [
+      {
+       "token_idx": 0,
+       "shift": 12,
+       "bits": 4,
+       "extraction": "guard"
+      },
+      {
+       "token_idx": 1,
+       "shift": 81,
+       "bits": 3,
        "extraction": "pred"
       },
       {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 5,
-       "extraction": "inv"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
        "token_idx": 3,
-       "extraction": "reuse"
+       "shift": 24,
+       "bits": 8,
+       "extraction": "reg"
       },
       {
+       "token_idx": 4,
        "shift": 32,
        "bits": 32,
-       "token_idx": 4,
        "extraction": "f32"
+      },
+      {
+       "token_idx": 5,
+       "shift": 87,
+       "bits": 3,
+       "extraction": "pred"
       }
      ],
-     "variable_mask": "0x0400000007fe0000ffffffffff00f000",
-     "count": 1,
-     "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
+     "variable_mask": "0x04000000038e0000ffffffffff00f000",
+     "count": 75
     }
    },
    "scheduling": {
@@ -34485,1010 +31568,6 @@
      "variable_mask": "0x0400000007fe0000ffffffffff00f000",
      "count": 1,
      "_source": "ptxas 12.x sm_120 harvest (harvest_setp_sm120.py)"
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 36,
-    "pipe_name": "FP_ARITH",
-    "def_latency": 3,
-    "throughput": 2,
-    "is_variable_latency": false,
-    "confidence": "hw_measured",
-    "ptxas_raw": null,
-    "read_latency": 3,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "hw_measured",
-    "_all_entries": [
-     {
-      "opcode_id": 55,
-      "name": "FSETP",
-      "pipe_name": "BARRIER",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "opcode_id": null,
-      "name": "FSETP (synthetic)",
-      "pipe_name": "FP_ARITH",
-      "read_latency": 3,
-      "write_latency": 0
-     }
-    ]
-   },
-   "ctrl_class": "alu_simple",
-   "mercury": []
-  },
-  "FSETP_P_P_R_L_P": {
-   "base_op": "FSETP",
-   "operand_sig": "P_P_R_L_P",
-   "mod_groups": {
-    "AND,NEU": {
-     "and_base": "0x0000000003f0d0003f8000000000780b",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 73,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "neg"
-      },
-      {
-       "shift": 81,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000000020300c0000000ff000000",
-     "count": 85
-    },
-    "AND,FTZ,GTU": {
-     "and_base": "0x0000000003f1c0003f8000000000780b",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 81,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000000021300c0100000ff000000",
-     "count": 33
-    },
-    "AND,FTZ,NEU": {
-     "and_base": "0x0000000003f1d0003f8000000000780b",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 26,
-       "bits": 3,
-       "token_idx": 4,
-       "extraction": "f32"
-      },
-      {
-       "shift": 82,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      }
-     ],
-     "variable_mask": "0x1c00000000040300c00000001d000000",
-     "count": 32
-    },
-    "AND,GE": {
-     "and_base": "0x000000000000000007ce478000000800",
-     "fields": [
-      {
-       "shift": 0,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 3,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "f32"
-      },
-      {
-       "shift": 62,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 72,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 74,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 75,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 77,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 79,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 80,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007ffff00c0000001ff00f03b",
-     "count": 1
-    },
-    "AND,GEU": {
-     "and_base": "0x00000000000000000080000000000800",
-     "fields": [
-      {
-       "shift": 0,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 3,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "f32"
-      },
-      {
-       "shift": 62,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 72,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 74,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 75,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 77,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 79,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 80,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007ffff00c0000001ff00f03b",
-     "count": 1
-    },
-    "AND,FTZ,GE": {
-     "and_base": "0x0000000003f1600007ce47800200780b",
-     "fields": [
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      }
-     ],
-     "variable_mask": "0x1c000000000e0300c000000000000000",
-     "count": 2
-    },
-    "AND,GT": {
-     "and_base": "0x0000000003f04000001000000000780b",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000000000300c0000000ff000000",
-     "count": 45
-    },
-    "AND,GTU": {
-     "and_base": "0x00000000000000000000000000000800",
-     "fields": [
-      {
-       "shift": 0,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 3,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 32,
-       "token_idx": 4,
-       "extraction": "f32"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 79,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 81,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007f3ff00ffffffffff00f03b",
-     "count": 5
-    },
-    "AND,FTZ,GEU": {
-     "and_base": "0x0000000000000000000000fe00000200",
-     "fields": [
-      {
-       "shift": 0,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 3,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "f32"
-      },
-      {
-       "shift": 62,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 72,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 74,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 75,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 77,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 79,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 80,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007ffff00c0000001ff00f03b",
-     "count": 1
-    },
-    "AND,FTZ,GT": {
-     "and_base": "0x00000000000000000000000400000200",
-     "fields": [
-      {
-       "shift": 0,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 3,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "f32"
-      },
-      {
-       "shift": 62,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 72,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 74,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 75,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 77,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 79,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 80,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007ffff00c0000001ff00f03b",
-     "count": 1
-    },
-    "NEU,OR": {
-     "and_base": "0x000000000800000000000000ff000c0b",
-     "fields": [
-      {
-       "shift": 0,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 3,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "f32"
-      },
-      {
-       "shift": 62,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 72,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 74,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 75,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 77,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 79,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 80,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007ffff00c0000001ff00f03b",
-     "count": 1
-    },
-    "AND,EQ": {
-     "and_base": "0x000000000800000000000000ff000c0b",
-     "fields": [
-      {
-       "shift": 0,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 3,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 3,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "f32"
-      },
-      {
-       "shift": 62,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 72,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 74,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 75,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 76,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 77,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 79,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 80,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 1,
-       "extraction": "pred"
-      },
-      {
-       "shift": 84,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
-      },
-      {
-       "shift": 87,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": "pred"
-      },
-      {
-       "shift": 90,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "f32"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000007ffff00c0000001ff00f03b",
-     "count": 1
     }
    },
    "scheduling": {
@@ -107176,59 +103255,47 @@
    "operand_sig": "R_P_R_II_II",
    "mod_groups": {
     "": {
-     "and_base": "0x00000000078010ff0000000000007811",
+     "and_base": "0x00000000078000ff0000000000000811",
      "fields": [
       {
+       "token_idx": 0,
+       "shift": 12,
+       "bits": 4,
+       "extraction": "guard"
+      },
+      {
+       "token_idx": 1,
        "shift": 16,
        "bits": 8,
-       "token_idx": 1,
        "extraction": "reg"
       },
       {
+       "token_idx": 2,
+       "shift": 81,
+       "bits": 3,
+       "extraction": "pred"
+      },
+      {
+       "token_idx": 3,
        "shift": 24,
        "bits": 8,
-       "token_idx": 3,
        "extraction": "reg"
       },
       {
-       "shift": 26,
-       "bits": 1,
-       "token_idx": 0,
+       "token_idx": 4,
+       "shift": 32,
+       "bits": 32,
        "extraction": "imm"
       },
       {
-       "shift": 28,
-       "bits": 8,
-       "token_idx": 0,
-       "extraction": "reg"
-      },
-      {
-       "shift": 34,
-       "bits": 30,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 78,
-       "bits": 1,
-       "token_idx": 0,
+       "token_idx": 5,
+       "shift": 75,
+       "bits": 5,
        "extraction": "imm"
-      },
-      {
-       "shift": 81,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "imm"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
       }
      ],
-     "variable_mask": "0x1c00000000024000ffffffffffff0000",
-     "count": 32
+     "variable_mask": "0x1c000000000ef800fffffffffffff000",
+     "count": 69
     },
     "HI,SX32,X": {
      "and_base": "0x0000000000010eff0000000000007211",
@@ -107386,28 +103453,22 @@
        "extraction": "reg"
       },
       {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "pred"
+      },
+      {
        "shift": 24,
        "bits": 8,
        "token_idx": 3,
        "extraction": "reg"
       },
       {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 4,
-       "extraction": "reg"
-      },
-      {
-       "shift": 75,
-       "bits": 5,
-       "token_idx": 5,
-       "extraction": "imm"
-      },
-      {
-       "shift": 81,
-       "bits": 3,
-       "token_idx": 2,
-       "extraction": "pred"
+       "token_idx": 3,
+       "shift": 72,
+       "bits": 1,
+       "extraction": "neg"
       },
       {
        "shift": 122,
@@ -107416,13 +103477,25 @@
        "extraction": "reuse"
       },
       {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg"
+      },
+      {
        "shift": 123,
        "bits": 1,
        "token_idx": 4,
        "extraction": "reuse"
+      },
+      {
+       "shift": 75,
+       "bits": 5,
+       "token_idx": 5,
+       "extraction": "imm"
       }
      ],
-     "variable_mask": "0x1c000000000ef800000000ffffff0000",
+     "variable_mask": "0x1c000000000ef900000000ffffff0000",
      "count": 22
     },
     "HI,SX32,X": {
@@ -165214,41 +161287,41 @@
      "count": 2
     },
     "U32,WIDE": {
-     "and_base": "0xf8e000000000000040008a5",
+     "and_base": "0x000000000f8e000000000000000008a5",
      "fields": [
       {
+       "token_idx": 0,
+       "shift": 12,
+       "bits": 4,
+       "extraction": "guard"
+      },
+      {
+       "token_idx": 1,
        "shift": 16,
        "bits": 8,
-       "token_idx": 1,
        "extraction": "ureg"
       },
       {
+       "token_idx": 2,
        "shift": 24,
        "bits": 8,
-       "token_idx": 2,
        "extraction": "ureg"
       },
       {
+       "token_idx": 3,
        "shift": 32,
        "bits": 32,
-       "token_idx": 3,
        "extraction": "imm"
       },
       {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "reuse"
-      },
-      {
+       "token_idx": 4,
        "shift": 64,
        "bits": 8,
-       "token_idx": 4,
        "extraction": "ureg"
       }
      ],
      "variable_mask": "0xfffffe00000000fffffffffffffff000",
-     "count": 3
+     "count": 3379
     },
     "HI,U32": {
      "and_base": "0xf82000a00000008080a72a6",
@@ -165280,6 +161353,49 @@
      ],
      "variable_mask": "0x1c000000000000000000000705000000",
      "count": 12
+    },
+    "WIDE": {
+     "and_base": "0x000000000f8e020000000000000008a5",
+     "fields": [
+      {
+       "token_idx": 0,
+       "shift": 12,
+       "bits": 4,
+       "extraction": "guard"
+      },
+      {
+       "token_idx": 1,
+       "shift": 16,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 2,
+       "shift": 24,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 3,
+       "shift": 32,
+       "bits": 32,
+       "extraction": "imm"
+      },
+      {
+       "token_idx": 4,
+       "shift": 64,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 4,
+       "shift": 75,
+       "bits": 1,
+       "extraction": "neg"
+      }
+     ],
+     "variable_mask": "0x1c000000000008fffffffffffffff000",
+     "count": 2705
     }
    },
    "scheduling": {
@@ -165481,53 +161597,41 @@
    "operand_sig": "UR_UR_UR_UR",
    "mod_groups": {
     "U32,WIDE": {
-     "and_base": "0x000000000f8e00ff00000000000472a4",
+     "and_base": "0x000000000f8e000000000000000002a5",
      "fields": [
       {
+       "token_idx": 0,
+       "shift": 12,
+       "bits": 4,
+       "extraction": "guard"
+      },
+      {
+       "token_idx": 1,
        "shift": 16,
        "bits": 8,
-       "token_idx": 1,
        "extraction": "ureg"
       },
       {
+       "token_idx": 2,
        "shift": 24,
        "bits": 8,
-       "token_idx": 2,
        "extraction": "ureg"
       },
       {
+       "token_idx": 3,
        "shift": 32,
        "bits": 8,
-       "token_idx": 3,
        "extraction": "ureg"
       },
       {
+       "token_idx": 4,
        "shift": 64,
        "bits": 8,
-       "token_idx": 4,
-       "extraction": "ureg_ff"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 124,
-       "bits": 1,
-       "token_idx": 4,
-       "extraction": "reuse"
+       "extraction": "ureg"
       }
      ],
-     "variable_mask": "0x1c000000000000ff000000ffffff0000",
-     "count": 3
+     "variable_mask": "0x1c000000000000ff000000fffffff000",
+     "count": 20818
     },
     "HI,U32": {
      "and_base": "0xf82000a00000008080a72a6",
@@ -165639,6 +161743,43 @@
      ],
      "variable_mask": "0x1c000000000000ff000000ffffff0000",
      "count": 3
+    },
+    "WIDE": {
+     "and_base": "0x000000000f8e020000000000000002a5",
+     "fields": [
+      {
+       "token_idx": 0,
+       "shift": 12,
+       "bits": 4,
+       "extraction": "guard"
+      },
+      {
+       "token_idx": 1,
+       "shift": 16,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 2,
+       "shift": 24,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 3,
+       "shift": 32,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 4,
+       "shift": 64,
+       "bits": 8,
+       "extraction": "ureg"
+      }
+     ],
+     "variable_mask": "0x1c000000000000ff000000fffffff000",
+     "count": 922
     }
    },
    "scheduling": {
@@ -195431,6 +191572,312 @@
     "latency_source": "synthetic"
    },
    "ctrl_class": "alu_simple",
+   "mercury": []
+  },
+  "LEA_R_P_R_R_R_II": {
+   "base_op": "LEA",
+   "operand_sig": "R_P_R_R_R_II",
+   "mod_groups": {
+    "HI": {
+     "and_base": "0x00000000078100000000000000000211",
+     "fields": [
+      {
+       "token_idx": 0,
+       "shift": 12,
+       "bits": 4,
+       "extraction": "guard"
+      },
+      {
+       "token_idx": 1,
+       "shift": 16,
+       "bits": 8,
+       "extraction": "reg"
+      },
+      {
+       "token_idx": 2,
+       "shift": 81,
+       "bits": 3,
+       "extraction": "pred"
+      },
+      {
+       "token_idx": 3,
+       "shift": 24,
+       "bits": 8,
+       "extraction": "reg"
+      },
+      {
+       "token_idx": 4,
+       "shift": 32,
+       "bits": 8,
+       "extraction": "reg"
+      },
+      {
+       "token_idx": 5,
+       "shift": 64,
+       "bits": 8,
+       "extraction": "reg"
+      },
+      {
+       "token_idx": 6,
+       "shift": 75,
+       "bits": 5,
+       "extraction": "imm"
+      }
+     ],
+     "variable_mask": "0x1c000000000ef8ff000000fffffff000",
+     "count": 668
+    }
+   },
+   "scheduling": {
+    "opcode_id": null,
+    "pipe_class": 37,
+    "pipe_name": "INT_ARITH",
+    "def_latency": 4,
+    "throughput": 2,
+    "is_variable_latency": false,
+    "confidence": "hw_measured",
+    "ptxas_raw": null,
+    "read_latency": 4,
+    "write_latency": 0,
+    "stall_base": 4,
+    "latency_source": "hw_measured",
+    "hw_def_latency": 4
+   },
+   "ctrl_class": "alu_simple",
+   "mercury": []
+  },
+  "LEA_R_P_R_UR_R_II": {
+   "base_op": "LEA",
+   "operand_sig": "R_P_R_UR_R_II",
+   "mod_groups": {
+    "HI": {
+     "and_base": "0x000000000f8100000000000000000c11",
+     "fields": [
+      {
+       "token_idx": 0,
+       "shift": 12,
+       "bits": 4,
+       "extraction": "guard"
+      },
+      {
+       "token_idx": 1,
+       "shift": 16,
+       "bits": 8,
+       "extraction": "reg"
+      },
+      {
+       "token_idx": 2,
+       "shift": 81,
+       "bits": 3,
+       "extraction": "pred"
+      },
+      {
+       "token_idx": 3,
+       "shift": 24,
+       "bits": 8,
+       "extraction": "reg"
+      },
+      {
+       "token_idx": 4,
+       "shift": 32,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 5,
+       "shift": 64,
+       "bits": 8,
+       "extraction": "reg"
+      },
+      {
+       "token_idx": 6,
+       "shift": 75,
+       "bits": 5,
+       "extraction": "imm"
+      }
+     ],
+     "variable_mask": "0x1c000000000ef8ff000000fffffff000",
+     "count": 2
+    }
+   },
+   "scheduling": {
+    "opcode_id": null,
+    "pipe_class": 37,
+    "pipe_name": "INT_ARITH",
+    "def_latency": 4,
+    "throughput": 2,
+    "is_variable_latency": false,
+    "confidence": "hw_measured",
+    "ptxas_raw": null,
+    "read_latency": 4,
+    "write_latency": 0,
+    "stall_base": 4,
+    "latency_source": "hw_measured",
+    "hw_def_latency": 4
+   },
+   "ctrl_class": "alu_simple",
+   "mercury": []
+  },
+  "UIMAD_UR_UP_UR_II_UR": {
+   "base_op": "UIMAD",
+   "operand_sig": "UR_UP_UR_II_UR",
+   "mod_groups": {
+    "U32,WIDE": {
+     "and_base": "0x000000000f80000000000000000008a5",
+     "fields": [
+      {
+       "token_idx": 0,
+       "shift": 12,
+       "bits": 4,
+       "extraction": "guard"
+      },
+      {
+       "token_idx": 1,
+       "shift": 16,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 2,
+       "shift": 81,
+       "bits": 3,
+       "extraction": "upred"
+      },
+      {
+       "token_idx": 3,
+       "shift": 24,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 4,
+       "shift": 32,
+       "bits": 32,
+       "extraction": "imm"
+      },
+      {
+       "token_idx": 5,
+       "shift": 64,
+       "bits": 8,
+       "extraction": "ureg"
+      }
+     ],
+     "variable_mask": "0x1c000000000e00fffffffffffffff000",
+     "count": 274
+    }
+   },
+   "scheduling": {
+    "opcode_id": null,
+    "pipe_class": 37,
+    "pipe_name": "INT_ARITH",
+    "def_latency": 5,
+    "throughput": 2,
+    "is_variable_latency": false,
+    "confidence": "synthetic",
+    "ptxas_raw": null,
+    "read_latency": 5,
+    "write_latency": 0,
+    "stall_base": 4,
+    "latency_source": "synthetic",
+    "_all_entries": [
+     {
+      "opcode_id": 199,
+      "name": "UIMAD",
+      "pipe_name": "FP_ARITH",
+      "read_latency": 0,
+      "write_latency": 0
+     },
+     {
+      "opcode_id": null,
+      "name": "UIMAD (synthetic)",
+      "pipe_name": "INT_ARITH",
+      "read_latency": 5,
+      "write_latency": 0
+     }
+    ]
+   },
+   "ctrl_class": "alu_iadd3",
+   "mercury": []
+  },
+  "UIMAD_UR_UR_II_UR_UP": {
+   "base_op": "UIMAD",
+   "operand_sig": "UR_UR_II_UR_UP",
+   "mod_groups": {
+    "U32,WIDE,X": {
+     "and_base": "0x00000000080e040000000000000008a5",
+     "fields": [
+      {
+       "token_idx": 0,
+       "shift": 12,
+       "bits": 4,
+       "extraction": "guard"
+      },
+      {
+       "token_idx": 1,
+       "shift": 16,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 2,
+       "shift": 24,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 3,
+       "shift": 32,
+       "bits": 32,
+       "extraction": "imm"
+      },
+      {
+       "token_idx": 4,
+       "shift": 64,
+       "bits": 8,
+       "extraction": "ureg"
+      },
+      {
+       "token_idx": 5,
+       "shift": 87,
+       "bits": 3,
+       "extraction": "upred"
+      }
+     ],
+     "variable_mask": "0x1c000000038000fffffffffffffff000",
+     "count": 274
+    }
+   },
+   "scheduling": {
+    "opcode_id": null,
+    "pipe_class": 37,
+    "pipe_name": "INT_ARITH",
+    "def_latency": 5,
+    "throughput": 2,
+    "is_variable_latency": false,
+    "confidence": "synthetic",
+    "ptxas_raw": null,
+    "read_latency": 5,
+    "write_latency": 0,
+    "stall_base": 4,
+    "latency_source": "synthetic",
+    "_all_entries": [
+     {
+      "opcode_id": 199,
+      "name": "UIMAD",
+      "pipe_name": "FP_ARITH",
+      "read_latency": 0,
+      "write_latency": 0
+     },
+     {
+      "opcode_id": null,
+      "name": "UIMAD (synthetic)",
+      "pipe_name": "INT_ARITH",
+      "read_latency": 5,
+      "write_latency": 0
+     }
+    ]
+   },
+   "ctrl_class": "alu_iadd3",
    "mercury": []
   }
  },
