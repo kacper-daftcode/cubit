@@ -140,6 +140,23 @@ fn build_groups(
             if clipped {
                 clip_spans.push((sp.base, sp.width));
             }
+            // BUG-076 shadow pair: a width-1 desc base span flagged with
+            // align>=2 (reg_liveness::apply_desc_addr_pair_align) must
+            // allocate as an atomic EVEN pair {base, base+1}. The high
+            // half carries no architectural dataflow (Q1 corpus
+            // semantics) but the hardware form demands pair granularity;
+            // reserving the shadow cell here keeps another symbol from
+            // being homed at physical base+1. Shadow overflowing the
+            // domain end is pinned to identity like a clipped span.
+            if sp.width == 1 && sp.align >= 2 {
+                let hi = sp.base as u32 + 1;
+                if hi < dom_excl as u32 {
+                    touched.insert(hi as u8);
+                    uf.union(sp.base, hi as u8);
+                } else {
+                    clip_spans.push((sp.base, 2));
+                }
+            }
         }
         let sets = match dom {
             RegDom::R => [&x.rdefs, &x.ruses],
@@ -161,14 +178,17 @@ fn build_groups(
         let mut cm = BTreeSet::new();
         for x in xfers {
             for sp in &x.spans {
-                if sp.dom != dom || sp.desc_ns {
-                    continue;
-                }
-                if sp.base as u32 + sp.width as u32 > dom_excl as u32 {
-                    for k in 0..sp.width as u32 {
-                        let r = sp.base as u32 + k;
-                        if r < dom_excl as u32 {
-                            cm.insert(r as u8);
+            if sp.dom != dom || sp.desc_ns {
+                continue;
+            }
+            // footprint = span width, plus the BUG-076 shadow high half
+            // for flagged width-1 desc base pairs
+            let foot = sp.width as u32 + u32::from(sp.width == 1 && sp.align >= 2);
+            if sp.base as u32 + foot > dom_excl as u32 {
+                for k in 0..foot {
+                    let r = sp.base as u32 + k;
+                    if r < dom_excl as u32 {
+                        cm.insert(r as u8);
                         }
                     }
                 }
@@ -297,7 +317,7 @@ fn allocate_domain(
         RegDom::R => (255u8, R_POOL_MAX),
         _ => (64u8, UR_POOL_MAX),
     };
-    let (groups, clip_forced, group_align, sym_align) = build_groups(xfers, dom, dom_excl)?;
+    let (groups, clip_forced, _group_align, sym_align) = build_groups(xfers, dom, dom_excl)?;
     let conf = conflicts(live, &groups, dom);
 
     // identity pins (two sources, one contract: the group keeps its old home
@@ -373,19 +393,42 @@ fn allocate_domain(
 
     for &g in &order {
         let size = groups[&g].len() as u8;
-        let align = group_align[&g] as u32;
-        // member-level alignment feasibility (offset property only, since the
-        // group base itself is chosen A-aligned): every member whose own span
-        // carries an alignment mark must sit at an aligned offset from the
-        // group anchor. A merged group that breaks this is unallocatable in
-        // v0 (fail-closed census).
+        // Member-level alignment, residue-aware: every marked member m
+        // (offset o=m-anchor, own align a -- MMA tuples BUG-037, desc-pair
+        // shadow bases BUG-076/078) requires (base+o)%a==0. Grounded
+        // alignments are powers of two, so all constraints merge into one
+        // congruence base % cmod == cres; a clash of residues is a
+        // genuinely unallocatable merge shape (fail-closed), and the
+        // residue generalizes the old anchor-aligned model (it subsumes
+        // it: pure anchor marks give cres==0). Surfaced 2026-08-22 by
+        // G15a: desc base R83 shadow-unioned into the WIDE pair {82,83}
+        // is allocatable iff the group base is ODD.
+        let mut cmod: u32 = 1;
+        let mut cres: u32 = 0;
         for &m in &groups[&g] {
             let a = sym_align.get(&m).copied().unwrap_or(1) as u32;
-            if a > 1 && (m - g) as u32 % a != 0 {
+            if a <= 1 {
+                continue;
+            }
+            let o = (m - g) as u32;
+            let want = (a - o % a) % a; // base % a == want
+            if a >= cmod {
+                if cres != want % cmod {
+                    bail!(
+                        "ra full: {:?} group anchor {} member {} needs base%{}=={} \
+                         conflicting with collected base%{}=={} -- span-merge shape \
+                         unallocatable in v0",
+                        dom, g, m, a, want, cmod, cres
+                    );
+                }
+                cmod = a;
+                cres = want;
+            } else if want != cres % a {
                 bail!(
-                    "ra full: {:?} group anchor {} member {} needs align {} but its \
-                     in-group offset is {} -- span-merge shape unallocatable in v0",
-                    dom, g, m, a, (m - g)
+                    "ra full: {:?} group anchor {} member {} needs base%{}=={} \
+                     conflicting with collected base%{}=={} -- span-merge shape \
+                     unallocatable in v0",
+                    dom, g, m, a, want, cmod, cres
                 );
             }
         }
@@ -400,15 +443,11 @@ fn allocate_domain(
                     dom, g, size, placement.len()
                 );
             }
-            if base % align != 0 {
-                base += align - (base % align);
+            let mis = (cres + cmod - (base % cmod)) % cmod;
+            if mis != 0 {
+                base += mis;
                 continue;
             }
-            // member-level alignment: a span whose own base (member) must be
-            // A-aligned sits at offset (m-anchor) -- (base+offset)%A==0 must
-            // hold for every marked member; with group base%A==0 this is a
-            // pure offset property, so check once outside the slot walk.
-
             let lo = base as u8;
             let hi = (base + size as u32 - 1) as u8;
             let mut ok = true;

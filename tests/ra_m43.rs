@@ -50,6 +50,28 @@ fn t_full_wide_pair_stays_adjacent() {
 }
 
 #[test]
+fn t_full_desc_addr_pair_even_base_bug076() {
+    // BUG-076/078 (silicon sm_103a, encoder guards): desc-form .64 address
+    // pairs of stores/atomics require EVEN bases. Full-RA must not plan a
+    // rename the assembler will reject (G15a2 surfaced this on the pin
+    // advance 2026-08-22: m9a_im_ix got desc[UR0][R7.64]).
+    let src = ksrc(
+        "    MOV R7, 0x10 ;\n    MOV R8, 0x0 ;\n    MOV R9, 0x20 ;\n    MOV R10, 0x0 ;\n    MOV R40, 0x1 ;\n    STG.E desc[UR4][R7.64+0x100], R40 ;\n    STG.E desc[UR4][R9.64+0x200], R40 ;\n");
+    let run = run_full(&src);
+    let p = run.report.kernels[0].plan.as_ref().unwrap();
+    for (base, mate) in [("7", "8"), ("9", "10")] {
+        let b = p.r[base];
+        assert_eq!(b % 2, 0, "desc addr pair base R{base} -> physical {b} must be even");
+        assert_eq!(p.r[mate], b + 1, "pair R{base}/R{mate} stays adjacent");
+    }
+    assert_ne!(p.r["7"], p.r["9"], "co-live pairs get distinct homes");
+    // ELL2/EFL2 exemption mirrors the encoder guards (no register pair):
+    // the exemption path must not trip the win-existing alignment upgrade.
+    let src2 = ksrc("    MOV R7, 0x10 ;\n    MOV R8, 0x0 ;\n    MOV R40, 0x1 ;\n    MOV R44, 0x2 ;\n    STG.E.NA.ELL2.256.STRONG.GPU desc[UR4][R7.64], R40, R44 ;\n");
+    let _ = run_full(&src2);
+}
+
+#[test]
 fn t_full_entry_live_pinned_identity() {
     // Read-before-def at kernel entry = hardware ABI value; must not move.
     let src = ksrc("    IADD3 R4, R5, 0x1, RZ ;\n    MOV R5, 0x0 ;\n    IADD3 R6, R4, 0x1, RZ ;\n");

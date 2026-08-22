@@ -488,7 +488,54 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
             debug_assert!(false, "unknown operand-role class {other}");
         }
     }
+    apply_desc_addr_pair_align(insn, &mut x.spans);
     x
+}
+
+/// BUG-076/078 silicon alignment: desc-form 64-bit address operands
+/// (desc[URm][Rn.64]) of stores/atomics require an EVEN pair base on
+/// sm_103a (encoder guards fail-closed scoped-103; see encoder.rs).
+/// Split of concern: span WIDTH stays 1 here (Q1 corpus semantics: the
+/// producer dataflow covers the low half only) while the ALIGN mark on
+/// the base span tells full-RA to place the base on an even boundary and
+/// reserve base+1 atomically (ra_full build_groups union) -- even bases
+/// are legal on every arch, so this stops full-RA from *planning* a
+/// rename the assembler would reject (surfaced 2026-08-22 by G15a2 after
+/// the pin advanced past the guards: m9a_im_ix planned desc[UR0][R7.64]).
+/// Exemptions mirror the guard exactly: ELL2/EFL2 mod classes render
+/// [Rn.U32+URm] (no register pair). LDG desc pairs stay unconstrained on
+/// purpose: odd-base ENL2-load is 066-kand flaky, asm does not reject.
+fn apply_desc_addr_pair_align(insn: &Instruction, spans: &mut [RegSpan]) {
+    let mods = crate::table::extract_mod_group(&insn.raw_text);
+    // Guards mirrored 1:1 (encoder.rs): BUG-076 covers STG with ELL2/EFL2
+    // exempt; BUG-078 covers ATOMG/REDG with .EL exempt (single-offset desc
+    // mode [Rn.U32+URm], no register pair in the word at all). ATOM/ATOMS/
+    // RED and all LDG carry no encoder guard -> no allocator constraint
+    // either (066-kand flaky-park documented in the guards).
+    let covered = match insn.opcode.as_str() {
+        "STG" => !mods.split(',').any(|m| m == "ELL2" || m == "EFL2"),
+        "ATOMG" | "REDG" => !mods.split(',').any(|m| m == "EL"),
+        _ => false,
+    };
+    if !covered {
+        return;
+    }
+    for op in &insn.operands {
+        if let Operand::Desc {
+            base_reg: Some(r),
+            base_reg_suffix: Some(sfx),
+            ..
+        } = op
+        {
+            if sfx == "64" {
+                for sp in spans.iter_mut() {
+                    if sp.dom == RegDom::R && sp.base == *r && !sp.desc_ns {
+                        sp.align = sp.align.max(2);
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Per-instruction register liveness record.
