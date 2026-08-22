@@ -26,9 +26,9 @@ static GOLD: &[(u128, &str)] = &[
     (0x000e2400181e0b0000080008060a7981u128, "LDG.E.LTC128B.128 R10, desc[UR8][R6.64+0x800]"),
     // IADD3.X: cout pred at [83:81] (table regression fix), II form
     (0x000fe2000071e4ff0000005935355210u128, "@P5 IADD3.X R53, P0, PT, R53, R89, RZ, P0, !PT"),
-    (0x080fe80007f3e4fffffffc2f74748810u128, "@!P0 IADD3.X R116, P1, PT, R116, -0x3d1, RZ, PT, !PT"),
+    (0x080fe80007f3e4fffffffc2f74748810u128, "@!P0 IADD3.X R116, P1, PT, R116, -0x3d1, RZ, !PT, !PT"),
     // LOP3.LUT.PAND predicated 7-token
-    (0x000fe6000309c0ff0000080048ff7812u128, "LOP3.PAND.LUT P4, RZ, R72, 0x800, RZ, 0xc0, P6"),
+    (0x000fe6000309c0ff0000080048ff7812u128, "LOP3.LUT.PAND P4, RZ, R72, 0x800, RZ, 0xc0, P6"),
     // ATOMG/REDG .EL.STRONG.GPU descriptor forms
     (0x000f6400082ee10600000051ffda39a8u128, "@P3 ATOMG.E.ADD.EL.STRONG.GPU PT, R218, desc[UR6][RZ.64], R81"),
     (0x0009e4000820e11400000051d100498eu128, "@P4 REDG.E.ADD.EL.STRONG.GPU PT, desc[UR20][R209.64], R81"),
@@ -79,7 +79,7 @@ fn b4fill2_decode_render_reencode_exact() {
             fails.push(format!("re-encode diff {w2:032x} vs {word:032x} (keep {keep:032x})"));
         }
     }
-    assert!(fails.is_empty(), "{} failures:\n{}", fails.len(), fails[..5].join("\n"));
+    assert!(fails.is_empty(), "{} failures:\n{}", fails.len(), fails[..fails.len().min(5)].join("\n"));
 }
 
 #[test]

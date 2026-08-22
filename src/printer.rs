@@ -600,6 +600,8 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     // b4fill: LDG cache-policy family — nvdisasm order is
     // E < L1-hint(EL/NA) < L2-hint(ELL2/ENL2/EFL2) < size(256) < consistency < scope
     // (LDG.E.EL.ELL2.256.STRONG.GPU).
+    // render-parity (b11, era rt98 anchor): trailing .HINT prints AFTER scope:
+    // LDG.E.NA.EFL2.256.STRONG.GPU.HINT (was mis-ordered EFL2.HINT.256...).
     if base == "LDG" || base == "STG" {
         match m {
             "EL" | "NA" | "EN" | "EF" => return 3,
@@ -607,8 +609,15 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             "CONSTANT" => return 6,
             "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" => return 7,
             "GPU" | "SYS" | "SM" | "CTA" => return 8,
+            "HINT" => return 9,
             _ => {}
         }
+    }
+    // render-parity (b11, era rt98 anchor: LOP3.LUT.PAND): in the LOP3 family the
+    // PAND boolean qualifier prints AFTER LUT, not before (generic LUT=9 would
+    // still lose to PAND's default 5 — pin explicitly per family).
+    if matches!(base, "LOP3" | "ULOP3" | "PLOP3" | "UPLOP3") && m == "PAND" {
+        return 10;
     }
     mod_priority(m)
 }

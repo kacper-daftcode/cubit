@@ -22284,6 +22284,13 @@
        "token_idx": 8,
        "extraction": "neg",
        "_src": "b4fill2-2026-08-21"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 7,
+       "extraction": "neg",
+       "_src": "b11-render-parity-2026-08-22 (rt98 anchor: @!P0 IADD3.X ... !PT, era rsd[90:1]; vendor-neutral: 66915 vendor IADD3.X all b90=0)"
       }
      ],
      "count": 57,

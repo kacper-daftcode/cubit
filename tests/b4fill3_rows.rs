@@ -39,8 +39,8 @@ const SCHED: u128 = 0xFFFF_FFFFu128 << 96;
 static GOLD: &[(u128, u32, &str)] = &[
     // LDG.E.NA.EFL2.256[.HINT] desc-form (vendor renders from BUG-060 report)
     (0x000824000850e1ccfe00000e04c8797eu128, 0x0180, "LDG.E.NA.EFL2.256.STRONG.GPU R204, R200, desc[UR14][R4.64]"),
-    (0x000824000850e0387e00000c0334797eu128, 0x0570, "LDG.E.NA.EFL2.HINT.256.STRONG.GPU R56, R52, desc[UR12][R3.64]"),
-    (0x000824000850e0407e00000c043c797eu128, 0x0590, "LDG.E.NA.EFL2.HINT.256.STRONG.GPU R64, R60, desc[UR12][R4.64]"),
+    (0x000824000850e0387e00000c0334797eu128, 0x0570, "LDG.E.NA.EFL2.256.STRONG.GPU.HINT R56, R52, desc[UR12][R3.64]"),
+    (0x000824000850e0407e00000c043c797eu128, 0x0590, "LDG.E.NA.EFL2.256.STRONG.GPU.HINT R64, R60, desc[UR12][R4.64]"),
     (0x000824000850e120fe000006181c797eu128, 0x0260, "LDG.E.NA.EFL2.256.STRONG.GPU R32, R28, desc[UR6][R24.64]"),
     // BRA-plain era: targets = dword-split (verified vs sm120-table renders)
     (0x000fc2000383fffffffffffd00e08947u128, 0x01e0, "@!P0 BRA 0x170"),
@@ -115,7 +115,7 @@ fn b4fill3_efl2_parity_guard() {
     // even Rn (R4/R24 era slots): fail closed with the BUG-060 citation
     for bad in [
         "LDG.E.NA.EFL2.256.STRONG.GPU R204, R200, desc[UR14][R4.64]",
-        "LDG.E.NA.EFL2.HINT.256.STRONG.GPU R64, R60, desc[UR12][R4.64]",
+        "LDG.E.NA.EFL2.256.STRONG.GPU.HINT R64, R60, desc[UR12][R4.64]",
         "LDG.E.NA.EFL2.256.STRONG.GPU R32, R28, desc[UR6][R24.64]",
     ] {
         let insn = parse_sass(&format!("{bad} ;"), 0x180).unwrap();
