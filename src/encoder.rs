@@ -909,6 +909,56 @@ fn check_ldg_desc_pair_parity_sm103(insn: &Instruction, table: &IsaTable) -> Res
     Ok(())
 }
 
+/// BUG-078 (silicon, B300/sm_103a): ATOMG/REDG desc-form with a 64-bit
+/// address pair (desc[URm][Rn.64], non-EL classes -- encoded word uses the
+/// true register-pair addressing mode, vendor render `desc[URm][Rn.64]`)
+/// requires an EVEN pair base Rn. krunp probe matrix 2026-08-22 (idle
+/// windows; records in results/cubitfix/078/krun_record.txt):
+///   odd trap (decisive experiment, valid VA in the pair):
+///     ATOMG.E.ADD.STRONG.GPU desc[UR4][R5.64] -> CUDA_ERROR_ILLEGAL_
+///     INSTRUCTION 10/10 across epochs; even base R2.64 -> OK 10/10,
+///     memory updated (32-lane add-sum exact).
+///   FAULT-PRIORITY (differs from STG/LDG!): on the atom path an invalid
+///   address faults as ILLEGAL_ADDRESS *before* the pair-parity check, so
+///   garbage-address odd probes read IA and CANNOT see the trap -- the
+///   valid-address A/B is mandatory for atoms.
+///   .EL classes (ATOMG/REDG *.EL.STRONG.GPU) are EXEMPT: they encode in the
+///   single-32-bit-offset desc mode (vendor render `[Rn.U32+URm]`, same mode
+///   family as the BUG-076/077 ELL2/EFL2 exemptions) -- no register pair
+///   exists in the word, so the parity rule does not apply. (Their
+///   transactions are default-desc-rejected at the memory stage on sm_103a
+///   regardless -- B12 silicon facts -- a separate descriptor-campaign
+///   question, b12-full-2.)
+/// Untested non-EL atom sub-classes ride the default fail-closed rule; RZ
+/// base stays inside the guard like in BUG-076/077 (no era usage, no
+/// silicon counter-evidence; era RZ atoms are all .EL hence exempt).
+/// Era corpus (rt98_ref.s103): odd desc-atoms = 44 words, ALL .EL ->
+/// encoder census delta = 0. Decode untouched.
+fn check_atom_desc_pair_parity_sm103(insn: &Instruction, table: &IsaTable) -> Result<()> {
+    if insn.opcode != "ATOMG" && insn.opcode != "REDG" {
+        return Ok(());
+    }
+    if table.target_sm() != 103 {
+        return Ok(());
+    }
+    let mods = crate::table::extract_mod_group(&insn.raw_text);
+    // Evidenced exemptions (silicon/census): .EL classes encode in the
+    // single-offset desc mode ([Rn.U32+URm]); no pair -> no parity rule.
+    if mods.split(',').any(|m| m == "EL") {
+        return Ok(());
+    }
+    for op in &insn.operands {
+        if let Operand::Desc { base_reg: Some(r), base_reg_suffix: Some(sfx), .. } = op {
+            if sfx == "64" && r % 2 == 1 {
+                anyhow::bail!(
+                    "ATOMG/REDG desc-form address pair R{}.64 has an ODD base -- SILICON-ILLEGAL on sm_103a                     (BUG-078; B300 krunp A/B 2026-08-22 with a VALID VA in the pair: odd base ->                     CUDA_ERROR_ILLEGAL_INSTRUCTION 10/10 across epochs, even base -> executes, memory                     updated exactly. NOTE the atom-path fault priority masks the trap behind                     ILLEGAL_ADDRESS when the address itself is invalid, so a garbage-address probe                     cannot discriminate -- unlike STG/LDG (BUG-076/077) where odd traps pre-memory.                     Only the .EL classes are exempt: they encode the single-32-bit-offset desc mode                     ([Rn.U32+URm]) which has no register pair at all. Renumber the address pair to                     an even base (RA pin) instead of assembling the odd-base word; decode stays                     full-fidelity for RE."
+                , r);
+            }
+        }
+    }
+    Ok(())
+}
+
 fn check_imnmx_sm103_erratum(insn: &Instruction, table: &IsaTable) -> Result<()> {
     if insn.opcode != "IMNMX" {
         return Ok(());
@@ -938,6 +988,7 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         check_efl2_addr_parity_sm103(insn, table)?;
         check_stg_desc_pair_parity_sm103(insn, table)?;
         check_ldg_desc_pair_parity_sm103(insn, table)?;
+        check_atom_desc_pair_parity_sm103(insn, table)?;
     }
     let mod_group = crate::table::extract_mod_group(&insn.raw_text);
 
