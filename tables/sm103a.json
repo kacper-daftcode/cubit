@@ -46813,6 +46813,1217 @@
       }
      ],
      "count": 135
+    },
+    "16dp32bit_t0_t15,F32,MAX,STAT,x128": {
+     "and_base": "0x000fe20008b8000200000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "16dp32bit_t0_t15,F32,MAX,STAT,x16": {
+     "and_base": "0x000fe20008a0000200000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t0_t15,F32,MAX,STAT,x2": {
+     "and_base": "0x000fe2000888000200000080000275ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t0_t15,F32,MAX,STAT,x32": {
+     "and_base": "0x000fe20008a8000200000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t0_t15,F32,MAX,STAT,x4": {
+     "and_base": "0x000fe2000890000200000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t0_t15,F32,MAX,STAT,x64": {
+     "and_base": "0x000fe20008b0000200000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "16dp32bit_t0_t15,F32,MAX,STAT,x8": {
+     "and_base": "0x000fe2000898000200000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 3
+    },
+    "16dp32bit_t0_t15,F32,MIN,STAT,x16": {
+     "and_base": "0x000fe20008a0000a00000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "16dp32bit_t0_t15,F32,MIN,STAT,x2": {
+     "and_base": "0x000fe2000888000a00000080000275ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "16dp32bit_t0_t15,F32,MIN,STAT,x32": {
+     "and_base": "0x000fe20008a8000a00000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "16dp32bit_t0_t15,F32,MIN,STAT,x4": {
+     "and_base": "0x000fe2000890000a00000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "16dp32bit_t0_t15,F32,MIN,STAT,x8": {
+     "and_base": "0x000fe2000898000a00000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "16dp32bit_t16_t31,F32,MAX,STAT,x128": {
+     "and_base": "0x000e240008ba0002000080ff000075ee",
+     "variable_mask": "0x000000000000000000000000ff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "16dp32bit_t16_t31,F32,MAX,STAT,x16": {
+     "and_base": "0x000e240008a20002000000ff000075ee",
+     "variable_mask": "0x000000000000000000001000ff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t16_t31,F32,MAX,STAT,x2": {
+     "and_base": "0x000e2400088a0002000000ff000275ee",
+     "variable_mask": "0x000000000000000000000c00ff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t16_t31,F32,MAX,STAT,x32": {
+     "and_base": "0x000e240008aa0002000000ff000075ee",
+     "variable_mask": "0x000000000000000000002000ff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t16_t31,F32,MAX,STAT,x4": {
+     "and_base": "0x000e240008920002000000ff000075ee",
+     "variable_mask": "0x000000000000000000000400ff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t16_t31,F32,MAX,STAT,x64": {
+     "and_base": "0x000e240008b20002000040ff000075ee",
+     "variable_mask": "0x000000000000000000000000ff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "16dp32bit_t16_t31,F32,MAX,STAT,x8": {
+     "and_base": "0x000e2400089a0002000000ff000075ee",
+     "variable_mask": "0x000000000000000000000c00ff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 3
+    },
+    "16dp32bit_t16_t31,F32,MIN,STAT,x16": {
+     "and_base": "0x000e240008a2000a000010ff000075ee",
+     "variable_mask": "0x000000000000000000000000ff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "16dp32bit_t16_t31,F32,MIN,STAT,x2": {
+     "and_base": "0x000e2400088a000a000002ff000275ee",
+     "variable_mask": "0x000000000000000000000000ff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "16dp32bit_t16_t31,F32,MIN,STAT,x32": {
+     "and_base": "0x000e240008aa000a000020ff000075ee",
+     "variable_mask": "0x000000000000000000000000ff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "16dp32bit_t16_t31,F32,MIN,STAT,x4": {
+     "and_base": "0x000e24000892000a000004ff000075ee",
+     "variable_mask": "0x000000000000000000000000ff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "16dp32bit_t16_t31,F32,MIN,STAT,x8": {
+     "and_base": "0x000e2400089a000a000008ff000075ee",
+     "variable_mask": "0x000000000000000000000000ff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "F32,MAX,STAT,x128": {
+     "and_base": "0x000e2400083c000200000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "F32,MAX,STAT,x16": {
+     "and_base": "0x000e24000824000200000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "F32,MAX,STAT,x2": {
+     "and_base": "0x000e2400080c000200000080000275ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "F32,MAX,STAT,x4": {
+     "and_base": "0x000e24000814000200000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "F32,MAX,STAT,x64": {
+     "and_base": "0x000e24000834000200000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "F32,MAX,STAT,x8": {
+     "and_base": "0x000e2400081c000200000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "F32,MIN,STAT,x128": {
+     "and_base": "0x000e2400083c000a00000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "F32,MIN,STAT,x16": {
+     "and_base": "0x000e24000824000a00000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "F32,MIN,STAT,x2": {
+     "and_base": "0x000e2400080c000a00000080000275ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "F32,MIN,STAT,x32": {
+     "and_base": "0x000e2400082c000a00000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "F32,MIN,STAT,x4": {
+     "and_base": "0x000e24000814000a00000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "F32,MIN,STAT,x64": {
+     "and_base": "0x000e24000834000a00000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
+    },
+    "F32,MIN,STAT,x8": {
+     "and_base": "0x000e2400081c000a00000080000075ee",
+     "variable_mask": "0x00000000000000000000007fff7c0000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "2aE-donor"
+      },
+      {
+       "shift": 39,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "tmem_off",
+       "_src": "2aE-donor"
+      }
+     ],
+     "count": 1
     }
    },
    "scheduling": {
