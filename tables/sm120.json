@@ -430,7 +430,8 @@
   "_errata_2026_08_22E": "BUG-084: memory-family keys (LDG/STS/STG/LDGSTS/DEPBAR/LDGDEPBAR) re-canonicalized to sm103a geometry (158 legacy harvest keys -> 21 keys, mod_groups ported verbatim from sm103a.json). Evidence: 2049-cubin vendor census (cuobjdump 13.3), 678,608 LDG/STS/STG-family words paired section-aligned: (False,True)=119,865 records (sm120 mis-decoded, sm103a vendor-exact) now fixed by construction; (True,True)=557,047 unchanged; residual (False,False)=1,680 = LDGSTS BYPASS render-order (printer RP-class, both tables), STS.64 [R+URZ] UR255 alias (printer), STS/STS.U8 \"+-0x\" sign-format, LDG.E [Rn.64+UR+imm] geometry gap (b4 coverage) -- text-parity notes only, zero silent-corruption. ctrl_class/scheduling/mercury from sm120 sibling donors (explicit map in rebuild script). Dropped speculative dotted keys without corpus evidence: LDG.E.NA.*(0 anchors), LDG.E.EL.STRONG.GPU(0), STG.E.NA.*(0), STG.E_P_dARI_R(0), STS.64_P0_AR_R(0), STG.E_II_R(0), STS.64_AR_R_R(0), all *_? phantom rows. ERRBAR row corrected, NOT removed: vendor anchors prove ERRBAR real (2,254 slots, p_fence/k31/k33c1/g126_e_membar class; all 0x79ab bit2=0). Pre-084 the row subsumed LDGDEPBAR (and_base 0x79af bit2=1) via a junk 1-bit field at bit2 (empty extraction -> bit2 escaped match_mask) plus variable bits 12-15 -- all 460 vendor LDGDEPBAR anchors rendered as ERRBAR. Fix: junk bit2-field deleted and bit2 pinned out of variable_mask (0xf004->0xf000); ERRBAR anchors decode unchanged. CGAERRBAR (0x75ab) kept.",
   "_errata_2026_08_23": "BUG-090 (F2Q, silicon trap = sm120 cubit-bugs/090): legacy (pre-084/v11) LDG_R_dARI['128,E,LTC128B'] geometry restored VERBATIM as dedicated encode_only key LDG.E.LTC128B.128_R_dARI (mod group '128,E,LTC128B' = exact full-key hit, so pinned era text selects it before canon LDG_R_dARI; decoder skips it). The 084 re-canon rewrote canon LDG_R_dARI['128,E,LTC128B'] to a wide low-constant fallback; the frozen pinned publish text (sass98 md5 1912dae9: 249 lines 'LDG.E.LTC128B.128 Rn, desc[URm][Rx.64(+imm)] !rsd[...]') then encoded with bytes 9-11 zeroed of the legacy constant bits -> deterministic silicon trap (4/4) on rt98_pub. Vendor nvdisasm 13.3 proves the published words are RAW-address form (LDG.E.64 Rn, [Rm.U32+URk]) -> decode rightly stays on canon ARURI rows; the era LTC128B glyph is a legacy decoder artifact, not vendor nomenclature. encode_only rationale: decoder re-exposure of legacy geometry would resurrect the BUG-038 shadow class. Collision check: 0/678,608 family-corpus words decode (HEAD) to any 'LDG.E.LTC128B.128' render -> the restored key captures zero canonical re-encodes. Long-term clean path = re-render of pinned sass98 to canonical raw-form text (skip of the encode_only key), decision = sm120 side. Evidence+gates: results/cubitfix/090.md, work/f2-090/.",
   "_errata_2026_08_23_bug089": "BUG-089: IADD3_R_P_P_R_R_R mg X deleted (harvest junk: sig tok5 'R' mapped imm@[63:32]; and_base bit64=1 hijacked Rc-odd IADD3.X imm words; see cubit-bugs/089). IADD3_R_P_P_R_II_R X gained tok7 neg@90 + tok8 inv@80 (per-slot tail-pred negation, mirrors sibling R_II_R_P_P X and sm103a canon; vendor anchors repro089 2/2).",
-  "_errata_2026_08_23_B": "BUG-086: ISETP/UISETP families rebuilt to sm103a geometry (174 legacy-harvest keys -> 10 keys, mod_groups ported 1:1 from fixed sm103a canon; anchors: 221,092 uniq / 710,764 records of 2049-cubin vendor census; parity pre 179,035 ok/42,057 bad (6,304 decode-fail) -> post target 221,091 ok (1 residuum parked: imm8@40 single-anchor PLOP3-shadow). Canon-side fixes included: UISETP II tok5 neg@90 split, +AND,LE,U32, EX-UR fossil fields, +ISETP II-EX AND,EX,GE. scheduling/ctrl_class/mercury from sm120 donors (family-uniform)."
+  "_errata_2026_08_23_B": "BUG-086: ISETP/UISETP families rebuilt to sm103a geometry (174 legacy-harvest keys -> 10 keys, mod_groups ported 1:1 from fixed sm103a canon; anchors: 221,092 uniq / 710,764 records of 2049-cubin vendor census; parity pre 179,035 ok/42,057 bad (6,304 decode-fail) -> post target 221,091 ok (1 residuum parked: imm8@40 single-anchor PLOP3-shadow). Canon-side fixes included: UISETP II tok5 neg@90 split, +AND,LE,U32, EX-UR fossil fields, +ISETP II-EX AND,EX,GE. scheduling/ctrl_class/mercury from sm120 donors (family-uniform).",
+  "_errata_2026_08_23A": "BUG-097: generic-memory LD/ST family re-canonicalized to sm103a geometry (23 legacy keys incl. dotted harvest-junk (LD.E.128_R_dARI, LD.E.128.STRONG.SYS_R_dARI, ST.E.128_dARI_R, ...) -> 6 canon keys, mod_groups ported verbatim from sm103a.json). Legacy rows carried halved/shifted field geometry: decode rendered e.g. vendor `LD.E.128.STRONG.SYS R24, desc[UR16][R32.64]` as `desc[UR0][R16.64]` (desc-slot, base pair and dst all shifted) for 13,990/30,338 family slots on the 2049-cubin vendor census, 1,370 more fail-closed (STRONG rows missing entirely). canon sm103a.json geometry was already vendor-true (27,859/30,338 exact pre-fix; residual = printer mod-order + 1 plain-ur shape, fixed in printer.rs). ctrl_class/scheduling/mercury from sm120 sibling donors (LD_R_ARURI/ST_ARURI_R adopt the LD_R_ARI/ST_ARI_R donor, explicit map in rebuild script). Evidence anchors: results/cubitfix/097/ + work/f2-097/w097_raw.json (30,338 words: cuobjdump 13.3 text + raw bytes + per-table decode)."
  },
  "instructions": {
   "ACQBULK": {
@@ -76837,42 +76838,10 @@
     }
    }
   },
-  "LD.E.128.STRONG.SYS_R_dARI": {
-   "base_op": "LD.E.128.STRONG.SYS",
-   "operand_sig": "R_dARI",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c115d000000000800007980",
-     "fields": [
-      {
-       "shift": 47,
-       "bits": 2,
-       "extraction": "imm",
-       "token_idx": 2
-      },
-      {
-       "shift": 18,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 1
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 2
-      },
-      {
-       "shift": 33,
-       "bits": 2,
-       "extraction": "ureg",
-       "token_idx": 2
-      }
-     ],
-     "variable_mask": "0x000000000000000000018007fffc0000",
-     "count": 32
-    }
-   },
+  "LD_R_ARI": {
+   "base_op": "LD",
+   "operand_sig": "R_ARI",
+   "ctrl_class": "ld_generic",
    "scheduling": {
     "opcode_id": null,
     "pipe_class": 3,
@@ -76887,557 +76856,115 @@
     "stall_base": 4,
     "latency_source": "synthetic"
    },
-   "ctrl_class": "ld_generic",
-   "mercury": []
-  },
-  "LD.E.128_R_dARI": {
-   "base_op": "LD.E.128",
-   "operand_sig": "R_dARI",
    "mod_groups": {
-    "": {
-     "and_base": "0x000000000c101d000000000800200980",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 3,
-       "extraction": "guard",
-       "token_idx": 0
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 2
-      },
-      {
-       "shift": 34,
-       "bits": 1,
-       "extraction": "ureg",
-       "token_idx": 2
-      }
-     ],
-     "variable_mask": "0x000000000000000000000005fe007000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 200,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 200,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "ld_generic",
-   "mercury": []
-  },
-  "LD.E.64_R_dARI": {
-   "base_op": "LD.E.64",
-   "operand_sig": "R_dARI",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c101b000000000000007980",
-     "fields": [
-      {
-       "shift": 43,
-       "bits": 4,
-       "extraction": "imm",
-       "token_idx": 2
-      },
-      {
-       "shift": 17,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 1
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 2
-      },
-      {
-       "shift": 33,
-       "bits": 4,
-       "extraction": "ureg",
-       "token_idx": 2
-      }
-     ],
-     "variable_mask": "0x00000000000000000000781ffffe0000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 200,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 200,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "ld_generic",
-   "mercury": []
-  },
-  "LD.E.64_R_dARI_II": {
-   "base_op": "LD.E.64",
-   "operand_sig": "R_dARI_II",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c101b000000000000001980",
-     "fields": [
-      {
-       "shift": 13,
-       "bits": 3,
-       "extraction": "guard",
-       "token_idx": 0
-      },
-      {
-       "shift": 43,
-       "bits": 7,
-       "extraction": "imm",
-       "token_idx": 2
-      },
-      {
-       "shift": 17,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 1
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 2
-      },
-      {
-       "shift": 33,
-       "bits": 4,
-       "extraction": "ureg",
-       "token_idx": 2
-      }
-     ],
-     "variable_mask": "0x00000000000000000003f81ffffee000",
-     "count": 27
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 200,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 200,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "ld_generic",
-   "mercury": []
-  },
-  "LD.E.64_R_dARI_II_?": {
-   "base_op": "LD.E.64",
-   "operand_sig": "R_dARI_II_?",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c101b000000000800007980",
-     "fields": [
-      {
-       "shift": 43,
-       "bits": 6,
-       "extraction": "imm",
-       "token_idx": 2
-      },
-      {
-       "shift": 17,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 1
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 2
-      },
-      {
-       "shift": 33,
-       "bits": 2,
-       "extraction": "ureg",
-       "token_idx": 2
-      }
-     ],
-     "variable_mask": "0x00000000000000000001f807fffe0000",
-     "count": 9
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 200,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 200,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "ld_generic",
-   "mercury": []
-  },
-  "LD.E.S8_R_dARI": {
-   "base_op": "LD.E.S8",
-   "operand_sig": "R_dARI",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c1013000000000000007980",
-     "fields": [
-      {
-       "shift": 17,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 1
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 2
-      },
-      {
-       "shift": 33,
-       "bits": 3,
-       "extraction": "ureg",
-       "token_idx": 2
-      }
-     ],
-     "variable_mask": "0x00000000000000000000000ffffe0000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 200,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 200,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "ld_generic",
-   "mercury": []
-  },
-  "LD.E.U16_R_dARI": {
-   "base_op": "LD.E.U16",
-   "operand_sig": "R_dARI",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c1015000000000800000980",
+    "E": {
+     "and_base": "0x00002000001009000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
      "fields": [
       {
        "shift": 12,
        "bits": 4,
-       "extraction": "guard",
-       "token_idx": 0
+       "token_idx": 0,
+       "extraction": "guard"
       },
       {
        "shift": 16,
        "bits": 8,
+       "token_idx": 1,
        "extraction": "reg",
-       "token_idx": 1
+       "_src": "2aE"
       },
       {
-       "shift": 25,
+       "shift": 24,
        "bits": 8,
-       "extraction": "reg",
-       "token_idx": 2
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "2aE"
       },
       {
-       "shift": 34,
-       "bits": 1,
-       "extraction": "ureg",
-       "token_idx": 2
+       "shift": 32,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "2aE"
       }
      ],
-     "variable_mask": "0x000000000000000000000005fefff000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 200,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 200,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "ld_generic",
-   "mercury": []
-  },
-  "LD.E.U16_R_dARI_II": {
-   "base_op": "LD.E.U16",
-   "operand_sig": "R_dARI_II",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c1015000000000000000980",
+     "count": 621
+    },
+    "64,E": {
+     "and_base": "0x0000200000100b000000000000000980",
+     "variable_mask": "0x000fce000000000000000008fefef000",
      "fields": [
       {
        "shift": 12,
        "bits": 4,
-       "extraction": "guard",
-       "token_idx": 0
-      },
-      {
-       "shift": 47,
-       "bits": 1,
-       "extraction": "imm",
-       "token_idx": 2
+       "token_idx": 0,
+       "extraction": "guard"
       },
       {
        "shift": 16,
        "bits": 8,
+       "token_idx": 1,
        "extraction": "reg",
-       "token_idx": 1
+       "_src": "2aE"
       },
       {
-       "shift": 25,
+       "shift": 24,
        "bits": 8,
-       "extraction": "reg",
-       "token_idx": 2
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "2aE"
       },
       {
-       "shift": 33,
-       "bits": 5,
-       "extraction": "ureg",
-       "token_idx": 2
+       "shift": 32,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "2aE"
       }
      ],
-     "variable_mask": "0x00000000000000000000803ffefff000",
-     "count": 26
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 200,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 200,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "ld_generic",
-   "mercury": []
-  },
-  "LD.E.U16_R_dARI_II_?": {
-   "base_op": "LD.E.U16",
-   "operand_sig": "R_dARI_II_?",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c1015000000000000007980",
-     "fields": [
-      {
-       "shift": 17,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 1
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 2
-      },
-      {
-       "shift": 34,
-       "bits": 4,
-       "extraction": "ureg",
-       "token_idx": 2
-      }
-     ],
-     "variable_mask": "0x00000000000000000000003dfffe0000",
-     "count": 5
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 200,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 200,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "ld_generic",
-   "mercury": []
-  },
-  "LD.E.U16_R_dARI_II_II_?": {
-   "base_op": "LD.E.U16",
-   "operand_sig": "R_dARI_II_II_?",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c1015000000000000037980",
-     "fields": [
-      {
-       "shift": 19,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 1
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 2
-      },
-      {
-       "shift": 34,
-       "bits": 4,
-       "extraction": "ureg",
-       "token_idx": 2
-      }
-     ],
-     "variable_mask": "0x00000000000000000000003dfff80000",
-     "count": 3
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 200,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 200,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "ld_generic",
-   "mercury": []
-  },
-  "LD.E.U16_R_dARI_II_II_II_?": {
-   "base_op": "LD.E.U16",
-   "operand_sig": "R_dARI_II_II_II_?",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c1015000000000800007980",
-     "fields": [
-      {
-       "shift": 17,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 1
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 2
-      },
-      {
-       "shift": 33,
-       "bits": 2,
-       "extraction": "ureg",
-       "token_idx": 2
-      }
-     ],
-     "variable_mask": "0x000000000000000000000007fffe0000",
-     "count": 6
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 200,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 200,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "ld_generic",
-   "mercury": []
-  },
-  "LD.E.U8_R_dARI": {
-   "base_op": "LD.E.U8",
-   "operand_sig": "R_dARI",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c1011000000000000008980",
+     "count": 269
+    },
+    "128,E": {
+     "and_base": "0x0000200000100d000000000000000980",
+     "variable_mask": "0x000fce000000000000000000fefcf000",
      "fields": [
       {
        "shift": 12,
-       "bits": 2,
-       "extraction": "guard",
-       "token_idx": 0
-      },
-      {
-       "shift": 16,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 1
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 2
-      },
-      {
-       "shift": 33,
        "bits": 4,
-       "extraction": "ureg",
-       "token_idx": 2
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "2c"
       }
      ],
-     "variable_mask": "0x00000000000000000000001ffeff3000",
-     "count": 32
+     "count": 52
     }
-   },
+   }
+  },
+  "LD_R_ARURI": {
+   "base_op": "LD",
+   "operand_sig": "R_ARURI",
+   "ctrl_class": "ld_generic",
    "scheduling": {
     "opcode_id": null,
     "pipe_class": 3,
@@ -77452,86 +76979,40 @@
     "stall_base": 4,
     "latency_source": "synthetic"
    },
-   "ctrl_class": "ld_generic",
-   "mercury": []
-  },
-  "LD.E_R_dARI": {
-   "base_op": "LD.E",
-   "operand_sig": "R_dARI",
    "mod_groups": {
-    "": {
-     "and_base": "0x000000000c1019000000000000008980",
+    "E": {
+     "and_base": "0x001ee2000810090000000004ff007980",
+     "variable_mask": "0x00000000000000000000000000000000",
      "fields": [
       {
-       "shift": 16,
+       "shift": 15,
        "bits": 8,
+       "token_idx": 1,
        "extraction": "reg",
-       "token_idx": 1
+       "_src": "2c"
       },
       {
-       "shift": 25,
+       "shift": 24,
        "bits": 8,
-       "extraction": "reg",
-       "token_idx": 2
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "2c"
       },
       {
-       "shift": 33,
-       "bits": 3,
-       "extraction": "ureg",
-       "token_idx": 2
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "ureg"
       }
      ],
-     "variable_mask": "0x00000000000000000000000ffeff0000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 200,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 200,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "ld_generic",
-   "mercury": []
-  },
-  "LD.E_R_dARI_R": {
-   "base_op": "LD.E",
-   "operand_sig": "R_dARI_R",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c1019000000000000009980",
-     "fields": [
-      {
-       "shift": 16,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 1
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 2
-      },
-      {
-       "shift": 33,
-       "bits": 3,
-       "extraction": "ureg",
-       "token_idx": 2
-      }
-     ],
-     "variable_mask": "0x00000000000000000000000ffeff0000",
      "count": 1
     }
-   },
+   }
+  },
+  "LD_R_dARI": {
+   "base_op": "LD",
+   "operand_sig": "R_dARI",
+   "ctrl_class": "ld_generic",
    "scheduling": {
     "opcode_id": null,
     "pipe_class": 3,
@@ -77546,8 +77027,985 @@
     "stall_base": 4,
     "latency_source": "synthetic"
    },
-   "ctrl_class": "ld_generic",
-   "mercury": []
+   "mod_groups": {
+    "E": {
+     "and_base": "0x000000000c1019000000000000000980",
+     "variable_mask": "0x03fffe0000000000fffffc3efefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 9,
+       "token_idx": 2,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      }
+     ],
+     "count": 5676
+    },
+    "64,E": {
+     "and_base": "0x000000000c101b000000000000000980",
+     "variable_mask": "0x03fffe0000000000fffff83efefef000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 9,
+       "token_idx": 2,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      }
+     ],
+     "count": 4616
+    },
+    "128,E,STRONG,SYS": {
+     "and_base": "0x000000000c115d000000000000000980",
+     "variable_mask": "0x03fffe0000000000fffff01efefcf000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 9,
+       "token_idx": 2,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      }
+     ],
+     "count": 1893
+    },
+    "E,U16": {
+     "and_base": "0x000020000c1015000000000000000980",
+     "variable_mask": "0x01ffde0000000000fffffe1efefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 9,
+       "token_idx": 2,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      }
+     ],
+     "count": 1708
+    },
+    "128,E": {
+     "and_base": "0x000000000c101d000000000000000980",
+     "variable_mask": "0x03fffe0000000000fffff03efefcf000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 9,
+       "token_idx": 2,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      }
+     ],
+     "count": 1680
+    },
+    "E,U8": {
+     "and_base": "0x000020000c1011000000000000000980",
+     "variable_mask": "0x003fce00000000000000001e7e7ff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 9,
+       "token_idx": 2,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 5,
+       "token_idx": 2,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 37,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm2",
+       "_src": "2c"
+      }
+     ],
+     "count": 674
+    },
+    "E,S8": {
+     "and_base": "0x000000000c1013000000000000000980",
+     "variable_mask": "0x024ffe00000000000000001e7e7ff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 9,
+       "token_idx": 2,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 5,
+       "token_idx": 2,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 37,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm2",
+       "_src": "2c"
+      }
+     ],
+     "count": 525
+    },
+    "E,GPU,STRONG": {
+     "and_base": "0x000ea0000c10f9000000000000007980",
+     "variable_mask": "0x00000a00000000000000840efe7f0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 9,
+       "token_idx": 2,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      }
+     ],
+     "count": 318
+    },
+    "64,E,GPU,STRONG": {
+     "and_base": "0x000020000c10fb000000000000000980",
+     "variable_mask": "0x001fca00000000000003080e3e3ef000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 9,
+       "token_idx": 2,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      }
+     ],
+     "count": 146
+    },
+    "128,E,GPU,STRONG": {
+     "and_base": "0x000ea2000c10fd000000000000007980",
+     "variable_mask": "0x00500000000000000002000e3e1c0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 9,
+       "token_idx": 2,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      }
+     ],
+     "count": 106
+    },
+    "E,STRONG,SYS": {
+     "and_base": "0x000020000c1159000000000600007980",
+     "variable_mask": "0x007fce0000000000000000001e1f0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 9,
+       "token_idx": 2,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_ur0",
+       "_src": "2c"
+      }
+     ],
+     "count": 24
+    }
+   }
+  },
+  "ST_ARI_R": {
+   "base_op": "ST",
+   "operand_sig": "ARI_R",
+   "ctrl_class": "st_generic",
+   "scheduling": {
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "def_latency": 0,
+    "throughput": 4,
+    "is_variable_latency": true,
+    "confidence": "synthetic",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "write_latency": 200,
+    "stall_base": 4,
+    "latency_source": "synthetic"
+   },
+   "mod_groups": {
+    "64,E": {
+     "and_base": "0x0001e00000100b000000000000000385",
+     "variable_mask": "0x020e0e00000000fe00000300fe00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_r0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "sub_imm1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      }
+     ],
+     "count": 441
+    },
+    "E": {
+     "and_base": "0x0001e000001009000000000000007385",
+     "variable_mask": "0x020e0e000000007f000000007e000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 7,
+       "token_idx": 1,
+       "extraction": "sub_r0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 31,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "sub_imm1",
+       "_src": "2c"
+      }
+     ],
+     "count": 256
+    },
+    "128,E": {
+     "and_base": "0x0001e00000100d000000000080007385",
+     "variable_mask": "0x020e0a000000007c000000007e000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_r0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "sub_imm1",
+       "_src": "2c"
+      }
+     ],
+     "count": 128
+    }
+   }
+  },
+  "ST_ARURI_R": {
+   "base_op": "ST",
+   "operand_sig": "ARURI_R",
+   "ctrl_class": "st_generic",
+   "scheduling": {
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "def_latency": 0,
+    "throughput": 4,
+    "is_variable_latency": true,
+    "confidence": "synthetic",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "write_latency": 200,
+    "stall_base": 4,
+    "latency_source": "synthetic"
+   },
+   "mod_groups": {
+    "64,E": {
+     "and_base": "0x0001e0000c100b000000000000000985",
+     "variable_mask": "0x000e0e000000000c0003001e0e00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 24,
+       "bits": 9,
+       "token_idx": 1,
+       "extraction": "sub_r0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_ur1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "sub_imm1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      }
+     ],
+     "count": 52
+    }
+   }
+  },
+  "ST_dARI_R": {
+   "base_op": "ST",
+   "operand_sig": "dARI_R",
+   "ctrl_class": "st_generic",
+   "scheduling": {
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "def_latency": 0,
+    "throughput": 4,
+    "is_variable_latency": true,
+    "confidence": "synthetic",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "write_latency": 200,
+    "stall_base": 4,
+    "latency_source": "synthetic"
+   },
+   "mod_groups": {
+    "64,E": {
+     "and_base": "0x0001c0000c101b000000000000000985",
+     "variable_mask": "0x03fe3e000000003e000318fffe00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      }
+     ],
+     "count": 6358
+    },
+    "E": {
+     "and_base": "0x0001c0000c1019000000000000000985",
+     "variable_mask": "0x03fe3e000000003efffffcfffe00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      }
+     ],
+     "count": 5248
+    },
+    "E,U16": {
+     "and_base": "0x0001c0000c1015000000000000000985",
+     "variable_mask": "0x014e3e000000001e000056fffe00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      }
+     ],
+     "count": 1245
+    },
+    "128,E": {
+     "and_base": "0x0001e0000c101d000000000000000985",
+     "variable_mask": "0x03fe1e000000003e000e10fffe00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      }
+     ],
+     "count": 947
+    },
+    "128,E,STRONG,SYS": {
+     "and_base": "0x0001c0000c115d000000000000000985",
+     "variable_mask": "0x03fe3e000000001e001ff0ff7e00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      }
+     ],
+     "count": 595
+    },
+    "E,U8": {
+     "and_base": "0x0001c0000c1011000000000000007985",
+     "variable_mask": "0x004e3e000000001e0000003f1e000000",
+     "fields": [
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 38,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "sub_imm2",
+       "_src": "2c"
+      }
+     ],
+     "count": 303
+    },
+    "128,E,GPU,STRONG": {
+     "and_base": "0x0001e0000c10fd000002000000000985",
+     "variable_mask": "0x00160e000000000e0000001c3e00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 9,
+       "token_idx": 1,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "sub_imm2",
+       "_src": "2c"
+      }
+     ],
+     "count": 136
+    },
+    "64,E,GPU,STRONG": {
+     "and_base": "0x0001e0000c10fb000000000000000985",
+     "variable_mask": "0x00de0e000000000e0003083e3e00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 9,
+       "token_idx": 1,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      }
+     ],
+     "count": 122
+    },
+    "E,GPU,STRONG": {
+     "and_base": "0x0001e0000c10f9000000000100007985",
+     "variable_mask": "0x002e0e000000000e0000803e3e000000",
+     "fields": [
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      }
+     ],
+     "count": 44
+    }
+   }
   },
   "LDC.64_P_R_cAI": {
    "base_op": "LDC.64",
@@ -83707,260 +84165,6 @@
     "latency_source": "synthetic"
    },
    "ctrl_class": "lds",
-   "mercury": []
-  },
-  "LD_R_ARI": {
-   "base_op": "LD",
-   "operand_sig": "R_ARI",
-   "mod_groups": {
-    "E": {
-     "and_base": "0x00000000001009000000000080000980",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 16,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "reg"
-      },
-      {
-       "shift": 22,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "imm"
-      },
-      {
-       "shift": 25,
-       "bits": 6,
-       "token_idx": 0,
-       "extraction": ""
-      }
-     ],
-     "variable_mask": "0x1c00000000000000000000007eff1000",
-     "count": 98
-    },
-    "64,E": {
-     "and_base": "0x100b000000000090800980",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 2,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 17,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 25,
-       "bits": 3,
-       "token_idx": 0,
-       "extraction": ""
-      }
-     ],
-     "variable_mask": "0x1c00000000000000000000000e1e3000",
-     "count": 32
-    },
-    "E,U8": {
-     "and_base": "0x000000000c1011000000000000007980",
-     "fields": [
-      {
-       "shift": 16,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "reg"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "imm"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000000000000000000ffffff0000",
-     "count": 12
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 200,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 200,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "ld_generic",
-   "mercury": []
-  },
-  "LD_R_dARI": {
-   "base_op": "LD",
-   "operand_sig": "R_dARI",
-   "mod_groups": {
-    "64,E": {
-     "and_base": "0x000000000c101b000000000000007980",
-     "fields": [
-      {
-       "shift": 16,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "reg"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "sub_r1"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "sub_ur0"
-      },
-      {
-       "shift": 40,
-       "bits": 24,
-       "token_idx": 2,
-       "extraction": "sub_imm2"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000000000000ffffffffffff0000",
-     "count": 75
-    },
-    "E": {
-     "and_base": "0x000000000c1019000000000000007980",
-     "fields": [
-      {
-       "shift": 16,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "reg"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "sub_r1"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "sub_ur0"
-      },
-      {
-       "shift": 40,
-       "bits": 24,
-       "token_idx": 2,
-       "extraction": "sub_imm2"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000000000000ffffffffffff0000",
-     "count": 198
-    },
-    "E,U8": {
-     "and_base": "0x000000000c1011000000000408017980",
-     "fields": [
-      {
-       "shift": 16,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "reg"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "sub_r1"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "sub_ur0"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c00000000000000000000ffffff0000",
-     "count": 12
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 200,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 200,
-    "write_latency": 0,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "ld_generic",
    "mercury": []
   },
   "LEA.HI.SX32_R_R_II_II": {
@@ -134117,271 +134321,6 @@
    "ctrl_class": "alu_simple",
    "mercury": []
   },
-  "ST.E.128_dARI_R": {
-   "base_op": "ST.E.128",
-   "operand_sig": "dARI_R",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c101d000000000000000985",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 3,
-       "extraction": "guard",
-       "token_idx": 0
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 1
-      },
-      {
-       "shift": 34,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 2
-      },
-      {
-       "shift": 65,
-       "bits": 4,
-       "extraction": "ureg",
-       "token_idx": 1
-      }
-     ],
-     "variable_mask": "0x000000000000001e000003fdfe007000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 0,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 0,
-    "write_latency": 200,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "st_generic",
-   "mercury": []
-  },
-  "ST.E.64_dARI_R": {
-   "base_op": "ST.E.64",
-   "operand_sig": "dARI_R",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c101b000000000000007985",
-     "fields": [
-      {
-       "shift": 43,
-       "bits": 4,
-       "extraction": "imm",
-       "token_idx": 1
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 1
-      },
-      {
-       "shift": 33,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 2
-      },
-      {
-       "shift": 65,
-       "bits": 4,
-       "extraction": "ureg",
-       "token_idx": 1
-      }
-     ],
-     "variable_mask": "0x000000000000001e000079fffe000000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 0,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 0,
-    "write_latency": 200,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "st_generic",
-   "mercury": []
-  },
-  "ST.E.U16_dARI_R": {
-   "base_op": "ST.E.U16",
-   "operand_sig": "dARI_R",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c10151c0000000000000985",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "extraction": "guard",
-       "token_idx": 0
-      },
-      {
-       "shift": 41,
-       "bits": 6,
-       "extraction": "imm",
-       "token_idx": 1
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 1
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 2
-      }
-     ],
-     "variable_mask": "0x000000000000000000007efffe00f000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 0,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 0,
-    "write_latency": 200,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "st_generic",
-   "mercury": []
-  },
-  "ST.E.U8_dARI_R": {
-   "base_op": "ST.E.U8",
-   "operand_sig": "dARI_R",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c1011080000000000000985",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "extraction": "guard",
-       "token_idx": 0
-      },
-      {
-       "shift": 40,
-       "bits": 1,
-       "extraction": "imm",
-       "token_idx": 1
-      },
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 1
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 2
-      },
-      {
-       "shift": 65,
-       "bits": 2,
-       "extraction": "ureg",
-       "token_idx": 1
-      }
-     ],
-     "variable_mask": "0x0000000000000006000001fffe00f000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 0,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 0,
-    "write_latency": 200,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "st_generic",
-   "mercury": []
-  },
-  "ST.E_dARI_R": {
-   "base_op": "ST.E",
-   "operand_sig": "dARI_R",
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000c1019000000000000007985",
-     "fields": [
-      {
-       "shift": 25,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 1
-      },
-      {
-       "shift": 33,
-       "bits": 8,
-       "extraction": "reg",
-       "token_idx": 2
-      },
-      {
-       "shift": 65,
-       "bits": 3,
-       "extraction": "ureg",
-       "token_idx": 1
-      }
-     ],
-     "variable_mask": "0x000000000000000e000001fffe000000",
-     "count": 32
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 0,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 0,
-    "write_latency": 200,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "st_generic",
-   "mercury": []
-  },
   "STL.128_ARI_R": {
    "base_op": "STL.128",
    "operand_sig": "ARI_R",
@@ -135207,320 +135146,6 @@
     "latency_source": "synthetic"
    },
    "ctrl_class": "stl",
-   "mercury": []
-  },
-  "ST_ARI_R": {
-   "base_op": "ST",
-   "operand_sig": "ARI_R",
-   "mod_groups": {
-    "64,E": {
-     "and_base": "0x00000000001000000000000000000385",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 25,
-       "bits": 7,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 40,
-       "bits": 1,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 65,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": ""
-      },
-      {
-       "shift": 70,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "reg"
-      }
-     ],
-     "variable_mask": "0x1c00000000003fde00000100fe00f000",
-     "count": 150
-    },
-    "E": {
-     "and_base": "0x000000000c1019000000000004007985",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "imm"
-      },
-      {
-       "shift": 40,
-       "bits": 24,
-       "token_idx": 1,
-       "extraction": "sub_imm2"
-      },
-      {
-       "shift": 64,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "reg"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 124,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000000ffffffffffff000000",
-     "count": 175
-    },
-    "E,U8": {
-     "and_base": "0x000000000c1011000000400000000985",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "reg"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "imm"
-      },
-      {
-       "shift": 64,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "reg"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 124,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000000ff000000ffff00f000",
-     "count": 29
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 0,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 0,
-    "write_latency": 200,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "st_generic",
-   "mercury": []
-  },
-  "ST_dARI_R": {
-   "base_op": "ST",
-   "operand_sig": "dARI_R",
-   "mod_groups": {
-    "64,E": {
-     "and_base": "0x000000000c101b000000000000007985",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "sub_r1"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "reg"
-      },
-      {
-       "shift": 40,
-       "bits": 24,
-       "token_idx": 1,
-       "extraction": "sub_imm2"
-      },
-      {
-       "shift": 64,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "sub_ur0"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 124,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000000ffffffffffff000000",
-     "count": 44
-    },
-    "E": {
-     "and_base": "0x000000000c1019000000000004007985",
-     "fields": [
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "sub_r1"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "reg"
-      },
-      {
-       "shift": 40,
-       "bits": 24,
-       "token_idx": 1,
-       "extraction": "sub_imm2"
-      },
-      {
-       "shift": 64,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "sub_ur0"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 124,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000000ffffffffffff000000",
-     "count": 175
-    },
-    "E,U8": {
-     "and_base": "0x000000000c1011000000400100001985",
-     "fields": [
-      {
-       "shift": 12,
-       "bits": 4,
-       "token_idx": 0,
-       "extraction": "guard"
-      },
-      {
-       "shift": 24,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "sub_r1"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "reg"
-      },
-      {
-       "shift": 64,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "sub_ur0"
-      },
-      {
-       "shift": 122,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 123,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "reuse"
-      },
-      {
-       "shift": 124,
-       "bits": 1,
-       "token_idx": 1,
-       "extraction": "reuse"
-      }
-     ],
-     "variable_mask": "0x1c000000000000ff000000ffff00f000",
-     "count": 29
-    }
-   },
-   "scheduling": {
-    "opcode_id": null,
-    "pipe_class": 3,
-    "pipe_name": "MEMORY",
-    "def_latency": 0,
-    "throughput": 4,
-    "is_variable_latency": true,
-    "confidence": "synthetic",
-    "ptxas_raw": null,
-    "read_latency": 0,
-    "write_latency": 200,
-    "stall_base": 4,
-    "latency_source": "synthetic"
-   },
-   "ctrl_class": "st_generic",
    "mercury": []
   },
   "SULD.D.BA.2D.STRONG.SM.TRAP_R_AR_UR": {

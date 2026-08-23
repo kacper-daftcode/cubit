@@ -634,6 +634,19 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             _ => {}
         }
     }
+    // BUG-097: generic-memory LD/ST share the global family order — nvdisasm
+    // prints size BEFORE consistency/scope (LD.E.128.STRONG.SYS, ST.E.64.STRONG.GPU),
+    // while the generic priority bucketed STRONG/GPU/SYS together with E (all 3) and
+    // sizes after (6): a stable sort then kept the table's alphabetical mg order
+    // (LD.E.GPU.STRONG, LD.E.STRONG.SYS.128). Without an explicit arm the 2,478-word
+    // corpus class diverges from cuobjdump text on the sm103a canon table.
+    if base == "LD" || base == "ST" {
+        match m {
+            "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" => return 7,
+            "GPU" | "SYS" | "SM" | "CTA" => return 8,
+            _ => {}
+        }
+    }
     // render-parity (b11, era rt98 anchor: LOP3.LUT.PAND): in the LOP3 family the
     // PAND boolean qualifier prints AFTER LUT, not before (generic LUT=9 would
     // still lose to PAND's default 5 — pin explicitly per family).
@@ -769,8 +782,13 @@ fn format_operand(
         } => format_sts_lds_addr(fields, raw),
         // BUG-038: plain uniform-indexed LDG.E/STG.E forms (class bytes 0x81/0x86)
         // render as [Rn.U32+URm(+0xoff)], not desc[UR][R.64] (that's the dARI world).
+        // BUG-097: same plain-u32-ur shape on generic-memory LD_R_ARURI/ST_ARURI_R
+        // (nvdisasm: `LD.E R0, [RZ.U32+UR4]`); the desc-form print mislabels the UR
+        // index as a descriptor selector and silently changes the instruction's
+        // meaning for RE text.
         "ARURI" if ins_key.starts_with("LDG.E") || ins_key.starts_with("STG.E")
             || ins_key.starts_with("REDG.E") || ins_key.starts_with("ATOMG.E")
+            || ins_key.starts_with("LD_") || ins_key.starts_with("ST_")
             => format_plain_u32_ur(fields),
         "ARURI" => format_aruri(fields, raw),
         // No-immediate / UR-only address variants (ARUR/AUR/AURI/AURR/ARURR).
