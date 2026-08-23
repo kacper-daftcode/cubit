@@ -143,6 +143,21 @@ fn parse_sass_file_str_impl(text: &str, strict: bool) -> anyhow::Result<SassFile
     Ok(SassFile { kernels })
 }
 
+
+/// BUG-091: a line whose pre-':' prefix is a valid label name (identifier
+/// chars plus '.', e.g. nvdisasm's `.L_x_0:`) is a label definition, not a
+/// directive -- directives never carry ':'.
+fn is_label_line(t: &str) -> bool {
+    if let Some(pos) = t.find(':') {
+        let name = &t[..pos];
+        !name.is_empty()
+            && name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '.')
+            && name.chars().any(|c| c.is_alphanumeric())
+    } else {
+        false
+    }
+}
+
 /// Parse the body of a kernel: resource directives + instruction lines + labels.
 ///
 /// Returns the resolved instructions plus the label anchor map (addr -> names
@@ -166,8 +181,13 @@ fn parse_kernel_body_impl(
         let t = nocomment.trim();
         if t.is_empty() { continue; }
 
-        // Try directive first
-        if t.starts_with('.') {
+        // Try directive first.
+        // BUG-091: a line like `.L_x_0:` is a LABEL DEFINITION, not a
+        // directive -- nvdisasm synthesizes dot-leading label names, and they
+        // used to be swallowed by the directive path, leaving every branch to
+        // them unresolvable (silently misassembled). Directives never end
+        // with ':', so that suffix distinguishes labels here.
+        if t.starts_with('.') && !is_label_line(t) {
             parse_directive(t, res);
             continue;
         }

@@ -1117,6 +1117,23 @@ fn check_wide_mem_reg_align_sm103(insn: &Instruction, table: &IsaTable) -> Resul
 
 /// Encode a parsed instruction using the per-modifier-group table.
 pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> {
+    // BUG-091 (fail-closed): an unresolved label operand on a branch op must
+    // never be encoded. The parser resolves defined labels to BranchTarget;
+    // whatever reaches here as Operand::Label has no definition in scope and
+    // used to degrade into the immediate path, silently emitting a bogus
+    // target. Refuse with full context instead (render-level IR stays
+    // lenient -- the check fires only at byte production).
+    static BRANCH_OPS: &[&str] = &["BRA", "BSSY", "CALL", "JMP", "RET", "BRX", "BRXU"];
+    if BRANCH_OPS.contains(&insn.opcode.as_str()) {
+        if let Some(bad) = insn.operands.iter().find_map(|op| match op {
+            crate::ir::Operand::Label(name) => Some(name.clone()),
+            _ => None,
+        }) {
+            anyhow::bail!(
+                "unresolved branch label {:?} on {} at addr 0x{:x} -- label has no                  definition in this input (BUG-091; nvdisasm `.L_x_N` definitions and                  the backtick-paren form are supported since the fix)",
+                bad, insn.opcode_full, insn.addr);
+        }
+    }
     encode_instruction_inner(insn, table, true)
 }
 

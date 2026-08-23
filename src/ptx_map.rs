@@ -79,6 +79,23 @@ pub enum SassTemplate {
     /// verbatim for byte-parity (and/mov = 0x08, or = 0x8f, xor = 0x82,
     /// not = 0x80).
     PredLogic { lut_a: u8, lut_b: u8 },
+    /// b9 phase-3 #2: 64-bit bitwise logic (and/or/xor/not.b64) -> two
+    /// 32-bit LOP3.LUT for the lo/hi halves of the register pair. Form and
+    /// LUT bytes are vendor anchors (ptxas 13.3 -O0 sm_103a, probes
+    /// work/b9p4/probes/bl{1,2,3}; 24-word payload parity IDENT bytes[0:12]
+    /// modulo the scheduling dword + decode-equivalence by nvdisasm):
+    ///   bin reg-src: LOP3.LUT Rd_{lo,hi}, Ra_{lo,hi}, Rb_{lo,hi}, RZ, lut, !PT
+    ///   bin imm-src: LOP3.LUT Rd_{lo,hi}, Ra_{lo,hi}, imm{lo,hi},  RZ, lut, !PT
+    ///   unary not:   LOP3.LUT Rd_{lo,hi}, RZ, Ra_{lo,hi}, RZ, 0x33, !PT
+    /// and/or/xor tie the third LOP3 input c to RZ (don't-care rows; ptxas
+    /// choice preserved verbatim) with a single LUT byte (and = 0xc0 = a&b,
+    /// or = 0xfc = a|b, xor = 0x3c = a^b); not ties slot a to RZ and
+    /// negates slot b (0x33 = !b) — vendor puts the input in slot b
+    /// (measured, bl1), unlike the pre-existing b32 not rule (slot a,
+    /// 0x0f), see F1 of results/b9/B9-PHASE3-B64LOG.md. A 64-bit immediate
+    /// source splits into 32-bit halves and a zero half renders as RZ
+    /// (vendor normalization, measured in bl3 for both halves/all ops).
+    B64Logic { lut: u8 },
 }
 
 /// A single PTX→SASS mapping rule.
@@ -122,6 +139,10 @@ pub static RULES: &[PtxRule] = &[
     PtxRule { pattern: "abs.s32",       template: Single { opcode: "IABS",  slots: &[Src(0), Src(1)] } },
 
     // ── Bitwise / shift ──────────────────────────────────────────────────
+    PtxRule { pattern: "and.b64",       template: B64Logic { lut: 0xc0 } },
+    PtxRule { pattern: "or.b64",        template: B64Logic { lut: 0xfc } },
+    PtxRule { pattern: "xor.b64",       template: B64Logic { lut: 0x3c } },
+    PtxRule { pattern: "not.b64",       template: B64Logic { lut: 0x33 } },
     PtxRule { pattern: "and.b32",       template: Single { opcode: "LOP3.LUT", slots: &[Src(0), Src(1), Src(2), RZ, Imm(0xc0), NotPT] } },
     PtxRule { pattern: "or.b32",        template: Single { opcode: "LOP3.LUT", slots: &[Src(0), Src(1), Src(2), RZ, Imm(0xfc), NotPT] } },
     PtxRule { pattern: "xor.b32",       template: Single { opcode: "LOP3.LUT", slots: &[Src(0), Src(1), Src(2), RZ, Imm(0x3c), NotPT] } },

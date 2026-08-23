@@ -264,6 +264,22 @@ const FLOAT_OPCODES: &[&str] = &[
 fn parse_single_operand(s: &str, is_float_context: bool) -> Operand {
     let s = s.trim();
 
+    // BUG-091: nvdisasm branch-target form `\`(.L_x_0)` — the backtick-paren
+    // literal must unwrap to the plain label name; previously the whole
+    // string (backticks included) became a Label that could never match the
+    // definition, and the unresolved-label path then silently encoded a
+    // bogus target.
+    if s.starts_with('`') && s.ends_with(')') {
+        if let Some(open) = s.find('(') {
+            let inner = s[open + 1..s.len() - 1].trim();
+            if !inner.is_empty()
+                && inner.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '.')
+            {
+                return Operand::Label(inner.to_string());
+            }
+        }
+    }
+
     // Address: [R0+0x8]
     if s.starts_with('[') {
         return parse_address(s).unwrap_or(Operand::Label(s.to_string()));
@@ -638,9 +654,14 @@ fn parse_multi_sass_impl(
             // A label is an identifier ending with ':' at the start of the line
             let (label_part, rest_part) = if let Some(pos) = line.find(':') {
                 let potential_label = &line[..pos];
-                // Valid label: identifier chars only, no spaces
+                // Valid label: identifier chars only, no spaces.
+                // BUG-091: '.' is legal too -- nvdisasm synthesizes `.L_x_N`
+                // labels; a dotted label definition used to fall through to an
+                // instruction-parse attempt and vanish (non-strict), leaving
+                // the referencing branch unresolvable.
                 let is_label = !potential_label.is_empty()
-                    && potential_label.chars().all(|c| c.is_alphanumeric() || c == '_');
+                    && potential_label.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '.')
+                    && potential_label.chars().any(|c| c.is_alphanumeric());
                 if is_label {
                     (Some(potential_label.to_string()), line[pos+1..].trim().to_string())
                 } else {
@@ -713,7 +734,12 @@ pub fn resolve_labels(stmts: Vec<Statement>, base_addr: u32) -> Vec<Instruction>
         }
     }
 
-    // Second pass: resolve and collect instructions
+    // Second pass: resolve and collect instructions.
+    // Unresolved labels SURVIVE as Operand::Label here on purpose: text-level
+    // consumers (the M4.3a renderer, gate slices) operate on fragments whose
+    // branch targets are out of window and must round-trip verbatim. The
+    // fail-closed refusal lives at byte production instead (encoder's
+    // BUG-091 check rejects a Label operand on any branch op).
     let branch_ops = ["BRA", "BSSY", "CALL", "JMP", "RET", "BRX", "BRXU"];
     let mut result = Vec::new();
     for stmt in stmts {

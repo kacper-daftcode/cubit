@@ -474,3 +474,134 @@ fn b9p3_pred_logic_fail_closed() {
     let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
     assert!(err.contains("mov.pred"), "imm src must name the op: {}", err);
 }
+
+/// P3-17: b64 bitwise logic -> vendor-anchored LOP3.LUT lo/hi pairs
+/// (ptxas 13.3 -O0 sm_103a probes bl{1,2,3}, results/b9/B9-PHASE3-B64LOG.md):
+/// reg-src `LOP3.LUT Rd_{l,h}, Ra_{l,h}, Rb_{l,h}, RZ, lut, !PT` with
+/// and=0xc0/or=0xfc/xor=0x3c; unary not ties slot a to RZ and negates
+/// slot b (0x33) — the vendor b64-not puts the input in slot b.
+#[test]
+fn b9p4_b64_logic_lop3() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b64   %rd<10>;
+    ld.param.u64 %rd1, [k_param_0];
+    ld.global.b64 %rd2, [%rd1];
+    ld.global.b64 %rd3, [%rd1+8];
+    and.b64 %rd4, %rd2, %rd3;
+    or.b64  %rd5, %rd2, %rd3;
+    xor.b64 %rd6, %rd2, %rd3;
+    not.b64 %rd7, %rd2;
+    st.global.b64 [%rd1], %rd4;
+    st.global.b64 [%rd1+8], %rd5;
+    st.global.b64 [%rd1+16], %rd6;
+    st.global.b64 [%rd1+24], %rd7;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let lowered = lower_kernel(&kernels[0]).unwrap();
+    let text = lowered.to_sass_text();
+    let lop: Vec<&str> = text.lines().filter(|l| l.contains("LOP3.LUT")).collect();
+    assert_eq!(lop.len(), 8, "two LOP3 per b64 op:\n{}", text);
+    // vendor LUT bytes in emission order (and, or, xor), lo then hi
+    for (line, want) in lop[..6].iter().zip(["0xc0", "0xc0", "0xfc", "0xfc", "0x3c", "0x3c"]) {
+        assert!(line.contains(&format!(", {}, !PT", want)), "lut {} in line: {}", want, line);
+        assert!(line.contains(", RZ,"), "c input tied RZ: {}", line);
+        // reg-src: operand slot b (token 2) is a register, never an immediate
+        let t2 = line.split(',').nth(2).unwrap().trim();
+        assert!(t2.starts_with('R') && t2[1..].chars().all(|c| c.is_ascii_digit()) || t2 == "RZ",
+            "reg-src slot b must be a register: {}", line);
+    }
+    // register pairing: dst lo/hi consecutive in each pair, a/b matching
+    let toks = |l: &str| l.split(',').map(|t| t.trim().to_string()).collect::<Vec<_>>();
+    for i in 0..3 {
+        let (lo, hi) = (toks(lop[2 * i]), toks(lop[2 * i + 1]));
+        let reg = |t: &str| t.trim_start_matches("LOP3.LUT R").parse::<u8>();
+        assert_eq!(reg(&lo[0].replace("LOP3.LUT R", "")).unwrap() + 1, reg(&hi[0].replace("LOP3.LUT R", "")).unwrap(),
+            "dst pair consecutive: {} vs {}", lop[2 * i], lop[2 * i + 1]);
+    }
+    // unary not: slot a tied RZ, input in slot b, lut 0x33
+    for l in &lop[6..] {
+        let t = toks(l);
+        assert_eq!(t[1], "RZ", "not.b64 slot a tied RZ: {}", l);
+        assert!(t[3] == "RZ" && t[4] == "0x33" && t[5].starts_with("!PT"),
+            "not.b64 vendor form: {}", l);
+        assert!(t[2].starts_with('R'), "not.b64 input in slot b: {}", l);
+    }
+    let (_b, _n) = assemble_body(&text);
+}
+
+/// P3-18: imm-src b64 logic splits the immediate into 32-bit halves; a zero
+/// half renders as RZ (vendor normalization, probe bl3, all ops/halves).
+#[test]
+fn b9p4_b64_logic_imm_split_zero_rz() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b64   %rd<10>;
+    ld.param.u64 %rd1, [k_param_0];
+    ld.global.b64 %rd2, [%rd1];
+    and.b64 %rd3, %rd2, 0x123456789ABCDEF0;
+    or.b64  %rd4, %rd2, -1;
+    xor.b64 %rd5, %rd2, 0x100000000;
+    and.b64 %rd6, %rd2, 0xFFFFFFFF;
+    or.b64  %rd7, %rd2, 0;
+    st.global.b64 [%rd1], %rd3;
+    st.global.b64 [%rd1+8], %rd4;
+    st.global.b64 [%rd1+16], %rd5;
+    st.global.b64 [%rd1+24], %rd6;
+    st.global.b64 [%rd1+32], %rd7;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let lowered = lower_kernel(&kernels[0]).unwrap();
+    let text = lowered.to_sass_text();
+    let lop: Vec<&str> = text.lines().filter(|l| l.contains("LOP3.LUT")).collect();
+    assert_eq!(lop.len(), 10, "imm b64 ops -> 10 LOP3:\n{}", text);
+    let toks = |l: &str| l.split(',').map(|t| t.trim().to_string()).collect::<Vec<_>>();
+    // 0x123456789ABCDEF0: lo=0x9abcdef0 imm, hi=0x12345678 imm
+    assert_eq!(toks(lop[0])[2], "0x9abcdef0", "{}", lop[0]);
+    assert_eq!(toks(lop[1])[2], "0x12345678", "{}", lop[1]);
+    // -1: both halves 0xffffffff
+    assert_eq!(toks(lop[2])[2], "0xffffffff", "{}", lop[2]);
+    assert_eq!(toks(lop[3])[2], "0xffffffff", "{}", lop[3]);
+    // 0x100000000: lo half zero -> RZ, hi = 0x1
+    assert_eq!(toks(lop[4])[2], "RZ", "zero lo half -> RZ: {}", lop[4]);
+    assert_eq!(toks(lop[5])[2], "0x1", "{}", lop[5]);
+    // 0xFFFFFFFF: hi half zero -> RZ
+    assert_eq!(toks(lop[6])[2], "0xffffffff", "{}", lop[6]);
+    assert_eq!(toks(lop[7])[2], "RZ", "zero hi half -> RZ: {}", lop[7]);
+    // 0: both halves RZ (vendor bl3 line 17-RZ/RZ pattern)
+    assert_eq!(toks(lop[8])[2], "RZ", "{}", lop[8]);
+    assert_eq!(toks(lop[9])[2], "RZ", "{}", lop[9]);
+    let (_b, _n) = assemble_body(&text);
+}
+
+/// P3-19: unattested b64 logic shapes fail closed with the op named —
+/// immediate srcA (swapped commutative form) and an immediate unary
+/// operand both bail loudly instead of emitting a guessed encoding.
+#[test]
+fn b9p4_b64_logic_fail_closed() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b64   %rd<6>;
+    ld.param.u64 %rd1, [k_param_0];
+    ld.global.b64 %rd2, [%rd1];
+    and.b64 %rd3, 7, %rd2;
+    st.global.b64 [%rd1], %rd3;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
+    assert!(err.contains("and.b64"), "imm srcA must name the op: {}", err);
+
+    let ptx = ptx.replace("and.b64 %rd3, 7, %rd2;", "not.b64 %rd3, 5;");
+    let kernels = parse_ptx(&ptx).unwrap();
+    let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
+    assert!(err.contains("not.b64"), "imm unary src must name the op: {}", err);
+}

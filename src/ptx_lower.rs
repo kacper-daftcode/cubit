@@ -670,6 +670,64 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                             addr += 16;
                         }
 
+                        SassTemplate::B64Logic { lut } => {
+                            // b9 phase-3 #2: PTX 64-bit bitwise logic ->
+                            // lo/hi pair of 32-bit LOP3.LUT (vendor-anchored
+                            // forms/LUTs, see ptx_map.rs). Binary ops: d, a,
+                            // b with b either a 64-bit register or a 64-bit
+                            // immediate (split into halves, zero half -> RZ
+                            // vendor normalization); unary not.b64: d, a with
+                            // the input in slot b and slot a tied RZ.
+                            // Immediate srcA / immediate unary src / any
+                            // other shape is NOT vendor-attested (zero
+                            // corpus occurrences) -> fail-closed bail.
+                            let d_op = insn.operands.get(0)
+                                .ok_or_else(|| anyhow::anyhow!("{}: missing dst", insn.opcode))?;
+                            let (d_lo, d_hi) = match d_op {
+                                PtxOperand::Reg(name) => alloc.gpr_pair(name),
+                                other => anyhow::bail!("{}: dst must be a 64-bit register, got {:?}", insn.opcode, other),
+                            };
+                            let a_op = insn.operands.get(1)
+                                .ok_or_else(|| anyhow::anyhow!("{}: missing srcA", insn.opcode))?;
+                            let (a_lo, a_hi) = match a_op {
+                                PtxOperand::Reg(name) if alloc.is_64bit(name) => alloc.gpr_pair(name),
+                                other => anyhow::bail!("{}: srcA must be a 64-bit register, got {:?}", insn.opcode, other),
+                            };
+                            if insn.opcode.starts_with("not.b64") {
+                                insns.push(make_insn(addr, "LOP3.LUT", vec![
+                                    op_reg(d_lo), op_rz(), op_reg(a_lo), op_rz(),
+                                    op_imm(*lut as i64), op_not_pt()], guard.clone()));
+                                insns.push(make_insn(addr + 16, "LOP3.LUT", vec![
+                                    op_reg(d_hi), op_rz(), op_reg(a_hi), op_rz(),
+                                    op_imm(*lut as i64), op_not_pt()], guard));
+                            } else {
+                                let b_op = insn.operands.get(2)
+                                    .ok_or_else(|| anyhow::anyhow!("{}: missing srcB", insn.opcode))?;
+                                let (b_lo, b_hi): (Operand, Operand) = match b_op {
+                                    PtxOperand::Reg(name) if alloc.is_64bit(name) => {
+                                        let (lo, hi) = alloc.gpr_pair(name);
+                                        (op_reg(lo), op_reg(hi))
+                                    }
+                                    PtxOperand::IntImm(v) => {
+                                        let lo = (*v as u64) & 0xFFFF_FFFF;
+                                        let hi = ((*v as u64) >> 32) & 0xFFFF_FFFF;
+                                        (
+                                            if lo == 0 { op_rz() } else { op_imm(lo as i64) },
+                                            if hi == 0 { op_rz() } else { op_imm(hi as i64) },
+                                        )
+                                    }
+                                    other => anyhow::bail!("{}: srcB must be a 64-bit register or immediate, got {:?}", insn.opcode, other),
+                                };
+                                insns.push(make_insn(addr, "LOP3.LUT", vec![
+                                    op_reg(d_lo), op_reg(a_lo), b_lo, op_rz(),
+                                    op_imm(*lut as i64), op_not_pt()], guard.clone()));
+                                insns.push(make_insn(addr + 16, "LOP3.LUT", vec![
+                                    op_reg(d_hi), op_reg(a_hi), b_hi, op_rz(),
+                                    op_imm(*lut as i64), op_not_pt()], guard));
+                            }
+                            addr += 32;
+                        }
+
                         SassTemplate::MulWide { unsigned } => {
                             // mul.wide.s32/u32 %rd, %rA, B -> IMAD.WIDE[.U32] Rdp, Ra, B, RZ
                             let d = insn.operands.get(0).ok_or_else(|| anyhow::anyhow!("mul.wide: missing dst"))?;
