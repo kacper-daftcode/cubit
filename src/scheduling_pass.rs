@@ -205,6 +205,20 @@ fn insn_needs_write_bar(insn: &Instruction, table: Option<&IsaTable>, sched2: bo
     if op == "CS2R" {
         return false;
     }
+    // BUG-108 (TS2-WIDEX i235): IMAD/UIMAD (all forms, INCLUDING the .WIDE
+    // pair-writers) are fixed-latency ALU — hardware does NOT scoreboard
+    // them, consumers are synchronised by the producer stall only
+    // (nvcc: stall=6, wbar=7). The sm120 table tags the imm-src2 carry
+    // forms (IMAD_R_P_R_II_R[_P], UIMAD.WIDE.U32_UR_UR_*_UR) ctrl_class
+    // "imad_wide" with needs_write_bar=true, which let the scheduler
+    // substitute a write barrier for the stall: Q got S01+wb, the consumer
+    // read the WIDE result pair +2 slots in (< S0c floor lo=3 / hi=5) and
+    // silicon deterministically returned torn/stale values. An ALU barrier
+    // is also batchable garbage for the load-batching pass (last-only
+    // semantics). Force the stall path here, table-side tag or not.
+    if matches!(op, "IMAD" | "UIMAD") {
+        return false;
+    }
     // Opcode-level long-latency producers (loads, S2R, ATOM, REDUX, SHFL, …) ALWAYS
     // need a write barrier. This takes precedence over a mis-assigned ctrl_class —
     // e.g. SHFL is tagged 'alu_simple' in the table, which would otherwise drop the
@@ -920,7 +934,16 @@ fn dest_regs(insn: &Instruction) -> Vec<(bool, u8)> {
                     }
                 }
             }
-            Operand::UReg { num, .. } => out.push((true, *num)),
+            Operand::UReg { num, .. } => {
+                out.push((true, *num));
+                // UIMAD.WIDE.* writes a 64-bit uniform result = UR pair
+                // (M3.5 doctrine). Without the +1, a consumer of the hi
+                // half (URd+1) never sees this producer (BUG-108 sibling
+                // of the BUG-101 span hole, uniform domain).
+                if insn.opcode_full.contains("WIDE") && *num < 62 {
+                    out.push((true, num + 1));
+                }
+            }
             _ => {}
         }
     }
@@ -1016,7 +1039,15 @@ fn src_regs(insn: &Instruction) -> Vec<(bool, u8)> {
                     if *num < 255 { out.push((false, num + 1)); }
                 }
             }
-            Operand::UReg { num, .. } if *num < 63 => out.push((true, *num)),
+            Operand::UReg { num, .. } if *num < 63 => {
+                out.push((true, *num));
+                // UIMAD.WIDE reads its 64-bit uniform addend as a UR pair;
+                // only operand slots past the A multiplicand are 64-bit wide
+                // (mirror of the vector WIDE accumulator span rule below).
+                if is_wide_src && op_idx > 1 && *num + 1 < 63 {
+                    out.push((true, num + 1));
+                }
+            }
             Operand::Pred { num, .. } if *num < 7 => out.push((false, 128 + *num)),
             Operand::UPred { num, .. } if *num < 7 => out.push((true, 64 + *num)),
             Operand::Addr { base_reg: Some(r), ur_reg, .. } => {
@@ -2812,5 +2843,56 @@ pub fn apply_convergence_barriers(code_bytes: &mut [u8], insns: &[Instruction]) 
                 code_bytes[off + 3] = region.barrier;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod bug108_tests {
+    //! White-box pins for the BUG-108 span halves: the uniform-domain
+    //! UIMAD.WIDE UR-pair spans are invisible in the default pipeline
+    //! (the producer-side stall floor swamps the observable effect), so
+    //! they are pinned here directly on dest_regs/src_regs.
+    use super::*;
+
+    fn first_insn(body: &str) -> Instruction {
+        let src = format!(".entry t\n    .param u64 io\n{body}    EXIT ;\n");
+        let f = crate::sass_file::parse_sass_file_str_strict(&src).unwrap();
+        f.kernels[0].instructions[0].clone()
+    }
+
+    #[test]
+    fn uimad_wide_dest_ur_pair() {
+        let i = first_insn("    UIMAD.WIDE.U32 UR10, UR20, 0x5, UR22 ;\n");
+        let d = dest_regs(&i);
+        assert!(d.contains(&(true, 10)), "dest pair lo UR10 missing: {d:?}");
+        assert!(d.contains(&(true, 11)), "dest pair hi (UR11) missing: {d:?}");
+    }
+
+    #[test]
+    fn uimad_wide_addend_ur_pair_not_multiplicand() {
+        let i = first_insn("    UIMAD.WIDE.U32 UR10, UR20, 0x5, UR22 ;\n");
+        let s = src_regs(&i);
+        assert!(s.contains(&(true, 22)) && s.contains(&(true, 23)),
+            "64-bit addend must register as UR pair (UR22/UR23): {s:?}");
+        assert!(!s.contains(&(true, 21)),
+            "A multiplicand is 32-bit: UR21 must NOT be spanned: {s:?}");
+    }
+
+    #[test]
+    fn vector_wide_dest_pair_unchanged() {
+        let i = first_insn("    IMAD.WIDE.U32.X R212, P0, R233, 0x3d1, R232, P6 ;\n");
+        let d = dest_regs(&i);
+        assert!(d.contains(&(false, 212)) && d.contains(&(false, 213)),
+            "vector WIDE dest pair pre-existing span must hold: {d:?}");
+    }
+
+    #[test]
+    fn imad_wide_never_needs_write_bar() {
+        let tab = crate::table::IsaTable::load(std::path::Path::new("tables/sm120.json")).unwrap();
+        let i = first_insn("    IMAD.WIDE.U32.X R212, P0, R233, 0x3d1, R232, P6 ;\n");
+        assert!(!insn_needs_write_bar(&i, Some(&tab), false),
+            "imad_wide class must not force a scoreboard barrier (fixed-latency ALU)");
+        assert!(!insn_needs_write_bar(&i, Some(&tab), true),
+            "same under sched2");
     }
 }
