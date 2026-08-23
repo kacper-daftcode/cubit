@@ -61050,8 +61050,8 @@
    "operand_sig": "_",
    "mod_groups": {
     "": {
-     "and_base": "0x0001f0000800000000000000000001ea",
-     "variable_mask": "0x000e0e000780003f000c7effff00fc00",
+     "and_base": "0x0001f2000800000000000000000081ea",
+     "variable_mask": "0x000000000780003f000c7effff001c00",
      "fields": [
       {
        "shift": 24,
@@ -61106,8 +61106,8 @@
      "count": 48
     },
     "2CTA": {
-     "and_base": "0x0011d0000820000000080000000011ea",
-     "variable_mask": "0x000e0e000780003f00007effff00ec00",
+     "and_base": "0x0011d8000820000000080000000075ea",
+     "variable_mask": "0x000000000780003f00007effff000000",
      "fields": [
       {
        "shift": 24,
@@ -61175,8 +61175,8 @@
    "operand_sig": "_",
    "mod_groups": {
     "": {
-     "and_base": "0x0001f0000800000000000000000001ea",
-     "variable_mask": "0x000e0e000780183f000c7effff00fc00",
+     "and_base": "0x0001f20008000000000000ff000085ea",
+     "variable_mask": "0x000000000780183f000c7e00ff001000",
      "fields": [
       {
        "shift": 24,
@@ -61251,8 +61251,8 @@
    "operand_sig": "_",
    "mod_groups": {
     "": {
-     "and_base": "0x0001f20009000100000000f9c50085ea",
-     "variable_mask": "0x000600000680000f000c1e063a001000",
+     "and_base": "0x0001f20009000100000000ffc50085ea",
+     "variable_mask": "0x000000000680000f000c1e003a001000",
      "fields": [
       {
        "shift": 24,
@@ -61308,7 +61308,7 @@
     },
     "2CTA": {
      "and_base": "0x0011d8000920010000080000000075ea",
-     "variable_mask": "0x000600000680001f00001effff000000",
+     "variable_mask": "0x000000000680001f00001effff000000",
      "fields": [
       {
        "shift": 24,
@@ -61376,8 +61376,8 @@
    "operand_sig": "_",
    "mod_groups": {
     "": {
-     "and_base": "0x0001f0000800030000000081c00081ea",
-     "variable_mask": "0x000e0e000780003f000c7e7e3f001c00",
+     "and_base": "0x0001f20008000300000000ffc00085ea",
+     "variable_mask": "0x000000000780003f000c7e003f001000",
      "fields": [
       {
        "shift": 24,
@@ -61432,8 +61432,8 @@
      "count": 18
     },
     "2CTA": {
-     "and_base": "0x0011d0000820030000080000000071ea",
-     "variable_mask": "0x000e0e000780003f00007effff000c00",
+     "and_base": "0x0011d8000820030000080000000075ea",
+     "variable_mask": "0x000000000780003f00007effff000000",
      "fields": [
       {
        "shift": 24,
