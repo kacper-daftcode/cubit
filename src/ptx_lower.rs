@@ -30,10 +30,17 @@ struct RegAlloc {
     /// b9 phase-2 P3: set when the P0..P6 predicate pool is exhausted;
     /// lower_kernel bails fail-closed with this instead of panicking.
     pred_hit_cap: Option<String>,
+    /// b9 phase-3 #4: kernel shared-window symbols (static layout, see
+    /// ptx_parse) for `mov reg, sym` and `[sym+off]` address resolution.
+    shared_syms: std::collections::HashMap<String, i64>,
+    /// b9 phase-3 #4: set on an unresolved bare-symbol operand; lower_kernel
+    /// bails fail-closed. Previously such symbols silently encoded as a
+    /// fresh UNINITIALIZED register ([sym] addressing) or 0x0 (mov sym).
+    unknown_sym: Option<String>,
 }
 
 impl RegAlloc {
-    fn new(reg_decls: &HashMap<String, String>) -> Self {
+    fn new(reg_decls: &HashMap<String, String>, shared_syms: std::collections::HashMap<String, i64>) -> Self {
         Self {
             gpr_map: HashMap::new(),
             pred_map: HashMap::new(),
@@ -46,7 +53,18 @@ impl RegAlloc {
             free_preds: Vec::new(),
             pred_hit_cap: None,
             unknown_sreg: None,
+            shared_syms,
+            unknown_sym: None,
         }
+    }
+
+    /// b9 phase-3 #4: EXCH-rebase carry predicate (self-contained two-insn
+    /// chain; a distinct name from CarryChain32's "%cc" so neither clobbers
+    /// the other's live range).
+
+    /// b9 phase-3 #4: shared-window static offset of a bare PTX symbol.
+    fn shared_sym(&self, name: &str) -> Option<i64> {
+        self.shared_syms.get(name).copied()
     }
 
     fn gpr(&mut self, name: &str) -> u8 {
@@ -185,6 +203,19 @@ fn ptx_op_to_sass(op: &PtxOperand, alloc: &mut RegAlloc, neg: bool) -> Operand {
         PtxOperand::IntImm(v) => Operand::Imm32(*v),
         PtxOperand::FloatImm(v) => Operand::FloatImm(v.to_bits()),
         PtxOperand::Addr { base, offset } => {
+            if !base.starts_with('%') {
+                // b9 phase-3 #4: bare-symbol address base. Shared-window
+                // symbols have static layout offsets (RZ = 0 base renders the
+                // pure immediate form `[RZ+0x..]`, printed `[0x..]`); anything
+                // else (module .global etc.) has no static address -> bail
+                // channel. Was previously allocated a fresh UNINITIALIZED
+                // register (silent garbage reads).
+                if let Some(off) = alloc.shared_sym(base) {
+                    return Operand::Addr { base_reg: Some(255), base_reg_suffix: None, ur_reg: None, offset: off + *offset };
+                }
+                if alloc.unknown_sym.is_none() { alloc.unknown_sym = Some(base.clone()); }
+                return Operand::Addr { base_reg: Some(255), base_reg_suffix: None, ur_reg: None, offset: 0 };
+            }
             let base_reg = alloc.resolve(base);
             Operand::Addr { base_reg: Some(base_reg), base_reg_suffix: None, ur_reg: None, offset: *offset }
         }
@@ -406,7 +437,7 @@ impl LoweredKernel {
 }
 
 pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
-    let mut alloc = RegAlloc::new(&kernel.reg_decls);
+    let mut alloc = RegAlloc::new(&kernel.reg_decls, kernel.shared_syms.clone());
     let mut insns: Vec<Instruction> = Vec::new();
     let mut addr: u32 = 0;
 
@@ -430,7 +461,21 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                 label_addrs.insert(name.clone(), est_addr);
             }
             PtxStmt::Insn(insn) => {
-                let expansion_count = estimate_expansion_size(&insn.opcode);
+                let mut expansion_count = estimate_expansion_size(&insn.opcode);
+                // b9 phase-3 #4: EXCH / min.s32 / max.s32 with an offset
+                // rebase through an extra IADD3/IADD3.X pair (vendor law,
+                // see lower_atomic; max.s32 is listed defensively -- it
+                // encodes desc-imm natively since the at10 anchor, so this
+                // branch is inert for it).
+                if insn.opcode.starts_with("atom.")
+                    && (insn.opcode.contains(".exch.")
+                        || insn.opcode.contains(".min.s32")
+                        || insn.opcode.contains(".max.s32"))
+                {
+                    if let Some(PtxOperand::Addr { offset, .. }) = insn.operands.get(1) {
+                        if *offset != 0 { expansion_count += 2; }
+                    }
+                }
                 est_addr += expansion_count * 16;
             }
         }
@@ -617,6 +662,20 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                             let iv = lower_st_global(addr, insn, &mut alloc, guard)?;
                             addr += 16 * iv.len() as u32;
                             insns.extend(iv);
+                        }
+
+                        SassTemplate::Atom | SassTemplate::Red => {
+                            // b9 phase-3 #4: anchored cases lower; every
+                            // unanchored op/type/sem/scope/shape joins the
+                            // unsupported list, never vanishes silently.
+                            let is_red = matches!(&rule.template, SassTemplate::Red);
+                            match lower_atomic(addr, insn, &mut alloc, guard, is_red)? {
+                                Some(v) => {
+                                    addr += 16 * v.len() as u32;
+                                    insns.extend(v);
+                                }
+                                None => { unsupported.insert(insn.opcode.clone()); }
+                            }
                         }
 
                         SassTemplate::Mma => {
@@ -975,6 +1034,11 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
     if let Some(hit) = &alloc.unknown_sreg {
         anyhow::bail!("ptx_lower: unsupported special register {:?} in kernel {} (no sm_103a mapping)", hit, kernel.name);
     }
+    if let Some(hit) = &alloc.unknown_sym {
+        anyhow::bail!(
+            "ptx_lower: unresolved symbol address {:?} in kernel {} (only kernel .shared statics/externs have static offsets; .global needs relocation support)",
+            hit, kernel.name);
+    }
     if let Some(hit) = &alloc.pred_hit_cap {
         anyhow::bail!(
             "ptx_lower: predicate space exhausted (P0..P6) in kernel {} at predicate {:?}; kernel needs live-range-aware allocation",
@@ -1100,6 +1164,11 @@ fn is_cc_op(opcode: &str) -> bool {
 }
 
 fn estimate_expansion_size(opcode: &str) -> u32 {
+    // b9 phase-3 #4: acq_rel atoms wrap the core op in 4 glue instructions
+    // (vendor anchor at5_sem: MEMBAR.ALL.GPU; ERRBAR; CGAERRBAR; core;
+    // CCTL.IVALL). Label-address estimation must match the real expansion
+    // or branch targets shift silently.
+    if opcode.starts_with("atom.") && opcode.contains(".acq_rel.") { return 5; }
     // b9 phase-3 #3 template sizes (instruction counts)
     if opcode.starts_with("mad.lo.cc.") { return 3; }
     if opcode.starts_with("madc.") { return 2; }
@@ -1116,6 +1185,262 @@ fn estimate_expansion_size(opcode: &str) -> u32 {
 /// b9 phase-3 #3: 32-bit add/sub with CC carry in/out. Operand layout and
 /// immediate handling are vendor anchors (see ptx_map.rs doc); one physical
 /// predicate ("%cc") models PTX CC.CF for the whole chain.
+/// b9 phase-3 #4: PTX atom./red. -> SASS atomic class (anchors + suffix map
+/// in ptx_map.rs). Returns Ok(None) => op joins the unsupported list
+/// (unanchored variant); Err => structural violation (bail whole kernel).
+///
+/// Legal space x (op,type) x (sem,scope) matrix (census-attested + anchored):
+///   global|generic atom: add{u32,f32,f64,u64}, and/or/xor.b32, exch.b32,
+///     min/max{u32,s32}, inc/dec.u32, cas.b32; sem/scope: default(.gpu) |
+///     relaxed.sys (cas only) | acq_rel.gpu (add only, glue sequence).
+///   shared atom (level .cta stripped; sem {,relaxed} + scope
+///     {"",cta,gpu,sys} all strip -- vendor emits plain ATOMS, anchor at6):
+///     add.u32, max.u32, cas.b32.
+///   red.global: add{u32,f32} (no dest). Everything else: unsupported.
+fn lower_atomic(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>, is_red: bool,
+) -> Result<Option<Vec<Instruction>>> {
+    // BUG-080: guarded atomic-class ops are silently dropped by sm_103a
+    // silicon (cubit encoder hard-fails them); fail closed by policy.
+    if guard.is_some() { return Ok(None); }
+
+    // opcode token decomposition: atom{.sem}{.scope}{.space}.op{.level}.type
+    // (qualifiers may follow the op too; ptxas accepts both orders, corpus
+    // attests "atom.global.add.acq_rel.gpu.u32").
+    let toks: Vec<&str> = insn.opcode.split('.').collect();
+    let mut space = "";
+    let mut sem = "";
+    let mut scope = "";
+    let mut op = "";
+    let mut ty = "";
+    let mut level = "";
+    for t in toks.iter().skip(1) {
+        match *t {
+            "global" | "shared" | "local" => {
+                if !space.is_empty() { return Ok(None); }
+                space = t;
+            }
+            "relaxed" | "acquire" | "release" | "acq_rel" => {
+                if !sem.is_empty() { return Ok(None); }
+                sem = t;
+            }
+            "gpu" | "sys" | "cluster" => {
+                if !scope.is_empty() { return Ok(None); }
+                scope = t;
+            }
+            "cta" => {
+                if space == "shared" && level.is_empty() { level = t; }
+                else if scope.is_empty() { scope = t; }
+                else { return Ok(None); }
+            }
+            _ if op.is_empty() && matches!(*t,
+                "add" | "and" | "or" | "xor" | "exch" | "min" | "max" | "inc" | "dec" | "cas") => { op = t; }
+            _ if ty.is_empty() && matches!(*t,
+                "u16" | "s16" | "u32" | "s32" | "u64" | "s64" | "b16" | "b32" | "b64" |
+                "f16" | "f16x2" | "bf16" | "bf16x2" | "f32" | "f64" | "u128") => { ty = t; }
+            _ => return Ok(None),
+        }
+    }
+    if op.is_empty() || ty.is_empty() { return Ok(None); }
+
+    let shared = space == "shared";
+    let is64 = matches!(ty, "u64" | "s64" | "b64" | "f64");
+
+    // SASS op suffix per anchored (space, op, type)
+    let sfx: &str = if shared {
+        if is_red { return Ok(None); }
+        match (op, ty) {
+            ("add", "u32") => "ADD",
+            ("max", "u32") => "MAX",
+            ("cas", "b32") => "CAS",
+            _ => return Ok(None),
+        }
+    } else if is_red {
+        if !sem.is_empty() || !scope.is_empty() { return Ok(None); }
+        match (op, ty) {
+            ("add", "u32") => "ADD",
+            ("add", "f32") => "ADD.F32.FTZ.RN",
+            _ => return Ok(None),
+        }
+    } else {
+        // NOTE: add.s32 has no vendor anchor on sm_103a (only u32/f32/f64/
+        // u64); it lands in the unsupported arm below.
+        match (op, ty) {
+            ("add", "u32") => "ADD",
+            ("add", "f32") => "ADD.F32.FTZ.RN",
+            ("add", "f64") => "ADD.F64.RN",
+            ("add", "u64") => "ADD.64",
+            ("and", "b32") => "AND",
+            ("or", "b32") => "OR",
+            ("xor", "b32") => "XOR",
+            ("exch", "b32") => "EXCH",
+            ("min", "u32") => "MIN",
+            ("max", "u32") => "MAX",
+            ("min", "s32") => "MIN.S32",
+            ("max", "s32") => "MAX.S32",
+            ("inc", "u32") => "INC",
+            ("dec", "u32") => "DEC",
+            ("cas", "b32") => "CAS",
+            _ => return Ok(None),
+        }
+    };
+
+    // sem/scope -> SASS scope suffix (+ glue for acq_rel)
+    let (scope_suffix, glue) = if shared {
+        // vendor strips sem/scope on ATOMS entirely (anchor at6)
+        let sem_ok = sem.is_empty() || sem == "relaxed";
+        let scope_ok = scope.is_empty() || matches!(scope, "cta" | "gpu" | "sys");
+        if !sem_ok || !scope_ok { return Ok(None); }
+        ("", false)
+    } else {
+        match (sem, scope) {
+            ("", "") => ("GPU", false),
+            ("relaxed", "sys") if op == "cas" => ("SYS", false),
+            ("acq_rel", "gpu") if op == "add" => ("GPU", true),
+            _ => return Ok(None),
+        }
+    };
+
+    // operand positions: atom d,[a],b[,c]; red [a],b[,c]
+    let ops_base = if is_red { 0 } else { 1 };
+    let addr_ptx = insn.operands.get(ops_base);
+    let val_ptx = insn.operands.get(ops_base + 1);
+    let cmp_ptx = if op == "cas" { insn.operands.get(ops_base + 2) } else { None };
+    if addr_ptx.is_none() || val_ptx.is_none() || (op == "cas" && cmp_ptx.is_none()) {
+        return Ok(None);
+    }
+
+    // destination (atom only)
+    let dst_num: Option<u8> = if is_red {
+        None
+    } else {
+        match insn.operands.first() {
+            Some(PtxOperand::Reg(n)) => Some(alloc.resolve(n)),
+            _ => return Ok(None),
+        }
+    };
+
+    // address: register base (64-bit global/generic, 32-bit shared), or a
+    // shared-window symbol (static RZ+imm), eponymous range checks
+    let (base_num, off) = match addr_ptx {
+        Some(PtxOperand::Addr { base, offset }) => {
+            if base.starts_with('%') {
+                if shared {
+                    if alloc.is_64bit(base) { return Ok(None); } // unattested
+                    (alloc.resolve(base), *offset)
+                } else {
+                    if !alloc.is_64bit(base) { return Ok(None); }
+                    (alloc.resolve(base), *offset)
+                }
+            } else if shared && alloc.shared_sym(base).is_some() {
+                (255u8, alloc.shared_sym(base).unwrap() + *offset)
+            } else {
+                return Ok(None); // named module symbols = reloc territory
+            }
+        }
+        _ => return Ok(None),
+    };
+    // ARI/desc immediate widths: shared/glue-CAS = 24-bit signed; desc = 23-bit
+    let (lo, hi) = if shared || op == "cas" { (-0x800000i64, 0x7fffffi64) } else { (-0x400000i64, 0x3fffffi64) };
+    if !(lo..=hi).contains(&off) {
+        anyhow::bail!("{}: address offset {} exceeds the ARI/desc immediate range", insn.opcode, off);
+    }
+
+    let mut out: Vec<Instruction> = Vec::new();
+    // b9 phase-3 #4: ops WITHOUT a canonical desc-immediate field rebase
+    // the offset into the address register pair, exactly as ptxas does
+    // (-O0: every atomic; -O3: only these ops -- anchors p03/at9, at10):
+    //   EXCH     -- 'E,EXCH,GPU,STRONG' carries no sub_imm2 at all
+    //   min.s32  -- its field is non-canonical 38/24 (BUG-093 queue; no
+    //               +imm vendor word exists anywhere to re-derive against)
+    // The pair is IADD3 lo + IADD3.X hi (iter34 carry-form; %atomcc is the
+    // self-contained scratch predicate, distinct from CarryChain32's %cc).
+    const REBASE_OPS: &[&str] = &["exch", "min"];
+    let needs_rebase = !shared && op == "exch"
+        || (!shared && REBASE_OPS.contains(&op) && ty == "s32");
+    let (base_num, off) = if needs_rebase && off != 0 {
+        let t_pair = alloc.gpr_pair(&format!("__atomoff_{}", addr));
+        let pcc = alloc.pred("%atomcc");
+        out.push(make_insn(addr + 16 * out.len() as u32, "IADD3",
+            vec![op_reg(t_pair.0), Operand::Pred { num: pcc, neg: false }, Operand::Pred { num: 7, neg: false },
+                 op_reg(base_num), Operand::Imm32(off), op_rz()], None));
+        out.push(make_insn(addr + 16 * out.len() as u32, "IADD3.X",
+            vec![op_reg(t_pair.1), Operand::Pred { num: 7, neg: false }, Operand::Pred { num: 7, neg: false },
+                 op_reg(base_num + 1), op_rz(), op_rz(),
+                 Operand::Pred { num: pcc, neg: false }, op_not_pt()], None));
+        (t_pair.0, 0i64)
+    } else { (base_num, off) };
+    let mut mat = |ptx_op: &PtxOperand, alloc: &mut RegAlloc, out: &mut Vec<Instruction>, addr: u32| -> Result<Option<Operand>> {
+        match ptx_op {
+            PtxOperand::Reg(n) => Ok(Some(op_reg(alloc.resolve(n)))),
+            PtxOperand::IntImm(v) if !is64 => {
+                let t = alloc.gpr(&format!("__atomimm_{}", addr + 16 * out.len() as u32));
+                out.push(make_insn(addr + 16 * out.len() as u32, "IMAD.MOV.U32",
+                    vec![op_reg(t), op_rz(), op_rz(), Operand::Imm32(*v)], None));
+                Ok(Some(op_reg(t)))
+            }
+            PtxOperand::FloatImm(v) if ty == "f32" => {
+                let f = *v as f32;
+                if f as f64 != *v { return Ok(None); }
+                let t = alloc.gpr(&format!("__atomimm_{}", addr + 16 * out.len() as u32));
+                out.push(make_insn(addr + 16 * out.len() as u32, "IMAD.MOV.U32",
+                    vec![op_reg(t), op_rz(), op_rz(), Operand::Imm32(f.to_bits() as i64)], None));
+                Ok(Some(op_reg(t)))
+            }
+            _ => Ok(None),
+        }
+    };
+    let val_op = match mat(val_ptx.unwrap(), alloc, &mut out, addr)? { Some(o) => o, None => return Ok(None) };
+    let cmp_op: Option<Operand> = match cmp_ptx {
+        Some(cp) => match mat(cp, alloc, &mut out, addr)? { Some(o) => Some(o), None => return Ok(None) },
+        None => None,
+    };
+
+    // glue prefix (acq_rel anchor): MEMBAR.ALL.GPU; ERRBAR; CGAERRBAR
+    let mut seq: Vec<Instruction> = Vec::new();
+    if glue {
+        for g in ["MEMBAR.ALL.GPU", "ERRBAR", "CGAERRBAR"] {
+            seq.push(make_insn(addr + 16 * seq.len() as u32, g, vec![], None));
+        }
+    }
+    seq.append(&mut out);
+
+    let core_addr = addr + 16 * seq.len() as u32;
+    if shared {
+        let a_op = Operand::Addr { base_reg: Some(base_num), base_reg_suffix: None, ur_reg: None, offset: off };
+        let ops = if op == "cas" {
+            vec![op_reg(dst_num.unwrap()), a_op, cmp_op.unwrap(), val_op]
+        } else {
+            vec![op_reg(dst_num.unwrap()), a_op, val_op]
+        };
+        seq.push(make_insn(core_addr, &format!("ATOMS.{}", sfx), ops, guard));
+    } else if op == "cas" {
+        // vendor CAS uses the plain ARI form (no desc) -- anchor at4/at6
+        let a_op = Operand::Addr { base_reg: Some(base_num), base_reg_suffix: None, ur_reg: None, offset: off };
+        let base_op = if space == "global" { "ATOMG" } else { "ATOM" };
+        seq.push(make_insn(core_addr,
+            &format!("{}.E.CAS.STRONG.{}", base_op, scope_suffix),
+            vec![op_pt(), op_reg(dst_num.unwrap()), a_op, cmp_op.unwrap(), val_op], guard));
+    } else {
+        let desc = Operand::Desc {
+            ur_idx: 4, base_reg: Some(base_num),
+            base_reg_suffix: Some(".64".to_string()), offset: off,
+        };
+        if is_red {
+            seq.push(make_insn(core_addr, &format!("REDG.E.{}.STRONG.GPU", sfx), vec![desc, val_op], guard));
+        } else {
+            let base_op = if space == "global" { "ATOMG" } else { "ATOM" };
+            seq.push(make_insn(core_addr,
+                &format!("{}.E.{}.STRONG.{}", base_op, sfx, scope_suffix),
+                vec![op_pt(), op_reg(dst_num.unwrap()), desc, val_op], guard));
+        }
+    }
+    if glue {
+        seq.push(make_insn(addr + 16 * seq.len() as u32, "CCTL.IVALL", vec![], None));
+    }
+    Ok(Some(seq))
+}
+
 fn lower_carry32(
     addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc,
     sub: bool, cin: bool, cout: bool,
@@ -1131,7 +1456,7 @@ fn lower_carry32(
     let b_op = insn.operands.get(2)
         .ok_or_else(|| anyhow::anyhow!("{}: missing srcB", insn.opcode))?;
     let cout_pred = if cout {
-        Operand::Pred { num: alloc.pred("%cc"), neg: false }
+        Operand::Pred { num: alloc.pred("%atomcc"), neg: false }
     } else { op_pt() };
     if !cin {
         // add.cc / sub.cc (IADD3 with carry-out; sub negates srcB)
@@ -1146,7 +1471,7 @@ fn lower_carry32(
             vec![d, cout_pred, op_pt(), a, b, op_rz()], None);
         return Ok((vec![ins], 1));
     }
-    let cin_pred = Operand::Pred { num: alloc.pred("%cc"), neg: false };
+    let cin_pred = Operand::Pred { num: alloc.pred("%atomcc"), neg: false };
     if !sub {
         // addc / addc.cc
         let b = match b_op {
@@ -1194,7 +1519,7 @@ fn lower_madcc(
     }
     let a: u8 = reg_src!(1)?;
     let b: u8 = reg_src!(2)?;
-    let cc = Operand::Pred { num: alloc.pred("%cc"), neg: false };
+    let cc = Operand::Pred { num: alloc.pred("%atomcc"), neg: false };
     let tmp = alloc.gpr("$madcc_carry_tmp");
     if !hi {
         // mad.lo.cc.u32 d, a, b, c (anchor cr3): IMAD.U32 d ; IMAD t ; IADD3 cc
@@ -1400,6 +1725,30 @@ fn lower_mov_or_sreg(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Opt
                     insn.opcode, regs.join(","));
             }
             other => anyhow::bail!("mov into brace group: unsupported source {:?}", other),
+        }
+    }
+
+    // b9 phase-3 #4: `mov.{u32,b32} %r, <bare symbol>`. The PTX parser
+    // represents a bare identifier as PtxOperand::Label; previously this fell
+    // through to ptx_op_to_sass -> Operand::Label -> encoded SILENTLY as
+    // `MOV Rn, 0x0` (repro work/b9p6: `mov.b32 %r1, sh` -> "MOV R2, 0x0").
+    // Shared-window symbols materialize their static offset (ptxas law:
+    // 0x400-based + decl order + align-up; generic-window CgaCtaId<<24 tag
+    // is deliberately NOT emitted -- gateway shared addressing is plain
+    // 32-bit window offsets, consistent with our LDS/STS lowering).
+    if let PtxOperand::Label(sym) = src {
+        let rn = match d {
+            PtxOperand::Reg(name) if !alloc.is_64bit(name) => alloc.resolve(name),
+            other => anyhow::bail!(
+                "{}: mov of symbol {:?} to {:?}: only 32-bit register dst is attested",
+                insn.opcode, sym, other),
+        };
+        match alloc.shared_sym(sym) {
+            Some(off) => return Ok(vec![make_insn(addr, "IMAD.MOV.U32",
+                vec![op_reg(rn), op_rz(), op_rz(), Operand::Imm32(off)], guard)]),
+            None => anyhow::bail!(
+                "{}: mov of unresolved symbol {:?} (.global symbols need relocation support; b9 out of scope)",
+                insn.opcode, sym),
         }
     }
 

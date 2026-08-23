@@ -122,6 +122,25 @@ pub enum SassTemplate {
     ///   madc.hi:   IMAD.HI.U32 t, a, b, RZ ;
     ///              IADD3.X d, PT, PT, t, c, RZ, Pcin, !PT  (c==0 -> RZ)
     MadCc { hi: bool },
+    /// b9 phase-3 #4: PTX atomic memory op. All lowering decisions are
+    /// vendor anchors (ptxas 13.3 sm_103a probes work/b9p6/at1..at7 -- full
+    /// byte-parity evidence in results/b9/atomred_parity/). Semantics beyond
+    /// decode in lower_atomic (ptx_lower.rs); summary:
+    ///   global/generic -> ATOM[G].E.<suffix>.STRONG.<scope> PT, Rd,
+    ///                     desc[UR4][Ra.64+off], Rv   (CAS: plain [Ra+off],
+    ///                     no desc; compare operand inserted before value)
+    ///   shared         -> ATOMS.<suffix> Rd, [Ra+off], Rv   (sem/scope
+    ///                     stripped; UR/uniform datapath form not used)
+    ///   acq_rel.gpu    -> vendor glue: MEMBAR.ALL.GPU; ERRBAR; CGAERRBAR;
+    ///                     <atomic>; CCTL.IVALL   (at5_sem -O0 anchor)
+    /// BUG-080 policy: guarded atomic-class ops are fail-closed (silicon
+    /// drops them on sm_103a; the encoder hard-fails them upstream).
+    Atom,
+    /// b9 phase-3 #4: PTX reduction atomic (no return value):
+    ///   red.global -> REDG.E.<suffix>.STRONG.GPU desc[UR4][Ra.64+off], Rv
+    /// Anchored for add.u32 / add.f32 only (probes at5); other op/type
+    /// combos fail closed even where RE-table mgs exist.
+    Red,
     /// b9 phase-3 #3: 64-bit shifts -> SHF pair (anchors sh1/sh5; -O0 and
     /// -O3 emit the same pair modulo register naming):
     ///   shl.b64: SHF.L.U64.HI d_hi, a_lo, s, a_hi ; SHF.L.U32 d_lo, a_lo, s, RZ
@@ -307,6 +326,10 @@ pub static RULES: &[PtxRule] = &[
     PtxRule { pattern: "bar.sync",      template: Single { opcode: "BAR.SYNC.DEFER_BLOCKING", slots: &[Src(0), Src(1)] } },
     PtxRule { pattern: "membar.gl",     template: Single { opcode: "MEMBAR.SC.GL", slots: &[] } },
     PtxRule { pattern: "membar.cta",    template: Single { opcode: "MEMBAR.SC.CTA", slots: &[] } },
+
+    // ── Atomics (b9 phase-3 #4; shapes parsed per-op in lower_atomic) ────
+    PtxRule { pattern: "atom.",         template: Atom },
+    PtxRule { pattern: "red.",          template: Red },
 
     // ── Warp ops ─────────────────────────────────────────────────────────
     PtxRule { pattern: "shfl.sync.",    template: Shfl },

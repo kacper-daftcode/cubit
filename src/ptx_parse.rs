@@ -29,6 +29,12 @@ pub struct PtxKernel {
     pub reg_decls: HashMap<String, String>,
     pub body: Vec<PtxStmt>,
     pub shared_bytes: usize,
+    /// b9 phase-3 #4: static+extern shared symbol -> window offset, laid out
+    /// ptxas-style: base 0x400 (1KB reserved head, anchors shsym/at7), decl
+    /// order, each aligned up to its .align; .extern (dynamic) syms come
+    /// AFTER the static region aligned up. Drives `mov.{u32,b32} %r, sym`
+    /// materialization (previously silently encoded as offset 0x0).
+    pub shared_syms: HashMap<String, i64>,
 }
 
 #[derive(Debug, Clone)]
@@ -367,6 +373,23 @@ pub fn parse_ptx(text: &str) -> Result<Vec<PtxKernel>> {
     let lines: Vec<&str> = text.lines().collect();
     let mut i = 0;
 
+    // b9 phase-3 #4: module-level shared declarations (`.extern .shared` /
+    // `.shared` outside any .entry body) are visible to every kernel in the
+    // module (29 corpus files, all extern). Collected once, prepended to each
+    // kernel's own decl list for the layout pass (statics order: module
+    // prelude first, then in-body decls; unattested combination -- all
+    // attested module decls are extern, which sit AFTER statics anyway).
+    let mut module_shared: Vec<(String, usize, usize, bool)> = Vec::new();
+    for l in &lines {
+        let ls = l.trim();
+        if ls.contains(".entry") { break; }
+        if ls.starts_with(".extern .shared") {
+            if let Some(d) = parse_extern_shared(ls) { module_shared.push(d); }
+        } else if ls.starts_with(".shared") {
+            if let Some(d) = parse_shared_named(ls) { module_shared.push(d); }
+        }
+    }
+
     while i < lines.len() {
         let line = lines[i].trim();
 
@@ -395,6 +418,7 @@ pub fn parse_ptx(text: &str) -> Result<Vec<PtxKernel>> {
             let mut reg_decls = HashMap::new();
             let mut body_lines = Vec::new();
             let mut shared_bytes = 0;
+            let mut shared_decls: Vec<(String, usize, usize, bool)> = module_shared.clone();
 
             // asm_block_depth tracks multi-line CUDA inline-asm regions
             // (brace on its own line); ONLY a '}' at depth 0 ends the kernel.
@@ -415,6 +439,13 @@ pub fn parse_ptx(text: &str) -> Result<Vec<PtxKernel>> {
                     if s.starts_with(".reg") { parse_reg_decl(s, &mut reg_decls); continue; }
                     if s.starts_with(".shared") {
                         shared_bytes = parse_shared_decl(s).unwrap_or(0);
+                        if let Some(d) = parse_shared_named(s) { shared_decls.push(d); }
+                        continue;
+                    }
+                    // b9 phase-3 #4: `.extern .shared` (dynamic shared) is a
+                    // symbol declaration too (previously dropped wholesale).
+                    if s.starts_with(".extern .shared") {
+                        if let Some(d) = parse_extern_shared(s) { shared_decls.push(d); }
                         continue;
                     }
                     if s.starts_with('.') { continue; }
@@ -457,7 +488,26 @@ pub fn parse_ptx(text: &str) -> Result<Vec<PtxKernel>> {
                 offset += 8; // all params occupy 8 bytes in cbank (u32 promoted to u64 slot)
             }
 
-            kernels.push(PtxKernel { name, params, reg_decls, body, shared_bytes });
+            // b9 phase-3 #4: shared window layout (ptxas 13.3 sm_103a anchors
+            // shsym/at7: statics first in decl order, align-up; then externs).
+            let mut shared_syms = HashMap::new();
+            {
+                let mut cur: i64 = 0x400;
+                let mut n_ext = 0usize;
+                for (nm, sz, al, ext) in &shared_decls {
+                    if *ext { n_ext += 1; continue; }
+                    cur = (cur + (*al as i64) - 1) & !((*al as i64) - 1);
+                    shared_syms.insert(nm.clone(), cur);
+                    cur += *sz as i64;
+                }
+                for (nm, _sz, al, ext) in &shared_decls {
+                    if !*ext { continue; }
+                    cur = (cur + (*al as i64) - 1) & !((*al as i64) - 1);
+                    shared_syms.insert(nm.clone(), cur);
+                }
+                let _ = n_ext;
+            }
+            kernels.push(PtxKernel { name, params, reg_decls, body, shared_bytes, shared_syms });
         } else {
             i += 1;
         }
@@ -532,6 +582,26 @@ fn parse_reg_decl(line: &str, decls: &mut HashMap<String, String>) {
             }
         }
     }
+}
+
+/// b9 phase-3 #4: named static shared decl -> (name, bytes, align).
+fn parse_shared_named(line: &str) -> Option<(String, usize, usize, bool)> {
+    let re = regex::Regex::new(
+        r"\.shared\s+(?:\.align\s+(\d+)\s+)?\.(\w+)\s+([A-Za-z_][\w$]*)(?:\[(\d*)\])?\s*;?\s*$").unwrap();
+    let cap = re.captures(line)?;
+    let align: usize = cap.get(1).map_or(4, |m| m.as_str().parse().unwrap_or(4));
+    let elem = ptx_type_size(&cap[2]);
+    let count: usize = cap.get(4).and_then(|m| m.as_str().parse().ok()).unwrap_or(1);
+    Some((cap[3].to_string(), elem * count, align, false))
+}
+
+/// b9 phase-3 #4: `.extern .shared .align N .ty name[]` -> (name, 0, align, true).
+fn parse_extern_shared(line: &str) -> Option<(String, usize, usize, bool)> {
+    let re = regex::Regex::new(
+        r"\.extern\s+\.shared\s+(?:\.align\s+(\d+)\s+)?\.(\w+)\s+([A-Za-z_][\w$]*)").unwrap();
+    let cap = re.captures(line)?;
+    let align: usize = cap.get(1).map_or(4, |m| m.as_str().parse().unwrap_or(4));
+    Some((cap[3].to_string(), 0, align, true))
 }
 
 fn parse_shared_decl(line: &str) -> Option<usize> {

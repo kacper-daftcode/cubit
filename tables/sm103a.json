@@ -32706,9 +32706,17 @@
        "token_idx": 3,
        "extraction": "sub_ur0",
        "_src": "2c"
+      },
+      {
+       "shift": 40,
+       "bits": 23,
+       "token_idx": 3,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
       }
      ],
-     "count": 10
+     "count": 10,
+     "_evidence_maxs32_imm": "b9p6: sub_imm2@40/23 canonical; anchor ptxas 13.3 sm_103a -O3 at10 'ATOMG.E.MAX.S32.STRONG.GPU PT, R7, desc[UR6][R2.64+0x4], R11' (work/b9p6/probes/at10.cubin @0x90)"
     },
     "E,GPU,MIN,STRONG": {
      "and_base": "0x00016000089ef1068000000100ff09a8",
@@ -32748,13 +32756,21 @@
        "token_idx": 3,
        "extraction": "sub_ur0",
        "_src": "2c"
+      },
+      {
+       "shift": 40,
+       "bits": 23,
+       "token_idx": 3,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
       }
      ],
-     "count": 8
+     "count": 8,
+     "_evidence_min_imm": "b9p6: sub_imm2{40,23,tok3} copied from sibling ADD grid; anchor at3_O3 .text.at3_mm+0xb0 'ATOMG.E.MIN.STRONG.GPU PT, R9, desc[UR6][R2.64+0x8], R7' imm@40==0x8; expands enc to imm-offset form only (decode of imm==0 words unchanged)"
     },
     "E,GPU,INC,STRONG": {
-     "and_base": "0x000e2400099ef10080000000000079a8",
-     "variable_mask": "0x0071c8000000001e0000000706070000",
+     "and_base": "0x99ef10080000000000009a8",
+     "variable_mask": "0xff7ffffffffffff000",
      "fields": [
       {
        "shift": 16,
@@ -32792,14 +32808,407 @@
        "_src": "2c"
       },
       {
-       "shift": 35,
-       "bits": 24,
+       "shift": 40,
+       "bits": 23,
        "token_idx": 3,
        "extraction": "sub_imm2",
+       "_src": "2aE"
+      }
+     ],
+     "count": 6,
+     "_evidence_fix_b9p6": "b9p6 F-fix BUG-093-class: fields had sub_imm2@35/24 overlapping srcB[32:40) -> encoder ZERO-clobbered srcB bits[35:40) (R8->R0, R9->R1 proven by repro work/b9p6/derive/m) and displaced any imm. Re-baselined to row-canonical sub_imm2@40/23 (ADD grid). ab re-derived; both vendor anchors (at4 -O0 srcB=0 / at4_O3 srcB=9) agree. Caveat: no vendor INC+imm word exists; imm-span inherits sibling geometry unanchored."
+    },
+    "64,ADD,E,GPU,STRONG": {
+     "and_base": "0x81ef50080000000000009a8",
+     "variable_mask": "0x3ffce000000003e7ffffcfffeff7000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 23,
+       "token_idx": 3,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 77,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
        "_src": "2c"
       }
      ],
-     "count": 6
+     "count": 1,
+     "_evidence": "b9p6 atom-red phase-3 #4: ptxas 13.3 sm_103a anchor at2 at2_u64+0x160 text 'ATOMG.E.ADD.64.STRONG.GPU PT, R2, desc[UR4][R4.64], R2;' word fc000081ef50480000002040279a8; ab=W&~vm&~SCHED&~bit123 sibling-grid ADD,E,GPU,STRONG; extraction_ok=True"
+    },
+    "ADD,E,F64,GPU,RN,STRONG": {
+     "and_base": "0xc1eff0080000000000009a3",
+     "variable_mask": "0x3ffce000000003e7ffffcfffeff7000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 23,
+       "token_idx": 3,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 77,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2c"
+      }
+     ],
+     "count": 1,
+     "_evidence": "b9p6 atom-red phase-3 #4: ptxas 13.3 sm_103a anchor at2 at2_f64+0x120 text 'ATOMG.E.ADD.F64.RN.STRONG.GPU PT, R2, desc[UR4][R4.64], R2;' word fc0000c1eff0480000002040279a3; ab=W&~vm&~SCHED&~bit123 sibling-grid ADD,E,GPU,STRONG; extraction_ok=True"
+    },
+    "AND,E,GPU,STRONG": {
+     "and_base": "0xa9ef10080000000000009a8",
+     "variable_mask": "0x3ffce000000003e7ffffcfffeff7000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 23,
+       "token_idx": 3,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 77,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2c"
+      }
+     ],
+     "count": 1,
+     "_evidence": "b9p6 atom-red phase-3 #4: ptxas 13.3 sm_103a anchor at3 at3_bits+0x110 text 'ATOMG.E.AND.STRONG.GPU PT, R4, desc[UR4][R4.64], R3;' word fc0000a9ef10480000003040479a8; ab=W&~vm&~SCHED&~bit123 sibling-grid ADD,E,GPU,STRONG; extraction_ok=True"
+    },
+    "DEC,E,GPU,STRONG": {
+     "and_base": "0xa1ef10080000000000009a8",
+     "variable_mask": "0x3ffce000000003e7ffffcfffeff7000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 23,
+       "token_idx": 3,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 77,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2c"
+      }
+     ],
+     "count": 1,
+     "_evidence": "b9p6 atom-red phase-3 #4: ptxas 13.3 sm_103a anchor at4 at4_incdec+0x1c0 text 'ATOMG.E.DEC.STRONG.GPU PT, R3, desc[UR4][R4.64], R0;' word fc0000a1ef10480000000040379a8; ab=W&~vm&~SCHED&~bit123 sibling-grid ADD,E,GPU,STRONG; extraction_ok=True"
+    },
+    "E,GPU,MAX,STRONG": {
+     "and_base": "0x91ef10080000000000009a8",
+     "variable_mask": "0x3ffce000000003e7ffffcfffeff7000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 23,
+       "token_idx": 3,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 77,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2c"
+      }
+     ],
+     "count": 1,
+     "_evidence": "b9p6 atom-red phase-3 #4: ptxas 13.3 sm_103a anchor at3 at3_mm+0x160 text 'ATOMG.E.MAX.STRONG.GPU PT, R4, desc[UR4][R4.64], R0;' word fc000091ef10480000000040479a8; ab=W&~vm&~SCHED&~bit123 sibling-grid ADD,E,GPU,STRONG; extraction_ok=True"
+    },
+    "E,GPU,OR,STRONG": {
+     "and_base": "0xb1ef10080000000000009a8",
+     "variable_mask": "0x3ffce000000003e7ffffcfffeff7000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 23,
+       "token_idx": 3,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 77,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2c"
+      }
+     ],
+     "count": 1,
+     "_evidence": "b9p6 atom-red phase-3 #4: ptxas 13.3 sm_103a anchor at3 at3_bits+0x1a0 text 'ATOMG.E.OR.STRONG.GPU PT, R5, desc[UR4][R6.64], R3;' word fc0000b1ef10480000003060579a8; ab=W&~vm&~SCHED&~bit123 sibling-grid ADD,E,GPU,STRONG; extraction_ok=True"
+    },
+    "E,GPU,STRONG,XOR": {
+     "and_base": "0xb9ef10080000000000009a8",
+     "variable_mask": "0x3ffce000000003e7ffffcfffeff7000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 23,
+       "token_idx": 3,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 77,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2c"
+      }
+     ],
+     "count": 1,
+     "_evidence": "b9p6 atom-red phase-3 #4: ptxas 13.3 sm_103a anchor at3 at3_bits+0x230 text 'ATOMG.E.XOR.STRONG.GPU PT, R6, desc[UR4][R6.64], R3;' word fc0000b9ef10480000003060679a8; ab=W&~vm&~SCHED&~bit123 sibling-grid ADD,E,GPU,STRONG; extraction_ok=True"
     }
    },
    "scheduling": {
@@ -34391,8 +34800,8 @@
      "count": 146
     },
     "E,GPU,MIN,STRONG": {
-     "and_base": "0x0005e0000c92e100000000010000098e",
-     "variable_mask": "0x016a06000000003e0000000606000000",
+     "and_base": "0xc92e100000000000000798e",
+     "variable_mask": "0xffffffffffff000000",
      "fields": [
       {
        "shift": 64,
@@ -34416,14 +34825,15 @@
        "_src": "2aE"
       },
       {
-       "shift": 35,
+       "shift": 40,
        "bits": 24,
        "token_idx": 1,
        "extraction": "sub_imm2",
-       "_src": "2c"
+       "_src": "2aE"
       }
      ],
-     "count": 7
+     "count": 7,
+     "_evidence_fix_b9p6": "b9p6 F-fix BUG-093-class: REDG MIN sub_imm2 was @35/24: imm displaced AND (per encoder zero-write semantics) clobbered srcB bits[35:40) for srcB>=8. Canonical 40/24; anchors at10(+0x8 imm, guard-PT-normalized for BUG-080 line) + at10_O0(imm0) agree."
     },
     "E,GPU,OR,STRONG": {
      "and_base": "0x0001e4000f12e100000000010000098e",
@@ -34459,6 +34869,48 @@
       }
      ],
      "count": 24
+    },
+    "E,GPU,MAX,STRONG": {
+     "and_base": "0xd12e100000000000000098e",
+     "variable_mask": "0xffffffffffff00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      }
+     ],
+     "count": 1,
+     "_evidence": "b9p6 atom-red phase-3 #4: ptxas 13.3 sm_103a -O0 anchor at7 .text.at7_misc+0x230 'REDG.E.MAX.STRONG.GPU desc[UR4][R2.64], R0'; sibling-grid E,GPU,MIN,STRONG | b9p6 regrided to REDG canonical ADD grid (40/24); initial grid copied 35/24 from E,GPU,MIN,STRONG sibling = same BUG-093-class overlap (caught pre-landing)"
     }
    },
    "scheduling": {
@@ -36319,6 +36771,56 @@
       }
      ],
      "count": 102
+    },
+    "CAS,E,STRONG,SYS": {
+     "and_base": "0x1f4100000000000000700b",
+     "variable_mask": "0xffffffffffffff0780",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "sub_r0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 5,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 7,
+       "bits": 4,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2c"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 3,
+       "extraction": "sub_imm1",
+       "_src": "2c"
+      }
+     ],
+     "count": 1,
+     "_evidence": "b9p6 atom-red phase-3 #4: ptxas 13.3 sm_103a anchor at6 at6_cas+0x170 text 'ATOM.E.CAS.STRONG.SYS PT, R4, [R4], R2, R3;' word fc000001f4103000000020404738b; ab=W&~vm&~SCHED&~bit123 sibling-grid CAS,E,GPU,STRONG; extraction_ok=True | b9p6 regrid: sub_imm1 39/24->40/24 (family witness ATOMG CAS,SYS@40 by at9 word; own anchor imm=0 consistent -- no ATOM-CAS+imm vendor word exists)"
     }
    },
    "scheduling": {
@@ -47420,6 +47922,42 @@
       }
      ],
      "count": 2
+    },
+    "MAX": {
+     "and_base": "0x1000000000000000000738c",
+     "variable_mask": "0x1f7c600000000000001807f7f7f0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      }
+     ],
+     "count": 1,
+     "_evidence": "b9p6 atom-red phase-3 #4: ptxas 13.3 sm_103a anchor at5 at5_shared+0xd0 text 'ATOMS.MAX R3, [R0], R3;' word fc00001000000000000030003738c; ab=W&~vm&~SCHED&~bit123 sibling-grid ADD; extraction_ok=True"
     }
    },
    "scheduling": {
@@ -48078,6 +48616,49 @@
       }
      ],
      "count": 4
+    },
+    "MAX": {
+     "and_base": "0x900000000000000ff00098c",
+     "variable_mask": "0x22eaa00000001ffffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "mk19"
+      },
+      {
+       "shift": 64,
+       "bits": 9,
+       "token_idx": 2,
+       "extraction": "sub_ur0",
+       "_src": "mk19"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "mk19"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "mk19"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "mk19"
+      }
+     ],
+     "count": 1,
+     "_evidence": "b9p6 atom-red phase-3 #4: ptxas 13.3 sm_103a anchor at5_O3 at5_shared+0x280 text 'ATOMS.MAX R3, [UR4], R3 ;' word 2e68000900000400000003ff03798c; ab=W&~vm&~SCHED&~bit123 sibling-grid ADD; extraction_ok=True"
     }
    },
    "scheduling": {
@@ -51675,8 +52256,8 @@
      "count": 18
     },
     "CAS,E,STRONG,SYS": {
-     "and_base": "0x000ea400001f410100000000000073a9",
-     "variable_mask": "0x002040000000004e0000004e0e070000",
+     "and_base": "0x1f41000000000000007029",
+     "variable_mask": "0xffffffffffffff0780",
      "fields": [
       {
        "shift": 16,
@@ -51714,14 +52295,15 @@
        "_src": "2c"
       },
       {
-       "shift": 39,
+       "shift": 40,
        "bits": 24,
        "token_idx": 3,
        "extraction": "sub_imm1",
        "_src": "2c"
       }
      ],
-     "count": 10
+     "count": 10,
+     "_evidence_fix_b9p6": "b9p6 F-fix BUG-093-class: sub_imm1 was @39/24 (misplaced imm, clobbered dest bits[39:40) when dest>=0x20); corrected to canonical @40/24; three vendor anchors agree (at9 +0x4 imm witness; at4/at4_O3 imm=0)"
     },
     "CAS,E,GPU,STRONG": {
      "and_base": "0x000e2400001ee10100000000000173a9",
@@ -56618,6 +57200,69 @@
     "def_latency": 1,
     "throughput": 1,
     "is_variable_latency": false
+   }
+  },
+  "ATOMS_R_ARI_R_R": {
+   "base_op": "ATOMS",
+   "operand_sig": "R_ARI_R_R",
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "mod_groups": {
+    "CAS": {
+     "and_base": "0x38d",
+     "variable_mask": "0xfffffffffffffff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "b9p6-atomred"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "b9p6-atomred"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "b9p6-atomred"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "b9p6-atomred"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "b9p6-atomred"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "b9p6-atomred"
+      }
+     ],
+     "count": 1,
+     "_evidence": "b9p6 atom-red: NEW ROW ATOMS_R_ARI_R; anchor ptxas 13.3 sm_103a at6 .text.at6_cas+0x190 'ATOMS.CAS R5, [R5], R2, R3'; grid sibling ATOMS_R_ARI_R(ADD) + 4th reg@64 per ATOMG_P_R_ARI_R_R; field extraction verified: 5/5/2/0/3 @16/24/32/40/64"
+    }
    }
   }
  },

@@ -757,3 +757,199 @@ fn b9p5_carry_fail_closed() {
     let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
     assert!(err.contains("add.cc.u32"), "imm on carry-out writer must name the op: {}", err);
 }
+
+/// b9 phase-3 #4: atom/red lowering forms encode (vendor anchors work/b9p6
+/// at1..at7 + p03/at9; byte-parity results/b9/atomred_parity).
+#[test]
+fn b9p6_atom_global_forms() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0,
+    .param .u32 k_param_1,
+    .param .f32 k_param_2,
+    .param .f64 k_param_3,
+    .param .u64 k_param_4
+)
+{{
+    .reg .b32 %r<14>;
+    .reg .f32 %f<6>;
+    .reg .b64 %rd<14>;
+    ld.param.u64 %rd1, [k_param_0];
+    atom.global.add.u32 %r1, [%rd1], 7;
+    atom.global.and.b32 %r2, [%rd1+4], %r1;
+    atom.global.or.b32  %r3, [%rd1+8], %r1;
+    atom.global.xor.b32 %r4, [%rd1+12], %r1;
+    atom.global.min.u32 %r5, [%rd1+16], %r1;
+    atom.global.max.s32 %r6, [%rd1+20], %r1;
+    atom.global.inc.u32 %r7, [%rd1+24], %r1;
+    atom.global.dec.u32 %r8, [%rd1+28], %r1;
+    atom.global.exch.b32 %r9, [%rd1+32], %r2;
+    atom.global.cas.b32 %r10, [%rd1+4], %r1, %r2;
+    atom.global.add.f32 %f1, [%rd1], 1.0;
+    ld.param.f64 %fd2, [k_param_3];
+    ld.param.u64 %rd3, [k_param_4];
+    atom.global.add.f64 %fd4, [%rd1], %fd2;
+    atom.global.add.u64 %rd5, [%rd1+8], %rd3;
+    red.global.add.u32 [%rd1+16], %r10;
+    red.global.add.f32 [%rd1+20], %f1;
+    st.global.b32 [%rd1+36], %r9;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let lowered = lower_kernel(&kernels[0]).unwrap();
+    let text = lowered.to_sass_text();
+    for want in [
+        "ATOMG.E.ADD.STRONG.GPU PT, R", "ATOMG.E.AND.STRONG.GPU PT, R",
+        "ATOMG.E.OR.STRONG.GPU PT, R", "ATOMG.E.XOR.STRONG.GPU PT, R",
+        "ATOMG.E.MIN.STRONG.GPU PT, R", "ATOMG.E.MAX.S32.STRONG.GPU PT, R",
+        "ATOMG.E.INC.STRONG.GPU PT, R", "ATOMG.E.DEC.STRONG.GPU PT, R",
+        "ATOMG.E.EXCH.STRONG.GPU PT, R", "ATOMG.E.CAS.STRONG.GPU PT, R",
+        "ATOMG.E.ADD.F32.FTZ.RN.STRONG.GPU PT, R", "ATOMG.E.ADD.F64.RN.STRONG.GPU PT, R",
+        "ATOMG.E.ADD.64.STRONG.GPU PT, R",
+        "REDG.E.ADD.STRONG.GPU desc", "REDG.E.ADD.F32.FTZ.RN.STRONG.GPU desc",
+        // imm value materialization (anchor at1_imm)
+        "IMAD.MOV.U32 R",
+    ] { assert!(text.contains(want), "missing form {:?}:\n{}", want, text); }
+    // EXCH+0x20 must rebase into an IADD3 pair (vendor -O0/-O3 law: the mg
+    // has no desc-imm field; imm must NOT appear on the EXCH line itself)
+    let exch_line = text.lines().find(|l| l.contains("EXCH")).unwrap();
+    assert!(!exch_line.contains("+0x"), "exch rebase failed:\n{}", text);
+    let (_bytes, _n) = assemble_body(&text);
+}
+
+/// b9 phase-3 #4: shared atomics + shared-symbol static layout (anchors
+/// at5/at6/at7/shsym): mov-sym -> 0x400-based offsets, decl order, align-up;
+/// extern AFTER statics; [sym+off] -> [RZ+imm] render-parse roundtrip.
+#[test]
+fn b9p6_atom_shared_and_syms() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b32 %r<12>;
+    .reg .b64 %rd<3>;
+    .shared .align 4 .b8 sa[16];
+    .shared .align 16 .b8 sb[8];
+    ld.param.u64 %rd1, [k_param_0];
+    mov.b32 %r1, sa;
+    mov.b32 %r2, sb;
+    atom.shared.add.u32 %r3, [%r1], 5;
+    atom.shared.cta.add.u32 %r4, [%r1+4], %r3;
+    atom.shared.max.u32 %r5, [%r1], %r4;
+    atom.relaxed.sys.shared.cas.b32 %r6, [%r2], %r3, %r4;
+    st.shared.b32 [%r2+4], %r6;
+    ld.shared.b32 %r7, [sa+8];
+    st.shared.b32 [sb], %r7;
+    st.global.b32 [%rd1], %r5;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let lowered = lower_kernel(&kernels[0]).unwrap();
+    let text = lowered.to_sass_text();
+    for want in [
+        "IMAD.MOV.U32 R2, RZ, RZ, 0x400",
+        "IMAD.MOV.U32 R3, RZ, RZ, 0x410",
+        "ATOMS.ADD R", "ATOMS.MAX R", "ATOMS.CAS R",
+    ] { assert!(text.contains(want), "missing {:?}:\n{}", want, text); }
+    assert!(text.contains("[R255+0x408]") || text.contains("[RZ+0x408]"),
+        "symbol-offset addressing must fold to RZ+imm (sa@0x400+8):\n{}", text);
+    let (_bytes, _n) = assemble_body(&text);
+}
+
+/// b9 phase-3 #4: acq_rel.gpu atom wraps the core op in the vendor glue
+/// sequence (anchor at5_sem -O0) and the whole thing encodes.
+#[test]
+fn b9p6_acq_rel_glue() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0,
+    .param .u32 k_param_1
+)
+{{
+    .reg .b32 %r<6>;
+    .reg .b64 %rd<3>;
+    ld.param.u64 %rd1, [k_param_0];
+    ld.param.u32 %r1, [k_param_1];
+    atom.global.add.acq_rel.gpu.u32 %r2, [%rd1], %r1;
+    st.global.b32 [%rd1+8], %r2;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let lowered = lower_kernel(&kernels[0]).unwrap();
+    let text = lowered.to_sass_text();
+    let pos = |s: &str| text.find(s).unwrap_or(usize::MAX);
+    let (m, e1, e2, a, c) = (pos("MEMBAR.ALL.GPU"), pos("ERRBAR"), pos("CGAERRBAR"),
+        pos("ATOMG.E.ADD.STRONG.GPU"), pos("CCTL.IVALL"));
+    assert!(m < e1 && e1 < e2 && e2 < a && a < c,
+        "acq_rel glue sequence order broken:\n{}", text);
+    let (_bytes, _n) = assemble_body(&text);
+}
+
+/// b9 phase-3 #4: fail-closed behavior — unanchored variants name the op in
+/// the unsupported list; named module symbols are reloc territory.
+#[test]
+fn b9p6_atom_fail_closed() {
+    // guarded atomic (BUG-080; 0 corpus sites)
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .pred %p<2>;
+    .reg .b32 %r<6>;
+    .reg .b64 %rd<3>;
+    ld.param.u64 %rd1, [k_param_0];
+    setp.eq.s32 %p1, %r1, %r1;
+    add.s32 %r1, %r1, 1;
+    @%p1 atom.global.add.u32 %r2, [%rd1], %r1;
+    st.global.b32 [%rd1+8], %r2;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
+    assert!(err.contains("atom.global.add.u32"), "guarded atomic must name the op: {}", err);
+
+    // unanchored op/type (add.s32) and red.shared get listed, not skipped
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b32 %r<6>;
+    .reg .b64 %rd<3>;
+    .shared .align 4 .b8 sx[8];
+    ld.param.u64 %rd1, [k_param_0];
+    atom.global.add.s32 %r2, [%rd1], %r1;
+    red.shared.add.u32 [%r2], %r1;
+    st.global.b32 [%rd1+8], %r2;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
+    assert!(err.contains("atom.global.add.s32"), "unanchored type must be named: {}", err);
+    assert!(err.contains("red.shared.add.u32"), "shared red must be named: {}", err);
+
+    // mov of an unresolved module .global symbol: hard fail naming the symbol
+    let ptx = format!(r#"{}
+.global .u32 g_x;
+ .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b32 %r<4>;
+    .reg .b64 %rd<3>;
+    ld.param.u64 %rd1, [k_param_0];
+    mov.b32 %r1, g_x;
+    st.global.b32 [%rd1], %r1;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
+    assert!(err.contains("g_x"), "unresolved symbol must be named: {}", err);
+}
+
+/// b9 phase-3 #4: parser canonicalizes pure-immediate addresses [0x400] to
+/// the RZ-based form (nvdisasm's own spelling) so render->parse closes.
+#[test]
+fn b9p6_pure_imm_address_parse() {
+    let body = "LDS R2, [0x400] ;\nSTS [RZ+0x410], R3 ;\n";
+    let (_b, n) = assemble_body(body);
+    assert_eq!(n, 2);
+    // and the gateway's [sym+off] fold renders exactly this spelling
+}

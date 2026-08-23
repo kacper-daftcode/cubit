@@ -282,7 +282,17 @@ fn parse_single_operand(s: &str, is_float_context: bool) -> Operand {
 
     // Address: [R0+0x8]
     if s.starts_with('[') {
-        return parse_address(s).unwrap_or(Operand::Label(s.to_string()));
+        // b9 phase-3 #4: a pure-immediate address `[0x400]` is the RZ-based
+        // form `[RZ+0x400]` under another spelling (nvdisasm prints the short
+        // form; 0 _AI rows exist in the sm103a table). Canonicalize HERE
+        // (plain brackets only -- c[bank][inner] and desc[UR][inner] reuse
+        // parse_address for their inner part and have real cAI/dAI rows).
+        return match parse_address(s) {
+            Some(Operand::Addr { base_reg: None, ur_reg: None, offset, .. }) =>
+                Operand::Addr { base_reg: Some(255), base_reg_suffix: None, ur_reg: None, offset },
+            Some(op) => op,
+            None => Operand::Label(s.to_string()),
+        };
     }
 
     // Constant memory: c[0x0][0x37c]
