@@ -46,7 +46,7 @@
   },
   "ctrl_classes": {
    "alu_iadd3": {
-    "description": "3-source ALU (IADD3, IMAD, FFMA) \u2014 Rc2 in hi[7:0]",
+    "description": "3-source ALU (IADD3, IMAD, FFMA) — Rc2 in hi[7:0]",
     "hi_lower32_fixed_mask": "0x07c00000",
     "hi_lower32_sched_mask": "0x00000000",
     "hi_upper32": "epoch_standard",
@@ -68,7 +68,7 @@
     "wait_mask_field": "hi[21:16]"
    },
    "s2r": {
-    "description": "System register read \u2014 hi[15:8] = SR code (opcode extension, not scheduling)",
+    "description": "System register read — hi[15:8] = SR code (opcode extension, not scheduling)",
     "hi_lower32_fixed_mask": "0x0000ff00",
     "hi_lower32_sched_mask": "0x003f00ff",
     "hi_upper32": "epoch_standard",
@@ -86,7 +86,7 @@
     "wait_mask_field": "hi[21:16]"
    },
    "mufu": {
-    "description": "MUFU transcendentals \u2014 hi[15:8] = function code (TABLES_opex_0)",
+    "description": "MUFU transcendentals — hi[15:8] = function code (TABLES_opex_0)",
     "hi_lower32_fixed_mask": "0x0000ff00",
     "hi_lower32_sched_mask": "0x000000ff",
     "hi_upper32": "epoch_standard",
@@ -106,7 +106,7 @@
     "stall_field": "hi[3:0]"
    },
    "ldc": {
-    "description": "32-bit constant bank load \u2014 hi[11:8]=0x8 is type discriminator",
+    "description": "32-bit constant bank load — hi[11:8]=0x8 is type discriminator",
     "hi_lower32_fixed_mask": "0x00000800",
     "hi_lower32_sched_mask": "0x00000000",
     "hi_upper32": "epoch_ldc",
@@ -115,7 +115,7 @@
     ]
    },
    "ldc64": {
-    "description": "64-bit constant bank load \u2014 hi[11:8]=0xa is type discriminator",
+    "description": "64-bit constant bank load — hi[11:8]=0xa is type discriminator",
     "hi_lower32_fixed_mask": "0x00000a00",
     "hi_lower32_sched_mask": "0x00000000",
     "hi_upper32": "epoch_ldc",
@@ -133,7 +133,7 @@
     ]
    },
    "ldcu64": {
-    "description": "64-bit uniform constant bank load \u2014 bit43=1 required",
+    "description": "64-bit uniform constant bank load — bit43=1 required",
     "hi_lower32_fixed_mask": "0x08000a00",
     "hi_lower32_sched_mask": "0x00000000",
     "hi_upper32": "epoch_ldc",
@@ -143,7 +143,7 @@
     ]
    },
    "ldg": {
-    "description": "Global memory load (descriptor form) \u2014 lower 32 all fixed discriminators",
+    "description": "Global memory load (descriptor form) — lower 32 all fixed discriminators",
     "hi_lower32_fixed_mask": "0x0c1e1900",
     "hi_lower32_sched_mask": "0x00000000",
     "hi_upper32": "epoch_ldg",
@@ -154,7 +154,7 @@
     "nop_gap_before_iadd3": 1
    },
    "stg": {
-    "description": "Global memory store (descriptor form) \u2014 lower 32 all fixed, upper 32 has write/wait",
+    "description": "Global memory store (descriptor form) — lower 32 all fixed, upper 32 has write/wait",
     "hi_lower32_fixed_mask": "0x0c101900",
     "hi_lower32_sched_mask": "0x00000000",
     "hi_upper32": "epoch_stg",
@@ -178,7 +178,7 @@
     "hi_upper32": "epoch_standard"
    },
    "lds": {
-    "description": "Shared memory load \u2014 hi[11:8]=0x8 is type discriminator",
+    "description": "Shared memory load — hi[11:8]=0x8 is type discriminator",
     "hi_lower32_fixed_mask": "0x00000800",
     "hi_lower32_sched_mask": "0x00000000",
     "hi_upper32": "epoch_standard",
@@ -187,7 +187,7 @@
     ]
    },
    "sts": {
-    "description": "Shared memory store \u2014 hi[11:8]=0x8 is type discriminator",
+    "description": "Shared memory store — hi[11:8]=0x8 is type discriminator",
     "hi_lower32_fixed_mask": "0x00000800",
     "hi_lower32_sched_mask": "0x00000000",
     "hi_upper32": "epoch_standard",
@@ -208,7 +208,7 @@
     "hi_upper32": "epoch_standard"
    },
    "ldgsts": {
-    "description": "Async global\u2192shared copy",
+    "description": "Async global→shared copy",
     "hi_lower32_fixed_mask": "0x00000000",
     "hi_lower32_sched_mask": "0x003fffff",
     "hi_upper32": "epoch_standard"
@@ -226,7 +226,7 @@
     "hi_upper32": "epoch_standard"
    },
    "imad_wide": {
-    "description": "IMAD.WIDE \u2014 upper 32 must be 0x000fc000 (not 0x000fe200)",
+    "description": "IMAD.WIDE — upper 32 must be 0x000fc000 (not 0x000fe200)",
     "hi_lower32_fixed_mask": "0x078e00ff",
     "hi_lower32_sched_mask": "0x00000000",
     "hi_upper32": "epoch_imad_wide",
@@ -266,7 +266,7 @@
     "hi_upper32": "epoch_standard"
    },
    "barrier": {
-    "description": "Barrier / sync / membar \u2014 no scheduling bits",
+    "description": "Barrier / sync / membar — no scheduling bits",
     "hi_lower32_fixed_mask": "0x00000000",
     "hi_lower32_sched_mask": "0x00000000",
     "hi_upper32": "epoch_standard",
@@ -275,7 +275,7 @@
     ]
    },
    "ctrl_flow": {
-    "description": "Control flow (BRA, CALL, RET, BSSY, BSYNC, etc.) \u2014 no standard scheduling",
+    "description": "Control flow (BRA, CALL, RET, BSSY, BSYNC, etc.) — no standard scheduling",
     "hi_lower32_fixed_mask": "0x00000000",
     "hi_lower32_sched_mask": "0x00000000",
     "hi_upper32": "epoch_standard",
@@ -284,7 +284,7 @@
     ]
    },
    "exit_static": {
-    "description": "EXIT \u2014 fully static ctrl word, bit43 required",
+    "description": "EXIT — fully static ctrl word, bit43 required",
     "hi_lower32_fixed_mask": "0x03800000",
     "hi_lower32_sched_mask": "0x00000000",
     "hi_upper32": "epoch_exit",
@@ -294,7 +294,7 @@
     ]
    },
    "nop": {
-    "description": "NOP \u2014 fully static, no write/wait mask allowed",
+    "description": "NOP — fully static, no write/wait mask allowed",
     "hi_lower32_fixed_mask": "0x00000000",
     "hi_lower32_sched_mask": "0x00000000",
     "hi_upper32": "epoch_nop",
@@ -307,7 +307,7 @@
   },
   "sigfix": "run31h: sig-bit resync dla klas *SETP (iter N)",
   "_errata_2026_08_22": "BUG-079(ULEA family regen from 12887 vendor anchors: sm120 singleton-junk rows replaced, imm2 5b@75 window vs bit80 HI discriminator, neg@63/72 + inv@63 + ureg_ff + UP-in@81/6b + UP-out@87/4b; render-parity 12887/12887 both tables)",
-  "_errata_2026_08_23_A": "BUG-086 (canon prep): UISETP II key tok5 pred 4b@87 -> 3b@87+neg@90 (2 vendor anchors !UPn source); +mg AND,LE,U32 on UISETP II key (6 anchors, bool bit74); UISETP EX-UR key EX,NE,OR,U32 fields de-junked (2 anchors, junk tok1@8/tok5@3 removed); ISETP II-EX key +mg AND,EX,GE (1 anchor). Residuum: 1 word imm8@40 subform (PLOP3-shadow) parked (single-anchor doctrine, F2Q). UR-key EQ,OR,U32 de-fossil (2 anchors; fields=GE,OR,U32). + AND,EQ UISETP II (nvdisasm-probe word, byte 0x22; zamyka bug012-pin klas\u0119). UR-key +U64/S64 mgs (AND,GE,U64/AND,GT,U64/AND,NE,S64/NE,OR,S64) carry z sond 057. tok2-fix globalny rodziny (120 mgs): non-EX->(68,4), EX->(84,3); zamyka harvest-regresje kD (strzezone slowa drukowaly P8 z okna guard). Normalizacja szablonu pol predykatow calej rodziny (per-key); zamyka PLOP3-hijack R1 (tok5 real pred nie miescil sie w starych polach po 2e-erze). II-EX +AND,EX,GE,U32 (anchor R2).",
+  "_errata_2026_08_23_A": "BUG-086 (canon prep): UISETP II key tok5 pred 4b@87 -> 3b@87+neg@90 (2 vendor anchors !UPn source); +mg AND,LE,U32 on UISETP II key (6 anchors, bool bit74); UISETP EX-UR key EX,NE,OR,U32 fields de-junked (2 anchors, junk tok1@8/tok5@3 removed); ISETP II-EX key +mg AND,EX,GE (1 anchor). Residuum: 1 word imm8@40 subform (PLOP3-shadow) parked (single-anchor doctrine, F2Q). UR-key EQ,OR,U32 de-fossil (2 anchors; fields=GE,OR,U32). + AND,EQ UISETP II (nvdisasm-probe word, byte 0x22; zamyka bug012-pin klasę). UR-key +U64/S64 mgs (AND,GE,U64/AND,GT,U64/AND,NE,S64/NE,OR,S64) carry z sond 057. tok2-fix globalny rodziny (120 mgs): non-EX->(68,4), EX->(84,3); zamyka harvest-regresje kD (strzezone slowa drukowaly P8 z okna guard). Normalizacja szablonu pol predykatow calej rodziny (per-key); zamyka PLOP3-hijack R1 (tok5 real pred nie miescil sie w starych polach po 2e-erze). II-EX +AND,EX,GE,U32 (anchor R2).",
   "_errata_2026_08_23B": "BUG-094: (1) sm120 LDS/LDL/STL family re-canonicalized to sm103a geometry (junk rows gave: LDS.U8/U16 hijacked into LDG.E.LTC128B.128 slot, LDL.LU phantom +UR0, STL.128 imm top-byte truncation, STL.S16/LDL.S16 DECERR-or-hijack, STL/STL.64 pure-UR hijack); (2) junk decode modgroup LDG_R_dARI::128,E,LTC128B removed (0 legit anchors over 885k-word corpus+2049-bin audits; 100% offender traffic: LDS.U8/U16, LDL.S16, STL family); era-text encodability preserved via encode_only retention row LDG.E.LTC128B.128_R_dARI with verbatim pre-094 geometry; (3) ATOMG_P_R_ARI_R_R (CAS family) added to sm120 from sm103a canon; (4) printer: ATOM*/REDG size modifier prints between operation and STRONG (vendor order ATOMG.E.CAS.64.STRONG.SYS). Anchors: work/f2-094/",
   "tc5_mk296": "2026-08-23 mk296 tcgen05 front: +58 mod groups, +4 keys (UTCCP/UTCSHIFT/LDTM.STAT-family new keys: ); EXACT gate 323/324 roundtrip, parity+unk no-regression"
  },
@@ -62790,6 +62790,84 @@
      "count": 2,
      "_src": "b9p11-2026-08-23",
      "_note": "NEW ROW (UBLKCP absent). delta-metoda: O0/O3 anchors differ exactly in the two [URn] operands; size ureg 8b@64 = 4 in both. constants bits 73/91. corpus form cp.async.bulk.shared::cluster.global = .S(dst shared) .G(src global)."
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   }
+  },
+  "PLOP3_P_P_R_R_R_II_II": {
+   "base_op": "PLOP3",
+   "operand_sig": "P_P_R_R_R_II_II",
+   "mod_groups": {
+    "LUT": {
+     "and_base": "0x0000000000000000000000000000021f",
+     "variable_mask": "0x00000000007effff000000fffffff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "b9p13-2026-08-23"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "b9p13-2026-08-23"
+      },
+      {
+       "shift": 84,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "b9p13-2026-08-23"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "b9p13-2026-08-23"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "b9p13-2026-08-23"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 5,
+       "extraction": "reg",
+       "_src": "b9p13-2026-08-23"
+      },
+      {
+       "shift": 72,
+       "bits": 8,
+       "token_idx": 6,
+       "extraction": "imm",
+       "_src": "b9p13-2026-08-23"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 7,
+       "extraction": "imm",
+       "_src": "b9p13-2026-08-23"
+      }
+     ],
+     "count": 76,
+     "_src": "b9p13-2026-08-23",
+     "_note": "NEW ROW: PLOP3.LUT Pd, Pd2, Ra.SIGN, Rb.SIGN, Rc.SIGN, lutA, lutB (R.SIGN sign-inputs; add.sat.s32 lowering family). word-probe RE: 18 ptxas -O0/-O3 probes (work/b9p13/t/satprobes) x2 PLOP3 each + corpus p27 O0/O3 = 76 words, exact-fit model guard[12,4) Pd[81,3) Pd2[84,3) a[24,8) b[32,8) c[64,8) lutA[72,8) lutB[16,8): 0/76 unexplained payload bits. Fields decode-verified by nvdisasm bit-patch probes (work/b9p13/t/probe2_*): Pd1@84 PT->P1, Pd0@81 P0->P2, lutB@16 0x0->0x08, guard@12 -> @P0 prefix. Parser NOTE: 'R5.SIGN' suffix is dropped at parse (class R), the ROW carries the sign semantics (decode prints plain Rn -- cosmetic, render-parity under b11). Only .SIGN-input shape attested (add.sat family); plain-R PLOP3 inputs unattested/fail-closed by row absence. evidence: work/b9p13/t/plop3sign_samples.json."
     }
    },
    "scheduling": {

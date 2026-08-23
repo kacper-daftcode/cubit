@@ -327,6 +327,20 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
         return x;
     };
 
+    // b9p13 (phase-3 #11): PLOP3 has two domains. The predicate-domain rows
+    // (P_P_P_P_P_II_II, class "none") track nothing here; the b9p13 encode
+    // row PLOP3_P_P_R_R_R_II_II (R.SIGN sign-inputs, add.sat.s32 family)
+    // carries R operands. The roles table is keyed per base op (no per-sig
+    // dispatch), so the SIGN shape gets a dedicated branch: every top-level
+    // R operand is a USE (the .SIGN source registers; the sum dest appears
+    // as its own IADD3 def). Pred dest stays pred-domain (M2 pred-liveness).
+    // Evidence note: tables/operand_roles.json base_ops.PLOP3.
+    if op == "PLOP3" {
+        for o in &insn.operands {
+            use_operand(o, &mut x, 1);
+        }
+        return x;
+    }
     match entry.cls.as_str() {
         // Plain ALU / moves (R and UR twins): dest-first, rest read.
         "alu" => {

@@ -66,7 +66,7 @@ fn b9_unknown_op_fail_closed() {
     .reg .b32 %r<2>;
     .reg .f32 %f<2>;
     mov.b32      %r1, 7;
-    tanh.approx.f32 %f1, %f2;
+    tcgen05.wait::st.sync.aligned;
     tcgen05.wait::ld.sync.aligned;
     mov.b32      %r2, %r1;
     ret;
@@ -74,9 +74,12 @@ fn b9_unknown_op_fail_closed() {
     let kernels = parse_ptx(&ptx).unwrap();
     let err = lower_kernel(&kernels[0]).unwrap_err();
     let msg = format!("{:#}", err);
-    assert!(msg.contains("tanh.approx.f32"), "error must name the op: {}", msg);
+    assert!(msg.contains("tcgen05.wait::st.sync.aligned"), "error must name the op: {}", msg);
     // iter39 (b9p10): griddepcontrol.* is now SUPPORTED (vendor anchor ns1);
     // aggregation partner swapped to a permanently out-of-scope op.
+    // iter42 (b9p13): tanh.approx.f32 is now SUPPORTED (phase-3 #11 mufu lane,
+    // MUFU.TANH vendor anchor corpus p18); negative partner swapped to the
+    // ::st sibling (tcgen05 family remains permanently out of scope for b9).
     assert!(msg.contains("tcgen05.wait::ld.sync.aligned"), "error must aggregate ALL unsupported ops: {}", msg);
 }
 

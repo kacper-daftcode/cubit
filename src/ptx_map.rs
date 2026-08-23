@@ -26,6 +26,9 @@ pub enum OpSlot {
     RZ,
     /// Implicit negated-PT (!PT).
     NotPT,
+    /// b9p13 (phase-3 #11): implicit negated RZ (`-RZ`; abs.f32 unary-FADD
+    /// form `FADD d, -RZ, |a|`, anchor corpus p18 O0 0x350).
+    NegRZ,
 }
 
 /// What kind of SASS output a PTX rule produces.
@@ -385,6 +388,31 @@ pub enum SassTemplate {
     /// mad.wide.u32 -> IMAD.U32 + IMAD.HI.U32 + IADD3/IADD3.X add of the
     /// 64-bit addend (anchor madwi -O0 0x470..04c0; corpus bench_m9 fam).
     MadWide32,
+    /// b9p13 (phase-3 #11): add.sat.s32 -> vendor -O0 5-op macro
+    /// IADD3 + 2x PLOP3.LUT with R.SIGN sign-inputs + 2x SEL saturation
+    /// clamps (anchors corpus p27 O0 0x290-0x2d0 + word-probes work/b9p13;
+    /// new table row PLOP3_P_P_R_R_R_II_II, 76-anchor exact fit).
+    AddSatS32,
+    /// b9p13: sin.approx.f32 / cos.approx.f32 -> FMUL.RZ by 1/(2pi) +
+    /// MUFU.SIN/COS (anchors corpus p18 O0 0x4d0/0x500; phase-1 Singles were
+    /// guess-mappings dropping the 1/2pi scale = wrong function, O0==-O3 form).
+    SinCos { cos: bool },
+    /// b9p13: ex2.approx.f32 -> vendor -O0 6-op range-scaled macro
+    /// (FSETP.LT vs -126 / FMUL 0.5 / FSEL / MUFU.EX2 / FMUL sq / FSEL,
+    /// anchor corpus p18 O0 0x2a0-0x320; -O3 uses guarded 4-op variant,
+    /// documented divergence). Replaces phase-1 guess Single MUFU.EX2.
+    Ex2Approx,
+    /// b9p13: lg2.approx.f32 -> vendor -O0 7-op denormal-guard macro
+    /// (FADD |a| / FSETP.LT vs 2^-126 / FMUL 2^24 / FSEL / MUFU.LG2 /
+    /// FADD -24 / FSEL, anchor corpus p18 O0 0x3e0-0x4a0; -O3 elides the
+    /// guard when the input range is provably normal, documented divergence).
+    Lg2Approx,
+    /// b9p13: div.approx.f32 -> vendor -O0 8-op macro
+    /// (FADD |b| / FSETP.LT vs 2^-126 / FMUL.FTZ-less 2^24 scale of b /
+    /// FSEL / MUFU.RCP / FMUL 2^24 scale of a / FSEL / FMUL; anchors corpus
+    /// mufu1 O0 0x1c0-0x280 + p18 O0 0xaa0-..). -O3 folds constant divisors
+    /// to reciprocal-multiply (documented divergence).
+    DivApproxF32,
 }
 
 /// b9 phase-3 #9: mul64 flavour (see SassTemplate::Mul64).
@@ -445,6 +473,9 @@ pub static RULES: &[PtxRule] = &[
     PtxRule { pattern: "max.u32",       template: Single { opcode: "VIMNMX.U32", slots: &[Src(0), PT, PT, Src(1), Src(2), NotPT] } },
     PtxRule { pattern: "neg.s32",       template: Single { opcode: "IADD3", slots: &[Src(0), PT, PT, NegSrc(1), RZ, RZ] } },
     PtxRule { pattern: "abs.s32",       template: Single { opcode: "IABS",  slots: &[Src(0), Src(1)] } },
+    // b9p13 (phase-3 #11): add.sat.s32 -> IADD3 + 2x PLOP3.LUT(R.SIGN) + 2x
+    // SEL (anchors corpus p27 O0 0x290-0x2d0; O3 form identical role-shape).
+    PtxRule { pattern: "add.sat.s32",   template: AddSatS32 },
 
     // ── Bitwise / shift ──────────────────────────────────────────────────
     PtxRule { pattern: "and.b64",       template: B64Logic { lut: 0xc0 } },
@@ -527,15 +558,27 @@ pub static RULES: &[PtxRule] = &[
     PtxRule { pattern: "fma.rn.f64",    template: Single { opcode: "DFMA", slots: &[Src(0), Src(1), Src(2), Src(3)] } },
 
     // ── Math functions (MUFU) ────────────────────────────────────────────
+    // b9p13 (phase-3 #11): sin/cos/ex2/lg2 were phase-1 GUESS Singles, never
+    // anchor-verified; vendor anchors show them semantically wrong (dropped
+    // 1/2pi scale for sin/cos, dropped range scaling for ex2/lg2) -> macros.
+    // rcp.rn.f32 / sqrt.rn.f32 / div.rn.f32: vendor lowers via inline fast
+    // path + FCHK/guard + CALL.REL.NOINC $__internal slowpath helper (anchors
+    // corpus p18/test12 O0+O3) = call-lane (parked, iter40) -> REMOVED the
+    // guess Singles so these go fail-closed unsupported instead of silently
+    // emitting the approximate fast path. rcp.approx / rsqrt.approx /
+    // sqrt.approx Singles stay (unanchored, zero corpus use -- F-note).
     PtxRule { pattern: "rcp.approx",    template: Single { opcode: "MUFU.RCP",  slots: &[Src(0), Src(1)] } },
-    PtxRule { pattern: "rcp.rn.f32",    template: Single { opcode: "MUFU.RCP",  slots: &[Src(0), Src(1)] } },
     PtxRule { pattern: "rsqrt.approx",  template: Single { opcode: "MUFU.RSQ",  slots: &[Src(0), Src(1)] } },
     PtxRule { pattern: "sqrt.approx",   template: Single { opcode: "MUFU.SQRT", slots: &[Src(0), Src(1)] } },
-    PtxRule { pattern: "sqrt.rn.f32",   template: Single { opcode: "MUFU.SQRT", slots: &[Src(0), Src(1)] } },
-    PtxRule { pattern: "lg2.approx",    template: Single { opcode: "MUFU.LG2",  slots: &[Src(0), Src(1)] } },
-    PtxRule { pattern: "ex2.approx",    template: Single { opcode: "MUFU.EX2",  slots: &[Src(0), Src(1)] } },
-    PtxRule { pattern: "sin.approx",    template: Single { opcode: "MUFU.SIN",  slots: &[Src(0), Src(1)] } },
-    PtxRule { pattern: "cos.approx",    template: Single { opcode: "MUFU.COS",  slots: &[Src(0), Src(1)] } },
+    PtxRule { pattern: "lg2.approx.f32",    template: Lg2Approx },
+    PtxRule { pattern: "ex2.approx.f32",    template: Ex2Approx },
+    PtxRule { pattern: "sin.approx.f32",    template: SinCos { cos: false } },
+    PtxRule { pattern: "cos.approx.f32",    template: SinCos { cos: true } },
+    PtxRule { pattern: "tanh.approx.f32", template: Single { opcode: "MUFU.TANH", slots: &[Src(0), Src(1)] } },
+    PtxRule { pattern: "div.approx.f32",  template: DivApproxF32 },
+    // b9p13: abs.f32 -> FADD d, -RZ, |a| (anchors corpus p18/mufu1 O0 0x350
+    // + test12 slowpath 0x600; -O3 FOLDS |.| into consumers -- documented).
+    PtxRule { pattern: "abs.f32",       template: Single { opcode: "FADD", slots: &[Src(0), NegRZ, AbsSrc(1)] } },
 
     // ── Moves ────────────────────────────────────────────────────────────
     PtxRule { pattern: "mov.u32",       template: SpecialRegMov },
