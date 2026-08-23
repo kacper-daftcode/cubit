@@ -49820,11 +49820,11 @@
        "_src": "tc5-mk296"
       },
       {
-       "shift": 24,
+       "shift": 32,
        "bits": 8,
        "token_idx": 2,
        "extraction": "gdesc_ur",
-       "_src": "tc5-mk296"
+       "_src": "tc5-mk296+f2-104(tok2@32)"
       },
       {
        "shift": 64,
@@ -49853,6 +49853,13 @@
        "token_idx": 6,
        "extraction": "neg",
        "_src": "tc5-mk296"
+      },
+      {
+       "shift": 10,
+       "bits": 2,
+       "token_idx": 1,
+       "extraction": "dsel2",
+       "_src": "f2-104"
       }
      ],
      "count": 2
@@ -54111,6 +54118,13 @@
        "token_idx": 0,
        "extraction": "guard",
        "_src": "tc5-mk296"
+      },
+      {
+       "shift": 10,
+       "bits": 2,
+       "token_idx": 1,
+       "extraction": "dsel2",
+       "_src": "f2-104"
       }
      ],
      "count": 6
@@ -61950,13 +61964,6 @@
        "_src": "tc5-mk299"
       },
       {
-       "shift": 10,
-       "bits": 2,
-       "token_idx": 1,
-       "extraction": "dsel2",
-       "_src": "tc5-mk299"
-      },
-      {
        "shift": 12,
        "bits": 4,
        "token_idx": 0,
@@ -62054,7 +62061,7 @@
    "operand_sig": "_",
    "mod_groups": {
     "": {
-     "and_base": "0x0011d0000800030000040000000011ea",
+     "and_base": "0x0011d000080003000004000000001dea",
      "variable_mask": "0x000e0e000780003f000a7effff00ec00",
      "fields": [
       {
@@ -62114,7 +62121,8 @@
        "_src": "tc5-mk296"
       }
      ],
-     "count": 6
+     "count": 6,
+     "and_base_src": "f2-104: b10-11=3 vendor law (was 0)"
     },
     "2CTA": {
      "and_base": "0x00000000082003080000000000001dea",
@@ -62156,13 +62164,6 @@
        "_src": "tc5-mk299"
       },
       {
-       "shift": 10,
-       "bits": 2,
-       "token_idx": 1,
-       "extraction": "dsel2",
-       "_src": "tc5-mk299"
-      },
-      {
        "shift": 12,
        "bits": 4,
        "token_idx": 0,
@@ -62187,7 +62188,8 @@
      "count": 17,
      "replaces": {
       "and_base": "0x0011d00008200300...",
-      "count": 2
+      "count": 2,
+      "dsel2_field": "dropped f2-104 (constant in and_base; kind-tag over-fit, encode Mis 17/17)"
      }
     }
    },
@@ -62245,8 +62247,8 @@
        "shift": 24,
        "bits": 8,
        "token_idx": 1,
-       "extraction": "gdesc_ur",
-       "_src": "tc5-verify"
+       "extraction": "tdesc_ur",
+       "_src": "tc5-verify+f2-104"
       },
       {
        "shift": 32,
@@ -62257,10 +62259,10 @@
       },
       {
        "shift": 64,
-       "bits": 23,
+       "bits": 8,
        "token_idx": 3,
        "extraction": "tmem_ur",
-       "_src": "tc5-verify"
+       "_src": "tc5-verify+f2-104-narrow"
       },
       {
        "shift": 40,
@@ -62289,6 +62291,13 @@
        "token_idx": 7,
        "extraction": "neg",
        "_src": "tc5-verify"
+      },
+      {
+       "shift": 10,
+       "bits": 2,
+       "token_idx": 1,
+       "extraction": "dsel2",
+       "_src": "f2-104"
       }
      ],
      "count": 48

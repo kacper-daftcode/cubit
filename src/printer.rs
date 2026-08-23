@@ -326,6 +326,32 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         operands.remove(0);
     }
 
+    // BUG-104 (ur-up URZ elision): the *_UR_UP enable-UR slot encodes URZ as
+    // 0xFF; nvdisasm then prints the SHORT form without the UR token entirely
+    // (harvest-2049 bi8_hop class, 164 words, cuobjdump-verified). Re-encode
+    // is byte-identical: the elided text routes to the 6II row whose and_base
+    // carries the same 0xFF in that slot. Elide the URZ token so render ==
+    // vendor spelling.
+    if insn.opcode.starts_with("UTC")
+        && (insn.key.ends_with("_UR_UP") || insn.key.contains("_UR_UP_II"))
+    {
+        let last_is_upred = operands.last().map(|s| {
+            let t = s.trim_start_matches('!');
+            t == "UPT" || (t.starts_with("UP") && t[2..].chars().all(|c| c.is_ascii_digit()) && t.len() > 2)
+        }).unwrap_or(false);
+        if last_is_upred && operands.len() >= 2 {
+            let urz_tok = insn.fields.iter().find(|f| {
+                norm_ext(&f.extraction) == "ureg" && f.value == 255
+            }).map(|f| f.token_idx);
+            if let Some(tok) = urz_tok {
+                let idx = (tok - 1) as usize;
+                if idx + 1 == operands.len() - 1 {
+                    operands.remove(idx);
+                }
+            }
+        }
+    }
+
     if operands.is_empty() {
         format!("{guard_prefix}{opcode}")
     } else {

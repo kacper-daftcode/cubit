@@ -2167,7 +2167,10 @@ fn op_lbl_scrape(insn: &Instruction, tok: i32, pat: &str) -> u64 {
                     Some((a, b)) => (a, Some(b)),
                     None => (b, None),
                 };
-                let n = num_s.parse::<u64>().unwrap_or(0);
+                // URZ alias: URZ encodes as 0xFF in the 8-bit descriptor slots
+                // (same rule as the kind-fixed scrape paths below).
+                let n = if num_s == "Z" { 255 }
+                    else { num_s.parse::<u64>().unwrap_or(0) };
                 let off = match off_s {
                     Some(o) => o.strip_prefix("0x")
                         .and_then(|h| u64::from_str_radix(h, 16).ok())
