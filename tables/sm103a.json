@@ -59833,6 +59833,457 @@
     "throughput": 1,
     "is_variable_latency": false
    }
+  },
+  "UTCHMMA_II_II_II_II_II_UR_UP": {
+   "base_op": "UTCHMMA",
+   "operand_sig": "_",
+   "mod_groups": {
+    "": {
+     "and_base": "0x0001f0000800000000000000000001ea",
+     "variable_mask": "0x000e0e000780003f000c7effff00fc00",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 64,
+       "bits": 23,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 40,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "tmem_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 48,
+       "bits": 8,
+       "token_idx": 6,
+       "extraction": "ureg",
+       "_src": "tc5-verify-mk297"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 7,
+       "extraction": "pred",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 7,
+       "extraction": "neg",
+       "_src": "tc5-verify"
+      }
+     ],
+     "count": 48
+    },
+    "2CTA": {
+     "and_base": "0x0011d0000820000000080000000011ea",
+     "variable_mask": "0x000e0e000780003f00007effff00ec00",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 40,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "tmem_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 48,
+       "bits": 8,
+       "token_idx": 6,
+       "extraction": "ureg",
+       "_src": "tc5-verify-const8"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 7,
+       "extraction": "pred",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 7,
+       "extraction": "neg",
+       "_src": "tc5-verify"
+      }
+     ],
+     "count": 148
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   }
+  },
+  "UTCHMMA_II_II_II_II_II_UR_UP_II": {
+   "base_op": "UTCHMMA",
+   "operand_sig": "_",
+   "mod_groups": {
+    "": {
+     "and_base": "0x0001f0000800000000000000000001ea",
+     "variable_mask": "0x000e0e000780183f000c7effff00fc00",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 40,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "tmem_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 48,
+       "bits": 8,
+       "token_idx": 6,
+       "extraction": "ureg",
+       "_src": "tc5-verify-mk297"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 7,
+       "extraction": "pred",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 7,
+       "extraction": "neg",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 75,
+       "bits": 2,
+       "token_idx": 8,
+       "extraction": "imm",
+       "_src": "tc5-verify-mk297"
+      }
+     ],
+     "count": 24
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   }
+  },
+  "UTCIMMA_II_II_II_II_II_UR_UP": {
+   "base_op": "UTCIMMA",
+   "operand_sig": "_",
+   "mod_groups": {
+    "": {
+     "and_base": "0x0001f20009000100000000f9c50085ea",
+     "variable_mask": "0x000600000680000f000c1e063a001000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 40,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "tmem_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 48,
+       "bits": 8,
+       "token_idx": 6,
+       "extraction": "ureg",
+       "_src": "tc5-verify-mk297"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 7,
+       "extraction": "pred",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 7,
+       "extraction": "neg",
+       "_src": "tc5-verify"
+      }
+     ],
+     "count": 9
+    },
+    "2CTA": {
+     "and_base": "0x0011d8000920010000080000000075ea",
+     "variable_mask": "0x000600000680001f00001effff000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 40,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "tmem_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 48,
+       "bits": 8,
+       "token_idx": 6,
+       "extraction": "ureg",
+       "_src": "tc5-verify-const8"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 7,
+       "extraction": "pred",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 7,
+       "extraction": "neg",
+       "_src": "tc5-verify"
+      }
+     ],
+     "count": 37
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   }
+  },
+  "UTCQMMA_II_II_II_II_II_UR_UP": {
+   "base_op": "UTCQMMA",
+   "operand_sig": "_",
+   "mod_groups": {
+    "": {
+     "and_base": "0x0001f0000800030000000081c00081ea",
+     "variable_mask": "0x000e0e000780003f000c7e7e3f001c00",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 40,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "tmem_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 48,
+       "bits": 8,
+       "token_idx": 6,
+       "extraction": "ureg",
+       "_src": "tc5-verify-mk297"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 7,
+       "extraction": "pred",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 7,
+       "extraction": "neg",
+       "_src": "tc5-verify"
+      }
+     ],
+     "count": 18
+    },
+    "2CTA": {
+     "and_base": "0x0011d0000820030000080000000071ea",
+     "variable_mask": "0x000e0e000780003f00007effff000c00",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 40,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "tmem_ur",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 48,
+       "bits": 8,
+       "token_idx": 6,
+       "extraction": "ureg",
+       "_src": "tc5-verify-const8"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 7,
+       "extraction": "pred",
+       "_src": "tc5-verify"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 7,
+       "extraction": "neg",
+       "_src": "tc5-verify"
+      }
+     ],
+     "count": 74
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   }
   }
  },
  "sched_only": {},
