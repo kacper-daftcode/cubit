@@ -319,7 +319,7 @@ fn synthetic_mismatched_table() -> IsaTable {
         Field { shift: 32, bits: 8, mask: 0xff, token_idx: 4, extraction: Extraction::Reg },
         Field { shift: 81, bits: 3, mask: 0x7, token_idx: 1, extraction: Extraction::Pred },
     ];
-    let mg = ModGroupEntry { and_base: 0x720c, variable_mask: 0, fields };
+    let mg = ModGroupEntry { and_base: 0x720c, variable_mask: 0, fields, encode_only: false };
     let mut mod_groups = HashMap::new();
     mod_groups.insert("AND,LT".to_string(), mg);
     let mut entries = HashMap::new();
@@ -353,7 +353,7 @@ fn test_reject_imm_form_entry_for_reg_operand() {
         Field { shift: 24, bits: 8, mask: 0xff, token_idx: 2, extraction: Extraction::Reg },
         Field { shift: 32, bits: 32, mask: 0xffff_ffff, token_idx: 3, extraction: Extraction::Imm },
     ];
-    let mg = ModGroupEntry { and_base: 0x7848, variable_mask: 0, fields };
+    let mg = ModGroupEntry { and_base: 0x7848, variable_mask: 0, fields, encode_only: false };
     let mut mod_groups = HashMap::new();
     mod_groups.insert("U32".to_string(), mg);
     let mut entries = HashMap::new();
@@ -381,7 +381,7 @@ fn test_reject_fully_baked_entry_for_varying_regs() {
     let fields = vec![
         Field { shift: 123, bits: 1, mask: 1, token_idx: 4, extraction: Extraction::Reuse },
     ];
-    let mg = ModGroupEntry { and_base: 0x0400000003f24000000000040500720b, variable_mask: 0, fields };
+    let mg = ModGroupEntry { and_base: 0x0400000003f24000000000040500720b, variable_mask: 0, fields, encode_only: false };
     let mut mod_groups = HashMap::new();
     mod_groups.insert("AND,GT".to_string(), mg);
     let mut entries = HashMap::new();

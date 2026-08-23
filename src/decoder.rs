@@ -98,6 +98,13 @@ impl DecodeIndex {
                 continue;
             }
             for (mods, mg) in &ike.mod_groups {
+                // BUG-092: mod-group-level encode_only retention rows are
+                // likewise decode-invisible; canonical mod groups on the same
+                // key own decode, the retention exists only so pinned legacy
+                // '(base_key, "")' text re-encodes byte-exact.
+                if mg.encode_only {
+                    continue;
+                }
                 ordered.push((key, ike, mods, mg));
             }
         }

@@ -73849,6 +73849,74 @@
      ],
      "count": 3,
      "_evidence_tpl": "BUG-086: szablon pol predykatow z sond 057 (dest@81/src@84/R@24/UR@32/tok5@87+neg@90) + EX-cin@68; corpus 221k/131k uniform"
+    },
+    "": {
+     "and_base": "0x0000000000700070000000000000028c",
+     "fields": [
+      {
+       "shift": 81,
+       "bits": 3,
+       "extraction": "pred",
+       "token_idx": 1
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "extraction": "ureg",
+       "token_idx": 3
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "extraction": "ureg",
+       "token_idx": 4
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "extraction": "reuse",
+       "token_idx": 3
+      },
+      {
+       "shift": 123,
+       "bits": 1,
+       "extraction": "reuse",
+       "token_idx": 4
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "extraction": "pred",
+       "token_idx": 5
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "extraction": "inv",
+       "token_idx": 5
+      },
+      {
+       "shift": 76,
+       "bits": 3,
+       "extraction": "opaque_mod",
+       "token_idx": 0
+      },
+      {
+       "shift": 73,
+       "bits": 1,
+       "extraction": "opaque_mod",
+       "token_idx": 0
+      },
+      {
+       "shift": 91,
+       "bits": 2,
+       "extraction": "opaque_mod",
+       "token_idx": 0
+      }
+     ],
+     "variable_mask": "0x0c0000001f8e7200000000ffff00f000",
+     "encode_only": true,
+     "_evidence": "BUG-092: verbatim retention of the pre-086 (2c76e16) legacy \"\" group so frozen-era render UISETP.?GT.?S32.?OR UP0,UPT,URa,URb,UPT (rt98_v2.sass:2288 = publish sass98 KernelA 0x1af0) re-encodes byte-exact; decoder skips (canonical AND,GT owns decode; vendor nvdisasm 13.3 confirms word 000fe2000bf0427000000000f3f00728c = UISETP.GT.AND)"
     }
    }
   },

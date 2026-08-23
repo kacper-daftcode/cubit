@@ -38,6 +38,12 @@ struct JsonModGroup {
     pub fields: Vec<JsonField>,
     #[allow(dead_code)]
     pub count: Option<usize>,
+    /// BUG-092: mod-group-level encode-only retention (decoder skips this
+    /// group, encoder sees it). Key-level `encode_only` hides a whole InsKey;
+    /// some frozen-era legacy renders ('?'-mod glyph soup) resolve to
+    /// (base_key, "") which must coexist with canonical groups on the same key.
+    #[serde(default)]
+    pub encode_only: bool,
 }
 
 #[derive(Deserialize)]
@@ -295,6 +301,10 @@ pub struct ModGroupEntry {
     pub variable_mask: u128,
     /// Variable fields with extraction rules.
     pub fields: Vec<Field>,
+    /// BUG-092: encoder-visible, decoder-invisible mod group (legacy frozen
+    /// text compatibility at (base_key, "") granularity; canonical groups on
+    /// the same key still own the decode surface).
+    pub encode_only: bool,
 }
 
 /// All modifier groups for one instruction key.
@@ -495,7 +505,7 @@ impl IsaTable {
                         vm
                     });
 
-                mod_groups.insert(mods, ModGroupEntry { and_base, variable_mask, fields });
+                mod_groups.insert(mods, ModGroupEntry { and_base, variable_mask, fields, encode_only: jmg.encode_only });
             }
 
             entries.insert(key, InsKeyEntry { mod_groups, ctrl_class: None, epoch_upper32: None, encode_only: jik.encode_only });
