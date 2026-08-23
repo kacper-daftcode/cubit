@@ -46,7 +46,7 @@ const UIMAD_ORIG: u128 = 0x000fe2000f8e001000000400131a78a5;
 const REDG_AND_ORIG: u128 = 0x0009e4000aa0e1140a2400404200298e;
 /// rt98_pub.cubin .text.KernelA ins3188 (REDG.E.OR.EL.STRONG.GPU desc).
 const REDG_OR_ORIG: u128 = 0x0009e4000b20e1140a2400171900798e;
-/// rt98_pub.cubin .text.KernelA ins2158 (ISETP.GT.U32 mixed-form).
+/// rt98_pub.cubin .text.KernelA ins2158 (ISETP.GT.U32 mixed-form wg era; nvdisasm 13.3: plain GT.AND).
 const ISETP_ORIG: u128 = 0x001fda000bf24270000000161a007c0c;
 
 #[test]
@@ -124,12 +124,24 @@ fn bug049_redg_mercury_record_halves_register_to_table_index() {
 
 #[test]
 fn bug049_isetp_mixed_ur_renumbered_roundtrip() {
-    let w = enc("ISETP.GT.U32.AND P1, PT, |R6|, UR15, PT");
+    // BUG-086 (2026-08-23): vendor semantics canonicalized per nvdisasm 13.3 +
+    // 221k corpus anchors: bits[75:72]=cmp, bit73=1 signed (0 U32), bit74=bool.
+    // ERA-glyph reading (U32 + |R26| abs for word with byte72=0x42) was a
+    // pre-anchor RE-era mislabel: vendor probes render ISETP_ORIG as plain
+    // signed GT.AND and the whole family has ZERO abs/neg-on-register anchors
+    // in the corpus (abs is not a vendor-observed shape on ISETP sigs).
+    // See results/cubitfix/086.md; era-text flip decision stays with owner
+    // (F2Q-058-kand; frozen publish path on tb_i82p2 is unaffected).
+    let w = enc("ISETP.GT.U32.AND P1, PT, R6, UR15, PT");
     assert_eq!((w >> 24) & 0xff, 6, "R 8b@24");
     assert_eq!((w >> 32) & 0xff, 15, "UR 8b@32");
+    assert_eq!((w >> 72) & 0xff, 0x40, "cmp/type byte: GT.U32.AND");
     let got = dec120(w);
-    assert_eq!(got, "ISETP.GT.U32.AND P1, PT, |R6|, UR15, PT", "{got}");
-    // Oryginalne slowo nvcc (era-text |R26|,UR22) — dekoder repo juz zdrowy.
+    assert_eq!(got, "ISETP.GT.U32.AND P1, PT, R6, UR15, PT", "{got}");
+    // Oryginalne slowo nvcc (era-text |R26|,UR22); nvdisasm 13.3 probe:
+    // "ISETP.GT.AND P1, PT, R26, UR22, PT" (plain signed; re-encoded bit-exact).
     let got0 = dec120(ISETP_ORIG);
-    assert_eq!(got0, "ISETP.GT.U32.AND P1, PT, |R26|, UR22, PT", "{got0}");
+    assert_eq!(got0, "ISETP.GT.AND P1, PT, R26, UR22, PT", "{got0}");
+    let w0 = enc(&got0);
+    assert_eq!(w0 & NOSCHED, ISETP_ORIG & NOSCHED, "orig word re-encode");
 }
