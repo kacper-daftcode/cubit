@@ -193,6 +193,46 @@ pub enum SassTemplate {
     /// the corpus, count/phase/tx/offset shapes outside the anchored ones,
     /// guarded mbarrier ops.
     Mbar { kind: MbarKind },
+    /// b9 phase-3 #7: barrier.cluster family -> guarded UCGABAR protocol
+    /// with a runtime cluster-presence test (vendor anchors cl1/cl3, ptxas
+    /// 13.3 -O0 sm_103a; byte-parity 142/142 in results/b9/cluster_parity/).
+    /// Every form reads the cluster gate c[0x0][0x36c] and branches between
+    /// the UCGABAR path (real cluster launch) and the degenerate fallback.
+    ///   arrive[.release] non-aligned:
+    ///     LDC r, c[0x0][0x36c]; ISETP.EQ.U32.AND P0, PT, r, 0x1, PT;
+    ///     @!P0 BRA `(else); MOV r, 0xffffffff; WARPSYNC.COLLECTIVE.ALL `(mid);
+    ///     [MEMBAR.ALL.GPU; ERRBAR; CGAERRBAR;] UCGABAR_ARV; ENDCOLLECTIVE;
+    ///     mid: BRA `(end); else: MOV r, 0xffffffff;
+    ///     WARPSYNC.COLLECTIVE r, `(end); NOP; ENDCOLLECTIVE; end:
+    ///   arrive[.release].aligned:
+    ///     guard; @!P0 BRA `(else); WARPSYNC.ALL; [MEMBAR.ALL.GPU; ERRBAR;
+    ///     CGAERRBAR;] UCGABAR_ARV; BRA `(end); else: WARPSYNC.ALL; end:
+    ///     (.relaxed drops the MEMBAR chain in both shapes, anchored cl1)
+    ///   wait[.acquire] non-aligned:
+    ///     guard; @!P0 BRA `(else); MOV r, 0xffffffff;
+    ///     WARPSYNC.COLLECTIVE.ALL `(mid); UCGABAR_WAIT; CCTL.IVALL;
+    ///     ENDCOLLECTIVE; mid: BRA `(end); else: MOV r2, 0x0; MOV r3, 0x0;
+    ///     MOV r, 0xffffffff; WARPSYNC.COLLECTIVE r, `(end);
+    ///     SHF.L.U32 r3, r3, 0x10, RZ; LOP3.LUT r3, r3, 0xf, r2, 0xf8, !PT;
+    ///     BAR.SYNC.DEFER_BLOCKING r3, r3; SHF.R.U32 r3, r3, 0x10, RZ;
+    ///     ENDCOLLECTIVE; end:
+    ///   wait[.acquire].aligned:
+    ///     guard; @!P0 BRA `(else); WARPSYNC.ALL; UCGABAR_WAIT; CCTL.IVALL;
+    ///     BRA `(end); else: WARPSYNC.ALL; BAR.SYNC.DEFER_BLOCKING 0x0; end:
+    /// PTX defaults anchored: plain arrive == .release, plain wait == .acquire
+    /// (probe cl3: identical glue). Exact-name match like Mbar/Fence: any
+    /// other sem suffix is unsupported (fail-closed), as are guarded ops
+    /// (none in the 551-ptx corpus).
+    ClusterBarrier { arrive: bool, relaxed: bool, aligned: bool },
+    /// b9 phase-3 #7: mapa.shared::cluster.u32 -> per-op CGA-wide address
+    /// glue + PRMT byte splice (vendor anchors cl2, -O0):
+    ///   S2R rc, SR_CgaCtaId ; LEA ra, rc, rb, 0x18 ;
+    ///   PRMT d, {RZ | Rct}, 0x654, ra
+    /// Bytes 0..2 of d come from the address, byte 3 = target CTA rank.
+    /// Imm ctaid != 0 is materialized with a plain MOV first (vendor form);
+    /// imm 0 short-circuits to RZ. Fail-closed: non-reg address, ctaid imm
+    /// outside 0..=255, guards.
+    Mapa,
 }
 
 /// b9 phase-3 #6: mbarrier op split (see SassTemplate::Mbar).
@@ -410,6 +450,21 @@ pub static RULES: &[PtxRule] = &[
     PtxRule { pattern: "mbarrier.try_wait.parity.shared.b64", template: Mbar { kind: MbarKind::TryWaitParity } },
     PtxRule { pattern: "mbarrier.try_wait.shared::cta.b64",   template: Mbar { kind: MbarKind::TryWait } },
     PtxRule { pattern: "mbarrier.try_wait.shared.b64",        template: Mbar { kind: MbarKind::TryWait } },
+
+    // ── barrier.cluster (b9 phase-3 #7; exact-name match like Mbar; ─────
+    // ordered most-specific first: plain names are prefixes of the
+    // suffixed ones, and find_rule is a linear starts_with search)
+    PtxRule { pattern: "barrier.cluster.arrive.relaxed.aligned", template: ClusterBarrier { arrive: true, relaxed: true, aligned: true } },
+    PtxRule { pattern: "barrier.cluster.arrive.relaxed",         template: ClusterBarrier { arrive: true, relaxed: true, aligned: false } },
+    PtxRule { pattern: "barrier.cluster.arrive.release.aligned", template: ClusterBarrier { arrive: true, relaxed: false, aligned: true } },
+    PtxRule { pattern: "barrier.cluster.arrive.release",         template: ClusterBarrier { arrive: true, relaxed: false, aligned: false } },
+    PtxRule { pattern: "barrier.cluster.arrive.aligned",         template: ClusterBarrier { arrive: true, relaxed: false, aligned: true } },
+    PtxRule { pattern: "barrier.cluster.arrive",                 template: ClusterBarrier { arrive: true, relaxed: false, aligned: false } },
+    PtxRule { pattern: "barrier.cluster.wait.acquire.aligned",   template: ClusterBarrier { arrive: false, relaxed: false, aligned: true } },
+    PtxRule { pattern: "barrier.cluster.wait.acquire",           template: ClusterBarrier { arrive: false, relaxed: false, aligned: false } },
+    PtxRule { pattern: "barrier.cluster.wait.aligned",           template: ClusterBarrier { arrive: false, relaxed: false, aligned: true } },
+    PtxRule { pattern: "barrier.cluster.wait",                   template: ClusterBarrier { arrive: false, relaxed: false, aligned: false } },
+    PtxRule { pattern: "mapa.shared::cluster.u32",               template: Mapa },
 
     // ── Atomics (b9 phase-3 #4; shapes parsed per-op in lower_atomic) ────
     PtxRule { pattern: "atom.",         template: Atom },

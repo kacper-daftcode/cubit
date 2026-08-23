@@ -761,7 +761,10 @@ pub fn resolve_labels(stmts: Vec<Statement>, base_addr: u32) -> Vec<Instruction>
     // branch targets are out of window and must round-trip verbatim. The
     // fail-closed refusal lives at byte production instead (encoder's
     // BUG-091 check rejects a Label operand on any branch op).
-    let branch_ops = ["BRA", "BSSY", "CALL", "JMP", "RET", "BRX", "BRXU"];
+    // b9 phase-3 #7: WARPSYNC.COLLECTIVE's `(label)` target is a true
+    // pc-relative code address (sm_103a REL16 layout, vendor anchors cl1);
+    // resolve it like any branch op so apply_branch_encoding can fit it.
+    let branch_ops = ["BRA", "BSSY", "CALL", "JMP", "RET", "BRX", "BRXU", "WARPSYNC"];
     let mut result = Vec::new();
     for stmt in stmts {
         if let Statement::Instruction(mut insn) = stmt {

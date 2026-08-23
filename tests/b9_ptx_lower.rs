@@ -1219,3 +1219,229 @@ fn b9p8_urz_bracket_parse() {
     assert_eq!(n, 5);
     assert_eq!(bytes.len(), 80);
 }
+
+/// b9 phase-3 #7: barrier.cluster GUARDED forms (no .explicitcluster) —
+/// runtime cluster-gate glue (LDC c[0x0][0x36c] + ISETP + @!Pg BRA) followed
+/// by the UCGABAR protocol; vendor anchors cl1/cl3, byte-parity 353/353 in
+/// results/b9/cluster_parity/.
+#[test]
+fn b9p9_cluster_guarded_forms() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b32 %r<8>;
+    mov.u32 %r1, 0;
+    barrier.cluster.arrive;
+    barrier.cluster.arrive.relaxed.aligned;
+    barrier.cluster.wait.aligned;
+    barrier.cluster.wait.acquire;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let lowered = lower_kernel(&kernels[0]).unwrap();
+    let text = lowered.to_sass_text();
+    // every op carries the runtime gate
+    assert_eq!(text.matches("c[0x0][0x36c]").count(), 4, "gate per op:\n{}", text);
+    assert_eq!(text.matches("UCGABAR_ARV").count(), 2, "{}", text);
+    assert_eq!(text.matches("UCGABAR_WAIT").count(), 2, "{}", text);
+    // release arrives get the MEMBAR chain; relaxed does not (exact-line
+    // counts: ERRBAR is a substring of CGAERRBAR)
+    let exact = |s0: &str| text.lines().filter(|l| l.trim() == format!("{}  ;", s0)).count();
+    assert_eq!(exact("ERRBAR"), 1, "{}", text);
+    assert_eq!(exact("CGAERRBAR"), 1, "{}", text);
+    assert_eq!(exact("MEMBAR.ALL.GPU"), 1, "{}", text);
+    // non-aligned forms use the COLLECTIVE protocol with fresh gensym labels
+    assert!(text.contains("WARPSYNC.COLLECTIVE.ALL BCL_20_MID"), "{}", text);
+    assert!(text.contains("WARPSYNC.COLLECTIVE R"), "{}", text);
+    assert!(text.contains("BCL_"), "gensym labels:\n{}", text);
+    assert!(text.contains("BCL_20_END:"), "{}", text);
+    // aligned wait fallback ends in BAR.SYNC.DEFER_BLOCKING 0x0
+    assert!(text.contains("BAR.SYNC.DEFER_BLOCKING 0x0"), "{}", text);
+    let (bytes, n) = assemble_body(&text);
+    assert!(bytes.len() == n * 16, "all lines must encode; text:\n{}", text);
+}
+
+/// b9 phase-3 #7: barrier.cluster DIRECT forms (.explicitcluster) — vendor
+/// elides the runtime gate entirely (anchors cl5/cl6/cl7).
+#[test]
+fn b9p9_cluster_direct_forms() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+.explicitcluster
+{{
+    .reg .b32 %r<8>;
+    mov.u32 %r1, 0;
+    barrier.cluster.arrive.aligned;
+    barrier.cluster.wait.aligned;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    assert!(kernels[0].explicit_cluster, "parser must capture .explicitcluster");
+    let lowered = lower_kernel(&kernels[0]).unwrap();
+    let text = lowered.to_sass_text();
+    assert!(!text.contains("c[0x0][0x36c]"), "no runtime gate:\n{}", text);
+    assert!(!text.contains("ISETP"), "no ISETP in direct mode:\n{}", text);
+    assert!(!text.contains("BCL_"), "no branches in aligned direct mode:\n{}", text);
+    let lines: Vec<&str> = text.lines().map(|l| l.trim()).collect();
+    // exact vendor sequence (anchors cl7/cl8)
+    let w1 = lines.iter().position(|l| l.starts_with("WARPSYNC.ALL")).unwrap();
+    assert_eq!(&lines[w1..w1 + 5],
+        &["WARPSYNC.ALL  ;", "MEMBAR.ALL.GPU  ;", "ERRBAR  ;", "CGAERRBAR  ;", "UCGABAR_ARV  ;"],
+        "direct arrive.aligned glue order: {:?}", &lines[w1..w1 + 5]);
+    let w2 = w1 + 5;
+    assert_eq!(&lines[w2..w2 + 3],
+        &["WARPSYNC.ALL  ;", "UCGABAR_WAIT  ;", "CCTL.IVALL  ;"],
+        "direct wait.aligned glue order: {:?}", &lines[w2..w2 + 3]);
+    let (bytes, n) = assemble_body(&text);
+    assert!(bytes.len() == n * 16, "{}", text);
+}
+
+/// b9 phase-3 #7: MEMBAR.ALL.CTA insertion — kernel-global mbarrier
+/// co-presence gates the CTA fence into release arrives (anchors cl7/cl8:
+/// init / expect_tx / try_wait all trigger; plain STS does not; relaxed
+/// never). Program-order independent (arrive may precede the mbarrier op).
+#[test]
+fn b9p9_cluster_cta_fence_rule() {
+    // with mbarrier co-presence: CTA fence lands between WARPSYNC and
+    // MEMBAR.ALL.GPU in the arrive glue
+    let with_mb = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+.explicitcluster
+{{
+    .reg .b32 %r<8>;
+    .shared .align 8 .b64 mb[1];
+    mov.b32 %r1, mb;
+    barrier.cluster.arrive.aligned;
+    mbarrier.try_wait.parity.shared::cta.b64 %p-placeholder, [%r1], 0;
+    ret;
+}}"#, PROLOG);
+    let with_mb = with_mb.replace("%p-placeholder", "%p1")
+        .replace(".reg .b32 %r<8>;", ".reg .b32 %r<8>;\n    .reg .pred %p<2>;");
+    let kernels = parse_ptx(&with_mb).unwrap();
+    let text = lower_kernel(&kernels[0]).unwrap().to_sass_text();
+    let lines: Vec<&str> = text.lines().map(|l| l.trim()).collect();
+    let w = lines.iter().position(|l| l.starts_with("WARPSYNC.ALL")).unwrap();
+    assert_eq!(lines[w + 1], "MEMBAR.ALL.CTA  ;",
+        "CTA fence must precede ALL.GPU with mbarrier co-presence: {:?}", &lines[w..w + 4]);
+    let (bytes, n) = assemble_body(&text);
+    assert!(bytes.len() == n * 16, "{}", text);
+
+    // relaxed arrive: NEVER a CTA fence, even with mbarrier co-presence
+    let relaxed = with_mb.replace("barrier.cluster.arrive.aligned", "barrier.cluster.arrive.relaxed.aligned");
+    let kernels = parse_ptx(&relaxed).unwrap();
+    let text = lower_kernel(&kernels[0]).unwrap().to_sass_text();
+    assert!(!text.contains("MEMBAR"), "relaxed carries no fence: {}", text);
+
+    // without mbarrier ops: no CTA fence (anchor cl7_arrive_al)
+    let no_mb = with_mb.replace("    mbarrier.try_wait.parity.shared::cta.b64 %p1, [%r1], 0;\n", "");
+    let kernels = parse_ptx(&no_mb).unwrap();
+    let text = lower_kernel(&kernels[0]).unwrap().to_sass_text();
+    assert!(!text.contains("MEMBAR.ALL.CTA"), "no mbarrier -> no CTA fence: {}", text);
+    assert!(text.contains("MEMBAR.ALL.GPU"), "release chain stays: {}", text);
+}
+
+/// b9 phase-3 #7: guarded mode keeps working when mbarrier ops coexist
+/// (anchor cl8_guarded_init): the CTA fence lands in the then-branch.
+#[test]
+fn b9p9_cluster_guarded_mbar_cta_fence() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b32 %r<8>;
+    .shared .align 8 .b64 mb[1];
+    mov.b32 %r1, mb;
+    mbarrier.init.shared::cta.b64 [%r1], 1;
+    barrier.cluster.arrive.aligned;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let text = lower_kernel(&kernels[0]).unwrap().to_sass_text();
+    let lines: Vec<&str> = text.lines().map(|l| l.trim()).collect();
+    let w = lines.iter().position(|l| l.starts_with("WARPSYNC.ALL")).unwrap();
+    assert_eq!(lines[w + 1], "MEMBAR.ALL.CTA  ;", "guarded then-branch: {:?}", &lines[w..w + 5]);
+    let (bytes, n) = assemble_body(&text);
+    assert!(bytes.len() == n * 16, "{}", text);
+}
+
+/// b9 phase-3 #7: mapa.shared::cluster.u32 -> S2R + LEA<<24 + PRMT splice
+/// (anchors cl2). imm 0 -> RZ; imm != 0 materialized with plain MOV;
+/// register ctaid resolved directly.
+#[test]
+fn b9p9_mapa_forms() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+.explicitcluster
+{{
+    .reg .b32 %r<10>;
+    .shared .align 8 .b64 sh[1];
+    mov.b32 %r1, sh;
+    mapa.shared::cluster.u32 %r2, %r1, 0;
+    mov.b32 %r5, 5;
+    mapa.shared::cluster.u32 %r3, %r1, %r5;
+    mapa.shared::cluster.u32 %r4, %r1, 2;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let text = lower_kernel(&kernels[0]).unwrap().to_sass_text();
+    assert_eq!(text.matches("S2R").count(), 3, "{}", text);       // ctaid glue per op
+    assert_eq!(text.matches("LEA").count(), 3, "{}", text);
+    assert_eq!(text.matches("PRMT").count(), 3, "{}", text);
+    assert!(text.contains(", 0x654,"), "PRMT sel 0x654: {}", text);
+    assert!(text.matches("PRMT").any(|_| true));
+    let (bytes, n) = assemble_body(&text);
+    assert!(bytes.len() == n * 16, "{}", text);
+}
+
+/// b9 phase-3 #7: fail-closed territory — guards, unknown sem suffixes
+/// (exact-name match; a prefix rule must not trap them), bad mapa shapes.
+#[test]
+fn b9p9_cluster_fail_closed() {
+    for (tag, body) in [
+        ("guarded-barrier", "@%p1 barrier.cluster.arrive.aligned;"),
+        ("sc-suffix", "barrier.cluster.arrive.sc;"),
+        ("release-cluster-wait", "barrier.cluster.wait.release;"),
+        ("mapa-imm-ctaid-over", "mapa.shared::cluster.u32 %r2, %r1, 256;"),
+        ("mapa-imm-addr", "mapa.shared::cluster.u32 %r2, 4, 0;"),
+    ] {
+        let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .pred %p<3>;
+    .reg .b32 %r<8>;
+    .shared .align 8 .b64 sh[1];
+    mov.b32 %r1, sh;
+    {}
+    ret;
+}}"#, PROLOG, body);
+        let kernels = parse_ptx(&ptx).unwrap();
+        assert!(lower_kernel(&kernels[0]).is_err(), "{} must be unsupported:\n{:?}", tag, body);
+    }
+}
+
+/// b9 phase-3 #7: WARPSYNC.COLLECTIVE label targets encode via the sm_103a
+/// REL16 fixup (imm = (target - addr - 16) >> 4; [23:18] | [43:34], like
+/// BRA) — vendor anchors cl1 word-equality. Layout: WSC at 0x0, target at
+/// 0x20 -> rq = (0x20 - 0x10) >> 4 = 1.
+#[test]
+fn b9p9_warpsync_collective_rel16_encoding() {
+    let (bytes, n) = assemble_body(
+        "WARPSYNC.COLLECTIVE.ALL `(L0) ;
+         NOP ;
+L0:
+         EXIT ;
+");
+    assert_eq!(n, 3);
+    let w = u128::from_le_bytes(bytes[0..16].try_into().unwrap());
+    let rq = ((w >> 18) & 0x3F) | (((w >> 34) & 0x3FF) << 6);
+    assert_eq!(rq, 1, "REL16 immediate must be 1 (vendor-derived formula)");
+    // sign-extension lane clean for positive offsets
+    assert_eq!((w >> 44) & 0xFFFFF, 0, "anchors carry no [63:44] payload bits here");
+    // and the decode re-spells the same form (nvdisasm-side proven in
+    // results/b9/cluster_parity/verify_parity.py).
+}

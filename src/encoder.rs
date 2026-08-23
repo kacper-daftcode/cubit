@@ -1123,7 +1123,9 @@ pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> 
     // used to degrade into the immediate path, silently emitting a bogus
     // target. Refuse with full context instead (render-level IR stays
     // lenient -- the check fires only at byte production).
-    static BRANCH_OPS: &[&str] = &["BRA", "BSSY", "CALL", "JMP", "RET", "BRX", "BRXU"];
+    // b9 phase-3 #7: WARPSYNC.COLLECTIVE carries a label operand like any
+    // branch; without this the unresolved label silently encoded a 0 target.
+    static BRANCH_OPS: &[&str] = &["BRA", "BSSY", "CALL", "JMP", "RET", "BRX", "BRXU", "WARPSYNC"];
     if BRANCH_OPS.contains(&insn.opcode.as_str()) {
         if let Some(bad) = insn.operands.iter().find_map(|op| match op {
             crate::ir::Operand::Label(name) => Some(name.clone()),
@@ -1317,6 +1319,18 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
 
     // Apply field extractions
     for field in &entry.fields {
+        // b9 phase-3 #7: WARPSYNC.COLLECTIVE's `(label)` payload is owned by
+        // apply_branch_encoding's REL16 fixup (same doctrine as BUG-023 for
+        // branch ops): the legacy harvest rows carry a bogus imm field over
+        // that window which would read the RESOLVED BranchTarget address and
+        // smear it across [49:18]. Skip the table field; the fixup writes the
+        // real payload afterwards.
+        if insn.opcode == "WARPSYNC"
+            && matches!(get_op(insn, field.token_idx),
+                Some(Operand::BranchTarget(_)) | Some(Operand::Label(_)))
+        {
+            continue;
+        }
         let value = extract_value(insn, field)?;
         let mask128 = (field.mask as u128) << field.shift;
         code = (code & !mask128) | ((value as u128 & field.mask as u128) << field.shift);
@@ -2504,9 +2518,14 @@ fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm
     // mod_bits=2 at [33:32]) — fitted on 14,924 corpus-gap samples (GF2 exact).
     let rel_mod = mod_group.split(',').any(|m| m == "REL" || m == "COLLECTIVE")
         || (op == "BRA" && mod_group.split(',').any(|m| m == "DIV"));
+    // b9 phase-3 #7: WARPSYNC.COLLECTIVE.ALL `(L)` (no register membermask)
+    // is the same REL16 shape as the R-form -- vendor anchors cl1 prove
+    // imm=(target-addr-16)>>4 for both; the gate is "has a resolved target",
+    // not "has a Reg operand".
     if sm103a && rel_mod
         && (op == "CALL" || op.starts_with("RET") || op == "BRA"
-            || (op == "WARPSYNC" && insn.operands.iter().any(|o| matches!(o, Operand::Reg{..}))))
+            || (op == "WARPSYNC" && (insn.operands.iter().any(|o| matches!(o, Operand::Reg{..}))
+                || find_branch_target(insn).is_some())))
     {
         if let Some(target) = find_branch_target(insn) {
             let rel = target - insn.addr as i64 - 16;

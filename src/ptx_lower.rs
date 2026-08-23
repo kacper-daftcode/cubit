@@ -456,6 +456,14 @@ impl LoweredKernel {
 
 pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
     let mut alloc = RegAlloc::new(&kernel.reg_decls, kernel.shared_syms.clone());
+    // b9 phase-3 #7: vendor inserts MEMBAR.ALL.CTA into the release path of
+    // every barrier.cluster.arrive when the kernel contains ANY mbarrier op
+    // (anchors cl4/cl7/cl8: init/expect_tx/try_wait all trigger it, plain
+    // STS does not; order-independent kernel-global rule).
+    let has_mbarrier = kernel.body.iter().any(|st| match st {
+        PtxStmt::Insn(i) => i.opcode.starts_with("mbarrier."),
+        _ => false,
+    });
     let mut insns: Vec<Instruction> = Vec::new();
     let mut addr: u32 = 0;
 
@@ -868,6 +876,33 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                             }
                         }
 
+                        SassTemplate::ClusterBarrier { arrive, relaxed, aligned } => {
+                            // b9 phase-3 #7: exact-name match like Mbar —
+                            // unlisted sem suffixes (e.g. explicit .sc) must
+                            // not slip under a shared prefix.
+                            if insn.opcode != rule.pattern {
+                                unsupported.insert(insn.opcode.clone());
+                                continue;
+                            }
+                            match lower_cluster_barrier(addr, insn, &mut alloc,
+                                    *arrive, *relaxed, *aligned,
+                                    kernel.explicit_cluster, has_mbarrier, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+
+                        SassTemplate::Mapa => {
+                            if insn.opcode != rule.pattern {
+                                unsupported.insert(insn.opcode.clone());
+                                continue;
+                            }
+                            match lower_mapa(addr, insn, &mut alloc, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+
                         SassTemplate::Shift64 { dir_left, signed } => {
                             // vendor-anchored SHF pair; order (hi first) is
                             // load-bearing for in-place dst==src shifts.
@@ -1218,6 +1253,25 @@ fn estimate_expansion_size(opcode: &str) -> u32 {
     // CCTL.IVALL). Label-address estimation must match the real expansion
     // or branch targets shift silently.
     if opcode.starts_with("atom.") && opcode.contains(".acq_rel.") { return 5; }
+    // b9 phase-3 #7: barrier.cluster glued expansions (anchored counts;
+    // names are exact after the gateway's exact-name gate).
+    if opcode.starts_with("barrier.cluster.") {
+        let aligned = opcode.ends_with(".aligned");
+        let arrive = opcode.contains(".arrive");
+        let relaxed = opcode.contains(".relaxed");
+        return match (arrive, relaxed, aligned) {
+            (true, false, false) => 15, // arrive[.release]
+            (true, true, false) => 12,  // arrive.relaxed
+            (true, false, true) => 10,  // arrive[.release].aligned
+            (true, true, true) => 7,    // arrive.relaxed.aligned
+            (false, _, false) => 18,    // wait[.acquire]
+            (false, _, true) => 9,      // wait[.acquire].aligned
+        };
+    }
+    // mapa: S2R + LEA + PRMT (+MOV for imm ctaid != 0 / bare sym address --
+    // operand-dependent, so this 3 is a lower bound; labels accounted per
+    // corpus shapes only).
+    if opcode == "mapa.shared::cluster.u32" { return 3; }
     // b9 phase-3 #3 template sizes (instruction counts)
     if opcode.starts_with("mad.lo.cc.") { return 3; }
     if opcode.starts_with("madc.") { return 2; }
@@ -1425,6 +1479,226 @@ fn lower_mbarrier(
             a += 16;
         }
     }
+
+    let n = ((a - addr) / 16) as u32;
+    Ok(Some((out, n)))
+}
+
+/// b9 phase-3 #7: barrier.cluster family -> guarded UCGABAR protocol with
+/// runtime cluster-presence test (gate = LDC c[0x0][0x36c] & 1). Emitted
+/// glue replicates the vendor -O0 per-op expansion 1:1 (anchors cl1/cl3;
+/// byte-parity 142/142 in results/b9/cluster_parity/). Branch targets are
+/// per-expansion gensyms (BCL_<addr>_{ELSE,MID,END}) resolved textually by
+/// cubit's assembler; labels follow the same pseudo-instruction convention
+/// as PTX-level labels (raw_text "NAME:", zero address cost).
+/// Returns Ok(None) => op lands on the unsupported list.
+fn lower_cluster_barrier(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc,
+    arrive: bool, relaxed: bool, aligned: bool,
+    explicit_cluster: bool, has_mbarrier: bool, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    // Guarded barrier.cluster ops are unattested; fail closed (BUG-080
+    // policy, same as mbarrier).
+    if guard.is_some() { return Ok(None); }
+    if !insn.operands.is_empty() { return Ok(None); }
+
+    let l_else = format!("BCL_{:x}_ELSE", addr);
+    let l_mid = format!("BCL_{:x}_MID", addr);
+    let l_end = format!("BCL_{:x}_END", addr);
+
+    let r0 = alloc.gpr("$clu_r0");
+    let pg = alloc.pred("%clu_gate");
+
+    let mut out: Vec<Instruction> = Vec::new();
+    let mut a = addr;
+
+    let mut push = |out: &mut Vec<Instruction>, a: &mut u32, op: &str, ops: Vec<Operand>, g: Option<Guard>| {
+        out.push(make_insn(*a, op, ops, g));
+        *a += 16;
+    };
+    let label = |out: &mut Vec<Instruction>, name: &str| {
+        out.push(Instruction {
+            addr: a_dummy(), opcode: String::new(), opcode_full: String::new(),
+            key: String::new(), guard: None, operands: vec![], modifiers: vec![],
+            ctrl: ControlCode::default(), hand_sched: false, rsd: None,
+            raw_text: format!("{}:", name),
+        });
+    };
+
+    // Direct mode (anchors cl5/cl6/cl7): `.explicitcluster` proves a real
+    // cluster launch at compile time, so ptxas ELIDES the runtime gate --
+    // no LDC/ISETP/branch, just the inline protocol. `.reqnctapercluster`
+    // alone (any n) keeps the guarded form.
+    if explicit_cluster {
+        if aligned {
+            push(&mut out, &mut a, "WARPSYNC.ALL", vec![], None);
+        } else {
+            push(&mut out, &mut a, "MOV", vec![op_reg(r0), op_imm(0xffff_ffff)], None);
+            push(&mut out, &mut a, "WARPSYNC.COLLECTIVE.ALL", vec![Operand::Label(l_mid.clone())], None);
+        }
+        if arrive {
+            if !relaxed {
+                // vendor inserts MEMBAR.ALL.CTA first when ANY mbarrier op
+                // exists in the kernel (anchors cl7/cl8: init / expect_tx /
+                // try_wait all trigger; plain STS does not; relaxed never).
+                if has_mbarrier {
+                    push(&mut out, &mut a, "MEMBAR.ALL.CTA", vec![], None);
+                }
+                push(&mut out, &mut a, "MEMBAR.ALL.GPU", vec![], None);
+                push(&mut out, &mut a, "ERRBAR", vec![], None);
+                push(&mut out, &mut a, "CGAERRBAR", vec![], None);
+            }
+            push(&mut out, &mut a, "UCGABAR_ARV", vec![], None);
+        } else {
+            push(&mut out, &mut a, "UCGABAR_WAIT", vec![], None);
+            push(&mut out, &mut a, "CCTL.IVALL", vec![], None);
+        }
+        if !aligned {
+            push(&mut out, &mut a, "ENDCOLLECTIVE", vec![], None);
+            label(&mut out, &l_mid);
+        }
+        let n = ((a - addr) / 16) as u32;
+        return Ok(Some((out, n)));
+    }
+
+    // shared guard prefix: LDC; ISETP; @!Pg BRA ELSE
+    push(&mut out, &mut a, "LDC", vec![op_reg(r0), Operand::ConstMem { bank: 0, base_reg: None, ur_reg: None, offset: 0x36c }], None);
+    push(&mut out, &mut a, "ISETP.EQ.U32.AND",
+        vec![Operand::Pred { num: pg, neg: false }, Operand::Pred { num: 7, neg: false },
+             op_reg(r0), op_imm(0x1), Operand::Pred { num: 7, neg: false }], None);
+    push(&mut out, &mut a, "BRA", vec![Operand::Label(l_else.clone())],
+        Some(Guard { pred: pg, negated: true, uniform: false }));
+
+    if aligned {
+        push(&mut out, &mut a, "WARPSYNC.ALL", vec![], None);
+        if arrive {
+            if !relaxed {
+                if has_mbarrier {
+                    push(&mut out, &mut a, "MEMBAR.ALL.CTA", vec![], None);
+                }
+                push(&mut out, &mut a, "MEMBAR.ALL.GPU", vec![], None);
+                push(&mut out, &mut a, "ERRBAR", vec![], None);
+                push(&mut out, &mut a, "CGAERRBAR", vec![], None);
+            }
+            push(&mut out, &mut a, "UCGABAR_ARV", vec![], None);
+        } else {
+            push(&mut out, &mut a, "UCGABAR_WAIT", vec![], None);
+            push(&mut out, &mut a, "CCTL.IVALL", vec![], None);
+        }
+        push(&mut out, &mut a, "BRA", vec![Operand::Label(l_end.clone())], None);
+        label(&mut out, &l_else);
+        push(&mut out, &mut a, "WARPSYNC.ALL", vec![], None);
+        if !arrive {
+            push(&mut out, &mut a, "BAR.SYNC.DEFER_BLOCKING", vec![op_imm(0x0)], None);
+        }
+        label(&mut out, &l_end);
+    } else {
+        push(&mut out, &mut a, "MOV", vec![op_reg(r0), op_imm(0xffff_ffff)], None);
+        push(&mut out, &mut a, "WARPSYNC.COLLECTIVE.ALL", vec![Operand::Label(l_mid.clone())], None);
+        if arrive {
+            if !relaxed {
+                if has_mbarrier {
+                    push(&mut out, &mut a, "MEMBAR.ALL.CTA", vec![], None);
+                }
+                push(&mut out, &mut a, "MEMBAR.ALL.GPU", vec![], None);
+                push(&mut out, &mut a, "ERRBAR", vec![], None);
+                push(&mut out, &mut a, "CGAERRBAR", vec![], None);
+            }
+            push(&mut out, &mut a, "UCGABAR_ARV", vec![], None);
+        } else {
+            push(&mut out, &mut a, "UCGABAR_WAIT", vec![], None);
+            push(&mut out, &mut a, "CCTL.IVALL", vec![], None);
+        }
+        push(&mut out, &mut a, "ENDCOLLECTIVE", vec![], None);
+        label(&mut out, &l_mid);
+        push(&mut out, &mut a, "BRA", vec![Operand::Label(l_end.clone())], None);
+        label(&mut out, &l_else);
+        if arrive {
+            push(&mut out, &mut a, "MOV", vec![op_reg(r0), op_imm(0xffff_ffff)], None);
+            push(&mut out, &mut a, "WARPSYNC.COLLECTIVE", vec![op_reg(r0), Operand::Label(l_end.clone())], None);
+            push(&mut out, &mut a, "NOP", vec![], None);
+            push(&mut out, &mut a, "ENDCOLLECTIVE", vec![], None);
+        } else {
+            let r2 = alloc.gpr("$clu_r2");
+            let r3 = alloc.gpr("$clu_r3");
+            push(&mut out, &mut a, "MOV", vec![op_reg(r2), op_imm(0x0)], None);
+            push(&mut out, &mut a, "MOV", vec![op_reg(r3), op_imm(0x0)], None);
+            push(&mut out, &mut a, "MOV", vec![op_reg(r0), op_imm(0xffff_ffff)], None);
+            push(&mut out, &mut a, "WARPSYNC.COLLECTIVE", vec![op_reg(r0), Operand::Label(l_end.clone())], None);
+            push(&mut out, &mut a, "SHF.L.U32", vec![op_reg(r3), op_reg(r3), op_imm(0x10), op_rz()], None);
+            push(&mut out, &mut a, "LOP3.LUT", vec![op_reg(r3), op_reg(r3), op_imm(0xf), op_reg(r2), op_imm(0xf8), op_not_pt()], None);
+            push(&mut out, &mut a, "BAR.SYNC.DEFER_BLOCKING", vec![op_reg(r3), op_reg(r3)], None);
+            push(&mut out, &mut a, "SHF.R.U32", vec![op_reg(r3), op_reg(r3), op_imm(0x10), op_rz()], None);
+            push(&mut out, &mut a, "ENDCOLLECTIVE", vec![], None);
+        }
+        label(&mut out, &l_end);
+    }
+
+    let n = ((a - addr) / 16) as u32;
+    Ok(Some((out, n)))
+}
+
+// label pseudo-instructions carry no address; the field is never read for
+// them (same convention as the PtxStmt::Label path in lower_kernel).
+fn a_dummy() -> u32 { 0 }
+
+/// b9 phase-3 #7: mapa.shared::cluster.u32 d, a, ctaid -> per-op CGA-wide
+/// address glue + PRMT byte splice (vendor anchors cl2, -O0):
+///   S2R rc, SR_CgaCtaId ; LEA ra, rc, rb, 0x18 ; PRMT d, ctsel, 0x654, ra
+/// ctsel = RZ for imm 0, plain-MOV materialized reg for imm != 0, or the
+/// resolved ctaid register. Fail-closed: non-reg address shapes, imm ctaid
+/// outside 0..=255, non-reg/non-imm ctaid, guards.
+fn lower_mapa(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+
+    let d_name = match insn.operands.get(0) {
+        Some(PtxOperand::Reg(n)) => n.clone(),
+        _ => return Ok(None),
+    };
+    // Address: a plain register (corpus shape). A bare shared-window symbol
+    // materializes to its static offset in a scratch reg first (iter35
+    // layout, same contract as base_r in lower_mbarrier).
+    let mut out: Vec<Instruction> = Vec::new();
+    let mut a = addr;
+    let rb = match insn.operands.get(1) {
+        Some(PtxOperand::Reg(n)) if alloc.is_ptx_reg_name(n) => alloc.gpr(n),
+        Some(PtxOperand::Reg(n)) | Some(PtxOperand::Label(n)) => {
+            match alloc.shared_sym(n) {
+                Some(off) => {
+                    let r = alloc.gpr("$clu_symaddr");
+                    out.push(make_insn(a, "IMAD.MOV.U32",
+                        vec![op_reg(r), op_rz(), op_rz(), op_imm(off)], None));
+                    a += 16;
+                    r
+                }
+                None => return Ok(None),
+            }
+        }
+        _ => return Ok(None),
+    };
+    let ctaid_op = match insn.operands.get(2) {
+        Some(PtxOperand::IntImm(0)) => op_rz(),
+        Some(PtxOperand::IntImm(v)) if *v > 0 && *v <= 0xff => {
+            let t = alloc.gpr("$clu_ctimm");
+            out.push(make_insn(a, "MOV", vec![op_reg(t), op_imm(*v)], None));
+            a += 16;
+            op_reg(t)
+        }
+        Some(PtxOperand::Reg(n)) if alloc.is_ptx_reg_name(n) => op_reg(alloc.gpr(n)),
+        _ => return Ok(None),
+    };
+
+    let rc = alloc.gpr("$clu_ctaid");
+    let ra = alloc.gpr("$clu_addr");
+    out.push(make_insn(a, "S2R", vec![op_reg(rc), Operand::SysReg("SR_CgaCtaId".into())], None));
+    a += 16;
+    out.push(make_insn(a, "LEA", vec![op_reg(ra), op_reg(rc), op_reg(rb), op_imm(0x18)], None));
+    a += 16;
+    let d = alloc.gpr(&d_name);
+    out.push(make_insn(a, "PRMT", vec![op_reg(d), ctaid_op, op_imm(0x654), op_reg(ra)], None));
+    a += 16;
 
     let n = ((a - addr) / 16) as u32;
     Ok(Some((out, n)))

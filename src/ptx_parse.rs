@@ -35,6 +35,12 @@ pub struct PtxKernel {
     /// AFTER the static region aligned up. Drives `mov.{u32,b32} %r, sym`
     /// materialization (previously silently encoded as offset 0x0).
     pub shared_syms: HashMap<String, i64>,
+    /// b9 phase-3 #7: `.explicitcluster` appeared between the entry header
+    /// and the body-open brace. Vendor-anchored (probes cl5/cl6/cl7): its
+    /// PRESENCE (independent of any .reqnctapercluster) switches
+    /// barrier.cluster glue from the runtime-guarded form to the direct
+    /// UCGABAR sequence.
+    pub explicit_cluster: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -422,14 +428,26 @@ pub fn parse_ptx(text: &str) -> Result<Vec<PtxKernel>> {
 
             // asm_block_depth tracks multi-line CUDA inline-asm regions
             // (brace on its own line); ONLY a '}' at depth 0 ends the kernel.
+            // BUG-095 fix (b9 phase-3 #7): the kernel's OWN body-open brace
+            // was counted as an asm block, so the closing '}' only dropped
+            // depth 1->0 without terminating -- every later .entry of a
+            // multi-kernel module was silently absorbed into the first
+            // kernel's body. The first '{' after the header opens the body
+            // (nothing can precede it but directives); asm braces inside the
+            // body still nest.
             let mut asm_block_depth: i32 = 0;
+            let mut body_open = false;
+            let mut explicit_cluster = false;
             while i < lines.len() {
                 let bline = lines[i].trim();
                 if bline == "}" && asm_block_depth == 0 { i += 1; break; }
                 if bline.is_empty() || bline == ")" || bline.starts_with("//") {
                     i += 1; continue;
                 }
-                if bline == "{" { asm_block_depth += 1; i += 1; continue; }
+                if bline == "{" {
+                    if !body_open { body_open = true; i += 1; continue; }
+                    asm_block_depth += 1; i += 1; continue;
+                }
                 if bline == "}" { asm_block_depth -= 1; i += 1; continue; }
 
                 // Single-line braced asm blocks / multi-statement lines.
@@ -448,7 +466,14 @@ pub fn parse_ptx(text: &str) -> Result<Vec<PtxKernel>> {
                         if let Some(d) = parse_extern_shared(s) { shared_decls.push(d); }
                         continue;
                     }
-                    if s.starts_with('.') { continue; }
+                    if s.starts_with('.') {
+                        // b9 phase-3 #7: .explicitcluster gates the
+                        // barrier.cluster guarded/direct glue selection.
+                        if !body_open && s.starts_with(".explicitcluster") {
+                            explicit_cluster = true;
+                        }
+                        continue;
+                    }
                     body_lines.push(stmt);
                 }
                 i += 1;
@@ -507,7 +532,7 @@ pub fn parse_ptx(text: &str) -> Result<Vec<PtxKernel>> {
                 }
                 let _ = n_ext;
             }
-            kernels.push(PtxKernel { name, params, reg_decls, body, shared_bytes, shared_syms });
+            kernels.push(PtxKernel { name, params, reg_decls, body, shared_bytes, shared_syms, explicit_cluster });
         } else {
             i += 1;
         }
