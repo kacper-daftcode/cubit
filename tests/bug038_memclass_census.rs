@@ -296,15 +296,19 @@ fn bug038_census_renders_native_text_and_roundtrips() {
 
 #[test]
 fn bug038_ldg_sink_still_serves_legacy_words() {
-    // The LDG_R_ARURI sink (desc-form harvest) must keep working for its own
-    // word class: byte 0x80-ish dARI-sink words outside the 0x81/0x84/0x86
-    // classes stay decodable. Sample: the sink's own and_base word.
+    // BUG-094 retired this pin's original shape: the "sink" was the harvest
+    // junk modgroup LDG_R_dARI::128,E,LTC128B (and_base 0x980) decoding
+    // self-shaped words. Word-level nvdisasm-13.3 truth for the synthetic
+    // self-word is `@P0 LD.EF.U8 R0, [R0]` — an LD.EF class with ZERO anchors
+    // in the 2049-cubin gate corpus and both census universes (885k words);
+    // neither table carries LD.EF.U8 coverage today (b4-feed note,
+    // results/cubitfix/094/NOTE_sink_ld_ef.md). Decode is therefore
+    // FAIL-CLOSED now; re-pin to the LD.EF truth when coverage lands.
     let t = t120();
     let idx = DecodeIndex::build(&t);
     let sink_word: u128 = 0x000f_e200_0000_0000_0000_0000_0000_0980;
-    let d = idx.decode(sink_word, 0, &t).unwrap();
-    let text = cubit::printer::to_sass(&d);
-    assert!(text.contains("LDG"), "sink still decodes: {text}");
+    assert!(idx.decode(sink_word, 0, &t).is_err(),
+        "junk sink word must stay fail-closed (vendor-true class: LD.EF.U8)");
 }
 
 // ── BUG-038a ── ADDENDUM (i109): ATOMG/REDG [R.U32+UR+imm] forms had no

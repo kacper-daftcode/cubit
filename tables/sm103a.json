@@ -307,7 +307,8 @@
   },
   "sigfix": "run31h: sig-bit resync dla klas *SETP (iter N)",
   "_errata_2026_08_22": "BUG-079(ULEA family regen from 12887 vendor anchors: sm120 singleton-junk rows replaced, imm2 5b@75 window vs bit80 HI discriminator, neg@63/72 + inv@63 + ureg_ff + UP-in@81/6b + UP-out@87/4b; render-parity 12887/12887 both tables)",
-  "_errata_2026_08_23_A": "BUG-086 (canon prep): UISETP II key tok5 pred 4b@87 -> 3b@87+neg@90 (2 vendor anchors !UPn source); +mg AND,LE,U32 on UISETP II key (6 anchors, bool bit74); UISETP EX-UR key EX,NE,OR,U32 fields de-junked (2 anchors, junk tok1@8/tok5@3 removed); ISETP II-EX key +mg AND,EX,GE (1 anchor). Residuum: 1 word imm8@40 subform (PLOP3-shadow) parked (single-anchor doctrine, F2Q). UR-key EQ,OR,U32 de-fossil (2 anchors; fields=GE,OR,U32). + AND,EQ UISETP II (nvdisasm-probe word, byte 0x22; zamyka bug012-pin klas\u0119). UR-key +U64/S64 mgs (AND,GE,U64/AND,GT,U64/AND,NE,S64/NE,OR,S64) carry z sond 057. tok2-fix globalny rodziny (120 mgs): non-EX->(68,4), EX->(84,3); zamyka harvest-regresje kD (strzezone slowa drukowaly P8 z okna guard). Normalizacja szablonu pol predykatow calej rodziny (per-key); zamyka PLOP3-hijack R1 (tok5 real pred nie miescil sie w starych polach po 2e-erze). II-EX +AND,EX,GE,U32 (anchor R2)."
+  "_errata_2026_08_23_A": "BUG-086 (canon prep): UISETP II key tok5 pred 4b@87 -> 3b@87+neg@90 (2 vendor anchors !UPn source); +mg AND,LE,U32 on UISETP II key (6 anchors, bool bit74); UISETP EX-UR key EX,NE,OR,U32 fields de-junked (2 anchors, junk tok1@8/tok5@3 removed); ISETP II-EX key +mg AND,EX,GE (1 anchor). Residuum: 1 word imm8@40 subform (PLOP3-shadow) parked (single-anchor doctrine, F2Q). UR-key EQ,OR,U32 de-fossil (2 anchors; fields=GE,OR,U32). + AND,EQ UISETP II (nvdisasm-probe word, byte 0x22; zamyka bug012-pin klas\u0119). UR-key +U64/S64 mgs (AND,GE,U64/AND,GT,U64/AND,NE,S64/NE,OR,S64) carry z sond 057. tok2-fix globalny rodziny (120 mgs): non-EX->(68,4), EX->(84,3); zamyka harvest-regresje kD (strzezone slowa drukowaly P8 z okna guard). Normalizacja szablonu pol predykatow calej rodziny (per-key); zamyka PLOP3-hijack R1 (tok5 real pred nie miescil sie w starych polach po 2e-erze). II-EX +AND,EX,GE,U32 (anchor R2).",
+  "_errata_2026_08_23B": "BUG-094: (1) sm120 LDS/LDL/STL family re-canonicalized to sm103a geometry (junk rows gave: LDS.U8/U16 hijacked into LDG.E.LTC128B.128 slot, LDL.LU phantom +UR0, STL.128 imm top-byte truncation, STL.S16/LDL.S16 DECERR-or-hijack, STL/STL.64 pure-UR hijack); (2) junk decode modgroup LDG_R_dARI::128,E,LTC128B removed (0 legit anchors over 885k-word corpus+2049-bin audits; 100% offender traffic: LDS.U8/U16, LDL.S16, STL family); era-text encodability preserved via encode_only retention row LDG.E.LTC128B.128_R_dARI with verbatim pre-094 geometry; (3) ATOMG_P_R_ARI_R_R (CAS family) added to sm120 from sm103a canon; (4) printer: ATOM*/REDG size modifier prints between operation and STRONG (vendor order ATOMG.E.CAS.64.STRONG.SYS). Anchors: work/f2-094/"
  },
  "instructions": {
   "BRA_II": {
@@ -4397,7 +4398,28 @@
       }
      ],
      "count": 12
-    },
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   }
+  },
+  "LDG.E.LTC128B.128_R_dARI": {
+   "base_op": "LDG.E.LTC128B.128",
+   "operand_sig": "R_dARI",
+   "encode_only": true,
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "mod_groups": {
     "128,E,LTC128B": {
      "and_base": "0x00000000000000000000000000000980",
      "variable_mask": "0x03fffe00187eef3efffffffffffff007",
@@ -4448,13 +4470,6 @@
      "count": 248,
      "_evidence": "rt98:248 slots word-level (multi-point windows; [11:8]=9 == sm120-class; bits[2:0] invisible desc-policy variants 1/4/6); results/b4/B4FILL2"
     }
-   },
-   "scheduling": {
-    "pipe_class": 0,
-    "pipe_name": "UNKNOWN",
-    "def_latency": 1,
-    "throughput": 1,
-    "is_variable_latency": false
    }
   },
   "SEL_R_R_R_P": {
@@ -4676,6 +4691,14 @@
        "token_idx": 2,
        "extraction": "sub_imm1",
        "_src": "2aE"
+      },
+      {
+       "shift": 78,
+       "bits": 2,
+       "token_idx": 2,
+       "extraction": "addr_scale",
+       "_src": "bug094-2026-08-23",
+       "_note": "X4/X8/X16 scaled shared address suffix [79:78] (i108-era anchors nvdisasm-verified; X8=2 LDS.64, X16=3 LDS.128; template canon STS_ARI_R::128 from BUG-014)"
       }
      ],
      "count": 22164
@@ -4710,6 +4733,14 @@
        "token_idx": 2,
        "extraction": "sub_imm1",
        "_src": "2aE"
+      },
+      {
+       "shift": 78,
+       "bits": 2,
+       "token_idx": 2,
+       "extraction": "addr_scale",
+       "_src": "bug094-2026-08-23",
+       "_note": "X4/X8/X16 scaled shared address suffix [79:78] (i108-era anchors nvdisasm-verified; X8=2 LDS.64, X16=3 LDS.128; template canon STS_ARI_R::128 from BUG-014)"
       }
      ],
      "count": 12729

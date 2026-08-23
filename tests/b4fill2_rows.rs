@@ -19,11 +19,10 @@ fn t103a() -> IsaTable {
 const SCHED: u128 = 0xFFFF_FFFFu128 << 96;
 
 static GOLD: &[(u128, &str)] = &[
-    // LDG.E.LTC128B.128 (desc-UR class; [2:0] desc-policy variants 1/4/6)
-    (0x000e2400181e0b000000000806087981u128, "LDG.E.LTC128B.128 R8, desc[UR8][R6.64]"),
-    (0x000e64000000cc000000000003587984u128, "LDG.E.LTC128B.128 R88, desc[UR0][R3.64]"),
-    (0x0007e40008100b0c0000003444007986u128, "LDG.E.LTC128B.128 R0, desc[UR52][R68.64]"),
-    (0x000e2400181e0b0000080008060a7981u128, "LDG.E.LTC128B.128 R10, desc[UR8][R6.64+0x800]"),
+    // (the four era "LDG.E.LTC128B.128"-glif words formerly pinned here are
+    // resolved under BUG-094: the LDS.128 .X16 one returns below with vendor
+    // text; the 3 raw-address LDG/STG era forms are fail-closed pins in
+    // render_only pending F2Q-099 coverage)
     // IADD3.X: cout pred at [83:81] (table regression fix), II form
     (0x000fe2000071e4ff0000005935355210u128, "@P5 IADD3.X R53, P0, PT, R53, R89, RZ, P0, !PT"),
     (0x080fe80007f3e4fffffffc2f74748810u128, "@!P0 IADD3.X R116, P1, PT, R116, -0x3d1, RZ, !PT, !PT"),
@@ -39,6 +38,10 @@ static GOLD: &[(u128, &str)] = &[
     (0x000fe2000f8e003f00000100242278a4u128, "UIMAD.U32 UR34, UR36, 0x100, UR63"),
     // IMAD.X 5-token with pred
     (0x000fe200010e045d0000006408423224u128, "@P3 IMAD.X R66, R8, R100, R93, P2"),
+    // LDS.128 .X16 (BUG-094: NV-proven true identity of this era slot; decodes
+    // vendor-exact on both tables via the LDS_R_ARI::128 addr_scale field)
+    (0x000ee4000000cc0000000000091c8984u128, "@!P0 LDS.128 R28, [R9.X16]"),
+    (0x000e64000000cc000000000003587984u128, "LDS.128 R88, [R3.X16]"),
     // STS.128 with .X16 address scale (note: the R204 era sibling moved to
     // b4fill2_render_only under BUG-088 -- the encoder fails closed on it)
     (0x001be4000000cc00000000c805007388u128, "STS.128 [R5.X16], R200"),
@@ -107,5 +110,33 @@ fn b4fill2_render_only() {
     ] {
         let d = idx.decode(word, 0, &t).unwrap();
         assert_eq!(cubit::printer::to_sass(&d), golden);
+    }
+    // BUG-094: the four era words below were pinned (b4fill2, iter15) to the
+    // LDG.E.LTC128B.128 desc-UR glif emitted by the harvest-junk catch-all
+    // modgroup LDG_R_dARI::128,E,LTC128B. Word-level nvdisasm-13.3 probes
+    // (work/f2-094/era249_nv2.json) prove each is a DIFFERENT memory op:
+    //   0x000e2400181e0b000000000806087981 -> LDG.E.64 R8, [R6.U32+UR8]
+    //   0x000e64000000cc000000000003587984 -> LDS.128 R88, [R3.X16]
+    //   0x0007e40008100b0c0000003444007986 -> STG.E.64 [R68.U32+UR12], R52
+    //   0x000e2400181e0b0000080008060a7981 -> LDG.E.64 R10, [R6.U32+UR8+0x800]
+    // The junk modgroup (zero vendor-true traffic over the 885k-word census;
+    // 100% offender classes) was deleted; canon does not yet cover these
+    // raw-address uniform-indexed era forms (F2Q candidate 099), so decode is
+    // FAIL-CLOSED here (file-level output carries /* ? 0x... */ markers).
+    // Era-text encode stays byte-exact via the encode_only retention row
+    // LDG.E.LTC128B.128_R_dARI (pinned in tests/bug094_lds_ldl_stl_cas.rs).
+    // Post-BUG-094 follow-up: canon got the addr_scale [79:78] field on
+    // LDS_R_ARI::64/128 (i108-era nvdisasm-verified anchors), so the
+    // LDS.128 .X16 era word now decodes VENDOR-EXACT: it lives in GOLD above.
+    // The 3 remaining words are raw-address uniform-indexed LDG/STG era forms
+    // canon does not cover yet (F2Q-099; sm120.json decodes all three
+    // vendor-exact today via its LDG/STG keys).
+    for &word in &[
+        0x000e2400181e0b000000000806087981u128,
+        0x0007e40008100b0c0000003444007986u128,
+        0x000e2400181e0b0000080008060a7981u128,
+    ] {
+        assert!(idx.decode(word, 0, &t).is_err(),
+            "junk-glif era word {word:032x} must stay fail-closed until F2Q-099 coverage lands");
     }
 }

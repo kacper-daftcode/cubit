@@ -605,14 +605,20 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             _ => {}
         }
     }
-    // ATOMG/REDG/ATOMS: E first, then operation, then consistency (STRONG), then scope (GPU/SYS)
+    // ATOMG/REDG/ATOMS: E first, then operation, then SIZE (BUG-094: vendor
+    // prints ATOMG.E.CAS.64.STRONG.SYS, not ATOMG.E.CAS.STRONG.64.SYS), then
+    // consistency (STRONG), then scope (GPU/SYS)
     if matches!(base, "ATOMG" | "REDG" | "ATOMS" | "ATOM") {
         match m {
             "ADD" | "MIN" | "MAX" | "CAS" | "INC" | "DEC" | "EXCH"
             // mk35: boolowe tez jako subop (REDG.E.AND.STRONG.GPU; AND/AND? nie LOP3)
-            | "AND" | "OR" | "XOR" => return 4,
-            "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" => return 5,
-            "GPU" | "SYS" | "CTA" | "GL" | "IL" | "MMU" => return 6,
+            | "AND" | "OR" | "XOR"
+            // BUG-094b: CAST/SPIN tez sa nazwa operacji (ATOM.E.CAST.SPIN.64:
+            // rozmiar DRUKUJE SIE PO nich, przed STRONG)
+            | "CAST" | "SPIN" => return 4,
+            "64" | "128" => return 5,
+            "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" => return 6,
+            "GPU" | "SYS" | "CTA" | "GL" | "IL" | "MMU" => return 7,
             _ => {}
         }
     }
