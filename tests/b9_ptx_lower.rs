@@ -248,6 +248,10 @@ fn b9p2_store_immediate_materialized() {
 /// legalization error naming the opcode.
 #[test]
 fn b9p2_store_wide_imm_fail_closed() {
+    // iter43 (b9p14): st.global.{b64,u64,s64} imm is now SUPPORTED (phase-3
+    // #12 stgimm lane, two's-complement lo/hi materialization; vendor
+    // anchors corpus s_u64/v_p1i64 + probe2 q2 -O0: -1/200000/42/1). The
+    // remaining fail-closed surface = VECTOR imm stores (unattested).
     let ptx = format!(r#"{} .visible .entry k(
     .param .u64 k_param_0
 )
@@ -255,11 +259,22 @@ fn b9p2_store_wide_imm_fail_closed() {
     .reg .b64   %rd<3>;
     ld.param.u64 %rd1, [k_param_0];
     st.global.u64 [%rd1], 0x123456789;
+    st.global.v2.b64 [%rd1], 0x123456789;
     ret;
 }}"#, PROLOG);
     let kernels = parse_ptx(&ptx).unwrap();
     let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
-    assert!(err.contains("wide immediate") || err.contains("32-bit stores"), "got: {}", err);
+    assert!(err.contains("vector") || err.contains("st.global"), "vector imm stays closed: {}", err);
+    let ptx = ptx.replace("    st.global.v2.b64 [%rd1], 0x123456789;\n", "");
+    let kernels = parse_ptx(&ptx).unwrap();
+    let lk = lower_kernel(&kernels[0]).expect("b64 imm lowers since b9p14");
+    let text = lk.to_sass_text();
+    let l: Vec<&str> = text.lines().map(|l| l.trim()).filter(|l| l.ends_with(';')).collect();
+    let i = l.iter().position(|x| x.contains("IMAD.MOV.U32")).unwrap();
+    assert!(l[i].ends_with("0x23456789 ;"), "lo half: {}", l[i]);
+    assert!(l[i + 1].ends_with("0x1 ;"), "hi half: {}", l[i + 1]);
+    let stg = l.iter().find(|x| x.starts_with("STG.E.64")).expect("STG.E.64 emitted");
+    assert!(stg.contains("desc[UR4]"), "desc form: {}", stg);
 }
 
 /// P3: predicate space exhaustion is a fail-closed Err naming the kernel,
@@ -477,10 +492,19 @@ fn b9p3_pred_logic_fail_closed() {
     let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
     assert!(err.contains("and.pred"), "negated src must name the op: {}", err);
 
+    // iter43 (b9p14): mov.pred imm {-1,0,+1} is now SUPPORTED (phase-3 #12
+    // movpred lane -> all-PT PLOP3.LUT constants; vendor anchors q1/p09).
+    // Remaining fail-closed surface = immediates outside the anchored set.
     let ptx = ptx.replace("and.pred %p3, !%p1, %p1;", "mov.pred %p3, 1;");
     let kernels = parse_ptx(&ptx).unwrap();
+    let lk = lower_kernel(&kernels[0]).expect("mov.pred 1 lowers since b9p14");
+    let text = lk.to_sass_text();
+    assert!(text.contains("PLOP3.LUT") && text.contains("0x80, 0x8"),
+        "true-form PLOP3 emitted: {}", text);
+    let ptx = ptx.replace("mov.pred %p3, 1;", "mov.pred %p3, 3;");
+    let kernels = parse_ptx(&ptx).unwrap();
     let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
-    assert!(err.contains("mov.pred"), "imm src must name the op: {}", err);
+    assert!(err.contains("mov.pred"), "unanchored imm must name the op: {}", err);
 }
 
 /// P3-17: b64 bitwise logic -> vendor-anchored LOP3.LUT lo/hi pairs

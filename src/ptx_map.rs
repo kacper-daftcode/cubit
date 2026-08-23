@@ -98,6 +98,22 @@ pub enum SassTemplate {
     /// verbatim for byte-parity (and/mov = 0x08, or = 0x8f, xor = 0x82,
     /// not = 0x80).
     PredLogic { lut_a: u8, lut_b: u8 },
+    /// b9 phase-3 #12 (b9p14): PTX vector shared ld/st are width-joined
+    /// hw ops on sm_103a: lane-count x member-width selects the suffix
+    /// (v2.b32 -> .64 pair; v2.b64/v4.b32 -> .128 quad; v4.b64 = 256-bit
+    /// FAIL-closed, no STS/LDS.256 row). Imm/float-literal group members
+    /// materialize via IMAD.MOV.U32 pre-MOVs (vendor form; corpus p29
+    /// 0x140-0x180 shows four const MOVs before STS.128). Vendor law
+    /// anchors: probes work/b9p14/probes q3/q4 -O0/-O3; corpus p13/p29.
+    ///   ld: LDS.128 Qd, [R+imm]   (dst = aligned QUAD)
+    ///   st: STS.128 [R+imm], Qs
+    /// Same .128 law anchors ld.global.v2.b64 (LDG.E.128) /
+    /// st.global.v2.b64 (STG.E.128) via lower_ld/st_global member-width
+    /// suffix selection. Guarded forms pass the guard through verbatim.
+    /// Process note: reached by EXACT-00030-class exposure (p29 went
+    /// half-green on the vec64 fix and surfaced a pre-existing silent
+    /// bare-STS flattening of v4.b32 groups + float-imm members).
+    SharedVec { store: bool },
     /// b9 phase-3 #2: 64-bit bitwise logic (and/or/xor/not.b64) -> two
     /// 32-bit LOP3.LUT for the lo/hi halves of the register pair. Form and
     /// LUT bytes are vendor anchors (ptxas 13.3 -O0 sm_103a, probes
@@ -666,6 +682,14 @@ pub static RULES: &[PtxRule] = &[
     // b9p12: ld.volatile.global.b32 -> LDG.E.EF (suffix handled in lower_ld_global)
     PtxRule { pattern: "ld.volatile.global.", template: LdGlobal },
     PtxRule { pattern: "st.global.",    template: StGlobal },
+    // b9 phase-3 #12 (b9p14): vector ld.shared./st.shared. MUST dispatch
+    // before the plain prefixes (find_rule = first starts_with hit); the
+    // bare LDS/STS templates would misrender the width-joined group as a
+    // 32-bit op (silent pre-b9p14 flattening, p29 exposure).
+    PtxRule { pattern: "ld.shared.v2", template: SharedVec { store: false } },
+    PtxRule { pattern: "ld.shared.v4", template: SharedVec { store: false } },
+    PtxRule { pattern: "st.shared.v2", template: SharedVec { store: true } },
+    PtxRule { pattern: "st.shared.v4", template: SharedVec { store: true } },
     PtxRule { pattern: "ld.shared.",    template: Single { opcode: "LDS", slots: &[Src(0), Src(1)] } },
     PtxRule { pattern: "st.shared.",    template: Single { opcode: "STS", slots: &[Src(0), Src(1)] } },
 
@@ -749,6 +773,9 @@ pub static RULES: &[PtxRule] = &[
     // (exact-name match like Mbar/ClusterBarrier: the match arm re-checks
     // insn.opcode == rule.pattern so unlisted suffixes stay unsupported)
     PtxRule { pattern: "vote.sync.ballot.b32", template: Vote { ballot: true, all: false } },
+    // b9 phase-3 #12 (b9p14): activemask.b32 -> VOTE.ANY Rd, PT, PT
+    // (corpus p09 -O0 0x370; the ballot row with both sources tied PT).
+    PtxRule { pattern: "activemask.b32", template: Single { opcode: "VOTE.ANY", slots: &[Src(0), PT, PT] } },
     PtxRule { pattern: "vote.sync.any.pred",   template: Vote { ballot: false, all: false } },
     PtxRule { pattern: "vote.sync.all.pred",   template: Vote { ballot: false, all: true } },
     PtxRule { pattern: "match.any.sync.b32",   template: MatchAny },

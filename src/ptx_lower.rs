@@ -290,7 +290,24 @@ fn prepare_group(
     if !(n == 2 || n == 4) {
         anyhow::bail!("register group of {} members ({:?}) not a pair/quad", n, regs);
     }
-    let base = if n == 4 {
+    // b9 phase-3 #12 (b9p14): a len-2 group of 64-bit members is a PTX
+    // .v2.b64 form = a 128-bit hardware QUAD; member i occupies lanes
+    // [base+2i, base+2i+1] (lo,hi preserves even-pair alignment: base is
+    // 4-aligned). Vendor law: ld/st .v2.b64 -> LDS/LDG/STS/STG .128 ops
+    // (probes work/b9p14/probes q3/q4 -O0/-O3; corpus p13/p29 -O0).
+    // Immediate members of a 64-bit group, mixed-width groups, and
+    // len-4 groups of 64-bit members (v4.b64 = 256-bit) are NOT
+    // vendor-attested -> fail-closed.
+    let wide64 = regs.iter().any(|r| alloc.is_64bit(r));
+    if wide64 {
+        if n != 2 {
+            anyhow::bail!("64-bit members in a {}-member group ({:?}): only .v2.b64 (128-bit quad) is vendor-attested", n, regs);
+        }
+        if let Some(m) = regs.iter().find(|r| !alloc.is_64bit(r)) {
+            anyhow::bail!("mixed-width vector group member {:?} (64-bit lanes): unattested", m);
+        }
+    }
+    let base = if n == 4 || wide64 {
         if let Some(b) = alloc.free_quads.pop() { b } else {
             while alloc.next_gpr % 4 != 0 { alloc.next_gpr += 1; }
             let b = alloc.next_gpr; alloc.next_gpr += 4; b
@@ -313,8 +330,35 @@ fn prepare_group(
                 vec![op_reg(lane), op_rz(), op_rz(), Operand::Imm32(v)], guard.clone()));
             continue;
         }
+        // b9 phase-3 #12 (b9p14): 0fXXXXXXXX float-literal member (corpus
+        // p29 st.shared.v4.b32 {0f3F800000,..}): materialize the raw bits
+        // via IMAD.MOV.U32 like the integer lane (vendor: MOV Rn, 0x3f800000
+        // ladder before STS.128, -O0/-O3 alike). 0d................ doubles
+        // would sit in 64-bit groups -> mixed-width bail below (fail-closed).
+        if let Some(bits) = name.strip_prefix("0f").and_then(|h| u32::from_str_radix(h, 16).ok()) {
+            if role == GroupRole::Dst {
+                anyhow::bail!("float-literal {:?} as vector-group destination", name);
+            }
+            pre.push(make_insn(addr + 16 * pre.len() as u32, "IMAD.MOV.U32",
+                vec![op_reg(lane), op_rz(), op_rz(), Operand::Imm32(bits as i64)], guard.clone()));
+            continue;
+        }
         if alloc.is_64bit(name) {
-            anyhow::bail!("64-bit name {:?} inside a vector group (unsupported)", name);
+            // v2.b64 member i -> quad lanes [base+2i, base+2i+1].
+            let lane_lo = base + 2 * i as u8;
+            if role == GroupRole::Src {
+                let (cur_lo, cur_hi) = alloc.gpr_pair(name);
+                if cur_lo != lane_lo {
+                    pre.push(make_insn(addr + 16 * pre.len() as u32,
+                        "MOV", vec![op_reg(lane_lo), op_reg(cur_lo)], guard.clone()));
+                }
+                if cur_hi != lane_lo + 1 {
+                    pre.push(make_insn(addr + 16 * pre.len() as u32,
+                        "MOV", vec![op_reg(lane_lo + 1), op_reg(cur_hi)], guard.clone()));
+                }
+            }
+            alloc.gpr_map.insert(name.to_string(), lane_lo);
+            continue;
         }
         if role == GroupRole::Src {
             let cur = alloc.gpr(name);
@@ -851,6 +895,38 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                                 PtxOperand::Pred(name) if !name.contains('!') => alloc.pred(name),
                                 other => anyhow::bail!("{}: dst must be a plain predicate, got {:?}", insn.opcode, other),
                             };
+                            // b9 phase-3 #12 (b9p14): mov.pred immediate
+                            // materializes the constant through an all-PT
+                            // PLOP3.LUT (vendor anchors: probes
+                            // work/b9p14/probes movpred1/probe2 q1 -O0/-O3,
+                            // corpus p09/V1..V4): imm==0 -> LUTs (0x08,0x80)
+                            // (same pair as not.pred, bit7=0 -> false);
+                            // nonzero {-1,+1 attested} -> (0x80,0x08) (the
+                            // and/mov pair with a=PT -> constant true).
+                            // ptxas -O3 folds the constant into consumers
+                            // (documented O3-fold divergence; O0 anchor is
+                            // the form law). Other immediates: fail-closed.
+                            if insn.opcode.starts_with("mov.pred") {
+                                if let Some(PtxOperand::IntImm(v)) = insn.operands.get(1) {
+                                    let (la, lb) = match *v {
+                                        0 => (0x08i64, 0x80i64),
+                                        -1 | 1 => (0x80, 0x08),
+                                        other => anyhow::bail!(
+                                            "mov.pred immediate {} not vendor-attested (only 0/-1/+1 anchored)", other),
+                                    };
+                                    insns.push(make_insn(addr, "PLOP3.LUT", vec![
+                                        Operand::Pred { num: d, neg: false },
+                                        op_pt(),
+                                        op_pt(),
+                                        op_pt(),
+                                        op_pt(),
+                                        op_imm(la),
+                                        op_imm(lb),
+                                    ], guard));
+                                    addr += 16;
+                                    continue;
+                                }
+                            }
                             let mut pred_src = |i: usize| -> Result<u8> {
                                 match insn.operands.get(i) {
                                     Some(PtxOperand::Pred(name)) if !name.contains('!') => Ok(alloc.pred(name)),
@@ -874,6 +950,52 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                                 op_imm(*lut_b as i64),
                             ], guard));
                             addr += 16;
+                        }
+
+                        SassTemplate::SharedVec { store } => {
+                            // b9 phase-3 #12 (b9p14): vector ld/st.shared
+                            // width-join (anchors in ptx_map.rs): v2.b32 ->
+                            // .64 (pair), v2.b64/v4.b32 -> .128 (quad),
+                            // v4.b64 (256-bit) fail-closed. 16-bit members
+                            // fail-closed (no vendor anchor). Group chunk
+                            // via prepare_group (64-bit members = lane
+                            // pairs); address resolved FIRST (before the
+                            // chunk allocation bumps next_gpr).
+                            let is64 = insn.opcode.ends_with(".b64")
+                                || insn.opcode.ends_with(".u64") || insn.opcode.ends_with(".s64");
+                            let v4 = insn.opcode.contains(".v4.");
+                            let suffix = if v4 && is64 {
+                                anyhow::bail!("{}: v4 of 64-bit = 256-bit shared op unattested (no LDS/STS.256 row)", insn.opcode);
+                            } else if v4 || is64 {
+                                ".128"
+                            } else if insn.opcode.ends_with(".b16")
+                                || insn.opcode.ends_with(".u16") || insn.opcode.ends_with(".s16")
+                            {
+                                anyhow::bail!("{}: vector of 16-bit members unattested (b9 phase-3 #12)", insn.opcode);
+                            } else {
+                                ".64"
+                            };
+                            let (a_idx, g_idx, g_role) =
+                                if *store { (0usize, 1usize, GroupRole::Src) } else { (1, 0, GroupRole::Dst) };
+                            let aop = ptx_op_to_sass(&insn.operands[a_idx], &mut alloc, false);
+                            let (op, pfx) = match insn.operands.get(g_idx) {
+                                Some(PtxOperand::RegGroup(regs)) =>
+                                    prepare_group(regs, g_role, addr, &mut alloc, &guard)
+                                        .map_err(|e| e.context(format!("{} group", insn.opcode)))?,
+                                other => anyhow::bail!(
+                                    "{}: vector operand must be a brace group, got {:?}", insn.opcode, other),
+                            };
+                            let opf = if *store { format!("STS{}", suffix) } else { format!("LDS{}", suffix) };
+                            let mut seq = pfx;
+                            let mem = if *store {
+                                make_insn(addr + 16 * seq.len() as u32, &opf, vec![aop, op], guard)
+                            } else {
+                                make_insn(addr + 16 * seq.len() as u32, &opf, vec![op, aop], guard)
+                            };
+                            seq.push(mem);
+                            let n = seq.len() as u32;
+                            insns.extend(seq);
+                            addr += 16 * n;
                         }
 
                         SassTemplate::B64Logic { lut } => {
@@ -3704,7 +3826,11 @@ fn lower_ld_global(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Optio
             insn.opcode);
     }
 
-    let suffix = if is_volatile { ".E.EF" } else if is_v4 { ".E.128" } else if is_v2 || is_64 { ".E.64" } else { ".E" };
+    // b9 phase-3 #12 (b9p14): v2 of 64-bit members = 128-bit op
+    // (LDG.E.128; probe q3 + ptx_own p29-class law), same selection law as
+    // the ld.shared path and the st.global mirror below.
+    let wide128 = is_v4 || (is_v2 && is_64);
+    let suffix = if is_volatile { ".E.EF" } else if wide128 { ".E.128" } else if is_v2 || is_64 { ".E.64" } else { ".E" };
 
     // Resolve address register FIRST (before allocating dst which may reuse it)
     let base_addr = &insn.operands[1];
@@ -3745,7 +3871,10 @@ fn lower_st_global(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Optio
     let is_v2 = insn.opcode.contains(".v2.");
     let is_64 = insn.opcode.contains("u64") || insn.opcode.contains("b64") || insn.opcode.contains("f64");
 
-    let suffix = if is_v4 { ".E.128" } else if is_v2 || is_64 { ".E.64" } else { ".E" };
+    // b9 phase-3 #12 (b9p14): st.global.v2.b64 -> STG.E.128 (probe q4 +
+    // corpus p13/p29 -O0), same member-width law as the ld.global mirror.
+    let wide128 = is_v4 || (is_v2 && is_64);
+    let suffix = if wide128 { ".E.128" } else if is_v2 || is_64 { ".E.64" } else { ".E" };
 
     let addr_ptx = &insn.operands[0];
     let (base_reg_num, offset) = match addr_ptx {
@@ -3774,15 +3903,33 @@ fn lower_st_global(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Optio
         other => ptx_op_to_sass(other, alloc, false),
     };
     if let Operand::Imm32(v) = src {
-        if is_64 || is_v2 || is_v4 {
+        if is_v2 || is_v4 {
             anyhow::bail!(
-                "st.global immediate data only legalized for 32-bit stores ({}); wide immediate materialization is phase-3",
+                "st.global immediate data in vector stores is not vendor-attested ({}); b9 phase-3",
                 insn.opcode);
         }
-        let rn = alloc.gpr(&format!("__stimm_{}", addr));
-        out.push(make_insn(addr + 16 * out.len() as u32, "IMAD.MOV.U32",
-            vec![op_reg(rn), op_rz(), op_rz(), Operand::Imm32(v)], guard.clone()));
-        src = op_reg(rn);
+        if is_64 {
+            // b9 phase-3 #12 (b9p14): st.global.{b64,u64,s64} imm store:
+            // materialize the full 64-bit immediate into an even-aligned
+            // pair (lo then hi, two's-complement split; IMAD.MOV.U32 is the
+            // canonical imm form -- nvdisasm prints plain MOV) immediately
+            // before the STG. Vendor anchors: corpus s_u64/v_p1i64 -O0
+            // (42 -> R6=0x2a/R7=0x0) + probes q2 -O0 (-1 -> 0xffffffff/
+            // 0xffffffff, 200000 -> 0x30d40/0x0). -O3 diverges via
+            // const-materialization fold (HFMA2 classes, recorded).
+            let uv = v as u64;
+            let (lo_r, hi_r) = alloc.gpr_pair(&format!("__stimm64_{}", addr));
+            out.push(make_insn(addr + 16 * out.len() as u32, "IMAD.MOV.U32",
+                vec![op_reg(lo_r), op_rz(), op_rz(), Operand::Imm32((uv & 0xffff_ffff) as i64)], guard.clone()));
+            out.push(make_insn(addr + 16 * out.len() as u32, "IMAD.MOV.U32",
+                vec![op_reg(hi_r), op_rz(), op_rz(), Operand::Imm32((uv >> 32) as i64)], guard.clone()));
+            src = op_reg(lo_r);
+        } else {
+            let rn = alloc.gpr(&format!("__stimm_{}", addr));
+            out.push(make_insn(addr + 16 * out.len() as u32, "IMAD.MOV.U32",
+                vec![op_reg(rn), op_rz(), op_rz(), Operand::Imm32(v)], guard.clone()));
+            src = op_reg(rn);
+        }
     }
     out.push(make_insn(addr + 16 * out.len() as u32, &format!("STG{}", suffix), vec![desc_op, src], guard));
     Ok(out)
