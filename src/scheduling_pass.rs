@@ -899,6 +899,17 @@ fn dest_regs(insn: &Instruction) -> Vec<(bool, u8)> {
                     if *num < 254 { out.push((false, num + 2)); }
                     if *num < 253 { out.push((false, num + 3)); }
                 }
+                // BUG-101: .256 memory forms (LDG_R_R_dARI family) write a 256-bit
+                // payload; per the M3.5 census doctrine the two printed base registers
+                // each name a 128-bit dest quad (Rhi -> Rhi+0..=3, Rlo likewise).
+                // Without the span, a consumer of e.g. Rhi+1 or any reg of the second
+                // quad never sees the load as producer -> no write-barrier / wait ->
+                // stale read (TS2-LDG-WAIT sibling class). Mirror reg_liveness.rs.
+                if insn.opcode_full.contains(".256") {
+                    for r in 1..4u8 {
+                        if *num <= 255 - r { out.push((false, num + r)); }
+                    }
+                }
                 // MMA writes a multi-register accumulator: m16n8 F32 = 4 regs, F16 = 2.
                 // Without this, consumers of D[1..] (e.g. R1..R3) never see the MMA as
                 // the producer and the stall/dep tracking is wrong (stale tensor readout).
@@ -911,6 +922,15 @@ fn dest_regs(insn: &Instruction) -> Vec<(bool, u8)> {
             }
             Operand::UReg { num, .. } => out.push((true, *num)),
             _ => {}
+        }
+    }
+    // BUG-101 (cont.): the second leading register of a .256 two-reg memory
+    // form is the second dest quad, not a source (stores returned empty above).
+    if insn.opcode_full.contains(".256") && !is_store(insn.opcode.as_str()) {
+        if let Some(Operand::Reg { num: n2, .. }) = insn.operands.get(1) {
+            for r in 0..4u8 {
+                if *n2 <= 255 - r { out.push((false, n2 + r)); }
+            }
         }
     }
     // UDP async results (see is_udp_async_result): in the predicated form
@@ -955,7 +975,13 @@ fn src_regs(insn: &Instruction) -> Vec<(bool, u8)> {
     let op = insn.opcode.as_str();
     let is_mma = matches!(op, "QMMA" | "HMMA" | "IMMA" | "DMMA");
     let is_wide_src = insn.opcode_full.contains("WIDE");
-    let start = if is_store(op) { 0 } else { 1 };
+    // BUG-101: .256 loads name TWO dest base registers (each a 128-bit quad);
+    // the second leading Reg is a destination, not a source.
+    let start = if is_store(op) { 0 }
+        else if insn.opcode_full.contains(".256")
+            && matches!(insn.operands.first(), Some(Operand::Reg { .. }))
+            && matches!(insn.operands.get(1), Some(Operand::Reg { .. })) { 2 }
+        else { 1 };
     for (op_idx, operand) in insn.operands.iter().enumerate().skip(start) {
         match operand {
             Operand::Reg { num, .. } if *num < 255 => {
@@ -977,7 +1003,10 @@ fn src_regs(insn: &Instruction) -> Vec<(bool, u8)> {
                     // .128 = 4 regs, .64 = 2. Without this, STG.E.128 reading a tensor
                     // accumulator (R0..R3) only registers R0 as a source → the scheduler
                     // misses the dep on the MMA writeback of R1..R3 (stale store).
-                    let w: u16 = if insn.opcode_full.contains(".128") { 4 }
+                    // BUG-101: .256 stores name two data base registers (STG_dARI_R_R),
+                    // each a 128-bit source quad (M3.5 doctrine) -> 4 per reg here.
+                    let w: u16 = if insn.opcode_full.contains(".256") { 4 }
+                                 else if insn.opcode_full.contains(".128") { 4 }
                                  else if insn.opcode_full.contains(".64") { 2 } else { 1 };
                     for r in 1..w {
                         if (*num as u16) + r < 256 { out.push((false, (*num as u16 + r) as u8)); }
@@ -2301,7 +2330,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         // width. Mixing e.g. LDG.E.128 with LDG.E (different latency) lets the wide/slow
         // load finish AFTER the barrier clears → the consumer reads a stale value.
         let width_of = |of: &str| -> u8 {
-            if of.contains(".128") { 16 } else if of.contains(".64") { 8 }
+            if of.contains(".256") { 32 } else if of.contains(".128") { 16 } else if of.contains(".64") { 8 }
             else if of.contains(".U16") || of.contains(".S16") { 2 }
             else if of.contains(".U8") || of.contains(".S8") { 1 } else { 4 }
         };
