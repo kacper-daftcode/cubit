@@ -1732,8 +1732,18 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         }
     } else {
         // Replace scheduling field [25:9] with the scheduling pass result.
+        //
+        // BUG-103/BUG-105: the tcgen05 c1 UTC*MMA descriptor-form family carries
+        // a vendor-CONSTANT ctrl word per (class, guard-presence) — independent of
+        // whatever the scheduling pass computed (mk300: 750/750 words split 1:1).
+        // An author-owned `[B..:R..:W..:Y..S..]` prefix (hand_sched) always wins.
+        let cc = if !insn.hand_sched {
+            crate::ctrl_class::utc_mma_vendor_ctrl(insn).unwrap_or(insn.ctrl)
+        } else {
+            insn.ctrl
+        };
         let non_sched = (epoch_upper32_default & !scheduling::SCHED_UPPER32_MASK) | reuse_bits;
-        non_sched | scheduling::encode_sched_upper32(&insn.ctrl)
+        non_sched | scheduling::encode_sched_upper32(&cc)
     };
 
     let lo64 = code as u64;

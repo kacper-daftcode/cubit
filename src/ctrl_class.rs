@@ -230,3 +230,79 @@ pub fn iadd3_rc2_is_rz(insn: &crate::ir::Instruction) -> bool {
         }
     }).unwrap_or(false)
 }
+
+// ---------------------------------------------------------------------------
+// BUG-103 / BUG-105 (mk300, 2026-08-23, iter 497): tcgen05 c1 UTC*MMA family —
+// vendor-CONSTANT ctrl word per (class, guard-presence), independent of dataflow.
+//
+// Evidence (750/750 split 1:1, sm_100a + sm_103a cubins, and the mk296 corpus
+// nvdisasm -hex matrix of 43 vendor UTC*MMA words decoded by ctrl d3):
+//   direct  (guard == PT):    d3 = 0x0011d800 -> stall=12 yield=0 rbar=0 wbar=7 wait=0x01
+//   guarded (uniform guard):  d3 = 0x0001f200 -> stall=9  yield=1 rbar=0 wbar=7 wait=0x00
+// The guarded stamp applies ONLY to the 7/8-op 1CTA key
+//   <BASE>_II_II_II_II_II_UR_UP[_II]   (mod group '', no .2CTA/.WS)
+// of UTCHMMA / UTCIMMA / UTCQMMA. Everything else in the family rides direct:
+//   - 6-op `_II_II_II_II_II_UP` (+.WS/2CTA) — even @!UP2-guarded (mvF* evidence);
+//   - `.2CTA` — always direct, guarded or not (UTCQMMA.2CTA @!UP1 -> 0x11d800);
+//   - UTCOMMA[.4X/.BLOCK16] — always direct even guarded;
+//   - UTCQMMA block-scale sibling (`..._II_II` sig, tok6 tmem) — direct even guarded.
+// sm120 UR-form keys (UTCHMMA.1CTA_UR_UR_...) are excluded by the descriptor-sig
+// requirement `_II_II_II_II_` (sm120 = separate concern, no vendor ctrl data).
+//
+// The law fixes the encode-side wrong-ctrl of F2Q 103-kand (encode stamped the
+// generic default 0x000fc200 / sched-pass 0x000fca00; rt-audit e4 class) and the
+// 105-kand c3-stamp on the 6-op `_UP` class. It is a candidate input row for the
+// b1 physics table (vendor ctrl is deterministic per family).
+// ---------------------------------------------------------------------------
+
+/// Vendor ctrl word for an unguarded (PT) descriptor-form UTC*MMA:
+/// stall=12, yield=0, rbar=0, wbar=7, wait=0x01.
+pub const UTC_MMA_DIRECT_CTRL: crate::ir::ControlCode = crate::ir::ControlCode {
+    stall: 12,
+    yield_flag: false,
+    write_bar: 7,
+    read_bar: 0,
+    wait_mask: 0x01,
+};
+
+/// Vendor ctrl word for a uniform-guarded 1CTA 7/8-op `_UR_UP[_II]` UTC*MMA:
+/// stall=9, yield=1, rbar=0, wbar=7, wait=0x00.
+pub const UTC_MMA_GUARDED_CTRL: crate::ir::ControlCode = crate::ir::ControlCode {
+    stall: 9,
+    yield_flag: true,
+    write_bar: 7,
+    read_bar: 0,
+    wait_mask: 0x00,
+};
+
+/// Returns the vendor-constant ctrl word for tcgen05 c1 UTC*MMA instructions
+/// (descriptor-form operand signature), or None outside the family.
+///
+/// `hand_sched` instructions are NOT exempted here — the caller (encoder)
+/// decides; author-owned ctrl prefixes always win over this law.
+pub fn utc_mma_vendor_ctrl(insn: &crate::ir::Instruction) -> Option<crate::ir::ControlCode> {
+    let key = insn.key.as_str();
+    // Descriptor-form family on sm_100a/103a taxonomy: base op + `_II_II_II_II_` sig
+    // (gdesc/tmem/idesc operands parse as II-typed labels). The sm120 UR-form keys
+    // (UTCHMMA.1CTA_UR_UR_UR_UR_UR_UP) carry no II descriptors -> excluded.
+    let family = key.starts_with("UTCHMMA_")
+        || key.starts_with("UTCIMMA_")
+        || key.starts_with("UTCQMMA_")
+        || key.starts_with("UTCOMMA_");
+    if !family || !key.contains("_II_II_II_II_") {
+        return None;
+    }
+    // Guarded class: 7/8-op 1CTA `<BASE>_II_II_II_II_II_UR_UP[_II]` carrying a real
+    // uniform guard. UTCOMMA never matches (its sig is `_II_II_II_II_II_II_II_UP`).
+    let ur_up_c1 = key == format!("{}_II_II_II_II_II_UR_UP", insn.opcode)
+        || key == format!("{}_II_II_II_II_II_UR_UP_II", insn.opcode);
+    let multi = insn.opcode_full.contains("2CTA") || insn.opcode_full.contains("WS");
+    // Evidence-exact guard test: the guarded stamp was observed ONLY with the
+    // uniform negated guards @!UP0/@!UP1 (vendor guard field 8/9). Any other
+    // guard variant (positive, non-uniform, wider pred number) rides direct —
+    // fail-closed toward the majority stamp, encode stays legal.
+    let guarded = ur_up_c1
+        && !multi
+        && matches!(&insn.guard, Some(g) if g.uniform && g.negated && matches!(g.pred, 0 | 1));
+    Some(if guarded { UTC_MMA_GUARDED_CTRL } else { UTC_MMA_DIRECT_CTRL })
+}
