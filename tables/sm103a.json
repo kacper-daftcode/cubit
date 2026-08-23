@@ -42203,6 +42203,931 @@
       }
      ],
      "count": 52
+    },
+    "EF,U8": {
+     "and_base": "0x00002000000000000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe200000000000000000000000980 -> \"@P0 LD.EF.U8 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "U8": {
+     "and_base": "0x00002000001000000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe200001000000000000000000980 -> \"@P0 LD.U8 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "E,EF,U8": {
+     "and_base": "0x00002000000001000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe200000001000000000000000980 -> \"@P0 LD.E.EF.U8 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "E,U8": {
+     "and_base": "0x00002000001001000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe200001001000000000000000980 -> \"@P0 LD.E.U8 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "EF,S8": {
+     "and_base": "0x00002000000002000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe200000002000000000000000980 -> \"@P0 LD.EF.S8 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "S8": {
+     "and_base": "0x00002000001002000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe200001002000000000000000980 -> \"@P0 LD.S8 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "E,EF,S8": {
+     "and_base": "0x00002000000003000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe200000003000000000000000980 -> \"@P0 LD.E.EF.S8 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "E,S8": {
+     "and_base": "0x00002000001003000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe200001003000000000000000980 -> \"@P0 LD.E.S8 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "EF,U16": {
+     "and_base": "0x00002000000004000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe200000004000000000000000980 -> \"@P0 LD.EF.U16 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "U16": {
+     "and_base": "0x00002000001004000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe200001004000000000000000980 -> \"@P0 LD.U16 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "E,EF,U16": {
+     "and_base": "0x00002000000005000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe200000005000000000000000980 -> \"@P0 LD.E.EF.U16 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "E,U16": {
+     "and_base": "0x00002000001005000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe200001005000000000000000980 -> \"@P0 LD.E.U16 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "EF,S16": {
+     "and_base": "0x00002000000006000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe200000006000000000000000980 -> \"@P0 LD.EF.S16 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "S16": {
+     "and_base": "0x00002000001006000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe200001006000000000000000980 -> \"@P0 LD.S16 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "E,EF,S16": {
+     "and_base": "0x00002000000007000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe200000007000000000000000980 -> \"@P0 LD.E.EF.S16 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "E,S16": {
+     "and_base": "0x00002000001007000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe200001007000000000000000980 -> \"@P0 LD.E.S16 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "EF": {
+     "and_base": "0x00002000000008000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe200000008000000000000000980 -> \"@P0 LD.EF R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "": {
+     "and_base": "0x00002000001008000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe200001008000000000000000980 -> \"@P0 LD R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "E,EF": {
+     "and_base": "0x00002000000009000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe200000009000000000000000980 -> \"@P0 LD.E.EF R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "64,EF": {
+     "and_base": "0x0000200000000a000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe20000000a000000000000000980 -> \"@P0 LD.EF.64 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "64": {
+     "and_base": "0x0000200000100a000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe20000100a000000000000000980 -> \"@P0 LD.64 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "64,E,EF": {
+     "and_base": "0x0000200000000b000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe20000000b000000000000000980 -> \"@P0 LD.E.EF.64 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "128,EF": {
+     "and_base": "0x0000200000000c000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe20000000c000000000000000980 -> \"@P0 LD.EF.128 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "128": {
+     "and_base": "0x0000200000100c000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe20000100c000000000000000980 -> \"@P0 LD.128 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
+    },
+    "128,E,EF": {
+     "and_base": "0x0000200000000d000000000000000980",
+     "variable_mask": "0x01afce000000000000000004fefff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "f2i38-ldef-probe"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "f2i38-ldef-probe s32@[32:64)"
+      }
+     ],
+     "count": 0,
+     "_evidence": [
+      "f2i38-ldef: 0x000fe20000000d000000000000000980 -> \"@P0 LD.E.EF.128 R0, [R0]\" (cuobjdump 13.3 sm_120, one-word cubin probe)"
+     ]
     }
    },
    "scheduling": {

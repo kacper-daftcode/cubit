@@ -304,11 +304,18 @@ fn bug038_ldg_sink_still_serves_legacy_words() {
     // neither table carries LD.EF.U8 coverage today (b4-feed note,
     // results/cubitfix/094/NOTE_sink_ld_ef.md). Decode is therefore
     // FAIL-CLOSED now; re-pin to the LD.EF truth when coverage lands.
-    let t = t120();
-    let idx = DecodeIndex::build(&t);
-    let sink_word: u128 = 0x000f_e200_0000_0000_0000_0000_0000_0980;
-    assert!(idx.decode(sink_word, 0, &t).is_err(),
-        "junk sink word must stay fail-closed (vendor-true class: LD.EF.U8)");
+    // b4fill4 (F2-iter38): coverage landed — 25 additive LD_R_ARI mod groups
+    // (full LD ARI family incl. .EF) with per-row probe anchors; the sink word
+    // now decodes to its vendor-true identity (pinned in
+    // b4fill4_ldef_family.rs::b4fill4_ldef_sink_is_vendor_true on both tables,
+    // incl. encode roundtrip).
+    for tb in [t120(), IsaTable::load(std::path::Path::new("tables/sm103a.json")).unwrap()] {
+        let idx = DecodeIndex::build(&tb);
+        let sink_word: u128 = 0x000f_e200_0000_0000_0000_0000_0000_0980;
+        let d = idx.decode(sink_word, 0, &tb)
+            .expect("b4fill4: sink word decodes to its vendor-true LD.EF.U8 row");
+        assert_eq!(cubit::printer::to_sass(&d), "@P0 LD.EF.U8 R0, [R0]");
+    }
 }
 
 // ── BUG-038a ── ADDENDUM (i109): ATOMG/REDG [R.U32+UR+imm] forms had no

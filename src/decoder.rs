@@ -265,7 +265,13 @@ impl DecodeIndex {
             // never covered them (training set had no signed sample) otherwise fail
             // to decode entirely (e.g. DFMA R16, R32, |R36|, R16 in cusolver).
             let base = c.key.split('_').next().unwrap_or("").split('.').next().unwrap_or("");
+            // b4fill4: generic LD/ST are plain memory ops (no abs/neg operand
+            // modifiers) — they were missing here, so the priority-3 ALU
+            // sign-bit fallback absorbed words 1-sign-bit-adjacent to a real
+            // LD row as that row (e.g. size-enum INVALID7 (v=e/f) decoding as
+            // the valid .128 sibling). Fail closed instead.
             let is_memlike = matches!(base,
+                "LD" | "ST" |
                 "LDG" | "LDL" | "LDS" | "LDC" | "LDCU" | "STG" | "STL" | "STS" |
                 "ATOM" | "RED" | "BRA" | "BSSY" | "BSYNC" | "EXIT" | "RET" |
                 "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "QMMA");
