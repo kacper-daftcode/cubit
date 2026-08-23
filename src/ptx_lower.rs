@@ -25,6 +25,11 @@ struct RegAlloc {
     free_pairs: Vec<u8>,   // even-aligned pairs
     free_quads: Vec<u8>,   // 4-aligned quads
     free_preds: Vec<u8>,   // b9 phase-1: dead-predicate reuse pool
+    /// b9 phase-2: set when an unmapped PTX special register was used.
+    unknown_sreg: Option<String>,
+    /// b9 phase-2 P3: set when the P0..P6 predicate pool is exhausted;
+    /// lower_kernel bails fail-closed with this instead of panicking.
+    pred_hit_cap: Option<String>,
 }
 
 impl RegAlloc {
@@ -39,6 +44,8 @@ impl RegAlloc {
             free_pairs: Vec::new(),
             free_quads: Vec::new(),
             free_preds: Vec::new(),
+            pred_hit_cap: None,
+            unknown_sreg: None,
         }
     }
 
@@ -81,7 +88,10 @@ impl RegAlloc {
             return p;
         }
         if self.next_pred >= 7 {
-            panic!("ptx_lower: predicate space exhausted (P0..P6); kernel needs live-range-aware allocation");
+            // b9 phase-2 P3: no panic — record and let lower_kernel bail
+            // fail-closed with kernel name + offending predicate.
+            self.pred_hit_cap = Some(name.to_string());
+            return 0;
         }
         let p = self.next_pred;
         self.next_pred += 1;
@@ -127,7 +137,7 @@ impl RegAlloc {
 
 // ── Special register names ───────────────────────────────────────────────────
 
-fn sreg_sass_name(ptx_name: &str) -> &'static str {
+fn sreg_sass_name(ptx_name: &str) -> Option<&'static str> {
     match ptx_name {
         "%tid.x"    => "SR_TID.X",    "%tid.y"    => "SR_TID.Y",    "%tid.z"    => "SR_TID.Z",
         "%ctaid.x"  => "SR_CTAID.X",  "%ctaid.y"  => "SR_CTAID.Y",  "%ctaid.z"  => "SR_CTAID.Z",
@@ -135,8 +145,11 @@ fn sreg_sass_name(ptx_name: &str) -> &'static str {
         "%nctaid.x" => "SR_NCTAID.X", "%nctaid.y" => "SR_NCTAID.Y", "%nctaid.z" => "SR_NCTAID.Z",
         "%laneid"   => "SR_LANEID",    "%warpid"   => "SR_WARPID",   "%smid"     => "SR_SMID",
         "%clock"    => "SR_CLOCKLO",   "%clock64"  => "SR_CLOCKLO",
-        _ => "SR_TID.X",
+        // b9 phase-2: unknown special registers must NOT silently become
+        // SR_TID.X (phase-1 fallback corrupted semantics invisibly).
+        _ => return None,
     }
+    .into()
 }
 
 // ── Label sanitization ───────────────────────────────────────────────────
@@ -162,8 +175,12 @@ fn ptx_op_to_sass(op: &PtxOperand, alloc: &mut RegAlloc, neg: bool) -> Operand {
             let num = alloc.pred(name);
             Operand::Pred { num, neg: false }
         }
-        PtxOperand::SReg(name) => {
-            Operand::SysReg(sreg_sass_name(name).to_string())
+        PtxOperand::SReg(name) => match sreg_sass_name(name) {
+            Some(s) => Operand::SysReg(s.to_string()),
+            None => {
+                alloc.unknown_sreg = Some(name.clone());
+                Operand::SysReg("SR_ILLEGAL_UNSUPPORTED".to_string())
+            }
         }
         PtxOperand::IntImm(v) => Operand::Imm32(*v),
         PtxOperand::FloatImm(v) => Operand::FloatImm(v.to_bits()),
@@ -192,6 +209,67 @@ fn ptx_op_to_sass(op: &PtxOperand, alloc: &mut RegAlloc, neg: bool) -> Operand {
         }
         PtxOperand::ParamRef(_) => Operand::Imm32(0), // handled separately
     }
+}
+
+/// Role of a hardware register group at its USING instruction.
+#[derive(Clone, Copy, PartialEq)]
+enum GroupRole { Src, Dst }
+
+/// b9 phase-2 P4c: materialize a PTX `{a,b[,c,d]}` group into an aligned
+/// consecutive chunk sized by arity (2 -> pair, 4 -> quad; encoder laws).
+///
+/// PTX virtual registers are NOT SSA: names may be redefined, may appear in
+/// several groups, may be immediates ({-1,..}) or repeated ({%r30 x4}), and
+/// pack/unpack idioms (`mov.b64 %rd, {%r1,%r2}`) are PER-ELEMENT copies, not
+/// hardware groups. Per-occurrence materialization: Src gathers (MOVs when a
+/// member's current slot differs from its chunk lane), Dst allocates the
+/// chunk and re-points member names at its lanes. Bump-allocated fresh lanes
+/// make Src/Dst value races impossible; repeated members chain-copy (values
+/// stay equal).
+fn prepare_group(
+    regs: &[String], role: GroupRole, addr: u32,
+    alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<(Operand, Vec<Instruction>)> {
+    let n = regs.len();
+    if !(n == 2 || n == 4) {
+        anyhow::bail!("register group of {} members ({:?}) not a pair/quad", n, regs);
+    }
+    let base = if n == 4 {
+        if let Some(b) = alloc.free_quads.pop() { b } else {
+            while alloc.next_gpr % 4 != 0 { alloc.next_gpr += 1; }
+            let b = alloc.next_gpr; alloc.next_gpr += 4; b
+        }
+    } else {
+        if let Some(b) = alloc.free_pairs.pop() { b } else {
+            while alloc.next_gpr % 2 != 0 { alloc.next_gpr += 1; }
+            let b = alloc.next_gpr; alloc.next_gpr += 2; b
+        }
+    };
+    let mut pre: Vec<Instruction> = Vec::new();
+    for (i, name) in regs.iter().enumerate() {
+        let lane = base + i as u8;
+        // immediate member in a group element (e.g. mov.b64 %rd, {-1, %r9})
+        if let Ok(v) = name.parse::<i64>() {
+            if role == GroupRole::Dst {
+                anyhow::bail!("immediate {:?} as vector-group destination", name);
+            }
+            pre.push(make_insn(addr + 16 * pre.len() as u32, "IMAD.MOV.U32",
+                vec![op_reg(lane), op_rz(), op_rz(), Operand::Imm32(v)], guard.clone()));
+            continue;
+        }
+        if alloc.is_64bit(name) {
+            anyhow::bail!("64-bit name {:?} inside a vector group (unsupported)", name);
+        }
+        if role == GroupRole::Src {
+            let cur = alloc.gpr(name);
+            if cur != lane {
+                pre.push(make_insn(addr + 16 * pre.len() as u32,
+                    "MOV", vec![op_reg(lane), op_reg(cur)], guard.clone()));
+            }
+        }
+        alloc.gpr_map.insert(name.to_string(), lane);
+    }
+    Ok((op_reg(base), pre))
 }
 
 fn op_pt() -> Operand { Operand::Pred { num: 7, neg: false } }
@@ -472,7 +550,7 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                         }
 
                         SassTemplate::Mov64 => {
-                            let (insns_mv, n) = lower_mov64(addr, insn, &mut alloc, guard);
+                            let (insns_mv, n) = lower_mov64(addr, insn, &mut alloc, guard)?;
                             insns.extend(insns_mv);
                             addr += n * 16;
                         }
@@ -509,28 +587,35 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                         }
 
                         SassTemplate::Cvt => {
-                            if let Some(i) = lower_cvt(addr, insn, &mut alloc, guard) {
-                                insns.push(i);
-                                addr += 16;
+                            match lower_cvt(addr, insn, &mut alloc, guard) {
+                                Some(Ok(iv)) => { addr += 16 * iv.len() as u32; insns.extend(iv); }
+                                Some(Err(e)) => { unsupported.insert(format!("{} ({})", insn.opcode, e)); }
+                                // b9 phase-2 doctrine: unattested cvt must
+                                // NOT vanish silently (phase-1 skipped it).
+                                None => { unsupported.insert(insn.opcode.clone()); }
                             }
                         }
 
                         SassTemplate::LdGlobal => {
-                            let i = lower_ld_global(addr, insn, &mut alloc, guard);
-                            insns.push(i);
-                            addr += 16;
+                            let iv = lower_ld_global(addr, insn, &mut alloc, guard)?;
+                            addr += 16 * iv.len() as u32;
+                            insns.extend(iv);
                         }
 
                         SassTemplate::StGlobal => {
-                            let i = lower_st_global(addr, insn, &mut alloc, guard);
-                            insns.push(i);
-                            addr += 16;
+                            let iv = lower_st_global(addr, insn, &mut alloc, guard)?;
+                            addr += 16 * iv.len() as u32;
+                            insns.extend(iv);
                         }
 
                         SassTemplate::Mma => {
-                            if let Some(i) = lower_mma(addr, insn, &mut alloc, guard) {
-                                insns.push(i);
-                                addr += 16;
+                            // b9 phase-2 doctrine: unshapeable MMA joins the
+                            // unsupported list, never vanishes silently.
+                            if let Some(iv) = lower_mma(addr, insn, &mut alloc, guard) {
+                                addr += 16 * iv.len() as u32;
+                                insns.extend(iv);
+                            } else {
+                                unsupported.insert(insn.opcode.clone());
                             }
                         }
 
@@ -657,6 +742,77 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
         }
     }
 
+    let mut fixn_g = 0usize;
+    let mut hoist_movs: Vec<(usize, Instruction)> = Vec::new();
+    let mut mv_ins_index = 0usize;
+    // b9 phase-2: SASS-form normalization for shapes the sm_103a encoder
+    // provably lacks ("attempted keys" census of the iter31 corpus):
+    //  * IADD3[.X]: imm in source slot-3 -> swap to slot-4 (a/b symmetric in
+    //    a 3-input add; cin/cout operands untouched). Vendor keeps imm LAST.
+    //  * SEL: imm in slot-1 with reg slot-2 -> swap slots and INVERT the
+    //    selecting predicate (selp algebra), otherwise R_II form missing.
+    //  * STS: immediate data materializes via IMAD.MOV.U32 (same law as STG).
+    //  * BAR.SYNC.DEFER_BLOCKING: RZ placeholders -> imm 0 (vendor corpus
+    //    prints "0x0, 0x0"; the II_R mixed form is absent from the table).
+    for insn in insns.iter_mut() {
+        let op = insn.opcode.as_str();
+        let mut touched = false;
+        let mut hoist_mov: Option<Instruction> = None;
+        if (op == "IADD3" || op == "IADD3.X") && insn.operands.len() >= 6 {
+            if matches!(insn.operands[3], Operand::Imm32(_))
+                && matches!(insn.operands[4], Operand::Reg { .. }) {
+                insn.operands.swap(3, 4);
+                touched = true;
+            }
+        } else if op == "SEL" && insn.operands.len() == 4 {
+            let imm_a = matches!(insn.operands[1], Operand::Imm32(_) | Operand::FloatImm(_));
+            let reg_b = matches!(insn.operands[2], Operand::Reg { .. });
+            if imm_a && reg_b {
+                insn.operands.swap(1, 2);
+                if let Operand::Pred { neg, .. } = &mut insn.operands[3] {
+                    *neg = !*neg;
+                    touched = true;
+                }
+            }
+        } else if op == "STS" && insn.operands.len() == 2 {
+            if let Operand::Imm32(v) = insn.operands[1].clone() {
+                let tmp = alloc.gpr(&format!("__stsimm_{}", fixn_g));
+                insn.operands[1] = op_reg(tmp);
+                hoist_mov = Some(make_insn(0, "IMAD.MOV.U32",
+                    vec![op_reg(tmp), op_rz(), op_rz(), Operand::Imm32(v)], None));
+                touched = true;
+            }
+        } else if op == "BAR" {
+            for o in insn.operands.iter_mut() {
+                if matches!(o, Operand::Reg { num: 255, .. }) {
+                    *o = op_imm(0);
+                    touched = true;
+                }
+            }
+        }
+        if touched {
+            insn.raw_text = format!("{}{} {} ;",
+                insn.guard.as_ref().map(|g| if g.negated { format!("@!P{} ", g.pred) } else { format!("@P{} ", g.pred) }).unwrap_or_default(),
+                insn.opcode_full,
+                insn.operands.iter().map(|o| operand_to_sass(o)).collect::<Vec<_>>().join(", "));
+            if let Some(mv) = hoist_mov {
+                hoist_movs.push((mv_ins_index, mv));
+            }
+        }
+        mv_ins_index += 1;
+    }
+    for (off, (idx, mov)) in hoist_movs.into_iter().enumerate() {
+        insns.insert(idx + off, mov);
+    }
+
+    if let Some(hit) = &alloc.unknown_sreg {
+        anyhow::bail!("ptx_lower: unsupported special register {:?} in kernel {} (no sm_103a mapping)", hit, kernel.name);
+    }
+    if let Some(hit) = &alloc.pred_hit_cap {
+        anyhow::bail!(
+            "ptx_lower: predicate space exhausted (P0..P6) in kernel {} at predicate {:?}; kernel needs live-range-aware allocation",
+            kernel.name, hit);
+    }
     if !unsupported.is_empty() {
         anyhow::bail!(
             "unsupported PTX in kernel {}: {} op(s): {}",
@@ -823,31 +979,61 @@ fn lower_add64(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Gu
     (out, n)
 }
 
-fn lower_mov64(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>) -> (Vec<Instruction>, u32) {
+fn lower_mov64(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>) -> Result<(Vec<Instruction>, u32)> {
     let d = &insn.operands[0];
     let src = &insn.operands[1];
-    let (rd_lo, rd_hi) = if let PtxOperand::Reg(name) = d { alloc.gpr_pair(name) } else { (4, 5) };
 
     let mut out = Vec::new();
-    match src {
-        PtxOperand::Reg(name) => {
-            let (rs_lo, rs_hi) = alloc.gpr_pair(name);
+    // b9 phase-2 P4c: mov64 pseudo-groups are per-element copies.
+    match (d, src) {
+        (PtxOperand::Reg(name), PtxOperand::Reg(sname)) => {
+            let (rd_lo, rd_hi) = alloc.gpr_pair(name);
+            let (rs_lo, rs_hi) = alloc.gpr_pair(sname);
             out.push(make_insn(addr, "MOV", vec![op_reg(rd_lo), op_reg(rs_lo)], guard.clone()));
             out.push(make_insn(addr+16, "MOV", vec![op_reg(rd_hi), op_reg(rs_hi)], guard));
         }
-        PtxOperand::IntImm(v) => {
+        (PtxOperand::Reg(name), PtxOperand::IntImm(v)) => {
+            let (rd_lo, rd_hi) = alloc.gpr_pair(name);
             let lo = (*v as u64) & 0xFFFFFFFF;
             let hi = ((*v as u64) >> 32) & 0xFFFFFFFF;
-            out.push(make_insn(addr, "MOV", vec![op_reg(rd_lo), op_imm(lo as i64)], guard.clone()));
-            out.push(make_insn(addr+16, "MOV", vec![op_reg(rd_hi), op_imm(hi as i64)], guard));
+            out.push(make_insn(addr, "IMAD.MOV.U32", vec![op_reg(rd_lo), op_rz(), op_rz(), op_imm(lo as i64)], guard.clone()));
+            out.push(make_insn(addr+16, "IMAD.MOV.U32", vec![op_reg(rd_hi), op_rz(), op_rz(), op_imm(hi as i64)], guard));
+        }
+        (PtxOperand::Reg(name), PtxOperand::FloatImm(v)) => {
+            let (rd_lo, rd_hi) = alloc.gpr_pair(name);
+            let bits = v.to_bits();
+            out.push(make_insn(addr, "IMAD.MOV.U32", vec![op_reg(rd_lo), op_rz(), op_rz(), op_imm((bits & 0xffffffff) as i64)], guard.clone()));
+            out.push(make_insn(addr+16, "IMAD.MOV.U32", vec![op_reg(rd_hi), op_rz(), op_rz(), op_imm(((bits>>32) & 0xffffffff) as i64)], guard));
+        }
+        (PtxOperand::Reg(name), PtxOperand::SReg(srn)) if srn == "%clock64" => {
+            let (lo, hi) = alloc.gpr_pair(name);
+            out.push(make_insn(addr, "S2R", vec![op_reg(lo), Operand::SysReg("SR_CLOCKLO".into())], guard.clone()));
+            out.push(make_insn(addr+16, "S2R", vec![op_reg(hi), Operand::SysReg("SR_CLOCKHI".into())], guard));
+        }
+        // pack: mov.b64 %rd, {%r1, %r2}
+        (PtxOperand::Reg(name), PtxOperand::RegGroup(regs)) => {
+            let (rd_lo, rd_hi) = alloc.gpr_pair(name);
+            let (op, pfx) = prepare_group(regs, GroupRole::Src, addr, alloc, &guard)?;
+            out.extend(pfx);
+            let base = match op { Operand::Reg { num, .. } => num, _ => unreachable!() };
+            out.push(make_insn(addr + 16 * out.len() as u32, "MOV", vec![op_reg(rd_lo), op_reg(base)], guard.clone()));
+            out.push(make_insn(addr + 16 * out.len() as u32, "MOV", vec![op_reg(rd_hi), op_reg(base + 1)], guard));
+        }
+        // unpack: mov.b32 {%r1, %r2}, %rd   (cvt.b32 {...}, %rd handled via Cvt path)
+        (PtxOperand::RegGroup(regs), PtxOperand::Reg(sname)) => {
+            let (rs_lo, rs_hi) = alloc.gpr_pair(sname);
+            let (op, pfx) = prepare_group(regs, GroupRole::Dst, addr, alloc, &guard)?;
+            out.extend(pfx);
+            let base = match op { Operand::Reg { num, .. } => num, _ => unreachable!() };
+            out.push(make_insn(addr + 16 * out.len() as u32, "MOV", vec![op_reg(base), op_reg(rs_lo)], guard.clone()));
+            out.push(make_insn(addr + 16 * out.len() as u32, "MOV", vec![op_reg(base + 1), op_reg(rs_hi)], guard));
         }
         _ => {
-            let s = ptx_op_to_sass(src, alloc, false);
-            out.push(make_insn(addr, "MOV", vec![op_reg(rd_lo), s], guard));
+            anyhow::bail!("mov64 shape unsupported: {:?} <- {:?}", d, src);
         }
     }
     let n = out.len() as u32;
-    (out, n)
+    Ok((out, n))
 }
 
 fn lower_ld_param(addr: u32, insn: &PtxInsn, params: &[crate::ptx_parse::PtxParam],
@@ -883,11 +1069,53 @@ fn lower_mov_or_sreg(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Opt
     let d = &insn.operands[0];
     let src = &insn.operands[1];
 
-    // Special register → S2R
+    // Special register → S2R. b9 phase-2: 64-bit sregs split into LO/HI;
+    // unmapped sregs are fail-closed (never SR_TID.X by accident).
     if let PtxOperand::SReg(name) = src {
+        let srname = sreg_sass_name(name)
+            .ok_or_else(|| anyhow::anyhow!("unsupported special register {:?} (no sm_103a mapping)", name))?;
         let rd = ptx_op_to_sass(d, alloc, false);
-        let sr = Operand::SysReg(sreg_sass_name(name).to_string());
-        return Ok(vec![make_insn(addr, "S2R", vec![rd, sr], guard)]);
+        return Ok(vec![make_insn(addr, "S2R", vec![rd, Operand::SysReg(srname.to_string())], guard)]);
+    }
+
+    // b9 phase-2 P4c: dst brace group = 64-bit unpack (mov.b32 {lo,hi}, %rd)
+    if let PtxOperand::RegGroup(regs) = d {
+        let (op, pfx) = prepare_group(regs, GroupRole::Dst, addr, alloc, &guard)?;
+        let mut out = pfx;
+        let base = match op { Operand::Reg { num, .. } => num, _ => unreachable!() };
+        match src {
+            PtxOperand::Reg(name) if alloc.is_64bit(name) => {
+                let (lo, hi) = alloc.gpr_pair(name);
+                out.push(make_insn(addr + 16 * out.len() as u32, "MOV",
+                    vec![op_reg(base), op_reg(lo)], guard.clone()));
+                out.push(make_insn(addr + 16 * out.len() as u32, "MOV",
+                    vec![op_reg(base + 1), op_reg(hi)], guard));
+                return Ok(out);
+            }
+            // mov.b32 {lo16,hi16}, imm / mov.b64 {lo,hi}, imm: lane-wise materialize
+            PtxOperand::IntImm(v) => {
+                let n = regs.len();
+                for (i, _) in regs.iter().enumerate() {
+                    let lane = base + i as u8;
+                    let bits = if n == 2 && insn.opcode == "mov.b32" {
+                        if i == 0 { *v & 0xffff } else { (*v >> 16) & 0xffff }
+                    } else {
+                        if i == 0 { *v & 0xffffffff } else { (*v >> 32) & 0xffffffff }
+                    };
+                    out.push(make_insn(addr + 16 * out.len() as u32, "IMAD.MOV.U32",
+                        vec![op_reg(lane), op_rz(), op_rz(), Operand::Imm32(bits)], guard.clone()));
+                }
+                return Ok(out);
+            }
+            PtxOperand::Reg(other32) if !alloc.is_64bit(other32) => {
+                // mov.b32 {lo16,hi16}, %r  — sub-word split needs .H0/.H1 lane
+                // selects at use sites (no standalone SASS form on sm_103a).
+                anyhow::bail!(
+                    "mov {} into a b16 pair {} = sub-word unpack; needs H0/H1 lane-select lowering (b9 phase-3)",
+                    insn.opcode, regs.join(","));
+            }
+            other => anyhow::bail!("mov into brace group: unsupported source {:?}", other),
+        }
     }
 
     // Regular move
@@ -905,6 +1133,18 @@ fn lower_mov_or_sreg(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Opt
             vec![op_reg(rn), op_rz(), op_rz(), Operand::Imm32(f.to_bits() as i64)], guard)]);
     }
     let rs = ptx_op_to_sass(src, alloc, false);
+    // b9 phase-2: int mov with immediate rides THE canonical imm form
+    // (IMAD.MOV.U32 raw-bits) so both asm front-ends accept it; plain
+    // "MOV R,imm" exists only in the directive parser's alias path.
+    if let Operand::Imm32(v) = &rs {
+        if let PtxOperand::Reg(name) = d {
+            if !alloc.is_64bit(name) {
+                let rn = alloc.resolve(name);
+                return Ok(vec![make_insn(addr, "IMAD.MOV.U32",
+                    vec![op_reg(rn), op_rz(), op_rz(), Operand::Imm32(*v)], guard)]);
+            }
+        }
+    }
     Ok(vec![make_insn(addr, "MOV", vec![rd, rs], guard)])
 }
 
@@ -925,33 +1165,88 @@ fn lower_setp(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Gua
     make_insn(addr, &opf, vec![pd, op_pt(), a, b, op_pt()], guard)
 }
 
-fn lower_cvt(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>) -> Option<Instruction> {
+/// b9 phase-2 P5: cvt lowered ONLY to vendor-attested sm_103a forms
+/// (ptxas 13.3 byte-anchors, census probes cvtprobe/cvt2/cvt3):
+///   int->f32:  I2FP.F32.{S32,U32}        int->f64: I2F.F64 (no src suffix)
+///   f32<->f64: F2F.{D}.{S}               f32->int: F2I.{TRUNC|FLOOR}.NTZ
+///   s32->s64:  MOV lo + SHF.R.S32.HI hi,RZ,0x1f,lo   (I2I absent on sm103a)
+///   u32->u64:  MOV lo + MOV hi,RZ        64->32: MOV lo
+/// Everything else (F2FP.*.PACK_AB + PRMT f16 chains, f64<->int64, sub-word)
+/// => Err(unattested) => lands in the aggregated unsupported list.
+fn lower_cvt(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>) -> Option<Result<Vec<Instruction>>> {
     let parts: Vec<&str> = insn.opcode.split('.').collect();
+    let rounding: Option<&str> = parts[1..].iter().copied()
+        .find(|p| matches!(*p, "rn"|"rz"|"rzi"|"rmi"|"rmp"|"rni"|"trunc"));
     let type_parts: Vec<&str> = parts[1..].iter()
         .filter(|p| matches!(**p, "u8"|"s8"|"u16"|"s16"|"u32"|"s32"|"u64"|"s64"|"f16"|"f32"|"f64"|"b8"|"b16"|"b32"|"b64"))
         .copied().collect();
 
     if type_parts.len() < 2 { return None; }
-    let dst_type = type_parts[0].to_uppercase();
-    let src_type = type_parts[1].to_uppercase();
-    let dst_float = dst_type.starts_with('F');
-    let src_float = src_type.starts_with('F');
+    let dst = type_parts[0];
+    let srct = type_parts[1];
 
-    let prefix = match (dst_float, src_float) {
-        (true, true)   => "F2F",
-        (true, false)  => "I2F",
-        (false, true)  => "F2I",
-        (false, false) => "I2I",
-    };
-    let opf = format!("{}.{}.{}", prefix, dst_type, src_type);
+    macro_rules! one { ($opf:expr, $d:expr, $a:expr) => {
+        Some(Ok(vec![make_insn(addr, &$opf, vec![$d, $a], guard.clone())]))
+    } }
+    let unattested = || Some(Err(anyhow::anyhow!(
+        "cvt {}->{}: no vendor-attested sm_103a lowering (b9 phase-3)", dst, srct)));
 
     let d = ptx_op_to_sass(&insn.operands[0], alloc, false);
     let a = ptx_op_to_sass(&insn.operands[1], alloc, false);
+    let regnum = |o: &Operand| -> Option<u8> {
+        match o { Operand::Reg { num, .. } => Some(*num), _ => None }
+    };
 
-    Some(make_insn(addr, &opf, vec![d, a], guard))
+    match (dst, srct) {
+        ("f32", "s32" | "u32") => one!(format!("I2FP.F32.{}", srct.to_uppercase()), d, a),
+        ("f64", "s32" | "u32") => one!("I2F.F64".to_string(), d, a),
+        ("f32", "f64") => one!("F2F.F32.F64".to_string(), d, a),
+        ("f64", "f32") => one!("F2F.F64.F32".to_string(), d, a),
+        ("s32" | "u32", "f32") => match rounding {
+            Some("rmi") => one!("F2I.FLOOR.NTZ".to_string(), d, a),
+            _ => one!("F2I.TRUNC.NTZ".to_string(), d, a),
+        },
+        // s32 -> s64: MOV lo + SHF.R.S32.HI hi,RZ,0x1f,lo  (vendor anchor)
+        ("s64", "s32") => {
+            let (dlo, dhi) = match &insn.operands[0] {
+                PtxOperand::Reg(name) => alloc.gpr_pair(name),
+                _ => return unattested(),
+            };
+            let alo = regnum(&a);
+            match alo {
+                Some(alo) => Some(Ok(vec![
+                    make_insn(addr, "MOV", vec![op_reg(dlo), op_reg(alo)], guard.clone()),
+                    make_insn(addr + 16, "SHF.R.S32.HI",
+                        vec![op_reg(dhi), op_rz(), Operand::Imm32(0x1f), op_reg(alo)], guard),
+                ])),
+                None => unattested(),
+            }
+        }
+        // u32 -> u64: MOV lo + MOV hi,RZ
+        ("u64", "u32") => {
+            let (dlo, dhi) = match &insn.operands[0] {
+                PtxOperand::Reg(name) => alloc.gpr_pair(name),
+                _ => return unattested(),
+            };
+            match regnum(&a) {
+                Some(alo) => Some(Ok(vec![
+                    make_insn(addr, "MOV", vec![op_reg(dlo), op_reg(alo)], guard.clone()),
+                    make_insn(addr + 16, "MOV", vec![op_reg(dhi), op_rz()], guard),
+                ])),
+                None => unattested(),
+            }
+        }
+        (dst, srct) if matches!(dst, "s32"|"u32") && matches!(srct, "s64"|"u64") => {
+            match regnum(&a) { Some(alo) => one!("MOV".to_string(), d, op_reg(alo)), None => unattested() }
+        }
+        (dst, srct) if dst == srct && matches!(dst, "s32"|"u32"|"b32") => {
+            one!("MOV".to_string(), d, a)
+        }
+        _ => unattested(),
+    }
 }
 
-fn lower_ld_global(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>) -> Instruction {
+fn lower_ld_global(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>) -> Result<Vec<Instruction>> {
     let is_v4 = insn.opcode.contains(".v4.");
     let is_v2 = insn.opcode.contains(".v2.");
     let is_64 = insn.opcode.contains("u64") || insn.opcode.contains("b64") || insn.opcode.contains("f64");
@@ -970,7 +1265,17 @@ fn lower_ld_global(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Optio
         alloc.free_pair(&addr_reg_name);
     }
 
-    let d = ptx_op_to_sass(&insn.operands[0], alloc, false);
+    // b9 phase-2 P4c: vector ld dst {r0..r3} = aligned chunk, Dst scatter.
+    let mut pre: Vec<Instruction> = Vec::new();
+    let d = match &insn.operands[0] {
+        PtxOperand::RegGroup(regs) => {
+            let (op, pfx) = prepare_group(regs, GroupRole::Dst, addr, alloc, &guard)
+                .map_err(|e| e.context(format!("ld dst group in {}", insn.opcode)))?;
+            pre.extend(pfx);
+            op
+        }
+        other => ptx_op_to_sass(other, alloc, false),
+    };
 
     let desc_op = Operand::Desc {
         ur_idx: 4,
@@ -978,10 +1283,11 @@ fn lower_ld_global(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Optio
         base_reg_suffix: Some(".64".to_string()),
         offset,
     };
-    make_insn(addr, &format!("LDG{}", suffix), vec![d, desc_op], guard)
+    pre.push(make_insn(addr + 16 * pre.len() as u32, &format!("LDG{}", suffix), vec![d, desc_op], guard));
+    Ok(pre)
 }
 
-fn lower_st_global(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>) -> Instruction {
+fn lower_st_global(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>) -> Result<Vec<Instruction>> {
     let is_v4 = insn.opcode.contains(".v4.");
     let is_v2 = insn.opcode.contains(".v2.");
     let is_64 = insn.opcode.contains("u64") || insn.opcode.contains("b64") || insn.opcode.contains("f64");
@@ -1000,12 +1306,38 @@ fn lower_st_global(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Optio
         base_reg_suffix: Some(".64".to_string()),
         offset,
     };
-    let src = ptx_op_to_sass(&insn.operands[1], alloc, false);
-
-    make_insn(addr, &format!("STG{}", suffix), vec![desc_op, src], guard)
+    // b9 phase-2 P2: a store with immediate data has no sm_103a encoding
+    // form; materialize via IMAD.MOV.U32 (the imm form BOTH asm front-ends
+    // canonicalize; vendor anchors plain "MOV Rn, imm" — directive parser
+    // legacy only).
+    // b9 phase-2 P4c: vector st data {r0..} gathers into an aligned chunk.
+    let mut out: Vec<Instruction> = Vec::new();
+    let mut src = match &insn.operands[1] {
+        PtxOperand::RegGroup(regs) => {
+            let (op, pfx) = prepare_group(regs, GroupRole::Src, addr, alloc, &guard)?;
+            out.extend(pfx);
+            op
+        }
+        other => ptx_op_to_sass(other, alloc, false),
+    };
+    if let Operand::Imm32(v) = src {
+        if is_64 || is_v2 || is_v4 {
+            anyhow::bail!(
+                "st.global immediate data only legalized for 32-bit stores ({}); wide immediate materialization is phase-3",
+                insn.opcode);
+        }
+        let rn = alloc.gpr(&format!("__stimm_{}", addr));
+        out.push(make_insn(addr + 16 * out.len() as u32, "IMAD.MOV.U32",
+            vec![op_reg(rn), op_rz(), op_rz(), Operand::Imm32(v)], guard.clone()));
+        src = op_reg(rn);
+    }
+    out.push(make_insn(addr + 16 * out.len() as u32, &format!("STG{}", suffix), vec![desc_op, src], guard));
+    Ok(out)
 }
 
-fn lower_mma(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>) -> Option<Instruction> {
+fn lower_mma(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>) -> Option<Vec<Instruction>> {
+    // Gathered/scattered prefix ops (b9 phase-2 P4c) plus the MMA itself.
+    let mut seq: Vec<Instruction> = Vec::new();
     let op = &insn.opcode;
 
     let shape = regex::Regex::new(r"m(\d+)n(\d+)k(\d+)").ok()
@@ -1042,35 +1374,30 @@ fn lower_mma(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guar
     } else if is_block_scaled {
         format!("QMMA.SF.{}.{}.{}.{}.{}", shape, acc_type, a_type, b_type, scale_type)
     } else if is_fp16 {
-        format!("HMMA.{}.{}.{}.{}", shape, acc_type, a_type, b_type)
+        // b9 phase-2 P4: f16/bf16 MMA on sm_103a has NO element-type suffix
+        // (nvdisasm corpus anchor: HMMA.16816.F32). The E4M3 default above is
+        // fp8-domain only; never leak it into HMMA.
+        format!("HMMA.{}.{}", shape, acc_type)
     } else {
         format!("QMMA.{}.{}.{}.{}", shape, acc_type, a_type, b_type)
     };
 
     if insn.operands.len() < 4 { return None; }
 
-    // Resolve A, B, C first
-    let a = ptx_op_to_sass(&insn.operands[1], alloc, false);
-    let b = ptx_op_to_sass(&insn.operands[2], alloc, false);
-    let c = ptx_op_to_sass(&insn.operands[3], alloc, false);
-
-    // ptxas trick: QMMA Rd reuses Rc (accumulator consumed, D overwrites C slot).
-    // Free A, B, C registers so D can reuse them.
-    // C is the best candidate (QMMA reads C, writes D to same location).
-    if let PtxOperand::RegGroup(ref regs) = insn.operands[3] {
-        alloc.free_quad(&regs[0]);
-    } else if let PtxOperand::Reg(ref name) = insn.operands[3] {
-        alloc.free_quad(name);
-    }
-    // Also free A and B (consumed by MMA)
-    if let PtxOperand::RegGroup(ref regs) = insn.operands[1] {
-        alloc.free_quad(&regs[0]);
-    }
-    if let PtxOperand::RegGroup(ref regs) = insn.operands[2] {
-        alloc.free_pair(&regs[0]);
-    }
-
-    let d = ptx_op_to_sass(&insn.operands[0], alloc, false);
+    // b9 phase-2 P4c: every fragment operand must be a RegGroup; scalar mma
+    // forms are unsupported here (they surface in the unsupported list).
+    let grp = |i: usize, role: GroupRole, alloc: &mut RegAlloc, seq_len: u32|
+        -> Option<(Operand, Vec<Instruction>)> {
+        match &insn.operands[i] {
+            PtxOperand::RegGroup(regs) =>
+                prepare_group(regs, role, addr + 16 * seq_len, alloc, &guard).ok(),
+            _ => None,
+        }
+    };
+    let (a, pafx) = grp(1, GroupRole::Src, alloc, seq.len() as u32)?;  seq.extend(pafx);
+    let (b, pbfx) = grp(2, GroupRole::Src, alloc, seq.len() as u32)?;  seq.extend(pbfx);
+    let (c, pcfx) = grp(3, GroupRole::Src, alloc, seq.len() as u32)?;  seq.extend(pcfx);
+    let (d, pdfx) = grp(0, GroupRole::Dst, alloc, seq.len() as u32)?;  seq.extend(pdfx);
 
     let mut operands = vec![d, a, b, c];
 
@@ -1082,5 +1409,6 @@ fn lower_mma(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guar
         operands.push(Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true });
     }
 
-    Some(make_insn(addr, &opf, operands, guard))
+    seq.push(make_insn(addr + 16 * seq.len() as u32, &opf, operands, guard));
+    Some(seq)
 }

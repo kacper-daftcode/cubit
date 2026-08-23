@@ -186,3 +186,215 @@ fn b9_float_imm_legalization() {
     assert_eq!(ffma.matches("0x").count(), 1, "FFMA must carry exactly one immediate:\n{}", ffma);
     let (_b, _n) = assemble_body(&text);
 }
+
+// ── b9 phase-2 pins (iter31 census findings P1..P6; results/b9/B9-PHASE2-CENSUS.md)
+
+/// P1: nvcc single-line inline-asm blocks `{.reg ..; op; op;}` split into real
+/// statements; no "{.reg" pseudo-opcode, block-local decl honored.
+#[test]
+fn b9p2_inline_asm_block_split() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b32   %r<4>;
+    .reg .b64   %rd<3>;
+    ld.param.u64 %rd1, [k_param_0];
+    {{.reg .b32 t; mov.u32 t, 5; add.u32 %r1, t, %r1;}}
+    mov.u32 %r1, 7;
+    ld.global.b32 %r2, [%rd1];
+    add.u32 %r3, %r1, %r2;
+    st.global.b32 [%rd1], %r3;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let lowered = lower_kernel(&kernels[0]).unwrap();
+    let text = lowered.to_sass_text();
+    assert!(!text.contains('{'), "no brace text may survive:\n{}", text);
+    assert!(text.matches("IMAD.MOV.U32").count() >= 1, "block mov.u32 imm materialized:\n{}", text);
+    assert!(text.contains("IADD3"), "block add must lower:\n{}", text);
+    let (_b, n) = assemble_body(&text);
+    assert!(n >= 8);
+}
+
+/// P2: st.global immediate data materializes a MOV (encoder law: no STG-imm
+/// form on sm_103a; vendor anchors MOV Rn, imm before STG).
+#[test]
+fn b9p2_store_immediate_materialized() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b64   %rd<3>;
+    ld.param.u64 %rd1, [k_param_0];
+    st.global.b32 [%rd1], 0x123456;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let lowered = lower_kernel(&kernels[0]).unwrap();
+    let text = lowered.to_sass_text();
+    assert!(text.contains("IMAD.MOV.U32"), "imm store must materialize IMAD.MOV.U32:\n{}", text);
+    assert!(!text.contains("] , 0x"), "no raw immediate may reach STG");
+    let (_b, n) = assemble_body(&text);
+    assert!(n >= 5, "MOV+STG must encode:\n{}", text);
+}
+
+/// P2-wide: 64-bit immediate stores stay fail-closed (phase-3 scope), with a
+/// legalization error naming the opcode.
+#[test]
+fn b9p2_store_wide_imm_fail_closed() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b64   %rd<3>;
+    ld.param.u64 %rd1, [k_param_0];
+    st.global.u64 [%rd1], 0x123456789;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
+    assert!(err.contains("wide immediate") || err.contains("32-bit stores"), "got: {}", err);
+}
+
+/// P3: predicate space exhaustion is a fail-closed Err naming the kernel,
+/// never a panic.
+#[test]
+fn b9p2_pred_exhaustion_fail_closed() {
+    let mut body = String::new();
+    for i in 1..=9 {
+        body.push_str(&format!("    setp.gt.s32 %p{}, %r1, {};\n", i, i));
+    }
+    for i in 1..=9 {
+        body.push_str(&format!("    selp.b32 %r2, {}, 0, %p{};\n", i, i));
+        body.push_str(&format!("    add.u32 %r3, %r3, %r2;\n"));
+    }
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .pred  %p<10>;
+    .reg .b32   %r<5>;
+    .reg .b64   %rd<2>;
+    ld.param.u64 %rd1, [k_param_0];
+{}    st.global.b32 [%rd1], %r3;
+    ret;
+}}"#, PROLOG, body);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
+    assert!(err.contains("predicate space exhausted"), "got: {}", err);
+    assert!(err.contains("kernel k"), "kernel named: {}", err);
+}
+
+/// P5: cvt lowered only to vendor-attested sm_103a forms (ptxas 13.3 anchors).
+#[test]
+fn b9p2_cvt_sm103a_forms() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0, .param .u64 k_param_1
+)
+{{
+    .reg .b32   %r<6>;
+    .reg .f32   %f<3>;
+    .reg .b64   %rd<4>;
+    ld.param.u64 %rd1, [k_param_0];
+    ld.global.b32 %r1, [%rd1];
+    cvt.rn.f32.s32 %f1, %r1;
+    cvt.s64.s32 %rd2, %r1;
+    cvt.rzi.s32.f32 %r2, %f1;
+    st.global.b32 [%rd1], %r2;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let lowered = lower_kernel(&kernels[0]).unwrap();
+    let text = lowered.to_sass_text();
+    assert!(text.contains("I2FP.F32.S32"), "I2FP anchor:\n{}", text);
+    assert!(text.contains("SHF.R.S32.HI"), "s64 widen via SHF anchor:\n{}", text);
+    assert!(text.contains("F2I.TRUNC.NTZ"), "F2I anchor:\n{}", text);
+    assert!(!text.contains("I2I"), "I2I must never be emitted on sm_103a");
+    let (_b, _n) = assemble_body(&text);
+}
+
+/// P5-negative: f16 cvt has no attested lowering (F2FP.PACK_AB + PRMT chain is
+/// phase-3) and must hit the aggregated unsupported list.
+#[test]
+fn b9p2_cvt_f16_unsupported() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .f32   %f<2>;
+    .reg .b16   %rs<2>;
+    .reg .b64   %rd<2>;
+    ld.param.u64 %rd1, [k_param_0];
+    ld.global.f32 %f1, [%rd1];
+    cvt.rn.f16.f32 %rs1, %f1;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
+    assert!(err.contains("cvt.rn.f16.f32"), "got: {}", err);
+}
+
+/// P6: redux.* rejected at the PTX layer (UR-dest op; the old REDUX.ADD/R-dest
+/// rule was withdrawn — wrong op + unencodable form).
+#[test]
+fn b9p2_redux_rejected() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b32   %r<4>;
+    .reg .b64   %rd<2>;
+    ld.param.u64 %rd1, [k_param_0];
+    redux.sync.add.u32 %r1, %r2, 0xffffffff;
+    st.global.b32 [%rd1], %r1;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
+    assert!(err.contains("redux.sync.add.u32"), "got: {}", err);
+}
+
+/// P4: f16 MMA emits HMMA.16816.F32 (no fp8 suffix), with BUG-037-aligned
+/// register groups even though the scalar fragment regs were allocated first.
+#[test]
+fn b9p2_mma_f16_aligned_groups() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .f32   %f<8>;
+    .reg .b64   %rd<2>;
+    ld.param.u64 %rd1, [k_param_0];
+    mov.f32 %f3, 0f00000000;
+    mov.f32 %f4, 0f00000000;
+    mov.f32 %f5, 0f00000000;
+    mov.f32 %f6, 0f00000000;
+    mov.u32 %r2, 0x3c00;
+    mov.u32 %r3, 0x3c00;
+    mov.u32 %r4, 0x3c00;
+    mov.u32 %r5, 0x3c00;
+    mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32
+        {{%f3, %f4, %f5, %f6}},
+        {{%r2, %r3, %r4, %r5}},
+        {{%r4, %r5}},
+        {{%f3, %f4, %f5, %f6}};
+    st.global.b32 [%rd1], %f3;
+    ret;
+}}"#, PROLOG);
+    let ptx = ptx.replace("%r2", "%rr2").replace("%r3", "%rr3")
+                 .replace("%r4", "%rr4").replace("%r5", "%rr5");
+    let ptx = ptx.replace(".reg .f32", ".reg .b32 %rr<6>;\n    .reg .f32");
+    let kernels = parse_ptx(&ptx).unwrap();
+    let lowered = lower_kernel(&kernels[0]).unwrap();
+    let text = lowered.to_sass_text();
+    let line = text.lines().find(|l| l.contains("HMMA.16816.F32"))
+        .unwrap_or_else(|| panic!("HMMA.16816.F32 expected:\n{}", text));
+    let re = regex::Regex::new(r"R(\d+)").unwrap();
+    let ns: Vec<u32> = re.captures_iter(line.split("HMMA.16816.F32").nth(1).unwrap())
+        .map(|c| c[1].parse().unwrap()).collect();
+    assert!(ns.len() >= 4, "D,A,B,C operands: {:?}", ns);
+    assert_eq!(ns[0] % 4, 0, "D quad aligned: {:?}", ns);
+    assert_eq!(ns[3] % 4, 0, "C quad aligned: {:?}", ns);
+    let (_b, _n) = assemble_body(&text);
+}

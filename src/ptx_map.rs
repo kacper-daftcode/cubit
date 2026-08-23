@@ -209,13 +209,20 @@ pub static RULES: &[PtxRule] = &[
     // ── Synchronization ──────────────────────────────────────────────────
     // b9 phase-1: vendor canonical for __syncthreads is DEFER_BLOCKING
     // (anchor: k3 ptxas probe).
-    PtxRule { pattern: "bar.sync",      template: Single { opcode: "BAR.SYNC.DEFER_BLOCKING", slots: &[Src(0)] } },
+    // b9 phase-2: vendor keeps id AND thread-count (corpus anchor:
+    // "BAR.SYNC.DEFER_BLOCKING 0x2, 0x1a0"); missing args resolve to RZ.
+    PtxRule { pattern: "bar.sync",      template: Single { opcode: "BAR.SYNC.DEFER_BLOCKING", slots: &[Src(0), Src(1)] } },
     PtxRule { pattern: "membar.gl",     template: Single { opcode: "MEMBAR.SC.GL", slots: &[] } },
     PtxRule { pattern: "membar.cta",    template: Single { opcode: "MEMBAR.SC.CTA", slots: &[] } },
 
     // ── Warp ops ─────────────────────────────────────────────────────────
     PtxRule { pattern: "shfl.sync.",    template: Shfl },
-    PtxRule { pattern: "redux.sync.",   template: Single { opcode: "REDUX.ADD", slots: &[Src(0), Src(1)] } },
+    // b9 phase-2 P6: removed "redux.sync." -> REDUX.ADD single-op rule. It
+    // collapsed MIN/MAX/AND/OR into ADD (wrong op) AND emitted an R-dest form
+    // the sm_103a encoder does not have (vendor: REDUX[.op][.type] URd, Ra;
+    // REDUX_UR_R table key). The gateway has no UR-domain allocation, so the
+    // honest behavior is PTX-level rejection ("unsupported PTX: redux.sync..")
+    // until a phase-3 UR path exists.
 
     // ── Conversions ──────────────────────────────────────────────────────
     PtxRule { pattern: "cvt.",          template: Cvt },

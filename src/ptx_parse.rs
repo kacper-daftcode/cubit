@@ -113,7 +113,7 @@ fn strip_comment(s: &str) -> &str {
 
 // ── Join continuation lines ──────────────────────────────────────────────────
 
-fn join_continuations(lines: &[&str]) -> Vec<String> {
+fn join_continuations(lines: &[String]) -> Vec<String> {
     let mut result = Vec::new();
     let mut accum = String::new();
 
@@ -327,6 +327,41 @@ fn parse_insn_line(line: &str, reg_decls: &HashMap<String, String>, params: &[Pt
 
 // ── Top-level parser ─────────────────────────────────────────────────────────
 
+/// Split a raw PTX body line into statements.
+///
+/// nvcc renders CUDA inline-asm as braced multi-statement blocks on ONE
+/// physical line, e.g. `{.reg .pred p; setp.eq.u32 p,1,0; tcgen05.mma ...;}`.
+/// Split on ';' and rebalance the block-wrapper braces only; operand-list
+/// braces used by mma/ldmatrix (`{a,b,c,d}`) are inner-balanced and pass
+/// through untouched (b9 phase-2 census finding P1: "{.reg" pseudo-opcodes).
+fn split_block_statements(line: &str) -> Vec<String> {
+    let clean = strip_comment(line).trim().to_string();
+    let open = clean.matches('{').count();
+    let close = clean.matches('}').count();
+    let mid_semi = clean[..clean.len().saturating_sub(1)].contains(';');
+    let wrapper = open != close || clean.starts_with('{') || clean.ends_with('}');
+    if !wrapper && !mid_semi {
+        return vec![clean];
+    }
+    let mut out = Vec::new();
+    for piece in clean.split(';') {
+        let co = piece.matches('{').count();
+        let cc = piece.matches('}').count();
+        let mut p = piece.trim();
+        // Strip only UNBALANCED wrapper braces (one end or the other).
+        let n_strip = co.abs_diff(cc);
+        for _ in 0..n_strip {
+            if co > cc {
+                if let Some(x) = p.strip_prefix('{') { p = x.trim_start(); } else { break; }
+            } else {
+                if let Some(x) = p.strip_suffix('}') { p = x.trim_end(); } else { break; }
+            }
+        }
+        if !p.is_empty() { out.push(p.to_string()); }
+    }
+    out
+}
+
 pub fn parse_ptx(text: &str) -> Result<Vec<PtxKernel>> {
     let mut kernels = Vec::new();
     let lines: Vec<&str> = text.lines().collect();
@@ -335,8 +370,10 @@ pub fn parse_ptx(text: &str) -> Result<Vec<PtxKernel>> {
     while i < lines.len() {
         let line = lines[i].trim();
 
-        // .visible .entry kernel_name
-        if line.contains(".visible") && line.contains(".entry") {
+        // Kernel entry: ".visible .entry", ".weak .entry" or (old nvcc,
+        // decuda-era) bare ".entry". Device ".func" is not an entry.
+        let is_entry = line.contains(".entry") && !line.contains(".func");
+        if is_entry {
             let name = extract_entry_name(line)
                 .ok_or_else(|| anyhow::anyhow!("cannot parse .entry name: {}", line))?;
 
@@ -359,31 +396,30 @@ pub fn parse_ptx(text: &str) -> Result<Vec<PtxKernel>> {
             let mut body_lines = Vec::new();
             let mut shared_bytes = 0;
 
+            // asm_block_depth tracks multi-line CUDA inline-asm regions
+            // (brace on its own line); ONLY a '}' at depth 0 ends the kernel.
+            let mut asm_block_depth: i32 = 0;
             while i < lines.len() {
                 let bline = lines[i].trim();
-                if bline == "}" { i += 1; break; }
-                if bline.is_empty() || bline == "{" || bline == ")" || bline.starts_with("//") {
+                if bline == "}" && asm_block_depth == 0 { i += 1; break; }
+                if bline.is_empty() || bline == ")" || bline.starts_with("//") {
                     i += 1; continue;
                 }
+                if bline == "{" { asm_block_depth += 1; i += 1; continue; }
+                if bline == "}" { asm_block_depth -= 1; i += 1; continue; }
 
-                // .reg declarations
-                if bline.starts_with(".reg") {
-                    parse_reg_decl(bline, &mut reg_decls);
-                    i += 1; continue;
+                // Single-line braced asm blocks / multi-statement lines.
+                for stmt in split_block_statements(lines[i]) {
+                    let s = stmt.trim();
+                    if s.is_empty() { continue; }
+                    if s.starts_with(".reg") { parse_reg_decl(s, &mut reg_decls); continue; }
+                    if s.starts_with(".shared") {
+                        shared_bytes = parse_shared_decl(s).unwrap_or(0);
+                        continue;
+                    }
+                    if s.starts_with('.') { continue; }
+                    body_lines.push(stmt);
                 }
-
-                // .shared
-                if bline.starts_with(".shared") {
-                    shared_bytes = parse_shared_decl(bline).unwrap_or(0);
-                    i += 1; continue;
-                }
-
-                // Skip other directives
-                if bline.starts_with('.') {
-                    i += 1; continue;
-                }
-
-                body_lines.push(lines[i]);
                 i += 1;
             }
 
@@ -483,8 +519,10 @@ fn parse_reg_decl(line: &str, decls: &mut HashMap<String, String>) {
         }
         return;
     }
-    // .reg .u32 r_i, r_sum, r_n;
-    let re_named = regex::Regex::new(r"\.reg\s+\.(\w+)\s+(.+?)\s*;").unwrap();
+    // .reg .u32 r_i, r_sum, r_n;  (also block-local `.reg .b32 t`)
+    // b9 phase-2 P1b: statements from braced asm blocks arrive with the
+    // ';' already consumed by split_block_statements -- terminator optional.
+    let re_named = regex::Regex::new(r"\.reg\s+\.(\w+)\s+(.+?)\s*;?\s*$").unwrap();
     if let Some(cap) = re_named.captures(line) {
         let ty = cap[1].to_string();
         for name in cap[2].split(',') {
