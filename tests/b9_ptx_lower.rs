@@ -953,3 +953,133 @@ fn b9p6_pure_imm_address_parse() {
     assert_eq!(n, 2);
     // and the gateway's [sym+off] fold renders exactly this spelling
 }
+
+/// b9 phase-3 #5: membar levels -> vendor glue (anchors fm2/-O3; O0==O3).
+/// The legacy "MEMBAR.SC.GL" spelling is gone (no encoder key = silent trap);
+/// membar.gl on sm_103a lowers to the SC.GPU chain.
+#[test]
+fn b9p7_membar_forms() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0,
+    .param .u32 k_param_1
+)
+{{
+    .reg .b32 %r<4>;
+    .reg .b64 %rd<3>;
+    ld.param.u64 %rd1, [k_param_0];
+    ld.param.u32 %r1, [k_param_1];
+    st.global.b32 [%rd1], %r1;
+    membar.cta;
+    membar.gl;
+    membar.sys;
+    ld.global.b32 %r2, [%rd1];
+    st.global.b32 [%rd1+4], %r2;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let lowered = lower_kernel(&kernels[0]).unwrap();
+    let text = lowered.to_sass_text();
+    let pos = |s: &str| text.find(s).unwrap_or(usize::MAX);
+    let m1 = pos("MEMBAR.SC.CTA");
+    let (mg, es, cs, cc) = (pos("MEMBAR.SC.GPU"), pos("MEMBAR.SC.SYS"),
+        text.matches("CGAERRBAR").count(), text.matches("CCTL.IVALL").count());
+    assert!(m1 < mg && mg < es, "membar order SC.CTA < SC.GPU < SC.SYS:\n{}", text);
+    assert_eq!(text.matches("MEMBAR.SC.").count(), 3);
+    // "ERRBAR" is a substring of "CGAERRBAR" — real ERRBAR count nets it out
+    assert_eq!(text.matches("ERRBAR").count() - cs, 2, "gl+sys carry ERRBAR");
+    assert_eq!(cs, 2);
+    assert_eq!(cc, 2);
+    let (bytes, n) = assemble_body(&text);
+    assert!(bytes.len() == n * 16, "all lines must encode (incl. new SYS mgs)");
+}
+
+/// b9 phase-3 #5: fence.sc / fence.acq_rel per scope (anchors fm3=fm4; the two
+/// semantics lower identically on sm_103a; .cta is the lone single-op form).
+#[test]
+fn b9p7_fence_sc_acqrel_forms() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b64 %rd<3>;
+    ld.param.u64 %rd1, [k_param_0];
+    fence.sc.cta;
+    fence.sc.gpu;
+    fence.sc.sys;
+    fence.acq_rel.cta;
+    fence.acq_rel.gpu;
+    fence.acq_rel.sys;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let lowered = lower_kernel(&kernels[0]).unwrap();
+    let text = lowered.to_sass_text();
+    assert_eq!(text.matches("MEMBAR.ALL.CTA").count(), 2);
+    assert_eq!(text.matches("MEMBAR.ALL.GPU").count(), 2);
+    assert_eq!(text.matches("MEMBAR.ALL.SYS").count(), 2);
+    assert_eq!(text.matches("ERRBAR").count() - text.matches("CGAERRBAR").count(), 4, "gpu+sys chains x2");
+    assert_eq!(text.matches("CGAERRBAR").count(), 4);
+    assert_eq!(text.matches("CCTL.IVALL").count(), 4);
+    let pos = |s: &str| text.find(s).unwrap_or(usize::MAX);
+    assert!(pos("MEMBAR.ALL.GPU") < pos("ERRBAR"), "GPU fence before ERRBAR:\n{}", text);
+    let (bytes, n) = assemble_body(&text);
+    assert!(bytes.len() == n * 16);
+}
+
+/// b9 phase-3 #5: async-proxy fences (anchor fm1: shared::cta = ALL.CTA +
+/// FENCE.VIEW.ASYNC.S; bare async = ALL.GPU + FENCE.VIEW.ASYNC.S, fm5).
+/// Most-specific rule must win: shared::cta does NOT pick the bare-async glue.
+#[test]
+fn b9p7_fence_proxy_async() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0,
+    .param .u32 k_param_1
+)
+{{
+    .reg .b32 %r<4>;
+    .reg .b64 %rd<3>;
+    ld.param.u64 %rd1, [k_param_0];
+    ld.param.u32 %r1, [k_param_1];
+    st.shared.b32 [%rd1], %r1;
+    fence.proxy.async.shared::cta;
+    fence.proxy.async;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let lowered = lower_kernel(&kernels[0]).unwrap();
+    let text = lowered.to_sass_text();
+    let pos = |s: &str| text.find(s).unwrap_or(usize::MAX);
+    assert!(pos("MEMBAR.ALL.CTA") < pos("FENCE.VIEW.ASYNC.S"), "cta fence order:\n{}", text);
+    let last_view = text.rfind("FENCE.VIEW.ASYNC.S").unwrap_or(usize::MAX);
+    assert!(pos("MEMBAR.ALL.GPU") < last_view, "gpu chain before its view fence:\n{}", text);
+    assert_eq!(text.matches("FENCE.VIEW.ASYNC.S").count(), 2);
+    assert_eq!(text.matches("MEMBAR.ALL.CTA").count(), 1, "bare async uses GPU chain");
+    assert_eq!(text.matches("MEMBAR.ALL.GPU").count(), 1);
+    let (bytes, n) = assemble_body(&text);
+    assert!(bytes.len() == n * 16);
+    drop(bytes);
+}
+
+/// b9 phase-3 #5: fail-closed territory — tcgen05 (non-goal), mbarrier_init
+/// cluster fence (cluster context), alias/global proxy (no table mg; b4-feed).
+#[test]
+fn b9p7_fence_fail_closed() {
+    for op in ["tcgen05.fence::after_thread_sync;",
+               "fence.mbarrier_init.release.cluster [%rd1];",
+               "fence.proxy.alias;",
+               "fence.proxy.async.global;"] {
+        let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b64 %rd<3>;
+    ld.param.u64 %rd1, [k_param_0];
+    {}
+    ret;
+}}"#, PROLOG, op);
+        let kernels = parse_ptx(&ptx).unwrap();
+        let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
+        let want = op.trim_end_matches(';').split(' ').next().unwrap();
+        assert!(err.contains(want), "op {} must be listed unsupported: {}", want, err);
+    }
+}

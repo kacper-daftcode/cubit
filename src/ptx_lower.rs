@@ -592,6 +592,11 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                 let guard = lower_guard(insn, &mut alloc);
 
                 if let Some(rule) = find_rule(&insn.opcode) {
+                    // b9 phase-3 #5: Fence rules are exact-name. starts_with
+                    // would let "fence.proxy.async" swallow ".global" (vendor
+                    // mismap: global = FENCE.VIEW.ASYNC.G, not the S chain).
+                    let fence_exact_ok = !matches!(rule.template, SassTemplate::Fence { .. })
+                        || insn.opcode == rule.pattern;
                     match &rule.template {
                         SassTemplate::Single { opcode, slots } => {
                             let operands = resolve_slots(slots, &insn.operands, &mut alloc);
@@ -817,6 +822,18 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                             let n_ext = lower_madcc(addr, insn, &mut alloc, *hi)?;
                             insns.extend(n_ext.0);
                             addr += 16 * n_ext.1;
+                        }
+
+                        SassTemplate::Fence { lines } => {
+                            if !fence_exact_ok {
+                                unsupported.insert(insn.opcode.clone());
+                                continue;
+                            }
+                            // fixed vendor glue, no operands, no guard
+                            for op in lines.iter() {
+                                insns.push(make_insn(addr, op, vec![], None));
+                                addr += 16;
+                            }
                         }
 
                         SassTemplate::Shift64 { dir_left, signed } => {

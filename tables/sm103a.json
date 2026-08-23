@@ -44538,6 +44538,27 @@
       }
      ],
      "count": 10
+    },
+    "SC,SYS": {
+     "and_base": "0xfec00000030000000000000007992",
+     "variable_mask": "0x400000000000000000000000000000",
+     "fields": [],
+     "_src": "b9p7-fence-2026-08-23",
+     "_evidence": "b9p7 fence phase-3 #5: ptxas 13.3 sm_103a anchor fm2 fm2_membar+0x190 text 'MEMBAR.SC.SYS;' word 92790000000000000030000000c00f00 payload[0:96]&~vm IDENT; ab=(sib GPU,SC &~scope)|W&scope (dw3 legacy default kept, postfix rewrites); extraction_ok=True"
+    },
+    "ALL,SYS": {
+     "and_base": "0xfec000000b0000000000000000992",
+     "variable_mask": "0x60000000000000000000000000f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      }
+     ],
+     "_src": "b9p7-fence-2026-08-23",
+     "_evidence": "b9p7 fence phase-3 #5: ptxas 13.3 sm_103a anchor fm3 fm4_acqrel+0x1a0 text 'MEMBAR.ALL.SYS;' word 927900000000000000b0000000c00f00 payload[0:96]&~vm IDENT; ab=(sib ALL,GPU &~scope)|W&scope (dw3 legacy default kept, postfix rewrites); extraction_ok=True"
     }
    },
    "scheduling": {

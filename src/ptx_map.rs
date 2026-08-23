@@ -149,6 +149,21 @@ pub enum SassTemplate {
     /// High part first (vendor order; correct for in-place dst==src).
     /// Shift amount is the 32-bit PTX operand 2 (reg or immediate).
     Shift64 { dir_left: bool, signed: bool },
+    /// b9 phase-3 #5: fence/membar family -> fixed vendor glue sequences
+    /// (no operands). Vendor anchors ptxas 13.3 -O0/-O3 sm_103a, probes
+    /// fm1/fm2/fm3 (+O3): O0 and O3 emit IDENTICAL glue.
+    ///   membar.cta                  -> MEMBAR.SC.CTA
+    ///   membar.gl                   -> MEMBAR.SC.GPU; ERRBAR; CGAERRBAR; CCTL.IVALL
+    ///   membar.sys                  -> MEMBAR.SC.SYS; ERRBAR; CGAERRBAR; CCTL.IVALL
+    ///   fence.sc.cta / acq_rel.cta  -> MEMBAR.ALL.CTA
+    ///   fence.sc.gpu / acq_rel.gpu  -> MEMBAR.ALL.GPU; ERRBAR; CGAERRBAR; CCTL.IVALL
+    ///   fence.sc.sys / acq_rel.sys  -> MEMBAR.ALL.SYS; ERRBAR; CGAERRBAR; CCTL.IVALL
+    ///   fence.proxy.async.shared::cta -> MEMBAR.ALL.CTA; FENCE.VIEW.ASYNC.S
+    ///   fence.proxy.async           -> MEMBAR.ALL.GPU; FENCE.VIEW.ASYNC.S
+    /// Fail-closed (no rule): tcgen05.fence::* (tcgen05 = non-goal),
+    /// fence.mbarrier_init.*, fence.proxy.alias / fence.proxy.async.global
+    /// (FENCE.VIEW.ASYNC.G has no table mg -> b4-feed), fence.cluster forms.
+    Fence { lines: &'static [&'static str] },
 }
 
 /// A single PTX→SASS mapping rule.
@@ -324,8 +339,21 @@ pub static RULES: &[PtxRule] = &[
     // b9 phase-2: vendor keeps id AND thread-count (corpus anchor:
     // "BAR.SYNC.DEFER_BLOCKING 0x2, 0x1a0"); missing args resolve to RZ.
     PtxRule { pattern: "bar.sync",      template: Single { opcode: "BAR.SYNC.DEFER_BLOCKING", slots: &[Src(0), Src(1)] } },
-    PtxRule { pattern: "membar.gl",     template: Single { opcode: "MEMBAR.SC.GL", slots: &[] } },
-    PtxRule { pattern: "membar.cta",    template: Single { opcode: "MEMBAR.SC.CTA", slots: &[] } },
+    // b9 phase-3 #5: fence/membar family, vendor-anchored (fm1/fm2/fm3).
+    // Legacy "MEMBAR.SC.GL" spelling was a silent trap (no encoder key); the
+    // vendor form for membar.gl on sm_103a is the SC.GPU glue chain.
+    PtxRule { pattern: "membar.cta",    template: Fence { lines: &["MEMBAR.SC.CTA"] } },
+    PtxRule { pattern: "membar.gl",     template: Fence { lines: &["MEMBAR.SC.GPU", "ERRBAR", "CGAERRBAR", "CCTL.IVALL"] } },
+    PtxRule { pattern: "membar.sys",    template: Fence { lines: &["MEMBAR.SC.SYS", "ERRBAR", "CGAERRBAR", "CCTL.IVALL"] } },
+    PtxRule { pattern: "fence.sc.cta",  template: Fence { lines: &["MEMBAR.ALL.CTA"] } },
+    PtxRule { pattern: "fence.sc.gpu",  template: Fence { lines: &["MEMBAR.ALL.GPU", "ERRBAR", "CGAERRBAR", "CCTL.IVALL"] } },
+    PtxRule { pattern: "fence.sc.sys",  template: Fence { lines: &["MEMBAR.ALL.SYS", "ERRBAR", "CGAERRBAR", "CCTL.IVALL"] } },
+    PtxRule { pattern: "fence.acq_rel.cta", template: Fence { lines: &["MEMBAR.ALL.CTA"] } },
+    PtxRule { pattern: "fence.acq_rel.gpu", template: Fence { lines: &["MEMBAR.ALL.GPU", "ERRBAR", "CGAERRBAR", "CCTL.IVALL"] } },
+    PtxRule { pattern: "fence.acq_rel.sys", template: Fence { lines: &["MEMBAR.ALL.SYS", "ERRBAR", "CGAERRBAR", "CCTL.IVALL"] } },
+    // most-specific first: shared::cta before bare async
+    PtxRule { pattern: "fence.proxy.async.shared::cta", template: Fence { lines: &["MEMBAR.ALL.CTA", "FENCE.VIEW.ASYNC.S"] } },
+    PtxRule { pattern: "fence.proxy.async", template: Fence { lines: &["MEMBAR.ALL.GPU", "FENCE.VIEW.ASYNC.S"] } },
 
     // ── Atomics (b9 phase-3 #4; shapes parsed per-op in lower_atomic) ────
     PtxRule { pattern: "atom.",         template: Atom },
