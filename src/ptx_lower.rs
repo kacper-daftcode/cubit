@@ -632,6 +632,44 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                             addr += 16;
                         }
 
+                        SassTemplate::PredLogic { lut_a, lut_b } => {
+                            // b9 phase-3 P1': PTX pred logic -> PLOP3.LUT
+                            // (vendor-anchored form/LUTs, see ptx_map.rs).
+                            // Binary ops: d, a, b; unary (not/mov): d, a with
+                            // the b input tied PT. Negated pred operands
+                            // (`!%p1`, zero corpus occurrences) and immediate
+                            // sources are NOT attested -> fail-closed.
+                            let d_op = insn.operands.get(0)
+                                .ok_or_else(|| anyhow::anyhow!("{}: missing dst", insn.opcode))?;
+                            let d = match d_op {
+                                PtxOperand::Pred(name) if !name.contains('!') => alloc.pred(name),
+                                other => anyhow::bail!("{}: dst must be a plain predicate, got {:?}", insn.opcode, other),
+                            };
+                            let mut pred_src = |i: usize| -> Result<u8> {
+                                match insn.operands.get(i) {
+                                    Some(PtxOperand::Pred(name)) if !name.contains('!') => Ok(alloc.pred(name)),
+                                    other => anyhow::bail!("{}: operand {} must be a plain predicate, got {:?}", insn.opcode, i, other),
+                                }
+                            };
+                            let a = pred_src(1)?;
+                            let unary = insn.opcode.starts_with("not.pred")
+                                || insn.opcode.starts_with("mov.pred");
+                            let b_opnd = if unary { op_pt() } else {
+                                let b = pred_src(2)?;
+                                Operand::Pred { num: b, neg: false }
+                            };
+                            insns.push(make_insn(addr, "PLOP3.LUT", vec![
+                                Operand::Pred { num: d, neg: false },
+                                op_pt(),
+                                Operand::Pred { num: a, neg: false },
+                                b_opnd,
+                                op_pt(),
+                                op_imm(*lut_a as i64),
+                                op_imm(*lut_b as i64),
+                            ], guard));
+                            addr += 16;
+                        }
+
                         SassTemplate::MulWide { unsigned } => {
                             // mul.wide.s32/u32 %rd, %rA, B -> IMAD.WIDE[.U32] Rdp, Ra, B, RZ
                             let d = insn.operands.get(0).ok_or_else(|| anyhow::anyhow!("mul.wide: missing dst"))?;

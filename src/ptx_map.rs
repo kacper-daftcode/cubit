@@ -68,6 +68,17 @@ pub enum SassTemplate {
     /// cvta.to.global.u64: register-pair alias (generic==global VA on
     /// SM103a/120); emits NO code, unifies the dst pair with the src pair.
     AliasPair,
+    /// b9 phase-3 P1': PTX predicate logic (and/or/xor/not.pred, mov.pred)
+    /// -> PLOP3.LUT predicate-domain. Form + LUT bytes are vendor anchors
+    /// (ptxas 13.3 -O0 sm_103a, full 16-byte word parity IDENT x5 over
+    /// probes work/b9p3/plp{1,2}): `PLOP3.LUT Pd, PT, Pa, Pb, PT, immA,
+    /// immB`; immA is the op as f(a, b) with the third input tied PT
+    /// (c=0 rows are don't-care, ptxas choices preserved verbatim:
+    /// and/mov = 0x80, or = 0xf8, xor = 0x28, not = 0x08), immB is the
+    /// inert second-destination table (Pd1 == PT, writes discarded), kept
+    /// verbatim for byte-parity (and/mov = 0x08, or = 0x8f, xor = 0x82,
+    /// not = 0x80).
+    PredLogic { lut_a: u8, lut_b: u8 },
 }
 
 /// A single PTX→SASS mapping rule.
@@ -185,6 +196,14 @@ pub static RULES: &[PtxRule] = &[
     PtxRule { pattern: "setp.hi.u32",   template: ISetp },
     PtxRule { pattern: "setp.hs.u32",   template: ISetp },
     PtxRule { pattern: "setp.",          template: ISetp },  // catch-all for setp variants
+
+    // ── Predicate logic (b9 phase-3 P1': census family "pred-logic", 127
+    // files / 2,443 ops; forms vendor-anchored, see PredLogic variant docs).
+    PtxRule { pattern: "and.pred",      template: PredLogic { lut_a: 0x80, lut_b: 0x08 } },
+    PtxRule { pattern: "or.pred",       template: PredLogic { lut_a: 0xf8, lut_b: 0x8f } },
+    PtxRule { pattern: "xor.pred",      template: PredLogic { lut_a: 0x28, lut_b: 0x82 } },
+    PtxRule { pattern: "not.pred",      template: PredLogic { lut_a: 0x08, lut_b: 0x80 } },
+    PtxRule { pattern: "mov.pred",      template: PredLogic { lut_a: 0x80, lut_b: 0x08 } },
 
     PtxRule { pattern: "selp.s32",      template: Single { opcode: "SEL", slots: &[Src(0), Src(1), Src(2), Src(3)] } },
     PtxRule { pattern: "selp.b32",      template: Single { opcode: "SEL", slots: &[Src(0), Src(1), Src(2), Src(3)] } },

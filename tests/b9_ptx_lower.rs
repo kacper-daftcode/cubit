@@ -398,3 +398,79 @@ fn b9p2_mma_f16_aligned_groups() {
     assert_eq!(ns[3] % 4, 0, "C quad aligned: {:?}", ns);
     let (_b, _n) = assemble_body(&text);
 }
+
+/// P3-15: predicate logic lowers to PLOP3.LUT with vendor-anchored LUT bytes
+/// (ptxas 13.3 -O0 sm_103a full-16B word parity; work/b9p3/probes/plp{1,2}):
+/// and=0x80/0x08, or=0xf8/0x8f, xor=0x28/0x82, not=0x08/0x80, mov=0x80/0x08;
+/// unary ops tie the b input to PT; second destination is always PT.
+#[test]
+fn b9p3_pred_logic_plop3() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .pred  %p<8>;
+    .reg .b32   %r<4>;
+    .reg .b64   %rd<2>;
+    ld.param.u64 %rd1, [k_param_0];
+    mov.b32 %r1, 3;
+    mov.b32 %r2, 5;
+    setp.gt.s32 %p1, %r1, %r2;
+    setp.lt.s32 %p2, %r1, %r2;
+    and.pred %p3, %p1, %p2;
+    or.pred  %p4, %p1, %p2;
+    xor.pred %p5, %p1, %p2;
+    not.pred %p6, %p1;
+    mov.pred %p7, %p5;
+    selp.s32 %r3, 1, 0, %p3;
+    selp.s32 %r2, 1, 0, %p7;
+    add.s32 %r3, %r3, %r2;
+    st.global.b32 [%rd1], %r3;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let lowered = lower_kernel(&kernels[0]).unwrap();
+    let text = lowered.to_sass_text();
+    let plop: Vec<&str> = text.lines().filter(|l| l.contains("PLOP3.LUT")).collect();
+    assert_eq!(plop.len(), 5, "one PLOP3 per pred op:\n{}", text);
+    // exact vendor LUT pairs, in emission order (and, or, xor, not, mov)
+    for (line, want) in plop.iter().zip(["0x80, 0x8", "0xf8, 0x8f", "0x28, 0x82", "0x8, 0x80", "0x80, 0x8"]) {
+        assert!(line.contains(want), "LUT pair {} in line: {}", want, line);
+        assert!(line.contains(", PT,"), "second dest + c tied PT: {}", line);
+    }
+    // unary ops tie operand b to PT as well:  Pd, PT, Pa, PT, PT, ...
+    let not_line = plop[3];
+    let toks: Vec<&str> = not_line.split(',').map(|t| t.trim()).collect();
+    assert_eq!(toks[3], "PT", "unary b-input tied PT: {}", not_line);
+    let (_b, _n) = assemble_body(&text);
+}
+
+/// P3-16: unattested pred-logic shapes fail closed with the op named —
+/// negated pred source (`!%p`, zero corpus occurrences) and mov.pred with
+/// an immediate source both bail loudly instead of emitting a guessed LUT.
+#[test]
+fn b9p3_pred_logic_fail_closed() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .pred  %p<4>;
+    .reg .b32   %r<3>;
+    .reg .b64   %rd<2>;
+    ld.param.u64 %rd1, [k_param_0];
+    mov.b32 %r1, 3;
+    setp.gt.s32 %p1, %r1, 0;
+    and.pred %p3, !%p1, %p1;
+    selp.s32 %r2, 1, 0, %p3;
+    st.global.b32 [%rd1], %r2;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
+    assert!(err.contains("and.pred"), "negated src must name the op: {}", err);
+
+    let ptx = ptx.replace("and.pred %p3, !%p1, %p1;", "mov.pred %p3, 1;");
+    let kernels = parse_ptx(&ptx).unwrap();
+    let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
+    assert!(err.contains("mov.pred"), "imm src must name the op: {}", err);
+}
