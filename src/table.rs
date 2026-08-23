@@ -23,6 +23,12 @@ struct JsonTable(HashMap<String, JsonInsKey>);
 #[derive(Deserialize)]
 struct JsonInsKey {
     pub mod_groups: HashMap<String, JsonModGroup>,
+    /// BUG-090: rows visible to the ENCODER only (decoder skips them).
+    /// For frozen-era text compatibility rows whose decode surface must not
+    /// shadow canonical rows (legacy harvest-junk names kept load-bearing
+    /// for pinned publish text).
+    #[serde(default)]
+    pub encode_only: bool,
 }
 
 #[derive(Deserialize)]
@@ -301,6 +307,9 @@ pub struct InsKeyEntry {
     /// Resolved hi_upper32 value from ctrl_class → ctrl_epoch chain.
     /// Contains mode bits [31:17] and default scheduling bits [16:0].
     pub epoch_upper32: Option<u32>,
+    /// BUG-090: encoder-visible, decoder-invisible row (frozen-era text
+    /// compatibility). DecodeIndex::build skips these keys.
+    pub encode_only: bool,
 }
 
 /// The complete ISA table.
@@ -386,6 +395,7 @@ impl IsaTable {
             };
 
             let ctrl_class_str = val.get("ctrl_class").and_then(|v| v.as_str());
+            let encode_only = val.get("encode_only").and_then(|v| v.as_bool()).unwrap_or(false);
             let ctrl_class = ctrl_class_str.map(CtrlClass::parse);
             let epoch_upper32 = ctrl_class_str.and_then(|cc| epoch_map.get(cc).copied());
 
@@ -402,6 +412,7 @@ impl IsaTable {
             if let Some(mut ike) = partial.entries.remove(key.as_str()) {
                 ike.ctrl_class = ctrl_class;
                 ike.epoch_upper32 = epoch_upper32;
+                ike.encode_only = encode_only;
                 entries.insert(key.clone(), ike);
             }
         }
@@ -487,7 +498,7 @@ impl IsaTable {
                 mod_groups.insert(mods, ModGroupEntry { and_base, variable_mask, fields });
             }
 
-            entries.insert(key, InsKeyEntry { mod_groups, ctrl_class: None, epoch_upper32: None });
+            entries.insert(key, InsKeyEntry { mod_groups, ctrl_class: None, epoch_upper32: None, encode_only: jik.encode_only });
         }
 
         Ok(IsaTable { entries, ef_flags: crate::elf_builder::EF_CUDA_SM120 })

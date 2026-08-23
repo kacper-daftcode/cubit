@@ -324,7 +324,7 @@ fn synthetic_mismatched_table() -> IsaTable {
     mod_groups.insert("AND,LT".to_string(), mg);
     let mut entries = HashMap::new();
     entries.insert("ISETP_P_P_R_II_P".to_string(),
-        InsKeyEntry { mod_groups, ctrl_class: None, epoch_upper32: None });
+        InsKeyEntry { mod_groups, ctrl_class: None, epoch_upper32: None, encode_only: false });
     IsaTable { entries, ..Default::default() }
 }
 
@@ -358,7 +358,7 @@ fn test_reject_imm_form_entry_for_reg_operand() {
     mod_groups.insert("U32".to_string(), mg);
     let mut entries = HashMap::new();
     entries.insert("VIMNMX_R_R_R_P".to_string(),
-        InsKeyEntry { mod_groups, ctrl_class: None, epoch_upper32: None });
+        InsKeyEntry { mod_groups, ctrl_class: None, epoch_upper32: None, encode_only: false });
     let table = IsaTable { entries, ..Default::default() };
 
     let insn = parse_sass("VIMNMX.U32 R4, R4, R5, PT ;", 0).unwrap();
@@ -386,7 +386,7 @@ fn test_reject_fully_baked_entry_for_varying_regs() {
     mod_groups.insert("AND,GT".to_string(), mg);
     let mut entries = HashMap::new();
     entries.insert("FSETP_P_P_R_R_P".to_string(),
-        InsKeyEntry { mod_groups, ctrl_class: None, epoch_upper32: None });
+        InsKeyEntry { mod_groups, ctrl_class: None, epoch_upper32: None, encode_only: false });
     let table = IsaTable { entries, ..Default::default() };
 
     let insn = parse_sass("FSETP.GT.AND P2, PT, R8, RZ, PT ;", 0).unwrap();

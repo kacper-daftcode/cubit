@@ -90,6 +90,13 @@ impl DecodeIndex {
         // a pure function of (table, word).
         let mut ordered: Vec<(&String, &_, &String, &_)> = Vec::new();
         for (key, ike) in &table.entries {
+            // BUG-090: encode_only rows (frozen-era text compatibility) are
+            // invisible to the decoder -- canonical rows own the decode
+            // surface; these exist only so pinned legacy text re-encodes
+            // byte-exact (silicon-proven published words).
+            if ike.encode_only {
+                continue;
+            }
             for (mods, mg) in &ike.mod_groups {
                 ordered.push((key, ike, mods, mg));
             }

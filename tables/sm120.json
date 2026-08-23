@@ -427,7 +427,8 @@
   "_errata_2026_08_22B": "BUG-081(FSETP f32-literal family rebuilt from 7905 vendor anchors into FSETP_P_P_R_FI_P (14 rows incl OR-buckets EQ/GT/LEU/LTU); decode keys R_L_P/L_II_P/L_R_P deleted (harvest artifacts: baked imm in and_base, shifted arities, phantom compare-op routing); LEA P-family: R_P_R_II_II rebuilt (69A), new keys R_P_R_R_R_II/R_P_R_UR_R_II HI 6-token (668+2A; were FAIL/misdecode), R_P_R_R_II tok3 neg@72 (99A); UIMAD.WIDE family rebuild (20818+922+3379+2705 anchors incl URZ/neg), new UP-carrying keys UR_UP_UR_II_UR(274) + UR_UR_II_UR_UP.X(274))",
   "_errata_2026_08_22C": "BUG-082: DSETP family in sm120.json was harvest junk (28 keys: 7-bit reg windows halving operand numbers, baked-PT dropping pred2, |abs| rendered as neg, literal rows stealing forms, 5951 corpus words decode-FAIL). Re-canonicalized to the sm103a 3-key geometry (FI/R/UR_P) proven 17042/17054 anchors on the 2049-cubin corpus, 12 remaining deltas = f64 print-precision cosmetics only. Removed keys: ['DSETP.EQ.AND_P_P_R_R_P', 'DSETP.EQ.AND_P_P_R_R_P_?', 'DSETP.EQ.AND_P_P_R_UR_P_?', 'DSETP.EQ.AND_P_P_R_UR_P_II_?', 'DSETP.EQ.AND_P_P_R_UR_UR', 'DSETP.EQ.OR_P_P_R_R_P', 'DSETP.EQ.OR_P_P_R_UR_P', 'DSETP.GE.AND_P_P_R_R_R', 'DSETP.GE.AND_P_P_R_UR_UR', 'DSETP.GEU.AND_P_P_R_R_P', 'DSETP.GEU.AND_P_P_R_R_R', 'DSETP.GEU.AND_P_P_R_UR_UR', 'DSETP.GT.AND_P_P_R_R_P', 'DSETP.MAX.AND_P_P_R_R_P', 'DSETP.MIN.AND_P_P_R_R_P', 'DSETP.NEU.AND_P_P_R_R_P', 'DSETP.NEU.AND_P_P_R_R_P_?', 'DSETP.NEU.AND_P_P_R_UR_UR', 'DSETP.NEU.OR_P_P_R_R_P', 'DSETP.NEU.OR_P_P_R_R_P_?', 'DSETP.NEU.OR_P_P_R_R_P_II_?', 'DSETP.NEU.OR_P_P_R_R_P_II_II_?', 'DSETP.NEU.OR_P_P_R_UR_UR', 'DSETP_P_P_R_FI_P', 'DSETP_P_P_R_II_P', 'DSETP_P_P_R_L_P', 'DSETP_P_P_R_R_P', 'DSETP_P_P_R_UR_P']; see results/cubitfix/082.md",
   "_errata_2026_08_22D": "BUG-083: IMAD key-cluster rebuilt to sm103a geometry (75 legacy-harvest keys -> 15 keys, mod_groups ported from sm103a.json; anchors: 228,186 uniq / 1.07M records of 2049-cubin vendor census; parity pre 160,921 ok -> post all covered; code fixes: SHL-override heuristic removed (mask-driven now), MOV alias restricted to R-domain src3). Residuum: F2Q-089 (B90=!PT delta x2, SHL pow2-imm x2 covered vm57/58), F2Q-090 (IADD.U32 byte10=0x80 geometry 1 word).",
-  "_errata_2026_08_22E": "BUG-084: memory-family keys (LDG/STS/STG/LDGSTS/DEPBAR/LDGDEPBAR) re-canonicalized to sm103a geometry (158 legacy harvest keys -> 21 keys, mod_groups ported verbatim from sm103a.json). Evidence: 2049-cubin vendor census (cuobjdump 13.3), 678,608 LDG/STS/STG-family words paired section-aligned: (False,True)=119,865 records (sm120 mis-decoded, sm103a vendor-exact) now fixed by construction; (True,True)=557,047 unchanged; residual (False,False)=1,680 = LDGSTS BYPASS render-order (printer RP-class, both tables), STS.64 [R+URZ] UR255 alias (printer), STS/STS.U8 \"+-0x\" sign-format, LDG.E [Rn.64+UR+imm] geometry gap (b4 coverage) -- text-parity notes only, zero silent-corruption. ctrl_class/scheduling/mercury from sm120 sibling donors (explicit map in rebuild script). Dropped speculative dotted keys without corpus evidence: LDG.E.NA.*(0 anchors), LDG.E.EL.STRONG.GPU(0), STG.E.NA.*(0), STG.E_P_dARI_R(0), STS.64_P0_AR_R(0), STG.E_II_R(0), STS.64_AR_R_R(0), all *_? phantom rows. ERRBAR row corrected, NOT removed: vendor anchors prove ERRBAR real (2,254 slots, p_fence/k31/k33c1/g126_e_membar class; all 0x79ab bit2=0). Pre-084 the row subsumed LDGDEPBAR (and_base 0x79af bit2=1) via a junk 1-bit field at bit2 (empty extraction -> bit2 escaped match_mask) plus variable bits 12-15 -- all 460 vendor LDGDEPBAR anchors rendered as ERRBAR. Fix: junk bit2-field deleted and bit2 pinned out of variable_mask (0xf004->0xf000); ERRBAR anchors decode unchanged. CGAERRBAR (0x75ab) kept."
+  "_errata_2026_08_22E": "BUG-084: memory-family keys (LDG/STS/STG/LDGSTS/DEPBAR/LDGDEPBAR) re-canonicalized to sm103a geometry (158 legacy harvest keys -> 21 keys, mod_groups ported verbatim from sm103a.json). Evidence: 2049-cubin vendor census (cuobjdump 13.3), 678,608 LDG/STS/STG-family words paired section-aligned: (False,True)=119,865 records (sm120 mis-decoded, sm103a vendor-exact) now fixed by construction; (True,True)=557,047 unchanged; residual (False,False)=1,680 = LDGSTS BYPASS render-order (printer RP-class, both tables), STS.64 [R+URZ] UR255 alias (printer), STS/STS.U8 \"+-0x\" sign-format, LDG.E [Rn.64+UR+imm] geometry gap (b4 coverage) -- text-parity notes only, zero silent-corruption. ctrl_class/scheduling/mercury from sm120 sibling donors (explicit map in rebuild script). Dropped speculative dotted keys without corpus evidence: LDG.E.NA.*(0 anchors), LDG.E.EL.STRONG.GPU(0), STG.E.NA.*(0), STG.E_P_dARI_R(0), STS.64_P0_AR_R(0), STG.E_II_R(0), STS.64_AR_R_R(0), all *_? phantom rows. ERRBAR row corrected, NOT removed: vendor anchors prove ERRBAR real (2,254 slots, p_fence/k31/k33c1/g126_e_membar class; all 0x79ab bit2=0). Pre-084 the row subsumed LDGDEPBAR (and_base 0x79af bit2=1) via a junk 1-bit field at bit2 (empty extraction -> bit2 escaped match_mask) plus variable bits 12-15 -- all 460 vendor LDGDEPBAR anchors rendered as ERRBAR. Fix: junk bit2-field deleted and bit2 pinned out of variable_mask (0xf004->0xf000); ERRBAR anchors decode unchanged. CGAERRBAR (0x75ab) kept.",
+  "_errata_2026_08_23": "BUG-090 (F2Q, silicon trap = sm120 cubit-bugs/090): legacy (pre-084/v11) LDG_R_dARI['128,E,LTC128B'] geometry restored VERBATIM as dedicated encode_only key LDG.E.LTC128B.128_R_dARI (mod group '128,E,LTC128B' = exact full-key hit, so pinned era text selects it before canon LDG_R_dARI; decoder skips it). The 084 re-canon rewrote canon LDG_R_dARI['128,E,LTC128B'] to a wide low-constant fallback; the frozen pinned publish text (sass98 md5 1912dae9: 249 lines 'LDG.E.LTC128B.128 Rn, desc[URm][Rx.64(+imm)] !rsd[...]') then encoded with bytes 9-11 zeroed of the legacy constant bits -> deterministic silicon trap (4/4) on rt98_pub. Vendor nvdisasm 13.3 proves the published words are RAW-address form (LDG.E.64 Rn, [Rm.U32+URk]) -> decode rightly stays on canon ARURI rows; the era LTC128B glyph is a legacy decoder artifact, not vendor nomenclature. encode_only rationale: decoder re-exposure of legacy geometry would resurrect the BUG-038 shadow class. Collision check: 0/678,608 family-corpus words decode (HEAD) to any 'LDG.E.LTC128B.128' render -> the restored key captures zero canonical re-encodes. Long-term clean path = re-render of pinned sass98 to canonical raw-form text (skip of the encode_only key), decision = sm120 side. Evidence+gates: results/cubitfix/090.md, work/f2-090/."
  },
  "instructions": {
   "ACQBULK": {
@@ -6343,6 +6344,79 @@
    },
    "ctrl_class": "alu_simple",
    "mercury": []
+  },
+  "LDG.E.LTC128B.128_R_dARI": {
+   "base_op": "LDG.E.LTC128B.128",
+   "operand_sig": "R_dARI",
+   "encode_only": true,
+   "mod_groups": {
+    "128,E,LTC128B": {
+     "and_base": "0x000000000c1019000000000000007980",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r1"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_ur0"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm2"
+      },
+      {
+       "shift": 122,
+       "bits": 1,
+       "token_idx": 2,
+       "extraction": "reuse"
+      },
+      {
+       "shift": 123,
+       "bits": 1,
+       "token_idx": 2,
+       "extraction": "reuse"
+      }
+     ],
+     "variable_mask": "0x0c00000000000000ffffffffffff0000",
+     "count": 33
+    }
+   },
+   "scheduling": {
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "def_latency": 200,
+    "throughput": 4,
+    "is_variable_latency": true,
+    "confidence": "synthetic",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "write_latency": 0,
+    "stall_base": 4,
+    "latency_source": "synthetic"
+   },
+   "ctrl_class": "ldg",
+   "mercury": [
+    {
+     "pattern": "MERCURY_ld_acquire_srcs_r2_simm_0",
+     "sass_op": "LDG",
+     "fuzzy": true,
+     "match_score": 2
+    }
+   ]
   },
   "LDG_R_ARI": {
    "base_op": "LDG",
