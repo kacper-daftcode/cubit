@@ -289,7 +289,91 @@ pub enum SassTemplate {
     // (ptxas 13.3 -O0 sm_103a) lowers a runtime-generic cvta.to.shared to
     // mov-copies; the S2R SR_CgaCtaId + LEA <<24 glue belongs to shared-
     // SYMBOL address materialization (shsym layout, iter35), not to cvta.
+
+    /// b9 phase-3 #9: ldmatrix/stmatrix -> LDSM.16.M88[.4] / STSM.16.M88.4
+    /// (canon BUG-098 for LDSM x1/x4; STSM row + anchor added this iter).
+    /// Vendor forms (-O0 == -O3, probes ldsm1 + corpus b_ldmatrix/p11/p_ldsm/
+    /// p12): `LDSM.16.M88 Rd, [Rn]` (x1, single dst), `LDSM.16.M88.4 Rd4,
+    /// [Rn]` (x4, aligned dst quad), `STSM.16.M88.4 [Rn], Rs4` (src quad).
+    /// Address is a plain [Rn] 32-bit shared offset (64-bit pair bases yield
+    /// their lo half per the AliasPair/cvta convention); nonzero [Rn+imm] is
+    /// fail-closed (unattested in corpus), as are x2 forms and guards.
+    Ldsm { store: bool },
+
+    /// b9 phase-3 #9: sub.s16 -> neg + u16-clamp + add (anchors b16a imm-a,
+    /// b16b reg-reg; -O0 keeps this exact 3-insn core):
+    ///   IADD3 t, PT, PT, RZ, -b, RZ ; PRMT t, t, 0x7710, RZ ;
+    ///   IADD3 d, PT, PT, a, t, RZ           (a reg)
+    ///   IADD3 d, PT, PT, t, imm, RZ         (a imm; imm rides slot B)
+    Sub16,
+    /// mul.lo.s16: PRMT 0x9910 sign-extend both sources (slot d self-feed
+    /// pattern elided to scratch regs) + IMAD d, at, bt, RZ (anchor b16b).
+    MulLo16,
+    /// mul.hi.u16: PRMT 0x7710 zero-extend both + IMAD.U32 t, at, bt, RZ +
+    /// SHF.R.U32.HI d, RZ, 0x10, t (anchor b16a).
+    MulHiU16,
+    /// shr.u16 d, a, s: imm s -> MOV t,imm; reg s -> VIMNMX.U32 t, PT, PT, s,
+    /// 0xffff, PT; then PRMT t, t, 0x7710, RZ ; PRMT at, a, 0x7710, RZ ;
+    /// SHF.R.U32.HI d, RZ, t, at (anchors b16a imm + b16b reg).
+    ShrU16,
+    /// sub.s64 -> carry pair (vendor -O0 slot order! anchors s64_sub):
+    ///   IADD3 dlo, Pc, PT, alo, -blo, RZ ;
+    ///   IADD3.X dhi, PT, PT, ahi, ~bhi, RZ, Pc, !PT
+    /// The internal carry predicate is an anonymous pool slot, NOT the PTX
+    /// %cc (plain sub has no cc in PTX). b must be a register pair.
+    Sub64,
+    /// min.s64 (b reg pair, or imm with hi32==0): unsigned-lo compare then
+    /// signed-ex hi + two SELs (anchors s64_min / s64_mini):
+    ///   ISETP.LT.U32.AND Pc, PT, alo, blo|imm, PT ;
+    ///   ISETP.LT.AND.EX Pc, PT, ahi, bhi|RZ, PT, Pc ;
+    ///   SEL dlo, alo, blo|imm, Pc ; SEL dhi, ahi, bhi|RZ, Pc
+    MinS64,
+    /// clz.b64 (anchor s64_clz, -O0 six-insn core):
+    ///   ISETP.EQ.U32.AND Pc, PT, ahi, RZ, PT ; SEL bias, RZ, 0x20, !Pc ;
+    ///   SEL x, alo, ahi, Pc ; FLO.U32 x, x ;
+    ///   IADD3 x, PT, PT, -x, 0x1f, RZ ; IADD3 d, PT, PT, bias, x, RZ
+    Clz64,
+    /// popc.b64 (anchor s64_popc): vendor -O0 idiom keeps a LOP3 identity
+    /// mask (~0 AND) per half -- emitted verbatim, semantically dead:
+    ///   LOP3.LUT m, RZ, RZ, RZ, 0x33, !PT ; LOP3.LUT t, alo, m, RZ, 0xc0,
+    ///   !PT ; POPC t, t ; (same for hi) ; IADD3 d, PT, PT, t, u, RZ
+    Popc64,
+    /// mul.lo.s64 / mad.lo.s64 / mul.hi.u64: shared vendor -O0 mul64
+    /// network (anchors s64_mullo/s64_mulloi/s64_madlo/s64_mulhi; -O3 uses
+    /// a lean 3..4-op form -- documented divergence):
+    ///   t0 = IMAD.WIDE.U32 [Pc0,] alo, blo[, addend]   (addend = RZ pair
+    ///        for mul; c pair + Pc0 carry-out for mad)
+    ///   t1 = IMAD.WIDE.U32 ahi, blo, RZ
+    ///   t2 = IMAD.WIDE.U32 Pc2, alo, bhi, t1
+    ///   s1 = IADD3 Pc1, PT, PT??  -> IADD3 s1, Pc1, PT, t2.lo, t0.hi, RZ
+    ///   mul: s2 = IADD3 RZ,t2.hi,RZ ; IADD3.X RZ,RZ,RZ,Pc2,!PT
+    ///   mad: s2 = IADD3.X  (t2.hi+, cin Pc0) then IADD3.X (dual cin Pc2+Pc0)
+    ///   t3 = IMAD.WIDE.U32.X ahi, bhi, s2, Pc1
+    /// mul.lo keeps {t0.lo, s1}; mad.lo same (t0 carries c); mul.hi keeps t3.
+    Mul64 { kind: Mul64Kind },
+    /// cp.async.bulk.shared::cluster.global.mbarrier::complete_tx::bytes
+    /// [dst], [src], sz, [mbar] -> UBLKCP + single-lane elect loop with
+    /// per-op CGA address glue (vendor anchors corpus b_bulk_cp -O0; -O3
+    /// diverges into the uniform datapath -- documented). UR window
+    /// UR52..UR56 (fixed, gateway-local; vendor -O0 reuses UR4..9 but UR4
+    /// collides with our descriptor window, so the numbering differs from
+    /// the anchor while every emitted instruction form stays anchored):
+    ///   S2R ct,SR_CgaCtaId ; LEA ad,ct,rb,0x18    (dst CGA glue)
+    ///   R2UR UR53,slo ; R2UR UR54,shi             (src global pair)
+    ///   SHF.R.U32.HI t,RZ,0x4,sz ; PRMT t,t,0x5410,RZ ; R2UR UR52,t
+    ///   S2R+LEA (mbar) ; R2UR UR56,mb ; R2UR UR55,ad
+    ///   PLOP3 pl,PT,PT,PT,PT,0x80,0x8 ; LOOP: @pl ELECT pe,URZ,PT ;
+    ///   @pe PLOP3 pl,PT,pe,PT,PT,0x8,0x80 ; UBLKCP.S.G [UR55],[UR53],UR52 ;
+    ///   PLOP3 pe,PT,PT,PT,PT,0x8,0x80 ; @pl BRA.U.ANY `(LOOP)
+    CpAsyncBulk,
+    /// mad.wide.u32 -> IMAD.U32 + IMAD.HI.U32 + IADD3/IADD3.X add of the
+    /// 64-bit addend (anchor madwi -O0 0x470..04c0; corpus bench_m9 fam).
+    MadWide32,
 }
+
+/// b9 phase-3 #9: mul64 flavour (see SassTemplate::Mul64).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mul64Kind { Lo, Mad, Hi }
 
 /// b9 phase-3 #6: mbarrier op split (see SassTemplate::Mbar).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -335,10 +419,14 @@ pub static RULES: &[PtxRule] = &[
     PtxRule { pattern: "mad.lo.u32",    template: Single { opcode: "IMAD",  slots: &[Src(0), Src(1), Src(2), Src(3)] } },
     PtxRule { pattern: "mad.hi.s32",    template: Single { opcode: "IMAD.HI", slots: &[Src(0), Src(1), Src(2), Src(3)] } },
     PtxRule { pattern: "mad.hi.u32",    template: Single { opcode: "IMAD.HI", slots: &[Src(0), Src(1), Src(2), Src(3)] } },
-    PtxRule { pattern: "min.s32",       template: Single { opcode: "IMNMX", slots: &[Src(0), Src(1), Src(2), PT] } },
-    PtxRule { pattern: "min.u32",       template: Single { opcode: "IMNMX", slots: &[Src(0), Src(1), Src(2), PT] } },
-    PtxRule { pattern: "max.s32",       template: Single { opcode: "IMNMX", slots: &[Src(0), Src(1), Src(2), NotPT] } },
-    PtxRule { pattern: "max.u32",       template: Single { opcode: "IMNMX", slots: &[Src(0), Src(1), Src(2), NotPT] } },
+    // b9p11: plain IMNMX with pred-outputs is SILICON-ILLEGAL on sm_103a (BUG-059;
+    // encoder fail-closed; surfaced by test13/test14/b_bulk_cp at asm). Vendor
+    // lowering keeps the PT/!PT min/max select trick on VIMNMX[.U32] (anchors
+    // mnm1 probe + corpus b_bulk_cp/b16b).
+    PtxRule { pattern: "min.s32",       template: Single { opcode: "VIMNMX", slots: &[Src(0), PT, PT, Src(1), Src(2), PT] } },
+    PtxRule { pattern: "min.u32",       template: Single { opcode: "VIMNMX.U32", slots: &[Src(0), PT, PT, Src(1), Src(2), PT] } },
+    PtxRule { pattern: "max.s32",       template: Single { opcode: "VIMNMX", slots: &[Src(0), PT, PT, Src(1), Src(2), NotPT] } },
+    PtxRule { pattern: "max.u32",       template: Single { opcode: "VIMNMX.U32", slots: &[Src(0), PT, PT, Src(1), Src(2), NotPT] } },
     PtxRule { pattern: "neg.s32",       template: Single { opcode: "IADD3", slots: &[Src(0), PT, PT, NegSrc(1), RZ, RZ] } },
     PtxRule { pattern: "abs.s32",       template: Single { opcode: "IABS",  slots: &[Src(0), Src(1)] } },
 
@@ -455,6 +543,44 @@ pub static RULES: &[PtxRule] = &[
     PtxRule { pattern: "mul.wide.u32",  template: MulWide { unsigned: true } },
     PtxRule { pattern: "selp.u32",      template: Single { opcode: "SEL", slots: &[Src(0), Src(1), Src(2), Src(3)] } },
     PtxRule { pattern: "selp.f32",      template: Single { opcode: "SEL", slots: &[Src(0), Src(1), Src(2), Src(3)] } },
+
+    // ── b9 phase-3 #9 (bf16 / ldsm / b16 / s64-misc / cp.async.bulk) ─────────
+    // Vendor anchors: work/b9p11/probes (single-op -O0 + -O3 controls) and
+    // corpus kernels (p16_bf16, b_ldmatrix, p11, p_ldsm, p12, b_bulk_cp,
+    // bench_op06*/bench_pair*/p19_intmisc/tgv_gqa/test44). Parity evidence:
+    // results/b9/b9p11_parity/. div.u16 is NOT here on purpose: vendor
+    // lowers it via CALL.REL.NOINC $__internal_$__cuda_sm20_div_u16 (helper
+    // call lane, out of phase-3 scope) -> stays unsupported (fail-closed
+    // until the call lane lands).
+    PtxRule { pattern: "add.bf16x2",    template: Single { opcode: "HADD2.BF16_V2", slots: &[Src(0), Src(1), Src(2)] } },
+    PtxRule { pattern: "mul.bf16x2",    template: Single { opcode: "HMUL2.BF16_V2", slots: &[Src(0), Src(1), Src(2)] } },
+    // fma.rn.f16x2 -> HFMA2 (plain suffix-less, anchor t16i 0x270; bench_m9
+    // fam-residuum surfaced after sub.s64 landed).
+    PtxRule { pattern: "fma.rn.f16x2",  template: Single { opcode: "HFMA2", slots: &[Src(0), Src(1), Src(2), Src(3)] } },
+    PtxRule { pattern: "mad.wide.u32",  template: MadWide32 },
+    // mul.f16x2 -> HMUL2 (plain 2-src, anchor mulf16 0x1a0; p15_half2 fam).
+    PtxRule { pattern: "mul.f16x2",     template: Single { opcode: "HMUL2", slots: &[Src(0), Src(1), Src(2)] } },
+    PtxRule { pattern: "ldmatrix.",     template: Ldsm { store: false } },
+    PtxRule { pattern: "stmatrix.",     template: Ldsm { store: true } },
+    PtxRule { pattern: "and.b16",       template: Single { opcode: "LOP3.LUT", slots: &[Src(0), Src(1), Src(2), RZ, Imm(0xc0), NotPT] } },
+    PtxRule { pattern: "or.b16",        template: Single { opcode: "LOP3.LUT", slots: &[Src(0), Src(1), Src(2), RZ, Imm(0xfc), NotPT] } },
+    PtxRule { pattern: "xor.b16",       template: Single { opcode: "LOP3.LUT", slots: &[Src(0), Src(1), Src(2), RZ, Imm(0x3c), NotPT] } },
+    PtxRule { pattern: "add.s16",       template: Single { opcode: "IADD3", slots: &[Src(0), PT, PT, Src(1), Src(2), RZ] } },
+    PtxRule { pattern: "sub.s16",       template: Sub16 },
+    PtxRule { pattern: "mul.lo.s16",    template: MulLo16 },
+    PtxRule { pattern: "mul.hi.u16",    template: MulHiU16 },
+    PtxRule { pattern: "shr.u16",       template: ShrU16 },
+    PtxRule { pattern: "selp.b16",      template: Single { opcode: "SEL", slots: &[Src(0), Src(1), Src(2), Src(3)] } },
+    PtxRule { pattern: "mov.b16",       template: Single { opcode: "MOV", slots: &[Src(0), Src(1)] } },
+    PtxRule { pattern: "sub.s64",       template: Sub64 },
+    PtxRule { pattern: "min.s64",       template: MinS64 },
+    PtxRule { pattern: "clz.b64",       template: Clz64 },
+    PtxRule { pattern: "popc.b64",      template: Popc64 },
+    PtxRule { pattern: "mul.lo.s64",    template: Mul64 { kind: Mul64Kind::Lo } },
+    PtxRule { pattern: "mad.lo.s64",    template: Mul64 { kind: Mul64Kind::Mad } },
+    PtxRule { pattern: "mul.hi.u64",    template: Mul64 { kind: Mul64Kind::Hi } },
+    PtxRule { pattern: "cp.async.bulk.shared::cluster.global.mbarrier::complete_tx::bytes",
+                                          template: CpAsyncBulk },
 
     // ── Memory ───────────────────────────────────────────────────────────
     PtxRule { pattern: "ld.param.",     template: LoadParam },

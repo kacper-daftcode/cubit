@@ -1593,3 +1593,239 @@ fn b9p10_fail_closed() {
         assert!(lower_kernel(&kernels[0]).is_err(), "must be unsupported: {}", body);
     }
 }
+
+// ═══ b9 phase-3 #9 (iter40, loop5/blind): bf16 / ldmatrix-stmatrix / b16 /
+//     sub.s64..popc.b64 / mul64 network / mad.wide.u32 / cp.async.bulk +
+//     surfaced fixes (VIMNMX swap for BUG-059, GPR 255=RZ fail-closed cap).
+//     Vendor anchors ptxas 13.3 sm_103a -O0: probes work/b9p11/probes
+//     (s64_*, b16a/b16b, t16i, madwi, mnm1, mulf16, ldsm1 + corpus O0/O3
+//     anchors); byte-parity results/b9/b9p11_parity (259/259 payload IDENT).
+
+#[test]
+fn b9p11_bf16_forms() {
+    let t = lower_text("cvt.rn.bf16.f32 %rs1, %f1; add.bf16x2 %r2, %r1, %r1; mul.bf16x2 %r3, %r2, %r2;");
+    assert!(t.contains("F2F.BF16.F32"), "cvt.rn.bf16.f32 anchor (p16 0x200): {}", t);
+    assert!(t.contains("HADD2.BF16_V2") && t.contains("HMUL2.BF16_V2"), "{}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+}
+
+#[test]
+fn b9p11_ldsm_stsm() {
+    let t = lower_text("ldmatrix.sync.aligned.m8n8.x4.shared.b16 {%r1,%r2,%r3,%r4}, [%rd1];");
+    assert!(t.contains("LDSM.16.M88.4 R") && t.contains("[R"), "x4 quad: {}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+    let t = lower_text("ldmatrix.sync.aligned.m8n8.x1.shared.b16 {%r1}, [%r2];");
+    assert!(t.contains("LDSM.16.M88 R") && !t.contains("LDSM.16.M88.4"), "x1 plain: {}", t);
+    let t = lower_text("stmatrix.sync.aligned.m8n8.x4.shared.b16 [%r1], {%r2,%r3,%r4,%r5};");
+    assert!(t.contains("STSM.16.M88.4 [R"), "{}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+}
+
+#[test]
+fn b9p11_b16_logic_arith() {
+    // vendor LUT bytes: and 0xc0 / or 0xfc / xor 0x3c (b16a/b16b anchors)
+    let t = lower_text("and.b16 %rs1, %rs2, 3; or.b16 %rs2, %rs1, %rs3; xor.b16 %rs3, %rs2, 2047;");
+    assert!(t.contains("LOP3.LUT") && t.contains("0xc0") && t.contains("0xfc") && t.contains("0x3c"), "{}", t);
+    // add.s16 = plain IADD3 (wrap truncation deferred to the pack)
+    let t = lower_text("add.s16 %rs1, %rs2, 7;");
+    assert!(t.contains("IADD3") && !t.contains("PRMT"), "{}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+    // sub.s16 imm-first and reg-reg: neg + u16 clamp + add (3 insns each)
+    let t = lower_text("sub.s16 %rs1, 1951, %rs2;");
+    assert_eq!(t.matches("IADD3").count(), 2, "{}", t);
+    assert!(t.contains("PRMT") && t.contains("0x7710"), "{}", t);
+    let t = lower_text("sub.s16 %rs1, %rs2, %rs3;");
+    assert!(t.matches("IADD3").count() == 2 && t.contains("PRMT"), "{}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+}
+
+#[test]
+fn b9p11_b16_mul_shr_selp_mov() {
+    // mul.lo.s16: 0x9910 sign-extend both + IMAD; imm-b materializes
+    // MOV v&0xffff first (t16i/probe-022920 anchors).
+    let t = lower_text("mul.lo.s16 %rs1, %rs2, %rs3;");
+    assert_eq!(t.matches("PRMT").count(), 2, "{}", t);
+    assert!(t.contains("0x9910") && t.contains("IMAD"), "{}", t);
+    let t = lower_text("mul.lo.s16 %rs1, %rs2, 11;");
+    assert!(t.contains("MOV R") && t.contains("0xb"), "imm-b MOV pair materialization: {}", t);
+    // mul.hi.u16: 0x7710 both + IMAD.U32 + SHF 16
+    let t = lower_text("mul.hi.u16 %rs1, %rs2, %rs3;");
+    assert!(t.contains("0x7710") && t.contains("IMAD.U32") && t.contains("SHF.R.U32.HI"), "{}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+    // shr.u16 imm: MOV + 0x7710 + SHF; reg: VIMNMX.U32 clamp + 0x7710 + SHF
+    let t = lower_text("shr.u16 %rs1, %rs2, 4;");
+    assert!(t.contains("MOV R") && t.contains("0x7710") && t.contains("SHF.R.U32.HI"), "{}", t);
+    let t = lower_text("shr.u16 %rs1, %rs2, %r1;");
+    assert!(t.contains("VIMNMX.U32") && t.contains("0xffff"), "{}", t);
+    // selp.b16 = plain SEL; mov.b16 = plain MOV (reg/imm)
+    let t = lower_text("selp.b16 %rs1, %rs2, %rs3, %p1; mov.b16 %rs3, %rs1;");
+    assert!(t.contains("SEL") && t.contains("MOV R"), "{}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+}
+
+#[test]
+fn b9p11_sub64_slot_order() {
+    let t = lower_text("sub.s64 %rd3, %rd1, %rd2;");
+    // vendor -O0 slot order: IADD3.X dhi, PT, PT, ahi, ~bhi, RZ, Pc, !PT
+    assert!(t.contains("IADD3.X") && t.contains("~R"), "a.hi at slot A, ~b.hi at slot B: {}", t);
+    assert!(t.contains("-R"), "lo negated: {}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+}
+
+#[test]
+fn b9p11_min64_clz_popc() {
+    let t = lower_text("min.s64 %rd3, %rd1, %rd2;");
+    assert!(t.contains("ISETP.LT.U32.AND") && t.contains("ISETP.LT.AND.EX"), "{}", t);
+    assert_eq!(t.matches("SEL").count(), 2, "{}", t);
+    let t = lower_text("min.s64 %rd3, %rd1, 4096;");
+    assert!(t.contains("0x1000") && t.contains("ISETP.LT.AND.EX"), "imm4096 anchor: {}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+    let t = lower_text("clz.b64 %r3, %rd1;");
+    assert!(t.contains("ISETP.EQ.U32.AND") && t.contains("FLO.U32") && t.contains("0x1f"), "{}", t);
+    let t = lower_text("popc.b64 %r3, %rd1;");
+    assert_eq!(t.matches("POPC").count(), 2, "{}", t);
+    // vendor -O0 keeps the ~0 mask AND idiom per half (verbatim, dead)
+    assert!(t.contains("0x33"), "identity mask LUT verbatim: {}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+}
+
+#[test]
+fn b9p11_mul64_network() {
+    let t = lower_text("mul.lo.s64 %rd3, %rd1, %rd2;");
+    assert_eq!(t.matches("IMAD.WIDE.U32").count(), 4, "full -O0 network incl. dead hi lanes: {}", t);
+    assert!(t.contains("IADD3.X") && t.contains("IMAD.WIDE.U32.X"), "{}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+    // imm b: lo/hi halves inline (s64_mulloi anchor), same 7-insn skeleton
+    let t = lower_text("mul.lo.s64 %rd3, %rd1, -2960836687051489901;");
+    assert!(t.contains("0x6659fd93") && t.contains("-0x29170148"), "imm split lo/hi: {}", t);
+    assert_eq!(t.matches("IMAD.WIDE.U32").count(), 4, "{}", t);
+    // mad.lo.s64 imm c: MOV pair materialization (madwi anchor)
+    let t = lower_text("mad.lo.s64 %rd3, %rd1, %rd2, 765737733928381521;");
+    assert!(t.contains("0x75e9ec51") && t.contains("0xaa07269"), "c MOV pair: {}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+    // mul.hi.u64: same network, result = t3
+    let t = lower_text("mul.hi.u64 %rd3, %rd1, %rd2;");
+    assert_eq!(t.matches("IMAD.WIDE.U32").count(), 4, "{}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+}
+
+#[test]
+fn b9p11_mad_wide32() {
+    let t = lower_text("mad.wide.u32 %rd3, %r1, %r2, %rd1;");
+    assert!(t.contains("IMAD.U32") && t.contains("IMAD.HI.U32"), "{}", t);
+    assert!(t.contains("IADD3.X"), "addend carry chain: {}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+}
+
+#[test]
+fn b9p11_cp_async_bulk() {
+    let t = lower_text("cp.async.bulk.shared::cluster.global.mbarrier::complete_tx::bytes [%r1], [%rd1], %r2, [%r3];");
+    assert!(t.contains("UBLKCP.S.G [UR"), "{}", t);
+    assert!(t.contains("ELECT") && t.contains("BRA.U.ANY") && t.contains("BCP_"), "elect loop: {}", t);
+    assert!(t.contains("SHF.R.U32.HI") && t.contains("0x5410"), "bytes>>4 pack: {}", t);
+    assert_eq!(t.matches("R2UR").count(), 5, "UR window: {}", t);
+    assert!(t.contains("S2R") && t.contains("SR_CgaCtaId") && t.contains("LEA"), "CGA glue: {}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+}
+
+#[test]
+fn b9p11_vimnmx_swap() {
+    // BUG-059 surface: plain IMNMX with pred-outputs is silicon-illegal on
+    // sm_103a; the gateway emits VIMNMX[.U32] with the PT/!PT trick (mnm1).
+    let t = lower_text("min.s32 %r3, %r1, %r2; max.s32 %r4, %r1, %r2; min.u32 %r5, %r1, 7;");
+    assert!(t.contains("VIMNMX R") && t.contains("VIMNMX.U32"), "{}", t);
+    assert!(!t.lines().any(|l| l.trim_start().starts_with("IMNMX ")),
+        "no plain IMNMX R-form from the gateway: {}", t);
+    assert!(t.contains("!PT"), "max via !PT select: {}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+}
+
+#[test]
+fn b9p11_f16x2_arith() {
+    let t = lower_text("fma.rn.f16x2 %r3, %r1, %r1, %r1; mul.f16x2 %r2, %r1, %r1;");
+    assert!(t.contains("HFMA2") && t.contains("HMUL2"), "{}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+}
+
+#[test]
+fn b9p11_fail_closed() {
+    for body in [
+        "div.u16 %rs1, %rs2, %rs3;",                        // CALL lane (helper fn)
+        "ldmatrix.sync.aligned.m8n8.x2.shared.b16 {%r1,%r2}, [%r2];", // x2 unattested
+        "ldmatrix.sync.aligned.m8n8.x1.shared.b16 {%r1}, [%r2+8];",   // nonzero [R+imm]
+        "@%p1 ldmatrix.sync.aligned.m8n8.x4.shared.b16 {%r1,%r2,%r3,%r4}, [%r2];",
+        "@%p1 sub.s64 %rd3, %rd1, %rd2;",                   // guarded 64-bit chain
+        "min.s64 %rd3, %rd1, -1;",                          // imm hi != 0 unattested
+        "sub.s64 %rd3, %rd1, 5;",                           // imm subtrahend unattested
+        "mul.hi.s64 %rd3, %rd1, %rd2;",                     // signed mul.hi unattested
+        "cp.async.bulk.shared::cluster.global.mbarrier::complete_tx::bytes [%r1], [%rd1], 16, [%r1];", // imm size
+        "cp.async.bulk.shared::cta.global.mbarrier::complete_tx::bytes [%r1], [%rd1], %r2, [%r1];",   // ::cta unattested
+    ] {
+        let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .pred %p<5>;
+    .reg .b16 %rs<6>;
+    .reg .b32 %r<10>;
+    .reg .b64 %rd<6>;
+    .reg .f32 %f<4>;
+    ld.param.u64 %rd1, [k_param_0];
+    setp.eq.u32 %p1, %r1, %r2;
+    {}
+    ret;
+}}"#, PROLOG, body);
+        let kernels = parse_ptx(&ptx).unwrap();
+        assert!(lower_kernel(&kernels[0]).is_err(), "must be unsupported: {}", body);
+    }
+}
+
+#[test]
+fn b9p11_gpr_cap_rz_trap() {
+    // >254 live GPRs must bail fail-closed (R255 == RZ alias = silent data
+    // corruption; surfaced by bench_m9, dead-write smoking guns in the old
+    // green set vk/test29/test35: `IMAD RZ, ...` / `LDS RZ, [R255+..]`).
+    let mut body = String::new();
+    body.push_str("add.u32 %r9, %r1, %r2;\n");
+    for i in 10..270 {
+        body.push_str(&format!("add.u32 %r{}, %r{}, 1;\n", i, i - 1));
+    }
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b32 %r<300>;
+    ld.param.u64 %rd1, [k_param_0];
+    ld.global.u32 %r1, [%rd1];
+  {}
+    ret;
+}}"#, PROLOG, body);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let err = lower_kernel(&kernels[0]).err().map(|e| format!("{e}"));
+    assert!(err.as_deref().map_or(false, |e| e.contains("GPR space exhausted")),
+        "must bail fail-closed: {:?}", err);
+    // and a just-legal chain still lowers
+    let mut body = String::new();
+    for i in 3..40 {
+        body.push_str(&format!("add.u32 %r{}, %r{}, 1;\n", i, i - 1));
+    }
+    let t = lower_text(&body.replace("%r", "%r"));
+    assert!(t.contains("IADD3"), "{}", t);
+}

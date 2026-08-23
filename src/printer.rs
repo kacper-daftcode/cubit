@@ -626,11 +626,22 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     // BEFORE layout and matrix count LAST: LDSM.16.M88.4 / LDSM.16.M88.2
     // (was LDSM.M88.16.4 / LDSM.2.M88.16 via generic buckets). Vendor anchors:
     // 32 slots in the 2049-cubin census (results/cubitfix/098/anchors098.json).
-    if base == "LDSM" {
+    if base == "LDSM" || base == "STSM" {
+        // b9p11: STSM shares the LDSM vendor order (BUG-098 anchors; STSM
+        // anchor corpus_p12_stmatrix O0 0x190 = STSM.16.M88.4 [R0], R4).
         match m {
             "16" => return 4,
             "M88" | "MT88" | "M816" => return 5,
             "2" | "4" => return 6,
+            _ => {}
+        }
+    }
+    // b9p11: UBLKCP.S.G — vendor prints dst space (.S) BEFORE src space (.G)
+    // (anchor corpus_b_bulk_cp O0 0x410); generic buckets sorted G first.
+    if base == "UBLKCP" {
+        match m {
+            "S" => return 4,
+            "G" => return 5,
             _ => {}
         }
     }

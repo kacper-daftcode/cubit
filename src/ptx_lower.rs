@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 
 use crate::ir::{ControlCode, Guard, Instruction, Operand};
-use crate::ptx_map::{self, MbarKind, OpSlot, SassTemplate, find_rule};
+use crate::ptx_map::{self, MbarKind, Mul64Kind, OpSlot, SassTemplate, find_rule};
 use crate::ptx_parse::{PtxKernel, PtxStmt, PtxInsn, PtxOperand};
 
 // ── Register allocator ───────────────────────────────────────────────────────
@@ -30,6 +30,11 @@ struct RegAlloc {
     /// b9 phase-2 P3: set when the P0..P6 predicate pool is exhausted;
     /// lower_kernel bails fail-closed with this instead of panicking.
     pred_hit_cap: Option<String>,
+    /// b9 phase-3 #9: set when a fresh GPR allocation would cross R254
+    /// into RZ (255). Previously the allocator handed out 255 and
+    /// operand_to_sass printed it as "RZ" -- silent data corruption,
+    /// surfaced by bench_m9's unrolled loop (mad.wide.u32 a-op read RZ).
+    gpr_hit_cap: Option<String>,
     /// b9 phase-3 #4: kernel shared-window symbols (static layout, see
     /// ptx_parse) for `mov reg, sym` and `[sym+off]` address resolution.
     shared_syms: std::collections::HashMap<String, i64>,
@@ -52,6 +57,7 @@ impl RegAlloc {
             free_quads: Vec::new(),
             free_preds: Vec::new(),
             pred_hit_cap: None,
+            gpr_hit_cap: None,
             unknown_sreg: None,
             shared_syms,
             unknown_sym: None,
@@ -72,6 +78,11 @@ impl RegAlloc {
         let r = if let Some(pos) = self.free_gprs.pop() { pos } else {
             let r = self.next_gpr; self.next_gpr += 1; r
         };
+        if r > 254 {
+            // R255 aliases RZ in print and in hardware: never hand it out.
+            if self.gpr_hit_cap.is_none() { self.gpr_hit_cap = Some(name.to_string()); }
+            return 254; // dummy in-range slot; lower_kernel bails below
+        }
         self.gpr_map.insert(name.to_string(), r);
         r
     }
@@ -82,6 +93,10 @@ impl RegAlloc {
             if self.next_gpr % 2 != 0 { self.next_gpr += 1; }
             let lo = self.next_gpr; self.next_gpr += 2; lo
         };
+        if lo + 1 > 254 {
+            if self.gpr_hit_cap.is_none() { self.gpr_hit_cap = Some(name.to_string()); }
+            return (252, 253);
+        }
         self.gpr_map.insert(name.to_string(), lo);
         (lo, lo + 1)
     }
@@ -92,6 +107,10 @@ impl RegAlloc {
             while self.next_gpr % 4 != 0 { self.next_gpr += 1; }
             let b = self.next_gpr; self.next_gpr += 4; b
         };
+        if base + 3 > 254 {
+            if self.gpr_hit_cap.is_none() { self.gpr_hit_cap = Some(name.to_string()); }
+            return 248;
+        }
         self.gpr_map.insert(name.to_string(), base);
         base
     }
@@ -1095,6 +1114,84 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                             }
                         }
 
+                        SassTemplate::Ldsm { store } => {
+                            match lower_ldsm(addr, insn, &mut alloc, &guard, *store)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::Sub16 => {
+                            match lower_sub16(addr, insn, &mut alloc, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::MulLo16 => {
+                            match lower_mullo16(addr, insn, &mut alloc, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::MulHiU16 => {
+                            match lower_mulhi_u16(addr, insn, &mut alloc, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::ShrU16 => {
+                            match lower_shr_u16(addr, insn, &mut alloc, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::Sub64 => {
+                            match lower_sub64(addr, insn, &mut alloc, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::MinS64 => {
+                            match lower_min_s64(addr, insn, &mut alloc, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::Clz64 => {
+                            match lower_clz64(addr, insn, &mut alloc, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::Popc64 => {
+                            match lower_popc64(addr, insn, &mut alloc, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::Mul64 { kind } => {
+                            match lower_mul64(addr, insn, &mut alloc, &guard, *kind)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::MadWide32 => {
+                            match lower_mad_wide32(addr, insn, &mut alloc, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::CpAsyncBulk => {
+                            // exact-name gate like CpAsync/Fence (prefix-trap class)
+                            if insn.opcode != rule.pattern {
+                                unsupported.insert(insn.opcode.clone());
+                                continue;
+                            }
+                            match lower_cp_async_bulk(addr, insn, &mut alloc, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+
                         SassTemplate::Nop => {
                             // generic no-op lowering (kept for legacy rules)
                         }
@@ -1241,6 +1338,11 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
             "ptx_lower: predicate space exhausted (P0..P6) in kernel {} at predicate {:?}; kernel needs live-range-aware allocation",
             kernel.name, hit);
     }
+    if let Some(hit) = &alloc.gpr_hit_cap {
+        anyhow::bail!(
+            "ptx_lower: GPR space exhausted (R0..R254, R255=RZ alias trap) in kernel {} at variable {:?}; kernel needs live-range-aware allocation (b1)",
+            kernel.name, hit);
+    }
     if !unsupported.is_empty() {
         anyhow::bail!(
             "unsupported PTX in kernel {}: {} op(s): {}",
@@ -1366,6 +1468,17 @@ fn is_cc_op(opcode: &str) -> bool {
 /// estimate_expansion_size). Returns None for ops outside the family.
 fn b9p8_expansion_count(insn: &PtxInsn, trio_est: &mut bool) -> Option<u32> {
     let op = insn.opcode.as_str();
+    // b9p11: mad.lo.s64 with an immediate c materializes a MOV pair (+2).
+    if op == "mad.lo.s64" {
+        return Some(if matches!(insn.operands.get(3), Some(PtxOperand::IntImm(_))) { 9 } else { 7 });
+    }
+    // b9p11: b16 muls are 3/4 (imm-b adds the vendor MOV materialization).
+    if op == "mul.lo.s16" {
+        return Some(if matches!(insn.operands.get(2), Some(PtxOperand::IntImm(_))) { 4 } else { 3 });
+    }
+    if op == "mul.hi.u16" {
+        return Some(if matches!(insn.operands.get(2), Some(PtxOperand::IntImm(_))) { 5 } else { 4 });
+    }
     let imm_last = matches!(insn.operands.last(), Some(PtxOperand::IntImm(_)));
     let n = match op {
         "vote.sync.ballot.b32" | "vote.sync.any.pred" | "vote.sync.all.pred"
@@ -1436,6 +1549,19 @@ fn estimate_expansion_size(opcode: &str) -> u32 {
     if opcode.starts_with("mad.lo.cc.") { return 3; }
     if opcode.starts_with("madc.") { return 2; }
     if opcode == "shl.b64" || opcode == "shr.u64" || opcode == "shr.s64" { return 2; }
+    // b9 phase-3 #9 fixed expansion sizes (label-address contract; each
+    // count == the matching lower_* emission, asserted by debug_assert in
+    // the lowerer or by the rust pins).
+    if opcode == "sub.s16" { return 3; }
+    if opcode == "mul.lo.s16" { return 3; }
+    if opcode == "mul.hi.u16" { return 4; }
+    if opcode == "shr.u16" { return 4; }
+    if opcode == "min.s64" { return 4; }
+    if opcode == "clz.b64" { return 6; }
+    if opcode == "popc.b64" { return 7; }
+    if opcode == "mul.lo.s64" || opcode == "mad.lo.s64" || opcode == "mul.hi.u64" { return 7; }
+    if opcode == "mad.wide.u32" { return 4; }
+    if opcode == "cp.async.bulk.shared::cluster.global.mbarrier::complete_tx::bytes" { return 16; }
     if opcode.contains(".u64") || opcode.contains(".s64") || opcode.contains(".b64") {
         if opcode.starts_with("add.") || opcode.starts_with("sub.") { return 2; }
         if opcode.starts_with("mov.") { return 2; }
@@ -1986,6 +2112,535 @@ fn lower_bar_warp(
     a += 16;
     push_gensym_label(&mut out, &lbl);
     let n = ((a - addr) / 16) as u32;
+    Ok(Some((out, n)))
+}
+
+
+// ── b9 phase-3 #9 lowerings ────────────────────────────────────────────────
+// Vendor anchors: work/b9p11/probes/*.ptx (-O0 primary, -O3 control) +
+// corpus kernels quoted per fn. All shapes outside the anchored/corpus set
+// return Ok(None) -> per-kernel unsupported list (fail-closed), never a
+// silent skip.
+
+fn ur(n: u8) -> Operand {
+    Operand::UReg { num: n, neg: false, abs: false, inv: false, reuse: false, is_zero: false }
+}
+fn ur_addr(n: u8) -> Operand {
+    Operand::Addr { base_reg: None, base_reg_suffix: None, ur_reg: Some(n), offset: 0 }
+}
+fn op_inv_reg(n: u8) -> Operand {
+    Operand::Reg { num: n, neg: false, abs: false, inv: true, reuse: false }
+}
+/// 64-bit PTX operand -> (lo, hi) register pair, or None (unsupported shape).
+fn pair_of(op: Option<&PtxOperand>, alloc: &mut RegAlloc) -> Option<(u8, u8)> {
+    match op {
+        Some(PtxOperand::Reg(n)) if alloc.is_ptx_reg_name(n) => Some(alloc.gpr_pair(n)),
+        _ => None,
+    }
+}
+/// 32-bit PTX operand -> SASS Reg operand (imm handled by callers), or None.
+fn reg_of(op: Option<&PtxOperand>, alloc: &mut RegAlloc) -> Option<u8> {
+    match op {
+        Some(PtxOperand::Reg(n)) if alloc.is_ptx_reg_name(n) => Some(alloc.resolve(n)),
+        _ => None,
+    }
+}
+
+/// ldmatrix/stmatrix (Ldsm). Corpus: b_ldmatrix x4 [%rd pair], p11 x4 [%r],
+/// p_ldsm x1, p12 stmatrix x4; probe ldsm1 (x1/x4/store, [Rn] plain).
+fn lower_ldsm(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>, store: bool,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    let op = &insn.opcode;
+    let xs: u32 = if op.contains(".x1.") { 1 } else if op.contains(".x4.") { 4 } else { return Ok(None) };
+    // exact family shape: ldmatrix.sync.aligned.m8n8.xN.shared.b16 (+st)
+    let want_pre = if store { "stmatrix.sync.aligned.m8n8." } else { "ldmatrix.sync.aligned.m8n8." };
+    let want_suf = ".shared.b16";
+    if !op.starts_with(want_pre) || !op.ends_with(want_suf) { return Ok(None); }
+    let (grp_i, adr_i) = if store { (1, 0) } else { (0, 1) };
+    let mut out: Vec<Instruction> = Vec::new();
+    let mut a = addr;
+    // group: x4 -> aligned quad via prepare_group; x1 -> single register.
+    let g = match &insn.operands[grp_i] {
+        PtxOperand::RegGroup(regs) if regs.len() == 4 && xs == 4 => {
+            let role = if store { GroupRole::Src } else { GroupRole::Dst };
+            match prepare_group(regs, role, a, alloc, guard) {
+                Ok((oper, pre)) => {
+                    let n = pre.len() as u32;
+                    out.extend(pre);
+                    a += 16 * n;
+                    oper
+                }
+                Err(_) => return Ok(None),
+            }
+        }
+        PtxOperand::RegGroup(regs) if regs.len() == 1 && xs == 1 => {
+            // LDSM x1 dst is a plain single register (anchor ldsm1/p_ldsm).
+            op_reg(alloc.resolve(&regs[0]))
+        }
+        _ => return Ok(None),
+    };
+    let adr = match &insn.operands[adr_i] {
+        PtxOperand::Addr { base, offset } => {
+            if *offset != 0 || !alloc.is_ptx_reg_name(base) { return Ok(None); }
+            Operand::Addr { base_reg: Some(alloc.resolve(base)), base_reg_suffix: None, ur_reg: None, offset: 0 }
+        }
+        _ => return Ok(None),
+    };
+    let opf = if store {
+        "STSM.16.M88.4"
+    } else if xs == 4 {
+        "LDSM.16.M88.4"
+    } else {
+        "LDSM.16.M88"
+    };
+    let operands = if store { vec![adr, g] } else { vec![g, adr] };
+    out.push(make_insn(a, opf, operands, guard.clone()));
+    a += 16;
+    let n = ((a - addr) / 16) as u32;
+    Ok(Some((out, n)))
+}
+
+/// sub.s16 (Sub16). Anchors: b16a (imm-a: 1951/7807) + b16b (reg-reg).
+fn lower_sub16(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    let d = match reg_of(insn.operands.get(0), alloc) { Some(r) => r, None => return Ok(None) };
+    let b = match reg_of(insn.operands.get(2), alloc) { Some(r) => r, None => return Ok(None) };
+    let t = alloc.gpr("$sub16_t");
+    let mut out = vec![
+        make_insn(addr, "IADD3", vec![op_reg(t), op_pt(), op_pt(), op_rz(), op_neg_reg(b), op_rz()], guard.clone()),
+        make_insn(addr + 16, "PRMT", vec![op_reg(t), op_reg(t), op_imm(0x7710), op_rz()], guard.clone()),
+    ];
+    let third = match insn.operands.get(1) {
+        Some(PtxOperand::Reg(n)) if alloc.is_ptx_reg_name(n) => {
+            vec![op_reg(d), op_pt(), op_pt(), op_reg(alloc.resolve(n)), op_reg(t), op_rz()]
+        }
+        Some(PtxOperand::IntImm(v)) => {
+            vec![op_reg(d), op_pt(), op_pt(), op_reg(t), op_imm(*v), op_rz()]
+        }
+        _ => return Ok(None),
+    };
+    out.push(make_insn(addr + 32, "IADD3", third, guard.clone()));
+    Ok(Some((out, 3)))
+}
+
+/// mul.lo.s16 (MulLo16): sign-extend halves (PRMT 0x9910) + IMAD (anchor b16b).
+fn lower_mullo16(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    let d = match reg_of(insn.operands.get(0), alloc) { Some(r) => r, None => return Ok(None) };
+    let x = match reg_of(insn.operands.get(1), alloc) { Some(r) => r, None => return Ok(None) };
+    let at = alloc.gpr("$mlo16_at");
+    let bt = alloc.gpr("$mlo16_bt");
+    let mut out: Vec<Instruction> = Vec::new();
+    let mut a = addr;
+    // b imm (anchor t16i + probe-022920 11): MOV bt, v&0xffff up front,
+    // then the same 0x9910 sign-extend as the register path.
+    if let Some(PtxOperand::IntImm(v)) = insn.operands.get(2) {
+        out.push(make_insn(a, "MOV", vec![op_reg(bt), op_imm(*v & 0xffff)], guard.clone()));
+        a += 16;
+    }
+    let y = match insn.operands.get(2) {
+        Some(PtxOperand::Reg(n)) if alloc.is_ptx_reg_name(n) => alloc.resolve(n),
+        Some(PtxOperand::IntImm(_)) => bt,
+        _ => return Ok(None),
+    };
+    out.push(make_insn(a, "PRMT", vec![op_reg(at), op_reg(x), op_imm(0x9910), op_rz()], guard.clone()));
+    a += 16;
+    out.push(make_insn(a, "PRMT", vec![op_reg(bt), op_reg(y), op_imm(0x9910), op_rz()], guard.clone()));
+    a += 16;
+    out.push(make_insn(a, "IMAD", vec![op_reg(d), op_reg(at), op_reg(bt), op_rz()], guard.clone()));
+    a += 16;
+    let n = ((a - addr) / 16) as u32;
+    Ok(Some((out, n)))
+}
+
+/// mul.hi.u16 (MulHiU16): zero-extend (0x7710) + IMAD.U32 + >>16 (anchor b16a).
+fn lower_mulhi_u16(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    let d = match reg_of(insn.operands.get(0), alloc) { Some(r) => r, None => return Ok(None) };
+    let x = match reg_of(insn.operands.get(1), alloc) { Some(r) => r, None => return Ok(None) };
+    let at = alloc.gpr("$mhi16_at");
+    let bt = alloc.gpr("$mhi16_bt");
+    let mut out: Vec<Instruction> = Vec::new();
+    let mut a = addr;
+    // b imm (anchor t16i + probe-022920 -17873=0xba2f): MOV bt, v&0xffff,
+    // then the same 0x7710 zero-extend as the register path.
+    if let Some(PtxOperand::IntImm(v)) = insn.operands.get(2) {
+        out.push(make_insn(a, "MOV", vec![op_reg(bt), op_imm(*v & 0xffff)], guard.clone()));
+        a += 16;
+    }
+    let y = match insn.operands.get(2) {
+        Some(PtxOperand::Reg(n)) if alloc.is_ptx_reg_name(n) => alloc.resolve(n),
+        Some(PtxOperand::IntImm(_)) => bt,
+        _ => return Ok(None),
+    };
+    out.push(make_insn(a, "PRMT", vec![op_reg(at), op_reg(x), op_imm(0x7710), op_rz()], guard.clone()));
+    a += 16;
+    out.push(make_insn(a, "PRMT", vec![op_reg(bt), op_reg(y), op_imm(0x7710), op_rz()], guard.clone()));
+    a += 16;
+    out.push(make_insn(a, "IMAD.U32", vec![op_reg(at), op_reg(at), op_reg(bt), op_rz()], guard.clone()));
+    a += 16;
+    out.push(make_insn(a, "SHF.R.U32.HI", vec![op_reg(d), op_rz(), op_imm(0x10), op_reg(at)], guard.clone()));
+    a += 16;
+    let n = ((a - addr) / 16) as u32;
+    Ok(Some((out, n)))
+}
+
+/// shr.u16 (ShrU16): clamp/zero-extend the 32-bit shift amount, zero-extend a,
+/// SHF.R.U32.HI (anchors b16a imm + b16b reg; d may alias t, vendor does so).
+fn lower_shr_u16(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    let d = match reg_of(insn.operands.get(0), alloc) { Some(r) => r, None => return Ok(None) };
+    let x = match reg_of(insn.operands.get(1), alloc) { Some(r) => r, None => return Ok(None) };
+    let t = alloc.gpr("$shr16_t");
+    let at = alloc.gpr("$shr16_at");
+    let mut out: Vec<Instruction> = Vec::new();
+    let mut a = addr;
+    match insn.operands.get(2) {
+        Some(PtxOperand::IntImm(v)) => {
+            out.push(make_insn(a, "MOV", vec![op_reg(t), op_imm(*v)], guard.clone()));
+            a += 16;
+        }
+        Some(PtxOperand::Reg(n)) if alloc.is_ptx_reg_name(n) => {
+            let s = alloc.resolve(n);
+            out.push(make_insn(a, "VIMNMX.U32", vec![op_reg(t), op_pt(), op_pt(), op_reg(s), op_imm(0xffff), op_pt()], guard.clone()));
+            a += 16;
+        }
+        _ => return Ok(None),
+    }
+    out.push(make_insn(a, "PRMT", vec![op_reg(t), op_reg(t), op_imm(0x7710), op_rz()], guard.clone()));
+    a += 16;
+    out.push(make_insn(a, "PRMT", vec![op_reg(at), op_reg(x), op_imm(0x7710), op_rz()], guard.clone()));
+    a += 16;
+    out.push(make_insn(a, "SHF.R.U32.HI", vec![op_reg(d), op_rz(), op_reg(t), op_reg(at)], guard.clone()));
+    a += 16;
+    let n = ((a - addr) / 16) as u32;
+    Ok(Some((out, n)))
+}
+
+/// sub.s64 (Sub64, anchor s64_sub -O0; -O3 identical form).
+fn lower_sub64(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    let (dlo, dhi) = match pair_of(insn.operands.get(0), alloc) { Some(p) => p, None => return Ok(None) };
+    let (alo, ahi) = match pair_of(insn.operands.get(1), alloc) { Some(p) => p, None => return Ok(None) };
+    let (blo, bhi) = match pair_of(insn.operands.get(2), alloc) { Some(p) => p, None => return Ok(None) };
+    let pc = alloc.pred("$sub64_cc");
+    let out = vec![
+        make_insn(addr, "IADD3", vec![op_reg(dlo), Operand::Pred { num: pc, neg: false }, op_pt(), op_reg(alo), op_neg_reg(blo), op_rz()], guard.clone()),
+        make_insn(addr + 16, "IADD3.X", vec![
+            op_reg(dhi), op_pt(), op_pt(), op_reg(ahi), op_inv_reg(bhi), op_rz(),
+            Operand::Pred { num: pc, neg: false }, op_not_pt(),
+        ], guard.clone()),
+    ];
+    alloc.free_pred("$sub64_cc");
+    Ok(Some((out, 2)))
+}
+
+/// min.s64 (MinS64, anchors s64_min reg + s64_mini imm4096). Imm with hi!=0
+/// is unattested -> fail-closed.
+fn lower_min_s64(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    let (dlo, dhi) = match pair_of(insn.operands.get(0), alloc) { Some(p) => p, None => return Ok(None) };
+    let (alo, ahi) = match pair_of(insn.operands.get(1), alloc) { Some(p) => p, None => return Ok(None) };
+    let pc = alloc.pred("$min64_c");
+    let pco = Operand::Pred { num: pc, neg: false };
+    // b: reg pair or non-negative imm (hi32==0 -> RZ like the vendor anchor).
+    let (blo_op, bhi_op) = match insn.operands.get(2) {
+        Some(PtxOperand::Reg(n)) if alloc.is_ptx_reg_name(n) => {
+            let (blo, bhi) = alloc.gpr_pair(n);
+            (op_reg(blo), op_reg(bhi))
+        }
+        Some(PtxOperand::IntImm(v)) => {
+            if (*v >> 32) != 0 { alloc.free_pred("$min64_c"); return Ok(None); }
+            (op_imm(*v & 0xffff_ffff), op_rz())
+        }
+        _ => { alloc.free_pred("$min64_c"); return Ok(None) }
+    };
+    let out = vec![
+        make_insn(addr, "ISETP.LT.U32.AND",
+            vec![pco.clone(), op_pt(), op_reg(alo), blo_op.clone(), op_pt()], guard.clone()),
+        make_insn(addr + 16, "ISETP.LT.AND.EX",
+            vec![pco.clone(), op_pt(), op_reg(ahi), bhi_op.clone(), op_pt(), pco.clone()], guard.clone()),
+        make_insn(addr + 32, "SEL", vec![op_reg(dlo), op_reg(alo), blo_op, pco.clone()], guard.clone()),
+        make_insn(addr + 48, "SEL", vec![op_reg(dhi), op_reg(ahi), bhi_op, pco], guard.clone()),
+    ];
+    alloc.free_pred("$min64_c");
+    Ok(Some((out, 4)))
+}
+
+/// clz.b64 (Clz64, anchor s64_clz -O0; -O3 uses NE+dual-IADD3, documented).
+fn lower_clz64(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    let d = match reg_of(insn.operands.get(0), alloc) { Some(r) => r, None => return Ok(None) };
+    let (alo, ahi) = match pair_of(insn.operands.get(1), alloc) { Some(p) => p, None => return Ok(None) };
+    let pc = alloc.pred("$clz64_c");
+    let pco = Operand::Pred { num: pc, neg: false };
+    let bias = alloc.gpr("$clz64_bias");
+    let x = alloc.gpr("$clz64_x");
+    let out = vec![
+        make_insn(addr, "ISETP.EQ.U32.AND", vec![pco.clone(), op_pt(), op_reg(ahi), op_rz(), op_pt()], guard.clone()),
+        make_insn(addr + 16, "SEL", vec![op_reg(bias), op_rz(), op_imm(0x20), Operand::Pred { num: pc, neg: true }], guard.clone()),
+        make_insn(addr + 32, "SEL", vec![op_reg(x), op_reg(alo), op_reg(ahi), pco.clone()], guard.clone()),
+        make_insn(addr + 48, "FLO.U32", vec![op_reg(x), op_reg(x)], guard.clone()),
+        make_insn(addr + 64, "IADD3", vec![op_reg(x), op_pt(), op_pt(), op_neg_reg(x), op_imm(0x1f), op_rz()], guard.clone()),
+        make_insn(addr + 80, "IADD3", vec![op_reg(d), op_pt(), op_pt(), op_reg(bias), op_reg(x), op_rz()], guard.clone()),
+    ];
+    alloc.free_pred("$clz64_c");
+    Ok(Some((out, 6)))
+}
+
+/// popc.b64 (Popc64, anchor s64_popc): vendor keeps the ~0 mask AND idiom
+/// per half (semantically identity; emitted verbatim, documented in report).
+fn lower_popc64(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    let d = match reg_of(insn.operands.get(0), alloc) { Some(r) => r, None => return Ok(None) };
+    let (alo, ahi) = match pair_of(insn.operands.get(1), alloc) { Some(p) => p, None => return Ok(None) };
+    let m = alloc.gpr("$popc_m");
+    let t = alloc.gpr("$popc_t");
+    let u = alloc.gpr("$popc_u");
+    let out = vec![
+        make_insn(addr, "LOP3.LUT", vec![op_reg(m), op_rz(), op_rz(), op_rz(), op_imm(0x33), op_not_pt()], guard.clone()),
+        make_insn(addr + 16, "LOP3.LUT", vec![op_reg(t), op_reg(alo), op_reg(m), op_rz(), op_imm(0xc0), op_not_pt()], guard.clone()),
+        make_insn(addr + 32, "POPC", vec![op_reg(t), op_reg(t)], guard.clone()),
+        make_insn(addr + 48, "LOP3.LUT", vec![op_reg(m), op_rz(), op_rz(), op_rz(), op_imm(0x33), op_not_pt()], guard.clone()),
+        make_insn(addr + 64, "LOP3.LUT", vec![op_reg(u), op_reg(ahi), op_reg(m), op_rz(), op_imm(0xc0), op_not_pt()], guard.clone()),
+        make_insn(addr + 80, "POPC", vec![op_reg(u), op_reg(u)], guard.clone()),
+        make_insn(addr + 96, "IADD3", vec![op_reg(d), op_pt(), op_pt(), op_reg(t), op_reg(u), op_rz()], guard.clone()),
+    ];
+    Ok(Some((out, 7)))
+}
+
+/// mul64 network (Mul64: Lo/Mad/Hi; anchors s64_mullo/s64_mulloi/s64_madlo/
+/// s64_mulhi; -O0 full network kept verbatim incl. the dead t3/t2.hi lanes
+/// for mul.lo, since the -O0 text is the parity reference).
+fn lower_mul64(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>, kind: Mul64Kind,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    use crate::ptx_map::Mul64Kind::*;
+    if guard.is_some() { return Ok(None); }
+    let (dlo, dhi) = match pair_of(insn.operands.get(0), alloc) { Some(p) => p, None => return Ok(None) };
+    let (alo, ahi) = match pair_of(insn.operands.get(1), alloc) { Some(p) => p, None => return Ok(None) };
+    // b: register pair or 64-bit immediate split (anchor s64_mulloi:
+    // lo as low-32 literal, hi as signed high-32 literal in slot B).
+    let (blo, bhi): (Operand, Operand) = match insn.operands.get(2) {
+        Some(PtxOperand::Reg(n)) if alloc.is_ptx_reg_name(n) => {
+            let (l, h) = alloc.gpr_pair(n);
+            (op_reg(l), op_reg(h))
+        }
+        Some(PtxOperand::IntImm(v)) => {
+            let lo = (*v as u32) as i32 as i64;
+            let hi = *v >> 32;
+            (Operand::Imm32(lo), Operand::Imm32(hi))
+        }
+        _ => return Ok(None),
+    };
+    // mad: c addend pair (reg or imm; imm materializes as a MOV pair,
+    // anchor madwi); mul: RZ pair.
+    let mut pre: Vec<(u32, Instruction)> = Vec::new();
+    let c_pair = if kind == Mad {
+        match insn.operands.get(3) {
+            Some(PtxOperand::Reg(n)) if alloc.is_ptx_reg_name(n) => alloc.gpr_pair(n),
+            Some(PtxOperand::IntImm(v)) => {
+                let p = alloc.gpr_pair("$m64_cimm");
+                pre.push((0, make_insn(addr, "MOV",
+                    vec![op_reg(p.0), op_imm(*v as u32 as i32 as i64)], guard.clone())));
+                pre.push((1, make_insn(addr + 16, "MOV",
+                    vec![op_reg(p.1), op_imm(*v >> 32)], guard.clone())));
+                p
+            }
+            _ => return Ok(None),
+        }
+    } else { (255, 255) };
+    // scratch: t0 target pair = dst pair for Lo/Mad (d.lo is final t0.lo and
+    // t0.hi feeds s1); Hi keeps t0 in its own pair. t1/t2/s2/t3 scratch.
+    let (t0l, t0h) = if kind == Hi { alloc.gpr_pair("$m64_t0") } else { (dlo, dhi) };
+    let (t1l, _t1h) = alloc.gpr_pair("$m64_t1");
+    let (t2l, t2h) = alloc.gpr_pair("$m64_t2");
+    let (s2l, s2h) = alloc.gpr_pair("$m64_s2");
+    let (t3l, _t3h) = if kind == Hi { (dlo, dhi) } else { alloc.gpr_pair("$m64_t3") };
+    let pc0 = alloc.pred("$m64_c0");
+    let pc1 = alloc.pred("$m64_c1");
+    let pc2 = alloc.pred("$m64_c2");
+    let p = |n: u8| Operand::Pred { num: n, neg: false };
+    let mut out: Vec<Instruction> = Vec::new();
+    let mut a = addr;
+    for (_, ins) in pre.drain(..) {
+        out.push(ins);
+        a += 16;
+    }
+    // 1. t0 = alo*blo + addend
+    match kind {
+        Mad => {
+            // anchor: IMAD.WIDE.U32 d, Pc0, a, b, c (carry-out slot second)
+            out.push(make_insn(a, "IMAD.WIDE.U32",
+                vec![op_reg(t0l), p(pc0), op_reg(alo), blo.clone(), op_reg(c_pair.0)], guard.clone()));
+        }
+        _ => {
+            out.push(make_insn(a, "IMAD.WIDE.U32",
+                vec![op_reg(t0l), op_reg(alo), blo.clone(), op_rz()], guard.clone()));
+        }
+    }
+    a += 16;
+    // 2. t1 = ahi*blo
+    out.push(make_insn(a, "IMAD.WIDE.U32",
+        vec![op_reg(t1l), op_reg(ahi), blo, op_rz()], guard.clone()));
+    a += 16;
+    // 3. t2 = alo*bhi + t1 (carry-out Pc2)
+    // anchor: IMAD.WIDE.U32 d, Pc2, a, b, addend (carry-out slot second)
+    out.push(make_insn(a, "IMAD.WIDE.U32",
+        vec![op_reg(t2l), p(pc2), op_reg(alo), bhi.clone(), op_reg(t1l)], guard.clone()));
+    a += 16;
+    // 4. s1 = t2.lo + t0.hi (carry-out Pc1). For Lo/Mad s1 lands on d.hi.
+    let (s1r,) = if kind == Hi { (alloc.gpr("$m64_s1"),) } else { (dhi,) };
+    out.push(make_insn(a, "IADD3",
+        vec![op_reg(s1r), p(pc1), op_pt(), op_reg(t2l), op_reg(t0h), op_rz()], guard.clone()));
+    a += 16;
+    // 5. s2 = t2.hi + carries. mul: IADD3 + IADD3.X(single cin Pc2);
+    //    mad: IADD3.X cin+contPc0 then IADD3.X dual cin (Pc2,Pc0').
+    match kind {
+        Mad => {
+            out.push(make_insn(a, "IADD3.X",
+                vec![op_reg(s2l), p(pc0), op_pt(), op_rz(), op_reg(t2h), op_rz(), p(pc0), op_not_pt()], guard.clone()));
+            a += 16;
+            out.push(make_insn(a, "IADD3.X",
+                vec![op_reg(s2h), op_pt(), op_pt(), op_rz(), op_rz(), op_rz(), p(pc2), p(pc0)], guard.clone()));
+            a += 16;
+        }
+        _ => {
+            out.push(make_insn(a, "IADD3",
+                vec![op_reg(s2l), op_pt(), op_pt(), op_rz(), op_reg(t2h), op_rz()], guard.clone()));
+            a += 16;
+            out.push(make_insn(a, "IADD3.X",
+                vec![op_reg(s2h), op_pt(), op_pt(), op_rz(), op_rz(), op_rz(), p(pc2), op_not_pt()], guard.clone()));
+            a += 16;
+        }
+    }
+    // 6. t3 = ahi*bhi + s2 + Pc1
+    out.push(make_insn(a, "IMAD.WIDE.U32.X",
+        vec![op_reg(t3l), op_reg(ahi), bhi, op_reg(s2l), p(pc1)], guard.clone()));
+    a += 16;
+    alloc.free_pred("$m64_c0");
+    alloc.free_pred("$m64_c1");
+    alloc.free_pred("$m64_c2");
+    let n = ((a - addr) / 16) as u32;
+    // sanity: fixed expansion sizes (label-address contract; 7, or 9 when
+    // the mad c-immediate materializes its MOV pair).
+    debug_assert!(n == 7 || n == 9, "mul64 expansion {n}");
+    Ok(Some((out, n)))
+}
+
+/// mad.wide.u32 d64, a32, b32, c64 (anchor madwi -O0):
+///   IMAD.U32 tlo, a, b, RZ ; IMAD.HI.U32 thi, a, b, RZ ;
+///   IADD3 dlo, Pc, PT, tlo, clo, RZ ; IADD3.X dhi, PT, PT, thi, chi, RZ, Pc, !PT
+fn lower_mad_wide32(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    let (dlo, dhi) = match pair_of(insn.operands.get(0), alloc) { Some(p) => p, None => return Ok(None) };
+    let a32 = match reg_of(insn.operands.get(1), alloc) { Some(r) => r, None => return Ok(None) };
+    let b32 = match reg_of(insn.operands.get(2), alloc) { Some(r) => r, None => return Ok(None) };
+    let (clo, chi) = match pair_of(insn.operands.get(3), alloc) { Some(p) => p, None => return Ok(None) };
+    let pc = alloc.pred("$madw32_c");
+    let out = vec![
+        make_insn(addr, "IMAD.U32", vec![op_reg(dlo), op_reg(a32), op_reg(b32), op_rz()], guard.clone()),
+        make_insn(addr + 16, "IMAD.HI.U32", vec![op_reg(dhi), op_reg(a32), op_reg(b32), op_rz()], guard.clone()),
+        make_insn(addr + 32, "IADD3", vec![op_reg(dlo), Operand::Pred { num: pc, neg: false }, op_pt(), op_reg(dlo), op_reg(clo), op_rz()], guard.clone()),
+        make_insn(addr + 48, "IADD3.X", vec![
+            op_reg(dhi), op_pt(), op_pt(), op_reg(dhi), op_reg(chi), op_rz(),
+            Operand::Pred { num: pc, neg: false }, op_not_pt(),
+        ], guard.clone()),
+    ];
+    alloc.free_pred("$madw32_c");
+    Ok(Some((out, 4)))
+}
+
+/// cp.async.bulk.shared::cluster.global.mbarrier::complete_tx::bytes
+/// (CpAsyncBulk; anchor corpus b_bulk_cp -O0 0x140..0x430; -O3 uniform-path
+/// divergence documented). 16-insn fixed expansion (label contract).
+fn lower_cp_async_bulk(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    // [dst(shared cta off)],[src(global 64)],size(reg),[mbar(shared cta off)]
+    let addr32 = |i: usize, alloc: &mut RegAlloc| -> Option<u8> {
+        match insn.operands.get(i) {
+            Some(PtxOperand::Addr { base, offset }) if *offset == 0 && alloc.is_ptx_reg_name(base) =>
+                Some(alloc.resolve(base)),
+            _ => None,
+        }
+    };
+    let rb_dst = match addr32(0, alloc) { Some(r) => r, None => return Ok(None) };
+    let (slo, shi) = match insn.operands.get(1) {
+        Some(PtxOperand::Addr { base, offset }) if *offset == 0 && alloc.is_ptx_reg_name(base) =>
+            alloc.gpr_pair(base),
+        _ => return Ok(None),
+    };
+    let sz = match reg_of(insn.operands.get(2), alloc) { Some(r) => r, None => return Ok(None) };
+    let rb_mb = match addr32(3, alloc) { Some(r) => r, None => return Ok(None) };
+    // Fixed UR window (gateway-local; UR4 descriptor / UR60..62 mbar free).
+    const B_UR_SZ: u8 = 52;
+    const B_UR_SL: u8 = 53;
+    const B_UR_SH: u8 = 54;
+    const B_UR_DS: u8 = 55;
+    const B_UR_MB: u8 = 56;
+    let ct = alloc.gpr("$bcp_ctaid");
+    let ad = alloc.gpr("$bcp_dsta");
+    let ct2 = alloc.gpr("$bcp_ctaid2");
+    let mb = alloc.gpr("$bcp_mba");
+    let t = alloc.gpr("$bcp_sz");
+    let pl = alloc.pred("$bcp_loop");
+    let pe = alloc.pred("$bcp_elect");
+    let lbl = format!("BCP_{:x}_LOOP", addr);
+    let mut out: Vec<Instruction> = Vec::new();
+    let mut a = addr;
+    let mut push = |opf: &str, ops: Vec<Operand>, g: Option<Guard>, out: &mut Vec<Instruction>, a: &mut u32| {
+        out.push(make_insn(*a, opf, ops, g));
+        *a += 16;
+    };
+    // dst CGA glue
+    push("S2R", vec![op_reg(ct), Operand::SysReg("SR_CgaCtaId".into())], None, &mut out, &mut a);
+    push("LEA", vec![op_reg(ad), op_reg(ct), op_reg(rb_dst), op_imm(0x18)], None, &mut out, &mut a);
+    // src global pair -> UR
+    push("R2UR", vec![ur(B_UR_SL), op_reg(slo)], None, &mut out, &mut a);
+    push("R2UR", vec![ur(B_UR_SH), op_reg(shi)], None, &mut out, &mut a);
+    // size: bytes>>4 packed to 16 bits
+    push("SHF.R.U32.HI", vec![op_reg(t), op_rz(), op_imm(0x4), op_reg(sz)], None, &mut out, &mut a);
+    push("PRMT", vec![op_reg(t), op_reg(t), op_imm(0x5410), op_rz()], None, &mut out, &mut a);
+    push("R2UR", vec![ur(B_UR_SZ), op_reg(t)], None, &mut out, &mut a);
+    // mbar CGA glue
+    push("S2R", vec![op_reg(ct2), Operand::SysReg("SR_CgaCtaId".into())], None, &mut out, &mut a);
+    push("LEA", vec![op_reg(mb), op_reg(ct2), op_reg(rb_mb), op_imm(0x18)], None, &mut out, &mut a);
+    push("R2UR", vec![ur(B_UR_MB), op_reg(mb)], None, &mut out, &mut a);
+    push("R2UR", vec![ur(B_UR_DS), op_reg(ad)], None, &mut out, &mut a);
+    // elect loop
+    push("PLOP3.LUT", vec![Operand::Pred { num: pl, neg: false }, op_pt(), op_pt(), op_pt(), op_pt(), op_imm(0x80), op_imm(0x8)], None, &mut out, &mut a);
+    push_gensym_label(&mut out, &lbl);
+    push("ELECT", vec![Operand::Pred { num: pe, neg: false },
+        Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true }, op_pt()],
+        Some(Guard { pred: pl, negated: false, uniform: false }), &mut out, &mut a);
+    push("PLOP3.LUT", vec![Operand::Pred { num: pl, neg: false }, op_pt(), Operand::Pred { num: pe, neg: false }, op_pt(), op_pt(), op_imm(0x8), op_imm(0x80)],
+        Some(Guard { pred: pe, negated: false, uniform: false }), &mut out, &mut a);
+    push("UBLKCP.S.G", vec![ur_addr(B_UR_DS), ur_addr(B_UR_SL), ur(B_UR_SZ)], None, &mut out, &mut a);
+    push("PLOP3.LUT", vec![Operand::Pred { num: pe, neg: false }, op_pt(), op_pt(), op_pt(), op_pt(), op_imm(0x8), op_imm(0x80)], None, &mut out, &mut a);
+    push("BRA.U.ANY", vec![Operand::Label(lbl.clone())],
+        Some(Guard { pred: pl, negated: false, uniform: false }), &mut out, &mut a);
+    alloc.free_pred("$bcp_loop");
+    alloc.free_pred("$bcp_elect");
+    let n = ((a - addr) / 16) as u32;
+    debug_assert_eq!(n, 16);
     Ok(Some((out, n)))
 }
 
@@ -2802,7 +3457,7 @@ fn lower_cvt(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guar
         .find(|p| matches!(*p, "rn"|"rz"|"rzi"|"rmi"|"rmp"|"rni"|"trunc"));
     let has_sat = parts[1..].contains(&"sat");
     let type_parts: Vec<&str> = parts[1..].iter()
-        .filter(|p| matches!(**p, "u8"|"s8"|"u16"|"s16"|"u32"|"s32"|"u64"|"s64"|"f16"|"f16x2"|"bf16x2"|"f32"|"f64"|"b8"|"b16"|"b32"|"b64"))
+        .filter(|p| matches!(**p, "u8"|"s8"|"u16"|"s16"|"u32"|"s32"|"u64"|"s64"|"f16"|"f16x2"|"bf16"|"bf16x2"|"f32"|"f64"|"b8"|"b16"|"b32"|"b64"))
         .copied().collect();
 
     if type_parts.len() < 2 { return None; }
@@ -2886,6 +3541,12 @@ fn lower_cvt(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guar
                 None => return unattested(),
             };
             Some(Ok(vec![make_insn(addr, "F2FP.F16.F32.PACK_AB", vec![d, a, b], guard.clone())]))
+        }
+        // b9 phase-3 #9: bf16<-f32 rn -> F2F.BF16.F32 (anchor corpus p16
+        // -O0: 0x200/0x220; -O3 fuses pairs into F2FP.BF16.F32.PACK_AB --
+        // documented divergence like f16x2).
+        ("bf16", "f32") if rounding == Some("rn") && !has_sat => {
+            Some(Ok(vec![make_insn(addr, "F2F.BF16.F32", vec![d, a], guard.clone())]))
         }
         ("f32", "s16") if rounding == Some("rn") && !has_sat => {
             Some(Ok(vec![make_insn(addr, "I2F.S16", vec![d, a], guard.clone())]))

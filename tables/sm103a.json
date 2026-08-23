@@ -61678,6 +61678,113 @@
     "throughput": 1,
     "is_variable_latency": false
    }
+  },
+  "STSM_ARI_R": {
+   "base_op": "STSM",
+   "operand_sig": "ARI_R",
+   "mod_groups": {
+    "16,4,M88": {
+     "and_base": "0x00000000000002000000000000000844",
+     "variable_mask": "0x0000000000000000ffffffffff00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "b9p11-2026-08-23"
+      },
+      {
+       "shift": 24,
+       "bits": 9,
+       "token_idx": 1,
+       "extraction": "sub_r0",
+       "_src": "b9p11-2026-08-23"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "sub_imm1",
+       "_src": "b9p11-2026-08-23"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "b9p11-2026-08-23"
+      }
+     ],
+     "count": 1,
+     "_src": "b9p11-2026-08-23",
+     "_note": "NEW ROW (STSM absent). anchor p12_stmatrix O0 0x190 word 000fc000000002000000000400007844 -> [R0],R4; geometry mirrors LDSM_R_ARI canon (bug098) with src-reg role swapped to 8b@32 (anchor-verified)."
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   }
+  },
+  "UBLKCP_AURI_AURI_UR": {
+   "base_op": "UBLKCP",
+   "operand_sig": "AURI_AURI_UR",
+   "mod_groups": {
+    "G,S": {
+     "and_base": "0x000000000800020000000000000003ba",
+     "variable_mask": "0x00000000000000ffffffffffff00f000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "b9p11-2026-08-23"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_ur0",
+       "_src": "b9p11-2026-08-23"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "sub_imm1",
+       "_src": "b9p11-2026-08-23"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_ur0",
+       "_src": "b9p11-2026-08-23"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "ureg",
+       "_src": "b9p11-2026-08-23"
+      }
+     ],
+     "count": 2,
+     "_src": "b9p11-2026-08-23",
+     "_note": "NEW ROW (UBLKCP absent). delta-metoda: O0/O3 anchors differ exactly in the two [URn] operands; size ureg 8b@64 = 4 in both. constants bits 73/91. corpus form cp.async.bulk.shared::cluster.global = .S(dst shared) .G(src global)."
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   }
   }
  },
  "sched_only": {},
