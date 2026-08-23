@@ -308,7 +308,8 @@
   "sigfix": "run31h: sig-bit resync dla klas *SETP (iter N)",
   "_errata_2026_08_22": "BUG-079(ULEA family regen from 12887 vendor anchors: sm120 singleton-junk rows replaced, imm2 5b@75 window vs bit80 HI discriminator, neg@63/72 + inv@63 + ureg_ff + UP-in@81/6b + UP-out@87/4b; render-parity 12887/12887 both tables)",
   "_errata_2026_08_23_A": "BUG-086 (canon prep): UISETP II key tok5 pred 4b@87 -> 3b@87+neg@90 (2 vendor anchors !UPn source); +mg AND,LE,U32 on UISETP II key (6 anchors, bool bit74); UISETP EX-UR key EX,NE,OR,U32 fields de-junked (2 anchors, junk tok1@8/tok5@3 removed); ISETP II-EX key +mg AND,EX,GE (1 anchor). Residuum: 1 word imm8@40 subform (PLOP3-shadow) parked (single-anchor doctrine, F2Q). UR-key EQ,OR,U32 de-fossil (2 anchors; fields=GE,OR,U32). + AND,EQ UISETP II (nvdisasm-probe word, byte 0x22; zamyka bug012-pin klas\u0119). UR-key +U64/S64 mgs (AND,GE,U64/AND,GT,U64/AND,NE,S64/NE,OR,S64) carry z sond 057. tok2-fix globalny rodziny (120 mgs): non-EX->(68,4), EX->(84,3); zamyka harvest-regresje kD (strzezone slowa drukowaly P8 z okna guard). Normalizacja szablonu pol predykatow calej rodziny (per-key); zamyka PLOP3-hijack R1 (tok5 real pred nie miescil sie w starych polach po 2e-erze). II-EX +AND,EX,GE,U32 (anchor R2).",
-  "_errata_2026_08_23B": "BUG-094: (1) sm120 LDS/LDL/STL family re-canonicalized to sm103a geometry (junk rows gave: LDS.U8/U16 hijacked into LDG.E.LTC128B.128 slot, LDL.LU phantom +UR0, STL.128 imm top-byte truncation, STL.S16/LDL.S16 DECERR-or-hijack, STL/STL.64 pure-UR hijack); (2) junk decode modgroup LDG_R_dARI::128,E,LTC128B removed (0 legit anchors over 885k-word corpus+2049-bin audits; 100% offender traffic: LDS.U8/U16, LDL.S16, STL family); era-text encodability preserved via encode_only retention row LDG.E.LTC128B.128_R_dARI with verbatim pre-094 geometry; (3) ATOMG_P_R_ARI_R_R (CAS family) added to sm120 from sm103a canon; (4) printer: ATOM*/REDG size modifier prints between operation and STRONG (vendor order ATOMG.E.CAS.64.STRONG.SYS). Anchors: work/f2-094/"
+  "_errata_2026_08_23B": "BUG-094: (1) sm120 LDS/LDL/STL family re-canonicalized to sm103a geometry (junk rows gave: LDS.U8/U16 hijacked into LDG.E.LTC128B.128 slot, LDL.LU phantom +UR0, STL.128 imm top-byte truncation, STL.S16/LDL.S16 DECERR-or-hijack, STL/STL.64 pure-UR hijack); (2) junk decode modgroup LDG_R_dARI::128,E,LTC128B removed (0 legit anchors over 885k-word corpus+2049-bin audits; 100% offender traffic: LDS.U8/U16, LDL.S16, STL family); era-text encodability preserved via encode_only retention row LDG.E.LTC128B.128_R_dARI with verbatim pre-094 geometry; (3) ATOMG_P_R_ARI_R_R (CAS family) added to sm120 from sm103a canon; (4) printer: ATOM*/REDG size modifier prints between operation and STRONG (vendor order ATOMG.E.CAS.64.STRONG.SYS). Anchors: work/f2-094/",
+  "tc5_mk296": "2026-08-23 mk296 tcgen05 front: +58 mod groups, +4 keys (UTCCP/UTCSHIFT/LDTM.STAT-family new keys: ); EXACT gate 323/324 roundtrip, parity+unk no-regression"
  },
  "instructions": {
   "BRA_II": {
@@ -46774,6 +46775,412 @@
       }
      ],
      "count": 2
+    },
+    "": {
+     "and_base": "0x000e200008040000000000c0000179ee",
+     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 2,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp128bit": {
+     "and_base": "0x000e200008000000000000c0000079ee",
+     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 2,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp128bit,x32": {
+     "and_base": "0x000e200008280000000000c0000079ee",
+     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp128bit,x8": {
+     "and_base": "0x000e200008180000000000c0000079ee",
+     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp256bit": {
+     "and_base": "0x000e200008020000000000c0000079ee",
+     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp256bit,PACK16BIT,x8": {
+     "and_base": "0x000e2000081b0000000000c0000079ee",
+     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp256bit,x32": {
+     "and_base": "0x000e2000082a0000000000c0000079ee",
+     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp256bit,x8": {
+     "and_base": "0x000e2000081a0000000000c0000079ee",
+     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t0_t15,x2": {
+     "and_base": "0x000e200008880000000000c0000079ee",
+     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 2,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t0_t15,x32": {
+     "and_base": "0x000e200008a80000000000c0000079ee",
+     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t0_t15,x8": {
+     "and_base": "0x000e200008980000000000c0000079ee",
+     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t16_t31,x2": {
+     "and_base": "0x000e2000088a0000000000c0000079ee",
+     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 2,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 40,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "tmem_off",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t16_t31,x32": {
+     "and_base": "0x000e200008aa0000000000c0000079ee",
+     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 40,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "tmem_off",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t16_t31,x8": {
+     "and_base": "0x000e2000089a0000000000c0000079ee",
+     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 40,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "tmem_off",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp64bit": {
+     "and_base": "0x000e200008060000000000c0000179ee",
+     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 2,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp64bit,x32": {
+     "and_base": "0x000e2000082e0000000000c0000079ee",
+     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp64bit,x8": {
+     "and_base": "0x000e2000081e0000000000c0000079ee",
+     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "x128": {
+     "and_base": "0x000e2000083c0000000000c0000079ee",
+     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "x8": {
+     "and_base": "0x000e2000081c0000000000c0000079ee",
+     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 40,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "tmem_off",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 10
     }
    },
    "scheduling": {
@@ -46948,6 +47355,55 @@
       }
      ],
      "count": 97
+    },
+    "WS": {
+     "and_base": "0x0011d0000808030000ff0081c00091ea",
+     "variable_mask": "0x000e0e000780003f00007e7e3f000c00",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 40,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 6,
+       "extraction": "pred",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 6,
+       "extraction": "neg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
     }
    },
    "scheduling": {
@@ -49030,6 +49486,27 @@
       }
      ],
      "count": 76
+    },
+    "2CTA": {
+     "and_base": "0x0011c000082000ff000000ff000003e9",
+     "variable_mask": "0x000e3e0000000000000000007f00d000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "sub_ur0",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "ureg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
     }
    },
    "scheduling": {
@@ -49356,6 +49833,391 @@
       }
      ],
      "count": 28
+    },
+    "": {
+     "and_base": "0x0001e000080400c000000001000079ed",
+     "variable_mask": "0x000e06000000003f0001f0fe00000000",
+     "fields": [
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp128bit": {
+     "and_base": "0x0001e000080000c000000000000079ed",
+     "variable_mask": "0x000e06000000003f0001f0fe00000000",
+     "fields": [
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp128bit,x32": {
+     "and_base": "0x0001e000082800c000000000000079ed",
+     "variable_mask": "0x000e06000000003f0001f0fe00000000",
+     "fields": [
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp128bit,x8": {
+     "and_base": "0x0001e000081800c000000000000079ed",
+     "variable_mask": "0x000e06000000003f0001f0fe00000000",
+     "fields": [
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp256bit": {
+     "and_base": "0x0001e000080200c000000000000079ed",
+     "variable_mask": "0x000e06000000003f0001f0fe00000000",
+     "fields": [
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp256bit,EXPAND16BIT,x8": {
+     "and_base": "0x0001e000081b00c000000000000079ed",
+     "variable_mask": "0x000e06000000003f0001f0fe00000000",
+     "fields": [
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp256bit,x32": {
+     "and_base": "0x0001e000082a00c000000000000079ed",
+     "variable_mask": "0x000e06000000003f0001f0fe00000000",
+     "fields": [
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp256bit,x8": {
+     "and_base": "0x0001e000081a00c000000000000079ed",
+     "variable_mask": "0x000e06000000003f0001f0fe00000000",
+     "fields": [
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t0_t15,x2": {
+     "and_base": "0x0001e000088800c000000000000079ed",
+     "variable_mask": "0x000e06000000003f0001f0fe00000000",
+     "fields": [
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t0_t15,x32": {
+     "and_base": "0x0001e00008a800c000000000000079ed",
+     "variable_mask": "0x000e06000000003f0001f0fe00000000",
+     "fields": [
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t0_t15,x8": {
+     "and_base": "0x0001e000089800c000000000000079ed",
+     "variable_mask": "0x000e06000000003f0001f0fe00000000",
+     "fields": [
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t16_t31,x2": {
+     "and_base": "0x0001e000088a00c000000200000079ed",
+     "variable_mask": "0x000e06000000003f0001f0fe00000000",
+     "fields": [
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "tmem_off",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t16_t31,x32": {
+     "and_base": "0x0001e00008aa00c000000000000079ed",
+     "variable_mask": "0x000e06000000003f0001f0fe00000000",
+     "fields": [
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "tmem_off",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp32bit_t16_t31,x8": {
+     "and_base": "0x0001e000089a00c000000800000079ed",
+     "variable_mask": "0x000e06000000003f0001f0fe00000000",
+     "fields": [
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "tmem_off",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp64bit": {
+     "and_base": "0x0001e000080600c000000001000079ed",
+     "variable_mask": "0x000e06000000003f0001f0fe00000000",
+     "fields": [
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp64bit,x32": {
+     "and_base": "0x0001e000082e00c000000000000079ed",
+     "variable_mask": "0x000e06000000003f0001f0fe00000000",
+     "fields": [
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "16dp64bit,x8": {
+     "and_base": "0x0001e000081e00c000000000000079ed",
+     "variable_mask": "0x000e06000000003f0001f0fe00000000",
+     "fields": [
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "x8": {
+     "and_base": "0x0001e000081c00c000000000000079ed",
+     "variable_mask": "0x000e06000000003f0001f8fe00000000",
+     "fields": [
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "tmem_off",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 3,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 10
     }
    },
    "scheduling": {
@@ -50664,6 +51526,62 @@
       }
      ],
      "count": 8
+    },
+    "WS": {
+     "and_base": "0x0011d0000808000000ff0000000011ea",
+     "variable_mask": "0x000e0e000780003f00007effff00ec00",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 40,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 6,
+       "extraction": "pred",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 6,
+       "extraction": "neg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 6
     }
    },
    "scheduling": {
@@ -58083,6 +59001,646 @@
      "_src": "bug099-2026-08-23 import-sm120-native",
      "_note": "099 additive coverage: uniform-indexed raw-address UR form [.U32+UR(+imm)]; geometry sm120-native verbatim (era 82/82 vendor-exact evidence)."
     }
+   }
+  },
+  "UTCCP_II_II": {
+   "base_op": "UTCCP",
+   "operand_sig": "_",
+   "mod_groups": {
+    "128dp128bit,2CTA,S,T": {
+     "and_base": "0x000fd80008380000000000ffff0089e7",
+     "variable_mask": "0x00000000000000000000000000000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "128dp128bit,S,T": {
+     "and_base": "0x000fd80008180000000000ffff0089e7",
+     "variable_mask": "0x00000000000000000000000000000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "2CTA,2x64dp128bit_lw01_lw23,S,T": {
+     "and_base": "0x000fd80009280000000000ffff0089e7",
+     "variable_mask": "0x00000000000000000000000000000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "2CTA,2x64dp128bit_lw02_lw13,S,T": {
+     "and_base": "0x000fd80009200000000000ffff0089e7",
+     "variable_mask": "0x00000000000000000000000000000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "2CTA,4dp256bit,S,T": {
+     "and_base": "0x000fd80008300000000000ffff0089e7",
+     "variable_mask": "0x00000000000000000000000000000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "2CTA,4x32dp128bit,S,T": {
+     "and_base": "0x000fd80009300000000000ffff0089e7",
+     "variable_mask": "0x00000000000000000000000000000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "2CTA,S,T": {
+     "and_base": "0x000fd80008200000000000ffff0089e7",
+     "variable_mask": "0x00000000000000000000000000000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "2x64dp128bit_lw01_lw23,S,T": {
+     "and_base": "0x000fd80009080000000000ffff0089e7",
+     "variable_mask": "0x00000000000000000000000000000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "2x64dp128bit_lw02_lw13,S,T": {
+     "and_base": "0x0001d8000900000000000004040009e7",
+     "variable_mask": "0x001e000000000000000080fbfb00f000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 40,
+       "bits": 16,
+       "token_idx": 1,
+       "extraction": "tmem_off",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 14
+    },
+    "4dp256bit,S,T": {
+     "and_base": "0x000fd80008100000000000ffff0089e7",
+     "variable_mask": "0x00000000000000000000000000000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "4x32dp128bit,S,T": {
+     "and_base": "0x000fd80009100000000000ffff0089e7",
+     "variable_mask": "0x00000000000000000000000000000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "S,T": {
+     "and_base": "0x0001d8000800000000000004040009e7",
+     "variable_mask": "0x001e000000000000000080fbfb00f000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 40,
+       "bits": 16,
+       "token_idx": 1,
+       "extraction": "tmem_off",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 22
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   }
+  },
+  "UTCOMMA_II_II_II_II_II_II_UP": {
+   "base_op": "UTCOMMA",
+   "operand_sig": "_",
+   "mod_groups": {
+    "": {
+     "and_base": "0x0011d8000f800008c00604ffff0095ea",
+     "variable_mask": "0x00000000000000000000000000000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 64,
+       "bits": 23,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 40,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 48,
+       "bits": 8,
+       "token_idx": 6,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 7,
+       "extraction": "pred",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 7,
+       "extraction": "neg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 4
+    },
+    "4X": {
+     "and_base": "0x0011d8000f800008800604ffff0095ea",
+     "variable_mask": "0x00000000000000000000000000000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 64,
+       "bits": 23,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 40,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 48,
+       "bits": 8,
+       "token_idx": 6,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 7,
+       "extraction": "pred",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 7,
+       "extraction": "neg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    },
+    "BLOCK16": {
+     "and_base": "0x0011d8000f800008800604ffff0095ea",
+     "variable_mask": "0x00000000000000000000000000000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 64,
+       "bits": 23,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 40,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 48,
+       "bits": 8,
+       "token_idx": 6,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 7,
+       "extraction": "pred",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 7,
+       "extraction": "neg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   }
+  },
+  "UTCQMMA_II_II_II_II_II_II_UP": {
+   "base_op": "UTCQMMA",
+   "operand_sig": "_",
+   "mod_groups": {
+    "": {
+     "and_base": "0x0011d0000800030000040000000011ea",
+     "variable_mask": "0x000e0e000780003f000a7effff00ec00",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 40,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 48,
+       "bits": 8,
+       "token_idx": 6,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 7,
+       "extraction": "pred",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 7,
+       "extraction": "neg",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 6
+    },
+    "2CTA": {
+     "and_base": "0x0011d0000820030000060081c00091ea",
+     "variable_mask": "0x000e0e000780003f00007e7e3f000c00",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "gdesc_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 40,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 48,
+       "bits": 8,
+       "token_idx": 6,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 7,
+       "extraction": "pred",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 7,
+       "extraction": "neg",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 2
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   }
+  },
+  "UTCSHIFT_II": {
+   "base_op": "UTCSHIFT",
+   "operand_sig": "_",
+   "mod_groups": {
+    "DOWN": {
+     "and_base": "0x000fd8000801000000000000040089e6",
+     "variable_mask": "0x000000000000000000004000fb000000",
+     "fields": [
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk296"
+      },
+      {
+       "shift": 40,
+       "bits": 16,
+       "token_idx": 1,
+       "extraction": "tmem_off",
+       "_src": "tc5-mk296"
+      }
+     ],
+     "count": 30
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
    }
   }
  },
