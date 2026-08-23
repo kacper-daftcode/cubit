@@ -60906,60 +60906,78 @@
      "count": 4
     },
     "4X": {
-     "and_base": "0x0011d8000f800008800604ffff0095ea",
-     "variable_mask": "0x00000000000000000000000000000000",
+     "and_base": "0x000000000880000080000000000015ea",
+     "variable_mask": "0x001ffa000700003f007e3effff00e000",
      "fields": [
       {
        "shift": 24,
        "bits": 8,
        "token_idx": 1,
        "extraction": "gdesc_ur",
-       "_src": "tc5-mk296"
+       "_src": "tc5-mk299"
       },
       {
-       "shift": 24,
+       "shift": 32,
        "bits": 8,
        "token_idx": 2,
        "extraction": "gdesc_ur",
-       "_src": "tc5-mk296"
+       "_src": "tc5-mk299"
       },
       {
        "shift": 64,
-       "bits": 23,
+       "bits": 8,
        "token_idx": 3,
        "extraction": "tmem_ur",
-       "_src": "tc5-mk296"
+       "_src": "tc5-mk299"
       },
       {
        "shift": 40,
        "bits": 8,
        "token_idx": 4,
        "extraction": "tmem_ur",
-       "_src": "tc5-mk296"
+       "_src": "tc5-mk299"
       },
       {
        "shift": 48,
        "bits": 8,
        "token_idx": 6,
        "extraction": "tmem_ur",
-       "_src": "tc5-mk296"
+       "_src": "tc5-mk299"
+      },
+      {
+       "shift": 10,
+       "bits": 2,
+       "token_idx": 1,
+       "extraction": "dsel2",
+       "_src": "tc5-mk299"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "tc5-mk299"
       },
       {
        "shift": 87,
        "bits": 3,
        "token_idx": 7,
        "extraction": "pred",
-       "_src": "tc5-mk296"
+       "_src": "tc5-mk299"
       },
       {
        "shift": 90,
        "bits": 1,
        "token_idx": 7,
        "extraction": "neg",
-       "_src": "tc5-mk296"
+       "_src": "tc5-mk299"
       }
      ],
-     "count": 2
+     "count": 13,
+     "replaces": {
+      "and_base": "0x0011d8000f800008...",
+      "count": 2
+     }
     },
     "BLOCK16": {
      "and_base": "0x0011d8000f800008800604ffff0095ea",
@@ -61094,60 +61112,78 @@
      "count": 6
     },
     "2CTA": {
-     "and_base": "0x0011d0000820030000060081c00091ea",
-     "variable_mask": "0x000e0e000780003f00007e7e3f000c00",
+     "and_base": "0x00000000082003080000000000001dea",
+     "variable_mask": "0x001ffe0007800004007e7effff00e000",
      "fields": [
       {
        "shift": 24,
        "bits": 8,
        "token_idx": 1,
        "extraction": "gdesc_ur",
-       "_src": "tc5-mk296"
+       "_src": "tc5-mk299"
       },
       {
-       "shift": 24,
+       "shift": 32,
        "bits": 8,
        "token_idx": 2,
        "extraction": "gdesc_ur",
-       "_src": "tc5-mk296"
+       "_src": "tc5-mk299"
       },
       {
        "shift": 64,
        "bits": 8,
        "token_idx": 3,
        "extraction": "tmem_ur",
-       "_src": "tc5-mk296"
+       "_src": "tc5-mk299"
       },
       {
        "shift": 40,
        "bits": 8,
        "token_idx": 4,
        "extraction": "tmem_ur",
-       "_src": "tc5-mk296"
+       "_src": "tc5-mk299"
       },
       {
        "shift": 48,
        "bits": 8,
        "token_idx": 6,
        "extraction": "tmem_ur",
-       "_src": "tc5-mk296"
+       "_src": "tc5-mk299"
+      },
+      {
+       "shift": 10,
+       "bits": 2,
+       "token_idx": 1,
+       "extraction": "dsel2",
+       "_src": "tc5-mk299"
+      },
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "tc5-mk299"
       },
       {
        "shift": 87,
        "bits": 3,
        "token_idx": 7,
        "extraction": "pred",
-       "_src": "tc5-mk296"
+       "_src": "tc5-mk299"
       },
       {
        "shift": 90,
        "bits": 1,
        "token_idx": 7,
        "extraction": "neg",
-       "_src": "tc5-mk296"
+       "_src": "tc5-mk299"
       }
      ],
-     "count": 2
+     "count": 17,
+     "replaces": {
+      "and_base": "0x0011d00008200300...",
+      "count": 2
+     }
     }
    },
    "scheduling": {
