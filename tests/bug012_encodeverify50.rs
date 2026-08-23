@@ -113,6 +113,16 @@ fn bug012_reencode_byte_exact() {
 /// opex 0x51 — unknown even to nvdisasm 13.0 (undefined TABLES_opex_4 value).
 /// It must stay verbatim-faithful: decode renders a text that encode-verify
 /// REJECTS so the frozen path keeps the exact 128 bits via `__raw__`.
+///
+/// BUG-089 (2026-08-23): the rendered text shifted `0x1` -> `UR1.reuse` —
+/// both forms are relaxed-match readings of a vendor-unknown opex word.
+/// Pre-089 it was anchored in the harvest-junk key `IADD3_R_P_P_R_R_R` mg X
+/// (deleted: sig tok5 'R' mapped onto the imm window); post-089 the relaxed
+/// winner is `IADD3_R_P_P_R_UR_R` mg X (UR-domain read of the same window,
+/// winning on the and_base tiebreak). The contract that actually matters is
+/// unchanged and verified here: the rendered text must NOT re-encode to the
+/// original word (today it fails encode outright), so `__raw__` keeps the
+/// exact bits.
 #[test]
 fn bug012_unknown_opex51_stays_raw_faithful() {
     let t = t120();
@@ -120,7 +130,7 @@ fn bug012_unknown_opex51_stays_raw_faithful() {
     let word: u128 = 0x080fe200007e4dff00000001ff727810;
     let d = idx.decode(word, 0x34c0, &t).expect("decode must keep working");
     let text = format!("{d}").trim_end_matches([' ', ';']).to_string();
-    assert_eq!(text, "IADD3.X R114, !PT, PT, RZ, 0x1, ~RZ, P0, P2");
+    assert_eq!(text, "IADD3.X R114, !PT, PT, RZ, UR1.reuse, ~RZ, P0, P2");
     let insn = parse_sass(&text, 0).unwrap();
     assert!(
         encode_instruction(&insn, &t)

@@ -235,14 +235,29 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             .map(|f| f.value)
             .unwrap_or(7);
         let uniform = extra_fields.iter().any(|f| norm_ext(&f.extraction) == "upred");
-        // Detect !PT: pred==7 (PT) and bit 80 of raw is set (IADD3.X combining pred convention)
-        let inv = pred_val == 7 && ((raw >> 80) & 1) != 0;
+        // Detect !PT. BUG-089: the negation is PER-SLOT: consult an explicit
+        // neg/inv field attached to THIS extra token first (e.g. IADD3.X tail
+        // preds: tok7 neg@90, tok8 inv@80). Only when the row declares none,
+        // fall back to the legacy heuristic (pred==7 && bit80 of raw), which
+        // is correct solely for the combining-pred slot.
+        let explicit_neg = extra_fields.iter().find(|f| {
+            let e = norm_ext(&f.extraction);
+            e == "neg" || e == "inv"
+        });
+        let inv = match explicit_neg {
+            Some(f) => f.value != 0,
+            // legacy heuristic is correct solely for the combining-pred (PT) slot
+            None => pred_val == 7 && ((raw >> 80) & 1) != 0,
+        };
         let s = if pred_val == 7 {
             let pt = if uniform { "UPT" } else { "PT" };
             if inv { format!("!{pt}") } else { pt.to_string() }
         } else {
             let prefix = if uniform { "UP" } else { "P" };
-            format!("{prefix}{pred_val}")
+            // explicit neg/inv on THIS token also negates non-PT preds (`!P0`):
+            // vendor renders tail-pred negation for both carry slots of .X ops
+            // (BUG-089 sweep v3/v12: nvdisasm `!P0`, byte-exact encode path).
+            if inv { format!("!{prefix}{pred_val}") } else { format!("{prefix}{pred_val}") }
         };
         operands.push(s);
     }
