@@ -164,6 +164,46 @@ pub enum SassTemplate {
     /// fence.mbarrier_init.*, fence.proxy.alias / fence.proxy.async.global
     /// (FENCE.VIEW.ASYNC.G has no table mg -> b4-feed), fence.cluster forms.
     Fence { lines: &'static [&'static str] },
+    /// b9 phase-3 #6: mbarrier family -> SYNCS-class ops with vendor glue.
+    /// All lowering decisions are vendor anchors (ptxas 13.3 sm_103a probes
+    /// work/b9p8/probes mb1..mb4, -O0 glue per op; byte-parity evidence in
+    /// results/b9/mbar_parity/). Address operand is the CTA-local shared
+    /// offset carried in an R register; vendor builds the CGA-wide address
+    /// per access (S2R SR_CgaCtaId + LEA <<24) and drives the SYNCS op at
+    /// [Ra+URZ]. Summary of the anchored forms:
+    ///   init [mb], n         -> S2R rx,SR_CgaCtaId ; LEA ra,rx,rb,0x18 ;
+    ///                           IADD3 rc,PT,PT,-rc,0x100000,RZ ;
+    ///                           SHF.L.U32 rh,rc,0xb,RZ ; SHF.L.U32 rl,rc,0x1,RZ ;
+    ///                           R2UR U60,rl ; R2UR U61,rh ; R2UR U62,ra ;
+    ///                           SYNCS.EXCH.64 URZ,[U62],U60   (count encoded
+    ///                           as (0x100000-n)<<1 | (0x100000-n)<<33 pair)
+    ///   try_wait.parity      -> addr glue ; phase (imm->MOV+SHF.L by 31,
+    ///                           reg->SHF.L by 31) ;
+    ///                           SYNCS.PHASECHK.TRANS64.TRYWAIT Pd,[ra+URZ],rp
+    ///   try_wait (hint==0)   -> addr glue ; ...TRYWAIT Pd,[ra+URZ],RZ
+    ///   arrive [state|_]     -> addr glue ; SYNCS.ARRIVE.TRANS64.A1T0
+    ///                           {Rpair_lo|RZ},[ra+URZ],RZ
+    ///   arrive.expect_tx     -> addr glue ; SYNCS.ARRIVE.TRANS64
+    ///                           {Rpair_lo|RZ},[ra+URZ],{RZ|Rtx}
+    ///   arrive .shared::cluster (dst _, addr already mapa-remapped)
+    ///                        -> SYNCS.ARRIVE.TRANS64.RED.A1T0 RZ,[rb+URZ],RZ
+    ///   fence.mbarrier_init.release.cluster -> NOP  (vendor anchor mb3:
+    ///                           plain NOP after the init EXCH)
+    /// Fail-closed (no rule / unsupported arm): any sem/scope suffix not in
+    /// the corpus, count/phase/tx/offset shapes outside the anchored ones,
+    /// guarded mbarrier ops.
+    Mbar { kind: MbarKind },
+}
+
+/// b9 phase-3 #6: mbarrier op split (see SassTemplate::Mbar).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MbarKind {
+    Init,
+    Arrive,
+    ArriveExpectTx,
+    ArriveCluster,
+    TryWaitParity,
+    TryWait,
 }
 
 /// A single PTX→SASS mapping rule.
@@ -354,6 +394,22 @@ pub static RULES: &[PtxRule] = &[
     // most-specific first: shared::cta before bare async
     PtxRule { pattern: "fence.proxy.async.shared::cta", template: Fence { lines: &["MEMBAR.ALL.CTA", "FENCE.VIEW.ASYNC.S"] } },
     PtxRule { pattern: "fence.proxy.async", template: Fence { lines: &["MEMBAR.ALL.GPU", "FENCE.VIEW.ASYNC.S"] } },
+
+    // b9 phase-3 #6: fence.mbarrier_init = plain NOP (vendor anchor mb3:
+    // NOP at +0xf0 between SYNCS.EXCH.64 and the next glue, -O0 and -O3).
+    PtxRule { pattern: "fence.mbarrier_init.release.cluster", template: Fence { lines: &["NOP"] } },
+
+    // ── mbarrier (b9 phase-3 #6; exact-name match like Fence) ──────────
+    PtxRule { pattern: "mbarrier.init.shared::cta.b64",       template: Mbar { kind: MbarKind::Init } },
+    PtxRule { pattern: "mbarrier.init.shared.b64",            template: Mbar { kind: MbarKind::Init } },
+    PtxRule { pattern: "mbarrier.arrive.expect_tx.shared::cta.b64", template: Mbar { kind: MbarKind::ArriveExpectTx } },
+    PtxRule { pattern: "mbarrier.arrive.shared::cluster.b64", template: Mbar { kind: MbarKind::ArriveCluster } },
+    PtxRule { pattern: "mbarrier.arrive.shared::cta.b64",     template: Mbar { kind: MbarKind::Arrive } },
+    PtxRule { pattern: "mbarrier.arrive.shared.b64",          template: Mbar { kind: MbarKind::Arrive } },
+    PtxRule { pattern: "mbarrier.try_wait.parity.shared::cta.b64", template: Mbar { kind: MbarKind::TryWaitParity } },
+    PtxRule { pattern: "mbarrier.try_wait.parity.shared.b64", template: Mbar { kind: MbarKind::TryWaitParity } },
+    PtxRule { pattern: "mbarrier.try_wait.shared::cta.b64",   template: Mbar { kind: MbarKind::TryWait } },
+    PtxRule { pattern: "mbarrier.try_wait.shared.b64",        template: Mbar { kind: MbarKind::TryWait } },
 
     // ── Atomics (b9 phase-3 #4; shapes parsed per-op in lower_atomic) ────
     PtxRule { pattern: "atom.",         template: Atom },

@@ -49610,46 +49610,48 @@
    "operand_sig": "P_ARURI_R",
    "mod_groups": {
     "PHASECHK,TRANS64,TRYWAIT": {
-     "and_base": "0x000020000800110000000000000075a7",
-     "variable_mask": "0x000fc6000006003f03e1f0afbf000000",
+     "and_base": "0x0020000800110000000000000005a7",
+     "variable_mask": "0x0fc600001e00ffffffffffff00f000",
      "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
       {
        "shift": 81,
        "bits": 4,
        "token_idx": 1,
-       "extraction": "pred",
-       "_src": "2aE"
+       "extraction": "pred"
       },
       {
        "shift": 24,
        "bits": 8,
        "token_idx": 2,
-       "extraction": "sub_r0",
-       "_src": "2aE"
-      },
-      {
-       "shift": 64,
-       "bits": 8,
-       "token_idx": 2,
-       "extraction": "sub_ur1",
-       "_src": "2aE"
+       "extraction": "sub_r0"
       },
       {
        "shift": 40,
        "bits": 24,
        "token_idx": 2,
-       "extraction": "sub_imm1",
-       "_src": "2aE"
+       "extraction": "sub_imm1"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_ur1"
       },
       {
        "shift": 32,
        "bits": 8,
        "token_idx": 3,
-       "extraction": "reg",
-       "_src": "2aE"
+       "extraction": "reg"
       }
      ],
-     "count": 58
+     "_src": "b9p8-mbar-2026-08-23",
+     "_evidence": "b9p8 mbarrier phase-3 #6: FIX 093-class RE-noise. Anchors ptxas 13.3 mb1+0x320/0x360/P0+RZ, mb2 P0+R3, mb1 PT,RZ: legacy ab/vm dropped src-R bits (vm did not cover 0xfe-field) and had bad fixed bits 00c0..; ab=anchor&~vm | legacy_hi; fields guard@12/4,pred@81/4,base@24/8,imm24@40,ur@64/8,srcR@32/8. ALL-FIT x4."
     },
     "PHASECHK,TRANS64": {
      "and_base": "0x000e64000800100400010000030085a7",
@@ -51232,46 +51234,136 @@
    "operand_sig": "R_ARURI_R",
    "mod_groups": {
     "A1T0,ARRIVE,TRANS64": {
-     "and_base": "0x0001e000081000280000e0ff00ff79a7",
-     "variable_mask": "0x000e06000000000003e00000af000000",
+     "and_base": "0x01e0000810000000000000000009a7",
+     "variable_mask": "0x0e0600000000fffffffffffffff000",
      "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg"
+      },
       {
        "shift": 24,
        "bits": 8,
        "token_idx": 2,
-       "extraction": "sub_r0",
-       "_src": "2aE"
+       "extraction": "sub_r0"
       },
       {
        "shift": 40,
        "bits": 24,
        "token_idx": 2,
-       "extraction": "sub_imm1",
-       "_src": "2aE"
+       "extraction": "sub_imm1"
       },
       {
        "shift": 64,
        "bits": 8,
        "token_idx": 2,
-       "extraction": "sub_ur1",
-       "_src": "2c"
-      },
-      {
-       "shift": 32,
-       "bits": 8,
-       "token_idx": 1,
-       "extraction": "reg",
-       "_src": "2e"
+       "extraction": "sub_ur1"
       },
       {
        "shift": 32,
        "bits": 8,
        "token_idx": 3,
-       "extraction": "reg",
-       "_src": "2e"
+       "extraction": "reg"
       }
      ],
-     "count": 32
+     "_src": "b9p8-mbar-2026-08-23",
+     "_evidence": "b9p8 mbarrier phase-3 #6: FIX 093-class RE-noise of legacy mg. Anchors ptxas 13.3 sm_103a mb1+0x380 'A1T0 RZ,[R0+URZ],RZ', mb1+0x210/R2-based '(A1T0 R2,[R2+URZ],RZ)' mb2-O0 / R5 variant; legacy ab mismatched vendor payload on fixed bits d70000e00000000000 (BUG-093-class: RE-baked operand samples in ab). ab=anchor&~vm_fields(payload) | legacy_hi(96-120); fields guard@12/4,dstR@16/8,base@24/8,imm24@40,ur@64/8,srcR@32/8. ALL-FIT x3 anchors."
+    },
+    "ARRIVE,TRANS64": {
+     "and_base": "0x01e0000800000000000000000009a7",
+     "variable_mask": "0x0e0600000000fffffffffffffff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm1"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_ur1"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg"
+      }
+     ],
+     "_src": "b9p8-mbar-2026-08-23",
+     "_evidence": "b9p8 mbarrier phase-3 #6: NEW mg (expect_tx/plain vendor form was unencodable on [R+UR] addressing). Anchors ptxas 13.3 mb1+0x3c0 'RZ,[R0+URZ],R1', mb1+0x3e0 'RZ,[R4+URZ],RZ'; fields as sibling A1T0; ALL-FIT x2."
+    },
+    "A1T0,ARRIVE,RED,TRANS64": {
+     "and_base": "0x01e0000810040000000000000009a7",
+     "variable_mask": "0x0e0600000000fffffffffffffff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r0"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm1"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_ur1"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg"
+      }
+     ],
+     "_src": "b9p8-mbar-2026-08-23",
+     "_evidence": "b9p8 mbarrier phase-3 #6: NEW mg (remote/cluster arrive RED form, vendor ptxas mb3+0x130 'RED.A1T0 RZ,[R0+URZ],RZ' after mapa PRMT glue). RED=bit34, A1T0=bit52 measured by word XOR. ALL-FIT."
     }
    },
    "scheduling": {

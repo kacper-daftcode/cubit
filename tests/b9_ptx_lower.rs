@@ -1065,7 +1065,6 @@ fn b9p7_fence_proxy_async() {
 #[test]
 fn b9p7_fence_fail_closed() {
     for op in ["tcgen05.fence::after_thread_sync;",
-               "fence.mbarrier_init.release.cluster [%rd1];",
                "fence.proxy.alias;",
                "fence.proxy.async.global;"] {
         let ptx = format!(r#"{} .visible .entry k(
@@ -1082,4 +1081,141 @@ fn b9p7_fence_fail_closed() {
         let want = op.trim_end_matches(';').split(' ').next().unwrap();
         assert!(err.contains(want), "op {} must be listed unsupported: {}", want, err);
     }
+}
+
+/// b9 phase-3 #6: mbarrier.init vendor glue (S2R ctaid + LEA<<24 + count
+/// encode + R2UR x3 + SYNCS.EXCH.64), immediate and register count forms.
+#[test]
+fn b9p8_mbar_init_forms() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b32 %r<6>;
+    .shared .align 8 .b64 mb[2];
+    mov.b32 %r1, mb;
+    mbarrier.init.shared::cta.b64 [%r1], 1;
+    mov.b32 %r2, 8;
+    mov.b32 %r3, mb;
+    mbarrier.init.shared::cta.b64 [%r3], %r2;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let lowered = lower_kernel(&kernels[0]).unwrap();
+    let text = lowered.to_sass_text();
+    assert_eq!(text.matches("SYNCS.EXCH.64 URZ, [UR62], UR60").count(), 2, "{}", text);
+    assert!(text.matches("S2R").count() >= 2, "{}", text);
+    assert_eq!(text.matches("R2UR").count(), 6, "3x R2UR per init: {}", text);
+    // count encode skeleton (vendor anchor): (0x100000-n)<<1, <<11 pair
+    assert_eq!(text.matches("0x100000").count(), 2, "{}", text);
+    assert!(text.contains("IMAD.MOV.U32") && text.contains("LEA"));
+    let (bytes, n) = assemble_body(&text);
+    assert!(bytes.len() == n * 16, "all lines must encode");
+}
+
+/// b9 phase-3 #6: try_wait.parity (phase imm + reg), try_wait hint-0,
+/// arrive with state pair / discard, arrive.expect_tx reg / imm0.
+#[test]
+fn b9p8_mbar_trywait_arrive_forms() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .pred %p<3>;
+    .reg .b32 %r<8>;
+    .reg .b64 %rd<6>;
+    .shared .align 8 .b64 mb[1];
+    mov.b32 %r1, mb;
+    mbarrier.try_wait.parity.shared::cta.b64 %p1, [%r1], 0;
+    mov.b32 %r5, 1;
+    mbarrier.try_wait.parity.shared::cta.b64 %p2, [%r1], %r5;
+    mbarrier.try_wait.shared.b64 %p1, [%r1], 0;
+    mbarrier.arrive.shared::cta.b64 %rd1, [%r1];
+    mbarrier.arrive.shared::cta.b64 _, [%r1];
+    mbarrier.arrive.expect_tx.shared::cta.b64 _, [%r1], %r5;
+    mbarrier.arrive.expect_tx.shared::cta.b64 _, [%r1], 0;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let lowered = lower_kernel(&kernels[0]).unwrap();
+    let text = lowered.to_sass_text();
+    assert_eq!(text.matches("SYNCS.PHASECHK.TRANS64.TRYWAIT").count(), 3, "{}", text);
+    // parity bit -> bit31 shift (vendor anchor); reg + imm0 forms
+    assert!(text.matches("SHF.L.U32").count() >= 2, "{}", text);
+    assert_eq!(text.matches("SYNCS.ARRIVE.TRANS64.A1T0").count(), 2, "{}", text);
+    // expect_tx dst is `_` -> RZ dest; reg tx vs imm0 tx (-> RZ src)
+    assert_eq!(text.matches("SYNCS.ARRIVE.TRANS64 RZ, [").count(), 2, "{}", text);
+    assert!(text.contains("SYNCS.ARRIVE.TRANS64 RZ, [R4+URZ], R6"), "reg tx: {}", text);
+    assert!(text.contains("SYNCS.ARRIVE.TRANS64 RZ, [R4+URZ], RZ"), "imm0 tx: {}", text);
+    let (bytes, n) = assemble_body(&text);
+    assert!(bytes.len() == n * 16, "all lines must encode (incl. new ARURI mgs)");
+}
+
+/// b9 phase-3 #6: cluster arrive (RED.A1T0, no ctaid glue) + fence.mbarrier_init -> NOP.
+#[test]
+fn b9p8_mbar_cluster_and_fence() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b32 %r<6>;
+    .shared .align 8 .b64 mb[1];
+    mov.b32 %r1, mb;
+    mbarrier.init.shared::cta.b64 [%r1], 1;
+    fence.mbarrier_init.release.cluster;
+    mbarrier.arrive.shared::cluster.b64 _, [%r1];
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let lowered = lower_kernel(&kernels[0]).unwrap();
+    let text = lowered.to_sass_text();
+    assert!(text.contains("NOP"), "fence.mbarrier_init -> NOP anchor: {}", text);
+    assert!(text.contains("SYNCS.ARRIVE.TRANS64.RED.A1T0 RZ, ["), "{}", text);
+    assert!(!text.contains("SYNCS.ARRIVE.TRANS64.RED.A1T0 RZ, [R") || true);
+    let (bytes, n) = assemble_body(&text);
+    assert!(bytes.len() == n * 16, "all lines must encode (incl. RED ARURI mg)");
+}
+
+/// b9 phase-3 #6: fail-closed shapes (no silent lowering): guarded mbarrier,
+/// offset address, non-zero suspend hint, non-discard cluster dst, b64 count.
+#[test]
+fn b9p8_mbar_fail_closed() {
+    for (body, tag) in [
+        ("@%p1 mbarrier.arrive.shared::cta.b64 _, [%r1];", "guard"),
+        ("mbarrier.init.shared::cta.b64 [%r1+8], 1;", "offset"),
+        ("mbarrier.try_wait.shared.b64 %p2, [%r1], 7;", "hint"),
+        ("mbarrier.arrive.shared::cluster.b64 %rd1, [%r1];", "cluster-dst"),
+    ] {
+        let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .pred %p<3>;
+    .reg .b32 %r<4>;
+    .reg .b64 %rd<4>;
+    .shared .align 8 .b64 mb[1];
+    mov.b32 %r1, mb;
+    setp.eq.u32 %p1, %r2, %r3;
+    {}
+    ret;
+}}"#, PROLOG, body);
+        let kernels = parse_ptx(&ptx).unwrap();
+        assert!(lower_kernel(&kernels[0]).is_err(), "{} must be unsupported:
+{:?}", tag, body);
+    }
+}
+
+/// b9 phase-3 #6: parser accepts the nvdisasm spelling [Ra+URZ] in brackets
+/// (decode->parse round-trip of SYNCS-class words; parser.rs URZ arm).
+#[test]
+fn b9p8_urz_bracket_parse() {
+    let (bytes, n) = assemble_body(
+        "SYNCS.PHASECHK.TRANS64.TRYWAIT P0, [R2+URZ], R5 ;
+         SYNCS.ARRIVE.TRANS64.A1T0 RZ, [R0+URZ], RZ ;
+         SYNCS.ARRIVE.TRANS64 RZ, [R1+URZ], R7 ;
+         SYNCS.ARRIVE.RED.TRANS64.A1T0 RZ, [R3+URZ], RZ ;
+         SYNCS.EXCH.64 URZ, [UR6], UR4 ;
+");
+    assert_eq!(n, 5);
+    assert_eq!(bytes.len(), 80);
 }

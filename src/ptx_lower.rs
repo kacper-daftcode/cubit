@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 
 use crate::ir::{ControlCode, Guard, Instruction, Operand};
-use crate::ptx_map::{self, OpSlot, SassTemplate, find_rule};
+use crate::ptx_map::{self, MbarKind, OpSlot, SassTemplate, find_rule};
 use crate::ptx_parse::{PtxKernel, PtxStmt, PtxInsn, PtxOperand};
 
 // ── Register allocator ───────────────────────────────────────────────────────
@@ -121,6 +121,12 @@ impl RegAlloc {
         if let Some(p) = self.pred_map.remove(name) {
             self.free_preds.push(p);
         }
+    }
+
+    /// b9 phase-3 #6: is this operand spelling an actual PTX register
+    /// (%-prefixed or a declared name), as opposed to a bare symbol/identifier?
+    fn is_ptx_reg_name(&self, name: &str) -> bool {
+        name.starts_with('%') || self.reg_decls.contains_key(name)
     }
 
     fn is_64bit(&self, name: &str) -> bool {
@@ -350,10 +356,22 @@ fn operand_to_sass(op: &Operand) -> String {
                 else { format!("{}.0", d) }
             }
         }
-        Operand::Addr { base_reg, offset, .. } => {
-            let base = base_reg.map_or("RZ".to_string(), |r| format!("R{}", r));
-            if *offset != 0 { format!("[{}+0x{:x}]", base, offset) }
-            else { format!("[{}]", base) }
+        Operand::Addr { base_reg, base_reg_suffix, ur_reg, offset } => {
+            // b9 phase-3 #6: render the UR address component (SYNCS-class
+            // mbarrier ops: [Ra+URZ] / UR-only [UR62]); previously ur_reg was
+            // silently dropped from the gateway text. Order follows the
+            // existing [R+UR+off] convention (printer.rs STS/LDS).
+            let mut inner = base_reg.map_or("RZ".to_string(), |r| format!("R{}", r));
+            if let Some(sfx) = base_reg_suffix { inner = format!("{}.{}", inner, sfx); }
+            match ur_reg {
+                Some(255) if base_reg.is_some() => inner = format!("{}+URZ", inner),
+                Some(u) if base_reg.is_some() => inner = format!("{}+UR{}", inner, u),
+                Some(255) => inner = "URZ".to_string(),
+                Some(u) => inner = format!("UR{}", u),
+                None => {}
+            }
+            if *offset != 0 { format!("[{}+0x{:x}]", inner, offset) }
+            else { format!("[{}]", inner) }
         }
         Operand::ConstMem { bank, offset, .. } => {
             format!("c[0x{:x}][0x{:x}]", bank, offset)
@@ -836,6 +854,20 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                             }
                         }
 
+                        SassTemplate::Mbar { kind } => {
+                            // b9 phase-3 #6: exact-name match like Fence —
+                            // unlisted sem/scope suffixes must not slip under
+                            // a shared prefix.
+                            if insn.opcode != rule.pattern {
+                                unsupported.insert(insn.opcode.clone());
+                                continue;
+                            }
+                            match lower_mbarrier(addr, insn, &mut alloc, *kind, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+
                         SassTemplate::Shift64 { dir_left, signed } => {
                             // vendor-anchored SHF pair; order (hi first) is
                             // load-bearing for in-place dst==src shifts.
@@ -1214,6 +1246,190 @@ fn estimate_expansion_size(opcode: &str) -> u32 {
 ///     {"",cta,gpu,sys} all strip -- vendor emits plain ATOMS, anchor at6):
 ///     add.u32, max.u32, cas.b32.
 ///   red.global: add{u32,f32} (no dest). Everything else: unsupported.
+/// b9 phase-3 #6: mbarrier family (SYNCS-class), vendor-anchored -O0 glue
+/// per op (probes work/b9p8/probes mb1..mb4; parity evidence
+/// results/b9/mbar_parity/). Returns Ok(None) for shapes outside the
+/// anchored/corpus set (lands on the per-kernel unsupported list).
+fn lower_mbarrier(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, kind: MbarKind, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    // Guarded mbarrier ops are unattested; fail closed (BUG-080 policy).
+    if guard.is_some() { return Ok(None); }
+
+    let mut out: Vec<Instruction> = Vec::new();
+    let mut a = addr;
+
+    // Fixed uniform-register scratch window for the init EXCH.64 operand
+    // triple. The gateway never allocates UR elsewhere (UR4 descriptor aside),
+    // so high URs are collision-free; R2UR immediately precedes the consumer.
+    const MBAR_UR_LO: u8 = 60; // (0x100000-count)<<1
+    const MBAR_UR_HI: u8 = 61; // (0x100000-count)<<11
+    const MBAR_UR_AD: u8 = 62; // CGA-wide address
+
+    let ur = |num: u8| Operand::UReg { num, neg: false, abs: false, inv: false, reuse: false, is_zero: false };
+    let urz = || Operand::UReg { num: 63, neg: false, abs: false, inv: false, reuse: false, is_zero: true };
+    let addr_arurz = |rb: u8| Operand::Addr { base_reg: Some(rb), base_reg_suffix: None, ur_reg: Some(255), offset: 0 };
+
+    // [%reg] with zero offset is the only corpus address shape. A bare
+    // shared-window symbol materializes to its static offset (iter35 layout)
+    // in a scratch reg first.
+    let mut base_r = |insn: &PtxInsn, alloc: &mut RegAlloc, i: usize,
+                      out: &mut Vec<Instruction>, a: &mut u32| -> Result<Option<u8>> {
+        match insn.operands.get(i) {
+            Some(PtxOperand::Addr { base, offset }) => {
+                if *offset != 0 { return Ok(None); }
+                if alloc.is_ptx_reg_name(base) { Ok(Some(alloc.gpr(base))) }
+                else if let Some(off) = alloc.shared_sym(base) {
+                    let r = alloc.gpr("$mbar_symaddr");
+                    out.push(make_insn(*a, "IMAD.MOV.U32",
+                        vec![op_reg(r), op_rz(), op_rz(), op_imm(off)], None));
+                    *a += 16;
+                    Ok(Some(r))
+                } else {
+                    Ok(None)
+                }
+            }
+            _ => Ok(None),
+        }
+    };
+
+    // vendor per-op CGA-wide address glue: S2R ctaid; LEA addr,ctaid,base,<<24
+    macro_rules! addr_glue {
+        ($alloc:expr, $rb:expr) => {{
+            let rc = $alloc.gpr("$mbar_ctaid");
+            let ra = $alloc.gpr("$mbar_addr");
+            out.push(make_insn(a, "S2R", vec![op_reg(rc), Operand::SysReg("SR_CgaCtaId".into())], None));
+            a += 16;
+            out.push(make_insn(a, "LEA", vec![op_reg(ra), op_reg(rc), op_reg($rb), op_imm(0x18)], None));
+            a += 16;
+            ra
+        }};
+    }
+
+    match kind {
+        MbarKind::Init => {
+            let Some(rb) = base_r(insn, alloc, 0, &mut out, &mut a)? else { return Ok(None) };
+            // count operand: imm (materialize via IMAD.MOV.U32; MOV R,imm has
+            // no table row, iter31) or 32-bit register.
+            let rc = match insn.operands.get(1) {
+                Some(PtxOperand::IntImm(v)) => {
+                    let r = alloc.gpr("$mbar_cnt");
+                    out.push(make_insn(a, "IMAD.MOV.U32",
+                        vec![op_reg(r), op_rz(), op_rz(), op_imm(*v)], None));
+                    a += 16;
+                    r
+                }
+                Some(PtxOperand::Reg(name)) if alloc.is_ptx_reg_name(name) && !alloc.is_64bit(name) => alloc.gpr(name),
+                _ => return Ok(None),
+            };
+            let ra = addr_glue!(alloc, rb);
+            let rcc = alloc.gpr("$mbar_cnt2");
+            let rh  = alloc.gpr("$mbar_hi");
+            let rl  = alloc.gpr("$mbar_lo");
+            out.push(make_insn(a, "IADD3", vec![op_reg(rcc), op_pt(), op_pt(), op_neg_reg(rc), op_imm(0x100000), op_rz()], None));
+            a += 16;
+            out.push(make_insn(a, "SHF.L.U32", vec![op_reg(rh), op_reg(rcc), op_imm(0xb), op_rz()], None));
+            a += 16;
+            out.push(make_insn(a, "SHF.L.U32", vec![op_reg(rl), op_reg(rcc), op_imm(0x1), op_rz()], None));
+            a += 16;
+            out.push(make_insn(a, "R2UR", vec![ur(MBAR_UR_LO), op_reg(rl)], None));
+            a += 16;
+            out.push(make_insn(a, "R2UR", vec![ur(MBAR_UR_HI), op_reg(rh)], None));
+            a += 16;
+            out.push(make_insn(a, "R2UR", vec![ur(MBAR_UR_AD), op_reg(ra)], None));
+            a += 16;
+            out.push(make_insn(a, "SYNCS.EXCH.64", vec![urz(), Operand::Addr { base_reg: None, base_reg_suffix: None, ur_reg: Some(MBAR_UR_AD), offset: 0 }, ur(MBAR_UR_LO)], None));
+            a += 16;
+        }
+        MbarKind::TryWaitParity | MbarKind::TryWait => {
+            let pd = match insn.operands.get(0) {
+                Some(PtxOperand::Pred(name)) if !name.contains('!') => alloc.pred(name),
+                _ => return Ok(None),
+            };
+            let Some(rb) = base_r(insn, alloc, 1, &mut out, &mut a)? else { return Ok(None) };
+            let ra = addr_glue!(alloc, rb);
+            let phase_op = if kind == MbarKind::TryWaitParity {
+                // parity bit -> bit31 of the phase word (SHF.L by 0x1f).
+                let rp = alloc.gpr("$mbar_phase");
+                match insn.operands.get(2) {
+                    Some(PtxOperand::IntImm(v)) => {
+                        if *v != 0 {
+                            out.push(make_insn(a, "IMAD.MOV.U32",
+                                vec![op_reg(rp), op_rz(), op_rz(), op_imm(*v)], None));
+                            a += 16;
+                        }
+                        out.push(make_insn(a, "SHF.L.U32", vec![op_reg(rp), if *v != 0 { op_reg(rp) } else { op_rz() }, op_imm(0x1f), op_rz()], None));
+                        a += 16;
+                    }
+                    Some(PtxOperand::Reg(name)) if alloc.is_ptx_reg_name(name) => {
+                        let r = alloc.gpr(name);
+                        out.push(make_insn(a, "SHF.L.U32", vec![op_reg(rp), op_reg(r), op_imm(0x1f), op_rz()], None));
+                        a += 16;
+                    }
+                    _ => return Ok(None),
+                }
+                op_reg(rp)
+            } else {
+                // suspend-time hint: only the corpus-attested 0 (-> RZ) shape.
+                match insn.operands.get(2) {
+                    Some(PtxOperand::IntImm(0)) => op_rz(),
+                    _ => return Ok(None),
+                }
+            };
+            out.push(make_insn(a, "SYNCS.PHASECHK.TRANS64.TRYWAIT",
+                vec![Operand::Pred { num: pd, neg: false }, addr_arurz(ra), phase_op], None));
+            a += 16;
+        }
+        MbarKind::Arrive | MbarKind::ArriveExpectTx => {
+            // dst: `_` (PTX discard token parses as Label("_")) -> RZ; a real
+            // b64 register -> 64-bit destination pair (nvdisasm prints lo).
+            let dst_op = match insn.operands.get(0) {
+                Some(PtxOperand::Label(name)) if name == "_" => op_rz(),
+                Some(PtxOperand::Reg(name)) if alloc.is_ptx_reg_name(name) && alloc.is_64bit(name) => {
+                    let (lo, _hi) = alloc.gpr_pair(name);
+                    op_reg(lo)
+                }
+                _ => return Ok(None),
+            };
+            let Some(rb) = base_r(insn, alloc, 1, &mut out, &mut a)? else { return Ok(None) };
+            let ra = addr_glue!(alloc, rb);
+            if kind == MbarKind::Arrive {
+                out.push(make_insn(a, "SYNCS.ARRIVE.TRANS64.A1T0", vec![dst_op, addr_arurz(ra), op_rz()], None));
+                a += 16;
+            } else {
+                let tx_op = match insn.operands.get(2) {
+                    Some(PtxOperand::IntImm(0)) => op_rz(),
+                    Some(PtxOperand::IntImm(v)) => {
+                        let rt = alloc.gpr("$mbar_tx");
+                        out.push(make_insn(a, "IMAD.MOV.U32", vec![op_reg(rt), op_rz(), op_rz(), op_imm(*v)], None));
+                        a += 16;
+                        op_reg(rt)
+                    }
+                    Some(PtxOperand::Reg(name)) if alloc.is_ptx_reg_name(name) => op_reg(alloc.gpr(name)),
+                    _ => return Ok(None),
+                };
+                out.push(make_insn(a, "SYNCS.ARRIVE.TRANS64", vec![dst_op, addr_arurz(ra), tx_op], None));
+                a += 16;
+            }
+        }
+        MbarKind::ArriveCluster => {
+            // remote arrive: dst is always `_`, and the address is expected to
+            // be mapa-shared::cluster-remapped already (vendor anchor mb3:
+            // PRMT glue, no ctaid LEA). Corpus has no other shape.
+            match insn.operands.get(0) {
+                Some(PtxOperand::Label(name)) if name == "_" => {}
+                _ => return Ok(None),
+            }
+            let Some(rb) = base_r(insn, alloc, 1, &mut out, &mut a)? else { return Ok(None) };
+            out.push(make_insn(a, "SYNCS.ARRIVE.TRANS64.RED.A1T0", vec![op_rz(), addr_arurz(rb), op_rz()], None));
+            a += 16;
+        }
+    }
+
+    let n = ((a - addr) / 16) as u32;
+    Ok(Some((out, n)))
+}
+
 fn lower_atomic(
     addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>, is_red: bool,
 ) -> Result<Option<Vec<Instruction>>> {

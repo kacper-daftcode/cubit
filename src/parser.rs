@@ -225,6 +225,17 @@ fn parse_address(s: &str) -> Option<Operand> {
             if part.contains('.') {
                 base_reg_suffix = Some(part.split('.').skip(1).collect::<Vec<_>>().join("."));
             }
+        } else if part == "URZ" {
+            // b9 phase-3 #6 vector: nvdisasm prints UR-tied address slots as
+            // [Ra+URZ]; the URZ token must classify as the UR component
+            // (encodes 0xFF like a bare UReg URZ) or render->parse round-trip
+            // fails closed on SYNCS-class ops (mbarrier family). Only as an
+            // add-on to an R base: bare [URZ(+off)] stays fail-closed
+            // (BUG-073 contract, no vendor-rendering attests it).
+            if ur_reg.is_some() || !(base_reg.is_some() && base_reg_suffix.is_none()) {
+                return None;
+            }
+            ur_reg = Some(255);
         } else if part.starts_with("UR") {
             let num_part = part.strip_prefix("UR").unwrap_or("0");
             let num_str = num_part.split('.').next().unwrap_or(num_part);
