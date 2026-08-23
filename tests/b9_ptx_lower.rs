@@ -605,3 +605,155 @@ fn b9p4_b64_logic_fail_closed() {
     let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
     assert!(err.contains("not.b64"), "imm unary src must name the op: {}", err);
 }
+
+/// P3-20: carry chains (b9 phase-3 #3). Vendor-anchored forms (ptxas 13.3
+/// sm_103a; byte-parity swarm results/b9/carryshf_parity, 87/87 IDENT):
+/// add.cc -> IADD3 d,Pcf,PT,a,b,RZ ; addc -> IADD3.X d,PT,PT,a,b,RZ,Pcin,!PT
+/// ; sub.cc -> IADD3 d,Pcf,PT,a,-b,RZ ; subc[.cc] -> IADD3.X ..,~b,a,... with
+/// the SAME physical predicate threaded through the whole chain ("%cc").
+#[test]
+fn b9p5_carry_chain_forms() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b32   %r<20>;
+    .reg .b64   %rd<3>;
+    ld.param.u64 %rd1, [k_param_0];
+    ld.global.v2.u32 {{%r1, %r2}}, [%rd1];
+    ld.global.v2.u32 {{%r3, %r4}}, [%rd1+8];
+    add.cc.u32 %r5, %r1, %r3;
+    addc.u32 %r6, %r2, 0;
+    sub.cc.u32 %r7, %r3, %r1;
+    subc.u32 %r8, %r4, 0;
+    subc.cc.u32 %r9, %r3, %r2;
+    subc.u32 %r10, %r2, 0;
+    st.global.v4.u32 [%rd1], {{%r5, %r6, %r7, %r8}};
+    st.global.v2.u32 [%rd1+16], {{%r9, %r10}};
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let text = lower_kernel(&kernels[0]).unwrap().to_sass_text();
+    let ia: Vec<&str> = text.lines().filter(|l| l.contains("IADD3")).collect();
+    // 64-bit address adds use IADD3/IADD3.X with their own P slot; filter to
+    // the carry ops by shape (dst-carry or cin tail).
+    let carry: Vec<&str> = ia.to_vec();
+    assert!(carry.iter().any(|l| l.contains("IADD3 ") && !l.contains("-")
+        && l.split(',').nth(1).map_or(false, |t| t.trim().starts_with('P')
+            && !t.trim().starts_with("PT"))), "add.cc writes a cout pred:\n{}", text);
+    assert!(carry.iter().any(|l| l.starts_with("    IADD3.X") && l.contains(", RZ, RZ, P") && !l.contains("-0x")),
+        "addc imm0 -> RZ normalization:\n{}", text);
+    assert!(carry.iter().any(|l| l.contains("IADD3 ") && l.contains(", -R")), "sub.cc negates srcB:\n{}", text);
+    let subc: Vec<&&str> = carry.iter().filter(|l| l.contains("~R")).collect();
+    assert_eq!(subc.len(), 1, "subc.cc reg -> ~subtrahend once (fused):\n{}", text);
+    assert!(carry.iter().filter(|l| l.contains("-0x1")).count() == 2, "subc imm0 -> ~0 = -0x1 x2:\n{}", text);
+    // single physical carry predicate through the whole chain
+    let preds: std::collections::HashSet<String> = carry.iter().flat_map(|l|
+        l.split(',').filter_map(|t| { let t = t.trim(); if t.starts_with('P') && t != "PT" { Some(t.to_string()) } else { None } })
+    ).collect();
+    assert_eq!(preds.len(), 1, "one physical CC predicate, got {:?}:\n{}", preds, text);
+    let (_b, _n) = assemble_body(&text);
+}
+
+/// P3-21: mad.lo.cc / madc.hi decomposition (anchor cr3 -O0): lo-mul with
+/// carry via IMAD.U32 dst + IMAD scratch + IADD3 carry; hi-with-carry-in via
+/// IMAD.HI.U32 scratch + IADD3.X (imm0 addend -> RZ normalization).
+#[test]
+fn b9p5_mad_cc_forms() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b32   %r<12>;
+    .reg .b64   %rd<3>;
+    ld.param.u64 %rd1, [k_param_0];
+    ld.global.v2.u32 {{%r1, %r2}}, [%rd1];
+    mad.lo.cc.u32 %r3, %r1, %r2, %r2;
+    madc.hi.u32 %r4, %r1, %r2, 0;
+    st.global.v2.u32 [%rd1], {{%r3, %r4}};
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let text = lower_kernel(&kernels[0]).unwrap().to_sass_text();
+    assert!(text.lines().any(|l| l.starts_with("    IMAD.U32")), "{}", text);
+    assert!(text.lines().any(|l| l.starts_with("    IMAD ") && l.contains("RZ")), "scratch lo product:\n{}", text);
+    assert!(text.lines().any(|l| l.starts_with("    IADD3 RZ, P")), "carry-only IADD3 to RZ:\n{}", text);
+    assert!(text.lines().any(|l| l.starts_with("    IMAD.HI.U32")), "{}", text);
+    assert!(text.lines().any(|l| l.starts_with("    IADD3.X") && l.contains(", RZ, RZ, P") && l.contains(", !PT")),
+        "madc.hi cin tail with RZ addend:\n{}", text);
+    let (_b, _n) = assemble_body(&text);
+}
+
+/// P3-22: 64-bit shifts -> SHF pairs (anchors sh1/sh5; hi-first for shl,
+/// lo-first for shr) and 32-bit funnels (SHF.[LR][.W].U32[.HI], PTX d,a,b,c
+/// -> SASS d,a,c,b).
+#[test]
+fn b9p5_shift64_funnels() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b32   %r<12>;
+    .reg .b64   %rd<10>;
+    ld.param.u64 %rd1, [k_param_0];
+    ld.global.b64 %rd2, [%rd1];
+    ld.global.b32 %r1, [%rd1+8];
+    shl.b64 %rd3, %rd2, %r1;
+    shr.u64 %rd4, %rd2, 1;
+    shr.s64 %rd5, %rd2, %r1;
+    shf.l.clamp.b32 %r2, %r1, %r1, %r1;
+    shf.r.wrap.b32 %r3, %r1, %r1, %r1;
+    st.global.b64 [%rd1], %rd3;
+    st.global.b64 [%rd1+8], %rd4;
+    st.global.b64 [%rd1+16], %rd5;
+    st.global.b32 [%rd1+24], %r2;
+    st.global.b32 [%rd1+28], %r3;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let text = lower_kernel(&kernels[0]).unwrap().to_sass_text();
+    let shf: Vec<&str> = text.lines().filter(|l| l.contains("SHF.")).collect();
+    let has = |op: &str| shf.iter().any(|l| l.contains(op));
+    for op in ["SHF.L.U64.HI", "SHF.L.U32", "SHF.R.U64", "SHF.R.U32.HI",
+               "SHF.R.S64", "SHF.R.S32.HI", "SHF.L.U32.HI", "SHF.R.W.U32"] {
+        assert!(has(op), "missing {}:\n{}", op, text);
+    }
+    // shl pair order: hi (U64.HI) before lo (plain L.U32)
+    let ls: Vec<_> = shf.iter().filter(|l| l.contains("SHF.L.")).collect();
+    assert!(ls[0].contains("U64.HI"), "shl emits hi funnel first:\n{}", text);
+    // shr.u64: lo (R.U64) before hi (R.U32.HI)
+    let i_u64 = shf.iter().position(|l| l.contains("SHF.R.U64")).unwrap();
+    let i_u32hi = shf.iter().position(|l| l.contains("SHF.R.U32.HI")).unwrap();
+    assert!(i_u64 < i_u32hi, "shr emits lo funnel first:\n{}", text);
+    let (_b, _n) = assemble_body(&text);
+}
+
+/// P3-23: unattested carry shapes fail closed naming the op — guarded cc-op
+/// (conditional carry write semantics are subtle; 0/93,826 corpus sites) and
+/// immediate srcB on a carry-out writer.
+#[test]
+fn b9p5_carry_fail_closed() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .pred  %p<2>;
+    .reg .b32   %r<8>;
+    .reg .b64   %rd<2>;
+    ld.param.u64 %rd1, [k_param_0];
+    mov.b32 %r1, 1;
+    setp.eq.s32 %p1, %r1, 1;
+    @%p1 add.cc.u32 %r2, %r1, %r1;
+    addc.u32 %r3, %r1, 0;
+    st.global.b32 [%rd1], %r2;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
+    assert!(err.contains("add.cc.u32"), "guarded cc-op must name the op: {}", err);
+
+    let ptx = ptx.replace("@%p1 add.cc.u32 %r2, %r1, %r1;", "add.cc.u32 %r2, %r1, 3;");
+    let kernels = parse_ptx(&ptx).unwrap();
+    let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
+    assert!(err.contains("add.cc.u32"), "imm on carry-out writer must name the op: {}", err);
+}

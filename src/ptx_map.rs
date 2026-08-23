@@ -96,6 +96,40 @@ pub enum SassTemplate {
     /// source splits into 32-bit halves and a zero half renders as RZ
     /// (vendor normalization, measured in bl3 for both halves/all ops).
     B64Logic { lut: u8 },
+    /// b9 phase-3 #3: 32-bit add/sub with PTX CC carry chain -> IADD3 /
+    /// IADD3.X with physical-predicate carry slots. Vendor anchors (ptxas
+    /// 13.3, sm_103a; byte-parity probes work/b9p5/probes cr{1,2,4}_O3,
+    /// retro-enc proof neg1 on b9p4 HEAD):
+    ///   add.cc:   IADD3   d, Pcf, PT, a, b, RZ
+    ///   addc:     IADD3.X d, PT, PT, a, b, RZ, Pcin, !PT
+    ///   addc.cc:  IADD3.X d, Pcf, PT, a, b, RZ, Pcin, !PT
+    ///   sub.cc:   IADD3   d, Pcf, PT, a, -b, RZ
+    ///   subc:     IADD3.X d, PT, PT, ~b, a, RZ, Pcin, !PT
+    ///   subc.cc:  IADD3.X d, Pcf, PT, ~b, a, RZ, Pcin, !PT
+    /// (-O3 fused single-instruction forms; -O0 splits result/carry into two
+    /// IADD3s, semantically equal). Sub-with-carry puts the bitwise-negated
+    /// subtrahend in slot A and the minuend in slot B (a + ~b + cin ==
+    /// a - b - !cin). Immediate normalization (corpus-attested): addc imm==0
+    /// -> RZ; subc imm=v -> arithmetic ~v = -(v+1) as signed imm (-0x1
+    /// proven byte-exact). Other immediate shapes are unanchored ->
+    /// fail-closed, as are guarded cc-ops (0 in 93,826 corpus sites).
+    CarryChain32 { cin: bool, cout: bool, sub: bool },
+    /// b9 phase-3 #3: mad.lo.cc.u32 / madc.hi.u32 carry decomposition
+    /// (anchor probe cr3 -O0; the -O3 IMAD.WIDE.U32 fusion is a CROSS-op
+    /// optimization over the pair, not a per-op lowering - DO NOT copy):
+    ///   mad.lo.cc: IMAD.U32 d, a, b, c ; IMAD t, a, b, RZ ;
+    ///              IADD3 RZ, Pcf, PT, t, c, RZ
+    ///   madc.hi:   IMAD.HI.U32 t, a, b, RZ ;
+    ///              IADD3.X d, PT, PT, t, c, RZ, Pcin, !PT  (c==0 -> RZ)
+    MadCc { hi: bool },
+    /// b9 phase-3 #3: 64-bit shifts -> SHF pair (anchors sh1/sh5; -O0 and
+    /// -O3 emit the same pair modulo register naming):
+    ///   shl.b64: SHF.L.U64.HI d_hi, a_lo, s, a_hi ; SHF.L.U32 d_lo, a_lo, s, RZ
+    ///   shr.u64: SHF.R.U64   d_lo, a_lo, s, a_hi ; SHF.R.U32.HI d_hi, RZ, s, a_hi
+    ///   shr.s64: SHF.R.S64   d_lo, a_lo, s, a_hi ; SHF.R.S32.HI d_hi, RZ, s, a_hi
+    /// High part first (vendor order; correct for in-place dst==src).
+    /// Shift amount is the 32-bit PTX operand 2 (reg or immediate).
+    Shift64 { dir_left: bool, signed: bool },
 }
 
 /// A single PTX→SASS mapping rule.
@@ -153,6 +187,25 @@ pub static RULES: &[PtxRule] = &[
     PtxRule { pattern: "shr.b32",       template: Single { opcode: "SHF.R.U32.HI", slots: &[Src(0), RZ, Src(2), Src(1)] } },
     PtxRule { pattern: "shr.u32",       template: Single { opcode: "SHF.R.U32.HI", slots: &[Src(0), RZ, Src(2), Src(1)] } },
     PtxRule { pattern: "shr.s32",       template: Single { opcode: "SHF.R.S32.HI", slots: &[Src(0), RZ, Src(2), Src(1)] } },
+    // b9 phase-3 #3: carry chains (CC.CF). All corpus instances are u32,
+    // unguarded (93,826 sites, 0 guards); s32 and guarded shapes -> fail-closed.
+    PtxRule { pattern: "add.cc.u32",    template: CarryChain32 { cin: false, cout: true,  sub: false } },
+    PtxRule { pattern: "addc.cc.u32",   template: CarryChain32 { cin: true,  cout: true,  sub: false } },
+    PtxRule { pattern: "addc.u32",      template: CarryChain32 { cin: true,  cout: false, sub: false } },
+    PtxRule { pattern: "sub.cc.u32",    template: CarryChain32 { cin: false, cout: true,  sub: true } },
+    PtxRule { pattern: "subc.cc.u32",   template: CarryChain32 { cin: true,  cout: true,  sub: true } },
+    PtxRule { pattern: "subc.u32",      template: CarryChain32 { cin: true,  cout: false, sub: true } },
+    PtxRule { pattern: "mad.lo.cc.u32", template: MadCc { hi: false } },
+    PtxRule { pattern: "madc.hi.u32",   template: MadCc { hi: true } },
+    // b9 phase-3 #3: 64-bit shifts and 32-bit funnels (vendor shape anchor
+    // sh1/sh2/sh5; funnel PTX order d,a,b,c -> SASS d,a,c(shift),b).
+    PtxRule { pattern: "shl.b64",       template: Shift64 { dir_left: true,  signed: false } },
+    PtxRule { pattern: "shr.s64",       template: Shift64 { dir_left: false, signed: true } },
+    PtxRule { pattern: "shr.u64",       template: Shift64 { dir_left: false, signed: false } },
+    PtxRule { pattern: "shf.l.clamp.b32", template: Single { opcode: "SHF.L.U32.HI", slots: &[Src(0), Src(1), Src(3), Src(2)] } },
+    PtxRule { pattern: "shf.r.clamp.b32", template: Single { opcode: "SHF.R.U32",    slots: &[Src(0), Src(1), Src(3), Src(2)] } },
+    PtxRule { pattern: "shf.l.wrap.b32",  template: Single { opcode: "SHF.L.W.U32.HI", slots: &[Src(0), Src(1), Src(3), Src(2)] } },
+    PtxRule { pattern: "shf.r.wrap.b32",  template: Single { opcode: "SHF.R.W.U32",    slots: &[Src(0), Src(1), Src(3), Src(2)] } },
     PtxRule { pattern: "popc.b32",      template: Single { opcode: "POPC",  slots: &[Src(0), Src(1)] } },
     PtxRule { pattern: "brev.b32",      template: Single { opcode: "BREV",  slots: &[Src(0), Src(1)] } },
     PtxRule { pattern: "clz.b32",       template: Single { opcode: "FLO.U32", slots: &[Src(0), Src(1)] } },

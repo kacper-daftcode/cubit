@@ -283,9 +283,12 @@ fn op_imm(v: i64) -> Operand { Operand::Imm32(v) }
 
 fn operand_to_sass(op: &Operand) -> String {
     match op {
-        Operand::Reg { num, neg, abs, .. } => {
+        Operand::Reg { num, neg, abs, inv, .. } => {
             let name = if *num == 255 { "RZ".to_string() } else { format!("R{}", num) };
-            let s = if *abs { format!("|{}|", name) } else { name };
+            // b9 phase-3 #3: inv (bitwise-not `~R`) must survive printing -
+            // subc carry forms use it in the IADD3.X slot A (vendor anchor).
+            let s = if *inv { format!("~{}", name) } else { name };
+            let s = if *abs { format!("|{}|", s) } else { s };
             if *neg { format!("-{}", s) } else { s }
         }
         Operand::Pred { num, neg } => {
@@ -447,6 +450,14 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
             for op in &insn.operands {
                 if let PtxOperand::Pred(name) = op { pred_last_use.insert(name.clone(), si); }
             }
+        }
+    }
+    // b9 phase-3 #3: PTX CC.CF carry register -> one physical predicate.
+    // Every carry-chain op (writer or consumer) extends the lifetime; the
+    // synthetic name keeps it out of the PTX pred namespace.
+    for (si, stmt) in kernel.body.iter().enumerate() {
+        if let PtxStmt::Insn(insn) = stmt {
+            if is_cc_op(&insn.opcode) { pred_last_use.insert("%cc".to_string(), si); }
         }
     }
     let mut dead_preds: Vec<String> = Vec::new();
@@ -725,6 +736,66 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                                     op_reg(d_hi), op_reg(a_hi), b_hi, op_rz(),
                                     op_imm(*lut as i64), op_not_pt()], guard));
                             }
+                            addr += 32;
+                        }
+
+                        SassTemplate::CarryChain32 { cin, cout, sub } => {
+                            // b9 phase-3 #3: forms verbatim from vendor anchors
+                            // (see ptx_map.rs). cc = physical carry predicate.
+                            if guard.is_some() {
+                                anyhow::bail!("{}: guarded carry-chain ops are unattested (0/93,826 corpus sites)", insn.opcode);
+                            }
+                            let sub = *sub; let cin = *cin; let cout = *cout;
+                            let n_ext = lower_carry32(addr, insn, &mut alloc, sub, cin, cout)?;
+                            insns.extend(n_ext.0);
+                            addr += 16 * n_ext.1;
+                        }
+
+                        SassTemplate::MadCc { hi } => {
+                            if guard.is_some() {
+                                anyhow::bail!("{}: guarded carry-chain ops are unattested", insn.opcode);
+                            }
+                            let n_ext = lower_madcc(addr, insn, &mut alloc, *hi)?;
+                            insns.extend(n_ext.0);
+                            addr += 16 * n_ext.1;
+                        }
+
+                        SassTemplate::Shift64 { dir_left, signed } => {
+                            // vendor-anchored SHF pair; order (hi first) is
+                            // load-bearing for in-place dst==src shifts.
+                            let d_name = match insn.operands.get(0) {
+                                Some(PtxOperand::Reg(n)) => n.clone(),
+                                other => anyhow::bail!("{}: dst must be a b64 register pair, got {:?}", insn.opcode, other),
+                            };
+                            let a_name = match insn.operands.get(1) {
+                                Some(PtxOperand::Reg(n)) => n.clone(),
+                                other => anyhow::bail!("{}: srcA must be a b64 register pair, got {:?}", insn.opcode, other),
+                            };
+                            let (d_lo, d_hi) = alloc.gpr_pair(&d_name);
+                            let (a_lo, a_hi) = alloc.gpr_pair(&a_name);
+                            let sh = match insn.operands.get(2) {
+                                Some(o) => ptx_op_to_sass(o, &mut alloc, false),
+                                None => anyhow::bail!("{}: missing shift amount", insn.opcode),
+                            };
+                            // (funnel_op, plain_op): funnel mixes the 64-bit
+                            // concatenation, plain does the 32-bit half
+                            let (funnel_op, plain_op) = if *dir_left {
+                                ("SHF.L.U64.HI", "SHF.L.U32")
+                            } else if *signed {
+                                ("SHF.R.S64", "SHF.R.S32.HI")
+                            } else {
+                                ("SHF.R.U64", "SHF.R.U32.HI")
+                            };
+                            // vendor emission order: shl -> hi,lo; shr -> lo,hi
+                            let (first, second) = if *dir_left {
+                                (make_insn(addr, funnel_op, vec![op_reg(d_hi), op_reg(a_lo), sh.clone(), op_reg(a_hi)], guard.clone()),
+                                 make_insn(addr + 16, plain_op, vec![op_reg(d_lo), op_reg(a_lo), sh, op_rz()], guard))
+                            } else {
+                                (make_insn(addr, funnel_op, vec![op_reg(d_lo), op_reg(a_lo), sh.clone(), op_reg(a_hi)], guard.clone()),
+                                 make_insn(addr + 16, plain_op, vec![op_reg(d_hi), op_rz(), sh, op_reg(a_hi)], guard))
+                            };
+                            insns.push(first);
+                            insns.push(second);
                             addr += 32;
                         }
 
@@ -1021,7 +1092,18 @@ fn resolve_slots(slots: &[OpSlot], ptx_ops: &[PtxOperand], alloc: &mut RegAlloc)
     }).collect()
 }
 
+/// b9 phase-3 #3: does this opcode touch PTX CC (carry-chain class)?
+fn is_cc_op(opcode: &str) -> bool {
+    opcode.starts_with("add.cc.") || opcode.starts_with("addc.")
+        || opcode.starts_with("sub.cc.") || opcode.starts_with("subc.")
+        || opcode.starts_with("mad.lo.cc.") || opcode.starts_with("madc.")
+}
+
 fn estimate_expansion_size(opcode: &str) -> u32 {
+    // b9 phase-3 #3 template sizes (instruction counts)
+    if opcode.starts_with("mad.lo.cc.") { return 3; }
+    if opcode.starts_with("madc.") { return 2; }
+    if opcode == "shl.b64" || opcode == "shr.u64" || opcode == "shr.s64" { return 2; }
     if opcode.contains(".u64") || opcode.contains(".s64") || opcode.contains(".b64") {
         if opcode.starts_with("add.") || opcode.starts_with("sub.") { return 2; }
         if opcode.starts_with("mov.") { return 2; }
@@ -1030,6 +1112,113 @@ fn estimate_expansion_size(opcode: &str) -> u32 {
 }
 
 // ── Specialized lowering functions ───────────────────────────────────────────
+
+/// b9 phase-3 #3: 32-bit add/sub with CC carry in/out. Operand layout and
+/// immediate handling are vendor anchors (see ptx_map.rs doc); one physical
+/// predicate ("%cc") models PTX CC.CF for the whole chain.
+fn lower_carry32(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc,
+    sub: bool, cin: bool, cout: bool,
+) -> Result<(Vec<Instruction>, u32)> {
+    let d = match insn.operands.get(0) {
+        Some(o) => ptx_op_to_sass(o, alloc, false),
+        None => anyhow::bail!("{}: missing dst", insn.opcode),
+    };
+    let a = match insn.operands.get(1) {
+        Some(PtxOperand::Reg(name)) => op_reg(alloc.resolve(name)),
+        other => anyhow::bail!("{}: srcA must be a register (imm unattested), got {:?}", insn.opcode, other),
+    };
+    let b_op = insn.operands.get(2)
+        .ok_or_else(|| anyhow::anyhow!("{}: missing srcB", insn.opcode))?;
+    let cout_pred = if cout {
+        Operand::Pred { num: alloc.pred("%cc"), neg: false }
+    } else { op_pt() };
+    if !cin {
+        // add.cc / sub.cc (IADD3 with carry-out; sub negates srcB)
+        let b = match b_op {
+            PtxOperand::Reg(name) => {
+                let num = alloc.resolve(name);
+                Operand::Reg { num, neg: sub, abs: false, inv: false, reuse: false }
+            }
+            other => anyhow::bail!("{}: imm srcB on a carry-out writer is unattested, got {:?}", insn.opcode, other),
+        };
+        let ins = make_insn(addr, "IADD3",
+            vec![d, cout_pred, op_pt(), a, b, op_rz()], None);
+        return Ok((vec![ins], 1));
+    }
+    let cin_pred = Operand::Pred { num: alloc.pred("%cc"), neg: false };
+    if !sub {
+        // addc / addc.cc
+        let b = match b_op {
+            PtxOperand::Reg(name) => op_reg(alloc.resolve(name)),
+            PtxOperand::IntImm(0) => op_rz(),   // vendor normalization (cr1/cr4)
+            other => anyhow::bail!("{}: non-zero imm srcB on addc is unattested, got {:?}", insn.opcode, other),
+        };
+        let ins = make_insn(addr, "IADD3.X",
+            vec![d, cout_pred, op_pt(), a, b, op_rz(), cin_pred, op_not_pt()], None);
+        return Ok((vec![ins], 1));
+    }
+    // subc / subc.cc: ~subtrahend in slot A, minuend in slot B
+    let b_inv = match b_op {
+        PtxOperand::Reg(name) => {
+            let num = alloc.resolve(name);
+            Operand::Reg { num, neg: false, abs: false, inv: true, reuse: false }
+        }
+        PtxOperand::IntImm(v) => {
+            // arithmetic bitwise-not: ~v == -v - 1 (proven -0x1 for v==0)
+            op_imm(v.checked_neg().and_then(|n| n.checked_sub(1))
+                .ok_or_else(|| anyhow::anyhow!("{}: imm srcB overflow", insn.opcode))?)
+        }
+        other => anyhow::bail!("{}: srcB shape unattested, got {:?}", insn.opcode, other),
+    };
+    let ins = make_insn(addr, "IADD3.X",
+        vec![d, cout_pred, op_pt(), b_inv, a, op_rz(), cin_pred, op_not_pt()], None);
+    Ok((vec![ins], 1))
+}
+
+/// b9 phase-3 #3: mad.lo.cc / madc.hi decomposition (see ptx_map.rs doc).
+fn lower_madcc(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, hi: bool,
+) -> Result<(Vec<Instruction>, u32)> {
+    let d = match insn.operands.get(0) {
+        Some(o) => ptx_op_to_sass(o, alloc, false),
+        None => anyhow::bail!("{}: missing dst", insn.opcode),
+    };
+    macro_rules! reg_src {
+        ($i:expr) => {
+            match insn.operands.get($i) {
+                Some(PtxOperand::Reg(name)) => Ok::<u8, anyhow::Error>(alloc.resolve(name)),
+                other => anyhow::bail!("{}: operand {} must be a register (imm unattested), got {:?}", insn.opcode, $i, other),
+            }
+        };
+    }
+    let a: u8 = reg_src!(1)?;
+    let b: u8 = reg_src!(2)?;
+    let cc = Operand::Pred { num: alloc.pred("%cc"), neg: false };
+    let tmp = alloc.gpr("$madcc_carry_tmp");
+    if !hi {
+        // mad.lo.cc.u32 d, a, b, c (anchor cr3): IMAD.U32 d ; IMAD t ; IADD3 cc
+        let c: u8 = reg_src!(3)?;
+        let i1 = make_insn(addr, "IMAD.U32",
+            vec![d, op_reg(a), op_reg(b), op_reg(c)], None);
+        let i2 = make_insn(addr + 16, "IMAD",
+            vec![op_reg(tmp), op_reg(a), op_reg(b), op_rz()], None);
+        let i3 = make_insn(addr + 32, "IADD3",
+            vec![op_rz(), cc, op_pt(), op_reg(tmp), op_reg(c), op_rz()], None);
+        return Ok((vec![i1, i2, i3], 3));
+    }
+    // madc.hi.u32 d, a, b, c: IMAD.HI.U32 t, a, b, RZ ; IADD3.X d, t, c, cin
+    let c_op = match insn.operands.get(3) {
+        Some(PtxOperand::Reg(name)) => op_reg(alloc.resolve(name)),
+        Some(PtxOperand::IntImm(0)) => op_rz(),  // vendor normalization (cr3)
+        other => anyhow::bail!("{}: non-zero imm addend on madc.hi is unattested, got {:?}", insn.opcode, other),
+    };
+    let i1 = make_insn(addr, "IMAD.HI.U32",
+        vec![op_reg(tmp), op_reg(a), op_reg(b), op_rz()], None);
+    let i2 = make_insn(addr + 16, "IADD3.X",
+        vec![d, op_pt(), op_pt(), op_reg(tmp), c_op, op_rz(), cc, op_not_pt()], None);
+    Ok((vec![i1, i2], 2))
+}
 
 fn lower_add64(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>) -> (Vec<Instruction>, u32) {
     let d = &insn.operands[0];
