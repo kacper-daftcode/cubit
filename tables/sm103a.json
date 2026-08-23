@@ -41228,6 +41228,13 @@
      "variable_mask": "0x01fffe000000000001fc001ffffc0000",
      "fields": [
       {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "bug098-2026-08-23"
+      },
+      {
        "shift": 16,
        "bits": 8,
        "token_idx": 1,
@@ -41263,6 +41270,13 @@
      "variable_mask": "0x01ffee00000000000038001fff7c0000",
      "fields": [
       {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "bug098-2026-08-23"
+      },
+      {
        "shift": 16,
        "bits": 8,
        "token_idx": 1,
@@ -41297,6 +41311,13 @@
      "and_base": "0x0000000008000000000000000000783b",
      "variable_mask": "0x01fffe000000000001fc001ffffc0000",
      "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "bug098-2026-08-23"
+      },
       {
        "shift": 16,
        "bits": 8,
@@ -48764,6 +48785,13 @@
      "variable_mask": "0x000fce000000000000f80000bffc0000",
      "fields": [
       {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "bug098-2026-08-23"
+      },
+      {
        "shift": 16,
        "bits": 8,
        "token_idx": 1,
@@ -48792,6 +48820,13 @@
      "variable_mask": "0x000fee0000000000000000007f5e0000",
      "fields": [
       {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "bug098-2026-08-23"
+      },
+      {
        "shift": 16,
        "bits": 8,
        "token_idx": 1,
@@ -48800,20 +48835,59 @@
       },
       {
        "shift": 24,
-       "bits": 7,
+       "bits": 9,
        "token_idx": 2,
        "extraction": "sub_r0",
-       "_src": "2aE"
+       "_src": "bug098-2026-08-23",
+       "_note": "9-bit base like sibling 16,4,M88 + LDS canon (pre-fix 7-bit clipped R>=128 silently)"
       },
       {
-       "shift": 31,
+       "shift": 40,
        "bits": 24,
        "token_idx": 2,
        "extraction": "sub_imm1",
-       "_src": "2c"
+       "_src": "bug098-2026-08-23",
+       "_note": "imm at [63:40] like every family member (anchor 3b780400004000000001000000e20f00: 0x40 at byte5; pre-fix shift 31 read 0x8000)"
       }
      ],
      "count": 48
+    },
+    "16,M88": {
+     "and_base": "0x0000000000000000000000000000783b",
+     "variable_mask": "0x000fce000000000000f80000bffc0000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "bug098-2026-08-23"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug098-2026-08-23"
+      },
+      {
+       "shift": 24,
+       "bits": 9,
+       "token_idx": 2,
+       "extraction": "sub_r0",
+       "_src": "bug098-2026-08-23"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "sub_imm1",
+       "_src": "bug098-2026-08-23"
+      }
+     ],
+     "count": 1,
+     "_src": "bug098-2026-08-23",
+     "_note": "plain ARI (bez bitow trybu 72/73 i bez bitu ARURI 91); kotwica mk19 3b080500008000000000000000620e00 @P0 LDSM.16.M88 R5, [R0+0x80]; vm wzor z 16,4,M88"
     }
    },
    "scheduling": {

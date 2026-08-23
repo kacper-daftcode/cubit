@@ -622,6 +622,18 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             _ => {}
         }
     }
+    // BUG-098: LDSM (matrix load from shared) - nvdisasm prints tile width
+    // BEFORE layout and matrix count LAST: LDSM.16.M88.4 / LDSM.16.M88.2
+    // (was LDSM.M88.16.4 / LDSM.2.M88.16 via generic buckets). Vendor anchors:
+    // 32 slots in the 2049-cubin census (results/cubitfix/098/anchors098.json).
+    if base == "LDSM" {
+        match m {
+            "16" => return 4,
+            "M88" | "MT88" | "M816" => return 5,
+            "2" | "4" => return 6,
+            _ => {}
+        }
+    }
     // b4fill: IMAD.WIDE.U32.X.B90 — the B90 tag prints after X (IMAD.WIDE.U32.X.B90)
     if m == "B90" && base.starts_with("IMAD") { return 9; }
     // b4fill: LDG cache-policy family — nvdisasm order is
