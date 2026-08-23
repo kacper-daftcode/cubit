@@ -23388,6 +23388,120 @@
       }
      ],
      "count": 696
+    },
+    "128,BYPASS,E,LTC128B,ZFILL": {
+     "and_base": "0x00000000081c1a000000000000007fae",
+     "variable_mask": "0x01ae1e000780001e1ff800c0feff0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 9,
+       "token_idx": 1,
+       "extraction": "sub_r0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 19,
+       "token_idx": 2,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      },
+      {
+       "shift": 44,
+       "bits": 20,
+       "token_idx": 1,
+       "extraction": "sub_imm1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 64,
+       "bits": 9,
+       "token_idx": 2,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 3,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "neg",
+       "_src": "2aE"
+      }
+     ],
+     "count": 1,
+     "_evidence": "b9p10 phase-3 #8: ptxas 13.3 sm_103a anchor cp_ca+0x310 text 'LDGSTS.E.BYPASS.LTC128B.128.ZFILL [R8], desc[UR4][R4.64], !P0; ab=W&~vm&~SCHED&~bit123 sibling-grid; derive_mgs.py collision-free"
+    },
+    "128,BYPASS,E,ZFILL": {
+     "and_base": "0x00000000081c18000000000000007fae",
+     "variable_mask": "0x01ae1e000780001e1ff800c0feff0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 9,
+       "token_idx": 1,
+       "extraction": "sub_r0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 19,
+       "token_idx": 2,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      },
+      {
+       "shift": 44,
+       "bits": 20,
+       "token_idx": 1,
+       "extraction": "sub_imm1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 64,
+       "bits": 9,
+       "token_idx": 2,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 87,
+       "bits": 3,
+       "token_idx": 3,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 90,
+       "bits": 1,
+       "token_idx": 3,
+       "extraction": "neg",
+       "_src": "2aE"
+      }
+     ],
+     "count": 1,
+     "_evidence": "b9p10 phase-3 #8: ptxas 13.3 sm_103a anchor _Z1kPK6float4PS_+0x360 text 'LDGSTS.E.BYPASS.128.ZFILL [R7], desc[UR4][R10.64], !P0; ab=W&~vm&~SCHED&~bit123 sibling-grid; derive_mgs.py collision-free"
     }
    },
    "scheduling": {
@@ -33787,6 +33901,34 @@
       }
      ],
      "count": 1
+    },
+    "NTZ,S16": {
+     "and_base": "0x00000000002029000000000000001305",
+     "variable_mask": "0x001fde00000000000000001f001fe000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "2aE"
+      }
+     ],
+     "count": 1,
+     "_evidence": "b9p10 phase-3 #8: ptxas 13.3 sm_103a anchor cvt_sat_s16+0x150 text 'F2I.S16.NTZ R0, R2; ab=W&~vm&~SCHED&~bit123 sibling-grid; derive_mgs.py collision-free"
     }
    },
    "scheduling": {
@@ -41650,6 +41792,55 @@
       }
      ],
      "count": 202
+    },
+    "64,E,LTC256B": {
+     "and_base": "0x0001e0000b9a17000000000000000fae",
+     "variable_mask": "0x00ae1e000000003efffc01e0feff7000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 9,
+       "token_idx": 1,
+       "extraction": "sub_r0",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_r1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 18,
+       "token_idx": 2,
+       "extraction": "sub_imm2",
+       "_src": "2aE"
+      },
+      {
+       "shift": 44,
+       "bits": 20,
+       "token_idx": 1,
+       "extraction": "sub_imm1",
+       "_src": "2aE"
+      },
+      {
+       "shift": 64,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "sub_ur0",
+       "_src": "2aE"
+      }
+     ],
+     "count": 1,
+     "_evidence": "b9p10 phase-3 #8: ptxas 13.3 sm_103a anchor cp_sizes+0x330 text 'LDGSTS.E.LTC256B.64 [R6], desc[UR4][R4.64]; ab=W&~vm&~SCHED&~bit123 sibling-grid; derive_mgs.py collision-free; LTC enum bits via encoded-word delta W('64,E')^W('64,E,LTC128B') = 0x2000000000000000000, anchor value spliced (iter35 grid method, encoded-word form); LTC256B = LTC128B | bit72 (anchor 0b9a17 vs sibling 0b9a16, sched-zone cmp free); sub_ur0 narrowed 9->8b (over-harvest covered the LTC256B bit72 flag); vm drops bit72"
     }
    },
    "scheduling": {

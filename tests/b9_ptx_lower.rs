@@ -67,7 +67,7 @@ fn b9_unknown_op_fail_closed() {
     .reg .f32 %f<2>;
     mov.b32      %r1, 7;
     tanh.approx.f32 %f1, %f2;
-    griddepcontrol.launch_dependents;
+    tcgen05.wait::ld.sync.aligned;
     mov.b32      %r2, %r1;
     ret;
 }}"#, PROLOG);
@@ -75,7 +75,9 @@ fn b9_unknown_op_fail_closed() {
     let err = lower_kernel(&kernels[0]).unwrap_err();
     let msg = format!("{:#}", err);
     assert!(msg.contains("tanh.approx.f32"), "error must name the op: {}", msg);
-    assert!(msg.contains("griddepcontrol.launch_dependents"), "error must aggregate ALL unsupported ops: {}", msg);
+    // iter39 (b9p10): griddepcontrol.* is now SUPPORTED (vendor anchor ns1);
+    // aggregation partner swapped to a permanently out-of-scope op.
+    assert!(msg.contains("tcgen05.wait::ld.sync.aligned"), "error must aggregate ALL unsupported ops: {}", msg);
 }
 
 /// 3. mul.wide.s32/u32 lower to IMAD.WIDE[.U32] with an even pair destination
@@ -314,8 +316,11 @@ fn b9p2_cvt_sm103a_forms() {
     let (_b, _n) = assemble_body(&text);
 }
 
-/// P5-negative: f16 cvt has no attested lowering (F2FP.PACK_AB + PRMT chain is
-/// phase-3) and must hit the aggregated unsupported list.
+/// P5-history: f16 cvt WAS unattested until b9 phase-3 #8 (iter39). The
+/// vendor anchor was measured then (ptxas 13.3 -O0 sm_103a, probe
+/// work/b9p10/cv1: F2F.F16.F32 single-op, byte-parity in
+/// results/b9/b9p10_parity), so the pin flips POSITIVE with attribution.
+/// cvt.rn.f16.f64 etc. remain rejected (b9p10_fail_closed).
 #[test]
 fn b9p2_cvt_f16_unsupported() {
     let ptx = format!(r#"{} .visible .entry k(
@@ -331,8 +336,8 @@ fn b9p2_cvt_f16_unsupported() {
     ret;
 }}"#, PROLOG);
     let kernels = parse_ptx(&ptx).unwrap();
-    let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
-    assert!(err.contains("cvt.rn.f16.f32"), "got: {}", err);
+    let t = lower_kernel(&kernels[0]).unwrap().to_sass_text();
+    assert!(t.contains("F2F.F16.F32"), "F2F anchor must be emitted: {}", t);
 }
 
 /// P6: redux.* rejected at the PTX layer (UR-dest op; the old REDUX.ADD/R-dest
@@ -1444,4 +1449,147 @@ L0:
     assert_eq!((w >> 44) & 0xFFFFF, 0, "anchors carry no [63:44] payload bits here");
     // and the decode re-spells the same form (nvdisasm-side proven in
     // results/b9/cluster_parity/verify_parity.py).
+}
+
+// ═══ b9 phase-3 #8 (iter39): vote/match/bar.warp/elect/nanosleep/griddep/
+//     cp.async/cvt-sub-word/cvta.shared — vendor-anchored (ptxas 13.3 -O0
+//     sm_103a, probes work/b9p10/probes; byte-parity results/b9/b9p10_parity).
+
+fn lower_text(body: &str) -> String {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0,
+    .param .u64 k_param_1
+)
+{{
+    .reg .pred %p<5>;
+    .reg .b16 %rs<4>;
+    .reg .b32 %r<10>;
+    .reg .b64 %rd<6>;
+    .reg .f32 %f<4>;
+    .reg .f64 %fd<3>;
+    ld.param.u64 %rd1, [k_param_0];
+    ld.param.u64 %rd2, [k_param_1];
+    ld.global.u32 %r1, [%rd1];
+    setp.ne.u32 %p1, %r1, 0;
+    {}
+    ret;
+}}"#, PROLOG, body);
+    let kernels = parse_ptx(&ptx).unwrap();
+    lower_kernel(&kernels[0]).unwrap().to_sass_text()
+}
+
+#[test]
+fn b9p10_vote_glue() {
+    let t = lower_text("vote.sync.ballot.b32 %r3, %p1, 0xffffffff;");
+    assert!(t.contains("MOV R"), "imm mask materialized: {}", t);
+    assert!(t.contains("WARPSYNC.COLLECTIVE") && t.contains("VOTE.ANY") && t.contains("ENDCOLLECTIVE"), "{}", t);
+    assert!(t.contains("VOT_"), "gensym label: {}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+
+    let t = lower_text("vote.sync.any.pred %p2, %p1, %r1; vote.sync.all.pred %p3, %p1, %r1;");
+    assert!(t.contains("VOTE.ANY") && t.contains("VOTE.ALL"), "{}", t);
+    assert!(!t.contains("MOV R"), "reg mask is used directly (bw1/vm1 anchor)");
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+}
+
+#[test]
+fn b9p10_match_barwarp() {
+    let t = lower_text("match.any.sync.b32 %r3, %r1, 0xffffffff; bar.warp.sync %r1;");
+    assert!(t.contains("MATCH.ANY"), "{}", t);
+    assert_eq!(t.matches("WARPSYNC.COLLECTIVE").count(), 2, "{}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+}
+
+#[test]
+fn b9p10_elect_sink_and_real() {
+    let t = lower_text("elect.sync %rx|%px, %r1;");
+    assert!(t.contains("ELECT P") && t.contains("UR79"), "{}", t);
+    assert_eq!(t.matches("MOV R").count(), 0, "sink dst skips MOV (el2 anchor): {}", t);
+    let t2 = lower_text("elect.sync %r3|%p2, %r1;");
+    assert!(t2.contains("MOV R"), "real dst reads UR79 back: {}", t2);
+    let (bytes, n) = assemble_body(&t2);
+    assert_eq!(bytes.len(), n * 16, "{}", t2);
+}
+
+#[test]
+fn b9p10_nanosleep_griddep() {
+    let t = lower_text("nanosleep.u32 50; nanosleep.u32 %r1; griddepcontrol.launch_dependents; griddepcontrol.wait;");
+    assert!(t.contains("NANOSLEEP 0x32") && t.contains("NANOSLEEP R"), "{}", t);
+    assert!(t.contains("PREEXIT") && t.contains("ACQBULK"), "{}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+}
+
+#[test]
+fn b9p10_cp_async_forms() {
+    // plain .ca 4 / .cg 16 + group protocol (anchors cp1/cp2 + p_ldgsts/b_cpasync)
+    let t = lower_text("cp.async.ca.shared.global [%r1], [%rd1], 4; cp.async.cg.shared.global [%r1+16], [%rd1+16], 16; cp.async.commit_group; cp.async.wait_group 1; cp.async.wait_all;");
+    assert!(t.contains("LDGSTS.E [") && t.contains("LDGSTS.E.BYPASS.128 ["), "{}", t);
+    assert_eq!(t.matches("@!PT LDS RZ, [RZ]").count(), 3, "trio once per kernel: {}", t);
+    assert!(t.contains("LDGDEPBAR") && t.contains("DEPBAR.LE 0x0, 0x1") && t.contains("DEPBAR.LE 0x0, 0x0"), "{}", t);
+    assert!(t.contains("IADD3"), "dst+16 folded into address math (cp1 anchor): {}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+
+    // src-size operand -> ZFILL form with the size-adjust glue (p13/cp1 anchor)
+    let t = lower_text("cp.async.cg.shared.global.L2::128B [%r1], [%rd1], 16, %r1;");
+    assert!(t.contains("LDGSTS.E.BYPASS.LTC128B.128.ZFILL"), "{}", t);
+    assert!(t.contains("ISETP.EQ.U32.AND") && t.contains("LOP3.LUT") && t.contains("!P"), "{}", t);
+    assert!(t.ends_with(".endentry\n") || t.contains(".endentry"), "");
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+
+    // imm src-size == 16 keeps the same ZFILL shape (p13 anchor, vendor -O0)
+    let t = lower_text("cp.async.cg.shared.global [%r1], [%rd1], 16, 16;");
+    assert!(t.contains("LDGSTS.E.BYPASS.128.ZFILL"), "{}", t);
+    let (bytes, n) = assemble_body(&t);
+    assert_eq!(bytes.len(), n * 16, "{}", t);
+}
+
+#[test]
+fn b9p10_cvt_subword_f16() {
+    let t = lower_text("cvt.rn.f16.f32 %rs1, %f1; cvt.rn.f16x2.f32 %r2, %f1, %f2;");
+    assert!(t.contains("F2F.F16.F32") && t.contains("F2FP.F16.F32.PACK_AB"), "{}", t);
+    let t = lower_text("cvt.u32.u16 %r2, %rs1; cvt.s32.s16 %r3, %rs1; cvt.u16.u32 %rs2, %r1;");
+    assert!(t.contains("PRMT") && t.contains("0x7710") && t.contains("0x9910") && t.contains("0x7610"), "{}", t);
+    let t = lower_text("cvt.u64.u16 %rd3, %rs1; cvt.rzi.s32.f64 %r2, %fd1; cvt.rni.sat.s16.f32 %rs1, %f1; cvt.rn.f32.s16 %f2, %rs2;");
+    assert!(t.contains("F2I.F64.TRUNC") && t.contains("F2I.S16.NTZ") && t.contains("I2F.S16"), "{}", t);
+    let (_, n) = assemble_body(&t);
+    assert!(n > 0);
+    let t = lower_text("cvta.to.shared.u64 %rd3, %rd1;");
+    assert!(!t.contains("S2R"), "runtime-generic cvta.to.shared is an alias (b_ldmatrix anchor): {}", t);
+}
+
+#[test]
+fn b9p10_fail_closed() {
+    for body in [
+        "@%p1 vote.sync.ballot.b32 %r3, %p1, 0xffffffff;", // guarded collective
+        "match.any.sync.b64 %rd3, %rd1, %rd1;",            // unattested width
+        "elect.sync %r3, %r1;",                            // missing pred pipe dst
+        "cp.async.ca.shared.global [%r1], [%rd1], 8, %rd1;", // 64-bit src-size
+        "cp.async.bulk.shared::cluster.global.mbarrier::complete_tx::bytes [%r1], [%rd1], 16, [%r1];",
+        "cvt.rpi.f32.f32 %f1, %f2;",                       // unattested rounding pair
+        "cvt.rn.f16.f64 %rs1, %fd1;",                      // unattested src width
+    ] {
+        let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .pred %p<5>;
+    .reg .b16 %rs<4>;
+    .reg .b32 %r<10>;
+    .reg .b64 %rd<6>;
+    .reg .f32 %f<4>;
+    .reg .f64 %fd<3>;
+    ld.param.u64 %rd1, [k_param_0];
+    setp.eq.u32 %p1, %r1, %r2;
+    {}
+    ret;
+}}"#, PROLOG, body);
+        let kernels = parse_ptx(&ptx).unwrap();
+        assert!(lower_kernel(&kernels[0]).is_err(), "must be unsupported: {}", body);
+    }
 }

@@ -233,6 +233,62 @@ pub enum SassTemplate {
     /// imm 0 short-circuits to RZ. Fail-closed: non-reg address, ctaid imm
     /// outside 0..=255, guards.
     Mapa,
+
+    /// b9 phase-3 #8: vote.sync family -> WARPSYNC.COLLECTIVE protocol.
+    /// Vendor anchors (ptxas 13.3 -O0 sm_103a; probes work/b9p10/probes
+    /// vm1 + corpus anchors v_vote1, p_matchany; byte-parity in
+    /// results/b9/votematch_parity/):
+    ///   vote.sync.ballot.b32 d, p, mask:
+    ///     [MOV Rm, imm ;] WARPSYNC.COLLECTIVE Rm, `(L) ;
+    ///     VOTE.ANY Rd, PT, Pp ; ENDCOLLECTIVE ; L:
+    ///   vote.sync.{any,all}.pred p2, p, mask:
+    ///     [MOV Rm, imm ;] WARPSYNC.COLLECTIVE Rm, `(L) ;
+    ///     VOTE.{ANY|ALL} Pd, Pp ; ENDCOLLECTIVE ; L:
+    /// Note: ballot lowers to the SAME VOTE.ANY opcode with a register
+    /// destination (measured, vm1/vote_ballot 0x190). -O3 elides the
+    /// WARPSYNC/ENDCOLLECTIVE glue for membermask==0xffffffff (cross-op;
+    /// not the per-op anchor). Guards: 0 in corpus -> fail-closed.
+    Vote { ballot: bool, all: bool },
+    /// match.any.sync.b32 d, a, mask: same WARPSYNC glue around
+    ///   MATCH.ANY Rd, Ra  (anchors vm1/match_any + p_matchany).
+    MatchAny,
+    /// bar.warp.sync mask: bare WARPSYNC.COLLECTIVE pair (anchor bw1):
+    ///   [MOV Rm, imm ;] WARPSYNC.COLLECTIVE Rm, `(L) ; ENDCOLLECTIVE ; L:
+    WarpSyncMask,
+    /// elect.sync d|p, mask: WARPSYNC glue around
+    ///   ELECT Pp, UR79, PT ; [MOV Rd, UR79] ;  (anchors ns1/elect_a +
+    /// el2/elect_sink). The %rx sink dst skips the MOV (el2 anchor).
+    /// UR79 is the vendor's fixed scratch choice at -O0 (el2 0x170).
+    ElectSync,
+    /// nanosleep.u32 S -> NANOSLEEP imm | R (anchor ns1: NANOSLEEP 0x32 /
+    /// NANOSLEEP R0; corpus p24 reg form).
+    Nanosleep,
+    /// griddepcontrol.launch_dependents -> PREEXIT ; griddepcontrol.wait
+    /// -> ACQBULK (anchors ns1/griddep_a + corpus p25, -O0 == -O3 forms).
+    GridDep { wait: bool },
+    /// cp.async non-bulk family -> LDGSTS + LDGDEPBAR/DEPBAR protocol
+    /// (anchors cp1/cp2/cp3 + corpus anchors b_cpasync/p_ldgsts/p13):
+    ///   cp.async.{ca,cg}.shared.global[.L2::{128B,256B}] [d], [g], N{, sz}
+    ///   N=4 -> .E ; 8 -> .E.64 ; 16 -> .E.128
+    ///   .cg -> .BYPASS ; L2 hint -> .LTC128B/.LTC256B
+    ///   src-size operand present (any value, imm or reg) -> .ZFILL plus
+    ///   the vendor size-adjust glue (ISETP sz==0 -> Pz ; off=(0x10-sz)&0xF
+    ///   via IADD3 neg + LOP3 0xc0 ; 64-bit src advance by off through
+    ///   IADD3/IADD3.X carry pairs ; LDGSTS ... , !Pz). PTX dst/src offsets
+    ///   fold into the address math before the ZFILL pair (anchor cp1).
+    ///   Kernel-wide preamble: three `@!PT LDS RZ, [RZ]` once, immediately
+    ///   before the first LDGSTS (all anchors incl. -O3).
+    CpAsync { bypass: bool, ltc: Option<u16> },
+    /// cp.async.commit_group -> LDGDEPBAR ; cp.async.wait_group N ->
+    /// DEPBAR.LE SB0, N ; cp.async.wait_all -> LDGDEPBAR + DEPBAR.LE SB0, 0x0
+    /// (anchors cp_wait/cp_many/cp_sizes: commit 0x340, wait_group 1
+    /// 0x350, wait_all 0x360+0x370).
+    CpAsyncBar { commit: bool, all: bool },
+    // b9 phase-3 #8 note: cvta.to.shared.u64 maps to AliasPair above (same
+    // shape as cvta.to.global.u64) -- vendor corpus anchor b_ldmatrix-ba534d
+    // (ptxas 13.3 -O0 sm_103a) lowers a runtime-generic cvta.to.shared to
+    // mov-copies; the S2R SR_CgaCtaId + LEA <<24 glue belongs to shared-
+    // SYMBOL address materialization (shsym layout, iter35), not to cvta.
 }
 
 /// b9 phase-3 #6: mbarrier op split (see SassTemplate::Mbar).
@@ -465,6 +521,29 @@ pub static RULES: &[PtxRule] = &[
     PtxRule { pattern: "barrier.cluster.wait.aligned",           template: ClusterBarrier { arrive: false, relaxed: false, aligned: true } },
     PtxRule { pattern: "barrier.cluster.wait",                   template: ClusterBarrier { arrive: false, relaxed: false, aligned: false } },
     PtxRule { pattern: "mapa.shared::cluster.u32",               template: Mapa },
+
+    // ── b9 phase-3 #8: vote/match/bar.warp/elect/nanosleep/griddep ─────
+    // (exact-name match like Mbar/ClusterBarrier: the match arm re-checks
+    // insn.opcode == rule.pattern so unlisted suffixes stay unsupported)
+    PtxRule { pattern: "vote.sync.ballot.b32", template: Vote { ballot: true, all: false } },
+    PtxRule { pattern: "vote.sync.any.pred",   template: Vote { ballot: false, all: false } },
+    PtxRule { pattern: "vote.sync.all.pred",   template: Vote { ballot: false, all: true } },
+    PtxRule { pattern: "match.any.sync.b32",   template: MatchAny },
+    PtxRule { pattern: "bar.warp.sync",        template: WarpSyncMask },
+    PtxRule { pattern: "elect.sync",           template: ElectSync },
+    PtxRule { pattern: "nanosleep.u32",        template: Nanosleep },
+    PtxRule { pattern: "griddepcontrol.launch_dependents", template: GridDep { wait: false } },
+    PtxRule { pattern: "griddepcontrol.wait",  template: GridDep { wait: true } },
+    // cp.async non-bulk: most-specific (L2 hint) first, find_rule is a
+    // linear starts_with search.
+    PtxRule { pattern: "cp.async.cg.shared.global.L2::128B", template: CpAsync { bypass: true, ltc: Some(128) } },
+    PtxRule { pattern: "cp.async.cg.shared.global",          template: CpAsync { bypass: true, ltc: None } },
+    PtxRule { pattern: "cp.async.ca.shared.global.L2::256B", template: CpAsync { bypass: false, ltc: Some(256) } },
+    PtxRule { pattern: "cp.async.ca.shared.global",          template: CpAsync { bypass: false, ltc: None } },
+    PtxRule { pattern: "cp.async.commit_group", template: CpAsyncBar { commit: true, all: false } },
+    PtxRule { pattern: "cp.async.wait_group",   template: CpAsyncBar { commit: false, all: false } },
+    PtxRule { pattern: "cp.async.wait_all",     template: CpAsyncBar { commit: true, all: true } },
+    PtxRule { pattern: "cvta.to.shared.u64",   template: AliasPair },
 
     // ── Atomics (b9 phase-3 #4; shapes parsed per-op in lower_atomic) ────
     PtxRule { pattern: "atom.",         template: Atom },

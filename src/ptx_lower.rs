@@ -361,7 +361,9 @@ fn operand_to_sass(op: &Operand) -> String {
             // mbarrier ops: [Ra+URZ] / UR-only [UR62]); previously ur_reg was
             // silently dropped from the gateway text. Order follows the
             // existing [R+UR+off] convention (printer.rs STS/LDS).
-            let mut inner = base_reg.map_or("RZ".to_string(), |r| format!("R{}", r));
+            // b9 phase-3 #8: R255 prints RZ (vendor spelling; `@!PT LDS RZ, [RZ]`
+            // anchor). Parse direction already accepts both.
+            let mut inner = base_reg.map_or("RZ".to_string(), |r| if r == 255 { "RZ".to_string() } else { format!("R{}", r) });
             if let Some(sfx) = base_reg_suffix { inner = format!("{}.{}", inner, sfx); }
             match ur_reg {
                 Some(255) if base_reg.is_some() => inner = format!("{}+URZ", inner),
@@ -474,6 +476,8 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
 
     // First pass: estimate addresses for labels
     let mut est_addr: u32 = 0;
+    // b9 phase-3 #8: LDGSTS trio preamble is a single 3-slot kernel preamble.
+    let mut ldgsts_trio_est = false;
     for stmt in &kernel.body {
         match stmt {
             PtxStmt::Label(name) => {
@@ -487,7 +491,8 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                 label_addrs.insert(name.clone(), est_addr);
             }
             PtxStmt::Insn(insn) => {
-                let mut expansion_count = estimate_expansion_size(&insn.opcode);
+                let mut expansion_count = b9p8_expansion_count(insn, &mut ldgsts_trio_est)
+                    .unwrap_or_else(|| estimate_expansion_size(&insn.opcode));
                 // b9 phase-3 #4: EXCH / min.s32 / max.s32 with an offset
                 // rebase through an extra IADD3/IADD3.X pair (vendor law,
                 // see lower_atomic; max.s32 is listed defensively -- it
@@ -599,6 +604,10 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
         PtxStmt::Insn(i) => i.opcode.contains("ld.global") || i.opcode.contains("st.global"),
         _ => false,
     });
+
+    // b9 phase-3 #8: the three `@!PT LDS RZ, [RZ]` go out ONCE per kernel,
+    // immediately before the first LDGSTS (all anchors incl. -O3).
+    let mut ldgsts_trio_done = false;
 
     // Second pass: emit instructions
     for (si, stmt) in kernel.body.iter().enumerate() {
@@ -982,6 +991,110 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                             }
                         }
 
+                        // ── b9 phase-3 #8 (exact-name gate like Mbar) ─────
+                        SassTemplate::Vote { ballot, all } => {
+                            if insn.opcode != rule.pattern {
+                                unsupported.insert(insn.opcode.clone());
+                                continue;
+                            }
+                            match lower_vote(addr, insn, &mut alloc, &guard, *ballot, *all)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::MatchAny => {
+                            if insn.opcode != rule.pattern {
+                                unsupported.insert(insn.opcode.clone());
+                                continue;
+                            }
+                            match lower_match_any(addr, insn, &mut alloc, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::WarpSyncMask => {
+                            if insn.opcode != rule.pattern {
+                                unsupported.insert(insn.opcode.clone());
+                                continue;
+                            }
+                            match lower_bar_warp(addr, insn, &mut alloc, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::ElectSync => {
+                            if insn.opcode != rule.pattern {
+                                unsupported.insert(insn.opcode.clone());
+                                continue;
+                            }
+                            match lower_elect(addr, insn, &mut alloc, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::Nanosleep => {
+                            if insn.opcode != rule.pattern {
+                                unsupported.insert(insn.opcode.clone());
+                                continue;
+                            }
+                            if guard.is_some() { unsupported.insert(insn.opcode.clone()); continue; }
+                            let ops = match insn.operands.get(0) {
+                                Some(PtxOperand::IntImm(v)) => vec![Operand::Imm32(*v)],
+                                Some(PtxOperand::Reg(n)) => vec![ptx_op_to_sass(&PtxOperand::Reg(n.clone()), &mut alloc, false)],
+                                _ => { unsupported.insert(insn.opcode.clone()); continue; }
+                            };
+                            insns.push(make_insn(addr, "NANOSLEEP", ops, guard.clone()));
+                            addr += 16;
+                        }
+                        SassTemplate::GridDep { wait } => {
+                            if insn.opcode != rule.pattern {
+                                unsupported.insert(insn.opcode.clone());
+                                continue;
+                            }
+                            if guard.is_some() || !insn.operands.is_empty() {
+                                unsupported.insert(insn.opcode.clone()); continue;
+                            }
+                            // vendor: launch_dependents -> PREEXIT, wait -> ACQBULK
+                            // (anchors ns1/griddep_a + corpus p25, -O0 == -O3).
+                            insns.push(make_insn(addr, if *wait { "ACQBULK" } else { "PREEXIT" }, vec![], guard.clone()));
+                            addr += 16;
+                        }
+                        SassTemplate::CpAsync { bypass, ltc } => {
+                            if insn.opcode != rule.pattern {
+                                unsupported.insert(insn.opcode.clone());
+                                continue;
+                            }
+                            match lower_cp_async(addr, insn, &mut alloc, &guard, *bypass, *ltc, &mut ldgsts_trio_done)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::CpAsyncBar { commit, all } => {
+                            if insn.opcode != rule.pattern {
+                                unsupported.insert(insn.opcode.clone());
+                                continue;
+                            }
+                            if guard.is_some() { unsupported.insert(insn.opcode.clone()); continue; }
+                            if *commit {
+                                insns.push(make_insn(addr, "LDGDEPBAR", vec![], None));
+                                addr += 16;
+                            }
+                            if !*commit || *all {
+                                // wait_group N / wait_all (=0): DEPBAR.LE SB0, N
+                                let n = match insn.operands.get(0) {
+                                    _ if *all => 0,
+                                    Some(PtxOperand::IntImm(v)) => *v,
+                                    _ => { unsupported.insert(insn.opcode.clone()); continue; }
+                                };
+                                // SB0 is a scoreboard id: the SASS parser folds
+                                // SB<n> into Imm32(n) (parser.rs, keeps the II key);
+                                // vendor text `DEPBAR.LE SB0, 0x1` and our
+                                // `DEPBAR.LE 0x0, 0x1` are the same encoding.
+                                insns.push(make_insn(addr, "DEPBAR.LE", vec![Operand::Imm32(0), Operand::Imm32(n)], None));
+                                addr += 16;
+                            }
+                        }
+
                         SassTemplate::Nop => {
                             // generic no-op lowering (kept for legacy rules)
                         }
@@ -1245,6 +1358,53 @@ fn is_cc_op(opcode: &str) -> bool {
     opcode.starts_with("add.cc.") || opcode.starts_with("addc.")
         || opcode.starts_with("sub.cc.") || opcode.starts_with("subc.")
         || opcode.starts_with("mad.lo.cc.") || opcode.starts_with("madc.")
+}
+
+/// b9 phase-3 #8: shape-exact expansion sizes for vote/match/elect/
+/// bar.warp/nanosleep/griddep/cvta.shared/cp.async ops (labels after these
+/// must not shift; first pass has the operands available, unlike
+/// estimate_expansion_size). Returns None for ops outside the family.
+fn b9p8_expansion_count(insn: &PtxInsn, trio_est: &mut bool) -> Option<u32> {
+    let op = insn.opcode.as_str();
+    let imm_last = matches!(insn.operands.last(), Some(PtxOperand::IntImm(_)));
+    let n = match op {
+        "vote.sync.ballot.b32" | "vote.sync.any.pred" | "vote.sync.all.pred"
+        | "match.any.sync.b32" => if imm_last { 4 } else { 3 },
+        "bar.warp.sync" => if imm_last { 3 } else { 2 },
+        "elect.sync" => {
+            let real_dst = match insn.operands.get(0) {
+                Some(PtxOperand::Reg(n)) => !n.starts_with("%rx|"),
+                _ => false,
+            };
+            3 + imm_last as u32 + real_dst as u32
+        }
+        "nanosleep.u32" | "griddepcontrol.wait" | "griddepcontrol.launch_dependents" => 1,
+        "cp.async.commit_group" | "cp.async.wait_group" => 1,
+        "cp.async.wait_all" => 2,
+        _ if op.starts_with("cp.async.c") => {
+            let dst_off = match insn.operands.get(0) {
+                Some(PtxOperand::Addr { offset, .. }) => *offset != 0,
+                _ => false,
+            };
+            let mut c = 1 + dst_off as u32;
+            if let Some(sz) = insn.operands.get(3) {
+                c += match sz {
+                    PtxOperand::IntImm(_) => 4, // ISETP, MOV, IADD3, LOP3
+                    _ => 3,                     // ISETP, IADD3, LOP3
+                };
+                c += 4; // W-copy carry pair + offset-add carry pair
+            }
+            c
+        }
+        "cvt.u64.u16" => 2,
+        _ => return None,
+    };
+    // the 3-slot `@!PT LDS RZ, [RZ]` preamble precedes the FIRST LDGSTS only
+    if op.starts_with("cp.async.c") && !*trio_est {
+        *trio_est = true;
+        return Some(n + 3);
+    }
+    Some(n)
 }
 
 fn estimate_expansion_size(opcode: &str) -> u32 {
@@ -1703,6 +1863,328 @@ fn lower_mapa(
     let n = ((a - addr) / 16) as u32;
     Ok(Some((out, n)))
 }
+
+// ── b9 phase-3 #8: vote/match/bar.warp/elect/nanosleep/griddep/cp.async ──
+
+/// Label pseudo-instruction following the PtxStmt::Label convention
+/// (same form as lower_cluster_barrier's per-expansion gensyms).
+fn push_gensym_label(out: &mut Vec<Instruction>, name: &str) {
+    out.push(Instruction {
+        addr: a_dummy(), opcode: String::new(), opcode_full: String::new(),
+        key: String::new(), guard: None, operands: vec![], modifiers: vec![],
+        ctrl: ControlCode::default(), hand_sched: false, rsd: None,
+        raw_text: format!("{}:", name),
+    });
+}
+
+/// WARPSYNC.COLLECTIVE mask protocol open (b9p8 anchors): an imm membermask
+/// materializes via MOV into a shared scratch, a reg mask is used directly.
+/// Emits [MOV ;] WARPSYNC.COLLECTIVE mask, `(lbl). Returns the mask's reg.
+fn b9p8_warpsync_open(
+    out: &mut Vec<Instruction>, a: &mut u32, alloc: &mut RegAlloc,
+    mask: Option<&PtxOperand>, lbl: &str,
+) -> Option<u8> {
+    let mreg = match mask {
+        Some(PtxOperand::IntImm(v)) => {
+            let r = alloc.gpr("$ws_mask");
+            out.push(make_insn(*a, "MOV", vec![op_reg(r), op_imm(*v)], None));
+            *a += 16;
+            r
+        }
+        Some(PtxOperand::Reg(name)) => alloc.resolve(name),
+        _ => return None,
+    };
+    out.push(make_insn(*a, "WARPSYNC.COLLECTIVE",
+        vec![op_reg(mreg), Operand::Label(lbl.to_string())], None));
+    *a += 16;
+    Some(mreg)
+}
+
+/// vote.sync.{ballot.b32, any.pred, all.pred} (anchors vm1 + v_vote1).
+/// ballot: VOTE.ANY Rd, PT, Ps -- pred-family: VOTE.{ANY,ALL} Pd, Ps.
+fn lower_vote(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+    ballot: bool, all: bool,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    let mut out: Vec<Instruction> = Vec::new();
+    let mut a = addr;
+    let lbl = format!("VOT_{:x}_END", addr);
+    if b9p8_warpsync_open(&mut out, &mut a, alloc, insn.operands.get(2), &lbl).is_none() {
+        return Ok(None);
+    }
+    if ballot {
+        let d = match insn.operands.get(0) {
+            Some(PtxOperand::Reg(n)) => op_reg(alloc.resolve(n)),
+            _ => return Ok(None),
+        };
+        let p = match insn.operands.get(1) {
+            Some(PtxOperand::Pred(n)) => Operand::Pred { num: alloc.pred(n), neg: false },
+            _ => return Ok(None),
+        };
+        out.push(make_insn(a, "VOTE.ANY", vec![d, op_pt(), p], None));
+        a += 16;
+    } else {
+        let d = match insn.operands.get(0) {
+            Some(PtxOperand::Pred(n)) => Operand::Pred { num: alloc.pred(n), neg: false },
+            _ => return Ok(None),
+        };
+        let p = match insn.operands.get(1) {
+            Some(PtxOperand::Pred(n)) => Operand::Pred { num: alloc.pred(n), neg: false },
+            _ => return Ok(None),
+        };
+        out.push(make_insn(a, if all { "VOTE.ALL" } else { "VOTE.ANY" }, vec![d, p], None));
+        a += 16;
+    }
+    out.push(make_insn(a, "ENDCOLLECTIVE", vec![], None));
+    a += 16;
+    push_gensym_label(&mut out, &lbl);
+    let n = ((a - addr) / 16) as u32;
+    Ok(Some((out, n)))
+}
+
+/// match.any.sync.b32 (anchors vm1 + p_matchany): MATCH.ANY Rd, Rs.
+fn lower_match_any(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    let mut out: Vec<Instruction> = Vec::new();
+    let mut a = addr;
+    let lbl = format!("MAT_{:x}_END", addr);
+    if b9p8_warpsync_open(&mut out, &mut a, alloc, insn.operands.get(2), &lbl).is_none() {
+        return Ok(None);
+    }
+    let d = match insn.operands.get(0) {
+        Some(PtxOperand::Reg(n)) => op_reg(alloc.resolve(n)),
+        _ => return Ok(None),
+    };
+    let s = match insn.operands.get(1) {
+        Some(PtxOperand::Reg(n)) => op_reg(alloc.resolve(n)),
+        _ => return Ok(None),
+    };
+    out.push(make_insn(a, "MATCH.ANY", vec![d, s], None));
+    a += 16;
+    out.push(make_insn(a, "ENDCOLLECTIVE", vec![], None));
+    a += 16;
+    push_gensym_label(&mut out, &lbl);
+    let n = ((a - addr) / 16) as u32;
+    Ok(Some((out, n)))
+}
+
+/// bar.warp.sync mask (anchor bw1 + corpus p_ldgsts): bare WARPSYNC pair.
+fn lower_bar_warp(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    let mut out: Vec<Instruction> = Vec::new();
+    let mut a = addr;
+    let lbl = format!("BWS_{:x}_END", addr);
+    if b9p8_warpsync_open(&mut out, &mut a, alloc, insn.operands.get(0), &lbl).is_none() {
+        return Ok(None);
+    }
+    out.push(make_insn(a, "ENDCOLLECTIVE", vec![], None));
+    a += 16;
+    push_gensym_label(&mut out, &lbl);
+    let n = ((a - addr) / 16) as u32;
+    Ok(Some((out, n)))
+}
+
+/// elect.sync d|p, mask (anchors ns1/elect_a + el2/elect_sink + corpus p26).
+/// ELECT Pp, UR79, PT; the %rx sink dst skips the trailing MOV from UR79.
+fn lower_elect(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    let pipe = match insn.operands.get(0) {
+        Some(PtxOperand::Reg(n)) => n.clone(),
+        _ => return Ok(None),
+    };
+    let parts: Vec<&str> = pipe.split('|').collect();
+    if parts.len() != 2 { return Ok(None); }
+    let mut out: Vec<Instruction> = Vec::new();
+    let mut a = addr;
+    let lbl = format!("ELC_{:x}_END", addr);
+    if b9p8_warpsync_open(&mut out, &mut a, alloc, insn.operands.get(1), &lbl).is_none() {
+        return Ok(None);
+    }
+    let pd = match parts[1] {
+        "%px" | "%p" => None,
+        n => Some(Operand::Pred { num: alloc.pred(n), neg: false }),
+    };
+    // ELECT always produces a pred (anchor: P0/P1) and UR79.
+    let elect_pd = match &pd {
+        Some(p) => p.clone(),
+        None => Operand::Pred { num: alloc.pred("%elect_sink"), neg: false },
+    };
+    out.push(make_insn(a, "ELECT", vec![
+        elect_pd,
+        Operand::UReg { num: 79, neg: false, abs: false, inv: false, reuse: false, is_zero: false },
+        op_pt(),
+    ], None));
+    a += 16;
+    match parts[0] {
+        "%rx" => {}
+        n => {
+            out.push(make_insn(a, "MOV", vec![
+                op_reg(alloc.resolve(n)),
+                Operand::UReg { num: 79, neg: false, abs: false, inv: false, reuse: false, is_zero: false },
+            ], None));
+            a += 16;
+        }
+    }
+    out.push(make_insn(a, "ENDCOLLECTIVE", vec![], None));
+    a += 16;
+    push_gensym_label(&mut out, &lbl);
+    let n = ((a - addr) / 16) as u32;
+    Ok(Some((out, n)))
+}
+
+/// cp.async.ca/cg.shared.global[.L2::hint] [dst], [src], N {, src_size}.
+/// Vendor anchors (cp1/cp2/cp3 -O0 + corpus b_cpasync/p_ldgsts/p13):
+/// plain forms are a bare LDGSTS (dst [R..], src desc[UR4][G.64+off]);
+/// a src-size operand (imm or reg) switches to the ZFILL form with the
+/// size-adjust glue (Pz = sz==0; off = (0x10 - sz) & 0xF; 64-bit src
+/// advance through IADD3/IADD3.X carry pairs; trailing !Pz predicate).
+/// The PTX dst/src offsets fold into the address math (anchor cp1).
+fn lower_cp_async(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+    bypass: bool, ltc: Option<u16>, trio_done: &mut bool,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    let (dst_name, dst_off) = match insn.operands.get(0) {
+        Some(PtxOperand::Addr { base, offset }) if base.starts_with('%') => (base.clone(), *offset),
+        _ => return Ok(None),
+    };
+    let (src_name, src_off) = match insn.operands.get(1) {
+        Some(PtxOperand::Addr { base, offset }) if base.starts_with('%') => (base.clone(), *offset),
+        _ => return Ok(None),
+    };
+    if !alloc.is_64bit(&src_name) { return Ok(None); }
+    let size = match insn.operands.get(2) {
+        Some(PtxOperand::IntImm(v)) if *v == 4 || *v == 8 || *v == 16 => *v,
+        _ => return Ok(None),
+    };
+    let sz_op = insn.operands.get(3);
+    let zfill = sz_op.is_some();
+
+    let mut out: Vec<Instruction> = Vec::new();
+    let mut a = addr;
+
+    // dst address: +offset folded into a scratch (anchor cp1: IADD3 d, base, imm)
+    let dst_reg = alloc.resolve(&dst_name);
+    let d_use = if dst_off != 0 {
+        let t = alloc.gpr("$cp_dst");
+        out.push(make_insn(a, "IADD3", vec![op_reg(t), op_pt(), op_pt(), op_reg(dst_reg), op_imm(dst_off), op_rz()], None));
+        a += 16;
+        t
+    } else { dst_reg };
+
+    // src pair + optional ZFILL glue
+    let (glo, ghi) = alloc.gpr_pair(&src_name);
+    let (src_use, zpred): (u8, Option<u8>) = if !zfill {
+        (glo, None)
+    } else {
+        let pz = alloc.pred("$cp_zp");
+        let pq = alloc.pred("$cp_cq");
+        let off = alloc.gpr("$cp_off");
+        match sz_op {
+            // reg: ISETP.EQ.U32.AND Pz, PT, Rs, RZ, PT  (32-bit only; a 64-bit
+            // src-size is unattested -> fail closed)
+            Some(PtxOperand::Reg(rn)) if !alloc.is_64bit(rn) => {
+                out.push(make_insn(a, "ISETP.EQ.U32.AND",
+                    vec![Operand::Pred { num: pz, neg: false }, op_pt(), op_reg(alloc.resolve(rn)), op_rz(), op_pt()], None));
+                a += 16;
+                out.push(make_insn(a, "IADD3",
+                    vec![op_reg(off), op_pt(), op_pt(),
+                         Operand::Reg { num: alloc.resolve(rn), neg: true, abs: false, inv: false, reuse: false },
+                         op_imm(0x10), op_rz()], None));
+                a += 16;
+            }
+            // imm: ISETP.EQ.U32.AND Pz, PT, RZ, imm, PT ; MOV off, imm ;
+            //      IADD3 off, -off, 0x10  (anchor p13/cp3: MOV precedes IADD3)
+            Some(PtxOperand::IntImm(v)) if *v >= 0 && *v <= 16 => {
+                out.push(make_insn(a, "ISETP.EQ.U32.AND",
+                    vec![Operand::Pred { num: pz, neg: false }, op_pt(), op_rz(), op_imm(*v), op_pt()], None));
+                a += 16;
+                out.push(make_insn(a, "MOV", vec![op_reg(off), op_imm(*v)], None));
+                a += 16;
+                out.push(make_insn(a, "IADD3",
+                    vec![op_reg(off), op_pt(), op_pt(),
+                         Operand::Reg { num: off, neg: true, abs: false, inv: false, reuse: false },
+                         op_imm(0x10), op_rz()], None));
+                a += 16;
+            }
+            _ => return Ok(None),
+        }
+        out.push(make_insn(a, "LOP3.LUT", vec![op_reg(off), op_reg(off), op_imm(0xf), op_rz(), op_imm(0xc0), op_not_pt()], None));
+        a += 16;
+        // 64-bit working copy of the src address (flatten pair, absorbing
+        // the PTX src offset first when present; anchor cp1 0x200/0x210).
+        let w = alloc.gpr("$cp_wlo");
+        let wh = alloc.gpr("$cp_whi");
+        if src_off != 0 {
+            out.push(make_insn(a, "IADD3", vec![op_reg(w), Operand::Pred { num: pq, neg: false }, op_pt(), op_reg(glo), op_imm(src_off), op_rz()], None));
+        } else {
+            out.push(make_insn(a, "IADD3", vec![op_reg(w), Operand::Pred { num: pq, neg: false }, op_pt(), op_reg(glo), op_rz(), op_rz()], None));
+        }
+        a += 16;
+        out.push(make_insn(a, "IADD3.X", vec![
+            op_reg(wh), op_pt(), op_pt(), op_reg(ghi), op_rz(), op_rz(),
+            Operand::Pred { num: pq, neg: false }, op_not_pt()], None));
+        a += 16;
+        out.push(make_insn(a, "IADD3", vec![
+            op_reg(w), Operand::Pred { num: pq, neg: false }, op_pt(), op_reg(w), op_reg(off), op_rz()], None));
+        a += 16;
+        out.push(make_insn(a, "IADD3.X", vec![
+            op_reg(wh), op_pt(), op_pt(), op_reg(wh), op_rz(), op_rz(),
+            Operand::Pred { num: pq, neg: false }, op_not_pt()], None));
+        a += 16;
+        (w, Some(pz))
+    };
+
+    // kernel-wide trio preamble before the first LDGSTS
+    if !*trio_done {
+        for _ in 0..3 {
+            out.push(make_insn(a, "LDS", vec![
+                op_rz(),
+                Operand::Addr { base_reg: Some(255), base_reg_suffix: None, ur_reg: None, offset: 0 },
+            ], Some(Guard { pred: 7, negated: true, uniform: false })));
+            a += 16;
+        }
+        *trio_done = true;
+    }
+
+    // modifier suffix in vendor print order: E, BYPASS, LTC128B/256B, width, ZFILL
+    let mut sfx = String::from("LDGSTS.E");
+    if bypass { sfx.push_str(".BYPASS"); }
+    match ltc { Some(128) => sfx.push_str(".LTC128B"), Some(256) => sfx.push_str(".LTC256B"), _ => {} }
+    if size == 8 { sfx.push_str(".64"); } else if size == 16 { sfx.push_str(".128"); }
+
+    let mut ops = vec![
+        Operand::Addr { base_reg: Some(d_use), base_reg_suffix: None, ur_reg: None, offset: 0 },
+        Operand::Desc {
+            ur_idx: 4,
+            base_reg: Some(src_use),
+            base_reg_suffix: Some(".64".to_string()),
+            offset: if zfill { 0 } else { src_off },
+        },
+    ];
+    if let Some(pz) = zpred {
+        sfx.push_str(".ZFILL");
+        ops.push(Operand::Pred { num: pz, neg: true });
+    }
+    if ltc == Some(256) && !zfill && !bypass {
+        // mg '64,E,LTC256B' only attested for .ca 8
+        if size != 8 { return Ok(None); }
+    }
+    out.push(make_insn(a, &sfx, ops, None));
+    a += 16;
+
+    let n = ((a - addr) / 16) as u32;
+    Ok(Some((out, n)))
+}
+
+
 
 fn lower_atomic(
     addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>, is_red: bool,
@@ -2318,8 +2800,9 @@ fn lower_cvt(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guar
     let parts: Vec<&str> = insn.opcode.split('.').collect();
     let rounding: Option<&str> = parts[1..].iter().copied()
         .find(|p| matches!(*p, "rn"|"rz"|"rzi"|"rmi"|"rmp"|"rni"|"trunc"));
+    let has_sat = parts[1..].contains(&"sat");
     let type_parts: Vec<&str> = parts[1..].iter()
-        .filter(|p| matches!(**p, "u8"|"s8"|"u16"|"s16"|"u32"|"s32"|"u64"|"s64"|"f16"|"f32"|"f64"|"b8"|"b16"|"b32"|"b64"))
+        .filter(|p| matches!(**p, "u8"|"s8"|"u16"|"s16"|"u32"|"s32"|"u64"|"s64"|"f16"|"f16x2"|"bf16x2"|"f32"|"f64"|"b8"|"b16"|"b32"|"b64"))
         .copied().collect();
 
     if type_parts.len() < 2 { return None; }
@@ -2383,6 +2866,58 @@ fn lower_cvt(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guar
         (dst, srct) if dst == srct && matches!(dst, "s32"|"u32"|"b32") => {
             one!("MOV".to_string(), d, a)
         }
+        // b9 phase-3 #8 sub-word + f16 chain vendor anchors (probes
+        // work/b9p10/cv{1,2,3}_O0):
+        //   f16<-f32 (rn):        F2F.F16.F32 d, a                 (cv1 0x150)
+        //   f16x2<-2*f32 (rn):    F2FP.F16.F32.PACK_AB d, a, b     (cv1 0x1e0)
+        //   f32<-s16 (rn):        I2F.S16 d, a                     (cv3 0x150)
+        //   u32<-u16:             PRMT d, a, 0x7710, RZ            (cv1 0x150)
+        //   s32<-s16:             PRMT d, a, 0x9910, RZ            (cv1 0x150)
+        //   u16<-u32:             PRMT d, a, 0x7610, d  (dst self 4th, cv1)
+        //   u64<-u16:             PRMT dlo, a, 0x7710, RZ ; MOV dhi, RZ (cv2)
+        //   s32<-f64 (rzi):       F2I.F64.TRUNC d, a_pair          (cv1 0x150)
+        //   s16<-f32 (rni.sat):   F2I.S16.NTZ d, a                 (cv2)
+        ("f16", "f32") if rounding == Some("rn") && !has_sat => {
+            Some(Ok(vec![make_insn(addr, "F2F.F16.F32", vec![d, a], guard.clone())]))
+        }
+        ("f16x2", "f32") if rounding == Some("rn") && !has_sat => {
+            let b = match insn.operands.get(2) {
+                Some(o) => ptx_op_to_sass(o, alloc, false),
+                None => return unattested(),
+            };
+            Some(Ok(vec![make_insn(addr, "F2FP.F16.F32.PACK_AB", vec![d, a, b], guard.clone())]))
+        }
+        ("f32", "s16") if rounding == Some("rn") && !has_sat => {
+            Some(Ok(vec![make_insn(addr, "I2F.S16", vec![d, a], guard.clone())]))
+        }
+        ("u32", "u16") => {
+            Some(Ok(vec![make_insn(addr, "PRMT", vec![d, a, Operand::Imm32(0x7710), op_rz()], guard.clone())]))
+        }
+        ("s32", "s16") => {
+            Some(Ok(vec![make_insn(addr, "PRMT", vec![d, a, Operand::Imm32(0x9910), op_rz()], guard.clone())]))
+        }
+        ("u16", "u32") => {
+            // vendor reads the dst back as PRMT's fourth operand (cv1 anchor)
+            let dnum = match &d { Operand::Reg { num, .. } => *num, _ => return unattested() };
+            Some(Ok(vec![make_insn(addr, "PRMT", vec![d, a, Operand::Imm32(0x7610), op_reg(dnum)], guard.clone())]))
+        }
+        ("u64", "u16") => {
+            let (dlo, dhi) = match &insn.operands[0] {
+                PtxOperand::Reg(name) => alloc.gpr_pair(name),
+                _ => return unattested(),
+            };
+            match regnum(&a) {
+                Some(alo) => Some(Ok(vec![
+                    make_insn(addr, "PRMT", vec![op_reg(dlo), op_reg(alo), Operand::Imm32(0x7710), op_rz()], guard.clone()),
+                    make_insn(addr + 16, "MOV", vec![op_reg(dhi), op_rz()], guard),
+                ])),
+                None => unattested(),
+            }
+        }
+        ("s32", "f64") if rounding == Some("rzi") && !has_sat =>
+            one!("F2I.F64.TRUNC".to_string(), d, a),
+        ("s16", "f32") if rounding == Some("rni") && has_sat =>
+            one!("F2I.S16.NTZ".to_string(), d, a),
         _ => unattested(),
     }
 }
