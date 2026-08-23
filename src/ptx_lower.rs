@@ -658,6 +658,62 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                             addr += 16;
                         }
 
+                        // ── b9p12 (phase-3 #10) intmisc/bar lane ─────────
+                        // Every arm re-checks the exact opcode (find_rule is a
+                        // starts_with scan): unattested suffixes -> unsupported.
+                        SassTemplate::Popc32 | SassTemplate::Brev32 | SassTemplate::Clz32
+                        | SassTemplate::BfeU32 => {
+                            if insn.opcode != rule.pattern {
+                                unsupported.insert(insn.opcode.clone()); continue;
+                            }
+                            let r = match &rule.template {
+                                SassTemplate::Popc32 => lower_popc32(addr, insn, &mut alloc, &guard),
+                                SassTemplate::Brev32 => lower_brev32(addr, insn, &mut alloc, &guard),
+                                SassTemplate::Clz32 => lower_clz32(addr, insn, &mut alloc, &guard),
+                                _ => lower_bfe32(addr, insn, &mut alloc, &guard),
+                            }?;
+                            match r {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::BarRed { or } => {
+                            if insn.opcode != rule.pattern {
+                                unsupported.insert(insn.opcode.clone()); continue;
+                            }
+                            match lower_barred(addr, insn, &mut alloc, &guard, *or)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::BarSync { aligned } => {
+                            if insn.opcode != rule.pattern {
+                                unsupported.insert(insn.opcode.clone()); continue;
+                            }
+                            match lower_barsync(addr, insn, &mut alloc, &guard, *aligned)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::BarArrive { aligned } => {
+                            if insn.opcode != rule.pattern {
+                                unsupported.insert(insn.opcode.clone()); continue;
+                            }
+                            match lower_bararrive(addr, insn, &mut alloc, &guard, *aligned)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::DiscardL2 => {
+                            if insn.opcode != rule.pattern {
+                                unsupported.insert(insn.opcode.clone()); continue;
+                            }
+                            match lower_discard_l2(addr, insn, &mut alloc, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+
                         SassTemplate::Add64 => {
                             let (insns64, n) = lower_add64(addr, insn, &mut alloc, guard);
                             insns.extend(insns64);
@@ -1467,7 +1523,18 @@ fn is_cc_op(opcode: &str) -> bool {
 /// must not shift; first pass has the operands available, unlike
 /// estimate_expansion_size). Returns None for ops outside the family.
 fn b9p8_expansion_count(insn: &PtxInsn, trio_est: &mut bool) -> Option<u32> {
+    // b9p12 (phase-3 #10): named-barrier pack (9) vs direct (2); fail-closed
+    // shapes emit 1 slot budget anyway (they land on unsupported and bail).
     let op = insn.opcode.as_str();
+    if op == "bfe.u32" {
+        // MOV pos elided when pos==0 (anchor bfe_probe (0,31)): 7 vs 8 ops.
+        return Some(if matches!(insn.operands.get(2), Some(PtxOperand::IntImm(0))) { 7 } else { 8 });
+    }
+    if op == "barrier.sync" || op == "barrier.arrive" {
+        let imm2 = matches!(insn.operands.get(0), Some(PtxOperand::IntImm(_)))
+            && matches!(insn.operands.get(1), Some(PtxOperand::IntImm(_)));
+        return Some(if insn.operands.len() == 2 && imm2 { 9 } else { 2 });
+    }
     // b9p11: mad.lo.s64 with an immediate c materializes a MOV pair (+2).
     if op == "mad.lo.s64" {
         return Some(if matches!(insn.operands.get(3), Some(PtxOperand::IntImm(_))) { 9 } else { 7 });
@@ -1559,6 +1626,15 @@ fn estimate_expansion_size(opcode: &str) -> u32 {
     if opcode == "min.s64" { return 4; }
     if opcode == "clz.b64" { return 6; }
     if opcode == "popc.b64" { return 7; }
+    // b9p12 (phase-3 #10) exact counts (pack shapes handled in b9p8 expander)
+    if opcode == "clz.b32" { return 2; }
+    if opcode == "popc.b32" || opcode == "brev.b32" { return 3; }
+    if opcode == "bfe.u32" { return 8; } // pos==0 -> 7 handled in b9p8 expander
+    if opcode == "bar.red.and.pred" || opcode == "bar.red.or.pred" { return 3; }
+    if opcode == "bar.sync" || opcode == "barrier.sync.aligned" { return 2; }
+    if opcode == "barrier.sync" || opcode == "barrier.arrive" { return 2; }
+    if opcode == "barrier.arrive.aligned" { return 2; }
+    if opcode.starts_with("setmaxnreg.") { return 0; }
     if opcode == "mul.lo.s64" || opcode == "mad.lo.s64" || opcode == "mul.hi.u64" { return 7; }
     if opcode == "mad.wide.u32" { return 4; }
     if opcode == "cp.async.bulk.shared::cluster.global.mbarrier::complete_tx::bytes" { return 16; }
@@ -3588,7 +3664,18 @@ fn lower_ld_global(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Optio
     let is_v2 = insn.opcode.contains(".v2.");
     let is_64 = insn.opcode.contains("u64") || insn.opcode.contains("b64") || insn.opcode.contains("f64");
 
-    let suffix = if is_v4 { ".E.128" } else if is_v2 || is_64 { ".E.64" } else { ".E" };
+
+    // b9p12 (phase-3 #10): ld.volatile.global.b32 -> LDG.E.EF (anchor corpus
+    // p02_cacheops O0 0x530; rows = b4fill4 LD.EF family). Only the 32-bit
+    // scalar form is attested; vector/wide volatile -> hard fail (rc=1).
+    let is_volatile = insn.opcode.starts_with("ld.volatile.");
+    if is_volatile && (is_v4 || is_v2 || is_64) {
+        anyhow::bail!(
+            "ld.volatile.global wide/vector form has no vendor-anchored lowering ({}); only .b32 attested (b9p12)",
+            insn.opcode);
+    }
+
+    let suffix = if is_volatile { ".E.EF" } else if is_v4 { ".E.128" } else if is_v2 || is_64 { ".E.64" } else { ".E" };
 
     // Resolve address register FIRST (before allocating dst which may reuse it)
     let base_addr = &insn.operands[1];
@@ -3748,4 +3835,261 @@ fn lower_mma(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guar
 
     seq.push(make_insn(addr + 16 * seq.len() as u32, &opf, operands, guard));
     Some(seq)
+}
+
+// ── b9p12 (phase-3 #10) lowerings: intmisc / bar.red / barrier / trap / misc ──
+// Vendor anchors: work/b9p12/probes (corpus p19/p20/v55/p30/p32/p_cctl/p21 O0
+// cubins, both opt levels noted), form probes work/b9p12/t/{bar,bar2,bfe_*}.
+// All shapes outside the anchored set return Ok(None) -> unsupported list
+// (fail-closed, never silent).
+
+/// popc.b32: vendor -O0 idiom keeps the identity AND ladder (anchor p19
+/// 0x350..0x370: LOP3 m=maker(~0); LOP3 t=a&m; POPC d,t).
+fn lower_popc32(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    let d = match reg_of(insn.operands.get(0), alloc) { Some(r) => r, None => return Ok(None) };
+    let a = match ptx_op_to_sass_opt(insn.operands.get(1), alloc) { Some(o) => o, None => return Ok(None) };
+    let t = alloc.gpr("$popc32_t");
+    let out = vec![
+        make_insn(addr, "LOP3.LUT", vec![op_reg(t), op_rz(), op_rz(), op_rz(), op_imm(0x33), op_not_pt()], None),
+        make_insn(addr + 16, "LOP3.LUT", vec![op_reg(t), a, op_reg(t), op_rz(), op_imm(0xc0), op_not_pt()], None),
+        make_insn(addr + 32, "POPC", vec![op_reg(d), op_reg(t)], None),
+    ];
+    Ok(Some((out, 3)))
+}
+
+/// brev.b32: anchor p19 0x380-0x3a0 (BREV; SHF.R.U32.HI by RZ; SGXT.U32 0x20).
+fn lower_brev32(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    let d = match reg_of(insn.operands.get(0), alloc) { Some(r) => r, None => return Ok(None) };
+    let a = match reg_of(insn.operands.get(1), alloc) { Some(r) => r, None => return Ok(None) };
+    let t = alloc.gpr("$brev32_t");
+    let out = vec![
+        make_insn(addr, "BREV", vec![op_reg(t), op_reg(a)], None),
+        make_insn(addr + 16, "SHF.R.U32.HI", vec![op_reg(t), op_rz(), op_rz(), op_reg(t)], None),
+        make_insn(addr + 32, "SGXT.U32", vec![op_reg(d), op_reg(t), op_imm(0x20)], None),
+    ];
+    Ok(Some((out, 3)))
+}
+
+/// clz.b32: anchor p19 0x3c0-0x3d0 (FLO.U32; IADD3 31-x). b9p12 NOTE: phase-1
+/// mapped clz.b32 to a single FLO.U32, dropping 31-x -- semantic bug fixed
+/// here (FLO.U32 returns msb-index, PTX clz = count of leading zeros).
+fn lower_clz32(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    let d = match reg_of(insn.operands.get(0), alloc) { Some(r) => r, None => return Ok(None) };
+    let a = match reg_of(insn.operands.get(1), alloc) { Some(r) => r, None => return Ok(None) };
+    let t = alloc.gpr("$clz32_t");
+    let out = vec![
+        make_insn(addr, "FLO.U32", vec![op_reg(t), op_reg(a)], None),
+        make_insn(addr + 16, "IADD3", vec![op_reg(d), op_pt(), op_pt(), op_neg_reg(t), op_imm(0x1f), op_rz()], None),
+    ];
+    Ok(Some((out, 2)))
+}
+
+/// helper: 32-bit PTX operand -> SASS Reg or Imm32 (fail -> None).
+fn ptx_op_to_sass_opt(op: Option<&PtxOperand>, alloc: &mut RegAlloc) -> Option<Operand> {
+    match op {
+        Some(PtxOperand::Reg(n)) if alloc.is_ptx_reg_name(n) => Some(op_reg(alloc.resolve(n))),
+        Some(PtxOperand::IntImm(v)) => Some(Operand::Imm32(*v)),
+        _ => None,
+    }
+}
+
+/// bfe.u32, IMMEDIATE pos/len only: anchor corpus p20 O0 0x350-0x3c0
+/// (pos|len<<8 const-materialization dance kept verbatim, +PRMT byte-split +
+/// SHF.R.U32.HI + SGXT.U32). Reg pos/len, bfe.s32, guarded -> None.
+fn lower_bfe32(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    let d = match reg_of(insn.operands.get(0), alloc) { Some(r) => r, None => return Ok(None) };
+    let a = match reg_of(insn.operands.get(1), alloc) { Some(r) => r, None => return Ok(None) };
+    let pos = match insn.operands.get(2) {
+        Some(PtxOperand::IntImm(v)) if (0..=255).contains(v) => *v,
+        _ => return Ok(None),
+    };
+    let len = match insn.operands.get(3) {
+        Some(PtxOperand::IntImm(v)) if (1..=255).contains(v) => *v,
+        _ => return Ok(None),
+    };
+    let tl = alloc.gpr("$bfe_len");
+    let tp2 = alloc.gpr("$bfe_pos2");
+    let tl2 = alloc.gpr("$bfe_len2");
+    let t3 = alloc.gpr("$bfe_sh");
+    // pos==0 folds to RZ inline (no MOV, LOP3 c-slot = RZ): 7-op form, anchor
+    // bfe_probe.cubin (0,31) 0x210-0x270; pos!=0: 8-op form (corpus p20 4,12).
+    let mut out: Vec<Instruction> = vec![
+        make_insn(addr, "MOV", vec![op_reg(tl), op_imm(len)], None),
+        make_insn(addr + 16, "SHF.L.U32", vec![op_reg(tl), op_reg(tl), op_imm(0x8), op_rz()], None),
+    ];
+    let mut a2 = 32u32;
+    if pos != 0 {
+        let tp = alloc.gpr("$bfe_pos");
+        out.push(make_insn(addr + a2, "MOV", vec![op_reg(tp), op_imm(pos)], None));
+        a2 += 16;
+        out.push(make_insn(addr + a2, "LOP3.LUT", vec![op_reg(tl), op_reg(tl), op_imm(0xff00), op_reg(tp), op_imm(0xe2), op_not_pt()], None));
+    } else {
+        out.push(make_insn(addr + a2, "LOP3.LUT", vec![op_reg(tl), op_reg(tl), op_imm(0xff00), op_rz(), op_imm(0xe2), op_not_pt()], None));
+    }
+    a2 += 16;
+    out.push(make_insn(addr + a2, "PRMT", vec![op_reg(tp2), op_rz(), op_imm(0x4), op_reg(tl)], None));
+    out.push(make_insn(addr + a2 + 16, "PRMT", vec![op_reg(tl2), op_rz(), op_imm(0x5), op_reg(tl)], None));
+    out.push(make_insn(addr + a2 + 32, "SHF.R.U32.HI", vec![op_reg(t3), op_rz(), op_reg(tp2), op_reg(a)], None));
+    out.push(make_insn(addr + a2 + 48, "SGXT.U32", vec![op_reg(d), op_reg(t3), op_reg(tl2)], None));
+    let n = out.len() as u32;
+    Ok(Some((out, n)))
+}
+
+/// bar.red.{and,or}.pred d, b, s: anchor corpus v55 (0x2b0-0x2d0 AND,
+/// 0x4f0-0x510 OR) + probe bar.ptx (imm bar id=1). WARPSYNC.ALL prefix;
+/// barrier operand: immediate only (encoding is BAR_II_P); register barrier
+/// forms unanchored -> fail-closed.
+fn lower_barred(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>, or: bool,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    let pd = match insn.operands.get(0) {
+        Some(PtxOperand::Pred(n)) => alloc.pred(n),
+        _ => return Ok(None),
+    };
+    let bar = match insn.operands.get(1) {
+        Some(PtxOperand::IntImm(v)) if (0..=15).contains(v) => *v,
+        _ => return Ok(None),
+    };
+    let ps = match insn.operands.get(2) {
+        Some(PtxOperand::Pred(n)) => alloc.pred(n),
+        _ => return Ok(None),
+    };
+    let op = if or { "BAR.RED.OR.DEFER_BLOCKING" } else { "BAR.RED.AND.DEFER_BLOCKING" };
+    let out = vec![
+        make_insn(addr, "WARPSYNC.ALL", vec![], None),
+        make_insn(addr + 16, op, vec![op_imm(bar), Operand::Pred { num: ps, neg: false }], None),
+        make_insn(addr + 32, "B2R.RESULT", vec![op_rz(), Operand::Pred { num: pd, neg: false }], None),
+    ];
+    Ok(Some((out, 3)))
+}
+
+/// Named-barrier collective pack shared by barrier.sync (non-aligned, with
+/// count) and barrier.arrive (non-aligned, with count). Anchor corpus p21
+/// O0 (0xe0-0x160 sync, 0x1c0-0x240 arrive): MOV id; MOV cnt; MOV -1;
+/// WARPSYNC.COLLECTIVE.ALL `(L); SHF.L.U32 cnt<<0x10; LOP3 0xf8 pack
+/// (cnt<<16 | 0xf | id); BAR.x R,R; SHF.R.U32; ENDCOLLECTIVE; L:.
+fn lower_bar_pack(
+    addr: u32, alloc: &mut RegAlloc, id: i64, cnt: i64, arrive: bool,
+) -> Vec<Instruction> {
+    let rid = alloc.gpr("$bar_id");
+    let rcnt = alloc.gpr("$bar_cnt");
+    let rmask = alloc.gpr("$bar_mask");
+    let lbl = format!("BARS_{:x}_END", addr);
+    let mut out: Vec<Instruction> = Vec::new();
+    let mut a = addr;
+    let mut push = |op: &str, ops: Vec<Operand>| {
+        out.push(make_insn(a, op, ops, None));
+        a += 16;
+    };
+    push("MOV", vec![op_reg(rid), op_imm(id)]);
+    push("MOV", vec![op_reg(rcnt), op_imm(cnt)]);
+    push("MOV", vec![op_reg(rmask), op_imm(-1)]);
+    push("WARPSYNC.COLLECTIVE.ALL", vec![Operand::Label(lbl.clone())]);
+    push("SHF.L.U32", vec![op_reg(rcnt), op_reg(rcnt), op_imm(0x10), op_rz()]);
+    push("LOP3.LUT", vec![op_reg(rcnt), op_reg(rcnt), op_imm(0xf), op_reg(rid), op_imm(0xf8), op_not_pt()]);
+    if arrive {
+        push("BAR.ARV", vec![op_reg(rcnt), op_reg(rcnt)]);
+    } else {
+        push("BAR.SYNC.DEFER_BLOCKING", vec![op_reg(rcnt), op_reg(rcnt)]);
+    }
+    push("SHF.R.U32", vec![op_reg(rcnt), op_reg(rcnt), op_imm(0x10), op_rz()]);
+    push("ENDCOLLECTIVE", vec![]);
+    push_gensym_label(&mut out, &lbl);
+    out
+}
+
+/// bar.sync / barrier.sync[.aligned] (anchors: probe bar.ptx + bar2.ptx +
+/// corpus p21). direct forms ALWAYS carry the WARPSYNC.ALL prefix (vendor
+/// law, both opt levels); the non-aligned barrier.sync with a count is the
+/// pack protocol. Everything else (reg barrier, guard) -> None.
+fn lower_barsync(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>, aligned: bool,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    let is_barrier_spell = insn.opcode.starts_with("barrier.");
+    let imm_at = |i: usize| match insn.operands.get(i) {
+        Some(PtxOperand::IntImm(v)) => Some(*v),
+        _ => None,
+    };
+    let nops = insn.operands.len();
+    // single-operand: WARPSYNC.ALL; BAR.SYNC.DEFER_BLOCKING imm
+    if nops == 1 {
+        let bar = match imm_at(0) { Some(v) => v, None => return Ok(None) };
+        let out = vec![
+            make_insn(addr, "WARPSYNC.ALL", vec![], None),
+            make_insn(addr + 16, "BAR.SYNC.DEFER_BLOCKING", vec![op_imm(bar)], None),
+        ];
+        return Ok(Some((out, 2)));
+    }
+    if nops == 2 {
+        let (Some(bar), Some(cnt)) = (imm_at(0), imm_at(1)) else { return Ok(None) };
+        if is_barrier_spell && !aligned {
+            // pack protocol (anchor p21 0xe0-0x160)
+            let out = lower_bar_pack(addr, alloc, bar, cnt, false);
+            return Ok(Some((out, 9)));
+        }
+        // bar.sync I,N / barrier.sync.aligned I,N -> direct II_II (probe bar.ptx/bar2)
+        let out = vec![
+            make_insn(addr, "WARPSYNC.ALL", vec![], None),
+            make_insn(addr + 16, "BAR.SYNC.DEFER_BLOCKING", vec![op_imm(bar), op_imm(cnt)], None),
+        ];
+        return Ok(Some((out, 2)));
+    }
+    Ok(None)
+}
+
+/// barrier.arrive[.aligned] (anchors: corpus p21 pack; probe bar2: aligned =
+/// WARPSYNC.ALL + BAR.ARV immI,immN direct; non-aligned = pack + BAR.ARV R,R).
+fn lower_bararrive(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>, aligned: bool,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    let (Some(bar), Some(cnt)) = (
+        match insn.operands.get(0) { Some(PtxOperand::IntImm(v)) => Some(*v), _ => None },
+        match insn.operands.get(1) { Some(PtxOperand::IntImm(v)) => Some(*v), _ => None },
+    ) else { return Ok(None) };
+    if insn.operands.len() != 2 { return Ok(None); }
+    if aligned {
+        let out = vec![
+            make_insn(addr, "WARPSYNC.ALL", vec![], None),
+            make_insn(addr + 16, "BAR.ARV", vec![op_imm(bar), op_imm(cnt)], None),
+        ];
+        return Ok(Some((out, 2)));
+    }
+    let out = lower_bar_pack(addr, alloc, bar, cnt, true);
+    Ok(Some((out, 9)))
+}
+
+/// discard.global.L2 [a], 128 = CCTL.E.RML2 [pair] (anchor corpus p_cctl O0
+/// 0x200). Other extents/addresses/guards -> None.
+fn lower_discard_l2(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    if insn.operands.len() != 2 { return Ok(None); }
+    match insn.operands.get(1) {
+        Some(PtxOperand::IntImm(128)) => {}
+        _ => return Ok(None),
+    }
+    let addr_op = match insn.operands.get(0) {
+        Some(PtxOperand::Addr { base, offset }) if alloc.is_ptx_reg_name(base) && *offset == 0 => {
+            Operand::Addr { base_reg: Some(alloc.resolve(base)), base_reg_suffix: None, ur_reg: None, offset: 0 }
+        }
+        _ => return Ok(None),
+    };
+    let out = vec![make_insn(addr, "CCTL.E.RML2", vec![addr_op], None)];
+    Ok(Some((out, 1)))
 }

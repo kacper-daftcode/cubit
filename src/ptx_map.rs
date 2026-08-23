@@ -55,6 +55,22 @@ pub enum SassTemplate {
     FSetp,
     /// Shuffle → SHFL.
     Shfl,
+    /// b9p12 (phase-3 #10): popc.b32 = LOP3(~0)/LOP3(&)/POPC idiom.
+    Popc32,
+    /// b9p12: brev.b32 = BREV; SHF.R.U32.HI by RZ; SGXT.U32 0x20.
+    Brev32,
+    /// b9p12: clz.b32 = FLO.U32; IADD3 d,PT,PT,-x,0x1f,RZ (31-x fixup).
+    Clz32,
+    /// b9p12: bfe.u32 with IMMEDIATE pos/len = 8-op vendor -O0 macro.
+    BfeU32,
+    /// b9p12: bar.red.{and,or}.pred = WARPSYNC.ALL + BAR.RED.x + B2R.RESULT.
+    BarRed { or: bool },
+    /// b9p12: bar.sync / barrier.sync[.aligned] family (imm / imm+count / pack).
+    BarSync { aligned: bool },
+    /// b9p12: barrier.arrive[.aligned] (direct II_II / pack + BAR.ARV).
+    BarArrive { aligned: bool },
+    /// b9p12: discard.global.L2 [a], 128 = CCTL.E.RML2 [pair].
+    DiscardL2,
     /// Global load (scalar or vector).
     LdGlobal,
     /// Global store (scalar or vector).
@@ -464,9 +480,28 @@ pub static RULES: &[PtxRule] = &[
     PtxRule { pattern: "shf.r.clamp.b32", template: Single { opcode: "SHF.R.U32",    slots: &[Src(0), Src(1), Src(3), Src(2)] } },
     PtxRule { pattern: "shf.l.wrap.b32",  template: Single { opcode: "SHF.L.W.U32.HI", slots: &[Src(0), Src(1), Src(3), Src(2)] } },
     PtxRule { pattern: "shf.r.wrap.b32",  template: Single { opcode: "SHF.R.W.U32",    slots: &[Src(0), Src(1), Src(3), Src(2)] } },
-    PtxRule { pattern: "popc.b32",      template: Single { opcode: "POPC",  slots: &[Src(0), Src(1)] } },
-    PtxRule { pattern: "brev.b32",      template: Single { opcode: "BREV",  slots: &[Src(0), Src(1)] } },
-    PtxRule { pattern: "clz.b32",       template: Single { opcode: "FLO.U32", slots: &[Src(0), Src(1)] } },
+    // b9p12 (phase-3 #10): phase-1 Singles for popc/brev/clz were GUESS-MAPPINGS,
+    // never anchor-verified (single FLO.U32 for clz dropped the vendor 31-x fixup =
+    // semantic bug, surfaced by corpus p19). Replaced with vendor -O0 macros
+    // (anchors: corpus_p19_intmisc O0 0x350-0x370 / 0x380-0x3a0 / 0x3c0-0x3d0).
+    PtxRule { pattern: "popc.b32",      template: Popc32 },
+    PtxRule { pattern: "brev.b32",      template: Brev32 },
+    PtxRule { pattern: "clz.b32",       template: Clz32 },
+    // b9p12 (phase-3 #10) intmisc easy-aliasing lane, all vendor -O0 anchored:
+    // lop3.b32: LOP3.LUT d,a,b,c,lut,!PT (anchor corpus p20 0x320)
+    PtxRule { pattern: "lop3.b32",      template: Single { opcode: "LOP3.LUT", slots: &[Src(0), Src(1), Src(2), Src(3), Src(4), NotPT] } },
+    // prmt.b32: PTX d,a,b,c(sel) -> PRMT d,a,sel,b (imm mid / reg mid rows both)
+    // (anchors corpus p20 0x330 imm-sel + 0x340 reg-sel)
+    PtxRule { pattern: "prmt.b32",      template: Single { opcode: "PRMT", slots: &[Src(0), Src(1), Src(3), Src(2)] } },
+    // bfind.u32 = FLO.U32 (index of MSB / -1; also the clz sub-op). bfind.shiftamt
+    // = FLO.U32.SH (anchor corpus p19 0x420; plain-bfind probe b9p12_find1).
+    PtxRule { pattern: "bfind.shiftamt.u32", template: Single { opcode: "FLO.U32.SH", slots: &[Src(0), Src(1)] } },
+    PtxRule { pattern: "bfind.u32",     template: Single { opcode: "FLO.U32", slots: &[Src(0), Src(1)] } },
+    // sad.u32 = VABSDIFF.U32 d,a,b,c (anchor corpus p19 0x890, row b9p12 49-word fit)
+    PtxRule { pattern: "sad.u32",       template: Single { opcode: "VABSDIFF.U32", slots: &[Src(0), Src(1), Src(2), Src(3)] } },
+    // bfe.u32 imm pos/len = vendor -O0 8-op macro (anchor corpus p20 0x350-0x3c0);
+    // reg pos/len, .s32, guarded -> fail-closed (unsupported).
+    PtxRule { pattern: "bfe.u32",       template: BfeU32 },
 
     // ── FP32 arithmetic ──────────────────────────────────────────────────
     PtxRule { pattern: "add.f32",       template: Single { opcode: "FADD", slots: &[Src(0), Src(1), Src(2)] } },
@@ -585,6 +620,8 @@ pub static RULES: &[PtxRule] = &[
     // ── Memory ───────────────────────────────────────────────────────────
     PtxRule { pattern: "ld.param.",     template: LoadParam },
     PtxRule { pattern: "ld.global.",    template: LdGlobal },
+    // b9p12: ld.volatile.global.b32 -> LDG.E.EF (suffix handled in lower_ld_global)
+    PtxRule { pattern: "ld.volatile.global.", template: LdGlobal },
     PtxRule { pattern: "st.global.",    template: StGlobal },
     PtxRule { pattern: "ld.shared.",    template: Single { opcode: "LDS", slots: &[Src(0), Src(1)] } },
     PtxRule { pattern: "st.shared.",    template: Single { opcode: "STS", slots: &[Src(0), Src(1)] } },
@@ -600,7 +637,24 @@ pub static RULES: &[PtxRule] = &[
     // (anchor: k3 ptxas probe).
     // b9 phase-2: vendor keeps id AND thread-count (corpus anchor:
     // "BAR.SYNC.DEFER_BLOCKING 0x2, 0x1a0"); missing args resolve to RZ.
-    PtxRule { pattern: "bar.sync",      template: Single { opcode: "BAR.SYNC.DEFER_BLOCKING", slots: &[Src(0), Src(1)] } },
+    // b9p12 (phase-3 #10): bar.sync/barrier sync family re-anchored on the
+    // full corpus mat (probes work/b9p12/t/bar*.ptx):
+    //   bar.sync 0 / barrier.sync[.aligned] 0     -> WARPSYNC.ALL; BAR.SYNC.DEFER_BLOCKING 0x0
+    //   bar.sync I,N / barrier.sync.aligned I,N   -> WARPSYNC.ALL; BAR.SYNC.DEFER_BLOCKING I, N (II_II)
+    //   barrier.sync I,N (non-aligned, with count)-> collective pack protocol (MOV id; MOV cnt;
+    //     MOV -1; WARPSYNC.COLLECTIVE.ALL `(L); SHF.L 0x10; LOP3 0xf8 (cnt<<16|0xf|id);
+    //     BAR.SYNC.DEFER_BLOCKING R,R; SHF.R 0x10; ENDCOLLECTIVE; L:)  [anchor p21 0xe0-0x160]
+    //   barrier.arrive[.aligned] analogous with BAR.ARV (pack) / BAR.ARV I,N (II_II mg ARV).
+    //   reg-form, guard, .cta -> unsupported (fail-closed).
+    PtxRule { pattern: "bar.sync",      template: BarSync { aligned: false } },
+    PtxRule { pattern: "barrier.sync.aligned", template: BarSync { aligned: true } },
+    PtxRule { pattern: "barrier.sync",  template: BarSync { aligned: false } },
+    PtxRule { pattern: "barrier.arrive.aligned", template: BarArrive { aligned: true } },
+    PtxRule { pattern: "barrier.arrive", template: BarArrive { aligned: false } },
+    // bar.red: WARPSYNC.ALL; BAR.RED.{AND,OR}.DEFER_BLOCKING imm, Ps; B2R.RESULT RZ, Pd
+    // (anchors corpus v55 O0 0x2b0-0x2d0 AND + 0x4f0-0x510 OR; probe bar.ptx imm-1).
+    PtxRule { pattern: "bar.red.and.pred", template: BarRed { or: false } },
+    PtxRule { pattern: "bar.red.or.pred",  template: BarRed { or: true } },
     // b9 phase-3 #5: fence/membar family, vendor-anchored (fm1/fm2/fm3).
     // Legacy "MEMBAR.SC.GL" spelling was a silent trap (no encoder key); the
     // vendor form for membar.gl on sm_103a is the SC.GPU glue chain.
@@ -687,6 +741,17 @@ pub static RULES: &[PtxRule] = &[
     // ── Conversions ──────────────────────────────────────────────────────
     PtxRule { pattern: "cvt.",          template: Cvt },
     PtxRule { pattern: "cvta.to.global.u64", template: AliasPair },
+
+    // ── b9p12 (phase-3 #10) misc: trap / setmaxnreg / discard.global.L2 ──
+    // trap = BPT.TRAP 0x1 (anchor corpus p32 O0 0x250 == O3 0x80)
+    PtxRule { pattern: "trap",          template: Single { opcode: "BPT.TRAP", slots: &[Imm(0x1)] } },
+    // setmaxnreg: vendor ELIDES the hint on sm_103a at both -O0 and -O3
+    // (anchors corpus p30 both opt levels: zero SASS emitted). Emit nothing.
+    PtxRule { pattern: "setmaxnreg.inc.sync.aligned.u32", template: Nop },
+    PtxRule { pattern: "setmaxnreg.dec.sync.aligned.u32", template: Nop },
+    // discard.global.L2 [a], 128 = CCTL.E.RML2 [pair] (anchor corpus p_cctl O0
+    // 0x200); other sizes/scopes fail-closed.
+    PtxRule { pattern: "discard.global.L2", template: DiscardL2 },
 
     // ── MMA ──────────────────────────────────────────────────────────────
     PtxRule { pattern: "mma.sync.",     template: Mma },
