@@ -50166,46 +50166,54 @@
      "count": 40
     },
     "E": {
-     "and_base": "0x000e2000081e09000000000008007981",
-     "variable_mask": "0x0061ca00040000000000800ef70f0000",
+     "and_base": "0x000000000c1e09000000000000000981",
+     "variable_mask": "0x0000000000000000ffffff3ffffff000",
      "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "bug099-2026-08-23",
+       "_note": "family-wide guard [15:12]"
+      },
       {
        "shift": 16,
        "bits": 8,
        "token_idx": 1,
        "extraction": "reg",
-       "_src": "2aE"
+       "_src": "bug099-2026-08-23",
+       "_note": "dest R"
       },
       {
        "shift": 24,
-       "bits": 9,
+       "bits": 8,
        "token_idx": 2,
-       "extraction": "sub_r0",
-       "_src": "2aE"
+       "extraction": "reg",
+       "_src": "bug099-2026-08-23",
+       "_note": "raw base reg (was junk sub_r1@24(9))"
       },
       {
        "shift": 32,
-       "bits": 8,
+       "bits": 6,
        "token_idx": 2,
-       "extraction": "sub_ur1",
-       "_src": "2aE"
+       "extraction": "ureg",
+       "_src": "bug099-2026-08-23",
+       "_note": "UR index (was junk sub_ur1@32(8) -> desc render)"
       },
       {
        "shift": 40,
        "bits": 24,
        "token_idx": 2,
-       "extraction": "sub_imm1",
-       "_src": "2aE"
-      },
-      {
-       "shift": 85,
-       "bits": 6,
-       "token_idx": 2,
-       "extraction": "sub_imm1_shr2",
-       "_src": "2aE"
+       "extraction": "imm",
+       "_src": "bug099-2026-08-23",
+       "_note": "address imm [63:40] (was junk sub_imm2 with sign-flip render +-0x80)"
       }
      ],
-     "count": 16
+     "count": 15,
+     "addr_width": "64",
+     "_src": "bug099-2026-08-23",
+     "_note": "095 claim-repair: [Rn.64+URm+imm] raw-UR mode [92:90]=3 population (15 uniq/30 recs corpus 2049); was RE-epoch desc junk claiming the same words and printing desc[UR][R.64+-imm] (silent semantic rewrite). Junk sibling mgs (E,LTC128B/64,E,LTC128B/128,E,LTC128B/64,E) untouched (own legit desc-era claims / encode retention)."
     },
     "128,E,LTC128B": {
      "and_base": "0x0000a0000c1e0d200000000400000981",
@@ -57480,6 +57488,600 @@
      ],
      "count": 1,
      "_evidence": "b9p6 atom-red: NEW ROW ATOMS_R_ARI_R; anchor ptxas 13.3 sm_103a at6 .text.at6_cas+0x190 'ATOMS.CAS R5, [R5], R2, R3'; grid sibling ATOMS_R_ARI_R(ADD) + 4th reg@64 per ATOMG_P_R_ARI_R_R; field extraction verified: 5/5/2/0/3 @16/24/32/40/64"
+    }
+   }
+  },
+  "LDG.E_R_ARURI": {
+   "base_op": "LDG.E",
+   "operand_sig": "R_ARURI",
+   "ctrl_class": null,
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "mod_groups": {
+    "E": {
+     "and_base": "0x181e09000000000000000981",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg"
+      },
+      {
+       "shift": 32,
+       "bits": 6,
+       "token_idx": 2,
+       "extraction": "ureg"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "imm"
+      }
+     ],
+     "variable_mask": "0x0000000010000000ffffff3ffffff000",
+     "count": 1,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23 import-sm120-native",
+     "_note": "099 additive coverage: uniform-indexed raw-address UR form [.U32+UR(+imm)]; geometry sm120-native verbatim (era 82/82 vendor-exact evidence). vm +bit92: absorbs LDG.E mode-2 RZ-anchor (817900ff04.. 1 word corpus 2049, vendor [.U32+UR]); decode partition vs .64 row by bit90."
+    }
+   }
+  },
+  "LDG.E.64_R_ARURI": {
+   "base_op": "LDG.E.64",
+   "operand_sig": "R_ARURI",
+   "ctrl_class": null,
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "mod_groups": {
+    "64,E": {
+     "and_base": "0x181e0b000000000000000981",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg"
+      },
+      {
+       "shift": 32,
+       "bits": 6,
+       "token_idx": 2,
+       "extraction": "ureg"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "imm"
+      }
+     ],
+     "variable_mask": "0xffffff3ffffff000",
+     "count": 20,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23 import-sm120-native",
+     "_note": "099 additive coverage: uniform-indexed raw-address UR form [.U32+UR(+imm)]; geometry sm120-native verbatim (era 82/82 vendor-exact evidence)."
+    }
+   }
+  },
+  "LDG.E.128_R_ARURI": {
+   "base_op": "LDG.E.128",
+   "operand_sig": "R_ARURI",
+   "ctrl_class": null,
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "mod_groups": {
+    "128,E": {
+     "and_base": "0x181e0d000000000000000981",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg"
+      },
+      {
+       "shift": 32,
+       "bits": 6,
+       "token_idx": 2,
+       "extraction": "ureg"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "imm"
+      }
+     ],
+     "variable_mask": "0xffffff3ffffff000",
+     "count": 20,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23 import-sm120-native",
+     "_note": "099 additive coverage: uniform-indexed raw-address UR form [.U32+UR(+imm)]; geometry sm120-native verbatim (era 82/82 vendor-exact evidence)."
+    }
+   }
+  },
+  "LDG.E.NA.STRONG.SM_R_ARURI": {
+   "base_op": "LDG.E.NA.STRONG.SM",
+   "operand_sig": "R_ARURI",
+   "ctrl_class": null,
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "mod_groups": {
+    "E,NA,SM,STRONG": {
+     "and_base": "0x185ea9000000000000000981",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg"
+      },
+      {
+       "shift": 32,
+       "bits": 6,
+       "token_idx": 2,
+       "extraction": "ureg"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "imm"
+      }
+     ],
+     "variable_mask": "0xffffff3ffffff000",
+     "count": 20,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23 import-sm120-native",
+     "_note": "099 additive coverage: uniform-indexed raw-address UR form [.U32+UR(+imm)]; geometry sm120-native verbatim (era 82/82 vendor-exact evidence)."
+    }
+   }
+  },
+  "LDG.E.EL.STRONG.GPU_R_ARURI": {
+   "base_op": "LDG.E.EL.STRONG.GPU",
+   "operand_sig": "R_ARURI",
+   "ctrl_class": null,
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "mod_groups": {
+    "E,EL,GPU,STRONG": {
+     "and_base": "0x182ee9000000000000000981",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg"
+      },
+      {
+       "shift": 32,
+       "bits": 6,
+       "token_idx": 2,
+       "extraction": "ureg"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "imm"
+      }
+     ],
+     "variable_mask": "0xffffff3ffffff000",
+     "count": 2,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23 import-sm120-native",
+     "_note": "099 additive coverage: uniform-indexed raw-address UR form [.U32+UR(+imm)]; geometry sm120-native verbatim (era 82/82 vendor-exact evidence)."
+    }
+   }
+  },
+  "STG.E_ARURI_R": {
+   "base_op": "STG.E",
+   "operand_sig": "ARURI_R",
+   "ctrl_class": null,
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "mod_groups": {
+    "E": {
+     "and_base": "0x81009000000000000000986",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg"
+      },
+      {
+       "shift": 64,
+       "bits": 6,
+       "token_idx": 1,
+       "extraction": "ureg"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "imm"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg"
+      }
+     ],
+     "variable_mask": "0x3fffffffffff00f000",
+     "count": 41,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23 import-sm120-native",
+     "_note": "099 additive coverage: uniform-indexed raw-address UR form [.U32+UR(+imm)]; geometry sm120-native verbatim (era 82/82 vendor-exact evidence)."
+    }
+   }
+  },
+  "STG.E.64_ARURI_R": {
+   "base_op": "STG.E.64",
+   "operand_sig": "ARURI_R",
+   "ctrl_class": null,
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "mod_groups": {
+    "64,E": {
+     "and_base": "0x8100b000000000000000986",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg"
+      },
+      {
+       "shift": 64,
+       "bits": 6,
+       "token_idx": 1,
+       "extraction": "ureg"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "imm"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg"
+      }
+     ],
+     "variable_mask": "0x3fffffffffff00f000",
+     "count": 46,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23 import-sm120-native",
+     "_note": "099 additive coverage: uniform-indexed raw-address UR form [.U32+UR(+imm)]; geometry sm120-native verbatim (era 82/82 vendor-exact evidence)."
+    }
+   }
+  },
+  "STG.E.128_ARURI_R": {
+   "base_op": "STG.E.128",
+   "operand_sig": "ARURI_R",
+   "ctrl_class": null,
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "mod_groups": {
+    "128,E": {
+     "and_base": "0x8100d000000000000000986",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg"
+      },
+      {
+       "shift": 64,
+       "bits": 6,
+       "token_idx": 1,
+       "extraction": "ureg"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "imm"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg"
+      }
+     ],
+     "variable_mask": "0x3fffffffffff00f000",
+     "count": 40,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23 import-sm120-native",
+     "_note": "099 additive coverage: uniform-indexed raw-address UR form [.U32+UR(+imm)]; geometry sm120-native verbatim (era 82/82 vendor-exact evidence)."
+    }
+   }
+  },
+  "STG.E.EL.STRONG.GPU_ARURI_R": {
+   "base_op": "STG.E.EL.STRONG.GPU",
+   "operand_sig": "ARURI_R",
+   "ctrl_class": null,
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "mod_groups": {
+    "E,EL,GPU,STRONG": {
+     "and_base": "0x820e9000000000000000986",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg"
+      },
+      {
+       "shift": 64,
+       "bits": 6,
+       "token_idx": 1,
+       "extraction": "ureg"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "imm"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg"
+      }
+     ],
+     "variable_mask": "0x3fffffffffff00f000",
+     "count": 1,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23 import-sm120-native",
+     "_note": "099 additive coverage: uniform-indexed raw-address UR form [.U32+UR(+imm)]; geometry sm120-native verbatim (era 82/82 vendor-exact evidence)."
+    }
+   }
+  },
+  "STG.E.NA.U16.STRONG.GPU_ARURI_R": {
+   "base_op": "STG.E.NA.U16.STRONG.GPU",
+   "operand_sig": "ARURI_R",
+   "ctrl_class": null,
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "mod_groups": {
+    "E,GPU,NA,STRONG,U16": {
+     "and_base": "0x850e5000000000000000986",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg"
+      },
+      {
+       "shift": 64,
+       "bits": 6,
+       "token_idx": 1,
+       "extraction": "ureg"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "imm"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg"
+      }
+     ],
+     "variable_mask": "0x3fffffffffff00f000",
+     "count": 1,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23 import-sm120-native",
+     "_note": "099 additive coverage: uniform-indexed raw-address UR form [.U32+UR(+imm)]; geometry sm120-native verbatim (era 82/82 vendor-exact evidence)."
+    }
+   }
+  },
+  "STG.E.NA.128.STRONG.GPU_ARURI_R": {
+   "base_op": "STG.E.NA.128.STRONG.GPU",
+   "operand_sig": "ARURI_R",
+   "ctrl_class": null,
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   },
+   "mod_groups": {
+    "128,E,GPU,NA,STRONG": {
+     "and_base": "0x850ed000000000000000986",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg"
+      },
+      {
+       "shift": 64,
+       "bits": 6,
+       "token_idx": 1,
+       "extraction": "ureg"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "imm"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg"
+      }
+     ],
+     "variable_mask": "0x3fffffffffff00f000",
+     "count": 1,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23 import-sm120-native",
+     "_note": "099 additive coverage: uniform-indexed raw-address UR form [.U32+UR(+imm)]; geometry sm120-native verbatim (era 82/82 vendor-exact evidence)."
     }
    }
   }

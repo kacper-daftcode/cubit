@@ -807,7 +807,19 @@ fn format_operand(
         "ARURI" if ins_key.starts_with("LDG.E") || ins_key.starts_with("STG.E")
             || ins_key.starts_with("REDG.E") || ins_key.starts_with("ATOMG.E")
             || ins_key.starts_with("LD_") || ins_key.starts_with("ST_")
-            => format_plain_u32_ur(fields),
+            => format_plain_u32_ur(fields, raw),
+        // BUG-099/095: canon-era key names LDG_R_ARURI / STG_ARURI_R whose
+        // repaired mod groups carry the same plain (reg/ureg/imm) field shape
+        // as the sm120-native rows above must print the same bracket form
+        // (pre-fix they printed desc[UR][R.64] = fabricated semantics for
+        // raw-UR words, e.g. corpus `LDG.E R10, [R12.64+UR12+0x80]`). Junk
+        // desc-form sibling mod groups keep sub_* fields and stay on
+        // format_aruri below, so legit desc claims are untouched.
+        "ARURI" if (ins_key.starts_with("LDG_R_ARURI")
+                    || ins_key.starts_with("STG_ARURI_R"))
+            && fields.iter().any(|f| norm_ext(&f.extraction) == "ureg")
+            && fields.iter().any(|f| norm_ext(&f.extraction) == "reg")
+            => format_plain_u32_ur(fields, raw),
         "ARURI" => format_aruri(fields, raw),
         // No-immediate / UR-only address variants (ARUR/AUR/AURI/AURR/ARURR).
         // These are the same bracket address forms as ARURI (the address entry
@@ -1364,7 +1376,7 @@ fn format_lit_or_sysreg(fields: &[&DecodedField], mod_group: &str, raw: u128) ->
 
 /// BUG-038 plain uniform-indexed global address: LDG.E/STG.E of class bytes
 /// 0x81/0x86 render natively as "[Rn.U32+URm(+0xoff)]" (i108 goldens).
-fn format_plain_u32_ur(fields: &[&DecodedField]) -> String {
+fn format_plain_u32_ur(fields: &[&DecodedField], raw: u128) -> String {
     let mut base: Option<u64> = None;
     let mut ur: Option<u64> = None;
     let mut off: u64 = 0;
@@ -1383,7 +1395,12 @@ fn format_plain_u32_ur(fields: &[&DecodedField]) -> String {
     };
     let u = format!("UR{}", ur.unwrap_or(0));
     let o = if off != 0 { format!("+0x{off:x}") } else { String::new() };
-    format!("[{b}.U32+{u}{o}]")
+    // BUG-099: the plain UR-indexed global form carries a real width mode in
+    // bits [92:90]: vendor prints `[Rn.U32+URm]` for modes 2/6 (era anchors,
+    // 82/82) and `[Rn.64+URm]` for mode 3 (corpus anchors, 15/15). Modes with
+    // bit90=1 && bit91=1 print ".64"; everything else observed prints ".U32".
+    let width = if (raw >> 90) & 0b11 == 0b11 { "64" } else { "U32" };
+    format!("[{b}.{width}+{u}{o}]")
 }
 
 /// BUG-038 LDS scaled shared address: "[R9.X16+0xc000]". The scale suffix comes

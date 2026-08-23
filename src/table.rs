@@ -44,6 +44,16 @@ struct JsonModGroup {
     /// (base_key, "") which must coexist with canonical groups on the same key.
     #[serde(default)]
     pub encode_only: bool,
+    /// BUG-099: uniform-indexed GLOBAL address rows (LDG/STG `R_ARURI` /
+    /// `ARURI_R` keys) encode a real width mode in bits [92:90] that nvdisasm
+    /// prints as `[Rn.U32+URm]` vs `[Rn.64+URm]`. Two rows for the same
+    /// textual key+mg exist (".U32" harvest-native and repaired ".64"), so the
+    /// textual bracket suffix is the only encoder discriminator. Rows may pin
+    /// `"U32"` or `"64"`; a mismatched textual suffix is a hard miss
+    /// (pre-fix it silently encoded the wrong mode). Rows without the attr
+    /// keep legacy suffix-blind behavior.
+    #[serde(default)]
+    pub addr_width: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -305,6 +315,9 @@ pub struct ModGroupEntry {
     /// text compatibility at (base_key, "") granularity; canonical groups on
     /// the same key still own the decode surface).
     pub encode_only: bool,
+    /// BUG-099: optional pinned address width for uniform-indexed global
+    /// address rows ("U32"/"64"); see JsonModGroup::addr_width.
+    pub addr_width: Option<String>,
 }
 
 /// All modifier groups for one instruction key.
@@ -505,7 +518,7 @@ impl IsaTable {
                         vm
                     });
 
-                mod_groups.insert(mods, ModGroupEntry { and_base, variable_mask, fields, encode_only: jmg.encode_only });
+                mod_groups.insert(mods, ModGroupEntry { and_base, variable_mask, fields, encode_only: jmg.encode_only, addr_width: jmg.addr_width.clone() });
             }
 
             entries.insert(key, InsKeyEntry { mod_groups, ctrl_class: None, epoch_upper32: None, encode_only: jik.encode_only });

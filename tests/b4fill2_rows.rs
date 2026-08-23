@@ -131,12 +131,17 @@ fn b4fill2_render_only() {
     // The 3 remaining words are raw-address uniform-indexed LDG/STG era forms
     // canon does not cover yet (F2Q-099; sm120.json decodes all three
     // vendor-exact today via its LDG/STG keys).
-    for &word in &[
-        0x000e2400181e0b000000000806087981u128,
-        0x0007e40008100b0c0000003444007986u128,
-        0x000e2400181e0b0000080008060a7981u128,
+    // BUG-099 (F2-iter36): canon coverage for the raw-address uniform-indexed
+    // era forms LANDED (donor keys imported verbatim from sm120 + 095 repair
+    // of LDG_R_ARURI::E). Decode is now VENDOR-EXACT on both tables (era dec
+    // re-pin NOTE_099: all 193 changed slots == nvdisasm text); the
+    // fail-closed pin is retired into an exact-render pin.
+    for &(word, golden) in &[
+        (0x000e2400181e0b000000000806087981u128, "LDG.E.64 R8, [R6.U32+UR8]"),
+        (0x0007e40008100b0c0000003444007986u128, "STG.E.64 [R68.U32+UR12], R52"),
+        (0x000e2400181e0b0000080008060a7981u128, "LDG.E.64 R10, [R6.U32+UR8+0x800]"),
     ] {
-        assert!(idx.decode(word, 0, &t).is_err(),
-            "junk-glif era word {word:032x} must stay fail-closed until F2Q-099 coverage lands");
+        let d = idx.decode(word, 0, &t).unwrap();
+        assert_eq!(cubit::printer::to_sass(&d), golden);
     }
 }

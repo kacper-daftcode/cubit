@@ -260,6 +260,23 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
     if (insn.opcode == "LDG" || insn.opcode == "STG")
         && insn.operands.iter().any(|op| matches!(op, Operand::Addr { .. }))
         && !insn.operands.iter().any(|op| matches!(op, Operand::Desc { .. })) {
+        // BUG-099/095: uniform-indexed GLOBAL addresses ([Rn.U32+URm..] vs
+        // [Rn.64+URm..]) differ in a REAL encoding mode (bits [92:90]); rows
+        // for both textual forms sit under the same key+mg, so the bracket
+        // suffix is the only discriminator. A row pinning `addr_width` must
+        // match the textual suffix — pre-fix the ".64" text silently encoded
+        // the ".U32" mode word. Runs BEFORE the raw-address Ok bypass: LOUD
+        // rejection here steers the lookup chain to the sibling row.
+        if let Some(Operand::Addr { ur_reg: Some(_), base_reg_suffix: Some(sfx), .. }) =
+            insn.operands.iter().find(|op| matches!(op, Operand::Addr { .. }))
+        {
+            if let Some(w) = entry.addr_width.as_deref() {
+                if matches!(sfx.as_str(), "U32" | "64") && sfx.as_str() != w {
+                    return Err(format!(
+                        "addr width .{sfx} (row pins .{w}; pick the sibling row)"));
+                }
+            }
+        }
         return Ok(());
     }
 
@@ -351,6 +368,14 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
             Operand::Addr { ur_reg, offset, base_reg_suffix, .. } => {
                 // base_reg is placed at bits[31:24] by the encoder fixup when the
                 // entry lacks the field, so it is always encodable.
+                // BUG-099/095: same width-pin rule as the raw-address fast path
+                // above, for LDG/STG forms WITH desc or non-global Addr users.
+                if let (Some(sfx), Some(w)) = (base_reg_suffix.as_deref(), entry.addr_width.as_deref()) {
+                    if ur_reg.is_some() && matches!(sfx, "U32" | "64") && sfx != w {
+                        return missing(&format!(
+                            "addr width .{sfx} (row pins .{w}; pick the sibling row)"));
+                    }
+                }
                 if ur_reg.is_some_and(|u| u != 63)
                     && !fields_for_tok().any(|f| ext_encodes_ureg(&f.extraction)) {
                     return missing("addr UR");

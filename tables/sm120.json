@@ -7006,46 +7006,54 @@
      "count": 40
     },
     "E": {
-     "and_base": "0x000e2000081e09000000000008007981",
-     "variable_mask": "0x0061ca00040000000000800ef70f0000",
+     "and_base": "0x000000000c1e09000000000000000981",
+     "variable_mask": "0x0000000000000000ffffff3ffffff000",
      "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard",
+       "_src": "bug099-2026-08-23",
+       "_note": "family-wide guard [15:12]"
+      },
       {
        "shift": 16,
        "bits": 8,
        "token_idx": 1,
        "extraction": "reg",
-       "_src": "2aE"
+       "_src": "bug099-2026-08-23",
+       "_note": "dest R"
       },
       {
        "shift": 24,
-       "bits": 9,
+       "bits": 8,
        "token_idx": 2,
-       "extraction": "sub_r0",
-       "_src": "2aE"
+       "extraction": "reg",
+       "_src": "bug099-2026-08-23",
+       "_note": "raw base reg (was junk sub_r1@24(9))"
       },
       {
        "shift": 32,
-       "bits": 8,
+       "bits": 6,
        "token_idx": 2,
-       "extraction": "sub_ur1",
-       "_src": "2aE"
+       "extraction": "ureg",
+       "_src": "bug099-2026-08-23",
+       "_note": "UR index (was junk sub_ur1@32(8) -> desc render)"
       },
       {
        "shift": 40,
        "bits": 24,
        "token_idx": 2,
-       "extraction": "sub_imm1",
-       "_src": "2aE"
-      },
-      {
-       "shift": 85,
-       "bits": 6,
-       "token_idx": 2,
-       "extraction": "sub_imm1_shr2",
-       "_src": "2aE"
+       "extraction": "imm",
+       "_src": "bug099-2026-08-23",
+       "_note": "address imm [63:40] (was junk sub_imm2 with sign-flip render +-0x80)"
       }
      ],
-     "count": 16
+     "count": 15,
+     "addr_width": "64",
+     "_src": "bug099-2026-08-23",
+     "_note": "095 claim-repair: [Rn.64+URm+imm] raw-UR mode [92:90]=3 population (15 uniq/30 recs corpus 2049); was RE-epoch desc junk claiming the same words and printing desc[UR][R.64+-imm] (silent semantic rewrite). Junk sibling mgs (E,LTC128B/64,E,LTC128B/128,E,LTC128B/64,E) untouched (own legit desc-era claims / encode retention)."
     },
     "128,E,LTC128B": {
      "and_base": "0x0000a0000c1e0d200000000400000981",
@@ -164315,7 +164323,10 @@
       }
      ],
      "variable_mask": "0xffffff3ffffff000",
-     "count": 20
+     "count": 20,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23",
+     "_note": "099: pin textual suffix for encoder disambiguation vs sibling .64 row (decode unchanged)."
     }
    }
   },
@@ -164360,7 +164371,10 @@
       }
      ],
      "variable_mask": "0xffffff3ffffff000",
-     "count": 20
+     "count": 20,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23",
+     "_note": "099: pin textual suffix for encoder disambiguation vs sibling .64 row (decode unchanged)."
     }
    }
   },
@@ -164405,7 +164419,10 @@
       }
      ],
      "variable_mask": "0xffffff3ffffff000",
-     "count": 2
+     "count": 2,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23",
+     "_note": "099: pin textual suffix for encoder disambiguation vs sibling .64 row (decode unchanged)."
     }
    }
   },
@@ -164450,7 +164467,10 @@
       }
      ],
      "variable_mask": "0xffffff3ffffff000",
-     "count": 20
+     "count": 20,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23",
+     "_note": "099: pin textual suffix for encoder disambiguation vs sibling .64 row (decode unchanged)."
     }
    }
   },
@@ -164494,8 +164514,11 @@
        "extraction": "imm"
       }
      ],
-     "variable_mask": "0xffffff3ffffff000",
-     "count": 1
+     "variable_mask": "0x0000000010000000ffffff3ffffff000",
+     "count": 1,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23",
+     "_note": "099: pin textual suffix for encoder disambiguation vs sibling .64 row (decode unchanged)."
     }
    }
   },
@@ -164540,7 +164563,10 @@
       }
      ],
      "variable_mask": "0x3fffffffffff00f000",
-     "count": 40
+     "count": 40,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23",
+     "_note": "099: pin textual suffix for encoder disambiguation vs sibling .64 row (decode unchanged)."
     }
    }
   },
@@ -164585,7 +164611,10 @@
       }
      ],
      "variable_mask": "0x3fffffffffff00f000",
-     "count": 46
+     "count": 46,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23",
+     "_note": "099: pin textual suffix for encoder disambiguation vs sibling .64 row (decode unchanged)."
     }
    }
   },
@@ -164630,7 +164659,10 @@
       }
      ],
      "variable_mask": "0x3fffffffffff00f000",
-     "count": 1
+     "count": 1,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23",
+     "_note": "099: pin textual suffix for encoder disambiguation vs sibling .64 row (decode unchanged)."
     }
    }
   },
@@ -164675,7 +164707,10 @@
       }
      ],
      "variable_mask": "0x3fffffffffff00f000",
-     "count": 1
+     "count": 1,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23",
+     "_note": "099: pin textual suffix for encoder disambiguation vs sibling .64 row (decode unchanged)."
     }
    }
   },
@@ -164720,7 +164755,10 @@
       }
      ],
      "variable_mask": "0x3fffffffffff00f000",
-     "count": 1
+     "count": 1,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23",
+     "_note": "099: pin textual suffix for encoder disambiguation vs sibling .64 row (decode unchanged)."
     }
    }
   },
@@ -164765,7 +164803,10 @@
       }
      ],
      "variable_mask": "0x3fffffffffff00f000",
-     "count": 41
+     "count": 41,
+     "addr_width": "U32",
+     "_src": "bug099-2026-08-23",
+     "_note": "099: pin textual suffix for encoder disambiguation vs sibling .64 row (decode unchanged)."
     }
    }
   },
