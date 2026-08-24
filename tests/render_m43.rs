@@ -98,7 +98,12 @@ fn t_render_verify_detects_drift() {
     assert!(run_file(&src, true).is_ok());
     // mutate IR then render+verify consistency holds also post-RA:
     let xfers: Vec<_> = sf.kernels[0].instructions.iter().map(reg_xfer).collect();
-    let plan = plan_for_mode(&RaMode::Identity, "k", &xfers).unwrap();
+    let pxfers: Vec<_> = sf.kernels[0]
+        .instructions
+        .iter()
+        .map(|i| cubit::pred_liveness::pred_xfer(i, cubit::pred_liveness::XferMode::Strict))
+        .collect();
+    let plan = plan_for_mode(&RaMode::Identity, "k", &xfers, &pxfers).unwrap();
     apply_plan(&mut sf.kernels[0].instructions, &plan).unwrap();
     let out = render_file(&sf).unwrap();
     let sf3 = parse_sass_file_str_strict(&out).unwrap();

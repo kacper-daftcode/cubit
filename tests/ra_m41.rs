@@ -4,11 +4,16 @@
 
 use cubit::ir::Operand;
 use cubit::parser::parse_sass;
+use cubit::pred_liveness::{pred_xfer, PredXfer, XferMode};
 use cubit::ra::{apply_plan, parse_mode, plan_for_mode, run_file, RaMode, RegPlan};
 use cubit::reg_liveness::reg_xfer;
 
 fn ksrc(body: &str) -> String {
     format!(".entry k\n{body}    EXIT ;\n")
+}
+
+fn pxfers_of(insns: &[cubit::Instruction]) -> Vec<PredXfer> {
+    insns.iter().map(|i| pred_xfer(i, XferMode::Strict)).collect()
 }
 
 fn run(text: &str) -> cubit::ra::RaRunReport {
@@ -59,7 +64,7 @@ fn t_identity_rewriter_reports_zero_changes() {
     .map(|s| parse_sass(s, 0).unwrap())
     .collect();
     let xfers: Vec<_> = insns.iter().map(reg_xfer).collect();
-    let plan = plan_for_mode(&RaMode::Identity, "k", &xfers).unwrap();
+    let plan = plan_for_mode(&RaMode::Identity, "k", &xfers, &pxfers_of(&insns)).unwrap();
     let changed = apply_plan(&mut insns, &plan).unwrap();
     assert_eq!(changed, 0);
 }
@@ -78,7 +83,7 @@ fn t_apply_remaps_all_operand_shapes() {
     .map(|s| parse_sass(s, 0).unwrap())
     .collect();
     let xfers: Vec<_> = insns.iter().map(reg_xfer).collect();
-    let mut plan = plan_for_mode(&RaMode::Identity, "k", &xfers).unwrap();
+    let mut plan = plan_for_mode(&RaMode::Identity, "k", &xfers, &pxfers_of(&insns)).unwrap();
     // keep every other mapping identity, retarget the two registers
     plan.r.insert(4, 8);
     plan.r.insert(8, 8); // collision-free bookkeeping is the M4.2 allocator's job

@@ -27,8 +27,21 @@
 //! Non-identity modes (pin-override M4.2, full allocation M4.3) plug in at
 //! [`plan_for_mode`]; their text emission goes through the printer, NOT
 //! the byte-verbatim path identity uses.
+//!
+//! M6.1 (pred-liveness-RA, first slice): the plan gained the predicate
+//! domains P (P0..P6) and UP (UP0..UP6). 7 = PT/UPT is the constant-true
+//! SINK and is never a plan key (same doctrine as RZ=255 / URZ). The
+//! rewriter now visits Pred/UPred operands AND the instruction guard
+//! (guard = USE; the neg bit never moves). Every mode carries the
+//! predicate IDENTITY plan today: moving predicates is M6.2 (pin) /
+//! M6.3 (full) territory, and the windowed recorder fails loud if a
+//! predicate numeral ever changes before those modes exist. Plan keys
+//! come from the STRICT predicate transfer sets (documented superset of
+//! predcheck.py, M2); unknown predicate families stop the run exactly
+//! like unknown register-role families.
 
 use crate::ir::{Instruction, Operand};
+use crate::pred_liveness::PredXfer;
 use crate::reg_liveness::{self, InsRegLive, RegDom, RegXfer};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -143,18 +156,32 @@ impl ApplyPlan {
 /// Identity mode: virtual numbers ARE the physical ones (text is already
 /// register-assigned; BARRACUDA kernels are static-shape, the RA contract
 /// starts from a fully-numbered seed).
+///
+/// M6.1: `p`/`up` carry the predicate domains. PT/UPT (index 7) is the
+/// constant-true sink: never a key, never a value (validate_coverage is
+/// fail-closed on it). Predicate spans do not exist -- the domain is
+/// width-1 with NO pairs/alignment (the ISETP two-destination form is two
+/// independent registers bound by a same-ins-def edge, corpus-proven with
+/// non-adjacent bases; see results/fe/M6/design.md sec.2/3).
 #[derive(Debug, Clone, Default)]
 pub struct RegPlan {
     pub r: BTreeMap<u8, u8>,
     pub ur: BTreeMap<u8, u8>,
+    pub p: BTreeMap<u8, u8>,
+    pub up: BTreeMap<u8, u8>,
 }
 
 /// String-keyed JSON mirror (M4.3b reports / pin-plan compatibility:
 /// `{"r": {"25": 200}, ...}` matches PinKernelPlan's serde shape).
+/// M6.1 adds `p`/`up`; consumers that build apply plans pick the keys
+/// they implement (the m43 gate pair-picks r/ur), so the extra fields
+/// are additive-only on the wire.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct RegPlanJson {
     pub r: BTreeMap<String, u8>,
     pub ur: BTreeMap<String, u8>,
+    pub p: BTreeMap<String, u8>,
+    pub up: BTreeMap<String, u8>,
 }
 
 impl RegPlan {
@@ -162,6 +189,8 @@ impl RegPlan {
         RegPlanJson {
             r: self.r.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
             ur: self.ur.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
+            p: self.p.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
+            up: self.up.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
         }
     }
 }
@@ -175,6 +204,9 @@ pub struct KernelRaReport {
     /// domain. Plan keys equal these sets in identity mode.
     pub r_used: Vec<u8>,
     pub ur_used: Vec<u8>,
+    /// M6.1: predicate-domain coverage (plan keys), P and UP.
+    pub p_used: Vec<u8>,
+    pub up_used: Vec<u8>,
     /// Highest register touched per domain (None when untouched).
     pub r_max: Option<u8>,
     pub ur_max: Option<u8>,
@@ -274,7 +306,12 @@ pub fn span_notes(insns: &[Instruction], xfers: &[RegXfer]) -> Vec<String> {
 /// identity plan with the kernel's overrides merged on top (unlisted
 /// registers keep their numerals; windows do not shape the plan, they
 /// gate where it is APPLIED).
-pub fn plan_for_mode(mode: &RaMode, kname: &str, xfers: &[RegXfer]) -> Result<RegPlan> {
+pub fn plan_for_mode(
+    mode: &RaMode,
+    kname: &str,
+    xfers: &[RegXfer],
+    pxfers: &[PredXfer],
+) -> Result<RegPlan> {
     let mut p = RegPlan::default();
     for x in xfers {
         for &r in x.rdefs.iter().chain(x.ruses.iter()) {
@@ -284,6 +321,9 @@ pub fn plan_for_mode(mode: &RaMode, kname: &str, xfers: &[RegXfer]) -> Result<Re
             p.ur.insert(u, u);
         }
     }
+    let (pid, upid) = identity_pred_plans(pxfers);
+    p.p = pid;
+    p.up = upid;
     if let RaMode::Pin(pin) = mode {
         // Subset semantics: kernels the plan does not name pass through
         // untouched (windows gate where renames apply; unnamed kernels are
@@ -530,10 +570,33 @@ pub fn validate_pin(
     Ok(in_window)
 }
 
-/// Coverage check: every span-expanded register a kernel touches must map.
-/// Identity mode satisfies this by construction; the check exists so the
-/// M4.2+ plan sources (pins, allocators) can never silently pass through.
-pub fn validate_coverage(plan: &RegPlan, xfers: &[RegXfer]) -> Result<()> {
+/// Identity predicate-domain plans from the STRICT transfer sets (the
+/// documented predcheck.py superset, M2; PT/UPT never occur as keys --
+/// pred_liveness drops sink numerals at source).
+fn identity_pred_plans(
+    pxfers: &[PredXfer],
+) -> (BTreeMap<u8, u8>, BTreeMap<u8, u8>) {
+    let mut p = BTreeMap::new();
+    let mut up = BTreeMap::new();
+    for x in pxfers {
+        for &v in x.defs.iter().chain(x.uses.iter()) {
+            p.insert(v, v);
+        }
+        for &v in x.udefs.iter().chain(x.uuses.iter()) {
+            up.insert(v, v);
+        }
+    }
+    (p, up)
+}
+
+/// Coverage check: every span-expanded register a kernel touches must map
+/// (R/UR from the register transfer sets, P/UP from the strict predicate
+/// transfer sets). Identity mode satisfies this by construction; the check
+/// exists so the M4.2+ plan sources (pins, allocators) can never silently
+/// pass through. Predicate sink rule (M6.1): PT/UPT = index 7 is the
+/// constant-true sink and may NEVER appear as a plan key or value -- a
+/// rewrite of the constant would be a silent semantic change.
+pub fn validate_coverage(plan: &RegPlan, xfers: &[RegXfer], pxfers: &[PredXfer]) -> Result<()> {
     for (i, x) in xfers.iter().enumerate() {
         for &r in x.rdefs.iter().chain(x.ruses.iter()) {
             if !plan.r.contains_key(&r) {
@@ -546,15 +609,53 @@ pub fn validate_coverage(plan: &RegPlan, xfers: &[RegXfer]) -> Result<()> {
             }
         }
     }
+    for (i, x) in pxfers.iter().enumerate() {
+        for &v in x.defs.iter().chain(x.uses.iter()) {
+            if !plan.p.contains_key(&v) {
+                bail!("ra: plan misses P{v} (insn index {i})");
+            }
+        }
+        for &v in x.udefs.iter().chain(x.uuses.iter()) {
+            if !plan.up.contains_key(&v) {
+                bail!("ra: plan misses UP{v} (insn index {i})");
+            }
+        }
+    }
+    validate_pred_sink_range(plan)
+}
+
+/// Predicate sink rule (M6.1), checked on EVERY mode's merged plan:
+/// PT/UPT = index 7 is the constant-true sink and may NEVER appear as a
+/// plan key or value -- a rewrite of the constant would be a silent
+/// semantic change. (Coverage per mode: identity/pin go through
+/// validate_coverage above; full/apply keep their own contracts --
+/// planner totality / subset pass-through + validate_coverage_apply.)
+pub fn validate_pred_sink_range(plan: &RegPlan) -> Result<()> {
+    for (dom, m) in [("P", &plan.p), ("UP", &plan.up)] {
+        for (&k, &v) in m {
+            if k >= 7 || v >= 7 {
+                bail!(
+                    "ra: predicate plan names {dom}{k}->{dom}{v}: PT/UPT (7) \
+                     is the constant-true sink and is never allocatable"
+                );
+            }
+        }
+    }
     Ok(())
 }
 
-/// Remap every register numeral in the operands of `insns` per `plan`.
-/// Returns the number of occurrences whose value CHANGED. Unmapped
-/// non-sink numerals are an error (coverage should have caught them).
+/// Remap every register numeral in the operands of `insns` per `plan`
+/// (operands AND the guard). Returns the number of occurrences whose
+/// value CHANGED. Unmapped non-sink numerals are an error (coverage
+/// should have caught them).
 pub fn apply_plan(insns: &mut [Instruction], plan: &RegPlan) -> Result<usize> {
     let mut changed = 0usize;
     for ins in insns.iter_mut() {
+        if let Some(g) = ins.guard.as_mut() {
+            changed += remap_guard(g, plan).with_context(|| {
+                format!("ra: guard remap failed at 0x{:x} {}", ins.addr, ins.opcode_full)
+            })?;
+        }
         for o in ins.operands.iter_mut() {
             changed += remap_operand(o, plan).with_context(|| {
                 format!("ra: remap failed at 0x{:x} {}", ins.addr, ins.opcode_full)
@@ -577,6 +678,22 @@ pub fn apply_plan_windowed(
     for (i, ins) in insns.iter_mut().enumerate() {
         if !in_window.contains(&i) {
             continue;
+        }
+        if let Some(g) = ins.guard.as_mut() {
+            // M6.1: pin plans carry no p/up maps, so guards only ever see
+            // the identity plan -- any numeral change here means a plan
+            // source jumped the M6.2 gun and we stop instead of emitting
+            // an unrecorded guard mutation.
+            let gch = remap_guard(g, plan).with_context(|| {
+                format!("ra: guard remap failed at 0x{:x} {}", ins.addr, ins.opcode_full)
+            })?;
+            if gch != 0 {
+                bail!(
+                    "ra: pin window changed a guard numeral at 0x{:x} -- \
+                     predicate renames in pin mode are M6.2 territory",
+                    ins.addr
+                );
+            }
         }
         for (oi, o) in ins.operands.iter_mut().enumerate() {
             let recs = remap_operand_rec(o, plan).with_context(|| {
@@ -606,6 +723,35 @@ fn remap_ur_slot(u: &mut u8, plan: &RegPlan) -> Result<usize> {
         Ok(0)
     } else {
         remap1(u, &plan.ur, "UR")
+    }
+}
+
+/// Predicate numeral remap (M6.1): PT/UPT (7) is the constant-true sink
+/// and passes through like RZ; below 7 the numeral goes through the plan
+/// (fail-closed on a gap). The NEG bit is never touched -- negation is an
+/// attribute of the read, not of the register's identity.
+fn remap_pred_slot(n: &mut u8, plan: &RegPlan) -> Result<usize> {
+    if *n >= 7 {
+        Ok(0)
+    } else {
+        remap1(n, &plan.p, "P")
+    }
+}
+
+fn remap_upred_slot(n: &mut u8, plan: &RegPlan) -> Result<usize> {
+    if *n >= 7 {
+        Ok(0)
+    } else {
+        remap1(n, &plan.up, "UP")
+    }
+}
+
+/// Guard remap (guard = USE of its predicate; M2 doctrine).
+fn remap_guard(g: &mut crate::ir::Guard, plan: &RegPlan) -> Result<usize> {
+    if g.uniform {
+        remap_upred_slot(&mut g.pred, plan)
+    } else {
+        remap_pred_slot(&mut g.pred, plan)
     }
 }
 
@@ -715,6 +861,8 @@ fn remap_operand(o: &mut Operand, plan: &RegPlan) -> Result<usize> {
             }
             Ok(ch)
         }
+        Operand::Pred { num, .. } => remap_pred_slot(num, plan),
+        Operand::UPred { num, .. } => remap_upred_slot(num, plan),
         _ => Ok(0),
     }
 }
@@ -771,6 +919,35 @@ fn remap_operand_rec(
                     if let Some((f, t)) = remap1_rec(b, &plan.r, "R")? {
                         out.push((RegDom::R, f, t));
                     }
+                }
+            }
+        }
+        Operand::Pred { num, .. } => {
+            // M6.1: windowed (pin) plans carry the predicate IDENTITY map,
+            // so any change here is out-of-scope drift, not a rename to
+            // record -- fail loud instead of writing an unproven splice.
+            if *num < 7 {
+                let before = *num;
+                remap_pred_slot(num, plan)?;
+                if *num != before {
+                    bail!(
+                        "ra: pin window changed predicate P{before}->P{} -- \
+                         predicate renames in pin mode are M6.2 territory",
+                        *num
+                    );
+                }
+            }
+        }
+        Operand::UPred { num, .. } => {
+            if *num < 7 {
+                let before = *num;
+                remap_upred_slot(num, plan)?;
+                if *num != before {
+                    bail!(
+                        "ra: pin window changed uniform-predicate UP{before}->UP{} -- \
+                         predicate renames in pin mode are M6.2 territory",
+                        *num
+                    );
                 }
             }
         }
@@ -844,7 +1021,31 @@ pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
                 unknown[..unknown.len().min(8)].join(", ")
             );
         }
-        let (plan, mut full_stats) = match &mode {
+        // M6.1: predicate transfer sets (STRICT mode -- the documented
+        // superset, M2). The P/UP domains are in the plan now, so unknown
+        // predicate families stop the run with the same doctrine as
+        // unknown register roles.
+        let pxfers: Vec<PredXfer> = src_k
+            .instructions
+            .iter()
+            .map(|ins| crate::pred_liveness::pred_xfer(ins, crate::pred_liveness::XferMode::Strict))
+            .collect();
+        let unknown_pred: Vec<String> = src_k
+            .instructions
+            .iter()
+            .zip(pxfers.iter())
+            .filter(|(_, x)| !x.known)
+            .map(|(ins, _)| format!("{} @0x{:x}", ins.opcode_full, ins.addr))
+            .collect();
+        if !unknown_pred.is_empty() {
+            bail!(
+                "ra: kernel {} has {} unknown predicate-role op(s): {}",
+                src_k.name,
+                unknown_pred.len(),
+                unknown_pred[..unknown_pred.len().min(8)].join(", ")
+            );
+        }
+        let (mut plan, mut full_stats) = match &mode {
             RaMode::Full => {
                 let live = reg_liveness::liveness(&src_k.instructions);
                 let (p, st) = crate::ra_full::plan_full_kernel_live(
@@ -865,11 +1066,28 @@ pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
                 (p, None)
             }
             _ => {
-                let p = plan_for_mode(&mode, &src_k.name, &xfers)?;
-                validate_coverage(&p, &xfers)?;
+                let p = plan_for_mode(&mode, &src_k.name, &xfers, &pxfers)?;
+                validate_coverage(&p, &xfers, &pxfers)?;
                 (p, None)
             }
         };
+        // M6.1: every mode carries the predicate IDENTITY plan; moving
+        // predicates is M6.2 (pin) / M6.3 (full) territory. plan_for_mode
+        // already filled them for identity/pin; fill the planner-sourced
+        // arms (full / apply) here so the whole-kernel rewriter is total
+        // on the P/UP domains too.
+        {
+            let (pid, upid) = identity_pred_plans(&pxfers);
+            plan.p = pid;
+            plan.up = upid;
+        }
+        // Sink rule on the merged plan, every mode (cheap, fail-closed).
+        // Per-mode coverage keeps its own contract: validate_coverage in
+        // the identity/pin arm above; full = planner totality; apply =
+        // subset pass-through (validate_coverage_apply) -- Do NOT re-run
+        // validate_coverage on full/apply plans: apply plans are
+        // intentionally partial and only the printed numerals get visited.
+        validate_pred_sink_range(&plan)?;
         let notes_all = span_notes(&src_k.instructions, &xfers);
         let span_notes_total = notes_all.len();
         let span_notes: Vec<String> =
@@ -922,6 +1140,8 @@ pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
         }
         let r_used: Vec<u8> = plan.r.keys().copied().collect();
         let ur_used: Vec<u8> = plan.ur.keys().copied().collect();
+        let p_used: Vec<u8> = plan.p.keys().copied().collect();
+        let up_used: Vec<u8> = plan.up.keys().copied().collect();
         reports.push(KernelRaReport {
             name: src_k.name.clone(),
             n_ins: src_k.instructions.len(),
@@ -929,6 +1149,8 @@ pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
             ur_max: ur_used.last().copied(),
             r_used,
             ur_used,
+            p_used,
+            up_used,
             changed,
             unknown_ops: unknown,
             span_notes,

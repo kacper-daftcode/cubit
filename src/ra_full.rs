@@ -565,7 +565,10 @@ pub fn plan_full_kernel_live(
     let mut entry_pins = rpins;
     entry_pins.extend(upins);
     Ok((
-        crate::ra::RegPlan { r: rmap, ur: urmap },
+        // M6.1: p/up filled with the identity predicate plans by run_file
+        // (predicate allocation is M6.3 territory; the allocator stays
+        // R/UR-only here).
+        crate::ra::RegPlan { r: rmap, ur: urmap, ..Default::default() },
         FullAllocStats {
             r: rstats,
             ur: ustats,

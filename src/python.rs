@@ -538,6 +538,8 @@ fn ra_reports<'py>(
         kd.set_item("ur_used", k.ur_used.iter().map(|v| *v as u32).collect::<Vec<u32>>())?;
         kd.set_item("r_max", k.r_max.map(|v| v as u32))?;
         kd.set_item("ur_max", k.ur_max.map(|v| v as u32))?;
+        kd.set_item("p_used", k.p_used.iter().map(|v| *v as u32).collect::<Vec<u32>>())?;
+        kd.set_item("up_used", k.up_used.iter().map(|v| *v as u32).collect::<Vec<u32>>())?;
         kd.set_item("changed", k.changed)?;
         kd.set_item("unknown_ops", k.unknown_ops.clone())?;
         kd.set_item("span_notes", k.span_notes.clone())?;
