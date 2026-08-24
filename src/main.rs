@@ -681,6 +681,10 @@ fn parse_cuobjdump_output(
 struct ParsedSassFile {
     kernels: std::collections::HashMap<String, Vec<(u32, String)>>,
     shared_sizes: std::collections::HashMap<String, u32>,
+    /// Kernel names in first-appearance (source) order. BUG-127: emission
+    /// must follow this order — HashMap iteration is randomized per process
+    /// and flipped multi-kernel section/symbol ordinals between runs (F-1).
+    kernel_order: Vec<String>,
 }
 
 fn parse_sass_file_full(text: &str) -> ParsedSassFile {
@@ -697,12 +701,21 @@ fn parse_sass_file_full(text: &str) -> ParsedSassFile {
     let mut out: std::collections::HashMap<String, Vec<(u32, String)>> =
         std::collections::HashMap::new();
     let mut shared_sizes: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+    let mut kernel_order: Vec<String> = Vec::new();
     let mut cur_kernel = String::new();
 
     for line in text.lines() {
         let t = line.trim();
         if t.starts_with("// ") && !t.contains("/*") {
             cur_kernel = t[3..].trim().to_string();
+            // BUG-127: first-appearance (source) order. A contentless header
+            // never materializes as an entry, so recording it here is safe
+            // (emission intersects order with the kernels map).
+            if !cur_kernel.is_empty()
+                && !kernel_order.iter().any(|k| k == &cur_kernel)
+            {
+                kernel_order.push(cur_kernel.clone());
+            }
             continue;
         }
         if cur_kernel.is_empty() {
@@ -731,6 +744,7 @@ fn parse_sass_file_full(text: &str) -> ParsedSassFile {
     ParsedSassFile {
         kernels: out,
         shared_sizes,
+        kernel_order,
     }
 }
 
@@ -1881,6 +1895,7 @@ fn cmd_asm(
     let parsed = parse_sass_file_full(&sass_text);
     let sass_kernels = parsed.kernels;
     let shared_sizes = parsed.shared_sizes;
+    let kernel_order = parsed.kernel_order;
 
     // ── no-template path: use ELF builder with optional EIATTR reference ─────
     if template_path.is_none() {
@@ -1889,6 +1904,7 @@ fn cmd_asm(
             &sass_text,
             &sass_kernels,
             &shared_sizes,
+            &kernel_order,
             eiattr_path,
             output_path,
             only_kernel,
@@ -2041,6 +2057,7 @@ fn cmd_asm_build_elf(
     _sass_text: &str,
     sass_kernels: &std::collections::HashMap<String, Vec<(u32, String)>>,
     shared_sizes: &std::collections::HashMap<String, u32>,
+    kernel_order: &[String],
     eiattr_path: Option<&std::path::Path>,
     output_path: &PathBuf,
     only_kernel: Option<&str>,
@@ -2054,7 +2071,22 @@ fn cmd_asm_build_elf(
     let mut total_insns = 0u64;
     let mut tensor_class_kernels = false;
 
-    for (kernel_name, insns) in sass_kernels {
+    // BUG-127: emit kernels in source order. Iterating the HashMap directly
+    // gave a random ordinal layout per process (.text/.nv.info.*/capmerc/
+    // strtab/symtab/.rela flipped between runs — F2-Q F-1 nondeterminism).
+    let mut order_idx: std::collections::HashMap<&str, usize> =
+        std::collections::HashMap::new();
+    for (i, name) in kernel_order.iter().enumerate() {
+        order_idx.entry(name.as_str()).or_insert(i);
+    }
+    let mut ordered: Vec<(&String, &Vec<(u32, String)>)> = sass_kernels.iter().collect();
+    ordered.sort_by(|a, b| {
+        let ia = order_idx.get(a.0.as_str()).copied().unwrap_or(usize::MAX);
+        let ib = order_idx.get(b.0.as_str()).copied().unwrap_or(usize::MAX);
+        ia.cmp(&ib).then_with(|| a.0.cmp(b.0))
+    });
+
+    for (kernel_name, insns) in ordered {
         if let Some(only) = only_kernel {
             if kernel_name != only {
                 continue;
