@@ -46,6 +46,15 @@ struct RegAlloc {
     /// for lifter-emitted control regions (atom f16/f16x2 CAS/spin lanes).
     /// PTX-level branches never emit BSSY, so ids are lifter-exclusive.
     bar_next: u8,
+    /// BUG-130: set when the lifter-exclusive BSSY/BSYNC barrier pool is
+    /// exhausted; lower_kernel bails fail-closed with this. The encoding
+    /// carries the id in a 4-bit field (tables/sm103a.json BSSY_B_II fields,
+    /// shift 16 bits 4) and the parser admits only B0..B15, so ids >=16 can
+    /// never re-enter through text and would be masked (id & 15) by the
+    /// encoder's field application in a direct encode. Pre-fix the raw u8
+    /// `+=` also panicked at the 255 edge (debug) / wrapped to B0 (release)
+    /// -- no cap record, exact BUG-129 shape.
+    bar_hit_cap: Option<u8>,
     /// BUG-118: textual last-use index per PTX GPR name (all operand
     /// kinds), swept in lower_kernel's first pass. The old
     /// free-the-address-pair-at-load optimization assumed that use was the
@@ -78,6 +87,7 @@ impl RegAlloc {
             free_quads: Vec::new(),
             free_preds: Vec::new(),
             bar_next: 0,
+            bar_hit_cap: None,
             pred_hit_cap: None,
             gpr_hit_cap: None,
             unknown_sreg: None,
@@ -235,12 +245,25 @@ impl RegAlloc {
         self.free_pair(name);
     }
 
-    /// b9 phase-3 #15: next free reconvergence barrier id (B0.. class).
+    /// b9 phase-3 #15: next free reconvergence barrier id (B0..B15; the
+    /// encoding field is 4 bits wide and the parser admits B0..B15 only).
     /// PTX-level branches never emit BSSY, so the pool is lifter-exclusive;
-    /// lanes emit at most 2 ids per atomic expansion.
+    /// lanes emit at most 2 ids per atomic expansion; ids are never
+    /// recycled. BUG-130: exhaustion is fail-closed (record the out-of-pool
+    /// request in bar_hit_cap and let lower_kernel bail with kernel context)
+    /// instead of emitting an unencodable/truncated id -- the raw u8 `+=`
+    /// also panicked (debug) / wrapped to B0 (release) at the 255 edge with
+    /// no cap record (BUG-129 shape). Returning B0 here is a placeholder;
+    /// the bail discards the kernel.
     fn bar_alloc(&mut self) -> u8 {
+        if self.bar_next >= 16 {
+            if self.bar_hit_cap.is_none() {
+                self.bar_hit_cap = Some(self.bar_next);
+            }
+            return 0;
+        }
         let b = self.bar_next;
-        self.bar_next += 1;
+        self.bar_next += 1; // in-bounds: bar_next <= 15 here
         b
     }
 
@@ -1728,6 +1751,11 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
         anyhow::bail!(
             "ptx_lower: GPR space exhausted (R0..R254, R255=RZ alias trap) in kernel {} at variable {:?}; kernel needs live-range-aware allocation (b1)",
             kernel.name, hit);
+    }
+    if let Some(hit) = &alloc.bar_hit_cap {
+        anyhow::bail!(
+            "ptx_lower: reconvergence barrier space exhausted (B0..B15; BSSY/BSYNC id field is 4-bit, ids are never recycled) in kernel {} at lifter barrier request #{}; kernel needs barrier-id reuse across disjoint lifter regions (not implemented)",
+            kernel.name, *hit + 1);
     }
     if !unsupported.is_empty() {
         anyhow::bail!(
