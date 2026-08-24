@@ -309,7 +309,8 @@
     "_errata_2026_08_22": "BUG-079(ULEA family regen from 12887 vendor anchors: sm120 singleton-junk rows replaced, imm2 5b@75 window vs bit80 HI discriminator, neg@63/72 + inv@63 + ureg_ff + UP-in@81/6b + UP-out@87/4b; render-parity 12887/12887 both tables)",
     "_errata_2026_08_23_A": "BUG-086 (canon prep): UISETP II key tok5 pred 4b@87 -> 3b@87+neg@90 (2 vendor anchors !UPn source); +mg AND,LE,U32 on UISETP II key (6 anchors, bool bit74); UISETP EX-UR key EX,NE,OR,U32 fields de-junked (2 anchors, junk tok1@8/tok5@3 removed); ISETP II-EX key +mg AND,EX,GE (1 anchor). Residuum: 1 word imm8@40 subform (PLOP3-shadow) parked (single-anchor doctrine, F2Q). UR-key EQ,OR,U32 de-fossil (2 anchors; fields=GE,OR,U32). + AND,EQ UISETP II (nvdisasm-probe word, byte 0x22; zamyka bug012-pin klas\u0119). UR-key +U64/S64 mgs (AND,GE,U64/AND,GT,U64/AND,NE,S64/NE,OR,S64) carry z sond 057. tok2-fix globalny rodziny (120 mgs): non-EX->(68,4), EX->(84,3); zamyka harvest-regresje kD (strzezone slowa drukowaly P8 z okna guard). Normalizacja szablonu pol predykatow calej rodziny (per-key); zamyka PLOP3-hijack R1 (tok5 real pred nie miescil sie w starych polach po 2e-erze). II-EX +AND,EX,GE,U32 (anchor R2).",
     "_errata_2026_08_23B": "BUG-094: (1) sm120 LDS/LDL/STL family re-canonicalized to sm103a geometry (junk rows gave: LDS.U8/U16 hijacked into LDG.E.LTC128B.128 slot, LDL.LU phantom +UR0, STL.128 imm top-byte truncation, STL.S16/LDL.S16 DECERR-or-hijack, STL/STL.64 pure-UR hijack); (2) junk decode modgroup LDG_R_dARI::128,E,LTC128B removed (0 legit anchors over 885k-word corpus+2049-bin audits; 100% offender traffic: LDS.U8/U16, LDL.S16, STL family); era-text encodability preserved via encode_only retention row LDG.E.LTC128B.128_R_dARI with verbatim pre-094 geometry; (3) ATOMG_P_R_ARI_R_R (CAS family) added to sm120 from sm103a canon; (4) printer: ATOM*/REDG size modifier prints between operation and STRONG (vendor order ATOMG.E.CAS.64.STRONG.SYS). Anchors: work/f2-094/",
-    "tc5_mk296": "2026-08-23 mk296 tcgen05 front: +58 mod groups, +4 keys (UTCCP/UTCSHIFT/LDTM.STAT-family new keys: ); EXACT gate 323/324 roundtrip, parity+unk no-regression"
+    "tc5_mk296": "2026-08-23 mk296 tcgen05 front: +58 mod groups, +4 keys (UTCCP/UTCSHIFT/LDTM.STAT-family new keys: ); EXACT gate 323/324 roundtrip, parity+unk no-regression",
+    "settle038c_mk302": "2026-08-24 mk302 settle/0x038c merge (decyzja wlasciciela 2026-08-24 (3), draft merclab/mk295/data/cubit_038c_draft_v8.json -> dekoder k3 + table): +1 mod group AND on ATOMS_R_ARI_R = klasa settle/TCGTSETTLE (para okien deallokacji TMEM tcgen05; nvdisasm-class render ATOMS.AND RZ,[Rb+imm8],Rv). Evidence: saga mk262-295 na krzemie B300 (fizyka drzwi/deponu R9, reguly uznania mk268, reguly wykonania okna elected mk276-278, maszyna kontekstu 5-czystych-domkniec mk280-288, mapa trapow 715/719/721 mk294) + 27 slow kanonicznych (dealloc/mv probes, arch-blizniaczo 100a==103a) + 2 saga. Gate mk302: EXACT old-vs-new dis-diff = wylacznie ?->ATOMS.AND na tych liniach (zero flip na liniach dekodowanych), roundtrip rc identyczny, paritet nvdisasm na liniach zmienionych 100%. Encoder-side note: BUG-080 fail-closed na predykatowych atomach nadal obejmuje te klase (item F2-Q; silicon counter-evidence dla tej podklasy stoi w sagach mk279-293)."
   },
   "instructions": {
     "BRA_II": {
@@ -51186,6 +51187,50 @@
             }
           ],
           "count": 100
+        },
+        "AND": {
+          "and_base": "0x0001e000028000000000100000ff038c",
+          "variable_mask": "0x00040a000000000000000c0707000000",
+          "fields": [
+            {
+              "shift": 12,
+              "bits": 4,
+              "token_idx": 0,
+              "extraction": "guard",
+              "_src": "mk302-038c"
+            },
+            {
+              "shift": 40,
+              "bits": 24,
+              "token_idx": 2,
+              "extraction": "sub_imm1",
+              "_src": "mk302-038c"
+            },
+            {
+              "shift": 32,
+              "bits": 8,
+              "token_idx": 3,
+              "extraction": "reg",
+              "_src": "mk302-038c"
+            },
+            {
+              "shift": 16,
+              "bits": 8,
+              "token_idx": 1,
+              "extraction": "reg",
+              "_src": "mk302-038c"
+            },
+            {
+              "shift": 24,
+              "bits": 8,
+              "token_idx": 2,
+              "extraction": "sub_r0",
+              "_src": "mk302-038c"
+            }
+          ],
+          "count": 27,
+          "_src": "mk302-2026-08-24 (saga mk262-295 + nvcc corpus; merge pod decyzje wlasciciela 2026-08-24 (3))",
+          "_evidence": "0x038c = settle/polozenie pary okien deallokacji TMEM (tcgen05); odwzorowanie w lustrze SMEM ATOMS.AND [Rb+imm8], Rv (nvdisasm-class). Funkcja na krzemie (saga mk262-295): niedomkniecie pary => rc=721 na sync; reguly uznania mk268 (okno 0x14: low16(v)==0; okno 0x18: bit0(v)==0); n=27 slow kanonicznych + 2 saga (arch-blizniaczo identyczne 100a==103a). Semantyka drzwi/deponowania: merclab/mk295/data/cubit_038c_draft_v8.json."
         },
         "OR": {
           "and_base": "0x0001e000030000000000100006ff738c",
