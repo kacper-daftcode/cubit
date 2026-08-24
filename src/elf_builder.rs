@@ -124,15 +124,35 @@ const TKINFO_BYTES: &[u8] = &[
     0x20, 0x36, 0x34, 0x20, 0x00, 0x00, 0x00, 0x00,
 ];
 
-/// .note.nv.cuinfo desc: 12 bytes matching working nvcc 12.8 cubins.
-const CUVER_DESC: &[u8] = &[0x02, 0x00, 0x78, 0x00, 0x83, 0x00, 0x00, 0x00];
-
 /// .nv.compat section: 28 bytes matching working nvcc 13.1 cubins.
 /// Format verified on driver 590.48 with SM120 Blackwell.
-const NV_COMPAT: &[u8] = &[
+const NV_COMPAT_LEGACY: &[u8] = &[
     0x02, 0x09, 0x00, 0x00, 0x02, 0x02, 0x02, 0x00, 0x03, 0x07, 0x01, 0x01, 0x02, 0x03, 0x00, 0x00,
     0x04, 0x0b, 0x08, 0x00, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
+/// Per-arch .nv.compat blobs, measured on nvcc 13.3.73 (sm_121a == sm_103a).
+const NV_COMPAT_103: &[u8] = &[
+    0x02, 0x09, 0x01, 0x00, 0x02, 0x02, 0x01, 0x00, 0x03, 0x0d, 0x01, 0x01, 0x02, 0x03, 0x00, 0x00,
+    0x04, 0x0b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const NV_COMPAT_120: &[u8] = &[
+    0x02, 0x09, 0x01, 0x00, 0x02, 0x02, 0x01, 0x00, 0x03, 0x0d, 0x01, 0x01, 0x03, 0x07, 0x01, 0x01,
+    0x02, 0x03, 0x00, 0x00, 0x04, 0x0b, 0x08, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+const NV_COMPAT_100: &[u8] = &[
+    0x02, 0x09, 0x01, 0x00, 0x02, 0x02, 0x01, 0x00, 0x02, 0x05, 0x05, 0x00, 0x03, 0x0d, 0x01, 0x01,
+    0x03, 0x07, 0x01, 0x01, 0x02, 0x03, 0x00, 0x00, 0x04, 0x0b, 0x08, 0x00, 0x09, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+];
+
+fn nv_compat_blob(sm: u32) -> &'static [u8] {
+    match sm {
+        103 | 121 => NV_COMPAT_103,
+        120 => NV_COMPAT_120,
+        100 => NV_COMPAT_100,
+        _ => NV_COMPAT_LEGACY,
+    }
+}
 
 /// .nv.callgraph: 4 × 8-byte entries (terminators, no kernel entries).
 const NV_CALLGRAPH: &[u8] = &[
@@ -157,30 +177,167 @@ const CAPMERC_EXIT_STUB: &[u8] = &[
     0x00, 0x02, 0x01, 0x40, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0xd0, 0x07,
 ];
-/// Symbol size of the Mercury stub (from nvcc 12.8 merc_symtab st_size = 0xb0 = 176).
-const CAPMERC_STUB_PADDED: u64 = 0x82;
+// ── DWARF debug frames (.debug_frame / .nv.merc.debug_frame), nvcc 13.3 law ──
+// Derived empirically on 9 vendor cubins (nvcc 13.3.73 -arch=sm_103a) +
+// rc4_kernel_sm120.cubin (12.8); see results/cubitfix/merc.md.
+//
+// Per kernel the section is a sequence of [CIE][FDE] pairs (the CIE is
+// repeated per FDE, not factored). CIE = 48 B, FDE = 56 B (SASS) / 64 B
+// (merc); FDE.cie_ptr = byte offset of its own CIE block in the section;
+// FDE.initial_location = 0 (patched by a .rela[.nv.merc].debug_frame entry
+// at block_offset + 0x44, sym = kernel func sym, type = 2 (SASS, PC32) /
+// 0x1003d (merc), addend 0). FDE.address_range = .text.K size (SASS) /
+// mercury func st_size (merc).
 
-/// .nv.merc.debug_frame: 112 bytes from nvcc 12.8 (full global-memory Mercury stub variant).
-/// FDE PC_range = 0xc0 = CAPMERC_STUB_PADDED; CFI advance_loc4 = 0xb0 (EXIT offset in stub).
-const MERC_DEBUG_FRAME: &[u8] = &[
-    0xff, 0xff, 0xff, 0xff, 0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff,
-    0xff, 0xff, 0xff, 0xff, 0x03, 0x00, 0x01, 0x7c, 0xff, 0xff, 0xff, 0xff, 0x0f, 0x0c, 0x81, 0x80,
-    0x80, 0x28, 0x00, 0x08, 0xff, 0x81, 0x80, 0x28, 0x08, 0x81, 0x80, 0x80, 0x28, 0x00, 0x00, 0x00,
-    0xff, 0xff, 0xff, 0xff, 0x34, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xb0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, // PC_range = 0xb0 = CAPMERC_STUB_PADDED (nvcc 12.8)
-    0x04, 0x10, 0x00, 0x00, 0x00, 0x04, 0xa0,
-    0x00, // DW_CFA_advance_loc4 0x10, then 0xa0 (EXIT at 0xa0)
-    0x00, 0x00, 0x0c, 0x81, 0x80, 0x80, 0x28, 0x00, 0x04, 0xf0, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-];
-
-/// Mercury content hash (attr 0x5a, 36 bytes) for the full global-memory Mercury stub above.
-/// Extracted from nvcc 12.8 .nv.merc.nv.info._Z12write_globalPi (kernel using STG.E).
+/// Mercury content hash (attr 0x5a, 32 bytes), constant across kernels.
+/// Byte-identical in all observed nvcc 13.3.73 sm_103a cubins (one-kernel,
+/// multi-kernel, smem, atom, 544-instruction kernel alike).
 const MERC_HASH: &[u8] = &[
     0x8a, 0x9d, 0x22, 0xa4, 0xb1, 0x9d, 0x14, 0x6d, 0x00, 0xb4, 0x2a, 0xf3, 0xf7, 0x58, 0x03, 0xa5,
     0x27, 0x2c, 0x21, 0x30, 0xc9, 0x1e, 0xc7, 0x8f, 0x0f, 0x0c, 0x49, 0x6c, 0x0a, 0x2f, 0x00, 0x00,
 ];
+
+/// Symbol size of the legacy Mercury stub (nvcc 12.8 merc_symtab st_size).
+const CAPMERC_STUB_PADDED: u64 = 0x82;
+
+/// Legacy (pre-merc13) Mercury debug_frame: 112 B blob (nvcc 12.8 EXIT-stub
+/// variant). Used when CUBIT_MERC13 is unset (frozen-chain compatibility).
+const MERC_DEBUG_FRAME_LEGACY: &[u8] = &[
+    0xff, 0xff, 0xff, 0xff, 0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0x03, 0x00, 0x01, 0x7c, 0xff, 0xff, 0xff, 0xff, 0x0f, 0x0c, 0x81, 0x80,
+    0x80, 0x28, 0x00, 0x08, 0xff, 0x81, 0x80, 0x28, 0x08, 0x81, 0x80, 0x80, 0x28, 0x00, 0x00, 0x00,
+    0xff, 0xff, 0xff, 0xff, 0x34, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xb0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x04, 0x10, 0x00, 0x00, 0x00, 0x04, 0xa0, 0x00, 0x00, 0x00, 0x0c, 0x81, 0x80, 0x80, 0x28, 0x00,
+    0x04, 0xf0, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
+/// Legacy cuinfo desc (sm120/api 0x83) for the non-merc13 default.
+const CUVER_DESC_LEGACY: &[u8] = &[0x02, 0x00, 0x78, 0x00, 0x83, 0x00, 0x00, 0x00];
+
+/// Trailing CFA program of every CIE (after ver/aug/align/retreg fields),
+/// identical in both domains and across all observed cubins.
+const DWARF_CIE_TAIL: [u8; 19] = [
+    0x0c, 0x81, 0x80, 0x80, 0x28, 0x00, 0x08, 0xff, 0x81, 0x80, 0x28, 0x08, 0x81, 0x80, 0x80, 0x28,
+    0x00, 0x00, 0x00,
+];
+
+/// The 6-byte CFA op spliced between advances in every FDE program.
+const DWARF_FDE_OP6: [u8; 6] = [0x0c, 0x81, 0x80, 0x80, 0x28, 0x00];
+
+/// Build the 48-byte CIE. `code_align` = 4 for the SASS domain, 1 for Mercury.
+fn dwarf_cie(code_align: u8) -> Vec<u8> {
+    let mut out = Vec::with_capacity(48);
+    out.extend_from_slice(&0xffff_ffffu32.to_le_bytes()); // DWARF64 marker
+    out.extend_from_slice(&0x24u64.to_le_bytes()); // entry length (excl. 12B hdr)
+    out.extend_from_slice(&u64::MAX.to_le_bytes()); // CIE id
+    out.push(0x03); // version
+    out.push(0x00); // augmentation ""
+    out.push(code_align); // code_alignment_factor (ULEB)
+    out.push(0x7c); // data_alignment_factor = -4 (SLEB)
+    out.extend_from_slice(&[0xff, 0xff, 0xff, 0xff, 0x0f]); // ret reg = 0xffffffff (ULEB)
+    out.extend_from_slice(&DWARF_CIE_TAIL);
+    debug_assert_eq!(out.len(), 48);
+    out
+}
+
+/// Build one FDE. `cie_ptr` = section offset of its CIE. `range` =
+/// address_range. initial_location = 0 (patched via the rela section).
+fn dwarf_fde(cie_ptr: u64, range: u64, program: &[u8]) -> Vec<u8> {
+    let len = (8 + 8 + 8 + program.len()) as u64; // cie_ptr + init + range + ops
+    let mut out = Vec::with_capacity(12 + len as usize);
+    out.extend_from_slice(&0xffff_ffffu32.to_le_bytes()); // DWARF64 marker
+    out.extend_from_slice(&len.to_le_bytes());
+    out.extend_from_slice(&cie_ptr.to_le_bytes());
+    out.extend_from_slice(&0u64.to_le_bytes()); // initial_location (via rela)
+    out.extend_from_slice(&range.to_le_bytes());
+    out.extend_from_slice(program);
+    out
+}
+
+fn adv_loc4(delta: u32, out: &mut Vec<u8>) {
+    out.push(0x04); // DW_CFA_advance_loc4
+    out.extend_from_slice(&delta.to_le_bytes());
+}
+
+/// SASS-domain FDE program (20 bytes), nvcc 13.3 law.
+///
+/// Driven by the kernel's EXIT (byte) offsets E1<..<En:
+///   n == 1 : adv4(E1/4); adv4(4); OP6; nop*4
+///   n >= 2 : adv4((E1+0x10)/4); OP6; adv4((En-E1-0x10)/4); nop*4
+/// (code_align = 4, so an advance of d moves the location by 4*d bytes.)
+fn sass_fde_program(exits: &[u32]) -> Vec<u8> {
+    let mut p = Vec::with_capacity(20);
+    if exits.len() >= 2 {
+        let e1 = exits[0] as u64;
+        let en = *exits.last().unwrap() as u64;
+        adv_loc4(((e1 + 0x10) / 4) as u32, &mut p);
+        p.extend_from_slice(&DWARF_FDE_OP6);
+        adv_loc4(((en - e1 - 0x10) / 4) as u32, &mut p);
+    } else {
+        let e = exits.first().copied().unwrap_or(0) as u64;
+        adv_loc4((e / 4) as u32, &mut p);
+        adv_loc4(4, &mut p);
+        p.extend_from_slice(&DWARF_FDE_OP6);
+    }
+    while p.len() < 20 {
+        p.push(0); // DW_CFA_nop padding
+    }
+    p
+}
+
+/// Mercury-domain FDE program (28 bytes), nvcc 13.3 law: constant shape,
+/// parameterised only by the mercury func size `st` (FDE range):
+///   adv4(0x10); adv4(st-0x10); OP6; adv4(-0x10); nop*7
+/// (merc code_align = 1, so advances are byte-deltas.)
+fn merc_fde_program(st_size: u64) -> Vec<u8> {
+    let mut p = Vec::with_capacity(28);
+    adv_loc4(0x10, &mut p);
+    adv_loc4(st_size.saturating_sub(0x10) as u32, &mut p);
+    p.extend_from_slice(&DWARF_FDE_OP6);
+    adv_loc4(0xffff_fff0, &mut p); // -16
+    while p.len() < 28 {
+        p.push(0);
+    }
+    p
+}
+
+/// Mercury func st_size (phase-1 law): capsule length aligned to 16.
+/// Exact for the nvcc 12.8 stub world (0xae -> 0xb0); on 13.3 the true value
+/// is the capsule VM expansion (tracked in results/cubitfix/merc.md, phase-2).
+fn merc_st_size(capsule_len: usize) -> u64 {
+    (capsule_len as u64 + 0xf) & !0xf
+}
+
+/// Mercury EXIT_INSTR_OFFSETS (phase-1 law): every SASS EXIT except the last
+/// maps to `sass_off + 0x10`; the trailing exit sits at `st_size - 0x10`.
+/// (Trailing slot verified on all observed 13.3 samples; leading-slot mapping
+/// holds on the 2 observed multi-exit kernels.)
+fn merc_exit_offsets(sass_exits: &[u32], st_size: u64) -> Vec<u32> {
+    let mut v: Vec<u32> = Vec::new();
+    if sass_exits.len() >= 2 {
+        for e in &sass_exits[..sass_exits.len() - 1] {
+            v.push(e + 0x10);
+        }
+    }
+    v.push(st_size.saturating_sub(0x10) as u32);
+    v
+}
+
+/// Fallback SASS EXIT scan (same lo12 pattern as sass_file's meta builder).
+fn scan_sass_exits(code: &[u8]) -> Vec<u32> {
+    let mut out = Vec::new();
+    for (i, chunk) in code.chunks(16).enumerate() {
+        if chunk.len() < 16 {
+            break;
+        }
+        let lo12 = u16::from_le_bytes([chunk[0], chunk[1]]) & 0x0fff;
+        if lo12 == 0x094d || lo12 == 0x094e || lo12 == 0x094f {
+            out.push((i * 16) as u32);
+        }
+    }
+    out
+}
 
 /// Generate Mercury section from SASS code analysis.
 ///
@@ -3939,7 +4096,7 @@ impl CubinBuilder {
             shn_cuver,
             SHT_NOTE,
             SHF_NV_CUVER,
-            build_cuver_note(),
+            build_cuver_note(crate::elf::sm_from_ef_flags(self.ef_flags)),
             4,
             IDX_TKINFO as u32,
             idx_compat as u32,
@@ -3959,7 +4116,7 @@ impl CubinBuilder {
             shn_compat,
             SHT_CUDA_COMPAT,
             0,
-            NV_COMPAT.to_vec(),
+            nv_compat_blob(crate::elf::sm_from_ef_flags(self.ef_flags)).to_vec(),
             4,
             0,
             0,
@@ -4216,7 +4373,7 @@ impl CubinBuilder {
     }
 
     #[allow(clippy::needless_range_loop)]
-    fn build(mut self, kernels: &[KernelEntry]) -> Result<Vec<u8>> {
+    fn build_legacy(mut self, kernels: &[KernelEntry]) -> Result<Vec<u8>> {
         let n = kernels.len();
         // Compute shared memory size: max of 0x40 (minimum) and all kernels' shared_size
         let max_shared: u64 = kernels
@@ -4651,7 +4808,7 @@ impl CubinBuilder {
         for ki in 0..n {
             let k = &kernels[ki];
             let sym = merc_func_sym_idx(ki) as u32;
-            let data = build_merc_nv_info_k(&k.meta, sym);
+            let data = build_merc_nv_info_k_legacy(&k.meta, sym);
             merc_per_kernel_info.push(data);
         }
 
@@ -4748,7 +4905,7 @@ impl CubinBuilder {
             0
         ); // 5
            // 6: .note.nv.cuinfo
-        let cuver_data = build_cuver_note();
+        let cuver_data = build_cuver_note_legacy();
         sec!(
             shn_cuver,
             SHT_NOTE,
@@ -4777,7 +4934,7 @@ impl CubinBuilder {
             shn_compat,
             SHT_CUDA_COMPAT,
             0,
-            NV_COMPAT.to_vec(),
+            NV_COMPAT_LEGACY.to_vec(),
             4,
             0,
             0,
@@ -4954,7 +5111,7 @@ impl CubinBuilder {
             shn_merc_dbg,
             SHT_PROGBITS,
             SHF_MERC,
-            MERC_DEBUG_FRAME.to_vec(),
+            MERC_DEBUG_FRAME_LEGACY.to_vec(),
             1,
             0,
             0,
@@ -5219,6 +5376,1072 @@ impl CubinBuilder {
 
         Ok(out)
     }
+
+    fn build(mut self, kernels: &[KernelEntry]) -> Result<Vec<u8>> {
+        // CUBIT_MERC13=1 enables the nvcc-13.3 sovereign companion emission
+        // (.debug_frame/.nv.merc.* laws; results/cubitfix/merc.md). Default is
+        // the byte-legacy builder so the frozen chain (rt98 == 3d15ab6a) and
+        // all front-M pins stay bit-stable; the default flips by owner
+        // decision (anchor migration), not by this change.
+        if !merc13_enabled() {
+            return self.build_legacy(kernels);
+        }
+        let n = kernels.len();
+        // Compute shared memory size: max of 0x40 (minimum) and all kernels' shared_size
+        let max_shared: u64 = kernels
+            .iter()
+            .map(|k| k.meta.shared_size as u64)
+            .max()
+            .unwrap_or(0)
+            .max(0x40);
+        // ── Pre-compute section indices ───────────────────────────────────
+        // Fixed headers
+        const IDX_SHSTR: usize = 1;
+        const IDX_STRTAB: usize = 2;
+        const IDX_SYMTAB: usize = 3;
+        const IDX_DBG: usize = 4;
+        const IDX_TKINFO: usize = 5;
+        const IDX_CUVER: usize = 6;
+        let base = 8usize; // first per-kernel slot
+
+        // mk28: kolejnosc sekcji zgodna z nvcc (sm_103a era):
+        //   [7]  .nv.info
+        //   [8]  .nv.compat            <- compat PRZED .nv.info.K (bylo po)
+        //   [9..9+n) .nv.info.Ki
+        //   [9+n]    .nv.callgraph
+        //   []       .rela.text.Ki     <- pusta sekcja, TYLKO gdy kernel ma
+        //                              CALL lub statyczny smem (nvcc regula,
+        //                              fit 119 lab-kerneli: 0 pomyłek)
+        //   []       .rela.debug_frame
+        //   []       .text.Ki
+        //   []       .nv.shared.Ki     <- per-kernel shared PRZED reserved
+        //   []       .nv.shared.reserved.0
+        //   []       .nv.constant0.Ki, .nv.capmerc.text.Ki, merc-rodzina.
+        let kernel_needs_rela_text: Vec<bool> = kernels
+            .iter()
+            .map(|k| k.meta.has_call || k.meta.shared_size as u64 > 0)
+            .collect();
+        let n_rela_text = kernel_needs_rela_text.iter().filter(|b| **b).count();
+        // nvcc law (13.3 + 12.8): `.nv.shared.<K>` (section and both syms)
+        // exists ONLY for kernels with static smem; 0-smem kernels contribute
+        // nothing. smem_ki = ordered list of smem-carrying kernel indices.
+        let smem_ki: Vec<usize> = (0..n).filter(|&ki| kernels[ki].meta.shared_size > 0).collect();
+        let n_smem = smem_ki.len();
+        let smem_pos = |ki: usize| smem_ki.iter().position(|&x| x == ki);
+
+        // .nv.compat pod fixed-numeracja
+        let idx_compat = base;
+        // Per-kernel: .nv.info.K
+        let _nv_info_k = |ki: usize| base + 1 + ki;
+        let idx_cg = base + 1 + n;
+        // per-kernel .rela.text.Ki (subset transformowany na ciagly blok)
+        // (indeksy wynikaja z rzedu push-ow; blok rela.text liczony jako
+        // n_rela_text — patrz formuly ponizej)
+        let _idx_rela_dbg = idx_cg + 1 + n_rela_text;
+        // Per-kernel: .text.K
+        let text_k = |ki: usize| idx_cg + 2 + n_rela_text + ki;
+        // Per-kernel: .nv.shared.<kernel> (PRZED reserved.0; smem kernels only)
+        let shared_k = |ki: usize| {
+            idx_cg + 2 + n_rela_text + n + smem_pos(ki).expect("smem kernel")
+        };
+        // Shared reservation
+        let idx_shared = idx_cg + 2 + n_rela_text + n + n_smem;
+        // Per-kernel: .nv.constant0.K
+        let const0_k = |ki: usize| idx_cg + 3 + n_rela_text + n + n_smem + ki;
+        // Per-kernel: .nv.capmerc.text.K
+        let capmerc_k = |ki: usize| idx_cg + 3 + n_rela_text + 2 * n + n_smem + ki;
+        // Fixed Mercury
+        let idx_merc_dbg = idx_cg + 3 + n_rela_text + 3 * n + n_smem;
+        let _idx_merc_info = idx_merc_dbg + 1;
+        // Per-kernel: .nv.merc.nv.info.K
+        let _merc_info_k = |ki: usize| idx_merc_dbg + 2 + ki;
+        // Fixed Mercury (rest)
+        let _idx_merc_rela = idx_merc_dbg + 2 + n;
+        let idx_merc_shared = idx_merc_dbg + 3 + n;
+        let idx_merc_symtab = idx_merc_dbg + 4 + n;
+        let total_sections = idx_merc_dbg + 5 + n;
+
+        // ── Mercury capsules (hoisted): needed up-front for the Mercury
+        // func st_size (symtab), FDE ranges (debug frames), EXIT offsets and
+        // the section bodies. Law: st_size = align16(capsule len) (phase-1).
+        let mut capsules: Vec<Vec<u8>> = Vec::with_capacity(n);
+        let mut merc_sizes: Vec<u64> = Vec::with_capacity(n);
+        let mut sass_exits: Vec<Vec<u32>> = Vec::with_capacity(n);
+        for (ki, k) in kernels.iter().enumerate() {
+            let cap: Vec<u8> = if let Some(st) = k.mercury_stub.as_deref() {
+                st.to_vec()
+            } else {
+                generate_mercury_full(
+                    &k.code,
+                    text_k(ki) as u32, // mk27: ordinal = shndx .text.K (nvcc: t103=12, mkvmem=13)
+                    k.opcodes.as_deref(),
+                    &k.meta,
+                    crate::elf::sm_from_ef_flags(self.ef_flags) == 100,
+                )
+            };
+            merc_sizes.push(merc_st_size(cap.len()));
+            capsules.push(cap);
+            sass_exits.push(if k.meta.exit_offsets.is_empty() {
+                scan_sass_exits(&k.code)
+            } else {
+                k.meta.exit_offsets.clone()
+            });
+        }
+
+        // ── Build string tables & symbol tables ───────────────────────────
+        // nvcc 13.3 interner law (verified 1- and 2-kernel, smem/no-smem):
+        // BOTH tables intern a fixed header, then a per-kernel trio, with the
+        // smem-anchor cluster once after kernel 0's trio, then the frame/
+        // callgraph names, then func names (strtab only), then const0 names;
+        // .rel(.a).text/.debug_frame + .symtab_shndx + .nv.prototype names are
+        // interned even when no such section/symbol exists. Names of
+        // .nv.shared.K / .rela.text.K are interned per law regardless of the
+        // sections' presence.
+        let mut sh_order: Vec<String> = vec![
+            ".shstrtab", ".strtab", ".symtab", ".symtab_shndx", ".note.nv.tkinfo",
+            ".note.nv.cuinfo", ".nv.info", ".nv.compat",
+        ].iter().map(|s| s.to_string()).collect();
+        for (ki, k) in kernels.iter().enumerate() {
+            sh_order.push(format!(".text.{}", k.name));
+            sh_order.push(format!(".nv.info.{}", k.name));
+            sh_order.push(format!(".nv.shared.{}", k.name));
+            if ki == 0 {
+                sh_order.push(".nv.shared.reserved.0".into());
+            }
+            if kernel_needs_rela_text[ki] {
+                sh_order.push(format!(".rel.text.{}", k.name));
+                sh_order.push(format!(".rela.text.{}", k.name));
+            }
+        }
+        for nm in [".debug_frame", ".rel.debug_frame", ".rela.debug_frame", ".nv.callgraph", ".nv.prototype"] {
+            sh_order.push(nm.into());
+        }
+        for k in kernels {
+            sh_order.push(format!(".nv.constant0.{}", k.name));
+        }
+        for k in kernels {
+            sh_order.push(format!(".nv.capmerc.text.{}", k.name));
+        }
+        sh_order.push(".nv.merc.debug_frame".into());
+        sh_order.push(".nv.merc.nv.info".into());
+        for k in kernels {
+            sh_order.push(format!(".nv.merc.nv.info.{}", k.name));
+        }
+        for (ki, k) in kernels.iter().enumerate() {
+            if kernel_needs_rela_text[ki] {
+                sh_order.push(format!(".nv.merc.rela.text.{}", k.name));
+            }
+        }
+        sh_order.push(".nv.merc.rela.debug_frame".into());
+        sh_order.push(".nv.merc.nv.shared.reserved.0".into());
+        sh_order.push(".nv.merc.symtab".into());
+        let mut sh_map: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+        self.shstrtab = StrTable::new();
+        for nm in &sh_order {
+            sh_map.insert(nm.clone(), self.shstrtab.add(nm));
+        }
+        let shn = |name: &str| -> u32 { *sh_map.get(name).unwrap_or_else(|| panic!("shstrtab law missing {name}")) };
+
+        let mut st_order: Vec<String> = vec![
+            ".shstrtab", ".strtab", ".symtab", ".symtab_shndx", ".note.nv.tkinfo",
+            ".note.nv.cuinfo", ".nv.info", ".nv.compat",
+        ].iter().map(|s| s.to_string()).collect();
+        for (ki, k) in kernels.iter().enumerate() {
+            st_order.push(format!(".text.{}", k.name));
+            st_order.push(format!(".nv.info.{}", k.name));
+            st_order.push(format!(".nv.shared.{}", k.name));
+            if ki == 0 {
+                st_order.push(".nv.reservedSmem.offset0".into());
+                st_order.push(".nv.shared.reserved.0".into());
+                st_order.push("__nv_reservedSMEM_offset_0_alias".into());
+                if n_smem > 0 {
+                    st_order.push(".nv.reservedSmem.cap".into());
+                }
+            }
+            if kernel_needs_rela_text[ki] {
+                st_order.push(format!(".rel.text.{}", k.name));
+                st_order.push(format!(".rela.text.{}", k.name));
+            }
+        }
+        for nm in [".debug_frame", ".rel.debug_frame", ".rela.debug_frame", ".nv.callgraph", ".nv.prototype"] {
+            st_order.push(nm.into());
+        }
+        for k in kernels {
+            st_order.push(k.name.clone());
+        }
+        for k in kernels {
+            st_order.push(format!(".nv.constant0.{}", k.name));
+        }
+        let mut st_map: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+        for nm in &st_order {
+            st_map.insert(nm.clone(), self.strtab.add(nm));
+        }
+        let stn = |name: &str| -> u32 { *st_map.get(name).unwrap_or_else(|| panic!("strtab law missing {name}")) };
+
+        let shn_shstrtab = shn(".shstrtab");
+        let shn_strtab = shn(".strtab");
+        let shn_symtab = shn(".symtab");
+        let shn_dbg = shn(".debug_frame");
+        let shn_tkinfo = shn(".note.nv.tkinfo");
+        let shn_cuver = shn(".note.nv.cuinfo");
+        let shn_nv_info = shn(".nv.info");
+        let shn_compat = shn(".nv.compat");
+        let shn_cg = shn(".nv.callgraph");
+        let shn_rela_dbg = shn(".rela.debug_frame");
+        let shn_shared = shn(".nv.shared.reserved.0");
+        let shn_merc_dbg = shn(".nv.merc.debug_frame");
+        let shn_merc_info = shn(".nv.merc.nv.info");
+        let shn_merc_rela = shn(".nv.merc.rela.debug_frame");
+        let shn_merc_sh = shn(".nv.merc.nv.shared.reserved.0");
+        let shn_merc_symt = shn(".nv.merc.symtab");
+        let mut shn_nv_info_k: Vec<u32> = Vec::new();
+        let mut shn_text_k: Vec<u32> = Vec::new();
+        let mut shn_const0_k: Vec<u32> = Vec::new();
+        let mut shn_capmerc_k: Vec<u32> = Vec::new();
+        let mut shn_merc_info_k: Vec<u32> = Vec::new();
+        let mut shn_shared_k: Vec<u32> = Vec::new();
+        let mut shn_rela_text_k: Vec<u32> = Vec::new();
+        for k in kernels {
+            shn_nv_info_k.push(shn(&format!(".nv.info.{}", k.name)));
+            shn_text_k.push(shn(&format!(".text.{}", k.name)));
+            shn_const0_k.push(shn(&format!(".nv.constant0.{}", k.name)));
+            shn_shared_k.push(shn(&format!(".nv.shared.{}", k.name)));
+            shn_capmerc_k.push(shn(&format!(".nv.capmerc.text.{}", k.name)));
+            shn_merc_info_k.push(shn(&format!(".nv.merc.nv.info.{}", k.name)));
+            if kernel_needs_rela_text[shn_rela_text_k.len()] {
+                shn_rela_text_k.push(shn(&format!(".rela.text.{}", k.name)));
+            } else {
+                shn_rela_text_k.push(0); // unused placeholder (name only interned when needed)
+            }
+        }
+
+        // ── Build symbol table ────────────────────────────────────────────
+        // Symbol layout (nvcc 13.3 law; verified on 9 vendor cubins):
+        //   [0]         : null
+        //   [1]         : .note.nv.tkinfo section sym  (local)   <- 13.3-only
+        //   [2]         : .note.nv.cuinfo section sym  (local)   <- 13.3-only
+        //   [3..3+N)    : .text.Ki section syms  (local)
+        //   [3+N..+Nsh) : .nv.shared.Ki section syms  (smem kernels only)
+        //   [B0]        : .nv.reservedSmem.offset0  (WEAK OBJECT UND val=0x40 size=4)
+        //   [B0+1]      : __nv_reservedSMEM_offset_0_alias  (WEAK NOTYPE 0xa0,
+        //                 shndx=.nv.shared.reserved.0, val=0x40)
+        //   [B0+2]      : .nv.reservedSmem.cap (WEAK OBJECT UND val=0x400 size=4)
+        //                 -- only when any kernel carries static smem (b10 F-2)
+        //   [B1]        : .debug_frame section sym  (local)
+        //   [B1+1]      : .nv.callgraph section sym  (local)
+        //   [B1+2+ki]   : kernel func syms  (GLOBAL, hidden, size=code len)
+        //   [B2+ki]     : .nv.constant0.Ki section syms  (local)
+        // sh_info = total symbol count (13.3 quirk; 12.8 used first-global).
+        let has_cap = n_smem > 0;
+        // Layout law (13.3, multi-kernel verified): [null,tk,cu, (per kernel:
+        // .text.Ki, [.nv.shared.Ki if smem], and right after kernel 0's own
+        // entries the anchor cluster: reserved.offset0, alias, [cap if any
+        // smem]) , .debug_frame, .nv.callgraph, funcs, const0-syms].
+        let sym_dbg = 3 + n + n_smem + 2 + has_cap as usize;
+        let sym_cg = sym_dbg + 1;
+        let func_sym_idx = |ki: usize| sym_cg + 1 + ki;
+        let const0_sym_idx = |ki: usize| sym_cg + 1 + n + ki;
+        let sym_total = sym_cg + 1 + 2 * n;
+
+        // Strtab entries for symbol names (from the 13.3 interner law table)
+        let stn_tkinfo = stn(".note.nv.tkinfo");
+        let stn_cuinfo = stn(".note.nv.cuinfo");
+        let mut stn_text_k: Vec<u32> = Vec::new();
+        let stn_reserved_smem = stn(".nv.reservedSmem.offset0");
+        let stn_smem_alias = stn("__nv_reservedSMEM_offset_0_alias");
+        let stn_debug_frame = stn(".debug_frame");
+        let stn_callgraph = stn(".nv.callgraph");
+        let mut stn_func_k: Vec<u32> = Vec::new();
+        let mut stn_const0_k: Vec<u32> = Vec::new();
+        let mut stn_shared_k: Vec<u32> = Vec::new();
+        for k in kernels {
+            stn_text_k.push(stn(&format!(".text.{}", k.name)));
+            stn_func_k.push(stn(&k.name.clone()));
+            stn_const0_k.push(stn(&format!(".nv.constant0.{}", k.name)));
+            stn_shared_k.push(stn(&format!(".nv.shared.{}", k.name)));
+        }
+
+        // Build raw symtab bytes
+        let mut symtab: Vec<u8> = Vec::new();
+        emit_sym(&mut symtab, 0, 0, 0, 0, 0, 0, 0); // [0] null
+        emit_sym(&mut symtab, stn_tkinfo, STB_LOCAL, STT_SECTION, STV_DEFAULT, IDX_TKINFO as u16, 0, 0);
+        emit_sym(&mut symtab, stn_cuinfo, STB_LOCAL, STT_SECTION, STV_DEFAULT, IDX_CUVER as u16, 0, 0);
+        for ki in 0..n {
+            emit_sym(
+                &mut symtab,
+                stn_text_k[ki],
+                STB_LOCAL,
+                STT_SECTION,
+                STV_DEFAULT,
+                text_k(ki) as u16,
+                0,
+                0,
+            );
+            if kernels[ki].meta.shared_size > 0 {
+                emit_sym(
+                    &mut symtab,
+                    stn_shared_k[ki],
+                    STB_LOCAL,
+                    STT_SECTION,
+                    STV_DEFAULT,
+                    shared_k(ki) as u16,
+                    0,
+                    0,
+                );
+            }
+            if ki == 0 {
+                // smem-anchor cluster sits right after kernel 0's own syms
+                emit_sym(&mut symtab, stn_reserved_smem, STB_WEAK, STT_OBJECT, STV_DEFAULT, 0, 0x40, 4);
+                emit_sym(&mut symtab, stn_smem_alias, STB_WEAK, STT_NOTYPE, 0xa0, idx_shared as u16, 0x40, 0);
+                if has_cap {
+                    let stn_reserved_cap = stn(".nv.reservedSmem.cap");
+                    emit_sym(&mut symtab, stn_reserved_cap, STB_WEAK, STT_OBJECT, STV_DEFAULT, 0, 0x400, 4);
+                }
+            }
+        }
+        emit_sym(&mut symtab, stn_debug_frame, STB_LOCAL, STT_SECTION, STV_DEFAULT, IDX_DBG as u16, 0, 0);
+        emit_sym(&mut symtab, stn_callgraph, STB_LOCAL, STT_SECTION, STV_DEFAULT, idx_cg as u16, 0, 0);
+        // kernel function syms (GLOBAL, st_other=0x10 per nvcc)
+        for ki in 0..n {
+            emit_sym(
+                &mut symtab,
+                stn_func_k[ki],
+                STB_GLOBAL,
+                STT_FUNC,
+                STV_HIDDEN,
+                text_k(ki) as u16,
+                0,
+                kernels[ki].code.len() as u64,
+            );
+        }
+        // .nv.constant0.Ki section syms
+        for ki in 0..n {
+            emit_sym(
+                &mut symtab,
+                stn_const0_k[ki],
+                STB_LOCAL,
+                STT_SECTION,
+                STV_DEFAULT,
+                const0_k(ki) as u16,
+                0,
+                0,
+            );
+        }
+        debug_assert_eq!(symtab.len(), sym_total * 24);
+
+        // ── Build Mercury symtab ──────────────────────────────────────────
+        // nvcc 13.3 law (12.8 agrees except the note syms):
+        //   [0]         : null
+        //   [1]         : .note.nv.tkinfo section sym
+        //   [2]         : .note.nv.cuinfo section sym
+        //   [3..3+N)    : ".text.Ki" syms -> .nv.capmerc.text.Ki  (the mercury
+        //                 *domain* uses the short name for its text!)
+        //   [3+N..+Nsh) : .nv.shared.Ki syms -> *plain* .nv.shared.Ki (smem only)
+        //   [M0]        : .nv.reservedSmem.offset0  (WEAK OBJECT UND val=0 size=4)
+        //   [M0+1]      : __nv_reservedSMEM_offset_0_alias (WEAK NOTYPE 0xa0,
+        //                 shndx=.nv.merc.nv.shared.reserved.0, val=0)
+        //   [M0+2]      : .nv.reservedSmem.cap (WEAK OBJECT UND val=0 size=4) if smem
+        //   [M1]        : ".debug_frame" sym -> .nv.merc.debug_frame
+        //   [M1+1]      : .nv.callgraph sym -> main callgraph
+        //   [M1+2+ki]   : Mercury func syms (GLOBAL, hidden, shndx=capmerc,
+        //                 size = mercury func st_size)
+        // sh_info = first GLOBAL index (both generations).
+        let merc_head = 3 + n + n_smem;
+        let merc_dbg_sym = merc_head + 2 + has_cap as usize;
+        let merc_cg_sym = merc_dbg_sym + 1;
+        let merc_func_sym_idx = |ki: usize| merc_cg_sym + 1 + ki;
+        let merc_sym_first_global = merc_cg_sym + 1;
+        let merc_total = merc_cg_sym + 1 + n;
+
+        let mut merc_symtab: Vec<u8> = Vec::new();
+        emit_sym(&mut merc_symtab, 0, 0, 0, 0, 0, 0, 0); // null
+        emit_sym(&mut merc_symtab, stn_tkinfo, STB_LOCAL, STT_SECTION, STV_DEFAULT, IDX_TKINFO as u16, 0, 0);
+        emit_sym(&mut merc_symtab, stn_cuinfo, STB_LOCAL, STT_SECTION, STV_DEFAULT, IDX_CUVER as u16, 0, 0);
+        for ki in 0..n {
+            // ".text.K" name pointing at the capmerc section (merc-domain law)
+            emit_sym(
+                &mut merc_symtab,
+                stn_text_k[ki],
+                STB_LOCAL,
+                STT_SECTION,
+                STV_DEFAULT,
+                capmerc_k(ki) as u16,
+                0,
+                0,
+            );
+            if kernels[ki].meta.shared_size > 0 {
+                // .nv.shared.K sym pointing at the *plain* shared section
+                emit_sym(
+                    &mut merc_symtab,
+                    stn_shared_k[ki],
+                    STB_LOCAL,
+                    STT_SECTION,
+                    STV_DEFAULT,
+                    shared_k(ki) as u16,
+                    0,
+                    0,
+                );
+            }
+            if ki == 0 {
+                emit_sym(&mut merc_symtab, stn_reserved_smem, STB_WEAK, STT_OBJECT, STV_DEFAULT, 0, 0, 4);
+                emit_sym(&mut merc_symtab, stn_smem_alias, STB_WEAK, STT_NOTYPE, 0xa0, idx_merc_shared as u16, 0, 0);
+                if has_cap {
+                    let stn_reserved_cap = stn(".nv.reservedSmem.cap");
+                    emit_sym(&mut merc_symtab, stn_reserved_cap, STB_WEAK, STT_OBJECT, STV_DEFAULT, 0, 0, 4);
+                }
+            }
+        }
+        emit_sym(&mut merc_symtab, stn_debug_frame, STB_LOCAL, STT_SECTION, STV_DEFAULT, idx_merc_dbg as u16, 0, 0);
+        emit_sym(&mut merc_symtab, stn_callgraph, STB_LOCAL, STT_SECTION, STV_DEFAULT, idx_cg as u16, 0, 0);
+        for ki in 0..n {
+            emit_sym(
+                &mut merc_symtab,
+                stn_func_k[ki],
+                STB_GLOBAL,
+                STT_FUNC,
+                STV_HIDDEN,
+                capmerc_k(ki) as u16,
+                0,
+                merc_sizes[ki],
+            );
+        }
+        debug_assert_eq!(merc_symtab.len(), merc_total * 24);
+
+        // ── Build section data ────────────────────────────────────────────
+        // Section data for .nv.info (global): REGCOUNT, FRAME_SIZE, MIN_STACK_SIZE
+        let global_info_data: Vec<u8> = {
+            use crate::eiattr::{EiFmt, EiRecord, NvInfoSection};
+            let mut records: Vec<EiRecord> = Vec::new();
+            // nvcc 13.3 interleave (multi-kernel law): REGCOUNT(2f) +
+            // FRAME_SIZE(11) per kernel in REVERSE order, then
+            // MIN_STACK_SIZE(12) in FORWARD order.
+            for ki in (0..n).rev() {
+                let k = &kernels[ki];
+                let sym = func_sym_idx(ki) as u32;
+                let mut d = sym.to_le_bytes().to_vec();
+                d.extend_from_slice(&k.meta.regcount.to_le_bytes());
+                records.push(EiRecord {
+                    attr: 0x002f,
+                    fmt: EiFmt::Sized,
+                    data: d,
+                });
+
+                let mut d = sym.to_le_bytes().to_vec();
+                d.extend_from_slice(&k.meta.frame_size.to_le_bytes());
+                records.push(EiRecord {
+                    attr: 0x0011,
+                    fmt: EiFmt::Sized,
+                    data: d,
+                });
+            }
+            for ki in 0..n {
+                let k = &kernels[ki];
+                let sym = func_sym_idx(ki) as u32;
+                let mut d = sym.to_le_bytes().to_vec();
+                d.extend_from_slice(&k.meta.min_stack_size.to_le_bytes());
+                records.push(EiRecord {
+                    attr: 0x0012,
+                    fmt: EiFmt::Sized,
+                    data: d,
+                });
+            }
+            NvInfoSection {
+                name: ".nv.info".into(),
+                records,
+            }
+            .to_bytes()
+        };
+
+        // Per-kernel .nv.info.K
+        let mut per_kernel_info: Vec<Vec<u8>> = Vec::new();
+        for ki in 0..n {
+            let k = &kernels[ki];
+            let sym = func_sym_idx(ki) as u32;
+            let const_sym = const0_sym_idx(ki) as u32;
+            let data = k.meta.to_kernel_records_with_sym_and_const(sym, const_sym);
+            per_kernel_info.push(data.to_bytes());
+        }
+
+        // Per-kernel .nv.merc.nv.info.K (Mercury EIATTR, nvcc 13.3 law)
+        let mut merc_per_kernel_info: Vec<Vec<u8>> = Vec::new();
+        for ki in 0..n {
+            let k = &kernels[ki];
+            let data = build_merc_nv_info_13(&k.meta, merc_sizes[ki], &sass_exits[ki]);
+            merc_per_kernel_info.push(data);
+        }
+
+        // .nv.merc.nv.info (global), nvcc law (both generations): REGCOUNT(2f)
+        // and FRAME_SIZE(11) per Mercury func in REVERSE kernel order, then
+        // MIN_STACK_SIZE(12) in FORWARD order. The REGCOUNT value is the
+        // SASS regcount capped at 16 (verified 4/8/10/12/16 across vendors;
+        // 544-ins kernel: 32 -> 16). Frame/stack of the Mercury func = 0.
+        let merc_global_info: Vec<u8> = {
+            use crate::eiattr::{EiFmt, EiRecord, NvInfoSection};
+            let mut records = Vec::new();
+            for ki in (0..n).rev() {
+                let k = &kernels[ki];
+                let sym = merc_func_sym_idx(ki) as u32;
+                let mut d = sym.to_le_bytes().to_vec();
+                d.extend_from_slice(&k.meta.regcount.min(16).to_le_bytes());
+                records.push(EiRecord { attr: 0x002f, fmt: EiFmt::Sized, data: d });
+                let mut d = sym.to_le_bytes().to_vec();
+                d.extend_from_slice(&0u32.to_le_bytes());
+                records.push(EiRecord { attr: 0x0011, fmt: EiFmt::Sized, data: d });
+            }
+            for ki in 0..n {
+                let sym = merc_func_sym_idx(ki) as u32;
+                let mut d = sym.to_le_bytes().to_vec();
+                d.extend_from_slice(&0u32.to_le_bytes());
+                records.push(EiRecord { attr: 0x0012, fmt: EiFmt::Sized, data: d });
+            }
+            NvInfoSection {
+                name: ".nv.merc.nv.info".into(),
+                records,
+            }
+            .to_bytes()
+        };
+
+        // .debug_frame + .nv.merc.debug_frame (per-kernel [CIE][FDE] pairs),
+        // and their .rela sections. Fallback (documented in merc.md): a kernel
+        // with no discovered EXIT keeps an EMPTY .debug_frame/rela (legacy
+        // behavior) rather than emitting a wrong CFI program.
+        let all_have_exits = sass_exits.iter().all(|e| !e.is_empty());
+        let mut debug_frame_data: Vec<u8> = Vec::new();
+        let mut merc_debug_frame_data: Vec<u8> = Vec::new();
+        let mut fde_block_off: Vec<u64> = Vec::with_capacity(n);
+        for ki in 0..n {
+            // Mercury domain: always computable (program is range-driven).
+            let mcie_off = merc_debug_frame_data.len() as u64;
+            merc_debug_frame_data.extend_from_slice(&dwarf_cie(1));
+            merc_debug_frame_data
+                .extend_from_slice(&dwarf_fde(mcie_off, merc_sizes[ki], &merc_fde_program(merc_sizes[ki])));
+            if !all_have_exits {
+                continue;
+            }
+            let cie_off = debug_frame_data.len() as u64;
+            fde_block_off.push(cie_off);
+            debug_frame_data.extend_from_slice(&dwarf_cie(4));
+            debug_frame_data.extend_from_slice(&dwarf_fde(
+                cie_off,
+                kernels[ki].code.len() as u64,
+                &sass_fde_program(&sass_exits[ki]),
+            ));
+        }
+        // .rela.debug_frame entries, REVERSE kernel order (13.3 multi-kernel
+        // law), targeting FDE initial_location (block + 0x44, PC32 -> func sym).
+        let mut rela_debug_data: Vec<u8> = Vec::new();
+        if all_have_exits {
+            for ki in (0..n).rev() {
+                rela_debug_data.extend_from_slice(&(fde_block_off[ki] + 0x44).to_le_bytes());
+                let r_info = ((func_sym_idx(ki) as u64) << 32) | 2; // R_X86_64_PC32
+                rela_debug_data.extend_from_slice(&r_info.to_le_bytes());
+                rela_debug_data.extend_from_slice(&0u64.to_le_bytes());
+            }
+        }
+
+        // Per-kernel .nv.constant0.K — minimum 0x388 bytes to match nvcc 12.8 SM120
+        let mut const0_data: Vec<Vec<u8>> = Vec::new();
+        for k in kernels {
+            // Parameters start at offset 0x380 in cbank0.
+            // The section must cover bytes 0x0 .. 0x380 + total_param_bytes.
+            // mk28: nvcc sm_103a nie ma progu 0x3A0 (fit na 119 labach:
+            // 0x380 dla bezparametrowych, 0x388..0x3a0 dla parametryzowanych).
+            // nvcc 13.3 law: exact end, no alignment pad (0x394 for a 0x14 block).
+            let cbank_size = 0x380usize + k.meta.cbank_param_size as usize;
+            const0_data.push(vec![0u8; cbank_size]);
+        }
+
+        // .nv.merc.rela.debug_frame: one entry per kernel in REVERSE kernel
+        // order (13.3 law), targeting FDE initial_location (block + 0x44),
+        // referencing the merc func sym.
+        let merc_rela_data: Vec<u8> = {
+            let mut out = Vec::new();
+            for ki in (0..n).rev() {
+                let sym = merc_func_sym_idx(ki) as u64;
+                out.extend_from_slice(&(0x44u64 + 0x70 * ki as u64).to_le_bytes()); // r_offset
+                let r_info = (sym << 32) | 0x0001_003d_u64;
+                out.extend_from_slice(&r_info.to_le_bytes());
+                out.extend_from_slice(&0u64.to_le_bytes()); // r_addend
+            }
+            out
+        };
+
+        // ── Assemble ELF ──────────────────────────────────────────────────
+        // Collect section records:
+        // Each entry: (name_off, type, flags, data, align, link, info, entsize, nobits_size)
+
+        type SecSpec = (u32, u32, u64, Vec<u8>, u64, u32, u32, u64, Option<u64>);
+
+        let mut secs: Vec<SecSpec> = Vec::new();
+
+        // Helper to push a section spec
+        macro_rules! sec {
+            ($name:expr, $ty:expr, $fl:expr, $data:expr, $al:expr, $lk:expr, $inf:expr, $es:expr) => {
+                secs.push(($name, $ty, $fl, $data, $al, $lk, $inf, $es, None));
+            };
+            ($name:expr, $ty:expr, $fl:expr, $data:expr, $al:expr, $lk:expr, $inf:expr, $es:expr, nobits($sz:expr)) => {
+                secs.push(($name, $ty, $fl, Vec::new(), $al, $lk, $inf, $es, Some($sz)));
+            };
+        }
+
+        // Fixed sections 4-7
+        sec!(shn_dbg, SHT_PROGBITS, 0, debug_frame_data, 1, 0, 0, 0); // 4: .debug_frame
+        sec!(
+            shn_tkinfo,
+            SHT_NOTE,
+            SHF_NV_TKINFO,
+            TKINFO_BYTES.to_vec(),
+            4,
+            0,
+            0,
+            0
+        ); // 5
+           // 6: .note.nv.cuinfo
+        let cuver_data = build_cuver_note(crate::elf::sm_from_ef_flags(self.ef_flags));
+        sec!(
+            shn_cuver,
+            SHT_NOTE,
+            SHF_NV_CUVER,
+            cuver_data,
+            4,
+            IDX_TKINFO as u32, // sh_link → .note.nv.tkinfo
+            idx_compat as u32, // sh_info → .nv.compat
+            0
+        );
+        // 7: .nv.info
+        sec!(
+            shn_nv_info,
+            SHT_CUDA_INFO,
+            0,
+            global_info_data.clone(),
+            4,
+            IDX_SYMTAB as u32,
+            0,
+            0
+        );
+
+        // mk28: .nv.compat PRZED .nv.info.K (kolejnosc nvcc sm_103a;
+        // dawniej po — rozjazd listy sekcji z oryginalem).
+        sec!(
+            shn_compat,
+            SHT_CUDA_COMPAT,
+            0,
+            nv_compat_blob(crate::elf::sm_from_ef_flags(self.ef_flags)).to_vec(),
+            4,
+            0,
+            0,
+            0
+        );
+
+        // Per-kernel .nv.info.K
+        for ki in 0..n {
+            sec!(
+                shn_nv_info_k[ki],
+                SHT_CUDA_INFO,
+                SHF_INFO_LINK,
+                per_kernel_info[ki].clone(),
+                4,
+                IDX_SYMTAB as u32,
+                text_k(ki) as u32,
+                0
+            );
+        }
+
+        // .nv.callgraph
+        sec!(
+            shn_cg,
+            SHT_CUDA_CALLGRAPH,
+            0,
+            NV_CALLGRAPH.to_vec(),
+            4,
+            IDX_SYMTAB as u32,
+            0,
+            8
+        );
+
+        // mk28: pusta .rela.text.K per kernel z CALL lub statycznym smem
+        // (regula nvcc: sekcja RELA obecna z zerem wpisow; fit 119 labow).
+        for ki in 0..n {
+            if kernel_needs_rela_text[ki] {
+                sec!(
+                    shn_rela_text_k[ki],
+                    SHT_RELA,
+                    SHF_INFO_LINK,
+                    vec![],
+                    8,
+                    IDX_SYMTAB as u32,
+                    text_k(ki) as u32,
+                    24
+                );
+            }
+        }
+
+        // .rela.debug_frame (tresc: mk30 — wpisy FDE wymagaja parystej
+        // par frames/symboli wewnetrznych; sekcja bez tresci gdy pusto)
+        sec!(
+            shn_rela_dbg,
+            SHT_RELA,
+            SHF_INFO_LINK,
+            rela_debug_data,
+            8,
+            IDX_SYMTAB as u32,
+            IDX_DBG as u32,
+            24
+        );
+
+        // Per-kernel .text.K
+        for ki in 0..n {
+            sec!(
+                shn_text_k[ki],
+                SHT_PROGBITS,
+                SHF_ALLOC | SHF_EXECINSTR,
+                kernels[ki].code.clone(),
+                128,
+                IDX_SYMTAB as u32,
+                func_sym_idx(ki) as u32,
+                0
+            );
+        }
+
+        // Per-kernel .nv.shared.<kernel> (NOBITS, actual shared memory size)
+        // sh_info = text section index (via SHF_INFO_LINK), sh_link = 0 (matches nvcc)
+        // mk28: kolejnosc nvcc — per-kernel .nv.shared.K PRZED reserved.0.
+        // nvcc law (13.3 + 12.8): section exists ONLY for static-smem kernels.
+        for &ki in &smem_ki {
+            let sh_size = kernels[ki].meta.shared_size as u64;
+            // b10 F-2: +0x400 platform-reserved cap (vendor law)
+            secs.push((
+                shn_shared_k[ki],
+                SHT_NOBITS,
+                SHF_WRITE | SHF_ALLOC | SHF_INFO_LINK,
+                Vec::new(),
+                4,
+                0,
+                text_k(ki) as u32,
+                0,
+                Some(sh_size + 0x400),
+            ));
+        }
+
+        // mk28: .nv.shared.reserved.0 PO per-kernel sekcjach; 0x60 gdy kernel
+        // uzywa tmem (UTCA — mkvmem/b_tcgen05), inaczej 0x40 (fit korpusu).
+        let reserved_sz: u64 = if kernels.iter().any(|k| !k.meta.merc_utca.is_empty()) {
+            0x60
+        } else {
+            0x40
+        };
+        sec!(
+            shn_shared,
+            SHT_NOBITS,
+            SHF_WRITE | SHF_ALLOC,
+            vec![],
+            1,
+            0,
+            0,
+            0,
+            nobits(reserved_sz)
+        );
+
+        // Per-kernel .nv.constant0.K
+        for ki in 0..n {
+            sec!(
+                shn_const0_k[ki],
+                SHT_PROGBITS,
+                SHF_ALLOC | SHF_INFO_LINK,
+                const0_data[ki].clone(),
+                4,
+                0,
+                text_k(ki) as u32,
+                0
+            );
+        }
+
+        // Per-kernel .nv.capmerc.text.K — hoisted capsules (see build() head:
+        // also drive Mercury st_size / FDE ranges / merc EXIT offsets).
+        for ki in 0..n {
+            let stub: &[u8] = &capsules[ki];
+            sec!(
+                shn_capmerc_k[ki],
+                SHT_MERC_CAPMERC,
+                SHF_MERC,
+                stub.to_vec(),
+                16,
+                idx_merc_symtab as u32,
+                merc_func_sym_idx(ki) as u32, // sh_info = Mercury func sym index
+                0
+            );
+        }
+
+        // .nv.merc.debug_frame
+        sec!(
+            shn_merc_dbg,
+            SHT_PROGBITS,
+            SHF_MERC,
+            merc_debug_frame_data,
+            1,
+            0,
+            0,
+            0
+        );
+        // .nv.merc.nv.info
+        sec!(
+            shn_merc_info,
+            SHT_MERC_INFO,
+            SHF_MERC,
+            merc_global_info,
+            4,
+            idx_merc_symtab as u32,
+            0,
+            0
+        );
+
+        // Per-kernel .nv.merc.nv.info.K
+        for ki in 0..n {
+            sec!(
+                shn_merc_info_k[ki],
+                SHT_MERC_INFO,
+                SHF_MERC_LINK,
+                merc_per_kernel_info[ki].clone(),
+                4,
+                idx_merc_symtab as u32,
+                capmerc_k(ki) as u32,
+                0
+            );
+        }
+
+        // .nv.merc.rela.debug_frame
+        sec!(
+            shn_merc_rela,
+            SHT_MERC_RELA,
+            SHF_MERC_LINK,
+            merc_rela_data,
+            8,
+            idx_merc_symtab as u32,
+            idx_merc_dbg as u32,
+            24
+        );
+        // .nv.merc.nv.shared.reserved.0 (vendor law 12.8 + 13.3.73: size 0;
+        // mk28's 32-zero reading disconfirmed on 13.3.73 + rc4 donor)
+        sec!(
+            shn_merc_sh,
+            SHT_MERC_RESERVED_SH,
+            SHF_MERC | SHF_WRITE | SHF_ALLOC,
+            vec![],
+            1,
+            0,
+            0,
+            0
+        );
+        // .nv.merc.symtab
+        sec!(
+            shn_merc_symt,
+            SHT_MERC_SYMTAB,
+            SHF_MERC,
+            merc_symtab,
+            8,
+            IDX_STRTAB as u32, // sh_link = .strtab (regular)
+            merc_sym_first_global as u32,
+            24
+        );
+
+        assert_eq!(
+            secs.len() + 4,
+            total_sections,
+            "section count mismatch: {} + 4 != {}",
+            secs.len(),
+            total_sections
+        );
+
+        // ── Write file ────────────────────────────────────────────────────
+        let mut out: Vec<u8> = vec![0u8; 64]; // ELF header placeholder
+
+        // 1. shstrtab
+        let shstrtab_off = out.len() as u64;
+        let shstrtab_data = self.shstrtab.data.clone();
+        out.extend_from_slice(&shstrtab_data);
+
+        // 2. strtab
+        let strtab_off = out.len() as u64;
+        let strtab_data = self.strtab.data.clone();
+        out.extend_from_slice(&strtab_data);
+
+        // 3. symtab (align 8)
+        align_to(&mut out, 8);
+        let symtab_off = out.len() as u64;
+        out.extend_from_slice(&symtab);
+
+        // 4+. content sections
+        let mut sec_off: Vec<u64> = vec![0; total_sections];
+        let mut sec_size: Vec<u64> = vec![0; total_sections];
+        // sec[0] = NULL (off=0, size=0)
+        // sec[1] = .shstrtab
+        sec_off[IDX_SHSTR] = shstrtab_off;
+        sec_size[IDX_SHSTR] = shstrtab_data.len() as u64;
+        // sec[2] = .strtab
+        sec_off[IDX_STRTAB] = strtab_off;
+        sec_size[IDX_STRTAB] = strtab_data.len() as u64;
+        // sec[3] = .symtab
+        sec_off[IDX_SYMTAB] = symtab_off;
+        sec_size[IDX_SYMTAB] = symtab.len() as u64;
+
+        for (si, spec) in secs.iter().enumerate() {
+            let abs = si + 4; // absolute section index
+            let (_, ty, _, data, align, _, _, _, nobits) = spec;
+            if *ty != SHT_NOBITS && *ty != SHT_MERC_RESERVED_SH {
+                align_to(&mut out, *align as usize);
+            }
+            sec_off[abs] = out.len() as u64;
+            sec_size[abs] = nobits.unwrap_or(data.len() as u64);
+            if *ty != SHT_NOBITS && *ty != SHT_MERC_RESERVED_SH {
+                out.extend_from_slice(data);
+            }
+        }
+
+        // Section header table (align 8)
+        align_to(&mut out, 8);
+        let e_shoff = out.len() as u64;
+
+        // NULL section
+        write_shdr(&mut out, 0, SHT_NULL, 0, 0, 0, 0, 0, 0, 0, 0);
+        // .shstrtab
+        write_shdr(
+            &mut out,
+            shn_shstrtab,
+            SHT_STRTAB,
+            0,
+            0,
+            sec_off[IDX_SHSTR],
+            sec_size[IDX_SHSTR],
+            0,
+            0,
+            1,
+            0,
+        );
+        // .strtab
+        write_shdr(
+            &mut out,
+            shn_strtab,
+            SHT_STRTAB,
+            0,
+            0,
+            sec_off[IDX_STRTAB],
+            sec_size[IDX_STRTAB],
+            0,
+            0,
+            1,
+            0,
+        );
+        // .symtab
+        write_shdr(
+            &mut out,
+            shn_symtab,
+            SHT_SYMTAB,
+            0,
+            0,
+            sec_off[IDX_SYMTAB],
+            sec_size[IDX_SYMTAB],
+            IDX_STRTAB as u32,
+            sym_total as u32, // 13.3 quirk: sh_info = total symbol count
+            8,
+            24,
+        );
+        // Content sections
+        for (si, spec) in secs.iter().enumerate() {
+            let abs = si + 4;
+            let (name_off, ty, flags, _, align, link, info, entsize, _) = spec;
+            write_shdr(
+                &mut out,
+                *name_off,
+                *ty,
+                *flags,
+                0,
+                sec_off[abs],
+                sec_size[abs],
+                *link,
+                *info,
+                *align,
+                *entsize,
+            );
+        }
+
+        // ── Program headers ───────────────────────────────────────────────
+        // Matching nvcc 12.8 layout:
+        //  [0] PT_PHDR(R)  → covers PHDR table itself
+        //  [1] PT_LOAD(R)  → same as PHDR table (standard CUDA convention)
+        //  [2] PT_LOAD(RX) → .text sections
+        //  [3] PT_LOAD(RW) → .nv.shared.reserved.0 (NOBITS, memsz only)
+        //  [4] PT_LOAD(R)  → .nv.constant0 sections
+
+        align_to(&mut out, 8);
+        let e_phoff = out.len() as u64;
+
+        const PHDR_COUNT: u16 = 5;
+        let phdr_size = PHDR_COUNT as u64 * 56;
+
+        // Find file ranges for text and const sections
+        let text_start = sec_off[text_k(0)];
+        let text_end = text_start + (0..n).map(|ki| sec_size[text_k(ki)]).sum::<u64>();
+
+        // b10 F-2: vendor footprint (smem: user+0x400+0x40; else 0x40)
+        let shared_memsz: u64 = if max_shared > 0x40 { max_shared + 0x400 + 0x40 } else { 0x40 };
+        let shared_filesz: u64 = 0;
+
+        let const_start = sec_off[const0_k(0)];
+        let const_end = const_start + (0..n).map(|ki| sec_size[const0_k(ki)]).sum::<u64>();
+
+        // PT_PHDR
+        write_phdr(&mut out, 0x6, 0x4, e_phoff, 0, phdr_size, phdr_size, 8);
+        // PT_LOAD R (same as PHDR, from start of file up to text)
+        write_phdr(&mut out, 0x1, 0x4, e_phoff, 0, phdr_size, phdr_size, 8);
+        // PT_LOAD RX (.text)
+        write_phdr(
+            &mut out,
+            0x1,
+            0x5,
+            text_start,
+            0,
+            text_end - text_start,
+            text_end - text_start,
+            8,
+        );
+        // PT_LOAD RW (.nv.shared.reserved.0)
+        let shared_file_off = sec_off[idx_shared]; // = text_end (NOBITS shares offset)
+        write_phdr(
+            &mut out,
+            0x1,
+            0x6,
+            shared_file_off,
+            0,
+            shared_filesz,
+            shared_memsz,
+            8,
+        );
+        // PT_LOAD R (.nv.constant0)
+        write_phdr(
+            &mut out,
+            0x1,
+            0x4,
+            const_start,
+            0,
+            const_end - const_start,
+            const_end - const_start,
+            8,
+        );
+
+        // ── Finalise ELF header ───────────────────────────────────────────
+        let e_shnum = total_sections as u16;
+        write_elf_header_flags(
+            &mut out[..64],
+            e_shoff,
+            e_shnum,
+            IDX_SHSTR as u16,
+            e_phoff,
+            PHDR_COUNT,
+            self.ef_flags,
+        );
+
+        Ok(out)
+    }
 }
 
 // ── Mercury EIATTR builder ────────────────────────────────────────────────────
@@ -5227,67 +6450,166 @@ impl CubinBuilder {
 ///
 /// This is the Mercury version of per-kernel attributes.  It contains the
 /// hardcoded Mercury EXIT stub hash plus attributes from the kernel metadata.
-fn build_merc_nv_info_k(meta: &KernelMeta, _merc_func_sym: u32) -> Vec<u8> {
+/// Legacy per-kernel .nv.merc.nv.info.K (pre-merc13 default).
+fn build_merc_nv_info_k_legacy(meta: &KernelMeta, _merc_func_sym: u32) -> Vec<u8> {
     use crate::eiattr::{EiFmt, EiRecord, NvInfoSection};
     let mut records = Vec::new();
-
-    // CUDA_API_VERSION
     let api_ver = if meta.cuda_api_version != 0 {
         meta.cuda_api_version
     } else {
         0x83
+    };
+    records.push(EiRecord { attr: 0x0037, fmt: EiFmt::Sized, data: api_ver.to_le_bytes().to_vec() });
+    records.push(EiRecord { attr: 0x005a, fmt: EiFmt::Sized, data: MERC_HASH.to_vec() });
+    let mut d = vec![0u8; 12];
+    d[9] = 0xf0;
+    d[10] = 0x21;
+    records.push(EiRecord { attr: 0x000a, fmt: EiFmt::Sized, data: d });
+    records.push(EiRecord { attr: 0x0050, fmt: EiFmt::Byte, data: vec![0] });
+    records.push(EiRecord { attr: 0x001b, fmt: EiFmt::Byte, data: vec![0xff] });
+    records.push(EiRecord { attr: 0x004a, fmt: EiFmt::Half, data: vec![0, 0] });
+    records.push(EiRecord { attr: 0x001c, fmt: EiFmt::Sized, data: 0xa0u32.to_le_bytes().to_vec() });
+    NvInfoSection { name: "".into(), records }.to_bytes()
+}
+
+/// Legacy .note.nv.cuinfo builder (pre-merc13 default).
+fn build_cuver_note_legacy() -> Vec<u8> {
+    let name = b"NVIDIA Corp\0";
+    let mut n = Vec::new();
+    n.extend_from_slice(&(name.len() as u32).to_le_bytes());
+    n.extend_from_slice(&(CUVER_DESC_LEGACY.len() as u32).to_le_bytes());
+    n.extend_from_slice(&0x3e8u32.to_le_bytes());
+    n.extend_from_slice(name);
+    n.extend_from_slice(CUVER_DESC_LEGACY);
+    n
+}
+
+/// CUBIT_MERC13 switch (default OFF; see build()).
+fn merc13_enabled() -> bool {
+    std::env::var_os("CUBIT_MERC13").is_some()
+}
+
+/// Per-kernel .nv.merc.nv.info.K, nvcc 13.3 law (9 vendor cubins + rc4/12.8):
+///   66 LANGUAGE=PTX(3), 37 API=0x85, 5a HASH32, 17 KPARAM* (rev ordinal,
+///   mk28 format), 50 SPARSE=0, 1b MAXREG=ff, [4c NUM_BARRIERS if bars],
+///   5f MERC-1.1 (BVAL 0x0101), [31 INT_WARP_WIDE if VOTEU-sites],
+///   [29+28 COOP if cgsites], 4a VRC_CTA_INIT, 1c EXIT_OFFS (merc space).
+/// The record set is the 13.3 main-side set restricted to the attributes the
+/// Mercury domain carries (no param-cbank 19/0a, no SW_WAR 36/6b/1e).
+fn build_merc_nv_info_13(meta: &KernelMeta, merc_sz: u64, sass_exits: &[u32]) -> Vec<u8> {
+    use crate::eiattr::{EiFmt, EiRecord, NvInfoSection};
+    let mut records = Vec::new();
+
+    records.push(EiRecord {
+        attr: 0x0066,
+        fmt: EiFmt::Sized,
+        data: 3u32.to_le_bytes().to_vec(),
+    });
+    let api_ver = match meta.cuda_api_version {
+        0 | 0x83 => 0x85, // 13.x era (0x82/0x83 = older nvcc)
+        v => v,
     };
     records.push(EiRecord {
         attr: 0x0037,
         fmt: EiFmt::Sized,
         data: api_ver.to_le_bytes().to_vec(),
     });
-
-    // ATTR_0x5a — Mercury code hash (36 bytes, hardcoded for EXIT stub)
+    // Mercury content hash — constant across kernels (nvcc 13.3).
     records.push(EiRecord {
         attr: 0x005a,
         fmt: EiFmt::Sized,
         data: MERC_HASH.to_vec(),
     });
-
-    // MAX_THREADS (12 bytes)
-    let mut d = vec![0u8; 12];
-    d[8] = 0x00;
-    d[9] = 0xf0;
-    d[10] = 0x21;
-    d[11] = 0x00;
-    records.push(EiRecord {
-        attr: 0x000a,
-        fmt: EiFmt::Sized,
-        data: d,
-    });
-
-    // SPARSE_MMA_MASK (BVAL=0 via fmt=0x03)
+    // KPARAM_INFO (0x17), reverse ordinal, mk28 format (same as main side).
+    for param in meta.params.iter().rev() {
+        let mut d = vec![0u8; 12];
+        d[4] = param.ordinal as u8;
+        let off16 = param.offset as u16;
+        d[6] = (off16 & 0xff) as u8;
+        d[7] = (off16 >> 8) as u8;
+        d[9] = 0xf0 | if param.size == 8 { 0x05 } else { 0x00 };
+        d[10] = match param.size {
+            1 | 2 => 0x01,
+            4 => 0x11,
+            8 => 0x21,
+            16 => 0x31,
+            _ => 0x21,
+        };
+        records.push(EiRecord {
+            attr: 0x0017,
+            fmt: EiFmt::Sized,
+            data: d,
+        });
+    }
     records.push(EiRecord {
         attr: 0x0050,
         fmt: EiFmt::Byte,
         data: vec![0],
     });
-
-    // MAXREG_COUNT (BVAL=0xff — unlimited in Mercury)
     records.push(EiRecord {
         attr: 0x001b,
         fmt: EiFmt::Byte,
         data: vec![0xff],
     });
-
-    // VRC_CTA_INIT_COUNT (fmt=0x02, BVAL)
+    if meta.num_barriers > 0 {
+        records.push(EiRecord {
+            attr: 0x004c,
+            fmt: EiFmt::Half,
+            data: vec![meta.num_barriers, 0],
+        });
+    }
+    records.push(EiRecord {
+        attr: 0x005f,
+        fmt: EiFmt::Byte,
+        data: vec![1, 1],
+    });
+    if !meta.merc_wwide_sites.is_empty() {
+        let mut d = Vec::with_capacity(meta.merc_wwide_sites.len() * 4);
+        for off in &meta.merc_wwide_sites {
+            d.extend_from_slice(&off.to_le_bytes());
+        }
+        records.push(EiRecord {
+            attr: 0x0031,
+            fmt: EiFmt::Sized,
+            data: d,
+        });
+    }
+    if !meta.merc_cgsites.is_empty() {
+        let n = meta.merc_cgsites.len();
+        let mut m29 = Vec::with_capacity(4 * n);
+        for i in 0..n {
+            let m = meta.merc_cgmasks.get(i).copied().unwrap_or(0xffff_ffff);
+            m29.extend_from_slice(&m.to_le_bytes());
+        }
+        records.push(EiRecord {
+            attr: 0x0029,
+            fmt: EiFmt::Sized,
+            data: m29,
+        });
+        let mut s28 = Vec::with_capacity(4 * n);
+        for st in &meta.merc_cgsites {
+            s28.extend_from_slice(&st.to_le_bytes());
+        }
+        records.push(EiRecord {
+            attr: 0x0028,
+            fmt: EiFmt::Sized,
+            data: s28,
+        });
+    }
     records.push(EiRecord {
         attr: 0x004a,
         fmt: EiFmt::Half,
         data: vec![0, 0],
     });
-
-    // EXIT_INSTR_OFFSETS: 0xa0 = offset of EXIT instruction in the Mercury stub (nvcc 12.8)
+    // EXIT_INSTR_OFFSETS in Mercury space (phase-1 divisor law).
+    let mut d = Vec::new();
+    for off in merc_exit_offsets(sass_exits, merc_sz) {
+        d.extend_from_slice(&off.to_le_bytes());
+    }
     records.push(EiRecord {
         attr: 0x001c,
         fmt: EiFmt::Sized,
-        data: 0xa0u32.to_le_bytes().to_vec(),
+        data: d,
     });
 
     NvInfoSection {
@@ -5679,15 +7001,18 @@ fn emit_sym(
     out.extend_from_slice(&size.to_le_bytes());
 }
 
-fn build_cuver_note() -> Vec<u8> {
+fn build_cuver_note(sm: u32) -> Vec<u8> {
+    // .note.nv.cuinfo desc (8 bytes), nvcc 13.3 law: [02 00 <sm> 00 <api> 00 00 00]
+    // (<sm>: 0x64=sm100, 0x67=sm103, 0x78=sm120, 0x79=sm121; api: 0x85 = 13.3).
+    let desc: [u8; 8] = [0x02, 0x00, sm as u8, 0x00, 0x85, 0x00, 0x00, 0x00];
     let name = b"NVIDIA Corp\0"; // 12 bytes
     let mut n = Vec::new();
     n.extend_from_slice(&(name.len() as u32).to_le_bytes()); // namesz = 12
-    n.extend_from_slice(&(CUVER_DESC.len() as u32).to_le_bytes()); // descsz = 12
+    n.extend_from_slice(&(desc.len() as u32).to_le_bytes()); // descsz = 8
     n.extend_from_slice(&0x3e8u32.to_le_bytes()); // type
     n.extend_from_slice(name);
     // name already 12 bytes = 0 mod 4
-    n.extend_from_slice(CUVER_DESC);
+    n.extend_from_slice(&desc);
     n
 }
 
