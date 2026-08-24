@@ -1921,6 +1921,23 @@ pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
     }
 }
 
+/// BUG-102: write-barrier batchability class for the RECYCLE audit. TRUE for
+/// producers with an asynchronous scoreboard write-back (the `is_long_latency`
+/// set minus stores), which ptxas legitimately accumulates on ONE shared write
+/// barrier with a single downstream drain (certified rt98 text, silicon-EXACT).
+/// FALSE for everything else (fixed-latency ALU, conversions like MUFU, stores),
+/// so re-arming an armed barrier from those classes still warns fail-closed.
+/// S2UR/B2R (special->register reads) are batchable on the same evidence as
+/// S2R (rt98 prologue batches S2UR with the S2R/LDCU run on wb0); they sit
+/// outside is_long_latency because the default scheduler reaches them via the
+/// learned variable-latency class instead. MUFU/F2I/I2F/FLO/POPC stay loud
+/// (each gets its own scoreboard by doctrine; no batching evidence). REDUX
+/// stays loud deliberately: no corpus evidence of legal batching and the
+/// allocator marks it no-batch on SM120.
+fn hazard_recycle_batchable(op: &str) -> bool {
+    (is_long_latency(op) || matches!(op, "S2UR" | "B2R")) && !is_store(op) && op != "REDUX"
+}
+
 /// A single hazard finding of `report_hazards`.
 /// `frozen` = the hazard involves at least one hand_sched (`[CC]`-prefixed)
 /// instruction: the auto-scheduler could not repair it by construction, so callers
@@ -2098,15 +2115,30 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<HazardReport> {
         }
         if let Some(b) = wb {
             // RECYCLE conflict: setting barrier b while it's still armed by a DIFFERENT
-            // producer means no instruction waited b since (no drain). On SM120 a write
-            // barrier is LAST-ONLY, so the prior producer's pending consumers will wait
-            // THIS producer instead -> stale read. ptxas always drains before reuse.
+            // producer means no instruction waited b since (no drain).
+            //
+            // BUG-102 (102-kand): shared-barrier load batching is a LEGAL vendor
+            // doctrine, so the naive "armed by a different producer -> warn" rule was
+            // all noise on real code: on the certified, silicon-EXACT rt98 publish
+            // text (S2R/S2UR/LDCU prologue runs on wb0, ALU-interleaved LDG batches,
+            // 55x SHFL.BFLY on wb0) 160/160 findings were false positives. ptxas
+            // accumulates many async producers on ONE barrier and drains the batch
+            // once (e.g. the `[B0-----] NOP` stall point); RAW under-waiting of batch
+            // members is audited separately above. Suppress the warn when BOTH the
+            // previous armer and the new setter are async write-back producer classes
+            // (hazard_recycle_batchable). The warn stays fail-closed for setters with
+            // no async write-back (e.g. a stray W-tag on ALU / MUFU), where re-arming
+            // an armed barrier still indicates an authoring mistake, not a batch.
             if let Some(prev) = armed[b as usize] {
                 if prev != i {
-                    let frozen = insn.hand_sched || insns[prev].hand_sched;
-                    out.push(HazardReport { frozen, msg: format!("RECYCLE @0x{:04x} {:34} sets wb{} still armed by 0x{:04x} {} (no drain -> prior consumers orphaned)",
-                        insn.addr, insn.raw_text.split('/').next().unwrap_or(&insn.opcode).trim(),
-                        b, insns[prev].addr, insns[prev].opcode)});
+                    let batch = hazard_recycle_batchable(insns[prev].opcode.as_str())
+                        && hazard_recycle_batchable(insn.opcode.as_str());
+                    if !batch {
+                        let frozen = insn.hand_sched || insns[prev].hand_sched;
+                        out.push(HazardReport { frozen, msg: format!("RECYCLE @0x{:04x} {:34} sets wb{} still armed by 0x{:04x} {} (no drain -> prior consumers orphaned)",
+                            insn.addr, insn.raw_text.split('/').next().unwrap_or(&insn.opcode).trim(),
+                            b, insns[prev].addr, insns[prev].opcode)});
+                    }
                 }
             }
             armed[b as usize] = Some(i);
@@ -2842,6 +2874,28 @@ pub fn apply_convergence_barriers(code_bytes: &mut [u8], insns: &[Instruction]) 
             if off + 3 < code_bytes.len() {
                 code_bytes[off + 3] = region.barrier;
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod bug102_tests {
+    //! White-box pins for the BUG-102 batchability classes used by the
+    //! RECYCLE audit: async write-back producer classes (the ones vendors
+    //! batch on one shared barrier) stay quiet; everything else re-arms
+    //! loudly.
+    use super::*;
+
+    #[test]
+    fn batchable_classes_match_certified_batches() {
+        // Classes OBSERVED batched on the silicon-EXACT rt98 publish text.
+        for op in ["S2R", "S2UR", "LDC", "LDCU", "LDG", "SHFL", "LDS", "LDL", "LDSM", "LDGSTS"] {
+            assert!(hazard_recycle_batchable(op), "{op} must be batchable");
+        }
+        // Classes without async scoreboard write-back (stray W-tag case) and
+        // the deliberately loud REDUX (allocator no-batch, no corpus evidence).
+        for op in ["IMAD", "IADD3", "MOV", "UIMAD", "MUFU", "F2I", "POPC", "ISETP", "STG", "STS", "REDUX", "EXIT"] {
+            assert!(!hazard_recycle_batchable(op), "{op} must warn on re-arm");
         }
     }
 }
