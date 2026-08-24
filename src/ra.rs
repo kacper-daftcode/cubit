@@ -595,6 +595,32 @@ pub fn apply_plan_windowed(
     Ok((changed, edits))
 }
 
+/// UR slot of a bracket address (`[R.U32+URm..]`, `c[..][..+URm..]`): values
+/// >= 64 are the desc/payload namespace (era LTC128B-era words surface here
+/// after the BUG-099 canon plain-render; plans never cover them -- coverage
+/// validation rejects UR>=64 keys), so they pass through opaque like the
+/// Desc arm does. Values < 64 are architectural uniform registers and are
+/// remapped through the plan (same discipline as desc[URx<64]).
+fn remap_ur_slot(u: &mut u8, plan: &RegPlan) -> Result<usize> {
+    if *u >= 64 {
+        Ok(0)
+    } else {
+        remap1(u, &plan.ur, "UR")
+    }
+}
+
+/// Recording sibling of [`remap_ur_slot`].
+fn remap_ur_slot_rec(
+    u: &mut u8,
+    plan: &RegPlan,
+) -> Result<Option<(u8, u8)>> {
+    if *u >= 64 {
+        Ok(None)
+    } else {
+        remap1_rec(u, &plan.ur, "UR")
+    }
+}
+
 fn remap1(slot: &mut u8, map: &BTreeMap<u8, u8>, dom: &str) -> Result<usize> {
     match map.get(slot) {
         Some(&to) => {
@@ -648,7 +674,7 @@ fn remap_operand(o: &mut Operand, plan: &RegPlan) -> Result<usize> {
                 }
             }
             if let Some(u) = ur_reg {
-                ch += remap1(u, &plan.ur, "UR")?;
+                ch += remap_ur_slot(u, plan)?;
             }
             Ok(ch)
         }
@@ -662,7 +688,7 @@ fn remap_operand(o: &mut Operand, plan: &RegPlan) -> Result<usize> {
                 }
             }
             if let Some(u) = ur_reg {
-                ch += remap1(u, &plan.ur, "UR")?;
+                ch += remap_ur_slot(u, plan)?;
             }
             Ok(ch)
         }
@@ -725,7 +751,7 @@ fn remap_operand_rec(
                 }
             }
             if let Some(u) = ur_reg {
-                if let Some((f, t)) = remap1_rec(u, &plan.ur, "UR")? {
+                if let Some((f, t)) = remap_ur_slot_rec(u, plan)? {
                     out.push((RegDom::UR, f, t));
                 }
             }
