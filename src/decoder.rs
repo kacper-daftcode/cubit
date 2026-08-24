@@ -279,7 +279,12 @@ impl DecodeIndex {
                 // f32-imm form, F2I_R_FI) — the prio-3 sign-bit window {72..75}
                 // absorbed vendor-INVALID type indices 6/7 (nvdisasm `F2I.???6/
                 // ???7`) as the U32/S32 sibling. Fail closed instead.
-                "F2I");
+                "F2I" |
+                // BUG-126: USHF packs direction/sign/width/W in bits
+                // {76,73,74,75} — all inside the prio-3 window. Shows up as the
+                // lossy "!rsd[74:1]" path (R,U32 imm-form words absorbed by the
+                // R,U64 row). Fail closed; every legal combo is already a row.
+                "USHF");
             if !is_memlike {
                 let sign_bits: u128 = (3u128 << 62) | (3u128 << 72) | (3u128 << 74);
                 let m2 = c.match_mask & !sign_bits;

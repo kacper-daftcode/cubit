@@ -17379,6 +17379,968 @@
    "base_op": "USHF",
    "operand_sig": "UR_UR_II_UR",
    "mod_groups": {
+     "L,S64": {
+      "and_base": "0xfc000080000000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "L,U64": {
+      "and_base": "0xfc000080002000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "L,S32": {
+      "and_base": "0xfc000080004000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "L,S64,W": {
+      "and_base": "0xfc000080008000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "L,U64,W": {
+      "and_base": "0xfc00008000a000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "L,S32,W": {
+      "and_base": "0xfc00008000c000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "L,U32,W": {
+      "and_base": "0xfc00008000e000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "R,S32": {
+      "and_base": "0xfc000080014000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "R,U32": {
+      "and_base": "0xfc000080016000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 14,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 (dir b76, sign b73, width b74, W b75, HI b80); corpus anchors: pol* USHF.R.U64->U32 !rsd[74:1] x14 (juz widoczne w 123 residua); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "R,S64,W": {
+      "and_base": "0xfc000080018000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "R,U64,W": {
+      "and_base": "0xfc00008001a000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "R,S32,W": {
+      "and_base": "0xfc00008001c000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "R,U32,W": {
+      "and_base": "0xfc00008001e000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "HI,L,S64": {
+      "and_base": "0xfc000080100000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "HI,L,S32": {
+      "and_base": "0xfc000080104000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "HI,L,U32": {
+      "and_base": "0xfc000080106000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "HI,L,S64,W": {
+      "and_base": "0xfc000080108000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "HI,L,U64,W": {
+      "and_base": "0xfc00008010a000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "HI,L,S32,W": {
+      "and_base": "0xfc00008010c000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "HI,L,U32,W": {
+      "and_base": "0xfc00008010e000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "HI,R,S64": {
+      "and_base": "0xfc000080110000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "HI,R,U64": {
+      "and_base": "0xfc000080112000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "HI,R,S64,W": {
+      "and_base": "0xfc000080118000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "HI,R,U64,W": {
+      "and_base": "0xfc00008011a000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "HI,R,S32,W": {
+      "and_base": "0xfc00008011c000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
+     "HI,R,U32,W": {
+      "and_base": "0xfc00008011e000000000000007899",
+      "variable_mask": "0x302e00000000ff0000001f3f3f0000",
+      "fields": [
+       {
+        "shift": 16,
+        "bits": 8,
+        "token_idx": 1,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 32,
+        "token_idx": 3,
+        "extraction": "imm",
+        "_src": "bug126-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 4,
+        "extraction": "ureg",
+        "_src": "bug126-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe, work/bug126/oracle126.py); class USHF imm-form x32 \u2014 brak slow korpusu (domkniecie klasy); bug126-2026-08-24",
+      "_errata_2026_08_24_126": "BUG-126 FIXED (F2, 2026-08-24): USHF imm-form width/sign/W/HI pelna klasa; width=bit74 (0=64-bit,1=32-bit), sign=bit73 (0=S,1=U), dir=bit76 (0=L,1=R), W=bit75, HI=bit80. pre-fix: R,U32 slowa trafialy w prio-3 sign-bit oknie {72..75} do rzedu R,U64 z lossy !rsd[74:1]."
+     },
     "L,U32": {
      "and_base": "0x000fc000080006ff0000000000000899",
      "variable_mask": "0x03f03e00000000000000001f7f7ff000",
