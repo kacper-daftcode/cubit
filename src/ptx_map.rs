@@ -359,6 +359,25 @@ pub enum SassTemplate {
     /// 0xffff, PT; then PRMT t, t, 0x7710, RZ ; PRMT at, a, 0x7710, RZ ;
     /// SHF.R.U32.HI d, RZ, t, at (anchors b16a imm + b16b reg).
     ShrU16,
+    /// b9 phase-3 #14 (b9p16): add.f16 (SCALAR) -> HADD2 with both sources
+    /// half-broadcast (b16 vregs live in the LOW half of a 32-bit GPR, upper
+    /// don't-care). Vendor anchor corpus_p15 -O0 /*0320*/:
+    ///   HADD2 Rd, Ra.H0_H0, Rb.H0_H0
+    /// The .H0_H0 pair-select is a field-level modifier the ASM parser reads
+    /// off raw operand text (encoder op_hsel); the lift IR has no half-select
+    /// slot, so the text line is spelled explicitly (precedent: fence/mbar
+    /// raw_text construction). Imm sources / add.f16x2 / guards-with-imm all
+    /// unsupported (fail-closed via the unsupported list).
+    HalfAdd,
+    /// b9 phase-3 #14 (b9p16): scalar ld.shared/st.shared with honest data
+    /// width. Pre-lane all scalar shared ops rode a SINGLE widthless
+    /// LDS/STS form: st.shared.b16 stored 32 bits, ld.shared.b64 loaded only
+    /// the low half (silent wrong-width: p11/p12/test33/test34 green files)
+    /// plus silent 32-bit truncation of .b64 (b_mbarrier/ucgate). Width law
+    /// (widths.ptx -O0): {b8,u8}->.U8  s8->.S8  {b16,u16}->.U16  s16->.S16
+    /// {b64,u64,s64,f64}->.64  32-bit->plain. Vector forms (v2/v4) stay with
+    /// the SharedVec rule above (listed first; find_rule is a prefix scan).
+    SharedScalar { store: bool },
     /// sub.s64 -> carry pair (vendor -O0 slot order! anchors s64_sub):
     ///   IADD3 dlo, Pc, PT, alo, -blo, RZ ;
     ///   IADD3.X dhi, PT, PT, ahi, ~bhi, RZ, Pc, !PT
@@ -659,6 +678,9 @@ pub static RULES: &[PtxRule] = &[
     // fma.rn.f16x2 -> HFMA2 (plain suffix-less, anchor t16i 0x270; bench_m9
     // fam-residuum surfaced after sub.s64 landed).
     PtxRule { pattern: "fma.rn.f16x2",  template: Single { opcode: "HFMA2", slots: &[Src(0), Src(1), Src(2), Src(3)] } },
+    // b9 phase-3 #14: scalar add.f16 (H0_H0 halfsel law); "add.f16x2" also
+    // prefix-matches and is rejected by the arm (exact-opcode re-check).
+    PtxRule { pattern: "add.f16",       template: HalfAdd },
     PtxRule { pattern: "mad.wide.u32",  template: MadWide32 },
     // mul.f16x2 -> HMUL2 (plain 2-src, anchor mulf16 0x1a0; p15_half2 fam).
     PtxRule { pattern: "mul.f16x2",     template: Single { opcode: "HMUL2", slots: &[Src(0), Src(1), Src(2)] } },
@@ -698,8 +720,8 @@ pub static RULES: &[PtxRule] = &[
     PtxRule { pattern: "ld.shared.v4", template: SharedVec { store: false } },
     PtxRule { pattern: "st.shared.v2", template: SharedVec { store: true } },
     PtxRule { pattern: "st.shared.v4", template: SharedVec { store: true } },
-    PtxRule { pattern: "ld.shared.",    template: Single { opcode: "LDS", slots: &[Src(0), Src(1)] } },
-    PtxRule { pattern: "st.shared.",    template: Single { opcode: "STS", slots: &[Src(0), Src(1)] } },
+    PtxRule { pattern: "ld.shared.",    template: SharedScalar { store: false } },
+    PtxRule { pattern: "st.shared.",    template: SharedScalar { store: true } },
 
     // ── Control flow ─────────────────────────────────────────────────────
     PtxRule { pattern: "bra.uni",       template: Single { opcode: "BRA", slots: &[Src(0)] } },

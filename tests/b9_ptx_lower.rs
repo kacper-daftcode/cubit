@@ -1492,6 +1492,7 @@ fn lower_text(body: &str) -> String {
     .param .u64 k_param_1
 )
 {{
+    .shared .align 16 .b8 buf[64];
     .reg .pred %p<5>;
     .reg .b16 %rs<4>;
     .reg .b32 %r<10>;
@@ -1609,6 +1610,7 @@ fn b9p10_fail_closed() {
     .param .u64 k_param_0
 )
 {{
+    .shared .align 16 .b8 buf[64];
     .reg .pred %p<5>;
     .reg .b16 %rs<4>;
     .reg .b32 %r<10>;
@@ -1971,4 +1973,249 @@ fn b9p15_redux_corpus_p08_shape() {
     assert!(t.contains("REDUX.SUM.S32 UR79,") && t.contains("CREDUX.MAX UR79,")
         && t.contains("CREDUX.MIN UR79,"), "{}", t);
     assert_eq!(t.matches("ENDCOLLECTIVE").count(), 3, "{}", t);
+}
+
+// ── b9 phase-3 #14 (b9p16): b16pair H0/H1 lane + parser brace-truncation
+// fix + honest mem widths + atom imm64. Anchors: work/b9p16/probes (md5 in
+// manifest), vendor = ptxas 13.3 sm_103a -O0/-O3.
+
+/// Suite-local: kernel source with an inline-asm block whose OPENING brace
+/// shares its content line and whose closing brace stands alone. Pre-fix the
+/// body parser terminated at that standalone `}` and silently dropped the
+/// tail (green-lie p15_half2: 19 stmts lost; 10 bench_op tails).
+#[test]
+fn b9p16_parser_inline_brace_no_truncation() {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b32 %r<8>;
+    .reg .b64 %rd<2>;
+    ld.param.u64 %rd1, [k_param_0];
+    mov.b32 %r1, 1;
+    {{add.s32 %r1, %r1, 1;
+}}
+    mov.b32 %r2, 2;
+    st.global.b32 [%rd1], %r2;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    let stmts = &kernels[0].body;
+    let n_ops = stmts.iter().filter(|s| matches!(s, cubit::ptx_parse::PtxStmt::Insn(_))).count();
+    assert_eq!(n_ops, 6, "body must keep the tail past the inline-asm close (incl. ret): {:?}", stmts.len());
+    let t = lower_kernel(&kernels[0]).unwrap().to_sass_text();
+    assert!(t.contains("STG.E"), "tail store must survive: {}", t);
+}
+
+/// BUG-095 regression: multi-kernel modules still split correctly.
+#[test]
+fn b9p16_parser_multi_kernel_unabsorbed() {
+    let ptx = format!(r#"{} .visible .entry k1()
+{{
+    .reg .b32 %r<3>;
+    mov.b32 %r1, 1;
+    ret;
+}}
+.visible .entry k2()
+{{
+    .reg .b32 %r<3>;
+    mov.b32 %r1, 2;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    assert_eq!(kernels.len(), 2, "two kernels, no absorption");
+}
+
+#[test]
+fn b9p16_unpack_pair_prmt() {
+    // mov.b32 {lo,hi}, %r32 -> in-place PRMT pair (0x7610 lo, 0x7632 hi)
+    let t = lower_text("mov.b32 {%rs1,%rs2}, %r2;");
+    let l_lo = t.lines().find(|l| l.contains("0x7610")).expect("lo PRMT missing").trim().to_string();
+    let l_hi = t.lines().find(|l| l.contains("0x7632")).expect("hi PRMT missing").trim().to_string();
+    assert!(l_lo.starts_with("PRMT R") && l_lo.ends_with(';'), "{}", l_lo);
+    assert!(l_hi.starts_with("PRMT R") && l_hi.ends_with(';'), "{}", l_hi);
+    // in-place: dst == 4th operand on both lines
+    for l in [&l_lo, &l_hi] {
+        let ops = &l[l.find(' ').unwrap()..];
+        let toks: Vec<&str> = ops.trim_end_matches(';').split(',').map(|s| s.trim()).collect();
+        assert_eq!(toks.len(), 4, "{}", l);
+        assert_eq!(toks[0], toks[3], "in-place PRMT expected: {}", l);
+    }
+    // lo lane precedes hi lane and they are consecutive
+    let lo_dst = l_lo.split(' ').nth(1).unwrap().trim_end_matches(',');
+    let hi_dst = l_hi.split(' ').nth(1).unwrap().trim_end_matches(',');
+    let n: u8 = lo_dst[1..].parse().unwrap();
+    assert_eq!(hi_dst, format!("R{}", n + 1), "consecutive lanes: {} {}", l_lo, l_hi);
+    let (bytes, cnt) = assemble_body(&t);
+    assert_eq!(bytes.len(), cnt * 16, "{}", t);
+
+    // discard member gets no instruction
+    let t2 = lower_text("mov.b32 {_,%rs2}, %r2;");
+    assert!(!t2.contains("0x7610"), "'_' member must skip the lo PRMT: {}", t2);
+    assert!(t2.contains("0x7632"), "live hi member still extracted: {}", t2);
+}
+
+#[test]
+fn b9p16_pack_pair_prmt() {
+    // mov.b32 %r, {lo,hi} -> PRMT d, lo, 0x5410, hi
+    let t = lower_text("mov.b16 %rs1, 1; mov.b16 %rs2, 2; mov.b32 %r2, {%rs1,%rs2};");
+    let l = t.lines().find(|l| l.contains("PRMT") && l.contains("0x5410"))
+        .expect("pack PRMT missing").trim().to_string();
+    let toks: Vec<&str> = l[l.find(' ').unwrap()..].trim_end_matches(';').split(',').map(|s| s.trim()).collect();
+    assert_eq!(toks.len(), 4, "{}", l);
+    assert_eq!(toks[2], "0x5410", "{}", l);
+    let (bytes, cnt) = assemble_body(&t);
+    assert_eq!(bytes.len(), cnt * 16, "{}", t);
+    // same-member pack {x,x}: a==b selection (vendor p15/packonly anchor)
+    let t2 = lower_text("mov.b16 %rs1, 1; mov.b32 %r2, {%rs1,%rs1};");
+    let l2 = t2.lines().find(|l| l.contains("0x5410")).unwrap().trim().to_string();
+    let toks2: Vec<&str> = l2[l2.find(' ').unwrap()..].trim_end_matches(';').split(',').map(|s| s.trim()).collect();
+    assert_eq!(toks2[1], toks2[3], "{{x,x}}: a==b operands: {}", l2);
+}
+
+#[test]
+fn b9p16_mov_group_fail_closed() {
+    for body in [
+        "mov.u32 %r2, {%rs1,%rs2};",       // only mov.b32 pack is attested
+        "mov.b32 %r2, {%rs1,5};",          // imm member unattested
+        "mov.u32 {%rs1,%rs2}, %r2;",       // only mov.b32 unpack attested
+        "mov.b32 {%rs1,%rs2,%rs3}, %r2;",  // arity != 2
+        "mov.b32 %rd1, {%rs1,%rs2};",      // 64-bit pack dst unattested
+    ] {
+        let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b16 %rs<4>;
+    .reg .b32 %r<8>;
+    .reg .b64 %rd<2>;
+    mov.b16 %rs1, 1;
+    {}
+    ret;
+}}"#, PROLOG, body);
+        let kernels = parse_ptx(&ptx).unwrap();
+        assert!(lower_kernel(&kernels[0]).is_err(), "must fail closed: {}", body);
+    }
+    // pre-existing 64-bit group movs still work (no regression):
+    let t = lower_text("mov.b64 {%r1,%r2}, %rd1;");
+    assert!(t.contains("MOV"), "b64 unpack arm intact: {}", t);
+}
+
+#[test]
+fn b9p16_add_f16_h0h0() {
+    let t = lower_text("mov.b16 %rs1, 1; mov.b16 %rs2, 2; add.f16 %rs3, %rs1, %rs2;");
+    assert!(t.contains(".H0_H0"), "half-selectors must reach the text: {}", t);
+    assert!(t.contains("HADD2 R"), "HADD2 emit: {}", t);
+    let (bytes, cnt) = assemble_body(&t);
+    assert_eq!(bytes.len(), cnt * 16, "{}", t);
+    // add.f16x2 stays unsupported (no anchor; only prefix-matched by the rule)
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b32 %r<8>;
+    mov.b32 %r1, 1;
+    add.f16x2 %r2, %r1, %r1;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    assert!(lower_kernel(&kernels[0]).is_err(), "add.f16x2 must be unsupported");
+}
+
+#[test]
+fn b9p16_cvt_f32_f16_hadd2f32() {
+    let t = lower_text("mov.b16 %rs1, 1; cvt.f32.f16 %r2, %rs1;");
+    assert!(t.contains("HADD2.F32 R"), "vendor widening idiom: {}", t);
+    assert!(t.contains("-RZ") && t.contains(".H0_H0"), "{}", t);
+    assert!(!t.contains("F2F.F32.F16"), "vendor never uses F2F here: {}", t);
+    let (bytes, cnt) = assemble_body(&t);
+    assert_eq!(bytes.len(), cnt * 16, "{}", t);
+}
+
+#[test]
+fn b9p16_atom_imm64() {
+    let t = lower_text("atom.global.add.f64 %fd1, [%rd1], 0d3FF0000000000000;");
+    let lo = t.lines().find(|l| l.contains("IMAD.MOV.U32") && l.contains("0x0")).expect("lo half");
+    let hi = t.lines().find(|l| l.contains("IMAD.MOV.U32") && l.contains("0x3ff00000")).expect("hi half");
+    assert!(lo.contains("RZ, RZ,") && hi.contains("RZ, RZ,"), "{} {}", lo, hi);
+    assert!(t.contains("ATOMG.E.ADD.F64.RN.STRONG.GPU PT, R"), "{}", t);
+    let (bytes, cnt) = assemble_body(&t);
+    assert_eq!(bytes.len(), cnt * 16, "{}", t);
+    // u64 imm rides ADD.64
+    let t2 = lower_text("atom.global.add.u64 %rd2, [%rd1], 200000;");
+    assert!(t2.contains("ATOMG.E.ADD.64.STRONG.GPU"), "{}", t2);
+    let (b2, c2) = assemble_body(&t2);
+    assert_eq!(b2.len(), c2 * 16, "{}", t2);
+}
+
+#[test]
+fn b9p16_mem_widths() {
+    // visible width law (row-backed forms)
+    for (body, want) in [
+        ("st.global.b8 [%rd1], %r1;", "STG.E.U8"),
+        ("st.global.b16 [%rd1], %r1;", "STG.E.U16"),
+        ("ld.global.s8 %r2, [%rd1];", "LDG.E.S8"),
+        ("ld.global.u8 %r2, [%rd1];", "LDG.E.U8"),
+        ("ld.global.b16 %r2, [%rd1];", "LDG.E.U16"),
+        ("st.shared.b8 [buf+1], %r1;", "STS.U8"),
+        ("st.shared.u16 [buf+2], %r1;", "STS.U16"),
+        ("ld.shared.s8 %r2, [buf+3];", "LDS.S8"),
+        ("ld.shared.b16 %r2, [buf+4];", "LDS.U16"),
+        ("st.shared.b64 [buf+8], %rd1;", "STS.64"),
+        ("ld.shared.b64 %rd2, [buf+8];", "LDS.64"),
+    ] {
+        let t = lower_text(body);
+        assert!(t.contains(want), "{} -> {} : {}", body, want, t);
+        let (bytes, cnt) = assemble_body(&t);
+        assert_eq!(bytes.len(), cnt * 16, "{}: {}", body, t);
+    }
+    // rowless/unattested width forms fail closed
+    for body in [
+        "st.global.s8 [%rd1], %r1;",
+        "st.global.s16 [%rd1], %r1;",
+        "ld.global.s16 %r2, [%rd1];",
+        "ld.volatile.global.b16 %r2, [%rd1];",
+    ] {
+        let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b32 %r<8>;
+    .reg .b64 %rd<2>;
+    ld.param.u64 %rd1, [k_param_0];
+    {}
+    ret;
+}}"#, PROLOG, body);
+        let kernels = parse_ptx(&ptx).unwrap();
+        assert!(lower_kernel(&kernels[0]).is_err(), "must fail closed: {}", body);
+    }
+    // plain widths unchanged (no suffix regression)
+    let t = lower_text("st.global.b32 [%rd1], %r1; ld.global.b32 %r2, [%rd1];");
+    assert!(t.contains("STG.E desc") && !t.contains("STG.E.U"), "b32 stays plain: {}", t);
+    let t2 = lower_text("st.shared.b32 [buf+1], %r1; ld.shared.b32 %r2, [buf+1];");
+    assert!(!t2.contains("STS.") && !t2.contains("LDS."), "b32 shared stays plain: {}", t2);
+}
+
+#[test]
+fn b9p16_corpus_lanes_end_to_end() {
+    // readshared2 (4 unpacks) and p15 (pack + unpack + widening + scalar add)
+    // from the corpus lift end-to-end and assemble.
+    let ptx = std::fs::read_to_string("/root/blindlab/work/b9census/ptx/readshared2-af1179.ptx").unwrap();
+    let kernels = parse_ptx(&ptx).unwrap();
+    let t = lower_kernel(&kernels[0]).unwrap().to_sass_text();
+    assert_eq!(t.matches("0x7610").count(), 4, "4 lo extracts: {}", t);
+    assert_eq!(t.matches("0x7632").count(), 4, "4 hi extracts: {}", t);
+    let (bytes, cnt) = assemble_body(&t);
+    assert_eq!(bytes.len(), cnt * 16, "{}", t);
+
+    let ptx = std::fs::read_to_string("/root/blindlab/work/b9census/ptx/p15_half2-c568ac.ptx").unwrap();
+    let kernels = parse_ptx(&ptx).unwrap();
+    let k = &kernels[0];
+    // parser fix: full body present (pre-fix silently dropped 19 stmts)
+    let n_ops = k.body.iter().filter(|s| matches!(s, cubit::ptx_parse::PtxStmt::Insn(_))).count();
+    assert!(n_ops >= 26, "p15 full body (pre-fix: 16): {}", n_ops);
+    let t = lower_kernel(k).unwrap().to_sass_text();
+    assert!(t.contains("STG.E desc"), "final pack store present: {}", t);
+    let (bytes, cnt) = assemble_body(&t);
+    assert_eq!(bytes.len(), cnt * 16, "{}", t);
 }

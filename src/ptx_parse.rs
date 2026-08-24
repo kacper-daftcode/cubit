@@ -450,6 +450,21 @@ pub fn parse_ptx(text: &str) -> Result<Vec<PtxKernel>> {
                 }
                 if bline == "}" { asm_block_depth -= 1; i += 1; continue; }
 
+                // b9 phase-3 #14 (F-1 process-catch): inline-asm blocks whose
+                // opening '{' SHARES a line with content (`{op;`) never entered
+                // asm_block_depth, so the standalone '}' closing the block was
+                // misread as the kernel end and the ENTIRE rest of the body
+                // was silently dropped (green-lie p15_half2: 19 stmts lost;
+                // 10 bench_op* tails). Track the net brace surplus of content
+                // lines: balanced operand groups `{a,b}` net 0 and pass
+                // through; a wrapper-open `{op;` nets +1 and arms the depth.
+                // Pre-fix repro: work/b9p16/probes/mini2.ptx.
+                let surplus = bline.matches('{').count() as i32
+                          - bline.matches('}').count() as i32;
+                // saturating at 0: a stray surplus -1 (unbalanced degenerate
+                // line) must not disarm the real kernel-close '}' forever.
+                asm_block_depth = (asm_block_depth + surplus).max(0);
+
                 // Single-line braced asm blocks / multi-statement lines.
                 for stmt in split_block_statements(lines[i]) {
                     let s = stmt.trim();

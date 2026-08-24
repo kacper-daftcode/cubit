@@ -1331,6 +1331,17 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                                 None => { unsupported.insert(insn.opcode.clone()); continue; }
                             }
                         }
+                        SassTemplate::HalfAdd => {
+                            match lower_half_add(addr, insn, &mut alloc, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::SharedScalar { store } => {
+                            let v = lower_shared_scalar(addr, insn, &mut alloc, guard, *store)?;
+                            let n = v.len() as u32;
+                            insns.extend(v); addr += 16 * n;
+                        }
                         SassTemplate::MulLo16 => {
                             match lower_mullo16(addr, insn, &mut alloc, &guard)? {
                                 Some((v, n)) => { insns.extend(v); addr += 16 * n; }
@@ -2459,6 +2470,41 @@ fn lower_sub16(
     Ok(Some((out, 3)))
 }
 
+/// add.f16 (HalfAdd, b9 phase-3 #14 / b9p16): scalar f16 add. Vendor anchor
+/// corpus_p15 -O0 /*0320*/ (+ ptxas bit-exact precedent mk67): HADD2 with
+/// both sources .H0_H0 half-broadcast:
+///   HADD2 Rd, Ra.H0_H0, Rb.H0_H0
+/// The lift IR has no half-select operand slot; the modifier lives in the
+/// raw operand text (encoder op_hsel reads it off). raw_text is therefore
+/// spelled explicitly (precedent: fence/mbar raw_text construction, and the
+/// raw_text rewrites at the scheduling fixup sites). IR operands carry the
+/// plain registers for introspection.
+fn lower_half_add(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if insn.opcode != "add.f16" { return Ok(None); }  // add.f16x2 & friends: no anchor
+    let d = match reg_of(insn.operands.get(0), alloc) { Some(r) => r, None => return Ok(None) };
+    let a = match reg_of(insn.operands.get(1), alloc) { Some(r) => r, None => return Ok(None) };
+    let b = match reg_of(insn.operands.get(2), alloc) { Some(r) => r, None => return Ok(None) };
+    let mut ins = make_insn(addr, "HADD2",
+        vec![op_reg(d), op_reg(a), op_reg(b)], guard.clone());
+    let g = guard_text(guard);
+    ins.raw_text = format!("{}HADD2 R{}, R{}.H0_H0, R{}.H0_H0 ;", g, d, a, b);
+    Ok(Some((vec![ins], 1)))
+}
+
+/// Guard prefix text identical to make_insn's rendering (for explicit
+/// raw_text spelling).
+fn guard_text(guard: &Option<Guard>) -> String {
+    match guard {
+        Some(g) => {
+            let pred = if g.pred == 7 { "PT".to_string() } else { format!("P{}", g.pred) };
+            if g.negated { format!("@!{} ", pred) } else { format!("@{} ", pred) }
+        }
+        None => String::new(),
+    }
+}
+
 /// mul.lo.s16 (MulLo16): sign-extend halves (PRMT 0x9910) + IMAD (anchor b16b).
 fn lower_mullo16(
     addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
@@ -3317,6 +3363,27 @@ fn lower_atomic(
                     vec![op_reg(t), op_rz(), op_rz(), Operand::Imm32(f.to_bits() as i64)], None));
                 Ok(Some(op_reg(t)))
             }
+            // b9 phase-3 #14 (b9p16): 64-bit immediates on 64-bit atoms
+            // (atom.global.add.u64/f64; corpus p28 -O0 /*02c0-02d0*/ vendor
+            // MOV lo; MOV hi ladder into a value pair):
+            PtxOperand::IntImm(v) if is64 => {
+                let bits = *v as u64;
+                let t = alloc.gpr_pair(&format!("__atomimm64_{}", addr + 16 * out.len() as u32));
+                out.push(make_insn(addr + 16 * out.len() as u32, "IMAD.MOV.U32",
+                    vec![op_reg(t.0), op_rz(), op_rz(), Operand::Imm32((bits & 0xffff_ffff) as i64)], None));
+                out.push(make_insn(addr + 16 * out.len() as u32, "IMAD.MOV.U32",
+                    vec![op_reg(t.1), op_rz(), op_rz(), Operand::Imm32(((bits >> 32) & 0xffff_ffff) as i64)], None));
+                Ok(Some(op_reg(t.0)))
+            }
+            PtxOperand::FloatImm(v) if ty == "f64" => {
+                let bits = v.to_bits();
+                let t = alloc.gpr_pair(&format!("__atomimm64_{}", addr + 16 * out.len() as u32));
+                out.push(make_insn(addr + 16 * out.len() as u32, "IMAD.MOV.U32",
+                    vec![op_reg(t.0), op_rz(), op_rz(), Operand::Imm32((bits & 0xffff_ffff) as i64)], None));
+                out.push(make_insn(addr + 16 * out.len() as u32, "IMAD.MOV.U32",
+                    vec![op_reg(t.1), op_rz(), op_rz(), Operand::Imm32(((bits >> 32) & 0xffff_ffff) as i64)], None));
+                Ok(Some(op_reg(t.0)))
+            }
             _ => Ok(None),
         }
     };
@@ -3647,12 +3714,37 @@ fn lower_mov_or_sreg(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Opt
                 }
                 return Ok(out);
             }
+            // b9 phase-3 #14 (b9p16): mov.b32 {lo16,hi16}, %r32 — sub-word
+            // unpack. H0/H1 lane-select lowering (the old bail). Vendor law
+            // (anchors corpus_readshared2 -O0 /*0220*/ 0x7610-form, unpack1
+            // -O0 /*00e0*/ + corpus_p15 -O0 /*0280*/ 0x7632-form): b16 vregs
+            // live in the LOW half of a 32-bit GPR (upper half don't-care);
+            // both extracts are in-place PRMTs preserving the dst upper half:
+            //   lo <- PRMT Rlo, Rsrc, 0x7610, Rlo   (dst.lo = src.b1b0)
+            //   hi <- PRMT Rhi, Rsrc, 0x7632, Rhi   (dst.lo = src.b3b2)
+            // (vendor coalesces the lo-extract away when the source reg can
+            // feed the consumer directly, e.g. unpack1 -O0 stores R0 as-is;
+            // the explicit 0x7610 form is the always-safe attested shape.)
+            // `_` discard members get no instruction (vendor likewise).
             PtxOperand::Reg(other32) if !alloc.is_64bit(other32) => {
-                // mov.b32 {lo16,hi16}, %r  — sub-word split needs .H0/.H1 lane
-                // selects at use sites (no standalone SASS form on sm_103a).
-                anyhow::bail!(
-                    "mov {} into a b16 pair {} = sub-word unpack; needs H0/H1 lane-select lowering (b9 phase-3)",
-                    insn.opcode, regs.join(","));
+                if insn.opcode != "mov.b32" || regs.len() != 2 {
+                    anyhow::bail!(
+                        "mov {} into a {}-member group from 32-bit reg: only mov.b32 {{lo16,hi16}} unpack is vendor-attested (b9 phase-3)",
+                        insn.opcode, regs.len());
+                }
+                let srcn = alloc.resolve(other32);
+                if (base..base + 2).contains(&srcn) {
+                    anyhow::bail!(
+                        "mov.b32 unpack: dst group lane aliases the source reg {} (unattested aliasing)", other32);
+                }
+                for (i, name) in regs.iter().enumerate() {
+                    if name == "_" { continue; }  // discard member: no instruction
+                    let lane = base + i as u8;
+                    let sel: i64 = if i == 0 { 0x7610 } else { 0x7632 };
+                    out.push(make_insn(addr + 16 * out.len() as u32, "PRMT",
+                        vec![op_reg(lane), op_reg(srcn), Operand::Imm32(sel), op_reg(lane)], guard.clone()));
+                }
+                return Ok(out);
             }
             other => anyhow::bail!("mov into brace group: unsupported source {:?}", other),
         }
@@ -3680,6 +3772,34 @@ fn lower_mov_or_sreg(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Opt
                 "{}: mov of unresolved symbol {:?} (.global symbols need relocation support; b9 out of scope)",
                 insn.opcode, sym),
         }
+    }
+
+    // b9 phase-3 #14 (b9p16): mov.b32 %r, {lo16,hi16} — half pack.
+    // Vendor law (anchors packonly -O0 /*00a0*/ {x,x} a==b and /*0130*/
+    // {x,y}, corpus_p15 -O0 /*0330*/, corpus_p06 /*02f0*/):
+    //   PRMT d, Rlo, 0x5410, Rhi     (d = Rlo.b1b0 | Rhi.b1b0 << 16)
+    // Replaces the pre-b9p16 SILENT-WRONG fallthrough: the group was
+    // aliased to its lo-member pair base by ptx_op_to_sass and a plain MOV
+    // kept only that half (green-lie corpus p15_half2 dropped the hi half;
+    // repro packonly.ptx: {rs,rs} -> MOV r,r instead of r = lo|lo<<16).
+    // Every OTHER mov.* with a group source is fail-closed (unattested).
+    if let PtxOperand::RegGroup(regs) = src {
+        let shapes_ok = insn.opcode == "mov.b32" && regs.len() == 2
+            && regs.iter().all(|r| alloc.is_ptx_reg_name(r) && !alloc.is_64bit(r) && r != "_");
+        if !shapes_ok {
+            anyhow::bail!(
+                "{}: group source {:?}: only mov.b32 d, {{lo16,hi16}} half-pack of two registers is vendor-attested (b9 phase-3)",
+                insn.opcode, regs);
+        }
+        let rd = match d {
+            PtxOperand::Reg(n) if !alloc.is_64bit(n) => alloc.resolve(n),
+            other => anyhow::bail!(
+                "mov.b32 half-pack dst {:?}: only a 32-bit register dst is vendor-attested", other),
+        };
+        let lo = alloc.resolve(&regs[0]);
+        let hi = alloc.resolve(&regs[1]);
+        return Ok(vec![make_insn(addr, "PRMT",
+            vec![op_reg(rd), op_reg(lo), Operand::Imm32(0x5410), op_reg(hi)], guard)]);
     }
 
     // Regular move
@@ -3763,6 +3883,22 @@ fn lower_cvt(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guar
     };
 
     match (dst, srct) {
+        // b9 phase-3 #14 (b9p16): cvt.f32.f16 -> HADD2.F32 widening (vendor
+        // never uses F2F for f16->f32 on sm_103a in-corpus; anchors
+        // corpus_p15 -O0 /*02c0,02f0*/ + ptxas bit-exact pin encoding.rs).
+        // The .H0_H0 source suffix is read off raw operand text by the ASM
+        // parser (encoder op_hsel); spelled explicitly like HalfAdd.
+        ("f32", "f16") => {
+            let (dr, ar) = match (regnum(&d), regnum(&a)) {
+                (Some(dr), Some(ar)) => (dr, ar),
+                _ => return unattested(),
+            };
+            let mut ins = make_insn(addr, "HADD2.F32",
+                vec![op_reg(dr), op_reg(255), op_reg(ar)], guard.clone());
+            let g = guard_text(&guard);
+            ins.raw_text = format!("{}HADD2.F32 R{}, -RZ, R{}.H0_H0 ;", g, dr, ar);
+            Some(Ok(vec![ins]))
+        }
         ("f32", "s32" | "u32") => one!(format!("I2FP.F32.{}", srct.to_uppercase()), d, a),
         ("f64", "s32" | "u32") => one!("I2F.F64".to_string(), d, a),
         ("f32", "f64") => one!("F2F.F32.F64".to_string(), d, a),
@@ -3869,6 +4005,56 @@ fn lower_cvt(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guar
     }
 }
 
+/// Suffix filtered to row-backed forms (see mem_width_suffix callers):
+/// (st|S|T) S8 ld OK; S8 st GLOBAL missing, S16 st/ld GLOBAL missing.
+fn rowbacked_width(base: &str, w: Option<&'static str>) -> Result<()> {
+    match (base, w) {
+        ("LDG", Some("S16")) | ("STG", Some("S8")) | ("STG", Some("S16")) =>
+            anyhow::bail!("{} no .{} table row on sm_103a (asm fail-closed upstream; unattested in corpus)", base, w.unwrap()),
+        _ => Ok(()),
+    }
+}
+
+/// b9 phase-3 #14 (b9p16): scalar sub-32-bit memory width. Pre-lane these
+/// lifted as PLAIN 32-bit ops — st.global.b8 stored 4 bytes, ld.shared.b64
+/// loaded only the low half (silent wrong-width in ~14 green corpus files:
+/// stg_u8/test34/test39/test8_16/p11/p12/b_mbarrier/ucgate/...). Vendor law
+/// (widths.ptx + readshared2/stg_u8 -O0 anchors): unsigned -> U8/U16,
+/// signed -> S8/S16. Returns None for 32-bit (or wider, handled elsewhere)
+/// opcodes. STG .S8/.S16 and LDG .S16 have no table rows on sm_103a (asm
+/// fail-closed upstream); only the row-backed forms are emitted.
+fn mem_width_suffix(opcode: &str) -> Option<&'static str> {
+    if opcode.ends_with(".b8") || opcode.ends_with(".u8") { Some("U8") }
+    else if opcode.ends_with(".s8") { Some("S8") }
+    else if opcode.ends_with(".b16") || opcode.ends_with(".u16") { Some("U16") }
+    else if opcode.ends_with(".s16") { Some("S16") }
+    else { None }
+}
+
+/// Scalar ld.shared/st.shared (SharedScalar, b9 phase-3 #14 / b9p16):
+/// honest-width single op. `LDS{w} Rd, [Ra+off]` / `STS{w} [Ra+off], Rv`.
+/// 64-bit data rides the even pair base (LDS.64/STS.64), 8/16-bit per
+/// mem_width_suffix. Everything else (v-forms handled upstream, .f16 etc.)
+/// hard-fails: unattested.
+fn lower_shared_scalar(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>, store: bool,
+) -> Result<Vec<Instruction>> {
+    let w = mem_width_suffix(&insn.opcode);
+    let wide64 = insn.opcode.ends_with(".b64") || insn.opcode.ends_with(".u64")
+        || insn.opcode.ends_with(".s64") || insn.opcode.ends_with(".f64");
+    let thirtytwo = insn.opcode.ends_with(".b32") || insn.opcode.ends_with(".u32")
+        || insn.opcode.ends_with(".s32") || insn.opcode.ends_with(".f32");
+    if w.is_none() && !wide64 && !thirtytwo {
+        anyhow::bail!("{}: scalar shared width unattested (b9 phase-3 #14)", insn.opcode);
+    }
+    let sfx = if wide64 { ".64".to_string() } else { w.map_or(String::new(), |x| format!(".{}", x)) };
+    let (ori, dri) = if store { (0usize, 1usize) } else { (1usize, 0usize) };
+    let data = ptx_op_to_sass(&insn.operands[dri], alloc, false);
+    let addr_op = ptx_op_to_sass(&insn.operands[ori], alloc, false);
+    let ops = if store { vec![addr_op, data] } else { vec![data, addr_op] };
+    Ok(vec![make_insn(addr, &format!("{}{}", if store { "STS" } else { "LDS" }, sfx), ops, guard)])
+}
+
 fn lower_ld_global(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>) -> Result<Vec<Instruction>> {
     let is_v4 = insn.opcode.contains(".v4.");
     let is_v2 = insn.opcode.contains(".v2.");
@@ -3889,7 +4075,13 @@ fn lower_ld_global(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Optio
     // (LDG.E.128; probe q3 + ptx_own p29-class law), same selection law as
     // the ld.shared path and the st.global mirror below.
     let wide128 = is_v4 || (is_v2 && is_64);
-    let suffix = if is_volatile { ".E.EF" } else if wide128 { ".E.128" } else if is_v2 || is_64 { ".E.64" } else { ".E" };
+    let width = mem_width_suffix(&insn.opcode);
+    if is_volatile && width.is_some() {
+        // wide/thin-volatile combos are unattested (vol doctrine: hard fail)
+        anyhow::bail!("ld.volatile with sub-32-bit width ({}) has no vendor-anchored lowering (b9 phase-3 #14)", insn.opcode);
+    }
+    let suffix = if is_volatile { ".E.EF".to_string() } else if wide128 { ".E.128".to_string() } else if is_v2 || is_64 { ".E.64".to_string() }
+        else if let Some(w) = width { format!(".E.{}", w) } else { ".E".to_string() };
 
     // Resolve address register FIRST (before allocating dst which may reuse it)
     let base_addr = &insn.operands[1];
@@ -3921,6 +4113,7 @@ fn lower_ld_global(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Optio
         base_reg_suffix: Some(".64".to_string()),
         offset,
     };
+    rowbacked_width("LDG", width)?;
     pre.push(make_insn(addr + 16 * pre.len() as u32, &format!("LDG{}", suffix), vec![d, desc_op], guard));
     Ok(pre)
 }
@@ -3933,7 +4126,9 @@ fn lower_st_global(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Optio
     // b9 phase-3 #12 (b9p14): st.global.v2.b64 -> STG.E.128 (probe q4 +
     // corpus p13/p29 -O0), same member-width law as the ld.global mirror.
     let wide128 = is_v4 || (is_v2 && is_64);
-    let suffix = if wide128 { ".E.128" } else if is_v2 || is_64 { ".E.64" } else { ".E" };
+    let width = mem_width_suffix(&insn.opcode);
+    let suffix: String = if wide128 { ".E.128".to_string() } else if is_v2 || is_64 { ".E.64".to_string() }
+        else if let Some(w) = width { format!(".E.{}", w) } else { ".E".to_string() };
 
     let addr_ptx = &insn.operands[0];
     let (base_reg_num, offset) = match addr_ptx {
@@ -3990,6 +4185,7 @@ fn lower_st_global(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Optio
             src = op_reg(rn);
         }
     }
+    rowbacked_width("STG", width)?;
     out.push(make_insn(addr + 16 * out.len() as u32, &format!("STG{}", suffix), vec![desc_op, src], guard));
     Ok(out)
 }
