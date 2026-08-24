@@ -1250,6 +1250,12 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                                 None => { unsupported.insert(insn.opcode.clone()); continue; }
                             }
                         }
+                        SassTemplate::Redux => {
+                            match lower_redux(addr, insn, &mut alloc, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
                         SassTemplate::Nanosleep => {
                             if insn.opcode != rule.pattern {
                                 unsupported.insert(insn.opcode.clone());
@@ -2914,6 +2920,59 @@ fn lower_elect(
             a += 16;
         }
     }
+    out.push(make_insn(a, "ENDCOLLECTIVE", vec![], None));
+    a += 16;
+    push_gensym_label(&mut out, &lbl);
+    let n = ((a - addr) / 16) as u32;
+    Ok(Some((out, n)))
+}
+
+/// redux.sync.{add,min,max}.{s32,u32} d, a, membermask (b9 phase-3 #13; anchors
+/// corpus p08_redux/p_redux/v_redux1 -O0/-O3 + reduxprobes x5 kernels):
+///   add.s32 -> REDUX.SUM.S32 UR79, Ra ; add.u32 -> REDUX.SUM UR79, Ra
+///   max.u32 -> CREDUX.MAX UR79, Ra   ; min.u32 -> CREDUX.MIN UR79, Ra
+/// O0 wraps each in the WARPSYNC.COLLECTIVE mask protocol (mask reg/imm ->
+/// [MOV ;] WARPSYNC.COLLECTIVE Rm, `(L)) + MOV Rd, UR79 + ENDCOLLECTIVE + L:.
+/// UR79 is the vendor's fixed redux result scratch at -O0 (p08 0x100/0x1d0/0x270
+/// x3 in sequence, each read out by MOV before the next wrap). -O3 ELIDES the
+/// collective wrap entirely (bare REDUX + IMAD.U32/MOV from low URs; documented
+/// O3-elision divergence -- spans claimed -O0 only). and/or/xor, 64-bit, .s32
+/// min/max (table groups MIN,S32/MAX,S32 exist era-side but the WORDS for
+/// redux.sync.{min,max}.s32 are anchored here: CREDUX.MIN.S32/C32 MAX.S32 via
+/// rdx_d; fail-closed pending an explicit corpus need) and pred-guarded forms
+/// are fail-closed.
+fn lower_redux(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if guard.is_some() { return Ok(None); }
+    let form = match insn.opcode.as_str() {
+        "redux.sync.add.s32" => "REDUX.SUM.S32",
+        "redux.sync.add.u32" => "REDUX.SUM",
+        "redux.sync.max.u32" => "CREDUX.MAX",
+        "redux.sync.min.u32" => "CREDUX.MIN",
+        "redux.sync.max.s32" => "CREDUX.MAX.S32",
+        "redux.sync.min.s32" => "CREDUX.MIN.S32",
+        _ => return Ok(None),
+    };
+    let dst = match insn.operands.get(0) {
+        Some(PtxOperand::Reg(n)) if !alloc.is_64bit(n) => n.clone(),
+        _ => return Ok(None),
+    };
+    let src = match insn.operands.get(1) {
+        Some(PtxOperand::Reg(n)) if !alloc.is_64bit(n) => n.clone(),
+        _ => return Ok(None),
+    };
+    let mut out: Vec<Instruction> = Vec::new();
+    let mut a = addr;
+    let lbl = format!("RDX_{:x}_END", addr);
+    if b9p8_warpsync_open(&mut out, &mut a, alloc, insn.operands.get(2), &lbl).is_none() {
+        return Ok(None);
+    }
+    let ur79 = || Operand::UReg { num: 79, neg: false, abs: false, inv: false, reuse: false, is_zero: false };
+    out.push(make_insn(a, form, vec![ur79(), op_reg(alloc.resolve(&src))], None));
+    a += 16;
+    out.push(make_insn(a, "MOV", vec![op_reg(alloc.resolve(&dst)), ur79()], None));
+    a += 16;
     out.push(make_insn(a, "ENDCOLLECTIVE", vec![], None));
     a += 16;
     push_gensym_label(&mut out, &lbl);

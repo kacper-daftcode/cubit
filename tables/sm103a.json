@@ -39641,6 +39641,29 @@
       }
      ],
      "count": 61
+    },
+    "SUM": {
+     "and_base": "0x000000000000c00000000000000073c4",
+     "variable_mask": "0x000000000000000000000000ffff0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "ureg",
+       "_src": "b9p15-2026-08-23"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "b9p15-2026-08-23"
+      }
+     ],
+     "count": 8,
+     "_src": "b9p15-2026-08-23",
+     "_note": "redux.sync.add.u32 vendor law: REDUX.SUM URd, Ra (no .S32). Era group 'S32,SUM' has a loose variable_mask covering S32 bit73 -> decode-side mislabel of u32 words as .S32 (finding b11-queue; era-row tightening deferred, see report). Tight row: SUM functions bits 78-79 = and_base, bit73 excluded from vm."
     }
    },
    "scheduling": {
@@ -44778,6 +44801,29 @@
       }
      ],
      "count": 22
+    },
+    "MAX": {
+     "and_base": "0x000000000000000000000000000072cc",
+     "variable_mask": "0x000000000000000000000000ffff0000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "ureg",
+       "_src": "b9p15-2026-08-23"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "b9p15-2026-08-23"
+      }
+     ],
+     "count": 6,
+     "_src": "b9p15-2026-08-23",
+     "_note": "redux.sync.max.u32 vendor law: CREDUX.MAX URd, Ra (no .S32); func MAX=0 (bits 78-81 zero), S32 bit73 = 0. Sibling era groups: MAX,S32 / MIN / MIN,S32."
     }
    },
    "scheduling": {

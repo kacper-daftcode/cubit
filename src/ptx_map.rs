@@ -295,6 +295,14 @@ pub enum SassTemplate {
     /// el2/elect_sink). The %rx sink dst skips the MOV (el2 anchor).
     /// UR79 is the vendor's fixed scratch choice at -O0 (el2 0x170).
     ElectSync,
+    /// redux.sync.{add,min,max}.{s32,u32} (b9 phase-3 #13): WARPSYNC mask
+    /// protocol around REDUX/CREDUX UR79, Ra + MOV Rd, UR79 (UR79 = vendor's
+    /// fixed redux scratch at -O0; anchors corpus p08/p_redux/v_redux1 +
+    /// reduxprobes). add.u32->REDUX.SUM, add.s32->REDUX.SUM.S32,
+    /// max.u32->CREDUX.MAX, min.u32->CREDUX.MIN, {max,min}.s32->*.S32.
+    /// and/or/xor + 64-bit + imm-src + guarded: fail-closed. -O3 elision of
+    /// the wrap documented in ptx_lower::lower_redux.
+    Redux,
     /// nanosleep.u32 S -> NANOSLEEP imm | R (anchor ns1: NANOSLEEP 0x32 /
     /// NANOSLEEP R0; corpus p24 reg form).
     Nanosleep,
@@ -804,9 +812,10 @@ pub static RULES: &[PtxRule] = &[
     // b9 phase-2 P6: removed "redux.sync." -> REDUX.ADD single-op rule. It
     // collapsed MIN/MAX/AND/OR into ADD (wrong op) AND emitted an R-dest form
     // the sm_103a encoder does not have (vendor: REDUX[.op][.type] URd, Ra;
-    // REDUX_UR_R table key). The gateway has no UR-domain allocation, so the
-    // honest behavior is PTX-level rejection ("unsupported PTX: redux.sync..")
-    // until a phase-3 UR path exists.
+    // REDUX_UR_R table key).
+    // b9 phase-3 #13 (b9p15): proper redux.sync.{add,min,max}.{s32,u32} lane
+    // (UR79 sink + WARPSYNC mask protocol; see ptx_lower::lower_redux).
+    PtxRule { pattern: "redux.sync.",     template: Redux },
 
     // ── Conversions ──────────────────────────────────────────────────────
     PtxRule { pattern: "cvt.",          template: Cvt },

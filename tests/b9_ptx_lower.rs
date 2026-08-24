@@ -358,8 +358,12 @@ fn b9p2_cvt_f16_unsupported() {
     assert!(t.contains("F2F.F16.F32"), "F2F anchor must be emitted: {}", t);
 }
 
-/// P6: redux.* rejected at the PTX layer (UR-dest op; the old REDUX.ADD/R-dest
-/// rule was withdrawn — wrong op + unencodable form).
+/// P6 pin, b9p15 PIN-FLIP with attribution: redux.sync.{add,min,max}.{s32,u32}
+/// are SUPPORTED since phase-3 #13 (UR79 sink + WARPSYNC mask protocol,
+/// vendor-anchored p08_redux/p_redux/v_redux1 + reduxprobes; new additive
+/// table groups REDUX_UR_R[SUM] + CREDUX_UR_R[MAX]). The still-fail-closed
+/// members keep the negative: redux.sync.{and,or,xor}.b32 (+ wide/imm-src/
+/// guarded forms) reject loudly.
 #[test]
 fn b9p2_redux_rejected() {
     let ptx = format!(r#"{} .visible .entry k(
@@ -369,13 +373,13 @@ fn b9p2_redux_rejected() {
     .reg .b32   %r<4>;
     .reg .b64   %rd<2>;
     ld.param.u64 %rd1, [k_param_0];
-    redux.sync.add.u32 %r1, %r2, 0xffffffff;
+    redux.sync.xor.b32 %r1, %r2, 0xffffffff;
     st.global.b32 [%rd1], %r1;
     ret;
 }}"#, PROLOG);
     let kernels = parse_ptx(&ptx).unwrap();
     let err = lower_kernel(&kernels[0]).unwrap_err().to_string();
-    assert!(err.contains("redux.sync.add.u32"), "got: {}", err);
+    assert!(err.contains("redux.sync.xor.b32"), "got: {}", err);
 }
 
 /// P4: f16 MMA emits HMMA.16816.F32 (no fp8 suffix), with BUG-037-aligned
@@ -1855,4 +1859,116 @@ fn b9p11_gpr_cap_rz_trap() {
     }
     let t = lower_text(&body.replace("%r", "%r"));
     assert!(t.contains("IADD3"), "{}", t);
+}
+
+// ── b9p15 (phase-3 #13): redux.sync lane ─────────────────────────────────
+/// Vendor-anchored law (corpus p08_redux O0 0x0f0/0x1d0/0x270, p_redux O0,
+/// v_redux1 O0/O3 + reduxprobes rdx_a..rdx_e O0/O3): each redux.sync at -O0
+/// wraps as [MOV Rm, mask-imm ;] WARPSYNC.COLLECTIVE Rm, `(L) ; REDUX|CREDUX
+/// UR79, Ra ; MOV Rd, UR79 ; ENDCOLLECTIVE ; L:. -O3 elides the wrap (bare
+/// REDUX family; documented divergence, spans claimed -O0 only).
+fn redux_lane_text(op: &str, mask: &str) -> String {
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b32   %r<8>;
+    .reg .b64   %rd<2>;
+    ld.param.u64 %rd1, [k_param_0];
+    mov.b32 %r4, -1;
+    {} %r3, %r2, {};
+    st.global.b32 [%rd1], %r3;
+    ret;
+}}"#, PROLOG, op, mask);
+    let kernels = parse_ptx(&ptx).unwrap();
+    lower_kernel(&kernels[0]).unwrap().to_sass_text()
+}
+
+#[test]
+fn b9p15_redux_forms() {
+    for (op, sass) in [
+        ("redux.sync.add.s32", "REDUX.SUM.S32"),
+        ("redux.sync.add.u32", "REDUX.SUM"),
+        ("redux.sync.max.u32", "CREDUX.MAX"),
+        ("redux.sync.min.u32", "CREDUX.MIN"),
+        ("redux.sync.max.s32", "CREDUX.MAX.S32"),  // probe-anchored (rdx_d)
+        ("redux.sync.min.s32", "CREDUX.MIN.S32"),  // probe-anchored (rdx_d)
+    ] {
+        let t = redux_lane_text(op, "%r4");
+        let expect = format!("{} UR79,", sass);
+        assert!(t.contains(&expect), "{} must emit {:?}: {}", op, expect, t);
+        // exactly one redux word inside the O0 wrap; MOV Rd, UR79 readout
+        assert!(t.contains("WARPSYNC.COLLECTIVE"), "{}: {}", op, t);
+        assert!(t.contains("ENDCOLLECTIVE"), "{}: {}", op, t);
+        assert!(t.matches("UR79").count() >= 2, "{}: {}", op, t);
+        // ordering: wrap -> redux word -> MOV Rd, UR79 -> ENDCOLLECTIVE
+        let iw = t.find("WARPSYNC.COLLECTIVE").unwrap();
+        let ir = t.find(&expect).unwrap();
+        let ie = t.find("ENDCOLLECTIVE").unwrap();
+        assert!(iw < ir && ir < ie, "wrap->redux->end ordering broken: {}", t);
+        let readout = t[ir..].find(", UR79").expect("MOV Rd, UR79 readout missing");
+        let _ = readout;
+    }
+}
+
+#[test]
+fn b9p15_redux_mask_imm_materializes() {
+    // imm membermask: vendor materializes via MOV into scratch then
+    // WARPSYNC.COLLECTIVE Rm (b9p8 helper path; v_redux1 anchor).
+    let t = redux_lane_text("redux.sync.add.u32", "0xffffffff");
+    assert!(t.contains("MOV"), "imm mask must materialize: {}", t);
+    assert!(t.contains("WARPSYNC.COLLECTIVE"), "{}", t);
+    assert!(t.contains("REDUX.SUM UR79,"), "{}", t);
+}
+
+#[test]
+fn b9p15_redux_fail_closed() {
+    for body in [
+        "redux.sync.and.b32 %r3, %r2, %r4;",
+        "redux.sync.or.b32  %r3, %r2, %r4;",
+        "redux.sync.xor.b32 %r3, %r2, %r4;",
+        "redux.sync.add.u64 %rd2_NOT64, %r2, %r4;", // wide form: parser splits, lower bails
+        "redux.sync.add.u32 %r3, 42, %r4;",          // imm src unattested
+        "redux.sync.add.s64 %rd2b, %rd2, %r4;",      // wide min/max lane N/A
+    ] {
+        let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b32   %r<8>;
+    .reg .b64   %rd<4>;
+    ld.param.u64 %rd1, [k_param_0];
+    mov.b32 %r4, -1;
+    {}
+    ret;
+}}"#, PROLOG, body);
+        let kernels = parse_ptx(&ptx).unwrap();
+        assert!(lower_kernel(&kernels[0]).is_err(), "must be unsupported: {}", body);
+    }
+    // guarded form fail-closed
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .pred %p<2>;
+    .reg .b32   %r<8>;
+    setp.eq.u32 %p1, %r1, %r2;
+    @%p1 redux.sync.add.u32 %r3, %r2, 0xffffffff;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    assert!(lower_kernel(&kernels[0]).is_err(), "guarded redux must be unsupported");
+}
+
+#[test]
+fn b9p15_redux_corpus_p08_shape() {
+    // The 3-op chain (add.s32 -> add -> max.u32 -> add -> min.u32) lowers end-to-end:
+    // 3 wraps, 3 redux words, all result MOVs from UR79.
+    let ptx = std::fs::read_to_string("/root/blindlab/work/b9census/ptx/p08_redux-eb6f6d.ptx").unwrap();
+    let kernels = parse_ptx(&ptx).unwrap();
+    let t = lower_kernel(&kernels[0]).unwrap().to_sass_text();
+    assert_eq!(t.matches("WARPSYNC.COLLECTIVE").count(), 3, "{}", t);
+    assert!(t.contains("REDUX.SUM.S32 UR79,") && t.contains("CREDUX.MAX UR79,")
+        && t.contains("CREDUX.MIN UR79,"), "{}", t);
+    assert_eq!(t.matches("ENDCOLLECTIVE").count(), 3, "{}", t);
 }
