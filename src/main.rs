@@ -1277,7 +1277,7 @@ fn cmd_disassemble(
                 // Non-branch: verify decode -> re-encode is byte-faithful (non-sched
                 // bits). If a table gap makes it lossy, emit exact bytes as __raw__ so
                 // the round-trip stays bit-perfect (scheduler/encoder bypassed).
-                let reenc = cubit::parse_sass(&d.text, 0)
+                let reenc = cubit::parse_sass(&d.text, d.addr)
                     .and_then(|insn| cubit::encoder::encode_instruction(&insn, &table));
                 match reenc {
                     Ok(rc) if (rc & !SCHED_MASK) == (d.code & !SCHED_MASK) => {
