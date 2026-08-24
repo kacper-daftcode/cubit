@@ -13,6 +13,8 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
 
+const BUNDLED_SM120_JSON: &str = include_str!("../tables/sm120.json");
+
 // ---------------------------------------------------------------------------
 // JSON schema
 // ---------------------------------------------------------------------------
@@ -152,8 +154,8 @@ pub enum Extraction {
     None,
 }
 
-fn parse_extraction(s: &str) -> Extraction {
-    match s {
+fn parse_extraction(s: &str) -> Result<Extraction> {
+    Ok(match s {
         "guard" => Extraction::Guard,
         "guard_lo3" => Extraction::GuardLo3,
         "guard_neg" => Extraction::GuardNeg,
@@ -249,42 +251,54 @@ fn parse_extraction(s: &str) -> Extraction {
             Extraction::MnemMod(i.parse::<u8>().unwrap_or(1), name.to_string())
         }
         s if s.starts_with("reg_shr") => {
-            let n: u8 = s[7..].parse().unwrap_or(0);
+            let n: u8 = s[7..].parse()
+                .with_context(|| format!("invalid extraction '{s}'"))?;
             Extraction::RegShr(n)
         }
         s if s.starts_with("ureg_shr") => {
-            let n: u8 = s[8..].parse().unwrap_or(0);
+            let n: u8 = s[8..].parse()
+                .with_context(|| format!("invalid extraction '{s}'"))?;
             Extraction::URegShr(n)
         }
         s if s.starts_with("imm_shr") => {
-            let n: u8 = s[7..].parse().unwrap_or(0);
+            let n: u8 = s[7..].parse()
+                .with_context(|| format!("invalid extraction '{s}'"))?;
             Extraction::ImmShr(n)
         }
         s if s.starts_with("sub_r") && s.contains("_shr") => {
             // e.g. "sub_r0_shr1", "sub_r1_shr2"
             let parts: Vec<&str> = s.split('_').collect();
-            let idx: u8 = parts.get(1).and_then(|p| p.strip_prefix('r')).and_then(|n| n.parse().ok()).unwrap_or(0);
-            let shr: u8 = parts.get(2).and_then(|p| p.strip_prefix("shr")).and_then(|n| n.parse().ok()).unwrap_or(0);
+            let idx: u8 = parts.get(1).and_then(|p| p.strip_prefix('r'))
+                .ok_or_else(|| anyhow::anyhow!("invalid extraction '{s}'"))?.parse()
+                .with_context(|| format!("invalid extraction '{s}'"))?;
+            let shr: u8 = parts.get(2).and_then(|p| p.strip_prefix("shr"))
+                .ok_or_else(|| anyhow::anyhow!("invalid extraction '{s}'"))?.parse()
+                .with_context(|| format!("invalid extraction '{s}'"))?;
             Extraction::SubRShr(idx, shr)
         }
         s if s.starts_with("sub_ur") && s.contains("_shr") => {
             let parts: Vec<&str> = s.split('_').collect();
-            let idx: u8 = parts.get(1).and_then(|p| p.strip_prefix("ur")).and_then(|n| n.parse().ok()).unwrap_or(0);
-            let shr: u8 = parts.get(2).and_then(|p| p.strip_prefix("shr")).and_then(|n| n.parse().ok()).unwrap_or(0);
+            let idx: u8 = parts.get(1).and_then(|p| p.strip_prefix("ur"))
+                .ok_or_else(|| anyhow::anyhow!("invalid extraction '{s}'"))?.parse()
+                .with_context(|| format!("invalid extraction '{s}'"))?;
+            let shr: u8 = parts.get(2).and_then(|p| p.strip_prefix("shr"))
+                .ok_or_else(|| anyhow::anyhow!("invalid extraction '{s}'"))?.parse()
+                .with_context(|| format!("invalid extraction '{s}'"))?;
             Extraction::SubURShr(idx, shr)
         }
         s if s.starts_with("sub_imm") && s.contains("_shr") => {
             let parts: Vec<&str> = s.split('_').collect();
-            let idx: u8 = parts.get(1).and_then(|p| p.strip_prefix("imm")).and_then(|n| n.parse().ok()).unwrap_or(0);
-            let shr: u8 = parts.get(2).and_then(|p| p.strip_prefix("shr")).and_then(|n| n.parse().ok()).unwrap_or(0);
+            let idx: u8 = parts.get(1).and_then(|p| p.strip_prefix("imm"))
+                .ok_or_else(|| anyhow::anyhow!("invalid extraction '{s}'"))?.parse()
+                .with_context(|| format!("invalid extraction '{s}'"))?;
+            let shr: u8 = parts.get(2).and_then(|p| p.strip_prefix("shr"))
+                .ok_or_else(|| anyhow::anyhow!("invalid extraction '{s}'"))?.parse()
+                .with_context(|| format!("invalid extraction '{s}'"))?;
             Extraction::SubImmShr(idx, shr)
         }
         "yield_inv" => Extraction::YieldInv,
-        _ => {
-            eprintln!("warning: unknown extraction '{s}', using None");
-            Extraction::None
-        }
-    }
+        _ => anyhow::bail!("unknown extraction '{s}'"),
+    })
 }
 
 /// A single bitfield within an instruction encoding.
@@ -383,10 +397,15 @@ impl IsaTable {
             let path = Path::new(p);
             if path.exists() { return Self::load(path); }
         }
-        anyhow::bail!("Cannot find sm120.json. Set CUBIT_TABLE env var or run from the repo root.")
+        Self::from_json_unified(BUNDLED_SM120_JSON)
+            .context("failed to load the bundled SM120 table")
     }
 
     pub fn load(path: &Path) -> Result<Self> {
+        if path == Path::new("@bundled") {
+            return Self::from_json_unified(BUNDLED_SM120_JSON)
+                .context("failed to load the bundled SM120 table");
+        }
         let data = std::fs::read_to_string(path)
             .with_context(|| format!("failed to read {}", path.display()))?;
         // Detect format: unified ISA DB (has "_meta") or flat encoding
@@ -495,28 +514,44 @@ impl IsaTable {
                 let and_base = parse_hex_u128(&jmg.and_base)
                     .with_context(|| format!("bad and_base for {key}::{mods}"))?;
 
-                let fields: Vec<Field> = jmg.fields.iter().map(|jf| {
+                let fields: Vec<Field> = jmg.fields.iter().map(|jf| -> Result<Field> {
                     let bits = jf.bits;
-                    Field {
+                    let end = jf.shift.checked_add(bits)
+                        .ok_or_else(|| anyhow::anyhow!(
+                            "field range overflow for {key}::{mods}: shift={}, bits={bits}",
+                            jf.shift
+                        ))?;
+                    if bits == 0 || end > 128 {
+                        anyhow::bail!(
+                            "field outside 128-bit instruction for {key}::{mods}: \
+                             shift={}, bits={bits}",
+                            jf.shift
+                        );
+                    }
+                    Ok(Field {
                         shift: jf.shift,
                         bits,
                         mask: if bits >= 64 { u64::MAX } else { (1u64 << bits) - 1 },
                         token_idx: jf.token_idx,
-                        extraction: parse_extraction(&jf.extraction),
-                    }
-                }).collect();
+                        extraction: parse_extraction(&jf.extraction)
+                            .with_context(|| format!(
+                                "bad extraction for {key}::{mods} at shift {}", jf.shift
+                            ))?,
+                    })
+                }).collect::<Result<Vec<_>>>()?;
 
                 // Variable mask: from JSON if available, else from fields
-                let variable_mask = jmg.variable_mask.as_ref()
-                    .and_then(|s| parse_hex_u128(s).ok())
-                    .unwrap_or_else(|| {
+                let variable_mask = if let Some(mask) = jmg.variable_mask.as_ref() {
+                    parse_hex_u128(mask)
+                        .with_context(|| format!("bad variable_mask for {key}::{mods}"))?
+                } else {
                         let mut vm: u128 = 0;
                         for f in &fields {
                             let fm = if f.bits >= 128 { u128::MAX } else { ((1u128 << f.bits) - 1) << f.shift };
                             vm |= fm;
                         }
                         vm
-                    });
+                };
 
                 mod_groups.insert(mods, ModGroupEntry { and_base, variable_mask, fields, encode_only: jmg.encode_only, addr_width: jmg.addr_width.clone() });
             }
@@ -623,5 +658,46 @@ pub fn extract_mod_group(asm: &str) -> String {
             .collect();
         mods.sort();
         mods.join(",")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::IsaTable;
+
+    fn table_with(group: &str) -> String {
+        ["{\"TEST_R\":{\"mod_groups\":{\"\":", group, "}}}}"].concat()
+    }
+
+    #[test]
+    fn rejects_supplied_mask_wider_than_u128() {
+        let json = table_with(
+            r#"{"and_base":"0x1","variable_mask":"0x100000000000000000000000000000000","fields":[]}"#
+        );
+        assert!(IsaTable::from_json_flat(&json).is_err());
+    }
+
+    #[test]
+    fn rejects_field_outside_instruction() {
+        let json = table_with(
+            r#"{"and_base":"0x1","fields":[{"shift":122,"bits":8,"token_idx":1,"extraction":"reg"}]}"#
+        );
+        assert!(IsaTable::from_json_flat(&json).is_err());
+    }
+
+    #[test]
+    fn rejects_unknown_extraction() {
+        let json = table_with(
+            r#"{"and_base":"0x1","fields":[{"shift":16,"bits":8,"token_idx":1,"extraction":"mystery"}]}"#
+        );
+        assert!(IsaTable::from_json_flat(&json).is_err());
+    }
+
+    #[test]
+    fn bundled_table_is_self_contained() {
+        let table = IsaTable::from_json_unified(super::BUNDLED_SM120_JSON).unwrap();
+        // 2_481 keys (1_541 InsKeys x mod-groups); the >=2_000 bar came from the
+        // old canonical-derived export which counted raw variants differently.
+        assert!(table.num_keys() >= 1_500, "bundled table shrank unexpectedly");
     }
 }

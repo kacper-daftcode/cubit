@@ -10,6 +10,7 @@ __pycache__/
 # Generated ISA-discovery artifacts (regenerate with tools/)
 tables/records.jsonl
 tables/lookup.bin
+/.canonical/
 
 # Build outputs / scratch
 *.cubin

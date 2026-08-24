@@ -550,6 +550,41 @@ fn select_best_candidate<'a>(
 ) -> Option<&'a DecodeCandidate> {
     let first = matches.first()?;
 
+    // BRA mode is encoded in bits[33:32]: 0=plain, 1=U, 2=DIV, 3=CONV.
+    // Broad legacy entries mask these bits and can otherwise outrank the
+    // explicit dotted-opcode records by key length.
+    if matches.iter().any(|candidate| candidate.key.starts_with("BRA")) {
+        let mode_name = match (code_clean >> 32) & 0x3 {
+            1 => Some("U"),
+            2 => Some("DIV"),
+            3 => Some("CONV"),
+            _ => None,
+        };
+        let explicit_mode = |candidate: &DecodeCandidate, expected: &str| {
+            candidate.key.split('_').next().unwrap_or("").split('.').skip(1)
+                .any(|modifier| modifier == expected)
+        };
+        let grouped_mode = |candidate: &DecodeCandidate, expected: &str| {
+            candidate.mod_group.split(',').any(|modifier| modifier.trim() == expected)
+        };
+
+        if let Some(expected) = mode_name {
+            if let Some(candidate) = matches.iter().copied()
+                .find(|candidate| explicit_mode(candidate, expected)) {
+                return Some(candidate);
+            }
+            if let Some(candidate) = matches.iter().copied()
+                .find(|candidate| grouped_mode(candidate, expected)) {
+                return Some(candidate);
+            }
+        } else if let Some(candidate) = matches.iter().copied().find(|candidate| {
+            !["U", "DIV", "CONV"].iter()
+                .any(|mode| explicit_mode(candidate, mode) || grouped_mode(candidate, mode))
+        }) {
+            return Some(candidate);
+        }
+    }
+
     // Check if the first candidate has an OUTPUT predicate field (shift 80-85, tok 1-3).
     // This handles P-prefix InsKeys like LOP3_P_... where PT means "no pred result".
     // Deliberately exclude trailing pred fields (shift > 85) like IMAD_R_R_R_R's

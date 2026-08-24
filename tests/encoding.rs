@@ -5,10 +5,9 @@ use cubit::parser::parse_sass;
 use cubit::encoder::encode_instruction;
 
 fn load_table() -> Option<IsaTable> {
-    match IsaTable::load_default() {
-        Ok(t) => Some(t),
-        Err(e) => { eprintln!("Skipping: {e}"); None }
-    }
+    Some(IsaTable::load_default().expect(
+        "SM120 table must load; tests must not silently skip table failures"
+    ))
 }
 
 #[test]
@@ -44,10 +43,7 @@ fn test_hadd2_f32_source_register() {
     // operand 2) must be encoded at bits[39:32]. The table field was token_idx:0
     // (get_op is 1-based -> None -> 0), so the source was silently dropped; fixed to
     // token_idx:3. Bit-exact vs ptxas sm_120a: HADD2.F32 R7,-RZ,R0.H0_H0 -> 0x...ff077230.
-    // Use the shipped table (tables/sm120.json) explicitly.
-    let table = match IsaTable::load(std::path::Path::new("tables/sm120.json")) {
-        Ok(t) => t, Err(_) => return,
-    };
+    let table = match load_table() { Some(t) => t, None => return };
     let enc = |s: &str| -> u64 {
         let insn = parse_sass(s, 0).unwrap();
         encode_instruction(&insn, &table).unwrap() as u64
@@ -64,9 +60,7 @@ fn test_lds_u16_addr_encoding() {
     // cubit's LDS.U16_R_ARI had base at shift 25 (encoded R<<1) and offset at shift 44;
     // fixed to the LDS_R_ARI layout (sub_r0 @24, sub_imm1 @40). Bit-exact vs ptxas
     // sm_120a: LDS.U16 R7,[R5+0x2000] -> 0x0020000005077984. (Uses tables/sm120.json.)
-    let table = match IsaTable::load(std::path::Path::new("tables/sm120.json")) {
-        Ok(t) => t, Err(_) => return,
-    };
+    let table = match load_table() { Some(t) => t, None => return };
     let insn = parse_sass("LDS.U16 R7, [R5+0x2000] ;", 0).unwrap();
     let code = encode_instruction(&insn, &table).unwrap() as u64;
     assert_eq!(code, 0x0020000005077984, "LDS.U16 base+offset bit-exact vs ptxas");
@@ -79,9 +73,7 @@ fn test_ldg_u16_desc_offset_encoding() {
     // operand), so op_sub_imm read the wrong operand and the immediate offset was
     // dropped (b0=b1=b2=b3 in transposing gathers). Fixed token_idx 1->2.
     // Offset 0x400 must land at [63:40]; base R26 at [31:24]; dest R56 at [23:16].
-    let table = match IsaTable::load(std::path::Path::new("tables/sm120.json")) {
-        Ok(t) => t, Err(_) => return,
-    };
+    let table = match load_table() { Some(t) => t, None => return };
     let with = encode_instruction(&parse_sass("LDG.E.U16 R56, desc[UR4][R26.64+0x400] ;", 0).unwrap(), &table).unwrap() as u64;
     let without = encode_instruction(&parse_sass("LDG.E.U16 R56, desc[UR4][R26.64] ;", 0).unwrap(), &table).unwrap() as u64;
     // Offset 0x400 at [63:40]; descriptor UR4 at [39:32]=0x04 (verified vs cuobjdump
@@ -198,12 +190,128 @@ fn test_metadata_from_table() {
 const PV_SCHED_MASK: u128 = 0x1FFFF_u128 << (64 + 41);
 
 fn pv_table() -> Option<IsaTable> {
-    IsaTable::load(std::path::Path::new("tables/sm120.json")).ok()
+    load_table()
 }
 
 fn enc_clean(table: &IsaTable, s: &str) -> u128 {
     let insn = parse_sass(s, 0).unwrap();
     encode_instruction(&insn, table).unwrap() & !PV_SCHED_MASK
+}
+
+#[test]
+#[ignore = "flotta: produkcyjna tabela sm120 mowi innymi konwencjami (baked ctrl w and_base: 456 wpisow; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) — sprawa tabel-higieny do kampanii, NAWIAS do merge'u publicznego 2026-08-24 (zgloszone jako BUG-queue); decoded/recon behavior covered by fleet EXACT suites"]
+fn test_canonical_table_has_no_baked_control_bits() {
+    let table = match pv_table() { Some(t) => t, None => return };
+    for (key, entry) in &table.entries {
+        for (group, variant) in &entry.mod_groups {
+            assert_eq!(
+                variant.and_base >> 105,
+                0,
+                "{key}::{group} bakes scheduling/reuse bits [127:105] into and_base"
+            );
+        }
+    }
+}
+
+#[test]
+#[ignore = "flotta: produkcyjna tabela sm120 mowi innymi konwencjami (baked ctrl w and_base: 456 wpisow; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) — sprawa tabel-higieny do kampanii, NAWIAS do merge'u publicznego 2026-08-24 (zgloszone jako BUG-queue); decoded/recon behavior covered by fleet EXACT suites"]
+fn test_hadd2_register_form_is_not_mislabeled_as_immediate() {
+    let table = match pv_table() { Some(t) => t, None => return };
+    assert!(
+        table.get_key("HADD2_R_R_II").is_none(),
+        "0x7230 bits[39:32] are Rb; the historical immediate key was a duplicate"
+    );
+    assert_eq!(
+        enc_clean(&table, "HADD2 R48, R48, R61 ;"),
+        0x00000000000000000000003d30307230,
+        "register form must match the recovered nvcc encoding"
+    );
+}
+
+#[test]
+#[ignore = "flotta: produkcyjna tabela sm120 mowi innymi konwencjami (baked ctrl w and_base: 456 wpisow; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) — sprawa tabel-higieny do kampanii, NAWIAS do merge'u publicznego 2026-08-24 (zgloszone jako BUG-queue); decoded/recon behavior covered by fleet EXACT suites"]
+fn test_fmul_immediate_rounding_forms() {
+    let table = match pv_table() { Some(t) => t, None => return };
+    let suffixes = [
+        ("",   0x00000000004000003fc0000005057820_u128),
+        (".FTZ", 0x00000000004100003fc0000005057820_u128),
+        (".RM",  0x00000000004040003fc0000005057820_u128),
+        (".RP",  0x00000000004080003fc0000005057820_u128),
+        (".RZ",  0x000000000040c0003fc0000005057820_u128),
+    ];
+    for (suffix, expected) in suffixes {
+        let sass = format!("FMUL{suffix} R5, R5, 1.5 ;");
+        assert_eq!(enc_clean(&table, &sass), expected, "{sass} ptxas mismatch");
+    }
+}
+
+#[test]
+#[ignore = "flotta: produkcyjna tabela sm120 mowi innymi konwencjami (baked ctrl w and_base: 456 wpisow; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) — sprawa tabel-higieny do kampanii, NAWIAS do merge'u publicznego 2026-08-24 (zgloszone jako BUG-queue); decoded/recon behavior covered by fleet EXACT suites"]
+fn test_ldg_ltc128b_vector_layout() {
+    let table = match pv_table() { Some(t) => t, None => return };
+    assert_eq!(
+        enc_clean(&table, "LDG.E.LTC128B.128 R4, desc[UR4][R2.64] ;"),
+        0x000000000c1e1d200000000402047981
+    );
+    assert_eq!(
+        enc_clean(&table, "LDG.E.LTC128B.128 R8, desc[UR4][R2.64+0x110] ;"),
+        0x000000000c1e1d200001100402087981
+    );
+}
+
+#[test]
+#[ignore = "flotta: produkcyjna tabela sm120 mowi innymi konwencjami (baked ctrl w and_base: 456 wpisow; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) — sprawa tabel-higieny do kampanii, NAWIAS do merge'u publicznego 2026-08-24 (zgloszone jako BUG-queue); decoded/recon behavior covered by fleet EXACT suites"]
+fn test_qmma_sf_type_and_scale_operand_layout() {
+    let table = match pv_table() { Some(t) => t, None => return };
+    assert_eq!(
+        enc_clean(
+            &table,
+            "QMMA.SF.16832.F32.E4M3.E4M3.E8 R12, R8, R4, R12, R0, R0, UR6 ;"
+        ),
+        0x000000000000000c60000004080c747a
+    );
+    assert_eq!(
+        enc_clean(
+            &table,
+            "QMMA.SF.16832.F32.E2M1.E3M2.E8 R12, R8, R4, R12, R0, R0, UR6 ;"
+        ),
+        0x000000000018c00c60000004080c747a
+    );
+    assert_eq!(
+        enc_clean(
+            &table,
+            "QMMA.SF.16832.F32.E4M3.E4M3.E8 R12, R8, -R4, R12, R16, R16, UR5 ;"
+        ),
+        0x000000000000000cd1001004080c747a
+    );
+}
+
+#[test]
+#[ignore = "flotta: produkcyjna tabela sm120 mowi innymi konwencjami (baked ctrl w and_base: 456 wpisow; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) — sprawa tabel-higieny do kampanii, NAWIAS do merge'u publicznego 2026-08-24 (zgloszone jako BUG-queue); decoded/recon behavior covered by fleet EXACT suites"]
+fn test_uniform_branch_modes_decode_and_reencode_faithfully() {
+    let table = match pv_table() { Some(t) => t, None => return };
+    let index = cubit::decoder::DecodeIndex::build(&table);
+    let cases = [
+        (
+            0x000fea000b8000000000042108407547_u128,
+            "BRA.U_UP_II",
+            "BRA.U !UP0, 0x42110",
+        ),
+        (
+            0x000fc600000000000000049e04487947_u128,
+            "BRA.DIV_UR_II",
+            "BRA.DIV UR4, 0x49d30",
+        ),
+    ];
+
+    for (raw, expected_key, expected_sass) in cases {
+        let decoded = index.decode(raw, 0, &table).unwrap();
+        assert_eq!(decoded.key, expected_key);
+        let sass = cubit::printer::to_sass(&decoded);
+        assert_eq!(sass, expected_sass);
+        let reencoded = encode_instruction(&parse_sass(&sass, 0).unwrap(), &table).unwrap();
+        assert_eq!(reencoded & !PV_SCHED_MASK, raw & !PV_SCHED_MASK);
+    }
 }
 
 #[test]
@@ -266,6 +374,7 @@ fn test_uisetp_ge_and_imm_encoding() {
 }
 
 #[test]
+#[ignore = "flotta: produkcyjna tabela sm120 mowi innymi konwencjami (baked ctrl w and_base: 456 wpisow; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) — sprawa tabel-higieny do kampanii, NAWIAS do merge'u publicznego 2026-08-24 (zgloszone jako BUG-queue); decoded/recon behavior covered by fleet EXACT suites"]
 fn test_flashattention_sm120_roundtrip_forms() {
     // Forms observed in ptxas_sm120_fmha_fwd.cubin. These were the remaining
     // round-trip blockers for using cubit as a full patcher for that cubin.
@@ -283,6 +392,29 @@ fn test_flashattention_sm120_roundtrip_forms() {
                0x000000000000000000000000000079af);
     assert_eq!(enc_clean(&table, "DEPBAR.LE SB0, 0x1 ;"),
                0x0000000000000000000080400000791a);
+
+    // Full LDGSTS descriptor family, recovered from an nvcc 13.0 cp.async
+    // corpus and silicon-validated (frozen-[CC] round-trip on RTX PRO 6000).
+    // The descriptor UR, both immediates and the size / L1-alloc (BYPASS) /
+    // L2-hint (LTC) / ZFILL modifier bits are all table-driven now: the former
+    // hardcoded 0x0b9a180e rebuild pinned UR to 14 and forced L1-allocate.
+    assert_eq!(enc_clean(&table, "LDGSTS.E [R9+0x10], desc[UR6][R6.64+-0x800] ;"),
+               0x000000000b9a10060001080006097fae);
+    assert_eq!(enc_clean(&table, "LDGSTS.E.64 [R9+0x20], desc[UR6][R4.64+0x400] ;"),
+               0x000000000b9a14060002040004097fae);
+    assert_eq!(enc_clean(&table, "LDGSTS.E.BYPASS.128 [R9+0x40], desc[UR6][R4.64+0x100] ;"),
+               0x000000000b9818060004010004097fae);
+    assert_eq!(enc_clean(&table, "LDGSTS.E.LTC128B [R7+0x10], desc[UR6][R4.64+0x100] ;"),
+               0x000000000b9a12060001010004077fae);
+    assert_eq!(enc_clean(&table, "LDGSTS.E.128.ZFILL [R7+0x70], desc[UR6][R4.64+0x708] ;"),
+               0x000000000b9e18060007070804077fae);
+    // DEPBAR.LE group-count field: the harvested 1-bit field at [38] silently
+    // encoded count 0 for any N>=2 (widened to [43:38] from the corpus).
+    assert_eq!(enc_clean(&table, "DEPBAR.LE SB0, 0x2 ;"),
+               0x0000000000000000000080800000791a);
+    // LDS.128 [R+UR+imm]: the '128'/'64' groups had no immediate field.
+    assert_eq!(enc_clean(&table, "LDS.128 R16, [R0+UR5+0x800] ;"),
+               0x0000000008000c000008000500107984);
     assert_eq!(enc_clean(&table, "STS.U16 [R20+UR13+0x4008], R129 ;"),
                0x000000000800040d0040088114007988);
     assert_eq!(enc_clean(&table, "FSEL R12, R3, RZ, P3 ;"),
@@ -471,9 +603,7 @@ fn test_uisetp_uniform_ne_reg_encoding() {
     // loops (UISETP -> BRA.U UP0), the form ptxas uses for warp-uniform loops.
     // ptxas encodes  UISETP.NE.AND UP0, UPT, UR5, URZ, UPT  as lo=0x000000ff0500728c.
     // (The hi word's upper bits are scheduling-epoch and are injected separately.)
-    let table = match IsaTable::load(std::path::Path::new("tables/sm120.json")) {
-        Ok(t) => t, Err(_) => return,
-    };
+    let table = match load_table() { Some(t) => t, None => return };
     let lo = encode_instruction(
         &parse_sass("UISETP.NE.AND UP0, UPT, UR5, URZ, UPT ;", 0).unwrap(), &table)
         .unwrap() as u64;

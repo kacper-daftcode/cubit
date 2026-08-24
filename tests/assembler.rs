@@ -10,13 +10,9 @@ use cubit::parser::parse_sass;
 use cubit::table::IsaTable;
 
 fn load_table() -> Option<IsaTable> {
-    match IsaTable::load_default() {
-        Ok(t) => Some(t),
-        Err(e) => {
-            eprintln!("Skipping: {e}");
-            None
-        }
-    }
+    Some(IsaTable::load_default().expect(
+        "SM120 table must load; tests must not silently skip table failures"
+    ))
 }
 
 /// Helper: full SASS→cubin pipeline using the public module APIs.
