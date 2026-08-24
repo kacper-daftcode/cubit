@@ -21996,68 +21996,6 @@
             }
           ],
           "variable_mask": "0x0400000000000100800000fffffff000"
-        },
-        "RZ": {
-          "and_base": "0x000000000000c0000000000400000221",
-          "fields": [
-            {
-              "shift": 12,
-              "bits": 4,
-              "token_idx": 0,
-              "extraction": "guard"
-            },
-            {
-              "shift": 16,
-              "bits": 8,
-              "token_idx": 1,
-              "extraction": "reg"
-            },
-            {
-              "shift": 24,
-              "bits": 8,
-              "token_idx": 2,
-              "extraction": "reg"
-            },
-            {
-              "shift": 122,
-              "bits": 1,
-              "token_idx": 2,
-              "extraction": "reuse"
-            }
-          ],
-          "variable_mask": "0xfc00000000000300c0000000fffff000",
-          "count": 1
-        },
-        "SAT": {
-          "and_base": "0x00000000000020000000000500000221",
-          "fields": [
-            {
-              "shift": 12,
-              "bits": 4,
-              "token_idx": 0,
-              "extraction": "guard"
-            },
-            {
-              "shift": 16,
-              "bits": 8,
-              "token_idx": 1,
-              "extraction": "reg"
-            },
-            {
-              "shift": 24,
-              "bits": 8,
-              "token_idx": 2,
-              "extraction": "reg"
-            },
-            {
-              "shift": 122,
-              "bits": 1,
-              "token_idx": 2,
-              "extraction": "reuse"
-            }
-          ],
-          "variable_mask": "0xfc00000000000300c0000000fffff000",
-          "count": 1
         }
       },
       "scheduling": {
@@ -22737,6 +22675,67 @@
           ],
           "variable_mask": "0x1c00000000000300c00000fffffff000",
           "count": 1
+        },
+        "FTZ,RZ": {
+          "and_base": "0x000000000001c0000000000000000221",
+          "fields": [
+            {
+              "shift": 12,
+              "bits": 4,
+              "token_idx": 0,
+              "extraction": "guard"
+            },
+            {
+              "shift": 16,
+              "bits": 8,
+              "token_idx": 1,
+              "extraction": "reg"
+            },
+            {
+              "shift": 24,
+              "bits": 8,
+              "token_idx": 2,
+              "extraction": "reg"
+            },
+            {
+              "shift": 32,
+              "bits": 8,
+              "token_idx": 3,
+              "extraction": "reg"
+            },
+            {
+              "shift": 63,
+              "bits": 1,
+              "token_idx": 3,
+              "extraction": "neg"
+            },
+            {
+              "shift": 72,
+              "bits": 1,
+              "token_idx": 2,
+              "extraction": "neg"
+            },
+            {
+              "shift": 73,
+              "bits": 1,
+              "token_idx": 2,
+              "extraction": "abs"
+            },
+            {
+              "shift": 122,
+              "bits": 1,
+              "token_idx": 2,
+              "extraction": "reuse"
+            },
+            {
+              "shift": 124,
+              "bits": 1,
+              "token_idx": 3,
+              "extraction": "reuse"
+            }
+          ],
+          "variable_mask": "0x1c00000000000300c00000fffffff000",
+          "count": 2
         },
         "RZ": {
           "and_base": "0x000000000000c0000000000000000221",
