@@ -462,6 +462,125 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
         // A/B source tuples are quads on the grounded sond form. v0 keeps
         // ONE width for every position (conservative; a narrower B-pair
         // variant must land as data with evidence first).
+        // 64-bit FP ALU (DADD/DMUL/DFMA, BUG-118 gate landing): the
+        // destination is a register PAIR and every register source reads a
+        // pair (vendor anchors: ptxas 13.3 sm_103a pd64/p17_f64 nvcc
+        // cubins, "DADD R8, R4, R8" / "DFMA R4, R2, 1.5, R4", 2026-08-24).
+        "f64alu" => {
+            def_operand0(insn, &mut x, 2);
+            for o in &insn.operands[1.min(insn.operands.len())..] {
+                if let Operand::Reg { num, .. } = *o {
+                    if num != 255 {
+                        put(&mut x.ruses, &mut x.spans, num, 2, RegDom::R, 255, false);
+                    }
+                }
+            }
+        }
+        // Float/int converts around f64 (BUG-118 gate landing): the f64
+        // half of the conversion spans the register pair. Type-slot
+        // semantics differ per base op (vendor anchors: p17_f64 nvcc
+        // sm_103a, "F2F.F64.F32 R8, R13" / corpus "F2I.F64.TRUNC R10, R6"):
+        //   F2F.<dst>.<src>: dst type first, src second
+        //   F2I.<F64>.TRUNC: single float suffix names the SOURCE (dst i32)
+        //   I2F.<F64|..>*: dst is the float side (pair iff .F64 first), the
+        //     integer source is always one 32-bit register
+        "fcvt" => {
+            let (wd, ws) = match insn.opcode.as_str() {
+                "F2I" => (1, if insn.modifiers.iter().any(|m| m == ".F64") { 2 } else { 1 }),
+                "I2F" => (if insn.modifiers.first().map_or(false, |m| m == ".F64") { 2 } else { 1 }, 1),
+                // F2F and any other: both sides by modifier position,
+                // conservative both-pairs when the shape is unclear.
+                _ => (
+                    if insn.modifiers.first().map_or(false, |m| m == ".F64") { 2 } else { 1 },
+                    if insn.modifiers.get(1).map_or(false, |m| m == ".F64") { 2 } else { 1 },
+                ),
+            };
+            def_operand0(insn, &mut x, wd);
+            for o in &insn.operands[1.min(insn.operands.len())..] {
+                if let Operand::Reg { num, .. } = *o {
+                    if num != 255 {
+                        put(&mut x.ruses, &mut x.spans, num, ws, RegDom::R, 255, false);
+                    }
+                }
+            }
+        }
+        // Atomics with register return (ATOM/ATOMS, BUG-118 gate landing):
+        // the FIRST register operand is the destination (access width from
+        // the .64 modifier: ATOM.E.CAS.STRONG.GPU = 32-bit, ATOMS.*.64 =
+        // pair); every later register is a use (compare/value operands read
+        // at the same width -- conservative is correct here).
+        "atom" => {
+            let mut first_reg_seen = false;
+            for o in &insn.operands {
+                match o {
+                    Operand::Reg { num, .. } if !first_reg_seen && *num != 255 => {
+                        put(&mut x.rdefs, &mut x.spans, *num, w, RegDom::R, 255, true);
+                        first_reg_seen = true;
+                    }
+                    Operand::Reg { .. } => use_operand(o, &mut x, w),
+                    _ => use_operand(o, &mut x, 1),
+                }
+            }
+        }
+        // Uniform-result warp ops (ELECT/REDUX/CREDUX, BUG-118 gate
+        // landing): the first non-zero UREG operand is the destination
+        // (UR79 vendor scratch), remaining tracked operands are uses
+        // (anchors: "ELECT P0, UR79, PT" / "REDUX.SUM UR79, R6", b9 p08/p10).
+        "urdef_first" => {
+            let mut ureg_dst_seen = false;
+            for o in &insn.operands {
+                match o {
+                    Operand::UReg { num, is_zero, .. }
+                        if !ureg_dst_seen && !is_zero =>
+                    {
+                        put(&mut x.udefs, &mut x.spans, *num, 1, RegDom::UR, 64, true);
+                        ureg_dst_seen = true;
+                    }
+                    _ => use_operand(o, &mut x, 1),
+                }
+            }
+        }
+        // ldmatrix (BUG-118 gate landing): destination width is a quad only
+        // SYNCS-family (BUG-118 gate landing): the FIRST tracked register
+        // operand is the destination state register (SYNCS.ARRIVE.TRANS64
+        // [REDACTED-PAIR-lo|RZ], SYNCS.EXCH.64 URZ sink, ...); every later
+        // operand is a use (addr brackets, UR state inputs).
+        "syncs" => {
+            let mut dst_seen = false;
+            for o in &insn.operands {
+                match o {
+                    Operand::Reg { num, .. } if !dst_seen && *num != 255 => {
+                        put(&mut x.rdefs, &mut x.spans, *num, 1, RegDom::R, 255, true);
+                        dst_seen = true;
+                    }
+                    Operand::UReg { num, is_zero, .. } if !dst_seen && !is_zero => {
+                        put(&mut x.udefs, &mut x.spans, *num, 1, RegDom::UR, 64, true);
+                        dst_seen = true;
+                    }
+                    _ => use_operand(o, &mut x, 1),
+                }
+            }
+        }
+        // on the .4 row (LDSM.16.M88.4 R20, [R16]); x1 is a single
+        // register. Address bracket is a plain 32-bit shared offset.
+        "ldsm" => {
+            let w4 = insn.modifiers.iter().any(|m| m == ".4");
+            def_operand0(insn, &mut x, if w4 { 4 } else { 1 });
+            for o in &insn.operands[1.min(insn.operands.len())..] {
+                use_operand(o, &mut x, 1);
+            }
+        }
+        // stmatrix (mirror of ldsm): no register def; the data source is a
+        // quad on .4, single register otherwise; address is a use.
+        "stsm" => {
+            let w4 = insn.modifiers.iter().any(|m| m == ".4");
+            for o in &insn.operands {
+                match o {
+                    Operand::Reg { .. } => use_operand(o, &mut x, if w4 { 4 } else { 1 }),
+                    _ => use_operand(o, &mut x, 1),
+                }
+            }
+        }
         "mma" => {
             // MMA tuple quads. Alignment per operand position follows the
             // silicon-measured BUG-037 legality table (encoder errata,
@@ -478,7 +597,20 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
                 match o {
                     Operand::Reg { num, .. } if *num != 255 => {
                         let set = if is_dest { &mut x.rdefs } else { &mut x.ruses };
-                        put_aligned(set, &mut x.spans, *num, 4, RegDom::R, 255, is_dest, align);
+                        // BUG-118 gate landing: HMMA.16816's B fragment is a
+                        // 64-bit PAIR (%2 align already implied this); the
+                        // lowerer emits only the pair and the b10 matrix's
+                        // mma-f16 A/B PASSes prove the pair shape on silicon.
+                        // Other families keep the conservative quad.
+                        let bw = if insn.opcode == "HMMA"
+                            && insn.modifiers.iter().any(|m| m == ".16816")
+                            && idx == 2
+                        {
+                            2
+                        } else {
+                            4
+                        };
+                        put_aligned(set, &mut x.spans, *num, bw, RegDom::R, 255, is_dest, align);
                     }
                     Operand::UReg { num, is_zero, .. } if !is_zero => {
                         let set = if is_dest { &mut x.udefs } else { &mut x.uuses };
@@ -491,6 +623,17 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
         // System-register reads / uniform moves: dest-only.
         "dest_only" => {
             def_operand0(insn, &mut x, 1);
+        }
+        // CS2R from a 64-bit system register (BUG-118 gate landing): the
+        // hardware writes the whole even PAIR even though only the low
+        // register prints (vendor anchor: ptxas 13.3 sm_103a gt.ptx probe
+        // 2026-08-24 -- "CS2R R4, SR_GLOBALTIMERLO; STG.E.64 [..], R4").
+        // 32-bit SRs keep the single-register def.
+        "cs2r" => {
+            let pair = insn.operands.iter().any(|o| matches!(
+                o, Operand::SysReg(name) if name.ends_with("LO")
+            ));
+            def_operand0(insn, &mut x, if pair { 2 } else { 1 });
         }
         // Predicate-only or operand-free: known, empty reg xfer.
         "none" => {}

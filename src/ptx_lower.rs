@@ -46,6 +46,23 @@ struct RegAlloc {
     /// for lifter-emitted control regions (atom f16/f16x2 CAS/spin lanes).
     /// PTX-level branches never emit BSSY, so ids are lifter-exclusive.
     bar_next: u8,
+    /// BUG-118: textual last-use index per PTX GPR name (all operand
+    /// kinds), swept in lower_kernel's first pass. The old
+    /// free-the-address-pair-at-load optimization assumed that use was the
+    /// name's last one WITHOUT checking; any later use then re-bound a
+    /// fresh, never-written pair (deterministic ILLEGAL_ADDRESS 700 on
+    /// silicon, nvcc side fine). Fail-closed gate at the end of
+    /// lower_kernel keeps the class at BUILD-FAIL forever.
+    gpr_last_use: HashMap<String, usize>,
+    /// Statement index currently being lowered (companion of gpr_last_use).
+    cur_si: usize,
+    /// BUG-118 gate waiver registry: (reg, selector) of emitter-DECLARED
+    /// dead-byte self-reads. Used ONLY by the sub-word unpack lanes whose
+    /// vendor-attested in-place PRMT shape (`PRMT Rd, Rsrc, 0x7610, Rd`)
+    /// reads Rd's upper 16 bits which are don't-care by lane contract
+    /// (b16 vregs live in the low half; vendor -O0 emits the identical
+    /// first-touch self-read, anchors readshared2 0x220 / p15 0x280).
+    dead_read_ok: std::collections::BTreeSet<(u8, i64)>,
 }
 
 impl RegAlloc {
@@ -66,6 +83,9 @@ impl RegAlloc {
             unknown_sreg: None,
             shared_syms,
             unknown_sym: None,
+            gpr_last_use: HashMap::new(),
+            cur_si: 0,
+            dead_read_ok: std::collections::BTreeSet::new(),
         }
     }
 
@@ -172,6 +192,32 @@ impl RegAlloc {
         }
     }
 
+    /// BUG-118: free a 64-bit name's pair ONLY at its textual last use, and
+    /// only when no OTHER still-live name is bound to the same physical
+    /// pair (cvta AliasPair shares bindings). A pair handed back early is
+    /// re-issued by gpr_pair while the dropped name's later use silently
+    /// binds a fresh, never-written register (b10 PHASE-2c: pd64/pi64/
+    /// pr_rw_ldcgs deterministic 700 on silicon).
+    /// Conservative corner: a name bound but NEVER used as an operand has
+    /// no last-use entry; if it shares the pair we keep the pair (map_or
+    /// true = assume live). Freed pairs never affect already-emitted text,
+    /// so loop-carried addresses are unaffected (their binding loss would
+    /// only matter to a later lowering-time resolve, which the last-use
+    /// condition rules out by construction).
+    fn free_pair_if_dead(&mut self, name: &str) {
+        match self.gpr_last_use.get(name) {
+            Some(&lu) if lu <= self.cur_si => {}
+            _ => return,
+        }
+        let lo = match self.gpr_map.get(name) { Some(&r) => r, None => return };
+        let shared_live = self.gpr_map.iter().any(|(n, &r)| {
+            n != name && r == lo
+                && self.gpr_last_use.get(n).map_or(true, |&lu2| lu2 > self.cur_si)
+        });
+        if shared_live { return; }
+        self.free_pair(name);
+    }
+
     /// b9 phase-3 #15: next free reconvergence barrier id (B0.. class).
     /// PTX-level branches never emit BSSY, so the pool is lifter-exclusive;
     /// lanes emit at most 2 ids per atomic expansion.
@@ -202,6 +248,9 @@ fn sreg_sass_name(ptx_name: &str) -> Option<&'static str> {
         "%nctaid.x" => "SR_NCTAID.X", "%nctaid.y" => "SR_NCTAID.Y", "%nctaid.z" => "SR_NCTAID.Z",
         "%laneid"   => "SR_LANEID",    "%warpid"   => "SR_WARPID",   "%smid"     => "SR_SMID",
         "%clock"    => "SR_CLOCKLO",   "%clock64"  => "SR_CLOCKLO",
+        // BUG-118 gate landing (b_cluster): ptxas sm_103a cl.ptx probe
+        // 2026-08-24 -> S2R Rn, SR_CgaCtaId.
+        "%cluster_ctarank" => "SR_CgaCtaId",
         // b9 phase-2: unknown special registers must NOT silently become
         // SR_TID.X (phase-1 fallback corrupted semantics invisibly).
         _ => return None,
@@ -506,6 +555,9 @@ pub struct LoweredKernel {
     pub max_regs: u8,
     pub params: Vec<crate::ptx_parse::PtxParam>,
     pub shared_bytes: usize,
+    /// BUG-118 gate waivers declared by emitters: (reg, PRMT-selector)
+    /// dead-byte self-reads that are legal on first touch (see RegAlloc).
+    pub dead_read_ok: std::collections::BTreeSet<(u8, i64)>,
 }
 
 impl LoweredKernel {
@@ -615,6 +667,34 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
     }
     let mut dead_preds: Vec<String> = Vec::new();
 
+    // BUG-118: GPR last-use sweep (companion to the pred sweep above).
+    // Covers every register-name occurrence an instruction can consume:
+    // plain regs, address bases (register ones only), and {group} members.
+    // Destination-only occurrences matter too: they extend the binding's
+    // life (a later use must see THIS write's slot).
+    {
+        let mut glu: HashMap<String, usize> = HashMap::new();
+        for (si, stmt) in kernel.body.iter().enumerate() {
+            if let PtxStmt::Insn(insn) = stmt {
+                for op in &insn.operands {
+                    match op {
+                        PtxOperand::Reg(name) => { glu.insert(name.clone(), si); }
+                        PtxOperand::Addr { base, .. } => {
+                            if base.starts_with('%') { glu.insert(base.clone(), si); }
+                        }
+                        PtxOperand::RegGroup(regs) => {
+                            for r in regs {
+                                if r.starts_with('%') { glu.insert(r.clone(), si); }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        alloc.gpr_last_use = glu;
+    }
+
     // Convert guard
     fn lower_guard(insn: &PtxInsn, alloc: &mut RegAlloc) -> Option<Guard> {
         insn.guard_pred.as_ref().map(|pred| {
@@ -661,6 +741,34 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                 }
             }
         }
+        // BUG-118 sweep-up: the deferral above counted ONLY ld/st.global
+        // address uses; atom./red. address uses were missed, so a param
+        // register feeding both an atom address and a store address was
+        // classed "store-only" and its LDC was deferred PAST the atom
+        // (atom read a fresh never-written pair -- gate catch 2026-08-24,
+        // b9p6_acq_rel_glue). Conservative law: ANY use of the register
+        // outside an st.global address slot blocks the deferral.
+        for stmt in &kernel.body {
+            if let PtxStmt::Insn(insn) = stmt {
+                if insn.opcode.starts_with("ld.param.") { continue; } // own dst is a def site
+                for (oi, op) in insn.operands.iter().enumerate() {
+                    let is_st_addr =
+                        insn.opcode.starts_with("st.global.") && oi == 0;
+                    let mut mark_live = |name: &String| {
+                        if !is_st_addr { load_addr_regs.insert(name.clone()); }
+                    };
+                    match op {
+                        PtxOperand::Reg(name) => mark_live(name),
+                        PtxOperand::Addr { base, .. }
+                            if base.starts_with('%') => mark_live(base),
+                        PtxOperand::RegGroup(regs) => {
+                            for r in regs { mark_live(r); }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
         for (pname, reg) in &param_to_reg {
             if store_addr_regs.contains(reg) && !load_addr_regs.contains(reg) {
                 store_only_params.insert(pname.clone());
@@ -688,6 +796,7 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
 
     // Second pass: emit instructions
     for (si, stmt) in kernel.body.iter().enumerate() {
+        alloc.cur_si = si; // BUG-118 last-use companion (frees below)
         match stmt {
             PtxStmt::Label(name) => {
                 // Emit label for cubit's label resolution
@@ -1451,8 +1560,17 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
         }
 
         // free predicates whose last use is this statement (phase-1 sweep)
-        for (name, &lu) in pred_last_use.iter() {
-            if lu == si { dead_preds.push(name.clone()); }
+        // BUG-118 sweep-up: HashMap iteration order fed the free_preds LIFO,
+        // making predicate slot assignment run-to-run NONDETERMINISTIC (two
+        // consecutive ptxlower runs on ucgate-484102 produced different
+        // P1/P2 placements, 2026-08-24). Sort: sink order is now canonical.
+        {
+            let mut dying: Vec<&String> = pred_last_use.iter()
+                .filter(|(_, &lu)| lu == si)
+                .map(|(n, _)| n)
+                .collect();
+            dying.sort();
+            for name in dying { dead_preds.push(name.clone()); }
         }
         for name in dead_preds.drain(..) { alloc.free_pred(&name); }
     }
@@ -1664,13 +1782,132 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
         insns.push(make_insn(addr, "EXIT", vec![], None));
     }
 
-    Ok(LoweredKernel {
+    let lk = LoweredKernel {
         name: kernel.name.clone(),
         instructions: insns,
         max_regs: alloc.max_gpr(),
         params: kernel.params.clone(),
         shared_bytes: kernel.shared_bytes,
-    })
+        dead_read_ok: alloc.dead_read_ok.clone(),
+    };
+    // BUG-118: fail-closed use-before-def gate on the artifact exactly as
+    // shipped. The assembler accepts use-without-producer silently; silicon
+    // then reads a wild register (deterministic 700 for address pairs).
+    // Debug escape: CUBIT_B118_GATE=off prints the report and CONTINUES
+    // (diagnosis only; pipelines must never set it).
+    let gate_report = check_use_before_def(&lk.to_sass_text(), &lk.dead_read_ok);
+    match gate_report {
+        Ok(()) => {}
+        Err(e) => {
+            if std::env::var("CUBIT_B118_GATE").as_deref() == Ok("off") {
+                eprintln!("[b118-gate debug] {}", e);
+                eprintln!("[b118-gate debug] dead_read_ok = {:?}", lk.dead_read_ok);
+                eprintln!("{}", lk.to_sass_text());
+            } else {
+                return Err(e.context(format!("ptx_lower gateway kernel {}", kernel.name)));
+            }
+        }
+    }
+    Ok(lk)
+}
+
+/// BUG-118 fail-closed gate: every R/UR register read in the emitted SASS
+/// text must have a producer inside the kernel (entry live-in == empty on
+/// both domains; RZ/URZ/PT are constants, excluded by the liveness engine).
+/// Runs on the rendered .entry text through the same strict parse +
+/// CFG-aware dataflow the M3 reg_liveness pass provides, so backward-branch
+/// loops are handled by construction. Kernels containing ops WITHOUT
+/// operand-role data can't be certified (transfer unknown) and are rejected
+/// as well -- a missing role row is a tables gap, not a waiver.
+pub fn check_use_before_def(text: &str, dead_read_ok: &std::collections::BTreeSet<(u8, i64)>) -> Result<()> {
+    let live = crate::reg_liveness::liveness_file(text)?;
+    let mut bad: Vec<String> = Vec::new();
+    for k in &live {
+        if !k.unknown_ops.is_empty() {
+            bad.push(format!(
+                "kernel {}: {} op(s) without operand-role data ({}); transfer sets uncertified",
+                k.name, k.unknown_ops.len(),
+                k.unknown_ops.iter().take(4).cloned().collect::<Vec<_>>().join(", ")));
+            continue;
+        }
+        if let Some(first) = k.ins.first() {
+            // Witnesses of an entry-live reg: nodes reachable from entry
+            // WITHOUT crossing a def of that reg, where the reg is read.
+            // (live_in membership alone also matches later legal uses.)
+            let witnesses = |r: u8, live_in: &[std::collections::BTreeSet<u8>],
+                             uses: &[std::collections::BTreeSet<u8>],
+                             defs: &[std::collections::BTreeSet<u8>]| -> Vec<usize> {
+                let _ = live_in;
+                let mut seen = vec![false; k.ins.len()];
+                let mut stack = vec![0usize];
+                let mut wit = Vec::new();
+                while let Some(i) = stack.pop() {
+                    if seen[i] { continue; }
+                    seen[i] = true;
+                    // in-place ops read AND write r at the same node: the
+                    // self-read is a valid witness (PRMT Rd, .., Rd shape).
+                    if uses[i].contains(&r) { wit.push(i); }
+                    if defs[i].contains(&r) { continue; }
+                    for &s2 in &k.ins[i].succ { stack.push(s2); }
+                }
+                wit
+            };
+            let is_declared_dead_prmt = |r: u8, row: &crate::reg_liveness::InsRegLive| -> bool {
+                let t = row.raw_text.trim().trim_end_matches(';').trim();
+                let t = if t.starts_with('@') {
+                    t.splitn(2, ' ').nth(1).unwrap_or("").trim_start()
+                } else { t };
+                if !t.starts_with("PRMT R") { return false; }
+                let toks: Vec<&str> = t[5..].split(',').map(|s| s.trim()).collect();
+                if toks.len() != 4 { return false; }
+                let want = format!("R{}", r);
+                if toks[0] != want || toks[3] != want { return false; }
+                let sel = i64::from_str_radix(toks[2].trim_start_matches("0x"), 16).unwrap_or(-1);
+                dead_read_ok.contains(&(r, sel))
+            };
+            // R domain
+            {
+                let uses: Vec<_> = k.ins.iter().map(|r| r.ruses.clone()).collect();
+                let defs: Vec<_> = k.ins.iter().map(|r| r.rdefs.clone()).collect();
+                let li: Vec<_> = k.ins.iter().map(|r| r.rlive_in.clone()).collect();
+                for &r in first.rlive_in.iter() {
+                    if r == 255 { continue; }
+                    let wit = witnesses(r, &li, &uses, &defs);
+                    if !wit.is_empty()
+                        && wit.iter().all(|&i| is_declared_dead_prmt(r, &k.ins[i]))
+                    {
+                        continue; // emitter-declared dead-byte in-place PRMT
+                    }
+                    let clue = wit.first().map(|&i| format!(
+                        "\n    R{} first unproduced use before 0x{:x}: {}",
+                        r, k.ins[i].addr, k.ins[i].raw_text.trim())).unwrap_or_default();
+                    bad.push(format!(
+                        "kernel {}: entry live-in R{} -- used without producer{}",
+                        k.name, r, clue));
+                }
+            }
+            // UR domain
+            {
+                let uses: Vec<_> = k.ins.iter().map(|r| r.uuses.clone()).collect();
+                let defs: Vec<_> = k.ins.iter().map(|r| r.udefs.clone()).collect();
+                let li: Vec<_> = k.ins.iter().map(|r| r.ulive_in.clone()).collect();
+                for &r in first.ulive_in.iter() {
+                    let wit = witnesses(r, &li, &uses, &defs);
+                    let clue = wit.first().map(|&i| format!(
+                        "\n    UR{} first unproduced use before 0x{:x}: {}",
+                        r, k.ins[i].addr, k.ins[i].raw_text.trim())).unwrap_or_default();
+                    bad.push(format!(
+                        "kernel {}: entry live-in UR{} -- used without producer{}",
+                        k.name, r, clue));
+                }
+            }
+        }
+    }
+    if bad.is_empty() {
+        Ok(())
+    } else {
+        anyhow::bail!("use-before-def gate (BUG-118):\n  {}", bad.join("\n  "))
+    }
 }
 
 // ── Slot resolution (the generic "Single" path) ─────────────────────────────
@@ -4039,6 +4276,11 @@ fn lower_mov_or_sreg(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Opt
                     if name == "_" { continue; }  // discard member: no instruction
                     let lane = base + i as u8;
                     let sel: i64 = if i == 0 { 0x7610 } else { 0x7632 };
+                    // lanes are freshly rebound by prepare_group above, so
+                    // the in-place 4th operand self-reads an unwritten reg
+                    // -- dead upper half by lane contract; declare the
+                    // waiver for the BUG-118 gate (docs on the field).
+                    alloc.dead_read_ok.insert((lane, sel));
                     out.push(make_insn(addr + 16 * out.len() as u32, "PRMT",
                         vec![op_reg(lane), op_reg(srcn), Operand::Imm32(sel), op_reg(lane)], guard.clone()));
                 }
@@ -4364,6 +4606,9 @@ fn lower_cvt(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guar
         ("u16", "u32") => {
             // vendor reads the dst back as PRMT's fourth operand (cv1 anchor)
             let dnum = match &d { Operand::Reg { num, .. } => *num, _ => return unattested() };
+            // first-touch self-read of the freshly bound u32 dst: dead
+            // upper half by contract (cv1); declared to the BUG-118 gate.
+            alloc.dead_read_ok.insert((dnum, 0x7610));
             Some(Ok(vec![make_insn(addr, "PRMT", vec![d, a, Operand::Imm32(0x7610), op_reg(dnum)], guard.clone())]))
         }
         ("u64", "u16") => {
@@ -4474,7 +4719,11 @@ fn lower_ld_global(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Optio
     };
 
     if !addr_reg_name.is_empty() && alloc.is_64bit(&addr_reg_name) {
-        alloc.free_pair(&addr_reg_name);
+        // BUG-118: the pair is reclaimable ONLY at the name's textual last
+        // use; an early free is re-issued by gpr_pair while the dropped
+        // name's later use silently re-binds a fresh never-written pair
+        // (deterministic 700 on silicon, b10 PHASE-2c pd64/pi64/pr_rw).
+        alloc.free_pair_if_dead(&addr_reg_name);
     }
 
     // b9 phase-2 P4c: vector ld dst {r0..r3} = aligned chunk, Dst scatter.

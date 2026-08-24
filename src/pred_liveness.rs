@@ -383,7 +383,18 @@ pub fn cfg_successors(insns: &[Instruction], i: usize) -> Vec<usize> {
                 }
             }
         }
-        "BSSY" | "CALL" | "JMP" => {
+        "BSSY" => {
+            // Fall-through ONLY in hardware (declares the reconvergence
+            // point; execution continues into the region, there is no skip
+            // edge). The earlier conservative both-edges fiction broke
+            // entry liveness for the b9p17 atom-f16 CAS lane (BUG-118
+            // gate): a post-loop use of the CAS-held value read as
+            // entry-live via the phantom BSSY->target edge. The certified
+            // corpus contains no BSSY, so no pinned gate observes the
+            // model change.
+            nxt
+        }
+        "CALL" | "JMP" => {
             // Not present in the certified corpus; conservative both-edges.
             let mut e: Vec<usize> = Vec::new();
             if let Some(t) = branch_target.and_then(target_idx) {

@@ -102,6 +102,10 @@ fn is_special_reg(s: &str) -> bool {
         "%laneid" | "%warpid" | "%smid" |
         "%clock" | "%clock64" |
         "%globaltimer" | "%globaltimer_lo" | "%globaltimer_hi"
+        // BUG-118 gate landing (b_cluster): cluster rank read. Vendor
+        // anchor: ptxas 13.3 sm_103a cl.ptx probe 2026-08-24 ->
+        // S2R Rn, SR_CgaCtaId.
+        | "%cluster_ctarank"
     )
 }
 

@@ -38,6 +38,13 @@ fn kern(body: &str) -> String {
     .reg .b64  %rd<12>;
     ld.param.b64 %rd1, [k_param_0];
     cvta.to.global.u64 %rd2, %rd1;
+    // BUG-118 gate: driveable universe for the snippet (untyped bit-writes).
+    mov.b32 %r1, 101; mov.b32 %r2, 102; mov.b32 %r3, 103; mov.b32 %r4, 104;
+    mov.b32 %r5, 105; mov.b32 %r6, 106; mov.b32 %r7, 107; mov.b32 %r8, 108;
+    mov.b64 %rd3, %rd1; mov.b64 %rd4, %rd1; mov.b64 %rd5, %rd1;
+    mov.b64 %rd6, %rd1; mov.b64 %rd7, %rd1; mov.b64 %rd8, %rd1;
+    mov.b64 %rd9, %rd1; mov.b64 %rd10, %rd1; mov.b64 %rd11, %rd1;
+$L__INIT_DONE:
 {}
     ret;
 }}"#, PROLOG, body)
@@ -95,7 +102,10 @@ fn shape(l: &[String]) -> Vec<String> {
     out
 }
 fn shape_from(text: &str, marker_substr: &str) -> Vec<String> {
-    let mut l = lines_of(text);
+    // BUG-118 init universe sits above the body marker; slice it away on
+    // RAW text (lines_of drops label lines).
+    let t2 = text.split("DL__INIT_DONE:").nth(1).unwrap_or(text);
+    let mut l = lines_of(t2);
     let i = l.iter().position(|x| x.contains(marker_substr)).expect(marker_substr);
     l.drain(..i);
     shape(&l)
@@ -149,13 +159,13 @@ fn b9p14_stimm64_shapes() {
     let s = shape_from(&t, "IMAD.MOV.U32");
     assert_eq!(s[0], "IMAD.MOV.U32 @0, RZ, RZ, 0x2a ;", "{s:?}");
     assert_eq!(s[1], "IMAD.MOV.U32 @1, RZ, RZ, 0x0 ;", "{s:?}");
-    assert_eq!(s[2], "STG.E.64 desc[@0][@2.64], @0 ;", "{s:?}");
+    assert_eq!(s[2], "STG.E.64 desc[@2][@3.64], @0 ;", "{s:?}");
     // -1 (probe q2): lo=0xffffffff hi=0xffffffff (anchor 0xc0/0xd0/0x100)
     let t = lower("    st.global.b64 [%rd2], -1;");
     let s = shape_from(&t, "IMAD.MOV.U32");
     assert_eq!(s[0], "IMAD.MOV.U32 @0, RZ, RZ, 0xffffffff ;", "{s:?}");
     assert_eq!(s[1], "IMAD.MOV.U32 @1, RZ, RZ, 0xffffffff ;", "{s:?}");
-    assert_eq!(s[2], "STG.E.64 desc[@0][@2.64], @0 ;", "{s:?}");
+    assert_eq!(s[2], "STG.E.64 desc[@2][@3.64], @0 ;", "{s:?}");
     // 200000 (probe q2): lo=0x30d40 hi=0x0
     let t = lower("    st.global.u64 [%rd2], 200000;");
     let s = shape_from(&t, "IMAD.MOV.U32");
@@ -165,7 +175,7 @@ fn b9p14_stimm64_shapes() {
     let t = lower("    st.global.b32 [%rd2], 42;");
     let s = shape_from(&t, "IMAD.MOV.U32");
     assert_eq!(s[0], "IMAD.MOV.U32 @0, RZ, RZ, 0x2a ;", "{s:?}");
-    assert_eq!(s[1], "STG.E desc[@0][@1.64], @0 ;", "{s:?}");
+    assert_eq!(s[1], "STG.E desc[@1][@2.64], @0 ;", "{s:?}");
 }
 
 // ── 5. st.global.b64 imm ENCODE parity (s_u64/q2 vendor words) ─────────
@@ -203,7 +213,7 @@ fn b9p14_vecshapes() {
     // ld.global.v2.b64 -> LDG.E.128 (q3 law)
     let t = lower("    ld.global.v2.b64 {%rd3, %rd4}, [%rd2];");
     let s = shape_from(&t, "LDG.E.128");
-    assert_eq!(s[0], "LDG.E.128 @0, desc[@0][@1.64] ;", "{s:?}");
+    assert_eq!(s[0], "LDG.E.128 @0, desc[@1][@2.64] ;", "{s:?}");
     // st.global.v2.b64 -> STG.E.128
     let t = lower("    ld.global.v2.b64 {%rd3, %rd4}, [%rd2];\n    st.global.v2.b64 [%rd2+16], {%rd3, %rd4};");
     let s = shape_from(&t, "STG.E.128");

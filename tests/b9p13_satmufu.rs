@@ -34,6 +34,11 @@ fn kern(body: &str) -> String {
     .reg .b64  %rd<10>;
     ld.param.b64 %rd1, [k_param_0];
     cvta.to.global.u64 %rd2, %rd1;
+    // BUG-118 gate: driveable universe for the snippet (untyped bit-writes).
+    mov.b32 %r1, 101; mov.b32 %r2, 102; mov.b32 %r3, 103; mov.b32 %r4, 104;
+    mov.b32 %r5, 105; mov.b32 %r6, 106; mov.b32 %r7, 107; mov.b32 %r8, 108;
+    mov.b64 %rd3, %rd1; mov.b64 %rd4, %rd1; mov.b64 %rd5, %rd1;
+    mov.b64 %rd6, %rd1; mov.b64 %rd7, %rd1; mov.b64 %rd8, %rd1;
 {}
     ret;
 }}"#, PROLOG, body)

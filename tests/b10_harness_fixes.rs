@@ -59,9 +59,9 @@ fn b10_f1_globaltimer_lane() {
 )
 {{
     .reg .b64 %rd<4>;
+    ld.param.b64 %rd1, [k_param_0];
     mov.u64 %rd2, %globaltimer;
     st.global.b64 [%rd1], %rd2;
-    ld.param.b64 %rd1, [k_param_0];
     ret;
 }}"#, PROLOG);
     let kernels = parse_ptx(&ptx).unwrap();

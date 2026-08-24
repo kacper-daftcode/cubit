@@ -154,7 +154,9 @@ fn t_full_zero_change_when_pool_matches_order() {
 #[test]
 fn t_full_unknown_op_fail_closed() {
     // An op outside operand_roles.json must stop the pass (M3 doctrine).
-    let src = ksrc("    FSEL R4, R5, R6, P2 ;\n");
+    // (FSEL originally; BUG-118 roles landing added it -- use DSETP, still
+    // unroled, encoder row present.)
+    let src = ksrc("    DSETP.LT.AND P0, PT, R4, R5, PT ;\n");
     let e = run_file(&src, RaMode::Full).expect_err("unknown role op must fail closed");
     let msg = format!("{e:#}");
     assert!(msg.contains("unknown register-role"), "msg: {msg}");

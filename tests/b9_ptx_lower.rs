@@ -205,8 +205,8 @@ fn b9p2_inline_asm_block_split() {
     .reg .b32   %r<4>;
     .reg .b64   %rd<3>;
     ld.param.u64 %rd1, [k_param_0];
-    {{.reg .b32 t; mov.u32 t, 5; add.u32 %r1, t, %r1;}}
     mov.u32 %r1, 7;
+    {{.reg .b32 t; mov.u32 t, 5; add.u32 %r1, t, %r1;}}
     ld.global.b32 %r2, [%rd1];
     add.u32 %r3, %r1, %r2;
     st.global.b32 [%rd1], %r3;
@@ -1503,6 +1503,19 @@ fn lower_text(body: &str) -> String {
     ld.param.u64 %rd2, [k_param_1];
     ld.global.u32 %r1, [%rd1];
     setp.ne.u32 %p1, %r1, 0;
+    // BUG-118 gate: every register the snippet below may read must have a
+    // producer (the use-before-def gate rejects fictional partial-kernel
+    // slices). Untyped bit-moves initialize the whole declared universe.
+    mov.b16 %rs1, 1; mov.b16 %rs2, 2; mov.b16 %rs3, 3;
+    mov.b32 %r2, 22; mov.b32 %r3, 23; mov.b32 %r4, 24; mov.b32 %r5, 25;
+    mov.b32 %r6, 26; mov.b32 %r7, 27; mov.b32 %r8, 28; mov.b32 %r9, 29;
+    mov.b64 %rd3, %rd1; mov.b64 %rd4, %rd2; mov.b64 %rd5, %rd1;
+    mov.b32 %f1, 0x3f800000; mov.b32 %f2, 0x40000049; mov.b32 %f3, 3;
+    mov.b64 %fd1, %rd1; mov.b64 %fd2, %rd2;
+    setp.ne.u32 %p2, %r1, 1;
+    setp.ne.u32 %p3, %r1, 2;
+    setp.ne.u32 %p4, %r1, 3;
+$L__INIT_DONE:
     {}
     ret;
 }}"#, PROLOG, body);
@@ -1513,7 +1526,7 @@ fn lower_text(body: &str) -> String {
 #[test]
 fn b9p10_vote_glue() {
     let t = lower_text("vote.sync.ballot.b32 %r3, %p1, 0xffffffff;");
-    assert!(t.contains("MOV R"), "imm mask materialized: {}", t);
+    assert!(t.split("DL__INIT_DONE:").nth(1).unwrap_or(&t).contains("MOV R"), "imm mask materialized: {}", t);
     assert!(t.contains("WARPSYNC.COLLECTIVE") && t.contains("VOTE.ANY") && t.contains("ENDCOLLECTIVE"), "{}", t);
     assert!(t.contains("VOT_"), "gensym label: {}", t);
     let (bytes, n) = assemble_body(&t);
@@ -1521,7 +1534,7 @@ fn b9p10_vote_glue() {
 
     let t = lower_text("vote.sync.any.pred %p2, %p1, %r1; vote.sync.all.pred %p3, %p1, %r1;");
     assert!(t.contains("VOTE.ANY") && t.contains("VOTE.ALL"), "{}", t);
-    assert!(!t.contains("MOV R"), "reg mask is used directly (bw1/vm1 anchor)");
+    assert!(!t.split("DL__INIT_DONE:").nth(1).unwrap_or(&t).contains("MOV R"), "reg mask is used directly (bw1/vm1 anchor)");
     let (bytes, n) = assemble_body(&t);
     assert_eq!(bytes.len(), n * 16, "{}", t);
 }
@@ -1539,7 +1552,7 @@ fn b9p10_match_barwarp() {
 fn b9p10_elect_sink_and_real() {
     let t = lower_text("elect.sync %rx|%px, %r1;");
     assert!(t.contains("ELECT P") && t.contains("UR79"), "{}", t);
-    assert_eq!(t.matches("MOV R").count(), 0, "sink dst skips MOV (el2 anchor): {}", t);
+    assert!(!t.split("DL__INIT_DONE:").nth(1).unwrap_or(&t).contains("MOV R"), "sink dst skips MOV (el2 anchor): {}", t);
     let t2 = lower_text("elect.sync %r3|%p2, %r1;");
     assert!(t2.contains("MOV R"), "real dst reads UR79 back: {}", t2);
     let (bytes, n) = assemble_body(&t2);
@@ -1877,6 +1890,7 @@ fn redux_lane_text(op: &str, mask: &str) -> String {
     .reg .b32   %r<8>;
     .reg .b64   %rd<2>;
     ld.param.u64 %rd1, [k_param_0];
+    mov.b32 %r2, 25;
     mov.b32 %r4, -1;
     {} %r3, %r2, {};
     st.global.b32 [%rd1], %r3;
@@ -2318,7 +2332,7 @@ fn b9p17_selp_u16_positional_law() {
     let t = lower_text("selp.u16 %rs1, 1, 0, %p1;");
     let l = t.lines().find(|l| l.trim_start().starts_with("SEL")).unwrap().trim().to_string();
     assert!(l.contains("RZ, 0x1, !P"), "p06 swap+neg idiom: {}", l);
-    assert!(!t.contains("IMAD.MOV.U32"), "b==0 must use RZ without materialization: {}", t);
+    assert!(!t.split("DL__INIT_DONE:").nth(1).unwrap_or(&t).contains("IMAD.MOV.U32"), "b==0 must use RZ without materialization: {}", t);
     assert!(t.contains("PRMT") && t.contains("0x7710"), "zero-extend: {}", t);
     // reg/reg plain
     let t = lower_text("selp.u16 %rs1, %rs2, %rs3, %p1;");

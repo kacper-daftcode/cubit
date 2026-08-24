@@ -1,8 +1,8 @@
 {
  "_meta": {
   "name": "operand-roles",
-  "version": "m3.5-2026-08-22+m43+f2072+b9p13",
-  "provenance": "BARRACUDA M3.5 census: scorebarrier RAW/WAR edge attribution on canonical R0b (text md5 9962e535, bin md5 3d15ab6a, silicon-certified rt98) + SASS class semantics. Report: results/fe/M3_5/report.md; votes: results/fe/M3_5/votes3.json [m43 sond extension: LDC/FFMA/HFMA2/IMMA class-grounded from m9-103a corpus]",
+  "version": "m3.5-2026-08-22+m43+f2072+b9p13+bug118",
+  "provenance": "BARRACUDA M3.5 census: scorebarrier RAW/WAR edge attribution on canonical R0b (text md5 9962e535, bin md5 3d15ab6a, silicon-certified rt98) + SASS class semantics. Report: results/fe/M3_5/report.md; votes: results/fe/M3_5/votes3.json [m43 sond extension: LDC/FFMA/HFMA2/IMMA class-grounded from m9-103a corpus] [bug118 2026-08-24: f64alu/fcvt rows DADD/DMUL/DFMA/F2F for the ptx_lower use-before-def gate]",
   "evidence_legend": {
    "edge-vote": "at least one clean single-occurrence scoreboard edge vote agrees with the class role; margins in votes3.json; sibling-noise known at ~15-20%",
    "class": "SASS-wide operand-order semantics as rendered by nvdisasm on certified encodings; no clean edge evidence in R0b",
@@ -91,10 +91,10 @@
    }
   },
   "CS2R": {
-   "class": "dest_only",
+   "class": "cs2r",
    "evidence": {
     "kind": "class",
-    "note": "",
+    "note": "BUG-118 gate landing 2026-08-24: 64-bit SR (name ends 'LO': SR_GLOBALTIMERLO/SR_CLOCKLO) writes the even PAIR -- anchor ptxas 13.3 sm_103a gt.ptx (CS2R R4, SR_GLOBALTIMERLO; STG.E.64 [..], R4); 32-bit SRs: single def. Was dest_only w1 (entry-live false positive on the pair hi half).",
     "votes": {}
    }
   },
@@ -479,6 +479,406 @@
    "evidence": {
     "kind": "class",
     "note": "b9p12: VABSDIFF.U32 d,a,b,c dest-first ALU (|a-b|+c); roles DEF,USE,USE,USE; row b9p12 (49-anchor word-probe fit; work/b9p12/t/vabsdiff_samples.json).",
+    "votes": {}
+   }
+  },
+  "DADD": {
+   "class": "f64alu",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24: DADD [d,a,b|imm] all 64-bit pairs; anchors ptxas 13.3 sm_103a work/b10/ph2b/pd64-6570ea.nvcc.cubin 0x40 DADD R4, R4, 1 + p17_f64 0x1f0 DADD R8, R4, R8",
+    "votes": {}
+   }
+  },
+  "DMUL": {
+   "class": "f64alu",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24: same pair law as DADD/DFMA (family class); rule exists in ptx_map (mul.f64 -> DMUL [d,a,b])",
+    "votes": {}
+   }
+  },
+  "DFMA": {
+   "class": "f64alu",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24: DFMA [d,a,b,c|imm] all 64-bit pairs; anchors p17_f64-b44824.nvcc.cubin 0xa0 DFMA R4, R2, R2, 2 + 0xf0 DFMA R4, R2, 1.5, R4",
+    "votes": {}
+   }
+  },
+  "F2F": {
+   "class": "fcvt",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24: f64 half spans the pair, side per modifier order (dst first); anchors p17_f64 nvcc 0x140 F2F.F32.F64 R13, R4 (dst w1/src w2) + 0x1a0 F2F.F64.F32 R8, R13 (w2/w1)",
+    "votes": {}
+   }
+  },
+  "BREV": {
+   "class": "alu",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: b9p12 BREV R9, R4",
+    "votes": {}
+   }
+  },
+  "SGXT": {
+   "class": "alu",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: b9p12 SGXT.U32 R18, R22, R21",
+    "votes": {}
+   }
+  },
+  "SEL": {
+   "class": "alu",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: SEL R25, R23, R24, P0 (corpus k2_intchain)",
+    "votes": {}
+   }
+  },
+  "FADD": {
+   "class": "alu",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: FADD R6, R4, R5 (b9p3+ k3_smem)",
+    "votes": {}
+   }
+  },
+  "FMUL": {
+   "class": "alu",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: FMUL R7, R6, imm test11",
+    "votes": {}
+   }
+  },
+  "FMNMX": {
+   "class": "alu",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: FMNMX R5, R4, imm, PT float2",
+    "votes": {}
+   }
+  },
+  "FSEL": {
+   "class": "alu",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: FSEL R8, R8, R5, P0 mufu1",
+    "votes": {}
+   }
+  },
+  "PRMT": {
+   "class": "alu",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: PRMT R16, R12, imm, R13 (b9p7/p20)",
+    "votes": {}
+   }
+  },
+  "VIMNMX": {
+   "class": "alu",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: VIMNMX R7, PT, PT, R6, imm, !PT (test14)",
+    "votes": {}
+   }
+  },
+  "MUFU": {
+   "class": "alu",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: MUFU.RCP R8, R8 (mufu1)",
+    "votes": {}
+   }
+  },
+  "HADD2": {
+   "class": "alu",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: HADD2[.BF16_V2] R17, R16, R16 (b9p9/p16)",
+    "votes": {}
+   }
+  },
+  "HMUL2": {
+   "class": "alu",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: HMUL2 R18, R17, R17 (p16)",
+    "votes": {}
+   }
+  },
+  "MATCH": {
+   "class": "alu",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: MATCH.ANY R13, R11 (b9p8/p09)",
+    "votes": {}
+   }
+  },
+  "VOTE": {
+   "class": "alu",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: VOTE.ANY R7, PT, P0 / Pd form (b9p8/p09); pred dsts untracked",
+    "votes": {}
+   }
+  },
+  "FSETP": {
+   "class": "cmp",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: FSETP.LT.AND P0, PT, R7, imm, PT",
+    "votes": {}
+   }
+  },
+  "HSETP2": {
+   "class": "cmp",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: HSETP2.GT.AND P1, PT, R9.H0_H0, R24.H0_H0, PT (p06)",
+    "votes": {}
+   }
+  },
+  "LDGSTS": {
+   "class": "cmp",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: LDGSTS... [Rshare], desc[UR4][Rglob.64], !P0: ALL operands uses incl dst-shared addr (b9p10/p13)",
+    "votes": {}
+   }
+  },
+  "WARPSYNC": {
+   "class": "cmp",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: WARPSYNC[.COLLECTIVE][.ALL] Rm, `L: mask reg is a use, no def (b9p8/p10)",
+    "votes": {}
+   }
+  },
+  "NANOSLEEP": {
+   "class": "cmp",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: NANOSLEEP imm|R0 (b9p8 ns1)",
+    "votes": {}
+   }
+  },
+  "B2R": {
+   "class": "cmp",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: B2R.RESULT RZ, P0 (sink def; pred src untracked; v55)",
+    "votes": {}
+   }
+  },
+  "QSPC": {
+   "class": "cmp",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: QSPC.E.S P0, RZ, [R4]: [R4] use, pred dst untracked (b9p17/p06)",
+    "votes": {}
+   }
+  },
+  "CCTL": {
+   "class": "cmp",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: CCTL.IVALL / CCTL.E.RML2 [R2] (b9p12/p_cctl): all uses",
+    "votes": {}
+   }
+  },
+  "SYNCS": {
+   "class": "syncs",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: SYNCS.* RZ/URZ sinks + [Rn+URx] addr uses + UR srcs (b9p6 mbar glue) [class->syncs 2026-08-24: first tracked reg operand is the state dst (SYNCS.ARRIVE.TRANS64 R8 = written by hw; was cmp/all-use = false entry-live)]",
+    "votes": {}
+   }
+  },
+  "UBLKCP": {
+   "class": "cmp",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: UBLKCP.S.G [UR55], [UR53], UR52: all UR operands uses (b9p9 b_bulk_cp)",
+    "votes": {}
+   }
+  },
+  "ACQBULK": {
+   "class": "none",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: griddepcontrol.wait glue (b9p8 ns1/p25)",
+    "votes": {}
+   }
+  },
+  "PREEXIT": {
+   "class": "none",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: griddepcontrol.launch_dependents glue (b9p8)",
+    "votes": {}
+   }
+  },
+  "ERRBAR": {
+   "class": "none",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: fence/atomic glue (b9p5)",
+    "votes": {}
+   }
+  },
+  "CGAERRBAR": {
+   "class": "none",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: fence/atomic glue (b9p5)",
+    "votes": {}
+   }
+  },
+  "ENDCOLLECTIVE": {
+   "class": "none",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: collective-protocol close (b9p8)",
+    "votes": {}
+   }
+  },
+  "LDGDEPBAR": {
+   "class": "none",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: cp.async.commit glue (b9p10)",
+    "votes": {}
+   }
+  },
+  "BPT": {
+   "class": "none",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: BPT.TRAP 0x1 imm only (p32)",
+    "votes": {}
+   }
+  },
+  "UCGABAR_ARV": {
+   "class": "none",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: cluster barrier arrive (b9p7)",
+    "votes": {}
+   }
+  },
+  "UCGABAR_WAIT": {
+   "class": "none",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: cluster barrier wait (b9p7)",
+    "votes": {}
+   }
+  },
+  "F2I": {
+   "class": "fcvt",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: F2I.F64.TRUNC R10, R6: f64 SOURCE pair, i32 dst single",
+    "votes": {}
+   }
+  },
+  "I2F": {
+   "class": "fcvt",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: I2F.S16 R13, R6 (dst f32); I2F.F64.* dst pair by first modifier",
+    "votes": {}
+   }
+  },
+  "ATOM": {
+   "class": "atom",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: ATOM.E.CAS.STRONG.GPU PT, R15, [R10], R14, R15: first reg = dst, width by .64 (b9p17/p06)",
+    "votes": {}
+   }
+  },
+  "ATOMS": {
+   "class": "atom",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: ATOMS.ADD R12, [R11], R4 (b9p4/p05); p28 atom64 .64 -> pair dst",
+    "votes": {}
+   }
+  },
+  "ELECT": {
+   "class": "urdef_first",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: ELECT P0, UR79, PT: first UR = dst (b9p8 ns1/el2)",
+    "votes": {}
+   }
+  },
+  "REDUX": {
+   "class": "urdef_first",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: REDUX.SUM UR79, R6 (b9p13/p08): UR dst, R src use",
+    "votes": {}
+   }
+  },
+  "CREDUX": {
+   "class": "urdef_first",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: CREDUX.MAX UR79, R7 (b9p13/p08)",
+    "votes": {}
+   }
+  },
+  "LDSM": {
+   "class": "ldsm",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: LDSM.16.M88 R22 single / LDSM.16.M88.4 R20 quad dst (b9p9/p11/p_ldsm)",
+    "votes": {}
+   }
+  },
+  "STSM": {
+   "class": "stsm",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: STSM.16.M88.4 [R8], R12: src quad use on .4 (b9p9/p12)",
+    "votes": {}
+   }
+  },
+  "LD": {
+   "class": "load",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: LD.E R14, desc[UR4][R10.64] generic load (b9p17/p06)",
+    "votes": {}
+   }
+  },
+  "ST": {
+   "class": "store",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: ST.E desc[UR4][R4.64], R22 generic store (b9p17/p06)",
+    "votes": {}
+   }
+  },
+  "HMMA": {
+   "class": "mma",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24; operand-order class semantics per nvdisasm on the b9 gateway corpus (work/b9census/ptx lowerings re-censused); glue-form anchors: HMMA.16816.F32 R32, R24, R10, R28 tuple quads (b9p4/p_mma16816)",
+    "votes": {}
+   }
+  },
+  "F2FP": {
+   "class": "alu",
+   "evidence": {
+    "kind": "class",
+    "note": "BUG-118 gate landing 2026-08-24: F2FP.F16.F32.PACK_AB dest-first, srcs use (b9p10 subword cvt lane); single-32 dest, register sources read",
     "votes": {}
    }
   }
