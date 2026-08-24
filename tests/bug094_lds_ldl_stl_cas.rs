@@ -331,13 +331,27 @@ fn bug094_era_glif_encode_retention_both_tables() {
     // must stay byte-exact. After BUG-094 the encode routes via the encode_only
     // retention rows (canon LDG.E.LTC128B.128_R_dARI / sm120 BUG-090 row),
     // NOT via decode-visible state.
+    // rsd frames are ROW-relative: after BUG-122 the sm103a retention row bakes
+    // the vendor-13.3 payload (era delta = 69:0,73:1,74:0,76:0,90:0,92:1),
+    // while the sm120 scout row keeps its v11-era geometry (era delta =
+    // 0:1,72:1,73:1,75:1,81..84:1,91:1,92:1, SCOUT_CONST-masked 76/90).
     const ERA: &[(&str, u128)] = &[
-        ("LDG.E.LTC128B.128 R8, desc[UR8][R6.64] !rsd[0:1,72:1,73:1,75:1,81:1,82:1,83:1,84:1,91:1,92:1]", 0x000fc200181e0b000000000806087981u128),
-        ("LDG.E.LTC128B.128 R28, desc[UR8][R6.64+0x5000] !rsd[0:1,72:1,73:1,75:1,81:1,82:1,83:1,84:1,91:1,92:1]", 0x000fc200181e0b0000500008061c7981u128),
-        ("LDG.E.LTC128B.128 R10, desc[UR8][R6.64+0x800] !rsd[0:1,72:1,73:1,75:1,81:1,82:1,83:1,84:1,91:1,92:1]", 0x000fc200181e0b0000080008060a7981u128),
+        ("LDG.E.LTC128B.128 R8, desc[UR8][R6.64] !rsd[69:0,73:1,74:0,76:0,90:0,92:1]", 0x000fc200181e0b000000000806087981u128),
+        ("LDG.E.LTC128B.128 R28, desc[UR8][R6.64+0x5000] !rsd[69:0,73:1,74:0,76:0,90:0,92:1]", 0x000fc200181e0b0000500008061c7981u128),
+        ("LDG.E.LTC128B.128 R10, desc[UR8][R6.64+0x800] !rsd[69:0,73:1,74:0,76:0,90:0,92:1]", 0x000fc200181e0b0000080008060a7981u128),
+];
+    const ERA_120: &[&str] = &[
+        "LDG.E.LTC128B.128 R8, desc[UR8][R6.64] !rsd[0:1,72:1,73:1,75:1,81:1,82:1,83:1,84:1,91:1,92:1]",
+        "LDG.E.LTC128B.128 R28, desc[UR8][R6.64+0x5000] !rsd[0:1,72:1,73:1,75:1,81:1,82:1,83:1,84:1,91:1,92:1]",
+        "LDG.E.LTC128B.128 R10, desc[UR8][R6.64+0x800] !rsd[0:1,72:1,73:1,75:1,81:1,82:1,83:1,84:1,91:1,92:1]",
 ];
     // Canon (sm103a) retention row preserves the era encoding verbatim
     // (5,617-line era-enc gate = 0 diff vs results/cubitfix/083/enc_postfix.json).
+    // BUG-122 (F2, 2026-08-24): the retention row now bakes the vendor-13.3
+    // hi-payload (incl. silicon-required {72,90,91}) + bit0; the !rsd frames
+    // above are rebased to the new row (era delta = 69:0,73:1,74:0,76:0,90:0,
+    // 92:1) so `want` stays byte-exact ERA. Old-frame annotation lists would
+    // produce era|{69,74,76,90} hybrids (legal on silicon, but not verbatim).
     let t = t103();
     for &(line, want) in ERA {
         let insn = parse_sass(&format!("{line} ;"), 0).unwrap();
@@ -352,7 +366,7 @@ fn bug094_era_glif_encode_retention_both_tables() {
     // frozen-chain v13 vs v11 byte-parity gate proved in BUG-090).
     let t = t120();
     const SCOUT_CONST: u128 = (1u128 << 76) | (1u128 << 90);
-    for &(line, want) in ERA {
+    for (&line, &(_, want)) in ERA_120.iter().zip(ERA.iter()) {
         let insn = parse_sass(&format!("{line} ;"), 0).unwrap();
         let w2 = encode_instruction(&insn, &t)
             .unwrap_or_else(|e| panic!("era glif encode (sm120): {e}"));

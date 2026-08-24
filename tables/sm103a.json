@@ -4423,17 +4423,9 @@
       },
       "mod_groups": {
         "128,E,LTC128B": {
-          "and_base": "0x00000000000000000000000000000980",
-          "variable_mask": "0x03fffe00187eef3efffffffffffff007",
+          "and_base": "0x000000000c1e1d200000000000000981",
+          "variable_mask": "0x03fffe001c7eff3efffffffffffff007",
           "fields": [
-            {
-              "shift": 0,
-              "bits": 3,
-              "token_idx": 2,
-              "extraction": "",
-              "_src": "b4fill2-2026-08-21",
-              "_note": "invisible mode-variant bits [2:0] of the LTC128B desc-UR class; no text manifestation (era desc-policy). None extraction writes 0; roundtrip via !rsd."
-            },
             {
               "shift": 12,
               "bits": 4,
@@ -4470,7 +4462,8 @@
             }
           ],
           "count": 248,
-          "_evidence": "rt98:248 slots word-level (multi-point windows; [11:8]=9 == sm120-class; bits[2:0] invisible desc-policy variants 1/4/6); results/b4/B4FILL2"
+          "_evidence": "rt98:248 slots word-level (multi-point windows; [11:8]=9 == sm120-class; bits[2:0] invisible desc-policy variants 1/4/6); results/b4/B4FILL2",
+          "_errata_2026_08_24_122": "BUG-122 FIXED (F2): encode emitted zero hi-payload (bytes 8..11) -> SYNC:ILLEGAL_ADDRESS on B300 (DESCCAMP-D1 p_txt_ltc13; b12 default-desc gate = this row). Silicon law (clear-1-bit sweep, results/b12/descamp_d1/matrix.json): required {72,90,91}, individually-neutral {0,69,74,75,76,81,82,83,84}; proven words s_ltc_minlaw/s_ltc_fullaw OK. Fix: and_base |= vendor 13.3 hi-payload 0x0c1e1d20<<64 (sister 128,E precedent: exact vendor byte parity) + bit0=1; variable_mask |= {76,90} (era rt98 words carry 0 there, cf. frozen !rsd[76:0,90:0]); phantom None field [2:0] removed (mask-clear killed and_base bit0). Pins tests/bug122_ltc128b_row.rs; report results/cubitfix/122.md"
         }
       }
     },
