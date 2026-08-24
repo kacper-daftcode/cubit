@@ -45289,8 +45289,8 @@
      "count": 266
     },
     "AND,NE": {
-     "and_base": "0x000fc00003f05800200000ff00000234",
-     "variable_mask": "0x03e03e00000e0000000000003f007000",
+     "and_base": "0xfc00003f058002000000000000234",
+     "variable_mask": "0x3e03e00000e0000100000ff3f007000",
      "fields": [
       {
        "shift": 12,
@@ -45325,9 +45325,23 @@
        "token_idx": 5,
        "extraction": "pred",
        "_src": "2e"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 60,
+       "bits": 2,
+       "token_idx": 4,
+       "extraction": "hsel"
       }
      ],
-     "count": 96
+     "count": 99,
+     "_src_b9p18": "union-widen: RZ-baked B -> reg,reg/H0-H1_anchored (probe_setpf16/b/c)"
     },
     "AND,NEU": {
      "and_base": "0x000fc00003f0d8002000000700007234",
@@ -45412,6 +45426,293 @@
       }
      ],
      "count": 8
+    },
+    "AND,LT": {
+     "and_base": "0xfc00003f018002000000000007234",
+     "variable_mask": "0xa00001000000f0f000000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 60,
+       "bits": 2,
+       "token_idx": 4,
+       "extraction": "hsel"
+      },
+      {
+       "shift": 87,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 87,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2e"
+      }
+     ],
+     "count": 5,
+     "_src": "b9p18 lane16 vendor-anchored fit (probe_setpf16/b/c + probe_imm + p06 anchors)"
+    },
+    "AND,LE": {
+     "and_base": "0xfc00003f038002000000000007234",
+     "variable_mask": "0x604001000000f0f000000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 74,
+       "bits": 2,
+       "token_idx": 3,
+       "extraction": "hsel"
+      },
+      {
+       "shift": 60,
+       "bits": 2,
+       "token_idx": 4,
+       "extraction": "hsel"
+      },
+      {
+       "shift": 87,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 87,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2e"
+      }
+     ],
+     "count": 6,
+     "_src": "b9p18 lane16 vendor-anchored fit (probe_setpf16/b/c + probe_imm + p06 anchors)"
+    },
+    "AND,EQ": {
+     "and_base": "0xfc00003f028002000000000007234",
+     "variable_mask": "0xe04001000000f0f000000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 74,
+       "bits": 2,
+       "token_idx": 3,
+       "extraction": "hsel"
+      },
+      {
+       "shift": 60,
+       "bits": 2,
+       "token_idx": 4,
+       "extraction": "hsel"
+      },
+      {
+       "shift": 87,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 87,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2e"
+      }
+     ],
+     "count": 5,
+     "_src": "b9p18 lane16 vendor-anchored fit (probe_setpf16/b/c + probe_imm + p06 anchors)"
+    },
+    "AND,GT": {
+     "and_base": "0xfc00003f048002000000000007234",
+     "variable_mask": "0x1e00000e0000100000ff0f000000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 60,
+       "bits": 2,
+       "token_idx": 4,
+       "extraction": "hsel"
+      },
+      {
+       "shift": 87,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 87,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2e"
+      }
+     ],
+     "count": 7,
+     "_src": "b9p18 lane16 vendor-anchored fit (probe_setpf16/b/c + probe_imm + p06 anchors)"
+    },
+    "AND,GE": {
+     "and_base": "0xfc00003f068002000000200007234",
+     "variable_mask": "0x2400000e00001000000d0f000000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 81,
+       "bits": 3,
+       "token_idx": 1,
+       "extraction": "pred",
+       "_src": "2aE"
+      },
+      {
+       "shift": 24,
+       "bits": 8,
+       "token_idx": 3,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 4,
+       "extraction": "reg",
+       "_src": "2aE"
+      },
+      {
+       "shift": 60,
+       "bits": 2,
+       "token_idx": 4,
+       "extraction": "hsel"
+      },
+      {
+       "shift": 87,
+       "bits": 4,
+       "token_idx": 2,
+       "extraction": "pred",
+       "_src": "2e"
+      },
+      {
+       "shift": 87,
+       "bits": 4,
+       "token_idx": 5,
+       "extraction": "pred",
+       "_src": "2e"
+      }
+     ],
+     "count": 3,
+     "_src": "b9p18 lane16 vendor-anchored fit (probe_setpf16/b/c + probe_imm + p06 anchors)"
     }
    },
    "scheduling": {

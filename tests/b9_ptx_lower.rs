@@ -2383,3 +2383,182 @@ fn b9p17_atom_selp_fail_closed() {
     // unreachable aid to kill a stray assert above (kept simple)
     let _ = &cases;
 }
+// ── b9 phase-3 #16 (b9p18): setp.{cmp}.f16 -> HSETP2 lane + setp.{eq,ne}.b16
+// zee lane. Anchors: work/b9p18/probes (ptxas 13.3 -O0/-O3 sm_103a:
+// probe_setpf16/b/c, probe_imm, probe_setpb16) + corpus p06 vendor words
+// (b9p17 anchors md5_manifest). Table edits: NEW mod groups AND,{LT,LE,EQ,GT,GE}
+// on HSETP2_P_P_R_R_P + AND,NE union-widen RZ->reg,reg (closes the latent
+// encode hole: reg,reg NE previously encoded with Rb silently baked RZ).
+// FINDING F-1/F-3 of iter46 fixed: setp.*.f16 no longer mis-routes to FSETP
+// (f32 semantics) and HSETP2.GT.AND is encodable.
+
+fn b9p18_cmp_line<'a>(t: &'a str, cmp: &str) -> &'a str {
+    t.lines().map(|l| l.trim()).find(|l| l.starts_with(&format!("HSETP2.{}.AND", cmp)))
+        .unwrap_or_else(|| panic!("missing HSETP2.{}.AND in:\n{}", cmp, t))
+}
+
+#[test]
+fn b9p18_setp_f16_six_cmp_shape() {
+    for (pc, sc) in [("lt","LT"),("le","LE"),("eq","EQ"),("ne","NE"),("gt","GT"),("ge","GE")] {
+        let t = lower_text(&format!("setp.{}.f16 %p1, %rs1, %rs2;", pc));
+        let l = b9p18_cmp_line(&t, sc);
+        let h0 = l.matches(".H0_H0").count();
+        assert!(h0 == 2, "both sources must carry .H0_H0 (lifter f16 law): {}", l);
+        assert!(l.ends_with(", PT ;") , "trailing PT sink: {}", l);
+        let (bytes, cnt) = assemble_body(&t);
+        assert_eq!(bytes.len(), cnt * 16, "{}", t);
+    }
+}
+
+#[test]
+fn b9p18_setp_f16_anchor_payload_parity() {
+    // (text, vendor word u128) — sched ctrl bits[96:128] excluded from parity
+    // (context stamps); everything below must match bit-exactly.
+    const SCHED: u128 = 0xFFFF_FFFFu128 << 96;
+    let sondes: &[(&str, u128)] = &[
+        ("HSETP2.GT.AND P0, PT, R3.H0_H0, R4.H0_H0, PT", 0x000fc00003f048002000000403007234u128),
+        ("HSETP2.GT.AND P0, PT, R4.H0_H0, RZ.H0_H0, PT", 0x000fda0003f04800200000ff04007234u128),
+        ("HSETP2.LT.AND P0, PT, R3.H0_H0, R3.H1_H1, PT", 0x000fc00003f018003000000303007234u128),
+        ("HSETP2.LT.AND P5, PT, R2.H0_H0, R3.H0_H0, PT", 0x000fc00003fa18002000000302007234u128),
+        ("HSETP2.LE.AND P3, PT, R3.H1_H1, R4.H1_H1, PT", 0x000fc00003f63c003000000403007234u128),
+        ("HSETP2.LE.AND P0, PT, R3.H0_H0, R4.H0_H0, PT", 0x000fc00003f038002000000403007234u128),
+        ("HSETP2.EQ.AND P4, PT, R5.H1_H1, R6.H1_H1, PT", 0x000fc00003f82c003000000605007234u128),
+        ("HSETP2.GE.AND P5, PT, R10.H0_H0, R10.H1_H1, PT", 0x000fc00003fa68003000000a0a007234u128),
+        ("HSETP2.NE.AND P2, PT, R4.H0_H0, R6.H0_H0, PT", 0x000fc00003f458002000000604007234u128),
+        ("HSETP2.NE.AND P4, PT, R16.H0_H0, R16.H1_H1, PT", 0x000fc00003f858003000001010007234u128),
+        ("HSETP2.NE.AND P0, PT, R24.H0_H0, RZ.H0_H0, PT", 0x004fda0003f05800200000ff18007234u128),
+    ];
+    let t = table();
+    let idx = cubit::decoder::DecodeIndex::build(&t);
+    for (text, w) in sondes {
+        // decode: vendor word -> sass text (exact operand-for-operand)
+        let d = idx.decode(*w, 0, &t).map(|d| cubit::printer::to_sass(&d))
+            .unwrap_or_else(|e| panic!("decode failed for {} [{:032x}]: {:?}", text, w, e));
+        assert_eq!(&d, text, "decode text");
+        // encode: sass text -> payload bytes == vendor payload (sched excluded)
+        let insn = cubit::parser::parse_sass(text, 0).expect("parse");
+        let re = cubit::encoder::encode_instruction(&insn, &t).expect("encode");
+        assert_eq!(re & !SCHED, w & !SCHED, "encode payload parity: {}", text);
+    }
+}
+
+#[test]
+fn b9p18_setp_b16_zee_law() {
+    // reg,reg -> two PRMT zee + ISETP.U32 (probe_setpb16 O0 anchors)
+    let t = lower_text("setp.eq.b16 %p1, %rs1, %rs2;");
+    let prmts: Vec<&str> = t.lines().map(|l| l.trim()).filter(|l| l.starts_with("PRMT")).collect();
+    assert_eq!(prmts.len(), 2, "two zee PRMTs: {}", t);
+    for l in &prmts { assert!(l.contains("0x7710") && l.ends_with(", RZ ;"), "zee idiom: {}", l); }
+    let l = t.lines().map(|l| l.trim()).find(|l| l.starts_with("ISETP.EQ.U32.AND")).expect(&t);
+    assert!(l.ends_with(", PT ;"), "{}", l);
+    let (bytes, cnt) = assemble_body(&t);
+    assert_eq!(bytes.len(), cnt * 16, "{}", t);
+    // reg,imm0 -> single PRMT + ISETP vs RZ (p06 /*line57*/ anchor).
+    // NOTE: the shared lower_text prologue already contains a legacy
+    // `setp.ne.u32 %p1, %r1, 0` line (imm slot spelling); pick the b16-lane
+    // line by requiring the RZ form, then require exactly one such line.
+    let t = lower_text("setp.ne.b16 %p2, %rs3, 0;");
+    assert_eq!(t.lines().filter(|l| l.trim_start().starts_with("PRMT")).count(), 1, "{}", t);
+    let rz_hits: Vec<&str> = t.lines().map(|l| l.trim())
+        .filter(|l| l.starts_with("ISETP.NE.U32.AND") && l.contains(", RZ, PT")).collect();
+    assert_eq!(rz_hits.len(), 1, "b16 lane ISETP-vs-RZ: {}", t);
+    // vendor payload sondes (probe_setpb16.O0 words, sched excluded)
+    const SCHED: u128 = 0xFFFF_FFFFu128 << 96;
+    let tab = table();
+    for (text, w) in [
+        ("PRMT R6, R3, 0x7710, RZ", 0x000fc000000000ff0000771003067816u128),
+        ("ISETP.EQ.U32.AND P0, PT, R6, R4, PT", 0x000fc00003f02070000000040600720cu128),
+        ("ISETP.NE.U32.AND P1, PT, R3, RZ, PT", 0x000fc00003f25070000000ff0300720cu128),
+    ] {
+        let insn = cubit::parser::parse_sass(text, 0).expect("parse");
+        let re = cubit::encoder::encode_instruction(&insn, &tab).expect("encode");
+        assert_eq!(re & !SCHED, w & !SCHED, "{}", text);
+    }
+}
+
+#[test]
+fn b9p18_setp_f16_fail_closed() {
+    // vector + bf16 forms: no vendor-anchored sm_103a lowering (tables lack
+    // the dual-pred lane rows; BF16 cmp groups absent) -> aggregate unsupported.
+    for snippet in [
+        "setp.gt.f16x2 %p1|%p2, %r1, %r2;",
+        "setp.gt.bf16 %p1, %rs1, %rs2;",
+        "setp.lt.bf16x2 %p1|%p2, %r1, %r2;",
+    ] {
+        let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .pred %p<4>;
+    .reg .b16 %rs<4>;
+    .reg .b32 %r<4>;
+    .reg .b64 %rd<2>;
+    mov.b32 %r1, 0x3c003c00;
+    mov.b32 %r2, 0x3c004000;
+    mov.b16 %rs1, 1;
+    mov.b16 %rs2, 2;
+    {}
+    ret;
+}}"#, PROLOG, snippet);
+        let kernels = parse_ptx(&ptx).unwrap();
+        assert!(lower_kernel(&kernels[0]).is_err(), "must fail closed: {}", snippet);
+    }
+    // unordered f16 cmps: anchor fit n<2 this iteration -> loud
+    for pc in ["ltu", "leu", "equ", "neu", "gtu", "geu", "num", "nan"] {
+        let t = format!("setp.{}.f16 %p1, %rs1, %rs2;", pc);
+        let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .pred %p<4>;
+    .reg .b16 %rs<4>;
+    .reg .b64 %rd<2>;
+    mov.b16 %rs1, 1;
+    mov.b16 %rs2, 2;
+    {}
+    ret;
+}}"#, PROLOG, t);
+        let kernels = parse_ptx(&ptx);
+        if let Ok(k) = kernels {
+            assert!(lower_kernel(&k[0]).is_err(), "unordered f16 cmp must fail closed: {}", t);
+        }
+    }
+    // GTU table surface stays tight: no mod group -> encode must fail
+    let tab = table();
+    let insn = cubit::parser::parse_sass("HSETP2.GTU.AND P0, PT, R4.H0_H0, R7.H0_H0, PT", 0).expect("parse");
+    assert!(cubit::encoder::encode_instruction(&insn, &tab).is_err(),
+        "GTU group absent -> encode fail-closed");
+}
+
+#[test]
+fn b9p18_setp_b16_fail_closed() {
+    for snippet in ["setp.lt.b16 %p1, %rs1, %rs2;", "setp.eq.b16 %p1, %rs1, 5;"] {
+        let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .pred %p<4>;
+    .reg .b16 %rs<4>;
+    .reg .b64 %rd<2>;
+    mov.b16 %rs1, 1;
+    mov.b16 %rs2, 2;
+    {}
+    ret;
+}}"#, PROLOG, snippet);
+        let kernels = parse_ptx(&ptx).unwrap();
+        assert!(lower_kernel(&kernels[0]).is_err(), "must fail closed: {}", snippet);
+    }
+}
+
+#[test]
+fn b9p18_setp_f16_p06_shape() {
+    // corpus p06 exact lane shape: distinct 16-bit regs both at .H0_H0
+    let t = lower_text("setp.gt.f16 %p1, %rs1, %rs2;");
+    let l = b9p18_cmp_line(&t, "GT");
+    assert!(l.contains(", PT, R") && l.contains(".H0_H0, R") && l.ends_with(".H0_H0, PT ;"), "{}", l);
+    // legacy integer/f32 routing untouched by the lane
+    let t = lower_text("setp.gt.s32 %p2, %r1, %r2;");
+    assert!(t.contains("ISETP.GT.AND"), "s32 keeps ISETP: {}", t);
+    assert!(!t.contains("HSETP2"), "{}", t);
+}
+

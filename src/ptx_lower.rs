@@ -831,9 +831,10 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                         }
 
                         SassTemplate::ISetp | SassTemplate::FSetp => {
-                            let i = lower_setp(addr, insn, &mut alloc, guard);
-                            insns.push(i);
-                            addr += 16;
+                            match lower_setp(addr, insn, &mut alloc, guard) {
+                                Ok(iv) => { addr += 16 * iv.len() as u32; insns.extend(iv); }
+                                Err(e) => { unsupported.insert(format!("{} ({})", insn.opcode, e)); }
+                            }
                         }
 
                         SassTemplate::Cvt => {
@@ -4111,7 +4112,91 @@ fn lower_mov_or_sreg(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Opt
     Ok(vec![make_insn(addr, "MOV", vec![rd, rs], guard)])
 }
 
-fn lower_setp(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>) -> Instruction {
+/// b9 phase-3 #16 (b9p18): setp.{cmp}.f16 -> HSETP2 lane (FINDING F-1 iter46:
+/// pre-lane these went through generic FSETP f32 = silently wrong semantics),
+/// and setp.{eq,ne}.b16 -> PRMT zee-extend + ISETP.U32 lane (pre-lane emitted
+/// signed-no-qualifier ISETP with no zero-extension = silently wrong).
+/// Vendor law is -O0-anchored (ptxas 13.3 sm_103a, work/b9p18/probes):
+///   setp.{lt,le,eq,ne,gt,ge}.f16 p, a, b  ->  HSETP2.{CMP}.AND p, PT, Ra.H0_H0, Rb.H0_H0, PT
+///   (cmp code bits76-79 = LT1/EQ2/LE3/GT4/NE5/GE6, +8 = U; table groups
+///    AND,{LT,LE,EQ,GT,GE} new + AND,NE reg,reg union-widen; anchors
+///    corpus p06 0x5f0/0x300 + probe_setpf16/b/c + probe_imm)
+///   setp.{eq,ne}.b16 p, a, b  ->  PRMT ta,a,0x7710,RZ ; PRMT tb,b,0x7710,RZ ;
+///                                 ISETP.{EQ|NE}.U32.AND p, PT, ta, tb, PT
+///   setp.{eq,ne}.b16 p, a, 0  ->  PRMT ta,a,0x7710,RZ ; ISETP.{EQ|NE}.U32.AND p, PT, ta, RZ, PT
+///   (anchors corpus p06 O0 + probe_setpb16 O0/O3)
+/// FAIL-CLOSED (no vendor anchor): setp.f16x2 (dual-pred vector form),
+/// setp.bf16/.bf16x2 (BF16_V2 cmp groups missing from tables), f16 with
+/// immediate operand (not expressible in accepted PTX: ptxas 13.3 rejects
+/// both literal spellings), b16 ordered cmps / non-zero imm, guarded forms
+/// pass the guard through but stay style-tight (vm guard=7 unguarded only).
+fn lower_setp(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>) -> Result<Vec<Instruction>> {
+    let op = insn.opcode.as_str();
+    let parts: Vec<&str> = op.split('.').collect();
+    let cmp_tok = parts.get(1).copied().unwrap_or("");
+    let is = |t: &str| parts.iter().any(|p| *p == t);
+
+    if is("f16x2") || is("bf16") || is("bf16x2") {
+        anyhow::bail!("{}: vector/bf16 setp has no vendor-anchored sm_103a lowering (b9 phase-3 #16)", op);
+    }
+    if is("f16") {
+        let cmp = match cmp_tok {
+            "lt" => "LT", "le" => "LE", "eq" => "EQ",
+            "ne" => "NE", "gt" => "GT", "ge" => "GE",
+            _ => anyhow::bail!("{}: f16 cmp '{}' unanchored (lane covers lt/le/eq/ne/gt/ge only)", op, cmp_tok),
+        };
+        let pd = match ptx_op_to_sass(&insn.operands[0], alloc, false) {
+            Operand::Pred { num, neg: false } => num,
+            other => anyhow::bail!("{}: dst {:?}: only a plain predicate dst is vendor-attested", op, other),
+        };
+        let mut regs = |i: usize| -> Result<u8> {
+            match insn.operands.get(i) {
+                Some(PtxOperand::Reg(n)) if alloc.is_ptx_reg_name(n) && !alloc.is_64bit(n) => Ok(alloc.resolve(n)),
+                other => anyhow::bail!("{}: src{} {:?}: only 16-bit register operands are vendor-attested", op, i, other),
+            }
+        };
+        let ra = regs(1)?;
+        let rb = regs(2)?;
+        let mut ins = make_insn(addr, &format!("HSETP2.{}.AND", cmp),
+            vec![Operand::Pred { num: pd, neg: false }, op_pt(), op_reg(ra), op_reg(rb), op_pt()], guard.clone());
+        let g = guard_text(&guard);
+        ins.raw_text = format!("{}HSETP2.{}.AND P{}, PT, R{}.H0_H0, R{}.H0_H0, PT ;", g, cmp, pd, ra, rb);
+        return Ok(vec![ins]);
+    }
+    if is("b16") {
+        let cmp = match cmp_tok {
+            "eq" => "EQ", "ne" => "NE",
+            _ => anyhow::bail!("{}: b16 cmp '{}' unanchored (lane covers eq/ne only)", op, cmp_tok),
+        };
+        let pd = match ptx_op_to_sass(&insn.operands[0], alloc, false) {
+            Operand::Pred { num, neg: false } => num,
+            other => anyhow::bail!("{}: dst {:?}: only a plain predicate dst is vendor-attested", op, other),
+        };
+        let za = alloc.gpr("%setp_b16_za");
+        let ra = match insn.operands.get(1) {
+            Some(PtxOperand::Reg(n)) if alloc.is_ptx_reg_name(n) && !alloc.is_64bit(n) => alloc.resolve(n),
+            other => anyhow::bail!("{}: src1 {:?}: only a 16-bit register is vendor-attested", op, other),
+        };
+        let mut out = Vec::with_capacity(3);
+        out.push(make_insn(addr, "PRMT",
+            vec![op_reg(za), op_reg(ra), Operand::Imm32(0x7710), op_rz()], guard.clone()));
+        let b_op = match insn.operands.get(2) {
+            Some(PtxOperand::Reg(n)) if alloc.is_ptx_reg_name(n) && !alloc.is_64bit(n) => {
+                let zb = alloc.gpr("%setp_b16_zb");
+                let rb = alloc.resolve(n);
+                out.push(make_insn(addr + 16, "PRMT",
+                    vec![op_reg(zb), op_reg(rb), Operand::Imm32(0x7710), op_rz()], guard.clone()));
+                op_reg(zb)
+            }
+            Some(PtxOperand::IntImm(0)) => op_rz(),
+            other => anyhow::bail!("{}: src2 {:?}: only a 16-bit register or zero immediate is vendor-attested", op, other),
+        };
+        let n = out.len() as u32;
+        out.push(make_insn(addr + n * 16, &format!("ISETP.{}.U32.AND", cmp),
+            vec![Operand::Pred { num: pd, neg: false }, op_pt(), op_reg(za), b_op, op_pt()], guard));
+        return Ok(out);
+    }
+
     let cmp = ptx_map::setp_cmp_suffix(&insn.opcode);
     let is_float = ptx_map::setp_is_float(&insn.opcode);
     let prefix = if is_float { "FSETP" } else { "ISETP" };
@@ -4125,7 +4210,7 @@ fn lower_setp(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Gua
     let a = ptx_op_to_sass(&insn.operands[1], alloc, false);
     let b = ptx_op_to_sass(&insn.operands[2], alloc, false);
 
-    make_insn(addr, &opf, vec![pd, op_pt(), a, b, op_pt()], guard)
+    Ok(vec![make_insn(addr, &opf, vec![pd, op_pt(), a, b, op_pt()], guard)])
 }
 
 /// b9 phase-2 P5: cvt lowered ONLY to vendor-attested sm_103a forms
