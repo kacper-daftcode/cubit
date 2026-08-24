@@ -50017,25 +50017,36 @@
      "count": 2
     },
     "16dp256bit": {
-     "and_base": "0x000e200008020000000000c0000079ee",
-     "variable_mask": "0x03f1ce00000000000001fe3f00fe0000",
+     "and_base": "0x000e20000802000000000004000079ee",
+     "variable_mask": "0x0001c60000000000500008fb001c0000",
      "fields": [
       {
        "shift": 16,
-       "bits": 3,
+       "bits": 8,
        "token_idx": 1,
        "extraction": "reg",
-       "_src": "tc5-mk296"
+       "_src": "tc5-mk306"
       },
       {
        "shift": 32,
        "bits": 8,
        "token_idx": 2,
        "extraction": "tmem_ur",
-       "_src": "tc5-mk296"
+       "_src": "tc5-mk306"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "tmem_off",
+       "_src": "tc5-mk306"
       }
      ],
-     "count": 2
+     "count": 10,
+     "replaces": {
+      "and_base": "0x000e200008020000...",
+      "count": 2
+     }
     },
     "16dp256bit,PACK16BIT,x8": {
      "and_base": "0x000e2000081b0000000000c0000079ee",
@@ -50447,6 +50458,62 @@
       }
      ],
      "count": 18
+    },
+    "16dp256bit,x2": {
+     "and_base": "0x000e6200080a000000000004000479ee",
+     "variable_mask": "0x01418000000000001000000100080000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk306"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk306"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "tmem_off",
+       "_src": "tc5-mk306"
+      }
+     ],
+     "count": 4
+    },
+    "16dp256bit,x16": {
+     "and_base": "0x000ea2000822000000000004000479ee",
+     "variable_mask": "0x00004000000000000000000100400000",
+     "fields": [
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "tc5-mk306"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk306"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 2,
+       "extraction": "tmem_off",
+       "_src": "tc5-mk306"
+      }
+     ],
+     "count": 2
     }
    },
    "scheduling": {
@@ -53535,6 +53602,34 @@
       }
      ],
      "count": 10
+    },
+    "16dp128bit,x16": {
+     "and_base": "0x0001e2000820000000000004000079ed",
+     "variable_mask": "0x000e00000000001f0000006000000000",
+     "fields": [
+      {
+       "shift": 64,
+       "bits": 18,
+       "token_idx": 1,
+       "extraction": "tmem_ur",
+       "_src": "tc5-mk306"
+      },
+      {
+       "shift": 40,
+       "bits": 24,
+       "token_idx": 1,
+       "extraction": "tmem_off",
+       "_src": "tc5-mk306"
+      },
+      {
+       "shift": 32,
+       "bits": 8,
+       "token_idx": 2,
+       "extraction": "reg",
+       "_src": "tc5-mk306"
+      }
+     ],
+     "count": 7
     }
    },
    "scheduling": {
@@ -62570,25 +62665,36 @@
    "operand_sig": "_",
    "mod_groups": {
     "128dp128bit,2CTA,S,T": {
-     "and_base": "0x000fd80008380000000000ffff0089e7",
-     "variable_mask": "0x00000000000000000000000000000000",
+     "and_base": "0x0007c0000838000000000000010009e7",
+     "variable_mask": "0x00083a0000000000000104fffe00f000",
      "fields": [
       {
        "shift": 24,
        "bits": 8,
        "token_idx": 1,
        "extraction": "tmem_ur",
-       "_src": "tc5-mk296"
+       "_src": "tc5-mk306"
       },
       {
-       "shift": 24,
+       "shift": 40,
+       "bits": 12,
+       "token_idx": 1,
+       "extraction": "tmem_off",
+       "_src": "tc5-mk306"
+      },
+      {
+       "shift": 32,
        "bits": 8,
        "token_idx": 2,
        "extraction": "gdesc_ur",
-       "_src": "tc5-mk296"
+       "_src": "tc5-mk306"
       }
      ],
-     "count": 2
+     "count": 5,
+     "replaces": {
+      "and_base": "0x000fd80008380000...",
+      "count": 2
+     }
     },
     "128dp128bit,S,T": {
      "and_base": "0x000fd80008180000000000ffff0089e7",
