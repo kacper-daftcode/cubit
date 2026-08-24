@@ -998,6 +998,15 @@ fn src_regs(insn: &Instruction) -> Vec<(bool, u8)> {
     let op = insn.opcode.as_str();
     let is_mma = matches!(op, "QMMA" | "HMMA" | "IMMA" | "DMMA");
     let is_wide_src = insn.opcode_full.contains("WIDE");
+    // BUG-110: for WIDE forms the 64-bit addend is the last NON-PREDICATE
+    // operand (certified reg_liveness.rs M3.5 shape law): [dest,a,b,c] and
+    // [dest,Pout,a,b,c,Pin]; multiplicands a/b are 32-bit (BUG-108). If the
+    // addend slot is RZ/an immediate there is no pair read at all.
+    let wide_addend_idx: Option<usize> = if is_wide_src && !is_store(op) {
+        insn.operands.iter().rposition(|o| !matches!(o, Operand::Pred { .. } | Operand::UPred { .. }))
+    } else {
+        None
+    };
     // BUG-101: .256 loads name TWO dest base registers (each a 128-bit quad);
     // the second leading Reg is a destination, not a source.
     let start = if is_store(op) { 0 }
@@ -1034,17 +1043,21 @@ fn src_regs(insn: &Instruction) -> Vec<(bool, u8)> {
                     for r in 1..w {
                         if (*num as u16) + r < 256 { out.push((false, (*num as u16 + r) as u8)); }
                     }
-                } else if is_wide_src && op_idx > 1 {
-                    // IMAD.WIDE accumulator is 64-bit (last register operand)
+                } else if is_wide_src && op_idx > 1 && Some(op_idx) == wide_addend_idx {
+                    // BUG-110: WIDE pair span applies ONLY to the addend
+                    // (last non-predicate operand — mirror of the certified
+                    // reg_liveness.rs M3.5 doctrine, BUG-108: multiplicands
+                    // are 32-bit). Extending it to every register past op 1
+                    // fabricated phantom R(n+1) reads (~78 FP on rt98).
                     if *num < 255 { out.push((false, num + 1)); }
                 }
             }
             Operand::UReg { num, .. } if *num < 63 => {
                 out.push((true, *num));
                 // UIMAD.WIDE reads its 64-bit uniform addend as a UR pair;
-                // only operand slots past the A multiplicand are 64-bit wide
-                // (mirror of the vector WIDE accumulator span rule below).
-                if is_wide_src && op_idx > 1 && *num + 1 < 63 {
+                // the addend is the last non-predicate operand — same
+                // BUG-110 doctrine as the register arm above.
+                if is_wide_src && op_idx > 1 && Some(op_idx) == wide_addend_idx && *num + 1 < 63 {
                     out.push((true, num + 1));
                 }
             }
@@ -1984,7 +1997,13 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<HazardReport> {
 
     let mut gpr_owner: [Option<(usize, Option<u8>, usize)>; 256] = [None; 256];
     let mut ureg_owner: [Option<(usize, Option<u8>, usize)>; 72] = [None; 72];
-    let mut armed: [Option<usize>; NUM_BARRIERS] = [None; NUM_BARRIERS];
+    // BUG-110: a barrier may be armed by a WHOLE BATCH of producers between
+    // drains (legal vendor doctrine, BUG-102): the HW scoreboard barrier is a
+    // counter, not a last-writer slot, and a wait clears all of its pending
+    // producers. Tracking only the last armer (previous `Option<usize>`)
+    // silently passed a no-wait read of any non-last batch member (false
+    // negative): `armed[b] == Some(pidx)` fired only for the newest armer.
+    let mut armed: [Vec<usize>; NUM_BARRIERS] = std::array::from_fn(|_| Vec::new());
     let mut out: Vec<HazardReport> = Vec::new();
     let mut seen: std::collections::HashSet<(u32, bool, u8)> = std::collections::HashSet::new();
     let mut clock: usize = 0;
@@ -2016,7 +2035,26 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<HazardReport> {
         clock += insn.ctrl.stall as usize;
         // 1) apply wait_mask: those barriers' producers are now satisfied.
         for b in 0..NUM_BARRIERS {
-            if insn.ctrl.wait_mask & (1 << b) != 0 { armed[b] = None; }
+            if insn.ctrl.wait_mask & (1 << b) != 0 { armed[b].clear(); }
+        }
+        // DEPBAR is the instruction-level scoreboard drain: it carries NO
+        // ctrl wait_mask bit (its barrier operand lives in the payload), so
+        // step (1) above misses it and every read after a DEPBAR drained
+        // barrier falsely warned "NOT waited" on the certified rt98 publish
+        // text (9x KernelB pipelined-loop MOV consumers; kernel is
+        // silicon-EXACT). Model: `DEPBAR.<m> SBb, imm` (operand 0 = barrier
+        // index) satisfies all current armers of b. The second immediate
+        // (LE threshold, 0x9 in rt98) is treated as a full drain: the
+        // certified text arms up to 48 producers on wb0 in the prologue
+        // batch yet reads them right after DEPBAR with silicon-EXACT
+        // results, i.e. HW retires the batch by drain time. Fail-closed
+        // by construction: an unrecognised operand shape clears nothing.
+        if insn.opcode == "DEPBAR" {
+            if let Some(Operand::Imm32(v)) = insn.operands.first() {
+                if (*v as usize) < NUM_BARRIERS && *v >= 0 {
+                    armed[*v as usize].clear();
+                }
+            }
         }
         // 2) check sources.
         for (is_u, reg) in src_regs(insn) {
@@ -2027,7 +2065,7 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<HazardReport> {
                 let frozen = insn.hand_sched || insns[pidx].hand_sched;
                 match maybe_wb {
                     Some(b) => {
-                        if armed[b as usize] == Some(pidx) {
+                        if armed[b as usize].contains(&pidx) {
                             let key = (insn.addr, is_u, reg);
                             if seen.insert(key) {
                                 out.push(HazardReport { frozen, msg: format!("RAW @0x{:04x} {:38} reads {}{} <- 0x{:04x} {} (wb{}, NOT waited)",
@@ -2129,7 +2167,11 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<HazardReport> {
             // (hazard_recycle_batchable). The warn stays fail-closed for setters with
             // no async write-back (e.g. a stray W-tag on ALU / MUFU), where re-arming
             // an armed barrier still indicates an authoring mistake, not a batch.
-            if let Some(prev) = armed[b as usize] {
+            // The RECYCLE message names the most recent armer (`last`) for
+            // continuity with the BUG-102 report; with batch tracking the set
+            // may hold earlier armers too, but the newest one is the member
+            // the new setter races with first.
+            if let Some(&prev) = armed[b as usize].last() {
                 if prev != i {
                     let batch = hazard_recycle_batchable(insns[prev].opcode.as_str())
                         && hazard_recycle_batchable(insn.opcode.as_str());
@@ -2141,7 +2183,7 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<HazardReport> {
                     }
                 }
             }
-            armed[b as usize] = Some(i);
+            armed[b as usize].push(i);
         }
     }
     out
