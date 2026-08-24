@@ -61446,6 +61446,584 @@
     "is_variable_latency": false
    }
   },
+  "REDG_P_dARI_R": {
+    "base_op": "REDG",
+    "operand_sig": "P_dARI_R",
+    "encode_only": true,
+    "scheduling": {
+     "pipe_class": 0,
+     "pipe_name": "UNKNOWN",
+     "def_latency": 1,
+     "throughput": 1,
+     "is_variable_latency": false
+    },
+    "mod_groups": {
+     "64,ADD,E,GPU,STRONG": {
+      "and_base": "0x000fe2000c12e506000008080600798e",
+      "variable_mask": "0x0000000000000000000000000000f000",
+      "fields": [
+       {
+        "shift": 12,
+        "bits": 4,
+        "token_idx": 0,
+        "extraction": "guard",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_ur0",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 8,
+        "token_idx": 3,
+        "extraction": "reg",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_r1",
+        "const_frozen": true,
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 40,
+        "bits": 24,
+        "token_idx": 2,
+        "extraction": "sub_imm2",
+        "const_frozen": true,
+        "_src": "bug128-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "kand-124 z DESCCAMP-D1 (p_txt_redg_noel BUILD-FAIL REDG_P_dARI_R not-in-table); sondy encode-equality 13x (PT-sink word == unguarded word, work/bug128/sondy128.py); geometria pola guard potwierdzona bajtowo na REDG.E.ADD.EL.STRONG.GPU_P_dARI_R",
+      "_errata_2026_08_24_128": "BUG-128 FIXED (F2, 2026-08-24): REDG no-EL alias pod bare-PT sink (era-text `REDG.E.ADD.STRONG.GPU PT, desc[..], R..`): klon geometrii z REDG_dARI_R::<mg> z token-shift +1 (sink PT niekodowany, jak w siostrzanym EL kluczu *_P_dARI_R); guard 4b@[15:12] otwarty w vmask (jak EL; @PT=7 == slowu bez guarda; realne @P0-6 nadal fail-closed przez errate BUG-080 wyzej w enkoderze)."
+     },
+     "64,E,GPU,MAX,STRONG": {
+      "and_base": "0x000fe2000d12e502000000040000798e",
+      "variable_mask": "0x000000000000000c000000020e00f000",
+      "fields": [
+       {
+        "shift": 12,
+        "bits": 4,
+        "token_idx": 0,
+        "extraction": "guard",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_ur0",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 9,
+        "token_idx": 2,
+        "extraction": "sub_r1",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 8,
+        "token_idx": 3,
+        "extraction": "reg",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 35,
+        "bits": 24,
+        "token_idx": 2,
+        "extraction": "sub_imm2",
+        "_src": "bug128-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "kand-124 z DESCCAMP-D1 (p_txt_redg_noel BUILD-FAIL REDG_P_dARI_R not-in-table); sondy encode-equality 13x (PT-sink word == unguarded word, work/bug128/sondy128.py); geometria pola guard potwierdzona bajtowo na REDG.E.ADD.EL.STRONG.GPU_P_dARI_R",
+      "_errata_2026_08_24_128": "BUG-128 FIXED (F2, 2026-08-24): REDG no-EL alias pod bare-PT sink (era-text `REDG.E.ADD.STRONG.GPU PT, desc[..], R..`): klon geometrii z REDG_dARI_R::<mg> z token-shift +1 (sink PT niekodowany, jak w siostrzanym EL kluczu *_P_dARI_R); guard 4b@[15:12] otwarty w vmask (jak EL; @PT=7 == slowu bez guarda; realne @P0-6 nadal fail-closed przez errate BUG-080 wyzej w enkoderze)."
+     },
+     "64,E,GPU,MIN,STRONG": {
+      "and_base": "0x002fe8000c92e502000000000000798e",
+      "variable_mask": "0x000000000000000c000000060a00f000",
+      "fields": [
+       {
+        "shift": 12,
+        "bits": 4,
+        "token_idx": 0,
+        "extraction": "guard",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_ur0",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 9,
+        "token_idx": 2,
+        "extraction": "sub_r1",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 8,
+        "token_idx": 3,
+        "extraction": "reg",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 35,
+        "bits": 24,
+        "token_idx": 2,
+        "extraction": "sub_imm2",
+        "_src": "bug128-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "kand-124 z DESCCAMP-D1 (p_txt_redg_noel BUILD-FAIL REDG_P_dARI_R not-in-table); sondy encode-equality 13x (PT-sink word == unguarded word, work/bug128/sondy128.py); geometria pola guard potwierdzona bajtowo na REDG.E.ADD.EL.STRONG.GPU_P_dARI_R",
+      "_errata_2026_08_24_128": "BUG-128 FIXED (F2, 2026-08-24): REDG no-EL alias pod bare-PT sink (era-text `REDG.E.ADD.STRONG.GPU PT, desc[..], R..`): klon geometrii z REDG_dARI_R::<mg> z token-shift +1 (sink PT niekodowany, jak w siostrzanym EL kluczu *_P_dARI_R); guard 4b@[15:12] otwarty w vmask (jak EL; @PT=7 == slowu bez guarda; realne @P0-6 nadal fail-closed przez errate BUG-080 wyzej w enkoderze)."
+     },
+     "ADD,E,F32,FTZ,GPU,RN,STRONG": {
+      "and_base": "0x0001e0000c12f30000000000000079a6",
+      "variable_mask": "0x000e0e000000001efffffc7f7e00f000",
+      "fields": [
+       {
+        "shift": 12,
+        "bits": 4,
+        "token_idx": 0,
+        "extraction": "guard",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 40,
+        "bits": 24,
+        "token_idx": 2,
+        "extraction": "sub_imm2",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_ur0",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_r1",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 8,
+        "token_idx": 3,
+        "extraction": "reg",
+        "_src": "bug128-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "kand-124 z DESCCAMP-D1 (p_txt_redg_noel BUILD-FAIL REDG_P_dARI_R not-in-table); sondy encode-equality 13x (PT-sink word == unguarded word, work/bug128/sondy128.py); geometria pola guard potwierdzona bajtowo na REDG.E.ADD.EL.STRONG.GPU_P_dARI_R",
+      "_errata_2026_08_24_128": "BUG-128 FIXED (F2, 2026-08-24): REDG no-EL alias pod bare-PT sink (era-text `REDG.E.ADD.STRONG.GPU PT, desc[..], R..`): klon geometrii z REDG_dARI_R::<mg> z token-shift +1 (sink PT niekodowany, jak w siostrzanym EL kluczu *_P_dARI_R); guard 4b@[15:12] otwarty w vmask (jak EL; @PT=7 == slowu bez guarda; realne @P0-6 nadal fail-closed przez errate BUG-080 wyzej w enkoderze)."
+     },
+     "ADD,E,F64,GPU,RN,STRONG": {
+      "and_base": "0x0001c0000c12ff0000000000000079a6",
+      "variable_mask": "0x03fe3e000000003efffff87e7e00f000",
+      "fields": [
+       {
+        "shift": 12,
+        "bits": 4,
+        "token_idx": 0,
+        "extraction": "guard",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 40,
+        "bits": 24,
+        "token_idx": 2,
+        "extraction": "sub_imm2",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_ur0",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 9,
+        "token_idx": 2,
+        "extraction": "sub_r1",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 8,
+        "token_idx": 3,
+        "extraction": "reg",
+        "_src": "bug128-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "kand-124 z DESCCAMP-D1 (p_txt_redg_noel BUILD-FAIL REDG_P_dARI_R not-in-table); sondy encode-equality 13x (PT-sink word == unguarded word, work/bug128/sondy128.py); geometria pola guard potwierdzona bajtowo na REDG.E.ADD.EL.STRONG.GPU_P_dARI_R",
+      "_errata_2026_08_24_128": "BUG-128 FIXED (F2, 2026-08-24): REDG no-EL alias pod bare-PT sink (era-text `REDG.E.ADD.STRONG.GPU PT, desc[..], R..`): klon geometrii z REDG_dARI_R::<mg> z token-shift +1 (sink PT niekodowany, jak w siostrzanym EL kluczu *_P_dARI_R); guard 4b@[15:12] otwarty w vmask (jak EL; @PT=7 == slowu bez guarda; realne @P0-6 nadal fail-closed przez errate BUG-080 wyzej w enkoderze)."
+     },
+     "ADD,E,GPU,S32,STRONG": {
+      "and_base": "0x0007e2000c12e33e000000860200098e",
+      "variable_mask": "0x0000000000000000000000000000f000",
+      "fields": [
+       {
+        "shift": 12,
+        "bits": 4,
+        "token_idx": 0,
+        "extraction": "guard",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_ur0",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 8,
+        "token_idx": 3,
+        "extraction": "reg",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_r1",
+        "const_frozen": true,
+        "_src": "bug128-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "kand-124 z DESCCAMP-D1 (p_txt_redg_noel BUILD-FAIL REDG_P_dARI_R not-in-table); sondy encode-equality 13x (PT-sink word == unguarded word, work/bug128/sondy128.py); geometria pola guard potwierdzona bajtowo na REDG.E.ADD.EL.STRONG.GPU_P_dARI_R",
+      "_errata_2026_08_24_128": "BUG-128 FIXED (F2, 2026-08-24): REDG no-EL alias pod bare-PT sink (era-text `REDG.E.ADD.STRONG.GPU PT, desc[..], R..`): klon geometrii z REDG_dARI_R::<mg> z token-shift +1 (sink PT niekodowany, jak w siostrzanym EL kluczu *_P_dARI_R); guard 4b@[15:12] otwarty w vmask (jak EL; @PT=7 == slowu bez guarda; realne @P0-6 nadal fail-closed przez errate BUG-080 wyzej w enkoderze)."
+     },
+     "ADD,E,GPU,STRONG": {
+      "and_base": "0x0001e0000c12e100000000000000098e",
+      "variable_mask": "0x02de0e000000003e001f9c7f7e00f000",
+      "fields": [
+       {
+        "shift": 12,
+        "bits": 4,
+        "token_idx": 0,
+        "extraction": "guard"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_ur0",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_r1",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 40,
+        "bits": 24,
+        "token_idx": 2,
+        "extraction": "sub_imm2",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 8,
+        "token_idx": 3,
+        "extraction": "reg",
+        "_src": "bug128-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "kand-124 z DESCCAMP-D1 (p_txt_redg_noel BUILD-FAIL REDG_P_dARI_R not-in-table); sondy encode-equality 13x (PT-sink word == unguarded word, work/bug128/sondy128.py); geometria pola guard potwierdzona bajtowo na REDG.E.ADD.EL.STRONG.GPU_P_dARI_R",
+      "_errata_2026_08_24_128": "BUG-128 FIXED (F2, 2026-08-24): REDG no-EL alias pod bare-PT sink (era-text `REDG.E.ADD.STRONG.GPU PT, desc[..], R..`): klon geometrii z REDG_dARI_R::<mg> z token-shift +1 (sink PT niekodowany, jak w siostrzanym EL kluczu *_P_dARI_R); guard 4b@[15:12] otwarty w vmask (jak EL; @PT=7 == slowu bez guarda; realne @P0-6 nadal fail-closed przez errate BUG-080 wyzej w enkoderze)."
+     },
+     "AND,E,GPU,STRONG": {
+      "and_base": "0xde2000e92e100000000010000098e",
+      "variable_mask": "0x006200000000000e0000001e1e00f000",
+      "fields": [
+       {
+        "shift": 12,
+        "bits": 4,
+        "token_idx": 0,
+        "extraction": "guard",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_ur0",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_r1",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 8,
+        "token_idx": 3,
+        "extraction": "reg",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 37,
+        "bits": 24,
+        "token_idx": 2,
+        "extraction": "sub_imm2",
+        "_src": "bug128-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "kand-124 z DESCCAMP-D1 (p_txt_redg_noel BUILD-FAIL REDG_P_dARI_R not-in-table); sondy encode-equality 13x (PT-sink word == unguarded word, work/bug128/sondy128.py); geometria pola guard potwierdzona bajtowo na REDG.E.ADD.EL.STRONG.GPU_P_dARI_R",
+      "_errata_2026_08_24_128": "BUG-128 FIXED (F2, 2026-08-24): REDG no-EL alias pod bare-PT sink (era-text `REDG.E.ADD.STRONG.GPU PT, desc[..], R..`): klon geometrii z REDG_dARI_R::<mg> z token-shift +1 (sink PT niekodowany, jak w siostrzanym EL kluczu *_P_dARI_R); guard 4b@[15:12] otwarty w vmask (jak EL; @PT=7 == slowu bez guarda; realne @P0-6 nadal fail-closed przez errate BUG-080 wyzej w enkoderze)."
+     },
+     "E,GPU,MAX,S32,STRONG": {
+      "and_base": "0x0001e0000d12e300000000000000098e",
+      "variable_mask": "0x01fe0e000000003e0000041f1e00f000",
+      "fields": [
+       {
+        "shift": 12,
+        "bits": 4,
+        "token_idx": 0,
+        "extraction": "guard"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_ur0",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_r1",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 40,
+        "bits": 24,
+        "token_idx": 2,
+        "extraction": "sub_imm2",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 8,
+        "token_idx": 3,
+        "extraction": "reg",
+        "_src": "bug128-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "kand-124 z DESCCAMP-D1 (p_txt_redg_noel BUILD-FAIL REDG_P_dARI_R not-in-table); sondy encode-equality 13x (PT-sink word == unguarded word, work/bug128/sondy128.py); geometria pola guard potwierdzona bajtowo na REDG.E.ADD.EL.STRONG.GPU_P_dARI_R",
+      "_errata_2026_08_24_128": "BUG-128 FIXED (F2, 2026-08-24): REDG no-EL alias pod bare-PT sink (era-text `REDG.E.ADD.STRONG.GPU PT, desc[..], R..`): klon geometrii z REDG_dARI_R::<mg> z token-shift +1 (sink PT niekodowany, jak w siostrzanym EL kluczu *_P_dARI_R); guard 4b@[15:12] otwarty w vmask (jak EL; @PT=7 == slowu bez guarda; realne @P0-6 nadal fail-closed przez errate BUG-080 wyzej w enkoderze)."
+     },
+     "E,GPU,MIN,S32,STRONG": {
+      "and_base": "0x0001e0000c92e300000000000000098e",
+      "variable_mask": "0x03fe06000000000e0000003f1e00f000",
+      "fields": [
+       {
+        "shift": 12,
+        "bits": 4,
+        "token_idx": 0,
+        "extraction": "guard"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_ur0",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_r1",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 8,
+        "token_idx": 3,
+        "extraction": "reg",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 38,
+        "bits": 24,
+        "token_idx": 2,
+        "extraction": "sub_imm2",
+        "_src": "bug128-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "kand-124 z DESCCAMP-D1 (p_txt_redg_noel BUILD-FAIL REDG_P_dARI_R not-in-table); sondy encode-equality 13x (PT-sink word == unguarded word, work/bug128/sondy128.py); geometria pola guard potwierdzona bajtowo na REDG.E.ADD.EL.STRONG.GPU_P_dARI_R",
+      "_errata_2026_08_24_128": "BUG-128 FIXED (F2, 2026-08-24): REDG no-EL alias pod bare-PT sink (era-text `REDG.E.ADD.STRONG.GPU PT, desc[..], R..`): klon geometrii z REDG_dARI_R::<mg> z token-shift +1 (sink PT niekodowany, jak w siostrzanym EL kluczu *_P_dARI_R); guard 4b@[15:12] otwarty w vmask (jak EL; @PT=7 == slowu bez guarda; realne @P0-6 nadal fail-closed przez errate BUG-080 wyzej w enkoderze)."
+     },
+     "E,GPU,MIN,STRONG": {
+      "and_base": "0xc92e100000000000000798e",
+      "variable_mask": "0x00000000000000ffffffffffff00f000",
+      "fields": [
+       {
+        "shift": 12,
+        "bits": 4,
+        "token_idx": 0,
+        "extraction": "guard",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_ur0",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_r1",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 8,
+        "token_idx": 3,
+        "extraction": "reg",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 40,
+        "bits": 24,
+        "token_idx": 2,
+        "extraction": "sub_imm2",
+        "_src": "bug128-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "kand-124 z DESCCAMP-D1 (p_txt_redg_noel BUILD-FAIL REDG_P_dARI_R not-in-table); sondy encode-equality 13x (PT-sink word == unguarded word, work/bug128/sondy128.py); geometria pola guard potwierdzona bajtowo na REDG.E.ADD.EL.STRONG.GPU_P_dARI_R",
+      "_errata_2026_08_24_128": "BUG-128 FIXED (F2, 2026-08-24): REDG no-EL alias pod bare-PT sink (era-text `REDG.E.ADD.STRONG.GPU PT, desc[..], R..`): klon geometrii z REDG_dARI_R::<mg> z token-shift +1 (sink PT niekodowany, jak w siostrzanym EL kluczu *_P_dARI_R); guard 4b@[15:12] otwarty w vmask (jak EL; @PT=7 == slowu bez guarda; realne @P0-6 nadal fail-closed przez errate BUG-080 wyzej w enkoderze)."
+     },
+     "E,GPU,OR,STRONG": {
+      "and_base": "0x0001e4000f12e100000000010000098e",
+      "variable_mask": "0x006200000000000e0000001e1e00f000",
+      "fields": [
+       {
+        "shift": 12,
+        "bits": 4,
+        "token_idx": 0,
+        "extraction": "guard",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_ur0",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_r1",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 8,
+        "token_idx": 3,
+        "extraction": "reg",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 37,
+        "bits": 24,
+        "token_idx": 2,
+        "extraction": "sub_imm2",
+        "_src": "bug128-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "kand-124 z DESCCAMP-D1 (p_txt_redg_noel BUILD-FAIL REDG_P_dARI_R not-in-table); sondy encode-equality 13x (PT-sink word == unguarded word, work/bug128/sondy128.py); geometria pola guard potwierdzona bajtowo na REDG.E.ADD.EL.STRONG.GPU_P_dARI_R",
+      "_errata_2026_08_24_128": "BUG-128 FIXED (F2, 2026-08-24): REDG no-EL alias pod bare-PT sink (era-text `REDG.E.ADD.STRONG.GPU PT, desc[..], R..`): klon geometrii z REDG_dARI_R::<mg> z token-shift +1 (sink PT niekodowany, jak w siostrzanym EL kluczu *_P_dARI_R); guard 4b@[15:12] otwarty w vmask (jak EL; @PT=7 == slowu bez guarda; realne @P0-6 nadal fail-closed przez errate BUG-080 wyzej w enkoderze)."
+     },
+     "E,GPU,MAX,STRONG": {
+      "and_base": "0xd12e100000000000000098e",
+      "variable_mask": "0x00000000000000ffffffffffff00f000",
+      "fields": [
+       {
+        "shift": 12,
+        "bits": 4,
+        "token_idx": 0,
+        "extraction": "guard"
+       },
+       {
+        "shift": 64,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_ur0",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 24,
+        "bits": 8,
+        "token_idx": 2,
+        "extraction": "sub_r1",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 40,
+        "bits": 24,
+        "token_idx": 2,
+        "extraction": "sub_imm2",
+        "_src": "bug128-2026-08-24"
+       },
+       {
+        "shift": 32,
+        "bits": 8,
+        "token_idx": 3,
+        "extraction": "reg",
+        "_src": "bug128-2026-08-24"
+       }
+      ],
+      "count": 1,
+      "_evidence": "kand-124 z DESCCAMP-D1 (p_txt_redg_noel BUILD-FAIL REDG_P_dARI_R not-in-table); sondy encode-equality 13x (PT-sink word == unguarded word, work/bug128/sondy128.py); geometria pola guard potwierdzona bajtowo na REDG.E.ADD.EL.STRONG.GPU_P_dARI_R",
+      "_errata_2026_08_24_128": "BUG-128 FIXED (F2, 2026-08-24): REDG no-EL alias pod bare-PT sink (era-text `REDG.E.ADD.STRONG.GPU PT, desc[..], R..`): klon geometrii z REDG_dARI_R::<mg> z token-shift +1 (sink PT niekodowany, jak w siostrzanym EL kluczu *_P_dARI_R); guard 4b@[15:12] otwarty w vmask (jak EL; @PT=7 == slowu bez guarda; realne @P0-6 nadal fail-closed przez errate BUG-080 wyzej w enkoderze)."
+     }
+    }
+  },
   "REDG_ARI_R": {
    "base_op": "REDG",
    "operand_sig": "ARI_R",
