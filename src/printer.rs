@@ -47,7 +47,7 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             if uni { format!("@{neg_s}UP{pred}") } else { format!("@{neg_s}P{pred}") }
         }
     };
-    let opcode = format_opcode(&insn.opcode, &insn.mod_group);
+    let opcode = format_opcode(&insn.opcode, &insn.mod_group, &insn.key);
 
     // Collect opaque modifier fields (tok=0) — these encode comparison modes,
     // reduction functions, etc. as raw values that become part of the opcode text.
@@ -586,7 +586,7 @@ fn mod_priority(m: &str) -> u8 {
     }
 }
 
-fn format_opcode(base: &str, mod_group: &str) -> String {
+fn format_opcode(base: &str, mod_group: &str, key: &str) -> String {
     if mod_group.is_empty() {
         return base.to_string();
     }
@@ -597,9 +597,26 @@ fn format_opcode(base: &str, mod_group: &str) -> String {
     if mods.is_empty() {
         return base.to_string();
     }
-    mods.sort_by_key(|m| mod_priority_for(base, m));
+    mods.sort_by_key(|m| mod_priority_for_key(base, key, m));
     let suffix: String = mods.iter().map(|m| format!(".{m}")).collect();
     format!("{base}{suffix}")
+}
+
+/// Key-aware modifier priority wrapper. BUG-125: the fresh nvcc-13.3 f32-imm
+/// form of F2I (key F2I_R_FI) prints vendor order FTZ < dst-type < rounding <
+/// NTZ (`F2I.FTZ.U32.CEIL.NTZ R0, 16`, nvdisasm-13.3 oracle sweep x96), while
+/// the legacy register-form F2I_R_R rows keep their alphabetical/priority
+/// prints (gold-locked pre-125 renders — do NOT unify silently).
+fn mod_priority_for_key(base: &str, key: &str, m: &str) -> u8 {
+    if key == "F2I_R_FI" {
+        match m {
+            "U8" | "S8" | "U16" | "S16" | "U32" | "S32" | "U64" | "S64" => return 4,
+            "FLOOR" | "CEIL" | "RN" | "TRUNC" => return 5,
+            "NTZ" => return 6,
+            _ => {}
+        }
+    }
+    mod_priority_for(base, m)
 }
 
 /// Opcode-aware modifier priority (overrides generic mod_priority for specific cases).

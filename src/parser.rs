@@ -270,6 +270,11 @@ const FLOAT_OPCODES: &[&str] = &[
     // encoded 0x00000001 (BUG-034, UFSETP.II-form).
     "DADD", "DMUL", "DFMA", "DSET", "DSETP", "UFSETP",
     "HADD2", "HMUL2", "HFMA2", "HSET2", "HSETP2",
+    // F2I imm-form (BUG-125, F2I_R_FI): fresh nvcc-13.3 emit `F2I.U32.CEIL.NTZ
+    // R0, 16` bakes the f32 immediate 0x41800000 at bits [63:32]; without float
+    // context the textual `16` parsed to Imm32(16) and encoded 0x00000010 in the
+    // same trap class as BUG-034 (UFSETP).
+    "F2I",
 ];
 
 fn parse_single_operand(s: &str, is_float_context: bool) -> Operand {

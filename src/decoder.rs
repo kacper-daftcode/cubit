@@ -274,7 +274,12 @@ impl DecodeIndex {
                 "LD" | "ST" |
                 "LDG" | "LDL" | "LDS" | "LDC" | "LDCU" | "STG" | "STL" | "STS" |
                 "ATOM" | "RED" | "BRA" | "BSSY" | "BSYNC" | "EXIT" | "RET" |
-                "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "QMMA");
+                "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "QMMA" |
+                // BUG-125: F2I carries its dst-type in bits [76:75][72] (fresh
+                // f32-imm form, F2I_R_FI) — the prio-3 sign-bit window {72..75}
+                // absorbed vendor-INVALID type indices 6/7 (nvdisasm `F2I.???6/
+                // ???7`) as the U32/S32 sibling. Fail closed instead.
+                "F2I");
             if !is_memlike {
                 let sign_bits: u128 = (3u128 << 62) | (3u128 << 72) | (3u128 << 74);
                 let m2 = c.match_mask & !sign_bits;

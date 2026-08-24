@@ -51163,6 +51163,2803 @@
     "is_variable_latency": false
    }
   },
+  "F2I_R_FI": {
+   "base_op": "F2I",
+   "operand_sig": "R_FI",
+   "mod_groups": {
+    "NTZ,U8": {
+     "and_base": "0x200002020000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,NTZ,U8": {
+     "and_base": "0x200002120000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "U8": {
+     "and_base": "0x200002000000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,U8": {
+     "and_base": "0x200002100000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,NTZ,U8": {
+     "and_base": "0x200002060000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,FTZ,NTZ,U8": {
+     "and_base": "0x200002160000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,U8": {
+     "and_base": "0x200002040000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,FTZ,U8": {
+     "and_base": "0x200002140000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,NTZ,U8": {
+     "and_base": "0x2000020a0000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,FTZ,NTZ,U8": {
+     "and_base": "0x2000021a0000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,U8": {
+     "and_base": "0x200002080000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,FTZ,U8": {
+     "and_base": "0x200002180000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "NTZ,TRUNC,U8": {
+     "and_base": "0x2000020e0000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,NTZ,TRUNC,U8": {
+     "and_base": "0x2000021e0000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "TRUNC,U8": {
+     "and_base": "0x2000020c0000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,TRUNC,U8": {
+     "and_base": "0x2000021c0000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "NTZ,S8": {
+     "and_base": "0x200002021000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,NTZ,S8": {
+     "and_base": "0x200002121000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "S8": {
+     "and_base": "0x200002001000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,S8": {
+     "and_base": "0x200002101000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,NTZ,S8": {
+     "and_base": "0x200002061000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,FTZ,NTZ,S8": {
+     "and_base": "0x200002161000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,S8": {
+     "and_base": "0x200002041000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,FTZ,S8": {
+     "and_base": "0x200002141000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,NTZ,S8": {
+     "and_base": "0x2000020a1000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,FTZ,NTZ,S8": {
+     "and_base": "0x2000021a1000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,S8": {
+     "and_base": "0x200002081000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,FTZ,S8": {
+     "and_base": "0x200002181000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "NTZ,S8,TRUNC": {
+     "and_base": "0x2000020e1000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,NTZ,S8,TRUNC": {
+     "and_base": "0x2000021e1000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "S8,TRUNC": {
+     "and_base": "0x2000020c1000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,S8,TRUNC": {
+     "and_base": "0x2000021c1000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "NTZ,U16": {
+     "and_base": "0x200002028000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,NTZ,U16": {
+     "and_base": "0x200002128000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "U16": {
+     "and_base": "0x200002008000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,U16": {
+     "and_base": "0x200002108000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,NTZ,U16": {
+     "and_base": "0x200002068000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,FTZ,NTZ,U16": {
+     "and_base": "0x200002168000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,U16": {
+     "and_base": "0x200002048000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,FTZ,U16": {
+     "and_base": "0x200002148000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,NTZ,U16": {
+     "and_base": "0x2000020a8000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,FTZ,NTZ,U16": {
+     "and_base": "0x2000021a8000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,U16": {
+     "and_base": "0x200002088000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,FTZ,U16": {
+     "and_base": "0x200002188000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "NTZ,TRUNC,U16": {
+     "and_base": "0x2000020e8000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,NTZ,TRUNC,U16": {
+     "and_base": "0x2000021e8000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "TRUNC,U16": {
+     "and_base": "0x2000020c8000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,TRUNC,U16": {
+     "and_base": "0x2000021c8000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "NTZ,S16": {
+     "and_base": "0x200002029000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,NTZ,S16": {
+     "and_base": "0x200002129000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "S16": {
+     "and_base": "0x200002009000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,S16": {
+     "and_base": "0x200002109000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,NTZ,S16": {
+     "and_base": "0x200002069000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,FTZ,NTZ,S16": {
+     "and_base": "0x200002169000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,S16": {
+     "and_base": "0x200002049000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,FTZ,S16": {
+     "and_base": "0x200002149000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,NTZ,S16": {
+     "and_base": "0x2000020a9000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,FTZ,NTZ,S16": {
+     "and_base": "0x2000021a9000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,S16": {
+     "and_base": "0x200002089000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,FTZ,S16": {
+     "and_base": "0x200002189000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "NTZ,S16,TRUNC": {
+     "and_base": "0x2000020e9000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,NTZ,S16,TRUNC": {
+     "and_base": "0x2000021e9000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "S16,TRUNC": {
+     "and_base": "0x2000020c9000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,S16,TRUNC": {
+     "and_base": "0x2000021c9000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "NTZ,U32": {
+     "and_base": "0x200002030000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,NTZ,U32": {
+     "and_base": "0x200002130000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "U32": {
+     "and_base": "0x200002010000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,U32": {
+     "and_base": "0x200002110000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,NTZ,U32": {
+     "and_base": "0x200002070000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,FTZ,NTZ,U32": {
+     "and_base": "0x200002170000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,U32": {
+     "and_base": "0x200002050000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,FTZ,U32": {
+     "and_base": "0x200002150000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,NTZ,U32": {
+     "and_base": "0x2000020b0000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,FTZ,NTZ,U32": {
+     "and_base": "0x2000021b0000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,U32": {
+     "and_base": "0x200002090000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,FTZ,U32": {
+     "and_base": "0x200002190000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "NTZ,TRUNC,U32": {
+     "and_base": "0x2000020f0000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,NTZ,TRUNC,U32": {
+     "and_base": "0x2000021f0000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "TRUNC,U32": {
+     "and_base": "0x2000020d0000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,TRUNC,U32": {
+     "and_base": "0x2000021d0000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "NTZ": {
+     "and_base": "0x200002031000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,NTZ": {
+     "and_base": "0x200002131000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "": {
+     "and_base": "0x200002011000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ": {
+     "and_base": "0x200002111000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,NTZ": {
+     "and_base": "0x200002071000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,FTZ,NTZ": {
+     "and_base": "0x200002171000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR": {
+     "and_base": "0x200002051000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FLOOR,FTZ": {
+     "and_base": "0x200002151000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,NTZ": {
+     "and_base": "0x2000020b1000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,FTZ,NTZ": {
+     "and_base": "0x2000021b1000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL": {
+     "and_base": "0x200002091000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "CEIL,FTZ": {
+     "and_base": "0x200002191000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "NTZ,TRUNC": {
+     "and_base": "0x2000020f1000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,NTZ,TRUNC": {
+     "and_base": "0x2000021f1000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "TRUNC": {
+     "and_base": "0x2000020d1000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    },
+    "FTZ,TRUNC": {
+     "and_base": "0x2000021d1000000000000000905",
+     "variable_mask": "0xfffffdff00000000ffffffff00fff000",
+     "fields": [
+      {
+       "shift": 12,
+       "bits": 4,
+       "token_idx": 0,
+       "extraction": "guard"
+      },
+      {
+       "shift": 16,
+       "bits": 8,
+       "token_idx": 1,
+       "extraction": "reg",
+       "_src": "bug125-2026-08-24"
+      },
+      {
+       "shift": 32,
+       "bits": 32,
+       "token_idx": 2,
+       "extraction": "f32",
+       "_src": "bug125-2026-08-24"
+      }
+     ],
+     "count": 1,
+     "_evidence": "nvdisasm-13.3.73 oracle sweep (pol3.cubin patch-probe, work/bug125/oracle.py); class F2I imm-form x96 (type{U8,S8,U16,S16,U32,S32} x round{none,FLOOR,CEIL,TRUNC} x NTZ x FTZ); vm=[guard,dest,imm]+sched-window [96:127]\\{105} (bit105 semantic: nvdisasm-clear->?); corpus anchors pol3 k_pr+0x10 (imm16), pol4 k_pr2+0x10 (imm17); bug125-2026-08-24",
+     "_errata_2026_08_24_125": "BUG-125 FIXED (F2, 2026-08-24): F2I f32-imm form (F2I_R_FI) \u2014 type idx bits {76:width-msb,75,72:sign} (0..5=U8,S8,U16,S16,U32,S32-blank; 6/7 invalid on sm_103a), rounding bits [79:78] (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80; imm=f32@[63:32], dest R@[23:16]."
+    }
+   },
+   "scheduling": {
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "def_latency": 1,
+    "throughput": 1,
+    "is_variable_latency": false
+   }
+  },
   "F2IP_R_R_R_R": {
    "base_op": "F2IP",
    "operand_sig": "R_R_R_R",
