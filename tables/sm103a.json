@@ -32587,10 +32587,10 @@
             },
             {
               "shift": 18,
-              "bits": 2,
+              "bits": 6,
               "token_idx": 2,
               "extraction": "imm",
-              "_src": "2aE"
+              "_src": "2aE+bug116"
             }
           ],
           "count": 1705
@@ -58100,10 +58100,10 @@
           "fields": [
             {
               "shift": 18,
-              "bits": 32,
+              "bits": 6,
               "token_idx": 1,
               "extraction": "imm",
-              "_src": "2aE"
+              "_src": "2aE+bug116"
             }
           ],
           "count": 8

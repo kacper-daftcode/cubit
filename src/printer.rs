@@ -188,11 +188,17 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             // Descriptor-with-base form: must print the full desc[UR][R.64+off]
             // pair (a lone desc[URn] loses base_reg/offset on the round-trip).
             format_desc_addr(fields, raw)
-        } else if op_type == "II" && insn.key.starts_with("WARPSYNC_R_") {
-            // WARPSYNC.COLLECTIVE Rn, <partner target>: the encoded field is the
-            // number of 16-byte slots ahead; nvdisasm prints the RESOLVED address
-            // target = addr + 16 + (field << 4). Printing the raw field (e.g. "0x2")
-            // breaks our own text->encode roundtrip (encoder treats it as address).
+        } else if op_type == "II" && insn.opcode == "WARPSYNC"
+            && insn.mod_group.split(',').any(|m| m.trim() == "COLLECTIVE")
+        {
+            // WARPSYNC.COLLECTIVE[.ALL] [Rn,] <partner target>: the encoded field
+            // is the number of 16-byte slots ahead; nvdisasm prints the RESOLVED
+            // address target = addr + 16 + (field << 4) as a label. Corpus proof
+            // (BUG-116): 230,944 labelled WARPSYNC words over 2,145 cubins, per-
+            // sample target == addr+16+(v<<4), v = [23:18]|[43:34]<<6 (rq16).
+            // Printing the raw field (e.g. "0x5", the WARPSYNC_II/ALL form used
+            // to) breaks our own text->encode roundtrip (encoder treats operands
+            // as absolute targets), so resolve both collective forms here.
             let v = (((raw >> 18) & 0x3F) as u64) | ((((raw >> 34) & 0x3FF) as u64) << 6);
             format!("0x{:x}", insn.addr as u64 + 16 + (v << 4))
         } else if has_desc_family || (inst_is_utc_desc && tok == 5) {
