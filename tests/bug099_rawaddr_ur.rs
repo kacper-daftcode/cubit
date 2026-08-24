@@ -28,7 +28,7 @@
 //! identical); RT96 universe therefore carries 13 documented non-exact slots
 //! (pre: those slots were junk-misdecoded, i.e. worse). Modes 5/7 stay
 //! fail-closed (no vendor evidence).
-//! Report: results/cubitfix/099.md. Anchors: results/cubitfix/099/.
+//! Report: the internal fix archive Anchors: the internal fix archive
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;

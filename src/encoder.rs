@@ -432,8 +432,8 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
 }
 
 // ---------------------------------------------------------------------------
-// Errata guards — sm120lab silicon findings (results/cubit-bugs BUG-001..011,
-// 2026-08-18). Each rule converts a previously SILENT mis-encode into a hard
+// Errata guards — silicon findings (BUG-001..011).
+// Each rule converts a previously SILENT mis-encode into a hard
 // assembler error (fail-closed) or, where the encoding exists, a table fix.
 // ---------------------------------------------------------------------------
 
@@ -601,7 +601,7 @@ fn verify_mod_group_retained(
     //   REDUX.ADD.U32 (sm103a, tests/bug080 t5): table models the reduction
     //     op as SUM/"" (bits [79:78]=00), decode claims nothing; vendor
     //     2049-cubin corpus shows only .OR. Follow-up: REDUX default-op
-    //     census on silicon (b12 lane) — see results/cubitfix/132.md.
+    //     census on silicon.
     // NOTE: `LDC.128` R-domain forms were REMOVED from this list (BUG-135):
     //   the pre-132 encoder silently dropped the width and the pinned word
     //   (bug088 t5, W_LDC128_R53) is in fact a PLAIN 32-bit LDC word —
@@ -634,12 +634,12 @@ fn verify_mod_group_retained(
 
 /// BUG-006: a NEGATED predicate operand whose slot has no negation encoding in
 /// the selected form must never silently degrade to the non-negated predicate
-/// (silicon then reads the un-negated value — iter64 measured exactly that on
+/// (silicon then reads the un-negated value — measured exactly that on
 /// IMAD.WIDE.U32.X carry-in). Re-encode with the negation flipped; a
 /// bit-identical word proves the neg bit has no representation here.
 fn check_pred_neg_encoded(insn: &Instruction, table: &IsaTable, out: u128) -> Result<()> {
     // Scoped to `.X` carry-chain forms: their tail carry-in predicate is a
-    // REAL architectural operand (silicon reads cin — iter64 measured the
+    // REAL architectural operand (silicon reads cin — measured the
     // dropped-neg failure). Elsewhere a trailing `!PT` is a vestigial
     // print-convention (LOP3.LUT's operand 6 is always !PT in production
     // cubins and is not silicon-read), so dropping neg there is pre-existing,
@@ -675,7 +675,7 @@ fn check_pred_neg_encoded(insn: &Instruction, table: &IsaTable, out: u128) -> Re
 /// BUG-037: warp-level MMA register-operand alignment. Multi-register MMA
 /// operands must be aligned to their register-tuple width; silicon runs
 /// misaligned forms as ILLEGAL_INSTRUCTION while the encoder used to accept
-/// them silently (sm120 iter46/iter47 measured tables; BUG-037 repro:
+/// them silently (sm120 measured tables; BUG-037 repro:
 /// `IMMA.16832.S8.S8 R8, R42, R44, R8` with A=R42 -> silicon ILLEGAL).
 ///
 /// Fail-closed ONLY on silicon-measured (opcode, shape, accum) combos —
@@ -683,10 +683,10 @@ fn check_pred_neg_encoded(insn: &Instruction, table: &IsaTable, out: u128) -> Re
 /// quad-aligned despite a nominally narrower A), so unmeasured space
 /// (SP/SF forms, F16 accumulators, IMMA.16816, QMMA.16816, HMMA.1684,
 /// UR-space UTC*/DMMA) keeps its previous accept-behavior:
-///   IMMA.16832.* (acc S32):   D%4 A%4 B%2 C%4   (iter46)
-///   QMMA.16832.F32.*:         D%4 A%4 B%2 C%4   (iter47, E4M3)
-///   HMMA.16816.F32:           D%4 A%4 B%2 C%4   (iter47)
-///   HMMA.1688.F32:            D%4 A%4 Bany C%4  (iter47; B is single-reg)
+///   IMMA.16832.* (acc S32):   D%4 A%4 B%2 C%4
+///   QMMA.16832.F32.*:         D%4 A%4 B%2 C%4   (E4M3 measured)
+///   HMMA.16816.F32:           D%4 A%4 B%2 C%4
+///   HMMA.1688.F32:            D%4 A%4 Bany C%4  (B is single-reg)
 fn check_mma_reg_alignment(insn: &Instruction) -> Result<()> {
     let has_mod = |m: &str| insn.modifiers.iter().any(|x| x == m);
     // Dense warp-level forms only: .SP. (sparse, extra metadata operands) and
@@ -733,7 +733,7 @@ fn check_mma_reg_alignment(insn: &Instruction) -> Result<()> {
                     "{:?} is ILLEGAL on silicon (BUG-037): the {name} operand of {} \
                      spans {align} registers and @{val} is not {align}-aligned \
                      (R{}..R{}). Multi-register MMA operands must start at \
-                     reg%{align}==0 (sm120 iter46/47 measured).",
+                     reg%{align}==0 (sm120 measured).",
                     insn.raw_text.trim(),
                     insn.opcode_full,
                     val,
@@ -813,7 +813,7 @@ fn bug034_dead_write_dest_up(insn: &Instruction, table: &IsaTable) -> Option<Str
 pub fn errata_warnings(insn: &Instruction, table: &IsaTable) -> Vec<String> {
     let mut out = Vec::new();
     // BUG-005: plain `WARPSYNC R<n>` (register membermask) on sm_120. cubit and
-    // nvdisasm both accept the word, but iter60 measured ILLEGAL_INSTRUCTION on
+    // nvdisasm both accept the word, but sm_120 silicon measured ILLEGAL_INSTRUCTION on
     // silicon depending on the surrounding schedule (context-sensitive). The
     // immediate-mask form is the safe spelling.
     if table.target_sm() == 120
@@ -823,13 +823,13 @@ pub fn errata_warnings(insn: &Instruction, table: &IsaTable) -> Vec<String> {
         && matches!(insn.operands[0], Operand::Reg { num, .. } if num != 255)
     {
         out.push(format!(
-            "WARPSYNC with a register membermask ({:?}) is context-sensitive on sm_120              silicon (BUG-005: accepted by cubit+nvdisasm, ILLEGAL depending on              surrounding schedule). Safer: the corpus-blessed barrier-wide form `WARPSYNC.ALL ;`, or drop WARPSYNC entirely when intra-warp ordering suffices (sm_120 honors STS->LDS without a sync; iter60)",
+            "WARPSYNC with a register membermask ({:?}) is context-sensitive on sm_120              silicon (BUG-005: accepted by cubit+nvdisasm, ILLEGAL depending on              surrounding schedule). Safer: the corpus-blessed barrier-wide form `WARPSYNC.ALL ;`, or drop WARPSYNC entirely when intra-warp ordering suffices (sm_120 honors STS->LDS without a sync)",
             insn.raw_text.trim()));
     }
     // BUG-008: 4-op IMAD.WIDE with c != RZ — the word encodes fine and ptxas
     // emits it, but the c operand of a wide IMAD is read by silicon as the
     // 64-bit pair (Rc, Rc+1): the assembly consumes a register the text never
-    // names. (iter71 probes first flagged this form as "silicon runs IMAD-32";
+    // names. (silicon probes first flagged this form as "runs IMAD-32";
     // their own data — Rd+1 == R(c+1) — equally proves correct wide execution
     // with a 64-bit c. Either way the form is treacherous; spell it out or use
     // the canonical 5-operand pout form.)
@@ -908,7 +908,7 @@ fn check_efl2_addr_parity_sm103(insn: &Instruction, table: &IsaTable) -> Result<
 /// pair (desc[URm][Rn.64], the vendor render for these rows) requires an
 /// EVEN pair base Rn on sm_103a -- OPPOSITE polarity to BUG-060
 /// (LDG.E.NA.EFL2.256 needs an ODD base). krun/krunp probe series on B300
-/// (GPU idle-windows 2026-08-22, records in results/cubitfix/076/): odd Rn
+/// (measured on B300): odd Rn
 /// -> CUDA_ERROR_ILLEGAL_INSTRUCTION (rejected before the memory stage),
 /// even Rn -> executes (the paramless probe env faults ILLEGAL_ADDRESS only
 /// on the dereference). Matrix over width/mod classes:
@@ -917,7 +917,7 @@ fn check_efl2_addr_parity_sm103(insn: &Instruction, table: &IsaTable) -> Result<
 ///                              STG.E.ENL2.256 (12/17)
 ///   flaky trap (II in some device-state epochs, II/IA mixes observed):
 ///                              STG.E.EF (4/6), STG.E.EL.ENL2.256.STRONG.GPU
-///                              (3/4) -- same fail-closed policy as F2Q-066
+///                              (3/4) -- same fail-closed policy as the
 ///                              (flaky = poison; must-not-emit)
 ///   never trapped (0 II in 20+ runs across epochs): the ELL2/EFL2 L2-policy
 ///                              classes (EL.ELL2.256, NA.ELL2.256,
@@ -953,7 +953,7 @@ fn check_stg_desc_pair_parity_sm103(insn: &Instruction, table: &IsaTable) -> Res
         if let Operand::Desc { base_reg: Some(r), base_reg_suffix: Some(sfx), .. } = op {
             if sfx == "64" && r % 2 == 1 {
                 anyhow::bail!(
-                    "STG desc-form address pair R{}.64 has an ODD base -- SILICON-ILLEGAL on sm_103a                     (BUG-076; B300 krun matrix 2026-08-22: odd base -> CUDA_ERROR_ILLEGAL_INSTRUCTION                     before the memory stage -- deterministic for E/64/128/STRONG/ENL2 desc-pair classes,                     flaky-epochal for EF/EL.ENL2 (fail-closed per F2Q-066 flaky=poison policy); even base                     executes. Opposite polarity to BUG-060 LDG-EFL2 (odd required there); only the                     ELL2/EFL2 L2-policy classes stay exempt (different desc addressing mode, vendor                     render [Rn.U32+URm], never trapped in 20+ runs; their transactions are                     default-desc-rejected at the memory stage on sm_103a anyway). Renumber the address                     pair to an even base (RA pin) instead of assembling the odd-base word; decode                     stays full-fidelity for RE."
+                    "STG desc-form address pair R{}.64 has an ODD base -- SILICON-ILLEGAL on sm_103a                     (BUG-076; measured on B300: odd base -> CUDA_ERROR_ILLEGAL_INSTRUCTION                     before the memory stage -- deterministic for E/64/128/STRONG/ENL2 desc-pair classes,                     flaky-epochal for EF/EL.ENL2 (fail-closed: flaky counts as poison); even base                     executes. Opposite polarity to BUG-060 LDG-EFL2 (odd required there); only the                     ELL2/EFL2 L2-policy classes stay exempt (different desc addressing mode, vendor                     render [Rn.U32+URm], never trapped in silicon runs; their transactions are                     default-desc-rejected at the memory stage on sm_103a anyway). Renumber the address                     pair to an even base (RA pin) instead of assembling the odd-base word; decode                     stays full-fidelity for RE."
                 , r);
             }
         }
@@ -965,9 +965,9 @@ fn check_stg_desc_pair_parity_sm103(insn: &Instruction, table: &IsaTable) -> Res
 /// pair (desc[URm][Rn.64]) requires an EVEN pair base Rn for every class
 /// whose addressing mode is the true register pair (encoded word bit84=1).
 /// krunp probe matrix 2026-08-22 (idle windows; records in
-/// results/cubitfix/077/): odd base -> CUDA_ERROR_ILLEGAL_INSTRUCTION
+/// measured on B300): odd base -> CUDA_ERROR_ILLEGAL_INSTRUCTION
 /// (pre-memory stage), even base -> executes.
-///   odd trap (deterministic or flaky-by-epoch, F2Q-066 flaky=poison
+///   odd trap (deterministic or flaky-by-epoch; flaky counts as poison
 ///   policy): LDG.E 4/8 II, LDG.E.64 7/8, LDG.E.128 7/8, LDG.E.STRONG.GPU
 ///   5/6, LDG.E.EF 5/6, LDG.E.U16 5/6, LDG.E.256.ENL2 8/8 this window
 ///   (066-kand already showed ~50/80 flaky II for ENL2-load odd).
@@ -999,7 +999,7 @@ fn check_ldg_desc_pair_parity_sm103(insn: &Instruction, table: &IsaTable) -> Res
         if let Operand::Desc { base_reg: Some(r), base_reg_suffix: Some(sfx), .. } = op {
             if sfx == "64" && r % 2 == 1 {
                 anyhow::bail!(
-                    "LDG desc-form address pair R{}.64 has an ODD base -- SILICON-ILLEGAL on sm_103a                     (BUG-077; B300 krunp matrix 2026-08-22 + F2Q-066: odd base ->                     CUDA_ERROR_ILLEGAL_INSTRUCTION before the memory stage for the true-pair desc                     classes E/64/128/STRONG/EF/U16/ENL2-256; even base executes. Only LTC128B / ELL2                     classes tolerate odd, and EFL2.256 REQUIRES odd under BUG-060 -- the polarity is                     class-specific, not universal; renumber the address pair to an even base (RA pin)                     instead of assembling the odd-base word; decode stays full-fidelity for RE."
+                    "LDG desc-form address pair R{}.64 has an ODD base -- SILICON-ILLEGAL on sm_103a                     (BUG-077; measured on B300: odd base ->                     CUDA_ERROR_ILLEGAL_INSTRUCTION before the memory stage for the true-pair desc                     classes E/64/128/STRONG/EF/U16/ENL2-256; even base executes. Only LTC128B / ELL2                     classes tolerate odd, and EFL2.256 REQUIRES odd under BUG-060 -- the polarity is                     class-specific, not universal; renumber the address pair to an even base (RA pin)                     instead of assembling the odd-base word; decode stays full-fidelity for RE."
                 , r);
             }
         }
@@ -1011,7 +1011,7 @@ fn check_ldg_desc_pair_parity_sm103(insn: &Instruction, table: &IsaTable) -> Res
 /// address pair (desc[URm][Rn.64], non-EL classes -- encoded word uses the
 /// true register-pair addressing mode, vendor render `desc[URm][Rn.64]`)
 /// requires an EVEN pair base Rn. krunp probe matrix 2026-08-22 (idle
-/// windows; records in results/cubitfix/078/krun_record.txt):
+/// windows, measured on B300):
 ///   odd trap (decisive experiment, valid VA in the pair):
 ///     ATOMG.E.ADD.STRONG.GPU desc[UR4][R5.64] -> CUDA_ERROR_ILLEGAL_
 ///     INSTRUCTION 10/10 across epochs; even base R2.64 -> OK 10/10,
@@ -1124,14 +1124,14 @@ fn check_imnmx_sm103_erratum(insn: &Instruction, table: &IsaTable) -> Result<()>
 }
 
 
-/// BUG-088 (silicon, B300/sm_103a; F2Q-088-kand from the b12-full-2
+/// BUG-088 (silicon, B300/sm_103a; from the b12-full-2
 /// preflight, extended into a full probe matrix 2026-08-22): wide
 /// const/shared-memory accesses enforce DESTINATION/DATA register alignment
 /// laws that the encoder previously accepted silently -- the assembled word
 /// then traps CUDA_ERROR_ILLEGAL_INSTRUCTION at execution (same fail-closed
 /// doctrine as the BUG-060/076/077/078 family).
 ///
-/// Probe matrix (probes work/f2-088/probes, records results/cubitfix/088/;
+/// Probe matrix (measured on B300;
 /// krunp on B300, 2-3 replications, deterministic across epochs):
 ///   LDC.64 dest R (cAI imm and cARI register-offset forms): ODD Rn ->
 ///     II (R53/R201), even OK, RZ(255) exempt. Plain 32-bit LDC unconstrained.

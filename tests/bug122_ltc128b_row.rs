@@ -1,6 +1,6 @@
-//! BUG-122 (F2-Q, depozyt loop5 iter52 / DESCCAMP-D1, severity A): encode_only
-//! retention row `LDG.E.LTC128B.128_R_dARI`::"128,E,LTC128B" w sm103a.json
-//! (zachowana przez BUG-094 era-text retention) emitowala slowo z ZEROWYM
+//! BUG-122: encode_only
+//! retention row `LDG.E.LTC128B.128_R_dARI`::"128,E,LTC128B" in sm103a.json
+//! (kept by the BUG-094 era-text retention) emitted a word with a ZERO
 //! hi-payload (bajty 8..11): enkoder wypelnia wylacznie bity < 64 (pola
 //! koncza sie na [63:40], and_base mial tylko 0x980), wiersz niesie zero
 //! vendor/wymaganych-krzemiowo bitow w hi-KLUCZU klasy. Krzem B300: slowo
@@ -8,7 +8,7 @@
 //! vendor 13.3 z tymi samymi operandami (desc[UR4][R2.64]) = OK
 //! (p_raw_ltc13/_pol). b12 "default-desc gate" = TEN BUG, nie krzem.
 //!
-//! Prawo krzemiowe (results/b12/DESCCAMP-D1.md + matrix.json, clear-1-bit
+//! Prawo krzemiowe (the internal research archive + matrix.json, clear-1-bit
 //! sweep ze slowa vendor, 12b x2 repliki): wymagane {72,90,91}; obojetne
 //! pojedynczo {0,69,74,75,76,81,82,83,84}; kandydaci zweryfikowani krzemiowo:
 //! s_ltc_minlaw (tylko {72,90,91} + lo-payload, bit0=0) OK, s_ltc_fullaw

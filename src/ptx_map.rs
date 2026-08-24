@@ -331,7 +331,7 @@ pub enum SassTemplate {
     // shape as cvta.to.global.u64) -- vendor corpus anchor b_ldmatrix-ba534d
     // (ptxas 13.3 -O0 sm_103a) lowers a runtime-generic cvta.to.shared to
     // mov-copies; the S2R SR_CgaCtaId + LEA <<24 glue belongs to shared-
-    // SYMBOL address materialization (shsym layout, iter35), not to cvta.
+    // SYMBOL address materialization (shsym layout), not to cvta.
 
     /// b9 phase-3 #9: ldmatrix/stmatrix -> LDSM.16.M88[.4] / STSM.16.M88.4
     /// (canon BUG-098 for LDSM x1/x4; STSM row + anchor added this iter).
@@ -618,7 +618,7 @@ pub static RULES: &[PtxRule] = &[
     // 1/2pi scale for sin/cos, dropped range scaling for ex2/lg2) -> macros.
     // rcp.rn.f32 / sqrt.rn.f32 / div.rn.f32: vendor lowers via inline fast
     // path + FCHK/guard + CALL.REL.NOINC $__internal slowpath helper (anchors
-    // corpus p18/test12 O0+O3) = call-lane (parked, iter40) -> REMOVED the
+    // corpus O0+O3) = call-lane -> REMOVED the
     // guess Singles so these go fail-closed unsupported instead of silently
     // emitting the approximate fast path. rcp.approx / rsqrt.approx /
     // sqrt.approx Singles stay (unanchored, zero corpus use -- F-note).

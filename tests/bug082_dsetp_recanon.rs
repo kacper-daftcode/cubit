@@ -1,7 +1,7 @@
 //! BUG-082 (F2Q 082-kand stillwrong-class z censusu 081; fixed F2 2026-08-22):
 //! the whole DSETP family in tables/sm120.json was harvest junk (28 keys).
 //! Verified corpus-wide damage classes (17054 vendor anchors,
-//! results/cubitfix/082/dsetp_anchors.json):
+//! the internal fix archive
 //!  (a) decode-FAIL: 5951 words had NO matching row (e.g. |R8|+UR form) --
 //!      cubit rendered nothing; downstream RE lost the instruction;
 //!  (b) 7-bit register windows: 8-bit R operands halved (R20 -> R10, R6 -> R3;

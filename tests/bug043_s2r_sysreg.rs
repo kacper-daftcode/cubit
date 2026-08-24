@@ -6,7 +6,7 @@
 //! Fix (fail-closed, u zrodla) + nvdisasm-13.3 sm_120 census:
 //!  - SR_NTID/SR_NTID.X -> 0x28 (krzemowo potwierdzone blockDim, i120);
 //!  - nieznana nazwa SR = blad enkodera z wskazowka SR_0x<hex> (NIE fallback 0);
-//!  - dodane nvdisasm-named kody z pelnego sweepu 256 kodow (results/cubitfix/
+//!  - dodane nvdisasm-named kody z pelnego sweepu 256 kodow (the internal fix archive
 //!    r043/sr_sweep_nvdisasm133.txt);
 //!  - printer: SYSREG_NAMES zgodne z nvdisasm-13.3 sm120 (literaturne
 //!    NTID.Y/Z=0x29/0x2a i NCTAID.*=0x2c..0x2e byly BLONE dla sm120 — to
@@ -109,7 +109,7 @@ fn bug043_report_repro_fails_visibly_via_cli() {
     let src = dir.join("r043.sass");
     let out = dir.join("r043.cubin");
     let _ = std::fs::remove_file(&out);
-    // Exact shape of results/cubit-bugs/repro/r043_sr_ntid.sass.
+    // Exact shape of repro r043_sr_ntid.sass (internal archive).
     std::fs::write(&src, ".entry r043\n    .param u64 mem\n    LDCU.64 UR4, c[0x0][0x358] ;\n    S2R R9, SR_NTID.X ;\n    S2R R10, SR_NCTAID.X ;\n    EXIT ;\n.endentry\n").unwrap();
     let res = std::process::Command::new(env!("CARGO_BIN_EXE_cubit"))
         .args(["asm", "-t", "tables/sm120.json", src.to_str().unwrap(),

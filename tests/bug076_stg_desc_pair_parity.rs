@@ -1,10 +1,10 @@
-//! BUG-076 (F2Q-076, from BARRACUDA B12 A/B O3 wrapper, loop5 iter22; guard
+//! BUG-076 (from the B12 A/B O3 wrapper; guard
 //! + probe matrix executed F2 2026-08-22): STG desc-form with a 64-bit
 //! address pair `desc[URm][Rn.64]` requires an EVEN pair base Rn on sm_103a
 //! silicon -- OPPOSITE polarity to BUG-060 (LDG.E.NA.EFL2.256 needs ODD).
 //!
 //! Silicon (B300, krunp harness, GPU idle-windows 2026-08-22; records in
-//! results/cubitfix/076/krun_record.txt + krun_stats2.txt):
+//! the internal fix archive + krun_stats2.txt):
 //!   deterministic trap (odd -> CUDA_ERROR_ILLEGAL_INSTRUCTION before the
 //!     memory stage): STG.E (9/9), STG.E.64 (9/9), STG.E.128 (~16/17),
 //!     STG.E.STRONG.GPU (9/9), STG.E.ENL2.256 (12/17)

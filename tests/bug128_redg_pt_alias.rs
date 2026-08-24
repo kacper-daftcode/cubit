@@ -1,5 +1,5 @@
-//! BUG-128 (F2-Q, 124-kand z DESCCAMP-D1, severity low, decode-parity breaking
-//! era ingest): REDG no-EL alias pod bare-PT sink. Era-tekst
+//! BUG-128: REDG no-EL aliasing onto the bare-PT sink, breaking era-text
+//! ingest. Era text
 //! `REDG.E.ADD.STRONG.GPU PT, desc[UR4][R54.64], R40 ;` (P_TXT z pol*.
 //! era-harvest, rodzina sink-PT jak w siostrzanych EL kluczach *_P_dARI_R)
 //! padal `REDG_P_dARI_R "..." not in table` -> dzis jedyny chodzacy kanal =

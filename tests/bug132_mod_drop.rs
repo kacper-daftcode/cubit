@@ -1,6 +1,5 @@
-//! BUG-132 (F2-Q; kandydat z raportu 131.md sec.6 + recon iter59 w F2Q.md;
-//! severity: srednio-wysoki — encoder/wrong-code): lookup-chain enkodera
-//! (fk,mg)->(key,mg)->(fk,"")->(key,"") przy braku wiersza dla DOKLADNEJ
+//! BUG-132 (encoder/wrong-code): the lookup chain
+//! (fk,mg)->(key,mg)->(fk,"")->(key,"") when no row exists for the EXACT
 //! kombinacji modow spadal do grupy "" i CICHO gubil mody, emitujac INNA
 //! wariante. Repro pre-fix (HEAD e234970, tables/sm120.json):
 //!   `FADD.RZ.SAT R1, R2, R3 ;`      -> slowo z bitami [80:78]=000 (plain RN!)

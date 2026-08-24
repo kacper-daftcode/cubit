@@ -1,4 +1,4 @@
-//! BUG-049 (F2Q-kandydat z M4.3b/BARRACUDA 2026-08-21): narrow-fit rows —
+//! BUG-049 (from the M4.3b work): narrow-fit rows —
 //! encode/decode asymetria ujawniona renuemrowaniem RA na certyfikowanym R0b.
 //! Trzy klasy na legacy-lancuchu (tb_i82/p1) oraz — dla UIMAD.WIDE wariantu
 //! UR-dest — takze w repo `tables/sm120.json`. Piny bitowe: sondy nvdisasm
@@ -130,7 +130,7 @@ fn bug049_isetp_mixed_ur_renumbered_roundtrip() {
     // pre-anchor RE-era mislabel: vendor probes render ISETP_ORIG as plain
     // signed GT.AND and the whole family has ZERO abs/neg-on-register anchors
     // in the corpus (abs is not a vendor-observed shape on ISETP sigs).
-    // See results/cubitfix/086.md; era-text flip decision stays with owner
+    // See the internal fix archive era-text flip decision stays with owner
     // (F2Q-058-kand; frozen publish path on tb_i82p2 is unaffected).
     let w = enc("ISETP.GT.U32.AND P1, PT, R6, UR15, PT");
     assert_eq!((w >> 24) & 0xff, 6, "R 8b@24");

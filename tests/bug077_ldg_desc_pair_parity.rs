@@ -3,7 +3,7 @@
 //! EVEN pair base Rn on sm_103a for every true-pair desc class.
 //!
 //! Silicon (B300, krunp, GPU idle-windows 2026-08-22; records in
-//! results/cubitfix/077/krun_stats.txt; odd -> CUDA_ERROR_ILLEGAL_INSTRUCTION
+//! the internal fix archive odd -> CUDA_ERROR_ILLEGAL_INSTRUCTION
 //! pre-memory, even -> executes):
 //!   traps:   LDG.E 4/8 II, LDG.E.64 7/8 II, LDG.E.128 7/8 II,
 //!            LDG.E.STRONG.GPU 5/6 II, LDG.E.EF 5/6 II, LDG.E.U16 5/6 II,

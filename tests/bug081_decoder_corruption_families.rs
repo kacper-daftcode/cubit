@@ -20,7 +20,7 @@
 //!      UR_UR_UR_UR / UR_UR_II_UR rows rebuilt (28866 anchors) replacing
 //!      modes that rendered phantom trailing URZ / spurious |abs|.
 //!
-//! Evidence harness: /root/blindlab/results/cubitfix/081/ (gen/ collector,
+//! Evidence harness: the internal research tree (gen/ collector,
 //! per-shape anchor files; verdicts: family parity pre 32733 -> post 33551+
 //! then full-fix 35877/35877 unique words, harvest census attribution).
 

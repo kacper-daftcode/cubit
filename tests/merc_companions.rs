@@ -1,7 +1,7 @@
-//! F2-Q `.nv.merc.*` sovereign companion emission (CUBIT_MERC13), 2026-08-24.
+//! `.nv.merc.*` sovereign companion emission (CUBIT_MERC13).
 //!
 //! nvcc 13.3.73 (-arch=sm_103a) laws, derived on 9 vendor cubins + rc4 (12.8)
-//! donor; per-section byte-parity evidence in results/cubitfix/merc.md:
+//! donor; per-section byte-parity evidence in the internal fix archive
 //!   * `.debug_frame`/`.nv.merc.debug_frame`: per-kernel [CIE][FDE] pairs
 //!     (CIE repeated, not factored), FDE.cie_ptr = block offset, CFI programs
 //!     driven by EXIT offsets (SASS) / Mercury st_size (merc), FDE range =

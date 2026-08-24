@@ -1,4 +1,4 @@
-//! BUG-043 (zgloszenie frontu M iter8 / F2Q 042-kand; rejestr sm120: plik 043):
+//! BUG-043 (from the frontend-M report; registry 043):
 //! `cubit asm` przy niewykodowalnej instrukcji tylko WARN-owal, zostawial
 //! zero-word (sciezka directive/ELF) albo bajty szablonu (-T) i konczyl
 //! rc=0 — plik wygladal na poprawny, a zawieral smiec.

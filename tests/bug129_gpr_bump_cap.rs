@@ -1,4 +1,4 @@
-//! BUG-129 (F2-Q b9p11-stale closure, 2026-08-24): GPR bump-pointer cap
+//! BUG-129: GPR bump-pointer cap
 //! arithmetic in ptx_lower. Pre-fix (b6a254d..15ee924):
 //!   (a) gpr()/gpr_pair()/gpr_quad()/prepare_group bumped a u8 `next_gpr`
 //!       with plain `+=`; at the cap edge the arithmetic itself overflowed

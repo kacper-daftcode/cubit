@@ -1,4 +1,4 @@
-//! BUG-059 (F2Q, from BARRACUDA M4.8-silicon, loop5 iter16): ARCH-DELTA
+//! BUG-059 (from M4.8 silicon work): ARCH-DELTA
 //! legality sm120 -> sm_103a for the consumer IMNMX opcode class.
 //! The sm120-era rt98 lineage carries 21 words of
 //! `IMNMX.S64 P0, P0, (|)Rn|, Rn, imm, PT, P0` shape (and_base 0x*817 class).

@@ -1,4 +1,4 @@
-//! b11 render-parity (loop5 iter29, 2026-08-22; report results/b11/RP-1.md):
+//! b11 render-parity (loop5 iter29, 2026-08-22; report the internal research archive
 //! era truth-surface (rt98) vs `cubit disassemble` spelling, closed for the
 //! three classes where the era reading is unambiguous and vendor-consistent
 //! (12M-instr corpus / vendor_all.json anchors, b4fill-doctrine):

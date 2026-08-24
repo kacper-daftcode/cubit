@@ -17,7 +17,7 @@
 //! Corpus evidence (2049-cubin vendor census, cuobjdump 13.3, 30,338 LD.E/ST.E
 //! records, work/f2-097/w097_raw.json): pre-fix sm120.json exact 14,978 /
 //! diff 13,990 / err 1,370; post-fix BOTH tables decode+encode-vendor-exact
-//! 30,338/30,338 (RT96 included). Report: results/cubitfix/097.md.
+//! 30,338/30,338 (RT96 included). Report: the internal fix archive
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

@@ -1,7 +1,7 @@
 # POSTFIX-103 v0 -- `cubit stallfix` (stall-sufficiency legalizer, sm_103a)
 
-BARRACUDA b1 pass landing the STALLSUF-1 silicon facts (B300 census,
-2026-08-22, 254 canonical runs): the era stalls S00..S03 are physically
+Implements the measured SM103a stall-sufficiency facts (B300 hardware
+census):  the era stalls S00..S03 are physically
 insufficient when the consumer sits in the DIRECTLY next slot (d0).
 
 ## Measured floors (DATA: tables/stallfix_sm103a.json)
@@ -60,7 +60,7 @@ Parity anchors (sm_103a O3 mulmod windows [20,363) x 3 kernels): 597
 raises S03->S04, cubin md5 49efe0fa.., diff vs era cubin = 597 bytes, all
 at slot byte 0xd.
 
-## v1 (2026-08-22, F-ss4 census-hi)
+## v1: census-hi rules
 
 guard-D1 (exactly one instruction between the P producer and the guard
 consumer) is no longer uniformly rejected: it is CLASS-RESOLVED by the
@@ -99,7 +99,7 @@ cap_stall=11 is now sm_103a-backed by measurement, not only inherited
 from BUG-036: at S12+ the D0 data/isetp dependency classes miscompute
 in non-monotonic, class/geometry-dependent pockets on B300.
 
-## v2 (F-ss6, 2026-08-22): uniform-domain census rules R7..R10
+## v2: uniform-domain census rules R7..R10
 
 Source measurement: results/stallsuf/F-SS2.md (B300 sm_103a idle-window
 census, gen_ss.py v3): the UR/UP domain follows "uniform ALU == vector

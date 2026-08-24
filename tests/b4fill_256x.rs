@@ -1,4 +1,4 @@
-//! b4fill (loop5 iter, 2026-08-21): sm_103a table-fill of the M4.7/G16e
+//! b4fill: sm_103a table-fill of the M4.7/G16e
 //! mulmod-shape lock + adjacent LDG/STG.256-desc family. Rows derived from
 //! (a) native ptxas-13.3 sm_103a probes (mulacc/mulcc IMAD.WIDE.U32.X Cout/Cin,
 //! ldg256* ENL2.256 EL/NA/STRONG/CONSTANT, stg256 siblings),
@@ -8,7 +8,7 @@
 //! brute-force multi-sample fit; statics cross-origin compared (payload
 //! drift zero on IMAD R_P_R_R_R_P). Gate: decode renders EXACT canonical
 //! text; re-encode byte-exact modulo scheduler top dword [127:96].
-//! Provenance: /root/blindlab/results/fe/M4/b4fill/ (battery + derivation).
+//! Provenance: the internal research tree (battery + derivation).
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;

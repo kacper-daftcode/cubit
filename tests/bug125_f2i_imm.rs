@@ -1,6 +1,5 @@
-//! BUG-125 (F2-Q, 125-kand z depozytu 123, severity b4-klasy): swieza
-//! f32-imm forma F2I (nvcc-13.3 sm_103a, kwalifikator createpolicy.range
-//! lowering) dekodowala sie jako "?" / "no instruction matches opcode
+//! BUG-125: a fresh F2I f32-imm form (nvcc-13.3 sm_103a, createpolicy.range
+//! qualifier lowering) decoded as "?" / "no instruction matches opcode
 //! 0x0905", a enkoder nie mial wiersza. Klasa zdomknieta w calosci:
 //!
 //!   * NOWY klucz `F2I_R_FI` (96 wierszy): dst-type idx = bits
@@ -23,7 +22,7 @@
 //! Golden = nvdisasm-13.3.73 oracle sweep po pol3.cubin patch-probe
 //! (work/bug125/oracle.py + gen125.py; klasa 6x4x2x2=96 legalnych,
 //! Anchory korpusu: pol3 k_pr+0x10 imm16 / pol4 k_pr2+0x10 imm17.
-//! Raport: results/cubitfix/125.md.
+//! Raport: the internal fix archive
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

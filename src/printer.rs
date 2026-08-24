@@ -324,7 +324,7 @@ pub fn to_sass(insn: &DecodedInst) -> String {
     // baked. nvdisasm omits the operand; drop the leading "UPT" so render
     // matches nvdisasm and the text re-encodes through the UR_* rows
     // byte-identically (their and_base fixes sel=7). Data: 7 gold words,
-    // results/cubitfix/045/gold.json (class "cosmetic").
+    // class "cosmetic" in the gold census.
     if insn.opcode == "ULOP3"
         && op_types.first().map(|t| t == "UP").unwrap_or(false)
         && operands.first().map(|s| s == "UPT").unwrap_or(false)
@@ -674,7 +674,7 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     // BUG-098: LDSM (matrix load from shared) - nvdisasm prints tile width
     // BEFORE layout and matrix count LAST: LDSM.16.M88.4 / LDSM.16.M88.2
     // (was LDSM.M88.16.4 / LDSM.2.M88.16 via generic buckets). Vendor anchors:
-    // 32 slots in the 2049-cubin census (results/cubitfix/098/anchors098.json).
+    // 32 slots in the 2049-cubin census.
     if base == "LDSM" || base == "STSM" {
         // b9p11: STSM shares the LDSM vendor order (BUG-098 anchors; STSM
         // anchor corpus_p12_stmatrix O0 0x190 = STSM.16.M88.4 [R0], R4).

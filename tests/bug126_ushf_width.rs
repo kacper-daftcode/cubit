@@ -1,6 +1,6 @@
-//! BUG-126 (F2-Q, 126-kand z residuu 123, severity b4-klasy): USHF imm-form
-//! (USHF_UR_UR_II_UR) — slowa korpusu pol* (`USHF.R.U32 UR4, UR4, 0x4, URZ`)
-//! dekodowaly sie lossy jako USHF.R.U64 !rsd[74:1]: brak wierszy dla wiekszosci
+//! BUG-126: USHF imm-form (USHF_UR_UR_II_UR) — corpus words
+//! (`USHF.R.U32 UR4, UR4, 0x4, URZ`) decoded lossily as USHF.R.U64
+//! !rsd[74:1]: rows were missing for most of the family.
 //! klas width/sign, a prio-3 sign-bit fallback ({62,63,72,73,74,75}) pochlanial
 //! slowa bit74=1 (32-bit) do rzedu bit74=0 (U64). Zdomkniete KLASOWO:
 //!
@@ -19,7 +19,7 @@
 //! Golden = nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe,
 //! work/bug126/oracle126.py). Anchory korpusu: 14 slow !rsd[74:1] ->
 //! USHF.R.U32; render-parity 15/15 stringow na pol*+sweep. Raport:
-//! results/cubitfix/126.md.
+//! the internal fix archive
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

@@ -1,6 +1,5 @@
-//! BUG-123 (F2-Q, depozyt loop5 DESCCAMP-D1 iter52, severity b4-klasy):
-//! swieze formy cache-policy nvcc-13.3 (sm_103a) dekodowaly sie jako "?" /
-//! !rsd, a enkoder nie mial wierszy. Klasa zoknknieta w calosci po stronie
+//! BUG-123: fresh nvcc-13.3 (sm_103a) cache-policy forms decoded as "?" /
+//! !rsd, and the encoder had no rows. Class fixed in full.
 //! D1-korpusu + sweepu (work/bug123/sweep.ptx, ptxas 13.3.73):
 //!
 //!   * II-wiersze .256 z trailer-imm (LDG_R_R_dARI_II — NOWY klucz):
@@ -23,7 +22,7 @@
 //!
 //! Wszystkie teksty = nvdisasm-13.3 golden (korpus pol*+sweep, 904 slow);
 //! wszystkie slowa krzemiowo OK (D1 matrix.json, run_legality). Raport:
-//! results/cubitfix/123.md.
+//! the internal fix archive
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

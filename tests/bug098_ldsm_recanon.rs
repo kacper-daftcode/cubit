@@ -11,7 +11,7 @@
 //! like the LDS family; sub_r0 9b; sub_imm1 @[63:40]; NEW plain-ARI mg
 //! '16,M88'), printer gets an LDSM arm (width 16 < layout M88/MT88 < count
 //! 2/4), sm120 gets the canon rows verbatim with sm120 sched/ctrl donors.
-//! Report: results/cubitfix/098.md. Anchors: results/cubitfix/098/anchors098.json.
+//! Report: the internal fix archive Anchors: the internal fix archive
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;
@@ -22,7 +22,7 @@ fn t103() -> IsaTable { IsaTable::load(std::path::Path::new("tables/sm103a.json"
 const M96: u128 = (1u128 << 96) - 1;
 
 /// (word, vendor-canonical text) -- anchors from the 2049-cubin vendor census
-/// (results/cubitfix/098/anchors098.json).
+/// (the internal fix archive
 const GOLD: &[(u128, &str)] = &[
     (0x000e620000000000000080000005083bu128, "@P0 LDSM.16.M88 R5, [R0+0x80]"), // mk19.cubin@00e0 sm103
     (0x000e640008000000000000040000783bu128, "LDSM.16.M88 R0, [R0+UR4]"), // p_ldsm.cubin@0200 sm103

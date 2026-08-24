@@ -1,5 +1,5 @@
 //! BUG-088 (F2Q-088-kand; b12-full-2 preflight + dedicated B300 krunp probe
-//! matrix 2026-08-22, work/f2-088/probes + results/cubitfix/088/): wide
+//! matrix 2026-08-22, work/f2-088/probes + the internal fix archive wide
 //! const/shared-memory accesses enforce destination/data register alignment
 //! laws that the encoder used to accept silently; the word then traps
 //! CUDA_ERROR_ILLEGAL_INSTRUCTION at execution:
@@ -145,7 +145,7 @@ fn t4_sm103a_lds_sts_128_alignment_law() {
 // NOTE (BUG-135): `LDC.128 R-form` used to be pinned here as a byte-exact
 // fixed point via W_LDC128_R53. That pin recorded the pre-BUG-132 SILENT
 // WIDTH DROP: nvdisasm renders W_LDC128_R53 as plain 32-bit `LDC` (probes
-// results/cubitfix/088/probes/p_ldc128_*.cubin), the R-domain width enum
+// the internal fix archive the R-domain width enum
 // [74:73] codes 2/3 are INVALID6/INVALID7 per nvdisasm (graft probes,
 // sm_103a+sm_120a), ptxas never emits R-domain LDC.128 (2x LDC.64), and the
 // 2049-cubin vendor corpus has ZERO R-domain LDC.128 renders. Authoring

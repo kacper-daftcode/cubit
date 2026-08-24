@@ -1,4 +1,4 @@
-//! BUG-130 (F2-Q residuum BUG-129, front2 2026-08-24): bar_alloc BSSY/BSYNC
+//! BUG-130 (follow-up of BUG-129): bar_alloc BSSY/BSYNC
 //! reconvergence-barrier bump pointer in ptx_lower.
 //! Pre-fix (..efff676):
 //!   (a) bar_alloc() bumped a u8 `bar_next` with plain `+=`; at the 255 edge
@@ -62,7 +62,7 @@ fn lower_result(ptx: &str) -> Result<String, anyhow::Error> {
 /// t130_1: 9 f16x2 lanes = 18 barrier ids -> the 17th request crosses the
 /// 4-bit encoding domain. Pre-fix: lowered fine, text carried "B16"/"B17"
 /// which the encoder silently masked back to B0/B1 (evidence captured in
-/// results/cubitfix/130.md: the BSSY words of region pair (B0,B16) differ
+/// the internal fix archive the BSSY words of region pair (B0,B16) differ
 /// ONLY in the branch target, the barrier nibble is identical). Post-fix:
 /// fail-closed Err naming the kernel, no truncation ever assembled.
 #[test]

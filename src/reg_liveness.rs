@@ -462,7 +462,7 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
         // A/B source tuples are quads on the grounded sond form. v0 keeps
         // ONE width for every position (conservative; a narrower B-pair
         // variant must land as data with evidence first).
-        // 64-bit FP ALU (DADD/DMUL/DFMA, BUG-118 gate landing): the
+        // 64-bit FP ALU (DADD/DMUL/DFMA, BUG-118): the
         // destination is a register PAIR and every register source reads a
         // pair (vendor anchors: ptxas 13.3 sm_103a pd64/p17_f64 nvcc
         // cubins, "DADD R8, R4, R8" / "DFMA R4, R2, 1.5, R4", 2026-08-24).
@@ -476,7 +476,7 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
                 }
             }
         }
-        // Float/int converts around f64 (BUG-118 gate landing): the f64
+        // Float/int converts around f64 (BUG-118): the f64
         // half of the conversion spans the register pair. Type-slot
         // semantics differ per base op (vendor anchors: p17_f64 nvcc
         // sm_103a, "F2F.F64.F32 R8, R13" / corpus "F2I.F64.TRUNC R10, R6"):
@@ -504,7 +504,7 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
                 }
             }
         }
-        // Atomics with register return (ATOM/ATOMS, BUG-118 gate landing):
+        // Atomics with register return (ATOM/ATOMS, BUG-118):
         // the FIRST register operand is the destination (access width from
         // the .64 modifier: ATOM.E.CAS.STRONG.GPU = 32-bit, ATOMS.*.64 =
         // pair); every later register is a use (compare/value operands read
@@ -540,8 +540,8 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
                 }
             }
         }
-        // ldmatrix (BUG-118 gate landing): destination width is a quad only
-        // SYNCS-family (BUG-118 gate landing): the FIRST tracked register
+        // ldmatrix (BUG-118): destination width is a quad only
+        // SYNCS-family (BUG-118): the FIRST tracked register
         // operand is the destination state register (SYNCS.ARRIVE.TRANS64
         // [REDACTED-PAIR-lo|RZ], SYNCS.EXCH.64 URZ sink, ...); every later
         // operand is a use (addr brackets, UR state inputs).
@@ -584,7 +584,7 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
         "mma" => {
             // MMA tuple quads. Alignment per operand position follows the
             // silicon-measured BUG-037 legality table (encoder errata,
-            // iter46/47): for IMMA/QMMA.16832(.F32) and HMMA.16816.F32 the
+            // for IMMA/QMMA.16832(.F32) and HMMA.16816.F32 the
             // rule per position is D%4 A%4 B%2 C%4 (HMMA.1688.F32 has a
             // single-register B of any alignment; unidentified families keep
             // the encoder's previous acceptance -- mirrored loosely here as
@@ -597,7 +597,7 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
                 match o {
                     Operand::Reg { num, .. } if *num != 255 => {
                         let set = if is_dest { &mut x.rdefs } else { &mut x.ruses };
-                        // BUG-118 gate landing: HMMA.16816's B fragment is a
+                        // BUG-118: HMMA.16816's B fragment is a
                         // 64-bit PAIR (%2 align already implied this); the
                         // lowerer emits only the pair and the b10 matrix's
                         // mma-f16 A/B PASSes prove the pair shape on silicon.
@@ -624,7 +624,7 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
         "dest_only" => {
             def_operand0(insn, &mut x, 1);
         }
-        // CS2R from a 64-bit system register (BUG-118 gate landing): the
+        // CS2R from a 64-bit system register (BUG-118): the
         // hardware writes the whole even PAIR even though only the low
         // register prints (vendor anchor: ptxas 13.3 sm_103a gt.ptx probe
         // 2026-08-24 -- "CS2R R4, SR_GLOBALTIMERLO; STG.E.64 [..], R4").

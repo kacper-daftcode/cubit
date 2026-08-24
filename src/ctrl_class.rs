@@ -249,7 +249,7 @@ pub fn iadd3_rc2_is_rz(insn: &crate::ir::Instruction) -> bool {
 // sm120 UR-form keys (UTCHMMA.1CTA_UR_UR_...) are excluded by the descriptor-sig
 // requirement `_II_II_II_II_` (sm120 = separate concern, no vendor ctrl data).
 //
-// The law fixes the encode-side wrong-ctrl of F2Q 103-kand (encode stamped the
+// The law fixes the encode-side wrong-ctrl of finding 103 (encode stamped the
 // generic default 0x000fc200 / sched-pass 0x000fca00; rt-audit e4 class) and the
 // 105-kand c3-stamp on the 6-op `_UP` class. It is a candidate input row for the
 // b1 physics table (vendor ctrl is deterministic per family).

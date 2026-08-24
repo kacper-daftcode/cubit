@@ -1,4 +1,4 @@
-//! b10 (HARNESS-P pilot catches, 2026-08-24 loop5/blind):
+//! b10: HARNESS-P pilot catches:
 //!   F-1  %globaltimer silent-drop: `mov.u64 %rd, %globaltimer;` became
 //!        `MOV Rd{lo,hi}, <never-written pair>` (parser did not classify
 //!        %globaltimer as a special register) -- deterministic-zero time

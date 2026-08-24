@@ -199,7 +199,7 @@ fn enc_clean(table: &IsaTable, s: &str) -> u128 {
 }
 
 #[test]
-#[ignore = "flotta: produkcyjna tabela sm120 mowi innymi konwencjami (baked ctrl w and_base: 456 wpisow; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) — sprawa tabel-higieny do kampanii, NAWIAS do merge'u publicznego 2026-08-24 (zgloszone jako BUG-queue); decoded/recon behavior covered by fleet EXACT suites"]
+#[ignore = "vendored sm120 table currently speaks different conventions (baked ctrl bits in and_base; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) - parked until the table-hygiene campaign lands"]
 fn test_canonical_table_has_no_baked_control_bits() {
     let table = match pv_table() { Some(t) => t, None => return };
     for (key, entry) in &table.entries {
@@ -214,7 +214,7 @@ fn test_canonical_table_has_no_baked_control_bits() {
 }
 
 #[test]
-#[ignore = "flotta: produkcyjna tabela sm120 mowi innymi konwencjami (baked ctrl w and_base: 456 wpisow; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) — sprawa tabel-higieny do kampanii, NAWIAS do merge'u publicznego 2026-08-24 (zgloszone jako BUG-queue); decoded/recon behavior covered by fleet EXACT suites"]
+#[ignore = "vendored sm120 table currently speaks different conventions (baked ctrl bits in and_base; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) - parked until the table-hygiene campaign lands"]
 fn test_hadd2_register_form_is_not_mislabeled_as_immediate() {
     let table = match pv_table() { Some(t) => t, None => return };
     assert!(
@@ -229,7 +229,7 @@ fn test_hadd2_register_form_is_not_mislabeled_as_immediate() {
 }
 
 #[test]
-#[ignore = "flotta: produkcyjna tabela sm120 mowi innymi konwencjami (baked ctrl w and_base: 456 wpisow; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) — sprawa tabel-higieny do kampanii, NAWIAS do merge'u publicznego 2026-08-24 (zgloszone jako BUG-queue); decoded/recon behavior covered by fleet EXACT suites"]
+#[ignore = "vendored sm120 table currently speaks different conventions (baked ctrl bits in and_base; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) - parked until the table-hygiene campaign lands"]
 fn test_fmul_immediate_rounding_forms() {
     let table = match pv_table() { Some(t) => t, None => return };
     let suffixes = [
@@ -246,7 +246,7 @@ fn test_fmul_immediate_rounding_forms() {
 }
 
 #[test]
-#[ignore = "flotta: produkcyjna tabela sm120 mowi innymi konwencjami (baked ctrl w and_base: 456 wpisow; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) — sprawa tabel-higieny do kampanii, NAWIAS do merge'u publicznego 2026-08-24 (zgloszone jako BUG-queue); decoded/recon behavior covered by fleet EXACT suites"]
+#[ignore = "vendored sm120 table currently speaks different conventions (baked ctrl bits in and_base; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) - parked until the table-hygiene campaign lands"]
 fn test_ldg_ltc128b_vector_layout() {
     let table = match pv_table() { Some(t) => t, None => return };
     assert_eq!(
@@ -260,7 +260,7 @@ fn test_ldg_ltc128b_vector_layout() {
 }
 
 #[test]
-#[ignore = "flotta: produkcyjna tabela sm120 mowi innymi konwencjami (baked ctrl w and_base: 456 wpisow; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) — sprawa tabel-higieny do kampanii, NAWIAS do merge'u publicznego 2026-08-24 (zgloszone jako BUG-queue); decoded/recon behavior covered by fleet EXACT suites"]
+#[ignore = "vendored sm120 table currently speaks different conventions (baked ctrl bits in and_base; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) - parked until the table-hygiene campaign lands"]
 fn test_qmma_sf_type_and_scale_operand_layout() {
     let table = match pv_table() { Some(t) => t, None => return };
     assert_eq!(
@@ -287,7 +287,7 @@ fn test_qmma_sf_type_and_scale_operand_layout() {
 }
 
 #[test]
-#[ignore = "flotta: produkcyjna tabela sm120 mowi innymi konwencjami (baked ctrl w and_base: 456 wpisow; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) — sprawa tabel-higieny do kampanii, NAWIAS do merge'u publicznego 2026-08-24 (zgloszone jako BUG-queue); decoded/recon behavior covered by fleet EXACT suites"]
+#[ignore = "vendored sm120 table currently speaks different conventions (baked ctrl bits in and_base; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) - parked until the table-hygiene campaign lands"]
 fn test_uniform_branch_modes_decode_and_reencode_faithfully() {
     let table = match pv_table() { Some(t) => t, None => return };
     let index = cubit::decoder::DecodeIndex::build(&table);
@@ -374,7 +374,7 @@ fn test_uisetp_ge_and_imm_encoding() {
 }
 
 #[test]
-#[ignore = "flotta: produkcyjna tabela sm120 mowi innymi konwencjami (baked ctrl w and_base: 456 wpisow; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) — sprawa tabel-higieny do kampanii, NAWIAS do merge'u publicznego 2026-08-24 (zgloszone jako BUG-queue); decoded/recon behavior covered by fleet EXACT suites"]
+#[ignore = "vendored sm120 table currently speaks different conventions (baked ctrl bits in and_base; HADD2 dup-key; LDG.128/QMMA layouts; BRA modes) - parked until the table-hygiene campaign lands"]
 fn test_flashattention_sm120_roundtrip_forms() {
     // Forms observed in ptxas_sm120_fmha_fwd.cubin. These were the remaining
     // round-trip blockers for using cubit as a full patcher for that cubin.

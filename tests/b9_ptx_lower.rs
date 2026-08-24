@@ -1,6 +1,6 @@
 //! b9 phase-1 pins for the PTX gateway (ptx_parse/ptx_map/ptx_opt/ptx_lower).
 //! Doctrine: every behavior here was first observed fail-closed or against a
-//! vendor (ptxas 13.3 sm_103a) anchor — see results/b9/B9-PHASE1.md.
+//! vendor (ptxas 13.3 sm_103a) anchor — see the internal research archive
 use cubit::ptx_lower::{lower_kernel, sass_label};
 use cubit::ptx_parse::parse_ptx;
 use cubit::table::IsaTable;
@@ -192,7 +192,7 @@ fn b9_float_imm_legalization() {
     let (_b, _n) = assemble_body(&text);
 }
 
-// ── b9 phase-2 pins (iter31 census findings P1..P6; results/b9/B9-PHASE2-CENSUS.md)
+// ── b9 phase-2 pins (iter31 census findings P1..P6; the internal research archive
 
 /// P1: nvcc single-line inline-asm blocks `{.reg ..; op; op;}` split into real
 /// statements; no "{.reg" pseudo-opcode, block-local decl honored.
@@ -337,7 +337,7 @@ fn b9p2_cvt_sm103a_forms() {
 /// P5-history: f16 cvt WAS unattested until b9 phase-3 #8 (iter39). The
 /// vendor anchor was measured then (ptxas 13.3 -O0 sm_103a, probe
 /// work/b9p10/cv1: F2F.F16.F32 single-op, byte-parity in
-/// results/b9/b9p10_parity), so the pin flips POSITIVE with attribution.
+/// the internal research archive so the pin flips POSITIVE with attribution.
 /// cvt.rn.f16.f64 etc. remain rejected (b9p10_fail_closed).
 #[test]
 fn b9p2_cvt_f16_unsupported() {
@@ -512,7 +512,7 @@ fn b9p3_pred_logic_fail_closed() {
 }
 
 /// P3-17: b64 bitwise logic -> vendor-anchored LOP3.LUT lo/hi pairs
-/// (ptxas 13.3 -O0 sm_103a probes bl{1,2,3}, results/b9/B9-PHASE3-B64LOG.md):
+/// (ptxas 13.3 -O0 sm_103a probes bl{1,2,3}, the internal research archive
 /// reg-src `LOP3.LUT Rd_{l,h}, Ra_{l,h}, Rb_{l,h}, RZ, lut, !PT` with
 /// and=0xc0/or=0xfc/xor=0x3c; unary not ties slot a to RZ and negates
 /// slot b (0x33) — the vendor b64-not puts the input in slot b.
@@ -643,7 +643,7 @@ fn b9p4_b64_logic_fail_closed() {
 }
 
 /// P3-20: carry chains (b9 phase-3 #3). Vendor-anchored forms (ptxas 13.3
-/// sm_103a; byte-parity swarm results/b9/carryshf_parity, 87/87 IDENT):
+/// sm_103a; byte-parity swarm the internal research archive 87/87 IDENT):
 /// add.cc -> IADD3 d,Pcf,PT,a,b,RZ ; addc -> IADD3.X d,PT,PT,a,b,RZ,Pcin,!PT
 /// ; sub.cc -> IADD3 d,Pcf,PT,a,-b,RZ ; subc[.cc] -> IADD3.X ..,~b,a,... with
 /// the SAME physical predicate threaded through the whole chain ("%cc").
@@ -795,7 +795,7 @@ fn b9p5_carry_fail_closed() {
 }
 
 /// b9 phase-3 #4: atom/red lowering forms encode (vendor anchors work/b9p6
-/// at1..at7 + p03/at9; byte-parity results/b9/atomred_parity).
+/// at1..at7 + p03/at9; byte-parity the internal research archive
 #[test]
 fn b9p6_atom_global_forms() {
     let ptx = format!(r#"{} .visible .entry k(
@@ -1259,7 +1259,7 @@ fn b9p8_urz_bracket_parse() {
 /// b9 phase-3 #7: barrier.cluster GUARDED forms (no .explicitcluster) —
 /// runtime cluster-gate glue (LDC c[0x0][0x36c] + ISETP + @!Pg BRA) followed
 /// by the UCGABAR protocol; vendor anchors cl1/cl3, byte-parity 353/353 in
-/// results/b9/cluster_parity/.
+/// the internal research archive
 #[test]
 fn b9p9_cluster_guarded_forms() {
     let ptx = format!(r#"{} .visible .entry k(
@@ -1479,12 +1479,12 @@ L0:
     // sign-extension lane clean for positive offsets
     assert_eq!((w >> 44) & 0xFFFFF, 0, "anchors carry no [63:44] payload bits here");
     // and the decode re-spells the same form (nvdisasm-side proven in
-    // results/b9/cluster_parity/verify_parity.py).
+    // the internal research archive
 }
 
 // ═══ b9 phase-3 #8 (iter39): vote/match/bar.warp/elect/nanosleep/griddep/
 //     cp.async/cvt-sub-word/cvta.shared — vendor-anchored (ptxas 13.3 -O0
-//     sm_103a, probes work/b9p10/probes; byte-parity results/b9/b9p10_parity).
+//     sm_103a, probes work/b9p10/probes; byte-parity the internal research archive
 
 fn lower_text(body: &str) -> String {
     let ptx = format!(r#"{} .visible .entry k(
@@ -1640,12 +1640,12 @@ fn b9p10_fail_closed() {
     }
 }
 
-// ═══ b9 phase-3 #9 (iter40, loop5/blind): bf16 / ldmatrix-stmatrix / b16 /
+// ═══ b9 phase-3 #9: bf16 / ldmatrix-stmatrix / b16 /
 //     sub.s64..popc.b64 / mul64 network / mad.wide.u32 / cp.async.bulk +
 //     surfaced fixes (VIMNMX swap for BUG-059, GPR 255=RZ fail-closed cap).
 //     Vendor anchors ptxas 13.3 sm_103a -O0: probes work/b9p11/probes
 //     (s64_*, b16a/b16b, t16i, madwi, mnm1, mulf16, ldsm1 + corpus O0/O3
-//     anchors); byte-parity results/b9/b9p11_parity (259/259 payload IDENT).
+//     anchors); byte-parity the internal research archive (259/259 payload IDENT).
 
 #[test]
 fn b9p11_bf16_forms() {
@@ -1980,7 +1980,7 @@ fn b9p15_redux_fail_closed() {
 fn b9p15_redux_corpus_p08_shape() {
     // The 3-op chain (add.s32 -> add -> max.u32 -> add -> min.u32) lowers end-to-end:
     // 3 wraps, 3 redux words, all result MOVs from UR79.
-    let ptx = std::fs::read_to_string("/root/blindlab/work/b9census/ptx/p08_redux-eb6f6d.ptx").unwrap();
+    let ptx = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/p08_redux-eb6f6d.ptx")).unwrap();
     let kernels = parse_ptx(&ptx).unwrap();
     let t = lower_kernel(&kernels[0]).unwrap().to_sass_text();
     assert_eq!(t.matches("WARPSYNC.COLLECTIVE").count(), 3, "{}", t);
@@ -2214,7 +2214,7 @@ fn b9p16_mem_widths() {
 fn b9p16_corpus_lanes_end_to_end() {
     // readshared2 (4 unpacks) and p15 (pack + unpack + widening + scalar add)
     // from the corpus lift end-to-end and assemble.
-    let ptx = std::fs::read_to_string("/root/blindlab/work/b9census/ptx/readshared2-af1179.ptx").unwrap();
+    let ptx = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/readshared2-af1179.ptx")).unwrap();
     let kernels = parse_ptx(&ptx).unwrap();
     let t = lower_kernel(&kernels[0]).unwrap().to_sass_text();
     assert_eq!(t.matches("0x7610").count(), 4, "4 lo extracts: {}", t);
@@ -2222,7 +2222,7 @@ fn b9p16_corpus_lanes_end_to_end() {
     let (bytes, cnt) = assemble_body(&t);
     assert_eq!(bytes.len(), cnt * 16, "{}", t);
 
-    let ptx = std::fs::read_to_string("/root/blindlab/work/b9census/ptx/p15_half2-c568ac.ptx").unwrap();
+    let ptx = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/p15_half2-c568ac.ptx")).unwrap();
     let kernels = parse_ptx(&ptx).unwrap();
     let k = &kernels[0];
     // parser fix: full body present (pre-fix silently dropped 19 stmts)

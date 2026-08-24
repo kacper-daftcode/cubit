@@ -5,7 +5,7 @@
 //! candidates resolved to a *random* winner per process. Proven pre-fix on
 //! 6x sampling in both tables: FSETP.NEU AND/XOR+-rsd75, FMUL.FTZ 0/0x0/UR0,
 //! HFMA2 R171/RZ-imma, IMAD.MOV/ISETP rsd series (census noise source on
-//! every table edit; see results/cubitfix/067 census residuals).
+//! every table edit; see the internal fix archive census residuals).
 //!
 //! Fix (u zrodla): candidates are collected in sorted (key, mod_group)
 //! order AND the disambiguation tuple ends in the total-order tiebreak

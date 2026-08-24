@@ -1,6 +1,6 @@
-//! BUG-135 (F2-iter62, 2026-08-24; follow-up of BUG-132 t132_6 idiom audit):
+//! BUG-135 (follow-up of the BUG-132 idiom audit):
 //! `LDC.128` with an R-domain destination has NO silicon encoding on
-//! Blackwell. Evidence (all work/f2-135/, report results/cubitfix/135.md):
+//! Blackwell. Evidence in the internal fix archive (135).
 //!   * nvdisasm 13.3 renders the R-domain width enum [74:73] codes 2/3 as
 //!     `LDC.INVALID6`/`LDC.INVALID7` (graft probes ldc_graft.cubin, identical
 //!     verdict on sm_103a and sm_120a cubins); codes 0=32-bit, 1=.64.
@@ -8,7 +8,7 @@
 //!     32-bit `LDC R53, c[0x0][0x380]` — the pre-132 encoder had silently
 //!     dropped the `.128` mod; the 088 silicon campaign's "LDC.128 R-form
 //!     unconstrained" conclusion is vacuous (width-dropped probes ran as
-//!     32-bit loads; see results/cubitfix/088/probes/p_ldc128_*.cubin).
+//!     32-bit loads; probe cubins in the internal archive).
 //!   * ptxas 13.3 NEVER emits R-domain LDC.128 (128-bit constant loads
 //!     decompose into 2x LDC.64; probes ldc_probe.cubin/ldc128.cubin), and
 //!     the 2049-cubin vendor corpus contains ZERO R-domain LDC.128 renders

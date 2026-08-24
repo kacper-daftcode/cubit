@@ -17,22 +17,17 @@ Rust 1.70+. The ISA table (`tables/sm120.json`) ships with the repo.
 
 ### ISA table provenance
 
-`tables/sm120.json` is a generated, byte-identical copy of the canonical
-[`blackwell-isa`](https://github.com/kacper-daftcode/blackwell-isa) database.
-Its pinned source commit and SHA-256 are recorded in `tables/SM120_SOURCE.json`;
-do not edit the vendored table directly.
-
-From sibling checkouts, update or verify it with:
-
-```bash
-python3 tools/sync_table.py
-python3 tools/sync_table.py --check
-```
-
-`sync` rejects malformed masks, out-of-range fields, unknown extraction rules,
-and baked control/reuse bits, then runs the Cargo suite against the candidate
-before replacing the vendored copy. Tests honor `CUBIT_TABLE` and fail on table
-load errors instead of skipping.
+`tables/sm120.json` originates from the
+[`blackwell-isa`](https://github.com/kacper-daftcode/blackwell-isa) database
+(base revision and SHA-256 recorded in `tables/SM120_SOURCE.json`). The
+vendored snapshot currently also carries a wave of cubit-side canon fixes
+(names, mod-group layout, junk-row removal) that have not all flowed back
+into the canonical database yet, so byte-pinning to an upstream revision is
+temporarily suspended: validation is structural (`tools/sync_table.py
+--validate-only`) plus the full Cargo suite, which fails closed on any table
+load error. Byte-exact repinning resumes once the upstream consolidation
+lands. Tests honor `CUBIT_TABLE` as a strict override: a missing or malformed
+override is an error, not a fallback.
 
 Release binaries and Python wheels embed the same vendored snapshot as a
 working-directory-independent fallback. An explicit `CUBIT_TABLE` remains a
@@ -94,8 +89,7 @@ remaining cases enumerated with named residual fields). Rules inside:
 `tail = f(trim)` (100% on a 27.8k-kernel corpus), bitmap length
 `B = trim - w0 - 2*n_ENDCOLLECTIVE` with w0 = {MEMBAR,ERRBAR,CGAERRBAR,DEPBAR,
 LDGDEPBAR,LDGSTS,B2R}; record ordering/param-role/STG-field rules reproduced
-from the nvcc emitter pipeline (see blackwell-isa-internal
-MERCURY_UPLIFT_SM103A.md, iters X..X5).
+from the nvcc emitter pipeline.
 
 ## Scheduling
 
@@ -206,6 +200,7 @@ it does not consume an edited SASS file.
 ```
 src/                 Rust crate (lib + CLI binary)
 tables/sm120.json    ISA bitfield table (2,001 instruction forms)
+tables/sm103a.json   SM103a (B300) bitfield table + cost/stallfix data
 tables/SM120_SOURCE.json
                      canonical blackwell-isa revision and table digest
 examples/            tensor-core kernel examples (.sass, .cu host harnesses)
@@ -233,54 +228,49 @@ binary blobs inside `.text`. Default text stays nvdisasm-compatible — the
 annotation appears only where fidelity would otherwise be lost, so its count
 in a disassembly is a self-measuring table-completeness metric.
 
-## Errata — silicon findings (2026-08-18, BUG-001..011)
+## Silicon quirk guards
 
-Tool-level traps found by silicon probing on the RTX 5090. All are fixed at the
-source; silent versions of these *must not* come back. Conventions to write by:
+The assembler knows a set of measured SM120/SM103a silicon traps and guards
+them at the source (hard error instead of a silent mis-encode). The ones that
+shape how you write SASS:
 
-- **PRMT operand order is hardware order `(d, a, sel, b)`** (BUG-001) — the
-  selector is operand 3, like `nvdisasm` prints it: `PRMT R6, RZ, 0x7610, R6`.
-  PTX's `prmt.b32 d, a, b, c` puts the selector last; all-register text written
-  in PTX order assembles silently with sel/b swapped. The lookup error for the
-  imm-selector PTX spelling now carries the hint.
-- **`IMAD.HI[.U32]` is not encodable on sm_120** (BUG-002) — silicon executes
-  the harvested "HI" encodings as `IMAD.WIDE.U32` (`Rd` = LOW half, `Rd+1`
-  clobbered). The assembler is fail-closed; use `IMAD.WIDE[.U32] Rd, Ra, Rb, RZ`
-  and read the high half from `Rd+1`, or the 5-operand pout form.
-- **Predicate index 7 is PT** (BUG-004) — literal `P7`/`UP7` (and `P8`+,
-  guards included) is a hard assembler error now; it used to alias to the
-  always-true PT silently.
-- **Plain `WARPSYNC R<n>` warns on sm_120** (BUG-005) — cubit+nvdisasm accept
-  the word, silicon legality depends on the surrounding schedule. Use
-  `WARPSYNC.ALL ;`, or reorder to not need it (intra-warp `STS`→`LDS` works
-  bare).
-- **Carry-in negation is encoded on `.X` forms** (BUG-006) — `IADD3.X` cin1 and
-  `IMAD.WIDE.U32.X` cin (`..., !PT` = constant-false carry idiom) gain the
-  neg@90 emit. A negated carry-in that has no bit in the selected form is a
-  hard error (never a silent downgrade); note the LOP3-family trailing `!PT`
-  is a printer convention, not a read operand, so it is intentionally exempt.
-- **`STG.E desc[UR][R.64]` decodes as STG again** (BUG-007) — a disambiguation
-  divert cross-family-hijacked the decode to a phantom `LDG.E.LTC128B`; diverts
-  are confined to same-opcode families now.
-- **4-operand `IMAD.WIDE*` with `c != RZ` warns on sm_120** (BUG-008) — the c
-  accumulator of a wide IMAD is the 64-bit *pair* `(Rc, Rc+1)`; canonical
-  spellings: 5-op pout form or `c = RZ`.
-- **Frozen `DEPBAR`/`MEMBAR` keep their control word** (BUG-010) — fully-static
-  barrier classes no longer discard the `[B:R:W:Y:S]` prefix on re-encode
-  (e.g. `[B------:R-:W-:Y:S04] DEPBAR.LE SB0, 0x9`).
-- **REGCOUNT is driver-legal** (BUG-011) — clamped to the 255 hardware maximum
-  (`.reg R0-R255` used to emit 256), and `--eiattr-from` rebuilds treat the
-  template's REGCOUNT as a floor (a 255-reg reference was truncated to 128 →
-  "illegal instruction" at launch).
-- **BUG-009 absorbed**: `IMAD.WIDE.U32.X` with an immediate b operand is in the
-  shipped table (was pod-local only, iter75).
+- **PRMT operand order is hardware order `(d, a, sel, b)`** — the selector is
+  operand 3, as `nvdisasm` prints it. PTX spelling `prmt.b32 d, a, b, c` puts
+  it last; text written in PTX order used to assemble with sel/b swapped.
+- **`IMAD.HI[.U32]` is not encodable on sm_120** — silicon executes harvested
+  "HI" words as `IMAD.WIDE.U32` (`Rd` = LOW half, `Rd+1` clobbered). Use
+  `IMAD.WIDE[.U32] Rd, Ra, Rb, RZ` and read the high half from `Rd+1`, or the
+  5-operand pout form.
+- **Predicate index 7 is PT** — literal `P7`/`UP7` and above is a hard
+  assembler error; it used to alias to always-true PT silently.
+- **Plain `WARPSYNC R<n>` warns on sm_120** — legality depends on the
+  surrounding schedule. Use `WARPSYNC.ALL ;`, or rely on intra-warp `STS`→`LDS`
+  ordering.
+- **Carry-in negation lives on `.X` forms** — a negated carry-in that has no
+  bit in the selected form is a hard error, never a silent downgrade.
+- **4-operand `IMAD.WIDE*` with `c != RZ` warns** — the c accumulator is the
+  64-bit pair `(Rc, Rc+1)`; canonical spellings are the 5-op pout form or
+  `c = RZ`.
+- **Frozen `DEPBAR`/`MEMBAR` keep their control word** — fully-static barrier
+  classes retain the `[B:R:W:Y:S]` prefix on re-encode.
+- **REGCOUNT follows driver legality** — clamped to the 255 hardware maximum;
+  `--eiattr-from` rebuilds treat the template's REGCOUNT as a floor.
+- On sm_103a, odd-base `desc[UR][R.64]` register pairs for LDG/STG/atomics and
+  the consumer `IMNMX` class are fail-closed (silicon-illegal there); the
+  decoder still reads such words for RE of existing binaries.
 
-`CUBIT_DISABLE_ERRATA=1` disables the guard layer (escape hatch for table
-archeology only — production flows must not need it).
+`CUBIT_DISABLE_ERRATA=1` disables the guard layer (table-research escape
+hatch only — production flows must not need it).
 
 ## Limitations
 
-- SM120 only (Blackwell: RTX 5090/5080/5070 Ti, DGX Spark).
+- Primary target: SM120 (RTX 5090/5080/5070 Ti, DGX Spark), validated against
+  hardware. A vendored SM103a (B300) table with scheduling data and silicon
+  guards ships alongside (`tables/sm103a.json`); other Blackwell-arch tables
+  land as their campaigns close.
+- Assembly output for `.text` is bit-stable; the ELF companion sections are
+  regenerated by the sovereign emitter (see `docs/MERC13_COMPANIONS.md`),
+  with known phase-1 approximations documented there.
 
 ## Related
 
@@ -291,4 +281,4 @@ archeology only — production flows must not need it).
 
 ## License
 
-GPL-3.0 — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).

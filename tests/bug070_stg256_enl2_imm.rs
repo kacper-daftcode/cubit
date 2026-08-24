@@ -8,7 +8,7 @@
 //!   Decode-side sign_extend(1 bit) then rendered +0x20 as `+-0x20`.
 //!
 //! Oracle (nvdisasm/cuobjdump 13.3, byte-patched cubin sweeps,
-//! results/cubitfix/070/probe_sweep.txt):
+//! the internal fix archive
 //!   - STG.256 desc offset = UNSIGNED 16-bit window @[55:40], offset = win<<5
 //!     (win 0x8000 -> +0x100000, win 0xffff -> +0x1fffe0); family-wide
 //!     (ENL2, EL.ENL2, EL.ELL2, ELL2-NA, EFL2-NA all share it).

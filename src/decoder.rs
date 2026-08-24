@@ -783,7 +783,7 @@ fn select_best_candidate<'a>(
 /// Used to confine the disambiguation diverts below to SAME-family siblings:
 /// the output/trailing/middle-pred diverts were built for LOP3_P_ vs LOP3_,
 /// IMAD variants, LEA _P forms — but they once diverted an STG.E word to an
-/// LDG.E.LTC128B key (BUG-007, iter68): the store's desc/size bits alias the
+/// LDG.E.LTC128B key (BUG-007): the store's desc/size bits alias the
 /// "output predicate" slot [83:81], the LDG candidate had a pred field there,
 /// and the unscoped divert picked it, printing a load that never re-assembles
 /// back. Cross-family diverts are never legitimate when both candidates match

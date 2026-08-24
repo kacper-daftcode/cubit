@@ -1,4 +1,4 @@
-# Python API: native arch/table selection (M1/BARRACUDA, 2026-08-20)
+# Python API: native arch/table selection
 
 ## Problem
 The Python bindings historically bound exactly one ISA table per process:

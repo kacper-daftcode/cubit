@@ -4,7 +4,7 @@
 //!
 //! Symptom classes fixed (all proven word-level against cuobjdump 13.3 on
 //! the 2049-cubin corpus, 678,608 LDG/STS/STG-family records; report
-//! results/cubitfix/084.md):
+//! the internal fix archive
 //!   * LDG.E.{64,128,S8}.CONSTANT decoded with halved regs/UR + phantom imm
 //!     (e.g. `R12, desc[UR10][R12.64]` -> `R6, desc[UR1][R6.64], 0x0`);
 //!   * LDG.E.EF[.{64,128,U16,S8}] mis-routed to LDG.E.LTC128B.128 rows;

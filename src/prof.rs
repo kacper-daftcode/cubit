@@ -1,4 +1,4 @@
-//! b8 PHASE-1 (front MAIN iter19): static control-word readback from
+//! Static control-word readback from
 //! emitted cubins -- the "profiler readback" layer Nsight cannot give.
 //!
 //! What this module reads back, per instruction word, straight from the

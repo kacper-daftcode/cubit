@@ -1,6 +1,5 @@
-//! BUG-131 (F2-Q; kanal floty: nota FADD_R_L_R_FIELD122 / i249 lab-gen5,
-//! severity: srednia — blokada adopcji binarki na sm120 + dziura dekodera):
-//! klaster FADD w tables/sm120.json. Trzy warstwy:
+//! BUG-131: FADD cluster in tables/sm120.json (a stale junk field behind a
+//! decoder hole + toolchain load block). Three layers:
 //! (a) FLEET-BLOCKER [zamkniety merge'em 823f5d4; t131_3 = pin-invariant]:
 //!     FADD_R_L_R::{RZ,SAT} niosly junk-pole {shift:122, bits:8,
 //!     token_idx:3, extraction:"reg"} -> 122+8=130 > 128 -> post-hardening
@@ -20,7 +19,7 @@
 //!     sig R_L_R sprzeczny z polami reg; zero form *L w korpusie 2051
 //!     cubinow vendor). Fix: USUNIECIE obu junk-grup; ich slowa kanoniczne
 //!     dekoduja sie przez prawidlowe FADD_R_R_R::{RZ,SAT} z pelnym tok3
-//!     (t131_4). Dowód A/B korpusu: results/cubitfix/131.md.
+//!     (t131_4). Dowód A/B korpusu: the internal fix archive
 //! Obserwacja pre-fix (raport 131.md; oddzielny kandydat BUG-132): encode
 //! '@P1 FADD.FTZ.RZ ...' przed fixa "przechodzil" z bitami 78..80
 //! WYZEROWANYMI (cichy mod-drop przez fallback lookup-chain do grupy "";

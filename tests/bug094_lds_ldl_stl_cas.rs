@@ -16,7 +16,7 @@
 //!     CAS,E,GPU,STRONG) added to sm120 from canon (was DECERR, opcode 0x03a9).
 //! (4) printer: ATOM*/REDG size modifier prints between operation and STRONG
 //!     (vendor `ATOMG.E.CAS.64.STRONG.SYS`, not `ATOMG.E.CAS.STRONG.64.SYS`).
-//! Report: results/cubitfix/094.md. Anchors: results/cubitfix/094/anchors094.json.
+//! Report: the internal fix archive Anchors: the internal fix archive
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;
@@ -28,7 +28,7 @@ const M96: u128 = (1u128 << 96) - 1;
 
 /// (word, vendor-canonical text, canon-encode guard) — anchors section-aligned
 /// from the 2049-cubin vendor census (cuobjdump 13.3); sources in the repo
-/// artifacts (results/cubitfix/094/anchors094.json). guard=true marks words
+/// artifacts (the internal fix archive guard=true marks words
 /// whose sm_103a encode is lawfully refused by the BUG-088 .128 alignment law
 /// (decode stays full-fidelity; encode tested on sm120 only).
 const GOLD: &[(u128, &str, bool)] = &[
@@ -327,7 +327,7 @@ fn bug094_junk_catchall_gone() {
 #[test]
 fn bug094_era_glif_encode_retention_both_tables() {
     // Era text (b4fill2 era) carries the LDG.E.LTC128B.128 glif; the frozen
-    // era encode (5,617-line era-enc gate, results/cubitfix/083/enc_postfix.json)
+    // era encode (5,617-line era-enc gate, the internal fix archive
     // must stay byte-exact. After BUG-094 the encode routes via the encode_only
     // retention rows (canon LDG.E.LTC128B.128_R_dARI / sm120 BUG-090 row),
     // NOT via decode-visible state.
@@ -346,7 +346,7 @@ fn bug094_era_glif_encode_retention_both_tables() {
         "LDG.E.LTC128B.128 R10, desc[UR8][R6.64+0x800] !rsd[0:1,72:1,73:1,75:1,81:1,82:1,83:1,84:1,91:1,92:1]",
 ];
     // Canon (sm103a) retention row preserves the era encoding verbatim
-    // (5,617-line era-enc gate = 0 diff vs results/cubitfix/083/enc_postfix.json).
+    // (5,617-line era-enc gate = 0 diff vs the internal fix archive
     // BUG-122 (F2, 2026-08-24): the retention row now bakes the vendor-13.3
     // hi-payload (incl. silicon-required {72,90,91}) + bit0; the !rsd frames
     // above are rebased to the new row (era delta = 69:0,73:1,74:0,76:0,90:0,

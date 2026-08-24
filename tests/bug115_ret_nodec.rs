@@ -1,10 +1,9 @@
-//! BUG-115 (F2-Q, dyrektywa wlasciciela 2026-08-24: "RET.NODEC trzeba
-//! poprawic, zadnego __raw__"): RET.REL.NODEC over-fit harvest — dwie
-//! przypadkowe koharty AND-split w `tables/sm103a.json`:
-//!  * `RET_II` (fantom): and_base == doslownie slowo FA4 W_B, fields=[],
-//!    count=2 -> ciagnela strict-match przez priority, IR tracilo rejestr.
-//!  * `RET_R_II`: bit24 (reg bit0) wypieczony 0 (korpus mial tylko parzyste
-//!    rejestry) + corridor-bits [55:34] czesciowo wypieczone.
+//! BUG-115: RET.REL.NODEC over-fit harvest — two accidental
+//! AND-split cohorts in `tables/sm103a.json`:
+//!  * `RET_II` (phantom): and_base == the literal FA4 W_B word, fields=[],
+//!    count=2 -> won strict-match via priority, IR lost the register.
+//!  * `RET_R_II`: bit24 (reg bit0) baked 0 (the corpus carried only even
+//!    registers) + corridor bits [55:34] partially baked.
 //!
 //! Prawda danych (pelny harvest nad korpusem 2145 cubinow, 33,258,037
 //! instrukcji, 11,714 slow RET — 100% `RET.REL.NODEC Rn, 0x0`):

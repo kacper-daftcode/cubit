@@ -1,4 +1,4 @@
-//! b4forward3 (loop5 iter18, 2026-08-21): closure of the final `/* ? */`
+//! b4forward3: closure of the final `/* ? */`
 //! passthrough residuum on tables/sm103a.json (23 slots of the certified rt98
 //! gold -- M4.8 sm103 A/B hygiene; parked list from B4FILL2 + BUG-060 guard):
 //!
@@ -24,7 +24,7 @@
 //!   one-operand form re-encodes byte-exact natively (BUG-027 fixup shadows
 //!   the stale harvest imm field). Silicon legality of this era class on
 //!   sm_103a is NOT probed -- krun-audit queue (BUG-060 follow-up list).
-//! Provenance: /root/blindlab/work/b4f3 (measurement + gates).
+//! Provenance: the internal research tree (measurement + gates).
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;

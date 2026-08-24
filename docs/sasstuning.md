@@ -1,8 +1,3 @@
----
-name: sasstuning
-description: SM120 (Blackwell/RTX 5090) SASS kernel optimization knowledge. Use when writing, scheduling, or optimizing hand-written SASS kernels, debugging GPU performance, or working with cubit assembler. Covers barrier management, stall tuning, register allocation, memory latency hiding, and QMMA tensor core scheduling.
----
-
 # SM120 SASS Kernel Tuning Guide
 
 Hard-won knowledge from hand-scheduling QMMA GEMV kernels on RTX 5090 (SM120).

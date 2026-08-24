@@ -7,7 +7,7 @@
 //!   B) the fail-closed use-before-def GATE at the end of lower_kernel
 //!      (entry liveness on the rendered text, R+UR domains),
 //! plus the run-to-run determinism of the emitted text (dead-pred sink
-//! order). Report: results/cubitfix/118.md.
+//! order). Report: the internal fix archive
 use cubit::ptx_lower::{check_use_before_def, lower_kernel};
 use cubit::ptx_parse::parse_ptx;
 use cubit::table::IsaTable;

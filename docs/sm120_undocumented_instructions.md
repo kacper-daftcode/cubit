@@ -1,4 +1,4 @@
-# SM120 (Blackwell/RTX 5090) Secret Weapons
+# SM120 (Blackwell/RTX 5090) undocumented-class instructions
 
 Instructions that exist in hardware but nvcc doesn't generate.
 Only accessible via hand-written SASS (cubit).

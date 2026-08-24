@@ -15,16 +15,13 @@ full companion set of a 13.3 nvcc cubin statelessly (no `-T` donor):
 - `.nv.shared.K` only for static-smem kernels; `.nv.constant0.K` exact end.
 
 ## Enabling
-Default ON since 2026-08-24 (owner decision, anchor migration rt98
-3d15ab6a -> 6a58a60642b913697d8ba3a3b9168504; .text bit-identical).
-Set `CUBIT_MERC13=0` for the byte-legacy output
-(`build_legacy`, verbatim) so the frozen chain reference of rt98
-(3d15ab6a174d9765e60538d9fe575194) stays byte-exact. With the flag the chain
-migrates to the evolved anchor (6a58a60642b913697d8ba3a3b9168504); flipping
-the legacy mode remains available for frozen-chain reproduction.
+Default: ON (the sovereign emitter). Set `CUBIT_MERC13=0` for the byte-legacy
+output (`build_legacy`, verbatim), e.g. to reproduce binaries assembled by
+pre-merc13 cubit. Both modes keep `.text` bit-identical; only the companion
+sections differ.
 
 ## Known phase-1 approximations (verified-legal, not yet byte-exact)
 Mercury func `st_size` = align16(capsule length); Mercury 0x1c exit offsets =
 [earlier SASS exits +0x10] + [st−0x10]; the exact 13.3 values come from the
-capsule VM expansion (see results/cubitfix/merc.md phase-2). `.nv.merc.rela.text.K`
+capsule VM expansion (tracked for phase-2). `.nv.merc.rela.text.K`
 for static-smem kernels is parked (capsule field offset law pending).

@@ -4,7 +4,7 @@
 //! render `desc[URm][Rn.64]`) requires an EVEN pair base Rn on sm_103a.
 //!
 //! Silicon (B300, krunp, GPU idle windows 2026-08-22; records
-//! results/cubitfix/078/krun_record.txt; krunp harness from 060k):
+//! the internal fix archive krunp harness from 060k):
 //!   decisive A/B (valid VA composed into the pair):
 //!     ATOMG.E.ADD.STRONG.GPU PT, R58, desc[UR4][R5.64], R40
 //!       -> CUDA_ERROR_ILLEGAL_INSTRUCTION 10/10 across spaced epochs
@@ -39,7 +39,7 @@ fn enc(text: &str, t: &IsaTable) -> anyhow::Result<u128> {
 }
 
 // Fixed points: words produced by the pre-guard encoder (cubit-0d14959),
-// cross-rendered by nvdisasm 13.3 (results/cubitfix/078/probes/*.cubin).
+// cross-rendered by nvdisasm 13.3 (the internal fix archive
 // NOTE: constants are ENCODER fixed points (encode_instruction returns the
 // payload with the default ctrl pattern 0x000fc200..; the scheduled cubins
 // carry the same payload -- nvdisasm hex differs only in the ctrl field).

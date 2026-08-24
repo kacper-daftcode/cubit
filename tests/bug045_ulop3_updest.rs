@@ -1,7 +1,7 @@
 //! BUG-045 (F2-kanoniczny, residual z BUG-030): ULOP3 forma UP-dest z tok4=UR
 //! oraz kanonikalizacja UPT-dest.
 //!
-//! Mapa dekodowania ULOP3.LUT (korpus i93, 14777 slow, census results/cubitfix/045):
+//! Mapa dekodowania ULOP3.LUT (korpus i93, 14777 slow, census the internal fix archive
 //!   bit11=1 -> tok4 imm32:  ULOP3_UR_UR_II_UR_II_UP (bezin. UP-dest)
 //!                           ULOP3_UP_UR_UR_II_UR_II_UP (UP-dest)
 //!   bit11=0 -> tok4 UR:     ULOP3_UR_UR_UR_UR_II_UP  (bezin. UP-dest)
@@ -51,7 +51,7 @@ fn dec(word: u128) -> String {
 }
 
 /// 24+3 zlote slowa z i93 harvest (nvdisasm -c, cublasLt/cudnn sm_120).
-/// Dowody: results/cubitfix/045/gold.json.
+/// Dowody: the internal fix archive
 const GOLD: &[(u128, &str)] = &[
     (0x000fe2000f80c0ff0000000410ff7292, "ULOP3.LUT UP0, URZ, UR16, UR4, URZ, 0xc0, !UPT"),
     (0x000fe2000f80c0ff0000000412ff7292, "ULOP3.LUT UP0, URZ, UR18, UR4, URZ, 0xc0, !UPT"),

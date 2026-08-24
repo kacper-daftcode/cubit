@@ -2,7 +2,7 @@
 //! 0x81/0x84/0x86 used to print as a single aliased "LDG.E.LTC128B.128 ..
 //! desc[UR..][R..]" text. The 249 words below are the i108 golden set with
 //! nvdisasm-12.8 native renders (patch-probe per word, see the bug package
-//! results/cubit-bugs/038/). Invariants pinned here:
+//! 038). Invariants pinned here:
 //!   1. decode renders EXACTLY the native text,
 //!   2. the text re-encodes byte-exact (modulo scheduling bits [127:96]),
 //!   3. the text encodable from scratch via the new ARURI/ARI entries
@@ -302,7 +302,7 @@ fn bug038_ldg_sink_still_serves_legacy_words() {
     // self-word is `@P0 LD.EF.U8 R0, [R0]` — an LD.EF class with ZERO anchors
     // in the 2049-cubin gate corpus and both census universes (885k words);
     // neither table carries LD.EF.U8 coverage today (b4-feed note,
-    // results/cubitfix/094/NOTE_sink_ld_ef.md). Decode is therefore
+    // the internal fix archive Decode is therefore
     // FAIL-CLOSED now; re-pin to the LD.EF truth when coverage lands.
     // b4fill4 (F2-iter38): coverage landed — 25 additive LD_R_ARI mod groups
     // (full LD ARI family incl. .EF) with per-row probe anchors; the sink word

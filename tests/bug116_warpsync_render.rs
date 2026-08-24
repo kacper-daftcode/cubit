@@ -1,6 +1,6 @@
-//! BUG-116 (F2-Q, odnotowane w 115.iter46 jako 116-kand): WARPSYNC collective
-//! render drukowal SUROWE pole offsetu (np. "0x5") zamiast resolved partner
-//! targetu vendor (nvdisasm: `\((.L_x_N)`) — tekst->slowo nie roundtripowal.
+//! BUG-116: WARPSYNC collective
+//! render printed the RAW offset field (e.g. "0x5") instead of the resolved partner
+//! vendor target (nvdisasm: `\((.L_x_N)`) — text->word did not round-trip.
 //!
 //! Prawda danych (pelny harvest 2145 cubinow / 33,258,037 instr, 262,879 slow
 //! WARPSYNC, nvdisasm 13.3 -hex + L-label resolution):

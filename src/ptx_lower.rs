@@ -288,7 +288,7 @@ fn sreg_sass_name(ptx_name: &str) -> Option<&'static str> {
         "%nctaid.x" => "SR_NCTAID.X", "%nctaid.y" => "SR_NCTAID.Y", "%nctaid.z" => "SR_NCTAID.Z",
         "%laneid"   => "SR_LANEID",    "%warpid"   => "SR_WARPID",   "%smid"     => "SR_SMID",
         "%clock"    => "SR_CLOCKLO",   "%clock64"  => "SR_CLOCKLO",
-        // BUG-118 gate landing (b_cluster): ptxas sm_103a cl.ptx probe
+        // BUG-118: ptxas sm_103a cl.ptx probe
         // 2026-08-24 -> S2R Rn, SR_CgaCtaId.
         "%cluster_ctarank" => "SR_CgaCtaId",
         // b9 phase-2: unknown special registers must NOT silently become
@@ -1675,7 +1675,7 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
     let mut hoist_movs: Vec<(usize, Instruction)> = Vec::new();
     let mut mv_ins_index = 0usize;
     // b9 phase-2: SASS-form normalization for shapes the sm_103a encoder
-    // provably lacks ("attempted keys" census of the iter31 corpus):
+    // provably lacks (attempted-keys corpus census):
     //  * IADD3[.X]: imm in source slot-3 -> swap to slot-4 (a/b symmetric in
     //    a 3-input add; cin/cout operands untouched). Vendor keeps imm LAST.
     //  * SEL: imm in slot-1 with reg slot-2 -> swap slots and INVERT the
@@ -2172,7 +2172,7 @@ fn lower_mbarrier(
     let addr_arurz = |rb: u8| Operand::Addr { base_reg: Some(rb), base_reg_suffix: None, ur_reg: Some(255), offset: 0 };
 
     // [%reg] with zero offset is the only corpus address shape. A bare
-    // shared-window symbol materializes to its static offset (iter35 layout)
+    // shared-window symbol materializes to its static offset
     // in a scratch reg first.
     let mut base_r = |insn: &PtxInsn, alloc: &mut RegAlloc, i: usize,
                       out: &mut Vec<Instruction>, a: &mut u32| -> Result<Option<u8>> {
@@ -2211,7 +2211,7 @@ fn lower_mbarrier(
         MbarKind::Init => {
             let Some(rb) = base_r(insn, alloc, 0, &mut out, &mut a)? else { return Ok(None) };
             // count operand: imm (materialize via IMAD.MOV.U32; MOV R,imm has
-            // no table row, iter31) or 32-bit register.
+            // no table row) or 32-bit register.
             let rc = match insn.operands.get(1) {
                 Some(PtxOperand::IntImm(v)) => {
                     let r = alloc.gpr("$mbar_cnt");
@@ -2505,7 +2505,7 @@ fn lower_mapa(
         _ => return Ok(None),
     };
     // Address: a plain register (corpus shape). A bare shared-window symbol
-    // materializes to its static offset in a scratch reg first (iter35
+    // materializes to its static offset in a scratch reg first.
     // layout, same contract as base_r in lower_mbarrier).
     let mut out: Vec<Instruction> = Vec::new();
     let mut a = addr;
@@ -3911,7 +3911,7 @@ fn lower_atomic(
     //   EXCH     -- 'E,EXCH,GPU,STRONG' carries no sub_imm2 at all
     //   min.s32  -- its field is non-canonical 38/24 (BUG-093 queue; no
     //               +imm vendor word exists anywhere to re-derive against)
-    // The pair is IADD3 lo + IADD3.X hi (iter34 carry-form; %atomcc is the
+    // The pair is IADD3 lo + IADD3.X hi (%atomcc is the
     // self-contained scratch predicate, distinct from CarryChain32's %cc).
     const REBASE_OPS: &[&str] = &["exch", "min"];
     let needs_rebase = !shared && op == "exch"
@@ -4427,7 +4427,7 @@ fn lower_mov_or_sreg(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Opt
     Ok(vec![make_insn(addr, "MOV", vec![rd, rs], guard)])
 }
 
-/// b9 phase-3 #16 (b9p18): setp.{cmp}.f16 -> HSETP2 lane (FINDING F-1 iter46:
+/// setp.{cmp}.f16 -> HSETP2 lane (finding:
 /// pre-lane these went through generic FSETP f32 = silently wrong semantics),
 /// and setp.{eq,ne}.b16 -> PRMT zee-extend + ISETP.U32 lane (pre-lane emitted
 /// signed-no-qualifier ISETP with no zero-extension = silently wrong).

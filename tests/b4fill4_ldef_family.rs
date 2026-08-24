@@ -1,4 +1,4 @@
-//! b4fill4 (loop5 F2-iter38, 2026-08-23): LD generic-family ARI coverage —
+//! b4fill4: LD generic-family ARI coverage —
 //! the BUG-094 junk-sink word's vendor-true class (LD.EF.U8, zero corpus
 //! anchors anywhere — pure word-probe RE on cuobjdump-13.3 one-word cubins,
 //! geometry grounded on the LDG_R_dARI sibling family deltas + LD_R_ARI donor).
@@ -6,7 +6,7 @@
 //! U8/S8/U16/S16/U32/64/128 x {.E present, absent} x {.EF, non-EF},
 //! guard@[12:16), dest reg@[16:24), addr reg@[24:32), signed imm32@[32:64).
 //! Existing rows (E/64,E/128,E) untouched; INVALID7 enum values stay
-//! fail-closed. Provenance: /root/blindlab/work/f2i38/ldef/ (probe scripts +
+//! fail-closed. Provenance: the internal research tree (probe scripts +
 //! anchors_ldef.json; per-row _evidence in the tables).
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

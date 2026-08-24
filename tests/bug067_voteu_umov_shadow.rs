@@ -15,7 +15,7 @@
 //! (61 linii); plaski wiersz `VOTEU.ANY_UP_P` (count=32) ZOSTAJE — jest
 //! wsparty tysiacami zlotych slow korpusu (libcusparse/cutlass/cusolver);
 //! sm103a.json byla czysta od pierwotnie (maska wiersza nie obejmuje [23:16]).
-//! Evidence: results/cubitfix/067/ (words_882_886.json, census_067_delta.json).
+//! Evidence: the internal fix archive (words_882_886.json, census_067_delta.json).
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::table::IsaTable;

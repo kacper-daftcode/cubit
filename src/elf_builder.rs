@@ -179,7 +179,7 @@ const CAPMERC_EXIT_STUB: &[u8] = &[
 ];
 // ── DWARF debug frames (.debug_frame / .nv.merc.debug_frame), nvcc 13.3 law ──
 // Derived empirically on 9 vendor cubins (nvcc 13.3.73 -arch=sm_103a) +
-// rc4_kernel_sm120.cubin (12.8); see results/cubitfix/merc.md.
+// rc4_kernel_sm120.cubin (12.8); see docs/MERC13_COMPANIONS.md.
 //
 // Per kernel the section is a sequence of [CIE][FDE] pairs (the CIE is
 // repeated per FDE, not factored). CIE = 48 B, FDE = 56 B (SASS) / 64 B
@@ -304,7 +304,7 @@ fn merc_fde_program(st_size: u64) -> Vec<u8> {
 
 /// Mercury func st_size (phase-1 law): capsule length aligned to 16.
 /// Exact for the nvcc 12.8 stub world (0xae -> 0xb0); on 13.3 the true value
-/// is the capsule VM expansion (tracked in results/cubitfix/merc.md, phase-2).
+/// is the capsule VM expansion (tracked for phase-2).
 fn merc_st_size(capsule_len: usize) -> u64 {
     (capsule_len as u64 + 0xf) & !0xf
 }
@@ -2565,7 +2565,7 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
         REC_BAR
     };
     let bar_rec = &bar_bytes;
-    // BUG-061 (F2Q): the feature scan computes lane-anchored 024d/024e
+    // BUG-061: the feature scan computes lane-anchored 024d/024e
     // desc-atom records for every REDG/ATOM lane (mk48/mk49), but only the
     // LANED path emits them. Kernels with no param loads take the
     // zero-param-positioned / legacy paths, which have no lane model and
@@ -3203,13 +3203,13 @@ pub fn generate_mercury_full(
                     if ops[i] == "BRA.U" || base_i == "REDUX" {
                         t = true;
                     }
-                    // mk28: zwykly BRA w dialekcie UTCA tez dostaje bit
-                    // (epilog: BRA przeskakujacy strefy CALL thunkow do
-                    // wspolnego landing NOP/EXIT; mkvmem sloty 48/51).
-                    // WYJATEK: samo-petla spin (BRA L_x -> wlasny adres),
-                    // martwy trap za obszarem funkcji wewnetrznych — bez
-                    // bitu (mkvmem slot62 BRA L_400; dowod: orig dword1
-                    // bitmapy 0x3fbf1fdf vs nasze 0x3fb61fdf).
+                    // mk28: a plain BRA in the UTCA dialect also gets the bit
+                    // (epilogue: a BRA jumping across CALL-thunk zones to the
+                    // shared NOP/EXIT landing; mkvmem slots 48/51).
+                    // EXCEPTION: a spin self-loop (BRA L_x -> own address),
+                    // i.e. a dead trap past the internal-function area, gets
+                    // no bit (mkvmem slot62 BRA L_400; evidence: original
+                    // dword1 bitmap 0x3fbf1fdf vs ours 0x3fb61fdf).
                     if base_i == "BRA" && !bra_selfloop_set.contains(&(i as u32)) {
                         t = true;
                     }
@@ -3559,7 +3559,7 @@ pub fn rebuild_cubin(template_bytes: &[u8], patches: &[CubinPatch<'_>]) -> Resul
             // heuristic stops at R127 (higher values in reg slots are usually
             // immediates/RZ), so rebuilding a 255-reg reference kernel used to
             // TRUNCATE REGCOUNT 255 -> 128 and the driver rejected the cubin
-            // with "illegal instruction" at launch (iter77, silicon-verified).
+            // with "illegal instruction" at launch (silicon-verified).
             let derived = ((max_reg + 32) & !31).max(32).min(255);
             patch_regcount_in_elf_floor(&mut cubin.bytes, derived);
         }
@@ -3634,7 +3634,7 @@ fn detect_max_register(code: &[u8]) -> u32 {
 /// the `.nv.merc.nv.info.*` Mercury metadata carries its OWN small REGCOUNT
 /// (8 for the dispatch stub) that has nothing to do with the patched code's
 /// register pressure — a blind whole-file sweep truncated/rewrote those too
-/// (iter77: merc-info REGCOUNT 8 -> 128, driver-visible corruption).
+/// (merc-info REGCOUNT 8 -> 128, driver-visible corruption).
 fn patch_regcount_in_elf_floor(bytes: &mut [u8], new_regcount: u32) {
     // EIATTR REGCOUNT format: [0x04][0x2f][size_lo=0x08][size_hi=0x00][sym4bytes][regcount4bytes]
     let pattern: [u8; 4] = [0x04, 0x2f, 0x08, 0x00];
@@ -5379,7 +5379,7 @@ impl CubinBuilder {
 
     fn build(mut self, kernels: &[KernelEntry]) -> Result<Vec<u8>> {
         // Sovereign nvcc-13.3 companion emission (.debug_frame/.nv.merc.*
-        // laws; results/cubitfix/merc.md) is the DEFAULT since 2026-08-24
+        // laws; docs/MERC13_COMPANIONS.md) is the DEFAULT since 2026-08-24
         // (owner decision; chain anchor migrates rt98 3d15ab6a ->
         // 6a58a60642b913697d8ba3a3b9168504, .text bit-identical).
         // CUBIT_MERC13=0 forces the byte-legacy builder (frozen-chain repro).

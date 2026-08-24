@@ -18,7 +18,7 @@ use cubit::sass_file::parse_sass_file_str_strict;
 use cubit::table::IsaTable;
 use std::process::Command;
 
-/// Wierna kondensacja repro r042 (results/cubit-bugs/repro/r042_double_pred.sass).
+/// Faithful condensation of repro r042 (internal repro archive).
 const SASS_DOUBLE_PRED: &str = ".entry t\n    .param u64 m\n    ISETP.EQ.AND P2, PT, R1, RZ, PT ;\n    ISETP.GT.AND P5, PT, R2, RZ, PT ;\n    @P2 @P5 MOV R28, 0xF ;\n    @P2 MOV R29, 0x9 ;\n    EXIT ;\n.endentry\n";
 const SASS_SINGLE_PRED: &str = ".entry t\n    .param u64 m\n    ISETP.EQ.AND P2, PT, R1, RZ, PT ;\n    @P2 MOV R28, 0xF ;\n    @P2 MOV R29, 0x9 ;\n    EXIT ;\n.endentry\n";
 
