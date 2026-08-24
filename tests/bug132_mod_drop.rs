@@ -152,16 +152,20 @@ fn t132_5_combo_sweep_matches_table_coverage() {
 }
 
 /// t132_6: tolerowane idiomy (allowlista, kazdy z dowodem bajtowym/stabilnosci
-/// pre-fix) NIE moga zostac zlamane przez fail-closed check: LDC.128 R-form
-/// (sm103a) koduje dokladnie vendor-pinned W z bug088 t5; F2FP wildcard
+/// pre-fix) NIE moga zostac zlamane przez fail-closed check: F2FP wildcard
 /// (sm120, qpack production) i REDUX.ADD.U32 (sm103a, bug080 t5) koduja Ok.
 /// Pilnuje tez, ze allowlista NIE rozmywa sie na inne mody (patrz t132_1/5).
+/// NOTE BUG-135: `LDC.128 R-form` zostal WYLACZONY z allowlisty — dawniej
+/// tolerowany "byte-exact pin" okazal sie cichym width-dropem do plain LDC
+/// (nvdisasm: R-domain width 2/3 = INVALID6/7; zero takich slow w korpusie
+/// vendora). Autorski `LDC.128 R...` teraz BAILUJE (piny w bug135).
 #[test]
 fn t132_6_tolerated_idioms_pinned() {
-    let w = enc(&t103(), "LDC.128 R53, c[0x0][0x380] ;").expect("LDC.128 idiom");
-    assert_eq!(w, 0x000fc200000008000000e000ff357b82u128,
-               "LDC.128 R-form must stay byte-exact vs vendor pin (bug088 t5)");
     enc(&t120(), "F2FP.SATFINITE.E4M3.F32.PACK_AB_MERGE_C R26, R14, R26 ;")
         .expect("F2FP wildcard idiom");
     enc(&t103(), "@P0 REDUX.ADD.U32 UR4, R10 ;").expect("REDUX idiom");
+    // anti-rozmycie: LDC.128 R-domain MUSI bailowac glosno (BUG-135)
+    let e = enc(&t103(), "LDC.128 R53, c[0x0][0x380] ;")
+        .expect_err("LDC.128 R-form has no encoding (BUG-135)");
+    assert!(format!("{e}").contains("128"), "error must name the dropped mod: {e}");
 }

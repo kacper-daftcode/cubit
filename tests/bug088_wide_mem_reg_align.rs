@@ -8,14 +8,24 @@
 //!   * LDS.64 dest / STS.64 data odd -> II (even OK, RZ exempt)
 //!   * LDS.128 dest / STS.128 data: legal iff RZ | Rn%8==0 | (Rn<44 & %4==0)
 //!     (%4!=0 traps everywhere tested; odd-quad >=11 traps)
-//!   * LDC.128 deliberately unguarded (no silicon constraint observed)
+//!   * LDC.128 R-form: 2026-08-24 BUG-135 unieważnia "unguarded/no constraint"
+//!     (probes were width-dropped plain loads); authoring is now fail-closed
+//!     (no such encoding; nvdisasm INVALID6/7) -- pins in bug135.
 //! Pins both trap classes (fail-closed, BUG-088 message) and the legal-form
 //! byte-exact fixed points (guard is reject/pass-through, never rewrites).
 //! Scope: sm_103a table only; encoder side; decode untouched.
 
+use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;
 use cubit::table::IsaTable;
+
+fn dec_text(t: &IsaTable, w: u128) -> String {
+    t.decode_index()
+        .decode(w, 0, t)
+        .map(|d| cubit::printer::to_sass(&d))
+        .expect("decode must succeed")
+}
 
 fn t103a() -> IsaTable {
     IsaTable::load(std::path::Path::new("tables/sm103a.json")).unwrap()
@@ -131,14 +141,30 @@ fn t4_sm103a_lds_sts_128_alignment_law() {
     assert_eq!(enc("LDS.128 R4, [R5]", &t103a()).unwrap(), W_LDS128_R4);
 }
 
-// (5) deliberately unguarded: LDC.128 (silicon shows NO constraint: R53/R54/
-// R201 all execute), plain 32-bit LDC, LDC.64 even + RZ fixed points.
+// (5) deliberately unguarded: plain 32-bit LDC, LDC.64 even + RZ fixed points.
+// NOTE (BUG-135): `LDC.128 R-form` used to be pinned here as a byte-exact
+// fixed point via W_LDC128_R53. That pin recorded the pre-BUG-132 SILENT
+// WIDTH DROP: nvdisasm renders W_LDC128_R53 as plain 32-bit `LDC` (probes
+// results/cubitfix/088/probes/p_ldc128_*.cubin), the R-domain width enum
+// [74:73] codes 2/3 are INVALID6/INVALID7 per nvdisasm (graft probes,
+// sm_103a+sm_120a), ptxas never emits R-domain LDC.128 (2x LDC.64), and the
+// 2049-cubin vendor corpus has ZERO R-domain LDC.128 renders. Authoring
+// `LDC.128 R..., c[...]` now fails closed (BUG-132 check; pins in
+// tests/bug135_ldc128_reject.rs). The old "LDC.128 unconstrained on silicon"
+// claim was vacuous -- those probes executed width-dropped 32-bit loads.
 #[test]
 fn t5_sm103a_unconstrained_forms_fixed_points() {
     let _env_guard = ENV_LOCK.lock().unwrap();
     assert_eq!(enc("LDC.64 R54, c[0x0][0x380]", &t103a()).unwrap(), W_LDC64_R54);
     assert_eq!(enc("LDC.64 RZ, c[0x0][0x380]", &t103a()).unwrap(), W_LDC64_RZ);
-    assert_eq!(enc("LDC.128 R53, c[0x0][0x380]", &t103a()).unwrap(), W_LDC128_R53);
+    // The era W_LDC128_R53 word (width-dropped plain LDC) still DECODES and
+    // re-encodes byte-identically as the plain load it actually encodes:
+    let t = t103a();
+    let plain = dec_text(&t, W_LDC128_R53);
+    assert!(plain.contains("LDC R53, c[0x0][0x380]"), "era word is plain LDC: {plain}");
+    assert!(!plain.contains("128"), "no width may be claimed for W_LDC128_R53: {plain}");
+    assert_eq!(enc(&plain, &t).unwrap(), W_LDC128_R53,
+               "plain decode of the era word stays a byte-exact fixed point");
     assert_eq!(enc("LDC R53, c[0x0][0x388]", &t103a()).unwrap(), W_LDC32_R53);
 }
 

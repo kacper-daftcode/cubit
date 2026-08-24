@@ -595,9 +595,6 @@ fn verify_mod_group_retained(
     // word is pinned byte-exact elsewhere while the DECODER cannot claim the
     // mods (render-claim gap / mod-baked wildcard row era). Scoped to
     // (opcode, missing-mod-set) — anything outside fails closed below.
-    //   LDC.128 R-form (sm103a): LDC_R_cAI has no "128" group; the "" row
-    //     encodes the vendor word byte-exact (tests/bug088 t5, W_LDC128_R53);
-    //     decode renders it width-less — render-parity gap owned by b11.
     //   F2FP ...PACK_AB_MERGE_C via the `{fk}_?` wildcard row (sm120; qpack
     //     production kernel, tests/encoding::test_wildcard_suffix_chain_):
     //     render splits the token into PACK_AB + MERGE_C (plus RZ tail).
@@ -605,8 +602,19 @@ fn verify_mod_group_retained(
     //     op as SUM/"" (bits [79:78]=00), decode claims nothing; vendor
     //     2049-cubin corpus shows only .OR. Follow-up: REDUX default-op
     //     census on silicon (b12 lane) — see results/cubitfix/132.md.
+    // NOTE: `LDC.128` R-domain forms were REMOVED from this list (BUG-135):
+    //   the pre-132 encoder silently dropped the width and the pinned word
+    //   (bug088 t5, W_LDC128_R53) is in fact a PLAIN 32-bit LDC word —
+    //   nvdisasm renders it as plain `LDC`, the R-domain width enum
+    //   [74:73] has codes 2/3 rendered INVALID6/INVALID7 by nvdisasm
+    //   (graft probes ldc_graft.cubin, sm_103a + sm_120a alike), ptxas
+    //   decomposes 128-bit constant loads into 2x LDC.64, and the 2049-cubin
+    //   vendor corpus contains ZERO R-domain `LDC.128` renders (only the
+    //   uniform-domain LDCU.128 exists, width bit74). The BUG-088 silicon
+    //   campaign's "LDC.128 unconstrained" conclusion is vacuous: those
+    //   probes executed width-dropped 32-bit LDC words. Authoring guidance:
+    //   use 2x LDC.64 — there is no R-domain 128-bit constant load.
     const MOD_DROP_TOLERATED: &[(&str, &[&str])] = &[
-        ("LDC", &["128"]),
         ("F2FP", &["PACK_AB_MERGE_C"]),
         ("REDUX", &["ADD", "U32"]),
     ];
@@ -1133,8 +1141,15 @@ fn check_imnmx_sm103_erratum(insn: &Instruction, table: &IsaTable) -> Result<()>
 ///   LDS.128 dest / STS.128 data R: legal iff RZ, Rn%8==0, or
 ///     (Rn<44 && Rn%4==0). Rn%4!=0 -> II everywhere (R13/41/45/46/49/126);
 ///     odd-quad (Rn/4)%2==1 with Rn>=44 -> II (R44/52/60/68/100/132/196/204).
-///   LDC.128: NO constraint observed (odd/q2 dest execute, cAI+cARI) --
-///     deliberately left unguarded; documented asymmetry.
+///   LDC.128 R-form: the 088 campaign's "NO constraint observed" conclusion is
+///     VACUOUS (BUG-135): those probes ran width-dropped plain-LDC words (the
+///     era encoder silently dropped .128 pre-BUG-132). nvdisasm renders
+///     R-domain width codes 2/3 as LDC.INVALID6/INVALID7 on sm_103a and
+///     sm_120a alike -- no R-domain LDC.128 encoding exists. Authoring
+///     `LDC.128 R...` now fails closed in verify_mod_group_retained (BUG-132;
+///     no table row expresses the combination), so this guard never sees it.
+///     Write 2x LDC.64 instead. Left deliberately UNGUARDED here only as a
+///     documented non-statement; the hard reject lives in the 132 check.
 ///
 /// Era corpus (rt98_ref.s103) carries exactly ONE word that now fails
 /// closed: `STS.128 [R5.X16+0x10], R204` in KernelA (R204 = quad 51, odd,
@@ -1197,7 +1212,7 @@ fn check_wide_mem_reg_align_sm103(insn: &Instruction, table: &IsaTable) -> Resul
         let legal128 = num % 8 == 0 || (num < 44 && num % 4 == 0);
         if !legal128 {
             anyhow::bail!(
-                "{}.128 data/destination register R{} violates the sm_103a alignment law                 -- SILICON-ILLEGAL (BUG-088; B300 krunp matrix 2026-08-22: legal iff RZ,                 Rn%8==0, or Rn<44 with Rn%4==0; Rn%4!=0 traps EVERYWHERE tested                 (R13/41/45/46/49/126), odd-quad (Rn/4)>=11 traps (R44/52/60/68/100/132/196/204)).                 Renumber (RA pin) instead of assembling the word. NOTE: the era corpus carries                 exactly one such word (`STS.128 [R5.X16+0x10], R204`, quad 51) on a runtime-                 dead path; LDC.128 is deliberately NOT under this guard (silicon shows no                 constraint there). Decode stays full-fidelity for RE."
+                "{}.128 data/destination register R{} violates the sm_103a alignment law                 -- SILICON-ILLEGAL (BUG-088; B300 krunp matrix 2026-08-22: legal iff RZ,                 Rn%8==0, or Rn<44 with Rn%4==0; Rn%4!=0 traps EVERYWHERE tested                 (R13/41/45/46/49/126), odd-quad (Rn/4)>=11 traps (R44/52/60/68/100/132/196/204)).                 Renumber (RA pin) instead of assembling the word. NOTE: the era corpus carries                 exactly one such word (`STS.128 [R5.X16+0x10], R204`, quad 51) on a runtime-                 dead path; LDC.128 R-form is NOT under this guard -- it is outright                 REJECTED upstream (BUG-135: no such encoding exists; the 088-era 'no constraint' claim came from width-dropped probes). Decode stays full-fidelity for RE."
                 , insn.opcode, num
             );
         }
