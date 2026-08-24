@@ -2416,6 +2416,9 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         .map(|x| x.guard.as_ref().is_some_and(|g| g.pred < 7)).collect();
 
     let mut uses: Vec<BarUse> = Vec::new();
+    // Fixed barrier colour for uses pushed by the PINNED pass below (None for
+    // normal allocator-coloured uses).
+    let mut pin_of: Vec<Option<u8>> = Vec::new();
 
     // ---- RAW: variable-latency producers (loads batched, MMA excluded) ----
     let mut i = 0usize;
@@ -2518,16 +2521,18 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         if !waiters.is_empty() {
             let segs = build_segs(group[0], &waiters, ltop[last], lback[last]);
             uses.push(BarUse { setters: group.clone(), waiters, is_rb: false, segs });
+            pin_of.push(None);
         }
         i = last + 1;
     }
 
     // ---- WAR: read-barriers on memory ops whose late operands are overwritten ----
-    for idx in 0..n {
-        if insns[idx].hand_sched { continue; }
+    // Late-latched operand set of memory op `idx` (address regs of loads, data+address
+    // of stores, fragment regs of cooperative MMA). Shared by the auto WAR pass and the
+    // PINNED pass below (BUG-117: a hand_sched memory op whose tag carries `R{b}`).
+    let late_operands = |idx: usize| -> Vec<u8> {
         let op = insns[idx].opcode.as_str();
-        let is_store_war = insn_is_store(&insns[idx], table);
-        let late: Vec<u8> = if is_store_war {
+        if insn_is_store(&insns[idx], table) {
             // A store latches BOTH its data AND its address late — protect both against a
             // later overwriter (the store-address WAR is what ptxas guards on the output
             // pointer bump; cubit previously protected only the data, so the bump raced the
@@ -2551,7 +2556,11 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
             let dests = dest_gprs(&insns[idx]);
             let a = load_addr_gprs(&insns[idx]);
             if a.iter().any(|x| dests.contains(x)) { Vec::new() } else { a }
-        } else { Vec::new() };
+        } else { Vec::new() }
+    };
+    for idx in 0..n {
+        if insns[idx].hand_sched { continue; }
+        let late: Vec<u8> = late_operands(idx);
         if late.is_empty() { continue; }
         if !insn_can_set_write_bar(&insns[idx], table) { continue; } // rb shares the same field encoding
         let opk: Vec<u16> = late.iter().map(|&r| rk(false, r)).collect();
@@ -2566,6 +2575,59 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         if waiters.is_empty() { continue; }
         let segs = build_segs(idx, &waiters, ltop[idx], lback[idx]);
         uses.push(BarUse { setters: vec![idx], waiters, is_rb: true, segs });
+        pin_of.push(None);
+    }
+
+    // ---- PINNED producers (BUG-117 / TS2-LDG256-AUTOWAIT exp-5): a hand_sched
+    // `[CC]`-tagged variable-latency producer (e.g. an LDG.E.NA.ELL2.256.STRONG.GPU
+    // carrying a verbatim champion tag) keeps its write-barrier word untouched,
+    // but the auto RAW pass above skips it, so without this block its AUTO
+    // consumers get NO wait bit — they read the register file before the load
+    // retires (deterministic garbage limbs on silicon; spacers do not help,
+    // only a wait does). Register the pinned producer as a fixed-colour use:
+    // its tag's write-barrier index is honoured verbatim (never reallocated —
+    // it is the author's), the auto waiters up to the next redefinition get
+    // the wait injected by the common emit path (frozen waiters keep their
+    // own tags), and the barrier index is marked occupied over the use's
+    // segments so the allocator never hands it to an auto producer while the
+    // pinned one may still be in flight. A `[W-]`-tagged producer has no
+    // pinned barrier to wait — that shape belongs to the stall doctrine and
+    // is reported by report_hazards, not repaired here.
+    for i in 0..n {
+        if !insns[i].hand_sched { continue; }
+        let b = insns[i].ctrl.write_bar;
+        if b >= NUM_BARRIERS as u8 { continue; }
+        if !insn_needs_write_bar(&insns[i], table, true) { continue; }
+        let gd = writes[i].clone();
+        if gd.is_empty() { continue; }
+        let (waiters, _wrap) = raw_consumers(&reads, &writes, &guarded, i, &gd, ltop[i], lback[i], n);
+        let auto_waiters: Vec<usize> = waiters.into_iter().filter(|&w| !insns[w].hand_sched).collect();
+        if auto_waiters.is_empty() { continue; }
+        let segs = build_segs(i, &auto_waiters, ltop[i], lback[i]);
+        uses.push(BarUse { setters: vec![i], waiters: auto_waiters, is_rb: false, segs });
+        pin_of.push(Some(b));
+    }
+    // PINNED read-barrier arm: a hand_sched memory op whose tag claims `R{b}`
+    // (verbatim champion tags do; TS2-LDG256-AUTOWAIT exp-5 wore `R4`) has its
+    // late-latched operands protected against AUTO overwriters — the WAR pass
+    // above skips frozen instructions, so without this a white address-bump
+    // after a tagged load races the in-flight latch. The pinned rb index is
+    // honoured verbatim and reserved over the use's segments exactly like wb.
+    for i in 0..n {
+        if !insns[i].hand_sched { continue; }
+        let b = insns[i].ctrl.read_bar;
+        if b >= NUM_BARRIERS as u8 { continue; }
+        let late: Vec<u8> = late_operands(i);
+        if late.is_empty() { continue; }
+        let opk: Vec<u16> = late.iter().map(|&r| rk(false, r)).collect();
+        let mut waiters: Vec<usize> = Vec::new();
+        for (ow, _w) in war_overwriter(&writes, i, &opk, ltop[i], lback[i], n) {
+            if !insns[ow].hand_sched && !waiters.contains(&ow) { waiters.push(ow); }
+        }
+        if waiters.is_empty() { continue; }
+        let segs = build_segs(i, &waiters, ltop[i], lback[i]);
+        uses.push(BarUse { setters: vec![i], waiters, is_rb: true, segs });
+        pin_of.push(Some(b));
     }
 
     // ---- colour the uses onto 6 scoreboards via per-instruction occupancy ----
@@ -2585,6 +2647,13 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
 
     for &u in &order {
         let sidx = idxset(&uses[u].segs);
+        if let Some(b) = pin_of[u] {
+            // PINNED use: the colour is the author's, never reallocated; only
+            // reserve it so auto uses stay off the in-flight window.
+            assigned[u] = b;
+            for &i in &sidx { occ[i] |= 1 << b; }
+            continue;
+        }
         let mut chosen: Option<u8> = None;
         for b in 0..NUM_BARRIERS as u8 {
             if sidx.iter().all(|&i| occ[i] & (1 << b) == 0) { chosen = Some(b); break; }
