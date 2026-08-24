@@ -28,6 +28,16 @@
 //!
 //! Fixed:
 //!  11+2N          .nv.shared.reserved.0  (NOBITS, 0x40 minimum)
+//!
+//! b10 F-2 (smem pilot catch): ptxas on sm_103a emits, for any kernel
+//! with static shared memory, `.nv.shared.<K>` sized user_size+0x400
+//! (a fixed 1KB platform-reserved cap, symbol `.nv.reservedSmem.cap`,
+//! WEAK UND value 0x400) and loads user tile at window offset 0x400.
+//! `.nv.reservedSmem.offset0` is ALWAYS 0x40 (not the size); PT_LOAD
+//! RW memsz = max-kernel total + reserved.0 (0x40). Without this the
+//! driver overcommits only user_size bytes and the first STS past it
+//! raises ILLEGAL_ADDRESS (b10 pilot k3 smemrev, 700 before launch
+//! made it visible; vendor n=3 sizes 16/1024/4096 pin the law).
 //!  12+2N+ki       .nv.shared.K[i]        (NOBITS, per-kernel shared_size)
 //!
 //! Per-kernel (N×):
@@ -4091,7 +4101,11 @@ impl CubinBuilder {
                     let mut found_sz = 0x40u64;
                     for ki in 0..n {
                         if sec_idx_in_file == shared_k(ki) {
-                            found_sz = (kernels[ki].meta.shared_size as u64).max(0x40);
+                            {
+                                let usz = kernels[ki].meta.shared_size as u64;
+                                // b10 F-2: +0x400 reserved cap when smem used
+                                found_sz = if usz > 0 { usz + 0x400 } else { 0x40 };
+                            }
                             break;
                         }
                     }
@@ -4183,7 +4197,8 @@ impl CubinBuilder {
                 PF_R | PF_W,
                 shared_off,
                 0,
-                max_shared,
+                // b10 F-2: vendor footprint = user_max>0 ? user+cap+r0 : r0(0x40)
+                if max_shared > 0x40 { max_shared + 0x400 + 0x40 } else { 0x40 },
                 8,
             );
             phi += 1;
@@ -4369,7 +4384,7 @@ impl CubinBuilder {
             STT_OBJECT,
             STV_DEFAULT,
             0,
-            max_shared,
+            0x40,   // b10 F-2: vendor constant (was max_shared)
             4,
         );
         // [N+2] __nv_reservedSMEM_offset_0_alias WEAK NOTYPE shared
@@ -4380,7 +4395,7 @@ impl CubinBuilder {
             STT_NOTYPE,
             0xa0,
             idx_shared as u16,
-            max_shared,
+            0x40,   // b10 F-2: vendor constant (was max_shared)
             0,
         );
         // [N+3] .debug_frame section sym
@@ -4451,6 +4466,24 @@ impl CubinBuilder {
             );
         }
 
+        // [b10 F-2] .nv.reservedSmem.cap WEAK OBJECT UND value=0x400 --
+        // ptxas emits it whenever any kernel carries static smem. Appended
+        // AFTER every index-numbered slot (func_sym_idx must not shift).
+        if max_shared > 0x40 {
+            let stn_reserved_cap = self.strtab.add(".nv.reservedSmem.cap");
+            emit_sym(
+                &mut symtab,
+                stn_reserved_cap,
+                STB_WEAK,
+                STT_OBJECT,
+                STV_DEFAULT,
+                0,
+                0x400,
+                4,
+            );
+        }
+
+
         // ── Build Mercury symtab ──────────────────────────────────────────
         // Same layout as regular symtab, but for Mercury sections:
         //   [0]      null
@@ -4492,7 +4525,7 @@ impl CubinBuilder {
             STT_OBJECT,
             STV_DEFAULT,
             0,
-            max_shared,
+            0x40,   // b10 F-2: vendor constant (was max_shared)
             4,
         );
         // [N+2] __nv_reservedSMEM_offset_0_alias WEAK NOTYPE merc_shared
@@ -4503,7 +4536,7 @@ impl CubinBuilder {
             STT_NOTYPE,
             0xa0,
             idx_merc_shared as u16,
-            max_shared,
+            0x40,   // b10 F-2: vendor constant (was max_shared)
             0,
         );
         // [N+3] .nv.merc.debug_frame section sym
@@ -4546,6 +4579,22 @@ impl CubinBuilder {
                 stub_sz,
             );
         }
+
+        // [b10 F-2] merc mirror of .nv.reservedSmem.cap (tail-appended)
+        if max_shared > 0x40 {
+            let stn_reserved_cap = self.strtab.add(".nv.reservedSmem.cap");
+            emit_sym(
+                &mut merc_symtab,
+                stn_reserved_cap,
+                STB_WEAK,
+                STT_OBJECT,
+                STV_DEFAULT,
+                0,
+                0x400,
+                4,
+            );
+        }
+
 
         // ── Build section data ────────────────────────────────────────────
         // Section data for .nv.info (global): REGCOUNT, FRAME_SIZE, MIN_STACK_SIZE
@@ -4810,6 +4859,7 @@ impl CubinBuilder {
         // mk28: kolejnosc nvcc — per-kernel .nv.shared.K PRZED reserved.0.
         for ki in 0..n {
             let sh_size = kernels[ki].meta.shared_size as u64;
+            // b10 F-2: +0x400 platform-reserved cap (vendor law)
             if sh_size > 0 {
                 secs.push((
                     shn_shared_k[ki],
@@ -4820,7 +4870,7 @@ impl CubinBuilder {
                     0,
                     text_k(ki) as u32,
                     0,
-                    Some(sh_size),
+                    Some(sh_size + 0x400),
                 ));
             } else {
                 // Even if shared_size is 0, we still need the section for index consistency
@@ -5109,7 +5159,8 @@ impl CubinBuilder {
         let text_start = sec_off[text_k(0)];
         let text_end = text_start + (0..n).map(|ki| sec_size[text_k(ki)]).sum::<u64>();
 
-        let shared_memsz: u64 = max_shared; // max of all per-kernel shared sizes
+        // b10 F-2: vendor footprint (smem: user+0x400+0x40; else 0x40)
+        let shared_memsz: u64 = if max_shared > 0x40 { max_shared + 0x400 + 0x40 } else { 0x40 };
         let shared_filesz: u64 = 0;
 
         let const_start = sec_off[const0_k(0)];

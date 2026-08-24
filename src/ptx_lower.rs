@@ -885,12 +885,22 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                         }
 
                         SassTemplate::Shfl => {
+                            // b10 F-3: parser splits the dst token `reg|pred`
+                            // into two operands ([0]=data dst, [1]=pred out).
+                            // The pred half is consumed nowhere in the corpus
+                            // before overwrite (2026-08-24 census of 192 sites)
+                            // -> emitted pred is PT, matching the pre-fix
+                            // template; the data dst now lands on the SAME
+                            // physical register the readers use.
                             let mode = ptx_map::shfl_mode(&insn.opcode);
                             let d = ptx_op_to_sass(&insn.operands[0], &mut alloc, false);
-                            let src = ptx_op_to_sass(&insn.operands[1], &mut alloc, false);
-                            let off = ptx_op_to_sass(&insn.operands[2], &mut alloc, false);
-                            let clamp = if insn.operands.len() > 3 {
-                                ptx_op_to_sass(&insn.operands[3], &mut alloc, false)
+                            let src_i = if insn.operands.len() > 1
+                                           && matches!(insn.operands[1], PtxOperand::Pred(_))
+                                        { 2 } else { 1 };
+                            let src = ptx_op_to_sass(&insn.operands[src_i], &mut alloc, false);
+                            let off = ptx_op_to_sass(&insn.operands[src_i + 1], &mut alloc, false);
+                            let clamp = if insn.operands.len() > src_i + 2 {
+                                ptx_op_to_sass(&insn.operands[src_i + 2], &mut alloc, false)
                             } else { op_imm(0x1f) };
                             let opf = format!("SHFL.{}", mode);
                             insns.push(make_insn(addr, &opf, vec![op_pt(), d, src, off, clamp], guard));
@@ -3891,6 +3901,14 @@ fn lower_mov64(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Gu
             let bits = v.to_bits();
             out.push(make_insn(addr, "IMAD.MOV.U32", vec![op_reg(rd_lo), op_rz(), op_rz(), op_imm((bits & 0xffffffff) as i64)], guard.clone()));
             out.push(make_insn(addr+16, "IMAD.MOV.U32", vec![op_reg(rd_hi), op_rz(), op_rz(), op_imm(((bits>>32) & 0xffffffff) as i64)], guard));
+        }
+        // b10 F-1 (pilot gtprobe catch): 64-bit %globaltimer read lowers to
+        // the vendor CS2R form (one instruction, even pair dest); the 32-bit
+        // %globaltimer_lo/hi views have no vendor-anchored mapping and stay
+        // fail-closed below (sreg_sass_name has no entry for them).
+        (PtxOperand::Reg(name), PtxOperand::SReg(srn)) if srn == "%globaltimer" => {
+            let (lo, _hi) = alloc.gpr_pair(name);
+            out.push(make_insn(addr, "CS2R", vec![op_reg(lo), Operand::SysReg("SR_GLOBALTIMERLO".into())], guard));
         }
         (PtxOperand::Reg(name), PtxOperand::SReg(srn)) if srn == "%clock64" => {
             let (lo, hi) = alloc.gpr_pair(name);

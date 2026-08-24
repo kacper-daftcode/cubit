@@ -1032,11 +1032,13 @@ impl KernelMeta {
             records.push(EiRecord { attr: 0x0025, fmt: EiFmt::Byte, data: vec![self.num_barriers] });
         }
 
-        // 4d. SHARED_SIZE (0x08): SVAL = static shared memory size in bytes
+        // 4d. SHARED_SIZE (0x08): SVAL = static shared + 0x400 platform
+        // reserved cap (b10 F-2; the driver accounting total, matching
+        // ptxas resource usage on sm_103a)
         if self.shared_size > 0 {
             records.push(EiRecord {
                 attr: 0x0008, fmt: EiFmt::Sized,
-                data: self.shared_size.to_le_bytes().to_vec(),
+                data: (self.shared_size + 0x400).to_le_bytes().to_vec(),
             });
         }
 

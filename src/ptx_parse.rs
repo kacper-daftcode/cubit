@@ -100,7 +100,8 @@ fn is_special_reg(s: &str) -> bool {
         "%ntid.x" | "%ntid.y" | "%ntid.z" |
         "%nctaid.x" | "%nctaid.y" | "%nctaid.z" |
         "%laneid" | "%warpid" | "%smid" |
-        "%clock" | "%clock64"
+        "%clock" | "%clock64" |
+        "%globaltimer" | "%globaltimer_lo" | "%globaltimer_hi"
     )
 }
 
@@ -330,6 +331,22 @@ fn parse_insn_line(line: &str, reg_decls: &HashMap<String, String>, params: &[Pt
     };
 
     let operand_strs = split_operands(operands_str);
+    // b10 F-3 (pilot k5 catch): shfl dst form is `reg|pred`. Previously the
+    // whole token became ONE operand (a pseudo-register named "r7|p2"), so
+    // the SHFL wrote a fresh allocation while every reader of the plain
+    // register name saw a DIFFERENT, never-written register -- silent wrong
+    // values on silicon (nondeterministic across reps, caught by H10e-k5).
+    // Split only here; `|` in operands is corpus-attested exclusively for
+    // shfl (192 sites in 9 census files, 2026-08-24), and the consumer
+    // (ptx_lower Shfl arm) indexes operands[0]=data-dst, [1]=pred-out,
+    // [2]=src, [3]=off, [4]=clamp -- updated accordingly there.
+    let operand_strs: Vec<String> = if opcode.starts_with("shfl.") {
+        operand_strs.iter()
+            .flat_map(|o| o.split('|').map(|p| p.trim().to_string()).collect::<Vec<_>>())
+            .collect()
+    } else {
+        operand_strs.iter().cloned().collect()
+    };
     let operands: Vec<PtxOperand> = operand_strs.iter()
         .map(|o| parse_operand(o, reg_decls, params))
         .collect();
