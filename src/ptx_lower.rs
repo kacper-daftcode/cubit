@@ -42,6 +42,10 @@ struct RegAlloc {
     /// bails fail-closed. Previously such symbols silently encoded as a
     /// fresh UNINITIALIZED register ([sym] addressing) or 0x0 (mov sym).
     unknown_sym: Option<String>,
+    /// b9 phase-3 #15 (b9p17): BSSY/BSYNC reconvergence-barrier allocator
+    /// for lifter-emitted control regions (atom f16/f16x2 CAS/spin lanes).
+    /// PTX-level branches never emit BSSY, so ids are lifter-exclusive.
+    bar_next: u8,
 }
 
 impl RegAlloc {
@@ -56,6 +60,7 @@ impl RegAlloc {
             free_pairs: Vec::new(),
             free_quads: Vec::new(),
             free_preds: Vec::new(),
+            bar_next: 0,
             pred_hit_cap: None,
             gpr_hit_cap: None,
             unknown_sreg: None,
@@ -165,6 +170,15 @@ impl RegAlloc {
         if let Some(r) = self.gpr_map.remove(name) {
             if r % 2 == 0 { self.free_pairs.push(r); }
         }
+    }
+
+    /// b9 phase-3 #15: next free reconvergence barrier id (B0.. class).
+    /// PTX-level branches never emit BSSY, so the pool is lifter-exclusive;
+    /// lanes emit at most 2 ids per atomic expansion.
+    fn bar_alloc(&mut self) -> u8 {
+        let b = self.bar_next;
+        self.bar_next += 1;
+        b
     }
 
     /// Free a quad of registers (4 consecutive, for .128 reuse).
@@ -1333,6 +1347,12 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
                         }
                         SassTemplate::HalfAdd => {
                             match lower_half_add(addr, insn, &mut alloc, &guard)? {
+                                Some((v, n)) => { insns.extend(v); addr += 16 * n; }
+                                None => { unsupported.insert(insn.opcode.clone()); continue; }
+                            }
+                        }
+                        SassTemplate::SelpU16 => {
+                            match lower_selp_u16(addr, insn, &mut alloc, &guard)? {
                                 Some((v, n)) => { insns.extend(v); addr += 16 * n; }
                                 None => { unsupported.insert(insn.opcode.clone()); continue; }
                             }
@@ -3173,6 +3193,243 @@ fn lower_cp_async(
 
 
 
+/// b9 phase-3 #15 (b9p17): half-float atomics lane. Only `atom.add.noftz`
+/// is anchored; ftz / plain / red / sem+scope / shared / bf16 variants are
+/// all fail-closed (the unsupported list exposes them, zero silent drops).
+///
+/// atom.add.noftz.f16 d, [a], v  -- vendor CAS-emulation loop (corpus p06
+/// O0 /*0150-02d0*/; global probe_f16glob same macro with the G-spellings):
+///   LOP3.LUT tA, a.lo, 0xfffffffd, RZ, 0xc0, !PT    (addr & ~3 semantics:
+///                                                    clear bit1 -> 32b word)
+///   LOP3.LUT tA+1, a.hi, 0xffffffff, RZ, 0xc0, !PT  (hi copy)
+///   LOP3.LUT tB, a.lo, 0x2, RZ, 0xc0, !PT           (half-select bit)
+///   ISETP.EQ.U32.AND P, PT, RZ, tB, PT              (P = aligned-low)
+///   MOV tM, 0x3254 ; SEL tM, tM, 0x7610, P          (PRMT mode by half)
+///   SHF.L.U32 tB, tB, 0x3, RZ                       (extract shift 0/16)
+///   LD[.E|G.E] tO, desc[UR4][tA.64]
+///   BSSY.RECONVERGENT Bk, POST
+/// LOOP: HADD2 tN, tO, v.H0_H0                       (add into both halves)
+///   PRMT tN, tO, tM, tN                             (merge selected half)
+///   ATOM[G].E.CAS.STRONG.GPU PT, tN, [tA], tO, tN   (dest <- old word)
+///   ISETP.NE.U32.AND P, PT, tN, tO, PT
+///   MOV tO, tN
+///   @P BRA LOOP ; NOP ; BSYNC.RECONVERGENT Bk
+/// POST: SHF.R.U32.HI d, RZ, tB, tN                  (selected old half)
+///
+/// atom.add.noftz.f16x2 d, [a], v -- GENERIC space only has the 3-way
+/// fallback protocol (corpus p06 O0 /*0340-05c0*/, distinct-half probe
+/// x2diff): native ATOM.E.ADD.F16x2.RN with the success predicate; on fault
+/// QSPC.E.S routes shared-window aliases to an LDS + ATOMS.CAST.SPIN loop
+/// (H0/H1 HADD2 + SHF.L 0x10 + LOP3 0xe2 (hi&hi_mask)|(lo&~hi_mask) merge)
+/// and anything else to a plain LD/IADD3/ST read-modify-write. Explicit
+/// .global is a SINGLE native ATOMG.F16x2 word (probe_f16glob /*0350*/:
+/// known space, no fallback, PT predicate).
+///
+/// Instruction words are all table-covered rows (LD/LDG dARI, ATOM CAS +
+/// dARI, ATOMS_P_ARI_R_R CAST, QSPC_P_R_ARI, SEL/PLOP3/LOP3/ISETP/SHF/
+/// HADD2 hsel-raw, BSSY_B_II/BSYNC_B/BRA_P_II); the reconvergence barrier
+/// ids come from the lifter-owned pool (PTX-level branches emit no BSSY).
+fn lower_atom_half(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, is_red: bool,
+    op: &str, ty: &str, space: &str, sem: &str, scope: &str, noftz: bool, ftz: bool,
+) -> Result<Option<Vec<Instruction>>> {
+    if is_red || op != "add" || ftz || !noftz { return Ok(None); }
+    if !sem.is_empty() || !scope.is_empty() { return Ok(None); }
+    let global = match space { "" => false, "global" => true, _ => return Ok(None) };
+    if !matches!(ty, "f16" | "f16x2") { return Ok(None); }
+    if insn.operands.len() != 3 { return Ok(None); }
+    let d = match reg_of(insn.operands.get(0), alloc) { Some(r) => r, None => return Ok(None) };
+    let a64 = match insn.operands.get(1) {
+        Some(PtxOperand::Addr { base, offset }) => {
+            if !alloc.is_ptx_reg_name(base) || !alloc.is_64bit(base) || *offset != 0 {
+                return Ok(None); // imm-offset / 32-bit / symbol bases: no anchor
+            }
+            alloc.gpr_pair(base)
+        }
+        _ => return Ok(None),
+    };
+    let v = match reg_of(insn.operands.get(2), alloc) { Some(r) => r, None => return Ok(None) };
+
+    let mut out: Vec<Instruction> = Vec::new();
+    let mut a = addr;
+    macro_rules! p {
+        ($op:expr, $ops:expr) => {{ out.push(make_insn(a, $op, $ops, None)); a += 16; }};
+    }
+    let lbl = |out: &mut Vec<Instruction>, name: &str| {
+        out.push(Instruction {
+            addr: a_dummy(), opcode: String::new(), opcode_full: String::new(),
+            key: String::new(), guard: None, operands: vec![], modifiers: vec![],
+            ctrl: ControlCode::default(), hand_sched: false, rsd: None,
+            raw_text: format!("{}:", name),
+        });
+    };
+    let hadd2 = |out: &mut Vec<Instruction>, d: u8, x: u8, xs: &str, y: u8, ys: &str, a: &mut u32| {
+        let mut ins = make_insn(*a, "HADD2", vec![op_reg(d), op_reg(x), op_reg(y)], None);
+        ins.raw_text = format!("HADD2 R{}, R{}{}, R{}{} ;", d, x, xs, y, ys);
+        out.push(ins);
+        *a += 16;
+    };
+    let pc = alloc.pred("%atomcc");
+    let pred = |neg: bool| Operand::Pred { num: pc, neg };
+
+    if ty == "f16" {
+        let b = alloc.bar_alloc();
+        let l_loop = format!("AF16CAS_{:x}", addr);
+        let l_post = format!("AF16CAS_{:x}_POST", addr);
+        let (t_alo, t_ahi) = alloc.gpr_pair("$atom16_addr");
+        let t_bit = alloc.gpr("$atom16_bit");
+        let t_mode = alloc.gpr("$atom16_mode");
+        let t_old = alloc.gpr("$atom16_old");
+        let t_new = alloc.gpr("$atom16_new");
+        let (ld_op, cas_op) = if global { ("LDG.E", "ATOMG.E.CAS.STRONG.GPU") }
+                              else { ("LD.E", "ATOM.E.CAS.STRONG.GPU") };
+        p!("LOP3.LUT", vec![op_reg(t_alo), op_reg(a64.0), op_imm(0xffff_fffd), op_rz(), op_imm(0xc0), op_not_pt()]);
+        p!("LOP3.LUT", vec![op_reg(t_ahi), op_reg(a64.1), op_imm(0xffff_ffff), op_rz(), op_imm(0xc0), op_not_pt()]);
+        p!("LOP3.LUT", vec![op_reg(t_bit), op_reg(a64.0), op_imm(0x2), op_rz(), op_imm(0xc0), op_not_pt()]);
+        p!("ISETP.EQ.U32.AND", vec![pred(false), op_pt(), op_rz(), op_reg(t_bit), op_pt()]);
+        p!("IMAD.MOV.U32", vec![op_reg(t_mode), op_rz(), op_rz(), op_imm(0x3254)]);
+        p!("SEL", vec![op_reg(t_mode), op_reg(t_mode), op_imm(0x7610), pred(false)]);
+        p!("SHF.L.U32", vec![op_reg(t_bit), op_reg(t_bit), op_imm(0x3), op_rz()]);
+        p!(ld_op, vec![op_reg(t_old), Operand::Desc {
+            ur_idx: 4, base_reg: Some(t_alo), base_reg_suffix: Some(".64".to_string()), offset: 0 }]);
+        p!("BSSY.RECONVERGENT", vec![Operand::Barrier(b), Operand::Label(l_post.clone())]);
+        lbl(&mut out, &l_loop);
+        hadd2(&mut out, t_new, t_old, "", v, ".H0_H0", &mut a);
+        p!("PRMT", vec![op_reg(t_new), op_reg(t_old), op_reg(t_mode), op_reg(t_new)]);
+        p!(cas_op, vec![op_pt(), op_reg(t_new),
+            Operand::Addr { base_reg: Some(t_alo), base_reg_suffix: None, ur_reg: None, offset: 0 },
+            op_reg(t_old), op_reg(t_new)]);
+        p!("ISETP.NE.U32.AND", vec![pred(false), op_pt(), op_reg(t_new), op_reg(t_old), op_pt()]);
+        p!("MOV", vec![op_reg(t_old), op_reg(t_new)]);
+        out.push(make_insn(a, "BRA", vec![Operand::Label(l_loop.clone())],
+            Some(Guard { pred: pc, negated: false, uniform: false })));
+        a += 16;
+        p!("NOP", vec![]);
+        p!("BSYNC.RECONVERGENT", vec![Operand::Barrier(b)]);
+        lbl(&mut out, &l_post);
+        p!("SHF.R.U32.HI", vec![op_reg(d), op_rz(), op_reg(t_bit), op_reg(t_new)]);
+        return Ok(Some(out));
+    }
+
+    // f16x2: explicit .global is vendor-anchored (probe_f16glob: single
+    // ATOMG.E.ADD.F16x2.RN.STRONG.GPU word) but the ATOMG dARI entry has no
+    // F16x2 mod-group; the generic->G bit transform is non-uniform across
+    // the five twin rows (junk in variable regions), so n=2 probe words
+    // cannot fit it honestly. Fail closed; words published to the b4-queue
+    // (b9p17 report sec. F-2).
+    if global { return Ok(None); }
+    let (t_old, t_lo, t_hi, t_new) = (alloc.gpr("$atomx2_old"), alloc.gpr("$atomx2_lo"),
+        alloc.gpr("$atomx2_hi"), alloc.gpr("$atomx2_new"));
+    let b0 = alloc.bar_alloc();
+    let b1 = alloc.bar_alloc();
+    let stem = format!("AX2_{:x}", addr);
+    let l_post = format!("{}_POST", stem);
+    let l_done = format!("{}_DONE", stem);
+    let l_spin = format!("{}_SPIN", stem);
+    let l_sdone = format!("{}_SDONE", stem);
+    let l_glob = format!("{}_GLOB", stem);
+    let a_lo32 = Operand::Addr { base_reg: Some(a64.0), base_reg_suffix: None, ur_reg: None, offset: 0 };
+    let desc64 = |base: u8| Operand::Desc {
+        ur_idx: 4, base_reg: Some(base), base_reg_suffix: Some(".64".to_string()), offset: 0 };
+    p!("ATOM.E.ADD.F16x2.RN.STRONG.GPU", vec![pred(false), op_reg(d), desc64(a64.0), op_reg(v)]);
+    p!("PLOP3.LUT", vec![pred(false), op_pt(), pred(false), op_pt(), op_pt(), op_imm(0x80), op_imm(0x8)]);
+    p!("BSSY.RECONVERGENT", vec![Operand::Barrier(b0), Operand::Label(l_post.clone())]);
+    {
+        let brg = Guard { pred: pc, negated: false, uniform: false };
+        out.push(make_insn(a, "BRA", vec![Operand::Label(l_done.clone())], Some(brg)));
+        a += 16;
+    }
+    p!("QSPC.E.S", vec![pred(false), op_rz(), a_lo32.clone()]);
+    {
+        let brg = Guard { pred: pc, negated: true, uniform: false };
+        out.push(make_insn(a, "BRA", vec![Operand::Label(l_glob.clone())], Some(brg)));
+        a += 16;
+    }
+    p!("BSSY.RECONVERGENT", vec![Operand::Barrier(b1), Operand::Label(l_sdone.clone())]);
+    lbl(&mut out, &l_spin);
+    p!("LDS", vec![op_reg(t_old), a_lo32.clone()]);
+    hadd2(&mut out, t_lo, t_old, ".H0_H0", v, ".H0_H0", &mut a);
+    hadd2(&mut out, t_hi, t_old, ".H1_H1", v, ".H1_H1", &mut a);
+    p!("SHF.L.U32", vec![op_reg(t_hi), op_reg(t_hi), op_imm(0x10), op_rz()]);
+    p!("LOP3.LUT", vec![op_reg(t_new), op_reg(t_hi), op_imm(0xffff_0000), op_reg(t_lo), op_imm(0xe2), op_not_pt()]);
+    p!("ATOMS.CAST.SPIN", vec![pred(false), a_lo32.clone(), op_reg(t_old), op_reg(t_new)]);
+    {
+        let brg = Guard { pred: pc, negated: true, uniform: false };
+        out.push(make_insn(a, "BRA", vec![Operand::Label(l_spin.clone())], Some(brg)));
+        a += 16;
+    }
+    p!("NOP", vec![]);
+    p!("BSYNC.RECONVERGENT", vec![Operand::Barrier(b1)]);
+    lbl(&mut out, &l_sdone);
+    p!("IMAD.MOV.U32", vec![op_reg(d), op_rz(), op_rz(), op_reg(t_old)]);
+    p!("BRA", vec![Operand::Label(l_done.clone())]);
+    lbl(&mut out, &l_glob);
+    p!("LD.E", vec![op_reg(d), desc64(a64.0)]);
+    p!("IADD3", vec![op_reg(t_new), op_pt(), op_pt(), op_reg(d), op_reg(v), op_rz()]);
+    p!("ST.E", vec![desc64(a64.0), op_reg(t_new)]);
+    lbl(&mut out, &l_done);
+    p!("NOP", vec![]);
+    p!("BSYNC.RECONVERGENT", vec![Operand::Barrier(b0)]);
+    lbl(&mut out, &l_post);
+    Ok(Some(out))
+}
+
+/// selp.u16 (SelpU16, b9 phase-3 #15 / b9p17): SEL positional law -- the
+/// imm operand occupies s2 (the imm-capable slot); when a is that imm the
+/// select swaps operands and negates the predicate. Always followed by the
+/// u16 zero-extend PRMT 0x7710 (same idiom as MulHiU16/ShrU16). Anchors:
+/// probe_selu16 -O0 (reg/reg, reg/imm, imm/reg, imm/imm non-zero) + corpus
+/// p06 /*5f0-0620*/ (imm 1 / RZ / !P0). Guards, negated pred sources,
+/// floats and imm values outside u16: fail-closed.
+fn lower_selp_u16(
+    addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: &Option<Guard>,
+) -> Result<Option<(Vec<Instruction>, u32)>> {
+    if insn.opcode != "selp.u16" { return Ok(None); }
+    if guard.is_some() { return Ok(None); }
+    if insn.operands.len() != 4 { return Ok(None); }
+    let d = match reg_of(insn.operands.get(0), alloc) { Some(r) => r, None => return Ok(None) };
+    let a = insn.operands.get(1);
+    let b = insn.operands.get(2);
+    let p_num = match insn.operands.get(3) {
+        Some(PtxOperand::Pred(n)) if !n.contains('!') => alloc.pred(n),
+        _ => return Ok(None),
+    };
+    let in_u16 = |v: i64| -> Option<i64> { if (0..=0xffff).contains(&v) { Some(v) } else { None } };
+    let mut out: Vec<Instruction> = Vec::new();
+    let (s1, s2, neg) = match (a, b) {
+        (Some(PtxOperand::Reg(ra)), Some(PtxOperand::Reg(rb))) => {
+            (op_reg(alloc.resolve(ra)), op_reg(alloc.resolve(rb)), false)
+        }
+        (Some(PtxOperand::Reg(ra)), Some(PtxOperand::IntImm(ib))) => {
+            let i = match in_u16(*ib) { Some(v) => v, None => return Ok(None) };
+            (op_reg(alloc.resolve(ra)), op_imm(i), false)
+        }
+        (Some(PtxOperand::IntImm(ia)), other) => {
+            let i = match in_u16(*ia) { Some(v) => v, None => return Ok(None) };
+            let s1 = match other {
+                Some(PtxOperand::Reg(rb)) => op_reg(alloc.resolve(rb)),
+                Some(PtxOperand::IntImm(0)) => op_rz(),
+                Some(PtxOperand::IntImm(i2)) => {
+                    let v = match in_u16(*i2) { Some(v) => v, None => return Ok(None) };
+                    let t = alloc.gpr("$sel16_mat");
+                    out.push(make_insn(addr + 16 * out.len() as u32, "IMAD.MOV.U32",
+                        vec![op_reg(t), op_rz(), op_rz(), op_imm(v)], None));
+                    op_reg(t)
+                }
+                _ => return Ok(None),
+            };
+            (s1, op_imm(i), true)
+        }
+        _ => return Ok(None),
+    };
+    out.push(make_insn(addr + 16 * out.len() as u32, "SEL",
+        vec![op_reg(d), s1, s2, Operand::Pred { num: p_num, neg }], None));
+    out.push(make_insn(addr + 16 * out.len() as u32, "PRMT",
+        vec![op_reg(d), op_reg(d), op_imm(0x7710), op_rz()], None));
+    let n = out.len() as u32;
+    Ok(Some((out, n)))
+}
+
 fn lower_atomic(
     addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guard>, is_red: bool,
 ) -> Result<Option<Vec<Instruction>>> {
@@ -3190,8 +3447,22 @@ fn lower_atomic(
     let mut op = "";
     let mut ty = "";
     let mut level = "";
+    // b9 phase-3 #15 (b9p17): ftz/noftz are type-level float modifiers.
+    // Anchored only on the f16/f16x2 half-atom lane (noftz; corpus p06 +
+    // probes); on every other (op,type) they remain unanchored fail-closed
+    // (previously the bare token already fell off the end of the matcher).
+    let mut noftz = false;
+    let mut ftz = false;
     for t in toks.iter().skip(1) {
         match *t {
+            "noftz" => {
+                if noftz { return Ok(None); }
+                noftz = true;
+            }
+            "ftz" => {
+                if ftz { return Ok(None); }
+                ftz = true;
+            }
             "global" | "shared" | "local" => {
                 if !space.is_empty() { return Ok(None); }
                 space = t;
@@ -3218,6 +3489,14 @@ fn lower_atomic(
         }
     }
     if op.is_empty() || ty.is_empty() { return Ok(None); }
+
+    // b9 phase-3 #15: half-float atom lane (f16 CAS loop / f16x2 native +
+    // space fallback), fully vendored. Everything else carrying ftz/noftz
+    // has no anchor.
+    if matches!(ty, "f16" | "f16x2" | "bf16" | "bf16x2") {
+        return lower_atom_half(addr, insn, alloc, is_red, op, ty, space, sem, scope, noftz, ftz);
+    }
+    if noftz || ftz { return Ok(None); }
 
     let shared = space == "shared";
     let is64 = matches!(ty, "u64" | "s64" | "b64" | "f64");

@@ -355,6 +355,18 @@ pub enum SassTemplate {
     /// mul.hi.u16: PRMT 0x7710 zero-extend both + IMAD.U32 t, at, bt, RZ +
     /// SHF.R.U32.HI d, RZ, 0x10, t (anchor b16a).
     MulHiU16,
+    /// b9 phase-3 #15 (b9p17): selp.u16 = SEL with the imm operand in the
+    /// s2 slot (s2 is the imm-capable slot: SEL_R_R_II_P / SEL_R_R_R_P),
+    /// swap+negate idiom when that forces a into s2 (vendor anchors
+    /// probe_selu16 -O0 + corpus p06 /*0600*/):
+    ///   (reg a, reg b)     -> SEL d, a, b, p            (probe: 10, R3,R4)
+    ///   (reg a, imm b)     -> SEL d, a, imm, p          (probe: R3, 0x3)
+    ///   (imm a, reg b)     -> SEL d, b, imm, !p         (probe: R4, 0x9, !P0)
+    ///   (imm a, imm b)     -> SEL d, mat(b), imm, !p    (corpus p06: b==0 -> RZ)
+    /// Followed by the canonical u16 zero-extend `PRMT d, d, 0x7710, RZ`
+    /// (corpus p06 /*0610*/; same idiom as MulHiU16/ShrU16). Guarded forms
+    /// and negated/label pred operands: fail-closed (no anchor).
+    SelpU16,
     /// shr.u16 d, a, s: imm s -> MOV t,imm; reg s -> VIMNMX.U32 t, PT, PT, s,
     /// 0xffff, PT; then PRMT t, t, 0x7710, RZ ; PRMT at, a, 0x7710, RZ ;
     /// SHF.R.U32.HI d, RZ, t, at (anchors b16a imm + b16b reg).
@@ -695,6 +707,7 @@ pub static RULES: &[PtxRule] = &[
     PtxRule { pattern: "mul.hi.u16",    template: MulHiU16 },
     PtxRule { pattern: "shr.u16",       template: ShrU16 },
     PtxRule { pattern: "selp.b16",      template: Single { opcode: "SEL", slots: &[Src(0), Src(1), Src(2), Src(3)] } },
+    PtxRule { pattern: "selp.u16",      template: SelpU16 },
     PtxRule { pattern: "mov.b16",       template: Single { opcode: "MOV", slots: &[Src(0), Src(1)] } },
     PtxRule { pattern: "sub.s64",       template: Sub64 },
     PtxRule { pattern: "min.s64",       template: MinS64 },

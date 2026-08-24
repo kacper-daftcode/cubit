@@ -2219,3 +2219,167 @@ fn b9p16_corpus_lanes_end_to_end() {
     let (bytes, cnt) = assemble_body(&t);
     assert_eq!(bytes.len(), cnt * 16, "{}", t);
 }
+
+// ── b9p17 (phase-3 #15): atom.add.noftz.f16 CAS loop / f16x2 3-way fallback /
+// selp.u16 positional-imm law. Vendor anchors: corpus p06 -O0/-O3
+// (work/b9p16/probes corpus_p06) + b9p17 probes probe_selu16/x2diff/f16glob.
+
+#[test]
+fn b9p17_atom_f16_cas_loop() {
+    // generic space: LD.E + ATOM.E.CAS loop (corpus p06 law)
+    let t = lower_text("cvt.rn.f16.f32 %rs1, %f1; atom.add.noftz.f16 %rs2,[%rd1],%rs1;");
+    let cvt = &t; // keep both assertions on the same text
+    assert!(cvt.contains("LOP3.LUT R") && cvt.contains("0xfffffffd"), "align mask: {}", cvt);
+    assert!(cvt.contains("ISETP.EQ.U32.AND"), "half-select predicate: {}", cvt);
+    assert!(cvt.contains("0x3254") && cvt.contains("0x7610"), "PRMT mode select: {}", cvt);
+    assert!(cvt.contains("SHF.L.U32") && cvt.contains("0x3"), "extract shift: {}", cvt);
+    assert!(cvt.contains("LD.E R") && cvt.contains("desc[UR4]"), "generic LD.E: {}", cvt);
+    assert!(cvt.contains("ATOM.E.CAS.STRONG.GPU PT,"), "generic CAS atom: {}", cvt);
+    assert!(cvt.contains(".H0_H0"), "half-broadcast add: {}", cvt);
+    assert!(cvt.contains("BSSY.RECONVERGENT B0,"), "reconvergence open: {}", cvt);
+    assert!(cvt.contains("BSYNC.RECONVERGENT B0"), "reconvergence close: {}", cvt);
+    assert!(cvt.contains("ISETP.NE.U32.AND"), "retry compare: {}", cvt);
+    // backward retry branch targets the loop label (defined AFTER its BSSY)
+    let loop_lbl = t.lines().find(|l| l.trim_start().starts_with("AF16CAS_"))
+        .map(|l| l.trim().trim_end_matches(':')).expect("loop label missing");
+    let bra = t.lines().find(|l| l.starts_with("    @P0 BRA AF16CAS_")).expect("retry BRA missing");
+    assert!(bra.contains(loop_lbl.trim_start()), "retry targets loop head: {}", bra);
+    // extract epilogue after BSYNC region
+    let post = t.find("BSYNC.RECONVERGENT B0").unwrap();
+    assert!(t[post..].contains("SHF.R.U32.HI"), "half extract: {}", t);
+    let (bytes, cnt) = assemble_body(&t);
+    assert_eq!(bytes.len(), cnt * 16, "{}", t);
+}
+
+#[test]
+fn b9p17_atom_f16_global_gspellings() {
+    // explicit .global: same CAS loop with LDG/ATOMG (probe_f16glob law)
+    let t = lower_text("cvt.rn.f16.f32 %rs1, %f1; atom.global.add.noftz.f16 %rs2,[%rd1],%rs1;");
+    assert!(t.contains("LDG.E R") && t.contains("desc[UR4]"), "global LDG.E: {}", t);
+    assert!(t.contains("ATOMG.E.CAS.STRONG.GPU PT,"), "global CAS: {}", t);
+    assert!(!t.contains("ATOM.E.CAS"), "no generic spelling: {}", t);
+    let (bytes, cnt) = assemble_body(&t);
+    assert_eq!(bytes.len(), cnt * 16, "{}", t);
+}
+
+#[test]
+fn b9p17_atom_f16x2_generic_three_way() {
+    // generic f16x2: native atom + P0 fault protocol with QSPC routing
+    let t = lower_text("atom.add.noftz.f16x2 %r2,[%rd2],%r3;");
+    assert!(t.contains("ATOM.E.ADD.F16x2.RN.STRONG.GPU P0,"), "native atom: {}", t);
+    assert!(t.contains("PLOP3.LUT P0, PT, P0, PT, PT, 0x80, 0x8"), "fault refetch: {}", t);
+    assert!(t.contains("QSPC.E.S P0, RZ,"), "space query: {}", t);
+    assert!(t.contains("LDS R") , "shared fallback load: {}", t);
+    assert!(t.contains(".H1_H1"), "hi-half add: {}", t);
+    assert!(t.contains("0xffff0000") && t.contains("0xe2"), "merge law: {}", t);
+    assert!(t.contains("ATOMS.CAST.SPIN P0,"), "shared spin: {}", t);
+    assert!(t.contains("LD.E R") && t.contains("ST.E desc"), "global RMW fallback: {}", t);
+    // two reconvergence barriers with DISTINCT ids, correctly nested/paired
+    let props: Vec<&str> = t.lines().filter(|l| l.contains("RECONVERGENT")).collect();
+    assert_eq!(props.len(), 4, "2x BSSY + 2x BSYNC: {:?}", props);
+    assert_eq!(t.matches("BSSY.RECONVERGENT B").count(), 2, "{:?}", props);
+    assert_eq!(t.matches("BSYNC.RECONVERGENT B").count(), 2, "{:?}", props);
+    let id_of = |l: &str| -> char { l.rsplit(" B").next().unwrap().chars().next().unwrap() };
+    let ids: Vec<char> = props.iter().map(|l| id_of(l)).collect();
+    for l in props.iter().filter(|l| l.trim_start().starts_with("BSSY")) {
+        let id = id_of(l);
+        assert_eq!(ids.iter().filter(|c| **c == id).count(), 2, "paired barrier: {:?}", props);
+    }
+    assert_ne!(id_of(props[0]), id_of(props[2]), "outer/inner ids distinct: {:?}", props);
+    let (bytes, cnt) = assemble_body(&t);
+    assert_eq!(bytes.len(), cnt * 16, "{}", t);
+}
+
+#[test]
+fn b9p17_atom_f16x2_global_fail_closed_pending_row() {
+    // PIN-FLIP CANDIDATE: explicit .global f16x2 is vendor-anchored (probe
+    // probe_f16glob, single ATOMG.E.ADD.F16x2.RN.STRONG.GPU word, no QSPC
+    // fallback) but has NO ATOMG F16x2 mod-group in tables/sm103a.json (the
+    // generic->G delta across twin rows is non-uniform; n=2 probes cannot
+    // fit). Filed to the b4-queue with the two anchor words (b9p17 report).
+    let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .b32 %r<8>;
+    .reg .b64 %rd<3>;
+    ld.param.u64 %rd1, [k_param_0];
+    mov.b32 %r3, 0x3c003c00;
+    atom.global.add.noftz.f16x2 %r2,[%rd1],%r3;
+    ret;
+}}"#, PROLOG);
+    let kernels = parse_ptx(&ptx).unwrap();
+    assert!(lower_kernel(&kernels[0]).is_err(), "missing row must fail closed");
+}
+
+#[test]
+fn b9p17_selp_u16_positional_law() {
+    // corpus p06 shape: (imm 1, imm 0) -> s1=RZ, s2=imm, !P ; PRMT 0x7710
+    let t = lower_text("selp.u16 %rs1, 1, 0, %p1;");
+    let l = t.lines().find(|l| l.trim_start().starts_with("SEL")).unwrap().trim().to_string();
+    assert!(l.contains("RZ, 0x1, !P"), "p06 swap+neg idiom: {}", l);
+    assert!(!t.contains("IMAD.MOV.U32"), "b==0 must use RZ without materialization: {}", t);
+    assert!(t.contains("PRMT") && t.contains("0x7710"), "zero-extend: {}", t);
+    // reg/reg plain
+    let t = lower_text("selp.u16 %rs1, %rs2, %rs3, %p1;");
+    let l = t.lines().find(|l| l.trim_start().starts_with("SEL")).unwrap().trim().to_string();
+    assert!(!l.contains("!P"), "reg/reg direct predicate: {}", l);
+    // reg a, imm b direct
+    let t = lower_text("selp.u16 %rs1, %rs2, 3, %p1;");
+    let l = t.lines().find(|l| l.trim_start().starts_with("SEL")).unwrap().trim().to_string();
+    assert!(l.contains("0x3") && !l.contains("!P"), "reg/imm direct: {}", l);
+    // imm a, reg b -> swap+negate
+    let t = lower_text("selp.u16 %rs1, 9, %rs3, %p1;");
+    let l = t.lines().find(|l| l.trim_start().starts_with("SEL")).unwrap().trim().to_string();
+    assert!(l.contains("0x9") && l.contains("!P"), "imm/reg swap: {}", l);
+    // imm/imm with b!=0 materializes b
+    let t = lower_text("selp.u16 %rs1, 5, 7, %p1;");
+    assert!(t.contains("IMAD.MOV.U32") , "imm b materialized: {}", t);
+    let (bytes, cnt) = assemble_body(&t);
+    assert_eq!(bytes.len(), cnt * 16, "{}", t);
+}
+
+#[test]
+fn b9p17_atom_selp_fail_closed() {
+    // unanchored shapes land on the unsupported list, never silently
+    let cases: [&str; 6] = [
+        "red.add.noftz.f16 [%rd1],%rs1;",              // red: no anchor
+        "atom.add.ftz.f16 %rs2,[%rd1],%rs1;",          // ftz: no anchor
+        "atom.add.noftz.bf16x2 %r2,[%rd1],%r3;",       // bf16: no anchor
+        "atom.shared.add.noftz.f16 %rs2,[%r1],%rs1;",  // shared: no anchor
+        "atom.add.noftz.f16 %rs2,[%rd1+4],%rs1;",      // imm offset: no anchor
+        "atom.add.noftz.f16 %rs2,[%rd1],5;",           // imm value: no anchor
+    ];
+    let guarded = "@%p1 atom.add.noftz.f16 %rs2,[%rd1],%rs1;"; // guarded: BUG-080 policy
+    for body in cases.iter().chain(std::iter::once(&guarded)) {
+        let ptx = format!(r#"{} .visible .entry k(
+    .param .u64 k_param_0
+)
+{{
+    .reg .pred %p<3>;
+    .reg .b16 %rs<4>;
+    .reg .b32 %r<8>;
+    .reg .b64 %rd<6>;
+    ld.param.u64 %rd1, [k_param_0];
+    mov.u32 %r4, %tid.x;
+    cvt.rn.f32.u32 %f1, %r4;
+    cvt.rn.f16.f32 %rs1, %f1;
+    mov.b32 %r3, 0x3c003c00;
+    setp.ne.u32 %p1, %r4, 0;
+    {}
+    ret;
+}}"#, PROLOG, body);
+        let kernels = parse_ptx(&ptx).unwrap();
+        let err = lower_kernel(&kernels[0]);
+        assert!(err.is_err(), "must fail closed: {}", body);
+        let msg = format!("{:?}", err.unwrap_err());
+        assert!(msg.contains("unsupported"), "unsupported-list fail (not panic): {} -> {}", body, msg);
+    }
+    // pre-existing lanes intact
+    let t = lower_text("mov.b16 %rs1, 1; add.f16 %rs3, %rs1, %rs1;");
+    assert!(t.contains(".H0_H0"), "{}", t);
+    let t = lower_text("selp.b16 %rs1, %rs2, %rs3, %p1;");
+    assert!(t.contains("SEL"), "{}", t);
+    // unreachable aid to kill a stray assert above (kept simple)
+    let _ = &cases;
+}
