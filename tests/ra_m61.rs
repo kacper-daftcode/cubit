@@ -143,10 +143,14 @@ fn t61_6_unknown_predicate_family_fails_closed() {
 }
 
 #[test]
-fn t61_7_windowed_recorder_refuses_predicate_moves() {
-    // M6.1 pin doctrine: predicate renames are M6.2 territory; even with a
-    // hand-built plan, the windowed path must bail instead of emitting an
-    // unrecorded splice edit.
+fn t61_7_windowed_recorder_records_predicate_moves() {
+    // M6.1 shipped this pin as "windowed pred move = fail loud" because no
+    // splice record existed for the predicate domains. M6.2 superseded it:
+    // the recorder now CARRIES P/UP changes (ChangeDom::P) for the splice
+    // emitter, and the refusal doctrine migrated to validate_pin
+    // (boundary / injectivity / sink rules -- pinned in tests/ra_m62.rs).
+    // This test pins the raw recorder semantics reachable by hand-built
+    // plans below the validator layer.
     let mut insns: Vec<_> = ["    ISETP.GT.AND P0, PT, R4, R5, P4 ;"]
         .iter()
         .map(|s| parse_sass(s, 0).unwrap())
@@ -155,10 +159,14 @@ fn t61_7_windowed_recorder_refuses_predicate_moves() {
     let mut plan = plan_for_mode(&RaMode::Identity, "k", &xf, &pxf).unwrap();
     plan.p.insert(0, 3);
     let window: BTreeSet<usize> = [0].into_iter().collect();
-    let err = apply_plan_windowed(&mut insns, &plan, &window).unwrap_err();
-    assert!(
-        format!("{err:#}").contains("M6.2 territory"),
-        "windowed pred move must fail loud: {err:#}"
+    let (changed, edits) = apply_plan_windowed(&mut insns, &plan, &window).unwrap();
+    assert_eq!(changed, 1);
+    assert_eq!(edits.len(), 1);
+    assert_eq!(
+        (edits[0].dom, edits[0].from, edits[0].to),
+        (cubit::ra::ChangeDom::P, 0, 3),
+        "predicate move recorded for the splice emitter: {:?}",
+        edits
     );
 }
 

@@ -114,6 +114,21 @@ fn t_voteu_shfl_imnmx_atomg_bra() {
 }
 
 #[test]
+fn t_plain_bra_pred_operand_strict_use() {
+    // Era frozen decode: `BRA PT, L_2160` -- the operand is the branch
+    // condition. Compat keeps the reference's silence (empty, known),
+    // Strict reads it as a use (PT drops as the sink; try P2 as well).
+    let c = xfer("BRA PT, L_2160 ;");
+    assert!(c.known && c.defs.is_empty() && c.uses.is_empty());
+    let s = xfer_strict("BRA PT, L_2160 ;");
+    assert!(s.known && s.defs.is_empty() && s.uses.is_empty()); // PT = sink
+    let s = xfer_strict("BRA P2, L_2160 ;");
+    assert!(s.known && s.uses == v(&[2]));
+    let c = xfer("BRA P2, L_2160 ;");
+    assert!(c.known && c.uses.is_empty(), "compat mirrors the reference");
+}
+
+#[test]
 fn t_uniform_domain_strict_only() {
     let c = xfer("UISETP.GE.AND UP0, UPT, UR29, UR35, UPT ;");
     assert!(c.udefs.is_empty() && c.uuses.is_empty() && c.known);

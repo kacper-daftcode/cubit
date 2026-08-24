@@ -41,7 +41,7 @@
 //! like unknown register-role families.
 
 use crate::ir::{Instruction, Operand};
-use crate::pred_liveness::PredXfer;
+use crate::pred_liveness::{InsLive, PredXfer};
 use crate::reg_liveness::{self, InsRegLive, RegDom, RegXfer};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -88,9 +88,10 @@ pub fn parse_mode(s: &str) -> Result<RaMode> {
     }
 }
 
-/// Pin-override plan for ONE kernel (M4.2). The rename applies ONLY to
-/// instructions whose index falls inside a declared window; everything
-/// outside the windows keeps its numerals (splice semantics).
+/// Pin-override plan for ONE kernel (M4.2 R/UR, M6.2 P/UP). The rename
+/// applies ONLY to instructions whose index falls inside a declared
+/// window; everything outside the windows keeps its numerals (splice
+/// semantics).
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct PinKernelPlan {
     /// `[start, end)` instruction indices, 0-based, end-exclusive
@@ -102,6 +103,14 @@ pub struct PinKernelPlan {
     pub r: BTreeMap<u8, u8>,
     #[serde(default)]
     pub ur: BTreeMap<u8, u8>,
+    /// M6.2: predicate override maps. Same splash semantics as r/ur;
+    /// 7 (PT/UPT) is the constant-true sink and is rejected on both
+    /// sides (validate rule). Predicates have NO spans/geometry, so a
+    /// legal pin is a pure boundary-dead permutation inside the window.
+    #[serde(default)]
+    pub p: BTreeMap<u8, u8>,
+    #[serde(default)]
+    pub up: BTreeMap<u8, u8>,
 }
 
 /// Whole-file pin plan, keyed by kernel name.
@@ -335,17 +344,37 @@ pub fn plan_for_mode(
             for (&s, &d) in &kp.ur {
                 p.ur.insert(s, d);
             }
+            for (&s, &d) in &kp.p {
+                p.p.insert(s, d);
+            }
+            for (&s, &d) in &kp.up {
+                p.up.insert(s, d);
+            }
         }
     }
     Ok(p)
 }
+
+/// Change-domain of one recorded windowed rewrite. R/UR mirror the
+/// register domains; P/UP arrived with M6.2 (pin-mode predicate renames).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChangeDom {
+    R,
+    UR,
+    P,
+    UP,
+}
+
+/// Operand index sentinel for guard rewrites (the guard token lives
+/// before the operand list, so it has no operand index).
+pub const GUARD_OPERAND_IDX: usize = usize::MAX;
 
 /// One numeral rewrite produced by the windowed rewriter.
 #[derive(Debug, Clone)]
 pub struct OperandChange {
     pub insn_idx: usize,
     pub operand_idx: usize,
-    pub dom: RegDom,
+    pub dom: ChangeDom,
     pub from: u8,
     pub to: u8,
 }
@@ -395,11 +424,26 @@ pub fn validate_coverage_apply(plan: &RegPlan, xfers: &[RegXfer]) -> Result<()> 
     Ok(())
 }
 
+/// M6.2 extends the contract to the predicate maps, sourced from the
+/// STRICT predicate transfer sets + dataflow (incl. guard uses):
+///   * pins: P/UP src/dst != 7 (PT/UPT sink); src must occur (typo trap);
+///     no-op pins rejected;
+///   * BOUNDARY: src AND dst dead at each window edge (P: live_in/live_out;
+///     UP: ulive_in / union of successor ulive_in) -- same desync argument
+///     as R/UR;
+///   * injectivity per in-window instruction over the pred occupancy set
+///     (live_in + defs + uses; guards land in uses via the transfer sets);
+///   * predicates have NO spans: there is no span-integrity rule (design
+///     sec.3 -- the ISETP two-destination form is two independent symbols
+///     bound by a same-ins-def edge, corpus-proven with non-adjacent bases).
 pub fn validate_pin(
     kname: &str,
     n_ins: usize,
     xfers: &[RegXfer],
     live: &[InsRegLive],
+    pxfers: &[PredXfer],
+    plive: &[InsLive],
+    insns: &[Instruction],
     kp: &PinKernelPlan,
 ) -> Result<BTreeSet<usize>> {
     if kp.windows.is_empty() {
@@ -423,9 +467,34 @@ pub fn validate_pin(
     // pin sanity + occurrence
     let mut r_occ: BTreeSet<u8> = BTreeSet::new();
     let mut u_occ: BTreeSet<u8> = BTreeSet::new();
+    let mut p_occ: BTreeSet<u8> = BTreeSet::new();
+    let mut up_occ: BTreeSet<u8> = BTreeSet::new();
     for x in xfers {
         r_occ.extend(x.rdefs.iter().chain(x.ruses.iter()).copied());
         u_occ.extend(x.udefs.iter().chain(x.uuses.iter()).copied());
+    }
+    for x in pxfers {
+        p_occ.extend(x.defs.iter().chain(x.uses.iter()).copied());
+        up_occ.extend(x.udefs.iter().chain(x.uuses.iter()).copied());
+    }
+    for (map, dname, occ) in [(&kp.p, "P", &p_occ), (&kp.up, "UP", &up_occ)] {
+        for (&s, &d) in map {
+            if s >= 7 || d >= 7 {
+                bail!(
+                    "ra: pin {kname:?} {dname}{s}->{dname}{d}: PT/UPT (7) is \
+                     the constant-true sink and is never allocatable"
+                );
+            }
+            if s == d {
+                bail!("ra: pin {kname:?} {dname}{s}->{dname}{d}: no-op pin");
+            }
+            if !occ.contains(&s) {
+                bail!(
+                    "ra: pin {kname:?} {dname}{s}->{dname}{d}: source {dname}{s} \
+                     never occurs in kernel"
+                );
+            }
+        }
     }
     for (&s, &d) in &kp.r {
         if s == 255 || d == 255 {
@@ -454,47 +523,163 @@ pub fn validate_pin(
         }
     }
     // window instruction set + boundary checks
+    //
+    // M6.2 BOUNDARY RULE, border-edge exact (all four domains): a pinned
+    // numeral must not cross ANY CFG edge over the window border, in either
+    // direction (desync = the in-window occurrence gets renamed while its
+    // outside partner stays put). The M4.2-era rule checked only the two
+    // fall-through ends (live_in[start], live_out[end-1]); the G18c inverse
+    // round-trip exposed the miss: a window wrapping the divmod loop's back
+    // edge (BRA L_ca50 from inside the window to just before its start) let
+    // a renamed in-window def feed unrenamed outside uses. Rule v2 scans
+    // every border edge under the same may-liveness as the domain's
+    // dataflow; straight-line windows reduce byte-for-byte to the old rule
+    // (the G11c R-swap pins are clean under it: zero border crossings).
     let mut in_window: BTreeSet<usize> = BTreeSet::new();
-    let mr = |v: u8| kp.r.get(&v).copied().unwrap_or(v);
-    let mu = |v: u8| kp.ur.get(&v).copied().unwrap_or(v);
+    let mut in_win_flag = vec![false; n_ins];
     for &(s, e) in &kp.windows {
         in_window.extend(s as usize..e as usize);
-        let entry = &live[s as usize];
-        let exit = &live[e as usize - 1];
-        for (&src, &dst) in &kp.r {
-            for v in [src, dst] {
-                if entry.rlive_in.contains(&v) {
-                    bail!(
-                        "ra: pin {kname:?} R{src}->R{dst}: R{v} is live-in at \
-                         window [{s},{e}) start (0x{:x}) -- splice rename would \
-                         desync from the definition outside the window",
-                        entry.addr
-                    );
-                }
-                if exit.rlive_out.contains(&v) {
-                    bail!(
-                        "ra: pin {kname:?} R{src}->R{dst}: R{v} is live-out at \
-                         window [{s},{e}) end (0x{:x}) -- splice rename would \
-                         desync from the use outside the window",
-                        exit.addr
-                    );
+        for i in s as usize..e as usize {
+            in_win_flag[i] = true;
+        }
+    }
+    let mr = |v: u8| kp.r.get(&v).copied().unwrap_or(v);
+    let mu = |v: u8| kp.ur.get(&v).copied().unwrap_or(v);
+    let mp = |v: u8| kp.p.get(&v).copied().unwrap_or(v);
+    let mup = |v: u8| kp.up.get(&v).copied().unwrap_or(v);
+    {
+        // Border-edge scan, one pass over the kernel per domain.
+        // R domain
+        if !kp.r.is_empty() {
+            for i in 0..n_ins {
+                for &t in &live[i].succ {
+                    let inside = in_win_flag[i];
+                    if inside == in_win_flag[t] {
+                        continue;
+                    }
+                    for (&src, &dst) in &kp.r {
+                        for v in [src, dst] {
+                            let crosses = if inside {
+                                live[i].rlive_out.contains(&v)
+                            } else {
+                                live[t].rlive_in.contains(&v)
+                            };
+                            if crosses {
+                                bail!(
+                                    "ra: pin {kname:?} R{src}->R{dst}: R{v} crosses \
+                                     window border (edge 0x{:x} -> 0x{:x}, {}; R{v} is \
+                                     live-{} there) -- splice rename would desync \
+                                     from the occurrences outside the window",
+                                    live[i].addr,
+                                    live[t].addr,
+                                    if inside { "exit" } else { "entry" },
+                                    if inside { "out" } else { "in" }
+                                );
+                            }
+                        }
+                    }
                 }
             }
         }
+        // UR domain (live-out via succ ulive_in -- InsRegLive convention)
         if !kp.ur.is_empty() {
-            // UR live-out: InsRegLive carries succ + ulive_in; out = union(succ).
-            let mut uout: BTreeSet<u8> = BTreeSet::new();
-            for &t in &exit.succ {
-                uout.extend(live[t].ulive_in.iter().copied());
+            for i in 0..n_ins {
+                for &t in &live[i].succ {
+                    let inside = in_win_flag[i];
+                    if inside == in_win_flag[t] {
+                        continue;
+                    }
+                    for (&src, &dst) in &kp.ur {
+                        for v in [src, dst] {
+                            let crosses = if inside {
+                                // exit side: value must not be live-out of
+                                // any instruction having an out-of-window
+                                // successor (may-edge approximation, shared
+                                // with R/P).
+                                live[i].succ.iter().any(|&s2| live[s2].ulive_in.contains(&v))
+                            } else {
+                                live[t].ulive_in.contains(&v)
+                            };
+                            if crosses {
+                                bail!(
+                                    "ra: pin {kname:?} UR{src}->UR{dst}: UR{v} crosses \
+                                     window border (edge 0x{:x} -> 0x{:x}, {}; UR{v} is \
+                                     live-{} there)",
+                                    live[i].addr,
+                                    live[t].addr,
+                                    if inside { "exit" } else { "entry" },
+                                    if inside { "out" } else { "in" }
+                                );
+                            }
+                        }
+                    }
+                }
             }
-            for (&src, &dst) in &kp.ur {
-                for v in [src, dst] {
-                    if entry.ulive_in.contains(&v) || uout.contains(&v) {
-                        bail!(
-                            "ra: pin {kname:?} UR{src}->UR{dst}: UR{v} crosses \
-                             window [{s},{e}) edge (0x{:x})",
-                            entry.addr
-                        );
+        }
+        // P domain (pred CFG from the same edges plive was computed with)
+        if !kp.p.is_empty() {
+            for i in 0..n_ins {
+                for t in crate::pred_liveness::cfg_successors(insns, i) {
+                    let inside = in_win_flag[i];
+                    if inside == in_win_flag[t] {
+                        continue;
+                    }
+                    for (&src, &dst) in &kp.p {
+                        for v in [src, dst] {
+                            let crosses = if inside {
+                                plive[i].live_out.contains(&v)
+                            } else {
+                                plive[t].live_in.contains(&v)
+                            };
+                            if crosses {
+                                bail!(
+                                    "ra: pin {kname:?} P{src}->P{dst}: P{v} crosses \
+                                     window border (edge 0x{:x} -> 0x{:x}, {}; P{v} is \
+                                     live-{} there) -- splice rename would desync \
+                                     from the predicate occurrences outside the window",
+                                    plive[i].addr,
+                                    plive[t].addr,
+                                    if inside { "exit" } else { "entry" },
+                                    if inside { "out" } else { "in" }
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // UP domain (live-out via successor ulive_in)
+        if !kp.up.is_empty() {
+            for i in 0..n_ins {
+                let succs = crate::pred_liveness::cfg_successors(insns, i);
+                let up_out: BTreeSet<u8> = succs
+                    .iter()
+                    .flat_map(|&s2| plive[s2].ulive_in.iter().copied())
+                    .collect();
+                for &t in &succs {
+                    let inside = in_win_flag[i];
+                    if inside == in_win_flag[t] {
+                        continue;
+                    }
+                    for (&src, &dst) in &kp.up {
+                        for v in [src, dst] {
+                            let crosses = if inside {
+                                up_out.contains(&v)
+                            } else {
+                                plive[t].ulive_in.contains(&v)
+                            };
+                            if crosses {
+                                bail!(
+                                    "ra: pin {kname:?} UP{src}->UP{dst}: UP{v} crosses \
+                                     window border (edge 0x{:x} -> 0x{:x}, {}; UP{v} is \
+                                     live-{} there)",
+                                    plive[i].addr,
+                                    plive[t].addr,
+                                    if inside { "exit" } else { "entry" },
+                                    if inside { "out" } else { "in" }
+                                );
+                            }
+                        }
                     }
                 }
             }
@@ -559,6 +744,49 @@ pub fn validate_pin(
                             v,
                             match dom { RegDom::R => "R", RegDom::UR => "UR" },
                             t
+                        );
+                    }
+                } else {
+                    by_target.insert(t, v);
+                }
+            }
+        }
+        // M6.2: per-instruction predicate injectivity over the occupancy
+        // set (live_in + defs + uses; guard uses are in the transfer sets).
+        // No span rule: predicates carry no geometry.
+        for (m, dname, occ) in [
+            (
+                &mp as &dyn Fn(u8) -> u8,
+                "P",
+                plive[i]
+                    .live_in
+                    .iter()
+                    .chain(pxfers[i].defs.iter())
+                    .chain(pxfers[i].uses.iter())
+                    .copied()
+                    .collect::<BTreeSet<u8>>(),
+            ),
+            (
+                &mup as &dyn Fn(u8) -> u8,
+                "UP",
+                plive[i]
+                    .ulive_in
+                    .iter()
+                    .chain(pxfers[i].udefs.iter())
+                    .chain(pxfers[i].uuses.iter())
+                    .copied()
+                    .collect::<BTreeSet<u8>>(),
+            ),
+        ] {
+            let mut by_target: BTreeMap<u8, u8> = BTreeMap::new();
+            for &v in &occ {
+                let t = m(v);
+                if let Some(&prev) = by_target.get(&t) {
+                    if prev != v {
+                        bail!(
+                            "ra: pin {kname:?}: collision at insn {i} (0x{:x}): \
+                             {dname} {prev} and {v} both land on {dname}{t}",
+                            plive[i].addr
                         );
                     }
                 } else {
@@ -680,19 +908,21 @@ pub fn apply_plan_windowed(
             continue;
         }
         if let Some(g) = ins.guard.as_mut() {
-            // M6.1: pin plans carry no p/up maps, so guards only ever see
-            // the identity plan -- any numeral change here means a plan
-            // source jumped the M6.2 gun and we stop instead of emitting
-            // an unrecorded guard mutation.
-            let gch = remap_guard(g, plan).with_context(|| {
+            // M6.2: guards record under the GUARD_OPERAND_IDX sentinel;
+            // the guard token is rewritten by the splice emitter.
+            let (uniform, before) = (g.uniform, g.pred);
+            remap_guard(g, plan).with_context(|| {
                 format!("ra: guard remap failed at 0x{:x} {}", ins.addr, ins.opcode_full)
             })?;
-            if gch != 0 {
-                bail!(
-                    "ra: pin window changed a guard numeral at 0x{:x} -- \
-                     predicate renames in pin mode are M6.2 territory",
-                    ins.addr
-                );
+            if g.pred != before {
+                changed += 1;
+                edits.push(OperandChange {
+                    insn_idx: i,
+                    operand_idx: GUARD_OPERAND_IDX,
+                    dom: if uniform { ChangeDom::UP } else { ChangeDom::P },
+                    from: before,
+                    to: g.pred,
+                });
             }
         }
         for (oi, o) in ins.operands.iter_mut().enumerate() {
@@ -873,20 +1103,20 @@ fn remap_operand(o: &mut Operand, plan: &RegPlan) -> Result<usize> {
 fn remap_operand_rec(
     o: &mut Operand,
     plan: &RegPlan,
-) -> Result<Vec<(RegDom, u8, u8)>> {
-    let mut out: Vec<(RegDom, u8, u8)> = Vec::new();
+) -> Result<Vec<(ChangeDom, u8, u8)>> {
+    let mut out: Vec<(ChangeDom, u8, u8)> = Vec::new();
     match o {
         Operand::Reg { num, .. } => {
             if *num != 255 {
                 if let Some((f, t)) = remap1_rec(num, &plan.r, "R")? {
-                    out.push((RegDom::R, f, t));
+                    out.push((ChangeDom::R, f, t));
                 }
             }
         }
         Operand::UReg { num, is_zero, .. } => {
             if !*is_zero {
                 if let Some((f, t)) = remap1_rec(num, &plan.ur, "UR")? {
-                    out.push((RegDom::UR, f, t));
+                    out.push((ChangeDom::UR, f, t));
                 }
             }
         }
@@ -894,13 +1124,13 @@ fn remap_operand_rec(
             if let Some(b) = base_reg {
                 if *b != 255 {
                     if let Some((f, t)) = remap1_rec(b, &plan.r, "R")? {
-                        out.push((RegDom::R, f, t));
+                        out.push((ChangeDom::R, f, t));
                     }
                 }
             }
             if let Some(u) = ur_reg {
                 if let Some((f, t)) = remap_ur_slot_rec(u, plan)? {
-                    out.push((RegDom::UR, f, t));
+                    out.push((ChangeDom::UR, f, t));
                 }
             }
         }
@@ -911,43 +1141,31 @@ fn remap_operand_rec(
                 if to != *ur_idx {
                     let f = *ur_idx;
                     *ur_idx = to;
-                    out.push((RegDom::UR, f, to));
+                    out.push((ChangeDom::UR, f, to));
                 }
             }
             if let Some(b) = base_reg {
                 if *b != 255 {
                     if let Some((f, t)) = remap1_rec(b, &plan.r, "R")? {
-                        out.push((RegDom::R, f, t));
+                        out.push((ChangeDom::R, f, t));
                     }
                 }
             }
         }
+        // M6.2: predicate operands record like any register slot; the
+        // splice emitter rewrites the token with the pred-aware needle
+        // (a P-needle never matches inside a UPx token).
         Operand::Pred { num, .. } => {
-            // M6.1: windowed (pin) plans carry the predicate IDENTITY map,
-            // so any change here is out-of-scope drift, not a rename to
-            // record -- fail loud instead of writing an unproven splice.
             if *num < 7 {
-                let before = *num;
-                remap_pred_slot(num, plan)?;
-                if *num != before {
-                    bail!(
-                        "ra: pin window changed predicate P{before}->P{} -- \
-                         predicate renames in pin mode are M6.2 territory",
-                        *num
-                    );
+                if let Some((f, t)) = remap1_rec(num, &plan.p, "P")? {
+                    out.push((ChangeDom::P, f, t));
                 }
             }
         }
         Operand::UPred { num, .. } => {
             if *num < 7 {
-                let before = *num;
-                remap_upred_slot(num, plan)?;
-                if *num != before {
-                    bail!(
-                        "ra: pin window changed uniform-predicate UP{before}->UP{} -- \
-                         predicate renames in pin mode are M6.2 territory",
-                        *num
-                    );
+                if let Some((f, t)) = remap1_rec(num, &plan.up, "UP")? {
+                    out.push((ChangeDom::UP, f, t));
                 }
             }
         }
@@ -1071,15 +1289,20 @@ pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
                 (p, None)
             }
         };
-        // M6.1: every mode carries the predicate IDENTITY plan; moving
-        // predicates is M6.2 (pin) / M6.3 (full) territory. plan_for_mode
-        // already filled them for identity/pin; fill the planner-sourced
-        // arms (full / apply) here so the whole-kernel rewriter is total
-        // on the P/UP domains too.
+        // M6.1/M6.2: the identity/pin arms carry their predicate plans from
+        // plan_for_mode (pin overlays its overrides there); the planner-
+        // sourced arms (full / apply) have no p/up intake today, so fill
+        // the IDENTITY predicate plans here to keep the whole-kernel
+        // rewriter total on the P/UP domains. Fill-if-empty keeps the pin
+        // overlay intact.
         {
             let (pid, upid) = identity_pred_plans(&pxfers);
-            plan.p = pid;
-            plan.up = upid;
+            if plan.p.is_empty() {
+                plan.p = pid;
+            }
+            if plan.up.is_empty() {
+                plan.up = upid;
+            }
         }
         // Sink rule on the merged plan, every mode (cheap, fail-closed).
         // Per-mode coverage keeps its own contract: validate_coverage in
@@ -1100,11 +1323,18 @@ pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
             RaMode::Pin(pin) => match pin.kernels.get(&src_k.name) {
                 Some(kp) => {
                     let live = reg_liveness::liveness(&src_k.instructions);
+                    let plive = crate::pred_liveness::liveness(
+                        &src_k.instructions,
+                        crate::pred_liveness::XferMode::Strict,
+                    );
                     let in_window = validate_pin(
                         &src_k.name,
                         src_k.instructions.len(),
                         &xfers,
                         &live,
+                        &pxfers,
+                        &plive,
+                        &src_k.instructions,
                         kp,
                     )?;
                     apply_plan_windowed(&mut k.instructions, &plan, &in_window)?
@@ -1387,10 +1617,12 @@ fn rewrite_instruction_line(
     // reassembly can be byte-conservative.
     let mut pos = 0usize;
     let rbytes = region.as_bytes();
+    let mut guard_span: Option<(usize, usize)> = None;
     if rbytes.first() == Some(&b'@') {
         while pos < region.len() && !rbytes[pos].is_ascii_whitespace() {
             pos += 1;
         }
+        guard_span = Some((0, pos));
         while pos < region.len() && rbytes[pos].is_ascii_whitespace() {
             pos += 1;
         }
@@ -1434,13 +1666,22 @@ fn rewrite_instruction_line(
 
     // Apply the planned changes token-locally, exactly one hit each.
     // Changes are grouped per operand token (a Desc token can carry both a
-    // UR-index and an R-base rename); replaced tokens are spliced back in
+    // UR-index and an R-base rename); the GUARD_OPERAND_IDX sentinel
+    // rewrites the guard token. Replaced tokens are spliced back in
     // DESCENDING span order so earlier offsets stay valid.
-    let mut by_op: BTreeMap<usize, Vec<&OperandChange>> = BTreeMap::new();
+    let mut by_op: Vec<(usize, Vec<&OperandChange>)> = Vec::new();
+    let mut guard_changes: Vec<&OperandChange> = Vec::new();
     for ch in changes {
-        by_op.entry(ch.operand_idx).or_default().push(ch);
+        if ch.operand_idx == GUARD_OPERAND_IDX {
+            guard_changes.push(ch);
+        } else {
+            match by_op.iter_mut().find(|(i, _)| *i == ch.operand_idx) {
+                Some((_, v)) => v.push(ch),
+                None => by_op.push((ch.operand_idx, vec![ch])),
+            }
+        }
     }
-    let mut replaced_tokens: BTreeMap<usize, String> = BTreeMap::new();
+    let mut replaced_tokens: Vec<(usize, String)> = Vec::new();
     for (oi, chs) in &by_op {
         let Some(&(ts, te)) = spans.get(*oi) else {
             bail!(
@@ -1451,27 +1692,71 @@ fn rewrite_instruction_line(
         };
         let mut token = region[ts..te].to_string();
         for ch in chs {
-            let needle = match ch.dom {
-                RegDom::R => format!("R{}", ch.from),
-                RegDom::UR => format!("UR{}", ch.from),
+            let (needle, replacement) = match ch.dom {
+                ChangeDom::R => (format!("R{}", ch.from), format!("R{}", ch.to)),
+                ChangeDom::UR => (format!("UR{}", ch.from), format!("UR{}", ch.to)),
+                ChangeDom::P => (format!("P{}", ch.from), format!("P{}", ch.to)),
+                ChangeDom::UP => (format!("UP{}", ch.from), format!("UP{}", ch.to)),
             };
-            let replacement = match ch.dom {
-                RegDom::R => format!("R{}", ch.to),
-                RegDom::UR => format!("UR{}", ch.to),
-            };
-            token = replace_reg_numeral(&token, &needle, &replacement).with_context(|| {
+            // M6.2: predicate needles are identifier-aware: a P-needle must
+            // never match inside a UPx token ("P4" -> the tail of "UP4").
+            // The R/UR paths keep their M4.2 mechanics byte-pinned by gates.
+            let pred_aware = matches!(ch.dom, ChangeDom::P | ChangeDom::UP);
+            token = replace_reg_numeral(&token, &needle, &replacement, pred_aware)
+                .with_context(|| {
                 format!(
                     "ra: splice: kernel {kidx} insn {iidx} operand {oi}: expected \
                      exactly one {needle} in token {token:?}"
                 )
             })?;
         }
-        replaced_tokens.insert(*oi, token);
+        replaced_tokens.push((*oi, token));
+    }
+    if !guard_changes.is_empty() {
+        let Some((gs, ge)) = guard_span else {
+            bail!(
+                "ra: splice: guard change planned but line has no guard token \
+                 (kernel {kidx} insn {iidx})"
+            );
+        };
+        let mut gtoken = region[gs..ge].to_string();
+        for ch in guard_changes {
+            let (needle, replacement) = match ch.dom {
+                ChangeDom::P => (format!("P{}", ch.from), format!("P{}", ch.to)),
+                ChangeDom::UP => (format!("UP{}", ch.from), format!("UP{}", ch.to)),
+                other => bail!(
+                    "ra: splice: guard change carries non-predicate domain {other:?} \
+                     (kernel {kidx} insn {iidx})"
+                ),
+            };
+            gtoken = replace_reg_numeral(&gtoken, &needle, &replacement, true)
+                .with_context(|| {
+                    format!(
+                        "ra: splice: kernel {kidx} insn {iidx} guard: expected \
+                         exactly one {needle} in token {gtoken:?}"
+                    )
+                })?;
+        }
+        replaced_tokens.push((usize::MAX, gtoken)); // resolved via guard_span below
     }
     let mut new_region = region.to_string();
-    for (oi, token) in replaced_tokens.iter().rev() {
-        let (ts, te) = spans[*oi];
-        new_region.replace_range(ts..te, token);
+    // Descending SPAN-START order: spans come from the ORIGINAL region, so
+    // a replacement that changes a token's length must not shift spans that
+    // still wait their turn. The guard span (start 0) goes last.
+    replaced_tokens.sort_by_key(|(oi, _)| {
+        if *oi == usize::MAX {
+            guard_span.map(|(gs, _)| gs).unwrap_or(0)
+        } else {
+            spans[*oi].0
+        }
+    });
+    for (oi, token) in replaced_tokens.into_iter().rev() {
+        let (ts, te) = if oi == usize::MAX {
+            guard_span.expect("guard span captured")
+        } else {
+            spans[oi]
+        };
+        new_region.replace_range(ts..te, &token);
     }
     Ok(format!(
         "{}{}{}",
@@ -1491,10 +1776,21 @@ fn trim_end(s: &str, start: usize, end: usize) -> usize {
 }
 
 /// Replace exactly one standalone occurrence of register literal `needle`
-/// (`R<num>` / `UR<num>`) inside an operand token. The numeral must be
-/// delimited by a non-register-numeral character so `R2` never matches the
-/// head of `R20`. Zero or multiple hits are an error (fail-closed).
-fn replace_reg_numeral(token: &str, needle: &str, replacement: &str) -> Result<String> {
+/// (`R<num>` / `UR<num>` / `P<num>` / `UP<num>`) inside an operand token.
+/// The numeral must be delimited by a non-register-numeral character so
+/// `R2` never matches the head of `R20`. Zero or multiple hits are an
+/// error (fail-closed). With `pred_aware` (M6.2 predicate needles), the
+/// character BEFORE the needle must also not be alphanumeric, so a P-needle
+/// can never match the tail of a UPx token (`P4` vs `UP4`); the R/UR
+/// mechanics stay byte-pinned by the M4.2 gates and keep their historical
+/// rule (before-char unchecked: `-R4`, `|R4|`, `desc[UR38][R4.64]` rely on
+/// it, cf. tests/ra_m42.rs).
+fn replace_reg_numeral(
+    token: &str,
+    needle: &str,
+    replacement: &str,
+    pred_aware: bool,
+) -> Result<String> {
     let b = token.as_bytes();
     let n = needle.len();
     let mut hits: Vec<usize> = Vec::new();
@@ -1503,10 +1799,12 @@ fn replace_reg_numeral(token: &str, needle: &str, replacement: &str) -> Result<S
         let at = from + rel;
         let end = at + n;
         let after_ok = end >= token.len() || !b[end].is_ascii_digit();
+        let before_ok =
+            !pred_aware || at == 0 || !b[at - 1].is_ascii_alphanumeric();
         // the char BEFORE is fine whatever it is ('-', '|', '[', ' '):
         // needle itself starts with the domain letter which can't extend
         // an identifier we care about in operand position (UR vs R distinct).
-        if after_ok {
+        if after_ok && before_ok {
             hits.push(at);
         }
         from = at + 1;

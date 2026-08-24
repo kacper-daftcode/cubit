@@ -8,9 +8,13 @@
 //!   * Compat: bit-parity with the certified reference `predcheck.py` (s6 /
 //!     publish/draft/tools-mit). P domain only; PLOP3.LUT reads only the
 //!     first two predicate inputs (reference limitation, kept for the gate).
-//!   * Strict: compat + documented deltas. Currently the only delta is
-//!     PLOP3.LUT reading all THREE predicate inputs (Pa,Pb,Pc) -- a superset
-//!     of compat, i.e. strictly more conservative for liveness.
+//!   * Strict: compat + documented deltas:
+//!     1. PLOP3.LUT reads all THREE predicate inputs (Pa,Pb,Pc) -- superset;
+//!     2. plain BRA carries its predicate operand as a USE (branch
+//!        condition; era frozen decodes print `BRA PT, L_x`; the reference
+//!        never classifies the operand). The family is KNOWN in both modes,
+//!        so Compat tracks it as empty sets exactly like the reference
+//!        while Strict conservatively adds the read.
 //!
 //! Fail-closed: any instruction carrying Pred/UPred OPERANDS outside the
 //! known families is reported with known=false (sets empty) and surfaced in
@@ -229,6 +233,22 @@ pub fn pred_xfer(insn: &Instruction, mode: XferMode) -> PredXfer {
         "BRA" if convdiv => {
             if let Some(&first) = p.first() {
                 def_at(&mut x, first);
+            }
+            true
+        }
+        "BRA" => {
+            // Plain branch with a predicate OPERAND (`BRA PT, L_2160` on the
+            // era frozen-decode surface; guarded-only forms never reach
+            // here -- the guard is already in uses). The operand is the
+            // branch condition: a USE. Strict-only delta (documented
+            // superset, like the PLOP3 third input): Compat mirrors
+            // predcheck.py, which never classifies this operand (the
+            // family is KNOWN in both modes so the fail-closed RA doctrine
+            // can reason about it instead of refusing the run).
+            if mode == XferMode::Strict {
+                for &idx in p {
+                    use_at(&mut x, idx);
+                }
             }
             true
         }
