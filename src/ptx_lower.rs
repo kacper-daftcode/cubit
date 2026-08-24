@@ -98,10 +98,29 @@ impl RegAlloc {
         self.shared_syms.get(name).copied()
     }
 
+    /// BUG-129 (b9p11-stale closure): bump the GPR bump-pointer aligned and
+    /// saturating at u8::MAX, so that every allocation path reaches the
+    /// fail-closed `gpr_hit_cap` bail in lower_kernel. Plain `+=` here
+    /// panicked on overflow in debug builds *before* the cap check ran
+    /// (surfaced as b9p11_gpr_cap_rz_trap) and wrapped in release, silently
+    /// re-issuing R0-class slots past the R254 cap on the pair/group-at-255
+    /// corners (next_gpr odd 255 pad; pair/quad stride past 254).
+    fn bump_gpr(&mut self, count: u8, align: u8) -> u8 {
+        if align > 1 {
+            let rem = self.next_gpr % align;
+            if rem != 0 {
+                self.next_gpr = self.next_gpr.saturating_add(align - rem);
+            }
+        }
+        let base = self.next_gpr;
+        self.next_gpr = self.next_gpr.saturating_add(count);
+        base
+    }
+
     fn gpr(&mut self, name: &str) -> u8 {
         if let Some(&r) = self.gpr_map.get(name) { return r; }
         let r = if let Some(pos) = self.free_gprs.pop() { pos } else {
-            let r = self.next_gpr; self.next_gpr += 1; r
+            self.bump_gpr(1, 1)
         };
         if r > 254 {
             // R255 aliases RZ in print and in hardware: never hand it out.
@@ -115,10 +134,9 @@ impl RegAlloc {
     fn gpr_pair(&mut self, name: &str) -> (u8, u8) {
         if let Some(&r) = self.gpr_map.get(name) { return (r, r + 1); }
         let lo = if let Some(pos) = self.free_pairs.pop() { pos } else {
-            if self.next_gpr % 2 != 0 { self.next_gpr += 1; }
-            let lo = self.next_gpr; self.next_gpr += 2; lo
+            self.bump_gpr(2, 2)
         };
-        if lo + 1 > 254 {
+        if lo > 253 {
             if self.gpr_hit_cap.is_none() { self.gpr_hit_cap = Some(name.to_string()); }
             return (252, 253);
         }
@@ -129,10 +147,9 @@ impl RegAlloc {
     fn gpr_quad(&mut self, name: &str) -> u8 {
         if let Some(&r) = self.gpr_map.get(name) { return r; }
         let base = if let Some(pos) = self.free_quads.pop() { pos } else {
-            while self.next_gpr % 4 != 0 { self.next_gpr += 1; }
-            let b = self.next_gpr; self.next_gpr += 4; b
+            self.bump_gpr(4, 4)
         };
-        if base + 3 > 254 {
+        if base > 251 {
             if self.gpr_hit_cap.is_none() { self.gpr_hit_cap = Some(name.to_string()); }
             return 248;
         }
@@ -371,16 +388,20 @@ fn prepare_group(
         }
     }
     let base = if n == 4 || wide64 {
-        if let Some(b) = alloc.free_quads.pop() { b } else {
-            while alloc.next_gpr % 4 != 0 { alloc.next_gpr += 1; }
-            let b = alloc.next_gpr; alloc.next_gpr += 4; b
-        }
+        if let Some(b) = alloc.free_quads.pop() { b } else { alloc.bump_gpr(4, 4) }
     } else {
-        if let Some(b) = alloc.free_pairs.pop() { b } else {
-            while alloc.next_gpr % 2 != 0 { alloc.next_gpr += 1; }
-            let b = alloc.next_gpr; alloc.next_gpr += 2; b
-        }
+        if let Some(b) = alloc.free_pairs.pop() { b } else { alloc.bump_gpr(2, 2) }
     };
+    // BUG-129: this bump had NO cap check at all — past R254 it panicked in
+    // debug and wrapped in release, silently emitting group lanes at
+    // RZ-aliased/freshly-recycled slots. Fail closed with the same law as
+    // gpr_pair/gpr_quad (top lane > R254, R255 = RZ alias).
+    let span = if n == 4 || wide64 { 4u16 } else { 2u16 };
+    if base as u16 + span - 1 > 254 {
+        anyhow::bail!(
+            "GPR space exhausted (R0..R254, R255=RZ alias trap) materializing a {}-register group {:?} at SASS addr 0x{:x}; kernel needs live-range-aware allocation (b1)",
+            span, regs, addr);
+    }
     let mut pre: Vec<Instruction> = Vec::new();
     for (i, name) in regs.iter().enumerate() {
         let lane = base + i as u8;
@@ -3187,7 +3208,13 @@ fn lower_cp_async_bulk(
     alloc.free_pred("$bcp_loop");
     alloc.free_pred("$bcp_elect");
     let n = ((a - addr) / 16) as u32;
-    debug_assert_eq!(n, 16);
+    // BUG-129: assert said 16 at the lane's introduction (a5369db) but
+    // the lane emits 17 (S2R/LEA dst glue, 2x R2UR src, SHF/PRMT sz
+    // pack + R2UR, S2R/LEA mbar glue, 2x R2UR mbar+desc, PLOP3,
+    // ELECT-loop PLOP3/UBLKCP/PLOP3, BRA.U.ANY) — only ever fired in
+    // debug suites (b9p11_cp_async_bulk). Shape is vendor-anchored
+    // by the b9p11 byte-parity pins; bump deliberately with the lane.
+    debug_assert_eq!(n, 17);
     Ok(Some((out, n)))
 }
 
