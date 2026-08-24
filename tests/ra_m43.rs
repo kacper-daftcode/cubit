@@ -202,5 +202,11 @@ fn t_full_liveness_engine_parity_mulmod_style() {
     for (i, row) in live.iter().enumerate() {
         assert_eq!(row.rlive_out, expect_out[i], "ins {i} live_out parity");
     }
-    let (_p, _st) = plan_full_kernel_live("k", &xfers, &live).unwrap();
+    // M6.3: predicate arms joined the planner; this kernel is pred-free.
+    let pxfers: Vec<_> = insns
+        .iter()
+        .map(|ins| cubit::pred_liveness::pred_xfer(ins, cubit::pred_liveness::XferMode::Strict))
+        .collect();
+    let plive = cubit::pred_liveness::liveness(&insns, cubit::pred_liveness::XferMode::Strict);
+    let (_p, _st) = plan_full_kernel_live("k", &xfers, &live, &pxfers, &plive, &insns).unwrap();
 }

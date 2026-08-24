@@ -693,6 +693,12 @@ fn ra_full<'py>(py: Python<'py>, text: &str) -> PyResult<(String, Vec<Bound<'py,
             fd.set_item("ur_watermark", f.ur.watermark)?;
             fd.set_item("ur_old_max", f.ur.old_max)?;
             fd.set_item("ur_groups", f.ur.groups)?;
+            fd.set_item("p_symbols", f.p.symbols)?;
+            fd.set_item("p_edges", f.p.conflict_edges)?;
+            fd.set_item("p_permuted", f.p.permuted)?;
+            fd.set_item("up_symbols", f.up.symbols)?;
+            fd.set_item("up_edges", f.up.conflict_edges)?;
+            fd.set_item("up_permuted", f.up.permuted)?;
             fd.set_item("entry_pins", &f.entry_pins)?;
             fd.set_item("renamed", f.renamed)?;
             kd.set_item("full", fd)?;

@@ -31,9 +31,20 @@
 //! v0 scope notes: no value splitting (one home per symbol per kernel), no
 //! spilling (kernels are static 200-2000 insn, ALU-dominated -- the budget
 //! is met or the pass refuses), `.reg` directive left unchanged (EIATTR
-//! over-provision is safe; shrinking is a later milestone), predicate and
-//! uniform-predicate domains are not renamed.
+//! over-provision is safe; shrinking is a later milestone).
+//!
+//! M6.3: the predicate domains (P and UP) are allocated from zero as well.
+//! They carry NO geometry (width-1, no pairs, no banks, no alignment --
+//! design sec.3: the ISETP two-destination form is two independent symbols
+//! bound by a same-ins-def edge, corpus-proven with non-adjacent bases), so
+//! the allocator is a pure permutation over the 7-slot pool {0..=6} with
+//! PT/UPT (7) as the never-allocatable constant-true sink. Multi-def ops
+//! (ISETP, PLOP3, IMNMX, VOTEU) are NOT unioned: the def-tuple anti-tearing
+//! guarantee falls out of the post-allocation injectivity audit, because
+//! both defs of an instruction sit in that instruction's co-occurrence set.
 
+use crate::ir::Instruction;
+use crate::pred_liveness::{InsLive as PredInsLive, PredXfer};
 use crate::reg_liveness::{InsRegLive, RegDom, RegXfer};
 use anyhow::{bail, Result};
 use serde::Serialize;
@@ -63,10 +74,30 @@ pub struct FullDomainStats {
 pub struct FullAllocStats {
     pub r: FullDomainStats,
     pub ur: FullDomainStats,
+    /// M6.3: predicate-domain allocation stats (geometry-free permutations).
+    pub p: PredDomainStats,
+    pub up: PredDomainStats,
     /// Entry-live symbols pinned to identity (ABI); [] on the certified R0b.
     pub entry_pins: Vec<String>,
     /// Operand-occurrence numerals the plan changes (== apply changed).
     pub renamed: usize,
+}
+
+/// M6.3: allocation stats for one geometry-free predicate domain.
+#[derive(Debug, Clone, Serialize)]
+pub struct PredDomainStats {
+    /// Distinct logical symbols the kernel touches (defs | uses | live sets).
+    pub symbols: usize,
+    /// Number of conflict edges in the domain's co-occurrence graph.
+    pub conflict_edges: usize,
+    /// Entry-live symbols pinned to identity (hardware ABI doctrine).
+    pub entry_pinned: usize,
+    /// Symbols whose from-zero home differs from the seed numeral. On the
+    /// certified R0b this is ZERO for both domains: the P conflict graph is
+    /// a clique K7 in each kernel (peak co-live 7/7), so the lowest-free
+    /// greedy in ascending order re-derives the seed identity from data
+    /// alone -- the permutation machinery is exercised by synthetic pins.
+    pub permuted: usize,
 }
 
 // ---------------------------------------------------------------- union-find
@@ -553,25 +584,230 @@ pub fn audit_injectivity_pub(
     audit_injectivity(kname, live, &plan.r, &plan.ur)
 }
 
-/// Real entry: allocator over (xfers, live) both from reg_liveness.
+// ------------------------------------------------------------------ M6.3 P/UP
+
+/// Predicate pool bound: P0..=P6 / UP0..=UP6 are homes; 7 (PT/UPT) is the
+/// constant-true sink and never allocatable (M6.1 sink doctrine).
+pub const P_POOL_MAX: u8 = 6;
+
+/// Per-instruction predicate co-occurrence sets -- the renaming-theorem
+/// premise for the P and UP domains: defs U uses U live_in U live_out.
+/// (Guard uses land in `uses` through the STRICT transfer families, M6.1.)
+pub struct PredCoSets {
+    pub p: Vec<BTreeSet<u8>>,
+    pub up: Vec<BTreeSet<u8>>,
+}
+
+/// Build the predicate co-occurrence sets from the STRICT transfer rows +
+/// liveness. `InsLive` does not carry a UP live-out, so the shared backward
+/// dataflow is re-run here for the UP domain (same public engine, same
+/// mode); the recomputed IN side is cross-checked against the passed rows.
+pub fn build_pred_cosets(
+    pxfers: &[PredXfer],
+    plive: &[PredInsLive],
+    insns: &[Instruction],
+) -> PredCoSets {
+    let n = insns.len();
+    let succ: Vec<Vec<usize>> = (0..n)
+        .map(|i| crate::pred_liveness::cfg_successors(insns, i))
+        .collect();
+    let udefs: Vec<BTreeSet<u8>> = pxfers.iter().map(|x| x.udefs.clone()).collect();
+    let uuses: Vec<BTreeSet<u8>> = pxfers.iter().map(|x| x.uuses.clone()).collect();
+    let (uin, uout) = crate::pred_liveness::backward_liveness(&succ, &udefs, &uuses);
+    let mut p = Vec::with_capacity(n);
+    let mut up = Vec::with_capacity(n);
+    for i in 0..n {
+        debug_assert_eq!(uin[i], plive[i].ulive_in, "UP liveness engine drift");
+        let row = &plive[i];
+        let mut cop: BTreeSet<u8> = BTreeSet::new();
+        cop.extend(row.defs.iter().chain(row.uses.iter())
+            .chain(row.live_in.iter()).chain(row.live_out.iter()).copied());
+        let mut cou: BTreeSet<u8> = BTreeSet::new();
+        cou.extend(row.udefs.iter().chain(row.uuses.iter())
+            .chain(row.ulive_in.iter()).chain(uout[i].iter()).copied());
+        p.push(cop);
+        up.push(cou);
+    }
+    PredCoSets { p, up }
+}
+
+/// Pairwise conflicts of one predicate domain from the co-occurrence sets.
+/// Symmetric map: conf[s] = every symbol co-occurring with s anywhere.
+fn pred_conflicts(co: &[BTreeSet<u8>]) -> BTreeMap<u8, BTreeSet<u8>> {
+    let mut conf: BTreeMap<u8, BTreeSet<u8>> = BTreeMap::new();
+    for set in co {
+        for &s in set {
+            let e = conf.entry(s).or_default();
+            for &t in set {
+                if t != s {
+                    e.insert(t);
+                }
+            }
+        }
+    }
+    conf
+}
+
+/// Greedy from-zero assignment for one geometry-free predicate domain:
+/// ascending symbol order, lowest non-conflicting unused home in the pool
+/// {0..=P_POOL_MAX}. Entry-live symbols are pinned to identity first
+/// (hardware ABI; the pool may not hand their homes out), mirroring the
+/// R/UR doctrine. Fail-closed: any symbol >= 7 (sink breach -- the strict
+/// transfers drop PT/UPT at source, so this is a tripwire), a pin that
+/// collides, or pool exhaustion. Exhaustion is unreachable on well-formed
+/// text (at most 7 symbols and K7 is 7-colorable) but is kept -- and unit-
+/// pinned -- as defense for non-textual plan sources (lifted kernels).
+pub fn alloc_pred_permutation(
+    dom: &str,
+    symbols: &BTreeSet<u8>,
+    conf: &BTreeMap<u8, BTreeSet<u8>>,
+    entry_live: &BTreeSet<u8>,
+) -> Result<(BTreeMap<u8, u8>, PredDomainStats)> {
+    for &s in symbols {
+        if s > P_POOL_MAX {
+            bail!(
+                "ra full: {dom}{s} reaches the plan but {dom}7 is the \
+                 constant-true sink (PT/UPT) and is never allocatable"
+            );
+        }
+    }
+    let edges: usize = conf.values().map(|v| v.len()).sum::<usize>() / 2;
+    let mut map: BTreeMap<u8, u8> = BTreeMap::new();
+    let mut homes: [Option<u8>; 7] = [None; 7]; // home -> symbol
+    let mut entry_pinned = 0usize;
+    for &s in entry_live {
+        if !symbols.contains(&s) {
+            continue; // dead entry-live: never touched, nothing to rename
+        }
+        if let Some(other) = homes[s as usize] {
+            bail!("ra full: entry-live {dom} pin clash: {dom}{other} and {dom}{s} both want {dom}{s}");
+        }
+        homes[s as usize] = Some(s);
+        map.insert(s, s);
+        entry_pinned += 1;
+    }
+    for &s in symbols {
+        if map.contains_key(&s) {
+            continue;
+        }
+        let empty = BTreeSet::new();
+        let cs = conf.get(&s).unwrap_or(&empty);
+        let mut chosen = None;
+        for h in 0..=P_POOL_MAX {
+            if homes[h as usize].is_some() {
+                continue;
+            }
+            // blocked iff a conflicting symbol already sits at h
+            let blocked = cs.iter().any(|&t| map.get(&t).copied() == Some(h));
+            if !blocked {
+                chosen = Some(h);
+                break;
+            }
+        }
+        let Some(h) = chosen else {
+            bail!(
+                "ra full: {dom} pool exhausted placing symbol {dom}{s} \
+                 ({} symbols, {} conflict edges) -- the 7-slot geometry-free \
+                 pool refuses; author-side relief only (no spill in the ISA)",
+                symbols.len(),
+                edges
+            );
+        };
+        homes[h as usize] = Some(s);
+        map.insert(s, h);
+    }
+    let permuted = map.iter().filter(|(&s, &h)| s != h).count();
+    Ok((
+        map,
+        PredDomainStats {
+            symbols: symbols.len(),
+            conflict_edges: edges,
+            entry_pinned,
+            permuted,
+        },
+    ))
+}
+
+/// Machine-checked injectivity audit for one predicate domain, the exact
+/// mirror of [`audit_injectivity`]: per instruction, the renaming must be
+/// 1:1 over the co-occurrence set (live values AND the defs/uses touched by
+/// the instruction). Multi-def anti-tearing is enforced here: both defs of
+/// an ISETP/PLOP3/IMNMX/VOTEU sit in the same instruction's set, so any
+/// plan mapping them to one home is rejected.
+pub(crate) fn audit_pred_injectivity(
+    kname: &str,
+    dom: &str,
+    co: &[BTreeSet<u8>],
+    map: &BTreeMap<u8, u8>,
+) -> Result<()> {
+    for (i, set) in co.iter().enumerate() {
+        let mut seen: BTreeMap<u8, u8> = BTreeMap::new();
+        for &s in set {
+            let p = map.get(&s).copied().unwrap_or(s);
+            if let Some(&prev) = seen.get(&p) {
+                bail!(
+                    "ra: kernel {kname:?} ins {i}: predicate renaming collision \
+                     {dom}{prev} and {dom}{s} both -> {dom}{p}"
+                );
+            }
+            seen.insert(p, s);
+        }
+    }
+    Ok(())
+}
+
+/// Public shim for ra::Apply validation (M6.3: plans may carry p/up).
+pub fn audit_pred_injectivity_pub(
+    kname: &str,
+    co: &PredCoSets,
+    plan: &crate::ra::RegPlan,
+) -> Result<()> {
+    audit_pred_injectivity(kname, "P", &co.p, &plan.p)?;
+    audit_pred_injectivity(kname, "UP", &co.up, &plan.up)
+}
+
+/// Real entry: allocator over (xfers, live) from reg_liveness for R/UR plus
+/// the STRICT predicate transfers/liveness for P/UP (M6.3).
 pub fn plan_full_kernel_live(
     kname: &str,
     xfers: &[RegXfer],
     live: &[InsRegLive],
+    pxfers: &[PredXfer],
+    plive: &[PredInsLive],
+    insns: &[Instruction],
 ) -> Result<(crate::ra::RegPlan, FullAllocStats)> {
     let (rmap, rstats, rpins) = allocate_domain(xfers, live, RegDom::R)?;
     let (urmap, ustats, upins) = allocate_domain(xfers, live, RegDom::UR)?;
+    let co = build_pred_cosets(pxfers, plive, insns);
+    let pconf = pred_conflicts(&co.p);
+    let upconf = pred_conflicts(&co.up);
+    let p_symbols: BTreeSet<u8> = pconf.keys().copied().collect();
+    let up_symbols: BTreeSet<u8> = upconf.keys().copied().collect();
+    let empty_entry = BTreeSet::new();
+    let (p_entry, up_entry) = match plive.first() {
+        Some(first) => (&first.live_in, &first.ulive_in),
+        None => (&empty_entry, &empty_entry),
+    };
+    let (pmap, pstats) = alloc_pred_permutation("P", &p_symbols, &pconf, p_entry)?;
+    let (upmap, upstats) = alloc_pred_permutation("UP", &up_symbols, &upconf, up_entry)?;
     audit_injectivity(kname, live, &rmap, &urmap)?;
+    audit_pred_injectivity(kname, "P", &co.p, &pmap)?;
+    audit_pred_injectivity(kname, "UP", &co.up, &upmap)?;
     let mut entry_pins = rpins;
     entry_pins.extend(upins);
+    if pstats.entry_pinned > 0 {
+        entry_pins.push(format!("{} P entry-live pin(s)", pstats.entry_pinned));
+    }
+    if upstats.entry_pinned > 0 {
+        entry_pins.push(format!("{} UP entry-live pin(s)", upstats.entry_pinned));
+    }
     Ok((
-        // M6.1: p/up filled with the identity predicate plans by run_file
-        // (predicate allocation is M6.3 territory; the allocator stays
-        // R/UR-only here).
-        crate::ra::RegPlan { r: rmap, ur: urmap, ..Default::default() },
+        crate::ra::RegPlan { r: rmap, ur: urmap, p: pmap, up: upmap },
         FullAllocStats {
             r: rstats,
             ur: ustats,
+            p: pstats,
+            up: upstats,
             entry_pins,
             renamed: 0,
         },

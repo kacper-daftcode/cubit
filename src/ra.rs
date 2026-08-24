@@ -127,6 +127,15 @@ pub struct ApplyPlanKernel {
     pub r: BTreeMap<String, u8>,
     #[serde(default)]
     pub ur: BTreeMap<String, u8>,
+    /// M6.3: predicate-domain maps for apply plans (serde-additive, same
+    /// shape as r/ur; keys accept plain numerals or "P3"/"UP2" spellings).
+    /// PT/UPT (7) is rejected on keys and values by the sink rule; plans
+    /// must pass the per-instruction predicate injectivity audit (the
+    /// def-tuple anti-tearing check, see ra_full::audit_pred_injectivity).
+    #[serde(default)]
+    pub p: BTreeMap<String, u8>,
+    #[serde(default)]
+    pub up: BTreeMap<String, u8>,
 }
 
 impl ApplyPlanKernel {
@@ -140,8 +149,28 @@ impl ApplyPlanKernel {
             let n: u8 = k.parse().with_context(|| format!("apply plan ur key {k:?} not a u8"))?;
             p.ur.insert(n, *v);
         }
+        for (k, v) in parse_pred_map(&self.p, "P")? {
+            p.p.insert(k, v);
+        }
+        for (k, v) in parse_pred_map(&self.up, "UP")? {
+            p.up.insert(k, v);
+        }
         Ok(p)
     }
+}
+
+/// Predicate apply-map key parse (M6.3): plain numerals or prefixed
+/// "P3"/"UP2" spellings, parsed against the map's own domain prefix.
+fn parse_pred_map(m: &BTreeMap<String, u8>, dom: &str) -> Result<Vec<(u8, u8)>> {
+    let mut out = Vec::with_capacity(m.len());
+    for (k, &v) in m {
+        let bare = k.strip_prefix(dom).unwrap_or(k);
+        let n: u8 = bare.parse().with_context(|| {
+            format!("apply plan {dom} key {k:?} not a u8 (plain numeral or {dom}N)")
+        })?;
+        out.push((n, v));
+    }
+    Ok(out)
 }
 
 /// Whole-file apply plan, keyed by kernel name. Every kernel of the file
@@ -398,12 +427,25 @@ pub struct OperandChange {
 /// M4.3b apply-mode coverage: every planned SOURCE numeral must occur in the
 /// kernel (typo trap; subset semantics otherwise) and targets stay inside
 /// the allocatable domain ends (RZ and the desc namespace stay out of plans).
-pub fn validate_coverage_apply(plan: &RegPlan, xfers: &[RegXfer]) -> Result<()> {
+/// M6.3: the predicate maps join the contract, sourced from the STRICT
+/// predicate transfer sets; PT/UPT keys are rejected by the sink rule on
+/// the merged plan (validate_pred_sink_range), the typo trap lives here.
+pub fn validate_coverage_apply(
+    plan: &RegPlan,
+    xfers: &[RegXfer],
+    pxfers: &[PredXfer],
+) -> Result<()> {
     let mut r_occ: BTreeSet<u8> = BTreeSet::new();
     let mut u_occ: BTreeSet<u8> = BTreeSet::new();
+    let mut p_occ: BTreeSet<u8> = BTreeSet::new();
+    let mut up_occ: BTreeSet<u8> = BTreeSet::new();
     for x in xfers {
         r_occ.extend(x.rdefs.iter().chain(x.ruses.iter()).copied());
         u_occ.extend(x.udefs.iter().chain(x.uuses.iter()).copied());
+    }
+    for x in pxfers {
+        p_occ.extend(x.defs.iter().chain(x.uses.iter()).copied());
+        up_occ.extend(x.udefs.iter().chain(x.uuses.iter()).copied());
     }
     for &k in plan.r.keys() {
         if k == 255 {
@@ -419,6 +461,22 @@ pub fn validate_coverage_apply(plan: &RegPlan, xfers: &[RegXfer]) -> Result<()> 
         }
         if !u_occ.contains(&k) {
             bail!("ra apply: plan names UR{k} which never occurs (typo trap)");
+        }
+    }
+    for &k in plan.p.keys() {
+        if k >= 7 {
+            bail!("ra apply: P{k}>=7 is the PT constant-true sink -- not allocatable");
+        }
+        if !p_occ.contains(&k) {
+            bail!("ra apply: plan names P{k} which never occurs (typo trap)");
+        }
+    }
+    for &k in plan.up.keys() {
+        if k >= 7 {
+            bail!("ra apply: UP{k}>=7 is the UPT constant-true sink -- not allocatable");
+        }
+        if !up_occ.contains(&k) {
+            bail!("ra apply: plan names UP{k} which never occurs (typo trap)");
         }
     }
     Ok(())
@@ -1266,10 +1324,17 @@ pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
         let (mut plan, mut full_stats) = match &mode {
             RaMode::Full => {
                 let live = reg_liveness::liveness(&src_k.instructions);
+                let plive = crate::pred_liveness::liveness(
+                    &src_k.instructions,
+                    crate::pred_liveness::XferMode::Strict,
+                );
                 let (p, st) = crate::ra_full::plan_full_kernel_live(
                     &src_k.name,
                     &xfers,
                     &live,
+                    &pxfers,
+                    &plive,
+                    &src_k.instructions,
                 )?;
                 (p, Some(st))
             }
@@ -1280,7 +1345,19 @@ pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
                 let kp = ap.get(&src_k.name)?;
                 let p: RegPlan = kp.to_plan()?;
                 crate::ra_full::audit_injectivity_pub(&src_k.name, &live, &p)?;
-                validate_coverage_apply(&p, &xfers)?;
+                // M6.3: predicate co-occurrence sets + audit (def-tuple
+                // anti-tearing rides on this) and the p/up typo trap.
+                let plive = crate::pred_liveness::liveness(
+                    &src_k.instructions,
+                    crate::pred_liveness::XferMode::Strict,
+                );
+                let co = crate::ra_full::build_pred_cosets(
+                    &pxfers,
+                    &plive,
+                    &src_k.instructions,
+                );
+                crate::ra_full::audit_pred_injectivity_pub(&src_k.name, &co, &p)?;
+                validate_coverage_apply(&p, &xfers, &pxfers)?;
                 (p, None)
             }
             _ => {
