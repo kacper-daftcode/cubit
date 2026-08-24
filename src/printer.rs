@@ -680,13 +680,13 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     // b4fill: IMAD.WIDE.U32.X.B90 — the B90 tag prints after X (IMAD.WIDE.U32.X.B90)
     if m == "B90" && base.starts_with("IMAD") { return 9; }
     // b4fill: LDG cache-policy family — nvdisasm order is
-    // E < L1-hint(EL/NA) < L2-hint(ELL2/ENL2/EFL2) < size(256) < consistency < scope
+    // E < L1-hint(EL/EF/NA/EU/EN) < L2-hint(ELL2/ENL2/EFL2) < size(256) < consistency < scope
     // (LDG.E.EL.ELL2.256.STRONG.GPU).
     // render-parity (b11, era rt98 anchor): trailing .HINT prints AFTER scope:
     // LDG.E.NA.EFL2.256.STRONG.GPU.HINT (was mis-ordered EFL2.HINT.256...).
     if base == "LDG" || base == "STG" {
         match m {
-            "EL" | "NA" | "EN" | "EF" => return 3,
+            "EL" | "NA" | "EN" | "EF" | "EU" => return 3,
             "ELL2" | "ENL2" | "EFL2" | "RML2" => return 4,
             "CONSTANT" => return 6,
             "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" => return 7,
