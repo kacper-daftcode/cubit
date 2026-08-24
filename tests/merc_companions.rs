@@ -14,7 +14,9 @@
 //!     global: (2f,11) reverse + (12) forward, regcount = min(sass,16).
 //!   * symtab: 13.3 layout (note syms, sh_info = total count).
 //!   * `.nv.compat`/`.note.nv.cuinfo`: per-arch 13.3 blobs, api 0x85.
-//!   Default (flag OFF) = legacy bytes: the frozen chain anchor 3d15ab6a.
+//!   Default = ON since 2026-08-24 (owner flip; new chain anchor
+//!   6a58a60642b913697d8ba3a3b9168504). CUBIT_MERC13=0 = legacy bytes:
+//!   the frozen chain anchor 3d15ab6a.
 
 use std::process::Command;
 
@@ -34,7 +36,8 @@ fn run_asm(sass: &str, tag: &str, merc13: bool) -> Vec<u8> {
     if merc13 {
         c.env("CUBIT_MERC13", "1");
     } else {
-        c.env_remove("CUBIT_MERC13");
+        // explicit legacy path (default is merc13 since 2026-08-24)
+        c.env("CUBIT_MERC13", "0");
     }
     let res = c.output().expect("run cubit asm");
     assert!(res.status.success(), "asm failed: {}", String::from_utf8_lossy(&res.stderr));

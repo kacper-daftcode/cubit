@@ -201,7 +201,7 @@ const MERC_HASH: &[u8] = &[
 const CAPMERC_STUB_PADDED: u64 = 0x82;
 
 /// Legacy (pre-merc13) Mercury debug_frame: 112 B blob (nvcc 12.8 EXIT-stub
-/// variant). Used when CUBIT_MERC13 is unset (frozen-chain compatibility).
+/// variant). Used when CUBIT_MERC13=0 (frozen-chain compatibility).
 const MERC_DEBUG_FRAME_LEGACY: &[u8] = &[
     0xff, 0xff, 0xff, 0xff, 0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff,
     0xff, 0xff, 0xff, 0xff, 0x03, 0x00, 0x01, 0x7c, 0xff, 0xff, 0xff, 0xff, 0x0f, 0x0c, 0x81, 0x80,
@@ -212,7 +212,7 @@ const MERC_DEBUG_FRAME_LEGACY: &[u8] = &[
     0x04, 0xf0, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
-/// Legacy cuinfo desc (sm120/api 0x83) for the non-merc13 default.
+/// Legacy cuinfo desc (sm120/api 0x83) for the CUBIT_MERC13=0 legacy mode.
 const CUVER_DESC_LEGACY: &[u8] = &[0x02, 0x00, 0x78, 0x00, 0x83, 0x00, 0x00, 0x00];
 
 /// Trailing CFA program of every CIE (after ver/aug/align/retreg fields),
@@ -5378,11 +5378,11 @@ impl CubinBuilder {
     }
 
     fn build(mut self, kernels: &[KernelEntry]) -> Result<Vec<u8>> {
-        // CUBIT_MERC13=1 enables the nvcc-13.3 sovereign companion emission
-        // (.debug_frame/.nv.merc.* laws; results/cubitfix/merc.md). Default is
-        // the byte-legacy builder so the frozen chain (rt98 == 3d15ab6a) and
-        // all front-M pins stay bit-stable; the default flips by owner
-        // decision (anchor migration), not by this change.
+        // Sovereign nvcc-13.3 companion emission (.debug_frame/.nv.merc.*
+        // laws; results/cubitfix/merc.md) is the DEFAULT since 2026-08-24
+        // (owner decision; chain anchor migrates rt98 3d15ab6a ->
+        // 6a58a60642b913697d8ba3a3b9168504, .text bit-identical).
+        // CUBIT_MERC13=0 forces the byte-legacy builder (frozen-chain repro).
         if !merc13_enabled() {
             return self.build_legacy(kernels);
         }
@@ -6484,9 +6484,11 @@ fn build_cuver_note_legacy() -> Vec<u8> {
     n
 }
 
-/// CUBIT_MERC13 switch (default OFF; see build()).
+/// CUBIT_MERC13 switch (default ON since 2026-08-24; set to 0 for legacy).
 fn merc13_enabled() -> bool {
-    std::env::var_os("CUBIT_MERC13").is_some()
+    std::env::var_os("CUBIT_MERC13")
+        .map(|v| v.to_string_lossy() != "0")
+        .unwrap_or(true)
 }
 
 /// Per-kernel .nv.merc.nv.info.K, nvcc 13.3 law (9 vendor cubins + rc4/12.8):
