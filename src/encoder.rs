@@ -2567,14 +2567,20 @@ fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm
     {
         if let Some(target) = find_branch_target(insn) {
             let rel = target - insn.addr as i64 - 16;
-            let rq = rel >> 4;                 // arithmetic shift keeps the sign
-            let imm16 = (rq as i64) & 0xFFFF;
-            code = (code & !(0x3F_u128 << 18)) | (((imm16 & 0x3F) as u128) << 18);
-            code = (code & !(0x3FF_u128 << 34)) | ((((imm16 >> 6) & 0x3FF) as u128) << 34);
-            if imm16 & 0x8000 != 0 {
-                code |= 0xFFFF_Fu128 << 44;    // sign extension into [63:44]
-            }
-            // rel >= 0: bits [63:44] carry only and_base constants — untouched.
+            // BUG-115: rq is a signed 21-bit immediate, not 16+blanket-ones.
+            // Corpus proof (11,714/11,714 RET words + anchor CALL/BRA):
+            // rq=(target-addr-16)>>4 with rq[5:0]@[23:18], rq[15:6]@[43:34],
+            // rq[20:16]@[48:44], true sign-extension into [63:49]. The old
+            // "imm16 & 0x8000 -> set [63:44]=1s" folded rq's bit15 into the
+            // whole window, losing rq[16] (bit44) for far negative targets
+            // (e.g. RET-to-0x0 from addr >1MB: rq=-0x10c71 -> vendor ext
+            // 0xFFFFE) and wrapping rq-negative/imm16-positive cases.
+            let rq21 = (rel >> 4) & 0x1F_FFFF; // arithmetic shift keeps the sign
+            code = (code & !(0x3F_u128 << 18)) | ((rq21 as u128 & 0x3F) << 18);
+            code = (code & !(0x3FF_u128 << 34)) | ((((rq21 as u128) >> 6) & 0x3FF) << 34);
+            let hi20: u128 = (((rq21 as u128) >> 16) & 0x1F)
+                | if rq21 & 0x10_0000 != 0 { 0xF_FFE0 } else { 0 };
+            code = (code & !(0xFFFF_Fu128 << 44)) | (hi20 << 44);
         }
         if op == "WARPSYNC" || op == "BRA" {
             return code;

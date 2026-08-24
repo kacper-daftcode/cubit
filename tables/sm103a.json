@@ -17201,8 +17201,8 @@
       "operand_sig": "R_II",
       "mod_groups": {
         "NODEC,REL": {
-          "and_base": "0x000fe00003c3ffffffffffec00647950",
-          "variable_mask": "0x03f01e000000000000001ffcfefc0000",
+          "and_base": "0x000fe00003c3ffffffffe00000007950",
+          "variable_mask": "0x03f01e000000000000001ffcfffc0000",
           "fields": [
             {
               "shift": 24,
@@ -17219,7 +17219,7 @@
               "_src": "2c"
             }
           ],
-          "count": 6460
+          "count": 11714
         }
       },
       "scheduling": {
@@ -59337,25 +59337,6 @@
               "_src": "2c"
             }
           ],
-          "count": 2
-        }
-      },
-      "scheduling": {
-        "pipe_class": 0,
-        "pipe_name": "UNKNOWN",
-        "def_latency": 1,
-        "throughput": 1,
-        "is_variable_latency": false
-      }
-    },
-    "RET_II": {
-      "base_op": "RET",
-      "operand_sig": "II",
-      "mod_groups": {
-        "NODEC,REL": {
-          "and_base": "0x000fea0003c3ffffffffff5402307950",
-          "variable_mask": "0x000000000000000000000000000c0000",
-          "fields": [],
           "count": 2
         }
       },
