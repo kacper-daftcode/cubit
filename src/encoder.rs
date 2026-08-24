@@ -559,6 +559,71 @@ fn imad_wide_implicit_cpair(insn: &Instruction, table: &IsaTable) -> bool {
     }
 }
 
+/// BUG-132: reject when the lookup chain's selected row cannot express every
+/// requested mnemonic modifier. The claim set is computed from the PRINTER's
+/// render of the produced word (not the raw InsKey, whose mods may contain
+/// '_' themselves, e.g. `BAR.SYNC.DEFER_BLOCKING_II`): the printed text is
+/// exactly what a human would re-feed, and corpus roundtrips pin the printer
+/// to claim every bit the row encodes. Every requested mod must be claimed
+/// (superset rule — see the call-site comment). A miss means the author's
+/// modifiers were silently dropped into a different variant: fail loudly.
+fn verify_mod_group_retained(
+    insn: &Instruction,
+    table: &IsaTable,
+    out: u128,
+    requested_mg: &str,
+    selected_mg: &str,
+) -> Result<()> {
+    let idx = table.decode_index();
+    let decoded = idx.decode(out, insn.addr, table).with_context(|| {
+        format!(
+            "encoded word does not decode back under this table              (requested mod-group {requested_mg:?} fell back to row              {selected_mg:?}; insn: {})",
+            insn.raw_text.trim()
+        )
+    })?;
+    let back_text = crate::printer::to_sass(&decoded);
+    let claimed_mg = crate::table::extract_mod_group(&back_text);
+    let claimed: std::collections::BTreeSet<&str> = claimed_mg.split(',')
+        .filter(|m| !m.is_empty())
+        .collect();
+    let mut missing: Vec<&str> = requested_mg.split(',')
+        .filter(|m| !m.is_empty() && !claimed.contains(*m))
+        .collect();
+    missing.sort_unstable();
+    missing.dedup();
+    // Tolerated mod-drop idioms: load-bearing authoring forms whose produced
+    // word is pinned byte-exact elsewhere while the DECODER cannot claim the
+    // mods (render-claim gap / mod-baked wildcard row era). Scoped to
+    // (opcode, missing-mod-set) — anything outside fails closed below.
+    //   LDC.128 R-form (sm103a): LDC_R_cAI has no "128" group; the "" row
+    //     encodes the vendor word byte-exact (tests/bug088 t5, W_LDC128_R53);
+    //     decode renders it width-less — render-parity gap owned by b11.
+    //   F2FP ...PACK_AB_MERGE_C via the `{fk}_?` wildcard row (sm120; qpack
+    //     production kernel, tests/encoding::test_wildcard_suffix_chain_):
+    //     render splits the token into PACK_AB + MERGE_C (plus RZ tail).
+    //   REDUX.ADD.U32 (sm103a, tests/bug080 t5): table models the reduction
+    //     op as SUM/"" (bits [79:78]=00), decode claims nothing; vendor
+    //     2049-cubin corpus shows only .OR. Follow-up: REDUX default-op
+    //     census on silicon (b12 lane) — see results/cubitfix/132.md.
+    const MOD_DROP_TOLERATED: &[(&str, &[&str])] = &[
+        ("LDC", &["128"]),
+        ("F2FP", &["PACK_AB_MERGE_C"]),
+        ("REDUX", &["ADD", "U32"]),
+    ];
+    for &(op, mods) in MOD_DROP_TOLERATED {
+        if insn.opcode == op && missing.iter().all(|m| mods.contains(m)) {
+            return Ok(());
+        }
+    }
+    anyhow::ensure!(
+        missing.is_empty(),
+        "silent modifier drop (BUG-132): {} requested mod-group {:?} but the          selected row {:?} does not encode it — the produced word decodes          back as {:?} (mod-group {:?}; missing: [{}]). No table row expresses          this modifier combination; continuing would emit a DIFFERENT variant          silently. Write a supported combination (see the table's {} groups)          or extend the table.",
+        insn.raw_text.trim(), requested_mg, selected_mg,
+        back_text.trim(), claimed_mg, missing.join(","), insn.opcode_full,
+    );
+    Ok(())
+}
+
 /// BUG-006: a NEGATED predicate operand whose slot has no negation encoding in
 /// the selected form must never silently degrade to the non-negated predicate
 /// (silicon then reads the un-negated value — iter64 measured exactly that on
@@ -1265,6 +1330,9 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
 
     let mut attempts: Vec<String> = Vec::new();
     let mut entry = Option::<&crate::table::ModGroupEntry>::None;
+    // BUG-132: remember which mod-group the winning candidate carries so the
+    // post-encode check can tell an exact-cover match from a "" fallback.
+    let mut selected_mg = String::new();
     for (k, mg) in &candidates {
         match table.get(k, mg) {
             Some(e) => match entry_matches_operands(insn, e) {
@@ -1280,6 +1348,7 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
                         continue;
                     }
                     entry = Some(e);
+                    selected_mg = mg.clone();
                     break;
                 }
                 Err(why) => attempts.push(format!("({k}, \"{mg}\") REJECTED: {why}")),
@@ -1772,6 +1841,32 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     // operands) and for the internal flipped-variant re-encodes.
     if run_errata_checks && std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() {
         check_pred_neg_encoded(insn, table, out)?;
+    }
+    // BUG-132 (fail-closed): silent modifier drop. The lookup chain falls
+    // back to a row whose mod-group is narrower than the requested one when
+    // the exact combination row is missing (e.g. FADD_R_R_R carries "RZ" /
+    // "SAT" / "FTZ,RZ" but no "RZ,SAT"); the dropped modifiers then silently
+    // encode a DIFFERENT variant (pre-fix `FADD.RZ.SAT` encoded bits
+    // [80:78]=000 = plain RN — wrong-code). Verified by decode-back: the
+    // produced word, decoded through this same table, must claim EVERY
+    // requested modifier (claim set = mnemonic mods embedded in the matched
+    // InsKey UNION the row's mod-group — both harvest eras: tb_i82* bake
+    // mods into the key, modern tables into group names). Decode-back is
+    // the only sound equivalence oracle here: documented load-bearing ""
+    // fallbacks (IMAD.U32 _UR idiom, BRXU.U / LOP3.LUT.PAND /
+    // IADD3.X.RCNEG / BAR.SYNC.DEFER_BLOCKING on tb_i82p3, LDGSTS.128
+    // policy-group expansion on sm120) ride rows whose and_base already
+    // carries the mod bits, so their words decode back WITH the modifiers
+    // and pass. Superset rule (requested <subset-eq> claimed): a chosen row
+    // may legitimately claim MORE than requested (the only harvest row for
+    // the shape, e.g. LDGSTS "128,E" -> "128,BYPASS,E,LTC128B"), but never
+    // silently LESS. Runs after the full pipeline so the `!rsd` overlay is
+    // visible to the decoder.
+    if run_errata_checks
+        && std::env::var_os("CUBIT_DISABLE_ERRATA").is_none()
+        && selected_mg != mod_group
+    {
+        verify_mod_group_retained(insn, table, out, &mod_group, &selected_mg)?;
     }
     Ok(out)
 }

@@ -356,11 +356,45 @@ pub struct IsaTable {
     pub entries: HashMap<String, InsKeyEntry>,
     /// ELF e_flags for the target architecture (from _meta.architecture).
     pub ef_flags: u32,
+    /// Lazily-built shared decode index (BUG-132: encoder decode-back checks).
+    #[doc(hidden)]
+    pub decode_index_cache: DecodeIndexCache,
 }
 
 impl Default for IsaTable {
     fn default() -> Self {
-        Self { entries: HashMap::new(), ef_flags: crate::elf_builder::EF_CUDA_SM120 }
+        Self { entries: HashMap::new(), ef_flags: crate::elf_builder::EF_CUDA_SM120,
+               decode_index_cache: DecodeIndexCache::default() }
+    }
+}
+
+/// Lazily-built [`crate::decoder::DecodeIndex`] cache hanging off an
+/// [`IsaTable`]. Building the index costs one pass over the table (the
+/// `cubit decode` path did it per invocation); the encoder's BUG-132
+/// decode-back check needs it inside tight batch loops, so it is built at
+/// most once per table and Arc-shared. Never printed (index dumps are huge).
+pub struct DecodeIndexCache(std::sync::OnceLock<std::sync::Arc<crate::decoder::DecodeIndex>>);
+
+impl Clone for DecodeIndexCache {
+    fn clone(&self) -> Self {
+        Self(match self.0.get() {
+            Some(v) => std::sync::OnceLock::from(v.clone()),
+            None => std::sync::OnceLock::new(),
+        })
+    }
+}
+
+impl Default for DecodeIndexCache {
+    fn default() -> Self { Self(std::sync::OnceLock::new()) }
+}
+
+impl std::fmt::Debug for DecodeIndexCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(if self.0.get().is_some() {
+            "DecodeIndexCache(cached)"
+        } else {
+            "DecodeIndexCache(empty)"
+        })
     }
 }
 
@@ -385,6 +419,15 @@ impl IsaTable {
     /// Numeric SM arch this table targets (from _meta.architecture e_flags).
     pub fn target_sm(&self) -> u32 {
         crate::elf::sm_from_ef_flags(self.ef_flags)
+    }
+
+    /// Shared decode index (built at most once per table). Used by the
+    /// encoder's BUG-132 decode-back verification; CLI/py decode paths keep
+    /// their own long-lived indexes.
+    pub fn decode_index(&self) -> std::sync::Arc<crate::decoder::DecodeIndex> {
+        self.decode_index_cache.0
+            .get_or_init(|| std::sync::Arc::new(crate::decoder::DecodeIndex::build(self)))
+            .clone()
     }
 
     /// Load from a per-modifier-group JSON file.
@@ -464,7 +507,7 @@ impl IsaTable {
             .and_then(|v| v.as_str())
             .and_then(arch_ef_flags)
             .unwrap_or(crate::elf_builder::EF_CUDA_SM120);
-        Ok(IsaTable { entries, ef_flags })
+        Ok(IsaTable { entries, ef_flags, decode_index_cache: DecodeIndexCache::default() })
     }
 
     /// Resolve _meta.ctrl_classes + _meta.ctrl_epochs into a map from
@@ -559,7 +602,7 @@ impl IsaTable {
             entries.insert(key, InsKeyEntry { mod_groups, ctrl_class: None, epoch_upper32: None, encode_only: jik.encode_only });
         }
 
-        Ok(IsaTable { entries, ef_flags: crate::elf_builder::EF_CUDA_SM120 })
+        Ok(IsaTable { entries, ef_flags: crate::elf_builder::EF_CUDA_SM120, decode_index_cache: DecodeIndexCache::default() })
     }
 
     /// Look up encoding for (InsKey, modifier_group).
