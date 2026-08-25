@@ -18,16 +18,13 @@ Rust 1.70+. The ISA table (`tables/sm120.json`) ships with the repo.
 ### ISA table provenance
 
 `tables/sm120.json` originates from the
-[`blackwell-isa`](https://github.com/kacper-daftcode/blackwell-isa) database
-(base revision and SHA-256 recorded in `tables/SM120_SOURCE.json`). The
-vendored snapshot currently also carries a wave of cubit-side canon fixes
-(names, mod-group layout, junk-row removal) that have not all flowed back
-into the canonical database yet, so byte-pinning to an upstream revision is
-temporarily suspended: validation is structural (`tools/sync_table.py
---validate-only`) plus the full Cargo suite, which fails closed on any table
-load error. Byte-exact repinning resumes once the upstream consolidation
-lands. Tests honor `CUBIT_TABLE` as a strict override: a missing or malformed
-override is an error, not a fallback.
+[`blackwell-isa`](https://github.com/kacper-daftcode/blackwell-isa) database;
+the base revision and SHA-256 are recorded in `tables/SM120_SOURCE.json`. The
+vendored copy carries canonical corrections from the cubit errata series that
+are ahead of the pinned base revision (see `SM120_SOURCE.json`,
+`canon_delta`). Validation: `tools/sync_table.py --validate-only` (schema +
+baked-ctrl ratchet) and the full Cargo suite, which fails closed on any
+table load error.
 
 Release binaries and Python wheels embed the same vendored snapshot as a
 working-directory-independent fallback. An explicit `CUBIT_TABLE` remains a
