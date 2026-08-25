@@ -27,9 +27,9 @@ static RE_CMEM: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 static RE_DESC: LazyLock<Regex> = LazyLock::new(|| {
-    // Accept URZ (the zero uniform register, = UR63) as a descriptor index so that
-    // `desc[URZ][Ra]` round-trips: the decoder renders a 63-valued descriptor field
-    // as URZ, and without this the parser would reject it and fall through to the
+    // Accept URZ (the zero uniform register) as a descriptor index so that
+    // `desc[URZ][Ra]` round-trips: the decoder renders the URZ window value
+    // as URZ (BUG-160), and without this the parser would reject it and fall through to the
     // immediate (II) form -> wrong InsKey -> encode failure.
     Regex::new(r"^desc\[(?P<UR>UR\d+|URZ)\]\[(?P<Inner>[^\]]+)\]$").unwrap()
 });
@@ -328,7 +328,16 @@ fn parse_single_operand(s: &str, is_float_context: bool) -> Operand {
     // Descriptor: desc[UR4][R2+0x8]
     if let Some(caps) = RE_DESC.captures(s) {
         let ur_str = caps.name("UR").unwrap().as_str();
-        // URZ is the zero uniform register (UR63), analogous to RZ=R255.
+        // URZ is the zero uniform register. Vendor law for the 8-bit
+        // descriptor window is 0xFF (BUG-160 decode-side fix; nvdisasm
+        // 13.3.73 probes: 255 renders desc[URZ], 63 renders the real UR63),
+        // but the ENCODE-side flip (URZ -> 255 here) is PARKED: the frozen
+        // publish-era line `LDG.E.LTC128B.128 R0, desc[URZ][R60.64+0x2400]
+        // !rsd[...]` (front-M artifact, results/cubitfix/049/rt98_v2.sass)
+        // encodes through canonical LDG_R_dARI['128,E,LTC128B']
+        // (sub_ur0@[32:40)/8) and its silicon-proven bytes carry 0x3f under
+        // the old inverted law; the frozen text cannot be re-spelled here.
+        // See results/cubitfix/160.md sec.5 -- owner decision required.
         let ur_idx = if ur_str == "URZ" {
             63
         } else {
