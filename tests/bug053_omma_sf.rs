@@ -1,10 +1,10 @@
-//! BUG-053 (rejestr sm120: 053_omma_sf_field_extraction.md, SPARK q3 gx4):
-//! wpisy OMMA.SF.16864 (E2M1.E2M1.{E8, UE4M3.4X}) niosly pola `reg_shr3`
-//! (3-bit @18/26/34/42/50/66, _source: compute_120f extraction) — forma byla
-//! w tabeli, ale zupelnie niekodowalna ("operand 7 (UR6) has no field able
-//! to encode it"). Prawdziwa geometria (nvdisasm + warianty bitowe na gx4):
-//! reg 8b @16/24/32/40/52 + Rc@64 w hi-word, UR6 @[63:60], bajt@[87:80] to
-//! discriminator wariantu (E8=0x08, UE4M3.4X=0x04). Krzem GB10 wykonuje.
+//! BUG-053 (sm120 registry: 053_omma_sf_field_extraction.md, SPARK q3 gx4):
+//! the OMMA.SF.16864 entries (E2M1.E2M1.{E8, UE4M3.4X}) carried `reg_shr3`
+//! fields (3-bit /26/34/42/50/66, _source: compute_120f extraction) — the form
+//! was in the table but wholly unencodable ("operand 7 (UR6) has no field able
+//! to encode it"). The real geometry (nvdisasm + bit variants on gx4):
+//! reg 8b /24/32/40/52 + Rc in the hi word, UR6 @[63:60]; byte @[87:80] is the
+//! variant discriminator (E8=0x08, UE4M3.4X=0x04). GB10 silicon executes.
 //! Fix: geometria klonowana z rodziny QMMA.SF + czysty and_base (usuniety
 //! okaleczaly bit68, ktory nalezy do pola Rc).
 use cubit::decoder::DecodeIndex;
@@ -45,14 +45,14 @@ fn bug053_e8_golden_decodes_to_text() {
 #[test]
 fn bug053_ue4m3_variant_forms_and_discriminator() {
     let t = t120();
-    // UE4M3.4X: pre-fix = ENCFAIL (brak pol); teraz koduje i rozni sie od E8
-    // wylacznie discriminatorem @[87:80] (0x04 vs 0x08) oraz bitem sched-side.
+    // UE4M3.4X: pre-fix = ENCFAIL (no fields); now it encodes and differs from E8
+    // only by the discriminator @[87:80] (0x04 vs 0x08) plus a sched-side bit.
     let w4x = enc_clean(&t, UE4M3_TEXT);
     assert_eq!((w4x >> 80) & 0xFF, 0x04, "discriminator UE4M3.4X @[87:80]");
     assert_eq!((E8_GOLD >> 80) & 0xFF, 0x08, "discriminator E8 @[87:80]");
     // poza sched i discriminatore slowo tozsame (operand-layout z QMMA.SF)
     let mask = !(SCHED | (0xFFu128 << 80));
     assert_eq!(w4x & mask, E8_GOLD & mask, "pola operandow identyczne E8 vs 4X");
-    // roundtrip wariantu 4X przez nasz dekoder
+    // round-trip of the 4X variant through our decoder
     assert_eq!(dec(&t, w4x), UE4M3_TEXT);
 }

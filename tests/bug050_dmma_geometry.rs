@@ -1,12 +1,12 @@
-//! BUG-050 (rejestr sm120: 050_dmma8x8x4_geometry.md, SPARK q2 gx4, krzem
-//! GB10 5/5 EXACT + wykonanie): tabela sm120.json niosla rodzine DMMA.8x8x4
-//! z geometria przesunieta o +1 bit (Rd@17/Ra@25/Rb@33 zamiast @16/@24/@32),
-//! bez pola Rc w hi-word, plus fantomy `DMMA_R_R_R_R` (mangled mg '8x8x4')
-//! i `DMMA.8x8x4_{,P_}R_R_R_R_UP` (dwuznacznosc decode ", UP0").
-//! Skutki pre-fix: encode z polami off-by-one, forma z Rc!=RZ = ENC-FAIL,
-//! decode goldenow renderowal `DMMA.INVALID2 R8, -R2, R4, R0`.
-//! Fix: geometria z goldengow ptxas (identyczne dla -arch=sm_120 i sm_121a)
-//! + usuniecie fantomow + co-fix dekoder-cienia: wiersz `DFMA_R_R_FI_R`
+//! BUG-050 (sm120 registry: 050_dmma8x8x4_geometry.md, SPARK q2 gx4, GB10
+//! silicon 5/5 EXACT + execution): sm120.json carried the DMMA.8x8x4 family
+//! with the geometry shifted by +1 bit (Rd/Ra/Rb instead of //),
+//! without an Rc field in the hi word, plus `DMMA_R_R_R_R` phantoms (mangled mg '8x8x4')
+//! and `DMMA.8x8x4_{,P_}R_R_R_R_UP` (decode ambiguity ", UP0").
+//! Pre-fix effects: encoding with off-by-one fields, the Rc!=RZ form = ENC-FAIL,
+//! decoding goldens rendered `DMMA.INVALID2 R8, -R2, R4, R0`.
+//! Fix: geometry from the ptxas goldens (identical for -arch=sm_120 and sm_121a)
+//! + phantom removal + a decoder-shadow co-fix: the `DFMA_R_R_FI_R` row
 //! (and_base 0x803, 1-bit guard@12) cieniowal decode goldenow DMMA;
 //! zastapiony wierszem z corpus-regression spark (1476 instancji).
 use cubit::decoder::DecodeIndex;
@@ -70,8 +70,8 @@ fn bug050_rc_field_lives_in_hi_word() {
 #[test]
 fn bug050_phantoms_gone() {
     let t = t120();
-    // bare `DMMA` (bez mod-group 8x8x4) wczesniej dopasowywal zglitchowany
-    // wiersz DMMA_R_R_R_R; teraz uczciwy ENCFAIL.
+    // bare `DMMA` (without the 8x8x4 mod group) previously matched the glitched
+    // DMMA_R_R_R_R row; now an honest ENCFAIL.
     let insn = parse_sass("DMMA R8, R2, R4, RZ ;", 0).unwrap();
     let e = encode_instruction(&insn, &t).unwrap_err().to_string();
     assert!(e.contains("no operand-compatible table entry"), "{e}");

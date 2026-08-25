@@ -1,15 +1,15 @@
 //! BUG-044 (rejestr sm120: 044_param3_never_delivered.md, CONFIRMED i120):
-//! 3. .param (u32) nigdy nie docieral do kernela zbudowanego z referencja
-//! EIATTR: rebuild_cubin kopiuje EIATTR + .nv.constant0 z referencji 1:1,
-//! wiec driver formatowal blok parametrow wg rozmiaru REFERENCJI (12 B dla
-//! u64+u32) — c[0x0][0x38c] czytalo smieci z cbank zamiast nthr.
-//! Fix (fail-closed, u zrodla):
-//!  - parser EIATTR czytal CBANK_PARAM_SIZE (attr 0x19) tylko jako HVAL —
-//!    nasz wlasny emit to BVAL (1 bajt) — meta-parser zwracal 0; naprawione;
-//!  - asm z -T/--eiattr-from: pre-flight porownuje footprint .param sass vs
-//!    referencja; rozbieznosc = twardy blad z instrukcja, brak pliku.
-//! Bez referencji emit jest juz poprawny (16 B, KPARAM_INFO x3) — regresja
-//! pinuje tez to.
+//! the 3rd .param (u32) never reached a kernel built with an EIATTR
+//! reference: rebuild_cubin copied EIATTR + .nv.constant0 from the reference 1:1,
+//! so the driver formatted the parameter block at the REFERENCE size (12 B for
+//! u64+u32) — c[0x0][0x38c] read cbank garbage instead of nthr.
+//! Fix (fail-closed, at the source):
+//!  - the EIATTR parser read CBANK_PARAM_SIZE (attr 0x19) only as HVAL —
+//!    our own emit is BVAL (1 byte) — the meta parser returned 0; fixed;
+//!  - asm with -T/--eiattr-from: pre-flight compares the sass .param footprint vs the
+//!    reference; a mismatch = a hard error naming the instruction, no file.
+//! Without a reference the emit is already correct (16 B, KPARAM_INFO x3) — the
+//! regression pins that too.
 
 use std::process::Command;
 
@@ -39,7 +39,7 @@ fn run_asm(args: &[String]) -> std::process::Output {
         .unwrap()
 }
 
-/// Bez referencji: 3-param kernel emituje pelne 16 B bloku parametrow.
+/// Without a reference: a 3-param kernel emits the full 16 B parameter block.
 #[test]
 fn bug044_direct_emit_has_full_param_block() {
     let h = H::new("direct");
@@ -48,14 +48,14 @@ fn bug044_direct_emit_has_full_param_block() {
     let res = run_asm(&["asm".into(), "-t".into(), "tables/sm120.json".into(),
                         src, "-o".into(), out.to_str().unwrap().into()]);
     assert!(res.status.success(), "{}", String::from_utf8_lossy(&res.stderr));
-    // EIATTR CBANK_PARAM_SIZE = 16 (wlasny parser, droga naprawiona BVAL).
+    // EIATTR CBANK_PARAM_SIZE = 16 (own parser, via the fixed BVAL path).
     let bytes = std::fs::read(&out).unwrap();
     let meta = cubit::eiattr::parse_cubin_metadata(&bytes).unwrap();
     assert_eq!(meta["t"].cbank_param_size, 16,
                "3 params (u64,u32,u32) = 16-byte cbank block");
 }
 
-/// Template 12 B + sass 16 B => twardy blad, brak pliku (obie sciezki).
+/// Template 12 B + sass 16 B => hard error, no file (both paths).
 #[test]
 fn bug044_template_param_mismatch_fails_closed_both_paths() {
     let h = H::new("mismatch");

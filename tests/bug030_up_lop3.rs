@@ -1,20 +1,20 @@
-//! BUG-030 (rejestr sm120: 030 / iter67+i91): dziury enkodera UP-write rodzin
+//! BUG-030 (sm120 registry: 030 / iter67+i91): encoder holes of the UP-write families
 //! UPLOP3/ULOP3.
-//!  a) `UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, 0x3, 0x0` akceptowane bez WARN ->
-//!     slowo POZA przestrzenia dekodowalna (nvdisasm: "undefined value 0x1e
-//!     for TABLES_opex_1"). Przyczyna: wiersz `UPLOP3.LUT_UP_UP_UP_UP_UP_II_II`
-//!     mial pole `token_idx: 7` (poza siedmiotokenowym sig) i 2-bit szerokosci
-//!     bez skalowania — zlote slowa DEKODOWALY SIE ZLE ("0x40, 0x4" drukowane
-//!     jako "0x1, 0x1") i encode != slowo.
-//!     Fix data-level na zlocie i93 (2635 slow SASS, cublasLt/cudnn sm_120):
-//!       dest-UP tok1 3b@81 straight, src4-UP tok5 3b@68 straight,
-//!       tok6 = 2b@75 render value<<6, tok7 = 2b@18 render value<<2;
-//!     plus fail-closed check lattice (0x3/0x44 itd. odrzucane — jak mk54
-//!     po stronie mercury).
-//!  b) `ULOP3.LUT UP1, UPT, URZ, 0x1, 0xff, 0x0` — 6-tokenowa forma UP-write
-//!     NIE istnieje w zlotym korpusie (206k rekordow UP): realna forma to
-//!     7-token `ULOP3.LUT UPd, URd, URa, imm_b, URc, lut8, !UPx` (BUG-012).
-//!     Dwa fantomowe wiersze `_?` (scrambled-pola) usuniete; lookup-fail
+//!  a) `UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, 0x3, 0x0` accepted without WARN ->
+//!     a word OUTSIDE the decodable space (nvdisasm: "undefined value 0x1e
+//!     for TABLES_opex_1"). Cause: the `UPLOP3.LUT_UP_UP_UP_UP_UP_II_II` row
+//!     had a `token_idx: 7` field (beyond the seven-token sig) at 2-bit width
+//!     with no scaling — golden words DECODED WRONG ("0x40, 0x4" printed
+//!     as "0x1, 0x1") and encode != word.
+//!     Data-level fix on the i93 goldens (2635 SASS words, cublasLt/cudnn sm_120):
+//!       dest-UP tok1 3b straight, src4-UP tok5 3b straight,
+//!       tok6 = 2b renders value<<6, tok7 = 2b renders value<<2;
+//!     plus a fail-closed lattice check (0x3/0x44 etc. rejected — like mk54
+//!     on the mercury side).
+//!  b) `ULOP3.LUT UP1, UPT, URZ, 0x1, 0xff, 0x0` — the 6-token UP-write form
+//!     does NOT exist in the golden corpus (206k UP records): the real form is
+//!     the 7-token `ULOP3.LUT UPd, URd, URa, imm_b, URc, lut8, !UPx` (BUG-012).
+//!     The two phantom `_?` rows (scrambled fields) removed; lookup-fail
 //!     niesie wskazowke z kanoniczna forma.
 
 use cubit::decoder::DecodeIndex;
@@ -39,8 +39,8 @@ fn dec(word: u128) -> String {
     format!("{d}").trim_end_matches([' ', ';']).to_string()
 }
 
-/// Zlote slowa z i93 harvest (nvdisasm -c, cublasLt sm_120). Render musi byc
-/// identyczny z tekstem oracle, a re-encode = oryginalne bajty (mod sched).
+/// Golden words from the i93 harvest (nvdisasm -c, cublasLt sm_120). The render must be
+/// identical to the oracle text, and re-encode = original bytes (mod sched).
 const GOLD: &[(u128, &str)] = &[
     (0x000fc40003f0e870000000000004789c, "UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, 0x40, 0x4"),
     (0x000fe20003f0f070000000000008789c, "UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, 0x80, 0x8"),
@@ -48,7 +48,7 @@ const GOLD: &[(u128, &str)] = &[
     (0x000fe20003f2f000000000000008789c, "UPLOP3.LUT UP1, UPT, UPT, UPT, UP0, 0x80, 0x8"),
     (0x000fd60003f6e830000000000004789c, "UPLOP3.LUT UP3, UPT, UPT, UPT, UP3, 0x40, 0x4"),
     (0x000fc80003fae870000000000004789c, "UPLOP3.LUT UP5, UPT, UPT, UPT, UPT, 0x40, 0x4"),
-    // ULOP3 UP-write 7-token (wiersz z BUG-012) — regresja po usunieciu fantomow
+    // ULOP3 UP-write 7-token (the BUG-012 row) — regression after phantom removal
     (0x000fe2000f82c03f00000001133f7892, "ULOP3.LUT UP1, UR63, UR19, 0x1, UR63, 0xc0, !UPT"),
 ];
 
@@ -65,7 +65,7 @@ fn bug030_gold_decode_and_reencode_byte_exact() {
 
 #[test]
 fn bug030_repro_uplop3_lattice_fail_closed() {
-    // oryginalny repro: tok5=0x3 jest niewyrazalny (2-bit lattice, value<<6)
+    // original repro: tok5=0x3 is not expressible (2-bit lattice, value<<6)
     let e = enc("UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, 0x3, 0x0")
         .expect_err("out-of-lattice lut must be refused");
     assert!(e.contains("BUG-030"), "error must name BUG-030: {e}");
@@ -87,7 +87,7 @@ fn bug030_repro_uplop3_lattice_fail_closed() {
 
 #[test]
 fn bug030_ulop3_short_up_write_phantom_rejected() {
-    // 030b repro: 6-tokenowa "forma" nigdy nie istniala w krzemowym korpusie
+    // 030b repro: the 6-token "form" never existed in the silicon corpus
     let e = enc("ULOP3.LUT UP1, UPT, URZ, 0x1, 0xff, 0x0")
         .expect_err("phantom UP-write shape must stay rejected");
     assert!(
@@ -101,8 +101,8 @@ fn bug030_ulop3_short_up_write_phantom_rejected() {
 
 #[test]
 fn bug030_uplop3_non_upt_sources_fail_closed() {
-    // tok1-3 NIE maja pol w zlocie (zawsze UPT): nie-UPT musi odpasc
-    // fail-closed przez completeness (brak pola), NIE cicho wypasc z slowa.
+    // tok1-3 have NO fields in the goldens (always UPT): non-UPT must fail
+    // fail-closed through completeness (no field), NOT silently fall out of the word.
     let e = enc("UPLOP3.LUT UP0, UP1, UPT, UPT, UPT, 0x40, 0x4")
         .expect_err("non-UPT source at tok1 must be refused");
     assert!(e.contains("no field"), "completeness error expected: {e}");

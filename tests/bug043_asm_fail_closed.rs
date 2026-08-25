@@ -1,18 +1,18 @@
 //! BUG-043 (from the frontend-M report; registry 043):
-//! `cubit asm` przy niewykodowalnej instrukcji tylko WARN-owal, zostawial
-//! zero-word (sciezka directive/ELF) albo bajty szablonu (-T) i konczyl
-//! rc=0 — plik wygladal na poprawny, a zawieral smiec.
-//! Nawiazywalo to do BUG-039 ("encode OK" bez pliku): kontrakt narzedzia
-//! klamal. Do tego wchodzi w interakcje z fail-closed completeness BUG-017:
-//! pod zewnetrzna zamrozona tabela (tb_i82, era M1; wiersz STS_ARI_R/128 bez
-//! pola addr_scale) `STS.128 [Rn.X16], Rm` przestalo sie enkodowac (poprawnie!
-//! — suffix realnie nosi bity 78/79, drop = miss-encoding), a lancuch M1
-//! dalej produkowal cubin z 4 zerowymi slotami (po dekodowaniu renderowane
-//! jako `@P0 STG.E.GPU.STRONG desc[URZ][R0.64], R0`).
-//! Fix: asm (wszystkie trzy sciezki: -T template, build-ELF, directive) jest
-//! fail-closed — dowolny blad enkodowania = rc!=0, brak pliku wyjsciowego;
-//! jawny escape hatch = `__raw__0x...` w sass.
-//! Test: sciezka directive przez prawdziwa binarke + poziom lib.
+//! `cubit asm` on an unencodable instruction only WARNed, leaving
+//! a zero word (directive/ELF path) or template bytes (-T) and finishing
+//! rc=0 — the file looked valid while containing garbage.
+//! That echoed BUG-039 ("encode OK" without a file): the tool contract
+//! was lying. It also interacts with the BUG-017 fail-closed completeness:
+//! under an external frozen table (tb_i82, M1 era; the STS_ARI_R/128 row without
+//! an addr_scale field) `STS.128 [Rn.X16], Rm` stopped encoding (correctly!
+//! — the suffix really carries bits 78/79, so a drop = miss-encoding), while the M1
+//! chain still produced a cubin with 4 zero slots (decoded
+//! as `@P0 STG.E.GPU.STRONG desc[URZ][R0.64], R0`).
+//! Fix: asm (all three paths: -T template, build-ELF, directive) is
+//! fail-closed — any encoding error = rc!=0, no output file;
+//! the explicit escape hatch = `__raw__0x...` in sass.
+//! Test: the directive path through the real binary + lib level.
 
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;

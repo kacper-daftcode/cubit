@@ -1,12 +1,12 @@
 //! BUG-041 (rejestr sm120: 041_atomg_el_desc_u32.md, CONFIRMED krzem+sanitizer
 //! i119): na bbf7412 `ATOMG.E.ADD.EL.*` z tekstem desc[UR4][Rx.64] bylo CICHO
 //! kodowane forma [Rx.U32+UR4] (32-bit) -> krzem liczyl adres zext(Rx_lo) ->
-//! CUDA_ERROR_ILLEGAL_ADDRESS przy pierwszym DP-hicie.
-//! Stan na HEAD: lancuch BUG-038/038a (9c12fb6, strict wpisy ATOM/REDG) +
-//! BUG-F2-043 fail-closed juz zamyka te klase u zrodla — .EL + desc[.64]
-//! dostaje "no operand-compatible table entry", a forma nvcc (bez .EL)
-//! koduje desc[.64] byte-exact. Ten test PINUJE obie strony bramki, zeby
-//! zadna przyszla edycja tabeli ATOM* nie otworzyla z powrotem cichego
+//! CUDA_ERROR_ILLEGAL_ADDRESS on the first DP hit.
+//! State at HEAD: the BUG-038/038a chain (9c12fb6, strict ATOM/REDG entries) +
+//! BUG-F2-043 fail-closed already closes this class at the source — .EL + desc[.64]
+//! gets "no operand-compatible table entry", while the nvcc form (without .EL)
+//! encodes desc[.64] byte-exact. This test PINS both sides of the gate so that
+//! no future ATOM* table edit re-opens the quiet 64->32 downcast.
 //! downcastu 64->32.
 
 use cubit::encoder::encode_instruction;

@@ -1,15 +1,15 @@
-//! BUG-049 (rejestr sm120: 049_imad_hi_perarch_reject.md, SPARK q3 gx4):
-//! guard BUG-002 odrzucal IMAD.HI[.U32] na KAZDYM targecie, bo
-//! (a) loader nie znal SM121A (_meta.architecture) i domykal sie na e_flags
-//!     sm_120, przez co tabela sm_121a udawala sm_120 w target_sm();
-//! (b) warunek skip guard-a dla non-120 wymagal, by dopasowany wpis tabeli
-//!     sam niosl literalnie klucz/modgrupe "HI" — nvcc-owski 4-operandowy
-//!     `IMAD.HI.U32 R8, R2, R3, R4` (ktory sm_121a wykonuje POPRAWNIE:
-//!     hi32 dobrze, Rd+1 nietkniety, krzem GB10 potwierdzone) nie mial czesto
-//!     takiego wpisu i byl odrzucany mimo ze ally.
-//! Fix u zrodla: arch_ef_flags zna SM121 => target_sm()==121; guard BUG-002
-//! strzela WYLACZNIE dla sm_120 (jedyne arch z krzemowym dowodem zepsucia
-//! HI->WIDE). Na innych arch tabela jest autorytetem, jak dla kazdego opkodu.
+//! BUG-049 (sm120 registry: 049_imad_hi_perarch_reject.md, SPARK q3 gx4):
+//! the BUG-002 guard rejected IMAD.HI[.U32] on EVERY target, because
+//! (a) the loader did not know SM121A (_meta.architecture) and closed on the e_flags
+//!     sm_120, so the sm_121a table pretended to be sm_120 in target_sm();
+//! (b) the guard-skip condition for non-120 required the matched table entry
+//!     to literally carry a "HI" key/modgroup — nvcc's 4-operand
+//!     `IMAD.HI.U32 R8, R2, R3, R4` (which sm_121a executes CORRECTLY:
+//!     hi32 right, Rd+1 untouched, GB10 silicon confirmed) often had no
+//!     such entry and was rejected although legal.
+//! Fix at the source: arch_ef_flags knows SM121 => target_sm()==121; the BUG-002
+//! guard fires ONLY for sm_120 (the only arch with silicon evidence of the
+//! HI->WIDE breakage). On other arches the table is authoritative, as for every opcode.
 //! sm_120 reject pozostaje nietkniety (bugs_errata_sm120::bug002_* go paletuje).
 use cubit::encoder::encode_instruction;
 use cubit::table::IsaTable;
@@ -26,8 +26,8 @@ fn write_table(arch: &str, with_hi_entry: bool, strip_imad: bool, tag: &str) -> 
         for k in drop_keys { ins.remove(&k); }
     }
     if with_hi_entry {
-        // Wpis w ksztalcie harvestowanym: geometria jak IMAD_R_R_R_R, klucz
-        // niesie HI jawnie (jak IMAD.HI.U32_R_P_R_R_R w tabeli sm121a sparka).
+        // Entry in the harvested shape: geometry like IMAD_R_R_R_R, the key
+        // carries HI explicitly (like IMAD.HI.U32_R_P_R_R_R in the spark sm121a table).
         let base = src["instructions"]["IMAD_R_R_R_R"].clone();
         t.as_object_mut().unwrap().get_mut("instructions").unwrap()
             .as_object_mut().unwrap()

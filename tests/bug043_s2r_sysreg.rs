@@ -1,17 +1,17 @@
 //! BUG-043 (rejestr sm120: 043_sr_ntid_encodes_laneid.md, CONFIRMED i120):
-//! `S2R Rx, SR_NTID.X` / `SR_NCTAID.X` kodowaly sie jako SR_LANEID — nazwy
-//! nieobecne w sysreg_id() spadaly na cichy fallback 0. Na krzemie (sm120)
-//! kolumna "NTID.X" zwracala laneid, co w hopb dawalo wyscigi zapisu przy
-//! nb>=2 (EXACT dopiero przez przypadek przy nb=1).
-//! Fix (fail-closed, u zrodla) + nvdisasm-13.3 sm_120 census:
-//!  - SR_NTID/SR_NTID.X -> 0x28 (krzemowo potwierdzone blockDim, i120);
-//!  - nieznana nazwa SR = blad enkodera z wskazowka SR_0x<hex> (NIE fallback 0);
-//!  - dodane nvdisasm-named kody z pelnego sweepu 256 kodow (the internal fix archive
-//!    r043/sr_sweep_nvdisasm133.txt);
-//!  - printer: SYSREG_NAMES zgodne z nvdisasm-13.3 sm120 (literaturne
-//!    NTID.Y/Z=0x29/0x2a i NCTAID.*=0x2c..0x2e byly BLONE dla sm120 — to
-//!    SR_CirQueueIncrMinusOne/SR_NLATC i SR_SM_SPA_VERSION/SR_MULTIPASSSHADERINFO/
-//!    SR_LWINHI; WARPID/SMID/GRIDID tez nie istnieja w tej tabeli).
+//! `S2R Rx, SR_NTID.X` / `SR_NCTAID.X` encoded as SR_LANEID — names
+//! absent from sysreg_id() fell onto a silent 0 fallback. On silicon (sm120)
+//! the "NTID.X" column returned laneid, which in hopb gave write races at
+//! nb>=2 (EXACT only by accident at nb=1).
+//! Fix (fail-closed, at the source) + an nvdisasm-13.3 sm_120 census:
+//!  - SR_NTID/SR_NTID.X -> 0x28 (silicon-confirmed blockDim, i120);
+//!  - an unknown SR name = an encoder error with an SR_0x<hex> hint (NO 0 fallback);
+//!  - added the nvdisasm-named codes from the full 256-code sweep;
+//!  - printer: SYSREG_NAMES consistent with nvdisasm-13.3 sm120 (the literature
+//!    NTID.Y/Z=0x29/0x2a and NCTAID.*=0x2c..0x2e were WRONG for sm120 — those are
+//!    SR_CirQueueIncrMinusOne/SR_NLATC and SR_SM_SPA_VERSION/SR_MULTIPASSSHADERINFO/
+//!    SR_LWINHI; WARPID/SMID/GRIDID do not exist in that table either).
+//!    SR_LWINHI; WARPID/SMID/GRIDID do not exist in that table either).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

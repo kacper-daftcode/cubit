@@ -1,11 +1,11 @@
-//! BUG-054 (rejestr sm120: 054_vote_any_all_alias.md, F2-iter10):
-//! dwustronny alias VOTE.ANY <-> VOTE.ALL na formie P-dest:
-//!  * encode: `VOTE.ANY Pd, Ps` kodowal slowo z bitem trybu 72=0 -> krzem
-//!    wykonywal ALL (cicha zmiana semantyki votingu; `syncwarp`-legal bug
-//!    klasy wrong-code), oba teksty dawaly identyczne slowo;
-//!  * decode: slowa ALL renderowalo jako `VOTE.ANY` (tie-break na wierszach
-//!    bez pola trybu); slowo ANY.P parzalo sie nawet z wierszem VOTEU.
-//! Prawda (nvcc 13.3 -arch=sm_120 goldeny na tym hoscie, vote.cu/v.ptx):
+//! BUG-054 (sm120 registry: 054_vote_any_all_alias.md, F2-iter10):
+//! a bidirectional VOTE.ANY <-> VOTE.ALL alias on the P-dest form:
+//!  * encode: `VOTE.ANY Pd, Ps` encoded a word with mode bit 72=0 -> silicon
+//!    executed ALL (silent change of voting semantics; a `syncwarp`-legal bug
+//!    of the wrong-code class); both texts gave an identical word;
+//!  * decode: an ALL word rendered as `VOTE.ANY` (tie-break across rows
+//!    without a mode field); the ANY.P word paired even with the VOTEU row.
+//! Truth (nvcc 13.3 -arch=sm_120 goldens on this host, vote.cu/v.ptx):
 //!  * formy P-dest: ALL/ANY rozni bit 72 (ALL=0, ANY=1); w pozostalych
 //!    bitach operandow identyczne (dest P @[83:81], src P @[89:87],
 //!    src-neg @90)! Wszystkie 6 goldenow ponizej pochodzi z nvcc/ptxas.

@@ -1,31 +1,31 @@
-//! BUG-045 (F2-kanoniczny, residual z BUG-030): ULOP3 forma UP-dest z tok4=UR
-//! oraz kanonikalizacja UPT-dest.
+//! BUG-045 (F2 canonical, a BUG-030 residual): the ULOP3 UP-dest form with tok4=UR
+//! plus UPT-dest canonicalization.
 //!
-//! Mapa dekodowania ULOP3.LUT (korpus i93, 14777 slow, census the internal fix archive
-//!   bit11=1 -> tok4 imm32:  ULOP3_UR_UR_II_UR_II_UP (bezin. UP-dest)
-//!                           ULOP3_UP_UR_UR_II_UR_II_UP (UP-dest)
-//!   bit11=0 -> tok4 UR:     ULOP3_UR_UR_UR_UR_II_UP  (bezin. UP-dest)
-//!                           ULOP3_UP_UR_UR_UR_UR_II_UP (UP-dest) <- TEN FIX
+//! ULOP3.LUT decode map (i93 corpus, 14777 words, census of the internal fix archive
+//!   bit11=1 -> tok4 imm32:  ULOP3_UR_UR_II_UR_II_UP (no UP dest)
+//!                           ULOP3_UP_UR_UR_II_UR_II_UP (UP dest)
+//!   bit11=0 -> tok4 UR:     ULOP3_UR_UR_UR_UR_II_UP  (no UP dest)
+//!                           ULOP3_UP_UR_UR_UR_UR_II_UP (UP dest) <- THIS FIX
 //!
-//! (A) HOLE (46 rekordow / 24 unikalne slowa z cublasLt/cudnn sm_120):
-//!     `ULOP3.LUT UPd, URZ, URa, URb, URZ, 0xc0, !UPT` nie dekodowalo sie
-//!     ("no instruction matches ... at opcode 0x292"). W tabeli byl wiersz-
-//!     fantom `ULOP3_UP_UR_UR_UR_UR_II_UP` (count=4, scrambled-pola:
-//!     imm 1b@24, zadne pole nie ekstraktowalo dest-UP). Wiersz zastapiony
-//!     fitem z 24 zlotych slow: dest-UP 3b@81 straight, tok2 [23:16]=ff
-//!     (UR-dest URZ — stala w zlocie, zaszta), tok3 ureg 6b@24 (max UR38),
-//!     tok4 ureg 5b@32 (max UR27), tok5 [71:64]=ff (zaszta), tok6 lut 8b@72,
-//!     tok7 !UPT ([90:87]=f), bit11=0 w and_base (rozdzielcza vs imm-forma).
-//! (B) COSMETIC (7 rekordow / 3 unikalne): UP-dest == UPT jest kodowaniem
-//!     formy BEZ destu — wszystkie bezdestne slowa zlota maja sel[83:81]=7
-//!     zaszyte (histogram (7,*): 6329+4238). nvdisasm operand opuszcza, cubit
-//!     drukowal "UPT, " (bitowo rownowazne). Printer: drop wiodacego UPT dla
-//!     ULOP3 z UP-pierwszym operandem; re-encode idzie wierszem UR_* (sel=7
-//!     zaszyte w and_base) -> bajty identyczne.
-//! (C) ENCODER GAP: wiersz ULOP3_UR_UR_II_UR_II_UP nie mial pola tok4
-//!     ([71:64]=ff zaszyte) -> tekst z URc!=URZ odrzucany ("operand 4 (UR7)
-//!     has no field able to encode it") mimo 7 zlotych slow w korpusie.
-//!     Pole tok4 ureg_ff 8b@64 dodane, vm rozszerzona, and_base[71:64] = 0,
+//! (A) HOLE (46 records / 24 unique words from cublasLt/cudnn sm_120):
+//!     `ULOP3.LUT UPd, URZ, URa, URb, URZ, 0xc0, !UPT` did not decode
+//!     ("no instruction matches ... at opcode 0x292"). The table held a phantom
+//!     row `ULOP3_UP_UR_UR_UR_UR_II_UP` (count=4, scrambled fields:
+//!     imm 1b, no field extracted the dest UP). The row was replaced
+//!     with a fit from 24 golden words: dest-UP 3b straight, tok2 [23:16]=ff
+//!     (UR dest URZ — constant in the golden set, baked), tok3 ureg 6b (max UR38),
+//!     tok4 ureg 5b (max UR27), tok5 [71:64]=ff (baked), tok6 lut 8b,
+//!     tok7 !UPT ([90:87]=f), bit11=0 in and_base (discriminator vs the imm form).
+//! (B) COSMETIC (7 records / 3 unique): UP dest == UPT encodes the form WITHOUT a
+//!     dest — all dest-less golden words carry sel[83:81]=7 baked (histogram (7,*):
+//!     6329+4238). nvdisasm drops the operand, cubit
+//!     printed "UPT, " (bitwise-equivalent). Printer: drop the leading UPT for
+//!     ULOP3 with a UP first operand; re-encode goes through the UR_* row (sel=7
+//!     baked in and_base) -> identical bytes.
+//! (C) ENCODER GAP: the ULOP3_UR_UR_II_UR_II_UP row had no tok4 field
+//!     ([71:64]=ff baked) -> text with URc!=URZ was rejected ("operand 4 (UR7)
+//!     has no field able to encode it") despite 7 golden words in the corpus.
+//!     tok4 ureg_ff 8b field added, vm widened, and_base[71:64] = 0,
 //!     count 35 -> 42.
 
 use cubit::decoder::DecodeIndex;
@@ -77,13 +77,13 @@ const GOLD: &[(u128, &str)] = &[
     (0x002fe2000f82c0ff0000000906ff7292, "ULOP3.LUT UP1, URZ, UR6, UR9, URZ, 0xc0, !UPT"),
     (0x004fe2000f82c0ff0000000608ff7292, "ULOP3.LUT UP1, URZ, UR8, UR6, URZ, 0xc0, !UPT"),
     (0x008fe4000f82c0ff0000000504ff7292, "ULOP3.LUT UP1, URZ, UR4, UR5, URZ, 0xc0, !UPT"),
-    // (B)+(C): UPT-dest -> forma bez destu; URc != URZ enkodowalne
+    // (B)+(C): UPT dest -> the dest-less form; URc != URZ is encodable
     (0x000fc8000f8ef8070000000704047892, "ULOP3.LUT UR4, UR4, 0x7, UR7, 0xf8, !UPT"),
     (0x000fe2000f8ef8170000000707077892, "ULOP3.LUT UR7, UR7, 0x7, UR23, 0xf8, !UPT"),
     (0x000fe2000f8ef8180000000707077892, "ULOP3.LUT UR7, UR7, 0x7, UR24, 0xf8, !UPT"),
 ];
 
-/// Regresja sasiednich form (klasy 6322/451 z censusu — bez zmian w renderze).
+/// Regression of the neighboring forms (6322/451 classes from the census — render unchanged).
 const NEIGHBORS: &[(u128, &str)] = &[
     (0x000fe2000f8ec0fffffffff00b0b7892, "ULOP3.LUT UR11, UR11, 0xfffffff0, URZ, 0xc0, !UPT"),
     (0x000fe2000f8eb807000000060a067292, "ULOP3.LUT UR6, UR10, UR6, UR7, 0xb8, !UPT"),
@@ -103,18 +103,18 @@ fn bug045_gold_decode_and_reencode_byte_exact() {
 
 #[test]
 fn bug045_upt_explicit_dest_encodes_same_as_canonical() {
-    // Tekst z jawnym UPT-destem (imm-forma) i forma bez destu daja to samo slowo.
+    // Text with an explicit UPT dest (imm form) and the dest-less form give the same word.
     let explicit = enc("ULOP3.LUT UPT, UR4, UR4, 0x7, UR7, 0xf8, !UPT").unwrap();
     let canonical = enc("ULOP3.LUT UR4, UR4, 0x7, UR7, 0xf8, !UPT").unwrap();
     assert_eq!(explicit & !SCHED, canonical & !SCHED);
-    // i dekoduje sie do formy kanonicznej (po druku z powrotem to samo slowo)
+    // and decodes to the canonical form (after the print round-trip the same word)
     let text = dec(explicit);
     assert_eq!(text, "ULOP3.LUT UR4, UR4, 0x7, UR7, 0xf8, !UPT");
 }
 
 #[test]
 fn bug045_hole_fail_closed_outside_gold() {
-    // tok2 (UR-dest) zaszyty URZ w zlocie — inny UR = glosny blad, nie silent-drop
+    // tok2 (UR dest) baked URZ in the goldens — a different UR = a loud error, not a silent drop
     enc("ULOP3.LUT UP0, UR5, UR16, UR4, URZ, 0xc0, !UPT")
         .expect_err("UR dest other than URZ is outside fitted gold evidence");
     // tok5 zaszyty URZ analogicznie

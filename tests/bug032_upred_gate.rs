@@ -5,17 +5,17 @@
 //! (inwersja symetryczna obu stron), ale tekst nvdisasm -> cubit asm dawal
 //! INNA wartosc sel niz kanon (bit-exact re-emisja cudzych kerneli zlamana).
 //!
-//! Zakres (werdykt i93, 206775 rekordow UP, 2113 cubin): inwersja WYLACZNIE
-//! na gate-operandzie MMA; WSZYSTKIE pozostale pola upred (@81 dest, @87 src
-//! UISETP/USEL, @68 PLOP3/UPLOP3, BRA @24, ...) sa STRAIGHT — fix nie moze
-//! byc globalny. Totez nowa ekstrakcja `upred_gate`, uzyta TYLKO przez pole
-//! gate w wierszach zlozonych na zlocie.
+//! Scope (i93 verdict, 206775 UP records, 2113 cubins): inversion ONLY
+//! on the MMA gate operand; ALL other upred fields ( dest,  src
+//! UISETP/USEL,  PLOP3/UPLOP3, BRA , ...) are STRAIGHT — the fix cannot
+//! be global. Hence the new `upred_gate` extraction, used ONLY by the gate
+//! field in rows composed from goldens.
 //!
-//! Bonus-naprawa wykryta zlota-censusem: wiersze `QMMA.16832.F32.*_R_R_R_R_UP`
-//! mialy zharvestowane pola POZA oknami operandow (render "R1, R195, R11" za
-//! "R4, R24, R22" — 5800/5800 slow zlotych deko. bledne) i 1-bit gate (sel
-//! scinany); fantom `_UP_UP` łapał pozostale wartosci gate. Wiersze przepisane
-//! na fit zloty (reg@16/24/32/64, gate 3b@87 + inv@90), fantomy usuniete.
+//! Bonus fix caught by the golden census: the `QMMA.16832.F32.*_R_R_R_R_UP` rows
+//! had harvested fields OUTSIDE operand windows (rendering "R1, R195, R11" over
+//! "R4, R24, R22" — 5800/5800 golden words decoded wrong) and a 1-bit gate (sel
+//! truncated); the `_UP_UP` phantom caught the remaining gate values. Rows rewritten
+//! to the golden fit (reg/24/32/64, gate 3b + inv), phantoms removed.
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
@@ -96,7 +96,7 @@ fn bug032_self_roundtrip_all_gate_values() {
             let name = if inv { format!("!{name}") } else { name };
             let text = format!("QMMA.16832.F32.E4M3.E4M3 R8, R40, R44, R8, {name}");
             let w = enc(&text);
-            // kanon nvdisasm: sel=0=UPT jest POMIJANY w renderze (bez inv)
+            // nvdisasm canon: sel=0=UPT is OMITTED in the render (no inv)
             let canon = if name == "UPT" {
                 "QMMA.16832.F32.E4M3.E4M3 R8, R40, R44, R8".to_string()
             } else { text.clone() };

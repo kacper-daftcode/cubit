@@ -1,9 +1,9 @@
-//! BUG-052 (rejestr sm120: 052_qmma_f8f6f4_type_matrix.md, SPARK q2 gx4):
-//! ptxas 13.0 emituje QMMA.16832.F32.A.B dla wszystkich 25 par A,B z
-//! {e4m3,e5m2,e3m2,e2m3,e2m1} (mma.sync...kind::f8f6f4), a tabela sm120.json
-//! miala tylko 9 par z {e2m3,e4m3,e5m2} => ENC-FAIL dla 16 legalnych par
-//! (kodowanie nvcc -arch=sm_120 i -arch=sm_121a identyczne; krzem GB10:
-//! fp8 i fp4 wykonuja sie, 25/25 EXACT lokalnie + nvdisasm crosscheck 25/25).
+//! BUG-052 (sm120 registry: 052_qmma_f8f6f4_type_matrix.md, SPARK q2 gx4):
+//! ptxas 13.0 emits QMMA.16832.F32.A.B for all 25 A,B pairs from
+//! {e4m3,e5m2,e3m2,e2m3,e2m1} (mma.sync...kind::f8f6f4), while sm120.json
+//! had only 9 pairs from {e2m3,e4m3,e5m2} => ENC-FAIL for 16 legal pairs
+//! (nvcc encodes -arch=sm_120 and -arch=sm_121a identically; GB10 silicon:
+//! fp8 and fp4 execute, 25/25 EXACT locally + nvdisasm crosscheck 25/25).
 //! Fix: port 32 wpisow (16 nowych par x {plain, _P}) z tabeli spark.
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
@@ -20,7 +20,7 @@ fn enc_clean(t: &IsaTable, s: &str) -> u128 {
 }
 
 /// 25 goldenow ptxas (results/q2/qmma_matrix25.json, landing spark; slowa
-/// 128-bit, sched-bits maskowane przez !SCHED przy porownaniu).
+/// 128-bit, sched bits masked by !SCHED at compare time).
 const G: [(&str, u128); 25] = [
     ("QMMA.16832.F32.E4M3.E4M3 R4, R4, R8, R12 ;", 0x000fe20000002c0c000000080404727a),
     ("QMMA.16832.F32.E4M3.E5M2 R4, R4, R8, R12 ;", 0x000fe2000000ac0c000000080404727a),
@@ -59,7 +59,7 @@ fn bug052_encode_25_pairs_exact() {
 
 #[test]
 fn bug052_new_pairs_decode_roundtrip() {
-    // Para E2M1.E2M1 (fp4) byla niekodowalna pre-fix; teraz word <-> text.
+    // The E2M1.E2M1 (fp4) pair was unencodable pre-fix; now word <-> text.
     let t = t120();
     let (sass, gold) = G[24];
     assert_eq!(sass.trim_end_matches(';').trim(), "QMMA.16832.F32.E2M1.E2M1 R4, R4, R8, R12");

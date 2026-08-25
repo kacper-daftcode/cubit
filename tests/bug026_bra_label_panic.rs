@@ -1,10 +1,10 @@
-//! BUG-026 (rejestr sm120: plik 026 / iter87): `cubit asm` panic
-//! "index out of bounds" przy backward-branchu do label gdy w jednostce sa
-//! >=2 LDC/LDCU. Root cause: lista nazw opkodow dla generate_mercury_full
-//! budowala sie z pre-insertion `def.instructions`, a kod z post-insertion
-//! (uniform backward-branch pad/drain wydluza strumien) — OOB index.
-//! Fix: kops z `insns_with_ctrl`; generate_mercury_full fail-loud na mismatch.
-//! Test idzie przez prawdziwa binarke (end-to-end asm flow).
+//! BUG-026 (sm120 registry: file 026 / iter87): `cubit asm` panic
+//! "index out of bounds" on a backward branch to a label when the unit has
+//! >=2 LDC/LDCU. Root cause: the opcode-name list for generate_mercury_full
+//! was built from the pre-insertion `def.instructions`, but code from post-insertion
+//! (the uniform backward-branch pad/drain lengthens the stream) — OOB index.
+//! Fix: scoop from `insns_with_ctrl`; generate_mercury_full fails loud on mismatch.
+//! The test goes through the real binary (end-to-end asm flow).
 
 use std::process::Command;
 
@@ -34,32 +34,32 @@ fn asm_ok(sass: &str, tag: &str) -> Vec<u8> {
     std::fs::read(&out).unwrap()
 }
 
-/// oryginalny minimalny reproducer z raportu iter87
+/// the original minimal reproducer from the iter87 report
 const REPRO: &str = ".entry t\n    .reg R0-R120\n    LDCU.64 UR4, c[0x0][0x358] ;\n    LDC.64 R2, c[0x0][0x380] ;\n    LDC R6, c[0x0][0x390] ;\nL_loop:\n    MOV R72, R20 ;\n    @P1 BRA L_loop ;\n    EXIT ;\n";
 
 #[test]
 fn bug026_backward_branch_with_ldc_no_panic() {
     let cubin = asm_ok(REPRO, "repro");
-    // sanity: niepusty ELF z sekcja .text.t
+    // sanity: non-empty ELF with the .text.t section
     assert!(cubin.len() > 0x100 && &cubin[0..4] == b"\x7fELF");
 }
 
 #[test]
 fn bug026_variants_still_assemble() {
-    // forward branch — zgodnie z raportem nigdy nie panikowal
+    // forward branch — per the report it never panicked
     let fwd = ".entry t\n    .reg R0-R120\n    LDCU.64 UR4, c[0x0][0x358] ;\n    LDC.64 R2, c[0x0][0x380] ;\n    LDC R6, c[0x0][0x390] ;\n    @P1 BRA L_out ;\n    MOV R72, R20 ;\nL_out:\n    EXIT ;\n";
     asm_ok(fwd, "fwd");
-    // backward branch bez LDC
-    // BUG-043: asm jest teraz fail-closed — cialo petli musi byc kanonicznym
-    // ksztaltem sm120 (IADD3 z PT-slotami); gola forma 4-token nie ma wiersza.
+    // backward branch without LDC
+    // BUG-043: asm is now fail-closed — the loop body must be the canonical
+    // sm120 shape (IADD3 with PT slots); the bare 4-token form has no row.
     let noldc = ".entry t\n    .reg R0-R120\nL_loop:\n    IADD3 R4, PT, PT, R4, 0x1, RZ ;\n    @P1 BRA L_loop ;\n    EXIT ;\n";
     asm_ok(noldc, "noldc");
 }
 
 #[test]
 fn bug026_generated_code_covers_inserted_pad() {
-    // Po fixie code i opcodes sa spojne; sekcja .text roundtrip-uje sie
-    // przez disassemble bez jawnego bledu (drain/pad slot tez sie dekoduje).
+    // After the fix, code and opcodes are consistent; the .text section round-trips
+    // through disassemble without an explicit error (the drain/pad slot decodes too).
     let dir = std::env::temp_dir();
     let src = dir.join("bug026_rt.sass");
     let out = dir.join("bug026_rt.cubin");

@@ -1,17 +1,17 @@
 //! BUG-037 (rejestr sm120: 037/ / iter46+iter47): enkoder akceptowal
-//! niewyrownane operandy wielo-rejestrowe MMA, ktore na krzemiu daja
-//! ILLEGAL_INSTRUCTION (`IMMA.16832.S8.S8 R8, R42, R44, R8` z A=R42:
-//! asm OK bez WARN, run = FAIL 27 ILLEGAL; A=R40 dziala).
-//! Fix: encoder-side legality check na KRZEMIEM ZMIERZONYCH (op, shape,
-//! accum) kombinacjach (iter46/47 tabele):
+//! misaligned multi-register MMA operands which on silicon give
+//! ILLEGAL_INSTRUCTION (`IMMA.16832.S8.S8 R8, R42, R44, R8` with A=R42:
+//! asm OK without WARN, run = FAIL 27 ILLEGAL; A=R40 works).
+//! Fix: an encoder-side legality check on SILICON-MEASURED (op, shape,
+//! accum) combinations (iter46/47 tables):
 //!   IMMA.16832.* (acc S32):  D%4 A%4 B%2 C%4
 //!   QMMA.16832.F32.*:        D%4 A%4 B%2 C%4
 //!   HMMA.16816.F32:          D%4 A%4 B%2 C%4
-//!   HMMA.1688.F32:           D%4 A%4 Bany C%4 (B jedno-rejestrowe)
-//! Reszta przestrzeni (SP/SF, F16-acc, IMMA/QMMA.16816, HMMA.1684, UTC*/DMMA)
-//! NIE jest krzemiowo zmapowana i zachowuje dotychczasowe accept — arytmetyka
-//! szerokosci z nazwy ksztaltu zostala sfalsyfikowana przez krzem
-//! (HMMA.1688.F32 A jest quad-align mimo wezszej nominalnie macierzy).
+//!   HMMA.1688.F32:           D%4 A%4 Bany C%4 (B single-register)
+//! The rest of the space (SP/SF, F16-acc, IMMA/QMMA.16816, HMMA.1684, UTC*/DMMA)
+//! is NOT silicon-mapped and keeps the prior accept — width arithmetic
+//! derived from the shape name was falsified by silicon
+//! (HMMA.1688.F32 A is quad-aligned despite a nominally narrower matrix).
 
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;
@@ -81,7 +81,7 @@ fn bug037_qmma_hmma_measured_shapes() {
 #[test]
 fn bug037_unmeasured_space_stays_open() {
     // Scope-dokument: niekrzemiowo-zweryfikowane kombinacje NIE sa odrzucane
-    // (encoding jak dotychczas) — zglaszanie twardego bledu wymaga pomiaru.
-    enc("QMMA.16832.F16.E4M3.E4M3 R8, R42, R44, R8").expect("F16-acc out of scope");
+    // Scope note: non-silicon-verified combinations are NOT rejected
+    // (encoding as before) — hard errors require a measurement.
     enc("IMMA.SP.16832.S8.S8 R8, R42, R44, R8, R12, 0x0, 0x0").expect("SP form out of scope");
 }

@@ -1,17 +1,17 @@
 //! BUG-042 (rejestr sm120: 042_double_pred_silent_drop.md, CONFIRMED i119):
-//! instrukcja z DWOMA predykatami (`@P2 @P5 MOV T2, 0xF`) byla CICHO
-//! POMIJANA w strumieniu kodu: RE_INS nie lapal drugiego `@`, lenient
-//! parse_multi_sass po prostu skipowal segment, a licznik asm raportowal
-//! sparsowana reszte jako "N/N encoded (0 failed)" — cubin wygladal na
-//! poprawny, a krzem dostawal program bez instrukcji (w hopb: clamp
-//! indeksu DP zniknal -> sklepy w sloty 16..19 zamiast 15).
-//! Fix (fail-closed, u zrodla):
-//!  - parse_sass odrzuca wielo-predykat z jawnym komunikatem,
-//!  - cmd_asm (.entry sciezka) parsuje strict (kazdy unparseable segment
-//!    to blad, nie skip),
-//!  - lib `cubit::assemble` rowniez strict.
-//! SASS ma jedno pole guard — poprawna emisja zlozenia predykatow =
-//! PLOP3 po stronie autora, nie assemblera.
+//! an instruction with TWO predicates (`@P2 @P5 MOV T2, 0xF`) was SILENTLY
+//! DROPPED from the code stream: RE_INS never matched the second `@`, the lenient
+//! parse_multi_sass simply skipped the segment, and the asm counter reported
+//! the parsed remainder as "N/N encoded (0 failed)" — the cubin looked
+//! correct while silicon received a program missing an instruction (in hopb: the DP
+//! index clamp vanished -> stores into slots 16..19 instead of 15).
+//! Fix (fail-closed, at the source):
+//!  - parse_sass rejects a multi-predicate with an explicit message,
+//!  - cmd_asm (the .entry path) parses strict (any unparseable segment
+//!    is an error, not a skip),
+//!  - lib `cubit::assemble` likewise strict.
+//! SASS has a single guard field — emitting a predicate composition correctly
+//! means a PLOP3 on the author's side, not the assembler's.
 
 use cubit::parser::parse_sass;
 use cubit::sass_file::parse_sass_file_str_strict;
