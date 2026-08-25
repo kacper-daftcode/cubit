@@ -22,7 +22,8 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::OnceLock;
 
 // ---------------------------------------------------------------------------
-// Operand direction/width table (M3.5): tables/operand_roles.json.
+// Operand direction/width table (M3.5): the operand_roles section carried
+// inside the canonical arch table (O2 single-table layout).
 // Roles are DATA: scoreboard RAW/WAR edge census on the silicon-certified R0b
 // schedule + SASS class semantics, provenance per base op. Address widths:
 // desc[UR][Rx.64] base is a single 32-bit offset register (Q1 resolved
@@ -58,8 +59,9 @@ struct RoleOp {
 fn roles_table() -> &'static RolesTable {
     static T: OnceLock<RolesTable> = OnceLock::new();
     T.get_or_init(|| {
-        serde_json::from_str(include_str!("../tables/operand_roles.json"))
-            .expect("operand_roles.json must parse")
+        let v = crate::table::IsaTable::bundled_aux("operand_roles")
+            .expect("bundled sm120 table must carry the operand_roles section");
+        serde_json::from_value(v).expect("operand_roles section must parse")
     })
 }
 
@@ -299,7 +301,7 @@ fn leading_reg_operands(insn: &Instruction) -> usize {
         .count()
 }
 
-/// Role class of a base opcode from tables/operand_roles.json (M3.5 data
+/// Role class of a base opcode from the operand_roles aux section (M3.5 data
 /// table). None when the family is not in the table. Exposed for passes
 /// that need the measured direction-class without the full transfer sets
 /// (POSTFIX-103 v2 stallfix uniform/boundary rules).
@@ -308,7 +310,7 @@ pub fn role_class(base_op: &str) -> Option<&'static str> {
 }
 
 /// Register transfer sets for one instruction. Roles come from
-/// tables/operand_roles.json (M3.5 data table); unknown base opcodes
+/// the operand_roles aux section (M3.5 data); unknown base opcodes
 /// carrying registers stay fail-closed.
 pub fn reg_xfer(insn: &Instruction) -> RegXfer {
     let mut x = RegXfer {
@@ -335,7 +337,7 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
     // dispatch), so the SIGN shape gets a dedicated branch: every top-level
     // R operand is a USE (the .SIGN source registers; the sum dest appears
     // as its own IADD3 def). Pred dest stays pred-domain (M2 pred-liveness).
-    // Evidence note: tables/operand_roles.json base_ops.PLOP3.
+    // Evidence note: operand_roles section base_ops.PLOP3.
     if op == "PLOP3" {
         for o in &insn.operands {
             use_operand(o, &mut x, 1);

@@ -4,7 +4,7 @@ Implements the measured SM103a stall-sufficiency facts (B300 hardware
 census):  the era stalls S00..S03 are physically
 insufficient when the consumer sits in the DIRECTLY next slot (d0).
 
-## Measured floors (DATA: tables/stallfix_sm103a.json)
+## Measured floors (DATA: the `stallfix` section of tables/sm103a.json)
 
 | path | distance (slots) | min stall on the PRODUCER |
 |------|------------------|---------------------------|
@@ -44,7 +44,7 @@ window are invisible to v0 -- choose windows carrying whole chains.
 ## Use
 
 ```sh
-cubit stallfix --plan plan.json --rules tables/stallfix_sm103a.json \
+cubit stallfix --plan plan.json --rules tables/sm103a.json \
     [-o out.sass] [--report rep.json] in.sass
 # plan.json: {"arch":"sm_103a","kernels":{"<name>":{"windows":[[s,e),...]}}}
 ```
@@ -116,7 +116,7 @@ ALU, cross-domain +2, R2UR +4, uniform guard +3".
   stall. No uniform-guard configuration is ever a hard error.
 
 Detection is data-driven: transfer sets come from
-`reg_liveness::reg_xfer` (tables/operand_roles.json) and
+`reg_liveness::reg_xfer` (the `operand_roles` section of the arch table) and
 `pred_liveness::pred_xfer` in Strict mode, restricted to the
 measured class allowlist above; unknown families carry no tracked
 state and never kill a chain (v0 doctrine). All v2 floors are

@@ -153,7 +153,7 @@ fn t_full_zero_change_when_pool_matches_order() {
 
 #[test]
 fn t_full_unknown_op_fail_closed() {
-    // An op outside operand_roles.json must stop the pass (M3 doctrine).
+    // An op outside the operand_roles section must stop the pass (M3 doctrine).
     // (FSEL originally; BUG-118 roles landing added it -- use DSETP, still
     // unroled, encoder row present.)
     let src = ksrc("    DSETP.LT.AND P0, PT, R4, R5, PT ;\n");

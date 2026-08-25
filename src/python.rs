@@ -725,7 +725,7 @@ fn ra_full<'py>(py: Python<'py>, text: &str) -> PyResult<(String, Vec<Bound<'py,
 /// M4.6: windowed list scheduling (pyo3 entry). `plan` /
 /// `cost` are INLINE JSON strings (same schema as the CLI --plan/--cost
 /// files: {"kernels":{"<name>":{"windows":[[s,e),...]}}} and the m9 cost
-/// model of tables/cost_sm103a.json). Returns (output_text, per-kernel
+/// model section of the arch table). Returns (output_text, per-kernel
 /// reports with per-window blocks). Fail-closed like the CLI.
 #[cfg(feature = "python")]
 #[pyfunction]
@@ -827,7 +827,7 @@ fn sched_pins<'py>(
 /// POSTFIX-103 v0 (BARRACUDA b1 / STALLSUF-1): stall-sufficiency legalizer
 /// for sm_103a. `plan` is {"arch":"sm_103a","kernels":{name:{"windows":
 /// [[s,e),...]}}}; `rules` is the measured rules JSON (e.g.
-/// tables/stallfix_sm103a.json). Returns (output_text, per-kernel reports);
+/// stallfix section of the arch table). Returns (output_text, per-kernel reports);
 /// the output differs from the input ONLY in the stall digits of the raised
 /// instructions (raise-only, cap from rules; re-parse proof inside the
 /// pass). Fail-closed like the CLI: arch mismatch, unknown kernel, window

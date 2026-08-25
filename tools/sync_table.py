@@ -1,8 +1,20 @@
 #!/usr/bin/env python3
-"""Synchronize Cubit's vendored SM120 table from blackwell-isa.
+"""Synchronize cubit's vendored ISA tables from blackwell-isa (O2 layout).
 
-The vendored file is generated data.  Its provenance is recorded in
-tables/SM120_SOURCE.json and CI verifies it against the exact canonical commit.
+One table per architecture, vendored byte-exact, plus a single manifest at
+tables/SOURCE.json pinning every table to the canonical revision:
+
+  * default mode: copy tables/<arch>.json from the canonical checkout and
+    rewrite the manifest (runs the test suite as a fail-closed gate),
+  * --check: verify tables/*.json byte-match the manifest pins (CI byte-pin;
+    with --source-repo present, also byte-compares against the canonical
+    checkout at the pinned revisions),
+  * --validate-only: structural validation of the vendored tables only
+    (pre-check; no canonical repo needed).
+
+The vendored files are generated data: never edit them by hand (rule R1).
+Fixes go to the canonical database or to the export pipeline, then land here
+through a new canonical revision.
 """
 
 from __future__ import annotations
@@ -19,14 +31,33 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SOURCE = ROOT.parent / "blackwell-isa" / "sm120.json"
-DEFAULT_DESTINATION = ROOT / "tables" / "sm120.json"
-DEFAULT_METADATA = ROOT / "tables" / "SM120_SOURCE.json"
+DEFAULT_SOURCE_REPO = ROOT.parent / "blackwell-isa"
+TABLES_DIR = ROOT / "tables"
+MANIFEST = TABLES_DIR / "SOURCE.json"
+
+# arch name -> canonical _meta.architecture value
+ARCH_TABLES = {
+    "sm120.json": "SM120",
+    "sm103a.json": "SM103a",
+}
+
+# Top-level records a canonical table may carry. The aux sections are O2
+# layout payloads (single table per arch; no cubit sidecar data files).
+ALLOWED_TOP_LEVEL = {
+    "_meta", "instructions", "sched_only", "pipeline_config",
+    "cost_model", "stallfix", "operand_roles",
+}
+AUX_SECTIONS = ("cost_model", "stallfix", "operand_roles")
 
 
 class SyncError(RuntimeError):
     """A provenance or synchronization invariant failed."""
 
+
+# Ratchet baselines for the baked control/reuse-bit check
+# (and_base bits [127:105] set). Lower only on purpose, together with a
+# silicon-verified canonical hygiene wave.
+BAKED_CTRL_BASELINE = {"SM120": 456, "SM103a": 1269}
 
 FIXED_EXTRACTIONS = {
     "",
@@ -36,10 +67,17 @@ FIXED_EXTRACTIONS = {
     "byte_sel",
     "cm16_off",
     "cm17_off",
+    "bf16",
+    "desc_ur",
+    "dsel2",
     "f16",
     "f16_d",
     "f32",
+    "f32cast",
     "f64hi",
+    "gdesc_off",
+    "gdesc_ur",
+    "hsel",
     "guard",
     "guard_lo3",
     "guard_neg",
@@ -63,7 +101,6 @@ FIXED_EXTRACTIONS = {
     "sub_imm1",
     "sub_imm1_s24",
     "sub_imm2",
-    "sub_imm2_s24",
     "sub_r0",
     "sub_r1",
     "sub_r2",
@@ -78,14 +115,13 @@ FIXED_EXTRACTIONS = {
     "ureg",
     "ureg_ff",
 }
-# Pinned debt baseline for the baked control/reuse-bit check (see
-# validate_table ratchet note). Lower it whenever the table hygiene front
-# lands part of the campaign.
-BAKED_CTRL_BASELINE = 456
 
 EXTRACTION_PATTERN = re.compile(
     r"(?:reg|ureg|imm)_shr\d+|"
-    r"sub_(?:r|ur|imm)\d+_shr\d+u?"  # unsigned sub-offset variant (BUG-070)
+    r"sub_(?:r|ur|imm)\d+(?:_m1)?(?:_shr\d+u?)?|"  # unsigned sub variants (BUG-070)
+    r"opmod:[A-Za-z0-9_]+|"
+    r"mnemod1:[A-Za-z0-9_]+|"
+    r"t(?:desc|mem)_(?:off|ur)"
 )
 U128_MAX = (1 << 128) - 1
 
@@ -120,9 +156,7 @@ def known_extraction(value: Any) -> bool:
 def run_git(repo: Path, *args: str, check: bool = True) -> str:
     result = subprocess.run(
         ["git", "-C", str(repo), *args],
-        check=False,
-        capture_output=True,
-        text=True,
+        check=False, capture_output=True, text=True,
     )
     if check and result.returncode:
         detail = result.stderr.strip() or result.stdout.strip()
@@ -130,15 +164,8 @@ def run_git(repo: Path, *args: str, check: bool = True) -> str:
     return result.stdout.strip()
 
 
-def canonical_repository(source: Path) -> tuple[Path, str, str]:
-    source = source.resolve()
-    repo_text = run_git(source.parent, "rev-parse", "--show-toplevel")
-    repo = Path(repo_text).resolve()
-    try:
-        relative = source.relative_to(repo).as_posix()
-    except ValueError as exc:
-        raise SyncError(f"{source} is outside its Git repository {repo}") from exc
-
+def canonical_revision(repo: Path, relative: str) -> str:
+    repo_file = repo / relative
     run_git(repo, "ls-files", "--error-unmatch", "--", relative)
     dirty = run_git(repo, "status", "--porcelain", "--", relative)
     if dirty:
@@ -146,41 +173,68 @@ def canonical_repository(source: Path) -> tuple[Path, str, str]:
             f"canonical source is not committed: {relative}\n{dirty}\n"
             "Commit blackwell-isa first so the vendored table has immutable provenance."
         )
-
+    if not repo_file.is_file():
+        raise SyncError(f"canonical table is missing: {repo_file}")
     # Pin the commit that last changed the table, not an unrelated newer docs
-    # commit at repository HEAD. The clean-file check above guarantees that this
-    # revision still describes the bytes being synchronized.
-    revision = run_git(repo, "log", "-1", "--format=%H", "--", relative)
+    # commit at repository HEAD. The clean-file check above guarantees that
+    # this revision still describes the bytes being synchronized.
+    return run_git(repo, "log", "-1", "--format=%H", "--", relative)
+
+
+def canonical_repository_url(repo: Path) -> str:
     remote = run_git(repo, "remote", "get-url", "origin")
     if remote.startswith("git@github.com:"):
         remote = "https://github.com/" + remote.removeprefix("git@github.com:")
     if remote.endswith(".git"):
         remote = remote[:-4]
-    return repo, revision, remote
+    return remote
 
 
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def validate_table(data: bytes) -> dict[str, int]:
+def validate_aux_sections(table: dict[str, Any], arch_meta: str) -> None:
+    cost = table.get("cost_model")
+    if cost is not None:
+        if not isinstance(cost, dict) or not cost.get("arch") \
+                or "quantum_cy" not in cost or "dep_link_latency_slots" not in cost:
+            raise SyncError("cost_model section fails sanity (arch/quantum/dep_link)")
+        norm = lambda s: str(s).lower().replace("_", "")
+        if norm(cost["arch"]) != norm(arch_meta):
+            raise SyncError(
+                f"cost_model arch {cost['arch']!r} mismatches table arch {arch_meta!r}")
+    stall = table.get("stallfix")
+    if stall is not None:
+        if not isinstance(stall, dict) or "rules_version" not in stall \
+                or "floor_global" not in stall:
+            raise SyncError("stallfix section fails sanity (rules_version/floor_global)")
+    roles = table.get("operand_roles")
+    if roles is not None:
+        if not isinstance(roles, dict) or not isinstance(roles.get("base_ops"), dict) \
+                or not roles["base_ops"]:
+            raise SyncError("operand_roles section fails sanity (base_ops)")
+
+
+def validate_table(data: bytes, arch: str) -> dict[str, Any]:
     try:
         table: dict[str, Any] = json.loads(data, object_pairs_hook=unique_object)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise SyncError(f"canonical table is not valid UTF-8 JSON: {exc}") from exc
 
-    allowed_top_level = {"_meta", "instructions", "sched_only", "pipeline_config"}
-    extra_top_level = sorted(set(table) - allowed_top_level)
+    extra_top_level = sorted(set(table) - ALLOWED_TOP_LEVEL)
     if extra_top_level:
         raise SyncError(f"unexpected top-level records: {', '.join(extra_top_level)}")
 
     meta = table.get("_meta", {})
-    if meta.get("architecture") != "SM120" or meta.get("instruction_width") != 128:
-        raise SyncError("canonical table is not an SM120 128-bit ISA database")
+    if meta.get("architecture") != arch or meta.get("instruction_width") != 128:
+        raise SyncError(f"canonical table is not an {arch} 128-bit ISA database")
 
     instructions = table.get("instructions")
     if not isinstance(instructions, dict) or not instructions:
         raise SyncError("canonical table has no instruction map")
+
+    validate_aux_sections(table, arch)
 
     ctrl_classes = set(meta.get("ctrl_classes", {}))
     legacy_ctrl_classes = {"none", "static_ctrl"}
@@ -238,149 +292,158 @@ def validate_table(data: bytes) -> dict[str, int]:
                         f"{field_context} uses unknown extraction {extraction!r}"
                     )
 
-    if high_bit_entries:
+    baseline = BAKED_CTRL_BASELINE[arch]
+    if len(high_bit_entries) > baseline:
         sample = ", ".join(high_bit_entries[:5])
-        # Ratchet: the vendored table carries a known baked-ctrl debt
-        # (templates with control/reuse bits [127:105] set in and_base).
-        # Hard-fail on growth above the pinned baseline, allow at/below it,
-        # and print the current count so the number only moves down on
-        # purpose.
-        if len(high_bit_entries) > BAKED_CTRL_BASELINE:
-            raise SyncError(
-                f"{len(high_bit_entries)} templates bake control/reuse bits "
-                f"[127:105] (baseline {BAKED_CTRL_BASELINE}): {sample}"
-            )
+        raise SyncError(
+            f"{len(high_bit_entries)} templates bake control/reuse bits "
+            f"[127:105] (baseline {baseline}): {sample}"
+        )
+    if high_bit_entries:
         print(
-            f"note: {len(high_bit_entries)}/{BAKED_CTRL_BASELINE} baked-ctrl "
-            "templates (allowed by ratchet)"
+            f"note: {len(high_bit_entries)}/{baseline} baked-ctrl "
+            f"templates (allowed by ratchet, {arch})"
         )
 
     return {
         "instruction_forms": len(instructions),
         "encoding_variants": variants,
         "sched_only_entries": len(table.get("sched_only", {})),
+        "sections": sorted(
+            k for k in table
+            if k not in ("_meta", "instructions", "sched_only", "pipeline_config")
+        ),
     }
 
 
-def expected_metadata(
-    source: Path,
-    revision: str,
-    repository: str,
-    source_hash: str,
-    summary: dict[str, int],
-) -> dict[str, Any]:
-    return {
-        "schema": 1,
-        "repository": repository,
-        "revision": revision,
-        "path": source.name,
-        "sha256": source_hash,
-        **summary,
-    }
-
-
-def check_sync(
-    source_data: bytes,
-    destination: Path,
-    metadata_path: Path,
-    expected: dict[str, Any],
-) -> None:
-    if not destination.is_file():
-        raise SyncError(f"vendored table is missing: {destination}")
-    if not metadata_path.is_file():
-        raise SyncError(f"source metadata is missing: {metadata_path}")
-
+def load_manifest() -> dict[str, Any]:
+    if not MANIFEST.is_file():
+        raise SyncError(f"manifest is missing: {MANIFEST}")
     try:
-        recorded = json.loads(metadata_path.read_text())
+        manifest = json.loads(MANIFEST.read_text())
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise SyncError(f"invalid source metadata: {metadata_path}: {exc}") from exc
-
-    if recorded != expected:
-        raise SyncError(
-            "tables/SM120_SOURCE.json does not describe the supplied canonical checkout"
-        )
-    if destination.read_bytes() != source_data:
-        raise SyncError(
-            "tables/sm120.json differs from canonical blackwell-isa; "
-            "run tools/sync_table.py after updating the source revision"
-        )
+        raise SyncError(f"invalid manifest {MANIFEST}: {exc}") from exc
+    if manifest.get("schema") != 2 or not isinstance(manifest.get("tables"), dict):
+        raise SyncError(f"{MANIFEST}: expected schema 2 with a 'tables' map")
+    unknown = sorted(set(manifest["tables"]) - set(ARCH_TABLES))
+    if unknown:
+        raise SyncError(f"manifest lists unknown tables: {', '.join(unknown)}")
+    return manifest
 
 
-def write_sync(
-    source_data: bytes,
-    destination: Path,
-    metadata_path: Path,
-    metadata: dict[str, Any],
-) -> None:
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_bytes(source_data)
-    metadata_path.write_text(json.dumps(metadata, indent=2) + "\n")
+def sync_tables(source_repo: Path) -> None:
+    source_repo = source_repo.resolve()
+    repo_text = run_git(source_repo, "rev-parse", "--show-toplevel")
+    repo = Path(repo_text).resolve()
+    repository = canonical_repository_url(repo)
 
+    staged: dict[str, tuple[bytes, dict[str, Any], str]] = {}
+    for name, arch in ARCH_TABLES.items():
+        data = (repo / name).read_bytes() if (repo / name).is_file() else None
+        if data is None:
+            raise SyncError(f"canonical table is missing: {repo / name}")
+        summary = validate_table(data, arch)
+        revision = canonical_revision(repo, name)
+        staged[name] = (data, summary, revision)
 
-def test_candidate(source: Path) -> None:
-    env = os.environ.copy()
-    env["CUBIT_TABLE"] = str(source)
-    result = subprocess.run(["cargo", "test"], cwd=ROOT, env=env, check=False)
+    TABLES_DIR.mkdir(exist_ok=True)
+    for name, (data, _summary, _rev) in staged.items():
+        (TABLES_DIR / name).write_bytes(data)
+
+    print("running cargo test gate on the vendored candidates...")
+    result = subprocess.run(["cargo", "test", "--quiet"], cwd=ROOT, check=False)
     if result.returncode:
-        raise SyncError(f"candidate table failed cargo test: {source}")
+        raise SyncError(
+            "candidate tables failed cargo test; vendored tables were written "
+            "but the manifest was NOT re-pinned")
+
+    manifest: dict[str, Any] = {"schema": 2, "repository": repository, "tables": {}}
+    for name, (data, summary, revision) in staged.items():
+        manifest["tables"][name] = {
+            "arch": ARCH_TABLES[name],
+            "base_revision": revision,
+            "base_sha256": digest(data),
+            **summary,
+        }
+    MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n")
+    for name, (_d, summary, revision) in staged.items():
+        print(
+            f"synchronized {name}: {summary['instruction_forms']} forms / "
+            f"{summary['encoding_variants']} variants from {revision[:12]}"
+        )
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
-    parser.add_argument("--destination", type=Path, default=DEFAULT_DESTINATION)
-    parser.add_argument("--metadata", type=Path, default=DEFAULT_METADATA)
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="verify provenance and byte equality without writing files",
-    )
-    parser.add_argument(
-        "--validate-only",
-        action="store_true",
-        help="structurally validate the vendored table without provenance "
-        "byte-comparison (the vendored copy carries canonical corrections "
-        "ahead of the base pin; see tables/SM120_SOURCE.json canon_delta)",
-    )
-    return parser.parse_args()
+def check_tables(source_repo: Path | None) -> None:
+    manifest = load_manifest()
+    for name, entry in manifest["tables"].items():
+        dest = TABLES_DIR / name
+        if not dest.is_file():
+            raise SyncError(f"vendored table is missing: {dest}")
+        actual = digest(dest.read_bytes())
+        if actual != entry.get("base_sha256"):
+            raise SyncError(
+                f"{dest} does not match the manifest pin; "
+                "run tools/sync_table.py after updating the canonical revision"
+            )
+        validate_table(dest.read_bytes(), ARCH_TABLES[name])
+        print(f"pinned {name}: sha256 {actual[:16]}… ({entry['base_revision'][:12]})")
+    if source_repo is not None:
+        repo = source_repo.resolve()
+        for name, entry in manifest["tables"].items():
+            src = repo / name
+            if not src.is_file():
+                raise SyncError(f"--source-repo checkout lacks {src}")
+            if digest(src.read_bytes()) != entry["base_sha256"]:
+                raise SyncError(
+                    f"{src} differs from the pinned bytes; bump the canonical "
+                    "revision or re-sync"
+                )
+            actual_rev = canonical_revision(repo, name)
+            if actual_rev != entry["base_revision"]:
+                raise SyncError(
+                    f"{src} last changed at {actual_rev[:12]}, manifest pins "
+                    f"{entry['base_revision'][:12]}"
+                )
+        print(f"canonical checkout {repo} matches all pins")
+
+
+def validate_only() -> None:
+    for name, arch in ARCH_TABLES.items():
+        dest = TABLES_DIR / name
+        if not dest.is_file():
+            raise SyncError(f"vendored table is missing: {dest}")
+        summary = validate_table(dest.read_bytes(), arch)
+        print(
+            f"validated {name}: {summary['instruction_forms']} forms / "
+            f"{summary['encoding_variants']} variants (structure, no pin)"
+        )
 
 
 def main() -> int:
-    args = parse_args()
-    source = args.source.resolve()
-    if args.validate_only:
-        pass  # canonical source not needed in structure-only mode
-    elif not source.is_file():
-        raise SyncError(f"canonical table is missing: {source}")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source-repo", type=Path, default=None,
+                        help="canonical blackwell-isa checkout "
+                             f"(default: {DEFAULT_SOURCE_REPO} when it exists)")
+    parser.add_argument("--check", action="store_true",
+                        help="verify manifest byte-pins without writing files")
+    parser.add_argument("--validate-only", action="store_true",
+                        help="structurally validate the vendored tables "
+                             "(no canonical repo needed)")
+    args = parser.parse_args()
 
-    _, revision, repository = canonical_repository(source)
-    source_data = source.read_bytes()
-    summary = validate_table(source_data)
-    metadata = expected_metadata(
-        source, revision, repository, digest(source_data), summary
-    )
+    source_repo = args.source_repo
+    if source_repo is None and DEFAULT_SOURCE_REPO.is_dir():
+        source_repo = DEFAULT_SOURCE_REPO
 
     if args.validate_only:
-        if not args.destination.is_file():
-            raise SyncError(f"vendored table is missing: {args.destination}")
-        vendored = validate_table(args.destination.read_bytes())
-        print(
-            f"validated {vendored['instruction_forms']} forms / "
-            f"{vendored['encoding_variants']} variants (structure, no pin)"
-        )
+        validate_only()
         return 0
     if args.check:
-        check_sync(source_data, args.destination, args.metadata, metadata)
-        action = "verified"
-    else:
-        test_candidate(source)
-        write_sync(source_data, args.destination, args.metadata, metadata)
-        action = "synchronized"
-
-    print(
-        f"{action} {summary['instruction_forms']} forms / "
-        f"{summary['encoding_variants']} variants from {revision[:12]}"
-    )
+        check_tables(source_repo)
+        return 0
+    if source_repo is None:
+        raise SyncError("no canonical checkout found (use --source-repo)")
+    sync_tables(source_repo)
     return 0
 
 

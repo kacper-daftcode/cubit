@@ -15,10 +15,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Validate vendored ISA table (structure + ratchet)
-        # Vendored copy carries canonical corrections ahead of the base
-        # byte-pin (tables/SM120_SOURCE.json "canon_delta"); validation is
-        # structural (schema) + ratchet (456-entry baked-ctrl baseline).
+        # Both arch tables are byte-pinned to blackwell-isa revisions via
+        # tables/SOURCE.json; --check verifies the pins, --validate-only
+        # adds structural schema + baked-ctrl ratchet (456/1269 baselines).
         run: python3 tools/sync_table.py --validate-only
+      - name: Byte-pin vendored ISA tables
+        run: python3 tools/sync_table.py --check
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy

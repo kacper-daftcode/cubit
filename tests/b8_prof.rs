@@ -10,7 +10,7 @@ fn table_103a() -> IsaTable {
 }
 
 fn cost_103a() -> CostModel {
-    CostModel::load(std::path::Path::new("tables/cost_sm103a.json")).unwrap()
+    CostModel::load(std::path::Path::new("tables/sm103a.json")).unwrap()
 }
 
 fn credits_of(cost: &CostModel, sass: &str) -> (f64, bool) {
@@ -31,7 +31,7 @@ fn b8_credit_candidate_order() {
     assert!(!d_base);
     // unpriced-but-real op hits the counted default (tripwire semantics)
     let (c_ldg, d_ldg) = credits_of(&cost, "LDG.E R4, [R6.64];");
-    assert_eq!(c_ldg, 1.0, "credits_default=1 in tables/cost_sm103a.json");
+    assert_eq!(c_ldg, 1.0, "credits_default=1 in the cost_model section of tables/sm103a.json");
     assert!(d_ldg, "LDG has no credit row -> counted default");
     // WIDE pair: UIMAD.WIDE prices 2 like IMAD.WIDE
     let (c_uwide, _) = credits_of(&cost, "UIMAD.WIDE.U32 R4, UR5, R6, R7;");

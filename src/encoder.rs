@@ -1598,7 +1598,8 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     }
 
     // Branch encoding (address-dependent, separate from field system)
-    code = apply_branch_encoding(insn, code, &mod_group, table.ef_flags == 0x0600_6702);
+    code = apply_branch_encoding(insn, code, &mod_group,
+        crate::table::is_sm103a_encoding_family(table.ef_flags));
 
     // Reuse bits [124:122] (Ra/Rb/Rc register cache reuse flags)
     code = apply_reuse_encoding(insn, code, entry);
@@ -1622,7 +1623,7 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     //   STG.E       → 0x0c101900    STG.E.64  → 0x0c101b00    STG.E.128 → 0x0c101d00
     // sm_103a tables derived from the B300 corpus carry correct and_base+fields
     // for these variants; the legacy SM120 rebuild would clobber them.
-    let sm103a_derived = table.ef_flags == 0x0600_6702;
+    let sm103a_derived = crate::table::is_sm103a_encoding_family(table.ef_flags);
     {
         let uses_raw_addr = insn.operands.iter().any(|op| matches!(op, Operand::Addr { .. }));
         let uses_desc = insn.operands.iter().any(|op| matches!(op, Operand::Desc { .. }));

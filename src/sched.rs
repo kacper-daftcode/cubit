@@ -98,7 +98,7 @@ pub struct SchedPlan {
     pub kernels: BTreeMap<String, SchedKernelPlan>,
 }
 
-/// m9-derived cost model (DATA per arch, e.g. tables/cost_sm103a.json).
+/// m9-derived cost model (DATA per arch, carried as the cost_model section of the canonical table).
 /// The scheduler never invents physics: it reads credits and the
 /// quantum-masked dependency latency from this file; anything the file
 /// does not classify takes `credits_default` and is counted in the
@@ -120,19 +120,18 @@ impl CostModel {
     pub fn load(path: &std::path::Path) -> Result<Self> {
         let text = std::fs::read_to_string(path)
             .with_context(|| format!("sched: cannot read cost model {}", path.display()))?;
-        let mut cm: CostModel = serde_json::from_str(&text)
-            .with_context(|| format!("sched: cost model {} is not valid M4.6 JSON", path.display()))?;
-        if cm.arch.is_empty() || cm.quantum_cy <= 0.0 || cm.dep_link_latency_slots < 0.0 {
-            bail!(
-                "sched: cost model {} fails sanity (arch/quantum/dep_link)",
-                path.display()
-            );
-        }
+        let mut cm = Self::from_str_json(&text)
+            .with_context(|| format!("sched: cost model {} is not valid M4.6 JSON (neither a bare cost model nor a canonical table carrying a cost_model section)", path.display()))?;
         cm.credits.retain(|_, v| *v >= 0.0);
         Ok(cm)
     }
 
     pub fn from_str_json(text: &str) -> Result<Self> {
+        let owned;
+        let text = match crate::table::IsaTable::embedded_section(text, "cost_model") {
+            Some(sec) => { owned = sec; &owned }
+            None => text,
+        };
         let cm: CostModel = serde_json::from_str(text)
             .context("sched: inline cost model is not valid M4.6 JSON")?;
         if cm.arch.is_empty() || cm.quantum_cy <= 0.0 || cm.dep_link_latency_slots < 0.0 {

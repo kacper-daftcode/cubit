@@ -94,13 +94,29 @@ See [docs/sasstuning.md](docs/sasstuning.md) for the measured field guide.
 ## SM103a stall legalizer
 
 ```bash
-cubit stallfix --plan plan.json --rules tables/stallfix_sm103a.json in.sass \
+cubit stallfix --plan plan.json --rules tables/sm103a.json in.sass \
     [-o out.sass] [--report rep.json]
 ```
 
 Raises stalls inside declared windows to the measured SM103a silicon floors
 (raise-only, fail-closed, byte-proven re-parse). See
 [docs/POSTFIX103_STALLFIX.md](docs/POSTFIX103_STALLFIX.md).
+
+## Tables
+
+- `tables/sm120.json` — SM120 ISA bitfield table, vendored byte-exact from
+  [blackwell-isa](https://github.com/kacper-daftcode/blackwell-isa).
+- `tables/sm103a.json` — SM103a (B300) bitfield table; also carries the
+  scheduling cost model, stall-fix floors and operand-role data as table
+  sections (`cost_model`, `stallfix`, `operand_roles`), so a single file per
+  architecture is the whole data surface. (The same sections can be passed to
+  `--cost` / `--rules` simply by pointing them at the arch table.)
+- Base revisions and SHA-256 pins for every table: `tables/SOURCE.json`.
+
+Validation: `tools/sync_table.py --validate-only` (structure + control-bit
+ratchet) and the Cargo suite, which fails closed on any table load error.
+`CUBIT_TABLE` overrides the active table strictly: a missing or malformed
+override is an error, not a fallback.
 
 ## Python bindings
 
@@ -120,20 +136,6 @@ insns = cubit.decode_kernel("kernel.cubin", "my_kernel")
 The active ISA table is switchable per process
 (`cubit.select_table("sm103a")`) — see
 [docs/PYTHON_API_ARCH_SELECT.md](docs/PYTHON_API_ARCH_SELECT.md).
-
-## Tables
-
-- `tables/sm120.json` — SM120 ISA bitfield table, vendored from
-  [blackwell-isa](https://github.com/kacper-daftcode/blackwell-isa); the base
-  revision and SHA-256 are pinned in `tables/SM120_SOURCE.json`.
-- `tables/sm103a.json` — SM103a (B300) bitfield table, with cost and
-  stall-fix data (`cost_sm103a.json`, `stallfix_sm103a.json`,
-  `operand_roles.json`).
-
-Validation: `tools/sync_table.py --validate-only` (structure + control-bit
-ratchet) and the Cargo suite, which fails closed on any table load error.
-`CUBIT_TABLE` overrides the active table strictly: a missing or malformed
-override is an error, not a fallback.
 
 ## Examples
 

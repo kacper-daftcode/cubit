@@ -356,6 +356,10 @@ pub struct IsaTable {
     pub entries: HashMap<String, InsKeyEntry>,
     /// ELF e_flags for the target architecture (from _meta.architecture).
     pub ef_flags: u32,
+    /// Aux sections carried inside the canonical table (O2 layout: one table
+    /// per arch from blackwell-isa holds cost_model / stallfix / operand_roles
+    /// next to the encoding rows; cubit owns no sidecar files anymore).
+    pub aux: HashMap<String, serde_json::Value>,
     /// Lazily-built shared decode index (BUG-132: encoder decode-back checks).
     #[doc(hidden)]
     pub decode_index_cache: DecodeIndexCache,
@@ -364,6 +368,7 @@ pub struct IsaTable {
 impl Default for IsaTable {
     fn default() -> Self {
         Self { entries: HashMap::new(), ef_flags: crate::elf_builder::EF_CUDA_SM120,
+               aux: HashMap::new(),
                decode_index_cache: DecodeIndexCache::default() }
     }
 }
@@ -405,8 +410,17 @@ fn arch_ef_flags(arch: &str) -> Option<u32> {
     // longer prefixes first and use exact 3-digit matches to stay unambiguous.
     if a.contains("121") { Some(0x0600_7902) }      // sm_121 / sm_121a (GB10, BUG-049)
     else if a.contains("103") { Some(0x0600_6702) } // sm_103 / sm_103a (B300)
+    else if a.contains("100") { Some(0x0600_640a) } // sm_100 / sm_100a (B200)
     else if a.contains("120") { Some(0x0600_7802) } // sm_120
     else { None }
+}
+
+/// Encoding-layer family predicate: the sm_100a/sm_103a encoding layer is
+/// byte-identical (119/119 tcgen05 probe-pair parity; O2 sm100a derivative),
+/// so every arch-gated encoding decision made for sm_103a applies verbatim
+/// to the sm_100 family (both generic 0x02 and 'a' 0x0a e_flags variants).
+pub fn is_sm103a_encoding_family(ef_flags: u32) -> bool {
+    matches!((ef_flags >> 8) & 0xFFF, 100 | 103)
 }
 
 fn parse_hex_u128(s: &str) -> Result<u128> {
@@ -507,7 +521,11 @@ impl IsaTable {
             .and_then(|v| v.as_str())
             .and_then(arch_ef_flags)
             .unwrap_or(crate::elf_builder::EF_CUDA_SM120);
-        Ok(IsaTable { entries, ef_flags, decode_index_cache: DecodeIndexCache::default() })
+        let aux = ["cost_model", "stallfix", "operand_roles"]
+            .iter()
+            .filter_map(|k| raw.get(*k).map(|v| (k.to_string(), v.clone())))
+            .collect();
+        Ok(IsaTable { entries, ef_flags, aux, decode_index_cache: DecodeIndexCache::default() })
     }
 
     /// Resolve _meta.ctrl_classes + _meta.ctrl_epochs into a map from
@@ -602,7 +620,8 @@ impl IsaTable {
             entries.insert(key, InsKeyEntry { mod_groups, ctrl_class: None, epoch_upper32: None, encode_only: jik.encode_only });
         }
 
-        Ok(IsaTable { entries, ef_flags: crate::elf_builder::EF_CUDA_SM120, decode_index_cache: DecodeIndexCache::default() })
+        Ok(IsaTable { entries, ef_flags: crate::elf_builder::EF_CUDA_SM120, aux: HashMap::new(),
+                      decode_index_cache: DecodeIndexCache::default() })
     }
 
     /// Look up encoding for (InsKey, modifier_group).
@@ -613,6 +632,38 @@ impl IsaTable {
     /// Get the InsKey entry (all modifier groups).
     pub fn get_key(&self, key: &str) -> Option<&InsKeyEntry> {
         self.entries.get(key)
+    }
+
+    /// Top-level aux section shipped inside the canonical table
+    /// (`cost_model` / `stallfix` / `operand_roles`; O2 single-table layout).
+    pub fn aux_section(&self, name: &str) -> Option<&serde_json::Value> {
+        self.aux.get(name)
+    }
+
+    /// Aux section of the BUNDLED sm120 table, parsed once. Backs data tables
+    /// that historically lived as separate files under tables/ and are
+    /// compile-time assets (operand roles for the liveness/RA passes).
+    /// The canonical tables carry identical operand_roles per arch, so the
+    /// bundled copy is authoritative regardless of the active arch.
+    pub fn bundled_aux(name: &str) -> Option<serde_json::Value> {
+        use std::sync::OnceLock;
+        static RAW: OnceLock<Option<serde_json::Value>> = OnceLock::new();
+        let raw = RAW.get_or_init(|| serde_json::from_str(BUNDLED_SM120_JSON).ok());
+        raw.as_ref()?.get(name).cloned()
+    }
+
+    /// If `text` is a full canonical ISA table carrying the aux section
+    /// `key`, return that section re-serialized; otherwise `None` and the
+    /// caller parses `text` as the aux payload directly. Lets --cost/--rules
+    /// accept either the standalone data file (legacy) or the single
+    /// per-arch table (O2 layout).
+    pub fn embedded_section(text: &str, key: &str) -> Option<String> {
+        let v: serde_json::Value = serde_json::from_str(text).ok()?;
+        if v.get("instructions").is_none() && v.get("_meta").is_none() {
+            return None;
+        }
+        let sec = v.get(key)?;
+        serde_json::to_string(sec).ok()
     }
 
     /// Look up the ctrl_class for an InsKey. Returns None if the key is

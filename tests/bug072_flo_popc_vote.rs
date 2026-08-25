@@ -1,13 +1,13 @@
 //! BUG-072 (F2Q; sm120 REQ-063 i139/i140): `cubit sched` fail-closed on
 //! FLO.U32 (31 uses in the hopb divstep body = ~61% of that kernel's time)
-//! and POPC (safgcd lane-side) -- the M3.5 operand_roles.json table simply
+//! and POPC (safgcd lane-side) -- the M3.5 operand_roles table section simply
 //! had no FLO/POPC rows (`reg_xfer` known=false), and pred_liveness had no
 //! VOTE family arm (`VOTE.ALL P1, !P0` loop-exits -> known=false in
 //! Strict). sched never saw hopb: "31 instruction(s) with unknown operand
 //! roles: FLO.U32 @0x27e0 ...".
 //!
 //! Fix at source (works for both problems):
-//!   1. tables/operand_roles.json: +FLO, +POPC = class "alu" (dest-first
+//!   1. the operand_roles table section: +FLO, +POPC = class "alu" (dest-first
 //!      ALU, same class semantics as IABS/MOV/I2FP; base-op scope covers
 //!      the .SH variant too). Role table is include_str!-compiled, so the
 //!      shipped sched/liveness passes follow the repo data only.

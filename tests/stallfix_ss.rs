@@ -1,6 +1,6 @@
 //! POSTFIX-103 v0 (STALLSUF-1 / BARRACUDA b1): stall-sufficiency legalizer.
 //!
-//! The floors are silicon-measured facts (tables/stallfix_sm103a.json);
+//! The floors are silicon-measured facts (the stallfix section of tables/sm103a.json);
 //! these tests pin the pass semantics: R1 global floor, R2 dmix floor at
 //! slot distance 0, R3 guard floors at distance 0/2, the guard-D1 hard
 //! failure (flaky at every S<=8), chain kills by predicate redefinition,
@@ -12,7 +12,7 @@
 use cubit::stallfix::{run_file, StallFixPlan, StallRules};
 
 fn rules() -> StallRules {
-    StallRules::load(std::path::Path::new("tables/stallfix_sm103a.json")).unwrap()
+    StallRules::load(std::path::Path::new("tables/sm103a.json")).unwrap()
 }
 
 fn plan(json: &str) -> StallFixPlan {

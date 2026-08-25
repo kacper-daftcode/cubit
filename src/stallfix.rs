@@ -11,7 +11,7 @@
 //! field with the BUG-036 policy cap at 11 (>=12 hangs).
 //!
 //! Doctrine:
-//!   * rules are DATA (tables/stallfix_sm103a.json), scope-locked by
+//!   * rules are DATA (the stallfix section of the canonical table), scope-locked by
 //!     `arch`; the pass invents no physics and arch mismatch is an error;
 //!   * raise-only: an existing stall is never lowered and B/R/W/Y bits are
 //!     never touched -- the emission diff is exactly the stall digits of
@@ -172,6 +172,11 @@ impl StallRules {
     }
 
     pub fn from_str_json(text: &str) -> Result<Self> {
+        let owned;
+        let text = match crate::table::IsaTable::embedded_section(text, "stallfix") {
+            Some(sec) => { owned = sec; &owned }
+            None => text,
+        };
         let r: StallRules = serde_json::from_str(text)
             .context("stallfix: rules JSON is not valid POSTFIX-103 JSON")?;
         r.sanity()?;
