@@ -2,7 +2,12 @@
 name = "cubit"
 version = "0.1.0"
 edition = "2021"
-description = "SM120 CUDA assembler — table-driven bitfield encoding, no linear solver"
+rust-version = "1.87"
+description = "Open-source SASS assembler and disassembler for NVIDIA Blackwell GPUs (SM120/SM103a)"
+license = "MIT"
+repository = "https://github.com/kacper-daftcode/cubit"
+keywords = ["cuda", "sass", "assembler", "blackwell", "nvidia"]
+categories = ["compilers", "hardware-support", "parsing"]
 
 [lib]
 name = "cubit"

@@ -5,8 +5,15 @@ build-backend = "maturin"
 [project]
 name = "cubit"
 version = "0.1.0"
-description = "SM120 CUDA assembler — encode, decode, patch SASS instructions"
+description = "SASS assembler and disassembler for NVIDIA Blackwell GPUs — encode, decode, patch machine code"
 requires-python = ">=3.8"
+license = {text = "MIT"}
+keywords = ["cuda", "sass", "assembler", "blackwell"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+]
 
 [tool.maturin]
 features = ["python"]

@@ -240,10 +240,11 @@ def validate_table(data: bytes) -> dict[str, int]:
 
     if high_bit_entries:
         sample = ", ".join(high_bit_entries[:5])
-        # Interim ratchet: the vendored table carries a known baked-ctrl debt
-        # (hygiene campaign tracked separately). Hard-fail on growth, allow
-        # at/below the pinned baseline, and print the current count so the
-        # number can only move down on purpose.
+        # Ratchet: the vendored table carries a known baked-ctrl debt
+        # (templates with control/reuse bits [127:105] set in and_base).
+        # Hard-fail on growth above the pinned baseline, allow at/below it,
+        # and print the current count so the number only moves down on
+        # purpose.
         if len(high_bit_entries) > BAKED_CTRL_BASELINE:
             raise SyncError(
                 f"{len(high_bit_entries)} templates bake control/reuse bits "
@@ -251,7 +252,7 @@ def validate_table(data: bytes) -> dict[str, int]:
             )
         print(
             f"note: {len(high_bit_entries)}/{BAKED_CTRL_BASELINE} baked-ctrl "
-            "templates (allowed by ratchet; hygiene campaign pending)"
+            "templates (allowed by ratchet)"
         )
 
     return {
