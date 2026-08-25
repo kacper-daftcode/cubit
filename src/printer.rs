@@ -1140,6 +1140,22 @@ fn format_imm_or_reg(
     // If no fields: check if raw bits at UR position look like a UR/URZ register.
     // This handles USHF/SHF II-typed UR slots where URZ is baked into and_base.
     if fields.is_empty() && raw != 0 {
+        // BUG-159: MUFU II rows (MUFU.RSQ) carry the immediate as a constant
+        // baked into and_base — no field exists. The decoder only matches
+        // words whose [32:64) equal that constant, so print the constant
+        // itself as the f32 literal, sign folded in the value bits
+        // (corpus: the sole value is 0xFFC00000 = "-QNAN", 1,235 vendor
+        // anchors, archs sm_100/sm_103). Without this arm the generic
+        // fallback printed "0x0", losing nvdisasm parity and breaking the
+        // round-trip ("0x0" fail-closes at encode, BUG-071 guard).
+        let op = ins_key.split('_').next().unwrap_or("");
+        if op == "MUFU" {
+            let bits = ((raw >> 32) & 0xFFFF_FFFF) as u32;
+            let f = f32::from_bits(bits);
+            return format_float(f.abs(), f.is_sign_negative())
+                .trim_end()
+                .to_string();
+        }
         let raw_ur = ((raw >> 64) & 0xFF) as u64;
         // UR registers are 0-62 for real UR regs, 63 = URZ. Value > 63 = not a UR reg.
         // Only use UR fallback for USHF/SHF-family instructions.
