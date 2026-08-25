@@ -5109,6 +5109,16 @@ fn cmd_asm_directive_format(
                     }
                 }
                 for insn in insns_with_ctrl.iter_mut() {
+                    // BUG-138: a numeric single-token absolute-target branch
+                    // (`BRXU 0xT` / `BRX 0xT`) carries its target in Imm32, not
+                    // BranchTarget (the parser resolves only labels). Same
+                    // signature as the encoder's BUG-027 path: exactly one
+                    // operand. The two-operand `BRXU.U URn, imm` dispatch-table
+                    // form keeps a raw byte offset that is NOT a code address.
+                    let abs_imm_branch = insn.opcode == "BRA"
+                        || insn.opcode == "BSSY"
+                        || ((insn.opcode == "BRX" || insn.opcode == "BRXU")
+                            && insn.operands.len() == 1);
                     for op in insn.operands.iter_mut() {
                         if let cubit::ir::Operand::BranchTarget(ref mut target) = op {
                             if let Some(&new_addr) = addr_map.get(target) {
@@ -5116,7 +5126,7 @@ fn cmd_asm_directive_format(
                             }
                         }
                         if let cubit::ir::Operand::Imm32(ref mut v) = op {
-                            if insn.opcode == "BRA" || insn.opcode == "BSSY" {
+                            if abs_imm_branch {
                                 if let Some(&new_addr) = addr_map.get(&(*v as u32)) {
                                     *v = new_addr as i64;
                                 }
