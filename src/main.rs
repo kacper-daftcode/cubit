@@ -144,8 +144,9 @@ enum Commands {
         /// {"kernels":{"<name>":{"windows":[[s,e),...]}}}
         #[arg(long)]
         plan: Option<PathBuf>,
-        /// m9 cost model JSON (only with --mode list), e.g.
-        /// tables/cost_sm103a.json.
+        /// m9 cost model JSON (only with --mode list): a bare cost model,
+        /// or the canonical table carrying a cost_model section, e.g.
+        /// tables/sm103a.json.
         #[arg(long)]
         cost: Option<PathBuf>,
         /// Input .sass file (directive format).
@@ -163,7 +164,8 @@ enum Commands {
     ///
     /// Raises the stall digits of hand-scheduled windows to the
     /// silicon-measured minimum floors (rules are DATA: --rules
-    /// tables/stallfix_sm103a.json, scope-locked by arch against --plan).
+    /// the stallfix section of tables/sm103a.json, scope-locked by arch
+    /// against --plan).
     /// Raise-only: never lowers a stall, never touches B/R/W/Y bits --
     /// the emission diff is exactly the stall field of each raised
     /// instruction (1 byte per raise at slot +0xd), everything else
@@ -177,7 +179,8 @@ enum Commands {
         /// {"arch":"sm_103a","kernels":{"<name>":{"windows":[[s,e),...]}}}
         #[arg(long)]
         plan: PathBuf,
-        /// Measured rules JSON (e.g. tables/stallfix_sm103a.json).
+        /// Measured rules JSON: bare rules, or the canonical table carrying
+        /// a stallfix section (e.g. tables/sm103a.json).
         #[arg(long)]
         rules: PathBuf,
         /// Input .sass file (directive format).
@@ -518,7 +521,7 @@ fn cmd_sched(
             let plan_path = plan
                 .ok_or_else(|| anyhow::anyhow!("sched: mode 'list' requires --plan <json>"))?;
             let cost_path = cost
-                .ok_or_else(|| anyhow::anyhow!("sched: mode 'list' requires --cost <json> (m9 data, e.g. tables/cost_sm103a.json)"))?;
+                .ok_or_else(|| anyhow::anyhow!("sched: mode 'list' requires --cost <json> (m9 data: bare cost model or a canonical table with a cost_model section, e.g. tables/sm103a.json)"))?;
             let plan_text = std::fs::read_to_string(plan_path)
                 .with_context(|| format!("cannot read {}", plan_path.display()))?;
             let plan: cubit::sched::SchedPlan = serde_json::from_str(&plan_text)
