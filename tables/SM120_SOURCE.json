@@ -6,5 +6,5 @@
   "instruction_forms": 1541,
   "encoding_variants": 2480,
   "sched_only_entries": 597,
-  "canon_drift": "vendored snapshot carries cubit-side canon fixes ahead of the canonical database; structural validation + full suite gate apply until upstream consolidation lands a new byte-pin"
+  "canon_delta": "vendored copy carries cubit-side canonical corrections from the cubit errata series ahead of the canonical database at base_revision, so a byte-pin to upstream no longer holds. Gate: tools/sync_table.py --validate-only (schema + 456-entry baked-ctrl ratchet) and the full test suite. On consolidation the canonical database cuts a new revision and this file's base_revision/base_sha256 are re-pinned to it."
 }

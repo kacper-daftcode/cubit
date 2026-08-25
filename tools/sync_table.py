@@ -338,8 +338,8 @@ def parse_args() -> argparse.Namespace:
         "--validate-only",
         action="store_true",
         help="structurally validate the vendored table without provenance "
-        "comparison (interim mode while the canon-fix wave consolidates "
-        "upstream)",
+        "byte-comparison (the vendored copy carries canonical corrections "
+        "ahead of the base pin; see tables/SM120_SOURCE.json canon_delta)",
     )
     return parser.parse_args()
 

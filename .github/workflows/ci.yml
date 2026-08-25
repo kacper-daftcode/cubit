@@ -15,9 +15,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Validate vendored ISA table (structure + ratchet)
-        # Byte-pin to a canonical blackwell-isa revision is intentionally
-        # suspended while the canon-fix wave consolidates upstream; see
-        # tables/SM120_SOURCE.json "canon_drift".
+        # Vendored copy carries canonical corrections ahead of the base
+        # byte-pin (tables/SM120_SOURCE.json "canon_delta"); validation is
+        # structural (schema) + ratchet (456-entry baked-ctrl baseline).
         run: python3 tools/sync_table.py --validate-only
       - uses: dtolnay/rust-toolchain@stable
         with:
