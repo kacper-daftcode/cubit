@@ -351,6 +351,8 @@ pub fn generate_mercury_from_sass(code: &[u8], kernel_id: u32) -> Vec<u8> {
     generate_mercury_with_ops(code, kernel_id, None)
 }
 
+use crate::eiattr::{AtomRec, DfmaImmLane, EdgeLdRec, EdgeLdgRec, F64ImmLane, MmaLane, Store2Rec};
+
 /// Feature switchboard for the grammar-v1 generator (per-feature records,
 /// empirisch verankert an nvcc-Mikrolab-Deltas; siehe internal docs
 /// MERCURY_UPLIFT_SM103A.md, iter U).
@@ -376,7 +378,7 @@ pub struct MercFeatures {
     pub n_atom: u32,
     /// Control-flow record (second `01 0b 04 0a`): emitted when the kernel has
     /// >1 EXIT or >1 branch (99.5% corpus rule; known residuals: kernels with
-    /// ABI CALLs suppress it, rare early-exit patterns add it).
+    /// > ABI CALLs suppress it, rare early-exit patterns add it).
     pub cflow: bool,
     /// Atom-variant of the cflow record payload (n_atom > 0).
     pub cflow_atom: bool,
@@ -457,14 +459,14 @@ pub struct MercFeatures {
     /// cubit; nvdis: MEMBAR.ALL.GPU — imma_emu w cublasLt.548), inaczej 0x0c.
     pub cctl_rec: Vec<(u32, u8, u8)>,
     /// mk11: instrukcje MMA -> rekord 025a w lane: (lane, cls, d, a, b, c, b8f).
-    pub mma_lanes: Vec<(u32, u8, u8, u8, u8, u8, u8)>,
+    pub mma_lanes: Vec<MmaLane>,
     /// mk11+mk51: DMUL/DADD z imm f64 -> rekordy 020f120e/020c1e0e w lane:
     /// (lane, var, d, a, imm_top32, pred, b7=2*negA+4*absA; RZ-src = 0x3ff).
-    pub f64_lanes: Vec<(u32, u8, u16, u16, u32, u8, u8)>,
+    pub f64_lanes: Vec<F64ImmLane>,
     /// mk51: DFMA z imm f64 -> rekordy 020d1c0e (imm-last) / 020d1a0e
     /// (imm-middle) w lane: (lane, variant[0=last,1=mid], pred, b7, d, a, b,
     /// imm64bits; b7 = 2*negA+8*negB+4*absA+16*absB). Lane bez bitu bitmapy.
-    pub dfmaim: Vec<(u32, u8, u8, u8, u16, u16, u16, u64)>,
+    pub dfmaim: Vec<DfmaImmLane>,
     /// mk11: lane UIADD3 (killpad uniform) -> atom d0 00 w lane.
     pub pad_pos: Vec<u32>,
     /// mk12 (iter AD): payload rekordu cflow-anchor `01 0b 04 0a`:
@@ -533,7 +535,7 @@ pub struct MercFeatures {
     pub n_ldgsts: u32,
     /// mk14: rekordy atomowe per-instrukcja (lane, cls, guard, dst, addr,
     /// src1, src2, subop_b6); puste = zachowanie legacy (trailing REC_ATOM).
-    pub atoms: Vec<(u32, u8, u8, u8, u8, u8, u8, u8)>,
+    pub atoms: Vec<AtomRec>,
     /// mk14: cbank wariant 8301 takze przy CAS.SYS (gold p_cas: kernel bez
     /// smem, cbank b10=0x83). Aktywne w Ev::Cbank obok smem_static.
     pub cbank83_cas: bool,
@@ -650,16 +652,16 @@ pub struct MercFeatures {
     /// mk40: store-matrix rekordow 0238 dla ST.E (2a32) / STL (2006).
     /// (lane, cls 1=ST.E 2=STL, wsel 0=U8/1=U16/2=4B/3=64/4=128,
     /// areg/dur [0xffff=N/A], dreg [0x3ff=RZ], imm, b4).
-    pub store2: Vec<(u32, u8, u8, u16, u16, u16, i32, u8, u8)>,
+    pub store2: Vec<Store2Rec>,
     /// mk40: mini-slownik (lane, u32 LE 4B rekordu); lane bez bitu.
     pub mini2: Vec<(u32, u32)>,
     /// mk42: rekordy edge LD-desc (layout: eiattr.rs merc_edge_ld).
-    pub edge_ld: Vec<(u32, u8, u8, u8, u8, u16, u16, u8, u32)>,
+    pub edge_ld: Vec<EdgeLdRec>,
     /// mk42: stala per-kernel [19:21) = (edge_v<<6)|2 (max desc-UR).
     pub edge_v: u16,
     /// mk50: rekordy edge 02 22 1e 32 = LDG-desc w kernelach annotated_ptr
     /// (bramka: sass_file::merc_edge_ldg_scan; krotki (lane,b4,b6,X,Y,C,V,off)).
-    pub edge_ldg: Vec<(u32, u8, u8, u16, u16, u8, u16, u32)>,
+    pub edge_ldg: Vec<EdgeLdgRec>,
     /// mk40 (podkmatryca mk32): per-STG width (wsel) rownolegle do stg_pos;
     /// puste = legacy (kernel-global stg_u8/stg_wide/stg_w128).
     pub stg_wsel: Vec<u8>,
@@ -1198,6 +1200,7 @@ const REC_ACQBULK: [u8; 16] = [
 ///   brak desc[URx] -> [17:19] powtarza areg; b4=f8 stale (takze przy @Pn);
 /// - STL (2006): [10:12]=areg<<6 (bez |2), [12:14]=0a00, [14:16]=
 ///   dreg<<6|wflag, b6-subladder 21/31/41/51/61, b4=(pidx<<3)|neg.
+///
 /// Subladder wflag dreg: (wsel==64b -> 2, ==128b -> 6, inaczej 0).
 const STG_B6: [u8; 5] = [0x00, 0x20, 0x40, 0x50, 0x60];
 const STE_B6: [u8; 5] = [0x10, 0x12, 0x14, 0x15, 0x16];
@@ -1269,11 +1272,15 @@ fn rec_cctl_v(b1: u8, b8: u8) -> [u8; 18] {
 /// - b18/b19: kursor biegu regionu (alt 0x40/0xc0) — OTWARTE (resid mk10b)
 /// - b28: natychmiastowy offset adresu [Rx.64+imm] w bajtach (k_bra/e_loop:
 ///   +0,+4,+8,+c,+0 -> 00,04,08,0c,00)
+///
 /// mk30b: `wire` — opcjonalna mapa dp->slot nvcc (podpula: REG + LDG.C +
 /// UNIF-(83,01)); None = zachowanie legacy (pool-pozycja globalna).
+///
 /// mk35: true gdy barwnik cbank base ma domyslna siatke b10/b11
 /// ((03,01)/(83,01) — wolne do nadpisania siatka rejestrowa).
+///
 /// mk42: rekord edge 02 22 32 32 (dekod mk37/38; bramka EXACT mk42/edge9).
+///
 /// Pola: b4 pred, b6 klasa rozmiaru (U8=0x10,S8=0x11,U16=0x12,S16=0x13,
 /// 32=0x14,64=0x15,128=0x16), (b7,b8) scope (08,00)/(10,01 STRONG.SYS),
 /// b12..13=(X<<6)|C, b14..15=(Y<<6)|2, b17=0x0a, b22=0xf8,
@@ -1431,7 +1438,7 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize, wire: Option<&[u32]>) -> [u8; 32] 
         g if g != 0xf8 => stg[4] = g,
         _ => {}
     }
-    let off = feat.stg_off.get(stg_i).copied().unwrap_or(0) as i32;
+    let off = feat.stg_off.get(stg_i).copied().unwrap_or(0);
     stg[28..32].copy_from_slice(&off.to_le_bytes());
     stg
 }
@@ -1476,44 +1483,38 @@ fn rec_xor(dst: u32, src: u32, imm: u32, b4: u8) -> [u8; 32] {
 /// - regpath (0e06, w>=8): param tez ladowany przez LDCU -> (03,01);
 ///   n_w==1 -> (83,00);
 ///   n_w==2: oba STG-wiazane: pierwszy w kodzie (83,00), drugi (03,01);
-///     inaczej read->(83,00), write->(83,01) przy STG.64/128 / (03,01);
+///   inaczej read->(83,00), write->(83,01) przy STG.64/128 / (03,01);
 ///   n_w>=3: write->(83,01); najnizszy pi wsrod read -> (83,00); reszta read
-///     -> (03,01).
+///   -> (03,01).
 /// - regpath w<=4 (skalar): (41,02) (k_stg2).
+///
+/// mk35: `feat.param_load_dreg` niesie numery dst-rejestrow loadow
+/// (rownolegle `feat.param_loads`; 255=nieznany). Gdy znany ->
+/// b10/b11 = (dreg<<6)|C, C = drabinka szerokosci (16B->7, 8B->3, <8B->1).
+/// Wczesniejsza macierz rol mk10c..mk18 = cien alokacji rejestrow nvcc
+/// (R2/R4/R6...). Puste = legacy.
 fn mk10c_roles(
-    loads: &[(u32, u32, u8, u8, u8)],
+    feat: &MercFeatures,
     stg_write_pis: &std::collections::BTreeSet<u32>,
-    n_atom: u32,
-    n_ldgsts: u32,
-    stg_wide: bool,
-    u_role_alt1: bool,
-    load_flags: &[u8],
-    atom_pool_hits: &[(u32, u8)],
-    has_ublkcp: bool,
-    // mk35: numery dst-rejestrow loadow (rownolegle `loads`; 255=nieznany).
-    // Gdy znany -> b10/b11 = (dreg<<6)|C, C = drabinka szerokosci
-    // (16B->7, 8B->3, <8B->1). Wczesniejsza macierz rol mk10c..mk18 =
-    // cien alokacji rejestrow nvcc (R2/R4/R6...). Puste = legacy.
-    load_dregs: &[u8],
 ) -> Vec<(u8, u8)> {
-    let mut roles = Vec::with_capacity(loads.len());
+    let mut roles = Vec::with_capacity(feat.param_loads.len());
     // distinktywne pi wsrod szerokich regpath-loadow
     let mut wide_r: Vec<u32> = Vec::new();
-    for &(_, pi, unif, w, _) in loads {
+    for &(_, pi, unif, w, _) in &feat.param_loads {
         if unif == 0 && w >= 8 && !wide_r.contains(&pi) {
             wide_r.push(pi);
         }
     }
     let uni_pis: std::collections::BTreeSet<u32> =
-        loads.iter().filter(|l| l.2 == 1).map(|l| l.1).collect();
-    let atomish = n_atom > 0 || n_ldgsts > 0;
+        feat.param_loads.iter().filter(|l| l.2 == 1).map(|l| l.1).collect();
+    let atomish = feat.n_atom > 0 || feat.n_ldgsts > 0;
     let n = wide_r.len();
     // pierwszy (najwczesniejszy lane) wsrod wide_r — do reguly 2-write
     let first_lane_pi = wide_r
         .iter()
         .copied()
         .min_by_key(|&piq| {
-            loads
+            feat.param_loads
                 .iter()
                 .find(|l| l.1 == piq && l.2 == 0)
                 .map(|l| l.0)
@@ -1526,9 +1527,9 @@ fn mk10c_roles(
         .filter(|pi| !stg_write_pis.contains(pi))
         .min()
         .unwrap_or(u32::MAX);
-    for (j, &(_, pi, unif, w, _)) in loads.iter().enumerate() {
+    for (j, &(_, pi, unif, w, _)) in feat.param_loads.iter().enumerate() {
         // mk35: dokladna regula jesli znamy dst-reg loadu.
-        if let Some(&rg) = load_dregs.get(j) {
+        if let Some(&rg) = feat.param_load_dreg.get(j) {
             if rg != 255 {
                 let cf: u16 = if w == 16 { 7 } else if w >= 8 { 3 } else { 1 };
                 let v = ((rg as u16) << 6) | cf;
@@ -1544,17 +1545,17 @@ fn mk10c_roles(
                 // regpath; 8B LDCU -> (83,02). Dowod: b_bulk_cp (rekordy
                 // @68/@134); korpus 17612 capmerc bez markerow UBLKCP
                 // (regresja zero), 1-probkowe az do rozszerzenia siatki.
-                4 if has_ublkcp => (0x41, 0x02),
+                4 if !feat.ublkcp.is_empty() => (0x41, 0x02),
                 4 => (0x81, 0x01),
                 1 | 2 => (0x01, 0x01),
                 _ => {
-                    if has_ublkcp {
+                    if !feat.ublkcp.is_empty() {
                         (0x83, 0x02)
                     } else
                     // mk13: kolejnosc wazna — grupa (03,01) obejmuje CAS/
                     // exits>=2/LDS-klase; LDGSTS-licznik ja wygrywa (p_ldgsts
                     // ma LDS x3 i zostaje przy 03,02); potem reszta atomow.
-                    if u_role_alt1 && n_ldgsts == 0 {
+                    if feat.u_role_alt1 && feat.n_ldgsts == 0 {
                         (0x03, 0x01)
                     } else if atomish {
                         (0x03, 0x02)
@@ -1570,8 +1571,8 @@ fn mk10c_roles(
             // (83,00) gdy: (a) wartosc loadu feeduje adres atom-family
             // [p_atomg; v_b/v_c], (b) load PO CALL [q_tail_call + mk14.4-nutka].
             // Inaczej (03,01) [p_cctl (CCTL), p_stg2/v_d/v_a (STG)].
-            let fl = load_flags.get(j).copied().unwrap_or(0);
-            if (fl & 2) != 0 || atom_pool_hits.contains(&(pi, 0)) {
+            let fl = feat.load_flags.get(j).copied().unwrap_or(0);
+            if (fl & 2) != 0 || feat.atom_pool_hits.contains(&(pi, 0)) {
                 (0x83, 0x00)
             } else {
                 (0x03, 0x01)
@@ -1585,7 +1586,7 @@ fn mk10c_roles(
                 // oba wiazane STG: pierwszy w kodzie = (83,00)
                 if pi == first_lane_pi { (0x83, 0x00) } else { (0x03, 0x01) }
             } else if is_w {
-                if stg_wide { (0x83, 0x01) } else { (0x03, 0x01) }
+                if feat.stg_wide { (0x83, 0x01) } else { (0x03, 0x01) }
             } else {
                 (0x83, 0x00)
             }
@@ -1640,6 +1641,9 @@ fn mk10c_rec_desc(ld: (u32, u32, u8, u8, u8), role: (u8, u8)) -> [u8; 32] {
 /// pierwszy — emitowany przez wywolujacego). Anchory per S2R (lane).
 fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &[u8; 16]) {
     #[derive(Clone, Copy)]
+    // Records map 1:1 to measured .nv.merc record classes; some payloads are
+    // kept for construction-time traceability even though emission is fixed.
+    #[allow(dead_code)]
     enum Ev {
         Desc(usize),
         Cbank,
@@ -1740,18 +1744,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             }
         }
     }
-    let roles = mk10c_roles(
-        &feat.param_loads,
-        &stg_write_pis,
-        feat.n_atom,
-        feat.n_ldgsts,
-        feat.stg_wide,
-        feat.u_role_alt1,
-        &feat.load_flags,
-        &feat.atom_pool_hits,
-        !feat.ublkcp.is_empty(),
-        &feat.param_load_dreg,
-    );
+    let roles = mk10c_roles(feat, &stg_write_pis);
     let mut ev: Vec<(u32, u8, Ev)> = Vec::new();
     for (j, ld) in feat.param_loads.iter().enumerate() {
         ev.push((ld.0, 20, Ev::Desc(j)));
@@ -1937,7 +1930,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         ev.push((pos, 20, Ev::Lop3P));
     }
     for (i, m) in feat.mma_lanes.iter().enumerate() {
-        ev.push((m.0, 20, Ev::Mma(i.min(255) as usize)));
+        ev.push((m.0, 20, Ev::Mma(i.min(255))));
     }
     for (i, m) in feat.f64_lanes.iter().enumerate() {
         ev.push((m.0, 20, Ev::F64i(i)));
@@ -2537,7 +2530,7 @@ fn emit_zero_param_positioned(out: &mut Vec<u8>, feat: &MercFeatures) {
             ZE::S2r(i) => {
                 let mut cf = anchor_base;
                 if let Some(&d) = feat.s2r_dest.get(i) {
-                    let v: u32 = ((d as u32) << 6) | 1;
+                    let v: u32 = (d << 6) | 1;
                     cf[10] = (v & 0xff) as u8;
                     cf[11] = (v >> 8) as u8;
                 }
@@ -2765,7 +2758,6 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
             enum Ev { Bar, Stg, Atom, Elect, Xor, AcqBulk, Cctl, CctlRml2, Pad, Mma, F64i, DfmaImm }
             const REC_MINI_ELECT: [u8; 4] = [0x41, 0x64, 0x00, 0x0a];
             let mut ev: Vec<(u32, Ev, u32)> = Vec::new();
-            enum Ev2 {}
             for (i, &pos) in feat.bar_pos.iter().enumerate() {
                 ev.push((pos, Ev::Bar, i as u32));
             }
@@ -3295,12 +3287,12 @@ pub fn generate_mercury_full(
             cur |= 1u32 << (b_index % 32);
         }
         b_index += 1;
-        if b_index % 32 == 0 {
+        if b_index.is_multiple_of(32) {
             bitmap.push(cur);
             cur = 0;
         }
     }
-    if b_index % 32 != 0 {
+    if !b_index.is_multiple_of(32) {
         bitmap.push(cur);
     }
     // mk30b: n = ostatni ustawiony bit + 2 (TWARDY inwariant producenta:
@@ -3314,7 +3306,7 @@ pub fn generate_mercury_full(
         }
     }
     let n_counted = (bitmax + 2).max(0) as u32;
-    bitmap.truncate(((n_counted as usize) + 31) / 32);
+    bitmap.truncate((n_counted as usize).div_ceil(32));
 
     let mut buf: Vec<u8> = Vec::new();
     buf.extend_from_slice(&kernel_id.to_le_bytes());
@@ -3384,12 +3376,12 @@ pub fn generate_mercury_with_ops(
             cur |= 1u32 << (b_index % 32);
         }
         b_index += 1;
-        if b_index % 32 == 0 {
+        if b_index.is_multiple_of(32) {
             bitmap_bits.extend_from_slice(&cur.to_le_bytes());
             cur = 0;
         }
     }
-    if b_index % 32 != 0 {
+    if !b_index.is_multiple_of(32) {
         bitmap_bits.extend_from_slice(&cur.to_le_bytes());
     }
     let n_nonnop = b_index as u32;
@@ -3560,7 +3552,7 @@ pub fn rebuild_cubin(template_bytes: &[u8], patches: &[CubinPatch<'_>]) -> Resul
             // immediates/RZ), so rebuilding a 255-reg reference kernel used to
             // TRUNCATE REGCOUNT 255 -> 128 and the driver rejected the cubin
             // with "illegal instruction" at launch (silicon-verified).
-            let derived = ((max_reg + 32) & !31).max(32).min(255);
+            let derived = ((max_reg + 32) & !31).clamp(32, 255);
             patch_regcount_in_elf_floor(&mut cubin.bytes, derived);
         }
 
@@ -5497,10 +5489,8 @@ impl CubinBuilder {
         // interned even when no such section/symbol exists. Names of
         // .nv.shared.K / .rela.text.K are interned per law regardless of the
         // sections' presence.
-        let mut sh_order: Vec<String> = vec![
-            ".shstrtab", ".strtab", ".symtab", ".symtab_shndx", ".note.nv.tkinfo",
-            ".note.nv.cuinfo", ".nv.info", ".nv.compat",
-        ].iter().map(|s| s.to_string()).collect();
+        let mut sh_order: Vec<String> = [".shstrtab", ".strtab", ".symtab", ".symtab_shndx", ".note.nv.tkinfo",
+            ".note.nv.cuinfo", ".nv.info", ".nv.compat"].iter().map(|s| s.to_string()).collect();
         for (ki, k) in kernels.iter().enumerate() {
             sh_order.push(format!(".text.{}", k.name));
             sh_order.push(format!(".nv.info.{}", k.name));
@@ -5542,10 +5532,8 @@ impl CubinBuilder {
         }
         let shn = |name: &str| -> u32 { *sh_map.get(name).unwrap_or_else(|| panic!("shstrtab law missing {name}")) };
 
-        let mut st_order: Vec<String> = vec![
-            ".shstrtab", ".strtab", ".symtab", ".symtab_shndx", ".note.nv.tkinfo",
-            ".note.nv.cuinfo", ".nv.info", ".nv.compat",
-        ].iter().map(|s| s.to_string()).collect();
+        let mut st_order: Vec<String> = [".shstrtab", ".strtab", ".symtab", ".symtab_shndx", ".note.nv.tkinfo",
+            ".note.nv.cuinfo", ".nv.info", ".nv.compat"].iter().map(|s| s.to_string()).collect();
         for (ki, k) in kernels.iter().enumerate() {
             st_order.push(format!(".text.{}", k.name));
             st_order.push(format!(".nv.info.{}", k.name));

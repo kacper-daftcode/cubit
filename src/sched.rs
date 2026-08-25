@@ -855,14 +855,9 @@ fn scan_body_lines(text: &str) -> Vec<(String, Vec<BodyLine>)> {
         }
         let mut rest = t;
         let mut had_label = false;
-        loop {
-            match RE_LABEL.captures(rest) {
-                Some(c) => {
-                    had_label = true;
-                    rest = &rest[c.get(0).unwrap().as_str().len()..];
-                }
-                None => break,
-            }
+        while let Some(c) = RE_LABEL.captures(rest) {
+            had_label = true;
+            rest = &rest[c.get(0).unwrap().as_str().len()..];
         }
         if rest.is_empty() {
             lines.push(BodyLine::LabelOnly(ins_count));
@@ -932,8 +927,8 @@ pub fn emit_permuted_splice(original: &str, edits: &[WindowEmit]) -> Result<Stri
     let mut ins_count = 0usize;
     let mut pending: Option<(&WindowEmit, Vec<String>)> = None;
 
-    let mut lines_iter = original.lines().peekable();
-    while let Some(line) = lines_iter.next() {
+    let lines_iter = original.lines().peekable();
+    for line in lines_iter {
         let t = line.trim();
         if t.starts_with(".entry") || t.starts_with(".func") {
             in_kernel = true;
@@ -953,13 +948,8 @@ pub fn emit_permuted_splice(original: &str, edits: &[WindowEmit]) -> Result<Stri
             continue;
         }
         let mut rest = t;
-        loop {
-            match RE_LABEL.captures(rest) {
-                Some(c) => {
-                    rest = &rest[c.get(0).unwrap().as_str().len()..];
-                }
-                None => break,
-            }
+        while let Some(c) = RE_LABEL.captures(rest) {
+            rest = &rest[c.get(0).unwrap().as_str().len()..];
         }
         if rest.is_empty() {
             out_lines.push(line.to_string()); // lone label line
@@ -1050,7 +1040,7 @@ fn verify_permute_proof(
 
 /// Critical-path height + ready-time evaluation live inline in
 /// `run_file_list` (baseline) and `schedule_segment` (policy).
-
+///
 /// List-schedule one segment of movers. `edges_in`/`edges_out`: interior
 /// edges (both endpoints movers of this segment). Deterministic: priority
 /// tuple (earliest availability, -critical_path_height, original index).
@@ -1266,6 +1256,9 @@ pub fn window_pins(
     Ok(out)
 }
 
+
+type ClassifyWindowOut = (BTreeSet<u32>, Vec<(u32, PinReason)>);
+
 /// Classify one scheduling window into movers and pins; the single source
 /// of truth for pin semantics, shared by the list/replay planner
 /// (`run_file_list`) and the pin-introspection entry (`window_pins`, M5).
@@ -1279,7 +1272,7 @@ fn classify_window(
     scan_lines: &[BodyLine],
     s: u32,
     e: u32,
-) -> Result<(BTreeSet<u32>, Vec<(u32, PinReason)>)> {
+) -> Result<ClassifyWindowOut> {
     let mut movable: BTreeSet<u32> = BTreeSet::new();
     let mut pins: Vec<(u32, PinReason)> = Vec::new();
     for i in s..e {
@@ -1392,11 +1385,8 @@ fn run_file_list(
         // label carriers and label-only lines
         let mut labeled: BTreeSet<u32> = BTreeSet::new();
         for l in scan_lines {
-            match l {
-                BodyLine::Ins(i, true) => {
-                    labeled.insert(*i as u32);
-                }
-                _ => {}
+            if let BodyLine::Ins(i, true) = l {
+                labeled.insert(*i as u32);
             }
         }
         let kp = match plan.kernels.get(&k.name) {
@@ -1707,7 +1697,7 @@ fn run_file_list(
                 start: ws,
                 end: we,
                 movers: (ws..we).filter(|i| movable.contains(i)).count(),
-                pinned: (ws..we).filter(|i| pin_of.contains_key(&i)).count(),
+                pinned: (ws..we).filter(|i| pin_of.contains_key(i)).count(),
                 pin_reasons,
                 segments: segments.len(),
                 cost_before: win_before,

@@ -424,9 +424,11 @@ pub struct OperandChange {
 ///   * INJECTIVITY: per instruction in the window, the map restricted to
 ///     the occupancy set (live_in + defs + uses, span-expanded) must be
 ///     injective -- the kernel soundness check against live-value clobber.
+///
 /// M4.3b apply-mode coverage: every planned SOURCE numeral must occur in the
 /// kernel (typo trap; subset semantics otherwise) and targets stay inside
 /// the allocatable domain ends (RZ and the desc namespace stay out of plans).
+///
 /// M6.3: the predicate maps join the contract, sourced from the STRICT
 /// predicate transfer sets; PT/UPT keys are rejected by the sink rule on
 /// the merged plan (validate_pred_sink_range), the typo trap lives here.
@@ -494,6 +496,7 @@ pub fn validate_coverage_apply(
 ///   * predicates have NO spans: there is no span-integrity rule (design
 ///     sec.3 -- the ISETP two-destination form is two independent symbols
 ///     bound by a same-ins-def edge, corpus-proven with non-adjacent bases).
+#[allow(clippy::too_many_arguments)]
 pub fn validate_pin(
     kname: &str,
     n_ins: usize,
@@ -1002,10 +1005,10 @@ pub fn apply_plan_windowed(
 
 /// UR slot of a bracket address (`[R.U32+URm..]`, `c[..][..+URm..]`): values
 /// >= 64 are the desc/payload namespace (era LTC128B-era words surface here
-/// after the BUG-099 canon plain-render; plans never cover them -- coverage
-/// validation rejects UR>=64 keys), so they pass through opaque like the
-/// Desc arm does. Values < 64 are architectural uniform registers and are
-/// remapped through the plan (same discipline as desc[URx<64]).
+/// > after the BUG-099 canon plain-render; plans never cover them -- coverage
+/// > validation rejects UR>=64 keys), so they pass through opaque like the
+/// > Desc arm does. Values < 64 are architectural uniform registers and are
+/// > remapped through the plan (same discipline as desc[URx<64]).
 fn remap_ur_slot(u: &mut u8, plan: &RegPlan) -> Result<usize> {
     if *u >= 64 {
         Ok(0)
@@ -1576,8 +1579,8 @@ pub fn emit_spliced(
     let mut kidx: isize = -1;
     let mut kernel_insn_counts: Vec<usize> = Vec::new();
 
-    let mut lines = original.lines().peekable();
-    while let Some(line) = lines.next() {
+    let lines = original.lines().peekable();
+    for line in lines {
         let t = line.trim();
         if t.starts_with(".entry") || t.starts_with(".func") {
             in_kernel = true;
@@ -1607,15 +1610,10 @@ pub fn emit_spliced(
         // emitted line keeps them verbatim (they sit before asm_off).
         let mut rest = t;
         let mut label_len = 0usize;
-        loop {
-            match RE_LABEL.captures(rest) {
-                Some(c) => {
-                    let m = c.get(0).unwrap().as_str();
-                    label_len += m.len();
-                    rest = &rest[m.len()..];
-                }
-                None => break,
-            }
+        while let Some(c) = RE_LABEL.captures(rest) {
+            let m = c.get(0).unwrap().as_str();
+            label_len += m.len();
+            rest = &rest[m.len()..];
         }
         if rest.is_empty() {
             out_lines.push(line.to_string()); // lone label line

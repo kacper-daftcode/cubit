@@ -136,8 +136,8 @@ fn pass_fold_addr_offset(lines: &mut Vec<String>) {
         let rd_lo = cap0[1].to_string();
         let rbase_lo = cap0[3].to_string();
         let offset = cap0[4].to_string();
-        let rd_hi = cap1[1].to_string();
-        let rbase_hi = cap1[2].to_string();
+        let _rd_hi = cap1[1].to_string();
+        let _rbase_hi = cap1[2].to_string();
 
         // Find next instruction that uses Rd_lo as address in STG or LDG
         let mut found_consumer = false;
@@ -184,8 +184,26 @@ fn pass_fold_addr_offset(lines: &mut Vec<String>) {
 //
 // This is a linear-scan liveness analysis on SASS text.
 
-fn pass_register_rename(lines: &mut Vec<String>) {
-    let re_reg = regex::Regex::new(r"\bR(\d+)\b").unwrap();
+static RE_RNUM: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"\bR(\d+)\b").unwrap());
+static RE_MOV_IMM: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"MOV (R(\d+)), (0x[0-9a-f]+|\d+) ;").unwrap());
+static RE_MOV_REG: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"MOV (R\d+), (R\d+) ;").unwrap());
+static RE_IADD3_ZERO: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(r"IADD3 (R\d+), PT, PT, (R\d+), 0x0, RZ ;").unwrap()
+});
+static RE_FMUL_ONE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(r"FMUL (R\d+), (R\d+), (?:1\.0|0x3f800000) ;").unwrap()
+});
+static RE_FADD_ZERO: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(r"FADD (R\d+), (R\d+), (?:0\.0|RZ) ;").unwrap()
+});
+
+// Scaffold for a register-rename pass (linear-scan, def/last-use pool
+// reuse); kept out of the active pipeline until the caller side lands.
+#[allow(dead_code)]
+fn pass_register_rename(lines: &mut [String]) {
 
     // Collect all instructions (skip directives)
     let mut insn_indices = Vec::new();
@@ -200,7 +218,7 @@ fn pass_register_rename(lines: &mut Vec<String>) {
     let mut reg_lifetime: HashMap<u8, (usize, usize)> = HashMap::new();
     for &idx in &insn_indices {
         let line = &lines[idx];
-        for m in re_reg.find_iter(line) {
+        for m in RE_RNUM.find_iter(line) {
             let num: u8 = match m.as_str()[1..].parse() {
                 Ok(n) if n < 255 => n,
                 _ => continue,
@@ -237,7 +255,8 @@ fn pass_register_rename(lines: &mut Vec<String>) {
                 free_pool.push(phys);
                 free_pool.sort_unstable();
             }
-        } else if !rename_map.contains_key(&reg) {
+        } else {
+            rename_map.entry(reg).or_insert_with(|| {
             let phys = if let Some(pos) = free_pool.iter().position(|_| true) {
                 free_pool.remove(pos)
             } else {
@@ -246,7 +265,8 @@ fn pass_register_rename(lines: &mut Vec<String>) {
                 next_fresh += 1;
                 r
             };
-            rename_map.insert(reg, phys);
+            phys
+            });
         }
     }
 
@@ -265,11 +285,11 @@ fn pass_register_rename(lines: &mut Vec<String>) {
             .filter(|(&old, &new)| old != new)
             .map(|(&o, &n)| (o, n))
             .collect();
-        renames.sort_by(|a, b| b.0.cmp(&a.0));
+        renames.sort_by_key(|&(o, _)| std::cmp::Reverse(o));
 
         for &(old, new) in &renames {
             // Use word-boundary replacement
-            let from = format!("R{}", old);
+            let _from = format!("R{}", old);
             let to = format!("R{}", new);
             // Only replace whole-word matches (R12 but not R120)
             let pattern = format!(r"\bR{}\b", old);
@@ -297,9 +317,7 @@ fn pass_register_rename(lines: &mut Vec<String>) {
 // This pass finds registers whose last use is before a MOV+STG sequence and
 // renames the MOV target to reuse a dead register.
 
-fn pass_reuse_dead_regs(lines: &mut Vec<String>) {
-    let re_reg = regex::Regex::new(r"\bR(\d+)\b").unwrap();
-
+fn pass_reuse_dead_regs(lines: &mut [String]) {
     // Collect instruction lines only
     let insn_lines: Vec<usize> = lines.iter().enumerate()
         .filter(|(_, l)| {
@@ -312,9 +330,9 @@ fn pass_reuse_dead_regs(lines: &mut Vec<String>) {
     // Build last-use map: reg_num → last line index
     let mut last_use: HashMap<u8, usize> = HashMap::new();
     for &idx in &insn_lines {
-        for m in re_reg.find_iter(&lines[idx]) {
+        for m in RE_RNUM.find_iter(&lines[idx]) {
             if let Ok(n) = m.as_str()[1..].parse::<u8>() {
-                if n < 200 && n >= 2 { last_use.insert(n, idx); }
+                if (2..200).contains(&n) { last_use.insert(n, idx); }
             }
         }
     }
@@ -325,8 +343,7 @@ fn pass_reuse_dead_regs(lines: &mut Vec<String>) {
         let line = lines[idx].trim().to_string();
         if !line.starts_with("MOV ") && !line.contains(" MOV ") { continue; }
 
-        let re_mov = regex::Regex::new(r"MOV (R(\d+)), (0x[0-9a-f]+|\d+) ;").unwrap();
-        let cap = match re_mov.captures(&line) {
+        let cap = match RE_MOV_IMM.captures(&line) {
             Some(c) => c,
             None => continue,
         };
@@ -340,7 +357,7 @@ fn pass_reuse_dead_regs(lines: &mut Vec<String>) {
         for (&reg, &lu) in &last_use {
             if reg >= 2 && reg < dst_num && lu < idx {
                 // This reg is dead at this point — candidate for reuse
-                if best_dead.map_or(true, |b| reg < b) {
+                if best_dead.is_none_or(|b| reg < b) {
                     best_dead = Some(reg);
                 }
             }
@@ -358,17 +375,16 @@ fn pass_reuse_dead_regs(lines: &mut Vec<String>) {
             for j in 0..lines.len() {
                 if lines[j].trim().starts_with(".reg R0-R") {
                     let mut max_r: u8 = 7;
-                    let re_r = regex::Regex::new(r"\bR(\d+)\b").unwrap();
                     for k in 0..lines.len() {
                         let t = lines[k].trim();
                         if t.starts_with('.') || t.starts_with("//") { continue; }
                         // Match R\d+ but skip UR\d+
                         let l = &lines[k];
-                        for m in re_r.find_iter(l) {
+                        for m in RE_RNUM.find_iter(l) {
                             let start = m.start();
                             if start > 0 && l.as_bytes()[start - 1] == b'U' { continue; }
                             if let Ok(n) = m.as_str()[1..].parse::<u8>() {
-                                if n < 200 && n >= 2 { max_r = max_r.max(n); }
+                                if (2..200).contains(&n) { max_r = max_r.max(n); }
                             }
                         }
                     }
@@ -393,8 +409,6 @@ fn pass_reuse_dead_regs(lines: &mut Vec<String>) {
 // their LDC right before the first STG that uses them.
 
 fn pass_lazy_param_load(lines: &mut Vec<String>) {
-    let re_reg = regex::Regex::new(r"\bR(\d+)\b").unwrap();
-
     // Find LDC instructions and which register they define
     let mut ldc_info: Vec<(usize, String)> = Vec::new(); // (line_idx, dst_reg_name)
     let mut stg_indices: Vec<usize> = Vec::new();
@@ -429,12 +443,11 @@ fn pass_lazy_param_load(lines: &mut Vec<String>) {
         for j in (ldc_idx + 1)..first_stg {
             let t = lines[j].trim();
             if t.starts_with("//") || t.starts_with('.') || t.is_empty() { continue; }
-            if !t.contains("STG") && !t.contains("UIADD3") {
-                if reg_re.is_match(t) {
+            if !t.contains("STG") && !t.contains("UIADD3")
+                && reg_re.is_match(t) {
                     used_before_stg = true;
                     break;
                 }
-            }
         }
 
         if !used_before_stg {
@@ -466,7 +479,7 @@ fn extract_dst_reg_from_line(line: &str) -> Option<String> {
 // Eliminate redundant instructions and strength-reduce trivial patterns.
 // These are always safe — same result, fewer instructions.
 
-fn pass_peephole(lines: &mut Vec<String>) {
+fn pass_peephole(lines: &mut [String]) {
     let mut i = 0;
     while i < lines.len() {
         let trimmed = lines[i].trim().to_string();
@@ -478,8 +491,7 @@ fn pass_peephole(lines: &mut Vec<String>) {
 
         // MOV Rx, Rx → eliminate (identity move)
         if trimmed.starts_with("MOV ") || trimmed.contains(" MOV ") {
-            let re = regex::Regex::new(r"MOV (R\d+), (R\d+) ;").unwrap();
-            if let Some(cap) = re.captures(&trimmed) {
+            if let Some(cap) = RE_MOV_REG.captures(&trimmed) {
                 if cap.get(1).unwrap().as_str() == cap.get(2).unwrap().as_str() {
                     let indent_len = lines[i].len() - lines[i].trim_start().len();
                     let indent: String = lines[i].chars().take(indent_len).collect();
@@ -491,8 +503,7 @@ fn pass_peephole(lines: &mut Vec<String>) {
 
         // IADD3 Rd, PT, PT, Ra, 0x0, RZ → MOV Rd, Ra (add zero)
         if trimmed.contains("IADD3") && trimmed.contains("0x0") && trimmed.contains("RZ") {
-            let re = regex::Regex::new(r"IADD3 (R\d+), PT, PT, (R\d+), 0x0, RZ ;").unwrap();
-            if let Some(cap) = re.captures(&trimmed) {
+            if let Some(cap) = RE_IADD3_ZERO.captures(&trimmed) {
                 let rd = cap.get(1).unwrap().as_str();
                 let ra = cap.get(2).unwrap().as_str();
                 let indent_len = lines[i].len() - lines[i].trim_start().len();
@@ -504,8 +515,7 @@ fn pass_peephole(lines: &mut Vec<String>) {
 
         // FMUL Rd, Ra, 1.0 → MOV Rd, Ra (multiply by one)
         if trimmed.contains("FMUL") && (trimmed.contains(", 1.0 ;") || trimmed.contains(", 0x3f800000")) {
-            let re = regex::Regex::new(r"FMUL (R\d+), (R\d+), (?:1\.0|0x3f800000) ;").unwrap();
-            if let Some(cap) = re.captures(&trimmed) {
+            if let Some(cap) = RE_FMUL_ONE.captures(&trimmed) {
                 let rd = cap.get(1).unwrap().as_str();
                 let ra = cap.get(2).unwrap().as_str();
                 let indent_len = lines[i].len() - lines[i].trim_start().len();
@@ -517,8 +527,7 @@ fn pass_peephole(lines: &mut Vec<String>) {
 
         // FADD Rd, Ra, 0.0 → MOV Rd, Ra (add zero)
         if trimmed.contains("FADD") && (trimmed.contains(", 0.0 ;") || trimmed.contains(", RZ ;")) {
-            let re = regex::Regex::new(r"FADD (R\d+), (R\d+), (?:0\.0|RZ) ;").unwrap();
-            if let Some(cap) = re.captures(&trimmed) {
+            if let Some(cap) = RE_FADD_ZERO.captures(&trimmed) {
                 let rd = cap.get(1).unwrap().as_str();
                 let ra = cap.get(2).unwrap().as_str();
                 let indent_len = lines[i].len() - lines[i].trim_start().len();
@@ -623,11 +632,11 @@ fn pass_dual_issue_reorder(lines: &mut Vec<String>) {
 //
 // This is the instruction NVIDIA blocks in ptxas.  We emit it freely.
 
-fn pass_sparse_mma_upgrade(lines: &mut Vec<String>) {
+fn pass_sparse_mma_upgrade(lines: &mut [String]) {
     // Find highest register used (to allocate metadata register)
     let mut max_reg: u8 = 4;
     for line in lines.iter() {
-        for cap in regex::Regex::new(r"\bR(\d+)\b").unwrap().find_iter(line) {
+        for cap in RE_RNUM.find_iter(line) {
             if let Ok(n) = cap.as_str()[1..].parse::<u8>() {
                 if n < 255 { max_reg = max_reg.max(n); }
             }
@@ -696,9 +705,8 @@ fn pass_sparse_mma_upgrade(lines: &mut Vec<String>) {
 fn pass_auto_prune(lines: &mut Vec<String>) {
     // Find highest register to allocate scratch
     let mut max_reg: u8 = 4;
-    let re_reg = regex::Regex::new(r"\bR(\d+)\b").unwrap();
     for line in lines.iter() {
-        for cap in re_reg.find_iter(line) {
+        for cap in RE_RNUM.find_iter(line) {
             if let Ok(n) = cap.as_str()[1..].parse::<u8>() {
                 if n < 255 { max_reg = max_reg.max(n); }
             }
@@ -706,7 +714,7 @@ fn pass_auto_prune(lines: &mut Vec<String>) {
     }
 
     // We need: meta_reg, tmp0, tmp1, tmp2 (4 scratch regs)
-    let base_scratch = if (max_reg + 1) % 2 != 0 { max_reg + 2 } else { max_reg + 1 };
+    let base_scratch = if !(max_reg + 1).is_multiple_of(2) { max_reg + 2 } else { max_reg + 1 };
     let meta_reg = base_scratch;
     let tmp0 = base_scratch + 1;
     let tmp1 = base_scratch + 2;
@@ -730,7 +738,7 @@ fn pass_auto_prune(lines: &mut Vec<String>) {
 
         if is_qmma {
             let line_copy = lines[i].clone();
-            let regs: Vec<String> = re_reg.find_iter(&line_copy)
+            let regs: Vec<String> = RE_RNUM.find_iter(&line_copy)
                 .filter_map(|m| {
                     let s = m.as_str();
                     let n: u8 = s[1..].parse().ok()?;
@@ -790,7 +798,7 @@ fn pass_auto_prune(lines: &mut Vec<String>) {
 //
 // This is a peephole optimization — scan for 3-instruction windows.
 
-fn pass_fuse_dequant(lines: &mut Vec<String>) {
+fn pass_fuse_dequant(lines: &mut [String]) {
     if lines.len() < 3 { return; }
 
     let mut i = 0;
@@ -859,7 +867,7 @@ fn extract_first_src_reg(line: &str) -> Option<String> {
 // which means more concurrent warps = better memory latency hiding.
 // Critical for bandwidth-bound LLM decode kernels.
 
-fn pass_cap_regs(lines: &mut Vec<String>, max_regs: u8) {
+fn pass_cap_regs(lines: &mut [String], max_regs: u8) {
     for i in 0..lines.len() {
         let trimmed = lines[i].trim();
         if trimmed.starts_with(".reg R0-R") {

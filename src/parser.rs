@@ -428,8 +428,9 @@ fn operand_type_label(op: &Operand) -> &'static str {
 // Top-level parsing
 // ---------------------------------------------------------------------------
 
-/// Parse bare SASS text (no control code prefix).
 
+/// Parse bare SASS text (no control code prefix).
+///
 /// Parse `!rsd[b:v, b:v, [hi:lo]=0x..]` — explicit bit-level residue annotations.
 /// Forms: single bits `75:1` / `84:0`, or ranges `[31:24]=0x05`.
 pub fn parse_rsd_annotations(s: &str) -> Vec<(u8, u8)> {

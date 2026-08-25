@@ -68,9 +68,9 @@ fn sysreg_id(name: &str) -> Option<u64> {
         "SRZ" => 0xff,
         // Numeric escape hatch: SR_0x<hex> keeps any raw code (also unknown to
         // nvdisasm) encodable bit-exactly.
-        _ => match name.strip_prefix("SR_0x") {
-            Some(h) => u64::from_str_radix(h, 16).ok()?,
-            None => return None,
+        _ => {
+            let h = name.strip_prefix("SR_0x")?;
+            u64::from_str_radix(h, 16).ok()?
         },
     };
     Some(id)
@@ -1084,10 +1084,12 @@ fn check_atom_desc_pair_parity_sm103(insn: &Instruction, table: &IsaTable) -> Re
 ///     loudly;
 ///   * REDUX -- register-space reduction (UR dest, no memory operand),
 ///     not a memory atomic; no silicon evidence.
+///
 /// ATOM/ATOMS guarded were not probed; they ride the family guard by
 /// prevention (same atomic issue path as ATOMG, like BUG-078 covered
 /// REDG from ATOMG probes). Era corpus (rt98_ref.s103): all 22 guarded
 /// atom sites are .EL (F-SS4 guard census) -> encoder census delta = 0.
+///
 /// Complements POSTFIX-103 v1, which already treats every guard-D1 atomic
 /// consumer as a violation; this guard closes the ENCODER side so the word
 /// cannot be minted at all. Scoped to sm_103a (no sm120 silicon).
@@ -1154,10 +1156,10 @@ fn check_imnmx_sm103_erratum(insn: &Instruction, table: &IsaTable) -> Result<()>
 /// Era corpus (rt98_ref.s103) carries exactly ONE word that now fails
 /// closed: `STS.128 [R5.X16+0x10], R204` in KernelA (R204 = quad 51, odd,
 /// >=11). The verbatim era shape traps II on silicon when executed; nothing
-/// observed it because the site is on a dead path at runtime. Encoder census
-/// delta = 1 documented slot (errs 21 -> 22), decode untouched.
-/// Scoped to target_sm()==103 (no sm120 silicon evidence);
-/// CUBIT_DISABLE_ERRATA unlocks for analysis, like the rest of the battery.
+/// > observed it because the site is on a dead path at runtime. Encoder census
+/// > delta = 1 documented slot (errs 21 -> 22), decode untouched.
+/// > Scoped to target_sm()==103 (no sm120 silicon evidence);
+/// > CUBIT_DISABLE_ERRATA unlocks for analysis, like the rest of the battery.
 fn check_wide_mem_reg_align_sm103(insn: &Instruction, table: &IsaTable) -> Result<()> {
     if table.target_sm() != 103 {
         return Ok(());
@@ -2261,7 +2263,7 @@ fn op_neg_f32(insn: &Instruction, tok: i32) -> u64 {
 fn op_f32_cast(insn: &Instruction, tok: i32) -> u64 {
     match get_op(insn, tok) {
         Some(Operand::FloatImm(v)) => (f64::from_bits(*v) as f32).to_bits() as u64,
-        Some(Operand::Imm32(v)) => ((*v as f32).to_bits() & 0xFFFF_FFFF) as u64,
+        Some(Operand::Imm32(v)) => (*v as f32).to_bits() as u64,
         _ => 0,
     }
 }
@@ -2690,7 +2692,7 @@ fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm
             code = (code & !(0x3FF_u128 << 34)) | ((((rq21 as u128) >> 6) & 0x3FF) << 34);
             let hi20: u128 = (((rq21 as u128) >> 16) & 0x1F)
                 | if rq21 & 0x10_0000 != 0 { 0xF_FFE0 } else { 0 };
-            code = (code & !(0xFFFF_Fu128 << 44)) | (hi20 << 44);
+            code = (code & !(0x000F_FFFF_u128 << 44)) | (hi20 << 44);
         }
         if op == "WARPSYNC" || op == "BRA" {
             return code;
@@ -2710,22 +2712,22 @@ fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm
             // rq[5:0] at word bits [23:18], rq[16:6] at [44:34], sign
             // extension into [63:45].
             let v = match insn.operands.get(1) {
-                Some(Operand::Imm32(x)) => Some(*x as i64),
+                Some(Operand::Imm32(x)) => Some(*x),
                 Some(Operand::Imm64(x)) => Some(*x as i64),
                 // corpus disassembly annotates the numeric offset with a
                 // (*"BRANCH_TARGETS ..."*) comment, which the parser keeps as
                 // a Label; scrape the leading numeric literal.
                 Some(Operand::Label(s)) => {
-                    let head = s.trim_start().split_whitespace().next().unwrap_or("");
+                    let head = s.split_whitespace().next().unwrap_or("");
                     let sv = head.strip_prefix("-0x")
                         .and_then(|h| u64::from_str_radix(h, 16).ok().map(|v| -(v as i64)))
                         .or_else(|| head.strip_prefix("0x")
                             .and_then(|h| u64::from_str_radix(h, 16).ok().map(|v| v as i64)))
                         .or_else(|| head.parse::<i64>().ok());
                     sv.or_else(|| find_branch_target(insn)
-                        .map(|t| t as i64 - insn.addr as i64 - 16))
+                        .map(|t| t - insn.addr as i64 - 16))
                 }
-                _ => find_branch_target(insn).map(|t| t as i64 - insn.addr as i64 - 16),
+                _ => find_branch_target(insn).map(|t| t - insn.addr as i64 - 16),
             };
             if let Some(v) = v {
                 let rq = v >> 4;

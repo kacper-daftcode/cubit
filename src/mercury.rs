@@ -137,7 +137,7 @@ impl CapMerc {
             return Err(MercError::BadMagic(magic));
         }
         let n_nonnop = rd(8);
-        let bmp_len = ((n_nonnop as usize + 31) / 32) * 4;
+        let bmp_len = (n_nonnop as usize).div_ceil(32) * 4;
         if blob.len() < 12 + bmp_len + 2 {
             return Err(MercError::Truncated);
         }
@@ -257,7 +257,7 @@ impl CapMerc {
             *m.entry(key).or_insert(0) += 1;
         }
         let mut v: Vec<_> = m.into_iter().collect();
-        v.sort_by(|a, b| b.1.cmp(&a.1));
+        v.sort_by_key(|&(_, n)| std::cmp::Reverse(n));
         v
     }
 }
@@ -391,8 +391,10 @@ pub fn merc_mma_is_mini(cls: u8) -> bool {
 /// tam tez D&2 -> 0x80); b13 = D>>2; b14 = base | (A&2)<<6; b15 = A>>2;
 /// b17 = base | (B&3)<<6; b18 = B>>2; C: b19 = base | (C&3)<<6, b20 = C>>2;
 /// C=RZ -> (c0, ff). b8 |= 0x80 gdy bit 63 slowa instrukcji, |= 0x20 gdy 72.
+type MmaRecRow = (u8, u8, u8, u8, u8, u8, u8, u8);
+
 pub fn build_mma_rec(cls: u8, d: u8, a: u8, b: u8, c: u8, b8flags: u8) -> [u8; 32] {
-    const T: [(u8, u8, u8, u8, u8, u8, u8, u8); 8] = [
+    const T: [MmaRecRow; 8] = [
         // b2    b6    b7    b8    b12base b14base b17base b19base
         (0x00, 0x81, 0x80, 0x02, 0x07, 0x06, 0x02, 0x06), // HMMA.16816.F32
         (0x00, 0x81, 0x92, 0x02, 0x07, 0x06, 0x02, 0x06), // HMMA.16816.F32.BF16
@@ -819,7 +821,7 @@ pub struct McScanOut {
 pub fn merc_barrier_id(text: &str) -> Option<u8> {
     let t = text.trim().trim_end_matches(';');
     // skanuj tokeny (opcode/guard/operandy): pierwszy "B<n>" wygrywa.
-    for tok in t.split(|c: char| c == ' ' || c == ',') {
+    for tok in t.split([' ', ',']) {
         let tok = tok.trim();
         if let Some(n) = tok.strip_prefix('B') {
             if !n.is_empty() && n.bytes().all(|c| c.is_ascii_digit()) {
@@ -984,7 +986,7 @@ pub fn mc_scan_lines(items: &[McScanText]) -> McScanOut {
             "SYNCS" => {
                 if t.contains("EXCH") {
                     let mut urs = t
-                        .split(|c: char| c == '[' || c == ']' || c == ',' || c == ' ')
+                        .split(['[', ']', ',', ' '])
                         .filter_map(|tok| {
                             let tk = tok.trim().trim_end_matches(';');
                             tk.strip_prefix("UR").and_then(|n| n.parse::<u8>().ok())
@@ -1782,7 +1784,7 @@ pub fn merc_cs2r_srz_record(text: &str, guard_code: u8) -> Option<[u8; 16]> {
     };
     let rest = body.strip_prefix("CS2R")?;
     let rest = rest
-        .trim_start_matches(|c: char| matches!(c, '.' | 'Z' | '3' | '2' | '6' | '4'))
+        .trim_start_matches(['.', 'Z', '3', '2', '6', '4'])
         .trim_start();
     let mut it = rest.split(',');
     let dst = it.next()?.trim().trim_end_matches(';').trim_end();
@@ -1792,14 +1794,13 @@ pub fn merc_cs2r_srz_record(text: &str, guard_code: u8) -> Option<[u8; 16]> {
     }
     let (b10, b11) = if dst == "RZ" {
         (0xc1u8, 0xffu8)
-    } else if let Some(dig) = dst.strip_prefix('R') {
+    } else {
+        let dig = dst.strip_prefix('R')?;
         let d: u32 = dig.parse().ok()?;
         if d > 255 {
             return None;
         }
         (0x03 | (((d as u8) & 3) << 6), (d >> 2) as u8)
-    } else {
-        return None;
     };
     let mut r = [0u8; 16];
     r[0] = 0x01;
@@ -1862,10 +1863,9 @@ pub fn merc_lop3_not_record(text: &str, guard_code: u8) -> Option<[u8; 16]> {
     let rs_tok = clean(toks[2]);
     let (rs, cls): (u32, u8) = if let Some(d) = rs_tok.strip_prefix("UR") {
         (d.parse().ok()?, 0x04)
-    } else if let Some(d) = rs_tok.strip_prefix('R') {
-        (d.parse().ok()?, 0x00)
     } else {
-        return None;
+        let d = rs_tok.strip_prefix('R')?;
+        (d.parse().ok()?, 0x00)
     };
     if rs > 0x3ff {
         return None;
@@ -2193,8 +2193,9 @@ pub const MERC_UBLKCP: [u8; 32] = [
 /// - pin host = pierwszy killpad `@!PT LDS RZ, [RZ]` (iadla LDGSTS; 3/3 m15).
 /// - wait host = ostatnia instrukcja ze slotem przed pierwszym DEPBAR(.LE)
 ///   po ostatnim LDGSTS (pomijamy klasy bez slotu: W0-lista).
+///
 /// Brak LDGSTS albo brak killpada => None (nie emitujemy blobu).
-pub fn merc_ldgsts_scan(lines: &[(u32, String)]) -> (Option<(u32, u8, u8)>, Option<(u32, u8)>) {
+pub fn merc_ldgsts_scan(lines: &[(u32, String)]) -> MercLdgstsScanOut {
     let reg_of = |t: &str| -> u8 {
         let t = t.trim().trim_end_matches([';', ')', ']']);
         if t == "RZ" || t == "URZ" {
@@ -2344,11 +2345,11 @@ pub struct Ldgsts2Blob {
 }
 
 /// Parsuje lane SASS LDGSTS -> Some(blob) gdy forma z desc[UR..] i R-dst.
+pub type MercLdgstsScanOut = (Option<(u32, u8, u8)>, Option<(u32, u8)>);
+pub type Ldgsts2Mode = (u8, u8, u8, u32, u32, Option<u32>, Option<u8>, u32);
+
 /// Skadnia: [@!Pn] LDGSTS.<warianty> [Rd(+0ximm)(..)], desc[URm][Rs.64(+..)](, Pn)?
-pub fn ldgsts2_parse_mode(
-    text: &str,
-    nodesc: bool,
-) -> Option<(u8, u8, u8, u32, u32, Option<u32>, Option<u8>, u32)> {
+pub fn ldgsts2_parse_mode(text: &str, nodesc: bool) -> Option<Ldgsts2Mode> {
     let mut t = text.trim_end_matches(';').trim();
     let mut guard = 0xf8u8;
     if let Some(rest) = t.strip_prefix('@') {
@@ -2437,7 +2438,7 @@ pub fn ldgsts2_parse_mode(
 
 /// Kompat dla testow: tryb desc.
 #[allow(dead_code)]
-pub fn ldgsts2_parse(text: &str) -> Option<(u8, u8, u8, u32, u32, Option<u32>, Option<u8>, u32)> {
+pub fn ldgsts2_parse(text: &str) -> Option<Ldgsts2Mode> {
     ldgsts2_parse_mode(text, false)
 }
 
@@ -2819,11 +2820,10 @@ pub fn merc_redg_record(text: &str, guard_code: u8) -> Option<[u8; 32]> {
     if redg_el_recordless(is_el, is_desc, imm) {
         return None;
     }
-    if f32v || f64v {
-        if !is_desc {
+    if (f32v || f64v)
+        && !is_desc {
             return None; // float non-desc: forma nieobserwowana
         }
-    }
     let b2: u8 = if f32v || f64v {
         0x0e
     } else if is_desc {
@@ -3010,7 +3010,7 @@ pub fn merc_atomg2_record(text: &str, guard_code: u8) -> Option<[u8; 32]> {
         }
         let pdc = pc(last_word(hparts[0]))?;
         let dst = reg(hparts[1])?;
-        let data = reg(&rest[bend + 1..].trim_start_matches(',').trim())?;
+        let data = reg(rest[bend + 1..].trim_start_matches(',').trim())?;
         // klasa: float vs int
         let (tag2, b6, df): (u8, u8, u16) = if body.contains(".F64") {
             (0x20, 0x78, 2)
@@ -3052,7 +3052,7 @@ pub fn merc_atomg2_record(text: &str, guard_code: u8) -> Option<[u8; 32]> {
 
     if body.starts_with("ATOMG.") {
         // shift: pierwszy token (po mnemoniku) moze byc predykatem Pn|PT
-        let pdw = last_word(parts.get(0)?);
+        let pdw = last_word(parts.first()?);
         let (pdc, sh) = match pc(pdw) {
             Some(c) => (c, 1usize),
             None => (0xf8, 0usize),
@@ -3166,7 +3166,7 @@ pub fn merc_atomg2_record(text: &str, guard_code: u8) -> Option<[u8; 32]> {
         let ob = body.find('[')?;
         let cb = body.find(']')?;
         let inner = &body[ob + 1..cb];
-        let dst = reg(parts.get(0)?)?;
+        let dst = reg(parts.first()?)?;
         let val = {
             let after = body[cb + 1..].trim_start_matches(',').trim();
             if after.is_empty() {
@@ -3335,6 +3335,7 @@ pub fn is_uiadd3_killpad(text: &str) -> bool {
 /// - mini (realna instrukcja na lane) zachowana osobno (mk14 ghost_mini76),
 /// - srodek triple'a [WARPSYNC*;NOP;ENDCOLLECTIVE] NIE dostaje niczego
 ///   (pokryty przez rekordy kolektywu d10102-47, mk59).
+///
 /// `op(lane)` -> bazowy opcode (bez kropki) lane'a lub None poza kodem.
 pub fn merc_ghost64_split<F: Fn(u32) -> Option<String>>(
     cgsites: &[u32],

@@ -51,11 +51,7 @@ fn pred_positions(insn: &Instruction, uniform: bool) -> Vec<usize> {
     insn.operands
         .iter()
         .enumerate()
-        .filter(|(_, o)| match (o, uniform) {
-            (Operand::Pred { .. }, false) => true,
-            (Operand::UPred { .. }, true) => true,
-            _ => false,
-        })
+        .filter(|(_, o)| matches!((o, uniform), (Operand::Pred { .. }, false) | (Operand::UPred { .. }, true)))
         .map(|(i, _)| i)
         .collect()
 }

@@ -153,7 +153,7 @@ fn join_continuations(lines: &[String]) -> Vec<String> {
         } else if !s.ends_with(';') && !s.contains(':') || s.contains("::") {
             // Possible opcode-only line; check if next starts with '{'
             let next = lines.get(i + 1).map(|l| l.trim());
-            if next.map_or(false, |n| n.starts_with('{') || n.starts_with('%')) {
+            if next.is_some_and(|n| n.starts_with('{') || n.starts_with('%')) {
                 accum = s.to_string();
             } else {
                 result.push(s.to_string());
@@ -204,7 +204,7 @@ fn parse_operand(s: &str, reg_decls: &HashMap<String, String>, params: &[PtxPara
     }
 
     // Predicates
-    if s.starts_with("%p") || (reg_decls.get(s.trim_start_matches('%')).map_or(false, |t| t == "pred")) {
+    if s.starts_with("%p") || (reg_decls.get(s.trim_start_matches('%')).is_some_and(|t| t == "pred")) {
         return PtxOperand::Pred(s.to_string());
     }
 
@@ -314,16 +314,14 @@ fn parse_insn_line(line: &str, reg_decls: &HashMap<String, String>, params: &[Pt
     let s = line.trim().trim_end_matches(';').trim();
     if s.is_empty() { return None; }
 
-    let (guard_pred, guard_neg, rest) = if s.starts_with('@') {
-        let after_at = &s[1..];
+    let (guard_pred, guard_neg, rest) = if let Some(after_at) = s.strip_prefix('@') {
         let neg = after_at.starts_with('!');
         let after_neg = if neg { &after_at[1..] } else { after_at };
-        if let Some(space_idx) = after_neg.find(char::is_whitespace) {
+        {
+            let space_idx = after_neg.find(char::is_whitespace)?;
             let pred = after_neg[..space_idx].to_string();
             let rest = after_neg[space_idx..].trim();
             (Some(pred), neg, rest)
-        } else {
-            return None;
         }
     } else {
         (None, false, s)
@@ -349,7 +347,7 @@ fn parse_insn_line(line: &str, reg_decls: &HashMap<String, String>, params: &[Pt
             .flat_map(|o| o.split('|').map(|p| p.trim().to_string()).collect::<Vec<_>>())
             .collect()
     } else {
-        operand_strs.iter().cloned().collect()
+        operand_strs.to_vec()
     };
     let operands: Vec<PtxOperand> = operand_strs.iter()
         .map(|o| parse_operand(o, reg_decls, params))

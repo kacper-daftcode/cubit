@@ -142,11 +142,13 @@ type Groups = BTreeMap<u8, BTreeSet<u8>>;
 /// and the clipped tail would clobber whatever physical home we chose.
 /// Such groups are pinned to identity (liveness already clips the sets, so
 /// only the placed-members check matters) and counted as `clip_span_pins`.
+type GroupBuild = (Groups, BTreeSet<u8>, BTreeMap<u8, u8>, BTreeMap<u8, u8>);
+
 fn build_groups(
     xfers: &[RegXfer],
     dom: RegDom,
     dom_excl: u8,
-) -> Result<(Groups, BTreeSet<u8>, BTreeMap<u8, u8>, BTreeMap<u8, u8>)> {
+) -> Result<GroupBuild> {
     let mut uf = Uf::new(dom_excl as usize);
     let mut touched: BTreeSet<u8> = BTreeSet::new();
     let mut clip_spans: Vec<(u8, usize)> = Vec::new();
@@ -386,7 +388,7 @@ fn allocate_domain(
             // the pool constraint applies only to fresh placements. The home
             // must still be a real register of the domain, and its span must
             // fit below the domain end.
-            if anchor as u32 + size as u32 - 1 >= dom_excl as u32 {
+            if anchor as u32 + size as u32 > dom_excl as u32 {
                 bail!(
                     "ra full: entry-live group at {:?} anchor {} width {} escapes the domain",
                     dom, anchor, size

@@ -152,6 +152,7 @@ fn put(
 
 /// Aligned sibling (MMA tuples, BUG-037): same set membership, span record
 /// carries the alignment requirement for the allocator.
+#[allow(clippy::too_many_arguments)]
 fn put_aligned(
     set: &mut BTreeSet<u8>,
     spans: &mut Vec<RegSpan>,
@@ -487,12 +488,12 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
         "fcvt" => {
             let (wd, ws) = match insn.opcode.as_str() {
                 "F2I" => (1, if insn.modifiers.iter().any(|m| m == ".F64") { 2 } else { 1 }),
-                "I2F" => (if insn.modifiers.first().map_or(false, |m| m == ".F64") { 2 } else { 1 }, 1),
+                "I2F" => (if insn.modifiers.first().is_some_and(|m| m == ".F64") { 2 } else { 1 }, 1),
                 // F2F and any other: both sides by modifier position,
                 // conservative both-pairs when the shape is unclear.
                 _ => (
-                    if insn.modifiers.first().map_or(false, |m| m == ".F64") { 2 } else { 1 },
-                    if insn.modifiers.get(1).map_or(false, |m| m == ".F64") { 2 } else { 1 },
+                    if insn.modifiers.first().is_some_and(|m| m == ".F64") { 2 } else { 1 },
+                    if insn.modifiers.get(1).is_some_and(|m| m == ".F64") { 2 } else { 1 },
                 ),
             };
             def_operand0(insn, &mut x, wd);

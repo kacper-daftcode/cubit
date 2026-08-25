@@ -337,6 +337,14 @@ impl NvInfoSection {
 // High-level kernel metadata
 // ---------------------------------------------------------------------------
 
+pub type MmaLane = (u32, u8, u8, u8, u8, u8, u8);
+pub type F64ImmLane = (u32, u8, u16, u16, u32, u8, u8);
+pub type DfmaImmLane = (u32, u8, u8, u8, u16, u16, u16, u64);
+pub type AtomRec = (u32, u8, u8, u8, u8, u8, u8, u8);
+pub type Store2Rec = (u32, u8, u8, u16, u16, u16, i32, u8, u8);
+pub type EdgeLdRec = (u32, u8, u8, u8, u8, u16, u16, u8, u32);
+pub type EdgeLdgRec = (u32, u8, u8, u16, u16, u8, u16, u32);
+
 /// High-level kernel metadata extracted from EIATTR records.
 #[derive(Debug, Clone, Default)]
 pub struct KernelMeta {
@@ -416,17 +424,17 @@ pub struct KernelMeta {
     /// (lane, cls, d, a, b, c, b8flags); cls wg `mercury::merc_mma_class`.
     /// Model bajtowy 025a dekodowany byte-exact na pelnej probce korpusu
     /// (mma_model.py); b8flags = (code63?0x80)|(code72?0x20) ze slowa SASS.
-    pub merc_mma: Vec<(u32, u8, u8, u8, u8, u8, u8)>,
+    pub merc_mma: Vec<MmaLane>,
     /// Mercury mk11+mk51: DMUL/DADD z natychmiastowym f64 -> rekord
     /// 020f120e/020c1e0e w lane:
     /// (lane, variant [0=DMUL,1=DADD], d, a, imm_top32, pred [mk41], b7).
     /// b7 = 2*negA + 4*absA; zrodlo RZ kodowane jako 0x3ff.
-    pub merc_f64imm: Vec<(u32, u8, u16, u16, u32, u8, u8)>,
+    pub merc_f64imm: Vec<F64ImmLane>,
     /// Mercury mk51: DFMA z natychmiastowym f64 -> rekord 020d1c0e
     /// (imm ostatni) / 020d1a0e (imm srodkowy) w lane:
     /// (lane, variant [0=last,1=middle], pred, b7 = 2*negA+8*negB+4*absA
     /// +16*absB, d, a, b, imm64bits). Lane traci bit bitmapy jak mk11-f64.
-    pub merc_dfmaimm: Vec<(u32, u8, u8, u8, u16, u16, u16, u64)>,
+    pub merc_dfmaimm: Vec<DfmaImmLane>,
     /// Mercury mk11: pozycje killpad-UIADD3 (`UIADD3 URZ, UPT, UPT, URZ,
     /// URZ, URZ`) — brak bitu bitmapy, w lane atom 2B (empiria: tyko ta
     /// forma; live UIADD3 maja bit, korpus 32.5k vs 18).
@@ -507,7 +515,7 @@ pub struct KernelMeta {
     /// (lane, cls [mercury::MERC_ATOM_CLS_*], guard 0/1/2, dst, addr,
     /// src1, src2, subop_b6); rejestry: 255 = RZ/brak. RED* zostaja na
     /// sciezce legacy REC_ATOM (k_atom/v_atom byte-exact).
-    pub merc_atoms: Vec<(u32, u8, u8, u8, u8, u8, u8, u8)>,
+    pub merc_atoms: Vec<AtomRec>,
     /// Mercury mk14: lane'y duchow __syncwarp (elided do NOP przez ptxas) —
     /// zrodlo: EIATTR attr 0x28 (site offsets) + 0x29 (masks; ghost tylko
     /// gdy maska==0xffffffff i instrukcja w tej lane to NOP). Rekord
@@ -672,7 +680,7 @@ pub struct KernelMeta {
     /// STL z adresem czysto-uniform [URx..] (bez rekordu; c23/c15 getrf/
     /// trsv) i terminalny ST.E STRONG.* tuza przed EXIT z MEMBAR.ALL.* w
     /// epilogu (c24: skip 583/583 kerneli, KEEP tylko przy SC/brak).
-    pub merc_store2: Vec<(u32, u8, u8, u16, u16, u16, i32, u8, u8)>,
+    pub merc_store2: Vec<Store2Rec>,
     /// mk40: mini-slownik korpusowy per-lane (klasy z EXACT count-match,
     /// mk40/minidict): (lane, rekord-mini jako u32 LE). Klasy tracked
     /// kasuja bit bitmapy (rekord zastepuje wezel t4); untracked dodaja
@@ -699,7 +707,7 @@ pub struct KernelMeta {
     /// b12..13=(X<<6)|C, b14..15=(Y<<6)|2, b22=0xf8, b28..32=off (u32 LE),
     /// [19:21) = (merc_edge_maxur<<6)|2 stale per kernel.
     /// Krotki: (lane, b4, b6, b7, b8, X, Y, C, off).
-    pub merc_edge_ld: Vec<(u32, u8, u8, u8, u8, u16, u16, u8, u32)>,
+    pub merc_edge_ld: Vec<EdgeLdRec>,
     /// mk42: maksymalny numer UR w desc[URn] calego kernela (0 gdy brak).
     pub merc_edge_maxur: u16,
     /// mk50: rekordy-krawedzie (tag 02 22 1e 32) dla LDG z
@@ -713,7 +721,7 @@ pub struct KernelMeta {
     /// b12..13=(X<<6)|C, b14..15=(Y<<6)|2, b17=0x0a,
     /// [19:21)=(V<<6)|2 z V = desc-UR LANE'U (odmienie niz mk42 maxur!),
     /// b22=0xf8, b28..32=off (u32 LE). Krotki: (lane, b4, b6, X, Y, C, V, off).
-    pub merc_edge_ldg: Vec<(u32, u8, u8, u16, u16, u8, u16, u32)>,
+    pub merc_edge_ldg: Vec<EdgeLdgRec>,
 }
 
 

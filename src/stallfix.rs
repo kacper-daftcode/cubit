@@ -45,6 +45,7 @@
 //!   * data-class: forbidden as in v0 (FLAKY at every S<=8 under
 //!     occupancy; census-hi extended: S09/S10 flaky too, S11 was a
 //!     probe-geometry island -- not a policy-grade floor).
+//!
 //! Additionally every guard relation whose producer stall is >=
 //! `legacy_stall_risk_from` is emitted as a report-only risk row
 //! (postfix can neither lower nor fix it; elimination is the remedy).
@@ -67,6 +68,7 @@
 //!     pathology, the uniform guard at D1 is REPAIRABLE with stalls
 //!     (measured clean band 8..=11); D2+ is clean at any stall. No
 //!     uniform-guard site is ever a hard error.
+//!
 //! Transfer sets come from the M3.5/M2 data-driven classifiers
 //! (reg_liveness::reg_xfer / pred_liveness::pred_xfer Strict) restricted
 //! to the measured class allowlist; unknown families simply carry no
@@ -938,13 +940,8 @@ pub fn emit_stall_splice(original: &str, edits: &BTreeMap<(usize, u32), u8>) -> 
             continue;
         }
         let mut rest = t;
-        loop {
-            match RE_LABEL.captures(rest) {
-                Some(c) => {
-                    rest = &rest[c.get(0).unwrap().as_str().len()..];
-                }
-                None => break,
-            }
+        while let Some(c) = RE_LABEL.captures(rest) {
+            rest = &rest[c.get(0).unwrap().as_str().len()..];
         }
         if rest.is_empty() {
             out_lines.push(line.to_string()); // lone label line

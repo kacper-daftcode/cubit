@@ -93,7 +93,7 @@ impl KernelResources {
         // shadow; silicon sm_120 i115 + sm_103a band sweep 2026-08-22), so
         // N must clear max_reg by 3. Granule 8 is driver-accepted (nvcc uses
         // granule-8 values like 168; 136 silicon-verified in the sweep).
-        ((raw + 2 + 7) & !7).max(32).min(255)
+        ((raw + 2 + 7) & !7).clamp(32, 255)
     }
 
     /// Total shared memory in bytes (sum of all shared declarations).

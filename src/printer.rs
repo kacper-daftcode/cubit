@@ -736,10 +736,6 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
 
 // ── guard ─────────────────────────────────────────────────────────────────────
 
-fn format_guard(fields: &[&DecodedField]) -> String {
-    format_guard_uni(fields, false)
-}
-
 fn format_guard_uni(fields: &[&DecodedField], uni: bool) -> String {
     let mut guard_val: Option<u64> = None;
     let mut extra_neg = false;

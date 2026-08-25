@@ -352,11 +352,11 @@ fn render_kernel(k: &KernelDef) -> Result<Vec<String>> {
         for op in &ins.operands {
             if let crate::ir::Operand::BranchTarget(t) = op {
                 let t = *t;
-                if !resolver.contains_key(&t) {
+                resolver.entry(t).or_insert_with(|| {
                     let name = format!("L_{t:x}");
                     labels.entry(t).or_default().push(name.clone());
-                    resolver.insert(t, name);
-                }
+                    name
+                });
             }
         }
     }

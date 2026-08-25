@@ -17,6 +17,7 @@
 //! ```
 
 use crate::directives::{KernelResources, parse_directive};
+use crate::eiattr::{AtomRec, DfmaImmLane, EdgeLdRec, EdgeLdgRec, Store2Rec};
 use crate::ir::Instruction;
 use crate::parser::{parse_multi_sass, parse_multi_sass_strict, resolve_labels};
 
@@ -163,11 +164,13 @@ fn is_label_line(t: &str) -> bool {
 /// Returns the resolved instructions plus the label anchor map (addr -> names
 /// in source order). Label presence survives the label->target resolution that
 /// [`resolve_labels`] performs -- the renderer needs it for byte-exact output.
+pub type KernelBodyParse = (Vec<Instruction>, std::collections::BTreeMap<u32, Vec<String>>);
+
 fn parse_kernel_body_impl(
     body: &str,
     res: &mut KernelResources,
     strict: bool,
-) -> anyhow::Result<(Vec<Instruction>, std::collections::BTreeMap<u32, Vec<String>>)> {
+) -> anyhow::Result<KernelBodyParse> {
     // Separate directive lines from instruction lines
     let mut instr_text = String::new();
 
@@ -300,7 +303,7 @@ pub fn kernel_def_to_meta(
         let lines: Vec<(u32, String)> = def
             .instructions
             .iter()
-            .map(|i| ((i.addr / 16) as u32, i.raw_text.clone()))
+            .map(|i| ((i.addr / 16), i.raw_text.clone()))
             .collect();
         let l2 = crate::mercury::merc_ldgsts2_scan(&lines, &def.name);
         // mk55: multi-wait per DEPBAR.SB0 na sciezce desc-form (2619/2619
@@ -334,7 +337,7 @@ pub fn kernel_def_to_meta(
         .instructions
         .iter()
         .filter(|i| crate::mercury::is_uiadd3_killpad(&i.raw_text))
-        .map(|i| (i.addr / 16) as u32)
+        .map(|i| i.addr / 16)
         .collect();
     // mk13: predykowany BRA -> bit bitmapy; LOP3 z destem Pn -> bez bitu,
     // mini-rekord 42 2a 02 06 w lane (gold q_switch/p_call/d_sw4_store).
@@ -353,7 +356,7 @@ pub fn kernel_def_to_meta(
     let mut has_voteu = false;
     let mut wwide: Vec<u32> = Vec::new();
     for ins in &def.instructions {
-        let lane = (ins.addr / 16) as u32;
+        let lane = ins.addr / 16;
         if ins.opcode == "CALL" {
             n_call += 1;
         }
@@ -621,15 +624,15 @@ fn merc_select_dynldg(instructions: &[Instruction]) -> bool {
     })
 }
 
-fn merc_exec_positions(
-    instructions: &[Instruction],
-) -> (Vec<u32>, Vec<u32>, Vec<i32>, Vec<(u32, u32)>) {
+type MercExecPositions = (Vec<u32>, Vec<u32>, Vec<i32>, Vec<(u32, u32)>);
+
+fn merc_exec_positions(instructions: &[Instruction]) -> MercExecPositions {
     let mut bar_pos = Vec::new();
     let mut bar_args = Vec::new();
     let mut stg_pos = Vec::new();
     let mut stg_off: Vec<i32> = Vec::new();
     for ins in instructions {
-        let slot = (ins.addr / 16) as u32;
+        let slot = ins.addr / 16;
         match ins.opcode.as_str() {
             // mk30b: rekordy 01475a16 dostaja TYLKO prawdziwe BAR.SYNC;
             // SYNCS.* (mbarrier EXCH/ARRIVE/PHASECHK/...) maja wlasne
@@ -710,7 +713,7 @@ fn merc_exec_positions(
 /// == seria R5+2n). dur: desc-UR -> (b17,b18) = (dur<<6)|2 (fala A:
 /// UR6 -> 0x0182 dla k_lds/v_sm*/k_smem). guard: @Pn -> b4=00,
 /// @!Pn -> b4=01, brak -> f8 (jak w rekordzie 0229; d_ifearly_stg).
-
+///
 /// mk41: pelny kod predykatu rekordow capmerc: 0xf8 = brak guarda,
 /// @Pn -> (n<<3), @!Pn -> (n<<3)|1, @UPn -> (n<<3)|2, @!UPn -> (n<<3)|3.
 pub fn merc_guard_code(g: Option<&crate::ir::Guard>) -> u8 {
@@ -766,9 +769,9 @@ pub fn merc_store_term_skip(instructions: &[Instruction]) -> std::collections::H
     out
 }
 
-fn merc_stg_meta(
-    instructions: &[Instruction],
-) -> (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>) {
+type MercStgMeta = (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>);
+
+fn merc_stg_meta(instructions: &[Instruction]) -> MercStgMeta {
     // mk12 (kursor) + fala A: per-STG (dreg danych, desc-UR, wariant guardu).
     // mk40: + wsel (width per-STG; korpus miesza szerokosci w kernelu).
     // mk63: + sem (kwalifikator + flagi skip/park; eiattr::merc_stg_sem).
@@ -915,7 +918,7 @@ fn merc_stg_series(instructions: &[Instruction]) -> Vec<u8> {
 
 /// mk14: skan rekordow atomowych ATOMG/ATOMS (RED* obsluguje legacy REC_ATOM).
 /// Format tuple zgodny z eiattr::KernelMeta::merc_atoms.
-fn merc_atom_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u8, u8, u8, u8, u8)> {
+fn merc_atom_scan(instructions: &[Instruction]) -> Vec<AtomRec> {
     let mut out = Vec::new();
     let reg_of = |t: &str| -> u8 {
         let t = t.trim().trim_end_matches(';').trim_end_matches(')');
@@ -930,7 +933,7 @@ fn merc_atom_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u8, u8, u8,
         }
     };
     for ins in instructions {
-        let lane = (ins.addr / 16) as u32;
+        let lane = ins.addr / 16;
         let base = ins.opcode.as_str();
         if !base.starts_with("ATOM") {
             continue;
@@ -1123,7 +1126,7 @@ pub fn merc_mk35_scan(instructions: &[Instruction]) -> MercMk35 {
         cbank358_dreg: None,
     };
     let regnum = |tok: &str| -> Option<u8> {
-        let tok = tok.trim().trim_end_matches(';').trim_end_matches(|c| c == ')' || c == ']');
+        let tok = tok.trim().trim_end_matches(';').trim_end_matches([')', ']']);
         let d = tok.trim_start_matches(['R', 'U']);
         if !d.is_empty() && d.chars().all(|c| c.is_ascii_digit()) {
             d.parse::<u32>().ok().map(|v| v.min(255) as u8)
@@ -1132,7 +1135,7 @@ pub fn merc_mk35_scan(instructions: &[Instruction]) -> MercMk35 {
         }
     };
     for ins in instructions {
-        let lane = (ins.addr / 16) as u32;
+        let lane = ins.addr / 16;
         let guard: u8 = merc_guard_code(ins.guard.as_ref());
         let base = ins.opcode.as_str();
         let full = ins.opcode_full.as_str();
@@ -1228,14 +1231,7 @@ pub fn merc_xsetp_scan(instructions: &[Instruction]) -> Vec<(u32, u8)> {
         if !dst_pred.starts_with('P') || dst_pred == "PT" {
             continue;
         }
-        let has_ur = {
-            let mut found = false;
-            for m in regex_like_ur(body) {
-                found = true;
-                let _ = m;
-            }
-            found
-        };
+        let has_ur = !regex_like_ur(body).is_empty();
         let has_imm = toks.iter().skip(1).any(|tk| {
             let tk = tk.trim();
             tk.starts_with("0x")
@@ -1257,7 +1253,7 @@ pub fn merc_xsetp_scan(instructions: &[Instruction]) -> Vec<(u32, u8)> {
         } else if toks.last().copied().unwrap_or("") == "PT" {
             last_by_p.insert(
                 dst_pred.to_string(),
-                ((ins.addr / 16) as u32, has_ur, has_imm),
+                ((ins.addr / 16), has_ur, has_imm),
             );
         } else {
             // mk69: bool-join head (carry-in != PT) kasuje starszego heada.
@@ -1278,6 +1274,7 @@ pub fn merc_xsetp_scan(instructions: &[Instruction]) -> Vec<(u32, u8)> {
 ///    pojedyncze mini na wlasnym lane — 42103406 gdy ma imm, inaczej 42103614.
 ///  * ULEA z carry-out (2. token = UP<num>): mini 42254214 na wlasnym lane.
 ///    (ULEA.HI.X z samym carry-in: bez rekordu; zweryfikowane ormtr-9/9.)
+///
 /// mk61 (merclab/mk61 c1..c22, EXACT 14117/14119 kerneli count + 9556/9556
 /// okien porzadku): reguly ULEA zawężone/scalone do sygnatur korpusowych —
 ///  * klasa-1: [UR|URZ, UPn, UR|URZ, UR|URZ, imm] (dokladnie 5 tokenow;
@@ -1287,6 +1284,7 @@ pub fn merc_xsetp_scan(instructions: &[Instruction]) -> Vec<(u32, u8)> {
 ///  * URZ dozwolony w kazdym slocie UR (m.in. dst=URZ w gemmSN/csrmm).
 ///  * residuum park: 2 kernele cusparse-cub so.838 (brak 1 minia przy
 ///    imm 0x18/0x1e wieloznacznym tekstowo) — mk62+.
+///
 /// kind: 0=42103614, 1=42103406, 2=42104014. Kolejnosc elementow = kolejnosc
 /// lane (sort stabilny wstrzykuje pare (class,4014) na tym samym lane).
 pub fn merc_usetp_scan(instructions: &[Instruction]) -> (Vec<(u32, u8)>, Vec<u32>) {
@@ -1295,7 +1293,7 @@ pub fn merc_usetp_scan(instructions: &[Instruction]) -> (Vec<(u32, u8)>, Vec<u32
     let mut minis: Vec<(u32, u8)> = Vec::new();
     let mut ulea: Vec<u32> = Vec::new();
     for ins in instructions {
-        let lane = (ins.addr / 16) as u32;
+        let lane = ins.addr / 16;
         let b0 = ins.raw_text.as_str().trim_start();
         let body = match b0.strip_prefix('@') {
             Some(r) => r
@@ -1407,7 +1405,7 @@ pub fn merc_ulea_rec(toks: &[&str], opfull: &str) -> bool {
         && is_urz(toks[0])
         && is_urz(toks[1])
         && is_urz(toks[2])
-        && imm_val(toks[3]).map_or(false, |v| v <= 15)
+        && imm_val(toks[3]).is_some_and(|v| v <= 15)
     {
         return true;
     }
@@ -1452,7 +1450,7 @@ pub fn merc_mc_scan(instructions: &[Instruction], cg_sites: &std::collections::B
         let mut ok = true;
         let mut stacks: [Vec<bool>; 8] = Default::default();
         for ins in instructions {
-            let lane = (ins.addr / 16) as u32;
+            let lane = ins.addr / 16;
             match ins.opcode.as_str() {
                 "BSSY" => match crate::mercury::merc_barrier_id(&ins.raw_text) {
                     Some(b) => stacks[b as usize].push(ins.opcode_full.contains("RECONVERGENT")),
@@ -1490,7 +1488,7 @@ pub fn merc_mc_scan(instructions: &[Instruction], cg_sites: &std::collections::B
         .filter(|i| i.opcode == "WARPSYNC"
             && i.opcode_full.contains(".ALL")
             && !i.opcode_full.contains(".COLLECTIVE"))
-        .map(|i| (i.addr / 16) as u32)
+        .map(|i| i.addr / 16)
         .collect();
     // (mk66: .COLLECTIVE.ALL wylaczone z ws_lanes — orig NIE emituje mini
     // 76/6e dla tych lane'ow; cusparse.318 find_colors: 57 lane'ow, 0 rek.)
@@ -1510,7 +1508,7 @@ pub fn merc_mc_scan(instructions: &[Instruction], cg_sites: &std::collections::B
             Some(m) => m,
             None => continue,
         };
-        let lane = (ins.addr / 16) as u32;
+        let lane = ins.addr / 16;
         let mut j = i + 1;
         let mut ok = false;
         let mut nnop = 0usize;
@@ -1532,7 +1530,7 @@ pub fn merc_mc_scan(instructions: &[Instruction], cg_sites: &std::collections::B
     }
     let mut saw_ushf_0b: Option<u32> = None;
     for ins in instructions {
-        let lane = (ins.addr / 16) as u32;
+        let lane = ins.addr / 16;
         let t = &ins.raw_text;
         let guarded = ins.guard.as_ref().map(|g| g.pred != 7).unwrap_or(false);
         match ins.opcode.as_str() {
@@ -1542,7 +1540,7 @@ pub fn merc_mc_scan(instructions: &[Instruction], cg_sites: &std::collections::B
                     // UR-tokeny w kolejnosci tekstowej; dst URZ pomijany
                     // (Z nie parsuje sie do liczby).
                     let mut urs = t
-                        .split(|c: char| c == '[' || c == ']' || c == ',' || c == ' ')
+                        .split(['[', ']', ',', ' '])
                         .filter_map(|tok| {
                             let tk = tok.trim().trim_end_matches(';');
                             tk.strip_prefix("UR").and_then(|n| n.parse::<u8>().ok())
@@ -1746,7 +1744,7 @@ pub fn merc_mc_scan(instructions: &[Instruction], cg_sites: &std::collections::B
     //    (jak 76/6e dla .ALL); EXCLUSIVE nigdy nie jest site'em (16/16).
     //  (BAR.ARV ma mini 41471216 juz od mk40 przez slownik mini2.)
     for ins in instructions {
-        let lane = (ins.addr / 16) as u32;
+        let lane = ins.addr / 16;
         if ins.opcode == "WARPSYNC"
             && !ins.opcode_full.contains(".ALL")
             && !ins.opcode_full.contains(".COLLECTIVE")
@@ -1768,7 +1766,7 @@ fn merc_utca_scan(instructions: &[Instruction]) -> Vec<(u32, u8)> {
         }
         let t = &ins.raw_text;
         let kind = if t.contains("FIND_AND_SET") { 0u8 } else if t.contains(".AND") { 1 } else { 2 };
-        out.push(((ins.addr / 16) as u32, kind));
+        out.push(((ins.addr / 16), kind));
     }
     out
 }
@@ -1798,14 +1796,14 @@ fn merc_atom_smem_scan(instructions: &[Instruction]) -> Vec<(u32, u32, u8)> {
         } else {
             2
         };
-        out.push(((ins.addr / 16) as u32, imm, op));
+        out.push(((ins.addr / 16), imm, op));
     }
     out
 }
 
-fn merc_xor_scan(
-    instructions: &[Instruction],
-) -> (Vec<(u32, u32, u32, u32, u8)>, Vec<(u32, u32, u32, u32, u8)>) {
+type MercXorLanes = (Vec<(u32, u32, u32, u32, u8)>, Vec<(u32, u32, u32, u32, u8)>);
+
+fn merc_xor_scan(instructions: &[Instruction]) -> MercXorLanes {
     let mut out = Vec::new();
     let mut out_reg = Vec::new();
     for ins in instructions {
@@ -1854,7 +1852,7 @@ fn merc_xor_scan(
                 let (Some(dst), Some(src)) = (reg(parts[0]), reg(parts[1])) else {
                     continue;
                 };
-                out.push(((ins.addr / 16) as u32, dst, src, imm, guard));
+                out.push(((ins.addr / 16), dst, src, imm, guard));
             }
             None => {
                 // mk13: forma rejestrowa A^B (0x3c, trzy rejestry) — osobny
@@ -1865,7 +1863,7 @@ fn merc_xor_scan(
                 else {
                     continue;
                 };
-                out_reg.push(((ins.addr / 16) as u32, dst, src_a, src_b, guard));
+                out_reg.push(((ins.addr / 16), dst, src_a, src_b, guard));
             }
         }
     }
@@ -1911,7 +1909,7 @@ fn merc_mma_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u8, u8, u8, 
         else {
             continue;
         };
-        out.push(((ins.addr / 16) as u32, cls, d, a, b, c, 0u8));
+        out.push(((ins.addr / 16), cls, d, a, b, c, 0u8));
     }
     out
 }
@@ -2017,7 +2015,7 @@ pub fn merc_f64imm_scan(
         let imm_top = ((immf.to_bits()) >> 32) as u32;
         let pred = merc_guard_code(ins.guard.as_ref());
         let b7: u8 = (if nega { 2 } else { 0 }) | (if absa { 4 } else { 0 });
-        out.push(((ins.addr / 16) as u32, variant, d, a, imm_top, pred, b7));
+        out.push(((ins.addr / 16), variant, d, a, imm_top, pred, b7));
     }
     out
 }
@@ -2026,9 +2024,7 @@ pub fn merc_f64imm_scan(
 /// slocie) / 020d1a0e (imm w srodkowym slocie) w lane.
 /// (lane, variant [0=last,1=mid], pred, b7, d, a, b, imm64bits).
 /// b7 = 2*negA + 8*negB + 4*absA + 16*absB (merclab/mk51 c9/c10 EXACT).
-pub fn merc_dfmaimm_scan(
-    instructions: &[Instruction],
-) -> Vec<(u32, u8, u8, u8, u16, u16, u16, u64)> {
+pub fn merc_dfmaimm_scan(instructions: &[Instruction]) -> Vec<DfmaImmLane> {
     let mut out = Vec::new();
     for ins in instructions {
         let Some((first, parts)) = merc_f64_split(&ins.raw_text) else {
@@ -2049,7 +2045,7 @@ pub fn merc_dfmaimm_scan(
                 | (if ab1 { 4 } else { 0 })
                 | (if ab2 { 16 } else { 0 });
             out.push((
-                (ins.addr / 16) as u32,
+                (ins.addr / 16),
                 0u8,
                 pred,
                 b7,
@@ -2066,7 +2062,7 @@ pub fn merc_dfmaimm_scan(
                 | (if ab1 { 4 } else { 0 })
                 | (if ab2 { 16 } else { 0 });
             out.push((
-                (ins.addr / 16) as u32,
+                (ins.addr / 16),
                 1u8,
                 pred,
                 b7,
@@ -2080,9 +2076,25 @@ pub fn merc_dfmaimm_scan(
     out
 }
 
-fn merc_param_scan(
-    instructions: &[Instruction],
-) -> (Option<Vec<u32>>, u32, Vec<u32>, bool, u32, u32, Vec<u8>, Vec<(u32, u32, u8, u8, u8)>, Option<u32>, Vec<u32>, bool, Vec<(u32, u32)>, Vec<u8>, Vec<(u32, u8)>) {
+#[allow(clippy::type_complexity)]
+type MercParamScanOut = (
+    Option<Vec<u32>>,
+    u32,
+    Vec<u32>,
+    bool,
+    u32,
+    u32,
+    Vec<u8>,
+    Vec<(u32, u32, u8, u8, u8)>,
+    Option<u32>,
+    Vec<u32>,
+    bool,
+    Vec<(u32, u32)>,
+    Vec<u8>,
+    Vec<(u32, u8)>,
+);
+
+fn merc_param_scan(instructions: &[Instruction]) -> MercParamScanOut {
     // reg name -> (param idx, idx w puli deskryptorow (pi,mech))
     let mut reg_of: Vec<(String, u32, u32)> = Vec::new();
     let mut order: Vec<u32> = Vec::new();
@@ -2122,7 +2134,7 @@ fn merc_param_scan(
                 .unwrap_or(t_full),
             None => t_full,
         };
-        let lane = (ins.addr / 16) as u32;
+        let lane = ins.addr / 16;
         let guard_v: u8 = merc_guard_code(ins.guard.as_ref());
         let base0 = ins.opcode_full.split('.').next().unwrap_or("");
         if base0 == "S2R" {
@@ -2467,10 +2479,7 @@ pub fn merc_fold28(text: &str) -> Option<u32> {
             .map(|(_, r)| r.trim_start())
             .unwrap_or("");
     }
-    let (op, body) = match t.split_once(char::is_whitespace) {
-        Some(p) => p,
-        None => return None,
-    };
+    let (op, body) = t.split_once(char::is_whitespace)?;
     let is_u = op == "ULOP3.LUT";
     let is_l = op == "LOP3.LUT";
     if !is_u && !is_l {
@@ -2566,7 +2575,7 @@ pub fn merc_ulop3_0606(text: &str) -> bool {
         .split(',')
         .map(|x| x.trim().trim_end_matches([';', ',']))
         .collect();
-    if toks.iter().any(|x| *x == "0xb8") && toks.iter().any(|x| *x == "0x80000000")
+    if toks.contains(&"0xb8") && toks.contains(&"0x80000000")
     {
         return true; // klasa (B)
     }
@@ -2592,6 +2601,7 @@ pub fn merc_ulop3_0606(text: &str) -> bool {
 ///    i ogon (tok6,tok7)==(Pn,Pn);
 ///  * x,y oba z klasy rejestrowej ('-'/'~'/'.reuse' ok) -> 42 1d 08 14
 ///    i ogon (Pn,Pn) albo (PT,PT) [PTPT tylko w chase_bulge hseqr — 14/14].
+///
 /// Host kasuje bit bitmapy jak reszta mini2 (c3: off0 bit=0 20/20).
 pub fn merc_iadd3x_carry(text: &str) -> Option<u32> {
     let mut t = text.trim_end_matches([';', ' ']).trim();
@@ -2601,10 +2611,7 @@ pub fn merc_iadd3x_carry(text: &str) -> Option<u32> {
             .map(|(_, r)| r.trim_start())
             .unwrap_or("");
     }
-    let (op, body) = match t.split_once(char::is_whitespace) {
-        Some(pr) => pr,
-        None => return None,
-    };
+    let (op, body) = t.split_once(char::is_whitespace)?;
     if op != "IADD3.X" {
         return None;
     }
@@ -2662,10 +2669,7 @@ pub fn merc_ulop3_fcimm(text: &str) -> Option<u32> {
     if t.starts_with('@') {
         return None; // guarded: fail-closed (zero instancji w korpusie)
     }
-    let (op, body) = match t.split_once(char::is_whitespace) {
-        Some(pr) => pr,
-        None => return None,
-    };
+    let (op, body) = t.split_once(char::is_whitespace)?;
     if op != "ULOP3.LUT" {
         return None;
     }
@@ -2699,7 +2703,7 @@ pub fn merc_mini2_scan(kernel_name: &str, instructions: &[Instruction]) -> Vec<(
     let ffma_dialect = merc_ffma_fp32_dialect(kernel_name);
     let mut out: Vec<(u32, u32)> = Vec::new();
     for ins in instructions {
-        let lane = (ins.addr / 16) as u32;
+        let lane = ins.addr / 16;
         let full = ins.opcode_full.as_str();
         let m = match ins.opcode.as_str() {
             "FFMA" if ffma_dialect => 0x0a101741,     // mk67: 41 17 10 0a (xmma fp32)
@@ -2771,7 +2775,7 @@ pub fn merc_mini2_scan(kernel_name: &str, instructions: &[Instruction]) -> Vec<(
 /// nie zawieraja LD.E w ogole) — regula bez bramki ery (otwarty temat).
 pub fn merc_edge_ld_scan(
     instructions: &[Instruction],
-) -> (Vec<(u32, u8, u8, u8, u8, u16, u16, u8, u32)>, u16) {
+) -> (Vec<EdgeLdRec>, u16) {
     let mut out = Vec::new();
     let mut maxur: u16 = 0;
     for ins in instructions {
@@ -2884,7 +2888,7 @@ pub fn merc_edge_ld_scan(
         } else {
             0
         };
-        let lane = (ins.addr / 16) as u32;
+        let lane = ins.addr / 16;
         let b4 = merc_guard_code(ins.guard.as_ref());
         out.push((lane, b4, b6, b7, b8, x, y, c, off));
     }
@@ -2902,13 +2906,14 @@ pub fn merc_edge_ld_scan(
 ///     (c7b: 238 UR-ow LDG-only maja rekordy; 40+32 dzielone ze
 ///     STG/REDG/LDGSTS — zadne — oraz 68 LDCU-only tez nie; regula pelna
 ///     daje EXACT 72/72 z porzadkiem lane-rosnaco).
+///
 /// Payload: jak merc_edge_ld, poza b6 = 16*(log2B-2)+0x40 (0x40/0x50/0x60
 /// dla 4B/8B/16B; inne formy LDG (.U8/.U16/.CONSTANT/...) — niewiadome,
 /// fail-closed bez rekordu) oraz V = desc-UR lane'u (NIE max globalny).
 pub fn merc_edge_ldg_scan(
     name: &str,
     instructions: &[Instruction],
-) -> Vec<(u32, u8, u8, u16, u16, u8, u16, u32)> {
+) -> Vec<EdgeLdgRec> {
     let mut out = Vec::new();
     if !name.contains("annotated_ptr") {
         return out;
@@ -3036,7 +3041,7 @@ pub fn merc_edge_ldg_scan(
         } else {
             0
         };
-        let lane = (ins.addr / 16) as u32;
+        let lane = ins.addr / 16;
         let b4 = merc_guard_code(ins.guard.as_ref());
         out.push((lane, b4, b6, x, y, c, v, off));
     }
@@ -3048,7 +3053,7 @@ pub fn merc_edge_ldg_scan(
 /// b3=0x32) i STL (b2=0x20, b3=0x06). STG zostaje na legacy merc_stg_*.
 /// Krotki: (lane, cls, wsel, areg, dur, dreg, imm, b4) z dokladnoscia do
 /// nieznanych pol opisanych w eiattr.rs: merc_store2.
-pub fn merc_store2_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u16, u16, u16, i32, u8, u8)> {
+pub fn merc_store2_scan(instructions: &[Instruction]) -> Vec<Store2Rec> {
     let mut out = Vec::new();
     let term_skip = merc_store_term_skip(instructions);
     for ins in instructions {
@@ -3057,7 +3062,7 @@ pub fn merc_store2_scan(instructions: &[Instruction]) -> Vec<(u32, u8, u8, u16, 
             "STL" => 2,
             _ => continue,
         };
-        let lane = (ins.addr / 16) as u32;
+        let lane = ins.addr / 16;
         let full = ins.opcode_full.as_str();
         if full.contains("ENL2") {
             continue; // mk40-park: ENL2.256 (28 rekordow w korpusie)

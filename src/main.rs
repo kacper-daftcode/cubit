@@ -1644,7 +1644,7 @@ fn infer_kernel_meta(name: &str, code_bytes: &[u8], table: &IsaTable) -> cubit::
     // 136 silicon-verified in BUG-075 sweep).
     // BUG-011: clamp at 255 — R255 is the RZ alias, REGCOUNT=256 is not a
     // legal driver value (used to come out of `.reg R0-R255` as 256).
-    let regcount = ((max_reg + 3 + 7) & !7).max(32).min(255);
+    let regcount = ((max_reg + 3 + 7) & !7).clamp(32, 255);
     let num_barriers = barrier_seen.iter().filter(|&&x| x).count() as u8;
 
     KernelMeta {
@@ -2794,7 +2794,7 @@ fn cmd_asm_build_elf(
                         r"^(?:@!?U?P\w+\s+)?(LDCU?)(\.64|\.128|\.U8|\.U16)?\s+(U?R\d+),\s*c\[0x0\]\[0x([0-9a-fA-F]+)\]",
                     )
                     .unwrap();
-                    let re_s2r2 = regex::Regex::new(r"(?:^| )S2R\s").unwrap();
+                    let _re_s2r2 = regex::Regex::new(r"(?:^| )S2R\s").unwrap();
                     let re_brak = regex::Regex::new(r"\[([A-Z0-9]+)(?:\.\w+)?[^\]]*\]").unwrap();
                     let re_tok = regex::Regex::new(r"^(?:@!?U?P\w+\s+)?([A-Z][A-Za-z0-9.]*)\s*(.*)$").unwrap();
                     let alias_ops = [
@@ -2824,14 +2824,14 @@ fn cmd_asm_build_elf(
                     let mut atom_pool_hits: std::collections::BTreeSet<(u32, u8)> =
                         std::collections::BTreeSet::new();
                     let mut ldgconst: Vec<(u32, u32)> = Vec::new();
-                    let mut atoms_scan: Vec<(u32, u8, u8, u8, u8, u8, u8, u8)> = Vec::new();
+                    let mut atoms_scan: Vec<cubit::eiattr::AtomRec> = Vec::new();
                     let mut redg2_scan: Vec<(u32, [u8; 32])> = Vec::new();
                     let mut atomg2_scan: Vec<(u32, [u8; 32])> = Vec::new();
                     // mk35: lustra sass_file::merc_mk35_scan
                     let mut load_dregs35: Vec<u8> = Vec::new();
                     let mut bar_guard35: Vec<u8> = Vec::new();
                     let mut s2r_guard35: Vec<u8> = Vec::new();
-                    let mut isetp_ur35: Vec<u32> = Vec::new();
+                    let isetp_ur35: Vec<u32> = Vec::new();
                     // mk41: XSETP-pary (lustro sass_file::merc_xsetp_scan)
                     let mut xsetp_pairs35: Vec<(u32, u8)> = Vec::new();
                     let mut xsetp_lastp: std::collections::HashMap<String, (u32, bool, bool)> =
@@ -2843,21 +2843,20 @@ fn cmd_asm_build_elf(
                         std::collections::HashMap::new();
                     let mut ulea_upco35: Vec<u32> = Vec::new();
                     // mk40: lustra merc_store2_scan / merc_mini2_scan / wsel.
-                    let mut store2m: Vec<(u32, u8, u8, u16, u16, u16, i32, u8, u8)> = Vec::new();
+                    let mut store2m: Vec<cubit::eiattr::Store2Rec> = Vec::new();
                     let mut mini2m: Vec<(u32, u32)> = Vec::new();
-                    let mut edge_ldm: Vec<(u32, u8, u8, u8, u8, u16, u16, u8, u32)> = Vec::new();
+                    let mut edge_ldm: Vec<cubit::eiattr::EdgeLdRec> = Vec::new();
                     let mut edge_maxur_m: u16 = 0;
                     // mk50: rekordy 02221e32 (LDG-desc w kernelach annotated_ptr
                     // — dlugosci (lane,b4,b6,X,Y,C,V,off); lustro
                     // sass_file::merc_edge_ldg_scan). Pre-pass: desc-UR-y
                     // uzywane wylacznie przez lane'y bazowe LDG.
-                    let mut edge_ldgm: Vec<(u32, u8, u8, u16, u16, u8, u16, u32)> = Vec::new();
+                    let mut edge_ldgm: Vec<cubit::eiattr::EdgeLdgRec> = Vec::new();
                     // mk51: lustra sass_file::merc_f64imm_scan /
                     // merc_dfmaimm_scan (rekordy 020f120e/020c1e0e oraz
                     // 020d1c0e/020d1a0e — D-FP z natychmiastowym f64).
                     let mut f64imm_sc: Vec<(u32, u8, u16, u16, u32, u8, u8)> = Vec::new();
-                    let mut dfmaim_sc: Vec<(u32, u8, u8, u8, u16, u16, u16, u64)> =
-                        Vec::new();
+                    let mut dfmaim_sc: Vec<cubit::eiattr::DfmaImmLane> = Vec::new();
                     let mut ldg_only_urs: std::collections::HashSet<u16> =
                         std::collections::HashSet::new();
                     if kernel_name.contains("annotated_ptr") {
@@ -2902,7 +2901,7 @@ fn cmd_asm_build_elf(
                         ldg_only_urs = ur_ldg.difference(&ur_oth).copied().collect();
                     }
                     let mut stg_wselv: Vec<u8> = Vec::new();
-                    let mut redux35: Vec<(u32, u8, u8)> = Vec::new();
+                    let redux35: Vec<(u32, u8, u8)> = Vec::new();
                     let mut cbank358_dreg35: Option<u8> = None;
                     let term_skip63b: std::collections::HashSet<u32> = {
                         let mut sk = std::collections::HashSet::new();
@@ -3245,7 +3244,7 @@ fn cmd_asm_build_elf(
                                     let mut f = false;
                                     if let Some(lb6) = body.rfind('[') {
                                         if let Some(rb6) = body[lb6..].find(']') {
-                                            let bb6 = body[lb6 + 1..lb6 + rb6].as_bytes();
+                                            let bb6 = &body.as_bytes()[lb6 + 1..lb6 + rb6];
                                             let mut k6 = 0;
                                             while k6 + 1 < bb6.len() {
                                                 if bb6[k6] == b'R'
@@ -3733,9 +3732,7 @@ fn cmd_asm_build_elf(
                                 .collect::<Vec<_>>()
                                 .join(" ");
                             let parts: Vec<&str> = bfull
-                                .trim_end_matches(';')
-                                .splitn(2, ' ')
-                                .nth(1)
+                                .trim_end_matches(';').split_once(' ').map(|x| x.1)
                                 .unwrap_or("")
                                 .split(',')
                                 .map(|x| x.trim())
@@ -4206,7 +4203,7 @@ fn cmd_asm_directive_format(
             let names: Vec<String> = sass_file
                 .kernels
                 .iter()
-                .filter(|d| only_kernel.map_or(true, |o| d.name == o))
+                .filter(|d| only_kernel.is_none_or(|o| d.name == o))
                 .map(|d| d.name.clone())
                 .collect();
             cubit::elf_builder::validate_template_renames(&bytes, &names)?;
