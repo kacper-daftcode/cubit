@@ -890,7 +890,7 @@ fn format_operand(
             && !fields.iter().any(|f| matches!(
                 norm_ext(&f.extraction).as_str(), "sub_ur0" | "sub_ur1" | "ureg"))
             && ((raw >> 64) & 0xFF) == 0xFF
-            => format_syncs_ari(fields, raw),
+            => format_syncs_ari(fields, raw, ins_key),
         // BUG-038/017: LDS/STS with a scaled-index address ([R9.X8+..]/
         // [R9.X16+..]) — the addr_scale field carries the suffix. Scale=0
         // prints exactly like format_addr (historical shape preserved for
@@ -1684,8 +1684,8 @@ fn format_addr(fields: &[&DecodedField], raw: u128, signed_elide: bool) -> Strin
 
 /// BUG-179/157: format_addr plus a spliced `+URZ` for ARI rows whose uniform
 /// window is a baked sink constant (see the dispatch arm above).
-fn format_syncs_ari(fields: &[&DecodedField], raw: u128) -> String {
-    let s = format_addr(fields, raw);
+fn format_syncs_ari(fields: &[&DecodedField], raw: u128, ins_key: &str) -> String {
+    let s = format_addr(fields, raw, rz_signed_elide(ins_key));
     let Some(inner) = s.strip_prefix('[').and_then(|x| x.strip_suffix(']')) else {
         return s;
     };
@@ -2232,7 +2232,10 @@ fn format_double(f: f64, neg: bool) -> String {
     }
     let s = format_g20(if neg { -f } else { f });
     if !s.is_empty() {
-        return normalize_sci_exp(s);
+        // BUG-146: format_g20 already applies the nvdisasm sci law
+        // (%.20e untrimmed for exp>=0); normalize_sci_exp would trim the
+        // zero padding back off. Only the exponent padding is re-applied.
+        return pad_sci_exp(s);
     }
     normalize_sci_exp(format!("{neg_s}{:.16e}", f))
 }
@@ -2256,10 +2259,44 @@ fn format_g20(f: f64) -> String {
         }
         s
     } else {
-        // scientific: mantissa with 19 decimals after the point (20 sig digits)
+        // nvdisasm scientific-notation law (BUG-146 census 2026-08-25, 32M
+        // nvdisasm-13.3 lines): exponent >= 0 prints C %.20e UNTRIMMED
+        // (21 significant digits, zero padding kept: 0x5e2aaaab ->
+        // "3.07445743724422758400e+18"); exponent < 0 rounds to 20
+        // significant digits with trailing zeros stripped ("...e-07").
+        let e20 = format!("{:.20e}", f);
+        let epos = e20.rfind('e').unwrap();
+        let exp: i32 = e20[epos + 1..].parse().unwrap();
+        if exp >= 0 {
+            let mantissa = &e20[..epos];
+            return format!("{}e+{:02}", mantissa, exp);
+        }
         let s = format!("{:.19e}", f);
         normalize_sci_exp(s)
     }
+}
+
+/// Exponent padding only (no trailing-zero trim). Used where the sci law
+/// requires the %.20e padding preserved ("...840000e+16").
+fn pad_sci_exp(s: String) -> String {
+    if let Some(e_pos) = s.rfind('e') {
+        let mantissa = &s[..e_pos];
+        let exp = &s[e_pos + 1..];
+        let (esign, edigits) = if let Some(rest) = exp.strip_prefix('-') {
+            ("-", rest)
+        } else if let Some(rest) = exp.strip_prefix('+') {
+            ("+", rest)
+        } else {
+            ("+", exp)
+        };
+        let edigits_padded = if edigits.len() < 2 {
+            format!("{:0>2}", edigits)
+        } else {
+            edigits.to_string()
+        };
+        return format!("{}e{}{}", mantissa, esign, edigits_padded);
+    }
+    s
 }
 
 /// Normalize scientific notation: pad exponent to 2 digits and strip trailing zeros.
