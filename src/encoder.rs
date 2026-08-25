@@ -1892,109 +1892,261 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
 // Field value extraction
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// BUG-139 (F2 follow-up of BUG-130): generic encode-lint "value must fit
+// field". Every field application used to truncate the operand payload with
+// `value & field.mask`, so an operand that did not fit its encoding window
+// was silently re-issued as a DIFFERENT value (BUG-130 barrier-alias class;
+// BUG-136 mod-4 predicate wrap; BUG-027-class immediate aliasing).
+//
+// Two tiers, because the harvest model complicates "fits the mask":
+//  * TIER-1 (hard, fail-closed): small-domain total payloads — guards,
+//    predicates, barriers, reuse + 0/1/2-domain flags. No split windows, no
+//    sentinel carriers — any loss is a bug. This closes the BUG-130
+//    barrier-alias and BUG-136 predicate-wrap surfaces at the encoder.
+//  * TIER-2 (soft audit): value-carrying families (reg/imm/addr/cmem) where
+//    truncation can be legitimate: one operand decomposed into sibling
+//    fields with disjoint coverage (PLOP3.LUT lattice imm = imm[0:3)
+//    @64 + imm_shr3[3:8) @72; LDG.256-desc trailer = imm[0:6) + imm_shr7),
+//    payloads and_base-carried or owned by the branch fixup (BRA/WARPSYNC
+//    label rows), sentinel mappings (RZ base 0xFF -> 0x7F in a 7-bit
+//    window, vendor-confirmed in t123 goldens). Legacy masked payload is
+//    always returned; with CUBIT_FIT_LINT=warn the misfit is logged for
+//    census. Promotion of tier-2 to hard requires the aggregate
+//    per-operand coverage model (see results/cubitfix/139.md).
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FitLint {
+    Unsigned,
+    Signed,
+}
+
+fn fit_lint_warn_enabled() -> bool {
+    use std::sync::OnceLock;
+    static WARN: OnceLock<bool> = OnceLock::new();
+    *WARN.get_or_init(|| std::env::var("CUBIT_FIT_LINT").is_ok_and(|v| v == "warn"))
+}
+
+fn fit_lint_msg(insn: &Instruction, field: &Field, raw: u64, kind: FitLint) -> String {
+    let what = match kind {
+        FitLint::Unsigned => "value",
+        FitLint::Signed => "immediate",
+    };
+    format!(
+        "encode-lint: `{}` key `{}` operand {} ({:?}): {} {:#x} does not fit \
+         field (shift={} bits={} mask={:#x}); legacy behaviour silently \
+         encoded {:#x}",
+        insn.opcode_full,
+        insn.key,
+        field.token_idx,
+        field.extraction,
+        what,
+        raw,
+        field.shift,
+        field.bits,
+        field.mask,
+        raw & field.mask
+    )
+}
+
+/// TIER-1 (hard): the field must carry the value losslessly.
+fn fit(insn: &Instruction, field: &Field, v: u64) -> Result<u64> {
+    if v & !field.mask == 0 {
+        Ok(v)
+    } else {
+        Err(anyhow::anyhow!(fit_lint_msg(insn, field, v, FitLint::Unsigned)))
+    }
+}
+
+/// TIER-1 (hard) with a value-domain guard for extractions that compute
+/// `K - v` style transforms — bail when the transform itself is undefined
+/// (e.g. 7 - n with n > 7 wrapped on u64, 1 - f with f > 1 folded by the
+/// field mask into a valid-looking payload).
+fn fit_bail(insn: &Instruction, field: &Field, v: u64) -> anyhow::Error {
+    anyhow::anyhow!(fit_lint_msg(insn, field, v, FitLint::Unsigned))
+}
+
+/// TIER-2 (soft audit, CUBIT_FIT_LINT=warn): legacy masked payload always;
+/// `signed` adds the two's-complement round-trip leg so negative immediates
+/// are canonical, not violations.
+fn fit_soft(insn: &Instruction, field: &Field, v: i64, signed: bool) -> Result<u64> {
+    let enc = (v as u64) & field.mask;
+    let lossless = (v as u64) & !field.mask == 0
+        || (signed && crate::printer::sign_extend_pub(enc, field.bits) == v);
+    if !lossless && fit_lint_warn_enabled() {
+        let kind = if signed { FitLint::Signed } else { FitLint::Unsigned };
+        eprintln!("[fit-lint] {}", fit_lint_msg(insn, field, v as u64, kind));
+    }
+    Ok(enc)
+}
+
+/// TIER-2 const-mem combined field (bank << shift | offset & window): the
+/// offset is sliced into a two's-complement window of `bank_shift` bits —
+/// audit the slice round-trip, then hand the combined legacy payload to the
+/// soft audit (never bails; CUBIT_FIT_LINT=warn logs).
+fn fit_cm_off_soft(insn: &Instruction, field: &Field, bank_shift: u8) -> Result<u64> {
+    let win = (1u64 << bank_shift) - 1;
+    if let Some(Operand::ConstMem { offset, .. }) = get_op(insn, field.token_idx) {
+        if crate::printer::sign_extend_pub((*offset as u64) & win, bank_shift as u32) != *offset
+            && fit_lint_warn_enabled()
+        {
+            eprintln!("[fit-lint] {}", fit_lint_msg(insn, field, *offset as u64, FitLint::Signed));
+        }
+    }
+    fit_soft(insn, field, op_cm_off(insn, field.token_idx, bank_shift) as i64, false)
+}
+
 fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
     let mk = field.mask;
 
     match &field.extraction {
         // Guard extractions (token 0)
-        Extraction::Guard => Ok(guard_val(insn) & mk),
-        Extraction::GuardLo3 => Ok((guard_val(insn) & 7) & mk),
-        Extraction::GuardNeg => Ok(if insn.guard.as_ref().is_some_and(|g| g.negated) { 1 } else { 0 }),
+        Extraction::Guard => fit(insn, field, guard_val(insn)),
+        Extraction::GuardLo3 => fit(insn, field, guard_val(insn) & 7),
+        Extraction::GuardNeg => fit(insn, field,
+            if insn.guard.as_ref().is_some_and(|g| g.negated) { 1 } else { 0 }),
 
         // Register
-        Extraction::Reg => Ok(op_reg(insn, field.token_idx) & mk),
+        Extraction::Reg => fit_soft(insn, field, op_reg(insn, field.token_idx) as i64, false),
         Extraction::UReg => {
             // UMOV dest slot: corpus rule "URZ reads as 0xFF in source slots"
             // does not extend to the uniform move destination — FA4 hardware
             // encoding stores URZ as its architectural number 63 there.
             if insn.opcode.starts_with("UMOV") && field.token_idx == 1 {
                 if let Some(Operand::UReg { is_zero: true, .. }) = get_op(insn, 1) {
-                    return Ok(63 & mk);
+                    return fit_soft(insn, field, 63, false);
                 }
             }
-            Ok(op_ureg(insn, field.token_idx) & mk)
+            fit_soft(insn, field, op_ureg(insn, field.token_idx) as i64, false)
         }
-        Extraction::RegFf => Ok(op_reg_ff(insn, field.token_idx) & mk),
-        Extraction::URegFf => Ok(op_ureg_ff(insn, field.token_idx) & mk),
-        Extraction::Pred => Ok(op_pred(insn, field.token_idx) & mk),
+        Extraction::RegFf => fit_soft(insn, field, op_reg_ff(insn, field.token_idx) as i64, false),
+        Extraction::URegFf => fit_soft(insn, field, op_ureg_ff(insn, field.token_idx) as i64, false),
+        Extraction::Pred => fit(insn, field, op_pred(insn, field.token_idx)),
         // BUG-032: nvdisasm gate naming is inverted (sel = 7 - n, UPT = sel 0);
         // physical value (sel) is identical, only the name mapping flips.
         Extraction::UPredGate => {
             let n = op_pred(insn, field.token_idx);
-            let sel = if n == 7 { 0 } else { 7 - n };
-            Ok(sel & mk)
+            // 7 - n on u64 with n > 7 used to panic (debug) or wrap into a
+            // huge payload that the field mask folded back (release).
+            let sel: u64 = if n == 7 {
+                0
+            } else if let Some(s) = 7u64.checked_sub(n) {
+                s
+            } else {
+                return Err(fit_bail(insn, field, n));
+            };
+            fit(insn, field, sel)
         }
-        Extraction::Barrier => Ok(op_barrier(insn, field.token_idx) & mk),
+        Extraction::Barrier => fit(insn, field, op_barrier(insn, field.token_idx)),
 
         // Immediate
-        Extraction::Imm => Ok(op_imm(insn, field.token_idx) & mk),
-        Extraction::ImmShr(n) => Ok((op_imm(insn, field.token_idx) >> n) & mk),
-        Extraction::ImmDec => Ok(op_imm_dec(insn, field.token_idx) & mk),
-        Extraction::ImmDecU32 => Ok((op_imm_dec(insn, field.token_idx) & 0xFFFFFFFF) & mk),
+        Extraction::Imm => fit_soft(insn, field, op_imm(insn, field.token_idx) as i64, true),
+        Extraction::ImmShr(n) => {
+            let raw = op_imm(insn, field.token_idx) as i64;
+            let gran = 1i64 << n;
+            // The shift consumes the low bits: a non-granule immediate
+            // silently loses them (BUG-070 class) — tier-2 audit only
+            // (harvest rows may legitimately window the operand).
+            if raw % gran != 0 && fit_lint_warn_enabled() {
+                eprintln!("[fit-lint] {}", fit_lint_msg(insn, field, raw as u64, FitLint::Signed));
+            }
+            fit_soft(insn, field, raw >> n, true)
+        }
+        Extraction::ImmDec => fit_soft(insn, field, op_imm_dec(insn, field.token_idx) as i64, true),
+        Extraction::ImmDecU32 => fit_soft(insn, field, (op_imm_dec(insn, field.token_idx) & 0xFFFFFFFF) as i64, false),
 
         // Float
-        Extraction::F32 => Ok(op_f32(insn, field.token_idx) & mk),
-        Extraction::F16 => Ok(op_f16_via_f32(insn, field.token_idx) & mk),
-        Extraction::F16d => Ok(op_f16_via_f64(insn, field.token_idx) & mk),
-        Extraction::F64hi => Ok(op_f64hi(insn, field.token_idx) & mk),
+        Extraction::F32 => fit_soft(insn, field, op_f32(insn, field.token_idx) as i64, false),
+        Extraction::F16 => fit_soft(insn, field, op_f16_via_f32(insn, field.token_idx) as i64, false),
+        Extraction::F16d => fit_soft(insn, field, op_f16_via_f64(insn, field.token_idx) as i64, false),
+        Extraction::F64hi => fit_soft(insn, field, op_f64hi(insn, field.token_idx) as i64, false),
 
         // Flags
         Extraction::Neg => {
             let v = op_neg(insn, field.token_idx);
-            if v == 0 { Ok(op_inv(insn, field.token_idx) & mk) } else { Ok(v & mk) }
+            if v == 0 { fit(insn, field, op_inv(insn, field.token_idx)) } else { fit(insn, field, v) }
         }
-        Extraction::NegF32 => Ok(op_neg_f32(insn, field.token_idx) & mk),
-        Extraction::F32Cast => Ok(op_f32_cast(insn, field.token_idx) & mk),
-        Extraction::NegShl1 => Ok((op_neg(insn, field.token_idx) << 1) & mk),
-        Extraction::Reuse => Ok(op_reuse(insn, field.token_idx) & mk),
-        Extraction::Inv => Ok(op_inv(insn, field.token_idx) & mk),
-        Extraction::Abs => Ok(op_abs(insn, field.token_idx) & mk),
+        Extraction::NegF32 => fit(insn, field, op_neg_f32(insn, field.token_idx)),
+        Extraction::F32Cast => fit_soft(insn, field, op_f32_cast(insn, field.token_idx) as i64, false),
+        Extraction::NegShl1 => fit(insn, field, op_neg(insn, field.token_idx) << 1),
+        Extraction::Reuse => fit(insn, field, op_reuse(insn, field.token_idx)),
+        Extraction::Inv => fit(insn, field, op_inv(insn, field.token_idx)),
+        Extraction::Abs => fit(insn, field, op_abs(insn, field.token_idx)),
         Extraction::NegAbs => {
             let a = op_abs(insn, field.token_idx);
             let n = op_neg(insn, field.token_idx);
-            Ok((if a != 0 { 2 } else if n != 0 { 1 } else { 0 }) & mk)
+            fit(insn, field, if a != 0 { 2 } else if n != 0 { 1 } else { 0 })
         }
-        Extraction::ByteSel => Ok(op_byte_sel(insn, field.token_idx) & mk),
+        Extraction::ByteSel => fit(insn, field, op_byte_sel(insn, field.token_idx)),
         Extraction::LblPat(pat) => {
             // Double-bracket operands (Operand::Desc) carry the UR id structurally;
             // raw scraping only understands the single-bracket desc[URn] form.
             if let Some(Operand::Desc { ur_idx, .. }) = get_op(insn, field.token_idx) {
                 if matches!(pat.as_str(),
                     "desc_ur" | "gdesc_ur" | "idesc_ur" | "tmem_ur" | "tdesc_ur") {
-                    return Ok((*ur_idx as u64) & mk);
+                    return fit_soft(insn, field, *ur_idx as i64, false);
                 }
             }
-            Ok(op_lbl_scrape(insn, field.token_idx, pat) & mk)
+            fit_soft(insn, field, op_lbl_scrape(insn, field.token_idx, pat) as i64, false)
         },
-        Extraction::AddrScale => Ok(op_addr_scale(insn, field.token_idx) & mk),
-        Extraction::UrExpl => Ok(op_urz_flag(insn, field.token_idx) & mk),
-        Extraction::UrExplInv => Ok((1 - op_urz_flag(insn, field.token_idx)) & mk),
-        Extraction::HalfSel => Ok(op_hsel(insn, field.token_idx) & mk),
-        Extraction::OpModFlag(name) => Ok(op_mod_flag_value(insn, field.token_idx, name) & mk),
-        Extraction::MnemMod(i, name) => Ok(op_mnemod(insn, *i, name) & mk),
-        Extraction::BF16 => Ok(op_bf16(insn, field.token_idx) & mk),
+        Extraction::AddrScale => fit(insn, field, op_addr_scale(insn, field.token_idx)),
+        Extraction::UrExpl => fit(insn, field, op_urz_flag(insn, field.token_idx)),
+        // 1 - flag on u64 underflows to all-ones for flag > 1, which the mask
+        // then folds back into a valid-looking payload: audit before folding.
+        Extraction::UrExplInv => {
+            let f = op_urz_flag(insn, field.token_idx);
+            let Some(inv) = 1u64.checked_sub(f) else {
+                return Err(fit_bail(insn, field, f));
+            };
+            fit(insn, field, inv)
+        }
+        Extraction::HalfSel => fit(insn, field, op_hsel(insn, field.token_idx)),
+        Extraction::OpModFlag(name) => fit(insn, field, op_mod_flag_value(insn, field.token_idx, name)),
+        Extraction::MnemMod(i, name) => fit(insn, field, op_mnemod(insn, *i, name)),
+        Extraction::BF16 => fit_soft(insn, field, op_bf16(insn, field.token_idx) as i64, false),
 
         // System register
-        Extraction::SysReg => Ok(op_sysreg(insn, field.token_idx) & mk),
-        Extraction::SysRegLo7 => Ok((op_sysreg(insn, field.token_idx) & 0x7F) & mk),
-        Extraction::SysRegLo4 => Ok((op_sysreg(insn, field.token_idx) & 0xF) & mk),
-        Extraction::SysRegHi4 => Ok(((op_sysreg(insn, field.token_idx) >> 4) & 0xF) & mk),
-        Extraction::SysRegHi1 => Ok(((op_sysreg(insn, field.token_idx) >> 7) & 1) & mk),
+        Extraction::SysReg => fit_soft(insn, field, op_sysreg(insn, field.token_idx) as i64, false),
+        // Split-field slices: the Lo/Hi decomposition is the documented
+        // semantics; the lint checks each slice against its own field mask
+        // (a mis-sized table row now fails closed instead of aliasing).
+        Extraction::SysRegLo7 => fit_soft(insn, field, (op_sysreg(insn, field.token_idx) & 0x7F) as i64, false),
+        Extraction::SysRegLo4 => fit_soft(insn, field, (op_sysreg(insn, field.token_idx) & 0xF) as i64, false),
+        Extraction::SysRegHi4 => fit_soft(insn, field, ((op_sysreg(insn, field.token_idx) >> 4) & 0xF) as i64, false),
+        Extraction::SysRegHi1 => fit_soft(insn, field, ((op_sysreg(insn, field.token_idx) >> 7) & 1) as i64, false),
 
         // Register bit-shifted (for double-precision, S64, etc.)
-        Extraction::RegShr(n) => Ok((op_reg(insn, field.token_idx) >> n) & mk),
-        Extraction::URegShr(n) => Ok((op_ureg(insn, field.token_idx) >> n) & mk),
+        Extraction::RegShr(n) => fit_soft(insn, field, (op_reg(insn, field.token_idx) >> n) as i64, false),
+        Extraction::URegShr(n) => fit_soft(insn, field, (op_ureg(insn, field.token_idx) >> n) as i64, false),
 
         // Address sub-parts
-        Extraction::SubR(i) => Ok(op_sub_reg(insn, field.token_idx, *i) & mk),
-        Extraction::SubUR(i) => Ok(op_sub_ureg(insn, field.token_idx, *i) & mk),
-        Extraction::SubURm1(i) => Ok(op_sub_ureg(insn, field.token_idx, *i)
-            .wrapping_sub(1) & mk),
-        Extraction::SubImm(i) => Ok(op_sub_imm(insn, field.token_idx, *i) & mk),
-        Extraction::SubImmS24(i) => Ok((op_sub_imm(insn, field.token_idx, *i) & 0xFFFFFF) & mk),
+        Extraction::SubR(i) => fit_soft(insn, field, op_sub_reg(insn, field.token_idx, *i) as i64, false),
+        Extraction::SubUR(i) => fit_soft(insn, field, op_sub_ureg(insn, field.token_idx, *i) as i64, false),
+        Extraction::SubURm1(i) => {
+            let v = op_sub_ureg(insn, field.token_idx, *i);
+            // wrapping_sub(1) on 0 silently aliases to all-ones ("sibling UR
+            // = first - 1" is undefined for slot 0): audit before folding.
+            let Some(m1) = v.checked_sub(1) else {
+                return Err(fit_bail(insn, field, v));
+            };
+            fit(insn, field, m1)
+        }
+        Extraction::SubImm(i) => fit_soft(insn, field, op_sub_imm(insn, field.token_idx, *i) as i64, true),
+        Extraction::SubImmS24(i) => {
+            let raw = op_sub_imm(insn, field.token_idx, *i);
+            // Legacy 24-bit slice: bits above the window were silently
+            // dropped; require the signed 24-bit window to round-trip first.
+            if crate::printer::sign_extend_pub(raw & 0xFFFFFF, 24) != raw as i64
+                && fit_lint_warn_enabled()
+            {
+                eprintln!("[fit-lint] {}", fit_lint_msg(insn, field, raw, FitLint::Signed));
+            }
+            fit_soft(insn, field, (raw & 0xFFFFFF) as i64, false)
+        }
         // Address sub-parts, bit-shifted (for .64 addresses storing reg/2)
-        Extraction::SubRShr(i, n) => Ok((op_sub_reg(insn, field.token_idx, *i) >> n) & mk),
-        Extraction::SubURShr(i, n) => Ok((op_sub_ureg(insn, field.token_idx, *i) >> n) & mk),
+        Extraction::SubRShr(i, n) => fit_soft(insn, field, (op_sub_reg(insn, field.token_idx, *i) >> n) as i64, false),
+        Extraction::SubURShr(i, n) => fit_soft(insn, field, (op_sub_ureg(insn, field.token_idx, *i) >> n) as i64, false),
         Extraction::SubImmShr(i, n) => {
             let imm = op_sub_imm(insn, field.token_idx, *i) as i64;
             let gran = 1i64 << n;
@@ -2029,19 +2181,20 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
         }
 
         // Constant memory
-        Extraction::Cm16Off => Ok(op_cm_off(insn, field.token_idx, 16) & mk),
-        Extraction::Cm17Off => Ok(op_cm_off(insn, field.token_idx, 17) & mk),
+        Extraction::Cm16Off => fit_cm_off_soft(insn, field, 16),
+        Extraction::Cm17Off => fit_cm_off_soft(insn, field, 17),
 
         // Opaque modifier: extract the ?NN value from the opcode text.
         // The printer formats these as ".?6" (for value 6), and the parser
         // preserves them in opcode_full. Extract the value from there.
         Extraction::OpaqueModifier => {
             let val = extract_opaque_mod(&insn.raw_text, field.shift, field.bits);
-            Ok(val & mk)
+            fit_soft(insn, field, val as i64, false)
         }
 
         Extraction::None => Ok(0),
-        Extraction::YieldInv => Ok(if insn.ctrl.yield_flag { 0 } else { 1 } & mk),
+        Extraction::YieldInv => fit(insn, field,
+            if insn.ctrl.yield_flag { 0 } else { 1 }),
     }
 }
 
