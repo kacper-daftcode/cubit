@@ -20,8 +20,8 @@ output (`build_legacy`, verbatim), e.g. to reproduce binaries assembled by
 pre-merc13 cubit. Both modes keep `.text` bit-identical; only the companion
 sections differ.
 
-## Known phase-1 approximations (verified-legal, not yet byte-exact)
+## Known approximations (verified-legal, not byte-exact)
 Mercury func `st_size` = align16(capsule length); Mercury 0x1c exit offsets =
 [earlier SASS exits +0x10] + [st−0x10]; the exact 13.3 values come from the
-capsule VM expansion (tracked for phase-2). `.nv.merc.rela.text.K`
-for static-smem kernels is parked (capsule field offset law pending).
+capsule VM expansion (not yet modelled). `.nv.merc.rela.text.K`
+for static-smem kernels is not emitted yet (capsule field offset law pending).

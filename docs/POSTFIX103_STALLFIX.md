@@ -14,13 +14,12 @@ insufficient when the consumer sits in the DIRECTLY next slot (d0).
 | the same, guard consumer | d2 (two between) | S05 |
 | the same, guard consumer | d1 (one between) | FORBIDDEN -- FLAKY at every S<=8 under occupancy; no stall legalizes it, the schedule must change |
 
-IADD3.X -> IADD3.X cin chains stay at the R1 floor (census b1dual/b2single:
+IADD3.X -> IADD3.X cin chains stay at the R1 floor (measured census:
 S04 suffices at d0). At d>=1 plain ALU/P-carry paths pass at S>=1 already,
 so they need nothing beyond R1; dmix at d1 needs S03 (also below R1).
-Stalls are a 4-bit field; the policy cap is 11 (BUG-036: >=12 hangs).
+Stalls are a 4-bit field; the policy cap is 11 (measured on B300: S>=12 hangs).
 
-Producer/consumer classification is the measured v0 allowlist (identical
-to the silicon-validated reference postfix_ss.py): producers IADD3.X
+Producer/consumer classification is the measured v0 allowlist: producers IADD3.X
 (dual cout at operands 1/2), ISETP.* (dest at operand 0), ".X"/IMAD.WIDE
 forms with cout at operand 1; cin consumers IADD3.X (last two operands)
 and IMAD*.X (last operand); guards are non-uniform @Pn/@!Pn. A predicate
@@ -51,21 +50,17 @@ cubit stallfix --plan plan.json --rules tables/stallfix_sm103a.json \
 ```
 
 pyo3: `cubit.stallfix_run(text, plan_json, rules_json) -> (out_text,
-per_kernel_reports)` (build with `--features python`). barracuda facade:
-`barracuda/stallfix.py` (`stallfix.run(text, plan)`), gates:
-`barracuda/gates/ss3_gates.py` (G-SS3a..e; G-SS3a pins byte-identity with
-the silicon-validated reference text of results/stallsuf/fss3/).
+per_kernel_reports)` (build with `--features python`).
 
-Parity anchors (sm_103a O3 mulmod windows [20,363) x 3 kernels): 597
-raises S03->S04, cubin md5 49efe0fa.., diff vs era cubin = 597 bytes, all
-at slot byte 0xd.
+Worked example (sm_103a O3 mulmod windows [20,363), 3 kernels): 597 raises
+S03->S04, every diff byte at slot byte 0xd — the pass touches stalls and
+nothing else.
 
 ## v1: census-hi rules
 
 guard-D1 (exactly one instruction between the P producer and the guard
 consumer) is no longer uniformly rejected: it is CLASS-RESOLVED by the
-consumer op. All classes below are silicon measurements on B300
-(results/stallsuf/F-SS4-CENSUS-HI.md, raw logs results/stallsuf/fss4/raw/);
+consumer op. All classes below are silicon measurements on B300;
 
 the pass invents no physics.
 
@@ -95,14 +90,12 @@ site: the run aborts with the COMPLETE site map (JSON lines) for the
 D1-elimination pass. Rules JSON carries `rules_version`; pre-v1 rules
 files keep loading (serde defaults = v0 semantics).
 
-cap_stall=11 is now sm_103a-backed by measurement, not only inherited
-from BUG-036: at S12+ the D0 data/isetp dependency classes miscompute
+cap_stall=11 is backed by sm_103a measurement: at S12+ the D0 data/isetp dependency classes miscompute
 in non-monotonic, class/geometry-dependent pockets on B300.
 
 ## v2: uniform-domain census rules R7..R10
 
-Source measurement: results/stallsuf/F-SS2.md (B300 sm_103a idle-window
-census, gen_ss.py v3): the UR/UP domain follows "uniform ALU == vector
+Source measurement: B300 sm_103a idle-window census: the UR/UP domain follows "uniform ALU == vector
 ALU, cross-domain +2, R2UR +4, uniform guard +3".
 
 * R7-urpath (`floor_global`=4): uniform-ALU UR write (UIADD3/UIMAD(.
@@ -123,8 +116,8 @@ ALU, cross-domain +2, R2UR +4, uniform guard +3".
   stall. No uniform-guard configuration is ever a hard error.
 
 Detection is data-driven: transfer sets come from
-`reg_liveness::reg_xfer` (M3.5 operand_roles.json) and
-`pred_liveness::pred_xfer` in Strict mode (M2), restricted to the
+`reg_liveness::reg_xfer` (tables/operand_roles.json) and
+`pred_liveness::pred_xfer` in Strict mode, restricted to the
 measured class allowlist above; unknown families carry no tracked
 state and never kill a chain (v0 doctrine). All v2 floors are
 window-scoped and raise-only like the rest of the pass; `rules_version`

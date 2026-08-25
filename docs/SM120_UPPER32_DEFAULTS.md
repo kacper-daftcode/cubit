@@ -13,7 +13,7 @@ and the GPU raises illegal instruction errors.
 |---------|-------|-------|------|------|------|-------|
 | 0x000fc000 | 0 | Y | 0 | 0 | 0x38 | QMMA, IMAD.WIDE (tensor/long-latency producers) |
 | 0x000fc200 | 0 | Y | 0 | 2 | 0x38 | Most ALU: IADD3, IMAD, MOV, SHF, LOP3, SEL |
-| 0x000fc600 | 0 | Y | 0 | 6 | 0x38 | (unused in current MCCodeEmitter) |
+| 0x000fc600 | 0 | Y | 0 | 6 | 0x38 | (currently unused) |
 | 0x000fca00 | 0 | Y | 0 | 2 | 0x39 | BRA (branches) |
 | 0x000fce00 | 0 | Y | 0 | 6 | 0x39 | (unused) |
 | 0x000fda00 | 0 | Y | 0 | 2 | 0x3B | ISETP, FSETP (predicate writers) |
@@ -25,8 +25,6 @@ All values have upper32[31:17] = 0x0007E (bits 19:17 = 0b111).
 These are required hardware mode bits — setting them to 0 causes decode failure.
 
 ## Per-Opcode Mapping
-
-From tungsten MCCodeEmitter:
 
 | Instruction | Upper32 Default |
 |-------------|----------------|
@@ -52,13 +50,13 @@ From tungsten MCCodeEmitter:
 | QMMA | 0x000fc000 (MUST be exactly this — no barriers!) |
 | NOP | 0x000fc000 |
 
-## Implementation
+## Encoder order
 
-cubit encoder should:
-1. After field-based encoding (from and_base + fields), check upper32
-2. If upper32 == 0 (no mode bits from and_base), apply default from this table
-3. Then inject stall/yield on top (bits[4:0])
-4. Barrier/wait bits: only if scheduling pass explicitly sets them
+1. Field-based encoding (from and_base + fields).
+2. If upper32 == 0 (no mode bits from and_base), the class default from this
+   table is applied.
+3. Stall/yield are injected on top (bits[4:0]).
+4. Barrier/wait bits are set only when the scheduling pass requests them.
 
 This ensures all instructions have valid upper32 mode bits while preserving
 the instruction-specific lo32 from and_base.

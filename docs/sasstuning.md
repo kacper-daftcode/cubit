@@ -1,6 +1,6 @@
 # SM120 SASS Kernel Tuning Guide
 
-Hard-won knowledge from hand-scheduling QMMA GEMV kernels on RTX 5090 (SM120).
+Measured scheduling facts and tuning patterns for SASS kernels on RTX 5090 (SM120).
 
 ## Critical Hardware Facts
 
@@ -19,7 +19,7 @@ Hard-won knowledge from hand-scheduling QMMA GEMV kernels on RTX 5090 (SM120).
 - Barrier is "consumed" when an instruction waits for it (counter reaches 0).
 - After consumption, barrier can be reused for new loads.
 - `UIADD3 URZ, UPT, UPT, URZ, URZ, URZ` = noop drain instruction that CAN encode wait_mask (unlike QMMA).
-- **WAW hazard on LDC.64/LDG.E.64**: `LDC.64 R2` writes R2:R3 (long-latency). If a subsequent ALU writes R3 before LDC completes, LDC's late writeback overwrites the ALU result. cubit scheduler must track R+1 defs for 64-bit loads and add WAW waits.
+- **WAW hazard on LDC.64/LDG.E.64**: `LDC.64 R2` writes R2:R3 (long-latency). If a subsequent ALU writes R3 before LDC completes, LDC's late writeback overwrites the ALU result. cubit tracks R+1 defs for 64-bit loads and inserts WAW waits accordingly.
 
 ### Register Limits
 - EIATTR regcount=72 → usable R0-R69 (2 hardware-reserved). R70+ causes ILLEGAL_INSTRUCTION.
@@ -99,17 +99,6 @@ QMMA S01
 - **Yield flag** on most instructions (warp switching for latency hiding)
 - **Negative offsets**: `desc[UR6][R26.64+-0x608]` — precompute advanced pointer, load backwards
 
-## Optimization Progression (our results)
-
-| Version | µs | GB/s | Key Change |
-|---------|-----|------|-----------|
-| 2-tile serialized | 52.0 | 323 | Baseline |
-| 4-tile + barrier batching | 36.5 | 459 | +42%: batch LDGs under shared barriers |
-| Interleaved act groups | 32.7 | 513 | +12%: dual-buffer R40-R47 + R44-R47 |
-| **2-phase bulk LDG** | **24.2** | **693** | **+26%: fire 24 LDGs before compute** |
-| + FMUL S06→S02 | 22.5 | 745 | +7%: safe with 96+ cycle LDG distance |
-| nvcc roundtrip | 14.4 | 1164 | Target (byte-identical roundtrip) |
-
 ## Control Code Format
 
 cubit supports inline scheduling annotations:
@@ -146,8 +135,8 @@ When CC is specified, cubit's auto-scheduler skips that instruction (but still t
 - **LDG into register > R69** → ILLEGAL_INSTRUCTION
 - **All LDGs on one barrier with counter overflow** → partial data (limit ~8 per barrier)
 - **BRA without backward-drain** → previous iteration's barriers leak into next
-- **FMUL/FADD on QMMA output without @!UPT drain** → reads stale pre-QMMA register values (c0=c2 pattern, garbage, or zeros). STG works fine but ALU does not.
+- **FMUL/FADD on QMMA output without @!UPT drain** → reads stale pre-QMMA register values (stale values, zeros, or garbage). STG works fine but ALU does not.
 - **@!UPT drain inside QMMA loop** → resets accumulation to zero. Drain ONLY after loop exit.
 - **Instructions between QMMA and @!UPT drain** → sync broken. Must be immediately adjacent.
-- **IMAD.WIDE.U32 dest_regs**: IMAD.WIDE writes Rd:Rd+1 (64-bit) but opcode doesn't contain ".64" — scheduler must track R+1 for WIDE ops too.
+- **IMAD.WIDE.U32 dest_regs**: IMAD.WIDE writes Rd:Rd+1 (64-bit) but opcode doesn't contain ".64" — the scheduler tracks R+1 for WIDE ops as well.
 - **User control codes on UIADD3+URZ**: IADD3+RZ forces hi[7:0]=0xFF — scheduler may override user wait_mask. Use drain pass instead of manual `[B123456]` annotations.

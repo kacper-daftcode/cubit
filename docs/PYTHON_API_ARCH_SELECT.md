@@ -1,10 +1,10 @@
 # Python API: native arch/table selection
 
-## Problem
-The Python bindings historically bound exactly one ISA table per process:
-`CUBIT_TABLE` env var at first use, else `tables/sm120.json` relative to CWD.
-Frontends driving multiple architectures (BARRACUDA: kernel DSL -> SASS text
-for sm_100a/sm_103a/sm_110a/sm_120/sm_121a) had to respawn processes per arch.
+The Python bindings use one process-wide ISA table: `CUBIT_TABLE` at first
+use, else `tables/sm120.json` relative to CWD. `select_table` switches the
+active table explicitly, so frontends driving multiple architectures
+(sm_100a/sm_103a/sm_110a/sm_120/sm_121a) do not have to respawn processes
+per arch.
 
 ## API
 ```python
@@ -21,9 +21,9 @@ cubit.table_info()                  # (num_keys, num_groups) of the ACTIVE table
 - One active table per process; `encode`/`decode`/`decode_kernel`/`to_sass`/
   `asm` all use it. Switching is cheap: tables and their decode indexes are
   cached (keyed by canonical spec/path), so repeated arch flips do not reload.
-- Legacy behavior is preserved: first use without `select_table` still honors
-  `CUBIT_TABLE`, then falls back to repo `tables/sm120.json`; the panic
-  message now also mentions `cubit.select_table()`.
+- Default behavior without `select_table`: first use honors `CUBIT_TABLE`,
+  then falls back to repo `tables/sm120.json`; the load error message points
+  at `cubit.select_table()`.
 - Arch-name resolution looks in `tables/<name>.json` (CWD) and in the
   compile-time crate root `tables/` directory.
 
@@ -31,6 +31,3 @@ cubit.table_info()                  # (num_keys, num_groups) of the ACTIVE table
 No per-call `arch=` kwarg (would double the API surface); the process-global
 selection matches single-kernel-builder workloads. Thread safety: table state
 is behind an internal RwLock; typical use is single-threaded builder code.
-
-Tests: barracuda package test suite (`barracuda/tests/test_cubit_bridge.py`)
-covers select/switch/decode-parity against both shipped tables.
