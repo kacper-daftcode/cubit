@@ -1711,6 +1711,7 @@ fn format_auri_uronly(fields: &[&DecodedField], raw: u128) -> String {
 fn format_aruri(fields: &[&DecodedField], raw: u128) -> String {
     let mut base_reg: Option<u64> = None;
     let mut ur_reg:   Option<u64> = None;
+    let mut ur_wide = false;   // ureg/sub_ur*/desc_ur field of >= 8 bits: 63 = UR63 (real register)
     let mut offset:   i64 = 0;
     let mut has_off   = false;
 
@@ -1721,7 +1722,7 @@ fn format_aruri(fields: &[&DecodedField], raw: u128) -> String {
             "sub_r1" | "sub_r0"                => base_reg = Some(f.value),
             "sub_r1_shr1" | "sub_r0_shr1"      => base_reg = Some(f.value << 1),
             "reg"                               => { if base_reg.is_none() { base_reg = Some(f.value); } }
-            "sub_ur0" | "sub_ur1" | "ureg" | "desc_ur"  => ur_reg = Some(f.value),
+            "sub_ur0" | "sub_ur1" | "ureg" | "desc_ur"  => { ur_reg = Some(f.value); ur_wide = f.bits >= 8; }
             "sub_ur0_shr1" | "sub_ur1_shr1"    => ur_reg = Some(f.value << 1),
             s if s.starts_with("sub_imm") => {
                 offset |= sub_imm_off(s, f.value, f.bits);
@@ -1744,8 +1745,15 @@ fn format_aruri(fields: &[&DecodedField], raw: u128) -> String {
 
     let rn = base_reg.unwrap_or(0);
     let reg_s = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
+    // BUG-160: vendor law for the 8-bit descriptor-UR window (nvdisasm 13.3.73
+    // probes on sm_120a/sm_103a): 255 = URZ (the zero uniform register), 63 =
+    // UR63 (a real register, printed literally; vendor corpus even carries
+    // desc[UR64..76] in this window). Narrow (<8-bit) UR windows cap at
+    // all-ones, which IS the URZ encoding there. Missing field: URZ default
+    // (unchanged historical render for field-less rows).
     let un = ur_reg.unwrap_or(63);
-    let ur_s = if un == 63 { "URZ".to_string() } else { format!("UR{un}") };
+    let ur_s = if un == 255 || (un == 63 && !ur_wide) { "URZ".to_string() }
+               else { format!("UR{un}") };
 
     let off_s = if has_off && offset != 0 {
         if offset < 0 { format!("+-0x{:x}", (-offset) as u64) } else { format!("+0x{offset:x}") }
