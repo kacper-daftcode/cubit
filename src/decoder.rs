@@ -144,6 +144,7 @@ impl DecodeIndex {
                         | crate::table::Extraction::F16
                         | crate::table::Extraction::F16d
                         | crate::table::Extraction::F64hi
+                        | crate::table::Extraction::F32Cast
                         // Sub-register fields for address expressions
                         | crate::table::Extraction::SubR(_)
                         | crate::table::Extraction::SubUR(_)
@@ -853,7 +854,7 @@ fn key_field_consistency_score(key: &str, mod_group: &str, table: &IsaTable) -> 
         let is_reg     = matches!(ext_lower.as_str(), "reg" | "ureg" | "ureg_ff" | "reg_ff"
             | "reg_shr1" | "reg_shr2" | "reg_shr3");
         let is_imm     = ext_lower.starts_with("imm") || matches!(ext_lower.as_str(),
-            "f32" | "f16" | "f16_d" | "f64hi");
+            "f32" | "f16" | "f16_d" | "f64hi" | "f32cast");
         let is_barrier = ext_lower == "barrier";
         let expected_pred    = op_type == "P";
         let expected_upred   = op_type == "UP";
@@ -905,6 +906,7 @@ fn extraction_name(e: &Extraction) -> String {
         Extraction::Reuse => "reuse".into(),
         Extraction::Neg => "neg".into(),
         Extraction::F32 => "f32".into(),
+        Extraction::F32Cast => "f32cast".into(),
         Extraction::F16d => "f16_d".into(),
         Extraction::SubR(n) => format!("sub_r{n}"),
         Extraction::SubUR(n) => format!("sub_ur{n}"),

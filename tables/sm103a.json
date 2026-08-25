@@ -45183,8 +45183,8 @@
      "count": 595
     },
     "RCP64H": {
-     "and_base": "0x000e0200000018004000000000017908",
-     "variable_mask": "0x0131fc0000000000017e593c001e0000",
+     "and_base": "0x000e0200000018000000000000017908",
+     "variable_mask": "0x0131fc0000000000ffffffff001e0000",
      "fields": [
       {
        "shift": 16,
@@ -45194,32 +45194,11 @@
        "_src": "2aE"
       },
       {
-       "shift": 50,
-       "bits": 1,
+       "shift": 32,
+       "bits": 32,
        "token_idx": 2,
-       "extraction": "imm_shr1",
-       "_src": "2aS"
-      },
-      {
-       "shift": 53,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "imm_shr3",
-       "_src": "2aS"
-      },
-      {
-       "shift": 34,
-       "bits": 16,
-       "token_idx": 2,
-       "extraction": "imm_shr4",
-       "_src": "2aS"
-      },
-      {
-       "shift": 44,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "imm_shr5",
-       "_src": "2aS"
+       "extraction": "f64hi",
+       "_src": "141"
       }
      ],
      "count": 28
@@ -59095,8 +59074,8 @@
    "operand_sig": "P_R_II",
    "mod_groups": {
     "": {
-     "and_base": "0x000e2000000000004000000000007902",
-     "variable_mask": "0x0001c600000202000bf2c9e63f000000",
+     "and_base": "0x000e2000000000000000000000007902",
+     "variable_mask": "0x0001c60000020200ffffffff3f000000",
      "fields": [
       {
        "shift": 81,
@@ -59113,46 +59092,11 @@
        "_src": "2aE"
       },
       {
-       "shift": 53,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "abs",
-       "_src": "2aE"
-      },
-      {
-       "shift": 33,
-       "bits": 1,
+       "shift": 32,
+       "bits": 32,
        "token_idx": 3,
-       "extraction": "imm",
-       "_src": "2aS"
-      },
-      {
-       "shift": 56,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "imm_shr3",
-       "_src": "2aS"
-      },
-      {
-       "shift": 37,
-       "bits": 16,
-       "token_idx": 3,
-       "extraction": "imm_shr4",
-       "_src": "2aS"
-      },
-      {
-       "shift": 47,
-       "bits": 1,
-       "token_idx": 3,
-       "extraction": "imm_shr5",
-       "_src": "2aS"
-      },
-      {
-       "shift": 73,
-       "bits": 1,
-       "token_idx": 2,
-       "extraction": "abs",
-       "_src": "2d"
+       "extraction": "f32cast",
+       "_src": "141"
       }
      ],
      "count": 42

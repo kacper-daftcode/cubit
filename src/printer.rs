@@ -1105,6 +1105,7 @@ fn format_imm_or_reg(
     let has_imm = fields.iter().any(|f| {
         let e = norm_ext(&f.extraction);
         e.starts_with("imm") || e == "f32" || e == "f16" || e == "f16_d" || e == "f64hi"
+            || e == "f32cast"
     });
 
     // If no fields: check if raw bits at UR position look like a UR/URZ register.
@@ -1292,7 +1293,7 @@ fn format_imm(fields: &[&DecodedField], _mod_group: &str, ins_key: &str) -> Stri
                 imm_bits = imm_bits.max(f.bits + shift);
                 has_imm = true;
             }
-            "f32"          => { is_f32 = true; f32_bits = f.value as u32; }
+            "f32" | "f32cast" => { is_f32 = true; f32_bits = f.value as u32; }
             "f64hi"        => { is_f64 = true; f64_hi   = f.value as u32; }
             "f16" | "f16_d" => {
                 is_f32 = true;
@@ -1368,7 +1369,7 @@ fn format_float_imm(fields: &[&DecodedField]) -> String {
             "f16" | "f16_d" => bits = Some(half_to_f32_bits(f.value as u16)),
             // BF16 immediate: top-half of an f32 (HFMA2.BF16_V2 0x3f80 -> "1").
             "bf16"          => bits = Some((f.value as u32) << 16),
-            "f32"           => bits = Some(f.value as u32),
+            "f32" | "f32cast" => bits = Some(f.value as u32),
             // FP64 immediate carried as its high dword (DFMA/DADD/etc.);
             // low 32 bits are zero in this encoding.
             "f64hi"         => f64_hi = Some(f.value as u32),
@@ -1409,6 +1410,7 @@ fn format_lit_or_sysreg(fields: &[&DecodedField], mod_group: &str, raw: u128) ->
     let has_imm_field = fields.iter().any(|f| {
         let e = norm_ext(&f.extraction);
         e == "imm" || e.starts_with("imm_shr") || e == "f32" || e == "f16" || e == "f64hi"
+            || e == "f32cast"
     });
     if !has_imm_field {
         if let Some(rf) = reg_field {
