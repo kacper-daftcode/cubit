@@ -999,6 +999,14 @@ fn cmd_disassemble(
 
     let cubin = cubit::elf::CubinFile::load(input)?;
     check_arch(&table, cubin.sm, input, allow_arch_mismatch)?;
+    // BUG-140: the fidelity probes below re-encode candidate text to MEASURE
+    // which bits the text alone cannot carry (!rsd annotation production).
+    // The promoted aggregate encode-lint fail-closes on exactly that loss,
+    // which would suppress the annotation and emit silently lossy text
+    // instead. The probes need the legacy lossy payload: oracle mode.
+    if std::env::var_os("CUBIT_FIT_LINT").is_none() {
+        std::env::set_var("CUBIT_FIT_LINT", "allow");
+    }
     // mk19: EIATTR kernel-metry (m.in. merc_syncwarp — duchy __syncwarp,
     // niewidoczne w SASS) do znacznikow .merc_syncwarp w --frozen.
     let eiattr_meta: std::collections::BTreeMap<String, cubit::eiattr::KernelMeta> =

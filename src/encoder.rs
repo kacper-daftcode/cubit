@@ -1448,6 +1448,11 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         code = (code & !mask128) | ((value as u128 & field.mask as u128) << field.shift);
     }
 
+    // BUG-140: aggregate per-operand coverage audit (TIER-2 promotion of the
+    // BUG-139 soft lint). The field loop keeps the legacy masked payloads;
+    // the audit fail-closes on operand bits NOTHING carries (model below).
+    aggregate_fit_audit(insn, entry, table)?;
+
     // (carry pred / drain fixes applied below after guard)
 
     // SM120 abs/neg modifier bits on register operands.
@@ -1924,10 +1929,36 @@ enum FitLint {
     Signed,
 }
 
-fn fit_lint_warn_enabled() -> bool {
+/// Post-BUG-140 audit mode (CUBIT_FIT_LINT):
+///   unset / anything else = HARD  — the aggregate audit fail-closes on
+///     operand value bits no field union / fixup / sentinel / explicit !rsd
+///     overlay carries.
+///   "warn"  = census mode — every misfit is reported and the legacy masked
+///     payload is kept (report-only escape hatch).
+///   "allow" = oracle mode — legacy masked payload kept, NOTHING reported.
+///     For the disassembler's internal fidelity probes, which re-encode
+///     candidate text only to MEASURE which bits the text cannot carry
+///     (!rsd annotation production); bailing there would suppress the
+///     annotation and emit silently lossy text instead.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FitLintMode {
+    Hard,
+    Warn,
+    Allow,
+}
+
+fn fit_lint_mode() -> FitLintMode {
     use std::sync::OnceLock;
-    static WARN: OnceLock<bool> = OnceLock::new();
-    *WARN.get_or_init(|| std::env::var("CUBIT_FIT_LINT").is_ok_and(|v| v == "warn"))
+    static MODE: OnceLock<FitLintMode> = OnceLock::new();
+    *MODE.get_or_init(|| match std::env::var("CUBIT_FIT_LINT").as_deref() {
+        Ok("warn") => FitLintMode::Warn,
+        Ok("allow") => FitLintMode::Allow,
+        _ => FitLintMode::Hard,
+    })
+}
+
+fn fit_lint_warn_enabled() -> bool {
+    fit_lint_mode() == FitLintMode::Warn
 }
 
 fn fit_lint_msg(insn: &Instruction, field: &Field, raw: u64, kind: FitLint) -> String {
@@ -1969,14 +2000,15 @@ fn fit_bail(insn: &Instruction, field: &Field, v: u64) -> anyhow::Error {
     anyhow::anyhow!(fit_lint_msg(insn, field, v, FitLint::Unsigned))
 }
 
-/// TIER-2 (soft audit, CUBIT_FIT_LINT=warn): legacy masked payload always;
-/// `signed` adds the two's-complement round-trip leg so negative immediates
-/// are canonical, not violations.
+/// TIER-2 payload: legacy masked payload always. Post-BUG-140 the per-field
+/// audit lives in the aggregate coverage model (aggregate_fit_audit); only
+/// the legacy-soft channel (stateful/composite carriers) still reports
+/// per-field misfits under CUBIT_FIT_LINT=warn.
 fn fit_soft(insn: &Instruction, field: &Field, v: i64, signed: bool) -> Result<u64> {
     let enc = (v as u64) & field.mask;
     let lossless = (v as u64) & !field.mask == 0
         || (signed && crate::printer::sign_extend_pub(enc, field.bits) == v);
-    if !lossless && fit_lint_warn_enabled() {
+    if !lossless && fit_lint_warn_enabled() && fit_legacy_soft(&field.extraction) {
         let kind = if signed { FitLint::Signed } else { FitLint::Unsigned };
         eprintln!("[fit-lint] {}", fit_lint_msg(insn, field, v as u64, kind));
     }
@@ -1997,6 +2029,409 @@ fn fit_cm_off_soft(insn: &Instruction, field: &Field, bank_shift: u8) -> Result<
         }
     }
     fit_soft(insn, field, op_cm_off(insn, field.token_idx, bank_shift) as i64, false)
+}
+
+// ---------------------------------------------------------------------------
+// BUG-140 (F2-Q, follow-up of BUG-139): TIER-2 promotion — aggregate
+// per-operand coverage model. BUG-139's census established that a PER-FIELD
+// "value fits mask" is not the table semantics; the harvest truncates
+// legitimately in four shapes, all of which the aggregate model recognizes
+// in operand-value space (union of the entry's sibling pieces per scalar):
+//   (a) SPLIT-WINDOW siblings — one operand scalar decomposed into fields
+//       with disjoint normalized coverage (PLOP3.LUT lattice imm =
+//       imm[0:3)@64 + imm_shr3[3:8)@72; LDG.256-desc trailer imm + imm_shr7;
+//       S2R sysreg = sysreg[0:7)@72 + sysreg_hi1[7:8)@79).
+//   (b) AND_BASE-carried bits — outside every field, a value bit may live as
+//       an and_base constant at the same operand->word alignment; verified
+//       only when the alignment is unambiguous and no applied field owns the
+//       probed word bits.
+//   (c) FIXUP-OWNED payloads — branch targets (BRA/BRA.DIV/BRA.CONV dead imm
+//       windows, WARPSYNC label rows, RET's register) are written by
+//       apply_branch_encoding AFTER the field loop; table fields over those
+//       windows are placeholders (BUG-023 doctrine).
+//   (d) NARROW SENTINELS — RZ/URZ = 0xFF truncating to an all-ones window
+//       (URZ -> 0x3F in the certified 6-bit drain row x16; RZ -> 0x7F in the
+//       t123-golden LDS.S8 row) and the vendor-blessed DEPBAR.LE count enum
+//       0x9 -> 0b1 (rt98 chain witness x10, nvdisasm render-parity).
+//   (e) EXPLICIT !rsd OVERLAY — the instruction carries the author's printed
+//       bit-residue patch (the disassembler emits !rsd exactly where the text
+//       alone cannot reproduce the word, e.g. the harvest-scattered
+//       MUFU.RCP64H / FCHK immediate rows; the overlay is applied LAST with
+//       absolute authority). The loss is printed in the text, not silent, and
+//       the round-trip is byte-exact by construction — no second-guessing.
+// A value bit none of (a)-(e) accounts for is real silent loss => fail-closed
+// bail (BUG-043 doctrine). CUBIT_FIT_LINT=warn downgrades the bail to a
+// census report and keeps the legacy payload either way (report-only escape
+// hatch). Stateful or composite carriers stay on the legacy soft channel:
+// opaque ?NN replay (stateful reader), cm16/cm17 combined bank|offset
+// windows, and the imm_dec carriers (no rows in any shipped table).
+// ---------------------------------------------------------------------------
+
+/// One field's contribution to a scalar domain's coverage: operand bits
+/// [norm, norm+bits) land at word bits [shift, shift+bits).
+#[derive(Clone, Copy, Debug)]
+struct FitPiece {
+    norm: u32,
+    bits: u32,
+    shift: u32,
+    signed: bool,
+}
+
+/// Scalar domain key: which value of which token the sibling pieces read.
+/// Distinct extraction families on the same token read DISTINCT scalars
+/// (e.g. `reg` = register number vs `reg_ff` = RZ-ness), so they never merge.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+enum FitDom {
+    Imm(i32),
+    SubImm(i32, u8),
+    SubImmS24(i32, u8),
+    Reg(i32),
+    RegFf(i32),
+    SubR(i32, u8),
+    UReg(i32),
+    URegFf(i32),
+    SubUR(i32, u8),
+    SysReg(i32),
+    F32Bits(i32),
+    F32CastBits(i32),
+    F16Bits(i32),
+    F16dBits(i32),
+    F64Bits(i32),
+    BF16Bits(i32),
+    LblPat(i32, String),
+}
+
+/// Extractions that remain on the legacy SOFT channel (per-field warn under
+/// CUBIT_FIT_LINT=warn, never bailed by the aggregate audit).
+fn fit_legacy_soft(ext: &Extraction) -> bool {
+    matches!(
+        ext,
+        Extraction::Cm16Off
+            | Extraction::Cm17Off
+            | Extraction::ImmDec
+            | Extraction::ImmDecU32
+            | Extraction::OpaqueModifier
+    )
+}
+
+/// Classify a tier-2 value-carrier field into (domain, coverage piece); None
+/// for tier-1 hard extractions, self-checking ones (SubImmShr/SubURm1 bail
+/// in extract_value) and the legacy-soft set above.
+fn fit_piece(tok: i32, field: &Field) -> Option<(FitDom, FitPiece)> {
+    let (b, sh) = (field.bits, field.shift);
+    let pc = |norm: u32, bits: u32, signed: bool| FitPiece { norm, bits, shift: sh, signed };
+    let pu = |norm: u32, bits: u32| pc(norm, bits, false);
+    Some(match &field.extraction {
+        Extraction::Imm => (FitDom::Imm(tok), pc(0, b, true)),
+        Extraction::ImmShr(n) => (FitDom::Imm(tok), pc(u32::from(*n), b, true)),
+        Extraction::SubImm(i) => (FitDom::SubImm(tok, *i), pc(0, b, true)),
+        // The 24-bit slice pre-mask is the documented semantics; coverage is
+        // what the window keeps of it (the beyond-24-bit roundtrip leg stays
+        // a warn-only precheck in extract_value).
+        Extraction::SubImmS24(i) => (FitDom::SubImmS24(tok, *i), pu(0, b.min(24))),
+        Extraction::Reg => (FitDom::Reg(tok), pu(0, b)),
+        Extraction::RegShr(n) => (FitDom::Reg(tok), pu(u32::from(*n), b)),
+        Extraction::RegFf => (FitDom::RegFf(tok), pu(0, b)),
+        Extraction::UReg => (FitDom::UReg(tok), pu(0, b)),
+        Extraction::URegShr(n) => (FitDom::UReg(tok), pu(u32::from(*n), b)),
+        Extraction::URegFf => (FitDom::URegFf(tok), pu(0, b)),
+        Extraction::SubR(i) => (FitDom::SubR(tok, *i), pu(0, b)),
+        Extraction::SubRShr(i, n) => (FitDom::SubR(tok, *i), pu(u32::from(*n), b)),
+        Extraction::SubUR(i) => (FitDom::SubUR(tok, *i), pu(0, b)),
+        Extraction::SubURShr(i, n) => (FitDom::SubUR(tok, *i), pu(u32::from(*n), b)),
+        Extraction::SysReg => (FitDom::SysReg(tok), pu(0, b)),
+        // Sliced sysreg pieces carry only their slice; the window keeps the
+        // narrower of (window bits, slice width).
+        Extraction::SysRegLo7 => (FitDom::SysReg(tok), pu(0, b.min(7))),
+        Extraction::SysRegLo4 => (FitDom::SysReg(tok), pu(0, b.min(4))),
+        Extraction::SysRegHi4 => (FitDom::SysReg(tok), pu(4, b.min(4))),
+        Extraction::SysRegHi1 => (FitDom::SysReg(tok), pu(7, b.min(1))),
+        Extraction::F32 => (FitDom::F32Bits(tok), pu(0, b)),
+        Extraction::F32Cast => (FitDom::F32CastBits(tok), pu(0, b)),
+        Extraction::F16 => (FitDom::F16Bits(tok), pu(0, b)),
+        Extraction::F16d => (FitDom::F16dBits(tok), pu(0, b)),
+        Extraction::F64hi => (FitDom::F64Bits(tok), pu(0, b)),
+        Extraction::BF16 => (FitDom::BF16Bits(tok), pu(0, b)),
+        Extraction::LblPat(pat) => (FitDom::LblPat(tok, pat.clone()), pu(0, b)),
+        _ => return None,
+    })
+}
+
+/// Canonical scalar value for a domain (pure reads only — the opaque
+/// modifier replay is stateful and therefore excluded from the audit).
+fn fit_dom_value(insn: &Instruction, dom: &FitDom) -> u64 {
+    match dom {
+        FitDom::Imm(t) => op_imm(insn, *t),
+        FitDom::SubImm(t, i) => op_sub_imm(insn, *t, *i),
+        FitDom::SubImmS24(t, i) => op_sub_imm(insn, *t, *i) & 0xFFFFFF,
+        FitDom::Reg(t) => op_reg(insn, *t),
+        FitDom::RegFf(t) => op_reg_ff(insn, *t),
+        FitDom::UReg(t) => op_ureg(insn, *t),
+        FitDom::URegFf(t) => op_ureg_ff(insn, *t),
+        FitDom::SubR(t, i) => op_sub_reg(insn, *t, *i),
+        FitDom::SubUR(t, i) => op_sub_ureg(insn, *t, *i),
+        FitDom::SysReg(t) => op_sysreg(insn, *t),
+        FitDom::F32Bits(t) => op_f32(insn, *t),
+        FitDom::F32CastBits(t) => op_f32_cast(insn, *t),
+        FitDom::F16Bits(t) => op_f16_via_f32(insn, *t),
+        FitDom::F16dBits(t) => op_f16_via_f64(insn, *t),
+        FitDom::F64Bits(t) => op_f64hi(insn, *t),
+        FitDom::BF16Bits(t) => op_bf16(insn, *t),
+        FitDom::LblPat(t, pat) => {
+            // Mirror of the LblPat extraction's dual read (structural UR id
+            // on Desc operands, raw scrape on label-shaped descriptors).
+            if let Some(Operand::Desc { ur_idx, .. }) = get_op(insn, *t) {
+                if matches!(pat.as_str(),
+                    "desc_ur" | "gdesc_ur" | "idesc_ur" | "tmem_ur" | "tdesc_ur")
+                {
+                    return *ur_idx as u64;
+                }
+            }
+            op_lbl_scrape(insn, *t, pat)
+        }
+    }
+}
+
+/// Natural width of the scalar (probe ceiling for the and_base leg).
+fn fit_dom_width(dom: &FitDom) -> u32 {
+    match dom {
+        FitDom::Reg(_) | FitDom::RegFf(_) | FitDom::SubR(..)
+        | FitDom::UReg(_) | FitDom::URegFf(_) | FitDom::SubUR(..)
+        | FitDom::SysReg(_) => 8,
+        FitDom::F16Bits(_) | FitDom::F16dBits(_) | FitDom::BF16Bits(_) => 16,
+        FitDom::SubImmS24(..) => 24,
+        FitDom::F32Bits(_) | FitDom::F32CastBits(_) | FitDom::F64Bits(_) => 32,
+        FitDom::Imm(_) | FitDom::SubImm(..) | FitDom::LblPat(..) => 64,
+    }
+}
+
+fn fit_dom_token(dom: &FitDom) -> i32 {
+    match *dom {
+        FitDom::Imm(t) | FitDom::SubImm(t, _) | FitDom::SubImmS24(t, _)
+        | FitDom::Reg(t) | FitDom::RegFf(t) | FitDom::SubR(t, _)
+        | FitDom::UReg(t) | FitDom::URegFf(t) | FitDom::SubUR(t, _)
+        | FitDom::SysReg(t) | FitDom::F32Bits(t) | FitDom::F32CastBits(t)
+        | FitDom::F16Bits(t) | FitDom::F16dBits(t) | FitDom::F64Bits(t)
+        | FitDom::BF16Bits(t) | FitDom::LblPat(t, _) => t,
+    }
+}
+
+/// Class (c): payloads owned by apply_branch_encoding are exempt from table
+/// coverage (BUG-023 doctrine; mirrors entry_matches_operands and the field
+/// loop's WARPSYNC skip).
+fn fit_fixup_owned(insn: &Instruction, tok: i32, sm103a: bool) -> bool {
+    let op = insn.opcode.as_str();
+    let is_branch = BRANCH_OPS.iter().any(|&o| o == op);
+    let operand = get_op(insn, tok);
+    if (is_branch || (sm103a && op == "WARPSYNC"))
+        && matches!(operand, Some(Operand::BranchTarget(_)) | Some(Operand::Label(_)))
+    {
+        return true;
+    }
+    if (is_branch || (sm103a && op == "WARPSYNC"))
+        && matches!(operand, Some(Operand::Imm32(_)) | Some(Operand::Imm64(_)))
+    {
+        return true;
+    }
+    if is_branch && op.starts_with("RET") && matches!(operand, Some(Operand::Reg { .. })) {
+        return true;
+    }
+    false
+}
+
+/// Class (d): vendor-blessed narrow carriers. `u_mask`/`top` describe the
+/// domain's field union in operand space.
+fn fit_sentinel(insn: &Instruction, dom: &FitDom, v: u64, u_mask: u128, top: u32,
+                pieces: &[FitPiece]) -> bool {
+    match dom {
+        // RZ/URZ = 0xFF: the all-ones truncation into a contiguous window is
+        // the architectural narrow sentinel (witnesses: 8-bit canonical,
+        // 7-bit t123-golden LDS.S8, 6-bit certified UIADD3.X drain row).
+        FitDom::Reg(_) | FitDom::RegFf(_) | FitDom::SubR(..)
+        | FitDom::UReg(_) | FitDom::URegFf(_) | FitDom::SubUR(..) => {
+            top >= 6 && u_mask == (1u128 << top) - 1 && v == 0xFF
+        }
+        // DEPBAR.LE wait-count enum: nvdisasm renders the single-bit payload
+        // 0b1 as 0x9 (decode transfer); the rt98 chain certifies the mapping
+        // byte-exact x10. Exactly that one-value enum is blessed.
+        FitDom::Imm(tok) if insn.opcode == "DEPBAR" && *tok == 2 => {
+            pieces.len() == 1
+                && pieces[0].norm == 0
+                && pieces[0].bits == 1
+                && v == 0x9
+        }
+        _ => false,
+    }
+}
+
+/// Class (b): bits outside every field, carried by and_base at a single
+/// operand->word alignment. Verified bit-exact; dormant unless a table epoch
+/// actually relies on it (pre-137 S2R bit79 was the witness shape).
+fn fit_and_base_carried(entry: &crate::table::ModGroupEntry, pieces: &[FitPiece], v: u64,
+                        u_mask: u128, width: u32) -> bool {
+    // signed domains reconstruct through the window, not via constants.
+    if pieces.iter().any(|p| p.signed) {
+        return false;
+    }
+    let mut aligns = pieces.iter().map(|p| p.shift as i64 - p.norm as i64);
+    let Some(a) = aligns.next() else { return false };
+    if a < 0 || aligns.any(|x| x != a) {
+        return false;
+    }
+    let a = a as u32;
+    if a >= 128 {
+        return false;
+    }
+    let probe = ((1u128 << width) - 1) & !u_mask;
+    if probe == 0 {
+        return false;
+    }
+    // and_base bits survive only where no applied field owns the word.
+    let mut word_owned: u128 = 0;
+    for f in &entry.fields {
+        if f.bits > 0 {
+            word_owned |= ((1u128 << f.bits) - 1) << f.shift;
+        }
+    }
+    if ((word_owned >> a) & probe) != 0 {
+        return false;
+    }
+    (v as u128 & probe) == ((entry.and_base >> a) & probe)
+}
+
+/// BUG-140 aggregate audit: evaluate every audited scalar domain of the
+/// selected entry; fail closed on uncovered bits unless CUBIT_FIT_LINT=warn
+/// (census mode: report and keep the legacy payload).
+fn aggregate_fit_audit(
+    insn: &Instruction,
+    entry: &crate::table::ModGroupEntry,
+    table: &IsaTable,
+) -> Result<()> {
+    use std::collections::BTreeMap;
+    let sm103a = table.ef_flags == 0x0600_6702;
+    // Raw-address LDG/STG on the legacy-rebuild path: the address operand's
+    // fields are template shadow rewritten wholesale below (BUG-084/099).
+    let addr_tok = insn
+        .operands
+        .iter()
+        .position(|op| matches!(op, Operand::Addr { .. }))
+        .map(|i| i as i32 + 1);
+    let raw_rebuild = !sm103a
+        && addr_tok.is_some()
+        && !insn.operands.iter().any(|op| matches!(op, Operand::Desc { .. }))
+        && matches!(insn.opcode.as_str(), "LDG" | "STG")
+        && !addr_tok.is_some_and(|tok| {
+            entry.fields.iter().any(|f| {
+                f.token_idx == tok && ext_encodes_ureg(&f.extraction)
+            })
+        })
+        && !addr_tok.is_some_and(|tok| {
+            entry.fields.iter().any(|f| {
+                f.token_idx == tok
+                    && matches!(f.extraction,
+                        Extraction::SubR(..) | Extraction::SubRShr(..))
+            }) && entry.fields.iter().any(|f| {
+                f.token_idx == tok && ext_encodes_imm(&f.extraction)
+            })
+        });
+
+    let mut doms: BTreeMap<FitDom, Vec<FitPiece>> = BTreeMap::new();
+    for field in &entry.fields {
+        if field.token_idx <= 0 {
+            continue; // token 0 = guard slot, never operand payload
+        }
+        // Mirror of the field loop's own skip (fixup-owned WARPSYNC rows).
+        if insn.opcode == "WARPSYNC"
+            && matches!(get_op(insn, field.token_idx),
+                        Some(Operand::BranchTarget(_)) | Some(Operand::Label(_)))
+        {
+            continue;
+        }
+        if raw_rebuild && Some(field.token_idx) == addr_tok {
+            continue;
+        }
+        let Some((dom, piece)) = fit_piece(field.token_idx, field) else { continue };
+        doms.entry(dom).or_default().push(piece);
+    }
+
+    for (dom, pieces) in &doms {
+        let tok = fit_dom_token(dom);
+        if fit_fixup_owned(insn, tok, sm103a) {
+            continue;
+        }
+        let v = fit_dom_value(insn, dom);
+        let mut u: u128 = 0;
+        for p in pieces {
+            if p.bits > 0 {
+                u |= ((1u128 << p.bits.min(127)) - 1) << p.norm;
+            }
+        }
+        // (a) exact union cover
+        if v as u128 & !u == 0 {
+            continue;
+        }
+        let top = pieces.iter().map(|p| p.norm + p.bits).max().unwrap_or(0);
+        // (d) narrow sentinels
+        if fit_sentinel(insn, dom, v, u, top, pieces) {
+            continue;
+        }
+        // signed leg: the value must be reconstructible from the union bits
+        // below the top of the highest signed window via sign extension.
+        if let Some(t) = pieces.iter().filter(|p| p.signed)
+            .map(|p| p.norm + p.bits).max()
+        {
+            if (1..=127).contains(&t) {
+                let m = (1u128 << t) - 1;
+                let target = v as i64 as i128;
+                let covered = (target as u128) & u & m;
+                let recon = if (covered >> (t - 1)) & 1 == 1 {
+                    (covered | !m) as i128
+                } else {
+                    covered as i128
+                };
+                if recon == target {
+                    continue;
+                }
+            }
+        }
+        // (b) and_base-carried constants at a single alignment
+        if fit_and_base_carried(entry, pieces, v, u, fit_dom_width(dom)) {
+            continue;
+        }
+        let width = fit_dom_width(dom);
+        let lost = (v as u128) & !u & ((1u128 << width) - 1);
+        let mut payload: u128 = 0;
+        for p in pieces {
+            let m = (1u128 << p.bits.min(64)) - 1;
+            payload |= (((v as u128) >> p.norm) & m) << p.norm;
+        }
+        let msg = format!(
+            "encode-lint: `{}` key `{}` operand {} ({:?}): value {:#x} not              covered by the entry's field union {:#x} (lost {:#x}); legacy              behaviour silently encoded {:#x}",
+            insn.opcode_full,
+            insn.key,
+            tok,
+            dom,
+            v,
+            u,
+            lost,
+            payload
+        );
+        // (e) explicit !rsd bit-residue overlay: the loss is printed in the
+        // text and re-applied at the end of encode — not silent. Log in
+        // census mode, never bail.
+        if insn.rsd.is_some() {
+            if fit_lint_mode() == FitLintMode::Warn {
+                eprintln!("[fit-lint] (rsd-overlay) {msg}");
+            }
+            continue;
+        }
+        match fit_lint_mode() {
+            FitLintMode::Hard => return Err(anyhow::anyhow!(msg)),
+            FitLintMode::Warn => eprintln!("[fit-lint] {msg}"),
+            FitLintMode::Allow => {} // internal fidelity probes (disassembler)
+        }
+    }
+    Ok(())
 }
 
 fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
@@ -2065,13 +2500,10 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
         Extraction::Imm => fit_soft(insn, field, op_imm(insn, field.token_idx) as i64, true),
         Extraction::ImmShr(n) => {
             let raw = op_imm(insn, field.token_idx) as i64;
-            let gran = 1i64 << n;
-            // The shift consumes the low bits: a non-granule immediate
-            // silently loses them (BUG-070 class) — tier-2 audit only
-            // (harvest rows may legitimately window the operand).
-            if raw % gran != 0 && fit_lint_warn_enabled() {
-                eprintln!("[fit-lint] {}", fit_lint_msg(insn, field, raw as u64, FitLint::Signed));
-            }
+            // The shift consumes the low bits; whether they survive is the
+            // aggregate audit's call (BUG-140: they may live in a sibling
+            // split window — the per-field granule view was a known false
+            // positive of the BUG-139 soft channel).
             fit_soft(insn, field, raw >> n, true)
         }
         Extraction::ImmDec => fit_soft(insn, field, op_imm_dec(insn, field.token_idx) as i64, true),
