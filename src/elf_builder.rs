@@ -363,16 +363,16 @@ pub struct MercFeatures {
     /// Used scalar (<=4B class) parameters -> 02220806-class records.
     pub used_scalar_params: u32,
     pub smem_static: bool,
-    /// mk15: smem dotknieta WYLACZNIE przez ATOMS (bez STS/LDS/LDSM i bez
-    /// .shared) — nvcc emituje rekord 010b060a przy lane pierwszego S2UR
-    /// (producer bazowy okna smem; gold p_atoms: miedzy anchor@1 a anchor@6),
-    /// a cbank zostaje w wariancie 0301 (nie 83).
+    /// mk15: smem touched ONLY through ATOMS (no STS/LDS/LDSM and no
+    /// .shared) — nvcc emits the 010b060a record at the lane of the first S2UR
+    /// (base producer of the smem window; gold p_atoms: between anchor@1 and anchor@6),
+    /// while cbank stays in the 0301 variant (not 83).
     pub smem_atoms_only: bool,
     pub s2ur_first_lane: u32,
-    /// mk15b: kernel laduje parametry przez LDCU/ULDC (cbank fa/0e vs f8/0c).
+    /// mk15b: kernel loads parameters via LDCU/ULDC (cbank fa/0e vs f8/0c).
     pub has_ldcu: bool,
-    /// mk15b: liczba blokow kolektywnych (ENDCOLLECTIVE) przy plain-BSSY;
-    /// kazdy dostaje staly rekord d1-34B po glownym torze rekordow.
+    /// mk15b: count of collective blocks (ENDCOLLECTIVE) with plain-BSSY;
+    /// each gets the fixed d1-34B record after the main record stream.
     pub bar_count: u32,
     pub n_stg: u32,
     pub n_atom: u32,
@@ -384,191 +384,191 @@ pub struct MercFeatures {
     pub cflow_atom: bool,
     /// Divergent-branch bit in the cflow record payload (BSSY present).
     pub cflow_bssy: bool,
-    /// sm_103a-era: kernel dotyka S2R / SHFL (41-wariant rekordu cflow).
+    /// sm_103a-era: kernel touches S2R / SHFL (41-variant of the cflow record).
     pub os_uses_s2r: bool,
     pub os_shfl: bool,
     pub os_call: bool,
     pub os_mma: bool,
-    /// LDG z rejestrowym offsetem (desc-structure) -> cflow 0x40 (era sm_103a).
+    /// LDG with a register offset (desc-structure) -> cflow 0x40 (sm_103a era).
     pub os_dynldg: bool,
-    /// Pozycje kodowe BAR/SYNCS.
+    /// Code positions of BAR/SYNCS.
     pub bar_pos: Vec<u32>,
-    /// Pozycje kodowe STG.
+    /// Code positions of STG.
     pub stg_pos: Vec<u32>,
-    /// Shift-region record (51010109): BSSY+BSYNC bez BRA.DIV i bez epilogow
-    /// kolektywnych (WARPSYNC/ENDCOLLECTIVE) — mikrolab: sw*, p_ldsm, b_bulk_cp.
+    /// Shift-region record (51010109): BSSY+BSYNC without BRA.DIV and without
+    /// collective epilogues (WARPSYNC/ENDCOLLECTIVE) — microlab: sw*, p_ldsm, b_bulk_cp.
     pub diverge_region: bool,
-    /// Dialekt emitera: true = sm_100-era (m.in. BAR0 przed CBANK), false = sm_103a.
+    /// Emitter dialect: true = sm_100-era (incl. BAR0 before CBANK), false = sm_103a.
     pub era_sm100: bool,
-    /// Jakakolwiek szeroka transakcja zapisu (STG.E.64/128) — zmienia STG-desc.
+    /// Any wide store transaction (STG.E.64/128) — changes the STG desc.
     pub stg_wide: bool,
-    /// STG.E.U8 obecny (wariant STG-desc).
+    /// STG.E.U8 present (STG desc variant).
     pub stg_u8: bool,
-    /// mk35: kernel zawiera STG.E.128 (rekord 0238: b6=0x60, flaga dreg=6;
+    /// mk35: kernel contains STG.E.128 (record 0238: b6=0x60, dreg flag=6;
     /// nvcc stg128/ld128).
     pub stg_w128: bool,
-    /// Per-STG: pozycja desc-parametru (u31 = unknown → fallback idx-row).
+    /// Per-STG: desc-parameter position (u31 = unknown -> fallback idx-row).
     pub stg_desc_pos: Vec<u32>,
-    /// mk32: per-STG niski rejestr pary adresowej [R<num>.64] (255=gdy
-    /// brak/nieznany). Zrodlo prawdy dla (b12,b13) rekordu 0238:
-    /// u16 = (areg<<6)|2. Wypiera mk10b..mk31 modele "pozycji w puli
-    /// deskryptorow" (zbiezne bo nvcc-styl allokacji); 144/144 lab.
+    /// mk32: per-STG low register of the [R<num>.64] address pair (255 when
+    /// absent/unknown). Source of truth for (b12,b13) of record 0238:
+    /// u16 = (areg<<6)|2. Supersedes the mk10b..mk31 "position in the
+    /// descriptor pool" models (convergent via nvcc-style allocation); 144/144 lab.
     pub stg_areg: Vec<u8>,
-    /// BAR pod predykatem obecny.
+    /// Predicate-guarded BAR present.
     pub bar_pred: bool,
-    /// Kolejnosc pierwszego uzycia parametrow (z KernelMeta.merc_param_order).
+    /// First-use order of parameters (from KernelMeta.merc_param_order).
     pub param_order: Option<Vec<u32>>,
-    /// Bitmaska parametrow write-first (KernelMeta.merc_param_write).
+    /// Write-first parameter bitmask (KernelMeta.merc_param_write).
     pub param_write: u32,
-    /// Bitmaska parametrow ladowanych przez LDCU* (uniform datapath) —
-    /// deskryptor 0222 w wariancie `08 06` + b4=fa zamiast `0e 06` + f8.
+    /// Bitmask of parameters loaded via LDCU* (uniform datapath) —
+    /// 0222 descriptor in the `08 06` + b4=fa variant instead of `0e 06` + f8.
     pub param_uniform: u32,
-    /// Bitmaska parametrow ladowanych przez LDC* (register path).
+    /// Bitmask of parameters loaded via LDC* (register path).
     pub param_regpath: u32,
-    /// Per-param szerokosc transferu loadu cbank (1/2/4/8/16 B; 0=nieznana→8).
+    /// Per-param cbank-load transfer width (1/2/4/8/16 B; 0=unknown->8).
     pub param_width: Vec<u8>,
-    /// Pozycje kodowe ELECT (mini-rekord 41 64 00 0a w lane kodu).
+    /// ELECT code positions (mini-record 41 64 00 0a in the code lane).
     pub elect_pos: Vec<u32>,
-    /// Rekordy 0229 (C-level `xor Rd, Rs, imm32`; SASS LOP3.LUT lut=0x3c):
-    /// (lane, dst, src, imm, b4) z b4 = 0xf8 brak predykatu / 0x00 @Pn /
-    /// 0x01 @!Pn (fs6/fs7-lab 2026-08-05). Lane NIE dostaje bitu bitmapy.
+    /// 0229 records (C-level `xor Rd, Rs, imm32`; SASS LOP3.LUT lut=0x3c):
+    /// (lane, dst, src, imm, b4) with b4 = 0xf8 no predicate / 0x00 @Pn /
+    /// 0x01 @!Pn (fs6/fs7-lab 2026-08-05). The lane gets NO bitmap bit.
     pub xor_lanes: Vec<(u32, u32, u32, u32, u8)>,
-    /// Per-STG natychmiastowy offset adresu (bajty; bajt 28 rekordu 02 38;
+    /// Per-STG immediate address offset (bytes; byte 28 of the 02 38 record;
     /// fs10-grid 2026-08-05).
     pub stg_off: Vec<i32>,
-    /// mk10b: per-STG pakiet (nulltail<<7)|series_idx-z-blokow (sass scan).
-    /// Uzywane TYLKO gdy wszystkie dp==0 (same-desc seria), inaczej legacy.
+    /// mk10b: per-STG packet (nulltail<<7)|series_idx-from-blocks (sass scan).
+    /// Used ONLY when all dp==0 (same-desc series), legacy otherwise.
     pub stg_ser: Vec<u8>,
-    /// mk12: per-STG rejestr danych (kursor 0238 b19/b20 = dreg<<6, LE).
+    /// mk12: per-STG data register (0238 cursor b19/b20 = dreg<<6, LE).
     pub stg_dreg: Vec<u8>,
-    /// fala A: per-STG desc-UR i wariant guardu (b17/b18, b4).
+    /// wave A: per-STG desc-UR and guard variant (b17/b18, b4).
     pub stg_dur: Vec<u8>,
     pub stg_guard: Vec<u8>,
-    /// Pozycje kodowe ACQBULK (rekord 01 62 00 0a w lane, bez bitu bitmapy;
+    /// ACQBULK code positions (record 01 62 00 0a in a lane, no bitmap bit;
     /// gold w_depsync / mk10c).
     pub acqbulk_pos: Vec<u32>,
-    /// Pozycje kodowe CCTL.* (marker 51 02 + rekord 01 49 10 0a w lane,
-    /// bez bitu; gold p_fence).
+    /// CCTL.* code positions (marker 51 02 + record 01 49 10 0a in a lane,
+    /// no bitmap bit; gold p_fence).
     pub cctl_pos: Vec<u32>,
-    /// mk66: CCTL z rekordem (lane, b1, b8) — dekod merclab/mk66 (c3..c25,
-    /// EXACT obustronnie na 1931 kernelach z kontekstem): rekord TYLKO dla
-    /// ctx-CCTL ([i-2]==ERRBAR && [i-1]==CGAERRBAR); nie-ctx CCTL.IVALL nigdy
-    /// (find_colors cusparse.318, petle xmma). b1=0x04 gdy kernel ma cp.async
-    /// (LDGSTS lub LDGDEPBAR w tekscie — zawsze wspolne korpusowo),
-    /// inaczej 0x02; b8=0x0d gdy b1==0x04 i [i-3]==MEMBAR.GPU.ALL (pisownia
-    /// cubit; nvdis: MEMBAR.ALL.GPU — imma_emu w cublasLt.548), inaczej 0x0c.
+    /// mk66: CCTL with record (lane, b1, b8) — merclab/mk66 decode (c3..c25,
+    /// EXACT both directions on 1931 kernels with context): record ONLY for
+    /// ctx-CCTL ([i-2]==ERRBAR && [i-1]==CGAERRBAR); non-ctx CCTL.IVALL never
+    /// (find_colors cusparse.318, xmma loops). b1=0x04 when the kernel has cp.async
+    /// (LDGSTS or LDGDEPBAR in text — always co-occur corpus-wide),
+    /// else 0x02; b8=0x0d when b1==0x04 and [i-3]==MEMBAR.GPU.ALL (cubit
+    /// spelling; nvdis: MEMBAR.ALL.GPU — imma_emu in cublasLt.548), else 0x0c.
     pub cctl_rec: Vec<(u32, u8, u8)>,
-    /// mk11: instrukcje MMA -> rekord 025a w lane: (lane, cls, d, a, b, c, b8f).
+    /// mk11: MMA instructions -> 025a record in a lane: (lane, cls, d, a, b, c, b8f).
     pub mma_lanes: Vec<MmaLane>,
-    /// mk11+mk51: DMUL/DADD z imm f64 -> rekordy 020f120e/020c1e0e w lane:
+    /// mk11+mk51: DMUL/DADD with f64 imm -> 020f120e/020c1e0e records in a lane:
     /// (lane, var, d, a, imm_top32, pred, b7=2*negA+4*absA; RZ-src = 0x3ff).
     pub f64_lanes: Vec<F64ImmLane>,
-    /// mk51: DFMA z imm f64 -> rekordy 020d1c0e (imm-last) / 020d1a0e
-    /// (imm-middle) w lane: (lane, variant[0=last,1=mid], pred, b7, d, a, b,
-    /// imm64bits; b7 = 2*negA+8*negB+4*absA+16*absB). Lane bez bitu bitmapy.
+    /// mk51: DFMA with f64 imm -> 020d1c0e (imm-last) / 020d1a0e
+    /// (imm-middle) records in a lane: (lane, variant[0=last,1=mid], pred, b7, d, a, b,
+    /// imm64bits; b7 = 2*negA+8*negB+4*absA+16*absB). Lane without a bitmap bit.
     pub dfmaim: Vec<DfmaImmLane>,
-    /// mk11: lane UIADD3 (killpad uniform) -> atom d0 00 w lane.
+    /// mk11: UIADD3 lane (uniform killpad) -> d0 00 atom in a lane.
     pub pad_pos: Vec<u32>,
-    /// mk12 (iter AD): payload rekordu cflow-anchor `01 0b 04 0a`:
-    /// (b10,b11) = (f4<<6)|1, gdzie f4 = metryka regionu ptxas. Model
-    /// empiryczny dopasowany na secie gold (70/70 pozycji; oraculum
-    /// gdb-zmierzone, patrz anal/merclab/mk17). Pełna semantyka pola
-    /// (region-tree node+0x38, klasa 1) = osobny watek mk12.
+    /// mk12 (iter AD): payload of the cflow-anchor record `01 0b 04 0a`:
+    /// (b10,b11) = (f4<<6)|1, where f4 = the ptxas region metric. Model
+    /// empirical, fitted on the gold set (70/70 positions; oracle
+    /// gdb-measured, see anal/merclab/mk17). Full field semantics
+    /// (region-tree node+0x38, class 1) = a separate mk12 thread.
     pub anchor_f4: u32,
-    /// mk12: >=2 instrukcje MMA rodziny (HMMA/IMMA) kasuja b12 rekordu anchor.
+    /// mk12: >=2 family MMA instructions (HMMA/IMMA) clear the anchor record's b12.
     pub os_mma_multi: bool,
-    /// mk10c: loady param-window z kodu: (lane, pi, uniform01, width, guard).
-    /// Puste = sciezka legacy (blok desc).
+    /// mk10c: param-window loads from code: (lane, pi, uniform01, width, guard).
+    /// Empty = legacy path (desc block).
     pub param_loads: Vec<(u32, u32, u8, u8, u8)>,
-    /// mk10c: lane loadu c[0x358] (rekord cbank/D).
+    /// mk10c: lane of the c[0x358] load (cbank/D record).
     pub cbank_lane: Option<u32>,
-    /// mk10c: lane instrukcji S2R (anchor 010b040a per S2R).
+    /// mk10c: lane of S2R instructions (010b040a anchor per S2R).
     pub s2r_lanes: Vec<u32>,
-    /// mk10c: kernel ma predykowane operacje pamieci (gaszenie bramki f4=7).
+    /// mk10c: kernel has predicated memory operations (f4=7 gate suppression).
     pub predmem: bool,
-    /// mk13: lane'y LOP3 z destem predykatowym -> mini-rekord 42 2a 02 06
-    /// w lane (lane same w sobie bitow bitmapy nie dostaja — obslugiwane
-    /// w generate_mercury_full).
+    /// mk13: LOP3 lanes with a predicate destination -> mini-record 42 2a 02 06
+    /// in a lane (lanes themselves get no bitmap bits — handled
+    /// in generate_mercury_full).
     pub lop3_pdest: Vec<u32>,
-    /// mk13: enum SR per anchor-S2R (rownolegle do s2r_lanes) — b12 rekordu
-    /// 010b040a (korpus: LANEID=0 -> b12=0 TID.X=1 CTAID.X=4 LTMASK=8).
+    /// mk13: SR enum per anchor-S2R (parallel to s2r_lanes) — b12 of the
+    /// 010b040a record (corpus: LANEID=0 -> b12=0 TID.X=1 CTAID.X=4 LTMASK=8).
     pub s2r_sr: Vec<u8>,
-    /// mk41: pelny kod guarda per S2R (0xf8 domyslnie).
+    /// mk41: full guard code per S2R (0xf8 default).
     pub s2r_guard: Vec<u8>,
-    /// mk17a: numer R dest per anchor-S2R (rownolegle do s2r_lanes/s2r_sr) —
-    /// payload f4 rekordu 010b040a bajty [10:11] = (dest<<6)|1. Empiria
-    /// mk20-oraculum: 90/90 anchorow. Krotki/pusty wektor = fallback na
-    /// bramkowany MercFeatures.anchor_f4 (model iter AE).
+    /// mk17a: R-dest number per anchor-S2R (parallel to s2r_lanes/s2r_sr) —
+    /// f4 payload of the 010b040a record, bytes [10:11] = (dest<<6)|1. Empirics
+    /// mk20-oracle: 90/90 anchors. A short/empty vector = fallback to the
+    /// gated MercFeatures.anchor_f4 (iter AE model).
     pub s2r_dest: Vec<u32>,
-    /// mk56: geo-anchory LDC 010b040a b13=04: (lane, dest, b12, guard).
+    /// mk56: LDC geo-anchors 010b040a b13=04: (lane, dest, b12, guard).
     pub ldcgeo: Vec<(u32, u32, u8, u8)>,
-    /// mk18: flagi per param_loads (bit1 = post-CALL); klucze puli (pi,mech)
-    /// trafione adresem atomowym — oba steruja rola desc (83,00).
+    /// mk18: flags per param_loads (bit1 = post-CALL); pool keys (pi,mech)
+    /// hit by an atomic address — both drive the desc role (83,00).
     pub load_flags: Vec<u8>,
     pub atom_pool_hits: Vec<(u32, u8)>,
-    /// mk13: uzycia desc przez LDG.E.CONSTANT (lane, pi) — wpis (pi,2) w
-    /// puli slotow STG (v_ldg_u64 s=2 przy 2 deskryptorach wide).
+    /// mk13: desc uses by LDG.E.CONSTANT (lane, pi) — a (pi,2) entry in
+    /// the STG slot pool (v_ldg_u64 s=2 with 2 wide descriptors).
     pub ldgconst: Vec<(u32, u32)>,
-    /// mk13: wariant roli (03,01) dla deskryptora uniform-8B zamiast (83,01)
+    /// mk13: role variant (03,01) for the uniform-8B descriptor instead of (83,01)
     /// — gold: p_exit2 (exits>=2), p_cas (ATOMG.CAS), p_lds/p_ldsm/p_sts2
-    /// (LDS/STS/LDSM). LDGSTS ma pierwszenstwo i dalej daje (03,02).
+    /// (LDS/STS/LDSM). LDGSTS takes precedence and still gives (03,02).
     pub u_role_alt1: bool,
-    /// mk13: CCTL.E.RML2 (discard.global.L2) = mini-rekord 41 0e 02 0c w lane
-    /// ZAMIAST markera 51 02 + rekordu 01 49 10 0a (gold p_cctl vs p_fence).
+    /// mk13: CCTL.E.RML2 (discard.global.L2) = mini-record 41 0e 02 0c in a lane
+    /// INSTEAD OF the 51 02 marker + 01 49 10 0a record (gold p_cctl vs p_fence).
     pub cctl_rml2_pos: Vec<u32>,
-    /// mk13: argumenty named-barrier per rekord BAR w strumieniu (rownolegle
-    /// merc_bar_args po indeksie bar_pos): przy id!=0||cnt!=0 bajty b10=id,
-    /// b11=01, b12=00, b13=cnt; (0,0) = szablon REC_BAR. Gold: p_namedbar
-    /// (bar.sync 1,32). JEDNA probka gold.
+    /// mk13: named-barrier arguments per BAR record in the stream (parallel
+    /// merc_bar_args by bar_pos index): when id!=0||cnt!=0, bytes b10=id,
+    /// b11=01, b12=00, b13=cnt; (0,0) = the REC_BAR template. Gold: p_namedbar
+    /// (bar.sync 1,32). ONE gold sample.
     pub bar_args: Vec<(u32, u32)>,
-    /// mk13: rejestrowa forma LOP3-xor (Rd, Ra, Rb, RZ, 0x3c) -> rekord 0129
-    /// (16B) w lane; (lane, dst, srcA, srcB, b4 jak xor_lanes).
+    /// mk13: register-form LOP3-xor (Rd, Ra, Rb, RZ, 0x3c) -> 0129 record
+    /// (16B) in a lane; (lane, dst, srcA, srcB, b4 as xor_lanes).
     pub xor_reg_lanes: Vec<(u32, u32, u32, u32, u8)>,
-    /// mk13: REDUX.* (warp-reduce) -> event-rekord 01 32 10 0a (16B) w lane;
-    /// lane NIE dostaje bitu bitmapy (rekord zastepuje wezel t4; gold p_redux
-    /// slot10). Bajty [6]=0x4d + [10,11]=(lane-bity?) — jedna probka gold,
-    /// model = stala obserwowana + dostosowanie [10..12] po rejestrze dest?
-    /// (park: jesli drugi wzorzec REDUX sie pojawi, dopasowac b10/11).
+    /// mk13: REDUX.* (warp reduce) -> event record 01 32 10 0a (16B) in a lane;
+    /// the lane does NOT get a bitmap bit (the record replaces the t4 node; gold p_redux
+    /// slot10). Bytes [6]=0x4d + [10,11]=(lane bits?) — one gold sample,
+    /// model = observed constant + [10..12] adjustment by dest register?
+    /// (parked: if a second REDUX pattern shows up, fit b10/11).
     pub redux_pos: Vec<u32>,
-    /// mk10c: LDGSTS obecne — rekord desc uniform przy atomikach/async
+    /// mk10c: LDGSTS present — uniform desc record at atomics/async
     /// p_lgsts (03,02).
     pub n_ldgsts: u32,
-    /// mk14: rekordy atomowe per-instrukcja (lane, cls, guard, dst, addr,
-    /// src1, src2, subop_b6); puste = zachowanie legacy (trailing REC_ATOM).
+    /// mk14: atomic records per instruction (lane, cls, guard, dst, addr,
+    /// src1, src2, subop_b6); empty = legacy behavior (trailing REC_ATOM).
     pub atoms: Vec<AtomRec>,
-    /// mk14: cbank wariant 8301 takze przy CAS.SYS (gold p_cas: kernel bez
-    /// smem, cbank b10=0x83). Aktywne w Ev::Cbank obok smem_static.
+    /// mk14: cbank variant 8301 also for CAS.SYS (gold p_cas: kernel without
+    /// smem, cbank b10=0x83). Active in Ev::Cbank next to smem_static.
     pub cbank83_cas: bool,
-    /// mk14.3: pinned LDGSTS (lane,dst,src) -> marker 51 02 + blob 02233034;
-    /// host traci bit bitmapy. wait-lane -> 0123400a (host tez traci bit).
+    /// mk14.3: pinned LDGSTS (lane,dst,src) -> 51 02 marker + 02233034 blob;
+    /// the host loses its bitmap bit. wait-lane -> 0123400a (host also loses the bit).
     pub ldgsts_pin: Option<(u32, u8, u8)>,
     pub ldgsts_wait: Option<(u32, u8)>,
-    /// mk53: bloby 02233034/3434 per desc-form LDGSTS (silnik nadrzedny).
+    /// mk53: 02233034/3434 blobs per LDGSTS desc-form (parent engine).
     pub ldgsts2: Vec<crate::mercury::Ldgsts2Blob>,
-    /// mk53-w: (lane, imm) wait-eventow 0123400a per DEPBAR (silnik mk53).
+    /// mk53-w: (lane, imm) of 0123400a wait events per DEPBAR (mk53 engine).
     pub ldgsts2_waits: Vec<(u32, u8)>,
-    /// mk14.3: lane'y LDSM -> mini 42 5b 02 06 (rekord zastepuje wezel t4).
+    /// mk14.3: LDSM lanes -> mini 42 5b 02 06 (record replaces the t4 node).
     pub ldsm_lanes: Vec<u32>,
-    /// mk14: lane'y duchow __syncwarp (z KernelMeta.merc_syncwarp; EIATTR
-    /// 0x28+0x29): rekord 01476c0a w lane; lane NIE traci slotu B w spanie
-    /// BSSY (q_bsync_pair), w bitmapie zachowuje sie jak zwykly NOP
-    /// (poza spanem: bez bitu; w spanie: bit per regula spanowa).
+    /// mk14: __syncwarp ghost lanes (from KernelMeta.merc_syncwarp; EIATTR
+    /// 0x28+0x29): 01476c0a record in a lane; the lane does NOT lose its B slot
+    /// inside a BSSY span (q_bsync_pair) and behaves like a plain NOP in the bitmap
+    /// (outside a span: no bit; inside: bit per the span rule).
     pub syncwarp: Vec<u32>,
-    /// mk27: UTCATOMSWS (lane, kind 0=FIND_AND_SET/1=AND/2=inny).
+    /// mk27: UTCATOMSWS (lane, kind 0=FIND_AND_SET/1=AND/2=other).
     pub utca: Vec<(u32, u8)>,
-    /// mk27: ATOMS z imm w adresie [URx+imm]: (lane, imm, op 0=OR/1=AND/2=inny).
+    /// mk27: ATOMS with imm in the [URx+imm] address: (lane, imm, op 0=OR/1=AND/2=other).
     pub atom_smem: Vec<(u32, u32, u8)>,
-    /// mk27: wszystkie lane'y S2UR (rekord smem-anchor 010b060a per S2UR,
-    /// gold mkvmem: lane 4 i 27); puste poza 0-param sciezka pozycyjna.
+    /// mk27: all S2UR lanes (smem-anchor record 010b060a per S2UR,
+    /// gold mkvmem: lanes 4 and 27); empty off the 0-param positional path.
     pub s2ur_lanes: Vec<u32>,
-    /// mk27: ghost-lane pokryte REALNA instrukcja kolektywna (site == nie-NOP)
-    /// -> mini 41 47 76 0a zamiast pelnego 01 47 6c 0a (mkvmem lane 26).
+    /// mk27: ghost lane covered by a REAL collective instruction (site == non-NOP)
+    /// -> mini 41 47 76 0a instead of the full 01 47 6c 0a (mkvmem lane 26).
     pub ghost_mini76: Vec<u32>,
-    /// mk27: kernel zawiera wewnetrzne funkcje z RET (guardrail traps) —
-    /// ogon strumienia ghostowy (mkvmem: czwarty ghost 01476c0a).
+    /// mk27: kernel contains internal functions with RET (guardrail traps) —
+    /// ghost stream tail (mkvmem: the fourth 01476c0a ghost).
     pub has_ret_internal: bool,
 
-    // ==== mk30: rodziny b_* (lustro z KernelMeta) ====
+    // ==== mk30: b_* families (KernelMeta mirror) ====
     pub mc_exch: Vec<(u32, bool, u8, u8)>,
     pub mc_arrive: Vec<(u32, u8)>,
     pub mc_phase: Vec<u32>,
@@ -588,89 +588,89 @@ pub struct MercFeatures {
     pub uplop3_rec: Vec<(u32, [u8; 32])>,
     pub dsetpimm_rec: Vec<(u32, [u8; 32])>,
     pub cs2r_rec: Vec<(u32, [u8; 16])>,
-    /// mk47: rekordy 012b{00|04}0a (LOP3.LUT NOT-MOV LUT=0x33).
+    /// mk47: 012b{00|04}0a records (LOP3.LUT NOT-MOV LUT=0x33).
     pub lop3not_rec: Vec<(u32, [u8; 16])>,
-    /// mk58: rekordy 012b080a (ULOP3 NOT-MOV).
+    /// mk58: 012b080a records (ULOP3 NOT-MOV).
     pub ulop3not_rec: Vec<(u32, [u8; 16])>,
-    /// mk71: rekordy 01291004 (ULOP3 xor 0x3c, 3xUR).
+    /// mk71: 01291004 records (ULOP3 xor 0x3c, 3xUR).
     pub ulop3xor_rec: Vec<(u32, [u8; 16])>,
-    /// mk72: rekordy 01290804 (LOP3 xor 0x3c, R,R,UR).
+    /// mk72: 01290804 records (LOP3 xor 0x3c, R,R,UR).
     pub lop3xorur_rec: Vec<(u32, [u8; 16])>,
-    /// mk59: rekordy d10102-47 per WC-site (NOP-region) — (lane, maska R).
+    /// mk59: d10102-47 records per WC site (NOP region) — (lane, R mask).
     pub d1wc47: Vec<(u32, u8)>,
-    /// mk59: skan tekstowy dostepny (Some) vs mk15b-legacy fallback.
+    /// mk59: text scan available (Some) vs mk15b-legacy fallback.
     pub d1wc47_scanned: bool,
-    /// mk15b-legacy: liczba rekordow const (fallback gdy !d1wc47_scanned).
+    /// mk15b-legacy: const record count (fallback when !d1wc47_scanned).
     pub d1wc47_legacy: u32,
-    /// mk48: rekordy 024d*32 (REDG desc/non-desc) — (lane, 32B pelny payload).
+    /// mk48: 024d*32 records (REDG desc/non-desc) — (lane, full 32B payload).
     pub redg2_rec: Vec<(u32, [u8; 32])>,
-    /// BUG-055: REDG.EL plain-range lanes (nvcc: bez rekordu) — wylaczone
-    /// z placeholder-math n_atom (galaz name-count ponizej).
+    /// BUG-055: REDG.EL plain-range lanes (nvcc: no record) — disabled
+    /// from the placeholder n_atom math (name-count branch below).
     pub redg2_suppressed: Vec<u32>,
-    /// mk49: rekordy 024e*32 (ATOM.E/ATOMG/ATOMS) — (lane, 32B pelny payload).
+    /// mk49: 024e*32 records (ATOM.E/ATOMG/ATOMS) — (lane, full 32B payload).
     pub atomg2_rec: Vec<(u32, [u8; 32])>,
-    /// mk46: rekordy 010b060a geo-anchor (lane, 16B pelny payload).
+    /// mk46: 010b060a geo-anchor records (lane, full 16B payload).
     pub geo_rec: Vec<(u32, [u8; 16])>,
     pub fence_async: Vec<u32>,
     pub ldgsts_b128: bool,
-    /// mk41: (lane, guarded, dst-UR) dla S2UR SR_CgaCtaId — payload
-    /// smem-anchora b10/b11 = (dstUR<<6)|1 (corpus-exact smemfit 12151/12151).
+    /// mk41: (lane, guarded, dst-UR) for S2UR SR_CgaCtaId — payload
+    /// of the smem anchor b10/b11 = (dstUR<<6)|1 (corpus-exact smemfit 12151/12151).
     pub s2ur_cga: Vec<(u32, bool, u8)>,
     pub bsync_close: Vec<u32>,
-    /// mk62: regiony 51010109 z tekstu: (close_lane, barrier); None = legacy.
+    /// mk62: 51010109 regions from text: (close_lane, barrier); None = legacy.
     pub region09: Option<Vec<(u32, u8)>>,
     pub hfma2_const: Vec<u32>,
-    /// mk30b: ULEA prologu mbarrier (dest==addr EXCH) — bez bitu (kasowany).
+    /// mk30b: mbarrier prologue ULEA (dest==addr EXCH) — no bit (cleared).
     pub mc_ulea_x: Vec<u32>,
-    /// mk30b: braided BRA bez " PT," w rodzinie mbarrier — bez bitu.
+    /// mk30b: braided BRA without " PT," in the mbarrier family — no bit.
     pub mc_bra_np: Vec<u32>,
-    /// mk34 (node-model g5b): lane'e bez wezlow capmerc = bez slotu bitmapy.
+    /// mk34 (node model g5b): lanes without capmerc nodes = no bitmap slot.
     pub mc_nodeless: Vec<u32>,
-    /// mk35: dst-reg per param-load (siatka (R<<6)|C w rolach desc).
+    /// mk35: dst-reg per param-load ((R<<6)|C grid in desc roles).
     pub param_load_dreg: Vec<u8>,
-    /// mk35: guard per BAR (rownolegle bar_pos): 0=brak 1=@P 2=@!P.
+    /// mk35: guard per BAR (parallel bar_pos): 0=none 1=@P 2=@!P.
     pub bar_guard: Vec<u8>,
-    /// mk35: ISETP-UR (bez .EX) — mini 42 10 32 14, bez bitu.
+    /// mk35: ISETP-UR (no .EX) — mini 42 10 32 14, no bit.
     pub isetp_ur: Vec<u32>,
-    /// mk41: XSETP EX-pair minis: (head-lane, klasa).
+    /// mk41: XSETP EX-pair minis: (head lane, class).
     pub xsetp_pairs: Vec<(u32, u8)>,
     /// mk52: UISETP minis (lane, kind): 0=42103614, 1=42103406, 2=42104014.
     pub usetp_minis: Vec<(u32, u8)>,
     /// mk52: ULEA carry-out -> mini 42254214 (lane).
     pub ulea_upco: Vec<u32>,
-    /// mk41: marker ery zrodla.
+    /// mk41: source-era marker.
     pub era100: bool,
-    /// mk35: redukcyjne rekordy 0132: (lane, kind, dreg); kind 0=REDUX
-    /// typowany, 1=CREDUX. Goly REDUX nie dostaje rekordu (bit zostaje).
+    /// mk35: reduction 0132 records: (lane, kind, dreg); kind 0=typed
+    /// REDUX, 1=CREDUX. A bare REDUX gets no record (bit kept).
     pub redux: Vec<(u32, u8, u8)>,   // legacy (gold-synth; mk60: redux2)
-    /// mk60: rekordy 0132100a ze skanu — (lane, 16B pelny rekord).
+    /// mk60: 0132100a records from the scan — (lane, full 16B record).
     pub redux2: Vec<(u32, [u8; 16])>,
-    /// mk60: skan dostepny (wylacza legacy-synth z samych opcode'ow).
+    /// mk60: scan available (disables legacy-synth from bare opcodes).
     pub redux2_scanned: bool,
-    /// mk35: dst-reg loadu c[0x358] dla wariantu cbank (b10,b11).
+    /// mk35: dst-reg of the c[0x358] load for the cbank variant (b10,b11).
     pub cbank358_dreg: Option<u8>,
-    /// mk40: store-matrix rekordow 0238 dla ST.E (2a32) / STL (2006).
+    /// mk40: store matrix of 0238 records for ST.E (2a32) / STL (2006).
     /// (lane, cls 1=ST.E 2=STL, wsel 0=U8/1=U16/2=4B/3=64/4=128,
     /// areg/dur [0xffff=N/A], dreg [0x3ff=RZ], imm, b4).
     pub store2: Vec<Store2Rec>,
-    /// mk40: mini-slownik (lane, u32 LE 4B rekordu); lane bez bitu.
+    /// mk40: mini dictionary (lane, u32 LE 4B of record); lane without a bit.
     pub mini2: Vec<(u32, u32)>,
-    /// mk42: rekordy edge LD-desc (layout: eiattr.rs merc_edge_ld).
+    /// mk42: LD-desc edge records (layout: eiattr.rs merc_edge_ld).
     pub edge_ld: Vec<EdgeLdRec>,
-    /// mk42: stala per-kernel [19:21) = (edge_v<<6)|2 (max desc-UR).
+    /// mk42: per-kernel constant [19:21) = (edge_v<<6)|2 (max desc-UR).
     pub edge_v: u16,
-    /// mk50: rekordy edge 02 22 1e 32 = LDG-desc w kernelach annotated_ptr
-    /// (bramka: sass_file::merc_edge_ldg_scan; krotki (lane,b4,b6,X,Y,C,V,off)).
+    /// mk50: edge records 02 22 1e 32 = LDG-desc in annotated_ptr kernels
+    /// (gate: sass_file::merc_edge_ldg_scan; tuples (lane,b4,b6,X,Y,C,V,off)).
     pub edge_ldg: Vec<EdgeLdgRec>,
-    /// mk40 (podkmatryca mk32): per-STG width (wsel) rownolegle do stg_pos;
-    /// puste = legacy (kernel-global stg_u8/stg_wide/stg_w128).
+    /// mk40 (mk32 sub-matrix): per-STG width (wsel) parallel to stg_pos;
+    /// empty = legacy (kernel-global stg_u8/stg_wide/stg_w128).
     pub stg_wsel: Vec<u8>,
-    /// mk63: per-STG semafor (rownolegle), patrz eiattr::merc_stg_sem.
+    /// mk63: per-STG semaphore (parallel), see eiattr::merc_stg_sem.
     pub stg_sem: Vec<u8>,
 }
 
-/// mk63: lane STG pomijany w emisji rekordu 02380e32 (ENL2 park /
-/// terminal-STRONG z MEMBAR.ALL w epilogu; korpus mk63 c17..c25 EXACT).
+/// mk63: STG lane skipped in the 02380e32 record emission (ENL2 park /
+/// terminal-STRONG with MEMBAR.ALL in the epilogue; mk63 corpus c17..c25 EXACT).
 fn stg_skip(feat: &MercFeatures, stg_i: usize) -> bool {
     feat.stg_sem.get(stg_i).copied().unwrap_or(0) & 0xc0 != 0
 }
@@ -694,7 +694,7 @@ impl MercFeatures {
                 .collect(),
             used_params: meta.params.iter().filter(|p| p.size > 4).count() as u32,
             used_scalar_params: meta.params.iter().filter(|p| p.size <= 4).count() as u32,
-            // mk30: rodziny b_* z meta (skan sass_file / lustro main.rs).
+            // mk30: b_* families from meta (sass_file scan / main.rs mirror).
             mc_exch: meta.merc_mc_exch.clone(),
             mc_arrive: meta.merc_mc_arrive.clone(),
             mc_phase: meta.merc_mc_phase.clone(),
@@ -720,8 +720,8 @@ impl MercFeatures {
             lop3xorur_rec: meta.merc_lop3xorur_rec.clone(),
             d1wc47: meta.merc_d1wc47.clone().unwrap_or_default(),
             d1wc47_scanned: meta.merc_d1wc47.is_some(),
-            // mk15b-legacy (sciezki bez skanu tekstu, np. microlab-gold surowe
-            // mnemonic-listy): d1-34B const (maska R0) per ENDCOLLECTIVE gdy BSSY.
+            // mk15b-legacy (paths without a text scan, e.g. microlab-gold raw
+            // mnemonic lists): d1-34B const (R0 mask) per ENDCOLLECTIVE when BSSY.
             d1wc47_legacy: if opcodes.iter().any(|o| o.as_str() == "BSSY") {
                 opcodes.iter().filter(|o| o.starts_with("ENDCOLLECTIVE")).count() as u32
             } else {
@@ -760,8 +760,8 @@ impl MercFeatures {
             stg_sem: meta.merc_stg_sem.clone(),
             ..Default::default()
         };
-        // mk30b: sciezki bez skanu sass (gold/manifest) wyprowadzaja
-        // bsync_close/ws_minis z samych opcode'ow.
+        // mk30b: paths without a sass scan (gold/manifest) derive
+        // bsync_close/ws_minis from bare opcodes.
         if f.bsync_close.is_empty() {
             f.bsync_close = opcodes
                 .iter()
@@ -796,8 +796,8 @@ impl MercFeatures {
                 matches!(b, "BRA" | "BRX" | "JMP" | "JMPX")
             })
             .count();
-        // mk49: ATOMS.CAST.SPIN (spin-loop CAS-emulacji) nie dostaje rekordow
-        // capmerc — wylaczone z n_atom (korpus mk49/c8: 0 rekordow na 4465 lane'ow).
+        // mk49: ATOMS.CAST.SPIN (CAS-emulation spin loop) gets no
+        // capmerc records — disabled from n_atom (mk49/c8 corpus: 0 records over 4465 lanes).
         f.n_atom = opcodes
             .iter()
             .filter(|o| {
@@ -813,28 +813,28 @@ impl MercFeatures {
             let b = o.split('.').next().unwrap_or(o);
             matches!(b, "HMMA" | "IMMA" | "DMMA" | "QMMA" | "OMMA")
         });
-        // obecnosc: >1 EXIT | >1 BRA | atom | BSSY | SHFL | S2R (era 103a
-        // LDG-dynamic-path; zero kolizji na gold-zbiorze)
+        // presence: >1 EXIT | >1 BRA | atom | BSSY | SHFL | S2R (103a era
+        // LDG-dynamic-path; zero collisions on the gold set)
         f.cflow = (meta.exit_offsets.len() > 1 || n_bra > 1
             || f.n_atom > 0 || f.cflow_bssy || f.os_shfl
             || f.os_uses_s2r || f.os_dynldg)
             && !opcodes.iter().any(|o| o.starts_with("RET"));
-        // mk13: rekord smem dla kazdego kernela dotykajacego smem — statyczne
-        // (.shared -> shared_size>0) LUB dynamiczne (extern __shared__ wchodzi
-        // tylko przez operacje STS/LDS/LDSM; gold v_dyn_smem: 010b060a +
-        // cbank-variant 8301 mimo shared_size==0 z EIATTR).
-        // mk30b: rekord smem wymaga okna UR (S2UR SR_CgaCtaId) — b_ldmatrix
-        // (LDSM przez generic-adres, BEZ S2UR) zadnego nie dostaje (ani
-        // wariantu cbank 83). Gold z S2UR zostaje (p_ldsm, v_dyn_smem).
+        // mk13: smem record for every kernel touching smem — static
+        // (.shared -> shared_size>0) OR dynamic (extern __shared__ enters
+        // only through STS/LDS/LDSM operations; gold v_dyn_smem: 010b060a +
+        // cbank variant 8301 despite shared_size==0 from EIATTR).
+        // mk30b: the smem record requires a UR window (S2UR SR_CgaCtaId) — b_ldmatrix
+        // (LDSM through generic address, WITHOUT S2UR) gets none (nor
+        // the cbank 83 variant). Gold with S2UR stays (p_ldsm, v_dyn_smem).
         let smem_ops = opcodes
             .iter()
             .any(|o| matches!(o.split('.').next(), Some("STS") | Some("LDS") | Some("LDSM")))
             && !meta.merc_s2ur_cga.is_empty();
-        // mk17b (2026-08-08): ptxas NIE promuje wariantu smem dla martwego
-        // .shared — gate'uje wylacznie operacjami smem w kodzie. Dowod:
-        // p_atoms ma __shared__ int sh[1] (1028B w .nv.shared) a nvcc
-        // emituje wariant atoms-only (cbank 0301, rekord smem @lane S2UR).
-        // W gold-srcie smem_static == smem_ops i tak (manifest smem:0).
+        // mk17b (2026-08-08): ptxas does NOT promote the smem variant for dead
+        // .shared — it gates purely on smem operations in code. Evidence:
+        // p_atoms has __shared__ int sh[1] (1028B in .nv.shared) while nvcc
+        // emits the atoms-only variant (cbank 0301, smem record @S2UR lane).
+        // In gold-src, smem_static == smem_ops anyway (manifest smem:0).
         f.smem_static = smem_ops;
         let atoms_ops = opcodes
             .iter()
@@ -851,7 +851,7 @@ impl MercFeatures {
             .filter(|(_, o)| o.split('.').next() == Some("S2UR"))
             .map(|(i, _)| i as u32)
             .collect();
-        // ghost pokryty realna instrukcja (nie-NOP) -> mini 76-wariant
+        // ghost covered by a real (non-NOP) instruction -> mini 76-variant
         f.ghost_mini76 = f
             .syncwarp
             .iter()
@@ -868,7 +868,7 @@ impl MercFeatures {
             b == "LDCU" || b == "ULDC"
         });
         f.has_ret_internal = opcodes.iter().any(|o| o.split('.').next() == Some("RET"));
-        // mk14: cbank 8301 takze dla ATOMG.E.CAS.STRONG.SYS (gold p_cas).
+        // mk14: cbank 8301 also for ATOMG.E.CAS.STRONG.SYS (gold p_cas).
         f.cbank83_cas = opcodes
             .iter()
             .any(|o| o.starts_with("ATOMG") && o.contains("CAS") && o.contains(".SYS"));
@@ -890,9 +890,9 @@ impl MercFeatures {
         f.param_uniform = meta.merc_param_uniform;
         f.param_regpath = meta.merc_param_regpath;
         f.param_width = meta.merc_param_width.clone();
-        // mk73: guard byte juz finalny w meta (0xf8 / pred<<3|uni<<1|neg) —
-        // skany (sass_file merc_xor_scan + main.rs lustro) licza pelny kod
-        // korpusowy; mapowanie legacy 0/1/2 usuniete.
+        // mk73: guard byte already final in meta (0xf8 / pred<<3|uni<<1|neg) —
+        // the scans (sass_file merc_xor_scan + main.rs mirror) carry the full corpus
+        // code; the legacy 0/1/2 mapping is removed.
         f.xor_lanes = meta.merc_xor.clone();
         f.bar_pos = meta.merc_bar_pos.clone();
         f.bar_args = meta.merc_bar_args.clone();
@@ -910,8 +910,8 @@ impl MercFeatures {
             .map(|(i, _)| i as u32)
             .collect();
         f.stg_off = meta.merc_stg_off.clone();
-        // mk12: metryka f4 anchor#2 (pelna regula empiryczna z fitu gold+pommiary
-        // gdb; klasa bramkowana per obecnosc klas opkodu w kernelu).
+        // mk12: anchor#2 f4 metric (full empirical rule from the gold fit+gdb
+        // measurements; class gated per presence of opcode classes in the kernel).
         let cnt = |pat: &str| {
             opcodes.iter().filter(|o| o.split('.').next() == Some(pat)).count() as u32
         };
@@ -965,7 +965,7 @@ impl MercFeatures {
             .filter(|(_, o)| o.split('.').next() == Some("ACQBULK"))
             .map(|(i, _)| i as u32)
             .collect();
-        // mk13: CCTL.E.RML2 ma wlasny mini-atom; pozostale CCTL -> cctl_pos.
+        // mk13: CCTL.E.RML2 has its own mini atom; other CCTL -> cctl_pos.
         f.cctl_rml2_pos = opcodes
             .iter()
             .enumerate()
@@ -982,11 +982,11 @@ impl MercFeatures {
             })
             .map(|(i, _)| i as u32)
             .collect();
-        // mk66: rekord tylko dla ctx-CCTL (patrz pole cctl_rec). Bramka
-        // wariantu 04: cp.async w kernelu. Korpusowo LDGSTS i LDGDEPBAR
-        // wystepuja zawsze RAZEM (c25: 279/279 obie, 1652/1652 zadna);
-        // LDGDEPBAR jest zapasowym kanalemp, bo czesc LDGSTS (imma_emu49)
-        // wypada z dekodu tabeli do __raw__ (dial cutlass-80-z884).
+        // mk66: record only for ctx-CCTL (see field cctl_rec). The 04-variant
+        // gate: cp.async in the kernel. Corpus-wide LDGSTS and LDGDEPBAR
+        // always appear TOGETHER (c25: 279/279 both, 1652/1652 neither);
+        // LDGDEPBAR is the fallback channel, because some LDGSTS (imma_emu49)
+        // fall out of table decode into __raw__ (cutlass-80-z884 dial).
         let has_ldgsts = opcodes.iter().any(|o| {
             let b = o.split('.').next();
             b == Some("LDGSTS") || b == Some("LDGDEPBAR")
@@ -1015,8 +1015,8 @@ impl MercFeatures {
             })
             .collect();
         f.pad_pos = meta.merc_pad_pos.clone();
-        // mk35: rekord 0132 tylko dla TYPOWANYCH REDUX (z kropka/modami)
-        // + CREDUX; goly "REDUX" zachowuje bit bitmapy (at_and slot6).
+        // mk35: 0132 record only for TYPED REDUX (with a dot/mods)
+        // + CREDUX; a bare "REDUX" keeps its bitmap bit (at_and slot6).
         f.redux_pos = opcodes
             .iter()
             .enumerate()
@@ -1026,8 +1026,8 @@ impl MercFeatures {
             })
             .map(|(i, _)| i as u32)
             .collect();
-        // gold/manifest path (brak meta.merc_redux): syntetyzuj wpis z
-        // opcode'ow; dreg=6 odtwarza historyczny szablon (UR6-shadow).
+        // gold/manifest path (no meta.merc_redux): synthesize the entry from
+        // opcodes; dreg=6 reproduces the historical template (UR6 shadow).
         if f.redux.is_empty() && !f.redux_pos.is_empty() && !f.redux2_scanned {
             for &pos in &f.redux_pos {
                 let kind: u8 = if opcodes[pos as usize].split('.').next() == Some("CREDUX") {
@@ -1057,8 +1057,8 @@ impl MercFeatures {
         f.ldgconst = meta.merc_ldgconst.clone();
         f.stg_areg = meta.merc_stg_areg.clone();
         f.n_ldgsts = opcodes.iter().filter(|o| o.starts_with("LDGSTS")).count() as u32;
-        // mk13: MercFeatures.u_role_alt1 — klasy opcode'ow (full mnemonics
-        // zawieraja .CAS) + liczba EXIT-ow.
+        // mk13: MercFeatures.u_role_alt1 — opcode classes (full mnemonics
+        // contain .CAS) + EXIT count.
         f.u_role_alt1 = meta.exit_offsets.len() >= 2
             || opcodes.iter().any(|o| {
                 o.contains(".CAS")
@@ -1085,22 +1085,22 @@ const REC_CBANK: [u8; 16] = [
     0x01, 0x0b, 0x0e, 0x0a, 0xfa, 0x00, 0x05, 0x00,
     0x00, 0x00, 0x03, 0x01, 0x39, 0x04, 0x00, 0x00,
 ];
-/// Wariant cbank przy kernels z shared memory (payload[6] |= 0x80; dane lab:
-/// v_sm128/v_dyn_smem/k_lds/k_smem maja 83, bez-smem 03).
+/// cbank variant for kernels with shared memory (payload[6] |= 0x80; lab data:
+/// v_sm128/v_dyn_smem/k_lds/k_smem have 83, no-smem 03).
 const REC_CBANK_SMEM: [u8; 16] = [
     0x01, 0x0b, 0x0e, 0x0a, 0xfa, 00, 0x05, 0x00,
     0x00, 0x00, 0x83, 0x01, 0x39, 0x04, 0x00, 0x00,
 ];
-/// Rekord regionu divergent (51010109); payload staly (zmierzone na 5 kernelach
-/// mk10: sw4..sw64 oraz b_bulk_cp/p_ldsm); emisja gdy BSSY+BSYNC bez BRX/BRA.DIV
-/// i bez kolektyw-epilogow.
+/// Divergent-region record (51010109); fixed payload (measured on 5 kernels
+/// mk10: sw4..sw64 and b_bulk_cp/p_ldsm); emitted when BSSY+BSYNC without BRX/BRA.DIV
+/// and without collective epilogues.
 const REC_SHIFT_REGION: [u8; 18] = [
     0x51, 0x01, 0x01, 0x09, 0x02, 0x0a, 0xf8, 0x00, 0x01, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
-/// mk15b: wariant cbank dla kerneli ladujacych parametry czystym LDC.
-/// (bez LDCU): b2=0x0c, b4=0xf8 (gold q_bsync_pair); wariant korpus-dominujacy.
+/// mk15b: cbank variant for kernels loading parameters via plain LDC
+/// (no LDCU): b2=0x0c, b4=0xf8 (gold q_bsync_pair); the corpus-dominant variant.
 const REC_CBANK_LDC: [u8; 16] = [
     0x01, 0x0b, 0x0c, 0x0a, 0xf8, 0x00, 0x05, 0x00,
     0x00, 0x00, 0x03, 0x01, 0x39, 0x04, 0x00, 0x00,
@@ -1113,20 +1113,20 @@ const REC_SMEM: [u8; 16] = [
     0x01, 0x0b, 0x06, 0x0a, 0xfa, 0x00, 0x04, 0x00,
     0x00, 0x00, 0x41, 0x01, 0x2c, 0x02, 0x00, 0x00,
 ];
-/// mk27: mini-ghost pod realna instrukcja kolektywna (mkvmem lane26
-/// WARPSYNC): krotka forma 4B klasy 0x47 ghosta (zamiast MERC_SYNCWARP_GHOST).
+/// mk27: mini-ghost under a real collective instruction (mkvmem lane26
+/// WARPSYNC): 4B short form of the 0x47 ghost class (instead of MERC_SYNCWARP_GHOST).
 const REC_MINI_GHOST76: [u8; 4] = [0x41, 0x47, 0x76, 0x0a];
-/// mk27: UTCATOMSWS.FIND_AND_SET — rekord 18B (prefiks 51 01 + cialo
-/// kandydata 0163 04 0a); b17 = 0x02 dla pierwszego w kodzie, 0x01 dla
-/// kolejnych (spin-retry, mkvmem lanes 11/18).
+/// mk27: UTCATOMSWS.FIND_AND_SET — an 18B record (51 01 prefix + body of
+/// candidate 0163 04 0a); b17 = 0x02 for the first in code, 0x01 for
+/// the later ones (spin retry, mkvmem lanes 11/18).
 const REC_UTCA_FNS: [u8; 18] = [
     0x51, 0x01, 0x01, 0x63, 0x04, 0x0a, 0xfa, 0x00,
     0x10, 0x48, 0x01, 0x00, 0x01, 0x00, 0x01, 0x01, 0x00, 0x02,
 ];
-/// mk27: UTCATOMSWS.AND — mini 4B (mkvmem lane 47).
+/// mk27: UTCATOMSWS.AND — 4B mini (mkvmem lane 47).
 const REC_MINI_UTCA_AND: [u8; 4] = [0x41, 0x63, 0x08, 0x0a];
-/// mk27: ATOMS.OR z imm w [URx+imm] — wariant b4=f8 (mkvmem lanes 23/24);
-/// tail[28:32] = imm smem. ATOMS.AND — wariant b4=00 (lanes 48/49).
+/// mk27: ATOMS.OR with imm in [URx+imm] — b4=f8 variant (mkvmem lanes 23/24);
+/// tail[28:32] = smem imm. ATOMS.AND — b4=00 variant (lanes 48/49).
 const REC_ATOMS_SMEM_OR: [u8; 32] = [
     0x02, 0x4e, 0x84, 0x32, 0xf8, 0x00, 0x64, 0x60,
     0x03, 0x00, 0x00, 0x00, 0xc1, 0xff, 0xc0, 0xff,
@@ -1162,46 +1162,46 @@ const REC_SCALAR_PARAM: [u8; 32] = [
     0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00,
 ];
 
-/// nvcc kanoniczny porzadek rekordow (zminowany na 6,3k sekcji korpusu +
-/// mikrolab mk4-mk7):
+/// Canonical nvcc record order (mined on 6.3k corpus sections +
+/// microlab mk4-mk7):
 ///
 /// ```text
 /// PROLOG
-/// [CFLOW]                gdy exits>1 | bra>1 (residua: CALL-ABI, early-exit)
+/// [CFLOW]                when exits>1 | bra>1 (residuals: CALL-ABI, early-exit)
 /// desc(param0)           role 83 00
 /// CBANK
 /// [SMEM]
-/// desc(param1..)         role 03 01 (ostatni przy n=2) / serie 83 00+ (n>=3)
+/// desc(param1..)         role 03 01 (last for n=2) / series 83 00+ (n>=3)
 /// [BAR x bar_count]
 /// scalar-descs
 /// STG x n_stg
 /// ATOM x n_atom
 /// ```
 ///
-/// Znane residua (udokumentowane w MERCURY_UPLIFT_SM103A.md): pozycja rekordu
-/// BAR wzgledem CBANK odstaje w ~4% kerneli (v_bar2-klasa), pola STG-counter
-/// i desc-tail dw-zaleznosci od parametrow maja wyjatki (k_stg2/k_loop8);
-/// kernele tcgen05/FA4-class dostaja osobne rekordy (0x31/025a/024e...) ktorych
-/// emisja payloadowa nie jest jeszcze byte-exact.
-/// Rekord 0229 (rekord PTX-level `xor Rd, Rs, imm32`, fs6-lab):
-/// [4]=b4 guard variant (f8 brak / 00 @Pn / 01 @!Pn), [12:16]=
-/// {u16 LE dst*0x40+1, u16 LE src*0x40}, [28:32]=imm LE (fs7 siatka
-/// rejestrow: R0->0x0001, R4->0x0101, R5->0x0141 ... 0x40/reg).
-/// Rekord ACQBULK (gold w_depsync): lane event przy GRIDDEPCONTROL acquire.
+/// Known residuals (documented in MERCURY_UPLIFT_SM103A.md): the BAR record's
+/// position relative to CBANK deviates in about 4% of kernels (v_bar2 class), the
+/// STG-counter and desc-tail fields have exceptions on parameter dependence (k_stg2/k_loop8);
+/// tcgen05/FA4-class kernels get separate records (0x31/025a/024e...) whose
+/// payload emission is not yet byte-exact.
+/// The 0229 record (PTX-level `xor Rd, Rs, imm32` record, fs6-lab):
+/// [4]=b4 guard variant (f8 none / 00 @Pn / 01 @!Pn), [12:16]=
+/// {u16 LE dst*0x40+1, u16 LE src*0x40}, [28:32]=imm LE (fs7 register
+/// grid: R0->0x0001, R4->0x0101, R5->0x0141 ... 0x40/reg).
+/// ACQBULK record (gold w_depsync): lane event at GRIDDEPCONTROL acquire.
 const REC_ACQBULK: [u8; 16] = [
     0x01, 0x62, 0x00, 0x0a, 0xf8, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
-/// mk40: rekordy store-matrix (stale korpusowe sm_100, mk40/stgfields fits
-/// 192k+/56k+/22k+ przykladow; layout siatki (R<<6)|flag jak mk32/35):
+/// mk40: store-matrix records (sm_100 corpus constants, mk40/stgfields fits of
+/// 192k+/56k+/22k+ samples; (R<<6)|flag grid layout as in mk32/35):
 /// - STG (0e32; legacy rec_stg — width-ladder b6: 00/20/40/50/60);
-/// - ST.E (2a32): jak STG lecz b2=2a i b6-subladder 10/12/14/15/16;
-///   brak desc[URx] -> [17:19] powtarza areg; b4=f8 stale (takze przy @Pn);
-/// - STL (2006): [10:12]=areg<<6 (bez |2), [12:14]=0a00, [14:16]=
-///   dreg<<6|wflag, b6-subladder 21/31/41/51/61, b4=(pidx<<3)|neg.
+/// - ST.E (2a32): like STG but b2=2a and a 10/12/14/15/16 b6 subladder;
+///   no desc[URx] -> [17:19] repeats areg; b4=f8 fixed (also under @Pn);
+/// - STL (2006): [10:12]=areg<<6 (no |2), [12:14]=0a00, [14:16]=
+///   dreg<<6|wflag, b6 subladder 21/31/41/51/61, b4=(pidx<<3)|neg.
 ///
-/// Subladder wflag dreg: (wsel==64b -> 2, ==128b -> 6, inaczej 0).
+/// Subladder wflag dreg: (wsel==64b -> 2, ==128b -> 6, else 0).
 const STG_B6: [u8; 5] = [0x00, 0x20, 0x40, 0x50, 0x60];
 const STE_B6: [u8; 5] = [0x10, 0x12, 0x14, 0x15, 0x16];
 const STL_B6: [u8; 5] = [0x21, 0x31, 0x41, 0x51, 0x61];
@@ -1209,7 +1209,7 @@ fn rec_store2(st: (u32, u8, u8, u16, u16, u16, i32, u8, u8)) -> [u8; 32]
 {
     let (_lane, cls, wsel, areg, dur, dreg, imm, _b4, sem) = st;
     let mut r = [0u8; 32];
-    // flaga szerokosci NIE dotyczy RZ (korpus: STL.128 [R1], RZ -> c0ff).
+    // the width flag does NOT apply to RZ (corpus: STL.128 [R1], RZ -> c0ff).
     let wflag: u16 = if dreg == 0x3ff {
         0
     } else if wsel == 3 {
@@ -1221,11 +1221,11 @@ fn rec_store2(st: (u32, u8, u8, u16, u16, u16, i32, u8, u8)) -> [u8; 32]
     };
     if cls == 1 {
         r[0] = 0x02; r[1] = 0x38; r[2] = 0x2a; r[3] = 0x32;
-        r[4] = _b4; // mk41: ST.E b4 = pelny kod predykatu (korpus; mk40 f8 bylo bledem)
+        r[4] = _b4; // mk41: ST.E b4 = full predicate code (corpus; mk40 f8 was wrong)
         r[6] = STE_B6[(wsel as usize).min(4)];
-        // mk63: park mk41-resid ZAMKNIETY — b7 = kwalifikator semantyczny
-        // ST.E (korpus mk63 c17/c13 zip EXACT): STRONG.SYS -> 0x22,
-        // STRONG.GPU -> 0x1a, reszta 0x01 (b8 = 0 zawsze).
+        // mk63: the mk41-resid park CLOSED — b7 = the semantic qualifier
+        // of ST.E (mk63 c17/c13 corpus zip EXACT): STRONG.SYS -> 0x22,
+        // STRONG.GPU -> 0x1a, rest 0x01 (b8 = 0 always).
         r[7] = match sem { 2 => 0x22, 3 => 0x1a, _ => 0x01 };
         let a: u16 = ((areg.min(0x3ff)) << 6) | 2;
         r[12..14].copy_from_slice(&a.to_le_bytes());
@@ -1250,12 +1250,12 @@ fn rec_store2(st: (u32, u8, u8, u16, u16, u16, i32, u8, u8)) -> [u8; 32]
     r
 }
 
-/// Rekord CCTL.IVALL (gold p_fence): marker typ5 (f10=2,f20=1) + blob 16B.
+/// CCTL.IVALL record (gold p_fence): type-5 marker (f10=2,f20=1) + 16B blob.
 const REC_CCTL: [u8; 18] = [
     0x51, 0x02, 0x01, 0x49, 0x10, 0x0a, 0xf8, 0x00, 0x0c, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
-/// mk66: wariant rekordu CCTL: b1 (0x02/0x04) i b8 (0x0c/0x0d).
+/// mk66: CCTL record variant: b1 (0x02/0x04) and b8 (0x0c/0x0d).
 fn rec_cctl_v(b1: u8, b8: u8) -> [u8; 18] {
     let mut r = REC_CCTL;
     r[1] = b1;
@@ -1263,25 +1263,25 @@ fn rec_cctl_v(b1: u8, b8: u8) -> [u8; 18] {
     r
 }
 
-/// Zlozenie rekordu 02 38 (per-STG, fs10-grid/mapowanie na manifest gold):
-/// - b6: width-ladder transferu (U8=00 / 4B=40 / .64=50 / .128=60)
-/// - b12/b13: indeks slotu desc-stream powiazanego parametru:
-///   s parzysty -> (82, s>>1), s nieparzysty -> (02, (s+1)>>1); s=0 -> (82,00)
-///   (zbior: dp0=(82,00) dp1=(02,01) dp2=(82,01); 8B rejestruje odmiennie —
-///   resid-wariant zostawiony bez zmian do fali mk10b)
-/// - b18/b19: kursor biegu regionu (alt 0x40/0xc0) — OTWARTE (resid mk10b)
-/// - b28: natychmiastowy offset adresu [Rx.64+imm] w bajtach (k_bra/e_loop:
+/// Composition of the 02 38 record (per-STG, fs10-grid/mapping onto the gold manifest):
+/// - b6: transfer width ladder (U8=00 / 4B=40 / .64=50 / .128=60)
+/// - b12/b13: desc-stream slot index of the bound parameter:
+///   even s -> (82, s>>1), odd s -> (02, (s+1)>>1); s=0 -> (82,00)
+///   (set: dp0=(82,00) dp1=(02,01) dp2=(82,01); 8B registers differently —
+///   resid variant left unchanged until the mk10b wave)
+/// - b18/b19: region-run cursor (alt 0x40/0xc0) — OPEN (mk10b resid)
+/// - b28: immediate [Rx.64+imm] address offset in bytes (k_bra/e_loop:
 ///   +0,+4,+8,+c,+0 -> 00,04,08,0c,00)
 ///
-/// mk30b: `wire` — opcjonalna mapa dp->slot nvcc (podpula: REG + LDG.C +
-/// UNIF-(83,01)); None = zachowanie legacy (pool-pozycja globalna).
+/// mk30b: `wire` — optional dp->slot nvcc map (subpool: REG + LDG.C +
+/// UNIF-(83,01)); None = legacy behavior (global pool position).
 ///
-/// mk35: true gdy barwnik cbank base ma domyslna siatke b10/b11
-/// ((03,01)/(83,01) — wolne do nadpisania siatka rejestrowa).
+/// mk35: true when the cbank base dye carries the default b10/b11 grid
+/// ((03,01)/(83,01) — free to be overridden by the register grid).
 ///
-/// mk42: rekord edge 02 22 32 32 (dekod mk37/38; bramka EXACT mk42/edge9).
+/// mk42: edge record 02 22 32 32 (mk37/38 decode; gate EXACT mk42/edge9).
 ///
-/// Pola: b4 pred, b6 klasa rozmiaru (U8=0x10,S8=0x11,U16=0x12,S16=0x13,
+/// Fields: b4 pred, b6 size class (U8=0x10,S8=0x11,U16=0x12,S16=0x13,
 /// 32=0x14,64=0x15,128=0x16), (b7,b8) scope (08,00)/(10,01 STRONG.SYS),
 /// b12..13=(X<<6)|C, b14..15=(Y<<6)|2, b17=0x0a, b22=0xf8,
 /// [19:21)=(v<<6)|2 (v = max desc-UR kernela), b28..31 = off (u32 LE).
@@ -1310,10 +1310,10 @@ fn rec_edge32(e: (u32, u8, u8, u8, u8, u16, u16, u8, u32), v: u16) -> [u8; 32] {
     d
 }
 
-/// mk50: rekord edge 02 22 1e 32 (LDG-desc, "sibling" — dekod mk50 c1..c8).
-/// Pola jak rec_edge32 poza: b6 = 0x40/0x50/0x60 (4B/8B/16B),
-/// (b7,b8) = (0x81,0x40) stale per kernel, a [19:21) = (V<<6)|2 z
-/// V = desc-UR SAMEGO lane'u (mk42 trzyma max-desc-UR kernela).
+/// mk50: edge record 02 22 1e 32 (LDG desc, "sibling" — mk50 c1..c8 decode).
+/// Fields as in rec_edge32 except: b6 = 0x40/0x50/0x60 (4B/8B/16B),
+/// (b7,b8) = (0x81,0x40) fixed per kernel, and [19:21) = (V<<6)|2 with
+/// V = the desc-UR of THIS lane itself (mk42 holds the kernel max desc-UR).
 fn rec_edge1e32(e: (u32, u8, u8, u16, u16, u8, u16, u32)) -> [u8; 32] {
     let mut d = [0u8; 32];
     d[0] = 0x02;
@@ -1345,9 +1345,9 @@ fn feature_region_override_is_default(base: &[u8; 16]) -> bool {
 
 fn rec_stg(feat: &MercFeatures, stg_i: usize, wire: Option<&[u32]>) -> [u8; 32] {
     let mut stg = REC_STG;
-    // mk63: (b7,b8) = kwalifikator semantyczny magazynu (mk63 c13, zip
-    // EXACT korpus): STRONG.SYS (0x21,0x02) / STRONG.GPU (0xa1,0x01) /
-    // STRONG.SM (0xa1,0x00) / EF (0x10,0x00); plain zostaje (0x11,0).
+    // mk63: (b7,b8) = semantic store qualifier (mk63 c13, corpus zip
+    // EXACT): STRONG.SYS (0x21,0x02) / STRONG.GPU (0xa1,0x01) /
+    // STRONG.SM (0xa1,0x00) / EF (0x10,0x00); plain stays (0x11,0).
     match feat.stg_sem.get(stg_i).copied().unwrap_or(0) & 0x7 {
         1 => { stg[7] = 0x10; stg[8] = 0x00; }
         2 => { stg[7] = 0x21; stg[8] = 0x02; }
@@ -1356,7 +1356,7 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize, wire: Option<&[u32]>) -> [u8; 32] 
         _ => {}
     }
     let stg_narrow = feat.stg_u8;
-    // mk40: per-lane width (korpus mieszany) nadrzedne nad kernel-global.
+    // mk40: per-lane width (mixed corpus) overrides the kernel-global.
     let wsel_l: Option<u8> = feat.stg_wsel.get(stg_i).copied();
     if let Some(w) = wsel_l {
         stg[6] = STG_B6[(w as usize).min(4)];
@@ -1367,15 +1367,15 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize, wire: Option<&[u32]>) -> [u8; 32] 
     } else if feat.stg_wide {
         stg[6] = 0x50;
     }
-    // mk32 DOMKNIECIE siatki 0238 (rekurencyjna formula rejestrowa r<<6|f,
-    // ta sama co w 0229/0129/atomach 024d/024e; zastepuje modele korelacyjne
-    // "pozycja w puli desc" (mk10b..mk31) i "kursor serii" (mk10b/AC)):
-    // - (b12,b13) = (areg<<6)|2: niski rejestr pary adresowej [R<num>.64]
-    //   STG (dowod mk32: 144/144 gold+mk-lab; k_mma R4->(02,01),
-    //   b_wmma R2->(82,00); taki sam rozklad dla s_*/p_*/r2_*/q_*);
+    // mk32 CLOSURE of the 0238 grid (recursive register formula r<<6|f,
+    // the same as in 0229/0129/atoms 024d/024e; supersedes the correlational
+    // "position in the desc pool" (mk10b..mk31) and "series cursor" (mk10b/AC) models):
+    // - (b12,b13) = (areg<<6)|2: low register of the STG [R<num>.64]
+    //   address pair (mk32 evidence: 144/144 gold+mk-lab; k_mma R4->(02,01),
+    //   b_wmma R2->(82,00); same split for s_*/p_*/r2_*/q_*/);
     // - (b17,b18) = (desc_UR<<6)|2 (mk12a);
-    // - (b19,b20) = (dreg<<6)|(2 dla .64, 0 dla wezszych) (RZ -> 0x3ff<<6);
-    // - b4 = wariant guardu (mk12a), b28..b30 = imm offset adresu (mk10b).
+    // - (b19,b20) = (dreg<<6)|(2 for .64, 0 for narrower) (RZ -> 0x3ff<<6);
+    // - b4 = guard variant (mk12a), b28..b30 = address imm offset (mk10b).
     let dp_legacy = match feat.stg_desc_pos.get(stg_i).copied() {
         Some(u32::MAX) | None => stg_i as u32 % 2, // sentinel: nieznane
         Some(v) => v,
@@ -1392,8 +1392,8 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize, wire: Option<&[u32]>) -> [u8; 32] 
     } else {
         let dp = dp_wire.unwrap_or(dp_legacy);
         if !stg_narrow && (feat.n_stg > 1 || dp > 0) {
-            // legacy (stg_desc_pos/pool): slot desc-stream (fs10b): parzysty
-            // -> (82, s>>1); nieparzysty -> (02, (s+1)>>1); 0 -> (82,00).
+            // legacy (stg_desc_pos/pool): desc-stream slot (fs10b): even
+            // -> (82, s>>1); odd -> (02, (s+1)>>1); 0 -> (82,00).
             if dp % 2 == 1 {
                 stg[12] = 0x02;
                 stg[13] = ((dp + 1) >> 1) as u8;
@@ -1414,7 +1414,7 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize, wire: Option<&[u32]>) -> [u8; 32] 
             if pack >> 7 != 0 { 0x3ff } else { 5 + 2 * ((pack & 0x7f) as u16) }
         }
     };
-    // flaga dreg (mk35): (w/4-1)*2 -> 4B->0, 8B->2, 16B->6 (nvcc:
+    // dreg flag (mk35): (w/4-1)*2 -> 4B->0, 8B->2, 16B->6 (nvcc:
     // stg128 R4->0x106, ld128 R8->0x206; mk32: .64 -> |2).
     let wflg: u16 = if let Some(w) = wsel_l {
         if w == 3 { 2 } else if w == 4 { 6 } else { 0 }
@@ -1425,15 +1425,15 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize, wire: Option<&[u32]>) -> [u8; 32] 
     } else {
         0
     };
-    // mk63: flaga szerokosci NIE dotyczy RZ-dreg (jak rec_store2 mk41):
-    // korpus 5899 rekordow STG z dana RZ ma zawsze (b19,b20)=(0xc0,0xff)
-    // (c13 zip); OR wflag psul -> byte-diffy keep (c11: c0->c2/c6 x1208).
+    // mk63: the width flag does NOT apply to RZ-dreg (as in rec_store2 mk41):
+    // a corpus of 5899 STG records with an RZ datum always has (b19,b20)=(0xc0,0xff)
+    // (c13 zip); OR-ing wflag broke it -> byte diffs kept (c11: c0->c2/c6 x1208).
     let cur = (dreg << 6) | (if dreg == 0x3ff { 0 } else { wflg });
     stg[19] = (cur & 0xff) as u8;
     stg[20] = (cur >> 8) as u8;
     let dur = feat.stg_dur.get(stg_i).copied().unwrap_or(4) as u16;
     stg[17..19].copy_from_slice(&((dur << 6) | 2).to_le_bytes());
-    // mk41: pelny kod predykatu (0xf8 = brak); legacy {0,1,2} mapowane.
+    // mk41: full predicate code (0xf8 = none); legacy {0,1,2} mapped.
     match feat.stg_guard.get(stg_i).copied().unwrap_or(0xf8) {
         g if g != 0xf8 => stg[4] = g,
         _ => {}
@@ -1443,9 +1443,9 @@ fn rec_stg(feat: &MercFeatures, stg_i: usize, wire: Option<&[u32]>) -> [u8; 32] 
     stg
 }
 
-/// mk13: rekord 0129 dla rejestrowej formy LOP3-xor (0x3c, 3 rejestry):
+/// mk13: the 0129 record for the register-form LOP3-xor (0x3c, 3 registers):
 /// 16B; dst@[10..12]=(d<<6)|1, srcA@[12..14]=a<<6, srcB@[14..16]=b<<6;
-/// b4 = wariant guarda jak w 0229 (f8/00/01). Gold: lp1 lane5
+/// b4 = guard variant as in 0229 (f8/00/01). Gold: lp1 lane5
 /// (R5,R5,R0 -> ... 41 01 40 01 00 00), p_lds (R7,R6,R5 -> c1 01 80 01 40 01).
 fn rec_xor_reg(dst: u32, src_a: u32, src_b: u32, b4: u8) -> [u8; 16] {
     let mut r = [0u8; 16];
@@ -1475,30 +1475,30 @@ fn rec_xor(dst: u32, src: u32, imm: u32, b4: u8) -> [u8; 32] {
 }
 
 
-/// mk10c: role (b10,b11) rekordu desc 0222 z puli loadow. Tabela z fitu
-/// pelnej macierzy gold fala mk10c (iter AF2-analiza + mk12a):
+/// mk10c: roles (b10,b11) of the 0222 desc record from the load pool. Table from
+/// the full gold-matrix fit, mk10c wave (iter AF2 analysis + mk12a):
 /// - uniform (0806): 16B->(07,02), 4B->(81,01), 1/2B->(01,01),
-///   8B: atom-async/LDGSTS -> (03,02), inaczej (83,01).
-///   [park: (03,01) dla p_cas/p_exit2/p_lds/p_ldsm — mk7-regiony, otwarte]
-/// - regpath (0e06, w>=8): param tez ladowany przez LDCU -> (03,01);
+///   8B: atom-async/LDGSTS -> (03,02), else (83,01).
+///   [parked: (03,01) for p_cas/p_exit2/p_lds/p_ldsm — mk7 regions, open]
+/// - regpath (0e06, w>=8): param also loaded via LDCU -> (03,01);
 ///   n_w==1 -> (83,00);
-///   n_w==2: oba STG-wiazane: pierwszy w kodzie (83,00), drugi (03,01);
-///   inaczej read->(83,00), write->(83,01) przy STG.64/128 / (03,01);
-///   n_w>=3: write->(83,01); najnizszy pi wsrod read -> (83,00); reszta read
+///   n_w==2: both STG-bound: first in code (83,00), second (03,01);
+///   else read->(83,00), write->(83,01) on STG.64/128 / (03,01);
+///   n_w>=3: write->(83,01); lowest pi among reads -> (83,00); remaining reads
 ///   -> (03,01).
-/// - regpath w<=4 (skalar): (41,02) (k_stg2).
+/// - regpath w<=4 (scalar): (41,02) (k_stg2).
 ///
-/// mk35: `feat.param_load_dreg` niesie numery dst-rejestrow loadow
-/// (rownolegle `feat.param_loads`; 255=nieznany). Gdy znany ->
-/// b10/b11 = (dreg<<6)|C, C = drabinka szerokosci (16B->7, 8B->3, <8B->1).
-/// Wczesniejsza macierz rol mk10c..mk18 = cien alokacji rejestrow nvcc
-/// (R2/R4/R6...). Puste = legacy.
+/// mk35: `feat.param_load_dreg` carries the dst-register numbers of loads
+/// (parallel to `feat.param_loads`; 255=unknown). When known ->
+/// b10/b11 = (dreg<<6)|C, C = width ladder (16B->7, 8B->3, <8B->1).
+/// The earlier mk10c..mk18 role matrix = the shadow of nvcc register allocation
+/// (R2/R4/R6...). Empty = legacy.
 fn mk10c_roles(
     feat: &MercFeatures,
     stg_write_pis: &std::collections::BTreeSet<u32>,
 ) -> Vec<(u8, u8)> {
     let mut roles = Vec::with_capacity(feat.param_loads.len());
-    // distinktywne pi wsrod szerokich regpath-loadow
+    // distinctive pi among the wide regpath loads
     let mut wide_r: Vec<u32> = Vec::new();
     for &(_, pi, unif, w, _) in &feat.param_loads {
         if unif == 0 && w >= 8 && !wide_r.contains(&pi) {
@@ -1509,7 +1509,7 @@ fn mk10c_roles(
         feat.param_loads.iter().filter(|l| l.2 == 1).map(|l| l.1).collect();
     let atomish = feat.n_atom > 0 || feat.n_ldgsts > 0;
     let n = wide_r.len();
-    // pierwszy (najwczesniejszy lane) wsrod wide_r — do reguly 2-write
+    // first (earliest lane) among wide_r — for the 2-write rule
     let first_lane_pi = wide_r
         .iter()
         .copied()
@@ -1528,7 +1528,7 @@ fn mk10c_roles(
         .min()
         .unwrap_or(u32::MAX);
     for (j, &(_, pi, unif, w, _)) in feat.param_loads.iter().enumerate() {
-        // mk35: dokladna regula jesli znamy dst-reg loadu.
+        // mk35: exact rule when the load dst-reg is known.
         if let Some(&rg) = feat.param_load_dreg.get(j) {
             if rg != 255 {
                 let cf: u16 = if w == 16 { 7 } else if w >= 8 { 3 } else { 1 };
@@ -1540,11 +1540,11 @@ fn mk10c_roles(
         let role = if unif == 1 {
             match w {
                 16 => (0x07u8, 0x02u8),
-                // mk31: kernely z UBLKCP (klasa __raw__ TMA bulk-copy) maja
-                // dialekt rol unif: 4B skalar przez LDCU -> (41,02) jak przy
-                // regpath; 8B LDCU -> (83,02). Dowod: b_bulk_cp (rekordy
-                // @68/@134); korpus 17612 capmerc bez markerow UBLKCP
-                // (regresja zero), 1-probkowe az do rozszerzenia siatki.
+                // mk31: kernels with UBLKCP (TMA bulk-copy __raw__ class) have
+                // a unif-role dialect: 4B scalar via LDCU -> (41,02) as in
+                // regpath; 8B LDCU -> (83,02). Evidence: b_bulk_cp (records
+                // @68/@134); the 17612 capmerc corpus has no UBLKCP markers
+                // (zero regression), single-sample until the grid widens.
                 4 if !feat.ublkcp.is_empty() => (0x41, 0x02),
                 4 => (0x81, 0x01),
                 1 | 2 => (0x01, 0x01),
@@ -1552,9 +1552,9 @@ fn mk10c_roles(
                     if !feat.ublkcp.is_empty() {
                         (0x83, 0x02)
                     } else
-                    // mk13: kolejnosc wazna — grupa (03,01) obejmuje CAS/
-                    // exits>=2/LDS-klase; LDGSTS-licznik ja wygrywa (p_ldgsts
-                    // ma LDS x3 i zostaje przy 03,02); potem reszta atomow.
+                    // mk13: order matters — the (03,01) group covers CAS/
+                    // exits>=2/LDS class; the LDGSTS counter beats it (p_ldgsts
+                    // has LDS x3 and stays at 03,02); then the rest of the atomics.
                     if feat.u_role_alt1 && feat.n_ldgsts == 0 {
                         (0x03, 0x01)
                     } else if atomish {
@@ -1567,10 +1567,10 @@ fn mk10c_roles(
         } else if w <= 4 {
             (0x41, 0x02)
         } else if uni_pis.contains(&pi) {
-            // mk18 (2026-08-08, lab v_a..v_d + gold): dual reg+unif tego pi.
-            // (83,00) gdy: (a) wartosc loadu feeduje adres atom-family
-            // [p_atomg; v_b/v_c], (b) load PO CALL [q_tail_call + mk14.4-nutka].
-            // Inaczej (03,01) [p_cctl (CCTL), p_stg2/v_d/v_a (STG)].
+            // mk18 (2026-08-08, lab v_a..v_d + gold): dual reg+unif for this pi.
+            // (83,00) when: (a) the load value feeds an atom-family address
+            // [p_atomg; v_b/v_c], (b) the load is AFTER a CALL [q_tail_call + mk14.4 note].
+            // Otherwise (03,01) [p_cctl (CCTL), p_stg2/v_d/v_a (STG)].
             let fl = feat.load_flags.get(j).copied().unwrap_or(0);
             if (fl & 2) != 0 || feat.atom_pool_hits.contains(&(pi, 0)) {
                 (0x83, 0x00)
@@ -1583,7 +1583,7 @@ fn mk10c_roles(
             let is_w = stg_write_pis.contains(&pi);
             let other_w = wide_r.iter().any(|&q| q != pi && stg_write_pis.contains(&q));
             if is_w && other_w {
-                // oba wiazane STG: pierwszy w kodzie = (83,00)
+                // both STG-bound: first in code = (83,00)
                 if pi == first_lane_pi { (0x83, 0x00) } else { (0x03, 0x01) }
             } else if is_w {
                 if feat.stg_wide { (0x83, 0x01) } else { (0x03, 0x01) }
@@ -1605,14 +1605,14 @@ fn mk10c_roles(
     roles
 }
 
-/// mk10c: budowa rekordu desc z pojedynczego loadu (wariant wg mechanizmu,
-/// width-ladder b6, b4=guard, tail-dw=REL(off-0x380)).
-/// mk19: dziedzina BAJTOWA klucza (nie 8*pi) — dowod korpusowy join2/join3
-/// (19666/19666 rekordow: tail == c_off - 0x380; 4B paramy pod 0x384 itd.).
+/// mk10c: building the desc record from a single load (variant by mechanism,
+/// b6 width ladder, b4=guard, tail-dw=REL(off-0x380)).
+/// mk19: BYTE domain of the key (not 8*pi) — corpus evidence join2/join3
+/// (19666/19666 records: tail == c_off - 0x380; 4B params below 0x384 etc.).
 fn mk10c_rec_desc(ld: (u32, u32, u8, u8, u8), role: (u8, u8)) -> [u8; 32] {
-    // mk41: slot `guard` niesie pelny kod predykatu: 0xf8 = brak,
+    // mk41: the `guard` slot carries the full predicate code: 0xf8 = none,
     // @Pn -> (n<<3), @!Pn -> (n<<3)|1, @UPn -> (n<<3)|2, @!UPn -> (n<<3)|3
-    // (korpus pred41: desc/store/BAR 99.5%+ zgodne na 570k+ parach).
+    // (pred41 corpus: desc/store/BAR 99.5%+ consistent over 570k+ pairs).
     let (_, rel, unif, w, guard) = ld;
     let mut d = REC_PARAM_DESC;
     let b6: u8 = match w {
@@ -1635,10 +1635,10 @@ fn mk10c_rec_desc(ld: (u32, u32, u8, u8, u8), role: (u8, u8)) -> [u8; 32] {
     d
 }
 
-/// mk10c (dowody: mercv3/order_* + mk10c-lane): strumien rekordow = sort po
-/// pozycji kodowej ich instrukcji zrodlowej. Rekordy bez instr-korzeni
-/// (cbank D = lane loadu c[358]; smem i pinned po cbanku; boot-anchor zawsze
-/// pierwszy — emitowany przez wywolujacego). Anchory per S2R (lane).
+/// mk10c (evidence: mercv3/order_* + mk10c-lane): the record stream is sorted by
+/// the code position of its source instruction. Records without instruction roots
+/// (cbank D = lane of the c[358] load; smem and pinned after cbank; boot anchor always
+/// first — emitted by the caller). Anchors per S2R (lane).
 fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &[u8; 16]) {
     #[derive(Clone, Copy)]
     // Records map 1:1 to measured .nv.merc record classes; some payloads are
@@ -1650,7 +1650,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         Smem,
         ShiftRegion,
         Anchor(usize),
-        // mk56: geo-anchor LDC (b13=04) — indeks do feat.ldcgeo.
+        // mk56: LDC geo-anchor (b13=04) — index into feat.ldcgeo.
         AnchorGeo(usize),
         Bar(usize),
         Stg(usize),
@@ -1677,9 +1677,9 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         Ldgsts2(usize),
         Ldgsts2Wait(usize),
         LdsmMini,
-        // mk30: rodziny b_*
+        // mk30: b_* families
         SmemCga(usize),
-        // mk46: geo-anchor 010b060a (payload prebaked, b12=rola, b13=klasa)
+        // mk46: geo-anchor 010b060a (payload prebaked, b12=role, b13=class)
         GeoRec(usize),
         McD1(usize),
         McExch(usize),
@@ -1714,12 +1714,12 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         EdgeLd(usize),
         EdgeLdg(usize),
     }
-    // mk10c: zbior parametrow STG-wiazanych z PULI deskryptorow (nie ze
-    // starej maski param_write — ta traci read->write gdy param czytany
-    // wczesniej; r2_wr/r2_ww dowod).
-    // mk13: pula slotow = wpisy (pi, mech) w KOLEJNOSCI LANE: loady wide
-    // (mech = unif01) + uzycia desc przez LDG.E.CONSTANT (mech = 2).
-    // mk10c zakladal same loady; LDG.C zajmuje slot (v_ldg_u64: s=2).
+    // mk10c: set of STG-bound parameters from the descriptor POOL (not the
+    // old param_write mask — that one loses read->write when the param is read
+    // earlier; r2_wr/r2_ww evidence).
+    // mk13: slot pool = (pi, mech) entries in LANE ORDER: wide loads
+    // (mech = unif01) + desc uses by LDG.E.CONSTANT (mech = 2).
+    // mk10c assumed loads only; LDG.C occupies a slot (v_ldg_u64: s=2).
     let mut pool_ev: Vec<(u32, (u32, u8))> = Vec::new();
     for &(lane, pi, unif, w, _) in &feat.param_loads {
         if w >= 8 {
@@ -1749,11 +1749,11 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for (j, ld) in feat.param_loads.iter().enumerate() {
         ev.push((ld.0, 20, Ev::Desc(j)));
     }
-    // mk30b (PARKED, skontrawerifikowane): podpula-slot-model dla 0238 —
-    // k_mma ma identyczna strukture co b_wmma i nvcc daje tam s=1 a tu 0.
-    // Decyzja: zostaje legacy pool-pozycja; temat = RE oraculum mk30b-next.
-    // mk15b: gdy brak lane hosta cbank (LDCU c[358]), nvcc sadza cbank tuz przed
-    // pierwszym desc-em parametru (gold q_bsync_pair: lane=first-load-1 = 3).
+    // mk30b (PARKED, counter-verified): subpool-slot model for 0238 —
+    // k_mma has an identical structure to b_wmma and nvcc gives s=1 there vs 0 here.
+    // Decision: legacy pool position stays; topic = mk30b-next RE oracle.
+    // mk15b: when no cbank host lane exists (LDCU c[358]), nvcc places cbank right
+    // before the first parameter desc (gold q_bsync_pair: lane=first-load-1 = 3).
     let clane = feat.cbank_lane.unwrap_or_else(|| {
         feat.param_loads
             .iter()
@@ -1762,26 +1762,26 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             .map(|l0| l0.saturating_sub(1))
             .unwrap_or(u32::MAX - 64)
     });
-    // mk35: nvcc emituje rekord cbank TYLKO gdy kernel laduje c[0x358]
-    // (135-kernel falsyfikacja-zero na sealed+mk34-labach; at_cas = jedyne
-    // poprzednio-nadmiarowe zrodlo rozjazdu — brak 358-loadu). Legacy
-    // q_bsync_pair ma load przez LDC (nie LDCU) — wystarcza sama obecnosc.
+    // mk35: nvcc emits the cbank record ONLY when the kernel loads c[0x358]
+    // (135-kernel zero-falsification on sealed+mk34 labs; at_cas = the only
+    // previously-surplus source of divergence — no 358 load). Legacy
+    // q_bsync_pair loads via LDC (not LDCU) — presence alone suffices.
     let has358 = feat.cbank358_dreg.is_some() || feat.cbank_lane.is_some();
-    // ...ale sciezki bez swiezego skanu mk35 (gold manifest) zachowuja
-    // dotychczasowe zachowanie (q_bsync_pair: fallback clane w mk15b).
+    // ...but paths without a fresh mk35 scan (gold manifest) keep the
+    // previous behavior (q_bsync_pair: clane fallback in mk15b).
     let legacy_emit = feat.param_load_dreg.is_empty();
     if has358 || legacy_emit {
         ev.push((clane, 10, Ev::Cbank));
     }
-    // mk14.3: przy LDGSTS rekord smem poprzedza cbank (gold p_ldgsts: smem@[3]
-    // przed cbank@[4]; bez LDGSTS: po (p_lds/p_sts2 exact — tier 11).
-    // mk30: rekord smem-anchor 010b060a przy KAZDEJ lane S2UR CgaCtaId
-    // (mk15-uwaga uogolniona; gold zgodny: p_ldsm 2x na 2 S2UR itd.).
-    // Zastepuje legacy-clane gdy s2ur_cga niepuste; wpp legacy jak dawniej.
-    // mk46: rodzina 010b060a = geo-anchory (S2UR-CTAID.*/CgaCtaId/SWINHI +
-    // LDCU okna stalych drivera; korpus sm_100 17674/17674 EXACT multiset
-    // (klasa,rola,dst), porzadek == porzadek lane). Niepusty zbior geo
-    // wygasza legacy-rekord smem (korpus: rekordy == dokladnie multiset geo).
+    // mk14.3: with LDGSTS the smem record precedes cbank (gold p_ldgsts: smem@[3]
+    // before cbank@[4]); without LDGSTS: after (p_lds/p_sts2 exact — tier 11).
+    // mk30: the 010b060a smem-anchor record at EVERY S2UR CgaCtaId lane
+    // (mk15 note generalized; gold consistent: p_ldsm 2x on 2 S2UR etc.).
+    // Supersedes legacy-clane when s2ur_cga is non-empty; legacy as before otherwise.
+    // mk46: the 010b060a family = geo anchors (S2UR-CTAID.*/CgaCtaId/SWINHI +
+    // LDCU of the driver's constant windows; sm_100 corpus 17674/17674 EXACT multiset
+    // (class,role,dst), order == lane order). A non-empty geo set
+    // retires the legacy smem record (corpus: records == exactly the geo multiset).
     let geo_nonempty = !feat.geo_rec.is_empty();
     let smem_via_s2ur = geo_nonempty || !feat.s2ur_cga.is_empty();
     if geo_nonempty {
@@ -1797,16 +1797,16 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         if feat.smem_static {
             ev.push((clane, smem_tier, Ev::Smem));
         } else if feat.smem_atoms_only && feat.s2ur_first_lane < u32::MAX {
-            // mk15: rekord smem hostowany przy lane pierwszego S2UR (gold p_atoms).
+            // mk15: smem record hosted at the first S2UR lane (gold p_atoms).
             ev.push((feat.s2ur_first_lane, 20, Ev::Smem));
         }
     }
     if feat.diverge_region {
-        // mk62: rekord 51010109 PER ZAMKNIECIE regionu BSSY.RECONVERGENT
-        // (korpus: +2001 kerneli TLV-exact vs sciezka pojedyncza; dolac[z]one
-        // sa WYLACZNIE regiony RECONVERGENT; plain-flavor = dialekty starych
-        // producentow — patrz SM103A_MK62_SHIFT09.md). Payload dw[12:16]=2*b.
-        // Bez skanu (region09=None) zostaje legacy single-record.
+        // mk62: the 51010109 record PER BSSY.RECONVERGENT region close
+        // (corpus: +2001 kernels TLV-exact vs the single path; included
+        // are ONLY RECONVERGENT regions; plain flavor = dialect of the old
+        // producers — see SM103A_MK62_SHIFT09.md). Payload dw[12:16]=2*b.
+        // Without the scan (region09=None) the legacy single record stays.
         match &feat.region09 {
             Some(regs) if !regs.is_empty() => {
                 for (k, &(l, _b)) in regs.iter().enumerate() {
@@ -1814,8 +1814,8 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 }
             }
             _ => {
-                // mk30b: rekord regionu przy lane zamkniecia BSYNC (nie przy
-                // cbank) — gold sw*/p_ldsm: nierozroznialne; b_bulk_cp rozstrz.
+                // mk30b: region record at the BSYNC close lane (not at
+                // cbank) — gold sw*/p_ldsm: indistinguishable; b_bulk_cp adjudicates.
                 let region_lane = feat
                     .bsync_close
                     .first()
@@ -1824,12 +1824,12 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 ev.push((region_lane, 12, Ev::ShiftAt(usize::MAX)));
             }
         }
-        // mk15 (2026-08-07): powdroczony rekord smem 010b060a tuz po rekordzie
-        // regionu divergent 51010109 — tylko gdy kernel ma statyczna smem.
-        // Lab: p_ldsm + b_bulk_cp (1 pin -> dokladnie 1 dup, bajty identyczne
-        // z podstawowym rekordem smem); sw* (BSSY, bez smem): brak dupa.
-        // mk30b: przy sciezce per-S2UR dup jest ZBEDNY (p_ldsm/b_bulk_cp maja
-        // 2 S2UR = 2 rekordy smem lacznie z oryginalem mk15-dup).
+        // mk15 (2026-08-07): reintroduced the 010b060a smem record right after the
+        // divergent-region 51010109 record — only when the kernel has static smem.
+        // Lab: p_ldsm + b_bulk_cp (1 pin -> exactly 1 dup, bytes identical
+        // to the base smem record); sw* (BSSY, no smem): no dup.
+        // mk30b: on the per-S2UR path the dup is REDUNDANT (p_ldsm/b_bulk_cp have
+        // 2 S2UR = 2 smem records counting the original mk15 dup).
         if feat.smem_static && !smem_via_s2ur {
             ev.push((clane, 13, Ev::Smem));
         }
@@ -1837,7 +1837,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for (k, &l) in feat.s2r_lanes.iter().enumerate() {
         ev.push((l, 20, Ev::Anchor(k)));
     }
-    // mk56: geo-anchory LDC — ten sam tier 20, lane = lane instrukcji LDC.
+    // mk56: LDC geo anchors — same tier 20, lane = the LDC instruction lane.
     for (k, &(l, _, _, _)) in feat.ldcgeo.iter().enumerate() {
         ev.push((l, 20, Ev::AnchorGeo(k)));
     }
@@ -1864,24 +1864,24 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for &pos in &feat.isetp_ur {
         ev.push((pos, 20, Ev::IsetpUr));
     }
-    // mk41: para ISETP(non-EX)+ISETP.EX -> JEDEN mini na lane HEAD-a.
+    // mk41: an ISETP(non-EX)+ISETP.EX pair -> ONE mini on the HEAD lane.
     for &(hl, cls) in &feat.xsetp_pairs {
         ev.push((hl, 20, Ev::XsetpPair(cls)));
     }
-    // mk52: UISETP minis (kolejnosc z minis — stabilna dla par (class,4014)).
+    // mk52: UISETP minis (order from minis — stable for (class,4014) pairs).
     for &(l, k) in &feat.usetp_minis {
         ev.push((l, 20, Ev::UsetpMini(k)));
     }
     for &l in &feat.ulea_upco {
         ev.push((l, 20, Ev::UleaUpco));
     }
-    // mk14: ghost __syncwarp (rekord 01476c0a) — lane ducha-NOP.
+    // mk14: __syncwarp ghost (01476c0a record) — the ghost-NOP lane.
     for &pos in &feat.syncwarp {
         ev.push((pos, 21, Ev::Syncwarp));
     }
-    // mk14: rekordy atomowe w lane swoich instrukcji (byly: trailing append).
+    // mk14: atomic records in the lanes of their own instructions (was: trailing append).
     for (i, a) in feat.atoms.iter().enumerate() {
-        // mk30b: ATOMS z [URx+imm] obsluguje AtomSmem (nie generyczne).
+        // mk30b: ATOMS with [URx+imm] handled by AtomSmem (not generic).
         if feat.atom_smem.iter().any(|&(l, _, _)| l == a.0) {
             continue;
         }
@@ -1890,16 +1890,16 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         }
     }
     // mk14.3: LDGSTS pinned-blob + wait-event + LDSM mini.
-    // mk53: pelny silnik blobow (lane per desc-form LDGSTS; legacy pin tylko
-    // gdy silnik pusty).
-    // klucz porzadku = host pinu (killpad) gdy pin, inaczej lane bloba —
-    // inaczej czekaj 0123400a wskoczyloby miedzy pin a blob (b_cpasync).
+    // mk53: full blob engine (lane per LDGSTS desc-form; legacy pin only
+    // when the engine is empty).
+    // order key = the pin host (killpad) when pinned, else the blob lane —
+    // otherwise the 0123400a wait would slip between pin and blob (b_cpasync).
     for (i2, x2) in feat.ldgsts2.iter().enumerate() {
         ev.push((x2.pin_host.unwrap_or(x2.lane), 20, Ev::Ldgsts2(i2)));
     }
-    // mk55: multi-wait 0123400a per DEPBAR.SB0 (regula korpusowa c2/c3:
-    // 2619/2619 EXACT; SB5 rekordu nie nosi). Tylko na sciezce blobow —
-    // legacy single-wait (mk14.3) obsluguje kernele bez desc-form.
+    // mk55: multi-wait 0123400a per DEPBAR.SB0 (corpus rule c2/c3:
+    // 2619/2619 EXACT; SB5 carries no record). Only on the blob path —
+    // legacy single-wait (mk14.3) handles kernels without desc forms.
     for (w2, (wl2, _imm)) in feat.ldgsts2_waits.iter().enumerate() {
         ev.push((*wl2, 20, Ev::Ldgsts2Wait(w2)));
     }
@@ -1935,16 +1935,16 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for (i, m) in feat.f64_lanes.iter().enumerate() {
         ev.push((m.0, 20, Ev::F64i(i)));
     }
-    // mk51: rekordy DFMA-imm 020d1c0e/020d1a0e — tier 20, strumien
-    // lane-rosnaco (emulator korpusowy c10: 18932/18932 byte-exact).
+    // mk51: DFMA-imm 020d1c0e/020d1a0e records — tier 20, stream
+    // lane-ascending (corpus emulator c10: 18932/18932 byte-exact).
     for (i, m) in feat.dfmaim.iter().enumerate() {
         ev.push((m.0, 20, Ev::DfmaImm(i)));
     }
-    // mk30: rodziny b_* (SYNCS/TMA/minis) — wszystko w lane swej klasy,
-    // tier 20-21 (porzadek jak w finalnym strumieniu nvcc).
+    // mk30: b_* families (SYNCS/TMA/minis) — everything in its class lane,
+    // tier 20-21 (order as in nvcc's final stream).
     if !smem_via_s2ur {
     } else {
-        // (rekordy SmemCga wlozone wyzej)
+        // (SmemCga records inserted above)
     }
     for (k, _) in feat.mc_d1.iter().enumerate() {
         ev.push((feat.mc_d1[k].0, 20, Ev::McD1(k)));
@@ -1961,16 +1961,16 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for (k, _) in feat.mc_voteu_all.iter().enumerate() {
         ev.push((feat.mc_voteu_all[k], 20, Ev::McMiniVoteu(k)));
     }
-    // mk30b-korekta: minis 414c TYLKO na VOTEU.ALL (m_init/b_mbarrier:
-    // 2 VOTEU -> 2 minis; wczesniejsza regula USHF-fin to artefakt
-    // zip-driftu capture'u mk26). Bit na USHF-fin nadal kasowany.
+    // mk30b adjustment: 414c minis ONLY on VOTEU.ALL (m_init/b_mbarrier:
+    // 2 VOTEU -> 2 minis; the earlier USHF-fin rule is an artifact
+    // of the mk26 capture zip drift). The USHF-fin bit is still cleared.
     for (k, _) in feat.mc_lea18.iter().enumerate() {
         ev.push((feat.mc_lea18[k], 20, Ev::McMiniLea(k)));
     }
     for (k, _) in feat.ws_minis.iter().enumerate() {
         ev.push((feat.ws_minis[k].0, 20, Ev::McMiniWs(k)));
     }
-    // mk65: reg-form WARPSYNC (0x78 site / 0x70 nie-site).
+    // mk65: reg-form WARPSYNC (0x78 site / 0x70 non-site).
     for (k, _) in feat.wsreg_minis.iter().enumerate() {
         ev.push((feat.wsreg_minis[k].0, 20, Ev::McMiniWsReg(k)));
     }
@@ -1983,29 +1983,29 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for (k, _) in feat.ublkcp.iter().enumerate() {
         ev.push((feat.ublkcp[k], 20, Ev::McUblkcp(k)));
     }
-    // mk40: store-matrix (ST.E/STL) + mini-slownik korpusowy.
+    // mk40: store matrix (ST.E/STL) + corpus mini dictionary.
     for (k, _) in feat.store2.iter().enumerate() {
         ev.push((feat.store2[k].0, 20, Ev::Store2(k)));
     }
     for (k, _) in feat.mini2.iter().enumerate() {
         ev.push((feat.mini2[k].0, 20, Ev::Mini2(k)));
     }
-    // mk42: edge LD-desc (tier 20, lane-sorted; korpus edge3: kolejnosc
-    // strumienia == adresy rosnaco, 1721/1721 kerneli).
+    // mk42: edge LD-desc (tier 20, lane-sorted; edge3 corpus: stream
+    // order == ascending addresses, 1721/1721 kernels).
     for (k, _) in feat.edge_ld.iter().enumerate() {
         ev.push((feat.edge_ld[k].0, 20, Ev::EdgeLd(k)));
     }
-    // mk50: edge LDG-desc w kernelach annotated_ptr (tier 20, lane-rosnaco —
-    // korpus mk50/c8b: porzadek strumienia == adresy rosnaco, 72/72).
+    // mk50: edge LDG-desc in annotated_ptr kernels (tier 20, lane-ascending —
+    // mk50/c8b corpus: stream order == ascending addresses, 72/72).
     for (k, _) in feat.edge_ldg.iter().enumerate() {
         ev.push((feat.edge_ldg[k].0, 20, Ev::EdgeLdg(k)));
     }
-    // mk44: generyczne rekordy 0110060a (subsumuja legacy trio A/B/C —
-    // te same bajty); tier 20 jak dotad.
+    // mk44: generic 0110060a records (subsume the legacy A/B/C trio —
+    // same bytes); tier 20 as before.
     for (k, _) in feat.plop3_rec.iter().enumerate() {
         ev.push((feat.plop3_rec[k].0, 20, Ev::McPlop3Rec(k)));
     }
-    // mk54: rekordy 0210* (PLOP3-UP / UPLOP3 / DSETP-imm); tier 20.
+    // mk54: 0210* records (PLOP3-UP / UPLOP3 / DSETP-imm); tier 20.
     for (k, _) in feat.plop3u_rec.iter().enumerate() {
         ev.push((feat.plop3u_rec[k].0, 20, Ev::McPlop3uRec(k)));
     }
@@ -2015,43 +2015,43 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     for (k, _) in feat.dsetpimm_rec.iter().enumerate() {
         ev.push((feat.dsetpimm_rec[k].0, 20, Ev::McDsetpImmRec(k)));
     }
-    // mk45: rekordy 010b0c0a (CS2R SRZ); tier 20 jak PLOP3.
+    // mk45: 010b0c0a records (CS2R SRZ); tier 20 like PLOP3.
     for (k, _) in feat.cs2r_rec.iter().enumerate() {
         ev.push((feat.cs2r_rec[k].0, 20, Ev::McCs2rRec(k)));
     }
-    // mk47: rekordy 012b{00|04}0a (LOP3 NOT-MOV LUT=0x33); tier 20 jak mk44/45.
+    // mk47: 012b{00|04}0a records (LOP3 NOT-MOV LUT=0x33); tier 20 like mk44/45.
     for (k, _) in feat.lop3not_rec.iter().enumerate() {
         ev.push((feat.lop3not_rec[k].0, 20, Ev::McLop3NotRec(k)));
     }
-    // mk58: rekordy 012b080a (ULOP3 NOT-MOV); tier 20 jak mk47.
+    // mk58: 012b080a records (ULOP3 NOT-MOV); tier 20 like mk47.
     for (k, _) in feat.ulop3not_rec.iter().enumerate() {
         ev.push((feat.ulop3not_rec[k].0, 20, Ev::McUlop3NotRec(k)));
     }
     for (k, _) in feat.ulop3xor_rec.iter().enumerate() {
         ev.push((feat.ulop3xor_rec[k].0, 20, Ev::McUlop3XorRec(k)));
     }
-    // mk72: rekordy 01290804 (LOP3 xor R,R,UR) — tier 20 jak mk71.
+    // mk72: 01290804 records (LOP3 xor R,R,UR) — tier 20 like mk71.
     for (k, _) in feat.lop3xorur_rec.iter().enumerate() {
         ev.push((feat.lop3xorur_rec[k].0, 20, Ev::McLop3XorUrRec(k)));
     }
-    // mk59: rekordy d10102-47 per WC-site (NOP-region); tier 20, lane WC.
+    // mk59: d10102-47 records per WC site (NOP region); tier 20, WC lane.
     for (k, _) in feat.d1wc47.iter().enumerate() {
         ev.push((feat.d1wc47[k].0, 20, Ev::McD1Wc47(k)));
     }
-    // mk60: rekordy 0132100a (redux2); tier 20, lane REDUX/CREDUX.
+    // mk60: 0132100a records (redux2); tier 20, REDUX/CREDUX lane.
     for (k, _) in feat.redux2.iter().enumerate() {
         ev.push((feat.redux2[k].0, 20, Ev::Redux2(k)));
     }
-    // mk48: rekordy 024d*32 (REDG); tier 20 jak Ev::Atom/mk44-47.
+    // mk48: 024d*32 records (REDG); tier 20 like Ev::Atom/mk44-47.
         for (k, _) in feat.redg2_rec.iter().enumerate() {
         ev.push((feat.redg2_rec[k].0, 20, Ev::McRedg2(k)));
     }
-    // mk49: rekordy 024e*32 (ATOM-family); tier 20 jak mk48.
+    // mk49: 024e*32 records (ATOM family); tier 20 like mk48.
     for (k, _) in feat.atomg2_rec.iter().enumerate() {
         ev.push((feat.atomg2_rec[k].0, 20, Ev::McAtomg2(k)));
     }
-    // mk30b: UTCA piny + ATOMS z imm [UR+off] takze w sciezce laned
-    // (b_tcgen05; mk27 robil to dla zero-param mkvmem).
+    // mk30b: UTCA pins + ATOMS with imm [UR+off] also on the laned path
+    // (b_tcgen05; mk27 did this for zero-param mkvmem).
     for (k, _) in feat.utca.iter().enumerate() {
         ev.push((feat.utca[k].0, 4, Ev::Utca(k)));
     }
@@ -2060,9 +2060,9 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     }
     ev.sort_by_key(|&(lane, tier, _)| (lane, tier));
     let mut utca_fns_seen = 0usize;
-    // payload anchor (jak cflow_rec legacy)
-    // mk13: b13=0x02 stale; b12 = enum SR czytanego przez S2R per anchor
-    // (zastepuje hack cf[12]=0 dla atom/mma — zbiezny z LANEID=0).
+    // anchor payload (as in cflow_rec legacy)
+    // mk13: b13=0x02 fixed; b12 = enum of the SR read by S2R per anchor
+    // (supersedes the cf[12]=0 hack for atom/mma — convergent with LANEID=0).
     let anchor_base = {
         let mut cf = REC_EXTRA_EXIT;
         let v: u32 = (feat.anchor_f4 << 6) | 1;
@@ -2076,8 +2076,8 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
         match kind {
             Ev::Desc(j) => out.extend_from_slice(&mk10c_rec_desc(feat.param_loads[j], roles[j])),
             Ev::Cbank => {
-                // mk30b: bramki rodzin (b_*); bazowo (03,01) / (83,01).
-                // utca -> (83,02); EXCH -> (03, b11=2 gdy cbank-early);
+                // mk30b: family gates (b_*); default (03,01) / (83,01).
+                // utca -> (83,02); EXCH -> (03, b11=2 when cbank-early);
                 // ARRIVE-only -> (03,01); PHASECHK -> (83,01).
                 let base = if !feat.utca.is_empty() {
                     let mut r = REC_CBANK_SMEM;
@@ -2100,8 +2100,8 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 } else {
                     REC_CBANK
                 };
-                // mk35: (b10,b11) = (dst358 << 6) | 3 gdy znamy rejestr
-                // loadu c[0x358] (k_atom UR4->03 01; at_and/min UR6->83 01).
+                // mk35: (b10,b11) = (dst358 << 6) | 3 when the c[0x358] load
+                // register is known (k_atom UR4->03 01; at_and/min UR6->83 01).
                 let mut base = base;
                 if let Some(d) = feat.cbank358_dreg {
                     if crate::elf_builder::feature_region_override_is_default(&base) {
@@ -2116,13 +2116,13 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::ShiftRegion => out.extend_from_slice(&REC_SHIFT_REGION),
             Ev::Anchor(k) => {
                 let mut cf = anchor_base;
-                // mk41: b4 = pelny kod predykatu lane S2R (korpus: @!Pn -> n<<3|1).
+                // mk41: b4 = full predicate code of the S2R lane (corpus: @!Pn -> n<<3|1).
                 if let Some(&g) = feat.s2r_guard.get(k) {
                     cf[4] = g;
                 }
                 cf[12] = feat.s2r_sr.get(k).copied().unwrap_or(1);
-                // mk17a: f4 = numer R dest S2R tego anchora (mk20: 90/90);
-                // zastepuje bramkowany anchor_base gdy meta niesie skan.
+                // mk17a: f4 = R-dest number of this anchor's S2R (mk20: 90/90);
+                // supersedes the gated anchor_base when meta carries the scan.
                 if let Some(&rd) = feat.s2r_dest.get(k) {
                     let v: u32 = (rd << 6) | 1;
                     cf[10] = (v & 0xff) as u8;
@@ -2131,8 +2131,8 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 out.extend_from_slice(&cf);
             }
             Ev::AnchorGeo(k) => {
-                // mk56: b13=04 (klasa geometrii okna c[0x0][0x360..78]);
-                // b12 = geometria, payload = (dest<<6)|1, b4 = guard.
+                // mk56: b13=04 (geometry class of the c[0x0][0x360..78] window);
+                // b12 = geometry, payload = (dest<<6)|1, b4 = guard.
                 let (_, d, b12, g) = feat.ldcgeo[k];
                 let mut cf = anchor_base;
                 cf[4] = g;
@@ -2145,15 +2145,15 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             }
             Ev::Bar(i) => {
                 let mut br = *bar_rec;
-                // mk35: b4 = guard per-lane (1=@P->00, 2=@!P->01; 0=f8);
+                // mk35: b4 = per-lane guard (1=@P->00, 2=@!P->01; 0=f8);
                 // nvcc bar_if2 (@P0 BAR -> 00) vs legacy bar_pred-global.
-                // mk41: pelny kod predykatu (0xf8 = brak, Pn<<3|neg...).
+                // mk41: full predicate code (0xf8 = none, Pn<<3|neg...).
                 if let Some(&g) = feat.bar_guard.get(i) {
                     br[4] = g;
                 }
                 if let Some(&(id, cnt)) = feat.bar_args.get(i) {
                     if id != 0 || cnt != 0 {
-                        // mk13: named barrier: b11=id, b14=cnt (b12=01 stale;
+                        // mk13: named barrier: b11=id, b14=cnt (b12=01 fixed;
                         // gold p_namedbar: bar.sync 1,32 -> b11=01 b14=0x20).
                         br[11] = id as u8;
                         br[14] = cnt as u8;
@@ -2161,9 +2161,9 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 }
                 out.extend_from_slice(&br);
             }
-            // mk30b: podpula-slot model b_wmma/b_cpasync SKONTRAWERFIKOWANY
-            // przez k_mma (identyczny ksztalt -> nvcc chce tam s=1, tu 0).
-            // STG-slot region/dialect-dependent — wrocic oraculum gdb.
+            // mk30b: the subpool-slot model b_wmma/b_cpasync COUNTER-VERIFIED
+            // by k_mma (identical shape -> nvcc wants s=1 there, 0 here).
+            // STG slot is region/dialect-dependent — go back to the gdb oracle.
             Ev::Stg(i) => {
                 if !stg_skip(feat, i) {
                     out.extend_from_slice(&rec_stg(feat, i, None));
@@ -2192,7 +2192,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 let mut blob = crate::mercury::build_ldgsts_blob(d, sr);
                 if feat.ldgsts_b128 {
                     // mk30b: LDGSTS.BYPASS.E.128 (cp.async 16B): b8=0x20
-                    // (zamiast 0x24), b10=0x10. Zmierzone: b_cpasync.
+                    // (instead of 0x24), b10=0x10. Measured: b_cpasync.
                     blob[8] = 0x20;
                     blob[10] = 0x10;
                 }
@@ -2202,7 +2202,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 let (_l, imm) = feat.ldgsts_wait.unwrap_or((0, 0));
                 out.extend_from_slice(&crate::mercury::build_ldgsts2_wait(imm));
             }
-            // mk53: marker 51 02 (gdy pin) + blob 32B.
+            // mk53: 51 02 marker (when pinned) + 32B blob.
             Ev::Ldgsts2(i2) => {
                 let x = &feat.ldgsts2[i2];
                 if x.pin {
@@ -2227,7 +2227,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             }
             Ev::Redux(i) => {
                 // gold p_redux lane10: 0132 100a f8 00 4d 00 00 00 81 01 ...
-                // mk35: b6=4d typowany REDUX; b6=51,b13=01 CREDUX (at_min);
+                // mk35: b6=4d typed REDUX; b6=51,b13=01 CREDUX (at_min);
                 // [10:12] = (dstUR<<6)|1 (p_redux UR6 -> 01 81; at_min
                 // CREDUX.MIN.S32 UR5 -> 01 41).
                 let (lane, kind, dreg) = feat.redux[i];
@@ -2241,12 +2241,12 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 ]);
             }
             Ev::IsetpUr => out.extend_from_slice(
-                // mk35 (g5b bar_if2 n05): ISETP.NE z operandem UR, bez .EX
-                // -> mini, zajelanej lane bez bitu; klasa 02103214 flag0.
+                // mk35 (g5b bar_if2 n05): ISETP.NE with a UR operand, without .EX
+                // -> mini, the occupied lane gets no bit; 02103214 class flag0.
                 &[0x42, 0x10, 0x32, 0x14],
             ),
-            // mk41: tagi mini XSETP-par wg operandow heada/pary
-            // (lab sm_100a i sm_103a identyczne — era-inwariant).
+            // mk41: XSETP-pair mini tags by the head/pair operands
+            // (sm_100a and sm_103a labs identical — era-invariant).
             Ev::XsetpPair(0) => out.extend_from_slice(&[0x42, 0x10, 0x2e, 0x14]),
             Ev::XsetpPair(1) => out.extend_from_slice(&[0x42, 0x10, 0x30, 0x06]),
             Ev::XsetpPair(2) => out.extend_from_slice(&[0x42, 0x10, 0x32, 0x14]),
@@ -2282,9 +2282,9 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             // mk30: rodziny b_*
             Ev::GeoRec(k) => {
                 let mut r = feat.geo_rec[k].1;
-                // mk30-bulk1 carve-out: pierwszy anchor CgaCtaId niepredyko-
-                // wany z dst==5 przy BSSY i mbarrier-EXCH -> (b10,b11)=(01,02)
-                // (gold bulk1; p_ldsm bez EXCH zostaje z generic (41,01)).
+                // mk30-bulk1 carve-out: the first non-predicated CgaCtaId anchor
+                // with dst==5 under BSSY and mbarrier-EXCH -> (b10,b11)=(01,02)
+                // (gold bulk1; p_ldsm without EXCH stays generic (41,01)).
                 let dst = ((r[10] as u16) | ((r[11] as u16) << 8)) >> 6;
                 if r[13] == 2 && r[12] == 0x2c
                     && r[4] == 0xfa
@@ -2305,7 +2305,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                 let (_l, pred, dst) = feat.s2ur_cga[k];
                 let mut r = REC_SMEM;
                 if pred {
-                    // wariant predykowany (m_init/b_mbarrier): b4=03, b10=c1
+                    // predicated variant (m_init/b_mbarrier): b4=03, b10=c1
                     r[4] = 0x03;
                     r[10] = 0xc1;
                 } else if k == 0 && dst == 5
@@ -2313,14 +2313,14 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
                     && !(feat.mc_exch.is_empty() && feat.mc_arrive.is_empty()
                         && feat.mc_phase.is_empty())
                 {
-                    // wariant pierwszego okna TYLKO w rodzinie mbarrier-EXCH
-                    // (bulk1/b_bulk_cp); p_ldsm ma BSSY+BSYNC ale b10 zostaje
-                    // 0x41 (zgold-test p_ldsm = (41,01)).
+                    // first-window variant ONLY in the mbarrier-EXCH family
+                    // (bulk1/b_bulk_cp); p_ldsm has BSSY+BSYNC but b10 stays
+                    // 0x41 (zgold test p_ldsm = (41,01)).
                     r[10] = 0x01;
                     r[11] = 0x02;
                 } else if dst != 5 {
-                    // mk41: siatka rol = (dstUR<<6)|1 (korpus sm_100; domysl
-                    // 0x41,01 to dokladnie przypadek dst=5 — bez zmian tam).
+                    // mk41: role grid = (dstUR<<6)|1 (sm_100 corpus; the 0x41,01
+                    // default is exactly the dst=5 case — unchanged there).
                     let v: u16 = ((dst as u16) << 6) | 1;
                     r[10] = (v & 0xff) as u8;
                     r[11] = (v >> 8) as u8;
@@ -2376,7 +2376,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::McUlop3NotRec(k) => out.extend_from_slice(&feat.ulop3not_rec[k].1),
             Ev::McUlop3XorRec(k) => out.extend_from_slice(&feat.ulop3xor_rec[k].1),
             Ev::McLop3XorUrRec(k) => out.extend_from_slice(&feat.lop3xorur_rec[k].1),
-            // mk59: d10102-47 z rzeczywistym regiem maski (lane WC-site).
+            // mk59: d10102-47 with the real mask reg (WC-site lane).
             Ev::McD1Wc47(k) => {
                 out.extend_from_slice(&crate::mercury::merc_d1wc47_record(feat.d1wc47[k].1))
             }
@@ -2398,7 +2398,7 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             Ev::Utca(k) => {
                 match feat.utca[k].1 {
                     0 => {
-                        // mk27-rule: pierwszy FNS b17=0x02, kolejne 0x01.
+                        // mk27 rule: first FNS b17=0x02, later ones 0x01.
                         let mut rc = REC_UTCA_FNS;
                         rc[17] = if utca_fns_seen == 0 { 0x02 } else { 0x01 };
                         utca_fns_seen += 1;
@@ -2425,18 +2425,18 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
             eprintln!("TLVTRACE lane={tl_lane} tier={tl_tier} tag={tag} n={}", rec.len());
         }
     }
-    // mk15b/mk59-legacy: rekordy d1-34B za blokami kolektywnymi plain-BSSY
-    // TYLKO gdy sciezka nie miala skanu tekstu (gold q_bsync_pair x2).
+    // mk15b/mk59-legacy: d1-34B records after plain-BSSY collective blocks
+    // ONLY when the path had no text scan (gold q_bsync_pair x2).
     if !feat.d1wc47_scanned {
         for _ in 0..feat.d1wc47_legacy {
             out.extend_from_slice(&crate::mercury::merc_d1wc47_record(0));
         }
     }
-    // ATOM-klasa legacy: po strumieniu tylko gdy brak per-lane metadanych
-    // (mk14). Klasy nie-RED emitowane juz w lane (Ev::Atom); RED zostaja tu.
+    // Legacy ATOM class: after the stream only when per-lane metadata
+    // is absent (mk14). Non-RED classes are already emitted in-lane (Ev::Atom); RED stays here.
     if feat.atoms.is_empty() {
-        // mk48: lane'y REDG z wlasnymi rekordami (redg2_rec) nie dostaja
-        // legacy trailing REC_ATOM (k_atom/v_atom: dublet po mk48-fixie).
+        // mk48: REDG lanes with their own records (redg2_rec) do NOT get
+        // the legacy trailing REC_ATOM (k_atom/v_atom: a doublet after the mk48 fix).
         let covered = feat.redg2_rec.len() as u32 + feat.atomg2_rec.len() as u32;
         // BUG-055: REDG.EL plain-range lanes are recordless at nvcc level;
         // they must not trigger placeholder backfill either (new-glyph text
@@ -2457,9 +2457,9 @@ fn emit_feature_records_laned(out: &mut Vec<u8>, feat: &MercFeatures, bar_rec: &
     }
 }
 
-/// mk27: sciezka zero-param pozycyjna (mkvmem: kolejnosc rekordow po lane).
-/// PROLOG wypisany juz przez wywolujacego. Brak redux/cbank w tym scope
-/// (kandydat 0132 mkvmem odrzucany przez merger ptxas — patrz mk26 capture).
+/// mk27: zero-param positional path (mkvmem: record order follows lanes).
+/// PROLOG already written by the caller. No redux/cbank in this scope
+/// (the mkvmem 0132 candidate is rejected by the ptxas merger — see mk26 capture).
 fn emit_zero_param_positioned(out: &mut Vec<u8>, feat: &MercFeatures) {
     #[derive(Clone, Copy)]
     enum ZE {
@@ -2541,9 +2541,9 @@ fn emit_zero_param_positioned(out: &mut Vec<u8>, feat: &MercFeatures) {
             }
         }
     }
-    // mk27: mkvmem ma 4. rekord 01476c0a po wszystkich atomach (kandydat
-    // mk26 i82, przed trailerem) gdy kernel ma wewnetrzne fn z RET —
-    // mechanizm dokladny mk27-otwarty; empiria: 1x za kernel z RET+utca.
+    // mk27: mkvmem has a 4th 01476c0a record after all atomics (mk26 i82
+    // candidate, before the trailer) when the kernel has internal fns with RET —
+    // exact mechanism mk27-open; empirics: 1x per kernel with RET+utca.
     if feat.has_ret_internal && !feat.utca.is_empty() {
         out.extend_from_slice(&crate::mercury::MERC_SYNCWARP_GHOST);
     }
@@ -2581,26 +2581,26 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
         emit_feature_records_laned(out, feat, bar_rec);
         return;
     }
-    // mk27: zero-param kernel z pozycyjnymi rodzinami (mkvmem: UTCATOMSWS,
-    // ATOMS z imm, ghosty, ELECT, smem-anchory per S2UR) — harmonogram po
-    // lane kodu, jak u nvcc (final TLV = podciag strumienia kandydatow po
-    // soff, zmierzony oraculum mk26 na FUN_004ad1d0).
+    // mk27: zero-param kernel with positional families (mkvmem: UTCATOMSWS,
+    // imm ATOMS, ghosts, ELECT, per-S2UR smem anchors) — scheduled by
+    // code lane, like nvcc (final TLV = the candidate-stream subsequence by
+    // soff, measured by the mk26 oracle on FUN_004ad1d0).
     if !feat.utca.is_empty() || !feat.atom_smem.is_empty() {
         emit_zero_param_positioned(out, feat);
         return;
     }
-    // (mk27 note: pozny 4. ghost 01476c0a po lane 49 w mkvmem — emitowany
-    // w sciezce zero-param-pozycyjnej gdy kernel ma wewnetrzne fn z RET)
+    // (mk27 note: the late 4th ghost 01476c0a after lane 49 in mkvmem — emitted
+    // on the zero-param-positional path when the kernel has internal fns with RET)
     let cflow_rec = |feat: &MercFeatures| {
         let mut cf = REC_EXTRA_EXIT;
-        // mk12 (iter AD, zweryfikowane na secie gold 70/70): payload =
-        // (f4<<6)|1 na bajtach [10:11]; f4 = MercFeatures.anchor_f4.
-        // znane residua: multi-anchor seryjnosci (c_ld_dyn2, p_atomg/p_atoms),
-        // q_tail_call, d_ifelse_ld (pred-merge LDG), k_ldg2 (STG b20 kursora).
+        // mk12 (iter AD, verified on the gold set 70/70): payload =
+        // (f4<<6)|1 on bytes [10:11]; f4 = MercFeatures.anchor_f4.
+        // known residuals: multi-anchor seriality (c_ld_dyn2, p_atomg/p_atoms),
+        // q_tail_call, d_ifelse_ld (pred-merge LDG), k_ldg2 (STG b20 cursor).
         let v: u32 = (feat.anchor_f4 << 6) | 1;
         cf[10] = (v & 0xff) as u8;
         cf[11] = (v >> 8) as u8;
-        // wariant atom lub multi-MMA: bajt[12]=00, inaczej 01 (szablon 02 w b13).
+        // atomic or multi-MMA variant: byte[12]=00, else 01 (template 02 in b13).
         if feat.cflow_atom || feat.os_mma_multi {
             cf[12] = 0x00;
         }
@@ -2611,22 +2611,22 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
         out.extend_from_slice(&cflow_rec(feat));
     }
     let total_params = feat.used_params + feat.used_scalar_params;
-    // mk35: nvcc NIE emituje desc/cbank dla kerneli z parametrami, ktorych
-    // nic nie laduje (div3/v_scalar/v_gconst: samo LDC envreg + EXIT).
-    // Sciezka legacy fabrykuje rekordy z metadanych param — zamknieta dla
-    // ery sm103 natywnej (bez param-loadow). Era sm100 zostaje.
+    // mk35: nvcc does NOT emit desc/cbank for kernels whose parameters
+    // nothing loads (div3/v_scalar/v_gconst: just an LDC envreg + EXIT).
+    // The legacy path fabricates records from param metadata — closed for
+    // the native sm103 era (no param loads). The sm100 era stays.
     let legacy_fabricate = feat.era_sm100;
     if total_params > 0 && legacy_fabricate {
-        // Descs w kolejnosci pierwszego uzycia parametru (regula mk8/v_*):
-        // tail-dw bajtow[28..32] = 8 * idx-sygnaturowy parametru
-        // (sciezka legacy BEZ param_loads: order w dziedzinie pi = slotow 8B;
-        // paramy 8B-wyrowane => 8*pi == rel, mk19).
-        // role (b10,b11): (83,00)=param iterowany pierwszy; (03,01)=kolejne
-        // parametr write-first dla n_ptr<=2; (83,01)=write dla n_ptr>=3.
-        // Wariant [b2/b4] wg mechanizmu ladowania slotu (fs-lab 2026-08-05):
-        // slot przez LDCU* => 08 06 + b4=fa; przez LDC* => 0e 06 + f8.
-        // Jeden desc NA INSTRUKCJE LADOWANIA (powtorne => wiele descs;
-        // LDCU.128 pokrywa dwa sloty => 1 desc (07,02)).
+        // Descs in first-use order of the parameter (mk8/v_* rule):
+        // tail-dw bytes [28..32] = 8 * the parameter's signature idx
+        // (legacy path WITHOUT param_loads: order in the pi domain = 8B slots;
+        // 8B-aligned params => 8*pi == rel, mk19).
+        // roles (b10,b11): (83,00)=first-iterated param; (03,01)=later
+        // write-first param for n_ptr<=2; (83,01)=write for n_ptr>=3.
+        // The [b2/b4] variant follows the slot's load mechanism (fs-lab 2026-08-05):
+        // slot via LDCU* => 08 06 + b4=fa; via LDC* => 0e 06 + f8.
+        // One desc PER LOAD INSTRUCTION (repeated => multiple descs;
+        // LDCU.128 covers two slots => 1 desc (07,02)).
         let order: Vec<u32> = match &feat.param_order {
             Some(o) if !o.is_empty() => o.clone(),
             _ => (0..feat.used_params).collect(),
@@ -2635,9 +2635,9 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
             feat.era_sm100 && !feat.smem_static && feat.bar_count > 0 && !feat.bar_pred;
         let mut descs: Vec<[u8; 32]> = Vec::new();
         let atom_async = feat.n_atom > 0;
-        // mk11 (k_mma): slot pokryty przez 128-bit load sasiada (pi-1 ma
-        // width 16, a sam nie ma wlasnego loadu [width 0, brak bitow unif/reg])
-        // nie dostaje wlasnego desca — dane trafiaja rekordem sasiada.
+        // mk11 (k_mma): a slot covered by the neighbor's 128-bit load (pi-1 has
+        // width 16 while having no load of its own [width 0, no unif/reg bits])
+        // gets no desc of its own — the data arrives via the neighbor's record.
         let covered = |pi: u32| -> bool {
             let i = pi as usize;
             i > 0
@@ -2666,7 +2666,7 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
             };
             let uniform = (feat.param_uniform >> pi) & 1 == 1;
             let regp = (feat.param_regpath >> pi) & 1 == 1;
-            let regp = regp || !uniform; // brak danych o sciezce => register path
+            let regp = regp || !uniform; // no path data => register path
             if uniform {
                 let mut d = REC_PARAM_DESC;
                 d[2] = 0x08;
@@ -2730,7 +2730,7 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
                 }
                 if feat.diverge_region {
                     out.extend_from_slice(&REC_SHIFT_REGION);
-                    // mk15: patrz laned-path — dup rekordu smem po regionie.
+                    // mk15: see the laned path — dup of the smem record after the region.
                     if feat.smem_static {
                         out.extend_from_slice(&REC_SMEM);
                     }
@@ -2857,7 +2857,7 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
                 out.extend_from_slice(&REC_ATOM);
             }
         } else {
-            // brak pozycji kodowych — zachowanie grupowe: rekordy xor za
+            // no code positions — grouped behavior: xor records after
             // sekcja prologowa (anchor/desc/cbank), przed grupowym bar/stg.
             for xl in &feat.xor_lanes {
                 out.extend_from_slice(&rec_xor(xl.1, xl.2, xl.3, xl.4));
@@ -2890,7 +2890,7 @@ fn emit_feature_records(out: &mut Vec<u8>, feat: &MercFeatures) {
         }
     } else if feat.bar_count > 0 || feat.smem_static {
         if feat.smem_static && feat.bar_count == 0 {
-            // samo smem bez parametrow — nieobserwowane; zachowaj pole
+            // smem alone without parameters — unobserved; keep the field
         }
         for _ in 0..feat.bar_count {
             out.extend_from_slice(bar_rec);
@@ -2943,15 +2943,15 @@ pub fn generate_mercury_full(
     while end > 0 && is_nop(end - 1) {
         end -= 1;
     }
-    // Regula regionowa (mk9+q_bsync_pair): bloki [WARPSYNC, NOP, ENDCOLLECTIVE]
-    // (kolektywne epilogi) wyjmują z bitmapy WARPSYNC i NOP (2 sloty na blok;
-    // ENDCOLLECTIVE zostaje, =1). Korpus: +42.8pp exact (40.4 -> 83.2%).
+    // Region rule (mk9+q_bsync_pair): [WARPSYNC, NOP, ENDCOLLECTIVE] blocks
+    // (collective epilogues) lift WARPSYNC and NOP out of the bitmap (2 slots per block;
+    // ENDCOLLECTIVE stays, =1). Corpus: +42.8pp exact (40.4 -> 83.2%).
     let region_drop: Vec<bool> = match opcodes {
         Some(ops) => {
             let mut dr = vec![false; n_instr];
             for i in 0..end {
                 if ops[i].starts_with("ENDCOLLECTIVE") {
-                    // najblizszy poprzedzajacy WARPSYNC w oknie 6 i NOP miedzy
+                    // nearest preceding WARPSYNC within 6 and a NOP between
                     let start = i.saturating_sub(6);
                     let mut ws = None;
                     let mut nop = None;
@@ -2971,13 +2971,13 @@ pub fn generate_mercury_full(
         }
         None => Vec::new(),
     };
-    // mk13d: spany [BSSY..BSYNC) (mikrolab sw4/8/16/32/64): wewnatrz spanu
-    // WSZYSTKIE instrukcje dostaja bit bitmapy (takze BRA/BSSY/...), NOP
-    // w spanie nie zajmuje slotu B-space (B zlicza mniej), BSYNC zamyka
-    // span (sam bez bitu, ale slot zachowuje). Zgodnosc fitu: 5/5 wierszy.
-    // mk16.3 (gold q_bsync_pair): TWO span dialects. Surowe "BSSY" (bez
-    // .RECONVERGENT): ghost-NOP w spanie BEZ bitu, BSYNC-zamkniecie Z bitem,
-    // ENDCOLLECTIVE bez bitu, BRA tuz po bloku kolektywnym/zamknieciu Z bitem.
+    // mk13d: [BSSY..BSYNC) spans (microlab sw4/8/16/32/64): inside a span
+    // ALL instructions get a bitmap bit (incl. BRA/BSSY/...); a NOP
+    // in a span occupies no B-space slot (B counts less); BSYNC closes
+    // the span (no bit itself, but keeps its slot). Fit agreement: 5/5 rows.
+    // mk16.3 (gold q_bsync_pair): TWO span dialects. Raw "BSSY" (without
+    // .RECONVERGENT): ghost-NOP in span WITHOUT a bit, BSYNC close WITH a bit,
+    // ENDCOLLECTIVE without a bit, BRA right after a collective block/close WITH a bit.
     let plain_bssy = matches!(opcodes, Some(ops) if ops.iter().any(|o| o == "BSSY"));
     let mut bssy_close_lanes: Vec<u32> = Vec::new();
     let in_bssy_span: Vec<bool> = match opcodes {
@@ -3004,10 +3004,10 @@ pub fn generate_mercury_full(
         }
         None => Vec::new(),
     };
-    // mk14: ghost __syncwarp NOP-y ZACHOWUJA sloty B nawet w spanie BSSY
-    // (sa na liscie site'ow EIATTR-0x28 -> rekord 01476c0a).
+    // mk14: __syncwarp ghost NOPs KEEP their B slots even inside a BSSY span
+    // (they are on the EIATTR-0x28 site list -> 01476c0a record).
     let syncwarp_set: Vec<u32> = meta.merc_syncwarp.clone();
-    // mk14.3: lane'y gryzione przez eventy LDGSTS.
+    // mk14.3: lanes bitten by LDGSTS events.
     let mut feat_host_zero: Vec<u32> = meta
         .merc_ldgsts_pin
         .iter()
@@ -3024,7 +3024,7 @@ pub fn generate_mercury_full(
     }
     let mut xor_lane_set: Vec<u32> =
         meta.merc_xor.iter().map(|&(lane, _, _, _, _)| lane).collect();
-    // mk13: rejestrowa forma xor tez zastepuje wezel typu4 (brak bitu).
+    // mk13: the register xor form also replaces the type-4 node (no bit).
     xor_lane_set.extend(meta.merc_xor_reg.iter().map(|&(lane, _, _, _, _)| lane));
     let feat_f64_set: Vec<u32> = meta
         .merc_f64imm
@@ -3036,12 +3036,12 @@ pub fn generate_mercury_full(
     let bra_guard_set: Vec<u32> = meta.merc_guarded_bra.clone();
     let bra_selfloop_set: Vec<u32> = meta.merc_bra_selfloop.clone();
     let lop3_pdest_set: Vec<u32> = meta.merc_lop3_pdest.clone();
-    // mk27: dialekt tcgen05/mkvmem (kernel z UTCATOMSWS na stosie
-    // zero-param): bitmapa ustawia BRA.U/REDUX, kasuje UTCATOMSWS/WARPSYNC
-    // (fit mk27 na mkvmem: 9 bitow rozbieznosci -> reguly klasowe).
+    // mk27: tcgen05/mkvmem dialect (kernel with UTCATOMSWS on the
+    // zero-param stack): the bitmap sets BRA.U/REDUX, clears UTCATOMSWS/WARPSYNC
+    // (mk27 fit on mkvmem: 9 diverging bits -> class rules).
     let dialect_utca = !meta.merc_utca.is_empty();
     let force_bit: std::collections::BTreeSet<u32> = std::collections::BTreeSet::new();
-    // mk30: rodziny b_* — lane z kandydatem-rekordem (mini/pelny) albo
+    // mk30: b_* families — a lane with a candidate record (mini/full) or
     // regionowe kasowanie bitow. m-family == kernel z klasa SYNCS.*.
     let m_family = !meta.merc_mc_exch.is_empty()
         || !meta.merc_mc_arrive.is_empty()
@@ -3055,9 +3055,9 @@ pub fn generate_mercury_full(
     for &l in &meta.merc_mc_voteu_all {
         bit0.insert(l);
     }
-    // mk34: ushf_fin NIE kasuje bitu — lane'e prologu USHF sa NODELESS
-    // (mc_nodeless; usuniecie calego slotu, nie tylko bitu).
-    // lea4100-mini: mk26 — wezel zastapiony; bit kasowany.
+    // mk34: ushf_fin does NOT clear the bit — USHF prologue lanes are NODELESS
+    // (mc_nodeless; the whole slot disappears, not just the bit).
+    // lea4100-mini: mk26 — node replaced; bit cleared.
     for &l in &meta.merc_mc_lea18 {
         bit0.insert(l);
     }
@@ -3067,89 +3067,89 @@ pub fn generate_mercury_full(
     for &(l, _) in &meta.merc_ws_minis {
         bit0.insert(l);
     }
-    // mk65: mini zastepuja wezel t4 (bit kasowany) — jak ws_minis.
+    // mk65: minis replace the t4 node (bit cleared) — like ws_minis.
     for &(l, _) in &meta.merc_wsreg_minis {
         bit0.insert(l);
     }
     // mk30b-korekta (slot-space'): HFMA2-const ZACHOWUJE bit (nvcc slot31 =
-    // lane33 w b_tcgen05 — wczesniejszy odczyt lane-space byly pomylka).
-    // Natomiast UVIRTCOUNT.DEALLOC z mini 4144 KASUJE bit wlasnej lane
-    // (nvcc nie ustawia slotu 33; mini zastepuje wezel t4).
+    // lane33 in b_tcgen05 — the earlier lane-space reading was a mistake).
+    // Meanwhile UVIRTCOUNT.DEALLOC with the 4144 mini CLEARS its own lane's bit
+    // (nvcc does not set slot 33; the mini replaces the t4 node).
     for &l in &meta.merc_uvcount {
         bit0.insert(l);
     }
     if m_family {
-        // mk34 (node-model, g5b na b_mbarrier bulk_cp): Pelny zestaw regul
-        // m-family — walker nvcc daje lane'om wezly typu:
-        //  * PHASECHK -> rekord 021b4c — bez bitu,
+        // mk34 (node model, g5b on b_mbarrier bulk_cp): the full m-family
+        // rule set — the nvcc walker gives lanes nodes of type:
+        //  * PHASECHK -> 021b4c record — no bit,
         for &l in &meta.merc_mc_phase {
             bit0.insert(l);
         }
-        //  * ARRIVE (wszystkie warianty b4) -> rekord 021b2c — bez bitu,
+        //  * ARRIVE (all b4 variants) -> 021b2c record — no bit,
         for &(l, _b4) in &meta.merc_mc_arrive {
             bit0.insert(l);
         }
-        //  * EXCH -> rekord 021b5e — bez bitu,
+        //  * EXCH -> 021b5e record — no bit,
         for &(l, _, _, _) in &meta.merc_mc_exch {
             bit0.insert(l);
         }
-        //  * PLOP3 expect_tx -> trio rekordow 0110060a — bez bitu,
+        //  * PLOP3 expect_tx -> 0110060a record trio — no bit,
         for &(l, _) in &meta.merc_plop3_tx {
             bit0.insert(l);
         }
-        //  * UBLKCP -> rekord 02232826 — bez bitu,
+        //  * UBLKCP -> 02232826 record — no bit,
         for &l in &meta.merc_ublkcp {
             bit0.insert(l);
         }
-        //  * S2UR CgaCtaId -> smem-anchor 010b060a — NIGDY bit (kasowanie
-        //    mk30b s2ur_extra bylo lane-space artefaktem: nvcc node21
-        //    b_mbarrier ma flag=0);
-        //  * MOV R?,0x400 / ULEA prologu / braided-BRA: MAJA bity
-        //    (g5b: n15/n17/n21/n32/n33) — reguly kasujace mk30b usuniete.
+        //  * S2UR CgaCtaId -> smem anchor 010b060a — NEVER a bit (the mk30b
+        //    s2ur_extra clearing was a lane-space artifact: nvcc node21
+        //    b_mbarrier has flag=0);
+        //  * MOV R?,0x400 / prologue ULEA / braided BRA: HAVE bits
+        //    (g5b: n15/n17/n21/n32/n33) — the mk30b clearing rules removed.
     }
-    // mk35: ISETP z operandem UR (bez .EX) — mini 42 10 32 14 zastepuje
-    // wezel t4, lane bez bitu (nvcc bar_if2 g5b).
+    // mk35: ISETP with a UR operand (no .EX) — mini 42 10 32 14 replaces
+    // the t4 node, lane without a bit (nvcc bar_if2 g5b).
     for &l in &meta.merc_isetp_ur {
         bit0.insert(l);
     }
-    // mk41: head XSETP-pary traci bit (mini zamiast wezla t4; lab bitmapa).
+    // mk41: the head of an XSETP pair loses its bit (mini instead of the t4 node; lab bitmap).
     for &(l, _) in &meta.merc_xsetp_pairs {
         bit0.insert(l);
     }
-    // mk40: mini-slownik korpusowy (FFMA2/HADD2/F2I.U64.FT/...): rekord
-    // zastepuje wezel t4 — lane bez bitu (inwarinat EXACT count-match;
-    // residuum: FFMA2 22% lanow z bitem wg korpusu = flag-rule mk41).
+    // mk40: corpus mini dictionary (FFMA2/HADD2/F2I.U64.FT/...): the record
+    // replaces the t4 node — lane without a bit (EXACT count-match invariant;
+    // residual: FFMA2 22% of lanes carry a bit per corpus = mk41 flag rule).
     for &(l, _) in &meta.merc_mini2 {
         bit0.insert(l);
     }
-    // mk44: rekord 0110060a (PLOP3 dual-output nibswap-LUT) zastepuje
-    // wezel t4 — lane bez bitu (lab brute k2/k7: slot == lane rekordu,
-    // bit=0; tylko lane'owe rekordy z meta.merc_plop3_rec, nie-elig
-    // PLOP3 (UP/nietyp-LUT) zachowuja dotychczasowe zachowanie).
+    // mk44: the 0110060a record (PLOP3 dual-output nibswap LUT) replaces
+    // the t4 node — lane without a bit (brute lab k2/k7: slot == record lane,
+    // bit=0; only laned records from meta.merc_plop3_rec; non-eligible
+    // PLOP3 (UP/odd LUT) keep the prior behavior).
     for &(l, _) in &meta.merc_plop3_rec {
         bit0.insert(l);
     }
-    // mk45: rekord 010b0c0a zastepuje wezel t4 — lane CS2R bez bitu
-    // (lanebits: 43621 bit=0 / 6853 bit=1, odczyty bit=1 = misalign-artefakt
-    // big-kerneli jak w mk44; doktryna 'rekord zastepuje wezel').
+    // mk45: the 010b0c0a record replaces the t4 node — CS2R lane without a bit
+    // (lanebits: 43621 bit=0 / 6853 bit=1; the bit=1 readings are a misalign
+    // artifact of big kernels as in mk44; doctrine: the record replaces the node).
     for &(l, _) in &meta.merc_cs2r_rec {
         bit0.insert(l);
     }
-    // mk47: rekord 012b{00|04}0a zastepuje wezel t4 — lane LOP3 bez bitu
-    // (lanebits: 3922 bit=0 / 549 bit=1, ogony = misalign big-kerneli).
+    // mk47: the 012b{00|04}0a record replaces the t4 node — LOP3 lane without a bit
+    // (lanebits: 3922 bit=0 / 549 bit=1; the tails = big-kernel misalign).
     for &(l, _) in &meta.merc_lop3not_rec {
         bit0.insert(l);
     }
-    // mk58: jak mk47 — lane ULOP3 NOT-MOV bez bitu (675/134 c5).
+    // mk58: as mk47 — ULOP3 NOT-MOV lane without a bit (675/134 c5).
     for &(l, _) in &meta.merc_ulop3not_rec {
         bit0.insert(l);
     }
-    // mk71: jak mk58 — lane ULOP3 xor-0x3c bez bitu (host bit=0, c3/c9).
+    // mk71: as mk58 — ULOP3 xor-0x3c lane without a bit (host bit=0, c3/c9).
     for &(l, _) in &meta.merc_ulop3xor_rec {
         bit0.insert(l);
     }
-    // mk72: jak mk71 — lane LOP3 xor-mieszany (R,R,UR) bez bitu bitmapy
-    // (rodzina 012x zastepuje wezel t4; korpusowe lane'y niegarded).
+    // mk72: as mk71 — mixed LOP3 xor (R,R,UR) lane without a bitmap bit
+    // (the 012x family replaces the t4 node; corpus lanes unguarded).
     for &(l, _) in &meta.merc_lop3xorur_rec {
         bit0.insert(l);
     }
@@ -3160,7 +3160,7 @@ pub fn generate_mercury_full(
             meta.name, m_family, dialect_utca, bit0, mc_nodeless, meta.merc_hfma2_const, meta.merc_utca
         );
     }
-    // B = liczba slotow 0..end minus klasy zerowej wagi (nie dostaja bitu)
+    // B = number of slots 0..end minus the zero-weight classes (which get no bit)
     let mut bitmap: Vec<u32> = Vec::new();
     let mut cur = 0u32;
     let mut b_index = 0usize;
@@ -3168,8 +3168,8 @@ pub fn generate_mercury_full(
         let nop_span_skip = in_bssy_span.get(i).copied().unwrap_or(false)
             && matches!(opcodes, Some(ops) if ops[i] == "NOP")
             && !syncwarp_set.contains(&(i as u32));
-        // mk34: lane'e bez wezlow capmerc (mc_nodeless) wypadaja z
-        // przestrzeni bitmapy calkowicie — brak slotu (g5b node-count).
+        // mk34: lanes without capmerc nodes (mc_nodeless) fall out of
+        // the bitmap space entirely — no slot (g5b node count).
         if is_w0(i)
             || region_drop.get(i).copied().unwrap_or(false)
             || nop_span_skip
@@ -3181,13 +3181,13 @@ pub fn generate_mercury_full(
             Some(ops) if i < ops.len() => {
                 let mut t = opcode_tracked_hint(&ops[i]);
                 let base_i = ops[i].split('.').next().unwrap_or(ops[i].as_str());
-                // mk13: CALL dostaje bit bitmapy (gold p_call slot11; RET ma
-                // bit zawsze — nie figuruje w opcode_tracked_hint-exclude).
+                // mk13: CALL gets a bitmap bit (gold p_call slot11); RET has
+                // a bit always — it is not in opcode_tracked_hint-exclude.
                 if !t && base_i == "CALL" {
                     t = true;
                 }
-                // mk27: dialekt UTCA (tcgen05/mkvmem): UTCATOMSWS i WARPSYNC
-                // bez bitu; BRA.U i REDUX z bitem.
+                // mk27: UTCA dialect (tcgen05/mkvmem): UTCATOMSWS and WARPSYNC
+                // without a bit; BRA.U and REDUX with a bit.
                 if dialect_utca {
                     if base_i == "UTCATOMSWS" || base_i == "WARPSYNC" {
                         t = false;
@@ -3206,36 +3206,36 @@ pub fn generate_mercury_full(
                         t = true;
                     }
                 }
-                // mk13: predykowany BRA dostaje bit (gold q_switch slot5);
-                // koncowy BRA bez predykatu dalej bez bitu.
+                // mk13: a predicated BRA gets a bit (gold q_switch slot5);
+                // a trailing unpredicated BRA still gets no bit.
                 if !t && base_i == "BRA" && bra_guard_set.contains(&(i as u32)) {
                     t = true;
                 }
-                // mk34 (node-model g5b): w m-family KAZDY BRA ma wezel t4
-                // z flaga=1 (b_mbarrier 15/21/34/35, b_bulk_cp 4/28), chyba
-                // ze samo-petla spin (bez wezla — mk28/mk33).
+                // mk34 (node model g5b): in the m family EVERY BRA has a t4 node
+                // with flag=1 (b_mbarrier 15/21/34/35, b_bulk_cp 4/28), unless
+                // it is a spin self-loop (no node — mk28/mk33).
                 if m_family && base_i == "BRA" && !bra_selfloop_set.contains(&(i as u32)) {
                     t = true;
                 }
-                // mk13: LOP3 z destem predykatowym bez bitu (mini-rekord
-                // 42 2a 02 06 w lane, gold d_sw4_store slot6).
+                // mk13: LOP3 with a predicate destination gets no bit (mini record
+                // 42 2a 02 06 in the lane, gold d_sw4_store slot6).
                 if t && base_i == "LOP3" && lop3_pdest_set.contains(&(i as u32)) {
                     t = false;
                 }
                 // mk13d: wnetrze spanu BSSY — wszystko tracked (sw*-fit).
-                // mk14.3: WYJATEK — klasy semantycznie niesledzone (LDC/S2R/
-                // S2UR/LDCU config-uniform) bitu nie dostaja nawet w spanie
+                // mk14.3: EXCEPTION — semantically untracked classes (LDC/S2R/
+                // S2UR/LDCU config-uniform) get no bit even inside a span
                 // (gold p_ldsm slot12 S2UR=0; q_bsync_pair slot4 LDC.64=0).
                 if in_bssy_span.get(i).copied().unwrap_or(false) {
-                    // mk34: ELECT tez bez bitu w spanie (b_bulk_cp lane24:
-                    // tylko mini 41 64 00 0a; g5b n21 flag=0).
+                    // mk34: ELECT also gets no bit inside a span (b_bulk_cp lane24:
+                    // only mini 41 64 00 0a; g5b n21 flag=0).
                     if !matches!(base_i, "LDC" | "LDCU" | "S2R" | "S2UR" | "ELECT") {
                         t = true;
                     }
                 }
                 if plain_bssy {
                     if base_i == "NOP" {
-                        t = false; // ghost-NOP w plain-spanie: slot tak, bit nie
+                        t = false; // ghost-NOP in a plain span: slot yes, bit no
                     }
                     if bssy_close_lanes.contains(&(i as u32)) {
                         t = true; // BSYNC zamykajacy plain-span: bit tak
@@ -3253,10 +3253,10 @@ pub fn generate_mercury_full(
                         }
                     }
                 }
-                // mk13: typowany REDUX -> rekord 0132 zamiast bitu
-                // (gold p_redux). mk35 (node-model/g5b): CREDUX tez rekord
-                // (at_min), ale GOLY "REDUX" = wezel t4 z bitem, bez
-                // rekordu (at_and slot6/slot-bit6). mk27: dialekt UTCA
+                // mk13: typed REDUX -> a 0132 record instead of a bit
+                // (gold p_redux). mk35 (node model/g5b): CREDUX is a record too
+                // (at_min), but a BARE "REDUX" = t4 node with a bit, without
+                // a record (at_and slot6/slot-bit6). mk27: UTCA dialect
                 // STAWIA bit z powrotem (mkvmem slot41).
                 if base_i == "CREDUX" {
                     t = false;
@@ -3265,7 +3265,7 @@ pub fn generate_mercury_full(
                     t = false;
                 }
                 // mk14.3: hosty rekordow-event LDGSTS (pinned-blob + wait)
-                // traca bit (rekord zastepuje wezel t4) — m15 lab 3/3.
+                // lose the bit (the record replaces the t4 node) — m15 lab 3/3.
                 if t && feat_host_zero.contains(&(i as u32)) {
                     t = false;
                 }
@@ -3273,15 +3273,15 @@ pub fn generate_mercury_full(
             }
             _ => true,
         };
-        // mk30b: wymuszenie bitu (S2UR#2+ poza spanem; region-fit mk30b).
+        // mk30b: forced bit (S2UR#2+ outside a span; region fit mk30b).
         let tracked = tracked || force_bit.contains(&(i as u32));
-        // 0229-xor lane: pelny rekord zastepuje wezel typu4 (fs6: brak bitu);
-        // mk11: to samo dla MMA-025a (niepotrzebne — MMA i tak untracked),
-        // dla DMUL/DADD-imm (020f/020c) i dla lane-padow UIADD3 (hint).
+        // 0229-xor lane: the full record replaces the type-4 node (fs6: no bit);
+        // mk11: same for MMA-025a (not needed — MMA is untracked anyway),
+        // for DMUL/DADD-imm (020f/020c) and for the UIADD3 lane pads (hint).
         let xor_here = xor_lane_set.contains(&(i as u32));
         let f64_here = feat_f64_set.contains(&(i as u32));
         let pad_here = pad_set.contains(&(i as u32));
-        // mk30: b_* rodziny (rekord zastepuje wezel / reguly regionowe).
+        // mk30: b_* families (record replaces the node / region rules).
         let mc_here = bit0.contains(&(i as u32));
         if tracked && !xor_here && !f64_here && !pad_here && !mc_here {
             cur |= 1u32 << (b_index % 32);
@@ -3295,10 +3295,10 @@ pub fn generate_mercury_full(
     if !b_index.is_multiple_of(32) {
         bitmap.push(cur);
     }
-    // mk30b: n = ostatni ustawiony bit + 2 (TWARDY inwariant producenta:
-    // 17612/17612 blobow korpusu capmerc_all). Zastepuje heurystyke
-    // trim-count — rozchodzily sie przy ogonkach po-EXIT (m-family:
-    // YIELD/PHASECHK/BRA-trampoliny za EXIT) oraz przy padach BRA.
+    // mk30b: n = last set bit + 2 (HARD producer invariant:
+    // 17612/17612 blobs in the capmerc_all corpus). Supersedes the
+    // trim-count heuristic — they diverged on post-EXIT tails (m-family:
+    // YIELD/PHASECHK/BRA trampolines past EXIT) and on BRA pads.
     let mut bitmax: i64 = -1;
     for (wi, w) in bitmap.iter().enumerate() {
         if *w != 0 {
@@ -3324,7 +3324,7 @@ pub fn generate_mercury_full(
         eprintln!("TLVKERNEL {}", meta.name);
     }
     emit_feature_records(&mut buf, &feat);
-    // regula tail: f(trim-count) — NIE f(B)! (100% na 27,846-korpusie)
+    // tail rule: f(trim-count) — NOT f(B)! (100% on the 27,846 corpus)
     buf.extend_from_slice(&tail_for_instr_count(end as u32).to_le_bytes());
     buf
 }
@@ -3353,7 +3353,7 @@ pub fn generate_mercury_with_ops(
         }
         word_is_nop_hint(&code[i * 16..i * 16 + 2])
     };
-    // trim: tylko koncowe NOP-y (midstream NOP-y maja sloty w bitmapie).
+    // trim: trailing NOPs only (midstream NOPs have bitmap slots).
     let mut end = n_instr;
     while end > 0 && is_nop(end - 1) {
         end -= 1;
@@ -4388,9 +4388,9 @@ impl CubinBuilder {
         //   [8]  .nv.compat            <- compat PRZED .nv.info.K (bylo po)
         //   [9..9+n) .nv.info.Ki
         //   [9+n]    .nv.callgraph
-        //   []       .rela.text.Ki     <- pusta sekcja, TYLKO gdy kernel ma
-        //                              CALL lub statyczny smem (nvcc regula,
-        //                              fit 119 lab-kerneli: 0 pomyłek)
+        //   []       .rela.text.Ki     <- empty section, ONLY when the kernel has
+        //                              a CALL or static smem (nvcc rule,
+        //                              fit of 119 lab kernels: 0 mistakes)
         //   []       .rela.debug_frame
         //   []       .text.Ki
         //   []       .nv.shared.Ki     <- per-kernel shared PRZED reserved
@@ -4407,9 +4407,9 @@ impl CubinBuilder {
         // Per-kernel: .nv.info.K
         let _nv_info_k = |ki: usize| base + 1 + ki;
         let idx_cg = base + 1 + n;
-        // per-kernel .rela.text.Ki (subset transformowany na ciagly blok)
-        // (indeksy wynikaja z rzedu push-ow; blok rela.text liczony jako
-        // n_rela_text — patrz formuly ponizej)
+        // per-kernel .rela.text.Ki (subset transformed into a contiguous block)
+        // (indices follow the push order; the rela.text block counted as
+        // n_rela_text — see the formulas below)
         let _idx_rela_dbg = idx_cg + 1 + n_rela_text;
         // Per-kernel: .text.K
         let text_k = |ki: usize| idx_cg + 2 + n_rela_text + ki;
@@ -4847,8 +4847,8 @@ impl CubinBuilder {
         for k in kernels {
             // Parameters start at offset 0x380 in cbank0.
             // The section must cover bytes 0x0 .. 0x380 + total_param_bytes.
-            // mk28: nvcc sm_103a nie ma progu 0x3A0 (fit na 119 labach:
-            // 0x380 dla bezparametrowych, 0x388..0x3a0 dla parametryzowanych).
+            // mk28: nvcc sm_103a has no 0x3A0 threshold (119-lab fit:
+            // 0x380 for parameterless, 0x388..0x3a0 for parameterized).
             let cbank_size = 0x380usize + k.meta.cbank_param_size as usize;
             const0_data.push(vec![0u8; pad_to(cbank_size, 4)]);
         }
@@ -4959,8 +4959,8 @@ impl CubinBuilder {
             8
         );
 
-        // mk28: pusta .rela.text.K per kernel z CALL lub statycznym smem
-        // (regula nvcc: sekcja RELA obecna z zerem wpisow; fit 119 labow).
+        // mk28: empty .rela.text.K per kernel with a CALL or static smem
+        // (nvcc rule: the RELA section is present with zero entries; 119-lab fit).
         for ki in 0..n {
             if kernel_needs_rela_text[ki] {
                 sec!(
@@ -4976,8 +4976,8 @@ impl CubinBuilder {
             }
         }
 
-        // .rela.debug_frame (tresc: mk30 — wpisy FDE wymagaja parystej
-        // par frames/symboli wewnetrznych; sekcja bez tresci gdy pusto)
+        // .rela.debug_frame (content: mk30 — FDE entries require an even
+        // pair of frames/internal symbols; section emitted empty when none)
         sec!(
             shn_rela_dbg,
             SHT_RELA,
@@ -5037,8 +5037,8 @@ impl CubinBuilder {
             }
         }
 
-        // mk28: .nv.shared.reserved.0 PO per-kernel sekcjach; 0x60 gdy kernel
-        // uzywa tmem (UTCA — mkvmem/b_tcgen05), inaczej 0x40 (fit korpusu).
+        // mk28: .nv.shared.reserved.0 AFTER the per-kernel sections; 0x60 when the kernel
+        // uses tmem (UTCA — mkvmem/b_tcgen05), else 0x40 (corpus fit).
         let reserved_sz: u64 = if kernels.iter().any(|k| !k.meta.merc_utca.is_empty()) {
             0x60
         } else {
@@ -5146,7 +5146,7 @@ impl CubinBuilder {
             idx_merc_dbg as u32,
             24
         );
-        // .nv.merc.nv.shared.reserved.0 (mk28: nvcc emituje 32 bajty zer;
+        // .nv.merc.nv.shared.reserved.0 (mk28: nvcc emits 32 zero bytes;
         // dawniej 0)
         sec!(
             shn_merc_sh,
@@ -5401,9 +5401,9 @@ impl CubinBuilder {
         //   [8]  .nv.compat            <- compat PRZED .nv.info.K (bylo po)
         //   [9..9+n) .nv.info.Ki
         //   [9+n]    .nv.callgraph
-        //   []       .rela.text.Ki     <- pusta sekcja, TYLKO gdy kernel ma
-        //                              CALL lub statyczny smem (nvcc regula,
-        //                              fit 119 lab-kerneli: 0 pomyłek)
+        //   []       .rela.text.Ki     <- empty section, ONLY when the kernel has
+        //                              a CALL or static smem (nvcc rule,
+        //                              fit of 119 lab kernels: 0 mistakes)
         //   []       .rela.debug_frame
         //   []       .text.Ki
         //   []       .nv.shared.Ki     <- per-kernel shared PRZED reserved
@@ -5426,9 +5426,9 @@ impl CubinBuilder {
         // Per-kernel: .nv.info.K
         let _nv_info_k = |ki: usize| base + 1 + ki;
         let idx_cg = base + 1 + n;
-        // per-kernel .rela.text.Ki (subset transformowany na ciagly blok)
-        // (indeksy wynikaja z rzedu push-ow; blok rela.text liczony jako
-        // n_rela_text — patrz formuly ponizej)
+        // per-kernel .rela.text.Ki (subset transformed into a contiguous block)
+        // (indices follow the push order; the rela.text block counted as
+        // n_rela_text — see the formulas below)
         let _idx_rela_dbg = idx_cg + 1 + n_rela_text;
         // Per-kernel: .text.K
         let text_k = |ki: usize| idx_cg + 2 + n_rela_text + ki;
@@ -5932,8 +5932,8 @@ impl CubinBuilder {
         for k in kernels {
             // Parameters start at offset 0x380 in cbank0.
             // The section must cover bytes 0x0 .. 0x380 + total_param_bytes.
-            // mk28: nvcc sm_103a nie ma progu 0x3A0 (fit na 119 labach:
-            // 0x380 dla bezparametrowych, 0x388..0x3a0 dla parametryzowanych).
+            // mk28: nvcc sm_103a has no 0x3A0 threshold (119-lab fit:
+            // 0x380 for parameterless, 0x388..0x3a0 for parameterized).
             // nvcc 13.3 law: exact end, no alignment pad (0x394 for a 0x14 block).
             let cbank_size = 0x380usize + k.meta.cbank_param_size as usize;
             const0_data.push(vec![0u8; cbank_size]);
@@ -6047,8 +6047,8 @@ impl CubinBuilder {
             8
         );
 
-        // mk28: pusta .rela.text.K per kernel z CALL lub statycznym smem
-        // (regula nvcc: sekcja RELA obecna z zerem wpisow; fit 119 labow).
+        // mk28: empty .rela.text.K per kernel with a CALL or static smem
+        // (nvcc rule: the RELA section is present with zero entries; 119-lab fit).
         for ki in 0..n {
             if kernel_needs_rela_text[ki] {
                 sec!(
@@ -6064,8 +6064,8 @@ impl CubinBuilder {
             }
         }
 
-        // .rela.debug_frame (tresc: mk30 — wpisy FDE wymagaja parystej
-        // par frames/symboli wewnetrznych; sekcja bez tresci gdy pusto)
+        // .rela.debug_frame (content: mk30 — FDE entries require an even
+        // pair of frames/internal symbols; section emitted empty when none)
         sec!(
             shn_rela_dbg,
             SHT_RELA,
@@ -6111,8 +6111,8 @@ impl CubinBuilder {
             ));
         }
 
-        // mk28: .nv.shared.reserved.0 PO per-kernel sekcjach; 0x60 gdy kernel
-        // uzywa tmem (UTCA — mkvmem/b_tcgen05), inaczej 0x40 (fit korpusu).
+        // mk28: .nv.shared.reserved.0 AFTER the per-kernel sections; 0x60 when the kernel
+        // uses tmem (UTCA — mkvmem/b_tcgen05), else 0x40 (corpus fit).
         let reserved_sz: u64 = if kernels.iter().any(|k| !k.meta.merc_utca.is_empty()) {
             0x60
         } else {
@@ -6627,13 +6627,13 @@ impl KernelMeta {
         let mut records = Vec::new();
 
         // mk28: kanoniczna kolejnosc rekordow nvcc 13.x (era sm_103a) —
-        // dopasowana na 119 kernelach labu (minieto bramki per atrybut):
+        // fitted on 119 lab kernels (per-attribute gates mined):
         //   66 LANGUAGE=PTX(3), 37 API=0x85, 17 KPARAM*, [tmem: 4f,41],
-        //   50 SPARSE_MMA, [tmem: 51], 1b MAXREG=ff, [4c NUM_BARRIERS jesli
-        //   bary], 5f MERC-1.1, [31 INT_WARP_WIDE jesli VOTEU],
-        //   [29+28 COOP_SITE jesli .merc_cgsites], 4a VRC_CTA_INIT,
-        //   1c EXIT_OFFS, [1e CRS_STACK jesli call/bssy/bar+voteu/utca+bar],
-        //   [19 CBANK_SIZE + 0a PARAM_CBANK jesli paramy], 36 SW_WAR=8,
+        //   50 SPARSE_MMA, [tmem: 51], 1b MAXREG=ff, [4c NUM_BARRIERS if
+        //   barriers], 5f MERC-1.1, [31 INT_WARP_WIDE if VOTEU],
+        //   [29+28 COOP_SITE if .merc_cgsites], 4a VRC_CTA_INIT,
+        //   1c EXIT_OFFS, [1e CRS_STACK if call/bssy/bar+voteu/utca+bar],
+        //   [19 CBANK_SIZE + 0a PARAM_CBANK if params], 36 SW_WAR=8,
         //   6b NVSAL_SW_WAR=1.
         let has_utca = !self.merc_utca.is_empty();
         let has_voteu_sites = !self.merc_wwide_sites.is_empty();
@@ -6670,9 +6670,9 @@ impl KernelMeta {
             d[6] = (off16 & 0xFF) as u8;
             d[7] = (off16 >> 8) as u8;
             d[8] = 0x00; // logAlignment (always 0)
-            // mk28 (korpus lab): d[9] = 0xF0 | Space; Space 0x5 = GLOBAL dla
-            // 8B (pointer-class), 0x0 dla skalarow (korpus: 190x F5/0x21 dla
-            // 8B; 7x F0/0x11 dla u32-skalarow).
+            // mk28 (lab corpus): d[9] = 0xF0 | Space; Space 0x5 = GLOBAL for
+            // 8B (pointer class), 0x0 for scalars (corpus: 190x F5/0x21 for
+            // 8B; 7x F0/0x11 for u32 scalars).
             d[9] = 0xf0 | if param.size == 8 { 0x05 } else { 0x00 };
             d[10] = match param.size {
                 1 | 2 => 0x01,
@@ -6704,14 +6704,14 @@ impl KernelMeta {
             });
         }
 
-        // 5. SPARSE_MMA_MASK (attr 0x50, BVAL 0) — zawsze
+        // 5. SPARSE_MMA_MASK (attr 0x50, BVAL 0) — always
         records.push(EiRecord {
             attr: 0x0050,
             fmt: EiFmt::Byte,
             data: vec![0],
         });
 
-        // 6. TCGEN05_1CTA_USED (attr 0x51, NVAL) — tylko tmem
+        // 6. TCGEN05_1CTA_USED (attr 0x51, NVAL) — tmem only
         if has_utca {
             records.push(EiRecord {
                 attr: 0x0051,
@@ -6720,16 +6720,16 @@ impl KernelMeta {
             });
         }
 
-        // 7. MAXREG_COUNT (attr 0x1b = 0xff) — zawsze
+        // 7. MAXREG_COUNT (attr 0x1b = 0xff) — always
         records.push(EiRecord {
             attr: 0x001b,
             fmt: EiFmt::Byte,
             data: vec![0xff],
         });
 
-        // 8. NUM_BARRIERS (attr 0x4c, HVAL=num_barriers) — gdy kernel ma bary
-        //    (mk28: dawniej bezwarunkowo val=1; nvcc emituje tylko dla
-        //    kerneli z BAR/SYNCS, val = liczba barrierow, p_namedbar=2)
+        // 8. NUM_BARRIERS (attr 0x4c, HVAL=num_barriers) — when the kernel has barriers
+        //    (mk28: previously val=1 unconditionally; nvcc emits only for
+        //    kernels with BAR/SYNCS, val = barrier count, p_namedbar=2)
         if self.num_barriers > 0 {
             records.push(EiRecord {
                 attr: 0x004c,
@@ -6738,16 +6738,16 @@ impl KernelMeta {
             });
         }
 
-        // 9. MERCURY_ISA_VERSION 1.1 (attr 0x5f) — zawsze
+        // 9. MERCURY_ISA_VERSION 1.1 (attr 0x5f) — always
         records.push(EiRecord {
             attr: 0x005f,
             fmt: EiFmt::Byte,
             data: vec![1, 1],
         });
 
-        // 10. INT_WARP_WIDE_INSTR_OFFSETS (attr 0x31) — site'y operacji
-        //     warp-wide (VOTEU/SHFL/REDUX/MATCHANY), nvcc: tylko gdy VOTEU
-        //     w kernelu (sass_file::kernel_def_to_meta filtruje)
+        // 10. INT_WARP_WIDE_INSTR_OFFSETS (attr 0x31) — sites of
+        //     warp-wide ops (VOTEU/SHFL/REDUX/MATCHANY); nvcc: only when VOTEU
+        //     is in the kernel (sass_file::kernel_def_to_meta filters)
         if has_voteu_sites {
             let mut d = Vec::with_capacity(self.merc_wwide_sites.len() * 4);
             for off in &self.merc_wwide_sites {
@@ -6760,9 +6760,9 @@ impl KernelMeta {
             });
         }
 
-        // 11+12. COOP_GROUP masks(0x29) + sites(0x28) — surowa lista z
+        // 11+12. COOP_GROUP masks(0x29) + sites(0x28) — the raw list from
         //        `.merc_cgsites` (disasm --frozen); maski z oryginalu,
-        //        brakujace = ff.
+        //        missing ones = ff.
         if !self.merc_cgsites.is_empty() {
             let n = self.merc_cgsites.len();
             let mut m29 = Vec::with_capacity(4 * n);
@@ -6786,7 +6786,7 @@ impl KernelMeta {
             });
         }
 
-        // 13. VRC_CTA_INIT_COUNT (attr 0x4a, HVAL = 0x80 dla tmem, inaczej 0)
+        // 13. VRC_CTA_INIT_COUNT (attr 0x4a, HVAL = 0x80 for tmem, else 0)
         records.push(EiRecord {
             attr: 0x004a,
             fmt: EiFmt::Half,
@@ -6813,9 +6813,9 @@ impl KernelMeta {
         }
 
         // 15. CRS_STACK_SIZE (attr 0x1e, SVAL 0) — bramka (mk28, fit na
-        //     korpusie): CALL | BSSY | (bary & VOTEU) | (UTCA & bary).
-        //     WYJATEK znany: q_switch (switch-select z multi-EXIT) ma 1e
-        //     bez powyzszych cech -> residual mk30.
+        //     corpus): CALL | BSSY | (barriers & VOTEU) | (UTCA & barriers).
+        //     known EXCEPTION: q_switch (switch-select with multi-EXIT) has 1e
+        //     without the above traits -> mk30 residual.
         let has_1e = self.has_call
             || self.has_bssy
             || (self.num_barriers > 0 && has_voteu_sites)
@@ -6828,9 +6828,9 @@ impl KernelMeta {
             });
         }
 
-        // 16+17. CBANK_PARAM_SIZE + PARAM_CBANK — tylko dla kerneli z
-        //        parametrami (mk28: dawniej 19 bezwarunkowo -> mkvmem mial
-        //        nadmiarowy rekord)
+        // 16+17. CBANK_PARAM_SIZE + PARAM_CBANK — only for kernels with
+        //        parameters (mk28: previously 19 unconditional -> mkvmem carried
+        //        a surplus record)
         if !self.params.is_empty() {
             records.push(EiRecord {
                 attr: 0x0019,

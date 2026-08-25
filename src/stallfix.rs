@@ -470,8 +470,8 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
     let mut floors: BTreeMap<(usize, u32), (u8, BTreeSet<&'static str>)> = BTreeMap::new();
     let mut above_cap: BTreeMap<usize, Vec<u32>> = BTreeMap::new();
     let mut n_annotated: BTreeMap<usize, usize> = BTreeMap::new();
-    // v1: pelne mapy zamiast bail-at-first -- uruchomienie jest albo czyste,
-    // albo odpada z KOMPLETNA lista stanowisk D1 (input dla eliminacji D1).
+    // v1: full maps instead of bail-at-first -- a run is either clean,
+    // or it aborts with the COMPLETE D1 site list (input for D1 elimination).
     let mut d1_sites: BTreeMap<usize, Vec<D1Site>> = BTreeMap::new();
     let mut risk_rows: BTreeMap<usize, Vec<HighStallRisk>> = BTreeMap::new();
     let mut d1_violations: Vec<serde_json::Value> = Vec::new();

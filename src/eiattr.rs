@@ -383,46 +383,46 @@ pub struct KernelMeta {
     pub merc_stg_pos: Vec<u32>,
     /// Per-STG: binding do deskryptora parametru — indeks w PULI
     /// deskryptorow (pi, mech) w kolejnosci pierwszego pojawienia loadu
-    /// (mk10c; rozjem parametru przez LDCU i LDC to osobne pozycje puli;
-    /// stary model: pozycja param-queue — zgodne gdy 1 deskryptor/param).
+    /// (mk10c; splitting a parameter across LDCU and LDC means separate pool
+    /// positions; the old model: param-queue position — agrees when 1 descriptor/param).
     /// u32::MAX = nieznane (fallback emitera).
     pub merc_stg_desc_pos: Vec<u32>,
     /// Jakakolwiek BAR pod predykatem (wariant rekordu BAR payload[0]=01).
     pub merc_bar_pred: bool,
 
-    /// Mercury: bit per param — slot zaladowany przez LDCU* (uniform datapath).
-    /// Deskryptor 0222 dla takiego parametru ma wariant tagu 08 06 / b4=fa
+    /// Mercury: bit per param — slot loaded via LDCU* (uniform datapath).
+    /// The 0222 descriptor for such a parameter carries the 08 06 tag variant
     /// (register-path LDC* daje 0e 06 / f8) — dekod fs-lab 2026-08-05.
     pub merc_param_uniform: u32,
-    /// Mercury: bit per param — slot zaladowany przez LDC(.64) (register path).
+    /// Mercury: bit per param — slot loaded via LDC(.64) (register path).
     pub merc_param_regpath: u32,
     /// Mercury: per-param szerokosc transferu loadu z cbank (1/2/4/8/16 B;
-    /// 0 = nieznana). Steruje bajtem b6 rekordu desc (ladder 02/22/42/52/62).
+    /// 0 = unknown). Drives byte b6 of the desc record (ladder 02/22/42/52/62).
     pub merc_param_width: Vec<u8>,
-    /// Mercury: rekordy 0229 dla PTX-level `xor Rd, Rs, imm32` (SASS:
+    /// Mercury: 0229 records for the PTX-level `xor Rd, Rs, imm32` (SASS:
     /// `LOP3.LUT Rd, Rs, imm, RZ, 0x3c, !PT` — fs6-lab 2026-08-05). Krotka:
-    /// (lane, dst_reg, src_reg, imm, guard) gdzie guard: 0=brak (b4=0xf8),
+    /// (lane, dst_reg, src_reg, imm, guard) with guard: 0=none (b4=0xf8),
     /// 1=@Pn (b4=0x00), 2=@!Pn (b4=0x01). Lane takich instrukcji NIE
-    /// dostaje bitu bitmapy (rekord zastepuje wezel typu4).
+    /// gets no bitmap bit (the record replaces the type-4 node).
     pub merc_xor: Vec<(u32, u32, u32, u32, u8)>,
-    /// Mercury: per-STG natychmiastowy offset adresu ([Rx.64+0x..]) w bajtach
-    /// — trafia do bajta 28 rekordu 02 38 (fs10-grid 2026-08-05).
+    /// Mercury: per-STG immediate address offset ([Rx.64+0x..]) in bytes
+    /// — lands in byte 28 of the 02 38 record (fs10-grid 2026-08-05).
     pub merc_stg_off: Vec<i32>,
     /// Mercury mk10b: per-STG pakiet kursora serii: bit7=null-tail
     /// (value==RZ, off==0), bity[6:0] = indeks w serii blokowej (reset na
-    /// krawedziach cflow: targety skokow + po EXIT/RET/CALL/BRA/BRX/itd.).
+    /// cflow edges: branch targets + after EXIT/RET/CALL/BRA/BRX/etc.).
     pub merc_stg_ser: Vec<u8>,
     /// mk12: per-STG numer rejestru danych (kursor b19/b20 = dreg<<6; 255=RZ).
     pub merc_stg_dreg: Vec<u8>,
     /// fala A mk12a: per-STG numer desc-UR (domyslnie 4; b17/b18 = ur<<6|2).
     pub merc_stg_dur: Vec<u8>,
-    /// fala A: per-STG wariant predykatu (0=brak, 1=@Pn, 2=@!Pn; b4 rekordu).
+    /// wave A: per-STG predicate variant (0=none, 1=@Pn, 2=@!Pn; record b4).
     pub merc_stg_guard: Vec<u8>,
     /// mk32: per-STG niski rejestr pary adresowej [R<num>.64] (255=nieznany).
     pub merc_stg_areg: Vec<u8>,
     /// Mercury mk11: instrukcje MMA -> rekord 025a w lane. Krotka
-    /// (lane, cls, d, a, b, c, b8flags); cls wg `mercury::merc_mma_class`.
-    /// Model bajtowy 025a dekodowany byte-exact na pelnej probce korpusu
+    /// (lane, cls, d, a, b, c, b8flags); cls per `mercury::merc_mma_class`.
+    /// The 025a byte model decoded byte-exact on the whole corpus sample
     /// (mma_model.py); b8flags = (code63?0x80)|(code72?0x20) ze slowa SASS.
     pub merc_mma: Vec<MmaLane>,
     /// Mercury mk11+mk51: DMUL/DADD z natychmiastowym f64 -> rekord
@@ -433,10 +433,10 @@ pub struct KernelMeta {
     /// Mercury mk51: DFMA z natychmiastowym f64 -> rekord 020d1c0e
     /// (imm ostatni) / 020d1a0e (imm srodkowy) w lane:
     /// (lane, variant [0=last,1=middle], pred, b7 = 2*negA+8*negB+4*absA
-    /// +16*absB, d, a, b, imm64bits). Lane traci bit bitmapy jak mk11-f64.
+    /// +16*absB, d, a, b, imm64bits). The lane loses its bitmap bit like mk11-f64.
     pub merc_dfmaimm: Vec<DfmaImmLane>,
     /// Mercury mk11: pozycje killpad-UIADD3 (`UIADD3 URZ, UPT, UPT, URZ,
-    /// URZ, URZ`) — brak bitu bitmapy, w lane atom 2B (empiria: tyko ta
+    /// URZ, URZ`) — no bitmap bit, a 2B atom in the lane (empirics: only this
     /// forma; live UIADD3 maja bit, korpus 32.5k vs 18).
     pub merc_pad_pos: Vec<u32>,
     /// Mercury mk10c: strumien ladowan cbank-parametrow jako rekordy lane:
@@ -444,9 +444,9 @@ pub struct KernelMeta {
     /// instrukcja LDC/LDCU z okna c[0x0][0x380+]. nvcc emituje rekord 0222
     /// NA KAZDY LOAD (powtorne loady tego samego slotu => wiele rekordow),
     /// strumien posortowany po pozycjach kodu. Pusty = sciezka legacy
-    /// (blok desc wg param_order).
+    /// (desc block per param_order).
     /// Mercury mk10c+: per-load rekordy desc: (lane, REL, unif01, widthB,
-    /// guard). mk19: drugie pole = SUROWY offset bajtowy c_off-0x380
+    /// guard). mk19: the second field = the RAW byte offset c_off-0x380
     /// (wczesniej indeks 8B pi; korpus ma paramy 4B-pakowane pod 0x384).
     pub merc_param_loads: Vec<(u32, u32, u8, u8, u8)>,
     /// Mercury mk10c: lane instrukcji LDCU.64 c[0x0][0x358] (rekord cbank
@@ -458,92 +458,92 @@ pub struct KernelMeta {
     /// Mercury mk10c: predykowana operacja pamieci (@P LDG/STG/LDS/STS/
     /// ATOMS/REDG) obecna — gasi bramke f4=7 (d_ifelse_ld: 0, k_ldg2: 7).
     pub merc_predmem: bool,
-    /// Mercury mk13: lane'y BRA pod predykatem (@Pn BRA) — dostaja bit
-    /// bitmapy (niepredykowany BRA, w tym koncowy po EXIT, bitu nie ma;
+    /// Mercury mk13: BRA lanes under a predicate (@Pn BRA) — get a bit
+    /// bitmap (an unpredicated BRA, incl. the trailing one past EXIT, has no bit;
     /// gold q_switch slot5). Zrodlo: guard z sass.
     pub merc_guarded_bra: Vec<u32>,
-    /// Mercury mk13: LDG.E.CONSTANT przez desc[URx][Rn.64] = dodatkowy wpis
+    /// Mercury mk13: LDG.E.CONSTANT through desc[URx][Rn.64] = an extra entry
     /// w puli slotow deskryptorow (klucz (pi, mech=2), pozycja = lane
     /// uzycia). Gold v_ldg_u64: STG pi1 dostaje slot s=2 bo LDG.C@3 zajmuje
     /// s=1 (pi0,2). (lane, pi).
-    /// (lane, REL) — mk19: takze w dziedzinie bajtowej jak merc_param_loads.
+    /// (lane, REL) — mk19: in the byte domain too, like merc_param_loads.
     pub merc_ldgconst: Vec<(u32, u32)>,
     /// Mercury mk13: argumenty named-barrier per lane BAR (rownolegle do
     /// merc_bar_pos): (id, count) — gold p_namedbar: bar.sync 1,32 -> rekord
-    /// 0147 b10=id, b11=01, b12=00, b13=cnt (JEDNA probka — fallback (0,0)
-    /// daje stary szablon). Pusty gdy zaden BAR nie ma argumentow.
+    /// 0147 b10=id, b11=01, b12=00, b13=cnt (ONE sample — fallback (0,0)
+    /// gives the old template). Empty when no BAR carries arguments.
     pub merc_bar_args: Vec<(u32, u32)>,
     /// Mercury mk13: LOP3-xor w formie REJESTROWEJ (Rd, Ra, Rb, RZ, 0x3c) —
-    /// rekord 0129 (16B: dst@[10], srcA@[12], srcB@[14]); lane bez bitu.
+    /// the 0129 record (16B: dst@[10], srcA@[12], srcB@[14]); the lane gets no bit.
     /// (lane, dst, srcA, srcB, guard).
     pub merc_xor_reg: Vec<(u32, u32, u32, u32, u8)>,
     /// Mercury mk13: enum SR per lane S2R (rownolegle do merc_s2r_lanes) —
-    /// bajt b12 anchor-rekordu 010b040a (mk13; patrz mercury::merc_s2r_sr_enum).
+    /// the b12 byte of the 010b040a anchor record (mk13; see mercury::merc_s2r_sr_enum).
     pub merc_s2r_sr: Vec<u8>,
-    /// mk41: pelny kod predykatu per lane S2R (rownolegle merc_s2r_lanes);
-    /// 0xf8 = bez guarda. Rekord-anchor 010b040a nosi b4=guard.
+    /// mk41: full predicate code per S2R lane (parallel to merc_s2r_lanes);
+    /// 0xf8 = no guard. The 010b040a anchor record carries b4=guard.
     pub merc_s2r_guard: Vec<u8>,
     /// Mercury mk17a: numer R dest per S2R (rownolegle do merc_s2r_lanes/
     /// merc_s2r_sr) — payload f4 anchor-rekordu 010b040a = (dest<<6)|1.
     /// Puste = legacy fallback na bramkowany anchor_f4 (iter AE model).
     pub merc_s2r_dest: Vec<u32>,
     /// mk56: geo-anchory LDC (rekord 010b040a b13=04) per lane:
-    /// (lane, dest, b12-geometria, guard mk41). Per-LDC-lane, nie
+    /// (lane, dest, b12 geometry, mk41 guard). Per-LDC-lane, not
     /// per-first-def (dup-def desta nosi rekord per instrukcja; mk56 c6).
     pub merc_ldcgeo: Vec<(u32, u32, u8, u8)>,
-    /// Mercury mk18: flagi per wpis merc_param_loads (rownolegle):
+    /// Mercury mk18: flags per merc_param_loads entry (parallel):
     /// bit0 = wartosc loadu feeduje adres operacji atomowej (RED*/ATOM*),
     /// bit1 = load lezy PO instrukcji CALL (granica regionu ptxas).
     pub merc_load_flags: Vec<u8>,
     /// mk18: klucze puli deskryptorow (pi, mech) trafione adresem
     /// instrukcji atomowej (RED*/ATOM*; rekordy 024d/024e): rola (83,00).
     pub merc_atom_pool_hits: Vec<(u32, u8)>,
-    /// Mercury mk13: lane'y LOP3 z destem predykatowym (LOP3.LUT Pn, ...) —
-    /// NIE dostaja bitu bitmapy, za to mini-rekord 42 2a 02 06 w lane
+    /// Mercury mk13: LOP3 lanes with a predicate destination (LOP3.LUT Pn, ...) —
+    /// get NO bitmap bit; instead the 42 2a 02 06 mini record in the lane
     /// (gold d_sw4_store slot6).
     pub merc_lop3_pdest: Vec<u32>,
     /// Mercury mk14.3: rekord pinned LDGSTS (lane, dst, src) — 0/1 elem;
     /// i lane hosta wait-event 0123400a (ostatni slot przed DEPBAR).
     pub merc_ldgsts_pin: Vec<(u32, u8, u8)>,
     pub merc_ldgsts_wait: Vec<(u32, u8)>, // (host, imm) — mk55: imm z DEPBAR SB0
-    /// mk53: bloby 02233034/3434 per desc-form LDGSTS (pelny silnik; mk14.3
-    /// pin = fallback gdy brak desc-form).
+    /// mk53: 02233034/3434 blobs per LDGSTS desc-form (full engine; mk14.3
+    /// pin = fallback when no desc forms).
     pub merc_ldgsts2: Vec<crate::mercury::Ldgsts2Blob>,
-    /// mk53-w: (lane, imm) dla wait-eventow 0123400a per DEPBAR.
+    /// mk53-w: (lane, imm) of 0123400a wait events per DEPBAR.
     pub merc_ldgsts2_waits: Vec<(u32, u8)>,
     /// Mercury mk14: rekordy atomowe (ATOMG/ATOMS) per instrukcja:
     /// (lane, cls [mercury::MERC_ATOM_CLS_*], guard 0/1/2, dst, addr,
-    /// src1, src2, subop_b6); rejestry: 255 = RZ/brak. RED* zostaja na
+    /// src1, src2, subop_b6); registers: 255 = RZ/none. RED* stay on
     /// sciezce legacy REC_ATOM (k_atom/v_atom byte-exact).
     pub merc_atoms: Vec<AtomRec>,
-    /// Mercury mk14: lane'y duchow __syncwarp (elided do NOP przez ptxas) —
-    /// zrodlo: EIATTR attr 0x28 (site offsets) + 0x29 (masks; ghost tylko
-    /// gdy maska==0xffffffff i instrukcja w tej lane to NOP). Rekord
-    /// 01476c0a w lane (bez bitu bitmapy); lane ZACHOWUJE slot B nawet
-    /// wewnatrz spanu BSSY (q_bsync_pair). Puste dla sass-only (tekst
-    /// niewidoczny — ghost-NOP jest bit-identyczny z zwyklym NOP).
+    /// Mercury mk14: __syncwarp ghost lanes (elided to NOP by ptxas) —
+    /// source: EIATTR attr 0x28 (site offsets) + 0x29 (masks; a ghost only
+    /// when mask==0xffffffff and the instruction at that lane is a NOP). The
+    /// 01476c0a record in the lane (no bitmap bit); the lane KEEPS its B slot even
+    /// inside a BSSY span (q_bsync_pair). Empty for sass-only (the text is
+    /// invisible — a ghost NOP is bit-identical to a plain NOP).
     pub merc_syncwarp: Vec<u32>,
     /// Mercury mk27: UTCATOMSWS (tcgen05 tmem alloc/dealloc na oknie smem):
     /// (lane, kind): 0 = FIND_AND_SET, 1 = AND. Rekord 51 01 01 63 (18B)
-    /// dla FIND_AND_SET, mini 41 63 08 0a dla AND (gold mkvmem).
+    /// for FIND_AND_SET, the 41 63 08 0a mini for AND (gold mkvmem).
     pub merc_utca: Vec<(u32, u8)>,
     /// mk27: ATOMS.<op> z imm w adresie [URx+imm]: (lane, imm_bajty, op)
     /// op: 0 = OR, 1 = AND, 2 = inny. Rekord 024e8432 z imm w tail [28:32].
     pub merc_atom_smem: Vec<(u32, u32, u8)>,
-    /// mk28: lane'y samo-petli BRA (`BRA L_x` gdzie cel == wlasny adres;
+    /// mk28: BRA self-loop lanes (`BRA L_x` where the target == its own
     /// martwy spin-trap za strefa funkcji wewnetrznych). W dialekcie UTCA
     /// (merc_utca niepuste) zwykly BRA dostaje bit bitmapy, ALE samo-petla
-    /// nie (gold mkvmem sloty 48/51 tak, slot62 BRA L_400 nie).
+    /// not (gold mkvmem slots 48/51 yes, slot62 BRA L_400 no).
     pub merc_bra_selfloop: Vec<u32>,
-    /// mk28: EIATTR 0x31 (INT_WARP_WIDE_INSTR_OFFSETS): bajtowe offsety
+    /// mk28: EIATTR 0x31 (INT_WARP_WIDE_INSTR_OFFSETS): byte offsets
     /// operacji warp-wide (VOTEU/SHFL/REDUX/MATCHANY) — nvcc listuje je,
-    /// gdy kernel zawiera VOTEU (bramka laboratoryjna; korpus 119: 5 takich
-    /// kerneli = wszystkie z VOTEU, zero bez). Puste = brak atrybutu.
+    /// when the kernel contains VOTEU (lab gate; corpus 119: 5 such
+    /// kernels = all with VOTEU, zero without). Empty = no attribute.
     pub merc_wwide_sites: Vec<u32>,
     /// mk28: EIATTR 0x28/0x29 SUROWE listy (COOP_GROUP_INSTR_OFFSETS i
-    /// COOP_GROUP_MASK_REGIDS) — pelna lista site'ow __syncwarp z oryginalu,
-    /// NIE tylko udowodnione duchy (merc_syncwarp). Zrodlo: dyrektywa
-    /// `.merc_cgsites` (disasm --frozen) albo parse z cubina. Bajtowe offsety.
+    /// COOP_GROUP_MASK_REGIDS) — the full __syncwarp site list from the original,
+    /// NOT only the proven ghosts (merc_syncwarp). Source: the
+    /// `.merc_cgsites` directive (disasm --frozen) or a cubin parse. Byte offsets.
     pub merc_cgsites: Vec<u32>,
     pub merc_cgmasks: Vec<u32>,
     /// mk28: kernel zawiera CALL (rekord EIATTR 0x1e CRS_STACK_SIZE + pusta
@@ -553,7 +553,7 @@ pub struct KernelMeta {
 
     // ==== mk30: rodziny b_* (SYNCS/mbarrier/TMA/minis; sciezka laned) ====
     /// SYNCS.EXCH.64: (lane, guarded, addr_ur, val_ur) — rekord 021b5e06
-    /// (+ marker 51 01 gdy BSSY w kernelu) + blob d1-011b36 przy
+    /// (+ the 51 01 marker when BSSY is in the kernel) + the d1-011b36 blob at
     /// UIADD3-count-prologu.
     pub merc_mc_exch: Vec<(u32, bool, u8, u8)>,
     /// SYNCS.ARRIVE.TRANS64: (lane, b4-guard 0xf8/0x00/0x01) — 021b2c32.
@@ -566,17 +566,17 @@ pub struct KernelMeta {
     pub merc_mc_ushf_fin: Vec<u32>,
     /// VOTEU.ALL (kazde wystapienie): mini 414c. (mk26 CLS=0x11d.)
     pub merc_mc_voteu_all: Vec<u32>,
-    /// MOV Rn, 0x400 w rodzinie mbarrier (prolog register-path): bez rekordu,
-    /// bez bitu gdy EXCH-family (b_mbarrier lane17); park: m_wait/m_arr
+    /// MOV Rn, 0x400 in the mbarrier family (register-path prologue): no record,
+    /// no bit under the EXCH family (b_mbarrier lane17); parked: m_wait/m_arr
     /// maja bit (rozniecie regionowe, mk30b-next).
     pub merc_mc_mov400: Vec<u32>,
     /// LEA Rd, Rs, Rs2, 0x18 w rodzinie mbarrier: mini 41 00 00 0a.
     pub merc_mc_lea18: Vec<u32>,
-    /// WARPSYNC.ALL: (lane, b2): 0x6e gdy region za nim zawiera BAR.SYNC,
+    /// WARPSYNC.ALL: (lane, b2): 0x6e when the region after it contains BAR.SYNC,
     /// inaczej 0x76.
     pub merc_ws_minis: Vec<(u32, u8)>,
-    /// mk65: WARPSYNC reg-form (plain/EXCLUSIVE): (lane, b2): 0x78 gdy lane
-    /// jest site'em EIATTR-0x28 (.merc_cgsites), inaczej 0x70.
+    /// mk65: reg-form WARPSYNC (plain/EXCLUSIVE): (lane, b2): 0x78 when the lane
+    /// is an EIATTR-0x28 site (.merc_cgsites), else 0x70.
     pub merc_wsreg_minis: Vec<(u32, u8)>,
     /// UVIRTCOUNT.DEALLOC.*: mini 41 44 00 3c; lane ZACHOWUJE bit.
     pub merc_uvcount: Vec<u32>,
@@ -586,7 +586,7 @@ pub struct KernelMeta {
     pub merc_ublkcp: Vec<u32>,
     /// PLOP3-signatury sekwencji expect_tx: (lane, klasa 0=A/1=B/2=C).
     pub merc_plop3_tx: Vec<(u32, u8)>,
-    /// mk44: rekordy 0110060a generalne (dual-output PLOP3, bez UP).
+    /// mk44: generic 0110060a records (dual-output PLOP3, no UP).
     pub merc_plop3_rec: Vec<(u32, [u8; 16])>,
     /// mk54: rekordy 02100214 (PLOP3.LUT z uniform Pc).
     pub merc_plop3u_rec: Vec<(u32, [u8; 32])>,
@@ -605,15 +605,15 @@ pub struct KernelMeta {
     /// mk72: rekordy 01290804 (LOP3.LUT xor LUT=0x3c, R,R,UR) — (lane, 16B).
     pub merc_lop3xorur_rec: Vec<(u32, [u8; 16])>,
     /// mk59: rekordy d10102 wariant 47 per WC-site NOP-region — (lane, maska R).
-    /// None = sciezka bez skanu tekstu (mk15b-legacy fallback w elf_builder),
+    /// None = path without a text scan (mk15b-legacy fallback in elf_builder),
     /// Some(vec) = skan po instrukcjach (kernel_def_to_meta / mc_scan_lines).
     pub merc_d1wc47: Option<Vec<(u32, u8)>>,
-    /// mk48: rekordy 024d*32 (REDG desc/non-desc) — (lane, 32B pelny payload).
+    /// mk48: 024d*32 records (REDG desc/non-desc) — (lane, full 32B payload).
     pub merc_redg2_rec: Vec<(u32, [u8; 32])>,
-    /// BUG-055: lane'y REDG.EL plain-range imm (nvcc: bez rekordu) —
+    /// BUG-055: REDG.EL plain-range imm lanes (nvcc: recordless) —
     /// korekta placeholder-math n_atom w elf_builder (galaz name-count).
     pub merc_redg2_suppressed: Vec<u32>,
-    /// mk49: rekordy 024e*32 (ATOM.E/ATOMG/ATOMS) — (lane, 32B pelny payload).
+    /// mk49: 024e*32 records (ATOM.E/ATOMG/ATOMS) — (lane, full 32B payload).
     pub merc_atomg2_rec: Vec<(u32, [u8; 32])>,
     /// mk46: rekordy 010b060a geo-anchor (lane, 16B).
     pub merc_geo_rec: Vec<(u32, [u8; 16])>,
@@ -621,30 +621,30 @@ pub struct KernelMeta {
     pub merc_fence_async: Vec<u32>,
     /// LDGSTS z .128 (BYPASS.E.128) — wariant pinned-blob (b8=0x20, b10|=0x10).
     pub merc_ldgsts_b128: bool,
-    /// HFMA2 z oboma zrodlami RZ + imm (stala materializacja): bez bitu.
+    /// HFMA2 with both sources RZ + imm (constant materialization): no bit.
     pub merc_hfma2_const: Vec<u32>,
     /// mk30: S2UR ?, SR_CgaCtaId: (lane, guarded) — rekord 010b060a per lane.
     /// mk41: (lane, guarded, dst-UR) — payload smem-anchora z dst.
     pub merc_s2ur_cga: Vec<(u32, bool, u8)>,
-    /// mk30: lane'y BSYNC (zamkniecie spanu BSSY) — rekord 51+010109 regionu.
+    /// mk30: BSYNC lanes (BSSY span close) — the region's 51+010109 record.
     pub merc_bsync_close: Vec<u32>,
     /// mk62: rekordy 51010109 per zamkniecie regionu BSSY.RECONVERGENT:
     /// (close_lane, barrier_id). None = sciezka legacy (microlab-gold).
     pub merc_region09: Option<Vec<(u32, u8)>>,
-    /// mk30b: ULEA prologu mbarrier (dest == addr EXCH, imm 0x18) — bez bitu.
+    /// mk30b: mbarrier prologue ULEA (dest == addr EXCH, imm 0x18) — no bit.
     pub merc_mc_ulea_x: Vec<u32>,
-    /// mk30b: braided BRA bez " PT," w rodzinie mbarrier — bez bitu.
+    /// mk30b: braided BRA without " PT," in the mbarrier family — no bit.
     pub merc_mc_bra_np: Vec<u32>,
-    /// mk34 (node-model g5b): lane'e bez wezla capmerc (para USHF licznika
+    /// mk34 (node model g5b): lanes without a capmerc node (the mbarrier-counter
     /// mbarrier + FENCE.ASYNC w m-family) — NIE zajmuja slotu bitmapy.
     pub merc_mc_nodeless: Vec<u32>,
     /// mk35: dst-reg loadu param per wpis merc_param_loads (siatka
-    /// (R<<6)|C w (b10,b11) rekordow desc — patrz mk35/README; 255=nieznany).
+    /// (R<<6)|C in the desc records' (b10,b11) — see mk35/README; 255=unknown).
     pub merc_param_load_dreg: Vec<u8>,
-    /// mk35: guard per wpis merc_bar_pos: 0=brak, 1=@Pn, 2=@!Pn (b4 rekordu
+    /// mk35: guard per merc_bar_pos entry: 0=none, 1=@Pn, 2=@!Pn (record b4
     /// BAR: 00/01/f8; nvcc bar_if2 vs v_barx).
     pub merc_bar_guard: Vec<u8>,
-    /// mk35: ISETP.NE z operandem UR, bez .EX — mini 42 10 32 14, bez bitu
+    /// mk35: ISETP.NE with a UR operand, no .EX — mini 42 10 32 14, no bit
     /// (bar_if2 lane5; 1-probkowe, node-blob g5b tag 02103214 flag0).
     pub merc_isetp_ur: Vec<u32>,
     /// mk41: minis XSETP-par EX (korpu/lab): (lane HEAD-a, klasa taga).
@@ -655,36 +655,36 @@ pub struct KernelMeta {
     /// 1=42103406, 2=42104014 (kolejnosc = lane-asc; para class-mini+4014
     /// na lane heada). Bitmapowe bity NIE ruszane (decyzja po harnessie).
     pub merc_usetp_minis: Vec<(u32, u8)>,
-    /// mk52: mini 42254214 — ULEA z carry-out (2. token UP<num>), wlasny lane.
+    /// mk52: the 42254214 mini — ULEA with carry-out (2nd token UP<num>), own lane.
     pub merc_ulea_upco: Vec<u32>,
-    /// mk41: zrodlo sm_100 (marker ;; era=sm100 przez disasm --frozen).
+    /// mk41: sm_100 source (the ;; era=sm100 marker via disasm --frozen).
     pub merc_era100: bool,
     /// mk35: rekordy 0132 lane-sorted: (lane, kind, dreg);
     /// kind 0 = REDUX.*-typowane (b6=4d), 1 = CREDUX (b6=51, b13=01);
     /// dreg = numer docelowego UR -> grid [10:12]=(dreg<<6)|1.
-    /// Goly "REDUX" (bez kropki) rekordu NIE dostaje — zachowuje bit
-    /// bitmapy (at_and lane6, mkvmem) — nie trafia do tej listy.
-    pub merc_redux: Vec<(u32, u8, u8)>,   // mk60: legacy (tylko gold-synth)
-    /// mk60: rekordy 0132100a ze skanu tekstu (lane, 16B). None = brak skanu.
+    /// A bare "REDUX" (no dot) does NOT get a record — it keeps its
+    /// bitmap bit (at_and lane6, mkvmem) — it does not enter this list.
+    pub merc_redux: Vec<(u32, u8, u8)>,   // mk60: legacy (gold-synth only)
+    /// mk60: 0132100a records from the text scan (lane, 16B). None = no scan.
     pub merc_redux2: Option<Vec<(u32, [u8; 16])>>,
     /// mk35: dst-reg loadu c[0x358] (wariant cbank (b10,b11)=(dreg<<6)|3).
     pub merc_cbank358_dreg: Option<u8>,
-    /// mk40 (store-matrix z korpusu sm_100, analysis/merclab/mk40): lane'y
+    /// mk40 (store matrix from the sm_100 corpus, analysis/merclab/mk40): lanes
     /// ST.E (generic, rekord 0238 b2=2a b3=32) i STL (local, b2=20 b3=06).
     /// Krotki: (lane, cls 1=ST.E/2=STL, wsel 0=U8/1=U16/2=4B/3=64/4=128,
-    /// areg [0xffff=N/A], dur [0xffff=brak desc], dreg [0x3ff=RZ], imm, b4
-    /// = 0xf8 bez guarda / (pidx<<3)|neg).
-    /// STG zostaje w legacy merc_stg_* (rekord 0238 0e32 nie ruszony).
+    /// areg [0xffff=N/A], dur [0xffff=no desc], dreg [0x3ff=RZ], imm, b4
+    /// = 0xf8 no guard / (pidx<<3)|neg).
+    /// STG stays in legacy merc_stg_* (the 0238 0e32 record untouched).
     /// mk63: 9. pole = semafor b7 rekordu (ST.E: STRONG.SYS -> 0x22,
     /// STRONG.GPU -> 0x1a, inne 0x01; STL zawsze 0x01). Lane'e BEZ wpisu:
-    /// STL z adresem czysto-uniform [URx..] (bez rekordu; c23/c15 getrf/
+    /// STL with a pure-uniform [URx..] address (recordless; c23/c15 getrf/
     /// trsv) i terminalny ST.E STRONG.* tuza przed EXIT z MEMBAR.ALL.* w
-    /// epilogu (c24: skip 583/583 kerneli, KEEP tylko przy SC/brak).
+    /// epilogue (c24: skip 583/583 kernels, KEEP only on SC/absence).
     pub merc_store2: Vec<Store2Rec>,
-    /// mk40: mini-slownik korpusowy per-lane (klasy z EXACT count-match,
+    /// mk40: corpus mini dictionary per lane (classes with an EXACT count match,
     /// mk40/minidict): (lane, rekord-mini jako u32 LE). Klasy tracked
-    /// kasuja bit bitmapy (rekord zastepuje wezel t4); untracked dodaja
-    /// tylko rekord. Emisja lane-sorted tier 20.
+    /// clear the bitmap bit (the record replaces the t4 node); untracked ones add
+    /// record only. Lane-sorted tier-20 emission.
     pub merc_mini2: Vec<(u32, u32)>,
     /// mk40: per-STG width (0=U8 1=U16 2=4B 3=64 4=128), rownolegle do
     /// merc_stg_pos; puste = legacy (kernel-globalne stg_u8/wide/w128 —
@@ -692,32 +692,32 @@ pub struct KernelMeta {
     pub merc_stg_wsel: Vec<u8>,
     /// mk63: per-STG semafor (rownolegle do merc_stg_pos), bity [2:0]:
     /// kwalifikator semantyczny rekordu 02380e32 — 0 plain / 1 EF /
-    /// 2 STRONG.SYS / 3 STRONG.GPU / 4 STRONG.SM, czyli (b7,b8) =
+    /// 2 STRONG.SYS / 3 STRONG.GPU / 4 STRONG.SM, i.e. (b7,b8) =
     /// (0x11,0)/(0x10,0)/(0x21,2)/(0xa1,1)/(0xa1,0) (korpus mk63 c13:
     /// EXACT zip 219277 rekordow); bit6 = ENL2.256 (02385232 park — NIE
-    /// emitowac falszywego 0e32); bit7 = terminal-STRONG skip (jak mk63
+    /// emitting a bogus 0e32); bit7 = terminal-STRONG skip (like mk63
     /// store2: STRONG tuz przed EXIT + MEMBAR.ALL.* w epilogu, syherk).
     pub merc_stg_sem: Vec<u8>,
-    /// mk42: rekordy-krawedzie DEF-USE (tag 02 22 32 32) dla LD generic z
-    /// desc[URm][Ry.64(+off)]. Selekcja EXACT na korpusie sm_100
+    /// mk42: DEF-USE edge records (tag 02 22 32 32) for generic LD with
+    /// desc[URm][Ry.64(+off)]. Selection EXACT on the sm_100 corpus
     /// (mk42/edge9: 1721/1721 kerneli multiset (X,Y,C,off) == rekordy,
-    /// duplikaty zgodne). Payload: b4=pred (pelny kod mk41), b6=klasa
+    /// duplicates consistent). Payload: b4=pred (full mk41 code), b6=class
     /// rozmiaru (U8=0x10,S8=0x11,U16=0x12,S16=0x13,32=0x14,64=0x15,
-    /// 128=0x16), (b7,b8)=(08,00) lub (10,01) dla STRONG.SYS,
+    /// 128=0x16), (b7,b8)=(08,00) or (10,01) for STRONG.SYS,
     /// b12..13=(X<<6)|C, b14..15=(Y<<6)|2, b22=0xf8, b28..32=off (u32 LE),
     /// [19:21) = (merc_edge_maxur<<6)|2 stale per kernel.
     /// Krotki: (lane, b4, b6, b7, b8, X, Y, C, off).
     pub merc_edge_ld: Vec<EdgeLdRec>,
-    /// mk42: maksymalny numer UR w desc[URn] calego kernela (0 gdy brak).
+    /// mk42: the kernel-wide max UR number in desc[URn] (0 when none).
     pub merc_edge_maxur: u16,
-    /// mk50: rekordy-krawedzie (tag 02 22 1e 32) dla LDG z
-    /// desc[URm][Ry.64(+off)] w kernelach *annotated_ptr* (korpus: tylko
+    /// mk50: edge records (tag 02 22 1e 32) for LDG with
+    /// desc[URm][Ry.64(+off)] in *annotated_ptr* kernels (corpus: only
     /// libcublas.so.72 sm_100, 72/72 kerneli EXACT — merclab/mk50 c8b;
-    /// zero falszywych trafien na 18227 pozostalych kernelach korpusu).
-    /// Dodatkowa bramka per UR: desc[URm] uzywany wylacznie przez lane'y
+    /// zero false hits across the remaining 18227 corpus kernels).
+    /// An extra per-UR gate: desc[URm] used exclusively by lanes
     /// bazowe LDG (wspoldzielenie ze STG/LDGSTS/REDG wylacza emisje —
-    /// konfiguracja UR4 vs UR10/14 w cuds_symv). Payload: b4=pred (pelny
-    /// kod mk41), b6=0x40/0x50/0x60 dla 4B/8B/16B, (b7,b8)=(0x81,0x40),
+    /// UR4 vs UR10/14 configuration in cuds_symv). Payload: b4=pred (full
+    /// mk41 code), b6=0x40/0x50/0x60 for 4B/8B/16B, (b7,b8)=(0x81,0x40),
     /// b12..13=(X<<6)|C, b14..15=(Y<<6)|2, b17=0x0a,
     /// [19:21)=(V<<6)|2 z V = desc-UR LANE'U (odmienie niz mk42 maxur!),
     /// b22=0xf8, b28..32=off (u32 LE). Krotki: (lane, b4, b6, X, Y, C, V, off).
@@ -934,9 +934,9 @@ impl KernelMeta {
         }
 
         // Mercury mk14: ghost __syncwarp sites. attr 0x28 = SVAL lista offsetow
-        // (bajtowych) punktow warp-sync; rownolegle attr 0x29 = maski per site.
-        // Duch (rekord 01476c0a) powstaje tylko dla site'a z maska
-        // 0xffffffff (bezwarunkowy __syncwarp elidowany do NOP; site'y przy
+        // (byte) warp-sync points; in parallel attr 0x29 = masks per site.
+        // A ghost (the 01476c0a record) is built only for a site with mask
+        // 0xffffffff (an unconditional __syncwarp elided to NOP; the sites at
         // realnych WARPSYNC.COLLECTIVE maja inne maski).
         {
             let mut sites: Vec<u32> = Vec::new();
@@ -961,7 +961,7 @@ impl KernelMeta {
                     meta.merc_syncwarp.push(addr / 16);
                 }
             }
-            // mk28: surowa kompletna lista 0x28/0x29 do re-emisji EIATTR
+            // mk28: raw complete 0x28/0x29 list for EIATTR re-emission
             // (disasm --frozen drukuje ja jako `.merc_cgsites`).
             meta.merc_cgsites = sites;
             meta.merc_cgmasks = masks;

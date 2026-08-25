@@ -1305,9 +1305,9 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         (fk.clone(), mod_group.clone()),
         (insn.key.clone(), mod_group.clone()),
         (fk.clone(), String::new()),
-        // base key bez modow: harvest trzyma niektore formy modifiy pod bazowym
-        // kluczem z grupe "" (np. IMAD.U32 z UR-sorcem = MOV-idiom; ktest sass
-        // 2026-08-05: (IMAD_R_R_R_UR, "U32") REJ. rodzajowo, (fk,"") brak).
+        // base key without mods: the harvest keeps some modified forms under the base
+        // key with the "" group (e.g. IMAD.U32 with a UR source = the MOV idiom; ktest sass
+        // 2026-08-05: (IMAD_R_R_R_UR, "U32") REJ by kind, (fk,"") absent).
         (insn.key.clone(), String::new()),
         (format!("{fk}_?"), String::new()),
     ];

@@ -883,7 +883,7 @@ fn stallfix_run<'py>(
             ac.append(i)?;
         }
         kd.set_item("input_above_cap", ac)?;
-        // v1 (F-ss4): pełna mapa D1 per kernel + legacy-high-stall risk rows
+        // v1 (F-ss4): full per-kernel D1 map + legacy high-stall risk rows
         let d1l = pyo3::types::PyList::empty(py);
         for s in &k.d1_sites {
             let sd = PyDict::new(py);

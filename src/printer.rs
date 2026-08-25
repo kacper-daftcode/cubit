@@ -658,10 +658,10 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     if matches!(base, "ATOMG" | "REDG" | "ATOMS" | "ATOM") {
         match m {
             "ADD" | "MIN" | "MAX" | "CAS" | "INC" | "DEC" | "EXCH"
-            // mk35: boolowe tez jako subop (REDG.E.AND.STRONG.GPU; AND/AND? nie LOP3)
+            // mk35: booleans as a subop too (REDG.E.AND.STRONG.GPU; AND/AND? not LOP3)
             | "AND" | "OR" | "XOR"
-            // BUG-094b: CAST/SPIN tez sa nazwa operacji (ATOM.E.CAST.SPIN.64:
-            // rozmiar DRUKUJE SIE PO nich, przed STRONG)
+            // BUG-094b: CAST/SPIN are also an operation name (ATOM.E.CAST.SPIN.64:
+            // the size PRINTS after them, before STRONG)
             | "CAST" | "SPIN" => return 4,
             "64" | "128" => return 5,
             "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" => return 6,
@@ -1618,7 +1618,7 @@ fn format_utc_desc(tok: i32, fields: &[&DecodedField], tok4_fields: &[&DecodedFi
 // Desc — unencodable under an _AURI key.
 fn format_auri_uronly(fields: &[&DecodedField], raw: u128) -> String {
     let mut ur: Option<u64> = None;
-    let mut ur_wide = false; // pole istnieje i jest 8-bitowe: wtedy 63 to UR63, nie URZ
+    let mut ur_wide = false; // the field exists and is 8-bit: then 63 means UR63, not URZ
     let mut offset: i64 = 0;
     let mut has_off_from_field = false;
     for f in fields {
