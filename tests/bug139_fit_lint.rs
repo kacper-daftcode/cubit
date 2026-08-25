@@ -57,7 +57,9 @@ fn grafted_table(key: &str, mods: &str, extraction: &str, token_idx: i64, bits: 
         }
     }
     assert_eq!(n, 1, "expected exactly one {extraction}/tok{token_idx} field in {key}::{mods}");
-    let path = std::env::temp_dir().join(format!("bug139_graft_{}.json", std::process::id()));
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+    let path = std::env::temp_dir().join(format!("bug139_graft_{}_{}.json", std::process::id(), nanos));
     std::fs::write(&path, serde_json::to_string(&v).unwrap()).unwrap();
     let t = IsaTable::load(&path).unwrap();
     let _ = std::fs::remove_file(&path);

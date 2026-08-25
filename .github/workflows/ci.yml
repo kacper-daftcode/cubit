@@ -25,3 +25,5 @@ jobs:
       - run: cargo build --release
       - run: cargo test
       - run: cargo clippy -- -D warnings -A clippy::if_same_then_else
+        # one remaining if_same_then_else site lives in a lane-owned working
+        # tree (main.rs lastw-MID dedup); drop the -A once that lands.

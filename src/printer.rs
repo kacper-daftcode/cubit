@@ -180,9 +180,7 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         });
         // S2R/S2UR: second operand is always a system register
         // (may be stored as '?', 'II', or 'L' in InsKey depending on decoder match)
-        let s = if is_s2r && i >= 1 {
-            format_sysreg(fields, raw)
-        } else if op_type == "?" && is_s2r {
+        let s = if is_s2r && (i >= 1 || op_type == "?") {
             format_sysreg(fields, raw)
         } else if op_type == "dARI" {
             // Descriptor-with-base form: must print the full desc[UR][R.64+off]

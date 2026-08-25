@@ -1037,8 +1037,7 @@ fn src_regs(insn: &Instruction) -> Vec<(bool, u8)> {
                     // misses the dep on the MMA writeback of R1..R3 (stale store).
                     // BUG-101: .256 stores name two data base registers (STG_dARI_R_R),
                     // each a 128-bit source quad (M3.5 doctrine) -> 4 per reg here.
-                    let w: u16 = if insn.opcode_full.contains(".256") { 4 }
-                                 else if insn.opcode_full.contains(".128") { 4 }
+                    let w: u16 = if insn.opcode_full.contains(".256") || insn.opcode_full.contains(".128") { 4 }
                                  else if insn.opcode_full.contains(".64") { 2 } else { 1 };
                     for r in 1..w {
                         if (*num as u16) + r < 256 { out.push((false, (*num as u16 + r) as u8)); }

@@ -936,19 +936,19 @@ impl MercFeatures {
             if mma_f == 1 { 4 } else { 5 }
         } else if ldgsts > 0 || ldg >= 4 {
             11
-        } else if cctl > 0 && membar == 0 {
-            7
-        } else if bssy > 0 && ldg >= 1 && sts >= 1 {
-            7
-        } else if ldg >= 1 && stg >= 1 && ldg + stg >= 3 && !meta.merc_predmem {
-            // mk12a (k_ldg2/p_stg2/c_ld_dyn2: 7 vs d_ifelse_ld: 0 — gasi
-            // bramke predykowana pamiec @P LDG/STG; pozostale gate'y pokrywaja)
+        } else if (cctl > 0 && membar == 0)
+            || (bssy > 0 && ldg >= 1 && sts >= 1)
+            // measured: predicate-gated LDG/STG memory gate wins over the
+            // plain ifelse-ld gate (which clamps to 0)
+            || (ldg >= 1 && stg >= 1 && ldg + stg >= 3 && !meta.merc_predmem)
+        {
             7
         } else if isetp >= 6 && bssy == 0 {
             4
-        } else if sts >= 1 && lds >= 1 && bar >= 1 && bssy == 0 {
-            0
-        } else if i2fp >= 1 && f2i >= 1 {
+        } else if (sts >= 1 && lds >= 1 && bar >= 1 && bssy == 0)
+            || (i2fp >= 1 && f2i >= 1)
+        {
+            // deliberate measured clamps onto the default anchor
             0
         } else if ldg >= 1 && ldg + stg >= 2 && f.os_dynldg {
             5

@@ -861,11 +861,9 @@ fn key_field_consistency_score(key: &str, mod_group: &str, table: &IsaTable) -> 
         let expected_imm     = matches!(op_type, "II" | "IM" | "LO" | "FI");
         let expected_barrier = op_type == "B";
 
-        if expected_pred  && is_pred   { score += 2; }
-        else if expected_upred && is_upred  { score += 4; } // UP with upred = strong match
-        else if expected_barrier && is_barrier { score += 4; } // B with barrier = strong match
+        if (expected_pred && is_pred) || (expected_reg && is_reg) || (expected_imm && is_imm) { score += 2; }
+        else if (expected_upred && is_upred) || (expected_barrier && is_barrier) { score += 4; } // UP/B slot with a matching field = strong match
         else if (expected_upred && is_pred) || (expected_pred && is_upred) { score -= 2; }
-        else if (expected_reg && is_reg) || (expected_imm && is_imm)      { score += 2; }
         else if (expected_pred && is_reg) || (expected_reg && is_pred)    { score -= 5; }
         else if expected_reg  && is_imm     { score -= 4; }  // R/UR slot has imm field — significant mismatch
         else if expected_imm  && is_reg     { score -= 2; }  // II slot has reg field

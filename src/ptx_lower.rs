@@ -4911,8 +4911,7 @@ fn lower_mma(addr: u32, insn: &PtxInsn, alloc: &mut RegAlloc, guard: Option<Guar
 
     // Detect scale factor type from PTX opcode
     let scale_type = if op.contains("ue4m3") || op.contains("nvf4") { "UE4M3.4X" }
-        else if op.contains("ue8m0") || op.contains("mxf8f6f4") { "E8" }
-        else { "E8" };
+        else { "E8" }; // ue8m0 / mxf8f6f4 and all remaining forms
 
     let acc_type = if types.contains(&"f32") { "F32" } else { "F16" };
 

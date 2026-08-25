@@ -443,9 +443,7 @@ pub fn reg_xfer(insn: &Instruction) -> RegXfer {
                         first_reg_seen = true;
                     }
                     _ => {
-                        if first_reg_seen {
-                            use_operand(o, &mut x, 1);
-                        } else if matches!(o, Operand::Addr { .. } | Operand::Desc { .. }) {
+                        if first_reg_seen || matches!(o, Operand::Addr { .. } | Operand::Desc { .. }) {
                             use_operand(o, &mut x, 1);
                         }
                     }
