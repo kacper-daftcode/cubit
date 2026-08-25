@@ -872,9 +872,9 @@ fn format_operand(
         // every existing entry).
         "ARI" if (ins_key.starts_with("LDS") || ins_key.starts_with("STS"))
             && fields.iter().any(|f| norm_ext(&f.extraction) == "addr_scale")
-            => format_lds_scaled_addr(fields),
+            => format_lds_scaled_addr(fields, rz_signed_elide(ins_key)),
         "ARI" | "AI"
-                => format_addr(fields, raw),
+                => format_addr(fields, raw, rz_signed_elide(ins_key)),
         // STS/LDS/LDSM use [R+UR+off] format, not desc[UR][R.64+off].
         // starts_with covers size-suffixed variants: STS.64, LDS.128, etc.
         "ARURI" if {
@@ -1522,14 +1522,44 @@ fn format_plain_u32_ur(fields: &[&DecodedField], raw: u128) -> String {
     format!("[{b}.{width}+{u}{o}]")
 }
 
+/// BUG-164 (port spark ERR-249 ze sm_121a; law vendor nvdisasm 13.0.88 +
+/// potwierdzone flotowo na 13.3.73, arbitraz work/i77/arb): for a plain
+/// ARI/AI address with base == RZ, no UR component and imm != 0 nvdisasm
+/// prints ONLY the raw immediate window (unsigned hex, width-masked);
+/// base, .Xn scale suffix and the "+-" sign notation disappear together.
+/// Exceptions: imm == 0 prints "[RZ]"; a UR component or base != RZ keeps
+/// the full form; LDSM/STSM print the elided immediate SIGNED ("[-0x10]").
+/// Returns None when no elision applies.
+fn rz_signed_elide(ins_key: &str) -> bool {
+    let op = ins_key.split('_').next().unwrap_or("");
+    op.starts_with("LDSM") || op.starts_with("STSM")
+}
+
+fn elide_rz_base(rn: u64, ur_reg: Option<u64>, offset: i64, has_offset: bool,
+                 imm_width: u32, signed: bool) -> Option<String> {
+    if rn != 255 || ur_reg.is_some() || !has_offset || offset == 0 {
+        return None;
+    }
+    if signed {
+        return Some(if offset < 0 {
+            format!("[-0x{:x}]", (-offset) as u64)
+        } else {
+            format!("[0x{:x}]", offset as u64)
+        });
+    }
+    let mask = if imm_width == 0 || imm_width >= 64 { !0u64 } else { (1u64 << imm_width) - 1 };
+    Some(format!("[0x{:x}]", (offset as u64) & mask))
+}
+
 /// BUG-038 LDS scaled shared address: "[R9.X16+0xc000]". The scale suffix comes
 /// from the addr_scale field (2=X8, 3=X16; 1=X4 structural inverse). Scale=0
 /// intentionally reproduces format_addr's plain output byte-for-byte.
-fn format_lds_scaled_addr(fields: &[&DecodedField]) -> String {
+fn format_lds_scaled_addr(fields: &[&DecodedField], signed_elide: bool) -> String {
     let mut base: Option<u64> = None;
     let mut off: i64 = 0;
     let mut has_off = false;
     let mut scale = 0u64;
+    let mut imm_width: u32 = 0;
     for f in fields {
         let e = norm_ext(&f.extraction);
         match e.as_str() {
@@ -1538,12 +1568,18 @@ fn format_lds_scaled_addr(fields: &[&DecodedField]) -> String {
             s if s.starts_with("sub_imm") => {
                 off |= sub_imm_off(s, f.value, f.bits);
                 has_off = true;
+                imm_width += f.bits;
             }
-            "imm" => { off = f.value as i64; has_off = true; }
+            "imm" => { off = f.value as i64; has_off = true; imm_width += f.bits; }
             _ => {}
         }
     }
     let rn = base.unwrap_or(0);
+    // BUG-164 (port spark ERR-249): base RZ + imm != 0 elides to the bare
+    // window (scale suffix removed with the base).
+    if let Some(el) = elide_rz_base(rn, None, off, has_off, imm_width, signed_elide) {
+        return el;
+    }
     let reg_s = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
     let sfx = match scale { 1 => ".X4", 2 => ".X8", 3 => ".X16", _ => "" };
     let mut inner = format!("{reg_s}{sfx}");
@@ -1557,12 +1593,13 @@ fn format_lds_scaled_addr(fields: &[&DecodedField]) -> String {
     format!("[{inner}]")
 }
 
-fn format_addr(fields: &[&DecodedField], raw: u128) -> String {
+fn format_addr(fields: &[&DecodedField], raw: u128, signed_elide: bool) -> String {
     let mut base_reg: Option<u64> = None;
     let mut base_wide = false;
     let mut ur_reg: Option<u64> = None;
     let mut offset: i64 = 0;
     let mut has_offset = false;
+    let mut imm_width: u32 = 0;
 
     for f in fields {
         let e = norm_ext(&f.extraction);
@@ -1575,8 +1612,9 @@ fn format_addr(fields: &[&DecodedField], raw: u128) -> String {
             s if s.starts_with("sub_imm") => {
                 offset |= sub_imm_off(s, f.value, f.bits);
                 has_offset = true;
+                imm_width += f.bits;
             }
-            "imm" => { offset = f.value as i64; has_offset = true; }
+            "imm" => { offset = f.value as i64; has_offset = true; imm_width += f.bits; }
             _ => {}
         }
     }
@@ -1587,11 +1625,16 @@ fn format_addr(fields: &[&DecodedField], raw: u128) -> String {
     if base_reg.is_none() {
         base_reg = Some((raw >> 24) as u64 & 0xFF);
         let raw_off = ((raw >> 40) & 0xFF) as i64;
-        if raw_off != 0 { offset = raw_off; has_offset = true; }
+        if raw_off != 0 { offset = raw_off; has_offset = true; imm_width = 8; }
     }
 
     // .64 only when explicitly bit-shifted sub-register extraction (64-bit addressing)
     let rn = base_reg.unwrap_or(0);
+    // BUG-164 (port spark ERR-249): plain-ARI/AI with base RZ, no UR and
+    // imm != 0 elides the base (and the .Xn scale suffix with it).
+    if let Some(el) = elide_rz_base(rn, ur_reg, offset, has_offset, imm_width, signed_elide) {
+        return el;
+    }
     let reg_s = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
     let wide_s = if base_wide { ".64" } else { "" };
 
