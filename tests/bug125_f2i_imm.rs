@@ -1,27 +1,27 @@
 //! BUG-125: a fresh F2I f32-imm form (nvcc-13.3 sm_103a, createpolicy.range
 //! qualifier lowering) decoded as "?" / "no instruction matches opcode
-//! 0x0905", a enkoder nie mial wiersza. Klasa zdomknieta w calosci:
+//! 0x0905", and the encoder had no row. The class closed in full:
 //!
-//!   * NOWY klucz `F2I_R_FI` (96 wierszy): dst-type idx = bits
+//!   * NEW key `F2I_R_FI` (96 rows): dst-type idx = bits
 //!     {76:width-msb,75,72:sign} (0..5 = U8,S8,U16,S16,U32,S32-blank;
-//!     6/7 = invalid na sm_103a por. t125_4), rounding bits [79:78]
+//!     6/7 = invalid on sm_103a, cf. t125_4), rounding bits [79:78]
 //!     (0=RN-blank,1=FLOOR,2=CEIL,3=TRUNC), NTZ bit77, FTZ bit80
-//!     (druk pierwszy: `F2I.FTZ.U32.CEIL.NTZ`), imm = f32 @[63:32],
+//!     (printed first: `F2I.FTZ.U32.CEIL.NTZ`), imm = f32 @[63:32],
 //!     dest R @[23:16], guard @[15:12].
-//!   * vm pokrywa [96:127]\{105} (okno sched — dekoder i tak maskuje
-//!     upper32; bit105 = kotwica semantyczna wg nvdisasm).
-//!   * printer: key-scoped porzadek modow dla F2I_R_FI
-//!     (FTZ < type < rounding < NTZ) — legacy F2I_R_R nietkniete
-//!     (gold-lock pre-125).
-//!   * parser: F2I w FLOAT_OPCODES (tekst "16" = FloatImm f32
-//!     0x41800000; inaczej klasa BUG-034 trap z Imm32(16)).
-//!   * decoder prio-3 sign-bit fallback: F2I dodane do fail-closed
-//!     (invalid type idx 6/7 wchodzil w okno {72..75} i dekodowal sie
-//!     jako U32/S32 sibling — nvdisasm-13.3 mowi F2I.???6/???7).
+//!   * vm covers [96:127]\{105} (the sched window — the decoder masks
+//!     upper32 anyway; bit105 = semantic anchor per nvdisasm).
+//!   * printer: key-scoped mod order for F2I_R_FI
+//!     (FTZ < type < rounding < NTZ) — legacy F2I_R_R untouched
+//!     (pre-125 gold lock).
+//!   * parser: F2I joins FLOAT_OPCODES (the text "16" = FloatImm f32
+//!     0x41800000; otherwise the BUG-034 trap class with Imm32(16)).
+//!   * decoder prio-3 sign-bit fallback: F2I added to fail-closed
+//!     (invalid type idx 6/7 entered the {72..75} window and decoded
+//!     as a U32/S32 sibling — nvdisasm-13.3 says F2I.???6/???7).
 //!
-//! Golden = nvdisasm-13.3.73 oracle sweep po pol3.cubin patch-probe
-//! (work/bug125/oracle.py + gen125.py; klasa 6x4x2x2=96 legalnych,
-//! Anchory korpusu: pol3 k_pr+0x10 imm16 / pol4 k_pr2+0x10 imm17.
+//! Golden = nvdisasm-13.3.73 oracle sweep after the pol3.cubin patch probe
+//! (work/bug125/oracle.py + gen125.py; the 6x4x2x2=96 legal class,
+//! Corpus anchors: pol3 k_pr+0x10 imm16 / pol4 k_pr2+0x10 imm17.
 //! Raport: the internal fix archive
 
 use cubit::decoder::DecodeIndex;
@@ -44,7 +44,7 @@ fn dec103(word: u128) -> Option<String> {
 }
 const NOSCHED: u128 = !(0xFFFF_FFFFu128 << 96);
 
-/// (slowo, tekst nvdisasm-13.3) — oracle sweep po patch-probie pol3.cubin,
+/// (word, nvdisasm-13.3 text) — oracle sweep after the pol3.cubin patch probe,
 /// guard PT / dest R0 / imm f32=16.0; wszystkie 96 legalnych kombinacji.
 const GOLD: &[(u128, &str)] = &[
     (0x000e2200002020004180000000007905, "F2I.U8.NTZ R0, 16"),
@@ -147,7 +147,7 @@ const GOLD: &[(u128, &str)] = &[
 ];
 
 /// t125_1: kazde golden-slowo dekoduje sie do DOKLADNEGO tekstu
-/// nvdisasm-13.3 (render-parity; brak "?" i brak !rsd).
+/// nvdisasm-13.3 (render parity; no "?" and no !rsd).
 #[test]
 fn t125_1_decode_parity_96() {
     assert_eq!(GOLD.len(), 97);
@@ -170,7 +170,7 @@ fn t125_2_encode_payload_96() {
     }
 }
 
-/// t125_3: pelny roundtrip word -> text -> word dla calej klasy.
+/// t125_3: full word -> text -> word round-trip for the whole class.
 #[test]
 fn t125_3_roundtrip_96() {
     for (w, _text) in GOLD {
@@ -182,7 +182,7 @@ fn t125_3_roundtrip_96() {
 }
 
 /// t125_4: invalid dst-type idx 6/7 (nvdisasm: F2I.???6/???7) pozostaje
-/// fail-closed — NIE wolno zrelaksowac na U32/S32 przez prio-3 sign-bit
+/// fail-closed — may NOT be relaxed onto U32/S32 through the prio-3 sign-bit
 /// okno {72..75}.
 #[test]
 fn t125_4_invalid_type_idx_fail_closed() {
@@ -222,7 +222,7 @@ fn t125_6_float_imm_parser_anchor() {
 }
 
 /// t125_7: ksztalt tabeli — nowy klucz z 96 wierszami; legacy F2I_R_R
-/// nietkniety (16 wierszy jak przed 125); zadna R-forma nie ma pola f32.
+/// untouched (16 rows as before 125); no R form carries an f32 field.
 #[test]
 fn t125_7_table_shape() {
     let t = t103();

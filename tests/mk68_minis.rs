@@ -1,7 +1,7 @@
-// mk68: (1) para UISETP imm+imm -> dodatkowo 42103e06 na lane EX-tail;
+// mk68: (1) a UISETP imm+imm pair -> additionally 42103e06 on the EX-tail lane;
 // (2) F2FP fp8 SATFINITE -> 4212ec26, F2FP fp8->f16 UNPACK_B -> 4112720a;
-// (3) ULOP3.LUT 0606: klasa (A) UP-write z tok1=URn, klasa (B) 0xb8/0x80000000,
-//     klasy negatywne (UP z tok1=URZ, 6-tok zwykle) bez rekordu.
+// (3) ULOP3.LUT 0606: class (A) UP-write with tok1=URn, class (B) 0xb8/0x80000000,
+//     the negative classes (UP with tok1=URZ, plain 6-tok) are recordless.
 use cubit::ir::{ControlCode, Guard, Instruction};
 use cubit::sass_file::{merc_mini2_scan, merc_usetp_scan};
 
@@ -43,7 +43,7 @@ fn mk68_f2fp_fp8_minis() {
         mk_ins(4, "F2FP.E5M2.F32.PACK_AB_MERGE_C.SATFINITE", "F2FP.E5M2.F32.PACK_AB_MERGE_C.SATFINITE R10, R46, R34, R7 ;", None),
         mk_ins(5, "F2FP.E4M3.F16.UNPACK_B", "F2FP.E4M3.F16.UNPACK_B R6, R50 ;", None),
         mk_ins(6, "F2FP.E5M2.F16.UNPACK_B", "F2FP.E5M2.F16.UNPACK_B R7, R51 ;", None),
-        // przeciwprzyklady: TF32 i zwykle PACK_AB bez mini mk68
+        // counterexamples: TF32 and plain PACK_AB without an mk68 mini
         mk_ins(7, "F2FP.F16.F32.PACK_AB", "F2FP.F16.F32.PACK_AB R0, RZ, R0 ;", None),
         mk_ins(8, "F2FP.BF16.F32.PACK_AB", "F2FP.BF16.F32.PACK_AB R1, RZ, R1 ;", None),
     ];
@@ -66,8 +66,8 @@ fn mk68_ulop3_0606() {
         mk_ins(13, "ULOP3", "ULOP3.LUT UR4, URZ, 0x80000000, UR9, 0xb8, !UPT ;", None),
         // neg: zwykly ULOP3 UR-dst 6-tok: NIE
         mk_ins(14, "ULOP3", "ULOP3.LUT UR4, UR4, 0x1ffffffe, URZ, 0xc0, !UPT ;", None),
-        // neg: ULOP3 z lut 0xc0 bez UP i bez 0xb8-idiom: NIE (krytyczne: zawiera
-        // 0xc0 ale nie 0xb8 ani 0x80000000)
+        // neg: ULOP3 with lut 0xc0 without UP and without the 0xb8 idiom: NO (critical: contains
+        // 0xc0 but neither 0xb8 nor 0x80000000)
         mk_ins(15, "ULOP3", "ULOP3.LUT UR7, UR5, 0xf, URZ, 0xc0, !UPT ;", None),
     ];
     let v = merc_mini2_scan("kern_plain", &ins);

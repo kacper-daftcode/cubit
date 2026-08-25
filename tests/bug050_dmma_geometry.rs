@@ -52,7 +52,7 @@ fn bug050_decode_goldens_render_truth() {
     let t = t120();
     for (sass, gold) in GOLDENS {
         let want = sass.trim_end_matches(';').trim().to_string();
-        assert_eq!(dec(&t, gold), want, "decode golden {sass} — musi wygrywac DMMA.8x8x4, nie DFMA/*INVALID*");
+        assert_eq!(dec(&t, gold), want, "decode golden {sass} — DMMA.8x8x4 must win, not DFMA/*INVALID*");
     }
 }
 
@@ -62,7 +62,7 @@ fn bug050_rc_field_lives_in_hi_word() {
     // Rc=RZ vs Rc=R8: jedyna roznica to bity [71:64] (hi-word), lo64 identyczne.
     let rz = enc_clean(&t, GOLDENS[0].0);
     let r8 = enc_clean(&t, GOLDENS[1].0);
-    assert_eq!(rz as u64, r8 as u64, "lo64 nie zalezy od Rc");
+    assert_eq!(rz as u64, r8 as u64, "lo64 does not depend on Rc");
     assert_eq!(((rz >> 64) as u64) & 0xFF, 0xFF);
     assert_eq!(((r8 >> 64) as u64) & 0xFF, 0x08);
 }

@@ -1,5 +1,5 @@
-//! Gold tests: cubit-emitovana sekcja capmerc == nvcc-emitted bytes,
-//! dla wariantow mikrolabu (v_base / v_p1 / v_bar2).
+//! Gold tests: cubit-emitted capmerc section == nvcc-emitted bytes,
+//! for the microlab variants (v_base / v_p1 / v_bar2).
 use cubit::eiattr::{KernelMeta, KernelParam};
 use cubit::elf_builder::generate_mercury_full;
 
@@ -84,7 +84,7 @@ fn meta(name: &str, n_params: u32, exits: u32, smem: u32, bars: u8, cbank: u16) 
     }
 }
 
-/// Baseline: kernel bez parametrow i tylko LDC/EXIT/BRA — nvcc: prolog+tail.
+/// Baseline: a kernel without parameters, only LDC/EXIT/BRA — nvcc: prolog+tail.
 #[test]
 fn gen_v_base_matches_nvcc() {
     let ops = vec!["LDC".to_string(), "EXIT".to_string(), "BRA".to_string()];

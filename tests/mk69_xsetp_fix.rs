@@ -1,14 +1,14 @@
-//! mk69 (2026-08-13): doprecyzowanie mk41 XSETP (merclab/mk69 c2..c14 —
-//! korpus l2 + keep-400; per-site proof: rot_kernel libcublas.141, sphpr2
+//! mk69 (2026-08-13): refining mk41 XSETP (merclab/mk69 c2..c14 —
+//! l2 corpus + keep-400; per-site proof: rot_kernel libcublas.141, sphpr2
 //! libcublas.339/345/836/841, mtr_gerc libcusolver.1186, sparse22
 //! libcusparse.102, ds_symv libcusolver.1573):
-//!  * head Pn jest KONSUMOWANY przez pierwszy pasujacy tail .EX (pop) —
-//!    powtorny EX z tym samym carry-pred na odleglym lane nie emituje
-//!    (rot_kernel: (12,13)+(12,119) -> jedno mini);
-//!  * head-eligibility: ISETP non-EX zapisujacy Pn z ostatnim tokenem != PT
-//!    (bool-join) NIE jest headem i KASUJE starszego (przepisanie);
-//!  * klasa mini z HEADa wylacznie (UR w tailu nie podnosi: sphpr2
-//!    ISETP.GE.AND.EX P0, PT, RZ, UR13, PT, P0 -> 42102e14, nie 3214).
+//!  * a head Pn is CONSUMED by the first matching .EX tail (pop) —
+//!    a repeated EX with the same carry-pred on a distant lane emits nothing
+//!    (rot_kernel: (12,13)+(12,119) -> one mini);
+//!  * head eligibility: a non-EX ISETP writing Pn with last token != PT
+//!    (bool-join) is NOT a head and CLEARS the older one (a rewrite);
+//!  * the mini class comes from the HEAD only (a UR in the tail does not upgrade: sphpr2
+//!    ISETP.GE.AND.EX P0, PT, RZ, UR13, PT, P0 -> 42102e14, not 3214).
 
 use cubit::ir::{ControlCode, Guard, Instruction};
 use cubit::sass_file::merc_xsetp_scan;
@@ -50,7 +50,7 @@ fn mk69_klasa_z_heada_tail_ur_nie_podnosi() {
     ];
     let out = merc_xsetp_scan(&ins);
     assert_eq!(out, vec![(78, 0)]);
-    // a head z UR -> klasa 2 jak dawniej
+    // a head with UR -> class 2 as before
     let ins2 = vec![
         mk_ins(18, "ISETP", "ISETP.GE.U32.AND P1, PT, R2, UR4, PT ;"),
         mk_ins(19, "ISETP.GE.AND.EX", "ISETP.GE.AND.EX P1, PT, R3, UR5, PT, P1 ;"),
@@ -67,7 +67,7 @@ fn mk69_klasa_z_heada_tail_ur_nie_podnosi() {
 #[test]
 fn mk69_booljoin_kasuje_heada() {
     // mtr_gerc (cusolver.1186): ISETP.EQ.U32.AND P3, PT, RZ, UR44, !P2 zapisuje
-    // P3 z carry-in non-PT -> NIE jest headem; EX tail 237 bez minia.
+    // P3 with non-PT carry-in -> NOT a head; EX tail 237 without a mini.
     let ins = vec![
         mk_ins(226, "ISETP", "ISETP.NE.U32.AND P2, PT, R44, -0x1, PT ;"),
         mk_ins(228, "ISETP.NE.U32.AND.EX", "ISETP.NE.U32.AND.EX P2, PT, R45, -0x1, PT, P2 ;"),
@@ -75,13 +75,13 @@ fn mk69_booljoin_kasuje_heada() {
         mk_ins(237, "ISETP.LT.AND.EX", "ISETP.LT.AND.EX P3, PT, R46, UR33, !P2, P3 ;"),
     ];
     let out = merc_xsetp_scan(&ins);
-    assert_eq!(out, vec![(226, 1)], "bool-join nie head; 226->class1");
+    assert_eq!(out, vec![(226, 1)], "bool-join not a head; 226->class1");
 }
 
 #[test]
 fn mk69_pop_nie_lamie_kolejnej_pary() {
-    // sparse22 (cusparse.102): po tailu 254 (P3) przychodzi NOWY head P2/itd.;
-    // kazdy head->jeden rekord; brak wiszacych.
+    // sparse22 (cusparse.102): after tail 254 (P3) a NEW head P2/etc. arrives;
+    // each head->one record; no dangling ones.
     let ins = vec![
         mk_ins(189, "ISETP", "ISETP.GE.U32.AND P3, PT, R22, UR4, PT ;"),
         mk_ins(254, "ISETP.GE.AND.EX", "ISETP.GE.AND.EX P6, PT, RZ, UR5, PT, P3 ;"),

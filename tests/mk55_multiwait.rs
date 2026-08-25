@@ -1,13 +1,13 @@
-//! mk55: rekordy wait 01 23 40 0a (16B) per DEPBAR.SB0 — multi-wait DOMKNIETE.
-//! Reguly korpusowe (merclab/mk55 c1..c9, 2619/2619 rekordow, 1250/1250 kerneli
-//! multiset+porzadek EXACT, obustronnie):
-//! - rekord tylko dla klasy SB0 (`DEPBAR.LE SB0, 0xN`); SB5 nie nosi rekordu
-//!   (dlatego mk53-per-DEPBAR "przepieklo" o +208 new-only),
-//! - b11 = imm DEPBAR; bajty stale: b4=f8 (brak guarda korpusowo; guard ->
-//!   fail-closed), b6=08, reszta 0,
-//! - host = ostatnia slotted instrukcja przed DEPBARem (zero-weight skip),
-//! - legacy mk14.3 (brak desc-form LDGSTS): single-wait tez z true-imm.
-//! Wektory gold = doslowne bajty z korpusu sm_100 (atlas mk54hA keep-set).
+//! mk55: 01 23 40 0a wait records (16B) per DEPBAR.SB0 — multi-wait CLOSED.
+//! Corpus rules (merclab/mk55 c1..c9, 2619/2619 records, 1250/1250 kernels
+//! multiset+order EXACT, bidirectional):
+//! - record only for the SB0 class (`DEPBAR.LE SB0, 0xN`); SB5 carries no record
+//!   (which is why the mk53 per-DEPBAR probe "overbaked" by +208 new-only),
+//! - b11 = the DEPBAR imm; fixed bytes: b4=f8 (corpus-wise no guard; a guard ->
+//!   fail-closed), b6=08, the rest 0,
+//! - host = the last slotted instruction before the DEPBAR (zero-weight skip),
+//! - legacy mk14.3 (no LDGSTS desc forms): single-wait with the true imm too.
+//! Gold vectors = literal bytes from the sm_100 corpus (the mk54hA atlas keep-set).
 use cubit::mercury::{build_ldgsts2_wait, merc_ldgsts2_scan, merc_ldgsts2_waits, merc_ldgsts_scan};
 
 fn hx(s: &str) -> Vec<u8> {
@@ -23,7 +23,7 @@ fn lanes(v: &[(u32, &str)]) -> Vec<(u32, String)> {
 
 #[test]
 fn mk55_wait_bytes_gold() {
-    // imm 0..3: bajty wprost z korpusu (cuds_symv / cutlass_80).
+    // imm 0..3: bytes straight from the corpus (cuds_symv / cutlass_80).
     assert_eq!(
         build_ldgsts2_wait(0).as_slice(),
         hx("0123400af80008000000000000000000").as_slice()
@@ -44,17 +44,17 @@ fn mk55_wait_bytes_gold() {
 
 #[test]
 fn mk55_sb0_only_i_imm_pooparta() {
-    // wejscie z klastrem SB5 jak getrf (libcusolver 985/993): rekordy tylko
-    // dla SB0, imm brane z operandu DEPBAR-a, hosty = poprzednie slotted.
+    // input with an SB5 cluster like getrf (libcusolver 985/993): records only
+    // for SB0, the imm taken from the DEPBAR operand, hosts = previous slotted.
     let l = lanes(&[
         (10, "IADD3 R1, R2, R3, RZ ;"),
         (11, "LDGDEPBAR ;"),
         (12, "DEPBAR.LE SB0, 0x3 ;"),
-        (13, "DEPBAR.LE SB5, 0x7 ;"), // SB5: bez rekordu
+        (13, "DEPBAR.LE SB5, 0x7 ;"), // SB5: no record
         (14, "LDS.128 R36, [R1+UR4+0x100] ;"),
         (15, "LDCU.64 UR20, c[0x0][0x440] ;"),
         (16, "LDGDEPBAR ;"),
-        (17, "LDC.64 R12, c[0x0][0x398] ;"), // zero-weight? nie — LDC
+        (17, "LDC.64 R12, c[0x0][0x398] ;"), // zero-weight? no — LDC
         (18, "DEPBAR.LE SB0, 0x0 ;"), // host = L17 (LDC.64), LDGDEPBAR skip
         (19, "BRA 0x30 ;"),
         (20, "DEPBAR.LE SB0, 0x1 ;"), // host = L19 (BRA)
@@ -69,9 +69,9 @@ fn mk55_guard_fail_closed() {
         (5, "ISETP.GT.AND P0, PT, R1, RZ, PT ;"),
         (6, "@P0 DEPBAR.LE SB0, 0x1 ;"), // guardowany: korpusowo nieobs., FC
         (7, "@!P0 DEPBAR.LE SB5, 0x0 ;"),
-        (8, "DEPBAR.LE SB0, 0x2 ;"), // host = L5? nie — guardowany tez jest
-                                   // lane'm; poprz slotted = L6? L6 jest
-                                   // slotted (DEPBAR jest zero-weight!) ->
+        (8, "DEPBAR.LE SB0, 0x2 ;"), // host = L5? no — the guarded one is also
+                                   // a lane; the previous slotted = L6? L6 is
+                                   // slotted (the DEPBAR is zero-weight!) ->
                                    // host = L5 (ostatnia slotted przed 8:
                                    // L6/L7 to DEPBAR-y => skip)
     ]);
@@ -81,7 +81,7 @@ fn mk55_guard_fail_closed() {
 
 #[test]
 fn mk55_multiwait_blob_kernel_przeplot() {
-    // scena jak K1/xmma: runy killpadow + bloby + DEPBAR-y; waity miedzy.
+    // a scene like K1/xmma: killpad runs + blobs + DEPBARs; waits between them.
     let l = lanes(&[
         (100, "@!PT LDS RZ, [RZ] ;"),
         (101, "@!PT LDS RZ, [RZ] ;"),
@@ -95,7 +95,7 @@ fn mk55_multiwait_blob_kernel_przeplot() {
         (109, "LDGDEPBAR ;"),
         (110, "LDSM.16.M88.4 R110, [R65] ;"),
         (111, "DEPBAR.LE SB0, 0x2 ;"), // host = 110
-        (112, "DEPBAR.LE SB5, 0xc ;"), // bez rekordu
+        (112, "DEPBAR.LE SB5, 0xc ;"), // no record
     ]);
     let blobs = merc_ldgsts2_scan(&l, "K1ish");
     assert_eq!(blobs.len(), 2);
@@ -116,18 +116,18 @@ fn mk55_multiwait_blob_kernel_przeplot() {
 
 #[test]
 fn mk55_legacy_wait_true_imm() {
-    // no-desc-form (mk14.3): pojedynczy DEPBAR SB0 po LDGSTS -> (host, imm).
-    // (syherk-era: legacy kiedys const imm=0 — mk55 naprawia b11).
+    // no-desc-form (mk14.3): a single DEPBAR SB0 after LDGSTS -> (host, imm).
+    // (syherk era: legacy used to be const imm=0 — mk55 fixes b11).
     let l = lanes(&[
-        (10, "LDGSTS.E [R7], desc[UR16][R2.64] ;"), // desc-form! -> blob-path,
-                                                    // legacy skaner i tak tu
-                                                    // zwroci wait lt. (host,
-                                                    // imm); emisja legacy jest
-                                                    // gated l2-empty poza tym
-                                                    // skanerem
+        (10, "LDGSTS.E [R7], desc[UR16][R2.64] ;"), // desc-form! -> the blob path, but
+                                                    // the legacy scanner still
+                                                    // returns wait lt. (host,
+                                                    // imm) here; legacy emission is
+                                                    // gated l2-empty outside this
+                                                    // scanner path.
         (11, "LDS.128 R36, [R36+UR4] ;"),
         (12, "LDGDEPBAR ;"),
-        (13, "DEPBAR.LE SB5, 0x1 ;"), // SB5 nie wybieramy
+        (13, "DEPBAR.LE SB5, 0x1 ;"), // SB5 not picked
         (14, "DEPBAR.LE SB0, 0x2 ;"),
         (15, "EXIT ;"),
     ]);

@@ -1,7 +1,7 @@
-//! mk41 (2026-08-12): mini-rekordy par XSETP + pelne kody predykatow.
+//! mk41 (2026-08-12): XSETP-pair mini records + full predicate codes.
 //! Piny bajtowe: xlab probes (nvcc sm_100a & sm_103a era-inwariantne):
 //! - para ISETP(non-EX)+ISETP.*.EX -> JEDEN mini 4B na lane HEAD-a,
-//! - head traci bit bitmapy (mini zamiast wezla t4),
+//! - the head loses its bitmap bit (a mini instead of the t4 node),
 //! - tag: 42102e14 (para czysto-rejestrowa) / 42103006 (imm w head)
 //!   / 42103214 (operand UR w parze).
 

@@ -1,10 +1,10 @@
-//! mk51 (2026-08-13): rekordy 020d1c0e (DFMA Rd, ±Ra, ±Rb, imm — imm LAST),
-//! 020d1a0e (DFMA Rd, Ra, imm, Rb — imm MIDDLE) + domkniecie 020f120e
-//! (DMUL imm) / 020c1e0e (DADD imm) o pred/b7/RZ-zrodla.
-//! Emulator korpusowy merclab/mk51 c10: 18932/18932 kerneli byte-exact
-//! (72,255 + 4,256 + 12,206 rekordow; obustronnie — lane-kandydaci poza
-//! klasa nie dostaja rekordow). Wektory ponizej = bajty z korpusu sm_100
-//! (c14_vecprint.py) z Lane'text->record parowaniem po polach.
+//! mk51 (2026-08-13): 020d1c0e records (DFMA Rd, ±Ra, ±Rb, imm — imm LAST),
+//! 020d1a0e (DFMA Rd, Ra, imm, Rb — imm MIDDLE) + closing 020f120e
+//! (DMUL imm) / 020c1e0e (DADD imm) around pred/b7/RZ sources.
+//! The merclab/mk51 c10 corpus emulator: 18932/18932 kernels byte-exact
+//! (72,255 + 4,256 + 12,206 records; bidirectional — lane candidates outside the
+//! class get no records). The vectors below = bytes from the sm_100 corpus
+//! (c14_vecprint.py) with lane text->record pairing by fields.
 
 use cubit::eiattr::{KernelMeta, KernelParam};
 use cubit::elf_builder::generate_mercury_full;
@@ -75,8 +75,8 @@ fn mk51_skan_klas_i_failclosed() {
     let ins = vec![
         mk_ins(1, "DFMA", "DFMA R30, -R26, R32, 1 ;", None),                 // last
         mk_ins(2, "DFMA", "DFMA R4, R18, -5920, R4 ;", None),               // mid
-        mk_ins(3, "DFMA", "DFMA R6, R6, R6, R6 ;", None),                   // bez imm
-        mk_ins(4, "DFMA", "DFMA R10, -R16, R8, UR4 ;", None),               // UR zamiast imm
+        mk_ins(3, "DFMA", "DFMA R6, R6, R6, R6 ;", None),                   // no imm
+        mk_ins(4, "DFMA", "DFMA R10, -R16, R8, UR4 ;", None),               // UR instead of imm
         mk_ins(5, "DFMA", "DFMA R10, UR6, -R30, 1 ;", None),                // UR zrodlo — odrzut
         mk_ins(6, "DFMA", "DFMA R6, -R2, R4 ;", None),                      // 3 operandowa
         mk_ins(7, "DMUL", "DMUL R10, R12, 4.49423283715578976932e+307 ;", None),
@@ -114,7 +114,7 @@ fn mk51_skan_flagi_pred_reuse_rz() {
             "@P2 DFMA R24, R26, R24, +INF ;",
             Some(Guard { pred: 2, negated: false, uniform: false }),
         ),
-        // zrodlo RZ: siatka 0xffc0 bez flagi |2 (getri_2x2)
+        // RZ source: the 0xffc0 grid without the |2 flag (getri_2x2)
         mk_ins(9, "DFMA", "DFMA R14, -RZ, R14, 1 ;", None),
         // .reuse na zrodle (generate_seed_pseudo)
         mk_ins(11, "DMUL", "DMUL R16, R4.reuse, 12345 ;", None),
@@ -124,7 +124,7 @@ fn mk51_skan_flagi_pred_reuse_rz() {
     assert_eq!(d.len(), 4);
     assert_eq!(d[0].3, 6);
     assert_eq!(d[1].3, 10);
-    assert_eq!((d[2].2, d[2].3), (0x10, 0)); // pred (2<<3), bez neg
+    assert_eq!((d[2].2, d[2].3), (0x10, 0)); // pred (2<<3), no neg
     assert_eq!(d[2].7, f64::INFINITY.to_bits());
     assert_eq!(d[3].5, 0x3ff); // RZ zrodlo
     let m = merc_f64imm_scan(&ins);
@@ -135,7 +135,7 @@ fn mk51_skan_flagi_pred_reuse_rz() {
 
 #[test]
 fn mk51_bajty_z_korpusu() {
-    // Wektory gold z korpusu sm_100 (c14): odtworzenie bajt po bajcie.
+    // Gold vectors from the sm_100 corpus (c14): rebuilt byte by byte.
     let mut m = meta_with_load();
     m.merc_dfmaimm = vec![
         // matinv (1011): DFMA R30, -R26, R32, 1
@@ -161,8 +161,8 @@ fn mk51_bajty_z_korpusu() {
         // splitKreduce (191): DADD R22, -R22, 2
         (62, 1, 22, 22, 0x40000000, 0xf8, 2),
     ];
-    // Uwaga: EXIT nie w ostatnim bicie słowa bitmapy (corner n_counted
-    // = bitmax+2 przekracza dlugosc emitowanej bitmapy gdy lane%32==31|
+    // Note: EXIT not in the last bit of the bitmap word (the n_counted corner
+    // = bitmax+2 exceeds the emitted bitmap length when lane%32==31|
     // 63 — separatny od mk51; mk50 test unikal go przypadkiem).
     let o = ops(66);
     let out = generate_mercury_full(&dummy_code(66), 0x0c, Some(&o), &m, false);

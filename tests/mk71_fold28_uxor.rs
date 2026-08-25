@@ -1,14 +1,14 @@
-//! mk71: domkniecie rodziny 28-fold + NOWY rekord 01291004 (xor-U).
+//! mk71: closing the 28-fold family + the NEW 01291004 record (xor-U).
 //!
 //! (a) 41271004 = ULOP3.LUT 6tok !UPT noimm, lut in {0xc0, 0x30, 0x0c}
-//!     (AND-fam: a&b / a&~b / !a&b). Korpus-l2 EXACT 1395/1395 (mk70:
-//!     1175; rozszerzenie o xmma-Lt resid, merclab/mk71 c4/c8, over=0).
-//! (b) 41281004 = rodzina OR 2-op: 0xfc (a|b; mk70) + 0xf3 (a|!b; xmma
-//!     185/185 EXACT; wszystkie 6tok URdst noimm; bitmap hosty 185/185 bit=0).
+//!     (AND fam: a&b / a&~b / !a&b). l2 corpus EXACT 1395/1395 (mk70:
+//!     1175; widened by the xmma-Lt residual, merclab/mk71 c4/c8, over=0).
+//! (b) 41281004 = the 2-op OR family: 0xfc (a|b; mk70) + 0xf3 (a|!b; xmma
+//!     185/185 EXACT; all 6tok URdst noimm; bitmap hosts 185/185 bit=0).
 //! (c) 01291004 = `ULOP3.LUT URd, URa, URb, URZ, 0x3c, !UPT` (uniform xor):
 //!     16B `01 29 10 04 fa 00 04 00 01 f8 | dst<<6|1 u16 | a<<6 u16 | b<<6
-//!     u16` — 491/491 payload-EXACT (c7), header/b4 stale, lane bez bitu
-//!     bitmapy (jak doktryna mk13/mk47/mk58).
+//!     u16` — 491/491 payload-EXACT (c7), header/b4 fixed, the lane without a
+//!     bitmap bit (per the mk13/mk47/mk58 doctrine).
 use cubit::mercury::merc_ulop3_xor_record;
 use cubit::sass_file::merc_fold28;
 
@@ -35,7 +35,7 @@ fn uxor_accept() {
 
 #[test]
 fn uxor_reject() {
-    // imm w a/b (forma z imm nie dostaje rekordu — 348 lane'ow l2)
+    // imm in a/b (the imm form gets no record — 348 l2 lanes)
     assert!(merc_ulop3_xor_record("ULOP3.LUT UR11, UR8, 0x1, URZ, 0x3c, !UPT ;", 0xf8).is_none());
     // inny LUT / c!=URZ / pin != !UPT / LOP3 (R-space ma 01290004 z mk13)
     assert!(merc_ulop3_xor_record("ULOP3.LUT UR11, UR8, UR4, URZ, 0xc0, !UPT ;", 0xf8).is_none());
@@ -52,7 +52,7 @@ fn fold28_and_fam() {
     // mk71: 0x30 (xmma lt.1170 L44) i 0x0c (cusparse.342 spike L54/L56)
     assert_eq!(merc_fold28("ULOP3.LUT UR10, UR6, UR10, URZ, 0x30, !UPT"), Some(0x04102741));
     assert_eq!(merc_fold28("ULOP3.LUT UR5, UR6, UR5, URZ, 0x0c, !UPT"), Some(0x04102741));
-    // imm-gate bez zmian (selfimm UR8,UR8,0x1 -> brak)
+    // imm gate unchanged (selfimm UR8,UR8,0x1 -> none)
     assert_eq!(merc_fold28("ULOP3.LUT UR8, UR8, 0x1, URZ, 0xc0, !UPT"), None);
     assert_eq!(merc_fold28("ULOP3.LUT UR8, UR6, 0x1, URZ, 0x30, !UPT"), None);
 }

@@ -1,12 +1,12 @@
-//! mk62 (2026-08-13): rekord 51010109 (18B) — DOMKNIECIE per-region:
-//! emisja per zamkniecie regionu BSSY.RECONVERGENT (lane BSYNC) z payloadem
-//! dw[12:16] = 2*barrier_id. Reguly korpusowe (merclab/mk62 c1..c31,
-//! l2 676 / 18932 kerneli):
-//!  * payload EXACT: multiset(dw/2) == multiset(barier regionow) zawsze gdy
-//!    count-exact (3267/3267); TLV-order == kolejnosc zamkniec (BSYNC lanes).
-//!  * count EXACT po bramce diverge (mk10-era): P2-hybrid H = 6021->8022
-//!    kerneli TLV-exact na korpusie (+2001), scisla zawieranie P2<=H
-//!    (6021 wspolne, 0 strat) — zmiana gwarancja nie-regresu.
+//! mk62 (2026-08-13): the 51010109 record (18B) — per-region CLOSURE:
+//! emitted per BSSY.RECONVERGENT region close (the BSYNC lane) with payload
+//! dw[12:16] = 2*barrier_id. Corpus rules (merclab/mk62 c1..c31,
+//! l2 676 / 18932 kernels):
+//!  * payload EXACT: multiset(dw/2) == multiset(region barriers) whenever
+//!    count-exact (3267/3267); TLV order == the close order (BSYNC lanes).
+//!  * count EXACT past the diverge gate (mk10 era): P2-hybrid H = 6021->8022
+//!    corpus TLV-exact kernels (+2001), strict containment P2<=H
+//!    (6021 shared, 0 lost) — the change is a no-regression guarantee.
 //!  * plain-BSSY (dialekty stalych producentow; 00/39 = inne rodzaje
 //!    rekordow regionowych) = park mk29-RE.
 use cubit::eiattr::{KernelMeta, KernelParam};
@@ -57,7 +57,7 @@ fn recs09(out: &[u8]) -> Vec<String> {
 
 #[test]
 fn record_layout() {
-    // bajty z korpusu (c1 payloady top): dw=2*b, reszta stala.
+    // bytes from the corpus (c1 top payloads): dw=2*b, the rest fixed.
     assert_eq!(
         hex(&merc_region09_record(0)),
         "51010109020af80001000000000000000000"
@@ -99,12 +99,12 @@ fn scan_pairs() {
     assert_eq!(o.region09, vec![(4, 0), (8, 0), (12, 0), (16, 0)]);
 
     // gniazdo B0+B1 (kolejnosc = porzadek close: wewnetrzny najpierw),
-    // plain-flavor nie nosi rekordu.
+    // the plain flavor carries no record.
     let items2 = vec![
         it(1, "BSSY", "BSSY.RECONVERGENT", "BSSY.RECONVERGENT B0, `(.L_a) ;"),
         it(2, "BSSY", "BSSY.RECONVERGENT", "BSSY.RECONVERGENT B1, `(.L_b) ;"),
         it(5, "BSYNC", "BSYNC.RECONVERGENT", "BSYNC.RECONVERGENT B1 ;"),
-        it(6, "BSSY", "BSSY", "BSSY B2, `(.L_c) ;"), // plain -> bez rekordu
+        it(6, "BSSY", "BSSY", "BSSY B2, `(.L_c) ;"), // plain -> no record
         it(7, "BSYNC", "BSYNC", "BSYNC B2 ;"),
         it(8, "BSYNC", "BSYNC.RECONVERGENT", "BSYNC.RECONVERGENT B0 ;"),
     ];
@@ -149,7 +149,7 @@ fn emisja_multi_i_legacy() {
         ]
     );
 
-    // legacy (brak skanu): dokladnie 1 rekord dw=0 jak dotychczas.
+    // legacy (no scan): exactly 1 record dw=0 as before.
     let mut m2 = meta_with_load();
     m2.merc_region09 = None;
     m2.merc_bsync_close = vec![5, 9];

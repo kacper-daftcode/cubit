@@ -1,14 +1,14 @@
-//! mk59: rekordy d10102 wariant 47 (34B): per site `WARPSYNC.COLLECTIVE
-//! R<mask>, L` (nie-.ALL) z regionem (WC..ENDCOLLECTIVE) zlozonym z samych
-//! NOP. Domkniecie korpusowe merclab/mk59 (c1..c10; l2 676 plikow, 18932
-//! kerneli): count == #WC (4412/4464; wyjatki = strony 4c/23 fail-closed),
-//! 47 iff region pusty (NOP): 19903/19935 (reszta = pojedyncze SHFL w
-//! regionie -> wariant 4b); F0 == mask<<6 100% obu wariantow; maski zawsze
-//! klasy R. Warianty 4b (SHFL-grid, b13/b30 = koordynaty drzewa regionow
-//! mk29) i 4c (VOTE) zaparkowane. b30=0 zawsze w 47-only kernelach
-//! (15711/15711); w kernelach mieszanych 47 moze miec b30=1/4 (park mk60+).
-//! Emisja zastepuje legacy mk15b (REC_D1_COLLECTIVE const per ENDCOLLECTIVE
-//! gdy BSSY) — q_bsync_pair/FA4 sealy zachowane.
+//! mk59: d10102 records, the 47 variant (34B): per site `WARPSYNC.COLLECTIVE
+//! R<mask>, L` (non-.ALL) with a (WC..ENDCOLLECTIVE) region consisting of
+//! NOPs only. Corpus closure merclab/mk59 (c1..c10; l2 676 files, 18932
+//! kernels): count == #WC (4412/4464; exceptions = the fail-closed 4c/23 side),
+//! 47 iff the region is empty (NOP): 19903/19935 (the rest = a lone SHFL in
+//! the region -> the 4b variant); F0 == mask<<6 100% on both variants; masks always
+//! R-class. The 4b (SHFL grid, b13/b30 = mk29 region-tree coordinates)
+//! and 4c (VOTE) variants are parked. b30=0 always in 47-only kernels
+//! (15711/15711); in mixed kernels 47 may carry b30=1/4 (mk60+ park).
+//! Emission supersedes legacy mk15b (REC_D1_COLLECTIVE const per ENDCOLLECTIVE
+//! with BSSY) — q_bsync_pair/FA4 seals kept.
 use cubit::mercury::{merc_d1wc47_record, merc_d1wc_mask_reg, McScanText, mc_scan_lines};
 
 fn hex(b: &[u8]) -> String {
@@ -48,7 +48,7 @@ fn record_bytes() {
 fn mask_parse() {
     assert_eq!(merc_d1wc_mask_reg("WARPSYNC.COLLECTIVE R20, `(.L_x_899) ;"), Some(20));
     assert_eq!(merc_d1wc_mask_reg("WARPSYNC.COLLECTIVE R0, 0x1b0 !rsd[21:0,22:0] ;"), Some(0));
-    // .ALL bez maski / RZ / smieci -> fail-closed
+    // .ALL without a mask / RZ / garbage -> fail-closed
     assert_eq!(merc_d1wc_mask_reg("WARPSYNC.COLLECTIVE.ALL `(.L_x_8083) ;"), None);
     assert_eq!(merc_d1wc_mask_reg("WARPSYNC.COLLECTIVE RZ, `(.L_x_1) ;"), None);
     assert_eq!(merc_d1wc_mask_reg("WARPSYNC.ALL ;"), None);
@@ -66,8 +66,8 @@ fn scan_rules() {
     ];
     assert_eq!(mc_scan_lines(&items).d1wc47, vec![(10, 12u8)]);
 
-    // region z SHFL (korpusowo wariant 4b — zaparkowany) -> brak rekordu;
-    // .ALL (korpusowo bez rekordow); region pusty (WC tuz przed EC) -> brak;
+    // a region with SHFL (the corpus 4b variant — parked) -> no record;
+    // .ALL (corpus-recordless); an empty region (WC right before EC) -> none;
     // dwa NOP-y -> rekord (korpus zawsze 1, ale regula toleruje n>=1).
     let items2 = vec![
         it(0, "WARPSYNC", "WARPSYNC.COLLECTIVE", "WARPSYNC.COLLECTIVE R3, `(.L_a) ;"),

@@ -1,14 +1,14 @@
-//! mk34 (2026-08-11): node-model bitmapy capmerc dla rodziny m-family
+//! mk34 (2026-08-11): the capmerc bitmap node model for the m-family
 //! (SYNCS.EXCH/ARRIVE/PHASECHK / bulk-async) — reguly zweryfikowane
-//! ground-truth na wezlach emitowanych przez nvcc (g5b dump listy M+0x288,
-//! analysis/re/shim/g5b.py) dla b_mbarrier i b_bulk_cp.
+//! ground truth on the nodes nvcc emits (g5b dump of the M+0x288 list,
+//! analysis/re/shim/g5b.py) for b_mbarrier and b_bulk_cp.
 //!
 //! Kluczowe poprawki vs lane-space-era mk30b:
-//!  - para USHF licznika mbarrier ("USHF ..,0xb" + "USHF ..,0x1" po
-//!    d1-UIADD3) nie ma wezlow wcale — lane'e wypadaja z przestrzeni bitmapy
-//!    (slot-skip), a nie tylko traca bit;
+//!  - the mbarrier-counter USHF pair ("USHF ..,0xb" + "USHF ..,0x1" after
+//!    a d1-UIADD3) has no nodes at all — the lanes fall out of the bitmap space
+//!    (slot skip), not merely losing their bit;
 //!  - FENCE.ASYNC tez nodeless (b_bulk_cp lane18);
-//!  - EXCH/ARRIVE(wszy.) / PLOP3-tx / UBLKCP hostuja rekordy — bez bitu;
+//!  - EXCH/ARRIVE(all) / PLOP3-tx / UBLKCP host records — no bit;
 //!  - kazdy BRA w m-family ma wezel t4 flaga=1 (dowod: bloby n13/n19/n32/n33
 //!    b_mbarrier z offsetami skokow), wyjatek: samo-petla;
 //!  - MOV R?,0x400 i ULEA prologu maja bity (wezly flag=1) — reguly kasujace
@@ -117,7 +117,7 @@ fn mk34_bulk_cp_bitmap_node_model() {
 }
 
 /// Skan tekstowy: para USHF licznika mbarrier + FENCE.ASYNC -> nodeless,
-/// ale tylko w m-family (SYNCS.*).
+/// but only in the m family (SYNCS.*).
 #[test]
 fn mk34_scan_nodeless_ushf_pair_and_fence_gating() {
     use cubit::mercury::{mc_scan_lines, McScanText};
@@ -141,8 +141,8 @@ fn mk34_scan_nodeless_ushf_pair_and_fence_gating() {
     ];
     let out = mc_scan_lines(&items);
     assert_eq!(out.nodeless, vec![3, 4, 5]);
-    assert_eq!(out.ushf_fin, vec![4], "pole zostaje (stary kontrakt)");
-    // bez m-family: nodeless puste
+    assert_eq!(out.ushf_fin, vec![4], "field kept (legacy contract)");
+    // without m-family: nodeless empty
     let items2 = vec![
         mk(0, "USHF", "USHF.L.U32 UR5, UR4, 0xb, URZ ;", false),
         mk(1, "USHF", "USHF.L.U32 UR4, UR4, 0x1, URZ ;", false),

@@ -11,7 +11,7 @@
 //!    src-neg @90)! Wszystkie 6 goldenow ponizej pochodzi z nvcc/ptxas.
 //! Fix (tabela): `VOTE.ANY_P_P` and_base |= 1<<72; oba wiersze P-dest maja
 //! variable_mask z bitem 72 (deterministyczny rozdzial ALL/ANY, R-forma
-//! (VOTE.ANY R0, PT, PT) byla juz zdrowa i to ona wystawila dowod bit-72).
+//! (VOTE.ANY R0, PT, PT) was already healthy and it produced the bit-72 evidence).
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::table::IsaTable;

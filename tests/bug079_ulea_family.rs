@@ -1,15 +1,15 @@
-//! BUG-079 (F2Q-079-kand; zamkniete 2026-08-22): rodzina ULEA — render-parity
-//! obu tabel vs nvdisasm 13.3. Wykrycie: po BUG-069 residuowaly klasy:
-//! (a) sm120 wiersze ULEA = singleton-junk (pola 1-5 bitow, zaszyte bity imm
-//!     w and_base, brak pokrycia form SX32/X.SX32) — 5879/12887 unikalnych
-//!     slow vendor nie dekodowalo sie vendor-exact (w tym 53+78 -> __raw__);
-//! (b) obie tabele: okno imm2 6-bit polykalo bit80 (dyskryminator HI) na
-//!     formach UR-src (klasa 069-residual: ULEA.HI 5/6/7-token z URZ) —
-//!     515 slow gubilo .HI i fuzowalo imm (0x1 -> 0x21).
-//! Fix CZYSTO DANYCH: przebudowa rodziny (13 wierszy) z 12887 unikalnych
-//! slow-kotwic korpusu vendor (libcublas/Lt/cusolver/cusparse, sm_100/103),
-//! geometria spojna z rodzenstwem sm103a (069); metoda: dedukcja okien pol z
-//! korelacji wartosc-po-bicie per template + weryfikacja per-anchor.
+//! BUG-079 (F2Q-079-kand; closed 2026-08-22): the ULEA family — render parity
+//! of both tables vs nvdisasm 13.3. Detection: after BUG-069, these classes lingered:
+//! (a) sm120 ULEA rows = singleton junk (1-5 bit fields, baked imm bits
+//!     in and_base, no coverage of the SX32/X.SX32 forms) — 5879/12887 unique
+//!     vendor words did not decode vendor-exact (incl. 53+78 -> __raw__);
+//! (b) both tables: the 6-bit imm2 window swallowed bit80 (the HI discriminator) on
+//!     UR-src forms (the 069-residual class: ULEA.HI 5/6/7-token with URZ) —
+//!     515 words lost .HI and fused imm (0x1 -> 0x21).
+//! PURE-DATA fix: rebuilt the family (13 rows) from 12887 unique
+//! vendor-corpus anchor words (libcublas/Lt/cusolver/cusparse, sm_100/103),
+//! geometry consistent with the sm103a sibling (069); method: field-window deduction
+//! from value-per-bit correlation per template + per-anchor verification.
 //! Uwaga metodowa (pin): nvdisasm -hex drukuje hi64 NA LINII POWYZEJ tekstu —
 //! nalezy do instrukcji POWYZEJ (layout pliku [lo64][hi64]); sparowanie
 //! "hi-line + trailing-lo" daje slowo przesuniete o instrukcje ( falszywe
@@ -89,8 +89,8 @@ fn t3_roundtrip_stable() {
     }
 }
 
-// t4 (regresja 069+079): plain '' nie moze roscic slow HI — bit80 poza oknem imm2.
-// Slowo 069-gold (HI 5-token z imm32) musi zostac na wierszu HI na obu tabelach.
+// t4 (069+079 regression): plain '' must not claim HI words — bit80 outside the imm2 window.
+// The 069-gold word (HI 5-token with imm32) must stay on the HI row on both tables.
 #[test]
 fn t4_hi_not_captured_by_plain() {
     let a = t120(); let b = t103();

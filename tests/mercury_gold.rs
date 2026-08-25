@@ -1,5 +1,5 @@
-//! Data-driven byte-exact tests: cubit-emitowany capmerc == nvcc-emitowany,
-//! dla 36 kerneli mikrolabu (autogenerowany manifest z prawdziwych sekcji).
+//! Data-driven byte-exact tests: cubit-emitted capmerc == nvcc-emitted,
+//! for the 36 microlab kernels (an auto-generated manifest from real sections).
 mod gold_manifest;
 use cubit::eiattr::{KernelMeta, KernelParam};
 use cubit::elf_builder::generate_mercury_full;
@@ -60,7 +60,7 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
             .collect(),
         merc_pad_pos: g.pads.to_vec(),
         // mk19: manifest trzyma pi (sloty 8B); meta/elf_builder dziala na
-        // surowych offsetach bajtowych rel = 8*pi (c_off - 0x380).
+        // the raw byte offsets rel = 8*pi (c_off - 0x380).
         merc_param_loads: g
             .loads
             .iter()
@@ -101,10 +101,10 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
     }
 }
 
-/// Znane ogonki (udokumentowane w MERCURY_UPLIFT_SM103A.md sekcja RESIDUALS):
-/// kazdy wpis = (kernel-prefix, przyczyna). Test pilnuje, by (a) wszystkie
-/// inne byly byte-exact, (b) te nie zaczely "przechodzic" przypadkiem bez
-/// aktualizacji dokumentu.
+/// Known tails (documented in MERCURY_UPLIFT_SM103A.md section RESIDUALS):
+/// each entry = (kernel-prefix, cause). The test guards that (a) all the
+/// others stay byte-exact, (b) these did not start "passing" by accident without
+/// a document update.
 static EXPECTED_DIFF: &[(&str, &str)] = &[];
 
 #[test]
@@ -140,12 +140,12 @@ fn gold_all_kernels_byte_exact() {
     }
     if !unexpected_pass.is_empty() {
         panic!(
-            "RESIDUALS zniknely — zaktualizuj EXPECTED_DIFF i dokumentacje:\n{}",
+            "RESIDUALS vanished — update EXPECTED_DIFF and the docs:\n{}",
             unexpected_pass.join("\n")
         );
     }
     if !fails.is_empty() {
         panic!("{} / {} gold fails (nowe):\n{}", fails.len(), GOLD.len(), fails.join("\n"));
     }
-    println!("byte-exact: {}/{}; znane residua: {}", covered, GOLD.len(), EXPECTED_DIFF.len());
+    println!("byte-exact: {}/{}; known residuals: {}", covered, GOLD.len(), EXPECTED_DIFF.len());
 }

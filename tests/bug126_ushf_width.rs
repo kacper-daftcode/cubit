@@ -1,23 +1,23 @@
 //! BUG-126: USHF imm-form (USHF_UR_UR_II_UR) — corpus words
 //! (`USHF.R.U32 UR4, UR4, 0x4, URZ`) decoded lossily as USHF.R.U64
 //! !rsd[74:1]: rows were missing for most of the family.
-//! klas width/sign, a prio-3 sign-bit fallback ({62,63,72,73,74,75}) pochlanial
-//! slowa bit74=1 (32-bit) do rzedu bit74=0 (U64). Zdomkniete KLASOWO:
+//! of width/sign classes, and the prio-3 sign-bit fallback ({62,63,72,73,74,75}) swallowed
+//! bit74=1 (32-bit) words into the bit74=0 (U64) row. Closed CLASS-WIDE:
 //!
-//!   * 26 nowych wierszy pod kluczem USHF_UR_UR_II_UR (klasa x32):
+//!   * 26 new rows under the USHF_UR_UR_II_UR key (the x32 class):
 //!     dir bit76 (0=L,1=R), sign bit73 (0=S,1=U), width bit74 (0=64,1=32),
-//!     W bit75, HI bit80. Render vendor: USHF.<L|R>[.W].<U32|S32|U64|S64>[.HI]
-//!     — generic priorytety modow zgadzaja sie (dir=3, W=4, typ=5, HI=7),
-//!     zero zmian printera.
-//!   * decoder prio-3: USHF dodane do fail-closed (bity {72..75} = semantyka
-//!     form, nie sign/abs; nvdisasm: nawet "don't-care" bit72 pozostaje
-//!     fail-closed — doktryna strict-row).
-//!   * legacy F-sekcje nietkniete; reg-form klucze (USHF_UR_UR_UR_UR itd.)
-//!     w restrictions widzianego korpusu poza zakresem (sa kompletne dla
-//!     korpusu; pelny sweep reg-form = kolejka b4 jesli korpus urosnie).
+//!     W bit75, HI bit80. Vendor render: USHF.<L|R>[.W].<U32|S32|U64|S64>[.HI]
+//!     — the generic mod priorities agree (dir=3, W=4, type=5, HI=7),
+//!     zero printer changes.
+//!   * decoder prio-3: USHF added to fail-closed (bits {72..75} = form
+//!     semantics, not sign/abs; nvdisasm: even the "don't-care" bit72 stays
+//!     fail-closed — the strict-row doctrine).
+//!   * legacy F sections untouched; reg-form keys (USHF_UR_UR_UR_UR etc.)
+//!     in restrictions of the seen corpus out of scope (complete for the
+//!     corpus; a full reg-form sweep = a b4-queue item if the corpus grows).
 //!
-//! Golden = nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch-probe,
-//! work/bug126/oracle126.py). Anchory korpusu: 14 slow !rsd[74:1] ->
+//! Golden = nvdisasm-13.3.73 oracle sweep (pol3.cubin k_st+0x60 patch probe,
+//! work/bug126/oracle126.py). Corpus anchors: 14 !rsd[74:1] words ->
 //! USHF.R.U32; render-parity 15/15 stringow na pol*+sweep. Raport:
 //! the internal fix archive
 
@@ -79,7 +79,7 @@ const GOLD: &[(u128, &str)] = &[
 ];
 
 /// t126_1: kazde golden-slowo dekoduje sie do DOKLADNEGO tekstu nvdisasm-13.3
-/// (bez "?", bez !rsd).
+/// (no "?", no !rsd).
 #[test]
 fn t126_1_decode_parity_32() {
     assert_eq!(GOLD.len(), 32);
@@ -101,7 +101,7 @@ fn t126_2_encode_payload_32() {
     }
 }
 
-/// t126_3: roundtrip word -> text -> word dla calej klasy.
+/// t126_3: word -> text -> word round-trip for the whole class.
 #[test]
 fn t126_3_roundtrip_32() {
     for (w, _text) in GOLD {
@@ -112,7 +112,7 @@ fn t126_3_roundtrip_32() {
     }
 }
 
-/// t126_4: kotwica korpusu — 14 slow z pol* (ex-!rsd[74:1]) dekoduje sie
+/// t126_4: corpus anchor — the 14 pol* words (ex-!rsd[74:1]) decode
 /// jako USHF.R.U32 i re-enkoduje payload-identycznie.
 #[test]
 fn t126_4_corpus_anchor_r_u32() {
@@ -144,7 +144,7 @@ fn t126_6_uniform_guard() {
     assert!(got.starts_with("@UP3 USHF.R.U32"), "{got}");
 }
 
-/// t126_7: ksztalt tabeli — klucz imm-form ma pelne 32 wiersze; reg-form
+/// t126_7: table shape — the imm-form key has the full 32 rows; the reg-form
 /// klucze nietkniete.
 #[test]
 fn t126_7_table_shape() {

@@ -1,10 +1,10 @@
 //! mk47: rekordy 012b{00|04}0a (16B): host = lane
 //! `LOP3.LUT Rd, RZ, Rs, RZ, 0x33, !PT` (kanoniczny NOT-MOV; LUT 0x33 = !B).
-//! Rd zawsze R<n>; klasa (bajt 2 tagu): 0x00 gdy Rs = R<n>, 0x04 gdy Rs =
+//! Rd always R<n>; class (tag byte 2): 0x00 when Rs = R<n>, 0x04 when Rs =
 //! UR<n>. Domkniecie korpusowe (676 plikow sm_100): multiset
 //! (guard,Rd,Rs,cls) EXACT 7305/7305 kerneli z rekordami + 0 kerneli
-//! z lane-wzorcem bez rekordu (17684 rekordy: 16478 R + 1206 UR).
-//! Lane hosta bez bitu bitmapy (doktryna 'rekord zastepuje wezel t4').
+//! with a lane pattern but no record (17684 records: 16478 R + 1206 UR).
+//! The host lane gets no bitmap bit (the "record replaces the t4 node" doctrine).
 use cubit::mercury::merc_lop3_not_record;
 
 trait Hex {
@@ -64,12 +64,12 @@ fn pattern_reject() {
     // inne LUT / formy
     assert!(merc_lop3_not_record("LOP3.LUT R6, R4, 0x600, RZ, 0xc0, !PT ;", 0xf8).is_none());
     assert!(merc_lop3_not_record("LOP3.LUT R8, R8, UR4, RZ, 0xfc, !PT ;", 0xf8).is_none());
-    // RZ nie w slocie a/c
+    // RZ not in the a/c slots
     assert!(merc_lop3_not_record("LOP3.LUT R6, R5, RZ, RZ, 0x33, !PT ;", 0xf8).is_none());
     assert!(merc_lop3_not_record("LOP3.LUT R6, RZ, R5, R7, 0x33, !PT ;", 0xf8).is_none());
-    // dest nie-R (forma predykatowa)
+    // non-R dest (predicate form)
     assert!(merc_lop3_not_record("LOP3.LUT P0, RZ, R5, RZ, 0x33, !PT ;", 0xf8).is_none());
-    // dest / zrodlo RZ odrzucane jak zwykle reg-nie-numeryczne
+    // dest/source RZ rejected like any non-numeric reg
     assert!(merc_lop3_not_record("LOP3.LUT RZ, RZ, R5, RZ, 0x33, !PT ;", 0xf8).is_none());
     assert!(merc_lop3_not_record("LOP3.LUT R6, RZ, RZ, RZ, 0x33, !PT ;", 0xf8).is_none());
     // PLOP3 / ULOP3 spoza rodziny

@@ -1,5 +1,5 @@
 //! BUG-113 DISPOSITION: NOT-A-BUG (triage of PLAN_S0 / S0a i227 question:
-//! "brak klucza IADD3 bez-predykatowego — swiadomy model krzemu czy dziura
+//! "no predicate-less IADD3 key — a deliberate silicon model or a hole
 //! tabeli?").
 //!
 //! Answer, data-anchored: IADD3 architecturally ALWAYS carries the two

@@ -1,22 +1,22 @@
-//! BUG-071 (F2Q-071, z 068-sweeps): ENKODER — wiersze-harvest z zaszytym
-//! payloadem imm/ureg w and_base i bez pola na dany token kazaly tekstom
-//! z default-payload (imm 0 / URZ) emitowac ZASZYTE stale (severity A):
-//!   FMUL.FTZ R4, R5, 0x0 -> word z payloadem 0.5f (nvdisasm: "0.5")
-//!   FADD R1, R2, 0x0     -> payload 1.0f; niezerowe imm -> encode FAIL
-//!   FMUL.FTZ .., UR6     -> wiersz FTZ-UR bez pola ureg -> FTZ gubione
-//!                           przez fallback (key,"") [mod-drop class]
+//! BUG-071 (F2Q-071, from the 068 sweeps): ENCODER — harvest rows with baked
+//! imm/ureg payloads in and_base and no field for the token in question made texts
+//! with a default payload (imm 0 / URZ) emit the BAKED constants (severity A):
+//!   FMUL.FTZ R4, R5, 0x0 -> a word with payload 0.5f (nvdisasm: "0.5")
+//!   FADD R1, R2, 0x0     -> payload 1.0f; a nonzero imm -> encode FAIL
+//!   FMUL.FTZ .., UR6     -> the FTZ-UR row without a ureg field -> FTZ lost
+//!                           through the (key,"") fallback [mod-drop class]
 //!   FADD R2, R3, URZ     -> ureg narrow 4b -> URZ&0xF = UR15 (corruption)
 //!
 //! Oracle (work/f2-068/, nvdisasm13.3 sm_120): vendor FMUL.FTZ imm word
 //! 0x0000000000410000_<f32>_00007820 (bit80 = FTZ), FADD imm 0.5 ->
-//! ..._7421; UR-forma FTZ = nie-FTZ UR | bit80 (bit91 sygnatury UR);
-//! URZ = 0xff na oknie [39:32] (sweep window=0/63/255).
+//! ..._7421; the UR FTZ form = non-FTZ UR | bit80 (bit91 = UR signature);
+//! URZ = 0xff on the [39:32] window (sweep window=0/63/255).
 //!
-//! Fix: data-level repair 5 wierszy sm120.json (3x FMUL FTZ, FADD_R_R_II,
-//! FADD_R_R_UR width 4->8) + strażnik zero_payload_junk (encoder.rs):
-//! operand z default-payload na tokenie bez pola + zaszyte bity w oknie
-//! udowodnionym przez siblinga = REJECT (fail-closed zamiast junk-emit,
-//! gdy zadna poprawna forma nie pasuje).
+//! Fix: data-level repair of 5 sm120.json rows (3x FMUL FTZ, FADD_R_R_II,
+//! FADD_R_R_UR width 4->8) + the zero_payload_junk sentinel (encoder.rs):
+//! an operand with a default payload on a fieldless token + baked bits in a
+//! sibling-proven window = REJECT (fail-closed instead of junk emit,
+//! when no correct form matches).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

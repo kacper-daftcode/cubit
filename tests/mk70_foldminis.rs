@@ -1,5 +1,5 @@
-//! mk70 (2026-08-13): minis rodziny 28 — early-exit prolog idiom
-//! cublas-COMMONS (OR-fold predykatow przez (U)LOP3.LUT + @P EXIT / BRA[.U]).
+//! mk70 (2026-08-13): the 28-family minis — the early-exit prolog idiom
+//! cublas-COMMONS (OR-fold of predicates through (U)LOP3.LUT + @P EXIT / BRA[.U]).
 //! Atrybucja merclab/mk70 c1..c19 (l2 korpus 18932 kern):
 //!   42281414 EXACT 16/16, 42282414 EXACT 21/21,
 //!   41271004 pure EXACT 18729 (resid xmma-selfimm, park mk71),
@@ -11,7 +11,7 @@ use cubit::sass_file::merc_fold28;
 
 #[test]
 fn mk70_c0_pure() {
-    // 41 27 10 04: ULOP3.LUT 6tok lut=0xc0 !UPT bez imm
+    // 41 27 10 04: ULOP3.LUT 6tok lut=0xc0 !UPT no imm
     assert_eq!(
         merc_fold28("ULOP3.LUT UR11, UR16, UR11, URZ, 0xc0, !UPT ;"),
         Some(0x04102741)
@@ -45,7 +45,7 @@ fn mk70_fc_start() {
         merc_fold28("ULOP3.LUT URZ, UR16, UR18, URZ, 0xfc, !UP0 ;"),
         Some(0x04102841)
     );
-    // c0 z neg-UP nie jest 41281004
+    // c0 with neg-UP is not 41281004
     assert_eq!(merc_fold28("ULOP3.LUT URZ, UR16, UR18, URZ, 0xc0, !UP0 ;"), None);
 }
 
@@ -61,12 +61,12 @@ fn mk70_fc_cont() {
         merc_fold28("LOP3.LUT P1, RZ, R3, R5, RZ, 0xfc, P1 ;"),
         Some(0x14142842)
     );
-    // start-formy (cin=!PT/!UPT / P-only) nie sa continuation
+    // start forms (cin=!PT/!UPT / P-only) are not continuations
     assert_eq!(
         merc_fold28("LOP3.LUT P1, RZ, R8, UR4, RZ, 0xfc, !PT ;"),
         None
     );
-    // guard @Px przed linia nie przeszkadza
+    // an @Px guard ahead of the line does not interfere
     assert_eq!(
         merc_fold28("@P2 ULOP3.LUT UP0, URZ, UR7, UR9, URZ, 0xfc, UP0 ;"),
         Some(0x14242842)
@@ -81,6 +81,6 @@ fn mk70_no_side_classes() {
         merc_fold28("ULOP3.LUT UP0, URZ, UR7, 0x80000000, URZ, 0xb8, !UPT ;"),
         None
     );
-    // plain IMAD itd.
+    // plain IMAD etc.
     assert_eq!(merc_fold28("IADD3 R1, P0, PT, R2, RZ, RZ ;"), None);
 }

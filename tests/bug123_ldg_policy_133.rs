@@ -1,20 +1,20 @@
 //! BUG-123: fresh nvcc-13.3 (sm_103a) cache-policy forms decoded as "?" /
 //! !rsd, and the encoder had no rows. Class fixed in full.
-//! D1-korpusu + sweepu (work/bug123/sweep.ptx, ptxas 13.3.73):
+//! D1 corpus + sweep (work/bug123/sweep.ptx, ptxas 13.3.73):
 //!
 //!   * II-wiersze .256 z trailer-imm (LDG_R_R_dARI_II — NOWY klucz):
 //!       256,E,EL,ENL2 / 256,E,EF,ENL2 / 256,E,ENL2,LTC256B /
 //!       256,CONSTANT,E,ENL2,LTC256B
 //!     geometria trailer-imm: imm[5:0]@57 (pole 6b, no-imm default 0x3f)
-//!     + imm_shr7[7]@72 -> druk ", 0x93"/", 0x83"/", 0x81"/", 0x1".
-//!     Formy no-imm (pole=0x3f, bit72=1) = osobne wiersze 4-tokenowe —
-//!     disambiguacja tylko przez klucz (liczba tokenow), zero kolizji w
-//!     match_mask (noimm wymaga [57:63]=0x7f & bit72=1 stanami stalymi).
+//!     + imm_shr7[7] -> printing ", 0x93"/", 0x83"/", 0x81"/", 0x1".
+//!     No-imm forms (field=0x3f, bit72=1) = separate 4-token rows —
+//!     disambiguation purely by key (token count), zero match_mask collisions
+//!     (noimm requires [57:63]=0x7f & bit72=1 as fixed states).
 //!   * noimm .256 polityki na LDG_R_R_dARI: 256,E,EL,ENL2 / 256,E,EF,ENL2 /
-//!     256,E,ENL2,EU (nibble b10: ENL2=0x12, EL=0x22, EF=0x02, EU=0x42).
-//!   * STG_dARI_R_R: 256,E,EF,ENL2 (EF = clear bit84 jak po stronie LDG).
+//!   * noimm .256 policies on LDG_R_R_dARI: 256,E,EL,ENL2 / 256,E,EF,ENL2 /
+//!     256,E,ENL2,EU (b10 nibble: ENL2=0x12, EL=0x22, EF=0x02, EU=0x42).
+//!   * STG_dARI_R_R: 256,E,EF,ENL2 (EF = clear bit84 as on the LDG side).
 //!   * single-reg LDG_R_dARI: E,LU / 128,E,LU / E,EL / 128,E,EL / 64,E,EL /
-//!     E,NA / E,EU (b10 nibble swap ze wzorca; 128/64 = b9 size jak siostry).
 //!   * LTC marker (b8 hi-nibble 0x10/0x20/0x30; CONSTANT=bit79):
 //!     E,LTC64B / E,LTC256B / CONSTANT,E,LTC128B / 64,CONSTANT,E,LTC64B.
 //!   * printer: EU dodane do bucketa L1-hint (LDG.E.EU.ENL2.256, bylo
@@ -76,7 +76,7 @@ const GOLD: &[(u128, &str)] = &[
 ];
 
 /// t123_1: kazde golden-slowo dekoduje sie do DOKLADNEGO tekstu nvdisasm-13.3
-/// (render-parity; brak "?" i brak !rsd).
+/// (render parity; no "?" and no !rsd).
 #[test]
 fn t123_1_decode_golden_words_to_nvdisasm_text() {
     for (w, want) in GOLD {
@@ -110,8 +110,8 @@ fn t123_3_roundtrip_text_stable() {
     }
 }
 
-/// t123_4: disambiguacja noimm vs II — slowo noimm NIE dostaje trailer-imm
-/// (pole [57:62]=0x3f+bit72=1 renderuje sie bez ", 0xbf"), forma z trailerem
+/// t123_4: noimm vs II disambiguation — a noimm word does NOT get a trailer imm
+/// (field [57:62]=0x3f+bit72=1 renders without ", 0xbf"), the trailer form
 /// laduje w kluczu II. Oba teksty enc/roundtrip byte-exact.
 #[test]
 fn t123_4_noimm_ii_disambiguation() {
@@ -121,7 +121,7 @@ fn t123_4_noimm_ii_disambiguation() {
             "noimm text bez trailer-imm 0xbf: {got}");
     let got = got.split("/*").next().unwrap().trim().trim_end_matches(';').trim().to_string();
     assert_eq!(got, "LDG.E.EL.ENL2.256 R12, R8, desc[UR4][R2.64]");
-    // II-form dostaje swoj klucz i trailer
+    // the II form gets its key and trailer
     let w = enc103("LDG.E.EL.ENL2.256 R16, R14, desc[UR4][R2.64+0x20], 0x93");
     assert_eq!(w & NOSCHED, 0x000ee8000822191026000104020e797eu128 & NOSCHED);
 }
@@ -136,8 +136,8 @@ fn t123_5_trailer_imm_geometry() {
     let w2 = enc103("LDG.E.EL.ENL2.256 RZ, R0, desc[UR4][R2.64], 0x1");
     assert_eq!((w2 >> 57) & 0x3f, 0x01);
     assert_eq!((w2 >> 72) & 1, 0, "prefetch 0x1: bit72=0: {w2:#034x}");
-    // bit63 zostaje 0 (stan II-formy; noimm default 0x3f+bit72=1 NIE jest
-    // akceptowalny w wierszach II przez match_mask)
+    // bit63 stays 0 (the II-form state; the noimm default 0x3f+bit72=1 is NOT
+    // acceptable in II rows via match_mask)
     assert_eq!((w >> 63) & 1, 0);
     assert_eq!((w2 >> 63) & 1, 0);
 }
@@ -154,7 +154,7 @@ fn t123_6_eu_mod_order_render_parity() {
 
 /// t123_7 (kotwica): policy nibbles rozdzielcze w match_mask — .256 noimm
 /// wiersze sa parami rozlaczne (EL wymaga bit85, EU bit86, EF !bit84),
-/// a II-vs-noimm siostry nie koliduja (sprawdzone t123_4).
+/// and the II-vs-noimm sisters do not collide (checked in t123_4).
 /// Tu: klucz II istnieje z 4 wierszami, nowe single-reg mody obecne.
 #[test]
 fn t123_7_table_shape_anchor() {

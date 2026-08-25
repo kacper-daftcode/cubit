@@ -1,10 +1,10 @@
-//! mk67 (2026-08-13): domkniecie rodziny mini2 4B (dekod merclab/mk67):
-//!  * 410c260a HADD2: NIE dla HADD2.F32 (widening) ani dla form z literalem
-//!    imm ("HADD2 R11, RZ, -1.875, -1.875" — 5 lane'i korpusowych);
-//!    regula plain-no-F32-no-imm EXACT 2527/2527 kerneli korpusu.
-//!  * 4105000a BREAK: NIE dla BREAK.RELIABLE (atrybucja TLV c18 gemmk1 203:
-//!    rekordy siadaja na plain BREAK B0, RELIABLE B1 nigdy);
-//!    regula no-RELIABLE EXACT 2723/2723 kerneli korpusu.
+//! mk67 (2026-08-13): closing the 4B mini2 family (merclab/mk67 decode):
+//!  * 410c260a HADD2: NOT for HADD2.F32 (widening) nor for forms with an imm
+//!    literal ("HADD2 R11, RZ, -1.875, -1.875" — 5 corpus lanes);
+//!    the plain-no-F32-no-imm rule EXACT 2527/2527 corpus kernels.
+//!  * 4105000a BREAK: NOT for BREAK.RELIABLE (TLV attribution c18 gemmk1 203:
+//!    records land on plain BREAK B0, RELIABLE B1 never);
+//!    the no-RELIABLE rule EXACT 2723/2723 corpus kernels.
 use cubit::parser::parse_sass;
 use cubit::sass_file::{merc_mini2_scan, merc_txt_has_imm_literal};
 
@@ -37,7 +37,7 @@ fn hadd2_plain_and_bf16_get_mini() {
 #[test]
 fn hadd2_f32_and_imm_form_no_mini() {
     // korpus: 2321 kerneli z samymi .F32 (kandydatura (d)); 5 lane'i imm
-    // (cublasLt.so.197 epilogue x3 + cusparse.766 x2) — orig NIGDY nie emituje.
+    // (cublasLt.so.197 epilogue x3 + cusparse.766 x2) — orig NEVER emits.
     let r = scan(&[
         "HADD2.F32 R25, -RZ, R28.H0_H0 ;",
         "HADD2 R11, RZ, -1.875, -1.875 ;",
@@ -70,14 +70,14 @@ fn imm_literal_helper() {
     assert!(merc_txt_has_imm_literal("HADD2 R2, R3.H0_H0, 0x3c00 ;"));
     assert!(merc_txt_has_imm_literal("@P2 HADD2 R11, RZ, -1, -1 ;"));
     assert!(!merc_txt_has_imm_literal("HADD2.F32 R25, -RZ, R28.H0_H0 ;"));
-    // dest-slot nie moze byc mylony z imm:
+    // the dest slot cannot be confused with imm:
     assert!(!merc_txt_has_imm_literal("BREAK B0 ;"));
 }
 
 #[test]
 fn ffma_mini_only_in_xmma_fp32_dialect() {
     let l = &["FFMA R2, R23, R20, R2 ;", "FFMA2 R4, R5.H0_H0, R6.H0_H0, R4 ;"];
-    // dialekt fp32: oba rekordy; cp32 i plain: tylko FFMA2
+    // fp32 dialect: both records; cp32 and plain: FFMA2 only
     assert_eq!(
         scan_named("sm80_xmma_syrk_nt_l_tilesize128x64x8_stage4_ffma_fp32_kernel", l),
         vec![(0, 0x0a101741), (1, 0x26140d42)]

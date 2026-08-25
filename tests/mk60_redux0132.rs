@@ -1,5 +1,5 @@
-//! mk60: rekordy 0132100a (16B) per lane REDUX/CREDUX — DOMKNIECIE
-//! nadprodukcji (front mk59hA: new-only 289) i pelny dekod klas:
+//! mk60: 0132100a records (16B) per REDUX/CREDUX lane — closing the
+//! overproduction (the mk59hA front: new-only 289) + a full class decode:
 //!   CREDUX.MAX.S32 -> b6=55, CREDUX.MIN.S32 -> b6=51, CREDUX.MIN -> b6=50,
 //!   REDUX.SUM.S32  -> b6=4d (ale dst==UR79 BEZ rekordu: 88/88 korpus);
 //!   REDUX.OR (3376 lane'ow), goly REDUX, guardy: NIGDY rekordu.
@@ -21,7 +21,7 @@ fn classes_and_fields() {
         hex(merc_redux2_record("CREDUX.MAX.S32 UR5, R2 ;")),
         "0132100af80055000000410180000000"
     );
-    // CREDUX.MIN (bez .S32): b6=50.
+    // CREDUX.MIN (no .S32): b6=50.
     assert_eq!(
         hex(merc_redux2_record("CREDUX.MIN UR5, R2 ;")),
         "0132100af80050000000410180000000"
@@ -54,11 +54,11 @@ fn rejects() {
     assert!(merc_redux2_record("REDUX.OR UR4, R6 ;").is_none());
     // goly REDUX (stary warp-vote).
     assert!(merc_redux2_record("REDUX UR5, R0 ;").is_none());
-    // dst UR79 przy REDUX.SUM.S32 (coomm; korpusowo bez rekordu).
+    // dst UR79 at REDUX.SUM.S32 (coomm; corpus-recordless).
     assert!(merc_redux2_record("REDUX.SUM.S32 UR79, R12 ;").is_none());
     // guard -> fail-closed.
     assert!(merc_redux2_record("@P1 CREDUX.MIN.S32 UR5, R30 ;").is_none());
-    // dst R-klasa / URZ / src UR — brak korpusowy.
+    // R-class dst / URZ / UR src — corpus-absent.
     assert!(merc_redux2_record("CREDUX.MIN.S32 R5, R30 ;").is_none());
     assert!(merc_redux2_record("CREDUX.MIN.S32 URZ, R30 ;").is_none());
     assert!(merc_redux2_record("REDUX.SUM.S32 UR6, UR3 ;").is_none());

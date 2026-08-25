@@ -1,14 +1,14 @@
 //! BUG-128: REDG no-EL aliasing onto the bare-PT sink, breaking era-text
 //! ingest. Era text
-//! `REDG.E.ADD.STRONG.GPU PT, desc[UR4][R54.64], R40 ;` (P_TXT z pol*.
-//! era-harvest, rodzina sink-PT jak w siostrzanych EL kluczach *_P_dARI_R)
-//! padal `REDG_P_dARI_R "..." not in table` -> dzis jedyny chodzacy kanal =
-//! opuszczenie PT (pisownia vendor), kruche dla render/RE-parity.
-//! Fix: NOWY klucz REDG_P_dARI_R, 13 mod-grup sklonowanych z REDG_dARI_R
-//! z token-shift +1 (sink PT = text-only, guard zachowuje tok0 jak w EL),
-//! vmask |= 0xF000 (guard nibble otwarty, wzor EL), encode_only=true
-//! (powierzchnia dekodera 0-diff). Sondy post-fix: 15/15 PASS
-//! (work/bug128/sondy128.py); kontrola pre-fix: encode-aliasy FAIL.
+//! `REDG.E.ADD.STRONG.GPU PT, desc[UR4][R54.64], R40 ;` (P_TXT from pol*.
+//! era harvest, a sink-PT family like the sibling EL keys *_P_dARI_R)
+//! hit `REDG_P_dARI_R "..." not in table` -> until now the only working channel =
+//! dropping PT (vendor spelling), brittle for render/RE parity.
+//! Fix: a NEW REDG_P_dARI_R key, 13 mod groups cloned from REDG_dARI_R
+//! with a +1 token shift (sink PT = text-only, the guard keeps tok0 as in EL),
+//! vmask |= 0xF000 (guard nibble open, EL pattern), encode_only=true
+//! (decoder surface 0-diff). Post-fix probes: 15/15 PASS
+//! (work/bug128/sondy128.py); pre-fix control: encode aliases FAIL.
 
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;
@@ -22,7 +22,7 @@ fn enc(s: &str) -> u128 {
     encode_instruction(&insn, &t103()).unwrap_or_else(|e| panic!("encode {s:?}: {e}"))
 }
 
-/// 13 grup = pelny zakres REDG_dARI_R no-EL; (era-PT-sink, vendor-unguarded).
+/// 13 groups = the full REDG_dARI_R no-EL range; (era PT sink, vendor-unguarded).
 const GROUPS: &[(&str, &str)] = &[
     ("REDG.E.ADD.STRONG.GPU PT, desc[UR4][R54.64], R40 ;",
      "REDG.E.ADD.STRONG.GPU desc[UR4][R54.64], R40 ;"),
@@ -82,7 +82,7 @@ fn t128_3_bug080_real_guard_still_fail_closed() {
 #[test]
 fn t128_4_sink_value_pt_token_real_hw_semantics_anchor() {
     // zera zmian w slowie bazowym: piny bajtowe dwoch reprezentantow
-    // (slowo aliasu musi zostac rowne slowu formy vendor) — ADD i OR.
+    // (the alias word must stay equal to the vendor form's word) — ADD and OR.
     let w_add = enc("REDG.E.ADD.STRONG.GPU PT, desc[UR4][R54.64], R40 ;");
     assert_eq!(w_add & 0xFFFF, 0x798e, "low16 word drift ADD");
     let w_or = enc("REDG.E.OR.STRONG.GPU PT, desc[UR4][R54.64], R40 ;");

@@ -1,7 +1,7 @@
-//! mk63 (2026-08-13): domkniecie rekordow 0238** —
-//! (b7,b8) semantyki magazynu (EF/STRONG.SYS/GPU/SM), flaga szerokosci bez
-//! OR dla dreg=RZ, skip terminal-STRONG przed EXIT + MEMBAR.ALL, STL z
-//! adresem czysto-uniform bez rekordu. Dowody: merclab/mk63 c13..c25.
+//! mk63 (2026-08-13): closing the 0238** records —
+//! the (b7,b8) store semantics (EF/STRONG.SYS/GPU/SM), the width flag without
+//! OR for dreg=RZ, terminal-STRONG skip before EXIT + MEMBAR.ALL, STL with a
+//! pure-uniform address recordless. Evidence: merclab/mk63 c13..c25.
 
 use cubit::eiattr::{KernelMeta, KernelParam};
 use cubit::elf_builder::generate_mercury_full;
@@ -86,7 +86,7 @@ fn mk63_stg_rz_widthflag() {
 
 #[test]
 fn mk63_stg_sem_skip() {
-    // bit7 (terminal-STRONG) oraz bit6 (ENL2-park) => brak rekordu.
+    // bit7 (terminal STRONG) and bit6 (ENL2 park) => no record.
     let mut m = meta_base();
     m.merc_stg_pos = vec![3, 4, 5];
     m.merc_stg_areg = vec![2, 2, 2];

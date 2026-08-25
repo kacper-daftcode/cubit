@@ -5,16 +5,16 @@
 //! slotow rt98_pub) dekodowaly sie jako `VOTEU.ANY UP0, P0 !rsd[...]`
 //! (semantyczne smieci do RE/renderu; roundtrip bajtowy ratowal rsd).
 //! Prawda vendor (nvdisasm 13.3): opcode UMOV = [11:0]==0x882, VOTEU = 0x886;
-//! fantom-ANY mial pola/maske zbyt szerokie (m.in. reg@16 8b) i dopasowywal
-//! slowa z [63:32]==0.
+//! the ANY phantom had fields/mask too wide (incl. reg 8b) and matched
+//! words with [63:32]==0.
 //! TRUE-MODEL 2-token (cuobjdump/cuobjmap gold corpus cusparse/cutlass):
-//! mode ANY = bit72=1, ALL = bit72=0 (jak VOTE P-forma, BUG-054); dest UP
-//! 3b@[83:81], src P @[89:87] (guard @12 jak wszedzie); 3-token UR-forma
-//! `VOTEU.ANY URx, UPT, PT` = osobna sygnatura (hi-payload 0x038e0100).
-//! Fix: usuniecie WYLACZNIE strukturalnego fantomu `VOTEU_UP_P::ANY`
-//! (61 linii); plaski wiersz `VOTEU.ANY_UP_P` (count=32) ZOSTAJE — jest
-//! wsparty tysiacami zlotych slow korpusu (libcusparse/cutlass/cusolver);
-//! sm103a.json byla czysta od pierwotnie (maska wiersza nie obejmuje [23:16]).
+//! mode ANY = bit72=1, ALL = bit72=0 (like the VOTE P form, BUG-054); dest UP
+//! 3b@[83:81], src P @[89:87] (guard  as everywhere); the 3-token UR form
+//! `VOTEU.ANY URx, UPT, PT` = a separate signature (hi payload 0x038e0100).
+//! Fix: remove ONLY the structural phantom `VOTEU_UP_P::ANY`
+//! (61 lines); the plain `VOTEU.ANY_UP_P` row (count=32) STAYS — it is
+//! supported by thousands of golden corpus words (libcusparse/cutlass/cusolver);
+//! sm103a.json was clean from the start (the row mask does not cover [23:16]).
 //! Evidence: the internal fix archive (words_882_886.json, census_067_delta.json).
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
@@ -45,16 +45,16 @@ const GOLD: [(u64, u64, &str); 11] = [
     (0x038e0100, 0x0000000000057886, "VOTEU.ANY UR5, UPT, PT"),
     (0x038e0100, 0x0000000000067886, "VOTEU.ANY UR6, UPT, PT"),
     (0x038e0100, 0x0000000000087886, "VOTEU.ANY UR8, UPT, PT"),
-    // UMOV imm=0 z korpusu (4 uniq)
+    // UMOV imm=0 from the corpus (4 uniq)
     (0x00000000, 0x0000000000077882, "UMOV UR7, 0x0"),
     (0x00000000, 0x0000000000097882, "UMOV UR9, 0x0"),
     (0x00000000, 0x00000000000a7882, "UMOV UR10, 0x0"),
     (0x00000000, 0x0000000000107882, "UMOV UR16, 0x0"),
-    // UMOV imm!=0 (kontrola: nie byly cieniowane)
+    // UMOV imm!=0 (control: not shadowed)
     (0x00000000, 0x0000000100047882, "UMOV UR4, 0x1"),
     (0x00000000, 0x0000000800067882, "UMOV UR6, 0x8"),
 ];
-/// 2-token VOTEU z korpusu cusparse/cutlass (cuobjdump gold): ANY=bit72.
+/// 2-token VOTEU from the cusparse/cutlass corpus (cuobjdump gold): ANY=bit72.
 /// hi = payload&0xFFFFFFFF (bity 64-95), lo = bity 0-63.
 const GOLD_UP2: [(u64, u64, &str); 7] = [
     (0x01000100, 0x0000000000ff7886, "VOTEU.ANY UP0, P2"),   // libcusparse.311

@@ -3,8 +3,8 @@
 //!   02 10 04 14 = UPLOP3.LUT (wszystkie predy uniform; Pt/Pa/Pb == UPT)
 //!   02 10 16 0e = DSETP z imm f64, Pt==PT i Pc==PT (marker 13@b14)
 //!   02 10 0a 0e = DSETP z imm f64, Pt!=PT lub Pc!=PT (marker 13@b17)
-//! Wektory gold = doslowne bajty z korpusu sm_100 (merclab/mk54 c20:
-//! 4347/4347 kerneli multiset+sekwencja EXACT, dwustronnie).
+//! Gold vectors = literal bytes from the sm_100 corpus (merclab/mk54 c20:
+//! 4347/4347 kernels multiset+sequence EXACT, bidirectional).
 use cubit::mercury::{merc_dsetpimm_record, merc_plop3u_record, merc_uplop3_record};
 
 fn hx(s: &str) -> Vec<u8> {
@@ -16,7 +16,7 @@ fn hx(s: &str) -> Vec<u8> {
 
 #[test]
 fn mk54_plop3u_gold() {
-    // (tekst lane, gold-hex) — wszystkie bez guarda (b4=f8).
+    // (lane text, gold hex) — all unguarded (b4=f8).
     let v: &[(&str, &str)] = &[
         ("PLOP3.LUT P3, PT, PT, PT, UP0, 0x80, 0x8 ;", "02100214f80000000000011801f800f80000f800000000000000000000000000"),
         ("PLOP3.LUT P0, PT, PT, PT, UP1, 0x80, 0x8 ;", "02100214f80000000000010001f800f80000f800080000000000000000000000"),
@@ -33,15 +33,15 @@ fn mk54_plop3u_gold() {
 #[test]
 fn mk54_plop3u_fail_closed() {
     for t in [
-        "PLOP3.LUT P0, PT, PT, PT, PT, 0x80, 0x8 ;",   // all-P -> mk44, nie mk54
+        "PLOP3.LUT P0, PT, PT, PT, PT, 0x80, 0x8 ;",   // all-P -> mk44, not mk54
         "PLOP3.LUT P0, PT, PT, PT, UP7, 0x80, 0x8 ;",  // UP7 poza zakresem
         "PLOP3.LUT P6, PT, P5, PT, UP0, 0xf8, 0x8f ;", // para LUT poza tabela
-        "PLOP3.LUT P6, PT, P5, PT, UP0, 0xd5, 0x44 ;", // nie-nibswap
+        "PLOP3.LUT P6, PT, P5, PT, UP0, 0xd5, 0x44 ;", // non-nibswap
     ] {
         assert_eq!(merc_plop3u_record(t, 0xf8), None, "{t}");
     }
     // lane z guardem (tekstowo '@P0') + kod guarda -> tez fail-closed
-    // guardowany wariant (guard_code != f8) fail-closed bez wzgledu na tekst
+    // a guarded variant (guard_code != f8) fails closed regardless of the text
     assert_eq!(
         merc_plop3u_record("PLOP3.LUT P0, PT, PT, PT, UP0, 0x80, 0x8 ;", 0x01),
         None
@@ -64,7 +64,7 @@ fn mk54_uplop3_gold() {
     for (gc, t, g) in v {
         assert_eq!(merc_uplop3_record(t, *gc).map(|r| r.to_vec()), Some(hx(g)), "{t}");
     }
-    // guard P-space (nie-uniform) -> fail-closed
+    // P-space (non-uniform) guard -> fail-closed
     assert_eq!(
         merc_uplop3_record("UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, 0x80, 0x8 ;", 0x01),
         None
@@ -110,7 +110,7 @@ fn mk54_dsetpimm_0a_gold() {
 #[test]
 fn mk54_dsetpimm_fail_closed() {
     for t in [
-        "DSETP.NEU.AND P0, PT, R6, RZ, PT ;",     // 4. operand RZ (nie literal)
+        "DSETP.NEU.AND P0, PT, R6, RZ, PT ;",     // 4th operand RZ (not a literal)
         "DSETP.NEU.AND P0, PT, R6, UR4, PT ;",    // UR
         "DSETP.NEU.AND P0, PT, R6, R8, PT ;",     // reg-reg
         "DSETP.MIN.AND P0, PT, R6, 1, PT ;",      // MIN poza drabinka

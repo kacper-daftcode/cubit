@@ -5,19 +5,19 @@
 //!
 //! Mechanika (empiria CUBIT_DEBUG_DECODE + inspekcja wierszy):
 //! - sm103a: prawidlowy wiersz ULEA_UR_UR_II_UR_II mg "HI" istnial z DOBRA
-//!   geometria (8-bit ureg/imm32/imm5), ale przegrywal wyscig kandydatow z
-//!   szerszym wierszem ULEA_UR_UR_II_II mg "": jego pole imm@75/6b pochlanialo
-//!   bit80 = DYSKRYMINATOR MODU HI (match_mask = ~variable_mask & ~field_mask
-//!   nigdy nie testuje bitow pol imm). Fix dane: imm zawezone 6b->5b (okno
-//!   [79:75], jak w rodzenstwie HI,SX32) + vm bit79 dolaczony (0x7800->0xf800)
-//!   => bit80 wchodzi do matcha i forma plain przestaje rosciic slowa HI.
-//!   Bezpieczenstwo: 211 slow plain w korpusie vendor (records) mialo
-//!   max imm2 = 11 < 32 => zawezenie NIESTRATNE.
-//! - sm120: wiersz dedykowany ULEA.HI_UR_UR_II_UR_II mial singleton-geometry
-//!   (and_base wymagal ~1<<37 bitow w oknie imm => martwy dla dekodera);
-//!   rodzine serwil zlefitowany singleton ULEA_UR_UR_II_II mg "HI" (imm
-//!   3-bit "pred"@75, src3 gubiony, URZ->RZ) oraz ULEA_UR_UR_II_UR_II mg "HI"
-//!   o tej samej zlefitowanej geometrii. Fix dane: wiersz dedykowany i
+//!   geometry (8-bit ureg/imm32/imm5), but it lost the candidate race to
+//!   the wider ULEA_UR_UR_II_II mg "" row: its imm/6b field swallowed
+//!   bit80 = the HI MOD DISCRIMINATOR (match_mask = ~variable_mask & ~field_mask
+//!   never tests field bits). Data fix: imm narrowed 6b->5b (the
+//!   [79:75] window, as in the HI,SX32 siblings) + bit79 joined into vm (0x7800->0xf800)
+//!   => bit80 enters the match and the plain form stops claiming HI words.
+//!   Safety: 211 plain words in the vendor corpus (records) had
+//!   max imm2 = 11 < 32 => the narrowing is LOSSLESS.
+//! - sm120: the dedicated ULEA.HI_UR_UR_II_UR_II row had singleton geometry
+//!   (and_base required ~1<<37 bits in the imm window => dead to the decoder);
+//!   the family was served by the misfitted singleton ULEA_UR_UR_II_II mg "HI" (imm
+//!   3-bit "pred", src3 dropped, URZ->RZ) and ULEA_UR_UR_II_UR_II mg "HI"
+//!   with the same misfit geometry. Data fix: the dedicated row and
 //!   II_UR_II(HI) przebudowane do geometrii rodziny (kotwice: 122 slow
 //!   vendor libcusparse + gold 663), fantomy (ULEA_UR_UR_II_II,"HI") i
 //!   (ULEA_UR_UR_UR_II,"HI") usuniete (0 kotwic vendor, render stratny).
@@ -76,7 +76,7 @@ fn t2_encode_fixed_point_both_tables() {
     );
 }
 
-// t3: roundtrip dekodera na obu tabelach dla rodziny II_UR_II HI.
+// t3: decoder round-trip on both tables for the II_UR_II HI family.
 #[test]
 fn t3_roundtrip_family() {
     for t in [t103a(), t120()] {
@@ -88,14 +88,15 @@ fn t3_roundtrip_family() {
             let s = dec(&t, w);
             let w2 = enc(&t, &s);
             assert_eq!((w2 >> 96) as u32 & 0, 0); // noop guard
-            // payload [95:0] musi sie zgadzac (ctrl = default enkodera)
+            // the [95:0] payload must match (ctrl = encoder default)
             assert_eq!(w2 & ((1u128 << 96) - 1), w & ((1u128 << 96) - 1), "roundtrip {s}");
         }
     }
 }
 
 // t4: forma plain II_II pozostaje EXACT (zawezenie niestratne; imm2<=11 w
-// korpusie vendor) + sx32-rodzenstwo nietkniete.
+// t4: the plain II_II form stays EXACT (lossless narrowing; imm2<=11 in
+// the vendor corpus) + the sx32 sibling untouched.
 #[test]
 fn t4_plain_and_sx32_unaffected_sm103a() {
     let t = t103a();

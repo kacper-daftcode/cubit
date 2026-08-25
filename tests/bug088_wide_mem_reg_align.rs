@@ -8,7 +8,7 @@
 //!   * LDS.64 dest / STS.64 data odd -> II (even OK, RZ exempt)
 //!   * LDS.128 dest / STS.128 data: legal iff RZ | Rn%8==0 | (Rn<44 & %4==0)
 //!     (%4!=0 traps everywhere tested; odd-quad >=11 traps)
-//!   * LDC.128 R-form: 2026-08-24 BUG-135 unieważnia "unguarded/no constraint"
+//!   * LDC.128 R-form: 2026-08-24 BUG-135 nullifies "unguarded/no constraint"
 //!     (probes were width-dropped plain loads); authoring is now fail-closed
 //!     (no such encoding; nvdisasm INVALID6/7) -- pins in bug135.
 //! Pins both trap classes (fail-closed, BUG-088 message) and the legal-form

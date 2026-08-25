@@ -5,11 +5,11 @@
 //! kumuluje WIELE async-producentow na JEDNEJ barierze zapisu z pojedynczym
 //! drainem nizej (prologi S2R/S2UR/LDCU xN na wb0, batchy LDG xN na wb0 z
 //! przeplatanym ALU, runy SHFL.BFLY x55) — 160/160 warnow RECYCLE bylo FP.
-//! Pod `in-order / counting` doktryna shared-barrier bariera re-armowana przez
-//! kolejnego async-producenta bez posredniego draina NIE sieroca konsumentow;
-//! RAW bramkowanie jest audytowane osobno.
+//! Under the `in-order / counting` shared-barrier doctrine, a barrier re-armed by
+//! the next async producer without an intervening drain does NOT orphan consumers;
+//! RAW gating is audited separately.
 //!
-//! Co ZOSTAJE glosne (fail-closed): re-arm przez klase bez async-writeback
+//! What STAYS loud (fail-closed): a re-arm by a class without async writeback
 //! (stray W-tag na ALU/konwersji) — to dalej wyglada na prawdziwy blad autora.
 
 use cubit::sass_file::parse_sass_file_str_strict;
@@ -61,7 +61,7 @@ fn t102_3_shfl_run_shared_barrier_quiet() {
     assert!(recycle(&hs).is_empty(), "certified SHFL run must not warn: {:?}", recycle(&hs));
 }
 
-// 4) NEGATYW: stray W-tag na ALU (IMAD) w srodku run — re-arm przez klase bez
+// 4) NEGATIVE: a stray W-tag on ALU (IMAD) mid-run — re-arm by a class without
 //    async-writeback dalej wrzeski (fail-closed).
 #[test]
 fn t102_4_stray_alu_wtag_still_warns() {
@@ -73,7 +73,7 @@ fn t102_4_stray_alu_wtag_still_warns() {
     assert!(alu_edge >= 1, "stray ALU W-tag on armed barrier must warn, got: {:?}", rec);
 }
 
-// 5) NEGATYW: MUFU (nie long-latency klasa) re-arm wspoldzielonej bariery.
+// 5) NEGATIVE: MUFU (not a long-latency class) re-arming the shared barrier.
 #[test]
 fn t102_5_mufu_rearm_still_warns() {
     let hs = hazards(
@@ -93,10 +93,10 @@ fn t102_6_drain_then_rearm_quiet() {
     assert!(recycle(&hs).is_empty(), "drained re-arm must stay quiet: {:?}", recycle(&hs));
 }
 
-// 7) Auto path: reallocate_barriers sam batchuje kolejne same-line/same-class
-//    loady na jedna bariere (ptxas-like PV discipline, default pipeline) —
-//    audyt musi zostac cicho na tak wyprodukowanym batchu (pre-102: RECYCLE
-//    warn per extra member pod CUBIT_HAZ).
+// 7) Auto path: reallocate_barriers itself batches consecutive same-line/same-class
+//    loads onto one barrier (ptxas-like PV discipline, default pipeline) —
+//    the audit must stay quiet on such a produced batch (pre-102: a RECYCLE
+//    warn per extra member under CUBIT_HAZ).
 #[test]
 fn t102_7_auto_same_line_batch_no_recycle() {
     let src = ".entry t\n    .param u64 io\n    LDCU.64 UR4, c[0x0][0x358] ;

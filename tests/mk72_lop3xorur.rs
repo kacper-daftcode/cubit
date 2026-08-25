@@ -1,11 +1,11 @@
-//! mk72: NOWY rekord 01290804 (xor-mieszany R/R/UR): siostra 01291004 (mk71,
-//! 3xUR) i 01290004 (mk13, 3xR) z b2=0x08.
+//! mk72: the NEW 01290804 record (mixed R/R/UR xor): siblings 01291004 (mk71,
+//! 3xUR) and 01290004 (mk13, 3xR) with b2=0x08.
 //!
-//! Klasa korpusowa (l2, EXACT 271/271 licznikowo per kernel i payloadowo,
-//! merclab/mk72 c11/c12): `LOP3.LUT Rd, Ra, URb, RZ, 0x3c, !PT` — dst i srcA
-//! rejestry R, srcB operand UR<n>, bez guarda (b4=0xf8 stale; formy guarded
-//! nieobserwowane -> fail-closed). 16B: `01 29 08 04 f8 00 04 00 01 f8 |
-//! dst<<6|1 u16 | a<<6 u16 | b<<6 u16`. Lane bez bitu bitmapy (doktryna
+//! Corpus class (l2, EXACT 271/271 count-wise per kernel and payload-wise,
+//! merclab/mk72 c11/c12): `LOP3.LUT Rd, Ra, URb, RZ, 0x3c, !PT` — dst and srcA
+//! are R registers, the srcB operand UR<n>, unguarded (b4=0xf8 fixed; guarded
+//! forms unobserved -> fail-closed). 16B: `01 29 08 04 f8 00 04 00 01 f8 |
+//! dst<<6|1 u16 | a<<6 u16 | b<<6 u16`. Lane without a bitmap bit (the
 //! mk13/mk47/mk58/mk71: rekord zastepuje wezel t4).
 use cubit::mercury::merc_lop3_xor_ur_record;
 
@@ -49,8 +49,8 @@ fn lop3xorur_reject() {
     assert!(merc_lop3_xor_ur_record("LOP3.LUT R4, R4, UR22, RZ, 0x3c, PT ;", 0xf8).is_none());
     assert!(merc_lop3_xor_ur_record("LOP3.LUT R4, R4, UR22, RZ, 0x3c ;", 0xf8).is_none());
     assert!(merc_lop3_xor_ur_record("LOP3.LUT R4, R4, UR22, RZ, 0x3c, !PT ;", 0x11).is_none());
-    // UR w srcA lub dst nie sa klasa (nieobserwowane)
+    // UR in srcA or dst are outside the class (unobserved)
     assert!(merc_lop3_xor_ur_record("LOP3.LUT R4, UR4, UR22, RZ, 0x3c, !PT ;", 0xf8).is_none());
-    // URZ w srcB: 'URZ' nie jest UR<num> — korpusowo nieobserwowane
+    // URZ in srcB: 'URZ' is not UR<num> — corpus-unobserved
     assert!(merc_lop3_xor_ur_record("LOP3.LUT R4, R4, URZ, RZ, 0x3c, !PT ;", 0xf8).is_none());
 }

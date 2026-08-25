@@ -74,7 +74,7 @@ fn bug049_uimad_wide_reencode_origword_stable() {
     // Render truth -> encode: outside the sched region the original word is rebuilt.
     let w = enc("UIMAD.WIDE.U32 UR26, UR19, 0x400, UR16");
     assert_eq!(w & NOSCHED, UIMAD_ORIG & NOSCHED,
-               "render+encode nie odtwarza nvcc-slowa: {w:#034x}");
+               "render+encode does not rebuild the nvcc word: {w:#034x}");
 }
 
 #[test]
@@ -93,7 +93,7 @@ fn bug049_uimad_wide_phantom_rows_removed() {
 #[test]
 fn bug049_redg_desc_ur_is_register_field_8b_at_64() {
     let w = enc("@P2 REDG.E.AND.EL.STRONG.GPU [R66.U32+UR20+0xa2400], R64");
-    assert_eq!((w >> 64) & 0xff, 20, "desc-UR nie laduje w polu @64");
+    assert_eq!((w >> 64) & 0xff, 20, "desc-UR does not land in the @64 field");
     assert_eq!((w >> 24) & 0xff, 66, "addr R");
     assert_eq!((w >> 32) & 0xff, 64, "value R");
     assert_eq!((w >> 40) & 0xff_ffff, 0xa2400, "imm s24@40");
@@ -118,7 +118,7 @@ fn bug049_redg_mercury_record_halves_register_to_table_index() {
     assert_eq!(r[4], 0x10, "guard ladder");
     assert_eq!(r[6] & 0xf0, 0x50, "AND subclass");
     let desc_idx = ((u16::from_le_bytes([r[17], r[18]])) >> 6) & 0x3ff;
-    assert_eq!(desc_idx, 10, "rekord = rejestr/2 (nvcc gold), nie rejestr");
+    assert_eq!(desc_idx, 10, "record = register/2 (nvcc gold), not the register");
     assert_eq!(&r[28..32], &0xa2400i32.to_le_bytes(), "imm LE w rekordzie");
 }
 

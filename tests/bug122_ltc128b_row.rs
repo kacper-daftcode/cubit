@@ -1,29 +1,29 @@
 //! BUG-122: encode_only
 //! retention row `LDG.E.LTC128B.128_R_dARI`::"128,E,LTC128B" in sm103a.json
 //! (kept by the BUG-094 era-text retention) emitted a word with a ZERO
-//! hi-payload (bajty 8..11): enkoder wypelnia wylacznie bity < 64 (pola
-//! koncza sie na [63:40], and_base mial tylko 0x980), wiersz niesie zero
-//! vendor/wymaganych-krzemiowo bitow w hi-KLUCZU klasy. Krzem B300: slowo
-//! takie = SYNC:ILLEGAL_ADDRESS (DESCCAMP-D1 p_txt_ltc13), podczas gdy slowo
-//! vendor 13.3 z tymi samymi operandami (desc[UR4][R2.64]) = OK
-//! (p_raw_ltc13/_pol). b12 "default-desc gate" = TEN BUG, nie krzem.
+//! hi-payload (bytes 8..11): the encoder fills only bits < 64 (the fields
+//! end at [63:40], and_base held only 0x980); the row carries zero
+//! vendor/silicon-required bits in the class hi KEY. B300 silicon: such a
+//! word = SYNC:ILLEGAL_ADDRESS (DESCCAMP-D1 p_txt_ltc13), while the
+//! nvcc 13.3 word with the same operands (desc[UR4][R2.64]) = OK
+//! (p_raw_ltc13/_pol). The b12 "default-desc gate" = THIS BUG, not silicon.
 //!
-//! Prawo krzemiowe (the internal research archive + matrix.json, clear-1-bit
-//! sweep ze slowa vendor, 12b x2 repliki): wymagane {72,90,91}; obojetne
-//! pojedynczo {0,69,74,75,76,81,82,83,84}; kandydaci zweryfikowani krzemiowo:
-//! s_ltc_minlaw (tylko {72,90,91} + lo-payload, bit0=0) OK, s_ltc_fullaw
-//! (pelny hi-payload vendor 0x0c1e1d20) OK.
+//! Silicon law (the internal research archive + matrix.json, clear-1-bit
+//! sweep from the vendor word, 12b x2 replicas): required {72,90,91}; indifferent
+//! individually {0,69,74,75,76,81,82,83,84}; silicon-verified candidates:
+//! s_ltc_minlaw (only {72,90,91} + lo payload, bit0=0) OK, s_ltc_fullaw
+//! (full vendor hi payload 0x0c1e1d20) OK.
 //!
-//! Fix (data-level, wylacznie tables/sm103a.json; wiersz encode_only => decode
-//! nieosiagalny, zero decode-delta): and_base |= hi-payload vendor
-//! {69,72,74,75,76,81,82,83,84,90,91} (= 0x0c1e1d20<<64 — paritet z siostra
-//! "128,E" ktora trzyma swoj hi-pattern 0x0c1e1d00 w and_base i reprodukuje
-//! vendor bajtowo) + bit0=1 (vendor/era zawsze [2:0]=001-pche; sweep:
-//! bit0 obojetny, ale None-field [2:0] czyszcil bit0 przy encode — pole
-//! usuniete, region [2:0] dalej decode-luzny przez variable_mask).
-//! variable_mask |= {76,90}: era slowa rt98 (249 slotow, hi {72,73,75,81..84,
-//! 91,92}) maja te bity = 0 (patrz !rsd[76:0,90:0] w frozen rt98_v2.sass);
-//! gdyby wiersz kiedys opuszczen retention, strict-match era dalej dziala
+//! Fix (data level, tables/sm103a.json only; the row is encode_only => decode
+//! unreachable, zero decode delta): and_base |= the vendor hi payload
+//! {69,72,74,75,76,81,82,83,84,90,91} (= 0x0c1e1d20<<64 — parity with the
+//! "128,E" sister, which keeps its own 0x0c1e1d00 hi pattern in and_base and
+//! reproduces vendor byte-exact) + bit0=1 (vendor/era always [2:0]=001-ish; sweep:
+//! bit0 indifferent, but the None [2:0] field cleared bit0 on encode — the field
+//! removed, the [2:0] region stays decode-loose via variable_mask).
+//! variable_mask |= {76,90}: era rt98 words (249 slots, hi {72,73,75,81..84,
+//! 91,92}) have those bits = 0 (see !rsd[76:0,90:0] in frozen rt98_v2.sass);
+//! should the row ever leave retention, era strict-match still works
 //! (zweryfikowane arytmetycznie w nocie raportu 122.md).
 //!
 //! Piny t122_1/2/5 FAIL przed fixem (kontrola), t122_3/4/6 = kotwice PASS.
@@ -44,11 +44,11 @@ const VENDOR: u128 = 0x001e_a800_0c1e_1d20u128 << 64 | 0x0000_0004_0204_7981u128
 /// Era slowo rt98_pub (DESCCAMP-D1 p_raw_ltc_era; era-shape = gated IA na
 /// B300, pre-fix render-anchor через "64,E").
 const ERA: u128 = 0x0000_240e_0018_1e0bu128 << 64 | 0x0000_0008_0608_7981;
-/// Maska zdejmujaca ctrl/sched (bity >= 96) — jak w bug116.
+/// Mask stripping ctrl/sched (bits >= 96) — as in bug116.
 const NOSCHED: u128 = !(0xFFFF_FFFFu128 << 96);
 /// Bity wymagane krzemiowo wg sweepu D1.
 const SILICON_REQUIRED: u128 = (1u128 << 72) | (1u128 << 90) | (1u128 << 91);
-/// Hi-payload vendor (bity [95:64]) — oczekiwana wartosc po fixie.
+/// Vendor hi payload (bits [95:64]) — the expected value after the fix.
 const PAYLOAD_HI: u64 = 0x0c1e_1d20;
 
 fn enc103(text: &str) -> u128 {
@@ -76,7 +76,7 @@ fn t122_1_encode_vendor_parity() {
 
 /// t122_2: druga kombinacja operandow (ksztalt era-linii rt98) — ten sam
 /// staly hi-payload, pola operandow na swoich miejscach (Rd@16, r1@24,
-/// ur0@32, imm-okno [63:40] zerowe dla braku offsetu).
+/// ur0, the imm window [63:40] zero for no offset).
 #[test]
 fn t122_2_encode_era_shape_operands() {
     let w = enc103("LDG.E.LTC128B.128 R8, desc[UR8][R6.64]");
@@ -90,7 +90,7 @@ fn t122_2_encode_era_shape_operands() {
 }
 
 /// t122_3 (kotwica): wiersz pozostaje decode-niewidoczny — slowo vendor i
-/// slowo NOWO-zakodowane renderuja sie przez siostrzany wiersz "128,E"
+/// NEWLY-encoded words render through the sibling "128,E" row
 /// (LDG.E.128), zero hijack decode.
 #[test]
 fn t122_3_decode_invisible_sister_claims() {
@@ -103,14 +103,14 @@ fn t122_3_decode_invisible_sister_claims() {
             "nowo-zakodowane slowo: render przez siostre, bez hijack: {s_new}");
 }
 
-/// t122_4 (kotwica): era slowo rt98 decode-side bez zmian (delta-anchor:
+/// t122_4 (anchor): the era rt98 word, decode side unchanged (delta anchor:
 /// zakres fixu = encode-only; decode-side klasyfikacji era-shape = b4/b11).
 #[test]
 fn t122_4_era_decode_anchor() {
     let t = t103();
     let idx = DecodeIndex::build(&t);
-    assert!(idx.decode(ERA, 0, &t).is_err(), "era slowo zostaje __raw__ (gated era-shape): anchor");
-    // parse+encode era-linii dalej dziala (retention), teraz z krzemiowo
+    assert!(idx.decode(ERA, 0, &t).is_err(), "the era word stays __raw__ (gated era shape): anchor");
+    // parse+encode of the era line still works (retention), now with silicon
     // legalnym payloadem
     let w = enc103("LDG.E.LTC128B.128 R8, desc[UR8][R6.64]");
     assert_eq!(((w >> 64) & 0xFFFF_FFFF) as u64, PAYLOAD_HI, "era-shape encode payload: {w:#034x}");
@@ -118,7 +118,7 @@ fn t122_4_era_decode_anchor() {
 
 /// t122_5: klasa-census law — kazda era-linia LDG.E.LTC128B.128 z frozen
 /// rt98_v2.sass enkoduje sie z bitami wymaganymi {72,90,91} i stalym
-/// hi-payload. Gated: CUBIT_LTC_CENSUS=<path rt98_v2.sass>; bez env dwie
+/// hi payload. Gated: CUBIT_LTC_CENSUS=<path rt98_v2.sass>; without env two
 /// linie inline.
 #[test]
 fn t122_5_class_census_silicon_law() {
@@ -151,7 +151,7 @@ fn t122_5_class_census_silicon_law() {
                    "linia {i} {l:?}: hi-payload rozny od vendor 0x0c1e1d20: {w:#034x}");
         if (w >> 40) & 0xFF_FFFF == 0 { imm_empty += 1; }
     }
-    // sanity: co najmniej jedna linia bez offsetu (imm 0)
+    // sanity: at least one line without an offset (imm 0)
     assert!(imm_empty >= 1);
     eprintln!("t122_5: {} linii klasy — silicon-law + payload OK", lines.len());
 }

@@ -1,5 +1,5 @@
-//! mk42 (2026-08-12): rekordy edge 02 22 32 32 dla LD generic z desc[URm].
-//! Piny bajtowe z korpusu sm_100 (mk42/edge5..edge13; selekcja EXACT,
+//! mk42 (2026-08-12): 02 22 32 32 edge records for generic LD with desc[URm].
+//! Byte pins from the sm_100 corpus (mk42/edge5..edge13; EXACT selection,
 //! tail=off bracket, [19:21)=(maxDescUR<<6)|2).
 
 use cubit::eiattr::{KernelMeta, KernelParam};
@@ -43,7 +43,7 @@ fn edge_recs(cm: &CapMerc) -> Vec<Vec<u8>> {
 
 #[test]
 fn mk42_edge_ld64_layout() {
-    // LD.E.64 R12, desc[UR6][R26.64+0x8] w lane 5; bez guarda; maxDescUR=6.
+    // LD.E.64 R12, desc[UR6][R26.64+0x8] in lane 5; unguarded; maxDescUR=6.
     let mut m = meta_with_load();
     m.merc_edge_ld = vec![(5, 0xf8, 0x15, 0x08, 0x00, 12, 26, 3, 8)];
     m.merc_edge_maxur = 6;
@@ -100,7 +100,7 @@ fn mk42_edge_pred_i_kolejnosc() {
 
 #[test]
 fn mk42_edge_brak_bez_rekordow() {
-    // Bez merc_edge_ld -> zero rekordow tagu (korpusowa regula gated = brak LD-desc).
+    // Without merc_edge_ld -> zero records of that tag (the corpus gated rule = no LD desc).
     let m = meta_with_load();
     let o = ops(6);
     let out = generate_mercury_full(&dummy_code(6), 0x0c, Some(&o), &m, false);

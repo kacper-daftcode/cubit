@@ -1,15 +1,15 @@
-//! KANDYDAT-058 (SPARK sm_121a iter7, errata-landing): UFADD z ujemnym
-//! immediatem — luka semantyki enkodera. HW (gold nvcc sm_121a):
-//!  * `UFADD UR7, UR6, -0.12400979548692703247` -> pattern f32 @32..63
-//!    PLUS bit2=1 (mirror znaku); cubit dawal bit2=0 (op_neg tylko Reg/UReg).
-//!  * `UFADD UR7, UR6, -12583039` (token "int") -> gold @32..63 =
-//!    f32(-12583039.0) = 0xcb40007f (ieee-cast WARTOSCI) + bit2=1; cubit
-//!    pisal surowa wartosc int.
-//! Fix: nowe ekstrakcje `neg_f32` (znak FloatImm/Imm32) i `f32cast`
-//! (Imm32 -> f32 WARTOSCI, bo nvdisasm drukuje calkowite patterny f32
-//! jak inty). Czysto addytywne: zaden istniejacy wiersz repo ich nie uzywa
-//! (neg+f32 na jednym tokenie ma tylko DFMA_R_R_FI_R tok3 -> `neg`/`f32`,
-//! bez zmian). Adopcja = lokalna tabela sm121a po stronie SPARKA.
+//! CANDIDATE-058 (SPARK sm_121a iter7, errata landing): UFADD with a negative
+//! immediate — an encoder-semantics hole. HW (nvcc sm_121a gold):
+//!  * `UFADD UR7, UR6, -0.12400979548692703247` -> f32 pattern ..63
+//!    PLUS bit2=1 (sign mirror); cubit gave bit2=0 (op_neg only Reg/UReg).
+//!  * `UFADD UR7, UR6, -12583039` ("int" token) -> gold ..63 =
+//!    f32(-12583039.0) = 0xcb40007f (an ieee cast of the VALUE) + bit2=1; cubit
+//!    wrote the raw int value.
+//! Fix: the new `neg_f32` (FloatImm/Imm32 sign) and `f32cast`
+//! (Imm32 -> f32 VALUE, because nvdisasm prints integral f32 patterns
+//! as ints) extractions. Purely additive: no existing repo row uses them
+//! (neg+f32 on one token lives only on DFMA_R_R_FI_R tok3 -> `neg`/`f32`,
+//! unchanged). Adoption = the local sm121a table on the SPARK side.
 
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;

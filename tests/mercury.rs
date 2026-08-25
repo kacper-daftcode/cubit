@@ -196,7 +196,7 @@ fn parse_v3_trailing_d0_atom_before_tail() {
 
 
 // ===== mk11 (2026-08-05): buildery rekordow 025a MMA + 020f/020c f64-imm =====
-// Wartosci-oczekiwane = doslowne bajty z lab/korpusu (mma_model.py: 15,104
+// Expected values = literal bytes from lab/corpus (mma_model.py: 15,104
 // rekordow corpus-cover byte-exact; f64imm_harvest: 221/221).
 
 use cubit::mercury::{build_f64imm_rec, build_mma_rec, merc_mma_class};

@@ -109,7 +109,7 @@ fn t118_3_pair_reuse_across_loads() {
     assemble_body(&text);
 }
 
-/// B: the gate is fail-closed on a use-bez-def artifact (pre-fix pd64
+/// B: the gate is fail-closed on a use-without-def artifact (pre-fix pd64
 /// emission shape), and reports the register + first-use line.
 #[test]
 fn t118_4_gate_rejects_use_before_def_text() {

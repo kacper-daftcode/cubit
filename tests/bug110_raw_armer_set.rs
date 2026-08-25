@@ -1,28 +1,28 @@
 //! BUG-110 (110-kand, ex-F2Q z raportu 102): RAW-audyt w `report_hazards`
-//! sledzil wylacznie OSTATNIEGO armera bariery (`armed[b] == Some(pidx)`)
-//! i nie modelowal DEPBAR jako draina. Skutki na certified rt98_v2 publish
-//! text (silicon-EXACT na B300): 160 WARN "NOT waited" (frozen -> drukowane
-//! bezwarunkowo przy kazdym asm), z czego:
+//! tracked only the LAST barrier armer (`armed[b] == Some(pidx)`)
+//! and did not model DEPBAR as a drain. Effects on the certified rt98_v2 publish
+//! text (silicon-EXACT on B300): 160 WARN "NOT waited" (frozen -> printed
+//! unconditionally on every asm), of which:
 //!   - 9x KernelB MOV R71,R10x: software-pipelined loop, drain = DEPBAR.LE
-//!     SB0, 0x9 (audyt nie rozumial DEPBAR) => FP;
-//!   - ~78x KernelA IMAD.WIDE reads R(n+1): src_regs dodawal +1 dla KAZDEGO
-//!     reg-operandu op_idx>1, ale multiplikandy WIDE sa 32-bit (reg_liveness
-//!     M3.5/BUG-108: "addend = ostatni nie-predykat operand") => FP;
-//!   - ~63x KernelA true-reads R116..R123 (LDG .256 wb2) czytane 100-710
-//!     instrukcji po producencie bez wait-mask (pokryte czasem, krzem EXACT)
-//!     => zostaja GLOSNE (doktryna distance-amnesty = kand-112, decyzja po
-//!     kalibracji krzemowej, NIE w tym fixie);
-//! natomiast dziura wykrywania: przy batchu N producentow na jednej barierze
-//! czytanie MEMBERA != ostatni bez wait przechodzilo milczaco (false
-//! negative — guard `armed[b] == Some(pidx)` bije tylko dla ostatniego).
+//!     SB0, 0x9 (the audit did not understand DEPBAR) => FP;
+//!   - approx. 78x KernelA IMAD.WIDE reads R(n+1): src_regs added +1 for EVERY
+//!     reg operand with op_idx>1, but WIDE multiplicands are 32-bit (reg_liveness
+//!     M3.5/BUG-108: "addend = last non-predicate operand") => FP;
+//!   - approx. 63x KernelA true reads R116..R123 (LDG .256 wb2) read 100-710
+//!     instructions past the producer without a wait mask (covered by timing, silicon EXACT)
+//!     => these stay LOUD (the distance-amnesty doctrine = cand-112, a decision after
+//!     silicon calibration, NOT in this fix);
+//! meanwhile the detection hole: with a batch of N producers on one barrier
+//! reading a MEMBER != last without a wait passed silently (false
+//! negative — the `armed[b] == Some(pidx)` guard fires only for the last one).
 //!
-//! Fix: (a) `armed[b]` = zbior WSZYSTKICH armerow od ostatniego draina
-//! (wait_mask czysci zbior, jak dawniej); (b) `DEPBAR.<m> SBb, imm` czysci
-//! zbior bariery b (HW: DEPBAR czeka na liczniku scoreboardu; dowod z
-//! certyfikatu rt98: 48-batch prolog + 9 kolejnych batchy na wb0, kernel
-//! EXACT); (c) src_regs WIDE: para (n,n+1) TYLKO dla addendu (ostatni
-//! nie-predykat operand, lustrzane reg_liveness.rs M3.5), multiplikandy
-//! zostaja 32-bit. RECYCLE (BUG-102) zachowany: prev = ostatni armer.
+//! Fix: (a) `armed[b]` = the set of ALL armers since the last drain
+//! (wait_mask clears the set, as before); (b) `DEPBAR.<m> SBb, imm` clears
+//! the set of barrier b (HW: DEPBAR waits on the scoreboard counter; evidence from
+//! the rt98 certificate: a 48-batch prologue + 9 subsequent batches on wb0, kernel
+//! EXACT); (c) WIDE src_regs: the (n,n+1) pair ONLY for the addend (last
+//! non-predicate operand, mirroring reg_liveness.rs M3.5); multiplicands
+//! stay 32-bit. RECYCLE (BUG-102) preserved: prev = last armer.
 //!
 //! Kontrola pozytywna: pre-fix t110_1/t110_2/t110_7 FAIL, reszta PASS.
 //!
@@ -50,8 +50,8 @@ fn raw(hs: &[cubit::scheduling_pass::HazardReport]) -> Vec<String> {
     hs.iter().filter(|h| h.msg.contains("RAW")).map(|h| h.msg.clone()).collect()
 }
 
-// 1) DEPBAR jako drain: batch 2x LDG na wb2, DEPBAR.LE SB2, potem readerzy
-//    obu memberow -> cicho. Pre-fix: DEPBAR nie czyscil armed -> WARN.
+// 1) DEPBAR as a drain: batch of 2x LDG on wb2, DEPBAR.LE SB2, then readers of
+//    both members -> quiet. Pre-fix: DEPBAR did not clear armed -> WARN.
 #[test]
 fn t110_1_depbar_drains_barrier_read_after_quiet() {
     let hs = hazards(
@@ -71,7 +71,7 @@ fn t110_2_batch_first_member_no_wait_warns() {
     assert!(r.iter().any(|m| m.contains("reads R20")), "first-batch-member read with no wait must warn: {:?}", r);
 }
 
-// 3) Reg-guard: reader OSTATNIEGO membera bez wait -> WARN (jak dawniej).
+// 3) Reg-guard: a reader of the LAST member without a wait -> WARN (as before).
 #[test]
 fn t110_3_batch_last_member_no_wait_still_warns() {
     let hs = hazards(
@@ -90,7 +90,7 @@ fn t110_4_wait_mask_drain_clears_whole_batch() {
     assert!(raw(&hs).is_empty(), "wait-mask drain must clear all batch armers: {:?}", raw(&hs));
 }
 
-// 5) DEPBAR na INNEJ barierze nie drainuje wb2.
+// 5) DEPBAR on a DIFFERENT barrier does not drain wb2.
 #[test]
 fn t110_5_depbar_other_barrier_does_not_drain() {
     let hs = hazards(
@@ -100,7 +100,7 @@ fn t110_5_depbar_other_barrier_does_not_drain() {
     assert!(r.iter().any(|m| m.contains("reads R20")), "DEPBAR SB3 must not drain wb2: {:?}", r);
 }
 
-// 6) Drain nie dziala wstecz: DEPBAR, potem re-arm wb2, reader bez wait -> WARN.
+// 6) Drain does not work backwards: DEPBAR, then a re-arm of wb2, reader without wait -> WARN.
 #[test]
 fn t110_6_depbar_then_rearm_still_needs_wait() {
     let hs = hazards(
@@ -110,8 +110,8 @@ fn t110_6_depbar_then_rearm_still_needs_wait() {
     assert!(r.iter().any(|m| m.contains("reads R20")), "re-arm after DEPBAR must still require a wait: {:?}", r);
 }
 
-// 7) WIDE multiplikand NIE jest para: producent (wb2, armed) pisze R76;
-//    IMAD.WIDE.U32.X z multiplikandem R75 czyta tylko R75 (32-bit) ->
+// 7) A WIDE multiplicand is NOT a pair: the producer (wb2, armed) writes R76;
+//    IMAD.WIDE.U32.X with multiplicand R75 reads only R75 (32-bit) ->
 //    zaden RAW na R76. Pre-fix: src_regs fabrykowal R76 -> WARN (FAIL).
 #[test]
 fn t110_7_wide_multiplicand_is_32bit_no_phantom_pair() {
@@ -123,8 +123,8 @@ fn t110_7_wide_multiplicand_is_32bit_no_phantom_pair() {
         "32-bit multiplicand must not fabricate R76/R77 reads: {:?}", r);
 }
 
-// 8) Reg-guard: WIDE addend NADAL jest para: producent pisze R100 (wb2
-//    armed, bez draina); IMAD.WIDE z addendem R100 czyta R101 -> WARN.
+// 8) Reg-guard: a WIDE addend STILL is a pair: the producer writes R100 (wb2
+//    armed, no drain); IMAD.WIDE with addend R100 reads R101 -> WARN.
 #[test]
 fn t110_8_wide_addend_pair_still_tracked() {
     let hs = hazards(
@@ -134,8 +134,8 @@ fn t110_8_wide_addend_pair_still_tracked() {
     assert!(r.iter().any(|m| m.contains("reads R101")), "64-bit addend pair (R100,R101) must stay tracked: {:?}", r);
 }
 
-// 9) Reg-guard: WIDE z RZ-addendem nie fabrykuje pary z multiplikanda —
-//    producent pisze R76, forma bez reg-addendu: cicho na R76.
+// 9) Reg-guard: WIDE with an RZ addend does not fabricate a pair from the multiplicand —
+//    the producer writes R76, a form without a reg addend: quiet on R76.
 #[test]
 fn t110_9_wide_rz_addend_keeps_multiplicand_scalar() {
     let hs = hazards(

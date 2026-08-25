@@ -23,7 +23,7 @@ fn meta_with_load() -> KernelMeta {
         exit_offsets: vec![0u32],
         cbank_param_size: 8,
         params: vec![KernelParam { index: 0, ordinal: 0, offset: 0, size: 8 }],
-        merc_param_loads: vec![(1, 0, 0, 8, 0xf8)], // mk41: 5. pole = pelny kod (0xf8 = brak guarda)
+        merc_param_loads: vec![(1, 0, 0, 8, 0xf8)], // mk41: 5th field = full code (0xf8 = no guard)
         merc_param_load_dreg: vec![4],
         ..Default::default()
     }
@@ -47,7 +47,7 @@ fn find_store(cm: &CapMerc) -> Vec<u8> {
 #[test]
 fn mk40_ste64_layout() {
     // ST.E.64 desc[UR12][R2.64], R4 w lane 3:
-    // 02382a32 f8 00 15 01(mk41: ->0x1a dla desc-formy) 00000000 | [12:14]=8200 (R2|2) 0a00
+    // 02382a32 f8 00 15 01(mk41: ->0x1a for the desc form) 00000000 | [12:14]=8200 (R2|2) 0a00
     // [17:19]=0203 (UR12|2) [19:21]=0201 (R4|flag2) [28:32]=0.
     let mut m = meta_with_load();
     m.merc_store2 = vec![(3, 1, 3, 2, 12, 4, 0, 0xf8, 0)];
@@ -86,7 +86,7 @@ fn mk40_stl128_layout() {
 
 #[test]
 fn mk40_mini_ffma2_emitted_bit0() {
-    // FFMA2 w lane 2 -> mini 420d1426, lane NIE dostaje bitu bitmapy.
+    // FFMA2 in lane 2 -> mini 420d1426, the lane gets NO bitmap bit.
     let mut m = meta_with_load();
     m.merc_mini2 = vec![(2, 0x26140d42)];
     let mut o = ops(8);
@@ -94,7 +94,7 @@ fn mk40_mini_ffma2_emitted_bit0() {
     let out = generate_mercury_full(&dummy_code(8), 0x0c, Some(&o), &m, false);
     let cm = CapMerc::parse(&out, true).unwrap();
     assert!(recs(&cm).contains(&[0x42, 0x0d, 0x14, 0x26]));
-    // bitmapa: automat pelny record-cover; indeks 2*slot — tu prosto: bit kasowany
+    // bitmap: automatic full record cover; index 2*slot — simply here: bit cleared
 }
 
 #[test]

@@ -24,7 +24,7 @@ fn grid_payload() {
     assert_eq!(merc_cs2r_srz_record("CS2R R22, SRZ ;", 0xf8), Some(expected(22, 0xf8)));
     assert_eq!(merc_cs2r_srz_record("CS2R R16, SRZ ;", 0xf8), Some(expected(16, 0xf8)));
     assert_eq!(merc_cs2r_srz_record("CS2R R2, SRZ ;", 0xf8), Some(expected(2, 0xf8)));
-    // guard pelnym kodem
+    // guard with the full code
     assert_eq!(merc_cs2r_srz_record("@!P4 CS2R R6, SRZ ;", 0x21), Some(expected(6, 0x21)));
     // wariant .32
     assert_eq!(merc_cs2r_srz_record("CS2R.32 R5, SRZ ;", 0xf8), Some(expected(5, 0xf8)));
@@ -40,7 +40,7 @@ fn rz_special() {
 
 #[test]
 fn gates() {
-    // inne SR -> brak rekordu (8 kerneli CgaSize-only; GTLO parked)
+    // other SR -> no record (8 CgaSize-only kernels; GTLO parked)
     assert_eq!(merc_cs2r_srz_record("CS2R.32 R3, SR_CgaSize ;", 0xf8), None);
     assert_eq!(merc_cs2r_srz_record("CS2R R5, SR_GLOBALTIMERLO ;", 0xf8), None);
     assert_eq!(merc_cs2r_srz_record("S2R R0, SR_TID.X ;", 0xf8), None);

@@ -31,15 +31,15 @@ fn general_fields() {
 
 #[test]
 fn gates() {
-    // nie-nibswap (0xe0,0) -> brak rekordu (527 kerneli-czyste, trsv)
+    // non-nibswap (0xe0,0) -> no record (527 clean kernels, trsv)
     assert_eq!(merc_plop3_record("PLOP3.LUT P0, PT, P0, P1, P2, 0xe0, 0x0 ;", 0xf8), None);
-    // luts nie-nibswap (0x50,0)
+    // non-nibswap luts (0x50,0)
     assert_eq!(merc_plop3_record("PLOP3.LUT P0, PT, P0, P1, P2, 0x50, 0x0 ;", 0xf8), None);
     // UP w Pc
     assert_eq!(merc_plop3_record("PLOP3.LUT P0, PT, PT, PT, UP0, 0x80, 0x8 ;", 0xf8), None);
     // nieznana para nibswap (canonical-unseen)
     assert_eq!(merc_plop3_record("PLOP3.LUT P0, PT, P1, P2, PT, 0x96, 0x69 ;", 0xf8), None);
-    // nie PLOP3
+    // not PLOP3
     assert_eq!(merc_plop3_record("LOP3.LUT R1, R2, R3, R4, 0x8, 0x80 ;", 0xf8), None);
     // Pd == PT
     assert_eq!(merc_plop3_record("PLOP3.LUT PT, PT, P1, P2, PT, 0x8, 0x80 ;", 0xf8), None);

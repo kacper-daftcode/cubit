@@ -1,10 +1,10 @@
 //! mk49: rekordy 024e*32 (32B) — rodzina ATOM.E/ATOMG/ATOMS (domkniecie
 //! frontu mk48: 024e2032/024e3032/024e6832/024e8a32/024e8232 orig-only +
-//! mylne klasy mk14-tuple dla 024e5232-b6/b7, 024e2432-b7, 024e8432).
+//! mistaken mk14-tuple classes for 024e5232-b6/b7, 024e2432-b7, 024e8432).
 //!
-//! Korpus sm_100 (676 plikow): pelna zgodnosc bajtowa 11898/11898 rekordow,
+//! sm_100 corpus (676 files): full byte agreement 11898/11898 records,
 //! 2929/2929 kerneli, porzadek strumienia == lane-asc. CAST.SPIN /
-//! ATOM.E.CAS.* sa bezrekordowe (c8: po pominieciu parowanie 1:1).
+//! ATOM.E.CAS.* are recordless (c8: once skipped, pairing is 1:1).
 //! Tabela klas (b2): 20=ATOM.E desc float (b6: F16x2 00 / BF16x2 18 /
 //! F32 48 / F64 78), 68=ATOM.E desc int (ADD 00 / ADD.64 60 / MAX.S32 42 /
 //! MAX.S64 a2), 30=ATOMG float [Rn] (b6=80, b7: F32 44 / F64 47),
@@ -12,8 +12,8 @@
 //! (b6: ADD 00 / MIN 10 / MAX 20 / INC 30 / EXCH 80; b7=40|04.S32),
 //! 82=ATOMS [Rn(+imm)] ADD, 84=ATOMS [URn(+imm)] (MIN 14 / MAX 24 /
 //! AND 54 / OR 64), 8a=ATOMS.POPC.INC [Rn+URZ(+imm)].
-//! b8=01 zamiast 03 dla 82/8a z libcusparse.so.782 = park (sub-driver).
-//! Wektory ponizej = doklejone pary (tekst ->rekord) z korpusu (c10).
+//! b8=01 instead of 03 for 82/8a from libcusparse.so.782 = parked (sub-driver).
+//! The vectors below = appended (text -> record) pairs from the corpus (c10).
 use cubit::mercury::{merc_atomg2_record, merc_atomg2_recordless};
 
 trait Hex {
@@ -78,7 +78,7 @@ fn atom_desc_int_forms() {
         .hexify(),
         "024e6832f80000340000000001f8c1ff0002040a000201c00300000004000000"
     );
-    // ADD.64 z nie-RZ dst (|3 na deste) (cusparse.318)
+    // ADD.64 with a non-RZ dst (|3 on dest) (cusparse.318)
     assert_eq!(
         merc_atomg2_record(
             "ATOM.E.ADD.64.STRONG.GPU P1, R8, desc[UR8][R10.64+0x8], R8 ;",
@@ -167,7 +167,7 @@ fn atomg_forms() {
 
 #[test]
 fn atoms_forms() {
-    // 82: [Rn] bez imm (cusparse.838 cub DeviceRadixSort)
+    // 82: [Rn] without imm (cusparse.838 cub DeviceRadixSort)
     assert_eq!(
         merc_atomg2_record("ATOMS.ADD R58, [R57], R54 ;", 0xf8).unwrap().hexify(),
         "024e8232f800046003000000810e400e000a00800d0000000000000000000000"
@@ -186,7 +186,7 @@ fn atoms_forms() {
             .hexify(),
         "024e84320000246403000000c1ffc0ff0040010a000000000000000000000000"
     );
-    // 84: OR [UR4] (cusolver.771 irs_check) — plain, tylko bez-imm
+    // 84: OR [UR4] (cusolver.771 irs_check) — plain, no-imm only
     assert_eq!(
         merc_atomg2_record("@P0 ATOMS.OR RZ, [UR4], R2 ;", 0x00)
             .unwrap()
@@ -204,7 +204,7 @@ fn atoms_forms() {
 
 #[test]
 fn recordless_forms() {
-    // spin-loop CAS-emulacji F64 (cusparse) — bez rekordow
+    // F64 CAS-emulation spin loop (cusparse) — recordless
     assert!(merc_atomg2_record(
         "ATOMS.CAST.SPIN.64 P0, [R3], R4, R6 ;",
         0xf8

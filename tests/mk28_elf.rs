@@ -1,11 +1,11 @@
 //! mk28: ELF/EIATTR fidelity sm_103a (nvcc 13.x):
-//! - kanoniczny zestaw i kolejnosc rekordow .nv.info.K (bajtowo jak nvcc),
+//! - the canonical .nv.info.K record set and order (byte-wise like nvcc),
 //! - bitmapowe reguly dialektu UTCA (BRA epilog vs samo-petla),
 //! - bramki: tmem (4f/41/51, 4a=0x80), NUM_BARRIERS (4c), SW_WAR (36=8),
 //!   NVSAL_SW_WAR (6b=1), LANGUAGE (66=3), API (37=0x85).
 //!
 //! Zrodla bajtow zlotych: oryginalne sekcje .nv.info.* z
-//! merclab/mkvmem.sm_103a.cubin oraz merclab/k_sync.cubin.
+//! merclab/mkvmem.sm_103a.cubin and merclab/k_sync.cubin.
 
 use cubit::eiattr::{KernelMeta, KernelParam};
 use cubit::elf_builder::generate_mercury_full;
@@ -18,8 +18,8 @@ fn hx(s: &str) -> Vec<u8> {
 }
 
 fn base_meta(name: &str) -> KernelMeta {
-    // Minimalny ksztalt jak z sass_file::kernel_def_to_meta dla kernela
-    // bez parametrow; wypelniany dalej per test.
+    // Minimal shape as in sass_file::kernel_def_to_meta for a kernel
+    // without parameters; filled in further per test.
     KernelMeta {
         name: name.into(),
         regcount: 8,
@@ -82,8 +82,8 @@ fn base_meta(name: &str) -> KernelMeta {
 }
 
 /// mkvmem (t_tmem / tmem-via-UTCA): orig .nv.info._Z6t_tmemv = 128B.
-/// Zawiera po drodze bramki tmem (4f/41/51, 4a=0x80), 31 (VOTEU+REDUX),
-/// 29/28 (4 site'y CG, w tym nie-ghost 0x380), 1e (CALL).
+/// Carries the tmem gates en route (4f/41/51, 4a=0x80), 31 (VOTEU+REDUX),
+/// 29/28 (4 CG sites, incl. the non-ghost 0x380), 1e (CALL).
 #[test]
 fn mkvmem_info_k_byte_exact() {
     let mut m = base_meta("_Z6t_tmemv");
@@ -102,7 +102,7 @@ fn mkvmem_info_k_byte_exact() {
 }
 
 /// k_sync (czysty __syncthreads, 0 parametrow): 56B — zawiera 4c (NUM_BARRIERS
-/// = 1), brak 4f/41/51/31/29/28/1e/19/0a.
+/// = 1), no 4f/41/51/31/29/28/1e/19/0a.
 #[test]
 fn k_sync_info_k_byte_exact() {
     let mut m = base_meta("_Z6k_syncv");
@@ -117,7 +117,7 @@ fn k_sync_info_k_byte_exact() {
 }
 
 /// Dialekt UTCA (tmem): zwykly BRA w glownym torze DOSTAJE bit bitmapy,
-/// samo-petla spin (BRA L_x -> wlasny adres) NIE. Dowod: mkvmem dword1
+/// a spin self-loop (BRA L_x -> its own address) does NOT. Evidence: mkvmem dword1
 /// bitmapy 0x3fbf1fdf (bity slotow 48/51 ustawione, slot 62 pusty).
 #[test]
 fn utca_bra_bitmap_rule() {
@@ -139,7 +139,7 @@ fn utca_bra_bitmap_rule() {
     );
 }
 
-/// Bez dialektu UTCA zwykly BRA nadal bitu NIE dostaje (p_call & spolka
+/// Without the UTCA dialect a plain BRA still gets NO bit (p_call & co
 /// sa byte-exact od dawna; regresja zakazana).
 #[test]
 fn non_utca_bra_bitmap_unchanged() {

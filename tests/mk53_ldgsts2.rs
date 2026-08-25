@@ -1,5 +1,5 @@
-//! mk53: silnik rekordow 02 23 30 34 / 34 34 (LDGSTS desc-form pinned blobs).
-//! Wektory gold = doslowne bajty z korpusu sm_100 (syherk_559 = K1,
+//! mk53: the 02 23 30 34 / 34 34 record engine (LDGSTS desc-form pinned blobs).
+//! Gold vectors = literal bytes from the sm_100 corpus (syherk_559 = K1,
 //! cuds_symv annotated = SY) + gold m15_base (single-blob, mk14.3-compat).
 use cubit::mercury::{build_ldgsts2_blob, merc_ldgsts2_scan, Ldgsts2Blob};
 

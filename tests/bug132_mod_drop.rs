@@ -1,27 +1,27 @@
 //! BUG-132 (encoder/wrong-code): the lookup chain
 //! (fk,mg)->(key,mg)->(fk,"")->(key,"") when no row exists for the EXACT
-//! kombinacji modow spadal do grupy "" i CICHO gubil mody, emitujac INNA
-//! wariante. Repro pre-fix (HEAD e234970, tables/sm120.json):
-//!   `FADD.RZ.SAT R1, R2, R3 ;`      -> slowo z bitami [80:78]=000 (plain RN!)
-//!   `FADD.FTZ.RZ.SAT R1, R2, R3 ;`  -> j.w. (FTZ tez zgubione)
-//! (wiersze FADD_R_R_R: "", FTZ, RZ, SAT, FTZ,RZ — kombinacji z SAT+rounding
-//! brak). Orodek "cichy albo glosny": slowo dekodowalo sie jako FADD plain,
-//! czyli re-asm renderu zwracal inny wariant niz autor napisal (129/130/131
-//! doktryna: bledy maja byc glosne).
+//! mod combination fell to the "" group and SILENTLY dropped mods, emitting a DIFFERENT
+//! variant. Pre-fix repro (HEAD e234970, tables/sm120.json):
+//!   `FADD.RZ.SAT R1, R2, R3 ;`      -> a word with bits [80:78]=000 (plain RN!)
+//!   `FADD.FTZ.RZ.SAT R1, R2, R3 ;`  -> ditto (FTZ lost too)
+//! (the FADD_R_R_R rows: "", FTZ, RZ, SAT, FTZ,RZ — no SAT+rounding
+//! combination). The "silent or loud" verdict: the word decoded as plain FADD,
+//! so re-asm of the render returned a different variant than the author wrote (the
+//! 129/130/131 doctrine: errors must be loud).
 //!
-//! Fix (encoder.rs): po wyborze wiersza, przy wybranej grupie != zadanej,
-//! weryfikacja decode-back (fail-closed): slowo dekodowane ta sama tabela
-//! musi ROSZCIC kazdy zadany mod (zbior roszczen = mody wbudowane w InsKey
-//! z matchowanego wiersza UNION mod-group wiersza; dwie ery harvestu).
-//! Regula superset: wiersz moze roszcic WIECEJ niz zadano (jedyna ukryta
-//! forma, np. LDGSTS "128,E" -> wiersz "128,BYPASS,E,LTC128B"), nigdy
-//! mniej. Load-bearing idiomy (dowiedzione bajtowymi roundtripami korpusu)
-//! przechodza, bo ich slowa dekoduja sie Z modami:
+//! Fix (encoder.rs): after the row pick, if the chosen group != the requested one,
+//! decode-back verification (fail-closed): the word decoded by the same table
+//! must CLAIM every requested mod (the claim set = mods baked into the InsKey
+//! of the matched row UNION the row's mod group; two harvest eras).
+//! Superset rule: a row may claim MORE than requested (the only hidden
+//! form, e.g. LDGSTS "128,E" -> the "128,BYPASS,E,LTC128B" row), never
+//! less. Load-bearing idioms (proven by corpus byte round-trips)
+//! pass because their words decode WITH mods:
 //!   IMAD.U32 _UR (sm120+sm103a), BRXU.U / LOP3.LUT.PAND / IADD3.X.RCNEG /
-//!   BAR.SYNC.DEFER_BLOCKING (tb_i82p3; tam mody siedza w nazwie klucza).
+//!   BAR.SYNC.DEFER_BLOCKING (tb_i82p3; there the mods live in the key name).
 //!
 //! Kontrola pre-fix (HEAD e234970, ta sama binarka/testy): t132_1 i t132_5
-//! FAIL (encode OK zamiast bledu — cichy drop; sweep: 3/3 cicho), t132_2,
+//! FAIL (encode OK instead of an error — silent drop; sweep: 3/3 silent), t132_2,
 //! t132_3, t132_4 PASS (inwarianty niezalezne od fixa).
 
 use cubit::decoder::DecodeIndex;
@@ -37,7 +37,7 @@ fn enc(t: &IsaTable, line: &str) -> anyhow::Result<u128> {
     encode_instruction(&ins, t)
 }
 
-/// t132_1: kombinacje modow bez wiersza musza FAILOWAC glosno (nie cicho
+/// t132_1: row-less mod combinations must FAIL loudly (not silently
 /// zakodowac innej wariancie). Komunikat nazywa klase + zgubione mody.
 #[test]
 fn t132_1_uncovered_combo_fails_loud() {
@@ -69,7 +69,7 @@ fn t132_2_load_bearing_ur_idiom_survives() {
     }
 }
 
-/// t132_3: regula superset: jedyna forma (tu: LDGSTS.128 z pelna polityka
+/// t132_3: the superset rule: the only form (here: LDGSTS.128 with full policy
 /// cache w and_base) moze roszcic WIECEJ niz zadano — encode przechodzi.
 #[test]
 fn t132_3_superset_policy_row_passes() {
@@ -97,15 +97,15 @@ fn t132_4_exact_combos_byte_exact() {
 }
 
 /// t132_5: sweep — kazda kombinacja {FTZ?, RM/RP/RZ, SAT} FADD_R_R_R, ktora
-/// NIE ma wiersza (a pelna tabela ja potwierdza), odrzuca glosno; kazda
+/// has NO row (and the full table confirms as much), it rejects loudly; every
 /// ktora ma wiersz, koduje z zachowanymi modami (decode-back superset).
 /// RN swiadomie POZA kratka: RN = implicit default rounding, zaden wiersz
-/// go nie modeluje, wiec jawne `.RN` od teraz tez odrzuca glosno (dowod na
-/// sztywnosc reguly; nvdisasm nigdy nie drukuje `.RN`, korpus rt98 czysty).
+/// does not model it, so an explicit `.RN` is now loudly rejected too (evidence of
+/// rule stiffness; nvdisasm never prints `.RN`, the rt98 corpus is clean).
 #[test]
 fn t132_5_combo_sweep_matches_table_coverage() {
     let t = t120();
-    // RN jest jawne tylko w tekscie autorskim; post-fix = glosny blad.
+    // RN is explicit only in authored text; post-fix = a loud error.
     let e = enc(&t, "FADD.RN R1, R2, R3 ;").expect_err("explicit .RN must refuse");
     assert!(format!("{e:#}").contains("silent modifier drop"));
     let covered: std::collections::BTreeSet<String> = t.entries["FADD_R_R_R"]
@@ -136,7 +136,7 @@ fn t132_5_combo_sweep_matches_table_coverage() {
                         bailed += 1;
                         assert!(format!("{e:#}").contains("silent modifier drop"),
                                 "{line:?}: unexpected error: {e:#}");
-                        // brak wiersza na kombinacje = tabela sama to potwierdza
+                        // no row for the combination = the table itself confirms it
                         let mut key = mods.split('.').filter(|m| !m.is_empty())
                             .collect::<Vec<_>>();
                         key.sort_unstable();
@@ -151,13 +151,13 @@ fn t132_5_combo_sweep_matches_table_coverage() {
 }
 
 /// t132_6: tolerowane idiomy (allowlista, kazdy z dowodem bajtowym/stabilnosci
-/// pre-fix) NIE moga zostac zlamane przez fail-closed check: F2FP wildcard
+/// pre-fix) must NOT be broken by the fail-closed check: the F2FP wildcard
 /// (sm120, qpack production) i REDUX.ADD.U32 (sm103a, bug080 t5) koduja Ok.
-/// Pilnuje tez, ze allowlista NIE rozmywa sie na inne mody (patrz t132_1/5).
+/// Also guards that the allowlist does NOT blur onto other mods (see t132_1/5).
 /// NOTE BUG-135: `LDC.128 R-form` zostal WYLACZONY z allowlisty — dawniej
 /// tolerowany "byte-exact pin" okazal sie cichym width-dropem do plain LDC
-/// (nvdisasm: R-domain width 2/3 = INVALID6/7; zero takich slow w korpusie
-/// vendora). Autorski `LDC.128 R...` teraz BAILUJE (piny w bug135).
+/// (nvdisasm: R-domain width 2/3 = INVALID6/7; zero such words in the
+/// vendor corpus). Authored `LDC.128 R...` now BAILS (pins in bug135).
 #[test]
 fn t132_6_tolerated_idioms_pinned() {
     enc(&t120(), "F2FP.SATFINITE.E4M3.F32.PACK_AB_MERGE_C R26, R14, R26 ;")

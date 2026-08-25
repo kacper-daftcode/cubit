@@ -1,6 +1,6 @@
-//! mk50 (2026-08-13): rekordy edge 02 22 1e 32 dla LDG z desc[URm][Ry.64(+off)]
-//! w kernelach *annotated_ptr* (siostra mk42 02223232 dla LD-desc).
-//! Piny z korpusu sm_100 (merclab/mk50 c1..c10: 2986 rekordow, 72/72 kerneli
+//! mk50 (2026-08-13): 02 22 1e 32 edge records for LDG with desc[URm][Ry.64(+off)]
+//! in *annotated_ptr* kernels (the mk42 02223232 sibling for LD desc).
+//! Pins from the sm_100 corpus (merclab/mk50 c1..c10: 2986 records, 72/72 kernels
 //! EXACT + porzadek lane-rosnaco; zero falszywych bramkowan poza
 //! libcublas.so.72). Bramka: nazwa z "annotated_ptr" + desc-UR wylacznie
 //! pod lane'y bazowe LDG (wspoldzielenie ze STG/LDGSTS/REDG wylacza UR).
@@ -114,11 +114,11 @@ fn mk50_bramka_nazwa_i_wspoldzielenie_ur() {
         mk_ins(3, "LDG.E.128", "LDG.E.128 R12, desc[UR10][R12.64] ;", None),
         mk_ins(5, "LDG.E.64", "LDG.E.64 R18, desc[UR6][R16.64] ;", None),
         mk_ins(7, "STG.E", "STG.E desc[UR6][R20.64], R22 ;", None), // UR6 dzielony!
-        // .U16 — korpusowo bez rekordow
+        // .U16 — corpus-recordless
         mk_ins(9, "LDG.E.U16", "LDG.E.U16 R40, desc[UR10][R40.64] ;", None),
         mk_ins(11, "EXIT", "EXIT ;", None),
     ];
-    // jadro annotated_ptr: UR10 (ldg-only) -> rekordy; UR6 dzielony ze STG -> brak
+    // annotated_ptr kernel: UR10 (ldg-only) -> records; UR6 shared with STG -> none
     let out = merc_edge_ldg_scan("kern_annotated_ptr_x", &ins);
     assert_eq!(out.len(), 1);
     assert_eq!(out[0].0, 3); // lane 3 (adres 0x30/16)

@@ -1,11 +1,11 @@
-//! mk61 (2026-08-13): mini 42254214 — DOMKNIECIE klasy-2 (mk52-park) +
-//! scisla klasa-1. Reguly korpusowe sm_100 (merclab/mk61 c1..c22):
-//!  * klasa-1: [UR|URZ, UPn, UR|URZ, UR|URZ, imm] dokladnie-5 tokenow
-//!    (negacje UR dozwolone; gbmv 'UR24, UP0, UR8, 0xffffffe0, 0x5' NIE nosi
-//!    — imm w slocie srcB);
-//!  * klasa-2: [UR|URZ, UR|URZ, UR|URZ, imm<=15] 4 tokeny, bez .HI/.X
-//!    (imma '@!UP0 ULEA UR11, UR11, UR14, 0x3' NOSI — guard nie wylacza;
-//!    imm>15 (0x18/0x1e) NIE nosi — park 2 kerneli cusparse-cub 838).
+//! mk61 (2026-08-13): the 42254214 mini — class-2 CLOSED (mk52 park) +
+//! a strict class-1. sm_100 corpus rules (merclab/mk61 c1..c22):
+//!  * class-1: [UR|URZ, UPn, UR|URZ, UR|URZ, imm] exactly-5 tokens
+//!    (UR negations allowed; gbmv 'UR24, UP0, UR8, 0xffffffe0, 0x5' does NOT carry
+//!    — imm in the srcB slot);
+//!  * class-2: [UR|URZ, UR|URZ, UR|URZ, imm<=15] 4 tokens, no .HI/.X
+//!    (imma '@!UP0 ULEA UR11, UR11, UR14, 0x3' DOES carry — a guard does not exclude;
+//!    imm>15 (0x18/0x1e) does NOT carry — the 2-kernel cusparse-cub 838 park).
 //! EXACT: 14117/14119 kerneli count + 9556/9556 okien porzadku; porownanie
 //! ze 138 rozwiazanymi kernelami atrybucji (c8): 138/138 zgodnych lane-setow.
 
@@ -87,7 +87,7 @@ fn mk61_skan_klasa1_scisla() {
 fn mk61_skan_klasa2() {
     let g = Some(Guard { pred: 0, negated: true, uniform: true });
     let ins = vec![
-        // trsm upper: plain all-UR imm 5 -> NOSI; HI bez rekordu
+        // trsm upper: plain all-UR imm 5 -> carries; HI recordless
         mk_ins(1, "ULEA.HI", "ULEA.HI UR4, UR4, UR14, URZ, 0x5 ;", None),
         mk_ins(2, "ULEA", "ULEA UR5, UR7, UR6, 0x5 ;", None),
         // trsm Li1: negacja srcB -> NOSI
@@ -119,7 +119,7 @@ fn mk61_rec_helper_granice() {
 #[test]
 fn mk61_emisja_kolejnosc_up_ur() {
     let mut m = meta_with_load();
-    // klasa-1 na lane 6, klasa-2 na lane 3 i 9: kolejnosc po lane
+    // class-1 on lane 6, class-2 on lanes 3 and 9: order by lane
     m.merc_ulea_upco = vec![6, 3, 9];
     let o = ops(12);
     let out = generate_mercury_full(&dummy_code(12), 0x0c, Some(&o), &m, false);

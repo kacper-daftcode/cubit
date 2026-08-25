@@ -2,32 +2,32 @@
 //! render printed the RAW offset field (e.g. "0x5") instead of the resolved partner
 //! vendor target (nvdisasm: `\((.L_x_N)`) — text->word did not round-trip.
 //!
-//! Prawda danych (pelny harvest 2145 cubinow / 33,258,037 instr, 262,879 slow
-//! WARPSYNC, nvdisasm 13.3 -hex + L-label resolution):
-//!  * formy: WARPSYNC.ALL (30,871), WARPSYNC Rn (1,032), WARPSYNC.EXCLUSIVE Rn
+//! Data truth (full harvest of 2145 cubins / 33,258,037 instrs, 262,879 WARPSYNC
+//! words, nvdisasm 13.3 -hex + L-label resolution):
+//!  * forms: WARPSYNC.ALL (30,871), WARPSYNC Rn (1,032), WARPSYNC.EXCLUSIVE Rn
 //!    (32), WARPSYNC.COLLECTIVE Rn,(L) (226,828), WARPSYNC.COLLECTIVE.ALL (L)
-//!    (4,116).  ROZDZIELCZOSC: bit9=1 <=> operand reg; bit11=1 <=> .ALL.
-//!  * geometria collective: PER-SAMPLE target == addr + 16 + (v<<4), v =
-//!    [23:18]|[43:34]<<6 (230,944/230,944, zero wyjatkow; korpus ma vhi=0
-//!    wszedzie i v6 in {2,3} reg-form / {3,5} ALL-form).
-//!  * dotychczasowe fity byly census-EXACT (and_base/vmask), wadliwe byly
-//!    `fields`: WARPSYNC_IIALL::"ALL,COLLECTIVE" imm 32b@18 (pole oblecialo
-//!    reg/ctrl-bity; encode pisala surowy operand ponad REL16 -> smieci,
-//!    mk33 failures_run.jsonl muestra to juz w 2026-08-13 tekstem "0x5910"),
-//!    WARPSYNC_R_II::"COLLECTIVE" imm 2b@18 (pod-wymiar vs REL16-window).
-//!  * printer trigger `key.starts_with("WARPSYNC_R_")` nie obejmowal formy
-//!    bez-regestrowej (WARPSYNC_II) -> render "0x5", czyli surowe pole.
+//!    (4,116).  DISCRIMINATORS: bit9=1 <=> reg operand; bit11=1 <=> .ALL.
+//!  * collective geometry: the PER-SAMPLE target == addr + 16 + (v<<4), v =
+//!    [23:18]|[43:34]<<6 (230,944/230,944, zero exceptions; the corpus has vhi=0
+//!    everywhere and v6 in {2,3} for the reg form / {3,5} for the ALL form).
+//!  * the previous fits were census-EXACT (and_base/vmask); what was wrong was
+//!    `fields`: WARPSYNC_IIALL::"ALL,COLLECTIVE" imm 32b (the field wrapped around
+//!    reg/ctrl bits; encode wrote the raw operand over REL16 -> garbage,
+//!    mk33 failures_run.jsonl already shows this on 2026-08-13 as the text "0x5910"),
+//!    WARPSYNC_R_II::"COLLECTIVE" imm 2b (under-sized vs the REL16 window).
+//!  * the printer trigger `key.starts_with("WARPSYNC_R_")` did not cover the
+//!    register-less form (WARPSYNC_II) -> render "0x5", i.e. the raw field.
 //!
 //! Fix (data-level + trigger):
-//!  * tables/sm103a.json: oba wiersze collective imm -> 6b@18 (REL16 low
-//!    window; enkoder i tak nadpisuje wszystko przez apply_branch_encoding;
-//!    field-exclusion w matcherze zamyka dziure v=5 reg-form na decode).
-//!  * src/printer.rs: trigger resolved = opcode WARPSYNC && mod COLLECTIVE
-//!    && operand II (obejmuje R_II i II niezaleznie od nazwy klucza).
-//!  * Pisownia modow zostaje kanoniczna "ALL.COLLECTIVE" (mk66 dokumentuje;
-//!    nvdis drukuje "COLLECTIVE.ALL" — znana, swiadoma delta render-parity).
+//!  * tables/sm103a.json: both collective rows' imm -> 6b (REL16 low
+//!    window; the encoder rewrites everything via apply_branch_encoding anyway;
+//!    the field exclusion in the matcher closes the v=5 reg-form hole on decode).
+//!  * src/printer.rs: resolved trigger = opcode WARPSYNC && mod COLLECTIVE
+//!    && operand II (covers R_II and II regardless of the key name).
+//!  * The mod spelling stays canonical "ALL.COLLECTIVE" (mk66 documents it;
+//!    nvdis prints "COLLECTIVE.ALL" — a known, deliberate render-parity delta).
 //!
-//! Piny (1)(2)(4) FAIL przed fixem, PASS po; (3)(5) kotwice.
+//! Pins (1)(2)(4) FAIL before the fix, PASS after; (3)(5) anchors.
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
@@ -71,8 +71,8 @@ fn enc103(text: &str, addr: u32) -> u128 {
     encode_instruction(&insn, &t103()).unwrap_or_else(|e| panic!("encode {text:?}: {e}"))
 }
 
-/// t116_1: forma bez-rejestrowa (WARPSYNC_II/"ALL,COLLECTIVE") renderuje
-/// RESOLVED target, nie surowe pole "0x5".
+/// t116_1: the register-less form (WARPSYNC_II/"ALL,COLLECTIVE") renders the
+/// RESOLVED target, not the raw field "0x5".
 #[test]
 fn t116_1_all_form_renders_resolved_target() {
     let s = dec103(W_ALL, 0x4360);
@@ -92,14 +92,14 @@ fn t116_2_all_form_encode_byte_exact_masked() {
 }
 
 /// t116_3: kotwice form — reg v=3, plain R32, EXCLUSIVE R16, ALL-plain
-/// dekoduja bez zmian (zachowanie pre==post).
+/// decode unchanged (pre==post behavior).
 #[test]
 fn t116_3_plain_and_reg_forms_unchanged() {
     assert_eq!(dec103(W_REG_V3, 0x39e0), "WARPSYNC.COLLECTIVE R40, 0x3a20");
     assert_eq!(dec103(W_R32, 0x4d0), "WARPSYNC R32");
     assert_eq!(dec103(W_EXCL, 0x8d50), "WARPSYNC.EXCLUSIVE R16");
     assert_eq!(dec103(W_ALL_PLAIN, 0xf10), "WARPSYNC.ALL");
-    // i re-encode byte-exact (masked) dla form bez targetu:
+    // and re-encode byte-exact (masked) for the target-less forms:
     for (w, txt, addr) in [
         (W_R32, "WARPSYNC R32 ;", 0x4d0u32),
         (W_EXCL, "WARPSYNC.EXCLUSIVE R16", 0x8d50),
@@ -109,9 +109,9 @@ fn t116_3_plain_and_reg_forms_unchanged() {
     }
 }
 
-/// t116_4: roundtrip decode->text->encode na formach collective jest
+/// t116_4: the decode->text->encode round-trip on the collective forms is
 /// byte-exact (masked) — jadro "lossy" z rejestru (pre-fix: text niosl
-/// surowy field, encode pisal go ponad REL16 => inne slowo).
+/// the raw field; encode wrote it over REL16 => a different word).
 #[test]
 fn t116_4_collective_roundtrip_byte_exact() {
     for (w, addr) in [(W_ALL, 0x4360u32), (W_REG_V3, 0x39e0)] {
@@ -122,9 +122,9 @@ fn t116_4_collective_roundtrip_byte_exact() {
 }
 
 /// t116_5: rozszerzenie ponad korpus (REL16-doctrine): reg-form z v=5
-/// (bit20) dekoduje do resolved targetu, a nie __raw__. Pre-fix: strict/
-/// relaxed/BROAD nie matchowaly (and_base wypiekalo bit19=1, field 2b@18
-/// nie przykrywal bit20).
+/// (bit20) decodes to the resolved target, not __raw__. Pre-fix: strict/
+/// relaxed/BROAD did not match (and_base baked bit19=1, the 2b field
+/// did not cover bit20).
 #[test]
 fn t116_5_reg_form_v5_beyond_corpus_resolves() {
     let s = dec103(W_REG_V5_SYNTH, 0x39e0);
@@ -133,7 +133,7 @@ fn t116_5_reg_form_v5_beyond_corpus_resolves() {
     assert_eq!(c & NOSCHED, W_REG_V5_SYNTH & NOSCHED, "v=5 roundtrip: {s}");
 }
 
-/// t116_6: vendor-spelling + label form e2e (strict file-parse, jak bug091):
+/// t116_6: vendor spelling + label form e2e (strict file-parse, like bug091):
 /// "COLLECTIVE.ALL" normalizuje do grupy "ALL,COLLECTIVE"; `(.L_x_1) ->
 /// BranchTarget; encode na korpusowych koordynatach = vendor slowo (masked).
 #[test]
@@ -166,9 +166,9 @@ fn t116_6_vendor_spelling_and_label_flow() {
     assert_eq!(cw & NOSCHED, W_ALL & NOSCHED, "numeric target");
 }
 
-/// t116_7 (harness, gated): pelny census 262,879 slow WARPSYNC z korpusu
+/// t116_7 (harness, gated): full census of 262,879 WARPSYNC words from the corpus
 /// (CUBIT_WS_CENSUS -> work/f2-115/ws_words.json, JSON array) — decode kazdego
-/// slowa + re-encode renderingu masked-identyczny; zero __raw__. SKIP gdy brak env.
+/// words + render re-encode masked-identical; zero __raw__. SKIP when env absent.
 
 #[test]
 fn t116_7_corpus_census_gated() {

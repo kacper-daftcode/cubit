@@ -1,17 +1,17 @@
-//! BUG-061 (F2Q, follow-up z raportu 055): lane-anchored capmerc records
-//! 024d (REDG desc) / 024e (ATOM-family desc) sa liczone przez feature-scan
-//! dla kazdego lane'a atomow, ale EMITOWANE tylko przez sciezke "laned"
-//! (param_loads niepuste). Kernel zero-param bez loadow wpada w sciezke
-//! zero-param/legacy i GUBI rekordy cicho (repro: sekcja .nv.capmerc bez
-//! bajtow 02 4d 24 32 mimo desc[UR4] atoma w .text).
-//! Gold nvcc sm_103a (2026-08-21, work/f2-059 zp/zp3): zero-paramowe kernele
-//! nvcc ZAWSZE laduja lane'y (envreg/adresy) i rekordy 024d/024e sa obecne —
-//! ultra-minimalny ksztalt to kategoria recznie pisanych kerneli. Brak
-//! goldowej reguly pozycji dla zero-param => fix = WARN (widocznosc), nie
-//! fabrykacja rekordow bez oraculum.
-//! Fixtures 2026-08-22 (BUG-080): atomy przelaczone na produkcyjne formy era
-//! .EL (guarded non-EL atomy sa silicon-broken na sm_103a i encoder ich
-//! nie skleja; rekordy 024d/024e pokrywaja tez .EL -- era-korpus).
+//! BUG-061 (F2Q, follow-up from the 055 report): lane-anchored capmerc records
+//! 024d (REDG desc) / 024e (ATOM-family desc) are counted by the feature scan
+//! for every atomic lane, but EMITTED only on the "laned" path
+//! (non-empty param_loads). A zero-param kernel without loads falls onto the
+//! zero-param/legacy path and DROPS the records silently (repro: an .nv.capmerc
+//! section without the 02 4d 24 32 bytes despite a desc[UR4] atom in .text).
+//! Gold nvcc sm_103a (2026-08-21, work/f2-059 zp/zp3): zero-param nvcc
+//! kernels ALWAYS load lanes (envreg/addresses), and the 024d/024e records are present —
+//! the ultra-minimal shape belongs to hand-written kernels. No
+//! golden position rule for zero-param => fix = WARN (visibility), not
+//! fabricating records without an oracle.
+//! Fixtures 2026-08-22 (BUG-080): atoms switched to the production-era
+//! .EL forms (guarded non-EL atoms are silicon-broken on sm_103a and the encoder
+//! won't glue them; the 024d/024e records cover .EL too -- era corpus).
 use std::process::Command;
 
 fn run_asm(sass: &str, tag: &str) -> (std::process::Output, std::path::PathBuf) {

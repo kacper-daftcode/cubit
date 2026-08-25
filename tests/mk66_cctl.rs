@@ -1,11 +1,11 @@
-//! mk66 (2026-08-13): regula rekordow CCTL.IVALL (dekod merclab/mk66 c3..c22,
-//! EXACT 1931/1931 kerneli z kontekstem na l2):
-//!  * rekord TYLKO gdy [i-2]==ERRBAR && [i-1]==CGAERRBAR (ctx);
-//!    nie-ctx (petle LDG;CCTL;YIELD) nigdy — find_colors/xmma.
-//!  * b1 = 0x04 gdy kernel ma LDGSTS*, inaczej 0x02 (separator 279/1652).
-//!  * b8 = 0x0d gdy b1==0x04 i [i-3]==MEMBAR.ALL.GPU, inaczej 0x0c
-//!    (imma_emu49/51 cublasLt.548; MEMBAR.SC.GPU daje 0x0c).
-//!  * CCTL.E.RML2 ma wlasne mini 410e020c (mk13) — poza ta rodzina.
+//! mk66 (2026-08-13): the CCTL.IVALL record rule (merclab/mk66 c3..c22 decode,
+//! EXACT 1931/1931 kernels with context on l2):
+//!  * a record ONLY when [i-2]==ERRBAR && [i-1]==CGAERRBAR (ctx);
+//!    non-ctx (LDG;CCTL;YIELD loops) never — find_colors/xmma.
+//!  * b1 = 0x04 when the kernel has LDGSTS*, else 0x02 (the 279/1652 separator).
+//!  * b8 = 0x0d when b1==0x04 and [i-3]==MEMBAR.ALL.GPU, else 0x0c
+//!    (imma_emu49/51 cublasLt.548; MEMBAR.SC.GPU gives 0x0c).
+//!  * CCTL.E.RML2 has its own 410e020c mini (mk13) — outside this family.
 
 use cubit::eiattr::{KernelMeta, KernelParam};
 use cubit::elf_builder::generate_mercury_full;
@@ -68,7 +68,7 @@ fn mk66_ctx_04_z_ldgsts() {
     ]);
     assert_eq!(r.len(), 1);
     assert_eq!(r[0][1], 0x04);
-    // i-3 = LDC (nie MEMBAR.ALL.GPU) -> 0x0c
+    // i-3 = LDC (not MEMBAR.ALL.GPU) -> 0x0c
     assert_eq!(r[0][8], 0x0c);
 }
 
@@ -111,7 +111,7 @@ fn mk66_bez_ctx_brak_rekordu() {
         "LDG.E.STRONG.GPU", "CCTL.IVALL", "YIELD", "NOP", "EXIT",
     ]);
     assert!(r.is_empty());
-    // pomieszane: 1 ctx + 1 nie-ctx -> dokladnie 1 rekord.
+    // mixed: 1 ctx + 1 non-ctx -> exactly 1 record.
     let r2 = run(&[
         "LDG.E.STRONG.GPU", "CCTL.IVALL", "YIELD", "ERRBAR", "CGAERRBAR",
         "CCTL.IVALL", "EXIT",

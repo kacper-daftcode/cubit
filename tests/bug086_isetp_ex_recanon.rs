@@ -114,11 +114,11 @@ fn t086_ex_family_keys_present_sm120() {
 
 #[test]
 fn t086_smallimm_subform_closed() {
-    // Era pierwotnie parkowane jako single-anchor residuum (imm8@40 subform);
-    // domkniete po 2. kotwicy (R2 = GE.U32.AND.EX 0x100): TRIGGEREM byl brak
-    // schematu pol predykatow (tok5 3b@87) -> slowa z realnym predykatem
-    // zrodla bool nie strict-matchowaly i przegrywaly z PLOP3. Normalizacja
-    // szablonu (157 mg) + 2 nowe mg (AND,EX,GE[,U32] na II-EX).
+    // Initially parked as a single-anchor residual (the imm8 subform);
+    // closed after the 2nd anchor (R2 = GE.U32.AND.EX 0x100): the TRIGGER was the missing
+    // predicate-field schema (tok5 3b) -> words with a real bool-source predicate
+    // did not strict-match and lost to PLOP3. Template normalization
+    // (157 mg) + 2 new mg (AND,EX,GE[,U32] on II-EX).
     let a = t103(); let b = t120();
     for t in [&a, &b] {
         let idx = DecodeIndex::build(t);

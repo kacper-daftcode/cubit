@@ -1,8 +1,8 @@
 //! mk48: rekordy 024d{0e|24|2e}32 (32B): host = lane REDG (domkniecie swapu
 //! 024d0e32<->024d2432 z atlasu mk46; +307 orig-only 024d2e32 bylo niewidoczne).
 //!
-//! Korpus sm_100 (676 plikow): parowanie rekord<->lane po kluczu
-//! (addr,descUR,data,imm) multiset-EXACT; pelna zgodnosc bajtowa
+//! sm_100 corpus (676 files): record<->lane pairing by the
+//! (addr,descUR,data,imm) key, multiset-EXACT; full byte agreement
 //! 22342/22342 rekordow, 1322/1335 kerneli (13 = forma non-desc S32,
 //! tez obsluzona). Porzadek strumienia == lane-asc (72/72 grup remisowe
 //! MIN/MAX o identycznych slotach). Tabela klas:
@@ -39,7 +39,7 @@ fn float_forms() {
             .hexify(),
         "024d0e32f80080440300000082080a00000203400c0000000000000004000000"
     );
-    // F64.RN bez offsetu (cublas.72 cuds_symv)
+    // F64.RN without an offset (cublas.72 cuds_symv)
     assert_eq!(
         merc_redg_record("REDG.E.ADD.F64.RN.STRONG.GPU desc[UR12][R10.64], R28 ;", 0xf8)
             .unwrap()
@@ -57,7 +57,7 @@ fn float_forms() {
 
 #[test]
 fn int_desc_forms() {
-    // ADD domyslny, bez guarda (cusolver.213)
+    // default ADD, unguarded (cusolver.213)
     assert_eq!(
         merc_redg_record("REDG.E.ADD.STRONG.GPU desc[UR6][R2.64], R7 ;", 0xf8)
             .unwrap()
@@ -139,7 +139,7 @@ fn non_desc_s32() {
             .hexify(),
         "024d2e32f80000a20100000002010a0000c00000000000000000000000000000"
     );
-    // drugi wariant z korpusu: [R16], R3
+    // the second variant from the corpus: [R16], R3
     assert_eq!(
         merc_redg_record("REDG.E.ADD.S32.STRONG.GPU [R16], R3 ;", 0xf8)
             .unwrap()
@@ -150,9 +150,9 @@ fn non_desc_s32() {
 
 #[test]
 fn rejections() {
-    // nie-REDG
+    // non-REDG
     assert!(merc_redg_record("ATOMG.E.ADD.STRONG.GPU desc[UR6][R2.64], R5", 0xf8).is_none());
-    // REDG z danymi RZ: forma nieobserwowana w korpusie
+    // REDG with an RZ datum: form unobserved in the corpus
     assert!(merc_redg_record("REDG.E.ADD.STRONG.GPU desc[UR6][R2.64], RZ", 0xf8).is_none());
     // float non-desc: forma nieobserwowana
     assert!(merc_redg_record("REDG.E.ADD.F32.FTZ.RN.STRONG.GPU [R4], R3", 0xf8).is_none());

@@ -1,7 +1,7 @@
 //! mk35 (2026-08-11): regresje z zamkniecia wide-sweep (198 -> 214/214):
 //! siatka rol desc = (dst-load-reg<<6)|C (C = drabinka szerokosci),
 //! zachowanie REDUX/CREDUX, ISETP-UR mini, guardy BAR per-lane,
-//! brak fabrykacji rekordow gdy kernel nie laduje parametrow,
+//! no record fabrication when the kernel loads no parameters,
 //! rekord REDG-desc-form (024d2432), STG.128 b6=0x60+flaga dreg.
 
 use cubit::eiattr::{KernelMeta, KernelParam};
@@ -29,7 +29,7 @@ fn meta_with_loads(loads: Vec<(u32, u32, u8, u8, u8)>, dregs: Vec<u8>) -> Kernel
 
 fn ops(n: usize) -> Vec<String> {
     let mut v = vec!["NOP".to_string(); n];
-    v[n - 1] = "EXIT".to_string(); // bitmapa musi miec >=1 bit (nvcc tak ma)
+    v[n - 1] = "EXIT".to_string(); // the bitmap needs >=1 bit (that's how nvcc has it)
     v
 }
 
@@ -37,7 +37,7 @@ fn ops(n: usize) -> Vec<String> {
 fn desc_role(cm: &CapMerc) -> (u8, u8) {
     for r in &cm.records {
         if r.tag[1] == 0x22 && (r.tag[2] == 0x0e || r.tag[2] == 0x08) {
-            return (r.payload[6], r.payload[7]); // payload = bez tagu(4B): b10=+[6]
+            return (r.payload[6], r.payload[7]); // payload = without the tag (4B): b10=+[6]
         }
     }
     panic!("no desc record");
@@ -65,7 +65,7 @@ fn mk35_role_grid_unif16() {
 
 #[test]
 fn mk35_redux_bare_vs_typed() {
-    // goly REDUX: bit w bitmapie, brak rekordu 0132.
+    // bare REDUX: a bitmap bit, no 0132 record.
     let mut o = ops(4);
     o[1] = "LDC".into();
     o[2] = "REDUX".into();
@@ -95,10 +95,10 @@ fn mk35_credux_record_payload() {
         .find(|r| r.tag[..4] == [0x01, 0x32, 0x10, 0x0a])
         .expect("rekord 0132 obecny");
     // at_min: 0132 100a f8 00 51 00 00 00 41 01 00 01 ...
-    assert_eq!(r.payload[2], 0x51); // b6 = 51 dla CREDUX
+    assert_eq!(r.payload[2], 0x51); // b6 = 51 for CREDUX
     assert_eq!(r.payload[6], 0x41); // dst UR5 grid (5<<6)|1
     assert_eq!(r.payload[7], 0x01);
-    assert_eq!(r.payload[9], 0x01); // b13 = 01 dla CREDUX
+    assert_eq!(r.payload[9], 0x01); // b13 = 01 for CREDUX
 }
 
 #[test]
@@ -106,11 +106,11 @@ fn mk35_bar_guard_ladder() {
     let mut o = ops(8);
     o[1] = "LDC".into();
     o[3] = "BAR.SYNC".into(); // @P
-    o[4] = "BAR.SYNC".into(); // bez guarda
+    o[4] = "BAR.SYNC".into(); // no guard
     let mut m = meta_with_loads(vec![(1, 0, 0, 8, 0xf8)], vec![2]);
     m.num_barriers = 2;
     m.merc_bar_pos = vec![3, 4];
-    m.merc_bar_guard = vec![0x00u8, 0xf8]; // mk41: pelne kody
+    m.merc_bar_guard = vec![0x00u8, 0xf8]; // mk41: full codes
     let out = generate_mercury_full(&dummy_code(8), 0x0c, Some(&o), &m, false);
     let cm = CapMerc::parse(&out, true).unwrap();
     let bars: Vec<&cubit::mercury::Record> = cm
@@ -141,8 +141,8 @@ fn mk35_isetp_ur_mini_no_bit() {
 
 #[test]
 fn mk35_no_loads_no_records_sm103() {
-    // div3/v_scalar/v_gconst: parametry zadeklarowane, ale nic ich nie
-    // laduje -> nvcc nie emituje nic poza prologiem (era-103).
+    // div3/v_scalar/v_gconst: parameters declared, but nothing
+    // loads them -> nvcc emits nothing past the prolog (era-103).
     let o = vec!["LDC".to_string(), "EXIT".to_string(), "BRA".to_string()];
     let m = KernelMeta {
         name: "t".into(),
