@@ -1,8 +1,8 @@
 //! BUG-041 (rejestr sm120: 041_atomg_el_desc_u32.md, CONFIRMED krzem+sanitizer
-//! i119): na bbf7412 `ATOMG.E.ADD.EL.*` z tekstem desc[UR4][Rx.64] bylo CICHO
+//! i119): na 6d63ef37 `ATOMG.E.ADD.EL.*` z tekstem desc[UR4][Rx.64] bylo CICHO
 //! kodowane forma [Rx.U32+UR4] (32-bit) -> krzem liczyl adres zext(Rx_lo) ->
 //! CUDA_ERROR_ILLEGAL_ADDRESS on the first DP hit.
-//! State at HEAD: the BUG-038/038a chain (9c12fb6, strict ATOM/REDG entries) +
+//! State at HEAD: the BUG-038/038a chain (e2298cc9, strict ATOM/REDG entries) +
 //! BUG-F2-043 fail-closed already closes this class at the source — .EL + desc[.64]
 //! gets "no operand-compatible table entry", while the nvcc form (without .EL)
 //! encodes desc[.64] byte-exact. This test PINS both sides of the gate so that

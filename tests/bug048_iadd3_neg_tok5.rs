@@ -4,7 +4,7 @@
 //! the "X" mod group of the `IADD3_R_P_P_R_R_R_P_P` row (it had `inv` but no
 //! `neg`; the duplicated `IADD3.X_R_P_P_R_R_R_P_P` row has it, but the matcher
 //! picks IADD3_R_P_P...). Effect: `R26 - R25` encoded as `R26 + R25`
-//! (bbf7412: encode-fail + ghost in .text; after the mk74 carry minis: fully
+//! (6d63ef37: encode-fail + ghost in .text; after the mk74 carry minis: fully
 //! wrong code, 0 failed). Golden evidence:
 //!  * nvcc 12.8 sm_120 (sub.cc/subc.cc probes, /tmp/p048 on sm120):
 //!    `IADD3 R11, P0, PT, R0, -R7, RZ`            lo = 0x80000007000b7210

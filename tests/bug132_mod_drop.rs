@@ -1,7 +1,7 @@
 //! BUG-132 (encoder/wrong-code): the lookup chain
 //! (fk,mg)->(key,mg)->(fk,"")->(key,"") when no row exists for the EXACT
 //! mod combination fell to the "" group and SILENTLY dropped mods, emitting a DIFFERENT
-//! variant. Pre-fix repro (HEAD e234970, tables/sm120.json):
+//! variant. Pre-fix repro (HEAD 22e27ef8, tables/sm120.json):
 //!   `FADD.RZ.SAT R1, R2, R3 ;`      -> a word with bits [80:78]=000 (plain RN!)
 //!   `FADD.FTZ.RZ.SAT R1, R2, R3 ;`  -> ditto (FTZ lost too)
 //! (the FADD_R_R_R rows: "", FTZ, RZ, SAT, FTZ,RZ — no SAT+rounding
@@ -20,7 +20,7 @@
 //!   IMAD.U32 _UR (sm120+sm103a), BRXU.U / LOP3.LUT.PAND / IADD3.X.RCNEG /
 //!   BAR.SYNC.DEFER_BLOCKING (tb_i82p3; there the mods live in the key name).
 //!
-//! Kontrola pre-fix (HEAD e234970, ta sama binarka/testy): t132_1 i t132_5
+//! Kontrola pre-fix (HEAD 22e27ef8, ta sama binarka/testy): t132_1 i t132_5
 //! FAIL (encode OK instead of an error — silent drop; sweep: 3/3 silent), t132_2,
 //! t132_3, t132_4 PASS (inwarianty niezalezne od fixa).
 

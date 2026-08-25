@@ -97,7 +97,7 @@ fn t139_2_narrow_guard_field_fails_closed() {
 
 // ---------------------------------------------------------------------------
 // TIER-2 keeps legacy payloads byte-exact: pins captured from the pre-fix
-// binary (34addce control) over the known split-window / sentinel idioms.
+// binary (174e2dcd control) over the known split-window / sentinel idioms.
 // ---------------------------------------------------------------------------
 #[test]
 fn t139_3_legacy_payloads_byte_exact() {

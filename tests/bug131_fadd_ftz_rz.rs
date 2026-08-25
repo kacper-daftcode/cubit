@@ -1,6 +1,6 @@
 //! BUG-131: FADD cluster in tables/sm120.json (a stale junk field behind a
 //! decoder hole + toolchain load block). Three layers:
-//! (a) FLEET BLOCKER [closed by merge 823f5d4; t131_3 = the pinning invariant]:
+//! (a) FLEET BLOCKER [closed by merge c851e847; t131_3 = the pinning invariant]:
 //!     FADD_R_L_R::{RZ,SAT} carried a junk field {shift:122, bits:8,
 //!     token_idx:3, extraction:"reg"} -> 122+8=130 > 128 -> the post-hardening
 //!     table validation rejected the WHOLE table at load (fleet: champion asm
@@ -24,7 +24,7 @@
 //! Pre-fix observation (report 131.md; a separate candidate BUG-132): pre-fix
 //! encode of '@P1 FADD.FTZ.RZ ...' "passed" with bits 78..80
 //! ZEROED (a silent mod-drop through the fallback lookup chain to the "" group;
-//! the encoder/wrong-code class). Pre-fix control (HEAD 4d661bb): t131_1/2
+//! the encoder/wrong-code class). Pre-fix control (HEAD 32ac8108): t131_1/2
 //! FAIL (the hole), t131_3 PASS (invariant), t131_4 PASS (FADD_R_R_R
 //! won anyway; behavior strengthened after the junk-group removal).
 use cubit::decoder::DecodeIndex;

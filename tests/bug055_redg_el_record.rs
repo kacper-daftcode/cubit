@@ -16,7 +16,7 @@
 //!   text to 5 and would emit 10 for KernelB ADD (gold 0). Glyph numbers
 //!   mean different things per decoder generation; the immediate does not.
 //!
-//!   Old-binary (bbf7412) + era text == gold capmerc byte-exact (the era
+//!   Old-binary (6d63ef37) + era text == gold capmerc byte-exact (the era
 //!   decoder's imm-top-byte lie fed identity embedding, and the !rsd tails
 //!   suppressed exactly the two no-record lanes) — the fix restores that
 //!   byte-parity by LAW, not by coincidence, and additionally covers the
