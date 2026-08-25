@@ -164,6 +164,16 @@ def run_git(repo: Path, *args: str, check: bool = True) -> str:
     return result.stdout.strip()
 
 
+def run_git_bytes(repo: Path, *args: str) -> bytes:
+    """Binary-safe git read (no strip/newline mangling)."""
+    result = subprocess.run(
+        ["git", "-C", str(repo), *args], check=False, capture_output=True,
+    )
+    if result.returncode:
+        raise SyncError(f"git {' '.join(args)} failed: {result.stderr.decode(errors='replace').strip()}")
+    return result.stdout
+
+
 def canonical_revision(repo: Path, relative: str) -> str:
     repo_file = repo / relative
     run_git(repo, "ls-files", "--error-unmatch", "--", relative)
@@ -357,25 +367,53 @@ def sync_tables(source_repo: Path) -> None:
             "candidate tables failed cargo test; vendored tables were written "
             "but the manifest was NOT re-pinned")
 
-    manifest: dict[str, Any] = {"schema": 2, "repository": repository, "tables": {}}
-    for name, (data, summary, revision) in staged.items():
+    # One canonical revision for the whole vendoring (owner layout decision
+    # 2026-08-25: a single base_revision for the manifest).  All tables must
+    # carry their pinned bytes at that revision; canonical updates touching a
+    # single table first, so table revisions are allowed to be older than the
+    # newest one as long as the bytes match at the pinned revision.
+    by_date = sorted(
+        {rev for _d, _s, rev in staged.values()},
+        key=lambda r: int(run_git(repo, "show", "-s", "--format=%ct", r)),
+    )
+    base_revision = None
+    for rev in reversed(by_date):  # newest first
+        if all(
+            digest(run_git_bytes(repo, "show", f"{rev}:{name}")) == digest(data)
+            for name, (data, _s, _r) in staged.items()
+        ):
+            base_revision = rev
+            break
+    if base_revision is None:
+        raise SyncError(
+            "canonical tables sit at divergent revisions with no common "
+            "revision carrying the pinned bytes; make one canonical cut first")
+
+    manifest: dict[str, Any] = {
+        "schema": 2,
+        "repository": repository,
+        "base_revision": base_revision,
+        "tables": {},
+    }
+    for name, (data, summary, _rev) in staged.items():
         manifest["tables"][name] = {
             "arch": ARCH_TABLES[name],
-            "base_revision": revision,
             "base_sha256": digest(data),
             **summary,
         }
     MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n")
-    for name, (_d, summary, revision) in staged.items():
+    for name, (_d, summary, _rev) in staged.items():
         print(
             f"synchronized {name}: {summary['instruction_forms']} forms / "
-            f"{summary['encoding_variants']} variants from {revision[:12]}"
+            f"{summary['encoding_variants']} variants from {base_revision[:12]}"
         )
 
 
 def check_tables(source_repo: Path | None) -> None:
     manifest = load_manifest()
+    base_revision = manifest.get("base_revision")
     for name, entry in manifest["tables"].items():
+        entry.setdefault("base_revision", base_revision)  # schema-2 top-level pin
         dest = TABLES_DIR / name
         if not dest.is_file():
             raise SyncError(f"vendored table is missing: {dest}")
@@ -398,11 +436,16 @@ def check_tables(source_repo: Path | None) -> None:
                     f"{src} differs from the pinned bytes; bump the canonical "
                     "revision or re-sync"
                 )
-            actual_rev = canonical_revision(repo, name)
-            if actual_rev != entry["base_revision"]:
+            # Immutable provenance: the pinned revision must carry exactly
+            # the pinned bytes for this table.
+            try:
+                raw = run_git_bytes(repo, "show", f"{entry['base_revision']}:{name}")
+            except SyncError:
+                raw = b""
+            if digest(raw) != entry["base_sha256"]:
                 raise SyncError(
-                    f"{src} last changed at {actual_rev[:12]}, manifest pins "
-                    f"{entry['base_revision'][:12]}"
+                    f"canonical revision {entry['base_revision'][:12]} does not "
+                    f"carry the pinned bytes for {name}"
                 )
         print(f"canonical checkout {repo} matches all pins")
 
