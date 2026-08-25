@@ -10,15 +10,18 @@
 //!     0/1/2-domain flag extractions — total small domains with no
 //!     split-window or sentinel carrier semantics. Any loss bails with an
 //!     `encode-lint:` error naming the op, key, operand and would-be payload.
-//!   TIER-2 (soft audit, `CUBIT_FIT_LINT=warn`): value-carrying families
-//!     (reg/imm/addr/cmem/sysreg) keep the legacy masked payload, because the
-//!     harvest model truncates there BY DESIGN — split windows across sibling
-//!     fields (PLOP3.LUT lattice imm = imm[0:3)@64 + imm_shr3[3:8)@72),
-//!     and_base/branch-fixup ownership (BRA/WARPSYNC label rows), sentinel
-//!     carriers (RZ base 0xFF -> 0x7F in a 7-bit window, vendor-blessed per
-//!     t123 goldens). Violations are logged under the env flag (census);
-//!     promotion to hard needs the aggregate per-operand coverage model
-//!     (see results/cubitfix/139.md).
+//!   TIER-2: value-carrying families (reg/imm/addr/cmem/sysreg) keep the
+//!     legacy masked payload per field, because the harvest model truncates
+//!     there BY DESIGN — split windows across sibling fields (PLOP3.LUT
+//!     lattice imm = imm[0:3)@64 + imm_shr3[3:8)@72), and_base/branch-fixup
+//!     ownership (BRA/WARPSYNC label rows), sentinel carriers (RZ base 0xFF
+//!     -> 0x7F in a 7-bit window, vendor-blessed per t123 goldens).
+//!     BUG-140 PROMOTED this tier to the aggregate per-operand coverage
+//!     audit (fail-closed on bits no sibling window / fixup / sentinel
+//!     carries; `CUBIT_FIT_LINT=warn` downgrades bails to census reports).
+//!     Only the legacy-soft channel (stateful opaque replay, combined
+//!     const-mem bank|offset windows, imm_dec carriers) still logs per-field
+//!     misfits under the env flag.
 //! Debug-build panic wraps (`7 - n` UPredGate, `1 - f` UrExplInv, `v - 1`
 //! SubURm1 underflow) now return domain errors instead.
 
@@ -141,12 +144,16 @@ fn t139_4_soft_audit_never_bails() {
 }
 
 // ---------------------------------------------------------------------------
-// End-to-end through the CLI: the soft audit logs iff CUBIT_FIT_LINT=warn,
-// the cubin payload is identical either way.
+// End-to-end through the CLI, post-BUG-140 semantics: the aggregate-covered
+// census idioms are silent in BOTH modes now; the remaining warn-only
+// channel is the legacy-soft set (const-mem combined window roundtrip here).
+// Payloads stay identical in both modes.
 // ---------------------------------------------------------------------------
 #[test]
 fn t139_5_cli_warn_mode_logs_and_preserves_payload() {
-    let dir = std::env::temp_dir().join(format!("bug139_cli_{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("bug139_cli_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
     std::fs::create_dir_all(&dir).unwrap();
     let sass = dir.join("k.sass");
     std::fs::write(&sass, concat!(
@@ -154,6 +161,7 @@ fn t139_5_cli_warn_mode_logs_and_preserves_payload() {
         "    .reg R0-R31\n",
         "    PLOP3.LUT P0, P1, P2, P3, P4, 0x80, 0x8 ;\n",
         "    LDS.S8 R1, [RZ+0x10] ;\n",
+        "    LDC R1, c[0x0][0x8000] ;\n",
         "    EXIT ;\n")).unwrap();
     let run = |env: Option<&str>| -> (bool, String, Vec<u8>) {
         let out = dir.join(if env.is_some() { "w.cubin" } else { "n.cubin" });
@@ -168,9 +176,14 @@ fn t139_5_cli_warn_mode_logs_and_preserves_payload() {
     };
     let (ok_w, err_w, cubin_w) = run(Some("warn"));
     let (ok_n, err_n, cubin_n) = run(None);
-    assert!(ok_w && ok_n, "soft audit must never break assembly");
-    assert!(err_w.contains("[fit-lint] encode-lint: `PLOP3.LUT`"),
-        "warn mode must log the lattice split: {err_w}");
+    assert!(ok_w && ok_n, "covered + legacy-soft classes must never break assembly");
+    // BUG-140: the lattice split is aggregate-covered — silent in warn mode.
+    assert!(!err_w.contains("[fit-lint] encode-lint: `PLOP3.LUT`"),
+        "covered lattice split must NOT log post-BUG-140: {err_w}");
+    // The legacy-soft const-mem channel still reports (offset 0x8000 does not
+    // round-trip the signed sub-window).
+    assert!(err_w.contains("[fit-lint]"),
+        "warn mode must still log the legacy-soft cm_off channel: {err_w}");
     assert!(!err_n.contains("[fit-lint]"), "default mode stays silent: {err_n}");
     assert_eq!(cubin_w, cubin_n, "warn mode must not change the payload");
     let _ = std::fs::remove_dir_all(&dir);
