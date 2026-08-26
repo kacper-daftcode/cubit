@@ -1965,6 +1965,7 @@ fn format_const_addr(fields: &[&DecodedField], ins_key: &str) -> String {
     let mut bank_field: Option<(u32, u64)> = None;   // (bits, value) of SubImm(0)
     let mut off_field: Option<(u32, u64, u8)> = None; // (bits, value, idx) best so far
     let mut base_reg: Option<u64> = None;
+    let mut ur_reg: Option<(u64, u32)> = None;       // (value, bits) of SubUR(*) token part
 
     for f in fields {
         let e = norm_ext(&f.extraction);
@@ -1996,6 +1997,12 @@ fn format_const_addr(fields: &[&DecodedField], ins_key: &str) -> String {
             let v = if e.contains("shr1") { f.value << 1 } else { f.value };
             base_reg = Some(v);
         }
+        // SubUR(0/1) = uniform index register for c[bank][UR+off] (BUG-151;
+        // "sub_ur" prefix disjunct from "sub_r": 5th char is 'u')
+        if e.starts_with("sub_ur") {
+            let v = if e.contains("shr1") { f.value << 1 } else { f.value };
+            ur_reg = Some((v, f.bits));
+        }
     }
 
     let off_mask = (1u64 << bank_shift) - 1;
@@ -2025,6 +2032,22 @@ fn format_const_addr(fields: &[&DecodedField], ins_key: &str) -> String {
             } else {
                 return format!("c[0x{bank:x}][{reg_s}+0x{offset:x}]");
             }
+        }
+    }
+    // BUG-151: uniform-register indexed constant access, c[bank][UR+off].
+    // The only sm103a const-addr row carrying a sub_ur* token field is
+    // LDCU_UR_cAI[""] (census 2026-08-25, work/i71: 101 live corpus
+    // witnesses, UR numeral == bits[24:32), URZ sentinel 255 on all plain
+    // forms). Sentinel/width rule mirrors format_auri_uronly: an 8-bit-wide
+    // field reads 63 as real UR63, narrower fields keep 63 == URZ.
+    if let Some((un, ubits)) = ur_reg {
+        let is_zero_reg = un == 255 || (un == 63 && ubits < 8);
+        if !is_zero_reg {
+            return if offset == 0 {
+                format!("c[0x{bank:x}][UR{un}]")
+            } else {
+                format!("c[0x{bank:x}][UR{un}+0x{offset:x}]")
+            };
         }
     }
     // For cm17_off with offset=0, print URZ (uniform zero register, the default offset)
