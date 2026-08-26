@@ -730,7 +730,10 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             "POPC" => return 3,
             "64" | "128" => return 5,
             "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" => return 6,
-            "GPU" | "SYS" | "CTA" | "GL" | "IL" | "MMU" => return 7,
+            // BUG-195: SM is a scope too (probe195 g3 sweep: [77:81)=0x5) and
+            // prints last like the other scopes (ATOM.E.AND.STRONG.SM, never
+            // .AND.SM.STRONG — 3 hexdb anchors, 142-era row render-parity fix).
+            "GPU" | "SYS" | "SM" | "CTA" | "GL" | "IL" | "MMU" => return 7,
             _ => {}
         }
     }
