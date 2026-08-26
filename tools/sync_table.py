@@ -59,7 +59,12 @@ class SyncError(RuntimeError):
 # Ratchet baselines for the baked control/reuse-bit check
 # (and_base bits [127:105] set). Lower only on purpose, together with a
 # silicon-verified canonical hygiene wave.
-BAKED_CTRL_BASELINE = {"SM120": 456, "SM103a": 1269, "SM100a": 1257,
+# 2026-08-26 fleet branch-landing wave (canonical cut f4dd6d6): SM120
+# 456->519 (new silicon-verified ATOMS/ATOMG ARI rows bake the canonical
+# control template, same convention as the pre-existing entries), SM103a
+# 1269->1260 and SM100a 1257->1260 (dead-row/junk cleanup; lowered on
+# purpose where the wave removed baked rows).
+BAKED_CTRL_BASELINE = {"SM120": 519, "SM103a": 1260, "SM100a": 1260,
                        "SM121A": 458}
 
 FIXED_EXTRACTIONS = {
