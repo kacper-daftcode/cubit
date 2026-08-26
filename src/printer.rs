@@ -915,7 +915,7 @@ fn format_operand(
         } => format_sts_lds_addr(fields, raw),
         "ARUR" | "AUR" | "AURR" | "ARURR" => format_aruri(fields, raw),
         "dARI"  => format_desc_addr(fields, raw),
-        "cAI" | "cARI" => format_const_addr(fields),
+        "cAI" | "cARI" => format_const_addr(fields, ins_key),
         "B"     => format_barrier(fields),
         // Unknown token type "?" — treat as UR register (raw fallback)
         "?"     => format_ureg_raw(fields, raw),
@@ -1854,7 +1854,7 @@ fn format_sts_lds_addr(fields: &[&DecodedField], raw: u128) -> String {
 
 // ── cAI — constant memory ─────────────────────────────────────────────────────
 
-fn format_const_addr(fields: &[&DecodedField]) -> String {
+fn format_const_addr(fields: &[&DecodedField], ins_key: &str) -> String {
     // Encoder-side inverse: bank = SubImm(0), offset = highest-index SubImm(k)
     // (c[B][off] → k=1, c[B][R+off] → k=2), cm16_off/cm17_off carry the
     // combined bank<<shift|offset when no split fields exist. Multiple fields
@@ -1932,6 +1932,16 @@ fn format_const_addr(fields: &[&DecodedField]) -> String {
     // For cm17_off with offset=0, print URZ (uniform zero register, the default offset)
     if is_cm17 && offset == 0 {
         return format!("c[0x{bank:x}][URZ]");
+    }
+    // BUG-174 (F2): LDC-family zero offset prints the RZ sentinel glyph.
+    // nvdisasm never prints `[0x0]` on the LDC const slot (0/32.2M vendor
+    // anchors); every off==0 LDC const address comes out as `[RZ]`
+    // (12/12 hexdb anchors + W1 U8 probe; the idx byte 0xff is structurally
+    // the RZ sink on these rows). Scoped to the R-dest LDC family: LDCU
+    // keeps its cm17 `[URZ]` convention above, and non-LDC const users
+    // (zero anchors for off==0 anywhere) keep the legacy `[0x0]` print.
+    if offset == 0 && ins_key.starts_with("LDC") && !ins_key.starts_with("LDCU") {
+        return format!("c[0x{bank:x}][RZ]");
     }
     format!("c[0x{bank:x}][0x{offset:x}]")
 }
