@@ -2117,6 +2117,11 @@ fn format_const_addr(fields: &[&DecodedField], ins_key: &str) -> String {
     }
 
     let off_mask = (1u64 << bank_shift) - 1;
+    // BUG-162: the composed cm16/cm17 window carries a *signed* offset
+    // (s16 for LDC*, s17 for LDCU*; nvdisasm-13.3.73 bit-walk on sm_103a:
+    // sign = bit (bank_shift-1); negatives render "[-0xX]" for the plain
+    // form and "[R3+-0xX]" / "[URn+-0xX]" for indexed forms).
+    let cm_signed = off_field.is_none() && cm_val.is_some();
     let (bank, offset) = if let Some((_bits, v, _k)) = off_field {
         // Offset window may include bank copies in its high bits (widened fits);
         // bank itself comes from the dedicated SubImm(0) or the combined field.
@@ -2134,10 +2139,19 @@ fn format_const_addr(fields: &[&DecodedField], ins_key: &str) -> String {
         (0, 0)
     };
 
+    // Sign of the cm-composed offset (see BUG-162 note above).
+    let off_neg: Option<i64> = if cm_signed && (offset >> (bank_shift - 1)) & 1 == 1 {
+        Some(offset as i64 - (1i64 << bank_shift))
+    } else {
+        None
+    };
     // If base register is present and non-RZ (255), include it: c[bank][R+off]
     if let Some(reg) = base_reg {
         if reg != 255 {
             let reg_s = format!("R{reg}");
+            if let Some(neg) = off_neg {
+                return format!("c[0x{bank:x}][{reg_s}+-0x{:x}]", -neg);
+            }
             if offset == 0 {
                 return format!("c[0x{bank:x}][{reg_s}]");
             } else {
@@ -2160,6 +2174,9 @@ fn format_const_addr(fields: &[&DecodedField], ins_key: &str) -> String {
                 format!("c[0x{bank:x}][UR{un}+0x{offset:x}]")
             };
         }
+    }
+    if let Some(neg) = off_neg {
+        return format!("c[0x{bank:x}][-0x{:x}]", -neg);
     }
     // For cm17_off with offset=0, print URZ (uniform zero register, the default offset)
     if is_cm17 && offset == 0 {
