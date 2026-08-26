@@ -8,6 +8,16 @@ use std::collections::BTreeMap;
 
 // ── public entry point ────────────────────────────────────────────────────────
 
+/// Uniform-guard family law (BUG-171, census evidence hexdb 32.2M + sm120
+/// nv-harvest: vendor prints @UPn/@!UPn/@!UPT guards ONLY for these families —
+/// all `U*` uniform-datapath ops, LDCU (uniform constant load), SYNCS_UR
+/// (uniform-domain SYNCS, e.g. EXCH), S2UR). Guard bits [15:12] carry just
+/// (pred,neg); uniformness follows the family, both print paths agree.
+fn guard_is_uniform_family(key: &str) -> bool {
+    key.starts_with('U') || key.starts_with("LDCU")
+        || key.starts_with("SYNCS_UR") || key.starts_with("S2UR")
+}
+
 /// Format a decoded instruction as SASS text (without trailing ` ;`).
 pub fn to_sass(insn: &DecodedInst) -> String {
     let by_token = group_by_token(&insn.fields);
@@ -23,8 +33,10 @@ pub fn to_sass(insn: &DecodedInst) -> String {
     });
     // Uniform-datapath instructions print their guard as @UPn/@!UPn (nvdisasm);
     // the guard bits [15:12] encode only (pred, neg) — uniformness follows the family.
-    let is_uni = insn.key.starts_with('U') || insn.key.starts_with("LDCU")
-        || insn.key.starts_with("SYNCS_UR") || insn.key.starts_with("S2UR");
+    // BUG-171: single source of truth for both the field and the raw-fallback
+    // path (the fallback copy below lacked "LDCU" → @Pn printed for LDCU rows
+    // without a guard field, e.g. sm120 LDCU_UR_cAI * 565 battery anchors).
+    let is_uni = guard_is_uniform_family(&insn.key);
     let guard = if has_guard_field {
         format_guard_uni(tok0_fields, is_uni)
     } else {
@@ -36,15 +48,10 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             String::new() // PT = no guard (unconditional)
         } else if pred == 7 && neg != 0 {
             // @!UPT (uniform) or @!PT (regular) — QMMA drain pattern
-            let uni = insn.key.starts_with("UIADD3") || insn.key.starts_with("U")
-                || insn.key.starts_with("SYNCS_UR") || insn.key.starts_with("S2UR");
-            if uni { "@!UPT".to_string() } else { "@!PT".to_string() }
+            if is_uni { "@!UPT".to_string() } else { "@!PT".to_string() }
         } else {
             let neg_s = if neg != 0 { "!" } else { "" };
-            // Detect uniform predicates from instruction opcode family
-            let uni = insn.key.starts_with("UIADD3") || insn.key.starts_with("U")
-                || insn.key.starts_with("SYNCS_UR") || insn.key.starts_with("S2UR");
-            if uni { format!("@{neg_s}UP{pred}") } else { format!("@{neg_s}P{pred}") }
+            if is_uni { format!("@{neg_s}UP{pred}") } else { format!("@{neg_s}P{pred}") }
         }
     };
     let opcode = format_opcode(&insn.opcode, &insn.mod_group, &insn.key);
