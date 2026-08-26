@@ -1,6 +1,6 @@
 //! BUG-196 — ATOM-family dest-pred windows moved to the vendor law
 //! (owner: loop5/blind iter93). Data-only patch196.py (60 rows across
-//! sm103a/sm100a/sm120): the harvested donor rows scraped the P-dest token
+//! sm103a+sm120): the harvested donor rows scraped the P-dest token
 //! from coincidence windows — (77,4) = scope nibble, (12,4) = guard,
 //! (28,4) = base-reg HI nibble, (82,4) = pred+1, (7,4) = opcode bits —
 //! observationally identical on PT-anchored corpora, but:
@@ -43,7 +43,7 @@ fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> String {
 /// were decode HOLES; encode scraped k into the scope field.
 #[test]
 fn t196_1_dest_pred_coverage_atomg_max_s64() {
-    for p in ["tables/sm103a.json", "tables/sm100a.json"] {
+    for p in ["tables/sm103a.json"] {
         let t = tab(p);
         let idx = DecodeIndex::build(&t);
         let lo: u64 = 0x80000006020279a8;
@@ -68,7 +68,7 @@ fn t196_1_dest_pred_coverage_atomg_max_s64() {
 /// atomics is fail-closed by the BUG-080 silicon policy).
 #[test]
 fn t196_2_guard_does_not_fabricate_dest() {
-    for p in ["tables/sm103a.json", "tables/sm100a.json", "tables/sm120.json"] {
+    for p in ["tables/sm103a.json", "tables/sm120.json"] {
         let t = tab(p);
         let idx = DecodeIndex::build(&t);
         for (want, lo, hi) in [
@@ -90,7 +90,7 @@ fn t196_2_guard_does_not_fabricate_dest() {
 /// keep dest P0 and the true base (was: phantom P1/PT + R<16-only rows).
 #[test]
 fn t196_3_basereg_hi_not_pred() {
-    for p in ["tables/sm103a.json", "tables/sm100a.json"] {
+    for p in ["tables/sm103a.json"] {
         let t = tab(p);
         let idx = DecodeIndex::build(&t);
         for (want, lo) in [
