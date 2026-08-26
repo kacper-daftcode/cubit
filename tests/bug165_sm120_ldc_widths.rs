@@ -159,7 +159,11 @@ fn t165_4_no_fabrication() {
     assert_ne!(s, "LDC R3, 0x5ec", "pre-fix fabrication resurrected?");
     assert!(s.starts_with("LDC.U8"));
     let base = u8w & !(0x7u128 << 73);
-    for width in [3u128, 6, 7] {
+    // 2026-08-26 compose: width==3 is LDC/LDCU S16, LEGAL on both arches
+    // (BUG-172 arb172 nvdisasm width-walk on vendor anchors; landed in the
+    // same wave) -- the garbage-width fail-closed boundary moves to 6/7.
+    assert!(dec(&idx, base | (3u128 << 73), &t).starts_with("LDC.S16"));
+    for width in [6u128, 7] {
         assert!(idx.decode(base | (width << 73), 0, &t).is_err(),
                 "garbage LDC width {width} must fail-closed");
     }
@@ -170,17 +174,21 @@ fn t165_4_no_fabrication() {
     assert!(encode_instruction(&bad, &t).is_err());
 }
 
-/// t165_5 (indexed width forms: nvdisasm-arbitrated legal on sm120,
-/// zero corpus anchors -- decode renders the index; encode STAYS
-/// fail-closed because no cARI width group exists yet = documented hole,
-/// see report sec.7).
+/// t165_5 (indexed width forms: nvdisasm-arbitrated legal on sm120):
+/// since 2026-08-26 this is a LIVE-coverage pin (BUG-172 wave); the older
+/// fail-closed hole note moved to history (see report sec.7).
 #[test]
 fn t165_5_indexed_width_shapes() {
     let t = t120();
     let idx = DecodeIndex::build(&t);
     let u8idx = w("00000000000000000000017b00ff037b82") & !(0xffu128 << 24) | (5u128 << 24);
     assert_eq!(dec(&idx, u8idx, &t), "LDC.U8 R3, c[0x0][R5+0x5ec]");
+    // 2026-08-26 compose: indexed cARI forms are vendor-legal (arb172
+    // width-walk) and this text now encodes via LDC_R_cAI::U8 with
+    // text-exact roundtrip -- the old "no cARI width groups" hole is
+    // covered by the BUG-172 wave's additions.
     let insn = parse_sass("LDC.U8 R3, c[0x0][R5+0x5ec]", 0).unwrap();
-    assert!(encode_instruction(&insn, &t).is_err(),
-            "indexed width encode: fail-closed hole (no LDC_R_cARI width groups)");
+    let w = encode_instruction(&insn, &t).expect("indexed U8 encodes (post-172)");
+    let back = dec(&DecodeIndex::build(&t), w, &t);
+    assert_eq!(back, "LDC.U8 R3, c[0x0][R5+0x5ec]");
 }
