@@ -699,6 +699,10 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             // BUG-094b: CAST/SPIN are also an operation name (ATOM.E.CAST.SPIN.64:
             // the size PRINTS after them, before STRONG)
             | "CAST" | "SPIN" => return 4,
+            // BUG-179: nvdisasm prints the POPC return-count qualifier BEFORE
+            // the operation (ATOMS.POPC.INC.32, never .INC.POPC); it is the
+            // only POPC-bearing row in either table (iter83 whole-table scan).
+            "POPC" => return 3,
             "64" | "128" => return 5,
             "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" => return 6,
             "GPU" | "SYS" | "CTA" | "GL" | "IL" | "MMU" => return 7,
@@ -873,6 +877,20 @@ fn format_operand(
         "FI"    => format_float_imm(fields),
         "L" | "SR"
                 => format_lit_or_sysreg(fields, mod_group, raw),
+        // BUG-179 (superset of parked-BUG-157): SYNCS- and ATOMS-family ARI
+        // rows carry the uniform-register window baked as URZ in and_base
+        // (0xff @ [64:72)) and have no UR field. These two families PRINT the
+        // sink explicitly in vendor output (`SYNCS.ARRIVE.TRANS64.A1T0 RZ,
+        // [R5+URZ+0x130], RZ`; `ATOMS.POPC.INC.32 RZ, [R0+URZ+0x3c]`), while
+        // the other baked-sink families (LDGSTS_ARI_ARI{,_P}, STAS_ARI_R)
+        // elide it (iter83 census: 2,183 LDGSTS + 5 STAS machine anchors,
+        // zero vendor `+URZ`; nvdisasm arb179 D/E). Self-guarded on the raw
+        // window so relaxed/broad fallback matches stay legacy-shaped.
+        "ARI" if (ins_key.starts_with("SYNCS") || ins_key.starts_with("ATOMS"))
+            && !fields.iter().any(|f| matches!(
+                norm_ext(&f.extraction).as_str(), "sub_ur0" | "sub_ur1" | "ureg"))
+            && ((raw >> 64) & 0xFF) == 0xFF
+            => format_syncs_ari(fields, raw),
         // BUG-038/017: LDS/STS with a scaled-index address ([R9.X8+..]/
         // [R9.X16+..]) — the addr_scale field carries the suffix. Scale=0
         // prints exactly like format_addr (historical shape preserved for
@@ -1662,6 +1680,20 @@ fn format_addr(fields: &[&DecodedField], raw: u128, signed_elide: bool) -> Strin
     }
 
     format!("[{inner}]")
+}
+
+/// BUG-179/157: format_addr plus a spliced `+URZ` for ARI rows whose uniform
+/// window is a baked sink constant (see the dispatch arm above).
+fn format_syncs_ari(fields: &[&DecodedField], raw: u128) -> String {
+    let s = format_addr(fields, raw);
+    let Some(inner) = s.strip_prefix('[').and_then(|x| x.strip_suffix(']')) else {
+        return s;
+    };
+    let cut = inner.find("+0x").or_else(|| inner.find("+-0x"));
+    match cut {
+        Some(i) => format!("[{}+URZ{}]", &inner[..i], &inner[i..]),
+        None => format!("[{inner}+URZ]"),
+    }
 }
 
 // ── UTC* — tcgen05 MMA descriptor operands (gdesc/tmem/idesc) ───────────────
