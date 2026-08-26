@@ -2276,16 +2276,22 @@ fn fit_dom_token(dom: &FitDom) -> i32 {
 /// Class (c): payloads owned by apply_branch_encoding are exempt from table
 /// coverage (BUG-023 doctrine; mirrors entry_matches_operands and the field
 /// loop's WARPSYNC skip).
-fn fit_fixup_owned(insn: &Instruction, tok: i32, sm103a: bool) -> bool {
+fn fit_fixup_owned(insn: &Instruction, tok: i32, ws_family: bool) -> bool {
     let op = insn.opcode.as_str();
     let is_branch = BRANCH_OPS.iter().any(|&o| o == op);
     let operand = get_op(insn, tok);
-    if (is_branch || (sm103a && op == "WARPSYNC"))
+    // BUG-182: WARPSYNC.COLLECTIVE label payloads are REL16 fixup-owned across
+    // the whole sm103a encoding family (BUG-116 law transfers 1:1 to sm100a,
+    // whose table is the sm103a derivative). The pre-family exact ef_flags
+    // check hard-failed re-encode of every corpus WARPSYNC.COLLECTIVE on
+    // sm100a (139,570 instructions of the b4 sm_100 population).
+    let ws = ws_family && op == "WARPSYNC";
+    if (is_branch || ws)
         && matches!(operand, Some(Operand::BranchTarget(_)) | Some(Operand::Label(_)))
     {
         return true;
     }
-    if (is_branch || (sm103a && op == "WARPSYNC"))
+    if (is_branch || ws)
         && matches!(operand, Some(Operand::Imm32(_)) | Some(Operand::Imm64(_)))
     {
         return true;
@@ -2366,6 +2372,7 @@ fn aggregate_fit_audit(
 ) -> Result<()> {
     use std::collections::BTreeMap;
     let sm103a = table.ef_flags == 0x0600_6702;
+    let ws_family = crate::table::is_sm103a_encoding_family(table.ef_flags);
     // Raw-address LDG/STG on the legacy-rebuild path: the address operand's
     // fields are template shadow rewritten wholesale below (BUG-084/099).
     let addr_tok = insn
@@ -2413,7 +2420,7 @@ fn aggregate_fit_audit(
 
     for (dom, pieces) in &doms {
         let tok = fit_dom_token(dom);
-        if fit_fixup_owned(insn, tok, sm103a) {
+        if fit_fixup_owned(insn, tok, ws_family) {
             continue;
         }
         let v = fit_dom_value(insn, dom);
