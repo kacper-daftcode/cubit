@@ -1603,7 +1603,7 @@ fn elide_rz_base(rn: u64, ur_reg: Option<u64>, offset: i64, has_offset: bool,
 /// BUG-143: shared-atom UR address "[R+UR+off]" (ATOMS family). Same shape as
 /// format_sts_lds_addr, but the URZ sink carried as 0xFF prints "URZ"
 /// (vendor spelling), while narrow-window 63 stays URZ and wide 63 = UR63.
-fn format_shared_atom_addr(fields: &[&DecodedField], raw: u128) -> String {
+fn format_shared_atom_addr(fields: &[&DecodedField], _raw: u128) -> String {
     let mut base_reg: Option<u64> = None;
     let mut ur_reg:   Option<u64> = None;
     let mut offset:   i64 = 0;
