@@ -160,6 +160,19 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             let ur = (lo64 >> 24) & 0xFF;
             return format!("{guard_prefix}{opcode} UR{ur}, 0x{target:x}");
         }
+        // CALL.ABS register-indirect (InsKey CALL_R, mg "ABS,NOINC"): nvdisasm
+        // prints "CALL.ABS.NOINC Rn" -- the operand is the register at
+        // bits[31:24], NOT a computed branch target (hexdb census 2026-08-25,
+        // iter72: 2154/2154 vendor ABS anchors are "R2"; zero immediate-ABS
+        // witnesses). The generic arm used to print decode_branch_target(raw)
+        // = addr+0x10 (rel==0 under this row) -> fabricated address text that
+        // no table row could re-encode (2,884 corpus lines; BUG-153).
+        if insn.opcode == "CALL" && insn.mod_group.contains("ABS") {
+            let lo64 = insn.raw_code as u64;
+            let reg = (lo64 >> 24) & 0xFF;
+            let reg_s = if reg == 255 { "RZ".to_string() } else { format!("R{reg}") };
+            return format!("{guard_prefix}{opcode} {reg_s}");
+        }
         return format!("{guard_prefix}{opcode} 0x{target:x}");
     }
 
