@@ -93,8 +93,11 @@ fn t147_3_control_encode_decode_roundtrip() {
 
 #[test]
 fn t147_4_table_class_normalized() {
-    // All 115 non-ATOM SubR@24/9 rows are narrowed; exactly the 17 parked
-    // BUG-143 E1 ATOM-family rows may keep bits==9 at shift 24.
+    // 2026-08-26 compose note: BUG-143 LANDED in the branch-landing wave, so
+    // its parked E1 ATOM class dissolved -- zero rows may stay width-9 @24
+    // now (stronger form of the original (17,17) pin).
+    // Original contract: all 115 non-ATOM SubR@24/9 rows narrowed; exactly
+    // the 17 parked BUG-143 E1 ATOM-family rows kept bits==9 at shift 24.
     let t = t103a();
     let mut n9 = 0usize;
     let mut n9_atom = 0usize;
@@ -115,8 +118,8 @@ fn t147_4_table_class_normalized() {
     }
     assert_eq!(
         (n9, n9_atom),
-        (17, 17),
-        "only the 17 parked BUG-143 E1 rows may stay width-9 @24 (got {n9}, of which {n9_atom} ATOM)"
+        (0, 0),
+        "no row may stay width-9 @24 post BUG-143 landing (got {n9}, of which {n9_atom} ATOM)"
     );
 }
 
