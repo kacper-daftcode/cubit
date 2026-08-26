@@ -92,13 +92,18 @@ fn t167_3_roundtrip_fixed_point() {
 #[test]
 fn t167_4_fail_closed_preserved() {
     let t = t120(); let idx = DecodeIndex::build(&t);
-    for text in ["LDC.128 R4, c[0x0][R5]", "LDC.S16 R3, c[0x0][R5+0x5ec]"] {
-        assert!(!enc_res(&t, text), "encode must stay fail-closed: {text}");
-    }
-    // decode: w6/w7 (INVALID) and w3 (S16, not in table) stay fail-closed.
+    // 2026-08-26 compose: S16 flips to LIVE coverage (BUG-172, arb172
+    // vendor width-walk); LDC.128-cARI stays vendor-INVALID.
+    assert!(!enc_res(&t, "LDC.128 R4, c[0x0][R5]"), "LDC.128-cARI must stay fail-closed");
+    let s16w = enc(&t, "LDC.S16 R3, c[0x0][R5+0x5ec]");
+    assert_eq!(s16w, 0x60000017b0005037b82u128,
+               "S16 encode byte pin");
+    // decode: w6/w7 (INVALID) stay fail-closed; w3 is S16 (legal post-172).
     assert!(!dec_res(&idx, w("000e240000000c0000c0000018187b82"), &t), "INVALID6 decode");
     assert!(!dec_res(&idx, w("000e240000000e0000c0000018187b82"), &t), "INVALID7 decode");
-    assert!(!dec_res(&idx, w("000e24000000060000c0000018187b82"), &t), "S16 decode");
+    let s16d = idx.decode(w("000e24000000060000c0000018187b82"), 0, &t)
+        .map(|d| cubit::printer::to_sass(&d));
+    assert_eq!(s16d.as_deref().ok(), Some("LDC.S16 R24, c[0x3][R24]"), "S16 decode");
     // LDCU R-index (vendor-ILLEGAL per arb round2) stays fail-closed.
     assert!(!dec_res(&idx, w("000e24000800000000c0000018187b82"), &t), "LDCU.R-idx decode");
 }
@@ -122,5 +127,11 @@ fn t167_5_polygon() {
         assert_eq!(f, ["guard", "reg", "sub_r1", "cm16_off", "reuse"], "clone of '64': {f:?}");
         assert_eq!(row["variable_mask"], cari["64"]["variable_mask"], "vm == live donor");
     }
-    assert!(cari.pointer("/S16").is_none(), "S16 out of scope");
+    // 2026-08-26 compose: S16 l anded via BUG-172 (its own header told this
+    // suite's negatives to flip). Clone-shape guard, S16 included:
+    let s16 = &cari["S16"];
+    assert_eq!(u128::from_str_radix(s16["and_base"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap() >> 73 & 0x7, 3, "S16 width bits");
+    assert_eq!(s16["variable_mask"], cari["64"]["variable_mask"], "S16 vm == live donor");
+    let s16f: Vec<_> = s16["fields"].as_array().unwrap().iter().map(|f| f["extraction"].as_str().unwrap()).collect();
+    assert_eq!(s16f, ["guard", "reg", "sub_r1", "cm16_off", "reuse"], "S16 clone of '64': {s16f:?}");
 }
