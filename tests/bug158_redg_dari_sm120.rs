@@ -82,7 +82,24 @@ fn t158_1_table_geometry() {
             seen |= m;
         }
     }
-    assert!(j.pointer("/instructions/REDG_ARI_R").is_none(), "phantom key gone");
+    // 2026-08-26 compose: REDG_ARI_R was RESTORED with the corrected BUG-156
+    // geometry (imm @40/24-overlap-free) because the BUG-142 vendor battery
+    // has a live witness for it ("REDG.E.ADD.S32.STRONG.GPU [R134], R3");
+    // the phantom-shape version is what may not come back. Keep a geometry
+    // guard instead of an absence guard.
+    if let Some(r) = j.pointer("/instructions/REDG_ARI_R/mod_groups/ADD,E,GPU,S32,STRONG") {
+        let fs = r["fields"].as_array().unwrap();
+        let im: Vec<_> = fs.iter().filter(|f| f["extraction"] == "sub_imm1").collect();
+        assert_eq!(im.len(), 1, "REDG_ARI_R S32 imm count");
+        assert_eq!(im[0]["shift"].as_u64().unwrap(), 40, "REDG_ARI_R S32 imm shift");
+        let regwin: std::collections::HashSet<u32> = fs.iter()
+            .filter(|f| f["extraction"] == "reg")
+            .flat_map(|f| {
+                let (s, b) = (f["shift"].as_u64().unwrap() as u32, f["bits"].as_u64().unwrap() as u32);
+                s..s + b
+            }).collect();
+        assert!((40..64).all(|b| !regwin.contains(&b)), "REDG_ARI_R imm/reg overlap");
+    }
     assert!(j.pointer("/instructions/REDG.E.ADD.STRONG.GPU_dARI_R").is_none(), "junk ADD gone");
     assert!(j.pointer("/instructions/REDG.E.AND.STRONG.GPU_dARI_R").is_none(), "junk AND gone");
 }
