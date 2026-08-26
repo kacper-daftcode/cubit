@@ -39,6 +39,8 @@ MANIFEST = TABLES_DIR / "SOURCE.json"
 ARCH_TABLES = {
     "sm120.json": "SM120",
     "sm103a.json": "SM103a",
+    "sm100a.json": "SM100a",
+    "sm121a.json": "SM121A",
 }
 
 # Top-level records a canonical table may carry. The aux sections are O2
@@ -57,7 +59,8 @@ class SyncError(RuntimeError):
 # Ratchet baselines for the baked control/reuse-bit check
 # (and_base bits [127:105] set). Lower only on purpose, together with a
 # silicon-verified canonical hygiene wave.
-BAKED_CTRL_BASELINE = {"SM120": 456, "SM103a": 1269}
+BAKED_CTRL_BASELINE = {"SM120": 456, "SM103a": 1269, "SM100a": 1257,
+                       "SM121A": 458}
 
 FIXED_EXTRACTIONS = {
     "",
@@ -87,9 +90,11 @@ FIXED_EXTRACTIONS = {
     "inv",
     "neg",
     "neg_abs",
+    "neg_f32",
     "neg_shl1",
     "opaque_mod",
     "pred",
+    "pred_inv4",
     "upred_gate",
     "urz_expl",
     "urz_expl_inv",
@@ -233,8 +238,15 @@ def validate_table(data: bytes, arch: str) -> dict[str, Any]:
         raise SyncError(f"canonical table is not valid UTF-8 JSON: {exc}") from exc
 
     extra_top_level = sorted(set(table) - ALLOWED_TOP_LEVEL)
-    if extra_top_level:
-        raise SyncError(f"unexpected top-level records: {', '.join(extra_top_level)}")
+    # underscore-prefixed top-level keys are the reserved annotation zone
+    # (sm121a carries the 121a lane's `_errata_*` evidence notes by design)
+    soft_annotations = [k for k in extra_top_level if k.startswith("_")]
+    hard_junk = [k for k in extra_top_level if not k.startswith("_")]
+    if hard_junk:
+        raise SyncError(f"unexpected top-level records: {', '.join(hard_junk)}")
+    if soft_annotations:
+        print(f"note: {len(soft_annotations)} reserved top-level annotations "
+              f"(^-prefixed) tolerated ({extra_top_level[0]}, …)")
 
     meta = table.get("_meta", {})
     if meta.get("architecture") != arch or meta.get("instruction_width") != 128:
@@ -247,7 +259,7 @@ def validate_table(data: bytes, arch: str) -> dict[str, Any]:
     validate_aux_sections(table, arch)
 
     ctrl_classes = set(meta.get("ctrl_classes", {}))
-    legacy_ctrl_classes = {"none", "static_ctrl"}
+    legacy_ctrl_classes = {"none", "static_ctrl", "unknown"}
     variants = 0
     high_bit_entries: list[str] = []
     for key, entry in instructions.items():

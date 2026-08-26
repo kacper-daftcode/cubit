@@ -604,7 +604,8 @@ fn select_best_candidate<'a>(
         for f in &entry.fields {
             if f.token_idx >= 1 && f.token_idx <= 3
                 && f.shift >= 80 && f.shift <= 85
-                && matches!(f.extraction, crate::table::Extraction::Pred)
+                && matches!(f.extraction, crate::table::Extraction::Pred
+                        | crate::table::Extraction::PredInv4)
             {
                 let mask = (1u64 << f.bits) - 1;
                 let pred_val = ((code_clean >> f.shift) as u64) & mask;
@@ -651,7 +652,8 @@ fn select_best_candidate<'a>(
                 let last_tok = parse_ins_key_op_types(&first.key).len() as i32;
                 e.fields.iter().any(|f| {
                     f.token_idx >= last_tok
-                        && matches!(f.extraction, crate::table::Extraction::Pred)
+                        && matches!(f.extraction, crate::table::Extraction::Pred
+                        | crate::table::Extraction::PredInv4)
                 })
             })
             .unwrap_or(false);
@@ -674,7 +676,8 @@ fn select_best_candidate<'a>(
                 }
                 if let Some(entry) = table.get(&candidate.key, &candidate.mod_group) {
                     let has_tp = entry.fields.iter().any(|f| {
-                        f.shift >= 87 && matches!(f.extraction, crate::table::Extraction::Pred)
+                        f.shift >= 87 && matches!(f.extraction, crate::table::Extraction::Pred
+                        | crate::table::Extraction::PredInv4)
                     });
                     if has_tp { return Some(candidate); }
                 }
@@ -691,9 +694,18 @@ fn select_best_candidate<'a>(
             if candidate.key.ends_with("_?") || candidate.key.contains("_?_") { continue; }
             if let Some(entry) = table.get(&candidate.key, &candidate.mod_group) {
                 let has_trailing_pred = entry.fields.iter().any(|f| {
-                    f.shift >= 87 && matches!(f.extraction, crate::table::Extraction::Pred)
+                    f.shift >= 87 && matches!(f.extraction, crate::table::Extraction::Pred
+                        | crate::table::Extraction::PredInv4)
                 });
                 if has_trailing_pred {
+                    // sm_121a inv4 convention: trailing window == 0 means "no
+                    // guard pred" (PT) — diverting into the _P row would print
+                    // a phantom ", PT". Skip inv4 candidates on zero window.
+                    let inv4_zero = entry.fields.iter().any(|f| {
+                        f.shift >= 87
+                            && matches!(f.extraction, crate::table::Extraction::PredInv4)
+                    }) && trailing_pred_bits == 0;
+                    if inv4_zero { continue; }
                     return Some(candidate);
                 }
             }
@@ -736,7 +748,8 @@ fn select_best_candidate<'a>(
             if let Some(entry) = table.get(&candidate.key, &candidate.mod_group) {
                 let has_output_pred = entry.fields.iter().any(|f| {
                     f.token_idx >= 1 && f.token_idx <= 3
-                        && matches!(f.extraction, crate::table::Extraction::Pred)
+                        && matches!(f.extraction, crate::table::Extraction::Pred
+                        | crate::table::Extraction::PredInv4)
                         && f.shift >= 80 && f.shift <= 85
                 });
                 if has_output_pred {
@@ -900,6 +913,7 @@ fn extraction_name(e: &Extraction) -> String {
         Extraction::RegShr(n) => format!("reg_shr{n}"),
         Extraction::URegShr(n) => format!("ureg_shr{n}"),
         Extraction::Pred => "pred".into(),
+        Extraction::PredInv4 => "pred_inv4".into(),
         Extraction::UPredGate => "upred_gate".into(),
         Extraction::Imm => "imm".into(),
         Extraction::ImmShr(n) => format!("imm_shr{n}"),

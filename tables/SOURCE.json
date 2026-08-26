@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "repository": "https://github.com/kacper-daftcode/blackwell-isa",
-  "base_revision": "89740ef5d41c2d24796ea896e383f67918abc5d0",
+  "base_revision": "6a1f111b0b72748fa5bb49a16254e25883d42438",
   "tables": {
     "sm120.json": {
       "arch": "SM120",
@@ -23,6 +23,59 @@
         "cost_model",
         "operand_roles",
         "stallfix"
+      ]
+    },
+    "sm100a.json": {
+      "arch": "SM100a",
+      "base_sha256": "c8a637df8a842fd919ea6522a193afe5e074480b81f06309698e9857af7b2d1f",
+      "instruction_forms": 400,
+      "encoding_variants": 1463,
+      "sched_only_entries": 0,
+      "sections": [
+        "operand_roles"
+      ]
+    },
+    "sm121a.json": {
+      "arch": "SM121A",
+      "base_sha256": "501c351d61018603f04da8c20db296b786f043f4a0b7f018ecb4fc11a4c47f34",
+      "instruction_forms": 15443,
+      "encoding_variants": 17576,
+      "sched_only_entries": 597,
+      "sections": [
+        "_errata_2026_08_23_149",
+        "_errata_2026_08_23_150",
+        "_errata_2026_08_23_154",
+        "_errata_2026_08_23_155",
+        "_errata_2026_08_23_158",
+        "_errata_2026_08_23_161",
+        "_errata_2026_08_23_162",
+        "_errata_2026_08_23_170",
+        "_errata_2026_08_23_182",
+        "_errata_2026_08_23_183",
+        "_errata_2026_08_23_184",
+        "_errata_2026_08_23_185",
+        "_errata_2026_08_23_186",
+        "_errata_2026_08_23_187",
+        "_errata_2026_08_23_188",
+        "_errata_2026_08_23_189",
+        "_errata_2026_08_23_190",
+        "_errata_2026_08_23_197",
+        "_errata_2026_08_24_198",
+        "_errata_2026_08_24_201",
+        "_errata_2026_08_24_203",
+        "_errata_2026_08_24_206",
+        "_errata_2026_08_24_213",
+        "_errata_2026_08_24_214",
+        "_errata_2026_08_24_215",
+        "_errata_2026_08_24_216",
+        "_errata_2026_08_24_217",
+        "_errata_2026_08_24_218",
+        "_errata_2026_08_24_219",
+        "_errata_2026_08_24_220",
+        "_errata_2026_08_24_221",
+        "_errata_2026_08_24_222",
+        "_errata_2026_08_24_223",
+        "_pending_note"
       ]
     }
   }

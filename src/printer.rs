@@ -211,7 +211,14 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         } else {
             format_operand(op_type, fields, &insn.mod_group, &insn.key, tok, raw)
         };
-        operands.push(s);
+        // pred_inv4 zero window = no guard pred: nvdisasm OMITS the token,
+        // so an empty format result for a P slot is dropped here (not ", ").
+        let inv4_omitted = s.is_empty()
+            && op_type == "P"
+            && fields.iter().any(|f| norm_ext(&f.extraction) == "pred_inv4");
+        if !inv4_omitted {
+            operands.push(s);
+        }
     }
 
     // Print any extra trailing pred fields (tok > InsKey length).
@@ -231,13 +238,23 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         let extra_fields = by_token.get(&extra_tok).map(Vec::as_slice).unwrap_or(&[]);
         let has_pred = extra_fields.iter().any(|f| {
             let e = norm_ext(&f.extraction);
-            e == "pred" || e == "upred"
+            e == "pred" || e == "upred" || e == "pred_inv4"
         });
         if !has_pred { continue; }
         let pred_val = extra_fields.iter()
             .find(|f| { let e = norm_ext(&f.extraction); e == "pred" || e == "upred" })
             .map(|f| f.value)
             .unwrap_or(7);
+        // sm_121a inverted 4-bit pred map (pred_inv4): v==0 -> PT, v==8 -> !PT,
+        // v in 1..=7 -> P(7-v), v in 9..=15 -> !P(15-v). Translate into the
+        // mainstream (number, inv) pair used below.
+        let inv4 = extra_fields.iter().any(|f| norm_ext(&f.extraction) == "pred_inv4");
+        let inv4_field_val = if inv4 {
+            extra_fields.iter()
+                .find(|f| norm_ext(&f.extraction) == "pred_inv4")
+                .map(|f| f.value)
+                .unwrap_or(0)
+        } else { 0 };
         let uniform = extra_fields.iter().any(|f| norm_ext(&f.extraction) == "upred");
         // Detect !PT. BUG-089: the negation is PER-SLOT: consult an explicit
         // neg/inv field attached to THIS extra token first (e.g. IADD3.X tail
@@ -248,10 +265,22 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             let e = norm_ext(&f.extraction);
             e == "neg" || e == "inv"
         });
-        let inv = match explicit_neg {
-            Some(f) => f.value != 0,
-            // legacy heuristic is correct solely for the combining-pred (PT) slot
-            None => pred_val == 7 && ((raw >> 80) & 1) != 0,
+        let (pred_val, inv) = if inv4 {
+            // inv4 carries negation inside the 4-bit window; no side fields.
+            let (n, ng) = match inv4_field_val {
+                0 => (7u64, false),
+                8 => (7u64, true),
+                v @ 1..=7 => (7 - v, false),
+                v => (15 - v, true), // 9..=15
+            };
+            (n, ng)
+        } else {
+            let inv = match explicit_neg {
+                Some(f) => f.value != 0,
+                // legacy heuristic is correct solely for the combining-pred (PT) slot
+                None => pred_val == 7 && ((raw >> 80) & 1) != 0,
+            };
+            (pred_val, inv)
         };
         let s = if pred_val == 7 {
             let pt = if uniform { "UPT" } else { "PT" };
@@ -1154,6 +1183,24 @@ fn format_pred_with_raw(fields: &[&DecodedField], uniform: bool, raw: u128) -> S
 fn format_pred_raw(fields: &[&DecodedField], uniform: bool, raw: u128) -> String {
     let prefix  = if uniform { "UP" } else { "P" };
     let pt_name = if uniform { "UPT" } else { "PT" };
+
+    // sm_121a pred_inv4: inverted 4-bit window carries the predicate AND its
+    // negation; v==0 means "no guard pred" and nvdisasm omits the token, so
+    // the caller drops it — signal via an empty string.
+    for f in fields {
+        if norm_ext(&f.extraction) == "pred_inv4" {
+            let v = f.value;
+            if v == 0 { return String::new(); }
+            let (n, neg) = match v {
+                8 => (7u64, true),
+                v @ 1..=7 => (7 - v, false),
+                v => (15 - v, true), // 9..=15
+            };
+            let inv_s = if neg { "!" } else { "" };
+            if n == 7 { return format!("{inv_s}{pt_name}"); }
+            return format!("{inv_s}{prefix}{n}");
+        }
+    }
 
     let mut pred: Option<u64> = None;
     let mut inv = false;

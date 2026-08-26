@@ -82,6 +82,11 @@ pub enum Extraction {
     /// UPT = sel 0); every other upred field on sm_120 is straight (sel = n,
     /// UPT = sel 7) per the i93 field census (206775 UP records).
     UPredGate,
+    /// Trailing guard-pred inverted 4-bit map (sm_121a convention; LDG
+    /// [67:64] / .256 [90:87] windows): PT/none -> 0, Pn -> 7-n, !PT -> 8,
+    /// !Pn -> 15-n. Ported 1:1 from the SM121a fleet implementation (q2
+    /// iter38) — same window as `pred` on sm_103a, different value mapping.
+    PredInv4,
     // Immediate shifts (unmasked — field mask handles truncation)
     Imm, ImmShr(u8), // imm >> N
     ImmDec, ImmDecU32,
@@ -165,6 +170,7 @@ fn parse_extraction(s: &str) -> Result<Extraction> {
         "reg_ff" => Extraction::RegFf,
         "pred" | "upred" => Extraction::Pred,
         "upred_gate" => Extraction::UPredGate,
+        "pred_inv4" => Extraction::PredInv4,
         "barrier" => Extraction::Barrier,
         "imm" => Extraction::Imm,
         "imm_dec" => Extraction::ImmDec,

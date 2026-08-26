@@ -119,6 +119,7 @@ fn extraction_accepts(ext: &Extraction, op: &Operand) -> bool {
             Operand::UReg { .. } | Operand::Addr { .. } | Operand::Desc { .. }),
         URegFf => matches!(op, Operand::UReg { .. }),
         Pred => matches!(op, Operand::Pred { .. } | Operand::UPred { .. }),
+        PredInv4 => matches!(op, Operand::Pred { .. } | Operand::UPred { .. }),
         UPredGate => matches!(op, Operand::UPred { .. } | Operand::Pred { .. }),
         Barrier => matches!(op, Operand::Barrier(_)),
 
@@ -327,7 +328,7 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
             }
             Operand::Pred { num, .. } | Operand::UPred { num, .. } if *num != 7 => {
                 if !fields_for_tok().any(|f| matches!(f.extraction,
-                    Extraction::Pred | Extraction::UPredGate)) {
+                    Extraction::Pred | Extraction::UPredGate | Extraction::PredInv4)) {
                     return missing(&format!("P{num}"));
                 }
             }
@@ -2024,6 +2025,25 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
         Extraction::RegFf => fit_soft(insn, field, op_reg_ff(insn, field.token_idx) as i64, false),
         Extraction::URegFf => fit_soft(insn, field, op_ureg_ff(insn, field.token_idx) as i64, false),
         Extraction::Pred => fit(insn, field, op_pred(insn, field.token_idx)),
+        // sm_121a trailing guard-pred inverted 4-bit map (q2 iter38 port):
+        // PT/none -> 0, Pn -> 7-n, !PT -> 8, !Pn -> 15-n. The _ => 0 default
+        // matches "no pred operand": window stays 0, which decode reads as
+        // "no guard pred" (the inv4 zero rule).
+        Extraction::PredInv4 => {
+            let v = match get_op(insn, field.token_idx) {
+                Some(Operand::Pred { num, neg, .. }) | Some(Operand::UPred { num, neg, .. }) => {
+                    if *neg {
+                        if *num == 7 { 8 } else { 15 - *num as u64 }
+                    } else if *num == 7 {
+                        0
+                    } else {
+                        7 - *num as u64
+                    }
+                }
+                _ => 0,
+            };
+            fit(insn, field, v)
+        }
         // BUG-032: nvdisasm gate naming is inverted (sel = 7 - n, UPT = sel 0);
         // physical value (sel) is identical, only the name mapping flips.
         Extraction::UPredGate => {
