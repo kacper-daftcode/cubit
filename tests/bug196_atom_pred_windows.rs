@@ -77,7 +77,7 @@ fn t196_2_guard_does_not_fabricate_dest() {
             ("@P6 ATOMG.E.EXCH.STRONG.GPU PT, RZ, desc[UR8][R10.64], R3", 0x800000030aff69a8u64 | (6 << 12), 0x0c1ef108u64),
             ("@P3 ATOMG.E.INC.STRONG.GPU PT, R2, desc[UR14][R2.64], R5", 0x80000005020239a8u64, 0x099ef10eu64),
         ] {
-            let w = ((*hi as u128) << 64) | (*lo as u128);
+            let w = (((hi as u128)) << 64) | ((lo as u128));
             assert_eq!(&dec(&t, &idx, w), want, "{p}: guard/dest separation");
         }
         // encode must stay fail-closed (BUG-080) even though decode is exact
@@ -97,7 +97,7 @@ fn t196_3_basereg_hi_not_pred() {
             ("ATOM.E.MAX.S64.STRONG.GPU P0, RZ, desc[UR4][R26.64+0x8], R4", 0x800008041aff798au64),
             ("ATOM.E.MAX.S64.STRONG.GPU P0, RZ, desc[UR4][R122.64+0x8], R4", 0x800008047aff798au64),
         ] {
-            let w = (0x0910f704u128 << 64) | (*lo as u128);
+            let w = (0x0910f704u128 << 64) | ((lo as u128));
             assert_eq!(&dec(&t, &idx, w), want, "{p}: base-reg not demangled as pred");
         }
     }
@@ -120,7 +120,7 @@ fn t196_4_authored_dest_pred_encodes_vendor_law() {
         ("ATOMG.E.MAX.S32.STRONG.GPU P5, R3, desc[UR4][R2.64], R7", 0x80000007020379a8u64, 0x091af304u64),
         ("ATOMG.E.CAS.STRONG.GPU P3, R5, [R4], R6, R7", 0x00000006040573a9u64, 0x0016e107u64),
     ] {
-        let w = ((*hi_d as u128) << 64) | (*lo as u128);
+        let w = (((hi_d as u128)) << 64) | ((lo as u128));
         assert_eq!(enc(&t, text), w, "authored dest-P must land at [81:84): {text}");
         assert_eq!(&dec(&t, &idx, w), text, "roundtrip: {text}");
     }
@@ -136,7 +136,7 @@ fn t196_5_pt_canonical_unchanged() {
         ("ATOMG.E.INC.STRONG.GPU PT, R2, desc[UR14][R2.64], R5", 0x80000005020279a8u64, 0x099ef10eu64),
         ("ATOMG.E.EXCH.STRONG.GPU PT, RZ, desc[UR8][R10.64], R3", 0x800000030aff79a8u64, 0x0c1ef108u64),
     ] {
-        assert_eq!(enc(&t, text), ((*hi_d as u128) << 64) | (*lo as u128), "{text}");
+        assert_eq!(enc(&t, text), (((hi_d as u128)) << 64) | ((lo as u128)), "{text}");
     }
 }
 
@@ -151,7 +151,7 @@ fn t196_6_sm120_lanes() {
         ("ATOMG.E.ADD.STRONG.GPU P4, R3, desc[UR4][R2.64], R7", 0x80000007020379a8u64, 0x0818f104u64),
         ("ATOMG.E.CAS.STRONG.SYS PT, R3, [R8], R2, R3", 0x00000002080373a9u64, 0x001f4103u64),
     ] {
-        let w = ((*hi_d as u128) << 64) | (*lo as u128);
+        let w = (((hi_d as u128)) << 64) | ((lo as u128));
         assert_eq!(&dec(&t, &idx, w), text, "sm120 decode: {text}");
         assert_eq!(enc(&t, text), w, "sm120 encode: {text}");
     }
