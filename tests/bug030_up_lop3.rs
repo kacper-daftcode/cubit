@@ -65,23 +65,40 @@ fn bug030_gold_decode_and_reencode_byte_exact() {
 
 #[test]
 fn bug030_repro_uplop3_lattice_fail_closed() {
-    // original repro: tok5=0x3 is not expressible (2-bit lattice, value<<6)
+    // RE-PIN (BUG-168, iter78): korekta prawa kraty. Stara kerta
+    // ({0,0x40,0x80,0xc0} x {0,0x4,0x8,0xc}) byla over-fitem ery-030 --
+    // vendor (nvdisasm 13.3.73 matryca, work/i78): v1 in [0,0xfe] EVEN,
+    // v2 in [0,0xff] niezalezny. 0x3 odrzucane dalej (v1 ODD: bit0 bez
+    // magazynu), ale komunikat niesie BUG-168 (rev BUG-030).
     let e = enc("UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, 0x3, 0x0")
         .expect_err("out-of-lattice lut must be refused");
-    assert!(e.contains("BUG-030"), "error must name BUG-030: {e}");
-    // brzegi kraty: tok5 {0,0x40,0x80,0xc0}, tok6 {0,0x4,0x8,0xc} — legalne
+    assert!(e.contains("BUG-030") && e.contains("BUG-168"),
+        "error must name BUG-168 (rev BUG-030): {e}");
+    // brzegi kraty: stare krawedzie legalne jak dawniej...
     for (a, b) in [(0x0, 0x0), (0x40, 0x4), (0x80, 0x8), (0xc0, 0xc), (0xc0, 0x0), (0x0, 0xc)] {
         enc(&format!("UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, {a:#x}, {b:#x}"))
             .unwrap_or_else(|e| panic!("lattice edge {a:#x},{b:#x} must encode: {e}"));
     }
-    // poza krata: wartosci z ustawionymi dolnymi bitami / za duza wartosc
+    // ...a formy odkryte przez BUG-168 z korpusu (64 linie) TEZ legalne:
+    for (a, b) in [(0xf8, 0x8f), (0x2, 0x20)] {
+        enc(&format!("UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, {a:#x}, {b:#x}"))
+            .unwrap_or_else(|e| panic!("BUG-168 corpus form {a:#x},{b:#x} must encode: {e}"));
+    }
+    // poza krata post-168: v1 nieparzyste / >0xfe, v2 >0xff
+    for t in [
+        "UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, 0x43, 0x4",
+        "UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, 0x100, 0x0",
+        "UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, 0x40, 0x100",
+    ] {
+        enc(t).expect_err(&format!("{t:?} must be refused"));
+    }
+    // legalne w nowym prawie (dowod arbitrazu nvdisasm; pre-168 refuse):
     for t in [
         "UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, 0x44, 0x4",
-        "UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, 0x100, 0x0",
         "UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, 0x40, 0x5",
         "UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, 0x40, 0x10",
     ] {
-        enc(t).expect_err(&format!("{t:?} must be refused"));
+        enc(t).unwrap_or_else(|e| panic!("{t:?} legal per BUG-168 law: {e}"));
     }
 }
 
