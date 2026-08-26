@@ -94,15 +94,16 @@ fn t137_3_authored_suffix_fields_roundtrip() {
     }
 }
 
-/// sm120.json (33-record harvest) has no tok6 ureg field: authored forms
-/// with a non-URZ suffix fail closed instead of silently baking URZ bits.
+/// Historical note: sm120.json used to pin this as fail-closed (33-record
+/// harvest, no tok6 field). BUG-144 repaired the sm120 "" group
+/// (and_base tok6 window + ureg_ff/neg/reuse fields), so the pin flips:
+/// the authored form must now encode byte-identical to the sm103a canon.
 #[test]
-fn t137_5_sm120_nonsuffix_field_absent_fails_closed() {
-    let t = t120();
-    let insn = parse_sass("UIADD3 UR4, UPT, UPT, UR5, UR6, UR7 ;", 0).unwrap();
-    let e = encode_instruction(&insn, &t)
-        .expect_err("sm120 has no field for a non-URZ operand 6 — must fail closed");
-    assert!(format!("{e}").contains("UR7"), "error names the operand: {e}");
+fn t137_5_sm120_suffix_field_present_after_bug_144() {
+    let t120 = t120();
+    let t103 = t103a();
+    let c = "UIADD3 UR4, UPT, UPT, UR5, UR6, UR7";
+    assert_eq!(enc(&t120, c) & KEEP, enc(&t103, c) & KEEP);
 }
 
 #[test]
