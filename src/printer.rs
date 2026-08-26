@@ -941,6 +941,12 @@ fn format_operand(
             && fields.iter().any(|f| norm_ext(&f.extraction) == "ureg")
             && fields.iter().any(|f| norm_ext(&f.extraction) == "reg")
             => format_plain_u32_ur(fields, raw),
+        // BUG-154: SYNCS.PHASECHK.TRANS64[.TRYWAIT] ARURI rows are plain
+        // uniform-datapath bracket addresses in vendor text --
+        // [Rn+URm(+0xoff)] with the UR part printed explicitly (0xff = URZ,
+        // vendor never prints bare [Rn] here). The generic desc[UR][R.64]
+        // print below fabricates descriptor semantics (149/150-class).
+        "ARURI" if ins_key.starts_with("SYNCS") => format_syncs_addr(fields),
         "ARURI" => format_aruri(fields, raw),
         // No-immediate / UR-only address variants (ARUR/AUR/AURI/AURR/ARURR).
         // These are the same bracket address forms as ARURI (the address entry
@@ -1814,6 +1820,53 @@ fn format_auri_uronly(fields: &[&DecodedField], raw: u128) -> String {
         return format!("[{ur_s}+0x{offset:x}]");
     }
     format!("[{ur_s}]")
+}
+
+// ── SYNCS ARURI — plain uniform-datapath address (BUG-154) ──────────────────
+// Format: [Rn+URm+0xoff]; UR window is 8-bit @64 with 0xff = URZ (printed
+// explicitly, nvdisasm-parity), base Rn always present in these rows.
+
+fn format_syncs_addr(fields: &[&DecodedField]) -> String {
+    let mut base_reg: Option<u64> = None;
+    let mut ur_reg:   Option<u64> = None;
+    let mut offset:   i64 = 0;
+    let mut has_off   = false;
+
+    for f in fields {
+        let e = norm_ext(&f.extraction);
+        match e.as_str() {
+            "sub_r1" | "sub_r0"                => base_reg = Some(f.value),
+            "reg"                              => { if base_reg.is_none() { base_reg = Some(f.value); } }
+            "sub_ur0" | "sub_ur1" | "ureg"     => ur_reg = Some(f.value),
+            s if s.starts_with("sub_imm") => {
+                offset |= sub_imm_off(s, f.value, f.bits);
+                has_off = true;
+            }
+            "imm" if f.bits >= 8 => {
+                offset = sign_extend(f.value, f.bits);
+                has_off = offset != 0;
+            }
+            _ => {}
+        }
+    }
+
+    let rn = base_reg.unwrap_or(0);
+    let reg_s = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
+    let ur_s = match ur_reg {
+        Some(255) | None => "URZ".to_string(),
+        Some(un) => format!("UR{un}"),
+    };
+    let off_s = if has_off && offset != 0 {
+        if offset < 0 { format!("-0x{:x}", (-offset) as u64) } else { format!("+0x{offset:x}") }
+    } else {
+        String::new()
+    };
+    if rn == 255 {
+        // defensive: RZ base is a silent sink; vendor prints the UR form alone
+        format!("[{ur_s}{off_s}]")
+    } else {
+        format!("[{reg_s}+{ur_s}{off_s}]")
+    }
 }
 
 // ── ARURI — descriptor address via UR ────────────────────────────────────────
