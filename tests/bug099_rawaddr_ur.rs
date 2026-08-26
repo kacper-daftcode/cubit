@@ -29,6 +29,20 @@
 //! (pre: those slots were junk-misdecoded, i.e. worse). Modes 5/7 stay
 //! fail-closed (no vendor evidence).
 //! Report: the internal fix archive Anchors: the internal fix archive
+//!
+//! BUG-149 (iter70, 2026-08-25, front-main) follow-up: fresh-corpus evidence
+//! (hexdb 2014 cubins, nvdisasm-13.3) shows sm_100/103-nvcc emits the raw
+//! `.U32+UR` LDG forms with mode == 2 (10/10 anchors; LD.E + STG agree) while
+//! the mode-6 shape exists only in the frozen sm120 vendor era bins (rt98/rc4,
+//! 63 uniq words, LDG-only -- STG era words are mode-2). The donor-verbatim
+//! and_base (mode-6) therefore: (a) OR-polluted encode vs its own arch
+//! (battery mismatch `LDG.E.64 [RZ.U32+UR8]`, BUG-147 sec.5), and (b) left a
+//! decode gap for mode-2 words that the junk row LDG_R_ARURI::64,E filled
+//! with fabricated `desc[UR][RZ.64]` renders. Fix on sm103a: five raw LDG
+//! rows get and_base mode-2 (canonical encode) + variable_mask bit92 (both
+//! modes decode); LDG_R_ARURI::64,E deleted. sm120.json keeps mode-6 (its
+//! vendor bin truth) -- per-arch canonical. sm103a era-word round-trips now
+//! carry the mode bit through the !rsd[92:1] overlay (pins below).
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;
@@ -167,9 +181,12 @@ fn bug099_decode_vendor_exact_sm120() {
 
 #[test]
 fn bug099_roundtrip_word_exact_both() {
-    // All mode-6/3 anchors round-trip byte-exact on both tables. The single
-    // mode-2 corpus word is asserted separately below (documented residue).
-    for t in [t103(), t120()] {
+    // All mode-6/3 anchors round-trip byte-exact on the sm120 table. On
+    // sm103a (BUG-149) the raw `.U32+UR` LDG canonical encode is mode-2, so
+    // mode-6 era words re-encode with bit92 cleared and the exact byte is
+    // carried by the !rsd[92:1] overlay (pinned: overlay roundtrip exact).
+    // The single mode-2 corpus word is asserted separately below.
+    for t in [t120()] {
         let idx = DecodeIndex::build(&t);
         for &(w, golden) in GOLD95.iter().chain(GOLD99) {
             let word = w;
@@ -183,6 +200,28 @@ fn bug099_roundtrip_word_exact_both() {
             assert_eq!(w2 & M96, word & M96, "roundtrip: {text}");
         }
     }
+    let t = t103();
+    let idx = DecodeIndex::build(&t);
+    for &(word, golden) in GOLD95.iter().chain(GOLD99) {
+        if word == 0x002ea200081e090000000004ff007981u128 { continue; }
+        let d = idx.decode(word, 0, &t).unwrap();
+        let text = cubit::printer::to_sass(&d);
+        assert_eq!(text, golden);
+        let insn = parse_sass(&format!("{text} ;"), 0).unwrap();
+        let w2 = encode_instruction(&insn, &t)
+            .unwrap_or_else(|e| panic!("encode {text}: {e}"));
+        if (word >> 92) & 1 == 1 {
+            // mode-6 era anchor: canonical sm103a encode clears bit92...
+            assert_eq!(w2 & M96, word & !(1u128 << 92) & M96,
+                       "canonical mode-2 roundtrip: {text}");
+            // ...and the era byte stays reachable through the overlay.
+            let ov = parse_sass(&format!("{text} !rsd[92:1] ;"), 0).unwrap();
+            assert_eq!(encode_instruction(&ov, &t).unwrap() & M96, word & M96,
+                       "rsd overlay roundtrip: {text}");
+        } else {
+            assert_eq!(w2 & M96, word & M96, "roundtrip: {text}");
+        }
+    }
 }
 
 #[test]
@@ -191,15 +230,30 @@ fn bug099_mode2_rz_documented_residue() {
     // tables; text encodes to the legal era-proven mode-6 word (documented).
     let word = 0x002ea200081e090000000004ff007981u128;
     let mode6 = 0x002ea200181e090000000004ff007981u128;
-    for t in [t103(), t120()] {
+    // sm103a (BUG-149): canonical encode = mode-2 (its own nvcc evidence);
+    // the era mode-6 word stays byte-reachable via the !rsd[92:1] overlay.
+    {
+        let t = t103();
         let idx = DecodeIndex::build(&t);
         let d = idx.decode(word, 0, &t).unwrap();
         let text = cubit::printer::to_sass(&d);
         assert_eq!(text, "LDG.E R0, [RZ.U32+UR4]");
         let insn = parse_sass(&format!("{text} ;"), 0).unwrap();
         let w2 = encode_instruction(&insn, &t).unwrap();
-        assert_eq!(w2 & M96, mode6 & M96, "text encodes legal mode-6 form");
-        assert_ne!(w2 & M96, word & M96, "mode-2 byte not reachable from text");
+        assert_eq!(w2 & M96, word & M96, "sm103a text encodes canonical mode-2");
+        let ov = parse_sass(&format!("{text} !rsd[92:1] ;"), 0).unwrap();
+        assert_eq!(encode_instruction(&ov, &t).unwrap() & M96, mode6 & M96,
+                   "rsd overlay reproduces the era mode-6 word");
+    }
+    // sm120: unchanged -- mode-6 is the vendor bin truth there.
+    {
+        let t = t120();
+        let idx = DecodeIndex::build(&t);
+        let d = idx.decode(word, 0, &t).unwrap();
+        assert_eq!(cubit::printer::to_sass(&d), "LDG.E R0, [RZ.U32+UR4]");
+        let insn = parse_sass("LDG.E R0, [RZ.U32+UR4] ;", 0).unwrap();
+        let w2 = encode_instruction(&insn, &t).unwrap();
+        assert_eq!(w2 & M96, mode6 & M96, "sm120 text encodes mode-6 form");
     }
 }
 
@@ -224,8 +278,13 @@ fn bug099_encoder_width_routing() {
         let insn = parse_sass("LDG.E R10, [R12.64+UR12+0x80] ;", 0).unwrap();
         let w = encode_instruction(&insn, &t).unwrap();
         assert_eq!(w & M96, 0x000ea8000c1e09000000800c0c0a7981u128 & M96);
-        let insn = parse_sass("LDG.E.64 R8, [R6.U32+UR8+0x800] ;", 0).unwrap();
-        let w = encode_instruction(&insn, &t).unwrap();
-        assert_eq!(w & M96, 0x000e2400181e0b000008000806087981u128 & M96);
     }
+    // `.U32+UR` text lands on the addr_width=U32 row; the mode byte is the
+    // per-arch nvcc canonical (BUG-149): mode-2 on sm103a, mode-6 on sm120.
+    let (t, want) = (t103(), 0x000e2400081e0b000008000806087981u128);
+    let insn = parse_sass("LDG.E.64 R8, [R6.U32+UR8+0x800] ;", 0).unwrap();
+    assert_eq!(encode_instruction(&insn, &t).unwrap() & M96, want & M96);
+    let (t, want) = (t120(), 0x000e2400181e0b000008000806087981u128);
+    let insn = parse_sass("LDG.E.64 R8, [R6.U32+UR8+0x800] ;", 0).unwrap();
+    assert_eq!(encode_instruction(&insn, &t).unwrap() & M96, want & M96);
 }
