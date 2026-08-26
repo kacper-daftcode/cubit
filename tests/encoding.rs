@@ -704,23 +704,22 @@ mod sm103a {
     }
 
     #[test]
-    fn syncs_phasechk_uniform_addr_form() {
-        // BUG-154 re-pin: the text form pinned here used to be the fabricated
-        // `desc[UR29][R2.64+0xd0]` (no table row can produce vendor text in
-        // that shape; the dARI key it bound was a desc-fabrication mirror).
-        // Vendor text for the same payload word is the plain
-        // uniform-datapath bracket form `[R2+UR29+0xd0]` (nvdisasm 13.3,
-        // 11,531-anchor census; the low96 constant below IS the vendor
-        // payload, unchanged by the re-pin).
+    fn syncs_phasechk_descriptor_form() {
+        // BUG-157 re-pin: SYNCS_P_dARI_R was a desc-shaped alias carrier for the
+        // plain uniform-add address `[R2+UR29+0xd0]` (the expectation word below
+        // is a real vendor anchor of that spelling). Census proved the desc
+        // render a pure fabrication (103/103 winner-census hits fabricated; zero
+        // vendor desc-form SYNCS in the 17,651-word universe), so the key was
+        // deleted; the canonical spelling encodes the same payload through the
+        // sane SYNCS_P_ARURI_R row, and the desc spelling must fail closed.
         let Some(tab) = t() else { return };
         let c = encode_instruction(
             &parse_sass("SYNCS.PHASECHK.TRANS64.TRYWAIT P1, [R2+UR29+0xd0], R3 ;", 0)
                 .unwrap(), &tab).unwrap();
         assert!(eq_masked(c, 0x000fc2000802111d0000d003020075a7), "{c:032x}");
-        // The fabricated desc text is now fail-closed (dARI key deleted).
         assert!(encode_instruction(
             &parse_sass("SYNCS.PHASECHK.TRANS64.TRYWAIT P1, desc[UR29][R2.64+0xd0], R3 ;", 0)
-                .unwrap(), &tab).is_err());
+                .unwrap(), &tab).is_err(), "desc spelling must fail closed post-BUG-157");
     }
 
     #[test]

@@ -681,6 +681,17 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             _ => {}
         }
     }
+    // BUG-157: SYNCS — nvdisasm order is ARRIVE/PHASECHK < TRANS64 < RED <
+    // A1T0/A0TR (vendor corpus: SYNCS.ARRIVE.TRANS64.RED.A1T0, never
+    // .ARRIVE.RED.TRANS64); TRYWAIT follows TRANS64 on the PHASECHK side.
+    if base == "SYNCS" {
+        match m {
+            "TRANS64" => return 6,
+            "RED" | "TRYWAIT" => return 7,
+            "A1T0" | "A0TR" => return 8,
+            _ => {}
+        }
+    }
     // IMAD.HI means "high-half product" and appears BEFORE the data type: IMAD.HI.U32
     if m == "HI" && matches!(base, "IMAD" | "IMAD_U32" | "IMAD_S32") { return 4; }
     // SH (shift-count hint) in FLO comes AFTER the data type: FLO.U32.SH
@@ -1683,6 +1694,10 @@ fn format_addr(fields: &[&DecodedField], raw: u128, signed_elide: bool) -> Strin
     let mut base_reg: Option<u64> = None;
     let mut base_wide = false;
     let mut ur_reg: Option<u64> = None;
+    // BUG-157: width of the UR window picks the URZ-sink law: 8-bit windows
+    // carry 255=URZ (63 = real UR63, same law as format_aruri post-BUG-160);
+    // narrower legacy windows keep 63=URZ.
+    let mut ur_bits: u32 = 0;
     let mut offset: i64 = 0;
     let mut has_offset = false;
     let mut imm_width: u32 = 0;
@@ -1694,7 +1709,7 @@ fn format_addr(fields: &[&DecodedField], raw: u128, signed_elide: bool) -> Strin
             "sub_r0_shr1" | "sub_r1_shr1" => { base_reg = Some(f.value << 1); base_wide = true; }
             "reg" => { if base_reg.is_none() { base_reg = Some(f.value); } }
             "sub_ur0_shr1" | "sub_ur1_shr1"   => ur_reg = Some(f.value << 1),
-            "sub_ur0" | "sub_ur1" | "ureg"    => ur_reg = Some(f.value),
+            "sub_ur0" | "sub_ur1" | "ureg"    => { ur_reg = Some(f.value); ur_bits = f.bits; }
             s if s.starts_with("sub_imm") => {
                 offset |= sub_imm_off(s, f.value, f.bits);
                 has_offset = true;
@@ -1727,10 +1742,11 @@ fn format_addr(fields: &[&DecodedField], raw: u128, signed_elide: bool) -> Strin
     let mut inner = format!("{reg_s}{wide_s}");
 
     if let Some(un) = ur_reg {
-        // BUG-143: shared-atom UR slot (ATOMS POPC.32 family) carries the URZ
-        // sink as 0xFF (130 vendor anchors), same convention as format's
-        // `un == 255 => URZ` at the LDS composer. 63 stays the legacy URZ alias.
-        let ur_s = if un == 63 || un == 0xFF { "URZ".to_string() } else { format!("UR{un}") };
+        // BUG-157 width law (supersedes the BUG-143 alias for format_addr):
+        // 8-bit UR windows carry 255=URZ (63 = real UR63, same law as
+        // format_aruri post-BUG-160); narrower legacy windows keep 63=URZ.
+        let is_urz = if ur_bits == 8 { un == 255 } else { un == 63 };
+        let ur_s = if is_urz { "URZ".to_string() } else { format!("UR{un}") };
         inner.push('+');
         inner.push_str(&ur_s);
     }
