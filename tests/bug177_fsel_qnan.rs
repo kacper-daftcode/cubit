@@ -111,9 +111,9 @@ fn t177_3_payload_and_snan_probes() {
 }
 
 /// t177_4: invariants — INF/zero lanes unchanged; MUFU.RSQ baked-constant
-/// arm is the parked-159 domain and must stay pre==post on this branch
-/// (on main pre-159 the bit-identical word renders "0x0" by design of the
-/// parked fix; this pin guards that 177 does not leak into the 159 lane).
+/// lane now expects the LANDED BUG-159 spelling ("-QNAN"; this invariant
+/// originally guarded the parked-159 "0x0" posture and was rebased when
+/// the 159 fix merged to main in the 2026-08-26 branch-landing wave).
 #[test]
 fn t177_4_inf_zero_invariants_mufu_untouched() {
     let t = t103();
@@ -126,9 +126,9 @@ fn t177_4_inf_zero_invariants_mufu_untouched() {
     ] {
         assert_eq!(dec(&idx, base | ((imm as u128) << 32), &t), want, "{imm:#x}");
     }
-    // MUFU.RSQ 0xFFC00000 lane = parked-159 (must NOT become -QNAN here).
+    // MUFU.RSQ 0xFFC00000 lane = landed BUG-159 behavior (folded sign).
     let m = dec(&idx, w("000e220000001400ffc0000000007908"), &t);
-    assert!(m.starts_with("MUFU.RSQ R0, 0x0"), "parked-159 lane moved: {m}");
+    assert!(m.starts_with("MUFU.RSQ R0, -QNAN"), "landed-159 lane moved: {m}");
 }
 
 /// t177_5: encode-side posture pinned pre==post (parked bimodal quirk,
