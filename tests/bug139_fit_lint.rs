@@ -114,9 +114,12 @@ fn t139_3_legacy_payloads_byte_exact() {
     // Const-mem combined offset field.
     assert_eq!(enc_clean(&t, "LDC R0, c[0x0][0x40] ;"),
         0x000000000000080000001000ff007b82u128);
-    // RZ-base sentinel in a 7-bit window (vendor-blessed truncation idiom).
+    // RZ-base sentinel (RE-PIN 2026-08-25, BUG-156): pre-fix expectation
+    // encoded the LDS_R_ARI[S8] *buggy geometry* (base 7b -> RZ truncated
+    // to 0x7f, imm s24@31). Vendor law (nvdisasm-13.3 probe: base 8b ->
+    // RZ = 0xff, imm s24@[40:64)). New bytes arbitrated vendor-side.
     assert_eq!(enc_clean(&t, "LDS.S8 R1, [RZ+0x10] ;"),
-        0x0000000000000200000000087f017984u128);
+        0x00000000020000001000ff017984u128);
     assert_eq!(enc_clean(&t, "S2R R2, SR_TID.X ;"),
         0x00000000000021000000000000027919u128);
     // Branch-fixup-owned operand row (dead imm field + BRA target fixup).
