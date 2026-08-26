@@ -947,6 +947,11 @@ fn format_operand(
         // vendor never prints bare [Rn] here). The generic desc[UR][R.64]
         // print below fabricates descriptor semantics (149/150-class).
         "ARURI" if ins_key.starts_with("SYNCS") => format_syncs_addr(fields),
+        // BUG-143: shared-memory atomics print the UR-tied address as a plain
+        // bracket [R+UR+off] (nvdisasm: `ATOMS.MAX.S32 RZ, [UR6+0x210c], R2`),
+        // never desc[UR][R.64] (that's the global-memory descriptor world).
+        // URZ sink is 0xFF in this family (130 vendor anchors).
+        "ARURI" if ins_key.starts_with("ATOMS") => format_shared_atom_addr(fields, raw),
         "ARURI" => format_aruri(fields, raw),
         // No-immediate / UR-only address variants (ARUR/AUR/AURI/AURR/ARURR).
         // These are the same bracket address forms as ARURI (the address entry
@@ -1595,6 +1600,43 @@ fn elide_rz_base(rn: u64, ur_reg: Option<u64>, offset: i64, has_offset: bool,
     Some(format!("[0x{:x}]", (offset as u64) & mask))
 }
 
+/// BUG-143: shared-atom UR address "[R+UR+off]" (ATOMS family). Same shape as
+/// format_sts_lds_addr, but the URZ sink carried as 0xFF prints "URZ"
+/// (vendor spelling), while narrow-window 63 stays URZ and wide 63 = UR63.
+fn format_shared_atom_addr(fields: &[&DecodedField], raw: u128) -> String {
+    let mut base_reg: Option<u64> = None;
+    let mut ur_reg:   Option<u64> = None;
+    let mut offset:   i64 = 0;
+    let mut has_off   = false;
+    for f in fields {
+        let e = norm_ext(&f.extraction);
+        match e.as_str() {
+            "sub_r1" | "sub_r0"             => base_reg = Some(f.value),
+            "reg"                           => { if base_reg.is_none() { base_reg = Some(f.value); } }
+            "sub_ur0" | "sub_ur1" | "ureg"  => ur_reg = Some(f.value),
+            s if s.starts_with("sub_imm") => {
+                offset |= sub_imm_off(s, f.value, f.bits);
+                has_off = true;
+            }
+            "imm" if f.bits >= 8 => { offset = sign_extend(f.value, f.bits); has_off = offset != 0; }
+            _ => {}
+        }
+    }
+    let rn = base_reg.unwrap_or(255);
+    let reg_s = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
+    let mut inner = reg_s;
+    if let Some(un) = ur_reg {
+        let ur_s = if un == 0xFF || un == 63 { "URZ".to_string() } else { format!("UR{un}") };
+        inner.push('+');
+        inner.push_str(&ur_s);
+    }
+    if has_off && offset != 0 {
+        if offset < 0 { inner.push_str(&format!("+-0x{:x}", (-offset) as u64)); }
+        else { inner.push_str(&format!("+0x{offset:x}")); }
+    }
+    format!("[{inner}]")
+}
+
 /// BUG-038 LDS scaled shared address: "[R9.X16+0xc000]". The scale suffix comes
 /// from the addr_scale field (2=X8, 3=X16; 1=X4 structural inverse). Scale=0
 /// intentionally reproduces format_addr's plain output byte-for-byte.
@@ -1685,7 +1727,10 @@ fn format_addr(fields: &[&DecodedField], raw: u128, signed_elide: bool) -> Strin
     let mut inner = format!("{reg_s}{wide_s}");
 
     if let Some(un) = ur_reg {
-        let ur_s = if un == 63 { "URZ".to_string() } else { format!("UR{un}") };
+        // BUG-143: shared-atom UR slot (ATOMS POPC.32 family) carries the URZ
+        // sink as 0xFF (130 vendor anchors), same convention as format's
+        // `un == 255 => URZ` at the LDS composer. 63 stays the legacy URZ alias.
+        let ur_s = if un == 63 || un == 0xFF { "URZ".to_string() } else { format!("UR{un}") };
         inner.push('+');
         inner.push_str(&ur_s);
     }
