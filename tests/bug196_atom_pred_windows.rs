@@ -72,17 +72,20 @@ fn t196_2_guard_does_not_fabricate_dest() {
         let t = tab(p);
         let idx = DecodeIndex::build(&t);
         for (want, lo, hi) in [
-            ("@P0 ATOMG.E.EXCH.STRONG.GPU PT, RZ, desc[UR8][R10.64], R3", 0x800000030aff69a8u64, 0x0c1ef108u64),
+            ("@P0 ATOMG.E.EXCH.STRONG.GPU PT, RZ, desc[UR8][R10.64], R3", 0x800000030aff09a8u64, 0x0c1ef108u64),
             ("@P2 ATOMG.E.EXCH.STRONG.GPU PT, RZ, desc[UR8][R10.64], R3", 0x800000030aff29a8u64, 0x0c1ef108u64),
-            ("@P6 ATOMG.E.EXCH.STRONG.GPU PT, RZ, desc[UR8][R10.64], R3", 0x800000030aff69a8u64 | (6 << 12), 0x0c1ef108u64),
+            ("@P6 ATOMG.E.EXCH.STRONG.GPU PT, RZ, desc[UR8][R10.64], R3", 0x800000030aff69a8u64, 0x0c1ef108u64),
             ("@P3 ATOMG.E.INC.STRONG.GPU PT, R2, desc[UR14][R2.64], R5", 0x80000005020239a8u64, 0x099ef10eu64),
         ] {
             let w = (((hi as u128)) << 64) | ((lo as u128));
             assert_eq!(&dec(&t, &idx, w), want, "{p}: guard/dest separation");
         }
-        // encode must stay fail-closed (BUG-080) even though decode is exact
-        let insn = parse_sass("@P2 ATOMG.E.EXCH.STRONG.GPU PT, RZ, desc[UR8][R10.64], R3", 0).unwrap();
-        assert!(encode_instruction(&insn, &t).is_err(), "{p}: guarded non-EL atomic encode must fail");
+        // encode must stay fail-closed on sm103a (BUG-080 silicon policy;
+        // sm120 encodes guarded atomics fine) even though decode is exact
+        if p.ends_with("sm103a.json") {
+            let insn = parse_sass("@P2 ATOMG.E.EXCH.STRONG.GPU PT, RZ, desc[UR8][R10.64], R3", 0).unwrap();
+            assert!(encode_instruction(&insn, &t).is_err(), "{p}: guarded non-EL atomic encode must fail");
+        }
     }
 }
 
