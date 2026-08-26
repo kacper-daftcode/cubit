@@ -781,16 +781,49 @@ fn check_mma_reg_alignment(insn: &Instruction) -> Result<()> {
     Ok(())
 }
 
-/// BUG-030: UPLOP3.LUT's two trailing immediates are NOT 8-bit LUTs — in the
-/// silicon-blessed encoding (i93 corpus, 2635 words, nvdisasm-strict render)
-/// tok5 lives in a 2-bit field @75 rendered as `value<<6` ({0,0x40,0x80,0xc0})
-/// and tok6 in a 2-bit field @18 rendered as `value<<2` ({0,0x4,0x8,0xc}).
-/// The encoder used to accept arbitrary values and write a word OUTSIDE the
-/// decodable space (nvdisasm: "undefined value 0x1e for TABLES_opex_1"). The
-/// scaled imm fields truncate silently, so out-of-lattice values are refused
-/// here instead of being dropped.
+/// BUG-030 (rev. BUG-168): UPLOP3.LUT's two trailing immediates are NOT 8-bit
+/// LUTs. The 030-era model (2-bit @75 rendered value<<6 + 2-bit @18 rendered
+/// value<<2) was over-fit to the i93 subset {0x40,0x80} — the fuller corpus
+/// (107 uniq words, hexdb 32.2M; 8/44 uniq texts, 64 lines fail-closed) shows
+/// real pairs (0xf8,0x8f) and (0x2,0x20). Vendor law (nvdisasm 13.3.73,
+/// sm_103a+sm_120a probe matrix on a corpus skeleton, work/i78):
+///   tok5 (v1) = shr1@[65:67)<<1 | shr2@[71:77)<<2  => v1 in [0,0xfe], EVEN
+///      (bit0 has no storage; vendor OR-merges the two fields);
+///   tok6 (v2) = 8-bit @[16:24), fully independent of v1 (probes (0x40,0x14)/
+///      (0x40,0x44)/(0x40,0x9) print as-is; the corpus-wide nibble-swap
+///      relation v2==rot4(v1) is semantic, not structural).
+/// The legacy scale fields truncate silently (fit_soft), so out-of-lattice
+/// values are refused here. The rule below covers the UP-predicate form
+/// (all four source operands UPred); the legacy P-form row
+/// (UPLOP3_UP_P_P_P_P_II_II, zero witnesses in both corpora) keeps the
+/// 030-era strict 2-bit rule — relaxing it there would open silent
+/// truncation through its 3-bit imm field (fit_soft never bails).
 fn check_uplop3_lut_lattice(insn: &Instruction) -> Result<()> {
     if insn.opcode != "UPLOP3" || insn.operands.len() < 7 {
+        return Ok(());
+    }
+    let up_form = insn.operands[1..5]
+        .iter()
+        .all(|o| matches!(o, Operand::UPred { .. }));
+    if up_form {
+        for (oi, max, even) in [(5usize, 0xfei64, true), (6usize, 0xff, false)] {
+            let v = match &insn.operands[oi] {
+                Operand::Imm32(v) => *v,
+                Operand::Imm64(v) => *v as i64,
+                _ => continue,
+            };
+            if v < 0 || v > max || (even && v % 2 != 0) {
+                anyhow::bail!(
+                    "{:?}: operand {} of UPLOP3.LUT is out of the {} lattice \
+                     (BUG-168 rev BUG-030: {}{:#x} max).",
+                    insn.raw_text.trim(),
+                    oi + 1,
+                    if even { "shr1|shr2 8-bit even" } else { "8-bit" },
+                    if even { "even, " } else { "" },
+                    max,
+                );
+            }
+        }
         return Ok(());
     }
     for (oi, shift) in [(5usize, 6u32), (6usize, 2u32)] {
