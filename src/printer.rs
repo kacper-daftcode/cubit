@@ -229,7 +229,7 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             format_utc_desc(tok, by_token.get(&tok).map(Vec::as_slice).unwrap_or(&[]),
                             by_token.get(&4).map(Vec::as_slice).unwrap_or(&[]))
         } else {
-            format_operand(op_type, fields, &insn.mod_group, &insn.key, tok, raw)
+            format_operand(op_type, fields, &insn.mod_group, &insn.key, tok, raw, insn.ef_flags)
         };
         // pred_inv4 zero window = no guard pred: nvdisasm OMITS the token,
         // so an empty format result for a P slot is dropped here (not ", ").
@@ -726,6 +726,7 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             // BUG-179: nvdisasm prints the POPC return-count qualifier BEFORE
             // the operation (ATOMS.POPC.INC.32, never .INC.POPC); it is the
             // only POPC-bearing row in either table (iter83 whole-table scan).
+            // (BUG-181 carried the identical arm; compose keeps one copy.)
             "POPC" => return 3,
             "64" | "128" => return 5,
             "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" => return 6,
@@ -839,6 +840,7 @@ fn format_operand(
     ins_key: &str,
     tok: i32,
     raw: u128,
+    ef_flags: u32,
 ) -> String {
     match op_type {
         // R/UR type: when the field has imm extraction instead of reg/ureg
@@ -958,11 +960,18 @@ fn format_operand(
         // vendor never prints bare [Rn] here). The generic desc[UR][R.64]
         // print below fabricates descriptor semantics (149/150-class).
         "ARURI" if ins_key.starts_with("SYNCS") => format_syncs_addr(fields),
-        // BUG-143: shared-memory atomics print the UR-tied address as a plain
-        // bracket [R+UR+off] (nvdisasm: `ATOMS.MAX.S32 RZ, [UR6+0x210c], R2`),
-        // never desc[UR][R.64] (that's the global-memory descriptor world).
-        // URZ sink is 0xFF in this family (130 vendor anchors).
-        "ARURI" if ins_key.starts_with("ATOMS") => format_shared_atom_addr(fields, raw),
+        // Per-arch ATOMS uniform-window address law (BUG-181 made the split
+        // explicit): sm120 vendor glyph [URn+off] (RZ base elided) /
+        // [Rm+URn+off] (arb181d A_*/B_* probes, nvdisasm 13.3.73 sm_120a);
+        // the sm103a family keeps the BUG-143 plain bracket [R+UR+off] with
+        // the base sentinel printed (130 vendor anchors; documented
+        // render-parity delta vs nvdisasm's RZ elision).
+        "AURI" | "ARURI" if ins_key.starts_with("ATOMS")
+            && ef_flags == crate::elf_builder::EF_CUDA_SM120
+            => format_atoms_auri(fields, raw),
+        "ARURI" if ins_key.starts_with("ATOMS")
+            && crate::table::is_sm103a_encoding_family(ef_flags)
+            => format_shared_atom_addr(fields, raw),
         "ARURI" => format_aruri(fields, raw),
         // No-immediate / UR-only address variants (ARUR/AUR/AURI/AURR/ARURR).
         // These are the same bracket address forms as ARURI (the address entry
@@ -1685,6 +1694,52 @@ fn format_lds_scaled_addr(fields: &[&DecodedField], signed_elide: bool) -> Strin
             inner.push_str(&format!("+-0x{:x}", (-off) as u64));
         } else {
             inner.push_str(&format!("+0x{off:x}"));
+        }
+    }
+    format!("[{inner}]")
+}
+
+/// BUG-181: ATOMS address with a live uniform window — vendor prints
+/// `[URn+off]` when the base is RZ and `[Rm+URn+off]` otherwise
+/// (arb181d A_base_*/B_base_* probes, nvdisasm 13.3.73 sm_120a).
+/// The 8-bit window keeps the wide law: 255 = URZ, 63 = real UR63.
+fn format_atoms_auri(fields: &[&DecodedField], raw: u128) -> String {
+    let mut base_reg: Option<u64> = None;
+    let mut ur_reg: Option<u64> = None;
+    let mut offset: i64 = 0;
+    let mut has_off = false;
+    for f in fields {
+        let e = norm_ext(&f.extraction);
+        match e.as_str() {
+            "sub_r0" | "sub_r1" => base_reg = Some(f.value),
+            "sub_ur0" | "sub_ur1" | "ureg" => ur_reg = Some(f.value),
+            "sub_ur0_shr1" | "sub_ur1_shr1" => ur_reg = Some(f.value << 1),
+            s if s.starts_with("sub_imm") => {
+                offset |= sub_imm_off(s, f.value, f.bits);
+                has_off = true;
+            }
+            _ => {}
+        }
+    }
+    if ur_reg.is_none() {
+        // No UR field on the winning row — keep the legacy format_addr glyph.
+        return format_addr(fields, raw, false);
+    }
+    let un = ur_reg.unwrap();
+    let ur_s = if un == 255 { "URZ".to_string() } else { format!("UR{un}") };
+    let mut inner = String::new();
+    if let Some(bn) = base_reg {
+        if bn != 255 {
+            inner = format!("R{bn}");
+            inner.push('+');
+        }
+    }
+    inner.push_str(&ur_s);
+    if has_off && offset != 0 {
+        if offset < 0 {
+            inner.push_str(&format!("+-0x{:x}", (-offset) as u64));
+        } else {
+            inner.push_str(&format!("+0x{offset:x}"));
         }
     }
     format!("[{inner}]")

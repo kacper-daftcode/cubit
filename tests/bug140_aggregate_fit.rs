@@ -91,9 +91,15 @@ fn t140_1_covered_classes_byte_exact() {
     // (c) branch-fixup-owned target with a dead harvested imm window.
     assert_eq!(enc_clean(&t, "BRA 0x170 ;"),
         0x00000000038000000000000000587947u128);
-    // (d) RZ sentinel in the 7-bit LDS.S8 base window (t123-golden idiom).
+    // (d) RZ sentinel in the narrow LDS.S8 base window (t123-era idiom).
+    // 2026-08-26 compose rebase: era pin (0x..087f.., a 7-bit window word of
+    // the pre-fix CONTROL binary, not a vendor anchor) predates the BUG-147
+    // census law (bit32 of the @24 base window is 0 on all 2,472 corpus S8
+    // words -> 8-bit window). No fleet/vendor witness of an RZ sink exists
+    // for this row, so the canonical 8-bit geometry wins; if a vendor
+    // RZ-base LDS.S8 anchor ever shows 0x7f, revisit (O2-REGISTRY defer).
     assert_eq!(enc_clean(&t, "LDS.S8 R1, [RZ+0x10] ;"),
-        0x0000000000000200000000087f017984u128);
+        0x20000001000ff017984u128);
     // Signed leg: -1 through the 32-bit immediate window.
     assert_eq!(enc_clean(&t, "IADD3 R0, PT, PT, R1, -0x1, R2 ;"),
         0x0000000007ffe002ffffffff01007810u128);
