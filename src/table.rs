@@ -77,6 +77,13 @@ pub enum Extraction {
     Guard, GuardLo3, GuardNeg,
     // Register
     Reg, UReg, URegFf, RegFf, Pred, Barrier,
+    /// BUG-169: uniform predicate (UP slot) split from Pred at parse time.
+    /// Bit semantics are identical to Pred (3-bit sel, 7 = UPT sentinel);
+    /// the variant exists so the decoder tiebreak
+    /// (key_field_consistency_score) and the printer can SEE UP-domain fields
+    /// — the pre-fix "pred" | "upred" collapse made is_upred unreachable and
+    /// let P-domain junk rows out-score correct UP rows on sm120.
+    UPred,
     /// MMA accumulate-gate UP (QMMA/HMMA trailing UP operand @87 + inv@90).
     /// BUG-032: ONLY this slot uses nvdisasm's INVERTED naming (sel = 7-n,
     /// UPT = sel 0); every other upred field on sm_120 is straight (sel = n,
@@ -168,7 +175,8 @@ fn parse_extraction(s: &str) -> Result<Extraction> {
         "ureg" => Extraction::UReg,
         "ureg_ff" => Extraction::URegFf,
         "reg_ff" => Extraction::RegFf,
-        "pred" | "upred" => Extraction::Pred,
+        "pred" => Extraction::Pred,
+        "upred" => Extraction::UPred,
         "upred_gate" => Extraction::UPredGate,
         "pred_inv4" => Extraction::PredInv4,
         "barrier" => Extraction::Barrier,

@@ -118,9 +118,19 @@ fn bug030_ulop3_short_up_write_phantom_rejected() {
 
 #[test]
 fn bug030_uplop3_non_upt_sources_fail_closed() {
-    // tok1-3 have NO fields in the goldens (always UPT): non-UPT must fail
-    // fail-closed through completeness (no field), NOT silently fall out of the word.
-    let e = enc("UPLOP3.LUT UP0, UP1, UPT, UPT, UPT, 0x40, 0x4")
-        .expect_err("non-UPT source at tok1 must be refused");
-    assert!(e.contains("no field"), "completeness error expected: {e}");
+    // RE-PIN 2026-08-25 (BUG-169, z atrybucja): ery-030 zalozenie "tok2 bez pola
+    // = zawsze UPT" OBALONE arbitrazem nvdisasm-13.3.73 (work/bug169/arb):
+    // tok2 = [84:87) upred jest polem rzeczywistym (sondy tok2_84_0/2/5 ->
+    // "UP0/UP2/UP5"). Enkoder zapisuje je bajtowo dokladnie z arbitrem;
+    // fail-closed przez completeness zostaje dla form bez wiersza (klasa
+    // skasowana UP_P_P_P_P: zero kotwic, nvdisasm nie zna P-zrodel w UPLOP3).
+    let w = enc("UPLOP3.LUT UP0, UP5, UPT, UPT, UPT, 0x80, 0x8")
+        .expect("tok2=UP5 must encode (arb byte-exact)");
+    assert_eq!(w & !(0xFFFF_FFFFu128 << 96),
+        0x000fc40003d0f070_000000000008789cu128 & !(0xFFFF_FFFFu128 << 96),
+        "payload [0:96) == arb word (tok2_84_5)");
+    let e = enc("UPLOP3.LUT UP0, PT, P0, P1, PT, 0x80, 0x8")
+        .expect_err("deleted P-source-in-UPLOP3 class must stay refused");
+    assert!(e.contains("no instruction") || e.contains("no row") || e.contains("no field") || e.contains("no operand-compatible"),
+        "lookup failure expected (lattice-passing imms): {e}");
 }

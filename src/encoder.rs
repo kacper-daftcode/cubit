@@ -120,6 +120,7 @@ fn extraction_accepts(ext: &Extraction, op: &Operand) -> bool {
         URegFf => matches!(op, Operand::UReg { .. }),
         Pred => matches!(op, Operand::Pred { .. } | Operand::UPred { .. }),
         PredInv4 => matches!(op, Operand::Pred { .. } | Operand::UPred { .. }),
+        UPred => matches!(op, Operand::UPred { .. } | Operand::Pred { .. }),
         UPredGate => matches!(op, Operand::UPred { .. } | Operand::Pred { .. }),
         Barrier => matches!(op, Operand::Barrier(_)),
 
@@ -355,7 +356,8 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
             }
             Operand::Pred { num, .. } | Operand::UPred { num, .. } if *num != 7 => {
                 if !fields_for_tok().any(|f| matches!(f.extraction,
-                    Extraction::Pred | Extraction::UPredGate | Extraction::PredInv4)) {
+                    Extraction::Pred | Extraction::UPred | Extraction::UPredGate
+                    | Extraction::PredInv4)) {
                     return missing(&format!("P{num}"));
                 }
             }
@@ -2556,7 +2558,7 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
         }
         Extraction::RegFf => fit_soft(insn, field, op_reg_ff(insn, field.token_idx) as i64, false),
         Extraction::URegFf => fit_soft(insn, field, op_ureg_ff(insn, field.token_idx) as i64, false),
-        Extraction::Pred => fit(insn, field, op_pred(insn, field.token_idx)),
+        Extraction::Pred | Extraction::UPred => fit(insn, field, op_pred(insn, field.token_idx)),
         // sm_121a trailing guard-pred inverted 4-bit map (q2 iter38 port):
         // PT/none -> 0, Pn -> 7-n, !PT -> 8, !Pn -> 15-n. The _ => 0 default
         // matches "no pred operand": window stays 0, which decode reads as

@@ -605,7 +605,7 @@ fn select_best_candidate<'a>(
             if f.token_idx >= 1 && f.token_idx <= 3
                 && f.shift >= 80 && f.shift <= 85
                 && matches!(f.extraction, crate::table::Extraction::Pred
-                        | crate::table::Extraction::PredInv4)
+                        | crate::table::Extraction::UPred | crate::table::Extraction::PredInv4)
             {
                 let mask = (1u64 << f.bits) - 1;
                 let pred_val = ((code_clean >> f.shift) as u64) & mask;
@@ -653,7 +653,7 @@ fn select_best_candidate<'a>(
                 e.fields.iter().any(|f| {
                     f.token_idx >= last_tok
                         && matches!(f.extraction, crate::table::Extraction::Pred
-                        | crate::table::Extraction::PredInv4)
+                        | crate::table::Extraction::UPred | crate::table::Extraction::PredInv4)
                 })
             })
             .unwrap_or(false);
@@ -677,7 +677,7 @@ fn select_best_candidate<'a>(
                 if let Some(entry) = table.get(&candidate.key, &candidate.mod_group) {
                     let has_tp = entry.fields.iter().any(|f| {
                         f.shift >= 87 && matches!(f.extraction, crate::table::Extraction::Pred
-                        | crate::table::Extraction::PredInv4)
+                        | crate::table::Extraction::UPred | crate::table::Extraction::PredInv4)
                     });
                     if has_tp { return Some(candidate); }
                 }
@@ -695,7 +695,7 @@ fn select_best_candidate<'a>(
             if let Some(entry) = table.get(&candidate.key, &candidate.mod_group) {
                 let has_trailing_pred = entry.fields.iter().any(|f| {
                     f.shift >= 87 && matches!(f.extraction, crate::table::Extraction::Pred
-                        | crate::table::Extraction::PredInv4)
+                        | crate::table::Extraction::UPred | crate::table::Extraction::PredInv4)
                 });
                 if has_trailing_pred {
                     // sm_121a inv4 convention: trailing window == 0 means "no
@@ -749,7 +749,7 @@ fn select_best_candidate<'a>(
                 let has_output_pred = entry.fields.iter().any(|f| {
                     f.token_idx >= 1 && f.token_idx <= 3
                         && matches!(f.extraction, crate::table::Extraction::Pred
-                        | crate::table::Extraction::PredInv4)
+                        | crate::table::Extraction::UPred | crate::table::Extraction::PredInv4)
                         && f.shift >= 80 && f.shift <= 85
                 });
                 if has_output_pred {
@@ -818,7 +818,7 @@ fn key_has_output_pred_field(key: &str, mod_group: &str, table: &IsaTable) -> bo
     if let Some(entry) = table.get(key, mod_group) {
         for f in &entry.fields {
             if f.token_idx >= 1 && matches!(f.extraction,
-                crate::table::Extraction::Pred)
+                crate::table::Extraction::Pred | crate::table::Extraction::UPred | crate::table::Extraction::PredInv4)
             {
                 return true;
             }
