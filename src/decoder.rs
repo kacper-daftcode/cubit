@@ -44,6 +44,9 @@ pub struct DecodedInst {
     pub raw_code: u128,
     /// Instruction address.
     pub addr: u32,
+    /// Table ef_flags this instruction was decoded against (BUG-181: per-arch
+    /// printer laws, e.g. ATOMS ARI glyph split sm120 vs sm103a-family).
+    pub ef_flags: u32,
 }
 
 /// Decoded scheduling/control information.
@@ -534,6 +537,7 @@ impl DecodeIndex {
             ctrl,
             raw_code: code,
             addr,
+            ef_flags: table.ef_flags,
         })
     }
 }

@@ -57,7 +57,9 @@ fn t145_1_sm120_auri_anchor_decode() {
     // lone sm_120a anchor (nvdisasm: "ATOMS.POPC.INC.32 RZ, [UR4+0xc]")
     let word = w(0x00000c00ffff7f8c, 0x000fe8000d800004);
     let d = dec(&t, &idx, word);
-    assert!(d.contains("+UR4+0xc"), "UR must survive decode, got: {d}");
+    // 2026-08-26 compose: vendor glyph law from BUG-181 supersedes the older
+    // explicit-base render -- "[UR4+0xc]" (RZ base elided, vendor-exact).
+    assert!(d.contains("[UR4+0xc]"), "UR must survive decode, vendor glyph, got: {d}");
     assert!(!d.contains("!rsd"), "residual-marker junk render is gone, got: {d}");
     assert!(!d.contains("desc["), "no descriptor-world spelling for shared atoms, got: {d}");
 }
@@ -69,11 +71,11 @@ fn t145_2_sm120_urz_bracket_decodes_vendor_shape() {
     // 3 of the 127 URZ-sentinel anchors (0xFF@[64:72)); [0,96) constants
     // outside field windows are identical across the whole family.
     let cases = [
-        ("ATOMS.INC.POPC.32 RZ, [R11+URZ]",
+        ("ATOMS.POPC.INC.32 RZ, [R11+URZ]",
          w(0x000000000bff7f8c, 0x0003e2000d8000ff)),
-        ("ATOMS.INC.POPC.32 RZ, [R0+URZ+0x121c]",
+        ("ATOMS.POPC.INC.32 RZ, [R0+URZ+0x121c]",
          w(0x00121c0000ff7f8c, 0x0001e4000d8000ff)),
-        ("ATOMS.INC.POPC.32 RZ, [R2+URZ+0x1a3c]",
+        ("ATOMS.POPC.INC.32 RZ, [R2+URZ+0x1a3c]",
          w(0x001a3c0002ff7f8c, 0x0005e4000d8000ff)),
     ];
     for (text, word) in cases {
@@ -123,9 +125,15 @@ fn t145_5_sm120_coverage_boundary_stable() {
     // the new strict 2-token POPC rows must not leak into neighbors:
     // (a) 3-token dataR shared ATOMS (no sm120 row by design, vendor-observed
     //     fail-closed in the battery on both sides) stays refused;
+    // 2026-08-26 compose: this boundary moved -- the 3-token dataR class is
+    // now COVERED by the BUG-181 ATOMS_R_AURI_R rows (vendor-anchored sweep);
+    // pinning live coverage + decode roundtrip instead of the old refusal.
     let t = t120();
-    assert!(enc_err(&t, "ATOMS.XOR RZ, [UR5+0x10], R6"),
-            "3-token ATOMS must stay fail-closed on sm120");
+    let insn = parse_sass("ATOMS.XOR RZ, [UR5+0x10], R6", 0).unwrap();
+    let word = encode_instruction(&insn, &t).expect("XOR AURI_R now covered (BUG-181)");
+    let idx0 = DecodeIndex::build(&t);
+    let back = dec(&t, &idx0, word);
+    assert!(back.starts_with("ATOMS.XOR"), "roundtrip render, got: {back}");
     // (b) a mod-zone graft one nibble off the POPC constant must not claim
     //     (vm=0 strict row, matcher-checked over the whole hexdb).
     let idx = DecodeIndex::build(&t);
