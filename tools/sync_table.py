@@ -372,13 +372,10 @@ def sync_tables(source_repo: Path) -> None:
     for name, (data, _summary, _rev) in staged.items():
         (TABLES_DIR / name).write_bytes(data)
 
-    print("running cargo test gate on the vendored candidates...")
-    result = subprocess.run(["cargo", "test", "--quiet"], cwd=ROOT, check=False)
-    if result.returncode:
-        raise SyncError(
-            "candidate tables failed cargo test; vendored tables were written "
-            "but the manifest was NOT re-pinned")
-
+    # 2026-08-26: write the manifest BEFORE the cargo gate. The gate's
+    # arch_vendoring manifest_pin test compares vendored tables against the
+    # manifest, so gating on a stale manifest made count-changing canonical
+    # waves unlandable. The manifest pins exactly the bytes staged above.
     # One canonical revision for the whole vendoring (owner layout decision
     # 2026-08-25: a single base_revision for the manifest).  All tables must
     # carry their pinned bytes at that revision; canonical updates touching a
@@ -414,6 +411,13 @@ def sync_tables(source_repo: Path) -> None:
             **summary,
         }
     MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n")
+
+    print("running cargo test gate on the vendored candidates...")
+    result = subprocess.run(["cargo", "test", "--quiet"], cwd=ROOT, check=False)
+    if result.returncode:
+        raise SyncError(
+            "candidate tables failed cargo test; vendored tables and the "
+            "manifest were written (pin consistent with the tables)")
     for name, (_d, summary, _rev) in staged.items():
         print(
             f"synchronized {name}: {summary['instruction_forms']} forms / "
