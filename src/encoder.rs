@@ -155,6 +155,33 @@ fn extraction_accepts(ext: &Extraction, op: &Operand) -> bool {
 /// for, while a same-key sibling owns an imm/ureg-class field for that token
 /// and this entry's and_base carries non-zero bits inside the sibling window
 /// (that window is genuinely the operand's payload slot).
+/// BUG-179: true when `entry` pins the uniform-register sink window of the
+/// address token `tok` structurally: the 8-bit window [64:72) lies fully
+/// outside variable_mask and every field mask, and and_base carries 0xff
+/// there. Sink law (BUG-160, nvdisasm arb179 B): 0xff = URZ, 63 = UR63 — so
+/// on such a row a textual `+URZ` carries zero information and encoding
+/// without a UR field reproduces the vendor word bit-for-bit (census:
+/// 478/478 ATOMS.POPC.INC anchors, 0 vendor counterexamples).
+fn urz_sink_baked(entry: &crate::table::ModGroupEntry, tok: i32) -> bool {
+    const WIN: u128 = 0xFFu128 << 64;
+    let mut fm_all: u128 = 0;
+    for f in &entry.fields {
+        let m = if f.bits >= 128 { u128::MAX } else { ((1u128 << f.bits) - 1) << f.shift };
+        fm_all |= m;
+    }
+    if fm_all & WIN != 0 {
+        return false; // window is field-carried (a real UR field exists)
+    }
+    let pinned = !entry.variable_mask & !(0xFFFFFFFFu128 << 96);
+    if pinned & WIN != WIN {
+        return false; // window not fully pinned by this row
+    }
+    if entry.and_base & !(0xFFFFFFFFu128 << 96) & WIN != WIN {
+        return false; // window pinned to something other than the sink
+    }
+    entry.fields.iter().any(|f| f.token_idx == tok)
+}
+
 fn zero_payload_junk(
     insn: &Instruction,
     key: &str,
@@ -379,7 +406,15 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
                 }
                 if ur_reg.is_some_and(|u| u != 63)
                     && !fields_for_tok().any(|f| ext_encodes_ureg(&f.extraction)) {
-                    return missing("addr UR");
+                    // BUG-179: a URZ payload is honestly encodable on a row
+                    // that BAKES the uniform sink window of this address —
+                    // the emitted word carries URZ by construction (vendor
+                    // prints it back on SYNCS/ATOMS; elided on LDGSTS/STAS).
+                    // A real UR (or a row without the structural sink) stays
+                    // fail-closed.
+                    if !(ur_reg == &Some(255) && urz_sink_baked(entry, tok)) {
+                        return missing("addr UR");
+                    }
                 }
                 if *offset != 0 && !fields_for_tok().any(|f| ext_encodes_imm(&f.extraction)) {
                     return missing(&format!("addr offset 0x{offset:x}"));
@@ -1343,6 +1378,28 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
             candidates.push((fk_c, String::new()));
             candidates.push((k_c, String::new()));
         }
+    }
+    // BUG-179: an address spelled `[R+URZ+imm]` types as ARURI, but rows
+    // whose uniform window is a BAKED URZ sink carry no UR field and live
+    // under the ARI keys (sm103a ATOMS_R_ARI::"32,INC,POPC": 478/478 corpus
+    // anchors `ATOMS.POPC.INC.32 RZ, [R0+URZ+0x3c]`). Derive ARI-shaped
+    // candidates as a last resort; entry_matches_operands validates the sink
+    // structurally per winning entry (urz_sink_baked) and stays fail-closed
+    // for real-UR payloads.
+    if insn.operands.iter().any(|op| matches!(op,
+        Operand::Addr { ur_reg: Some(255), .. }))
+    {
+        let ari_sig: String = insn.operands.iter().map(|op| match op {
+            Operand::Addr { ur_reg: Some(255), .. } => "_ARI".to_string(),
+            _ => format!("_{}", crate::parser::operand_type_label_pub(op)),
+        }).collect();
+        let clean_opcode: String = insn.opcode_full.split('.')
+            .filter(|p| !p.is_empty() && !p.starts_with('?'))
+            .collect::<Vec<_>>().join(".");
+        let fk_ari = format!("{clean_opcode}{ari_sig}");
+        let k_ari = format!("{}{}", insn.opcode, ari_sig);
+        candidates.push((fk_ari, mod_group.clone()));
+        candidates.push((k_ari, mod_group.clone()));
     }
     candidates.dedup();
 
