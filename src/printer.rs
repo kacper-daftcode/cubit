@@ -2067,9 +2067,18 @@ fn format_float(f: f32, neg: bool) -> String {
         let sneg = neg != f.is_sign_negative();
         return if sneg { "-INF ".to_string() } else { "+INF ".to_string() };
     }
-    // QNAN stays unparsed-by-design (bimodal lanes, see parser.rs comment);
-    // print the bare form the parser accepts.
-    if f.is_nan() { return format!("{neg_s}QNAN "); }
+    // NaN glyph law (BUG-177; nvdisasm 13.3.73 arbitration on FSEL+FMUL
+    // skeletons, sm_103a + sm_120a, work/bug177/arb/arb177.json): sign bit
+    // picks "+"/"-" (composed with the explicit neg flag like the INF arm);
+    // quiet bit (f32 mantissa bit 22) picks QNAN vs SNAN; the rest of the
+    // payload is glyph-irrelevant (vendor: 0x7FC00000 and 0x7FF80000 both
+    // render "+QNAN"). Decode-side render parity only: re-encode of any
+    // *NAN token stays parked (bimodal bit lanes, see parser.rs comment).
+    if f.is_nan() {
+        let sneg = if neg != f.is_sign_negative() { "-" } else { "+" };
+        let kind = if f.to_bits() & 0x0040_0000 != 0 { "QNAN" } else { "SNAN" };
+        return format!("{sneg}{kind} ");
+    }
     if f == 0.0 {
         // -0.0 is a distinct bit pattern (0x80000000); nvdisasm prints "-0" and
         // the encoder must hear the sign (HFMA2 imm pair "0, -0").
