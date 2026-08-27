@@ -42,18 +42,18 @@ fn w(lo: u64, hi: u64) -> u128 { lo as u128 | ((hi as u128) << 64) }
 
 // (cubit text, lo, hi) — all 12 ptxas witnesses, ctrl [96:128) ignored.
 const WITNESS: &[(&str, u64, u64)] = &[
-    ("UTCCP.S.T tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0033d80008000000),
-    ("UTCCP.128dp128bit.S.T tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80008180000),
-    ("UTCCP.4dp256bit.S.T tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80008100000),
-    ("UTCCP.2x64dp128bit_lw01_lw23.S.T tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80009080000),
-    ("UTCCP.2x64dp128bit_lw02_lw13.S.T tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80009000000),
-    ("UTCCP.4x32dp128bit.S.T tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80009100000),
-    ("UTCCP.2CTA.S.T tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0033d80008200000),
-    ("UTCCP.128dp128bit.2CTA.S.T tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80008380000),
-    ("UTCCP.2CTA.4dp256bit.S.T tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80008300000),
-    ("UTCCP.2CTA.2x64dp128bit_lw01_lw23.S.T tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80009280000),
-    ("UTCCP.2CTA.2x64dp128bit_lw02_lw13.S.T tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80009200000),
-    ("UTCCP.2CTA.4x32dp128bit.S.T tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80009300000),
+    ("UTCCP.T.S tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0033d80008000000),
+    ("UTCCP.T.S.128dp128bit tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80008180000),
+    ("UTCCP.T.S.4dp256bit tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80008100000),
+    ("UTCCP.T.S.2x64dp128bit_lw01_lw23 tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80009080000),
+    ("UTCCP.T.S.2x64dp128bit_lw02_lw13 tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80009000000),
+    ("UTCCP.T.S.4x32dp128bit tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80009100000),
+    ("UTCCP.T.S.2CTA tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0033d80008200000),
+    ("UTCCP.T.S.2CTA.128dp128bit tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80008380000),
+    ("UTCCP.T.S.2CTA.4dp256bit tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80008300000),
+    ("UTCCP.T.S.2CTA.2x64dp128bit_lw01_lw23 tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80009280000),
+    ("UTCCP.T.S.2CTA.2x64dp128bit_lw02_lw13 tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80009200000),
+    ("UTCCP.T.S.2CTA.4x32dp128bit tmem[URZ], gdesc[UR4]", 0x00000004ff0079e7, 0x0011d80009300000),
 ];
 
 #[test]
@@ -82,32 +82,32 @@ fn t190_3_window_variants_decode() {
     let idx = DecodeIndex::build(&t);
     // b24 = 0x06 -> tmem[UR6] (real UR, UR64-class legal)
     assert_eq!(dec(&t, &idx, w(0x00000004060079e7, 0x0011d80008180000)),
-               "UTCCP.128dp128bit.S.T tmem[UR6], gdesc[UR4]");
+               "UTCCP.T.S.128dp128bit tmem[UR6], gdesc[UR4]");
     // b32 = 0x08 -> gdesc[UR8]; b32 = 0xff -> gdesc[URZ]
     assert_eq!(dec(&t, &idx, w(0x00000008ff0079e7, 0x0011d80008180000)),
-               "UTCCP.128dp128bit.S.T tmem[URZ], gdesc[UR8]");
+               "UTCCP.T.S.128dp128bit tmem[URZ], gdesc[UR8]");
     assert_eq!(dec(&t, &idx, w(0x000000ffff0079e7, 0x0011d80008180000)),
-               "UTCCP.128dp128bit.S.T tmem[URZ], gdesc[URZ]");
+               "UTCCP.T.S.128dp128bit tmem[URZ], gdesc[URZ]");
     // off with real base -> tmem[UR6+0x20]; off with URZ -> tmem[0x800] absolute
     let mut w_ur_off = 0x00000004ff0079e7u64;
     w_ur_off = (w_ur_off & !(0xffffu64 << 40)) | (0x20u64 << 40);
     w_ur_off = (w_ur_off & !(0xffu64 << 24)) | (6u64 << 24);
     assert_eq!(dec(&t, &idx, w(w_ur_off, 0x0011d80008180000)),
-               "UTCCP.128dp128bit.S.T tmem[UR6+0x20], gdesc[UR4]");
+               "UTCCP.T.S.128dp128bit tmem[UR6+0x20], gdesc[UR4]");
     let w_abs = 0x00000004ff0079e7u64 | (0x800u64 << 40);
     assert_eq!(dec(&t, &idx, w(w_abs, 0x0011d80008180000)),
-               "UTCCP.128dp128bit.S.T tmem[0x800], gdesc[UR4]");
+               "UTCCP.T.S.128dp128bit tmem[0x800], gdesc[UR4]");
     // 16-bit offset high nibble live (mk306 rows were off12 before BUG-190)
     let w_hi = 0x00000004ff0079e7u64 | (0x8000u64 << 40);
     assert_eq!(dec(&t, &idx, w(w_hi, 0x0011d80008380000)),
-               "UTCCP.128dp128bit.2CTA.S.T tmem[0x8000], gdesc[UR4]");
+               "UTCCP.T.S.2CTA.128dp128bit tmem[0x8000], gdesc[UR4]");
     // guard UP0 / @!UPT
     let g0 = 0x00000004ff0079e7u64 & !(0xfu128 << 12) as u64;
     assert_eq!(dec(&t, &idx, w(g0, 0x0011d80008180000)),
-               "@UP0 UTCCP.128dp128bit.S.T tmem[URZ], gdesc[UR4]");
+               "@UP0 UTCCP.T.S.128dp128bit tmem[URZ], gdesc[UR4]");
     let gf = (0x00000004ff0079e7u64 & !(0xfu128 << 12) as u64) | (0xfu64 << 12);
     assert_eq!(dec(&t, &idx, w(gf, 0x0011d80008180000)),
-               "@!UPT UTCCP.128dp128bit.S.T tmem[URZ], gdesc[UR4]");
+               "@!UPT UTCCP.T.S.128dp128bit tmem[URZ], gdesc[UR4]");
 }
 
 #[test]
@@ -115,10 +115,10 @@ fn t190_4_encode_absolute_tmem_form() {
     let t = t103();
     // absolute glyph parses to URZ base + off; payload must equal the
     // byte-for-byte word the vendor emitted for the o50-class variant.
-    let got = enc(&t, "UTCCP.128dp128bit.S.T tmem[0x800], gdesc[UR4]");
+    let got = enc(&t, "UTCCP.T.S.128dp128bit tmem[0x800], gdesc[UR4]");
     assert_eq!(got, w(0x00000004ff0079e7u64 | (0x800u64 << 40), 0x0011d80008180000) & !SCHED);
     // canonical URZ form stays stable (off 0 = no offset bits anywhere)
-    assert_eq!(enc(&t, "UTCCP.2CTA.S.T tmem[URZ], gdesc[URZ]"),
+    assert_eq!(enc(&t, "UTCCP.T.S.2CTA tmem[URZ], gdesc[URZ]"),
                w(0x000000ffff0079e7, 0x0033d80008200000) & !SCHED);
 }
 
@@ -127,10 +127,10 @@ fn t190_5_encode_no_clobber_tmem_gdesc() {
     let t = t103();
     // pre-fix clobber: tok2 wrote @(24,8). Post-fix the two windows are
     // disjoint and both values land in the word.
-    let got = enc(&t, "UTCCP.128dp128bit.S.T tmem[UR6+0x20], gdesc[UR8]");
+    let got = enc(&t, "UTCCP.T.S.128dp128bit tmem[UR6+0x20], gdesc[UR8]");
     assert_eq!(got & 0xffffffffff000000u128,
                w(0x0000200806000000u64, 0)); // b24=06, off=0x20, b32=08
-    let got2 = enc(&t, "UTCCP.2CTA.S.T tmem[UR1], gdesc[UR9]");
+    let got2 = enc(&t, "UTCCP.T.S.2CTA tmem[UR1], gdesc[UR9]");
     assert_eq!(got2 & 0xffffffffff000000u128, w(0x0000000901000000u64, 0));
 }
 
@@ -145,7 +145,7 @@ fn t190_6_fail_closed() {
     assert!(!matches!(&none, Ok(s) if s.starts_with("UTCCP")),
             "invalid shape still decoded as UTCCP: {none:?}");
     // encode: missing operand must refuse, not guess.
-    let insn = parse_sass("UTCCP.S.T tmem[URZ]", 0).expect("parse");
+    let insn = parse_sass("UTCCP.T.S tmem[URZ]", 0).expect("parse");
     assert!(encode_instruction(&insn, &t).is_err(), "1-operand UTCCP encoded");
 }
 
