@@ -67,7 +67,7 @@ class SyncError(RuntimeError):
 # same-day stack wave (27 1a891, BUG-195..206): SM120 519->653, SM103a
 # 1260->1369, SM100a 1260->1373 -- witness-first dARI/scope rows carry the
 # canonical control template like the rest of the family.
-BAKED_CTRL_BASELINE = {"SM120": 659, "SM103a": 1375, "SM100a": 1379,
+BAKED_CTRL_BASELINE = {"SM120": 659, "SM103a": 1388, "SM100a": 1392,
                        "SM121A": 458}
 
 FIXED_EXTRACTIONS = {

@@ -831,7 +831,10 @@ fn check_idesc_derived(insn: &Instruction, entry: &crate::table::ModGroupEntry) 
     let derived = insn.operands.get(pos.wrapping_sub(1))
         .and_then(|op| match op { Operand::Label(s) => Some(s.as_str()), _ => None })
         .and_then(|s| parse_desc_label(s, "tmem[UR"))
-        .map(|(m, _)| (m + 1) & 0xff);
+        // BUG-186 arb186c: the 0xff tmem sink propagates URZ to idesc
+        // (idesc = tok4+1 for real URs, 0xff => URZ; the run27 (255+1)->0
+        // wrap was the pre-arbitration approximation).
+        .map(|(m, _)| if m == 0xff { 0xff } else { (m + 1) & 0xff });
     let Some(exp) = derived else {
         anyhow::bail!(
             "idesc[UR{}] on {} has no encoding window and its derivation anchor \
