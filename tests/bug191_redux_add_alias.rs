@@ -128,7 +128,12 @@ fn t191_6_canonical_ops_untouched() {
     let t = t103();
     assert_eq!(enc(&t, "REDUX UR6, R0"), w(W_AND));
     assert_eq!(enc(&t, "REDUX.OR UR6, R0"), w(W_OR));
-    assert!(enc_res(&t, "REDUX.XOR UR6, R0").is_err());
+    // 2026-08-26/27 wave-2: XOR gained canonical coverage (arb210 grafts,
+    // probe206a x3 arch -- law op[80:78)/b73); it stays OUT of the rename
+    // contract but is no longer a hole. Non-pair ghost operator5 variants
+    // remain parked; here we pin "encodes + same text back".
+    let wx = enc(&t, "REDUX.XOR UR6, R0");
+    assert_eq!(dec(&t, wx), "REDUX.XOR UR6, R0");
     assert_eq!(enc(&t, "REDUX.SUM.S32 UR8, R10"), w(W_SUM32));
     assert_eq!(enc(&t, "REDUX.S32.SUM UR8, R10"), w(W_SUM32));
 }

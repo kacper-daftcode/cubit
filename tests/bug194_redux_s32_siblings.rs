@@ -139,16 +139,15 @@ fn t194_6_invalid_decode_residual_known_state() {
     // 193.md sec.2/sec.8). This pin is a TRIPWIRE only: the day the
     // vm-narrowing surgery makes these hard-fail-closed, re-pin with
     // attribution instead of treating it as a regression.
+    // 2026-08-26/27 compose: the tripwire FIRED the way the header asked
+    // for -- the wave-2 canonical sweep (arb210/probe206a + BUG-211 b72
+    // vm-parity) narrowed the last loose rows, so op6/7 words are now hard
+    // fail-closed at decode. Re-pin with attribution, per the header's own
+    // instruction.
     let t = t120();
     let idx = DecodeIndex::build(&t);
-    let residual = [
-        (6u128, 0u128, "REDUX.MIN UR6, R0"),
-        (6, 1, "REDUX.MIN.S32 UR6, R0"),
-        (7, 0, "REDUX.MAX UR6, R0"),
-        (7, 1, "REDUX.MAX.S32 UR6, R0"),
-    ];
-    for (op, b73, know) in residual {
-        let got = dec(&t, &idx, state_word(op, b73));
-        assert_eq!(got, know, "residual illegal-state render moved: op{op} b73={b73} -> {got}");
+    for (op, b73) in [(6u128, 0u128), (6, 1), (7, 0), (7, 1)] {
+        assert!(idx.decode(state_word(op, b73), 0, &t).is_err(),
+            "op{op} b73={b73} hard fail-closed post-sweep");
     }
 }
