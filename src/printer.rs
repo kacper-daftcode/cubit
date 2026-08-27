@@ -1904,7 +1904,10 @@ fn format_utc_desc(tok: i32, fields: &[&DecodedField], tok4_fields: &[&DecodedFi
     if ur.is_none() && tok == 5 {
         for f in tok4_fields {
             if norm_ext(&f.extraction) == "tmem_ur" {
-                ur = Some(f.value.wrapping_add(1));
+                // BUG-186 (arb186b/c, nvdisasm 13.3.73): hardware derives
+                // idesc == tok4 tmem UR + 1, but the 0xff elision sentinel
+                // PROPAGATES (tok4 = tmem[URZ] prints idesc[URZ], not UR0).
+                ur = Some(if f.value == 255 { 255 } else { f.value.wrapping_add(1) });
                 break;
             }
         }
