@@ -2313,7 +2313,7 @@ fn fit_dom_token(dom: &FitDom) -> i32 {
 /// loop's WARPSYNC skip).
 fn fit_fixup_owned(insn: &Instruction, tok: i32, ws_family: bool) -> bool {
     let op = insn.opcode.as_str();
-    let is_branch = BRANCH_OPS.iter().any(|&o| o == op);
+    let is_branch = BRANCH_OPS.contains(&op);
     let operand = get_op(insn, tok);
     // BUG-182: WARPSYNC.COLLECTIVE label payloads are REL16 fixup-owned across
     // the whole sm103a encoding family (BUG-116 law transfers 1:1 to sm100a,
