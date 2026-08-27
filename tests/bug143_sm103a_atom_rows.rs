@@ -177,10 +177,12 @@ fn t143_6_parked_classes_stay_fail_closed() {
     // BUG-142 parking parity: single-witness no-canon classes must NOT be
     // absorbed (fail-closed decode), same state as tb/sm120 post-142.
     let parked = [
-        w(0x000000050200098e, 0x004fe2000c12a106), // @P0 REDG.E.ADD.STRONG.SM
+        // BUG-195 (F2-iter94): REDG SM / ATOMG CAS.SM / ATOMG EXCH.SYS are
+        // UN-parked with full vendor canon (nvcc 13.3.73 fresh witnesses,
+        // arch-eq sm_120a==sm_103a==sm_100a, scope law [77:81) arb195) — exact
+        // decode/encode pins live in bug195_atom_scope_width.rs. The classes
+        // below stay parked (still no canon):
         w(0x000000050200098e, 0x004fe2000f92e106), // @P0 REDG.E.XOR.STRONG.GPU
-        w(0x00000006040573a9, 0x002ea200001ea107), // ATOMG.E.CAS.STRONG.SM
-        w(0x80000007020379a8, 0x001eac000c1f5104), // ATOMG.E.EXCH.STRONG.SYS
         w(0x00001c00ff00798c, 0x000e24000c000004), // ATOMS.EXCH [UR4+0x1c]
     ];
     for word in parked {
