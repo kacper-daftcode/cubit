@@ -285,6 +285,14 @@ impl DecodeIndex {
                 "LD" | "ST" |
                 "LDG" | "LDL" | "LDS" | "LDC" | "LDCU" | "STG" | "STL" | "STS" |
                 "ATOM" | "RED" | "ATOMG" | "REDG" | "BRA" | "BSSY" | "BSYNC" | "EXIT" | "RET" |
+                // BUG-211: ATOMS (shared-memory atomic) carries the width law
+                // in bits [74:73] like ATOMG/REDG (arb211: b73=.S32 glyph
+                // toggle on AND/OR/XOR ARI/AURI forms, b74=.64 — inside the
+                // prio-3 sign window). Without the arm, b73-set words were
+                // silently absorbed as the bare sibling (roundtrip-lossy) or
+                // hijacked by phantom rows. Fail closed; witnessed widths are
+                // coverage rows in tables (patch211).
+                "ATOMS" |
                 "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "QMMA" |
                 // BUG-125: F2I carries its dst-type in bits [76:75][72] (fresh
                 // f32-imm form, F2I_R_FI) — the prio-3 sign-bit window {72..75}
