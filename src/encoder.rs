@@ -1524,6 +1524,74 @@ fn check_lepc_target(insn: &Instruction) -> Result<()> {
     Ok(())
 }
 
+/// BUG-183 gate (iter87, front2; queue = fleet note 178 sec.5(b) "183-kand",
+/// taken per the oldest-LOW-first precedent of iter82/178): the mirror lane
+/// of BUG-178. A non-branch Label operand (parser.rs: `Label -> "II"` key
+/// fallback, "unresolved label treated as immediate") that lands on a token
+/// the winning entry DOES own via an ordinary immediate extraction
+/// (Imm/ImmShr/ImmDec/ImmDecU32 — the only Label-accepting imm family per
+/// extraction_matches_operand) contributes op_imm(Label) == 0: the
+/// identifier vanishes at byte production and the word silently carries
+/// imm 0. Empirical pin on clean 2f579f0: `P2R R6, PR, R12, FOOBAR` and
+/// `LEPC R2, .L_x_1` (undefined) both encoded "OK" to the imm-0 word.
+///
+/// Doctrine: fail-closed with attribution, like BUG-091 (branch labels) and
+/// BUG-178 (Label on baked-immediate rows), and likewise NOT
+/// CUBIT_DISABLE_ERRATA-unlockable (it guards byte production, not silicon
+/// behaviour). Skips, by construction or by deferred sibling lanes:
+///   - tokens whose token owns a LblPat field (descriptor label patterns are
+///     the legitimate label channel — dual-read Desc|Label scrapers);
+///   - desc-pattern spellings (desc[/gdesc[/tmem[/idesc[/tdesc[) — the
+///     idesc-baked/semantics lane, tracked as the 185/184 follow-ups;
+///   - the CUBIT_FIT_LINT=allow fidelity-probe oracle (doctrine of the
+///     BUG-140 lint channel: `cubit disassemble` probes must MEASURE this
+///     loss and print !rsd[..]); byte production in the default Hard mode
+///     stays gated;
+///   - branch ops are unreachable here (BUG-091 bails unresolved branch
+///     labels before entry selection; parser-resolved labels arrive as
+///     BranchTarget, not Label).
+/// Census-first (report 183 sec.1): 258 sm103a / 462 sm120 (key,mod_group)
+/// token slots expose an imm field on a Label-routable "II" key position,
+/// but ZERO corpus text line carries a non-numeric identifier there
+/// (sm103 2014-cubin dump: only barrier operands B0/B1/B11; sm120 392-cubin
+/// dump: none; rt98_v2 chain: only in-scope resolved branch labels) — the
+/// lane is purely defensive, the gate changes no corpus byte.
+fn check_label_imm_field(insn: &Instruction, entry: &crate::table::ModGroupEntry) -> Result<()> {
+    if matches!(fit_lint_mode(), FitLintMode::Allow) {
+        return Ok(());
+    }
+    for (idx, op) in insn.operands.iter().enumerate() {
+        let Operand::Label(name) = op else { continue };
+        let tok = idx as i32 + 1;
+        let mut has_lbl = false;
+        let mut has_imm_field = false;
+        for f in &entry.fields {
+            if f.token_idx != tok {
+                continue;
+            }
+            match &f.extraction {
+                Extraction::LblPat(_) => has_lbl = true,
+                Extraction::Imm | Extraction::ImmShr(_)
+                | Extraction::ImmDec | Extraction::ImmDecU32 => has_imm_field = true,
+                _ => {}
+            }
+        }
+        if has_lbl || !has_imm_field {
+            continue;
+        }
+        if ["desc[", "gdesc[", "tmem[", "idesc[", "tdesc["]
+            .iter()
+            .any(|pfx| name.starts_with(pfx))
+        {
+            continue;
+        }
+        anyhow::bail!(
+            "{:?}: unresolved identifier {name:?} on operand {} of `{}` key `{}`:              the winning row owns an immediate field for this token but a label              carries no value -- encoding would silently degrade it to 0 (BUG-183;              pre-fix the encoder emitted the imm-0 word whatever the identifier              said, e.g. `P2R R6, PR, R12, FOOBAR` == `..., 0x0`). Use the numeric              immediate form (0x...); symbolic spellings on this lane have no              vendor-blessed semantics (LEPC label resolution is the parked              184-candidate; descriptor labels use the desc[...] forms).",
+            insn.raw_text.trim(), idx + 1, insn.opcode_full, insn.key);
+    }
+    Ok(())
+}
+
 fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_checks: bool) -> Result<u128> {
     // Fail-closed operand errata (parser-level admission can't error here: the
     // .sass file reader silently drops lines whose parse fails — so the encoder
@@ -1754,6 +1822,13 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     // labels) this gate is NOT CUBIT_DISABLE_ERRATA-unlockable: it guards
     // against silent word fabrication, not against silicon behaviour.
     check_label_baked_symbol(insn, entry)?;
+    // BUG-183 (iter87, front2; queue = fleet note 178 sec.5(b) "183-kand"):
+    // Label-on-imm-FIELD silent lane -- sibling of the BUG-178 baked-imm gate
+    // (that one owns the no-field rows; this one owns the rows whose entry
+    // carries an immediate extraction for the label's token). Both gates
+    // refuse at byte production; compose order is irrelevant (disjoint
+    // has-field polarity).
+    check_label_imm_field(insn, entry)?;
     if std::env::var("CUBIT_DEBUG_LOOKUP").is_ok() {
         eprintln!("[lookup] fk={} key={} mod_group={:?} -> fields={:?}",
             fk, insn.key, mod_group,
