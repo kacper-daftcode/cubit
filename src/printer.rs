@@ -830,6 +830,28 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     if matches!(base, "LOP3" | "ULOP3" | "PLOP3" | "UPLOP3") && m == "PAND" {
         return 10;
     }
+    // BUG-192 / b11 (RP-2): REDUX/CREDUX — nvdisasm prints the reduction
+    // function BEFORE the data type (REDUX.SUM.S32, REDUX.MAX.S32,
+    // CREDUX.MAX.S32; vendor census 9,190 words, zero .S32-first). The stable
+    // alphabetical key order ("S32,SUM") rendered the wrong S32-first glyph.
+    if matches!(base, "REDUX" | "CREDUX") {
+        match m {
+            "AND" | "OR" | "XOR" | "SUM" | "MIN" | "MAX" | "ANY" | "ALL" => return 4,
+            _ => {}
+        }
+    }
+    // BUG-192 / b11 (RP-2): UTCCP — nvdisasm prints the direction pair T.S
+    // before 2CTA and the shape (UTCCP.T.S.2CTA.128dp128bit; arb190a
+    // nvdisasm-13.3.73 bit-scan + 192-b battery anchors). Legacy key order
+    // ("...shape,S,T") rendered "UTCCP.128dp128bit.S.T".
+    if base == "UTCCP" {
+        match m {
+            "T" => return 1,
+            "S" => return 2,
+            "2CTA" => return 3,
+            _ => {}
+        }
+    }
     mod_priority(m)
 }
 
