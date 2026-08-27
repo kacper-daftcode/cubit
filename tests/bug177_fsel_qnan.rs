@@ -143,11 +143,17 @@ fn t177_5_encode_baked_nan_posture_pinned() {
     let encw = |text: &str| -> Option<u128> {
         parse_sass(text, 0).ok().and_then(|i| encode_instruction(&i, &t).ok())
     };
+    // RE-PIN (BUG-178, iter85): the label-fallback silent-fabrication posture
+    // this test used to pin (every identifier -> same +QNAN word) is FIXED.
+    // Symbols equal to the row's baked constant still encode; mismatched
+    // symbols and unknown identifiers now refuse with attribution. The full
+    // law is pinned in tests/bug178_label_baked.rs.
     let qnan = encw("FSEL R7, RZ, QNAN , !P1 ;").expect("baked lane encodes");
     assert_eq!((qnan >> 32) as u32, 0x7fc0_0000, "baked +QNAN imm lane");
-    for tok in ["+QNAN", "-QNAN", "+SNAN", "FOOBAR"] {
-        let w2 = encw(&format!("FSEL R7, RZ, {tok} , !P1 ;"));
-        assert_eq!(w2, Some(qnan), "{tok}: label-fallback word drifted");
+    assert_eq!(encw("FSEL R7, RZ, +QNAN , !P1 ;"), Some(qnan), "+QNAN still admitted");
+    for tok in ["-QNAN", "+SNAN", "FOOBAR"] {
+        assert!(encw(&format!("FSEL R7, RZ, {tok} , !P1 ;")).is_none(),
+            "{tok}: silent fabrication must be refused (BUG-178)");
     }
     // honest numeric immediates stay honest through the FI row.
     let w5 = encw("FSEL R7, RZ, 5 , !P1 ;").expect("numeric imm encodes");

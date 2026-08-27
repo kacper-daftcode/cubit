@@ -1293,6 +1293,106 @@ fn check_wide_mem_reg_align_sm103(insn: &Instruction, table: &IsaTable) -> Resul
     Ok(())
 }
 
+/// BUG-178: symbolic float constants admitted through a baked-immediate row
+/// (f32 bit patterns; glyph law of BUG-177: sign bit + quiet bit 22).
+/// Returns None for identifiers that are not recognised float symbols.
+fn fp_symbol_bits(name: &str) -> Option<u32> {
+    if name.eq_ignore_ascii_case("QNAN") || name.eq_ignore_ascii_case("+QNAN") {
+        Some(0x7FC0_0000)
+    } else if name.eq_ignore_ascii_case("-QNAN") {
+        Some(0xFFC0_0000)
+    } else if name.eq_ignore_ascii_case("SNAN") || name.eq_ignore_ascii_case("+SNAN") {
+        Some(0x7F80_0000)
+    } else if name.eq_ignore_ascii_case("-SNAN") {
+        Some(0xFF80_0000)
+    } else {
+        None
+    }
+}
+
+/// BUG-178 gate (see call-site comment): a Label operand riding a row that
+/// owns no field for its token (the constant lives in and_base, "baked-imm
+/// row") must be a recognised float symbol equal to the baked value; anything
+/// else is a silent fabrication and refuses. Tokens owned by a LblPat field
+/// (descriptor label patterns) are legitimate; tokens with an ordinary imm
+/// field degrade Label->0 — a separate legacy lane tracked as the 183-kand,
+/// deliberately out of scope here.
+fn check_label_baked_symbol(
+    insn: &Instruction,
+    entry: &crate::table::ModGroupEntry,
+) -> Result<()> {
+    // Fidelity-probe oracle: `cubit disassemble` sets CUBIT_FIT_LINT=allow so
+    // its re-encode probes can MEASURE exactly this loss and print it as
+    // !rsd[..] (doctrine of the BUG-140 lint channel, main.rs "The probes
+    // need the legacy lossy payload: oracle mode"). Byte production stays
+    // gated in the default (Hard) mode.
+    if matches!(fit_lint_mode(), FitLintMode::Allow) {
+        return Ok(());
+    }
+    for (idx, op) in insn.operands.iter().enumerate() {
+        let Operand::Label(name) = op else { continue };
+        let tok = idx as i32 + 1;
+        let mut has_lbl = false;
+        let mut has_field = false;
+        for f in &entry.fields {
+            if f.token_idx == tok {
+                has_field = true;
+                if matches!(f.extraction, Extraction::LblPat(_)) {
+                    has_lbl = true;
+                }
+            }
+        }
+        if has_lbl || has_field {
+            continue;
+        }
+        // Descriptor-pattern labels (desc[/gdesc[/tmem[/idesc[/tdesc[) are
+        // the LblPat domain by construction: the parser keeps them as Labels
+        // and the encoder's LblPat scrapers dual-read Desc|Label (tc5 crop).
+        // A desc-pattern token without a field is the harvested ALARM-baked
+        // descriptor lane the bug103/105 guard-law goldens pin — out of
+        // scope here (see report 178 sec.5, candidate 184).
+        if ["desc[", "gdesc[", "tmem[", "idesc[", "tdesc["]
+            .iter()
+            .any(|pfx| name.starts_with(pfx))
+        {
+            continue;
+        }
+        // Vendor-legit system symbols anchored in the corpus (hexdb census,
+        // iter85): they are the ONLY spelling for their operand on these op
+        // families — the baked constant IS the symbol, admission is exact by
+        // construction. Scoped per opcode so `FSEL .., PR` still refuses.
+        let system_symbol = match insn.opcode.as_str() {
+            "P2R" | "R2P" => name == "PR",
+            "UP2UR" => name == "UPR",
+            "RPCMOV" => name.eq_ignore_ascii_case("Rpc.LO"),
+            _ => false,
+        };
+        if system_symbol {
+            continue;
+        }
+        let baked = (entry.and_base >> 32) as u32;
+        match fp_symbol_bits(name) {
+            Some(bits) if bits == baked => {} // admitted: row carries exactly this constant
+            Some(bits) => anyhow::bail!(
+                "{:?}: symbolic immediate {name:?} is not encodable on `{}` key `{}`: \
+                 the row carries BAKED f32 constant 0x{baked:08x} on [32:64), not 0x{bits:08x} \
+                 (BUG-178; pre-fix the encoder silently emitted the baked word and the \
+                 requested constant was lost). Use the numeric hex-float form 0x{bits:08x}F \
+                 (rides the FI row) or treat the constant as a table gap.",
+                insn.raw_text.trim(), insn.opcode_full, insn.key),
+            None => anyhow::bail!(
+                "{:?}: unresolved identifier {name:?} on operand {} of `{}` key `{}`: \
+                 the winning row carries a BAKED immediate and has no imm field — encoding \
+                 would silently fabricate the baked constant (BUG-178). Only the float \
+                 constants QNAN/+QNAN/-QNAN/SNAN/+SNAN/-SNAN are admitted symbolically, \
+                 and only when they equal the row's baked value; numeric immediates use \
+                 the 0x<8-hex>F form.",
+                insn.raw_text.trim(), idx + 1, insn.opcode_full, insn.key),
+        }
+    }
+    Ok(())
+}
+
 /// Encode a parsed instruction using the per-modifier-group table.
 pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> {
     // BUG-091 (fail-closed): an unresolved label operand on a branch op must
@@ -1513,6 +1613,22 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() {
         check_imad_hi_erratum(insn, table)?;
     }
+    // BUG-178 (iter85, front MAIN; queue = fleet note 177 sec.5(b) "178-kand"):
+    // a non-branch Label operand (any non-numeric identifier) degraded through
+    // the `Label -> "II"` key family onto a BAKED-immediate row — a table
+    // entry that carries the constant in and_base and owns NO field for that
+    // token — and the encoder silently emitted the row's constant, whatever
+    // the identifier said. Concrete lane (parser.rs "QNAN intentionally NOT
+    // special-cased" quirk): `FSEL R7, RZ, QNAN`, `FSEL R7, RZ, -QNAN` and
+    // `FSEL R7, RZ, FOOBAR` all emitted the SAME +QNAN word via the
+    // `FSEL_R_R_II_P` row (and_base 0x7FC00000 on [32:64)) — sign and typos
+    // vanished at byte production. sm120 has no such row and was already
+    // fail-closed. Doctrine after this fix: symbolic float constants are
+    // admitted ONLY when the winning row's baked constant equals the symbol;
+    // unknown identifiers refuse with attribution. Like BUG-091 (branch
+    // labels) this gate is NOT CUBIT_DISABLE_ERRATA-unlockable: it guards
+    // against silent word fabrication, not against silicon behaviour.
+    check_label_baked_symbol(insn, entry)?;
     if std::env::var("CUBIT_DEBUG_LOOKUP").is_ok() {
         eprintln!("[lookup] fk={} key={} mod_group={:?} -> fields={:?}",
             fk, insn.key, mod_group,
