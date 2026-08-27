@@ -124,10 +124,12 @@ fn t178_4_invariants_unchanged() {
     let e = enc(&t, "FSEL R7, RZ, PR , !P1 ;").expect_err("PR off-family refuses");
     assert!(e.contains("BUG-178"), "{e}");
     // LEPC's backtick label: pre-fix it silently encoded a fixed constant
-    // losing the address entirely; now refuses (count-2 anchors; label
-    // semantics for LEPC needs a real field = parked candidate 184).
+    // losing the address entirely; now refuses. Compose 2026-08-26: BUG-184
+    // landed in the same wave and gives the refusal first through its
+    // BUG-091-style unresolved-label gate (the 178 note named 184 the parked
+    // owner of LEPC label semantics).
     let e = enc(&t, "LEPC R4, `(.L_x_3) ;").expect_err("LEPC label refuses");
-    assert!(e.contains("BUG-178"), "{e}");
+    assert!(e.contains("BUG-178") || e.contains("unresolved branch label"), "{e}");
     // sm120: no II-baked FSEL row -> still fail-closed (pre-existing posture)
     enc(&t120(), "FSEL R7, RZ, QNAN , !P1 ;").expect_err("sm120 stays fail-closed");
     // branch labels: undefined -> BUG-091 refuse; defined -> resolves & encodes
