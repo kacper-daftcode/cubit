@@ -113,8 +113,8 @@ fn t175_4_fail_closed_preserved() {
     // idx w6/w7 = LDC.INVALID6/INVALID7 (arbitrated): no table rows.
     assert!(!dec_res(&idx, w("000e220000000c0000009f0003037b82"), &t), "INVALID6 idx");
     assert!(!dec_res(&idx, w("000e220000000e0000009f0003037b82"), &t), "INVALID7 idx");
-    // S16-idx (w3) = parked-172 domain: must stay a hole until ff.
-    assert!(!dec_res(&idx, w("000e22000000060000009f0003037b82"), &t), "S16 idx pre-172");
+    // 2026-08-26 compose: parked-172 is landed -- S16-idx decodes on sm103a.
+    assert!(dec_res(&idx, w("000e22000000060000009f0003037b82"), &t), "S16 idx live post-172");
     // junk above the vendor bank window [59:64): vendor-inert, we stay closed.
     assert!(!dec_res(&idx, w("000e22000000000000809f0003037b82".replace("0080","4080").as_str()), &t),
             "bit62 junk (vendor-inert) stays fail-closed");
