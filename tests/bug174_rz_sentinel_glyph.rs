@@ -109,14 +109,20 @@ fn t174_4_render_fixed_point() {
 /// 2026-08-26 branch-landing wave LANDED BUG-165, so the parked state is
 /// over; the pin now nails the POST-165 render for the same anchor (the
 /// fabricated "LDC R24, 0x30000" text must never come back).
+/// t174_5 — COMPOSE-INTERIM state (2026-08-26): the anchor currently decodes
+/// through the width-row as "LDC.U8 R24, c[0x3][RZ]". The fleet rehearsal
+/// (cubitfix/i87) proved this is still NOT the vendor render: vendor says
+/// "LDC R24, 0x30000" (absolute-plain, 0xff-index idiom), and the fix is the
+/// parked f2-187-ldc-abplain lane (restore LDC_R_II / refuse 0xff-index on
+/// width rows). This pin marks the interim render explicitly; BUG-187's own
+/// pins supersede it at landing.
 #[test]
 fn t174_5_post165_domain_landed() {
     let t = t120();
     let idx = DecodeIndex::build(&t);
     // work/bug167/arb/arb167_round2.json u8_idx255:
     let d = dec(&idx, w("000e24000000000000c00000ff187b82"), &t);
-    assert_eq!(d, "LDC.U8 R24, c[0x3][RZ]");
-    assert!(!d.starts_with("LDC R24"), "165 fabrication must not resurrect");
+    assert_eq!(d, "LDC.U8 R24, c[0x3][RZ]", "compose-interim render (pending BUG-187)");
 }
 
 /// t174_6: LDCU (UR-dest) off==0 keeps its legacy/correct URZ-domain print;

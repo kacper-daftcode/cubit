@@ -1,4 +1,4 @@
-//! BUG-182 (branch-landing wave 2026-08-26): the BUG-140 aggregate-fit audit
+//! BUG-212 (branch-landing wave 2026-08-26): the BUG-140 aggregate-fit audit
 //! gated the WARPSYNC.COLLECTIVE label-payload exemption (class c, fixup-owned
 //! REL16; BUG-116 law) on the EXACT sm_103a ef_flags. The sm_100a derivative
 //! table shares the encoding family 1:1, so the audit hard-failed re-encode of

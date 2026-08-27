@@ -2315,7 +2315,7 @@ fn fit_fixup_owned(insn: &Instruction, tok: i32, ws_family: bool) -> bool {
     let op = insn.opcode.as_str();
     let is_branch = BRANCH_OPS.contains(&op);
     let operand = get_op(insn, tok);
-    // BUG-182: WARPSYNC.COLLECTIVE label payloads are REL16 fixup-owned across
+    // BUG-212: WARPSYNC.COLLECTIVE label payloads are REL16 fixup-owned across
     // the whole sm103a encoding family (BUG-116 law transfers 1:1 to sm100a,
     // whose table is the sm103a derivative). The pre-family exact ef_flags
     // check hard-failed re-encode of every corpus WARPSYNC.COLLECTIVE on
