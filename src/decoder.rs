@@ -274,10 +274,17 @@ impl DecodeIndex {
             // sign-bit fallback absorbed words 1-sign-bit-adjacent to a real
             // LD row as that row (e.g. size-enum INVALID7 (v=e/f) decoding as
             // the valid .128 sibling). Fail closed instead.
+            // BUG-199: ATOMG/REDG carry the width law in bits [74:73]
+            // (arb195b/arb199b) — inside the prio-3 sign window. The rows
+            // assert width via vm-exclusion (strict/relaxed/broad all reject
+            // width flips), but prio-3 re-absorbed them as junk renders
+            // ("ATOMG.E.INC ...PT, |R5|", 253 JUNK_LEGAL + 18 JUNK_INVALID on
+            // flipdec_ctl). Fail closed; legal-but-unwitnessed widths are
+            // coverage gaps, see blindlab results/cubitfix/199.md sec.6.
             let is_memlike = matches!(base,
                 "LD" | "ST" |
                 "LDG" | "LDL" | "LDS" | "LDC" | "LDCU" | "STG" | "STL" | "STS" |
-                "ATOM" | "RED" | "BRA" | "BSSY" | "BSYNC" | "EXIT" | "RET" |
+                "ATOM" | "RED" | "ATOMG" | "REDG" | "BRA" | "BSSY" | "BSYNC" | "EXIT" | "RET" |
                 "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "QMMA" |
                 // BUG-125: F2I carries its dst-type in bits [76:75][72] (fresh
                 // f32-imm form, F2I_R_FI) — the prio-3 sign-bit window {72..75}

@@ -1,13 +1,13 @@
 {
   "schema": 2,
   "repository": "https://github.com/kacper-daftcode/blackwell-isa",
-  "base_revision": "43569fb78e88ca6991a076fad8308d733118836d",
+  "base_revision": "271a89174dd94e4d75e26a40cae553da8579d0ac",
   "tables": {
     "sm120.json": {
       "arch": "SM120",
-      "base_sha256": "3660f3e5ea28f031b5d0d95fd67cc31714c37f0a3b4620d9e270c5d5f8417643",
+      "base_sha256": "b10ef3d04f54e5a2bc6ce604864d88224fbfa6c68a8a78f70f75b0454c4faed8",
       "instruction_forms": 1535,
-      "encoding_variants": 2515,
+      "encoding_variants": 2654,
       "sched_only_entries": 597,
       "sections": [
         "operand_roles"
@@ -15,9 +15,9 @@
     },
     "sm103a.json": {
       "arch": "SM103a",
-      "base_sha256": "0208dfa6aef9b53863162ccf6385a1a1b4de69f8769800c4bc9653535c1a8c1c",
+      "base_sha256": "44cfb57edcc95991a36217599fcee0dd7b5e42e8db55390c96a79784dbc59bff",
       "instruction_forms": 400,
-      "encoding_variants": 1469,
+      "encoding_variants": 1602,
       "sched_only_entries": 0,
       "sections": [
         "cost_model",
@@ -27,9 +27,9 @@
     },
     "sm100a.json": {
       "arch": "SM100a",
-      "base_sha256": "52bad4a2b4f37eb242f58eb19e6c48e084e23ef070e43dfbedccde9b746f53ec",
+      "base_sha256": "0eaf7d6ea0eed138d50c1803887805649007e5f691956fd43fd6e54b45d65ad5",
       "instruction_forms": 400,
-      "encoding_variants": 1469,
+      "encoding_variants": 1606,
       "sched_only_entries": 0,
       "sections": [
         "operand_roles"

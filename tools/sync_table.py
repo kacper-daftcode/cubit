@@ -64,7 +64,10 @@ class SyncError(RuntimeError):
 # control template, same convention as the pre-existing entries), SM103a
 # 1269->1260 and SM100a 1257->1260 (dead-row/junk cleanup; lowered on
 # purpose where the wave removed baked rows).
-BAKED_CTRL_BASELINE = {"SM120": 519, "SM103a": 1260, "SM100a": 1260,
+# same-day stack wave (27 1a891, BUG-195..206): SM120 519->653, SM103a
+# 1260->1369, SM100a 1260->1373 -- witness-first dARI/scope rows carry the
+# canonical control template like the rest of the family.
+BAKED_CTRL_BASELINE = {"SM120": 653, "SM103a": 1369, "SM100a": 1373,
                        "SM121A": 458}
 
 FIXED_EXTRACTIONS = {
