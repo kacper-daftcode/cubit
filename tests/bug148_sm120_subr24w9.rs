@@ -107,8 +107,14 @@ fn t148_4_table_class_normalized() {
             }
         }
     }
-    assert!(offenders.is_empty(),
-        "sm120.json must carry zero sub_r@24/9 rows after BUG-148: {offenders:?}");
+    // 2026-08-26 wave-2: BUG-189 (arb189 ptxas-corroborated) keeps the ATOMS
+    // 32,INC,POPC groups genuinely 9-bit @24 (the hoover dest window moved
+    // [7:15) sink side); the E1-class exemption narrowed to exactly these two
+    // arb189-proven rows. Everything else stays 8-bit.
+    const ALLOW: &[&str] = &[r#"ATOMS_R_ARURI["32,INC,POPC"]"#, r#"ATOMS_R_ARI["32,INC,POPC"]"#];
+    let bad: Vec<_> = offenders.iter().filter(|o| !ALLOW.contains(&o.as_str())).collect();
+    assert!(bad.is_empty(),
+        "sm120.json sub_r@24/9 outside the arb189-proven pair: {bad:?}");
 }
 
 #[test]
