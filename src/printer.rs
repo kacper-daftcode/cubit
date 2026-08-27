@@ -2057,6 +2057,13 @@ fn format_utc_desc(tok: i32, fields: &[&DecodedField], tok4_fields: &[&DecodedFi
         Some(n) => format!("UR{n}"),
     };
     if off != 0 {
+        // BUG-190 (arb190a off-sweep): for tmem operands the vendor elides the
+        // URZ base entirely when an offset is present: `tmem[0x800]`, never
+        // `tmem[URZ+0x800]` (0 hits for tmem[URZ+0x in hexdb 32.2M). Scoped to
+        // kind == "tmem"; gdesc/idesc carry no offset field in this family.
+        if kind == "tmem" && ur == Some(255) {
+            return format!("{kind}[0x{off:x}]");
+        }
         format!("{kind}[{ur_s}+0x{off:x}]")
     } else {
         format!("{kind}[{ur_s}]")

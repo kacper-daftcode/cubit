@@ -3215,6 +3215,12 @@ fn op_lbl_scrape(insn: &Instruction, tok: i32, pat: &str) -> u64 {
         _ => return 0,
     };
     fn parse_body(s: &str) -> Option<(u64, u64, u64)> {
+        // BUG-190: vendor elides the URZ base on tmem when an offset is
+        // present (arb190a: `tmem[0x800]`, never `tmem[URZ+0x800]`); the
+        // absolute body parses as (URZ=255, off).
+        if let Some(b) = s.strip_prefix("tmem[0x").and_then(|r| r.strip_suffix(']')) {
+            return u64::from_str_radix(b, 16).ok().map(|off| (255u64, off, 2u64));
+        }
         for (pfx, tag) in [("tmem[UR", 2u64), ("gdesc[UR", 1),
                            ("idesc[UR", 3), ("desc[UR", 0)] {
             if let Some(b) = s.strip_prefix(pfx)
@@ -3254,6 +3260,13 @@ fn op_lbl_scrape(insn: &Instruction, tok: i32, pat: &str) -> u64 {
         "desc_ur" => ("desc[UR", false),
         _ => return 0,
     };
+    // BUG-190: absolute tmem form `tmem[0x<off>]` (URZ base elided, ur=255).
+    if prefix == "tmem[UR" {
+        if let Some(b) = s.strip_prefix("tmem[0x").and_then(|r| r.strip_suffix(']')) {
+            if !want_off { return 255; }
+            return u64::from_str_radix(b, 16).unwrap_or(0);
+        }
+    }
     let body = match s.strip_prefix(prefix).and_then(|r| r.strip_suffix(']')) {
         Some(b) => b,
         None => return 0,
