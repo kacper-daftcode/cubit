@@ -219,6 +219,24 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             // as absolute targets), so resolve both collective forms here.
             let v = (((raw >> 18) & 0x3F) as u64) | ((((raw >> 34) & 0x3FF) as u64) << 6);
             format!("0x{:x}", insn.addr as u64 + 16 + (v << 4))
+        } else if op_type == "II" && insn.opcode == "LEPC" {
+            // LEPC (BUG-184): the II operand is a PC-relative code address.
+            // Vendor law arbitrated with nvdisasm-13.3.73 bit-scan on the
+            // mla gold cubin (work/i86/lepc/arb184*.py): single signed window
+            // x = sext58(w[24:82)), target = addr + 0x10 + x -- the same
+            // pc-relative form as the REL16 branch law, but byte-granular.
+            // The vendor text renders the resolved target as a label
+            // (backtick form) whenever it hits a 16-aligned in-section
+            // address, otherwise as a number. Print the resolved absolute
+            // target in cubit's numeric convention (same as branch targets);
+            // the encoder maps it back through the same law. All 2,884 hexdb
+            // anchors carry x=0x10 (target = addr + 0x20, the instruction
+            // after the following CALL's return slot).
+            let mut x = ((raw >> 24) & 0x3FF_FFFF_FFFF_FFFF) as i64;
+            if x & (1i64 << 57) != 0 { x -= 1i64 << 58; }
+            let target = (insn.addr as i64).wrapping_add(0x10 + x);
+            if target < 0 { format!("-0x{:x}", target.unsigned_abs()) }
+            else { format!("0x{target:x}") }
         } else if has_desc_family || (inst_is_utc_desc && tok == 5) {
             // tcgen05 descriptor operand: InsKey sig may read II but the text
             // form is kind[URN(+0xoff)] — gdesc[]/tmem[]/idesc[] (UTCHMMA,

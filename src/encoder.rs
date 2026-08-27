@@ -1403,7 +1403,7 @@ pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> 
     // lenient -- the check fires only at byte production).
     // b9 phase-3 #7: WARPSYNC.COLLECTIVE carries a label operand like any
     // branch; without this the unresolved label silently encoded a 0 target.
-    static BRANCH_OPS: &[&str] = &["BRA", "BSSY", "CALL", "JMP", "RET", "BRX", "BRXU", "WARPSYNC"];
+    static BRANCH_OPS: &[&str] = &["BRA", "BSSY", "CALL", "JMP", "RET", "BRX", "BRXU", "WARPSYNC", "LEPC"];
     if BRANCH_OPS.contains(&insn.opcode.as_str()) {
         if let Some(bad) = insn.operands.iter().find_map(|op| match op {
             crate::ir::Operand::Label(name) => Some(name.clone()),
@@ -1414,7 +1414,42 @@ pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> 
                 bad, insn.opcode_full, insn.addr);
         }
     }
+    // BUG-184: LEPC target shape/range gate (always-on like the 091 gate
+    // above -- protects byte production; pre-fix the same surfaces silently
+    // emitted the baked v=0 word).
+    check_lepc_target(insn)?;
     encode_instruction_inner(insn, table, true)
+}
+
+/// BUG-184 (fail-closed): LEPC operand 2 is a PC-relative code address whose
+/// encodable range is the (sext5, sext53)<<5 split window; the table row
+/// carries NO field for it, so pre-fix any numeric/label operand silently
+/// encoded the baked v=0 word (render side printed `0x0`). Refuse wrong
+/// shapes and out-of-window targets with attribution; the payload itself is
+/// injected by apply_branch_encoding's LEPC arm (fixup-owned, BUG-023 law).
+fn check_lepc_target(insn: &Instruction) -> Result<()> {
+    if insn.opcode != "LEPC" {
+        return Ok(());
+    }
+    let t: i64 = match insn.operands.get(1) {
+        Some(Operand::BranchTarget(t)) => *t as i64,
+        Some(Operand::Imm32(v)) => *v,
+        Some(Operand::Imm64(v)) => *v as i64,
+        other => anyhow::bail!(
+            "LEPC operand 2 must resolve to a code address (defined label or \
+             absolute numeric target) -- got {:?} on {} at addr 0x{:x} \
+             (BUG-184: pre-fix this silently encoded the baked v=0 word; the \
+             vendor law is target = pc + 0x20 + sext5(A)@24 + (sext53(B)@29)<<5)",
+            other, insn.opcode_full, insn.addr),
+    };
+    let x = t.wrapping_sub(insn.addr as i64).wrapping_sub(0x10);
+    if x < -(1i64 << 57) || x > (1i64 << 57) - 1 {
+        anyhow::bail!(
+            "LEPC target 0x{:x} at addr 0x{:x} is out of the encodable window \
+             (target - pc - 0x10 must fit s58, BUG-184)",
+            t as u64, insn.addr);
+    }
+    Ok(())
 }
 
 fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_checks: bool) -> Result<u128> {
@@ -3471,9 +3506,39 @@ fn parse_opaque_name(name: &str) -> Option<u64> {
 // ---------------------------------------------------------------------------
 
 const BSSY_OPS: &[&str] = &["BSSY", "BSYNC", "BREAK"];
-const BRANCH_OPS: &[&str] = &["BRA", "BRA.U", "BRX", "BRXU", "CALL", "JMP", "RET", "RET.NODEC", "BSSY", "BSYNC", "BREAK"];
+// BUG-184: LEPC is not a control-flow op, but its II operand is a PC-relative
+// code address (fixup-owned payload, same doctrine as branch targets): the
+// entry's mod-group carries no field for it, so the general fit/type checks
+// must treat it like a branch operand (see fit_fixup_owned class (c)).
+const BRANCH_OPS: &[&str] = &["BRA", "BRA.U", "BRX", "BRXU", "CALL", "JMP", "RET", "RET.NODEC", "BSSY", "BSYNC", "BREAK", "LEPC"];
 
 fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm103a: bool) -> u128 {
+    if insn.opcode == "LEPC" {
+        // BUG-184: LEPC Rn, <target> — vendor law (nvdisasm-13.3.73 bit-scan
+        // arbitration, mla gold cubin): target = addr + 0x20 + sext5(A@[24:29))
+        // + (sext53(B@[29:82)) << 5). The operand resolves like a branch target
+        // (label -> absolute address via the BUG-091 label pass; numeric input
+        // = absolute target, matching the printer law). Unsupported shapes were
+        // already refused loud by check_lepc_target; the range check below is
+        // the same condition re-evaluated (belt-and-braces, unreachable when
+        // the gate ran).
+        if !sm103a { return code; }
+        let target: Option<i64> = insn.operands.get(1).and_then(|o| match o {
+            Operand::BranchTarget(t) => Some(*t as i64),
+            Operand::Imm32(v) => Some(*v),
+            Operand::Imm64(v) => Some(*v as i64),
+            _ => None,
+        });
+        if let Some(t) = target {
+            let x = t.wrapping_sub(insn.addr as i64).wrapping_sub(0x10);
+            if x >= -(1i64 << 57) && x <= (1i64 << 57) - 1 {
+                const MASK: u128 = (1u128 << 82) - (1u128 << 24);
+                code = (code & !MASK)
+                    | ((((x as u64) & 0x3FF_FFFF_FFFF_FFFF) as u128) << 24);
+            }
+        }
+        return code;
+    }
     if !BRANCH_OPS.iter().any(|&o| insn.opcode == o)
         && !(sm103a && insn.opcode == "WARPSYNC") { return code; }
 

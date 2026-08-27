@@ -779,7 +779,10 @@ pub fn resolve_labels(stmts: Vec<Statement>, base_addr: u32) -> Vec<Instruction>
     // b9 phase-3 #7: WARPSYNC.COLLECTIVE's `(label)` target is a true
     // pc-relative code address (sm_103a REL16 layout, vendor anchors cl1);
     // resolve it like any branch op so apply_branch_encoding can fit it.
-    let branch_ops = ["BRA", "BSSY", "CALL", "JMP", "RET", "BRX", "BRXU", "WARPSYNC"];
+    // BUG-184: LEPC carries a label-shaped code address too (resolved to
+    // BranchTarget like any branch; the encoder maps it through the
+    // arbitrated PC-relative split-window law).
+    let branch_ops = ["BRA", "BSSY", "CALL", "JMP", "RET", "BRX", "BRXU", "WARPSYNC", "LEPC"];
     let mut result = Vec::new();
     for stmt in stmts {
         if let Statement::Instruction(mut insn) = stmt {
