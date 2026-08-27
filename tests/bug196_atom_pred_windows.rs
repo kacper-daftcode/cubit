@@ -117,7 +117,7 @@ fn t196_4_authored_dest_pred_encodes_vendor_law() {
         ("ATOMG.E.ADD.STRONG.GPU P4, R3, desc[UR4][R2.64], R7", 0x80000007020379a8u64, 0x0818f104u64),
         ("ATOMG.E.INC.STRONG.GPU P3, R2, desc[UR14][R2.64], R5", 0x80000005020279a8u64, 0x0996f10eu64),
         ("ATOM.E.MAX.S64.STRONG.GPU P3, RZ, desc[UR4][R10.64+0x8], R4", 0x800008040aff798au64, 0x0916f704u64),
-        ("ATOMG.E.FTZ.ADD.F32.RN.STRONG.GPU P2, R3, desc[UR4][R2.64], R7", 0x80000007020379a3u64, 0x0c14f304u64),
+        ("ATOMG.E.ADD.F32.FTZ.RN.STRONG.GPU P2, R3, desc[UR4][R2.64], R7" /* BUG-203 re-pin: printer FTZ/RN type-bucket (probe203 witnesses; byl pin na starym porzadku) */, 0x80000007020379a3u64, 0x0c14f304u64),
         ("ATOMG.E.OR.STRONG.GPU P6, R3, desc[UR4][R2.64], R7", 0x80000007020379a8u64, 0x0b1cf104u64),
         ("ATOMG.E.ADD.F64.RN.STRONG.GPU P1, R2, [R6+0x8], R4", 0x00000804060273a3u64, 0x0012ff00u64),
         ("ATOMG.E.MAX.S32.STRONG.GPU P5, R3, desc[UR4][R2.64], R7", 0x80000007020379a8u64, 0x091af304u64),

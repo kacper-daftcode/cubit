@@ -89,7 +89,7 @@ fn t199_4_canonical_retention() {
         .expect("INC canon decodes");
     assert_eq!(g, "ATOMG.E.INC.STRONG.GPU PT, R5, desc[UR8][R4.64], R2");
     let g = dec(&t, &idx, word(0x8010007c86ff79a3, 0x000368000c1ef33e)).expect("F32 canon");
-    assert_eq!(g, "ATOMG.E.FTZ.ADD.F32.RN.STRONG.GPU PT, RZ, desc[UR62][R134.64+0x1000], R124");
+    assert_eq!(g, "ATOMG.E.ADD.F32.FTZ.RN.STRONG.GPU PT, RZ, desc[UR62][R134.64+0x1000], R124"); // BUG-203 re-pin (printer FIX B)
 }
 
 /// t199_5: encode/decode round-trip byte-exact (sched-matched) on canonicals.

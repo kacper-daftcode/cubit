@@ -723,6 +723,11 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             // BUG-094b: CAST/SPIN are also an operation name (ATOM.E.CAST.SPIN.64:
             // the size PRINTS after them, before STRONG)
             | "CAST" | "SPIN" => return 4,
+            // BUG-203: nvdisasm prints FTZ/RN in the data-type bucket, between
+            // the type and STRONG (ATOMG.E.ADD.F32x2.FTZ.RN.STRONG.GPU, never
+            // .E.FTZ.ADD.F32x2...); old generic bucket pinned FTZ to 3 (before
+            // the op) — 18 probe203 witnesses (scalar F32 + F32x2/x4 lanes).
+            "FTZ" | "RN" => return 5,
             // BUG-179: nvdisasm prints the POPC return-count qualifier BEFORE
             // the operation (ATOMS.POPC.INC.32, never .INC.POPC); it is the
             // only POPC-bearing row in either table (iter83 whole-table scan).
