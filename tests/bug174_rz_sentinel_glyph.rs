@@ -105,15 +105,18 @@ fn t174_4_render_fixed_point() {
     }
 }
 
-/// t174_5: the W1 sentinel-U8 fabrication on the sm120 MAIN table is the
-/// parked-165 domain and MUST stay pre==post here (no scope creep).
+/// t174_5 was the parked-domain guard ("pre==post, no scope creep"). The
+/// 2026-08-26 branch-landing wave LANDED BUG-165, so the parked state is
+/// over; the pin now nails the POST-165 render for the same anchor (the
+/// fabricated "LDC R24, 0x30000" text must never come back).
 #[test]
-fn t174_5_parked165_domain_unchanged() {
+fn t174_5_post165_domain_landed() {
     let t = t120();
     let idx = DecodeIndex::build(&t);
     // work/bug167/arb/arb167_round2.json u8_idx255:
-    assert_eq!(dec(&idx, w("000e24000000000000c00000ff187b82"), &t),
-               "LDC R24, 0x30000");
+    let d = dec(&idx, w("000e24000000000000c00000ff187b82"), &t);
+    assert_eq!(d, "LDC.U8 R24, c[0x3][RZ]");
+    assert!(!d.starts_with("LDC R24"), "165 fabrication must not resurrect");
 }
 
 /// t174_6: LDCU (UR-dest) off==0 keeps its legacy/correct URZ-domain print;
