@@ -783,6 +783,79 @@ fn check_mma_reg_alignment(insn: &Instruction) -> Result<()> {
     Ok(())
 }
 
+/// BUG-185: the tcgen05 UTC*MMA `idesc[URn]` operand is a DERIVED glyph with
+/// no word window of its own. Vendor arbitration (nvdisasm 13.3.73,
+/// 2026-08-26, 8/8 single-bit probes on gold UTCQMMA '' and 2CTA anchors,
+/// sm103a): every corpus anchor prints idesc == tok4 tmem UR + 1 (1,362/1,362
+/// hexdb, both arch tables), and no bit outside the tok4 window moves the
+/// printed value. The rows therefore carry NO idesc_ur field, and any textual
+/// idesc value used to be SILENTLY BAKED at encode (`idesc[UR9]` vs
+/// `idesc[UR31]` produced byte-identical words; an `+0x` offset was dropped
+/// the same way). Refuse a mismatching / offset-carrying idesc with
+/// attribution; the only decoder-produced shape (the derived value, zero
+/// offset) encodes unchanged. Structural skip: a future row that genuinely
+/// owns an idesc_ur/idesc_off LblPat field is exempt by construction.
+fn check_idesc_derived(insn: &Instruction, entry: &crate::table::ModGroupEntry) -> Result<()> {
+    let owns_idesc = entry.fields.iter().any(|f| matches!(&f.extraction,
+        Extraction::LblPat(p) if p == "idesc_ur" || p == "idesc_off"));
+    if owns_idesc {
+        return Ok(());
+    }
+    let parse_desc_label = |s: &str, prefix: &str| -> Option<(u64, u64)> {
+        let body = s.strip_prefix(prefix)?.strip_suffix(']')?;
+        let (num_s, off_s) = match body.split_once('+') {
+            Some((a, b)) => (a, Some(b)),
+            None => (body, None),
+        };
+        let n = if num_s == "Z" { 255 } else { num_s.parse::<u64>().ok()? };
+        let off = match off_s {
+            Some(o) => o.strip_prefix("0x")
+                .and_then(|h| u64::from_str_radix(h, 16).ok())
+                .or_else(|| o.parse::<u64>().ok())?,
+            None => 0,
+        };
+        Some((n, off))
+    };
+    let mut idesc: Option<(usize, u64, u64)> = None;
+    for (i, op) in insn.operands.iter().enumerate() {
+        if let Operand::Label(s) = op {
+            if let Some((n, off)) = parse_desc_label(s, "idesc[UR") {
+                idesc = Some((i, n, off));
+            }
+        }
+    }
+    let Some((pos, n, off)) = idesc else { return Ok(()); };
+    // Derivation: idesc UR == (UR of the tmem token immediately preceding
+    // idesc) + 1, mod 256 (run27 rule; URZ=255 leaf-wraps to UR0 exactly like
+    // the printer's wrapping_add). Fail closed when the predecessor is not a
+    // parseable tmem[UR..]: on a field-less row the value would bake silently.
+    let derived = insn.operands.get(pos.wrapping_sub(1))
+        .and_then(|op| match op { Operand::Label(s) => Some(s.as_str()), _ => None })
+        .and_then(|s| parse_desc_label(s, "tmem[UR"))
+        .map(|(m, _)| (m + 1) & 0xff);
+    let Some(exp) = derived else {
+        anyhow::bail!(
+            "idesc[UR{}] on {} has no encoding window and its derivation anchor \
+             (tmem token right before it) is not a tmem[UR..] operand (BUG-185; \
+             on the tcgen05 UTC*MMA rows idesc is a derived glyph == that tmem \
+             UR + 1, per nvdisasm 13.3.73 arbitration 2026-08-26). Write the \
+             derived value or drop the token.",
+            n, insn.opcode_full);
+    };
+    if off != 0 || n != exp {
+        anyhow::bail!(
+            "idesc[UR{}{}] on {} has NO encoding window -- the word stores no \
+             idesc field; silicon/nvdisasm derive idesc == tok4 tmem UR + 1. \
+             Here that is idesc[UR{}], so the textual value would be SILENTLY \
+             dropped (BUG-185; 1,362/1,362 hexdb anchors derived-consistent, \
+             8/8 single-bit vendor probes 2026-08-26). Fix the text to \
+             idesc[UR{}] (or renumber the tmem token).",
+            n, if off != 0 { format!("+0x{off:x}") } else { String::new() },
+            insn.opcode_full, exp, exp);
+    }
+    Ok(())
+}
+
 /// BUG-030 (rev. BUG-168): UPLOP3.LUT's two trailing immediates are NOT 8-bit
 /// LUTs. The 030-era model (2-bit @75 rendered value<<6 + 2-bit @18 rendered
 /// value<<2) was over-fit to the i93 subset {0x40,0x80} — the fuller corpus
@@ -1669,6 +1742,11 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
             fk, insn.key, mod_group,
             entry.fields.iter().map(|f|(format!("{:?}",f.extraction),f.shift,f.bits,f.token_idx)).collect::<Vec<_>>());
     }
+    // BUG-185: always-on (not CUBIT_DISABLE_ERRATA-gated) — the check compares
+    // the textual idesc against its hardware-derived value on rows that have
+    // no idesc window; passing text is byte-neutral, refusing prevents a
+    // silent fabrication.
+    check_idesc_derived(insn, entry)?;
 
     let mut code = entry.and_base;
 
