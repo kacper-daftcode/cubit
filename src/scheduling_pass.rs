@@ -459,6 +459,39 @@ fn load_result_loop_carried(insns: &[Instruction], i: usize) -> bool {
 // 1-2 instructions after a hand-prologue LDC and read garbage CTA-dependently.
 const LATENCY_LDC: u8 = 30;
 
+/// BUG-170 (2026-08-26, front-M iter88): the opclasses `uplop3_lut_2out_` /
+/// `plop3_lut_2out_` (every PLOP3.LUT / UPLOP3.LUT form) reinterpret ctrl word
+/// bits [105:110) = stall[0:4) | yield<<4 as an index into TABLES_opex_1
+/// (nvdisasm 13.3.73, "Opclass '<u>plop3_lut_2out_', undefined value 0x1e for
+/// table 'TABLES_opex_1'" + dataflow abort). Empirical law, 32-value bit-scan
+/// on corpus payloads + vendor census (hexdb 32.2M: 5,970 UPLOP3 + 144,796
+/// PLOP3 rows, zero outliers): DEFINED = 0x00..=0x0F and 0x11..=0x1B;
+/// undefined = 0x10 (yield with stall 0) and 0x1C..=0x1F (yield with stall
+/// 12..=15). The stage-3 RULE-2 shaping already clears yield at stall==0 /
+/// stall>=12 for every op, i.e. its ptxas-derived shape IS this law on the
+/// LOP3 class; the legacy path set yield on UPLOP3 unconditionally and stacked
+/// the predicate-latency stall (13+1=14) on top => 0x1e on every standalone
+/// text-assembled UPLOP3 (170 repro).
+/// Repair maps to the NEAREST vendor-observed legal shape and preserves the
+/// wanted delay: stall 0 -> 1 next to yield (0x11, the dominant vendor yield
+/// form); stall >= 12 keeps its stall and drops the yield bit (yield-free
+/// S12..S15 forms exist in the corpus: 0x0C/0x0F). R/W/wait bits are never
+/// touched. Legal-set boundary (0x0F / 0x10 hole / 0x1B / 0x1C) is the load-
+/// bearing detail; do not "tidy" it into a plain 5-bit cap.
+pub fn opex1_lop3_legalize(op: &str, ctrl: &mut crate::ir::ControlCode) -> bool {
+    if !matches!(op, "UPLOP3" | "PLOP3") || !ctrl.yield_flag {
+        return false;
+    }
+    if ctrl.stall == 0 {
+        ctrl.stall = 1;
+    } else if ctrl.stall >= 12 {
+        ctrl.yield_flag = false;
+    } else {
+        return false;
+    }
+    true
+}
+
 fn base_latency(op: &str) -> u8 {
     if is_pred_writer(op) { return LATENCY_PRED; }
     if is_control_flow(op) { return LATENCY_CTRL; }
@@ -1931,6 +1964,16 @@ pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
             }
         }
     }
+
+    // BUG-170 opex_1 legalization (see opex1_lop3_legalize): the legacy path
+    // above pairs yield with stall 14 on UPLOP3 (0x1e, outside TABLES_opex_1).
+    // Hand-scheduled instructions keep author-owned ctrl bits untouched.
+    for x in insns.iter_mut() {
+        if x.hand_sched {
+            continue;
+        }
+        opex1_lop3_legalize(&x.opcode, &mut x.ctrl);
+    }
 }
 
 /// BUG-102: write-barrier batchability class for the RECYCLE audit. TRUE for
@@ -3058,5 +3101,69 @@ mod bug108_tests {
             "imad_wide class must not force a scoreboard barrier (fixed-latency ALU)");
         assert!(!insn_needs_write_bar(&i, Some(&tab), true),
             "same under sched2");
+    }
+}
+
+#[cfg(test)]
+mod bug170_opex1_unit {
+    //! White-box matrix for the TABLES_opex_1 law on (U)PLOP3 (BUG-170):
+    //! legal index set = 0x00..=0x0F | 0x11..=0x1B; repair = stall 0 -> 1
+    //! beside yield, stall >= 12 drops yield and keeps its stall. Bars, wait
+    //! mask and already-legal pairs are bit-exact untouched; non-LOP3 ops and
+    //! hand-scheduled words are out of scope by contract.
+    use super::*;
+
+    fn cc(stall: u8, yield_flag: bool) -> crate::ir::ControlCode {
+        crate::ir::ControlCode {
+            stall,
+            yield_flag,
+            write_bar: 3,
+            read_bar: 5,
+            wait_mask: 0b10101,
+        }
+    }
+
+    fn low5(c: &crate::ir::ControlCode) -> u8 {
+        (c.stall & 0xF) | ((c.yield_flag as u8) << 4)
+    }
+
+    #[test]
+    fn law_set_boundary() {
+        for s in 0u8..=15 {
+            assert!(matches!(s | 0x10, 0x11..=0x1B) == (1..=11).contains(&s),
+                "yield legality must hold exactly for stall 1..=11 (s={s})");
+        }
+    }
+
+    #[test]
+    fn repair_matrix() {
+        // (0, Y) -> (1, Y): delay minimum is the dominant vendor yield form 0x11.
+        let mut c = cc(0, true);
+        assert!(opex1_lop3_legalize("UPLOP3", &mut c));
+        assert_eq!((c.stall, c.yield_flag), (1, true));
+        // (12..=15, Y) -> (s, no-Y): delay preserved, vendor 0x0C/0x0F shape.
+        for s in 12u8..=15 {
+            let mut c = cc(s, true);
+            assert!(opex1_lop3_legalize("PLOP3", &mut c));
+            assert_eq!((c.stall, c.yield_flag), (s, false));
+            assert_eq!((c.write_bar, c.read_bar, c.wait_mask), (3, 5, 0b10101));
+        }
+        // Already-legal pairs are untouched (both arms).
+        for s in [1u8, 2, 5, 10, 11] {
+            let mut c = cc(s, true);
+            assert!(!opex1_lop3_legalize("UPLOP3", &mut c));
+            assert_eq!(low5(&c), s | 0x10);
+        }
+        for s in [0u8, 1, 9, 12, 15] {
+            let mut c = cc(s, false);
+            assert!(!opex1_lop3_legalize("UPLOP3", &mut c));
+            assert_eq!(low5(&c), s);
+        }
+        // Scope: sibling uniform-LOP3 and pred writers are NOT the opex_1 class.
+        for op in ["ULOP3", "UISETP", "ISETP", "LOP3", "QMMA"] {
+            let mut c = cc(13, true);
+            assert!(!opex1_lop3_legalize(op, &mut c), "{op} must be out of scope");
+            assert_eq!((c.stall, c.yield_flag), (13, true));
+        }
     }
 }

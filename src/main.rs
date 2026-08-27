@@ -5171,6 +5171,18 @@ fn cmd_asm_directive_format(
             }
         }
 
+        // BUG-170 opex_1 legalization (see scheduling_pass::opex1_lop3_legalize):
+        // post-pass stall bumps above (coop-MMA settle / back-edge settle) run
+        // after schedule() and can re-pair stall>=12 with yield; re-apply the
+        // TABLES_opex_1 law so no emitted control word is outside the define
+        // set on the (U)PLOP3 opclass. Hand-scheduled ctrl bits stay author-owned.
+        for insn in insns_with_ctrl.iter_mut() {
+            if insn.hand_sched {
+                continue;
+            }
+            cubit::scheduling_pass::opex1_lop3_legalize(&insn.opcode, &mut insn.ctrl);
+        }
+
         let mut code_bytes = vec![0u8; insns_with_ctrl.len() * 16];
         let (mut enc, mut fail) = (0u64, 0u64);
 
