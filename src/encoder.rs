@@ -636,10 +636,10 @@ fn verify_mod_group_retained(
     //   F2FP ...PACK_AB_MERGE_C via the `{fk}_?` wildcard row (sm120; qpack
     //     production kernel, tests/encoding::test_wildcard_suffix_chain_):
     //     render splits the token into PACK_AB + MERGE_C (plus RZ tail).
-    //   REDUX.ADD.U32 (sm103a, tests/bug080 t5): table models the reduction
-    //     op as SUM/"" (bits [79:78]=00), decode claims nothing; vendor
-    //     2049-cubin corpus shows only .OR. Follow-up: REDUX default-op
-    //     census on silicon.
+    //   (REDUX.ADD.U32 entry REMOVED by BUG-191: no longer a drop-tolerated
+    //     idiom -- it is now a real ADD->SUM alias seated at the lookup, so
+    //     the produced word is the vendor REDUX.SUM row byte-for-byte.
+    //     Pinned by tests/bug191_redux_add_alias.rs.)
     // NOTE: `LDC.128` R-domain forms were REMOVED from this list (BUG-135):
     //   the pre-132 encoder silently dropped the width and the pinned word
     //   (bug088 t5, W_LDC128_R53) is in fact a PLAIN 32-bit LDC word —
@@ -654,7 +654,6 @@ fn verify_mod_group_retained(
     //   use 2x LDC.64 — there is no R-domain 128-bit constant load.
     const MOD_DROP_TOLERATED: &[(&str, &[&str])] = &[
         ("F2FP", &["PACK_AB_MERGE_C"]),
-        ("REDUX", &["ADD", "U32"]),
     ];
     for &(op, mods) in MOD_DROP_TOLERATED {
         if insn.opcode == op && missing.iter().all(|m| mods.contains(m)) {
@@ -1542,6 +1541,24 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         check_wide_mem_reg_align_sm103(insn, table)?;
     }
     let mod_group = crate::table::extract_mod_group(&insn.raw_text);
+
+    // BUG-191: authored `REDUX.ADD.U32` IS the vendor `REDUX.SUM` word.
+    // Triple evidence (results/cubitfix/191.md): ptxas lowers
+    // redux.sync.add.u32 -> REDUX.SUM (op field [78:81)=3, 213 corpus
+    // anchors for the .S32 sibling); silicon on B300 pins op=0 to AND
+    // (patched-op probes work/i90/silicon: op0 unique-attr [AND] on both
+    // input patterns; op1=OR, op2=XOR, op3=SUM); vendor nvdisasm prints
+    // op=0 as BARE `REDUX` (glyph-less = AND). Pre-fix the text rode the
+    // MOD_DROP_TOLERATED list and silently encoded op=0 -- silicon then
+    // computes AND where the author wrote ADD (silent wrong-code).
+    // Alias ADD -> SUM here (U32 = default unsigned, no bit) so the SUM
+    // table row matches exactly; wider/unknown combos (bare ADD, ADD.S32,
+    // U32 alone) stay fail-closed via the BUG-132 gate.
+    let mod_group = if insn.opcode == "REDUX" && mod_group == "ADD,U32" {
+        String::from("SUM")
+    } else {
+        mod_group
+    };
 
     // BUG-012: IMAD.MOV is an ALIAS of plain IMAD — nvdisasm prints it when both
     // multiplier operands are RZ. Accept the alias only in that exact shape
