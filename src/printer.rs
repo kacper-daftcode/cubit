@@ -814,6 +814,16 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             _ => {}
         }
     }
+    // BUG-180: LDGSTS — nvdisasm order is E < BYPASS < LTC128B/LTC256B < size
+    // (LDGSTS.E.BYPASS.LTC128B.128 [R94], ...; census hexdb 32.2M: mod-order
+    // class; table mg strings are alpha "128,BYPASS,E,...").
+    if base == "LDGSTS" {
+        match m {
+            "BYPASS" => return 4,
+            "LTC128B" | "LTC256B" => return 5,
+            _ => {}
+        }
+    }
     // render-parity (b11, era rt98 anchor: LOP3.LUT.PAND): in the LOP3 family the
     // PAND boolean qualifier prints AFTER LUT, not before (generic LUT=9 would
     // still lose to PAND's default 5 — pin explicitly per family).
@@ -950,6 +960,13 @@ fn format_operand(
         "ARI" if (ins_key.starts_with("LDS") || ins_key.starts_with("STS"))
             && fields.iter().any(|f| norm_ext(&f.extraction) == "addr_scale")
             => format_lds_scaled_addr(fields, rz_signed_elide(ins_key)),
+        // BUG-180: LDGSTS second (global-src) address is 64-bit
+        // [Rn.64(+URm)(+s12off)] (arb180c t1/u2); STAS prints its shared
+        // address with .64 unconditionally ([R3.64] odd legal, arb180 s3).
+        "ARI" | "AI" if ins_key.starts_with("LDGSTS") && tok == 2
+            => format_ldgsts_src(fields, raw),
+        "ARI" | "AI" if ins_key.starts_with("STAS") && tok == 1
+            => format_addr_wide64(fields, raw),
         "ARI" | "AI"
                 => format_addr(fields, raw, rz_signed_elide(ins_key)),
         // STS/LDS/LDSM use [R+UR+off] format, not desc[UR][R.64+off].
@@ -958,6 +975,14 @@ fn format_operand(
             let op = ins_key.split('_').next().unwrap_or("");
             op.starts_with("STS") || op.starts_with("LDS") || op.starts_with("LDSM")
         } => format_sts_lds_addr(fields, raw),
+        // BUG-180: LDGSTS splits ARURI by slot — tok1 is the SHARED-memory
+        // destination and prints like STS/LDS [Rn+URm(+off)] (vendor
+        // [R140+UR32]; pre-fix this was a fabricated desc[UR..][R..64] form);
+        // tok2 is the GLOBAL 64-bit source [Rn.64(+URm)(+s12off)].
+        "ARURI" if ins_key.starts_with("LDGSTS") && tok == 1
+            => format_ldgsts_shdst(fields, raw),
+        "ARURI" if ins_key.starts_with("LDGSTS") && tok == 2
+            => format_ldgsts_src(fields, raw),
         // BUG-038: plain uniform-indexed LDG.E/STG.E forms (class bytes 0x81/0x86)
         // render as [Rn.U32+URm(+0xoff)], not desc[UR][R.64] (that's the dARI world).
         // BUG-097: same plain-u32-ur shape on generic-memory LD_R_ARURI/ST_ARURI_R
@@ -1859,6 +1884,119 @@ fn format_syncs_ari(fields: &[&DecodedField], raw: u128, ins_key: &str) -> Strin
         Some(i) => format!("[{}+URZ{}]", &inner[..i], &inner[i..]),
         None => format!("[{inner}+URZ]"),
     }
+}
+
+/// BUG-180: STAS shared-memory address prints with the 64-bit marker
+/// unconditionally (nvdisasm `STAS [R2.64], R9`; arb180 s3: odd bases keep
+/// `.64` too — glyph law, not a pairing claim). Layout otherwise identical
+/// to format_addr.
+fn format_addr_wide64(fields: &[&DecodedField], raw: u128) -> String {
+    let mut base_reg: Option<u64> = None;
+    let mut ur_reg: Option<u64> = None;
+    let mut offset: i64 = 0;
+    let mut has_offset = false;
+    for f in fields {
+        let e = norm_ext(&f.extraction);
+        match e.as_str() {
+            "sub_r0" | "sub_r1" => base_reg = Some(f.value),
+            "sub_r0_shr1" | "sub_r1_shr1" => base_reg = Some(f.value << 1),
+            "reg" => { if base_reg.is_none() { base_reg = Some(f.value); } }
+            "sub_ur0" | "sub_ur1" | "ureg" => ur_reg = Some(f.value),
+            "sub_ur0_shr1" | "sub_ur1_shr1" => ur_reg = Some(f.value << 1),
+            s if s.starts_with("sub_imm") => {
+                offset |= sub_imm_off(s, f.value, f.bits);
+                has_offset = true;
+            }
+            "imm" => { offset = f.value as i64; has_offset = true; }
+            _ => {}
+        }
+    }
+    if base_reg.is_none() {
+        base_reg = Some((raw >> 24) as u64 & 0xFF);
+        let raw_off = ((raw >> 40) & 0xFF) as i64;
+        if raw_off != 0 { offset = raw_off; has_offset = true; }
+    }
+    let rn = base_reg.unwrap_or(0);
+    let reg_s = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
+    let mut inner = format!("{reg_s}.64");
+    if let Some(un) = ur_reg {
+        let ur_s = if un == 63 { "URZ".to_string() } else { format!("UR{un}") };
+        inner.push('+');
+        inner.push_str(&ur_s);
+    }
+    if has_offset && offset != 0 {
+        if offset < 0 {
+            inner.push_str(&format!("+-0x{:x}", (-offset) as u64));
+        } else {
+            inner.push_str(&format!("+0x{offset:x}"));
+        }
+    }
+    format!("[{inner}]")
+}
+
+/// BUG-180: LDGSTS shared-memory destination (tok1) — same [Rn+URm(+off)]
+/// form as STS/LDS, but the negative offset glyph is the vendor `+-0x`
+/// convention for indexed forms (census: [R187+UR26+-0x4000] x32; STS/LDS
+/// keep their established `-0x` glyph, untouched).
+fn format_ldgsts_shdst(fields: &[&DecodedField], raw: u128) -> String {
+    let s = format_sts_lds_addr(fields, raw);
+    // rewrite the single negative-offset glyph variant "n-0x" -> "n+-0x"
+    if let Some(pos) = s.find("-0x") {
+        let mut out = s.clone();
+        out.insert_str(pos, "+");
+        out
+    } else { s }
+}
+
+/// BUG-180: LDGSTS global-source address (tok2) — vendor law measured by
+/// nvdisasm 13.3.73 word probes (arb180/arb180b): `[Rn.64(+URm)(+off)]`.
+/// The UR token prints ONLY when the uniform field is present and != 0xFF
+/// (the desc-sink elision, e.g. `desc[UR255][..]`-era words render
+/// `[R212.64]`); UR63 prints literally (arb180c t1_urf). Offset is the
+/// s12 window @[32:44), `+-0x` sign glyph (s2/u2 probes).
+fn format_ldgsts_src(fields: &[&DecodedField], raw: u128) -> String {
+    let mut base_reg: Option<u64> = None;
+    let mut ur_reg: Option<u64> = None;
+    let mut offset: i64 = 0;
+    let mut has_offset = false;
+    for f in fields {
+        let e = norm_ext(&f.extraction);
+        match e.as_str() {
+            "sub_r0" | "sub_r1" => base_reg = Some(f.value),
+            "sub_r0_shr1" | "sub_r1_shr1" => base_reg = Some(f.value << 1),
+            "reg" => { if base_reg.is_none() { base_reg = Some(f.value); } }
+            "sub_ur0" | "sub_ur1" | "ureg" => ur_reg = Some(f.value),
+            "sub_ur0_shr1" | "sub_ur1_shr1" => ur_reg = Some(f.value << 1),
+            s if s.starts_with("sub_imm") => {
+                offset |= sub_imm_off(s, f.value, f.bits);
+                has_offset = true;
+            }
+            "imm" => { offset = f.value as i64; has_offset = true; }
+            _ => {}
+        }
+    }
+    if base_reg.is_none() {
+        base_reg = Some((raw >> 24) as u64 & 0xFF);
+    }
+    let rn = base_reg.unwrap_or(0);
+    let reg_s = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
+    let mut inner = format!("{reg_s}.64");
+    match ur_reg {
+        Some(0xFF) | None => {}
+        Some(un) => {
+            let ur_s = format!("UR{un}");
+            inner.push('+');
+            inner.push_str(&ur_s);
+        }
+    }
+    if has_offset && offset != 0 {
+        if offset < 0 {
+            inner.push_str(&format!("+-0x{:x}", (-offset) as u64));
+        } else {
+            inner.push_str(&format!("+0x{offset:x}"));
+        }
+    }
+    format!("[{inner}]")
 }
 
 // ── UTC* — tcgen05 MMA descriptor operands (gdesc/tmem/idesc) ───────────────
