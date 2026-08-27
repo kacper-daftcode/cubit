@@ -56,7 +56,7 @@ fn t199_2_atom_generic_s64_sm_row() {
     let w = word(0x800000060202798a, 0x001eac00091eb704);
     let g = dec(&t, &idx, w).expect("ATOM MAX.S64.SM decodes on sm100a");
     assert_eq!(g, "ATOM.E.MAX.S64.STRONG.SM PT, R2, desc[UR4][R2.64], R6");
-    let ins = parse_sass("ATOM.E.MAX.S64.STRONG.SM PT, R2, desc[UR4][R2.64], R6 ;").unwrap();
+    let ins = parse_sass("ATOM.E.MAX.S64.STRONG.SM PT, R2, desc[UR4][R2.64], R6 ;", 0).unwrap();
     let enc = encode_instruction(&ins, &t).expect("encode SM row");
     assert_eq!(enc & !(0xFFFF_FFFFu128 << 96), w & !(0xFFFF_FFFFu128 << 96));
 }
@@ -89,7 +89,7 @@ fn t199_4_canonical_retention() {
         .expect("INC canon decodes");
     assert_eq!(g, "ATOMG.E.INC.STRONG.GPU PT, R5, desc[UR8][R4.64], R2");
     let g = dec(&t, &idx, word(0x8010007c86ff79a3, 0x000368000c1ef33e)).expect("F32 canon");
-    assert!(g.starts_with("ATOMG.E.ADD.F32.FTZ"), "canon F32 glyph: {g}");
+    assert_eq!(g, "ATOMG.E.FTZ.ADD.F32.RN.STRONG.GPU PT, RZ, desc[UR62][R134.64+0x1000], R124");
 }
 
 /// t199_5: encode/decode round-trip byte-exact (sched-matched) on canonicals.
@@ -100,12 +100,12 @@ fn t199_5_roundtrip_canonical() {
         ("ATOMG.E.INC.STRONG.GPU PT, R5, desc[UR8][R4.64], R2 ;", 0x80000002040579a8u64, 0x001eec00099ef108u64),
         ("ATOMG.E.CAS.STRONG.SM PT, R5, [R4], R6, R7 ;", 0x00000006040573a9, 0x002ea200001ea107),
     ] {
-        let ins = parse_sass(text).unwrap();
+        let ins = parse_sass(text, 0).unwrap();
         let w = encode_instruction(&ins, &t).expect("encode");
         let w2 = word(lo, hi);
         assert_eq!(w & !(0xFFFF_FFFFu128 << 96), w2 & !(0xFFFF_FFFFu128 << 96), "encode {text}");
         let g = dec(&t, &idx, w2).unwrap();
-        assert_eq!(g, text.trim_end_matches(' ').trim_end_matches(';'), "decode {text}");
+        assert_eq!(g, text.strip_suffix(" ;").unwrap_or(text), "decode {text}");
     }
 }
 

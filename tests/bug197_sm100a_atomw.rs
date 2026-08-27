@@ -135,19 +135,21 @@ fn t197_5_basereg_hi_not_pred() {
                "ATOM.E.MAX.S64.STRONG.GPU P0, RZ, desc[UR4][R122.64+0x8], R4");
 }
 
-/// t197_6: residuum honesty — lanes intentionally left as HOLE stay HOLE.
-/// (a) ATOM-generic MAX.S64.SM delisted (graft197a proves the silicon form
-/// exists, but the ATOM-donor desc window does not read it; sm103a carries
-/// no such row either — HOLE == owner posture).
-/// (b) ATOMG INC width flips are UNWITNESSED silicon territory; document
-/// the shared prio-absorb LATENT by pinning sm103a-parity smoke only in the
-/// report (not here — see 197.md sec.7).
+/// t197_6: residuum honesty — updated by BUG-199 (iter96): the 197-era
+/// blocker resolved. arb199 (176-probe bit-walk on graft197a, nvdisasm
+/// 13.3.73) proved the full ATOM-generic desc geometry (UR=[64:72),
+/// imm=[40:63), same as the ATOMG sibling — the 197 "(41,8) does not read
+/// it" observation was itself the harvest-era defective window this wave
+/// fixed). BUG-199 FIX B added the row; decode is now the vendor glyph.
+/// (sm103a still carries no such row — HOLE posture there is pinned in
+/// bug199's t199_7.)
 #[test]
 fn t197_6_residuum_holes() {
     let t = tab(T100); let idx = DecodeIndex::build(&t);
-    // graft197a ATOM-generic word: legal on 100a silicon, row deliberately absent
-    assert!(idx.decode(word(0x800000060202798a, 0x001eac00091eb704), 0, &t).is_err(),
-            "ATOM-generic S64.SM must stay HOLE (delisted, no ATOM-geometry witness)");
+    // graft197a ATOM-generic word decodes to the vendor glyph post-BUG-199
+    let g = dec(&t, &idx, word(0x800000060202798a, 0x001eac00091eb704));
+    assert_eq!(g, "ATOM.E.MAX.S64.STRONG.SM PT, R2, desc[UR4][R2.64], R6",
+               "BUG-199: ATOM-generic S64.SM row live on sm100a");
     // ATOM-generic MAX.S64 GPU corpus anchors still decode (P0 + true base)
     assert_eq!(dec(&t, &idx, word(0x800008040aff798a, 0x0001e4000910f704)),
                "ATOM.E.MAX.S64.STRONG.GPU P0, RZ, desc[UR4][R10.64+0x8], R4");
