@@ -105,24 +105,23 @@ fn t174_4_render_fixed_point() {
     }
 }
 
-/// t174_5 was the parked-domain guard ("pre==post, no scope creep"). The
-/// 2026-08-26 branch-landing wave LANDED BUG-165, so the parked state is
-/// over; the pin now nails the POST-165 render for the same anchor (the
-/// fabricated "LDC R24, 0x30000" text must never come back).
-/// t174_5 — COMPOSE-INTERIM state (2026-08-26): the anchor currently decodes
-/// through the width-row as "LDC.U8 R24, c[0x3][RZ]". The fleet rehearsal
-/// (cubitfix/i87) proved this is still NOT the vendor render: vendor says
-/// "LDC R24, 0x30000" (absolute-plain, 0xff-index idiom), and the fix is the
-/// parked f2-187-ldc-abplain lane (restore LDC_R_II / refuse 0xff-index on
-/// width rows). This pin marks the interim render explicitly; BUG-187's own
-/// pins supersede it at landing.
+/// t174_5: the W1 sentinel-U8 word post-parked-165 renders the vendor
+/// text.  RE-PINNED by BUG-187 (F2-iter89, results/cubitfix/187.md): the
+/// old expectation `LDC R24, 0x30000` was the LDC_R_II junk-row
+/// fabrication itself (the ghost address 0x30000 = bank=3 bits [54:56)
+/// misread as [58:38]); nvdisasm-13.3.73 AND 13.0 both render the
+/// sentinel `c[0x3][RZ]` (work/bug187/arb/arb187.json; arb167_round2
+/// u8_idx255 always said the same).  The pin now locks the flip that the
+/// 165+174 compose was designed to produce.
+/// (fn name kept from the compose-interim version; BUG-187 NEGATYW pins
+/// live in tests/bug187_ldc_idx255_law.rs.)
 #[test]
 fn t174_5_post165_domain_landed() {
     let t = t120();
     let idx = DecodeIndex::build(&t);
-    // work/bug167/arb/arb167_round2.json u8_idx255:
-    let d = dec(&idx, w("000e24000000000000c00000ff187b82"), &t);
-    assert_eq!(d, "LDC.U8 R24, c[0x3][RZ]", "compose-interim render (pending BUG-187)");
+    // work/bug167/arb/arb167_round2.json u8_idx255 (vendor):
+    assert_eq!(dec(&idx, w("000e24000000000000c00000ff187b82"), &t),
+               "LDC.U8 R24, c[0x3][RZ]");
 }
 
 /// t174_6: LDCU (UR-dest) off==0 keeps its legacy/correct URZ-domain print;
