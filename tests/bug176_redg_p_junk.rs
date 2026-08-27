@@ -105,6 +105,9 @@ fn t176_4_honest_anchors_untouched() {
 /// t176_5: table shapes after the hygiene (pin the key counts).
 #[test]
 fn t176_5_table_shapes() {
-    assert_eq!(t120().num_keys(), 1543);
+    // 2026-08-26 compose: 1543 was the 176-era count; the landing wave moved
+    // it further (ATOMS adds +12 REDG fabrication deletions +REDG_ARI_R
+    // restore = 1535; each move has its own canon commit + suite pin).
+    assert_eq!(t120().num_keys(), 1535);
     assert_eq!(t103().num_keys(), 400);
 }
