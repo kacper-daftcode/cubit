@@ -1965,7 +1965,7 @@ fn format_ldgsts_shdst(fields: &[&DecodedField], raw: u128) -> String {
     // rewrite the single negative-offset glyph variant "n-0x" -> "n+-0x"
     if let Some(pos) = s.find("-0x") {
         let mut out = s.clone();
-        out.insert_str(pos, "+");
+        out.insert(pos, '+');
         out
     } else { s }
 }

@@ -1518,7 +1518,7 @@ fn check_lepc_target(insn: &Instruction) -> Result<()> {
             other, insn.opcode_full, insn.addr),
     };
     let x = t.wrapping_sub(insn.addr as i64).wrapping_sub(0x10);
-    if x < -(1i64 << 57) || x > (1i64 << 57) - 1 {
+    if !(-(1i64 << 57)..=(1i64 << 57) - 1).contains(&x) {
         anyhow::bail!(
             "LEPC target 0x{:x} at addr 0x{:x} is out of the encodable window \
              (target - pc - 0x10 must fit s58, BUG-184)",
@@ -1553,6 +1553,7 @@ fn check_lepc_target(insn: &Instruction) -> Result<()> {
 ///   - branch ops are unreachable here (BUG-091 bails unresolved branch
 ///     labels before entry selection; parser-resolved labels arrive as
 ///     BranchTarget, not Label).
+///
 /// Census-first (report 183 sec.1): 258 sm103a / 462 sm120 (key,mod_group)
 /// token slots expose an imm field on a Label-routable "II" key position,
 /// but ZERO corpus text line carries a non-numeric identifier there
@@ -3717,7 +3718,7 @@ fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm
         });
         if let Some(t) = target {
             let x = t.wrapping_sub(insn.addr as i64).wrapping_sub(0x10);
-            if x >= -(1i64 << 57) && x <= (1i64 << 57) - 1 {
+            if (-(1i64 << 57)..=(1i64 << 57) - 1).contains(&x) {
                 const MASK: u128 = (1u128 << 82) - (1u128 << 24);
                 code = (code & !MASK)
                     | ((((x as u64) & 0x3FF_FFFF_FFFF_FFFF) as u128) << 24);
