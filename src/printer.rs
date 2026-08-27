@@ -1626,6 +1626,7 @@ fn elide_rz_base(rn: u64, ur_reg: Option<u64>, offset: i64, has_offset: bool,
 fn format_shared_atom_addr(fields: &[&DecodedField], _raw: u128) -> String {
     let mut base_reg: Option<u64> = None;
     let mut ur_reg:   Option<u64> = None;
+    let mut ur_bits:  u32 = 8;
     let mut offset:   i64 = 0;
     let mut has_off   = false;
     for f in fields {
@@ -1633,7 +1634,7 @@ fn format_shared_atom_addr(fields: &[&DecodedField], _raw: u128) -> String {
         match e.as_str() {
             "sub_r1" | "sub_r0"             => base_reg = Some(f.value),
             "reg"                           => { if base_reg.is_none() { base_reg = Some(f.value); } }
-            "sub_ur0" | "sub_ur1" | "ureg"  => ur_reg = Some(f.value),
+            "sub_ur0" | "sub_ur1" | "ureg"  => { ur_reg = Some(f.value); ur_bits = f.bits; }
             s if s.starts_with("sub_imm") => {
                 offset |= sub_imm_off(s, f.value, f.bits);
                 has_off = true;
@@ -1646,7 +1647,10 @@ fn format_shared_atom_addr(fields: &[&DecodedField], _raw: u128) -> String {
     let reg_s = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
     let mut inner = reg_s;
     if let Some(un) = ur_reg {
-        let ur_s = if un == 0xFF || un == 63 { "URZ".to_string() } else { format!("UR{un}") };
+        // width law (BUG-157/151): 8-bit window => 255=URZ, 63 is real UR63;
+        // narrower legacy windows keep the 63=URZ alias.
+        let is_urz = if ur_bits >= 8 { un == 0xFF } else { un == 0xFF || un == 63 };
+        let ur_s = if is_urz { "URZ".to_string() } else { format!("UR{un}") };
         inner.push('+');
         inner.push_str(&ur_s);
     }

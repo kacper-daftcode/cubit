@@ -91,16 +91,24 @@ fn t179_3_roundtrip_fixed_point() {
 }
 
 #[test]
-fn t179_4_real_ur_stays_fail_closed() {
+fn t179_4_real_ur_live_coverage() {
     let t = t103a();
-    // UR63 is a REAL register (BUG-160 law), UR6 likewise vendor-legal on the
-    // silicon (arb179 B/C) but the table has no AURI row for INC.POPC —
-    // and the sink alias must not cover them.
-    for bad in ["ATOMS.POPC.INC.32 RZ, [R0+UR63+0x3c]",
-                "ATOMS.POPC.INC.32 RZ, [R0+UR6+0x3c]"] {
-        let insn = parse_sass(bad, 0).expect("parse");
-        assert!(encode_instruction(&insn, &t).is_err(), "must fail closed: {bad}");
+    let idx = DecodeIndex::build(&t);
+    // 2026-08-26 compose: the fail-closed hole is FILLED -- canonical sm103a
+    // carries ATOMS_R_ARURI["32,INC,POPC"] (127-anchor wave row) with an
+    // 8-bit UR window, so real UR encodes are legal; the contract that
+    // remains binding: the sink alias must NOT cover real UR numbers
+    // (UR63 must print UR63, never alias to URZ; BUG-160/157 width law).
+    for good in ["ATOMS.POPC.INC.32 RZ, [R0+UR63+0x3c]",
+                 "ATOMS.POPC.INC.32 RZ, [R0+UR6+0x3c]"] {
+        let insn = parse_sass(good, 0).expect("parse");
+        let w = encode_instruction(&insn, &t).expect("real UR encodes (post-wave row)");
+        let back = idx.decode(w, 0, &t).map(|d| cubit::printer::to_sass(&d)).unwrap();
+        assert_eq!(back, good, "real UR roundtrips text-exact");
     }
+    // URZ sink keeps its alias render (0xff window value prints URZ):
+    let wz = encode_instruction(&parse_sass("ATOMS.POPC.INC.32 RZ, [R0+URZ+0x3c]", 0).unwrap(), &t).unwrap();
+    assert_eq!((wz >> 64) as u64 & 0xff, 0xff, "sink encodes 0xff");
 }
 
 #[test]
