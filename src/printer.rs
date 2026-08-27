@@ -1981,6 +1981,7 @@ fn format_ldgsts_src(fields: &[&DecodedField], raw: u128) -> String {
     let mut ur_reg: Option<u64> = None;
     let mut offset: i64 = 0;
     let mut has_offset = false;
+    let mut imm_width: u32 = 0;
     for f in fields {
         let e = norm_ext(&f.extraction);
         match e.as_str() {
@@ -1992,8 +1993,9 @@ fn format_ldgsts_src(fields: &[&DecodedField], raw: u128) -> String {
             s if s.starts_with("sub_imm") => {
                 offset |= sub_imm_off(s, f.value, f.bits);
                 has_offset = true;
+                imm_width += f.bits;
             }
-            "imm" => { offset = f.value as i64; has_offset = true; }
+            "imm" => { offset = f.value as i64; has_offset = true; imm_width += f.bits; }
             _ => {}
         }
     }
@@ -2001,6 +2003,11 @@ fn format_ldgsts_src(fields: &[&DecodedField], raw: u128) -> String {
         base_reg = Some((raw >> 24) as u64 & 0xFF);
     }
     let rn = base_reg.unwrap_or(0);
+    // BUG-164 law applies to the LDGSTS source slot too: RZ base + imm != 0
+    // elides to the bare window (same vendor family, plain-ARI doctrine).
+    if let Some(el) = elide_rz_base(rn, ur_reg, offset, has_offset, imm_width, true) {
+        return el;
+    }
     let reg_s = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
     let mut inner = format!("{reg_s}.64");
     match ur_reg {
