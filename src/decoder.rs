@@ -294,6 +294,15 @@ impl DecodeIndex {
                 // coverage rows in tables (patch211).
                 "ATOMS" |
                 "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "QMMA" |
+                // BUG-224: SYNCS carries neighbor-form law at b72
+                // (.IVALL/.WBALL), b73 (opaque enum), b91 (operandful
+                // SYNCS.CCTL.IV [R+UR]) — all inside/adjacent to the prio-3
+                // sign window (arb224 graft x3). The era row has no signed
+                // operands; without the arm, b72-set words silently rendered
+                // as the plain .IVALL sibling (+ junk neg field) instead of
+                // failing closed. Coverage gap for unwitnessed forms stands
+                // (222-class).
+                "SYNCS" |
                 // BUG-125: F2I carries its dst-type in bits [76:75][72] (fresh
                 // f32-imm form, F2I_R_FI) — the prio-3 sign-bit window {72..75}
                 // absorbed vendor-INVALID type indices 6/7 (nvdisasm `F2I.???6/
@@ -304,6 +313,37 @@ impl DecodeIndex {
                 // lossy "!rsd[74:1]" path (R,U32 imm-form words absorbed by the
                 // R,U64 row). Fail closed; every legal combo is already a row.
                 "USHF");
+            // BUG-225: census-driven arm batch (cross-census prio-3 absorb,
+            // work/bug225). These bases have NO sign-able register operands
+            // (pure control/sync + tmem/tensor lanes: dests, UR/desc, preds,
+            // imms), yet the generic sign fallback absorbed their and_base
+            // neighbors — worst class silently (prio3_same_glypheq: the
+            // flipped bit never reaches the printed text, e.g. NANOSLEEP
+            // b62..75 absorbed text-invisible x3 tables). Corpus exposure is
+            // measured ZERO on all three tables (pass-2 census over the A/B
+            // 2014-corpus, 4.86M unique words x3): no real word relies on
+            // prio-3 for any of these bases, so the arm only closes silent
+            // absorption of unwitnessed neighbors (219/224 fail-closed
+            // doctrine). Bases with measured exposure (VOTE/VOTEU/
+            // USETMAXREG/FENCE) and plain-R-source ops with unknown sign
+            // law (BREV/FLO/PRMT/POPC/MOV-family) are intentionally NOT
+            // armed — 226/227 class with the full vendor-parity table in
+            // results/cubitfix/225.md.
+            let is_225_armed = matches!(base,
+                "NANOSLEEP" | "DEPBAR" | "LDGDEPBAR" | "ERRBAR" | "CGAERRBAR" |
+                "UCGABAR" | "UTCBAR" | "BPT" | "MEMBAR" | "ACQBULK" |
+                "ACQSHMINIT" | "ENDCOLLECTIVE" | "CCTL" | "YIELD" | "PREEXIT" |
+                "WARPSYNC" | "ELECT" | "MATCH" | "B2R" | "CS2R" | "CS2UR" |
+                "P2R" | "BREAK" | "BRX" | "CALL" | "BMOV" |
+                "UGETNEXTWORKID" | "UVIRTCOUNT" | "QSPC" | "RPCMOV" | "SHFL" |
+                "UBLKCP" | "UBLKPF" | "UBLKRED" | "R2P" | "R2UR" | "UP2UR" |
+                "LDTM" | "STTM" | "STAS" | "STSM" | "UTCCP" | "UTMALDG" |
+                "UTMAPF" | "UTMAREDG" | "UTMASTG" | "UTMACCTL" |
+                "UTMACMDFLUSH" | "UTCATOMSWS" | "UTCHMMA" | "UTCIMMA" |
+                "UTCQMMA" | "SULD");
+            if is_225_armed {
+                return None;
+            }
             if !is_memlike {
                 let sign_bits: u128 = (3u128 << 62) | (3u128 << 72) | (3u128 << 74);
                 let m2 = c.match_mask & !sign_bits;
@@ -484,8 +524,31 @@ impl DecodeIndex {
             let is_alu = !matches!(base_op,
                 "LDG" | "LDL" | "LDS" | "LDC" | "LDCU" | "STG" | "STL" | "STS" |
                 "ATOM" | "RED" | "BRA" | "BSSY" | "BSYNC" | "EXIT" | "RET" |
-                "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "QMMA");
-            if is_alu {
+                // BUG-224: SYNCS has no sign-modifiable register operands
+                // (state dst / address uses); the generic neg arm polluted
+                // SYNCS.CCTL decodes with a phantom neg@72 field (arb224).
+                "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "SYNCS" | "QMMA"
+            );
+            // BUG-225: same census-driven family as the prio-3 gate above —
+            // control/sync + tmem/tensor bases have no sign-modifiable
+            // register operands; the generic neg/abs post-pass printed
+            // phantom modifiers on absorbed words (R2UR `-UR4`, ELECT
+            // `-URZ`/`|URZ|`, B2R `!P0` at b72 — all bogus; census
+            // prio3_same_glyphjunk class). Corpus exposure of the prio-3
+            // path is measured zero for these bases x3 tables.
+            let is_225_armed = matches!(base_op,
+                "NANOSLEEP" | "DEPBAR" | "LDGDEPBAR" | "ERRBAR" | "CGAERRBAR" |
+                "UCGABAR" | "UTCBAR" | "BPT" | "MEMBAR" | "ACQBULK" |
+                "ACQSHMINIT" | "ENDCOLLECTIVE" | "CCTL" | "YIELD" | "PREEXIT" |
+                "WARPSYNC" | "ELECT" | "MATCH" | "B2R" | "CS2R" | "CS2UR" |
+                "P2R" | "BREAK" | "BRX" | "CALL" | "BMOV" |
+                "UGETNEXTWORKID" | "UVIRTCOUNT" | "QSPC" | "RPCMOV" | "SHFL" |
+                "UBLKCP" | "UBLKPF" | "UBLKRED" | "R2P" | "R2UR" | "UP2UR" |
+                "LDTM" | "STTM" | "STAS" | "STSM" | "UTCCP" | "UTMALDG" |
+                "UTMAPF" | "UTMAREDG" | "UTMASTG" | "UTMACCTL" |
+                "UTMACMDFLUSH" | "UTCATOMSWS" | "UTCHMMA" | "UTCIMMA" |
+                "UTCQMMA" | "SULD");
+            if is_alu && !is_225_armed {
                 let optypes: Vec<&str> = matched.key.split('_').skip(1).collect();
                 let skip_preds = optypes.iter().take_while(|t| **t == "P" || **t == "UP").count();
                 // Token indexing mirrors the encoder (ra_idx/rb_idx there), including

@@ -1,0 +1,70 @@
+{
+ "arch": "sm_103a",
+ "ceilings_smsp_ipc": {
+  "fma_class_int": 0.4988,
+  "fp32": 0.588,
+  "hfma2": 0.4988,
+  "note_scaling": "ceiling NONLINEAR in warps/SMSP: 0.1550/0.3054/0.2460/0.2498 for 1/2/4/8 w-SMSP (measured, 2026-08-20)",
+  "pair_sum_imad_ffma": 0.5949,
+  "wide_2credit": 0.2496
+ },
+ "credits": {
+  "BREV": 1,
+  "CS2R": 1,
+  "FADD": 1,
+  "FFMA": 1,
+  "FMNMX": 1,
+  "FMUL": 1,
+  "FSEL": 1,
+  "FSETP": 1,
+  "HADD2": 1,
+  "HFMA2": 1,
+  "HMUL2": 1,
+  "IABS": 1,
+  "IADD3": 1,
+  "IMAD": 1,
+  "IMAD.WIDE": 2,
+  "IMAD.X": 1,
+  "IMMA.16832.S8": 57,
+  "IMNMX": 1,
+  "ISETP": 1,
+  "LEA": 1,
+  "LOP3": 1,
+  "MOV": 1,
+  "MUFU": 1,
+  "PLOP3": 1,
+  "POPC": 1,
+  "PRMT": 1,
+  "SEL": 1,
+  "SHF": 1,
+  "SHFL": 1,
+  "UIADD3": 1,
+  "UIMAD.WIDE": 2,
+  "UISETP": 1,
+  "ULEA": 1,
+  "ULOP3": 1,
+  "UMOV": 1,
+  "USHF": 1,
+  "VOTE": 1
+ },
+ "credits_default": 1,
+ "dep_link_latency_slots": 8,
+ "model": {
+  "assumptions": [
+   ">=1 warp/SMSP resident (measured @128/256/512/1024 thr): ALU dep latency quantum-masked, no separate stall classes",
+   "windows are ALU-only: mem/scoreboard/ctrl-flow/labeled ins are PINNED segment boundaries, never moved",
+   "ctrl words (stall/yield/bars) ride WITH their instruction: per-ins stall totals are invariant, only ORDER is optimized"
+  ],
+  "kind": "list-sched ready-time over a single-warp issue stream"
+ },
+ "provenance": {
+  "convention": "credit = 1 dispatch slot of the FMA-class unified pipe per SMSP (IMAD=1, role-sum convention sm120)",
+  "derived": "2026-08-20 dispatch-rate measurement campaign on B300 sm_103a (occupancy sweep 128/256/512/1024 threads); later addenda widened the credit/ceiling tables without changing the derivation",
+  "source_raw_md5": "e64f61ba6b40494b5173b4dcccaef1ca"
+ },
+ "quantum_cy": 7.9,
+ "road_class": [
+  "IMMA.16832.S8"
+ ],
+ "schema": 1
+}

@@ -130,14 +130,21 @@ fn bug012_unknown_opex51_stays_raw_faithful() {
     let word: u128 = 0x080fe200007e4dff00000001ff727810;
     let d = idx.decode(word, 0x34c0, &t).expect("decode must keep working");
     let text = format!("{d}").trim_end_matches([' ', ';']).to_string();
-    assert_eq!(text, "IADD3.X R114, !PT, PT, RZ, UR1.reuse, ~RZ, P0, P2");
+    assert_eq!(text, "IADD3.X R114, PT, PT, ~RZ, 0x1, ~RZ, P0, P2");
+    // BUG-226 re-pin (2026-08-27): with the sm120 IADD3 family donor-cloned
+    // from canonical sm100a (II X-form inv classes + P2@84 restored), the
+    // relaxed winner is now the II/imm-domain reading
+    // `IADD3.X R114, PT, PT, ~RZ, 0x1, ~RZ, P0, P2` and it re-encodes
+    // payload-exact (!SCHED). nvdisasm 13.3.73 rejects the word on BOTH
+    // sm_100a/sm_120a probes (rc=1), so it stays vendor-unknown; with an
+    // exact decode<->encode roundtrip nothing is lost via __raw__ elision,
+    // and end-to-end byte safety is proven by the rt98 chain gate (3d15ab6a).
     let insn = parse_sass(&text, 0).unwrap();
     assert!(
         encode_instruction(&insn, &t)
             .map(|c| c & !SCHED == word & !SCHED)
-            .unwrap_or(false)
-            == false,
-        "opex-0x51 word must NOT silently re-encode to itself"
+            .unwrap_or(false),
+        "opex-0x51 word must re-encode payload-exact after the 226 repair"
     );
 }
 

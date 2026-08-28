@@ -67,7 +67,48 @@ class SyncError(RuntimeError):
 # same-day stack wave (27 1a891, BUG-195..206): SM120 519->653, SM103a
 # 1260->1369, SM100a 1260->1373 -- witness-first dARI/scope rows carry the
 # canonical control template like the rest of the family.
-BAKED_CTRL_BASELINE = {"SM120": 659, "SM103a": 1388, "SM100a": 1392,
+# 2026-08-27 BUG-215 (canonical b3efa8f): '64,EXCH' donor-clone of the
+# bug204 EXCH row bakes the same b109 control bit as the donor -- +1 per
+# table (SM120 659->660, SM103a 1388->1389, SM100a 1392->1393).
+# 2026-08-27 BUG-221 (canonical 53d7c35): SYNCS family donor-clones from
+# canonical sm100a (4 keys + 5 mg) carry the era-2aE control template like
+# the rest of the family -- SM120 660->676 (16 donor-baked rows).
+# 2026-08-27 BUG-224 (canonical ae6b248): base key SYNCS
+# (mg CCTL,IVALL) donor bakes the same era-2aE template -- SM120 676->677.
+# 2026-08-27 BUG-226 (canonical 091f993): FSETP/IADD3 donor-clones from
+# canonical sm100a (15 R_R mgs + 4 IADD3 rows + II repairs) carry the era
+# control template -- SM120 677->695.
+# 2026-08-27 BUG-226 patch 2 (canonical 980e5cd): LEA/SHF int-shift block
+# donor-clones from canonical sm100a (1 key + 7 mgs added, 2 rows replaced;
+# every new row bakes the era-2aE control template) -- SM120 695->705.
+# 2026-08-27 BUG-229 (canonical 68c352b): LEA .HI UR-row donor replacement
+# bakes the donor template -- SM120 705->706.
+# 2026-08-27 BUG-229b (canonical 35da13b): SHFL/USHF donor-law rewrite;
+# 37 USHF + 4 SHFL R_R donor rows carry the era template (24 era scaffold
+# keys deleted, none baked) -- SM120 706->747.
+# 2026-08-28 BUG-234 (canonical 2aa6514): FFMA2_R_R_R_R donor clone bakes
+# the donor ctrl[19:14]=0x3f template -- SM120 758->759.
+# 2026-08-28 BUG-226d (canonical b2e5227): donor-law family closure
+# (DFMA/UIMAD/FCHK/MUFU/VOTE/IDP/HMUL2) imports 44 net donor-era ctrl
+# templates (42 era keys deleted, few baked; 22 replaced + 6 added carry
+# donor envelopes) -- SM120 759->803.
+# bug226e I2F/FENCE/USETMAXREG/F2F_R_UR donor rows bake the donor ctrl
+# templates -- SM120 803->823->825 (+2 alias clones of the baked graft
+# row on F2F.F64.F32_R_UR, BUG-240 2026-08-28).
+# bug241 (canonical 8eaea28): donor-law HADD2_R_R_R wholesale clone (3
+# rows) + SHF per-mg donor clones (14 rows replacing era/unbaked, 1 donor
+# template added) carry baked ctrl templates; IMNMX II cell rows unbaked;
+# LOP3 PAND clones +3 (sm120) / +2 (donors) -- SM120 825->844,
+# SM103a 1389->1391, SM100a 1393->1395.
+# bug243 (canonical 0b6a753): HFMA2 wave -- 4 keys (RRRR x2 mg, UR x2 mg,
+# FI_FI_R x2 mg, FI_FI x1 mg) wholesale from rebuilt donor rows carry the
+# era-2aE ctrl template like the rest of the family -- SM120 844->851.
+# 2026-08-28 BUG-244 (canonical 00c3fd2): donor F2F.F64.F32 closure --
+# 3 rows carry the proven 226e/240 baked ctrl template per donor
+# (F2F_R_UR[F64,F32] graft + F2F.F64.F32_R_UR {""/F32,F64} typed rows);
+# typed F2F.F64.F32_R_R rows carry no baked ctrl bits -- SM103a
+# 1391->1394, SM100a 1395->1398.
+BAKED_CTRL_BASELINE = {"SM120": 851, "SM103a": 1394, "SM100a": 1398,
                        "SM121A": 458}
 
 FIXED_EXTRACTIONS = {

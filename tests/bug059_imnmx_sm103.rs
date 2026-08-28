@@ -61,6 +61,13 @@ fn t3_sm120_imnmx_forms_still_encode() {
 
 // (3) decode-only retention: the exact era word still decodes+renders under
 // sm103a.json (RE of legacy cubins unaffected by the encoder guard).
+// BUG-241 re-pin: BUG-240's arb work had already established the IMNMX II
+// cell law (b73,b74) and the ctl26/27=pure-reuse / ctl13=reuse-enable facts;
+// BUG-241 adds that law to the bucket rows. Vendor nvdisasm 13.3.73 prints
+// this exact word (cell (1,0)) as BARE `IMNMX` with NO abs ghost -- the old
+// golden `IMNMX.S64 P0, P0, |R218|, ...` pinned the era mislabeled-S64 row
+// plus a phantom tok4 abs (transplant arb241: word verbatim -> bare IMNMX,
+// b74-flip -> .S64, b122-flip -> R218.reuse). Re-pinned to vendor truth.
 #[test]
 fn t4_sm103a_decode_of_era_word_retained() {
     let t = t103a();
@@ -68,7 +75,10 @@ fn t4_sm103a_decode_of_era_word_retained() {
     let d = idx
         .decode(0x020fec00038002000003ffffdada7817u128, 0, &t)
         .expect("era IMNMX word must stay decodable under sm103a.json");
-    assert_eq!(cubit::printer::to_sass(&d), KB_FORM);
+    assert_eq!(
+        cubit::printer::to_sass(&d),
+        "IMNMX P0, P0, R218, R218, 0x3ffff, PT, P0"
+    );
 }
 
 // (4) guard precision: it keys on the exact base op, so UIMNMX (uniform

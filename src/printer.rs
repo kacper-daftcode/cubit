@@ -346,11 +346,19 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         let reuse_slots: [(u32, u32); 3] = [(122, 24), (123, 32), (124, 64)];
         for &(reuse_bit, slot_shift) in &reuse_slots {
             if (raw >> reuse_bit) & 1 != 0 {
-                // Find which token (1-based) has a reg field at this shift
-                let tok_opt = insn.fields.iter()
+                // Find which token (1-based) has a reg field at this shift.
+                // BUG-226d: a UR-domain token never takes `.reuse` -- vendor
+                // prints `IMAD R4, R34.reuse, R3.reuse, UR4` (never `UR4.reuse`;
+                // zero UR.reuse in the 545,792-word pop226d census, and inline
+                // row reuse fields only target R windows). The sideband used to
+                // stamp `.reuse` onto UR tokens at slot32/64 regardless
+                // (DFMA_R_R_R_UR ghost `UR12.reuse`, IMAD UR4.reuse class).
+                let tok_opt = insn
+                    .fields
+                    .iter()
                     .find(|f| f.shift == slot_shift && f.bits == 8 && {
                         let e = norm_ext(&f.extraction);
-                        e == "reg" || e == "ureg" || e == "ureg_ff" || e == "reg_ff"
+                        e == "reg" || e == "reg_ff"
                     })
                     .map(|f| f.token_idx);
                 if let Some(tok) = tok_opt {
@@ -673,6 +681,11 @@ fn format_opcode(base: &str, mod_group: &str, key: &str) -> String {
 /// the legacy register-form F2I_R_R rows keep their alphabetical/priority
 /// prints (gold-locked pre-125 renders — do NOT unify silently).
 fn mod_priority_for_key(base: &str, key: &str, m: &str) -> u8 {
+    // BUG-226d: IDP prints the accumulate form before the low/high selector
+    // (vendor `IDP.2A.LO.U16.U8`, never `IDP.LO.2A...`, 27 corpus witnesses).
+    if base == "IDP" && (m == "2A" || m == "4A") {
+        return 2;
+    }
     if key == "F2I_R_FI" {
         match m {
             "U8" | "S8" | "U16" | "S16" | "U32" | "S32" | "U64" | "S64" => return 4,
@@ -696,6 +709,40 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             "2CTA" => return 1,
             "FIND_AND_SET" | "AND" | "OR" | "XOR" | "EXCH" => return 4,
             "ALIGN" => return 5,
+            _ => {}
+        }
+    }
+    // BUG-226e: I2F prints the source width-type BEFORE the rounding mode
+    // (vendor `I2F.U32.RP` / `I2F.U64.RP`, 1,467 pop226e witnesses; donor mg
+    // names are alphabetical `RP,U32` so the stable sort used to keep the
+    // rounding mod first; donor-side print-order defect left for the donor
+    // stream).
+    if base == "I2F" {
+        match m {
+            "RP" | "RM" | "RN" | "RZ" => return 7,
+            _ => {}
+        }
+    }
+    // BUG-241: UI2F prints the source width-type BEFORE the rounding mode
+    // (vendor `UI2F.U32.RP`; arb241-crafted word + I2F law precedent 226e).
+    if base == "UI2F" {
+        match m {
+            "RP" | "RM" | "RN" | "RZ" => return 7,
+            _ => {}
+        }
+    }
+    // BUG-226e: FENCE prints the VIEW qualifier first (vendor
+    // `FENCE.VIEW.ASYNC.T`; 8 T + 23 S pop226e corpus words).
+    if base == "FENCE" && m == "VIEW" {
+        return 0;
+    }
+    // BUG-226e: USETMAXREG prints the operation before the pool qualifier
+    // (`USETMAXREG.DEALLOC.CTAPOOL 0x18` / `USETMAXREG.TRY_ALLOC.CTAPOOL UP0,
+    // 0xe0`; 11/4 pop226e witnesses).
+    if base == "USETMAXREG" {
+        match m {
+            "DEALLOC" | "TRY_ALLOC" => return 1,
+            "CTAPOOL" => return 2,
             _ => {}
         }
     }
@@ -955,7 +1002,16 @@ fn format_operand(
         "P"     => format_pred_with_raw(fields, false, 0),
         "UP"    => format_pred_with_raw(fields, true, 0),
         // UR slot: if no ureg field present, use raw fallback (for USHF II-typed UR slots)
-        "UR"    => format_ureg_raw(fields, raw),
+        "UR"    => {
+            let s = format_ureg_raw(fields, raw);
+            // BUG-234: FFMA2 UR-form t3 lane decoration. The donor UR row
+            // pins b88=1 (other cells fail-closed), so .F32 is the only
+            // reachable shape (graft arb234z x{100a,103a}, corpus 512/512).
+            // Donor UR rows have no opmod fields for this slot.
+            if ins_key == "FFMA2_R_R_UR_R" && tok == 3 {
+                format!("{s}.F32")
+            } else { s }
+        },
         "II" | "IM" | "LO"
                 => format_imm_or_reg(fields, mod_group, ins_key, tok, raw),
         "FI"    => format_float_imm(fields),
@@ -1195,6 +1251,81 @@ fn format_reg(fields: &[&DecodedField], _mod_group: &str, tok: i32, raw: u128, i
         opmods.push("H0_H0".to_string());
     }
 
+    // BUG-234: FFMA2 lane decorations are vendor defaults, not row fields
+    // (census ana234: 5 cells over bits {81,82,83,88}, 122,432/122,432;
+    // graft arb234x/arb234y x{100a,103a} print-identical; sm_120a vendor
+    // decoder rejects FFMA2 outright, so the law is proven on the sm_100
+    // population + donor tables). The table rows only carry t2's non-default
+    // mods (opmod:F32@82 / F32x2@88 / LO_HI@81 / NP@83). Default law:
+    //   t2:  b82 set    -> .F32 only (b82 dominates b88); b83 -> .NP stays
+    //        b82 & b81  -> vendor prints .INVALID3 (zero corpus exposure)
+    //        else       -> .F32x2 + .LO_HI(b81) or .HI_LO(default) [+ .NP(b83)]
+    //   t3:  b88        -> .F32
+    //        else       -> .F32x2.HI_LO
+    //   t4:             -> .F32x2.HI_LO always (neg@75/abs@74/reuse@124 are
+    //                      row fields, graft-proven)
+    if ins_key.starts_with("FFMA2") {
+        let b81 = (raw >> 81) & 1 != 0;
+        let b82 = (raw >> 82) & 1 != 0;
+        let b88 = (raw >> 88) & 1 != 0;
+        let ur_form = ins_key == "FFMA2_R_R_UR_R";
+        match tok {
+            2 => {
+                if !ur_form {
+                    // R-form: non-default mods come from row fields here
+                    if b82 && b81 {
+                        opmods.clear();
+                        opmods.push("INVALID3".to_string());
+                    } else if b82 {
+                        // b82 dominates: keep .F32 [+.NP], drop any F32x2/LO_HI
+                        opmods.retain(|m| m == "F32" || m == "NP");
+                    } else {
+                        if !opmods.iter().any(|m| m == "F32x2") {
+                            opmods.push("F32x2".to_string());
+                        }
+                        if !opmods.iter().any(|m| m == "LO_HI" || m == "HI_LO") {
+                            // vendor order: lane select precedes .NP (rank-tied
+                            // mods print in insertion order)
+                            let pos = opmods
+                                .iter()
+                                .position(|m| m == "NP")
+                                .unwrap_or(opmods.len());
+                            opmods.insert(pos, "HI_LO".to_string());
+                        }
+                    }
+                } else {
+                    // UR-form donor row pins b88=1 / b81=b82=b83=0 in and_base
+                    // (off-cell words are fail-closed HOLEs; graft arb234z
+                    // corners measured, deliberately unexposed): the only
+                    // reachable t2 shape is .F32x2.HI_LO, constant here.
+                    opmods.clear();
+                    opmods.push("F32x2".to_string());
+                    opmods.push("HI_LO".to_string());
+                }
+            }
+            3 => {
+                // R-form t3 (UR-form t3 handled in the UR branch of
+                // format_operand): bit law b88 -> .F32 else .F32x2.HI_LO
+                if b88 {
+                    opmods.push("F32".to_string());
+                } else {
+                    opmods.push("F32x2".to_string());
+                    opmods.push("HI_LO".to_string());
+                }
+            }
+            4 => {
+                if ur_form {
+                    // UR-form t4 = .F32 always (corpus 512/512 + graft corners)
+                    opmods.push("F32".to_string());
+                } else {
+                    opmods.push("F32x2".to_string());
+                    opmods.push("HI_LO".to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+
     // Fallback: when the register is baked into and_base (no variable field),
     // extract it from the raw instruction at the standard bit position.
     if reg.is_none() {
@@ -1230,9 +1361,14 @@ fn format_reg(fields: &[&DecodedField], _mod_group: &str, tok: i32, raw: u128, i
             .find(|f| { let e = norm_ext(&f.extraction); e == "reg" || e.starts_with("reg_shr") })
             .map(|f| f.shift);
         let abs_shift: Option<u32> = match reg_shift {
-            Some(24) => Some(73),   // Ra abs at hi bit 9 (overall bit 73)
-            Some(32) => Some(62),   // Rb abs at lo bit 62
-            Some(64) => Some(74),   // Rc abs at bit 74 (FSETP/DSETP third source)
+            Some(24) => Some(73), // Ra abs at hi bit 9 (overall bit 73)
+            Some(32) => Some(62), // Rb abs at lo bit 62
+            // BUG-243: on HFMA2 rows b74 is the src1 (tok2) hsel low bit
+            // (hsel law L2: .H1_H1 = 3), never an Rc abs flag -- a 33,972-uniq-
+            // word vendor census shows zero HFMA2 abs glyph. Skipping here
+            // kills the |Rc| ghost printed next to .H1_H1 src1 words.
+            Some(64) if ins_key.starts_with("HFMA2") => None,
+            Some(64) => Some(74), // Rc abs at bit 74 (FSETP/DSETP third source)
             _ => None,
         };
         if let Some(s) = abs_shift {
@@ -2625,10 +2761,14 @@ fn format_float(f: f32, neg: bool) -> String {
         return format!("{sneg}{kind} ");
     }
     if f == 0.0 {
-        // -0.0 is a distinct bit pattern (0x80000000); nvdisasm prints "-0" and
-        // the encoder must hear the sign (HFMA2 imm pair "0, -0").
+        // -0.0 is a distinct bit pattern (0x80000000); nvdisasm prints "-0.0 "
+        // WITH a trailing space — same special-token law as INF/QNAN above
+        // (BUG-245: arb245 probes on the corpus witness word, nvdisasm
+        // 13.3.73: lo=-0.0 -> "-0.0 , 0", lo=-1/-2.5/-sub -> no space,
+        // bf16 halves identical law). Encoder must hear the sign: HFMA2 imm
+        // pair "0, -0").
         let neg0 = neg || (f.is_sign_negative());
-        return if neg0 { "-0.0".to_string() } else { "0".to_string() };
+        return if neg0 { "-0.0 ".to_string() } else { "0".to_string() };
     }
     // Integral values print bare (nvdisasm: "FFMA R0, R1, R2, 1" not "1.0e+00").
     if f == f.trunc() && f.abs() < 16_777_216.0 {

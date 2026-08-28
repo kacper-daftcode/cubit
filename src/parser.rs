@@ -71,8 +71,24 @@ fn parse_register(s: &str) -> Option<Operand> {
     };
     let s = owned.as_str();
 
-    let abs = s.starts_with('|') && s.ends_with('|');
-    let s = s.trim_matches('|');
+    // abs wrapper may carry an operand-modifier chain AFTER the closing bar
+    // ("|R56|.F32x2.HI_LO" — BUG-234 t4 FFMA2 abs); previously the bars were
+    // only recognized when they bracketed the whole token, so such operands
+    // silently degraded to Label and the encode failed at key lookup.
+    let (abs, s) = if let Some(r) = s.strip_prefix('|') {
+        if let Some(i) = r.find('|') {
+            let tail = &r[i + 1..];
+            if tail.is_empty() || tail.starts_with('.') {
+                (true, &r[..i])
+            } else {
+                (false, s)
+            }
+        } else {
+            (false, s)
+        }
+    } else {
+        (false, s)
+    };
 
     // Strip other suffixes like .64, .X8, .H1 for classification
     let base = s.split('.').next().unwrap_or(s);

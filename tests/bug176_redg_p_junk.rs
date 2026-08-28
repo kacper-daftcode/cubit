@@ -108,6 +108,38 @@ fn t176_5_table_shapes() {
     // 2026-08-26 compose: 1543 was the 176-era count; the landing wave moved
     // it further (ATOMS adds +12 REDG fabrication deletions +REDG_ARI_R
     // restore = 1535; each move has its own canon commit + suite pin).
-    assert_eq!(t120().num_keys(), 1535);
-    assert_eq!(t103().num_keys(), 400);
+    // 2026-08-27 BUG-221: +4 sm120 keys (SYNCS_{P_ARURI_R,R_ARI_R,
+    // R_ARURI_R,UR_AURI_UR} donor-clones, canonical 53d7c35) = 1539.
+    // 2026-08-27 BUG-224: +1 sm120 key (SYNCS base, mg CCTL,IVALL
+    // donor-clone, canonical ae6b248) = 1540.
+    // 2026-08-27 BUG-226 patch 2: +1 sm120 key (LEA_R_R_UR_II_P donor-clone,
+    // canonical 980e5cd) = 1541.
+    // 2026-08-27 BUG-229: -1 sm120 key (era LEA_R_R_II_R deletion, imm5==0x1e
+    // baked constant row; canonical 68c352b) = 1540.
+    // 2026-08-27 BUG-229b: -24 sm120 era scaffold keys (8 SHFL.{BFLY,IDX,UP}_*
+    // + 16 USHF dotted/mod keys; donor-law rewrite, canonical 35da13b) = 1516.
+    // 2026-08-28 BUG-230: -1 sm120 key (era phantom LEA_P0_R_R_R_II
+    // deletion, sign bits restored to plain LEA row; canonical f34abc0) = 1515.
+    // 2026-08-28 BUG-226c: -10 sm120 era phantom keys (FFMA_P_* x4,
+    // FFMA_R_R_UR_R_R / FFMA_R_R_R_R_R 5-token dups, '_?' x4) +1 donor key
+    // FFMA_R_R_R_UR; era UR_R[RM]/[RP] + R_R_R_II[RP] mgs dropped
+    // fail-closed (canonical cb44e0b) = 1506.
+    // 2026-08-28 BUG-234: +1 sm120 donor key FFMA2_R_R_R_R (graft-extended
+    // t4 abs@74/neg@75/reuse@124; default lane mods in printer arm;
+    // canonical 2aa6514) = 1507.
+    // 2026-08-28 BUG-226d: -42 sm120 era phantom keys (DFMA x9, UIMAD x7,
+    // MUFU x8, VOTE x6, HMUL2 x3, IDP x9) +6 donor keys (FCHK_P_R_UR,
+    // IDP_R_R_R_R, IDP_R_R_UR_R, MUFU_R_FI, UIMAD_UR_UR_UR_UR_UP,
+    // VOTE_P_P); donor-law family closure, canonical b2e5227) = 1471.
+    // 2026-08-28 BUG-226e: -15 sm120 era phantom/typed keys (I2F x12: S8,
+    // S16, U16, F64.U32, F64, U32.RP, U64.RP typed zoo; FENCE.VIEW.ASYNC.S;
+    // USETMAXREG.DEALLOC/TRY_ALLOC pair) +4 donor keys (FENCE, USETMAXREG_II,
+    // USETMAXREG_UP_II, F2F_R_UR); 226-forward sev-B tail closure, canonical
+    // 6ba6ca4) = 1460.
+    // 2026-08-28 BUG-240: +1 typed key (F2F.F64.F32_R_UR, clone of the
+    // arb226e_c graft row) alias-mg wrong-route closure = 1461.
+    assert_eq!(t120().num_keys(), 1461);
+    // 2026-08-28 BUG-244: +2 sm103a/sm100a typed keys (F2F.F64.F32_R_R,
+    // F2F.F64.F32_R_UR; donor F64-dst closure, canonical 00c3fd2) = 402.
+    assert_eq!(t103().num_keys(), 402);
 }

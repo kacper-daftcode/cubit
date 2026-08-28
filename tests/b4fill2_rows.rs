@@ -96,7 +96,7 @@ fn b4fill2_render_only() {
         // BUG-059: consumer IMNMX era words stay DECODE-ONLY on sm_103a
         // (silicon-ILLEGAL per m48 P1-P3); encoder rejects them fail-closed
         // (tests/bug059_imnmx_sm103.rs pins the reject + sm120 control).
-        (0x020fec00038002000003ffffdada7817u128, "IMNMX.S64 P0, P0, |R218|, R218, 0x3ffff, PT, P0"),
+        (0x020fec00038002000003ffffdada7817u128, "IMNMX P0, P0, R218, R218, 0x3ffff, PT, P0"), // BUG-241 re-pin: vendor nvdisasm prints bare IMNMX (cell (1,0)), no abs ghost -- see tests/bug059_imnmx_sm103.rs t4 note
         (0x000fe200080400000000002aff407947u128, "BRA.DIV P0, URZ, 0x2910"),
         (0x000fe2000c04000000000003ff047947u128, "BRA.CONV !P0, URZ, 0x20"),
         (0x000ff2000b83ffffffffffdd1e7c7958u128, "BRXU.U UR30, -0x1"),

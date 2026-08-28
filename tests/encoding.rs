@@ -673,9 +673,18 @@ mod sm103a {
     #[test]
     fn hadd2_hsel_and_neg_rz() {
         let Some(tab) = t() else { return };
+        // BUG-241 re-pin (canonical 8eaea28): the row gained the true tok2
+        // neg@72 field (arb241: nvdisasm prints '-' from b72 on the 303k-line
+        // vendor surface `HADD2.F32 R, -RZ, R.H0_H0`). Pre-fix the era row
+        // baked b72=1 into and_base, so spelled plain `RZ` silently encoded
+        // NEGATED (vendor decodes that word as `-RZ`). Plain RZ must carry
+        // b72=0; the negated spelling round-trips through b72=1.
         let c = encode_instruction(
             &parse_sass("HADD2.F32 R18, RZ, R24.H1_H1 ;", 0).unwrap(), &tab).unwrap();
-        assert!(eq_masked(c, 0x000fc2000000410030000018ff127230), "{c:032x}");
+        assert!(eq_masked(c, 0x000fc2000000400030000018ff127230), "{c:032x}");
+        let c2 = encode_instruction(
+            &parse_sass("HADD2.F32 R18, -RZ, R24.H1_H1 ;", 0).unwrap(), &tab).unwrap();
+        assert!(eq_masked(c2, 0x000fc2000000410030000018ff127230), "{c2:032x}");
     }
 
     #[test]
@@ -733,10 +742,16 @@ mod sm103a {
 
     #[test]
     fn hfma2_negative_zero_literal() {
+        // BUG-243 re-pin (vendor-true): era row baked b72=1 in and_base, so the
+        // text `RZ` silently encoded `-RZ`. b72 is now the true src1 neg field:
+        // `-RZ` carries the old anchor word, plain `RZ` encodes b72=0.
         let Some(tab) = t() else { return };
         let c = encode_instruction(
-            &parse_sass("HFMA2 R3, RZ, RZ, -0.0, 0 ;", 0).unwrap(), &tab).unwrap();
+            &parse_sass("HFMA2 R3, -RZ, RZ, -0.0, 0 ;", 0).unwrap(), &tab).unwrap();
         assert!(eq_masked(c, 0x000fc200000001ff80000000ff037431), "{c:032x}");
+        let c2 = encode_instruction(
+            &parse_sass("HFMA2 R3, RZ, RZ, -0.0, 0 ;", 0).unwrap(), &tab).unwrap();
+        assert!(eq_masked(c2, 0x000fc200000000ff80000000ff037431), "{c2:032x}");
     }
 
     #[test]

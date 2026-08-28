@@ -806,6 +806,8 @@ mod tests {
         let table = IsaTable::from_json_unified(super::BUNDLED_SM120_JSON).unwrap();
         // 2_481 keys (1_541 InsKeys x mod-groups); the >=2_000 bar came from the
         // old canonical-derived export which counted raw variants differently.
-        assert!(table.num_keys() >= 1_500, "bundled table shrank unexpectedly");
+        // 2026-08-28 BUG-226d: era phantom cleanup (canonical b2e5227) takes
+        // sm120 InsKeys 1507 -> 1471 on purpose; bar lowered 1_500 -> 1_400.
+        assert!(table.num_keys() >= 1_400, "bundled table shrank unexpectedly");
     }
 }
