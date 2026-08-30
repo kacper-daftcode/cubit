@@ -105,9 +105,9 @@ fn extraction_accepts(ext: &Extraction, op: &Operand) -> bool {
     match ext {
         // Flags / guard / opaque mods are non-discriminating: they read optional
         // attributes (neg/abs/reuse/...) and legitimately default to 0.
-        Guard | GuardLo3 | GuardNeg | Neg | NegShl1 | Reuse | Inv | Abs | NegAbs
-        | ByteSel | HalfSel | OpaqueModifier | OpModFlag(_) | MnemMod(..)
-        | UrExpl | UrExplInv | YieldInv | AddrScale | None => true,
+        Guard | GuardLo3 | GuardNeg | Neg | NegShl1 | Reuse | Inv | Abs | NegAbs | ByteSel
+        | HalfSel | H0NH1 | OpaqueModifier | OpModFlag(_) | MnemMod(..) | UrExpl | UrExplInv
+        | YieldInv | AddrScale | None => true,
 
         // Float immediates / value-cast float: read the value itself.
         NegF32 | F32Cast => matches!(op, Operand::FloatImm(_) | Operand::Imm32(_)),
@@ -1596,6 +1596,271 @@ fn check_label_imm_field(insn: &Instruction, entry: &crate::table::ModGroupEntry
     Ok(())
 }
 
+/// BUG-272 (fail-closed): split insn.raw_text into per-operand raw token
+/// strings (scheduling `&` annotation and guard prefix removed,
+/// bracket/paren-depth-aware comma split). Written for the BUG-272 suffix
+/// audit; the historic per-scraper copies are untouched to keep the diff
+/// narrow.
+fn raw_op_tokens(raw: &str) -> Vec<String> {
+    let t = raw.trim();
+    let t = if let Some(pos) = t.find('&') {
+        &t[..pos]
+    } else {
+        t
+    };
+    let t = t.trim().trim_end_matches(';').trim();
+    let t = regex::Regex::new(r"^@!?\w+\s+").unwrap().replace(t, "");
+    let parts: Vec<&str> = t.splitn(2, char::is_whitespace).collect();
+    if parts.len() < 2 {
+        return Vec::new();
+    }
+    let mut tokens = Vec::new();
+    let mut depth = 0;
+    let mut cur = String::new();
+    for ch in parts[1].chars() {
+        match ch {
+            '[' | '(' => {
+                depth += 1;
+                cur.push(ch);
+            }
+            ']' | ')' => {
+                depth -= 1;
+                cur.push(ch);
+            }
+            ',' if depth == 0 => {
+                tokens.push(cur.trim().to_string());
+                cur.clear();
+            }
+            _ => cur.push(ch),
+        }
+    }
+    if !cur.trim().is_empty() {
+        tokens.push(cur.trim().to_string());
+    }
+    tokens
+}
+
+/// Extract the operand-suffix segments of a bare R/UR/RZ/URZ token. Returns
+/// None for every other channel (address/desc/cmem brackets, immediates,
+/// labels, predicates) — those lanes have their own fail-closed gates
+/// (BUG-017 addr-scale, BUG-095/099 addr-width, BUG-183 label-imm, and the
+/// parse_address duplicate/overflow rules). Handles both vendor spellings:
+/// segments INSIDE the pipes (`|UR6.H0_NH1|`, 273-class cosmetics) and the
+/// abs tail (`|RZ|.H0_NH1`, arb271 A2; `R2.???2`).
+fn reg_token_suffixes(tok: &str) -> Option<Vec<String>> {
+    if tok.contains('[') || tok.contains(']') {
+        return None;
+    }
+    let t = tok.trim_start_matches(['-', '~']);
+    let mut segs = Vec::new();
+    let base: &str;
+    if t.contains('|') {
+        let i = t.rfind('|')?;
+        let inner = t.trim_start_matches('|').trim_end_matches('|');
+        let inner_base = inner.split('|').next()?;
+        base = inner_base.split('.').next()?;
+        for seg in inner_base.split('.').skip(1) {
+            segs.push(seg.to_string());
+        }
+        let tail = &t[i + 1..];
+        if !tail.is_empty() {
+            let tl = tail.strip_prefix('.')?;
+            for seg in tl.split('.') {
+                segs.push(seg.to_string());
+            }
+        }
+    } else {
+        base = t.split('.').next()?;
+        for seg in t.split('.').skip(1) {
+            segs.push(seg.to_string());
+        }
+    }
+    let is_reg = base == "RZ"
+        || base == "URZ"
+        || (base.starts_with('R') && base[1..].chars().all(|c| c.is_ascii_digit()))
+        || (base.starts_with("UR") && base[2..].chars().all(|c| c.is_ascii_digit()));
+    if is_reg {
+        Some(segs)
+    } else {
+        None
+    }
+}
+
+/// BUG-272 (fail-closed): a bare R/UR/RZ/URZ operand token carrying a suffix
+/// chain the WINNING ROW cannot consume was silently DROPPED at byte
+/// production (parse_register keeps the register via base classification;
+/// no field scrape ever looks at an unknown segment). Measured pre-fix on
+/// pub pyo3-f8360bb (measure_pre272): `MOV R1, RZ.INVALID5` (x4 legs),
+/// `UMOV UR4, UR6.GARBAGE` (x4 legs), `I2IP.U8.S32 R5, R4, R3, R2.???2` /
+/// `.GARBAGE` / `.INVALID1` / `.H0_NH1` (x2 legs) all encoded the exact
+/// plain word = silent wrong-code the moment the suffix was meant to carry
+/// bits. Registered residual of BUG-264/271/275/284 (tripwires t271_5,
+/// t275_5, t284_5 + smoke275/284 — all flipped by this fix).
+///
+/// Rule: every suffix segment of every bare-register operand token must be
+///   (a) CONSUMED by an entry field on THAT token — opmod:NAME, hsel
+///       ({H0_H0, H0_H1, H1_H1}), h0nh1 (H0_NH1), reuse — or
+///   (b) a vendor-DEFAULT notation the printer emits WITHOUT a row field
+///       (printer.rs mirror law, else our own decode output would not
+///       re-encode): HSETP* keys print .H0_H0 on every R operand when the
+///       row carries no hsel (corpus: 100% of HSETP2 records); FFMA2* keys
+///       decorate lanes with {F32, F32x2, HI_LO, LO_HI, NP} from a raw-bit
+///       law (BUG-234; donor/UR rows carry no opmod fields on toks 3/4);
+///       PLOP3* R-form keys accept the row-carried `.SIGN` spelling
+///       (b9p13 phase-3 #11 authored-text surface); IMMA keys accept the
+///       vendor `.ROW`/`.COL`/`.???n` sparse-selector notations (rt272
+///       corpus attribution: the only 272-gate deltas on the 2,406-cubin
+///       roundtrip battery).
+/// Anything else fails closed with attribution. `.INVALID3` (FFMA2 b82&b81
+/// print law, zero corpus exposure per ana234) is deliberately NOT
+/// admitted: pre-fix it encoded the both-bits-clear word (silent
+/// wrong-code), post-fix it refuses.
+///
+/// Predicate-suffixed spells (`SEL ..., P0.BAR`) never classified as a
+/// predicate at parse time, reached the Label channel, and already failed
+/// closed at key lookup — unchanged here (out of the registered class,
+/// which is bare UR/R). Skipped under CUBIT_FIT_LINT=allow (the
+/// disassemble re-encode probe oracle must MEASURE exactly this loss;
+/// doctrine of BUG-140/178/183). NOT CUBIT_DISABLE_ERRATA-unlockable: this
+/// guards byte production, not silicon behaviour.
+fn check_operand_suffixes(insn: &Instruction, entry: &crate::table::ModGroupEntry) -> Result<()> {
+    if matches!(fit_lint_mode(), FitLintMode::Allow) {
+        return Ok(());
+    }
+    // (b) family vendor-default / row-carried notations without fields
+    let hsetp_default = insn.key.starts_with("HSETP");
+    let ffma2_default = insn.key.starts_with("FFMA2");
+    // PLOP3 R-form (PLOP3_P_P_R_R_R_II_II): nvdisasm spells the row's
+    // sign-semantics as `.SIGN` on the R sources; the row carries the
+    // semantics (add.sat.s32 family, b9p13 phase-3 #11), no opmod field
+    // exists. Mirrors the authored-text acceptance surface.
+    let plop3_sign = insn.key.starts_with("PLOP3");
+    // IMMA family: cuobjdump prints the sparse source selectors as
+    // `.ROW`/`.COL` and unknown selector-nibble values as `.???n`
+    // (roundtrip corpus feed; rt272 attribution: every 272-gate delta was
+    // an IMMA selector line across IMMA{,.SP,.16816,.16832}[.SAT] shapes
+    // of both R_R_R_R and R_R_R_R_R_II keys). Pre-272 these suffixes were
+    // silently dropped and the ACCEPTED words carried their sparse state
+    // through the row/field law (drop was the behavior under test), so the
+    // gate must admit them -- the drop-vs-honest-encode class question for
+    // the selector payload is the registered IMMA sparse selector lane
+    // (rt baseline keeps the residual mismatch population visible).
+    let imma_sel = insn.opcode == "IMMA";
+    // HFMA2 R-form era rows: the era '.H0_NH1' print on tok3 and the
+    // era-quirk opmod:H1_H1 field on tok2@86 drive THE SAME bit (b86)
+    // (BUG-271 registration of the era R4 asymmetry; arb271 x4 vendor law:
+    // window (b86,b82,b81) v4 prints tok3 '.H0_NH1' and the era harvest
+    // carries the twin opmod:H1_H1@86 tok-2). On rows whose tok3 has no
+    // h0nh1 field (e.g. the BF16_V2 mod-group siting) but that ALREADY
+    // carry a b86-owning field, the tok3 suffix is value-redundant print:
+    // it must stay admissible (cuobjdump feed + our printer both produce
+    // the paired spelling) or the gate would newly refuse corpus text.
+    let hfma2_rform = insn.key.starts_with("HFMA2_R_R_");
+    let toks = raw_op_tokens(&insn.raw_text);
+    for (oi, op) in insn.operands.iter().enumerate() {
+        if !matches!(op, Operand::Reg { .. } | Operand::UReg { .. }) {
+            continue;
+        }
+        let Some(toktxt) = toks.get(oi) else { continue };
+        let Some(segs) = reg_token_suffixes(toktxt) else {
+            continue;
+        };
+        if segs.is_empty() {
+            continue;
+        }
+        let tok = (oi + 1) as i32;
+        for seg in &segs {
+            // UR-domain .reuse stays OWNED by the BUG-252 generic fixup
+            // guard (its own attributed fail-closed message; rows with an
+            // explicit reuse field stay authoritative there). Skipping it
+            // here keeps the two gates disjoint (R-domain .reuse is still
+            // field-consumption-checked below).
+            // .reuse is OWNED by specialist paths, not by this gate:
+            // R-domain goes through the generic slot-reuse fallback
+            // (fabricates the HW reuse bit per mapped slot even without a
+            // row field -- the t266_5 `LEA_P0 ... R19.reuse` pin), UR-domain
+            // is fail-closed by the BUG-252 generic guard unless the row
+            // carries an explicit reuse field (its own attributed message).
+            if seg == "reuse" {
+                continue;
+            }
+            // (a) consumed by an entry field on this token?
+            let consumed = entry.fields.iter().any(|f| {
+                if f.token_idx != tok {
+                    return false;
+                }
+                match &f.extraction {
+                    Extraction::OpModFlag(n) => n == seg,
+                    Extraction::HalfSel => {
+                        matches!(seg.as_str(), "H0_H0" | "H0_H1" | "H1_H1")
+                            // BUG-279 arm mirror: on the grafted HFMA2
+                            // packed-f16 imm family the tok3 (2,81) hsel
+                            // field also reads ".F32" (value 1).
+                            || (seg == "F32"
+                                && f.bits == 2 && f.shift == 81 && f.token_idx == 3
+                                && insn.opcode == "HFMA2"
+                                && crate::table::hfma2_immfam_key(&insn.key))
+                            // BUG-305 arm mirror: the HFMA2_R_R_UR_R tok3 UR
+                            // hsel field [61:60] also reads ".F32" (value 1).
+                            || (seg == "F32"
+                                && f.bits == 2 && f.shift == 60
+                                && matches!(op, Operand::UReg { .. })
+                                && crate::table::ur_hsel_f32_key(&insn.key))
+                            // BUG-306 arm mirror: every R-class hsel slot of
+                            // the HFMA2 tok3 position reads ".F32" (value 1;
+                            // arb306 census x4 models, win@60 and win@81).
+                            || (seg == "F32"
+                                && f.bits == 2
+                                && matches!(op, Operand::Reg { .. })
+                                && crate::table::r_hsel_f32_slot(&insn.key, f.token_idx))
+                    }
+                    Extraction::H0NH1 => seg == "H0_NH1",
+                    Extraction::Reuse => seg == "reuse",
+                    // .B0/.B1/.B2/.B3 bytesel scrape consumers (op_byte_sel
+                    // reads the same dotted segment the gate enumerates;
+                    // the fit layer enforces the field width afterwards)
+                    Extraction::ByteSel => {
+                        seg.len() == 2
+                            && seg.starts_with('B')
+                            && seg[1..].chars().all(|c| c.is_ascii_digit())
+                    }
+                    _ => false,
+                }
+            });
+            // (b) vendor-default notation without a field (printer mirror)
+            let default_notation = (hsetp_default && seg == "H0_H0")
+                || (ffma2_default
+                    && matches!(seg.as_str(), "F32" | "F32x2" | "HI_LO" | "LO_HI" | "NP"))
+                || (plop3_sign && seg == "SIGN")
+                || (imma_sel
+                    && (seg == "ROW"
+                        || seg == "COL"
+                        || (seg.len() == 4
+                            && seg.starts_with("???")
+                            && seg[3..].chars().all(|c| c.is_ascii_digit()))))
+                || (hfma2_rform && seg == "H0_NH1" && entry.fields.iter().any(|f| f.shift == 86));
+            if !(consumed || default_notation) {
+                anyhow::bail!(
+                    "unknown operand suffix .{seg} on operand {} of `{}` key `{}` \
+                     (BUG-272: pre-fix the encoder silently DROPPED such suffixes \
+                     at byte production — the plain word was emitted as if the \
+                     text had carried no suffix at all, e.g. `MOV R1, RZ.INVALID5` \
+                     == `MOV R1, RZ`). Known suffixes are the ones the winning \
+                     row owns fields for (opmod:*/hsel/h0nh1/reuse on this \
+                     operand) plus the vendor default notations of the \
+                     HSETP/FFMA2 families, the PLOP3 row-carried .SIGN and \
+                     the IMMA sparse selector marks (.ROW/.COL/.???n); \
+                     everything else is refused.",
+                    oi + 1,
+                    insn.opcode_full,
+                    insn.key
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
 fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_checks: bool) -> Result<u128> {
     // Fail-closed operand errata (parser-level admission can't error here: the
     // .sass file reader silently drops lines whose parse fails — so the encoder
@@ -1833,6 +2098,9 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     // refuse at byte production; compose order is irrelevant (disjoint
     // has-field polarity).
     check_label_imm_field(insn, entry)?;
+    // BUG-272: bare-register operand suffixes the winning row cannot consume
+    // must fail closed instead of being silently dropped (see the gate).
+    check_operand_suffixes(insn, entry)?;
     if std::env::var("CUBIT_DEBUG_LOOKUP").is_ok() {
         eprintln!("[lookup] fk={} key={} mod_group={:?} -> fields={:?}",
             fk, insn.key, mod_group,
@@ -1882,7 +2150,63 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         let is_alu = !matches!(insn.opcode.as_str(),
             "LDG" | "LDL" | "LDS" | "LDC" | "LDCU" | "STG" | "STL" | "STS" |
             "ATOM" | "RED" | "BRA" | "BSSY" | "BSYNC" | "EXIT" | "RET" |
-            "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "QMMA");
+            "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "QMMA" |
+            // BUG-281: I2I sign law measured text-INERT x4 models on the
+            // 2-op 0x238 lattice (arb281 singles b62/63/72/73 + comps) --
+            // the generic emit minted b72/b73 for '-Ra'/'|Ra|' texts that
+            // nvdisasm reads sign-LESS (silent wrong-code, measured pre-fix
+            // on pub pyo3-72eaa3e). Excluded: signed texts now fall to the
+            // encode-verify roundtrip = fail-closed. Mirror arm: decoder
+            // ghost-sign exclusion (I2IP BUG-282 precedent).
+            "I2I" |
+            // BUG-296: I2IP sign law measured by arb282/arb284 on the
+            // 0x7239 4-op lattice (x4 models): b62/b63 text-INERT (arb282
+            // E2), b72 = opmod:H1 field on tok4, b73 = BUG-275 opaque enum
+            // gap (fail-closed table-side), b74/b75 = sibling ''.SAT'' /
+            // ''.SATRELU'' row and_base bits. The generic emit therefore
+            // minted SILENT WRONG-CODE in four lanes (measured pre-fix on
+            // pub pyo3-4941ec5, work/bug296/measure_pre296): '-Ra' -> b72
+            // -> decode ''.H1'' cross-read, '+-Rb' -> b62/b63 -> decode
+            // plain (drop), '-Rc' -> b75 -> decode ''.SATRELU'', '|Rc|'
+            // -> b74 -> decode ''.SAT''. Excluded: signed texts fall to
+            // the encode-verify roundtrip / the BUG-296 bail below.
+            // Decoder ghost-sign exclusion for the whole I2IP base was
+            // already armed by BUG-282.
+            "I2IP" |
+            // BUG-303 (sign-arm parity): mirror of the decoder arm sets
+            // BUG-224 (SYNCS) and BUG-225 (57-base census batch, decoder.rs
+            // is_225_armed). These bases have NO sign-modifiable register
+            // operands (arb224 graft x3; 225 census x3 tables, corpus
+            // exposure ZERO). Pre-fix the generic emit minted ghost
+            // abs/neg bits for authored signs on them -- measured live
+            // lanes (work/bug303/measure_pre303, pub pyo3-704a17f):
+            //   298 P2R '-R12' sm121a        -> b63 -> decode imm
+            //      '0x80000000' cross-read (silent wrong-code)
+            //   299 SHFL.BFLY '-R10'/'|R21|' sm120 -> word our own decode
+            //      REJECTS (CLI asm wrote it silently, rc=0)
+            //   300 SHFL.IDX '-R23' sm120/sm121a -> decode reads
+            //      imm '0x80001f' + PT glyph / junk tail 'UR0'
+            //   301 MATCH.ANY '-R5' / 302 R2UR '-R5' -> undecodable word,
+            //      both legs
+            //   SYNCS.A1T0.ARRIVE.TRANS64 '-R6' sm120 -> b63 -> decode
+            //      imm-neighbor '[R5+URZ+-0x800000]' cross-read
+            // Signed texts on these bases now fall to the BUG-303 bail
+            // below (field-carried signs stay legal; census iter153:
+            // UTCHMMA/UTCIMMA/UTCQMMA neg on II tokens, CCTL/BREAK/ELECT
+            // singles -- all non-Reg tokens, unaffected).
+            "SYNCS" |
+            "NANOSLEEP" | "DEPBAR" | "LDGDEPBAR" | "ERRBAR" | "CGAERRBAR" |
+            "UCGABAR" | "UTCBAR" | "BPT" | "MEMBAR" | "ACQBULK" |
+            "ACQSHMINIT" | "ENDCOLLECTIVE" | "CCTL" | "YIELD" | "PREEXIT" |
+            "WARPSYNC" | "ELECT" | "MATCH" | "B2R" | "CS2R" | "CS2UR" |
+            "P2R" | "BREAK" | "BRX" | "CALL" | "BMOV" |
+            "UGETNEXTWORKID" | "UVIRTCOUNT" | "QSPC" | "RPCMOV" | "SHFL" |
+            "UBLKCP" | "UBLKPF" | "UBLKRED" | "R2P" | "R2UR" | "UP2UR" |
+            "LDTM" | "STTM" | "STAS" | "STSM" | "UTCCP" | "UTMALDG" |
+            "UTMAPF" | "UTMAREDG" | "UTMASTG" | "UTMACCTL" |
+            "UTMACMDFLUSH" | "UTCATOMSWS" | "UTCHMMA" | "UTCIMMA" |
+            "UTCQMMA" | "SULD"
+        );
         if is_alu {
             // Find Ra (typically operand index 1) and Rb (operand index 2)
             // For most ALU: op0=Rd, op1=Ra, op2=Rb
@@ -1945,6 +2269,114 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
             }
             if !has_field_neg(rc_tok) && is_neg(insn.operands.get(rc_idx)) {
                 code |= 1u128 << 75;
+            }
+        }
+    }
+
+    // BUG-281 fail-closed: I2I has NO sign-modifiable register operands
+    // (arb281 x4 models: b62/63/72/73 text-inert on the 2-op 0x238
+    // lattice). The family is excluded from the generic sign emit above;
+    // signed operand texts must not fall through as silently-dropped
+    // plain words (verify_mod_group_retained sees mnemonic mods only).
+    if insn.opcode.as_str() == "I2I"
+        && insn.operands.iter().any(|o| {
+            matches!(
+                o,
+                Operand::Reg { neg: true, .. }
+                    | Operand::Reg { abs: true, .. }
+                    | Operand::UReg { neg: true, .. }
+                    | Operand::UReg { abs: true, .. }
+            )
+        })
+    {
+        anyhow::bail!(
+            "BUG-281: signed register operand on I2I has no vendor encoding \
+             (sign window measured text-INERT x4: arb281); refusing silent \
+             sign-drop for insn: {}",
+            insn.raw_text.trim()
+        );
+    }
+
+    // BUG-296 fail-closed: I2IP has NO sign-modifiable register operands
+    // either (arb282/arb284 x4 models on the 0x7239 4-op lattice; decoder
+    // ghost-sign exclusion for the base armed by BUG-282). The family is
+    // excluded from the generic sign emit above; signed operand texts must
+    // not fall through as silently-dropped plain words nor as cross-reads
+    // onto '.H1'/'.SAT'/'.SATRELU' sibling semantics (four silent lanes
+    // measured pre-fix on pub pyo3-4941ec5).
+    if insn.opcode.as_str() == "I2IP"
+        && insn.operands.iter().any(|o| {
+            matches!(
+                o,
+                Operand::Reg { neg: true, .. }
+                    | Operand::Reg { abs: true, .. }
+                    | Operand::UReg { neg: true, .. }
+                    | Operand::UReg { abs: true, .. }
+            )
+        })
+    {
+        anyhow::bail!(
+            "BUG-296: signed register operand on I2IP has no vendor encoding \
+             (sign window measured text-INERT x4: arb282 E2; b72/b74/b75 \
+             carry '.H1'/'.SAT'/'.SATRELU' sibling semantics); refusing \
+             silent sign-drop / cross-read for insn: {}",
+            insn.raw_text.trim()
+        );
+    }
+
+    // BUG-303 fail-closed: encoder sign-arm parity with the decoder arm sets
+    // BUG-224 (SYNCS) and BUG-225 (57-base census batch). Those bases have NO
+    // sign-modifiable register operands (arb224; 225 census x3 tables, corpus
+    // exposure ZERO), so the generic sign emit is excluded above in mirror.
+    // A signed Reg/UReg operand that no table field consumes (Neg/NegShl1/Abs
+    // extraction on its token) must not survive as a silently-dropped glyph
+    // nor mint ghost bits -- see the lane list on the exclusion arm. This
+    // single arm closes 298/299/300/301/302; field-carried signs (census
+    // iter153: only UTC*MMA II-token negs + CCTL/BREAK/ELECT singles) keep
+    // their row-level path.
+    {
+        let is_303_armed = matches!(insn.opcode.as_str(),
+            "SYNCS" |
+            "NANOSLEEP" | "DEPBAR" | "LDGDEPBAR" | "ERRBAR" | "CGAERRBAR" |
+            "UCGABAR" | "UTCBAR" | "BPT" | "MEMBAR" | "ACQBULK" |
+            "ACQSHMINIT" | "ENDCOLLECTIVE" | "CCTL" | "YIELD" | "PREEXIT" |
+            "WARPSYNC" | "ELECT" | "MATCH" | "B2R" | "CS2R" | "CS2UR" |
+            "P2R" | "BREAK" | "BRX" | "CALL" | "BMOV" |
+            "UGETNEXTWORKID" | "UVIRTCOUNT" | "QSPC" | "RPCMOV" | "SHFL" |
+            "UBLKCP" | "UBLKPF" | "UBLKRED" | "R2P" | "R2UR" | "UP2UR" |
+            "LDTM" | "STTM" | "STAS" | "STSM" | "UTCCP" | "UTMALDG" |
+            "UTMAPF" | "UTMAREDG" | "UTMASTG" | "UTMACCTL" |
+            "UTMACMDFLUSH" | "UTCATOMSWS" | "UTCHMMA" | "UTCIMMA" |
+            "UTCQMMA" | "SULD");
+        if is_303_armed {
+            let field_neg = |tok: i32| -> bool {
+                entry.fields.iter().any(|f|
+                    f.token_idx == tok && matches!(f.extraction,
+                        Extraction::Neg | Extraction::NegShl1))
+            };
+            let field_abs = |tok: i32| -> bool {
+                entry.fields.iter().any(|f|
+                    f.token_idx == tok && matches!(f.extraction, Extraction::Abs))
+            };
+            for (oi, op) in insn.operands.iter().enumerate() {
+                let (neg, abs) = match op {
+                    Operand::Reg { neg, abs, .. } | Operand::UReg { neg, abs, .. } => {
+                        (*neg, *abs)
+                    }
+                    _ => (false, false),
+                };
+                if !(neg || abs) { continue; }
+                let tok = (oi + 1) as i32;
+                if (neg && !field_neg(tok)) || (abs && !field_abs(tok)) {
+                    anyhow::bail!(
+                        "BUG-303: signed register operand on {} has no vendor \
+                         encoding (decoder arm sets 224/225: no sign-modifiable \
+                         register operands on this base; generic sign emit \
+                         excluded in mirror); refusing silent sign-drop / \
+                         ghost-bit mint / cross-read for insn: {}",
+                        insn.opcode, insn.raw_text.trim()
+                    );
+                }
             }
         }
     }
@@ -2025,7 +2457,7 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         crate::table::is_sm103a_encoding_family(table.ef_flags));
 
     // Reuse bits [124:122] (Ra/Rb/Rc register cache reuse flags)
-    code = apply_reuse_encoding(insn, code, entry);
+    code = apply_reuse_encoding(insn, code, entry)?;
 
     // Raw-address LDG/STG full rebuild: the ISA table's _ARI mod_groups for
     // .64/.128 variants have scattered 1-bit register fields and wrong opcodes
@@ -2308,6 +2740,45 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         && selected_mg != mod_group
     {
         verify_mod_group_retained(insn, table, out, &mod_group, &selected_mg)?;
+    }
+    // BUG-303 verify-strictness (fail-closed): the encoder must never emit a
+    // word its own decode REJECTS. Pre-fix the leniency window was real:
+    // words minted for signed texts on the 224/225-armed bases left the CLI
+    // asm path as undecodable payload with rc=0 ("3/3 encoded, 0 failed";
+    // lanes 299/301/302 measured on pub pyo3-704a17f). The arm (a) closes
+    // those lanes explicitly with attribution; THIS backstop covers any
+    // future mint of the same class regardless of source. Corpus safety is
+    // MEASURED, not assumed: full 2,406-cubin battery text census on the
+    // post-arm engine (work/bug303/census_strict303, 32,782,347 corpus
+    // lines, sm120 leg) produced ZERO encode->decode-reject cases, so the
+    // check never fires on real corpus text. Only decodeability is checked
+    // here -- modifier CLAIM parity on fallback rows stays with the
+    // BUG-132 gate above. Skipped under the fit-lint census/oracle modes
+    // (Warn/Allow), where payloads are kept deliberately for measurement
+    // (BUG-140/178/183 doctrine: the !rsd annotation oracle must measure
+    // exactly this loss class); skipped with CUBIT_DISABLE_ERRATA like the
+    // other byte-production gates. Intentional raw words belong in
+    // explicit __raw__0x... lines (BUG-043 doctrine), which bypass encode.
+    if run_errata_checks
+        && std::env::var_os("CUBIT_DISABLE_ERRATA").is_none()
+        && matches!(fit_lint_mode(), FitLintMode::Hard)
+        && insn.rsd.as_ref().map(|v| v.is_empty()).unwrap_or(true)
+    {
+        // Texts with an explicit `!rsd[...]` frame skip the check: those
+        // payload bits are AUTHOR-OWNED (BUG-094 era-retention pins mint
+        // era junk words verbatim through the overlay, e.g. bit0=1 on the
+        // sm120 LDG.E.LTC128B.128 scout frame -- retained byte-exact by
+        // design). The gate guards ENGINE minting only.
+        let idx = table.decode_index();
+        if idx.decode(out, insn.addr, table).is_err() {
+            anyhow::bail!(
+                "BUG-303: encoded word fails own decode (encoder emitted a \
+                 word the strict decoder rejects; refusing to hand out an \
+                 undecodable payload -- use an explicit __raw__0x... line \
+                 for an intentional raw slot, BUG-043 doctrine): insn: {}",
+                insn.raw_text.trim()
+            );
+        }
     }
     Ok(out)
 }
@@ -2946,14 +3417,27 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
         }
         Extraction::NegF32 => fit(insn, field, op_neg_f32(insn, field.token_idx)),
         Extraction::F32Cast => fit_soft(insn, field, op_f32_cast(insn, field.token_idx) as i64, false),
-        Extraction::NegShl1 => fit(insn, field, op_neg(insn, field.token_idx) << 1),
+        Extraction::NegShl1 => {
+            let a = op_abs(insn, field.token_idx);
+            let n = op_neg(insn, field.token_idx);
+            // BUG-253: exact inverse of the printer law (v>>1&1=neg; low bit =
+            // abs, which the printer reads from the raw fallback at bit62/74).
+            // Vendor prints '-|R|' for both-set (arb253, raw -b SM121a/SM103a
+            // identical), so keep both bits: value 3, not neg-only 2. Row
+            // scope: NegShl1 exists only on the 12 sm121a DFMA field slots.
+            fit(insn, field, (a & 1) | ((n & 1) << 1))
+        }
         Extraction::Reuse => fit(insn, field, op_reuse(insn, field.token_idx)),
         Extraction::Inv => fit(insn, field, op_inv(insn, field.token_idx)),
         Extraction::Abs => fit(insn, field, op_abs(insn, field.token_idx)),
         Extraction::NegAbs => {
             let a = op_abs(insn, field.token_idx);
             let n = op_neg(insn, field.token_idx);
-            fit(insn, field, if a != 0 { 2 } else if n != 0 { 1 } else { 0 })
+            // BUG-251: exact inverse of the printer arm (v&1=neg, v>>1&1=abs) —
+            // vendor prints '-|R|' for both bits set (arb251), so keep both:
+            // value 3, not abs-only 2. Row scope: NegAbs exists only on the 31
+            // sm121a DSETP rows, so this path touches nothing else.
+            fit(insn, field, (a & 1) << 1 | (n & 1))
         }
         Extraction::ByteSel => fit(insn, field, op_byte_sel(insn, field.token_idx)),
         Extraction::LblPat(pat) => {
@@ -2978,7 +3462,154 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
             };
             fit(insn, field, inv)
         }
-        Extraction::HalfSel => fit(insn, field, op_hsel(insn, field.token_idx)),
+        Extraction::HalfSel => {
+            // BUG-279 arm: HFMA2 packed-f16 immediate family, tok3 hsel window
+            // [82:81] — vendor value 1 = the ".F32" operand modifier (arb279
+            // B-set x4 models), which op_hsel does not scrape. ".H0_H1" on
+            // this slot is a vendor-decode-INVALID form (arb279 C x4) and must
+            // fail closed instead of aliasing value 1 / being dropped.
+            // ".H0_NH1" (arb279 E, v4) was armed by BUG-271: the H0NH1 field
+            // at (3,86) owns it (combos with hsel fail closed THERE).
+            // Scope = the grafted family keys only; the one pre-existing
+            // (bits,shift,tok)=(2,81,3) row outside the family keeps
+            // op_hsel behavior.
+            if field.bits == 2 && field.shift == 81 && field.token_idx == 3
+                && insn.opcode == "HFMA2" && crate::table::hfma2_immfam_key(&insn.key)
+            {
+                let t3 = op_token_text(insn, 3);
+                if t3.contains(".F32") {
+                    return fit(insn, field, 1);
+                }
+                // '.H0_NH1' on this slot is owned by the BUG-271 H0NH1 field
+                // arm (fit 1 at b86; INVALID combos fail closed there).
+                if t3.contains(".H0_H1") {
+                    return Err(fit_bail(insn, field, 0));
+                }
+            }
+            // BUG-297 arm: on the UR half-select slots of the
+            // HFMA2_R_R_R_UR / HMUL2_R_R_UR / HSETP2_P_P_R_UR_P rows the
+            // vendor value-validity law reads hsel==1 as `.INVALID1`
+            // (arb273 A1/A5/C4 + arb297/297b, x4 models). Authored
+            // 'URn.H0_H1' on those slots minted a vendor-ILLEGAL word
+            // under the generic op_hsel scrape (silent wrong-code --
+            // measured pre-fix on pub pyo3-7f618e4, e.g.
+            // 'HMUL2 R2, R0, UR4.H0_H1' -> hsel==1 payload word); fail
+            // closed with attribution instead. Values H0_H0/H1_H1 stay
+            // legal. '.INVALID1' text itself is refused upstream by the
+            // BUG-272 suffix gate. R-domain tokens of the same keys have
+            // their own per-window value law (306-kand, not armed); the
+            // operand-class guard below keeps this arm UR-only.
+            if crate::table::ur_hsel_invalid1_key(&insn.key)
+                && matches!(get_op(insn, field.token_idx), Some(Operand::UReg { .. }))
+                && op_hsel(insn, field.token_idx) == 1
+            {
+                return Err(anyhow::anyhow!(
+                    "vendor-illegal half-select .H0_H1 on the UR operand {} of `{}` \
+                     key `{}` (BUG-297: hsel value 1 on this row decodes as \
+                     `.INVALID1` in nvdisasm, arb273 A1/A5/C4 + arb297/297b x4 \
+                     models; legal values are .H0_H0/.H1_H1)",
+                    field.token_idx,
+                    insn.opcode_full,
+                    insn.key
+                ));
+            }
+            // BUG-305 arm (iter152): on the `HFMA2_R_R_UR_R` rows the UR
+            // tok3 hsel window [61:60] reads vendor value 1 as the ".F32"
+            // operand modifier (arb297 G1/I1 + arb297b G41, nvdisasm
+            // 13.3.73 raw -b, x4 models) -- the UR-slot mirror of the
+            // BUG-279 imm-family arm above. The generic op_hsel scrape does
+            // not read ".F32"; authored ".H0_H1" on this slot minted value
+            // 1 pre-fix, which nvdisasm reads back as ".F32" (silent
+            // text-vs-vendor divergence, measured pub pyo3-5abb6f4) -- fail
+            // closed with attribution and direct the author to the vendor
+            // spelling. ".INVALID1" text stays refused upstream by the
+            // BUG-272 suffix gate.
+            if crate::table::ur_hsel_f32_key(&insn.key)
+                && field.bits == 2
+                && field.shift == 60
+                && matches!(get_op(insn, field.token_idx), Some(Operand::UReg { .. }))
+            {
+                let t = op_token_text(insn, field.token_idx);
+                if t.contains(".F32") {
+                    return fit(insn, field, 1);
+                }
+                if t.contains(".H0_H1") {
+                    return Err(anyhow::anyhow!(
+                        "non-vendor half-select spelling .H0_H1 on the UR operand {} of                          `{}` key `{}` (BUG-305: hsel value 1 on this row decodes as                          the vendor `.F32` operand modifier in nvdisasm, arb297 G1/I1 +                          arb297b G41 x4 models; write .F32 -- the legal half-select                          spellings on this slot are .H0_H0/.H1_H1)",
+                        field.token_idx,
+                        insn.opcode_full,
+                        insn.key
+                    ));
+                }
+            }
+            // BUG-306 arm (iter154): R-domain hsel value-1 slot laws
+            // (arb306 per-window census: nvdisasm 13.3.73 raw -b, x4 models
+            // agree on all 171 decodable lattice groups; corpus exposure
+            // ZERO per routex306 x4 legs). On the R-class hsel slots of
+            // HADD2/HMUL2/HMNMX2/HSETP2 and HFMA2 tok2/tok4, authored
+            // '.H0_H1' minted value 1 pre-fix -- a word vendor reads back
+            // as the ILLEGAL marker '.INVALID1' (silent wrong-code,
+            // measured pre-fix on pub pyo3-740b191: HADD2 'R2.H0_H1' mint
+            // w74=1 etc.) -- fail closed with attribution; the legal
+            // half-select spellings on those slots are .H0_H0/.H1_H1 and
+            // '.INVALID1' text stays refused upstream by the 272 gate.
+            // On the HFMA2 tok3 R-class slots value 1 reads '.F32'
+            // (arb297 K1 + arb306 G7/G9/G57 set): authored '.F32' mints
+            // value 1 here (279/305 mirror), authored '.H0_H1' fails
+            // closed pointing at the vendor spelling.
+            if matches!(get_op(insn, field.token_idx), Some(Operand::Reg { .. })) {
+                let t = op_token_text(insn, field.token_idx);
+                if crate::table::r_hsel_invalid1_slot(&insn.key, field.token_idx)
+                    && t.contains(".H0_H1")
+                {
+                    return Err(anyhow::anyhow!(
+                        "vendor-illegal half-select spelling .H0_H1 on the R operand {} of \
+                         `{}` key `{}` (BUG-306: hsel value 1 on this slot decodes as the \
+                         vendor-illegal `.INVALID1` marker in nvdisasm -- arb306 per-window \
+                         census x4 models; the legal half-select spellings here are \
+                         .H0_H0/.H1_H1)",
+                        field.token_idx,
+                        insn.opcode_full,
+                        insn.key
+                    ));
+                }
+                if crate::table::r_hsel_f32_slot(&insn.key, field.token_idx) {
+                    if t.contains(".F32") {
+                        return fit(insn, field, 1);
+                    }
+                    if t.contains(".H0_H1") {
+                        return Err(anyhow::anyhow!(
+                            "non-vendor half-select spelling .H0_H1 on the R operand {} of \
+                             `{}` key `{}` (BUG-306: hsel value 1 on this slot decodes as \
+                             the vendor `.F32` operand modifier in nvdisasm -- arb297 K1 + \
+                             arb306 census x4 models; write .F32 -- the legal half-select \
+                             spellings on this slot are .H0_H0/.H1_H1)",
+                            field.token_idx,
+                            insn.opcode_full,
+                            insn.key
+                        ));
+                    }
+                }
+            }
+            fit(insn, field, op_hsel(insn, field.token_idx))
+        },
+        Extraction::H0NH1 => {
+            // BUG-271: b86 '.H0_NH1' operand suffix (HFMA2 packed-f16 imm
+            // family tok3 + sm121a BF16_V2 HFMA2 host). arb271 x4 models:
+            // b86 composes ONLY with a clear hsel window on the same token —
+            // hsel != 0 (incl. '.F32' on the 279-armed imm slot, which the
+            // generic op_hsel scrape does not see) = vendor
+            // '.INVALID{5,6,7}': fail closed. Signs/abs compose legally and
+            // are owned by their own fields.
+            let t = op_token_text(insn, field.token_idx);
+            if t.contains(".H0_NH1") {
+                if op_hsel(insn, field.token_idx) != 0 || t.contains(".F32") {
+                    return Err(fit_bail(insn, field, 1));
+                }
+                return fit(insn, field, 1);
+            }
+            fit(insn, field, 0)
+        }
         Extraction::OpModFlag(name) => fit(insn, field, op_mod_flag_value(insn, field.token_idx, name)),
         Extraction::MnemMod(i, name) => fit(insn, field, op_mnemod(insn, *i, name)),
         Extraction::BF16 => fit_soft(insn, field, op_bf16(insn, field.token_idx) as i64, false),
@@ -3494,6 +4125,30 @@ fn op_byte_sel(insn: &Instruction, tok: i32) -> u64 {
     0
 }
 
+/// Raw text of operand `tok` (1-based over the operand list; brackets and
+/// guards handled), used by scoped encode arms that must look at operand
+/// suffixes the structured parse does not carry.
+fn op_token_text(insn: &Instruction, tok: i32) -> String {
+    if tok <= 0 { return String::new(); }
+    let text = insn.raw_text.trim().trim_end_matches(';').trim();
+    let text = regex::Regex::new(r"^@!?\w+\s+").unwrap().replace(text, "");
+    let parts: Vec<&str> = text.splitn(2, char::is_whitespace).collect();
+    if parts.len() < 2 { return String::new(); }
+    let mut depth = 0;
+    let mut current = String::new();
+    let mut tokens = Vec::new();
+    for ch in parts[1].chars() {
+        match ch {
+            '[' | '(' => { depth += 1; current.push(ch); }
+            ']' | ')' => { depth -= 1; current.push(ch); }
+            ',' if depth == 0 => { tokens.push(current.trim().to_string()); current.clear(); }
+            _ => current.push(ch),
+        }
+    }
+    if !current.trim().is_empty() { tokens.push(current.trim().to_string()); }
+    tokens.get((tok - 1) as usize).cloned().unwrap_or_default()
+}
+
 fn op_hsel(insn: &Instruction, tok: i32) -> u64 {
     // .H0_H0/.H0_H1/.H1_H1 pair-select suffix: none=0, H0_H1=1, H0_H0=2, H1_H1=3
     if tok <= 0 { return 0; }
@@ -3921,7 +4576,11 @@ fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm
 /// Reuse bits 122/123/124 correspond to register slots Ra/Rb/Rc.
 /// Derive which operand maps to each slot from the field table,
 /// then set the reuse bit based on that operand's .reuse flag.
-fn apply_reuse_encoding(insn: &Instruction, mut code: u128, entry: &crate::table::ModGroupEntry) -> u128 {
+fn apply_reuse_encoding(
+    insn: &Instruction,
+    mut code: u128,
+    entry: &crate::table::ModGroupEntry,
+) -> Result<u128> {
     // Reuse bit → register slot shift
     const REUSE_SLOTS: [(u32, u32); 3] = [(122, 24), (123, 32), (124, 64)];
 
@@ -3948,8 +4607,26 @@ fn apply_reuse_encoding(insn: &Instruction, mut code: u128, entry: &crate::table
 
         if let Some(tok) = slot_tok {
             if explicit_reuse_toks.contains(&tok) { continue; }
-            let has_reuse = matches!(get_op(insn, tok), Some(Operand::Reg { reuse: true, .. }) | Some(Operand::UReg { reuse: true, .. }));
+            let slot_op = get_op(insn, tok);
+            let has_reuse = matches!(
+                slot_op,
+                Some(Operand::Reg { reuse: true, .. }) | Some(Operand::UReg { reuse: true, .. })
+            );
             if has_reuse {
+                // BUG-252 (fail-closed): never fabricate a reuse bit for a
+                // uniform-register operand through this generic slot fallback.
+                // arb249b (nvdisasm 13.3.73 raw -b, FSEL R/UR hosts): b123 set
+                // on a UR tok3 is decode-ILLEGAL; the 226d census found zero
+                // UR.reuse in 545,792 corpus words and the decoder never
+                // prints it. Rows that carry a data-taught explicit `reuse`
+                // field (e.g. BUG-144 UIADD3 drain) are authoritative and are
+                // skipped above; only the unproven fabricated class errors.
+                if matches!(slot_op, Some(Operand::UReg { .. })) {
+                    anyhow::bail!(
+                        "BUG-252: {} operand {} is a uniform register with .reuse; the generic reuse path would fabricate reuse bit {} (vendor-ILLEGAL: arb249b, zero corpus per 226d). Only R-domain reuse is encodable here; a UR reuse requires a table row with an explicit reuse field.",
+                        insn.opcode_full, tok, reuse_bit
+                    );
+                }
                 code |= 1u128 << reuse_bit;
             } else {
                 code &= !(1u128 << reuse_bit);
@@ -4002,7 +4679,7 @@ fn apply_reuse_encoding(insn: &Instruction, mut code: u128, entry: &crate::table
         }
     }
 
-    code
+    Ok(code)
 }
 
 fn find_branch_target(insn: &Instruction) -> Option<i64> {

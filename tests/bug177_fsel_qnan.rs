@@ -158,11 +158,20 @@ fn t177_5_encode_baked_nan_posture_pinned() {
     // honest numeric immediates stay honest through the FI row.
     let w5 = encw("FSEL R7, RZ, 5 , !P1 ;").expect("numeric imm encodes");
     assert_eq!((w5 >> 32) as u32, 5.0f32.to_bits(), "numeric imm lane");
-    // sm120-side posture: NO baked-imm FSEL II row -> fail-closed
-    // (encoder refuses; verified identical on clean 8e02983).
-    let t2 = t120();
-    let i2 = parse_sass("FSEL R7, RZ, QNAN , !P1 ;", 0).expect("parse");
-    assert!(encode_instruction(&i2, &t2).is_err(), "sm120 must stay fail-closed");
+    // RE-PIN (BUG-249, iter127 front2): the sm120 FSEL_R_R_II_P era stub
+    // (reg@16 + three empty-extraction fields — NOT the pinned "no II row"
+    // state this assert assumed) was donor-cloned to the canonical baked
+    // +QNAN row, so sm120 now matches donors EXACTLY: QNAN/+QNAN encode the
+    // canonical payload, all mismatched symbols still refuse (BUG-178 gate).
+    for tt in [t103(), t120()] {
+        let i = parse_sass("FSEL R7, RZ, QNAN , !P1 ;", 0).expect("parse");
+        let w = encode_instruction(&i, &tt).expect("baked lane admitted everywhere");
+        assert_eq!((w >> 32) as u32, 0x7fc0_0000, "canonical payload all legs");
+        for tok in ["-QNAN", "+SNAN", "FOOBAR"] {
+            let i = parse_sass(&format!("FSEL R7, RZ, {tok} , !P1 ;"), 0).expect("parse");
+            assert!(encode_instruction(&i, &tt).is_err(), "{tok}: must refuse");
+        }
+    }
 }
 
 /// t177_6: cross-table render parity — the same anchor word prints the

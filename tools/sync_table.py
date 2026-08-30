@@ -108,8 +108,31 @@ class SyncError(RuntimeError):
 # (F2F_R_UR[F64,F32] graft + F2F.F64.F32_R_UR {""/F32,F64} typed rows);
 # typed F2F.F64.F32_R_R rows carry no baked ctrl bits -- SM103a
 # 1391->1394, SM100a 1395->1398.
-BAKED_CTRL_BASELINE = {"SM120": 851, "SM103a": 1394, "SM100a": 1398,
-                       "SM121A": 458}
+# 2026-08-28 BUG-247 (canonical b00b4eb): FMNMX tail-pred closure -- sm120/
+# sm121a graft the 5 fixed donor FMNMX rows (R_R_R_P{'',FTZ,NAN} +
+# R_R_UR_P{'',NAN}) carrying the proven era-2aE donor ctrl template
+# (replaces un-baked era shells); donor row edits touch guard/pred bits
+# only (no [127:105] delta) -- SM120 851->856, SM121A 458->463.
+# 2026-08-28 BUG-249 (canonical 755183c): FSEL closure -- sm120/sm121a graft
+# the 4 donor FSEL rows (R_R_R_P/R_R_FI_P/R_R_UR_P [''] + R_R_II_P
+# [''] donor-clone) carrying the proven era-2aE donor ctrl template (era
+# shells un-baked); donor UR-row rebuild touches guard/sign bits only (no
+# [127:105] delta) -- SM120 856->860, SM121A 463->467.
+# 2026-08-28 BUG-254 (canonical 9fd3368): sm121a DSETP donor-structure
+# replacement -- 55 grafted DSETP mgs (R_R_P 25 + R_UR_P 16 + R_FI_P 14)
+# carry the proven era-2aE donor ctrl template (31 of them), era keys
+# deleted carried NONE -- SM121A 467->498.
+# 2026-08-29 BUG-274 (canonical 740b225): HFMA2 packed-f16 op-suffix
+# window [79:76] closure -- the FI_FI parent on sm120 bakes the era-243
+# donor ctrl template (0x3f ctrl[19:14]) and its 11 new suffix mgs + 4
+# RELU _P keys inherit the same and_base convention -- SM120 860->875.
+# sm121a family rows carry no template (SM121A 498 unchanged).
+# 2026-08-29 BUG-279 (canonical e819129): same family, FTZ/OOB graft --
+# sm120: 8 new suffix mgs on the template-carrying FI_FI parent + 4 new
+# RELU _P keys inherit the era-243 donor ctrl convention (SM120 875->891);
+# sm121a/sm100a/sm103a unchanged.
+BAKED_CTRL_BASELINE = {"SM120": 891, "SM103a": 1394, "SM100a": 1398,
+                       "SM121A": 498}
 
 FIXED_EXTRACTIONS = {
     "",
@@ -130,6 +153,7 @@ FIXED_EXTRACTIONS = {
     "gdesc_off",
     "gdesc_ur",
     "hsel",
+    "h0nh1",  # BUG-271: b86 .H0_NH1 tok3 third-bit window (arb271 x4)
     "guard",
     "guard_lo3",
     "guard_neg",

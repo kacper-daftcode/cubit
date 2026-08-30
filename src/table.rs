@@ -112,6 +112,13 @@ pub enum Extraction {
     // sm_103a fp16x2-class ops encode it as 2 bits (none=0, H0_H1=1, H0_H0=2,
     // H1_H1=3), empirically pure over the corpus.
     HalfSel,
+    /// BUG-271: single-bit operand suffix '.H0_NH1' — the third bit of the
+    /// tok3 3-bit hsel-suffix window on the HFMA2 packed-f16 imm family
+    /// (window (b86,b82,b81)) and the sm121a BF16_V2 host rows (window
+    /// (b86,b61,b60)). arb271/arb264/arb279 (nvdisasm 13.3.73 raw -b, x4
+    /// models agree): value 4 = '.H0_NH1' composing signs; values 5..7 =
+    /// vendor '.INVALID{5,6,7}' (decode hole + fail-closed encode).
+    H0NH1,
     // System register
     SysReg, SysRegLo7, SysRegLo4, SysRegHi4, SysRegHi1,
     // Register bit-shifted (for double-precision, S64, etc.)
@@ -197,6 +204,7 @@ fn parse_extraction(s: &str) -> Result<Extraction> {
         "neg_abs" => Extraction::NegAbs,
         "byte_sel" => Extraction::ByteSel,
         "hsel" => Extraction::HalfSel,
+        "h0nh1" => Extraction::H0NH1,
         "addr_scale" => Extraction::AddrScale,
         "sysreg" => Extraction::SysReg,
         "sysreg_lo7" => Extraction::SysRegLo7,
@@ -737,6 +745,109 @@ pub fn load_records(path: &Path) -> Result<Vec<Record>> {
         records.push(Record { addr, code, asm, key, mod_group });
     }
     Ok(records)
+}
+
+/// BUG-279: true when a table/instruction key belongs to the HFMA2 packed-f16
+/// immediate family grafted in BUG-279 (parents HFMA2_R_R_R_{II_FI,FI_FI,II_II},
+/// their RELU _P dotted keys and the new FTZ/OOB dotted keys). Used by the
+/// printer/encoder arms for the tok3 hsel window [82:81] (vendor value 1 =
+/// the ".F32" operand modifier on this family, arb279/arb279b x4 models).
+pub fn hfma2_immfam_key(key: &str) -> bool {
+    if !key.starts_with("HFMA2") {
+        return false;
+    }
+    let toks: Vec<&str> = key.split('_').collect();
+    let t: &[&str] = if toks.last() == Some(&"P") {
+        &toks[..toks.len() - 1]
+    } else {
+        &toks[..]
+    };
+    if t.len() < 4 || t[1..4] != ["R", "R", "R"] {
+        return false;
+    }
+    matches!(
+        (t[t.len() - 2], t[t.len() - 1]),
+        ("II", "FI") | ("FI", "FI") | ("II", "II")
+    )
+}
+
+/// BUG-297: hsel value-validity law on the UR half-select tokens of the
+/// packed-f16 pair families. arb273 (A1/A5/C4) + arb297/arb297b (nvdisasm
+/// 13.3.73 raw -b, x4 models SM100a/SM103a/SM120/SM121a agree on every
+/// probe): on these rows a UR token hsel value 1 is vendor-ILLEGAL and
+/// nvdisasm prints the operand as `URn.INVALID1`; values 2/3 stay the
+/// legal `.H0_H0`/`.H1_H1`. Scope = exactly the table keys whose rows
+/// carry a UR token with an hsel field (iter151 tables census, all four
+/// legs): HFMA2_R_R_R_UR (UR tok4), HMUL2_R_R_UR ''+'BF16_V2' (tok3),
+/// HSETP2_P_P_R_UR_P (tok4, all mod-groups). The HFMA2_R_R_UR_R UR token
+/// reads value 1 as the vendor `.F32` modifier instead (G1/I1/G41 x4) --
+/// that sibling law is 305-kand, NOT armed here. The R-domain tokens of
+/// the same families have their own per-window value law
+/// (arb297 K1/K2c/K3: win@81 v1 = '.F32' under BUG-279; win@74 v1 and the
+/// HADD2 win@60 v1 = '.INVALID1') = 306-kand, also not armed here.
+/// Corpus exposure ZERO on the 2,406-cubin battery (routex297, both
+/// bundle legs: no hsel==1 word on any scoped row).
+pub fn ur_hsel_invalid1_key(key: &str) -> bool {
+    key.starts_with("HFMA2_R_R_R_UR")
+        || key.starts_with("HMUL2_R_R_UR")
+        || key.starts_with("HSETP2_P_P_R_UR_P")
+}
+
+/// BUG-305: sibling value-validity law, armed F2-iter152. On the
+/// `HFMA2_R_R_UR_R` rows (UR tok3, hsel window [61:60]) value 1 reads as
+/// the vendor `.F32` operand modifier -- arb297 G1/I1 + arb297b G41
+/// (nvdisasm 13.3.73 raw -b, x4 models SM100a/SM103a/SM120/SM121a agree
+/// on every probe): 0='' 1='.F32' 2='.H0_H0' 3='.H1_H1; signs compose
+/// inside the pipes ('|UR4.F32|', '-UR4.F32'; sm121a BF16_V2 lattice I2/I3)
+/// exactly like the BUG-297 INVALID1 marker. This is the UR-slot mirror of
+/// the BUG-279 imm-family law (win@81 v1='.F32'). Scope = the exact-modern
+/// key only (both mod-groups '' and 'BF16_V2'; the era key
+/// `HFMA2.BF16_V2_R_R_UR_R` carries NO hsel field -- iter152 census -- and
+/// stays out). The R-domain tokens of this key (win@74/win@81) keep their
+/// own laws (306/279 classes; untouched). Corpus exposure ZERO (routex297
+/// x2 bundle legs: no hsel==1 word on any HFMA2_R_R_UR_R row).
+pub fn ur_hsel_f32_key(key: &str) -> bool {
+    key == "HFMA2_R_R_UR_R"
+}
+
+/// BUG-306: R-domain half-select value-validity laws, armed F2-iter154.
+/// Full per-window census arb306 (nvdisasm 13.3.73 raw -b, x4 models
+/// SM100a/SM103a/SM120/SM121a agree on ALL 171 decodable lattice groups of
+/// the slot inventory -- every table row x4 legs carrying an hsel field on
+/// an R-class token; 12 slot-classes, zero mixed):
+/// - value 1 = vendor `.INVALID1` on every R-class hsel slot of
+///   HADD2 / HMUL2 / HMNMX2 / HSETP2 (all slots) and on HFMA2 tok2
+///   (win@74, arb297 K3) + HFMA2 tok4 (win@81, e.g. G8/G13), i.e.
+///   everywhere in the R domain EXCEPT the HFMA2 tok3 slots;
+/// - value 1 = vendor `.F32` on the HFMA2 tok3 R-class hsel slots
+///   (win@60 on the HFMA2_R_R_R_R rows, win@81 on the other R-carrying
+///   HFMA2 rows; arb297 K1 + arb306 G7/G9/G57 set) -- the R-side mirror
+///   of the BUG-305 UR-slot law, subsuming the BUG-279 imm-family
+///   (2,81,3) arm on its R-class tokens.
+///
+/// Values 2/3 keep the shared `.H0_H0`/`.H1_H1` mapping on every slot.
+/// UR tokens keep the BUG-297/305 laws (format_ureg_raw), imm/FI tokens
+/// keep the BUG-279 imm-family lanes; these two functions are consulted
+/// only on R-class operand paths (format_reg / encoder Reg arms).
+/// Corpus exposure ZERO (routex306, 2,406-cubin battery x4 legs: no
+/// hsel==1 word on any R-class hsel slot; the single weak-print sm121a
+/// row's fingerprint collisions decode as LEA/ULEA, verify_fifi 117,894
+/// words, H-family claims 0).
+pub fn r_hsel_invalid1_slot(ins_key: &str, tok: i32) -> bool {
+    if ins_key.starts_with("HADD2")
+        || ins_key.starts_with("HMUL2")
+        || ins_key.starts_with("HMNMX2")
+        || ins_key.starts_with("HSETP2")
+    {
+        return true;
+    }
+    ins_key.starts_with("HFMA2") && (tok == 2 || tok == 4)
+}
+
+/// BUG-306 sibling law: the HFMA2 tok3 R-class hsel slots read value 1 as
+/// the vendor `.F32` operand modifier (arb297 K1 + arb306 census x4).
+pub fn r_hsel_f32_slot(ins_key: &str, tok: i32) -> bool {
+    ins_key.starts_with("HFMA2") && tok == 3
 }
 
 /// Extract modifier group from ASM text.

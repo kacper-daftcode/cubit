@@ -200,7 +200,7 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         });
         // S2R/S2UR: second operand is always a system register
         // (may be stored as '?', 'II', or 'L' in InsKey depending on decoder match)
-        let s = if is_s2r && (i >= 1 || op_type == "?") {
+        let mut s = if is_s2r && (i >= 1 || op_type == "?") {
             format_sysreg(fields, raw)
         } else if op_type == "dARI" {
             // Descriptor-with-base form: must print the full desc[UR][R.64+off]
@@ -249,6 +249,19 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         } else {
             format_operand(op_type, fields, &insn.mod_group, &insn.key, tok, raw, insn.ef_flags)
         };
+        // BUG-255: an f64 special literal (+/-INF, +/-QNAN via the f64hi
+        // window) is the only operand class whose token text can carry a
+        // trailing space at the END of the printed line. Mid-line the pad
+        // must stay (DSETP "+INF , PT", 582-corpus match); at the tail it
+        // is dead weight for every downstream text consumer (census glyphs
+        // are whitespace-collapsed and stripped). f16/f32 literals keep
+        // their token-level trailing space in all slots (BUG-177 L4 /
+        // BUG-245 L3 mid-slot laws, BUG-159 no-pad precedent stands).
+        if is_last_token(tok, &insn.key)
+            && fields.iter().any(|f| norm_ext(&f.extraction) == "f64hi")
+        {
+            s = s.trim_end().to_string();
+        }
         // pred_inv4 zero window = no guard pred: nvdisasm OMITS the token,
         // so an empty format result for a P slot is dropped here (not ", ").
         let inv4_omitted = s.is_empty()
@@ -699,6 +712,21 @@ fn mod_priority_for_key(base: &str, key: &str, m: &str) -> u8 {
 
 /// Opcode-aware modifier priority (overrides generic mod_priority for specific cases).
 fn mod_priority_for(base: &str, m: &str) -> u8 {
+    // BUG-274: HFMA2 packed-f16-imm op-suffix lattice — vendor prints the
+    // modifiers in the order `.F32 .FMZ .SAT` (arb274: all 8 legal bit
+    // combos of the [79:76] window, nvdisasm 13.3.73 raw -b, x4 models).
+    // The generic priorities put SAT (3) before F32/FMZ (5), i.e. backwards.
+    if base == "HFMA2" {
+        match m {
+            "F32" => return 1,
+            // BUG-279: {b80,b76} is a 2-bit vendor enum printing FMZ / FTZ /
+            // OOB in the same slot (arb279b full [80:76] sweep x4 models) —
+            // the three never co-occur in one mod-group, so prio-2 is safe.
+            "FMZ" | "FTZ" | "OOB" => return 2,
+            "SAT" => return 3,
+            _ => {}
+        }
+    }
     // HSETP2.BF16_V2.NEU.AND — the vector-width modifier precedes the comparison
     // in nvdisasm output for the half-precision setp family.
     if m == "BF16_V2" && matches!(base, "HSETP" | "HSETP2") { return 0; }
@@ -1003,7 +1031,7 @@ fn format_operand(
         "UP"    => format_pred_with_raw(fields, true, 0),
         // UR slot: if no ureg field present, use raw fallback (for USHF II-typed UR slots)
         "UR"    => {
-            let s = format_ureg_raw(fields, raw);
+            let s = format_ureg_raw(fields, raw, ins_key);
             // BUG-234: FFMA2 UR-form t3 lane decoration. The donor UR row
             // pins b88=1 (other cells fail-closed), so .F32 is the only
             // reachable shape (graft arb234z x{100a,103a}, corpus 512/512).
@@ -1116,7 +1144,7 @@ fn format_operand(
         "cAI" | "cARI" => format_const_addr(fields, ins_key),
         "B"     => format_barrier(fields),
         // Unknown token type "?" — treat as UR register (raw fallback)
-        "?"     => format_ureg_raw(fields, raw),
+        "?"     => format_ureg_raw(fields, raw, ins_key),
         _       => format!("?{op_type}"),
     }
 }
@@ -1234,7 +1262,41 @@ fn format_reg(fields: &[&DecodedField], _mod_group: &str, tok: i32, raw: u128, i
         // "hsel" extraction (encoder op_hsel maps the same strings back).
         if norm_ext(&f.extraction) == "hsel" && f.value != 0 {
             let h = match f.value { 3 => "H1_H1", 2 => "H0_H0", 1 => "H0_H1", _ => "" };
+            // Value-1 laws are slot-scoped by BUG-306 (arb306 census x4):
+            // HFMA2 tok3 -> ".F32" (subsuming the BUG-279 imm-family arm,
+            // arb279 B-set), everything else R-domain -> ".INVALID1" (the
+            // 279-era tok2 "registered residual" is thus CLOSED: arb279 C
+            // key set is inside the arb306 win@74 INVALID1 lattice).
+            let h = if f.value == 1 {
+                if crate::table::r_hsel_f32_slot(ins_key, tok) {
+                    // BUG-306 (F2-iter154): every R-class hsel slot of the
+                    // HFMA2 tok3 position reads value 1 as the vendor ".F32"
+                    // operand modifier (arb297 K1 + arb306 census x4 models;
+                    // subsumes the BUG-279 imm-family arm above on its
+                    // R-class tokens -- that arm's twin slot here).
+                    "F32"
+                } else if crate::table::r_hsel_invalid1_slot(ins_key, tok) {
+                    // BUG-306: value 1 everywhere else in the R domain is
+                    // vendor-ILLEGAL and prints ".INVALID1" (arb306 census:
+                    // HADD2/HMUL2/HMNMX2/HSETP2 all slots + HFMA2 tok2/tok4;
+                    // x4 models agree on all 171 lattice groups).
+                    "INVALID1"
+                } else {
+                    h
+                }
+            } else {
+                h
+            };
             if !h.is_empty() { opmods.push(h.to_string()); }
+        }
+        // BUG-271: tok3 b86 '.H0_NH1' (field extraction "h0nh1", grafted on the
+        // HFMA2 packed-f16 imm family + sm121a BF16_V2 HFMA2 host). Single-bit
+        // opmod; combos with a nonzero hsel on the same token never reach here
+        // (decode gate = hole, encoder = fail-closed). Vendor print order on
+        // the imm family: '|RZ|.H0_NH1' outside the pipes (arb271 A2 x4) =
+        // this compositor's natural position.
+        if norm_ext(&f.extraction) == "h0nh1" && f.value != 0 {
+            opmods.push("H0_NH1".to_string());
         }
         if let Some(name) = f.extraction.strip_prefix("opmod:") {
             if f.value != 0 {
@@ -1538,13 +1600,14 @@ fn format_pred_raw(fields: &[&DecodedField], uniform: bool, raw: u128) -> String
 
 // ── UR — uniform register ─────────────────────────────────────────────────────
 
-fn format_ureg_raw(fields: &[&DecodedField], raw: u128) -> String {
+fn format_ureg_raw(fields: &[&DecodedField], raw: u128, ins_key: &str) -> String {
     let mut ureg: Option<u64> = None;
     let mut neg = false;
     let mut abs_u = false;
     let mut inv = false;
     let mut reuse = false;
     let mut hsel: u64 = 0;
+    let mut h0nh1 = false;
 
     for f in fields {
         let e = norm_ext(&f.extraction);
@@ -1560,6 +1623,12 @@ fn format_ureg_raw(fields: &[&DecodedField], raw: u128) -> String {
             "inv"      => inv = f.value != 0,
             "reuse"    => reuse = f.value != 0,
             "hsel"     => hsel = f.value,
+            // BUG-271: tok3 b86 '.H0_NH1' (sm121a BF16_V2 HFMA2 host; the
+            // b86+nonzero-hsel INVALID combos never reach print — decode
+            // gate holes them). Print position mirrors the hsel suffix
+            // (BUG-273 closed the pipe cosmetics: the suffix composes
+            // INSIDE the sign wrapper below — vendor "|UR6.H0_NH1|").
+            "h0nh1" => h0nh1 = f.value != 0,
             _ => {}
         }
     }
@@ -1585,16 +1654,53 @@ fn format_ureg_raw(fields: &[&DecodedField], raw: u128) -> String {
     } else {
         format!("UR{un}")
     };
-    // nvdisasm prints |URn| / -|URn| on uniform ALU sources (e.g. "FFMA R8, R3, |UR16|, RZ").
-    let s = if inv { format!("~{base}") }
-            else if neg && abs_u { format!("-|{base}|") }
-            else if abs_u { format!("|{base}|") }
-            else if neg { format!("-{base}") }
-            else { base };
     // HMUL2.BF16_V2 prints lane selection on the uniform source too ("UR8.H1_H1").
-    let hs = match hsel { 3 => ".H1_H1", 2 => ".H0_H0", 1 => ".H0_H1", _ => "" };
-    let s2 = format!("{s}{hs}");
-    if reuse { format!("{s2}.reuse") } else { s2 }
+    // nvdisasm prints |URn| / -|URn| on uniform ALU sources (e.g. "FFMA R8, R3, |UR16|, RZ").
+    // BUG-273 (arb273: 132 probes, x4 models SM100a/SM103a/SM120/SM121a agree
+    // on every probe): on UR operands the lane suffix composes INSIDE the abs
+    // pipes -- vendor prints "|UR4.H0_H0|", "-|UR4.H0_NH1|", "|UR4.H1_H1|" --
+    // while on R operands it stays OUTSIDE ("|R3|.H0_H0", format_reg rank/mod
+    // tail above). Pre-fix this printer emitted the R-domain tail form on the
+    // UR path ("|UR8|.H0_H0"); registered as 273-kand from arb271 evidence.
+    // hsel value-validity law (BUG-297): on the rows whose UR token carries
+    // an hsel field -- HFMA2_R_R_R_UR tok4, HMUL2_R_R_UR tok3,
+    // HSETP2_P_P_R_UR_P tok4 (iter151 tables census: the only such rows) --
+    // value 1 is vendor-ILLEGAL and nvdisasm prints the operand
+    // `URn.INVALID1` (arb273 A1/A5/C4 + arb297 G/H/J/J2 sets, x4 models);
+    // values 2/3 keep the generic mapping. The INVALID1 marker composes
+    // INSIDE the sign wrapper like any lane suffix (arb297 J4..J6:
+    // '|UR4.INVALID1|', '-UR4.INVALID1', '-|UR4.INVALID1|'), which is this
+    // compositor's natural post-273 position. Sibling laws NOT armed here:
+    // HFMA2_R_R_UR_R tok3 v1 = vendor '.F32' (305-kand), R-domain tokens
+    // per-window v1 laws (306-kand).
+    // BUG-305 (iter152): on the `HFMA2_R_R_UR_R` rows (UR tok3, window
+    // [61:60]) hsel value 1 prints as the vendor `.F32` modifier (arb297
+    // G1/I1 + arb297b G41, x4 models; sign wraps compose inside the pipes
+    // via the natural post-273 position below: '|UR4.F32|', '-UR4.F32').
+    // Values 2/3 keep the generic mapping; the BF16-lattice rows of this
+    // key also carry h0nh1/abs/neg/reuse on tok3, all orthogonal fields.
+    let hs = match hsel {
+        3 => ".H1_H1",
+        2 => ".H0_H0",
+        1 => {
+            if crate::table::ur_hsel_invalid1_key(ins_key) {
+                ".INVALID1"
+            } else if crate::table::ur_hsel_f32_key(ins_key) {
+                ".F32"
+            } else {
+                ".H0_H1"
+            }
+        }
+        _ => "",
+    };
+    let nh1 = if h0nh1 { ".H0_NH1" } else { "" };
+    let core = format!("{base}{hs}{nh1}");
+    let s = if inv { format!("~{core}") }
+            else if neg && abs_u { format!("-|{core}|") }
+            else if abs_u { format!("|{core}|") }
+            else if neg { format!("-{core}") }
+            else { core };
+    if reuse { format!("{s}.reuse") } else { s }
 }
 
 // ── II / IM / LO — immediate ──────────────────────────────────────────────────
@@ -2794,7 +2900,20 @@ fn format_double(f: f64, neg: bool) -> String {
     let neg_s = if neg { "-" } else { "" };
     // nvdisasm always signs INF ("+INF"/"-INF") in FP64-immediate context.
     if f.is_infinite() { return format!("{}INF ", if neg || f.is_sign_negative() { "-" } else { "+" }); }
-    if f.is_nan()      { return format!("{neg_s}QNAN "); }
+    // FP64 NaN glyph law (BUG-255, arb255 nvdisasm 13.3.73 raw -b SM103a ==
+    // SM121a on corpus DFMA/DSETP witnesses with a patched f64hi window):
+    // sign = explicit neg field XOR the value's own sign bit (same compose
+    // rule as the INF arm; the hitherto neg-only arm silently dropped the
+    // sign of 0xFFF80000-class lanes); quiet bit 51 (f64hi bit 19) picks
+    // QNAN vs SNAN. Render-parity only: encode-side NaN stays parked
+    // (bimodal lanes, t177_5/178 posture). The token-level trailing space
+    // stays on the glyph exactly like INF; the to_sass tail-trim (BUG-255)
+    // shaves it only when this immediate is the LAST operand.
+    if f.is_nan() {
+        let sneg = if neg != f.is_sign_negative() { "-" } else { "+" };
+        let kind = if f.to_bits() & 0x0008_0000_0000_0000 != 0 { "QNAN" } else { "SNAN" };
+        return format!("{sneg}{kind} ");
+    }
     if f == 0.0        { return "1".to_string(); } // integer 1 used as double constant
     if f == f.trunc() && f.abs() < 16_777_216.0 {
         return format!("{neg_s}{}", f as i64);

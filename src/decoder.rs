@@ -312,7 +312,20 @@ impl DecodeIndex {
                 // {76,73,74,75} — all inside the prio-3 window. Shows up as the
                 // lossy "!rsd[74:1]" path (R,U32 imm-form words absorbed by the
                 // R,U64 row). Fail closed; every legal combo is already a row.
-                "USHF");
+                "USHF" |
+                // BUG-282: I2IP carries a real op-suffix law inside the Rc
+                // sign window (arb282 + arb276b, nvdisasm x4 models):
+                // b74=.SAT b75=.SATRELU on the 0x7239 4-op lattice;
+                // b74+b75 = vendor '.INVALID3'. The two legal suffixes are
+                // armed as strict full-key rows (canonical bug282 cut);
+                // without this arm the prio-3 sign window absorbed BOTH
+                // suffix forms (suffix silently dropped = wrong text,
+                // measured on pub pyo3-303bd1e) and the INVALID3 marker
+                // word (would print plain or mis-win a suffix row on the
+                // prio-3 tiebreak). Fail closed; corpus exposure of the
+                // whole family is measured ZERO (routex282 FULL 2,406-cubin
+                // battery, both legs; routex276 likewise).
+                "I2IP");
             // BUG-225: census-driven arm batch (cross-census prio-3 absorb,
             // work/bug225). These bases have NO sign-able register operands
             // (pure control/sync + tmem/tensor lanes: dests, UR/desc, preds,
@@ -512,6 +525,31 @@ impl DecodeIndex {
             });
         }
 
+        // BUG-271: b86 '.H0_NH1' is the third bit of a tok3 hsel-suffix window
+        // on the armed rows (imm family [82:81]+b86; sm121a BF16_V2 hosts
+        // [61:60]+b86; era opmod:H0_NH1@86 rows armed by the same law).
+        // arb271 x4 models: window values 5..7 (b86 set with nonzero hsel) are
+        // vendor '.INVALID{5,6,7}' markers, never legal text. Fail closed
+        // (decode hole; 282-INVALID3 doctrine) instead of printing a garbage
+        // double-suffix operand. Corpus exposure measured ZERO for every armed
+        // surface (routex271 FULL 2,406-cubin battery; the 32 pre-armed era
+        // R4-row words all carry hsel=0).
+        for hf in fields
+            .iter()
+            .filter(|f| f.value != 0 && (f.extraction == "h0nh1" || f.extraction == "opmod:H0_NH1"))
+        {
+            let tok = hf.token_idx;
+            if fields
+                .iter()
+                .any(|f| f.extraction == "hsel" && f.token_idx == tok && f.value != 0)
+            {
+                return Err(anyhow::anyhow!(
+                    "vendor-INVALID b86/hsel window combo at tok{} (code 0x{:032x})",
+                    tok, code
+                ));
+            }
+        }
+
         // Generic ALU register abs/neg bits — exact inverse of the encoder's generic
         // path (encoder.rs ~line 79): for an ALU op whose table entry has NO field-level
         // abs/neg for an operand, the modifier lives at fixed bits
@@ -527,7 +565,20 @@ impl DecodeIndex {
                 // BUG-224: SYNCS has no sign-modifiable register operands
                 // (state dst / address uses); the generic neg arm polluted
                 // SYNCS.CCTL decodes with a phantom neg@72 field (arb224).
-                "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "SYNCS" | "QMMA"
+                "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "SYNCS" | "QMMA" |
+                // BUG-282: I2IP has no sign-modifiable register operands -
+                // vendor x4 prints b62/b63 text-inert across the family
+                // (arb282 E2: plain / regs payloads / with-suffix combos).
+                // The generic post-pass printed ghost '-Rb'/'|Rb|' =
+                // vendor-WRONG. b73 stays table-side (vm don't-care bit;
+                // 275-kand opaque 2-bit enum [73:72] on tok4).
+                "I2IP" |
+                // BUG-281: I2I (2-op .SAT family on the 0x238 lattice) has
+                // no sign-modifiable register operands either -- arb281
+                // x4 models print b62/b63/b72/b73 text-INERT there
+                // (singles + guard/payload compositions). The ghost arm
+                // printed '-R38'/'|R38|' for b72/b73 = vendor-WRONG.
+                "I2I"
             );
             // BUG-225: same census-driven family as the prio-3 gate above —
             // control/sync + tmem/tensor bases have no sign-modifiable
@@ -1001,6 +1052,15 @@ fn extraction_name(e: &Extraction) -> String {
         Extraction::ImmShr(n) => format!("imm_shr{n}"),
         Extraction::Reuse => "reuse".into(),
         Extraction::Neg => "neg".into(),
+        // BUG-251: NegAbs must not fall to the catch-all ("negabs" from Debug
+        // lowercase never matches the printer's "neg_abs" arm) — the sm121a DSETP
+        // rows' sign window would be silently dropped from decoded text.
+        Extraction::NegAbs => "neg_abs".into(),
+        // BUG-253: NegShl1 must not fall to the catch-all either ("negshl1"
+        // never matches the printer's "neg_shl1" arm): the sm121a DFMA rows'
+        // sign windows (tok3 2b@62 / tok4 2b@74; II_R/FI-RM/RP/UR_R forms)
+        // were silently dropped from decoded text (61,436 uniq corpus words).
+        Extraction::NegShl1 => "neg_shl1".into(),
         Extraction::F32 => "f32".into(),
         Extraction::F32Cast => "f32cast".into(),
         Extraction::F16d => "f16_d".into(),
@@ -1015,6 +1075,7 @@ fn extraction_name(e: &Extraction) -> String {
         Extraction::OpaqueModifier => "opaque_mod".into(),
         Extraction::OpModFlag(n) => format!("opmod:{n}"),
         Extraction::HalfSel => "hsel".into(),
+        Extraction::H0NH1 => "h0nh1".into(),
         Extraction::AddrScale => "addr_scale".into(),
         Extraction::BF16 => "bf16".into(),
         Extraction::MnemMod(i, n) => format!("mnemod{}:{}", i, n),

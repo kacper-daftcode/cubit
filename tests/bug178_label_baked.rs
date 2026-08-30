@@ -130,8 +130,14 @@ fn t178_4_invariants_unchanged() {
     // owner of LEPC label semantics).
     let e = enc(&t, "LEPC R4, `(.L_x_3) ;").expect_err("LEPC label refuses");
     assert!(e.contains("BUG-178") || e.contains("unresolved branch label"), "{e}");
-    // sm120: no II-baked FSEL row -> still fail-closed (pre-existing posture)
-    enc(&t120(), "FSEL R7, RZ, QNAN , !P1 ;").expect_err("sm120 stays fail-closed");
+    // RE-PIN (BUG-249, iter127 front2): sm120 FSEL_R_R_II_P was an era stub
+    // (reg@16 + empty-extraction fields), NOT truly row-less; donor-clone to
+    // the canonical baked-+QNAN row makes sm120 == donors: QNAN/+QNAN admit
+    // the canonical payload, mismatched symbols refuse (BUG-178 gate intact).
+    let wq = enc(&t120(), "FSEL R7, RZ, QNAN , !P1 ;").expect("sm120 baked lane admitted");
+    assert_eq!((wq >> 32) as u32, 0x7fc0_0000, "canonical payload");
+    let e = enc(&t120(), "FSEL R7, RZ, -QNAN , !P1 ;").expect_err("sm120 -QNAN refuses");
+    assert!(e.contains("BUG-178"), "{e}");
     // branch labels: undefined -> BUG-091 refuse; defined -> resolves & encodes
     let e = enc(&t, "BRA nowhere ;").expect_err("undefined branch label refuses");
     assert!(e.contains("unresolved branch label"), "BUG-091 arm intact: {e}");
