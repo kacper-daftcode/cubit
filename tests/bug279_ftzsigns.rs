@@ -70,7 +70,10 @@ fn t279_1_structure_graft_and_donors() {
         for p in PARENTS {
             let mgs = &t.entries[p].mod_groups;
             // 12 era mgs (274 state) + 8 FTZ/OOB + 4 RELU PT-baked
-            assert_eq!(mgs.len(), 24, "{leg}|{p}: mg count drift");
+            // F2-iter157 (BUG-285, canonical e41a438): +12 b85 BF16_V2
+            // cross-key mgs (8 non-RELU + 4 RELU PT-baked mirrors, arb285
+            // x4) = 36.
+            assert_eq!(mgs.len(), 36, "{leg}|{p}: mg count drift");
             for mg in mgs.values() {
                 // tok3 sign/hsel armed on EVERY row, with vm covering the bits
                 let vm: u128 = mg.variable_mask.into();
@@ -218,10 +221,11 @@ fn t279_2_decode_laws() {
             let got = dec(&t, w & M96).unwrap_or_else(|| panic!("{leg}: hole at {want}"));
             assert_eq!(got, *want, "{leg}: decode {want}");
         }
-        // explicit trailing-pred RELU forms on the new _P keys: sm121a winner
-        // prints the pre-existing '0x0' imm cosmetics (274 registration),
-        // sm120 prints '0' — pin current behavior per leg as tripwire.
-        let imm0 = if leg == "sm121a" { "0x0" } else { "0" };
+        // explicit trailing-pred RELU forms on the new _P keys. FLIPPED
+        // 2026-08-31 (BUG-286): the sm121a FI_FI-family era rows got the
+        // healthy post-243 shape (patch286, canonical 16210e9) — the imm
+        // token now prints '0' on both legs (era '0x0' tripwire CLOSED).
+        let imm0 = "0";
         let pred_cases: &[(u128, &str, &str)] = &[
             (FIB | B80 | B79, "HFMA2.FTZ.RELU R3, -RZ, RZ, ", ", P0"),
             (
@@ -323,9 +327,12 @@ fn t279_4_fail_closed() {
             "HFMA2.SAT.RELU R3, -RZ, RZ, 0, 0",
             "HFMA2.FTZ.SAT.RELU R3, -RZ, RZ, 0, 0",
             "HFMA2.F32.OOB.SAT.RELU R3, -RZ, RZ, 0, 0, P0",
-            // b85 BF16_V2 cross-key family: registered next-candidate
-            "HFMA2.BF16_V2 R3, -RZ, RZ, 0, 0",
-            "HFMA2.BF16_V2.SAT R3, -RZ, -RZ, 0, 0",
+            // FLIPPED F2-iter157 (BUG-285 armed the b85 BF16_V2 cross-key
+            // family, arb285 x4): the two former `HFMA2.BF16_V2[.SAT] ...`
+            // entries mint vendor-verbatim words now (coverage moved to
+            // t285_4); the ILLEGAL carriers below stay fail-closed:
+            "HFMA2.BF16_V2.F32 R3, -RZ, RZ, 0, 0",
+            "HFMA2.BF16_V2.SAT.RELU R3, -RZ, -RZ, 0, 0, P0",
             // '.H0_NH1' single-bit is ARMED by BUG-271 (F2-iter143 flip);
             // the era-global token has no vendor encoding on this tok3:
             // era-global token has no vendor encoding on this family's tok3:
@@ -333,11 +340,13 @@ fn t279_4_fail_closed() {
         ] {
             assert!(enc_res(&t, bad).is_err(), "{leg}|{bad}: must fail closed");
         }
-        // decode hole preserved for b85; b86 armed by BUG-271 (F2-iter143
-        // flip): v4 decodes vendor-exact, INVALID combos (v5..7) hole
-        assert!(
-            dec(&t, (FIB | (1 << 85)) & M96).is_none(),
-            "{leg}: b85 hole lost"
+        // FLIPPED F2-iter157 (BUG-285 armed): b85 decodes vendor-exact
+        // on this family (arb285 F-sweep x4); the armed-word pins live in
+        // t285_2, the ILLEGAL-carrier holes in t285_3/t285_5:
+        assert_eq!(
+            dec(&t, (FIB | (1 << 85)) & M96).as_deref(),
+            Some("HFMA2.BF16_V2 R3, -RZ, RZ, 0, 0"),
+            "{leg}: 285 plain decode"
         );
         assert_eq!(
             dec(&t, (FIB | (1 << 86)) & M96).as_deref(),

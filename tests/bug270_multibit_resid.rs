@@ -106,9 +106,34 @@ fn t270_1_structure_and_skip_registry() {
                 "{arch} RRUR tok4 @{sh} {b}b {ex:?} missing"
             );
         }
+        // FLIP t270_1 (BUG-289 FIXED, F2-iter161, canonical 57d1448): the era
+        // resid was a Neg-typed field @86. BUG-289 grafted the measured x4
+        // law field opmod:H0_NH1 1b@86 tok3 (_src bug289-2026-08-31) -- the
+        // pin now locks: no Neg/Abs field @86 may return, exactly the one
+        // opmod field armed by 289 exists.
+        // FLIP (BUG-293, F2-iter163, canonical 46ff277): extraction swapped
+        // opmod:H0_NH1 -> h0nh1 (same bit/window/token; arms the encode-side
+        // 271 INVALID-combo gate; decode/print byte-stable, locked by
+        // t293_5). The census (exactly one @86 field, no Neg/Abs@86) stands.
         assert!(
-            !g.fields.iter().any(|f| f.shift == 86),
+            !g.fields.iter().any(|f| f.shift == 86
+                && matches!(
+                    f.extraction,
+                    Extraction::Neg | Extraction::Abs | Extraction::NegAbs
+                )),
             "{arch} RRUR neg@86 survived"
+        );
+        assert_eq!(
+            g.fields.iter().filter(|f| f.shift == 86).count(),
+            1,
+            "{arch} RRUR @86 field count drift"
+        );
+        assert!(
+            g.fields.iter().any(|f| f.shift == 86
+                && f.bits == 1
+                && f.token_idx == 3
+                && f.extraction == Extraction::H0NH1),
+            "{arch} RRUR h0nh1 1b@86 tok3 graft missing (BUG-293 swap)"
         );
         let g = &t.entries["FRND.F16_R_R"].mod_groups[""];
         assert!(
@@ -142,9 +167,22 @@ fn t270_1_structure_and_skip_registry() {
         // DELETED outright (arb265 re-measured: bases vendor rc=1 x4 models,
         // zero battery routing) -- the residuum fields die with the rows.
         assert!(!t.entries.contains_key("HFMA2_R_R_R_R_?"));
-        assert!(!t.entries["HFMA2_R_R_R_II_II"]
-            .mod_groups
-            .contains_key("BF16_V2"));
+        // F2-iter157 (BUG-285) flip with attribution: the arb285-armed
+        // 'BF16_V2' mg exists by design (canonical e41a438, cross-key
+        // family closure) -- only the NAME is shared with the era junk
+        // row deleted above; pin the junk fingerprint (ab=0x11, garbage
+        // harvest fields, no b85 in ab) instead of the bare name.
+        let mg = &t.entries["HFMA2_R_R_R_II_II"].mod_groups["BF16_V2"];
+        assert_ne!(
+            u128::from(mg.and_base),
+            0x11,
+            "{arch}: II_II BF16_V2 era junk fingerprint back"
+        );
+        assert_eq!(
+            (u128::from(mg.and_base) >> 85) & 1,
+            1,
+            "{arch}: 285-armed II_II BF16_V2 b85 bake lost"
+        );
     }
     // sm121a-only legs
     let t = tab("sm121a");
@@ -162,10 +200,15 @@ fn t270_1_structure_and_skip_registry() {
             "FIFIR tok5 neg@84 missing ({mg})"
         );
     }
-    // sm121a FI_FI BF16_V2 junk mg: DELETED by BUG-265 (same closure).
-    assert!(!t.entries["HFMA2_R_R_R_FI_FI"]
-        .mod_groups
-        .contains_key("BF16_V2"));
+    // sm121a FI_FI BF16_V2 junk mg: DELETED by BUG-265 (same closure);
+    // F2-iter157 (BUG-285): arb285-armed mg back BY DESIGN -- pin the era
+    // junk fingerprint, not the name (attribution as on the II_II leg).
+    let mg = &t.entries["HFMA2_R_R_R_FI_FI"].mod_groups["BF16_V2"];
+    assert_ne!(
+        u128::from(mg.and_base),
+        0x11,
+        "sm121a: FI_FI BF16_V2 era junk fingerprint back"
+    );
     // mb-neg residuum counts FLIPPED 2026-08-29 (BUG-265): the SKIP-register
     // junk set carried the entire residuum -> deletion closes it to ZERO.
     assert_eq!(
@@ -272,7 +315,12 @@ fn t270_3_decode_law_60_and_81() {
             0x800ff3f800000ff000431 & M96,
             0x1000ff3f800000ff000431 & M96,
         );
-        if arch == "sm120" {
+        // FLIPPED 2026-08-31 (BUG-286): sm121a era FI_II-shadow CLOSED —
+        // the FI_FI-family rows now carry the post-243 healthy shape
+        // (patch286, canonical 16210e9) and claim these window words
+        // vendor-exact on both legs (arb286 x4). Era '0, 0x0' texts gone.
+        for arch in ["sm120", "sm121a"] {
+            let t = tab(arch);
             assert_eq!(
                 dec(&t, w_f32).as_deref(),
                 Some("@P0 HFMA2 R0, RZ, RZ.F32, 1.875, 0")
@@ -283,33 +331,13 @@ fn t270_3_decode_law_60_and_81() {
             );
             assert_eq!(
                 dec(&t, w_abs).as_deref(),
-                Some("@P0 HFMA2 R0, RZ, |RZ|, 1.875, 0")
+                Some("@P0 HFMA2 R0, RZ, |RZ|, 1.875, 0"),
+                "{arch}"
             );
             assert_eq!(
                 dec(&t, w_neg).as_deref(),
-                Some("@P0 HFMA2 R0, RZ, -RZ, 1.875, 0")
-            );
-        } else {
-            // FLIPPED F2-iter154 (BUG-306 armed): the hsel v1 suffix now
-            // prints the vendor law '.F32' on the era-shadowed FI_II row
-            // too (arb306 tok3/window census x4 models); the '0, 0x0'
-            // imm-tail shadowing itself is NOT touched by 306 and stays
-            // pinned below as the registered follow-up.
-            assert_eq!(
-                dec(&t, w_f32).as_deref(),
-                Some("@P0 HFMA2 R0, RZ, RZ.F32, 0, 0x0")
-            );
-            assert_eq!(
-                dec(&t, w_h00).as_deref(),
-                Some("@P0 HFMA2 R0, RZ, RZ.H0_H0, 0, 0x0")
-            );
-            assert_eq!(
-                dec(&t, w_abs).as_deref(),
-                Some("@P0 HFMA2 R0, RZ, |RZ|, 0, 0x0")
-            );
-            assert_eq!(
-                dec(&t, w_neg).as_deref(),
-                Some("@P0 HFMA2 R0, RZ, -RZ, 0, 0x0")
+                Some("@P0 HFMA2 R0, RZ, -RZ, 1.875, 0"),
+                "{arch}"
             );
         }
         // b86 no longer a ghost '-' (271-class window: suffix dropped = gap)
@@ -405,15 +433,17 @@ fn t270_4_encode_inverse() {
 
 #[test]
 fn t270_5_anchors_registrations() {
-    // 264 anchors stay vendor-equal (sm121a BF16 window law untouched here)
+    // 264 anchors stay vendor-equal (sm121a BF16 window law untouched
+    // here). Mnemonic-mod FLIPPED 2026-08-31 (BUG-307): both anchors carry
+    // b85=0 -> vendor PLAIN words (arb307c x4).
     let t = tab("sm121a");
     assert_eq!(
         dec(&t, 0x4fe20008000000300000080c037c32 & M96).as_deref(),
-        Some("HMUL2.BF16_V2 R3, R12, UR8.H1_H1")
+        Some("HMUL2 R3, R12, UR8.H1_H1")
     );
     assert_eq!(
         dec(&t, 0x4fca00080408052000000602057c31 & M96).as_deref(),
-        Some("HFMA2.BF16_V2 R5, R2.H0_H0, UR6.H0_H0, R5.H0_H0")
+        Some("HFMA2 R5, R2.H0_H0, UR6.H0_H0, R5.H0_H0")
     );
     // 265-line anchors: HADD2-'?' bucket KEPT (265 measured: only mask
     // covering 112 vendor-decodable 'HFMA2 4R+reuse' words; removal=holes,
@@ -421,11 +451,14 @@ fn t270_5_anchors_registrations() {
     // deletion (see t265_1).
     assert!(t.entries.contains_key("HADD2_R_R_II_II_II_II_?"));
     assert!(!t.entries.contains_key("FRND.F16.CEIL_R_R"));
-    // 271-sentinel (updated F2-iter143): BUG-271 armed the imm family +
-    // BF16_V2 hosts only; THIS row (HFMA2_R_R_R_UR) keeps b86 extractionless
-    // (routex271 corpus-zero) — 289-kand. '.H0_NH1' law battery =
-    // tests/bug271_h0nh1.rs.
+    // FLIP t270_5: 271-sentinel RETIRED (BUG-289 FIXED, F2-iter161,
+    // canonical 57d1448): HFMA2_R_R_R_UR is now armed with the measured
+    // arb289 tok3 law -- b86 '.H0_NH1' + abs@83 (both legs; routex289
+    // corpus-zero attribution in results/cubitfix/289.md). '.H0_NH1' law
+    // battery = tests/bug271_h0nh1.rs + tests/bug289_rrr_ur_tok3.rs.
     let got = dec(&t, (W_RRUR_BASE | (1u128 << 86)) & M96).expect("RRUR b86 matches");
-    assert!(!got.contains(".H0_NH1"), "269/289 scope leak: {got}");
-    assert!(!got.contains('-'), "271 neg-ghost survived: {got}");
+    assert_eq!(
+        got, "@P0 HFMA2 R0, R0, R0.H0_NH1, UR0",
+        "289 decode drift: {got}"
+    );
 }

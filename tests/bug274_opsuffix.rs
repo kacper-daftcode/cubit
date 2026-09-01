@@ -31,7 +31,11 @@ use cubit::table::{Extraction, IsaTable};
 const M96: u128 = (1u128 << 96) - 1;
 // arb274 host shapes (payload; ctl stripped):
 const IIB: u128 = 0x000fc600000000ff00000000ff037431 & M96; // b72=0 II_FI-host
-const FIB: u128 = 0x000001ff00000000ff037431; // FI_FI/II_II encode region (b72 baked)
+const FIB: u128 = 0x000001ff00000000ff037431; // FI_FI/II_II encode region (b72 baked, era)
+                                              // FLIPPED 2026-08-31 (BUG-286): the sm121a FI_FI-family rows no longer bake
+                                              // neg@72 (canonical 16210e9) — authored plain-'RZ' texts mint b72=0 (era
+                                              // silent wrong-code CLOSED; vendor law arb286 x4). Post-286 mint base:
+const FIB0: u128 = FIB & !(1u128 << 72); // [71:64]=0xff RZ sentinel, b72=0
 const PARENTS: [&str; 3] = [
     "HFMA2_R_R_R_II_FI",
     "HFMA2_R_R_R_FI_FI",
@@ -85,6 +89,21 @@ fn t274_1_structure() {
                 "OOB,RELU",
                 "F32,FTZ,RELU",
                 "F32,OOB,RELU",
+                // BUG-285 (F2-iter157, canonical e41a438): b85 BF16_V2
+                // cross-key family (arb285 x4; INVALID3/SAT+RELU carriers
+                // stay row-less, 274/279/264 doctrine).
+                "BF16_V2",
+                "BF16_V2,FMZ",
+                "BF16_V2,SAT",
+                "BF16_V2,FMZ,SAT",
+                "BF16_V2,FTZ",
+                "BF16_V2,OOB",
+                "BF16_V2,FTZ,SAT",
+                "BF16_V2,OOB,SAT",
+                "BF16_V2,RELU",
+                "BF16_V2,FMZ,RELU",
+                "BF16_V2,FTZ,RELU",
+                "BF16_V2,OOB,RELU",
             ];
             for mg in expect_mgs {
                 assert!(
@@ -247,27 +266,12 @@ fn t274_2_decode_laws() {
         let neg_pt = dec(&t, (IIB | (1 << 79) | (7 << 87) | (1 << 90)) & M96).unwrap();
         let p2 = dec(&t, (IIB | (1 << 79) | (2 << 87)) & M96).unwrap();
         let neg_p6 = dec(&t, (IIB | (1 << 79) | (6 << 87) | (1 << 90)) & M96).unwrap();
-        match arch {
-            "sm120" => {
-                assert_eq!(neg_pt, "HFMA2.RELU R3, RZ, RZ, 0, 0, !PT", "{arch}");
-                assert_eq!(p2, "HFMA2.RELU R3, RZ, RZ, 0, 0, P2", "{arch}");
-                assert_eq!(neg_p6, "HFMA2.RELU R3, RZ, RZ, 0, 0, !P6", "{arch}");
-            }
-            _ => {
-                assert_eq!(
-                    neg_pt, "HFMA2.RELU R3, RZ, RZ, 0x0, 0, !PT",
-                    "{arch} tripwire (0x0 cosmetics reg.)"
-                );
-                assert_eq!(
-                    p2, "HFMA2.RELU R3, RZ, RZ, 0x0, 0, P2",
-                    "{arch} tripwire (0x0 cosmetics reg.)"
-                );
-                assert_eq!(
-                    neg_p6, "HFMA2.RELU R3, RZ, RZ, 0x0, 0, !P6",
-                    "{arch} tripwire (0x0 cosmetics reg.)"
-                );
-            }
-        }
+        // FLIPPED 2026-08-31 (BUG-286): sm121a prints vendor-equal '0' here
+        // too — the '0x0' era tripwire is CLOSED (FI_FI-family repair,
+        // canonical 16210e9); both legs assert the same vendor text.
+        assert_eq!(neg_pt, "HFMA2.RELU R3, RZ, RZ, 0, 0, !PT", "{arch}");
+        assert_eq!(p2, "HFMA2.RELU R3, RZ, RZ, 0, 0, P2", "{arch}");
+        assert_eq!(neg_p6, "HFMA2.RELU R3, RZ, RZ, 0, 0, !P6", "{arch}");
         // P0 form routes the _P rows (RELU-baked mg is PT-only):
         let p0 = dec(&t, (IIB | (1 << 79)) & M96).unwrap();
         assert!(p0.ends_with(", P0"), "{arch}: P0 form: {p0}");
@@ -287,44 +291,45 @@ fn t274_2_decode_laws() {
 #[test]
 fn t274_3_encode_laws_and_roundtrip() {
     let t = tab("sm121a");
-    // text -> exact word (FI_FI encode route, b72 baked by that era row):
+    // text -> exact word (FI_FI encode route; b72 was era-baked until
+    // BUG-286 — now minted 0 for plain 'RZ', asserted via FIB0):
     let cases: &[(&str, u128)] = &[
-        ("HFMA2.FMZ R3, RZ, RZ, 0, 0", FIB | (1 << 76)),
-        ("HFMA2.SAT R3, RZ, RZ, 0, 0", FIB | (1 << 77)),
-        ("HFMA2.F32 R3, RZ, RZ, 0, 0", FIB | (1 << 78)),
+        ("HFMA2.FMZ R3, RZ, RZ, 0, 0", FIB0 | (1 << 76)),
+        ("HFMA2.SAT R3, RZ, RZ, 0, 0", FIB0 | (1 << 77)),
+        ("HFMA2.F32 R3, RZ, RZ, 0, 0", FIB0 | (1 << 78)),
         (
             "HFMA2.F32.FMZ.SAT R3, RZ, RZ, 0, 0",
-            FIB | (1 << 76) | (1 << 77) | (1 << 78),
+            FIB0 | (1 << 76) | (1 << 77) | (1 << 78),
         ),
         (
             "HFMA2.FMZ.SAT R3, RZ, RZ, 0, 0",
-            FIB | (1 << 76) | (1 << 77),
+            FIB0 | (1 << 76) | (1 << 77),
         ),
         (
             "HFMA2.F32.SAT R3, RZ, RZ, 0, 0",
-            FIB | (1 << 77) | (1 << 78),
+            FIB0 | (1 << 77) | (1 << 78),
         ),
         (
             "HFMA2.F32.FMZ R3, RZ, RZ, 0, 0",
-            FIB | (1 << 76) | (1 << 78),
+            FIB0 | (1 << 76) | (1 << 78),
         ),
-        ("HFMA2.RELU R3, RZ, RZ, 0, 0", FIB | (1 << 79) | (7 << 87)),
-        ("HFMA2.RELU R3, RZ, RZ, 0, 0, P0", FIB | (1 << 79)),
+        ("HFMA2.RELU R3, RZ, RZ, 0, 0", FIB0 | (1 << 79) | (7 << 87)),
+        ("HFMA2.RELU R3, RZ, RZ, 0, 0, P0", FIB0 | (1 << 79)),
         (
             "HFMA2.RELU R3, RZ, RZ, 0, 0, P2",
-            FIB | (1 << 79) | (2 << 87),
+            FIB0 | (1 << 79) | (2 << 87),
         ),
         (
             "HFMA2.RELU R3, RZ, RZ, 0, 0, !P6",
-            FIB | (1 << 79) | (6 << 87) | (1 << 90),
+            FIB0 | (1 << 79) | (6 << 87) | (1 << 90),
         ),
         (
             "HFMA2.RELU R3, RZ, RZ, 0, 0, !PT",
-            FIB | (1 << 79) | (7 << 87) | (1 << 90),
+            FIB0 | (1 << 79) | (7 << 87) | (1 << 90),
         ),
         (
             "HFMA2.F32.FMZ.RELU R3, RZ, RZ, 0, 0, P5",
-            FIB | (1 << 79) | (1 << 78) | (1 << 76) | (5 << 87),
+            FIB0 | (1 << 79) | (1 << 78) | (1 << 76) | (5 << 87),
         ),
     ];
     for (text, want) in cases {
@@ -359,12 +364,14 @@ fn t274_4_corpus_neutral_companions() {
             t.entries.get("HFMA2_R_R_R_R_?").is_none(),
             "{arch}: R_? junk back"
         );
-        assert!(
-            t.entries["HFMA2_R_R_R_FI_FI"]
-                .mod_groups
-                .get("BF16_V2")
-                .is_none(),
-            "{arch}: FI_FI BF16_V2 junk back"
+        // F2-iter157 (BUG-285) attribution: the arb285-armed mg exists by
+        // design; pin the era junk fingerprint (ab=0x11 garbage harvest,
+        // no b85 in and_base), not the bare name.
+        let mg = &t.entries["HFMA2_R_R_R_FI_FI"].mod_groups["BF16_V2"];
+        assert_ne!(
+            u128::from(mg.and_base),
+            0x11,
+            "{arch}: FI_FI BF16_V2 era junk fingerprint back"
         );
         assert!(
             t.entries.contains_key("HADD2_R_R_II_II_II_II_?"),

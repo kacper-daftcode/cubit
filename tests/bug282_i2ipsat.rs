@@ -274,10 +274,12 @@ fn t282_5_registrations_and_anchors() {
                 .contains_key("SAT"),
             "{leg}: 274 HFMA2 arm lost"
         );
+        // BUG-283 flip (was: 276-era junk print '_P5 R0, R128' tripwire):
+        // lane armed to the vendor law (canonical 1beab0f)
         assert_eq!(
             dec(&t, 0x70000023a).as_deref(),
-            Some("@P0 MOVM.16.MT88_P5 R0, R128"),
-            "{leg}: 276 MOVM tripwire drift"
+            Some("@P0 MOVM.16.MT88 R0, R0"),
+            "{leg}: 283-armed MOVM anchor"
         );
         assert!(t.entries.contains_key("FSET.BF.F.AND_R_R_R_P"), "{leg}");
     }

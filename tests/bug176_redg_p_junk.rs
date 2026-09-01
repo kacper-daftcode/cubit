@@ -204,7 +204,21 @@ fn t176_5_table_shapes() {
     // 2026-08-30 BUG-294/295: +3 sm120 keys (armed .S8/.U16/.S16 variants
     // of the same 0x238 2-op lattice; arb294/294b x4; canonical 99bbde1)
     // = 1457.
-    assert_eq!(t120().num_keys(), 1457);
+    // 2026-08-30 BUG-283: -4 sm120 keys (era MOVM.16.MT88_{P0,P2,P5,P}_R_R
+    // guard-clone deletions + R_R lane rewrite; canonical 1beab0f) = 1453.
+    // 2026-08-30 BUG-285: +12 sm120 keys (HFMA2.BF16_V2{.FMZ,.FTZ,.OOB}.RELU
+    // dotted trailing-pred keys, 4 per parent x 3 parents of the packed-f16
+    // imm family; canonical e41a438) = 1465.
+    // 2026-09-01 BUG-316: +4 sm120 keys (MOVM name-space sibling closure on
+    // the 0x23a lattice: U4TO8.MT88, 16.M832, 16.M864, U4TO8.M864 strict
+    // clones of the verified BUG-283 MT88 geometry; the U4TO8.M832 phantom
+    // was rewritten under its existing key; canonical 0821445) = 1469.
+    // 2026-09-01 BUG-324: +24 sm120 keys (suffix-window-carrier closure on
+    // pure-reg/clustered R-forms: 12 RELU _P trailing dst-pred dotted keys
+    // per parent x 2 parents (HFMA2_R_R_R_UR / HFMA2_R_R_UR_R); HMUL2
+    // (0x232/0xc32) carrier lanes live inside mod-groups of existing keys;
+    // canonical a0dbda7) = 1493.
+    assert_eq!(t120().num_keys(), 1493);
     // 2026-08-28 BUG-244: +2 sm103a/sm100a typed keys (F2F.F64.F32_R_R,
     // F2F.F64.F32_R_UR; donor F64-dst closure, canonical 00c3fd2) = 402.
     assert_eq!(t103().num_keys(), 402);

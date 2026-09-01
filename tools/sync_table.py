@@ -131,7 +131,28 @@ class SyncError(RuntimeError):
 # sm120: 8 new suffix mgs on the template-carrying FI_FI parent + 4 new
 # RELU _P keys inherit the era-243 donor ctrl convention (SM120 875->891);
 # sm121a/sm100a/sm103a unchanged.
-BAKED_CTRL_BASELINE = {"SM120": 891, "SM103a": 1394, "SM100a": 1398,
+# 2026-08-30 BUG-285 (canonical e41a438): same family, b85 BF16_V2
+# cross-key graft -- sm120: 12 new mgs on the template-carrying FI_FI
+# parent + 4 new RELU _P keys inherit the era-243 convention
+# (SM120 891->907); sm121a/sm100a/sm103a unchanged.
+# 2026-09-01 BUG-311 (canonical 8fc8395): sm120 LDGSTS desc '128,E'
+# (L1-allocate) rows on LDGSTS_ARI_dARI{,_P} -- clones of the BYPASS
+# donors; inherit the donor ctrl template (SM120 907->909);
+# sm121a/sm100a/sm103a unchanged.
+# 2026-09-01 BUG-320/321 (canonical 1e2b7ba): sm120 HFMA2_R_R_R_R pure-reg
+# residuum closure -- 4 new mg lanes (F32/FMZ/F32,FMZ/BF16_V2,FMZ) clone
+# the template-carrying ''/BF16_V2 donors (SM120 909->913);
+# sm121a/sm100a/sm103a unchanged (sm121a rows carry no ctl template).
+# 2026-09-01 BUG-324 (canonical a0dbda7): sm120 pure-reg/clustered R-form
+# suffix-window closure -- 35 mgs + 12 RELU _P keys on the template-carrying
+# donors HFMA2_R_R_UR_R / HMUL2_R_R_R / HMUL2_R_R_UR inherit era ctrl
+# (SM120 913->979); sm121a/sm100a/sm103a unchanged (no ctl template there).
+# 2026-09-01 BUG-334 (canonical bfc8480): sm100a/sm103a LDGSTS desc
+# L1-allocate '128,E' rows on LDGSTS_ARI_dARI{,_P} -- clones of the BYPASS
+# donors; inherit the donor ctrl template (SM103a 1394->1396, SM100a
+# 1398->1400); sm100a donor imm2 flip 21/19->12b@32 touches extraction
+# bits only (no [127:105] delta); sm120/sm121a unchanged.
+BAKED_CTRL_BASELINE = {"SM120": 979, "SM103a": 1396, "SM100a": 1400,
                        "SM121A": 498}
 
 FIXED_EXTRACTIONS = {

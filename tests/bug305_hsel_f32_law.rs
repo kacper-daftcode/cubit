@@ -102,20 +102,27 @@ fn t305_1_decode_f32_law_both_lattices() {
 
 #[test]
 fn t305_2_decode_sm121a_signwraps_compose_in_pipes() {
+    // FLIPPED 2026-08-31 (BUG-307): the word carries b85=1, so sm121a now
+    // routes it to the canonical BF16_V2 row like every other leg -- the
+    // dotted era stub (operand-misprinting 'UR0') no longer wins. New
+    // print == vendor x4 (arb307: 'HFMA2.BF16_V2 R5, R2.H0_H0, UR4.H0_H0,
+    // R5.H0_H0' on SM103a/SM121a alike).
     let t121 = tab("sm121a");
     // arb297 I1/I2/I3 (x4 models): the marker composes INSIDE the sign
     // wrapper exactly like the BUG-297 INVALID1 marker (post-273 position).
+    // Mnemonic-mod FLIPPED 2026-08-31 (BUG-307): i() carries b85=0 =
+    // vendor PLAIN lattice (arb307c/d x4); only the prefix drops.
     assert_eq!(
         dec(&t121, i(&[H1])).expect("I1 decode"),
-        "@P0 HFMA2.BF16_V2 R1, R2, UR4.F32, R4"
+        "@P0 HFMA2 R1, R2, UR4.F32, R4"
     );
     assert_eq!(
         dec(&t121, i(&[ABS, H1])).expect("I2 decode"),
-        "@P0 HFMA2.BF16_V2 R1, R2, |UR4.F32|, R4"
+        "@P0 HFMA2 R1, R2, |UR4.F32|, R4"
     );
     assert_eq!(
         dec(&t121, i(&[NEG, H1])).expect("I3 decode"),
-        "@P0 HFMA2.BF16_V2 R1, R2, -UR4.F32, R4"
+        "@P0 HFMA2 R1, R2, -UR4.F32, R4"
     );
 }
 
@@ -241,6 +248,6 @@ fn t305_5_doctrine_siblings_hold() {
     let t121 = tab("sm121a");
     assert_eq!(
         dec(&t121, era).expect("era-word decode sm121a"),
-        "HFMA2.BF16_V2 R5, R2, UR0, R5"
+        "HFMA2.BF16_V2 R5, R2.H0_H0, UR4.H0_H0, R5.H0_H0"
     );
 }

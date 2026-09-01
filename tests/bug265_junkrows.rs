@@ -90,12 +90,22 @@ fn t265_1_structure_deletions_and_renames() {
             t.entries.contains_key("FRND.F16_R_R"),
             "{leg}: plain FRND.F16 lost"
         );
-        // junk mgs deleted, authentic '' mg kept
-        assert!(
-            !t.entries["HFMA2_R_R_R_II_II"]
-                .mod_groups
-                .contains_key("BF16_V2"),
-            "{leg}: HFMA2_R_R_R_II_II BF16_V2 junk mg survived"
+        // junk mgs deleted, authentic '' mg kept. F2-iter157 (BUG-285)
+        // flip with attribution: an mg NAMED 'BF16_V2' exists here again by
+        // design (arb285-armed cross-key family, canonical e41a438) -- it
+        // shares ONLY the name with the era junk row; the pin narrows to
+        // the junk row's exact fingerprint (and_base=0x11 + harvest-garbage
+        // fields, b85 absent from and_base) instead of the bare name.
+        let mg = &t.entries["HFMA2_R_R_R_II_II"].mod_groups["BF16_V2"];
+        assert_ne!(
+            u128::from(mg.and_base),
+            0x11,
+            "{leg}: HFMA2_R_R_R_II_II BF16_V2 era junk fingerprint back"
+        );
+        assert_eq!(
+            (u128::from(mg.and_base) >> 85) & 1,
+            1,
+            "{leg}: 285-armed BF16_V2 mg lost its b85 bake"
         );
         assert!(t.entries["HFMA2_R_R_R_II_II"].mod_groups.contains_key(""));
         // retype: era neg 2b@72 gone, opmod:H1 1b@72 present
@@ -136,13 +146,14 @@ fn t265_1_structure_deletions_and_renames() {
             "{leg}: I2IP '' vmask drift"
         );
     }
-    // sm121a-only junk mg
+    // sm121a-only junk mg (F2-iter157 attribution, same story as above:
+    // the arb285-armed mg shares only the name; pin the junk fingerprint)
     let t121 = tab("sm121a");
-    assert!(
-        !t121.entries["HFMA2_R_R_R_FI_FI"]
-            .mod_groups
-            .contains_key("BF16_V2"),
-        "sm121a: HFMA2_R_R_R_FI_FI BF16_V2 junk mg survived"
+    let mg = &t121.entries["HFMA2_R_R_R_FI_FI"].mod_groups["BF16_V2"];
+    assert_ne!(
+        u128::from(mg.and_base),
+        0x11,
+        "sm121a: HFMA2_R_R_R_FI_FI BF16_V2 era junk fingerprint back"
     );
     assert!(t121.entries["HFMA2_R_R_R_FI_FI"]
         .mod_groups

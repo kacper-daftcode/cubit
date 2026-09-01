@@ -128,27 +128,28 @@ fn t245_4_no_space_law_holds() {
 
 #[test]
 fn t245_5_bf16_fifi_hole_sentinel() {
-    // 246-kand (registered by BUG-245 arb): vendor nvdisasm 13.3.73 decodes
-    // W_BF16 as `HFMA2.BF16_V2 R3, -RZ, RZ, -0.0 , 0`, but NO table leg
-    // carries HFMA2_R_R_R_FI_FI["BF16_V2"] (mgs [''] only; era mg dropped in
-    // BUG-243). Corpus exposure: 0 vendor words battery-wide (gold243 MATCH
-    // 3,074/leg HFMA2.BF16_V2 = all FI_FI_R register form) => latent
-    // fail-closed HOLE [fix = graft decision, owner]. If the row ever lands,
-    // this sentinel must flip to the positive decode assert.
+    // FLIPPED F2-iter157 (BUG-285 armed, canonical e41a438): the BF16_V2
+    // cross-key rows LANDED on the packed-f16 imm parents (arb285 x4), i.e.
+    // the graft decision that 246-kand parked is executed for this lane.
+    // The sentinel flips to the positive decode assert exactly as scripted
+    // below (graft legs vendor-EXACT incl. the '-0.0 ' padded print;
+    // donor legs unchanged, still hole):
     for arch in ["sm100a", "sm103a", "sm120", "sm121a"] {
         let t = tab(arch);
         let idx = DecodeIndex::build(&t);
-        assert!(
-            idx.decode(W_BF16, 0, &t).is_err(),
-            "{arch}: BF16 FI_FI row unexpectedly present"
-        );
-        let e = t.entries.get("HFMA2_R_R_R_FI_FI").expect("FI_FI key");
-        if arch != "sm121a" {
-            // sm121a keeps the era BF16_V2 mg (registered 121a-parity class);
-            // the probe word still fail-closes there.
+        if arch == "sm120" || arch == "sm121a" {
+            let d = idx
+                .decode(W_BF16, 0, &t)
+                .unwrap_or_else(|e| panic!("{arch}: 285 arm lost: {e}"));
+            assert_eq!(
+                cubit::printer::to_sass(&d),
+                "HFMA2.BF16_V2 R3, -RZ, RZ, -0.0 , 0",
+                "{arch}: vendor-exact 285 decode"
+            );
+        } else {
             assert!(
-                !e.mod_groups.contains_key("BF16_V2"),
-                "{arch}: BF16_V2 mg unexpectedly present"
+                idx.decode(W_BF16, 0, &t).is_err(),
+                "{arch}: donor BF16 FI_FI row unexpectedly present"
             );
         }
         // L5 holds engine-side via the shared float formatter (bf16 halves go

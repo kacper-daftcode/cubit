@@ -210,13 +210,16 @@ fn t281_3_holes_killbit_variants_stay() {
     // removed from this hole list -- they now decode via the armed
     // .S8/.U16/.S16 rows (vendor-equal, pinned in t294_2); per-variant
     // b91-kill holes are pinned in t294_3.
+    // FLIP (BUG-280, F2-iter155): the bare 0x27a lattice entry was removed
+    // from this hole list -- it now decodes VENDOR-EQUAL as the armed
+    // QMMA.16816.F16.E4M3.E4M3 lane (b74 reclaimed vendor text-inert,
+    // arb280 x4 models; positive pins in t280_2 + t276_2 flip).
     let base = 0x7238u128 | (5 << 16) | (38 << 32);
     for leg in ["sm120", "sm121a"] {
         let t = tab(leg);
         for (tag, w) in [
             ("b91 kill", base | (1 << 91)),
             ("b91 kill guard", (base & !(0xF << 12)) | (1 << 91)),
-            ("0x27a lattice (276 closed)", 0x27a),
             ("zero word", 0u128),
         ] {
             assert!(dec(&t, w).is_none(), "{leg}: {tag} silently decoded (281)");

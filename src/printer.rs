@@ -14,8 +14,32 @@ use std::collections::BTreeMap;
 /// (uniform-domain SYNCS, e.g. EXCH), S2UR). Guard bits [15:12] carry just
 /// (pred,neg); uniformness follows the family, both print paths agree.
 fn guard_is_uniform_family(key: &str) -> bool {
-    key.starts_with('U') || key.starts_with("LDCU")
-        || key.starts_with("SYNCS_UR") || key.starts_with("S2UR")
+    key.starts_with('U')
+        || key.starts_with("LDCU")
+        || key.starts_with("SYNCS_UR")
+        || key.starts_with("S2UR")
+}
+
+/// BUG-325/326: vendor `.reuse` PRINT law -- the printer-side personality of
+/// the reuse bits [124:122] is gated by the control-word YIELD bit (global
+/// bit 109 = upper32 bit 13 = packed sched bit 4, `scheduling.rs` layout).
+/// arb325 (nvdisasm 13.3.73 raw -b, 264 probes x4 models SM120/121a/100a/
+/// 103a -- agree on EVERY probe; work/bug325/arb325_verdicts.json) +
+/// census325 (full 2,406-cubin battery, 2,545,138 reuse-bit words): every
+/// vendor-printed `.reuse` sits in a yield=1 word, and on ALL 1,309 words
+/// with a reuse bit set but yield=0 the vendor print is PLAIN (bit
+/// print-inert, rc=0 -- e.g. the 1,288 IMAD.WIDE.U32 words across
+/// rt98_pub/rt83_final/r055_* batteries). Pre-fix this printer stamped
+/// `.reuse` from the raw bits regardless of yield, diverging from vendor on
+/// exactly those word classes. The minted bit still carries through
+/// re-encode: fidelity flows surface it via `!rsd[...]` (rsd_annotation
+/// measures the drop) -- byte authority is preserved, vendor text parity is
+/// restored. UR-domain prints (format_ureg_raw) are intentionally NOT gated
+/// here: vendor never prints UR.reuse at all (BUG-226d pop-census), the
+/// table-taught explicit UR reuse field pins its own authored spelling
+/// (tests/bug144 t144_4) and has zero corpus exposure either direction.
+fn reuse_print_visible(raw: u128) -> bool {
+    (raw >> 109) & 1 != 0
 }
 
 /// Format a decoded instruction as SASS text (without trailing ` ;`).
@@ -43,15 +67,23 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         // Extract 4-bit guard from raw bits [15:12] directly.
         let raw_guard = (raw >> 12) & 0xF;
         let pred = raw_guard & 0x7;
-        let neg  = (raw_guard >> 3) & 1;
+        let neg = (raw_guard >> 3) & 1;
         if pred == 7 && neg == 0 {
             String::new() // PT = no guard (unconditional)
         } else if pred == 7 && neg != 0 {
             // @!UPT (uniform) or @!PT (regular) — QMMA drain pattern
-            if is_uni { "@!UPT".to_string() } else { "@!PT".to_string() }
+            if is_uni {
+                "@!UPT".to_string()
+            } else {
+                "@!PT".to_string()
+            }
         } else {
             let neg_s = if neg != 0 { "!" } else { "" };
-            if is_uni { format!("@{neg_s}UP{pred}") } else { format!("@{neg_s}P{pred}") }
+            if is_uni {
+                format!("@{neg_s}UP{pred}")
+            } else {
+                format!("@{neg_s}P{pred}")
+            }
         }
     };
     let opcode = format_opcode(&insn.opcode, &insn.mod_group, &insn.key);
@@ -66,16 +98,28 @@ pub fn to_sass(insn: &DecodedInst) -> String {
                 parts.push(resolve_opaque_mod(f.shift, f.bits, f.value));
             }
         }
-        if parts.is_empty() { String::new() } else { format!(".{}", parts.join(".")) }
+        if parts.is_empty() {
+            String::new()
+        } else {
+            format!(".{}", parts.join("."))
+        }
     };
-    let opcode = if opaque_suffix.is_empty() { opcode } else { format!("{opcode}{opaque_suffix}") };
+    let opcode = if opaque_suffix.is_empty() {
+        opcode
+    } else {
+        format!("{opcode}{opaque_suffix}")
+    };
 
     let (_, op_types) = parse_ins_key(&insn.key);
 
     // Special handling for branch instructions: decode target from raw bits
     if is_branch_op(&insn.opcode) {
         let target = decode_branch_target(insn);
-        let guard_prefix = if guard.is_empty() { String::new() } else { format!("{guard} ") };
+        let guard_prefix = if guard.is_empty() {
+            String::new()
+        } else {
+            format!("{guard} ")
+        };
         // BRA/CALL/JMP: format as "opcode target"
         // BSSY/BSYNC/BREAK: format as "opcode [barrier,] target"
         if is_bssy_op(&insn.opcode) {
@@ -114,9 +158,17 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             let lo64 = insn.raw_code as u64;
             let reg = (lo64 >> 24) & 0xFF;
             let rq = ((lo64 >> 18) & 0x3F) | (((lo64 >> 34) & 0x7FF) << 6);
-            let rq = if rq & 0x10000 != 0 { rq | !0x1FFFFu64 } else { rq } as i64;
+            let rq = if rq & 0x10000 != 0 {
+                rq | !0x1FFFFu64
+            } else {
+                rq
+            } as i64;
             let off = rq << 4;
-            let off_s = if off < 0 { format!("-0x{:x}", -off) } else { format!("0x{off:x}") };
+            let off_s = if off < 0 {
+                format!("-0x{:x}", -off)
+            } else {
+                format!("0x{off:x}")
+            };
             return format!("{guard_prefix}{opcode} R{reg}, {off_s}");
         }
         // RET/RET.NODEC: register at bits[31:24], then branch target
@@ -137,10 +189,17 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         if insn.key.starts_with("BRA_P_UR_") {
             let p = ((insn.raw_code >> 87) & 0x7) as u8;
             let n = ((insn.raw_code >> 90) & 1) as u8;
-            let pred = if p == 7 && n == 0 { "PT".to_string() }
-                       else { format!("{}P{}", if n == 1 { "!" } else { "" }, p) };
+            let pred = if p == 7 && n == 0 {
+                "PT".to_string()
+            } else {
+                format!("{}P{}", if n == 1 { "!" } else { "" }, p)
+            };
             let ur = ((insn.raw_code >> 24) & 0xFF) as u64;
-            let ur_s = if ur == 0xFF { "URZ".to_string() } else { format!("UR{ur}") };
+            let ur_s = if ur == 0xFF {
+                "URZ".to_string()
+            } else {
+                format!("UR{ur}")
+            };
             return format!("{guard_prefix}{opcode} {pred}, {ur_s}, 0x{target:x}");
         }
         // BRA-with-predicate-operand (InsKey BRA_P_II): nvdisasm prints
@@ -148,8 +207,11 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         if insn.key.starts_with("BRA_P_") {
             let p = ((insn.raw_code >> 87) & 0x7) as u8;
             let n = ((insn.raw_code >> 90) & 1) as u8;
-            let pred = if p == 7 && n == 0 { "PT".to_string() }
-                       else { format!("{}P{}", if n == 1 { "!" } else { "" }, p) };
+            let pred = if p == 7 && n == 0 {
+                "PT".to_string()
+            } else {
+                format!("{}P{}", if n == 1 { "!" } else { "" }, p)
+            };
             return format!("{guard_prefix}{opcode} {pred}, 0x{target:x}");
         }
         // BRA.DIV URn, target (InsKey BRA_UR_II, mg "DIV"): the exception-weight
@@ -170,7 +232,11 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         if insn.opcode == "CALL" && insn.mod_group.contains("ABS") {
             let lo64 = insn.raw_code as u64;
             let reg = (lo64 >> 24) & 0xFF;
-            let reg_s = if reg == 255 { "RZ".to_string() } else { format!("R{reg}") };
+            let reg_s = if reg == 255 {
+                "RZ".to_string()
+            } else {
+                format!("R{reg}")
+            };
             return format!("{guard_prefix}{opcode} {reg_s}");
         }
         return format!("{guard_prefix}{opcode} 0x{target:x}");
@@ -182,9 +248,17 @@ pub fn to_sass(insn: &DecodedInst) -> String {
     // a tcgen05 descriptor field (used to route the field-less UTC idesc tok5).
     let inst_is_utc_desc = insn.fields.iter().any(|f| {
         let e = norm_ext(&f.extraction);
-        matches!(e.as_str(),
-            "tdesc_ur" | "gdesc_ur" | "tmem_ur" | "idesc_ur"
-            | "gdesc_off" | "tmem_off" | "idesc_off" | "tdesc_off")
+        matches!(
+            e.as_str(),
+            "tdesc_ur"
+                | "gdesc_ur"
+                | "tmem_ur"
+                | "idesc_ur"
+                | "gdesc_off"
+                | "tmem_off"
+                | "idesc_off"
+                | "tdesc_off"
+        )
     });
 
     let mut operands: Vec<String> = Vec::new();
@@ -193,10 +267,20 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         let fields = by_token.get(&tok).map(Vec::as_slice).unwrap_or(&[]);
         let has_desc_family = fields.iter().any(|f| {
             let e = norm_ext(&f.extraction);
-            matches!(e.as_str(),
-                "tdesc_ur" | "gdesc_ur" | "tmem_ur" | "idesc_ur" | "dsel2"
-                | "gdesc_off" | "tmem_off" | "idesc_off" | "tdesc_off"
-                | "desc_ur" | "desc_off")
+            matches!(
+                e.as_str(),
+                "tdesc_ur"
+                    | "gdesc_ur"
+                    | "tmem_ur"
+                    | "idesc_ur"
+                    | "dsel2"
+                    | "gdesc_off"
+                    | "tmem_off"
+                    | "idesc_off"
+                    | "tdesc_off"
+                    | "desc_ur"
+                    | "desc_off"
+            )
         });
         // S2R/S2UR: second operand is always a system register
         // (may be stored as '?', 'II', or 'L' in InsKey depending on decoder match)
@@ -206,7 +290,8 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             // Descriptor-with-base form: must print the full desc[UR][R.64+off]
             // pair (a lone desc[URn] loses base_reg/offset on the round-trip).
             format_desc_addr(fields, raw)
-        } else if op_type == "II" && insn.opcode == "WARPSYNC"
+        } else if op_type == "II"
+            && insn.opcode == "WARPSYNC"
             && insn.mod_group.split(',').any(|m| m.trim() == "COLLECTIVE")
         {
             // WARPSYNC.COLLECTIVE[.ALL] [Rn,] <partner target>: the encoded field
@@ -233,10 +318,15 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             // anchors carry x=0x10 (target = addr + 0x20, the instruction
             // after the following CALL's return slot).
             let mut x = ((raw >> 24) & 0x3FF_FFFF_FFFF_FFFF) as i64;
-            if x & (1i64 << 57) != 0 { x -= 1i64 << 58; }
+            if x & (1i64 << 57) != 0 {
+                x -= 1i64 << 58;
+            }
             let target = (insn.addr as i64).wrapping_add(0x10 + x);
-            if target < 0 { format!("-0x{:x}", target.unsigned_abs()) }
-            else { format!("0x{target:x}") }
+            if target < 0 {
+                format!("-0x{:x}", target.unsigned_abs())
+            } else {
+                format!("0x{target:x}")
+            }
         } else if has_desc_family || (inst_is_utc_desc && tok == 5) {
             // tcgen05 descriptor operand: InsKey sig may read II but the text
             // form is kind[URN(+0xoff)] — gdesc[]/tmem[]/idesc[] (UTCHMMA,
@@ -244,10 +334,21 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             // hardware then derives UR_idesc == UR_tmem2 + 1 (run27 rule).
             // The empty-fields tok5 still must route here (else the generic
             // operand path prints "0x0" — F3).
-            format_utc_desc(tok, by_token.get(&tok).map(Vec::as_slice).unwrap_or(&[]),
-                            by_token.get(&4).map(Vec::as_slice).unwrap_or(&[]))
+            format_utc_desc(
+                tok,
+                by_token.get(&tok).map(Vec::as_slice).unwrap_or(&[]),
+                by_token.get(&4).map(Vec::as_slice).unwrap_or(&[]),
+            )
         } else {
-            format_operand(op_type, fields, &insn.mod_group, &insn.key, tok, raw, insn.ef_flags)
+            format_operand(
+                op_type,
+                fields,
+                &insn.mod_group,
+                &insn.key,
+                tok,
+                raw,
+                insn.ef_flags,
+            )
         };
         // BUG-255: an f64 special literal (+/-INF, +/-QNAN via the f64hi
         // window) is the only operand class whose token text can carry a
@@ -266,7 +367,9 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         // so an empty format result for a P slot is dropped here (not ", ").
         let inv4_omitted = s.is_empty()
             && op_type == "P"
-            && fields.iter().any(|f| norm_ext(&f.extraction) == "pred_inv4");
+            && fields
+                .iter()
+                .any(|f| norm_ext(&f.extraction) == "pred_inv4");
         if !inv4_omitted {
             operands.push(s);
         }
@@ -277,7 +380,8 @@ pub fn to_sass(insn: &DecodedInst) -> String {
     let is_carry_x = insn.mod_group.split(',').any(|m| m.trim() == "X");
     let max_tok = op_types.len() as i32;
     let mut extra_toks: Vec<i32> = if is_carry_x {
-        by_token.keys()
+        by_token
+            .keys()
             .filter(|&&k| k > max_tok && k > 0)
             .copied()
             .collect()
@@ -291,22 +395,35 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             let e = norm_ext(&f.extraction);
             e == "pred" || e == "upred" || e == "pred_inv4"
         });
-        if !has_pred { continue; }
-        let pred_val = extra_fields.iter()
-            .find(|f| { let e = norm_ext(&f.extraction); e == "pred" || e == "upred" })
+        if !has_pred {
+            continue;
+        }
+        let pred_val = extra_fields
+            .iter()
+            .find(|f| {
+                let e = norm_ext(&f.extraction);
+                e == "pred" || e == "upred"
+            })
             .map(|f| f.value)
             .unwrap_or(7);
         // sm_121a inverted 4-bit pred map (pred_inv4): v==0 -> PT, v==8 -> !PT,
         // v in 1..=7 -> P(7-v), v in 9..=15 -> !P(15-v). Translate into the
         // mainstream (number, inv) pair used below.
-        let inv4 = extra_fields.iter().any(|f| norm_ext(&f.extraction) == "pred_inv4");
+        let inv4 = extra_fields
+            .iter()
+            .any(|f| norm_ext(&f.extraction) == "pred_inv4");
         let inv4_field_val = if inv4 {
-            extra_fields.iter()
+            extra_fields
+                .iter()
                 .find(|f| norm_ext(&f.extraction) == "pred_inv4")
                 .map(|f| f.value)
                 .unwrap_or(0)
-        } else { 0 };
-        let uniform = extra_fields.iter().any(|f| norm_ext(&f.extraction) == "upred");
+        } else {
+            0
+        };
+        let uniform = extra_fields
+            .iter()
+            .any(|f| norm_ext(&f.extraction) == "upred");
         // Detect !PT. BUG-089: the negation is PER-SLOT: consult an explicit
         // neg/inv field attached to THIS extra token first (e.g. IADD3.X tail
         // preds: tok7 neg@90, tok8 inv@80). Only when the row declares none,
@@ -335,13 +452,21 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         };
         let s = if pred_val == 7 {
             let pt = if uniform { "UPT" } else { "PT" };
-            if inv { format!("!{pt}") } else { pt.to_string() }
+            if inv {
+                format!("!{pt}")
+            } else {
+                pt.to_string()
+            }
         } else {
             let prefix = if uniform { "UP" } else { "P" };
             // explicit neg/inv on THIS token also negates non-PT preds (`!P0`):
             // vendor renders tail-pred negation for both carry slots of .X ops
             // (BUG-089 sweep v3/v12: nvdisasm `!P0`, byte-exact encode path).
-            if inv { format!("!{prefix}{pred_val}") } else { format!("{prefix}{pred_val}") }
+            if inv {
+                format!("!{prefix}{pred_val}")
+            } else {
+                format!("{prefix}{pred_val}")
+            }
         };
         operands.push(s);
     }
@@ -355,7 +480,10 @@ pub fn to_sass(insn: &DecodedInst) -> String {
     // Post-process: add .reuse from raw bits 122/123/124 if not already present.
     // Reuse bit mapping: bit122→Ra(shift=24), bit123→Rb(shift=32), bit124→Rc(shift=64).
     // Map from register slot shift to operand index (1-based token).
-    {
+    // BUG-326: the whole sideband is gated by the control yield bit (b109) —
+    // with yield=0 the vendor print is plain (reuse_print_visible covers the
+    // law + evidence; the dropped bits ride `!rsd[...]` in fidelity flows).
+    if reuse_print_visible(raw) {
         let reuse_slots: [(u32, u32); 3] = [(122, 24), (123, 32), (124, 64)];
         for &(reuse_bit, slot_shift) in &reuse_slots {
             if (raw >> reuse_bit) & 1 != 0 {
@@ -369,16 +497,31 @@ pub fn to_sass(insn: &DecodedInst) -> String {
                 let tok_opt = insn
                     .fields
                     .iter()
-                    .find(|f| f.shift == slot_shift && f.bits == 8 && {
-                        let e = norm_ext(&f.extraction);
-                        e == "reg" || e == "reg_ff"
+                    .find(|f| {
+                        f.shift == slot_shift && f.bits == 8 && {
+                            let e = norm_ext(&f.extraction);
+                            e == "reg" || e == "reg_ff"
+                        }
                     })
                     .map(|f| f.token_idx);
                 if let Some(tok) = tok_opt {
                     let idx = (tok - 1) as usize;
                     if idx < operands.len() && !operands[idx].contains(".reuse") {
-                        // Append .reuse, handling the case where the operand might have trailing flags
-                        operands[idx] = format!("{}.reuse", operands[idx]);
+                        // BUG-331: vendor prints .reuse immediately after the
+                        // register core, BEFORE lane/type mods
+                        // ('R6.reuse.F32x2.HI_LO', 'R12.reuse.H0_H0',
+                        // '-R11.reuse.H1_H1'; arb331c x4 models on the FFMA2
+                        // tok2/3/4 anchors). The explicit-field path
+                        // (format_reg `{s}.reuse{mods}`) already composes
+                        // this order; the pre-fix raw-bit sideband appended
+                        // AFTER the mods ('R6.F32x2.HI_LO.reuse'), diverging
+                        // on every winning row whose reuse bit carries no
+                        // explicit row field (e.g. FFMA2 tok2/3/4 donors).
+                        if let Some(dot) = operands[idx].find('.') {
+                            operands[idx].insert_str(dot, ".reuse");
+                        } else {
+                            operands[idx] = format!("{}.reuse", operands[idx]);
+                        }
                     }
                 }
             }
@@ -427,14 +570,22 @@ pub fn to_sass(insn: &DecodedInst) -> String {
     if insn.opcode.starts_with("UTC")
         && (insn.key.ends_with("_UR_UP") || insn.key.contains("_UR_UP_II"))
     {
-        let last_is_upred = operands.last().map(|s| {
-            let t = s.trim_start_matches('!');
-            t == "UPT" || (t.starts_with("UP") && t[2..].chars().all(|c| c.is_ascii_digit()) && t.len() > 2)
-        }).unwrap_or(false);
+        let last_is_upred = operands
+            .last()
+            .map(|s| {
+                let t = s.trim_start_matches('!');
+                t == "UPT"
+                    || (t.starts_with("UP")
+                        && t[2..].chars().all(|c| c.is_ascii_digit())
+                        && t.len() > 2)
+            })
+            .unwrap_or(false);
         if last_is_upred && operands.len() >= 2 {
-            let urz_tok = insn.fields.iter().find(|f| {
-                norm_ext(&f.extraction) == "ureg" && f.value == 255
-            }).map(|f| f.token_idx);
+            let urz_tok = insn
+                .fields
+                .iter()
+                .find(|f| norm_ext(&f.extraction) == "ureg" && f.value == 255)
+                .map(|f| f.token_idx);
             if let Some(tok) = urz_tok {
                 let idx = (tok - 1) as usize;
                 if idx + 1 == operands.len() - 1 {
@@ -460,7 +611,10 @@ fn is_last_token(tok: i32, ins_key: &str) -> bool {
 fn is_branch_op(opcode: &str) -> bool {
     // BRA, CALL, JMP, RET, BSSY need branch target decoding
     // BSYNC/BREAK do NOT have target addresses (just barrier operands)
-    matches!(opcode, "BRA" | "BRA.U" | "BRX" | "BRXU" | "CALL" | "JMP" | "RET" | "RET.NODEC" | "BSSY")
+    matches!(
+        opcode,
+        "BRA" | "BRA.U" | "BRX" | "BRXU" | "CALL" | "JMP" | "RET" | "RET.NODEC" | "BSSY"
+    )
 }
 
 fn is_bssy_op(opcode: &str) -> bool {
@@ -481,7 +635,11 @@ fn decode_branch_target(insn: &DecodedInst) -> u32 {
         // BSSY: rel = sign_extend_32bit(bits[63:32] of instruction)
         let rel = ((lo64 >> 32) & 0xFFFFFFFF) as i64;
         // Sign-extend from 32 bits
-        let rel = if rel & (1 << 31) != 0 { rel | (!0x7FFFFFFFi64) } else { rel };
+        let rel = if rel & (1 << 31) != 0 {
+            rel | (!0x7FFFFFFFi64)
+        } else {
+            rel
+        };
         return (insn.addr as i64 + 16 + rel) as u32;
     }
 
@@ -489,8 +647,8 @@ fn decode_branch_target(insn: &DecodedInst) -> u32 {
     // lo_byte = bits[23:16] (8 bits)
     // hi_part = bits[63:32] >> 2 (30 bits, sign extended)
     let lo_byte = (lo64 >> 16) & 0xFF;
-    let hi_raw  = (lo64 >> 32) & 0xFFFFFFFF;
-    let hi_part = hi_raw >> 2;  // 30 bits of shifted dword offset
+    let hi_raw = (lo64 >> 32) & 0xFFFFFFFF;
+    let hi_part = hi_raw >> 2; // 30 bits of shifted dword offset
 
     // Sign-extend hi_part from 30 bits using sign extension bits [81:64] (= hi64[17:0])
     let sign_bits = hi64_clean & 0x3FFFF;
@@ -527,21 +685,32 @@ fn group_by_token(fields: &[DecodedField]) -> TokenMap<'_> {
 fn resolve_opaque_mod(shift: u32, bits: u32, value: u64) -> String {
     let name = match (shift, bits) {
         (78, 3) => match value {
-            0 => "AND", 1 => "OR",  2 => "XOR",
-            3 => "SUM", 4 => "MIN", 5 => "MAX",
+            0 => "AND",
+            1 => "OR",
+            2 => "XOR",
+            3 => "SUM",
+            4 => "MIN",
+            5 => "MAX",
             _ => return format!("?{:x}", value),
         },
         (76, 3) => match value {
-            1 => "LT", 2 => "EQ", 3 => "LE",
-            4 => "GT", 5 => "NE", 6 => "GE",
+            1 => "LT",
+            2 => "EQ",
+            3 => "LE",
+            4 => "GT",
+            5 => "NE",
+            6 => "GE",
             _ => return format!("?{:x}", value),
         },
         (73, 1) => match value {
-            0 => "U32", 1 => "S32",
+            0 => "U32",
+            1 => "S32",
             _ => return format!("?{:x}", value),
         },
         (91, 2) => match value {
-            0 => "AND", 1 => "OR", 2 => "XOR",
+            0 => "AND",
+            1 => "OR",
+            2 => "XOR",
             _ => return format!("?{:x}", value),
         },
         _ => return format!("?{:x}", value),
@@ -553,14 +722,14 @@ fn resolve_opaque_mod(shift: u32, bits: u32, value: u64) -> String {
 fn norm_ext(s: &str) -> String {
     // Explicit known mappings (PascalCase from decoder → snake_case for matching)
     match s {
-        "SysReg"     => return "sysreg".to_string(),
-        "SysRegLo7"  => return "sysreg_lo7".to_string(),
-        "SysRegLo4"  => return "sysreg_lo4".to_string(),
-        "SysRegHi4"  => return "sysreg_hi4".to_string(),
-        "SysRegHi1"  => return "sysreg_hi1".to_string(),
-        "None"       => return "none".to_string(),
-        "Cm16Off"    => return "cm16off".to_string(),
-        "Cm17Off"    => return "cm17off".to_string(),
+        "SysReg" => return "sysreg".to_string(),
+        "SysRegLo7" => return "sysreg_lo7".to_string(),
+        "SysRegLo4" => return "sysreg_lo4".to_string(),
+        "SysRegHi4" => return "sysreg_hi4".to_string(),
+        "SysRegHi1" => return "sysreg_hi1".to_string(),
+        "None" => return "none".to_string(),
+        "Cm16Off" => return "cm16off".to_string(),
+        "Cm17Off" => return "cm17off".to_string(),
         _ => {}
     }
     // Parameterised forms: SubImm(1) → sub_imm1, SubR(0) → sub_r0
@@ -594,10 +763,8 @@ fn norm_ext(s: &str) -> String {
 
 /// Known operand-type segments in InsKey (longer first to avoid prefix conflicts).
 const OP_TYPES: &[&str] = &[
-    "ARURR", "ARURI", "ARUR", "AURI", "AURR", "AUR",
-    "cAI", "dARI", "ARI",
-    "UP", "UR", "SR", "FI", "II", "IM", "LO",
-    "R", "P", "L", "B", "?",
+    "ARURR", "ARURI", "ARUR", "AURI", "AURR", "AUR", "cAI", "dARI", "ARI", "UP", "UR", "SR", "FI",
+    "II", "IM", "LO", "R", "P", "L", "B", "?",
 ];
 
 fn parse_ins_key(key: &str) -> (String, Vec<String>) {
@@ -610,8 +777,7 @@ fn parse_ins_key(key: &str) -> (String, Vec<String>) {
         if !in_ops && OP_TYPES.contains(part) {
             // "_B" right after a (UN)PACK opcode is a lane suffix
             // (F2FP...PACK_B / UNPACK_B), not a Barrier operand — keep it in the opcode.
-            let pack_b = *part == "B"
-                && opcode_parts.last().is_some_and(|p| p.ends_with("PACK"));
+            let pack_b = *part == "B" && opcode_parts.last().is_some_and(|p| p.ends_with("PACK"));
             if !pack_b {
                 in_ops = true;
             }
@@ -630,9 +796,8 @@ fn parse_ins_key(key: &str) -> (String, Vec<String>) {
 fn mod_priority(m: &str) -> u8 {
     match m {
         // Comparison operators (ISETP, FSETP etc.)
-        "GE" | "GT" | "LT" | "LE" | "NE" | "EQ" |
-        "GEU"| "GTU"| "LTU"| "LEU"| "NEU"| "EQU"|
-        "NAN"| "NUM"| "GEF"| "NEF" => 1,
+        "GE" | "GT" | "LT" | "LE" | "NE" | "EQ" | "GEU" | "GTU" | "LTU" | "LEU" | "NEU" | "EQU"
+        | "NAN" | "NUM" | "GEF" | "NEF" => 1,
         // Wrap/mode qualifiers (SHF.R.W = wrap comes AFTER direction): priority 4
         "W" => 4,
         // CALL.REL.NOINC / RET.REL.NODEC — nvdisasm prints the addr form (REL/ABS)
@@ -642,32 +807,29 @@ fn mod_priority(m: &str) -> u8 {
         // Direction qualifiers (SHF.R = right, SHF.L = left, WIDE, etc.)
         // Note: HI (half result) comes AFTER data-size modifiers (e.g. SHF.R.S32.HI, USHF.L.U64.HI)
         // Note: X (carry-in/out) comes AFTER data-size/type modifiers (e.g. IADD.64.X, IMAD.WIDE.U32.X)
-        "R" | "L" | "WIDE"| "SHL"| "SX32"| "LO"| "FTZ"| "SAT" => 3,
+        "R" | "L" | "WIDE" | "SHL" | "SX32" | "LO" | "FTZ" | "SAT" => 3,
         // Memory access mode
-        "E"| "LTC128B"| "BYPASS"| "STRONG"| "GPU"|"SYS"|"CTA"|
-        "GL"| "IL"| "MMU"=> 3,
+        "E" | "LTC128B" | "BYPASS" | "STRONG" | "GPU" | "SYS" | "CTA" | "GL" | "IL" | "MMU" => 3,
         // Synchronisation
         "SYNC" => 4,
         // Data types
-        "U32"| "S32"| "U64"| "S64"| "U16"| "S16"|
-        "F32"| "F64"| "F16"| "BF16"|
-        "E4M3"| "E5M2"| "NTZ"| "NTB"| "TRUNC"|
-        "F32X2"| "F16X2"| "BF16X2" => 5,
+        "U32" | "S32" | "U64" | "S64" | "U16" | "S16" | "F32" | "F64" | "F16" | "BF16" | "E4M3"
+        | "E5M2" | "NTZ" | "NTB" | "TRUNC" | "F32X2" | "F16X2" | "BF16X2" => 5,
         // Data size
-        "256"| "128"| "64"| "32"| "16"| "8" => 6,
+        "256" | "128" | "64" | "32" | "16" | "8" => 6,
         // HI modifier (high half): comes after data size (SHF.R.S32.HI, USHF.L.U64.HI)
         "HI" => 7,
         // Boolean operators
-        "AND"| "OR"| "XOR" => 7,
+        "AND" | "OR" | "XOR" => 7,
         // EX (second-output-predicate present) prints LAST in nvdisasm syntax:
         // "ISETP.GE.U32.AND.EX", never "ISETP.GE.EX.U32.AND".
         "EX" => 9,
         // Barrier/convergence qualifiers
-        "DEFER_BLOCKING"| "RECONVERGENT"| "RELIABLE"| "NODEP" => 8,
+        "DEFER_BLOCKING" | "RECONVERGENT" | "RELIABLE" | "NODEP" => 8,
         // X (carry-in) comes after data types/sizes
         "X" => 8,
         // LUT and similar always last
-        "LUT"| "MT88"| "4" => 9,
+        "LUT" | "MT88" | "4" => 9,
         _ => 5, // unknown → treat like data type
     }
 }
@@ -677,7 +839,8 @@ fn format_opcode(base: &str, mod_group: &str, key: &str) -> String {
         return base.to_string();
     }
     let base_mods: std::collections::HashSet<&str> = base.split('.').skip(1).collect();
-    let mut mods: Vec<&str> = mod_group.split(',')
+    let mut mods: Vec<&str> = mod_group
+        .split(',')
         .filter(|m| !base_mods.contains(m))
         .collect();
     if mods.is_empty() {
@@ -716,8 +879,19 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     // modifiers in the order `.F32 .FMZ .SAT` (arb274: all 8 legal bit
     // combos of the [79:76] window, nvdisasm 13.3.73 raw -b, x4 models).
     // The generic priorities put SAT (3) before F32/FMZ (5), i.e. backwards.
-    if base == "HFMA2" {
+    // BUG-324: the same first-position window law holds on the HMUL2
+    // pure-reg/clustered lattices (0x232/0xc32; vendor
+    // `HMUL2.BF16_V2.FTZ.SAT` / `HMUL2.BF16_V2.FMZ.SAT`, arb324 C-sweep x4
+    // models). HMUL2 never arms F32 (INVALID1) / OOB (INVALID3) / RELU, so
+    // the F32/OOB prio arms below stay inert for it.
+    if base == "HFMA2" || base == "HMUL2" {
         match m {
+            // BUG-285: the b85 cross-key prints FIRST on the packed-f16 imm
+            // family (vendor `HFMA2.BF16_V2.FTZ.SAT` / `.BF16_V2.FMZ.RELU`,
+            // arb285 F/G/R sets x4 models; b85+b78 = vendor INVALID3 so
+            // BF16_V2 never co-occurs with F32, prio-0 is safe). Same
+            // first-position law as the HSETP/HSETP2 arm below.
+            "BF16_V2" => return 0,
             "F32" => return 1,
             // BUG-279: {b80,b76} is a 2-bit vendor enum printing FMZ / FTZ /
             // OOB in the same slot (arb279b full [80:76] sweep x4 models) —
@@ -729,7 +903,9 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     }
     // HSETP2.BF16_V2.NEU.AND — the vector-width modifier precedes the comparison
     // in nvdisasm output for the half-precision setp family.
-    if m == "BF16_V2" && matches!(base, "HSETP" | "HSETP2") { return 0; }
+    if m == "BF16_V2" && matches!(base, "HSETP" | "HSETP2") {
+        return 0;
+    }
     // op18: UTCATOMSWS — nvdisasm order: 2CTA < op (FIND_AND_SET/AND) < ALIGN
     // (UTCATOMSWS.2CTA.FIND_AND_SET.ALIGN, UTCATOMSWS.FIND_AND_SET.ALIGN).
     if base == "UTCATOMSWS" {
@@ -786,17 +962,28 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
         }
     }
     // IMAD.HI means "high-half product" and appears BEFORE the data type: IMAD.HI.U32
-    if m == "HI" && matches!(base, "IMAD" | "IMAD_U32" | "IMAD_S32") { return 4; }
+    if m == "HI" && matches!(base, "IMAD" | "IMAD_U32" | "IMAD_S32") {
+        return 4;
+    }
     // SH (shift-count hint) in FLO comes AFTER the data type: FLO.U32.SH
-    if m == "SH" { return 6; }
+    if m == "SH" {
+        return 6;
+    }
     // LEA.HI.X.SX32 — SX32 is a suffix that comes AFTER HI and X
-    if m == "SX32" && base == "LEA" { return 9; }
+    if m == "SX32" && base == "LEA" {
+        return 9;
+    }
     // ULEA.HI.X.SX32 — same
-    if m == "SX32" && base == "ULEA" { return 9; }
+    if m == "SX32" && base == "ULEA" {
+        return 9;
+    }
     // UTMA* (TMEM/tensor descriptor ops): nvdisasm order is
     // L2 hint < dimensionality < MULTICAST < 2CTA < op
     // (UTMAPF.L2.3D, UTMALDG.3D.MULTICAST.2CTA, UTMAREDG.3D.ADD).
-    if matches!(base, "UTMALDG" | "UTMASTG" | "UTMAPF" | "UTMAREDG" | "UTMACCTL") {
+    if matches!(
+        base,
+        "UTMALDG" | "UTMASTG" | "UTMAPF" | "UTMAREDG" | "UTMACCTL"
+    ) {
         match m {
             "L2" => return 1,
             "2D" | "3D" | "4D" | "5D" => return 2,
@@ -859,7 +1046,9 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
         }
     }
     // b4fill: IMAD.WIDE.U32.X.B90 — the B90 tag prints after X (IMAD.WIDE.U32.X.B90)
-    if m == "B90" && base.starts_with("IMAD") { return 9; }
+    if m == "B90" && base.starts_with("IMAD") {
+        return 9;
+    }
     // b4fill: LDG cache-policy family — nvdisasm order is
     // E < L1-hint(EL/EF/NA/EU/EN) < L2-hint(ELL2/ENL2/EFL2) < size(256) < consistency < scope
     // (LDG.E.EL.ELL2.256.STRONG.GPU).
@@ -939,7 +1128,7 @@ fn format_guard_uni(fields: &[&DecodedField], uni: bool) -> String {
     for f in fields {
         let e = norm_ext(&f.extraction);
         match e.as_str() {
-            "guard"     => guard_val = Some(f.value),
+            "guard" => guard_val = Some(f.value),
             "guard_neg" => extra_neg = f.value != 0,
             _ => {}
         }
@@ -955,7 +1144,11 @@ fn format_guard_uni(fields: &[&DecodedField], uni: bool) -> String {
     let neg_s = if neg { "!" } else { "" };
     // pred==7 + neg → @!PT or @!UPT (uniform)
     let pt_name = if pred == 7 {
-        if uni { "UPT".to_string() } else { "PT".to_string() }
+        if uni {
+            "UPT".to_string()
+        } else {
+            "PT".to_string()
+        }
     } else if uni {
         format!("UP{pred}")
     } else {
@@ -978,46 +1171,63 @@ fn format_operand(
     match op_type {
         // R/UR type: when the field has imm extraction instead of reg/ureg
         // (e.g. IMAD.SHL Rb=imm, USHF shift=imm), format as immediate.
-        "R" | "UR" if fields.iter().any(|f| {
-            let e = norm_ext(&f.extraction);
-            e.starts_with("imm") && !e.contains("shr")
-        }) => format_imm(fields, mod_group, ins_key),
+        "R" | "UR"
+            if fields.iter().any(|f| {
+                let e = norm_ext(&f.extraction);
+                e.starts_with("imm") && !e.contains("shr")
+            }) =>
+        {
+            format_imm(fields, mod_group, ins_key)
+        }
         // R with a byte_sel field (R2P/I2F "R0.B1" form): append .B<n> when set.
-        "R"     => {
+        "R" => {
             let s = format_reg(fields, mod_group, tok, raw, ins_key);
-            let bsel = fields.iter()
-                .find(|f| matches!(norm_ext(&f.extraction).as_str(),
-                    "byte_sel" | "bytesel") && f.value != 0)
+            let bsel = fields
+                .iter()
+                .find(|f| {
+                    matches!(norm_ext(&f.extraction).as_str(), "byte_sel" | "bytesel")
+                        && f.value != 0
+                })
                 .map(|f| f.value);
             match bsel {
                 Some(b) => format!("{s}.B{b}"),
                 None => s,
             }
-        },
+        }
         // R2P destination: always the predicate-register file token "PR"
         // (parsed as imm-0 in the corpus; printing the numeral round-trips
         // but loses the architectural form nvdisasm emits).
         "II" if ins_key.starts_with("R2P") && tok == 1 => "PR".to_string(),
+        // P2R second operand (mirror of R2P above): vendor always prints the
+        // literal "PR" for the baked imm slot. Measured x4 models on 6 imm
+        // values (arb313 D, BUG-313): 'P2R R6, PR, R12, 0x80000000'.
+        "II" if ins_key.starts_with("P2R") && tok == 2 => "PR".to_string(),
         // DEPBAR first operand is a scoreboard id; nvdisasm prints SB<n>.
         "II" if ins_key.starts_with("DEPBAR") && tok == 1 => {
-            let n = fields.iter()
+            let n = fields
+                .iter()
                 .find(|f| norm_ext(&f.extraction) == "imm")
                 .map(|f| f.value)
                 .unwrap_or(0);
             format!("SB{n}")
-        },
+        }
         // For LOP3/LOP2/ULOP3 last P/UP operand: decode inv from bit 90 (not bit 87).
         // The trailing pred for these instructions uses bits[90:87]: bit90=inv, bits[89:87]=pred.
         // Only applies to LOP3/LOP2/ULOP3 (NOT PLOP3 which has different pred layout).
-        "P" | "UP" if (ins_key.starts_with("LOP3") || ins_key.starts_with("LOP2")
-                 || ins_key.starts_with("ULOP3"))
-             && is_last_token(tok, ins_key)
-            => format_lop3_pred_with_fields(fields, raw, op_type == "UP"),
+        "P" | "UP"
+            if (ins_key.starts_with("LOP3")
+                || ins_key.starts_with("LOP2")
+                || ins_key.starts_with("ULOP3"))
+                && is_last_token(tok, ins_key) =>
+        {
+            format_lop3_pred_with_fields(fields, raw, op_type == "UP")
+        }
         // LEA/ULEA trailing pred: when table maps both output+trailing pred to same
         // token_idx, the trailing P slot has no fields. Extract from bits[89:87]+bit[90].
-        "P" if fields.is_empty() && is_last_token(tok, ins_key)
-             && matches!(ins_key.split('_').next().unwrap_or(""), "LEA" | "ULEA")
-            => {
+        "P" if fields.is_empty()
+            && is_last_token(tok, ins_key)
+            && matches!(ins_key.split('_').next().unwrap_or(""), "LEA" | "ULEA") =>
+        {
             let pred = ((raw >> 87) & 0x7) as u64;
             let inv = ((raw >> 90) & 1) != 0;
             let inv_s = if inv { "!" } else { "" };
@@ -1026,11 +1236,11 @@ fn format_operand(
             } else {
                 format!("{inv_s}P{pred}")
             }
-        },
-        "P"     => format_pred_with_raw(fields, false, 0),
-        "UP"    => format_pred_with_raw(fields, true, 0),
+        }
+        "P" => format_pred_with_raw(fields, false, 0),
+        "UP" => format_pred_with_raw(fields, true, 0),
         // UR slot: if no ureg field present, use raw fallback (for USHF II-typed UR slots)
-        "UR"    => {
+        "UR" => {
             let s = format_ureg_raw(fields, raw, ins_key);
             // BUG-234: FFMA2 UR-form t3 lane decoration. The donor UR row
             // pins b88=1 (other cells fail-closed), so .F32 is the only
@@ -1038,13 +1248,13 @@ fn format_operand(
             // Donor UR rows have no opmod fields for this slot.
             if ins_key == "FFMA2_R_R_UR_R" && tok == 3 {
                 format!("{s}.F32")
-            } else { s }
-        },
-        "II" | "IM" | "LO"
-                => format_imm_or_reg(fields, mod_group, ins_key, tok, raw),
-        "FI"    => format_float_imm(fields),
-        "L" | "SR"
-                => format_lit_or_sysreg(fields, mod_group, raw),
+            } else {
+                s
+            }
+        }
+        "II" | "IM" | "LO" => format_imm_or_reg(fields, mod_group, ins_key, tok, raw),
+        "FI" => format_float_imm(fields),
+        "L" | "SR" => format_lit_or_sysreg(fields, mod_group, raw),
         // BUG-179 (superset of parked-BUG-157): SYNCS- and ATOMS-family ARI
         // rows carry the uniform-register window baked as URZ in and_base
         // (0xff @ [64:72)) and have no UR field. These two families PRINT the
@@ -1054,51 +1264,68 @@ fn format_operand(
         // elide it (iter83 census: 2,183 LDGSTS + 5 STAS machine anchors,
         // zero vendor `+URZ`; nvdisasm arb179 D/E). Self-guarded on the raw
         // window so relaxed/broad fallback matches stay legacy-shaped.
-        "ARI" if (ins_key.starts_with("SYNCS") || ins_key.starts_with("ATOMS"))
-            && !fields.iter().any(|f| matches!(
-                norm_ext(&f.extraction).as_str(), "sub_ur0" | "sub_ur1" | "ureg"))
-            && ((raw >> 64) & 0xFF) == 0xFF
-            => format_syncs_ari(fields, raw, ins_key),
+        "ARI"
+            if (ins_key.starts_with("SYNCS") || ins_key.starts_with("ATOMS"))
+                && !fields.iter().any(|f| {
+                    matches!(
+                        norm_ext(&f.extraction).as_str(),
+                        "sub_ur0" | "sub_ur1" | "ureg"
+                    )
+                })
+                && ((raw >> 64) & 0xFF) == 0xFF =>
+        {
+            format_syncs_ari(fields, raw, ins_key)
+        }
         // BUG-038/017: LDS/STS with a scaled-index address ([R9.X8+..]/
         // [R9.X16+..]) — the addr_scale field carries the suffix. Scale=0
         // prints exactly like format_addr (historical shape preserved for
         // every existing entry).
-        "ARI" if (ins_key.starts_with("LDS") || ins_key.starts_with("STS"))
-            && fields.iter().any(|f| norm_ext(&f.extraction) == "addr_scale")
-            => format_lds_scaled_addr(fields, rz_signed_elide(ins_key)),
+        "ARI"
+            if (ins_key.starts_with("LDS") || ins_key.starts_with("STS"))
+                && fields
+                    .iter()
+                    .any(|f| norm_ext(&f.extraction) == "addr_scale") =>
+        {
+            format_lds_scaled_addr(fields, rz_signed_elide(ins_key))
+        }
         // BUG-180: LDGSTS second (global-src) address is 64-bit
         // [Rn.64(+URm)(+s12off)] (arb180c t1/u2); STAS prints its shared
         // address with .64 unconditionally ([R3.64] odd legal, arb180 s3).
-        "ARI" | "AI" if ins_key.starts_with("LDGSTS") && tok == 2
-            => format_ldgsts_src(fields, raw),
-        "ARI" | "AI" if ins_key.starts_with("STAS") && tok == 1
-            => format_addr_wide64(fields, raw),
-        "ARI" | "AI"
-                => format_addr(fields, raw, rz_signed_elide(ins_key)),
+        "ARI" | "AI" if ins_key.starts_with("LDGSTS") && tok == 2 => format_ldgsts_src(fields, raw),
+        "ARI" | "AI" if ins_key.starts_with("STAS") && tok == 1 => format_addr_wide64(fields, raw),
+        "ARI" | "AI" => format_addr(fields, raw, rz_signed_elide(ins_key)),
         // STS/LDS/LDSM use [R+UR+off] format, not desc[UR][R.64+off].
         // starts_with covers size-suffixed variants: STS.64, LDS.128, etc.
-        "ARURI" if {
-            let op = ins_key.split('_').next().unwrap_or("");
-            op.starts_with("STS") || op.starts_with("LDS") || op.starts_with("LDSM")
-        } => format_sts_lds_addr(fields, raw),
+        "ARURI"
+            if {
+                let op = ins_key.split('_').next().unwrap_or("");
+                op.starts_with("STS") || op.starts_with("LDS") || op.starts_with("LDSM")
+            } =>
+        {
+            format_sts_lds_addr(fields, raw)
+        }
         // BUG-180: LDGSTS splits ARURI by slot — tok1 is the SHARED-memory
         // destination and prints like STS/LDS [Rn+URm(+off)] (vendor
         // [R140+UR32]; pre-fix this was a fabricated desc[UR..][R..64] form);
         // tok2 is the GLOBAL 64-bit source [Rn.64(+URm)(+s12off)].
-        "ARURI" if ins_key.starts_with("LDGSTS") && tok == 1
-            => format_ldgsts_shdst(fields, raw),
-        "ARURI" if ins_key.starts_with("LDGSTS") && tok == 2
-            => format_ldgsts_src(fields, raw),
+        "ARURI" if ins_key.starts_with("LDGSTS") && tok == 1 => format_ldgsts_shdst(fields, raw),
+        "ARURI" if ins_key.starts_with("LDGSTS") && tok == 2 => format_ldgsts_src(fields, raw),
         // BUG-038: plain uniform-indexed LDG.E/STG.E forms (class bytes 0x81/0x86)
         // render as [Rn.U32+URm(+0xoff)], not desc[UR][R.64] (that's the dARI world).
         // BUG-097: same plain-u32-ur shape on generic-memory LD_R_ARURI/ST_ARURI_R
         // (nvdisasm: `LD.E R0, [RZ.U32+UR4]`); the desc-form print mislabels the UR
         // index as a descriptor selector and silently changes the instruction's
         // meaning for RE text.
-        "ARURI" if ins_key.starts_with("LDG.E") || ins_key.starts_with("STG.E")
-            || ins_key.starts_with("REDG.E") || ins_key.starts_with("ATOMG.E")
-            || ins_key.starts_with("LD_") || ins_key.starts_with("ST_")
-            => format_plain_u32_ur(fields, raw),
+        "ARURI"
+            if ins_key.starts_with("LDG.E")
+                || ins_key.starts_with("STG.E")
+                || ins_key.starts_with("REDG.E")
+                || ins_key.starts_with("ATOMG.E")
+                || ins_key.starts_with("LD_")
+                || ins_key.starts_with("ST_") =>
+        {
+            format_plain_u32_ur(fields, raw)
+        }
         // BUG-099/095: canon-era key names LDG_R_ARURI / STG_ARURI_R whose
         // repaired mod groups carry the same plain (reg/ureg/imm) field shape
         // as the sm120-native rows above must print the same bracket form
@@ -1106,11 +1333,13 @@ fn format_operand(
         // raw-UR words, e.g. corpus `LDG.E R10, [R12.64+UR12+0x80]`). Junk
         // desc-form sibling mod groups keep sub_* fields and stay on
         // format_aruri below, so legit desc claims are untouched.
-        "ARURI" if (ins_key.starts_with("LDG_R_ARURI")
-                    || ins_key.starts_with("STG_ARURI_R"))
-            && fields.iter().any(|f| norm_ext(&f.extraction) == "ureg")
-            && fields.iter().any(|f| norm_ext(&f.extraction) == "reg")
-            => format_plain_u32_ur(fields, raw),
+        "ARURI"
+            if (ins_key.starts_with("LDG_R_ARURI") || ins_key.starts_with("STG_ARURI_R"))
+                && fields.iter().any(|f| norm_ext(&f.extraction) == "ureg")
+                && fields.iter().any(|f| norm_ext(&f.extraction) == "reg") =>
+        {
+            format_plain_u32_ur(fields, raw)
+        }
         // BUG-154: SYNCS.PHASECHK.TRANS64[.TRYWAIT] ARURI rows are plain
         // uniform-datapath bracket addresses in vendor text --
         // [Rn+URm(+0xoff)] with the UR part printed explicitly (0xff = URZ,
@@ -1123,29 +1352,38 @@ fn format_operand(
         // the sm103a family keeps the BUG-143 plain bracket [R+UR+off] with
         // the base sentinel printed (130 vendor anchors; documented
         // render-parity delta vs nvdisasm's RZ elision).
-        "AURI" | "ARURI" if ins_key.starts_with("ATOMS")
-            && ef_flags == crate::elf_builder::EF_CUDA_SM120
-            => format_atoms_auri(fields, raw),
-        "ARURI" if ins_key.starts_with("ATOMS")
-            && crate::table::is_sm103a_encoding_family(ef_flags)
-            => format_shared_atom_addr(fields, raw),
+        "AURI" | "ARURI"
+            if ins_key.starts_with("ATOMS") && ef_flags == crate::elf_builder::EF_CUDA_SM120 =>
+        {
+            format_atoms_auri(fields, raw)
+        }
+        "ARURI"
+            if ins_key.starts_with("ATOMS")
+                && crate::table::is_sm103a_encoding_family(ef_flags) =>
+        {
+            format_shared_atom_addr(fields, raw)
+        }
         "ARURI" => format_aruri(fields, raw),
         // No-immediate / UR-only address variants (ARUR/AUR/AURI/AURR/ARURR).
         // These are the same bracket address forms as ARURI (the address entry
         // may still carry an `imm` offset field). STS/LDS/LDSM print [R+UR+off];
         // everything else mirrors ARURI's desc[UR][R.64+off] form.
         "AURI" => format_auri_uronly(fields, raw),
-        "ARUR" | "AUR" | "AURR" | "ARURR" if {
-            let op = ins_key.split('_').next().unwrap_or("");
-            op.starts_with("STS") || op.starts_with("LDS") || op.starts_with("LDSM")
-        } => format_sts_lds_addr(fields, raw),
+        "ARUR" | "AUR" | "AURR" | "ARURR"
+            if {
+                let op = ins_key.split('_').next().unwrap_or("");
+                op.starts_with("STS") || op.starts_with("LDS") || op.starts_with("LDSM")
+            } =>
+        {
+            format_sts_lds_addr(fields, raw)
+        }
         "ARUR" | "AUR" | "AURR" | "ARURR" => format_aruri(fields, raw),
-        "dARI"  => format_desc_addr(fields, raw),
+        "dARI" => format_desc_addr(fields, raw),
         "cAI" | "cARI" => format_const_addr(fields, ins_key),
-        "B"     => format_barrier(fields),
+        "B" => format_barrier(fields),
         // Unknown token type "?" — treat as UR register (raw fallback)
-        "?"     => format_ureg_raw(fields, raw, ins_key),
-        _       => format!("?{op_type}"),
+        "?" => format_ureg_raw(fields, raw, ins_key),
+        _ => format!("?{op_type}"),
     }
 }
 
@@ -1154,18 +1392,38 @@ fn format_operand(
 /// Check if instruction is a half-float HFMA/HADD etc. where Rb=0 means RZ.
 fn is_hfma_ins(ins_key: &str) -> bool {
     let op = ins_key.split('_').next().unwrap_or("");
-    matches!(op, "HFMA2" | "HFMA" | "HADD2" | "HMUL2" | "HSET2" | "HSETP2"
-        | "HFMA2_F32" | "HMNMX2")
+    matches!(
+        op,
+        "HFMA2" | "HFMA" | "HADD2" | "HMUL2" | "HSET2" | "HSETP2" | "HFMA2_F32" | "HMNMX2"
+    )
 }
 
 /// Floating-point instructions where neg modifier on src registers is meaningful.
 fn is_fp_ins(ins_key: &str) -> bool {
     let op = ins_key.split('_').next().unwrap_or("");
-    matches!(op, "HFMA2" | "HFMA" | "HADD2" | "HMUL2" | "HSET2" | "HSETP2"
-        | "HFMA2_F32" | "HMNMX2"
-        | "FFMA" | "FADD" | "FMUL" | "FSET" | "FSETP" | "FMNMX"
-        | "DFMA" | "DADD" | "DMUL" | "DSET" | "DSETP"
-        | "MUFU")
+    matches!(
+        op,
+        "HFMA2"
+            | "HFMA"
+            | "HADD2"
+            | "HMUL2"
+            | "HSET2"
+            | "HSETP2"
+            | "HFMA2_F32"
+            | "HMNMX2"
+            | "FFMA"
+            | "FADD"
+            | "FMUL"
+            | "FSET"
+            | "FSETP"
+            | "FMNMX"
+            | "DFMA"
+            | "DADD"
+            | "DMUL"
+            | "DSET"
+            | "DSETP"
+            | "MUFU"
+    )
 }
 
 /// Standard register bit positions by token index (most instructions).
@@ -1174,7 +1432,10 @@ fn is_fp_ins(ins_key: &str) -> bool {
 fn reg_bits_for_tok(tok: i32, ins_key: &str) -> (u32, u32) {
     // Detect P-prefix: if first operand type is P or UP, registers shift
     let (_, op_types) = parse_ins_key(ins_key);
-    let p_prefix = op_types.first().map(|t| t == "P" || t == "UP").unwrap_or(false);
+    let p_prefix = op_types
+        .first()
+        .map(|t| t == "P" || t == "UP")
+        .unwrap_or(false);
     // Adjust tok: for P-prefix, tok=2 → position 1 (Rd), tok=3 → position 2 (Ra), etc.
     let reg_pos = if p_prefix { tok - 1 } else { tok };
     match reg_pos {
@@ -1223,14 +1484,24 @@ fn format_lop3_pred_with_fields(fields: &[&DecodedField], raw: u128, uniform: bo
     };
 
     if pn == 7 {
-        if inv { format!("!{pt_name}") } else { pt_name.to_string() }
+        if inv {
+            format!("!{pt_name}")
+        } else {
+            pt_name.to_string()
+        }
     } else {
         let inv_s = if inv { "!" } else { "" };
         format!("{inv_s}{pred_prefix}{pn}")
     }
 }
 
-fn format_reg(fields: &[&DecodedField], _mod_group: &str, tok: i32, raw: u128, ins_key: &str) -> String {
+fn format_reg(
+    fields: &[&DecodedField],
+    _mod_group: &str,
+    tok: i32,
+    raw: u128,
+    ins_key: &str,
+) -> String {
     let mut reg: Option<u64> = None;
     let mut neg = false;
     let mut abs = false;
@@ -1241,16 +1512,22 @@ fn format_reg(fields: &[&DecodedField], _mod_group: &str, tok: i32, raw: u128, i
     for f in fields {
         let e = norm_ext(&f.extraction);
         match e.as_str() {
-            "reg"       => reg = Some(f.value),
-            "reg_shr1"  => reg = Some(f.value << 1),
-            "reg_shr2"  => reg = Some(f.value << 2),
-            "reg_shr3"  => reg = Some(f.value << 3),
-            "neg"       => neg = f.value != 0,
-            "neg_shl1"  => neg = (f.value >> 1) & 1 != 0,
-            "neg_abs"   => { neg = f.value & 1 != 0; abs = (f.value >> 1) & 1 != 0; }
-            "abs"       => abs = f.value != 0,
-            "inv"       => inv = f.value != 0,
-            "reuse"     => reuse = f.value != 0,
+            "reg" => reg = Some(f.value),
+            "reg_shr1" => reg = Some(f.value << 1),
+            "reg_shr2" => reg = Some(f.value << 2),
+            "reg_shr3" => reg = Some(f.value << 3),
+            "neg" => neg = f.value != 0,
+            "neg_shl1" => neg = (f.value >> 1) & 1 != 0,
+            "neg_abs" => {
+                neg = f.value & 1 != 0;
+                abs = (f.value >> 1) & 1 != 0;
+            }
+            "abs" => abs = f.value != 0,
+            "inv" => inv = f.value != 0,
+            // BUG-326: explicit row reuse field print is yield-gated exactly
+            // like the raw-bit sideband (same vendor law — see
+            // reuse_print_visible).
+            "reuse" => reuse = f.value != 0 && reuse_print_visible(raw),
             _ => {}
         }
         // Operand-level modifier flags (.F32x2.HI_LO etc.) live as opmod:NAME
@@ -1261,7 +1538,12 @@ fn format_reg(fields: &[&DecodedField], _mod_group: &str, tok: i32, raw: u128, i
         // Half-selectors (.H0_H0/.H0_H1/.H1_H1) come from the field-level
         // "hsel" extraction (encoder op_hsel maps the same strings back).
         if norm_ext(&f.extraction) == "hsel" && f.value != 0 {
-            let h = match f.value { 3 => "H1_H1", 2 => "H0_H0", 1 => "H0_H1", _ => "" };
+            let h = match f.value {
+                3 => "H1_H1",
+                2 => "H0_H0",
+                1 => "H0_H1",
+                _ => "",
+            };
             // Value-1 laws are slot-scoped by BUG-306 (arb306 census x4):
             // HFMA2 tok3 -> ".F32" (subsuming the BUG-279 imm-family arm,
             // arb279 B-set), everything else R-domain -> ".INVALID1" (the
@@ -1287,7 +1569,9 @@ fn format_reg(fields: &[&DecodedField], _mod_group: &str, tok: i32, raw: u128, i
             } else {
                 h
             };
-            if !h.is_empty() { opmods.push(h.to_string()); }
+            if !h.is_empty() {
+                opmods.push(h.to_string());
+            }
         }
         // BUG-271: tok3 b86 '.H0_NH1' (field extraction "h0nh1", grafted on the
         // HFMA2 packed-f16 imm family + sm121a BF16_V2 HFMA2 host). Single-bit
@@ -1307,9 +1591,7 @@ fn format_reg(fields: &[&DecodedField], _mod_group: &str, tok: i32, raw: u128, i
 
     // HSETP/HSETP2 with no hsel field: nvdisasm prints the default half-selector
     // ".H0_H0" on every R operand (corpus: 100% of HSETP2 records).
-    if ins_key.starts_with("HSETP")
-        && !fields.iter().any(|f| norm_ext(&f.extraction) == "hsel")
-    {
+    if ins_key.starts_with("HSETP") && !fields.iter().any(|f| norm_ext(&f.extraction) == "hsel") {
         opmods.push("H0_H0".to_string());
     }
 
@@ -1399,7 +1681,9 @@ fn format_reg(fields: &[&DecodedField], _mod_group: &str, tok: i32, raw: u128, i
         // The Rb operand is always displayed as RZ in this format.
         let v = if tok == 3 && is_hfma_ins(ins_key) && (ins_key.contains("FI") || v == 0) {
             255 // RZ
-        } else { v };
+        } else {
+            v
+        };
         reg = Some(v);
         if !neg && is_fp_ins(ins_key) {
             // Also for RZ: nvdisasm prints "-RZ" when the sign bit is set, and the
@@ -1419,8 +1703,12 @@ fn format_reg(fields: &[&DecodedField], _mod_group: &str, tok: i32, raw: u128, i
         // Using the shift is correct for predicate-prefixed keys (e.g. FSETP_P_P_R_FI_P,
         // where tok3 is Ra@24, not Rb@32) and avoids misreading bit 62 when [63:32] holds
         // an f32/II immediate (Rb slot is the immediate, so there is no reg field at 32).
-        let reg_shift = fields.iter()
-            .find(|f| { let e = norm_ext(&f.extraction); e == "reg" || e.starts_with("reg_shr") })
+        let reg_shift = fields
+            .iter()
+            .find(|f| {
+                let e = norm_ext(&f.extraction);
+                e == "reg" || e.starts_with("reg_shr")
+            })
             .map(|f| f.shift);
         let abs_shift: Option<u32> = match reg_shift {
             Some(24) => Some(73), // Ra abs at hi bit 9 (overall bit 73)
@@ -1437,28 +1725,68 @@ fn format_reg(fields: &[&DecodedField], _mod_group: &str, tok: i32, raw: u128, i
             abs = ((raw >> s) & 1) != 0;
         }
     }
-    let base = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
+    let base = if rn == 255 {
+        "RZ".to_string()
+    } else {
+        format!("R{rn}")
+    };
 
-    let s = if inv              { format!("~{base}") }
-            else if neg && abs  { format!("-|{base}|") }
-            else if abs         { format!("|{base}|") }
-            else if neg         { format!("-{base}") }
-            else                { base };
+    let s = if inv {
+        format!("~{base}")
+    } else if neg && abs {
+        format!("-|{base}|")
+    } else if abs {
+        format!("|{base}|")
+    } else if neg {
+        format!("-{base}")
+    } else {
+        base
+    };
 
     // Canonical operand-mod order in SASS text: data-type modifiers first
     // (F32x2/BF16x2/…), lane/selector mods last (HI_LO, LO_HI, H0, H1).
     let rank = |m: &str| -> u8 {
-        if m.ends_with("X2") || m.ends_with("x2") { 0 }
-        else if matches!(m, "F32" | "F16" | "BF16" | "TF32" | "F64"
-                          | "E4M3" | "E5M2" | "E3M2" | "E2M3" | "E2M1"
-                          | "S32" | "U32" | "S64" | "U64" | "S16" | "U16"
-                          | "S8" | "U8" | "FP8" | "BF16x2") { 1 }
-        else { 2 }
+        if m.ends_with("X2") || m.ends_with("x2") {
+            0
+        } else if matches!(
+            m,
+            "F32"
+                | "F16"
+                | "BF16"
+                | "TF32"
+                | "F64"
+                | "E4M3"
+                | "E5M2"
+                | "E3M2"
+                | "E2M3"
+                | "E2M1"
+                | "S32"
+                | "U32"
+                | "S64"
+                | "U64"
+                | "S16"
+                | "U16"
+                | "S8"
+                | "U8"
+                | "FP8"
+                | "BF16x2"
+        ) {
+            1
+        } else {
+            2
+        }
     };
     opmods.sort_by_key(|m| rank(m));
-    let mods = if opmods.is_empty() { String::new() }
-               else { format!(".{}", opmods.join(".")) };
-    if reuse { format!("{s}.reuse{mods}") } else { format!("{s}{mods}") }
+    let mods = if opmods.is_empty() {
+        String::new()
+    } else {
+        format!(".{}", opmods.join("."))
+    };
+    if reuse {
+        format!("{s}.reuse{mods}")
+    } else {
+        format!("{s}{mods}")
+    }
 }
 
 /// Format an "II" operand — can be immediate OR register (when IMAD.SHL uses
@@ -1473,8 +1801,13 @@ fn format_imm_or_reg(
     // If any imm-like extraction is present → format as immediate
     let has_imm = fields.iter().any(|f| {
         let e = norm_ext(&f.extraction);
-        e.starts_with("imm") || e == "f32" || e == "f16" || e == "f16_d" || e == "f64hi"
+        e.starts_with("imm")
+            || e == "f32"
+            || e == "f16"
+            || e == "f16_d"
+            || e == "f64hi"
             || e == "f32cast"
+            || e == "bf16" // BUG-288: bf16 immediate is imm-like
     });
 
     // If no fields: check if raw bits at UR position look like a UR/URZ register.
@@ -1504,7 +1837,11 @@ fn format_imm_or_reg(
             matches!(op, "USHF" | "SHF")
         };
         if is_ushf && raw_ur <= 63 {
-            let base = if raw_ur == 63 { "URZ".to_string() } else { format!("UR{raw_ur}") };
+            let base = if raw_ur == 63 {
+                "URZ".to_string()
+            } else {
+                format!("UR{raw_ur}")
+            };
             return base;
         }
     }
@@ -1537,7 +1874,7 @@ fn format_pred_with_raw(fields: &[&DecodedField], uniform: bool, raw: u128) -> S
 }
 
 fn format_pred_raw(fields: &[&DecodedField], uniform: bool, raw: u128) -> String {
-    let prefix  = if uniform { "UP" } else { "P" };
+    let prefix = if uniform { "UP" } else { "P" };
     let pt_name = if uniform { "UPT" } else { "PT" };
 
     // sm_121a pred_inv4: inverted 4-bit window carries the predicate AND its
@@ -1546,14 +1883,18 @@ fn format_pred_raw(fields: &[&DecodedField], uniform: bool, raw: u128) -> String
     for f in fields {
         if norm_ext(&f.extraction) == "pred_inv4" {
             let v = f.value;
-            if v == 0 { return String::new(); }
+            if v == 0 {
+                return String::new();
+            }
             let (n, neg) = match v {
                 8 => (7u64, true),
                 v @ 1..=7 => (7 - v, false),
                 v => (15 - v, true), // 9..=15
             };
             let inv_s = if neg { "!" } else { "" };
-            if n == 7 { return format!("{inv_s}{pt_name}"); }
+            if n == 7 {
+                return format!("{inv_s}{pt_name}");
+            }
             return format!("{inv_s}{prefix}{n}");
         }
     }
@@ -1568,8 +1909,11 @@ fn format_pred_raw(fields: &[&DecodedField], uniform: bool, raw: u128) -> String
             "pred" | "upred" => pred = Some(f.value),
             // BUG-032: MMA gate slot carries nvdisasm-INVERTED names
             // (sel = 7 - n, UPT = sel 0); straight everywhere else.
-            "upred_gate"    => { pred = Some(f.value); gate = true; }
-            "inv" | "neg"    => inv = f.value != 0,
+            "upred_gate" => {
+                pred = Some(f.value);
+                gate = true;
+            }
+            "inv" | "neg" => inv = f.value != 0,
             _ => {}
         }
     }
@@ -1578,7 +1922,11 @@ fn format_pred_raw(fields: &[&DecodedField], uniform: bool, raw: u128) -> String
         let sel = pred.unwrap_or(0);
         let inv_s = if inv { "!" } else { "" };
         if sel == 0 {
-            return if inv { format!("!{pt_name}") } else { pt_name.to_string() };
+            return if inv {
+                format!("!{pt_name}")
+            } else {
+                pt_name.to_string()
+            };
         }
         return format!("{inv_s}{prefix}{}", 7 - sel);
     }
@@ -1587,12 +1935,16 @@ fn format_pred_raw(fields: &[&DecodedField], uniform: bool, raw: u128) -> String
     // Only used when the caller explicitly passes a non-zero raw (targeted use).
     if pred.is_none() && raw != 0 {
         pred = Some(((raw >> 81) & 0x7) as u64);
-        inv  = ((raw >> 87) & 1) != 0;
+        inv = ((raw >> 87) & 1) != 0;
     }
 
     let pn = pred.unwrap_or(7);
     if pn == 7 {
-        return if inv { format!("!{pt_name}") } else { pt_name.to_string() };
+        return if inv {
+            format!("!{pt_name}")
+        } else {
+            pt_name.to_string()
+        };
     }
     let inv_s = if inv { "!" } else { "" };
     format!("{inv_s}{prefix}{pn}")
@@ -1615,14 +1967,18 @@ fn format_ureg_raw(fields: &[&DecodedField], raw: u128, ins_key: &str) -> String
             // 8-bit ureg fields: 255 = URZ (sink), 63 = UR63 (a real architectural
             // register — e.g. "ULEA UR63, ...", "LDS.128 R8, [UR63]").
             // 6-bit ureg fields: 63 = URZ. Keep the source width to tell them apart.
-            "ureg"     => { ureg = Some(f.value | (if f.bits >= 8 { 0x100 } else { 0 })); }
-            "ureg_ff"  => { ureg = Some(f.value | 0x100); }
+            "ureg" => {
+                ureg = Some(f.value | (if f.bits >= 8 { 0x100 } else { 0 }));
+            }
+            "ureg_ff" => {
+                ureg = Some(f.value | 0x100);
+            }
             "ureg_shr3" => ureg = Some(f.value << 3),
-            "neg"      => neg = f.value != 0,
-            "abs"      => abs_u = f.value != 0,
-            "inv"      => inv = f.value != 0,
-            "reuse"    => reuse = f.value != 0,
-            "hsel"     => hsel = f.value,
+            "neg" => neg = f.value != 0,
+            "abs" => abs_u = f.value != 0,
+            "inv" => inv = f.value != 0,
+            "reuse" => reuse = f.value != 0,
+            "hsel" => hsel = f.value,
             // BUG-271: tok3 b86 '.H0_NH1' (sm121a BF16_V2 HFMA2 host; the
             // b86+nonzero-hsel INVALID combos never reach print — decode
             // gate holes them). Print position mirrors the hsel suffix
@@ -1648,7 +2004,11 @@ fn format_ureg_raw(fields: &[&DecodedField], raw: u128, ins_key: &str) -> String
     let un = ureg.unwrap_or(63);
     let base = if un & 0x100 != 0 {
         let v = un & 0xFF;
-        if v == 255 { "URZ".to_string() } else { format!("UR{v}") }
+        if v == 255 {
+            "URZ".to_string()
+        } else {
+            format!("UR{v}")
+        }
     } else if un == 63 {
         "URZ".to_string()
     } else {
@@ -1695,12 +2055,22 @@ fn format_ureg_raw(fields: &[&DecodedField], raw: u128, ins_key: &str) -> String
     };
     let nh1 = if h0nh1 { ".H0_NH1" } else { "" };
     let core = format!("{base}{hs}{nh1}");
-    let s = if inv { format!("~{core}") }
-            else if neg && abs_u { format!("-|{core}|") }
-            else if abs_u { format!("|{core}|") }
-            else if neg { format!("-{core}") }
-            else { core };
-    if reuse { format!("{s}.reuse") } else { s }
+    let s = if inv {
+        format!("~{core}")
+    } else if neg && abs_u {
+        format!("-|{core}|")
+    } else if abs_u {
+        format!("|{core}|")
+    } else if neg {
+        format!("-{core}")
+    } else {
+        core
+    };
+    if reuse {
+        format!("{s}.reuse")
+    } else {
+        s
+    }
 }
 
 // ── II / IM / LO — immediate ──────────────────────────────────────────────────
@@ -1740,13 +2110,29 @@ fn format_imm(fields: &[&DecodedField], _mod_group: &str, ins_key: &str) -> Stri
                 imm_bits = imm_bits.max(f.bits + shift);
                 has_imm = true;
             }
-            "f32" | "f32cast" => { is_f32 = true; f32_bits = f.value as u32; }
-            "f64hi"        => { is_f64 = true; f64_hi   = f.value as u32; }
+            "f32" | "f32cast" => {
+                is_f32 = true;
+                f32_bits = f.value as u32;
+            }
+            "f64hi" => {
+                is_f64 = true;
+                f64_hi = f.value as u32;
+            }
             "f16" | "f16_d" => {
                 is_f32 = true;
                 f32_bits = half_to_f32_bits(f.value as u16);
             }
-            "neg"          => neg = f.value != 0,
+            // BUG-330-Db: bf16 immediates under an "II"-typed token (HFMA2
+            // II-family BF16_V2 rows) — top-half of an f32, identical law
+            // to format_float_imm ("0x3f80" -> "1"). Without the arm the
+            // value fell to the hfma "0" fallback and the print silently
+            // dropped the immediate; reachable pre-330 via II_II BF16 mgs,
+            // and the default print route for 330-armed II_FI BF16 rows.
+            "bf16" => {
+                is_f32 = true;
+                f32_bits = (f.value as u32) << 16;
+            }
+            "neg" => neg = f.value != 0,
             _ => {}
         }
     }
@@ -1771,28 +2157,44 @@ fn format_imm(fields: &[&DecodedField], _mod_group: &str, ins_key: &str) -> Stri
             // SHF/USHF. Signed always (incl abs > 0xFFFFFF): *SETP, IADD3/UIADD3,
             // IMAD/UIMAD, VIMNMX.
             let is_unsigned_op = ins_key.starts_with("VIADDMNMX")
-                || ins_key.starts_with("MOV") || ins_key.starts_with("UMOV")
-                || ins_key.starts_with("SHF") || ins_key.starts_with("USHF")
-                || ins_key.starts_with("VIADD") || ins_key.starts_with("SEL")
-                || ins_key.starts_with("USEL") || ins_key.starts_with("LEA")
-                || ins_key.starts_with("ULEA") || ins_key.starts_with("LOP3")
+                || ins_key.starts_with("MOV")
+                || ins_key.starts_with("UMOV")
+                || ins_key.starts_with("SHF")
+                || ins_key.starts_with("USHF")
+                || ins_key.starts_with("VIADD")
+                || ins_key.starts_with("SEL")
+                || ins_key.starts_with("USEL")
+                || ins_key.starts_with("LEA")
+                || ins_key.starts_with("ULEA")
+                || ins_key.starts_with("LOP3")
                 || ins_key.starts_with("ULOP3");
-            let is_setp = ins_key.starts_with("ISETP") || ins_key.starts_with("UISETP")
-                || ins_key.starts_with("IADD3") || ins_key.starts_with("UIADD3")
-                || ins_key.starts_with("IMAD") || ins_key.starts_with("UIMAD")
+            let is_setp = ins_key.starts_with("ISETP")
+                || ins_key.starts_with("UISETP")
+                || ins_key.starts_with("IADD3")
+                || ins_key.starts_with("UIADD3")
+                || ins_key.starts_with("IMAD")
+                || ins_key.starts_with("UIMAD")
                 || ins_key.starts_with("VIMNMX");
             if is_setp {
                 return format!("-0x{abs_val:x}");
             } else if is_unsigned_op {
                 // MOV/UMOV: show as unsigned hex, using full immediate field width
-                let mask = if imm_bits >= 64 { u64::MAX } else { (1u64 << imm_bits) - 1 };
+                let mask = if imm_bits >= 64 {
+                    u64::MAX
+                } else {
+                    (1u64 << imm_bits) - 1
+                };
                 return format!("0x{:x}", imm as u64 & mask);
             } else if abs_val <= 0xFFFFFF {
                 return format!("-0x{abs_val:x}");
             } else {
                 // Large negative → show as unsigned, masked to field size
                 let bits = imm_bits.min(32);
-                let mask = if bits >= 64 { u64::MAX } else { (1u64 << bits) - 1 };
+                let mask = if bits >= 64 {
+                    u64::MAX
+                } else {
+                    (1u64 << bits) - 1
+                };
                 return format!("0x{:x}", imm as u64 & mask);
             }
         }
@@ -1800,7 +2202,11 @@ fn format_imm(fields: &[&DecodedField], _mod_group: &str, ins_key: &str) -> Stri
     }
     // Fallback when no immediate field found (value baked into and_base).
     // For half-float instruction families the zero immediate is printed as decimal.
-    if is_hfma_ins(ins_key) { "0".to_string() } else { "0x0".to_string() }
+    if is_hfma_ins(ins_key) {
+        "0".to_string()
+    } else {
+        "0x0".to_string()
+    }
 }
 
 // ── FI — float immediate (half-float in HFMA2 etc.) ──────────────────────────
@@ -1815,19 +2221,19 @@ fn format_float_imm(fields: &[&DecodedField]) -> String {
         match e.as_str() {
             "f16" | "f16_d" => bits = Some(half_to_f32_bits(f.value as u16)),
             // BF16 immediate: top-half of an f32 (HFMA2.BF16_V2 0x3f80 -> "1").
-            "bf16"          => bits = Some((f.value as u32) << 16),
+            "bf16" => bits = Some((f.value as u32) << 16),
             "f32" | "f32cast" => bits = Some(f.value as u32),
             // FP64 immediate carried as its high dword (DFMA/DADD/etc.);
             // low 32 bits are zero in this encoding.
-            "f64hi"         => f64_hi = Some(f.value as u32),
-            "imm"           => {
+            "f64hi" => f64_hi = Some(f.value as u32),
+            "imm" => {
                 if f.bits >= 32 {
                     bits = Some(f.value as u32);
                 } else {
                     bits = Some(half_to_f32_bits(f.value as u16));
                 }
             }
-            "neg"           => neg = f.value != 0,
+            "neg" => neg = f.value != 0,
             _ => {}
         }
     }
@@ -1837,14 +2243,16 @@ fn format_float_imm(fields: &[&DecodedField]) -> String {
     }
     match bits {
         Some(b) => format_float(f32::from_bits(b), neg),
-        None    => "0".to_string(),
+        None => "0".to_string(),
     }
 }
 
 // ── L / SR — literal or system register ──────────────────────────────────────
 
 fn format_lit_or_sysreg(fields: &[&DecodedField], mod_group: &str, raw: u128) -> String {
-    let has_sysreg = fields.iter().any(|f| norm_ext(&f.extraction).starts_with("sysreg"));
+    let has_sysreg = fields
+        .iter()
+        .any(|f| norm_ext(&f.extraction).starts_with("sysreg"));
     if has_sysreg {
         return format_sysreg(fields, raw);
     }
@@ -1856,20 +2264,33 @@ fn format_lit_or_sysreg(fields: &[&DecodedField], mod_group: &str, raw: u128) ->
     });
     let has_imm_field = fields.iter().any(|f| {
         let e = norm_ext(&f.extraction);
-        e == "imm" || e.starts_with("imm_shr") || e == "f32" || e == "f16" || e == "f64hi"
+        e == "imm"
+            || e.starts_with("imm_shr")
+            || e == "f32"
+            || e == "f16"
+            || e == "f64hi"
             || e == "f32cast"
+            || e == "bf16" // BUG-288
     });
     if !has_imm_field {
         if let Some(rf) = reg_field {
-            let neg = fields.iter().any(|f| norm_ext(&f.extraction) == "neg" && f.value != 0);
+            let neg = fields
+                .iter()
+                .any(|f| norm_ext(&f.extraction) == "neg" && f.value != 0);
             let prefix = if neg { "-" } else { "" };
             let e = norm_ext(&rf.extraction);
             if e == "ureg" {
-                return if rf.value == 63 { format!("{prefix}URZ") }
-                       else { format!("{prefix}UR{}", rf.value) };
+                return if rf.value == 63 {
+                    format!("{prefix}URZ")
+                } else {
+                    format!("{prefix}UR{}", rf.value)
+                };
             }
-            return if rf.value == 255 { format!("{prefix}RZ") }
-                   else { format!("{prefix}R{}", rf.value) };
+            return if rf.value == 255 {
+                format!("{prefix}RZ")
+            } else {
+                format!("{prefix}R{}", rf.value)
+            };
         }
     }
     format_imm(fields, mod_group, "")
@@ -1885,7 +2306,11 @@ fn format_plain_u32_ur(fields: &[&DecodedField], raw: u128) -> String {
     let mut off: u64 = 0;
     for f in fields {
         match norm_ext(&f.extraction).as_str() {
-            "reg" | "sub_r0" | "sub_r1" => { if base.is_none() { base = Some(f.value); } }
+            "reg" | "sub_r0" | "sub_r1" => {
+                if base.is_none() {
+                    base = Some(f.value);
+                }
+            }
             "ureg" => ur = Some(f.value),
             "imm" => off = f.value,
             _ => {}
@@ -1897,12 +2322,20 @@ fn format_plain_u32_ur(fields: &[&DecodedField], raw: u128) -> String {
         None => "R0".to_string(),
     };
     let u = format!("UR{}", ur.unwrap_or(0));
-    let o = if off != 0 { format!("+0x{off:x}") } else { String::new() };
+    let o = if off != 0 {
+        format!("+0x{off:x}")
+    } else {
+        String::new()
+    };
     // BUG-099: the plain UR-indexed global form carries a real width mode in
     // bits [92:90]: vendor prints `[Rn.U32+URm]` for modes 2/6 (era anchors,
     // 82/82) and `[Rn.64+URm]` for mode 3 (corpus anchors, 15/15). Modes with
     // bit90=1 && bit91=1 print ".64"; everything else observed prints ".U32".
-    let width = if (raw >> 90) & 0b11 == 0b11 { "64" } else { "U32" };
+    let width = if (raw >> 90) & 0b11 == 0b11 {
+        "64"
+    } else {
+        "U32"
+    };
     format!("[{b}.{width}+{u}{o}]")
 }
 
@@ -1919,8 +2352,14 @@ fn rz_signed_elide(ins_key: &str) -> bool {
     op.starts_with("LDSM") || op.starts_with("STSM")
 }
 
-fn elide_rz_base(rn: u64, ur_reg: Option<u64>, offset: i64, has_offset: bool,
-                 imm_width: u32, signed: bool) -> Option<String> {
+fn elide_rz_base(
+    rn: u64,
+    ur_reg: Option<u64>,
+    offset: i64,
+    has_offset: bool,
+    imm_width: u32,
+    signed: bool,
+) -> Option<String> {
     if rn != 255 || ur_reg.is_some() || !has_offset || offset == 0 {
         return None;
     }
@@ -1931,7 +2370,11 @@ fn elide_rz_base(rn: u64, ur_reg: Option<u64>, offset: i64, has_offset: bool,
             format!("[0x{:x}]", offset as u64)
         });
     }
-    let mask = if imm_width == 0 || imm_width >= 64 { !0u64 } else { (1u64 << imm_width) - 1 };
+    let mask = if imm_width == 0 || imm_width >= 64 {
+        !0u64
+    } else {
+        (1u64 << imm_width) - 1
+    };
     Some(format!("[0x{:x}]", (offset as u64) & mask))
 }
 
@@ -1940,38 +2383,63 @@ fn elide_rz_base(rn: u64, ur_reg: Option<u64>, offset: i64, has_offset: bool,
 /// (vendor spelling), while narrow-window 63 stays URZ and wide 63 = UR63.
 fn format_shared_atom_addr(fields: &[&DecodedField], _raw: u128) -> String {
     let mut base_reg: Option<u64> = None;
-    let mut ur_reg:   Option<u64> = None;
-    let mut ur_bits:  u32 = 8;
-    let mut offset:   i64 = 0;
-    let mut has_off   = false;
+    let mut ur_reg: Option<u64> = None;
+    let mut ur_bits: u32 = 8;
+    let mut offset: i64 = 0;
+    let mut has_off = false;
     for f in fields {
         let e = norm_ext(&f.extraction);
         match e.as_str() {
-            "sub_r1" | "sub_r0"             => base_reg = Some(f.value),
-            "reg"                           => { if base_reg.is_none() { base_reg = Some(f.value); } }
-            "sub_ur0" | "sub_ur1" | "ureg"  => { ur_reg = Some(f.value); ur_bits = f.bits; }
+            "sub_r1" | "sub_r0" => base_reg = Some(f.value),
+            "reg" => {
+                if base_reg.is_none() {
+                    base_reg = Some(f.value);
+                }
+            }
+            "sub_ur0" | "sub_ur1" | "ureg" => {
+                ur_reg = Some(f.value);
+                ur_bits = f.bits;
+            }
             s if s.starts_with("sub_imm") => {
                 offset |= sub_imm_off(s, f.value, f.bits);
                 has_off = true;
             }
-            "imm" if f.bits >= 8 => { offset = sign_extend(f.value, f.bits); has_off = offset != 0; }
+            "imm" if f.bits >= 8 => {
+                offset = sign_extend(f.value, f.bits);
+                has_off = offset != 0;
+            }
             _ => {}
         }
     }
     let rn = base_reg.unwrap_or(255);
-    let reg_s = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
+    let reg_s = if rn == 255 {
+        "RZ".to_string()
+    } else {
+        format!("R{rn}")
+    };
     let mut inner = reg_s;
     if let Some(un) = ur_reg {
         // width law (BUG-157/151): 8-bit window => 255=URZ, 63 is real UR63;
         // narrower legacy windows keep the 63=URZ alias.
-        let is_urz = if ur_bits >= 8 { un == 0xFF } else { un == 0xFF || un == 63 };
-        let ur_s = if is_urz { "URZ".to_string() } else { format!("UR{un}") };
+        let is_urz = if ur_bits >= 8 {
+            un == 0xFF
+        } else {
+            un == 0xFF || un == 63
+        };
+        let ur_s = if is_urz {
+            "URZ".to_string()
+        } else {
+            format!("UR{un}")
+        };
         inner.push('+');
         inner.push_str(&ur_s);
     }
     if has_off && offset != 0 {
-        if offset < 0 { inner.push_str(&format!("+-0x{:x}", (-offset) as u64)); }
-        else { inner.push_str(&format!("+0x{offset:x}")); }
+        if offset < 0 {
+            inner.push_str(&format!("+-0x{:x}", (-offset) as u64));
+        } else {
+            inner.push_str(&format!("+0x{offset:x}"));
+        }
     }
     format!("[{inner}]")
 }
@@ -1988,14 +2456,22 @@ fn format_lds_scaled_addr(fields: &[&DecodedField], signed_elide: bool) -> Strin
     for f in fields {
         let e = norm_ext(&f.extraction);
         match e.as_str() {
-            "reg" | "sub_r0" | "sub_r1" => { if base.is_none() { base = Some(f.value); } }
+            "reg" | "sub_r0" | "sub_r1" => {
+                if base.is_none() {
+                    base = Some(f.value);
+                }
+            }
             "addr_scale" => scale = f.value,
             s if s.starts_with("sub_imm") => {
                 off |= sub_imm_off(s, f.value, f.bits);
                 has_off = true;
                 imm_width += f.bits;
             }
-            "imm" => { off = f.value as i64; has_off = true; imm_width += f.bits; }
+            "imm" => {
+                off = f.value as i64;
+                has_off = true;
+                imm_width += f.bits;
+            }
             _ => {}
         }
     }
@@ -2005,8 +2481,17 @@ fn format_lds_scaled_addr(fields: &[&DecodedField], signed_elide: bool) -> Strin
     if let Some(el) = elide_rz_base(rn, None, off, has_off, imm_width, signed_elide) {
         return el;
     }
-    let reg_s = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
-    let sfx = match scale { 1 => ".X4", 2 => ".X8", 3 => ".X16", _ => "" };
+    let reg_s = if rn == 255 {
+        "RZ".to_string()
+    } else {
+        format!("R{rn}")
+    };
+    let sfx = match scale {
+        1 => ".X4",
+        2 => ".X8",
+        3 => ".X16",
+        _ => "",
+    };
     let mut inner = format!("{reg_s}{sfx}");
     if has_off && off != 0 {
         if off < 0 {
@@ -2045,7 +2530,11 @@ fn format_atoms_auri(fields: &[&DecodedField], raw: u128) -> String {
         return format_addr(fields, raw, false);
     }
     let un = ur_reg.unwrap();
-    let ur_s = if un == 255 { "URZ".to_string() } else { format!("UR{un}") };
+    let ur_s = if un == 255 {
+        "URZ".to_string()
+    } else {
+        format!("UR{un}")
+    };
     let mut inner = String::new();
     if let Some(bn) = base_reg {
         if bn != 255 {
@@ -2080,16 +2569,30 @@ fn format_addr(fields: &[&DecodedField], raw: u128, signed_elide: bool) -> Strin
         let e = norm_ext(&f.extraction);
         match e.as_str() {
             "sub_r0" | "sub_r1" => base_reg = Some(f.value),
-            "sub_r0_shr1" | "sub_r1_shr1" => { base_reg = Some(f.value << 1); base_wide = true; }
-            "reg" => { if base_reg.is_none() { base_reg = Some(f.value); } }
-            "sub_ur0_shr1" | "sub_ur1_shr1"   => ur_reg = Some(f.value << 1),
-            "sub_ur0" | "sub_ur1" | "ureg"    => { ur_reg = Some(f.value); ur_bits = f.bits; }
+            "sub_r0_shr1" | "sub_r1_shr1" => {
+                base_reg = Some(f.value << 1);
+                base_wide = true;
+            }
+            "reg" => {
+                if base_reg.is_none() {
+                    base_reg = Some(f.value);
+                }
+            }
+            "sub_ur0_shr1" | "sub_ur1_shr1" => ur_reg = Some(f.value << 1),
+            "sub_ur0" | "sub_ur1" | "ureg" => {
+                ur_reg = Some(f.value);
+                ur_bits = f.bits;
+            }
             s if s.starts_with("sub_imm") => {
                 offset |= sub_imm_off(s, f.value, f.bits);
                 has_offset = true;
                 imm_width += f.bits;
             }
-            "imm" => { offset = f.value as i64; has_offset = true; imm_width += f.bits; }
+            "imm" => {
+                offset = f.value as i64;
+                has_offset = true;
+                imm_width += f.bits;
+            }
             _ => {}
         }
     }
@@ -2100,7 +2603,11 @@ fn format_addr(fields: &[&DecodedField], raw: u128, signed_elide: bool) -> Strin
     if base_reg.is_none() {
         base_reg = Some((raw >> 24) as u64 & 0xFF);
         let raw_off = ((raw >> 40) & 0xFF) as i64;
-        if raw_off != 0 { offset = raw_off; has_offset = true; imm_width = 8; }
+        if raw_off != 0 {
+            offset = raw_off;
+            has_offset = true;
+            imm_width = 8;
+        }
     }
 
     // .64 only when explicitly bit-shifted sub-register extraction (64-bit addressing)
@@ -2110,7 +2617,11 @@ fn format_addr(fields: &[&DecodedField], raw: u128, signed_elide: bool) -> Strin
     if let Some(el) = elide_rz_base(rn, ur_reg, offset, has_offset, imm_width, signed_elide) {
         return el;
     }
-    let reg_s = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
+    let reg_s = if rn == 255 {
+        "RZ".to_string()
+    } else {
+        format!("R{rn}")
+    };
     let wide_s = if base_wide { ".64" } else { "" };
 
     let mut inner = format!("{reg_s}{wide_s}");
@@ -2120,7 +2631,11 @@ fn format_addr(fields: &[&DecodedField], raw: u128, signed_elide: bool) -> Strin
         // 8-bit UR windows carry 255=URZ (63 = real UR63, same law as
         // format_aruri post-BUG-160); narrower legacy windows keep 63=URZ.
         let is_urz = if ur_bits == 8 { un == 255 } else { un == 63 };
-        let ur_s = if is_urz { "URZ".to_string() } else { format!("UR{un}") };
+        let ur_s = if is_urz {
+            "URZ".to_string()
+        } else {
+            format!("UR{un}")
+        };
         inner.push('+');
         inner.push_str(&ur_s);
     }
@@ -2164,27 +2679,45 @@ fn format_addr_wide64(fields: &[&DecodedField], raw: u128) -> String {
         match e.as_str() {
             "sub_r0" | "sub_r1" => base_reg = Some(f.value),
             "sub_r0_shr1" | "sub_r1_shr1" => base_reg = Some(f.value << 1),
-            "reg" => { if base_reg.is_none() { base_reg = Some(f.value); } }
+            "reg" => {
+                if base_reg.is_none() {
+                    base_reg = Some(f.value);
+                }
+            }
             "sub_ur0" | "sub_ur1" | "ureg" => ur_reg = Some(f.value),
             "sub_ur0_shr1" | "sub_ur1_shr1" => ur_reg = Some(f.value << 1),
             s if s.starts_with("sub_imm") => {
                 offset |= sub_imm_off(s, f.value, f.bits);
                 has_offset = true;
             }
-            "imm" => { offset = f.value as i64; has_offset = true; }
+            "imm" => {
+                offset = f.value as i64;
+                has_offset = true;
+            }
             _ => {}
         }
     }
     if base_reg.is_none() {
         base_reg = Some((raw >> 24) as u64 & 0xFF);
         let raw_off = ((raw >> 40) & 0xFF) as i64;
-        if raw_off != 0 { offset = raw_off; has_offset = true; }
+        if raw_off != 0 {
+            offset = raw_off;
+            has_offset = true;
+        }
     }
     let rn = base_reg.unwrap_or(0);
-    let reg_s = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
+    let reg_s = if rn == 255 {
+        "RZ".to_string()
+    } else {
+        format!("R{rn}")
+    };
     let mut inner = format!("{reg_s}.64");
     if let Some(un) = ur_reg {
-        let ur_s = if un == 63 { "URZ".to_string() } else { format!("UR{un}") };
+        let ur_s = if un == 63 {
+            "URZ".to_string()
+        } else {
+            format!("UR{un}")
+        };
         inner.push('+');
         inner.push_str(&ur_s);
     }
@@ -2209,7 +2742,9 @@ fn format_ldgsts_shdst(fields: &[&DecodedField], raw: u128) -> String {
         let mut out = s.clone();
         out.insert(pos, '+');
         out
-    } else { s }
+    } else {
+        s
+    }
 }
 
 /// BUG-180: LDGSTS global-source address (tok2) — vendor law measured by
@@ -2229,7 +2764,11 @@ fn format_ldgsts_src(fields: &[&DecodedField], raw: u128) -> String {
         match e.as_str() {
             "sub_r0" | "sub_r1" => base_reg = Some(f.value),
             "sub_r0_shr1" | "sub_r1_shr1" => base_reg = Some(f.value << 1),
-            "reg" => { if base_reg.is_none() { base_reg = Some(f.value); } }
+            "reg" => {
+                if base_reg.is_none() {
+                    base_reg = Some(f.value);
+                }
+            }
             "sub_ur0" | "sub_ur1" | "ureg" => ur_reg = Some(f.value),
             "sub_ur0_shr1" | "sub_ur1_shr1" => ur_reg = Some(f.value << 1),
             s if s.starts_with("sub_imm") => {
@@ -2237,7 +2776,11 @@ fn format_ldgsts_src(fields: &[&DecodedField], raw: u128) -> String {
                 has_offset = true;
                 imm_width += f.bits;
             }
-            "imm" => { offset = f.value as i64; has_offset = true; imm_width += f.bits; }
+            "imm" => {
+                offset = f.value as i64;
+                has_offset = true;
+                imm_width += f.bits;
+            }
             _ => {}
         }
     }
@@ -2250,7 +2793,11 @@ fn format_ldgsts_src(fields: &[&DecodedField], raw: u128) -> String {
     if let Some(el) = elide_rz_base(rn, ur_reg, offset, has_offset, imm_width, true) {
         return el;
     }
-    let reg_s = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
+    let reg_s = if rn == 255 {
+        "RZ".to_string()
+    } else {
+        format!("R{rn}")
+    };
     let mut inner = format!("{reg_s}.64");
     match ur_reg {
         Some(0xFF) | None => {}
@@ -2293,18 +2840,36 @@ fn format_utc_desc(tok: i32, fields: &[&DecodedField], tok4_fields: &[&DecodedFi
     // Kind: prefer the extraction family actually present on this token
     // (works for LDTM/STTM tmem[] tokens as well); UTC tok1 is mixed-kind
     // and selects via dsel2 (gdesc=1, tmem=2).
-    let kind = if fields.iter().any(|f| norm_ext(&f.extraction).starts_with("gdesc")) {
+    let kind = if fields
+        .iter()
+        .any(|f| norm_ext(&f.extraction).starts_with("gdesc"))
+    {
         "gdesc"
-    } else if fields.iter().any(|f| norm_ext(&f.extraction).starts_with("tmem")) {
+    } else if fields
+        .iter()
+        .any(|f| norm_ext(&f.extraction).starts_with("tmem"))
+    {
         "tmem"
-    } else if fields.iter().any(|f| norm_ext(&f.extraction).starts_with("idesc")) {
+    } else if fields
+        .iter()
+        .any(|f| norm_ext(&f.extraction).starts_with("idesc"))
+    {
         "idesc"
-    } else if fields.iter().any(|f| norm_ext(&f.extraction).starts_with("desc_")) {
+    } else if fields
+        .iter()
+        .any(|f| norm_ext(&f.extraction).starts_with("desc_"))
+    {
         // UTMALDG/UTMASTG single-bracket desc[URx(+0xoff)] operand.
         "desc"
     } else {
         match tok {
-            1 => if dsel == Some(2) { "tmem" } else { "gdesc" },
+            1 => {
+                if dsel == Some(2) {
+                    "tmem"
+                } else {
+                    "gdesc"
+                }
+            }
             2 => "gdesc",
             3 | 4 => "tmem",
             _ => "idesc",
@@ -2316,7 +2881,11 @@ fn format_utc_desc(tok: i32, fields: &[&DecodedField], tok4_fields: &[&DecodedFi
                 // BUG-186 (arb186b/c, nvdisasm 13.3.73): hardware derives
                 // idesc == tok4 tmem UR + 1, but the 0xff elision sentinel
                 // PROPAGATES (tok4 = tmem[URZ] prints idesc[URZ], not UR0).
-                ur = Some(if f.value == 255 { 255 } else { f.value.wrapping_add(1) });
+                ur = Some(if f.value == 255 {
+                    255
+                } else {
+                    f.value.wrapping_add(1)
+                });
                 break;
             }
         }
@@ -2355,8 +2924,10 @@ fn format_auri_uronly(fields: &[&DecodedField], raw: u128) -> String {
     for f in fields {
         let e = norm_ext(&f.extraction);
         match e.as_str() {
-            "sub_ur0" | "sub_ur1" | "ureg" | "tdesc_ur" | "gdesc_ur" =>
-                { ur = Some(f.value); ur_wide = f.bits >= 8; }
+            "sub_ur0" | "sub_ur1" | "ureg" | "tdesc_ur" | "gdesc_ur" => {
+                ur = Some(f.value);
+                ur_wide = f.bits >= 8;
+            }
             "sub_ur0_shr1" | "sub_ur1_shr1" => ur = Some(f.value << 1),
             s if s.starts_with("sub_imm") => {
                 offset |= sub_imm_off(s, f.value, f.bits);
@@ -2373,8 +2944,11 @@ fn format_auri_uronly(fields: &[&DecodedField], raw: u128) -> String {
     let un = ur.unwrap_or(((raw >> 24) as u64) & 0xFF);
     // 255 = URZ always. 63 = URZ unless it came from a wide (8-bit) field,
     // where it is the real UR63 register (corpus: "LDS.128 R8, [UR63]").
-    let ur_s = if un == 255 || (un == 63 && !ur_wide) { "URZ".to_string() }
-               else { format!("UR{un}") };
+    let ur_s = if un == 255 || (un == 63 && !ur_wide) {
+        "URZ".to_string()
+    } else {
+        format!("UR{un}")
+    };
     if !has_off_from_field {
         offset = 0;
     }
@@ -2393,16 +2967,20 @@ fn format_auri_uronly(fields: &[&DecodedField], raw: u128) -> String {
 
 fn format_syncs_addr(fields: &[&DecodedField]) -> String {
     let mut base_reg: Option<u64> = None;
-    let mut ur_reg:   Option<u64> = None;
-    let mut offset:   i64 = 0;
-    let mut has_off   = false;
+    let mut ur_reg: Option<u64> = None;
+    let mut offset: i64 = 0;
+    let mut has_off = false;
 
     for f in fields {
         let e = norm_ext(&f.extraction);
         match e.as_str() {
-            "sub_r1" | "sub_r0"                => base_reg = Some(f.value),
-            "reg"                              => { if base_reg.is_none() { base_reg = Some(f.value); } }
-            "sub_ur0" | "sub_ur1" | "ureg"     => ur_reg = Some(f.value),
+            "sub_r1" | "sub_r0" => base_reg = Some(f.value),
+            "reg" => {
+                if base_reg.is_none() {
+                    base_reg = Some(f.value);
+                }
+            }
+            "sub_ur0" | "sub_ur1" | "ureg" => ur_reg = Some(f.value),
             s if s.starts_with("sub_imm") => {
                 offset |= sub_imm_off(s, f.value, f.bits);
                 has_off = true;
@@ -2416,13 +2994,21 @@ fn format_syncs_addr(fields: &[&DecodedField]) -> String {
     }
 
     let rn = base_reg.unwrap_or(0);
-    let reg_s = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
+    let reg_s = if rn == 255 {
+        "RZ".to_string()
+    } else {
+        format!("R{rn}")
+    };
     let ur_s = match ur_reg {
         Some(255) | None => "URZ".to_string(),
         Some(un) => format!("UR{un}"),
     };
     let off_s = if has_off && offset != 0 {
-        if offset < 0 { format!("-0x{:x}", (-offset) as u64) } else { format!("+0x{offset:x}") }
+        if offset < 0 {
+            format!("-0x{:x}", (-offset) as u64)
+        } else {
+            format!("+0x{offset:x}")
+        }
     } else {
         String::new()
     };
@@ -2439,20 +3025,27 @@ fn format_syncs_addr(fields: &[&DecodedField]) -> String {
 
 fn format_aruri(fields: &[&DecodedField], raw: u128) -> String {
     let mut base_reg: Option<u64> = None;
-    let mut ur_reg:   Option<u64> = None;
-    let mut ur_wide = false;   // ureg/sub_ur*/desc_ur field of >= 8 bits: 63 = UR63 (real register)
-    let mut offset:   i64 = 0;
-    let mut has_off   = false;
+    let mut ur_reg: Option<u64> = None;
+    let mut ur_wide = false; // ureg/sub_ur*/desc_ur field of >= 8 bits: 63 = UR63 (real register)
+    let mut offset: i64 = 0;
+    let mut has_off = false;
 
     for f in fields {
         let e = norm_ext(&f.extraction);
         match e.as_str() {
             // SubR(1) = main base register in desc[UR][R.64+off]
-            "sub_r1" | "sub_r0"                => base_reg = Some(f.value),
-            "sub_r1_shr1" | "sub_r0_shr1"      => base_reg = Some(f.value << 1),
-            "reg"                               => { if base_reg.is_none() { base_reg = Some(f.value); } }
-            "sub_ur0" | "sub_ur1" | "ureg" | "desc_ur"  => { ur_reg = Some(f.value); ur_wide = f.bits >= 8; }
-            "sub_ur0_shr1" | "sub_ur1_shr1"    => ur_reg = Some(f.value << 1),
+            "sub_r1" | "sub_r0" => base_reg = Some(f.value),
+            "sub_r1_shr1" | "sub_r0_shr1" => base_reg = Some(f.value << 1),
+            "reg" => {
+                if base_reg.is_none() {
+                    base_reg = Some(f.value);
+                }
+            }
+            "sub_ur0" | "sub_ur1" | "ureg" | "desc_ur" => {
+                ur_reg = Some(f.value);
+                ur_wide = f.bits >= 8;
+            }
+            "sub_ur0_shr1" | "sub_ur1_shr1" => ur_reg = Some(f.value << 1),
             s if s.starts_with("sub_imm") => {
                 offset |= sub_imm_off(s, f.value, f.bits);
                 has_off = true;
@@ -2473,7 +3066,11 @@ fn format_aruri(fields: &[&DecodedField], raw: u128) -> String {
     }
 
     let rn = base_reg.unwrap_or(0);
-    let reg_s = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
+    let reg_s = if rn == 255 {
+        "RZ".to_string()
+    } else {
+        format!("R{rn}")
+    };
     // BUG-160: vendor law for the 8-bit descriptor-UR window (nvdisasm 13.3.73
     // probes on sm_120a/sm_103a): 255 = URZ (the zero uniform register), 63 =
     // UR63 (a real register, printed literally; vendor corpus even carries
@@ -2481,11 +3078,18 @@ fn format_aruri(fields: &[&DecodedField], raw: u128) -> String {
     // all-ones, which IS the URZ encoding there. Missing field: URZ default
     // (unchanged historical render for field-less rows).
     let un = ur_reg.unwrap_or(63);
-    let ur_s = if un == 255 || (un == 63 && !ur_wide) { "URZ".to_string() }
-               else { format!("UR{un}") };
+    let ur_s = if un == 255 || (un == 63 && !ur_wide) {
+        "URZ".to_string()
+    } else {
+        format!("UR{un}")
+    };
 
     let off_s = if has_off && offset != 0 {
-        if offset < 0 { format!("+-0x{:x}", (-offset) as u64) } else { format!("+0x{offset:x}") }
+        if offset < 0 {
+            format!("+-0x{:x}", (-offset) as u64)
+        } else {
+            format!("+0x{offset:x}")
+        }
     } else {
         String::new()
     };
@@ -2505,18 +3109,25 @@ fn format_desc_addr(fields: &[&DecodedField], raw: u128) -> String {
 
 fn format_sts_lds_addr(fields: &[&DecodedField], raw: u128) -> String {
     let mut base_reg: Option<u64> = None;
-    let mut ur_reg:   Option<u64> = None;
-    let mut ur_wide = false;   // pole ureg/sub_ur* o >= 8 bitach: 63 = UR63 (realny)
-    let mut offset:   i64 = 0;
-    let mut has_off   = false;
+    let mut ur_reg: Option<u64> = None;
+    let mut ur_wide = false; // pole ureg/sub_ur* o >= 8 bitach: 63 = UR63 (realny)
+    let mut offset: i64 = 0;
+    let mut has_off = false;
 
     for f in fields {
         let e = norm_ext(&f.extraction);
         match e.as_str() {
-            "sub_r1" | "sub_r0"             => base_reg = Some(f.value),
-            "sub_r1_shr1" | "sub_r0_shr1"  => base_reg = Some(f.value << 1),
-            "reg"                           => { if base_reg.is_none() { base_reg = Some(f.value); } }
-            "sub_ur0" | "sub_ur1" | "ureg"  => { ur_reg = Some(f.value); ur_wide = f.bits >= 8; }
+            "sub_r1" | "sub_r0" => base_reg = Some(f.value),
+            "sub_r1_shr1" | "sub_r0_shr1" => base_reg = Some(f.value << 1),
+            "reg" => {
+                if base_reg.is_none() {
+                    base_reg = Some(f.value);
+                }
+            }
+            "sub_ur0" | "sub_ur1" | "ureg" => {
+                ur_reg = Some(f.value);
+                ur_wide = f.bits >= 8;
+            }
             "sub_ur0_shr1" | "sub_ur1_shr1" => ur_reg = Some(f.value << 1),
             s if s.starts_with("sub_imm") => {
                 offset |= sub_imm_off(s, f.value, f.bits);
@@ -2533,19 +3144,32 @@ fn format_sts_lds_addr(fields: &[&DecodedField], raw: u128) -> String {
     // Raw fallback for UR when no ur field provided (sub_ur fields at hi64 positions)
     if ur_reg.is_none() {
         let raw_ur = ((raw >> 64) & 0xFF) as u64;
-        if raw_ur != 255 { ur_reg = Some(if raw_ur == 63 { 63 } else { raw_ur }); }
+        if raw_ur != 255 {
+            ur_reg = Some(if raw_ur == 63 { 63 } else { raw_ur });
+        }
     }
     // Raw fallback for offset: STS/LDS encode shared memory offset at bits[55:40] (16-bit).
     // This handles cases where the offset field is missing from the ISA table.
     if !has_off {
         let raw_off = ((raw >> 40) & 0xFFFF) as i64;
-        if raw_off != 0 { offset = raw_off; has_off = true; }
+        if raw_off != 0 {
+            offset = raw_off;
+            has_off = true;
+        }
     }
 
     let rn = base_reg.unwrap_or(0);
-    let reg_s = if rn == 255 { "RZ".to_string() } else { format!("R{rn}") };
+    let reg_s = if rn == 255 {
+        "RZ".to_string()
+    } else {
+        format!("R{rn}")
+    };
     let un = ur_reg.unwrap_or(63);
-    let ur_s = if un == 63 && !ur_wide { "URZ".to_string() } else { format!("UR{un}") };
+    let ur_s = if un == 63 && !ur_wide {
+        "URZ".to_string()
+    } else {
+        format!("UR{un}")
+    };
 
     // No UR component at all -> print base only ("[RZ]", "[R10]", "[R66+0x80]").
     if ur_reg.is_none() {
@@ -2593,10 +3217,10 @@ fn format_const_addr(fields: &[&DecodedField], ins_key: &str) -> String {
     let mut cm_val: Option<u64> = None;
     let mut bank_shift: u32 = 16;
     let mut is_cm17 = false;
-    let mut bank_field: Option<(u32, u64)> = None;   // (bits, value) of SubImm(0)
+    let mut bank_field: Option<(u32, u64)> = None; // (bits, value) of SubImm(0)
     let mut off_field: Option<(u32, u64, u8)> = None; // (bits, value, idx) best so far
     let mut base_reg: Option<u64> = None;
-    let mut ur_reg: Option<(u64, u32)> = None;       // (value, bits) of SubUR(*) token part
+    let mut ur_reg: Option<(u64, u32)> = None; // (value, bits) of SubUR(*) token part
 
     for f in fields {
         let e = norm_ext(&f.extraction);
@@ -2609,13 +3233,19 @@ fn format_const_addr(fields: &[&DecodedField], ins_key: &str) -> String {
             bank_shift = 16;
         } else if e.starts_with("sub_imm") {
             // sub_imm{i}[...] — extract the leading sub-index digit.
-            let idx = e.trim_start_matches("sub_imm").chars().next()
-                .and_then(|ch| ch.to_digit(10)).map(|d| d as u8);
+            let idx = e
+                .trim_start_matches("sub_imm")
+                .chars()
+                .next()
+                .and_then(|ch| ch.to_digit(10))
+                .map(|d| d as u8);
             match idx {
                 Some(0) => bank_field = Some((f.bits, f.value)),
                 Some(k) => {
                     let better = off_field.map(|(_, _, ok)| k >= ok).unwrap_or(true);
-                    if better { off_field = Some((f.bits, f.value, k)); }
+                    if better {
+                        off_field = Some((f.bits, f.value, k));
+                    }
                 }
                 None => {
                     // generic sub_imm{...} without parseable index: treat as offset
@@ -2625,13 +3255,21 @@ fn format_const_addr(fields: &[&DecodedField], ins_key: &str) -> String {
         }
         // SubR(1) = base register for indirect constant access (c[bank][R+off])
         if e.starts_with("sub_r") {
-            let v = if e.contains("shr1") { f.value << 1 } else { f.value };
+            let v = if e.contains("shr1") {
+                f.value << 1
+            } else {
+                f.value
+            };
             base_reg = Some(v);
         }
         // SubUR(0/1) = uniform index register for c[bank][UR+off] (BUG-151;
         // "sub_ur" prefix disjunct from "sub_r": 5th char is 'u')
         if e.starts_with("sub_ur") {
-            let v = if e.contains("shr1") { f.value << 1 } else { f.value };
+            let v = if e.contains("shr1") {
+                f.value << 1
+            } else {
+                f.value
+            };
             ur_reg = Some((v, f.bits));
         }
     }
@@ -2645,7 +3283,8 @@ fn format_const_addr(fields: &[&DecodedField], ins_key: &str) -> String {
     let (bank, offset) = if let Some((_bits, v, _k)) = off_field {
         // Offset window may include bank copies in its high bits (widened fits);
         // bank itself comes from the dedicated SubImm(0) or the combined field.
-        let bank = bank_field.map(|(_, b)| b)
+        let bank = bank_field
+            .map(|(_, b)| b)
             .or_else(|| cm_val.map(|cv| (cv >> bank_shift) & 0x1f))
             .unwrap_or(0);
         // Canonical form: window high bits can hold a widened copy of the
@@ -2780,7 +3419,9 @@ fn format_sysreg(fields: &[&DecodedField], raw: u128) -> String {
     let raw_id = ((raw >> 72) & 0xFF) as u32;
     if raw_id != 0 {
         for (code, name) in SYSREG_NAMES {
-            if *code == raw_id { return name.to_string(); }
+            if *code == raw_id {
+                return name.to_string();
+            }
         }
         // Fallback to field reconstruction if raw_id not in table
     }
@@ -2791,14 +3432,16 @@ fn format_sysreg(fields: &[&DecodedField], raw: u128) -> String {
         let e = norm_ext(&f.extraction);
         match e.as_str() {
             "sysreg" | "sysreg_lo7" => id = (id & !0x7F) | (f.value as u32 & 0x7F),
-            "sysreg_lo4"            => id = (id & !0x0F) | (f.value as u32 & 0x0F),
-            "sysreg_hi4"            => id = (id & !0xF0) | ((f.value as u32 & 0xF) << 4),
-            "sysreg_hi1"            => id = (id & !0x80) | ((f.value as u32 & 1)   << 7),
+            "sysreg_lo4" => id = (id & !0x0F) | (f.value as u32 & 0x0F),
+            "sysreg_hi4" => id = (id & !0xF0) | ((f.value as u32 & 0xF) << 4),
+            "sysreg_hi1" => id = (id & !0x80) | ((f.value as u32 & 1) << 7),
             _ => {}
         }
     }
     for (code, name) in SYSREG_NAMES {
-        if *code == id { return name.to_string(); }
+        if *code == id {
+            return name.to_string();
+        }
     }
     format!("SR_0x{id:04x}")
 }
@@ -2815,7 +3458,7 @@ fn format_barrier(fields: &[&DecodedField]) -> String {
     }
     match b {
         Some(n) => format!("B{n}"),
-        None    => "B0".to_string(),
+        None => "B0".to_string(),
     }
 }
 
@@ -2823,23 +3466,26 @@ fn format_barrier(fields: &[&DecodedField]) -> String {
 
 fn half_to_f32_bits(hf: u16) -> u32 {
     let sign = (hf >> 15) as u32;
-    let exp  = ((hf >> 10) & 0x1f) as u32;
+    let exp = ((hf >> 10) & 0x1f) as u32;
     let mant = (hf & 0x3ff) as u32;
     if exp == 0 && mant == 0 {
-        sign << 31  // ±0.0
+        sign << 31 // ±0.0
     } else if exp == 0 {
         // Subnormal half-float: (-1)^sign × 2^(-14) × (mant/1024)
         // Normalize for f32 representation
         let mut m = mant;
         let mut e: i32 = -14;
-        while m & 0x200 == 0 { m <<= 1; e -= 1; }
-        m = (m << 1) & 0x3ff;  // remove implicit leading 1
-        // After the loop: m = 0x200, with implicit leading 1 at bit 9.
-        // The normal form exponent n = e - 1 (since 2^e × 2^9 × 2^(-10) = 2^(e-1)).
+        while m & 0x200 == 0 {
+            m <<= 1;
+            e -= 1;
+        }
+        m = (m << 1) & 0x3ff; // remove implicit leading 1
+                              // After the loop: m = 0x200, with implicit leading 1 at bit 9.
+                              // The normal form exponent n = e - 1 (since 2^e × 2^9 × 2^(-10) = 2^(e-1)).
         let f32_exp = (e - 1 + 127) as u32;
         (sign << 31) | (f32_exp << 23) | (m << 13)
     } else if exp == 31 {
-        (sign << 31) | 0x7f800000 | (mant << 13)  // ±Inf or NaN
+        (sign << 31) | 0x7f800000 | (mant << 13) // ±Inf or NaN
     } else {
         (sign << 31) | ((exp + 127 - 15) << 23) | (mant << 13)
     }
@@ -2852,7 +3498,11 @@ fn format_float(f: f32, neg: bool) -> String {
         // 0xff800000 = -INF); a bare "+INF" would re-encode as +INF and drop
         // bit31. Compose with the explicit neg flag when present.
         let sneg = neg != f.is_sign_negative();
-        return if sneg { "-INF ".to_string() } else { "+INF ".to_string() };
+        return if sneg {
+            "-INF ".to_string()
+        } else {
+            "+INF ".to_string()
+        };
     }
     // NaN glyph law (BUG-177; nvdisasm 13.3.73 arbitration on FSEL+FMUL
     // skeletons, sm_103a + sm_120a, work/bug177/arb/arb177.json): sign bit
@@ -2862,8 +3512,16 @@ fn format_float(f: f32, neg: bool) -> String {
     // render "+QNAN"). Decode-side render parity only: re-encode of any
     // *NAN token stays parked (bimodal bit lanes, see parser.rs comment).
     if f.is_nan() {
-        let sneg = if neg != f.is_sign_negative() { "-" } else { "+" };
-        let kind = if f.to_bits() & 0x0040_0000 != 0 { "QNAN" } else { "SNAN" };
+        let sneg = if neg != f.is_sign_negative() {
+            "-"
+        } else {
+            "+"
+        };
+        let kind = if f.to_bits() & 0x0040_0000 != 0 {
+            "QNAN"
+        } else {
+            "SNAN"
+        };
         return format!("{sneg}{kind} ");
     }
     if f == 0.0 {
@@ -2874,7 +3532,11 @@ fn format_float(f: f32, neg: bool) -> String {
         // bf16 halves identical law). Encoder must hear the sign: HFMA2 imm
         // pair "0, -0").
         let neg0 = neg || (f.is_sign_negative());
-        return if neg0 { "-0.0 ".to_string() } else { "0".to_string() };
+        return if neg0 {
+            "-0.0 ".to_string()
+        } else {
+            "0".to_string()
+        };
     }
     // Integral values print bare (nvdisasm: "FFMA R0, R1, R2, 1" not "1.0e+00").
     if f == f.trunc() && f.abs() < 16_777_216.0 {
@@ -2899,7 +3561,16 @@ fn format_float(f: f32, neg: bool) -> String {
 fn format_double(f: f64, neg: bool) -> String {
     let neg_s = if neg { "-" } else { "" };
     // nvdisasm always signs INF ("+INF"/"-INF") in FP64-immediate context.
-    if f.is_infinite() { return format!("{}INF ", if neg || f.is_sign_negative() { "-" } else { "+" }); }
+    if f.is_infinite() {
+        return format!(
+            "{}INF ",
+            if neg || f.is_sign_negative() {
+                "-"
+            } else {
+                "+"
+            }
+        );
+    }
     // FP64 NaN glyph law (BUG-255, arb255 nvdisasm 13.3.73 raw -b SM103a ==
     // SM121a on corpus DFMA/DSETP witnesses with a patched f64hi window):
     // sign = explicit neg field XOR the value's own sign bit (same compose
@@ -2910,11 +3581,21 @@ fn format_double(f: f64, neg: bool) -> String {
     // stays on the glyph exactly like INF; the to_sass tail-trim (BUG-255)
     // shaves it only when this immediate is the LAST operand.
     if f.is_nan() {
-        let sneg = if neg != f.is_sign_negative() { "-" } else { "+" };
-        let kind = if f.to_bits() & 0x0008_0000_0000_0000 != 0 { "QNAN" } else { "SNAN" };
+        let sneg = if neg != f.is_sign_negative() {
+            "-"
+        } else {
+            "+"
+        };
+        let kind = if f.to_bits() & 0x0008_0000_0000_0000 != 0 {
+            "QNAN"
+        } else {
+            "SNAN"
+        };
         return format!("{sneg}{kind} ");
     }
-    if f == 0.0        { return "1".to_string(); } // integer 1 used as double constant
+    if f == 0.0 {
+        return "1".to_string();
+    } // integer 1 used as double constant
     if f == f.trunc() && f.abs() < 16_777_216.0 {
         return format!("{neg_s}{}", f as i64);
     }
@@ -3009,7 +3690,11 @@ fn normalize_sci_exp(s: String) -> String {
         let mantissa_stripped = if mantissa.contains('.') {
             let trimmed = mantissa.trim_end_matches('0');
             // Keep at least one digit after the decimal point
-            if trimmed.ends_with('.') { &mantissa[..trimmed.len() + 1] } else { trimmed }
+            if trimmed.ends_with('.') {
+                &mantissa[..trimmed.len() + 1]
+            } else {
+                trimmed
+            }
         } else {
             mantissa
         };
@@ -3036,7 +3721,11 @@ fn parse_shr_suffix(s: &str) -> u32 {
 fn sub_imm_off(s: &str, value: u64, bits: u32) -> i64 {
     let unsigned = s.ends_with('u') && s.contains("_shr");
     let sh = parse_shr_suffix(s.strip_suffix('u').unwrap_or(s));
-    let v = if unsigned { value as i64 } else { sign_extend(value, bits) };
+    let v = if unsigned {
+        value as i64
+    } else {
+        sign_extend(value, bits)
+    };
     v << sh
 }
 
@@ -3047,7 +3736,9 @@ pub fn sign_extend_pub(val: u64, bits: u32) -> i64 {
 }
 
 fn sign_extend(val: u64, bits: u32) -> i64 {
-    if bits == 0 || bits >= 64 { return val as i64; }
+    if bits == 0 || bits >= 64 {
+        return val as i64;
+    }
     let sign_bit = 1u64 << (bits - 1);
     if val & sign_bit != 0 {
         (val | !((1u64 << bits) - 1)) as i64

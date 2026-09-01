@@ -308,6 +308,13 @@ impl DecodeIndex {
                 // absorbed vendor-INVALID type indices 6/7 (nvdisasm `F2I.???6/
                 // ???7`) as the U32/S32 sibling. Fail closed instead.
                 "F2I" |
+                // BUG-308: F2IP sibling of the F2I arm. The prio-3 sign
+                // window on F2IP is selector/modifier law (hsel-H1 b72,
+                // .RELU b75, .NTZ b74; b62/b63/b73 vendor-inert) measured by
+                // arb308 x4 models. Corpus exposure ZERO (census308 x4 legs:
+                // no F2IP word at any sign-window distance from a row).
+                // Fail closed.
+                "F2IP" |
                 // BUG-126: USHF packs direction/sign/width/W in bits
                 // {76,73,74,75} — all inside the prio-3 window. Shows up as the
                 // lossy "!rsd[74:1]" path (R,U32 imm-form words absorbed by the
@@ -325,7 +332,18 @@ impl DecodeIndex {
                 // prio-3 tiebreak). Fail closed; corpus exposure of the
                 // whole family is measured ZERO (routex282 FULL 2,406-cubin
                 // battery, both legs; routex276 likewise).
-                "I2IP");
+                "I2IP" |
+                // BUG-283: MOVM.16 carries the vendor name-space law in bits
+                // [79:75] (arb283 G x4 models: [77:75] 0=16 / 1=U4TO8 /
+                // 5..7=INVALID5..7, [79:78] 0=MT88 / 1=M832 / 2=M864 /
+                // 3=INVALID3). b75 (= [77:75] value 1 = U4TO8 sibling lane)
+                // sits inside the prio-3 Rc sign window {62,63,72,73,74,75}
+                // and was absorbed as plain '16.MT88' = vendor-WRONG name
+                // (measured post-graft on the canonical-1beab0f tables: word
+                // 0x23a|(1<<75) decoded '@P0 MOVM.16.MT88 R0, R0'). The MT88
+                // lane itself is armed table-side (care [79:75]); the sibling
+                // lanes stay unclaimed coverage gaps (316-kand). Fail closed.
+                "MOVM");
             // BUG-225: census-driven arm batch (cross-census prio-3 absorb,
             // work/bug225). These bases have NO sign-able register operands
             // (pure control/sync + tmem/tensor lanes: dests, UR/desc, preds,
@@ -578,7 +596,24 @@ impl DecodeIndex {
                 // x4 models print b62/b63/b72/b73 text-INERT there
                 // (singles + guard/payload compositions). The ghost arm
                 // printed '-R38'/'|R38|' for b72/b73 = vendor-WRONG.
-                "I2I"
+                "I2I" |
+                // BUG-283: MOVM has no sign-modifiable register operands --
+                // arb283 D x4 models print b62/b63/b72/b73 text-INERT on the
+                // 0x23a MT88 lane (b74/b75 + b78/b79 = the [79:75] sub-op
+                // name-space, armed care-side). The post-graft lane row is
+                // strict-matched on the inert band, so the ghost post-pass
+                // printed '-R0' (b72) / '|R0|' (b73) = vendor-WRONG (measured
+                // on the canonical-1beab0f tables pre-arm). Fail closed.
+                "MOVM" |
+                // BUG-308: F2I/F2IP/USHF sign-window bits carry family law
+                // (type S/U idx b72, USHF size/W b73..b75, F2IP hsel-H1 b72 /
+                // .RELU b75; b62/b63/b73 vendor-inert on F2IP) -- arb308 x4
+                // models on the full measure308b mint census. Corpus
+                // exposure ZERO (census308 x4 legs: no claimed word prints a
+                // ghost sign). Field-carried era F2I.*_R_R rows (neg@63/
+                // abs@62 tok2, vendor-parity) are bit_covered and never pass
+                // through here. Fail closed on the bare ghost glyphs.
+                "F2I" | "F2IP" | "USHF"
             );
             // BUG-225: same census-driven family as the prio-3 gate above —
             // control/sync + tmem/tensor bases have no sign-modifiable
@@ -999,8 +1034,14 @@ fn key_field_consistency_score(key: &str, mod_group: &str, table: &IsaTable) -> 
         let is_upred   = ext_lower == "upred";
         let is_reg     = matches!(ext_lower.as_str(), "reg" | "ureg" | "ureg_ff" | "reg_ff"
             | "reg_shr1" | "reg_shr2" | "reg_shr3");
-        let is_imm     = ext_lower.starts_with("imm") || matches!(ext_lower.as_str(),
-            "f32" | "f16" | "f16_d" | "f64hi" | "f32cast");
+        // BUG-288: "bf16" is an immediate format too (HFMA2.BF16_V2 imm rows);
+        // without it the armed keys lost the (II-slot x BF16-field) consistency
+        // score and the decode route fell back to the II_FI_P "0x0" printer.
+        let is_imm = ext_lower.starts_with("imm")
+            || matches!(
+                ext_lower.as_str(),
+                "f32" | "f16" | "f16_d" | "f64hi" | "f32cast" | "bf16"
+            );
         let is_barrier = ext_lower == "barrier";
         let expected_pred    = op_type == "P";
         let expected_upred   = op_type == "UP";

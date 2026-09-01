@@ -287,12 +287,15 @@ fn t261_3_decode_hsel_laws() {
         dec(&t, (h | (3 << 74)) & M96).as_deref(),
         Some("@P0 HADD2 R0, R0.H1_H1, 0, 0")
     );
-    // HFMA2 BF16_V2 corpus witnesses: tok2/tok4 suffixes vendor-equal post;
-    // tok3-UR suffix FLIPPED 2026-08-29 (BUG-264): era 4-bit 'neg'@60 ->
-    // hsel 2b@60 + abs@62 + neg@63 (arb264 x4 models). Vendor-equal now.
+    // HFMA2 BF16_V2-era corpus witnesses: tok2/tok4 suffixes vendor-equal
+    // post; tok3-UR suffix FLIPPED 2026-08-29 (BUG-264): era 4-bit 'neg'@60
+    // -> hsel 2b@60 + abs@62 + neg@63 (arb264 x4 models). Mnemonic-mod
+    // FLIPPED 2026-08-31 (BUG-307): the witness words carry NO discriminant
+    // bit (b85=0) -- vendor prints them PLAIN (arb307c x4 models); the era
+    // 'BF16_V2' claim was a lattice inference, now closed.
     assert_eq!(
         dec(&t, W_HMA & M96).as_deref(),
-        Some("HFMA2.BF16_V2 R5, R2.H0_H0, UR4.H0_H0, R5.H0_H0")
+        Some("HFMA2 R5, R2.H0_H0, UR4.H0_H0, R5.H0_H0")
     );
     // wit B, harness convention ctl-zeroed (t258 pattern): vendor =
     // 'HFMA2 R9, R12.reuse.H0_H0, UR8.H0_H0, -R11.reuse.H1_H1' (nvdisasm,
@@ -303,7 +306,7 @@ fn t261_3_decode_hsel_laws() {
     // '.H0_H0' (vendor-equal on the corpus witnesses, arb264 A-set)).
     assert_eq!(
         dec(&t, W_HMB & M96).as_deref(),
-        Some("HFMA2.BF16_V2 R9, R12.H0_H0, UR8.H0_H0, -R11.H1_H1")
+        Some("HFMA2 R9, R12.H0_H0, UR8.H0_H0, -R11.H1_H1")
     );
     // sm120 leg law spot-checks.
     let t = tab("sm120");
@@ -372,9 +375,11 @@ fn t261_5_residuum_sentinels() {
     );
     // HMUL2 witness FLIPPED 2026-08-29 (BUG-264): era 4-bit 'neg'@60 ghost
     // '-UR8' closed by hsel 2b@60 graft (vendor 'UR8.H1_H1', arb264 A-set).
+    // Mnemonic-mod FLIPPED 2026-08-31 (BUG-307): b85=0 -> vendor PLAIN
+    // 'HMUL2 R11, R12, UR8.H1_H1' (arb307c x4 models).
     assert_eq!(
         dec(&t, W_HML & M96).as_deref(),
-        Some("HMUL2.BF16_V2 R11, R12, UR8.H1_H1")
+        Some("HMUL2 R11, R12, UR8.H1_H1")
     );
     // FLIPPED 2026-08-29 (BUG-265): registry closure. I2IP '' retyped
     // (neg2b@72 gone, opmod:H1 1b@72 in -- arb265 A), FMNMX-'?' row DELETED

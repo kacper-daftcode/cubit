@@ -2259,8 +2259,17 @@ fn record_defs(st: &mut SchedulerState, insn: &Instruction, idx: usize, barrier:
 /// until each destination is redefined; loop-carried consumers are the reads in
 /// `[ltop, last_setter)` that precede a redefinition.
 #[allow(clippy::too_many_arguments)]
-fn raw_consumers(reads: &[Vec<u16>], writes: &[Vec<u16>], guarded: &[bool], last_setter: usize,
-                 dsts: &[u16], ltop: usize, lback: usize, n: usize) -> (Vec<usize>, bool) {
+fn raw_consumers(
+    reads: &[Vec<u16>],
+    writes: &[Vec<u16>],
+    guarded: &[bool],
+    last_setter: usize,
+    dsts: &[u16],
+    ltop: usize,
+    lback: usize,
+    edges: &[(usize, usize)],
+    n: usize,
+) -> (Vec<usize>, bool) {
     // Only the FIRST consumer on each control path needs to wait the write-barrier — once
     // it waits, the load has completed and the destination registers are ready for every
     // later reader. Collect consumers up to and INCLUDING the first UNGUARDED one per path
@@ -2286,9 +2295,29 @@ fn raw_consumers(reads: &[Vec<u16>], writes: &[Vec<u16>], guarded: &[bool], last
     }
     let mut wrap = false;
     if ltop != usize::MAX && last_setter <= lback {
-        let before = waiters.len();
-        scan(&mut waiters, ltop, last_setter, dsts);
-        if waiters.len() > before { wrap = true; }
+        // BUG-342: consumers reachable via ANY enclosing back-edge, not only the
+        // innermost loop. A producer inside a nested loop whose consumer sits in
+        // an outer loop head (textually above, below the outer top) is a genuine
+        // loop-carried RAW; scanning only [innermost_top, setter) misses it, so
+        // the producer was emitted with NO write barrier (wbar=7) while its
+        // consumer waited a barrier armed on a different path -> stale reads on
+        // silicon (sm120 i290). Scan the head region of every enclosing loop,
+        // innermost first, each with a fresh live set (per-path doctrine).
+        let mut enc: Vec<(usize, usize)> = edges
+            .iter()
+            .copied()
+            .filter(|&(t, b)| t <= last_setter && last_setter <= b)
+            .collect();
+        enc.sort_by_key(|&(t, b)| b - t);
+        let mut hi = last_setter;
+        for (t, _b) in enc {
+            let before = waiters.len();
+            scan(&mut waiters, t, hi, dsts);
+            if waiters.len() > before {
+                wrap = true;
+            }
+            hi = t;
+        }
     }
     (waiters, wrap)
 }
@@ -2298,18 +2327,37 @@ fn raw_consumers(reads: &[Vec<u16>], writes: &[Vec<u16>], guarded: &[bool], last
 /// wait the read-barrier: the linear fall-through one (covers the last loop
 /// iteration / straight-line code) and the loop-carried one across the back-edge
 /// (covers every non-last iteration). Returns each as (overwriter, wrap).
-fn war_overwriter(writes: &[Vec<u16>], i: usize, opk: &[u16],
-                  ltop: usize, lback: usize, n: usize) -> Vec<(usize, bool)> {
+fn war_overwriter(
+    writes: &[Vec<u16>],
+    i: usize,
+    opk: &[u16],
+    ltop: usize,
+    lback: usize,
+    edges: &[(usize, usize)],
+    n: usize,
+) -> Vec<(usize, bool)> {
     let mut out = Vec::new();
     // Fall-through: first overwriter in linear program order (within loop or after it).
     let mut j = i + 1;
     while j < n {
-        if writes[j].iter().any(|w| opk.contains(w)) { out.push((j, false)); break; }
+        if writes[j].iter().any(|w| opk.contains(w)) {
+            out.push((j, false));
+            break;
+        }
         j += 1;
     }
-    // Loop-carried: first overwriter at/after the loop top in the next iteration.
+    // Loop-carried: first overwriter at/after the OUTERMOST enclosing loop top in
+    // the next iteration (BUG-342): an overwriter in an outer loop head is earlier
+    // in re-entry order than any inner one; scanning only [innermost_top, i)
+    // missed it and left the late-latched operand unprotected across that edge.
     if ltop != usize::MAX && i <= lback {
-        let mut k = ltop;
+        let outer_top = edges
+            .iter()
+            .filter(|&&(t, b)| t <= i && i <= b)
+            .map(|&(t, _)| t)
+            .min()
+            .unwrap_or(ltop);
+        let mut k = outer_top;
         while k < i {
             if writes[k].iter().any(|w| opk.contains(w)) { out.push((k, true)); break; }
             k += 1;
@@ -2332,21 +2380,58 @@ struct BarUse {
 /// occupies TWO disjoint segments — [first, loopEnd] this iteration and
 /// [loopTop, wrapWaiter] the next — leaving the loop's middle free (so it does NOT
 /// reserve the whole loop body, unlike a coarse single interval).
-fn build_segs(first: usize, waiters: &[usize], ltop: usize, lback: usize) -> Vec<(usize, usize)> {
+fn build_segs(
+    first: usize,
+    waiters: &[usize],
+    ltop: usize,
+    lback: usize,
+    edges: &[(usize, usize)],
+) -> Vec<(usize, usize)> {
     let mut fwd_hi = first;
-    let mut wrap_hi: Option<usize> = None;
+    let mut wraps: Vec<usize> = Vec::new();
     for &w in waiters {
-        if w >= first { fwd_hi = fwd_hi.max(w); }
-        else { wrap_hi = Some(wrap_hi.map_or(w, |x: usize| x.max(w))); }
-    }
-    match wrap_hi {
-        Some(wh) => {
-            let lb = if lback != usize::MAX { lback } else { fwd_hi };
-            let top = if ltop != usize::MAX { ltop } else { first };
-            vec![(first, fwd_hi.max(lb)), (top, wh)]
+        if w >= first {
+            fwd_hi = fwd_hi.max(w);
+        } else {
+            wraps.push(w);
         }
-        None => vec![(first, fwd_hi)],
     }
+    if wraps.is_empty() {
+        return vec![(first, fwd_hi)];
+    }
+    // BUG-342: pair each wrap waiter with the TIGHTEST back-edge that encloses
+    // both the producer and the waiter. The setter segment must span to that
+    // edge (seg_hi) and the head segment starts at that edge's loop top;
+    // waiters in different enclosing loops get one head segment per loop top.
+    // Identical to the legacy two-segment shape whenever every wrap waiter
+    // lives in the innermost loop (all previously-correct uses unchanged).
+    let mut seg_hi = fwd_hi;
+    let mut heads: Vec<(usize, usize)> = Vec::new(); // (loop_top, max waiter)
+    for &w in &wraps {
+        let pick = edges
+            .iter()
+            .filter(|&&(t, b)| t <= w && w <= b && t <= first && first <= b)
+            .min_by_key(|&&(t, b)| b - t)
+            .copied();
+        let (top, lb) = match pick {
+            Some(e) => e,
+            None => {
+                let lb = if lback != usize::MAX { lback } else { fwd_hi };
+                let top = if ltop != usize::MAX { ltop } else { first };
+                (top, lb)
+            }
+        };
+        seg_hi = seg_hi.max(lb);
+        match heads.iter_mut().find(|(ht, _)| *ht == top) {
+            Some(h) => h.1 = h.1.max(w),
+            None => heads.push((top, w)),
+        }
+    }
+    let mut out = vec![(first, seg_hi)];
+    for (t, hw) in heads {
+        out.push((t, hw));
+    }
+    out
 }
 
 /// Correct unified SM120 scoreboard barrier allocator.
@@ -2430,16 +2515,21 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
     }
 
     // addr -> index, and innermost loop [top, back] per instruction.
+    // `edges` = every resolved backward branch (target_idx, branch_idx): the
+    // loop-NEST view for BUG-342 wrap-liveness (consumers / WAR overwriters can
+    // sit in ANY enclosing loop, not only the innermost one).
     use std::collections::HashMap;
     let mut addr2idx: HashMap<u32, usize> = HashMap::new();
     for (i, ins) in insns.iter().enumerate() { addr2idx.insert(ins.addr, i); }
     let mut ltop = vec![usize::MAX; n];
     let mut lback = vec![usize::MAX; n];
+    let mut edges: Vec<(usize, usize)> = Vec::new();
     for (j, ins) in insns.iter().enumerate() {
         if !is_control_flow(ins.opcode.as_str()) { continue; }
         let Some(t) = branch_target(ins) else { continue; };
         let Some(&ti) = addr2idx.get(&t) else { continue; };
         if ti > j { continue; }
+        edges.push((ti, j));
         for k in ti..=j {
             let cur = if ltop[k] == usize::MAX { usize::MAX } else { lback[k] - ltop[k] };
             if j - ti < cur { ltop[k] = ti; lback[k] = j; }
@@ -2558,11 +2648,27 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         }
         let last = *group.last().unwrap();
         let mut gd: Vec<u16> = group.iter().flat_map(|&g| writes[g].clone()).collect();
-        gd.sort_unstable(); gd.dedup();
-        let (waiters, _wrap) = raw_consumers(&reads, &writes, &guarded, last, &gd, ltop[last], lback[last], n);
+        gd.sort_unstable();
+        gd.dedup();
+        let (waiters, _wrap) = raw_consumers(
+            &reads,
+            &writes,
+            &guarded,
+            last,
+            &gd,
+            ltop[last],
+            lback[last],
+            &edges,
+            n,
+        );
         if !waiters.is_empty() {
-            let segs = build_segs(group[0], &waiters, ltop[last], lback[last]);
-            uses.push(BarUse { setters: group.clone(), waiters, is_rb: false, segs });
+            let segs = build_segs(group[0], &waiters, ltop[last], lback[last], &edges);
+            uses.push(BarUse {
+                setters: group.clone(),
+                waiters,
+                is_rb: false,
+                segs,
+            });
             pin_of.push(None);
         }
         i = last + 1;
@@ -2611,12 +2717,19 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         // data). Both are real WARs at high occupancy and are load-bearing for correctness
         // (dropping the loop-carried load-address rb corrupts the gather: 337/340 wrong).
         let mut waiters: Vec<usize> = Vec::new();
-        for (ow, _w) in war_overwriter(&writes, idx, &opk, ltop[idx], lback[idx], n) {
-            if !waiters.contains(&ow) { waiters.push(ow); }
+        for (ow, _w) in war_overwriter(&writes, idx, &opk, ltop[idx], lback[idx], &edges, n) {
+            if !waiters.contains(&ow) {
+                waiters.push(ow);
+            }
         }
         if waiters.is_empty() { continue; }
-        let segs = build_segs(idx, &waiters, ltop[idx], lback[idx]);
-        uses.push(BarUse { setters: vec![idx], waiters, is_rb: true, segs });
+        let segs = build_segs(idx, &waiters, ltop[idx], lback[idx], &edges);
+        uses.push(BarUse {
+            setters: vec![idx],
+            waiters,
+            is_rb: true,
+            segs,
+        });
         pin_of.push(None);
     }
 
@@ -2641,12 +2754,26 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         if b >= NUM_BARRIERS as u8 { continue; }
         if !insn_needs_write_bar(&insns[i], table, true) { continue; }
         let gd = writes[i].clone();
-        if gd.is_empty() { continue; }
-        let (waiters, _wrap) = raw_consumers(&reads, &writes, &guarded, i, &gd, ltop[i], lback[i], n);
-        let auto_waiters: Vec<usize> = waiters.into_iter().filter(|&w| !insns[w].hand_sched).collect();
-        if auto_waiters.is_empty() { continue; }
-        let segs = build_segs(i, &auto_waiters, ltop[i], lback[i]);
-        uses.push(BarUse { setters: vec![i], waiters: auto_waiters, is_rb: false, segs });
+        if gd.is_empty() {
+            continue;
+        }
+        let (waiters, _wrap) = raw_consumers(
+            &reads, &writes, &guarded, i, &gd, ltop[i], lback[i], &edges, n,
+        );
+        let auto_waiters: Vec<usize> = waiters
+            .into_iter()
+            .filter(|&w| !insns[w].hand_sched)
+            .collect();
+        if auto_waiters.is_empty() {
+            continue;
+        }
+        let segs = build_segs(i, &auto_waiters, ltop[i], lback[i], &edges);
+        uses.push(BarUse {
+            setters: vec![i],
+            waiters: auto_waiters,
+            is_rb: false,
+            segs,
+        });
         pin_of.push(Some(b));
     }
     // PINNED read-barrier arm: a hand_sched memory op whose tag claims `R{b}`
@@ -2663,11 +2790,11 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         if late.is_empty() { continue; }
         let opk: Vec<u16> = late.iter().map(|&r| rk(false, r)).collect();
         let mut waiters: Vec<usize> = Vec::new();
-        for (ow, _w) in war_overwriter(&writes, i, &opk, ltop[i], lback[i], n) {
+        for (ow, _w) in war_overwriter(&writes, i, &opk, ltop[i], lback[i], &edges, n) {
             if !insns[ow].hand_sched && !waiters.contains(&ow) { waiters.push(ow); }
         }
         if waiters.is_empty() { continue; }
-        let segs = build_segs(i, &waiters, ltop[i], lback[i]);
+        let segs = build_segs(i, &waiters, ltop[i], lback[i], &edges);
         uses.push(BarUse { setters: vec![i], waiters, is_rb: true, segs });
         pin_of.push(Some(b));
     }

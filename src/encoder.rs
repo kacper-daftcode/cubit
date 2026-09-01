@@ -1746,15 +1746,20 @@ fn check_operand_suffixes(insn: &Instruction, entry: &crate::table::ModGroupEntr
     // the selector payload is the registered IMMA sparse selector lane
     // (rt baseline keeps the residual mismatch population visible).
     let imma_sel = insn.opcode == "IMMA";
-    // HFMA2 R-form era rows: the era '.H0_NH1' print on tok3 and the
-    // era-quirk opmod:H1_H1 field on tok2@86 drive THE SAME bit (b86)
-    // (BUG-271 registration of the era R4 asymmetry; arb271 x4 vendor law:
-    // window (b86,b82,b81) v4 prints tok3 '.H0_NH1' and the era harvest
-    // carries the twin opmod:H1_H1@86 tok-2). On rows whose tok3 has no
-    // h0nh1 field (e.g. the BF16_V2 mod-group siting) but that ALREADY
-    // carry a b86-owning field, the tok3 suffix is value-redundant print:
-    // it must stay admissible (cuobjdump feed + our printer both produce
-    // the paired spelling) or the gate would newly refuse corpus text.
+    // HFMA2 R-form era rows: the era '.H0_NH1' print on tok3 drove the
+    // same bit (b86) as the era-quirk opmod:H1_H1 twin on tok2@86
+    // (BUG-271 registration of the era R4 asymmetry). BUG-293 (arb293/
+    // 293b/293c, nvdisasm x4 agree under EVERY guard): the twin never
+    // era-bakes -- b86 = tok3 '.H0_NH1' plain under all guards, so the
+    // last twin row (HFMA2_R_R_R_R BF16_V2) was re-armed with a real
+    // tok3 h0nh1 field and the twins are gone from every table. The
+    // lane below now only firewalls LEGACY corpus text on rows whose
+    // tok3 has no h0nh1 field but that ALREADY carry a b86-owning field
+    // -- and it is per-token (BUG-293: pre-narrowing an '.H0_NH1'
+    // spelled on tok2/tok4 of an R-form row was admitted row-wide and
+    // then silently DROPPED, e.g. 'HFMA2 R13, R0.H0_NH1, R15, R12'
+    // minted the plain word = silent wrong-code; measured on pub
+    // pyo3-cac87b7, measure_pre293).
     let hfma2_rform = insn.key.starts_with("HFMA2_R_R_");
     let toks = raw_op_tokens(&insn.raw_text);
     for (oi, op) in insn.operands.iter().enumerate() {
@@ -1782,7 +1787,115 @@ fn check_operand_suffixes(insn: &Instruction, entry: &crate::table::ModGroupEntr
             // is fail-closed by the BUG-252 generic guard unless the row
             // carries an explicit reuse field (its own attributed message).
             if seg == "reuse" {
-                continue;
+                // BUG-291 (fail-closed, mintability): an authored `.reuse`
+                // must reach one of the vendor reuse bits. arb291
+                // (nvdisasm 13.3.73 raw -b, x4 models agree on every
+                // probe) + census291 (all 2,406 battery cubins, 29.7M
+                // words): the ONLY reuse-encoding bits anywhere in the
+                // 128-bit word are 122/123/124, wired by default per-row
+                // to the 8-bit register slots at bits 24/32/64 (prints
+                // land on operand tokens 2..6 only -- NEVER on the dest
+                // token; zero prints with bits [124:122] clear). Pre-fix,
+                // `.reuse` authored on an operand with no mint channel
+                // (dest @bits[23:16], 4-bit/UR-only windows, or a slot
+                // suppressed by a row-carried explicit binding, e.g. the
+                // donor-grafted `FFMA_R_R_R_R mg='RP'` reuse@124->tok3)
+                // was SILENTLY DROPPED -- the encoder emitted the plain
+                // word (`IMAD R1.reuse, R2, R3, R4` == plain), the
+                // registered 272-era tripwire t272_5 / smoke272
+                // 291-residual-trip. Admitted channels (mirror of
+                // apply_reuse_encoding + the documented byte-authority
+                // lanes):
+                const REUSE_SLOTS: [(u32, u32); 3] = [(122, 24), (123, 32), (124, 64)];
+                let explicit_fields: Vec<(i32, u32)> = entry
+                    .fields
+                    .iter()
+                    .filter(|f| matches!(f.extraction, Extraction::Reuse))
+                    .map(|f| (f.token_idx, f.shift))
+                    .collect();
+                let explicit_bits: Vec<u32> = explicit_fields.iter().map(|&(_, b)| b).collect();
+                let slot8tok = |shift: u32| -> Option<i32> {
+                    entry
+                        .fields
+                        .iter()
+                        .find(|f| {
+                            f.shift == shift
+                                && f.bits == 8
+                                && matches!(
+                                    f.extraction,
+                                    Extraction::Reg
+                                        | Extraction::UReg
+                                        | Extraction::URegFf
+                                        | Extraction::RegFf
+                                )
+                        })
+                        .map(|f| f.token_idx)
+                };
+                // mint channels of an authored-reuse token, which-side
+                // exactly mirrors apply_reuse_encoding: its own explicit
+                // fields plus the suppressed-aware generic slot fallback
+                let mint_channels = |t: i32| -> Vec<u32> {
+                    let mut m: Vec<u32> = explicit_fields
+                        .iter()
+                        .filter(|&(tt, _)| *tt == t)
+                        .map(|&(_, b)| b)
+                        .collect();
+                    for &(rb, slot_shift) in &REUSE_SLOTS {
+                        if explicit_bits.contains(&rb) {
+                            continue;
+                        }
+                        if slot8tok(slot_shift) == Some(t) {
+                            m.push(rb);
+                        }
+                    }
+                    m
+                };
+                // (1) the token mints something itself -> specialist owns
+                if !mint_channels(tok).is_empty() {
+                    continue;
+                }
+                // (2) authored `!rsd[...]` overlay = byte-authority escape
+                // hatch (overlay application below: "author's explicit bit
+                // assignments, applied LAST"); the disassembler attaches it
+                // exactly where row quirks would otherwise lose fidelity
+                if insn.rsd.as_ref().is_some_and(|r| !r.is_empty()) {
+                    continue;
+                }
+                // (3) covered-alias lane, measured in corpus (roundtrip
+                // A/B methodology, attr in the 291 report): quirk rows bind
+                // a band bit to a DIFFERENT token, so this token's
+                // vendor-slot bit must be produced by ANOTHER authored
+                // `.reuse` on the same instruction for the bytes to carry
+                // the intent (e.g. `FFMA.RP R23, R3.reuse, R27.reuse,
+                // R24.reuse`: tok4@64 has no channel, but tok3 mints
+                // b123+b124 via its own fields => word byte-exact). `tok4`
+                // alone-authored still fails closed below.
+                let my_band_bit = REUSE_SLOTS
+                    .iter()
+                    .find(|&(_, sh)| slot8tok(*sh) == Some(tok))
+                    .map(|&(rb, _)| rb);
+                let covered = my_band_bit.is_some_and(|bit| {
+                    insn.operands.iter().enumerate().any(|(oj, op)| {
+                        let t_other = (oj + 1) as i32;
+                        if t_other == tok {
+                            return false;
+                        }
+                        let authored = matches!(
+                            op,
+                            Operand::Reg { reuse: true, .. } | Operand::UReg { reuse: true, .. }
+                        );
+                        authored && mint_channels(t_other).contains(&bit)
+                    })
+                });
+                if covered {
+                    continue;
+                }
+                anyhow::bail!(
+                    "unknown operand suffix .reuse on operand {} of `{}` key `{}`                      (BUG-291: pre-fix the encoder silently DROPPED a `.reuse` that                      no mint channel reached -- the PLAIN word could be emitted as if                      the suffix had not been written, e.g. `IMAD R1.reuse, R2, R3, R4`                      == `IMAD R1, R2, R3, R4`). Vendor law (arb291: nvdisasm 13.3.73                      raw -b, x4 models; census291: 29.7M corpus words): Blackwell has                      exactly three reuse bits (122/123/124); .reuse never printed on                      a dest token anywhere in the battery. Admitted: explicit row                       field on the token / generic 8-bit slot at 24/32/64 / authored                      !rsd[...] overlay / covered-alias (bit produced by another                      authored .reuse on the same instruction). Remove `.reuse` from                      that operand or move it onto an operand with a mint channel.",
+                    oi + 1,
+                    insn.opcode_full,
+                    insn.key
+                );
             }
             // (a) consumed by an entry field on this token?
             let consumed = entry.fields.iter().any(|f| {
@@ -1838,7 +1951,9 @@ fn check_operand_suffixes(insn: &Instruction, entry: &crate::table::ModGroupEntr
                         || (seg.len() == 4
                             && seg.starts_with("???")
                             && seg[3..].chars().all(|c| c.is_ascii_digit()))))
-                || (hfma2_rform && seg == "H0_NH1" && entry.fields.iter().any(|f| f.shift == 86));
+                || (hfma2_rform
+                    && seg == "H0_NH1"
+                    && entry.fields.iter().any(|f| f.shift == 86 && f.token_idx == tok));
             if !(consumed || default_notation) {
                 anyhow::bail!(
                     "unknown operand suffix .{seg} on operand {} of `{}` key `{}` \
@@ -2173,6 +2288,33 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
             // Decoder ghost-sign exclusion for the whole I2IP base was
             // already armed by BUG-282.
             "I2IP" |
+            // BUG-283: MOVM sign law measured by arb283 (x4 models) on the
+            // 0x23a MT88 lane: b62/b63/b72/b73 text-INERT (D singles), and
+            // b74/b75/b78/b79 = the [79:75] sub-op name-space (G sweep) --
+            // i.e. NO sign-modifiable register operands. The generic emit
+            // minted a ghost bit for authored '-R4' (measured post-graft
+            // pre-arm: 0x23a|b80 word for '@P0 MOVM.16.MT88 R0, -R4' =
+            // silent wrong-code). Excluded: signed texts hit the BUG-283
+            // fail-closed bail below. Decoder mirror arms: prio-3 gate +
+            // ghost post-pass exclusion (decoder.rs).
+            "MOVM" |
+            // BUG-308: F2I/F2IP/USHF sign law measured by arb308 (x4 vendor
+            // models, full measure308b shape census on publish pyo3-9436f8c).
+            // These bases have sign-modifiable register operands ONLY on the
+            // sm120/sm121a era F2I.*_R_R rows with field-carried
+            // neg@63/abs@62 on tok2 (vendor prints '-R'/'|R|' there; all
+            // other sign-window bits are law bits: dst-type S/U sel b72,
+            // USHF size/W b73..b75, F2IP hsel-H1 b72 / .RELU b75 / inert
+            // b62,b63,b73). The era rows carry fields, so the generic emit
+            // must stay out of the way (has_field_* already skips them,
+            // belt-and-braces); every other signed operand text hits the
+            // BUG-308 fail-closed bail below. Pre-arm measured silent
+            // classes: vm-gated NOOP author-drop (e.g. 'F2I.F64.FLOOR R4,
+            // -R6' == plain word) and vm-surviving cross-mints (USHF op1
+            // sign -> shift-imm bit63/62 '0x80000006'; USHF '|' on dest ->
+            // S32->U32 flip; F2IP '-R6' -> hsel .H1; F2IP '-R10' -> .RELU;
+            // F2I F64-rows '-R6' -> dst-type U32 drop).
+            "F2I" | "F2IP" | "USHF" |
             // BUG-303 (sign-arm parity): mirror of the decoder arm sets
             // BUG-224 (SYNCS) and BUG-225 (57-base census batch, decoder.rs
             // is_225_armed). These bases have NO sign-modifiable register
@@ -2324,6 +2466,31 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         );
     }
 
+    // BUG-283 fail-closed: MOVM has NO sign-modifiable register operands
+    // (arb283 x4 models on the 0x23a MT88 lane: sign-window bits text-INERT,
+    // b74/b75/b78/b79 carry the [79:75] sub-op name-space). The family is
+    // excluded from the generic sign emit above; signed operand texts must
+    // not fall through as silently-dropped plain words are minted ghost bits
+    // (pre-arm measured: '-R4' minted a b80-ghost word).
+    if insn.opcode.as_str() == "MOVM"
+        && insn.operands.iter().any(|o| {
+            matches!(
+                o,
+                Operand::Reg { neg: true, .. }
+                    | Operand::Reg { abs: true, .. }
+                    | Operand::UReg { neg: true, .. }
+                    | Operand::UReg { abs: true, .. }
+            )
+        })
+    {
+        anyhow::bail!(
+            "BUG-283: signed register operand on MOVM has no vendor encoding \
+             (sign window measured text-INERT x4: arb283 D); refusing silent \
+             sign-drop / ghost mint for insn: {}",
+            insn.raw_text.trim()
+        );
+    }
+
     // BUG-303 fail-closed: encoder sign-arm parity with the decoder arm sets
     // BUG-224 (SYNCS) and BUG-225 (57-base census batch). Those bases have NO
     // sign-modifiable register operands (arb224; 225 census x3 tables, corpus
@@ -2375,6 +2542,61 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
                          excluded in mirror); refusing silent sign-drop / \
                          ghost-bit mint / cross-read for insn: {}",
                         insn.opcode, insn.raw_text.trim()
+                    );
+                }
+            }
+        }
+    }
+
+    // BUG-308 fail-closed: F2I/F2IP/USHF sign mirror (encoder side of the
+    // decoder arms BUG-125 F2I + BUG-126 USHF + this one closes F2IP).
+    // Measure: arb308 (nvdisasm raw -b x4 models on every live mint of the
+    // measure308b shape census, publish pyo3-9436f8c) + census308 corpus
+    // exposure (2,406-cubin battery x4 legs: ZERO authored-sign glyphs on
+    // these bases; claimed nz-delta words are imm-window/subtype artifacts,
+    // vendor-identical text). Law x4-agreeing on every probe:
+    //   * the ONLY vendor-legal operand signs on these bases are the sm120/
+    //     sm121a era F2I.*_R_R small-int lanes with field-carried
+    //     neg@63/abs@62 on tok2 (e.g. 'F2I.S16.NTZ R4, -R6' prints '-R6' by
+    //     nvdisasm too) -- those stay armed through the table field;
+    //   * every other signed operand either mints nothing (vm-gated silent
+    //     author-drop) or lands on a sibling law bit (type S/U sel,
+    //     shift-imm window, hsel-H1, .RELU, W-toggle) = silent wrong-code.
+    // Construction: allow only F2I operands whose token carries a field
+    // Neg/NegShl1/Abs at shift 62/63 (the era mirror); refuse everything
+    // else with attribution.
+    {
+        let is_308_armed = matches!(insn.opcode.as_str(), "F2I" | "F2IP" | "USHF");
+        if is_308_armed {
+            for (oi, op) in insn.operands.iter().enumerate() {
+                let (neg, abs) = match op {
+                    Operand::Reg { neg, abs, .. } | Operand::UReg { neg, abs, .. } => (*neg, *abs),
+                    _ => (false, false),
+                };
+                if !(neg || abs) {
+                    continue;
+                }
+                let tok = (oi + 1) as i32;
+                let field_ok = insn.opcode.as_str() == "F2I"
+                    && entry.fields.iter().any(|f| {
+                        f.token_idx == tok
+                            && (f.shift == 62 || f.shift == 63)
+                            && matches!(
+                                f.extraction,
+                                Extraction::Neg | Extraction::NegShl1 | Extraction::Abs
+                            )
+                    });
+                if !field_ok {
+                    anyhow::bail!(
+                        "BUG-308: signed register operand on {} has no vendor \
+                         encoding here (arb308 x4: only era F2I.*_R_R lanes \
+                         carry neg@63/abs@62 on tok2; elsewhere the sign \
+                         window is type/imm/hsel law, and the pre-arm mint \
+                         silently dropped the sign or cross-minted a law \
+                         bit); refusing silent sign-drop / cross-mint for \
+                         insn: {}",
+                        insn.opcode,
+                        insn.raw_text.trim()
                     );
                 }
             }
@@ -2558,36 +2780,20 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         }
     }
 
-    // LDGSTS.E.128 descriptor form used by SM120 FlashAttention:
-    //   LDGSTS.E.128 [Ra], desc[URd][Rb.64]
-    //
-    // The harvested table has the right opcode family but incomplete descriptor
-    // fields, so rebuild the operand portion from the observed SM120 layout:
-    //   lo[15:12] = guard, lo[23:16] = shared Ra, lo[31:24] = global Rb
-    //   hi[31:0]  = 0x0b9a180e for E.128 descriptor copies.
-    {
-        let uses_addr = insn.operands.iter().any(|op| matches!(op, Operand::Addr { .. }));
-        let desc = insn.operands.iter().find_map(|op| match op {
-            Operand::Desc { ur_idx, base_reg, .. } => Some((*ur_idx, *base_reg)),
-            _ => None,
-        });
-        if !sm103a_derived && insn.opcode == "LDGSTS" && insn.opcode_full.contains(".128") && uses_addr {
-            if let Some((_ur_idx, Some(desc_r))) = desc {
-                let shared_r = insn.operands.iter().find_map(|op| match op {
-                    Operand::Addr { base_reg: Some(r), .. } => Some(*r as u128),
-                    _ => None,
-                }).unwrap_or(255);
-                let guard = guard_val(insn) as u128;
-                let hi_upper32 = (code >> 96) & 0xFFFFFFFF;
-                code = (hi_upper32 << 96)
-                    | (0x0b9a180e_u128 << 64)
-                    | ((desc_r as u128) << 24)
-                    | (shared_r << 16)
-                    | (guard << 12)
-                    | 0x0fae_u128;
-            }
-        }
-    }
+    // BUG-311: REMOVED the era FlashAttention LDGSTS.E.128 desc arm that
+    //   rebuilt every LDGSTS *.128 desc encode as
+    //     code = hi_upper32 | 0x0b9a180e<<64 | desc_r<<24 | shared_r<<16
+    //     | guard<<12 | 0x0fae
+    // (FlashAttention-era "observed SM120 layout"). The bake pinned UR to
+    // 14, dropped BOTH immediates, the trailing pred/neg and the policy
+    // bits on EVERY LDGSTS .128 desc form -- silent wrong-code on 8,371
+    // corpus slots (LDGSTS.E.BYPASS{.LTC128B}.128, rt303 attribution) and
+    // a decode-hole word for anything but the exact FA shape. Post-303 the
+    // arm collided with strict-verify (encode emitted undecodable words ->
+    // fail-closed). Table authority restored: the sm120 BYPASS rows already
+    // carry the full field law (decode vendor-EXACT, arb311 x4 models) and
+    // the L1-allocate sibling family '128,E' is now a grafted row pair
+    // (canonical blackwell-isa BUG-311, b81 = BYPASS<->alloc vendor law).
 
     // BUG-028: removed blanket `code &= !(1u128 << 80)` for QMMA.SP. The hack
     // zeroed the Structured-Sparsity gate bit for ALL 144 SP table entries on

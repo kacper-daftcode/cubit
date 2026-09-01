@@ -61,8 +61,11 @@ fn t264_1_structure() {
             (60, 2, Extraction::HalfSel),
             (62, 1, Extraction::Abs),
             (63, 1, Extraction::Neg),
-            (123, 1, Extraction::Reuse),
         ];
+        // BUG-328 (F2-iter166 flip): the klone-era (123, Reuse) field on the
+        // UR token was stripped -- b123 is vendor display-inert on the UR
+        // slot of these forms x4 = silent-drop mint (arb328b); R-window
+        // reuse (b122/b124) stays.
         // BUG-271 (F2-iter143 flip): HFMA2 host gains the h0nh1 b86 field;
         // HMUL2 b86 is vendor TEXT-INERT (arb271 D) => vm-reclaim, NO field
         if has86 {
@@ -116,38 +119,47 @@ fn t264_1_structure() {
 fn t264_2_witness_laws_vendor_equal() {
     let t = tab("sm121a");
     // ghost '-UR8' gone; vendor 'UR8.H1_H1' (arb264 A-set, x4 models).
+    // Mnemonic-mod FLIPPED 2026-08-31 (BUG-307 landed): arb307c proved x4
+    // models that ALL the pinned witnesses carry NO discriminant bit
+    // (b85=0, both families) => vendor prints them PLAIN. The era
+    // '.BF16_V2' claims below were a bf16-kernel-lattice inference, closed
+    // by the discriminant-pinning graft + plain '' rows (patch307.py).
     assert_eq!(
         dec(&t, W_HML261 & M96).as_deref(),
-        Some("HMUL2.BF16_V2 R11, R12, UR8.H1_H1")
+        Some("HMUL2 R11, R12, UR8.H1_H1")
     );
     assert_eq!(
         dec(&t, W_HML_RX & M96).as_deref(),
-        Some("HMUL2.BF16_V2 R3, R12, UR8.H1_H1")
+        Some("HMUL2 R3, R12, UR8.H1_H1")
     );
     // 267-kand closed: tok3-UR hsel suffix restored (vendor 'UR6.H0_H0').
     assert_eq!(
         dec(&t, W_HFA_RX2 & M96).as_deref(),
-        Some("HFMA2.BF16_V2 R5, R2.H0_H0, UR6.H0_H0, R5.H0_H0")
+        Some("HFMA2 R5, R2.H0_H0, UR6.H0_H0, R5.H0_H0")
     );
     assert_eq!(
         dec(&t, W_HMA & M96).as_deref(),
-        Some("HFMA2.BF16_V2 R5, R2.H0_H0, UR4.H0_H0, R5.H0_H0")
+        Some("HFMA2 R5, R2.H0_H0, UR4.H0_H0, R5.H0_H0")
     );
     // 261 witness B keeps the (266-restored) true neg@84 AND gains the suffix.
     assert_eq!(
         dec(&t, W_HMB & M96).as_deref(),
-        Some("HFMA2.BF16_V2 R9, R12.H0_H0, UR8.H0_H0, -R11.H1_H1")
+        Some("HFMA2 R9, R12.H0_H0, UR8.H0_H0, -R11.H1_H1")
     );
 }
 
 #[test]
 fn t264_3_encode_inverse() {
     let t = tab("sm121a");
-    // Byte-exact payload reproduction of the corpus witnesses (hsel bits set).
+    // Byte-exact payload reproduction of the corpus witnesses (hsel bits
+    // set). FLIPPED 2026-08-31 (BUG-307): the witness payloads are vendor
+    // PLAIN words (b85=0, arb307c x4) and reproduce through the new
+    // '' rows; the '.BF16_V2' texts mint the SAME payload | discriminant
+    // (law() below; arb307 A-set: bit85 is a free orthogonal suffix).
     for (wit, txt) in [
-        (W_HML_RX, "HMUL2.BF16_V2 R3, R12, UR8.H1_H1"),
-        (W_HFA_RX2, "HFMA2.BF16_V2 R5, R2.H0_H0, UR6.H0_H0, R5.H0_H0"),
-        (W_HMA, "HFMA2.BF16_V2 R5, R2.H0_H0, UR4.H0_H0, R5.H0_H0"),
+        (W_HML_RX, "HMUL2 R3, R12, UR8.H1_H1"),
+        (W_HFA_RX2, "HFMA2 R5, R2.H0_H0, UR6.H0_H0, R5.H0_H0"),
+        (W_HMA, "HFMA2 R5, R2.H0_H0, UR4.H0_H0, R5.H0_H0"),
     ] {
         let w = enc(&t, txt) & M96;
         assert_eq!(w, wit & M96, "encode payload drift on {txt}");
@@ -164,16 +176,27 @@ fn t264_3_encode_inverse() {
         assert_eq!(w, base | bits, "encode bits on {txt}");
         assert_eq!(dec(&t, w).as_deref(), Some(txt), "decode-back on {txt}");
     };
-    law("HMUL2.BF16_V2 R3, R12, UR8", 0);
-    law("HMUL2.BF16_V2 R3, R12, |UR8|", 1 << 62);
-    law("HMUL2.BF16_V2 R3, R12, -UR8", 1 << 63);
-    law("HMUL2.BF16_V2 R3, R12, -|UR8|", 3 << 62);
+    law("HMUL2 R3, R12, UR8", 0);
+    law("HMUL2 R3, R12, |UR8|", 1 << 62);
+    law("HMUL2 R3, R12, -UR8", 1 << 63);
+    law("HMUL2 R3, R12, -|UR8|", 3 << 62);
+    // BUG-307: the BF16_V2 forms mint base|bit85 (+window bits).
+    law("HMUL2.BF16_V2 R3, R12, UR8", 1 << 85);
+    law(
+        "HMUL2.BF16_V2 R3, R12, |UR8.H0_H0|",
+        (1 << 85) | (2 << 60) | (1 << 62),
+    );
 }
 
 #[test]
 fn t264_4_decode_window_laws() {
     let t = tab("sm121a");
     let base = W_HML_RX & M96 & !(0xFu128 << 60);
+    // FLIPPED 2026-08-31 (BUG-307): `base` carries b85=0 = vendor PLAIN
+    // lattice; the BF16_V2 prints below pre-fix were era claims without the
+    // discriminant. Window laws (arb264/271/297) are discriminant-
+    // orthogonal (arb307 A-set), only the prefix flips; arb307 A: the
+    // b85-set siblings of every case print the BF16_V2 text (x4 models).
     // FLIPPED F2-iter151 (BUG-297 landed): v1 on the HMUL2 UR slot now
     // prints the vendor '.INVALID1' (arb273 C1..C4 + arb297b Hc set x4
     // models; routex297 confirms zero corpus exposure on the 2,406
@@ -181,31 +204,44 @@ fn t264_4_decode_window_laws() {
     // on the old generic print = 305-kand, NOT armed here.
     assert_eq!(
         dec(&t, base | (1 << 60)).as_deref(),
-        Some("HMUL2.BF16_V2 R3, R12, UR8.INVALID1")
+        Some("HMUL2 R3, R12, UR8.INVALID1")
     );
     assert_eq!(
         dec(&t, base | (2 << 60)).as_deref(),
-        Some("HMUL2.BF16_V2 R3, R12, UR8.H0_H0")
+        Some("HMUL2 R3, R12, UR8.H0_H0")
     );
     // FLIPPED F2-iter143 (BUG-271 landed): HFMA2 BF16 host b86 = '.H0_NH1'
     // on the window (b86,b61,b60), armed as the h0nh1 field (arb271 C x4);
     // v5..7 (b86 with nonzero hsel) = vendor INVALID{5,6,7} = decode hole.
     let hfa = W_HFA_RX2 & M96 & !(0xFu128 << 60);
+    // BUG-307: hfa carries b85=0 (plain); the h0nh1 window law is legal
+    // under plain identically (arb307d x4) -- prints drop only the prefix.
     assert_eq!(
         dec(&t, hfa | (1 << 86)).as_deref(),
-        Some("HFMA2.BF16_V2 R5, R2.H0_H0, UR6.H0_NH1, R5.H0_H0")
+        Some("HFMA2 R5, R2.H0_H0, UR6.H0_NH1, R5.H0_H0")
     );
     assert!(dec(&t, hfa | (1 << 86) | (1 << 60)).is_none(), "INVALID5");
     assert!(dec(&t, hfa | (1 << 86) | (2 << 60)).is_none(), "INVALID6");
     assert!(dec(&t, hfa | (1 << 86) | (3 << 60)).is_none(), "INVALID7");
-    // HMUL2 BF16 host: b86 vendor TEXT-INERT (arb271 D) = reclaim w/o field
+    // HMUL2 host: b86 vendor TEXT-INERT (arb271 D + arb307d plain) =
+    // reclaim w/o field
     assert_eq!(
         dec(&t, base | (1 << 86)).as_deref(),
-        Some("HMUL2.BF16_V2 R3, R12, UR8")
+        Some("HMUL2 R3, R12, UR8")
     );
     assert_eq!(
         dec(&t, base | (1 << 86) | (2 << 60)).as_deref(),
+        Some("HMUL2 R3, R12, UR8.H0_H0")
+    );
+    // BUG-307 discriminant spot-law: the same window words with b85 set
+    // print the BF16_V2 mnemonic (arb307 A x4).
+    assert_eq!(
+        dec(&t, base | (1 << 85) | (2 << 60)).as_deref(),
         Some("HMUL2.BF16_V2 R3, R12, UR8.H0_H0")
+    );
+    assert_eq!(
+        dec(&t, hfa | (1 << 85) | (1 << 86)).as_deref(),
+        Some("HFMA2.BF16_V2 R5, R2.H0_H0, UR6.H0_NH1, R5.H0_H0")
     );
 }
 

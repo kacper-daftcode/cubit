@@ -50,14 +50,17 @@ fn a(bits: &[(u32, u128)]) -> u128 {
         0x80000000000000000000e31 | (1 << 16) | (2 << 24) | (4 << 32) | (3 << 64),
     )
 }
-// sm121a HFMA2_R_R_UR_R BF16_V2 : payload R1@16, R2@24, UR4@32, R4@64
+// sm121a HFMA2_R_R_UR_R plain ''-discriminant lattice (BUG-307: the era
+// constant = b85=0; the BF16_V2 row pins b85): payload R1@16, R2@24,
+// UR4@32, R4@64
 fn b(bits: &[(u32, u128)]) -> u128 {
     w(
         bits,
         0x80000000000000000000c31 | (1 << 16) | (2 << 24) | (4 << 32) | (4 << 64),
     )
 }
-// sm121a HMUL2_R_R_UR BF16_V2 : payload R1@16, R2@24, UR4@32
+// sm121a HMUL2_R_R_UR plain ''-discriminant lattice (BUG-307: b85=0):
+// payload R1@16, R2@24, UR4@32
 fn c(bits: &[(u32, u128)]) -> u128 {
     w(
         bits,
@@ -98,16 +101,17 @@ fn t273_1_ur_suffix_inside_pipes_sm120() {
 #[test]
 fn t273_2_ur_suffix_inside_pipes_bf16_sm121a() {
     let t = tab("sm121a");
+    // FLIPPED 2026-08-31 (BUG-307): b()/c() words carry b85=0 = vendor
+    // PLAIN lattices (arb307d x4: the h0nh1 window is legal under plain
+    // identically); only the mnemonic prefix drops. The b85-set
+    // siblings keep printing BF16_V2 (t264_4 spot-laws).
     let cases: [(u128, &str); 6] = [
-        (b(&[NH1]), "@P0 HFMA2.BF16_V2 R1, R2, UR4.H0_NH1, R4"),
-        (b(&[ABS, NH1]), "@P0 HFMA2.BF16_V2 R1, R2, |UR4.H0_NH1|, R4"),
-        (b(&[NEG, NH1]), "@P0 HFMA2.BF16_V2 R1, R2, -UR4.H0_NH1, R4"),
-        (
-            b(&[ABS, NEG, NH1]),
-            "@P0 HFMA2.BF16_V2 R1, R2, -|UR4.H0_NH1|, R4",
-        ),
-        (c(&[ABS, H2]), "@P0 HMUL2.BF16_V2 R1, R2, |UR4.H0_H0|"),
-        (c(&[ABS, H3]), "@P0 HMUL2.BF16_V2 R1, R2, |UR4.H1_H1|"),
+        (b(&[NH1]), "@P0 HFMA2 R1, R2, UR4.H0_NH1, R4"),
+        (b(&[ABS, NH1]), "@P0 HFMA2 R1, R2, |UR4.H0_NH1|, R4"),
+        (b(&[NEG, NH1]), "@P0 HFMA2 R1, R2, -UR4.H0_NH1, R4"),
+        (b(&[ABS, NEG, NH1]), "@P0 HFMA2 R1, R2, -|UR4.H0_NH1|, R4"),
+        (c(&[ABS, H2]), "@P0 HMUL2 R1, R2, |UR4.H0_H0|"),
+        (c(&[ABS, H3]), "@P0 HMUL2 R1, R2, |UR4.H1_H1|"),
     ];
     for (word, want) in cases {
         let got = dec(&t, word).unwrap_or_else(|| panic!("HOLE on {word:#034x}"));

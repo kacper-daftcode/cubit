@@ -184,11 +184,13 @@ fn t266_3_shadow_restored() {
         dec(&t, W_LEA_B & M96).as_deref(),
         Some("@P2 LEA_P0 R13, R28, -R28, 0x3")
     );
-    // HFMA2 BF16_V2 tok4: era dup neg@124 gone, true neg@84 prints through.
-    // tok3 suffix FLIPPED 2026-08-29 (BUG-264/267): '.H0_H0' vendor-equal.
+    // HFMA2 BF16_V2-era tok4: era dup neg@124 gone, true neg@84 prints
+    // through. tok3 suffix FLIPPED 2026-08-29 (BUG-264/267): '.H0_H0'
+    // vendor-equal. Mnemonic-mod FLIPPED 2026-08-31 (BUG-307): W_HFMA2B
+    // carries b85=0 -> vendor PLAIN (arb307c-class x4).
     assert_eq!(
         dec(&t, W_HFMA2B & M96).as_deref(),
-        Some("HFMA2.BF16_V2 R2, R12.H0_H0, UR8.H0_H0, -R3.H1_H1")
+        Some("HFMA2 R2, R12.H0_H0, UR8.H0_H0, -R3.H1_H1")
     );
     // True-window laws on hosts (arb266: b72/b63 vendor '-').
     let f = and_base(&t, "FSET.BF.F.AND_R_R_R_P", "");
@@ -281,11 +283,12 @@ fn t266_5_encode_no_fabrication() {
     }
     // 264-kand sentinel FLIPPED 2026-08-29 (BUG-264 landed): era 4-bit
     // 'neg'@60 -> hsel 2b@60 + abs@62 + neg@63; ghost '-UR8' -> vendor
-    // 'UR8.H1_H1' (arb264 A-set, x4 models).
+    // 'UR8.H1_H1' (arb264 A-set, x4 models). Mnemonic-mod FLIPPED
+    // 2026-08-31 (BUG-307): b85=0 -> vendor PLAIN (arb307c x4).
     let t = tab("sm121a");
     assert_eq!(
         dec(&t, W_HML & M96).as_deref(),
-        Some("HMUL2.BF16_V2 R11, R12, UR8.H1_H1")
+        Some("HMUL2 R11, R12, UR8.H1_H1")
     );
     // 267-kand sentinel FLIPPED 2026-08-29 (closed by 264): HFMA2 BF16_V2
     // tok3-UR hsel suffix restored ('UR8.H0_H0', vendor-equal).

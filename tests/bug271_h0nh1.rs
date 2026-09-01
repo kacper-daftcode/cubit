@@ -92,7 +92,10 @@ fn t271_1_structure_and_donors() {
                 }
             }
         }
-        assert_eq!(armed, 96, "{leg}: armed family row count drift");
+        // F2-iter157 (BUG-285): +36 armed rows from the b85 BF16_V2
+        // cross-key graft (12 mgs x3 parents carry the post-279 '' field set
+        // incl. the tok3 hsel+h0nh1 pair; canonical e41a438): 96 -> 132.
+        assert_eq!(armed, 132, "{leg}: armed family row count drift");
         // skipped registered: II_II_II keeps b86 outside vm (hole)
         let g = &t.entries["HFMA2_R_R_R_II_II_II"].mod_groups[""];
         assert_eq!(
@@ -121,14 +124,25 @@ fn t271_1_structure_and_donors() {
     );
     // donors byte-untouched: NO h0nh1 extraction anywhere (era opmod:H0_NH1
     // pre-exists and is untouched by definition)
+    // FLIP (BUG-293, F2-iter163, canonical 46ff277): the era opmod:H0_NH1 on
+    // the '' row and the BF16_V2 row re-arm swap landed on ALL 4 legs (arb293
+    // x4 vendor law; _src bug293-2026-08-31). Donors may carry h0nh1 ONLY on
+    // HFMA2_R_R_R_R '' + BF16_V2; everything else stays donor-untouched.
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
         for (k, e) in &t.entries {
             for g in e.mod_groups.values() {
-                assert!(
-                    !g.fields.iter().any(|f| f.extraction == Extraction::H0NH1),
-                    "{leg}|{k}: donor touched"
-                );
+                for f in &g.fields {
+                    if f.extraction == Extraction::H0NH1 {
+                        assert!(
+                            k == "HFMA2_R_R_R_R"
+                                && f.shift == 86
+                                && f.bits == 1
+                                && f.token_idx == 3,
+                            "{leg}|{k}: donor touched outside BUG-293 scope"
+                        );
+                    }
+                }
             }
         }
     }
@@ -177,22 +191,19 @@ fn t271_2_decode_laws_vendor_exact() {
             "{leg}: FIB+b86"
         );
     }
-    // BF16 host HFMA2 (sm121a; window (b86,b61,b60), ab v2 baked => clear)
+    // BF16-era host HFMA2 (sm121a; window (b86,b61,b60), ab v2 baked =>
+    // clear). FLIPPED 2026-08-31 (BUG-307): W_HFA carries b85=0 = vendor
+    // PLAIN lattice (arb307c x4); the h0nh1 window law holds under plain
+    // identically (arb307d x4), so only the mnemonic prefix drops.
     let t = tab("sm121a");
     let b = W_HFA & !(0xFu128 << 60);
     let law = |w: u128, want: &str| assert_eq!(dec(&t, w & M96).as_deref(), Some(want), "w={w:#x}");
-    law(b, "HFMA2.BF16_V2 R5, R2.H0_H0, UR6, R5.H0_H0");
-    law(
-        b | 2 << 60,
-        "HFMA2.BF16_V2 R5, R2.H0_H0, UR6.H0_H0, R5.H0_H0",
-    );
-    law(
-        b | 1 << 86,
-        "HFMA2.BF16_V2 R5, R2.H0_H0, UR6.H0_NH1, R5.H0_H0",
-    );
+    law(b, "HFMA2 R5, R2.H0_H0, UR6, R5.H0_H0");
+    law(b | 2 << 60, "HFMA2 R5, R2.H0_H0, UR6.H0_H0, R5.H0_H0");
+    law(b | 1 << 86, "HFMA2 R5, R2.H0_H0, UR6.H0_NH1, R5.H0_H0");
     law(
         b | (1 << 86) | (1 << 63),
-        "HFMA2.BF16_V2 R5, R2.H0_H0, -UR6.H0_NH1, R5.H0_H0",
+        "HFMA2 R5, R2.H0_H0, -UR6.H0_NH1, R5.H0_H0",
     );
     // abs+b86: vendor prints '|UR6.H0_NH1|' (inside pipes) — engine compositor
     // put operand mods outside the pipes pre-BUG-273 (273-class cosmetics).
@@ -201,24 +212,31 @@ fn t271_2_decode_laws_vendor_exact() {
     // below/nvdisasm).
     law(
         b | (1 << 86) | (1 << 62),
-        "HFMA2.BF16_V2 R5, R2.H0_H0, |UR6.H0_NH1|, R5.H0_H0",
+        "HFMA2 R5, R2.H0_H0, |UR6.H0_NH1|, R5.H0_H0",
     );
-    // HMUL2 reclaim: b86 vendor TEXT-INERT (arb271 D) — text-equal, no ghost
+    // BUG-307: the b85-set siblings print the BF16_V2 mnemonic (arb307 A/
+    // arb307f: discriminant = bit85, b89 fully inert; x4 models).
+    law(
+        b | (1 << 85) | (1 << 86),
+        "HFMA2.BF16_V2 R5, R2.H0_H0, UR6.H0_NH1, R5.H0_H0",
+    );
+    // HMUL2 reclaim: b86 vendor TEXT-INERT (arb271 D) — text-equal, no ghost.
+    // BUG-307: hb carries b85=0 -> plain prints (arb307c x4).
     let hb = W_HML & !(0xFu128 << 60);
     assert_eq!(
         dec(&t, hb | (1 << 86)).as_deref(),
-        Some("HMUL2.BF16_V2 R3, R12, UR8")
+        Some("HMUL2 R3, R12, UR8")
     );
     assert_eq!(
         dec(&t, hb | (1 << 86) | (2 << 60)).as_deref(),
-        Some("HMUL2.BF16_V2 R3, R12, UR8.H0_H0")
+        Some("HMUL2 R3, R12, UR8.H0_H0")
     );
     assert_eq!(
         dec(&t, hb | (1 << 86) | (1 << 60)).as_deref(),
         // FLIPPED F2-iter151 (BUG-297 landed): hsel v1 on the HMUL2 UR slot
         // is the vendor '.INVALID1' (arb273 C4 + arb297b Hc1 x4 models);
         // b86 stays text-inert on this host (arb271 D).
-        Some("HMUL2.BF16_V2 R3, R12, UR8.INVALID1")
+        Some("HMUL2 R3, R12, UR8.INVALID1")
     );
 }
 
@@ -279,32 +297,15 @@ fn t271_4_encode_inverse_and_fail_closed() {
                 (1 << 86) | (1 << 79) | (2 << 87),
             ),
         ] {
-            // sm121a era FI_FI/II_FI rows bake neg@72=1 ('-RZ' tok2 sink
-            // convention; routex279: 94,630+2,707 corpus words all b72=1) —
-            // a plain 'RZ' text coerces to the era word there (pre-existing
-            // 270/286-class FI-region shadowing, registered, NOT 271). The
-            // 271 payload/roundtrip pins therefore run bit-exact on sm120
-            // (b72-variable) and text-exact on sm121a via the '-RZ' baseline.
+            // FLIPPED 2026-08-31 (BUG-286): the sm121a FI_FI-family rows got
+            // the healthy post-243 shape (patch286, canonical 16210e9) — no
+            // more neg@72 era bake at encode and no '0x0' RELU_P cosmetics at
+            // decode. Both legs now mint/decode bit- and text-identically
+            // (vendor law arb286 x4); the era '-RZ baseline' branch is CLOSED.
             let w = enc_res(&t, txt).unwrap_or_else(|e| panic!("{leg} enc {txt}: {e}"));
             assert_ne!(w & (1 << 86), 0, "{leg}: b86 not encoded for {txt}");
-            if leg == "sm120" {
-                assert_eq!(w & M96, (IIB | bits) & M96, "{leg} payload {txt}");
-                assert_eq!(dec(&t, w & M96).as_deref(), Some(txt), "{leg} rt {txt}");
-            } else {
-                let txt121 = txt.replacen("R3, RZ,", "R3, -RZ,", 1);
-                // sm121a RELU _P winner prints the FI imm as '0x0' (pre-existing
-                // FI-region print cosmetics, registered at BUG-274/279; tripwire)
-                let txt121 = if txt.contains(".RELU") {
-                    txt121.replacen(", 0, 0,", ", 0x0, 0,", 1)
-                } else {
-                    txt121
-                };
-                assert_eq!(
-                    dec(&t, w & M96).as_deref(),
-                    Some(txt121.as_str()),
-                    "{leg} rt {txt} (era -RZ baseline)"
-                );
-            }
+            assert_eq!(w & M96, (IIB | bits) & M96, "{leg} payload {txt}");
+            assert_eq!(dec(&t, w & M96).as_deref(), Some(txt), "{leg} rt {txt}");
         }
         // fail-closed: INVALID compositions on the same token
         for bad in [
@@ -317,9 +318,11 @@ fn t271_4_encode_inverse_and_fail_closed() {
             assert!(enc_res(&t, bad).is_err(), "{leg}|{bad}: must fail closed");
         }
     }
-    // BF16 host encode-inverse (sm121a)
+    // BF16 host encode-inverse (sm121a). FLIPPED 2026-08-31 (BUG-307):
+    // the '.BF16_V2' texts mint hb|bit85 now (discriminant pinned);
+    // hb itself = the vendor plain payload (arb307c/d x4).
     let t = tab("sm121a");
-    let hb = W_HFA & !(0xFu128 << 60);
+    let hb = (W_HFA | (1u128 << 85)) & !(0xFu128 << 60);
     // hb = W_HFA with tok3 window [63:60] CLEARED: the input texts carry
     // '.H0_NH1' (hsel 0 + b86), not '.H0_H0' — tok2/tok4 bits stay W's
     for (txt, bits) in [
@@ -352,17 +355,26 @@ fn t271_4_encode_inverse_and_fail_closed() {
 
 #[test]
 fn t271_5_registrations_and_anchors() {
-    // 285-kand: b85 BF16_V2 cross-key stays a hole on the imm family
+    // FLIPPED F2-iter157 (BUG-285 armed; the 285-kand registration is
+    // CLOSED): b85 BF16_V2 cross-key decodes/encodes vendor-exact on the
+    // imm family (arb285 x4: suffix-window law identical on all 3 parents;
+    // t285_* carry the full matrix)
     for leg in ["sm120", "sm121a"] {
         let t = tab(leg);
-        assert!(
-            dec(&t, (IIB | (1 << 85)) & M96).is_none(),
-            "{leg}: b85 hole lost"
+        assert_eq!(
+            dec(&t, (IIB | (1 << 85)) & M96).as_deref(),
+            Some("HFMA2.BF16_V2 R3, RZ, RZ, 0, 0"),
+            "{leg}: 285 plain decode"
         );
-        assert!(
-            enc_res(&t, "HFMA2.BF16_V2 R3, RZ, RZ.H0_NH1, 0, 0").is_err(),
-            "{leg}: b85 cross-key encode"
-        );
+        // H0_NH1 composes with b85 exactly as on the b85=0 host (arb285 H).
+        // Cross-key parity vs the era sibling mint (sm121a rides the
+        // II_II-era encode shape with neg@72 baked; sm120 mints the arb
+        // word bit-exact -- both measured on pub e67ee9e/table-graft):
+        let w = enc_res(&t, "HFMA2.BF16_V2 R3, RZ, RZ.H0_NH1, 0, 0")
+            .unwrap_or_else(|e| panic!("{leg}: 285 h0nh1 encode {e}"));
+        let ws = enc_res(&t, "HFMA2 R3, RZ, RZ.H0_NH1, 0, 0")
+            .unwrap_or_else(|e| panic!("{leg}: sibling h0nh1 encode {e}"));
+        assert_eq!(w & M96, (ws | (1 << 85)) & M96, "{leg}: b85+h0nh1 word");
         // SAT+RELU stays vendor-ILLEGAL fail-closed
         assert!(enc_res(&t, "HFMA2.SAT.RELU R3, RZ, RZ.H0_NH1, 0, 0").is_err());
     }
@@ -390,10 +402,13 @@ fn t271_5_registrations_and_anchors() {
     // era R4 row: opmod:H0_NH1 field untouched (byte-equal era), 32 corpus
     // words anchor — decode of the witness unchanged post-271
     let g = &t.entries["HFMA2_R_R_R_R"].mod_groups[""];
-    assert!(g
-        .fields
-        .iter()
-        .any(|f| f.extraction == Extraction::OpModFlag("H0_NH1".into())));
+    // FLIP (BUG-293, F2-iter163): extraction swapped opmod:H0_NH1 -> h0nh1
+    // (same window; encode-side 271 INVALID-combo gate armed). Decode of the
+    // witness below is byte-stable by construction (t293_5 locks it).
+    assert!(g.fields.iter().any(|f| f.extraction == Extraction::H0NH1
+        && f.shift == 86
+        && f.bits == 1
+        && f.token_idx == 3));
     assert_eq!(
         dec(&t, W_R4_LEGAL).as_deref(),
         Some("@P0 HFMA2 R13, R0.H1_H1, R15.H0_NH1, R12")

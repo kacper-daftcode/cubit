@@ -110,12 +110,23 @@ fn t276_1_structure_deletions_widen_and_donors() {
         for k in [
             "I2IP.U8.S32_R_R_R_R",
             "I2I.U8.S32.SAT_R_R",
-            "MOVM.16.MT88_P0_R_R",
-            "MOVM.16.MT88_P5_R_R",
-            "P2R_R_R_R_II",
+            // BUG-283 flip: era guard-clones MOVM.16.MT88_{P0,P5}_R_R are
+            // DELETED (canonical 1beab0f); keeper = the armed generic row
+            "MOVM.16.MT88_R_R",
             "F2FP.F16.F32.PACK_AB_R_R_R",
         ] {
             assert!(t.entries.contains_key(k), "{leg}: keeper {k} lost");
+        }
+        // BUG-313 flip: sm121a P2R_R_R_R_II DELETED (phantom era row
+        // dup-rendered the PR slot as 'R6,R12,R12,0x0'; vendor law = the
+        // literal 'PR' on 6 probed imm values x4 models, arb313 D; mint-
+        // neutral: encode routes via P2R_R_II_R_II['']). Keeper check for
+        // the key stays armed on the donor legs.
+        if leg != "sm121a" {
+            assert!(
+                t.entries.contains_key("P2R_R_R_R_II"),
+                "{leg}: keeper P2R_R_R_R_II lost"
+            );
         }
         // BUG-282 flip: op-suffixes armed as FULL KEYS (mg '' sibling
         // shape = I2I.U8.S32.SAT_R_R precedent; the encoder resolves
@@ -151,10 +162,18 @@ fn t276_2_former_lattice_bases_post_state() {
         let t = tab(leg);
         // 0x27a (vendor-only-QMMA lattice, 120/121a; donors illegal): the era
         // phantom chain {I2I.*.SAT_P x3, P2R_P, F2IP x5, F2FP.P0} was deleted
-        // in walking order; the honest engine state is a HOLE. 280-kand:
-        // b74=0 QMMA words are vendor-legal on 120/121a (arb276 A), engine
-        // hole = registered coverage gap (QMMA family audit = owner scope).
-        assert!(dec(&t, 0x27a).is_none(), "{leg}: 0x27a still decodes");
+        // in walking order; the honest engine state WAS a HOLE there.
+        // BUG-280 FLIP (F2-iter155, canonical 842aa05): b74 reclaimed as
+        // vendor text-inert on the QMMA.16816.F16.E4M3.E4M3 lane (arb280 x4:
+        // inert on the lane; INERT on all 106 QMMA sub-lane bases as the
+        // family documentary for the owner audit). The bare word now decodes
+        // VENDOR-EQUAL (arb276 A / arb280 A agree: '@P0' text identical with
+        // b74 on/off). Sibling lanes keep their b74 bakes = owner scope.
+        assert_eq!(
+            dec(&t, 0x27a).as_deref(),
+            Some("@P0 QMMA.16816.F16.E4M3.E4M3 R0, R0, R0, R0"),
+            "{leg}: 280-armed 0x27a decode drift"
+        );
         // 0x238 / 0x2000238 (vendor 2-op I2I.U8.S32.SAT territory): junk
         // claimants (SAT_P live poison, SATRELU_P, U8_P_?, F2IP.RELU_P sm120)
         // deleted -> honest holes at 276. BUG-281 FLIP (F2-iter147,
@@ -173,32 +192,32 @@ fn t276_2_former_lattice_bases_post_state() {
             Some("@P0 I2I.U8.S32.SAT R0, R0"),
             "{leg}: 281-armed 0x2000238 decode drift"
         );
-        // MOVM bases: unchanged winners (junk _P rows were always shadowed;
-        // routex276: MOVM family corpus-healthy). Status-quo prints: the
-        // guard-specialized winners carry the '_P0'/'_P5' name suffix and
-        // misread sub-op bits 32..34 as dst bits ('R128' for vendor 'R0') --
-        // pre-existing cosmetics, identity proven pre/post by census276
-        // winner + ab/vm/fields unchanged; tripwire 283-kand.
+        // MOVM lane: BUG-283 FLIP (F2-iter156, canonical 1beab0f). The era
+        // guard-clone rows are deleted and the generic R_R row is armed to
+        // the measured vendor law (arb283+283b x4): plain name, dst 8b@16,
+        // src 8b@24, sub-op band [36:32] text-inert. The era status-quo
+        // prints ('_P0'/'_P5' suffix lottery + 'R128'-for-'R0' misread)
+        // are gone; corpus exposure ZERO (routex283 full battery).
         assert_eq!(
             dec(&t, 0x23a).as_deref(),
-            Some("@P0 MOVM.16.MT88_P0 R0, R0"),
-            "{leg}: MOVM ab base winner drift"
+            Some("@P0 MOVM.16.MT88 R0, R0"),
+            "{leg}: 283-armed 0x23a decode drift"
         );
         for w in [0x70000023au128, 0xb0000023au128, 0x30000023au128] {
             assert_eq!(
                 dec(&t, w).as_deref(),
-                Some("@P0 MOVM.16.MT88_P5 R0, R128"),
-                "{leg}: MOVM cluster winner drift at {w:#x}"
+                Some("@P0 MOVM.16.MT88 R0, R0"),
+                "{leg}: 283-armed MOVM cluster drift at {w:#x}"
             );
         }
         // corpus QMMA witness (qc_75_77.cubin routes here, routex276 n=1/leg)
         let w: u128 = 0xff600000004340000000c0834727au128 & M96;
         assert!(dec(&t, w).is_some(), "{leg}: corpus QMMA witness broke");
     }
-    // 283-kand (registered, pre-existing): MOVM guard-specialization winner
-    // cosmetics + sub-op bit misread ('_P5' suffix, R128-for-R0 above;
-    // vendor prints plain '@P0 MOVM.16.MT88 R0, R0' on all these words,
-    // arb276 B x4 models).
+    // BUG-283 (F2-iter156): the registered 283-kand cosmetics+misread class
+    // is FIXED table+engine-side (canonical 1beab0f; pins
+    // tests/bug283_movm_lane.rs) -- vendor prints plain
+    // '@P0 MOVM.16.MT88 R0, R0' on all these words (arb276 B + arb283 x4).
 }
 
 #[test]

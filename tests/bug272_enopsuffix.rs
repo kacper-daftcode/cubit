@@ -180,8 +180,15 @@ fn t272_2_consumed_suffixes_vendor_exact() {
         base | (1 << 124),
         "Rc.reuse"
     );
+    // BUG-326 flip: default control on this word is yield=0, and the vendor
+    // print is plain there (arb325 yield-gate law); `.reuse` prints only
+    // with yield=1 (t326 pins). Mint bytes above are unchanged.
     assert_eq!(
         dec(&t, base | (1 << 122)),
+        Some("IMAD R1, R2, R3, R4".into())
+    );
+    assert_eq!(
+        dec(&t, base | (1 << 122) | (1 << 109)),
         Some("IMAD R1, R2.reuse, R3, R4".into())
     );
 }
@@ -290,10 +297,13 @@ fn t272_4_era_anchors_and_lanes() {
                 .contains_key("SAT"),
             "{leg}"
         );
+        // BUG-283 flip (was: 276-era junk print '_P5 R0, R128' tripwire):
+        // the 0x23a MOVM lane is armed to the vendor law (canonical
+        // 1beab0f) -- plain name, sub-op band text-inert
         assert_eq!(
             dec(&t, 0x70000023a).as_deref(),
-            Some("@P0 MOVM.16.MT88_P5 R0, R128"),
-            "{leg}: 276 MOVM anchor"
+            Some("@P0 MOVM.16.MT88 R0, R0"),
+            "{leg}: 283-armed MOVM anchor"
         );
         assert_eq!(
             dec(&t, 0x30000000000000000007239u128).as_deref(),
@@ -326,27 +336,26 @@ fn t272_4_era_anchors_and_lanes() {
 
 #[test]
 fn t272_5_registrations_and_residual_trips() {
-    // 291-kand (registered residual, out of 272 scope): R-domain '.reuse'
-    // on an operand whose slot the generic reuse path does NOT own (dest @
-    // bits[23:16] vs reuse slots @24/@32/@64) is STILL silently dropped --
-    // pin current behavior so the 291 fix flips this.
+    // ~~291-kand~~ (registered residual, out of 272 scope): FLIPPED by
+    // BUG-291 (F2-iter162, arb291 x4 + census291 29.7M words: no
+    // dest-slot / unmapped-slot reuse exists on Blackwell). Authored
+    // dest-side '.reuse' now fails closed with BUG-291 attribution
+    // instead of silently emitting the plain word. The byte law itself
+    // (bits 122/123/124 <-> slots @24/@32/@64) is unchanged.
     let t = tab("sm120");
-    let base = enc(&t, "IMAD R1, R2, R3, R4");
-    assert_eq!(
-        enc(&t, "IMAD R1.reuse, R2, R3, R4"),
-        base,
-        "291-kand: unmapped-slot R.reuse drop changed -- flip with its fix"
-    );
-    // 293-kand (registered residual): an AUTHORED '.H0_NH1' on a
-    // HFMA2.BF16_V2-text WITHOUT the era tok2 '.H1_H1' still rides the era
-    // redundancy lane and loses b86 (word == plain). Vendor never prints
-    // the unpaired shape (arb271 law), so the lane is corpus-neutral, but
-    // authored text can hit it -- pin current behavior for the flip.
+    let e = enc_res(&t, "IMAD R1.reuse, R2, R3, R4")
+        .expect_err("BUG-291: unmapped dest-slot .reuse must fail closed");
+    assert!(e.contains("BUG-291"), "unexpected error text: {e}");
+    // ~~293-kand~~ (registered residual): FLIPPED by BUG-293 (F2-iter163;
+    // arb293/293b/293c x4-agreed vendor law: b86 = tok3 '.H0_NH1' on the
+    // BF16_V2 row under every guard; the era twin opmod:H1_H1@86 tok2 and
+    // the neg@39 skeleton were removed). The authored unpaired text now
+    // mints the vendor-exact word plain|b86 instead of silently dropping.
     let p_plain = enc(&t, "HFMA2.BF16_V2 R13, R14, R15, R12");
     assert_eq!(
         enc(&t, "HFMA2.BF16_V2 R13, R14, R15.H0_NH1, R12"),
-        p_plain,
-        "293-kand: unpaired BF16_V2 .H0_NH1 drop changed -- flip with its fix"
+        p_plain | (1u128 << 86),
+        "BUG-293: unpaired BF16_V2 .H0_NH1 must mint b86 (arb293 x4)"
     );
     // doctrine notes standing: t275_5/t284_5 twins flipped by THIS fix
     // (encode of '.???2' now fails closed, asserted there); the FFMA2
