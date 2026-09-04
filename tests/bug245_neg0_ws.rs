@@ -131,28 +131,23 @@ fn t245_5_bf16_fifi_hole_sentinel() {
     // FLIPPED F2-iter157 (BUG-285 armed, canonical e41a438): the BF16_V2
     // cross-key rows LANDED on the packed-f16 imm parents (arb285 x4), i.e.
     // the graft decision that 246-kand parked is executed for this lane.
-    // The sentinel flips to the positive decode assert exactly as scripted
-    // below (graft legs vendor-EXACT incl. the '-0.0 ' padded print;
-    // donor legs unchanged, still hole):
+    // FLIP2 2026-09-02 (BUG-354, attribution): the sparse (donor) legs are
+    // ARMED too -- the 354 graft landed BF16_V2 + the mod-lane family on
+    // the sparse FI/II lattice (arb354 108 probes x4; canonical 5c12995);
+    // sparse decode is vendor-EXACT byte-identical to dense. Full battery
+    // in tests/bug354_hfma2_sparse_modlane.rs.
     for arch in ["sm100a", "sm103a", "sm120", "sm121a"] {
         let t = tab(arch);
         let idx = DecodeIndex::build(&t);
-        if arch == "sm120" || arch == "sm121a" {
-            let d = idx
-                .decode(W_BF16, 0, &t)
-                .unwrap_or_else(|e| panic!("{arch}: 285 arm lost: {e}"));
-            assert_eq!(
-                cubit::printer::to_sass(&d),
-                "HFMA2.BF16_V2 R3, -RZ, RZ, -0.0 , 0",
-                "{arch}: vendor-exact 285 decode"
-            );
-        } else {
-            assert!(
-                idx.decode(W_BF16, 0, &t).is_err(),
-                "{arch}: donor BF16 FI_FI row unexpectedly present"
-            );
-        }
-        // L5 holds engine-side via the shared float formatter (bf16 halves go
-        // through format_float): the *print* law is pinned by t245_1/4.
+        let d = idx
+            .decode(W_BF16, 0, &t)
+            .unwrap_or_else(|e| panic!("{arch}: 285 arm lost: {e}"));
+        assert_eq!(
+            cubit::printer::to_sass(&d),
+            "HFMA2.BF16_V2 R3, -RZ, RZ, -0.0 , 0",
+            "{arch}: vendor-exact 285 decode (post-354: all legs)"
+        );
+        // L5 holds engine-side via the shared float formatter (bf16 halves
+        // go through format_float): the *print* law is pinned by t245_1/4.
     }
 }

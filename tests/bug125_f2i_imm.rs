@@ -222,7 +222,11 @@ fn t125_6_float_imm_parser_anchor() {
 }
 
 /// t125_7: ksztalt tabeli — nowy klucz z 96 wierszami; legacy F2I_R_R
-/// untouched (16 rows as before 125); no R form carries an f32 field.
+/// (16 rows as before 125 -> 17 post-BUG-341: mg "" = the plain S32-elided
+/// lane grafted 2026-09-02, canonical 774c130 -> 15 post-BUG-363: the two
+/// legacy FTZ mgs were DELETED and replaced by the keyed era rows
+/// F2I.FTZ[.U32.TRUNC].NTZ_R_R, canonical fbcef1c); no R form carries an
+/// f32 field.
 #[test]
 fn t125_7_table_shape() {
     let t = t103();
@@ -230,7 +234,11 @@ fn t125_7_table_shape() {
     let fi = ins.get("F2I_R_FI").expect("brak klucza F2I_R_FI");
     assert_eq!(fi.mod_groups.len(), 96);
     let rr = ins.get("F2I_R_R").expect("brak F2I_R_R");
-    assert_eq!(rr.mod_groups.len(), 16);
+    assert_eq!(
+        rr.mod_groups.len(),
+        16 + 1 - 2,
+        "16 pre-341 + mg '' (BUG-341) - 2 legacy FTZ mgs (BUG-363 deletion, canonical fbcef1c)"
+    );
     for (mg, e) in &fi.mod_groups {
         assert_eq!(e.fields.len(), 3, "guard+dest+imm: {mg}");
         assert!(e.fields.iter().any(|f|

@@ -215,20 +215,26 @@ fn t330_4_fail_closed_edges_and_sparse_stayhole() {
             "{leg}: b91 kill decoded"
         );
     }
-    // sparse legs keep fail-closed on the whole 330 surface (no II keys)
+    // FLIP 2026-09-02 (BUG-354, attribution): the RELU era surface on the
+    // sparse lattice is ARMED by the 354 closure (arb354 x4; canonical
+    // 5c12995); the stray [90:87] zarodek w/o b79 stays LOUD hole (289).
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
-        assert!(
-            dec(&t, II0 | B79 | H1).is_none(),
-            "{leg}: RELU era decoded sparse"
+        assert_eq!(
+            dec(&t, II0 | B79 | H1).as_deref(),
+            Some("@P0 HFMA2.RELU R2, R3, R4, 1, 0, P0"),
+            "{leg}: RELU era post-354 armed drift"
         );
         assert!(
             dec(&t, II0 | H1 | B87).is_none(),
-            "{leg}: zarodek decoded sparse"
+            "{leg}: zarodek decoded sparse (289 doctrine breach)"
         );
-        assert!(
-            enc(&t, "@P0 HFMA2.RELU R2, R3, R4, 1, 0, P0").is_err(),
-            "{leg}: era mint accepted sparse"
+        let w = enc(&t, "@P0 HFMA2.RELU R2, R3, R4, 1, 0, P0")
+            .unwrap_or_else(|e| panic!("{leg}: era mint refused post-354: {e}"));
+        assert_eq!(
+            w & M96,
+            0x80043c00000003020431u128 & M96,
+            "{leg}: era mint word drift"
         );
     }
 }

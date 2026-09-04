@@ -73,8 +73,11 @@ fn t293_1_structure_census_tags() {
         // FLIP (BUG-320/321, F2-iter171, canonical 1e2b7ba): graft legs
         // sm120/sm121a gain F32/FMZ/F32,FMZ/BF16_V2,FMZ clone-bake lanes
         // (arb320 a/b/c x4 vendor law); donor legs keep the 293-era shape.
+        // FLIP (BUG-343/344, F2-iter182, canonical a013f88): dense legs gain
+        // the +30 mod-window mg lanes (12 DIRECT + 6 BF16 crosses + 12
+        // base-key RELU; arb320b K/L + arb343 x4); donors stay 2.
         let want_mgs = if arch == "sm120" || arch == "sm121a" {
-            6
+            36
         } else {
             2
         };

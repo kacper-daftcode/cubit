@@ -193,7 +193,14 @@ fn t229b_2_structure_sm120() {
     };
     assert_eq!(mgs("SHFL_P_R_R_II_II"), ["BFLY", "DOWN", "IDX", "UP"]);
     assert_eq!(mgs("SHFL_P_R_R_II_R"), ["DOWN", "UP"]);
-    assert_eq!(mgs("SHFL_P_R_R_R_II"), ["IDX"]);
+    // FLIP z atrybucja BUG-369 (F2-iter194, canonical 0933cf6->c913faa):
+    // R_II dostal klony UP/DOWN/BFLY (pred81+imm13+lane5/[71:64] relax,
+    // mode pinned per mg) = cure klasy mode-junk claim-empire 229b-era.
+    assert_eq!(
+        mgs("SHFL_P_R_R_R_II"),
+        ["BFLY", "DOWN", "IDX", "UP"],
+        "369 closure: R_II x4 mgs (arb358 A-b175 + arb368 x4 AGREE)"
+    );
     assert_eq!(mgs("SHFL_P_R_R_R_R"), ["BFLY", "DOWN", "IDX", "UP"]);
     assert_eq!(mgs("USHF_UR_UR_II_UR").len(), 32);
     assert_eq!(mgs("USHF_UR_UR_UR_II"), ["R,U64"]);
@@ -228,17 +235,23 @@ fn t229b_3_fail_closed_and_stability_sm120() {
     let t = tab(T120);
     // off-corpus fail-closed (zero exposure, graft-measured): register-tok5
     // forms with bits [53:58] set hole out instead of soaking junk
-    for (w96, ctl) in [
-        (0x000200090c20000a170b7389u128, 0x00006400u64), // BFLY R_R + b53 (nv inert)
-        (0x000e0002002000004c4a7989, 0x000fe200),        // DOWN II_R b59 flip: donor-law holes
-                                                         // like the donor does (fail-closed); nvdisasm prints IDX here — the
-                                                         // off-corpus IDX-II_R gap is parked as 233-kand LOW, zero exposure.
-    ] {
-        assert!(
-            decode(&t, mk(w96, ctl)).is_err(),
-            "must stay a hole: {w96:#x}"
-        );
-    }
+    // FLIP z atrybucja BUG-368 (F2-iter194, canonical 0933cf6->c913faa):
+    // BFLY R_R + b53 = junk w oknie [57:40] (nv x4 inert-confirmed) teraz
+    // legalnie claimowany: dekod == vendor text (368 [57:40] vm-relax).
+    let w1 = mk(0x000200090c20000a170b7389u128, 0x00006400u64);
+    assert_eq!(
+        decode(&t, w1).ok(),
+        Some("SHFL.BFLY P1, R11, R23, R10, R9".to_string()),
+        "368 cure: junk [57:40] R-form word decodes vendor-exact"
+    );
+    let (w96, ctl) = (0x000e0002002000004c4a7989u128, 0x000fe200u64); // DOWN II_R b-flip:
+                                                                      // II_R IDX absent x4 (residuum 358/369, brak donora) -> HOLE stoi;
+                                                                      // nvdisasm prints IDX here — the off-corpus IDX-II_R gap is parked
+                                                                      // as 233-kand LOW, zero exposure.
+    assert!(
+        decode(&t, mk(w96, ctl)).is_err(),
+        "must stay a hole: {w96:#x}"
+    );
     // cross-key stability: 226/226b/229 anchors must not drift
     for (glyph, w96, ctl) in [
         (

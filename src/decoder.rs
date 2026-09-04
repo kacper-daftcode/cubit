@@ -527,6 +527,61 @@ impl DecodeIndex {
         let entry = table.get(&matched.key, &matched.mod_group)
             .ok_or_else(|| anyhow::anyhow!("table entry not found for {}::{}", matched.key, matched.mod_group))?;
 
+        // BUG-362a (fail-closed, vendor-ILLEGAL reuse window): any of the
+        // reuse bits [124:122] set on an F2I TRUNC/F64/FLOOR lattice word is
+        // nvdisasm-ILLEGAL (rc=1) on all 4 models -- arb362 R-group 24
+        // probes + arb362b 6 probes, x4 models AGREE on every probe (incl
+        // the yield=1 variants the BUG-325/326 print law would otherwise
+        // stamp a ghost `.reuse` on). The stripped-upper32 claim zone
+        // cannot see these bits (the and_base match mask is 96-bit), so the
+        // era-row claims leaked through: pre-fix the engine printed a plain
+        // word (or `.reuse` under yield) where the vendor refuses the word
+        // (donor tables claim identically = 362-nota donor-parity
+        // overclaim). Fail closed with attribution.
+        if (code >> 122) & 0x7 != 0 {
+            // BUG-363 extension: the F2I R_R FTZ (byte10=0x21) / BF16
+            // (byte10=0x40) era rows (grafted as keyed `F2I.FTZ[.T][.R]_R_R`
+            // / `F2I[.T].BF16[.R]_R_R` rows, claim window 96-bit only) carry
+            // NO reuse field because ANY reuse bit on those lattices is
+            // vendor-ILLEGAL (arb363 R-group 16 probes: lanes 0x31/0xf0 x
+            // {0x21,0x40} x {122,123,124,all}, nvdisasm 13.3.73 raw -b, x4
+            // models AGREE). Same stripped-upper32 blind spot as BUG-362a:
+            // fail closed here with attribution.
+            let key = matched.key.as_str();
+            let is_363_ftz_bf16 = matched.mod_group.is_empty()
+                && matched.key.ends_with("_R_R")
+                && (key.starts_with("F2I.FTZ") || key.contains(".BF16.") || key == "F2I.BF16_R_R");
+            let reuse_bad = (matched.key == "F2I_R_R"
+                && matches!(
+                    matched.mod_group.as_str(),
+                    "S64,TRUNC"
+                        | "TRUNC,U64"
+                        | "F64,TRUNC"
+                        | "F64,TRUNC,U32"
+                        | "F64,TRUNC,U64"
+                        | "F64,S64,TRUNC"
+                        | "F64,FLOOR"
+                ))
+                || (matched.mod_group.is_empty()
+                    && matches!(
+                        matched.key.as_str(),
+                        "F2I.S64.TRUNC_R_R"
+                            | "F2I.U64.TRUNC_R_R"
+                            | "F2I.U32.F64.TRUNC_R_R"
+                            | "F2I.U64.F64.TRUNC_R_R"
+                            | "F2I.S64.F64.TRUNC_R_R"
+                            | "F2I.F64.TRUNC_R_R"
+                            | "F2I.F64.FLOOR_R_R"
+                    ))
+                || is_363_ftz_bf16;
+            if reuse_bad {
+                return Err(anyhow::anyhow!(
+                    "vendor-ILLEGAL reuse bit [124:122] set on the F2I lattice row {}::{} (BUG-362/BUG-363; code 0x{:032x})",
+                    matched.key, matched.mod_group, code
+                ));
+            }
+        }
+
         // Extract fields
         let mut fields = Vec::with_capacity(entry.fields.len());
         for f in &entry.fields {
@@ -728,6 +783,29 @@ fn select_best_candidate<'a>(
     table: &IsaTable,
 ) -> Option<&'a DecodeCandidate> {
     let first = matches.first()?;
+
+    // BUG-363: F2I R_UR harvest rows (UR-src sisters) claim the SAME window as
+    // the _R_R keyed era rows on the shared FTZ lanes (`F2I_R_UR::FTZ,NTZ` /
+    // `FTZ,NTZ,TRUNC,U32` x `F2I.FTZ[.U32[.TRUNC]].NTZ_R_R` on sm120/121a --
+    // lane 0xf0 row pairs a live reg@16 dst with a ureg src, so the generic
+    // score bonus routes R-sourced words to the UR print). nvdisasm's
+    // canonical display on the shared window is the R form (arb341b G/H +
+    // arb363, x4 models AGREE on every lane): when BOTH the _R_UR harvest row
+    // and a _R_R keyed row match, prefer the _R_R row. Words authored through
+    // the UR row still re-derive the same bits (shared window), so the UR
+    // text path stays encodable; decode is vendor-true.
+    if matches
+        .iter()
+        .any(|c| c.key.starts_with("F2I") && c.key.ends_with("_R_UR"))
+    {
+        if let Some(rr) = matches
+            .iter()
+            .copied()
+            .find(|c| c.key.starts_with("F2I") && c.key.ends_with("_R_R"))
+        {
+            return Some(rr);
+        }
+    }
 
     // BRA mode is encoded in bits[33:32]: 0=plain, 1=U, 2=DIV, 3=CONV.
     // Broad legacy entries mask these bits and can otherwise outrank the

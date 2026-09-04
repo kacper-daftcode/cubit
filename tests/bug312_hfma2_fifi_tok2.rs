@@ -84,10 +84,15 @@ fn t312_1_structure_tok2_basis_all_instances() {
                 );
             }
         }
-        let want = match arch {
-            "sm100a" | "sm103a" => 1,
-            _ => 48,
-        };
+        // FLIP (BUG-354, F2-iter184, canonical 5c12995): sparse FI_FI
+        // family grew 1 -> 18 (11 mod-lane mgs on the key + 6 RELU _P
+        // dotted keys; every instance is a lane clone of '' so the
+        // tok2/tok3 basis assertions above apply unchanged).
+        // FLIP (BUG-367, F2-iter193, canonical 0933cf6): SAT/FTZ/OOB
+        // lane closure completes the sparse lattice: 18 -> 48 = dense
+        // parity (36 mgs on the key + 12 RELU _P dotted keys, every
+        // instance still a lane clone of ''/bf16sub('')).
+        let want = 48;
         assert_eq!(n, want, "{arch} FI_FI instance census");
     }
 }

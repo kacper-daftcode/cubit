@@ -89,13 +89,19 @@ fn t287_1_structure_transplant_census() {
     // +abs 1b@62 tok3 (era-287 sign-window residuum, registered 327-kand;
     // arb327 72 probes x4; pure field-closure of lanes that were behavior-
     // ally exact via the generic sign rescue; corpus exposure 0/53,653).
+    // FLIP (BUG-343/344, F2-iter182, canonical a013f88): +neg 1b@72 tok2 +
+    // +neg 1b@63 tok3 (343 neg-window field-closure of the 320/327 sign
+    // lattice; parity pre-existed via the generic sign rescue per
+    // measure_pre343 -- pure closure + defer parity, zero behavior delta).
     assert_eq!(
         g.fields.len(),
-        16,
-        "field count (BUG-320: +abs@83 tok4; BUG-327: +abs@73 tok2/+abs@62 tok3)"
+        18,
+        "field count (BUG-320: +abs@83 tok4; BUG-327: +abs@73 tok2/+abs@62 tok3; BUG-343: +neg@72 tok2/+neg@63 tok3)"
     );
     assert!(has(Extraction::Abs, 73, 2, 1), "abs@73 tok2 (BUG-327)");
     assert!(has(Extraction::Abs, 62, 3, 1), "abs@62 tok3 (BUG-327)");
+    assert!(has(Extraction::Neg, 72, 2, 1), "neg@72 tok2 (BUG-343)");
+    assert!(has(Extraction::Neg, 63, 3, 1), "neg@63 tok3 (BUG-343)");
     assert!(has(Extraction::Reg, 16, 1, 8) && has(Extraction::Reg, 24, 2, 8));
     assert!(has(Extraction::Reg, 32, 3, 8) && has(Extraction::Reg, 64, 4, 8));
     assert!(has(Extraction::HalfSel, 74, 2, 2), "hsel@74 tok2");

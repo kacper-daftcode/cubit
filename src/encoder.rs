@@ -2603,6 +2603,47 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         }
     }
 
+    // BUG-352 fail-closed: HFMA2 dest sign has NO vendor encoding on any row
+    // of any leg (table census x4: token_idx==1 neg/abs/negshl1 fields = ZERO
+    // for the entire HFMA2 base; the only tok1 sign fields anywhere are
+    // BRA/BREAK predicate slots, never Reg dests). The generic sign emit
+    // above only addresses the Ra/Rb/Rc source slots, so an authored
+    // '-Rd'/'|Rd'/'-|Rd|' fell through as the byte-identical PLAIN word
+    // minted rc=0 (measured pre-fix on publish cubit-d1f3abc: 134/134
+    // signed-dest texts == plain word wherever the plain form is legal;
+    // corner327 dest_sign x3 + nvdisasm re-decode reads the minted word
+    // back unsigned). arb352 law (nvdisasm 13.3.73 raw -b x4 models,
+    // per-bit sweep 0..127 on every legal plain HFMA2 base word among the
+    // R_R_R_R / R_R_UR_R / R_R_R_FI_FI / R_R_FI_FI_R / RELU[_P] shapes):
+    // no single-bit perturbation of a legal HFMA2 word ever renders a
+    // SIGNED DEST glyph on any model, while signed SOURCE glyphs do print
+    // from their law bits (sweep self-validation). Src signs stay legal
+    // through field/generic paths and are NOT in scope here. A signed dest
+    // must therefore be the author's mistake (silicon performs the fma on
+    // the unsigned inputs) -- refuse loudly instead of dropping intent.
+    if insn.opcode.as_str() == "HFMA2" {
+        let dest = insn
+            .operands
+            .iter()
+            .find(|o| matches!(o, Operand::Reg { .. } | Operand::UReg { .. }));
+        let (dneg, dabs) = match dest {
+            Some(Operand::Reg { neg, abs, .. }) | Some(Operand::UReg { neg, abs, .. }) => {
+                (*neg, *abs)
+            }
+            _ => (false, false),
+        };
+        if dneg || dabs {
+            anyhow::bail!(
+                "BUG-352: signed HFMA2 destination has no vendor encoding \\
+                 (table census x4: zero tok1 neg/abs fields on HFMA2 rows; \\
+                 arb352 per-bit sweep x4 models: no legal word renders a \\
+                 signed dest glyph); refusing silent dest-sign drop for \\
+                 insn: {}",
+                insn.raw_text.trim()
+            );
+        }
+    }
+
     // SM120: bits[15:12] of lo64 are ALWAYS the guard predicate.
     // Many mod_groups were learned from unconditional instructions only, so they
     // never learned the guard field and their and_base has guard=0 (from AND

@@ -69,8 +69,9 @@ fn t327_1_structure_graft_and_donors() {
     for leg in ["sm120", "sm121a"] {
         let t = tab(leg);
         let e = &t.entries["HFMA2_R_R_R_R"];
-        // mandatory set unchanged (no new lanes, none dropped)
-        assert_eq!(e.mod_groups.len(), GRAFT_MGS.len(), "{leg}: mg count drift");
+        // mandatory set intact + the 343/344 mod-window lanes grafted on top
+        // (FLIP BUG-343/344, F2-iter182, canonical a013f88: 6 -> 36 rows)
+        assert_eq!(e.mod_groups.len(), 36, "{leg}: mg count drift");
         for mgn in GRAFT_MGS {
             let mg = e
                 .mod_groups
@@ -107,19 +108,23 @@ fn t327_1_structure_graft_and_donors() {
                 0,
                 "{leg}[{mgn}]: tok1 sign field materialized"
             );
-            // 343 residuum stays unfielded: neg@63 tok3 (all mgs); neg@72
-            // tok2 keeps its pre-graft per-mg shape ('' and mod rows carry
-            // no field -- generic rescue owns it, like pre-graft)
+            // FLIP (BUG-343/344, F2-iter182, canonical a013f88): the 343
+            // residuum is fielded now -- neg@63 tok3 on every mandatory mg
+            // (closure of the 320/327 sign lattice; parity pre-existed via
+            // the generic rescue per measure_pre343, so decode/mint are
+            // byte-stable).
             assert_eq!(
                 has(Extraction::Neg, 63, 3),
-                0,
-                "{leg}[{mgn}]: 343 lane armed!"
+                1,
+                "{leg}[{mgn}]: 343 neg@63 field drift"
             );
-            let expect_neg72 = matches!(mgn, "BF16_V2" | "BF16_V2,FMZ");
+            // FLIP (BUG-343/344): neg@72 tok2 = 1 on every mandatory mg post
+            // closure (pre-graft asymmetry BF16-only closed deliberately; the
+            // vendor law carries neg@72 on all carriers x4 per arb343 A-set).
             assert_eq!(
                 has(Extraction::Neg, 72, 2),
-                expect_neg72 as usize,
-                "{leg}[{mgn}]: neg@72 shape drift (pre-graft asymmetry lost)"
+                1,
+                "{leg}[{mgn}]: 343 neg@72 field drift"
             );
             // and_base + variable_mask carry none of the armed sign bits
             assert_eq!(
@@ -153,11 +158,23 @@ fn t327_1_structure_graft_and_donors() {
         mgs.sort_unstable();
         assert_eq!(mgs, ["", "BF16_V2"], "{leg}: donor mg set drift");
         for (mgn, mg) in &e.mod_groups {
+            // FLIP (BUG-371, F2-iter196, canonical 6b7a120): tok4 abs@83 is
+            // field-carried on the thin legs now -- the 320/327-deferred
+            // donor residuum closed after arb371/arb371b proved b83 = tok4
+            // abs x4 models on the thin lattice (and measured the generic
+            // b74 mint here as the silent 'R2.INVALID1' cross-read). abs@62
+            // / abs@73 tok-levels stay absent (no donor law there).
+            let cnt83 = mg
+                .fields
+                .iter()
+                .filter(|f| f.extraction == Extraction::Abs && f.shift == 83)
+                .count();
+            assert_eq!(cnt83, 1, "{leg}[{mgn}]: abs@83 tok4 missing (BUG-371)");
             assert!(
                 !mg.fields
                     .iter()
-                    .any(|f| f.extraction == Extraction::Abs && matches!(f.shift, 62 | 73 | 83)),
-                "{leg}[{mgn}]: donor grafted!"
+                    .any(|f| f.extraction == Extraction::Abs && matches!(f.shift, 62 | 73)),
+                "{leg}[{mgn}]: donor grafted beyond 371 scope!"
             );
         }
     }
@@ -344,14 +361,18 @@ fn t327_4_fail_closed_doctrine_edges() {
             dec(&t, HOST | B91 | B85 | B73).is_none(),
             "{leg}: b91 KILL+BF16+abs decoded!"
         );
-        // un-armed vendor-legal lanes stay loud-fail (343/344 doctrine unchanged)
-        assert!(
-            enc(&t, "HFMA2.SAT R1, |R2|, R3, R4").is_err(),
-            "{leg}: SAT lane encoded silently!"
+        // FLIP (BUG-343/344, F2-iter182, canonical a013f88): the SAT compose
+        // with abs@73 is now armed through the closure (arb343 x4); the
+        // registry doctrine it was guarding is retired by its own ticket:
+        assert_eq!(
+            enc(&t, "HFMA2.SAT R1, |R2|, R3, R4").unwrap() & M96,
+            (HOST | (1 << 77) | B73) & M96,
+            "{leg}: 343/344 SAT+abs mint drift"
         );
-        assert!(
-            dec(&t, HOST | (1 << 77) | B73).is_none(),
-            "{leg}: SAT lane decoded!"
+        assert_eq!(
+            dec(&t, HOST | (1 << 77) | B73).as_deref(),
+            Some("HFMA2.SAT R1, |R2|, R3, R4"),
+            "{leg}: 343/344 SAT+abs decode drift"
         );
     }
 }
@@ -388,14 +409,24 @@ fn t327_5_anchors_293_320_324_intact() {
             &dec(&t, HOST | B63 | B62).unwrap(),
             "HFMA2 R1, R2, -|R3|, R4"
         );
-        // HFMA2.BF16_V2 era-key untouched (5-field era row, no sign fields)
+        // HFMA2.BF16_V2 era-key: exactly one sign field since BUG-371
+        // (canonical 6b7a120) -- abs 1b@83 tok4, same law as the donor
+        // lattice (arb371/arb371b x4 AGREE on the keyed row's base too).
+        // No NEG field (no donor; the row is decode-side only and neg@84
+        // stays the family-wide rescue lane).
         let era = &t.entries["HFMA2.BF16_V2_R_R_R_R"];
-        assert!(
-            !era.mod_groups
-                .values()
-                .flat_map(|mg| mg.fields.iter())
-                .any(|f| matches!(f.extraction, Extraction::Abs | Extraction::Neg)),
-            "{leg}: BF16 era-key gained sign fields"
+        let signs: Vec<_> = era
+            .mod_groups
+            .values()
+            .flat_map(|mg| mg.fields.iter())
+            .filter(|f| matches!(f.extraction, Extraction::Abs | Extraction::Neg))
+            .collect();
+        assert_eq!(signs.len(), 1, "{leg}: BF16 era-key sign-field count drift");
+        assert!(matches!(signs[0].extraction, Extraction::Abs));
+        assert_eq!(
+            (signs[0].shift, signs[0].token_idx),
+            (83, 4),
+            "{leg}: BF16 era-key abs field not the 371 graft"
         );
     }
 }

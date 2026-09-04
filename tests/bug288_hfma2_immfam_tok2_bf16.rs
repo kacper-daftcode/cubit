@@ -163,6 +163,13 @@ fn t288_1_structure_census_tags() {
     // donors byte-stable: they never carried the imm-family parents, and the
     // 288 graft adds nothing there (the pure-reg donor rows' own hsel@74 =
     // pre-existing 2aE shape, asserted here as a presence-anchored census).
+    // FLIP (BUG-354, F2-iter184, canonical 5c12995): the 354 mod-lane
+    // closure on the sparse FI_FI key CLONES the '' geometry (incl. tok2
+    // hsel@74/abs@73, tag bug354-2026-09-02) onto all 11 new mgs + swaps
+    // tok4/tok5 f16->bf16 on exactly the two BF16 families' lanes
+    // {BF16_V2, BF16_V2,FMZ} (+RELU variants) -- and the 6 dotted RELU _P
+    // keys now exist (HFMA2[.<mods>].RELU_R_R_R_FI_FI_P). II_II stays
+    // untouched; tags remain bug354-tagged (bug288 tag counts unchanged).
     for arch in ["sm100a", "sm103a"] {
         let t = tab(arch);
         use cubit::table::Extraction as X;
@@ -173,6 +180,8 @@ fn t288_1_structure_census_tags() {
                     // deliberately gained the tok2 arm (abs@73 + hsel@74;
                     // tag bug329-2026-09-01) as a measured vendor-parity
                     // closure -- NOT the 288 tag and NOT beyond mg ''.
+                    // BUG-354 attribution (iter184): ALL FI_FI mgs carry the
+                    // tok2 arm now (lane clones of '').
                     let n_hsel = mg
                         .fields
                         .iter()
@@ -183,23 +192,35 @@ fn t288_1_structure_census_tags() {
                         .iter()
                         .filter(|f| f.extraction == X::Abs && f.shift == 73 && f.token_idx == 2)
                         .count();
-                    let expect = usize::from(k == "HFMA2_R_R_R_FI_FI" && mgn.is_empty());
+                    let expect = usize::from(k == "HFMA2_R_R_R_FI_FI");
                     assert_eq!(n_hsel, expect, "{arch}: donor {k}[{mgn}] hsel@74 count");
                     assert_eq!(n_abs, expect, "{arch}: donor {k}[{mgn}] abs@73 count");
-                    assert!(
-                        !mg.fields.iter().any(|f| f.extraction == X::BF16),
-                        "{arch}: donor {k} gained bf16 extraction"
+                    let allow_bf16 = k == "HFMA2_R_R_R_FI_FI" && mgn.contains("BF16_V2");
+                    assert_eq!(
+                        mg.fields.iter().any(|f| f.extraction == X::BF16),
+                        allow_bf16,
+                        "{arch}: donor {k}[{mgn}] bf16 extraction scope"
                     );
                 }
             }
         }
-        // dotted RELU descendants never existed on donors
-        for k in [
+        // dotted RELU descendants: post-354 exactly the six 354 keys exist;
+        // the II_II dotted descendants still never existed on donors.
+        const KEYS354: [&str; 6] = [
             "HFMA2.RELU_R_R_R_FI_FI_P",
-            "HFMA2.BF16_V2.RELU_R_R_R_II_II_P",
-        ] {
-            assert!(!t.entries.contains_key(k), "{arch}: donor gained {k}");
+            "HFMA2.F32.RELU_R_R_R_FI_FI_P",
+            "HFMA2.FMZ.RELU_R_R_R_FI_FI_P",
+            "HFMA2.F32.FMZ.RELU_R_R_R_FI_FI_P",
+            "HFMA2.BF16_V2.RELU_R_R_R_FI_FI_P",
+            "HFMA2.BF16_V2.FMZ.RELU_R_R_R_FI_FI_P",
+        ];
+        for k in KEYS354 {
+            assert!(t.entries.contains_key(k), "{arch}: 354 dotted key lost {k}");
         }
+        assert!(
+            !t.entries.contains_key("HFMA2.BF16_V2.RELU_R_R_R_II_II_P"),
+            "{arch}: donor gained II_II dotted key"
+        );
     }
 }
 

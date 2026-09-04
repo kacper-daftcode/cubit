@@ -120,12 +120,40 @@ fn t289_1_structure_census_tags() {
         // BUG-324 flip: +24 RELU _P trailing dst-pred dotted keys per leg
         // (12 per parent x HFMA2_R_R_R_UR / HFMA2_R_R_UR_R; canonical
         // a0dbda7) = 1493 / 15447.
+        // BUG-339/340 flip: sm120 1493 -> 1500 (+7 F2I era keys) and
+        // sm121a 15447 -> 15449 (+2: F2I.S64.TRUNC_R_R, F2I.U64.F64.TRUNC_R_R;
+        // canonical 02c147d).
+        // BUG-341 flip (canonical 774c130): F2I small-int R_R lattice
+        // (op 0x0305) normalisation+closure: sm120 1500 -> 1542 (+42: 40 closure + 2 era mirrors 0x30/0xb1),
+        // sm121a 15449 -> 15488 (+39 era-style vendor-named rows JSON-side = +37 loaded; the 2 _errata_ annotations are annotation-reserved).
+        // BUG-343/344 flip (canonical a013f88): HFMA2 pure-reg krata 0x231
+        // mod-window closure: +12 RELU _P trailing dst-pred dotted keys per
+        // dense leg (12 per parent x 1 parent HFMA2_R_R_R_R; the 30 mod-lane
+        // mg rows live inside mod_groups and do not move the counter) =
+        // 1554 / 15500.
+        // BUG-348 flip (canonical 4983b7e): sm121a HMUL2_R_R_R era dead-row
+        // rebuild -- the two deleted era squatters (HMUL2.BF16_V2_R_R_R,
+        // HMUL2_R_R_R_R) move the key census 15500 -> 15498 (the 12 grafted
+        // mg rows live inside mod_groups and do not move the counter).
+        // BUG-363 flip (canonical fbcef1c): F2I R_R FTZ+BF16 lattice
+        // closure adds keyed era rows: +95 on sm120/sm121a
+        // (F2I.FTZ.U32.TRUNC.NTZ_R_R normalized in place) and +96 on
+        // sm100a/sm103a; legacy mg deletions don't move the key census.
+        // BUG-375 flip (canonical 883323c): sm121a 15593 -> 15604 (+11
+        // trailing-_P dotted keys from the LDGSTS desc family port; the
+        // 373 guard widen rewrites fields in place and does not move the
+        // counter).
+        // BUG-376 flip (canonical 6742fdf): sm121a 15604 -> 15630 (+26
+        // LDGSTS desc dotted keys: 13 np + 13 _P LTC-lattice completion
+        // cells LTC64B/LTC256B x6 bases + BYPASS.LTC128B.128.ZFILL twins;
+        // era-leg grafts live inside mod_groups and do not move the
+        // counter).
         let want = if arch == "sm120" {
-            1493
+            1649
         } else if arch == "sm121a" {
-            15447
+            15630
         } else {
-            15420
+            15516
         };
         assert_eq!(t.entries.len(), want, "{arch}: key census drift");
     }

@@ -153,14 +153,19 @@ fn t303_3_legal_controls_word_exact() {
     assert_eq!(w & M96, 0x000e800000000000050473a1, "sm120 MATCH ctrl");
     let w = enc_res(&t120, "SYNCS.A1T0.ARRIVE.TRANS64 R4, [R5.64], R6").unwrap();
     assert_eq!(w & M96, 0x081000ff00000006050479a7, "sm120 SYNCS ctrl");
-    // SHFL.IDX plain: pre-fix control -- the era print renders the guard
-    // slot of this row as PT (measure_pre303 'SHFL.IDX PT, ...' era-line,
-    // both the signed ghost and the plain control took this route).
+    // FLIP z atrybucja BUG-369 (F2-iter194, canonical 0933cf6->c913faa):
+    // pre-fix control miatl pred do guard-slotu (4,12) z printem PT --
+    // era intent-drop cure: pred trafia na [83:81], guard czysty,
+    // roundtrip pelny (vendor x4 confirm: dekod tego slowa == tekst).
     let w = enc_res(&t120, "SHFL.IDX P1, R11, R23, R10, 0x1f").unwrap();
-    assert_eq!(w & M96, 0x000e000000001f0a170b7589, "sm120 SHFL.IDX ctrl");
+    assert_eq!(
+        w & M96,
+        0x0002000000001f0a170b7589,
+        "sm120 SHFL.IDX ctrl (369)"
+    );
     assert!(
-        dec_print(&t120, w).as_deref() == Some("SHFL.IDX PT, R11, R23, R10, 0x1f"),
-        "sm120 SHFL.IDX ctrl roundtrip (era PT print)"
+        dec_print(&t120, w).as_deref() == Some("SHFL.IDX P1, R11, R23, R10, 0x1f"),
+        "sm120 SHFL.IDX ctrl roundtrip (369 full-pred)"
     );
 }
 
@@ -200,9 +205,12 @@ fn t303_5_decoder_era_holds() {
     // SHFL.BFLY ghost words: still decode-REJECT both legs (299 era).
     assert!(dec_print(&t120, 0x0000080b0c00000a150c7389).is_none());
     assert!(dec_print(&t121, 0x0000080b0c00000a150c7389).is_none());
-    // SHFL.IDX b63 word: sm120 era imm-cross-read (300 sm120 leg).
-    let d = dec_print(&t120, 0x000e000080001f0a170b7589).unwrap();
-    assert!(d.contains("0x80001f"), "300 era decode hold: {d}");
+    // FLIP z atrybucja BUG-368/369 (F2-iter194, canonical c913faa):
+    // b63 ghost: stary odczyt '0x80001f' byl SILENT imm32-cross-read;
+    // 369 shrink imm32@40->imm13 zamyka misprint -> loud HOLE (vendor x4
+    // pokazuje czysty 'SHFL.IDX PT, ...' = b63 inert; era relax b63 =
+    // 382-kand LOW, fail-closed porzadek zachowany).
+    assert!(dec_print(&t120, 0x000e000080001f0a170b7589).is_none());
     // MATCH/R2UR ghost words: still decode-REJECT both legs (301/302 era).
     assert!(dec_print(&t120, 0x000e810000000000050473a1).is_none());
     assert!(dec_print(&t120, 0x000e000080000000050472ca).is_none());

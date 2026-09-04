@@ -62,12 +62,16 @@ fn t308_1_sm120_era_sign_lanes_preserved_byte_exact() {
     let t = tab("sm120");
     // field-carried neg@63/abs@62 tok2 (era row F2I.S16.NTZ_R_R); vendor
     // prints '-R6'/'|R6|' on these bits (arb308 A-leg, x4 agreement).
+    // BUG-341 flip (canonical b3240ba): the era row pinned byte9=0x00 =
+    // the vendor-U8 lane (pre-341 mints below were vendor-WRONG: nvdisasm
+    // reads byte9=0x00 as 'F2I.U8'; arb341 x4). True S16.NTZ lane =
+    // byte9=0x29 -> mints now carry 0x29 at [79:72].
     let neg = enc(&t, "@P0 F2I.S16.NTZ R4, -R6").unwrap() & M96;
-    assert_eq!(neg, 0x002000008000000600040305u128);
+    assert_eq!(neg, 0x002029008000000600040305u128);
     let abs = enc(&t, "@P0 F2I.S16.NTZ R4, |R6|").unwrap() & M96;
-    assert_eq!(abs, 0x002000004000000600040305u128);
+    assert_eq!(abs, 0x002029004000000600040305u128);
     let plain = enc(&t, "@P0 F2I.S16.NTZ R4, R6").unwrap() & M96;
-    assert_eq!(plain, 0x002000000000000600040305u128);
+    assert_eq!(plain, 0x002029000000000600040305u128);
     assert_eq!(neg ^ plain, 1u128 << 63);
     assert_eq!(abs ^ plain, 1u128 << 62);
     assert_eq!(&dec(&t, neg).unwrap(), "@P0 F2I.S16.NTZ R4, -R6");
@@ -94,17 +98,21 @@ fn t308_2_sm121a_era_sign_lanes_preserved_byte_exact() {
 fn t308_3_signed_operands_fail_closed_with_attribution() {
     let cases: &[(&str, &str)] = &[
         // D1-class: pre-fix silently dropped the sign (word == plain mint)
-        ("sm103a", "F2I.F64.FLOOR R4, -R6"),
+        // BUG-362 flip: the F64.FLOOR and F64.TRUNC.U32 lattice rows now
+        // carry the grafted sign window (abs@62/neg@63 tok2; arb362 S-group
+        // x4 agree) -- the two removed sm103a cases below now mint the
+        // signed words word-exact (covered by tests/bug362 pin battery):
+        //   ("sm103a", "F2I.F64.FLOOR R4, -R6")     -- was: silent drop
+        //   ("sm103a", "F2I.U32.F64.TRUNC R4, -R6") -- was: b72 dst-type drop
         ("sm103a", "@P0 F2I -R4, 1.5"),
         // D2-class: pre-fix cross-mint onto law bits
-        ("sm103a", "F2I.F64.TRUNC.U32 R4, -R6"), // b72 dst-type drop
         ("sm103a", "USHF.L.U32.HI UR3, -UR5, 0x6, UR9"), // b63 -> shift-imm
         ("sm103a", "USHF.L.U32.HI UR3, |UR5|, 0x6, UR9"), // b62 -> shift-imm
         ("sm103a", "USHF.L.S32.HI |UR3|, UR5, 0x6, UR9"), // b73 -> S32->U32
         ("sm103a", "F2IP.F32.NTZ.S8 R4, -R6, R8, R10"), // b72 -> hsel .H1
         ("sm103a", "F2IP.F32.NTZ.S8 R4, R6, R8, -R10"), // b75 -> .RELU
         ("sm103a", "F2IP.F32.NTZ.S8 R4, R6, |R8|, R10"), // b62 vendor-inert
-        ("sm120", "@!P1 F2I.NTZ.TRUNC.U32 R4, -R6"),
+        ("sm120", "@!P1 F2I.U32.TRUNC.NTZ R4, -R6"),
         ("sm120", "@P0 F2IP.U8.F32 R4, -R6, R8, R10"),
         ("sm120", "F2IP.S8.F32.NTZ R6, R8, |R10|, 0x6"),
         ("sm120", "@UP0 USHF.L.U32 UR3, |UR5|, 0x6, UR9"),
@@ -115,7 +123,7 @@ fn t308_3_signed_operands_fail_closed_with_attribution() {
             "sm121a",
             "@P0 F2IP.F32.INVALID1.NTZ.RELU.S8 R4, |R6|, 1.5, R8",
         ),
-        ("sm120", "F2I.NTZ.U32 R1, -R15"), // era-adjacent non-field lane
+        ("sm120", "F2I.U32.NTZ R1, -R15"), // era-adjacent non-field lane
     ];
     for (arch, text) in cases {
         let text = text.strip_suffix(';').unwrap_or(text);
@@ -141,11 +149,15 @@ fn t308_4_decoder_no_ghost_and_prio3_f2ip_fail_closed() {
         dec(&t103, 0x0030d1000000000600047311u128).unwrap(),
         "F2I.F64.TRUNC R4, R6"
     );
-    // era-adjacent word: field-carried abs prints, ghost neg gone
+    // era-adjacent word: field-carried abs prints, ghost neg gone.
+    // BUG-341 flip: this is the registered C0 zlom word -- pre-341 the
+    // loose era F2I.FLOOR.NTZ_R_R misclaimed it and printed FLOOR.NTZ
+    // (D2-class). Vendor x4 (arb339 C0 / arb341) prints 'F2I.NTZ R1, |R15|'
+    // (byte9=0x31 = NTZ lane; FLOOR needs bit 0x40).
     for arch in ["sm120", "sm121a"] {
         assert_eq!(
             dec(&tab(arch), 0x002031004000000f00017305u128).unwrap(),
-            "F2I.FLOOR.NTZ R1, |R15|"
+            "F2I.NTZ R1, |R15|"
         );
     }
 }
@@ -171,7 +183,10 @@ fn t308_5_unsigned_surface_byte_stable() {
         (
             "sm120",
             "@P0 F2I.S16.NTZ R4, R6",
-            0x002000000000000600040305,
+            // BUG-341 flip: old mint 0x002000... was the vendor-U8 lane
+            // (era key pinned byte9=0x00, D1-class wrong-code); true
+            // S16.NTZ lane = byte9=0x29 (arb341 x4).
+            0x002029000000000600040305,
         ),
         (
             "sm121a",

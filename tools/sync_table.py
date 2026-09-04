@@ -100,6 +100,12 @@ class SyncError(RuntimeError):
 # template added) carry baked ctrl templates; IMNMX II cell rows unbaked;
 # LOP3 PAND clones +3 (sm120) / +2 (donors) -- SM120 825->844,
 # SM103a 1389->1391, SM100a 1393->1395.
+# 2026-09-02 BUG-343/344 (canonical a013f88): HFMA2 pure-reg krata 0x231
+# mod-window closure -- 30 new base-key mgs + 12 RELU _P dotted keys per
+# dense leg clone the plain/BF16_V2 parents of HFMA2_R_R_R_R and inherit
+# the era donor ctrl template baked in their and_base [115:110] (same
+# convention as the 274/279/285 FI_FI wave) -- SM120 981->1023,
+# SM121A 499->541. Donors sm100a/sm103a untouched (owner scope).
 # bug243 (canonical 0b6a753): HFMA2 wave -- 4 keys (RRRR x2 mg, UR x2 mg,
 # FI_FI_R x2 mg, FI_FI x1 mg) wholesale from rebuilt donor rows carry the
 # era-2aE ctrl template like the rest of the family -- SM120 844->851.
@@ -152,8 +158,70 @@ class SyncError(RuntimeError):
 # donors; inherit the donor ctrl template (SM103a 1394->1396, SM100a
 # 1398->1400); sm100a donor imm2 flip 21/19->12b@32 touches extraction
 # bits only (no [127:105] delta); sm120/sm121a unchanged.
-BAKED_CTRL_BASELINE = {"SM120": 979, "SM103a": 1396, "SM100a": 1400,
-                       "SM121A": 498}
+# 2026-09-02 BUG-339/340 (canonical 02c147d): sm120 F2I generic clones
+# 'S64,TRUNC' (donor sm103a) + 'F64,TRUNC' (121a) inherit donor-era baked
+# ctrl in and_base (SM120 979->981); era-key clones + sm121a grafts carry
+# none in the baked window; SM121A 498->499 for its generic S64,TRUNC
+# donor clone (era-key grafts carry none); donors untouched.
+# 2026-09-02 BUG-354 (canonical 5c12995): HFMA2 sparse-leg FI/II lattice
+# mod-lane closure -- 11 new mgs + 6 dotted _P keys per sparse leg clone
+# the plain/BF16 donors of HFMA2_R_R_R_FI_FI and inherit the 2aE-era donor
+# ctrl template baked in their and_base [127:105] (same convention as the
+# 274/279/285 FI_FI wave and the 343/344 dense graft) -- SM100a
+# 1400->1416 (true 1399+17), SM103a 1396->1412 (true 1395+17). Dense legs
+# untouched (SM120/SM121A ratchets stand).
+# 2026-09-03 BUG-348: SM121A 499->511 (true 511 = 499+12) -- the 12 grafted
+# HMUL2_R_R_R rows are a strict clone of the post-324 sm120 donor set and
+# inherit the canonical 226d-era control template baked in and_base
+# [127:105] (same convention as the 274/279/285/324/343/344/354 waves);
+# the 2 deleted era squatter rows baked no [127:105] bits (net +12).
+# 2026-09-03 BUG-359: SM100a 1416->1420, SM103a 1412->1416, SM120
+# 1023->1029 -- 6 grafted LDGSTS_ARI_dARI{,_P} '128,E' x {LTC128B,ZFILL,
+# both} rows per leg clone in-key donors and inherit the donor's baked
+# control template in and_base[127:105]: 4/6 on sm100a/sm103a (the dARI_P
+# ZFILL chain donors '128,BYPASS,E,*ZFILL' bake no [127:105] bits), 6/6
+# on sm120 (chain donors post-311 '128,E'/'128,E,LTC128B' bake). True
+# 1420/1416/1029. SM121A ratchet stands (dotted keys untouched).
+# 2026-09-03 BUG-360 (canonical 32cde7a): SM100a 1420->1423, SM103a
+# 1416->1419, SM120 1029->1033 -- grafted LTC256B rows clone the LTC128B
+# donors and inherit their baked control template in and_base[127:105]:
+# 3/leg on 100a/103a (dARI 'E,LTC256B' + dARI_P x2; the dARI
+# '64,E,LTC256B' era row was already counted), 4 on sm120 (dARI
+# '64,E,LTC256B' additionally grafted -- era row absent there; first-run
+# pin t360_5 evidence). Part A imm2 flips + Part B/C ur0 9b->8b touch
+# extraction bits / field masks only (no [127:105] delta). SM121A
+# ratchet stands (dotted keys untouched).
+# 2026-09-04 BUG-363 (canonical fbcef1c, AMEND of 53f897c): the two deleted
+# legacy F2I_R_R FTZ mgs (lane 0x31 'FTZ,NTZ' dst@15 sev-A corrupt + lane
+# 0xf0 'FTZ,NTZ,TRUNC,U32' guard-pinned) carried one baked donor-era ctrl
+# template each on the 100a/103a legs -- lowered where the wave removed
+# them: SM103a 1419->1418, SM100a 1423->1422. The 96+96 keyed era
+# replacements bake no [127:105] bits (ab=0x0305|lane<<72|byte10<<80);
+# SM120/SM121A stand (their deleted twins carried no baked template).
+# 2026-09-04 BUG-367 (canonical 0933cf6): SM100a 1422->1452, SM103a
+# 1418->1448 -- 30 grafted rows/leg (12 DIRECT + 6 BF16 + 6 RELU base
+# mgs + 6 RELU _P dotted keys on HFMA2_R_R_R_FI_FI) clone the local
+# sparse '' donor and inherit its baked control template in
+# and_base[127:105] (same convention as the 354 wave, true
+# 1422+30/1418+30). SM120 1033 / SM121A 511 stand (dense legs
+# untouched, graft corpus-invisible).
+# 2026-09-04 BUG-373+374+375 (canonical 883323c): SM120 1033->1036 --
+# 3 grafted LDGSTS desc rows (np '128,BYPASS,E,ZFILL' + _P '128,BYPASS,E'
+# + _P '128,BYPASS,E,ZFILL') clone era donors and inherit the baked ctrl
+# template in and_base[127:105]. SM100a 1452->1454, SM103a 1448->1450
+# (np + _P '128,BYPASS,E' grafts, same donor inheritance). SM121A 511
+# stands (dotted-family donors carry no baked [127:105] bits).
+# 2026-09-04 BUG-376 (canonical c574778): SM100a 1454->1471, SM103a
+# 1450->1467, SM120 1036->1058 -- grafted LDGSTS desc LTC-lattice rows
+# (LTC64B x6 bases + LTC256B x4 bases + code-2 BYPASS.ZFILL cross,
+# np/_P donor clones) inherit their in-leg in-side donor's baked
+# control template in and_base[127:105] VERBATIM: true counts 17/17/22/0
+# (era: non-ZFILL row-donors bake the plain-era template; on 100a/103a
+# the _P ZFILL donors bake none, on sm120 all _P donors bake; measured,
+# not assumed). SM121A 511 stands (dotted-key donors hi32==0 asserted in
+# patch376.py).
+BAKED_CTRL_BASELINE = {"SM120": 1058, "SM103a": 1467, "SM100a": 1471,
+                       "SM121A": 511}
 
 FIXED_EXTRACTIONS = {
     "",

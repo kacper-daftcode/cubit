@@ -875,6 +875,25 @@ fn mod_priority_for_key(base: &str, key: &str, m: &str) -> u8 {
 
 /// Opcode-aware modifier priority (overrides generic mod_priority for specific cases).
 fn mod_priority_for(base: &str, m: &str) -> u8 {
+    // BUG-361: F2I prints dst-type < src-type < rounding < NTZ -- vendor law
+    // `F2I.U64.TRUNC` / `F2I.U64.F64.TRUNC` / `F2I.FTZ.U32.TRUNC.NTZ` /
+    // `F2I.U32.NTZ` / `F2I.S16.NTZ` (arb339 arb362 + mint probes on every
+    // changed class, nvdisasm 13.3.73 raw -b, x4 models AGREE). The generic
+    // tie at priority 5 kept the mg's alphabetical order and printed the
+    // pre-361 wrong-text classes `F2I.TRUNC.U64` / `F2I.F64.TRUNC.U64` /
+    // `F2I.NTZ.S16` etc. on the R_R/R_UR rows (4 legs; render-parity b11
+    // lane). F2I_R_FI resolves through its own key-scoped BUG-125 arm
+    // before reaching this code; its law is identical, so its texts stand.
+    // F2IP (base `F2IP`) is untouched.
+    if base == "F2I" {
+        match m {
+            "U8" | "S8" | "U16" | "S16" | "U32" | "S32" | "U64" | "S64" => return 4,
+            "F16" | "F32" | "F64" | "BF16" => return 5,
+            "FLOOR" | "CEIL" | "RN" | "TRUNC" => return 6,
+            "NTZ" => return 7,
+            _ => {}
+        }
+    }
     // BUG-274: HFMA2 packed-f16-imm op-suffix lattice — vendor prints the
     // modifiers in the order `.F32 .FMZ .SAT` (arb274: all 8 legal bit
     // combos of the [79:76] window, nvdisasm 13.3.73 raw -b, x4 models).
@@ -1085,6 +1104,16 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
         match m {
             "BYPASS" => return 4,
             "LTC128B" | "LTC256B" => return 5,
+            // BUG-359: nvdisasm prints ZFILL after the transfer size
+            // (LDGSTS.E.128.ZFILL / LDGSTS.E.BYPASS.128.ZFILL /
+            // LDGSTS.E.LTC128B.128.ZFILL; arb359 N2/N5/Z x4 agree; matches
+            // the documented order in ptx_lower.rs:3467). Pre-fix the
+            // default bucket (5, data-type) printed ".128" AFTER ".ZFILL"
+            // on the 100a/103a-era BYPASS+ZFILL donor rows (pre-existing
+            // wrong-text class, corpus-invisible: 0 claimed words in the
+            // 30,049-slot desc battery); the 359 alloc-cross graft inherits
+            // the same string mechanism. ZFILL occurs under LDGSTS only.
+            "ZFILL" => return 7,
             _ => {}
         }
     }

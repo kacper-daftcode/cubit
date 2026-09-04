@@ -128,18 +128,27 @@ fn t271_1_structure_and_donors() {
     // the '' row and the BF16_V2 row re-arm swap landed on ALL 4 legs (arb293
     // x4 vendor law; _src bug293-2026-08-31). Donors may carry h0nh1 ONLY on
     // HFMA2_R_R_R_R '' + BF16_V2; everything else stays donor-untouched.
+    // FLIP2 (BUG-353, F2-iter183, canonical 9717447): the sparse FI_FI ''
+    // tok3 sign-window graft adds h0nh1@86 tok3 on HFMA2_R_R_R_FI_FI '' on
+    // sm100a+sm103a (exact mirror of the dense 279/271 geometry; arb329
+    // S-group x4; corpus-invisible per census353). Scope widened to that key.
+    // FLIP3 (BUG-354, F2-iter184, canonical 5c12995): the 6 RELU _P dotted
+    // keys of the sparse mod-lane closure (HFMA2[.<mods>].RELU_R_R_R_FI_FI_P)
+    // inherit the lane field set incl. h0nh1@86 tok3 (clones of the lane;
+    // full battery tests/bug354 t354_1; dense precedent carries the same
+    // field in its dotted keys). Scope widened to that key family.
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
         for (k, e) in &t.entries {
             for g in e.mod_groups.values() {
                 for f in &g.fields {
                     if f.extraction == Extraction::H0NH1 {
+                        let in_scope = k == "HFMA2_R_R_R_R"
+                            || k == "HFMA2_R_R_R_FI_FI"
+                            || (k.starts_with("HFMA2.") && k.ends_with("_R_R_R_FI_FI_P"));
                         assert!(
-                            k == "HFMA2_R_R_R_R"
-                                && f.shift == 86
-                                && f.bits == 1
-                                && f.token_idx == 3,
-                            "{leg}|{k}: donor touched outside BUG-293 scope"
+                            in_scope && f.shift == 86 && f.bits == 1 && f.token_idx == 3,
+                            "{leg}|{k}: donor touched outside BUG-293/353/354 scope"
                         );
                     }
                 }

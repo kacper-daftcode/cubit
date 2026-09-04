@@ -31,6 +31,9 @@
 //! clone-bake lanes F32 / FMZ / F32,FMZ / BF16_V2,FMZ. NO engine change.
 //! DONORS (sm100a/sm103a) untouched (BUG-315 owner scope; their residuum =
 //! measured decode-holes on the same lanes, documented in the report).
+//! [ADDENDUM 2026-09-04, BUG-371: the abs@83 residuum closed on the thin
+//! legs via the donor field (arb371/arb371b x4 AGREE); t320_1 flipped
+//! with attribution. F32/FMZ lanes + band relax stay absent (pins kept).]
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;
@@ -122,16 +125,21 @@ fn t320_1_structure_graft_and_donors() {
             "{leg}: INVALID3 lane armed!"
         );
     }
-    // donors byte-untouched shape: no abs@83 field, no F32/FMZ lanes, no band relax
+    // donors shape: abs@83 field present since BUG-371 (canonical 6b7a120,
+    // 2026-09-04): the bug320-deferred thin-leg residuum closed via the
+    // donor field after arb371/arb371b proved b83 = tok4 abs x4 models on
+    // the thin lattice too (and measured the generic b74 mint here as the
+    // silent 'R2.INVALID1' cross-read class). The OTHER residua of this
+    // pin stay: no F32/FMZ lanes, no band relax on thin legs.
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
         let e = &t.entries["HFMA2_R_R_R_R"];
         for (mgn, mg) in &e.mod_groups {
             assert!(
-                !mg.fields
+                mg.fields
                     .iter()
                     .any(|f| f.shift == 83 && f.extraction == cubit::table::Extraction::Abs),
-                "{leg}[{mgn}]: donor grafted!"
+                "{leg}[{mgn}]: abs@83 donor field missing (BUG-371 closure expected)"
             );
         }
         for lane in ["F32", "FMZ", "F32,FMZ", "BF16_V2,FMZ"] {
@@ -242,22 +250,28 @@ fn t320_4_fail_closed_doctrine_residuum() {
             enc(&t, "HFMA2.BF16_V2.F32 R1, R2, R3, R4").is_err(),
             "{leg}: INVALID3 lane encoded!"
         );
-        // un-armed vendor-legal lanes (343/344-kand): encode loud-fails, decode stays HOLE
-        assert!(
-            dec(&t, HOST | (1 << 77)).is_none(),
-            "{leg}: SAT lane decoded!"
+        // FLIP (BUG-343/344, F2-iter182, canonical a013f88): the formerly
+        // un-armed vendor-legal lanes (this kand) are now armed -- decode +
+        // word-exact mint through the closure, full battery in t343_2/3:
+        assert_eq!(
+            dec(&t, HOST | (1 << 77)).as_deref(),
+            Some("HFMA2.SAT R1, R2, R3, R4"),
+            "{leg}: 343/344 SAT lane decode drift"
         );
-        assert!(
-            enc(&t, "HFMA2.SAT R1, R2, R3, R4").is_err(),
-            "{leg}: SAT lane encoded silently!"
+        assert_eq!(
+            enc(&t, "HFMA2.SAT R1, R2, R3, R4").unwrap() & M96,
+            (HOST | (1 << 77)) & M96,
+            "{leg}: 343/344 SAT lane mint drift"
         );
-        assert!(
-            enc(&t, "HFMA2.FTZ R1, R2, R3, R4").is_err(),
-            "{leg}: FTZ lane encoded silently!"
+        assert_eq!(
+            enc(&t, "HFMA2.FTZ R1, R2, R3, R4").unwrap() & M96,
+            (HOST | (1 << 80)) & M96,
+            "{leg}: 343/344 FTZ lane mint drift"
         );
-        assert!(
-            enc(&t, "HFMA2.OOB R1, R2, R3, R4").is_err(),
-            "{leg}: OOB lane encoded silently!"
+        assert_eq!(
+            enc(&t, "HFMA2.OOB R1, R2, R3, R4").unwrap() & M96,
+            (HOST | (1 << 76) | (1 << 80)) & M96,
+            "{leg}: 343/344 OOB lane mint drift"
         );
         // b91 unit-KILL stays HOLE (also with mods)
         assert!(

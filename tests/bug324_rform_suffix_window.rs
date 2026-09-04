@@ -1623,20 +1623,11 @@ fn t324_1_structure_graft_and_donors() {
         }
         assert_eq!(hits, 24, "{leg}: dotted RELU _P key count");
         // HMUL2 forms: legal lanes only, b79 relaxed on every row.
-        // SCOPE (348-kand): sm121a HMUL2_R_R_R is a dead era row measured
-        // pre-existing (no tok2 field, junk ''@25, missing tok hsel fields;
-        // 4,942 plain + 707 BF16 corpus words HOLE/era-wrong-claim) and stays
-        // UNTOUCHED here -- the full sm121a rebuild is a separate ticket.
+        // BUG-348 flip (canonical 4983b7e): sm121a HMUL2_R_R_R rebuilt from
+        // the sm120 donor (12-mg clone) -- the "348-kand era stays untouched"
+        // sentinel is retired; the shared lane assertions now bind on sm121a
+        // too (all 11 lanes + b79 vm-relax proven on the clone).
         for key in ["HMUL2_R_R_R", "HMUL2_R_R_UR"] {
-            if leg == "sm121a" && key == "HMUL2_R_R_R" {
-                let e = &t.entries[key];
-                assert_eq!(
-                    e.mod_groups.len(),
-                    1,
-                    "{leg} {key}: era row must stay untouched (348-kand)"
-                );
-                continue;
-            }
             let e = &t.entries[key];
             for (mgn, mg) in &e.mod_groups {
                 let mgn: &String = mgn;
@@ -1711,14 +1702,12 @@ fn t324_2_decode_vendor_exact_x2() {
             continue;
         }
         assert_eq!(dec(&t120, *w).as_deref(), Some(*text), "sm120 decode {tag}");
-        if tag.contains("_232_") {
-            // 348-kand residuum: sm121a HMUL2_R_R_R era row is dead
-            // (bits missing: guard field split, tok hsel fields absent,
-            // and_base era-bakes tok junk) -- every 0x232 host word is HOLE
-            // on sm121a pre-existing (5,650 corpus words today); the 324
-            // lane clones inherit the era care. Pin the unchanged era state
-            // as a tripwire until the row rebuild (separate item).
-            assert_eq!(dec(&t121, *w), None, "sm121a era-HOLE {tag}");
+        if tag.contains("_232_") && false {
+            // (retired by BUG-348: era-HOLE tripwire was scoped to the dead
+            // sm121a row; the donor-mirror rebuild decodes every 0x232 legal
+            // probe vendor-exact, same as sm120 -- measured in t348_2 and
+            // routex348)
+            unreachable!();
         } else {
             assert_eq!(
                 dec(&t121, *w).as_deref(),
@@ -1774,15 +1763,9 @@ fn t324_3_encode_mint_roundtrip_and_relu_pred() {
     for leg in ["sm120", "sm121a"] {
         let t = tab(leg);
         for (authored, expect) in CASES {
-            // sm121a HMUL2_R_R_R era row lacks tok2/3 fields entirely (dead
-            // pre-existing row, 348-kand): mint must stay loud-fail there.
-            if leg == "sm121a" && (authored.starts_with("HMUL2.SAT R10,")) {
-                assert!(
-                    enc(&t, authored).is_err(),
-                    "sm121a era fail-closed [{authored}] (348-kand)"
-                );
-                continue;
-            }
+            // BUG-348 flip: sm121a HMUL2_R_R_R mints+roundtrips (rebuilt).
+            // Pre-348 this arms the fail-closed era branch; now shared.
+
             let w = enc(&t, authored).unwrap_or_else(|e| panic!("{leg} mint [{authored}]: {e}"));
             let rt = dec(&t, w).unwrap_or_else(|| panic!("{leg} redecode [{authored}]"));
             assert_eq!(&rt, expect, "{leg} roundtrip [{authored}]");
@@ -1880,9 +1863,10 @@ fn t324_5_corpus_anchors_unchanged() {
             Some(*text),
             "sm120 anchor {w:#x}"
         );
-        if (*w & 0xfff) == 0x232 {
-            // 348-kand: sm121a HMUL2_R_R_R era row = dead, HOLE pre/post
-            assert_eq!(dec(&t121, *w), None, "sm121a era-HOLE {w:#x}");
+        if (*w & 0xfff) == 0x232 && false {
+            // (retired by BUG-348: era-HOLE tripwire; anchors now decode
+            // vendor-exact on sm121a, same branch as everything else)
+            unreachable!();
         } else {
             assert_eq!(
                 dec(&t121, *w).as_deref(),

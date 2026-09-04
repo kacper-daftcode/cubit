@@ -2491,6 +2491,54 @@ fn try_make_waitable(insn: &mut Instruction) -> bool {
     false
 }
 
+/// Resolved backward branches (loop back-edges), shared by the barrier
+/// allocator (BUG-342 wrap liveness) and the scoreboard verifier (BUG-347
+/// loop-aware wrap pass).
+///
+/// Returns (`edges`, `ltop`, `lback`): `edges` = (target_idx, branch_idx) for
+/// every backward control-flow edge whose target is STATICALLY resolvable
+/// (register-indirect / addr-missing targets are excluded -- the verifier
+/// flags those loudly, BUG-347). `ltop[i]`/`lback[i]` = innermost enclosing
+/// resolved loop for instruction i (usize::MAX when outside any).
+fn resolved_back_edges(insns: &[Instruction]) -> (Vec<(usize, usize)>, Vec<usize>, Vec<usize>) {
+    use std::collections::HashMap;
+    let n = insns.len();
+    let mut addr2idx: HashMap<u32, usize> = HashMap::new();
+    for (i, ins) in insns.iter().enumerate() {
+        addr2idx.insert(ins.addr, i);
+    }
+    let mut ltop = vec![usize::MAX; n];
+    let mut lback = vec![usize::MAX; n];
+    let mut edges: Vec<(usize, usize)> = Vec::new();
+    for (j, ins) in insns.iter().enumerate() {
+        if !is_control_flow(ins.opcode.as_str()) {
+            continue;
+        }
+        let Some(t) = branch_target(ins) else {
+            continue;
+        };
+        let Some(&ti) = addr2idx.get(&t) else {
+            continue;
+        };
+        if ti > j {
+            continue;
+        }
+        edges.push((ti, j));
+        for k in ti..=j {
+            let cur = if ltop[k] == usize::MAX {
+                usize::MAX
+            } else {
+                lback[k] - ltop[k]
+            };
+            if j - ti < cur {
+                ltop[k] = ti;
+                lback[k] = j;
+            }
+        }
+    }
+    (edges, ltop, lback)
+}
+
 pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) {
     let n = insns.len();
     if n == 0 { return; }
@@ -2518,23 +2566,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
     // `edges` = every resolved backward branch (target_idx, branch_idx): the
     // loop-NEST view for BUG-342 wrap-liveness (consumers / WAR overwriters can
     // sit in ANY enclosing loop, not only the innermost one).
-    use std::collections::HashMap;
-    let mut addr2idx: HashMap<u32, usize> = HashMap::new();
-    for (i, ins) in insns.iter().enumerate() { addr2idx.insert(ins.addr, i); }
-    let mut ltop = vec![usize::MAX; n];
-    let mut lback = vec![usize::MAX; n];
-    let mut edges: Vec<(usize, usize)> = Vec::new();
-    for (j, ins) in insns.iter().enumerate() {
-        if !is_control_flow(ins.opcode.as_str()) { continue; }
-        let Some(t) = branch_target(ins) else { continue; };
-        let Some(&ti) = addr2idx.get(&t) else { continue; };
-        if ti > j { continue; }
-        edges.push((ti, j));
-        for k in ti..=j {
-            let cur = if ltop[k] == usize::MAX { usize::MAX } else { lback[k] - ltop[k] };
-            if j - ti < cur { ltop[k] = ti; lback[k] = j; }
-        }
-    }
+    let (edges, ltop, lback) = resolved_back_edges(insns);
 
     let writes: Vec<Vec<u16>> = insns.iter()
         .map(|x| dest_regs(x).into_iter().map(|(u, r)| rk(u, r)).collect()).collect();
@@ -2911,6 +2943,162 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
     }
 }
 
+/// Structured result of the read-only scoreboard verifier (BUG-347). The three
+/// classic counters are EXACTLY the numbers on the CUBIT_VERIFY line (wrap
+/// findings are included in them and additionally broken out in `wrap_*`);
+/// `unresolved_edges` drives the separate, additive CUBIT_VERIFY_LOOP line.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct VerifyReport {
+    /// variable-latency result read before its write-barrier was waited
+    pub raw: usize,
+    /// late-latched mem-op operand overwritten before its read-barrier was waited
+    pub war: usize,
+    /// result read after its barrier was recycled by a different-latency producer
+    pub recycle: usize,
+    /// of `raw`: findings only visible across a resolved loop back-edge
+    pub wrap_raw: usize,
+    /// of `war`: wrap findings
+    pub wrap_war: usize,
+    /// of `recycle`: wrap findings
+    pub wrap_recycle: usize,
+    /// control-flow edges whose target is not statically resolvable
+    /// (register-indirect BRA/BRX/BRXU/JMP/CALL or a target outside the
+    /// kernel): loop-carried scoreboard relations across them are UNVERIFIED.
+    pub unresolved_edges: usize,
+    /// of `unresolved_edges` (BUG-370 decomposition, additive): the target
+    /// role carries a NON-ZERO register (GPR != RZ on any branch-class op,
+    /// or UR != URZ on BRX/BRXU-class) -- genuinely data-dependent dispatch.
+    pub unresolved_reg_target: usize,
+    /// of `unresolved_edges` (BUG-370): BRX/BRXU with a ZERO base (URZ/RZ) --
+    /// the target is raw-immediate based (constant in principle, but the
+    /// immediate's unit is not interpreted by the verifier, so the relation
+    /// across the edge stays UNVERIFIED). Attribution class only.
+    pub unresolved_const_base: usize,
+    /// of `unresolved_edges` (BUG-370): static-target class whose target is
+    /// outside this kernel, or whose Label operand never resolved.
+    pub unresolved_outtarget: usize,
+}
+
+/// BUG-370: classification of a statically UNRESOLVABLE control-flow edge,
+/// grounded in the vendor ISA reference (SM120_ISA_REFERENCE: BRA = "Branch.
+/// PC-relative target" on EVERY form incl. DIV/CONV; BRX = "Indirect branch
+/// via register"; BRXU = "Indirect branch via uniform register"; CALL/JMP/JMX
+/// carried over from the BUG-347 linter). The 347 detector used a flat
+/// "any Reg/UReg operand in {BRA,BRX,BRXU,JMP,JMX,CALL}" heuristic which
+/// misflagged two rt98 classes (census: results/cubitfix/370.md):
+///   (a) BRA.DIV P0, URZ, <label> / BRA.CONV !P5, URZ, <label> — the UR is an
+///       AUXILIARY operand (convergence bookkeeping), the branch target is the
+///       PC-relative label and is statically resolved. These edges must not be
+///       reported as unresolved (they were 20/64 of the rt98 LOOP lines).
+///   (b) BRXU.U URZ, <imm> — URZ-based indirect: constant-in-principle, but
+///       the immediate's unit is not interpreted here; reported under the
+///       distinct `ConstBase` class instead of "register-indirect".
+/// Zero-count rules: RZ (GPR 255) and URZ (UR 63) are the architectural zero
+/// registers and never make a target data-dependent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UnresClass {
+    /// genuine data-dependent target (non-zero GPR, or non-zero UR on
+    /// BRX/BRXU-class, or non-zero GPR on JMP/JMX/CALL-class).
+    RegTarget,
+    /// zero-base indirect (BRX/BRXU via URZ/RZ): constant-in-principle raw
+    /// immediate target; unit uninterpreted -> stays UNVERIFIED.
+    ConstBase,
+    /// static-target branch whose resolved address is outside this kernel.
+    OutKernel,
+    /// control-flow op whose Label operand never resolved to an address.
+    UnresolvedLabel,
+}
+
+impl UnresClass {
+    fn reason(self) -> &'static str {
+        match self {
+            UnresClass::RegTarget => "register-indirect target",
+            UnresClass::ConstBase => {
+                "constant-base indirect target (zero register base; raw immediate unit uninterpreted)"
+            }
+            UnresClass::OutKernel => "branch target outside this kernel",
+            UnresClass::UnresolvedLabel => "unresolved label target",
+        }
+    }
+}
+
+/// Classify one instruction for the BUG-347/370 unresolved-edge linter.
+/// Returns None when the edge is statically resolvable (or not control flow).
+fn unresolved_edge_class(
+    ins: &Instruction,
+    addr2idx: &std::collections::HashMap<u32, usize>,
+) -> Option<UnresClass> {
+    let op = ins.opcode.as_str();
+    let mut any_gpr_nonzero = false;
+    let mut any_ureg_nonzero = false;
+    let mut any_zero_reg = false;
+    for o in &ins.operands {
+        match o {
+            Operand::Reg { num, .. } => {
+                if *num == 255 {
+                    any_zero_reg = true;
+                } else {
+                    any_gpr_nonzero = true;
+                }
+            }
+            Operand::UReg { num, .. } => {
+                if *num == 63 {
+                    any_zero_reg = true;
+                } else {
+                    any_ureg_nonzero = true;
+                }
+            }
+            _ => {}
+        }
+    }
+    if matches!(op, "BRX" | "BRXU") {
+        // Indirect-branch class: the register IS the target base.
+        if any_gpr_nonzero || any_ureg_nonzero {
+            return Some(UnresClass::RegTarget);
+        }
+        if any_zero_reg {
+            return Some(UnresClass::ConstBase);
+        }
+        // single-token absolute/label form (BUG-027): fall through to the
+        // static-target arms below.
+    } else if matches!(op, "JMP" | "JMX" | "JMXU" | "CALL") {
+        if any_gpr_nonzero || any_ureg_nonzero {
+            return Some(UnresClass::RegTarget);
+        }
+    } else if is_control_flow(op) {
+        // BRA-family (all modifiers): PC-relative static target, auxiliary
+        // P/UR operands (incl. real URs) are NOT the target (vendor law).
+        if any_gpr_nonzero {
+            return Some(UnresClass::RegTarget); // defensive: GPR in a BRA-class target role
+        }
+    } else if !(matches!(op, "RET" | "PRET") && ins.operands.is_empty()) {
+        // Not a control-flow op the linter watches (BUG-347 set + EXIT/RET/
+        // BREAK/CONT/KILL/BSSY/BSYNC/BBREAK/BMOV via is_control_flow).
+        return None;
+    }
+    if !is_control_flow(op) && !matches!(op, "BRX" | "BRXU" | "JMP" | "JMX" | "JMXU" | "CALL") {
+        return None;
+    }
+    // Static-target arms.
+    match branch_target(ins) {
+        Some(t) if !addr2idx.contains_key(&t) => Some(UnresClass::OutKernel),
+        Some(_) => None,
+        None => {
+            if ins.operands.iter().any(|o| matches!(o, Operand::Label(_))) {
+                Some(UnresClass::UnresolvedLabel)
+            } else {
+                None
+            }
+        }
+    }
+}
+
+/// Read-only scoreboard verification as a pure report (no printing) so tests
+/// and tooling can assert on it. Same analysis the CUBIT_VERIFY path runs.
+pub fn verify_scoreboard_report(insns: &[Instruction], table: Option<&IsaTable>) -> VerifyReport {
+    run_verify(insns, table, false)
+}
+
 /// Public wrapper so main.rs can run the verifier on fully-frozen kernels (where
 /// `reallocate_barriers` is skipped in preserve mode).
 pub fn verify_scoreboard_public(insns: &[Instruction], table: Option<&IsaTable>) {
@@ -2921,128 +3109,374 @@ pub fn verify_scoreboard_public(insns: &[Instruction], table: Option<&IsaTable>)
 /// variable-latency result that is READ before its write-barrier is waited (an
 /// unprotected RAW → nondeterministic stale read), or a barrier recycled before
 /// its result was waited. Gated by CUBIT_VERIFY.
+///
+/// BUG-347: the simulation is LOOP-AWARE. A single linear pass is blind to
+/// loop-carried (wrap) relations in both directions: a loop-head consumer of a
+/// body-tail producer is checked BEFORE the producer is ever seen (real bugs
+/// silently pass — BUG-342's class was exactly this), and in-flight state
+/// armed inside the body is never re-checked against the head of the next
+/// iteration. After the classic pass, the walk therefore re-runs every resolved
+/// loop body once from its end-of-body snapshot (innermost first), deduping
+/// against first-pass findings; genuinely new violations join the classic
+/// counters and are tagged "(loop-carried wrap)". Control-flow edges whose
+/// target cannot be statically resolved (register-indirect BRA/BRX/BRXU/JMP, or
+/// a target missing from the kernel) bound loops the wrap pass CANNOT walk —
+/// those are counted in `unresolved_edges` and printed on a separate
+/// CUBIT_VERIFY_LOOP line instead of being silently skipped (fail-loud).
 fn verify_scoreboard(insns: &[Instruction], table: Option<&IsaTable>) {
-    use std::collections::HashMap;
+    run_verify(insns, table, true);
+}
+
+/// Live barrier state of the simulated warp scoreboard. Cloned at loop backs so
+/// the BUG-347 wrap pass can re-run a loop body from its end-of-iteration
+/// state.
+#[derive(Clone, Default)]
+struct SbState {
+    pending: std::collections::HashMap<u16, (u8, usize)>, // reg -> (barrier, producer idx)
+    lost: std::collections::HashMap<u16, usize>, // reg -> producer idx (barrier recycled before waited)
+    rbp: std::collections::HashMap<u8, (u8, usize)>, // GPR -> (rb barrier, memop idx) late-latched operand
+}
+
+/// Issue distance (sum of stalls) between two slots. On a wrap re-walk with
+/// `wrap = Some((top, back))`, a pair (midx > i) sits one iteration apart:
+/// midx..=back then top..i.
+fn stall_gap(insns: &[Instruction], midx: usize, i: usize, wrap: Option<(usize, usize)>) -> u32 {
+    match wrap {
+        Some((top, back)) if midx > i => (midx..=back)
+            .chain(top..i)
+            .map(|k| insns[k].ctrl.stall as u32)
+            .sum(),
+        _ => (midx..i).map(|k| insns[k].ctrl.stall as u32).sum(),
+    }
+}
+
+/// One instruction of the scoreboard simulation: checks first (RAW / recycle /
+/// WAR), then state updates — the exact internal order the pre-347 single
+/// pass used. `wrap = Some(..)` marks a wrap re-walk: findings dedupe against
+/// the linear pass through `seen` and count additionally as wrap findings.
+#[allow(clippy::too_many_arguments)]
+fn sb_step(
+    insns: &[Instruction],
+    i: usize,
+    table: Option<&IsaTable>,
+    st: &mut SbState,
+    rep: &mut VerifyReport,
+    seen: &mut std::collections::HashSet<(u8, usize, usize, u16)>,
+    wrap: Option<(usize, usize)>,
+    print: bool,
+) {
     let rk = |u: bool, r: u8| -> u16 { ((u as u16) << 8) | r as u16 };
-    let mut pending: HashMap<u16, (u8, usize)> = HashMap::new(); // reg -> (barrier, producer idx)
-    let mut lost: HashMap<u16, usize> = HashMap::new(); // reg -> producer idx (barrier recycled before waited)
-    // WAR: late-latched operand reg -> (rb barrier, memop idx). Cleared when the rb is waited.
-    let mut rbp: HashMap<u8, (u8, usize)> = HashMap::new(); // GPR -> (rb barrier, memop idx)
-    let mut nbad = 0;
-    let mut nwar = 0;
-    let mut nrec = 0;
-    for i in 0..insns.len() {
-        let wm = insns[i].ctrl.wait_mask;
-        if wm != 0 {
-            pending.retain(|_, &mut (b, _)| (wm & (1 << b)) == 0);
-            rbp.retain(|_, &mut (b, _)| (wm & (1 << b)) == 0);
-        }
-        for (u, r) in src_regs(&insns[i]) {
-            if let Some(&(b, pidx)) = pending.get(&rk(u, r)) {
-                eprintln!("  UNPROTECTED RAW: insn[{i}] {} reads {}{} <- var-producer insn[{pidx}] {} (barrier {b} not waited)",
-                    insns[i].opcode_full, if u {"UR"} else {"R"}, r, insns[pidx].opcode_full);
-                nbad += 1;
+    // kind: 0 = unprotected RAW, 1 = broken WAR, 2 = recycle-stale. The linear
+    // pass always counts/prints (identical to pre-347, per-event) and only
+    // RECORDS its keys; the wrap pass counts/prints strictly-new keys.
+    // Keys carry the (UR<<8|reg) code so several registers of one pair do
+    // not collapse.
+    let mut note =
+        |kind: u8, at: usize, other: usize, regk: u16, msg: String, rep: &mut VerifyReport| {
+            if wrap.is_some() && !seen.insert((kind, at, other, regk)) {
+                return;
             }
-            if let Some(&pidx) = lost.get(&rk(u, r)) {
-                eprintln!("  RECYCLE-STALE: insn[{i}] {} reads {}{} <- var-producer insn[{pidx}] {} (barrier recycled before waited)",
-                    insns[i].opcode_full, if u {"UR"} else {"R"}, r, insns[pidx].opcode_full);
-                nrec += 1;
+            if wrap.is_none() {
+                seen.insert((kind, at, other, regk));
             }
-        }
-        // WAR: this insn writes a GPR that is an in-flight late-latched operand whose rb
-        // it did NOT wait → the memory op may latch the overwritten value (broken rb).
-        for r in dest_regs(&insns[i]).into_iter().filter(|(u, _)| !*u).map(|(_, r)| r) {
-            if let Some(&(b, midx)) = rbp.get(&r) {
-                // Distance coverage: a GLOBAL LOAD consumes its address ~at issue, so an
-                // overwriter that issues a few cycles later is safe even without waiting the
-                // rb (the within-iteration pointer bump). A GLOBAL STORE queues and latches
-                // its operands very late at >1 CTA/SM — distance does NOT cover it (the
-                // store-address WAR raced even at 25 cycles), so the overwriter MUST wait the
-                // rb. A warp-cooperative MMA likewise latches its source fragments over a
-                // long window — distance does not cover an overwriting load that completes
-                // fast (L2-hot), so MMA-source overwriters must wait the rb too.
-                // A SHARED/LOCAL LOAD can be REPLAYED by MIO arbitration at >=2 CTAs/SM
-                // and re-latch its address after the bump — distance does NOT cover it
-                // (measured: skinny tree-reduce, stall=9 between LDS and the IADD3 bump,
-                // nondeterministic stale-address gathers at 2 CTAs/SM; exact at 1 CTA/SM).
-                // (Loop-carried load WARs aren't covered here: the rb is waited at the
-                // loop top, which clears `rbp` before the next-iter overwriter is seen.)
-                const LOAD_ADDR_LATCH: u32 = 3;
-                let dist: u32 = (midx..i).map(|k| insns[k].ctrl.stall as u32).sum();
-                let late_latcher = insn_is_store(&insns[midx], table)
-                    || is_warp_mma(insns[midx].opcode.as_str())
-                    || matches!(insns[midx].opcode.as_str(), "LDS" | "LDSM" | "LDL");
-                let covered = !late_latcher && dist >= LOAD_ADDR_LATCH;
-                if !covered {
-                    eprintln!("  BROKEN WAR: insn[{i}] {} overwrites R{r} before rb (barrier {b}) of mem-op insn[{midx}] {} is waited",
-                        insns[i].opcode_full, insns[midx].opcode_full);
-                    nwar += 1;
+            match kind {
+                0 => {
+                    rep.raw += 1;
+                    if wrap.is_some() {
+                        rep.wrap_raw += 1;
+                    }
+                }
+                1 => {
+                    rep.war += 1;
+                    if wrap.is_some() {
+                        rep.wrap_war += 1;
+                    }
+                }
+                _ => {
+                    rep.recycle += 1;
+                    if wrap.is_some() {
+                        rep.wrap_recycle += 1;
+                    }
                 }
             }
+            if print {
+                eprintln!(
+                    "{msg}{}",
+                    if wrap.is_some() {
+                        " (loop-carried wrap)"
+                    } else {
+                        ""
+                    }
+                );
+            }
+        };
+    let wm = insns[i].ctrl.wait_mask;
+    if wm != 0 {
+        st.pending.retain(|_, &mut (b, _)| (wm & (1 << b)) == 0);
+        st.rbp.retain(|_, &mut (b, _)| (wm & (1 << b)) == 0);
+    }
+    for (u, r) in src_regs(&insns[i]) {
+        if let Some(&(b, pidx)) = st.pending.get(&rk(u, r)) {
+            note(
+                0,
+                i,
+                pidx,
+                rk(u, r),
+                format!(
+                    "  UNPROTECTED RAW: insn[{i}] {} reads {}{} <- var-producer insn[{pidx}] {} (barrier {b} not waited)",
+                    insns[i].opcode_full,
+                    if u { "UR" } else { "R" },
+                    r,
+                    insns[pidx].opcode_full
+                ),
+                rep,
+            );
         }
-        let var = insn_needs_write_bar(&insns[i], table, true) && !is_warp_mma(insns[i].opcode.as_str());
-        let wb = insns[i].ctrl.write_bar;
-        let dsts: Vec<u16> = dest_regs(&insns[i]).into_iter().map(|(u, r)| rk(u, r)).collect();
-        for d in &dsts { pending.remove(d); lost.remove(d); }
-        if var && wb < NUM_BARRIERS as u8 {
-            // recycle: regs still pending on wb from an EARLIER producer of a DIFFERENT
-            // latency class (opcode/width) become unprotected — the last-only barrier now
-            // tracks this producer, which may complete first. Same-opcode/width batch-mates
-            // complete in issue order, so they stay protected (not a recycle).
-            let wof = |of: &str| if of.contains(".128") {16u8} else if of.contains(".64") {8}
-                else if of.contains(".U16")||of.contains(".S16") {2}
-                else if of.contains(".U8")||of.contains(".S8") {1} else {4};
-            // Same completion-latency class = same opcode + width AND (for MEMORY loads)
-            // the same address stream/line — completion order across different streams is
-            // not issue order: global is cache-outcome order; shared/local reorders under
-            // cross-CTA MIO arbitration at >=2 CTAs/SM (the skinny_fp8_mm tree-reduce
-            // repro). Non-memory variable-latency producers (MUFU, S2R, ...) of the same
-            // opcode complete in order on their pipe. CUBIT_SHARED_BATCH=1 restores the
-            // old (unsafe) shared assumption to mirror the allocator's A/B gate.
-            let shared_batch_unsafe =
-                std::env::var("CUBIT_SHARED_BATCH").ok().as_deref() == Some("1");
-            let same_lat = |p: usize| {
-                if insns[p].opcode != insns[i].opcode { return false; }
-                if wof(insns[p].opcode_full.as_str()) != wof(insns[i].opcode_full.as_str()) { return false; }
-                if load_kind_sched2(insns[i].opcode.as_str()) == 2 && shared_batch_unsafe {
-                    return true;
-                }
-                match (load_addr_key(&insns[p]), load_addr_key(&insns[i])) {
-                    (Some((kp, op_)), Some((ki, oi))) => kp == ki && (oi - op_).abs() < 0x80,
-                    (None, None) => true,
-                    _ => false,
-                }
-            };
-            let losers: Vec<u16> = pending.iter()
-                .filter(|(_, &(b, p))| b == wb && !same_lat(p)).map(|(&k, _)| k).collect();
-            for l in losers { let (_, pidx) = pending.remove(&l).unwrap(); lost.insert(l, pidx); }
-            for d in &dsts { pending.insert(*d, (wb, i)); }
-        }
-        // register this mem-op's rb-protected late operands
-        let rb = insns[i].ctrl.read_bar;
-        if rb < NUM_BARRIERS as u8 {
-            let op = insns[i].opcode.as_str();
-            let late = if matches!(op, "STS" | "STSM" | "STL") {
-                // Shared/local stores latch their operands fast (on-chip) and any reader is
-                // gated by a CTA barrier, so a later overwrite is covered by issue distance —
-                // tracking them only yields false positives.
-                Vec::new()
-            } else if insn_is_store(&insns[i], table) {
-                // GLOBAL stores latch BOTH address and data late and queue at >1 CTA/SM —
-                // a later overwrite of either races the in-flight store (the store-ADDRESS
-                // WAR bug). Track both; the rb must be waited by the overwriter.
-                let mut v = store_addr_gprs(&insns[i]);
-                for r in store_data_gprs(&insns[i]) { if !v.contains(&r) { v.push(r); } }
-                v
-            } else if is_warp_mma(op) {
-                // MMA fragments/scale-factors latch over a long read window (see
-                // mma_src_gprs) — an overwriting load must wait the MMA's rb.
-                mma_src_gprs(&insns[i])
-            } else if is_long_latency(op) { load_addr_gprs(&insns[i]) } else { Vec::new() };
-            for l in late { rbp.insert(l, (rb, i)); }
+        if let Some(&pidx) = st.lost.get(&rk(u, r)) {
+            note(
+                2,
+                i,
+                pidx,
+                rk(u, r),
+                format!(
+                    "  RECYCLE-STALE: insn[{i}] {} reads {}{} <- var-producer insn[{pidx}] {} (barrier recycled before waited)",
+                    insns[i].opcode_full,
+                    if u { "UR" } else { "R" },
+                    r,
+                    insns[pidx].opcode_full
+                ),
+                rep,
+            );
         }
     }
-    eprintln!("CUBIT_VERIFY: {nbad} unprotected RAW, {nwar} broken WAR, {nrec} recycle-stale");
+    // WAR: this insn writes a GPR that is an in-flight late-latched operand whose rb
+    // it did NOT wait → the memory op may latch the overwritten value (broken rb).
+    for r in dest_regs(&insns[i])
+        .into_iter()
+        .filter(|(u, _)| !*u)
+        .map(|(_, r)| r)
+    {
+        if let Some(&(b, midx)) = st.rbp.get(&r) {
+            // Distance coverage: a GLOBAL LOAD consumes its address ~at issue, so an
+            // overwriter that issues a few cycles later is safe even without waiting the
+            // rb (the within-iteration pointer bump). A GLOBAL STORE queues and latches
+            // its operands very late at >1 CTA/SM — distance does NOT cover it (the
+            // store-address WAR raced even at 25 cycles), so the overwriter MUST wait the
+            // rb. A warp-cooperative MMA likewise latches its source fragments over a
+            // long window — distance does not cover an overwriting load that completes
+            // fast (L2-hot), so MMA-source overwriters must wait the rb too.
+            // A SHARED/LOCAL LOAD can be REPLAYED by MIO arbitration at >=2 CTAs/SM
+            // and re-latch its address after the bump — distance does NOT cover it
+            // (measured: skinny tree-reduce, stall=9 between LDS and the IADD3 bump,
+            // nondeterministic stale-address gathers at 2 CTAs/SM; exact at 1 CTA/SM).
+            // On a wrap re-walk (BUG-347) the distance wraps the back-edge: the rb is
+            // normally waited at the loop top, which clears `rbp` before the next-iter
+            // overwriter; an un-waited head overwriter races the tail mem-op.
+            const LOAD_ADDR_LATCH: u32 = 3;
+            let dist: u32 = stall_gap(insns, midx, i, wrap);
+            let late_latcher = insn_is_store(&insns[midx], table)
+                || is_warp_mma(insns[midx].opcode.as_str())
+                || matches!(insns[midx].opcode.as_str(), "LDS" | "LDSM" | "LDL");
+            let covered = !late_latcher && dist >= LOAD_ADDR_LATCH;
+            if !covered {
+                note(
+                    1,
+                    i,
+                    midx,
+                    rk(false, r),
+                    format!(
+                        "  BROKEN WAR: insn[{i}] {} overwrites R{r} before rb (barrier {b}) of mem-op insn[{midx}] {} is waited",
+                        insns[i].opcode_full, insns[midx].opcode_full
+                    ),
+                    rep,
+                );
+            }
+        }
+    }
+    let var =
+        insn_needs_write_bar(&insns[i], table, true) && !is_warp_mma(insns[i].opcode.as_str());
+    let wb = insns[i].ctrl.write_bar;
+    let dsts: Vec<u16> = dest_regs(&insns[i])
+        .into_iter()
+        .map(|(u, r)| rk(u, r))
+        .collect();
+    for d in &dsts {
+        st.pending.remove(d);
+        st.lost.remove(d);
+    }
+    if var && wb < NUM_BARRIERS as u8 {
+        // recycle: regs still pending on wb from an EARLIER producer of a DIFFERENT
+        // latency class (opcode/width) become unprotected — the last-only barrier now
+        // tracks this producer, which may complete first. Same-opcode/width batch-mates
+        // complete in issue order, so they stay protected (not a recycle).
+        let wof = |of: &str| {
+            if of.contains(".128") {
+                16u8
+            } else if of.contains(".64") {
+                8
+            } else if of.contains(".U16") || of.contains(".S16") {
+                2
+            } else if of.contains(".U8") || of.contains(".S8") {
+                1
+            } else {
+                4
+            }
+        };
+        // Same completion-latency class = same opcode + width AND (for MEMORY loads)
+        // the same address stream/line — completion order across different streams is
+        // not issue order: global is cache-outcome order; shared/local reorders under
+        // cross-CTA MIO arbitration at >=2 CTAs/SM (the skinny_fp8_mm tree-reduce
+        // repro). Non-memory variable-latency producers (MUFU, S2R, ...) of the same
+        // opcode complete in order on their pipe. CUBIT_SHARED_BATCH=1 restores the
+        // old (unsafe) shared assumption to mirror the allocator's A/B gate.
+        let shared_batch_unsafe = std::env::var("CUBIT_SHARED_BATCH").ok().as_deref() == Some("1");
+        let same_lat = |p: usize| {
+            if insns[p].opcode != insns[i].opcode {
+                return false;
+            }
+            if wof(insns[p].opcode_full.as_str()) != wof(insns[i].opcode_full.as_str()) {
+                return false;
+            }
+            if load_kind_sched2(insns[i].opcode.as_str()) == 2 && shared_batch_unsafe {
+                return true;
+            }
+            match (load_addr_key(&insns[p]), load_addr_key(&insns[i])) {
+                (Some((kp, op_)), Some((ki, oi))) => kp == ki && (oi - op_).abs() < 0x80,
+                (None, None) => true,
+                _ => false,
+            }
+        };
+        let losers: Vec<u16> = st
+            .pending
+            .iter()
+            .filter(|(_, &(b, p))| b == wb && !same_lat(p))
+            .map(|(&k, _)| k)
+            .collect();
+        for l in losers {
+            let (_, pidx) = st.pending.remove(&l).unwrap();
+            st.lost.insert(l, pidx);
+        }
+        for d in &dsts {
+            st.pending.insert(*d, (wb, i));
+        }
+    }
+    // register this mem-op's rb-protected late operands
+    let rb = insns[i].ctrl.read_bar;
+    if rb < NUM_BARRIERS as u8 {
+        let op = insns[i].opcode.as_str();
+        let late = if matches!(op, "STS" | "STSM" | "STL") {
+            // Shared/local stores latch their operands fast (on-chip) and any reader is
+            // gated by a CTA barrier, so a later overwrite is covered by issue distance —
+            // tracking them only yields false positives.
+            Vec::new()
+        } else if insn_is_store(&insns[i], table) {
+            // GLOBAL stores latch BOTH address and data late and queue at >1 CTA/SM —
+            // a later overwrite of either races the in-flight store (the store-ADDRESS
+            // WAR bug). Track both; the rb must be waited by the overwriter.
+            let mut v = store_addr_gprs(&insns[i]);
+            for r in store_data_gprs(&insns[i]) {
+                if !v.contains(&r) {
+                    v.push(r);
+                }
+            }
+            v
+        } else if is_warp_mma(op) {
+            // MMA fragments/scale-factors latch over a long read window (see
+            // mma_src_gprs) — an overwriting load must wait the MMA's rb.
+            mma_src_gprs(&insns[i])
+        } else if is_long_latency(op) {
+            load_addr_gprs(&insns[i])
+        } else {
+            Vec::new()
+        };
+        for l in late {
+            st.rbp.insert(l, (rb, i));
+        }
+    }
+}
+
+fn run_verify(insns: &[Instruction], table: Option<&IsaTable>, print: bool) -> VerifyReport {
+    use std::collections::{HashMap, HashSet};
+    let mut rep = VerifyReport::default();
+    let mut seen: HashSet<(u8, usize, usize, u16)> = HashSet::new();
+    // BUG-347 (wrap): resolved loop back-edges + end-of-body state snapshots.
+    let (edges, _, _) = resolved_back_edges(insns);
+    let mut back2edge: HashMap<usize, usize> = HashMap::new();
+    for (ei, &(_, b)) in edges.iter().enumerate() {
+        back2edge.insert(b, ei);
+    }
+    let mut snaps: Vec<Option<SbState>> = vec![None; edges.len()];
+    let mut st = SbState::default();
+    for i in 0..insns.len() {
+        sb_step(insns, i, table, &mut st, &mut rep, &mut seen, None, print);
+        if let Some(&ei) = back2edge.get(&i) {
+            snaps[ei] = Some(st.clone());
+        }
+    }
+    // Wrap re-walks (innermost first): re-run every resolved loop body once
+    // from its end-of-iteration snapshot, so loop-carried protection (or the
+    // LACK of it) is checked against the head of the next iteration — the
+    // class the single-pass walk could not see in either direction.
+    let mut order: Vec<usize> = (0..edges.len()).collect();
+    order.sort_by_key(|&ei| edges[ei].1 - edges[ei].0);
+    for ei in order {
+        let Some(snap) = snaps[ei].take() else {
+            continue;
+        };
+        let (top, back) = edges[ei];
+        let mut wst = snap;
+        for i in top..=back {
+            sb_step(
+                insns,
+                i,
+                table,
+                &mut wst,
+                &mut rep,
+                &mut seen,
+                Some((top, back)),
+                print,
+            );
+        }
+    }
+    // Unresolvable control flow: register-indirect branches bound loops the
+    // wrap pass cannot walk (the allocator's `edges` skip them for the same
+    // reason), and targets missing from the kernel are not indexable. Fail
+    // LOUD on the class instead of leaving it silently blind (BUG-347).
+    let mut addr2idx: HashMap<u32, usize> = HashMap::new();
+    for (i, ins) in insns.iter().enumerate() {
+        addr2idx.insert(ins.addr, i);
+    }
+    for (j, ins) in insns.iter().enumerate() {
+        let Some(class) = unresolved_edge_class(ins, &addr2idx) else {
+            continue;
+        };
+        rep.unresolved_edges += 1;
+        match class {
+            UnresClass::RegTarget => rep.unresolved_reg_target += 1,
+            UnresClass::ConstBase => rep.unresolved_const_base += 1,
+            UnresClass::OutKernel | UnresClass::UnresolvedLabel => rep.unresolved_outtarget += 1,
+        }
+        if print {
+            eprintln!(
+                "  UNRESOLVED-EDGE: insn[{j}] {} — {}; loop-carried scoreboard protection across this edge is UNVERIFIED",
+                ins.opcode_full,
+                class.reason(),
+            );
+        }
+    }
+    if print {
+        eprintln!(
+            "CUBIT_VERIFY: {} unprotected RAW, {} broken WAR, {} recycle-stale",
+            rep.raw, rep.war, rep.recycle
+        );
+        if rep.unresolved_edges > 0 {
+            eprintln!(
+                "CUBIT_VERIFY_LOOP: {} unresolvable control-flow edge(s); loop-carried scoreboard relations across them are UNVERIFIED",
+                rep.unresolved_edges
+            );
+        }
+    }
+    rep
 }
 
 // ── Stall-gap insertion for non-standard scheduling classes ──────────────────

@@ -81,13 +81,16 @@ fn t334_1_structure_claims_and_donor_parity() {
             assert_eq!((f.bits, f.shift), (12, 32), "{leg} imm2 12b law");
             assert_eq!(g.variable_mask & ((1u128 << 81) | (1u128 << 73)), 0);
         }
+        // FLIPPED by BUG-359 (2026-09-03): the ZFILL/LTC alloc crosses are
+        // grafted on this leg pre-359-era assertion retired; pins for the
+        // grafted rows live in tests/bug359_ldgsts_alloc_crosses.rs.
         let zfill = t.entries["LDGSTS_ARI_dARI"]
             .mod_groups
             .contains_key("128,E,ZFILL")
             || t.entries["LDGSTS_ARI_dARI_P"]
                 .mod_groups
                 .contains_key("128,E,ZFILL");
-        assert!(!zfill, "{leg}: ZFILL rows stay absent (loud refuse)");
+        assert!(zfill, "{leg}: ZFILL cross rows grafted by BUG-359");
     }
     // donor byte-parity across the two grafted legs (post-flip)
     let a = tab("sm100a");
@@ -231,22 +234,28 @@ fn t334_3_authored_mint_bytepins() {
 fn t334_4_fail_closed_residuum_and_sm100a_encode_lint() {
     for leg in ["sm100a", "sm103a", "sm120"] {
         let t = tab(leg);
-        // ZFILL cross NOT grafted (359-kand): authored ZFILL alloc loud-refuse
+        // FLIPPED by BUG-359 (2026-09-03): ZFILL/LTC alloc crosses grafted
+        // (arb334+arb359 law, 134 probes x4 agree). The mints below are now
+        // LEGAL and pinned word-exact in tests/bug359_ldgsts_alloc_crosses.rs;
+        // verbatim-mint smoke kept here as a regression tripwire.
         assert!(
-            enc(&t, "LDGSTS.E.128.ZFILL [R3], desc[UR14][R22.64]").is_err(),
-            "{leg}: ZFILL mint must stay loud"
+            enc(&t, "LDGSTS.E.128.ZFILL [R3], desc[UR14][R22.64]").is_ok(),
+            "{leg}: ZFILL mint grafted by BUG-359"
         );
-        // LTC cross NOT grafted: alleged alloc+LTC mint loud-refuse, x3 legs
-        // (pre-334 sm100a/103a minted it as bypass+LTC = silent wrong-code)
         let v = enc(&t, "LDGSTS.E.LTC128B.128 [R3], desc[UR14][R22.64], P1");
-        assert!(v.is_err(), "{leg}: LTC128B alloc mint must stay loud");
+        assert!(v.is_ok(), "{leg}: LTC128B alloc mint grafted by BUG-359");
         // desc offset beyond signed-12 -> encode-lint LOUD (was: silent drop
-        // on sm100a pre-flip)
+        // on sm100a pre-flip) -- orthogonal to 359, kept.
         let v = enc(&t, "LDGSTS.E.BYPASS.128 [R3], desc[UR14][R22.64+0x1000]");
         assert!(v.is_err(), "{leg}: desc overflow must be encode-lint loud");
-        // b73=1 alloc word (vendor 'LDGSTS.E.LTC128B.128' shape): no claim
+        // b73=1 alloc word now claims the grafted row (359); assert the
+        // vendor-exact text instead of the retired hole.
         let w: u128 = 0x0003e200089a1a0e018800801c5a7fae; // B ^ b81
-        assert!(dec(&t, w).is_none(), "{leg}: alloc+LTC word stays hole");
+        let d = dec(&t, w).unwrap_or_else(|| panic!("{leg}: alloc+LTC _P must decode post-359"));
+        assert_eq!(
+            d, "LDGSTS.E.LTC128B.128 [R90+0x1880], desc[UR14][R28.64+0x80], P1",
+            "{leg}: post-359 decode must equal vendor text"
+        );
     }
 }
 

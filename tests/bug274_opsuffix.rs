@@ -32,9 +32,9 @@ const M96: u128 = (1u128 << 96) - 1;
 // arb274 host shapes (payload; ctl stripped):
 const IIB: u128 = 0x000fc600000000ff00000000ff037431 & M96; // b72=0 II_FI-host
 const FIB: u128 = 0x000001ff00000000ff037431; // FI_FI/II_II encode region (b72 baked, era)
-                                              // FLIPPED 2026-08-31 (BUG-286): the sm121a FI_FI-family rows no longer bake
-                                              // neg@72 (canonical 16210e9) — authored plain-'RZ' texts mint b72=0 (era
-                                              // silent wrong-code CLOSED; vendor law arb286 x4). Post-286 mint base:
+// FLIPPED 2026-08-31 (BUG-286): the sm121a FI_FI-family rows no longer bake
+// neg@72 (canonical 16210e9) — authored plain-'RZ' texts mint b72=0 (era
+// silent wrong-code CLOSED; vendor law arb286 x4). Post-286 mint base:
 const FIB0: u128 = FIB & !(1u128 << 72); // [71:64]=0xff RZ sentinel, b72=0
 const PARENTS: [&str; 3] = [
     "HFMA2_R_R_R_II_FI",
@@ -213,11 +213,28 @@ fn t274_1_structure() {
         );
     }
     // donors byte-untouched: family rows keep mg '' only
+    // FLIP (BUG-354, F2-iter184, canonical 5c12995): HFMA2_R_R_R_FI_FI on
+    // the sparse legs carries the 354 mod-lane closure now (11 mgs + 6
+    // dotted _P keys; law arb354 x4; battery tests/bug354_*). All other
+    // family parents remain untouched.
     for arch in ["sm100a", "sm103a"] {
         let t = tab(arch);
         for p in PARENTS {
             if let Some(e) = t.entries.get(p) {
-                assert_eq!(e.mod_groups.len(), 1, "{arch}|{p}: donor grafted?!");
+                if p == "HFMA2_R_R_R_FI_FI" {
+                    // FLIP (BUG-367, F2-iter193, canonical 0933cf6):
+                    // SAT/FTZ/OOB lane closure completes the sparse
+                    // lattice vs dense (24 more mgs + 6 more dotted _P
+                    // keys; law arb354+arb367 x4; battery
+                    // tests/bug367_*): 12 -> 36 mgs.
+                    assert_eq!(
+                        e.mod_groups.len(),
+                        36,
+                        "{arch}|{p}: post-367 mg count drift"
+                    );
+                } else {
+                    assert_eq!(e.mod_groups.len(), 1, "{arch}|{p}: donor grafted?!");
+                }
             }
         }
     }

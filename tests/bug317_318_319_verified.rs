@@ -40,24 +40,22 @@ fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
 }
 
 /// 317: BF16_V2 (b85) tok4 imm prints bf16 value '1', never the fp16
-/// ghost '1.875'; dense legs roundtrip byte-exact; sparse legs are a
+/// ghost '1.875'; dense legs roundtrip byte-exact; sparse legs were a
 /// fail-closed hole both directions (BUG-329-class, not 317).
+/// FLIP 2026-09-02 (BUG-354, attribution): the 354 mod-lane closure
+/// armed BF16_V2 on the sparse FI/II lattice (arb354 x4; canonical
+/// 5c12995) -- sparse legs now decode/mint byte-exact like dense.
 #[test]
 fn t317_bf16_tok4_print_semantics() {
     const W: u128 = 0x2000ff3f800000ff000431;
     const V: &str = "@P0 HFMA2.BF16_V2 R0, RZ, RZ, 1, 0";
-    for arch in ["sm120", "sm121a"] {
+    for arch in ["sm100a", "sm103a", "sm120", "sm121a"] {
         let t = tab(arch);
-        let got = dec(&t, W).expect("dense legs decode A_32");
+        let got = dec(&t, W).expect("A_32 decode armed (post-354: all legs)");
         assert_eq!(got, V, "{arch} 317 vendor-exact");
         assert!(!got.contains("1.875"), "{arch} 317 no fp16 ghost imm");
         let mint = enc(&t, V).unwrap_or_else(|e| panic!("{arch} encode: {e}"));
         assert_eq!(mint & M96, W & M96, "{arch} 317 encode byte-exact");
-    }
-    for arch in ["sm100a", "sm103a"] {
-        let t = tab(arch);
-        assert!(dec(&t, W).is_none(), "{arch} 317 sparse decode hole (loud)");
-        assert!(enc(&t, V).is_err(), "{arch} 317 sparse encode hole (loud)");
     }
 }
 

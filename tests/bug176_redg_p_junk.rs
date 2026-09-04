@@ -218,8 +218,43 @@ fn t176_5_table_shapes() {
     // per parent x 2 parents (HFMA2_R_R_R_UR / HFMA2_R_R_UR_R); HMUL2
     // (0x232/0xc32) carrier lanes live inside mod-groups of existing keys;
     // canonical a0dbda7) = 1493.
-    assert_eq!(t120().num_keys(), 1493);
+    // 2026-09-02 BUG-339/340: +7 sm120 keys (F2I era closure: F64.FLOOR /
+    // F64.TRUNC / S64.F64 / S64.F64.TRUNC / U32.F64.TRUNC / U64.F64.TRUNC
+    // / S64.TRUNC _R_R clones of the 121a surface + U/S64 siblings;
+    // +2 generic mg inside F2I_R_R don't move the counter;
+    // canonical 02c147d) = 1500.
+    // 2026-09-02 BUG-341: +42 sm120 keys (F2I small-int R_R lattice op
+    // 0x0305 normalisation+closure: era-style vendor-named rows for all
+    // lanes without a name-true owner + 2 era mirrors of mg-owned lanes
+    // 0x30/0xb1; mg '' plain lane + normalized owners don't move the
+    // counter; canonical 337e21e) = 1542.
+    // 2026-09-02 BUG-343/344: +12 sm120 keys (HFMA2 pure-reg krata 0x231
+    // mod-window closure: 12 RELU _P trailing dst-pred dotted keys on
+    // HFMA2_R_R_R_R; the 30 new mod-lane rows + N1 neg-field closure live
+    // inside mod_groups of the existing key and do not move the counter;
+    // canonical a013f88) = 1554.
+    // 2026-09-03 BUG-363: +95 sm120 keys (F2I R_R FTZ + BF16 lattice
+    // closure: 48+48 keyed era rows; F2I.FTZ.U32.TRUNC.NTZ_R_R normalized
+    // in place and does not move the counter; the 2 deleted legacy FTZ mgs
+    // lived inside F2I_R_R/F2I_R_UR mod_groups; canonical fbcef1c) = 1649.
+    assert_eq!(t120().num_keys(), 1649);
     // 2026-08-28 BUG-244: +2 sm103a/sm100a typed keys (F2F.F64.F32_R_R,
     // F2F.F64.F32_R_UR; donor F64-dst closure, canonical 00c3fd2) = 402.
-    assert_eq!(t103().num_keys(), 402);
+    // 2026-09-02 BUG-341: +41 sm103a keys (F2I small-int R_R lattice
+    // normalisation+closure, era-style vendor-named rows; the 7 mg-owned
+    // lanes {29,31,70,71,f0,f1}+'' stay mgs; the plain lane lands as mg ''
+    // inside F2I_R_R so it does not move the counter; canonical dda1a85)
+    // = 443.
+    // 2026-09-02 BUG-354: +6 sm103a keys (HFMA2 sparse-leg FI/II lattice
+    // mod-lane closure: 6 RELU _P dotted keys HFMA2[.<mods>]
+    // .RELU_R_R_R_FI_FI_P; the 11 new mod-lane mgs live inside
+    // mod_groups of the existing key and do not move the counter;
+    // canonical 5c12995) = 449.
+    // 2026-09-03 BUG-363: +96 sm103a keys (same closure; canonical
+    // fbcef1c) = 545.
+    // 2026-09-04 BUG-367: +6 sm103a keys (HFMA2 sparse-leg FI/II lattice
+    // SAT/FTZ/OOB lane closure: 6 RELU _P dotted keys; the 24 new mgs
+    // live inside mod_groups of the existing key; canonical 0933cf6)
+    // = 551.
+    assert_eq!(t103().num_keys(), 551);
 }

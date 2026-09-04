@@ -917,6 +917,44 @@ fn stallfix_run<'py>(
 
 /// Python module definition.
 #[cfg(feature = "python")]
+/// BUG-347: read-only scoreboard verification as a machine-readable report.
+/// Runs the PRODUCTION path (parse -> schedule -> reallocate_barriers) with
+/// the currently-selected table, then the loop-aware verifier; per kernel
+/// returns {name, n, raw, war, recycle, wrap_* (subset visible only across a
+/// resolved back-edge), unresolved_edges (register-indirect / addr-less
+/// control flow: loop relations unverified)}. No printing, no mutation.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn verify_report<'py>(py: Python<'py>, text: &str) -> PyResult<Vec<Bound<'py, PyDict>>> {
+    let table = get_table();
+    let f = crate::sass_file::parse_sass_file_str_strict(text)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("parse error: {e:#}")))?;
+    let mut out = Vec::new();
+    for k in &f.kernels {
+        let mut insns = k.instructions.clone();
+        crate::scheduling_pass::schedule(&mut insns, Some(&table));
+        crate::scheduling_pass::reallocate_barriers(&mut insns, Some(&table));
+        let rep = crate::scheduling_pass::verify_scoreboard_report(&insns, Some(&table));
+        let kd = PyDict::new(py);
+        kd.set_item("name", &k.name)?;
+        kd.set_item("n", insns.len())?;
+        kd.set_item("raw", rep.raw)?;
+        kd.set_item("war", rep.war)?;
+        kd.set_item("recycle", rep.recycle)?;
+        kd.set_item("wrap_raw", rep.wrap_raw)?;
+        kd.set_item("wrap_war", rep.wrap_war)?;
+        kd.set_item("wrap_recycle", rep.wrap_recycle)?;
+        kd.set_item("unresolved_edges", rep.unresolved_edges)?;
+        // BUG-370 additive decomposition of unresolved_edges (347 total kept).
+        kd.set_item("unresolved_reg_target", rep.unresolved_reg_target)?;
+        kd.set_item("unresolved_const_base", rep.unresolved_const_base)?;
+        kd.set_item("unresolved_outtarget", rep.unresolved_outtarget)?;
+        out.push(kd);
+    }
+    Ok(out)
+}
+
+
 #[pymodule]
 fn cubit(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(encode, m)?)?;
@@ -937,6 +975,8 @@ fn cubit(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(render, m)?)?;
     m.add_function(wrap_pyfunction!(ra_full, m)?)?;
     m.add_function(wrap_pyfunction!(prof_cubin, m)?)?;
+
     m.add_function(wrap_pyfunction!(stallfix_run, m)?)?;
+    m.add_function(wrap_pyfunction!(verify_report, m)?)?;
     Ok(())
 }

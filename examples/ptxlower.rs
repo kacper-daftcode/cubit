@@ -4,7 +4,9 @@ use cubit::ptx_lower::lower_kernel;
 use cubit::ptx_parse::parse_ptx;
 
 fn main() -> anyhow::Result<()> {
-    let path = std::env::args().nth(1).expect("usage: ptxlower <input.ptx>");
+    let path = std::env::args()
+        .nth(1)
+        .expect("usage: ptxlower <input.ptx>");
     let text = std::fs::read_to_string(&path)?;
     let kernels = parse_ptx(&text)?;
     let mut out = String::new();

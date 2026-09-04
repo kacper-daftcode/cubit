@@ -111,13 +111,13 @@ fn t333_3_decode_iiform_anchors() {
         "II-form anchor"
     );
     // reg@64 non-zero on the II form: vendor prints it fine (arb333 D-set,
-    // write-inert) but the era II claim pins [71:64]=0 -> stays a LOUD hole
-    // (fail-closed). Pre-existing over-strict era window, same family as the
-    // pred [83:81]=PT pin; registered as a follow-up kand, NOT fixed in 333.
+    // write-inert); the over-strict era pin [71:64]=0 was CLOSED by BUG-358
+    // (FLIP, atrybucja: 358, F2-iter185) -- the word now decodes vendor-exact.
     let w_reg64 = W_II | (20u128 << 64);
-    assert!(
-        dec(&t, w_reg64).is_none(),
-        "reg@64-set II-form word: over-strict era window must stay fail-closed"
+    assert_eq!(
+        dec(&t, w_reg64).as_deref(),
+        Some("SHFL.BFLY PT, R18, R19, 0x1, 0x1f"),
+        "reg@64-set II-form word: must decode vendor-exact post-358"
     );
 }
 

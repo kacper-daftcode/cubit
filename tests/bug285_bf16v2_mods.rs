@@ -850,22 +850,56 @@ fn t285_1_structure() {
         }
     }
     // donors byte-untouched: no BF16_V2 mg on these parents, no dotted keys
+    // FLIP (BUG-354, F2-iter184, canonical 5c12995): on the sparse legs the
+    // 354 mod-lane closure lands exactly these BF16_V2 mgs on
+    // HFMA2_R_R_R_FI_FI {BF16_V2, BF16_V2,FMZ, BF16_V2,RELU,
+    // BF16_V2,FMZ,RELU} + the two BF16 dotted _P keys (arb354 x4; battery
+    // tests/bug354_*). Everything else stays donor-untouched.
+    const MGS354: [&str; 4] = ["BF16_V2", "BF16_V2,FMZ", "BF16_V2,RELU", "BF16_V2,FMZ,RELU"];
+    const KEYS354: [&str; 2] = [
+        "HFMA2.BF16_V2.RELU_R_R_R_FI_FI_P",
+        "HFMA2.BF16_V2.FMZ.RELU_R_R_R_FI_FI_P",
+    ];
+    // FLIP (BUG-367, F2-iter193, canonical 0933cf6): SAT/FTZ/OOB closure
+    // adds BF16_V2 x {SAT,FTZ,OOB,FMZ,SAT,FTZ,SAT,OOB,SAT,FTZ,RELU,
+    // OOB,RELU} mgs + 2 dotted keys (arb367 x4; battery tests/bug367_*).
+    const MGS367: [&str; 8] = [
+        "BF16_V2,SAT",
+        "BF16_V2,FTZ",
+        "BF16_V2,OOB",
+        "BF16_V2,FMZ,SAT",
+        "BF16_V2,FTZ,SAT",
+        "BF16_V2,OOB,SAT",
+        "BF16_V2,FTZ,RELU",
+        "BF16_V2,OOB,RELU",
+    ];
+    const KEYS367: [&str; 2] = [
+        "HFMA2.BF16_V2.FTZ.RELU_R_R_R_FI_FI_P",
+        "HFMA2.BF16_V2.OOB.RELU_R_R_R_FI_FI_P",
+    ];
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
         for p in PARENTS {
             if let Some(e) = t.entries.get(p) {
+                for k in e.mod_groups.keys() {
+                    if k.starts_with("BF16_V2") {
+                        assert!(
+                            p == "HFMA2_R_R_R_FI_FI"
+                                && (MGS354.contains(&k.as_str()) || MGS367.contains(&k.as_str())),
+                            "{leg}|{p}: BF16_V2 mg outside 354/367 scope: {k}"
+                        );
+                    }
+                }
+            }
+        }
+        for k in t.entries.keys() {
+            if k.starts_with("HFMA2.BF16_V2.") && k.ends_with("_P") && k.contains("RELU_R_R_R") {
                 assert!(
-                    !e.mod_groups.keys().any(|k| k.starts_with("BF16_V2")),
-                    "{leg}|{p}: donor touched"
+                    KEYS354.contains(&k.as_str()) || KEYS367.contains(&k.as_str()),
+                    "{leg}: dotted key outside 354/367 scope: {k}"
                 );
             }
         }
-        assert!(
-            !t.entries.keys().any(|k| k.starts_with("HFMA2.BF16_V2.")
-                && k.ends_with("_P")
-                && k.contains("RELU_R_R_R")),
-            "{leg}: donor dotted key"
-        );
     }
 }
 
@@ -891,8 +925,10 @@ fn t285_2_decode_law_vendor_exact() {
         let sib =
             dec(&t121, (w & !B85) & M96).unwrap_or_else(|| panic!("sm121a sibling {w:#034x} hole"));
         let norm = sib.replacen("HFMA2", "HFMA2.BF16_V2", 1);
-        assert_eq!(got, norm,
-            "sm121a word {w:#034x}: neither vendor-exact ({want:?}) nor              era-sibling parity ({norm:?})");
+        assert_eq!(
+            got, norm,
+            "sm121a word {w:#034x}: neither vendor-exact ({want:?}) nor              era-sibling parity ({norm:?})"
+        );
     }
 }
 
@@ -1097,12 +1133,16 @@ fn t285_5_fail_closed_and_anchors() {
             "{leg}: SAT+RELU b85=0 fail-closed lost"
         );
     }
-    // donor legs: lattice BF16 word stays hole (donor freeze invariant)
+    // donor legs: lattice BF16 word -- FLIP 2026-09-02 (BUG-354,
+    // attribution): was a donor-freeze HOLE sentinel; the 354 graft armed
+    // the sparse BF16_V2 lane (arb354 x4; census354 corpus-invisible), so
+    // the pinned word decodes vendor-exact on ALL legs now.
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
-        assert!(
-            dec(&t, 0xFC000002000FF00000000FF037431u128 & M96).is_none(),
-            "{leg}: donor BF16 lattice decoded"
+        assert_eq!(
+            dec(&t, 0xFC000002000FF00000000FF037431u128 & M96).as_deref(),
+            Some("HFMA2.BF16_V2 R3, RZ, RZ, 0, 0"),
+            "{leg}: donor BF16 lattice post-354 drift"
         );
     }
 }

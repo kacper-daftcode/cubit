@@ -39,7 +39,7 @@ const B85: u128 = 1 << 85;
 const B86: u128 = 1 << 86;
 const H1: u128 = 0x3c00u128 << 48; // f16 1.0 @ tok4 window
 const BF1: u128 = 0x3f80u128 << 48; // bf16 1.0 @ tok4 window
-                                    // FI lattice (0x7431, guard pinned PT): R2@16, R3@24, R4@64
+// FI lattice (0x7431, guard pinned PT): R2@16, R3@24, R4@64
 const FI: u128 = 0x7431 | (2 << 16) | (3 << 24) | (4 << 64);
 // II lattice (0x0431, guard @15:12): same registers, guard 0 = @P0
 const II0: u128 = 0x0431 | (2 << 16) | (3 << 24) | (4 << 64);
@@ -65,7 +65,12 @@ fn t329_1_structure_graft_and_siblings() {
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
         let e = &t.entries["HFMA2_R_R_R_FI_FI"];
-        assert_eq!(e.mod_groups.len(), 1, "{leg}: mg set drift");
+        // FLIP 2026-09-02 (BUG-354, attribution): mod-lane closure landed
+        // (11 mgs + 6 dotted _P keys, canonical 5c12995; battery
+        // tests/bug354_*). mg '' docelowo same 12 fields jak dotychczas.
+        // FLIP (BUG-367, F2-iter193, canonical 0933cf6): SAT/FTZ/OOB lane
+        // closure 12 -> 36 (lattice completion vs dense; tests/bug367_*).
+        assert_eq!(e.mod_groups.len(), 36, "{leg}: mg set drift (post-367=36)");
         let mg = &e.mod_groups[""];
         let has = |ext: Extraction, shift: u32, tok: i32| {
             mg.fields
@@ -80,15 +85,21 @@ fn t329_1_structure_graft_and_siblings() {
             "{leg}: hsel@74 tok2 count"
         );
         assert_eq!(has(Extraction::Neg, 72, 2), 1, "{leg}: neg@72 tok2 lost");
-        assert_eq!(mg.fields.len(), 8, "{leg}: field count drift (6->2 graft)");
-        // 353 residuum: tok3 sign lanes stay unfielded
+        // BUG-353 flip (canonical 9717447, attributed): tok3 sign window
+        // grafted onto mg '' (mirror of dense 279/271 geometry): 8->12 fields.
+        assert_eq!(
+            mg.fields.len(),
+            12,
+            "{leg}: field count drift (post-353: 12)"
+        );
+        // 353 A-LAW: tok3 sign lanes armed exactly once each
         for (ext, sh) in [
             (Extraction::Neg, 84),
             (Extraction::Abs, 83),
             (Extraction::HalfSel, 81),
             (Extraction::H0NH1, 86),
         ] {
-            assert_eq!(has(ext, sh, 3), 0, "{leg}: tok3 lane armed @{sh}");
+            assert_eq!(has(ext, sh, 3), 1, "{leg}: tok3 lane @{sh} missing (353)");
         }
         assert_eq!(
             mg.and_base & (0b111u128 << 73),
@@ -152,9 +163,10 @@ fn t329_2_decode_law_vendor_equal_x4() {
             );
         }
     }
-    // BF16_V2 FI cross: dense-only (sparse FI_FI carries mg '' only;
-    // mod-lane family coverage = 354-kand, arb329 F-group x4-legal)
-    for leg in ["sm120", "sm121a"] {
+    // BF16_V2 FI cross: FLIP 2026-09-02 (BUG-354, attribution) -- was
+    // dense-only (sparse FI_FI carried mg '' only); 354 grafted the mod
+    // family on the sparse legs (law arb354 x4), so the cross is x4 now.
+    for leg in ["sm100a", "sm103a", "sm120", "sm121a"] {
         let t = tab(leg);
         for (extra, want) in [
             (B85 | BF1, "HFMA2.BF16_V2 R2, R3, R4, 1, 0"),
@@ -170,12 +182,14 @@ fn t329_2_decode_law_vendor_equal_x4() {
             );
         }
     }
-    // sparse mod lanes stay LOUD holes (354-kand)
+    // FLIP 2026-09-02 (BUG-354, attribution): sparse mod lanes ARMED
+    // (were LOUD holes pre-354); full battery = tests/bug354 t354_2.
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
-        assert!(
-            dec(&t, FI | B85 | BF1).is_none(),
-            "{leg}: sparse BF16 lane decoded"
+        assert_eq!(
+            dec(&t, FI | B85 | BF1).as_deref(),
+            Some("HFMA2.BF16_V2 R2, R3, R4, 1, 0"),
+            "{leg}: sparse BF16 lane post-354 drift"
         );
     }
 }
@@ -236,51 +250,67 @@ fn t329_4_encode_word_exact_and_roundtrip_x4() {
 
 #[test]
 fn t329_5_fail_closed_residuum_and_edges() {
-    // 353-kand residuum: tok3-sign + h0nh1 lanes stay LOUD holes on sparse
+    // BUG-353 flip (canonical 9717447, attributed): the tok3-sign + h0nh1
+    // residuum lanes are ARMED with vendor-exact text (353 pin file carries
+    // the full x4 law battery; here: re-anchor the former HOLE list).
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
-        for (base, extra, name) in [
-            (FI, B84, "tok3 neg"),
-            (FI, B83, "tok3 abs"),
-            (FI, 1u128 << 81, "tok3 hsel v1"),
-            (FI, 2u128 << 81, "tok3 hsel v2"),
-            (FI, B86, "tok3 h0nh1"),
-            (II0, B84, "II tok3 neg"),
-            (II0, 2u128 << 81, "II tok3 hsel"),
-            (FI, B78, "F32 mod lane (no sparse mg)"),
-            (FI, B79, "RELU era lane (dense-only key)"),
-            (II0, H1 | (1u128 << 87), "330 zarodek b87 (dense-armed)"),
+        for (base, extra, want) in [
+            (FI, B84, "HFMA2 R2, R3, -R4, 0, 0"),
+            (FI, B83, "HFMA2 R2, R3, |R4|, 0, 0"),
+            (FI, 1u128 << 81, "HFMA2 R2, R3, R4.F32, 0, 0"),
+            (FI, 2u128 << 81, "HFMA2 R2, R3, R4.H0_H0, 0, 0"),
+            (FI, B86, "HFMA2 R2, R3, R4.H0_NH1, 0, 0"),
+            (II0, B84, "@P0 HFMA2 R2, R3, -R4, 0, 0"),
+            (II0, 2u128 << 81, "@P0 HFMA2 R2, R3, R4.H0_H0, 0, 0"),
         ] {
-            assert!(
-                dec(&t, base | extra).is_none(),
-                "{leg}: {name} decoded on sparse (fail-closed breach {extra:#x})"
+            assert_eq!(
+                &dec(&t, base | extra).unwrap(),
+                want,
+                "{leg}: 353-armed lane drift {extra:#x}"
             );
         }
-        // tok3-hsel authored encode stays loud REFUSE (fail-closed)
+        // FLIP 2026-09-02 (BUG-354, attribution): the F32/RELU residua
+        // are CURED (354 mod-lane closure, arb354 x4; canonical 5c12995);
+        // the stray [90:87] zarodek w/o b79 stays LOUD hole (289 doctrine).
+        for (base, extra, name, want) in [
+            (FI, B78, "F32 mod lane", "HFMA2.F32 R2, R3, R4, 0, 0"),
+            (FI, B79, "RELU era lane", "HFMA2.RELU R2, R3, R4, 0, 0, P0"),
+        ] {
+            assert_eq!(
+                dec(&t, base | extra).as_deref(),
+                Some(want),
+                "{leg}: {name} post-354 armed drift {extra:#x}"
+            );
+        }
         assert!(
-            enc(&t, "HFMA2 R2, R3, R4.H0_H0, 0, 0").is_err(),
-            "{leg}: tok3 hsel mint accepted"
+            dec(&t, II0 | H1 | (1u128 << 87)).is_none(),
+            "{leg}: 330 zarodek b87 decoded on sparse (289 doctrine breach)"
         );
-        // 355-kand REGISTRATION WATCH (pre==post, NOT fixed by 329):
-        // sparse encode of tok3 neg/abs MINTS words that do NOT roundtrip
-        // to the authored text -- silent intent mangle on the generic emit
-        // lane (publish f77bb8e words 0xfc200000000048000000003027431 /
-        // 0xfc200000000044000000003027431; vendor reads '-R4' mint as
-        // 'R4, -0.0' and '|R4|' mint as 'R4, 2'; nvdisasm 13.3.73 raw -b).
-        // Semantic pin, byte-agnostic: the mangle must not become a silent
-        // correct roundtrip without attribution. When a real fix lands,
-        // this pin flips to assert the correct text.
-        let wneg = enc(&t, "HFMA2 R2, R3, -R4, 0, 0").expect("355: refuses now?");
-        let wabs = enc(&t, "HFMA2 R2, R3, |R4|, 0, 0").expect("355: refuses now?");
-        assert_ne!(
+        // BUG-353 flip (attributed): tok3-hsel authored encode is ARMED
+        let w_hh = enc(&t, "HFMA2 R2, R3, R4.H0_H0, 0, 0").expect("353: tok3 hsel mint must mint");
+        assert_eq!(
+            dec(&t, w_hh).as_deref(),
+            Some("HFMA2 R2, R3, R4.H0_H0, 0, 0"),
+            "{leg}: tok3 hsel roundtrip drift (353-armed)"
+        );
+        // 355-kand CURED ON THIS ROW BY BUG-353 (attributed flip; the
+        // registry item stays sev-review for the general class): pre-graft
+        // sparse encode of tok3 neg/abs MINTED fold words vendor read as
+        // 'R4, -0.0' / 'R4, 2'; the grafted neg@84/abs@83 fields now mint
+        // the sign bits and roundtrip vendor-exact (dense-word pins live
+        // in bug353 pin t353_4).
+        let wneg = enc(&t, "HFMA2 R2, R3, -R4, 0, 0").expect("353: refuses?");
+        let wabs = enc(&t, "HFMA2 R2, R3, |R4|, 0, 0").expect("353: refuses?");
+        assert_eq!(
             dec(&t, wneg).as_deref(),
             Some("HFMA2 R2, R3, -R4, 0, 0"),
-            "{leg}: 355 neg lane silently fixed -- attribute!"
+            "{leg}: 355-cured neg lane regression"
         );
-        assert_ne!(
+        assert_eq!(
             dec(&t, wabs).as_deref(),
             Some("HFMA2 R2, R3, |R4|, 0, 0"),
-            "{leg}: 355 abs lane silently fixed -- attribute!"
+            "{leg}: 355-cured abs lane regression"
         );
     }
     // INVALID3 doctrine (285): F32 x BF16 stays HOLE on ALL legs
