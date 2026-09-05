@@ -148,12 +148,28 @@ fn t289_1_structure_census_tags() {
         // cells LTC64B/LTC256B x6 bases + BYPASS.LTC128B.128.ZFILL twins;
         // era-leg grafts live inside mod_groups and do not move the
         // counter).
+        // BUG-380 flip (canonical a53eb20): sm120 1649 -> 1671, sm121a
+        // 15630 -> 15652 (+22 keyed F64-src lattice rows per leg; era-leg
+        // grafts live inside F2I_R_R mod_groups and do not move the
+        // counter).
+        // BUG-381 flip (canonical 3cb31e4): sm100a/sm103a 15516 -> 15540
+        // (+24 RELU _P dotted keys per era leg on HFMA2_R_R_R_R /
+        // HFMA2_R_R_UR_R; the 68 new mgs per leg live inside mod_groups
+        // and do not move the counter; dense legs untouched).
+        // BUG-386 flip (canonical dbe5e91): sm121a 15652 -> 15664 (+12
+        // LDGSTS desc base-gap dotted keys: BYPASS/ZFILL x s32/s64 x np/_P;
+        // era-leg grafts live inside mod_groups and do not move the
+        // counter).
+        // BUG-384 flip (canonical 9713fd6): sm120 1671 -> 1669, sm121a
+        // 15664 -> 15662 (-2 harvest-junk dense era keys per leg:
+        // HFMA2.BF16_V2_R_R_R_R + HFMA2_R_R_R_R_R deleted; sparse legs
+        // byte-untouched, they never shipped the rows).
         let want = if arch == "sm120" {
-            1649
+            1669
         } else if arch == "sm121a" {
-            15630
+            15662
         } else {
-            15516
+            15540
         };
         assert_eq!(t.entries.len(), want, "{arch}: key census drift");
     }

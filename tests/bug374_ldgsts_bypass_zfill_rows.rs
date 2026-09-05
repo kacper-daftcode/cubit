@@ -71,10 +71,12 @@ fn t374_1_structure_rows_and_attribution() {
         // the desc family to the exact 24-cell lattice (6 groups x4 LTC
         // codes) per side on every era leg; the 373/374/375 attribution
         // checks below stand.
+        // BUG-386 flip (canonical dbe5e91): +6 LTC=0 base-gap groups per
+        // side -> exact 30-cell lattice per side on every era leg.
         assert_eq!(
             np.len(),
-            24,
-            "{leg}: np mg census drift (post-376 lattice 24)"
+            30,
+            "{leg}: np mg census drift (post-386 lattice 30)"
         );
         assert_eq!(
             np["128,BYPASS,E,ZFILL"]["_src"].as_str(),
@@ -88,8 +90,8 @@ fn t374_1_structure_rows_and_attribution() {
         );
         assert_eq!(
             p.len(),
-            24,
-            "{leg}: _P mg census drift (post-376 lattice 24)"
+            30,
+            "{leg}: _P mg census drift (post-386 lattice 30)"
         );
         if leg == "sm120" {
             assert_eq!(

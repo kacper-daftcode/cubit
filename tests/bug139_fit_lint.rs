@@ -150,7 +150,12 @@ fn t139_4_soft_audit_never_bails() {
 // End-to-end through the CLI, post-BUG-140 semantics: the aggregate-covered
 // census idioms are silent in BOTH modes now; the remaining warn-only
 // channel is the legacy-soft set (const-mem combined window roundtrip here).
-// Payloads stay identical in both modes.
+// FLIP (BUG-389, F2-iter209): the const-mem window roundtrip misfit in the
+// fixture below was PROMOTED from lint-only to fail-closed (BUG-043 doctrine
+// -- pre-389 the default mint silently dropped/sign-flipped the slice);
+// default mode now bails with BUG-389 attribution, warn mode still reports
+// [fit-lint] and preserves the legacy payload. The other fixture lines
+// (PLOP3/LDS) stay silent in BOTH modes.
 // ---------------------------------------------------------------------------
 #[test]
 fn t139_5_cli_warn_mode_logs_and_preserves_payload() {
@@ -166,7 +171,7 @@ fn t139_5_cli_warn_mode_logs_and_preserves_payload() {
         "    LDS.S8 R1, [RZ+0x10] ;\n",
         "    LDC R1, c[0x0][0x8000] ;\n",
         "    EXIT ;\n")).unwrap();
-    let run = |env: Option<&str>| -> (bool, String, Vec<u8>) {
+    let run = |env: Option<&str>| -> (bool, String, Option<Vec<u8>>) {
         let out = dir.join(if env.is_some() { "w.cubin" } else { "n.cubin" });
         let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_cubit"));
         cmd.args(["asm", "-t", "tables/sm103a.json", "-o"])
@@ -175,11 +180,15 @@ fn t139_5_cli_warn_mode_logs_and_preserves_payload() {
         if let Some(e) = env { cmd.env("CUBIT_FIT_LINT", e); }
         let r = cmd.output().unwrap();
         (r.status.success(), String::from_utf8_lossy(&r.stderr).into_owned(),
-         std::fs::read(&out).unwrap())
+         std::fs::read(&out).ok())
     };
     let (ok_w, err_w, cubin_w) = run(Some("warn"));
     let (ok_n, err_n, cubin_n) = run(None);
-    assert!(ok_w && ok_n, "covered + legacy-soft classes must never break assembly");
+    // BUG-389: default mode fail-closes on the cm16 window misfit line
+    assert!(!ok_n, "BUG-389: default mode must fail closed on the cm16 sign-window mint");
+    assert!(err_n.contains("BUG-389"), "BUG-389 attribution: {err_n}");
+    assert!(cubin_n.is_none(), "no payload minted in default mode");
+    assert!(ok_w, "warn census mode keeps the legacy payload: {err_w}");
     // BUG-140: the lattice split is aggregate-covered — silent in warn mode.
     assert!(!err_w.contains("[fit-lint] encode-lint: `PLOP3.LUT`"),
         "covered lattice split must NOT log post-BUG-140: {err_w}");
@@ -187,7 +196,18 @@ fn t139_5_cli_warn_mode_logs_and_preserves_payload() {
     // round-trip the signed sub-window).
     assert!(err_w.contains("[fit-lint]"),
         "warn mode must still log the legacy-soft cm_off channel: {err_w}");
-    assert!(!err_n.contains("[fit-lint]"), "default mode stays silent: {err_n}");
-    assert_eq!(cubin_w, cubin_n, "warn mode must not change the payload");
+    assert!(!err_n.contains("[fit-lint]"), "default mode lint channel quiet: {err_n}");
+    // warn-mode payload = the pre-389 LEGACY mint (raw slice 0x8000 survives);
+    // verified semantically: its disassembly reads the signed-window render.
+    let dis = std::process::Command::new(env!("CARGO_BIN_EXE_cubit"))
+        .args(["disassemble", "-t", "tables/sm103a.json"])
+        .arg(dir.join("w.cubin"))
+        .output()
+        .unwrap();
+    let dis = String::from_utf8_lossy(&dis.stdout).into_owned();
+    assert!(
+        dis.contains("LDC R1, c[0x0][-0x8000]"),
+        "warn payload preserves the legacy raw slice (vendor reads -0x8000): {dis}"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }

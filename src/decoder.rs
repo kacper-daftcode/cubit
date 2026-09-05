@@ -539,6 +539,13 @@ impl DecodeIndex {
         // (donor tables claim identically = 362-nota donor-parity
         // overclaim). Fail closed with attribution.
         if (code >> 122) & 0x7 != 0 {
+            // BUG-380a extension (same vendor law, measured on the F64-src
+            // lattice completion, 2026-09-05): reuse [124:122] is ILLEGAL
+            // on every row of the newly grafted F64-src (byte10=0x30,
+            // b76=1) plain/NTZ/FLOOR[F64/U32/U64/S64]/FLOOR.NTZ/CEIL/
+            // CEIL.NTZ family (arb380c 17 probes incl 'F64,S64' plain,
+            // x4 models AGREE, rc=1 every cell). The same law closes the
+            // pre-existing 'F64,S64' / F2I.S64.F64_R_R gap (arb380c2).
             // BUG-363 extension: the F2I R_R FTZ (byte10=0x21) / BF16
             // (byte10=0x40) era rows (grafted as keyed `F2I.FTZ[.T][.R]_R_R`
             // / `F2I[.T].BF16[.R]_R_R` rows, claim window 96-bit only) carry
@@ -561,6 +568,31 @@ impl DecodeIndex {
                         | "F64,TRUNC,U64"
                         | "F64,S64,TRUNC"
                         | "F64,FLOOR"
+                        // BUG-380a: grafted F64-src lattice (canonical a53eb20)
+                        // + the 'F64,S64' pre-existing gap (arb380c2).
+                        | "F64"
+                        | "F64,U32"
+                        | "F64,U64"
+                        | "F64,S64"
+                        | "F64,NTZ"
+                        | "F64,NTZ,U32"
+                        | "F64,NTZ,U64"
+                        | "F64,NTZ,S64"
+                        | "F64,FLOOR,U32"
+                        | "F64,FLOOR,U64"
+                        | "F64,FLOOR,S64"
+                        | "CEIL,F64"
+                        | "CEIL,F64,U32"
+                        | "CEIL,F64,U64"
+                        | "CEIL,F64,S64"
+                        | "CEIL,F64,NTZ"
+                        | "CEIL,F64,NTZ,U32"
+                        | "CEIL,F64,NTZ,U64"
+                        | "CEIL,F64,NTZ,S64"
+                        | "F64,FLOOR,NTZ"
+                        | "F64,FLOOR,NTZ,U32"
+                        | "F64,FLOOR,NTZ,U64"
+                        | "F64,FLOOR,NTZ,S64"
                 ))
                 || (matched.mod_group.is_empty()
                     && matches!(
@@ -572,11 +604,36 @@ impl DecodeIndex {
                             | "F2I.S64.F64.TRUNC_R_R"
                             | "F2I.F64.TRUNC_R_R"
                             | "F2I.F64.FLOOR_R_R"
+                            // BUG-380a: grafted keyed F64-src lattice rows
+                            // (canonical a53eb20) + the F2I.S64.F64_R_R gap.
+                            | "F2I.F64_R_R"
+                            | "F2I.U32.F64_R_R"
+                            | "F2I.U64.F64_R_R"
+                            | "F2I.S64.F64_R_R"
+                            | "F2I.F64.NTZ_R_R"
+                            | "F2I.U32.F64.NTZ_R_R"
+                            | "F2I.U64.F64.NTZ_R_R"
+                            | "F2I.S64.F64.NTZ_R_R"
+                            | "F2I.U32.F64.FLOOR_R_R"
+                            | "F2I.U64.F64.FLOOR_R_R"
+                            | "F2I.S64.F64.FLOOR_R_R"
+                            | "F2I.F64.CEIL_R_R"
+                            | "F2I.U32.F64.CEIL_R_R"
+                            | "F2I.U64.F64.CEIL_R_R"
+                            | "F2I.S64.F64.CEIL_R_R"
+                            | "F2I.F64.CEIL.NTZ_R_R"
+                            | "F2I.U32.F64.CEIL.NTZ_R_R"
+                            | "F2I.U64.F64.CEIL.NTZ_R_R"
+                            | "F2I.S64.F64.CEIL.NTZ_R_R"
+                            | "F2I.F64.FLOOR.NTZ_R_R"
+                            | "F2I.U32.F64.FLOOR.NTZ_R_R"
+                            | "F2I.U64.F64.FLOOR.NTZ_R_R"
+                            | "F2I.S64.F64.FLOOR.NTZ_R_R"
                     ))
                 || is_363_ftz_bf16;
             if reuse_bad {
                 return Err(anyhow::anyhow!(
-                    "vendor-ILLEGAL reuse bit [124:122] set on the F2I lattice row {}::{} (BUG-362/BUG-363; code 0x{:032x})",
+                    "vendor-ILLEGAL reuse bit [124:122] set on the F2I lattice row {}::{} (BUG-362/BUG-363/BUG-380; code 0x{:032x})",
                     matched.key, matched.mod_group, code
                 ));
             }

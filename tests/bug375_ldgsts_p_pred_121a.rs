@@ -30,6 +30,8 @@ use cubit::table::IsaTable;
 
 const M96: u128 = (1u128 << 96) - 1;
 const B73: u128 = 1 << 73;
+const B74: u128 = 1 << 74;
+const B75: u128 = 1 << 75;
 const B81: u128 = 1 << 81;
 const B82: u128 = 1 << 82;
 const F: u128 = 0x000000000b9a180e0000000016038fae_u128;
@@ -58,10 +60,12 @@ fn t375_1_structure_11_p_clones_era_pred() {
         .collect();
     // BUG-376 flip (canonical 6742fdf): +13 non-_P dotted keys
     // (LTC-lattice completion) -- 11 + 13 = 24; every base keeps its _P clone.
+    // BUG-386 flip (canonical dbe5e91): +6 base-gap dotted keys -- 30; every
+    // base keeps its _P clone.
     assert_eq!(
         base.len(),
-        24,
-        "121a non-_P dARI key census drift (post-376 = 24)"
+        30,
+        "121a non-_P dARI key census drift (post-386 = 30)"
     );
     let mut clones = 0usize;
     for k in &base {
@@ -103,7 +107,8 @@ fn t375_1_structure_11_p_clones_era_pred() {
         );
         clones += 1;
     }
-    assert_eq!(clones, 24, "post-376: every base has its _P clone");
+    // BUG-386 flip (canonical dbe5e91): +6 base-gap dotted keys per side.
+    assert_eq!(clones, 30, "post-386: every base has its _P clone");
 }
 
 #[test]
@@ -199,11 +204,17 @@ fn t375_5_kill_and_provenance() {
         enc(&t, "LDGSTS.E.128 [R3], desc[UR14][R22.64+0x1000], P1").is_err(),
         "121a: clone desc overflow must stay lint loud"
     );
-    // Nonsense combo stays unrowed/loud (no BYPASS.64 donor on 121a).
-    assert!(
-        enc(&t, "LDGSTS.E.BYPASS.64 [R3], desc[UR14][R22.64], P1").is_err(),
-        "121a: BYPASS.64 _P must stay loud"
-    );
+    // [FLIP with attribution, BUG-386 / F2-iter204, canonical dbe5e91]:
+    // "no BYPASS.64 donor on 121a" is CLOSED -- the base-gap dotted graft
+    // adds 'LDGSTS.E.BYPASS.64_ARI_dARI_P' (clone of the _P BYPASS.128
+    // donor, delta B75|B74 asserted in patch386.py). Mint = the F-class
+    // nib-1 era-map word (guard-elided g=7; pred law of t375_4).
+    let w = enc(&t, "LDGSTS.E.BYPASS.64 [R3], desc[UR14][R22.64], P1").unwrap();
+    let want = (((F ^ B81 ^ B74 ^ B75) & !(0xFu128 << 12) | (7u128 << 12)) & !(0xFu128 << 87))
+        | (1u128 << 87);
+    assert_eq!(w & M96, want & M96, "121a BYPASS.64 _P mint drift");
+    let d = dec(&t, w).expect("121a BYPASS.64 roundtrip");
+    assert_eq!(d.trim(), "LDGSTS.E.BYPASS.64 [R3], desc[UR14][R22.64], P1");
     let raw: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/sm121a.json").unwrap()).unwrap();
     assert!(
@@ -214,11 +225,12 @@ fn t375_5_kill_and_provenance() {
         "bug375 provenance missing"
     );
     // key census moved exactly +11 in 375; BUG-376 (canonical 6742fdf)
-    // adds +13 per side (t289_1 flip owns the raw count 15630)
+    // adds +13 per side (t289_1 flip owns the raw count 15630); BUG-386
+    // (canonical dbe5e91) adds +6 per side
     let ins = raw["instructions"].as_object().unwrap();
     let pkeys = ins
         .keys()
         .filter(|k| k.contains("LDGSTS") && k.ends_with("_ARI_dARI_P"))
         .count();
-    assert_eq!(pkeys, 24, "121a _P dARI key census drift (post-376 = 24)");
+    assert_eq!(pkeys, 30, "121a _P dARI key census drift (post-386 = 30)");
 }

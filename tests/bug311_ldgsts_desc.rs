@@ -190,10 +190,18 @@ fn t311_4_e128_alloc_family_mints() {
 #[test]
 fn t311_5_fail_closed_and_boundaries() {
     let t = tab("sm120");
-    // ZFILL on sm120: no rows (family unwitnessed there) -> fail-closed
-    let r = enc(&t, "LDGSTS.E.64.ZFILL [R7+0x70], desc[UR6][R4.64+0x708]");
-    assert!(r.is_err(), "sm120 ZFILL must stay fail-closed");
-    assert!(format!("{}", r.unwrap_err()).contains("no operand-compatible table entry"));
+    // [FLIP with attribution, BUG-386 / F2-iter204, canonical dbe5e91]:
+    // 'LDGSTS.E.64.ZFILL' is a 386 base-gap cell -- sm120 carried the
+    // s128 ZFILL rows since 359/373_375 but the s64 sibling stayed
+    // fail-closed until the base-gap lattice completion; the graft clones
+    // the in-side sm120 '128,E,ZFILL' donor (delta B75|B74 asserted in
+    // patch386.py), so the authored text now encodes and round-trips:
+    let w64 = enc(&t, "LDGSTS.E.64.ZFILL [R7+0x70], desc[UR6][R4.64+0x708]").unwrap();
+    assert_eq!(
+        dec(&t, w64).as_deref(),
+        Some("LDGSTS.E.64.ZFILL [R7+0x70], desc[UR6][R4.64+0x708]"),
+        "sm120 64,E,ZFILL post-386 mint/roundtrip"
+    );
     // immediate windows fail closed via encode-lint (pathological overflow)
     assert!(enc(
         &t,
@@ -205,8 +213,19 @@ fn t311_5_fail_closed_and_boundaries() {
         "LDGSTS.E.BYPASS.128 [R27+0x1], desc[UR18][R24.64+0x1000]"
     )
     .is_err());
-    // signed 20-bit dst window edge is vendor-legal both ways (raw law)
-    let w = enc(&t, "LDGSTS.E.BYPASS.128 [R27+0x80000], desc[UR18][R24.64]").unwrap();
+    // [FLIP with attribution, BUG-378 / F2-iter201]: pre-BUG-378 the
+    // authored positive sign-window edge '+0x80000' minted the sign-window
+    // raw which the decoder prints as the NEGATED value '+-0x80000' -- a
+    // silent sign flip vs the authored intent (the "raw law" pinned here
+    // documented that acceptance). The SubImm arm now fails closed on every
+    // non-round-trip-stable offset; the sign-window raw stays encodable via
+    // the vendor negative spelling:
+    let err = enc(&t, "LDGSTS.E.BYPASS.128 [R27+0x80000], desc[UR18][R24.64]").unwrap_err();
+    assert!(
+        format!("{}", err).contains("BUG-378"),
+        "authored +0x80000 on the signed 20b window must fail closed with attribution: {err}"
+    );
+    let w = enc(&t, "LDGSTS.E.BYPASS.128 [R27+-0x80000], desc[UR18][R24.64]").unwrap();
     assert_eq!(
         dec(&t, w).as_deref(),
         Some("LDGSTS.E.BYPASS.128 [R27+-0x80000], desc[UR18][R24.64]")

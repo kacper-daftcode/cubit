@@ -85,13 +85,15 @@ fn t373_1_structure_guard_widen_121a() {
     // BUG-376 flip (canonical 6742fdf): LTC-lattice completion adds +13
     // non-_P dotted keys (LTC64B/LTC256B x6 bases + BYPASS.LTC128B.128.ZFILL)
     // on top of the 11 post-375 set; guard-4b census moves with it.
+    // BUG-386 flip (canonical dbe5e91): +6 non-_P base-gap dotted keys
+    // (BYPASS/ZFILL x s32/s64); clones inherit the widened 4b@12 guard.
     assert_eq!(
-        keys, 24,
-        "121a non-P dARI key census drift (375 clones are _ARI_dARI_P; 376 adds +13)"
+        keys, 30,
+        "121a non-P dARI key census drift (375 clones are _ARI_dARI_P; 376 +13; 386 +6)"
     );
     assert_eq!(
-        g4, 24,
-        "121a dARI keys must all carry guard 4b@12 post-373 (376 lattice: 24)"
+        g4, 30,
+        "121a dARI keys must all carry guard 4b@12 post-373 (386 lattice: 30)"
     );
     // 121a-wide census: 3b@12 guard rows 59 -> 48 (11 widened), 4b@12 guard
     // rows 16639 -> 16650 (+11 widened; the 375 _P clones inherit the
@@ -215,8 +217,11 @@ fn t373_5_no_regression_era_legs_and_provenance() {
     );
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
+    // [FLIP with attribution, BUG-386 / F2-iter204]: the manifest pin moves
+    // with the canonical base-gap lattice graft.
     assert!(
-        m["base_revision"].as_str().unwrap().starts_with("50d7d13"),
-        "SOURCE.json must pin canonical 6742fdf (BUG-376 graft, amend of c574778 = meta annotation fix)"
+        // [FLIP with attribution, BUG-387 / F2-iter206]: manifest pin moves with the canonical SHFL b62-region graft.
+        m["base_revision"].as_str().unwrap().starts_with("b1b2b85"),
+        "SOURCE.json must pin canonical bacdfb5 [was c155d00] (BUG-388 graft; rides c155d00 = BUG-396)"
     );
 }

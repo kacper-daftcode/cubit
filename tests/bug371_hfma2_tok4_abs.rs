@@ -80,11 +80,14 @@ fn t371_1_structure_census_tok4_abs_closed() {
     // Post-graft invariant: EVERY HFMA2 mod_group with a Reg/UReg token-4
     // carries a tok4 abs field; exactly one at 83 for the 108 grafted
     // rows; b83 is carved out of the claim care-mask on those rows.
+    // BUG-384 flip (canonical 9713fd6): the two deleted dense era keys
+    // (HFMA2.BF16_V2_R_R_R_R + HFMA2_R_R_R_R_R) carried one abs@83 field
+    // each (the 371 graft on the keyed-BF16 + 5-reg rows), so dense 98->96.
     let want83 = [
-        ("sm100a", 4usize),
-        ("sm103a", 4usize),
-        ("sm120", 98usize),
-        ("sm121a", 98usize),
+        ("sm100a", 96usize),
+        ("sm103a", 96usize),
+        ("sm120", 96usize),
+        ("sm121a", 96usize),
     ];
     for (leg, n83) in want83 {
         let raw: serde_json::Value =
@@ -127,6 +130,9 @@ fn t371_1_structure_census_tok4_abs_closed() {
                     // count basis: thin = 2 dense + 2 UR_R (371 graft); thick = 36 dense
                     // (BUG-320) + 12 dense _P dotted (pre-existing) + 36 UR_R + 12 UR_R_P +
                     // keyed BF16 + 5-reg (371 graft) = 98.
+                    // BUG-381 basis (canonical 3cb31e4): era legs 4 -> 96
+                    // (sparse 0x231/0x7c31 lattice completion: 68 new mgs +
+                    // 24 new dotted keys all clone donors carrying abs@83).
                     let vm = u128::from_str_radix(
                         mg["variable_mask"]
                             .as_str()
@@ -284,9 +290,13 @@ fn t371_5_provenance_and_manifest_ratchet() {
                 }
             }
         }
+        // BUG-384 flip (canonical 9713fd6): the two deleted dense era keys
+        // (HFMA2.BF16_V2_R_R_R_R + HFMA2_R_R_R_R_R on sm120 + sm121a)
+        // carried one 371-grafted abs@83 field each, so the dense
+        // attribution count is 50 - 2 = 48.
         let want = match leg {
             "sm100a" | "sm103a" => 4,
-            "sm120" | "sm121a" => 50,
+            "sm120" | "sm121a" => 48,
             _ => unreachable!(),
         };
         assert_eq!(src_cnt, want, "{leg}: graft attribution count drift");
@@ -296,8 +306,10 @@ fn t371_5_provenance_and_manifest_ratchet() {
     // BUG-373/374/375 flip (canonical e7f3e6f): the LDGSTS desc graft wave
     // re-pins the manifest; BUG-371's own graft invariants above stand.
     assert!(
-        m["base_revision"].as_str().unwrap().starts_with("50d7d13"),
-        "SOURCE.json must pin canonical 6742fdf (BUG-376 graft, amend of c574778 = meta annotation fix): {:?}",
+        // [FLIP with attribution, BUG-384 / F2-iter205]: manifest pin moves
+        // with the canonical era-key hygiene delete (9713fd6).
+        m["base_revision"].as_str().unwrap().starts_with("b1b2b85"),
+        "SOURCE.json must pin canonical bacdfb5 [was c155d00] (BUG-388 graft; rides c155d00 = BUG-396): {:?}",
         m["base_revision"]
     );
 }

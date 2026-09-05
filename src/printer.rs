@@ -2953,6 +2953,15 @@ fn format_auri_uronly(fields: &[&DecodedField], raw: u128) -> String {
     for f in fields {
         let e = norm_ext(&f.extraction);
         match e.as_str() {
+            // SubURm1(i): sibling-UR token = shared raw + 1 (UGETNEXTWORKID
+            // [URn],[URn+1] pair; BUG-388 arb388b pair law x4 models:
+            // zero/unit/v127/v200 on the widened 8b@24 window). The printer
+            // side was missing until BUG-388 and rendered [URn],[URn].
+            s if s.starts_with("suburm1") => {
+                let mask = (1u64 << f.bits.min(63)) - 1;
+                ur = Some(f.value.wrapping_add(1) & mask);
+                ur_wide = f.bits >= 8;
+            }
             "sub_ur0" | "sub_ur1" | "ureg" | "tdesc_ur" | "gdesc_ur" => {
                 ur = Some(f.value);
                 ur_wide = f.bits >= 8;

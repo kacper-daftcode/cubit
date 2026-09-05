@@ -622,9 +622,12 @@ const NEGS: &[(&[&str], u128, u32, &str)] = &[
     (&["s"], 0x038000000000000000007348, 62, "WARPSYNC"),
     (&["a", "c"], 0x000000000000000000ff72ca, 62, "R2UR"), // pre: |R0| junk
     (&["s"], 0x000e000000000000000002ca, 62, "R2UR"),
-    (&["a", "c"], 0x000000000800000000007f89, 62, "SHFL"), // pre: |R0| junk
-    (&["a", "c"], 0x000000000800000000007f89, 63, "SHFL"),
-    (&["s"], 0x000e00000c00000000007f89, 63, "SHFL"), // pre: -R0 junk
+    // REMOVED with attribution, BUG-387 (F2-iter206, canonical 93bc221): the
+    // SHFL b62 NEG entry was vendor-LEGAL all along (arb387b exact-word family
+    // x4 models: b62/b61/b6261/b6263 on this base all render
+    // 'SHFL.DOWN P0, R0, R0, 0x0, 0x0' rc=0) -- the [62:61] relax closes the
+    // HOLE; positive exact-text pin moved to t225_3c (pre: |R0| junk stays
+    // dead, locked by base_of drift guards below).
     (&["a", "c"], 0x0000000000000000000005ab, 62, "CGAERRBAR"),
     (&["s"], 0x0000000000000000000075ab, 72, "CGAERRBAR"),
     (&["a", "c"], 0x03c000000000000000907944, 72, "CALL"),
@@ -636,6 +639,75 @@ const NEGS: &[(&[&str], u128, u32, &str)] = &[
     (&["a", "c"], 0x000007000000000000ff73aa, 72, "QSPC"),
     (&["a", "c"], 0x0800020000000000000003ba, 72, "UBLKCP"),
 ];
+
+/// FLIP z atrybucja BUG-382 (F2-iter200, canonical 47e4ce4): dawne NEG
+/// wpisy SHFL b63 (0x...7f89 ^ b63) sa vendor-LEGALNE x4 modele (nvdisasm
+/// 13.3.73 raw -b: b63 write-inert, render == czysty tekst); relax 382
+/// vm |= b63 + [90:88] zamyka te HOLE -- aserty przechodza na
+/// vendor-parity exact-text (pin pozytywny, NIE fail-closed).
+#[test]
+fn t225_3b_shfl_b63_vendor_true_post382() {
+    for (leg, w1, exp) in [
+        (
+            "sm100a",
+            0x000000008800000000007f89u128,
+            "SHFL.DOWN P0, R0, R0, 0x0, 0x0",
+        ),
+        (
+            "sm103a",
+            0x000000008800000000007f89u128,
+            "SHFL.DOWN P0, R0, R0, 0x0, 0x0",
+        ),
+        (
+            "sm120",
+            0x000e00008c00000000007f89u128,
+            "SHFL.BFLY PT, R0, R0, 0x0, 0x0",
+        ),
+    ] {
+        let t = load(&format!("tables/{leg}.json"));
+        let idx = DecodeIndex::build(&t);
+        let d = idx
+            .decode(w1 & M96, 0, &t)
+            .unwrap_or_else(|e| panic!("{leg}: 382 vendor-true b63 word HOLE: {e}"));
+        assert_eq!(
+            to_sass(&d).trim_end_matches([';', ' ']),
+            exp,
+            "{leg} wrong-text"
+        );
+    }
+}
+
+/// FLIP z atrybucja BUG-387 (F2-iter206, canonical 93bc221): dawny NEG
+/// wpis SHFL b62 (0x...0800000000007f89 ^ b62) jest vendor-LEGALNY x4 modele
+/// (arb387b exact-word family, nvdisasm 13.3.73 raw -b: b62/b61/b6261/b6263
+/// write-inert na tej bazie, render == czysty tekst; wchodzi w sklad prawa
+/// [63:61] inert-window z relax 387 vm |= 3<<61). Pin pozytywny exact-text,
+/// NIE fail-closed; b59 w bazie = dziedziczone inert (jak t225_3b).
+#[test]
+fn t225_3c_shfl_b62_region_vendor_true_post387() {
+    let w0 = 0x000000000800000000007f89u128;
+    for (leg, word) in [
+        ("sm100a", w0 ^ (1u128 << 62)),
+        ("sm100a", w0 ^ (1u128 << 61)),
+        ("sm100a", w0 ^ (3u128 << 61)),
+        ("sm100a", w0 ^ (7u128 << 61)),
+        ("sm103a", w0 ^ (1u128 << 62)),
+        ("sm103a", w0 ^ (1u128 << 61)),
+        ("sm103a", w0 ^ (3u128 << 61)),
+        ("sm103a", w0 ^ (7u128 << 61)),
+    ] {
+        let t = load(&format!("tables/{leg}.json"));
+        let idx = DecodeIndex::build(&t);
+        let d = idx
+            .decode(word & M96, 0, &t)
+            .unwrap_or_else(|e| panic!("{leg}: 387 vendor-true word HOLE {word:024x}: {e}"));
+        assert_eq!(
+            to_sass(&d).trim_end_matches([';', ' ']),
+            "SHFL.DOWN P0, R0, R0, 0x0, 0x0",
+            "{leg} wrong-text {word:024x}"
+        );
+    }
+}
 
 #[test]
 fn t225_3_negatives_fail_closed_not_self() {

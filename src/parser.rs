@@ -15,7 +15,14 @@ use std::sync::LazyLock;
 // ---------------------------------------------------------------------------
 
 static RE_INS: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^(?P<Pred>@!?U?P\w+\s+)?\s*(?P<Op>[\w.\?]+)(?P<Operands>.*)$").unwrap()
+    // BUG-383: the Op token may carry comma-separated multi-mods
+    // (`HFMA2.F32,FMZ`) — the table names such mod-groups with commas and
+    // authors reasonably write them; without ',' here the regex cut the Op at
+    // the first comma and leaked `,FMZ R1` into the operand stream, which
+    // degraded to Label operands and a loud `no operand-compatible table
+    // entry` (rc=1). Operands always start after whitespace, so adding ','
+    // to the class cannot swallow a real operand token.
+    Regex::new(r"^(?P<Pred>@!?U?P\w+\s+)?\s*(?P<Op>[\w.\?,]+)(?P<Operands>.*)$").unwrap()
 });
 
 static RE_TEXT_LINE: LazyLock<Regex> = LazyLock::new(|| {
@@ -563,10 +570,17 @@ pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
         None
     };
 
-    // Split opcode into base + modifiers
+    // Split opcode into base + modifiers; BUG-383: comma-joined multi-mods
+    // (`.F32,FMZ`) normalize to the same per-modifier list as dot-joined ones
+    // (`.F32.FMZ`), so downstream modifier scans see a canonical shape.
     let op_parts: Vec<&str> = op_full.split('.').collect();
     let base_op = op_parts[0].to_string();
-    let modifiers: Vec<String> = op_parts[1..].iter().map(|s| format!(".{s}")).collect();
+    let modifiers: Vec<String> = op_parts[1..]
+        .iter()
+        .flat_map(|s| s.split(','))
+        .filter(|s| !s.is_empty())
+        .map(|s| format!(".{s}"))
+        .collect();
 
     // Determine if this is a float-context opcode
     let is_float = FLOAT_OPCODES.iter().any(|f| base_op == *f);

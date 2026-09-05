@@ -136,16 +136,26 @@ fn t163_4_anchor_roundtrip() {
 }
 
 /// t163_5 (no more silent bank spill): an over-16-bit plain offset keeps the
-/// bank bits clean (the offset wraps inside its own 16-bit window; TIER-2
-/// lint surfaces under CUBIT_FIT_LINT=warn; a hard range-check stay the
-/// separate queued LOW item from 161/162 sec.5 "sub_imm*/cm_off
-/// wrap-vs-reject").
+/// bank bits clean. FLIP (BUG-389, F2-iter209, attribution: the "hard
+/// range-check" queued in 161/162 sec.5 as "sub_imm*/cm_off wrap-vs-reject"
+/// LANDED with BUG-389 -- wrap-vs-reject resolved = REJECT): the over-window
+/// authored offset now fails CLOSED; there is no mint at all, so the bank
+/// bits trivially stay clean (the strictest form of this pin's intent). The
+/// pre-389 documented wrap lived in fit_cm_off_soft's legacy-soft payload
+/// (offset silently sliced to 0x0000, vendor reads the slice signed).
 #[test]
 fn t163_5_no_bank_spill() {
     let t = t120();
-    let w1 = enc(&t, "LDC R4, c[0x0][0x10000]");
-    assert_eq!((w1 >> 54) & 0x1f, 0, "bank bits stay clean on offset overflow");
-    assert_eq!((w1 >> 38) & 0xffff, 0, "overflowing offset wraps in-window (documented)");
+    let insn = parse_sass("LDC R4, c[0x0][0x10000]", 0).expect("parse");
+    let err = encode_instruction(&insn, &t).expect_err("BUG-389 fail-closed");
+    assert!(
+        err.to_string().contains("BUG-389"),
+        "attribution on the over-window refusal: {err}"
+    );
+    // in-window bank-adjacent offset still mints with clean bank bits
+    let w2 = enc(&t, "LDC R4, c[0x0][0x7f00]");
+    assert_eq!((w2 >> 54) & 0x1f, 0, "bank bits stay clean in-window");
+    assert_eq!((w2 >> 38) & 0xffff, 0x7f00, "in-window offset mints verbatim");
 }
 
 /// t163_6 (window interpretation guardrail): bits [54:59) are the BANK now;

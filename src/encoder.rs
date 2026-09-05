@@ -3151,16 +3151,56 @@ fn fit_soft(insn: &Instruction, field: &Field, v: i64, signed: bool) -> Result<u
 }
 
 /// TIER-2 const-mem combined field (bank << shift | offset & window): the
-/// offset is sliced into a two's-complement window of `bank_shift` bits —
-/// audit the slice round-trip, then hand the combined legacy payload to the
-/// soft audit (never bails; CUBIT_FIT_LINT=warn logs).
+/// offset is sliced into a two's-complement window of `bank_shift` bits.
+/// BUG-389 (F2-iter209, 389-kand @ F2-iter201): the slice audit was
+/// LINT-ONLY, so a value that does not round-trip through
+/// sign_extend(bank_shift) was SILENTLY rewritten by the legacy payload --
+/// `c[0x0][R2+0x800000]` minted with the offset DROPPED (slice & win = 0)
+/// and `+0x7fffff` came back from the decoder as `+-0x1` (measure_pre389 on
+/// publish cubit_py-982c46f1, carriers = LDC/LDCU cAI x4 legs). Same defect
+/// shape as BUG-378 (positive slice in the sign range) plus the drop class;
+/// the BUG-140 aggregate audit cannot see it (cm16/cm17 stay on the legacy
+/// soft channel by design: the combined bank|offset payload is not a
+/// modeled scalar coverage). Fail closed (BUG-043 doctrine) unless the
+/// authored offset round-trips; `CUBIT_FIT_LINT=warn` keeps the legacy
+/// payload as a census report, and an authored !rsd overlay owns the
+/// residue (BUG-140(e) doctrine). Exclusion mirrors BUG-378: only texts
+/// that were never round-trip-stable can be refused; every byte-exact text
+/// (decoder reads the same slice it prints) keeps minting.
 fn fit_cm_off_soft(insn: &Instruction, field: &Field, bank_shift: u8) -> Result<u64> {
     let win = (1u64 << bank_shift) - 1;
     if let Some(Operand::ConstMem { offset, .. }) = get_op(insn, field.token_idx) {
-        if crate::printer::sign_extend_pub((*offset as u64) & win, bank_shift as u32) != *offset
-            && fit_lint_warn_enabled()
+        let roundtrip = crate::printer::sign_extend_pub((*offset as u64) & win, bank_shift as u32);
+        let payload = op_cm_off(insn, field.token_idx, bank_shift);
+        // Degenerate declarations (field narrower than bank_shift + the bank
+        // width, e.g. the 12b@37 sm100a LDCU_UR_cAI::'' row = 402-kand) make
+        // the masked legacy payload itself lossy: value bits above the field
+        // silently drop even when the offset round-trips. Refuse those too.
+        let mask_misfit = payload & !field.mask != 0;
+        if (roundtrip != *offset || mask_misfit)
+            && insn.rsd.as_ref().is_none_or(|r| r.is_empty())
         {
-            eprintln!("[fit-lint] {}", fit_lint_msg(insn, field, *offset as u64, FitLint::Signed));
+            if fit_lint_warn_enabled() {
+                eprintln!(
+                    "[fit-lint] {}",
+                    fit_lint_msg(insn, field, *offset as u64, FitLint::Signed)
+                );
+            } else {
+                let half = 1i64 << (bank_shift - 1);
+                anyhow::bail!(
+                    "operand {} const-mem offset {:#x} not encodable in the signed                      {}-bit window of `{}` key `{}` (BUG-389: pre-fix the mint silently                      rewrote it -- bits above the window or the field dropped, or the sign flipped;                      slice round-trip reads {:#x}, payload mask-fit={}. Write the                      vendor spelling `+-0x{:x}` if the sign-window raw is intended, or                      keep the offset within [{:#x}..={:#x}].",
+                    field.token_idx,
+                    *offset,
+                    bank_shift,
+                    insn.opcode_full,
+                    insn.key,
+                    roundtrip,
+                    !mask_misfit,
+                    roundtrip.unsigned_abs(),
+                    -half,
+                    half - 1,
+                );
+            }
         }
     }
     fit_soft(insn, field, op_cm_off(insn, field.token_idx, bank_shift) as i64, false)
@@ -3887,7 +3927,52 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
             };
             fit(insn, field, m1)
         }
-        Extraction::SubImm(i) => fit_soft(insn, field, op_sub_imm(insn, field.token_idx, *i) as i64, true),
+        Extraction::SubImm(i) => {
+            let imm = op_sub_imm(insn, field.token_idx, *i) as i64;
+            // BUG-378: the plain SubImm windows are SIGNED offsets (the
+            // printer sign-extends from the top window bit; vendor print law
+            // arb378 x4 models on every corpus-exposed window class). The
+            // fit_soft unsigned clause `v & !mask == 0` treats a positive
+            // authored offset in the sign window [2^(n-1), 2^n) as lossless,
+            // so e.g. '+0x800000' on the 24b@40 LDG.E window minted the raw
+            // sign-window word that decodes back as '+-0x800000' -- silent
+            // sign flip vs the authored intent (measured pre-fix on publish
+            // cubit-7280e5e6: FLIP-SIGN on 149/158 boundary mint cells,
+            // measure_pre378). The BUG-140 aggregate audit cannot see it
+            // (value bits inside the window). Fail closed unless the value
+            // round-trips through sign_extend(bits). The check reads OUR
+            // declared window, so it can only refuse texts that were never
+            // round-trip-stable (mint(t)'s decode prints a different offset):
+            // every byte-exact text today keeps minting. Exclusions: the
+            // ConstMem sub_imm0 field carries the BANK (not an offset); the
+            // RZ-based UR-less address prints ELIDED-UNSIGNED (BUG-164 pin
+            // law -- no sign to flip there); an authored !rsd overlay owns
+            // the residue (BUG-140(e) doctrine).
+            let is_bank = *i == 0
+                && matches!(get_op(insn, field.token_idx), Some(Operand::ConstMem { .. }));
+            let is_rz_elided = matches!(get_op(insn, field.token_idx),
+                Some(Operand::Addr { base_reg, ur_reg: None, .. })
+                    if base_reg.is_none_or(|b| b == 255));
+            let neg = crate::printer::sign_extend_pub((imm as u64) & field.mask, field.bits);
+            if !is_bank
+                && !is_rz_elided
+                && insn.rsd.as_ref().is_none_or(|r| r.is_empty())
+                && neg != imm
+            {
+                let tok = field.token_idx;
+                let opf = &insn.opcode_full;
+                let key = &insn.key;
+                let bits = field.bits;
+                let half = 1i64 << (bits - 1);
+                let mag = neg.unsigned_abs();
+                anyhow::bail!(
+                    "operand {tok} offset {imm:#x} not encodable in the signed {bits}-bit                      SubImm window of `{opf}` key `{key}` (BUG-378: the raw fits the window                      but its vendor/decoder read is the NEGATIVE offset {neg:#x} -- pre-fix                      the mint silently flipped the sign vs the authored intent; arb378                      x4 models). Write the vendor spelling `+-0x{mag:x}` if the sign-window                      raw is intended, or keep the offset within [{lo:#x}..={hi:#x}].",
+                    lo = -half,
+                    hi = half - 1,
+                );
+            }
+            fit_soft(insn, field, imm, true)
+        }
         Extraction::SubImmS24(i) => {
             let raw = op_sub_imm(insn, field.token_idx, *i);
             // Legacy 24-bit slice: bits above the window were silently
