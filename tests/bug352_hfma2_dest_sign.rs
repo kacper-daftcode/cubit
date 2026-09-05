@@ -71,11 +71,19 @@ fn t352_1_structure_census_zero_tok1_sign_fields() {
     // the sparse legs (RELU _P dotted keys of the SAT/FTZ/OOB closure:
     // .FTZ.RELU/.OOB.RELU/.F32.FTZ.RELU/.F32.OOB.RELU/.BF16_V2.FTZ.RELU/
     // .BF16_V2.OOB.RELU _R_R_R_FI_FI_P) = 16/16; dense stand.
+    // FLIP (BUG-381, F2-iter203, canonical 3cb31e4): +24 HFMA2* keys on
+    // the sparse legs (sparse 0x231/0x7c31 lattice completion: 12 RELU _P
+    // dotted keys per family on HFMA2_R_R_R_R + HFMA2_R_R_UR_R) = 40/40;
+    // dense stand.
+    // FLIP (BUG-384, F2-iter205, canonical 9713fd6): -2 HFMA2* keys per
+    // dense leg (harvest-junk era keys HFMA2.BF16_V2_R_R_R_R +
+    // HFMA2_R_R_R_R_R deleted; arb384 measured live WRONG decode cells on
+    // the 5-reg row) = 88/88.
     let want_counts = [
-        ("sm100a", 16usize),
-        ("sm103a", 16),
-        ("sm120", 90),
-        ("sm121a", 90),
+        ("sm100a", 40usize),
+        ("sm103a", 40),
+        ("sm120", 88),
+        ("sm121a", 88),
     ];
     for (leg, n) in want_counts {
         let t = tab(leg);

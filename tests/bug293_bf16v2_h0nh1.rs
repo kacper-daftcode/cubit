@@ -76,11 +76,11 @@ fn t293_1_structure_census_tags() {
         // FLIP (BUG-343/344, F2-iter182, canonical a013f88): dense legs gain
         // the +30 mod-window mg lanes (12 DIRECT + 6 BF16 crosses + 12
         // base-key RELU; arb320b K/L + arb343 x4); donors stay 2.
-        let want_mgs = if arch == "sm120" || arch == "sm121a" {
-            36
-        } else {
-            2
-        };
+        // FLIP (BUG-381, F2-iter203, canonical 3cb31e4): sparse legs gain
+        // the full 36-lane lattice too (34 new mgs completing vs dense;
+        // BF16-class rows clone the local BF16_V2 donor geometry incl.
+        // h0nh1@86 tok3; the '' donor shape itself unchanged).
+        let want_mgs = 36;
         assert_eq!(e.mod_groups.len(), want_mgs, "{arch}: R4 mod_groups drift");
         let mg = &e.mod_groups["BF16_V2"];
         assert!(

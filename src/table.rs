@@ -871,9 +871,12 @@ pub fn extract_mod_group(asm: &str) -> String {
     if parts.len() <= 1 {
         String::new()
     } else {
+        // BUG-383: split components on ',' as well so comma-authored
+        // multi-mods (`X.F32,FMZ`) canonicalize exactly like dot-authored
+        // ones (`X.F32.FMZ`) — and any order spells the same mod-group name.
         let mut mods: Vec<&str> = parts[1..].iter()
+            .flat_map(|s| s.split(','))
             .filter(|s| !s.is_empty() && !s.starts_with('?'))
-            .copied()
             .collect();
         mods.sort();
         mods.join(",")

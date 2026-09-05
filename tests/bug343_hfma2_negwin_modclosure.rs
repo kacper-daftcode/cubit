@@ -203,34 +203,39 @@ fn t343_1_structure_graft_and_donors() {
             .contains_key("OOB,SAT"));
         assert!(t.entries.contains_key("HFMA2.OOB.RELU_R_R_R_UR_P"));
     }
-    // donors byte-invariant: no neg@63/72 sign fields in the family, no new
-    // lanes, no dotted keys
+    // donors: neg@63 never grafted in the family; neg@72 rides the BF16
+    // donor geometry.
+    // FLIP (BUG-381, F2-iter203, canonical 3cb31e4): the sparse 0x231
+    // lattice completion grafts the full 36-lane set + the 12 dotted
+    // _R_R_R_R_P keys on the donor legs -- the 'no new lanes/no dotted
+    // keys' invariant is CLOSED (presence now asserted); neg@63 still
+    // absent; neg@72 = exactly the BF16-class rows (donor descendants).
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
         let e = &t.entries["HFMA2_R_R_R_R"];
-        assert_eq!(e.mod_groups.len(), 2, "{leg}: donor family grew");
+        assert_eq!(e.mod_groups.len(), 36, "{leg}: donor family census");
         for (mg, g) in &e.mod_groups {
-            // byte-invariant vs canonical 2353989: neg@63 never grafted on
-            // donors; neg@72 stays exactly the pre-existing era-2d state
-            // (present on the BF16_V2 row only, count one).
             assert!(
                 !g.fields
                     .iter()
                     .any(|f| f.extraction == Extraction::Neg && f.shift == 63),
                 "{leg}[{mg}]: donor neg@63 grafted"
             );
-            let want72: usize = if mg.as_str() == "BF16_V2" { 1 } else { 0 };
+            let want72: usize = if mg.contains("BF16_V2") { 1 } else { 0 };
             assert_eq!(
                 g.fields
                     .iter()
                     .filter(|f| f.extraction == Extraction::Neg && f.shift == 72)
                     .count(),
                 want72,
-                "{leg}[{mg}]: donor neg@72 state drift (pre-existing on BF16 only)"
+                "{leg}[{mg}]: donor neg@72 state drift (BF16-class only)"
             );
         }
         for dk in DOTTED_P {
-            assert!(!t.entries.contains_key(dk), "{leg}: donor gained {dk}");
+            assert!(
+                t.entries.contains_key(dk),
+                "{leg}: BUG-381 dotted key {dk} missing"
+            );
         }
     }
 }
@@ -569,16 +574,30 @@ fn t343_4_fail_closed_doctrine_edges() {
             "{leg}: stray pv band decoded!"
         );
     }
-    // donors stay exactly as pre-graft (byte-invariant tables): mod lanes HOLE,
-    // dense-side decode state untouched there
+    // donors: mod lanes were HOLE pre-381 (byte-invariant tables).
+    // FLIP (BUG-381, F2-iter203, canonical 3cb31e4): the sparse 0x231
+    // completion arms the lanes on the donor legs -- SAT decode/mint +
+    // RELU decode are now vendor-exact LIVE on donors (positively
+    // asserted); the pre-existing parity subset is unchanged.
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
-        assert!(dec(&t, HOST | B77).is_none(), "{leg}: donor SAT decoded!");
-        assert!(
-            enc(&t, "HFMA2.SAT R1, R2, R3, R4").is_err(),
-            "{leg}: donor SAT minted!"
+        // HOST here = the R_R_R_R window base with R1..R4 carriers
+        assert_eq!(
+            dec(&t, HOST | B77).as_deref(),
+            Some("HFMA2.SAT R1, R2, R3, R4"),
+            "{leg}: BUG-381 donor SAT decode drift"
         );
-        assert!(dec(&t, HOST | B79).is_none(), "{leg}: donor RELU decoded!");
+        assert!(
+            enc(&t, "HFMA2.SAT R1, R2, R3, R4").is_ok(),
+            "{leg}: BUG-381 donor SAT mint refused!"
+        );
+        assert_eq!(
+            dec(&t, HOST | B79 | (0x7 << 87)).as_deref(),
+            Some("HFMA2.RELU R1, R2, R3, R4"),
+            "{leg}: BUG-381 donor RELU (pv7) decode drift"
+        );
+        // SAT x RELU kill stands on donors (vendor rc=1 all models)
+        assert!(enc(&t, "HFMA2.SAT.RELU R1, R2, R3, R4").is_err());
         // donor pre-existing dense parity subset unchanged
         assert_eq!(
             dec(&t, HOST | B63).as_deref(),

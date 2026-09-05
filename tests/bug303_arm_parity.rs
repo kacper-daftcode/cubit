@@ -205,12 +205,13 @@ fn t303_5_decoder_era_holds() {
     // SHFL.BFLY ghost words: still decode-REJECT both legs (299 era).
     assert!(dec_print(&t120, 0x0000080b0c00000a150c7389).is_none());
     assert!(dec_print(&t121, 0x0000080b0c00000a150c7389).is_none());
-    // FLIP z atrybucja BUG-368/369 (F2-iter194, canonical c913faa):
-    // b63 ghost: stary odczyt '0x80001f' byl SILENT imm32-cross-read;
-    // 369 shrink imm32@40->imm13 zamyka misprint -> loud HOLE (vendor x4
-    // pokazuje czysty 'SHFL.IDX PT, ...' = b63 inert; era relax b63 =
-    // 382-kand LOW, fail-closed porzadek zachowany).
-    assert!(dec_print(&t120, 0x000e000080001f0a170b7589).is_none());
+    // FLIP z atrybucja BUG-382 (F2-iter200, canonical 47e4ce4):
+    // b63 ghost: stary odczyt '0x80001f' byl SILENT imm32-cross-read
+    // (fix 369: imm32@40->imm13 -> loud HOLE); 382 relax vm |= b63 +
+    // [90:88] zamyka HOLE -- slowo dekoduje do czystego vendor tekstu
+    // (arb382 R_II-IDX-b63 x4 AGREE: b63 write-inert).
+    let d = dec_print(&t120, 0x000e000080001f0a170b7589).expect("382: b63 R_II ghost decodes");
+    assert_eq!(d, "SHFL.IDX PT, R11, R23, R10, 0x1f", "382 flip: {d}");
     // MATCH/R2UR ghost words: still decode-REJECT both legs (301/302 era).
     assert!(dec_print(&t120, 0x000e810000000000050473a1).is_none());
     assert!(dec_print(&t120, 0x000e000080000000050472ca).is_none());

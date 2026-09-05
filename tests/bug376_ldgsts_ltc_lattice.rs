@@ -104,6 +104,14 @@ fn t376_1_structure_lattice_exact() {
         "128,BYPASS,E,LTC64B,ZFILL",
         "128,BYPASS,E,LTC128B,ZFILL",
         "128,BYPASS,E,LTC256B,ZFILL",
+        // BUG-386 flip (canonical dbe5e91): the 6 LTC=0 base-gap groups
+        // complete the lattice to the exact 30-cell set per side.
+        "BYPASS,E",
+        "64,BYPASS,E",
+        "E,ZFILL",
+        "64,E,ZFILL",
+        "BYPASS,E,ZFILL",
+        "64,BYPASS,E,ZFILL",
     ]
     .into_iter()
     .collect();
@@ -115,7 +123,7 @@ fn t376_1_structure_lattice_exact() {
         for key in ["LDGSTS_ARI_dARI", "LDGSTS_ARI_dARI_P"] {
             let mgz = ins[key]["mod_groups"].as_object().unwrap();
             let names: std::collections::BTreeSet<&str> = mgz.keys().map(|s| s.as_str()).collect();
-            assert_eq!(names, exp, "{leg} {key}: lattice != 24 cells");
+            assert_eq!(names, exp, "{leg} {key}: lattice != 30 cells (post-386)");
             let tagged = mgz
                 .values()
                 .filter(|g| g["_src"].as_str() == Some("bug376-2026-09-04"))
@@ -128,7 +136,8 @@ fn t376_1_structure_lattice_exact() {
             assert_eq!(tagged, want_tagged, "{leg} {key}: bug376 _src census drift");
         }
     }
-    // 121a dotted: exact 24 np + 24 _P keys; all 26 grafts _src-tagged.
+    // 121a dotted: exact 30 np + 30 _P keys post-386 (24 + 12 base-gap);
+    // all 26 376-grafts keep their _src tag.
     let raw: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/sm121a.json").unwrap()).unwrap();
     let ins = raw["instructions"].as_object().unwrap();
@@ -140,7 +149,11 @@ fn t376_1_structure_lattice_exact() {
         .keys()
         .filter(|k| k.starts_with("LDGSTS") && k.ends_with("_ARI_dARI_P"))
         .count();
-    assert_eq!((npp, pp), (24, 24), "sm121a desc dotted census drift");
+    assert_eq!(
+        (npp, pp),
+        (30, 30),
+        "sm121a desc dotted census drift (post-386)"
+    );
     let mut dotted_tagged = 0usize;
     for (k, e) in ins {
         if k.starts_with("LDGSTS.E.LTC") || k.starts_with("LDGSTS.E.BYPASS.LTC") {
@@ -345,15 +358,14 @@ fn t376_4_fail_closed_outside_graft() {
         ] {
             assert_eq!(dec(&t, w), None, "{leg}: INVALID3 word must stay HOLE");
         }
-        // size-32 ZFILL base gap ('LDGSTS.E.ZFILL'): vendor-legal but NOT
-        // grafted (386-kand, deliberate conservative non-coverage until its
-        // own ticket) => stays loud.
-        assert_eq!(
-            dec(&t, mold(F, 0, true, 0, true)),
-            None,
-            "{leg}: E,ZFILL base gap must stay HOLE (386)"
+        // BUG-386 flip (canonical dbe5e91): the LTC=0 base-gap lattice
+        // CLOSED ('E,ZFILL' & siblings now grafted) -- decode/mint/roundtrip
+        // positives in t386_2/t386_3; the fail-closed stance moved to the
+        // LTC crosses of the new base groups (t386_4 pins them HOLE).
+        assert!(
+            dec(&t, mold(F, 0, false, 1, false)).is_none(),
+            "{leg}: BYPASS,E,LTC64B must stay HOLE (386 scope = LTC=0 only)"
         );
-        assert!(enc(&t, "LDGSTS.E.ZFILL [R3], desc[UR14][R22.64]").is_err());
     }
 }
 

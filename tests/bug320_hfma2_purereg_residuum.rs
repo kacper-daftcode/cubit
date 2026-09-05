@@ -129,8 +129,9 @@ fn t320_1_structure_graft_and_donors() {
     // 2026-09-04): the bug320-deferred thin-leg residuum closed via the
     // donor field after arb371/arb371b proved b83 = tok4 abs x4 models on
     // the thin lattice too (and measured the generic b74 mint here as the
-    // silent 'R2.INVALID1' cross-read class). The OTHER residua of this
-    // pin stay: no F32/FMZ lanes, no band relax on thin legs.
+    // silent 'R2.INVALID1' cross-read class). The 'no F32/FMZ lanes'
+    // residuum CLOSED 2026-09-05 (BUG-381 lattice completion, canonical
+    // 3cb31e4); the band-relax residuum stands.
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
         let e = &t.entries["HFMA2_R_R_R_R"];
@@ -142,12 +143,22 @@ fn t320_1_structure_graft_and_donors() {
                 "{leg}[{mgn}]: abs@83 donor field missing (BUG-371 closure expected)"
             );
         }
+        // FLIP (BUG-381, F2-iter203, canonical 3cb31e4): the sparse 0x231
+        // lattice is now COMPLETE vs dense -- F32/FMZ/F32,FMZ/BF16_V2,FMZ
+        // (and every other lattice lane) armed on the donor legs by the
+        // 34-mg completion graft; lane presence asserted positively.
         for lane in ["F32", "FMZ", "F32,FMZ", "BF16_V2,FMZ"] {
             assert!(
-                !e.mod_groups.contains_key(lane),
-                "{leg}: donor lane {lane} armed!"
+                e.mod_groups.contains_key(lane),
+                "{leg}: BUG-381 lane {lane} missing!"
             );
         }
+        // INVALID3 stays fail-closed post-381 (F32 x BF16_V2 composite)
+        assert!(
+            !e.mod_groups.contains_key("BF16_V2,F32")
+                && !e.mod_groups.contains_key("BF16_V2,F32,FMZ"),
+            "{leg}: INVALID3 lane armed!"
+        );
     }
 }
 

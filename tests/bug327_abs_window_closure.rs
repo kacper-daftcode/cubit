@@ -150,13 +150,16 @@ fn t327_1_structure_graft_and_donors() {
             assert_eq!(e.mod_groups[mgn].variable_mask & BAND, BAND);
         }
     }
-    // donors byte-untouched shape: no abs window fields at all, mg set {'' , BF16_V2}
+    // donors mg set: {'' , BF16_V2} pre-381.
+    // FLIP (BUG-381, F2-iter203, canonical 3cb31e4): the sparse 0x231
+    // lattice completion grafts the full 36-lane set on the donor legs
+    // (pure-replica of the dense lattice; every row still carries the
+    // BUG-371 abs@83 field by donor-clone descent -- asserted below; the
+    // abs@62/73 tok2/tok3 poverty on donors stands = 392-kand).
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
         let e = &t.entries["HFMA2_R_R_R_R"];
-        let mut mgs: Vec<&str> = e.mod_groups.keys().map(|k| k.as_str()).collect();
-        mgs.sort_unstable();
-        assert_eq!(mgs, ["", "BF16_V2"], "{leg}: donor mg set drift");
+        assert_eq!(e.mod_groups.len(), 36, "{leg}: donor mg set drift");
         for (mgn, mg) in &e.mod_groups {
             // FLIP (BUG-371, F2-iter196, canonical 6b7a120): tok4 abs@83 is
             // field-carried on the thin legs now -- the 320/327-deferred
@@ -409,24 +412,39 @@ fn t327_5_anchors_293_320_324_intact() {
             &dec(&t, HOST | B63 | B62).unwrap(),
             "HFMA2 R1, R2, -|R3|, R4"
         );
-        // HFMA2.BF16_V2 era-key: exactly one sign field since BUG-371
-        // (canonical 6b7a120) -- abs 1b@83 tok4, same law as the donor
-        // lattice (arb371/arb371b x4 AGREE on the keyed row's base too).
-        // No NEG field (no donor; the row is decode-side only and neg@84
-        // stays the family-wide rescue lane).
-        let era = &t.entries["HFMA2.BF16_V2_R_R_R_R"];
-        let signs: Vec<_> = era
-            .mod_groups
-            .values()
-            .flat_map(|mg| mg.fields.iter())
-            .filter(|f| matches!(f.extraction, Extraction::Abs | Extraction::Neg))
-            .collect();
-        assert_eq!(signs.len(), 1, "{leg}: BF16 era-key sign-field count drift");
-        assert!(matches!(signs[0].extraction, Extraction::Abs));
+        // BUG-384 flip (canonical 9713fd6): the harvest-junk dense era keys
+        // HFMA2.BF16_V2_R_R_R_R + HFMA2_R_R_R_R_R are DELETED (junk-baked
+        // hsel claims, wrong-window 5-reg fields; arb384 found 2 live WRONG
+        // cells on the 5-reg row; claim space subsumed by the main rows).
+        // Their shapes decode via HFMA2_R_R_R_R mg ''/BF16_V2 with the same
+        // vendor-true text (420/420 battery hits vendor-exact pre==post).
+        // The 371-grafted abs@83 on the era rows retired with them; all
+        // sign coverage now lives on the main rows (which carry both
+        // neg@84/rescue and abs@83).
+        assert!(
+            !t.entries.contains_key("HFMA2.BF16_V2_R_R_R_R"),
+            "{leg}: junk era key BF16_V2_R_R_R_R resurrected"
+        );
+        assert!(
+            !t.entries.contains_key("HFMA2_R_R_R_R_R"),
+            "{leg}: junk era key R_R_R_R_R resurrected"
+        );
+        // era-base words (H0_H0-baked family) stay vendor-true decode-side:
+        const ERA_BF: u128 = 0x00000000002408002000000000000231;
+        const ERA_5R: u128 = 0x0000000000040802200000011c024231;
         assert_eq!(
-            (signs[0].shift, signs[0].token_idx),
-            (83, 4),
-            "{leg}: BF16 era-key abs field not the 371 graft"
+            &dec(&t, ERA_BF).unwrap(),
+            "@P0 HFMA2.BF16_V2 R0, R0.H0_H0, R0.H0_H0, R0.H0_H0"
+        );
+        assert_eq!(
+            &dec(&t, ERA_5R).unwrap(),
+            "@P4 HFMA2 R2, R28.H0_H0, R1.H0_H0, R2.H0_H0"
+        );
+        // the live WRONG cell pre-fix (5-reg row winning the inert flip40
+        // word) renders vendor-true post-delete:
+        assert_eq!(
+            &dec(&t, ERA_5R ^ (1 << 40)).unwrap(),
+            "@P4 HFMA2 R2, R28.H0_H0, R1.H0_H0, R2.H0_H0"
         );
     }
 }

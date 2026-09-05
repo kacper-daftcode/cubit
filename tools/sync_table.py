@@ -220,8 +220,31 @@ class SyncError(RuntimeError):
 # the _P ZFILL donors bake none, on sm120 all _P donors bake; measured,
 # not assumed). SM121A 511 stands (dotted-key donors hi32==0 asserted in
 # patch376.py).
-BAKED_CTRL_BASELINE = {"SM120": 1058, "SM103a": 1467, "SM100a": 1471,
-                       "SM121A": 511}
+# 2026-09-05 BUG-380 (canonical a53eb20): SM100a 1471->1487, SM103a
+# 1467->1483, SM120 1058->1063, SM121A 511->516 -- the F2I F64-src
+# lattice-completion rows (88 clones per the dst-class TRUNC donors)
+# inherit the donor's baked ctrl template in and_base[127:105]
+# VERBATIM: true counts +16/+16/+5/+5 (era: F64-dst clones carry the
+# 0x000e2-era template of 'F64,TRUNC', U64/S64 clones the U64/S64-dst
+# donor templates, U32-side clone donors bake none; dense legs: the 5
+# 2026-09-05 BUG-381 (canonical 3cb31e4): HFMA2 0x231/0x7c31 sparse-leg
+# lattice completion -- 22+12 mgs + 12 dotted keys per family per leg clone
+# the local ''/BF16_V2 donors of HFMA2_R_R_R_R / HFMA2_R_R_UR_R and inherit
+# the era donor ctrl template baked in and_base [127:105] (same convention
+# as the 274/279/285/324/343/344/354/367 waves; true 1487+92 / 1483+92) --
+# SM100a 1487->1579, SM103a 1483->1575. Dense legs untouched (SM120/SM121A
+# ratchets stand).
+# F64-dst keyed clones of F2I.F64.TRUNC_R_R bake its 0x000e62..).
+# 2026-09-05 BUG-386 (canonical dbe5e91): SM100a 1579->1587, SM103a
+# 1575->1583, SM120 1063->1075 -- the 12 grafted LDGSTS desc base-gap rows
+# per era leg (6 np + 6 _P) clone in-side in-ZFILL-carrier donors and inherit
+# the donor's baked control template in and_base[127:105] VERBATIM: true
+# counts +8/+8/+12 (on 100a/103a the _P ZFILL-row donors carry none -> only
+# the 6 np + 2 _P BYPASS grafts bake; sm120 _P donors uniform -> all 12
+# bake). SM121A 516 stands (dotted-key grafts hi32==0 asserted in
+# patch386.py).
+BAKED_CTRL_BASELINE = {"SM120": 1075, "SM103a": 1583, "SM100a": 1587,
+                       "SM121A": 516}
 
 FIXED_EXTRACTIONS = {
     "",

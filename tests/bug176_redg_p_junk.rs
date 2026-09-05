@@ -237,7 +237,13 @@ fn t176_5_table_shapes() {
     // closure: 48+48 keyed era rows; F2I.FTZ.U32.TRUNC.NTZ_R_R normalized
     // in place and does not move the counter; the 2 deleted legacy FTZ mgs
     // lived inside F2I_R_R/F2I_R_UR mod_groups; canonical fbcef1c) = 1649.
-    assert_eq!(t120().num_keys(), 1649);
+    // 2026-09-05 BUG-380: +22 sm120 keys (F2I F64-src lattice completion
+    // keyed rows, per-dst TRUNC donor clones; the 22 era mgs live inside
+    // F2I_R_R mod_groups; canonical a53eb20) = 1671.
+    // 2026-09-05 BUG-384: -2 sm120 keys (harvest-junk dense era keys
+    // HFMA2.BF16_V2_R_R_R_R + HFMA2_R_R_R_R_R deleted; claim space subsumed
+    // by the main rows; canonical 9713fd6) = 1669.
+    assert_eq!(t120().num_keys(), 1669);
     // 2026-08-28 BUG-244: +2 sm103a/sm100a typed keys (F2F.F64.F32_R_R,
     // F2F.F64.F32_R_UR; donor F64-dst closure, canonical 00c3fd2) = 402.
     // 2026-09-02 BUG-341: +41 sm103a keys (F2I small-int R_R lattice
@@ -256,5 +262,9 @@ fn t176_5_table_shapes() {
     // SAT/FTZ/OOB lane closure: 6 RELU _P dotted keys; the 24 new mgs
     // live inside mod_groups of the existing key; canonical 0933cf6)
     // = 551.
-    assert_eq!(t103().num_keys(), 551);
+    // 2026-09-05 BUG-381: +24 sm103a keys (HFMA2 0x231/0x7c31 sparse-leg
+    // lattice completion: 12 RELU _P dotted keys per family on
+    // HFMA2_R_R_R_R + HFMA2_R_R_UR_R; the 68 new mgs live inside
+    // mod_groups of the existing keys; canonical 3cb31e4) = 575.
+    assert_eq!(t103().num_keys(), 575);
 }

@@ -883,10 +883,31 @@ fn t285_1_structure() {
             if let Some(e) = t.entries.get(p) {
                 for k in e.mod_groups.keys() {
                     if k.starts_with("BF16_V2") {
+                        // FLIP (BUG-381, F2-iter203, canonical 3cb31e4): the
+                        // sparse 0x231/0x7c31 lattice completion grafts the
+                        // BF16_V2,-class lane set on HFMA2_R_R_R_R +
+                        // HFMA2_R_R_UR_R (7 non-RELU + 4 RELU + pre-carried
+                        // BF16_V2 itself).
+                        const MGS381: [&str; 12] = [
+                            "BF16_V2",
+                            "BF16_V2,FMZ",
+                            "BF16_V2,SAT",
+                            "BF16_V2,FMZ,SAT",
+                            "BF16_V2,FTZ",
+                            "BF16_V2,OOB",
+                            "BF16_V2,FTZ,SAT",
+                            "BF16_V2,OOB,SAT",
+                            "BF16_V2,RELU",
+                            "BF16_V2,FMZ,RELU",
+                            "BF16_V2,FTZ,RELU",
+                            "BF16_V2,OOB,RELU",
+                        ];
                         assert!(
-                            p == "HFMA2_R_R_R_FI_FI"
-                                && (MGS354.contains(&k.as_str()) || MGS367.contains(&k.as_str())),
-                            "{leg}|{p}: BF16_V2 mg outside 354/367 scope: {k}"
+                            (p == "HFMA2_R_R_R_FI_FI"
+                                && (MGS354.contains(&k.as_str()) || MGS367.contains(&k.as_str())))
+                                || ((p == "HFMA2_R_R_R_R" || p == "HFMA2_R_R_UR_R")
+                                    && MGS381.contains(&k.as_str())),
+                            "{leg}|{p}: BF16_V2 mg outside 354/367/381 scope: {k}"
                         );
                     }
                 }
@@ -894,9 +915,19 @@ fn t285_1_structure() {
         }
         for k in t.entries.keys() {
             if k.starts_with("HFMA2.BF16_V2.") && k.ends_with("_P") && k.contains("RELU_R_R_R") {
+                // FLIP (BUG-381): the BF16_V2.-prefixed RELU _P dotted keys
+                // of the sparse 0x231 completion (x4 on HFMA2_R_R_R_R_P).
+                const KEYS381: [&str; 4] = [
+                    "HFMA2.BF16_V2.RELU_R_R_R_R_P",
+                    "HFMA2.BF16_V2.FMZ.RELU_R_R_R_R_P",
+                    "HFMA2.BF16_V2.FTZ.RELU_R_R_R_R_P",
+                    "HFMA2.BF16_V2.OOB.RELU_R_R_R_R_P",
+                ];
                 assert!(
-                    KEYS354.contains(&k.as_str()) || KEYS367.contains(&k.as_str()),
-                    "{leg}: dotted key outside 354/367 scope: {k}"
+                    KEYS354.contains(&k.as_str())
+                        || KEYS367.contains(&k.as_str())
+                        || KEYS381.contains(&k.as_str()),
+                    "{leg}: dotted key outside 354/367/381 scope: {k}"
                 );
             }
         }

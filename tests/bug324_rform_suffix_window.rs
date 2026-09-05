@@ -1681,11 +1681,24 @@ fn t324_1_structure_graft_and_donors() {
                 !(k.starts_with("HFMA2.") && k.contains("RELU_R_R_R_UR_P")),
                 "{leg}: donor dotted 324 key: {k}"
             );
-            if k == "HMUL2_R_R_R" || k == "HMUL2_R_R_UR" || k == "HFMA2_R_R_UR_R" {
+            if k == "HMUL2_R_R_R" || k == "HMUL2_R_R_UR" {
                 for (mgn, _mg) in &t.entries[k].mod_groups {
                     let mgn: &String = mgn;
                     assert!(!mgn.contains("RELU"), "{leg} {k}[{mgn}] donor RELU lane");
                 }
+            }
+            if k == "HFMA2_R_R_UR_R" {
+                // FLIP (BUG-381, F2-iter203, canonical 3cb31e4): the sparse
+                // 0x7c31 lattice completion grafts the full 12-lane RELU
+                // set (pv7-bake mgs) + 12 dotted _P keys on this key --
+                // donor poverty on the 0x7c31 window is CLOSED; HMUL2
+                // donors above stay RELU-free (not 381 scope).
+                let nrelu = t.entries[k]
+                    .mod_groups
+                    .keys()
+                    .filter(|m| m.contains("RELU"))
+                    .count();
+                assert_eq!(nrelu, 12, "{leg} {k}: BUG-381 RELU lane census");
             }
         }
     }

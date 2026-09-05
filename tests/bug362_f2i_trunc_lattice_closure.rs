@@ -335,10 +335,17 @@ fn t362_3_sign_mints_word_exact_and_negative_controls() {
             Some("F2I.F64.FLOOR R26, -|R6|"),
             "{leg} rt2"
         );
-        // negative control: an ungrafted F2I subclass still fails closed with
-        // the BUG-308 attribution (no sign window on 'F64,S64')
-        let e = enc(&t, "F2I.S64.F64 R26, -R6").err().unwrap_or_default();
-        assert!(e.contains("BUG-308"), "{leg} negative control: {e}");
+        // ex-negative control, flipped with attribution (BUG-380, canonical
+        // a53eb20): the plain-S64 rows now carry the vendor sign window
+        // (abs@62/neg@63 fields + alias relax; arb380d E_plain_s64 x4
+        // models) -- pin the positive mint word-exact
+        let w = enc(&t, "F2I.S64.F64 R26, -R6").unwrap();
+        assert_eq!(w & M96, 0x0030190080000006001a7311u128, "{leg} BUG-380 S64 plain neg mint");
+        assert_eq!(
+            dec96(&t, w).as_deref(),
+            Some("F2I.S64.F64 R26, -R6"),
+            "{leg} BUG-380 S64 plain neg rt"
+        );
     }
 }
 
@@ -417,12 +424,18 @@ fn t362_5_alias_lattice_full_sweep_and_borders() {
             assert_eq!(dec96(&t, w).as_deref(), Some(law(n)), "{leg} nibble {n}");
         }
     }
-    // border: the b77-armed FLOOR anchor is a vendor-legal UN-ROWED class
-    // ('F2I.F64.FLOOR.NTZ', arb362c control) -> stays HOLE-pinned (380-kand)
+    // border: the b77-armed FLOOR anchor WAS a vendor-legal UN-ROWED class
+    // ('F2I.F64.FLOOR.NTZ', arb362c control) -- CLOSED by BUG-380
+    // (canonical a53eb20): the full F64-src lattice is grafted; pin the
+    // positive decode vendor-exact.
     let fnz: u128 = 0x0030710000000006001a7311;
     for leg in LEGS4 {
         let t = tab(leg);
-        assert!(dec96(&t, fnz).is_none(), "{leg} 380-kand posture");
+        assert_eq!(
+            dec96(&t, fnz).as_deref(),
+            Some("F2I.F64.FLOOR.NTZ R26, R6"),
+            "{leg} BUG-380 lattice cell"
+        );
     }
     // border: b75=0 on the A-anchor stays vendor-illegal HOLE (arb339 A2b75)
     let bad: u128 = 0x0020d9000000001500161311u128 ^ (1u128 << 75);
