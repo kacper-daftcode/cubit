@@ -164,10 +164,23 @@ fn t289_1_structure_census_tags() {
         // 15664 -> 15662 (-2 harvest-junk dense era keys per leg:
         // HFMA2.BF16_V2_R_R_R_R + HFMA2_R_R_R_R_R deleted; sparse legs
         // byte-untouched, they never shipped the rows).
+        // BUG-390 flip (canonical a10350c): sm120 1669 -> 1701, sm121a
+        // 15662 -> 15694 (+32 keyed F2I F64-src b76=0 narrow-dst lattice
+        // rows per leg; era-leg grafts live inside F2I_R_R mod_groups
+        // and do not move the counter).
+        // BUG-403 flip (canonical 2285a05): sm120 1701 -> 1705, sm121a
+        // 15694 -> 15698 (+4 keyed F2I F64-src WIDE b76=1 TRUNC.NTZ
+        // donor-closure rows per leg; era-leg grafts live inside
+        // F2I_R_R mod_groups and do not move the counter).
+        // BUG-400 flip (canonical 19363f6): sm120 1705 -> 1706, sm121a
+        // 15698 -> 15700 (+1 LDG_R_dARI_P on sm120; +2 LD_R_ARI_P +
+        // LD_R_dARI_P on sm121a -- pred/LTC window [64:72) graft; the
+        // LTC mgs live inside mod_groups and do not move the counter;
+        // sm100a/sm103a not pinned here).
         let want = if arch == "sm120" {
-            1669
+            1706
         } else if arch == "sm121a" {
-            15662
+            15700
         } else {
             15540
         };

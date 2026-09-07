@@ -154,9 +154,16 @@ fn t343_1_structure_graft_and_donors() {
             (0x7u128 << 87) | B79,
             "{leg}: RELU mg pv7+b79 bake drift"
         );
+        // FLIP (BUG-393, F2-iter214, canonical 8f2571b): inert-window
+        // relax closure. plain vm gains [55:40]|[59:56]|[87:90]|[92:95];
+        // RELU vm gains the same MINUS the pv window [90:87] -- there the
+        // bits are the LIVE pred-elision field (measured on the closure
+        // lattice: f87->P6 f88->P5 f89->P3 f90->!PT, x4 legs AGREE;
+        // work/bug393/measure393_closure.json). Law-aware equality:
         assert_eq!(
-            re.variable_mask, pl.variable_mask,
-            "{leg}: RELU mg vm drift vs plain"
+            re.variable_mask,
+            pl.variable_mask & !(0xfu128 << 87),
+            "{leg}: RELU mg vm drift vs plain beyond the live pv window"
         );
         assert!(
             !re.fields.iter().any(|f| f.extraction == Extraction::Pred),
@@ -569,9 +576,15 @@ fn t343_4_fail_closed_doctrine_edges() {
         assert!(enc(&t, "HFMA2.F32.BF16_V2 R1, R2, R3, R4").is_err());
         // b91 KILL mint side: SAT lane with stray b91 word stays HOLE (above),
         // and the elision pv7 word without RELU stays unarmed (289 stray band)
-        assert!(
-            dec(&t, HOST | (0x7 << 87)).is_none(),
-            "{leg}: stray pv band decoded!"
+        // FLIP (BUG-393, F2-iter214, canonical 8f2571b): vendor law says
+        // the bare-pred lanes treat stray pv bits W/O b79 as inert
+        // (elided-PT render; 289-doctrine pin superseded by measured law
+        // -- measure393_closure.json tetrads '' x4 legs + balls AGREE).
+        // Lawful-accept: the word decodes to the bare base text.
+        assert_eq!(
+            dec(&t, HOST | (0x7 << 87)).as_deref(),
+            Some("HFMA2 R1, R2, R3, R4"),
+            "{leg}: stray pv band no longer decodes to bare base text!"
         );
     }
     // donors: mod lanes were HOLE pre-381 (byte-invariant tables).

@@ -227,7 +227,9 @@ fn t125_6_float_imm_parser_anchor() {
 /// legacy FTZ mgs were DELETED and replaced by the keyed era rows
 /// F2I.FTZ[.U32.TRUNC].NTZ_R_R, canonical fbcef1c -> 37 post-BUG-380:
 /// +22 F64-src lattice-completion mgs grafted 2026-09-05, canonical
-/// a53eb20); no R form carries an f32 field.
+/// a53eb20 -> 69 post-BUG-390: +32 b76=0 narrow-dst mgs, canonical
+/// a10350c -> 73 post-BUG-403: +4 WIDE b76=1 TRUNC.NTZ mgs, canonical
+/// 2285a05); no R form carries an f32 field.
 #[test]
 fn t125_7_table_shape() {
     let t = t103();
@@ -237,8 +239,8 @@ fn t125_7_table_shape() {
     let rr = ins.get("F2I_R_R").expect("brak F2I_R_R");
     assert_eq!(
         rr.mod_groups.len(),
-        16 + 1 - 2 + 22,
-        "16 pre-341 + mg '' (BUG-341) - 2 legacy FTZ mgs (BUG-363 deletion, canonical fbcef1c) + 22 F64-src mgs (BUG-380, canonical a53eb20)"
+        16 + 1 - 2 + 22 + 32 + 4,
+        "16 pre-341 + mg '' (BUG-341) - 2 legacy FTZ mgs (BUG-363 deletion, canonical fbcef1c) + 22 F64-src mgs (BUG-380, canonical a53eb20) + 32 F64-src b76=0 narrow-dst mgs (BUG-390, canonical a10350c) + 4 F64-src WIDE b76=1 TRUNC.NTZ mgs (BUG-403, canonical 2285a05)"
     );
     for (mg, e) in &fi.mod_groups {
         assert_eq!(e.fields.len(), 3, "guard+dest+imm: {mg}");

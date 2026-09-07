@@ -528,20 +528,15 @@ const MINTS: [(&str, u128); 12] = [
     ), // pt-guard bake on no-guard authored text (witness probe g0)
 ];
 
-const KILLS: [(&str, u128); 14] = [
+const KILLS: [(&str, u128); 9] = [
     ("K4_SATxRELU", 0x380a0050000000403020231u128),
     ("K4_SATxRELUxFTZ", 0x381a0050000000403020231u128),
     ("KU_SATxRELU", 0xb80a0050000000403027c31u128),
     ("K4_b91", 0x80000050000000403020231u128),
     ("K4_b91xSAT", 0x80020050000000403020231u128),
-    ("K4_strayb90", 0x40020050000000403020231u128),
-    ("K4_straypv2", 0x10000050000000403020231u128),
     ("KU_strayb90", 0xc0020050000000403027c31u128),
     ("KU_straypv2", 0x90000050000000403027c31u128),
     ("K4_F32xBF16", 0x2040050000000403020231u128),
-    ("K4_b92", 0x100000050000000403020231u128),
-    ("K4_b93", 0x200000050000000403020231u128),
-    ("K4_b95", 0x800000050000000403020231u128),
     ("KU_b92", 0x180000050000000403027c31u128),
 ];
 
@@ -604,9 +599,20 @@ fn t381_1_structure_lattice_completion() {
                     law |= B79 | (0x7 << 87);
                 }
                 assert_eq!(want, law, "{leg}:{fam}:{name}: ab delta drift");
+                // FLIP (BUG-393 / F2-iter214, canonical 8f2571b): the
+                // inert-window closure relaxes donor vm by
+                // [55:40]|[59:56]|[87:90]|[92:95]; RELU mgs get the same
+                // MINUS the pv window (measured LIVE pred-elision there:
+                // f87->P6 f88->P5 f89->P3 f90->!PT x4 legs AGREE,
+                // work/bug393/measure393_closure.json).
+                let want_vm = if relu {
+                    donor.variable_mask & !(0xfu128 << 87)
+                } else {
+                    donor.variable_mask
+                };
                 assert_eq!(
-                    mg.variable_mask, donor.variable_mask,
-                    "{leg}:{fam}:{name}: vm delta drift"
+                    mg.variable_mask, want_vm,
+                    "{leg}:{fam}:{name}: vm delta drift beyond 393 closure law"
                 );
                 assert_eq!(
                     mg.fields.len(),
@@ -630,10 +636,24 @@ fn t381_1_structure_lattice_completion() {
                 let dg = &d.mod_groups[""];
                 assert_eq!(dg.and_base, lane.and_base | B79, "{leg}:{dk}: ab law");
                 assert_eq!(dg.and_base & PVF, 0, "{leg}:{dk}: pv baked into dotted ab");
+                // FLIP (BUG-393 / F2-iter214, canonical 8f2571b): lane vm
+                // gained the full closure relax, so the pv delta cancels
+                // (PVF is now in BOTH operands) and what remains is the
+                // non-pv window relax: [55:40]|[59:56]|[92:95] (SPARSE
+                // legs; dense lanes already had [55:40] relaxed pre-393,
+                // so dense reads [59:56]|[92:95] -- this loop is SPARSE).
+                const DOTTED_XOR_393: u128 = 0xf00000000fffff0000000000u128;
+                // the 0x7c31 UR family is OUT of 393's scope (unmeasured
+                // lattice; 391/395 tail) and keeps the pre-393 PVF law.
+                let want_xor = if fam == "HFMA2_R_R_R_R" {
+                    DOTTED_XOR_393
+                } else {
+                    PVF
+                };
                 assert_eq!(
                     dg.variable_mask ^ lane.variable_mask,
-                    PVF,
-                    "{leg}:{dk}: vm law"
+                    want_xor,
+                    "{leg}:{dk}: vm law beyond 393 closure"
                 );
                 let extras: Vec<_> = dg
                     .fields
@@ -708,12 +728,50 @@ fn t381_4_authored_mints_word_exact() {
     }
 }
 
+// FLIP (BUG-393 / F2-iter214, canonical 8f2571b): the five stray-window
+// words below were kill-pins under the 289 fail-closed doctrine; the
+// measured vendor law (nvdisasm 13.3.73 raw -b, these exact words, x4
+// models AGREE) renders the bare lane text, and the engine now matches
+// it <-- lawful-accept. KU_ strays on the 0x7c31 UR lattice STAY dead
+// (the UR family is out of 393's scope -- 391/395 tail).
+const LAWFUL_393: [(&str, u128, &str); 5] = [
+    (
+        "K4_strayb90",
+        0x40020050000000403020231u128,
+        "@P0 HFMA2.SAT R2, R3, R4, R5",
+    ),
+    (
+        "K4_straypv2",
+        0x10000050000000403020231u128,
+        "@P0 HFMA2 R2, R3, R4, R5",
+    ),
+    (
+        "K4_b92",
+        0x100000050000000403020231u128,
+        "@P0 HFMA2 R2, R3, R4, R5",
+    ),
+    (
+        "K4_b93",
+        0x200000050000000403020231u128,
+        "@P0 HFMA2 R2, R3, R4, R5",
+    ),
+    (
+        "K4_b95",
+        0x800000050000000403020231u128,
+        "@P0 HFMA2 R2, R3, R4, R5",
+    ),
+];
+
 #[test]
 fn t381_5_kills_fail_closed() {
     for leg in LEGS {
         let t = tab(leg);
         for (tag, w) in KILLS.iter() {
             assert!(dec(&t, *w).is_none(), "{leg}:{tag}: kill word decoded");
+        }
+        for (tag, w, want) in LAWFUL_393.iter() {
+            let got = dec(&t, *w).unwrap_or_else(|| panic!("{leg}:{tag}: lawful-inert word HOLE"));
+            assert_eq!(&got, want, "{leg}:{tag}: lawful-inert text drift");
         }
         for text in [
             "HFMA2.SAT.RELU R2, R3, R4, R5",
@@ -732,8 +790,8 @@ fn t381_5_kills_fail_closed() {
         let t = tab(leg);
         assert_eq!(
             t.entries.len(),
-            575,
-            "{leg}: key census drift (575 = 551+24 BUG-381 keys)"
+            576,
+            "{leg}: key census drift (576 = 551+24 BUG-381 keys +1 BUG-400 LDG_R_dARI_P, canonical 19363f6)"
         );
         for fam in FAMS {
             assert_eq!(
@@ -757,10 +815,12 @@ fn t381_5_kills_fail_closed() {
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     // [FLIP with attribution, BUG-386 / F2-iter204]: manifest pin moves
     // with the canonical base-gap lattice graft.
+    // [FLIP with attribution, BUG-405/406 / F2-iter222]: manifest pin moves
+    // with the 0x7c31 h0nh1 graft (canonical d908ee9 = BUG-395; rides 74a06b7 = BUG-405/406 HADD2 release + HFMA2 two-imm slot graft; rides 19363f6 = BUG-400, which rode 5d32aec = BUG-398, 96f196b = BUG-402, dd477eb = BUG-407, 8f2571b = BUG-393).
     assert!(
         // [FLIP with attribution, BUG-384 / F2-iter205]: manifest pin moves with the canonical era-key hygiene delete.
-        m["base_revision"].as_str().unwrap().starts_with("b1b2b85"),
-        "SOURCE.json must pin canonical bacdfb5 [was c155d00] (BUG-388 graft; rides c155d00 = BUG-396): {:?}",
+        m["base_revision"].as_str().unwrap().starts_with("918049c"),
+        "SOURCE.json must pin canonical d908ee9 [was 74a06b7 = BUG-405/406] (BUG-395 graft F2-iter223 z atrybucja; rides 74a06b7 = BUG-405/406, which rode 19363f6 = BUG-400, which rode 5d32aec = BUG-398; 5d32aec rode 96f196b = BUG-402; BUG-402 rode dd477eb = BUG-407; BUG-407 rode 8f2571b = BUG-393; BUG-393 rode 2285a05 = BUG-403; BUG-403 rode a10350c = BUG-390): {:?}",
         m["base_revision"]
     );
 }

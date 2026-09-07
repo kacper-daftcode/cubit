@@ -460,7 +460,11 @@
   "bug384": "2026-09-05 BUG-384: delete harvest-junk HFMA2 dense era keys HFMA2.BF16_V2_R_R_R_R + HFMA2_R_R_R_R_R (sm120/sm121a only): junk-baked claims (H0_H0 bakes b61/b75/b82; 5-reg odd windows guard1b@13/reg@18/@33/@66) with incomplete field sets; arb384 lattice 168 probes x2 legs + arb384b window law = HFMA2_R_R_R_R windows; the 5-reg row WON inert-window words and printed garbage (2 live WRONG cells) -> delete reroutes to the main rows (vendor-true). census384 battery 34,087,886 words: 420/420 corpus hits vendor-exact pre==post. Encode unchanged: era keys never minted; 5-token HFMA2 stays loud (394-kand). ENGINE ZERO; precedent 165/173 dead-shell removal.",
   "bug387": "2026-09-05 BUG-387: SHFL b62-region stray-window relax x4 legs -- vm |= b62 + b61 ([62:61], b63 z BUG-382) on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb387 280 sond + arb387b, nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY (b62/b61 write-inert kazda rodzina x tryb x 2 warianty wartosci; combo b62|b63 + b62|ball inert; b64/65 = live reg-c [71:64] na RR/II_R; b91 = KILL x4 = pin zostaje; b92-b95 inert = okno [95:92] POZA zakresem, pinned -> 396-kand; dziedzictwo arb382 dla [90:88]+b63). Pre (publish 042ffa91, canonical 9713fd6, measure_pre387): 112 ogniw b62/b61 HOLE x4 nogi, 0 cichego misprintu. II_R IDX/BFLY absent x4 = bez zmian (residuum 358, 368 sec.6). 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
   "bug396": "2026-09-05 BUG-396: SHFL [95:92] stray-window relax x4 legs -- vm |= (0xf<<92) on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb387 b93/b95 56/56 + arb387b b92/b94/ball 42/42 + arb396 84/84 composition (pairs inside window + ball with [63:61]/[90:88]), nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY, DIVERGENT=0, teksty == clean anchors. b91 = KILL x4 = pin zostaje; b96+ = fields (rozlaczne, aserty); [63:61] (387) + b63/[90:88] (382) stoja. Pre (publish fe384b27, canonical 93bc221, measure_pre396): 224 ogniwa b92..b95 + 56 ball HOLE x4 nogi, 0 cichego misprintu; kontrole 382/387 zywe. II_R IDX/BFLY absent = residuum 358/368 stoi. 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
-  "bug388": "2026-09-05 BUG-388: plain sub_imm window decls -- 38 arb378-DIVERGE carriers / 104 rows x4 legs do vendor-true geometry (arb388+arb388b, nvdisasm 13.3.73 raw -b, x4 modele AGREE KAZDA sonda, DIVERGENT=0; zbiezne z BUG-156 window-law). LDGSTS sm100a tok2 -> 12b@32; LDS_R_ARURI|S8 / ATOM(G) CAS tok3 / dARI-desc REDG/STG/ST/LDG/LD -> 24b@40 SIGNED; sm121a ST/LD ARI -> 32b@32 SIGNED; sm121a LDC/LDCU cAI '' extr->cm16_off/cm17_off; UGETNEXT BROADCAST para 8b@24 bez offsetu (DELETE sub_imm1 24b@28). Kolateral (arb388+arb388c x4): G UR-clip [32..40) 4/5/6->8b (LDG/LD dARI + LDS_R_ARURI|S8, 40 rows); H sub_r0 9->8 bleed (LDGSTS sm100a 14 rows @16, CAS 121a 4 rows, LDS_R_ARURI|S8 121a; 147-class); I-J vendor-inert junk-band relax (UGETNEXT [16..24)+[32..72); sm121a LDC  [32..38)+[59..64), LDCU '' [32..37)+[59..64); singles+band+ball x4). Pre (publish 05d2e7e9, measure_pre388): 2299 komorek = 1050 MATCH / 1154 WRONG cichy misprint (flip znaku LDC b53, fabrykowane +0x1, corrupt baza R) / 95 HOLE. ENGINE: SubURm1 printer arm (para raw+1) -- jedyna zmiana src. Residua rejestrowane: 398 (cAI [24..32) index zanegowany + ?cAURI + sub_ur1@64 inwersja), 399 (glif +-0x na ARURI STS/LDS)."
+  "bug388": "2026-09-05 BUG-388: plain sub_imm window decls -- 38 arb378-DIVERGE carriers / 104 rows x4 legs do vendor-true geometry (arb388+arb388b, nvdisasm 13.3.73 raw -b, x4 modele AGREE KAZDA sonda, DIVERGENT=0; zbiezne z BUG-156 window-law). LDGSTS sm100a tok2 -> 12b@32; LDS_R_ARURI|S8 / ATOM(G) CAS tok3 / dARI-desc REDG/STG/ST/LDG/LD -> 24b@40 SIGNED; sm121a ST/LD ARI -> 32b@32 SIGNED; sm121a LDC/LDCU cAI '' extr->cm16_off/cm17_off; UGETNEXT BROADCAST para 8b@24 bez offsetu (DELETE sub_imm1 24b@28). Kolateral (arb388+arb388c x4): G UR-clip [32..40) 4/5/6->8b (LDG/LD dARI + LDS_R_ARURI|S8, 40 rows); H sub_r0 9->8 bleed (LDGSTS sm100a 14 rows @16, CAS 121a 4 rows, LDS_R_ARURI|S8 121a; 147-class); I-J vendor-inert junk-band relax (UGETNEXT [16..24)+[32..72); sm121a LDC  [32..38)+[59..64), LDCU '' [32..37)+[59..64); singles+band+ball x4). Pre (publish 05d2e7e9, measure_pre388): 2299 komorek = 1050 MATCH / 1154 WRONG cichy misprint (flip znaku LDC b53, fabrykowane +0x1, corrupt baza R) / 95 HOLE. ENGINE: SubURm1 printer arm (para raw+1) -- jedyna zmiana src. Residua rejestrowane: 398 (cAI [24..32) index zanegowany + ?cAURI + sub_ur1@64 inwersja), 399 (glif +-0x na ARURI STS/LDS).",
+  "bug390": "2026-09-06 BUG-390: F2I F64-src (byte10=0x30, b76=0) NARROW-dst sub-lattice x4 legs: +32 rows/leg (plain/NTZ/FLOOR/FLOOR.NTZ/CEIL/CEIL.NTZ/TRUNC/TRUNC.NTZ full {U8,S8,U16,S16} closure; donor-clone per dst-class from the wide b76=1 family, byte9 cell-swap 0x??<<72 incl b76 1->0, claim envelopes verbatim, b73/b74 alias relax inherited). Law: arb390 147 + arb390b 52 = 199 probes x4 models AGREE EVERY: 128-cell full [79:72] sweep all legal; dst {b75,b72} 00 U8/01 S8/ 10 U16/11 S16; b73/b74 text-inert; abs@62/neg@63 tok2 on every axis; guard generic; reuse [124:122] ILLEGAL (26 probes rc=1; engine decoder-arm extension = cubit-side). Pre-fix 512/512 cells HOLE x4 legs + 128/128 encode loud-FAIL (measure_pre390; t380_6 posture). Corpus census390: b76=0 bucket LDL-shaped/claimed (sample390 x40), no anchor-shaped words -> graft corpus-invisible.",
+  "bug403": "2026-09-06 BUG-403: F2I F64-src WIDE (b76=1) TRUNC.NTZ axis donor closure x4 legs: +4 rows/leg (era mgs 'F64,NTZ,TRUNC[,U32/U64]' + 'F64,NTZ,S64,TRUNC'; keyed F2I[.U32/.U64/.S64].F64.TRUNC.NTZ_R_R); donor-clone per dst-class from the wide TRUNC donors, byte9 cell-swap 0xd0|nib -> 0xf0|nib (set b77 NTZ), claim envelopes verbatim, b73/b74 alias relax (3<<73) inherited. Law: arb403 34 + arb403b 3 = 37 probes x4 models AGREE EVERY: all 16 nibble cells legal (dst {b75,b72}+S32 default, b73/b74 inert); abs/neg tok2 everywhere (9 probes); guard generic; reuse [124:122] ILLEGAL rc=1 x4 (4 probes; engine decoder-arm ext = cubit-side). Pre-fix 64/64 cells HOLE x4 legs + 16/16 encode loud-FAIL (measure_pre403; t390_7 posture flipped).",
+  "bug393": "2026-09-06 BUG-393: HFMA2 0x231-bases inert-window relax x4 legs -- FULL MOD-CLOSURE: 36 mgs x 4 legs (24 non-RELU full [55:40]|[59:56]|[87:90]|[92:95]; 12 RELU sans [87:90] = pv-elision live field). Vendor law: measure_pre394 170 sond + balls + measure393_closure 144 tetrady x 31 prob (nvdisasm 13.3.73 raw -b x4 modele AGREE; b91 KILL x144 stays; b78/b86 markers stand). Sparse-parity [55:40] domknieta. 0x7c31 UR-family out-of-scope (391/395 tail).",
+  "bug400": "2026-09-07 BUG-400: pred/LTC window [64..72) vendor-true declarations on dARI/ARI LDG/LD rows (canonical graft, adding-only: plain LTC mgs + <KEY>_P trailing-pred keys with pred_inv4@64 tok=last). Vendor law arb400 (307 probes: nibble x LTC x combos x b70/b71-ball; corpus-derived carriers incl sm121a synth) + arb400b (198 cross-combo probes: b70/b71/ball x {pv 0,1,8} x {ltc 0,1}; 165/165 cross-checks vs pv/ltc baselines MATCH); nvdisasm 13.3.73 raw -b x4 models DIVERGENT=0): [64:68)=inv4 pred window (0 elide, v->P(7-v), 8->!PT, 9..15->!P(15-v)); [68:70)=LTC code (1/2/3 = LTC64B/LTC128B/LTC256B); b70/b71 INERT. Closes verify388post residuum 400 (77 WRONG cells x 11 carriers). ENGINE src ZERO changes (pred_inv4 machinery + mod priorities already shipped; sm121a LDG_R_dARI_P precedent)."
  },
  "instructions": {
   "ACQBULK": {
@@ -48363,12 +48367,6 @@
       {
        "bits": 1,
        "extraction": "",
-       "shift": 0,
-       "token_idx": 0
-      },
-      {
-       "bits": 1,
-       "extraction": "",
        "shift": 2,
        "token_idx": 0
       },
@@ -48436,7 +48434,7 @@
        "token_idx": 2
       }
      ],
-     "variable_mask": "0x1c0000000021ff00fffffffffffff005"
+     "variable_mask": "0x001c0000000021ff00fffffffffffff004"
     },
     "F32": {
      "and_base": "0x000000000000410020000000ff007230",
@@ -49528,18 +49526,32 @@
        "token_idx": 5
       },
       {
-       "_src": "2e",
-       "bits": 16,
-       "extraction": "f16",
-       "shift": 32,
-       "token_idx": 3
-      },
-      {
-       "_src": "2e",
+       "_src": "bug406-2026-09-07",
        "bits": 16,
        "extraction": "f16",
        "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
        "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
       }
      ],
      "variable_mask": "0x07f03e00000000ff000000007f7ff000",
@@ -49589,18 +49601,32 @@
        "token_idx": 5
       },
       {
-       "_src": "2e",
-       "bits": 16,
-       "extraction": "bf16",
-       "shift": 32,
-       "token_idx": 3
-      },
-      {
-       "_src": "2e",
+       "_src": "bug406-2026-09-07",
        "bits": 16,
        "extraction": "bf16",
        "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
        "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
       }
      ],
      "variable_mask": "0x07f03e00000000ff000000007f7ff000",
@@ -60204,7 +60230,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f7d60cff3fffff7f7f3ff000",
      "_src": "bug243-2026-08-28",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -60347,7 +60373,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560dff30ffffffff7ff000",
+     "variable_mask": "0x1ff03e00f7d60dff3fffffffff7ff000",
      "_src": "bug243-2026-08-28",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -60490,7 +60516,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f7d60cff3fffff7f7f3ff000",
      "_src": "bug320-2026-09-01",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -60634,7 +60660,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f7d60cff3fffff7f7f3ff000",
      "_src": "bug320-2026-09-01",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -60778,7 +60804,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f7d60cff3fffff7f7f3ff000",
      "_src": "bug320-2026-09-01",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -60922,7 +60948,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560dff30ffffffff7ff000",
+     "variable_mask": "0x1ff03e00f7d60dff3fffffffff7ff000",
      "_src": "bug320-2026-09-01",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -61066,7 +61092,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f7d60cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -61210,7 +61236,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f7d60cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -61354,7 +61380,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f7d60cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -61498,7 +61524,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f7d60cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -61642,7 +61668,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f7d60cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -61786,7 +61812,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f7d60cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -61930,7 +61956,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f7d60cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -62074,7 +62100,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f7d60cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -62218,7 +62244,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f7d60cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -62362,7 +62388,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f7d60cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -62506,7 +62532,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f7d60cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -62650,7 +62676,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f7d60cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -62794,7 +62820,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560dff30ffffffff7ff000",
+     "variable_mask": "0x1ff03e00f7d60dff3fffffffff7ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -62938,7 +62964,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560dff30ffffffff7ff000",
+     "variable_mask": "0x1ff03e00f7d60dff3fffffffff7ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -63082,7 +63108,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560dff30ffffffff7ff000",
+     "variable_mask": "0x1ff03e00f7d60dff3fffffffff7ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -63226,7 +63252,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560dff30ffffffff7ff000",
+     "variable_mask": "0x1ff03e00f7d60dff3fffffffff7ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -63370,7 +63396,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560dff30ffffffff7ff000",
+     "variable_mask": "0x1ff03e00f7d60dff3fffffffff7ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -63514,7 +63540,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560dff30ffffffff7ff000",
+     "variable_mask": "0x1ff03e00f7d60dff3fffffffff7ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -63658,7 +63684,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f0560cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -63802,7 +63828,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f0560cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -63946,7 +63972,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f0560cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -64090,7 +64116,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f0560cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -64234,7 +64260,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f0560cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -64378,7 +64404,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f0560cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -64522,7 +64548,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f0560cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -64666,7 +64692,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560cff30ffff7f7f3ff000",
+     "variable_mask": "0x1ff03e00f0560cff3fffff7f7f3ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -64810,7 +64836,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560dff30ffffffff7ff000",
+     "variable_mask": "0x1ff03e00f0560dff3fffffffff7ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -64954,7 +64980,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560dff30ffffffff7ff000",
+     "variable_mask": "0x1ff03e00f0560dff3fffffffff7ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -65098,7 +65124,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560dff30ffffffff7ff000",
+     "variable_mask": "0x1ff03e00f0560dff3fffffffff7ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -65242,7 +65268,7 @@
        "_src": "bug343-2026-09-02"
       }
      ],
-     "variable_mask": "0x1ff03e0000560dff30ffffffff7ff000",
+     "variable_mask": "0x1ff03e00f0560dff3fffffffff7ff000",
      "_src": "bug343-2026-09-02",
      "_evidence": {
       "hfma2law": "work/bug243/hfma2law.json",
@@ -69993,6 +70019,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -70083,6 +70115,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -70172,6 +70210,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -70262,6 +70306,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -70352,6 +70402,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -70442,6 +70498,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -70532,6 +70594,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -70622,6 +70690,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -70712,6 +70786,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -70802,6 +70882,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -70892,6 +70978,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -70982,6 +71074,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -71072,6 +71170,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -71162,6 +71266,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -71252,6 +71362,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -71342,6 +71458,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -71432,6 +71554,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -71522,6 +71650,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -71612,6 +71746,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -71702,6 +71842,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -71792,6 +71938,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -71882,6 +72034,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -71972,6 +72130,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -72062,6 +72226,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -72152,6 +72322,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -72242,6 +72418,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -72332,6 +72514,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -72422,6 +72610,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -72512,6 +72706,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -72602,6 +72802,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -72692,6 +72898,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -72782,6 +72994,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -72872,6 +73090,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -72962,6 +73186,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -73052,6 +73282,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -73142,6 +73378,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "variable_mask": "0x14702e0000160cff300000ffffff0000",
@@ -111554,7 +111796,7 @@
        "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@38)"
       }
      ],
-     "variable_mask": "0x01dfce00000000000000003efefcf000"
+     "variable_mask": "0x1dfce00000000c00000003efefcf000"
     },
     "128,E,SM,STRONG": {
      "and_base": "0x000000000c1ebd000000000000000981",
@@ -111632,7 +111874,7 @@
        "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@37)"
       }
      ],
-     "variable_mask": "0x01fffe00000000000000001efe7c0000"
+     "variable_mask": "0x1fffe00000000c00000001efe7c0000"
     },
     "64,CONSTANT,E": {
      "and_base": "0x000000000c1e9b000000000000000981",
@@ -112327,7 +112569,7 @@
        "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@36)"
       }
      ],
-     "variable_mask": "0x0000000000000000000000060c3f0000"
+     "variable_mask": "0xc0000000060c3f0000"
     },
     "E,LTC128B": {
      "and_base": "0x000020000c1e19200000000000000981",
@@ -112729,6 +112971,375 @@
       }
      ],
      "variable_mask": "0x03ffce0000000000ffffff1efefff000"
+    },
+    "E,GPU,LTC64B,STRONG,U16": {
+     "and_base": "0x164000c1ef5100000000800007981",
+     "count": 0,
+     "fields": [
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 4b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@36)"
+      }
+     ],
+     "variable_mask": "0xc0000000060c3f0000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: LTC code 1 = .LTC64B @[68:70) (arb400 x4 AGREE)"
+    },
+    "E,GPU,LTC128B,STRONG,U16": {
+     "and_base": "0x164000c1ef5200000000800007981",
+     "count": 0,
+     "fields": [
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 4b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@36)"
+      }
+     ],
+     "variable_mask": "0xc0000000060c3f0000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: LTC code 2 = .LTC128B @[68:70) (arb400 x4 AGREE)"
+    },
+    "E,GPU,LTC256B,STRONG,U16": {
+     "and_base": "0x164000c1ef5300000000800007981",
+     "count": 0,
+     "fields": [
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 4b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@36)"
+      }
+     ],
+     "variable_mask": "0xc0000000060c3f0000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: LTC code 3 = .LTC256B @[68:70) (arb400 x4 AGREE)"
+    },
+    "128,E,LTC64B,STRONG,SYS": {
+     "and_base": "0xc1f5d100000000000007981",
+     "count": 0,
+     "fields": [
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 5b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@37)"
+      }
+     ],
+     "variable_mask": "0x1fffe00000000c00000001efe7c0000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: LTC code 1 = .LTC64B @[68:70) (arb400 x4 AGREE)"
+    },
+    "128,E,LTC128B,STRONG,SYS": {
+     "and_base": "0xc1f5d200000000000007981",
+     "count": 0,
+     "fields": [
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 5b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@37)"
+      }
+     ],
+     "variable_mask": "0x1fffe00000000c00000001efe7c0000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: LTC code 2 = .LTC128B @[68:70) (arb400 x4 AGREE)"
+    },
+    "128,E,LTC256B,STRONG,SYS": {
+     "and_base": "0xc1f5d300000000000007981",
+     "count": 0,
+     "fields": [
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 5b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@37)"
+      }
+     ],
+     "variable_mask": "0x1fffe00000000c00000001efe7c0000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: LTC code 3 = .LTC256B @[68:70) (arb400 x4 AGREE)"
+    },
+    "128,E,GPU,LTC64B,STRONG": {
+     "and_base": "0x20000c1efd100000000000000981",
+     "count": 0,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 6b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@38)"
+      }
+     ],
+     "variable_mask": "0x1dfce00000000c00000003efefcf000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: LTC code 1 = .LTC64B @[68:70) (arb400 x4 AGREE)"
+    },
+    "128,E,GPU,LTC128B,STRONG": {
+     "and_base": "0x20000c1efd200000000000000981",
+     "count": 0,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 6b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@38)"
+      }
+     ],
+     "variable_mask": "0x1dfce00000000c00000003efefcf000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: LTC code 2 = .LTC128B @[68:70) (arb400 x4 AGREE)"
+    },
+    "128,E,GPU,LTC256B,STRONG": {
+     "and_base": "0x20000c1efd300000000000000981",
+     "count": 0,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 6b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@38)"
+      }
+     ],
+     "variable_mask": "0x1dfce00000000c00000003efefcf000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: LTC code 3 = .LTC256B @[68:70) (arb400 x4 AGREE)"
     }
    },
    "operand_sig": "R_dARI",
@@ -205098,6 +205709,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "_src": "bug324-2026-09-01",
@@ -205243,6 +205860,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "_src": "bug324-2026-09-01",
@@ -205388,6 +206011,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "_src": "bug324-2026-09-01",
@@ -205533,6 +206162,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "_src": "bug324-2026-09-01",
@@ -205678,6 +206313,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "_src": "bug324-2026-09-01",
@@ -205823,6 +206464,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "_src": "bug324-2026-09-01",
@@ -205968,6 +206615,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "_src": "bug324-2026-09-01",
@@ -206113,6 +206766,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "_src": "bug324-2026-09-01",
@@ -206258,6 +206917,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "_src": "bug324-2026-09-01",
@@ -206403,6 +207068,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "_src": "bug324-2026-09-01",
@@ -206548,6 +207219,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "_src": "bug324-2026-09-01",
@@ -206693,6 +207370,12 @@
        "shift": 83,
        "token_idx": 4,
        "_src": "bug371-2026-09-04"
+      },
+      {
+       "token_idx": 3,
+       "shift": 86,
+       "bits": 1,
+       "extraction": "h0nh1"
       }
      ],
      "_src": "bug324-2026-09-01",
@@ -222538,6 +223221,2722 @@
     "write_latency": 0
    },
    "_src": "bug380-2026-09-05"
+  },
+  "F2I.U8.F64_R_R": {
+   "base_op": "F2I.U8.F64",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x3000000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.S8.F64_R_R": {
+   "base_op": "F2I.S8.F64",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0xe6200003001000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.U16.F64_R_R": {
+   "base_op": "F2I.U16.F64",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x3008000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.S16.F64_R_R": {
+   "base_op": "F2I.S16.F64",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x3009000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.U8.F64.NTZ_R_R": {
+   "base_op": "F2I.U8.F64.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x3020000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.S8.F64.NTZ_R_R": {
+   "base_op": "F2I.S8.F64.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0xe6200003021000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.U16.F64.NTZ_R_R": {
+   "base_op": "F2I.U16.F64.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x3028000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.S16.F64.NTZ_R_R": {
+   "base_op": "F2I.S16.F64.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x3029000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.U8.F64.FLOOR_R_R": {
+   "base_op": "F2I.U8.F64.FLOOR",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x3040000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.S8.F64.FLOOR_R_R": {
+   "base_op": "F2I.S8.F64.FLOOR",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0xe6200003041000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.U16.F64.FLOOR_R_R": {
+   "base_op": "F2I.U16.F64.FLOOR",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x3048000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.S16.F64.FLOOR_R_R": {
+   "base_op": "F2I.S16.F64.FLOOR",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x3049000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.U8.F64.FLOOR.NTZ_R_R": {
+   "base_op": "F2I.U8.F64.FLOOR.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x3060000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.S8.F64.FLOOR.NTZ_R_R": {
+   "base_op": "F2I.S8.F64.FLOOR.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0xe6200003061000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.U16.F64.FLOOR.NTZ_R_R": {
+   "base_op": "F2I.U16.F64.FLOOR.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x3068000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.S16.F64.FLOOR.NTZ_R_R": {
+   "base_op": "F2I.S16.F64.FLOOR.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x3069000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.U8.F64.CEIL_R_R": {
+   "base_op": "F2I.U8.F64.CEIL",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x3080000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.S8.F64.CEIL_R_R": {
+   "base_op": "F2I.S8.F64.CEIL",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0xe6200003081000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.U16.F64.CEIL_R_R": {
+   "base_op": "F2I.U16.F64.CEIL",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x3088000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.S16.F64.CEIL_R_R": {
+   "base_op": "F2I.S16.F64.CEIL",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x3089000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.U8.F64.CEIL.NTZ_R_R": {
+   "base_op": "F2I.U8.F64.CEIL.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x30a0000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.S8.F64.CEIL.NTZ_R_R": {
+   "base_op": "F2I.S8.F64.CEIL.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0xe62000030a1000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.U16.F64.CEIL.NTZ_R_R": {
+   "base_op": "F2I.U16.F64.CEIL.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x30a8000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.S16.F64.CEIL.NTZ_R_R": {
+   "base_op": "F2I.S16.F64.CEIL.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x30a9000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.U8.F64.TRUNC_R_R": {
+   "base_op": "F2I.U8.F64.TRUNC",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x30c0000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.S8.F64.TRUNC_R_R": {
+   "base_op": "F2I.S8.F64.TRUNC",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0xe62000030c1000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.U16.F64.TRUNC_R_R": {
+   "base_op": "F2I.U16.F64.TRUNC",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x30c8000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.S16.F64.TRUNC_R_R": {
+   "base_op": "F2I.S16.F64.TRUNC",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x30c9000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.U8.F64.TRUNC.NTZ_R_R": {
+   "base_op": "F2I.U8.F64.TRUNC.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x30e0000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.S8.F64.TRUNC.NTZ_R_R": {
+   "base_op": "F2I.S8.F64.TRUNC.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0xe62000030e1000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.U16.F64.TRUNC.NTZ_R_R": {
+   "base_op": "F2I.U16.F64.TRUNC.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x30e8000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.S16.F64.TRUNC.NTZ_R_R": {
+   "base_op": "F2I.S16.F64.TRUNC.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x30e9000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug390-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug390-2026-09-06"
+  },
+  "F2I.U32.F64.TRUNC.NTZ_R_R": {
+   "base_op": "F2I.U32.F64.TRUNC.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x30f0000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug403-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug403-2026-09-06"
+  },
+  "F2I.F64.TRUNC.NTZ_R_R": {
+   "base_op": "F2I.F64.TRUNC.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0xe62000030f1000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug403-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug403-2026-09-06"
+  },
+  "F2I.U64.F64.TRUNC.NTZ_R_R": {
+   "base_op": "F2I.U64.F64.TRUNC.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x30f8000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug403-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug403-2026-09-06"
+  },
+  "F2I.S64.F64.TRUNC.NTZ_R_R": {
+   "base_op": "F2I.S64.F64.TRUNC.NTZ",
+   "ctrl_class": "unknown",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x30f9000000000000007311",
+     "fields": [
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug339-2026-09-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 62,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 63,
+       "token_idx": 2,
+       "_src": "bug362-2026-09-03"
+      }
+     ],
+     "variable_mask": "0x600000000ff00ff0000",
+     "_src": "bug403-2026-09-06"
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "sm121a_provisional",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "ptxas_raw": null,
+    "read_latency": 0,
+    "stall_base": 4,
+    "throughput": 1,
+    "write_latency": 0
+   },
+   "_src": "bug403-2026-09-06"
+  },
+  "LDG_R_dARI_P": {
+   "_discovery": {
+    "LTC128B_128_validation": {
+     "date": "2026-08-09",
+     "evidence": [
+      "offset 0 / Rd4 / R2 / UR4",
+      "offset 0x110 / Rd8 / R2 / UR4"
+     ],
+     "method": "ptxas sm_120 ld.global.L2::128B.v4.u32 corpus"
+    }
+   },
+   "_o2": "O2 2026-08-25: silicon fields from cubit vendored (krzem)",
+   "base_op": "LDG",
+   "ctrl_class": "ldg",
+   "mercury": [
+    {
+     "fuzzy": true,
+     "match_score": 2,
+     "pattern": "MERCURY_ld_acquire_srcs_r2_simm_0",
+     "sass_op": "LDG"
+    }
+   ],
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "mod_groups": {
+    "E,GPU,LTC64B,STRONG,U16": {
+     "and_base": "0x164000c1ef5100000000800007981",
+     "count": 0,
+     "fields": [
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 4b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@36)"
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug400-2026-09-07",
+       "_note": "BUG-400: trailing-pred inv4 window [64:68) (arb400 x4 AGREE; 121a LDG_R_dARI_P precedent)"
+      }
+     ],
+     "variable_mask": "0xc0000000060c3f0000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: pred window [64:68) + LTC code 1 (.LTC64B) @[68:70) (arb400 x4 AGREE)"
+    },
+    "E,GPU,LTC128B,STRONG,U16": {
+     "and_base": "0x164000c1ef5200000000800007981",
+     "count": 0,
+     "fields": [
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 4b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@36)"
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug400-2026-09-07",
+       "_note": "BUG-400: trailing-pred inv4 window [64:68) (arb400 x4 AGREE; 121a LDG_R_dARI_P precedent)"
+      }
+     ],
+     "variable_mask": "0xc0000000060c3f0000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: pred window [64:68) + LTC code 2 (.LTC128B) @[68:70) (arb400 x4 AGREE)"
+    },
+    "E,GPU,LTC256B,STRONG,U16": {
+     "and_base": "0x164000c1ef5300000000800007981",
+     "count": 0,
+     "fields": [
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 4b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@36)"
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug400-2026-09-07",
+       "_note": "BUG-400: trailing-pred inv4 window [64:68) (arb400 x4 AGREE; 121a LDG_R_dARI_P precedent)"
+      }
+     ],
+     "variable_mask": "0xc0000000060c3f0000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: pred window [64:68) + LTC code 3 (.LTC256B) @[68:70) (arb400 x4 AGREE)"
+    },
+    "E,GPU,STRONG,U16": {
+     "and_base": "0x000164000c1ef5000000000800007981",
+     "count": 0,
+     "fields": [
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 4b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@36)"
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug400-2026-09-07",
+       "_note": "BUG-400: trailing-pred inv4 window [64:68) (arb400 x4 AGREE; 121a LDG_R_dARI_P precedent)"
+      }
+     ],
+     "variable_mask": "0xc0000000060c3f0000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: trailing-pred inv4 window [64:68) live (arb400 x4 AGREE; v=0 claims plain key by length tiebreak)"
+    },
+    "128,E,LTC64B,STRONG,SYS": {
+     "and_base": "0xc1f5d100000000000007981",
+     "count": 0,
+     "fields": [
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 5b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@37)"
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug400-2026-09-07",
+       "_note": "BUG-400: trailing-pred inv4 window [64:68) (arb400 x4 AGREE; 121a LDG_R_dARI_P precedent)"
+      }
+     ],
+     "variable_mask": "0x1fffe00000000c00000001efe7c0000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: pred window [64:68) + LTC code 1 (.LTC64B) @[68:70) (arb400 x4 AGREE)"
+    },
+    "128,E,LTC128B,STRONG,SYS": {
+     "and_base": "0xc1f5d200000000000007981",
+     "count": 0,
+     "fields": [
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 5b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@37)"
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug400-2026-09-07",
+       "_note": "BUG-400: trailing-pred inv4 window [64:68) (arb400 x4 AGREE; 121a LDG_R_dARI_P precedent)"
+      }
+     ],
+     "variable_mask": "0x1fffe00000000c00000001efe7c0000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: pred window [64:68) + LTC code 2 (.LTC128B) @[68:70) (arb400 x4 AGREE)"
+    },
+    "128,E,LTC256B,STRONG,SYS": {
+     "and_base": "0xc1f5d300000000000007981",
+     "count": 0,
+     "fields": [
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 5b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@37)"
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug400-2026-09-07",
+       "_note": "BUG-400: trailing-pred inv4 window [64:68) (arb400 x4 AGREE; 121a LDG_R_dARI_P precedent)"
+      }
+     ],
+     "variable_mask": "0x1fffe00000000c00000001efe7c0000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: pred window [64:68) + LTC code 3 (.LTC256B) @[68:70) (arb400 x4 AGREE)"
+    },
+    "128,E,STRONG,SYS": {
+     "and_base": "0x000000000c1f5d000000000000007981",
+     "count": 0,
+     "fields": [
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 5b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@37)"
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug400-2026-09-07",
+       "_note": "BUG-400: trailing-pred inv4 window [64:68) (arb400 x4 AGREE; 121a LDG_R_dARI_P precedent)"
+      }
+     ],
+     "variable_mask": "0x1fffe00000000c00000001efe7c0000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: trailing-pred inv4 window [64:68) live (arb400 x4 AGREE; v=0 claims plain key by length tiebreak)"
+    },
+    "128,E,GPU,LTC64B,STRONG": {
+     "and_base": "0x20000c1efd100000000000000981",
+     "count": 0,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 6b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@38)"
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug400-2026-09-07",
+       "_note": "BUG-400: trailing-pred inv4 window [64:68) (arb400 x4 AGREE; 121a LDG_R_dARI_P precedent)"
+      }
+     ],
+     "variable_mask": "0x1dfce00000000c00000003efefcf000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: pred window [64:68) + LTC code 1 (.LTC64B) @[68:70) (arb400 x4 AGREE)"
+    },
+    "128,E,GPU,LTC128B,STRONG": {
+     "and_base": "0x20000c1efd200000000000000981",
+     "count": 0,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 6b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@38)"
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug400-2026-09-07",
+       "_note": "BUG-400: trailing-pred inv4 window [64:68) (arb400 x4 AGREE; 121a LDG_R_dARI_P precedent)"
+      }
+     ],
+     "variable_mask": "0x1dfce00000000c00000003efefcf000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: pred window [64:68) + LTC code 2 (.LTC128B) @[68:70) (arb400 x4 AGREE)"
+    },
+    "128,E,GPU,LTC256B,STRONG": {
+     "and_base": "0x20000c1efd300000000000000981",
+     "count": 0,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 6b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@38)"
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug400-2026-09-07",
+       "_note": "BUG-400: trailing-pred inv4 window [64:68) (arb400 x4 AGREE; 121a LDG_R_dARI_P precedent)"
+      }
+     ],
+     "variable_mask": "0x1dfce00000000c00000003efefcf000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: pred window [64:68) + LTC code 3 (.LTC256B) @[68:70) (arb400 x4 AGREE)"
+    },
+    "128,E,GPU,STRONG": {
+     "and_base": "0x000020000c1efd000000000000000981",
+     "count": 0,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug148-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_note": "BUG-388 G: UR = 8b@[32..40) (arb388 flip-mapa + arb388c per-row b36/b38 x4 AGREE; era-clip 6b)"
+      },
+      {
+       "_src": "bug388-2026-09-05",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@38)"
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug400-2026-09-07",
+       "_note": "BUG-400: trailing-pred inv4 window [64:68) (arb400 x4 AGREE; 121a LDG_R_dARI_P precedent)"
+      }
+     ],
+     "variable_mask": "0x1dfce00000000c00000003efefcf000",
+     "_src": "bug400-2026-09-07",
+     "_note": "BUG-400: trailing-pred inv4 window [64:68) live (arb400 x4 AGREE; v=0 claims plain key by length tiebreak)"
+    }
+   },
+   "operand_sig": "R_dARI_P"
   }
  },
  "operand_roles": {

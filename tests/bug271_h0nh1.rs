@@ -147,16 +147,22 @@ fn t271_1_structure_and_donors() {
                         // widened to the 12 new RELU _P dotted keys of the
                         // sparse 0x231 completion (HFMA2[.<mods>].RELU
                         // _R_R_R_R_P -- clones of the lane field set incl.
-                        // h0nh1@86 tok3; the _R_R_UR_R_P lanes carry no
-                        // h0nh1 field, matching their donors).
+                        // h0nh1@86 tok3).
+                        // FLIP2 (BUG-395, F2-iter223, canonical d908ee9): the
+                        // 0x7c31 (R_R_UR_R) h0nh1 closure lands on the 3 sparse
+                        // legs: plain key HFMA2_R_R_UR_R (36 mgs) + the
+                        // _R_R_UR_R_P dotted lanes now CARRY the donor field
+                        // {tok3, 1b@86, h0nh1} (arb395 54 probes x4 AGREE,
+                        // DIVERGENT=0; sm121a donor-law verbatim).
                         let in_scope = k == "HFMA2_R_R_R_R"
+                            || k == "HFMA2_R_R_UR_R"
                             || k == "HFMA2_R_R_R_FI_FI"
                             || (k.starts_with("HFMA2.") && k.ends_with("_R_R_R_FI_FI_P"))
                             || (k.starts_with("HFMA2.") && k.ends_with("_R_R_R_R_P"))
                             || (k.starts_with("HFMA2.") && k.ends_with("_R_R_UR_R_P"));
                         assert!(
                             in_scope && f.shift == 86 && f.bits == 1 && f.token_idx == 3,
-                            "{leg}|{k}: donor touched outside BUG-293/353/354/381 scope"
+                            "{leg}|{k}: donor touched outside BUG-293/353/354/381/395 scope"
                         );
                     }
                 }
