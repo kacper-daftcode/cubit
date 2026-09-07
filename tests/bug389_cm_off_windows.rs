@@ -148,24 +148,33 @@ fn t389_4_corpus_anchors_exact_and_signbit_refused() {
     }
 }
 
-/// t389_4b: degenerate row guard (mask-fit). sm100a LDCU_UR_cAI::''
-/// declares cm16_off as 12b@37 (vendor reads [53:37) UNSIGNED on this row
-/// -- the decl itself is 402-kand); values needing bits [52:48) cannot mint
-/// even though they round-trip the 16-bit slice model: refuse closed
-/// instead of silently truncating (pre-fix measure: +0x7fff minted as
-/// 0xfff, -0x8000 as 0x0).
+/// t389_4b: degenerate row guard (mask-fit). FLIPPED with attribution,
+/// F2-iter217: the degenerate declaration this pin guarded (sm100a
+/// LDCU_UR_cAI::'' cm16_off 12b@37) is CLOSED by BUG-402 -- the row now
+/// declares the vendor-measured cm17_off 22b@37 (arb402 per-bit law, x4
+/// models unanimous): the three values below round-trip through the
+/// signed-17 window lawfully and MUST mint+render verbatim. What the
+/// mask-fit clause still owns: a payload wider than the 22-bit field
+/// (bank > 0x1f needs bit 22+) refuses closed with the BUG-389 attribution
+/// (pre-402 that same clause caught offset overflow on the narrow field;
+/// post-402 the offset itself cannot overflow a vendor-true window).
 #[test]
 fn t389_4b_degenerate_row_maskfit_loud() {
     let tab = t("sm100a");
-    for bad in [
-        "LDCU UR4, c[0x0][+0x1fff] ;",  // slice-legal, but bit 48 unmintable
-        "LDCU UR4, c[0x0][+0x7fff] ;",  // pre-fix minted as 0xfff (silent)
-        "LDCU UR4, c[0x0][-0x8000] ;",  // pre-fix minted as 0x0 (silent)
+    for (text, want) in [
+        ("LDCU UR4, c[0x0][+0x1fff] ;", "LDCU UR4, c[0x0][0x1fff]"),
+        ("LDCU UR4, c[0x0][+0x7fff] ;", "LDCU UR4, c[0x0][0x7fff]"),
+        ("LDCU UR4, c[0x0][-0x8000] ;", "LDCU UR4, c[0x0][-0x8000]"),
     ] {
-        let err = enc(&tab, bad).expect_err("must fail closed");
-        assert!(err.contains("BUG-389"), "attribution missing for {bad}: {err}");
+        let w = enc(&tab, text).unwrap_or_else(|e| panic!("post-402 legal mint: {text}: {e}"));
+        assert_eq!(back(&tab, w), want, "post-402 roundtrip {text}");
     }
-    // in-field values still mint on the degenerate row
+    // the mask-fit guard keeps its teeth on the remaining lossy shape:
+    // bank 0x20 needs payload bit 22 -- outside the 22b field.
+    let err = enc(&tab, "LDCU UR4, c[0x20][0x10] ;")
+        .expect_err("bank=0x20 must fail closed");
+    assert!(err.contains("BUG-389"), "attribution missing: {err}");
+    // in-field values keep minting
     assert_eq!(
         enc(&tab, "LDCU UR4, c[0x0][+0xfff] ;")
             .map(|w| back(&tab, w))

@@ -182,13 +182,25 @@ fn t380_5_pred_roundtrip_and_s64_alias_relax() {
 
 #[test]
 fn t380_6_390kand_narrow_dst_posture() {
-    // b76=0 narrow-dst sub-lattice (vendor-legal 'F2I.S8.F64.FLOOR[.NTZ]',
-    // arb380 K probes x4) stays HOLE = fail-closed posture (390-kand)
+    // FLIP (BUG-390, F2-iter210, canonical a10350c): the b76=0 narrow-dst
+    // sub-lattice is grafted ('F2I.{U8,S8,U16,S16}.F64[.{NTZ|FLOOR..}]'
+    // x4 legs; arb390/390b 199 probes x4 AGREE). Pins delegate: full law
+    // in tests/bug390_f2i_narrow_lattice.rs (t390_1..t390_7); here the
+    // four former posture cells pin the positive decode vendor-exact.
     for leg in LEGS4 {
         let t = tab(leg);
-        for b9 in [0x41u128, 0x61, 0x01, 0x21] {
+        for (b9, want) in [
+            (0x41u128, "F2I.S8.F64.FLOOR R26, R6"),
+            (0x61u128, "F2I.S8.F64.FLOOR.NTZ R26, R6"),
+            (0x01u128, "F2I.S8.F64 R26, R6"),
+            (0x21u128, "F2I.S8.F64.NTZ R26, R6"),
+        ] {
             let w = (A380 & !(0xffu128 << 72)) | (b9 << 72);
-            assert!(dec96(&t, w).is_none(), "{leg} 390-kand cell 0x{b9:02x}");
+            assert_eq!(
+                dec96(&t, w).as_deref(),
+                Some(want),
+                "{leg} ex-390-kand cell 0x{b9:02x}"
+            );
         }
     }
 }

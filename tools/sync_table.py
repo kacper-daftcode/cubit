@@ -243,8 +243,29 @@ class SyncError(RuntimeError):
 # the 6 np + 2 _P BYPASS grafts bake; sm120 _P donors uniform -> all 12
 # bake). SM121A 516 stands (dotted-key grafts hi32==0 asserted in
 # patch386.py).
-BAKED_CTRL_BASELINE = {"SM120": 1075, "SM103a": 1583, "SM100a": 1587,
-                       "SM121A": 516}
+# 2026-09-06 BUG-390 (canonical a10350c): SM100a 1587->1611, SM103a
+# 1583->1607 (+24 per era leg: the 3 of 4 wide-family donor classes
+# F64,TRUNC / F64,TRUNC,U64 / F64,S64,TRUNC bake the era-2aE template and
+# the narrow clones inherit it verbatim x8 axes; U32-donor class unbaked),
+# SM120 1075->1083, SM121A 516->524 (+8 per dense leg: only the
+# F2I.S64.F64.TRUNC_R_R donor carries baked hi bits).
+# 2026-09-06 BUG-403 (canonical 2285a05): SM100a 1611->1614, SM103a
+# 1607->1610 (+3 per era leg: donor class shapes as 380/390 --
+# 'F64,NTZ,TRUNC' / 'F64,NTZ,TRUNC,U64' / 'F64,NTZ,S64,TRUNC' inherit
+# their wide TRUNC donors' baked era template, U32-side donor unbaked),
+# SM120 1083->1084, SM121A 524->525 (+1 per dense leg: only the
+# F2I.F64.TRUNC.NTZ_R_R clone of the baked F2I.F64.TRUNC_R_R donor
+# 2026-09-07 BUG-400 (canonical 19363f6): SM100a 1614->1628, SM103a
+# 1610->1624, SM120 1084->1098 (+14 per leg), SM121A 525->532 (+7) --
+# the grafted pred/LTC window [64:72) rows clone the in-key donors of
+# LDG_R_dARI (STRONG.U16 / 128,STRONG.SYS / 128,GPU.STRONG mgs) and
+# LD_R_ARI|128,E and inherit their baked ctrl template in
+# and_base[127:105] VERBATIM (same convention as the 274..390 waves);
+# LD_R_dARI|E,S8 donors bake none (hi32==0 asserted) -> SM121A +7.
+# MEASURED on the post-graft canonical (count of and_base>>105 entries),
+# not assumed.
+BAKED_CTRL_BASELINE = {"SM120": 1098, "SM103a": 1624, "SM100a": 1628,
+                       "SM121A": 532}
 
 FIXED_EXTRACTIONS = {
     "",

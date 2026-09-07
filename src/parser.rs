@@ -443,8 +443,17 @@ fn operand_type_label(op: &Operand) -> &'static str {
                 (false, false) => "AI",
             }
         }
-        Operand::ConstMem { base_reg, .. } => {
-            if base_reg.is_some() { "cARI" } else { "cAI" }
+        Operand::ConstMem { base_reg, ur_reg, .. } => {
+            // BUG-398: a UR-indexed const slot types as cAURI so the encoder
+            // routes c[b][UR+off] to a row carrying the UR index (sm121a
+            // LDCU_UR_cAURI). Pre-398 these mints were loud-refused (attempted
+            // key LDCU_UR_cAI: "operand 2 (constmem UR) has no place to put
+            // the UR index").
+            match (base_reg.is_some(), ur_reg.is_some()) {
+                (false, true) => "cAURI",
+                (true, _) => "cARI",
+                (false, false) => "cAI",
+            }
         }
         Operand::Desc { base_reg, .. } => {
             if base_reg.is_some() { "dARI" } else { "dAI" }

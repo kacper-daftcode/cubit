@@ -593,6 +593,49 @@ impl DecodeIndex {
                         | "F64,FLOOR,NTZ,U32"
                         | "F64,FLOOR,NTZ,U64"
                         | "F64,FLOOR,NTZ,S64"
+                        // BUG-390a (same vendor law; arb390 128-cell sweep
+                        // + arb390b per-axis set = 199 probes x4 AGREE;
+                        // 26 ILLEGAL probes rc=1 x4): grafted F64-src
+                        // b76=0 NARROW-dst sub-lattice (canonical a10350c).
+                        | "F64,U8"
+                        | "F64,S8"
+                        | "F64,U16"
+                        | "F64,S16"
+                        | "F64,NTZ,U8"
+                        | "F64,NTZ,S8"
+                        | "F64,NTZ,U16"
+                        | "F64,NTZ,S16"
+                        | "F64,FLOOR,U8"
+                        | "F64,FLOOR,S8"
+                        | "F64,FLOOR,U16"
+                        | "F64,FLOOR,S16"
+                        | "F64,FLOOR,NTZ,U8"
+                        | "F64,FLOOR,NTZ,S8"
+                        | "F64,FLOOR,NTZ,U16"
+                        | "F64,FLOOR,NTZ,S16"
+                        | "CEIL,F64,U8"
+                        | "CEIL,F64,S8"
+                        | "CEIL,F64,U16"
+                        | "CEIL,F64,S16"
+                        | "CEIL,F64,NTZ,U8"
+                        | "CEIL,F64,NTZ,S8"
+                        | "CEIL,F64,NTZ,U16"
+                        | "CEIL,F64,NTZ,S16"
+                        | "F64,TRUNC,U8"
+                        | "F64,S8,TRUNC"
+                        | "F64,TRUNC,U16"
+                        | "F64,S16,TRUNC"
+                        | "F64,NTZ,TRUNC,U8"
+                        | "F64,NTZ,S8,TRUNC"
+                        | "F64,NTZ,TRUNC,U16"
+                        | "F64,NTZ,S16,TRUNC"
+                        // BUG-403 (same vendor law; arb403 C probes 4x
+                        // rc=1 x4 AGREE): grafted F64-src WIDE b76=1
+                        // TRUNC.NTZ axis (canonical 2285a05).
+                        | "F64,NTZ,TRUNC"
+                        | "F64,NTZ,TRUNC,U32"
+                        | "F64,NTZ,TRUNC,U64"
+                        | "F64,NTZ,S64,TRUNC"
                 ))
                 || (matched.mod_group.is_empty()
                     && matches!(
@@ -629,6 +672,46 @@ impl DecodeIndex {
                             | "F2I.U32.F64.FLOOR.NTZ_R_R"
                             | "F2I.U64.F64.FLOOR.NTZ_R_R"
                             | "F2I.S64.F64.FLOOR.NTZ_R_R"
+                            // BUG-390a: grafted keyed F64-src b76=0
+                            // narrow-dst rows (canonical a10350c).
+                            | "F2I.U8.F64_R_R"
+                            | "F2I.U8.F64.NTZ_R_R"
+                            | "F2I.U8.F64.FLOOR_R_R"
+                            | "F2I.U8.F64.FLOOR.NTZ_R_R"
+                            | "F2I.U8.F64.CEIL_R_R"
+                            | "F2I.U8.F64.CEIL.NTZ_R_R"
+                            | "F2I.U8.F64.TRUNC_R_R"
+                            | "F2I.U8.F64.TRUNC.NTZ_R_R"
+                            | "F2I.S8.F64_R_R"
+                            | "F2I.S8.F64.NTZ_R_R"
+                            | "F2I.S8.F64.FLOOR_R_R"
+                            | "F2I.S8.F64.FLOOR.NTZ_R_R"
+                            | "F2I.S8.F64.CEIL_R_R"
+                            | "F2I.S8.F64.CEIL.NTZ_R_R"
+                            | "F2I.S8.F64.TRUNC_R_R"
+                            | "F2I.S8.F64.TRUNC.NTZ_R_R"
+                            | "F2I.U16.F64_R_R"
+                            | "F2I.U16.F64.NTZ_R_R"
+                            | "F2I.U16.F64.FLOOR_R_R"
+                            | "F2I.U16.F64.FLOOR.NTZ_R_R"
+                            | "F2I.U16.F64.CEIL_R_R"
+                            | "F2I.U16.F64.CEIL.NTZ_R_R"
+                            | "F2I.U16.F64.TRUNC_R_R"
+                            | "F2I.U16.F64.TRUNC.NTZ_R_R"
+                            | "F2I.S16.F64_R_R"
+                            | "F2I.S16.F64.NTZ_R_R"
+                            | "F2I.S16.F64.FLOOR_R_R"
+                            | "F2I.S16.F64.FLOOR.NTZ_R_R"
+                            | "F2I.S16.F64.CEIL_R_R"
+                            | "F2I.S16.F64.CEIL.NTZ_R_R"
+                            | "F2I.S16.F64.TRUNC_R_R"
+                            | "F2I.S16.F64.TRUNC.NTZ_R_R"
+                            // BUG-403: grafted keyed F64-src WIDE b76=1
+                            // TRUNC.NTZ rows (canonical 2285a05).
+                            | "F2I.F64.TRUNC.NTZ_R_R"
+                            | "F2I.U32.F64.TRUNC.NTZ_R_R"
+                            | "F2I.U64.F64.TRUNC.NTZ_R_R"
+                            | "F2I.S64.F64.TRUNC.NTZ_R_R"
                     ))
                 || is_363_ftz_bf16;
             if reuse_bad {
@@ -747,8 +830,32 @@ impl DecodeIndex {
                 "UTMACMDFLUSH" | "UTCATOMSWS" | "UTCHMMA" | "UTCIMMA" |
                 "UTCQMMA" | "SULD");
             if is_alu && !is_225_armed {
-                let optypes: Vec<&str> = matched.key.split('_').skip(1).collect();
+                // BUG-392: derive operand types from the robust key parser
+                // (parse_ins_key_op_types), not a naive split('_').skip(1):
+                // multi-component dotted prefixes ('HFMA2.BF16_V2.RELU_*',
+                // 'F2FP.*PACK_AB_*', 'DMMA.8x8x4_P0_*') left a non-op head
+                // component ('V2.RELU'/'AB'/'P0') as fake op-type[0], so
+                // ghost ra/rb token indices shifted by one and sign bits
+                // (neg@63/abs@62/neg@72/abs@73) were PRINTED ON THE WRONG
+                // OPERAND = silent wrong-text decode of vendor-legal words
+                // (extent392: 230/532 probes MISS on the BF16_V2 dotted
+                // family, x4 legs; sweep392f for full inventory).
+                let optypes_v = parse_ins_key_op_types(&matched.key);
+                let optypes: Vec<&str> =
+                    optypes_v.iter().map(String::as_str).collect();
                 let skip_preds = optypes.iter().take_while(|t| **t == "P" || **t == "UP").count();
+                // BUG-392b: ghost signs only ever attach to REGISTER-class
+                // source slots. On II/FI-typed slots the sign bits are
+                // immediate payload (vendor re-reads them inside the imm,
+                // e.g. HFMA2.BF16_V2 II family '+INF'/'-1'), never operand
+                // signs -- the ghost glyph '|R128|' there = silent wrong.
+                let reg_class = |tok: i32| -> bool {
+                    if tok < 1 {
+                        return false;
+                    }
+                    let idx = (tok - 1) as usize; // tok1 -> optypes[0]
+                    matches!(optypes.get(idx), Some(&"R") | Some(&"UR") | Some(&"SR"))
+                };
                 // Token indexing mirrors the encoder (ra_idx/rb_idx there), including
                 // the predicate-dest offset: [..P, Ra, Rb..] — Ra = ops[skip_preds].
                 // (Previously skip+2/skip+3, off-by-one for _P_/_P_P_-prefixed keys —
@@ -772,10 +879,14 @@ impl DecodeIndex {
                         });
                     }
                 };
-                add(63, rb_tok, "neg");
-                add(62, rb_tok, "abs");
-                add(72, ra_tok, "neg");
-                add(73, ra_tok, "abs");
+                if reg_class(rb_tok) {
+                    add(63, rb_tok, "neg");
+                    add(62, rb_tok, "abs");
+                }
+                if reg_class(ra_tok) {
+                    add(72, ra_tok, "neg");
+                    add(73, ra_tok, "abs");
+                }
             }
         }
 
@@ -1133,7 +1244,7 @@ fn key_has_output_pred_field(key: &str, mod_group: &str, table: &IsaTable) -> bo
 /// Operand type tokens parsed from an InsKey (same logic as in printer.rs).
 const OP_TYPES: &[&str] = &[
     "ARURR", "ARURI", "ARUR", "AURI", "AURR", "AUR",
-    "cAI", "dARI", "ARI",
+    "cAURI", "cAI", "dARI", "ARI",
     "UP", "UR", "SR", "FI", "II", "IM", "LO",
     "R", "P", "L", "B", "?",
 ];

@@ -41,10 +41,9 @@ fn dec(t: &IsaTable, w: u128) -> Option<String> {
 fn w(hex: &str) -> u128 {
     u128::from_str_radix(hex, 16).unwrap()
 }
-fn glyph_norm(s: &str) -> String {
-    // 399-kand: vendor 'n+-0x' vs engine 'n-0x' (plain ARI/ARURI only)
-    s.replace("+-0x", "-0x")
-}
+// FLIP (BUG-399, F2-iter219): the 399 glyph-norm is gone -- the engine now
+// prints the vendor '+-0x' glyph for negative shared-bracket offsets; all
+// former glyph399=true witnesses below compare EXACTLY like the rest.
 
 /// t388_1 (invariant): window geometry of every grafted row, x4 legs
 /// (maszynowo z carriers388.json).
@@ -812,1251 +811,1036 @@ fn t388_1_geometry_polygon() {
 }
 
 /// t388_2: decode == vendor text, arb388b lattice witnesses x4 legs.
-/// Glyph-norm tylko dla udokumentowanej klasy 399 (licznik audytu).
+/// (FLIP BUG-399: byly glyph-norm + licznik audytu ==12; teraz exact.)
 #[test]
 fn t388_2_decode_witnesses_vendor_exact() {
-    let wits: &[(&str, &str, &str, bool)] = &[
+    let wits: &[(&str, &str, &str)] = &[
         (
             "sm100a",
             "0009e200099a022200e000001cbd7fae",
             "LDGSTS.E.LTC128B [R189+0xe00], [R28.64+UR34], P3",
-            false,
         ),
         (
             "sm100a",
             "0009e200099a022200e000011cbd7fae",
             "LDGSTS.E.LTC128B [R189+0xe00], [R28.64+UR34+0x1], P3",
-            false,
         ),
         (
             "sm100a",
             "0009e200099a022200e007ff1cbd7fae",
             "LDGSTS.E.LTC128B [R189+0xe00], [R28.64+UR34+0x7ff], P3",
-            false,
         ),
         (
             "sm100a",
             "0009e200099a022200e008001cbd7fae",
             "LDGSTS.E.LTC128B [R189+0xe00], [R28.64+UR34+-0x800], P3",
-            false,
         ),
         (
             "sm100a",
             "0009e200099a022200e00fff1cbd7fae",
             "LDGSTS.E.LTC128B [R189+0xe00], [R28.64+UR34+-0x1], P3",
-            false,
         ),
         (
             "sm100a",
             "0009e200099a022200e00a001cbd7fae",
             "LDGSTS.E.LTC128B [R189+0xe00], [R28.64+UR34+-0x600], P3",
-            false,
         ),
         (
             "sm100a",
             "0003e200099a06ff0018000024737fae",
             "LDGSTS.E.LTC128B.64 [R115+0x180], [R36.64], P3",
-            false,
         ),
         (
             "sm100a",
             "0003e200099a06ff0018000124737fae",
             "LDGSTS.E.LTC128B.64 [R115+0x180], [R36.64+0x1], P3",
-            false,
         ),
         (
             "sm100a",
             "0003e200099a06ff001807ff24737fae",
             "LDGSTS.E.LTC128B.64 [R115+0x180], [R36.64+0x7ff], P3",
-            false,
         ),
         (
             "sm100a",
             "0003e200099a06ff0018080024737fae",
             "LDGSTS.E.LTC128B.64 [R115+0x180], [R36.64+-0x800], P3",
-            false,
         ),
         (
             "sm100a",
             "0003e200099a06ff00180fff24737fae",
             "LDGSTS.E.LTC128B.64 [R115+0x180], [R36.64+-0x1], P3",
-            false,
         ),
         (
             "sm100a",
             "0003e200099a06ff00180a0024737fae",
             "LDGSTS.E.LTC128B.64 [R115+0x180], [R36.64+-0x600], P3",
-            false,
         ),
         (
             "sm100a",
             "0005e2000b9a021a00000000e2bd0dae",
             "@P0 LDGSTS.E.LTC128B [R189+UR26], [R226.64]",
-            false,
         ),
         (
             "sm100a",
             "0005e2000b9a021a00000001e2bd0dae",
             "@P0 LDGSTS.E.LTC128B [R189+UR26], [R226.64+0x1]",
-            false,
         ),
         (
             "sm100a",
             "0005e2000b9a021a000007ffe2bd0dae",
             "@P0 LDGSTS.E.LTC128B [R189+UR26], [R226.64+0x7ff]",
-            false,
         ),
         (
             "sm100a",
             "0005e2000b9a021a00000800e2bd0dae",
             "@P0 LDGSTS.E.LTC128B [R189+UR26], [R226.64+-0x800]",
-            false,
         ),
         (
             "sm100a",
             "0005e2000b9a021a00000fffe2bd0dae",
             "@P0 LDGSTS.E.LTC128B [R189+UR26], [R226.64+-0x1]",
-            false,
         ),
         (
             "sm100a",
             "0005e2000b9a021a00000a00e2bd0dae",
             "@P0 LDGSTS.E.LTC128B [R189+UR26], [R226.64+-0x600]",
-            false,
         ),
         (
             "sm100a",
             "0007f2000b9a0a0600880000e2dc2fae",
             "@P2 LDGSTS.E.LTC128B.128 [R220+0x880], [R226.64+UR6]",
-            false,
         ),
         (
             "sm100a",
             "0007f2000b9a0a0600880001e2dc2fae",
             "@P2 LDGSTS.E.LTC128B.128 [R220+0x880], [R226.64+UR6+0x1]",
-            false,
         ),
         (
             "sm100a",
             "0007f2000b9a0a06008807ffe2dc2fae",
             "@P2 LDGSTS.E.LTC128B.128 [R220+0x880], [R226.64+UR6+0x7ff]",
-            false,
         ),
         (
             "sm100a",
             "0007f2000b9a0a0600880800e2dc2fae",
             "@P2 LDGSTS.E.LTC128B.128 [R220+0x880], [R226.64+UR6+-0x800]",
-            false,
         ),
         (
             "sm100a",
             "0007f2000b9a0a0600880fffe2dc2fae",
             "@P2 LDGSTS.E.LTC128B.128 [R220+0x880], [R226.64+UR6+-0x1]",
-            false,
         ),
         (
             "sm100a",
             "0007f2000b9a0a0600880a00e2dc2fae",
             "@P2 LDGSTS.E.LTC128B.128 [R220+0x880], [R226.64+UR6+-0x600]",
-            false,
         ),
         (
             "sm100a",
             "000fe20008000200000000040a5d7984",
             "LDS.S8 R93, [R10+UR4]",
-            false,
         ),
         (
             "sm100a",
             "000fe20008000200000001040a5d7984",
             "LDS.S8 R93, [R10+UR4+0x1]",
-            false,
         ),
         (
             "sm100a",
             "000fe200080002007fffff040a5d7984",
             "LDS.S8 R93, [R10+UR4+0x7fffff]",
-            false,
         ),
         (
             "sm100a",
             "000fe20008000200800000040a5d7984",
             "LDS.S8 R93, [R10+UR4+-0x800000]",
-            true,
         ),
         (
             "sm100a",
             "000fe20008000200ffffff040a5d7984",
             "LDS.S8 R93, [R10+UR4+-0x1]",
-            true,
         ),
         (
             "sm100a",
             "000fe20008000200a00000040a5d7984",
             "LDS.S8 R93, [R10+UR4+-0x600000]",
-            true,
         ),
         (
             "sm100a",
             "002ea400001f450a00000008140a73a9",
             "ATOMG.E.CAS.64.STRONG.SYS PT, R10, [R20], R8, R10",
-            false,
         ),
         (
             "sm100a",
             "002ea400001f450a00000108140a73a9",
             "ATOMG.E.CAS.64.STRONG.SYS PT, R10, [R20+0x1], R8, R10",
-            false,
         ),
         (
             "sm100a",
             "002ea400001f450a7fffff08140a73a9",
             "ATOMG.E.CAS.64.STRONG.SYS PT, R10, [R20+0x7fffff], R8, R10",
-            false,
         ),
         (
             "sm100a",
             "002ea400001f450a80000008140a73a9",
             "ATOMG.E.CAS.64.STRONG.SYS PT, R10, [R20+-0x800000], R8, R10",
-            false,
         ),
         (
             "sm100a",
             "002ea400001f450affffff08140a73a9",
             "ATOMG.E.CAS.64.STRONG.SYS PT, R10, [R20+-0x1], R8, R10",
-            false,
         ),
         (
             "sm100a",
             "002ea400001f450aa0000008140a73a9",
             "ATOMG.E.CAS.64.STRONG.SYS PT, R10, [R20+-0x600000], R8, R10",
-            false,
         ),
         (
             "sm100a",
             "000fe2000d12e50a000000060800798e",
             "REDG.E.MAX.64.STRONG.GPU desc[UR10][R8.64], R6",
-            false,
         ),
         (
             "sm100a",
             "000fe2000d12e50a000001060800798e",
             "REDG.E.MAX.64.STRONG.GPU desc[UR10][R8.64+0x1], R6",
-            false,
         ),
         (
             "sm100a",
             "000fe2000d12e50a7fffff060800798e",
             "REDG.E.MAX.64.STRONG.GPU desc[UR10][R8.64+0x7fffff], R6",
-            false,
         ),
         (
             "sm100a",
             "000fe2000d12e50a800000060800798e",
             "REDG.E.MAX.64.STRONG.GPU desc[UR10][R8.64+-0x800000], R6",
-            false,
         ),
         (
             "sm100a",
             "000fe2000d12e50affffff060800798e",
             "REDG.E.MAX.64.STRONG.GPU desc[UR10][R8.64+-0x1], R6",
-            false,
         ),
         (
             "sm100a",
             "000fe2000d12e50aa00000060800798e",
             "REDG.E.MAX.64.STRONG.GPU desc[UR10][R8.64+-0x600000], R6",
-            false,
         ),
         (
             "sm100a",
             "0001e2000c115d0a0000000820008986",
             "@!P0 STG.E.128.STRONG.SYS desc[UR10][R32.64], R8",
-            false,
         ),
         (
             "sm100a",
             "0001e2000c115d0a0000010820008986",
             "@!P0 STG.E.128.STRONG.SYS desc[UR10][R32.64+0x1], R8",
-            false,
         ),
         (
             "sm100a",
             "0001e2000c115d0a7fffff0820008986",
             "@!P0 STG.E.128.STRONG.SYS desc[UR10][R32.64+0x7fffff], R8",
-            false,
         ),
         (
             "sm100a",
             "0001e2000c115d0a8000000820008986",
             "@!P0 STG.E.128.STRONG.SYS desc[UR10][R32.64+-0x800000], R8",
-            false,
         ),
         (
             "sm100a",
             "0001e2000c115d0affffff0820008986",
             "@!P0 STG.E.128.STRONG.SYS desc[UR10][R32.64+-0x1], R8",
-            false,
         ),
         (
             "sm100a",
             "0001e2000c115d0aa000000820008986",
             "@!P0 STG.E.128.STRONG.SYS desc[UR10][R32.64+-0x600000], R8",
-            false,
         ),
         (
             "sm100a",
             "0001e8000c1011100000001302007985",
             "ST.E.U8 desc[UR16][R2.64], R19",
-            false,
         ),
         (
             "sm100a",
             "0001e8000c1011100000011302007985",
             "ST.E.U8 desc[UR16][R2.64+0x1], R19",
-            false,
         ),
         (
             "sm100a",
             "0001e8000c1011107fffff1302007985",
             "ST.E.U8 desc[UR16][R2.64+0x7fffff], R19",
-            false,
         ),
         (
             "sm100a",
             "0001e8000c1011108000001302007985",
             "ST.E.U8 desc[UR16][R2.64+-0x800000], R19",
-            false,
         ),
         (
             "sm100a",
             "0001e8000c101110ffffff1302007985",
             "ST.E.U8 desc[UR16][R2.64+-0x1], R19",
-            false,
         ),
         (
             "sm100a",
             "0001e8000c101110a000001302007985",
             "ST.E.U8 desc[UR16][R2.64+-0x600000], R19",
-            false,
         ),
         (
             "sm100a",
             "000164000c1ef5000000000c0c217981",
             "LDG.E.U16.STRONG.GPU R33, desc[UR12][R12.64]",
-            false,
         ),
         (
             "sm100a",
             "000164000c1ef5000000010c0c217981",
             "LDG.E.U16.STRONG.GPU R33, desc[UR12][R12.64+0x1]",
-            false,
         ),
         (
             "sm100a",
             "000164000c1ef5007fffff0c0c217981",
             "LDG.E.U16.STRONG.GPU R33, desc[UR12][R12.64+0x7fffff]",
-            false,
         ),
         (
             "sm100a",
             "000164000c1ef5008000000c0c217981",
             "LDG.E.U16.STRONG.GPU R33, desc[UR12][R12.64+-0x800000]",
-            false,
         ),
         (
             "sm100a",
             "000164000c1ef500ffffff0c0c217981",
             "LDG.E.U16.STRONG.GPU R33, desc[UR12][R12.64+-0x1]",
-            false,
         ),
         (
             "sm100a",
             "000164000c1ef500a000000c0c217981",
             "LDG.E.U16.STRONG.GPU R33, desc[UR12][R12.64+-0x600000]",
-            false,
         ),
         (
             "sm100a",
             "000222000c1f5d0000000018301c7981",
             "LDG.E.128.STRONG.SYS R28, desc[UR24][R48.64]",
-            false,
         ),
         (
             "sm100a",
             "000222000c1f5d0000000118301c7981",
             "LDG.E.128.STRONG.SYS R28, desc[UR24][R48.64+0x1]",
-            false,
         ),
         (
             "sm100a",
             "000222000c1f5d007fffff18301c7981",
             "LDG.E.128.STRONG.SYS R28, desc[UR24][R48.64+0x7fffff]",
-            false,
         ),
         (
             "sm100a",
             "000222000c1f5d0080000018301c7981",
             "LDG.E.128.STRONG.SYS R28, desc[UR24][R48.64+-0x800000]",
-            false,
         ),
         (
             "sm100a",
             "000222000c1f5d00ffffff18301c7981",
             "LDG.E.128.STRONG.SYS R28, desc[UR24][R48.64+-0x1]",
-            false,
         ),
         (
             "sm100a",
             "000222000c1f5d00a0000018301c7981",
             "LDG.E.128.STRONG.SYS R28, desc[UR24][R48.64+-0x600000]",
-            false,
         ),
         (
             "sm100a",
             "0002a4000c1efd000000000e26287981",
             "LDG.E.128.STRONG.GPU R40, desc[UR14][R38.64]",
-            false,
         ),
         (
             "sm100a",
             "0002a4000c1efd000000010e26287981",
             "LDG.E.128.STRONG.GPU R40, desc[UR14][R38.64+0x1]",
-            false,
         ),
         (
             "sm100a",
             "0002a4000c1efd007fffff0e26287981",
             "LDG.E.128.STRONG.GPU R40, desc[UR14][R38.64+0x7fffff]",
-            false,
         ),
         (
             "sm100a",
             "0002a4000c1efd008000000e26287981",
             "LDG.E.128.STRONG.GPU R40, desc[UR14][R38.64+-0x800000]",
-            false,
         ),
         (
             "sm100a",
             "0002a4000c1efd00ffffff0e26287981",
             "LDG.E.128.STRONG.GPU R40, desc[UR14][R38.64+-0x1]",
-            false,
         ),
         (
             "sm100a",
             "0002a4000c1efd00a000000e26287981",
             "LDG.E.128.STRONG.GPU R40, desc[UR14][R38.64+-0x600000]",
-            false,
         ),
         (
             "sm103a",
             "000fe20008000200000000040a5d7984",
             "LDS.S8 R93, [R10+UR4]",
-            false,
         ),
         (
             "sm103a",
             "000fe20008000200000001040a5d7984",
             "LDS.S8 R93, [R10+UR4+0x1]",
-            false,
         ),
         (
             "sm103a",
             "000fe200080002007fffff040a5d7984",
             "LDS.S8 R93, [R10+UR4+0x7fffff]",
-            false,
         ),
         (
             "sm103a",
             "000fe20008000200800000040a5d7984",
             "LDS.S8 R93, [R10+UR4+-0x800000]",
-            true,
         ),
         (
             "sm103a",
             "000fe20008000200ffffff040a5d7984",
             "LDS.S8 R93, [R10+UR4+-0x1]",
-            true,
         ),
         (
             "sm103a",
             "000fe20008000200a00000040a5d7984",
             "LDS.S8 R93, [R10+UR4+-0x600000]",
-            true,
         ),
         (
             "sm103a",
             "0001e2000c115d0a0000000820008986",
             "@!P0 STG.E.128.STRONG.SYS desc[UR10][R32.64], R8",
-            false,
         ),
         (
             "sm103a",
             "0001e2000c115d0a0000010820008986",
             "@!P0 STG.E.128.STRONG.SYS desc[UR10][R32.64+0x1], R8",
-            false,
         ),
         (
             "sm103a",
             "0001e2000c115d0a7fffff0820008986",
             "@!P0 STG.E.128.STRONG.SYS desc[UR10][R32.64+0x7fffff], R8",
-            false,
         ),
         (
             "sm103a",
             "0001e2000c115d0a8000000820008986",
             "@!P0 STG.E.128.STRONG.SYS desc[UR10][R32.64+-0x800000], R8",
-            false,
         ),
         (
             "sm103a",
             "0001e2000c115d0affffff0820008986",
             "@!P0 STG.E.128.STRONG.SYS desc[UR10][R32.64+-0x1], R8",
-            false,
         ),
         (
             "sm103a",
             "0001e2000c115d0aa000000820008986",
             "@!P0 STG.E.128.STRONG.SYS desc[UR10][R32.64+-0x600000], R8",
-            false,
         ),
         (
             "sm103a",
             "0001e8000c1011100000001302007985",
             "ST.E.U8 desc[UR16][R2.64], R19",
-            false,
         ),
         (
             "sm103a",
             "0001e8000c1011100000011302007985",
             "ST.E.U8 desc[UR16][R2.64+0x1], R19",
-            false,
         ),
         (
             "sm103a",
             "0001e8000c1011107fffff1302007985",
             "ST.E.U8 desc[UR16][R2.64+0x7fffff], R19",
-            false,
         ),
         (
             "sm103a",
             "0001e8000c1011108000001302007985",
             "ST.E.U8 desc[UR16][R2.64+-0x800000], R19",
-            false,
         ),
         (
             "sm103a",
             "0001e8000c101110ffffff1302007985",
             "ST.E.U8 desc[UR16][R2.64+-0x1], R19",
-            false,
         ),
         (
             "sm103a",
             "0001e8000c101110a000001302007985",
             "ST.E.U8 desc[UR16][R2.64+-0x600000], R19",
-            false,
         ),
         (
             "sm103a",
             "000164000c1ef5000000000c0c217981",
             "LDG.E.U16.STRONG.GPU R33, desc[UR12][R12.64]",
-            false,
         ),
         (
             "sm103a",
             "000164000c1ef5000000010c0c217981",
             "LDG.E.U16.STRONG.GPU R33, desc[UR12][R12.64+0x1]",
-            false,
         ),
         (
             "sm103a",
             "000164000c1ef5007fffff0c0c217981",
             "LDG.E.U16.STRONG.GPU R33, desc[UR12][R12.64+0x7fffff]",
-            false,
         ),
         (
             "sm103a",
             "000164000c1ef5008000000c0c217981",
             "LDG.E.U16.STRONG.GPU R33, desc[UR12][R12.64+-0x800000]",
-            false,
         ),
         (
             "sm103a",
             "000164000c1ef500ffffff0c0c217981",
             "LDG.E.U16.STRONG.GPU R33, desc[UR12][R12.64+-0x1]",
-            false,
         ),
         (
             "sm103a",
             "000164000c1ef500a000000c0c217981",
             "LDG.E.U16.STRONG.GPU R33, desc[UR12][R12.64+-0x600000]",
-            false,
         ),
         (
             "sm103a",
             "000222000c1f5d0000000018301c7981",
             "LDG.E.128.STRONG.SYS R28, desc[UR24][R48.64]",
-            false,
         ),
         (
             "sm103a",
             "000222000c1f5d0000000118301c7981",
             "LDG.E.128.STRONG.SYS R28, desc[UR24][R48.64+0x1]",
-            false,
         ),
         (
             "sm103a",
             "000222000c1f5d007fffff18301c7981",
             "LDG.E.128.STRONG.SYS R28, desc[UR24][R48.64+0x7fffff]",
-            false,
         ),
         (
             "sm103a",
             "000222000c1f5d0080000018301c7981",
             "LDG.E.128.STRONG.SYS R28, desc[UR24][R48.64+-0x800000]",
-            false,
         ),
         (
             "sm103a",
             "000222000c1f5d00ffffff18301c7981",
             "LDG.E.128.STRONG.SYS R28, desc[UR24][R48.64+-0x1]",
-            false,
         ),
         (
             "sm103a",
             "000222000c1f5d00a0000018301c7981",
             "LDG.E.128.STRONG.SYS R28, desc[UR24][R48.64+-0x600000]",
-            false,
         ),
         (
             "sm103a",
             "0002a4000c1efd000000000e26287981",
             "LDG.E.128.STRONG.GPU R40, desc[UR14][R38.64]",
-            false,
         ),
         (
             "sm103a",
             "0002a4000c1efd000000010e26287981",
             "LDG.E.128.STRONG.GPU R40, desc[UR14][R38.64+0x1]",
-            false,
         ),
         (
             "sm103a",
             "0002a4000c1efd007fffff0e26287981",
             "LDG.E.128.STRONG.GPU R40, desc[UR14][R38.64+0x7fffff]",
-            false,
         ),
         (
             "sm103a",
             "0002a4000c1efd008000000e26287981",
             "LDG.E.128.STRONG.GPU R40, desc[UR14][R38.64+-0x800000]",
-            false,
         ),
         (
             "sm103a",
             "0002a4000c1efd00ffffff0e26287981",
             "LDG.E.128.STRONG.GPU R40, desc[UR14][R38.64+-0x1]",
-            false,
         ),
         (
             "sm103a",
             "0002a4000c1efd00a000000e26287981",
             "LDG.E.128.STRONG.GPU R40, desc[UR14][R38.64+-0x600000]",
-            false,
         ),
         (
             "sm120",
             "000fe20008000200000000040a5d7984",
             "LDS.S8 R93, [R10+UR4]",
-            false,
         ),
         (
             "sm120",
             "000fe20008000200000001040a5d7984",
             "LDS.S8 R93, [R10+UR4+0x1]",
-            false,
         ),
         (
             "sm120",
             "000fe200080002007fffff040a5d7984",
             "LDS.S8 R93, [R10+UR4+0x7fffff]",
-            false,
         ),
         (
             "sm120",
             "000fe20008000200800000040a5d7984",
             "LDS.S8 R93, [R10+UR4+-0x800000]",
-            true,
         ),
         (
             "sm120",
             "000fe20008000200ffffff040a5d7984",
             "LDS.S8 R93, [R10+UR4+-0x1]",
-            true,
         ),
         (
             "sm120",
             "000fe20008000200a00000040a5d7984",
             "LDS.S8 R93, [R10+UR4+-0x600000]",
-            true,
         ),
         (
             "sm120",
             "000fe2000d12e50a000000060800798e",
             "REDG.E.MAX.64.STRONG.GPU desc[UR10][R8.64], R6",
-            false,
         ),
         (
             "sm120",
             "000fe2000d12e50a000001060800798e",
             "REDG.E.MAX.64.STRONG.GPU desc[UR10][R8.64+0x1], R6",
-            false,
         ),
         (
             "sm120",
             "000fe2000d12e50a7fffff060800798e",
             "REDG.E.MAX.64.STRONG.GPU desc[UR10][R8.64+0x7fffff], R6",
-            false,
         ),
         (
             "sm120",
             "000fe2000d12e50a800000060800798e",
             "REDG.E.MAX.64.STRONG.GPU desc[UR10][R8.64+-0x800000], R6",
-            false,
         ),
         (
             "sm120",
             "000fe2000d12e50affffff060800798e",
             "REDG.E.MAX.64.STRONG.GPU desc[UR10][R8.64+-0x1], R6",
-            false,
         ),
         (
             "sm120",
             "000fe2000d12e50aa00000060800798e",
             "REDG.E.MAX.64.STRONG.GPU desc[UR10][R8.64+-0x600000], R6",
-            false,
         ),
         (
             "sm120",
             "0021e4000f12e106000000050200098e",
             "@P0 REDG.E.OR.STRONG.GPU desc[UR6][R2.64], R5",
-            false,
         ),
         (
             "sm120",
             "0021e4000f12e106000001050200098e",
             "@P0 REDG.E.OR.STRONG.GPU desc[UR6][R2.64+0x1], R5",
-            false,
         ),
         (
             "sm120",
             "0021e4000f12e1067fffff050200098e",
             "@P0 REDG.E.OR.STRONG.GPU desc[UR6][R2.64+0x7fffff], R5",
-            false,
         ),
         (
             "sm120",
             "0021e4000f12e106800000050200098e",
             "@P0 REDG.E.OR.STRONG.GPU desc[UR6][R2.64+-0x800000], R5",
-            false,
         ),
         (
             "sm120",
             "0021e4000f12e106ffffff050200098e",
             "@P0 REDG.E.OR.STRONG.GPU desc[UR6][R2.64+-0x1], R5",
-            false,
         ),
         (
             "sm120",
             "0021e4000f12e106a00000050200098e",
             "@P0 REDG.E.OR.STRONG.GPU desc[UR6][R2.64+-0x600000], R5",
-            false,
         ),
         (
             "sm120",
             "004fe2000c92e306000000030400098e",
             "@P0 REDG.E.MIN.S32.STRONG.GPU desc[UR6][R4.64], R3",
-            false,
         ),
         (
             "sm120",
             "004fe2000c92e306000001030400098e",
             "@P0 REDG.E.MIN.S32.STRONG.GPU desc[UR6][R4.64+0x1], R3",
-            false,
         ),
         (
             "sm120",
             "004fe2000c92e3067fffff030400098e",
             "@P0 REDG.E.MIN.S32.STRONG.GPU desc[UR6][R4.64+0x7fffff], R3",
-            false,
         ),
         (
             "sm120",
             "004fe2000c92e306800000030400098e",
             "@P0 REDG.E.MIN.S32.STRONG.GPU desc[UR6][R4.64+-0x800000], R3",
-            false,
         ),
         (
             "sm120",
             "004fe2000c92e306ffffff030400098e",
             "@P0 REDG.E.MIN.S32.STRONG.GPU desc[UR6][R4.64+-0x1], R3",
-            false,
         ),
         (
             "sm120",
             "004fe2000c92e306a00000030400098e",
             "@P0 REDG.E.MIN.S32.STRONG.GPU desc[UR6][R4.64+-0x600000], R3",
-            false,
         ),
         (
             "sm120",
             "000164000c1ef5000000000c0c217981",
             "LDG.E.U16.STRONG.GPU R33, desc[UR12][R12.64]",
-            false,
         ),
         (
             "sm120",
             "000164000c1ef5000000010c0c217981",
             "LDG.E.U16.STRONG.GPU R33, desc[UR12][R12.64+0x1]",
-            false,
         ),
         (
             "sm120",
             "000164000c1ef5007fffff0c0c217981",
             "LDG.E.U16.STRONG.GPU R33, desc[UR12][R12.64+0x7fffff]",
-            false,
         ),
         (
             "sm120",
             "000164000c1ef5008000000c0c217981",
             "LDG.E.U16.STRONG.GPU R33, desc[UR12][R12.64+-0x800000]",
-            false,
         ),
         (
             "sm120",
             "000164000c1ef500ffffff0c0c217981",
             "LDG.E.U16.STRONG.GPU R33, desc[UR12][R12.64+-0x1]",
-            false,
         ),
         (
             "sm120",
             "000164000c1ef500a000000c0c217981",
             "LDG.E.U16.STRONG.GPU R33, desc[UR12][R12.64+-0x600000]",
-            false,
         ),
         (
             "sm120",
             "000222000c1f5d0000000018301c7981",
             "LDG.E.128.STRONG.SYS R28, desc[UR24][R48.64]",
-            false,
         ),
         (
             "sm120",
             "000222000c1f5d0000000118301c7981",
             "LDG.E.128.STRONG.SYS R28, desc[UR24][R48.64+0x1]",
-            false,
         ),
         (
             "sm120",
             "000222000c1f5d007fffff18301c7981",
             "LDG.E.128.STRONG.SYS R28, desc[UR24][R48.64+0x7fffff]",
-            false,
         ),
         (
             "sm120",
             "000222000c1f5d0080000018301c7981",
             "LDG.E.128.STRONG.SYS R28, desc[UR24][R48.64+-0x800000]",
-            false,
         ),
         (
             "sm120",
             "000222000c1f5d00ffffff18301c7981",
             "LDG.E.128.STRONG.SYS R28, desc[UR24][R48.64+-0x1]",
-            false,
         ),
         (
             "sm120",
             "000222000c1f5d00a0000018301c7981",
             "LDG.E.128.STRONG.SYS R28, desc[UR24][R48.64+-0x600000]",
-            false,
         ),
         (
             "sm120",
             "0002a4000c1efd000000000e26287981",
             "LDG.E.128.STRONG.GPU R40, desc[UR14][R38.64]",
-            false,
         ),
         (
             "sm120",
             "0002a4000c1efd000000010e26287981",
             "LDG.E.128.STRONG.GPU R40, desc[UR14][R38.64+0x1]",
-            false,
         ),
         (
             "sm120",
             "0002a4000c1efd007fffff0e26287981",
             "LDG.E.128.STRONG.GPU R40, desc[UR14][R38.64+0x7fffff]",
-            false,
         ),
         (
             "sm120",
             "0002a4000c1efd008000000e26287981",
             "LDG.E.128.STRONG.GPU R40, desc[UR14][R38.64+-0x800000]",
-            false,
         ),
         (
             "sm120",
             "0002a4000c1efd00ffffff0e26287981",
             "LDG.E.128.STRONG.GPU R40, desc[UR14][R38.64+-0x1]",
-            false,
         ),
         (
             "sm120",
             "0002a4000c1efd00a000000e26287981",
             "LDG.E.128.STRONG.GPU R40, desc[UR14][R38.64+-0x600000]",
-            false,
         ),
         (
             "sm121a",
             "0201e400001009060000000040007385",
             "ST.E [R64], R6",
-            false,
         ),
         (
             "sm121a",
             "0201e400001009060000000140007385",
             "ST.E [R64+0x1], R6",
-            false,
         ),
         (
             "sm121a",
             "0201e400001009067fffffff40007385",
             "ST.E [R64+0x7fffffff], R6",
-            false,
         ),
         (
             "sm121a",
             "0201e400001009068000000040007385",
             "ST.E [R64+-0x80000000], R6",
-            false,
         ),
         (
             "sm121a",
             "0201e40000100906ffffffff40007385",
             "ST.E [R64+-0x1], R6",
-            false,
         ),
         (
             "sm121a",
             "0201e40000100906a000000040007385",
             "ST.E [R64+-0x60000000], R6",
-            false,
         ),
         (
             "sm121a",
             "0203e20000100d5400000000cc007385",
             "ST.E.128 [R204], R84",
-            false,
         ),
         (
             "sm121a",
             "0203e20000100d5400000001cc007385",
             "ST.E.128 [R204+0x1], R84",
-            false,
         ),
         (
             "sm121a",
             "0203e20000100d547fffffffcc007385",
             "ST.E.128 [R204+0x7fffffff], R84",
-            false,
         ),
         (
             "sm121a",
             "0203e20000100d5480000000cc007385",
             "ST.E.128 [R204+-0x80000000], R84",
-            false,
         ),
         (
             "sm121a",
             "0203e20000100d54ffffffffcc007385",
             "ST.E.128 [R204+-0x1], R84",
-            false,
         ),
         (
             "sm121a",
             "0203e20000100d54a0000000cc007385",
             "ST.E.128 [R204+-0x60000000], R84",
-            false,
         ),
         (
             "sm121a",
             "000fe80000000200000000000a5b7984",
             "LDS.S8 R91, [R10]",
-            false,
         ),
         (
             "sm121a",
             "000fe80000000200000001000a5b7984",
             "LDS.S8 R91, [R10+0x1]",
-            false,
         ),
         (
             "sm121a",
             "000fe800000002007fffff000a5b7984",
             "LDS.S8 R91, [R10+0x7fffff]",
-            false,
         ),
         (
             "sm121a",
             "000fe80000000200800000000a5b7984",
             "LDS.S8 R91, [R10+-0x800000]",
-            false,
         ),
         (
             "sm121a",
             "000fe80000000200ffffff000a5b7984",
             "LDS.S8 R91, [R10+-0x1]",
-            false,
         ),
         (
             "sm121a",
             "000fe80000000200a00000000a5b7984",
             "LDS.S8 R91, [R10+-0x600000]",
-            false,
         ),
         (
             "sm121a",
             "000f680000100d000000000064647980",
             "LD.E.128 R100, [R100]",
-            false,
         ),
         (
             "sm121a",
             "000f680000100d000000000164647980",
             "LD.E.128 R100, [R100+0x1]",
-            false,
         ),
         (
             "sm121a",
             "000f680000100d007fffffff64647980",
             "LD.E.128 R100, [R100+0x7fffffff]",
-            false,
         ),
         (
             "sm121a",
             "000f680000100d008000000064647980",
             "LD.E.128 R100, [R100+-0x80000000]",
-            false,
         ),
         (
             "sm121a",
             "000f680000100d00ffffffff64647980",
             "LD.E.128 R100, [R100+-0x1]",
-            false,
         ),
         (
             "sm121a",
             "000f680000100d00a000000064647980",
             "LD.E.128 R100, [R100+-0x60000000]",
-            false,
         ),
         (
             "sm121a",
             "000fe20008000200000000040a5d7984",
             "LDS.S8 R93, [R10+UR4]",
-            false,
         ),
         (
             "sm121a",
             "000fe20008000200000001040a5d7984",
             "LDS.S8 R93, [R10+UR4+0x1]",
-            false,
         ),
         (
             "sm121a",
             "000fe200080002007fffff040a5d7984",
             "LDS.S8 R93, [R10+UR4+0x7fffff]",
-            false,
         ),
         (
             "sm121a",
             "000fe20008000200800000040a5d7984",
             "LDS.S8 R93, [R10+UR4+-0x800000]",
-            true,
         ),
         (
             "sm121a",
             "000fe20008000200ffffff040a5d7984",
             "LDS.S8 R93, [R10+UR4+-0x1]",
-            true,
         ),
         (
             "sm121a",
             "000fe20008000200a00000040a5d7984",
             "LDS.S8 R93, [R10+UR4+-0x600000]",
-            true,
         ),
         (
             "sm121a",
             "002ea400001f450a00000008140a73a9",
             "ATOMG.E.CAS.64.STRONG.SYS PT, R10, [R20], R8, R10",
-            false,
         ),
         (
             "sm121a",
             "002ea400001f450a00000108140a73a9",
             "ATOMG.E.CAS.64.STRONG.SYS PT, R10, [R20+0x1], R8, R10",
-            false,
         ),
         (
             "sm121a",
             "002ea400001f450a7fffff08140a73a9",
             "ATOMG.E.CAS.64.STRONG.SYS PT, R10, [R20+0x7fffff], R8, R10",
-            false,
         ),
         (
             "sm121a",
             "002ea400001f450a80000008140a73a9",
             "ATOMG.E.CAS.64.STRONG.SYS PT, R10, [R20+-0x800000], R8, R10",
-            false,
         ),
         (
             "sm121a",
             "002ea400001f450affffff08140a73a9",
             "ATOMG.E.CAS.64.STRONG.SYS PT, R10, [R20+-0x1], R8, R10",
-            false,
         ),
         (
             "sm121a",
             "002ea400001f450aa0000008140a73a9",
             "ATOMG.E.CAS.64.STRONG.SYS PT, R10, [R20+-0x600000], R8, R10",
-            false,
         ),
         (
             "sm121a",
             "000ea400001f410500000004080573a9",
             "ATOMG.E.CAS.STRONG.SYS PT, R5, [R8], R4, R5",
-            false,
         ),
         (
             "sm121a",
             "000ea400001f410500000104080573a9",
             "ATOMG.E.CAS.STRONG.SYS PT, R5, [R8+0x1], R4, R5",
-            false,
         ),
         (
             "sm121a",
             "000ea400001f41057fffff04080573a9",
             "ATOMG.E.CAS.STRONG.SYS PT, R5, [R8+0x7fffff], R4, R5",
-            false,
         ),
         (
             "sm121a",
             "000ea400001f410580000004080573a9",
             "ATOMG.E.CAS.STRONG.SYS PT, R5, [R8+-0x800000], R4, R5",
-            false,
         ),
         (
             "sm121a",
             "000ea400001f4105ffffff04080573a9",
             "ATOMG.E.CAS.STRONG.SYS PT, R5, [R8+-0x1], R4, R5",
-            false,
         ),
         (
             "sm121a",
             "000ea400001f4105a0000004080573a9",
             "ATOMG.E.CAS.STRONG.SYS PT, R5, [R8+-0x600000], R4, R5",
-            false,
         ),
         (
             "sm121a",
             "004fe2000c92e306000000030400098e",
             "@P0 REDG.E.MIN.S32.STRONG.GPU desc[UR6][R4.64], R3",
-            false,
         ),
         (
             "sm121a",
             "004fe2000c92e306000001030400098e",
             "@P0 REDG.E.MIN.S32.STRONG.GPU desc[UR6][R4.64+0x1], R3",
-            false,
         ),
         (
             "sm121a",
             "004fe2000c92e3067fffff030400098e",
             "@P0 REDG.E.MIN.S32.STRONG.GPU desc[UR6][R4.64+0x7fffff], R3",
-            false,
         ),
         (
             "sm121a",
             "004fe2000c92e306800000030400098e",
             "@P0 REDG.E.MIN.S32.STRONG.GPU desc[UR6][R4.64+-0x800000], R3",
-            false,
         ),
         (
             "sm121a",
             "004fe2000c92e306ffffff030400098e",
             "@P0 REDG.E.MIN.S32.STRONG.GPU desc[UR6][R4.64+-0x1], R3",
-            false,
         ),
         (
             "sm121a",
             "004fe2000c92e306a00000030400098e",
             "@P0 REDG.E.MIN.S32.STRONG.GPU desc[UR6][R4.64+-0x600000], R3",
-            false,
         ),
         (
             "sm121a",
             "000ea4000c1013000000000808087980",
             "LD.E.S8 R8, desc[UR8][R8.64]",
-            false,
         ),
         (
             "sm121a",
             "000ea4000c1013000000010808087980",
             "LD.E.S8 R8, desc[UR8][R8.64+0x1]",
-            false,
         ),
         (
             "sm121a",
             "000ea4000c1013007fffff0808087980",
             "LD.E.S8 R8, desc[UR8][R8.64+0x7fffff]",
-            false,
         ),
         (
             "sm121a",
             "000ea4000c1013008000000808087980",
             "LD.E.S8 R8, desc[UR8][R8.64+-0x800000]",
-            false,
         ),
         (
             "sm121a",
             "000ea4000c101300ffffff0808087980",
             "LD.E.S8 R8, desc[UR8][R8.64+-0x1]",
-            false,
         ),
         (
             "sm121a",
             "000ea4000c101300a000000808087980",
             "LD.E.S8 R8, desc[UR8][R8.64+-0x600000]",
-            false,
         ),
     ];
-    let mut glyph_audits = 0usize;
-    for (leg, hexw, vendor, glyph399) in wits {
+    for (leg, hexw, vendor) in wits {
         let t = tab(leg);
         let got = dec(&t, w(hexw)).unwrap_or_else(|| panic!("{leg} {hexw} HOLE"));
-        if *glyph399 {
-            glyph_audits += 1;
-            assert!(vendor.contains("+-0x"), "{leg} {hexw} pin drift (class)");
-            assert_eq!(glyph_norm(vendor), got, "{leg} {hexw} glyph-class");
-        } else {
-            assert_eq!(*vendor, got, "{leg} {hexw} != vendor");
-        }
+        assert_eq!(*vendor, got, "{leg} {hexw} != vendor");
     }
-    assert!(
-        glyph_audits == 12,
-        "399 glyph class audit set: {glyph_audits}"
-    );
 }
 
 /// t388_3: UGETNEXTWORKID.BROADCAST -- para [URv],[URv+1] z jednego
@@ -2215,29 +1999,33 @@ fn t388_4_c121a_bank_sign_junk() {
     }
 }
 
-/// t388_5 (residua loud): 398-kand -- sm121a cAI adres [24..32) z
-/// indexem zanegowanym (vendor R254/UR254 dla wartosci 1) NIE jest
-/// wspierany przez silnik; bare '' rows dalej drukuja fallback '?cAURI'
-/// albo pomijaja skladowa. Pin strzeze LOUD-stanu az do wlasnego fixa.
+/// t388_5 (residua loud): 398-kand widok [FLIPPED 2026-09-07 z atrybucja
+/// BUG-398/F2-iter220: cAURI arm wyladowal, slowo jest teraz vendor-exact
+/// -- witness(1) przeszedl assert_ne -> assert_eq; witness 400/398B zostaja]
 #[test]
 fn t388_5_resid_398_loud() {
-    // LDCU '' z b24=1: vendor 'c[0x0][UR254+0x390]', silnik '?cAURI'-fallback
+    // LDCU '' z [24:32)=0xfe: vendor 'c[0x0][UR254+0x390]' -- ZAMKNIETE
+    // 398A; slowo = LAW398 tag A-idx|cu|i254 (one-note: poprzedni pin mial
+    // w komentarzu "b24=1" ale w slowie stala wartosc 0xff = base; teraz
+    // slowo maszynowe z kraty, arb398 x4)
     let t = tab("sm121a");
-    // LDCU_UR_cAI '' anchor word z b24=1 (maszynowo z arb388 rep-word)
-    let word = w("000e24000800080000007200ff0477ac");
+    let word = w("000e24000800080000007200fe0477ac");
     let got = dec(&t, word);
-    assert_ne!(
+    assert_eq!(
         got.as_deref(),
         Some("LDCU UR4, c[0x0][UR254+0x390]"),
-        "398-kand: [24..32) index decl landed -- zamknij residuum, nie ten pin"
+        "398A po-fixie: slowo musi renderowac vendor-exact (klasa wraca = regresja armu cAURI)"
     );
-    // 400-kand: sm121a LD ARI [64..67) vendor pred decl (b64 -> ', P6')
+    // 400-kand: sm121a LD ARI [64..67) vendor pred decl (b64 -> ', P6').
+    // ZAMKNIETE 2026-09-07 BUG-400 (canonical 19363f6, LD_R_ARI_P graft):
+    // slowo = sm121a-sub_imm12-24b32 pv1 = arb400 law (x4 AGREE) --
+    // assert_ne -> assert_eq z atrybucja; render musi ZOSTAC vendor-exact.
     let w400 = w("000f680000100d010000000064647980");
     let got400 = dec(&t, w400);
-    assert_ne!(
+    assert_eq!(
         got400.as_deref(),
         Some("LD.E.128 R100, [R100], P6"),
-        "400-kand: 121a ARI pred@[64..67) landed -- zamknij residuum"
+        "400 po-fixie: slowo musi renderowac vendor-exact (klasa wraca = regresja graftu 400)"
     );
     // sm121a LDS_R_ARI|S8 [64..72) vendor-inert vs silnik '?AR' fallback
     let w401 = w("000fe80000000201000000000a5b7984");

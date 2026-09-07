@@ -2113,6 +2113,30 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         candidates.push((fk_ari, mod_group.clone()));
         candidates.push((k_ari, mod_group.clone()));
     }
+    // BUG-398: `c[b][UR+off]` types as cAURI post-398 (parser), but the
+    // legacy legs (sm100a/103a/120) carry the UR index under the _cAI key
+    // (sub_ur1 field, BUG-151 family) and have no _cAURI row; sm121a has
+    // the dedicated LDCU_UR_cAURI row instead. Append cAI-shaped fallback
+    // candidates so text mints encode on every leg; entry_matches_operands
+    // keeps the fit fail-closed (SubUR only accepts ConstMem, Cm16/17Off
+    // likewise).
+    if insn.operands.iter().any(|op| matches!(op,
+        Operand::ConstMem { ur_reg: Some(_), base_reg: None, .. }))
+    {
+        let cai_sig: String = insn.operands.iter().map(|op| match op {
+            Operand::ConstMem { ur_reg: Some(_), base_reg: None, .. } => "_cAI".to_string(),
+            _ => format!("_{}", crate::parser::operand_type_label_pub(op)),
+        }).collect();
+        let clean_opcode: String = insn.opcode_full.split('.')
+            .filter(|p| !p.is_empty() && !p.starts_with('?'))
+            .collect::<Vec<_>>().join(".");
+        let fk_cai = format!("{clean_opcode}{cai_sig}");
+        let k_cai = format!("{}{}", insn.opcode, cai_sig);
+        candidates.push((fk_cai.clone(), mod_group.clone()));
+        candidates.push((k_cai.clone(), mod_group.clone()));
+        candidates.push((fk_cai, String::new()));
+        candidates.push((k_cai, String::new()));
+    }
     candidates.dedup();
 
     let mut attempts: Vec<String> = Vec::new();

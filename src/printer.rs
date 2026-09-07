@@ -763,7 +763,7 @@ fn norm_ext(s: &str) -> String {
 
 /// Known operand-type segments in InsKey (longer first to avoid prefix conflicts).
 const OP_TYPES: &[&str] = &[
-    "ARURR", "ARURI", "ARUR", "AURI", "AURR", "AUR", "cAI", "dARI", "ARI", "UP", "UR", "SR", "FI",
+    "ARURR", "ARURI", "ARUR", "AURI", "AURR", "AUR", "cAURI", "cAI", "dARI", "ARI", "UP", "UR", "SR", "FI",
     "II", "IM", "LO", "R", "P", "L", "B", "?",
 ];
 
@@ -1408,7 +1408,11 @@ fn format_operand(
         }
         "ARUR" | "AUR" | "AURR" | "ARURR" => format_aruri(fields, raw),
         "dARI" => format_desc_addr(fields, raw),
-        "cAI" | "cARI" => format_const_addr(fields, ins_key),
+        // BUG-398: "cAURI" (sm121a LDCU_UR_cAURI world: const addr carrying a
+        // plain 8-bit UR index sub_ur1@24 + cm17_off) renders through the same
+        // const-addr law as cAI/cARI (arb398 x4 AGREE; idx plain-valued,
+        // 255 = elide sentinel; sign/bank law == BUG-401 legacy glyph).
+        "cAURI" | "cAI" | "cARI" => format_const_addr(fields, ins_key),
         "B" => format_barrier(fields),
         // Unknown token type "?" — treat as UR register (raw fallback)
         "?" => format_ureg_raw(fields, raw, ins_key),
@@ -2767,13 +2771,17 @@ fn format_addr_wide64(fields: &[&DecodedField], raw: u128) -> String {
 fn format_ldgsts_shdst(fields: &[&DecodedField], raw: u128) -> String {
     let s = format_sts_lds_addr(fields, raw);
     // rewrite the single negative-offset glyph variant "n-0x" -> "n+-0x"
+    // (LDGSTS shdst carries its own census law on the 20-bit sub_imm1
+    // window -- [R187+UR26+-0x4000] x32 -- independent of the BUG-399
+    // 24-bit STS/LDS/LDSM law; never double an existing '+-').
     if let Some(pos) = s.find("-0x") {
-        let mut out = s.clone();
-        out.insert(pos, '+');
-        out
-    } else {
-        s
+        if pos == 0 || s.as_bytes()[pos - 1] != b'+' {
+            let mut out = s.clone();
+            out.insert(pos, '+');
+            return out;
+        }
     }
+    s
 }
 
 /// BUG-180: LDGSTS global-source address (tok2) — vendor law measured by
@@ -3145,12 +3153,35 @@ fn format_desc_addr(fields: &[&DecodedField], raw: u128) -> String {
 // STS and LDS use [R+UR+off] format instead of desc[UR][R.64+off].
 // The base register and UR are encoded the same way but formatted differently.
 
+/// BUG-399: negative shared-bracket offset sign glyph. The vendor '+-0x'
+/// law is measured (arb399a, nvdisasm x4 AGREE) for the 24-bit SIGNED
+/// offset window [63:40] ONLY; every other width keeps the legacy '-0x'
+/// glyph (unmeasured classes stay posture-untouched: 414-kand).
+fn neg_off_glyph(offset: i64, off_win24: bool) -> String {
+    if offset < 0 {
+        if off_win24 {
+            format!("+-0x{:x}", (-offset) as u64)
+        } else {
+            format!("-0x{:x}", (-offset) as u64)
+        }
+    } else {
+        format!("+0x{offset:x}")
+    }
+}
+
 fn format_sts_lds_addr(fields: &[&DecodedField], raw: u128) -> String {
     let mut base_reg: Option<u64> = None;
     let mut ur_reg: Option<u64> = None;
     let mut ur_wide = false; // pole ureg/sub_ur* o >= 8 bitach: 63 = UR63 (realny)
     let mut offset: i64 = 0;
     let mut has_off = false;
+    // BUG-399v2: the vendor '+-0x' glyph law (arb399a x4 AGREE) is measured
+    // ONLY for the 24-bit SIGNED offset window [63:40] (sub_imm1 24b rows).
+    // Narrower imm windows (sm121a dedicated STS.U8/LDS.128-II rows, 1..21b)
+    // are a DIFFERENT, unmeasured class -- they keep the legacy '-0x' glyph
+    // (414-kand posture UNTOUCHED: vendor reads a wider window there, e.g.
+    // corpus word -> vendor 'STS.U8 [R5+UR6+0x1001], RZ').
+    let mut off_win24 = false;
 
     for f in fields {
         let e = norm_ext(&f.extraction);
@@ -3170,10 +3201,14 @@ fn format_sts_lds_addr(fields: &[&DecodedField], raw: u128) -> String {
             s if s.starts_with("sub_imm") => {
                 offset |= sub_imm_off(s, f.value, f.bits);
                 has_off = true;
+                if f.bits == 24 {
+                    off_win24 = true;
+                }
             }
             "imm" if f.bits >= 8 => {
                 offset = sign_extend(f.value, f.bits);
                 has_off = offset != 0;
+                off_win24 = f.bits == 24;
             }
             _ => {}
         }
@@ -3212,22 +3247,14 @@ fn format_sts_lds_addr(fields: &[&DecodedField], raw: u128) -> String {
     // No UR component at all -> print base only ("[RZ]", "[R10]", "[R66+0x80]").
     if ur_reg.is_none() {
         if has_off && offset != 0 {
-            let off_s = if offset < 0 {
-                format!("-0x{:x}", (-offset) as u64)
-            } else {
-                format!("+0x{offset:x}")
-            };
+            let off_s = neg_off_glyph(offset, off_win24);
             return format!("[{reg_s}{off_s}]");
         }
         return format!("[{reg_s}]");
     }
 
     if has_off && offset != 0 {
-        let off_s = if offset < 0 {
-            format!("-0x{:x}", (-offset) as u64)
-        } else {
-            format!("+0x{offset:x}")
-        };
+        let off_s = neg_off_glyph(offset, off_win24);
         if rn == 255 {
             // nvdisasm never prints "[RZ+UR…]" — RZ is a silent sink in addresses:
             // "[UR63]", "[UR63+0x10]".
@@ -3365,7 +3392,20 @@ fn format_const_addr(fields: &[&DecodedField], ins_key: &str) -> String {
     if let Some((un, ubits)) = ur_reg {
         let is_zero_reg = un == 255 || (un == 63 && ubits < 8);
         if !is_zero_reg {
-            return if offset == 0 {
+            // BUG-401: the UR-carried cm window is SIGNED exactly like the
+            // R-carried one (arb402 per-bit law: [54:37) SIGNED-17 on the
+            // cm17_off 22b@37 shape, x4 nvdisasm models AGREE; arb389 x4).
+            // Vendor prints negatives as `UR5+-0xfc6c`; pre-fix this branch
+            // reprinted the sign-window raw UNSIGNED (`UR5+0x10394`), a
+            // decode-side render divergence that also made such words
+            // un-round-trippable (encode of the unsigned spelling refuses,
+            // BUG-389 fail-closed). off_neg is Some exactly when the
+            // composed cm slice is the signed one (cm16/cm17, no split
+            // sub_imm offset field) -- same law the R-carried branch above
+            // and the plain form below already follow.
+            return if let Some(neg) = off_neg {
+                format!("c[0x{bank:x}][UR{un}+-0x{:x}]", -neg)
+            } else if offset == 0 {
                 format!("c[0x{bank:x}][UR{un}]")
             } else {
                 format!("c[0x{bank:x}][UR{un}+0x{offset:x}]")
