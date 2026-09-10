@@ -1,6 +1,7 @@
-// machine-built by work/bug402/gen402pins.py from arb402_law.json + claim100a_words.json
+// machine-built by work/bug402/gen402pins.py from arb402_law.json + claim100a_words.json;
+// [F2-iter224 BUG-409 landed: class flips 409->exact x4 (was 100 exact + 4x401->exact at
+//  F2-iter218 + 4x409 posture); regen by work/bug409x/regen402inc.py, selfchecks intact]
 // (108 full-128 probe words; vendor texts unanimous x4 models; claim sample 89 of 13,678 distinct incl. ALL 49 distinct UR-carried words)
-// [401-landed F2-iter218] the 4 class-"401" words flipped to "exact": decoder renders vendor-true post-arm (printer.rs UR-carried cm).
 const PROBES402: [(u128, &str, &str, &str); 108] = [
     (0x000e6e000800080007ffffe0050577acu128, "A|UR5|allones22", "LDCU UR5, c[0x1f][UR5+-0x1]", "exact"),
     (0x000e6e0008000800000072a0050577acu128, "A|UR5|b37", "LDCU UR5, c[0x0][UR5+0x395]", "exact"),
@@ -83,8 +84,8 @@ const PROBES402: [(u128, &str, &str, &str); 108] = [
     (0x000e660008000600003fffe0ff0077acu128, "B|maxpos17", "LDCU.S16 UR0, c[0x0][-0x1]", "exact"),
     (0x000e66000800060000100000ff0077acu128, "B|sign16", "LDCU.S16 UR0, c[0x0][0x8000]", "exact"),
     (0x000e66000800060000200000ff0077acu128, "B|sign17", "LDCU.S16 UR0, c[0x0][-0x10000]", "exact"),
-    (0x000f62000000060007ffffe0ff000b82u128, "C|allones22", "@P0 LDC.S16 R0, c[0x1f][-0x1]", "409"),
-    (0x000f620000000600000008a0ff000b82u128, "C|b37", "@P0 LDC.S16 R0, c[0x0][0x22]", "409"),
+    (0x000f62000000060007ffffe0ff000b82u128, "C|allones22", "@P0 LDC.S16 R0, c[0x1f][-0x1]", "exact"),
+    (0x000f620000000600000008a0ff000b82u128, "C|b37", "@P0 LDC.S16 R0, c[0x0][0x22]", "exact"),
     (0x000f620000000600000008c0ff000b82u128, "C|b38", "@P0 LDC.S16 R0, c[0x0][0x23]", "exact"),
     (0x000f62000000060000000880ff000b82u128, "C|b39", "@P0 LDC.S16 R0, c[0x0][0x22]", "exact"),
     (0x000f62000000060000000980ff000b82u128, "C|b40", "@P0 LDC.S16 R0, c[0x0][0x26]", "exact"),
@@ -106,8 +107,8 @@ const PROBES402: [(u128, &str, &str, &str); 108] = [
     (0x000f62000000060001000880ff000b82u128, "C|b56", "@P0 LDC.S16 R0, c[0x4][0x22]", "exact"),
     (0x000f62000000060002000880ff000b82u128, "C|b57", "@P0 LDC.S16 R0, c[0x8][0x22]", "exact"),
     (0x000f62000000060004000880ff000b82u128, "C|b58", "@P0 LDC.S16 R0, c[0x10][0x22]", "exact"),
-    (0x000f62000000060008000880ff000b82u128, "C|b59", "@P0 LDC.S16 R0, c[0x0][0x22]", "409"),
-    (0x000f620000000600003fffe0ff000b82u128, "C|maxpos17", "@P0 LDC.S16 R0, c[0x0][-0x1]", "409"),
+    (0x000f62000000060008000880ff000b82u128, "C|b59", "@P0 LDC.S16 R0, c[0x0][0x22]", "exact"),
+    (0x000f620000000600003fffe0ff000b82u128, "C|maxpos17", "@P0 LDC.S16 R0, c[0x0][-0x1]", "exact"),
     (0x000f62000000060000100880ff000b82u128, "C|sign16", "@P0 LDC.S16 R0, c[0x0][0x4022]", "exact"),
     (0x000f62000000060000200880ff000b82u128, "C|sign17", "@P0 LDC.S16 R0, c[0x0][-0x7fde]", "exact"),
 ];

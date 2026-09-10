@@ -359,17 +359,33 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         // their token-level trailing space in all slots (BUG-177 L4 /
         // BUG-245 L3 mid-slot laws, BUG-159 no-pad precedent stands).
         if is_last_token(tok, &insn.key)
-            && fields.iter().any(|f| norm_ext(&f.extraction) == "f64hi")
+            && (fields.iter().any(|f| norm_ext(&f.extraction) == "f64hi")
+                // BUG-419 (arb419 x4): the special float glyphs ("+INF ",
+                // "-0.0 ", QNAN/SNAN) keep their pad MID-LINE (DSETP
+                // precedent), but the VENDOR drops the pad when the glyph
+                // is the tail token of the line ("HFMA2.BF16_V2 ... -0.0").
+                || matches!(
+                    s.trim_end(),
+                    "+INF"
+                        | "-INF"
+                        | "-0.0"
+                        | "+QNAN"
+                        | "-QNAN"
+                        | "+SNAN"
+                        | "-SNAN"
+                ))
         {
             s = s.trim_end().to_string();
         }
         // pred_inv4 zero window = no guard pred: nvdisasm OMITS the token,
         // so an empty format result for a P slot is dropped here (not ", ").
+        let pt_elide = op_type == "P" && crate::table::relu_pt_elide_key(&insn.key);
         let inv4_omitted = s.is_empty()
             && op_type == "P"
-            && fields
-                .iter()
-                .any(|f| norm_ext(&f.extraction) == "pred_inv4");
+            && (pt_elide
+                || fields
+                    .iter()
+                    .any(|f| norm_ext(&f.extraction) == "pred_inv4"));
         if !inv4_omitted {
             operands.push(s);
         }
@@ -763,8 +779,8 @@ fn norm_ext(s: &str) -> String {
 
 /// Known operand-type segments in InsKey (longer first to avoid prefix conflicts).
 const OP_TYPES: &[&str] = &[
-    "ARURR", "ARURI", "ARUR", "AURI", "AURR", "AUR", "cAURI", "cAI", "dARI", "ARI", "UP", "UR", "SR", "FI",
-    "II", "IM", "LO", "R", "P", "L", "B", "?",
+    "ARURR", "ARURI", "ARUR", "AURI", "AURR", "AUR", "cAURI", "cAI", "dARI", "ARI", "UP", "UR",
+    "SR", "FI", "II", "IM", "LO", "R", "P", "L", "B", "?",
 ];
 
 fn parse_ins_key(key: &str) -> (String, Vec<String>) {
@@ -903,7 +919,12 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     // `HMUL2.BF16_V2.FTZ.SAT` / `HMUL2.BF16_V2.FMZ.SAT`, arb324 C-sweep x4
     // models). HMUL2 never arms F32 (INVALID1) / OOB (INVALID3) / RELU, so
     // the F32/OOB prio arms below stay inert for it.
-    if base == "HFMA2" || base == "HMUL2" {
+    // BUG-419: the same first-position window law extends to the HADD2 FI FI
+    // frame (0x430; arb419 route-combo sweep x4 models AGREE EVERY: vendor
+    // `HADD2.F32.SAT` / `HADD2.FTZ.SAT` / `HADD2.BF16_V2.FTZ.SAT`; route bits
+    // b77=.SAT b78=.F32 b80=.FTZ b85=.BF16_V2). RELU/OOB inert on HADD2
+    // (b79/b76 vendor-inert there) -- those prio arms stay dead for it.
+    if base == "HFMA2" || base == "HMUL2" || base == "HADD2" {
         match m {
             // BUG-285: the b85 cross-key prints FIRST on the packed-f16 imm
             // family (vendor `HFMA2.BF16_V2.FTZ.SAT` / `.BF16_V2.FMZ.RELU`,
@@ -1266,6 +1287,16 @@ fn format_operand(
                 format!("{inv_s}P{pred}")
             }
         }
+        // BUG-419: HFMA2 two-imm R-final RELU trailing slot -- PT elided
+        // (arb419 x4 models); non-TP values print as-is.
+        "P" if crate::table::relu_pt_elide_key(ins_key) => {
+            let s = format_pred_with_raw(fields, false, 0);
+            if s == "PT" {
+                String::new()
+            } else {
+                s
+            }
+        }
         "P" => format_pred_with_raw(fields, false, 0),
         "UP" => format_pred_with_raw(fields, true, 0),
         // UR slot: if no ureg field present, use raw fallback (for USHF II-typed UR slots)
@@ -1397,6 +1428,22 @@ fn format_operand(
         // These are the same bracket address forms as ARURI (the address entry
         // may still carry an `imm` offset field). STS/LDS/LDSM print [R+UR+off];
         // everything else mirrors ARURI's desc[UR][R.64+off] form.
+        // BUG-425: STS AURI-space rows (RZ-baked base = AURI-space law) carrying
+        // the addr-scale field -- vendor prints the base glyph RZ VISIBLE when
+        // the scale window is live: "[RZ.X4+UR4+0x55]" (arb425 law x4 AGREE on
+        // every width carrier; stsm contract = enum, no field -> arm cold).
+        // scale==0 delegates to the legacy printer byte-for-byte. Granted to
+        // the STS/LDS/LDSM shared-memory families only (mirror of the BUG-420
+        // ARURI-frame arm inside format_sts_lds_addr).
+        "AURI"
+            if {
+                let op = ins_key.split('_').next().unwrap_or("");
+                (op.starts_with("STS") || op.starts_with("LDS") || op.starts_with("LDSM"))
+                    && fields.iter().any(|f| norm_ext(&f.extraction) == "addr_scale")
+            } =>
+        {
+            format_sts_auri_addr(fields, raw)
+        }
         "AURI" => format_auri_uronly(fields, raw),
         "ARUR" | "AUR" | "AURR" | "ARURR"
             if {
@@ -1729,7 +1776,7 @@ fn format_reg(
 
     // Recover abs from raw instruction bits (FP instructions; RZ excluded)
     let rn = reg.unwrap_or(255);
-    if !abs && rn != 255 && is_fp_ins(ins_key) {
+    if !abs && rn != 255 && is_fp_ins(ins_key) && !crate::table::hadd2_f32_abs_inert_key(ins_key) {
         // The abs flag position depends on which register SLOT this operand occupies,
         // determined by the field's actual shift (NOT the token index):
         //   Ra @[31:24] -> abs at bit 73;  Rb @[39:32] -> abs at bit 62.
@@ -3007,6 +3054,69 @@ fn format_auri_uronly(fields: &[&DecodedField], raw: u128) -> String {
     format!("[{ur_s}]")
 }
 
+/// BUG-425: STS/LDS/LDSM AURI-space scaled address. The base register slot
+/// ([31:24]) is RZ-baked on these rows; per arb425 (x4 models AGREE EVERY)
+/// the vendor printer KEEPS the RZ glyph visible exactly when the addr-scale
+/// window [79:78] is non-zero: "[RZ.X4+UR4+0x55]", negative offset keeps the
+/// "+-0x" glyph. scale==0 (or any inert-only flip) delegates to
+/// format_auri_uronly above byte-for-byte -- every pre-existing text and pin
+/// rides the legacy path.
+fn format_sts_auri_addr(fields: &[&DecodedField], raw: u128) -> String {
+    let mut scale: u64 = 0;
+    for f in fields {
+        if norm_ext(&f.extraction) == "addr_scale" {
+            scale = f.value;
+        }
+    }
+    if scale == 0 {
+        return format_auri_uronly(fields, raw);
+    }
+    let sfx = match scale {
+        1 => ".X4",
+        2 => ".X8",
+        _ => ".X16",
+    };
+    let mut ur_reg: Option<u64> = None;
+    let mut ur_wide = false;
+    let mut offset: i64 = 0;
+    let mut has_off = false;
+    for f in fields {
+        let e = norm_ext(&f.extraction);
+        match e.as_str() {
+            "sub_ur0" | "sub_ur1" | "ureg" => {
+                ur_reg = Some(f.value);
+                ur_wide = f.bits >= 8;
+            }
+            "sub_ur0_shr1" | "sub_ur1_shr1" => ur_reg = Some(f.value << 1),
+            s if s.starts_with("sub_imm") => {
+                offset |= sub_imm_off(s, f.value, f.bits);
+                has_off = true;
+            }
+            "imm" if f.bits >= 8 => {
+                offset = sign_extend(f.value, f.bits);
+                has_off = true;
+            }
+            _ => {}
+        }
+    }
+    let un = ur_reg.unwrap_or(255);
+    let ur_s = if un == 255 || (un == 63 && !ur_wide) {
+        "URZ".to_string()
+    } else {
+        format!("UR{un}")
+    };
+    let off_s = if has_off && offset != 0 {
+        if offset < 0 {
+            format!("+-0x{:x}", (-offset) as u64)
+        } else {
+            format!("+0x{offset:x}")
+        }
+    } else {
+        String::new()
+    };
+    format!("[RZ{sfx}+{ur_s}{off_s}]")
+}
+
 // ── SYNCS ARURI — plain uniform-datapath address (BUG-154) ──────────────────
 // Format: [Rn+URm+0xoff]; UR window is 8-bit @64 with 0xff = URZ (printed
 // explicitly, nvdisasm-parity), base Rn always present in these rows.
@@ -3173,8 +3283,13 @@ fn format_sts_lds_addr(fields: &[&DecodedField], raw: u128) -> String {
     let mut base_reg: Option<u64> = None;
     let mut ur_reg: Option<u64> = None;
     let mut ur_wide = false; // pole ureg/sub_ur* o >= 8 bitach: 63 = UR63 (realny)
+    let mut ur_bits: Option<u32> = None;
     let mut offset: i64 = 0;
     let mut has_off = false;
+    // BUG-420: the LDS addr-scale window [79:78] (arb420 law x4 uniform:
+    // b78=.X4 b79=.X8 both=.X16 on every width carrier x UR-frame; grafted
+    // as an addr_scale field on LDS_R_ARURI / LDS_R_AURI rows).
+    let mut scale: u64 = 0;
     // BUG-399v2: the vendor '+-0x' glyph law (arb399a x4 AGREE) is measured
     // ONLY for the 24-bit SIGNED offset window [63:40] (sub_imm1 24b rows).
     // Narrower imm windows (sm121a dedicated STS.U8/LDS.128-II rows, 1..21b)
@@ -3196,6 +3311,7 @@ fn format_sts_lds_addr(fields: &[&DecodedField], raw: u128) -> String {
             "sub_ur0" | "sub_ur1" | "ureg" => {
                 ur_reg = Some(f.value);
                 ur_wide = f.bits >= 8;
+                ur_bits = Some(f.bits);
             }
             "sub_ur0_shr1" | "sub_ur1_shr1" => ur_reg = Some(f.value << 1),
             s if s.starts_with("sub_imm") => {
@@ -3210,6 +3326,7 @@ fn format_sts_lds_addr(fields: &[&DecodedField], raw: u128) -> String {
                 has_off = offset != 0;
                 off_win24 = f.bits == 24;
             }
+            "addr_scale" => scale = f.value,
             _ => {}
         }
     }
@@ -3237,36 +3354,67 @@ fn format_sts_lds_addr(fields: &[&DecodedField], raw: u128) -> String {
     } else {
         format!("R{rn}")
     };
+    // BUG-420: with a live scale the base glyph stays visible -- vendor
+    // prints "[RZ.X4+UR4+off]" (arb420 f3/f2, x4 AGREE), i.e. the silent-RZ
+    // elision below pins ONLY for scale==0. Scale=0 reproduces the historic
+    // text byte-for-byte on every pre-existing entry.
+    let sfx = match scale {
+        1 => ".X4",
+        2 => ".X8",
+        3 => ".X16",
+        _ => "",
+    };
+    let keep_rz = !sfx.is_empty();
     let un = ur_reg.unwrap_or(63);
-    let ur_s = if un == 63 && !ur_wide {
-        "URZ".to_string()
-    } else {
-        format!("UR{un}")
+    // BUG-412: width-aware URZ law on the shared-bracket UR window
+    // (arb412 96 sond + arb412b 40 rz-sond + arb399a 60 komorek, nvdisasm
+    // 13.3.73 raw -b, x4 modele AGREE EVERY / DIVERGENT=0): the printed
+    // numeral is the LOW 8 bits of the window and all-ones (0xff) IS the
+    // URZ sink. The STS 9-bit window's b72 is print-inert (0x100+v prints
+    // "UR{v}", e.g. 0x17e -> "UR126", 0x1ff -> "URZ"). Vendor prints the
+    // numerals 0..254 literally (UR63/UR64/UR127/UR128/UR254 anchors).
+    // Narrow (<8-bit) windows keep the historical 63 = URZ convention.
+    let ur_s = match ur_bits {
+        Some(b) if b >= 8 => {
+            let lo = un & 0xFF;
+            if lo == 0xFF {
+                "URZ".to_string()
+            } else {
+                format!("UR{lo}")
+            }
+        }
+        _ => {
+            if un == 63 && !ur_wide {
+                "URZ".to_string()
+            } else {
+                format!("UR{un}")
+            }
+        }
     };
 
     // No UR component at all -> print base only ("[RZ]", "[R10]", "[R66+0x80]").
     if ur_reg.is_none() {
         if has_off && offset != 0 {
             let off_s = neg_off_glyph(offset, off_win24);
-            return format!("[{reg_s}{off_s}]");
+            return format!("[{reg_s}{sfx}{off_s}]");
         }
-        return format!("[{reg_s}]");
+        return format!("[{reg_s}{sfx}]");
     }
 
     if has_off && offset != 0 {
         let off_s = neg_off_glyph(offset, off_win24);
-        if rn == 255 {
+        if rn == 255 && !keep_rz {
             // nvdisasm never prints "[RZ+UR…]" — RZ is a silent sink in addresses:
             // "[UR63]", "[UR63+0x10]".
             format!("[{ur_s}{off_s}]")
         } else {
-            format!("[{reg_s}+{ur_s}{off_s}]")
+            format!("[{reg_s}{sfx}+{ur_s}{off_s}]")
         }
     } else {
-        if rn == 255 {
+        if rn == 255 && !keep_rz {
             return format!("[{ur_s}]");
         }
-        format!("[{reg_s}+{ur_s}]")
+        format!("[{reg_s}{sfx}+{ur_s}]")
     }
 }
 

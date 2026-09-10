@@ -242,10 +242,12 @@ fn t406_3_mint_circle() {
     );
 }
 
-/// t405_6: postures for the DELIBERATELY untouched pre-existing classes
-/// (417-kand: HADD2 b64/b84/tok2-sign windows; 261-latent tok2 hsel on the
-/// 406 rows). Pinned to the CURRENT engine behavior as a drift tripwire;
-/// any change here must come with its own measured bugfix.
+/// t405_6: postures for the DELIBERATELY untouched pre-existing classes.
+/// [417 F2-iter226]: the 24 originally-pinned cells (417-kand + 261-latent)
+/// are CLOSED by the BUG-417 graft -- their expected text is now the VENDOR
+/// text (tags '417-closed' in bug405_406_data.inc; machine-verified ==
+/// vendor by gen417pins.py; the remaining untouched classes moved to
+/// POSTURE417_419 in bug417_data.inc).
 #[test]
 fn t405_6_untouched_postures() {
     for (w, tag, leg, ven, post, src) in POSTURE405_6 {

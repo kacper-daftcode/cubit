@@ -37,9 +37,15 @@ fn dec(word: u128) -> String {
 /// (bits 78/79 = 0; word verified with an nvdisasm probe on the rt98_pub.cubin clone).
 const GOLD: &[(u128, &str)] = &[
     (0x001be4000000cc00000000c805007388, "STS.128 [R5.X16], R200"),
-    (0x000be4000000cc00000010cc05007388, "STS.128 [R5.X16+0x10], R204"),
+    (
+        0x000be4000000cc00000010cc05007388,
+        "STS.128 [R5.X16+0x10], R204",
+    ),
     (0x001be4000000cc000000001c1b007388, "STS.128 [R27.X16], R28"),
-    (0x000be4000000cc00000010201b007388, "STS.128 [R27.X16+0x10], R32"),
+    (
+        0x000be4000000cc00000010201b007388,
+        "STS.128 [R27.X16+0x10], R32",
+    ),
     (0x001be40000000c00000000c805007388, "STS.128 [R5], R200"),
 ];
 
@@ -49,7 +55,11 @@ fn bug014_gold_decode_and_reencode_byte_exact() {
         assert_eq!(&dec(*word), text, "render differs for {word:#034x}");
         let insn = parse_sass(text, 0).unwrap();
         let code = encode_instruction(&insn, &t120()).unwrap();
-        assert_eq!(code & !SCHED, word & !SCHED, "re-encode differs for {text:?}");
+        assert_eq!(
+            code & !SCHED,
+            word & !SCHED,
+            "re-encode differs for {text:?}"
+        );
     }
 }
 
@@ -57,7 +67,11 @@ fn bug014_gold_decode_and_reencode_byte_exact() {
 fn bug014_x16_suffix_no_longer_dropped() {
     let plain = enc("STS.128 [R5], R200").unwrap();
     let x16 = enc("STS.128 [R5.X16], R200").unwrap();
-    assert_ne!(plain & !SCHED, x16 & !SCHED, "X16 suffix must change the word");
+    assert_ne!(
+        plain & !SCHED,
+        x16 & !SCHED,
+        "X16 suffix must change the word"
+    );
     assert_eq!((x16 >> 78) & 3, 3, "X16 = addr_scale 3");
     assert_eq!((plain >> 78) & 3, 0);
     let x4 = enc("STS.128 [R5.X4], R200").unwrap();
@@ -69,10 +83,22 @@ fn bug014_x16_suffix_no_longer_dropped() {
 
 #[test]
 fn bug014_suffix_on_row_without_field_fails_closed() {
-    // STS.64 has no addr_scale field in the table (no golden coverage): the suffix
-    // must fail LOUDLY, not silently end up as a scale=0 word.
-    let e = enc("STS.64 [R4.X8], R8").expect_err("unsupported suffix must refuse");
-    assert!(e.contains("addr scale suffix"), "completeness must name it: {e}");
+    // FLIP F2-iter238 (BUG-425 graft, canonical 52cb73c, z atrybucja): the
+    // "no golden coverage" rationale is obsolete -- arb425 measured the
+    // scale window vendor-legal on every STS carrier x frame x4 models
+    // ([79:78] UNIFORM, incl STS.64: b79=.X8). The suffix mints now
+    // (was: fail-closed without an addr_scale field). The word below is
+    // the measured arb425 law geometry (b79 set, STS_ARI_R|64 claim).
+    let w = enc("STS.64 [R4.X8], R8").expect("STS.64 .X8 mints post-BUG-425");
+    assert_eq!((w >> 79) & 1, 1, "X8 = addr_scale 2 (b79)");
+    assert_eq!((w >> 78) & 1, 0, "single-width scale");
+    assert_eq!(
+        dec(w),
+        "STS.64 [R4.X8], R8",
+        "reprint must carry the suffix"
+    );
+    // The loud path survives on non-STS rows without the field: e.g. UHADD
+    // has no addr_scale anywhere; a scale token must still refuse, not drop.
 }
 
 #[test]

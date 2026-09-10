@@ -26437,9 +26437,513 @@
        "extraction": "f16",
        "shift": 32,
        "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
       }
      ],
-     "variable_mask": "0x000022000000000083808380001ff000"
+     "variable_mask": "0x000000220003de90ff83808380001ff000"
+    },
+    "SAT": {
+     "and_base": "0x00000fc400000029003c003c00ff000430",
+     "variable_mask": "0x000000220003de90ff83808380001ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 26,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "f16_d",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "2c",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2e",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      }
+     ],
+     "count": null
+    },
+    "FTZ": {
+     "and_base": "0x00000fc400000109003c003c00ff000430",
+     "variable_mask": "0x000000220003de90ff83808380001ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 26,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "f16_d",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "2c",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2e",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      }
+     ],
+     "count": null
+    },
+    "BF16_V2": {
+     "and_base": "0x00000fc400002009003c003c00ff000430",
+     "variable_mask": "0x000000220003de90ff83808380001ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 26,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "2c",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2e",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      }
+     ],
+     "count": null
+    },
+    "FTZ,SAT": {
+     "and_base": "0x00000fc400000129003c003c00ff000430",
+     "variable_mask": "0x000000220003de90ff83808380001ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 26,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "f16_d",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "2c",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2e",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      }
+     ],
+     "count": null
+    },
+    "BF16_V2,SAT": {
+     "and_base": "0x00000fc400002029003c003c00ff000430",
+     "variable_mask": "0x000000220003de90ff83808380001ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 26,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "2c",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2e",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      }
+     ],
+     "count": null
+    },
+    "BF16_V2,FTZ": {
+     "and_base": "0x00000fc400002109003c003c00ff000430",
+     "variable_mask": "0x000000220003de90ff83808380001ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 26,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "2c",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2e",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      }
+     ],
+     "count": null
+    },
+    "BF16_V2,FTZ,SAT": {
+     "and_base": "0x00000fc400002129003c003c00ff000430",
+     "variable_mask": "0x000000220003de90ff83808380001ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 26,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "2c",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2e",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      }
+     ],
+     "count": null
     }
    },
    "operand_sig": "R_R_FI_FI",
@@ -26743,9 +27247,23 @@
        "shift": 84,
        "token_idx": 5,
        "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
       }
      ],
-     "variable_mask": "0x07f03e00000000ff000000007f7ff000"
+     "variable_mask": "0x0007f03e00000000ff000000007f7ff000"
     },
     "BF16_V2": {
      "and_base": "0x000fc000002000003f803f8000000831",
@@ -26812,9 +27330,2580 @@
        "shift": 84,
        "token_idx": 5,
        "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
       }
      ],
-     "variable_mask": "0x07f03e00000000ff000000007f7ff000"
+     "variable_mask": "0x0007f03e00000000ff000000007f7ff000"
+    },
+    "FMZ": {
+     "and_base": "0x00000fc000000010003c003c0000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00000000ff000000007f7ff000"
+    },
+    "SAT": {
+     "and_base": "0x00000fc000000020003c003c0000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000"
+    },
+    "FTZ": {
+     "and_base": "0x00000fc000000100003c003c0000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00000000ff000000007f7ff000"
+    },
+    "OOB": {
+     "and_base": "0x00000fc000000110003c003c0000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00000000ff000000007f7ff000"
+    },
+    "FMZ,SAT": {
+     "and_base": "0x00000fc000000030003c003c0000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000"
+    },
+    "FTZ,SAT": {
+     "and_base": "0x00000fc000000120003c003c0000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000"
+    },
+    "OOB,SAT": {
+     "and_base": "0x00000fc000000130003c003c0000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000"
+    },
+    "F32": {
+     "and_base": "0x00000fc000000040003c003c0000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000"
+    },
+    "F32,SAT": {
+     "and_base": "0x00000fc000000060003c003c0000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000"
+    },
+    "F32,FMZ": {
+     "and_base": "0x00000fc000000050003c003c0000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000"
+    },
+    "F32,FTZ": {
+     "and_base": "0x00000fc000000140003c003c0000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000"
+    },
+    "F32,FMZ,SAT": {
+     "and_base": "0x00000fc000000070003c003c0000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000"
+    },
+    "RELU": {
+     "and_base": "0x00000fc000000080003c003c0000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "encode_only": true
+    },
+    "FMZ,RELU": {
+     "and_base": "0x00000fc000000090003c003c0000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "encode_only": true
+    },
+    "FTZ,RELU": {
+     "and_base": "0x00000fc000000180003c003c0000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "encode_only": true
+    },
+    "OOB,RELU": {
+     "and_base": "0x00000fc000000190003c003c0000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "encode_only": true
+    },
+    "F32,RELU": {
+     "and_base": "0x00000fc0000000c0003c003c0000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "encode_only": true
+    },
+    "F32,FTZ,RELU": {
+     "and_base": "0x00000fc0000001c0003c003c0000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "encode_only": true
+    },
+    "BF16_V2,RELU": {
+     "and_base": "0x00000fc000002080003f803f8000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "encode_only": true
+    },
+    "BF16_V2,FMZ,RELU": {
+     "and_base": "0x00000fc000002090003f803f8000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "encode_only": true
+    },
+    "BF16_V2,FTZ,RELU": {
+     "and_base": "0x00000fc000002180003f803f8000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "encode_only": true
+    },
+    "BF16_V2,OOB,RELU": {
+     "and_base": "0x00000fc000002190003f803f8000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "encode_only": true
+    },
+    "BF16_V2,FMZ": {
+     "and_base": "0x00000fc000002010003f803f8000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00000000ff000000007f7ff000"
+    },
+    "BF16_V2,SAT": {
+     "and_base": "0x00000fc000002020003f803f8000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000"
+    },
+    "BF16_V2,FTZ": {
+     "and_base": "0x00000fc000002100003f803f8000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00000000ff000000007f7ff000"
+    },
+    "BF16_V2,OOB": {
+     "and_base": "0x00000fc000002110003f803f8000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00000000ff000000007f7ff000"
+    },
+    "BF16_V2,FMZ,SAT": {
+     "and_base": "0x00000fc000002030003f803f8000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000"
+    },
+    "BF16_V2,FTZ,SAT": {
+     "and_base": "0x00000fc000002120003f803f8000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000"
+    },
+    "BF16_V2,OOB,SAT": {
+     "and_base": "0x00000fc000002130003f803f8000000831",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000"
     }
    },
    "operand_sig": "R_R_FI_FI_R",
@@ -52285,7 +55374,7 @@
        "token_idx": 2
       }
      ],
-     "variable_mask": "0x15200000000000801f700003f7000"
+     "variable_mask": "0x15200000000000801f720003f7000"
     },
     "S8": {
      "and_base": "0x000e20000000020000000880ff000b82",
@@ -52439,39 +55528,32 @@
      "variable_mask": "0x002fce000000000001c00000ff3e0000"
     },
     "S16": {
-     "_src": "bug172-2026-08-26",
+     "_src": "bug418-2026-09-08",
      "and_base": "0x2000000006000000000000007b82",
      "fields": [
       {
-       "_src": "bug172-2026-08-26",
+       "_src": "2aE",
        "bits": 8,
        "extraction": "reg",
        "shift": 16,
        "token_idx": 1
       },
       {
-       "_src": "bug172-2026-08-26",
-       "bits": 19,
-       "extraction": "sub_imm0",
-       "shift": 54,
-       "token_idx": 2
-      },
-      {
-       "_src": "bug172-2026-08-26",
+       "_src": "2aE",
        "bits": 8,
        "extraction": "sub_r1",
        "shift": 24,
        "token_idx": 2
       },
       {
-       "_src": "bug172-2026-08-26",
-       "bits": 22,
-       "extraction": "sub_imm2",
-       "shift": 32,
+       "_src": "bug162-2026-08-25",
+       "bits": 21,
+       "extraction": "cm16_off",
+       "shift": 38,
        "token_idx": 2
       }
      ],
-     "variable_mask": "0x002fce000000000001c00000ff3e0000"
+     "variable_mask": "0x2fce00000001fff9c0003fff3e0000"
     },
     "S8": {
      "_src": "bug175-2026-08-26",
@@ -60889,6 +63971,450 @@
       }
      ],
      "variable_mask": "0x000fce000000000000f80000bffc0000"
+    },
+    "16,MT88": {
+     "and_base": "0x4000000000000000783b",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xfce000000000000f80000bffc0000",
+     "_src": "bug429-2026-09-09",
+     "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+    },
+    "16,2,MT88": {
+     "and_base": "0x4100000000000000783b",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xfce000000000000f80000bffc0000",
+     "_src": "bug429-2026-09-09",
+     "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+    },
+    "16,4,MT88": {
+     "and_base": "0x4200000000000000783b",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xfce000000000000f80000bffc0000",
+     "_src": "bug429-2026-09-09",
+     "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+    },
+    "16,M816": {
+     "and_base": "0x8000000000000000783b",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xfce000000000000f80000bffc0000",
+     "_src": "bug429-2026-09-09",
+     "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+    },
+    "16,2,M816": {
+     "and_base": "0x8100000000000000783b",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xfce000000000000f80000bffc0000",
+     "_src": "bug429-2026-09-09",
+     "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+    },
+    "16,4,M816": {
+     "and_base": "0x8200000000000000783b",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xfce000000000000f80000bffc0000",
+     "_src": "bug429-2026-09-09",
+     "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+    },
+    "16,M832": {
+     "and_base": "0xc000000000000000783b",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xfce000000000000f80000bffc0000",
+     "_src": "bug429-2026-09-09",
+     "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+    },
+    "16,2,M832": {
+     "and_base": "0xc100000000000000783b",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xfce000000000000f80000bffc0000",
+     "_src": "bug429-2026-09-09",
+     "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+    },
+    "16,4,M832": {
+     "and_base": "0xc200000000000000783b",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xfce000000000000f80000bffc0000",
+     "_src": "bug429-2026-09-09",
+     "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+    },
+    "16,MT1616": {
+     "and_base": "0x10000000000000000783b",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xfce000000000000f80000bffc0000",
+     "_src": "bug429-2026-09-09",
+     "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+    },
+    "16,2,MT1616": {
+     "and_base": "0x10100000000000000783b",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xfce000000000000f80000bffc0000",
+     "_src": "bug429-2026-09-09",
+     "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+    },
+    "16,4,MT1616": {
+     "and_base": "0x10200000000000000783b",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xfce000000000000f80000bffc0000",
+     "_src": "bug429-2026-09-09",
+     "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
     }
    },
    "operand_sig": "R_ARI",
@@ -61028,9 +64554,1105 @@
       }
      ],
      "variable_mask": "0x01fffe000000000001fc001ffffc0000"
+    },
+    "16,M816": {
+     "and_base": "0x8008000000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+     "_src": "bug421422-2026-09-09",
+     "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). Donor geometry 16,M88; enum/count pinned via care; vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+    },
+    "16,2,M816": {
+     "and_base": "0x8008100000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+     "_src": "bug421422-2026-09-09",
+     "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). Donor geometry 16,M88; enum/count pinned via care; vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+    },
+    "16,4,M816": {
+     "and_base": "0x8008200000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+     "_src": "bug421422-2026-09-09",
+     "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). Donor geometry 16,M88; enum/count pinned via care; vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+    },
+    "16,M832": {
+     "and_base": "0x800c000000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+     "_src": "bug421422-2026-09-09",
+     "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). Donor geometry 16,M88; enum/count pinned via care; vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+    },
+    "16,MT1616": {
+     "and_base": "0x8010000000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+     "_src": "bug421422-2026-09-09",
+     "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). Donor geometry 16,M88; enum/count pinned via care; vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+    },
+    "16,2,MT1616": {
+     "and_base": "0x8010100000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+     "_src": "bug421422-2026-09-09",
+     "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). Donor geometry 16,M88; enum/count pinned via care; vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+    },
+    "16,4,MT1616": {
+     "and_base": "0x8010200000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+     "_src": "bug421422-2026-09-09",
+     "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). Donor geometry 16,M88; enum/count pinned via care; vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+    },
+    "16,2,M88": {
+     "and_base": "0x8000100000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug424-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug424-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "bug424-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug424-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug424-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+     "_src": "bug424-2026-09-09",
+     "_note": "BUG-424: LDSM ARURI-frame sparse enum/count closure (arb424 law, 68 probes nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0: full enum x count matrix uniform on the R+UR shared-bracket frame; .2=b72 legal x4 for M88/MT88 here, MT88 plain legal x4). Donor geometry 16,M88 verbatim (fields deep-copied), and_base |= measured delta, vm verbatim, count=None. INVALID3/INVALID5/6/7 loud glyphs and the M832-count construct cells stay unclaimed (426-scope contract); 423-era [R0+UR4] singles UNTOUCHED."
+    },
+    "16,MT88": {
+     "and_base": "0x8004000000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug424-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug424-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "bug424-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug424-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug424-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+     "_src": "bug424-2026-09-09",
+     "_note": "BUG-424: LDSM ARURI-frame sparse enum/count closure (arb424 law, 68 probes nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0: full enum x count matrix uniform on the R+UR shared-bracket frame; .2=b72 legal x4 for M88/MT88 here, MT88 plain legal x4). Donor geometry 16,M88 verbatim (fields deep-copied), and_base |= measured delta, vm verbatim, count=None. INVALID3/INVALID5/6/7 loud glyphs and the M832-count construct cells stay unclaimed (426-scope contract); 423-era [R0+UR4] singles UNTOUCHED."
+    },
+    "16,2,MT88": {
+     "and_base": "0x8004100000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug424-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug424-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "bug424-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug424-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug424-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+     "_src": "bug424-2026-09-09",
+     "_note": "BUG-424: LDSM ARURI-frame sparse enum/count closure (arb424 law, 68 probes nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0: full enum x count matrix uniform on the R+UR shared-bracket frame; .2=b72 legal x4 for M88/MT88 here, MT88 plain legal x4). Donor geometry 16,M88 verbatim (fields deep-copied), and_base |= measured delta, vm verbatim, count=None. INVALID3/INVALID5/6/7 loud glyphs and the M832-count construct cells stay unclaimed (426-scope contract); 423-era [R0+UR4] singles UNTOUCHED."
+    },
+    "16,2,M832": {
+     "and_base": "0x800c100000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug426-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug426-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "bug426-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug426-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug426-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+     "_src": "bug426-2026-09-09",
+     "_note": "BUG-426: LDSM M832 count closure (.2=b72/.4=b73) on the shared-bracket frames (arb426 66 probes + arb424 parity xchk, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0). Donor = frame-own 16,M832 verbatim (fields deep-copied), and_base |= measured count delta, vm verbatim, count=None. INVALID3/INVALID5/6/7 loud glyphs stay unclaimed; 429 ARI enum/count census NOT grafted (registration only); 423-era singles UNTOUCHED."
+    },
+    "16,4,M832": {
+     "and_base": "0x800c200000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug426-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug426-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "bug426-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug426-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug426-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+     "_src": "bug426-2026-09-09",
+     "_note": "BUG-426: LDSM M832 count closure (.2=b72/.4=b73) on the shared-bracket frames (arb426 66 probes + arb424 parity xchk, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0). Donor = frame-own 16,M832 verbatim (fields deep-copied), and_base |= measured count delta, vm verbatim, count=None. INVALID3/INVALID5/6/7 loud glyphs stay unclaimed; 429 ARI enum/count census NOT grafted (registration only); 423-era singles UNTOUCHED."
     }
    },
    "operand_sig": "R_ARURI",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   }
+  },
+  "LDSM_R_AURI": {
+   "base_op": "LDSM",
+   "mod_groups": {
+    "16,M88": {
+     "and_base": "0x800000000000000ff00083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug413ii-2026-09-08"
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x1fffe00000000000000000000000000",
+     "_src": "bug413ii-2026-09-08",
+     "_note": "BUG-413(ii): LDSM AURI row (RZ-baked sub_r0 0xff@24 in care, AURI-ized donor clone of LDSM_R_ARURI|16,M88 x4-identical, asserted; arb413/arb413b law x4 AGREE EVERY). Mod-enum [80:78] + numbered b72/b73 per measured law; INVALID3/5/6/7 and b75/76/77-kill words stay unclaimed."
+    },
+    "16,2,M88": {
+     "and_base": "0x800010000000000ff00083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug413ii-2026-09-08"
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x1fffe00000000000000000000000000",
+     "_src": "bug413ii-2026-09-08",
+     "_note": "BUG-413(ii): LDSM AURI row (RZ-baked sub_r0 0xff@24 in care, AURI-ized donor clone of LDSM_R_ARURI|16,M88 x4-identical, asserted; arb413/arb413b law x4 AGREE EVERY). Mod-enum [80:78] + numbered b72/b73 per measured law; INVALID3/5/6/7 and b75/76/77-kill words stay unclaimed."
+    },
+    "16,4,M88": {
+     "and_base": "0x800020000000000ff00083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug413ii-2026-09-08"
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x1fffe00000000000000000000000000",
+     "_src": "bug413ii-2026-09-08",
+     "_note": "BUG-413(ii): LDSM AURI row (RZ-baked sub_r0 0xff@24 in care, AURI-ized donor clone of LDSM_R_ARURI|16,M88 x4-identical, asserted; arb413/arb413b law x4 AGREE EVERY). Mod-enum [80:78] + numbered b72/b73 per measured law; INVALID3/5/6/7 and b75/76/77-kill words stay unclaimed."
+    },
+    "16,MT88": {
+     "and_base": "0x800400000000000ff00083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug413ii-2026-09-08"
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x1fffe00000000000000000000000000",
+     "_src": "bug413ii-2026-09-08",
+     "_note": "BUG-413(ii): LDSM AURI row (RZ-baked sub_r0 0xff@24 in care, AURI-ized donor clone of LDSM_R_ARURI|16,M88 x4-identical, asserted; arb413/arb413b law x4 AGREE EVERY). Mod-enum [80:78] + numbered b72/b73 per measured law; INVALID3/5/6/7 and b75/76/77-kill words stay unclaimed."
+    },
+    "16,2,MT88": {
+     "and_base": "0x800410000000000ff00083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug413ii-2026-09-08"
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x1fffe00000000000000000000000000",
+     "_src": "bug413ii-2026-09-08",
+     "_note": "BUG-413(ii): LDSM AURI row (RZ-baked sub_r0 0xff@24 in care, AURI-ized donor clone of LDSM_R_ARURI|16,M88 x4-identical, asserted; arb413/arb413b law x4 AGREE EVERY). Mod-enum [80:78] + numbered b72/b73 per measured law; INVALID3/5/6/7 and b75/76/77-kill words stay unclaimed."
+    },
+    "16,4,MT88": {
+     "and_base": "0x800420000000000ff00083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug413ii-2026-09-08"
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x1fffe00000000000000000000000000",
+     "_src": "bug413ii-2026-09-08",
+     "_note": "BUG-413(ii): LDSM AURI row (RZ-baked sub_r0 0xff@24 in care, AURI-ized donor clone of LDSM_R_ARURI|16,M88 x4-identical, asserted; arb413/arb413b law x4 AGREE EVERY). Mod-enum [80:78] + numbered b72/b73 per measured law; INVALID3/5/6/7 and b75/76/77-kill words stay unclaimed."
+    },
+    "16,M816": {
+     "and_base": "0x800800000000000ff00083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe00000000000000000000000000",
+     "_src": "bug421422-2026-09-09",
+     "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). AURI-ized clone per the 413ii convention (sub_r0 0xff@24 baked into care); vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+    },
+    "16,2,M816": {
+     "and_base": "0x800810000000000ff00083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe00000000000000000000000000",
+     "_src": "bug421422-2026-09-09",
+     "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). AURI-ized clone per the 413ii convention (sub_r0 0xff@24 baked into care); vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+    },
+    "16,4,M816": {
+     "and_base": "0x800820000000000ff00083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe00000000000000000000000000",
+     "_src": "bug421422-2026-09-09",
+     "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). AURI-ized clone per the 413ii convention (sub_r0 0xff@24 baked into care); vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+    },
+    "16,M832": {
+     "and_base": "0x800c00000000000ff00083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe00000000000000000000000000",
+     "_src": "bug421422-2026-09-09",
+     "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). AURI-ized clone per the 413ii convention (sub_r0 0xff@24 baked into care); vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+    },
+    "16,MT1616": {
+     "and_base": "0x801000000000000ff00083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe00000000000000000000000000",
+     "_src": "bug421422-2026-09-09",
+     "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). AURI-ized clone per the 413ii convention (sub_r0 0xff@24 baked into care); vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+    },
+    "16,2,MT1616": {
+     "and_base": "0x801010000000000ff00083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe00000000000000000000000000",
+     "_src": "bug421422-2026-09-09",
+     "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). AURI-ized clone per the 413ii convention (sub_r0 0xff@24 baked into care); vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+    },
+    "16,4,MT1616": {
+     "and_base": "0x801020000000000ff00083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe00000000000000000000000000",
+     "_src": "bug421422-2026-09-09",
+     "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). AURI-ized clone per the 413ii convention (sub_r0 0xff@24 baked into care); vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+    },
+    "16,2,M832": {
+     "and_base": "0x800c10000000000ff00083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug426-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug426-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug426-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug426-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe00000000000000000000000000",
+     "_src": "bug426-2026-09-09",
+     "_note": "BUG-426: LDSM M832 count closure (.2=b72/.4=b73) on the shared-bracket frames (arb426 66 probes + arb424 parity xchk, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0). Donor = frame-own 16,M832 verbatim (fields deep-copied), and_base |= measured count delta, vm verbatim, count=None. INVALID3/INVALID5/6/7 loud glyphs stay unclaimed; 429 ARI enum/count census NOT grafted (registration only); 423-era singles UNTOUCHED."
+    },
+    "16,4,M832": {
+     "and_base": "0x800c20000000000ff00083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug426-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug426-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug426-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug426-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe00000000000000000000000000",
+     "_src": "bug426-2026-09-09",
+     "_note": "BUG-426: LDSM M832 count closure (.2=b72/.4=b73) on the shared-bracket frames (arb426 66 probes + arb424 parity xchk, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0). Donor = frame-own 16,M832 verbatim (fields deep-copied), and_base |= measured count delta, vm verbatim, count=None. INVALID3/INVALID5/6/7 loud glyphs stay unclaimed; 429 ARI enum/count census NOT grafted (registration only); 423-era singles UNTOUCHED."
+    }
+   },
+   "operand_sig": "R_AURI",
    "scheduling": {
     "def_latency": 1,
     "is_variable_latency": false,
@@ -61072,9 +65694,18 @@
        "extraction": "sub_imm1",
        "shift": 40,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 2,
+       "_src": "bug420-2026-09-09",
+       "_note": "BUG-420: LDS addr-scale window [79:78] -- arb420 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/AURI/ARURI/era-AR; template canon LDS_R_ARI|128 from BUG-038/094). Closes fail-closed .X4 mint cordon (encoder arm pre-existing)."
       }
      ],
-     "variable_mask": "0x03fffe0000000000fffffc00fffff000"
+     "variable_mask": "0x3fffe0000013100fffffc00fffff000",
+     "_src420": "bug420-2026-09-09"
     },
     "128": {
      "and_base": "0x0000000000000c000000000000000984",
@@ -61116,7 +65747,8 @@
        "token_idx": 2
       }
      ],
-     "variable_mask": "0x03fffe0000000000fffff000fffcf000"
+     "variable_mask": "0x3fffe0000013100fffff000fffcf000",
+     "_src420": "bug420-2026-09-09"
     },
     "64": {
      "and_base": "0x0000000000000a000000000000000984",
@@ -61158,7 +65790,8 @@
        "token_idx": 2
       }
      ],
-     "variable_mask": "0x03fffe0000000000fffff800fffef000"
+     "variable_mask": "0x3fffe0000013100fffff800fffef000",
+     "_src420": "bug420-2026-09-09"
     },
     "S8": {
      "and_base": "0x00002000000002000000000000000984",
@@ -61190,9 +65823,18 @@
        "extraction": "sub_imm1",
        "shift": 40,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 2,
+       "_src": "bug420-2026-09-09",
+       "_note": "BUG-420: LDS addr-scale window [79:78] -- arb420 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/AURI/ARURI/era-AR; template canon LDS_R_ARI|128 from BUG-038/094). Closes fail-closed .X4 mint cordon (encoder arm pre-existing)."
       }
      ],
-     "variable_mask": "0x01ffce0000000000000000007f7ff000"
+     "variable_mask": "0x1ffce0000013100000000007f7ff000",
+     "_src420": "bug420-2026-09-09"
     },
     "U16": {
      "and_base": "0x00002000000004000000000000000984",
@@ -61224,9 +65866,18 @@
        "extraction": "sub_imm1",
        "shift": 40,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 2,
+       "_src": "bug420-2026-09-09",
+       "_note": "BUG-420: LDS addr-scale window [79:78] -- arb420 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/AURI/ARURI/era-AR; template canon LDS_R_ARI|128 from BUG-038/094). Closes fail-closed .X4 mint cordon (encoder arm pre-existing)."
       }
      ],
-     "variable_mask": "0x03ffde0000000000fffffe007f7ff000"
+     "variable_mask": "0x3ffde0000013100fffffe007f7ff000",
+     "_src420": "bug420-2026-09-09"
     },
     "U8": {
      "and_base": "0x00002000000000000000000000000984",
@@ -61258,9 +65909,63 @@
        "extraction": "sub_imm1",
        "shift": 40,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 2,
+       "_src": "bug420-2026-09-09",
+       "_note": "BUG-420: LDS addr-scale window [79:78] -- arb420 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/AURI/ARURI/era-AR; template canon LDS_R_ARI|128 from BUG-038/094). Closes fail-closed .X4 mint cordon (encoder arm pre-existing)."
       }
      ],
-     "variable_mask": "0x03ffce000000000000ffff007f7ff000"
+     "variable_mask": "0x3ffce000001310000ffff007f7ff000",
+     "_src420": "bug420-2026-09-09"
+    },
+    "S16": {
+     "and_base": "0x2000000006000000000000000984",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug427-2026-09-09"
+      },
+      {
+       "_src": "bug427-2026-09-09",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug427-2026-09-09",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug427-2026-09-09",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 2,
+       "_src": "bug427-2026-09-09",
+       "_note": "BUG-420: LDS addr-scale window [79:78] -- arb420 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/AURI/ARURI/era-AR; template canon LDS_R_ARI|128 from BUG-038/094). Closes fail-closed .X4 mint cordon (encoder arm pre-existing)."
+      }
+     ],
+     "variable_mask": "0x3ffde0000013100fffffe007f7ff000",
+     "_src": "bug427-2026-09-09",
+     "_note": "BUG-427: LDS.S16 on the frame + S16 addr-scale closure (arb427 43 probes, donor-clone construction [opex lesson], nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0). Donor = frame-own U16 verbatim (fields deep-copied incl the 420 addr_scale arm), and_base |= measured b73 window delta, vm verbatim, count=None. Window-7 loud glyphs (423-era) stay UNTOUCHED; 429 LDSM plain-ARI census NOT grafted."
     }
    },
    "operand_sig": "R_ARI",
@@ -61312,9 +66017,18 @@
        "extraction": "sub_imm1",
        "shift": 40,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 2,
+       "_src": "bug420-2026-09-09",
+       "_note": "BUG-420: LDS addr-scale window [79:78] -- arb420 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/AURI/ARURI/era-AR; template canon LDS_R_ARI|128 from BUG-038/094). Closes fail-closed .X4 mint cordon (encoder arm pre-existing)."
       }
      ],
-     "variable_mask": "0x03fffe0000000000fffffc1ffffff000"
+     "variable_mask": "0x3fffe0000013100fffffc1ffffff000",
+     "_src420": "bug420-2026-09-09"
     },
     "128": {
      "and_base": "0x0000000008000c000000000000000984",
@@ -61353,9 +66067,18 @@
        "extraction": "sub_imm1",
        "shift": 40,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 2,
+       "_src": "bug420-2026-09-09",
+       "_note": "BUG-420: LDS addr-scale window [79:78] -- arb420 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/AURI/ARURI/era-AR; template canon LDS_R_ARI|128 from BUG-038/094). Closes fail-closed .X4 mint cordon (encoder arm pre-existing)."
       }
      ],
-     "variable_mask": "0x03fffe0000000000fffff07ffffcf000"
+     "variable_mask": "0x3fffe0000013100fffff07ffffcf000",
+     "_src420": "bug420-2026-09-09"
     },
     "64": {
      "and_base": "0x0000000008000a000000000000000984",
@@ -61394,9 +66117,18 @@
        "extraction": "sub_imm1",
        "shift": 40,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 2,
+       "_src": "bug420-2026-09-09",
+       "_note": "BUG-420: LDS addr-scale window [79:78] -- arb420 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/AURI/ARURI/era-AR; template canon LDS_R_ARI|128 from BUG-038/094). Closes fail-closed .X4 mint cordon (encoder arm pre-existing)."
       }
      ],
-     "variable_mask": "0x03fffe0000000000fffff81ffffef000"
+     "variable_mask": "0x3fffe0000013100fffff81ffffef000",
+     "_src420": "bug420-2026-09-09"
     },
     "S8": {
      "and_base": "0x00002000080002000000000000000984",
@@ -61437,9 +66169,18 @@
        "shift": 40,
        "token_idx": 2,
        "_note": "BUG-388: vendor window 24b@[40..64) SIGNED (arb388 x4 AGREE; era-decl 24b@37)"
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 2,
+       "_src": "bug420-2026-09-09",
+       "_note": "BUG-420: LDS addr-scale window [79:78] -- arb420 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/AURI/ARURI/era-AR; template canon LDS_R_ARI|128 from BUG-038/094). Closes fail-closed .X4 mint cordon (encoder arm pre-existing)."
       }
      ],
-     "variable_mask": "0x033fce00000000000000001e7f7f7000"
+     "variable_mask": "0x33fce00000131000000001e7f7f7000",
+     "_src420": "bug420-2026-09-09"
     },
     "U16": {
      "and_base": "0x000e2000080004000000000000007984",
@@ -61472,9 +66213,18 @@
        "extraction": "sub_imm1",
        "shift": 40,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 2,
+       "_src": "bug420-2026-09-09",
+       "_note": "BUG-420: LDS addr-scale window [79:78] -- arb420 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/AURI/ARURI/era-AR; template canon LDS_R_ARI|128 from BUG-038/094). Closes fail-closed .X4 mint cordon (encoder arm pre-existing)."
       }
      ],
-     "variable_mask": "0x0171ce00000000000003e01f3f3f0000"
+     "variable_mask": "0x171ce00000131000003e01f3f3f0000",
+     "_src420": "bug420-2026-09-09"
     },
     "U8": {
      "and_base": "0x000e2000080000000000000400007984",
@@ -61507,9 +66257,63 @@
        "extraction": "sub_imm1",
        "shift": 40,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 2,
+       "_src": "bug420-2026-09-09",
+       "_note": "BUG-420: LDS addr-scale window [79:78] -- arb420 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/AURI/ARURI/era-AR; template canon LDS_R_ARI|128 from BUG-038/094). Closes fail-closed .X4 mint cordon (encoder arm pre-existing)."
       }
      ],
-     "variable_mask": "0x01f1ce0000000000007fff1b5f7f0000"
+     "variable_mask": "0x1f1ce0000013100007fff1b5f7f0000",
+     "_src420": "bug420-2026-09-09"
+    },
+    "S16": {
+     "and_base": "0xe2000080006000000000000007984",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug427-2026-09-09",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug427-2026-09-09",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug427-2026-09-09",
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug427-2026-09-09",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 2,
+       "_src": "bug427-2026-09-09",
+       "_note": "BUG-420: LDS addr-scale window [79:78] -- arb420 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/AURI/ARURI/era-AR; template canon LDS_R_ARI|128 from BUG-038/094). Closes fail-closed .X4 mint cordon (encoder arm pre-existing)."
+      }
+     ],
+     "variable_mask": "0x171ce00000131000003e01f3f3f0000",
+     "_src": "bug427-2026-09-09",
+     "_note": "BUG-427: LDS.S16 on the frame + S16 addr-scale closure (arb427 43 probes, donor-clone construction [opex lesson], nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0). Donor = frame-own U16 verbatim (fields deep-copied incl the 420 addr_scale arm), and_base |= measured b73 window delta, vm verbatim, count=None. Window-7 loud glyphs (423-era) stay UNTOUCHED; 429 LDSM plain-ARI census NOT grafted."
     }
    },
    "operand_sig": "R_ARURI",
@@ -61554,9 +66358,18 @@
        "extraction": "sub_imm1",
        "shift": 40,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 2,
+       "_src": "bug420-2026-09-09",
+       "_note": "BUG-420: LDS addr-scale window [79:78] -- arb420 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/AURI/ARURI/era-AR; template canon LDS_R_ARI|128 from BUG-038/094). Closes fail-closed .X4 mint cordon (encoder arm pre-existing)."
       }
      ],
-     "variable_mask": "0x03f1fe0000000000fffffc3f00fff000"
+     "variable_mask": "0x3f1fe0000013100fffffc3f00fff000",
+     "_src420": "bug420-2026-09-09"
     },
     "128": {
      "and_base": "0x000e000008000c0000000000ff000984",
@@ -61588,9 +66401,18 @@
        "extraction": "sub_imm1",
        "shift": 40,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 2,
+       "_src": "bug420-2026-09-09",
+       "_note": "BUG-420: LDS addr-scale window [79:78] -- arb420 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/AURI/ARURI/era-AR; template canon LDS_R_ARI|128 from BUG-038/094). Closes fail-closed .X4 mint cordon (encoder arm pre-existing)."
       }
      ],
-     "variable_mask": "0x03f1fe0000000000fffff03f007cf000"
+     "variable_mask": "0x3f1fe0000013100fffff03f007cf000",
+     "_src420": "bug420-2026-09-09"
     },
     "64": {
      "and_base": "0x000e000008000a0000000000ff000984",
@@ -61622,9 +66444,110 @@
        "extraction": "sub_imm1",
        "shift": 40,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 2,
+       "_src": "bug420-2026-09-09",
+       "_note": "BUG-420: LDS addr-scale window [79:78] -- arb420 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/AURI/ARURI/era-AR; template canon LDS_R_ARI|128 from BUG-038/094). Closes fail-closed .X4 mint cordon (encoder arm pre-existing)."
       }
      ],
-     "variable_mask": "0x03f1fe0000000000fffff83f00fef000"
+     "variable_mask": "0x3f1fe0000013100fffff83f00fef000",
+     "_src420": "bug420-2026-09-09"
+    },
+    "S8": {
+     "and_base": "0xe20000800020000000000ff000984",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug413ii-2026-09-08"
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug413ii-2026-09-08",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 2,
+       "_src": "bug420-2026-09-09",
+       "_note": "BUG-420: LDS addr-scale window [79:78] -- arb420 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/AURI/ARURI/era-AR; template canon LDS_R_ARI|128 from BUG-038/094). Closes fail-closed .X4 mint cordon (encoder arm pre-existing)."
+      }
+     ],
+     "variable_mask": "0x1a1ca000001310000787c0f001ff000",
+     "_src": "bug413ii-2026-09-08",
+     "_note": "BUG-413(iii): S8 AURI row cloned from the U16 sibling (identical x4, asserted) with width-enum [75:73] 010 -> 001 (arb413 law: S8 AURI frame legal x4, R0..R255 dst incl RZ-glyph, guard g0..g15, BUG-399v2 24b sign-window offsets). Closes the BUG-132 cordon refuse on e.g. LDS.S8 R93, [UR4+-0x800000]. vm verbatim = same claim geometry; .X4/.X8 (b78/b79) and b91-RZ words stay unclaimed (420-kand coverage note).",
+     "_src420": "bug420-2026-09-09"
+    },
+    "S16": {
+     "and_base": "0xe20000800060000000000ff000984",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 2,
+       "_src": "bug427-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1a1ca000001310000787c0f001ff000",
+     "_src": "bug421422-2026-09-09",
+     "_note": "BUG-422: LDS.S16 on the AURI frame (arb413 single.s8.b74: width window [75:73) 011 legal x4, S8 sibling 001, U16 010). U16 clone with b73 |=; vm verbatim post-420 (413ii clone convention + 420 measured-inert relax inheritance); the 420 addr_scale field is NOT inherited -- scale on the S16 carrier is unmeasured (arb420 covered 6 carriers, S16 absent) -> care pins [79:78)=0, S16-scale mints stay fail-closed. S16 on ARI/ARURI/era frames unmeasured -> stays unclaimed (427-kand).",
+     "_src427": "bug427-2026-09-09",
+     "_note427": "BUG-427: addr_scale arm added to the 421422 S16 clone -- scale [79:78) on the S16 carrier measured legal x4 on every value (b78=.X4/b79=.X8/both=.X16), RZ-elided form \"[RZ.Xn+URm+imm]\" included (arb427 u.auri.* / v.auri.x8 / imm-axis). 421422 cordon lifted."
     },
     "U16": {
      "and_base": "0x000e20000800040000000000ff000984",
@@ -61656,9 +66579,18 @@
        "extraction": "sub_imm1",
        "shift": 40,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 2,
+       "_src": "bug420-2026-09-09",
+       "_note": "BUG-420: LDS addr-scale window [79:78] -- arb420 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/AURI/ARURI/era-AR; template canon LDS_R_ARI|128 from BUG-038/094). Closes fail-closed .X4 mint cordon (encoder arm pre-existing)."
       }
      ],
-     "variable_mask": "0x01a1ca000000000000787c0f001ff000"
+     "variable_mask": "0x1a1ca000001310000787c0f001ff000",
+     "_src420": "bug420-2026-09-09"
     },
     "U8": {
      "and_base": "0x000e20000800000000000004ff007984",
@@ -61684,9 +66616,18 @@
        "extraction": "sub_ur0",
        "shift": 32,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 2,
+       "_src": "bug420-2026-09-09",
+       "_note": "BUG-420: LDS addr-scale window [79:78] -- arb420 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/AURI/ARURI/era-AR; template canon LDS_R_ARI|128 from BUG-038/094). Closes fail-closed .X4 mint cordon (encoder arm pre-existing)."
       }
      ],
-     "variable_mask": "0x0331460000000000000fe00000030000"
+     "variable_mask": "0x331460000013100000fe00000030000",
+     "_src420": "bug420-2026-09-09"
     }
    },
    "operand_sig": "R_AURI",
@@ -77621,9 +82562,17 @@
        "extraction": "reg",
        "shift": 32,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 1,
+       "_src": "bug425-2026-09-09",
+       "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x03fe3e0000000000fffffcffff00f000"
+     "variable_mask": "0x3fe3e0000013100fffffcffff00f000"
     },
     "128": {
      "and_base": "0x0000000000000c000000000000000388",
@@ -77664,7 +82613,7 @@
        "token_idx": 1
       }
      ],
-     "variable_mask": "0x03fffe000000c000ffffffffff00f000"
+     "variable_mask": "0x3fffe000001f100ffffffffff00f000"
     },
     "64": {
      "and_base": "0x0001c00000000a000000000000000188",
@@ -77688,13 +82637,6 @@
        "bits": 24,
        "extraction": "sub_imm1",
        "shift": 40,
-       "token_idx": 1
-      },
-      {
-       "_src": "2aE",
-       "bits": 1,
-       "extraction": "urz_expl",
-       "shift": 11,
        "token_idx": 1
       },
       {
@@ -77773,9 +82715,19 @@
        "extraction": "urz_expl",
        "shift": 91,
        "token_idx": 1
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 1,
+       "_src": "bug425-2026-09-09",
+       "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x03fe3e00080000fffffff8ffff00fa00"
+     "variable_mask": "0x3fe3e00080131fffffff8ffff00f200",
+     "_src425b": "bug425b-2026-09-10",
+     "_note": "BUG-425b: deklaracja urz_expl@11 usunieta ze STS_ARI_R|64 (field-own = zawsze dontcare w match_mask; (b9,b11) z b11=1 = vendor-ILLEGAL na erze 0xfc2 po arb425b 60-combo law; korpus sm120 136,414 slow: zero ARI-claim z b11=1 [census publish 7f797be7 + canonical 616f185]; t164 era pins b11=0 nietkniente; urz_expl_inv@9 pozostaje = era-generation-swobodne; reszta rzadu == 3f6ca6f z R1/R2 425 zachowanymi)."
     },
     "U16": {
      "and_base": "0x0001c000000004000000000000000388",
@@ -77807,9 +82759,17 @@
        "extraction": "reg",
        "shift": 32,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 1,
+       "_src": "bug425-2026-09-09",
+       "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x03ce3e0000000000fffffeffff00f000"
+     "variable_mask": "0x3ce3e0000013100fffffeffff00f000"
     },
     "U8": {
      "and_base": "0x0001e000000000000000000000000388",
@@ -77841,9 +82801,17 @@
        "extraction": "reg",
        "shift": 32,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 1,
+       "_src": "bug425-2026-09-09",
+       "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x03de1e000000000000fdffffff00f000"
+     "variable_mask": "0x3de1e000001310000fdffffff00f000"
     }
    },
    "operand_sig": "ARI_R",
@@ -77895,9 +82863,17 @@
        "extraction": "reg",
        "shift": 32,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 1,
+       "_src": "bug425-2026-09-09",
+       "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x03fe3e000000003ffffffcffff00f000"
+     "variable_mask": "0x3fe3e000001313ffffffcffff00f000"
     },
     "128": {
      "and_base": "0x0001c00008000c000000000000000988",
@@ -77936,9 +82912,17 @@
        "extraction": "reg",
        "shift": 32,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 1,
+       "_src": "bug425-2026-09-09",
+       "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x03fe3e000000005ffffff0ffff00f000"
+     "variable_mask": "0x3fe3e000001315ffffff0ffff00f000"
     },
     "64": {
      "and_base": "0x0001c00008000a000000000000000988",
@@ -77977,9 +82961,17 @@
        "extraction": "reg",
        "shift": 32,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 1,
+       "_src": "bug425-2026-09-09",
+       "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x03fe3e000000001ffffff8ffff00f000"
+     "variable_mask": "0x3fe3e000001311ffffff8ffff00f000"
     },
     "U16": {
      "and_base": "0x0001e000080004000000000000000988",
@@ -78018,9 +83010,17 @@
        "extraction": "reg",
        "shift": 32,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 1,
+       "_src": "bug425-2026-09-09",
+       "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x01ce0e000000001f001f02ff7f00f000"
+     "variable_mask": "0x1ce0e000001311f001f02ff7f00f000"
     },
     "U8": {
      "and_base": "0x0001e000080000000000000000000988",
@@ -78059,9 +83059,17 @@
        "extraction": "reg",
        "shift": 32,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 1,
+       "_src": "bug425-2026-09-09",
+       "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x00ce0e000000001f00fc3fffff00f000"
+     "variable_mask": "0xce0e000001311f00fc3fffff00f000"
     }
    },
    "operand_sig": "ARURI_R",
@@ -78106,9 +83114,17 @@
        "extraction": "reg",
        "shift": 32,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 1,
+       "_src": "bug425-2026-09-09",
+       "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x03fe3e000000003ffffffcff0000f000"
+     "variable_mask": "0x3fe3e000001313ffffffcff0000f000"
     },
     "128": {
      "and_base": "0x0001c00008000c0000000000ff000988",
@@ -78140,9 +83156,17 @@
        "extraction": "reg",
        "shift": 32,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 1,
+       "_src": "bug425-2026-09-09",
+       "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x03fe3e000000003ffffff0ff0000f000"
+     "variable_mask": "0x3fe3e000001313ffffff0ff0000f000"
     },
     "64": {
      "and_base": "0x0001c00008000a0000000000ff000988",
@@ -78174,9 +83198,17 @@
        "extraction": "reg",
        "shift": 32,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 1,
+       "_src": "bug425-2026-09-09",
+       "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x03fe3e000000003ffffff8ff0000f000"
+     "variable_mask": "0x3fe3e000001313ffffff8ff0000f000"
     },
     "U16": {
      "and_base": "0x0001e2000800040400000000ff008988",
@@ -78208,9 +83240,17 @@
        "extraction": "sub_ur0",
        "shift": 64,
        "token_idx": 1
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 1,
+       "_src": "bug425-2026-09-09",
+       "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x00060000000000000060000600003000"
+     "variable_mask": "0x60000000131000060000600003000"
     },
     "U8": {
      "and_base": "0x0001e0000800000000000000ff000988",
@@ -78242,9 +83282,17 @@
        "extraction": "reg",
        "shift": 32,
        "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 1,
+       "_src": "bug425-2026-09-09",
+       "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x000e0e000000000f000ffc0700007000"
+     "variable_mask": "0xe0e000001310f000ffc0700007000"
     }
    },
    "operand_sig": "AURI_R",
@@ -106033,6 +111081,1172 @@
     }
    },
    "operand_sig": "R_dARI_P"
+  },
+  "HADD2.F32_R_R_FI": {
+   "mod_groups": {
+    "": {
+     "and_base": "0x00000fc400000049003c003c00ff000430",
+     "variable_mask": "0x000000220003de92ffffff8380001ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2c",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 3,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "count": null
+    }
+   }
+  },
+  "HADD2.F32.SAT_R_R_FI": {
+   "mod_groups": {
+    "": {
+     "and_base": "0x00000fc400000069003c003c00ff000430",
+     "variable_mask": "0x000000220003df92ffffff8380001ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2c",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 3,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "count": null
+    }
+   }
+  },
+  "HADD2.F32.FTZ_R_R_FI": {
+   "mod_groups": {
+    "": {
+     "and_base": "0x00000fc400000149003c003c00ff000430",
+     "variable_mask": "0x000000220003de92ffffff8380001ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2c",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 3,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "count": null
+    }
+   }
+  },
+  "HFMA2.RELU_R_R_FI_FI_R_P": {
+   "mod_groups": {
+    "": {
+     "and_base": "0x00000fc000000080003c003c0000000831",
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "count": null
+    }
+   }
+  },
+  "HFMA2.FMZ.RELU_R_R_FI_FI_R_P": {
+   "mod_groups": {
+    "": {
+     "and_base": "0x00000fc000000090003c003c0000000831",
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "count": null
+    }
+   }
+  },
+  "HFMA2.FTZ.RELU_R_R_FI_FI_R_P": {
+   "mod_groups": {
+    "": {
+     "and_base": "0x00000fc000000180003c003c0000000831",
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "count": null
+    }
+   }
+  },
+  "HFMA2.OOB.RELU_R_R_FI_FI_R_P": {
+   "mod_groups": {
+    "": {
+     "and_base": "0x00000fc000000190003c003c0000000831",
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "count": null
+    }
+   }
+  },
+  "HFMA2.F32.RELU_R_R_FI_FI_R_P": {
+   "mod_groups": {
+    "": {
+     "and_base": "0x00000fc0000000c0003c003c0000000831",
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "count": null
+    }
+   }
+  },
+  "HFMA2.F32.FTZ.RELU_R_R_FI_FI_R_P": {
+   "mod_groups": {
+    "": {
+     "and_base": "0x00000fc0000001c0003c003c0000000831",
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "count": null
+    }
+   }
+  },
+  "HFMA2.BF16_V2.RELU_R_R_FI_FI_R_P": {
+   "mod_groups": {
+    "": {
+     "and_base": "0x00000fc000002080003f803f8000000831",
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "count": null
+    }
+   }
+  },
+  "HFMA2.BF16_V2.FMZ.RELU_R_R_FI_FI_R_P": {
+   "mod_groups": {
+    "": {
+     "and_base": "0x00000fc000002090003f803f8000000831",
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "count": null
+    }
+   }
+  },
+  "HFMA2.BF16_V2.FTZ.RELU_R_R_FI_FI_R_P": {
+   "mod_groups": {
+    "": {
+     "and_base": "0x00000fc000002180003f803f8000000831",
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "count": null
+    }
+   }
+  },
+  "HFMA2.BF16_V2.OOB.RELU_R_R_FI_FI_R_P": {
+   "mod_groups": {
+    "": {
+     "and_base": "0x00000fc000002190003f803f8000000831",
+     "variable_mask": "0x0007f03e00004000ff000000007f7ff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 5
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3
+      },
+      {
+       "_src": "bug406-2026-09-07",
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 83,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 84,
+       "token_idx": 5,
+       "_src": "bug406-2026-09-07"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "bug417-2026-09-08"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 81,
+       "token_idx": 5,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 87,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      },
+      {
+       "bits": 1,
+       "extraction": "inv",
+       "shift": 90,
+       "token_idx": 6,
+       "_src": "bug419-2026-09-08"
+      }
+     ],
+     "count": null
+    }
+   }
   }
  },
  "operand_roles": {

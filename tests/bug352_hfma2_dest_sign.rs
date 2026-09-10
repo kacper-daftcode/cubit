@@ -79,11 +79,16 @@ fn t352_1_structure_census_zero_tok1_sign_fields() {
     // dense leg (harvest-junk era keys HFMA2.BF16_V2_R_R_R_R +
     // HFMA2_R_R_R_R_R deleted; arb384 measured live WRONG decode cells on
     // the 5-reg row) = 88/88.
+    // FLIP (BUG-419, F2-iter228, canonical 2ae87b3): +10 HFMA2* keys on the
+    // sparse legs (RELU _P dotted keys of the two-imm R-final route
+    // closure: HFMA2[.<mods>.]RELU_R_R_FI_FI_R_P; 6 RELU mgs live in
+    // mod_groups and do not move the counter) = 50/50; dense +20 (the 10
+    // FI_FI dotted + the 10 II_II dotted) = 108/108.
     let want_counts = [
-        ("sm100a", 40usize),
-        ("sm103a", 40),
-        ("sm120", 88),
-        ("sm121a", 88),
+        ("sm100a", 50usize),
+        ("sm103a", 50),
+        ("sm120", 108),
+        ("sm121a", 108),
     ];
     for (leg, n) in want_counts {
         let t = tab(leg);

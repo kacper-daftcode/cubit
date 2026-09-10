@@ -885,7 +885,13 @@ impl DecodeIndex {
                 }
                 if reg_class(ra_tok) {
                     add(72, ra_tok, "neg");
-                    add(73, ra_tok, "abs");
+                    // BUG-419: b73 is vendor-INERT on the HADD2 `.F32`
+                    // 3-token dotted rows (0x430 FI FI frame; arb419
+                    // A.F32.bit73 x4 models: no `|Ra|` print) -- block the
+                    // generic synth there.
+                    if !crate::table::hadd2_f32_abs_inert_key(&matched.key) {
+                        add(73, ra_tok, "abs");
+                    }
                 }
             }
         }
@@ -1195,6 +1201,33 @@ fn select_best_candidate<'a>(
                 if !alt_has_middle_pred {
                     return Some(alt);
                 }
+            }
+        }
+    }
+
+    // BUG-409: LDC_R_cAI vs LDC_R_cARI claim priority on the S16 row pair
+    // (vendor law arb402 C-row x4 + arb409 34 probes x4, DIVERGENT=0): S16
+    // words with the sub_r1 slot at the RZ sentinel (0xff) render in the
+    // pure-imm cAI form (`LDC.S16 Rn, c[bank][off]`; b37/b59 vendor-inert,
+    // dropped from the print). The 172-era cARI sibling strict-matches the
+    // SAME window (its sub_imm0/sub_imm2 fields exclude the cAI family bits
+    // b39/b43 from match_mask) and won the unexplained-variance tiebreak on
+    // any word whose diff-from-cAI-and_base sat in the cAI variable-only
+    // zone {b37 (post-graft), b59 (bug402)} -- folding inert bits into a
+    // bogus cARI print (e.g. b59 word printed `c[0x20][R0+0x880]`).
+    // Divert to the strict cAI candidate when both rows match: true
+    // cARI-shaped words fail the cAI care window [31:24]==0xff and are
+    // unaffected. Corpus exposure ZERO (census402: no S16 claims on either
+    // row, ab240 battery). sm103a/sm120/sm121a: the arm can only fire where
+    // both S16 rows exist and both strict-match; the sibling leg HOLE/posture
+    // classes (411/413/418-kand) are untouched.
+    if first.key == "LDC_R_cARI" && first.mod_group == "S16" {
+        for candidate in matches {
+            if candidate.key == "LDC_R_cAI"
+                && candidate.mod_group == "S16"
+                && cand_strict(candidate, code_clean)
+            {
+                return Some(candidate);
             }
         }
     }

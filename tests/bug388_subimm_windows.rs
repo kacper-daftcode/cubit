@@ -2027,12 +2027,16 @@ fn t388_5_resid_398_loud() {
         Some("LD.E.128 R100, [R100], P6"),
         "400 po-fixie: slowo musi renderowac vendor-exact (klasa wraca = regresja graftu 400)"
     );
-    // sm121a LDS_R_ARI|S8 [64..72) vendor-inert vs silnik '?AR' fallback
+    // 415-kand: sm121a LDS_R_ARI|S8 [64..72) vendor-inert vs silnik '?AR'
+    // fallback. ZAMKNIETE 2026-09-08 BUG-415 (canonical 67a0c22, graft
+    // patch415.py: ARI|S8+U16 vm |= [64:72) + era R_AR x3 tighten;
+    // F2-iter229): slowo = arb415 law S8.b64 (x4 AGREE) -- assert_ne ->
+    // assert_eq z atrybucja; render musi ZOSTAC vendor-exact.
     let w401 = w("000fe80000000201000000000a5b7984");
     let got401 = dec(&t, w401);
-    assert_ne!(
+    assert_eq!(
         got401.as_deref(),
         Some("LDS.S8 R91, [R10]"),
-        "121a LDS S8 [64..72) relax landed -- zamknij residuum"
+        "415 po-fixie: slowo musi renderowac vendor-exact (klasa wraca = regresja graftu 415)"
     );
 }

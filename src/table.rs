@@ -833,6 +833,30 @@ pub fn ur_hsel_f32_key(key: &str) -> bool {
 /// hsel==1 word on any R-class hsel slot; the single weak-print sm121a
 /// row's fingerprint collisions decode as LEA/ULEA, verify_fifi 117,894
 /// words, H-family claims 0).
+/// BUG-419: the HADD2 `.F32` 3-token dotted keys on the FI FI two-imm frame
+/// (0x430; `HADD2.F32[.SAT/.FTZ]_R_R_FI`). arb419 (x4 models AGREE EVERY):
+/// under the F32 route the Ra abs bit b73 is vendor-INERT
+/// (`HADD2.F32 R0, R0, ...`, never `|R0|`) -- the generic FP abs recovery
+/// fallback (Ra@24 -> raw b73) must NOT fire on these keys.
+pub fn hadd2_f32_abs_inert_key(key: &str) -> bool {
+    matches!(
+        key,
+        "HADD2.F32_R_R_FI" | "HADD2.F32.SAT_R_R_FI" | "HADD2.F32.FTZ_R_R_FI"
+    )
+}
+
+/// BUG-419: trailing predicate elision law of the HFMA2 two-imm R-final
+/// `.RELU` dotted keys (frames 0x7831; keys `HFMA2*RELU_R_R_{FI_FI,II_II}_R_P`):
+/// arb419 x4 models AGREE EVERY -- vendor ELIDES the trailing slot when the
+/// predicate reads PT (pred@87 == 7, inv@90 == 0); anything else prints
+/// `, [!]Pn`.
+pub fn relu_pt_elide_key(key: &str) -> bool {
+    let head = key.split("_R_R_").next().unwrap_or("");
+    head.starts_with("HFMA2")
+        && head.contains("RELU")
+        && (key.ends_with("_R_FI_FI_R_P") || key.ends_with("_R_II_II_R_P"))
+}
+
 pub fn r_hsel_invalid1_slot(ins_key: &str, tok: i32) -> bool {
     if ins_key.starts_with("HADD2")
         || ins_key.starts_with("HMUL2")
@@ -841,7 +865,12 @@ pub fn r_hsel_invalid1_slot(ins_key: &str, tok: i32) -> bool {
     {
         return true;
     }
-    ins_key.starts_with("HFMA2") && (tok == 2 || tok == 4)
+    // BUG-419 (arb419/arb417 x4 models): the two-imm R-final HFMA2 frames
+    // (0x7831 class; keys HFMA2_R_R_{FI_FI,II_II}_R + their dotted rows)
+    // ALSO arm the value-1 INVALID1 law on the tok5 R operand marker window
+    // [81:83) -- b81 -> '.INVALID1', b82 -> '.H0_H0', 81+82 -> '.H1_H1',
+    // composed independently with the tok2 law (c74+81 probe).
+    ins_key.starts_with("HFMA2") && (tok == 2 || tok == 4 || tok == 5)
 }
 
 /// BUG-306 sibling law: the HFMA2 tok3 R-class hsel slots read value 1 as

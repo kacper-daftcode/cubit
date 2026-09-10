@@ -35,7 +35,11 @@ fn write_stale_table(dir: &std::path::Path) -> std::path::PathBuf {
     p
 }
 
-fn run_asm(table: &std::path::Path, sass: &str, tag: &str) -> (std::process::Output, std::path::PathBuf) {
+fn run_asm(
+    table: &std::path::Path,
+    sass: &str,
+    tag: &str,
+) -> (std::process::Output, std::path::PathBuf) {
     let dir = std::env::temp_dir().join(format!("bug043_{}_{}", tag, std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let src = dir.join(format!("{tag}.sass"));
@@ -75,9 +79,15 @@ fn bug043_asm_fails_closed_on_unencodable_slot() {
         out.display()
     );
     let stderr = String::from_utf8_lossy(&res.stderr);
+    // FLIP F2-iter238 (BUG-425 graft, canonical 52cb73c, z atrybucja): under
+    // this synthetic stale table the sibling mg "" (which now carries the
+    // measured addr_scale law) shadows mg "128", so the loud diagnostics
+    // name the dropped ".128" via the BUG-132 guard instead of the older
+    // "addr scale suffix" arm -- BOTH are the intended fail-closed class:
+    // named operand, rc!=0, no output file (asserted above/below).
     assert!(
-        stderr.contains("addr scale suffix .X16"),
-        "diagnostics must name the offending operand: {stderr}"
+        stderr.contains("addr scale suffix .X16") || stderr.contains("silent modifier drop"),
+        "diagnostics must name the offending operand (BUG-017 arm or BUG-132 guard): {stderr}"
     );
 }
 
@@ -107,7 +117,12 @@ fn bug043_lib_level_stale_row_rejects_scaled_addr() {
     let insn = parse_sass("STS.128 [R5.X16], R200", 0).unwrap();
     let err = encode_instruction(&insn, &table).unwrap_err();
     let msg = format!("{err:#}");
-    assert!(msg.contains("addr scale suffix .X16"), "unexpected error: {msg}");
+    // FLIP F2-iter238 (BUG-425): dwojakie glosy fail-closed sa poprawne
+    // (patrz wyzej przy asm-path).
+    assert!(
+        msg.contains("addr scale suffix .X16") || msg.contains("silent modifier drop"),
+        "unexpected error: {msg}"
+    );
 
     // repo-tabela (z polem addr_scale) enkoduje obie formy poprawnie
     let good = IsaTable::load(std::path::Path::new("tables/sm120.json")).unwrap();

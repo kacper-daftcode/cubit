@@ -43,3 +43,14 @@ pub const POSTURE412: &[(u128, &str, [&str; 4])] = &[
     (0x0001c000080009ff8000001e0a000988, "arb399a|sts|ur1ff|off_800000", ["@P0 STS [R10+UR511+-0x800000], R30", "@P0 STS [R10+UR511+-0x800000], R30", "@P0 STS [R10+UR511+-0x800000], R30", "@P0 STS [URZ+-0x800000], R30"]),
     (0x0001c000080009ffffffff1e0a000988, "arb399a|sts|ur1ff|off_ffffff", ["@P0 STS [R10+UR511+-0x1], R30", "@P0 STS [R10+UR511+-0x1], R30", "@P0 STS [R10+UR511+-0x1], R30", "@P0 STS [URZ+-0x1], R30"]),
 ];
+
+// POSTURE412_VENDOR: machine-appended F2-iter230 (BUG-412 CLOSED) -- vendor texts
+// verbatim from arb399a_law.json / arb412_law.json (x4 unanimous, DIVERGENT=0).
+pub const POSTURE412_VENDOR: [(&str, &str); 6] = [
+    ("arb399a|lds8|ur0ff|off_800000", "LDS.S8 R93, [R10+URZ+-0x800000]"),
+    ("arb399a|lds8|ur0ff|off_ffffff", "LDS.S8 R93, [R10+URZ+-0x1]"),
+    ("arb399a|ldsm|ur0ff|off_800000", "LDSM.16.M88 R16, [R10+URZ+-0x800000]"),
+    ("arb399a|ldsm|ur0ff|off_ffffff", "LDSM.16.M88 R16, [R10+URZ+-0x1]"),
+    ("arb399a|sts|ur1ff|off_800000", "@P0 STS [R10+URZ+-0x800000], R30"),
+    ("arb399a|sts|ur1ff|off_ffffff", "@P0 STS [R10+URZ+-0x1], R30"),
+];

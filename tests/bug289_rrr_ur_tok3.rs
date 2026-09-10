@@ -177,12 +177,18 @@ fn t289_1_structure_census_tags() {
         // LD_R_dARI_P on sm121a -- pred/LTC window [64:72) graft; the
         // LTC mgs live inside mod_groups and do not move the counter;
         // sm100a/sm103a not pinned here).
+        // FLIP (BUG-419, F2-iter228, canonical 2ae87b3): +23 keys sm120
+        // (+10 RELU _P dotted FI_FI_R +10 _II_II_R +3 HADD2.F32[.SAT/.FTZ])
+        // = 1729; +23 sm121a (same two-imm closure) = 15723; +13 sparse
+        // (no II_II on 100a/103a) = 15553.
+        // FLIP (BUG-413(ii)/(iii), F2-iter231, canonical 487757b): +1 LDSM_R_AURI
+        // key per arch = 1730 / 15724 / 15554.
         let want = if arch == "sm120" {
-            1706
+            1730
         } else if arch == "sm121a" {
-            15700
+            15724
         } else {
-            15540
+            15554
         };
         assert_eq!(t.entries.len(), want, "{arch}: key census drift");
     }

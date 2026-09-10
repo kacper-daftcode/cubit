@@ -1,13 +1,13 @@
 {
   "schema": 2,
   "repository": "https://github.com/kacper-daftcode/blackwell-isa",
-  "base_revision": "918049c34449ac10abeaefae587c14539aa8e905",
+  "base_revision": "d560e9953d42117859b75b8895c0ec34f30f6c8f",
   "tables": {
     "sm120.json": {
       "arch": "SM120",
-      "base_sha256": "9dbdd5778d33df933883107d05677d0f51a3d527c9d5eb2b52e70c898f84f032",
-      "instruction_forms": 1706,
-      "encoding_variants": 3183,
+      "base_sha256": "1353f0fc5f63bd52cc021ec1b5f18d4a9cb4060637f13fec88429b3d02d00ebd",
+      "instruction_forms": 1730,
+      "encoding_variants": 3314,
       "sched_only_entries": 597,
       "sections": [
         "operand_roles"
@@ -15,9 +15,9 @@
     },
     "sm103a.json": {
       "arch": "SM103a",
-      "base_sha256": "ad2c0925369341e05cabf6d7860c13d355480a32364eb5796a0f8396372a9b1a",
-      "instruction_forms": 576,
-      "encoding_variants": 2038,
+      "base_sha256": "a06e6e4ba88a24bc0235868e01f8a2a492fc3ad8fade5b83fac3fda2714db6e0",
+      "instruction_forms": 590,
+      "encoding_variants": 2130,
       "sched_only_entries": 0,
       "sections": [
         "cost_model",
@@ -27,9 +27,9 @@
     },
     "sm100a.json": {
       "arch": "SM100a",
-      "base_sha256": "338665cb2bf94aff7b2346d42fc53b252e7e61b958638586e22191073d25ae98",
-      "instruction_forms": 576,
-      "encoding_variants": 2042,
+      "base_sha256": "2a60c0e52fd779eb190de9a859c212e7143dec0a2443d3ed066400de72478a8b",
+      "instruction_forms": 590,
+      "encoding_variants": 2134,
       "sched_only_entries": 0,
       "sections": [
         "operand_roles"
@@ -37,9 +37,9 @@
     },
     "sm121a.json": {
       "arch": "SM121A",
-      "base_sha256": "b1c3703df698b33a6d429412c1719d5d158917c12a94649542d7beaa64069dbc",
-      "instruction_forms": 15702,
-      "encoding_variants": 18089,
+      "base_sha256": "35c8f7fa6b1f5ea6007ff7ae6d50785ec94daa872d03efb3ef9b6283978ca46e",
+      "instruction_forms": 15726,
+      "encoding_variants": 18221,
       "sched_only_entries": 597,
       "sections": [
         "_errata_2026_08_23_149",

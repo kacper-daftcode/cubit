@@ -57,9 +57,12 @@ fn t245_1_decode_neg0_trailing_space() {
     for arch in ["sm100a", "sm103a", "sm120"] {
         let t = tab(arch);
         assert_eq!(dec(&t, W_BASE), "HFMA2 R3, -RZ, RZ, -0.0 , 0", "{arch} L1");
+        // FLIP (BUG-419, F2-iter228, printer tail-glyph trim arm): the
+        // special-glyph pad stays MID-LINE only; at the tail the vendor
+        // prints no pad (arb419 A.BF16.bit47 x4: '-0.0' bez padu).
         assert_eq!(
             dec(&t, W_BOTH_NEG0),
-            "HFMA2 R3, -RZ, RZ, -0.0 , -0.0 ",
+            "HFMA2 R3, -RZ, RZ, -0.0 , -0.0",
             "{arch} both -0.0"
         );
         assert_eq!(
@@ -115,7 +118,7 @@ fn t245_4_no_space_law_holds() {
         );
         assert_eq!(
             dec(&t, W_HI_NEG0_LO_POS1),
-            "HFMA2 R3, -RZ, RZ, 1, -0.0 ",
+            "HFMA2 R3, -RZ, RZ, 1, -0.0",
             "{arch} L3 last-slot -0.0"
         );
         assert_eq!(

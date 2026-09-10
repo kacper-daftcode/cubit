@@ -22,7 +22,9 @@
 //!
 //! Witness data: tests/bug402_data.inc (machine-built by
 //! work/bug402/gen402pins.py from arb402_law.json + claim100a_words.json
-//! verbatim; class column: exact / 401 / 409).
+//! verbatim; class column: exact / 401 / 409; [F2-iter224] all classes
+//! exact: 401 landed F2-iter218, 409 landed F2-iter224 (BUG-409 arm+graft,
+//! results/cubitfix/409.md)).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
@@ -46,13 +48,16 @@ fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
 include!("bug402_data.inc");
 
 /// t402_1: probe matrix vs vendor law on sm100a, classified.
-/// 104 cells vendor-exact (401 landed F2-iter218: +4 ex-401 words);
-/// 4 residua pinned to 409-kand.
+/// 108 cells vendor-exact (401 landed F2-iter218: +4 ex-401 words;
+/// 409 landed F2-iter224: +4 ex-409 words -- LDC_R_cAI|S16 claim-priority
+/// arm + vm|b37 graft, results/cubitfix/409.md; posture arm removed, all
+/// ex-409 words are class "exact" in bug402_data.inc and flow through the
+/// vendor-equality arm).
 #[test]
 fn t402_1_probe_matrix_classified() {
     let t = tab("sm100a");
     let idx = DecodeIndex::build(&t);
-    let (mut n_exact, n401, mut n409) = (0u32, 0u32, 0u32);
+    let mut n_exact = 0u32;
     for (word, tag, vendor, class) in PROBES402 {
         let d = idx.decode(word, 0, &t);
         match class {
@@ -61,26 +66,10 @@ fn t402_1_probe_matrix_classified() {
                 assert_eq!(got, vendor, "[{tag}] word {word:032x}");
                 n_exact += 1;
             }
-            // [401-landed F2-iter218] posture arm removed: all four
-            // ex-401 words are class "exact" in bug402_data.inc now and
-            // flow through the vendor-equality arm above.
-            // 409-kand residuum: synthetic out-of-corpus words with bits in
-            // the cAI-dead zone claim LDC_R_cARI|S16 first (claim priority).
-            // Zero corpus exposure (census402: 0 claims on both S16 rows).
-            "409" => {
-                let d = d.unwrap_or_else(|e| panic!("[{tag}] must decode: {e}"));
-                assert!(
-                    d.key.starts_with("LDC_R_cARI"),
-                    "[{tag}] priority changed: {}",
-                    d.key
-                );
-                assert_ne!(to_sass(&d), vendor, "[{tag}] 409 resolved? flip this pin");
-                n409 += 1;
-            }
             other => panic!("unknown class {other}"),
         }
     }
-    assert_eq!((n_exact, n401, n409), (104, 0, 4), "class counts drifted");
+    assert_eq!(n_exact, 108, "class counts drifted");
 }
 
 /// t402_2: corpus claim sample renders byte-stable post-graft
@@ -179,8 +168,9 @@ fn t402_5_bit59_inert_acceptance() {
             continue;
         } // don't double the bit itself
         // C-row skipped: bit59 ALSO lands inside the cARI|S16 claim window
-        // (409-kand priority class) -- there the vm-relax is necessary but
-        // not sufficient for the inert render (documented in t402_1).
+        // ([409 landed F2-iter224] the claim is vendor-true now; coverage of
+        // the C-row inert render moved to the t409_1 pin set, kept skipped
+        // here to preserve this test's original per-row span).
         if tag.starts_with("C|") {
             continue;
         }
