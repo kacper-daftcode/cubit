@@ -250,7 +250,11 @@ fn t176_5_table_shapes() {
     // 2026-09-07 BUG-400: +1 sm120 key (LDG_R_dARI_P trailing-pred key of the
     // pred/LTC window [64:72) graft; the 20 new mgs live inside mod_groups of
     // LDG_R_dARI{,_P} and do not move the counter; canonical 19363f6) = 1706.
-    assert_eq!(t120().num_keys(), 1706);
+    // 2026-09-08 BUG-419: +23 sm120 keys (route closure on the 0x430/0x7831
+    // frames: 3 HADD2.F32[.SAT/.FTZ] + 10 HFMA2*RELU _P dotted FI_FI_R + 10
+    // _II_II_R; canonical 2ae87b3) = 1729.
+    // FLIP (BUG-413(ii), F2-iter231, canonical 487757b): +1 LDSM_R_AURI.
+    assert_eq!(t120().num_keys(), 1730);
     // 2026-08-28 BUG-244: +2 sm103a/sm100a typed keys (F2F.F64.F32_R_R,
     // F2F.F64.F32_R_UR; donor F64-dst closure, canonical 00c3fd2) = 402.
     // 2026-09-02 BUG-341: +41 sm103a keys (F2I small-int R_R lattice
@@ -275,5 +279,8 @@ fn t176_5_table_shapes() {
     // mod_groups of the existing keys; canonical 3cb31e4) = 575.
     // 2026-09-07 BUG-400: +1 sm103a key (LDG_R_dARI_P, jak t120; canonical
     // 19363f6) = 576.
-    assert_eq!(t103().num_keys(), 576);
+    // 2026-09-08 BUG-419: +13 sm103a keys (3 HADD2.F32[.SAT/.FTZ] + 10
+    // HFMA2*RELU _P dotted R-final; canonical 2ae87b3) = 589.
+    // FLIP (BUG-413(ii), F2-iter231, canonical 487757b): +1 LDSM_R_AURI.
+    assert_eq!(t103().num_keys(), 590);
 }

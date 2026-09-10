@@ -88,18 +88,11 @@ fn t399_1_vendor_law_all_legs() {
 #[test]
 fn t399_2_decode_text_encode_circle() {
     const M96: u128 = (1u128 << 96) - 1;
-    // Measured encode-side refusal set (pre-existing holes, OUT OF SCOPE of
-    // this decode-glyph fix; machine-pinned so the set can only shrink with
-    // an explicit encode-side close-out): sm121a STS_ARURI_R rejects every
-    // negative 24-bit offset value (parser carries the 64-bit signed value,
-    // the row's offset field does not accept it) -- 5 law words.
-    const EXPECTED_REFUSE: &[(&str, &str)] = &[
-        ("sm121a", "arb399a|sts|ur03f|off_800000"),
-        ("sm121a", "arb399a|sts|ur03f|off_ffffff"),
-        ("sm121a", "arb399a|sts|ur4|off_800000"),
-        ("sm121a", "arb399a|sts|ur4|off_800001"),
-        ("sm121a", "arb399a|sts|ur4|off_ffffff"),
-    ];
+    // CLOSED z atrybucja BUG-413(i) (F2-iter230, canonical e4f0915): the
+    // sm121a STS_ARURI_R '' donor graft carries sub_imm1 24b@40 -- negative
+    // offset mints encode on every leg (5 former refusal words now in
+    // MINT413, t413_1). Set must stay EMPTY; a new refusal regresses here.
+    const EXPECTED_REFUSE: &[(&str, &str)] = &[];
     let mut refused: Vec<(String, String)> = Vec::new();
     for leg in LEGS {
         let t = tab(leg);
@@ -109,13 +102,15 @@ fn t399_2_decode_text_encode_circle() {
                 continue;
             } // negative words only (zero/positive spellings in t399_3)
             if tag.contains("|rz|") {
-                // RZ-base vendor text ('[UR4+-0x800000]') decodes exact but
-                // mints refuse-closed: the RZ-elided form routes to *_AURI
-                // rows and (a) LDSM has no AURI row at all, (b) LDS.S8's
-                // ''-group AURI row cannot carry the S8 mod (BUG-132
-                // silent-mod-drop cordon). Encode-side hole, pre-existing,
-                // OUT OF SCOPE of this decode-glyph fix. STS has a working
-                // AURI row, so its RZ-elided mint DOES close the circle.
+                // RZ-base vendor text ('[UR4+-0x800000]') decodes exact and
+                // (CLOSED z atrybucja BUG-413(ii)/(iii), F2-iter231, canonical
+                // 487757b) mints on every leg: LDSM_R_AURI row added x4 and
+                // LDS_R_AURI carries the S8 mod-group (BUG-132 cordon arm
+                // satisfied by the measured rows). Pre-F2-iter231 both mints
+                // refused (no row / cordon); the circle below must now close
+                // for all three carriers -- STS minted pre, LDS.S8/LDSM mint
+                // post-413ii. Parser-level '[URZ...]' authored forms stay
+                // refused (pre-existing posture, t413ii_5), no such tag here.
                 let text = dec(&t, &idx, *word).unwrap();
                 match enc(&t, &format!("{text} ;")) {
                     Ok(w2) => {
@@ -190,13 +185,13 @@ fn t399_3_mint_spelling_law() {
             );
         }
         if leg == "sm121a" {
-            // sm121a encode-side hole (pinned in t399_2): the STS_ARURI_R
-            // row there rejects every negative offset value. The decode-side
-            // vendor law already holds on sm121a (t399_1); the mint must
-            // keep refusing loudly until the encode row is repaired.
-            assert!(
-                enc(&t, "STS [R10+UR4-0x1], R30 ;").is_err(),
-                "[sm121a] STS neg-offset mint unexpectedly encodes (hole closed? close it)"
+            // BUG-413(i) CLOSED (F2-iter230): the donor-shaped '' row mints
+            // the negative offset like every other leg.
+            let w = enc(&t, "STS [R10+UR4-0x1], R30 ;").unwrap();
+            assert_eq!(
+                dec(&t, &idx, w).unwrap(),
+                "STS [R10+UR4+-0x1], R30",
+                "[sm121a] spelling law STS neg"
             );
         } else {
             let w = enc(&t, "STS [R10+UR4-0x1], R30 ;").unwrap();
@@ -206,36 +201,41 @@ fn t399_3_mint_spelling_law() {
                 "[{leg}] spelling law STS neg"
             );
         }
-        // RZ-elided mint cordons (pre-existing encode-side holes; the
-        // decode-side vendor render is pinned exact in t399_1): LDS.S8's
-        // ''-group AURI row cannot carry S8 (BUG-132 cordon), LDSM has no
-        // AURI row at all; both must keep refusing loudly, never
-        // silently mint a different variant.
-        for bad in ["LDS.S8 R93, [UR4+-0x1] ;", "LDSM.16.M88 R16, [UR4+-0x1] ;"] {
-            assert!(
-                enc(&t, bad).is_err(),
-                "[{leg}] RZ-elided mint unexpectedly encodes: {bad}"
-            );
+        // CLOSED z atrybucja BUG-413(ii)/(iii) (F2-iter231, canonical
+        // 487757b): the RZ-elided mints now encode byte-exact circles --
+        // LDS_R_AURI carries the S8 mod-group (132 cordon arm satisfied by
+        // the measured row; silent drop is still impossible: the row's
+        // reprint is S8) and LDSM_R_AURI exists (row added x4). Pre-iter231
+        // both refused (no row / cordon); assert the closed circles:
+        for (txt, want) in [
+            ("LDS.S8 R93, [UR4+-0x1] ;", "LDS.S8 R93, [UR4+-0x1]"),
+            ("LDSM.16.M88 R16, [UR4+-0x1] ;", "LDSM.16.M88 R16, [UR4+-0x1]"),
+        ] {
+            let w = enc(&t, txt).unwrap_or_else(|e| panic!("[{leg}] 413ii/iii mint refuse: {txt}: {e}"));
+            assert_eq!(dec(&t, &idx, w).unwrap(), want, "[{leg}] 413ii/iii circle drift");
         }
     }
 }
 
-/// t399_4: 412-kand posture UNTOUCHED -- UR-sentinel words keep the
-/// pre-existing engine renders (UR255 on the 8-bit ur field, UR511 on the
-/// 9-bit field; vendor prints URZ). Per-leg renders machine-pinned from
-/// measure_post399. If this pin breaks, close 412, don't bend the pin.
+/// t399_4: 412 CLOSED z atrybucja BUG-412 (F2-iter230, canonical e4f0915 +
+/// printer.rs arm): vendor law (arb412/arb412b, x4 AGREE EVERY) -- numeral =
+/// low 8 bits, all-ones = URZ. POSTURE412 keeps the PRE-fix per-leg renders
+/// pinned so the fix footprint is explicit: every cell must now render the
+/// vendor text (computed live from POSTURE412 vendor annotation below).
 #[test]
-fn t399_4_ur_sentinel_posture_untouched() {
+fn t399_4_ur_sentinel_closed_vendor_exact() {
     for (li, leg) in LEGS.iter().enumerate() {
+        let _ = li;
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
-        for (word, tag, renders) in POSTURE412 {
-            let got = dec(&t, &idx, *word)
-                .unwrap_or_else(|| panic!("[{leg}] {tag} fell HOLE: route changed"));
-            assert_eq!(
-                &got, &renders[li],
-                "[{leg}] {tag} 412-arm landed? then close 412, don't bend this pin"
-            );
+        for (word, tag, _pre_renders) in POSTURE412 {
+            let got = dec(&t, &idx, *word).unwrap_or_else(|| panic!("[{leg}] {tag} fell HOLE"));
+            let vendor = POSTURE412_VENDOR
+                .iter()
+                .find(|(tg, _)| tg == tag)
+                .unwrap()
+                .1;
+            assert_eq!(got, vendor, "[{leg}] {tag} must be vendor-exact post-412");
         }
     }
 }
@@ -263,40 +263,46 @@ fn t399_5_syncs_untouched_debt_contract() {
     }
 }
 
-/// t399_6: 414-kand posture UNTOUCHED -- sm121a dedicated narrow-imm rows
-/// (STS.U8_ARURI_R with imm 13b@40; STS.U8_ARI_II with imm 12b@41; the
-/// LDS.128 *-II/-? narrow family) keep the legacy '-0x' glyph and the
-/// legacy claim route. The vendor '+-0x' law (t399_1) stays scoped to the
-/// measured 24-bit sub_imm1 window; narrower windows are an unmeasured
-/// class (posture pinned; closing them needs their own per-row vendor
-/// lattice).
+/// t399_6: CLOSED by BUG-414 (F2-iter225) -- flip WITH attribution. The
+/// sm121a narrow-imm posture this pin froze was the 414 defect itself
+/// (dedicated STS.U8_ARURI_R declared imm 13b@40 while the vendor reads
+/// the 24-bit window [40:64); lattice arb414/arb414b/arb414c x4 DIVERGENT=0).
+/// Post-414 the witness mints the 24-bit form and every leg renders the
+/// same vendor-true text (399 '+-' glyph included). The pin now guards the
+/// CLOSED contract so a regression re-opens loudly.
 #[test]
-fn t399_6_sm121a_narrow_imm_posture_untouched() {
+fn t399_6_sm121a_narrow_imm_closed_by_414() {
     let t = tab("sm121a");
     let idx = DecodeIndex::build(&t);
-    // This word mints through the 24-bit STS_ARURI_R "U8" encoder row;
-    // on sm121a the DECODER routes it to the dedicated narrow-imm row
-    // STS.U8_ARURI_R (imm 13b@40) -- value 0x1001 reads as -0xfff there
-    // and keeps the legacy '-0x' glyph. Vendor (nvdisasm SM121a raw -b)
-    // prints '+0x1001' for the same payload => 414-kand decoder-side
-    // narrow-window defect, PRE-EXISTING (engine '-0xfff' both before and
-    // after 399); pinned as posture. If this pin breaks, close 414
-    // properly -- don't bend the pin.
+    // Post-414: '-0xfff' mints the 24-bit window form (bits [40:64) =
+    // 0xfff001), no longer the 13-bit fold. Vendor text on every leg is
+    // '+-0xfff' (arb414b w24_fff001, x4 AGREE).
     let w = enc(&t, "STS.U8 [R5+UR10-0xfff], RZ ;").unwrap();
+    const M96: u128 = (1u128 << 96) - 1;
+    assert_eq!(
+        (w >> 40) & 0xFFFFFF,
+        0xfff001,
+        "sm121a mint must use the 24-bit window post-414"
+    );
     let got = dec(&t, &idx, w).unwrap();
     assert_eq!(
-        got, "STS.U8 [R5+UR10-0xfff], RZ",
-        "sm121a narrow-imm posture drifted (414 arm landed?)"
+        got, "STS.U8 [R5+UR10+-0xfff], RZ",
+        "sm121a render drift (414 regression?)"
     );
-    // The identical payload on the legacy legs claims the 24-bit
-    // sub_imm1 row: 0x1001 is positive there -- plain '+0x', no '+-'.
     for leg in ["sm100a", "sm103a", "sm120"] {
         let t2 = tab(leg);
         let idx2 = DecodeIndex::build(&t2);
         let got2 = dec(&t2, &idx2, w).unwrap();
         assert_eq!(
-            got2, "STS.U8 [R5+UR10+0x1001], RZ",
-            "[{leg}] 24-bit law drifted on the migrated word"
+            got2, "STS.U8 [R5+UR10+-0xfff], RZ",
+            "[{leg}] 24-bit law drifted on the closed-414 word"
         );
+        // cross-leg mint parity in the payload domain
+        let w2 = enc(&t2, "STS.U8 [R5+UR10+-0xfff], RZ ;").unwrap();
+        assert_eq!(w2 & M96, w & M96, "[{leg}] cross-leg mint drift");
     }
+    // The positive form of the old defect payload (+0x1001) keeps minting
+    // the same bytes it always did (no churn on the vendor-true path).
+    let wp = enc(&t, "STS.U8 [R5+UR10+0x1001], RZ ;").unwrap();
+    assert_eq!((wp >> 40) & 0xFFFFFF, 0x1001, "positive path churned");
 }

@@ -222,8 +222,11 @@ fn t373_5_no_regression_era_legs_and_provenance() {
     // [FLIP with attribution, BUG-393 / F2-iter214]: manifest pin moves
     // with the 0x7c31 h0nh1 graft (canonical d908ee9 = BUG-395; rides 74a06b7 = BUG-405/406 HADD2 release + HFMA2 two-imm slot graft = BUG-405/406; rides 19363f6 = BUG-400, which rode 5d32aec = BUG-398, 96f196b = BUG-402, dd477eb = BUG-407, 8f2571b = BUG-393).
     assert!(
+    // [FLIP with attribution, BUG-409 / F2-iter224]: manifest pin moves
+    // with the canonical sm100a LDC_R_cAI|S16 vm|b37 graft (+cubit decoder arm).
         // [FLIP with attribution, BUG-387 / F2-iter206]: manifest pin moves with the canonical SHFL b62-region graft.
-        m["base_revision"].as_str().unwrap().starts_with("918049c"),
-        "SOURCE.json must pin canonical d908ee9 [was 74a06b7 = BUG-405/406] (BUG-395 graft F2-iter223 z atrybucja; rides 74a06b7 = BUG-405/406, which rode 19363f6 = BUG-400, which rode 5d32aec = BUG-398; 5d32aec rode 96f196b = BUG-402; BUG-402 rode dd477eb = BUG-407; BUG-407 rode 8f2571b = BUG-393; BUG-393 rode 2285a05 = BUG-403; BUG-403 rode a10350c = BUG-390)"
+        m["base_revision"].as_str().unwrap().starts_with("d560e99"),
+        "SOURCE.json must pin canonical 52cb73c [was 3f6ca6f = BUG-425, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422, 0eddad5 = BUG-420] (BUG-425+425b grafts F2-iter238(A/B) z atrybucja; ride-chain): {:?}",
+        m["base_revision"]
     );
 }

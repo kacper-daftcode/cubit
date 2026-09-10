@@ -263,9 +263,49 @@ class SyncError(RuntimeError):
 # and_base[127:105] VERBATIM (same convention as the 274..390 waves);
 # LD_R_dARI|E,S8 donors bake none (hi32==0 asserted) -> SM121A +7.
 # MEASURED on the post-graft canonical (count of and_base>>105 entries),
-# not assumed.
-BAKED_CTRL_BASELINE = {"SM120": 1098, "SM103a": 1624, "SM100a": 1628,
-                       "SM121A": 532}
+# 2026-09-08 BUG-419 (canonical 2ae87b3): SM100a 1628->1677 (+49),
+# SM103a 1624->1673 (+49), SM120 1098->1137 (+39), SM121A 532 (STOIC --
+# the 121a FI_FI_R era row bakes hi32==0) -- the HADD2 0x430-route rows
+# (7 mgs + 3 F32 dotted keys) and the HFMA2 0x7831-route rows (dotted mgs
+# + RELU _P dotted keys) clone their FI FI / two-imm R-final parents'
+# era ctrl template VERBATIM like the whole family convention; the
+# and_base deltas of the graft are EXACTLY the measured route bits
+# ([76:86) window) -- the extra [127:105) count comes from row COUNT,
+# not new template bits.
+# 2026-09-09 BUG-421+422 (canonical 13e13b6): SM120 1138->1139, SM103a
+# 1674->1675, SM100a 1678->1679, SM121A 534->535 -- +1 ROW per leg =
+# LDS_R_AURI|S16 inherits the U16/S8 high-band class verbatim
+# (and_base[127:105] lineage U16_AB d96=0x000e2000, vm verbatim;
+# the count is ROW count, not new template bits). The 14 LDSM enum
+# mgs (M816/M832/MT1616) bake ZERO at [127:105) (d96=0 donor class).
+# MEASURED post-graft (sync staging error sm120 1139 vs baseline).
+# 2026-09-08 BUG-412+413(i) (canonical e4f0915): SM121A 532->533 --
+# the STS_ARURI_R '' era row cloned to the sm100a/103a/120 donor shape
+# inherits the donors' baked ctrl template in and_base[127:105]
+# VERBATIM (donor shape identical x3, asserted in patch412413.py; era
+# row had fake reuse@122/123 fields + 0x7988-era shape baking none).
+# 2026-09-09 BUG-427 (canonical a5e6d0a): LDS_R_ARI|S16 +
+# LDS_R_ARURI|S16 donor-clones of the frame-own U16 rows carry the U16
+# donor's baked b109 control bit (same convention as the standing LDS
+# family) -- +2 per leg (SM120 1139->1141, SM103a 1675->1677,
+# SM100a 1679->1681, SM121A 535->537; measured, INC-233 norm).
+# 2026-09-09 BUG-425 (canonical 3f6ca6f): SM121A 537->540 MEASURED
+# (machine-diff pre_tabs vs canonical): + STS_ARURI_R|U8 (cross-leg donor
+# = canonical sm103a row VERBATIM, norma patch412413 -- carries the donor
+# family's baked ctrl template), + STS_AURI_R|U16 + STS_AURI_R|U8 (loose-''
+# clones inherit the '' and_base [127:105) bits verbatim). STS_AURI_R|128
+# clone does NOT join (width delta flips one baked-window bit OFF, delta
+# machine-asserted). Sibling legs STOIC (1141/1677/1681 stand).
+# 2026-09-10 BUG-425b (canonical 52cb73c): SM121A 540->541 MEASURED --
+# R6 zastepuje 121a-era STS_ARURI_R|U16 (bez sub_imm1, baked ctl-val == 0)
+# kanonicznym klonem sm103a VERBATIM; donor niesie [127:105) bake 0x1c000
+# (b109-111 epoch/reuse shoulder) -- +1 STS_ARURI_R|U16 do rodziny
+# baked-ctrl 121a (machine-diff pre_tabs vs sandbox; era row mial
+# care-ctrl e3ffffff z 0x0 bake). Sibling legs STOIC; R7/R8v2/R9 nie
+# dodaja baked (vm-care narrowing + field-decl removal, bez nowych wierszy
+# z ctrl-wartosciami).
+BAKED_CTRL_BASELINE = {"SM120": 1141, "SM103a": 1677, "SM100a": 1681,
+                       "SM121A": 541}
 
 FIXED_EXTRACTIONS = {
     "",
