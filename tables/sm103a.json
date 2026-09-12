@@ -60466,104 +60466,6 @@
      ],
      "variable_mask": "0x000fca000000001c000001023e3c0000"
     },
-    "256,E,EFL2,GPU,HINT,NA,STRONG": {
-     "and_base": "0x000824000850e0007e00000c0034797e",
-     "count": 2,
-     "fields": [
-      {
-       "_src": "b4forward3-2026-08-21",
-       "bits": 4,
-       "extraction": "guard",
-       "shift": 12,
-       "token_idx": 0
-      },
-      {
-       "_src": "b4forward3-2026-08-21",
-       "bits": 8,
-       "extraction": "reg",
-       "shift": 16,
-       "token_idx": 2
-      },
-      {
-       "_src": "bug147-2026-08-25",
-       "bits": 8,
-       "extraction": "sub_r1",
-       "shift": 24,
-       "token_idx": 3
-      },
-      {
-       "_src": "b4forward3-2026-08-21",
-       "bits": 5,
-       "extraction": "sub_ur0",
-       "shift": 32,
-       "token_idx": 3
-      },
-      {
-       "_src": "b4forward3-2026-08-21",
-       "bits": 20,
-       "extraction": "sub_imm2_shr2",
-       "shift": 37,
-       "token_idx": 3
-      },
-      {
-       "_src": "b4forward3-2026-08-21",
-       "bits": 8,
-       "extraction": "reg",
-       "shift": 64,
-       "token_idx": 1
-      }
-     ],
-     "variable_mask": "0x000fc600000000ff00fffffffffff000"
-    },
-    "256,E,EFL2,GPU,NA,STRONG": {
-     "and_base": "0x000824000850e100fe0000060008797e",
-     "count": 2,
-     "fields": [
-      {
-       "_src": "b4forward3-2026-08-21",
-       "bits": 4,
-       "extraction": "guard",
-       "shift": 12,
-       "token_idx": 0
-      },
-      {
-       "_src": "b4forward3-2026-08-21",
-       "bits": 8,
-       "extraction": "reg",
-       "shift": 16,
-       "token_idx": 2
-      },
-      {
-       "_src": "bug147-2026-08-25",
-       "bits": 8,
-       "extraction": "sub_r1",
-       "shift": 24,
-       "token_idx": 3
-      },
-      {
-       "_src": "b4forward3-2026-08-21",
-       "bits": 5,
-       "extraction": "sub_ur0",
-       "shift": 32,
-       "token_idx": 3
-      },
-      {
-       "_src": "b4forward3-2026-08-21",
-       "bits": 20,
-       "extraction": "sub_imm2_shr2",
-       "shift": 37,
-       "token_idx": 3
-      },
-      {
-       "_src": "b4forward3-2026-08-21",
-       "bits": 8,
-       "extraction": "reg",
-       "shift": 64,
-       "token_idx": 1
-      }
-     ],
-     "variable_mask": "0x000fc600000000ff00fffffffffff000"
-    },
     "256,E,EL,ELL2,GPU,STRONG": {
      "and_base": "0x000020000824e100fe0000000000097e",
      "count": 14,
@@ -61260,7 +61162,7 @@
        "token_idx": 2
       }
      ],
-     "variable_mask": "0x03fffe0000000000fffff83efefcf000"
+     "variable_mask": "0x3fffe00000000c0fffff83efefcf000"
     },
     "128,E,EF": {
      "and_base": "0x000000000c0e1d000000000000000981",
@@ -63339,6 +63241,90 @@
      "variable_mask": "0x1dfce00000000c00000003efefcf000",
      "_src": "bug400-2026-09-07",
      "_note": "BUG-400: LTC code 3 = .LTC256B @[68:70) (arb400 x4 AGREE)"
+    },
+    "128,E,LTC64B": {
+     "and_base": "0xc1e1d100000000000000981",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x3fffe00000000c0fffff83efefcf000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 X1: LTC code 1 @[68:70) encoder pv0 route, LDG true-lane (arb400c pv0 cells x4; donor=128,E post-relax)"
+    },
+    "128,E,LTC256B": {
+     "and_base": "0xc1e1d300000000000000981",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x3fffe00000000c0fffff83efefcf000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 X1: LTC code 3 @[68:70) encoder pv0 route, LDG true-lane (arb400c pv0 cells x4; donor=128,E post-relax)"
     }
    },
    "operand_sig": "R_dARI",
@@ -64265,7 +64251,9 @@
        "token_idx": 2
       }
      ],
-     "variable_mask": "0x01fffe000000000001fc001ffffc0000"
+     "variable_mask": "0x1fffe00f7f0000001fc001ffffc0000",
+     "_src": "bug441-2026-09-11",
+     "_note": "BUG-441: full inert-band closure on the LDSM M88 ARURI frame (arb441 law 54 probes x4 AGREE/DIVERGENT=0): plain row band-rest {88,89,93,94} singles+all-11-combos+cross+rich vendor-legal inert x4; count rows .2/.4 relax the full inert band {84,85,86,87,88,89,90,92,93,94,95} (singles+pairs+full vendor-legal x4, D-under-count = own count rows). Pure relax: ab/fields/count invariant. Postures NOT grafted: INVALID3 loud (b72+b73), RC1 era carriers (440-doctrine)."
     },
     "16,4,MT88": {
      "and_base": "0x0000000008004200000000000000783b",
@@ -64349,7 +64337,9 @@
        "token_idx": 2
       }
      ],
-     "variable_mask": "0x01fffe000000000001fc001ffffc0000"
+     "variable_mask": "0x1fffe00f7f0000001fc001ffffc0000",
+     "_src": "bug441-2026-09-11",
+     "_note": "BUG-441: full inert-band closure on the LDSM M88 ARURI frame (arb441 law 54 probes x4 AGREE/DIVERGENT=0): plain row band-rest {88,89,93,94} singles+all-11-combos+cross+rich vendor-legal inert x4; count rows .2/.4 relax the full inert band {84,85,86,87,88,89,90,92,93,94,95} (singles+pairs+full vendor-legal x4, D-under-count = own count rows). Pure relax: ab/fields/count invariant. Postures NOT grafted: INVALID3 loud (b72+b73), RC1 era carriers (440-doctrine)."
     },
     "16,M816": {
      "and_base": "0x8008000000000000000083b",
@@ -64699,9 +64689,9 @@
        "_src": "bug424-2026-09-09"
       }
      ],
-     "variable_mask": "0x1fffe000000000001fc001ffffc0000",
-     "_src": "bug424-2026-09-09",
-     "_note": "BUG-424: LDSM ARURI-frame sparse enum/count closure (arb424 law, 68 probes nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0: full enum x count matrix uniform on the R+UR shared-bracket frame; .2=b72 legal x4 for M88/MT88 here, MT88 plain legal x4). Donor geometry 16,M88 verbatim (fields deep-copied), and_base |= measured delta, vm verbatim, count=None. INVALID3/INVALID5/6/7 loud glyphs and the M832-count construct cells stay unclaimed (426-scope contract); 423-era [R0+UR4] singles UNTOUCHED."
+     "variable_mask": "0x1fffe00f7f0000001fc001ffffc0000",
+     "_src": "bug441-2026-09-11",
+     "_note": "BUG-441: full inert-band closure on the LDSM M88 ARURI frame (arb441 law 54 probes x4 AGREE/DIVERGENT=0): plain row band-rest {88,89,93,94} singles+all-11-combos+cross+rich vendor-legal inert x4; count rows .2/.4 relax the full inert band {84,85,86,87,88,89,90,92,93,94,95} (singles+pairs+full vendor-legal x4, D-under-count = own count rows). Pure relax: ab/fields/count invariant. Postures NOT grafted: INVALID3 loud (b72+b73), RC1 era carriers (440-doctrine)."
     },
     "16,MT88": {
      "and_base": "0x8004000000000000000083b",
@@ -69667,7 +69657,7 @@
        "token_idx": 2
       }
      ],
-     "variable_mask": "0x03fffe0000000000fffffc3efefff000"
+     "variable_mask": "0x3fffe00000000c0fffffc3efefff000"
     },
     "E,GPU,STRONG": {
      "and_base": "0x000ea0000c10f9000000000000007980",
@@ -69858,6 +69848,258 @@
       }
      ],
      "variable_mask": "0x003fce00000000000000001e7e7ff000"
+    },
+    "128,E,LTC64B": {
+     "and_base": "0xc101d100000000000000980",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x03fffe0000000000fffff03efefcf000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 A1: LTC code 1 @[68:70) on the LD.128 desc lane (arb435 C/P7lane + arb435b P128d x4 AGREE; donor=LD_R_dARI|128,E verbatim)"
+    },
+    "128,E,LTC128B": {
+     "and_base": "0xc101d200000000000000980",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x03fffe0000000000fffff03efefcf000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 A1: LTC code 2 @[68:70) on the LD.128 desc lane (arb435 C/P7lane + arb435b P128d x4 AGREE; donor=LD_R_dARI|128,E verbatim)"
+    },
+    "128,E,LTC256B": {
+     "and_base": "0xc101d300000000000000980",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x03fffe0000000000fffff03efefcf000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 A1: LTC code 3 @[68:70) on the LD.128 desc lane (arb435 C/P7lane + arb435b P128d x4 AGREE; donor=LD_R_dARI|128,E verbatim)"
+    },
+    "E,LTC64B": {
+     "and_base": "0xc1019100000000000000980",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x3fffe00000000c0fffffc3efefff000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 X4: LTC code 1 @[68:70) LD E desc lane + inert b70/71 (arb416d P/Q x4; donor=LD|E post-relax)"
+    },
+    "E,LTC128B": {
+     "and_base": "0xc1019200000000000000980",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x3fffe00000000c0fffffc3efefff000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 X4: LTC code 2 @[68:70) LD E desc lane + inert b70/71 (arb416d P/Q x4; donor=LD|E post-relax)"
+    },
+    "E,LTC256B": {
+     "and_base": "0xc1019300000000000000980",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x3fffe00000000c0fffffc3efefff000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 X4: LTC code 3 @[68:70) LD E desc lane + inert b70/71 (arb416d P/Q x4; donor=LD|E post-relax)"
     }
    },
    "operand_sig": "R_dARI",
@@ -80395,7 +80637,9 @@
        "token_idx": 2
       }
      ],
-     "variable_mask": "0x3fffffffffff00f000"
+     "variable_mask": "0x400003fffffffffff00f000",
+     "_src442": "bug442-2026-09-11",
+     "_note": "(1,1) free-form claims via relaxed b90; .64 mode print engine-side; _src442"
     }
    },
    "operand_sig": "ARURI_R",
@@ -80447,7 +80691,9 @@
        "token_idx": 2
       }
      ],
-     "variable_mask": "0x3fffffffffff00f000"
+     "variable_mask": "0x400003fffffffffff00f000",
+     "_src442": "bug442-2026-09-11",
+     "_note": "(1,1) free-form claims via relaxed b90; .64 mode print engine-side; _src442"
     }
    },
    "operand_sig": "ARURI_R",
@@ -80637,10 +80883,11 @@
        "token_idx": 1
       },
       {
-       "bits": 6,
+       "bits": 8,
        "extraction": "ureg",
        "shift": 64,
-       "token_idx": 1
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
       },
       {
        "bits": 24,
@@ -80655,7 +80902,11 @@
        "token_idx": 2
       }
      ],
-     "variable_mask": "0x3fffffffffff00f000"
+     "variable_mask": "0xf78e00ffffffffffff00f000",
+     "_src438": "bug438-2026-09-11",
+     "_note438": "BUG-438 G4: STG.E ARURI cavity closure. Vendor law arb438b 34p + arb438c 6p x4: ureg is 8-bit [64:72) (j70=+64/j71=+128/junkfull-combo); junk-inert whitelist {81,82,83,87,88,89,92,93,94,95} x4 singles+combo; imm 24b signed extent x4 (sub_imm1 rename, +0x800000-word heals). Other-family enums [72:76)/77-80/84-86 + desc b90 + kills b76/91 NOT grafted (442/443-kand). x3 donor-parity with own sm121a 8-bit-ureg row.",
+     "_src442": "bug442-2026-09-11",
+     "_note": "(1,1) free-form claims via relaxed b90; .64 mode print engine-side; _src442"
     }
    },
    "operand_sig": "ARURI_R",
@@ -80852,7 +81103,8 @@
        "token_idx": 1
       }
      ],
-     "variable_mask": "0x000e1e00000000000003001c3e007000"
+     "variable_mask": "0x000e1e00000000000003001c3e007000",
+     "addr_width": "64"
     },
     "64,E": {
      "and_base": "0x0001e0000c100b040000000000000986",
@@ -80893,7 +81145,8 @@
        "token_idx": 1
       }
      ],
-     "variable_mask": "0x000e0e00000000000003001e0600f000"
+     "variable_mask": "0x000e0e00000000000003001e0600f000",
+     "addr_width": "64"
     },
     "E": {
      "and_base": "0x0001e0000c1009040000000000000986",
@@ -80934,7 +81187,172 @@
        "token_idx": 1
       }
      ],
-     "variable_mask": "0x000e0e0000000000000180ff7e007000"
+     "variable_mask": "0x000e0e0000000000000180ff7e007000",
+     "addr_width": "64"
+    },
+    "": {
+     "and_base": "0x81008000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "noE plain family (b72=0); probe STG.f.noE x4; b90 STRICT (loud ???0 cell B443.f.noE.b90; 442 doctrine); junk whitelist kept (measured noE.j81..j95)",
+     "variable_mask": "0xf38e00ffffffffffff00f000"
+    },
+    "64": {
+     "and_base": "0x8100a000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "noE plain family (b72=0); probe STG.x.noE.64 x4; b90 STRICT (loud ???0 cell B443.f.noE.b90; 442 doctrine); strict junk band (cross combo-space unmeasured)",
+     "variable_mask": "0xffffffffffff00f000"
+    },
+    "U8": {
+     "and_base": "0x81000000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "noE plain family (b72=0); probe STG.x.noE.U8 x4; b90 STRICT (loud ???0 cell B443.f.noE.b90; 442 doctrine); strict junk band (cross combo-space unmeasured)",
+     "variable_mask": "0xffffffffffff00f000"
+    },
+    "CONSTANT,PRIVATE": {
+     "and_base": "0x81028000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "noE plain family (b72=0); probe STG.x.noE.CPRIV x4; b90 STRICT (loud ???0 cell B443.f.noE.b90; 442 doctrine); strict junk band (cross combo-space unmeasured)",
+     "variable_mask": "0xffffffffffff00f000"
     }
    },
    "operand_sig": "ARURI_R",
@@ -81375,7 +81793,9 @@
        "token_idx": 2
       }
      ],
-     "variable_mask": "0x03fe3e000beff9ffffffffffff07f196"
+     "variable_mask": "0x3fe3e0003efe9ffffffffffff07f196",
+     "_src442": "bug442-2026-09-11",
+     "_note": "desc-region contract (1,1)+b76 (arb442 E.enc.desc; lattice law [91:90] kille (0,x)); _src442"
     },
     "E,EF": {
      "and_base": "0x0001e0000c0019000000000000007986",
@@ -81755,54 +82175,6 @@
       }
      ],
      "variable_mask": "0x00020e000000000200ffffff3efff000"
-    },
-    "256,E,EFL2,GPU,NA,STRONG": {
-     "and_base": "0x0009e0000f50e000f80000000000097f",
-     "count": 2,
-     "fields": [
-      {
-       "bits": 4,
-       "extraction": "guard",
-       "shift": 12,
-       "token_idx": 0
-      },
-      {
-       "_src": "b4fill-2026-08-21",
-       "bits": 9,
-       "extraction": "sub_ur0",
-       "shift": 64,
-       "token_idx": 1
-      },
-      {
-       "_src": "bug147-2026-08-25",
-       "bits": 8,
-       "extraction": "sub_r1",
-       "shift": 24,
-       "token_idx": 1
-      },
-      {
-       "_src": "b4fill-2026-08-21",
-       "bits": 16,
-       "extraction": "sub_imm2_shr5u",
-       "shift": 40,
-       "token_idx": 1
-      },
-      {
-       "_src": "b4fill-2026-08-21",
-       "bits": 8,
-       "extraction": "reg",
-       "shift": 32,
-       "token_idx": 2
-      },
-      {
-       "_src": "b4fill-2026-08-21",
-       "bits": 8,
-       "extraction": "reg",
-       "shift": 16,
-       "token_idx": 3
-      }
-     ],
-     "variable_mask": "0x00020e00000001ff01fffffffffff000"
     },
     "256,E,EL,ELL2,GPU,STRONG": {
      "and_base": "0x0009e0000f24e000f80000000000097f",
@@ -82301,7 +82673,309 @@
        "token_idx": 2
       }
      ],
-     "variable_mask": "0x0000000000000000ffffffffff00f000"
+     "variable_mask": "0x10000ffffffffff00f000",
+     "_src438": "bug438-2026-09-11",
+     "_note438": "BUG-438 G1/G2: STSM.16 MT88/MT168 closure + b80 alias relax. Vendor law arb438 27p + arb433 C-set x4: MT88(e1)/MT168(e2) counts plain/.2/.4 legal x4; b80 alias e4/e5/e6 == e0/e1/e2 x4; INVALID3 e3/e7 + count .6 loud HOLE doctrine (standing). Donor own M88 rows; ab |= 1<<78 (MT88)/1<<79 (MT168); vm |= 1<<80 on all 9 mgs; count=None."
+    },
+    "16,M88": {
+     "and_base": "0x844",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug433-2026-09-10",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug433-2026-09-10",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug433-2026-09-10",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug433-2026-09-10",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x10000ffffffffff00f000",
+     "_src": "bug433-2026-09-10",
+     "_note": "BUG-433: STSM.16 ARI M88 count closure (arb433 69 probes + arb433b 20, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0). Donor = frame-own 16,4,M88 verbatim (fields deep-copied), ab &= ~(1<<73) for plain / |= (1<<72) for .2, vm verbatim, count=None. INVALID3 count .6 + INVALID3 enum e3/e7 loud glyphs stay UNTOUCHED; MT88/MT168 + b80-alias = 438-kand.",
+     "_src438": "bug438-2026-09-11",
+     "_note438": "BUG-438 G1/G2: STSM.16 MT88/MT168 closure + b80 alias relax. Vendor law arb438 27p + arb433 C-set x4: MT88(e1)/MT168(e2) counts plain/.2/.4 legal x4; b80 alias e4/e5/e6 == e0/e1/e2 x4; INVALID3 e3/e7 + count .6 loud HOLE doctrine (standing). Donor own M88 rows; ab |= 1<<78 (MT88)/1<<79 (MT168); vm |= 1<<80 on all 9 mgs; count=None."
+    },
+    "16,2,M88": {
+     "and_base": "0x1000000000000000844",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug433-2026-09-10",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug433-2026-09-10",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug433-2026-09-10",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug433-2026-09-10",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x10000ffffffffff00f000",
+     "_src": "bug433-2026-09-10",
+     "_note": "BUG-433: STSM.16 ARI M88 count closure (arb433 69 probes + arb433b 20, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0). Donor = frame-own 16,4,M88 verbatim (fields deep-copied), ab &= ~(1<<73) for plain / |= (1<<72) for .2, vm verbatim, count=None. INVALID3 count .6 + INVALID3 enum e3/e7 loud glyphs stay UNTOUCHED; MT88/MT168 + b80-alias = 438-kand.",
+     "_src438": "bug438-2026-09-11",
+     "_note438": "BUG-438 G1/G2: STSM.16 MT88/MT168 closure + b80 alias relax. Vendor law arb438 27p + arb433 C-set x4: MT88(e1)/MT168(e2) counts plain/.2/.4 legal x4; b80 alias e4/e5/e6 == e0/e1/e2 x4; INVALID3 e3/e7 + count .6 loud HOLE doctrine (standing). Donor own M88 rows; ab |= 1<<78 (MT88)/1<<79 (MT168); vm |= 1<<80 on all 9 mgs; count=None."
+    },
+    "16,MT88": {
+     "and_base": "0x40000000000000000844",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x10000ffffffffff00f000",
+     "_src": "bug438-2026-09-11",
+     "_note": "BUG-438 G1/G2: STSM.16 MT88/MT168 closure + b80 alias relax. Vendor law arb438 27p + arb433 C-set x4: MT88(e1)/MT168(e2) counts plain/.2/.4 legal x4; b80 alias e4/e5/e6 == e0/e1/e2 x4; INVALID3 e3/e7 + count .6 loud HOLE doctrine (standing). Donor own M88 rows; ab |= 1<<78 (MT88)/1<<79 (MT168); vm |= 1<<80 on all 9 mgs; count=None."
+    },
+    "16,MT168": {
+     "and_base": "0x80000000000000000844",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x10000ffffffffff00f000",
+     "_src": "bug438-2026-09-11",
+     "_note": "BUG-438 G1/G2: STSM.16 MT88/MT168 closure + b80 alias relax. Vendor law arb438 27p + arb433 C-set x4: MT88(e1)/MT168(e2) counts plain/.2/.4 legal x4; b80 alias e4/e5/e6 == e0/e1/e2 x4; INVALID3 e3/e7 + count .6 loud HOLE doctrine (standing). Donor own M88 rows; ab |= 1<<78 (MT88)/1<<79 (MT168); vm |= 1<<80 on all 9 mgs; count=None."
+    },
+    "16,2,MT88": {
+     "and_base": "0x41000000000000000844",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x10000ffffffffff00f000",
+     "_src": "bug438-2026-09-11",
+     "_note": "BUG-438 G1/G2: STSM.16 MT88/MT168 closure + b80 alias relax. Vendor law arb438 27p + arb433 C-set x4: MT88(e1)/MT168(e2) counts plain/.2/.4 legal x4; b80 alias e4/e5/e6 == e0/e1/e2 x4; INVALID3 e3/e7 + count .6 loud HOLE doctrine (standing). Donor own M88 rows; ab |= 1<<78 (MT88)/1<<79 (MT168); vm |= 1<<80 on all 9 mgs; count=None."
+    },
+    "16,2,MT168": {
+     "and_base": "0x81000000000000000844",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x10000ffffffffff00f000",
+     "_src": "bug438-2026-09-11",
+     "_note": "BUG-438 G1/G2: STSM.16 MT88/MT168 closure + b80 alias relax. Vendor law arb438 27p + arb433 C-set x4: MT88(e1)/MT168(e2) counts plain/.2/.4 legal x4; b80 alias e4/e5/e6 == e0/e1/e2 x4; INVALID3 e3/e7 + count .6 loud HOLE doctrine (standing). Donor own M88 rows; ab |= 1<<78 (MT88)/1<<79 (MT168); vm |= 1<<80 on all 9 mgs; count=None."
+    },
+    "16,4,MT88": {
+     "and_base": "0x42000000000000000844",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x10000ffffffffff00f000",
+     "_src": "bug438-2026-09-11",
+     "_note": "BUG-438 G1/G2: STSM.16 MT88/MT168 closure + b80 alias relax. Vendor law arb438 27p + arb433 C-set x4: MT88(e1)/MT168(e2) counts plain/.2/.4 legal x4; b80 alias e4/e5/e6 == e0/e1/e2 x4; INVALID3 e3/e7 + count .6 loud HOLE doctrine (standing). Donor own M88 rows; ab |= 1<<78 (MT88)/1<<79 (MT168); vm |= 1<<80 on all 9 mgs; count=None."
+    },
+    "16,4,MT168": {
+     "and_base": "0x82000000000000000844",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug438-2026-09-11",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x10000ffffffffff00f000",
+     "_src": "bug438-2026-09-11",
+     "_note": "BUG-438 G1/G2: STSM.16 MT88/MT168 closure + b80 alias relax. Vendor law arb438 27p + arb433 C-set x4: MT88(e1)/MT168(e2) counts plain/.2/.4 legal x4; b80 alias e4/e5/e6 == e0/e1/e2 x4; INVALID3 e3/e7 + count .6 loud HOLE doctrine (standing). Donor own M88 rows; ab |= 1<<78 (MT88)/1<<79 (MT168); vm |= 1<<80 on all 9 mgs; count=None."
     }
    },
    "operand_sig": "ARI_R",
@@ -82657,7 +83331,9 @@
        "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x3fe3e000001313ffffffcffff00f000"
+     "variable_mask": "0x3fe3e008001313ffffffcffff00f000",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "b95 inert on ARURI carriers per width x4 (arb443 plain.b95; arb443c u8/64/128.r95); donor-parity STS_AURI_R 438-G3"
     },
     "128": {
      "and_base": "0x0001c00008000c000000000000000988",
@@ -82706,7 +83382,9 @@
        "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x3fe3e000001315ffffff0ffff00f000"
+     "variable_mask": "0x3fe3e008001315ffffff0ffff00f000",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "b95 inert on ARURI carriers per width x4 (arb443 plain.b95; arb443c u8/64/128.r95); donor-parity STS_AURI_R 438-G3"
     },
     "64": {
      "and_base": "0x0001c00008000a000000000000000988",
@@ -82755,7 +83433,9 @@
        "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x3fe3e000001311ffffff8ffff00f000"
+     "variable_mask": "0x3fe3e008001311ffffff8ffff00f000",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "b95 inert on ARURI carriers per width x4 (arb443 plain.b95; arb443c u8/64/128.r95); donor-parity STS_AURI_R 438-G3"
     },
     "U16": {
      "and_base": "0x0001e000080004000000000000000988",
@@ -82853,7 +83533,111 @@
        "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0xce0e000001311f00fc3fffff00f000"
+     "variable_mask": "0xce0e008001311f00fc3fffff00f000",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "b95 inert on ARURI carriers per width x4 (arb443 plain.b95; arb443c u8/64/128.r95); donor-parity STS_AURI_R 438-G3"
+    },
+    "S8": {
+     "and_base": "0x1c000080002000000000000000988",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 9,
+       "extraction": "sub_ur1",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 1,
+       "_src": "bug425-2026-09-09",
+       "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
+      }
+     ],
+     "variable_mask": "0x3fe3e008001313ffffffcffff00f000",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "width map enum[73:76)=1 (S8) + b95 inert (arb443 s16.b95 / arb443c s8.r95 on ARURI carriers x4); clone donor row verbatim"
+    },
+    "S16": {
+     "and_base": "0x1c000080006000000000000000988",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 9,
+       "extraction": "sub_ur1",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 1,
+       "_src": "bug425-2026-09-09",
+       "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
+      }
+     ],
+     "variable_mask": "0x3fe3e008001313ffffffcffff00f000",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "width map enum[73:76)=3 (S16) + b95 inert (arb443 s16.b95 / arb443c s8.r95 on ARURI carriers x4); clone donor row verbatim"
     }
    },
    "operand_sig": "ARURI_R",
@@ -82880,10 +83664,11 @@
       },
       {
        "_src": "2aE",
-       "bits": 9,
+       "bits": 8,
        "extraction": "sub_ur0",
        "shift": 64,
-       "token_idx": 1
+       "token_idx": 1,
+       "_src438": "bug438-2026-09-11"
       },
       {
        "_src": "2aE",
@@ -82908,7 +83693,9 @@
        "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x3fe3e000001313ffffffcff0000f000"
+     "variable_mask": "0x3fe3e008001313ffffffcff0000f000",
+     "_src438": "bug438-2026-09-11",
+     "_note438": "BUG-438 G3: STS.AURI widths {'',U8,64,128} era-band relax (arb438 WB-set x4 + arb433b 8-combo on U16): bits {95,109,115} inert x4; 109/115 in [127:96) cut by decoder; bit95 only match-visible. U16 done by 433c; S16/INVALID7 loud postures stay HOLE."
     },
     "128": {
      "and_base": "0x0001c00008000c0000000000ff000988",
@@ -82922,10 +83709,11 @@
       },
       {
        "_src": "2aE",
-       "bits": 9,
+       "bits": 8,
        "extraction": "sub_ur0",
        "shift": 64,
-       "token_idx": 1
+       "token_idx": 1,
+       "_src438": "bug438-2026-09-11"
       },
       {
        "_src": "2aE",
@@ -82950,7 +83738,9 @@
        "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x3fe3e000001313ffffff0ff0000f000"
+     "variable_mask": "0x3fe3e008001313ffffff0ff0000f000",
+     "_src438": "bug438-2026-09-11",
+     "_note438": "BUG-438 G3: STS.AURI widths {'',U8,64,128} era-band relax (arb438 WB-set x4 + arb433b 8-combo on U16): bits {95,109,115} inert x4; 109/115 in [127:96) cut by decoder; bit95 only match-visible. U16 done by 433c; S16/INVALID7 loud postures stay HOLE."
     },
     "64": {
      "and_base": "0x0001c00008000a0000000000ff000988",
@@ -82964,10 +83754,11 @@
       },
       {
        "_src": "2aE",
-       "bits": 9,
+       "bits": 8,
        "extraction": "sub_ur0",
        "shift": 64,
-       "token_idx": 1
+       "token_idx": 1,
+       "_src438": "bug438-2026-09-11"
       },
       {
        "_src": "2aE",
@@ -82992,7 +83783,9 @@
        "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x3fe3e000001313ffffff8ff0000f000"
+     "variable_mask": "0x3fe3e008001313ffffff8ff0000f000",
+     "_src438": "bug438-2026-09-11",
+     "_note438": "BUG-438 G3: STS.AURI widths {'',U8,64,128} era-band relax (arb438 WB-set x4 + arb433b 8-combo on U16): bits {95,109,115} inert x4; 109/115 in [127:96) cut by decoder; bit95 only match-visible. U16 done by 433c; S16/INVALID7 loud postures stay HOLE."
     },
     "U16": {
      "and_base": "0x0001e2000800040400000000ff008988",
@@ -83034,7 +83827,9 @@
        "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0x60000000131000060000600003000"
+     "variable_mask": "0x60000800131000060000600003000",
+     "_src433": "bug433-2026-09-10",
+     "_note433": "BUG-433-c: STS.U16 AURI bare-UR era-band relax -- vendor law arb433b K-law: bits {95,109,115} FULL 8-combo inert x4 (identical print); {109,115} are inside the [127:96) era band the decoder cuts, so bit 95 is the only match-visible blocker. vm |= (1<<95). Width-family beyond U16 stays tight (438-kand)."
     },
     "U8": {
      "and_base": "0x0001e0000800000000000000ff000988",
@@ -83048,10 +83843,11 @@
       },
       {
        "_src": "2aE",
-       "bits": 9,
+       "bits": 8,
        "extraction": "sub_ur0",
        "shift": 64,
-       "token_idx": 1
+       "token_idx": 1,
+       "_src438": "bug438-2026-09-11"
       },
       {
        "_src": "2aE",
@@ -83076,7 +83872,103 @@
        "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
       }
      ],
-     "variable_mask": "0xe0e000001310f000ffc0700007000"
+     "variable_mask": "0xe0e008001310f000ffc0700007000",
+     "_src438": "bug438-2026-09-11",
+     "_note438": "BUG-438 G3: STS.AURI widths {'',U8,64,128} era-band relax (arb438 WB-set x4 + arb433b 8-combo on U16): bits {95,109,115} inert x4; 109/115 in [127:96) cut by decoder; bit95 only match-visible. U16 done by 433c; S16/INVALID7 loud postures stay HOLE."
+    },
+    "S8": {
+     "and_base": "0x1c0000800020000000000ff000988",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 64,
+       "token_idx": 1,
+       "_src438": "bug438-2026-09-11"
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 1,
+       "_src": "bug425-2026-09-09",
+       "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
+      }
+     ],
+     "variable_mask": "0x3fe3e008001313ffffffcff0000f000",
+     "_src438": "bug438-2026-09-11",
+     "_note438": "BUG-438 G3: STS.AURI widths {'',U8,64,128} era-band relax (arb438 WB-set x4 + arb433b 8-combo on U16): bits {95,109,115} inert x4; 109/115 in [127:96) cut by decoder; bit95 only match-visible. U16 done by 433c; S16/INVALID7 loud postures stay HOLE.",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "width map enum[73:76)=1 (S8); arb443 w.S8/b72/window law x4; clone donor row verbatim; invalid7(enum7) NOT grafted (loud 285-doctrine)"
+    },
+    "S16": {
+     "and_base": "0x1c0000800060000000000ff000988",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 64,
+       "token_idx": 1,
+       "_src438": "bug438-2026-09-11"
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "bits": 2,
+       "extraction": "addr_scale",
+       "shift": 78,
+       "token_idx": 1,
+       "_src": "bug425-2026-09-09",
+       "_note": "BUG-425: STS addr-scale window [79:78] -- arb425 law UNIFORM x4: b78=.X4 b79=.X8 both=.X16 on every width carrier x frame (ARI/ARURI/AURI-space; lustro BUG-420; STS_ARI_R|128 carried via BUG-014). Print via BUG-420 sts_lds arm + new BUG-425 AURI arm."
+      }
+     ],
+     "variable_mask": "0x3fe3e008001313ffffffcff0000f000",
+     "_src438": "bug438-2026-09-11",
+     "_note438": "BUG-438 G3: STS.AURI widths {'',U8,64,128} era-band relax (arb438 WB-set x4 + arb433b 8-combo on U16): bits {95,109,115} inert x4; 109/115 in [127:96) cut by decoder; bit95 only match-visible. U16 done by 433c; S16/INVALID7 loud postures stay HOLE.",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "width map enum[73:76)=3 (S16); arb443 w.S16/b72/window law x4; clone donor row verbatim; invalid7(enum7) NOT grafted (loud 285-doctrine)"
     }
    },
    "operand_sig": "AURI_R",
@@ -110862,6 +111754,406 @@
      "variable_mask": "0x1dfce00000000c00000003efefcf000",
      "_src": "bug400-2026-09-07",
      "_note": "BUG-400: trailing-pred inv4 window [64:68) live (arb400 x4 AGREE; v=0 claims plain key by length tiebreak)"
+    },
+    "128,E,LTC64B": {
+     "and_base": "0xc1e1d100000000000000981",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug435-2026-09-10",
+       "_note": "BUG-435: trailing-pred inv4 window [64:68) (arb400/arb416d x4 AGREE; v=0 strict-claims the shorter plain key by the 400 tiebreak)"
+      }
+     ],
+     "variable_mask": "0x3fffe00000000c0fffff83efefcf000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 X2: LDG true-lane 128,E pred/LTC closure (arb416 B + arb400c x4 AGREE; donor=same-leg LDG_R_dARI|128,E post-relax + pred_inv4@64; code 1@[68:70))"
+    },
+    "128,E,LTC128B": {
+     "and_base": "0xc1e1d200000000000000981",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug435-2026-09-10",
+       "_note": "BUG-435: trailing-pred inv4 window [64:68) (arb400/arb416d x4 AGREE; v=0 strict-claims the shorter plain key by the 400 tiebreak)"
+      }
+     ],
+     "variable_mask": "0x3fffe00000000c0fffff83efefcf000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 X2: LDG true-lane 128,E pred/LTC closure (arb416 B + arb400c x4 AGREE; donor=same-leg LDG_R_dARI|128,E post-relax + pred_inv4@64; code 2@[68:70))"
+    },
+    "128,E,LTC256B": {
+     "and_base": "0xc1e1d300000000000000981",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug435-2026-09-10",
+       "_note": "BUG-435: trailing-pred inv4 window [64:68) (arb400/arb416d x4 AGREE; v=0 strict-claims the shorter plain key by the 400 tiebreak)"
+      }
+     ],
+     "variable_mask": "0x3fffe00000000c0fffff83efefcf000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 X2: LDG true-lane 128,E pred/LTC closure (arb416 B + arb400c x4 AGREE; donor=same-leg LDG_R_dARI|128,E post-relax + pred_inv4@64; code 3@[68:70))"
+    },
+    "128,E": {
+     "and_base": "0x000000000c1e1d000000000000000981",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug435-2026-09-10",
+       "_note": "BUG-435: trailing-pred inv4 window [64:68) (arb400/arb416d x4 AGREE; v=0 strict-claims the shorter plain key by the 400 tiebreak)"
+      }
+     ],
+     "variable_mask": "0x3fffe00000000c0fffff83efefcf000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 X2: LDG true-lane 128,E pred/LTC closure (arb416 B + arb400c x4 AGREE; donor=same-leg LDG_R_dARI|128,E post-relax + pred_inv4@64; code 0@[68:70))"
+    },
+    "E,LTC64B": {
+     "and_base": "0xc1e19100000000000000981",
+     "variable_mask": "0x03fffe0000000000fffffc3efefff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug435b-2026-09-10",
+       "_note": "BUG-435b J1: trailing-pred inv4 [64:68) on the old-lane LDG E family (arb435 D-set + arb416d x4 AGREE; v=0 -> plain key by 400 tiebreak)"
+      }
+     ],
+     "_src": "bug435b-2026-09-10",
+     "_note": "BUG-435b J1: old-lane LDG E-family plain-shape closure (arb435 D-set x4 AGREE; LTC code 1@[68:70); donor=LDG_R_dARI|E verbatim + pred_inv4@64; care-pins [81:84)=7 ==== disjoint from the LDG_P A-family claims by construction)"
+    },
+    "E,LTC128B": {
+     "and_base": "0xc1e19200000000000000981",
+     "variable_mask": "0x03fffe0000000000fffffc3efefff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug435b-2026-09-10",
+       "_note": "BUG-435b J1: trailing-pred inv4 [64:68) on the old-lane LDG E family (arb435 D-set + arb416d x4 AGREE; v=0 -> plain key by 400 tiebreak)"
+      }
+     ],
+     "_src": "bug435b-2026-09-10",
+     "_note": "BUG-435b J1: old-lane LDG E-family plain-shape closure (arb435 D-set x4 AGREE; LTC code 2@[68:70); donor=LDG_R_dARI|E verbatim + pred_inv4@64; care-pins [81:84)=7 ==== disjoint from the LDG_P A-family claims by construction)"
+    },
+    "E,LTC256B": {
+     "and_base": "0xc1e19300000000000000981",
+     "variable_mask": "0x03fffe0000000000fffffc3efefff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug435b-2026-09-10",
+       "_note": "BUG-435b J1: trailing-pred inv4 [64:68) on the old-lane LDG E family (arb435 D-set + arb416d x4 AGREE; v=0 -> plain key by 400 tiebreak)"
+      }
+     ],
+     "_src": "bug435b-2026-09-10",
+     "_note": "BUG-435b J1: old-lane LDG E-family plain-shape closure (arb435 D-set x4 AGREE; LTC code 3@[68:70); donor=LDG_R_dARI|E verbatim + pred_inv4@64; care-pins [81:84)=7 ==== disjoint from the LDG_P A-family claims by construction)"
+    },
+    "E": {
+     "and_base": "0xc1e19000000000000000981",
+     "variable_mask": "0x03fffe0000000000fffffc3efefff000",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug435b-2026-09-10",
+       "_note": "BUG-435b J1: trailing-pred inv4 [64:68) on the old-lane LDG E family (arb435 D-set + arb416d x4 AGREE; v=0 -> plain key by 400 tiebreak)"
+      }
+     ],
+     "_src": "bug435b-2026-09-10",
+     "_note": "BUG-435b J1: old-lane LDG E-family plain-shape closure (arb435 D-set x4 AGREE; LTC code 0@[68:70); donor=LDG_R_dARI|E verbatim + pred_inv4@64; care-pins [81:84)=7 ==== disjoint from the LDG_P A-family claims by construction)"
     }
    },
    "operand_sig": "R_dARI_P"
@@ -112031,6 +113323,3959 @@
      "count": null
     }
    }
+  },
+  "LD_R_dARI_P": {
+   "base_op": "LD",
+   "operand_sig": "R_dARI_P",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src": "bug435-2026-09-10",
+   "_note": "BUG-435 X5: NEW KEY on x3 legs (121a key pre-exists since BUG-400 era): LD trailing-pred drops pre (pv token drop class, 435 registration); law arb416d/arb435b x4 AGREE.",
+   "mod_groups": {
+    "E,LTC64B": {
+     "and_base": "0xc1019100000000000000980",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug435-2026-09-10",
+       "_note": "BUG-435: trailing-pred inv4 window [64:68) (arb400/arb416d x4 AGREE; v=0 strict-claims the shorter plain key by the 400 tiebreak)"
+      }
+     ],
+     "variable_mask": "0x3fffe00000000c0fffffc3efefff000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 A2/X5: LD pred-form closure (arb416d/arb435b x4 AGREE; donor fields + pred_inv4@64 last token; LTC code 1@[68:70))"
+    },
+    "E,LTC128B": {
+     "and_base": "0xc1019200000000000000980",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug435-2026-09-10",
+       "_note": "BUG-435: trailing-pred inv4 window [64:68) (arb400/arb416d x4 AGREE; v=0 strict-claims the shorter plain key by the 400 tiebreak)"
+      }
+     ],
+     "variable_mask": "0x3fffe00000000c0fffffc3efefff000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 A2/X5: LD pred-form closure (arb416d/arb435b x4 AGREE; donor fields + pred_inv4@64 last token; LTC code 2@[68:70))"
+    },
+    "E,LTC256B": {
+     "and_base": "0xc1019300000000000000980",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug435-2026-09-10",
+       "_note": "BUG-435: trailing-pred inv4 window [64:68) (arb400/arb416d x4 AGREE; v=0 strict-claims the shorter plain key by the 400 tiebreak)"
+      }
+     ],
+     "variable_mask": "0x3fffe00000000c0fffffc3efefff000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 A2/X5: LD pred-form closure (arb416d/arb435b x4 AGREE; donor fields + pred_inv4@64 last token; LTC code 3@[68:70))"
+    },
+    "E": {
+     "and_base": "0x000000000c1019000000000000000980",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug435-2026-09-10",
+       "_note": "BUG-435: trailing-pred inv4 window [64:68) (arb400/arb416d x4 AGREE; v=0 strict-claims the shorter plain key by the 400 tiebreak)"
+      }
+     ],
+     "variable_mask": "0x3fffe00000000c0fffffc3efefff000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 A2/X5: LD pred-form closure (arb416d/arb435b x4 AGREE; donor fields + pred_inv4@64 last token; LTC code 0@[68:70))"
+    },
+    "128,E,LTC64B": {
+     "and_base": "0xc101d100000000000000980",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug435-2026-09-10",
+       "_note": "BUG-435: trailing-pred inv4 window [64:68) (arb400/arb416d x4 AGREE; v=0 strict-claims the shorter plain key by the 400 tiebreak)"
+      }
+     ],
+     "variable_mask": "0x03fffe0000000000fffff03efefcf000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 A2/X5: LD pred-form closure (arb416d/arb435b x4 AGREE; donor fields + pred_inv4@64 last token; LTC code 1@[68:70))"
+    },
+    "128,E,LTC128B": {
+     "and_base": "0xc101d200000000000000980",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug435-2026-09-10",
+       "_note": "BUG-435: trailing-pred inv4 window [64:68) (arb400/arb416d x4 AGREE; v=0 strict-claims the shorter plain key by the 400 tiebreak)"
+      }
+     ],
+     "variable_mask": "0x03fffe0000000000fffff03efefcf000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 A2/X5: LD pred-form closure (arb416d/arb435b x4 AGREE; donor fields + pred_inv4@64 last token; LTC code 2@[68:70))"
+    },
+    "128,E,LTC256B": {
+     "and_base": "0xc101d300000000000000980",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug435-2026-09-10",
+       "_note": "BUG-435: trailing-pred inv4 window [64:68) (arb400/arb416d x4 AGREE; v=0 strict-claims the shorter plain key by the 400 tiebreak)"
+      }
+     ],
+     "variable_mask": "0x03fffe0000000000fffff03efefcf000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 A2/X5: LD pred-form closure (arb416d/arb435b x4 AGREE; donor fields + pred_inv4@64 last token; LTC code 3@[68:70))"
+    },
+    "128,E": {
+     "and_base": "0x000000000c101d000000000000000980",
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug147-2026-08-25",
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "_src": "2aE",
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 3,
+       "_src": "bug435-2026-09-10",
+       "_note": "BUG-435: trailing-pred inv4 window [64:68) (arb400/arb416d x4 AGREE; v=0 strict-claims the shorter plain key by the 400 tiebreak)"
+      }
+     ],
+     "variable_mask": "0x03fffe0000000000fffff03efefcf000",
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 A2/X5: LD pred-form closure (arb416d/arb435b x4 AGREE; donor fields + pred_inv4@64 last token; LTC code 0@[68:70))"
+    }
+   }
+  },
+  "LDG_P_R_dARI": {
+   "base_op": "LDG",
+   "ctrl_class": "ldg",
+   "mercury": [
+    {
+     "fuzzy": true,
+     "match_score": 2,
+     "pattern": "MERCURY_ld_acquire_srcs_r2_simm_0",
+     "sass_op": "LDG"
+    }
+   ],
+   "operand_sig": "P_R_dARI",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_src": "bug435-2026-09-10",
+   "_note": "BUG-435 X7: NEW KEY on x3 (121a carries it): LDG pred-output A-lane (hi 0c1019 lo16 b0=1) family; law arb416 A.b0_1 x4 AGREE; spike435: 12/12 vendor-exact + 108,504-corpus-word sample-rt zero-drift; top-level cloned VERBATIM from sm121a key.",
+   "mod_groups": {
+    "E,LTC64B": {
+     "and_base": "0xc1019100000000000007981",
+     "variable_mask": "0x1c00000000000000fffffffffffff000",
+     "fields": [
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 81,
+       "token_idx": 1
+      },
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 3
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 123,
+       "token_idx": 3
+      }
+     ],
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 X7: A-lane LDG pred-output E,LTC64B (arb416 A.b0_1 x4 AGREE; 121a-donor fields/vm verbatim; code 1@[68:70))"
+    },
+    "E,LTC128B": {
+     "and_base": "0xc1019200000000000007981",
+     "variable_mask": "0x1c00000000000000fffffffffffff000",
+     "fields": [
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 81,
+       "token_idx": 1
+      },
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 3
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 123,
+       "token_idx": 3
+      }
+     ],
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 X7: A-lane LDG pred-output E,LTC128B (arb416 A.b0_1 x4 AGREE; 121a-donor fields/vm verbatim; code 2@[68:70))"
+    },
+    "E,LTC256B": {
+     "and_base": "0xc1019300000000000007981",
+     "variable_mask": "0x1c00000000000000fffffffffffff000",
+     "fields": [
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 81,
+       "token_idx": 1
+      },
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 3
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 123,
+       "token_idx": 3
+      }
+     ],
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 X7: A-lane LDG pred-output E,LTC256B (arb416 A.b0_1 x4 AGREE; 121a-donor fields/vm verbatim; code 3@[68:70))"
+    },
+    "E": {
+     "and_base": "0xc1019000000000000007981",
+     "variable_mask": "0x1c00000000000000fffffffffffff000",
+     "fields": [
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 81,
+       "token_idx": 1
+      },
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 3
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 123,
+       "token_idx": 3
+      }
+     ],
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 X7: A-lane LDG pred-output E (arb416 A.b0_1 x4 AGREE; 121a-donor fields/vm verbatim; code 0@[68:70))"
+    }
+   }
+  },
+  "LDG_P_R_dARI_P": {
+   "base_op": "LDG",
+   "ctrl_class": "ldg",
+   "mercury": [
+    {
+     "fuzzy": true,
+     "match_score": 2,
+     "pattern": "MERCURY_ld_acquire_srcs_r2_simm_0",
+     "sass_op": "LDG"
+    }
+   ],
+   "operand_sig": "P_R_dARI_P",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_src": "bug435-2026-09-10",
+   "_note": "BUG-435 X7: NEW KEY on x3 (121a carries it): LDG pred-output A-lane (hi 0c1019 lo16 b0=1) family; law arb416 A.b0_1 x4 AGREE; spike435: 12/12 vendor-exact + 108,504-corpus-word sample-rt zero-drift; top-level cloned VERBATIM from sm121a key.",
+   "mod_groups": {
+    "E,LTC64B": {
+     "and_base": "0xc1019100000000000007981",
+     "variable_mask": "0x1c00000000000000fffffffffffff000",
+     "fields": [
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 81,
+       "token_idx": 1
+      },
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 3
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 123,
+       "token_idx": 3
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 4
+      }
+     ],
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 X7: A-lane LDG pred-output E,LTC64B (arb416 A.b0_1 x4 AGREE; 121a-donor fields/vm verbatim; code 1@[68:70))"
+    },
+    "E,LTC128B": {
+     "and_base": "0xc1019200000000000007981",
+     "variable_mask": "0x1c00000000000000fffffffffffff000",
+     "fields": [
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 81,
+       "token_idx": 1
+      },
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 3
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 123,
+       "token_idx": 3
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 4
+      }
+     ],
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 X7: A-lane LDG pred-output E,LTC128B (arb416 A.b0_1 x4 AGREE; 121a-donor fields/vm verbatim; code 2@[68:70))"
+    },
+    "E,LTC256B": {
+     "and_base": "0xc1019300000000000007981",
+     "variable_mask": "0x1c00000000000000fffffffffffff000",
+     "fields": [
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 81,
+       "token_idx": 1
+      },
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 3
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 123,
+       "token_idx": 3
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 4
+      }
+     ],
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 X7: A-lane LDG pred-output E,LTC256B (arb416 A.b0_1 x4 AGREE; 121a-donor fields/vm verbatim; code 3@[68:70))"
+    },
+    "E": {
+     "and_base": "0xc1019000000000000007981",
+     "variable_mask": "0x1c00000000000000fffffffffffff000",
+     "fields": [
+      {
+       "bits": 3,
+       "extraction": "pred",
+       "shift": 81,
+       "token_idx": 1
+      },
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 3
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 123,
+       "token_idx": 3
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 64,
+       "token_idx": 4
+      }
+     ],
+     "_src": "bug435-2026-09-10",
+     "_note": "BUG-435 X7: A-lane LDG pred-output E (arb416 A.b0_1 x4 AGREE; 121a-donor fields/vm verbatim; code 0@[68:70))"
+    }
+   }
+  },
+  "STG.E.U8_ARURI_R": {
+   "base_op": "STG.E.U8",
+   "ctrl_class": null,
+   "mod_groups": {
+    "E,U8": {
+     "and_base": "0x81001000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xf78e00ffffffffffff00f000",
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "other-family enum row; probe STG.f.U8 x4 + whitelist singles + b90 (1,1) free-form x4; vm verbatim donor (438 wl + 442 b90)"
+    }
+   },
+   "operand_sig": "ARURI_R",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src443": "bug443-2026-09-12"
+  },
+  "STG.E.CONSTANT.PRIVATE_ARURI_R": {
+   "base_op": "STG.E.CONSTANT.PRIVATE",
+   "ctrl_class": null,
+   "mod_groups": {
+    "CONSTANT,E,PRIVATE": {
+     "and_base": "0x81029000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xf78e00ffffffffffff00f000",
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "other-family enum row; probe STG.f.CPRIV x4 + whitelist singles + b90 (1,1) free-form x4; vm verbatim donor (438 wl + 442 b90)"
+    }
+   },
+   "operand_sig": "ARURI_R",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src443": "bug443-2026-09-12"
+  },
+  "STG.E.CONSTANT.CTA_ARURI_R": {
+   "base_op": "STG.E.CONSTANT.CTA",
+   "ctrl_class": null,
+   "mod_groups": {
+    "CONSTANT,CTA,E": {
+     "and_base": "0x81049000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xf78e00ffffffffffff00f000",
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "other-family enum row; probe STG.f.CCTA x4 + whitelist singles + b90 (1,1) free-form x4; vm verbatim donor (438 wl + 442 b90)"
+    }
+   },
+   "operand_sig": "ARURI_R",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src443": "bug443-2026-09-12"
+  },
+  "STG.E.STRONG.SM.PRIVATE_ARURI_R": {
+   "base_op": "STG.E.STRONG.SM.PRIVATE",
+   "ctrl_class": null,
+   "mod_groups": {
+    "E,PRIVATE,SM,STRONG": {
+     "and_base": "0x81089000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xf78e00ffffffffffff00f000",
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "other-family enum row; probe STG.f.SSMPRIV x4 + whitelist singles + b90 (1,1) free-form x4; vm verbatim donor (438 wl + 442 b90)"
+    }
+   },
+   "operand_sig": "ARURI_R",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src443": "bug443-2026-09-12"
+  },
+  "STG.E.MMIO.GPU_ARURI_R": {
+   "base_op": "STG.E.MMIO.GPU",
+   "ctrl_class": null,
+   "mod_groups": {
+    "E,GPU,MMIO": {
+     "and_base": "0x81109000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xf78e00ffffffffffff00f000",
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "other-family enum row; probe STG.f.MMIOGPU x4 + whitelist singles + b90 (1,1) free-form x4; vm verbatim donor (438 wl + 442 b90)"
+    }
+   },
+   "operand_sig": "ARURI_R",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src443": "bug443-2026-09-12"
+  },
+  "STG.E.EF_ARURI_R": {
+   "base_op": "STG.E.EF",
+   "ctrl_class": null,
+   "mod_groups": {
+    "E,EF": {
+     "and_base": "0x80009000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xf78e00ffffffffffff00f000",
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "other-family enum row; probe STG.f.EF x4 + whitelist singles + b90 (1,1) free-form x4; vm verbatim donor (438 wl + 442 b90)"
+    }
+   },
+   "operand_sig": "ARURI_R",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src443": "bug443-2026-09-12"
+  },
+  "STG.E.LU_ARURI_R": {
+   "base_op": "STG.E.LU",
+   "ctrl_class": null,
+   "mod_groups": {
+    "E,LU": {
+     "and_base": "0x83009000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xf78e00ffffffffffff00f000",
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "other-family enum row; probe STG.f.LU x4 + whitelist singles + b90 (1,1) free-form x4; vm verbatim donor (438 wl + 442 b90)"
+    }
+   },
+   "operand_sig": "ARURI_R",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src443": "bug443-2026-09-12"
+  },
+  "STG.E.NA_ARURI_R": {
+   "base_op": "STG.E.NA",
+   "ctrl_class": null,
+   "mod_groups": {
+    "E,NA": {
+     "and_base": "0x85009000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xf78e00ffffffffffff00f000",
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "other-family enum row; probe STG.f.NA x4 + whitelist singles + b90 (1,1) free-form x4; vm verbatim donor (438 wl + 442 b90)"
+    }
+   },
+   "operand_sig": "ARURI_R",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src443": "bug443-2026-09-12"
+  },
+  "STG.E.64.CONSTANT.PRIVATE_ARURI_R": {
+   "base_op": "STG.E.64.CONSTANT.PRIVATE",
+   "ctrl_class": null,
+   "mod_groups": {
+    "64,CONSTANT,E,PRIVATE": {
+     "and_base": "0x8102b000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xffffffffffff00f000",
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "class x width cross row; probe STG.x.64.CPRIV x4 single-combo; strict junk band + strict b90 (cross combo-space unmeasured, fail-closed)"
+    }
+   },
+   "operand_sig": "ARURI_R",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src443": "bug443-2026-09-12"
+  },
+  "STG.E.128.CONSTANT.PRIVATE_ARURI_R": {
+   "base_op": "STG.E.128.CONSTANT.PRIVATE",
+   "ctrl_class": null,
+   "mod_groups": {
+    "128,CONSTANT,E,PRIVATE": {
+     "and_base": "0x8102d000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xffffffffffff00f000",
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "class x width cross row; probe STG.x.128.CPRIV x4 single-combo; strict junk band + strict b90 (cross combo-space unmeasured, fail-closed)"
+    }
+   },
+   "operand_sig": "ARURI_R",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src443": "bug443-2026-09-12"
+  },
+  "STG.E.64.MMIO.GPU_ARURI_R": {
+   "base_op": "STG.E.64.MMIO.GPU",
+   "ctrl_class": null,
+   "mod_groups": {
+    "64,E,GPU,MMIO": {
+     "and_base": "0x8110b000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xffffffffffff00f000",
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "class x width cross row; probe STG.x.64.MMIOGPU x4 single-combo; strict junk band + strict b90 (cross combo-space unmeasured, fail-closed)"
+    }
+   },
+   "operand_sig": "ARURI_R",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src443": "bug443-2026-09-12"
+  },
+  "STG.E.128.MMIO.GPU_ARURI_R": {
+   "base_op": "STG.E.128.MMIO.GPU",
+   "ctrl_class": null,
+   "mod_groups": {
+    "128,E,GPU,MMIO": {
+     "and_base": "0x8110d000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xffffffffffff00f000",
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "class x width cross row; probe STG.x.128.MMIOGPU x4 single-combo; strict junk band + strict b90 (cross combo-space unmeasured, fail-closed)"
+    }
+   },
+   "operand_sig": "ARURI_R",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src443": "bug443-2026-09-12"
+  },
+  "STG.E.EF.U8_ARURI_R": {
+   "base_op": "STG.E.EF.U8",
+   "ctrl_class": null,
+   "mod_groups": {
+    "E,EF,U8": {
+     "and_base": "0x80001000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xffffffffffff00f000",
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "class x width cross row; probe STG.x.U8.EF x4 single-combo; strict junk band + strict b90 (cross combo-space unmeasured, fail-closed)"
+    }
+   },
+   "operand_sig": "ARURI_R",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src443": "bug443-2026-09-12"
+  },
+  "STG.E.EF.64_ARURI_R": {
+   "base_op": "STG.E.EF.64",
+   "ctrl_class": null,
+   "mod_groups": {
+    "64,E,EF": {
+     "and_base": "0x8000b000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xffffffffffff00f000",
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "class x width cross row; probe STG.x.64.EF x4 single-combo; strict junk band + strict b90 (cross combo-space unmeasured, fail-closed)"
+    }
+   },
+   "operand_sig": "ARURI_R",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src443": "bug443-2026-09-12"
+  },
+  "STG.E.CONSTANT.CTA.PRIVATE_ARURI_R": {
+   "base_op": "STG.E.CONSTANT.CTA.PRIVATE",
+   "ctrl_class": null,
+   "mod_groups": {
+    "CONSTANT,CTA,E,PRIVATE": {
+     "and_base": "0x81069000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xffffffffffff00f000",
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "class x width cross row; probe STG.x.b77b78 x4 single-combo; strict junk band + strict b90 (cross combo-space unmeasured, fail-closed)"
+    }
+   },
+   "operand_sig": "ARURI_R",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src443": "bug443-2026-09-12"
+  },
+  "STG.E.STRONG.SM_ARURI_R": {
+   "base_op": "STG.E.STRONG.SM",
+   "ctrl_class": null,
+   "mod_groups": {
+    "E,SM,STRONG": {
+     "and_base": "0x810a9000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xffffffffffff00f000",
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "class x width cross row; probe STG.x.b77b79 x4 single-combo; strict junk band + strict b90 (cross combo-space unmeasured, fail-closed)"
+    }
+   },
+   "operand_sig": "ARURI_R",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src443": "bug443-2026-09-12"
+  },
+  "STG.E.MMIO.SYS_ARURI_R": {
+   "base_op": "STG.E.MMIO.SYS",
+   "ctrl_class": null,
+   "mod_groups": {
+    "E,MMIO,SYS": {
+     "and_base": "0x81189000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xffffffffffff00f000",
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "class x width cross row; probe STG.x.b79b80 x4 single-combo; strict junk band + strict b90 (cross combo-space unmeasured, fail-closed)"
+    }
+   },
+   "operand_sig": "ARURI_R",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src443": "bug443-2026-09-12"
+  },
+  "STG.E.EL_ARURI_R": {
+   "base_op": "STG.E.EL",
+   "ctrl_class": null,
+   "mod_groups": {
+    "E,EL": {
+     "and_base": "0x82009000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xffffffffffff00f000",
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "class x width cross row; probe STG.x.b84b85 x4 single-combo; strict junk band + strict b90 (cross combo-space unmeasured, fail-closed)"
+    }
+   },
+   "operand_sig": "ARURI_R",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src443": "bug443-2026-09-12"
+  },
+  "STG.E.EU_ARURI_R": {
+   "base_op": "STG.E.EU",
+   "ctrl_class": null,
+   "mod_groups": {
+    "E,EU": {
+     "and_base": "0x84009000000000000000986",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "bug438-2026-09-11"
+      },
+      {
+       "bits": 24,
+       "extraction": "imm",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xffffffffffff00f000",
+     "addr_width": "U32",
+     "_src443": "bug443-2026-09-12",
+     "_note443": "class x width cross row; probe STG.x.b84b86 x4 single-combo; strict junk band + strict b90 (cross combo-space unmeasured, fail-closed)"
+    }
+   },
+   "operand_sig": "ARURI_R",
+   "scheduling": {
+    "def_latency": 1,
+    "is_variable_latency": false,
+    "pipe_class": 0,
+    "pipe_name": "UNKNOWN",
+    "throughput": 1
+   },
+   "_src443": "bug443-2026-09-12"
+  },
+  "LDG.E.NA.EFL2.256.CONSTANT.GPU_R_R_ARURI": {
+   "_discovery": {
+    "arch_note": "dYWERGENCJA renderu vs sm103a: to samo slowo na era=desc[UR][R.64]+.HINT; na 121a=[R.U32+UR+off], policy-imm",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; dst R[71:64]; tok2 R[23:16]; addr R[31:24] (RZ baza elidowana z nawiasu); addr UR[39:32] 8b RAW (UR76/UR140 drukowane; 0xff=URZ); off imm 17b [56:40] signed<<5 (+-0x); policy imm 8b {bit72,[63:57]} (0xff = ELIDED trailing imm); b73=LTC64B; b80=CONSTANT (zastepuje STRONG); pred-out pred_inv4 [90:87]",
+    "method": "iter64 ERR-131-PARK close: raw 128b word sweep via nvdisasm -b SM121a (33+8 punktow; work/q2/rp1_iter64/sweep_grid.json+sweep_orth.json)"
+   },
+   "base_op": "LDG.E.NA.EFL2.256.CONSTANT.GPU",
+   "ctrl_class": "ldg",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x851e100fe0000000000097e",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 17,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 3
+      }
+     ],
+     "variable_mask": "0xff01fffffffffff000"
+    }
+   },
+   "operand_sig": "R_R_ARURI",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "LDG.E.NA.EFL2.256.CONSTANT.GPU_R_R_ARURI_II": {
+   "_discovery": {
+    "arch_note": "dYWERGENCJA renderu vs sm103a: to samo slowo na era=desc[UR][R.64]+.HINT; na 121a=[R.U32+UR+off], policy-imm",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; dst R[71:64]; tok2 R[23:16]; addr R[31:24] (RZ baza elidowana z nawiasu); addr UR[39:32] 8b RAW (UR76/UR140 drukowane; 0xff=URZ); off imm 17b [56:40] signed<<5 (+-0x); policy imm 8b {bit72,[63:57]} (0xff = ELIDED trailing imm); b73=LTC64B; b80=CONSTANT (zastepuje STRONG); pred-out pred_inv4 [90:87]",
+    "method": "iter64 ERR-131-PARK close: raw 128b word sweep via nvdisasm -b SM121a (33+8 punktow; work/q2/rp1_iter64/sweep_grid.json+sweep_orth.json)"
+   },
+   "base_op": "LDG.E.NA.EFL2.256.CONSTANT.GPU",
+   "ctrl_class": "ldg",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x851e000000000000000097e",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 17,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 7,
+       "extraction": "imm",
+       "shift": 57,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "imm_shr7",
+       "shift": 72,
+       "token_idx": 4
+      }
+     ],
+     "variable_mask": "0x1fffffffffffffff000"
+    }
+   },
+   "operand_sig": "R_R_ARURI_II",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "LDG.E.NA.EFL2.256.CONSTANT.GPU_R_R_ARURI_II_P": {
+   "_discovery": {
+    "arch_note": "dYWERGENCJA renderu vs sm103a: to samo slowo na era=desc[UR][R.64]+.HINT; na 121a=[R.U32+UR+off], policy-imm",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; dst R[71:64]; tok2 R[23:16]; addr R[31:24] (RZ baza elidowana z nawiasu); addr UR[39:32] 8b RAW (UR76/UR140 drukowane; 0xff=URZ); off imm 17b [56:40] signed<<5 (+-0x); policy imm 8b {bit72,[63:57]} (0xff = ELIDED trailing imm); b73=LTC64B; b80=CONSTANT (zastepuje STRONG); pred-out pred_inv4 [90:87]",
+    "method": "iter64 ERR-131-PARK close: raw 128b word sweep via nvdisasm -b SM121a (33+8 punktow; work/q2/rp1_iter64/sweep_grid.json+sweep_orth.json)"
+   },
+   "base_op": "LDG.E.NA.EFL2.256.CONSTANT.GPU",
+   "ctrl_class": "ldg",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x851e000000000000000097e",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 17,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 7,
+       "extraction": "imm",
+       "shift": 57,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "imm_shr7",
+       "shift": 72,
+       "token_idx": 4
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 87,
+       "token_idx": 5
+      }
+     ],
+     "variable_mask": "0x78001fffffffffffffff000"
+    }
+   },
+   "operand_sig": "R_R_ARURI_II_P",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "LDG.E.NA.EFL2.256.CONSTANT.GPU_R_R_ARURI_P": {
+   "_discovery": {
+    "arch_note": "dYWERGENCJA renderu vs sm103a: to samo slowo na era=desc[UR][R.64]+.HINT; na 121a=[R.U32+UR+off], policy-imm",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; dst R[71:64]; tok2 R[23:16]; addr R[31:24] (RZ baza elidowana z nawiasu); addr UR[39:32] 8b RAW (UR76/UR140 drukowane; 0xff=URZ); off imm 17b [56:40] signed<<5 (+-0x); policy imm 8b {bit72,[63:57]} (0xff = ELIDED trailing imm); b73=LTC64B; b80=CONSTANT (zastepuje STRONG); pred-out pred_inv4 [90:87]",
+    "method": "iter64 ERR-131-PARK close: raw 128b word sweep via nvdisasm -b SM121a (33+8 punktow; work/q2/rp1_iter64/sweep_grid.json+sweep_orth.json)"
+   },
+   "base_op": "LDG.E.NA.EFL2.256.CONSTANT.GPU",
+   "ctrl_class": "ldg",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x851e100fe0000000000097e",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 17,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 87,
+       "token_idx": 4
+      }
+     ],
+     "variable_mask": "0x78000ff01fffffffffff000"
+    }
+   },
+   "operand_sig": "R_R_ARURI_P",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "LDG.E.NA.EFL2.256.STRONG.GPU_R_R_ARURI": {
+   "_discovery": {
+    "arch_note": "dYWERGENCJA renderu vs sm103a: to samo slowo na era=desc[UR][R.64]+.HINT; na 121a=[R.U32+UR+off], policy-imm",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; dst R[71:64]; tok2 R[23:16]; addr R[31:24] (RZ baza elidowana z nawiasu); addr UR[39:32] 8b RAW (UR76/UR140 drukowane; 0xff=URZ); off imm 17b [56:40] signed<<5 (+-0x); policy imm 8b {bit72,[63:57]} (0xff = ELIDED trailing imm); b73=LTC64B; b80=CONSTANT (zastepuje STRONG); pred-out pred_inv4 [90:87]",
+    "method": "iter64 ERR-131-PARK close: raw 128b word sweep via nvdisasm -b SM121a (33+8 punktow; work/q2/rp1_iter64/sweep_grid.json+sweep_orth.json)"
+   },
+   "base_op": "LDG.E.NA.EFL2.256.STRONG.GPU",
+   "ctrl_class": "ldg",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x850e100fe0000000000097e",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 17,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 3
+      }
+     ],
+     "variable_mask": "0xff01fffffffffff000"
+    }
+   },
+   "operand_sig": "R_R_ARURI",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "LDG.E.NA.EFL2.256.STRONG.GPU_R_R_ARURI_II": {
+   "_discovery": {
+    "arch_note": "dYWERGENCJA renderu vs sm103a: to samo slowo na era=desc[UR][R.64]+.HINT; na 121a=[R.U32+UR+off], policy-imm",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; dst R[71:64]; tok2 R[23:16]; addr R[31:24] (RZ baza elidowana z nawiasu); addr UR[39:32] 8b RAW (UR76/UR140 drukowane; 0xff=URZ); off imm 17b [56:40] signed<<5 (+-0x); policy imm 8b {bit72,[63:57]} (0xff = ELIDED trailing imm); b73=LTC64B; b80=CONSTANT (zastepuje STRONG); pred-out pred_inv4 [90:87]",
+    "method": "iter64 ERR-131-PARK close: raw 128b word sweep via nvdisasm -b SM121a (33+8 punktow; work/q2/rp1_iter64/sweep_grid.json+sweep_orth.json)"
+   },
+   "base_op": "LDG.E.NA.EFL2.256.STRONG.GPU",
+   "ctrl_class": "ldg",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x850e000000000000000097e",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 17,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 7,
+       "extraction": "imm",
+       "shift": 57,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "imm_shr7",
+       "shift": 72,
+       "token_idx": 4
+      }
+     ],
+     "variable_mask": "0x1fffffffffffffff000"
+    }
+   },
+   "operand_sig": "R_R_ARURI_II",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "LDG.E.NA.EFL2.256.STRONG.GPU_R_R_ARURI_II_P": {
+   "_discovery": {
+    "arch_note": "dYWERGENCJA renderu vs sm103a: to samo slowo na era=desc[UR][R.64]+.HINT; na 121a=[R.U32+UR+off], policy-imm",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; dst R[71:64]; tok2 R[23:16]; addr R[31:24] (RZ baza elidowana z nawiasu); addr UR[39:32] 8b RAW (UR76/UR140 drukowane; 0xff=URZ); off imm 17b [56:40] signed<<5 (+-0x); policy imm 8b {bit72,[63:57]} (0xff = ELIDED trailing imm); b73=LTC64B; b80=CONSTANT (zastepuje STRONG); pred-out pred_inv4 [90:87]",
+    "method": "iter64 ERR-131-PARK close: raw 128b word sweep via nvdisasm -b SM121a (33+8 punktow; work/q2/rp1_iter64/sweep_grid.json+sweep_orth.json)"
+   },
+   "base_op": "LDG.E.NA.EFL2.256.STRONG.GPU",
+   "ctrl_class": "ldg",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x850e000000000000000097e",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 17,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 7,
+       "extraction": "imm",
+       "shift": 57,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "imm_shr7",
+       "shift": 72,
+       "token_idx": 4
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 87,
+       "token_idx": 5
+      }
+     ],
+     "variable_mask": "0x78001fffffffffffffff000"
+    }
+   },
+   "operand_sig": "R_R_ARURI_II_P",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "LDG.E.NA.EFL2.256.STRONG.GPU_R_R_ARURI_P": {
+   "_discovery": {
+    "arch_note": "dYWERGENCJA renderu vs sm103a: to samo slowo na era=desc[UR][R.64]+.HINT; na 121a=[R.U32+UR+off], policy-imm",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; dst R[71:64]; tok2 R[23:16]; addr R[31:24] (RZ baza elidowana z nawiasu); addr UR[39:32] 8b RAW (UR76/UR140 drukowane; 0xff=URZ); off imm 17b [56:40] signed<<5 (+-0x); policy imm 8b {bit72,[63:57]} (0xff = ELIDED trailing imm); b73=LTC64B; b80=CONSTANT (zastepuje STRONG); pred-out pred_inv4 [90:87]",
+    "method": "iter64 ERR-131-PARK close: raw 128b word sweep via nvdisasm -b SM121a (33+8 punktow; work/q2/rp1_iter64/sweep_grid.json+sweep_orth.json)"
+   },
+   "base_op": "LDG.E.NA.EFL2.256.STRONG.GPU",
+   "ctrl_class": "ldg",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x850e100fe0000000000097e",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 17,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 87,
+       "token_idx": 4
+      }
+     ],
+     "variable_mask": "0x78000ff01fffffffffff000"
+    }
+   },
+   "operand_sig": "R_R_ARURI_P",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "LDG.E.NA.EFL2.LTC64B.256.CONSTANT.GPU_R_R_ARURI": {
+   "_discovery": {
+    "arch_note": "dYWERGENCJA renderu vs sm103a: to samo slowo na era=desc[UR][R.64]+.HINT; na 121a=[R.U32+UR+off], policy-imm",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; dst R[71:64]; tok2 R[23:16]; addr R[31:24] (RZ baza elidowana z nawiasu); addr UR[39:32] 8b RAW (UR76/UR140 drukowane; 0xff=URZ); off imm 17b [56:40] signed<<5 (+-0x); policy imm 8b {bit72,[63:57]} (0xff = ELIDED trailing imm); b73=LTC64B; b80=CONSTANT (zastepuje STRONG); pred-out pred_inv4 [90:87]",
+    "method": "iter64 ERR-131-PARK close: raw 128b word sweep via nvdisasm -b SM121a (33+8 punktow; work/q2/rp1_iter64/sweep_grid.json+sweep_orth.json)"
+   },
+   "base_op": "LDG.E.NA.EFL2.LTC64B.256.CONSTANT.GPU",
+   "ctrl_class": "ldg",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x851e300fe0000000000097e",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 17,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 3
+      }
+     ],
+     "variable_mask": "0xff01fffffffffff000"
+    }
+   },
+   "operand_sig": "R_R_ARURI",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "LDG.E.NA.EFL2.LTC64B.256.CONSTANT.GPU_R_R_ARURI_II": {
+   "_discovery": {
+    "arch_note": "dYWERGENCJA renderu vs sm103a: to samo slowo na era=desc[UR][R.64]+.HINT; na 121a=[R.U32+UR+off], policy-imm",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; dst R[71:64]; tok2 R[23:16]; addr R[31:24] (RZ baza elidowana z nawiasu); addr UR[39:32] 8b RAW (UR76/UR140 drukowane; 0xff=URZ); off imm 17b [56:40] signed<<5 (+-0x); policy imm 8b {bit72,[63:57]} (0xff = ELIDED trailing imm); b73=LTC64B; b80=CONSTANT (zastepuje STRONG); pred-out pred_inv4 [90:87]",
+    "method": "iter64 ERR-131-PARK close: raw 128b word sweep via nvdisasm -b SM121a (33+8 punktow; work/q2/rp1_iter64/sweep_grid.json+sweep_orth.json)"
+   },
+   "base_op": "LDG.E.NA.EFL2.LTC64B.256.CONSTANT.GPU",
+   "ctrl_class": "ldg",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x851e200000000000000097e",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 17,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 7,
+       "extraction": "imm",
+       "shift": 57,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "imm_shr7",
+       "shift": 72,
+       "token_idx": 4
+      }
+     ],
+     "variable_mask": "0x1fffffffffffffff000"
+    }
+   },
+   "operand_sig": "R_R_ARURI_II",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "LDG.E.NA.EFL2.LTC64B.256.CONSTANT.GPU_R_R_ARURI_II_P": {
+   "_discovery": {
+    "arch_note": "dYWERGENCJA renderu vs sm103a: to samo slowo na era=desc[UR][R.64]+.HINT; na 121a=[R.U32+UR+off], policy-imm",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; dst R[71:64]; tok2 R[23:16]; addr R[31:24] (RZ baza elidowana z nawiasu); addr UR[39:32] 8b RAW (UR76/UR140 drukowane; 0xff=URZ); off imm 17b [56:40] signed<<5 (+-0x); policy imm 8b {bit72,[63:57]} (0xff = ELIDED trailing imm); b73=LTC64B; b80=CONSTANT (zastepuje STRONG); pred-out pred_inv4 [90:87]",
+    "method": "iter64 ERR-131-PARK close: raw 128b word sweep via nvdisasm -b SM121a (33+8 punktow; work/q2/rp1_iter64/sweep_grid.json+sweep_orth.json)"
+   },
+   "base_op": "LDG.E.NA.EFL2.LTC64B.256.CONSTANT.GPU",
+   "ctrl_class": "ldg",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x851e200000000000000097e",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 17,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 7,
+       "extraction": "imm",
+       "shift": 57,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "imm_shr7",
+       "shift": 72,
+       "token_idx": 4
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 87,
+       "token_idx": 5
+      }
+     ],
+     "variable_mask": "0x78001fffffffffffffff000"
+    }
+   },
+   "operand_sig": "R_R_ARURI_II_P",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "LDG.E.NA.EFL2.LTC64B.256.CONSTANT.GPU_R_R_ARURI_P": {
+   "_discovery": {
+    "arch_note": "dYWERGENCJA renderu vs sm103a: to samo slowo na era=desc[UR][R.64]+.HINT; na 121a=[R.U32+UR+off], policy-imm",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; dst R[71:64]; tok2 R[23:16]; addr R[31:24] (RZ baza elidowana z nawiasu); addr UR[39:32] 8b RAW (UR76/UR140 drukowane; 0xff=URZ); off imm 17b [56:40] signed<<5 (+-0x); policy imm 8b {bit72,[63:57]} (0xff = ELIDED trailing imm); b73=LTC64B; b80=CONSTANT (zastepuje STRONG); pred-out pred_inv4 [90:87]",
+    "method": "iter64 ERR-131-PARK close: raw 128b word sweep via nvdisasm -b SM121a (33+8 punktow; work/q2/rp1_iter64/sweep_grid.json+sweep_orth.json)"
+   },
+   "base_op": "LDG.E.NA.EFL2.LTC64B.256.CONSTANT.GPU",
+   "ctrl_class": "ldg",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x851e300fe0000000000097e",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 17,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 87,
+       "token_idx": 4
+      }
+     ],
+     "variable_mask": "0x78000ff01fffffffffff000"
+    }
+   },
+   "operand_sig": "R_R_ARURI_P",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "LDG.E.NA.EFL2.LTC64B.256.STRONG.GPU_R_R_ARURI": {
+   "_discovery": {
+    "arch_note": "dYWERGENCJA renderu vs sm103a: to samo slowo na era=desc[UR][R.64]+.HINT; na 121a=[R.U32+UR+off], policy-imm",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; dst R[71:64]; tok2 R[23:16]; addr R[31:24] (RZ baza elidowana z nawiasu); addr UR[39:32] 8b RAW (UR76/UR140 drukowane; 0xff=URZ); off imm 17b [56:40] signed<<5 (+-0x); policy imm 8b {bit72,[63:57]} (0xff = ELIDED trailing imm); b73=LTC64B; b80=CONSTANT (zastepuje STRONG); pred-out pred_inv4 [90:87]",
+    "method": "iter64 ERR-131-PARK close: raw 128b word sweep via nvdisasm -b SM121a (33+8 punktow; work/q2/rp1_iter64/sweep_grid.json+sweep_orth.json)"
+   },
+   "base_op": "LDG.E.NA.EFL2.LTC64B.256.STRONG.GPU",
+   "ctrl_class": "ldg",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x850e300fe0000000000097e",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 17,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 3
+      }
+     ],
+     "variable_mask": "0xff01fffffffffff000"
+    }
+   },
+   "operand_sig": "R_R_ARURI",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "LDG.E.NA.EFL2.LTC64B.256.STRONG.GPU_R_R_ARURI_II": {
+   "_discovery": {
+    "arch_note": "dYWERGENCJA renderu vs sm103a: to samo slowo na era=desc[UR][R.64]+.HINT; na 121a=[R.U32+UR+off], policy-imm",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; dst R[71:64]; tok2 R[23:16]; addr R[31:24] (RZ baza elidowana z nawiasu); addr UR[39:32] 8b RAW (UR76/UR140 drukowane; 0xff=URZ); off imm 17b [56:40] signed<<5 (+-0x); policy imm 8b {bit72,[63:57]} (0xff = ELIDED trailing imm); b73=LTC64B; b80=CONSTANT (zastepuje STRONG); pred-out pred_inv4 [90:87]",
+    "method": "iter64 ERR-131-PARK close: raw 128b word sweep via nvdisasm -b SM121a (33+8 punktow; work/q2/rp1_iter64/sweep_grid.json+sweep_orth.json)"
+   },
+   "base_op": "LDG.E.NA.EFL2.LTC64B.256.STRONG.GPU",
+   "ctrl_class": "ldg",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x850e200000000000000097e",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 17,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 7,
+       "extraction": "imm",
+       "shift": 57,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "imm_shr7",
+       "shift": 72,
+       "token_idx": 4
+      }
+     ],
+     "variable_mask": "0x1fffffffffffffff000"
+    }
+   },
+   "operand_sig": "R_R_ARURI_II",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "LDG.E.NA.EFL2.LTC64B.256.STRONG.GPU_R_R_ARURI_II_P": {
+   "_discovery": {
+    "arch_note": "dYWERGENCJA renderu vs sm103a: to samo slowo na era=desc[UR][R.64]+.HINT; na 121a=[R.U32+UR+off], policy-imm",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; dst R[71:64]; tok2 R[23:16]; addr R[31:24] (RZ baza elidowana z nawiasu); addr UR[39:32] 8b RAW (UR76/UR140 drukowane; 0xff=URZ); off imm 17b [56:40] signed<<5 (+-0x); policy imm 8b {bit72,[63:57]} (0xff = ELIDED trailing imm); b73=LTC64B; b80=CONSTANT (zastepuje STRONG); pred-out pred_inv4 [90:87]",
+    "method": "iter64 ERR-131-PARK close: raw 128b word sweep via nvdisasm -b SM121a (33+8 punktow; work/q2/rp1_iter64/sweep_grid.json+sweep_orth.json)"
+   },
+   "base_op": "LDG.E.NA.EFL2.LTC64B.256.STRONG.GPU",
+   "ctrl_class": "ldg",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x850e200000000000000097e",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 17,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 7,
+       "extraction": "imm",
+       "shift": 57,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "imm_shr7",
+       "shift": 72,
+       "token_idx": 4
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 87,
+       "token_idx": 5
+      }
+     ],
+     "variable_mask": "0x78001fffffffffffffff000"
+    }
+   },
+   "operand_sig": "R_R_ARURI_II_P",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "LDG.E.NA.EFL2.LTC64B.256.STRONG.GPU_R_R_ARURI_P": {
+   "_discovery": {
+    "arch_note": "dYWERGENCJA renderu vs sm103a: to samo slowo na era=desc[UR][R.64]+.HINT; na 121a=[R.U32+UR+off], policy-imm",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; dst R[71:64]; tok2 R[23:16]; addr R[31:24] (RZ baza elidowana z nawiasu); addr UR[39:32] 8b RAW (UR76/UR140 drukowane; 0xff=URZ); off imm 17b [56:40] signed<<5 (+-0x); policy imm 8b {bit72,[63:57]} (0xff = ELIDED trailing imm); b73=LTC64B; b80=CONSTANT (zastepuje STRONG); pred-out pred_inv4 [90:87]",
+    "method": "iter64 ERR-131-PARK close: raw 128b word sweep via nvdisasm -b SM121a (33+8 punktow; work/q2/rp1_iter64/sweep_grid.json+sweep_orth.json)"
+   },
+   "base_op": "LDG.E.NA.EFL2.LTC64B.256.STRONG.GPU",
+   "ctrl_class": "ldg",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x850e300fe0000000000097e",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 17,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 87,
+       "token_idx": 4
+      }
+     ],
+     "variable_mask": "0x78000ff01fffffffffff000"
+    }
+   },
+   "operand_sig": "R_R_ARURI_P",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "STG.E.NA.EFL2.256.MMIO.SYS.ORDERED_ARURI_R_R": {
+   "_discovery": {
+    "arch_note": "mapa INNA niz LDG-twin: LDG ma off 17b[56:40]+policy{72,[63:57]}+pred-out[90:87]; STG ma off 19b[58:40]+policy{[90:88],[63:59]}, brak pred-out (okno [90:88]=policy-high)",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; addr R[31:24] (RZ baza elidowana); addr UR[71:64] 8b RAW (UR76/UR140; 0xff=URZ); off imm 19b [58:40] signed<<5 (+-0x; bit58=znak); dane R[39:32],[23:16] (0xff=RZ); policy imm 8b {bit90,bit89,bit88,[63:59]} (0xff=ELIDED trailing imm); b80 MMIO.SYS.ORDERED (zastepuje STRONG.GPU); b73 RENDER-NEUTRAL (park, brak LTC64B dla STG); bit72/87 dead; sched-ctrl wymaga wzorca niezerowego (park E-132-watch); dead-bits 72,73,87 przyjete jako extraction-None (render-neutral w sweep: b72/b73/b87 bez efektu; b73 NIE jest LTC64B dla STG)",
+    "method": "iter65 STG-twin ERR-131-PARK: surowe slowa fleet sm103a (b11_render_parity.rs pins) + nvdisasm -b SM121a sweep pol (work/q2/stg_efl2_iter65/sweep_stg.json, sweep_pol.json); sched-ctrl anchor 0x000be400 (lo96 gates jak iter64)"
+   },
+   "base_op": "STG.E.NA.EFL2.256.MMIO.SYS.ORDERED",
+   "ctrl_class": null,
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0xf51e000f80000000000097f",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 19,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 3
+      },
+      {
+       "bits": 1,
+       "extraction": "",
+       "shift": 72,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "",
+       "shift": 73,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "",
+       "shift": 87,
+       "token_idx": 4
+      }
+     ],
+     "variable_mask": "0x8003ff07fffffffffff000"
+    }
+   },
+   "operand_sig": "ARURI_R_R",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 4,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 4,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "STG.E.NA.EFL2.256.MMIO.SYS.ORDERED_ARURI_R_R_II": {
+   "_discovery": {
+    "arch_note": "mapa INNA niz LDG-twin: LDG ma off 17b[56:40]+policy{72,[63:57]}+pred-out[90:87]; STG ma off 19b[58:40]+policy{[90:88],[63:59]}, brak pred-out (okno [90:88]=policy-high)",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; addr R[31:24] (RZ baza elidowana); addr UR[71:64] 8b RAW (UR76/UR140; 0xff=URZ); off imm 19b [58:40] signed<<5 (+-0x; bit58=znak); dane R[39:32],[23:16] (0xff=RZ); policy imm 8b {bit90,bit89,bit88,[63:59]} (0xff=ELIDED trailing imm); b80 MMIO.SYS.ORDERED (zastepuje STRONG.GPU); b73 RENDER-NEUTRAL (park, brak LTC64B dla STG); bit72/87 dead; sched-ctrl wymaga wzorca niezerowego (park E-132-watch); dead-bits 72,73,87 przyjete jako extraction-None (render-neutral w sweep: b72/b73/b87 bez efektu; b73 NIE jest LTC64B dla STG)",
+    "method": "iter65 STG-twin ERR-131-PARK: surowe slowa fleet sm103a (b11_render_parity.rs pins) + nvdisasm -b SM121a sweep pol (work/q2/stg_efl2_iter65/sweep_stg.json, sweep_pol.json); sched-ctrl anchor 0x000be400 (lo96 gates jak iter64)"
+   },
+   "base_op": "STG.E.NA.EFL2.256.MMIO.SYS.ORDERED",
+   "ctrl_class": null,
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x851e000000000000000097f",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 19,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 3
+      },
+      {
+       "bits": 5,
+       "extraction": "imm",
+       "shift": 59,
+       "token_idx": 4
+      },
+      {
+       "bits": 3,
+       "extraction": "imm_shr5",
+       "shift": 88,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "",
+       "shift": 72,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "",
+       "shift": 73,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "",
+       "shift": 87,
+       "token_idx": 4
+      }
+     ],
+     "variable_mask": "0x78003fffffffffffffff000"
+    }
+   },
+   "operand_sig": "ARURI_R_R_II",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 4,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 4,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "STG.E.NA.EFL2.256.STRONG.GPU_ARURI_R_R": {
+   "_discovery": {
+    "arch_note": "mapa INNA niz LDG-twin: LDG ma off 17b[56:40]+policy{72,[63:57]}+pred-out[90:87]; STG ma off 19b[58:40]+policy{[90:88],[63:59]}, brak pred-out (okno [90:88]=policy-high)",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; addr R[31:24] (RZ baza elidowana); addr UR[71:64] 8b RAW (UR76/UR140; 0xff=URZ); off imm 19b [58:40] signed<<5 (+-0x; bit58=znak); dane R[39:32],[23:16] (0xff=RZ); policy imm 8b {bit90,bit89,bit88,[63:59]} (0xff=ELIDED trailing imm); b80 MMIO.SYS.ORDERED (zastepuje STRONG.GPU); b73 RENDER-NEUTRAL (park, brak LTC64B dla STG); bit72/87 dead; sched-ctrl wymaga wzorca niezerowego (park E-132-watch); dead-bits 72,73,87 przyjete jako extraction-None (render-neutral w sweep: b72/b73/b87 bez efektu; b73 NIE jest LTC64B dla STG)",
+    "method": "iter65 STG-twin ERR-131-PARK: surowe slowa fleet sm103a (b11_render_parity.rs pins) + nvdisasm -b SM121a sweep pol (work/q2/stg_efl2_iter65/sweep_stg.json, sweep_pol.json); sched-ctrl anchor 0x000be400 (lo96 gates jak iter64)"
+   },
+   "base_op": "STG.E.NA.EFL2.256.STRONG.GPU",
+   "ctrl_class": null,
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0xf50e000f80000000000097f",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 19,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 3
+      },
+      {
+       "bits": 1,
+       "extraction": "",
+       "shift": 72,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "",
+       "shift": 73,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "",
+       "shift": 87,
+       "token_idx": 4
+      }
+     ],
+     "variable_mask": "0x8003ff07fffffffffff000"
+    }
+   },
+   "operand_sig": "ARURI_R_R",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 4,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 4,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "STG.E.NA.EFL2.256.STRONG.GPU_ARURI_R_R_II": {
+   "_discovery": {
+    "arch_note": "mapa INNA niz LDG-twin: LDG ma off 17b[56:40]+policy{72,[63:57]}+pred-out[90:87]; STG ma off 19b[58:40]+policy{[90:88],[63:59]}, brak pred-out (okno [90:88]=policy-high)",
+    "count": 41,
+    "date": "2026-08-22",
+    "field_map": "guard[15:12]; addr R[31:24] (RZ baza elidowana); addr UR[71:64] 8b RAW (UR76/UR140; 0xff=URZ); off imm 19b [58:40] signed<<5 (+-0x; bit58=znak); dane R[39:32],[23:16] (0xff=RZ); policy imm 8b {bit90,bit89,bit88,[63:59]} (0xff=ELIDED trailing imm); b80 MMIO.SYS.ORDERED (zastepuje STRONG.GPU); b73 RENDER-NEUTRAL (park, brak LTC64B dla STG); bit72/87 dead; sched-ctrl wymaga wzorca niezerowego (park E-132-watch); dead-bits 72,73,87 przyjete jako extraction-None (render-neutral w sweep: b72/b73/b87 bez efektu; b73 NIE jest LTC64B dla STG)",
+    "method": "iter65 STG-twin ERR-131-PARK: surowe slowa fleet sm103a (b11_render_parity.rs pins) + nvdisasm -b SM121a sweep pol (work/q2/stg_efl2_iter65/sweep_stg.json, sweep_pol.json); sched-ctrl anchor 0x000be400 (lo96 gates jak iter64)"
+   },
+   "base_op": "STG.E.NA.EFL2.256.STRONG.GPU",
+   "ctrl_class": null,
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x850e000000000000000097f",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 19,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 3
+      },
+      {
+       "bits": 5,
+       "extraction": "imm",
+       "shift": 59,
+       "token_idx": 4
+      },
+      {
+       "bits": 3,
+       "extraction": "imm_shr5",
+       "shift": 88,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "",
+       "shift": 72,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "",
+       "shift": 73,
+       "token_idx": 4
+      },
+      {
+       "bits": 1,
+       "extraction": "",
+       "shift": 87,
+       "token_idx": 4
+      }
+     ],
+     "variable_mask": "0x78003fffffffffffffff000"
+    }
+   },
+   "operand_sig": "ARURI_R_R_II",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 4,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 4,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (447): x3 EFL2.256 era dARI meng-row NA misroute -> plain-u32-ur (vendor x4 plain, arb446/arb447 x4-unanim; encoding x4-identical); corpus-ground r055 x5; non-NA = true dARI desc (arb447 F).",
+   "_src447": "bug447-2026-09-12"
+  },
+  "LDG.E.EFL2.256_R_R_dARI": {
+   "_discovery": {
+    "date": "2026-08-22",
+    "evict_policy_bits": "[82:81]: 00=EFL2 01=ENL2 10=ELL2 11=RESERVED (LDG renders RML2.256.???1.???0 / STG INVALID3.256)",
+    "imm_window": "signed 17b [56:40] scale<<5",
+    "method": "iter35 gx4: nvcc -arch=sm_121a inline-PTX ld/st.global.L2::evict_*.v8 sweep (84 kernels) + nvdisasm -b SM121a per-bit raw probe",
+    "note": "sub_imm2_shr5 fail-closed signed window; GB10 unsigned-vs-signed: signed OK (compiled -0x800/-0x20 STG words verified)"
+   },
+   "base_op": "LDG.E.EFL2.256",
+   "ctrl_class": "ldg",
+   "mod_groups": {
+    "": {
+     "_source": "iter35: nvcc13 sm_121a ptxas sweep (evict L2 policies) + per-bit nvdisasm probe",
+     "and_base": "0x8101900fe0000000000097e",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 17,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 3
+      }
+     ],
+     "variable_mask": "0xff01fffffffffff000"
+    }
+   },
+   "operand_sig": "R_R_dARI",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (450): x3 EFL2.256 non-NA dARI coverage-gap (vendor x4 desc[URx][Ry.64] GENUINE, arb447 F; zero-intersection vs existing rows machine-proven [patch450 A2]; CLONE-ILLEG raRZ donor-symmetric = klasa 452; pol00/pol7f trailing-imm = 453-kand).",
+   "_src450": "bug450-2026-09-12"
+  },
+  "LDG.E.EFL2.256_R_R_dARI_P": {
+   "base_op": "LDG.E.EFL2.256",
+   "ctrl_class": "ldg",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x8101900fe0000000000097e",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 3
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 3
+      },
+      {
+       "bits": 17,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 3
+      },
+      {
+       "bits": 4,
+       "extraction": "pred_inv4",
+       "shift": 87,
+       "token_idx": 4
+      }
+     ],
+     "variable_mask": "0xff01fffffffffff000"
+    }
+   },
+   "operand_sig": "R_R_dARI_P",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 200,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 200,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (450): x3 EFL2.256 non-NA dARI coverage-gap (vendor x4 desc[URx][Ry.64] GENUINE, arb447 F; zero-intersection vs existing rows machine-proven [patch450 A2]; CLONE-ILLEG raRZ donor-symmetric = klasa 452; pol00/pol7f trailing-imm = 453-kand).",
+   "_src450": "bug450-2026-09-12"
+  },
+  "STG.E.EFL2.256_dARI_R_R": {
+   "_discovery": {
+    "date": "2026-08-22",
+    "evict_policy_bits": "[82:81]: 00=EFL2 01=ENL2 10=ELL2 11=RESERVED (LDG renders RML2.256.???1.???0 / STG INVALID3.256)",
+    "imm_window": "signed 19b [58:40] scale<<5",
+    "method": "iter35 gx4: nvcc -arch=sm_121a inline-PTX ld/st.global.L2::evict_*.v8 sweep (84 kernels) + nvdisasm -b SM121a per-bit raw probe",
+    "note": "sub_imm2_shr5 fail-closed signed window; GB10 unsigned-vs-signed: signed OK (compiled -0x800/-0x20 STG words verified)"
+   },
+   "base_op": "STG.E.EFL2.256",
+   "mod_groups": {
+    "": {
+     "_source": "iter35: nvcc13 sm_121a ptxas sweep (evict L2 policies) + per-bit nvdisasm probe",
+     "and_base": "0xf101800f80000000000097f",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 64,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r1",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "bits": 19,
+       "extraction": "sub_imm2_shr5",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 3
+      }
+     ],
+     "variable_mask": "0xff07fffffffffff000"
+    }
+   },
+   "operand_sig": "dARI_R_R",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 4,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 3,
+    "pipe_name": "MEMORY",
+    "ptxas_raw": null,
+    "read_latency": 4,
+    "stall_base": 4,
+    "throughput": 4,
+    "write_latency": 0
+   },
+   "_note": "donor-clone sm121a (450): x3 EFL2.256 non-NA dARI coverage-gap (vendor x4 desc[URx][Ry.64] GENUINE, arb447 F; zero-intersection vs existing rows machine-proven [patch450 A2]; CLONE-ILLEG raRZ donor-symmetric = klasa 452; pol00/pol7f trailing-imm = 453-kand).",
+   "_src450": "bug450-2026-09-12"
   }
  },
  "operand_roles": {

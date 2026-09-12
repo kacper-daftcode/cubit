@@ -123,8 +123,8 @@ fn t425b_6_canon_pin_and_claims_preservation() {
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        m["base_revision"].as_str().unwrap().starts_with("d560e99"),
-        "SOURCE.json must pin canonical 52cb73c (= BUG-425b, ride-after 3f6ca6f = BUG-425): {:?}",
+        m["base_revision"].as_str().unwrap().starts_with("9b60b92"),
+        "SOURCE.json must pin canonical 9b60b92014970a8d386c7dafea93d087862dca5e (= BUG-450 graft, ride-after 099faa0 = BUG-447, ride-after e8d1af3 = BUG-443, 57e7ecd = BUG-442, ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, = BUG-435+435b, ride-after 1810912 = 435+434, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b): {:?}",
         m["base_revision"]
     );
     assert_eq!(CLAIMCOUNT425B, 511);

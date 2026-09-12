@@ -83,8 +83,12 @@ fn t2_sm103a_trap_classes_even_base_encode_fixed_point() {
 #[test]
 fn t3_sm103a_exempt_classes_odd_base_encode() {
     assert_eq!(enc("STG.E.EL.ELL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12", &t103a()).unwrap(), W_EL_ELL2_ODD);
-    enc("STG.E.NA.EFL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12", &t103a())
+    // healed 447 (graft 099faa0): klasa dalej exempt (0/8 II), ale forma
+    // kodowania to plain donor (desc spelling = era-dead, assert is_err).
+    enc("STG.E.NA.EFL2.256.STRONG.GPU [R5.U32+UR4], R8, R12", &t103a())
         .expect("NA.EFL2 class exempt (silicon: 0/8 II across epochs)");
+    assert!(enc("STG.E.NA.EFL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12", &t103a()).is_err(),
+        "era desc spelling NA.EFL2 must be dead post-447");
     enc("STG.E.NA.ELL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12", &t103a())
         .expect("NA.ELL2 class exempt (silicon)");
 }

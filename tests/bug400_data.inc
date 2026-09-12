@@ -459,12 +459,17 @@ pub const POSTURE400: &[(u128, &str, &str)] = &[
     (0x000000000c1e15400000000000000981, "posture400|sm100a|E,U16|e16.b70", "@P0 LDG.E.U16 R0, desc[UR0][R0.64]"),
     (0x000000000c1e15080000000000000981, "posture400|sm100a|E,U16|e16.b67", "@P0 LDG.E.U16 R0, desc[UR0][R0.64]"),
     (0x000000000c1e15100000000000000981, "posture400|sm100a|E,U16|e16.ltc1", "@P0 LDG.E.U16 R0, desc[UR0][R0.64]"),
+    // CLOSED z atrybucja BUG-416 (F2-iter239, canonical 70eb0fe,
+    // patch416.py): byly "LDG.E.128" LTC-drop postury ze scope-cutu 400
+    // (416-kand); kratka LTC[68:70) x pred zamknieta na 7981-lane
+    // (arb416 B + arb400c x4 AGREE) -> render vendor-exact; linie zostaja
+    // w POSTURE400 jako watchpoint na regresje klasy.
     // CLOSED z atrybucja BUG-415 (F2-iter229, canonical 67a0c22): byl "?AR"
     // claim-boundary; graft patch415 (S8/U16 vm|=band + R_AR x3 tighten);
     // posture->vendor-exact, render musi zostac (regresja klasy = blad).
     (0x000fe80000000201000000000a5b7984, "posture400|sm121a|415-ogon|b64", "LDS.S8 R91, [R10]"),
-    (0x000000000c1e1d100000000c0c217981, "posture400|sm121a|416-lane-ltc|ltc1", "LDG.E.128 R33, desc[UR12][R12.64]"),
-    (0x000000000c1e1d200000000c0c217981, "posture400|sm121a|416-lane-ltc|ltc2", "LDG.E.128 R33, desc[UR12][R12.64]"),
-    (0x000000000c1e1d300000000c0c217981, "posture400|sm121a|416-lane-ltc|ltc3", "LDG.E.128 R33, desc[UR12][R12.64]"),
-    (0x000000000c1e1d210000000c0c217981, "posture400|sm121a|416-lane-ltc|pv1ltc2", "LDG.E.128 R33, desc[UR12][R12.64]"),
+    (0x000000000c1e1d100000000c0c217981, "posture400|sm121a|416-lane-ltc|ltc1", "LDG.E.LTC64B.128 R33, desc[UR12][R12.64]"),
+    (0x000000000c1e1d200000000c0c217981, "posture400|sm121a|416-lane-ltc|ltc2", "LDG.E.LTC128B.128 R33, desc[UR12][R12.64]"),
+    (0x000000000c1e1d300000000c0c217981, "posture400|sm121a|416-lane-ltc|ltc3", "LDG.E.LTC256B.128 R33, desc[UR12][R12.64]"),
+    (0x000000000c1e1d210000000c0c217981, "posture400|sm121a|416-lane-ltc|pv1ltc2", "LDG.E.LTC128B.128 R33, desc[UR12][R12.64], P6"),
 ];

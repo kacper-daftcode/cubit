@@ -2,7 +2,7 @@
 // BUG-425 witnesses: arb425_law (130 probes x4: 120 grid + 7 payload + 3 STSM
 // contract) + measure425_post (520 cells BAD 0) + fresh x4 leg mints on f2-238
 // tables (work .so, BUG-425 arm) + canonical 52cb73c (post-425b).
-pub const CANON425: &str = "d560e9953d42117859b75b8895c0ec34f30f6c8f"; // BUG-425+425b grafts F2-iter238A/B; rides 3f6ca6f = BUG-425; regen B: km STS_ARURI_R|U16 claim canonical + mint U16-ARURI encode opened (R6)
+pub const CANON425: &str = "9b60b92014970a8d386c7dafea93d087862dca5e" /* ride F2-iter255 (BUG-450 graft): 9b60b92014970a8d386c7dafea93d087862dca5e canonical, was 099faa0 = BUG-447 F2-iter252 */; // BUG-425+425b grafts F2-iter238A/B; rides 3f6ca6f = BUG-425; regen B: km STS_ARURI_R|U16 claim canonical + mint U16-ARURI encode opened (R6)
 #[rustfmt::skip]
 pub const LAW425_DECODE: &[(u128, &str, [Option<&str>; 4], [&str; 4])] = &[
     (0x000fc20000000d00000000040a007388, "ari.128.b72", [Some("STS.128 [R10], R4"), Some("STS.128 [R10], R4"), Some("STS.128 [R10], R4"), Some("STS.128 [R10], R4")], ["STS_ARI_R|128", "STS_ARI_R|128", "STS_ARI_R|128", "STS_ARI_R|128"]),
@@ -156,12 +156,13 @@ pub const LAW425_STANDING: &[(u128, &str, [Option<&str>; 4])] = &[
 ];
 #[rustfmt::skip]
 pub const HOLE425: &[(u128, &str, [bool; 4])] = &[
-    (0x000fc20000004200000000040a000844, "stsm.m88.b78", [true, true, true, true]),
-    (0x000fc20000008200000000040a000844, "stsm.m88.b79", [true, true, true, true]),
-    (0x000fc20000000200000000040a000844, "stsm.m88.base", [false, false, true, false]),
+    (0x000fc20000004200000000040a000844, "stsm.m88.b78", [false, false, false, false]), // heal-attribution: BUG-438 bb1ba6c closes the enum hole (G1) -- decode == vendor-exact x4 (was true = contract-HOLE); flip438.py 438heal),
+    (0x000fc20000008200000000040a000844, "stsm.m88.b79", [false, false, false, false]), // heal-attribution: BUG-438 bb1ba6c closes the enum hole (G1) -- decode == vendor-exact x4 (was true = contract-HOLE); flip438.py 438heal),
+    (0x000fc20000000200000000040a000844, "stsm.m88.base", [false, false, false, false]), // heal-attribution: BUG-433 61858fb closes the sm120 STSM_ARI_R family (was true = contract-HOLE); canonical ride 57e7ecd = BUG-442
 ];
 #[rustfmt::skip]
 pub const MINT425: &[(&str, [Option<u128>; 4])] = &[
+    ("@P0 STSM.16.MT88.4 [R10], R4 ;", [Some(0x000fc20000004200000000040a000844), Some(0x000fc20000004200000000040a000844), Some(0x000fc20000004200000000040a000844), Some(0x000fc20000004200000000040a000844)]), // flip438b-healed: was REFUSE425 pre-438
     ("STS [R10.X4+0x155], R4 ;", [Some(0x000fc20000004800000155040a007388), Some(0x000fc20000004800000155040a007388), Some(0x000fc20000004800000155040a007388), Some(0x000fc20000004800000155040a007388)]),
     ("STS.64 [R10.X8+UR4+0x55], R4 ;", [Some(0x000fc20008008a04000055040a007988), Some(0x000fc20008008a04000055040a007988), Some(0x000fc20008008a04000055040a007988), Some(0x000fc20008008a04000055040a007988)]),
     ("STS.U16 [R10.X16], R4 ;", [Some(0x000fc2000000c400000000040a007388), Some(0x000fc2000000c400000000040a007388), Some(0x000fc2000000c400000000040a007388), Some(0x000fc2000000c400000000040a007388)]),
@@ -177,7 +178,7 @@ pub const MINT425: &[(&str, [Option<u128>; 4])] = &[
 ];
 pub const REFUSE425: &[&str] = &[
     "STS.S8 [R10], R4 ;",
-    "STSM.16.MT88.4 [R10], R4 ;",
+    // "STSM.16.MT88.4 [R10], R4 ;" moved to MINT425 (healed encode surface, BUG-438 flip438b-healed)
 ];
 pub const POSTURE430STS: &[&str] = &[
     "STS [R10.X2], R4 ;",
@@ -188,11 +189,11 @@ pub const CENSUS425_SM100A_STS_ARI_R: &[&str] = &["", "128", "64", "U16", "U8"];
 pub const CENSUS425_SM103A_STS_ARI_R: &[&str] = &["", "128", "64", "U16", "U8"];
 pub const CENSUS425_SM120_STS_ARI_R: &[&str] = &["", "128", "64", "U16", "U8"];
 pub const CENSUS425_SM121A_STS_ARI_R: &[&str] = &["", "128", "64", "U16", "U8"];
-pub const CENSUS425_SM100A_STS_ARURI_R: &[&str] = &["", "128", "64", "U16", "U8"];
-pub const CENSUS425_SM103A_STS_ARURI_R: &[&str] = &["", "128", "64", "U16", "U8"];
-pub const CENSUS425_SM120_STS_ARURI_R: &[&str] = &["", "128", "64", "U16", "U8"];
-pub const CENSUS425_SM121A_STS_ARURI_R: &[&str] = &["", "128", "64", "U16", "U8"];
-pub const CENSUS425_SM100A_STS_AURI_R: &[&str] = &["", "128", "64", "U16", "U8"];
-pub const CENSUS425_SM103A_STS_AURI_R: &[&str] = &["", "128", "64", "U16", "U8"];
-pub const CENSUS425_SM120_STS_AURI_R: &[&str] = &["", "128", "64", "U16", "U8"];
-pub const CENSUS425_SM121A_STS_AURI_R: &[&str] = &["", "128", "64", "U16", "U8"];
+pub const CENSUS425_SM100A_STS_ARURI_R: &[&str] = &["", "128", "64", "S16", "S8", "U16", "U8"]; // ride F2-iter250 (BUG-443 S1/S2: S8/S16 width-map graft)
+pub const CENSUS425_SM103A_STS_ARURI_R: &[&str] = &["", "128", "64", "S16", "S8", "U16", "U8"]; // ride F2-iter250 (BUG-443 S1/S2: S8/S16 width-map graft)
+pub const CENSUS425_SM120_STS_ARURI_R: &[&str] = &["", "128", "64", "S16", "S8", "U16", "U8"]; // ride F2-iter250 (BUG-443 S1/S2: S8/S16 width-map graft)
+pub const CENSUS425_SM121A_STS_ARURI_R: &[&str] = &["", "128", "64", "S16", "S8", "U16", "U8"]; // ride F2-iter250 (BUG-443 S1/S2: S8/S16 width-map graft)
+pub const CENSUS425_SM100A_STS_AURI_R: &[&str] = &["", "128", "64", "S16", "S8", "U16", "U8"]; // ride F2-iter250 (BUG-443 S1/S2: S8/S16 width-map graft)
+pub const CENSUS425_SM103A_STS_AURI_R: &[&str] = &["", "128", "64", "S16", "S8", "U16", "U8"]; // ride F2-iter250 (BUG-443 S1/S2: S8/S16 width-map graft)
+pub const CENSUS425_SM120_STS_AURI_R: &[&str] = &["", "128", "64", "S16", "S8", "U16", "U8"]; // ride F2-iter250 (BUG-443 S1/S2: S8/S16 width-map graft)
+pub const CENSUS425_SM121A_STS_AURI_R: &[&str] = &["", "128", "64", "S16", "S8", "U16", "U8"]; // ride F2-iter250 (BUG-443 S1/S2: S8/S16 width-map graft)

@@ -127,7 +127,7 @@ fn t420_3_inert_reencode_converges_to_base() {
 }
 
 /// t420_4: generation census pins (loud regeneration drift) + canonical
-/// manifest pin at 52cb73c (BUG-425 graft F2-iter238 z atrybucja; rides 616f185 = 429; 429 rides a5e6d0a = 427; 427 rides 2a631d5 = 426; 426 rides 291ed59b = 424; 424 rides 13e13b6 = 421+422; 421+422 rides 0eddad5 = 420; 420 rides
+/// manifest pin at 57e7ecd (BUG-442 graft F2-iter246 z atrybucja; rides ffa3244 = BUG-441 F2-iter245, bb1ba6c = BUG-438 F2-iter244, 54c5b02 = BUG-439 F2-iter243, 3032686 = BUG-423 F2-iter242, 61858fb = BUG-433 F2-iter241, 0a6b178 = BUG-435+434+435b, 1810912 = 435+434 hop, 70eb0fe = 416; 416-era rides 52cb73c = 425+425b; 425 docstring-history: rides 616f185 = 429; 429 rides a5e6d0a = 427; 427 rides 2a631d5 = 426; 426 rides 291ed59b = 424; 424 rides 13e13b6 = 421+422; 421+422 rides 0eddad5 = 420; 420 rides
 /// 487757b = BUG-413(ii)/(iii) < 413(i) = BUG-412 < 415 < 419 < 418 < 417
 /// < 414 < 409 < 395 < 405/406).
 #[test]
@@ -153,8 +153,8 @@ fn t420_4_census_and_canonical_pin() {
         m["base_revision"]
             .as_str()
             .unwrap()
-            .starts_with("d560e99"),
-        "SOURCE.json must pin canonical 52cb73c [was 3f6ca6f = BUG-425, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422, 0eddad5 = BUG-420] (BUG-425 graft F2-iter238 z atrybucja; ride-chain w tym pliku): {:?}",
+            .starts_with("9b60b92"),
+        "SOURCE.json must pin canonical 9b60b92014970a8d386c7dafea93d087862dca5e (= BUG-450 graft, ride-after 099faa0 (= BUG-447) [was ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, was 1810912 = BUG-435+434, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422] (BUG-438 graft F2-iter244 z atrybucja; ride-chain w tym pliku): {:?}",
         m["base_revision"]
     );
 }

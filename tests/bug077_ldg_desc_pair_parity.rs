@@ -73,14 +73,20 @@ fn t3_exemptions_and_060_polarity() {
         .expect("LTC128B class: guard must not fire (silicon 0/7 II)");
     enc("LDG.E.256.ELL2.STRONG.GPU.NA R8, R12, desc[UR4][R3.64]", &t103a())
         .expect("ELL2 class: guard must not fire (silicon 20/20)");
+    // healed 447 (graft 099faa0): forma kodowania to plain donor
+    // (era dARI NA mgs dead; desc spellings is_err). Guard BUG-060 ma
+    // keeper arm na Operand::Addr (encoder.rs): odd OK == W_EFL2_ODD,
+    // even fail-closed z cytatem.
     assert_eq!(
-        enc("LDG.E.NA.EFL2.256.STRONG.GPU R8, R12, desc[UR4][R5.64]", &t103a()).unwrap(),
+        enc("LDG.E.NA.EFL2.256.STRONG.GPU R8, R12, [R5.U32+UR4]", &t103a()).unwrap(),
         W_EFL2_ODD,
         "EFL2 odd base REQUIRED on sm_103a (BUG-060)"
     );
-    let e = enc("LDG.E.NA.EFL2.256.STRONG.GPU R8, R12, desc[UR4][R4.64]", &t103a())
-        .expect_err("EFL2 even base must stay fail-closed (BUG-060)");
+    let e = enc("LDG.E.NA.EFL2.256.STRONG.GPU R8, R12, [R4.U32+UR4]", &t103a())
+        .expect_err("EFL2 even base must stay fail-closed (BUG-060, plain arm)");
     assert!(format!("{e}").contains("BUG-060"), "got: {e}");
+    assert!(enc("LDG.E.NA.EFL2.256.STRONG.GPU R8, R12, desc[UR4][R5.64]", &t103a()).is_err(),
+        "era desc spelling must be dead post-447");
 }
 
 // (4) arch scoping: sm120 has no verdict -> odd trap form stays encodable.

@@ -3,7 +3,7 @@
 // HOLE424 38 -> 34, REFUSE424 7 -> 5 (M832.2/.4 shed), MINT424 8 -> 10 (healed circles),
 // CENSUS424_*_ARURI += {16,2,M832; 16,4,M832}. Law/mint/refuse re-proven on measure424_post426
 // (272 BAD 0; construct-unclaimed 16 leg-cells HOLE -> vendor-exact) + fresh x4 on f2-235 tables.
-pub const CANON424: &str = "d560e9953d42117859b75b8895c0ec34f30f6c8f"; // ride-after flip F2-iter238 (BUG-425 graft): 52cb73c canonical, was 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422, 0eddad5 = BUG-420, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422, 0eddad5 = BUG-420
+pub const CANON424: &str = "9b60b92014970a8d386c7dafea93d087862dca5e" /* ride F2-iter255 (BUG-450 graft): was 099faa0 = BUG-447 F2-iter252 */; // ride-after flip F2-iter252 (BUG-447 graft): 099faa0 canonical, was e8d1af3 = BUG-443 F2-iter250, 57e7ecd = BUG-442 F2-iter246, ffa3244 = BUG-441 F2-iter245, bb1ba6c = BUG-438 F2-iter244, 54c5b02 = BUG-439 F2-iter243, 3032686 = BUG-423 F2-iter242, 61858fb = BUG-433 F2-iter241, 0a6b178 = BUG-435+434+435b F2-iter240, 1810912 = 435+434 hop, 70eb0fe = BUG-416 F2-iter239, 52cb73c = BUG-425+425b F2-iter238, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422, 0eddad5 = BUG-420
 #[rustfmt::skip]
 pub const LAW424_DECODE: &[(u128, &str, [Option<&str>; 4], [&str; 4])] = &[
     (0x00000000080000007fffffe80a10783b, "vA.e0", [Some("LDSM.16.M88 R16, [R10+UR232+0x7fffff]"), Some("LDSM.16.M88 R16, [R10+UR232+0x7fffff]"), Some("LDSM.16.M88 R16, [R10+UR232+0x7fffff]"), Some("LDSM.16.M88 R16, [R10+UR232+0x7fffff]")], ["LDSM_R_ARURI|16,M88", "LDSM_R_ARURI|16,M88", "LDSM_R_ARURI|16,M88", "LDSM_R_ARURI|16,M88"]),

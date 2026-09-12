@@ -296,6 +296,10 @@ class SyncError(RuntimeError):
 # clones inherit the '' and_base [127:105) bits verbatim). STS_AURI_R|128
 # clone does NOT join (width delta flips one baked-window bit OFF, delta
 # machine-asserted). Sibling legs STOIC (1141/1677/1681 stand).
+# 2026-09-11 BUG-442 (canonical 8ad424a): SM121A 541->544 -- G3 donor-clone
+# key STG_ARURI_R {E,64,E,128,E} from sm103a carries the x3-era control
+# template like the rest of the family (3 new templates; decode/encode
+# .64-address-mode parity on 121a; counts machine-verified by gen442pins).
 # 2026-09-10 BUG-425b (canonical 52cb73c): SM121A 540->541 MEASURED --
 # R6 zastepuje 121a-era STS_ARURI_R|U16 (bez sub_imm1, baked ctl-val == 0)
 # kanonicznym klonem sm103a VERBATIM; donor niesie [127:105) bake 0x1c000
@@ -304,8 +308,15 @@ class SyncError(RuntimeError):
 # care-ctrl e3ffffff z 0x0 bake). Sibling legs STOIC; R7/R8v2/R9 nie
 # dodaja baked (vm-care narrowing + field-decl removal, bez nowych wierszy
 # z ctrl-wartosciami).
-BAKED_CTRL_BASELINE = {"SM120": 1141, "SM103a": 1677, "SM100a": 1681,
-                       "SM121A": 541}
+# 2026-09-12 BUG-443 (canonical e8d1af3): MEASURED machine-count pre-check
+# (patch443 stage): +4 per x3 leg (STS_AURI_R|S8 + STS_AURI_R|S16 +
+# STS_ARURI_R|S8 + STS_ARURI_R|S16 -- width-map enum [73:76)=1/3 clones of
+# the '' donors carry the donors' baked ctrl template VERBATIM, the
+# 412+413/425/427 convention) and +2 SM121A (STS_ARURI_R S8/S16 only; the
+# STS_AURI_R 121a donor bakes none like its 425 siblings). SM100a
+# 1681->1685, SM103a 1677->1681, SM120 1141->1145, SM121A 544->546.
+BAKED_CTRL_BASELINE = {"SM120": 1145, "SM103a": 1681, "SM100a": 1685,
+                       "SM121A": 546}
 
 FIXED_EXTRACTIONS = {
     "",

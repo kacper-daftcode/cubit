@@ -255,7 +255,17 @@ fn parse_address(s: &str) -> Option<Operand> {
             // fails closed on SYNCS-class ops (mbarrier family). Only as an
             // add-on to an R base: bare [URZ(+off)] stays fail-closed
             // (BUG-073 contract, no vendor-rendering attests it).
-            if ur_reg.is_some() || !(base_reg.is_some() && base_reg_suffix.is_none()) {
+            // BUG-444: the base may carry its width suffix -- vendor prints
+            // [R4.64+URZ] / [R4.U32+URZ] on the plain ARURI arms (arb444 law
+            // x4 unanimous); the suffix belongs to the base component, URZ
+            // stays its own '+'-separated slot.
+            // BUG-448: bare "[URZ(+off)]" IS vendor-rendered on the EFL2.256
+            // NA ARURI family (arb448 e.stg/ldg.rz_ur255[_imm] x4 AGREE
+            // EVERY/DIVERGENT=0 -- base-RZ elision), so the BUG-073 bare-URZ
+            // fail-closed clause lifts for the admission side; key lookup
+            // stays the accept/reject gate (uniform-only AURI rows keep
+            // priority, plain-ARURI rows reach via the encoder fallback).
+            if ur_reg.is_some() {
                 return None;
             }
             ur_reg = Some(255);

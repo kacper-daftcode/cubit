@@ -2,7 +2,7 @@
 // BUG-427 witnesses: arb427_law (43 probes x4 donor-clone, opex lesson) + measure427_post
 // (172 cells BAD 0, healed exactly 108 [27 x4], lost 0, changed-text 0) + fresh x4 mints on f2-236 tables.
 // POSTURE430 = pre-existing silent-drop scale/unbound-glyph cells (430-kand; OLD==NEW proven).
-pub const CANON427: &str = "d560e9953d42117859b75b8895c0ec34f30f6c8f"; // ride-after flip F2-iter238 (BUG-425 graft): 52cb73c canonical, was 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422, 0eddad5 = BUG-420, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422, 0eddad5 = BUG-420
+pub const CANON427: &str = "9b60b92014970a8d386c7dafea93d087862dca5e" /* ride F2-iter255 (BUG-450 graft): 9b60b92014970a8d386c7dafea93d087862dca5e canonical, was 099faa0 = BUG-447 F2-iter252 */; // ride-after flip F2-iter252 (BUG-447 graft): 099faa0 canonical, was e8d1af3 = BUG-443 F2-iter250, 57e7ecd = BUG-442 F2-iter246, ffa3244 = BUG-441 F2-iter245, bb1ba6c = BUG-438 F2-iter244, 54c5b02 = BUG-439 F2-iter243, 3032686 = BUG-423 F2-iter242, 61858fb = BUG-433 F2-iter241, 0a6b178 = BUG-435+434+435b F2-iter240, 1810912 = 435+434 hop, 70eb0fe = BUG-416 F2-iter239, 52cb73c = BUG-425+425b F2-iter238, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422, 0eddad5 = BUG-420
 #[rustfmt::skip]
 pub const LAW427_DECODE: &[(u128, &str, [Option<&str>; 4], [&str; 4])] = &[
     (0x000fe200080006000000018a0a5d7984, "a.aruri", [Some("LDS.S16 R93, [R10+UR138+0x1]"), Some("LDS.S16 R93, [R10+UR138+0x1]"), Some("LDS.S16 R93, [R10+UR138+0x1]"), Some("LDS.S16 R93, [R10+UR138+0x1]")], ["LDS_R_ARURI|S16", "LDS_R_ARURI|S16", "LDS_R_ARURI|S16", "LDS_R_ARURI|S16"]),

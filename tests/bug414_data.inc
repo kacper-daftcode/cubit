@@ -2,7 +2,7 @@
 // every law entry; engine-post == vendor on sm121a for every pinned entry at
 // generation time; CURED cells non-vendor pre-fix). NO hand hex.
 // [417 F2-iter226 flip z atrybucja] 417 rides c7f1d39 = BUG-414, 414 rode 2f31522 = BUG-409, 409 rode d908ee9 = BUG-395, 395 rode 74a06b7 = BUG-405/406
-const CANON414: &str = "d560e9953d42117859b75b8895c0ec34f30f6c8f"; // ride-after flip F2-iter238 (BUG-425 graft): 52cb73c canonical, was 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422, 0eddad5 = BUG-420, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422, 0eddad5 = BUG-420
+const CANON414: &str = "9b60b92014970a8d386c7dafea93d087862dca5e" /* ride F2-iter255 (BUG-450 graft): 9b60b92014970a8d386c7dafea93d087862dca5e canonical, was 099faa0 = BUG-447 F2-iter252 */; // ride-after flip F2-iter252 (BUG-447 graft): 099faa0 canonical, was e8d1af3 = BUG-443 F2-iter250, 57e7ecd = BUG-442 F2-iter246, ffa3244 = BUG-441 F2-iter245, bb1ba6c = BUG-438 F2-iter244, 54c5b02 = BUG-439 F2-iter243, 3032686 = BUG-423 F2-iter242, 61858fb = BUG-433 F2-iter241, 0a6b178 = BUG-435+434+435b F2-iter240, 1810912 = 435+434 hop, 70eb0fe = BUG-416 F2-iter239, 52cb73c = BUG-425+425b F2-iter238, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422, 0eddad5 = BUG-420
 const LAW414: [(u128, &str, &str); 59] = [
     (0x000fc2000800000a002000ff05007988u128, "b53_imm0", "STS.U8 [R5+UR10+0x2000], RZ"),
     (0x000fc2000800000a002801ff05007988u128, "b53_imm801", "STS.U8 [R5+UR10+0x2801], RZ"),

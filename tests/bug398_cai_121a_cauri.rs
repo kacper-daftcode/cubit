@@ -136,8 +136,10 @@ fn t398_4_corpus_qcauri_closure() {
 /// t398_5: postures OUT OF SCOPE of this fix, pinned loud/unchanged:
 ///  (a) 400-class: LDC.U16_R_cAI sm121a [64..72) = pred window, NOT
 ///      junk-relaxed -> flip words stay HOLE (no fake render);
-///  (b) bare `c[b][URZ]` mint refuses on every leg (pre-existing encode
-///      hole, up since BUG-162);
+///  (b) REGISTERED CLOSED by BUG-448 (flip448b F8): the bare `c[b][URZ]`
+///      encode hole (up since BUG-162) mints now -- parser bare-URZ
+///      admission; word 0x000fc2000800080000000000ff0577ac renders via nvdisasm 13.3.73 -b
+///      x4-unanimous as exactly 'LDCU UR5, c[0x0][URZ]'. Mint-pinned below.
 ///  (c) legacy legs: corpus claim renders byte-stable pre==post
 ///      (LEGACY_PRE398 recorded on publish cubit_py-ccd2052e + canonical
 ///      96f196b; the parser/encoder alias must not change legacy decode,
@@ -150,10 +152,13 @@ fn t398_5_postures() {
         assert!(dec(&t, &idx, ((*lo as u128) | ((*hi as u128) << 64))).is_none(),
             "[sm121a] {tag} (400-class pred window) unexpectedly decodes -- close 400 first, don't bend this pin");
     }
+    // (b) encode hole REGISTERED CLOSED by BUG-448 (see doc above): mints
+    // with the machine-verified word, cross-leg identical.
     for leg in ["sm100a", "sm103a", "sm120", "sm121a"] {
         let tb = tab(leg);
-        assert!(enc(&tb, " LDCU UR5, c[0x0][URZ] ;").is_err(),
-            "[{leg}] bare URZ const slot unexpectedly mints -- register as encode hole fix, don't bend this pin");
+        let w = enc(&tb, " LDCU UR5, c[0x0][URZ] ;").unwrap_or_else(|e|
+            panic!("[{leg}] bare URZ const slot mint regressed: {e}"));
+        assert_eq!(w, 0x000fc2000800080000000000ff0577acu128, "[{leg}] bare URZ mint word drift");
     }
     for (leg, lo, hi, tag, pre_text) in LEGACY_PRE398 {
         let tb = tab(leg);

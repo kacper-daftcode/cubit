@@ -89,18 +89,27 @@ fn t122_2_encode_era_shape_operands() {
     assert_eq!(w & SILICON_REQUIRED, SILICON_REQUIRED);
 }
 
-/// t122_3 (kotwica): wiersz pozostaje decode-niewidoczny — slowo vendor i
-/// NEWLY-encoded words render through the sibling "128,E" row
-/// (LDG.E.128), zero hijack decode.
+/// t122_3 (kotwica, FLIPPED F2-iter240/BUG-435 z atrybucja): wiersz pozostaje
+/// decode-niewidoczny dla ENCODE (t122_1/2 nie ruszone), a RENDER slowa vendor
+/// = vendor-true LTC128B zamiast era sister-drop (435 x3 LDG LTC heal, prawo
+/// arb416/arb400c x4 AGREE).
 #[test]
 fn t122_3_decode_invisible_sister_claims() {
+    // FLIP 2026-09-10 (F2-iter240, BUG-435): the 122-era sister-drop decode
+    // anchor is SUPERSEDED by the measured x4 vendor law (arb416 B + arb400c,
+    // nvdisasm 13.3.73 raw -b x4 AGREE): the true-lane LTC128B lattice is
+    // real vendor geometry; the 435 x3 legs graft (LDG_R_dARI_P|128,E,LTC*
+    // rows) heals decode to the vendor-true LTC text. Encode-side contract
+    // t122_1/2 UNCHANGED (encode_only retention row mints vendor bytes).
     let s_vendor = dec103(VENDOR);
-    assert!(s_vendor.starts_with("LDG.E.128 R4, desc[UR4][R2.64]"),
-            "vendor word: render przez siostre 128,E (encode_only retention): {s_vendor}");
+    assert!(s_vendor.starts_with("LDG.E.LTC128B.128 R4, desc[UR4][R2.64]"),
+            "vendor word: vendor-true LTC render post-435 (flip z atrybucja): {s_vendor}");
     let w_new = enc103("LDG.E.LTC128B.128 R4, desc[UR4][R2.64]");
+    assert_eq!(w_new & NOSCHED, VENDOR & NOSCHED,
+               "encode_only retention stays byte-faithful: {w_new:#034x}");
     let s_new = dec103(w_new);
-    assert!(s_new.starts_with("LDG.E.128 R4, desc[UR4][R2.64]"),
-            "nowo-zakodowane slowo: render przez siostre, bez hijack: {s_new}");
+    assert!(s_new.starts_with("LDG.E.LTC128B.128 R4, desc[UR4][R2.64]"),
+            "nowo-zakodowane slowo: vendor-true LTC render post-435: {s_new}");
 }
 
 /// t122_4 (anchor): the era rt98 word, decode side unchanged (delta anchor:

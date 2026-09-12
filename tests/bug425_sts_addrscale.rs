@@ -95,7 +95,7 @@ fn t425_2_standing_refuse_posture() {
     }
     assert_eq!(LAW425_STANDING.len(), 18);
     assert_eq!(HOLE425.len(), 3);
-    assert_eq!(REFUSE425.len(), 2);
+    assert_eq!(REFUSE425.len(), 1); // ride F2-iter244 (BUG-438 flip438b): MT88.4 mint heal left REFUSE425
     assert_eq!(POSTURE430STS.len(), 3);
 }
 
@@ -131,7 +131,7 @@ fn t425_3_mint_circles_x4() {
             }
         }
     }
-    assert_eq!(MINT425.len(), 12);
+    assert_eq!(MINT425.len(), 13);
 }
 
 /// t425_4: census + donor shape x4 legs + R4 law (sm121a AURI [31:24]
@@ -210,17 +210,17 @@ fn t425_4_census_and_donor_shape() {
     }
 }
 
-/// t425_5: vendored tables pin canonical 52cb73c = BUG-425 graft F2-iter238.
+/// t425_5: vendored tables pin canonical 54c5b02 = BUG-439 graft F2-iter243 (ride; was 3032686 = BUG-423 F2-iter242, 61858fb = BUG-433 F2-iter241; older 0a6b178 = BUG-435+434+435b, 1810912 hop, 70eb0fe = BUG-416; older: 52cb73c = BUG-425+425b graft F2-iter238).
 #[test]
 fn t425_5_source_pins_52cb73c() {
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        m["base_revision"].as_str().unwrap().starts_with("d560e99"),
-        "SOURCE.json must pin canonical 52cb73c [was 3f6ca6f = BUG-425, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422, 0eddad5 = BUG-420] (BUG-425+425b grafts F2-iter238(A/B) z atrybucja; ride-chain): {:?}",
+        m["base_revision"].as_str().unwrap().starts_with("9b60b92"),
+        "SOURCE.json must pin canonical 57e7ecd [was ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, 1810912 = 435+434 hop, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b, 3f6ca6f = BUG-425, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422] (BUG-442 graft F2-iter246 z atrybucja; ride-chain): {:?}",
         m["base_revision"]
     );
-    assert!(CANON425.starts_with("d560e99"), "CANON425 const drift");
+    assert!(CANON425.starts_with("9b60b92"), "CANON425 const drift");
 }
 
 /// t425_6: inert-singles law direct witness -- b72/b76/b77/b80 decode to

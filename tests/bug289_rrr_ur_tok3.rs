@@ -183,12 +183,37 @@ fn t289_1_structure_census_tags() {
         // (no II_II on 100a/103a) = 15553.
         // FLIP (BUG-413(ii)/(iii), F2-iter231, canonical 487757b): +1 LDSM_R_AURI
         // key per arch = 1730 / 15724 / 15554.
+        // BUG-435 flip (F2-iter240, canonical 0a6b178): +3 sm120 +
+        // +3 sm100a/sm103a (LD_R_dARI_P + LDG_P_R_dARI{,_P} per era leg;
+        // 33/leg new mgs live inside mod_groups; sm121a byte-untouched
+        // in key space) = 1733 / 15724 / 15557.
+        // BUG-433 flip (F2-iter241, canonical 61858fb): +1 sm120 key
+        // (STSM_ARI_R clone of the sm103a geometry; the 3 mgs live inside
+        // mod_groups; x3/sparse mg-space only) = 1734 / 15724 / 15557.
+        // BUG-423 flip (F2-iter242, canonical 3032686): -1 sm121a key (key census: 442 +1 key [G3 121a donor-clone STG_ARURI_R]; 441 byl bez zmian licznika)
+        // (LDSM.16.M88_R_AUR dotted junk era key DELETED -- recanon
+        // doctrine, bug098 sm120 precedent; claims ride onto
+        // LDSM_R_ARURI|16,M88 which also gains the j84-band vm relax
+        // x4 legs; mg-space relax does not move the counter)
+        // = 1734 / 15723 / 15557.
+        // BUG-442 ride (F2-iter246, canonical 57e7ecd): G3 donor-clone adds
+        // key STG_ARURI_R on sm121a: 15723 -> 15724.
+        // FLIP (BUG-443, F2-iter250, canonical e8d1af3): +19 keys sm120 +
+        // +19 sm121a (8 T2 base E-form + 11 T3 cross STG other-family enum
+        // keys; STS S8/S16 land as mgs, no counter move) = 1753 / 15743 /
+        // 15557.
+        // FLIP (BUG-447, F2-iter252, canonical 099faa0): +20 keys sm120 +
+        // +20 sparse (donor-clone sm121a NA-ARURI EFL2.256; sm121a
+        // byte-untouched) = 1773 / 15743 / 15577.
+        // FLIP (BUG-450, F2-iter255, canonical 589be87): +3 keys sm120 +
+        // +3 sparse (donor-clone sm121a non-NA dARI EFL2.256; sm121a
+        // byte-untouched) = 1776 / 15743 / 15580.
         let want = if arch == "sm120" {
-            1730
+            1776
         } else if arch == "sm121a" {
-            15724
+            15743
         } else {
-            15554
+            15580
         };
         assert_eq!(t.entries.len(), want, "{arch}: key census drift");
     }
