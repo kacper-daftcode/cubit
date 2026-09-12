@@ -254,7 +254,23 @@ fn t176_5_table_shapes() {
     // frames: 3 HADD2.F32[.SAT/.FTZ] + 10 HFMA2*RELU _P dotted FI_FI_R + 10
     // _II_II_R; canonical 2ae87b3) = 1729.
     // FLIP (BUG-413(ii), F2-iter231, canonical 487757b): +1 LDSM_R_AURI.
-    assert_eq!(t120().num_keys(), 1730);
+    // 2026-09-10 BUG-435+434: +3 sm120 keys (LD_R_dARI_P LD-E/128 trailing-pred
+    // key + LDG_P_R_dARI{,_P} pred-output A-lane keys; the 33 new mgs live
+    // inside mod_groups of the existing keys; canonical 0a6b178) = 1733.
+    // 2026-09-10 BUG-433: +1 sm120 key (STSM_ARI_R clone of the sm103a
+    // geometry, 3 mgs = M88 count closure; canonical 61858fb) = 1734.
+    // 2026-09-12 BUG-443: +19 sm120 keys (8 T2 other-family enum keys
+    // STG.E.{U8,CONSTANT.PRIVATE,CONSTANT.CTA,STRONG.SM.PRIVATE,MMIO.GPU,
+    // EF,LU,NA}_ARURI_R + 11 T3 cross keys; noE family + STS S8/S16 widths
+    // land as mgs inside STG_ARURI_R/STS_* and do not move the counter;
+    // canonical e8d1af3) = 1753.
+    // 2026-09-12 BUG-447: +20 sm120 keys (donor-clone sm121a NA-ARURI
+    // LDG.E.NA.EFL2.256 x16 + STG.E.NA.EFL2.256 x4; era dARI mg delete
+    // nie rusza countera; canonical 099faa0) = 1773.
+    // 2026-09-12 BUG-450: +3 sm120 keys (donor-clone sm121a non-NA dARI
+    // EFL2.256 x3; LDG.E.EFL2.256_R_R_dARI{,_P} + STG.E.EFL2.256_dARI_R_R;
+    // canonical 589be87) = 1776.
+    assert_eq!(t120().num_keys(), 1776);
     // 2026-08-28 BUG-244: +2 sm103a/sm100a typed keys (F2F.F64.F32_R_R,
     // F2F.F64.F32_R_UR; donor F64-dst closure, canonical 00c3fd2) = 402.
     // 2026-09-02 BUG-341: +41 sm103a keys (F2I small-int R_R lattice
@@ -282,5 +298,13 @@ fn t176_5_table_shapes() {
     // 2026-09-08 BUG-419: +13 sm103a keys (3 HADD2.F32[.SAT/.FTZ] + 10
     // HFMA2*RELU _P dotted R-final; canonical 2ae87b3) = 589.
     // FLIP (BUG-413(ii), F2-iter231, canonical 487757b): +1 LDSM_R_AURI.
-    assert_eq!(t103().num_keys(), 590);
+    // 2026-09-10 BUG-435+434: +3 sm103a keys (jak t120; canonical 0a6b178)
+    // = 593.
+    // 2026-09-12 BUG-443: +19 sm103a/sm100a keys (jak t120; canonical
+    // e8d1af3) = 612.
+    // 2026-09-12 BUG-447: +20 sm103a/sm100a keys (jak t120; canonical
+    // 099faa0) = 632.
+    // 2026-09-12 BUG-450: +3 sm103a/sm100a keys (donor-clone sm121a
+    // non-NA dARI EFL2.256 x3; canonical 589be87) = 635.
+    assert_eq!(t103().num_keys(), 635);
 }

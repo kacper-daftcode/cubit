@@ -82,7 +82,9 @@ fn t3_unknown_component_fails_closed() {
         "LDS R10, [R26+0x8+0xZZ]",
         "LDS R10, [R26+0x1x]",
         "LDS R10, [R26-4]",
-        "LDS R10, [URZ+0x8]",
+        // BUG-448 ride (flip448 F7): "LDS R10, [URZ+0x8]" left the refuse
+        // list -- parser bare-URZ admission (arb448 vendor-attested x4:
+        // nvdisasm renders the encoded word back as exactly that text).
     ] {
         let e = enc(bad, &t).expect_err(&format!("must fail closed: {bad}"));
         assert!(format!("{e:#}").contains("unencodable memory address"), "{bad}: got {e:#}");

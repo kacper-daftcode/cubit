@@ -79,7 +79,11 @@ fn t413ii_1_law_grid_vendor_exact_x4() {
     // Machine evidence work/bug421422/measure413_post421422.json;
     // was (142, 51) at 0eddad5 (= 420; before that (136, 57)). Counts per-TAG:
     // 11 healed tags => (142+11, 51-11), machine-measured not predicted.
-    assert_eq!((legal, hole), (153, 40));
+    // FLIP (BUG-439, F2-iter243, canonical 54c5b02): D-class band singles
+    // {b87,b90,b92,b95} healed vendor-exact x4 via ARURI|16,M88 vm |=
+    // 0x129<<87 (arb439 law + arb423 D-set). 4 healed tags =>
+    // (153+4, 40-4), machine-measured by work/bug439/flip439b.py.
+    assert_eq!((legal, hole), (161, 32));
 }
 
 /// t413ii_2: mint witnesses close byte-exact circles x4 (cross-leg
@@ -151,27 +155,23 @@ fn t413ii_4_refuse_postures_stand() {
     }
     // FLIP (BUG-421+422, F2-iter233): S16 + M816/M832/MT1616 refuse classes
     // closed by the graft; 10 -> 6.
-    assert_eq!(REFUSE413II.len(), 6);
+    // FLIP (BUG-448, F2-iter253): bare-URZ parser hole closed (vendor-exact
+    // mints in MINT448_413II, x4-unanimous); 6 -> 1 (INVALID3 stands).
+    assert_eq!(REFUSE413II.len(), 1);
 }
 
-/// t413ii_5: '[URZ...]' authored-bracket parser posture (pre-existing on
-/// publish e33f4fc9 -- the already-rowing LDS.U16 class refused identically):
-/// URZ-alone stays unauthorable on every leg while numeral URZ-sinks mint.
+/// t413ii_5: '[URZ...]' authored-bracket parser posture -- CLOSED by
+/// BUG-448 (flip448b F10): each listed text mints with a vendor-exact word
+/// (machine-verified, MINT448_413II). The decode side printed bare URZ all
+/// along (lds8rz/ldsmrz/stsrz law rows); the parser hole is fixed.
 #[test]
 fn t413ii_5_urz_parser_posture() {
     for leg in LEGS {
         let t = tab(leg);
-        for text in [
-            "LDS.S8 R93, [URZ] ;",
-            "LDS.S8 R93, [URZ+-0x800000] ;",
-            "LDSM.16.M88 R16, [URZ] ;",
-            "LDSM.16.MT88.4 R16, [URZ+0x1] ;",
-            "LDS.128 R96, [URZ] ;",
-        ] {
-            assert!(
-                enc(&t, text).is_none(),
-                "[{leg}] URZ-bracket minted: {text}"
-            );
+        for (text, word) in MINT448_413II {
+            let w = enc(&t, text).unwrap_or_else(||
+                panic!("[{leg}] URZ-bracket mint regressed: {text}"));
+            assert_eq!(w, *word, "[{leg}] URZ-bracket mint word drift {text}");
         }
         // the URZ sink as the UR-addend DOES mint (0xff window, 412 law):
         let t1 = tab(leg);
@@ -231,12 +231,14 @@ fn t413ii_6_claim_attribution_anchors() {
     }
 }
 
-/// t413ii_7: 423-kand posture UNTOUCHED -- the sm121a era row
-/// LDSM.16.M88_R_AUR fabricates "[R0+UR4]" on the 11 junk-band singles
-/// (vendor prints "[UR4]"; pre-existing on publish e33f4fc9, registered).
-/// Sibling legs keep their own measured states verbatim (broad-pass vendor-
-/// exact claims on b64-71 singles; HOLE on b84-86) -- the era posture is a
-/// sm121a-only decode artifact, NOT propagated by this graft.
+/// t413ii_7: 423-kand posture CLOSED by BUG-423 (F2-iter242, canonical
+/// 3032686) -- the sm121a era row LDSM.16.M88_R_AUR was DELETED (dotted
+/// junk key recanon, bug098 sm120 precedent) and the x3 b84-86 siblings
+/// were healed by the ARURI|16,M88 j84-band vm relax. All 11 singles now
+/// decode vendor-exact "[UR4]" on every leg (flip423b.py machine-checked
+/// vs the work .so). Historical note (pre-graft): the era row fabricated
+/// "[R0+UR4]" on the 11 junk-band singles (broad-pass vendor-exact claims
+/// on b64-71, HOLE on b84-86 x3 legs; pre-existing on publish e33f4fc9).
 #[test]
 fn t413ii_7_423_era_fabrication_posture() {
     assert_eq!(POSTURE423.len(), 11);
@@ -245,7 +247,7 @@ fn t413ii_7_423_era_fabrication_posture() {
         let t = tab("sm121a");
         let idx = DecodeIndex::build(&t);
         let got = dec(&t, &idx, *w).unwrap_or_else(|| panic!("{tag} posture hole"));
-        assert_eq!(&got, engine, "{tag} era fabrication drift");
+        assert_eq!(&got, engine, "{tag} healed-grid drift (423 closed by BUG-423)");
         for (li, leg) in ["sm100a", "sm103a", "sm120"].iter().enumerate() {
             let tl = tab(leg);
             let idxl = DecodeIndex::build(&tl);

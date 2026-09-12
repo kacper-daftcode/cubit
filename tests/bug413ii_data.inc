@@ -3,6 +3,14 @@
 // BUG-413(ii)/(iii) witnesses: arb413+arb413b+arb412b law words x4 models
 // unanimous + measure413_post421422 engine classifications + fresh x4 mints.
 #[rustfmt::skip]
+// 2026-09-11 HEAL-ATTRIBUTION (BUG-439, F2-iter243, canonical 54c5b02):
+// single.ldsm.b87/90/92/95 closed -- vendor-exact decode x4 legs via
+// ARURI|16,M88 vm |= 0x129<<87 (patch439.py replayable+idempotent).
+// Machine-checked by work/bug439/flip439b.py. 439-kand CLOSED.
+// 2026-09-11 HEAL-ATTRIBUTION (BUG-441, F2-iter245, canonical ffa3244):
+// single.ldsm.b88/89/93/94 closed -- vendor-exact decode x4 legs via
+// ARURI|16,M88 vm |= 0x63<<88 band-rest (patch441.py replayable+idempotent).
+// Machine-checked by work/bug441/flip441.py. 441-kand CLOSED.
 pub const LAW413_DECODE: &[(u128, &str, [Option<&str>; 4])] = &[
     (0x0000000008000000ffffff04ff10783b, "base.ldsm.n1", [Some("LDSM.16.M88 R16, [UR4+-0x1]"), Some("LDSM.16.M88 R16, [UR4+-0x1]"), Some("LDSM.16.M88 R16, [UR4+-0x1]"), Some("LDSM.16.M88 R16, [UR4+-0x1]")]),
     (0x000000000800000000000104ff10783b, "base.ldsm.p1", [Some("LDSM.16.M88 R16, [UR4+0x1]"), Some("LDSM.16.M88 R16, [UR4+0x1]"), Some("LDSM.16.M88 R16, [UR4+0x1]"), Some("LDSM.16.M88 R16, [UR4+0x1]")]),
@@ -128,15 +136,15 @@ pub const LAW413_DECODE: &[(u128, &str, [Option<&str>; 4])] = &[
     (0x000000000802000000000004ff10783b, "single.ldsm.b81", [None, None, None, None]),
     (0x000000000804000000000004ff10783b, "single.ldsm.b82", [None, None, None, None]),
     (0x000000000808000000000004ff10783b, "single.ldsm.b83", [None, None, None, None]),
-    (0x000000000880000000000004ff10783b, "single.ldsm.b87", [None, None, None, None]),
-    (0x000000000900000000000004ff10783b, "single.ldsm.b88", [None, None, None, None]),
-    (0x000000000a00000000000004ff10783b, "single.ldsm.b89", [None, None, None, None]),
-    (0x000000000c00000000000004ff10783b, "single.ldsm.b90", [None, None, None, None]),
+    (0x000000000880000000000004ff10783b, "single.ldsm.b87", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
+    (0x000000000900000000000004ff10783b, "single.ldsm.b88", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
+    (0x000000000a00000000000004ff10783b, "single.ldsm.b89", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
+    (0x000000000c00000000000004ff10783b, "single.ldsm.b90", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
     (0x000000000000000000000004ff10783b, "single.ldsm.b91", [Some("LDSM.16.M88 R16, [RZ]"), Some("LDSM.16.M88 R16, [RZ]"), Some("LDSM.16.M88 R16, [RZ]"), Some("LDSM.16.M88 R16, [RZ]")]),
-    (0x000000001800000000000004ff10783b, "single.ldsm.b92", [None, None, None, None]),
-    (0x000000002800000000000004ff10783b, "single.ldsm.b93", [None, None, None, None]),
-    (0x000000004800000000000004ff10783b, "single.ldsm.b94", [None, None, None, None]),
-    (0x000000008800000000000004ff10783b, "single.ldsm.b95", [None, None, None, None]),
+    (0x000000001800000000000004ff10783b, "single.ldsm.b92", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
+    (0x000000002800000000000004ff10783b, "single.ldsm.b93", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
+    (0x000000004800000000000004ff10783b, "single.ldsm.b94", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
+    (0x000000008800000000000004ff10783b, "single.ldsm.b95", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
     (0x000000010800000000000004ff10783b, "single.ldsm.b96", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
     (0x000000020800000000000004ff10783b, "single.ldsm.b97", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
     (0x000000040800000000000004ff10783b, "single.ldsm.b98", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
@@ -233,25 +241,39 @@ pub const MINT413II: &[(&str, u128, &str)] = &[
     ("LDSM.16.M832 R16, [UR4] ;", 0x000fc2000800c00000000004ff10783b, "LDSM.16.M832 R16, [UR4]"),
     ("LDSM.16.MT1616 R16, [UR4] ;", 0x000fc2000801000000000004ff10783b, "LDSM.16.MT1616 R16, [UR4]"),
 ];
+// BUG-448 ride (flip448b F9): the five bare-URZ authored texts mint now
+// (parser admission; every word machine-verified nvdisasm 13.3.73 -b
+// x4-unanimous rendering == the authored text; cross-leg identical).
+// INVALID3 stays refused (junk width class, machine-checked x4 legs).
 pub const REFUSE413II: &[&str] = &[
-    "LDS.S8 R93, [URZ] ;",
-    "LDS.S8 R93, [URZ+-0x800000] ;",
-    "LDSM.16.M88 R16, [URZ] ;",
-    "LDSM.16.MT88.4 R16, [URZ+0x1] ;",
-    "LDS.128 R96, [URZ] ;",
     "LDSM.16.M88.INVALID3 R16, [UR4] ;",
 ];
-pub const LAW413_COUNTS: (usize, usize) = (153, 40);
+/// MINT448_413II: (text, word) -- the 448-closed parser hole on the shared
+/// LDS/LDSM brackets (decode side already printed these bare-URZ forms,
+/// e.g. lds8rz/ldsmrz/stsrz law rows above; the encode side refused).
+pub const MINT448_413II: &[(&str, u128)] = &[
+    ("LDS.S8 R93, [URZ] ;", 0x000fc20008000200000000ffff5d7984),
+    ("LDS.S8 R93, [URZ+-0x800000] ;", 0x000fc20008000200800000ffff5d7984),
+    ("LDSM.16.M88 R16, [URZ] ;", 0x000fc20008000000000000ffff10783b),
+    ("LDSM.16.MT88.4 R16, [URZ+0x1] ;", 0x000fc20008004200000001ffff10783b),
+    ("LDS.128 R96, [URZ] ;", 0x000fc20008000c00000000ffff607984),
+];
+pub const LAW413_COUNTS: (usize, usize) = (161, 32); // [ride BUG-439 F2-iter243: (153,40)->(157,36), 4 D-class tags healed; ride BUG-441 F2-iter245: (157,36)->(161,32), 4 band-rest tags healed]
+// 2026-09-10 HEAL-ATTRIBUTION (BUG-423, F2-iter242, canonical 3032686):
+// POSTURE423 closed -- all 11 junk-band singles decode vendor-exact
+// '[UR4]' on every leg (sm121a era key deleted = recanon; x3 b84-86 healed
+// by the ARURI|16,M88 j84-band vm relax). Snapped on the work .so by
+// work/bug423/flip423b.py (machine-checked). 423-kand CLOSED.
 pub const POSTURE423: &[(u128, &str, &str, [Option<&str>; 3])] = &[
-    (0x000000000800000100000004ff10783b, "single.ldsm.b64.sm121a", "LDSM.16.M88 R16, [R0+UR4]", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
-    (0x000000000800000200000004ff10783b, "single.ldsm.b65.sm121a", "LDSM.16.M88 R16, [R0+UR4]", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
-    (0x000000000800000400000004ff10783b, "single.ldsm.b66.sm121a", "LDSM.16.M88 R16, [R0+UR4]", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
-    (0x000000000800000800000004ff10783b, "single.ldsm.b67.sm121a", "LDSM.16.M88 R16, [R0+UR4]", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
-    (0x000000000800001000000004ff10783b, "single.ldsm.b68.sm121a", "LDSM.16.M88 R16, [R0+UR4]", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
-    (0x000000000800002000000004ff10783b, "single.ldsm.b69.sm121a", "LDSM.16.M88 R16, [R0+UR4]", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
-    (0x000000000800004000000004ff10783b, "single.ldsm.b70.sm121a", "LDSM.16.M88 R16, [R0+UR4]", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
-    (0x000000000800008000000004ff10783b, "single.ldsm.b71.sm121a", "LDSM.16.M88 R16, [R0+UR4]", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
-    (0x000000000810000000000004ff10783b, "single.ldsm.b84.sm121a", "LDSM.16.M88 R16, [R0+UR4]", [None, None, None]),
-    (0x000000000820000000000004ff10783b, "single.ldsm.b85.sm121a", "LDSM.16.M88 R16, [R0+UR4]", [None, None, None]),
-    (0x000000000840000000000004ff10783b, "single.ldsm.b86.sm121a", "LDSM.16.M88 R16, [R0+UR4]", [None, None, None]),
+    (0x000000000800000100000004ff10783b, "single.ldsm.b64.sm121a", "LDSM.16.M88 R16, [UR4]", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
+    (0x000000000800000200000004ff10783b, "single.ldsm.b65.sm121a", "LDSM.16.M88 R16, [UR4]", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
+    (0x000000000800000400000004ff10783b, "single.ldsm.b66.sm121a", "LDSM.16.M88 R16, [UR4]", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
+    (0x000000000800000800000004ff10783b, "single.ldsm.b67.sm121a", "LDSM.16.M88 R16, [UR4]", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
+    (0x000000000800001000000004ff10783b, "single.ldsm.b68.sm121a", "LDSM.16.M88 R16, [UR4]", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
+    (0x000000000800002000000004ff10783b, "single.ldsm.b69.sm121a", "LDSM.16.M88 R16, [UR4]", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
+    (0x000000000800004000000004ff10783b, "single.ldsm.b70.sm121a", "LDSM.16.M88 R16, [UR4]", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
+    (0x000000000800008000000004ff10783b, "single.ldsm.b71.sm121a", "LDSM.16.M88 R16, [UR4]", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
+    (0x000000000810000000000004ff10783b, "single.ldsm.b84.sm121a", "LDSM.16.M88 R16, [UR4]", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
+    (0x000000000820000000000004ff10783b, "single.ldsm.b85.sm121a", "LDSM.16.M88 R16, [UR4]", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
+    (0x000000000840000000000004ff10783b, "single.ldsm.b86.sm121a", "LDSM.16.M88 R16, [UR4]", [Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]"), Some("LDSM.16.M88 R16, [UR4]")]),
 ];

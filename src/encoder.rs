@@ -1047,6 +1047,24 @@ fn check_efl2_addr_parity_sm103(insn: &Instruction, table: &IsaTable) -> Result<
             }
         }
     }
+    // BUG-447 companion arm (F2-iter252): the canonical graft 099faa0 moved the
+    // x3 EFL2.256 NA family off the era dARI desc rows onto the plain
+    // `[Rn.U32+URm]` donor keys cloned from sm121a. The silicon trap is
+    // word-level (Rn LSB = bit24 parity; the desc spelling and the plain
+    // spelling assemble the SAME word), so the guard must fire on the plain
+    // address operand too -- otherwise the graft would have silently lifted a
+    // measured silicon guard. Same scope as the desc arm (LDG + EFL2 + 256,
+    // sm_103a only; BUG-060 krun 7/7). Escape hatch CUBIT_DISABLE_ERRATA
+    // unchanged (RE/probe byte-mapping).
+    for op in &insn.operands {
+        if let Operand::Addr { base_reg: Some(r), ur_reg: Some(_), .. } = op {
+            if r % 2 == 0 {
+                anyhow::bail!(
+                    "LDG.E.NA.EFL2.256 address base R{} is EVEN -- SILICON-ILLEGAL on sm_103a                     (BUG-060 word-level, keeper arm added F2-iter252 alongside canonical graft 099faa0:                     B300 krun probes 7/7 -- the [Rn.U32+URm] form requires an ODD Rn on sm_103a; even Rn                     traps CUDA_ERROR_ILLEGAL_INSTRUCTION; the plain and the old desc spelling assemble                     the same word). Renumber the address register (RA pin) instead of assembling the era                     word; CUBIT_DISABLE_ERRATA=1 stays available for RE tooling; decode full-fidelity."
+                , r);
+            }
+        }
+    }
     Ok(())
 }
 
@@ -2136,6 +2154,33 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         candidates.push((k_cai.clone(), mod_group.clone()));
         candidates.push((fk_cai, String::new()));
         candidates.push((k_cai, String::new()));
+    }
+    // BUG-448: bare "[URm(+off)]" / "[URZ(+off)]" (vendor base-RZ-elided
+    // rendering on the EFL2.256 NA family, arb448 x4) types as _AURI
+    // (base_reg None, parser.rs operand_type_label). The plain-ARURI table
+    // rows key on _ARURI and default the base slot to RZ=255 at fill time;
+    // append ARURI-shaped fallback candidates (BUG-398 cAI pattern).
+    // Priority stays with the primary _AURI derivation: uniform-only rows
+    // (ATOMS sm120 "[URn+off]" BUG-181) match first, and entry fits stay
+    // fail-closed, so this only widens acceptance where an ARURI row is
+    // genuinely reachable; every legacy family keeps its former behavior
+    // on explicit "[RZ.U32+URm]" text (unchanged spelling, same word).
+    if insn.operands.iter().any(|op| matches!(op,
+        Operand::Addr { ur_reg: Some(_), base_reg: None, .. }))
+    {
+        let aruri_sig: String = insn.operands.iter().map(|op| match op {
+            Operand::Addr { ur_reg: Some(_), base_reg: None, .. } => "_ARURI".to_string(),
+            _ => format!("_{}", crate::parser::operand_type_label_pub(op)),
+        }).collect();
+        let clean_opcode: String = insn.opcode_full.split('.')
+            .filter(|p| !p.is_empty() && !p.starts_with('?'))
+            .collect::<Vec<_>>().join(".");
+        let fk_aruri = format!("{clean_opcode}{aruri_sig}");
+        let k_aruri = format!("{}{}", insn.opcode, aruri_sig);
+        candidates.push((fk_aruri.clone(), mod_group.clone()));
+        candidates.push((k_aruri.clone(), mod_group.clone()));
+        candidates.push((fk_aruri, String::new()));
+        candidates.push((k_aruri, String::new()));
     }
     candidates.dedup();
 
@@ -4601,8 +4646,12 @@ fn op_sub_ureg(insn: &Instruction, tok: i32, idx: u8) -> u64 {
     match get_op(insn, tok) {
         // Desc[UR][R+off]: UR is sub_ur0
         Some(Operand::Desc { ur_idx, .. }) if idx == 0 => *ur_idx as u64,
-        // Addr[R+UR+off]: UR is sub_ur1 (R took slot 0)
-        Some(Operand::Addr { base_reg: Some(_), ur_reg, .. }) if idx == 1 => ur_reg.map_or(255, |r| r as u64),
+        // Addr[R+UR+off]: UR is sub_ur1 (R took slot 0). The elided-base
+        // spelling "[URm(+off)]" (BUG-448, vendor EFL2.256 NA ARURI law) keeps
+        // sub-slot 1 for the UR: the donor ARURI rows address the UR field as
+        // sub_ur1 regardless of the textual "RZ.U32+" prefix, and sub_ur0
+        // stays the genuinely uniform-only shape below.
+        Some(Operand::Addr { ur_reg, .. }) if ur_reg.is_some() && idx == 1 => ur_reg.map_or(255, |r| r as u64),
         // Addr[UR+off] (no base_reg): UR is sub_ur0
         Some(Operand::Addr { base_reg: None, ur_reg, .. }) if idx == 0 => ur_reg.map_or(255, |r| r as u64),
         // ConstMem c[B][UR+off]: UR is sub_ur1 (bank took slot 0)

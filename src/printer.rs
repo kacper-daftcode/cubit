@@ -1099,6 +1099,14 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             "EL" | "NA" | "EN" | "EF" | "EU" => return 3,
             "ELL2" | "ENL2" | "EFL2" | "RML2" => return 4,
             "CONSTANT" => return 6,
+            // BUG-443: STG base (noE offlane) prints scope-class LAST --
+            // vendor `STG.CONSTANT.PRIVATE [Rx.U32+URy]` (arb443 noE.CPRIV
+            // cross x4 models AGREE); generic bucket 5 would put PRIVATE
+            // before CONSTANT(6). Inert for every PRE-443 row: all LDG/STG
+            // corpus rows carry PRIVATE verbatim in base_op (machine-emptied
+            // mg filter; census x4 legs) -- the only non-verbatim PRIVATE is
+            // the BUG-443 noE cross row itself.
+            "PRIVATE" => return 9,
             "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" => return 7,
             "GPU" | "SYS" | "SM" | "CTA" => return 8,
             "HINT" => return 9,
@@ -1384,7 +1392,13 @@ fn format_operand(
                 || ins_key.starts_with("LD_")
                 || ins_key.starts_with("ST_") =>
         {
-            format_plain_u32_ur(fields, raw)
+            // BUG-446: EFL2.256 NA family (121a-only keys) prints the address
+            // width-fixed U32 + <<5-scaled signed offset (arb446 law).
+            format_plain_u32_ur(
+                fields,
+                raw,
+                ins_key.starts_with("LDG.E.NA.EFL2") || ins_key.starts_with("STG.E.NA.EFL2"),
+            )
         }
         // BUG-099/095: canon-era key names LDG_R_ARURI / STG_ARURI_R whose
         // repaired mod groups carry the same plain (reg/ureg/imm) field shape
@@ -1393,12 +1407,22 @@ fn format_operand(
         // raw-UR words, e.g. corpus `LDG.E R10, [R12.64+UR12+0x80]`). Junk
         // desc-form sibling mod groups keep sub_* fields and stay on
         // format_aruri below, so legit desc claims are untouched.
+        // BUG-442: same plain bracket for the canon-era sub_*-shaped plain
+        // rows (STG_ARURI_R 'E'/'64,E'/'128,E': sub_r0/sub_ur1/sub_imm1 =
+        // base/UR/offset slots; the decoding token carries no 'reg' field, so
+        // the pre-442 guard never fired and the (1,1) free-form printed the
+        // fabricated desc form). The desc-shape siblings (sub_r1+sub_ur0)
+        // still fail the guard and stay on format_aruri.
         "ARURI"
             if (ins_key.starts_with("LDG_R_ARURI") || ins_key.starts_with("STG_ARURI_R"))
-                && fields.iter().any(|f| norm_ext(&f.extraction) == "ureg")
-                && fields.iter().any(|f| norm_ext(&f.extraction) == "reg") =>
+                && fields
+                    .iter()
+                    .any(|f| matches!(norm_ext(&f.extraction).as_str(), "ureg" | "sub_ur1"))
+                && fields
+                    .iter()
+                    .any(|f| matches!(norm_ext(&f.extraction).as_str(), "reg" | "sub_r0")) =>
         {
-            format_plain_u32_ur(fields, raw)
+            format_plain_u32_ur(fields, raw, false)
         }
         // BUG-154: SYNCS.PHASECHK.TRANS64[.TRYWAIT] ARURI rows are plain
         // uniform-datapath bracket addresses in vendor text --
@@ -2380,10 +2404,18 @@ fn format_lit_or_sysreg(fields: &[&DecodedField], mod_group: &str, raw: u128) ->
 
 /// BUG-038 plain uniform-indexed global address: LDG.E/STG.E of class bytes
 /// 0x81/0x86 render natively as "[Rn.U32+URm(+0xoff)]" (i108 goldens).
-fn format_plain_u32_ur(fields: &[&DecodedField], raw: u128) -> String {
+fn format_plain_u32_ur(fields: &[&DecodedField], raw: u128, efl2_na: bool) -> String {
     let mut base: Option<u64> = None;
     let mut ur: Option<u64> = None;
-    let mut off: u64 = 0;
+    let mut off: i64 = 0;
+    // BUG-438: vendor law (arb438b/arb438c nvdisasm 13.3.73 raw -b, x4 models
+    // AGREE EVERY/DIVERGENT=0): the 24-bit offset window [63:40] on the
+    // [Rn.U32+URm(+0xoff)] plain form is SIGNED -- raw 0x800000 prints
+    // '+-0x800000', 0xffffff prints '+-0x1' (neg_off_glyph win24 class,
+    // 399v2-doctrine). Pre-fix folded the sign bit into '+0x800000' /
+    // '+0xffffff' on all x4 legs. Narrower/other-width 'imm' windows stay
+    // byte-exact legacy unsigned (unmeasured there).
+    let mut off_win24 = false;
     for f in fields {
         match norm_ext(&f.extraction).as_str() {
             "reg" | "sub_r0" | "sub_r1" => {
@@ -2391,8 +2423,28 @@ fn format_plain_u32_ur(fields: &[&DecodedField], raw: u128) -> String {
                     base = Some(f.value);
                 }
             }
-            "ureg" => ur = Some(f.value),
-            "imm" => off = f.value,
+            "ureg" | "sub_ur1" => ur = Some(f.value),
+            // BUG-442: canon-era plain rows carry the address-embedded offset
+            // as sub_imm1 (same 24b@[63:40] window, same signed law as 'imm').
+            "imm" | "sub_imm1" => {
+                if f.bits == 24 {
+                    off = sign_extend(f.value, f.bits);
+                    off_win24 = true;
+                } else {
+                    off = f.value as i64;
+                }
+            }
+            // BUG-446: the 121a-only EFL2.256 NA family (LDG/STG *_EFL2*_ARURI
+            // rows) carries the address offset in a SIGNED <<5-scaled window
+            // (STG 19b@[58:40], LDG 17b@[56:40]): arb446 x4 AGREE EVERY /
+            // DIVERGENT=0 ('[Rx.U32+URy+-0x800000]' at raw sign-bit, '+-0x20'
+            // at all-ones). Pre-fix the extraction fell through to `_` and the
+            // offset was silently dropped from the printed address. The '+-'
+            // glyph matches the neg_off_glyph win24 class.
+            "sub_imm2_shr5" => {
+                off = sign_extend(f.value, f.bits) << 5;
+                off_win24 = true;
+            }
             _ => {}
         }
     }
@@ -2401,9 +2453,19 @@ fn format_plain_u32_ur(fields: &[&DecodedField], raw: u128) -> String {
         Some(v) => format!("R{v}"),
         None => "R0".to_string(),
     };
-    let u = format!("UR{}", ur.unwrap_or(0));
+    // BUG-444: vendor URZ-elide on this plain ARURI arm -- 0xff in an 8-bit
+    // UR window prints URZ, not UR255 (arb444/arb444b nvdisasm 13.3.73 raw -b
+    // x4 AGREE EVERY/DIVERGENT=0: STG.E plain (1,0)/.64 + desc rides,
+    // ATOMG.E.ADD.64 carrier; UR63/UR0/UR254 print literally x4). Same
+    // 8-bit 0xff=URZ law as the BUG-160 desc window and the BUG-412 shared
+    // bracket (format_sts_lds_addr); narrow (b6) UR windows (LDG.E x3,
+    // STG.E.128 x3, REDG x3) can never extract 255 => unaffected.
+    let u = match ur {
+        Some(255) => "URZ".to_string(),
+        v => format!("UR{}", v.unwrap_or(0)),
+    };
     let o = if off != 0 {
-        format!("+0x{off:x}")
+        neg_off_glyph(off, off_win24)
     } else {
         String::new()
     };
@@ -2411,7 +2473,26 @@ fn format_plain_u32_ur(fields: &[&DecodedField], raw: u128) -> String {
     // bits [92:90]: vendor prints `[Rn.U32+URm]` for modes 2/6 (era anchors,
     // 82/82) and `[Rn.64+URm]` for mode 3 (corpus anchors, 15/15). Modes with
     // bit90=1 && bit91=1 print ".64"; everything else observed prints ".U32".
-    let width = if (raw >> 90) & 0b11 == 0b11 {
+    // BUG-446: the EFL2.256 NA ARURI family (121a-only rows) has NO width
+    // bit in the address -- STG bits [90:88]+[63:59] are the policy-imm byte,
+    // LDG bits [90:87] the pred-out code; the BUG-099 raw-b90&&b91 rule leaks
+    // those into a fabricated '.64' glyph. arb446 x4 AGREE EVERY/DIVERGENT=0:
+    // '[Rx.U32+URy]' invariant across full policy-byte and pred_inv4 sweeps.
+    // BUG-448: vendor base-RZ elision on the EFL2.256 NA ARURI family --
+    // ra=255 prints bare "[URm(+off)]" with no "RZ.U32+" prefix (arb448
+    // 34 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0:
+    // invariant under policy-byte 0x00/0xfe/0xbf/0xff, signed<<5 offset
+    // +/-, pred_inv4, LTC64B.CONSTANT ride, URZ/UR0 sweeps; "[URZ]" and
+    // "[UR0]" render bare too). Every measured LEGACY plain family keeps
+    // "[RZ.U32+URm]" x4 (bug149/bug099/038a/arb444 carriers re-probed
+    // arb448 K-family: LDG.E/.64/.128, LD.E, STG.E/.64, .EL x2, ATOMG.E.64
+    // -- even "[RZ.U32+URZ]"), so the elide stays gated on the efl2_na
+    // flag exactly like the BUG-446 width law; NA-width plain (.128/U16)
+    // unmeasured there and untouched by construction.
+    if efl2_na && base == Some(255) && ur.is_some() {
+        return format!("[{u}{o}]");
+    }
+    let width = if !efl2_na && (raw >> 90) & 0b11 == 0b11 {
         "64"
     } else {
         "U32"

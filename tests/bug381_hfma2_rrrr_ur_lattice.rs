@@ -790,8 +790,8 @@ fn t381_5_kills_fail_closed() {
         let t = tab(leg);
         assert_eq!(
             t.entries.len(),
-            590,
-            "{leg}: key census drift (590 = 576 + 13 BUG-419 keys + 1 BUG-413(ii) key [LDSM_R_AURI], canonical 487757b; was 589 = +13 on 2ae87b3)"
+            635,
+            "{leg}: key census drift (635 = 632 + 3 BUG-450 keys [donor-clone sm121a non-NA dARI EFL2.256; canonical 589be87 ride F2-iter255]; 632 = 612 + 20 BUG-447 keys [donor-clone sm121a NA-ARURI EFL2.256; canonical 099faa0 ride F2-iter252]; 612 = 593 + 19 BUG-443 keys [8 T2 + 11 T3 STG other-family enum keys; STS S8/S16 stay mgs; canonical e8d1af3 ride F2-iter250]; was 593 = 590 + 3 BUG-435 keys [LD_R_dARI_P + LDG_P_R_dARI{{,_P}} per sparse leg], canonical 0a6b178; was 590 = 576 + 13 BUG-419 + 1 BUG-413(ii))"
         );
         for fam in FAMS {
             assert_eq!(
@@ -821,8 +821,8 @@ fn t381_5_kills_fail_closed() {
     // with the 0x7c31 h0nh1 graft (canonical d908ee9 = BUG-395; rides 74a06b7 = BUG-405/406 HADD2 release + HFMA2 two-imm slot graft; rides 19363f6 = BUG-400, which rode 5d32aec = BUG-398, 96f196b = BUG-402, dd477eb = BUG-407, 8f2571b = BUG-393).
     assert!(
         // [FLIP with attribution, BUG-384 / F2-iter205]: manifest pin moves with the canonical era-key hygiene delete.
-        m["base_revision"].as_str().unwrap().starts_with("d560e99"),
-        "SOURCE.json must pin canonical 52cb73c [was 3f6ca6f = BUG-425, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422, 0eddad5 = BUG-420] (BUG-425+425b grafts F2-iter238(A/B) z atrybucja; ride-chain): {:?}",
+        m["base_revision"].as_str().unwrap().starts_with("9b60b92"),
+        "SOURCE.json must pin canonical 57e7ecd [was ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, 1810912 = 435+434 hop, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b, 3f6ca6f = BUG-425, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422] (BUG-442 graft F2-iter246 z atrybucja; ride-chain): {:?}",
         m["base_revision"]
     );
 }

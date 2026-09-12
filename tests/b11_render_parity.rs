@@ -57,10 +57,14 @@ fn ldg_efl2_hint_after_scope() {
     let t = t103a();
     let idx = DecodeIndex::build(&t);
     // rt98 KernelB+0x570 (HINT-pair, b4fill3 row; GOLD there updated)
+    // healed 447 (canonical 099faa0, F2-iter252): era dARI HINT mg usuniety,
+    // donor 121a NA-ARURI row claimuje; vendor nvdisasm 13.3.73 drukuje
+    // plain x4 (arb447 H.ldg_na_ff; era .HINT glyph umiera -- ', 0x3f' to
+    // policy-imm). To slowo = cor.LDG2 w CORPUS447 (work/bug447).
     let w = 0x000824000850e0387e00000c0334797eu128;
     assert_eq!(
         decode_text(&t, &idx, w),
-        "LDG.E.NA.EFL2.256.STRONG.GPU.HINT R56, R52, desc[UR12][R3.64]"
+        "LDG.E.NA.EFL2.256.STRONG.GPU R56, R52, [R3.U32+UR12], 0x3f"
     );
 }
 

@@ -196,8 +196,8 @@ fn t409_5_graft_hygiene_source_pin() {
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        m["base_revision"].as_str().unwrap() == "d560e9953d42117859b75b8895c0ec34f30f6c8f",
-        "SOURCE.json must pin canonical d560e9953d42117859b75b8895c0ec34f30f6c8f [was 3f6ca6f = BUG-425, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422, 0eddad5 = BUG-420] (BUG-425+425b grafts F2-iter238(A/B) z atrybucja; ride-chain): {:?}",
+        m["base_revision"].as_str().unwrap() == "9b60b92014970a8d386c7dafea93d087862dca5e",
+        "SOURCE.json must pin canonical 9b60b92014970a8d386c7dafea93d087862dca5e (= BUG-450 graft, ride-after 099faa0 (= BUG-447) [was ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, was 1810912 = BUG-435+434, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424] (BUG-442 graft F2-iter246 z atrybucja; ride-chain): {:?}",
         m["base_revision"]
     );
     // row shape: and_base invariant at the pinned value, vm carries b37+b59

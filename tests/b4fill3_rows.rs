@@ -38,20 +38,52 @@ const SCHED: u128 = 0xFFFF_FFFFu128 << 96;
 /// (gold word, addr, canonical render)
 static GOLD: &[(u128, u32, &str)] = &[
     // LDG.E.NA.EFL2.256[.HINT] desc-form (vendor renders from BUG-060 report)
-    (0x000824000850e1ccfe00000e04c8797eu128, 0x0180, "LDG.E.NA.EFL2.256.STRONG.GPU R204, R200, desc[UR14][R4.64]"),
-    (0x000824000850e0387e00000c0334797eu128, 0x0570, "LDG.E.NA.EFL2.256.STRONG.GPU.HINT R56, R52, desc[UR12][R3.64]"),
-    (0x000824000850e0407e00000c043c797eu128, 0x0590, "LDG.E.NA.EFL2.256.STRONG.GPU.HINT R64, R60, desc[UR12][R4.64]"),
-    (0x000824000850e120fe000006181c797eu128, 0x0260, "LDG.E.NA.EFL2.256.STRONG.GPU R32, R28, desc[UR6][R24.64]"),
+    (
+        0x000824000850e1ccfe00000e04c8797eu128,
+        0x0180,
+        "LDG.E.NA.EFL2.256.STRONG.GPU R204, R200, [R4.U32+UR14]",
+    ), // healed 447
+    (
+        0x000824000850e0387e00000c0334797eu128,
+        0x0570,
+        "LDG.E.NA.EFL2.256.STRONG.GPU R56, R52, [R3.U32+UR12], 0x3f",
+    ), // healed 447
+    (
+        0x000824000850e0407e00000c043c797eu128,
+        0x0590,
+        "LDG.E.NA.EFL2.256.STRONG.GPU R64, R60, [R4.U32+UR12], 0x3f",
+    ), // healed 447
+    (
+        0x000824000850e120fe000006181c797eu128,
+        0x0260,
+        "LDG.E.NA.EFL2.256.STRONG.GPU R32, R28, [R24.U32+UR6]",
+    ), // healed 447
     // BRA-plain era: targets = dword-split (verified vs sm120-table renders)
-    (0x000fc2000383fffffffffffd00e08947u128, 0x01e0, "@!P0 BRA 0x170"),
+    (
+        0x000fc2000383fffffffffffd00e08947u128,
+        0x01e0,
+        "@!P0 BRA 0x170",
+    ),
     (0x000fc2000383ffffffffffd100247947u128, 0x3920, "BRA 0x9c0"),
     (0x000fc2000383ffffffffffbd008c7947u128, 0x5fc0, "BRA 0x1e00"),
-    (0x000fe200038000000000008300e80947u128, 0x0210, "@P0 BRA 0x85c0"),
+    (
+        0x000fe200038000000000008300e80947u128,
+        0x0210,
+        "@P0 BRA 0x85c0",
+    ),
     (0x000fe2000383ffffffffffe900187947u128, 0x7830, "BRA 0x60a0"),
     (0x010fe2000383ffffffffffbd00a07947u128, 0xc750, "BRA 0x85e0"),
     // BRXU 1-token era: both dispatch to 0xc850
-    (0x000fe2000b80000000000050ff087958u128, 0x7820, "BRXU 0xc850"),
-    (0x000fe2000b80000000000028ffdc7958u128, 0x9cd0, "BRXU 0xc850"),
+    (
+        0x000fe2000b80000000000050ff087958u128,
+        0x7820,
+        "BRXU 0xc850",
+    ),
+    (
+        0x000fe2000b80000000000028ffdc7958u128,
+        0x9cd0,
+        "BRXU 0xc850",
+    ),
 ];
 
 #[test]
@@ -64,13 +96,20 @@ fn b4fill3_decode_render() {
             Ok(d) => {
                 let text = cubit::printer::to_sass(&d);
                 if text != golden {
-                    fails.push(format!("word {word:032x}@{addr:04x}: render {text:?} != {golden:?}"));
+                    fails.push(format!(
+                        "word {word:032x}@{addr:04x}: render {text:?} != {golden:?}"
+                    ));
                 }
             }
             Err(e) => fails.push(format!("word {word:032x}@{addr:04x}: decode fail: {e}")),
         }
     }
-    assert!(fails.is_empty(), "{} failures:\n{}", fails.len(), fails.join("\n"));
+    assert!(
+        fails.is_empty(),
+        "{} failures:\n{}",
+        fails.len(),
+        fails.join("\n")
+    );
 }
 
 #[test]
@@ -79,11 +118,16 @@ fn b4fill3_brxu_reencode_byte_exact() {
     // (modulo sched bits, which the file pipeline regenerates via @sched).
     let t = t103a();
     for &(word, addr, golden) in &GOLD[..] {
-        if !golden.starts_with("BRXU ") { continue; }
+        if !golden.starts_with("BRXU ") {
+            continue;
+        }
         let insn = parse_sass(&format!("{golden} ;"), addr).unwrap();
         let w2 = encode_instruction(&insn, &t).unwrap();
-        assert_eq!(w2 & !SCHED, word & !SCHED,
-            "BRXU encode {w2:032x} != era {word:032x}");
+        assert_eq!(
+            w2 & !SCHED,
+            word & !SCHED,
+            "BRXU encode {w2:032x} != era {word:032x}"
+        );
     }
 }
 
@@ -94,11 +138,16 @@ fn b4fill3_bra_target_region_exact() {
     let t = t103a();
     let tgtmask: u128 = ((0xFFu128 << 16) | (0xFFFF_FFFFu128 << 32)) & !(0b11u128 << 32);
     for &(word, addr, golden) in &GOLD[..] {
-        if !golden.contains("BRA ") { continue; }
+        if !golden.contains("BRA ") {
+            continue;
+        }
         let insn = parse_sass(&format!("{golden} ;"), addr).unwrap();
         let w2 = encode_instruction(&insn, &t).unwrap();
-        assert_eq!(w2 & tgtmask, word & tgtmask,
-            "BRA target region {w2:032x} vs era {word:032x} at {addr:04x}");
+        assert_eq!(
+            w2 & tgtmask,
+            word & tgtmask,
+            "BRA target region {w2:032x} vs era {word:032x} at {addr:04x}"
+        );
     }
 }
 
@@ -109,25 +158,62 @@ fn b4fill3_efl2_parity_guard() {
     // the row-owned region (fields + and_base constants minus sched).
     let w2gold = 0x000824000850e0387e00000c0334797eu128;
     let insn = parse_sass(
-        "LDG.E.NA.EFL2.HINT.256.STRONG.GPU R56, R52, desc[UR12][R3.64] ;", 0x570).unwrap();
+        "LDG.E.NA.EFL2.256.STRONG.GPU R56, R52, [R3.U32+UR12], 0x3f ;",
+        0x570,
+    )
+    .unwrap();
     let w2 = encode_instruction(&insn, &t).unwrap();
-    assert_eq!(w2 & !SCHED, w2gold & !SCHED, "EFL2.256 HINT odd-addr encode");
+    // healed 447: plain donor key; era gold ma hint-bake (dead b72) --
+    // compare z tolerancja dead-set {72,73,87} (gen447pins DEADNORM).
+    let dead: u128 = (1u128 << 72) | (1u128 << 73) | (1u128 << 87);
+    assert_eq!(
+        (w2 ^ w2gold) & !SCHED & !dead,
+        0,
+        "EFL2.256 plain odd-addr encode vs era gold"
+    );
     // even Rn (R4/R24 era slots): fail closed with the BUG-060 citation
+    // healed 447 (F2-iter252): desc spelling ponizej = era-dead (parse/lookup err,
+    // osobny assert nizej); guard silicon zostaje na PLAIN formie (keeper arm
+    // BUG-060 w encoder.rs; even base R-FAIL z cytatem).
     for bad in [
-        "LDG.E.NA.EFL2.256.STRONG.GPU R204, R200, desc[UR14][R4.64]",
-        "LDG.E.NA.EFL2.256.STRONG.GPU.HINT R64, R60, desc[UR12][R4.64]",
-        "LDG.E.NA.EFL2.256.STRONG.GPU R32, R28, desc[UR6][R24.64]",
+        "LDG.E.NA.EFL2.256.STRONG.GPU R204, R200, [R4.U32+UR14]",
+        "LDG.E.NA.EFL2.256.STRONG.GPU R64, R60, [R4.U32+UR12], 0x3f",
+        "LDG.E.NA.EFL2.256.STRONG.GPU R32, R28, [R24.U32+UR6]",
     ] {
         let insn = parse_sass(&format!("{bad} ;"), 0x180).unwrap();
         let err = encode_instruction(&insn, &t).unwrap_err();
-        assert!(format!("{err}").contains("BUG-060"), "missing BUG-060 in: {err}");
+        assert!(
+            format!("{err}").contains("BUG-060"),
+            "missing BUG-060 in: {err}"
+        );
     }
-    // escape hatch exists for RE tooling (probe assembly)
+    for dead in [
+        "LDG.E.NA.EFL2.256.STRONG.GPU R204, R200, desc[UR14][R4.64]",
+        "LDG.E.NA.EFL2.256.STRONG.GPU.HINT R64, R60, desc[UR12][R4.64]",
+    ] {
+        assert!(
+            parse_sass(&format!("{dead} ;"), 0x180)
+                .and_then(|i| encode_instruction(&i, &t))
+                .is_err(),
+            "era desc spelling must be dead post-447: {dead}"
+        );
+    }
+    // escape hatch exists for RE tooling (probe assembly); byte-mapping
+    // rownowazna ze zlotem era (0180) modulo dead-set (healed 447).
     std::env::set_var("CUBIT_DISABLE_ERRATA", "1");
     let insn = parse_sass(
-        "LDG.E.NA.EFL2.256.STRONG.GPU R204, R200, desc[UR14][R4.64] ;", 0x180).unwrap();
-    assert!(encode_instruction(&insn, &t).is_ok());
+        "LDG.E.NA.EFL2.256.STRONG.GPU R204, R200, [R4.U32+UR14] ;",
+        0x180,
+    )
+    .unwrap();
+    let w3 = encode_instruction(&insn, &t).expect("hatch encode");
     std::env::remove_var("CUBIT_DISABLE_ERRATA");
+    let dead: u128 = (1u128 << 72) | (1u128 << 73) | (1u128 << 87);
+    assert_eq!(
+        (w3 ^ 0x000824000850e1ccfe00000e04c8797eu128) & !SCHED & !dead,
+        0,
+        "hatch byte-map vs era gold 0180"
+    );
 }
 
 #[test]
@@ -135,15 +221,30 @@ fn b4fill3_efl2_cross_matrix() {
     // membership matrix: no cross-matching inside the ELL2/EFL2 family
     let t = t103a();
     let idx = DecodeIndex::build(&t);
+    // healed 447 (graft 099faa0): era LDG_R_R_dARI NA/HINT mgs usuniete;
+    // wszystkie 4 slowa routuja do donor-klucza 121a ARURI. HINT-era bake
+    // renderowany jako policy-imm ', 0x3f' (teksty pinowane w GOLD wyzej).
+    // klucze weryfikowane maszynowo na keep.so post-447 (flip447c):
     let cases = [
-        (0x000824000850e1ccfe00000e04c8797eu128, "256,E,EFL2,GPU,NA,STRONG"),
-        (0x000824000850e0387e00000c0334797eu128, "256,E,EFL2,GPU,HINT,NA,STRONG"),
-        (0x000824000850e0407e00000c043c797eu128, "256,E,EFL2,GPU,HINT,NA,STRONG"),
-        (0x000824000850e120fe000006181c797eu128, "256,E,EFL2,GPU,NA,STRONG"),
+        (
+            0x000824000850e1ccfe00000e04c8797eu128,
+            "LDG.E.NA.EFL2.256.STRONG.GPU_R_R_ARURI",
+        ),
+        (
+            0x000824000850e0387e00000c0334797eu128,
+            "LDG.E.NA.EFL2.256.STRONG.GPU_R_R_ARURI_II",
+        ),
+        (
+            0x000824000850e0407e00000c043c797eu128,
+            "LDG.E.NA.EFL2.256.STRONG.GPU_R_R_ARURI_II",
+        ),
+        (
+            0x000824000850e120fe000006181c797eu128,
+            "LDG.E.NA.EFL2.256.STRONG.GPU_R_R_ARURI",
+        ),
     ];
-    for (w, mg) in cases {
+    for (w, key) in cases {
         let d = idx.decode(w, 0, &t).unwrap();
-        assert_eq!(d.key, "LDG_R_R_dARI");
-        assert_eq!(d.mod_group, mg, "word {w:032x} routed to {}", d.mod_group);
+        assert_eq!(d.key, key, "word {w:032x} routed to {}", d.key);
     }
 }
