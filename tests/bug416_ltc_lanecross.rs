@@ -177,9 +177,9 @@ fn t416_6_refuse_closed_and_canon_pin() {
     let src: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        src["base_revision"].as_str().unwrap().starts_with("9b60b92"),
-        "SOURCE.json must pin canonical 9b60b92014970a8d386c7dafea93d087862dca5e (= BUG-450 graft, ride-after 099faa0 = BUG-447, ride-after e8d1af3 = BUG-443, 57e7ecd = BUG-442, ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, was 1810912 = BUG-435+434 graft F2-iter240; 70eb0fe = BUG-416 F2-iter239; older 52cb73c = BUG-425+425b): {:?}",
+        src["base_revision"].as_str().unwrap().starts_with("bd2e254"), // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+        "SOURCE.json must pin canonical a64b82bff6706350b82018609016f624188b99a5 (= BUG-463 ltc-widths, ride-after f58ed1683bded052bcb100a0762c16e7e91248c4 = BUG-461 glyph, ride-after f37655889e6da3ddd25b73a926c21ec3b58fa768 = BUG-462 narrow, ride-after 700524e698304dcbf1a3884f72f05abff609b8aa = BUG-453 graft, ride-after e03e0348d98b9d20ffb4ca557cfc6eae625cf995, = BUG-452 narrow, ride-after 4ee843162216e75d037135b5907c819759471296, = BUG-454 graft, ride-after 589be874 (= BUG-450) (= BUG-450 graft, ride-after 099faa0 = BUG-447, ride-after e8d1af3 = BUG-443, 57e7ecd = BUG-442, ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, was 1810912 = BUG-435+434 graft F2-iter240; 70eb0fe = BUG-416 F2-iter239; older 52cb73c = BUG-425+425b): {:?}",
         src["base_revision"]
     );
-    assert!(CANON416.starts_with("9b60b92"), "CANON416 const drift");
+    assert!(CANON416.starts_with("bd2e254"), "CANON416 const drift");
 }

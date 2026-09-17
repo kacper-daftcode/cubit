@@ -51,7 +51,9 @@ fn t1_sm103a_trap_classes_odd_base_rejected() {
         "LDG.E.256.ENL2 R8, R12, desc[UR4][R3.64]",
         "@P0 LDG.E R10, desc[UR4][R5.64]",
     ] {
-        let e = enc(text, &t103a()).expect_err(&format!("odd-base desc LDG must not encode for sm_103a: {text}"));
+        let e = enc(text, &t103a()).expect_err(&format!(
+            "odd-base desc LDG must not encode for sm_103a: {text}"
+        ));
         assert!(format!("{e}").contains("BUG-077"), "{text}: got: {e}");
     }
 }
@@ -59,8 +61,14 @@ fn t1_sm103a_trap_classes_odd_base_rejected() {
 // (2) same classes, even base: encode, byte-fixed at the pinned words.
 #[test]
 fn t2_sm103a_even_base_encode_fixed_point() {
-    assert_eq!(enc("LDG.E R10, desc[UR4][R4.64]", &t103a()).unwrap(), W_E_EVEN);
-    assert_eq!(enc("LDG.E.128 R8, desc[UR4][R4.64]", &t103a()).unwrap(), W_E128_EVEN);
+    assert_eq!(
+        enc("LDG.E R10, desc[UR4][R4.64]", &t103a()).unwrap(),
+        W_E_EVEN
+    );
+    assert_eq!(
+        enc("LDG.E.128 R8, desc[UR4][R4.64]", &t103a()).unwrap(),
+        W_E128_EVEN
+    );
     enc("LDG.E.256.ENL2 R8, R12, desc[UR4][R4.64]", &t103a()).expect("even ENL2 256 OK");
 }
 
@@ -71,22 +79,41 @@ fn t2_sm103a_even_base_encode_fixed_point() {
 fn t3_exemptions_and_060_polarity() {
     enc("LDG.E.LTC128B.128 R8, desc[UR8][R7.64]", &t103a())
         .expect("LTC128B class: guard must not fire (silicon 0/7 II)");
-    enc("LDG.E.256.ELL2.STRONG.GPU.NA R8, R12, desc[UR4][R3.64]", &t103a())
-        .expect("ELL2 class: guard must not fire (silicon 20/20)");
+    // FLIP (BUG-466, F2-iter275, canonical 67b54f4): ELL2 x3 rekanon --
+    // tekst vendora plain [R.U32+UR] (desc spelling nowy-blokowany, patrz
+    // t466_8 refuse); muzterk klasy w kluczach jak dotychczas.
+    enc(
+        "LDG.E.NA.ELL2.256.STRONG.GPU R8, R12, [R3.U32+UR4]",
+        &t103a(),
+    )
+    .expect("ELL2 class: guard must not fire (silicon 20/20)");
     // healed 447 (graft 099faa0): forma kodowania to plain donor
     // (era dARI NA mgs dead; desc spellings is_err). Guard BUG-060 ma
     // keeper arm na Operand::Addr (encoder.rs): odd OK == W_EFL2_ODD,
     // even fail-closed z cytatem.
     assert_eq!(
-        enc("LDG.E.NA.EFL2.256.STRONG.GPU R8, R12, [R5.U32+UR4]", &t103a()).unwrap(),
+        enc(
+            "LDG.E.NA.EFL2.256.STRONG.GPU R8, R12, [R5.U32+UR4]",
+            &t103a()
+        )
+        .unwrap(),
         W_EFL2_ODD,
         "EFL2 odd base REQUIRED on sm_103a (BUG-060)"
     );
-    let e = enc("LDG.E.NA.EFL2.256.STRONG.GPU R8, R12, [R4.U32+UR4]", &t103a())
-        .expect_err("EFL2 even base must stay fail-closed (BUG-060, plain arm)");
+    let e = enc(
+        "LDG.E.NA.EFL2.256.STRONG.GPU R8, R12, [R4.U32+UR4]",
+        &t103a(),
+    )
+    .expect_err("EFL2 even base must stay fail-closed (BUG-060, plain arm)");
     assert!(format!("{e}").contains("BUG-060"), "got: {e}");
-    assert!(enc("LDG.E.NA.EFL2.256.STRONG.GPU R8, R12, desc[UR4][R5.64]", &t103a()).is_err(),
-        "era desc spelling must be dead post-447");
+    assert!(
+        enc(
+            "LDG.E.NA.EFL2.256.STRONG.GPU R8, R12, desc[UR4][R5.64]",
+            &t103a()
+        )
+        .is_err(),
+        "era desc spelling must be dead post-447"
+    );
 }
 
 // (4) arch scoping: sm120 has no verdict -> odd trap form stays encodable.
@@ -102,6 +129,5 @@ fn t5_decode_and_precision() {
     let t = t103a();
     enc("IMAD R10, R2, R3, RZ", &t).expect("plain IMAD unaffected");
     enc("LDG.E R10, [R4.64]", &t).expect("plain non-desc LDG unaffected");
-    enc("LDG.E R10, desc[UR4][R4]", &t)
-        .expect("32-bit desc address unaffected (no pair)");
+    enc("LDG.E R10, desc[UR4][R4]", &t).expect("32-bit desc address unaffected (no pair)");
 }

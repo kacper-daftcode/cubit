@@ -33,6 +33,20 @@ struct JsonInsKey {
     pub encode_only: bool,
 }
 
+/// BUG-452: claim-forbid value exclusions on a mod group (donor-first claim
+/// narrowing). Each entry forbids the listed values at bits
+/// [shift, shift+bits): the decoder drops the candidate and the encoder
+/// refuses to mint (fail-closed), so shapes the vendor rejects (rc=1) or
+/// prints with an invalid-operand glyph (`???255.64`) are never claimed nor
+/// emitted. Rows without the attr keep legacy cube-claim behavior (same
+/// doctrine as BUG-099 addr_width).
+#[derive(Debug, Clone, Deserialize)]
+pub struct JsonClaimForbid {
+    pub shift: u32,
+    pub bits: u32,
+    pub values: Vec<u64>,
+}
+
 #[derive(Deserialize)]
 struct JsonModGroup {
     pub and_base: String,
@@ -56,6 +70,10 @@ struct JsonModGroup {
     /// keep legacy suffix-blind behavior.
     #[serde(default)]
     pub addr_width: Option<String>,
+    /// BUG-452: optional claim-forbid value exclusions (parsed into
+    /// ModGroupEntry::claim_forbid); absent = legacy cube-claim behavior.
+    #[serde(default)]
+    pub claim_forbid: Vec<JsonClaimForbid>,
 }
 
 #[derive(Deserialize)]
@@ -339,10 +357,31 @@ pub struct Field {
 }
 
 /// Encoding spec for one (instruction_key, modifier_group) pair.
+/// BUG-452: parsed form of JsonClaimForbid.
+#[derive(Debug, Clone)]
+pub struct ClaimForbid {
+    pub shift: u32,
+    pub bits: u32,
+    pub values: Vec<u64>,
+}
+
+impl ClaimForbid {
+    /// True when `code` carries a forbidden value at this guard's window.
+    pub fn rejects(&self, code: u128) -> bool {
+        let m: u128 = if self.bits >= 128 { u128::MAX } else { (1u128 << self.bits) - 1 };
+        let v = (code >> self.shift) & m;
+        self.values.iter().any(|&fv| fv as u128 == v)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ModGroupEntry {
     /// Constant bits (AND of all codes in this group, excluding variable bits).
     pub and_base: u128,
+    /// BUG-452: value exclusions of the claim cube (see JsonClaimForbid).
+    /// The cube model (and_base/variable_mask) cannot express "any value but
+    /// 255"; guards live here as plain (shift, bits, values) triples.
+    pub claim_forbid: Vec<ClaimForbid>,
     /// Mask of all variable bits (for decode matching).
     pub variable_mask: u128,
     /// Variable fields with extraction rules.
@@ -636,7 +675,7 @@ impl IsaTable {
                         vm
                 };
 
-                mod_groups.insert(mods, ModGroupEntry { and_base, variable_mask, fields, encode_only: jmg.encode_only, addr_width: jmg.addr_width.clone() });
+                mod_groups.insert(mods, ModGroupEntry { and_base, claim_forbid: jmg.claim_forbid.iter().map(|cf| ClaimForbid { shift: cf.shift, bits: cf.bits, values: cf.values.clone() }).collect(), variable_mask, fields, encode_only: jmg.encode_only, addr_width: jmg.addr_width.clone() });
             }
 
             entries.insert(key, InsKeyEntry { mod_groups, ctrl_class: None, epoch_upper32: None, encode_only: jik.encode_only });

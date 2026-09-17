@@ -790,8 +790,8 @@ fn t381_5_kills_fail_closed() {
         let t = tab(leg);
         assert_eq!(
             t.entries.len(),
-            635,
-            "{leg}: key census drift (635 = 632 + 3 BUG-450 keys [donor-clone sm121a non-NA dARI EFL2.256; canonical 589be87 ride F2-iter255]; 632 = 612 + 20 BUG-447 keys [donor-clone sm121a NA-ARURI EFL2.256; canonical 099faa0 ride F2-iter252]; 612 = 593 + 19 BUG-443 keys [8 T2 + 11 T3 STG other-family enum keys; STS S8/S16 stay mgs; canonical e8d1af3 ride F2-iter250]; was 593 = 590 + 3 BUG-435 keys [LD_R_dARI_P + LDG_P_R_dARI{{,_P}} per sparse leg], canonical 0a6b178; was 590 = 576 + 13 BUG-419 + 1 BUG-413(ii))"
+            13721, // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454 keys (twins _ARURI U32 b75=0; loader-visible 22688-2) // was: 10267 ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145)
+            "{leg}: key census drift (10267 = 7947 + 2320 BUG-468 keys [LTC-sel [74:73] lattice closure; canonical 08a6145 ride F2-iter280]; 7947 = 7943 + 4 BUG-466 keys [x3 ELL2.256 dARI-era rekanon plain-geo; canonical 67b54f4 ride F2-iter275]; 7943 = 6797 + 1146 BUG-465 keys [modsub plain E*L2.256 lattice L1xL2xsem clone-464 x4; canonical 23976eb ride F2-iter272]; 6797 = 6791 + 6 BUG-464 keys [plain nNA ARURI64 EFL2.256 lattice x4: LDG _ARURI64{{,_P,_II,_II_P}} + STG _ARURI64_R_R{{,_II}}; canonical ride F2-iter270 (hash w CANON464)]; 6791 = 6779 + 12 BUG-463 keys [LTC64B/128B/256B nNA EFL2.256 dARI x4; canonical a64b82b ride F2-iter266]; 6779 = 638 + 6,141 BUG-454 keys [ERR-268 REDG plain-ARURI donor-121a; canonical 4ee8431 ride F2-iter258 [ride 452: e03e034]]; 638 = 635 + 3 BUG-453 keys [EFL2.256 non-NA dARI _II trailing policy-imm synth donor-first x4; canonical 700524e ride F2-iter263]; 635 = 632 + 3 BUG-450 keys [donor-clone sm121a non-NA dARI EFL2.256; canonical 589be87 ride F2-iter255]; 632 = 612 + 20 BUG-447 keys [donor-clone sm121a NA-ARURI EFL2.256; canonical 099faa0 ride F2-iter252]; 612 = 593 + 19 BUG-443 keys [8 T2 + 11 T3 STG other-family enum keys; STS S8/S16 stay mgs; canonical e8d1af3 ride F2-iter250]; was 593 = 590 + 3 BUG-435 keys [LD_R_dARI_P + LDG_P_R_dARI{{,_P}} per sparse leg], canonical 0a6b178; was 590 = 576 + 13 BUG-419 + 1 BUG-413(ii))"
         );
         for fam in FAMS {
             assert_eq!(
@@ -821,7 +821,7 @@ fn t381_5_kills_fail_closed() {
     // with the 0x7c31 h0nh1 graft (canonical d908ee9 = BUG-395; rides 74a06b7 = BUG-405/406 HADD2 release + HFMA2 two-imm slot graft; rides 19363f6 = BUG-400, which rode 5d32aec = BUG-398, 96f196b = BUG-402, dd477eb = BUG-407, 8f2571b = BUG-393).
     assert!(
         // [FLIP with attribution, BUG-384 / F2-iter205]: manifest pin moves with the canonical era-key hygiene delete.
-        m["base_revision"].as_str().unwrap().starts_with("9b60b92"),
+        m["base_revision"].as_str().unwrap().starts_with("bd2e254"),
         "SOURCE.json must pin canonical 57e7ecd [was ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, 1810912 = 435+434 hop, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b, 3f6ca6f = BUG-425, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422] (BUG-442 graft F2-iter246 z atrybucja; ride-chain): {:?}",
         m["base_revision"]
     );

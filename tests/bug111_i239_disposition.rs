@@ -39,7 +39,7 @@ fn t103() -> IsaTable {
 const K_WIDE: &str = ".entry t\n    .param u64 io\n    S2R R16, SR_TID.X ;\n    MOV R192, RZ ;\n    MOV R211, RZ ;\n    MOV R122, RZ ;\n    MOV R124, RZ ;\n    MOV R126, RZ ;\n    IMAD.WIDE.U32.X R124, P0, R122, 0xfffffc2f, R124, P6 ;\n    IADD3.X R33, P4, P5, R192, R211, R124, P4, P5 ;\n    IMAD.WIDE.U32.X R128, P0, R122, 0x3d1, R126, P6 ;\n    IADD3.X R34, P4, P5, R192, R211, R129, P4, P5 ;\n    EXIT ;\n";
 
 /// Exact producer/consumer shape from TS2-LDG-WAIT addendum i239.
-const K_LDG: &str = ".entry t\n    .param u64 io\n    S2R R16, SR_TID.X ;\n    UIADD3 UR8, UPT, UPT, URZ, 0x0, UR63 ;\n    LEA R4, P6, R16, RZ, 0x6 ;\n    LEA.HI R5, P6, R16, RZ, RZ, 0x0 ;\n    MOV R22, RZ ;\n    LDG.E.NA.ELL2.256.STRONG.GPU R20, R21, desc[UR8][R4.64] ;\n    LOP3.LUT R24, R26, R22, RZ, 0x3c, !PT ;\n    LOP3.LUT R25, R27, R22, RZ, 0x3c, !PT ;\n    STG.E desc[UR8][R4.64], R24 ;\n    EXIT ;\n";
+const K_LDG: &str = ".entry t\n    .param u64 io\n    S2R R16, SR_TID.X ;\n    UIADD3 UR8, UPT, UPT, URZ, 0x0, UR63 ;\n    LEA R4, P6, R16, RZ, 0x6 ;\n    LEA.HI R5, P6, R16, RZ, RZ, 0x0 ;\n    MOV R22, RZ ;\n    LDG.E.NA.ELL2.256.STRONG.GPU R20, R21, [R4.U32+UR8] ;\n    LOP3.LUT R24, R26, R22, RZ, 0x3c, !PT ;\n    LOP3.LUT R25, R27, R22, RZ, 0x3c, !PT ;\n    STG.E desc[UR8][R4.64], R24 ;\n    EXIT ;\n";
 
 struct Encoded {
     opcode_full: String,
@@ -52,7 +52,8 @@ fn pipeline_encode(src: &str, tab: &IsaTable) -> Vec<Encoded> {
     let mut insns = f.kernels[0].instructions.clone();
     schedule(&mut insns, Some(tab));
     reallocate_barriers(&mut insns, Some(tab));
-    insns.iter()
+    insns
+        .iter()
         .map(|x| {
             let w = encode_instruction(x, tab)
                 .unwrap_or_else(|e| panic!("encode failed for {}: {:?}", x.opcode_full, e));
@@ -105,7 +106,10 @@ fn t111_2_widex_imm_positive_stall_synced() {
         let _first = it.next().unwrap(); // covered by t111_1
         let g = it.next().expect("second IMAD.WIDE.U32.X");
         let (stall, _y, wbar, _rbar, _wait) = d3(g);
-        assert!(wbar == 7, "WIDE-imm producer must not carry a scoreboard wb");
+        assert!(
+            wbar == 7,
+            "WIDE-imm producer must not carry a scoreboard wb"
+        );
         assert!(stall >= 5, "stall must cover the WIDE pair (S0c floor)");
     }
 }
@@ -140,7 +144,10 @@ fn t111_4_ldg256_ell2_stronggpu_consumers_wait() {
             .expect("no LDG producer");
         let prod = &e[prod_idx];
         let (_s, _y, wbar, _r, _w) = d3(prod);
-        assert!(wbar < 7, "LDG.256 ELL2 producer must allocate a write barrier");
+        assert!(
+            wbar < 7,
+            "LDG.256 ELL2 producer must allocate a write barrier"
+        );
         let waitbit = 1u8 << wbar;
         // The FIRST in-span consumer must wait the producer's barrier; later
         // readers are covered by that drain (scheduler legally elides the

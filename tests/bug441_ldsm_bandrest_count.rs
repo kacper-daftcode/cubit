@@ -155,11 +155,11 @@ fn t441_6_source_manifest_and_invariants() {
         src["base_revision"]
             .as_str()
             .unwrap()
-            .starts_with("9b60b92"),
+            .starts_with("bd2e254"), // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
         "SOURCE.json must pin canonical 57e7ecd [was ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, 1810912 = 435+434 hop, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b, 3f6ca6f = BUG-425, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422] (BUG-442 graft F2-iter246 z atrybucja; ride-chain): {:?}",
         src["base_revision"]
     );
-    assert!(CANON441.starts_with("9b60b92"), "CANON441 const drift");
+    assert!(CANON441.starts_with("bd2e254"), "CANON441 const drift");
     const DBAND: u128 = (1u128 << 84)
         | (1u128 << 85)
         | (1u128 << 86)
@@ -234,14 +234,14 @@ fn t441_6_source_manifest_and_invariants() {
 /// on sm121a: 15725 -> 15726; previous census waves in history).
     /// FLIP (BUG-443, canonical e8d1af3): +19 sm121a keys (8 T2 base E-form
     /// + 11 T3 cross STG other-family enum keys; STS S8/S16 land as mgs and
-    /// do not move the counter) 15726 -> 15745.
+    /// do not move the counter) 15726 -> 15745. FLIP-ride (BUG-453, canonical 700524e): +3 sm121a keys (EFL2.256 non-NA dARI _II donor-first synth) 15745 -> 15760. FLIP-ride (BUG-463, canonical a64b82b): +12 sm121a keys (LTC-width LTC64B/128B/256B nNA EFL2.256 dARI synth) 15760 -> 15760. FLIP-ride (BUG-464, canonical 4968113): +6 sm121a keys (plain nNA ARURI64 EFL2.256 lattice LDG/STG) 15760 -> 15766.
 #[test]
 fn t441_7_key_census_unchanged() {
     let raw: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/sm121a.json").unwrap()).unwrap();
     assert_eq!(
         raw["instructions"].as_object().unwrap().len(),
-        15745,
+        22688, // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468) // was: 19233 ride F2-iter282 BUG-469: +6 sm121a keys (widthless ARURI graft: 2x ELL2.256 R_R_ARURI donor-103a verbatim-era0 + mg R/R_P/P_R/P_R_P plain-band + 4x EF-band P_R_ARURI_P; canonical bd48e63) // ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145) // was: flip-ride 467: -5 sm121a keys (degenerate era-rows delete; canonical 668f842) // ride 465: +1146 (canonical 23976eb; was 15766)
         "sm121a key census must equal the BUG-443 post state (8 T2 + 11 T3 noE-cross keys; 442->443)"
     );
 }

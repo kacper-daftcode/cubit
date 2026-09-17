@@ -1,82 +1,83 @@
 {
-  "schema": 2,
-  "repository": "https://github.com/kacper-daftcode/blackwell-isa",
-  "base_revision": "9b60b92014970a8d386c7dafea93d087862dca5e",
-  "tables": {
-    "sm120.json": {
-      "arch": "SM120",
-      "base_sha256": "664ac82daa2d5098468ad0adfedc30dfddeb0390d5a4b27ed1eb2fa8157439da",
-      "instruction_forms": 1776,
-      "encoding_variants": 3404,
-      "sched_only_entries": 597,
-      "sections": [
-        "operand_roles"
-      ]
-    },
-    "sm103a.json": {
-      "arch": "SM103a",
-      "base_sha256": "68f839c9dbcede7d0b2771716fcc2cb724684ab06a3fee84b1339de871a2d425",
-      "instruction_forms": 635,
-      "encoding_variants": 2217,
-      "sched_only_entries": 0,
-      "sections": [
-        "cost_model",
-        "operand_roles",
-        "stallfix"
-      ]
-    },
-    "sm100a.json": {
-      "arch": "SM100a",
-      "base_sha256": "96ce5b4a42506d340bdf7a2689d2889a5a48d0bd4cb01eb954e6ce392411ad2c",
-      "instruction_forms": 635,
-      "encoding_variants": 2221,
-      "sched_only_entries": 0,
-      "sections": [
-        "operand_roles"
-      ]
-    },
-    "sm121a.json": {
-      "arch": "SM121A",
-      "base_sha256": "8a15cdc9deaec55d58b0c1414732d645f6cb3dde91137c99d4a52e1b3c493339",
-      "instruction_forms": 15745,
-      "encoding_variants": 18285,
-      "sched_only_entries": 597,
-      "sections": [
-        "_errata_2026_08_23_149",
-        "_errata_2026_08_23_150",
-        "_errata_2026_08_23_154",
-        "_errata_2026_08_23_155",
-        "_errata_2026_08_23_158",
-        "_errata_2026_08_23_161",
-        "_errata_2026_08_23_162",
-        "_errata_2026_08_23_170",
-        "_errata_2026_08_23_182",
-        "_errata_2026_08_23_183",
-        "_errata_2026_08_23_184",
-        "_errata_2026_08_23_185",
-        "_errata_2026_08_23_186",
-        "_errata_2026_08_23_187",
-        "_errata_2026_08_23_188",
-        "_errata_2026_08_23_189",
-        "_errata_2026_08_23_190",
-        "_errata_2026_08_23_197",
-        "_errata_2026_08_24_198",
-        "_errata_2026_08_24_201",
-        "_errata_2026_08_24_203",
-        "_errata_2026_08_24_206",
-        "_errata_2026_08_24_213",
-        "_errata_2026_08_24_214",
-        "_errata_2026_08_24_215",
-        "_errata_2026_08_24_216",
-        "_errata_2026_08_24_217",
-        "_errata_2026_08_24_218",
-        "_errata_2026_08_24_219",
-        "_errata_2026_08_24_220",
-        "_errata_2026_08_24_221",
-        "_errata_2026_08_24_222",
-        "_errata_2026_08_24_223",
-        "_pending_note"
-      ]
-    }
+ "schema": 2,
+ "repository": "https://github.com/kacper-daftcode/blackwell-isa",
+ "base_revision": "bd2e25464208f9be6abc1e3c7475ca34914ad095",
+ "tables": {
+  "sm120.json": {
+   "arch": "SM120",
+   "base_sha256": "0723cd640cf467174a2c96ea02bea1c734ec3a32bc63c913827d4f2d9ef59265",
+   "instruction_forms": 14859,
+   "encoding_variants": 16483,
+   "sched_only_entries": 597,
+   "sections": [
+    "operand_roles"
+   ]
+  },
+  "sm103a.json": {
+   "arch": "SM103a",
+   "base_sha256": "df77792c60e33c0e458014f22e891f4b59cc63579c5d6ce2d742380092598a75",
+   "instruction_forms": 13721,
+   "encoding_variants": 15299,
+   "sched_only_entries": 0,
+   "sections": [
+    "cost_model",
+    "operand_roles",
+    "stallfix"
+   ]
+  },
+  "sm100a.json": {
+   "arch": "SM100a",
+   "base_sha256": "09f30011229e4222f184c20088a75ece35e53329440d69e33424f968d7d67469",
+   "instruction_forms": 13721,
+   "encoding_variants": 15303,
+   "sched_only_entries": 0,
+   "sections": [
+    "operand_roles"
+   ]
+  },
+  "sm121a.json": {
+   "arch": "SM121A",
+   "base_sha256": "3babba9c4521aad5e2e64c0f9eb32ec6c173fdb02976150be5f694ae29c52330",
+   "instruction_forms": 22688,
+   "encoding_variants": 25244,
+   "sched_only_entries": 597,
+   "sections": [
+    "_errata_2026_08_23_149",
+    "_errata_2026_08_23_150",
+    "_errata_2026_08_23_154",
+    "_errata_2026_08_23_155",
+    "_errata_2026_08_23_158",
+    "_errata_2026_08_23_161",
+    "_errata_2026_08_23_162",
+    "_errata_2026_08_23_170",
+    "_errata_2026_08_23_182",
+    "_errata_2026_08_23_183",
+    "_errata_2026_08_23_184",
+    "_errata_2026_08_23_185",
+    "_errata_2026_08_23_186",
+    "_errata_2026_08_23_187",
+    "_errata_2026_08_23_188",
+    "_errata_2026_08_23_189",
+    "_errata_2026_08_23_190",
+    "_errata_2026_08_23_197",
+    "_errata_2026_08_24_198",
+    "_errata_2026_08_24_201",
+    "_errata_2026_08_24_203",
+    "_errata_2026_08_24_206",
+    "_errata_2026_08_24_213",
+    "_errata_2026_08_24_214",
+    "_errata_2026_08_24_215",
+    "_errata_2026_08_24_216",
+    "_errata_2026_08_24_217",
+    "_errata_2026_08_24_218",
+    "_errata_2026_08_24_219",
+    "_errata_2026_08_24_220",
+    "_errata_2026_08_24_221",
+    "_errata_2026_08_24_222",
+    "_errata_2026_08_24_223",
+    "_pending_note"
+   ]
   }
+ },
+ "_474_note": "474 post-flip: FLIP474b (F2-iter286 BUG-474, canonical 68ac5aa): +3454/+3454/+3454/+3455 _ARURI U32 twins (b75=0) replay z patch474.py na canonical bd2e25464208f9be6abc1e3c7475ca34914ad095; counts final. was: 474 pre-flip state: tables carry the BUG-474 graft (+3454/3454/3454/3455 _ARURI ..."
 }

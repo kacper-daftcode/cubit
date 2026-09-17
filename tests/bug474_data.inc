@@ -1,0 +1,4819 @@
+pub const CANON474: &str = "bd2e254"; // FLIP474b (F2-iter286 BUG-474, canonical 68ac5aa): pending przepiete na realny commit
+/// HEAL 732 / ANCH 102 / KILL 24 / EDGE 2 / MINT 10 / MINTELIDE 20 / ENCTAIL 5 / MINTDESC 7 (skip-b060 2) -- gen474pins.py rc=2; werdykty z nvdisasm 13.3.73 law/claim474.
+pub static HEAL474: &[(u128, &str, &str)] = &[
+    // EF_pinv1->LDG.E.EF.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000880012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P6",
+    ),
+    // EF_pinv1->LDG.E.EF.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000880012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P6",
+    ),
+    // EF_pinv1->LDG.E.EF.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000880012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P6",
+    ),
+    // EF_pinv1->LDG.E.EF.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000880012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P6",
+    ),
+    // EF_pinv1_pol55->LDG.E.EF.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000880002caa0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x55, P6",
+    ),
+    // EF_pinv1_pol55->LDG.E.EF.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000880002caa0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x55, P6",
+    ),
+    // EF_pinv1_pol55->LDG.E.EF.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000880002caa0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x55, P6",
+    ),
+    // EF_pinv1_pol55->LDG.E.EF.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000880002caa0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x55, P6",
+    ),
+    // EF_pinv7->LDG.E.EF.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000b80012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P0",
+    ),
+    // EF_pinv7->LDG.E.EF.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000b80012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P0",
+    ),
+    // EF_pinv7->LDG.E.EF.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000b80012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P0",
+    ),
+    // EF_pinv7->LDG.E.EF.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000b80012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P0",
+    ),
+    // EF_pinv8->LDG.E.EF.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000c00012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, !PT",
+    ),
+    // EF_pinv8->LDG.E.EF.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000c00012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, !PT",
+    ),
+    // EF_pinv8->LDG.E.EF.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000c00012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, !PT",
+    ),
+    // EF_pinv8->LDG.E.EF.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000c00012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, !PT",
+    ),
+    // EF_ref->LDG.E.EF.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000800012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // EF_ref->LDG.E.EF.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000800012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // EF_ref->LDG.E.EF.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000800012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // EF_ref->LDG.E.EF.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000800012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // EL_pinv1->LDG.E.EL.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be40008a0012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EL.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P6",
+    ),
+    // EL_pinv1->LDG.E.EL.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be40008a0012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EL.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P6",
+    ),
+    // EL_pinv1->LDG.E.EL.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be40008a0012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EL.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P6",
+    ),
+    // EL_pinv1->LDG.E.EL.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be40008a0012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EL.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P6",
+    ),
+    // EL_ref->LDG.E.EL.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000820012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EL.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // EL_ref->LDG.E.EL.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000820012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EL.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // EL_ref->LDG.E.EL.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000820012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EL.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // EL_ref->LDG.E.EL.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000820012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EL.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L.CS_0->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_0->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_0->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_0->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_1->LDG.E.EFL2.256.CONSTANT.PRIVATE_R_R_ARURI
+    (
+        0x000be4000810212cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_1->LDG.E.EFL2.256.CONSTANT.PRIVATE_R_R_ARURI
+    (
+        0x000be4000810212cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_1->LDG.E.EFL2.256.CONSTANT.PRIVATE_R_R_ARURI
+    (
+        0x000be4000810212cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256.CONSTANT.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_1->LDG.E.EFL2.256.CONSTANT.PRIVATE_R_R_ARURI
+    (
+        0x000be4000810212cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_2->LDG.E.EFL2.256.CONSTANT.CTA_R_R_ARURI
+    (
+        0x000be4000810412cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.CTA R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_2->LDG.E.EFL2.256.CONSTANT.CTA_R_R_ARURI
+    (
+        0x000be4000810412cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.CTA R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_2->LDG.E.EFL2.256.CONSTANT.CTA_R_R_ARURI
+    (
+        0x000be4000810412cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256.CONSTANT.CTA R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_2->LDG.E.EFL2.256.CONSTANT.CTA_R_R_ARURI
+    (
+        0x000be4000810412cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.CTA R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_3->LDG.E.EFL2.256.CONSTANT.CTA.PRIVATE_R_R_ARURI
+    (
+        0x000be4000810612cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.CTA.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_3->LDG.E.EFL2.256.CONSTANT.CTA.PRIVATE_R_R_ARURI
+    (
+        0x000be4000810612cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.CTA.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_3->LDG.E.EFL2.256.CONSTANT.CTA.PRIVATE_R_R_ARURI
+    (
+        0x000be4000810612cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256.CONSTANT.CTA.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_3->LDG.E.EFL2.256.CONSTANT.CTA.PRIVATE_R_R_ARURI
+    (
+        0x000be4000810612cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.CTA.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_4->LDG.E.EFL2.256.CONSTANT_R_R_ARURI
+    (
+        0x000be4000810812cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256.CONSTANT R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_4->LDG.E.EFL2.256.CONSTANT_R_R_ARURI
+    (
+        0x000be4000810812cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256.CONSTANT R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_4->LDG.E.EFL2.256.CONSTANT_R_R_ARURI
+    (
+        0x000be4000810812cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256.CONSTANT R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_4->LDG.E.EFL2.256.CONSTANT_R_R_ARURI
+    (
+        0x000be4000810812cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256.CONSTANT R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_5->LDG.E.EFL2.256.STRONG.SM_R_R_ARURI
+    (
+        0x000be4000810a12cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256.STRONG.SM R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_5->LDG.E.EFL2.256.STRONG.SM_R_R_ARURI
+    (
+        0x000be4000810a12cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256.STRONG.SM R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_5->LDG.E.EFL2.256.STRONG.SM_R_R_ARURI
+    (
+        0x000be4000810a12cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256.STRONG.SM R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_5->LDG.E.EFL2.256.STRONG.SM_R_R_ARURI
+    (
+        0x000be4000810a12cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256.STRONG.SM R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_6->LDG.E.EFL2.256.STRONG.GPU.PRIVATE_R_R_ARURI
+    (
+        0x000be4000810c12cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256.STRONG.GPU.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_6->LDG.E.EFL2.256.STRONG.GPU.PRIVATE_R_R_ARURI
+    (
+        0x000be4000810c12cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256.STRONG.GPU.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_6->LDG.E.EFL2.256.STRONG.GPU.PRIVATE_R_R_ARURI
+    (
+        0x000be4000810c12cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256.STRONG.GPU.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_6->LDG.E.EFL2.256.STRONG.GPU.PRIVATE_R_R_ARURI
+    (
+        0x000be4000810c12cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256.STRONG.GPU.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_7->LDG.E.EFL2.256.STRONG.GPU_R_R_ARURI
+    (
+        0x000be4000810e12cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256.STRONG.GPU R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_7->LDG.E.EFL2.256.STRONG.GPU_R_R_ARURI
+    (
+        0x000be4000810e12cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256.STRONG.GPU R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_7->LDG.E.EFL2.256.STRONG.GPU_R_R_ARURI
+    (
+        0x000be4000810e12cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256.STRONG.GPU R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_7->LDG.E.EFL2.256.STRONG.GPU_R_R_ARURI
+    (
+        0x000be4000810e12cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256.STRONG.GPU R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_8->LDG.E.EFL2.256.MMIO.GPU_R_R_ARURI
+    (
+        0x000be4000811012cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256.MMIO.GPU R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_8->LDG.E.EFL2.256.MMIO.GPU_R_R_ARURI
+    (
+        0x000be4000811012cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256.MMIO.GPU R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_8->LDG.E.EFL2.256.MMIO.GPU_R_R_ARURI
+    (
+        0x000be4000811012cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256.MMIO.GPU R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_8->LDG.E.EFL2.256.MMIO.GPU_R_R_ARURI
+    (
+        0x000be4000811012cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256.MMIO.GPU R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_9->LDG.E.EFL2.256.CONSTANT.SM_R_R_ARURI
+    (
+        0x000be4000811212cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.SM R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_9->LDG.E.EFL2.256.CONSTANT.SM_R_R_ARURI
+    (
+        0x000be4000811212cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.SM R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_9->LDG.E.EFL2.256.CONSTANT.SM_R_R_ARURI
+    (
+        0x000be4000811212cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256.CONSTANT.SM R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_9->LDG.E.EFL2.256.CONSTANT.SM_R_R_ARURI
+    (
+        0x000be4000811212cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.SM R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_a->LDG.E.EFL2.256.STRONG.SYS_R_R_ARURI
+    (
+        0x000be4000811412cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256.STRONG.SYS R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_a->LDG.E.EFL2.256.STRONG.SYS_R_R_ARURI
+    (
+        0x000be4000811412cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256.STRONG.SYS R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_a->LDG.E.EFL2.256.STRONG.SYS_R_R_ARURI
+    (
+        0x000be4000811412cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256.STRONG.SYS R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_a->LDG.E.EFL2.256.STRONG.SYS_R_R_ARURI
+    (
+        0x000be4000811412cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256.STRONG.SYS R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_b->LDG.E.EFL2.256.CONSTANT.SM.PRIVATE_R_R_ARURI
+    (
+        0x000be4000811612cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.SM.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_b->LDG.E.EFL2.256.CONSTANT.SM.PRIVATE_R_R_ARURI
+    (
+        0x000be4000811612cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.SM.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_b->LDG.E.EFL2.256.CONSTANT.SM.PRIVATE_R_R_ARURI
+    (
+        0x000be4000811612cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256.CONSTANT.SM.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_b->LDG.E.EFL2.256.CONSTANT.SM.PRIVATE_R_R_ARURI
+    (
+        0x000be4000811612cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.SM.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_c->LDG.E.EFL2.256.MMIO.SYS_R_R_ARURI
+    (
+        0x000be4000811812cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256.MMIO.SYS R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_c->LDG.E.EFL2.256.MMIO.SYS_R_R_ARURI
+    (
+        0x000be4000811812cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256.MMIO.SYS R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_c->LDG.E.EFL2.256.MMIO.SYS_R_R_ARURI
+    (
+        0x000be4000811812cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256.MMIO.SYS R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_c->LDG.E.EFL2.256.MMIO.SYS_R_R_ARURI
+    (
+        0x000be4000811812cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256.MMIO.SYS R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_d->LDG.E.EFL2.256.CONSTANT.VC_R_R_ARURI
+    (
+        0x000be4000811a12cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.VC R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_d->LDG.E.EFL2.256.CONSTANT.VC_R_R_ARURI
+    (
+        0x000be4000811a12cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.VC R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_d->LDG.E.EFL2.256.CONSTANT.VC_R_R_ARURI
+    (
+        0x000be4000811a12cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256.CONSTANT.VC R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_d->LDG.E.EFL2.256.CONSTANT.VC_R_R_ARURI
+    (
+        0x000be4000811a12cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.VC R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_e->LDG.E.EFL2.256.CONSTANT.VC.PRIVATE_R_R_ARURI
+    (
+        0x000be4000811c12cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.VC.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_e->LDG.E.EFL2.256.CONSTANT.VC.PRIVATE_R_R_ARURI
+    (
+        0x000be4000811c12cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.VC.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_e->LDG.E.EFL2.256.CONSTANT.VC.PRIVATE_R_R_ARURI
+    (
+        0x000be4000811c12cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256.CONSTANT.VC.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_e->LDG.E.EFL2.256.CONSTANT.VC.PRIVATE_R_R_ARURI
+    (
+        0x000be4000811c12cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.VC.PRIVATE R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_f->LDG.E.EFL2.256.CONSTANT.GPU_R_R_ARURI
+    (
+        0x000be4000811e12cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.GPU R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_f->LDG.E.EFL2.256.CONSTANT.GPU_R_R_ARURI
+    (
+        0x000be4000811e12cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.GPU R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_f->LDG.E.EFL2.256.CONSTANT.GPU_R_R_ARURI
+    (
+        0x000be4000811e12cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256.CONSTANT.GPU R44, R48, [R28.U32+UR38]",
+    ),
+    // L.CS_f->LDG.E.EFL2.256.CONSTANT.GPU_R_R_ARURI
+    (
+        0x000be4000811e12cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.GPU R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L1_0->LDG.E.EF.EFL2.256_R_R_ARURI
+    (
+        0x000be4000800012cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L1_0->LDG.E.EF.EFL2.256_R_R_ARURI
+    (
+        0x000be4000800012cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L1_0->LDG.E.EF.EFL2.256_R_R_ARURI
+    (
+        0x000be4000800012cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L1_0->LDG.E.EF.EFL2.256_R_R_ARURI
+    (
+        0x000be4000800012cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EF.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L1_2->LDG.E.EL.EFL2.256_R_R_ARURI
+    (
+        0x000be4000820012cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EL.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L1_2->LDG.E.EL.EFL2.256_R_R_ARURI
+    (
+        0x000be4000820012cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EL.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L1_2->LDG.E.EL.EFL2.256_R_R_ARURI
+    (
+        0x000be4000820012cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EL.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L1_2->LDG.E.EL.EFL2.256_R_R_ARURI
+    (
+        0x000be4000820012cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EL.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L1_3->LDG.E.LU.EFL2.256_R_R_ARURI
+    (
+        0x000be4000830012cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.LU.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L1_3->LDG.E.LU.EFL2.256_R_R_ARURI
+    (
+        0x000be4000830012cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.LU.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L1_3->LDG.E.LU.EFL2.256_R_R_ARURI
+    (
+        0x000be4000830012cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.LU.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L1_3->LDG.E.LU.EFL2.256_R_R_ARURI
+    (
+        0x000be4000830012cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.LU.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L2_1->LDG.E.ENL2.256_R_R_ARURI
+    (
+        0x000be4000812012cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.ENL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L2_1->LDG.E.ENL2.256_R_R_ARURI
+    (
+        0x000be4000812012cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.ENL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L2_1->LDG.E.ENL2.256_R_R_ARURI
+    (
+        0x000be4000812012cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.ENL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L2_1->LDG.E.ENL2.256_R_R_ARURI
+    (
+        0x000be4000812012cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.ENL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L2_2->LDG.E.ELL2.256_R_R_ARURI
+    (
+        0x000be4000814012cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.ELL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L2_2->LDG.E.ELL2.256_R_R_ARURI
+    (
+        0x000be4000814012cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.ELL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L2_2->LDG.E.ELL2.256_R_R_ARURI
+    (
+        0x000be4000814012cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.ELL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.L2_2->LDG.E.ELL2.256_R_R_ARURI
+    (
+        0x000be4000814012cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.ELL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.ltc1_L2_2->LDG.E.ELL2.LTC64B.256_R_R_ARURI
+    (
+        0x000be4000814032cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.ELL2.LTC64B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.ltc1_L2_2->LDG.E.ELL2.LTC64B.256_R_R_ARURI
+    (
+        0x000be4000814032cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.ELL2.LTC64B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.ltc1_L2_2->LDG.E.ELL2.LTC64B.256_R_R_ARURI
+    (
+        0x000be4000814032cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.ELL2.LTC64B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.ltc1_L2_2->LDG.E.ELL2.LTC64B.256_R_R_ARURI
+    (
+        0x000be4000814032cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.ELL2.LTC64B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.ltc2_L2_2->LDG.E.ELL2.LTC128B.256_R_R_ARURI
+    (
+        0x000be4000814052cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.ELL2.LTC128B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.ltc2_L2_2->LDG.E.ELL2.LTC128B.256_R_R_ARURI
+    (
+        0x000be4000814052cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.ELL2.LTC128B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.ltc2_L2_2->LDG.E.ELL2.LTC128B.256_R_R_ARURI
+    (
+        0x000be4000814052cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.ELL2.LTC128B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.ltc2_L2_2->LDG.E.ELL2.LTC128B.256_R_R_ARURI
+    (
+        0x000be4000814052cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.ELL2.LTC128B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.ltc3_L2_2->LDG.E.ELL2.LTC256B.256_R_R_ARURI
+    (
+        0x000be4000814072cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.ELL2.LTC256B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.ltc3_L2_2->LDG.E.ELL2.LTC256B.256_R_R_ARURI
+    (
+        0x000be4000814072cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.ELL2.LTC256B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.ltc3_L2_2->LDG.E.ELL2.LTC256B.256_R_R_ARURI
+    (
+        0x000be4000814072cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.ELL2.LTC256B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.ltc3_L2_2->LDG.E.ELL2.LTC256B.256_R_R_ARURI
+    (
+        0x000be4000814072cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.ELL2.LTC256B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // L.tri->LDG.E.EF.ELL2.256.CONSTANT.SM_R_R_ARURI
+    (
+        0x000be4000805212cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EF.ELL2.256.CONSTANT.SM R44, R48, [R28.U32+UR38]",
+    ),
+    // L.tri->LDG.E.EF.ELL2.256.CONSTANT.SM_R_R_ARURI
+    (
+        0x000be4000805212cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EF.ELL2.256.CONSTANT.SM R44, R48, [R28.U32+UR38]",
+    ),
+    // L.tri->LDG.E.EF.ELL2.256.CONSTANT.SM_R_R_ARURI
+    (
+        0x000be4000805212cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EF.ELL2.256.CONSTANT.SM R44, R48, [R28.U32+UR38]",
+    ),
+    // L.tri->LDG.E.EF.ELL2.256.CONSTANT.SM_R_R_ARURI
+    (
+        0x000be4000805212cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EF.ELL2.256.CONSTANT.SM R44, R48, [R28.U32+UR38]",
+    ),
+    // L99.era->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x024be4000810012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.era->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x024be4000810012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.era->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x024be4000810012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.era->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x024be4000810012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip77->LDG.E.EFL2.256.CONSTANT.PRIVATE_R_R_ARURI_II
+    (
+        0x000be4000810212c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.PRIVATE R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip77->LDG.E.EFL2.256.CONSTANT.PRIVATE_R_R_ARURI_II
+    (
+        0x000be4000810212c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.PRIVATE R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip77->LDG.E.EFL2.256.CONSTANT.PRIVATE_R_R_ARURI_II
+    (
+        0x000be4000810212c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256.CONSTANT.PRIVATE R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip77->LDG.E.EFL2.256.CONSTANT.PRIVATE_R_R_ARURI_II
+    (
+        0x000be4000810212c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.PRIVATE R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip78->LDG.E.EFL2.256.CONSTANT.CTA_R_R_ARURI_II
+    (
+        0x000be4000810412c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.CTA R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip78->LDG.E.EFL2.256.CONSTANT.CTA_R_R_ARURI_II
+    (
+        0x000be4000810412c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.CTA R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip78->LDG.E.EFL2.256.CONSTANT.CTA_R_R_ARURI_II
+    (
+        0x000be4000810412c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256.CONSTANT.CTA R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip78->LDG.E.EFL2.256.CONSTANT.CTA_R_R_ARURI_II
+    (
+        0x000be4000810412c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256.CONSTANT.CTA R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip79->LDG.E.EFL2.256.CONSTANT_R_R_ARURI_II
+    (
+        0x000be4000810812c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256.CONSTANT R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip79->LDG.E.EFL2.256.CONSTANT_R_R_ARURI_II
+    (
+        0x000be4000810812c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256.CONSTANT R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip79->LDG.E.EFL2.256.CONSTANT_R_R_ARURI_II
+    (
+        0x000be4000810812c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256.CONSTANT R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip79->LDG.E.EFL2.256.CONSTANT_R_R_ARURI_II
+    (
+        0x000be4000810812c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256.CONSTANT R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip80->LDG.E.EFL2.256.MMIO.GPU_R_R_ARURI_II
+    (
+        0x000be4000811012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256.MMIO.GPU R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip80->LDG.E.EFL2.256.MMIO.GPU_R_R_ARURI_II
+    (
+        0x000be4000811012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256.MMIO.GPU R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip80->LDG.E.EFL2.256.MMIO.GPU_R_R_ARURI_II
+    (
+        0x000be4000811012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256.MMIO.GPU R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip80->LDG.E.EFL2.256.MMIO.GPU_R_R_ARURI_II
+    (
+        0x000be4000811012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256.MMIO.GPU R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip81->LDG.E.ENL2.256_R_R_ARURI_II
+    (
+        0x000be4000812012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.ENL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip81->LDG.E.ENL2.256_R_R_ARURI_II
+    (
+        0x000be4000812012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.ENL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip81->LDG.E.ENL2.256_R_R_ARURI_II
+    (
+        0x000be4000812012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.ENL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip81->LDG.E.ENL2.256_R_R_ARURI_II
+    (
+        0x000be4000812012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.ENL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip82->LDG.E.ELL2.256_R_R_ARURI_II
+    (
+        0x000be4000814012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.ELL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip82->LDG.E.ELL2.256_R_R_ARURI_II
+    (
+        0x000be4000814012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.ELL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip82->LDG.E.ELL2.256_R_R_ARURI_II
+    (
+        0x000be4000814012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.ELL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip82->LDG.E.ELL2.256_R_R_ARURI_II
+    (
+        0x000be4000814012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.ELL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip85->LDG.E.LU.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000830012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.LU.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip85->LDG.E.LU.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000830012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.LU.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip85->LDG.E.LU.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000830012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.LU.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.flip85->LDG.E.LU.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000830012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.LU.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.guard0->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261c30097eu128,
+        "sm100a",
+        "@P0 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.guard0->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261c30097eu128,
+        "sm103a",
+        "@P0 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.guard0->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261c30097eu128,
+        "sm120",
+        "@P0 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.guard0->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261c30097eu128,
+        "sm121a",
+        "@P0 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.guard6->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261c30697eu128,
+        "sm100a",
+        "@P6 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.guard6->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261c30697eu128,
+        "sm103a",
+        "@P6 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.guard6->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261c30697eu128,
+        "sm120",
+        "@P6 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.guard6->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261c30697eu128,
+        "sm121a",
+        "@P6 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.guard7->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261c30797eu128,
+        "sm100a",
+        "LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.guard7->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261c30797eu128,
+        "sm103a",
+        "LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.guard7->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261c30797eu128,
+        "sm120",
+        "LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.guard7->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261c30797eu128,
+        "sm121a",
+        "LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.imm0->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.imm0->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.imm0->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.imm0->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.immMax->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c33ffff261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+-0x20], 0x99",
+    ),
+    // L99.immMax->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c33ffff261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+-0x20], 0x99",
+    ),
+    // L99.immMax->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c33ffff261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+-0x20], 0x99",
+    ),
+    // L99.immMax->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c33ffff261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+-0x20], 0x99",
+    ),
+    // L99.immPos1->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320001261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+0x20], 0x99",
+    ),
+    // L99.immPos1->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320001261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+0x20], 0x99",
+    ),
+    // L99.immPos1->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320001261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+0x20], 0x99",
+    ),
+    // L99.immPos1->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320001261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+0x20], 0x99",
+    ),
+    // L99.immSign->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c330000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+-0x200000], 0x99",
+    ),
+    // L99.immSign->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c330000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+-0x200000], 0x99",
+    ),
+    // L99.immSign->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c330000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+-0x200000], 0x99",
+    ),
+    // L99.immSign->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c330000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+-0x200000], 0x99",
+    ),
+    // L99.ltc1->LDG.E.EFL2.LTC64B.256_R_R_ARURI_II
+    (
+        0x000be4000810032c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.ltc1->LDG.E.EFL2.LTC64B.256_R_R_ARURI_II
+    (
+        0x000be4000810032c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.ltc1->LDG.E.EFL2.LTC64B.256_R_R_ARURI_II
+    (
+        0x000be4000810032c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.ltc1->LDG.E.EFL2.LTC64B.256_R_R_ARURI_II
+    (
+        0x000be4000810032c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.ltc2->LDG.E.EFL2.LTC128B.256_R_R_ARURI_II
+    (
+        0x000be4000810052c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.LTC128B.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.ltc2->LDG.E.EFL2.LTC128B.256_R_R_ARURI_II
+    (
+        0x000be4000810052c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.LTC128B.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.ltc2->LDG.E.EFL2.LTC128B.256_R_R_ARURI_II
+    (
+        0x000be4000810052c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.LTC128B.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.ltc2->LDG.E.EFL2.LTC128B.256_R_R_ARURI_II
+    (
+        0x000be4000810052c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.LTC128B.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.ltc3->LDG.E.EFL2.LTC256B.256_R_R_ARURI_II
+    (
+        0x000be4000810072c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.ltc3->LDG.E.EFL2.LTC256B.256_R_R_ARURI_II
+    (
+        0x000be4000810072c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.ltc3->LDG.E.EFL2.LTC256B.256_R_R_ARURI_II
+    (
+        0x000be4000810072c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.ltc3->LDG.E.EFL2.LTC256B.256_R_R_ARURI_II
+    (
+        0x000be4000810072c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.pinv1->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000890012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P6",
+    ),
+    // L99.pinv1->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000890012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P6",
+    ),
+    // L99.pinv1->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000890012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P6",
+    ),
+    // L99.pinv1->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000890012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P6",
+    ),
+    // L99.pinv15->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000f90012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, !P0",
+    ),
+    // L99.pinv15->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000f90012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, !P0",
+    ),
+    // L99.pinv15->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000f90012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, !P0",
+    ),
+    // L99.pinv15->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000f90012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, !P0",
+    ),
+    // L99.pinv6->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000b10012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P1",
+    ),
+    // L99.pinv6->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000b10012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P1",
+    ),
+    // L99.pinv6->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000b10012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P1",
+    ),
+    // L99.pinv6->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000b10012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P1",
+    ),
+    // L99.pinv7->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000b90012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P0",
+    ),
+    // L99.pinv7->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000b90012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P0",
+    ),
+    // L99.pinv7->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000b90012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P0",
+    ),
+    // L99.pinv7->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000b90012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, P0",
+    ),
+    // L99.pinv8->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000c10012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, !PT",
+    ),
+    // L99.pinv8->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000c10012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, !PT",
+    ),
+    // L99.pinv8->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000c10012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, !PT",
+    ),
+    // L99.pinv8->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000c10012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99, !PT",
+    ),
+    // L99.pol00->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810002c000000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x0",
+    ),
+    // L99.pol00->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810002c000000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x0",
+    ),
+    // L99.pol00->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810002c000000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x0",
+    ),
+    // L99.pol00->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810002c000000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x0",
+    ),
+    // L99.pol01->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810002c020000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x1",
+    ),
+    // L99.pol01->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810002c020000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x1",
+    ),
+    // L99.pol01->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810002c020000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x1",
+    ),
+    // L99.pol01->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810002c020000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x1",
+    ),
+    // L99.pol55->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810002caa0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x55",
+    ),
+    // L99.pol55->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810002caa0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x55",
+    ),
+    // L99.pol55->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810002caa0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x55",
+    ),
+    // L99.pol55->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810002caa0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x55",
+    ),
+    // L99.pol7f->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810002cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x7f",
+    ),
+    // L99.pol7f->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810002cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x7f",
+    ),
+    // L99.pol7f->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810002cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x7f",
+    ),
+    // L99.pol7f->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810002cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x7f",
+    ),
+    // L99.pol80->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c000000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x80",
+    ),
+    // L99.pol80->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c000000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x80",
+    ),
+    // L99.pol80->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c000000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x80",
+    ),
+    // L99.pol80->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c000000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x80",
+    ),
+    // L99.polfe->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012cfc0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0xfe",
+    ),
+    // L99.polfe->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012cfc0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0xfe",
+    ),
+    // L99.polfe->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012cfc0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0xfe",
+    ),
+    // L99.polfe->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012cfc0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0xfe",
+    ),
+    // L99.ra0->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000260030197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R0.U32+UR38], 0x99",
+    ),
+    // L99.ra0->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000260030197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R0.U32+UR38], 0x99",
+    ),
+    // L99.ra0->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000260030197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R0.U32+UR38], 0x99",
+    ),
+    // L99.ra0->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000260030197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R0.U32+UR38], 0x99",
+    ),
+    // L99.ra1->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000260130197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R1.U32+UR38], 0x99",
+    ),
+    // L99.ra1->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000260130197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R1.U32+UR38], 0x99",
+    ),
+    // L99.ra1->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000260130197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R1.U32+UR38], 0x99",
+    ),
+    // L99.ra1->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000260130197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R1.U32+UR38], 0x99",
+    ),
+    // L99.ra127->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000267f30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R127.U32+UR38], 0x99",
+    ),
+    // L99.ra127->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000267f30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R127.U32+UR38], 0x99",
+    ),
+    // L99.ra127->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000267f30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R127.U32+UR38], 0x99",
+    ),
+    // L99.ra127->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000267f30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R127.U32+UR38], 0x99",
+    ),
+    // L99.ra128->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000268030197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R128.U32+UR38], 0x99",
+    ),
+    // L99.ra128->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000268030197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R128.U32+UR38], 0x99",
+    ),
+    // L99.ra128->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000268030197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R128.U32+UR38], 0x99",
+    ),
+    // L99.ra128->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000268030197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R128.U32+UR38], 0x99",
+    ),
+    // L99.ra254->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c32000026fe30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R254.U32+UR38], 0x99",
+    ),
+    // L99.ra254->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c32000026fe30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R254.U32+UR38], 0x99",
+    ),
+    // L99.ra254->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c32000026fe30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R254.U32+UR38], 0x99",
+    ),
+    // L99.ra254->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c32000026fe30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R254.U32+UR38], 0x99",
+    ),
+    // L99.ra255->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c32000026ff30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [UR38], 0x99",
+    ),
+    // L99.ra255->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c32000026ff30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [UR38], 0x99",
+    ),
+    // L99.ra255->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c32000026ff30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [UR38], 0x99",
+    ),
+    // L99.ra255->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c32000026ff30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [UR38], 0x99",
+    ),
+    // L99.ra63->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000263f30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R63.U32+UR38], 0x99",
+    ),
+    // L99.ra63->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000263f30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R63.U32+UR38], 0x99",
+    ),
+    // L99.ra63->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000263f30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R63.U32+UR38], 0x99",
+    ),
+    // L99.ra63->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000263f30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R63.U32+UR38], 0x99",
+    ),
+    // L99.ra64->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000264030197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R64.U32+UR38], 0x99",
+    ),
+    // L99.ra64->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000264030197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R64.U32+UR38], 0x99",
+    ),
+    // L99.ra64->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000264030197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R64.U32+UR38], 0x99",
+    ),
+    // L99.ra64->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000264030197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R64.U32+UR38], 0x99",
+    ),
+    // L99.rb255->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be400081001ff320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 RZ, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.rb255->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be400081001ff320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 RZ, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.rb255->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be400081001ff320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 RZ, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.rb255->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be400081001ff320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 RZ, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.rd255->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261cff197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, RZ, [R28.U32+UR38], 0x99",
+    ),
+    // L99.rd255->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261cff197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, RZ, [R28.U32+UR38], 0x99",
+    ),
+    // L99.rd255->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261cff197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, RZ, [R28.U32+UR38], 0x99",
+    ),
+    // L99.rd255->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000261cff197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, RZ, [R28.U32+UR38], 0x99",
+    ),
+    // L99.set92->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4001810012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.set92->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4001810012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.set92->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4001810012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.set92->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4001810012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.set93->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4002810012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.set93->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4002810012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.set93->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4002810012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.set93->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4002810012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.set94->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4004810012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.set94->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4004810012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.set94->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4004810012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.set94->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4004810012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.set95->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4008810012c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.set95->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4008810012c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.set95->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4008810012c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.set95->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4008810012c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99",
+    ),
+    // L99.ur0->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000001c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR0], 0x99",
+    ),
+    // L99.ur0->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000001c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR0], 0x99",
+    ),
+    // L99.ur0->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000001c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR0], 0x99",
+    ),
+    // L99.ur0->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000001c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR0], 0x99",
+    ),
+    // L99.ur1->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000011c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR1], 0x99",
+    ),
+    // L99.ur1->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000011c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR1], 0x99",
+    ),
+    // L99.ur1->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000011c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR1], 0x99",
+    ),
+    // L99.ur1->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000011c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR1], 0x99",
+    ),
+    // L99.ur254->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000fe1c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR254], 0x99",
+    ),
+    // L99.ur254->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000fe1c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR254], 0x99",
+    ),
+    // L99.ur254->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000fe1c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR254], 0x99",
+    ),
+    // L99.ur254->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000fe1c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR254], 0x99",
+    ),
+    // L99.ur255->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000ff1c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+URZ], 0x99",
+    ),
+    // L99.ur255->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000ff1c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+URZ], 0x99",
+    ),
+    // L99.ur255->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000ff1c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+URZ], 0x99",
+    ),
+    // L99.ur255->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c320000ff1c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+URZ], 0x99",
+    ),
+    // L99.ur63->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c3200003f1c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR63], 0x99",
+    ),
+    // L99.ur63->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c3200003f1c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR63], 0x99",
+    ),
+    // L99.ur63->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c3200003f1c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR63], 0x99",
+    ),
+    // L99.ur63->LDG.E.EFL2.256_R_R_ARURI_II
+    (
+        0x000be4000810012c3200003f1c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR63], 0x99",
+    ),
+    // LFF.era->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x024be4000810012cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.era->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x024be4000810012cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.era->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x024be4000810012cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.era->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x024be4000810012cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.guard0->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261c30097eu128,
+        "sm100a",
+        "@P0 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.guard0->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261c30097eu128,
+        "sm103a",
+        "@P0 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.guard0->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261c30097eu128,
+        "sm120",
+        "@P0 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.guard0->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261c30097eu128,
+        "sm121a",
+        "@P0 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.guard6->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261c30697eu128,
+        "sm100a",
+        "@P6 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.guard6->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261c30697eu128,
+        "sm103a",
+        "@P6 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.guard6->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261c30697eu128,
+        "sm120",
+        "@P6 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.guard6->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261c30697eu128,
+        "sm121a",
+        "@P6 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.guard7->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261c30797eu128,
+        "sm100a",
+        "LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.guard7->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261c30797eu128,
+        "sm103a",
+        "LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.guard7->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261c30797eu128,
+        "sm120",
+        "LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.guard7->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261c30797eu128,
+        "sm121a",
+        "LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.immMax->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cffffff261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+-0x20]",
+    ),
+    // LFF.immMax->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cffffff261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+-0x20]",
+    ),
+    // LFF.immMax->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cffffff261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+-0x20]",
+    ),
+    // LFF.immMax->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cffffff261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+-0x20]",
+    ),
+    // LFF.immPos1->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0001261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+0x20]",
+    ),
+    // LFF.immPos1->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0001261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+0x20]",
+    ),
+    // LFF.immPos1->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0001261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+0x20]",
+    ),
+    // LFF.immPos1->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0001261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+0x20]",
+    ),
+    // LFF.immSign->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cff0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+-0x200000]",
+    ),
+    // LFF.immSign->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cff0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+-0x200000]",
+    ),
+    // LFF.immSign->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cff0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+-0x200000]",
+    ),
+    // LFF.immSign->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cff0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38+-0x200000]",
+    ),
+    // LFF.ltc1->LDG.E.EFL2.LTC64B.256_R_R_ARURI
+    (
+        0x000be4000810032cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.ltc1->LDG.E.EFL2.LTC64B.256_R_R_ARURI
+    (
+        0x000be4000810032cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.ltc1->LDG.E.EFL2.LTC64B.256_R_R_ARURI
+    (
+        0x000be4000810032cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.ltc1->LDG.E.EFL2.LTC64B.256_R_R_ARURI
+    (
+        0x000be4000810032cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.ltc2->LDG.E.EFL2.LTC128B.256_R_R_ARURI
+    (
+        0x000be4000810052cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.LTC128B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.ltc2->LDG.E.EFL2.LTC128B.256_R_R_ARURI
+    (
+        0x000be4000810052cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.LTC128B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.ltc2->LDG.E.EFL2.LTC128B.256_R_R_ARURI
+    (
+        0x000be4000810052cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.LTC128B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.ltc2->LDG.E.EFL2.LTC128B.256_R_R_ARURI
+    (
+        0x000be4000810052cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.LTC128B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.ltc3->LDG.E.EFL2.LTC256B.256_R_R_ARURI
+    (
+        0x000be4000810072cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.ltc3->LDG.E.EFL2.LTC256B.256_R_R_ARURI
+    (
+        0x000be4000810072cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.ltc3->LDG.E.EFL2.LTC256B.256_R_R_ARURI
+    (
+        0x000be4000810072cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.ltc3->LDG.E.EFL2.LTC256B.256_R_R_ARURI
+    (
+        0x000be4000810072cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.pinv1->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000890012cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], P6",
+    ),
+    // LFF.pinv1->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000890012cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], P6",
+    ),
+    // LFF.pinv1->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000890012cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], P6",
+    ),
+    // LFF.pinv1->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000890012cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], P6",
+    ),
+    // LFF.pinv15->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000f90012cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], !P0",
+    ),
+    // LFF.pinv15->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000f90012cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], !P0",
+    ),
+    // LFF.pinv15->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000f90012cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], !P0",
+    ),
+    // LFF.pinv15->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000f90012cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], !P0",
+    ),
+    // LFF.pinv6->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000b10012cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], P1",
+    ),
+    // LFF.pinv6->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000b10012cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], P1",
+    ),
+    // LFF.pinv6->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000b10012cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], P1",
+    ),
+    // LFF.pinv6->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000b10012cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], P1",
+    ),
+    // LFF.pinv7->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000b90012cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], P0",
+    ),
+    // LFF.pinv7->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000b90012cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], P0",
+    ),
+    // LFF.pinv7->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000b90012cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], P0",
+    ),
+    // LFF.pinv7->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000b90012cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], P0",
+    ),
+    // LFF.pinv8->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000c10012cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], !PT",
+    ),
+    // LFF.pinv8->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000c10012cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], !PT",
+    ),
+    // LFF.pinv8->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000c10012cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], !PT",
+    ),
+    // LFF.pinv8->LDG.E.EFL2.256_R_R_ARURI_P
+    (
+        0x000be4000c10012cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], !PT",
+    ),
+    // LFF.ra0->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000260030197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R0.U32+UR38]",
+    ),
+    // LFF.ra0->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000260030197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R0.U32+UR38]",
+    ),
+    // LFF.ra0->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000260030197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R0.U32+UR38]",
+    ),
+    // LFF.ra0->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000260030197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R0.U32+UR38]",
+    ),
+    // LFF.ra1->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000260130197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R1.U32+UR38]",
+    ),
+    // LFF.ra1->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000260130197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R1.U32+UR38]",
+    ),
+    // LFF.ra1->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000260130197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R1.U32+UR38]",
+    ),
+    // LFF.ra1->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000260130197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R1.U32+UR38]",
+    ),
+    // LFF.ra127->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000267f30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R127.U32+UR38]",
+    ),
+    // LFF.ra127->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000267f30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R127.U32+UR38]",
+    ),
+    // LFF.ra127->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000267f30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R127.U32+UR38]",
+    ),
+    // LFF.ra127->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000267f30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R127.U32+UR38]",
+    ),
+    // LFF.ra128->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000268030197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R128.U32+UR38]",
+    ),
+    // LFF.ra128->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000268030197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R128.U32+UR38]",
+    ),
+    // LFF.ra128->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000268030197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R128.U32+UR38]",
+    ),
+    // LFF.ra128->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000268030197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R128.U32+UR38]",
+    ),
+    // LFF.ra254->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe000026fe30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R254.U32+UR38]",
+    ),
+    // LFF.ra254->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe000026fe30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R254.U32+UR38]",
+    ),
+    // LFF.ra254->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe000026fe30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R254.U32+UR38]",
+    ),
+    // LFF.ra254->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe000026fe30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R254.U32+UR38]",
+    ),
+    // LFF.ra255->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe000026ff30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [UR38]",
+    ),
+    // LFF.ra255->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe000026ff30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [UR38]",
+    ),
+    // LFF.ra255->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe000026ff30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [UR38]",
+    ),
+    // LFF.ra255->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe000026ff30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [UR38]",
+    ),
+    // LFF.ra63->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000263f30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R63.U32+UR38]",
+    ),
+    // LFF.ra63->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000263f30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R63.U32+UR38]",
+    ),
+    // LFF.ra63->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000263f30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R63.U32+UR38]",
+    ),
+    // LFF.ra63->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000263f30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R63.U32+UR38]",
+    ),
+    // LFF.ra64->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000264030197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R64.U32+UR38]",
+    ),
+    // LFF.ra64->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000264030197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R64.U32+UR38]",
+    ),
+    // LFF.ra64->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000264030197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R64.U32+UR38]",
+    ),
+    // LFF.ra64->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000264030197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R64.U32+UR38]",
+    ),
+    // LFF.rb255->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be400081001fffe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 RZ, R48, [R28.U32+UR38]",
+    ),
+    // LFF.rb255->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be400081001fffe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 RZ, R48, [R28.U32+UR38]",
+    ),
+    // LFF.rb255->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be400081001fffe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 RZ, R48, [R28.U32+UR38]",
+    ),
+    // LFF.rb255->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be400081001fffe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 RZ, R48, [R28.U32+UR38]",
+    ),
+    // LFF.rd255->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261cff197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, RZ, [R28.U32+UR38]",
+    ),
+    // LFF.rd255->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261cff197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, RZ, [R28.U32+UR38]",
+    ),
+    // LFF.rd255->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261cff197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, RZ, [R28.U32+UR38]",
+    ),
+    // LFF.rd255->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000261cff197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, RZ, [R28.U32+UR38]",
+    ),
+    // LFF.set92->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4001810012cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.set92->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4001810012cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.set92->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4001810012cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.set92->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4001810012cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.set93->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4002810012cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.set93->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4002810012cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.set93->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4002810012cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.set93->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4002810012cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.set94->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4004810012cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.set94->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4004810012cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.set94->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4004810012cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.set94->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4004810012cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.set95->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4008810012cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.set95->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4008810012cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.set95->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4008810012cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.set95->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4008810012cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]",
+    ),
+    // LFF.ur0->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000001c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR0]",
+    ),
+    // LFF.ur0->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000001c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR0]",
+    ),
+    // LFF.ur0->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000001c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR0]",
+    ),
+    // LFF.ur0->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000001c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR0]",
+    ),
+    // LFF.ur1->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000011c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR1]",
+    ),
+    // LFF.ur1->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000011c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR1]",
+    ),
+    // LFF.ur1->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000011c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR1]",
+    ),
+    // LFF.ur1->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000011c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR1]",
+    ),
+    // LFF.ur254->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000fe1c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR254]",
+    ),
+    // LFF.ur254->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000fe1c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR254]",
+    ),
+    // LFF.ur254->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000fe1c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR254]",
+    ),
+    // LFF.ur254->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000fe1c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR254]",
+    ),
+    // LFF.ur255->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000ff1c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+URZ]",
+    ),
+    // LFF.ur255->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000ff1c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+URZ]",
+    ),
+    // LFF.ur255->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000ff1c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+URZ]",
+    ),
+    // LFF.ur255->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe0000ff1c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+URZ]",
+    ),
+    // LFF.ur63->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe00003f1c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR63]",
+    ),
+    // LFF.ur63->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe00003f1c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR63]",
+    ),
+    // LFF.ur63->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe00003f1c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR63]",
+    ),
+    // LFF.ur63->LDG.E.EFL2.256_R_R_ARURI
+    (
+        0x000be4000810012cfe00003f1c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR63]",
+    ),
+    // S.CS_0->STG.E.EFL2.256_ARURI_R_R
+    (
+        0x000be4000f100026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_0->STG.E.EFL2.256_ARURI_R_R
+    (
+        0x000be4000f100026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_0->STG.E.EFL2.256_ARURI_R_R
+    (
+        0x000be4000f100026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_0->STG.E.EFL2.256_ARURI_R_R
+    (
+        0x000be4000f100026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_1->STG.E.EFL2.256.CONSTANT.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f102026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256.CONSTANT.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_1->STG.E.EFL2.256.CONSTANT.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f102026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256.CONSTANT.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_1->STG.E.EFL2.256.CONSTANT.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f102026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256.CONSTANT.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_1->STG.E.EFL2.256.CONSTANT.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f102026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256.CONSTANT.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_2->STG.E.EFL2.256.CONSTANT.CTA_ARURI_R_R
+    (
+        0x000be4000f104026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256.CONSTANT.CTA [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_2->STG.E.EFL2.256.CONSTANT.CTA_ARURI_R_R
+    (
+        0x000be4000f104026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256.CONSTANT.CTA [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_2->STG.E.EFL2.256.CONSTANT.CTA_ARURI_R_R
+    (
+        0x000be4000f104026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256.CONSTANT.CTA [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_2->STG.E.EFL2.256.CONSTANT.CTA_ARURI_R_R
+    (
+        0x000be4000f104026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256.CONSTANT.CTA [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_3->STG.E.EFL2.256.CONSTANT.CTA.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f106026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256.CONSTANT.CTA.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_3->STG.E.EFL2.256.CONSTANT.CTA.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f106026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256.CONSTANT.CTA.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_3->STG.E.EFL2.256.CONSTANT.CTA.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f106026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256.CONSTANT.CTA.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_3->STG.E.EFL2.256.CONSTANT.CTA.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f106026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256.CONSTANT.CTA.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_4->STG.E.EFL2.256.STRONG.SM.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f108026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256.STRONG.SM.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_4->STG.E.EFL2.256.STRONG.SM.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f108026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256.STRONG.SM.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_4->STG.E.EFL2.256.STRONG.SM.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f108026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256.STRONG.SM.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_4->STG.E.EFL2.256.STRONG.SM.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f108026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256.STRONG.SM.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_5->STG.E.EFL2.256.STRONG.SM_ARURI_R_R
+    (
+        0x000be4000f10a026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256.STRONG.SM [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_5->STG.E.EFL2.256.STRONG.SM_ARURI_R_R
+    (
+        0x000be4000f10a026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256.STRONG.SM [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_5->STG.E.EFL2.256.STRONG.SM_ARURI_R_R
+    (
+        0x000be4000f10a026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256.STRONG.SM [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_5->STG.E.EFL2.256.STRONG.SM_ARURI_R_R
+    (
+        0x000be4000f10a026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256.STRONG.SM [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_6->STG.E.EFL2.256.STRONG.GPU.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f10c026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256.STRONG.GPU.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_6->STG.E.EFL2.256.STRONG.GPU.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f10c026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256.STRONG.GPU.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_6->STG.E.EFL2.256.STRONG.GPU.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f10c026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256.STRONG.GPU.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_6->STG.E.EFL2.256.STRONG.GPU.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f10c026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256.STRONG.GPU.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_7->STG.E.EFL2.256.STRONG.GPU_ARURI_R_R
+    (
+        0x000be4000f10e026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256.STRONG.GPU [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_7->STG.E.EFL2.256.STRONG.GPU_ARURI_R_R
+    (
+        0x000be4000f10e026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256.STRONG.GPU [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_7->STG.E.EFL2.256.STRONG.GPU_ARURI_R_R
+    (
+        0x000be4000f10e026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256.STRONG.GPU [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_7->STG.E.EFL2.256.STRONG.GPU_ARURI_R_R
+    (
+        0x000be4000f10e026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256.STRONG.GPU [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_8->STG.E.EFL2.256.MMIO.GPU_ARURI_R_R
+    (
+        0x000be4000f110026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256.MMIO.GPU [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_8->STG.E.EFL2.256.MMIO.GPU_ARURI_R_R
+    (
+        0x000be4000f110026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256.MMIO.GPU [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_8->STG.E.EFL2.256.MMIO.GPU_ARURI_R_R
+    (
+        0x000be4000f110026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256.MMIO.GPU [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_8->STG.E.EFL2.256.MMIO.GPU_ARURI_R_R
+    (
+        0x000be4000f110026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256.MMIO.GPU [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_9->STG.E.EFL2.256.CONSTANT.SM_ARURI_R_R
+    (
+        0x000be4000f112026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256.CONSTANT.SM [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_9->STG.E.EFL2.256.CONSTANT.SM_ARURI_R_R
+    (
+        0x000be4000f112026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256.CONSTANT.SM [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_9->STG.E.EFL2.256.CONSTANT.SM_ARURI_R_R
+    (
+        0x000be4000f112026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256.CONSTANT.SM [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_9->STG.E.EFL2.256.CONSTANT.SM_ARURI_R_R
+    (
+        0x000be4000f112026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256.CONSTANT.SM [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_a->STG.E.EFL2.256.STRONG.SYS_ARURI_R_R
+    (
+        0x000be4000f114026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256.STRONG.SYS [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_a->STG.E.EFL2.256.STRONG.SYS_ARURI_R_R
+    (
+        0x000be4000f114026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256.STRONG.SYS [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_a->STG.E.EFL2.256.STRONG.SYS_ARURI_R_R
+    (
+        0x000be4000f114026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256.STRONG.SYS [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_a->STG.E.EFL2.256.STRONG.SYS_ARURI_R_R
+    (
+        0x000be4000f114026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256.STRONG.SYS [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_b->STG.E.EFL2.256.CONSTANT.SM.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f116026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256.CONSTANT.SM.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_b->STG.E.EFL2.256.CONSTANT.SM.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f116026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256.CONSTANT.SM.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_b->STG.E.EFL2.256.CONSTANT.SM.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f116026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256.CONSTANT.SM.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_b->STG.E.EFL2.256.CONSTANT.SM.PRIVATE_ARURI_R_R
+    (
+        0x000be4000f116026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256.CONSTANT.SM.PRIVATE [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_c->STG.E.EFL2.256.MMIO.SYS_ARURI_R_R
+    (
+        0x000be4000f118026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256.MMIO.SYS [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_c->STG.E.EFL2.256.MMIO.SYS_ARURI_R_R
+    (
+        0x000be4000f118026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256.MMIO.SYS [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_c->STG.E.EFL2.256.MMIO.SYS_ARURI_R_R
+    (
+        0x000be4000f118026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256.MMIO.SYS [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_c->STG.E.EFL2.256.MMIO.SYS_ARURI_R_R
+    (
+        0x000be4000f118026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256.MMIO.SYS [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_d->STG.E.EFL2.256.SYS.ORDERED_ARURI_R_R
+    (
+        0x000be4000f11a026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256.SYS.ORDERED [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_d->STG.E.EFL2.256.SYS.ORDERED_ARURI_R_R
+    (
+        0x000be4000f11a026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256.SYS.ORDERED [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_d->STG.E.EFL2.256.SYS.ORDERED_ARURI_R_R
+    (
+        0x000be4000f11a026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256.SYS.ORDERED [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_d->STG.E.EFL2.256.SYS.ORDERED_ARURI_R_R
+    (
+        0x000be4000f11a026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256.SYS.ORDERED [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_e->STG.E.EFL2.256.STRONG.SYS.ORDERED_ARURI_R_R
+    (
+        0x000be4000f11c026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256.STRONG.SYS.ORDERED [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_e->STG.E.EFL2.256.STRONG.SYS.ORDERED_ARURI_R_R
+    (
+        0x000be4000f11c026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256.STRONG.SYS.ORDERED [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_e->STG.E.EFL2.256.STRONG.SYS.ORDERED_ARURI_R_R
+    (
+        0x000be4000f11c026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256.STRONG.SYS.ORDERED [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_e->STG.E.EFL2.256.STRONG.SYS.ORDERED_ARURI_R_R
+    (
+        0x000be4000f11c026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256.STRONG.SYS.ORDERED [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_f->STG.E.EFL2.256.MMIO.SYS.ORDERED_ARURI_R_R
+    (
+        0x000be4000f11e026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256.MMIO.SYS.ORDERED [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_f->STG.E.EFL2.256.MMIO.SYS.ORDERED_ARURI_R_R
+    (
+        0x000be4000f11e026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256.MMIO.SYS.ORDERED [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_f->STG.E.EFL2.256.MMIO.SYS.ORDERED_ARURI_R_R
+    (
+        0x000be4000f11e026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256.MMIO.SYS.ORDERED [R28.U32+UR38], R44, R48",
+    ),
+    // S.CS_f->STG.E.EFL2.256.MMIO.SYS.ORDERED_ARURI_R_R
+    (
+        0x000be4000f11e026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256.MMIO.SYS.ORDERED [R28.U32+UR38], R44, R48",
+    ),
+    // S.L1_0->STG.E.EF.EFL2.256_ARURI_R_R
+    (
+        0x000be4000f000026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EF.EFL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.L1_0->STG.E.EF.EFL2.256_ARURI_R_R
+    (
+        0x000be4000f000026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EF.EFL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.L1_0->STG.E.EF.EFL2.256_ARURI_R_R
+    (
+        0x000be4000f000026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EF.EFL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.L1_0->STG.E.EF.EFL2.256_ARURI_R_R
+    (
+        0x000be4000f000026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EF.EFL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.L1_2->STG.E.EL.EFL2.256_ARURI_R_R
+    (
+        0x000be4000f200026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EL.EFL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.L1_2->STG.E.EL.EFL2.256_ARURI_R_R
+    (
+        0x000be4000f200026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EL.EFL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.L1_2->STG.E.EL.EFL2.256_ARURI_R_R
+    (
+        0x000be4000f200026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EL.EFL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.L1_2->STG.E.EL.EFL2.256_ARURI_R_R
+    (
+        0x000be4000f200026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EL.EFL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.L1_3->STG.E.LU.EFL2.256_ARURI_R_R
+    (
+        0x000be4000f300026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.LU.EFL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.L1_3->STG.E.LU.EFL2.256_ARURI_R_R
+    (
+        0x000be4000f300026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.LU.EFL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.L1_3->STG.E.LU.EFL2.256_ARURI_R_R
+    (
+        0x000be4000f300026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.LU.EFL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.L1_3->STG.E.LU.EFL2.256_ARURI_R_R
+    (
+        0x000be4000f300026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.LU.EFL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.L2_1->STG.E.ENL2.256_ARURI_R_R
+    (
+        0x000be4000f120026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.ENL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.L2_1->STG.E.ENL2.256_ARURI_R_R
+    (
+        0x000be4000f120026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.ENL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.L2_1->STG.E.ENL2.256_ARURI_R_R
+    (
+        0x000be4000f120026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.ENL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.L2_1->STG.E.ENL2.256_ARURI_R_R
+    (
+        0x000be4000f120026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.ENL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.L2_2->STG.E.ELL2.256_ARURI_R_R
+    (
+        0x000be4000f140026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.ELL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.L2_2->STG.E.ELL2.256_ARURI_R_R
+    (
+        0x000be4000f140026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.ELL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.L2_2->STG.E.ELL2.256_ARURI_R_R
+    (
+        0x000be4000f140026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.ELL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.L2_2->STG.E.ELL2.256_ARURI_R_R
+    (
+        0x000be4000f140026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.ELL2.256 [R28.U32+UR38], R44, R48",
+    ),
+    // S.tri->STG.E.EF.ELL2.256.CONSTANT.SM_ARURI_R_R
+    (
+        0x000be4000f052026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EF.ELL2.256.CONSTANT.SM [R28.U32+UR38], R44, R48",
+    ),
+    // S.tri->STG.E.EF.ELL2.256.CONSTANT.SM_ARURI_R_R
+    (
+        0x000be4000f052026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EF.ELL2.256.CONSTANT.SM [R28.U32+UR38], R44, R48",
+    ),
+    // S.tri->STG.E.EF.ELL2.256.CONSTANT.SM_ARURI_R_R
+    (
+        0x000be4000f052026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EF.ELL2.256.CONSTANT.SM [R28.U32+UR38], R44, R48",
+    ),
+    // S.tri->STG.E.EF.ELL2.256.CONSTANT.SM_ARURI_R_R
+    (
+        0x000be4000f052026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EF.ELL2.256.CONSTANT.SM [R28.U32+UR38], R44, R48",
+    ),
+    // SA0.era->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x024be4000d1000260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.era->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x024be4000d1000260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.era->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x024be4000d1000260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.era->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x024be4000d1000260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip72->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1001260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip72->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1001260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip72->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1001260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip72->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1001260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip73->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1002260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip73->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1002260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip73->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1002260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip73->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1002260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip74->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1004260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip74->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1004260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip74->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1004260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip74->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1004260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip77->STG.E.EFL2.256.CONSTANT.PRIVATE_ARURI_R_R_II
+    (
+        0x000be4000d1020260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256.CONSTANT.PRIVATE [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip77->STG.E.EFL2.256.CONSTANT.PRIVATE_ARURI_R_R_II
+    (
+        0x000be4000d1020260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256.CONSTANT.PRIVATE [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip77->STG.E.EFL2.256.CONSTANT.PRIVATE_ARURI_R_R_II
+    (
+        0x000be4000d1020260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256.CONSTANT.PRIVATE [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip77->STG.E.EFL2.256.CONSTANT.PRIVATE_ARURI_R_R_II
+    (
+        0x000be4000d1020260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256.CONSTANT.PRIVATE [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip78->STG.E.EFL2.256.CONSTANT.CTA_ARURI_R_R_II
+    (
+        0x000be4000d1040260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256.CONSTANT.CTA [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip78->STG.E.EFL2.256.CONSTANT.CTA_ARURI_R_R_II
+    (
+        0x000be4000d1040260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256.CONSTANT.CTA [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip78->STG.E.EFL2.256.CONSTANT.CTA_ARURI_R_R_II
+    (
+        0x000be4000d1040260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256.CONSTANT.CTA [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip78->STG.E.EFL2.256.CONSTANT.CTA_ARURI_R_R_II
+    (
+        0x000be4000d1040260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256.CONSTANT.CTA [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip79->STG.E.EFL2.256.STRONG.SM.PRIVATE_ARURI_R_R_II
+    (
+        0x000be4000d1080260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256.STRONG.SM.PRIVATE [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip79->STG.E.EFL2.256.STRONG.SM.PRIVATE_ARURI_R_R_II
+    (
+        0x000be4000d1080260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256.STRONG.SM.PRIVATE [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip79->STG.E.EFL2.256.STRONG.SM.PRIVATE_ARURI_R_R_II
+    (
+        0x000be4000d1080260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256.STRONG.SM.PRIVATE [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip79->STG.E.EFL2.256.STRONG.SM.PRIVATE_ARURI_R_R_II
+    (
+        0x000be4000d1080260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256.STRONG.SM.PRIVATE [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip80->STG.E.EFL2.256.MMIO.GPU_ARURI_R_R_II
+    (
+        0x000be4000d1100260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256.MMIO.GPU [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip80->STG.E.EFL2.256.MMIO.GPU_ARURI_R_R_II
+    (
+        0x000be4000d1100260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256.MMIO.GPU [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip80->STG.E.EFL2.256.MMIO.GPU_ARURI_R_R_II
+    (
+        0x000be4000d1100260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256.MMIO.GPU [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip80->STG.E.EFL2.256.MMIO.GPU_ARURI_R_R_II
+    (
+        0x000be4000d1100260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256.MMIO.GPU [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip81->STG.E.ENL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1200260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.ENL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip81->STG.E.ENL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1200260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.ENL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip81->STG.E.ENL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1200260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.ENL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip81->STG.E.ENL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1200260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.ENL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip82->STG.E.ELL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1400260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.ELL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip82->STG.E.ELL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1400260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.ELL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip82->STG.E.ELL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1400260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.ELL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip82->STG.E.ELL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1400260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.ELL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip84->STG.E.EF.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d0000260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EF.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip84->STG.E.EF.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d0000260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EF.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip84->STG.E.EF.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d0000260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EF.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip84->STG.E.EF.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d0000260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EF.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip85->STG.E.LU.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d3000260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.LU.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip85->STG.E.LU.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d3000260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.LU.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip85->STG.E.LU.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d3000260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.LU.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip85->STG.E.LU.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d3000260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.LU.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip87->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d9000260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip87->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d9000260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip87->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d9000260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.flip87->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d9000260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.guard0->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1c30097fu128,
+        "sm100a",
+        "@P0 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.guard0->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1c30097fu128,
+        "sm103a",
+        "@P0 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.guard0->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1c30097fu128,
+        "sm120",
+        "@P0 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.guard0->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1c30097fu128,
+        "sm121a",
+        "@P0 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.guard6->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1c30697fu128,
+        "sm100a",
+        "@P6 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.guard6->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1c30697fu128,
+        "sm103a",
+        "@P6 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.guard6->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1c30697fu128,
+        "sm120",
+        "@P6 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.guard6->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1c30697fu128,
+        "sm121a",
+        "@P6 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.guard7->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1c30797fu128,
+        "sm100a",
+        "STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.guard7->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1c30797fu128,
+        "sm103a",
+        "STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.guard7->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1c30797fu128,
+        "sm120",
+        "STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.guard7->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1c30797fu128,
+        "sm121a",
+        "STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.imm0->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.imm0->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.imm0->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.imm0->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.immMax->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d10002607ffff2c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38+-0x20], R44, R48, 0xa0",
+    ),
+    // SA0.immMax->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d10002607ffff2c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38+-0x20], R44, R48, 0xa0",
+    ),
+    // SA0.immMax->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d10002607ffff2c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38+-0x20], R44, R48, 0xa0",
+    ),
+    // SA0.immMax->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d10002607ffff2c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38+-0x20], R44, R48, 0xa0",
+    ),
+    // SA0.immSign->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260400002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38+-0x800000], R44, R48, 0xa0",
+    ),
+    // SA0.immSign->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260400002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38+-0x800000], R44, R48, 0xa0",
+    ),
+    // SA0.immSign->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260400002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38+-0x800000], R44, R48, 0xa0",
+    ),
+    // SA0.immSign->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260400002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38+-0x800000], R44, R48, 0xa0",
+    ),
+    // SA0.pol00->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be400081000260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0x0",
+    ),
+    // SA0.pol00->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be400081000260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0x0",
+    ),
+    // SA0.pol00->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be400081000260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0x0",
+    ),
+    // SA0.pol00->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be400081000260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0x0",
+    ),
+    // SA0.pol01->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be400081000260800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0x1",
+    ),
+    // SA0.pol01->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be400081000260800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0x1",
+    ),
+    // SA0.pol01->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be400081000260800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0x1",
+    ),
+    // SA0.pol01->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be400081000260800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0x1",
+    ),
+    // SA0.pol55->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000a100026a800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0x55",
+    ),
+    // SA0.pol55->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000a100026a800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0x55",
+    ),
+    // SA0.pol55->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000a100026a800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0x55",
+    ),
+    // SA0.pol55->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000a100026a800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0x55",
+    ),
+    // SA0.pol7f->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000b100026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0x7f",
+    ),
+    // SA0.pol7f->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000b100026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0x7f",
+    ),
+    // SA0.pol7f->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000b100026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0x7f",
+    ),
+    // SA0.pol7f->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000b100026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0x7f",
+    ),
+    // SA0.polfe->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000f100026f000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xfe",
+    ),
+    // SA0.polfe->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000f100026f000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xfe",
+    ),
+    // SA0.polfe->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000f100026f000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xfe",
+    ),
+    // SA0.polfe->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000f100026f000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xfe",
+    ),
+    // SA0.ra0->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c0030197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R0.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra0->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c0030197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R0.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra0->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c0030197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R0.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra0->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c0030197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R0.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra1->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c0130197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R1.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra1->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c0130197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R1.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra1->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c0130197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R1.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra1->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c0130197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R1.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra127->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c7f30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R127.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra127->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c7f30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R127.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra127->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c7f30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R127.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra127->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c7f30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R127.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra128->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c8030197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R128.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra128->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c8030197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R128.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra128->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c8030197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R128.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra128->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c8030197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R128.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra254->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002cfe30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R254.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra254->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002cfe30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R254.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra254->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002cfe30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R254.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra254->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002cfe30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R254.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra255->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002cff30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra255->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002cff30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra255->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002cff30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra255->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002cff30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra63->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c3f30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R63.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra63->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c3f30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R63.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra63->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c3f30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R63.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra63->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c3f30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R63.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra64->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c4030197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R64.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra64->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c4030197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R64.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra64->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c4030197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R64.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ra64->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c4030197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R64.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.rb255->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d100026000000ff1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], RZ, R48, 0xa0",
+    ),
+    // SA0.rb255->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d100026000000ff1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], RZ, R48, 0xa0",
+    ),
+    // SA0.rb255->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d100026000000ff1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], RZ, R48, 0xa0",
+    ),
+    // SA0.rb255->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d100026000000ff1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], RZ, R48, 0xa0",
+    ),
+    // SA0.rd255->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1cff197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, RZ, 0xa0",
+    ),
+    // SA0.rd255->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1cff197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, RZ, 0xa0",
+    ),
+    // SA0.rd255->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1cff197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, RZ, 0xa0",
+    ),
+    // SA0.rd255->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000260000002c1cff197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, RZ, 0xa0",
+    ),
+    // SA0.set92->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4001d1000260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.set92->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4001d1000260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.set92->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4001d1000260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.set92->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4001d1000260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.set93->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4002d1000260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.set93->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4002d1000260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.set93->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4002d1000260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.set93->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4002d1000260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.set94->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4004d1000260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.set94->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4004d1000260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.set94->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4004d1000260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.set94->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4004d1000260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.set95->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4008d1000260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.set95->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4008d1000260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.set95->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4008d1000260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.set95->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4008d1000260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0",
+    ),
+    // SA0.ur0->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000000000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR0], R44, R48, 0xa0",
+    ),
+    // SA0.ur0->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000000000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR0], R44, R48, 0xa0",
+    ),
+    // SA0.ur0->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000000000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR0], R44, R48, 0xa0",
+    ),
+    // SA0.ur0->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000000000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR0], R44, R48, 0xa0",
+    ),
+    // SA0.ur1->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000010000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR1], R44, R48, 0xa0",
+    ),
+    // SA0.ur1->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000010000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR1], R44, R48, 0xa0",
+    ),
+    // SA0.ur1->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000010000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR1], R44, R48, 0xa0",
+    ),
+    // SA0.ur1->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000010000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR1], R44, R48, 0xa0",
+    ),
+    // SA0.ur254->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000fe0000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR254], R44, R48, 0xa0",
+    ),
+    // SA0.ur254->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000fe0000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR254], R44, R48, 0xa0",
+    ),
+    // SA0.ur254->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000fe0000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR254], R44, R48, 0xa0",
+    ),
+    // SA0.ur254->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000fe0000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR254], R44, R48, 0xa0",
+    ),
+    // SA0.ur255->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000ff0000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+URZ], R44, R48, 0xa0",
+    ),
+    // SA0.ur255->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000ff0000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+URZ], R44, R48, 0xa0",
+    ),
+    // SA0.ur255->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000ff0000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+URZ], R44, R48, 0xa0",
+    ),
+    // SA0.ur255->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d1000ff0000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+URZ], R44, R48, 0xa0",
+    ),
+    // SA0.ur63->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d10003f0000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR63], R44, R48, 0xa0",
+    ),
+    // SA0.ur63->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d10003f0000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR63], R44, R48, 0xa0",
+    ),
+    // SA0.ur63->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d10003f0000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR63], R44, R48, 0xa0",
+    ),
+    // SA0.ur63->STG.E.EFL2.256_ARURI_R_R_II
+    (
+        0x000be4000d10003f0000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.U32+UR63], R44, R48, 0xa0",
+    ),
+    // ltc:LDG.E.EFL2.LTC256B.256_R_R_ARURI64_II_P.u32->LDG.E.EFL2.LTC256B.256_R_R_ARURI_II
+    (
+        0x000be4000810062c000000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [R28.U32+UR38], 0x0",
+    ),
+    // ltc:LDG.E.EFL2.LTC256B.256_R_R_ARURI64_II_P.u32->LDG.E.EFL2.LTC256B.256_R_R_ARURI_II
+    (
+        0x000be4000810062c000000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [R28.U32+UR38], 0x0",
+    ),
+    // ltc:LDG.E.EFL2.LTC256B.256_R_R_ARURI64_II_P.u32->LDG.E.EFL2.LTC256B.256_R_R_ARURI_II
+    (
+        0x000be4000810062c000000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [R28.U32+UR38], 0x0",
+    ),
+    // ltc:LDG.E.EFL2.LTC256B.256_R_R_ARURI64_II_P.u32->LDG.E.EFL2.LTC256B.256_R_R_ARURI_II
+    (
+        0x000be4000810062c000000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [R28.U32+UR38], 0x0",
+    ),
+    // ltc:LDG.E.EFL2.LTC256B.256_R_R_ARURI64_II_P.u32_ra255->LDG.E.EFL2.LTC256B.256_R_R_ARURI_II
+    (
+        0x000be4000810062c00000026ff30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [UR38], 0x0",
+    ),
+    // ltc:LDG.E.EFL2.LTC256B.256_R_R_ARURI64_II_P.u32_ra255->LDG.E.EFL2.LTC256B.256_R_R_ARURI_II
+    (
+        0x000be4000810062c00000026ff30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [UR38], 0x0",
+    ),
+    // ltc:LDG.E.EFL2.LTC256B.256_R_R_ARURI64_II_P.u32_ra255->LDG.E.EFL2.LTC256B.256_R_R_ARURI_II
+    (
+        0x000be4000810062c00000026ff30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [UR38], 0x0",
+    ),
+    // ltc:LDG.E.EFL2.LTC256B.256_R_R_ARURI64_II_P.u32_ra255->LDG.E.EFL2.LTC256B.256_R_R_ARURI_II
+    (
+        0x000be4000810062c00000026ff30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [UR38], 0x0",
+    ),
+    // ltc:LDG.E.EFL2.LTC64B.256_R_R_ARURI64.u32_ra255->LDG.E.EFL2.LTC64B.256_R_R_ARURI
+    (
+        0x000be4000810032cfe000026ff30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [UR38]",
+    ),
+    // ltc:LDG.E.EFL2.LTC64B.256_R_R_ARURI64.u32_ra255->LDG.E.EFL2.LTC64B.256_R_R_ARURI
+    (
+        0x000be4000810032cfe000026ff30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [UR38]",
+    ),
+    // ltc:LDG.E.EFL2.LTC64B.256_R_R_ARURI64.u32_ra255->LDG.E.EFL2.LTC64B.256_R_R_ARURI
+    (
+        0x000be4000810032cfe000026ff30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [UR38]",
+    ),
+    // ltc:LDG.E.EFL2.LTC64B.256_R_R_ARURI64.u32_ra255->LDG.E.EFL2.LTC64B.256_R_R_ARURI
+    (
+        0x000be4000810032cfe000026ff30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [UR38]",
+    ),
+    // pinv1_pol55->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000890002caa0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x55, P6",
+    ),
+    // pinv1_pol55->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000890002caa0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x55, P6",
+    ),
+    // pinv1_pol55->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000890002caa0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x55, P6",
+    ),
+    // pinv1_pol55->LDG.E.EFL2.256_R_R_ARURI_II_P
+    (
+        0x000be4000890002caa0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x55, P6",
+    ),
+];
+/// (word, leg, cold_tekst; "" = cold HOLE)
+pub static ANCH474: &[(u128, &str, &str)] = &[
+    (0x000be4000819212cfe0000261c30197eu128, "sm100a", ""),
+    (0x000be4000819212cfe0000261c30197eu128, "sm103a", ""),
+    (0x000be4000819212cfe0000261c30197eu128, "sm120", ""),
+    (0x000be4000819212cfe0000261c30197eu128, "sm121a", ""),
+    (0x000be4000816012cfe0000261c30197eu128, "sm100a", ""),
+    (0x000be4000816012cfe0000261c30197eu128, "sm103a", ""),
+    (0x000be4000816012cfe0000261c30197eu128, "sm120", ""),
+    (0x000be4000816012cfe0000261c30197eu128, "sm121a", ""),
+    (0x000be4000840012cfe0000261c30197eu128, "sm100a", ""),
+    (0x000be4000840012cfe0000261c30197eu128, "sm103a", ""),
+    (0x000be4000840012cfe0000261c30197eu128, "sm120", ""),
+    (0x000be4000840012cfe0000261c30197eu128, "sm121a", ""),
+    (0x000be4000854012cfe0000261c30197eu128, "sm100a", ""),
+    (0x000be4000854012cfe0000261c30197eu128, "sm103a", ""),
+    (0x000be4000854012cfe0000261c30197eu128, "sm120", ""),
+    (0x000be4000854012cfe0000261c30197eu128, "sm121a", ""),
+    (0x000be4000850052cfe0000261c30197eu128, "sm100a", ""),
+    (0x000be4000850052cfe0000261c30197eu128, "sm103a", ""),
+    (0x000be4000850052cfe0000261c30197eu128, "sm120", ""),
+    (0x000be4000850052cfe0000261c30197eu128, "sm121a", ""),
+    (
+        0x000be4000810092c320000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.64+UR38], 0x99",
+    ),
+    (
+        0x000be4000810092c320000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.64+UR38], 0x99",
+    ),
+    (
+        0x000be4000810092c320000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.64+UR38], 0x99",
+    ),
+    (
+        0x000be4000810092c320000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.64+UR38], 0x99",
+    ),
+    (0x000be4000818012c320000261c30197eu128, "sm100a", ""),
+    (0x000be4000818012c320000261c30197eu128, "sm103a", ""),
+    (0x000be4000818012c320000261c30197eu128, "sm120", ""),
+    (0x000be4000818012c320000261c30197eu128, "sm121a", ""),
+    (0x000be4000850012c320000261c30197eu128, "sm100a", ""),
+    (0x000be4000850012c320000261c30197eu128, "sm103a", ""),
+    (0x000be4000850012c320000261c30197eu128, "sm120", ""),
+    (0x000be4000850012c320000261c30197eu128, "sm121a", ""),
+    (
+        0x000be4000810092cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.64+UR38]",
+    ),
+    (
+        0x000be4000810092cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.64+UR38]",
+    ),
+    (
+        0x000be4000810092cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.64+UR38]",
+    ),
+    (
+        0x000be4000810092cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.256 R44, R48, [R28.64+UR38]",
+    ),
+    (0x000be4000818012cfe0000261c30197eu128, "sm100a", ""),
+    (0x000be4000818012cfe0000261c30197eu128, "sm103a", ""),
+    (0x000be4000818012cfe0000261c30197eu128, "sm120", ""),
+    (0x000be4000818012cfe0000261c30197eu128, "sm121a", ""),
+    (0x000be4000850012cfe0000261c30197eu128, "sm100a", ""),
+    (0x000be4000850012cfe0000261c30197eu128, "sm103a", ""),
+    (0x000be4000850012cfe0000261c30197eu128, "sm120", ""),
+    (0x000be4000850012cfe0000261c30197eu128, "sm121a", ""),
+    (0x000be4000f192026f800002c1c30197fu128, "sm100a", ""),
+    (0x000be4000f192026f800002c1c30197fu128, "sm103a", ""),
+    (0x000be4000f192026f800002c1c30197fu128, "sm120", ""),
+    (0x000be4000f192026f800002c1c30197fu128, "sm121a", ""),
+    (0x000be4000f160026f800002c1c30197fu128, "sm100a", ""),
+    (0x000be4000f160026f800002c1c30197fu128, "sm103a", ""),
+    (0x000be4000f160026f800002c1c30197fu128, "sm120", ""),
+    (0x000be4000f160026f800002c1c30197fu128, "sm121a", ""),
+    (0x000be4000f400026f800002c1c30197fu128, "sm100a", ""),
+    (0x000be4000f400026f800002c1c30197fu128, "sm103a", ""),
+    (0x000be4000f400026f800002c1c30197fu128, "sm120", ""),
+    (0x000be4000f400026f800002c1c30197fu128, "sm121a", ""),
+    (0x000be4000f540026f800002c1c30197fu128, "sm100a", ""),
+    (0x000be4000f540026f800002c1c30197fu128, "sm103a", ""),
+    (0x000be4000f540026f800002c1c30197fu128, "sm120", ""),
+    (0x000be4000f540026f800002c1c30197fu128, "sm121a", ""),
+    (
+        0x000be4000d1008260000002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EFL2.256 [R28.64+UR38], R44, R48, 0xa0",
+    ),
+    (
+        0x000be4000d1008260000002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EFL2.256 [R28.64+UR38], R44, R48, 0xa0",
+    ),
+    (
+        0x000be4000d1008260000002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EFL2.256 [R28.64+UR38], R44, R48, 0xa0",
+    ),
+    (
+        0x000be4000d1008260000002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EFL2.256 [R28.64+UR38], R44, R48, 0xa0",
+    ),
+    (0x000be4000d1800260000002c1c30197fu128, "sm100a", ""),
+    (0x000be4000d1800260000002c1c30197fu128, "sm103a", ""),
+    (0x000be4000d1800260000002c1c30197fu128, "sm120", ""),
+    (0x000be4000d1800260000002c1c30197fu128, "sm121a", ""),
+    (0x000be4000d5000260000002c1c30197fu128, "sm100a", ""),
+    (0x000be4000d5000260000002c1c30197fu128, "sm103a", ""),
+    (0x000be4000d5000260000002c1c30197fu128, "sm120", ""),
+    (0x000be4000d5000260000002c1c30197fu128, "sm121a", ""),
+    (
+        0x000be4000824e92cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, [R28.64+UR38]",
+    ),
+    (
+        0x000be4000824e92cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, [R28.64+UR38]",
+    ),
+    (
+        0x000be4000824e92cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, [R28.64+UR38]",
+    ),
+    (
+        0x000be4000824e92cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, [R28.64+UR38]",
+    ),
+    (
+        0x000be4000824e12cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, [R28.U32+UR38]",
+    ),
+    (
+        0x000be4000824e12cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, [R28.U32+UR38]",
+    ),
+    (
+        0x000be4000824e12cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, [R28.U32+UR38]",
+    ),
+    (
+        0x000be4000824e12cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, [R28.U32+UR38]",
+    ),
+    (
+        0x000be4000824e12cfe000026ff30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, [UR38]",
+    ),
+    (
+        0x000be4000824e12cfe000026ff30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, [UR38]",
+    ),
+    (
+        0x000be4000824e12cfe000026ff30197eu128,
+        "sm120",
+        "@P1 LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, [UR38]",
+    ),
+    (
+        0x000be4000824e12cfe000026ff30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, [UR38]",
+    ),
+    (
+        0x000be40008100e2c000000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [R28.64+UR38], 0x0",
+    ),
+    (
+        0x000be40008100e2c000000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [R28.64+UR38], 0x0",
+    ),
+    (
+        0x000be40008100e2c000000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [R28.64+UR38], 0x0",
+    ),
+    (
+        0x000be40008100e2c000000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [R28.64+UR38], 0x0",
+    ),
+    (
+        0x000be40008100b2cfe0000261c30197eu128,
+        "sm100a",
+        "@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [R28.64+UR38]",
+    ),
+    (
+        0x000be40008100b2cfe0000261c30197eu128,
+        "sm103a",
+        "@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [R28.64+UR38]",
+    ),
+    (
+        0x000be40008100b2cfe0000261c30197eu128,
+        "sm120",
+        "@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [R28.64+UR38]",
+    ),
+    (
+        0x000be40008100b2cfe0000261c30197eu128,
+        "sm121a",
+        "@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [R28.64+UR38]",
+    ),
+    (
+        0x000be4000f24e826f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EL.ELL2.256.STRONG.GPU [R28.64+UR38], R44, R48",
+    ),
+    (
+        0x000be4000f24e826f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EL.ELL2.256.STRONG.GPU [R28.64+UR38], R44, R48",
+    ),
+    (
+        0x000be4000f24e826f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EL.ELL2.256.STRONG.GPU [R28.64+UR38], R44, R48",
+    ),
+    (
+        0x000be4000f24e826f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EL.ELL2.256.STRONG.GPU [R28.64+UR38], R44, R48",
+    ),
+    (
+        0x000be4000f24e026f800002c1c30197fu128,
+        "sm100a",
+        "@P1 STG.E.EL.ELL2.256.STRONG.GPU [R28.U32+UR38], R44, R48",
+    ),
+    (
+        0x000be4000f24e026f800002c1c30197fu128,
+        "sm103a",
+        "@P1 STG.E.EL.ELL2.256.STRONG.GPU [R28.U32+UR38], R44, R48",
+    ),
+    (
+        0x000be4000f24e026f800002c1c30197fu128,
+        "sm120",
+        "@P1 STG.E.EL.ELL2.256.STRONG.GPU [R28.U32+UR38], R44, R48",
+    ),
+    (
+        0x000be4000f24e026f800002cff30197fu128,
+        "sm100a",
+        "@P1 STG.E.EL.ELL2.256.STRONG.GPU [UR38], R44, R48",
+    ),
+    (
+        0x000be4000f24e026f800002cff30197fu128,
+        "sm103a",
+        "@P1 STG.E.EL.ELL2.256.STRONG.GPU [UR38], R44, R48",
+    ),
+    (
+        0x000be4000f24e026f800002cff30197fu128,
+        "sm120",
+        "@P1 STG.E.EL.ELL2.256.STRONG.GPU [UR38], R44, R48",
+    ),
+];
+pub static KILL474: &[(u128, &str)] = &[
+    (0x000be4000810112c320000261c30197eu128, "sm100a"),
+    (0x000be4000810112c320000261c30197eu128, "sm103a"),
+    (0x000be4000810112c320000261c30197eu128, "sm120"),
+    (0x000be4000810112c320000261c30197eu128, "sm121a"),
+    (0x000be4000010012c320000261c30197eu128, "sm100a"),
+    (0x000be4000010012c320000261c30197eu128, "sm103a"),
+    (0x000be4000010012c320000261c30197eu128, "sm120"),
+    (0x000be4000010012c320000261c30197eu128, "sm121a"),
+    (0x000be4000810112cfe0000261c30197eu128, "sm100a"),
+    (0x000be4000810112cfe0000261c30197eu128, "sm103a"),
+    (0x000be4000810112cfe0000261c30197eu128, "sm120"),
+    (0x000be4000810112cfe0000261c30197eu128, "sm121a"),
+    (0x000be4000010012cfe0000261c30197eu128, "sm100a"),
+    (0x000be4000010012cfe0000261c30197eu128, "sm103a"),
+    (0x000be4000010012cfe0000261c30197eu128, "sm120"),
+    (0x000be4000010012cfe0000261c30197eu128, "sm121a"),
+    (0x000be4000d1010260000002c1c30197fu128, "sm100a"),
+    (0x000be4000d1010260000002c1c30197fu128, "sm103a"),
+    (0x000be4000d1010260000002c1c30197fu128, "sm120"),
+    (0x000be4000d1010260000002c1c30197fu128, "sm121a"),
+    (0x000be400051000260000002c1c30197fu128, "sm100a"),
+    (0x000be400051000260000002c1c30197fu128, "sm103a"),
+    (0x000be400051000260000002c1c30197fu128, "sm120"),
+    (0x000be400051000260000002c1c30197fu128, "sm121a"),
+];
+pub static EDGE474: &[(u128, &str, &str)] = &[
+    // stgEL.u32->121a-stg-twin-heal
+    (
+        0x000be4000f24e026f800002c1c30197fu128,
+        "sm121a",
+        "@P1 STG.E.EL.ELL2.256.STRONG.GPU [R28.U32+UR38], R44, R48",
+    ),
+    // stgEL.u32_ra255->121a-stg-twin-heal
+    (
+        0x000be4000f24e026f800002cff30197fu128,
+        "sm121a",
+        "@P1 STG.E.EL.ELL2.256.STRONG.GPU [UR38], R44, R48",
+    ),
+];
+pub static MINT474: &[(&str, &str)] = &[
+    ("LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99", "sm100a"),
+    ("LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99", "sm120"),
+    ("LDG.E.EFL2.256 R44, R48, [R28.U32+UR38], 0x99", "sm121a"),
+    ("LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]", "sm100a"),
+    ("LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]", "sm120"),
+    ("LDG.E.EFL2.256 R44, R48, [R28.U32+UR38]", "sm121a"),
+    ("STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0", "sm100a"),
+    ("STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0", "sm103a"),
+    ("STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0", "sm120"),
+    ("STG.E.EFL2.256 [R28.U32+UR38], R44, R48, 0xa0", "sm121a"),
+];
+/// elide-mint: obietnica 464-arm utrzymana (b75=1 ARURI64-first, base=255)
+pub static MINTELIDE474: &[(&str, &str)] = &[
+    ("@P1 LDG.E.EFL2.256 R44, R48, [UR38]", "sm100a"),
+    ("@P1 LDG.E.EFL2.256 R44, R48, [UR38]", "sm103a"),
+    ("@P1 LDG.E.EFL2.256 R44, R48, [UR38]", "sm120"),
+    ("@P1 LDG.E.EFL2.256 R44, R48, [UR38]", "sm121a"),
+    ("@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [UR38], 0x0", "sm100a"),
+    ("@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [UR38], 0x0", "sm103a"),
+    ("@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [UR38], 0x0", "sm120"),
+    ("@P1 LDG.E.EFL2.LTC256B.256 R44, R48, [UR38], 0x0", "sm121a"),
+    ("@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [UR38]", "sm100a"),
+    ("@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [UR38]", "sm103a"),
+    ("@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [UR38]", "sm120"),
+    ("@P1 LDG.E.EFL2.LTC64B.256 R44, R48, [UR38]", "sm121a"),
+    ("@P1 STG.E.EFL2.256 [UR38], R44, R48, 0xa0", "sm100a"),
+    ("@P1 STG.E.EFL2.256 [UR38], R44, R48, 0xa0", "sm103a"),
+    ("@P1 STG.E.EFL2.256 [UR38], R44, R48, 0xa0", "sm120"),
+    ("@P1 STG.E.EFL2.256 [UR38], R44, R48, 0xa0", "sm121a"),
+    (
+        "@P1 STG.E.EL.ELL2.256.STRONG.GPU [UR38], R44, R48",
+        "sm100a",
+    ),
+    (
+        "@P1 STG.E.EL.ELL2.256.STRONG.GPU [UR38], R44, R48",
+        "sm103a",
+    ),
+    ("@P1 STG.E.EL.ELL2.256.STRONG.GPU [UR38], R44, R48", "sm120"),
+    (
+        "@P1 STG.E.EL.ELL2.256.STRONG.GPU [UR38], R44, R48",
+        "sm121a",
+    ),
+];
+pub static ENCTAIL474: &[(&str, &str)] = &[
+    (
+        "LDG.E.EFL2.256 R44, R48, desc[UR38][R28.64], 0x99",
+        "sm103a",
+    ),
+    (
+        "LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, desc[UR38][R28.64]",
+        "sm100a",
+    ),
+    (
+        "LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, desc[UR38][R28.64]",
+        "sm103a",
+    ),
+    (
+        "LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, desc[UR38][R28.64]",
+        "sm120",
+    ),
+    (
+        "LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, desc[UR38][R28.64]",
+        "sm121a",
+    ),
+];
+/// (text, leg, cold_word_hex) -- desc-formy plain-L2 mintuja pre==post bajtowo identycznym slowem (sealed parity; brak klaima 474)
+pub static MINTDESC474: &[(&str, &str, &str)] = &[
+    (
+        "LDG.E.EFL2.256 R44, R48, desc[UR38][R28.64], 0x99",
+        "sm100a",
+        "000fc2000810192c320000261c30797e",
+    ),
+    (
+        "LDG.E.EFL2.256 R44, R48, desc[UR38][R28.64], 0x99",
+        "sm120",
+        "000fc2000810192c320000261c30797e",
+    ),
+    (
+        "LDG.E.EFL2.256 R44, R48, desc[UR38][R28.64], 0x99",
+        "sm121a",
+        "000fc2000810192c320000261c30797e",
+    ),
+    (
+        "STG.E.EFL2.256 desc[UR38][R28.64], R44, R48, 0xa0",
+        "sm100a",
+        "000fc2000d1018260000002c1c30797f",
+    ),
+    (
+        "STG.E.EFL2.256 desc[UR38][R28.64], R44, R48, 0xa0",
+        "sm103a",
+        "000fc2000d1018260000002c1c30797f",
+    ),
+    (
+        "STG.E.EFL2.256 desc[UR38][R28.64], R44, R48, 0xa0",
+        "sm120",
+        "000fc2000d1018260000002c1c30797f",
+    ),
+    (
+        "STG.E.EFL2.256 desc[UR38][R28.64], R44, R48, 0xa0",
+        "sm121a",
+        "000fc2000d1018260000002c1c30797f",
+    ),
+];
+pub static CENSUS474: &[(&str, usize)] = &[
+    ("sm100a", 13721),
+    ("sm103a", 13721),
+    ("sm120", 14859),
+    ("sm121a", 22688),
+];

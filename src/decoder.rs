@@ -72,6 +72,7 @@ struct DecodeCandidate {
     key: String,
     mod_group: String,
     and_base: u128,
+    claim_forbid: Vec<crate::table::ClaimForbid>, // BUG-452 claim-guard
     match_mask: u128,              // ~variable_mask: bits that must match
     relaxed_match_mask: u128,      // match_mask but with imm-field bits treated as variable
     broad_relaxed_match_mask: u128, // relaxed_match_mask also ignoring standard reg slots
@@ -187,6 +188,7 @@ impl DecodeIndex {
                     key: key.clone(),
                     mod_group: mods.clone(),
                     and_base,
+                    claim_forbid: mg.claim_forbid.clone(),
                     match_mask,
                     relaxed_match_mask,
                     broad_relaxed_match_mask,
@@ -248,6 +250,14 @@ impl DecodeIndex {
         // instruction like `@!P0 LDCU.64 UR4, ...` still matches its table entry.
         let guard_mask: u128 = 0xF000; // bits [15:12] = predicate guard
         let mut matches: Vec<(&DecodeCandidate, u8)> = candidates.iter().filter_map(|c| {
+            // BUG-452: claim-forbid guard — value exclusions of the claim
+            // cube (donor-first narrowing, e.g. base==255 on a64/desc ARURI
+            // classes that the vendor refuses or prints '???255.64'). The
+            // candidate is dropped across ALL match priorities so the word
+            // fails closed instead of rendering a vendor-nonexistent text.
+            if !c.claim_forbid.is_empty() && c.claim_forbid.iter().any(|cf| cf.rejects(code_clean)) {
+                return None;
+            }
             let strict = (code_clean & c.match_mask & !guard_mask) == (c.and_base & c.match_mask & !guard_mask);
             let relaxed = (code_clean & c.relaxed_match_mask & !guard_mask) == (c.and_base & c.relaxed_match_mask & !guard_mask);
             if strict { return Some((c, 0u8)); }       // priority 0 = strict
@@ -1276,10 +1286,8 @@ fn key_has_output_pred_field(key: &str, mod_group: &str, table: &IsaTable) -> bo
 
 /// Operand type tokens parsed from an InsKey (same logic as in printer.rs).
 const OP_TYPES: &[&str] = &[
-    "ARURR", "ARURI", "ARUR", "AURI", "AURR", "AUR",
-    "cAURI", "cAI", "dARI", "ARI",
-    "UP", "UR", "SR", "FI", "II", "IM", "LO",
-    "R", "P", "L", "B", "?",
+    "ARURR", "ARURI64", "ARURI", "ARUR", "AURI", "AURR", "AUR", "cAURI", "cAI", "dARI", "ARI",
+    "UP", "UR", "SR", "FI", "II", "IM", "LO", "R", "P", "L", "B", "?",
 ];
 
 fn parse_ins_key_op_types(key: &str) -> Vec<String> {

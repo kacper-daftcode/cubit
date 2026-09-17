@@ -42,7 +42,8 @@ fn pipeline_encode(src: &str, tab: &IsaTable) -> Vec<Encoded> {
     let mut insns = f.kernels[0].instructions.clone();
     schedule(&mut insns, Some(tab));
     reallocate_barriers(&mut insns, Some(tab));
-    insns.iter()
+    insns
+        .iter()
         .map(|x| {
             let w = encode_instruction(x, tab)
                 .unwrap_or_else(|e| panic!("encode failed for {}: {:?}", x.opcode_full, e));
@@ -72,21 +73,27 @@ const HDR: &str = ".entry t\n    .param u64 io\n    S2R R10, SR_TID.X ;\n    LDC
 
 /// i245 experiment-5 verbatim shape: pinned W1/R4 LDG.256, white consumers of
 /// both dest quads, white STG reader.
-const EXP5: &str = "    [B------:R4:W1:Y:S02] LDG.E.NA.ELL2.256.STRONG.GPU R48, R52, desc[UR4][R10.64] ;\n    LOP3.LUT R62, R48, 0xf, RZ, 0xc0, !PT ;\n    LOP3.LUT R63, R54, 0xf, RZ, 0xc0, !PT ;\n    STG.E desc[UR4][R10.64], R62 ;\n";
+const EXP5: &str = "    [B------:R4:W1:Y:S02] LDG.E.NA.ELL2.256.STRONG.GPU R48, R52, [R10.U32+UR4] ;\n    LOP3.LUT R62, R48, 0xf, RZ, 0xc0, !PT ;\n    LOP3.LUT R63, R54, 0xf, RZ, 0xc0, !PT ;\n    STG.E desc[UR4][R10.64], R62 ;\n";
 
 #[test]
 fn t117_1_pinned_ldg256_arms_white_consumers() {
     for tab in [t120(), t103()] {
         let src = format!("{HDR}{EXP5}    EXIT ;\n");
         let e = pipeline_encode(&src, &tab);
-        let ldg = e.iter().find(|x| x.opcode_full.contains("LDG.E.NA.ELL2.256")).unwrap();
+        let ldg = e
+            .iter()
+            .find(|x| x.opcode_full.contains("LDG.E.NA.ELL2.256"))
+            .unwrap();
         assert!(ldg.hand_sched, "tagged load stays frozen");
         assert_eq!(
             d3(ldg),
             (2, 1, 1, 4, 0),
             "the author's tag is honoured VERBATIM on the pinned slot"
         );
-        let l0 = e.iter().find(|x| x.opcode_full == "LOP3.LUT" && x.addr == ldg.addr + 0x10).unwrap();
+        let l0 = e
+            .iter()
+            .find(|x| x.opcode_full == "LOP3.LUT" && x.addr == ldg.addr + 0x10)
+            .unwrap();
         assert!(
             d3(l0).4 & (1 << 1) != 0,
             "first white consumer of the pinned .256 load must WAIT its barrier 1, got {:?}",
@@ -94,7 +101,10 @@ fn t117_1_pinned_ldg256_arms_white_consumers() {
         );
         // Second white consumer may elide (barrier drained by the first wait)
         // but must never precede the drain.
-        let l1 = e.iter().find(|x| x.opcode_full == "LOP3.LUT" && x.addr == ldg.addr + 0x20).unwrap();
+        let l1 = e
+            .iter()
+            .find(|x| x.opcode_full == "LOP3.LUT" && x.addr == ldg.addr + 0x20)
+            .unwrap();
         assert!(l1.addr > l0.addr, "program order preserved");
         let _ = l1;
     }
@@ -105,7 +115,7 @@ fn t117_1_pinned_ldg256_arms_white_consumers() {
 #[test]
 fn t117_2_pinned_ldg256_second_quad_only() {
     for tab in [t120(), t103()] {
-        let body = "    [B------:R-:W3:Y:S02] LDG.E.NA.ELL2.256.STRONG.GPU R48, R52, desc[UR4][R10.64] ;\n    LOP3.LUT R63, R55, 0xf, RZ, 0xc0, !PT ;\n";
+        let body = "    [B------:R-:W3:Y:S02] LDG.E.NA.ELL2.256.STRONG.GPU R48, R52, [R10.U32+UR4] ;\n    LOP3.LUT R63, R55, 0xf, RZ, 0xc0, !PT ;\n";
         let src = format!("{HDR}{body}    EXIT ;\n");
         let e = pipeline_encode(&src, &tab);
         let c = e.iter().find(|x| x.opcode_full == "LOP3.LUT").unwrap();
@@ -114,7 +124,10 @@ fn t117_2_pinned_ldg256_second_quad_only() {
             "second-quad white consumer must wait the pinned barrier 3, got {:?}",
             d3(c)
         );
-        let ldg = e.iter().find(|x| x.opcode_full.contains("LDG.E.NA.ELL2.256")).unwrap();
+        let ldg = e
+            .iter()
+            .find(|x| x.opcode_full.contains("LDG.E.NA.ELL2.256"))
+            .unwrap();
         assert_eq!(d3(ldg).2, 3, "pinned W3 verbatim");
     }
 }
@@ -125,21 +138,46 @@ fn t117_2_pinned_ldg256_second_quad_only() {
 #[test]
 fn t117_3_allocator_respects_pinned_window() {
     for tab in [t120(), t103()] {
-        let body = "    LDG.E.128 R40, desc[UR4][R10.64] ;\n    LOP3.LUT R60, R40, 0xf, RZ, 0xc0, !PT ;\n    [B------:R-:W1:Y:S02] LDG.E.NA.ELL2.256.STRONG.GPU R48, R52, desc[UR4][R10.64+0x40] ;\n    LDG.E.128 R44, desc[UR4][R10.64+0x80] ;\n    LOP3.LUT R62, R48, 0xf, RZ, 0xc0, !PT ;\n    LOP3.LUT R61, R44, 0xf, RZ, 0xc0, !PT ;\n";
+        let body = "    LDG.E.128 R40, desc[UR4][R10.64] ;\n    LOP3.LUT R60, R40, 0xf, RZ, 0xc0, !PT ;\n    [B------:R-:W1:Y:S02] LDG.E.NA.ELL2.256.STRONG.GPU R48, R52, [R10.U32+UR4+0x40] ;\n    LDG.E.128 R44, desc[UR4][R10.64+0x80] ;\n    LOP3.LUT R62, R48, 0xf, RZ, 0xc0, !PT ;\n    LOP3.LUT R61, R44, 0xf, RZ, 0xc0, !PT ;\n";
         let src = format!("{HDR}{body}    EXIT ;\n");
         let e = pipeline_encode(&src, &tab);
-        let pin = e.iter().find(|x| x.hand_sched && x.opcode_full.contains("LDG.E.NA.ELL2.256")).unwrap();
+        let pin = e
+            .iter()
+            .find(|x| x.hand_sched && x.opcode_full.contains("LDG.E.NA.ELL2.256"))
+            .unwrap();
         let d_pin = d3(pin);
         assert_eq!(d_pin.2, 1, "pinned W1 verbatim");
         // white consumer of the pinned load waits bar 1
-        let c62 = e.iter().find(|x| x.opcode_full == "LOP3.LUT" && x.addr == pin.addr + 0x20).unwrap();
-        assert!(d3(c62).4 & (1 << 1) != 0, "pinned-load consumer waits bar1, got {:?}", d3(c62));
+        let c62 = e
+            .iter()
+            .find(|x| x.opcode_full == "LOP3.LUT" && x.addr == pin.addr + 0x20)
+            .unwrap();
+        assert!(
+            d3(c62).4 & (1 << 1) != 0,
+            "pinned-load consumer waits bar1, got {:?}",
+            d3(c62)
+        );
         // the white LDG.E.128 AFTER the pinned load (its consumer c61 is the
         // last instruction, inside the pinned window) must NOT take wb=1
-        let l44 = e.iter().find(|x| x.opcode_full == "LDG.E.128" && x.addr == pin.addr + 0x10).unwrap();
-        assert_ne!(d3(l44).2, 1, "white load inside the pinned window must keep off barrier 1, got {:?}", d3(l44));
-        let c61 = e.iter().rev().find(|x| x.opcode_full == "LOP3.LUT").unwrap();
-        assert!(d3(c61).4 & (1 << d3(l44).2) != 0, "white-load consumer waits its own barrier");
+        let l44 = e
+            .iter()
+            .find(|x| x.opcode_full == "LDG.E.128" && x.addr == pin.addr + 0x10)
+            .unwrap();
+        assert_ne!(
+            d3(l44).2,
+            1,
+            "white load inside the pinned window must keep off barrier 1, got {:?}",
+            d3(l44)
+        );
+        let c61 = e
+            .iter()
+            .rev()
+            .find(|x| x.opcode_full == "LOP3.LUT")
+            .unwrap();
+        assert!(
+            d3(c61).4 & (1 << d3(l44).2) != 0,
+            "white-load consumer waits its own barrier"
+        );
     }
 }
 
@@ -149,19 +187,36 @@ fn t117_3_allocator_respects_pinned_window() {
 #[test]
 fn t117_4_white_path_unchanged() {
     for tab in [t120(), t103()] {
-        let body = "    LDG.E.128 R40, desc[UR4][R10.64] ;\n    LDG.E.128 R44, desc[UR4][R10.64+0x40] ;\n    LDG.E.NA.ELL2.256.STRONG.GPU R48, R52, desc[UR4][R10.64+0x80] ;\n    LOP3.LUT R60, R40, 0xf, RZ, 0xc0, !PT ;\n    LOP3.LUT R61, R44, 0xf, RZ, 0xc0, !PT ;\n    LOP3.LUT R62, R48, 0xf, RZ, 0xc0, !PT ;\n    LOP3.LUT R63, R53, 0xf, RZ, 0xc0, !PT ;\n";
+        let body = "    LDG.E.128 R40, desc[UR4][R10.64] ;\n    LDG.E.128 R44, desc[UR4][R10.64+0x40] ;\n    LDG.E.NA.ELL2.256.STRONG.GPU R48, R52, [R10.U32+UR4+0x80] ;\n    LOP3.LUT R60, R40, 0xf, RZ, 0xc0, !PT ;\n    LOP3.LUT R61, R44, 0xf, RZ, 0xc0, !PT ;\n    LOP3.LUT R62, R48, 0xf, RZ, 0xc0, !PT ;\n    LOP3.LUT R63, R53, 0xf, RZ, 0xc0, !PT ;\n";
         let src = format!("{HDR}{body}    EXIT ;\n");
         let e = pipeline_encode(&src, &tab);
-        let ldg256 = e.iter().find(|x| x.opcode_full.contains("LDG.E.NA.ELL2.256")).unwrap();
+        let ldg256 = e
+            .iter()
+            .find(|x| x.opcode_full.contains("LDG.E.NA.ELL2.256"))
+            .unwrap();
         let (s256, _, wb256, _, _) = d3(ldg256);
         assert!(wb256 < 7, "white .256 load must carry a write barrier");
         assert!(s256 >= 1);
-        let c62 = e.iter().find(|x| x.opcode_full == "LOP3.LUT" && x.addr == ldg256.addr + 0x30).unwrap();
-        assert!(d3(c62).4 & (1 << wb256) != 0, "quad0 consumer waits the .256 barrier");
+        let c62 = e
+            .iter()
+            .find(|x| x.opcode_full == "LOP3.LUT" && x.addr == ldg256.addr + 0x30)
+            .unwrap();
+        assert!(
+            d3(c62).4 & (1 << wb256) != 0,
+            "quad0 consumer waits the .256 barrier"
+        );
         let ldg128s: Vec<&Encoded> = e.iter().filter(|x| x.opcode_full == "LDG.E.128").collect();
         assert_eq!(ldg128s.len(), 2);
-        assert_eq!(d3(ldg128s[0]).2, d3(ldg128s[1]).2, "same-width consecutive batch shares one barrier");
-        assert_ne!(d3(ldg128s[0]).2, wb256, "mixed widths never share a barrier");
+        assert_eq!(
+            d3(ldg128s[0]).2,
+            d3(ldg128s[1]).2,
+            "same-width consecutive batch shares one barrier"
+        );
+        assert_ne!(
+            d3(ldg128s[0]).2,
+            wb256,
+            "mixed widths never share a barrier"
+        );
     }
 }
 
@@ -170,7 +225,7 @@ fn t117_4_white_path_unchanged() {
 #[test]
 fn t117_5_pinned_read_bar_arms_white_overwriter() {
     for tab in [t120(), t103()] {
-        let body = "    [B------:R4:W1:Y:S02] LDG.E.NA.ELL2.256.STRONG.GPU R48, R52, desc[UR4][R10.64] ;\n    LOP3.LUT R62, R48, 0xf, RZ, 0xc0, !PT ;\n    IADD3 R10, PT, PT, R10, 0x2000, RZ ;\n    STG.E desc[UR4][R10.64], R62 ;\n";
+        let body = "    [B------:R4:W1:Y:S02] LDG.E.NA.ELL2.256.STRONG.GPU R48, R52, [R10.U32+UR4] ;\n    LOP3.LUT R62, R48, 0xf, RZ, 0xc0, !PT ;\n    IADD3 R10, PT, PT, R10, 0x2000, RZ ;\n    STG.E desc[UR4][R10.64], R62 ;\n";
         let src = format!("{HDR}{body}    EXIT ;\n");
         let e = pipeline_encode(&src, &tab);
         let bump = e.iter().find(|x| x.opcode_full == "IADD3").unwrap();
@@ -196,12 +251,14 @@ fn t117_6_hazard_report_contract() {
     reallocate_barriers(&mut insns, Some(&tab));
     let hs = report_hazards(&insns);
     assert!(
-        !hs.iter().any(|h| h.msg.contains("reads R48 <-") || h.msg.contains("reads R54 <-")),
+        !hs.iter()
+            .any(|h| h.msg.contains("reads R48 <-") || h.msg.contains("reads R54 <-")),
         "consumer-side RAW hazards must be REPAIRED (wait injected), got: {:?}",
         hs.iter().map(|h| h.msg.clone()).collect::<Vec<_>>()
     );
     assert!(
-        hs.iter().any(|h| h.msg.contains("reads UR4 <-") && h.frozen),
+        hs.iter()
+            .any(|h| h.msg.contains("reads UR4 <-") && h.frozen),
         "the author's own under-waited desc source stays loudly reported, got: {:?}",
         hs.iter().map(|h| h.msg.clone()).collect::<Vec<_>>()
     );
@@ -212,7 +269,7 @@ fn t117_6_hazard_report_contract() {
 /// (bug046 contract, unchanged).
 #[test]
 fn t117_7_wminus_tag_still_nobar_reported() {
-    let body = "    [B------:R-:W-:-:S02] LDG.E.NA.ELL2.256.STRONG.GPU R48, R52, desc[UR4][R10.64] ;\n    LOP3.LUT R62, R48, 0xf, RZ, 0xc0, !PT ;\n";
+    let body = "    [B------:R-:W-:-:S02] LDG.E.NA.ELL2.256.STRONG.GPU R48, R52, [R10.U32+UR4] ;\n    LOP3.LUT R62, R48, 0xf, RZ, 0xc0, !PT ;\n";
     let src = format!("{HDR}{body}    EXIT ;\n");
     let f = parse_sass_file_str_strict(&src).unwrap();
     let mut insns = f.kernels[0].instructions.clone();
@@ -221,7 +278,8 @@ fn t117_7_wminus_tag_still_nobar_reported() {
     reallocate_barriers(&mut insns, Some(&tab));
     let hs = report_hazards(&insns);
     assert!(
-        hs.iter().any(|h| h.msg.contains("NO barrier") && h.msg.contains("reads R48")),
+        hs.iter()
+            .any(|h| h.msg.contains("NO barrier") && h.msg.contains("reads R48")),
         "bare tagged load must keep the NOBAR finding, got: {:?}",
         hs.iter().map(|h| h.msg.clone()).collect::<Vec<_>>()
     );

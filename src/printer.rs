@@ -779,8 +779,8 @@ fn norm_ext(s: &str) -> String {
 
 /// Known operand-type segments in InsKey (longer first to avoid prefix conflicts).
 const OP_TYPES: &[&str] = &[
-    "ARURR", "ARURI", "ARUR", "AURI", "AURR", "AUR", "cAURI", "cAI", "dARI", "ARI", "UP", "UR",
-    "SR", "FI", "II", "IM", "LO", "R", "P", "L", "B", "?",
+    "ARURR", "ARURI64", "ARURI", "ARUR", "AURI", "AURR", "AUR", "cAURI", "cAI", "dARI", "ARI",
+    "UP", "UR", "SR", "FI", "II", "IM", "LO", "R", "P", "L", "B", "?",
 ];
 
 fn parse_ins_key(key: &str) -> (String, Vec<String>) {
@@ -1394,11 +1394,73 @@ fn format_operand(
         {
             // BUG-446: EFL2.256 NA family (121a-only keys) prints the address
             // width-fixed U32 + <<5-scaled signed offset (arb446 law).
+            // BUG-466: x3 ELL2.256 dARI-era graft keys (.ELL2. x LDG.E./STG.E.)
+            // ride the same efl2_na mode (arb466/466b x3: width U32 fixed,
+            // base255 elide [URm], UR URZ@0xff, imm17/19 signed<<5, b76 kill).
+            // BUG-474: plain (nNA) E*L2.256 U32-sibling rows ('_ARURI',
+            // b75=0; blizniaki calej rodziny 464/465/468 strona .64) -- width
+            // zawsze 'U32' (STG surowe [91:90]==3 NIE moze leakowac '.64'
+            // regula 099; LDG [91:90]==2), baza 255 -> czysta elizja
+            // '[URm(+off)]' (arb474/474b/474c/474d 250 sond nvdisasm 13.3.73
+            // raw -b x4 AGREE EVERY/DIVERGENT=0). Scopowane kluczem (graft
+            // canonical) + bitem ramki b75==0; R3-469-style: flaga efl2_na
+            // NIE hijackowana (inna semantyka NA); ELL2-celle spelniaja oba
+            // warunki (efl2_na || plain_u32) -- wynik identyczny, zero zmiany
+            // zachowania pre-key (claim-space tych komorek przed graftem =
+            // HOLE, claim474 218/218 x noga).
+            let plain_u32 = (ins_key.starts_with("LDG.E.") || ins_key.starts_with("STG.E."))
+                && (ins_key.contains(".EFL2.")
+                    || ins_key.contains(".ENL2.")
+                    || ins_key.contains(".ELL2."))
+                && !ins_key.contains(".NA.")
+                && (raw >> 75) & 1 == 0;
             format_plain_u32_ur(
                 fields,
                 raw,
-                ins_key.starts_with("LDG.E.NA.EFL2") || ins_key.starts_with("STG.E.NA.EFL2"),
+                ins_key.starts_with("LDG.E.NA.EFL2")
+                    || ins_key.starts_with("STG.E.NA.EFL2")
+                    || (ins_key.contains(".ELL2.")
+                        && (ins_key.starts_with("LDG.E.") || ins_key.starts_with("STG.E."))),
+                false,
+                false,
+                plain_u32,
             )
+        }
+        // BUG-454: REDG plain uniform-indexed 64-bit address family
+        // (_ARURI64_R rows; ERR-268 recanon fleet-side). Same bracket law
+        // as the BUG-038 arm (arb454, 157 gated probes x4 AGREE EVERY /
+        // DIVERGENT=0: URZ@0xff, imm24 signed win24, RZ kept visible).
+        // Every claimed word pins b90=1 & b91=1, so the BUG-099 raw width
+        // rule (.64 iff [91:90]==3) already prints the '.64' glyph.
+        // BUG-461 (text-parity, rejestr 452 sec.5): vendor nvdisasm 13.3.73
+        // era-gated x4 AGREE EVERY renders the REDG .64 ARURI64 form with
+        // base[24:32)==255 as the degenerate glyph '[???255.64+UR..]' (rc=0;
+        // 452 swiadomie wybral HOLE-parity -- claim_forbid zdjety data-side
+        // przez patch461 = canonical f58ed16; mint-side nadal refuse = arm
+        // encodera BUG-461). Bazy 0..254 drukuja 'R{n}.64' jak dotychczas;
+        // U32-form (b90=0) nie przechodzi przez ta galaz.
+        "ARURI64" if ins_key.starts_with("REDG.E") => format_plain_u32_ur(fields, raw, false, true, false, false),
+        // BUG-464: plain (nNA) EFL2.256 ARURI64 family (klucze graftu
+        // LDG.E.EFL2.256_R_R_ARURI64{,_P,_II,_II_P} / STG.E.EFL2.256_ARURI64_R_R{,_II}).
+        // Tekst vendora: '[R{n}.64+UR{m}(+-off)]' zawsze z '.64' (b75 frame),
+        // baza 255 -> elizja '[URm(+off)]' (czysta, mintowalna; 448-pattern).
+        // BUG-465: modsub lattice nad ta sama frame -- L1 [85:84] {EF,EL,LU}
+        // + L2-hint [82:81] {EFL2,ENL2,ELL2} zastepuje zawsze wklada
+        // 'EFL2' w base_op (np. 'LDG.E.ENL2.256', 'LDG.E.LU.ELL2.256.CONSTANT.CTA'),
+        // wiec guard != starts_with('*_EFL2'). Warte pola adresu klonuja
+        // donorskie wiersze 464 verbatim (tylko piny [77:86) + base_op),
+        // wiec kazdy ARURI64-klucz niosacy token L2-hintu drukuje ten sam
+        // law-text vendora (arb465b 382 slowa x4 AGREE EVERY). Outer-scope
+        // audyt key-setu: pre keys z '_ARURI64' pod LDG.E/STG.E == rodzina
+        // 464 (6/noga), post == +1146/noga (wszystkie z '.E*L2.256').
+        // NA-side zostaje na armie BUG-446 (sig 'ARURI', inny zmecz).
+        "ARURI64"
+            if (ins_key.starts_with("LDG.E.") || ins_key.starts_with("STG.E."))
+                && (ins_key.contains(".EFL2.")
+                    || ins_key.contains(".ENL2.")
+                    || ins_key.contains(".ELL2.")) =>
+        {
+            format_plain_u32_ur(fields, raw, false, false, true, false)
         }
         // BUG-099/095: canon-era key names LDG_R_ARURI / STG_ARURI_R whose
         // repaired mod groups carry the same plain (reg/ureg/imm) field shape
@@ -1414,7 +1476,15 @@ fn format_operand(
         // fabricated desc form). The desc-shape siblings (sub_r1+sub_ur0)
         // still fail the guard and stay on format_aruri.
         "ARURI"
-            if (ins_key.starts_with("LDG_R_ARURI") || ins_key.starts_with("STG_ARURI_R"))
+            // BUG-469: widthless-ARURI graft sm121a covers pred-dest arms too
+            // ('LDG_P_R_ARURI{,_P}' plain band, 'LDG.E.EF{,.LTCnm}_P_R_ARURI_P'
+            // EF band b84=0) -- same plain bracket law [Rn.U32/.64+URm+off]
+            // (arb469/arb469b x4 AGREE); ef pred-elide at 7 excluded via
+            // claim_forbid in tables (standing 483).
+            if (ins_key.starts_with("LDG_R_ARURI")
+                    || ins_key.starts_with("STG_ARURI_R")
+                    || ins_key.starts_with("LDG_P_R_ARURI")
+                    || (ins_key.starts_with("LDG.E.EF") && ins_key.contains("_P_R_ARURI")))
                 && fields
                     .iter()
                     .any(|f| matches!(norm_ext(&f.extraction).as_str(), "ureg" | "sub_ur1"))
@@ -1422,7 +1492,7 @@ fn format_operand(
                     .iter()
                     .any(|f| matches!(norm_ext(&f.extraction).as_str(), "reg" | "sub_r0")) =>
         {
-            format_plain_u32_ur(fields, raw, false)
+            format_plain_u32_ur(fields, raw, false, false, false, false)
         }
         // BUG-154: SYNCS.PHASECHK.TRANS64[.TRYWAIT] ARURI rows are plain
         // uniform-datapath bracket addresses in vendor text --
@@ -2404,7 +2474,14 @@ fn format_lit_or_sysreg(fields: &[&DecodedField], mod_group: &str, raw: u128) ->
 
 /// BUG-038 plain uniform-indexed global address: LDG.E/STG.E of class bytes
 /// 0x81/0x86 render natively as "[Rn.U32+URm(+0xoff)]" (i108 goldens).
-fn format_plain_u32_ur(fields: &[&DecodedField], raw: u128, efl2_na: bool) -> String {
+fn format_plain_u32_ur(
+    fields: &[&DecodedField],
+    raw: u128,
+    efl2_na: bool,
+    glyph255: bool,
+    plain64: bool,
+    plain_u32: bool,
+) -> String {
     let mut base: Option<u64> = None;
     let mut ur: Option<u64> = None;
     let mut off: i64 = 0;
@@ -2448,7 +2525,10 @@ fn format_plain_u32_ur(fields: &[&DecodedField], raw: u128, efl2_na: bool) -> St
             _ => {}
         }
     }
+    // BUG-461: glyph255 = arm REDG.E *_ARURI64_R; vendor drukuje zdegradowany
+    // glif '???255' (potem suffiks szerokosci '.64' dolacza regula b90&&b91).
     let b = match base {
+        Some(255) if glyph255 => "???255".to_string(),
         Some(255) => "RZ".to_string(),
         Some(v) => format!("R{v}"),
         None => "R0".to_string(),
@@ -2489,10 +2569,21 @@ fn format_plain_u32_ur(fields: &[&DecodedField], raw: u128, efl2_na: bool) -> St
     // -- even "[RZ.U32+URZ]"), so the elide stays gated on the efl2_na
     // flag exactly like the BUG-446 width law; NA-width plain (.128/U16)
     // unmeasured there and untouched by construction.
-    if efl2_na && base == Some(255) && ur.is_some() {
+    // BUG-464: plain64 = arm rodziny plain (nNA) EFL2.256 ARURI64 (LDG/STG
+    // *_ARURI64{,_II,_II_P,_P}; graft canonical). Szerokosc '.64' JEST
+    // czescia frame'u (b75 pinned w and_base; drukujemy ja zawsze, jak
+    // vendor x4), a baza 255 eliduje sie czysto do '[URm(+off)]'/'[URZ]'
+    // (arb464/464b/464c 496 sond x4 AGREE EVERY/DIVERGENT=0: elizja pod
+    // pol 0x00/0x99/0xff, imm signed<<5, pred4; NIE glif 461-REDG). Band
+    // [92:96) jest vendor-inert na tym frame (vm go kryje) -- surowe bity
+    // raw nigdy nie wplywaja na wybor szerokosci tutaj.
+    if (efl2_na || plain64 || plain_u32) && base == Some(255) && ur.is_some() {
         return format!("[{u}{o}]");
     }
-    let width = if !efl2_na && (raw >> 90) & 0b11 == 0b11 {
+    // BUG-474: plain_u32 (blizniaki b75=0) ma width zawsze 'U32' -- surowa
+    // regula 099 [91:90]==3 dalaby falszywe '.64' na STG (ramka pinnuje tam
+    // b90=b91=1); arb474c x4 potwierdza '.U32' na obu ramkach.
+    let width = if plain64 || (!efl2_na && !plain_u32 && (raw >> 90) & 0b11 == 0b11) {
         "64"
     } else {
         "U32"
