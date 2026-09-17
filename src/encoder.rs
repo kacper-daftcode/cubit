@@ -9,7 +9,7 @@
 
 use crate::ir::{Instruction, Operand};
 use crate::scheduling;
-use crate::table::{IsaTable, Field, Extraction};
+use crate::table::{Extraction, Field, IsaTable};
 use anyhow::{Context, Result};
 
 // ---------------------------------------------------------------------------
@@ -71,7 +71,7 @@ fn sysreg_id(name: &str) -> Option<u64> {
         _ => {
             let h = name.strip_prefix("SR_0x")?;
             u64::from_str_radix(h, 16).ok()?
-        },
+        }
     };
     Some(id)
 }
@@ -84,7 +84,9 @@ fn sysreg_id(name: &str) -> Option<u64> {
 /// E.g. "HMMA.16816.F32 R16, R8, R12, RZ" → "HMMA.16816.F32_R_R_R_R"
 fn full_key(insn: &Instruction) -> String {
     // Strip ?N opaque modifier parts from the opcode (e.g. "ISETP.EQ.AND.?6.?0" → "ISETP.EQ.AND")
-    let clean_opcode: String = insn.opcode_full.split('.')
+    let clean_opcode: String = insn
+        .opcode_full
+        .split('.')
         .filter(|p| !p.is_empty() && !p.starts_with('?'))
         .collect::<Vec<_>>()
         .join(".");
@@ -112,11 +114,15 @@ fn extraction_accepts(ext: &Extraction, op: &Operand) -> bool {
         // Float immediates / value-cast float: read the value itself.
         NegF32 | F32Cast => matches!(op, Operand::FloatImm(_) | Operand::Imm32(_)),
 
-        Reg | RegShr(_) => matches!(op,
-            Operand::Reg { .. } | Operand::Addr { .. } | Operand::Desc { .. }),
+        Reg | RegShr(_) => matches!(
+            op,
+            Operand::Reg { .. } | Operand::Addr { .. } | Operand::Desc { .. }
+        ),
         RegFf => matches!(op, Operand::Reg { .. } | Operand::UReg { .. }),
-        UReg | URegShr(_) => matches!(op,
-            Operand::UReg { .. } | Operand::Addr { .. } | Operand::Desc { .. }),
+        UReg | URegShr(_) => matches!(
+            op,
+            Operand::UReg { .. } | Operand::Addr { .. } | Operand::Desc { .. }
+        ),
         URegFf => matches!(op, Operand::UReg { .. }),
         Pred => matches!(op, Operand::Pred { .. } | Operand::UPred { .. }),
         PredInv4 => matches!(op, Operand::Pred { .. } | Operand::UPred { .. }),
@@ -127,24 +133,37 @@ fn extraction_accepts(ext: &Extraction, op: &Operand) -> bool {
         // RZ/URZ are accepted by imm extractions: the helper returns 0, which is
         // exactly the register's architectural value (several harvested entries
         // are imm-form encodings that production kernels feed RZ through).
-        Imm | ImmShr(_) => matches!(op,
-            Operand::Imm32(_) | Operand::Imm64(_) | Operand::BranchTarget(_)
-            | Operand::FloatImm(_) | Operand::Desc { .. } | Operand::Addr { .. }
-            | Operand::Label(_)
-            | Operand::Reg { num: 255, .. } | Operand::UReg { is_zero: true, .. }),
-        ImmDec | ImmDecU32 => matches!(op, Operand::Imm32(_) | Operand::Label(_)
-            | Operand::Reg { num: 255, .. } | Operand::UReg { is_zero: true, .. }),
+        Imm | ImmShr(_) => matches!(
+            op,
+            Operand::Imm32(_)
+                | Operand::Imm64(_)
+                | Operand::BranchTarget(_)
+                | Operand::FloatImm(_)
+                | Operand::Desc { .. }
+                | Operand::Addr { .. }
+                | Operand::Label(_)
+                | Operand::Reg { num: 255, .. }
+                | Operand::UReg { is_zero: true, .. }
+        ),
+        ImmDec | ImmDecU32 => matches!(
+            op,
+            Operand::Imm32(_)
+                | Operand::Label(_)
+                | Operand::Reg { num: 255, .. }
+                | Operand::UReg { is_zero: true, .. }
+        ),
 
         F32 | F64hi => matches!(op, Operand::FloatImm(_) | Operand::Imm32(_)),
         LblPat(_) => matches!(op, Operand::Label(_) | Operand::Desc { .. }),
         F16 | F16d | BF16 => matches!(op, Operand::FloatImm(_)),
 
-        SysReg | SysRegLo7 | SysRegLo4 | SysRegHi4 | SysRegHi1 =>
-            matches!(op, Operand::SysReg(_)),
+        SysReg | SysRegLo7 | SysRegLo4 | SysRegHi4 | SysRegHi1 => matches!(op, Operand::SysReg(_)),
 
-        SubR(_) | SubRShr(..) | SubUR(_) | SubURShr(..) | SubURm1(_)
-        | SubImm(_) | SubImmS24(_) | SubImmShr(..) | SubImmShrU(..) => matches!(op,
-            Operand::Addr { .. } | Operand::Desc { .. } | Operand::ConstMem { .. }),
+        SubR(_) | SubRShr(..) | SubUR(_) | SubURShr(..) | SubURm1(_) | SubImm(_) | SubImmS24(_)
+        | SubImmShr(..) | SubImmShrU(..) => matches!(
+            op,
+            Operand::Addr { .. } | Operand::Desc { .. } | Operand::ConstMem { .. }
+        ),
         Cm16Off | Cm17Off => matches!(op, Operand::ConstMem { .. }),
     }
 }
@@ -167,7 +186,11 @@ fn urz_sink_baked(entry: &crate::table::ModGroupEntry, tok: i32) -> bool {
     const WIN: u128 = 0xFFu128 << 64;
     let mut fm_all: u128 = 0;
     for f in &entry.fields {
-        let m = if f.bits >= 128 { u128::MAX } else { ((1u128 << f.bits) - 1) << f.shift };
+        let m = if f.bits >= 128 {
+            u128::MAX
+        } else {
+            ((1u128 << f.bits) - 1) << f.shift
+        };
         fm_all |= m;
     }
     if fm_all & WIN != 0 {
@@ -199,10 +222,15 @@ fn zero_payload_junk(
     let mut win: std::collections::HashMap<i32, u128> = std::collections::HashMap::new();
     for sib in ike.mod_groups.values() {
         for f in &sib.fields {
-            if f.token_idx <= 0 { continue; }
+            if f.token_idx <= 0 {
+                continue;
+            }
             if ext_encodes_imm(&f.extraction) || ext_encodes_ureg(&f.extraction) {
-                let m: u128 = if f.bits >= 128 { u128::MAX }
-                    else { ((1u128 << f.bits) - 1) << f.shift };
+                let m: u128 = if f.bits >= 128 {
+                    u128::MAX
+                } else {
+                    ((1u128 << f.bits) - 1) << f.shift
+                };
                 *win.entry(f.token_idx).or_default() |= m;
             }
         }
@@ -215,8 +243,10 @@ fn zero_payload_junk(
         let Some(w) = win.get(&tok) else { continue };
         // Only default payloads are at risk (non-zero immediates are rejected by
         // completeness when no field exists for their token).
-        let is_default = matches!(op,
-            Operand::Imm32(0) | Operand::Imm64(0) | Operand::UReg { is_zero: true, .. });
+        let is_default = matches!(
+            op,
+            Operand::Imm32(0) | Operand::Imm64(0) | Operand::UReg { is_zero: true, .. }
+        );
         if !is_default {
             continue;
         }
@@ -229,7 +259,8 @@ fn zero_payload_junk(
                 "BUG-071-class: operand {tok} (default payload) has no field in \
                  this entry, and and_base carries junk bits 0x{junk:x} in the \
                  sibling-proven payload window; row would emit baked constants \
-                 (harvest artefact — needs a table repair, not assembly)"));
+                 (harvest artefact — needs a table repair, not assembly)"
+            ));
         }
     }
     None
@@ -237,25 +268,36 @@ fn zero_payload_junk(
 
 /// True when `ext` can encode a register NUMBER for the operand (not just RZ-ness).
 fn ext_encodes_reg(ext: &Extraction) -> bool {
-    matches!(ext, Extraction::Reg | Extraction::RegShr(_)
-        | Extraction::SubR(_) | Extraction::SubRShr(..))
+    matches!(
+        ext,
+        Extraction::Reg | Extraction::RegShr(_) | Extraction::SubR(_) | Extraction::SubRShr(..)
+    )
 }
 
 fn ext_encodes_ureg(ext: &Extraction) -> bool {
-    matches!(ext, Extraction::UReg | Extraction::URegShr(_) | Extraction::URegFf
-        | Extraction::SubUR(_) | Extraction::SubURShr(..)
-        | Extraction::SubURm1(_))
+    matches!(
+        ext,
+        Extraction::UReg
+            | Extraction::URegShr(_)
+            | Extraction::URegFf
+            | Extraction::SubUR(_)
+            | Extraction::SubURShr(..)
+            | Extraction::SubURm1(_)
+    )
 }
 
 fn ext_encodes_imm(ext: &Extraction) -> bool {
-    matches!(ext, Extraction::Imm | Extraction::ImmShr(_) | Extraction::ImmDec
+    matches!(
+        ext,
+        Extraction::Imm | Extraction::ImmShr(_) | Extraction::ImmDec
         | Extraction::ImmDecU32 | Extraction::F32 | Extraction::F64hi
         | Extraction::SubImm(_) | Extraction::SubImmS24(_) | Extraction::SubImmShr(..)
         | Extraction::SubImmShrU(..)
         | Extraction::Cm16Off | Extraction::Cm17Off
         | Extraction::F16 | Extraction::F16d | Extraction::BF16
         // KAND-058: value-cast f32 payload carrier for float/int-immediates.
-        | Extraction::F32Cast)
+        | Extraction::F32Cast
+    )
 }
 
 /// Validate that a table entry's field extractions are compatible with the
@@ -271,7 +313,10 @@ fn ext_encodes_imm(ext: &Extraction) -> bool {
 ///
 /// Fields referencing tokens beyond the operand list are ignored — that is the
 /// documented `{fk}_?` wildcard-suffix behavior (extra trailing operand defaults).
-fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntry) -> std::result::Result<(), String> {
+fn entry_matches_operands(
+    insn: &Instruction,
+    entry: &crate::table::ModGroupEntry,
+) -> std::result::Result<(), String> {
     // Branch-family targets (and the RET register / BRA.U upred) are encoded by
     // apply_branch_encoding, not by table fields. Until BUG-023 this skipped
     // ALL checks for branch ops, which let wrong-shape harvest artifacts (a
@@ -287,8 +332,15 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
     let is_branch = BRANCH_OPS.iter().any(|&o| insn.opcode == o);
     // Raw-address LDG/STG bypass the field system entirely (full lo64 rebuild).
     if (insn.opcode == "LDG" || insn.opcode == "STG")
-        && insn.operands.iter().any(|op| matches!(op, Operand::Addr { .. }))
-        && !insn.operands.iter().any(|op| matches!(op, Operand::Desc { .. })) {
+        && insn
+            .operands
+            .iter()
+            .any(|op| matches!(op, Operand::Addr { .. }))
+        && !insn
+            .operands
+            .iter()
+            .any(|op| matches!(op, Operand::Desc { .. }))
+    {
         // BUG-099/095: uniform-indexed GLOBAL addresses ([Rn.U32+URm..] vs
         // [Rn.64+URm..]) differ in a REAL encoding mode (bits [92:90]); rows
         // for both textual forms sit under the same key+mg, so the bracket
@@ -296,13 +348,20 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
         // match the textual suffix — pre-fix the ".64" text silently encoded
         // the ".U32" mode word. Runs BEFORE the raw-address Ok bypass: LOUD
         // rejection here steers the lookup chain to the sibling row.
-        if let Some(Operand::Addr { ur_reg: Some(_), base_reg_suffix: Some(sfx), .. }) =
-            insn.operands.iter().find(|op| matches!(op, Operand::Addr { .. }))
+        if let Some(Operand::Addr {
+            ur_reg: Some(_),
+            base_reg_suffix: Some(sfx),
+            ..
+        }) = insn
+            .operands
+            .iter()
+            .find(|op| matches!(op, Operand::Addr { .. }))
         {
             if let Some(w) = entry.addr_width.as_deref() {
                 if matches!(sfx.as_str(), "U32" | "64") && sfx.as_str() != w {
                     return Err(format!(
-                        "addr width .{sfx} (row pins .{w}; pick the sibling row)"));
+                        "addr width .{sfx} (row pins .{w}; pick the sibling row)"
+                    ));
                 }
             }
         }
@@ -311,53 +370,87 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
 
     // 1. Type check (non-branch ops only, see above)
     if !is_branch {
-    for field in &entry.fields {
-        if let Some(op) = get_op(insn, field.token_idx) {
-            if !extraction_accepts(&field.extraction, op) {
-                return Err(format!(
-                    "field (shift={} ext={:?}) expects a different operand kind than \
+        for field in &entry.fields {
+            if let Some(op) = get_op(insn, field.token_idx) {
+                if !extraction_accepts(&field.extraction, op) {
+                    return Err(format!(
+                        "field (shift={} ext={:?}) expects a different operand kind than \
                      operand {} ({})",
-                    field.shift, field.extraction, field.token_idx,
-                    crate::parser::operand_type_label_pub(op)));
+                        field.shift,
+                        field.extraction,
+                        field.token_idx,
+                        crate::parser::operand_type_label_pub(op)
+                    ));
+                }
             }
         }
     }
-    }
 
     // 2. Completeness check
-    let is_mem_load = matches!(insn.opcode.as_str(),
-        "LDG" | "LDL" | "LDS" | "LDC" | "LDCU" | "ATOM" | "ATOMS" | "ATOMG" |
-        "RED" | "REDG" | "LDSM" | "LDGSTS" | "LD" | "LDGX");
+    let is_mem_load = matches!(
+        insn.opcode.as_str(),
+        "LDG"
+            | "LDL"
+            | "LDS"
+            | "LDC"
+            | "LDCU"
+            | "ATOM"
+            | "ATOMS"
+            | "ATOMG"
+            | "RED"
+            | "REDG"
+            | "LDSM"
+            | "LDGSTS"
+            | "LD"
+            | "LDGX"
+    );
     for (oi, op) in insn.operands.iter().enumerate() {
         let tok = (oi + 1) as i32;
         let fields_for_tok = || entry.fields.iter().filter(move |f| f.token_idx == tok);
-        let missing = |what: &str| Err(format!(
-            "operand {tok} ({what}) has no field able to encode it"));
+        let missing = |what: &str| {
+            Err(format!(
+                "operand {tok} ({what}) has no field able to encode it"
+            ))
+        };
         match op {
             // BUG-023: operands owned by apply_branch_encoding are exempt from
             // field-carry requirements (their bits come from the fixup).
-            Operand::Imm32(_) | Operand::Imm64(_) | Operand::Label(_)
-                if is_branch => continue,
+            Operand::Imm32(_) | Operand::Imm64(_) | Operand::Label(_) if is_branch => continue,
             Operand::Reg { .. } if is_branch && insn.opcode.starts_with("RET") => continue,
-            Operand::UPred { .. } if is_branch
-                && (insn.opcode == "BRA" || insn.opcode == "BRA.U") => continue,
+            Operand::UPred { .. }
+                if is_branch && (insn.opcode == "BRA" || insn.opcode == "BRA.U") =>
+            {
+                continue
+            }
             Operand::Reg { num, .. } if *num != 255 => {
                 // Memory-load destination (operand 1) is placed at bits[23:16] by the
                 // encoder fixup even when the entry lacks the field.
-                if is_mem_load && oi == 0 { continue; }
+                if is_mem_load && oi == 0 {
+                    continue;
+                }
                 if !fields_for_tok().any(|f| ext_encodes_reg(&f.extraction)) {
                     return missing(&format!("R{num}"));
                 }
             }
-            Operand::UReg { num, is_zero: false, .. } => {
+            Operand::UReg {
+                num,
+                is_zero: false,
+                ..
+            } => {
                 if !fields_for_tok().any(|f| ext_encodes_ureg(&f.extraction)) {
                     return missing(&format!("UR{num}"));
                 }
             }
             Operand::Pred { num, .. } | Operand::UPred { num, .. } if *num != 7 => {
-                if !fields_for_tok().any(|f| matches!(f.extraction,
-                    Extraction::Pred | Extraction::UPred | Extraction::UPredGate
-                    | Extraction::PredInv4)) {
+                if !fields_for_tok().any(|f| {
+                    matches!(
+                        f.extraction,
+                        Extraction::Pred
+                            | Extraction::UPred
+                            | Extraction::UPredGate
+                            | Extraction::PredInv4
+                    )
+                }) {
                     return missing(&format!("P{num}"));
                 }
             }
@@ -372,8 +465,10 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
                 }
             }
             Operand::FloatImm(bits) if *bits != 0 => {
-                if !fields_for_tok().any(|f| ext_encodes_imm(&f.extraction)
-                    || matches!(f.extraction, Extraction::F16 | Extraction::F16d)) {
+                if !fields_for_tok().any(|f| {
+                    ext_encodes_imm(&f.extraction)
+                        || matches!(f.extraction, Extraction::F16 | Extraction::F16d)
+                }) {
                     return missing("float imm");
                 }
             }
@@ -383,9 +478,16 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
                 let id = sysreg_id(name).ok_or_else(|| format!(
                     "unknown sysreg {name:?} for this arch (encode the raw code                      as SR_0x<hex> if intentional)"))?;
                 if id != 0
-                    && !fields_for_tok().any(|f| matches!(f.extraction,
-                        Extraction::SysReg | Extraction::SysRegLo7 | Extraction::SysRegLo4
-                        | Extraction::SysRegHi4 | Extraction::SysRegHi1))
+                    && !fields_for_tok().any(|f| {
+                        matches!(
+                            f.extraction,
+                            Extraction::SysReg
+                                | Extraction::SysRegLo7
+                                | Extraction::SysRegLo4
+                                | Extraction::SysRegHi4
+                                | Extraction::SysRegHi1
+                        )
+                    })
                 {
                     return missing(name);
                 }
@@ -395,19 +497,28 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
                     return missing(&format!("B{b}"));
                 }
             }
-            Operand::Addr { ur_reg, offset, base_reg_suffix, .. } => {
+            Operand::Addr {
+                ur_reg,
+                offset,
+                base_reg_suffix,
+                ..
+            } => {
                 // base_reg is placed at bits[31:24] by the encoder fixup when the
                 // entry lacks the field, so it is always encodable.
                 // BUG-099/095: same width-pin rule as the raw-address fast path
                 // above, for LDG/STG forms WITH desc or non-global Addr users.
-                if let (Some(sfx), Some(w)) = (base_reg_suffix.as_deref(), entry.addr_width.as_deref()) {
+                if let (Some(sfx), Some(w)) =
+                    (base_reg_suffix.as_deref(), entry.addr_width.as_deref())
+                {
                     if ur_reg.is_some() && matches!(sfx, "U32" | "64") && sfx != w {
                         return missing(&format!(
-                            "addr width .{sfx} (row pins .{w}; pick the sibling row)"));
+                            "addr width .{sfx} (row pins .{w}; pick the sibling row)"
+                        ));
                     }
                 }
                 if ur_reg.is_some_and(|u| u != 63)
-                    && !fields_for_tok().any(|f| ext_encodes_ureg(&f.extraction)) {
+                    && !fields_for_tok().any(|f| ext_encodes_ureg(&f.extraction))
+                {
                     // BUG-179: a URZ payload is honestly encodable on a row
                     // that BAKES the uniform sink window of this address —
                     // the emitted word carries URZ by construction (vendor
@@ -426,39 +537,52 @@ fn entry_matches_operands(insn: &Instruction, entry: &crate::table::ModGroupEntr
                 // would DROP it silently — refuse instead of miss-encoding.
                 if let Some(sfx) = base_reg_suffix.as_deref() {
                     if matches!(sfx, "X4" | "X8" | "X16")
-                        && !fields_for_tok().any(|f| matches!(f.extraction,
-                            Extraction::AddrScale)) {
+                        && !fields_for_tok().any(|f| matches!(f.extraction, Extraction::AddrScale))
+                    {
                         return missing(&format!("addr scale suffix .{sfx}"));
                     }
                 }
             }
-            Operand::Desc { base_reg, offset, .. } => {
+            Operand::Desc {
+                base_reg, offset, ..
+            } => {
                 // ur_idx defaults via op_ureg/op_sub_ureg; base_reg via the Addr-style
                 // fixup does NOT apply to Desc, so require fields for the varying parts.
                 if base_reg.is_some_and(|r| r != 255)
-                    && !fields_for_tok().any(|f| ext_encodes_reg(&f.extraction)) {
+                    && !fields_for_tok().any(|f| ext_encodes_reg(&f.extraction))
+                {
                     return missing("desc base reg");
                 }
                 if *offset != 0 && !fields_for_tok().any(|f| ext_encodes_imm(&f.extraction)) {
                     return missing(&format!("desc offset 0x{offset:x}"));
                 }
             }
-            Operand::ConstMem { bank, offset, base_reg, ur_reg, .. } => {
-                let has_cm = |f: &&Field| matches!(f.extraction,
-                    Extraction::Cm16Off | Extraction::Cm17Off);
-                if *bank != 0 && !fields_for_tok().any(|f| has_cm(&f)
-                    || matches!(f.extraction, Extraction::SubImm(0))) {
+            Operand::ConstMem {
+                bank,
+                offset,
+                base_reg,
+                ur_reg,
+                ..
+            } => {
+                let has_cm =
+                    |f: &&Field| matches!(f.extraction, Extraction::Cm16Off | Extraction::Cm17Off);
+                if *bank != 0
+                    && !fields_for_tok()
+                        .any(|f| has_cm(&f) || matches!(f.extraction, Extraction::SubImm(0)))
+                {
                     return missing(&format!("c[0x{bank:x}] bank"));
                 }
                 if *offset != 0 && !fields_for_tok().any(|f| ext_encodes_imm(&f.extraction)) {
                     return missing(&format!("c[][0x{offset:x}] offset"));
                 }
                 if base_reg.is_some_and(|r| r != 255)
-                    && !fields_for_tok().any(|f| ext_encodes_reg(&f.extraction)) {
+                    && !fields_for_tok().any(|f| ext_encodes_reg(&f.extraction))
+                {
                     return missing("constmem base reg");
                 }
                 if ur_reg.is_some_and(|u| u != 63)
-                    && !fields_for_tok().any(|f| ext_encodes_ureg(&f.extraction)) {
+                    && !fields_for_tok().any(|f| ext_encodes_ureg(&f.extraction))
+                {
                     return missing("constmem UR");
                 }
             }
@@ -494,15 +618,16 @@ fn check_pred_literal_errata(insn: &Instruction) -> Result<()> {
     for m in RE.find_iter(&insn.raw_text) {
         // Left boundary: start / whitespace / ',' / '@' / '!'. Right boundary:
         // whitespace / ',' / ';' / ']' / ')' / '+' / end.
-        let left_ok = m.start() == 0
-            || matches!(bytes[m.start() - 1], b' ' | b'\t' | b',' | b'@' | b'!');
-        let right_ok = m.end() == insn.raw_text.len()
-            || !is_ident(bytes[m.end()]);
+        let left_ok =
+            m.start() == 0 || matches!(bytes[m.start() - 1], b' ' | b'\t' | b',' | b'@' | b'!');
+        let right_ok = m.end() == insn.raw_text.len() || !is_ident(bytes[m.end()]);
         if !left_ok || !right_ok {
             continue;
         }
-        let digits_start = insn.raw_text[m.start()..].find(|c: char| c.is_ascii_digit())
-            .map(|i| i + m.start()).unwrap_or(m.end());
+        let digits_start = insn.raw_text[m.start()..]
+            .find(|c: char| c.is_ascii_digit())
+            .map(|i| i + m.start())
+            .unwrap_or(m.end());
         let n: u32 = insn.raw_text[digits_start..m.end()].parse().unwrap_or(0);
         if n >= 7 {
             let tok = insn.raw_text[m.start()..m.end()].trim_start_matches('!');
@@ -575,7 +700,10 @@ fn imad_wide_implicit_cpair(insn: &Instruction, table: &IsaTable) -> bool {
     if table.target_sm() != 120 {
         return false;
     }
-    if matches!(insn.operands.get(1), Some(Operand::Pred { .. } | Operand::UPred { .. })) {
+    if matches!(
+        insn.operands.get(1),
+        Some(Operand::Pred { .. } | Operand::UPred { .. })
+    ) {
         return false;
     }
     let n = insn.operands.len();
@@ -583,7 +711,11 @@ fn imad_wide_implicit_cpair(insn: &Instruction, table: &IsaTable) -> bool {
         return false;
     }
     let has_x = insn.modifiers.iter().any(|m| m == ".X");
-    let c_idx = if has_x && matches!(insn.operands.last(), Some(Operand::Pred { .. } | Operand::UPred { .. })) {
+    let c_idx = if has_x
+        && matches!(
+            insn.operands.last(),
+            Some(Operand::Pred { .. } | Operand::UPred { .. })
+        ) {
         n - 2
     } else {
         n - 1
@@ -621,10 +753,10 @@ fn verify_mod_group_retained(
     })?;
     let back_text = crate::printer::to_sass(&decoded);
     let claimed_mg = crate::table::extract_mod_group(&back_text);
-    let claimed: std::collections::BTreeSet<&str> = claimed_mg.split(',')
-        .filter(|m| !m.is_empty())
-        .collect();
-    let mut missing: Vec<&str> = requested_mg.split(',')
+    let claimed: std::collections::BTreeSet<&str> =
+        claimed_mg.split(',').filter(|m| !m.is_empty()).collect();
+    let mut missing: Vec<&str> = requested_mg
+        .split(',')
         .filter(|m| !m.is_empty() && !claimed.contains(*m))
         .collect();
     missing.sort_unstable();
@@ -652,9 +784,7 @@ fn verify_mod_group_retained(
     //   campaign's "LDC.128 unconstrained" conclusion is vacuous: those
     //   probes executed width-dropped 32-bit LDC words. Authoring guidance:
     //   use 2x LDC.64 — there is no R-domain 128-bit constant load.
-    const MOD_DROP_TOLERATED: &[(&str, &[&str])] = &[
-        ("F2FP", &["PACK_AB_MERGE_C"]),
-    ];
+    const MOD_DROP_TOLERATED: &[(&str, &[&str])] = &[("F2FP", &["PACK_AB_MERGE_C"])];
     for &(op, mods) in MOD_DROP_TOLERATED {
         if insn.opcode == op && missing.iter().all(|m| mods.contains(m)) {
             return Ok(());
@@ -685,8 +815,10 @@ fn check_pred_neg_encoded(insn: &Instruction, table: &IsaTable, out: u128) -> Re
         return Ok(());
     }
     for (i, op) in insn.operands.iter().enumerate() {
-        let negated = matches!(op,
-            Operand::Pred { neg: true, .. } | Operand::UPred { neg: true, .. });
+        let negated = matches!(
+            op,
+            Operand::Pred { neg: true, .. } | Operand::UPred { neg: true, .. }
+        );
         if !negated {
             continue;
         }
@@ -707,7 +839,6 @@ fn check_pred_neg_encoded(insn: &Instruction, table: &IsaTable, out: u128) -> Re
     }
     Ok(())
 }
-
 
 /// BUG-037: warp-level MMA register-operand alignment. Multi-register MMA
 /// operands must be aligned to their register-tuple width; silicon runs
@@ -735,8 +866,11 @@ fn check_mma_reg_alignment(insn: &Instruction) -> Result<()> {
     let (d4, a4, b2, c4) = match insn.opcode.as_str() {
         "IMMA" if has_mod(".16832") => (true, true, true, true),
         "QMMA" if has_mod(".16832") && has_mod(".F32") => (true, true, true, true),
-        "HMMA" if (has_mod(".16816") || has_mod(".1688")) && has_mod(".F32")
-            && !has_mod(".BF16") && !has_mod(".TF32") =>
+        "HMMA"
+            if (has_mod(".16816") || has_mod(".1688"))
+                && has_mod(".F32")
+                && !has_mod(".BF16")
+                && !has_mod(".TF32") =>
         {
             // 1688 measured with a SINGLE-reg B (odd B legal); 16816 B is a pair.
             (true, true, has_mod(".16816"), true)
@@ -795,8 +929,10 @@ fn check_mma_reg_alignment(insn: &Instruction) -> Result<()> {
 /// offset) encodes unchanged. Structural skip: a future row that genuinely
 /// owns an idesc_ur/idesc_off LblPat field is exempt by construction.
 fn check_idesc_derived(insn: &Instruction, entry: &crate::table::ModGroupEntry) -> Result<()> {
-    let owns_idesc = entry.fields.iter().any(|f| matches!(&f.extraction,
-        Extraction::LblPat(p) if p == "idesc_ur" || p == "idesc_off"));
+    let owns_idesc = entry.fields.iter().any(|f| {
+        matches!(&f.extraction,
+        Extraction::LblPat(p) if p == "idesc_ur" || p == "idesc_off")
+    });
     if owns_idesc {
         return Ok(());
     }
@@ -806,9 +942,14 @@ fn check_idesc_derived(insn: &Instruction, entry: &crate::table::ModGroupEntry) 
             Some((a, b)) => (a, Some(b)),
             None => (body, None),
         };
-        let n = if num_s == "Z" { 255 } else { num_s.parse::<u64>().ok()? };
+        let n = if num_s == "Z" {
+            255
+        } else {
+            num_s.parse::<u64>().ok()?
+        };
         let off = match off_s {
-            Some(o) => o.strip_prefix("0x")
+            Some(o) => o
+                .strip_prefix("0x")
                 .and_then(|h| u64::from_str_radix(h, 16).ok())
                 .or_else(|| o.parse::<u64>().ok())?,
             None => 0,
@@ -823,13 +964,20 @@ fn check_idesc_derived(insn: &Instruction, entry: &crate::table::ModGroupEntry) 
             }
         }
     }
-    let Some((pos, n, off)) = idesc else { return Ok(()); };
+    let Some((pos, n, off)) = idesc else {
+        return Ok(());
+    };
     // Derivation: idesc UR == (UR of the tmem token immediately preceding
     // idesc) + 1, mod 256 (run27 rule; URZ=255 leaf-wraps to UR0 exactly like
     // the printer's wrapping_add). Fail closed when the predecessor is not a
     // parseable tmem[UR..]: on a field-less row the value would bake silently.
-    let derived = insn.operands.get(pos.wrapping_sub(1))
-        .and_then(|op| match op { Operand::Label(s) => Some(s.as_str()), _ => None })
+    let derived = insn
+        .operands
+        .get(pos.wrapping_sub(1))
+        .and_then(|op| match op {
+            Operand::Label(s) => Some(s.as_str()),
+            _ => None,
+        })
         .and_then(|s| parse_desc_label(s, "tmem[UR"))
         // BUG-186 arb186c: the 0xff tmem sink propagates URZ to idesc
         // (idesc = tok4+1 for real URs, 0xff => URZ; the run27 (255+1)->0
@@ -842,7 +990,9 @@ fn check_idesc_derived(insn: &Instruction, entry: &crate::table::ModGroupEntry) 
              on the tcgen05 UTC*MMA rows idesc is a derived glyph == that tmem \
              UR + 1, per nvdisasm 13.3.73 arbitration 2026-08-26). Write the \
              derived value or drop the token.",
-            n, insn.opcode_full);
+            n,
+            insn.opcode_full
+        );
     };
     if off != 0 || n != exp {
         anyhow::bail!(
@@ -852,8 +1002,16 @@ fn check_idesc_derived(insn: &Instruction, entry: &crate::table::ModGroupEntry) 
              dropped (BUG-185; 1,362/1,362 hexdb anchors derived-consistent, \
              8/8 single-bit vendor probes 2026-08-26). Fix the text to \
              idesc[UR{}] (or renumber the tmem token).",
-            n, if off != 0 { format!("+0x{off:x}") } else { String::new() },
-            insn.opcode_full, exp, exp);
+            n,
+            if off != 0 {
+                format!("+0x{off:x}")
+            } else {
+                String::new()
+            },
+            insn.opcode_full,
+            exp,
+            exp
+        );
     }
     Ok(())
 }
@@ -895,7 +1053,11 @@ fn check_uplop3_lut_lattice(insn: &Instruction) -> Result<()> {
                      (BUG-168 rev BUG-030: {}{:#x} max).",
                     insn.raw_text.trim(),
                     oi + 1,
-                    if even { "shr1|shr2 8-bit even" } else { "8-bit" },
+                    if even {
+                        "shr1|shr2 8-bit even"
+                    } else {
+                        "8-bit"
+                    },
                     if even { "even, " } else { "" },
                     max,
                 );
@@ -941,8 +1103,8 @@ fn bug034_dead_write_dest_up(insn: &Instruction, table: &IsaTable) -> Option<Str
         return None;
     }
     let (idx, dead_max) = match insn.opcode.as_str() {
-        "UIADD3" => (1usize, 1u8),   // cout slot: UP0 and UP1 dead
-        "UFSETP" => (0usize, 0u8),   // dest slot: UP0 dead
+        "UIADD3" => (1usize, 1u8), // cout slot: UP0 and UP1 dead
+        "UFSETP" => (0usize, 0u8), // dest slot: UP0 dead
         _ => return None,
     };
     if let Some(Operand::UPred { num, .. }) = insn.operands.get(idx) {
@@ -979,9 +1141,7 @@ pub fn errata_warnings(insn: &Instruction, table: &IsaTable) -> Vec<String> {
     // their own data — Rd+1 == R(c+1) — equally proves correct wide execution
     // with a 64-bit c. Either way the form is treacherous; spell it out or use
     // the canonical 5-operand pout form.)
-    if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none()
-        && imad_wide_implicit_cpair(insn, table)
-    {
+    if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() && imad_wide_implicit_cpair(insn, table) {
         out.push(format!(
             "{:?} is a 4-operand IMAD.WIDE with c != RZ (BUG-008): silicon reads c \
              as the 64-bit pair (Rc, Rc+1), so the result's hi half silently \
@@ -1000,7 +1160,6 @@ pub fn errata_warnings(insn: &Instruction, table: &IsaTable) -> Vec<String> {
     }
     out
 }
-
 
 /// BUG-059 (silicon, B300/sm_103a): the consumer IMNMX opcode class
 /// (and_base 0x*817-family; era words such as
@@ -1033,13 +1192,15 @@ fn check_efl2_addr_parity_sm103(insn: &Instruction, table: &IsaTable) -> Result<
         return Ok(());
     }
     let mods = crate::table::extract_mod_group(&insn.raw_text);
-    let efl2_256 = mods.split(',').any(|m| m == "EFL2")
-        && mods.split(',').any(|m| m == "256");
+    let efl2_256 = mods.split(',').any(|m| m == "EFL2") && mods.split(',').any(|m| m == "256");
     if !efl2_256 {
         return Ok(());
     }
     for op in &insn.operands {
-        if let Operand::Desc { base_reg: Some(r), .. } = op {
+        if let Operand::Desc {
+            base_reg: Some(r), ..
+        } = op
+        {
             if r % 2 == 0 {
                 anyhow::bail!(
                     "LDG.E.NA.EFL2.256 desc-form address base R{} is EVEN -- SILICON-ILLEGAL on sm_103a                     (BUG-060; B300 krun probes 7/7: the [Rn.U32+URm] form requires an ODD Rn on sm_103a,                     even Rn traps CUDA_ERROR_ILLEGAL_INSTRUCTION; R{} likely encodes a 64-bit pair where                     only the odd upper half carries a low partner). Renumber the address register (RA pin)                     instead of assembling the era word; decode stays full-fidelity for RE."
@@ -1057,7 +1218,12 @@ fn check_efl2_addr_parity_sm103(insn: &Instruction, table: &IsaTable) -> Result<
     // sm_103a only; BUG-060 krun 7/7). Escape hatch CUBIT_DISABLE_ERRATA
     // unchanged (RE/probe byte-mapping).
     for op in &insn.operands {
-        if let Operand::Addr { base_reg: Some(r), ur_reg: Some(_), .. } = op {
+        if let Operand::Addr {
+            base_reg: Some(r),
+            ur_reg: Some(_),
+            ..
+        } = op
+        {
             if r % 2 == 0 {
                 anyhow::bail!(
                     "LDG.E.NA.EFL2.256 address base R{} is EVEN -- SILICON-ILLEGAL on sm_103a                     (BUG-060 word-level, keeper arm added F2-iter252 alongside canonical graft 099faa0:                     B300 krun probes 7/7 -- the [Rn.U32+URm] form requires an ODD Rn on sm_103a; even Rn                     traps CUDA_ERROR_ILLEGAL_INSTRUCTION; the plain and the old desc spelling assemble                     the same word). Renumber the address register (RA pin) instead of assembling the era                     word; CUBIT_DISABLE_ERRATA=1 stays available for RE tooling; decode full-fidelity."
@@ -1114,7 +1280,12 @@ fn check_stg_desc_pair_parity_sm103(insn: &Instruction, table: &IsaTable) -> Res
         return Ok(());
     }
     for op in &insn.operands {
-        if let Operand::Desc { base_reg: Some(r), base_reg_suffix: Some(sfx), .. } = op {
+        if let Operand::Desc {
+            base_reg: Some(r),
+            base_reg_suffix: Some(sfx),
+            ..
+        } = op
+        {
             if sfx == "64" && r % 2 == 1 {
                 anyhow::bail!(
                     "STG desc-form address pair R{}.64 has an ODD base -- SILICON-ILLEGAL on sm_103a                     (BUG-076; measured on B300: odd base -> CUDA_ERROR_ILLEGAL_INSTRUCTION                     before the memory stage -- deterministic for E/64/128/STRONG/ENL2 desc-pair classes,                     flaky-epochal for EF/EL.ENL2 (fail-closed: flaky counts as poison); even base                     executes. Opposite polarity to BUG-060 LDG-EFL2 (odd required there); only the                     ELL2/EFL2 L2-policy classes stay exempt (different desc addressing mode, vendor                     render [Rn.U32+URm], never trapped in silicon runs; their transactions are                     default-desc-rejected at the memory stage on sm_103a anyway). Renumber the address                     pair to an even base (RA pin) instead of assembling the odd-base word; decode                     stays full-fidelity for RE."
@@ -1160,7 +1331,12 @@ fn check_ldg_desc_pair_parity_sm103(insn: &Instruction, table: &IsaTable) -> Res
         return Ok(());
     }
     for op in &insn.operands {
-        if let Operand::Desc { base_reg: Some(r), base_reg_suffix: Some(sfx), .. } = op {
+        if let Operand::Desc {
+            base_reg: Some(r),
+            base_reg_suffix: Some(sfx),
+            ..
+        } = op
+        {
             if sfx == "64" && r % 2 == 1 {
                 anyhow::bail!(
                     "LDG desc-form address pair R{}.64 has an ODD base -- SILICON-ILLEGAL on sm_103a                     (BUG-077; measured on B300: odd base ->                     CUDA_ERROR_ILLEGAL_INSTRUCTION before the memory stage for the true-pair desc                     classes E/64/128/STRONG/EF/U16/ENL2-256; even base executes. Only LTC128B / ELL2                     classes tolerate odd, and EFL2.256 REQUIRES odd under BUG-060 -- the polarity is                     class-specific, not universal; renumber the address pair to an even base (RA pin)                     instead of assembling the odd-base word; decode stays full-fidelity for RE."
@@ -1210,7 +1386,12 @@ fn check_atom_desc_pair_parity_sm103(insn: &Instruction, table: &IsaTable) -> Re
         return Ok(());
     }
     for op in &insn.operands {
-        if let Operand::Desc { base_reg: Some(r), base_reg_suffix: Some(sfx), .. } = op {
+        if let Operand::Desc {
+            base_reg: Some(r),
+            base_reg_suffix: Some(sfx),
+            ..
+        } = op
+        {
             if sfx == "64" && r % 2 == 1 {
                 anyhow::bail!(
                     "ATOMG/REDG desc-form address pair R{}.64 has an ODD base -- SILICON-ILLEGAL on sm_103a                     (BUG-078; B300 krunp A/B 2026-08-22 with a VALID VA in the pair: odd base ->                     CUDA_ERROR_ILLEGAL_INSTRUCTION 10/10 across epochs, even base -> executes, memory                     updated exactly. NOTE the atom-path fault priority masks the trap behind                     ILLEGAL_ADDRESS when the address itself is invalid, so a garbage-address probe                     cannot discriminate -- unlike STG/LDG (BUG-076/077) where odd traps pre-memory.                     Only the .EL classes are exempt: they encode the single-32-bit-offset desc mode                     ([Rn.U32+URm]) which has no register pair at all. Renumber the address pair to                     an even base (RA pin) instead of assembling the odd-base word; decode stays                     full-fidelity for RE."
@@ -1288,7 +1469,6 @@ fn check_imnmx_sm103_erratum(insn: &Instruction, table: &IsaTable) -> Result<()>
         "IMNMX (consumer min/max with predicate outputs) is SILICON-ILLEGAL on sm_103a          (BUG-059; B300 m48 probes P1-P3: CUDA_ERROR_ILLEGAL_INSTRUCTION for the exact          era bytes, guard-forced-PT variants included; P5: pred-output VIMNMX also illegal;          ptxas emits VIMNMX.U32 for 32-bit and UISETP+USEL for 64-bit instead). The table          row is decode-only for reverse engineering; port the text (VIMNMX.U32 + explicit          ISETP predicate materialization) instead of assembling era IMNMX words."
     )
 }
-
 
 /// BUG-088 (silicon, B300/sm_103a; from the b12-full-2
 /// preflight, extended into a full probe matrix 2026-08-22): wide
@@ -1410,10 +1590,7 @@ fn fp_symbol_bits(name: &str) -> Option<u32> {
 /// (descriptor label patterns) are legitimate; tokens with an ordinary imm
 /// field degrade Label->0 — a separate legacy lane tracked as the 183-kand,
 /// deliberately out of scope here.
-fn check_label_baked_symbol(
-    insn: &Instruction,
-    entry: &crate::table::ModGroupEntry,
-) -> Result<()> {
+fn check_label_baked_symbol(insn: &Instruction, entry: &crate::table::ModGroupEntry) -> Result<()> {
     // Fidelity-probe oracle: `cubit disassemble` sets CUBIT_FIT_LINT=allow so
     // its re-encode probes can MEASURE exactly this loss and print it as
     // !rsd[..] (doctrine of the BUG-140 lint channel, main.rs "The probes
@@ -1472,7 +1649,10 @@ fn check_label_baked_symbol(
                  (BUG-178; pre-fix the encoder silently emitted the baked word and the \
                  requested constant was lost). Use the numeric hex-float form 0x{bits:08x}F \
                  (rides the FI row) or treat the constant as a table gap.",
-                insn.raw_text.trim(), insn.opcode_full, insn.key),
+                insn.raw_text.trim(),
+                insn.opcode_full,
+                insn.key
+            ),
             None => anyhow::bail!(
                 "{:?}: unresolved identifier {name:?} on operand {} of `{}` key `{}`: \
                  the winning row carries a BAKED immediate and has no imm field — encoding \
@@ -1480,7 +1660,11 @@ fn check_label_baked_symbol(
                  constants QNAN/+QNAN/-QNAN/SNAN/+SNAN/-SNAN are admitted symbolically, \
                  and only when they equal the row's baked value; numeric immediates use \
                  the 0x<8-hex>F form.",
-                insn.raw_text.trim(), idx + 1, insn.opcode_full, insn.key),
+                insn.raw_text.trim(),
+                idx + 1,
+                insn.opcode_full,
+                insn.key
+            ),
         }
     }
     Ok(())
@@ -1496,7 +1680,9 @@ pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> 
     // lenient -- the check fires only at byte production).
     // b9 phase-3 #7: WARPSYNC.COLLECTIVE carries a label operand like any
     // branch; without this the unresolved label silently encoded a 0 target.
-    static BRANCH_OPS: &[&str] = &["BRA", "BSSY", "CALL", "JMP", "RET", "BRX", "BRXU", "WARPSYNC", "LEPC"];
+    static BRANCH_OPS: &[&str] = &[
+        "BRA", "BSSY", "CALL", "JMP", "RET", "BRX", "BRXU", "WARPSYNC", "LEPC",
+    ];
     if BRANCH_OPS.contains(&insn.opcode.as_str()) {
         if let Some(bad) = insn.operands.iter().find_map(|op| match op {
             crate::ir::Operand::Label(name) => Some(name.clone()),
@@ -1511,7 +1697,61 @@ pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> 
     // above -- protects byte production; pre-fix the same surfaces silently
     // emitted the baked v=0 word).
     check_lepc_target(insn)?;
-    encode_instruction_inner(insn, table, true)
+    // BUG-454: era-frozen REDG.EL desc+PT text. The canonical graft 4ee8431
+    // replaced the fabricated x2 P_dARI rows with the vendor-true plain
+    // ARURI rows (era desc+PT was the era decoder's fabrication; vendor x4
+    // prints [Rn.U32+URm(+0xoff)], Rv -- arb454 gated x4 AGREE EVERY). The
+    // frozen chain inputs (md5 9962e535) still spell the era glyph, so map
+    // the operand shape onto the ARURI truth and let the ordinary chain
+    // resolve it -- but ONLY as a fallback after the legacy chain failed:
+    // pipeline-era tables (tb_i82p3) legitimately keep the era desc rows and
+    // must mint them on the old path. Fail-closed shape: exactly [PT sink,
+    // Desc{base}, Reg] on REDG.*.EL.* ops (non-sink preds and descriptor
+    // classes that still own dARI rows keep the legacy path and legacy
+    // errors; the fallback reports the ORIGINAL chain error on double-fail).
+    // The PT sink writes the pinch window's pinned value on the donor row
+    // (mints verified lo96-exact vs the frozen corpus words, MINT454-pack).
+    let legacy = encode_instruction_inner(insn, table, true);
+    match legacy {
+        Ok(_) => legacy,
+        Err(e1) => {
+            if insn.opcode.starts_with("REDG")
+                && insn.modifiers.iter().any(|m| m == ".EL")
+                && insn.operands.len() == 3
+            {
+                if let (
+                    crate::ir::Operand::Pred { num: 7, neg: false },
+                    crate::ir::Operand::Desc {
+                        ur_idx,
+                        base_reg: Some(base),
+                        offset,
+                        ..
+                    },
+                    crate::ir::Operand::Reg { .. },
+                ) = (
+                    &insn.operands[0],
+                    &insn.operands[1],
+                    insn.operands[2].clone(),
+                ) {
+                    let mut flat = insn.clone();
+                    flat.operands = vec![
+                        crate::ir::Operand::Addr {
+                            base_reg: Some(*base),
+                            base_reg_suffix: None,
+                            ur_reg: Some(*ur_idx),
+                            offset: *offset,
+                        },
+                        insn.operands[2].clone(),
+                    ];
+                    flat.key.clear();
+                    if let ok @ Ok(_) = encode_instruction_inner(&flat, table, true) {
+                        return ok;
+                    }
+                }
+            }
+            Err(e1)
+        }
+    }
 }
 
 /// BUG-184 (fail-closed): LEPC operand 2 is a PC-relative code address whose
@@ -1533,14 +1773,19 @@ fn check_lepc_target(insn: &Instruction) -> Result<()> {
              absolute numeric target) -- got {:?} on {} at addr 0x{:x} \
              (BUG-184: pre-fix this silently encoded the baked v=0 word; the \
              vendor law is target = pc + 0x20 + sext5(A)@24 + (sext53(B)@29)<<5)",
-            other, insn.opcode_full, insn.addr),
+            other,
+            insn.opcode_full,
+            insn.addr
+        ),
     };
     let x = t.wrapping_sub(insn.addr as i64).wrapping_sub(0x10);
     if !(-(1i64 << 57)..=(1i64 << 57) - 1).contains(&x) {
         anyhow::bail!(
             "LEPC target 0x{:x} at addr 0x{:x} is out of the encodable window \
              (target - pc - 0x10 must fit s58, BUG-184)",
-            t as u64, insn.addr);
+            t as u64,
+            insn.addr
+        );
     }
     Ok(())
 }
@@ -1593,8 +1838,10 @@ fn check_label_imm_field(insn: &Instruction, entry: &crate::table::ModGroupEntry
             }
             match &f.extraction {
                 Extraction::LblPat(_) => has_lbl = true,
-                Extraction::Imm | Extraction::ImmShr(_)
-                | Extraction::ImmDec | Extraction::ImmDecU32 => has_imm_field = true,
+                Extraction::Imm
+                | Extraction::ImmShr(_)
+                | Extraction::ImmDec
+                | Extraction::ImmDecU32 => has_imm_field = true,
                 _ => {}
             }
         }
@@ -1971,7 +2218,10 @@ fn check_operand_suffixes(insn: &Instruction, entry: &crate::table::ModGroupEntr
                             && seg[3..].chars().all(|c| c.is_ascii_digit()))))
                 || (hfma2_rform
                     && seg == "H0_NH1"
-                    && entry.fields.iter().any(|f| f.shift == 86 && f.token_idx == tok));
+                    && entry
+                        .fields
+                        .iter()
+                        .any(|f| f.shift == 86 && f.token_idx == tok));
             if !(consumed || default_notation) {
                 anyhow::bail!(
                     "unknown operand suffix .{seg} on operand {} of `{}` key `{}` \
@@ -1994,7 +2244,11 @@ fn check_operand_suffixes(insn: &Instruction, entry: &crate::table::ModGroupEntr
     Ok(())
 }
 
-fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_checks: bool) -> Result<u128> {
+fn encode_instruction_inner(
+    insn: &Instruction,
+    table: &IsaTable,
+    run_errata_checks: bool,
+) -> Result<u128> {
     // Fail-closed operand errata (parser-level admission can't error here: the
     // .sass file reader silently drops lines whose parse fails — so the encoder
     // is the last place that can refuse a bad instruction noisily).
@@ -2038,16 +2292,23 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     // left mg="U32" which does not exist for these keys, and the "" fallback
     // silently encoded the SIGNED plain row (bit73=1) — 16,866 corpus words
     // re-encoded with bit73 flipped before this fix.
-    let mov_alias = insn.opcode == "IMAD"
-        && mod_group.split(',').any(|m| m == "MOV");
+    let mov_alias = insn.opcode == "IMAD" && mod_group.split(',').any(|m| m == "MOV");
     // `MOV,U32` keeps its own mod_group (own table row); alias-shape still enforced.
-    let mov_u32 = mov_alias
-        && mod_group.split(',').any(|m| m == "U32");
+    let mov_u32 = mov_alias && mod_group.split(',').any(|m| m == "U32");
     if mov_alias {
-        let is_rz = |o: &Operand| matches!(o,
-            Operand::Reg { num: 255, neg: false, abs: false, inv: false, .. });
-        let ok = insn.operands.len() >= 3
-            && is_rz(&insn.operands[1]) && is_rz(&insn.operands[2]);
+        let is_rz = |o: &Operand| {
+            matches!(
+                o,
+                Operand::Reg {
+                    num: 255,
+                    neg: false,
+                    abs: false,
+                    inv: false,
+                    ..
+                }
+            )
+        };
+        let ok = insn.operands.len() >= 3 && is_rz(&insn.operands[1]) && is_rz(&insn.operands[2]);
         if !ok {
             anyhow::bail!(
                 "IMAD.MOV alias requires multiplier operands RZ, RZ (got: {})",
@@ -2056,7 +2317,11 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         }
     }
     let mod_group = if mov_alias && !mov_u32 {
-        mod_group.split(',').filter(|m| *m != "MOV").collect::<Vec<_>>().join(",")
+        mod_group
+            .split(',')
+            .filter(|m| *m != "MOV")
+            .collect::<Vec<_>>()
+            .join(",")
     } else {
         mod_group
     };
@@ -2067,7 +2332,68 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     // continues — a wrong-signature entry (e.g. register-form fields under an
     // immediate-form key from a bad harvest) must never silently encode garbage.
     let fk = full_key(insn);
-    let mut candidates: Vec<(String, String)> = vec![
+    // BUG-460 (encoder width-select): an address spelled `[Rn.64+URm(+off)]`
+    // asks for the 64-bit ARURI form (BUG-454 donor rows `..._ARURI64_R`;
+    // vendor law b90: `.64` iff b90=1, arb454 x4 AGREE). operand_type_label
+    // is suffix-blind, so the primary derivation below types the same operand
+    // `_ARURI_R` — pre-fix every `.64` text minted the U32-shape word (b90=0)
+    // with a silent .64 -> .U32 render drift on roundtrip (triage460: 20/20
+    // x4 legs), and `[RZ.64+URx]` slid past the BUG-452 claim_forbid refuse
+    // (it sits on the ARURI64 rows — this is the guard's full encode-side
+    // reach the 452 arm deferred to this fix). ARURI64-shaped candidates go
+    // at HIGHEST priority; the plain `_ARURI` chain below stays as the
+    // fallback for legs/ops without ARURI64 rows. The fit itself stays
+    // fail-closed (entry_matches_operands); the 454-era desc+PT flattening
+    // is untouched (suffix-None operand).
+    let mut candidates: Vec<(String, String)> = Vec::new();
+    // BUG-461 (mint-side policy, kontynuacja BUG-452): adres '.64' ARURI
+    // (wiersze ARURI64) z baza R255/RZ dekoduje sie vendorem jako
+    // zdegradowany glif '[???255.64+UR..]' (triage461: nvdisasm 13.3.73
+    // era-gated x4 AGREE EVERY) -- forma nie-mintowalna. Data-side 461
+    // zdjelo claim_forbid z wierszy ARURI64 (decode idzie teraz w glif,
+    // text-parity), wiec refuse mint-side przenosi sie tutaj, PRZED
+    // jakimkolwiek lookupiem kandydatow (w tym przed fallbackiem U32:
+    // tekst z jawnym suffiksem '.64' nigdy nie moze mintowac slowa b90=0).
+    if insn.operands.iter().any(|op| {
+        matches!(op,
+        Operand::Addr { base_reg: Some(255), ur_reg: Some(_),
+                        base_reg_suffix: Some(sfx), .. } if sfx == "64")
+    }) {
+        anyhow::bail!(
+            "encode error at {}: .64 ARURI address with base R255/RZ is claim-forbidden (BUG-461 mint-side: vendor renders the word as the degenerate glyph '[???255.64+..]'; refuse kontynuuje BUG-452 narrowing)",
+            insn.raw_text
+        );
+    }
+    if insn.operands.iter().any(|op| {
+        matches!(op,
+        Operand::Addr { base_reg: Some(_), ur_reg: Some(_),
+                        base_reg_suffix: Some(sfx), .. } if sfx == "64")
+    }) {
+        let sig64: String = insn
+            .operands
+            .iter()
+            .map(|op| match op {
+                Operand::Addr {
+                    base_reg: Some(_),
+                    ur_reg: Some(_),
+                    base_reg_suffix: Some(sfx),
+                    ..
+                } if sfx == "64" => "_ARURI64".to_string(),
+                _ => format!("_{}", crate::parser::operand_type_label_pub(op)),
+            })
+            .collect();
+        let clean_opcode: String = insn
+            .opcode_full
+            .split('.')
+            .filter(|p| !p.is_empty() && !p.starts_with('?'))
+            .collect::<Vec<_>>()
+            .join(".");
+        candidates.push((format!("{clean_opcode}{sig64}"), mod_group.clone()));
+        candidates.push((format!("{}{sig64}", insn.opcode), mod_group.clone()));
+        candidates.push((format!("{clean_opcode}{sig64}"), String::new()));
+        candidates.push((format!("{}{sig64}", insn.opcode), String::new()));
+    }
+    candidates.extend([
         (fk.clone(), mod_group.clone()),
         (insn.key.clone(), mod_group.clone()),
         (fk.clone(), String::new()),
@@ -2076,7 +2402,7 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         // 2026-08-05: (IMAD_R_R_R_UR, "U32") REJ by kind, (fk,"") absent).
         (insn.key.clone(), String::new()),
         (format!("{fk}_?"), String::new()),
-    ];
+    ]);
     // cuobjdump prints SM120 LDGSTS.128 as `LDGSTS.E.128`, while the harvested
     // table records the same encoding under the more explicit cache-policy group.
     if insn.opcode == "LDGSTS" && mod_group == "128,E" {
@@ -2088,17 +2414,24 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     // that spells the zero tail out (`..., 0x0, 0x0`), try collapsed-sig
     // candidates after the exact forms. entry_matches_operands still
     // fail-closes on a nonzero trailing immediate.
-    let n_drop = insn.operands.iter().rev()
+    let n_drop = insn
+        .operands
+        .iter()
+        .rev()
         .take_while(|o| matches!(o, Operand::Imm32(0) | Operand::Imm64(0)))
         .count();
     if n_drop > 0 && n_drop < insn.operands.len() {
-        let clean_opcode: String = insn.opcode_full.split('.')
+        let clean_opcode: String = insn
+            .opcode_full
+            .split('.')
             .filter(|part| !part.is_empty() && !part.starts_with('?'))
-            .collect::<Vec<_>>().join(".");
+            .collect::<Vec<_>>()
+            .join(".");
         // Try every collapse level (drop 1, 2, ...): text like `..., 0x0, 0x0`
         // must first try the harvested single-imm sig before shorter forms.
         for d in 1..=n_drop {
-            let sig: String = insn.operands[..insn.operands.len() - d].iter()
+            let sig: String = insn.operands[..insn.operands.len() - d]
+                .iter()
                 .map(|op| format!("_{}", crate::parser::operand_type_label_pub(op)))
                 .collect();
             let fk_c = format!("{clean_opcode}{sig}");
@@ -2116,16 +2449,31 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     // candidates as a last resort; entry_matches_operands validates the sink
     // structurally per winning entry (urz_sink_baked) and stays fail-closed
     // for real-UR payloads.
-    if insn.operands.iter().any(|op| matches!(op,
-        Operand::Addr { ur_reg: Some(255), .. }))
-    {
-        let ari_sig: String = insn.operands.iter().map(|op| match op {
-            Operand::Addr { ur_reg: Some(255), .. } => "_ARI".to_string(),
-            _ => format!("_{}", crate::parser::operand_type_label_pub(op)),
-        }).collect();
-        let clean_opcode: String = insn.opcode_full.split('.')
+    if insn.operands.iter().any(|op| {
+        matches!(
+            op,
+            Operand::Addr {
+                ur_reg: Some(255),
+                ..
+            }
+        )
+    }) {
+        let ari_sig: String = insn
+            .operands
+            .iter()
+            .map(|op| match op {
+                Operand::Addr {
+                    ur_reg: Some(255), ..
+                } => "_ARI".to_string(),
+                _ => format!("_{}", crate::parser::operand_type_label_pub(op)),
+            })
+            .collect();
+        let clean_opcode: String = insn
+            .opcode_full
+            .split('.')
             .filter(|p| !p.is_empty() && !p.starts_with('?'))
-            .collect::<Vec<_>>().join(".");
+            .collect::<Vec<_>>()
+            .join(".");
         let fk_ari = format!("{clean_opcode}{ari_sig}");
         let k_ari = format!("{}{}", insn.opcode, ari_sig);
         candidates.push((fk_ari, mod_group.clone()));
@@ -2138,16 +2486,34 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     // candidates so text mints encode on every leg; entry_matches_operands
     // keeps the fit fail-closed (SubUR only accepts ConstMem, Cm16/17Off
     // likewise).
-    if insn.operands.iter().any(|op| matches!(op,
-        Operand::ConstMem { ur_reg: Some(_), base_reg: None, .. }))
-    {
-        let cai_sig: String = insn.operands.iter().map(|op| match op {
-            Operand::ConstMem { ur_reg: Some(_), base_reg: None, .. } => "_cAI".to_string(),
-            _ => format!("_{}", crate::parser::operand_type_label_pub(op)),
-        }).collect();
-        let clean_opcode: String = insn.opcode_full.split('.')
+    if insn.operands.iter().any(|op| {
+        matches!(
+            op,
+            Operand::ConstMem {
+                ur_reg: Some(_),
+                base_reg: None,
+                ..
+            }
+        )
+    }) {
+        let cai_sig: String = insn
+            .operands
+            .iter()
+            .map(|op| match op {
+                Operand::ConstMem {
+                    ur_reg: Some(_),
+                    base_reg: None,
+                    ..
+                } => "_cAI".to_string(),
+                _ => format!("_{}", crate::parser::operand_type_label_pub(op)),
+            })
+            .collect();
+        let clean_opcode: String = insn
+            .opcode_full
+            .split('.')
             .filter(|p| !p.is_empty() && !p.starts_with('?'))
-            .collect::<Vec<_>>().join(".");
+            .collect::<Vec<_>>()
+            .join(".");
         let fk_cai = format!("{clean_opcode}{cai_sig}");
         let k_cai = format!("{}{}", insn.opcode, cai_sig);
         candidates.push((fk_cai.clone(), mod_group.clone()));
@@ -2165,16 +2531,68 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     // fail-closed, so this only widens acceptance where an ARURI row is
     // genuinely reachable; every legacy family keeps its former behavior
     // on explicit "[RZ.U32+URm]" text (unchanged spelling, same word).
-    if insn.operands.iter().any(|op| matches!(op,
-        Operand::Addr { ur_reg: Some(_), base_reg: None, .. }))
-    {
-        let aruri_sig: String = insn.operands.iter().map(|op| match op {
-            Operand::Addr { ur_reg: Some(_), base_reg: None, .. } => "_ARURI".to_string(),
-            _ => format!("_{}", crate::parser::operand_type_label_pub(op)),
-        }).collect();
-        let clean_opcode: String = insn.opcode_full.split('.')
+    if insn.operands.iter().any(|op| {
+        matches!(
+            op,
+            Operand::Addr {
+                ur_reg: Some(_),
+                base_reg: None,
+                ..
+            }
+        )
+    }) {
+        let clean_opcode: String = insn
+            .opcode_full
+            .split('.')
             .filter(|p| !p.is_empty() && !p.starts_with('?'))
-            .collect::<Vec<_>>().join(".");
+            .collect::<Vec<_>>()
+            .join(".");
+        // BUG-464: elided-base text '[URm(+off)]' on the plain (nNA) EFL2.256
+        // ARURI64 family (decode prints exactly this form for base==255;
+        // arb464c C1 x4 -- '[UR38]', '[URZ]', '[UR38+0x40020]') mints the
+        // .64 word (b75=1) -- najpierw `_ARURI64`, dopiero POTEM `_ARURI`
+        // jak fallback (NA rows 448 / 466-celle / 474-U32-rows). Slowa mintuja
+        // baze=255 przez op_sub_reg RZ-default; vendor x4 akceptuje je
+        // (frame {b75,b84,b91}). BUG-474: blizniaki `_ARURI` (b75=0) calej
+        // rodziny teraz istnieja w tabelach, ale obietnica mintu pre-474
+        // ('[URm]' -> slowo b75=1, 464-arm) zostaje utrzymana: `_ARURI64`
+        // zawsze wygrywa jako pierwszy, `_ARURI` = fallback-tylko (EF*L2
+        // U32 encode z tekstu elidowanego = NOENTRY-standing, jak ENCTAIL
+        // 469; explicit '[Rn.U32+URm]' mintuje wiersz `_ARURI` osobna
+        // sciezka klucza). Skutek uboczny zasiegu-scalonego: elide-mint
+        // cel 466 (LDG/STG.E.EL.ELL2.256.STRONG.GPU, x3) przechodzi z
+        // wiersza b75=0 na rownowazne slowo b75=1 (oba vendor-legal, ten
+        // sam druk po dekodzie; pins 466 = base-255 + decode-circle, stoja).
+        let aruri64_sig: String = insn
+            .operands
+            .iter()
+            .map(|op| match op {
+                Operand::Addr {
+                    ur_reg: Some(_),
+                    base_reg: None,
+                    ..
+                } => "_ARURI64".to_string(),
+                _ => format!("_{}", crate::parser::operand_type_label_pub(op)),
+            })
+            .collect();
+        let fk_a64 = format!("{clean_opcode}{aruri64_sig}");
+        let k_a64 = format!("{}{}", insn.opcode, aruri64_sig);
+        candidates.push((fk_a64.clone(), mod_group.clone()));
+        candidates.push((k_a64.clone(), mod_group.clone()));
+        candidates.push((fk_a64, String::new()));
+        candidates.push((k_a64, String::new()));
+        let aruri_sig: String = insn
+            .operands
+            .iter()
+            .map(|op| match op {
+                Operand::Addr {
+                    ur_reg: Some(_),
+                    base_reg: None,
+                    ..
+                } => "_ARURI".to_string(),
+                _ => format!("_{}", crate::parser::operand_type_label_pub(op)),
+            })
+            .collect();
         let fk_aruri = format!("{clean_opcode}{aruri_sig}");
         let k_aruri = format!("{}{}", insn.opcode, aruri_sig);
         candidates.push((fk_aruri.clone(), mod_group.clone()));
@@ -2286,9 +2704,17 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     // must fail closed instead of being silently dropped (see the gate).
     check_operand_suffixes(insn, entry)?;
     if std::env::var("CUBIT_DEBUG_LOOKUP").is_ok() {
-        eprintln!("[lookup] fk={} key={} mod_group={:?} -> fields={:?}",
-            fk, insn.key, mod_group,
-            entry.fields.iter().map(|f|(format!("{:?}",f.extraction),f.shift,f.bits,f.token_idx)).collect::<Vec<_>>());
+        eprintln!(
+            "[lookup] fk={} key={} mod_group={:?} -> fields={:?}",
+            fk,
+            insn.key,
+            mod_group,
+            entry
+                .fields
+                .iter()
+                .map(|f| (format!("{:?}", f.extraction), f.shift, f.bits, f.token_idx))
+                .collect::<Vec<_>>()
+        );
     }
     // BUG-185: always-on (not CUBIT_DISABLE_ERRATA-gated) — the check compares
     // the textual idesc against its hardware-derived value on rows that have
@@ -2307,8 +2733,10 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         // smear it across [49:18]. Skip the table field; the fixup writes the
         // real payload afterwards.
         if insn.opcode == "WARPSYNC"
-            && matches!(get_op(insn, field.token_idx),
-                Some(Operand::BranchTarget(_)) | Some(Operand::Label(_)))
+            && matches!(
+                get_op(insn, field.token_idx),
+                Some(Operand::BranchTarget(_)) | Some(Operand::Label(_))
+            )
         {
             continue;
         }
@@ -2317,6 +2745,18 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         code = (code & !mask128) | ((value as u128 & field.mask as u128) << field.shift);
     }
 
+    // BUG-452: symmetric mint-side claim-forbid guard. The decoder drops
+    // claim candidates carrying these payload values (donor-first narrowing:
+    // vendor refuses or '???'-glyphs this shape, e.g. a64/desc base==255);
+    // never mint such a word. Fail closed with the guard coordinates.
+    for cf in &entry.claim_forbid {
+        if cf.rejects(code) {
+            anyhow::bail!(
+                "encode error at {}: operand payload value at bits [{}:{}) is claim-forbidden (BUG-452 narrowing: vendor-illegal/'???'-glyph shape)",
+                insn.opcode_full, cf.shift, cf.shift + cf.bits
+            );
+        }
+    }
     // BUG-140: aggregate per-operand coverage audit (TIER-2 promotion of the
     // BUG-139 soft lint). The field loop keeps the legacy masked payloads;
     // the audit fail-closes on operand bits NOTHING carries (model below).
@@ -2331,7 +2771,8 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     //   abs on Ra (operand index 1 for ALU): hi bit 9  (bit 73 overall)
     //   neg on Ra: hi bit 8  (bit 72 overall)
     {
-        let is_alu = !matches!(insn.opcode.as_str(),
+        let is_alu = !matches!(
+            insn.opcode.as_str(),
             "LDG" | "LDL" | "LDS" | "LDC" | "LDCU" | "STG" | "STL" | "STS" |
             "ATOM" | "RED" | "BRA" | "BSSY" | "BSYNC" | "EXIT" | "RET" |
             "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "QMMA" |
@@ -2421,15 +2862,25 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         if is_alu {
             // Find Ra (typically operand index 1) and Rb (operand index 2)
             // For most ALU: op0=Rd, op1=Ra, op2=Rb
-            let skip_preds = insn.operands.iter()
+            let skip_preds = insn
+                .operands
+                .iter()
                 .take_while(|o| matches!(o, Operand::Pred { .. } | Operand::UPred { .. }))
                 .count();
             // For standard ALU: [Rd, Ra, Rb, ...] — Rd is a Reg, so ra/rb follow it.
             // For predicate-dest instructions (DSETP, FSETP, ISETP): [P, P, Ra, Rb, ...]
             // — the first non-pred is Ra, not Rd.
             let has_reg_dest = matches!(insn.operands.first(), Some(Operand::Reg { .. }));
-            let ra_idx = if has_reg_dest { skip_preds + 1 } else { skip_preds };
-            let rb_idx = if has_reg_dest { skip_preds + 2 } else { skip_preds + 1 };
+            let ra_idx = if has_reg_dest {
+                skip_preds + 1
+            } else {
+                skip_preds
+            };
+            let rb_idx = if has_reg_dest {
+                skip_preds + 2
+            } else {
+                skip_preds + 1
+            };
             let ra_tok = (ra_idx + 1) as i32;
             let rb_tok = (rb_idx + 1) as i32;
 
@@ -2439,37 +2890,44 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
             // code assumes fixed positions (72/73 for Ra, 62/63 for Rb) which
             // are wrong for variants where operand indices shift (e.g. _P_ prefix).
             let has_field_neg = |tok: i32| -> bool {
-                entry.fields.iter().any(|f|
-                    f.token_idx == tok && matches!(f.extraction,
-                        Extraction::Neg | Extraction::NegShl1))
+                entry.fields.iter().any(|f| {
+                    f.token_idx == tok
+                        && matches!(f.extraction, Extraction::Neg | Extraction::NegShl1)
+                })
             };
             let has_field_abs = |tok: i32| -> bool {
-                entry.fields.iter().any(|f|
-                    f.token_idx == tok && matches!(f.extraction, Extraction::Abs))
+                entry
+                    .fields
+                    .iter()
+                    .any(|f| f.token_idx == tok && matches!(f.extraction, Extraction::Abs))
             };
 
             // abs/neg on UR source operands counts too (e.g. FFMA R8, R3, |UR16|, RZ
             // needs abs-Rb bit62 set; the earlier Reg-only match dropped it silently).
             let is_abs = |o: Option<&Operand>| -> bool {
-                matches!(o, Some(Operand::Reg { abs: true, .. })
-                         | Some(Operand::UReg { abs: true, .. }))
+                matches!(
+                    o,
+                    Some(Operand::Reg { abs: true, .. }) | Some(Operand::UReg { abs: true, .. })
+                )
             };
             let is_neg = |o: Option<&Operand>| -> bool {
-                matches!(o, Some(Operand::Reg { neg: true, .. })
-                         | Some(Operand::UReg { neg: true, .. }))
+                matches!(
+                    o,
+                    Some(Operand::Reg { neg: true, .. }) | Some(Operand::UReg { neg: true, .. })
+                )
             };
 
             if !has_field_abs(rb_tok) && is_abs(insn.operands.get(rb_idx)) {
-                code |= 1u128 << 62;  // abs Rb
+                code |= 1u128 << 62; // abs Rb
             }
             if !has_field_neg(rb_tok) && is_neg(insn.operands.get(rb_idx)) {
-                code |= 1u128 << 63;  // neg Rb
+                code |= 1u128 << 63; // neg Rb
             }
             if !has_field_abs(ra_tok) && is_abs(insn.operands.get(ra_idx)) {
-                code |= 1u128 << 73;  // abs Ra (hi bit 9)
+                code |= 1u128 << 73; // abs Ra (hi bit 9)
             }
             if !has_field_neg(ra_tok) && is_neg(insn.operands.get(ra_idx)) {
-                code |= 1u128 << 72;  // neg Ra (hi bit 8)
+                code |= 1u128 << 72; // neg Ra (hi bit 8)
             }
             // Third source (Rc slot, e.g. Ops[3] in DSETP/FFMA): abs at 74, neg at 75,
             // mirroring the Ra slot pair. Guards via has_field_* as above.
@@ -2571,37 +3029,84 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     // iter153: only UTC*MMA II-token negs + CCTL/BREAK/ELECT singles) keep
     // their row-level path.
     {
-        let is_303_armed = matches!(insn.opcode.as_str(),
-            "SYNCS" |
-            "NANOSLEEP" | "DEPBAR" | "LDGDEPBAR" | "ERRBAR" | "CGAERRBAR" |
-            "UCGABAR" | "UTCBAR" | "BPT" | "MEMBAR" | "ACQBULK" |
-            "ACQSHMINIT" | "ENDCOLLECTIVE" | "CCTL" | "YIELD" | "PREEXIT" |
-            "WARPSYNC" | "ELECT" | "MATCH" | "B2R" | "CS2R" | "CS2UR" |
-            "P2R" | "BREAK" | "BRX" | "CALL" | "BMOV" |
-            "UGETNEXTWORKID" | "UVIRTCOUNT" | "QSPC" | "RPCMOV" | "SHFL" |
-            "UBLKCP" | "UBLKPF" | "UBLKRED" | "R2P" | "R2UR" | "UP2UR" |
-            "LDTM" | "STTM" | "STAS" | "STSM" | "UTCCP" | "UTMALDG" |
-            "UTMAPF" | "UTMAREDG" | "UTMASTG" | "UTMACCTL" |
-            "UTMACMDFLUSH" | "UTCATOMSWS" | "UTCHMMA" | "UTCIMMA" |
-            "UTCQMMA" | "SULD");
+        let is_303_armed = matches!(
+            insn.opcode.as_str(),
+            "SYNCS"
+                | "NANOSLEEP"
+                | "DEPBAR"
+                | "LDGDEPBAR"
+                | "ERRBAR"
+                | "CGAERRBAR"
+                | "UCGABAR"
+                | "UTCBAR"
+                | "BPT"
+                | "MEMBAR"
+                | "ACQBULK"
+                | "ACQSHMINIT"
+                | "ENDCOLLECTIVE"
+                | "CCTL"
+                | "YIELD"
+                | "PREEXIT"
+                | "WARPSYNC"
+                | "ELECT"
+                | "MATCH"
+                | "B2R"
+                | "CS2R"
+                | "CS2UR"
+                | "P2R"
+                | "BREAK"
+                | "BRX"
+                | "CALL"
+                | "BMOV"
+                | "UGETNEXTWORKID"
+                | "UVIRTCOUNT"
+                | "QSPC"
+                | "RPCMOV"
+                | "SHFL"
+                | "UBLKCP"
+                | "UBLKPF"
+                | "UBLKRED"
+                | "R2P"
+                | "R2UR"
+                | "UP2UR"
+                | "LDTM"
+                | "STTM"
+                | "STAS"
+                | "STSM"
+                | "UTCCP"
+                | "UTMALDG"
+                | "UTMAPF"
+                | "UTMAREDG"
+                | "UTMASTG"
+                | "UTMACCTL"
+                | "UTMACMDFLUSH"
+                | "UTCATOMSWS"
+                | "UTCHMMA"
+                | "UTCIMMA"
+                | "UTCQMMA"
+                | "SULD"
+        );
         if is_303_armed {
             let field_neg = |tok: i32| -> bool {
-                entry.fields.iter().any(|f|
-                    f.token_idx == tok && matches!(f.extraction,
-                        Extraction::Neg | Extraction::NegShl1))
+                entry.fields.iter().any(|f| {
+                    f.token_idx == tok
+                        && matches!(f.extraction, Extraction::Neg | Extraction::NegShl1)
+                })
             };
             let field_abs = |tok: i32| -> bool {
-                entry.fields.iter().any(|f|
-                    f.token_idx == tok && matches!(f.extraction, Extraction::Abs))
+                entry
+                    .fields
+                    .iter()
+                    .any(|f| f.token_idx == tok && matches!(f.extraction, Extraction::Abs))
             };
             for (oi, op) in insn.operands.iter().enumerate() {
                 let (neg, abs) = match op {
-                    Operand::Reg { neg, abs, .. } | Operand::UReg { neg, abs, .. } => {
-                        (*neg, *abs)
-                    }
+                    Operand::Reg { neg, abs, .. } | Operand::UReg { neg, abs, .. } => (*neg, *abs),
                     _ => (false, false),
                 };
-                if !(neg || abs) { continue; }
+                if !(neg || abs) {
+                    continue;
+                }
                 let tok = (oi + 1) as i32;
                 if (neg && !field_neg(tok)) || (abs && !field_abs(tok)) {
                     anyhow::bail!(
@@ -2610,7 +3115,8 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
                          register operands on this base; generic sign emit \
                          excluded in mirror); refusing silent sign-drop / \
                          ghost-bit mint / cross-read for insn: {}",
-                        insn.opcode, insn.raw_text.trim()
+                        insn.opcode,
+                        insn.raw_text.trim()
                     );
                 }
             }
@@ -2718,18 +3224,19 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     // never learned the guard field and their and_base has guard=0 (from AND
     // across examples with different predicates). Force PT (7) as default.
     let has_full_guard_at_12 = entry.fields.iter().any(|f| {
-        f.shift <= 12 && (f.shift + f.bits) >= 16
-            && matches!(f.extraction, Extraction::Guard)
-    }) || (
-        entry.fields.iter().any(|f| {
-            f.shift <= 14 && (f.shift + f.bits) >= 15
-                && matches!(f.extraction, Extraction::Guard | Extraction::GuardLo3)
-        }) &&
-        entry.fields.iter().any(|f| {
-            f.shift == 15 && f.bits == 1
-                && matches!(f.extraction, Extraction::GuardNeg | Extraction::Inv | Extraction::Neg)
-        })
-    );
+        f.shift <= 12 && (f.shift + f.bits) >= 16 && matches!(f.extraction, Extraction::Guard)
+    }) || (entry.fields.iter().any(|f| {
+        f.shift <= 14
+            && (f.shift + f.bits) >= 15
+            && matches!(f.extraction, Extraction::Guard | Extraction::GuardLo3)
+    }) && entry.fields.iter().any(|f| {
+        f.shift == 15
+            && f.bits == 1
+            && matches!(
+                f.extraction,
+                Extraction::GuardNeg | Extraction::Inv | Extraction::Neg
+            )
+    }));
     if !has_full_guard_at_12 {
         let guard = guard_val(insn) as u128;
         code = (code & !(0xFu128 << 12)) | (guard << 12);
@@ -2743,16 +3250,30 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     //   [31:24] = Ra (address base register from Addr/Desc operand)
     //   [39:32] = Rs (source register for stores, or secondary reg)
     {
-        let is_mem_load = matches!(insn.opcode.as_str(),
-            "LDG" | "LDL" | "LDS" | "LDC" | "LDCU" | "ATOM" | "ATOMS" | "ATOMG" |
-            "RED" | "REDG" | "LDSM" | "LDGSTS" | "LD" | "LDGX");
+        let is_mem_load = matches!(
+            insn.opcode.as_str(),
+            "LDG"
+                | "LDL"
+                | "LDS"
+                | "LDC"
+                | "LDCU"
+                | "ATOM"
+                | "ATOMS"
+                | "ATOMG"
+                | "RED"
+                | "REDG"
+                | "LDSM"
+                | "LDGSTS"
+                | "LD"
+                | "LDGX"
+        );
 
         // Rd at shift=16: for memory loads, operand 1 = destination register
         if is_mem_load {
-            let has_rd_field = entry.fields.iter().any(|f| {
-                f.shift == 16 && f.bits >= 8
-                    && matches!(f.extraction, Extraction::Reg)
-            });
+            let has_rd_field = entry
+                .fields
+                .iter()
+                .any(|f| f.shift == 16 && f.bits >= 8 && matches!(f.extraction, Extraction::Reg));
             if !has_rd_field {
                 if let Some(Operand::Reg { num, .. }) = insn.operands.first() {
                     let mask = 0xFFu128 << 16;
@@ -2763,12 +3284,16 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
 
         // Ra at shift=24: address base register from Addr operand
         let has_addr_reg_field = entry.fields.iter().any(|f| {
-            f.shift == 24 && f.bits >= 8
+            f.shift == 24
+                && f.bits >= 8
                 && matches!(f.extraction, Extraction::Reg | Extraction::SubR(_))
         });
         if !has_addr_reg_field {
             for (oi, op) in insn.operands.iter().enumerate() {
-                if let Operand::Addr { base_reg: Some(r), .. } = op {
+                if let Operand::Addr {
+                    base_reg: Some(r), ..
+                } = op
+                {
                     let tok = (oi + 1) as i32;
                     let addr_field_covered = entry.fields.iter().any(|f| {
                         f.token_idx == tok
@@ -2785,8 +3310,12 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     }
 
     // Branch encoding (address-dependent, separate from field system)
-    code = apply_branch_encoding(insn, code, &mod_group,
-        crate::table::is_sm103a_encoding_family(table.ef_flags));
+    code = apply_branch_encoding(
+        insn,
+        code,
+        &mod_group,
+        crate::table::is_sm103a_encoding_family(table.ef_flags),
+    );
 
     // Reuse bits [124:122] (Ra/Rb/Rc register cache reuse flags)
     code = apply_reuse_encoding(insn, code, entry)?;
@@ -2812,19 +3341,29 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     // for these variants; the legacy SM120 rebuild would clobber them.
     let sm103a_derived = crate::table::is_sm103a_encoding_family(table.ef_flags);
     {
-        let uses_raw_addr = insn.operands.iter().any(|op| matches!(op, Operand::Addr { .. }));
-        let uses_desc = insn.operands.iter().any(|op| matches!(op, Operand::Desc { .. }));
+        let uses_raw_addr = insn
+            .operands
+            .iter()
+            .any(|op| matches!(op, Operand::Addr { .. }));
+        let uses_desc = insn
+            .operands
+            .iter()
+            .any(|op| matches!(op, Operand::Desc { .. }));
 
         // BUG-038: when the selected table entry actually OWNS the address
         // (a ureg field bound to the Addr token — the plain [Rn.U32+URm] form),
         // this hardcoded rebuild must not run: it has no UR slot at all and
         // overwrites the entry's mode/width dword with a desc-era template.
-        let addr_tok = insn.operands.iter()
+        let addr_tok = insn
+            .operands
+            .iter()
             .position(|op| matches!(op, Operand::Addr { .. }))
             .map(|i| i as i32 + 1);
         let entry_covers_addr_ur = addr_tok.is_some_and(|tok| {
-            entry.fields.iter().any(|f| f.token_idx == tok
-                && ext_encodes_ureg(&f.extraction))
+            entry
+                .fields
+                .iter()
+                .any(|f| f.token_idx == tok && ext_encodes_ureg(&f.extraction))
         });
         // BUG-084: post-re-canonicalization the sm120 table carries complete
         // sm103a-derived address geometry (base-register SubR + SubImm on the
@@ -2835,37 +3374,63 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
         // (2049-cubin census, 676,912 roundtrip anchors). Keep the legacy
         // template only for entries with incomplete address coverage.
         let entry_covers_addr_base_imm = addr_tok.is_some_and(|tok| {
-            entry.fields.iter().any(|f| f.token_idx == tok
-                && matches!(f.extraction,
-                    Extraction::SubR(..) | Extraction::SubRShr(..)))
-            && entry.fields.iter().any(|f| f.token_idx == tok
-                && ext_encodes_imm(&f.extraction))
+            entry.fields.iter().any(|f| {
+                f.token_idx == tok
+                    && matches!(f.extraction, Extraction::SubR(..) | Extraction::SubRShr(..))
+            }) && entry
+                .fields
+                .iter()
+                .any(|f| f.token_idx == tok && ext_encodes_imm(&f.extraction))
         });
 
-        if !sm103a_derived && uses_raw_addr && !uses_desc
-            && !entry_covers_addr_ur && !entry_covers_addr_base_imm
-            && (insn.opcode == "LDG" || insn.opcode == "STG") {
+        if !sm103a_derived
+            && uses_raw_addr
+            && !uses_desc
+            && !entry_covers_addr_ur
+            && !entry_covers_addr_base_imm
+            && (insn.opcode == "LDG" || insn.opcode == "STG")
+        {
             let is_64 = insn.opcode_full.contains(".64");
             let is_128 = insn.opcode_full.contains(".128");
             let guard = guard_val(insn) as u128;
 
-            let addr_offset = insn.operands.iter().find_map(|op| match op {
-                Operand::Addr { offset, .. } => Some(*offset),
-                _ => None,
-            }).unwrap_or(0);
-            let ra = insn.operands.iter().find_map(|op| match op {
-                Operand::Addr { base_reg: Some(r), .. } => Some(*r as u128),
-                _ => None,
-            }).unwrap_or(255);
+            let addr_offset = insn
+                .operands
+                .iter()
+                .find_map(|op| match op {
+                    Operand::Addr { offset, .. } => Some(*offset),
+                    _ => None,
+                })
+                .unwrap_or(0);
+            let ra = insn
+                .operands
+                .iter()
+                .find_map(|op| match op {
+                    Operand::Addr {
+                        base_reg: Some(r), ..
+                    } => Some(*r as u128),
+                    _ => None,
+                })
+                .unwrap_or(255);
 
             let hi_upper32 = (code >> 96) & 0xFFFFFFFF;
 
             if insn.opcode == "LDG" {
-                let hi_lo32: u128 = if is_128 { 0x0c1e1d00 } else if is_64 { 0x0c1e1b00 } else { 0x0c1e1900 };
-                let rd = insn.operands.first().and_then(|op| match op {
-                    Operand::Reg { num, .. } => Some(*num as u128),
-                    _ => None,
-                }).unwrap_or(0);
+                let hi_lo32: u128 = if is_128 {
+                    0x0c1e1d00
+                } else if is_64 {
+                    0x0c1e1b00
+                } else {
+                    0x0c1e1900
+                };
+                let rd = insn
+                    .operands
+                    .first()
+                    .and_then(|op| match op {
+                        Operand::Reg { num, .. } => Some(*num as u128),
+                        _ => None,
+                    })
+                    .unwrap_or(0);
                 code = (hi_upper32 << 96)
                     | (hi_lo32 << 64)
                     | (((addr_offset as u128) & 0xFFFFFF) << 40)
@@ -2874,11 +3439,21 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
                     | (guard << 12)
                     | 0x981u128;
             } else {
-                let hi_lo32: u128 = if is_128 { 0x0c101d00 } else if is_64 { 0x0c101b00 } else { 0x0c101900 };
-                let rs = insn.operands.iter().find_map(|op| match op {
-                    Operand::Reg { num, .. } => Some(*num as u128),
-                    _ => None,
-                }).unwrap_or(0);
+                let hi_lo32: u128 = if is_128 {
+                    0x0c101d00
+                } else if is_64 {
+                    0x0c101b00
+                } else {
+                    0x0c101900
+                };
+                let rs = insn
+                    .operands
+                    .iter()
+                    .find_map(|op| match op {
+                        Operand::Reg { num, .. } => Some(*num as u128),
+                        _ => None,
+                    })
+                    .unwrap_or(0);
                 code = (hi_upper32 << 96)
                     | (hi_lo32 << 64)
                     | (((addr_offset as u128) & 0xFFFFFF) << 40)
@@ -2940,7 +3515,8 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     // non-standard defaults that conflict with the scheduling pass.
     // Fully static instructions (EXIT, NOP, BRA) have their own base
     // values from the epoch table.
-    let epoch_upper32_static = table.epoch_upper32(&insn.key)
+    let epoch_upper32_static = table
+        .epoch_upper32(&insn.key)
         .or_else(|| {
             let fk = full_key(insn);
             table.epoch_upper32(&fk)
@@ -2951,17 +3527,15 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     let hi64 = (code >> 64) as u64;
     let current_upper32 = (hi64 >> 32) as u32;
 
-    let ctrl_class = table.ctrl_class(&insn.key)
-        .or_else(|| {
-            let fk = full_key(insn);
-            table.ctrl_class(&fk)
-        });
+    let ctrl_class = table.ctrl_class(&insn.key).or_else(|| {
+        let fk = full_key(insn);
+        table.ctrl_class(&fk)
+    });
 
     use crate::ctrl_class::CtrlClass;
     let is_fully_static = matches!(
         ctrl_class,
-        Some(CtrlClass::ExitStatic) |
-        Some(CtrlClass::CtrlFlow) | Some(CtrlClass::Barrier)
+        Some(CtrlClass::ExitStatic) | Some(CtrlClass::CtrlFlow) | Some(CtrlClass::Barrier)
     );
     let is_nop = matches!(ctrl_class, Some(CtrlClass::Nop));
 
@@ -3021,7 +3595,11 @@ fn encode_instruction_inner(insn: &Instruction, table: &IsaTable, run_errata_che
     // otherwise be lost).
     if let Some(rsd) = &insn.rsd {
         for &(bit, val) in rsd {
-            if val != 0 { out |= 1u128 << bit; } else { out &= !(1u128 << bit); }
+            if val != 0 {
+                out |= 1u128 << bit;
+            } else {
+                out &= !(1u128 << bit);
+            }
         }
     }
     // BUG-006 guard (fail-closed): a negated predicate operand whose slot
@@ -3192,7 +3770,12 @@ fn fit(insn: &Instruction, field: &Field, v: u64) -> Result<u64> {
     if v & !field.mask == 0 {
         Ok(v)
     } else {
-        Err(anyhow::anyhow!(fit_lint_msg(insn, field, v, FitLint::Unsigned)))
+        Err(anyhow::anyhow!(fit_lint_msg(
+            insn,
+            field,
+            v,
+            FitLint::Unsigned
+        )))
     }
 }
 
@@ -3213,7 +3796,11 @@ fn fit_soft(insn: &Instruction, field: &Field, v: i64, signed: bool) -> Result<u
     let lossless = (v as u64) & !field.mask == 0
         || (signed && crate::printer::sign_extend_pub(enc, field.bits) == v);
     if !lossless && fit_lint_warn_enabled() && fit_legacy_soft(&field.extraction) {
-        let kind = if signed { FitLint::Signed } else { FitLint::Unsigned };
+        let kind = if signed {
+            FitLint::Signed
+        } else {
+            FitLint::Unsigned
+        };
         eprintln!("[fit-lint] {}", fit_lint_msg(insn, field, v as u64, kind));
     }
     Ok(enc)
@@ -3246,9 +3833,7 @@ fn fit_cm_off_soft(insn: &Instruction, field: &Field, bank_shift: u8) -> Result<
         // the masked legacy payload itself lossy: value bits above the field
         // silently drop even when the offset round-trips. Refuse those too.
         let mask_misfit = payload & !field.mask != 0;
-        if (roundtrip != *offset || mask_misfit)
-            && insn.rsd.as_ref().is_none_or(|r| r.is_empty())
-        {
+        if (roundtrip != *offset || mask_misfit) && insn.rsd.as_ref().is_none_or(|r| r.is_empty()) {
             if fit_lint_warn_enabled() {
                 eprintln!(
                     "[fit-lint] {}",
@@ -3272,7 +3857,12 @@ fn fit_cm_off_soft(insn: &Instruction, field: &Field, bank_shift: u8) -> Result<
             }
         }
     }
-    fit_soft(insn, field, op_cm_off(insn, field.token_idx, bank_shift) as i64, false)
+    fit_soft(
+        insn,
+        field,
+        op_cm_off(insn, field.token_idx, bank_shift) as i64,
+        false,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -3363,7 +3953,12 @@ fn fit_legacy_soft(ext: &Extraction) -> bool {
 /// in extract_value) and the legacy-soft set above.
 fn fit_piece(tok: i32, field: &Field) -> Option<(FitDom, FitPiece)> {
     let (b, sh) = (field.bits, field.shift);
-    let pc = |norm: u32, bits: u32, signed: bool| FitPiece { norm, bits, shift: sh, signed };
+    let pc = |norm: u32, bits: u32, signed: bool| FitPiece {
+        norm,
+        bits,
+        shift: sh,
+        signed,
+    };
     let pu = |norm: u32, bits: u32| pc(norm, bits, false);
     Some(match &field.extraction {
         Extraction::Imm => (FitDom::Imm(tok), pc(0, b, true)),
@@ -3425,9 +4020,10 @@ fn fit_dom_value(insn: &Instruction, dom: &FitDom) -> u64 {
             // Mirror of the LblPat extraction's dual read (structural UR id
             // on Desc operands, raw scrape on label-shaped descriptors).
             if let Some(Operand::Desc { ur_idx, .. }) = get_op(insn, *t) {
-                if matches!(pat.as_str(),
-                    "desc_ur" | "gdesc_ur" | "idesc_ur" | "tmem_ur" | "tdesc_ur")
-                {
+                if matches!(
+                    pat.as_str(),
+                    "desc_ur" | "gdesc_ur" | "idesc_ur" | "tmem_ur" | "tdesc_ur"
+                ) {
                     return *ur_idx as u64;
                 }
             }
@@ -3439,8 +4035,12 @@ fn fit_dom_value(insn: &Instruction, dom: &FitDom) -> u64 {
 /// Natural width of the scalar (probe ceiling for the and_base leg).
 fn fit_dom_width(dom: &FitDom) -> u32 {
     match dom {
-        FitDom::Reg(_) | FitDom::RegFf(_) | FitDom::SubR(..)
-        | FitDom::UReg(_) | FitDom::URegFf(_) | FitDom::SubUR(..)
+        FitDom::Reg(_)
+        | FitDom::RegFf(_)
+        | FitDom::SubR(..)
+        | FitDom::UReg(_)
+        | FitDom::URegFf(_)
+        | FitDom::SubUR(..)
         | FitDom::SysReg(_) => 8,
         FitDom::F16Bits(_) | FitDom::F16dBits(_) | FitDom::BF16Bits(_) => 16,
         FitDom::SubImmS24(..) => 24,
@@ -3451,12 +4051,23 @@ fn fit_dom_width(dom: &FitDom) -> u32 {
 
 fn fit_dom_token(dom: &FitDom) -> i32 {
     match *dom {
-        FitDom::Imm(t) | FitDom::SubImm(t, _) | FitDom::SubImmS24(t, _)
-        | FitDom::Reg(t) | FitDom::RegFf(t) | FitDom::SubR(t, _)
-        | FitDom::UReg(t) | FitDom::URegFf(t) | FitDom::SubUR(t, _)
-        | FitDom::SysReg(t) | FitDom::F32Bits(t) | FitDom::F32CastBits(t)
-        | FitDom::F16Bits(t) | FitDom::F16dBits(t) | FitDom::F64Bits(t)
-        | FitDom::BF16Bits(t) | FitDom::LblPat(t, _) => t,
+        FitDom::Imm(t)
+        | FitDom::SubImm(t, _)
+        | FitDom::SubImmS24(t, _)
+        | FitDom::Reg(t)
+        | FitDom::RegFf(t)
+        | FitDom::SubR(t, _)
+        | FitDom::UReg(t)
+        | FitDom::URegFf(t)
+        | FitDom::SubUR(t, _)
+        | FitDom::SysReg(t)
+        | FitDom::F32Bits(t)
+        | FitDom::F32CastBits(t)
+        | FitDom::F16Bits(t)
+        | FitDom::F16dBits(t)
+        | FitDom::F64Bits(t)
+        | FitDom::BF16Bits(t)
+        | FitDom::LblPat(t, _) => t,
     }
 }
 
@@ -3474,13 +4085,14 @@ fn fit_fixup_owned(insn: &Instruction, tok: i32, ws_family: bool) -> bool {
     // sm100a (139,570 instructions of the b4 sm_100 population).
     let ws = ws_family && op == "WARPSYNC";
     if (is_branch || ws)
-        && matches!(operand, Some(Operand::BranchTarget(_)) | Some(Operand::Label(_)))
+        && matches!(
+            operand,
+            Some(Operand::BranchTarget(_)) | Some(Operand::Label(_))
+        )
     {
         return true;
     }
-    if (is_branch || ws)
-        && matches!(operand, Some(Operand::Imm32(_)) | Some(Operand::Imm64(_)))
-    {
+    if (is_branch || ws) && matches!(operand, Some(Operand::Imm32(_)) | Some(Operand::Imm64(_))) {
         return true;
     }
     if is_branch && op.starts_with("RET") && matches!(operand, Some(Operand::Reg { .. })) {
@@ -3491,24 +4103,29 @@ fn fit_fixup_owned(insn: &Instruction, tok: i32, ws_family: bool) -> bool {
 
 /// Class (d): vendor-blessed narrow carriers. `u_mask`/`top` describe the
 /// domain's field union in operand space.
-fn fit_sentinel(insn: &Instruction, dom: &FitDom, v: u64, u_mask: u128, top: u32,
-                pieces: &[FitPiece]) -> bool {
+fn fit_sentinel(
+    insn: &Instruction,
+    dom: &FitDom,
+    v: u64,
+    u_mask: u128,
+    top: u32,
+    pieces: &[FitPiece],
+) -> bool {
     match dom {
         // RZ/URZ = 0xFF: the all-ones truncation into a contiguous window is
         // the architectural narrow sentinel (witnesses: 8-bit canonical,
         // 7-bit t123-golden LDS.S8, 6-bit certified UIADD3.X drain row).
-        FitDom::Reg(_) | FitDom::RegFf(_) | FitDom::SubR(..)
-        | FitDom::UReg(_) | FitDom::URegFf(_) | FitDom::SubUR(..) => {
-            top >= 6 && u_mask == (1u128 << top) - 1 && v == 0xFF
-        }
+        FitDom::Reg(_)
+        | FitDom::RegFf(_)
+        | FitDom::SubR(..)
+        | FitDom::UReg(_)
+        | FitDom::URegFf(_)
+        | FitDom::SubUR(..) => top >= 6 && u_mask == (1u128 << top) - 1 && v == 0xFF,
         // DEPBAR.LE wait-count enum: nvdisasm renders the single-bit payload
         // 0b1 as 0x9 (decode transfer); the rt98 chain certifies the mapping
         // byte-exact x10. Exactly that one-value enum is blessed.
         FitDom::Imm(tok) if insn.opcode == "DEPBAR" && *tok == 2 => {
-            pieces.len() == 1
-                && pieces[0].norm == 0
-                && pieces[0].bits == 1
-                && v == 0x9
+            pieces.len() == 1 && pieces[0].norm == 0 && pieces[0].bits == 1 && v == 0x9
         }
         _ => false,
     }
@@ -3517,8 +4134,13 @@ fn fit_sentinel(insn: &Instruction, dom: &FitDom, v: u64, u_mask: u128, top: u32
 /// Class (b): bits outside every field, carried by and_base at a single
 /// operand->word alignment. Verified bit-exact; dormant unless a table epoch
 /// actually relies on it (pre-137 S2R bit79 was the witness shape).
-fn fit_and_base_carried(entry: &crate::table::ModGroupEntry, pieces: &[FitPiece], v: u64,
-                        u_mask: u128, width: u32) -> bool {
+fn fit_and_base_carried(
+    entry: &crate::table::ModGroupEntry,
+    pieces: &[FitPiece],
+    v: u64,
+    u_mask: u128,
+    width: u32,
+) -> bool {
     // signed domains reconstruct through the window, not via constants.
     if pieces.iter().any(|p| p.signed) {
         return false;
@@ -3569,21 +4191,25 @@ fn aggregate_fit_audit(
         .map(|i| i as i32 + 1);
     let raw_rebuild = !sm103a
         && addr_tok.is_some()
-        && !insn.operands.iter().any(|op| matches!(op, Operand::Desc { .. }))
+        && !insn
+            .operands
+            .iter()
+            .any(|op| matches!(op, Operand::Desc { .. }))
         && matches!(insn.opcode.as_str(), "LDG" | "STG")
         && !addr_tok.is_some_and(|tok| {
-            entry.fields.iter().any(|f| {
-                f.token_idx == tok && ext_encodes_ureg(&f.extraction)
-            })
+            entry
+                .fields
+                .iter()
+                .any(|f| f.token_idx == tok && ext_encodes_ureg(&f.extraction))
         })
         && !addr_tok.is_some_and(|tok| {
             entry.fields.iter().any(|f| {
                 f.token_idx == tok
-                    && matches!(f.extraction,
-                        Extraction::SubR(..) | Extraction::SubRShr(..))
-            }) && entry.fields.iter().any(|f| {
-                f.token_idx == tok && ext_encodes_imm(&f.extraction)
-            })
+                    && matches!(f.extraction, Extraction::SubR(..) | Extraction::SubRShr(..))
+            }) && entry
+                .fields
+                .iter()
+                .any(|f| f.token_idx == tok && ext_encodes_imm(&f.extraction))
         });
 
     let mut doms: BTreeMap<FitDom, Vec<FitPiece>> = BTreeMap::new();
@@ -3593,15 +4219,19 @@ fn aggregate_fit_audit(
         }
         // Mirror of the field loop's own skip (fixup-owned WARPSYNC rows).
         if insn.opcode == "WARPSYNC"
-            && matches!(get_op(insn, field.token_idx),
-                        Some(Operand::BranchTarget(_)) | Some(Operand::Label(_)))
+            && matches!(
+                get_op(insn, field.token_idx),
+                Some(Operand::BranchTarget(_)) | Some(Operand::Label(_))
+            )
         {
             continue;
         }
         if raw_rebuild && Some(field.token_idx) == addr_tok {
             continue;
         }
-        let Some((dom, piece)) = fit_piece(field.token_idx, field) else { continue };
+        let Some((dom, piece)) = fit_piece(field.token_idx, field) else {
+            continue;
+        };
         doms.entry(dom).or_default().push(piece);
     }
 
@@ -3628,8 +4258,11 @@ fn aggregate_fit_audit(
         }
         // signed leg: the value must be reconstructible from the union bits
         // below the top of the highest signed window via sign extension.
-        if let Some(t) = pieces.iter().filter(|p| p.signed)
-            .map(|p| p.norm + p.bits).max()
+        if let Some(t) = pieces
+            .iter()
+            .filter(|p| p.signed)
+            .map(|p| p.norm + p.bits)
+            .max()
         {
             if (1..=127).contains(&t) {
                 let m = (1u128 << t) - 1;
@@ -3692,8 +4325,15 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
         // Guard extractions (token 0)
         Extraction::Guard => fit(insn, field, guard_val(insn)),
         Extraction::GuardLo3 => fit(insn, field, guard_val(insn) & 7),
-        Extraction::GuardNeg => fit(insn, field,
-            if insn.guard.as_ref().is_some_and(|g| g.negated) { 1 } else { 0 }),
+        Extraction::GuardNeg => fit(
+            insn,
+            field,
+            if insn.guard.as_ref().is_some_and(|g| g.negated) {
+                1
+            } else {
+                0
+            },
+        ),
 
         // Register
         Extraction::Reg => fit_soft(insn, field, op_reg(insn, field.token_idx) as i64, false),
@@ -3709,7 +4349,9 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
             fit_soft(insn, field, op_ureg(insn, field.token_idx) as i64, false)
         }
         Extraction::RegFf => fit_soft(insn, field, op_reg_ff(insn, field.token_idx) as i64, false),
-        Extraction::URegFf => fit_soft(insn, field, op_ureg_ff(insn, field.token_idx) as i64, false),
+        Extraction::URegFf => {
+            fit_soft(insn, field, op_ureg_ff(insn, field.token_idx) as i64, false)
+        }
         Extraction::Pred | Extraction::UPred => fit(insn, field, op_pred(insn, field.token_idx)),
         // sm_121a trailing guard-pred inverted 4-bit map (q2 iter38 port):
         // PT/none -> 0, Pn -> 7-n, !PT -> 8, !Pn -> 15-n. The _ => 0 default
@@ -3719,7 +4361,11 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
             let v = match get_op(insn, field.token_idx) {
                 Some(Operand::Pred { num, neg, .. }) | Some(Operand::UPred { num, neg, .. }) => {
                     if *neg {
-                        if *num == 7 { 8 } else { 15 - *num as u64 }
+                        if *num == 7 {
+                            8
+                        } else {
+                            15 - *num as u64
+                        }
                     } else if *num == 7 {
                         0
                     } else {
@@ -3758,21 +4404,45 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
             fit_soft(insn, field, raw >> n, true)
         }
         Extraction::ImmDec => fit_soft(insn, field, op_imm_dec(insn, field.token_idx) as i64, true),
-        Extraction::ImmDecU32 => fit_soft(insn, field, (op_imm_dec(insn, field.token_idx) & 0xFFFFFFFF) as i64, false),
+        Extraction::ImmDecU32 => fit_soft(
+            insn,
+            field,
+            (op_imm_dec(insn, field.token_idx) & 0xFFFFFFFF) as i64,
+            false,
+        ),
 
         // Float
         Extraction::F32 => fit_soft(insn, field, op_f32(insn, field.token_idx) as i64, false),
-        Extraction::F16 => fit_soft(insn, field, op_f16_via_f32(insn, field.token_idx) as i64, false),
-        Extraction::F16d => fit_soft(insn, field, op_f16_via_f64(insn, field.token_idx) as i64, false),
+        Extraction::F16 => fit_soft(
+            insn,
+            field,
+            op_f16_via_f32(insn, field.token_idx) as i64,
+            false,
+        ),
+        Extraction::F16d => fit_soft(
+            insn,
+            field,
+            op_f16_via_f64(insn, field.token_idx) as i64,
+            false,
+        ),
         Extraction::F64hi => fit_soft(insn, field, op_f64hi(insn, field.token_idx) as i64, false),
 
         // Flags
         Extraction::Neg => {
             let v = op_neg(insn, field.token_idx);
-            if v == 0 { fit(insn, field, op_inv(insn, field.token_idx)) } else { fit(insn, field, v) }
+            if v == 0 {
+                fit(insn, field, op_inv(insn, field.token_idx))
+            } else {
+                fit(insn, field, v)
+            }
         }
         Extraction::NegF32 => fit(insn, field, op_neg_f32(insn, field.token_idx)),
-        Extraction::F32Cast => fit_soft(insn, field, op_f32_cast(insn, field.token_idx) as i64, false),
+        Extraction::F32Cast => fit_soft(
+            insn,
+            field,
+            op_f32_cast(insn, field.token_idx) as i64,
+            false,
+        ),
         Extraction::NegShl1 => {
             let a = op_abs(insn, field.token_idx);
             let n = op_neg(insn, field.token_idx);
@@ -3800,13 +4470,20 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
             // Double-bracket operands (Operand::Desc) carry the UR id structurally;
             // raw scraping only understands the single-bracket desc[URn] form.
             if let Some(Operand::Desc { ur_idx, .. }) = get_op(insn, field.token_idx) {
-                if matches!(pat.as_str(),
-                    "desc_ur" | "gdesc_ur" | "idesc_ur" | "tmem_ur" | "tdesc_ur") {
+                if matches!(
+                    pat.as_str(),
+                    "desc_ur" | "gdesc_ur" | "idesc_ur" | "tmem_ur" | "tdesc_ur"
+                ) {
                     return fit_soft(insn, field, *ur_idx as i64, false);
                 }
             }
-            fit_soft(insn, field, op_lbl_scrape(insn, field.token_idx, pat) as i64, false)
-        },
+            fit_soft(
+                insn,
+                field,
+                op_lbl_scrape(insn, field.token_idx, pat) as i64,
+                false,
+            )
+        }
         Extraction::AddrScale => fit(insn, field, op_addr_scale(insn, field.token_idx)),
         Extraction::UrExpl => fit(insn, field, op_urz_flag(insn, field.token_idx)),
         // 1 - flag on u64 underflows to all-ones for flag > 1, which the mask
@@ -3829,8 +4506,11 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
             // Scope = the grafted family keys only; the one pre-existing
             // (bits,shift,tok)=(2,81,3) row outside the family keeps
             // op_hsel behavior.
-            if field.bits == 2 && field.shift == 81 && field.token_idx == 3
-                && insn.opcode == "HFMA2" && crate::table::hfma2_immfam_key(&insn.key)
+            if field.bits == 2
+                && field.shift == 81
+                && field.token_idx == 3
+                && insn.opcode == "HFMA2"
+                && crate::table::hfma2_immfam_key(&insn.key)
             {
                 let t3 = op_token_text(insn, 3);
                 if t3.contains(".F32") {
@@ -3948,7 +4628,7 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
                 }
             }
             fit(insn, field, op_hsel(insn, field.token_idx))
-        },
+        }
         Extraction::H0NH1 => {
             // BUG-271: b86 '.H0_NH1' operand suffix (HFMA2 packed-f16 imm
             // family tok3 + sm121a BF16_V2 HFMA2 host). arb271 x4 models:
@@ -3966,7 +4646,9 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
             }
             fit(insn, field, 0)
         }
-        Extraction::OpModFlag(name) => fit(insn, field, op_mod_flag_value(insn, field.token_idx, name)),
+        Extraction::OpModFlag(name) => {
+            fit(insn, field, op_mod_flag_value(insn, field.token_idx, name))
+        }
         Extraction::MnemMod(i, name) => fit(insn, field, op_mnemod(insn, *i, name)),
         Extraction::BF16 => fit_soft(insn, field, op_bf16(insn, field.token_idx) as i64, false),
 
@@ -3975,18 +4657,58 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
         // Split-field slices: the Lo/Hi decomposition is the documented
         // semantics; the lint checks each slice against its own field mask
         // (a mis-sized table row now fails closed instead of aliasing).
-        Extraction::SysRegLo7 => fit_soft(insn, field, (op_sysreg(insn, field.token_idx) & 0x7F) as i64, false),
-        Extraction::SysRegLo4 => fit_soft(insn, field, (op_sysreg(insn, field.token_idx) & 0xF) as i64, false),
-        Extraction::SysRegHi4 => fit_soft(insn, field, ((op_sysreg(insn, field.token_idx) >> 4) & 0xF) as i64, false),
-        Extraction::SysRegHi1 => fit_soft(insn, field, ((op_sysreg(insn, field.token_idx) >> 7) & 1) as i64, false),
+        Extraction::SysRegLo7 => fit_soft(
+            insn,
+            field,
+            (op_sysreg(insn, field.token_idx) & 0x7F) as i64,
+            false,
+        ),
+        Extraction::SysRegLo4 => fit_soft(
+            insn,
+            field,
+            (op_sysreg(insn, field.token_idx) & 0xF) as i64,
+            false,
+        ),
+        Extraction::SysRegHi4 => fit_soft(
+            insn,
+            field,
+            ((op_sysreg(insn, field.token_idx) >> 4) & 0xF) as i64,
+            false,
+        ),
+        Extraction::SysRegHi1 => fit_soft(
+            insn,
+            field,
+            ((op_sysreg(insn, field.token_idx) >> 7) & 1) as i64,
+            false,
+        ),
 
         // Register bit-shifted (for double-precision, S64, etc.)
-        Extraction::RegShr(n) => fit_soft(insn, field, (op_reg(insn, field.token_idx) >> n) as i64, false),
-        Extraction::URegShr(n) => fit_soft(insn, field, (op_ureg(insn, field.token_idx) >> n) as i64, false),
+        Extraction::RegShr(n) => fit_soft(
+            insn,
+            field,
+            (op_reg(insn, field.token_idx) >> n) as i64,
+            false,
+        ),
+        Extraction::URegShr(n) => fit_soft(
+            insn,
+            field,
+            (op_ureg(insn, field.token_idx) >> n) as i64,
+            false,
+        ),
 
         // Address sub-parts
-        Extraction::SubR(i) => fit_soft(insn, field, op_sub_reg(insn, field.token_idx, *i) as i64, false),
-        Extraction::SubUR(i) => fit_soft(insn, field, op_sub_ureg(insn, field.token_idx, *i) as i64, false),
+        Extraction::SubR(i) => fit_soft(
+            insn,
+            field,
+            op_sub_reg(insn, field.token_idx, *i) as i64,
+            false,
+        ),
+        Extraction::SubUR(i) => fit_soft(
+            insn,
+            field,
+            op_sub_ureg(insn, field.token_idx, *i) as i64,
+            false,
+        ),
         Extraction::SubURm1(i) => {
             let v = op_sub_ureg(insn, field.token_idx, *i);
             // wrapping_sub(1) on 0 silently aliases to all-ones ("sibling UR
@@ -4018,7 +4740,10 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
             // law -- no sign to flip there); an authored !rsd overlay owns
             // the residue (BUG-140(e) doctrine).
             let is_bank = *i == 0
-                && matches!(get_op(insn, field.token_idx), Some(Operand::ConstMem { .. }));
+                && matches!(
+                    get_op(insn, field.token_idx),
+                    Some(Operand::ConstMem { .. })
+                );
             let is_rz_elided = matches!(get_op(insn, field.token_idx),
                 Some(Operand::Addr { base_reg, ur_reg: None, .. })
                     if base_reg.is_none_or(|b| b == 255));
@@ -4049,13 +4774,26 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
             if crate::printer::sign_extend_pub(raw & 0xFFFFFF, 24) != raw as i64
                 && fit_lint_warn_enabled()
             {
-                eprintln!("[fit-lint] {}", fit_lint_msg(insn, field, raw, FitLint::Signed));
+                eprintln!(
+                    "[fit-lint] {}",
+                    fit_lint_msg(insn, field, raw, FitLint::Signed)
+                );
             }
             fit_soft(insn, field, (raw & 0xFFFFFF) as i64, false)
         }
         // Address sub-parts, bit-shifted (for .64 addresses storing reg/2)
-        Extraction::SubRShr(i, n) => fit_soft(insn, field, (op_sub_reg(insn, field.token_idx, *i) >> n) as i64, false),
-        Extraction::SubURShr(i, n) => fit_soft(insn, field, (op_sub_ureg(insn, field.token_idx, *i) >> n) as i64, false),
+        Extraction::SubRShr(i, n) => fit_soft(
+            insn,
+            field,
+            (op_sub_reg(insn, field.token_idx, *i) >> n) as i64,
+            false,
+        ),
+        Extraction::SubURShr(i, n) => fit_soft(
+            insn,
+            field,
+            (op_sub_ureg(insn, field.token_idx, *i) >> n) as i64,
+            false,
+        ),
         Extraction::SubImmShr(i, n) => {
             let imm = op_sub_imm(insn, field.token_idx, *i) as i64;
             let gran = 1i64 << n;
@@ -4063,12 +4801,16 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
             // window is signed-offset, so the value must round-trip through
             // sign-extend(bits) << n and be a granule multiple.
             let shrunk = imm >> n;
-            if imm % gran != 0 || (shrunk << n) != imm
-                || crate::printer::sign_extend_pub(shrunk as u64, field.bits) != shrunk {
+            if imm % gran != 0
+                || (shrunk << n) != imm
+                || crate::printer::sign_extend_pub(shrunk as u64, field.bits) != shrunk
+            {
                 return Err(anyhow::anyhow!(
                     "operand {} offset {imm:#x} not encodable in scaled \
                      (>>{n}) signed {}-bit desc window",
-                    field.token_idx, field.bits));
+                    field.token_idx,
+                    field.bits
+                ));
             }
             Ok((shrunk as u64) & mk)
         }
@@ -4084,7 +4826,10 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
                     "operand {} offset {imm:#x} not encodable in scaled \
                      (>>{n}) unsigned {}-bit desc window (0 <= imm <= {:#x}, \
                      multiple of {gran:#x})",
-                    field.token_idx, field.bits, (mk as i64) << n));
+                    field.token_idx,
+                    field.bits,
+                    (mk as i64) << n
+                ));
             }
             Ok(((imm >> n) as u64) & mk)
         }
@@ -4102,8 +4847,7 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
         }
 
         Extraction::None => Ok(0),
-        Extraction::YieldInv => fit(insn, field,
-            if insn.ctrl.yield_flag { 0 } else { 1 }),
+        Extraction::YieldInv => fit(insn, field, if insn.ctrl.yield_flag { 0 } else { 1 }),
     }
 }
 
@@ -4124,7 +4868,11 @@ fn guard_val(insn: &Instruction) -> u64 {
 }
 
 fn get_op(insn: &Instruction, tok: i32) -> Option<&Operand> {
-    if tok <= 0 { None } else { insn.operands.get((tok - 1) as usize) }
+    if tok <= 0 {
+        None
+    } else {
+        insn.operands.get((tok - 1) as usize)
+    }
 }
 
 fn op_reg(insn: &Instruction, tok: i32) -> u64 {
@@ -4152,15 +4900,15 @@ fn op_reg_ff(insn: &Instruction, tok: i32) -> u64 {
     // reg_ff: 255 for RZ/URZ, 0 for everything else
     // (NOT the register number — that's what `reg` and `ureg` are for)
     match get_op(insn, tok) {
-        Some(Operand::Reg { num: 255, .. }) => 255,   // RZ
-        Some(Operand::UReg { is_zero: true, .. }) => 255,   // URZ
+        Some(Operand::Reg { num: 255, .. }) => 255,       // RZ
+        Some(Operand::UReg { is_zero: true, .. }) => 255, // URZ
         _ => 0,
     }
 }
 
 fn op_ureg_ff(insn: &Instruction, tok: i32) -> u64 {
     match get_op(insn, tok) {
-        Some(Operand::UReg { is_zero: true, .. }) => 255,  // URZ → 255
+        Some(Operand::UReg { is_zero: true, .. }) => 255, // URZ → 255
         Some(Operand::UReg { num, .. }) => *num as u64,
         _ => 0,
     }
@@ -4179,7 +4927,10 @@ fn op_pred(insn: &Instruction, tok: i32) -> u64 {
 /// LDS.128 `[R.X16]` = 3 at the same window.
 fn op_addr_scale(insn: &Instruction, tok: i32) -> u64 {
     match get_op(insn, tok) {
-        Some(Operand::Addr { base_reg_suffix: Some(sfx), .. }) => match sfx.as_str() {
+        Some(Operand::Addr {
+            base_reg_suffix: Some(sfx),
+            ..
+        }) => match sfx.as_str() {
             "X4" => 1,
             "X8" => 2,
             "X16" => 3,
@@ -4250,10 +5001,16 @@ fn f32_to_f16(bits: u32) -> u16 {
     let sign = (bits >> 16) & 0x8000;
     let exp = ((bits >> 23) & 0xFF) as i32;
     let frac = bits & 0x7FFFFF;
-    if exp == 0xFF { return (sign | 0x7C00 | if frac != 0 { 0x200 } else { 0 }) as u16; }
-    if exp == 0 { return sign as u16; }
+    if exp == 0xFF {
+        return (sign | 0x7C00 | if frac != 0 { 0x200 } else { 0 }) as u16;
+    }
+    if exp == 0 {
+        return sign as u16;
+    }
     let ne = exp - 127 + 15;
-    if ne >= 31 { return (sign | 0x7C00) as u16; }
+    if ne >= 31 {
+        return (sign | 0x7C00) as u16;
+    }
     if ne <= 0 {
         if ne >= -10 {
             let f = (frac | 0x800000) >> (1 - ne + 13);
@@ -4268,10 +5025,16 @@ fn f64_to_f16_direct(bits: u64) -> u16 {
     let sign = ((bits >> 48) & 0x8000) as u32;
     let exp = ((bits >> 52) & 0x7FF) as i32;
     let frac = bits & 0xFFFFFFFFFFFFF;
-    if exp == 0x7FF { return (sign | 0x7C00 | if frac != 0 { 0x200 } else { 0 }) as u16; }
-    if exp == 0 { return sign as u16; }
+    if exp == 0x7FF {
+        return (sign | 0x7C00 | if frac != 0 { 0x200 } else { 0 }) as u16;
+    }
+    if exp == 0 {
+        return sign as u16;
+    }
     let ne = exp - 1023 + 15;
-    if ne >= 31 { return (sign | 0x7C00) as u16; }
+    if ne >= 31 {
+        return (sign | 0x7C00) as u16;
+    }
     if ne <= 0 {
         if ne >= -10 {
             let f = (frac | (1u64 << 52)) >> (1 - ne + 42);
@@ -4347,22 +5110,31 @@ fn op_lbl_scrape(insn: &Instruction, tok: i32, pat: &str) -> u64 {
         // present (arb190a: `tmem[0x800]`, never `tmem[URZ+0x800]`); the
         // absolute body parses as (URZ=255, off).
         if let Some(b) = s.strip_prefix("tmem[0x").and_then(|r| r.strip_suffix(']')) {
-            return u64::from_str_radix(b, 16).ok().map(|off| (255u64, off, 2u64));
+            return u64::from_str_radix(b, 16)
+                .ok()
+                .map(|off| (255u64, off, 2u64));
         }
-        for (pfx, tag) in [("tmem[UR", 2u64), ("gdesc[UR", 1),
-                           ("idesc[UR", 3), ("desc[UR", 0)] {
-            if let Some(b) = s.strip_prefix(pfx)
-                  .and_then(|r| r.strip_suffix(']')) {
+        for (pfx, tag) in [
+            ("tmem[UR", 2u64),
+            ("gdesc[UR", 1),
+            ("idesc[UR", 3),
+            ("desc[UR", 0),
+        ] {
+            if let Some(b) = s.strip_prefix(pfx).and_then(|r| r.strip_suffix(']')) {
                 let (num_s, off_s) = match b.split_once('+') {
                     Some((a, b)) => (a, Some(b)),
                     None => (b, None),
                 };
                 // URZ alias: URZ encodes as 0xFF in the 8-bit descriptor slots
                 // (same rule as the kind-fixed scrape paths below).
-                let n = if num_s == "Z" { 255 }
-                    else { num_s.parse::<u64>().unwrap_or(0) };
+                let n = if num_s == "Z" {
+                    255
+                } else {
+                    num_s.parse::<u64>().unwrap_or(0)
+                };
                 let off = match off_s {
-                    Some(o) => o.strip_prefix("0x")
+                    Some(o) => o
+                        .strip_prefix("0x")
                         .and_then(|h| u64::from_str_radix(h, 16).ok())
                         .or_else(|| o.parse::<u64>().ok())
                         .unwrap_or(0),
@@ -4391,7 +5163,9 @@ fn op_lbl_scrape(insn: &Instruction, tok: i32, pat: &str) -> u64 {
     // BUG-190: absolute tmem form `tmem[0x<off>]` (URZ base elided, ur=255).
     if prefix == "tmem[UR" {
         if let Some(b) = s.strip_prefix("tmem[0x").and_then(|r| r.strip_suffix(']')) {
-            if !want_off { return 255; }
+            if !want_off {
+                return 255;
+            }
             return u64::from_str_radix(b, 16).unwrap_or(0);
         }
     }
@@ -4405,12 +5179,17 @@ fn op_lbl_scrape(insn: &Instruction, tok: i32, pat: &str) -> u64 {
     };
     // UTMALDG/UTMASTG single-bracket desc[URZ]: the 8-bit window at [47:40]
     // carries 0xFF for the zero uniform register (verified on the 4D bucket).
-    let n = if num_s == "Z" { 255 } else { num_s.parse::<u64>().unwrap_or(0) };
+    let n = if num_s == "Z" {
+        255
+    } else {
+        num_s.parse::<u64>().unwrap_or(0)
+    };
     if !want_off {
         return n;
     }
     match off_s {
-        Some(o) => o.strip_prefix("0x")
+        Some(o) => o
+            .strip_prefix("0x")
             .and_then(|h| u64::from_str_radix(h, 16).ok())
             .or_else(|| o.parse::<u64>().ok())
             .unwrap_or(0),
@@ -4422,23 +5201,38 @@ fn op_lbl_scrape(insn: &Instruction, tok: i32, pat: &str) -> u64 {
 /// addressing-mode toggle distinct from an omitted UR on sm_103a; STS.64
 /// corpus records flip bits 9/11/91 and put 0xFF in the UR slot).
 fn op_urz_flag(insn: &Instruction, tok: i32) -> u64 {
-    if tok <= 0 { return 0; }
+    if tok <= 0 {
+        return 0;
+    }
     let text = insn.raw_text.trim().trim_end_matches(';').trim();
     let text = regex::Regex::new(r"^@!?\w+\s+").unwrap().replace(text, "");
     let parts: Vec<&str> = text.splitn(2, char::is_whitespace).collect();
-    if parts.len() < 2 { return 0; }
+    if parts.len() < 2 {
+        return 0;
+    }
     let mut depth = 0;
     let mut cur = String::new();
     let mut tokens = Vec::new();
     for ch in parts[1].chars() {
         match ch {
-            '[' | '(' => { depth += 1; cur.push(ch); }
-            ']' | ')' => { depth -= 1; cur.push(ch); }
-            ',' if depth == 0 => { tokens.push(cur.trim().to_string()); cur.clear(); }
+            '[' | '(' => {
+                depth += 1;
+                cur.push(ch);
+            }
+            ']' | ')' => {
+                depth -= 1;
+                cur.push(ch);
+            }
+            ',' if depth == 0 => {
+                tokens.push(cur.trim().to_string());
+                cur.clear();
+            }
             _ => cur.push(ch),
         }
     }
-    if !cur.trim().is_empty() { tokens.push(cur.trim().to_string()); }
+    if !cur.trim().is_empty() {
+        tokens.push(cur.trim().to_string());
+    }
     match tokens.get((tok - 1) as usize) {
         Some(t) if t.contains("URZ") => 1,
         _ => 0,
@@ -4498,25 +5292,40 @@ fn op_abs(insn: &Instruction, tok: i32) -> u64 {
 fn op_byte_sel(insn: &Instruction, tok: i32) -> u64 {
     // .B0/.B1/.B2/.B3 suffix on register operand
     // Extract from raw_text since it's not in the Operand enum
-    if tok <= 0 { return 0; }
+    if tok <= 0 {
+        return 0;
+    }
     // Parse the tok-th operand from raw text
     let text = insn.raw_text.trim().trim_end_matches(';').trim();
     let text = regex::Regex::new(r"^@!?\w+\s+").unwrap().replace(text, "");
     let parts: Vec<&str> = text.splitn(2, char::is_whitespace).collect();
-    if parts.len() < 2 { return 0; }
+    if parts.len() < 2 {
+        return 0;
+    }
     let ops_str = parts[1];
     let mut depth = 0;
     let mut current = String::new();
     let mut tokens = Vec::new();
     for ch in ops_str.chars() {
         match ch {
-            '[' | '(' => { depth += 1; current.push(ch); }
-            ']' | ')' => { depth -= 1; current.push(ch); }
-            ',' if depth == 0 => { tokens.push(current.trim().to_string()); current.clear(); }
+            '[' | '(' => {
+                depth += 1;
+                current.push(ch);
+            }
+            ']' | ')' => {
+                depth -= 1;
+                current.push(ch);
+            }
+            ',' if depth == 0 => {
+                tokens.push(current.trim().to_string());
+                current.clear();
+            }
             _ => current.push(ch),
         }
     }
-    if !current.trim().is_empty() { tokens.push(current.trim().to_string()); }
+    if !current.trim().is_empty() {
+        tokens.push(current.trim().to_string());
+    }
     if let Some(op_text) = tokens.get((tok - 1) as usize) {
         // Look for .B0, .B1, .B2, .B3
         if let Some(caps) = regex::Regex::new(r"\.B(\d)").unwrap().captures(op_text) {
@@ -4530,50 +5339,86 @@ fn op_byte_sel(insn: &Instruction, tok: i32) -> u64 {
 /// guards handled), used by scoped encode arms that must look at operand
 /// suffixes the structured parse does not carry.
 fn op_token_text(insn: &Instruction, tok: i32) -> String {
-    if tok <= 0 { return String::new(); }
+    if tok <= 0 {
+        return String::new();
+    }
     let text = insn.raw_text.trim().trim_end_matches(';').trim();
     let text = regex::Regex::new(r"^@!?\w+\s+").unwrap().replace(text, "");
     let parts: Vec<&str> = text.splitn(2, char::is_whitespace).collect();
-    if parts.len() < 2 { return String::new(); }
+    if parts.len() < 2 {
+        return String::new();
+    }
     let mut depth = 0;
     let mut current = String::new();
     let mut tokens = Vec::new();
     for ch in parts[1].chars() {
         match ch {
-            '[' | '(' => { depth += 1; current.push(ch); }
-            ']' | ')' => { depth -= 1; current.push(ch); }
-            ',' if depth == 0 => { tokens.push(current.trim().to_string()); current.clear(); }
+            '[' | '(' => {
+                depth += 1;
+                current.push(ch);
+            }
+            ']' | ')' => {
+                depth -= 1;
+                current.push(ch);
+            }
+            ',' if depth == 0 => {
+                tokens.push(current.trim().to_string());
+                current.clear();
+            }
             _ => current.push(ch),
         }
     }
-    if !current.trim().is_empty() { tokens.push(current.trim().to_string()); }
+    if !current.trim().is_empty() {
+        tokens.push(current.trim().to_string());
+    }
     tokens.get((tok - 1) as usize).cloned().unwrap_or_default()
 }
 
 fn op_hsel(insn: &Instruction, tok: i32) -> u64 {
     // .H0_H0/.H0_H1/.H1_H1 pair-select suffix: none=0, H0_H1=1, H0_H0=2, H1_H1=3
-    if tok <= 0 { return 0; }
+    if tok <= 0 {
+        return 0;
+    }
     let text = insn.raw_text.trim().trim_end_matches(';').trim();
     let text = regex::Regex::new(r"^@!?\w+\s+").unwrap().replace(text, "");
     let parts: Vec<&str> = text.splitn(2, char::is_whitespace).collect();
-    if parts.len() < 2 { return 0; }
+    if parts.len() < 2 {
+        return 0;
+    }
     let ops_str = parts[1];
     let mut depth = 0;
     let mut current = String::new();
     let mut tokens = Vec::new();
     for ch in ops_str.chars() {
         match ch {
-            '[' | '(' => { depth += 1; current.push(ch); }
-            ']' | ')' => { depth -= 1; current.push(ch); }
-            ',' if depth == 0 => { tokens.push(current.trim().to_string()); current.clear(); }
+            '[' | '(' => {
+                depth += 1;
+                current.push(ch);
+            }
+            ']' | ')' => {
+                depth -= 1;
+                current.push(ch);
+            }
+            ',' if depth == 0 => {
+                tokens.push(current.trim().to_string());
+                current.clear();
+            }
             _ => current.push(ch),
         }
     }
-    if !current.trim().is_empty() { tokens.push(current.trim().to_string()); }
+    if !current.trim().is_empty() {
+        tokens.push(current.trim().to_string());
+    }
     if let Some(op_text) = tokens.get((tok - 1) as usize) {
-        if op_text.contains(".H0_H1") { return 1; }
-        if op_text.contains(".H0_H0") { return 2; }
-        if op_text.contains(".H1_H1") { return 3; }
+        if op_text.contains(".H0_H1") {
+            return 1;
+        }
+        if op_text.contains(".H0_H0") {
+            return 2;
+        }
+        if op_text.contains(".H1_H1") {
+            return 3;
+        }
     }
     0
 }
@@ -4582,24 +5427,39 @@ fn op_hsel(insn: &Instruction, tok: i32) -> u64 {
 /// (e.g. opmod:HI_LO for `R106.F32x2.HI_LO`). Used by sm_103a tables where
 /// operand suffixes control real encoding bits (FFMA2/HADD2 families).
 fn op_mod_flag_value(insn: &Instruction, tok: i32, name: &str) -> u64 {
-    if tok <= 0 { return 0; }
+    if tok <= 0 {
+        return 0;
+    }
     let text = insn.raw_text.trim().trim_end_matches(';').trim();
     let text = regex::Regex::new(r"^@!?\w+\s+").unwrap().replace(text, "");
     let parts: Vec<&str> = text.splitn(2, char::is_whitespace).collect();
-    if parts.len() < 2 { return 0; }
+    if parts.len() < 2 {
+        return 0;
+    }
     let ops_str = parts[1];
     let mut depth = 0;
     let mut current = String::new();
     let mut tokens = Vec::new();
     for ch in ops_str.chars() {
         match ch {
-            '[' | '(' => { depth += 1; current.push(ch); }
-            ']' | ')' => { depth -= 1; current.push(ch); }
-            ',' if depth == 0 => { tokens.push(current.trim().to_string()); current.clear(); }
+            '[' | '(' => {
+                depth += 1;
+                current.push(ch);
+            }
+            ']' | ')' => {
+                depth -= 1;
+                current.push(ch);
+            }
+            ',' if depth == 0 => {
+                tokens.push(current.trim().to_string());
+                current.clear();
+            }
             _ => current.push(ch),
         }
     }
-    if !current.trim().is_empty() { tokens.push(current.trim().to_string()); }
+    if !current.trim().is_empty() {
+        tokens.push(current.trim().to_string());
+    }
     if let Some(op_text) = tokens.get((tok - 1) as usize) {
         let needle = format!(".{name}");
         // match at a segment boundary: ".HI_LO" must end a dotted suffix
@@ -4651,9 +5511,15 @@ fn op_sub_ureg(insn: &Instruction, tok: i32, idx: u8) -> u64 {
         // sub-slot 1 for the UR: the donor ARURI rows address the UR field as
         // sub_ur1 regardless of the textual "RZ.U32+" prefix, and sub_ur0
         // stays the genuinely uniform-only shape below.
-        Some(Operand::Addr { ur_reg, .. }) if ur_reg.is_some() && idx == 1 => ur_reg.map_or(255, |r| r as u64),
+        Some(Operand::Addr { ur_reg, .. }) if ur_reg.is_some() && idx == 1 => {
+            ur_reg.map_or(255, |r| r as u64)
+        }
         // Addr[UR+off] (no base_reg): UR is sub_ur0
-        Some(Operand::Addr { base_reg: None, ur_reg, .. }) if idx == 0 => ur_reg.map_or(255, |r| r as u64),
+        Some(Operand::Addr {
+            base_reg: None,
+            ur_reg,
+            ..
+        }) if idx == 0 => ur_reg.map_or(255, |r| r as u64),
         // ConstMem c[B][UR+off]: UR is sub_ur1 (bank took slot 0)
         Some(Operand::ConstMem { ur_reg, .. }) if idx == 1 => ur_reg.map_or(255, |r| r as u64),
         _ => 0,
@@ -4665,7 +5531,12 @@ fn op_sub_imm(insn: &Instruction, tok: i32, idx: u8) -> u64 {
         // Addr[R+off]: offset is sub_imm1 (R at 0, off at 1)
         // Addr[UR+off]: offset is sub_imm1 (UR at 0, off at 1)
         // Addr[off]: offset is sub_imm0
-        Some(Operand::Addr { base_reg: None, ur_reg: None, offset, .. }) if idx == 0 => *offset as u64,
+        Some(Operand::Addr {
+            base_reg: None,
+            ur_reg: None,
+            offset,
+            ..
+        }) if idx == 0 => *offset as u64,
         Some(Operand::Addr { offset, .. }) if idx >= 1 => *offset as u64,
         // Desc[UR][R+off]: offset is sub_imm2 (UR=0, R=1, off=2)
         Some(Operand::Desc { offset, .. }) if idx >= 2 => *offset as u64,
@@ -4673,9 +5544,22 @@ fn op_sub_imm(insn: &Instruction, tok: i32, idx: u8) -> u64 {
         // c[B][R+off]: R takes slot 1, offset is sub_imm2
         // c[B][off]:   no R, offset is sub_imm1
         Some(Operand::ConstMem { bank, .. }) if idx == 0 => *bank as u64,
-        Some(Operand::ConstMem { base_reg: Some(_), offset, .. }) if idx >= 2 => *offset as u64,
-        Some(Operand::ConstMem { ur_reg: Some(_), offset, .. }) if idx >= 2 => *offset as u64,
-        Some(Operand::ConstMem { base_reg: None, ur_reg: None, offset, .. }) if idx >= 1 => *offset as u64,
+        Some(Operand::ConstMem {
+            base_reg: Some(_),
+            offset,
+            ..
+        }) if idx >= 2 => *offset as u64,
+        Some(Operand::ConstMem {
+            ur_reg: Some(_),
+            offset,
+            ..
+        }) if idx >= 2 => *offset as u64,
+        Some(Operand::ConstMem {
+            base_reg: None,
+            ur_reg: None,
+            offset,
+            ..
+        }) if idx >= 1 => *offset as u64,
         _ => 0,
     }
 }
@@ -4737,13 +5621,22 @@ fn parse_opaque_name(name: &str) -> Option<u64> {
     match name {
         // REDUX function codes (shift=78, bits=3)
         // and combine modes (shift=91, bits=2)
-        "AND" => Some(0), "OR"  => Some(1), "XOR" => Some(2),
-        "SUM" => Some(3), "MIN" => Some(4), "MAX" => Some(5),
+        "AND" => Some(0),
+        "OR" => Some(1),
+        "XOR" => Some(2),
+        "SUM" => Some(3),
+        "MIN" => Some(4),
+        "MAX" => Some(5),
         // Comparison codes (shift=76, bits=3)
-        "LT"  => Some(1), "EQ"  => Some(2), "LE"  => Some(3),
-        "GT"  => Some(4), "NE"  => Some(5), "GE"  => Some(6),
+        "LT" => Some(1),
+        "EQ" => Some(2),
+        "LE" => Some(3),
+        "GT" => Some(4),
+        "NE" => Some(5),
+        "GE" => Some(6),
         // Signed flag (shift=73, bits=1)
-        "U32" => Some(0), "S32" => Some(1),
+        "U32" => Some(0),
+        "S32" => Some(1),
         _ => None,
     }
 }
@@ -4757,9 +5650,27 @@ const BSSY_OPS: &[&str] = &["BSSY", "BSYNC", "BREAK"];
 // code address (fixup-owned payload, same doctrine as branch targets): the
 // entry's mod-group carries no field for it, so the general fit/type checks
 // must treat it like a branch operand (see fit_fixup_owned class (c)).
-const BRANCH_OPS: &[&str] = &["BRA", "BRA.U", "BRX", "BRXU", "CALL", "JMP", "RET", "RET.NODEC", "BSSY", "BSYNC", "BREAK", "LEPC"];
+const BRANCH_OPS: &[&str] = &[
+    "BRA",
+    "BRA.U",
+    "BRX",
+    "BRXU",
+    "CALL",
+    "JMP",
+    "RET",
+    "RET.NODEC",
+    "BSSY",
+    "BSYNC",
+    "BREAK",
+    "LEPC",
+];
 
-fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm103a: bool) -> u128 {
+fn apply_branch_encoding(
+    insn: &Instruction,
+    mut code: u128,
+    mod_group: &str,
+    sm103a: bool,
+) -> u128 {
     if insn.opcode == "LEPC" {
         // BUG-184: LEPC Rn, <target> — vendor law (nvdisasm-13.3.73 bit-scan
         // arbitration, mla gold cubin): target = addr + 0x20 + sext5(A@[24:29))
@@ -4769,7 +5680,9 @@ fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm
         // already refused loud by check_lepc_target; the range check below is
         // the same condition re-evaluated (belt-and-braces, unreachable when
         // the gate ran).
-        if !sm103a { return code; }
+        if !sm103a {
+            return code;
+        }
         let target: Option<i64> = insn.operands.get(1).and_then(|o| match o {
             Operand::BranchTarget(t) => Some(*t as i64),
             Operand::Imm32(v) => Some(*v),
@@ -4780,14 +5693,14 @@ fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm
             let x = t.wrapping_sub(insn.addr as i64).wrapping_sub(0x10);
             if (-(1i64 << 57)..=(1i64 << 57) - 1).contains(&x) {
                 const MASK: u128 = (1u128 << 82) - (1u128 << 24);
-                code = (code & !MASK)
-                    | ((((x as u64) & 0x3FF_FFFF_FFFF_FFFF) as u128) << 24);
+                code = (code & !MASK) | ((((x as u64) & 0x3FF_FFFF_FFFF_FFFF) as u128) << 24);
             }
         }
         return code;
     }
-    if !BRANCH_OPS.iter().any(|&o| insn.opcode == o)
-        && !(sm103a && insn.opcode == "WARPSYNC") { return code; }
+    if !BRANCH_OPS.iter().any(|&o| insn.opcode == o) && !(sm103a && insn.opcode == "WARPSYNC") {
+        return code;
+    }
 
     let op = insn.opcode.as_str();
 
@@ -4799,16 +5712,25 @@ fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm
     // the SM120 dword-split layout (which lands the offset at [23:16]+[63:32]).
     // sm_103a: BRA.DIV also uses the REL16 layout (imm16@([23:18]|[43:34]),
     // mod_bits=2 at [33:32]) — fitted on 14,924 corpus-gap samples (GF2 exact).
-    let rel_mod = mod_group.split(',').any(|m| m == "REL" || m == "COLLECTIVE")
+    let rel_mod = mod_group
+        .split(',')
+        .any(|m| m == "REL" || m == "COLLECTIVE")
         || (op == "BRA" && mod_group.split(',').any(|m| m == "DIV"));
     // b9 phase-3 #7: WARPSYNC.COLLECTIVE.ALL `(L)` (no register membermask)
     // is the same REL16 shape as the R-form -- vendor anchors cl1 prove
     // imm=(target-addr-16)>>4 for both; the gate is "has a resolved target",
     // not "has a Reg operand".
-    if sm103a && rel_mod
-        && (op == "CALL" || op.starts_with("RET") || op == "BRA"
-            || (op == "WARPSYNC" && (insn.operands.iter().any(|o| matches!(o, Operand::Reg{..}))
-                || find_branch_target(insn).is_some())))
+    if sm103a
+        && rel_mod
+        && (op == "CALL"
+            || op.starts_with("RET")
+            || op == "BRA"
+            || (op == "WARPSYNC"
+                && (insn
+                    .operands
+                    .iter()
+                    .any(|o| matches!(o, Operand::Reg { .. }))
+                    || find_branch_target(insn).is_some())))
     {
         if let Some(target) = find_branch_target(insn) {
             let rel = target - insn.addr as i64 - 16;
@@ -4823,8 +5745,8 @@ fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm
             let rq21 = (rel >> 4) & 0x1F_FFFF; // arithmetic shift keeps the sign
             code = (code & !(0x3F_u128 << 18)) | ((rq21 as u128 & 0x3F) << 18);
             code = (code & !(0x3FF_u128 << 34)) | ((((rq21 as u128) >> 6) & 0x3FF) << 34);
-            let hi20: u128 = (((rq21 as u128) >> 16) & 0x1F)
-                | if rq21 & 0x10_0000 != 0 { 0xF_FFE0 } else { 0 };
+            let hi20: u128 =
+                (((rq21 as u128) >> 16) & 0x1F) | if rq21 & 0x10_0000 != 0 { 0xF_FFE0 } else { 0 };
             code = (code & !(0x000F_FFFF_u128 << 44)) | (hi20 << 44);
         }
         if op == "WARPSYNC" || op == "BRA" {
@@ -4832,7 +5754,7 @@ fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm
         }
         // fall through for CALL/RET: RET register placement below still applies
     } else if op == "WARPSYNC" {
-        return code;    // no legacy WARPSYNC handling
+        return code; // no legacy WARPSYNC handling
     }
 
     // BRX/BRXU: offset from register, second operand
@@ -4852,13 +5774,15 @@ fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm
                 // a Label; scrape the leading numeric literal.
                 Some(Operand::Label(s)) => {
                     let head = s.split_whitespace().next().unwrap_or("");
-                    let sv = head.strip_prefix("-0x")
+                    let sv = head
+                        .strip_prefix("-0x")
                         .and_then(|h| u64::from_str_radix(h, 16).ok().map(|v| -(v as i64)))
-                        .or_else(|| head.strip_prefix("0x")
-                            .and_then(|h| u64::from_str_radix(h, 16).ok().map(|v| v as i64)))
+                        .or_else(|| {
+                            head.strip_prefix("0x")
+                                .and_then(|h| u64::from_str_radix(h, 16).ok().map(|v| v as i64))
+                        })
                         .or_else(|| head.parse::<i64>().ok());
-                    sv.or_else(|| find_branch_target(insn)
-                        .map(|t| t - insn.addr as i64 - 16))
+                    sv.or_else(|| find_branch_target(insn).map(|t| t - insn.addr as i64 - 16))
                 }
                 _ => find_branch_target(insn).map(|t| t - insn.addr as i64 - 16),
             };
@@ -4878,11 +5802,17 @@ fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm
         // BRXU.U URn, imm (dispatch-table form, two operands): the imm token
         // is a raw byte offset — legacy semantics, legacy layout.
         if let Some(Operand::Imm32(offset)) = insn.operands.get(1) {
-            let rq = if *offset >= 0 { *offset >> 2 } else { -((-*offset) >> 2) };
+            let rq = if *offset >= 0 {
+                *offset >> 2
+            } else {
+                -((-*offset) >> 2)
+            };
             code = (code & !(0xFF_u128 << 16)) | (((rq & 0xFF) as u128) << 16);
             let t32 = (((rq >> 8) << 2) as u64) & 0xFFFFFFFF;
             code = (code & !(0xFFFFFFFF_u128 << 32)) | ((t32 as u128) << 32);
-            if *offset < 0 { code |= 0x3FFFF_u128 << 64; }
+            if *offset < 0 {
+                code |= 0x3FFFF_u128 << 64;
+            }
             return code;
         }
         // BUG-027 (sm_120): single-token absolute-target form (`BRXU 0xT` /
@@ -4904,7 +5834,9 @@ fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm
                 code = (code & !(0xFF_u128 << 16)) | (((rq & 0xFF) as u128) << 16);
                 let t32 = (((rq >> 8) << 2) as u64) & 0xFFFFFFFF;
                 code = (code & !(0xFFFFFFFF_u128 << 32)) | ((t32 as u128) << 32);
-                if rel < 0 { code |= 0x3FFFF_u128 << 64; }
+                if rel < 0 {
+                    code |= 0x3FFFF_u128 << 64;
+                }
             }
         }
         return code;
@@ -4921,7 +5853,8 @@ fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm
 
     // BRA/CALL/JMP/RET: dword-split encoding (SM120 layout; on sm_103a the
     // REL forms were already handled above and must not be double-written)
-    let sm103a_rel_done = sm103a && rel_mod && (op == "CALL" || op.starts_with("RET") || op == "BRA");
+    let sm103a_rel_done =
+        sm103a && rel_mod && (op == "CALL" || op.starts_with("RET") || op == "BRA");
     if let Some(target) = find_branch_target(insn).filter(|_| !sm103a_rel_done) {
         let is_abs = mod_group.split(',').any(|m| m == "ABS");
         if !is_abs {
@@ -4933,15 +5866,22 @@ fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm
 
             // [63:32] = ((rq >> 8) << 2) | modifier_bits
             let mods: std::collections::HashSet<&str> = mod_group.split(',').collect();
-            let mod_bits: u64 = if mods.contains("U") { 1 }
-                else if mods.contains("DIV") { 2 }
-                else if mods.contains("CONV") { 3 }
-                else { 0 };
+            let mod_bits: u64 = if mods.contains("U") {
+                1
+            } else if mods.contains("DIV") {
+                2
+            } else if mods.contains("CONV") {
+                3
+            } else {
+                0
+            };
             let t32 = ((((rq >> 8) << 2) as u64) | mod_bits) & 0xFFFFFFFF;
             code = (code & !(0xFFFFFFFF_u128 << 32)) | ((t32 as u128) << 32);
 
             // Sign extension at [81:64]
-            if rel < 0 { code |= 0x3FFFF_u128 << 64; }
+            if rel < 0 {
+                code |= 0x3FFFF_u128 << 64;
+            }
         }
     }
 
@@ -4965,7 +5905,9 @@ fn apply_branch_encoding(insn: &Instruction, mut code: u128, mod_group: &str, sm
                 // Set uniform pred number at bits[26:24]
                 code |= ((*num as u128) & 0x7) << 24;
                 // Set negation at bit 27
-                if *neg { code |= 1u128 << 27; }
+                if *neg {
+                    code |= 1u128 << 27;
+                }
                 break;
             }
         }
@@ -4989,7 +5931,9 @@ fn apply_reuse_encoding(
     // Reuse bit → register slot shift
     const REUSE_SLOTS: [(u32, u32); 3] = [(122, 24), (123, 32), (124, 64)];
 
-    let explicit_reuse_toks: Vec<i32> = entry.fields.iter()
+    let explicit_reuse_toks: Vec<i32> = entry
+        .fields
+        .iter()
         .filter(|f| matches!(f.extraction, Extraction::Reuse))
         .map(|f| f.token_idx)
         .collect();
@@ -4997,21 +5941,34 @@ fn apply_reuse_encoding(
     // the field-level value is authoritative and the legacy slot fixup must
     // not touch that bit (its slot_shift->tok mapping misfires on variants
     // like IMAD_UR where shift 32 holds a UR operand, wiping bit 123).
-    let explicit_reuse_bits: Vec<u32> = entry.fields.iter()
+    let explicit_reuse_bits: Vec<u32> = entry
+        .fields
+        .iter()
         .filter(|f| matches!(f.extraction, Extraction::Reuse))
         .map(|f| f.shift)
         .collect();
 
     for &(reuse_bit, slot_shift) in &REUSE_SLOTS {
-        if explicit_reuse_bits.contains(&reuse_bit) { continue; }
-        let slot_tok = entry.fields.iter()
-            .find(|f| f.shift == slot_shift && f.bits == 8
-                && matches!(f.extraction, Extraction::Reg | Extraction::UReg
-                    | Extraction::URegFf | Extraction::RegFf))
+        if explicit_reuse_bits.contains(&reuse_bit) {
+            continue;
+        }
+        let slot_tok = entry
+            .fields
+            .iter()
+            .find(|f| {
+                f.shift == slot_shift
+                    && f.bits == 8
+                    && matches!(
+                        f.extraction,
+                        Extraction::Reg | Extraction::UReg | Extraction::URegFf | Extraction::RegFf
+                    )
+            })
             .map(|f| f.token_idx);
 
         if let Some(tok) = slot_tok {
-            if explicit_reuse_toks.contains(&tok) { continue; }
+            if explicit_reuse_toks.contains(&tok) {
+                continue;
+            }
             let slot_op = get_op(insn, tok);
             let has_reuse = matches!(
                 slot_op,
@@ -5043,15 +6000,20 @@ fn apply_reuse_encoding(
     // Hardware uses this as a fast-evaluation hint for the predicate LUT.
     // sm_103a learns bits 64..66 as the real low-3 slice of LUT imm0; when a
     // table field covers that region, trust the table and skip the fixup.
-    let taught_64_66 = entry.fields.iter()
+    let taught_64_66 = entry
+        .fields
+        .iter()
         .any(|f| f.shift < 67 && f.shift + f.bits > 64);
-    if (insn.opcode.starts_with("PLOP3") || insn.opcode.starts_with("LOP3"))
-        && !taught_64_66 {
+    if (insn.opcode.starts_with("PLOP3") || insn.opcode.starts_with("LOP3")) && !taught_64_66 {
         // Find LUT values (the two integer immediate operands, typically last two)
-        let imms: Vec<u64> = insn.operands.iter().filter_map(|o| match o {
-            Operand::Imm32(v) => Some(*v as u64),
-            _ => None,
-        }).collect();
+        let imms: Vec<u64> = insn
+            .operands
+            .iter()
+            .filter_map(|o| match o {
+                Operand::Imm32(v) => Some(*v as u64),
+                _ => None,
+            })
+            .collect();
         // Check if INPUT predicates (Pa, Pb, Pc = operands 2,3,4) are non-PT.
         // Operands: Pd(0), Ps(1), Pa(2), Pb(3), Pc(4), lut1(5), lut2(6)
         let has_real_input_pred = insn.operands.iter().skip(2).any(|o| match o {
@@ -5070,16 +6032,26 @@ fn apply_reuse_encoding(
     // (i.e., the token_idx of the neg field at shift 62). This avoids
     // clobbering bits that belong to a different operand (e.g. |UR16|).
     if insn.opcode.starts_with("FADD") {
-        let neg62_tok = entry.fields.iter()
-            .find(|f| f.shift == 62 && f.bits == 1
-                && matches!(f.extraction, Extraction::Neg | Extraction::Abs))
+        let neg62_tok = entry
+            .fields
+            .iter()
+            .find(|f| {
+                f.shift == 62
+                    && f.bits == 1
+                    && matches!(f.extraction, Extraction::Neg | Extraction::Abs)
+            })
             .map(|f| f.token_idx);
-        let rb_tok = neg62_tok.unwrap_or(3);  // standard: tok3 = Rb
-        if let Some(Operand::Reg { num: 255, neg: true, .. }) = get_op(insn, rb_tok) {
+        let rb_tok = neg62_tok.unwrap_or(3); // standard: tok3 = Rb
+        if let Some(Operand::Reg {
+            num: 255,
+            neg: true,
+            ..
+        }) = get_op(insn, rb_tok)
+        {
             // Check if bit62 is set (neg encoding) — swap to bit63 (abs encoding)
             if (code >> 62) & 1 == 1 && (code >> 63) & 1 == 0 {
                 code &= !(1u128 << 62); // clear neg bit
-                code |= 1u128 << 63;    // set abs bit
+                code |= 1u128 << 63; // set abs bit
             }
         }
     }
@@ -5100,6 +6072,11 @@ fn find_branch_target(insn: &Instruction) -> Option<i64> {
 // ---------------------------------------------------------------------------
 
 pub fn encode_all(insns: &[Instruction], table: &IsaTable) -> Result<Vec<u128>> {
-    insns.iter().map(|i| encode_instruction(i, table)
-        .with_context(|| format!("at 0x{:x}: {}", i.addr, i.raw_text))).collect()
+    insns
+        .iter()
+        .map(|i| {
+            encode_instruction(i, table)
+                .with_context(|| format!("at 0x{:x}: {}", i.addr, i.raw_text))
+        })
+        .collect()
 }

@@ -192,10 +192,10 @@ fn t438_7_graft_invariants_and_manifest() {
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     let pin = man["base_revision"].as_str().unwrap().to_string();
     assert!(
-        pin.starts_with("9b60b92"),
+        pin.starts_with("bd2e254"), // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
         "SOURCE.json must pin canonical 57e7ecd (= BUG-447, ride-after e8d1af3 = BUG-443, 57e7ecd = BUG-442, ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439): {pin}"
     );
-    assert!(CANON438.starts_with("9b60b92"), "CANON438 const drift");
+    assert!(CANON438.starts_with("bd2e254"), "CANON438 const drift");
     for leg in LEGS {
         let raw: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(format!("tables/{leg}.json")).unwrap())

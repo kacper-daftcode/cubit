@@ -123,8 +123,8 @@ fn t425b_6_canon_pin_and_claims_preservation() {
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        m["base_revision"].as_str().unwrap().starts_with("9b60b92"),
-        "SOURCE.json must pin canonical 9b60b92014970a8d386c7dafea93d087862dca5e (= BUG-450 graft, ride-after 099faa0 = BUG-447, ride-after e8d1af3 = BUG-443, 57e7ecd = BUG-442, ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, = BUG-435+435b, ride-after 1810912 = 435+434, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b): {:?}",
+        m["base_revision"].as_str().unwrap().starts_with("bd2e254"), // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+        "SOURCE.json must pin canonical e03e0348d98b9d20ffb4ca557cfc6eae625cf995 (= BUG-452 narrow, ride-after 4ee843162216e75d037135b5907c819759471296, = BUG-454 graft, ride-after 589be874 (= BUG-450) (= BUG-450 graft, ride-after 099faa0 = BUG-447, ride-after e8d1af3 = BUG-443, 57e7ecd = BUG-442, ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, = BUG-435+435b, ride-after 1810912 = 435+434, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b): {:?}",
         m["base_revision"]
     );
     assert_eq!(CLAIMCOUNT425B, 511);

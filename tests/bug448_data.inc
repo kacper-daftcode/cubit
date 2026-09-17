@@ -151,7 +151,7 @@ pub const STAND448: &[(u128, &str, &str)] = &[
     (0x00000000081e050400000004ff0009a8, "sm120", "HOLE"), // k.atomg64_rz (standing vs vendor: @P0 ATOMG.E.ADD.64 PT, R0, [RZ.U32+UR4], R4)
     (0x00000000081e0b0000000004ff067981, "sm120", "HOLE"), // k.ldg64_rz (standing vs vendor: LDG.E.64 R6, [RZ.U32+UR4])
     (0x00000000081e0b0000000004ff067981, "sm121a", "HOLE"), // k.ldg64_rz (standing vs vendor: LDG.E.64 R6, [RZ.U32+UR4])
-    (0x002ea200081e090000000004ff007981, "sm121a", "LDG.E PT, R0, [0x1]"), // k.ldg_corpus_rz (standing vs vendor: LDG.E R0, [RZ.U32+UR4])
+    (0x002ea200081e090000000004ff007981, "sm121a", "LDG.E R0, [RZ.U32+UR4]"), // k.ldg_corpus_rz -- RIDE469 (F2-iter285): heal przez graft 469 (mode-2 claim); engine==vendor nvdisasm 13.3.73 raw -b x4 (work/bug469/gates_fails_compare.json)
 ];
 
 /// MASKMINT448: encode(vendor ELIDED text)==mint (full 128b era-normalized)
@@ -213,4 +213,4 @@ pub const REFUSE448: &[&str] = &[
 ];
 
 /// CANON448: canonical blackwell-isa HEAD (STOI; ENGINE-only bug).
-pub const CANON448: &str = "9b60b92"; // ride F2-iter255 (BUG-450 graft): was 099faa0 (448 = ENGINE-only content, landed on 099faa0)
+pub const CANON448: &str = "bd2e254"; // ride F2-iter275 (BUG-466 ELL2.256 rekanon); was 23976eb; old:  ride F2-iter272 (BUG-465 modsub plain E*L2.256 lattice); was 4968113; old:  ride F2-iter270 (BUG-464 plain ARURI64 lattice); was 5078067; old:  ride F2-iter268 (BUG-432R donor-128E); was a6e3c9e (BUG-432 ari-cavity F2-iter267); old:  ride F2-iter267 (BUG-432 ari-cavity); was a64b82b (BUG-463 ltc-widths); // ride F2-iter266 (BUG-463 ltc-widths): was f58ed16 (BUG-461 glyph); // ride F2-iter265 (BUG-461 glyph): was f376558 (BUG-462 narrow); // ride F2-iter264 (BUG-462 narrow): was 700524e (BUG-453 graft); // ride F2-iter263 (BUG-453 graft): was e03e034 (BUG-452 narrow); // ride F2-iter260 (BUG-452 narrow): was 4ee8431 (BUG-454 graft); // ride F2-iter258 (BUG-454 graft): was 589be87 (BUG-450); was 099faa0 (448 = ENGINE-only content, landed on 099faa0) [flip-ride 467: pin 67b54f4 -> 668f842]

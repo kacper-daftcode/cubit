@@ -63,34 +63,71 @@ fn t1_sm103a_trap_classes_odd_base_rejected() {
         "STG.E.EL.ENL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12",
         "@P5 STG.E desc[UR20][R23.64+0x10], R0",
     ] {
-        let e = enc(text, &t103a()).expect_err(&format!("odd-base desc STG must not encode for sm_103a: {text}"));
+        let e = enc(text, &t103a()).expect_err(&format!(
+            "odd-base desc STG must not encode for sm_103a: {text}"
+        ));
         let m = format!("{e}");
-        assert!(m.contains("BUG-076") && m.contains("SILICON-ILLEGAL"), "{text}: got: {m}");
+        assert!(
+            m.contains("BUG-076") && m.contains("SILICON-ILLEGAL"),
+            "{text}: got: {m}"
+        );
     }
 }
 
 // (2) same classes, even base: encode, byte-fixed at the pinned words.
 #[test]
 fn t2_sm103a_trap_classes_even_base_encode_fixed_point() {
-    assert_eq!(enc("STG.E desc[UR4][R58.64], R10", &t103a()).unwrap(), W_E_EVEN);
-    assert_eq!(enc("STG.E.64 desc[UR4][R4.64], R10", &t103a()).unwrap(), W_E64_EVEN);
-    assert_eq!(enc("STG.E.ENL2.256 desc[UR4][R4.64], R8, R12", &t103a()).unwrap(), W_ENL2_EVEN);
-    assert_eq!(enc("@P5 STG.E desc[UR20][R22.64+0x10], R0", &t103a()).unwrap(), W_PRED_EVEN);
+    assert_eq!(
+        enc("STG.E desc[UR4][R58.64], R10", &t103a()).unwrap(),
+        W_E_EVEN
+    );
+    assert_eq!(
+        enc("STG.E.64 desc[UR4][R4.64], R10", &t103a()).unwrap(),
+        W_E64_EVEN
+    );
+    assert_eq!(
+        enc("STG.E.ENL2.256 desc[UR4][R4.64], R8, R12", &t103a()).unwrap(),
+        W_ENL2_EVEN
+    );
+    assert_eq!(
+        enc("@P5 STG.E desc[UR20][R22.64+0x10], R0", &t103a()).unwrap(),
+        W_PRED_EVEN
+    );
 }
 
 // (3) exempt classes (silicon-proven non-trapping; desc addressing mode
 // bit84=0): odd base stays encodable.
 #[test]
 fn t3_sm103a_exempt_classes_odd_base_encode() {
-    assert_eq!(enc("STG.E.EL.ELL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12", &t103a()).unwrap(), W_EL_ELL2_ODD);
+    assert_eq!(
+        enc(
+            "STG.E.EL.ELL2.256.STRONG.GPU [R5.U32+UR4], R8, R12",
+            &t103a()
+        )
+        .unwrap(),
+        W_EL_ELL2_ODD
+    );
     // healed 447 (graft 099faa0): klasa dalej exempt (0/8 II), ale forma
     // kodowania to plain donor (desc spelling = era-dead, assert is_err).
-    enc("STG.E.NA.EFL2.256.STRONG.GPU [R5.U32+UR4], R8, R12", &t103a())
-        .expect("NA.EFL2 class exempt (silicon: 0/8 II across epochs)");
-    assert!(enc("STG.E.NA.EFL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12", &t103a()).is_err(),
-        "era desc spelling NA.EFL2 must be dead post-447");
-    enc("STG.E.NA.ELL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12", &t103a())
-        .expect("NA.ELL2 class exempt (silicon)");
+    enc(
+        "STG.E.NA.EFL2.256.STRONG.GPU [R5.U32+UR4], R8, R12",
+        &t103a(),
+    )
+    .expect("NA.EFL2 class exempt (silicon: 0/8 II across epochs)");
+    assert!(
+        enc(
+            "STG.E.NA.EFL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12",
+            &t103a()
+        )
+        .is_err(),
+        "era desc spelling NA.EFL2 must be dead post-447"
+    );
+    // FLIP (BUG-466, F2-iter275): tekst plain vendora
+    enc(
+        "STG.E.NA.ELL2.256.STRONG.GPU [R5.U32+UR4], R8, R12",
+        &t103a(),
+    )
+    .expect("NA.ELL2 class exempt (silicon)");
 }
 
 // (4) arch scoping: sm120 has no silicon verdict for this erratum, so the
@@ -112,7 +149,7 @@ fn t5_sm103a_decode_of_era_odd_word_retained() {
         .expect("era odd-base EL.ELL2 word must stay decodable under sm103a.json");
     assert_eq!(
         cubit::printer::to_sass(&d),
-        "STG.E.EL.ELL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12"
+        "STG.E.EL.ELL2.256.STRONG.GPU [R5.U32+UR4], R8, R12"
     );
 }
 
@@ -123,6 +160,5 @@ fn t5_sm103a_decode_of_era_odd_word_retained() {
 fn t6_guard_precision() {
     enc("IMAD R10, R2, R3, RZ", &t103a()).expect("plain IMAD unaffected");
     enc("STG.E [R58.64], R10", &t103a()).expect("plain (non-desc) STG unaffected");
-    enc("STG.E desc[UR4][R58], R10", &t103a())
-        .expect("32-bit desc address unaffected (no pair)");
+    enc("STG.E desc[UR4][R58], R10", &t103a()).expect("32-bit desc address unaffected (no pair)");
 }

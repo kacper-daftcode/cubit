@@ -123,22 +123,32 @@ fn bug142_decode_parity_roundtrip() {
 /// mode (bug038a pins roundtrip that dialect), while the era table's
 /// desc-form EL.P render is legacy fiction whose ureg@56 window aliases
 /// the true imm window's top byte (imm up to 0xa2400 proven in era words).
-/// Remodeling EL rows to U32+UR semantics is a table-epoch decision
-/// (frozen era texts ride on the desc fiction), parked for the owner.
+/// RIDE F2-iter258 BUG-454 (REVERSED pin, wzorzec t354_4): the remodel
+/// landed -- canonical 4ee8431 grafts the vendor-true ARURI rows fleet-wide
+/// (ERR-268 recanon; census408 x2 MISROUTE proof) and the BUG-454 encoder
+/// companion arm maps the era glyph [PT, Desc, Reg] onto them fail-closed.
+/// The era desc+PT text now mints the vendor-correct EL word (chain
+/// continuity for frozen input md5 9962e535; MINT454/ERA454 packs).
 #[test]
 fn bug142_sm120_el_desc_form_stays_failclosed() {
     let t = t120();
+    let idx = DecodeIndex::build(&t);
     let insn = parse_sass(
         "@P4 REDG.E.ADD.EL.STRONG.GPU PT, desc[UR0][R209.64+0x80], R81 ;", 0)
         .expect("parse");
-    assert!(encode_instruction(&insn, &t).is_err(),
-        "desc-form EL.P+imm must stay fail-closed on sm120 (U32+UR is vendor-true)");
-    // ...but the era epoch's zero-offset EL.P text still must not exist here
-    // either (no regression vs pre-fix sm120 behavior)
+    let w = encode_instruction(&insn, &t)
+        .expect("post-454: era desc+PT EL text mints via the BUG-454 arm");
+    let back = cubit::printer::to_sass(&idx.decode(w, 0, &t).expect("mint HOLE"));
+    assert_eq!(back.trim().trim_end_matches(';'),
+        "@P4 REDG.E.ADD.EL.STRONG.GPU [R209.U32+UR0+0x80], R81",
+        "post-454 mint/decode must be the vendor-true [R.U32+UR+imm] form");
     let insn2 = parse_sass("@P4 REDG.E.ADD.EL.STRONG.GPU PT, desc[UR0][R209.64], R81 ;", 0)
         .expect("parse");
-    assert!(encode_instruction(&insn2, &t).is_err(),
-        "pre-existing sm120 fail-closed state for desc-form EL.P kept");
+    let w2 = encode_instruction(&insn2, &t)
+        .expect("post-454: zero-offset era EL text mints too");
+    let back2 = cubit::printer::to_sass(&idx.decode(w2, 0, &t).expect("mint HOLE"));
+    assert_eq!(back2.trim().trim_end_matches(';'),
+        "@P4 REDG.E.ADD.EL.STRONG.GPU [R209.U32+UR0], R81");
 }
 
 /// ATOM (0x738b) vs ATOMG (0x73a9) CAS: distinct opcodes, pre-fix era/sm120

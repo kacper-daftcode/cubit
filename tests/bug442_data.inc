@@ -38,7 +38,7 @@ pub const LAW442_STABLE: &[(u128, &str)] = &[
 
 /// POSTURE442_KILL: lattice kill cells (0,1)/(0,0) + desc-region kills -- vendor RC1 x4;
 /// dARI-E release rotation CLAIM -> HOLE (fail-closed; 121a posture-hole pre==post);
-/// B.b128.p01.121a stays claimed by invariant STG_ARI_R|128,E (rc1-standing).
+/// B.b128.p01.121a: cavity claim STG_ARI_R|128,E zamkniety (BUG-432 R1, pin (1,0)) -> HOLE.
 /// Per-leg snap = post engine state.
 pub const POSTURE442: &[(u128, &str)] = &[
     (0x000fc200041009040000000404007986, "A.p01.sm100a : HOLE"), // kill-lattice snap
@@ -60,7 +60,7 @@ pub const POSTURE442: &[(u128, &str)] = &[
     (0x000fc20004100d040000000404007986, "B.b128.p01.sm100a : HOLE"), // kill-lattice snap
     (0x000fc20004100d040000000404007986, "B.b128.p01.sm103a : HOLE"), // kill-lattice snap
     (0x000fc20004100d040000000404007986, "B.b128.p01.sm120 : HOLE"), // kill-lattice snap
-    (0x000fc20004100d040000000404007986, "B.b128.p01.sm121a : STG.E.128 [R1], R4"), // kill-lattice snap
+    (0x000fc20004100d040000000404007986, "B.b128.p01.sm121a : HOLE"), // kill-lattice snap -- HEALED432: cavity-claim (era-436 fields @9/@11) zamkniety przez BUG-432 R1 pin (1,0); vendor rc=1 x4 stoi
     (0x000fc200041001040000000404007986, "B.bU8.p01.sm100a : HOLE"), // kill-lattice snap
     (0x000fc200041001040000000404007986, "B.bU8.p01.sm103a : HOLE"), // kill-lattice snap
     (0x000fc200041001040000000404007986, "B.bU8.p01.sm120 : HOLE"), // kill-lattice snap

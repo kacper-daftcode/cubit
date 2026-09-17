@@ -74,59 +74,59 @@ static GOLD: &[(u128, &str)] = &[
     ),
     (
         0x000e24000824e110fe112014410c197eu128,
-        "@P1 LDG.E.EL.ELL2.256.STRONG.GPU R16, R12, desc[UR20][R65.64+0x22400]",
+        "@P1 LDG.E.EL.ELL2.256.STRONG.GPU R16, R12, [R65.U32+UR20+0x22400]",
     ),
     (
         0x000e26000824e188fe1120141a84797eu128,
-        "LDG.E.EL.ELL2.256.STRONG.GPU R136, R132, desc[UR20][R26.64+0x22400]",
+        "LDG.E.EL.ELL2.256.STRONG.GPU R136, R132, [R26.U32+UR20+0x22400]",
     ),
     (
         0x000e26000824e190fe1121141a8c797eu128,
-        "LDG.E.EL.ELL2.256.STRONG.GPU R144, R140, desc[UR20][R26.64+0x22420]",
+        "LDG.E.EL.ELL2.256.STRONG.GPU R144, R140, [R26.U32+UR20+0x22420]",
     ),
     (
         0x000e66000824e198fe1122141a94797eu128,
-        "LDG.E.EL.ELL2.256.STRONG.GPU R152, R148, desc[UR20][R26.64+0x22440]",
+        "LDG.E.EL.ELL2.256.STRONG.GPU R152, R148, [R26.U32+UR20+0x22440]",
     ),
     (
         0x000824000824e130fe000004182c697eu128,
-        "@P6 LDG.E.EL.ELL2.256.STRONG.GPU R48, R44, desc[UR4][R24.64]",
+        "@P6 LDG.E.EL.ELL2.256.STRONG.GPU R48, R44, [R24.U32+UR4]",
     ),
     (
         0x000a64000824e150fe000004184c697eu128,
-        "@P6 LDG.E.EL.ELL2.256.STRONG.GPU R80, R76, desc[UR4][R24.64]",
+        "@P6 LDG.E.EL.ELL2.256.STRONG.GPU R80, R76, [R24.U32+UR4]",
     ),
     (
         0x000a62000824e150fe000004184c397eu128,
-        "@P3 LDG.E.EL.ELL2.256.STRONG.GPU R80, R76, desc[UR4][R24.64]",
+        "@P3 LDG.E.EL.ELL2.256.STRONG.GPU R80, R76, [R24.U32+UR4]",
     ),
     (
         0x000824000854e198fe0000041894797eu128,
-        "LDG.E.NA.ELL2.256.STRONG.GPU R152, R148, desc[UR4][R24.64]",
+        "LDG.E.NA.ELL2.256.STRONG.GPU R152, R148, [R24.U32+UR4]",
     ),
     (
         0x000824000854e1a0fe000004189c797eu128,
-        "LDG.E.NA.ELL2.256.STRONG.GPU R160, R156, desc[UR4][R24.64]",
+        "LDG.E.NA.ELL2.256.STRONG.GPU R160, R156, [R24.U32+UR4]",
     ),
     (
         0x0009e4000f24e014f81120004104197fu128,
-        "@P1 STG.E.EL.ELL2.256.STRONG.GPU desc[UR20][R65.64+0x22400], R0, R4",
+        "@P1 STG.E.EL.ELL2.256.STRONG.GPU [R65.U32+UR20+0x22400], R0, R4",
     ),
     (
         0x0009e4000f24e014f83120bc1ac0797fu128,
-        "STG.E.EL.ELL2.256.STRONG.GPU desc[UR20][R26.64+0x62400], R188, R192",
+        "STG.E.EL.ELL2.256.STRONG.GPU [R26.U32+UR20+0x62400], R188, R192",
     ),
     (
         0x0009e4000f24e014f83121c41ac8797fu128,
-        "STG.E.EL.ELL2.256.STRONG.GPU desc[UR20][R26.64+0x62420], R196, R200",
+        "STG.E.EL.ELL2.256.STRONG.GPU [R26.U32+UR20+0x62420], R196, R200",
     ),
     (
         0x0009e4000f54e004f80000941898797fu128,
-        "STG.E.NA.ELL2.256.STRONG.GPU desc[UR4][R24.64], R148, R152",
+        "STG.E.NA.ELL2.256.STRONG.GPU [R24.U32+UR4], R148, R152",
     ),
     (
         0x0009e4000f54e004f800009c18a0797fu128,
-        "STG.E.NA.ELL2.256.STRONG.GPU desc[UR4][R24.64], R156, R160",
+        "STG.E.NA.ELL2.256.STRONG.GPU [R24.U32+UR4], R156, R160",
     ),
     (
         0x000be4000f50e026f800002c1c30197fu128,
@@ -209,18 +209,21 @@ fn b4fill_b90_implies_pt_carry_in() {
 fn b4fill_imm_scaled_shr5_and_preserved() {
     // desc offsets on the 256-desc family are stored off>>5 in [55:40].
     let t = t103a();
+    // FLIP (BUG-466, F2-iter275, canonical 67b54f4): ELL2.256 x3 plain-geo
+    // rekanon -- tekst vendora [R.U32+UR(+off)], imm17/19 signed<<5 w
+    // [56:40)/[58:40) (stare desc shr2/shr5u okna usuniete vendor-law).
     let ldg = parse_sass(
-        "LDG.E.EL.ELL2.256.STRONG.GPU R136, R132, desc[UR20][R26.64+0x22400] ;",
+        "LDG.E.EL.ELL2.256.STRONG.GPU R136, R132, [R26.U32+UR20+0x22400] ;",
         0,
     )
     .unwrap();
     let w = encode_instruction(&ldg, &t).unwrap();
-    assert_eq!((w >> 40) & 0xffff, 0x1120);
+    assert_eq!((w >> 40) & 0x1ffff, 0x1120);
     let stg = parse_sass(
-        "STG.E.EL.ELL2.256.STRONG.GPU desc[UR20][R26.64+0x62420], R196, R200 ;",
+        "STG.E.EL.ELL2.256.STRONG.GPU [R26.U32+UR20+0x62420], R196, R200 ;",
         0,
     )
     .unwrap();
     let w2 = encode_instruction(&stg, &t).unwrap();
-    assert_eq!((w2 >> 40) & 0xffff, 0x3121);
+    assert_eq!((w2 >> 40) & 0x7ffff, 0x3121);
 }

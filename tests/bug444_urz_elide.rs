@@ -209,9 +209,9 @@ fn t444_6_shared_arm_ride() {
 fn t444_7_canonical_unchanged() {
     // public-line hygiene: lane-side live rev-parse hermetized to the vendored manifest pin
     let head = std::fs::read_to_string("tables/SOURCE.json").unwrap();
-    assert!(head.contains("9b60b92"), "canonical moved: {head}");
+    assert!(head.contains("bd2e254"), "canonical moved: {head}");
     let src = std::fs::read_to_string("tables/SOURCE.json").unwrap();
-    assert!(src.contains("9b60b92"), "tables SOURCE drift (ride F2-iter255 BUG-450 graft; was 099faa0 F2-iter252 BUG-447): {src}");
+    assert!(src.contains("bd2e254"), "tables SOURCE drift (ride F2-iter275 BUG-466 ELL2-plain; was 23976eb F2-iter272 BUG-465; ride F2-iter267 BUG-432 ari-cavity; was a64b82b BUG-463 ltc-widths; ride F2-iter263 BUG-453 graft; was e03e034 F2-iter260 BUG-452 narrow; ride F2-iter258 BUG-454 graft; was 589be87 F2-iter255 BUG-450 graft; was 099faa0 F2-iter252 BUG-447): {src}"); // flip-ride 467: pin 67b54f4 -> 668f842
 }
 
 /// t444_8: GAP442 heal attribution -- the eight plain-arm gap entries in

@@ -208,12 +208,49 @@ fn t289_1_structure_census_tags() {
         // FLIP (BUG-450, F2-iter255, canonical 589be87): +3 keys sm120 +
         // +3 sparse (donor-clone sm121a non-NA dARI EFL2.256; sm121a
         // byte-untouched) = 1776 / 15743 / 15580.
+        // FLIP (BUG-454, F2-iter258, canonical 4ee8431; ride 452: e03e034): +6,141 keys
+        // sm120 + +6,141 sparse (ERR-268 REDG plain-ARURI recanon
+        // offset raw-2 driver-side utrzymany: entries.len() 121a stoi) =
+        // 7917 / 15743 / 6776. [run1 poprawka: 121a byte-untouched]
+        // FLIP (BUG-453, F2-iter263, canonical 700524e): +3 keys wszedzie
+        // (synth donor-first EFL2.256 non-NA dARI _II trailing policy-imm
+        // x4 wlacznie z 121a [pierwszy ruch 121a od 443]) = 7920 / 15746 / 6779.
+        // FLIP (BUG-463, F2-iter266, canonical a64b82b): +12 keys wszedzie
+        // (LTC-width selektor LTC64B/128B/256B nNA EFL2.256 dARI synth
+        // transformem ab|=selbits) = 7932 / 15758 / 6791.
+        // FLIP (BUG-464, F2-iter270, canonical 4968113): +6 keys
+        // wszedzie (plain nNA ARURI64 EFL2.256 lattice: LDG _ARURI64{,_P,_II,_II_P}
+        // + STG _ARURI64_R_R{,_II}; frame b75+b84+b91) = 7938 / 15766 / 6797
+        // (census surowy; loader-visible 121a = 15764: loader pomija 2 wiersze
+        // -- offset -2 pre-existing, niezmieniony).
+        // FLIP (BUG-465, F2-iter272, canonical 23976eb): +1146 keys wszedzie
+        // (modsub plain E*L2.256 lattice L1[85:84]xL2[82:81]xsem[80:77]; clone
+        // wierszy 464) = 9088 / 16912 / 7947 (465-ride; loader-visible 121a = 16910,
+        // offset -2 stoi).
+        // FLIP-ride (BUG-467, F2-iter278, canonical 668f842): -3 sm120 /
+        // -5 sm121a keys (DELETE 8 degenerate era-rows; vendor ???0-class
+        // fail-closed HOLE-parity) = 9085 / 16907 / 7947 (loader-visible
+        // 121a = 16905; offset -2 stoi).
+        // FLIP-ride (BUG-468, F2-iter280, canonical 08a6145): +2320 keys
+        // wszedzie (LTC-sel [74:73] lattice plain ARURI64 x3 + NA
+        // LTC128B/256B) = 11405 / 19227 / 10267 (loader 121a = 19225).
+        // FLIP-ride (BUG-469, canonical bd48e63): +6 sm121a keys (widthless ARURI) = 11405 / 19233 / 10267 (loader 121a = 19231).
+        // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454 keys (twins _ARURI U32 b75=0; loader-visible 22688-2) = 14859 / 22686 / 13721 (loader 121a = 22686).
+        // FLIP-ride (BUG-469, canonical bd48e63): +6 sm121a keys (widthless ARURI) = 11405 / 19233 / 10267 (loader 121a = 19231).
+        // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454 keys (twins _ARURI U32 b75=0; loader-visible 22688-2) = 14859 / 22686 / 13721 (loader 121a = 22686).
+        // FLIP-ride (BUG-468, F2-iter280, canonical 08a6145): +2320 keys
+        // wszedzie (LTC-sel [74:73] lattice plain ARURI64 x3 + NA
+        // LTC128B/256B) = 11405 / 19227 / 10267 (loader 121a = 19225).
+        // FLIP-ride (BUG-469, canonical bd48e63): +6 sm121a keys (widthless ARURI) = 11405 / 19233 / 10267 (loader 121a = 19231).
+        // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454 keys (twins _ARURI U32 b75=0; loader-visible 22688-2) = 14859 / 22686 / 13721 (loader 121a = 22686).
+        // FLIP-ride (BUG-469, canonical bd48e63): +6 sm121a keys (widthless ARURI) = 11405 / 19233 / 10267 (loader 121a = 19231).
+        // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454 keys (twins _ARURI U32 b75=0; loader-visible 22688-2) = 14859 / 22686 / 13721 (loader 121a = 22686).
         let want = if arch == "sm120" {
-            1776
+            14859 // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454 keys (twins _ARURI U32 b75=0; loader-visible 22688-2) // was: 11405 ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145) // was: flip-ride 467: -3 sm120 keys (degen era delete)
         } else if arch == "sm121a" {
-            15743
+            22686 // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3455 keys (twins _ARURI U32 b75=0; loader-visible 22688-2) // was: 19231 ride F2-iter282 BUG-469: +6 sm121a keys (widthless ARURI graft: 2x ELL2.256 R_R_ARURI donor-103a verbatim-era0 + mg R/R_P/P_R/P_R_P plain-band + 4x EF-band P_R_ARURI_P; canonical bd48e63) // ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145) // was: flip-ride 467: -5 sm121a loader keys (degen era delete)
         } else {
-            15580
+            11401 // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454 keys (twins _ARURI U32 b75=0; loader 7947+3454) // was: 7947 ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145)
         };
         assert_eq!(t.entries.len(), want, "{arch}: key census drift");
     }

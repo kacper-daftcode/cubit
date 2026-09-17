@@ -78,16 +78,35 @@ fn t176_1_junk_absent_honest_keep() {
     // groups, word-equality pins vs the unguarded form, real HW anchor),
     // and the 3 EL keys carry era goldens (b4fill2_rows.rs).
     let t3 = t103();
-    for k in [
-        "REDG_P_dARI_R",
-        "REDG.E.ADD.EL.STRONG.GPU_P_dARI_R",
-        "REDG.E.AND.EL.STRONG.GPU_P_dARI_R",
-        "REDG.E.OR.EL.STRONG.GPU_P_dARI_R",
-        "REDG_dARI_R",
-    ] {
+    for k in ["REDG_P_dARI_R", "REDG_dARI_R"] {
         assert!(
             t3.entries.get(k).is_some(),
             "{k} must remain (sm103a out of scope)"
+        );
+    }
+    // RIDE F2-iter258 BUG-454: the 3 EL P_dARI era keys on x2 were the
+    // MISROUTE class (census408: vendor x4 plain [R.U32+UR(+imm)], not
+    // desc+PT) -- deleted by patch454 R2 and replaced by the donor-clone
+    // ARURI_R rows (ERR-268 recanon, canonical 4ee8431 [ride 452: e03e034]; era goldens in
+    // tests/b4fill2_rows.rs ride to the vendor-truth text).
+    for k in [
+        "REDG.E.ADD.EL.STRONG.GPU_P_dARI_R",
+        "REDG.E.AND.EL.STRONG.GPU_P_dARI_R",
+        "REDG.E.OR.EL.STRONG.GPU_P_dARI_R",
+    ] {
+        assert!(
+            t3.entries.get(k).is_none(),
+            "{k} must stay deleted (BUG-454 R2)"
+        );
+    }
+    for k in [
+        "REDG.E.ADD.EL.STRONG.GPU_ARURI_R",
+        "REDG.E.AND.EL.STRONG.GPU_ARURI_R",
+        "REDG.E.OR.EL.STRONG.GPU_ARURI_R",
+    ] {
+        assert!(
+            t3.entries.get(k).is_some(),
+            "{k} must exist post-454 (donor-clone)"
         );
     }
 }
@@ -270,7 +289,12 @@ fn t176_5_table_shapes() {
     // 2026-09-12 BUG-450: +3 sm120 keys (donor-clone sm121a non-NA dARI
     // EFL2.256 x3; LDG.E.EFL2.256_R_R_dARI{,_P} + STG.E.EFL2.256_dARI_R_R;
     // canonical 589be87) = 1776.
-    assert_eq!(t120().num_keys(), 1776);
+    // 2026-09-13 BUG-454: +6,141 sm120 keys (ERR-268 recanon REDG
+    // plain-ARURI donor-121a; canonical 4ee8431; ride 452: e03e034; ride 453: 700524e) = 7920.
+    // 2026-09-14 BUG-463 (ride): +12 sm120 keys = 7932.
+    // 2026-09-15 BUG-465 (ride): +1146 sm120 keys (modsub plain lattice) = 9084. Was BUG-464 (ride): +6 = 7938.
+    // 2026-09-16 BUG-466 (ride): +4 sm120 keys x3 (ELL2.256 dARI-era rekanon plain-geometria; canonical 67b54f4) = 9088.
+    assert_eq!(t120().num_keys(), 14859); // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454 keys (twins _ARURI U32 b75=0; loader-visible 22688-2) // was: 11405 ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145) // was: flip-ride 467: -3 sm120 keys (degenerate era-rows delete; canonical 668f842)
     // 2026-08-28 BUG-244: +2 sm103a/sm100a typed keys (F2F.F64.F32_R_R,
     // F2F.F64.F32_R_UR; donor F64-dst closure, canonical 00c3fd2) = 402.
     // 2026-09-02 BUG-341: +41 sm103a keys (F2I small-int R_R lattice
@@ -306,5 +330,10 @@ fn t176_5_table_shapes() {
     // 099faa0) = 632.
     // 2026-09-12 BUG-450: +3 sm103a/sm100a keys (donor-clone sm121a
     // non-NA dARI EFL2.256 x3; canonical 589be87) = 635.
-    assert_eq!(t103().num_keys(), 635);
+    // 2026-09-13 BUG-454: +6,141 sm103a/sm100a keys (ERR-268 recanon
+    // REDG plain-ARURI x3; canonical 4ee8431; ride 452: e03e034; ride 453: 700524e) = 6779.
+    // 2026-09-14 BUG-463 (ride): +12 sm103a/sm100a keys = 6791.
+    // 2026-09-15 BUG-465 (ride): +1146 sm103a keys (modsub plain lattice) = 7943. Was BUG-464 (ride): +6 = 6797.
+    // 2026-09-16 BUG-466 (ride): +4 sm103a keys x3 (ELL2.256 dARI-era rekanon plain-geometria; canonical 67b54f4) = 7947.
+    assert_eq!(t103().num_keys(), 13721); // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454 keys (twins _ARURI U32 b75=0; loader-visible 22688-2) // was: 10267 ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145)
 }

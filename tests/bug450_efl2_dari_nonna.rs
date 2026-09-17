@@ -68,36 +68,57 @@ fn t450_1_heal_grid() {
     }
 }
 
-/// t450_2: parity holes -- trailing policy-imm cells stay HOLE on ALL legs
-/// (donor-side coverage gap; 453-kand), 12 cells.
+/// t450_2: parity holes HEALED (flip F2-iter263 BUG-453, canonical 700524e):
+/// trailing policy-imm cells sa claimowane vendor-exact na WSZYSTKICH nogach
+/// wlacznie z donorem 121a (synth _II keys donor-first; HOLE450 data zostaja
+/// jako swiadkowie pre-stanu w data.inc). Teksty x4-unanim z arb447 law.
 #[test]
-fn t450_2_parity_holes() {
-    for (w, leg) in HOLE450 {
-        let t = tab(leg);
-        let idx = DecodeIndex::build(&t);
-        assert_eq!(
-            dec(&t, &idx, *w),
-            None,
-            "[{leg}] parity-hole claimed {w:#034x}"
-        );
+fn t450_2_parity_holes_healed_453() {
+    const HEALED453: &[(u128, &str)] = &[
+        (
+            0x000be4000810182c000000261c30197eu128,
+            "@P1 LDG.E.EFL2.256 R44, R48, desc[UR38][R28.64], 0x0",
+        ), // F.ldg_dari_pol00
+        (
+            0x000be4000810182cfe0000261c30197eu128,
+            "@P1 LDG.E.EFL2.256 R44, R48, desc[UR38][R28.64], 0x7f",
+        ), // F.ldg_dari_pol7f
+        (
+            0x000be400081018260000002c1c30197fu128,
+            "@P1 STG.E.EFL2.256 desc[UR38][R28.64], R44, R48, 0x0",
+        ), // F.stg_dari_pol00
+    ];
+    assert_eq!(
+        HOLE450.len() / 4,
+        HEALED453.len(),
+        "HOLE450/healed grid drift"
+    );
+    for (i, (w, want)) in HEALED453.iter().enumerate() {
+        for (hw, leg) in HOLE450.iter().skip(i * 4).take(4) {
+            assert_eq!(hw, w, "HOLE450 grid order drift");
+            let t = tab(leg);
+            let idx = DecodeIndex::build(&t);
+            assert_eq!(
+                dec(&t, &idx, *hw).as_deref(),
+                Some(*want),
+                "[{leg}] healed-453 drift {hw:#034x}"
+            );
+        }
     }
 }
 
-/// t450_3: CLONE-ILLEG standing -- raRZ word (vendor rc=1 x4) claims the
-/// donor text on every leg, identical to sm121a pre/post (class 452;
-/// documented donor-symmetry). Overclaim is the donor's, not the graft's.
+/// t450_3: CLONE-ILLEG standing-ZWERYFIKOWANY-do-HOLE (flip F2-iter260
+/// BUG-452): raRZ word (vendor rc=1 x4) ma claim zdjety na WSZYSTKICH nogach
+/// wlacznie z donorem (claim_forbid; overclaim donora naprawiony
+/// donor-first). Poprzedni standing w komentarzu w data.inc.
 #[test]
 fn t450_3_cloneilleg_standing() {
-    for (w, donor_text) in CLONEILLEG450 {
+    for (w,) in CLONEILLEG450 {
         for leg in LEGS450 {
             let t = tab(leg);
             let idx = DecodeIndex::build(&t);
             let got = dec(&t, &idx, *w);
-            assert_eq!(
-                got.as_deref(),
-                Some(*donor_text),
-                "[{leg}] clone-illeg standing drift {w:#034x}"
-            );
+            assert_eq!(got, None, "[{leg}] narrowed-452 must refuse {w:#034x}");
         }
     }
 }
@@ -156,12 +177,12 @@ fn t450_6_census() {
 /// t450_7: canonical pin -- SOURCE.json base_revision == BUG-450 graft rev.
 #[test]
 fn t450_7_canonical_pin() {
-    assert_eq!(CANON450, "9b60b92");
+    assert_eq!(CANON450, "bd2e254"); // ride F2-iter275 (BUG-466 ELL2-plain); was 23976eb (BUG-465 modsub); ride F2-iter267 (BUG-432 ari-cavity); was a64b82b (BUG-463 ltc-widths);  ride F2-iter266 (BUG-463 ltc-widths); was f58ed16 (BUG-461 glyph); // ride F2-iter265 (BUG-461 glyph); was f376558 (BUG-462 narrow); // ride F2-iter264 (BUG-462 narrow); was 700524e (BUG-453 graft); // ride F2-iter263 (BUG-453 graft); was e03e034 (BUG-452 narrow); // ride F2-iter258 (BUG-454 graft) [flip-ride 467: pin 67b54f4 -> 668f842]
     let src: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
         src["base_revision"].as_str().unwrap().starts_with(CANON450),
-        "SOURCE.json must pin canonical 9b60b92014970a8d386c7dafea93d087862dca5e (= BUG-450; was 099faa0 = BUG-447): {:?}",
+        "SOURCE.json must pin canonical a64b82bff6706350b82018609016f624188b99a5 (= BUG-463 ltc-widths, ride-after f58ed1683bded052bcb100a0762c16e7e91248c4 = BUG-461 glyph, ride-after f37655889e6da3ddd25b73a926c21ec3b58fa768 = BUG-462 narrow, ride-after 700524e698304dcbf1a3884f72f05abff609b8aa = BUG-453 graft, ride-after e03e0348d98b9d20ffb4ca557cfc6eae625cf995, = BUG-452 narrow, ride-after 4ee843162216e75d037135b5907c819759471296, = BUG-454 graft, ride-after 589be874 (= BUG-450) (= BUG-450; was 099faa0 = BUG-447): {:?}",
         src["base_revision"]
     );
 }
