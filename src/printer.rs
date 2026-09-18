@@ -1418,7 +1418,23 @@ fn format_ureg_raw(fields: &[&DecodedField], raw: u128) -> String {
             // 6-bit ureg fields: 63 = URZ. Keep the source width to tell them apart.
             "ureg"     => { ureg = Some(f.value | (if f.bits >= 8 { 0x100 } else { 0 })); }
             "ureg_ff"  => { ureg = Some(f.value | 0x100); }
-            "ureg_shr3" => ureg = Some(f.value << 3),
+            // Split-window ureg slice: one operand scalar decomposed into
+            // disjoint fields — e.g. OMMA URi = ureg[0:3)@60 + ureg_shr3[3:8)@73.
+            // OR the slice in so a multi-segment operand recombines; a lone
+            // slice behaves exactly as the previous assignment did.
+            //
+            // This slice carries bits [3:8) of the operand, so it belongs to an
+            // 8-bit window and must set the 0x100 sentinel itself — the low
+            // `ureg` slice does not, because its own `bits` is only 3. Without
+            // that, URZ (low=7, high=31, raw 255) would render as "UR255"
+            // instead of "URZ", and the architectural UR63 would stop being
+            // distinguishable. A lone `ureg_shr3` slice is unaffected: 5 bits
+            // shifted left by 3 top out at 248, which is not 255.
+            "ureg_shr3" => {
+                let prev = ureg.unwrap_or(0);
+                let v = ((prev & 0xFF) | (f.value << 3)) | 0x100;
+                ureg = Some(v);
+            }
             "neg"      => neg = f.value != 0,
             "abs"      => abs_u = f.value != 0,
             "inv"      => inv = f.value != 0,
