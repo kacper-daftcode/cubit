@@ -4801,9 +4801,22 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
             // window is signed-offset, so the value must round-trip through
             // sign-extend(bits) << n and be a granule multiple.
             let shrunk = imm >> n;
+            // BUG-493 (INC-291a): the decoder reads the payload through
+            // sign_extend(bits+n) of the (scaled<<n) field content -- the
+            // legality check must mirror THAT composite law, not
+            // sign_extend(bits) of the scaled value. Pre-fix, a scaled
+            // value one granule below the signed window min (e.g. 19b<<5:
+            // -262145) round-tripped here while the minted word decodes
+            // (and the vendor prints, x4 AGREE) as the largest POSITIVE
+            // offset (+0x7fffe0): a silent negative-wrap mint in the
+            // BUG-070 class, generic to every SubImmShr signed window
+            // (475 lattice, 466 plain ELL2.256, LDG 17-bit, ...).
+            let wbits = field.bits.saturating_add((*n) as u32).min(63);
+            let legmask = (1u64 << wbits) - 1;
+            let decoded_read = crate::printer::sign_extend_pub((imm as u64) & legmask, wbits);
             if imm % gran != 0
                 || (shrunk << n) != imm
-                || crate::printer::sign_extend_pub(shrunk as u64, field.bits) != shrunk
+                || decoded_read != imm
             {
                 return Err(anyhow::anyhow!(
                     "operand {} offset {imm:#x} not encodable in scaled \

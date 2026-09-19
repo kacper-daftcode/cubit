@@ -172,5 +172,5 @@ fn t435_6_mints_refuse_canon() {
     assert_eq!(SM120_090_SHADOW435.len(), 1);
     assert_eq!(REFUSE435.len(), 5);
     // canonical pin (manifest pin check lives in the SOURCE.json pack)
-    assert!(CANON435.starts_with("bd2e254")); // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+    assert!(CANON435.starts_with("cc2f62c")); // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
 }

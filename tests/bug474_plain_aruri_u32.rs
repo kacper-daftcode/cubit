@@ -23,7 +23,7 @@
 //! Data: patch474.py replay z canon_pre (bd48e63-content) byte-exact x4 +
 //! idem all-skip 13817; audity A0/A0b(226)/A1(420-422 heal/noga)/A2/A3/A4
 //! (+3454 x3, +3455 121a, reszta byte-equal)/A5(->13721/13721/14859/22688)/
-//! A6/A7 fail-closed. Canonical commit = bd2e25464208f9be6abc1e3c7475ca34914ad095 (INC-283a: flip po publish469; flip474b iter286).
+//! A6/A7 fail-closed. Canonical commit = cc2f62c379c3e190ef373ab9e8f76af0aeef326c (INC-283a: flip po publish469; flip474b iter286).
 //! Witness: tests/bug474_data.inc (maszynowe gen474pins.py rc=2).
 
 use cubit::decoder::DecodeIndex;
@@ -139,6 +139,17 @@ fn t474_6_elide_mint_464arm() {
             "[{leg}] enc-standing {text:?} otwarte"
         );
     }
+    // RIDE475R3 (INC-289e): tekst opuscil ENCTAIL po 475-graft (gain) --
+    // mintujemy bajtowo slowo vendora + circle decode == tekst.
+    for (text, leg, want) in MINTGAIN474 {
+        let w = enc(leg, text).unwrap_or_else(|e| panic!("[{leg}] mint-gain {text:?}: {e}"));
+        assert_eq!(w, *want, "[{leg}] mint-gain word {text:?}");
+        assert_eq!(
+            dec(leg, w).as_deref(),
+            Some(*text),
+            "[{leg}] mint-gain circle {text:?}"
+        );
+    }
 }
 
 /// t474_6b: MINTDESC -- desc-formy plain-L2 mintowalne PRE-474 (7/12;
@@ -182,7 +193,7 @@ fn t474_7_census_and_source() {
             src["base_revision"]
                 .as_str()
                 .unwrap()
-                .starts_with("bd2e254"),
+                .starts_with("cc2f62c"),
             "SOURCE pin pre-flip drift"
         );
         assert!(

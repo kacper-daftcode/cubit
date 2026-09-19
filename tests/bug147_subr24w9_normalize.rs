@@ -127,9 +127,15 @@ fn t147_4_table_class_normalized() {
 fn t147_5_no_width9_in_targeted_families() {
     // Hard class pin: none of the census families may regress to bits==9@24.
     let t = t103a();
+    // RIDE475R3b-w3 (INC-291a, TESTS-ONLY): STG_dARI_R_R jest ABSENT
+    // na sm103a po 475-R2 (pusta powloka po usunieciu defektywnych 462-mgs
+    // ENL2 ltc=0; klase niosa dedykowane klucze STG.E.*.ENL2.256*_dARI_R_R).
+    // Pin ABSENT zapobiega cichosci regresu (powrot zlych mgs = widoczny).
+    assert!(!t.entries.contains_key("STG_dARI_R_R"),
+        "STG_dARI_R_R must stay absent post-475 R2 (class carried by dedicated 475 keys)");
     for key in [
         "LDG_R_dARI", "LDG_R_ARI", "LDG_R_ARURI", "LDG_R_R_dARI",
-        "STG_dARI_R", "STG_ARI_R", "STG_ARURI_R", "STG_dARI_R_R",
+        "STG_dARI_R", "STG_ARI_R", "STG_ARURI_R",
         "LDS_R_ARI", "LDS_R_ARURI", "ST_dARI_R", "ST_ARURI_R",
         "LD_R_dARI", "LDL_R_ARI", "LDSM_R_ARI", "LDC_R_cARI",
         "QSPC_P_R_ARI", "STSM_ARI_R",

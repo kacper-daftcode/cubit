@@ -1,13 +1,13 @@
 {
  "schema": 2,
  "repository": "https://github.com/kacper-daftcode/blackwell-isa",
- "base_revision": "bd2e25464208f9be6abc1e3c7475ca34914ad095",
+ "base_revision": "cc2f62c379c3e190ef373ab9e8f76af0aeef326c",
  "tables": {
   "sm120.json": {
    "arch": "SM120",
-   "base_sha256": "0723cd640cf467174a2c96ea02bea1c734ec3a32bc63c913827d4f2d9ef59265",
-   "instruction_forms": 14859,
-   "encoding_variants": 16483,
+   "base_sha256": "7ff43398b779fe826f6f4f0aa6accb2e3bb366a9a1b1129c587bd58d1e889d59",
+   "instruction_forms": 16015,
+   "encoding_variants": 17631,
    "sched_only_entries": 597,
    "sections": [
     "operand_roles"
@@ -15,9 +15,9 @@
   },
   "sm103a.json": {
    "arch": "SM103a",
-   "base_sha256": "df77792c60e33c0e458014f22e891f4b59cc63579c5d6ce2d742380092598a75",
-   "instruction_forms": 13721,
-   "encoding_variants": 15299,
+   "base_sha256": "706389fcbdda6ee903538d21fb663e72ab062867f434fc0263d5304ea6b62cf5",
+   "instruction_forms": 14879,
+   "encoding_variants": 16446,
    "sched_only_entries": 0,
    "sections": [
     "cost_model",
@@ -27,9 +27,9 @@
   },
   "sm100a.json": {
    "arch": "SM100a",
-   "base_sha256": "09f30011229e4222f184c20088a75ece35e53329440d69e33424f968d7d67469",
-   "instruction_forms": 13721,
-   "encoding_variants": 15303,
+   "base_sha256": "063cd9e71ba4cbfdf15ce35a2748595fafd6c6a86f590a187338ae6a6ed0a3cb",
+   "instruction_forms": 14879,
+   "encoding_variants": 16450,
    "sched_only_entries": 0,
    "sections": [
     "operand_roles"
@@ -37,9 +37,9 @@
   },
   "sm121a.json": {
    "arch": "SM121A",
-   "base_sha256": "3babba9c4521aad5e2e64c0f9eb32ec6c173fdb02976150be5f694ae29c52330",
-   "instruction_forms": 22688,
-   "encoding_variants": 25244,
+   "base_sha256": "0cecc8e1328ac0a7b93522ac3cddf15d798b472d5eacfd47ba4c0cce478de4fe",
+   "instruction_forms": 23833,
+   "encoding_variants": 26385,
    "sched_only_entries": 597,
    "sections": [
     "_errata_2026_08_23_149",
@@ -79,5 +79,12 @@
    ]
   }
  },
- "_474_note": "474 post-flip: FLIP474b (F2-iter286 BUG-474, canonical 68ac5aa): +3454/+3454/+3454/+3455 _ARURI U32 twins (b75=0) replay z patch474.py na canonical bd2e25464208f9be6abc1e3c7475ca34914ad095; counts final. was: 474 pre-flip state: tables carry the BUG-474 graft (+3454/3454/3454/3455 _ARURI ..."
+ "_474_note": "474 post-flip: FLIP474b (F2-iter286 BUG-474, canonical 68ac5aa): +3454/+3454/+3454/+3455 _ARURI U32 twins (b75=0) replay z patch474.py na canonical 68ac5aa5695e0da37ecada417c88ce8ca119319b; counts final. was: 474 pre-flip state: tables carry the BUG-474 graft (+3454/3454/3454/3455 _ARURI ...",
+ "_475_note": "475 post-flip: FLIP475b (F2-iter288 BUG-475, canonical 1043adf): +1146/-2 keys x4 (dARI modsub lattice E*L2.256 b76=1 + rekanon 462-mgs ENL2 [489-absorb]) replay z patch475.py na canonical 1043adf7f96d204387389504652d1cde24387073; counts final; sim-sha parity x4.",
+ "_475r3_note": "475 R3 post-flip: FLIP475r3b (F2-iter289 BUG-475 R3, canonical 9c314f7): +3/+3/+2/+0 keys (NA/EU ENL2.256 dARI restore klon-okna grafta + alias-encode LDG_R_R_dARI encode_only; INC-289d: R2 over-delete po mis-klasyfikacji 489; arb475r3 27 sond x4 + collision-0).",
+ "_475r3b_note": "FLIP475r3c (F2-iter289 BUG-475 R3b 121a, canonical 978c091): 121a verbatim-restore 2 anomalii _src462 (NA-LDG + EU-STG ENL2.256 dARI; KEEP462 R254-degenerate vendor-legal x4; INC-289d); keys 23825, variants 26381.",
+ "_476_note": "476 post-flip: FLIP476b (F2-iter292 BUG-476, canonical c88778e): +11/+11/+11/+8 keys (NA-side ELL2.256 side-bits graft: b75 .64 + LTC [74:73] + b80 CONSTANT/MMIO; STG x3-leg (121a STG-NA base = parity [NT])) + 476b claim_forbid fantom _II x3 (cf 1170/1170/1167/1183); replay z patch476.py na canonical c88778efb590bbc11d0bc32e9a29f30e57eb0f4c; counts A5; sim-sha parity x4.",
+ "_459a_note": "459a post-flip: FLIP459a (F2-iter301 BUG-459a, canonical 96372cb): DELETE junk mg \"\"/\"64\" z UIADD3_UR_UP_UP_UR_{UR,II}_UR_UP_UP (sm120 -1 key {16016->16015, 17635->17631}; sm121a -4 variants {23833->23833, 26389->26385}; 100a/103a byte-untouched 14879/14879); replay z patch459a.py na canonical 96372cb7f7c7baa4db7e68625872d21785c9befc; counts A5; sim-sha parity x4.",
+ "_458a_note": "458a post-flip: FLIP458a (BUG-458a, F2FP print-form jumble rename; canonical po 96372cb): rename mg x20 (5/5/5/5 nogi; touched keys F2FP_R_R + F2FP_R_R_R_R; A-bucket 0x23e) + retention encode_only x24 (w tym twin-mg x2 na 120/121a); num_keys bez zmian (rename-only); replay z patch458a.py na bazie post-459a (resim2 RC=0 renamed=20 retention=24, A0/A4/A4c/A5 PASS; A5-census f2fp_mg 13/13/49/49, encode_only 5/5/7/7); byte-verify canonical==re-sim x4.",
+ "_458a2_note": "458a2 post-flip: FLIP458a2 (BUG-458a2, HOLE.F2FP; canonical po 1e99ca2): graft mg F16,F32,PACK_AB,RZ do F2FP_R_R_R na sm120/sm121a (era-cross x 100a; era-band zero; ab 0x180ff00000000ff00023e, vm 0x1e001e7000, fields verbatim); 100a/103a bajtowo nietkniete (A4b); num_keys 1:1; f2fp_mg census 49->50 na 120/121a; replay patch458a2.py na bazie post-458a iter306 RC=0 added=2, A0/A4/A4b/A4c/A5 PASS; byte-verify canonical==re-sim x4; verify458a2 GATE na bazie post-458a."
 }

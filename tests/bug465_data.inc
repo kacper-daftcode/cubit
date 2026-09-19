@@ -1,5 +1,5 @@
 // BUG-465 machine-built pin data (gen465pins.py rc=2; no hand hex).
-pub const CANON465: &str = "bd2e25464208f9be6abc1e3c7475ca34914ad095" /* ride F2-iter275 (BUG-466 ELL2.256 dARI-era rekanon plain-geo): 67b54f4405b7f6d2d748d8221deb6a9a59cd3c2f canonical, was 23976eb44550254b12f8862ebc088d2c5d49dd72; */; // ride F2-iter272 (BUG-465 modsub plain E*L2.256 lattice; graft +1146 kluczy/noga)
+pub const CANON465: &str = "cc2f62c379c3e190ef373ab9e8f76af0aeef326c" /* ride F2-iter275 (BUG-466 ELL2.256 dARI-era rekanon plain-geo): 67b54f4405b7f6d2d748d8221deb6a9a59cd3c2f canonical, was 23976eb44550254b12f8862ebc088d2c5d49dd72; */; // ride F2-iter272 (BUG-465 modsub plain E*L2.256 lattice; graft +1146 kluczy/noga)
 pub const LAW465_LATTICE: &[(u128, &str, &str)] = &[
     (
         0x000be4000810292c320000261c30197eu128,
@@ -2333,152 +2333,152 @@ pub const STAND465: &[(u128, &str, &str)] = &[
     (
         0x000be4000810392c320000261c30197eu128,
         "arb465_.H.ldg_dARI_sem1",
-        "HOLE",
+        "@P1 LDG.E.EFL2.256.CONSTANT.PRIVATE R44, R48, desc[UR38][R28.64], 0x99", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000811592c320000261c30197eu128,
         "arb465_.H.ldg_dARI_sem10",
-        "HOLE",
+        "@P1 LDG.E.EFL2.256.STRONG.SYS R44, R48, desc[UR38][R28.64], 0x99", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000811792c320000261c30197eu128,
         "arb465_.H.ldg_dARI_sem11",
-        "HOLE",
+        "@P1 LDG.E.EFL2.256.CONSTANT.SM.PRIVATE R44, R48, desc[UR38][R28.64], 0x99", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000811992c320000261c30197eu128,
         "arb465_.H.ldg_dARI_sem12",
-        "HOLE",
+        "@P1 LDG.E.EFL2.256.MMIO.SYS R44, R48, desc[UR38][R28.64], 0x99", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000811b92c320000261c30197eu128,
         "arb465_.H.ldg_dARI_sem13",
-        "HOLE",
+        "@P1 LDG.E.EFL2.256.CONSTANT.VC R44, R48, desc[UR38][R28.64], 0x99", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000811d92c320000261c30197eu128,
         "arb465_.H.ldg_dARI_sem14",
-        "HOLE",
+        "@P1 LDG.E.EFL2.256.CONSTANT.VC.PRIVATE R44, R48, desc[UR38][R28.64], 0x99", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000811f92c320000261c30197eu128,
         "arb465_.H.ldg_dARI_sem15",
-        "HOLE",
+        "@P1 LDG.E.EFL2.256.CONSTANT.GPU R44, R48, desc[UR38][R28.64], 0x99", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000810592c320000261c30197eu128,
         "arb465_.H.ldg_dARI_sem2",
-        "HOLE",
+        "@P1 LDG.E.EFL2.256.CONSTANT.CTA R44, R48, desc[UR38][R28.64], 0x99", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000810792c320000261c30197eu128,
         "arb465_.H.ldg_dARI_sem3",
-        "HOLE",
+        "@P1 LDG.E.EFL2.256.CONSTANT.CTA.PRIVATE R44, R48, desc[UR38][R28.64], 0x99", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000810992c320000261c30197eu128,
         "arb465_.H.ldg_dARI_sem4",
-        "HOLE",
+        "@P1 LDG.E.EFL2.256.CONSTANT R44, R48, desc[UR38][R28.64], 0x99", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000810b92c320000261c30197eu128,
         "arb465_.H.ldg_dARI_sem5",
-        "HOLE",
+        "@P1 LDG.E.EFL2.256.STRONG.SM R44, R48, desc[UR38][R28.64], 0x99", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000810d92c320000261c30197eu128,
         "arb465_.H.ldg_dARI_sem6",
-        "HOLE",
+        "@P1 LDG.E.EFL2.256.STRONG.GPU.PRIVATE R44, R48, desc[UR38][R28.64], 0x99", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000810f92c320000261c30197eu128,
         "arb465_.H.ldg_dARI_sem7",
-        "HOLE",
+        "@P1 LDG.E.EFL2.256.STRONG.GPU R44, R48, desc[UR38][R28.64], 0x99", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000811192c320000261c30197eu128,
         "arb465_.H.ldg_dARI_sem8",
-        "HOLE",
+        "@P1 LDG.E.EFL2.256.MMIO.GPU R44, R48, desc[UR38][R28.64], 0x99", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000811392c320000261c30197eu128,
         "arb465_.H.ldg_dARI_sem9",
-        "HOLE",
+        "@P1 LDG.E.EFL2.256.CONSTANT.SM R44, R48, desc[UR38][R28.64], 0x99", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000d1038260000002c1c30197fu128,
         "arb465_.H.stg_dARI_sem1",
-        "HOLE",
+        "@P1 STG.E.EFL2.256.CONSTANT.PRIVATE desc[UR38][R28.64], R44, R48, 0xa0", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000d1158260000002c1c30197fu128,
         "arb465_.H.stg_dARI_sem10",
-        "HOLE",
+        "@P1 STG.E.EFL2.256.STRONG.SYS desc[UR38][R28.64], R44, R48, 0xa0", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000d1178260000002c1c30197fu128,
         "arb465_.H.stg_dARI_sem11",
-        "HOLE",
+        "@P1 STG.E.EFL2.256.CONSTANT.SM.PRIVATE desc[UR38][R28.64], R44, R48, 0xa0", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000d1198260000002c1c30197fu128,
         "arb465_.H.stg_dARI_sem12",
-        "HOLE",
+        "@P1 STG.E.EFL2.256.MMIO.SYS desc[UR38][R28.64], R44, R48, 0xa0", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000d11b8260000002c1c30197fu128,
         "arb465_.H.stg_dARI_sem13",
-        "HOLE",
+        "@P1 STG.E.EFL2.256.SYS.ORDERED desc[UR38][R28.64], R44, R48, 0xa0", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000d11d8260000002c1c30197fu128,
         "arb465_.H.stg_dARI_sem14",
-        "HOLE",
+        "@P1 STG.E.EFL2.256.STRONG.SYS.ORDERED desc[UR38][R28.64], R44, R48, 0xa0", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000d11f8260000002c1c30197fu128,
         "arb465_.H.stg_dARI_sem15",
-        "HOLE",
+        "@P1 STG.E.EFL2.256.MMIO.SYS.ORDERED desc[UR38][R28.64], R44, R48, 0xa0", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000d1058260000002c1c30197fu128,
         "arb465_.H.stg_dARI_sem2",
-        "HOLE",
+        "@P1 STG.E.EFL2.256.CONSTANT.CTA desc[UR38][R28.64], R44, R48, 0xa0", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000d1078260000002c1c30197fu128,
         "arb465_.H.stg_dARI_sem3",
-        "HOLE",
+        "@P1 STG.E.EFL2.256.CONSTANT.CTA.PRIVATE desc[UR38][R28.64], R44, R48, 0xa0", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000d1098260000002c1c30197fu128,
         "arb465_.H.stg_dARI_sem4",
-        "HOLE",
+        "@P1 STG.E.EFL2.256.STRONG.SM.PRIVATE desc[UR38][R28.64], R44, R48, 0xa0", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000d10b8260000002c1c30197fu128,
         "arb465_.H.stg_dARI_sem5",
-        "HOLE",
+        "@P1 STG.E.EFL2.256.STRONG.SM desc[UR38][R28.64], R44, R48, 0xa0", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000d10d8260000002c1c30197fu128,
         "arb465_.H.stg_dARI_sem6",
-        "HOLE",
+        "@P1 STG.E.EFL2.256.STRONG.GPU.PRIVATE desc[UR38][R28.64], R44, R48, 0xa0", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000d10f8260000002c1c30197fu128,
         "arb465_.H.stg_dARI_sem7",
-        "HOLE",
+        "@P1 STG.E.EFL2.256.STRONG.GPU desc[UR38][R28.64], R44, R48, 0xa0", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000d1118260000002c1c30197fu128,
         "arb465_.H.stg_dARI_sem8",
-        "HOLE",
+        "@P1 STG.E.EFL2.256.MMIO.GPU desc[UR38][R28.64], R44, R48, 0xa0", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
     (
         0x000be4000d1138260000002c1c30197fu128,
         "arb465_.H.stg_dARI_sem9",
-        "HOLE",
+        "@P1 STG.E.EFL2.256.CONSTANT.SM desc[UR38][R28.64], R44, R48, 0xa0", // RIDE475R3 (INC-289e): heal 475-graft; vendor x4 AGREE (arb475snaps)
     ),
 ];
 pub const KILL465: &[(u128, &str)] = &[

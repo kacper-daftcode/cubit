@@ -1,4 +1,4 @@
-pub const CANON474: &str = "bd2e254"; // FLIP474b (F2-iter286 BUG-474, canonical 68ac5aa): pending przepiete na realny commit
+pub const CANON474: &str = "cc2f62c"; // FLIP474b (F2-iter286 BUG-474, canonical 68ac5aa): pending przepiete na realny commit
 /// HEAL 732 / ANCH 102 / KILL 24 / EDGE 2 / MINT 10 / MINTELIDE 20 / ENCTAIL 5 / MINTDESC 7 (skip-b060 2) -- gen474pins.py rc=2; werdykty z nvdisasm 13.3.73 law/claim474.
 pub static HEAL474: &[(u128, &str, &str)] = &[
     // EF_pinv1->LDG.E.EF.EFL2.256_R_R_ARURI_II_P
@@ -4751,28 +4751,10 @@ pub static MINTELIDE474: &[(&str, &str)] = &[
         "sm121a",
     ),
 ];
-pub static ENCTAIL474: &[(&str, &str)] = &[
-    (
-        "LDG.E.EFL2.256 R44, R48, desc[UR38][R28.64], 0x99",
-        "sm103a",
-    ),
-    (
-        "LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, desc[UR38][R28.64]",
-        "sm100a",
-    ),
-    (
-        "LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, desc[UR38][R28.64]",
-        "sm103a",
-    ),
-    (
-        "LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, desc[UR38][R28.64]",
-        "sm120",
-    ),
-    (
-        "LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, desc[UR38][R28.64]",
-        "sm121a",
-    ),
-];
+pub static ENCTAIL474: &[(&str, &str)] = &[(
+    "LDG.E.EFL2.256 R44, R48, desc[UR38][R28.64], 0x99",
+    "sm103a",
+)];
 /// (text, leg, cold_word_hex) -- desc-formy plain-L2 mintuja pre==post bajtowo identycznym slowem (sealed parity; brak klaima 474)
 pub static MINTDESC474: &[(&str, &str, &str)] = &[
     (
@@ -4812,8 +4794,35 @@ pub static MINTDESC474: &[(&str, &str, &str)] = &[
     ),
 ];
 pub static CENSUS474: &[(&str, usize)] = &[
-    ("sm100a", 13721),
-    ("sm103a", 13721),
-    ("sm120", 14859),
-    ("sm121a", 22688),
+    ("sm100a", 14879), // RIDE476 (F2-iter299, canonical c88778e): +11 -> 14879 // RIDE475R3 (F2-iter289, INC-289e): +3/+3/+2/+2 -> 14868/14868/16005/23825 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146/-2 keys (dARI modsub lattice b76=1 + rekanon 462-mgs ENL2) // was: 13721
+    ("sm103a", 14879), // RIDE476 (F2-iter299, canonical c88778e): +11 -> 14879 // RIDE475R3 (F2-iter289, INC-289e): +3/+3/+2/+2 -> 14868/14868/16005/23825 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146/-2 keys (dARI modsub lattice b76=1 + rekanon 462-mgs ENL2) // was: 13721
+    ("sm120", 16015), // RIDE459a (F2-iter301, canonical 96372cb): -1 sm120 key (459a junk-mg "" / 64 DELETE -> key-del UR_II_..._UP_UP) -> forms 16015, variants -4=17631; sm121a variants -4=26385; cf stoi // RIDE476 (F2-iter299, canonical c88778e): +11 -> 16016 // RIDE475R3 (F2-iter289, INC-289e): +3/+3/+2/+2 -> 14868/14868/16005/23825 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146/-2 keys (dARI modsub lattice b76=1 + rekanon 462-mgs ENL2) // was: 14859
+    ("sm121a", 23833), // RIDE476 (F2-iter299, canonical c88778e): +8 -> 23833 // RIDE475R3 (F2-iter289, INC-289e): +3/+3/+2/+2 -> 14868/14868/16005/23825 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146/-2 keys (dARI modsub lattice b76=1 + rekanon 462-mgs ENL2) // was: 22688
+];
+
+/// MINTGAIN474 (RIDE475R3, INC-289e): tekst opuscil ENCTAIL po 475-graft --
+/// klucze ELL2.256.STRONG.GPU_R_R_dARI pokrywaja go teraz; slowo era-full
+/// 000fc2000824f92cfe0000261c30797e, nvdisasm x4 AGREE EVERY == tekst;
+/// cold474-era decode = None x4 (czysty gain, NIE zdejecie 464-arm).
+pub static MINTGAIN474: &[(&str, &str, u128)] = &[
+    (
+        "LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, desc[UR38][R28.64]",
+        "sm100a",
+        0x000fc2000824f92cfe0000261c30797eu128,
+    ),
+    (
+        "LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, desc[UR38][R28.64]",
+        "sm103a",
+        0x000fc2000824f92cfe0000261c30797eu128,
+    ),
+    (
+        "LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, desc[UR38][R28.64]",
+        "sm120",
+        0x000fc2000824f92cfe0000261c30797eu128,
+    ),
+    (
+        "LDG.E.EL.ELL2.256.STRONG.GPU R44, R48, desc[UR38][R28.64]",
+        "sm121a",
+        0x000fc2000824f92cfe0000261c30797eu128,
+    ),
 ];

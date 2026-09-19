@@ -184,14 +184,40 @@ fn t466_7_elide_mint_circle() {
 /// t466_8: refuse -- legacy desc-form text odporny dla x3 (fail-closed):
 /// encode('STG.E.EL.ELL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12') --
 /// brak klucza *_dARI_R_R w scope ELL2.256 (graft), loader-pure refuse.
+/// RIDE475R3 (INC-289e, iter289): para EL wyjezdzila z refuse -- graft 475
+/// posiada klucze *ELL2.256.STRONG.GPU_R_R_dARI; slowa mintowane:
+/// LDG 000fc2000824f908fe000004030c797e / STG 000fc2000f24f804f8000008050c797f
+/// (era-full, nvdisasm x4 AGREE EVERY == tekst; cold474 = None -> czysty
+/// gain graftu). Para NA zostaje refuse (nietknieta).
+/// t466_8b: mint-positive po RIDE475R3 (INC-289e): EL ELL2.256 STRONG.GPU
+/// desc-formy mintuja bajtowo slowa vendora (era-full; x4 AGREE; dowod w
+/// work/bug475/arb475snaps/). cold474 = None (gain graftu 475).
+#[test]
+fn t466_8b_mint_gain_ell2() {
+    for (txt, want) in [
+        (
+            "LDG.E.EL.ELL2.256.STRONG.GPU R8, R12, desc[UR4][R3.64]",
+            0x000fc2000824f908fe000004030c797eu128,
+        ),
+        (
+            "STG.E.EL.ELL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12",
+            0x000fc2000f24f804f8000008050c797fu128,
+        ),
+    ] {
+        for leg in X3 {
+            let t = tab(leg);
+            let w = enc(&t, txt).unwrap_or_else(|e| panic!("[{leg}] mint-gain {txt:?}: {e}"));
+            assert_eq!(w, want, "[{leg}] mint-gain word {txt:?}");
+        }
+    }
+}
+
 #[test]
 fn t466_8_refuse_legacy_desc_form() {
     for leg in X3 {
         let t = tab(leg);
         for txt in [
-            "LDG.E.EL.ELL2.256.STRONG.GPU R8, R12, desc[UR4][R3.64]",
             "LDG.E.NA.ELL2.256.STRONG.GPU R8, R12, desc[UR4][R3.64]",
-            "STG.E.EL.ELL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12",
             "STG.E.NA.ELL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12",
         ] {
             let re = enc(&t, txt);
@@ -212,5 +238,5 @@ fn t466_8_refuse_legacy_desc_form() {
 #[test]
 fn t466_9_canonical_pin() {
     assert_eq!(CANON466.len(), 40);
-    assert!(CANON466.starts_with("bd2e254"));
+    assert!(CANON466.starts_with("cc2f62c"));
 }

@@ -83,10 +83,11 @@ fn t462_3_mint_refuse() {
 #[test]
 fn t462_4_claim_census() {
     for (leg, want) in [
-        ("sm100a", 33usize),
-        ("sm103a", 33usize),
-        ("sm120", 25usize),
-        ("sm121a", 46usize), // RIDE469: +17 cf (graft 469); canonical bd48e63
+        ("sm100a", 1170usize), // RIDE476 (F2-iter299, canonical c88778e): +1 cf/noga x3 (476b fantom _II forbid na STG.E.EL.ELL2.256.STRONG.GPU_ARURI_R_R_II)
+        /* RIDE475r3 (F2-iter289, INC-289e, canonical 978c091): cf-dziedziczenie donorow 475 (+1136), R3 +3, R3b 121a +2 */
+        ("sm103a", 1170usize),
+        ("sm120", 1168usize), // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim)
+        ("sm121a", 1184usize), // RIDE469: +17 cf (graft 469); canonical bd48e63 + // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim) (121a)
     ] {
         let raw = std::fs::read_to_string(format!("tables/{leg}.json")).unwrap();
         let n = raw.matches("\"claim_forbid\"").count();
