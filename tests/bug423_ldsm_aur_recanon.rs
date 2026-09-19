@@ -149,11 +149,11 @@ fn t423_6_source_manifest_and_recanon() {
         src["base_revision"]
             .as_str()
             .unwrap()
-            .starts_with("bd2e254"), // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+            .starts_with("cc2f62c"), // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
         "SOURCE.json must pin canonical 57e7ecd [was ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, 1810912 = 435+434 hop, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b] (BUG-442 graft F2-iter246 z atrybucja; ride-chain): {:?}",
         src["base_revision"]
     );
-    assert!(CANON423.starts_with("bd2e254"), "CANON423 const drift");
+    assert!(CANON423.starts_with("cc2f62c"), "CANON423 const drift");
     for leg in LEGS {
         let raw: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(format!("tables/{leg}.json")).unwrap())

@@ -294,46 +294,46 @@ fn t176_5_table_shapes() {
     // 2026-09-14 BUG-463 (ride): +12 sm120 keys = 7932.
     // 2026-09-15 BUG-465 (ride): +1146 sm120 keys (modsub plain lattice) = 9084. Was BUG-464 (ride): +6 = 7938.
     // 2026-09-16 BUG-466 (ride): +4 sm120 keys x3 (ELL2.256 dARI-era rekanon plain-geometria; canonical 67b54f4) = 9088.
-    assert_eq!(t120().num_keys(), 14859); // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454 keys (twins _ARURI U32 b75=0; loader-visible 22688-2) // was: 11405 ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145) // was: flip-ride 467: -3 sm120 keys (degenerate era-rows delete; canonical 668f842)
-    // 2026-08-28 BUG-244: +2 sm103a/sm100a typed keys (F2F.F64.F32_R_R,
-    // F2F.F64.F32_R_UR; donor F64-dst closure, canonical 00c3fd2) = 402.
-    // 2026-09-02 BUG-341: +41 sm103a keys (F2I small-int R_R lattice
-    // normalisation+closure, era-style vendor-named rows; the 7 mg-owned
-    // lanes {29,31,70,71,f0,f1}+'' stay mgs; the plain lane lands as mg ''
-    // inside F2I_R_R so it does not move the counter; canonical dda1a85)
-    // = 443.
-    // 2026-09-02 BUG-354: +6 sm103a keys (HFMA2 sparse-leg FI/II lattice
-    // mod-lane closure: 6 RELU _P dotted keys HFMA2[.<mods>]
-    // .RELU_R_R_R_FI_FI_P; the 11 new mod-lane mgs live inside
-    // mod_groups of the existing key and do not move the counter;
-    // canonical 5c12995) = 449.
-    // 2026-09-03 BUG-363: +96 sm103a keys (same closure; canonical
-    // fbcef1c) = 545.
-    // 2026-09-04 BUG-367: +6 sm103a keys (HFMA2 sparse-leg FI/II lattice
-    // SAT/FTZ/OOB lane closure: 6 RELU _P dotted keys; the 24 new mgs
-    // live inside mod_groups of the existing key; canonical 0933cf6)
-    // = 551.
-    // 2026-09-05 BUG-381: +24 sm103a keys (HFMA2 0x231/0x7c31 sparse-leg
-    // lattice completion: 12 RELU _P dotted keys per family on
-    // HFMA2_R_R_R_R + HFMA2_R_R_UR_R; the 68 new mgs live inside
-    // mod_groups of the existing keys; canonical 3cb31e4) = 575.
-    // 2026-09-07 BUG-400: +1 sm103a key (LDG_R_dARI_P, jak t120; canonical
-    // 19363f6) = 576.
-    // 2026-09-08 BUG-419: +13 sm103a keys (3 HADD2.F32[.SAT/.FTZ] + 10
-    // HFMA2*RELU _P dotted R-final; canonical 2ae87b3) = 589.
-    // FLIP (BUG-413(ii), F2-iter231, canonical 487757b): +1 LDSM_R_AURI.
-    // 2026-09-10 BUG-435+434: +3 sm103a keys (jak t120; canonical 0a6b178)
-    // = 593.
-    // 2026-09-12 BUG-443: +19 sm103a/sm100a keys (jak t120; canonical
-    // e8d1af3) = 612.
-    // 2026-09-12 BUG-447: +20 sm103a/sm100a keys (jak t120; canonical
-    // 099faa0) = 632.
-    // 2026-09-12 BUG-450: +3 sm103a/sm100a keys (donor-clone sm121a
-    // non-NA dARI EFL2.256 x3; canonical 589be87) = 635.
-    // 2026-09-13 BUG-454: +6,141 sm103a/sm100a keys (ERR-268 recanon
-    // REDG plain-ARURI x3; canonical 4ee8431; ride 452: e03e034; ride 453: 700524e) = 6779.
-    // 2026-09-14 BUG-463 (ride): +12 sm103a/sm100a keys = 6791.
-    // 2026-09-15 BUG-465 (ride): +1146 sm103a keys (modsub plain lattice) = 7943. Was BUG-464 (ride): +6 = 6797.
-    // 2026-09-16 BUG-466 (ride): +4 sm103a keys x3 (ELL2.256 dARI-era rekanon plain-geometria; canonical 67b54f4) = 7947.
-    assert_eq!(t103().num_keys(), 13721); // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454 keys (twins _ARURI U32 b75=0; loader-visible 22688-2) // was: 10267 ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145)
+    assert_eq!(t120().num_keys(), 16015); // RIDE459a (F2-iter301, canonical 96372cb): -1 sm120 key (459a junk-mg "" / 64 DELETE -> key-del UR_II_..._UP_UP) -> forms 16015, variants -4=17631; sm121a variants -4=26385; cf stoi // RIDE476 (F2-iter299, canonical c88778e): +11 sm120 keys (476 NA-side ELL2.256 side-bits graft) -> 16016 // RIDE475R3 (F2-iter289, INC-289e, canonical 978c091): +3/+3/+2/+2 (NA/EU restore + alias + 121a R3b anomalie) -> 16005 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146/-2 keys (dARI modsub lattice b76=1 + rekanon 462-mgs ENL2) // was: 14859 // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454 keys (twins _ARURI U32 b75=0; loader-visible 22688-2) // was: 11405 ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145) // was: flip-ride 467: -3 sm120 keys (degenerate era-rows delete; canonical 668f842)
+                                          // 2026-08-28 BUG-244: +2 sm103a/sm100a typed keys (F2F.F64.F32_R_R,
+                                          // F2F.F64.F32_R_UR; donor F64-dst closure, canonical 00c3fd2) = 402.
+                                          // 2026-09-02 BUG-341: +41 sm103a keys (F2I small-int R_R lattice
+                                          // normalisation+closure, era-style vendor-named rows; the 7 mg-owned
+                                          // lanes {29,31,70,71,f0,f1}+'' stay mgs; the plain lane lands as mg ''
+                                          // inside F2I_R_R so it does not move the counter; canonical dda1a85)
+                                          // = 443.
+                                          // 2026-09-02 BUG-354: +6 sm103a keys (HFMA2 sparse-leg FI/II lattice
+                                          // mod-lane closure: 6 RELU _P dotted keys HFMA2[.<mods>]
+                                          // .RELU_R_R_R_FI_FI_P; the 11 new mod-lane mgs live inside
+                                          // mod_groups of the existing key and do not move the counter;
+                                          // canonical 5c12995) = 449.
+                                          // 2026-09-03 BUG-363: +96 sm103a keys (same closure; canonical
+                                          // fbcef1c) = 545.
+                                          // 2026-09-04 BUG-367: +6 sm103a keys (HFMA2 sparse-leg FI/II lattice
+                                          // SAT/FTZ/OOB lane closure: 6 RELU _P dotted keys; the 24 new mgs
+                                          // live inside mod_groups of the existing key; canonical 0933cf6)
+                                          // = 551.
+                                          // 2026-09-05 BUG-381: +24 sm103a keys (HFMA2 0x231/0x7c31 sparse-leg
+                                          // lattice completion: 12 RELU _P dotted keys per family on
+                                          // HFMA2_R_R_R_R + HFMA2_R_R_UR_R; the 68 new mgs live inside
+                                          // mod_groups of the existing keys; canonical 3cb31e4) = 575.
+                                          // 2026-09-07 BUG-400: +1 sm103a key (LDG_R_dARI_P, jak t120; canonical
+                                          // 19363f6) = 576.
+                                          // 2026-09-08 BUG-419: +13 sm103a keys (3 HADD2.F32[.SAT/.FTZ] + 10
+                                          // HFMA2*RELU _P dotted R-final; canonical 2ae87b3) = 589.
+                                          // FLIP (BUG-413(ii), F2-iter231, canonical 487757b): +1 LDSM_R_AURI.
+                                          // 2026-09-10 BUG-435+434: +3 sm103a keys (jak t120; canonical 0a6b178)
+                                          // = 593.
+                                          // 2026-09-12 BUG-443: +19 sm103a/sm100a keys (jak t120; canonical
+                                          // e8d1af3) = 612.
+                                          // 2026-09-12 BUG-447: +20 sm103a/sm100a keys (jak t120; canonical
+                                          // 099faa0) = 632.
+                                          // 2026-09-12 BUG-450: +3 sm103a/sm100a keys (donor-clone sm121a
+                                          // non-NA dARI EFL2.256 x3; canonical 589be87) = 635.
+                                          // 2026-09-13 BUG-454: +6,141 sm103a/sm100a keys (ERR-268 recanon
+                                          // REDG plain-ARURI x3; canonical 4ee8431; ride 452: e03e034; ride 453: 700524e) = 6779.
+                                          // 2026-09-14 BUG-463 (ride): +12 sm103a/sm100a keys = 6791.
+                                          // 2026-09-15 BUG-465 (ride): +1146 sm103a keys (modsub plain lattice) = 7943. Was BUG-464 (ride): +6 = 6797.
+                                          // 2026-09-16 BUG-466 (ride): +4 sm103a keys x3 (ELL2.256 dARI-era rekanon plain-geometria; canonical 67b54f4) = 7947.
+    assert_eq!(t103().num_keys(), 14879); // RIDE476 (F2-iter299, canonical c88778e): +11 sm103a keys -> 14879 // RIDE475R3b-w2 (F2-iter290, INC-289e followup battery475-final 6xA, canonical 978c0918): +3 sm103a keys {NA/EU restore + LDG_R_R_dARI alias mg encode_only; R3 9c314f7}; zmierzone raw-JSON len 14868 (sm103a loader==raw) == gen475pins CEN // was: 14865 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146/-2 keys (dARI modsub lattice b76=1 + rekanon 462-mgs ENL2) // was: 13721 // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454 keys (twins _ARURI U32 b75=0; loader-visible 22688-2) // was: 10267 ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145)
 }

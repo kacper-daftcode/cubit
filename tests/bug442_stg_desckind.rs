@@ -192,7 +192,7 @@ fn t442_6_source_manifest_and_invariants() {
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     let pin = m["base_revision"].as_str().unwrap().to_string();
     assert!(
-        pin.starts_with("bd2e254"), // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+        pin.starts_with("cc2f62c"), // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
         "SOURCE.json must pin canonical 57e7ecd (= BUG-447, ride-after e8d1af3 = BUG-443, 57e7ecd = BUG-442, ffa3244 = BUG-441): {pin}"
     );
     for leg in LEGS_442 {
@@ -246,7 +246,11 @@ fn t442_6_source_manifest_and_invariants() {
             } else {
                 Some("U32")
             };
-            assert_eq!(mg["addr_width"].as_str(), want, "[{leg}] STG_ARURI_R {n} addr_width pin");
+            assert_eq!(
+                mg["addr_width"].as_str(),
+                want,
+                "[{leg}] STG_ARURI_R {n} addr_width pin"
+            );
         }
         if leg != "sm121a" {
             let de = &ins["STG_dARI_R"]["mod_groups"]["E"];
@@ -302,6 +306,7 @@ fn t442_6_source_manifest_and_invariants() {
 /// RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468) 19233 -> 22688.
 /// RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468) 19233 -> 22688.
 /// RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468) 19233 -> 22688.
+/// RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146 graft x4 nogi (dARI modsub lattice E*L2.256 frame b76=1: klon 6 donorow *_dARI EFL2.256/noga, fields/vm PARITY) + rekanon 462-mgs ENL2 [489-absorb: DELETE 13/13/7 mgs + 2 anomalie 121a; REPLACE 9 heritage _src462] -> raw 14865/14865/16003/23823; loader 121a 23821 (offset -2 _errata stoi); cf 1166/1166/1164/1181 19233 -> 23823.
 #[test]
 fn t442_7_sm121a_key_census_and_donor_parity() {
     let raw121: serde_json::Value =
@@ -311,7 +316,7 @@ fn t442_7_sm121a_key_census_and_donor_parity() {
     let i121 = raw121["instructions"].as_object().unwrap();
     assert_eq!(
         i121.len(),
-        22688, // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468) // was: 19233 ride F2-iter282 BUG-469: +6 sm121a keys (widthless ARURI graft: 2x ELL2.256 R_R_ARURI donor-103a verbatim-era0 + mg R/R_P/P_R/P_R_P plain-band + 4x EF-band P_R_ARURI_P; canonical bd48e63) // ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145) // was: flip-ride 467: -5 sm121a keys (degenerate era-rows delete; canonical 668f842)
+        23833, // RIDE476 (F2-iter299, canonical c88778e): +8 sm121a keys (476 LDG NA-side x8) -> raw 23833 (loader 23831) // RIDE475R3b-w2 (F2-iter290, INC-289e followup battery475-final 6xA, canonical 978c0918): +2 sm121a keys {anomalie LDG.E.NA/EU.ENL2.256_R_R_dARI verbatim restore; R3b 978c0918}; zmierzone raw len 23825 (loader 23823 po -2 _errata twardy offset) // was: 23823 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146 graft x4 nogi (dARI modsub lattice E*L2.256 frame b76=1: klon 6 donorow *_dARI EFL2.256/noga, fields/vm PARITY) + rekanon 462-mgs ENL2 [489-absorb: DELETE 13/13/7 mgs + 2 anomalie 121a; REPLACE 9 heritage _src462] -> raw 14865/14865/16003/23823; loader 121a 23821 (offset -2 _errata stoi); cf 1166/1166/1164/1181 // was: 22688 // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468) // was: 19233 ride F2-iter282 BUG-469: +6 sm121a keys (widthless ARURI graft: 2x ELL2.256 R_R_ARURI donor-103a verbatim-era0 + mg R/R_P/P_R/P_R_P plain-band + 4x EF-band P_R_ARURI_P; canonical bd48e63) // ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145) // was: flip-ride 467: -5 sm121a keys (degenerate era-rows delete; canonical 668f842)
         "sm121a key census must equal the BUG-443 post state (8 T2 + 11 T3 noE-cross keys)"
     );
     let a = &i121["STG_ARURI_R"]["mod_groups"];
@@ -342,7 +347,11 @@ fn t442_8_scope443_closed_x4() {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
         let got = dec(&t, &idx, *w);
-        assert_eq!(got.as_deref(), Some(*vendor), "[{leg}] 443-scope drift {tag}: {got:?}");
+        assert_eq!(
+            got.as_deref(),
+            Some(*vendor),
+            "[{leg}] 443-scope drift {tag}: {got:?}"
+        );
     }
     assert_eq!(SCOPE443.len(), 3 * 4);
 }

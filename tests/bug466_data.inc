@@ -1,5 +1,5 @@
 // BUG-466 machine-built pin data (gen466pins.py rc=2; no hand hex).
-pub const CANON466: &str = "bd2e25464208f9be6abc1e3c7475ca34914ad095"; // ride F2-iter275 (BUG-466 x3 ELL2.256 dARI-era rekanon -> plain vendor geometry)
+pub const CANON466: &str = "cc2f62c379c3e190ef373ab9e8f76af0aeef326c"; // ride F2-iter275 (BUG-466 x3 ELL2.256 dARI-era rekanon -> plain vendor geometry)
 pub const LAW466_ROUTE: &[(u128, &str, &str)] = &[
     (
         0x000be4000824e100fe0000000000097eu128,
@@ -483,22 +483,22 @@ pub const STAND466: &[(u128, &str, &str)] = &[
     (
         0x000be4000854e300fe0000041c00097eu128,
         "arb466b.L.b73",
-        "HOLE",
+        "@P0 LDG.E.NA.ELL2.LTC64B.256.STRONG.GPU R0, R0, [R28.U32+UR4]", // 476-ride-B (F2-iter299): heal 476a po grafte (vendor x4 AGREE EVERY, nvdisasm 13.3.73; work/bug476/arb476_ride.json)
     ),
     (
         0x000be4000854e500fe0000041c00097eu128,
         "arb466b.L.b74",
-        "HOLE",
+        "@P0 LDG.E.NA.ELL2.LTC128B.256.STRONG.GPU R0, R0, [R28.U32+UR4]", // 476-ride-B (F2-iter299): heal 476a po grafte (vendor x4 AGREE EVERY, nvdisasm 13.3.73; work/bug476/arb476_ride.json)
     ),
     (
         0x000be4000854e900fe0000041c00097eu128,
         "arb466b.L.b75",
-        "HOLE",
+        "@P0 LDG.E.NA.ELL2.256.STRONG.GPU R0, R0, [R28.64+UR4]", // 476-ride-B (F2-iter299): heal 476a po grafte (vendor x4 AGREE EVERY, nvdisasm 13.3.73; work/bug476/arb476_ride.json)
     ),
     (
         0x000be4000855e100fe0000041c00097eu128,
         "arb466b.L.b80",
-        "HOLE",
+        "@P0 LDG.E.NA.ELL2.256.CONSTANT.GPU R0, R0, [R28.U32+UR4]", // 476-ride-B (F2-iter299): heal 476a po grafte (vendor x4 AGREE EVERY, nvdisasm 13.3.73; work/bug476/arb476_ride.json)
     ),
     (
         0x000be4000856e100fe0000041c00097eu128,
@@ -543,12 +543,12 @@ pub const STAND466: &[(u128, &str, &str)] = &[
     (
         0x000be4000f54e804f80000001c00097fu128,
         "arb466b.S.b75",
-        "HOLE",
+        "@P0 STG.E.NA.ELL2.256.STRONG.GPU [R28.64+UR4], R0, R0", // 476-ride-B (F2-iter299): heal 476a po grafte (vendor x4 AGREE EVERY, nvdisasm 13.3.73; work/bug476/arb476_ride.json)
     ),
     (
         0x000be4000f55e004f80000001c00097fu128,
         "arb466b.S.b80",
-        "HOLE",
+        "@P0 STG.E.NA.ELL2.256.MMIO.SYS.ORDERED [R28.U32+UR4], R0, R0", // 476-ride-B (F2-iter299): heal 476a po grafte (vendor x4 AGREE EVERY, nvdisasm 13.3.73; work/bug476/arb476_ride.json)
     ),
     (
         0x000be4000f56e004f80000001c00097fu128,

@@ -159,14 +159,28 @@ fn t123_6_eu_mod_order_render_parity() {
 #[test]
 fn t123_7_table_shape_anchor() {
     let t = t103();
+    // RIDE475R3b-w3 (INC-291a, TESTS-ONLY): kotwice ENL2 ltc=0 na
+    // widthless kluczach usuniete swiadomie przez 475-R2 (defekt okien
+    // 462-mgs; arb475r3 27-sond MIS x4). Klase pokrywaja dedykowane
+    // klucze graftu 475 (R1 lattice + R3 NA/EU restore); ocalałe na
+    // widthless: LTC256B-tagged mgs + alias-mg encode_only (R3).
     let ii = t.entries.get("LDG_R_R_dARI_II").expect("klucz II");
-    for m in ["256,E,EL,ENL2", "256,E,EF,ENL2", "256,E,ENL2,LTC256B",
-              "256,CONSTANT,E,ENL2,LTC256B"] {
+    for m in ["256,E,ENL2,LTC256B", "256,CONSTANT,E,ENL2,LTC256B"] {
         assert!(ii.mod_groups.contains_key(m), "II mod {m}");
     }
+    assert!(!ii.mod_groups.contains_key("256,E,EL,ENL2"), "II mod 256,E,EL,ENL2 must stay deleted (475-R2)");
+    assert!(!ii.mod_groups.contains_key("256,E,EF,ENL2"), "II mod 256,E,EF,ENL2 must stay deleted (475-R2)");
     let rr = t.entries.get("LDG_R_R_dARI").expect("klucz noimm");
+    assert!(rr.mod_groups.contains_key("256,E,ENL2"), "alias-mg encode_only (475-R3)");
     for m in ["256,E,EL,ENL2", "256,E,EF,ENL2", "256,E,ENL2,EU"] {
-        assert!(rr.mod_groups.contains_key(m), "noimm mod {m}");
+        assert!(!rr.mod_groups.contains_key(m), "noimm mod {m} must stay deleted (475-R2)");
+    }
+    for k in ["LDG.E.EL.ENL2.256_R_R_dARI", "LDG.E.EL.ENL2.256_R_R_dARI_II",
+              "LDG.E.EF.ENL2.256_R_R_dARI", "LDG.E.EF.ENL2.256_R_R_dARI_II",
+              "LDG.E.ENL2.256_R_R_dARI", "LDG.E.EU.ENL2.256_R_R_dARI",
+              "STG.E.ENL2.256_dARI_R_R", "STG.E.EL.ENL2.256.STRONG.GPU_dARI_R_R",
+              "STG.E.EF.ENL2.256.STRONG.GPU_dARI_R_R"] {
+        assert!(t.entries.contains_key(k), "475-lattice dedicated key {k}");
     }
     let r = t.entries.get("LDG_R_dARI").expect("LDG_R_dARI");
     for m in ["E,LU", "128,E,LU", "E,EL", "128,E,EL", "64,E,EL", "E,NA",
@@ -174,6 +188,10 @@ fn t123_7_table_shape_anchor() {
               "64,CONSTANT,E,LTC64B"] {
         assert!(r.mod_groups.contains_key(m), "single mod {m}");
     }
-    let s = t.entries.get("STG_dARI_R_R").expect("STG_dARI_R_R");
-    assert!(s.mod_groups.contains_key("256,E,EF,ENL2"));
+    // RIDE475R3b-w3: jak wyzej -- widthless STG_dARI_R_R ABSENT na sm103a
+    // po 475-R2; EF-ENL2 klasa pokryta dedykowanym kluczem graftu.
+    assert!(!t.entries.contains_key("STG_dARI_R_R"),
+        "STG_dARI_R_R must stay absent post-475 R2 (475-lattice dedicated keys)");
+    assert!(t.entries.contains_key("STG.E.EF.ENL2.256.STRONG.GPU_dARI_R_R"),
+        "EF-ENL2 class carried by dedicated 475 key");
 }

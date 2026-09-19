@@ -196,7 +196,7 @@ fn t409_5_graft_hygiene_source_pin() {
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        m["base_revision"].as_str().unwrap() == "bd2e25464208f9be6abc1e3c7475ca34914ad095", // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+        m["base_revision"].as_str().unwrap() == "cc2f62c379c3e190ef373ab9e8f76af0aeef326c", // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
         "SOURCE.json must pin canonical 23976eb (ride F2-iter272 = BUG-465 modsub plain E*L2.256 lattice; was 4968113 (ride F2-iter270 = BUG-464 plain ARURI64; was 5078067 ride F2-iter268 = BUG-432R donor-128E; was a6e3c9e ride F2-iter267 = BUG-432 ari-cavity; was 700524e698304dcbf1a3884f72f05abff609b8aa BUG-453 graft / a64b82bf F2-iter266 BUG-463; = BUG-452 narrow, ride-after 4ee843162216e75d037135b5907c819759471296, = BUG-454 graft, ride-after 589be874 (= BUG-450) (= BUG-450 graft, ride-after 099faa0 (= BUG-447) [was ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, was 1810912 = BUG-435+434, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424] (BUG-442 graft F2-iter246 z atrybucja; ride-chain): {:?}",
         m["base_revision"]
     );

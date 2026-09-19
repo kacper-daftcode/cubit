@@ -173,7 +173,7 @@ fn t433_5_mints_refuse_canon() {
     assert_eq!(MINT433.len(), 10);
     assert_eq!(CIRCLE433.len(), 6);
     assert_eq!(REFUSE433.len(), 5);
-    assert!(CANON433.starts_with("bd2e254")); // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+    assert!(CANON433.starts_with("cc2f62c")); // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
 }
 
 /// t433_6: SOURCE.json manifest pins canonical 57e7ecd (BUG-442 graft F2-iter246, ride; was BUG-441 graft F2-iter245, ride; was BUG-439 graft F2-iter243, ride; was BUG-423 graft F2-iter242, ride; was BUG-433 graft) and

@@ -89,18 +89,59 @@ fn bug070_encode_imm_window_payload() {
     }
 }
 
+/// RIDE475R3b-w3 (INC-291a, TESTS-ONLY): wektory 'negative' i
+/// '+0x200000' przestaly byc unrepresentable z chwila graftu 475 lattice
+/// (canonical 1043adf): STG ENL2.256 desc-window = SIGNED 19-bit<<5
+/// [-0x400000, +0x400000 extrema wlacznie], co R3b-era weryfikacja vendorem
+/// potwierdzila x4 AGREE (nvdisasm 13.3.73 raw -b; work/bug476/
+/// arb070_extrema.json + sondy A/B/D). Stare piny tego testu pisaly
+/// "unsigned 16-bit @[55:40]" (era-462 law) -- zostaly ODPARTE vendorem:
+/// win 0x80000 -> +-0x200000 itd. Sedno BUG-070 (misaligned/sub-granule
+/// corruption) zostaje fail-closed; granice: +0x800000 fail-closed.
+#[test]
+fn bug070_encode_mint_gain_post475() {
+    let t = t103a();
+    let idx = DecodeIndex::build(&t);
+    for (sass, word) in [
+        ("STG.E.ENL2.256 desc[UR4][R54.64+-0x20], R40, R44 ;",
+         0x000fc2000f121804ffffff28362c797fu128),
+        ("STG.E.EL.ENL2.256.STRONG.GPU desc[UR4][R4.64+-0x80], R8, R12 ;",
+         0x000fc2000f22f804fffffc08040c797fu128),
+        ("STG.E.ENL2.256 desc[UR4][R54.64+0x200000], R40, R44 ;",
+         0x000fc2000f121804f9000028362c797fu128),
+        ("STG.E.ENL2.256 desc[UR4][R54.64+0x400000], R40, R44 ;",
+         0x000fc2000f121804fa000028362c797fu128),
+        ("STG.E.ENL2.256 desc[UR4][R54.64+-0x400000], R40, R44 ;",
+         0x000fc2000f121804fe000028362c797fu128),
+    ] {
+        let insn = parse_sass(sass, 0).unwrap();
+        let w = encode_instruction(&insn, &t)
+            .unwrap_or_else(|e| panic!("mint-gain 475 expected: {sass:?} ({e})"));
+        assert_eq!(w, word, "mint word drift for {sass:?}");
+        let d = idx.decode(w & !SCHED, 0, &t).unwrap();
+        let text = cubit::printer::to_sass(&d);
+        assert_eq!(text, sass.trim_end_matches(';').trim(), "decode-back drift for {sass:?}");
+    }
+}
+
 #[test]
 fn bug070_encode_fail_closed_on_unrepresentable() {
-    // Silent-corruption class now fails closed (asm rc!=0 path, BUG-043).
     let t = t103a();
     for (sass, why) in [
-        // negative offset on an unsigned window
-        ("STG.E.ENL2.256 desc[UR4][R54.64+-0x20], R40, R44 ;", "negative"),
-        ("STG.E.EL.ENL2.256.STRONG.GPU desc[UR4][R4.64+-0x80], R8, R12 ;", "negative"),
         // sub-granule offset (window granularity is 0x20)
         ("STG.E.ENL2.256 desc[UR4][R54.64+0x28], R40, R44 ;", "misaligned"),
-        // window overflow (max encodable is 0x1fffe0)
-        ("STG.E.ENL2.256 desc[UR4][R54.64+0x200000], R40, R44 ;", "overflow"),
+        // true overflow post-475 (decoder reads sign_extend(19+5) of the
+        // payload<<5: positive range [0, +0x7fffe0], negative down to
+        // -0x800000; BUG-493 INC-291a: pre-fix the encoder wrapped one
+        // granule below the min into the largest positive, silent mint --
+        // generic SubImmShr negative-wrap, now fail-closed engine-side).
+        ("STG.E.ENL2.256 desc[UR4][R54.64+0x800000], R40, R44 ;", "overflow"),
+        ("STG.E.ENL2.256 desc[UR4][R54.64+-0x800020], R40, R44 ;", "underflow-wrap-493"),
+        // same wrap class on the LDG 17-bit windows and plain-466 families
+        ("LDG.E.ENL2.256 R12, R8, desc[UR4][R2.64+-0x200020] ;", "underflow-wrap-493-LDG17"),
+        ("LDG.E.EL.ENL2.256.STRONG.GPU R12, R8, desc[UR4][R4.64+-0x200020] ;", "underflow-wrap-493-LDG17el"),
+        ("STG.E.EL.ELL2.256.STRONG.GPU [R28.64+UR4+-0x800020], R40, R44 ;", "underflow-wrap-493-plain466"),
+        ("LDG.E.ELL2.256.STRONG.GPU R12, R8, [R28.U32+UR4+-0x200020] ;", "underflow-wrap-493-plain466L"),
     ] {
         let insn = parse_sass(sass, 0).unwrap();
         assert!(encode_instruction(&insn, &t).is_err(),

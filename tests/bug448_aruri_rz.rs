@@ -171,5 +171,5 @@ fn t448_7_refuse() {
 /// (Ratchet itself carries no 448 row; pin asserts the documented state.)
 #[test]
 fn t448_8_canonical_pin() {
-    assert_eq!(CANON448, "bd2e254"); // ride F2-iter275 (BUG-466 ELL2.256 rekanon); was 23976eb; old:  ride F2-iter267 (BUG-432 ari-cavity); was a64b82b (BUG-463 ltc-widths); // ride F2-iter266 (BUG-463 ltc-widths); was f58ed16 (BUG-461 glyph); // ride F2-iter265 (BUG-461 glyph); was f376558 (BUG-462 narrow); // ride F2-iter264 (BUG-462 narrow); was 700524e (BUG-453 graft); // ride F2-iter263 (BUG-453 graft); was e03e034 (BUG-452 narrow); // ride F2-iter258 (BUG-454 graft) [flip-ride 467: pin 67b54f4 -> 668f842]
+    assert_eq!(CANON448, "cc2f62c"); // ride F2-iter275 (BUG-466 ELL2.256 rekanon); was 23976eb; old:  ride F2-iter267 (BUG-432 ari-cavity); was a64b82b (BUG-463 ltc-widths); // ride F2-iter266 (BUG-463 ltc-widths); was f58ed16 (BUG-461 glyph); // ride F2-iter265 (BUG-461 glyph); was f376558 (BUG-462 narrow); // ride F2-iter264 (BUG-462 narrow); was 700524e (BUG-453 graft); // ride F2-iter263 (BUG-453 graft); was e03e034 (BUG-452 narrow); // ride F2-iter258 (BUG-454 graft) [flip-ride 467: pin 67b54f4 -> 668f842]
 }

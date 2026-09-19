@@ -1,4 +1,4 @@
-pub const CANON469: &str = "bd2e25464208f9be6abc1e3c7475ca34914ad095";
+pub const CANON469: &str = "cc2f62c379c3e190ef373ab9e8f76af0aeef326c";
 /// HEAL 203 / ANCH 34 / KILL 11 / MINT 11 (ENC-noentry standing 1) -- gen469pins.py rc=2; werdykty z law/corpus vendor.
 pub static HEAL469: &[(u128, &str, &str)] = &[
     (
@@ -1049,8 +1049,16 @@ pub static ANCH469: &[(u128, &str, &str)] = &[
         "sm121a",
         "@P1 LDG.E.EL.ELL2.256.STRONG.GPU R16, R12, [R65.U32+UR20+0x22400], !PT", // 474-ride: heal 121a U32 (vendor-x4)
     ),
-    (0x000000000854e914ff2345080a10797eu128, "sm121a", ""),
-    (0x000000000854e914fe0000080a10797eu128, "sm121a", ""),
+    (
+        0x000000000854e914ff2345080a10797eu128,
+        "sm121a",
+        "LDG.E.NA.ELL2.256.STRONG.GPU R20, R16, [R10.64+UR8+-0x1b9760]",
+    ), // 476-ride-B (F2-iter299): heal 476a po grafte (vendor x4 AGREE EVERY, nvdisasm 13.3.73; work/bug476/arb476_ride.json),),
+    (
+        0x000000000854e914fe0000080a10797eu128,
+        "sm121a",
+        "LDG.E.NA.ELL2.256.STRONG.GPU R20, R16, [R10.64+UR8]",
+    ), // 476-ride-B (F2-iter299): heal 476a po grafte (vendor x4 AGREE EVERY, nvdisasm 13.3.73; work/bug476/arb476_ride.json),),
     (0x000000000c54e914fe0000080a10797eu128, "sm121a", ""),
     (0x000000000874e114fe0000080a10797eu128, "sm121a", ""),
     (0x0000000008d4e114fe0000080a10797eu128, "sm121a", ""),
@@ -1117,8 +1125,8 @@ pub static MINT469: &[(&str, &str)] = &[
 ];
 pub static ENCTAIL469: &[(&str, &str)] = &[("LDG.E.LTC64B R4, [R29.U32+UR8+0x100]", "sm121a")];
 pub static CENSUS469: &[(&str, usize)] = &[
-    ("sm100a", 13721), // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468)
-    ("sm103a", 13721), // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468)
-    ("sm120", 14859), // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468)
-    ("sm121a", 22688), // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468)
+    ("sm100a", 14879), // RIDE476 (F2-iter299, canonical c88778e): +11 -> 14879 // RIDE475R3 (F2-iter289, INC-289e): +3/+3/+2/+2 -> 14868/14868/16005/23825 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146 graft x4 nogi (dARI modsub lattice E*L2.256 frame b76=1: klon 6 donorow *_dARI EFL2.256/noga, fields/vm PARITY) + rekanon 462-mgs ENL2 [489-absorb: DELETE 13/13/7 mgs + 2 anomalie 121a; REPLACE 9 heritage _src462] -> raw 14865/14865/16003/23823; loader 121a 23821 (offset -2 _errata stoi); cf 1166/1166/1164/1181 // was: ("sm100a", 13721) RIDE474-pre (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468)
+    ("sm103a", 14879), // RIDE476 (F2-iter299, canonical c88778e): +11 -> 14879 // RIDE475R3 (F2-iter289, INC-289e): +3/+3/+2/+2 -> 14868/14868/16005/23825 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146 graft x4 nogi (dARI modsub lattice E*L2.256 frame b76=1: klon 6 donorow *_dARI EFL2.256/noga, fields/vm PARITY) + rekanon 462-mgs ENL2 [489-absorb: DELETE 13/13/7 mgs + 2 anomalie 121a; REPLACE 9 heritage _src462] -> raw 14865/14865/16003/23823; loader 121a 23821 (offset -2 _errata stoi); cf 1166/1166/1164/1181 // was: ("sm103a", 13721) RIDE474-pre (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468)
+    ("sm120", 16015), // RIDE459a (F2-iter301, canonical 96372cb): -1 sm120 key (459a junk-mg "" / 64 DELETE -> key-del UR_II_..._UP_UP) -> forms 16015, variants -4=17631; sm121a variants -4=26385; cf stoi // RIDE476 (F2-iter299, canonical c88778e): +11 -> 16016 // RIDE475R3 (F2-iter289, INC-289e): +3/+3/+2/+2 -> 14868/14868/16005/23825 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146 graft x4 nogi (dARI modsub lattice E*L2.256 frame b76=1: klon 6 donorow *_dARI EFL2.256/noga, fields/vm PARITY) + rekanon 462-mgs ENL2 [489-absorb: DELETE 13/13/7 mgs + 2 anomalie 121a; REPLACE 9 heritage _src462] -> raw 14865/14865/16003/23823; loader 121a 23821 (offset -2 _errata stoi); cf 1166/1166/1164/1181 // was: ("sm120", 14859) RIDE474-pre (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468)
+    ("sm121a", 23833), // RIDE476 (F2-iter299, canonical c88778e): +8 -> 23833 // RIDE475R3 (F2-iter289, INC-289e): +3/+3/+2/+2 -> 14868/14868/16005/23825 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146 graft x4 nogi (dARI modsub lattice E*L2.256 frame b76=1: klon 6 donorow *_dARI EFL2.256/noga, fields/vm PARITY) + rekanon 462-mgs ENL2 [489-absorb: DELETE 13/13/7 mgs + 2 anomalie 121a; REPLACE 9 heritage _src462] -> raw 14865/14865/16003/23823; loader 121a 23821 (offset -2 _errata stoi); cf 1166/1166/1164/1181 // was: ("sm121a", 22688) RIDE474-pre (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468)
 ];
