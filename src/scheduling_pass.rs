@@ -1295,6 +1295,12 @@ fn compute_addr_feeding(insns: &[Instruction]) -> Vec<bool> {
 /// Skips instructions that have user-specified control codes.
 pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
     let mut st = SchedulerState::new();
+    // The pass also accepts explicit controls supplied directly through IR,
+    // without a source [CC] marker. Do not silently repair those either.
+    let generated_controls: Vec<bool> = insns.iter().map(|x| {
+        !x.hand_sched && x.ctrl.write_bar == 7 && x.ctrl.wait_mask == 0
+            && x.ctrl.stall == 1 && x.ctrl.read_bar == 7
+    }).collect();
 
     // CUBIT_SCHED2: loads whose result feeds a memory address are kept out of barrier
     // batches (one barrier each) so a gather pointer never reads a stale address at high
@@ -1965,14 +1971,29 @@ pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
         }
     }
 
-    // BUG-170 opex_1 legalization (see opex1_lop3_legalize): the legacy path
-    // above pairs yield with stall 14 on UPLOP3 (0x1e, outside TABLES_opex_1).
-    // Hand-scheduled instructions keep author-owned ctrl bits untouched.
-    for x in insns.iter_mut() {
+    // SM120 OPEX legality applies to every generated native instruction. Keep
+    // the earlier BUG-170 LOP3-only rule on other architectures. Author-owned
+    // controls are validated at encoding, never silently normalized here.
+    for (i, x) in insns.iter_mut().enumerate() {
         if x.hand_sched {
             continue;
         }
-        opex1_lop3_legalize(&x.opcode, &mut x.ctrl);
+        if table.is_some_and(|t| t.target_sm() == 120) {
+            if generated_controls[i] {
+                crate::scheduling::legalize_generated_sm120_control(&mut x.ctrl);
+            }
+        } else {
+            opex1_lop3_legalize(&x.opcode, &mut x.ctrl);
+        }
+    }
+}
+
+/// Apply SM120 OPEX legality after CLI scheduling post-passes. Only controls
+/// owned by the generator may be passed here; [CC] instructions stay frozen.
+/// The encoder rejects reserved author controls instead of calling this helper.
+pub fn legalize_generated_sm120_controls(insns: &mut [Instruction]) {
+    for insn in insns.iter_mut().filter(|x| !x.hand_sched) {
+        crate::scheduling::legalize_generated_sm120_control(&mut insn.ctrl);
     }
 }
 

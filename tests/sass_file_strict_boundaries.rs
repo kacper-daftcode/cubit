@@ -186,7 +186,7 @@ fn strict_control_fields_have_exact_bounds_and_no_trailing_payload() {
         assert!(cubit::roundtrip_audit::encode_semantic_source(&source, &table).is_err(), "encoded {control}");
         assert!(parse_sass_file_str(&source).is_ok(), "changed tolerant parsing of {control}");
     }
-    for control in ["B------:R-:W-:-:S00", "B012345:R5:W5:Y:S15"] {
+    for control in ["B------:R-:W-:-:S00", "B012345:R5:W5:Y:S11"] {
         let source = format!(".entry controls\n[{control}] NOP ;\n.endentry\n");
         let file = parse_sass_file_str_strict(&source).unwrap();
         let expected = &file.kernels[0].instructions[0].ctrl;
@@ -196,6 +196,14 @@ fn strict_control_fields_have_exact_bounds_and_no_trailing_payload() {
         assert_eq!(cubit::scheduling::format_control_code(&actual), control);
         assert_eq!((actual.stall, actual.wait_mask, actual.read_bar, actual.write_bar, actual.yield_flag),
                    (expected.stall, expected.wait_mask, expected.read_bar, expected.write_bar, expected.yield_flag));
+    }
+    // The syntax can represent reserved SM120 controls for inspection, while
+    // byte production must reject NVIDIA's undefined OPEX entries.
+    for stall in [0, 12, 13, 14, 15] {
+        let source = format!(".entry controls\n[B012345:R5:W5:Y:S{stall:02}] NOP ;\n.endentry\n");
+        assert!(parse_sass_file_str_strict(&source).is_ok());
+        let error = cubit::roundtrip_audit::encode_semantic_source(&source, &table).unwrap_err();
+        assert!(format!("{error:#}").contains("reserved scheduling control"));
     }
 }
 

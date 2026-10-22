@@ -28,6 +28,32 @@ pub const CC_POS: u32 = 41;
 pub const CC_MASK_UNSHIFTED: u64 = 0x1ffff;
 pub const CC_MASK: u64 = CC_MASK_UNSHIFTED << CC_POS;
 
+/// Check the SM120 low-five scheduling bits before producing instruction bytes.
+/// NVIDIA's SM120 OPEX tables leave Y+S00 and Y+S12..S15 undefined. Independent
+/// 32-value sweeps of QMMA, MOV, FFMA, LDS, BRA and NOP agree on this set; see
+/// `tests/fixtures/sm120_control_opex.json`. Parsing/decoding remains lossless so
+/// reserved words can still be inspected during reverse engineering.
+pub(crate) fn validate_sm120_control(cc: &ControlCode) -> Result<()> {
+    if cc.stall > 15 {
+        bail!("SM120 scheduling stall {} does not fit the four-bit field", cc.stall);
+    }
+    if cc.yield_flag && (cc.stall == 0 || cc.stall >= 12) {
+        bail!(
+            "SM120 reserved scheduling control Y+S{:02}; use no yield at stall 0 or 12..15",
+            cc.stall
+        );
+    }
+    Ok(())
+}
+
+/// Repair only a scheduler-owned yield hint. Preserve the requested delay and
+/// every scoreboard field; author-owned controls must instead be validated.
+pub(crate) fn legalize_generated_sm120_control(cc: &mut ControlCode) {
+    if cc.yield_flag && (cc.stall == 0 || (12..=15).contains(&cc.stall)) {
+        cc.yield_flag = false;
+    }
+}
+
 pub fn parse_control_code(s: &str) -> Result<ControlCode> {
     if !CC_RE.is_match(s) {
         bail!("invalid control code string: {s:?}");

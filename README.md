@@ -140,6 +140,14 @@ auto-scheduler per instruction:
 [B------:R-:W-:Y:S05] FMUL R40, R40, R30 ;
 ```
 
+On SM120, hand-scheduled yield is valid with stalls 1 through 11. Encoding
+rejects `Y:S00` and `Y:S12` through `Y:S15`, which NVIDIA marks as reserved;
+use `-` instead of `Y` for those stalls. The automatic scheduler drops only
+its own yield hint while retaining the delay and scoreboard fields. Parsing
+and disassembly still expose reserved controls for reverse engineering.
+The independent sweeps and native-corpus census are recorded in
+[the control-field proof](docs/SM120_CONTROL_OPEX.md).
+
 See [docs/sasstuning.md](docs/sasstuning.md) for the measured field guide.
 
 ## SM103a stall legalizer

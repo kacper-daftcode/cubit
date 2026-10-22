@@ -1726,6 +1726,9 @@ fn check_sm120_brxu_offset(offset: i128) -> Result<()> {
 
 /// Encode a parsed instruction using the per-modifier-group table.
 pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> {
+    if table.target_sm() == 120 {
+        crate::scheduling::validate_sm120_control(&insn.ctrl)?;
+    }
     // BUG-091 (fail-closed): an unresolved label operand on a branch op must
     // never be encoded. The parser resolves defined labels to BranchTarget;
     // whatever reaches here as Operand::Label has no definition in scope and
