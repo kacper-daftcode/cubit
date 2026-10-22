@@ -1,4 +1,4 @@
-pub const CANON469: &str = "463a648c4ee0bd20cf013315a0ec6a2432f7975a";
+pub const CANON469: &str = "9c0e4cec355119065444f59d0710de372b9d0577";
 /// HEAL 203 / ANCH 34 / KILL 11 / MINT 11 (ENC-noentry standing 1) -- gen469pins.py rc=2; werdykty z law/corpus vendor.
 pub static HEAL469: &[(u128, &str, &str)] = &[
     (
