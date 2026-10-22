@@ -9,6 +9,8 @@
 //! arbitration 56/56 on nvdisasm 13.3.73). Post-fix: printer-only elision in
 //! format_addr/format_lds_scaled_addr; tables untouched; legacy "[RZ+0x10]"
 //! spelling still parses and encodes identically.
+//! Native SM120 LDGSTS 0xdae/0xfae are a measured exception: the global
+//! source keeps RZ.64 with nonzero offsets (exact nvdisasm 13.1.80 anchors).
 //!
 //! Pins: t164_1 decode==nvdisasm (47 arbitrowane formy minus klasy parked-geo
 //! z BUG-155/161 ff), t164_2 decode==law dla LDGSTS/split/baked-imm (pozostale
@@ -24,7 +26,11 @@ use cubit::table::IsaTable;
 const SCHED: u128 = 0xFFFF_FFFFu128 << 96;
 
 fn t103a() -> IsaTable { IsaTable::load(std::path::Path::new("tables/sm103a.json")).unwrap() }
-fn t120() -> IsaTable { IsaTable::load(std::path::Path::new("tables/sm120.json")).unwrap() }
+fn t120() -> IsaTable {
+    let path = std::env::var_os("CUBIT_TABLE").map(std::path::PathBuf::from)
+        .unwrap_or_else(|| "tables/sm120.json".into());
+    IsaTable::load(&path).unwrap()
+}
 
 fn tbl(name: &str) -> IsaTable { if name == "sm120" { t120() } else { t103a() } }
 
@@ -130,12 +136,13 @@ const ENC: &[(&str, u64, u64, &str)] = &[
 
 #[test]
 fn t164_1_decode_eq_nvdisasm() {
-    let i103 = DecodeIndex::build(&t103a());
-    let i120 = DecodeIndex::build(&t120());
+    let t103 = t103a();
+    let t120 = t120();
+    let i103 = DecodeIndex::build(&t103);
+    let i120 = DecodeIndex::build(&t120);
     for (tn, lo, hi, want) in ARB {
-        let t = tbl(tn);
-        let idx = if tn == &"sm120" { &i120 } else { &i103 };
-        let got = dec(&t, idx, word(*lo, *hi));
+        let (t, idx) = if tn == &"sm120" { (&t120, &i120) } else { (&t103, &i103) };
+        let got = dec(t, idx, word(*lo, *hi));
         assert_eq!(got, *want, "decode==nvdisasm {tn} {want}");
     }
 }
@@ -232,11 +239,11 @@ const LAWB: &[(&str, u64, u64, &str)] = &[
     ("sm120", 0x0001000000ff7fae, 0x0001e000081a06ff, "0x10"), // LDGSTS_ARI_ARI_P 64,E,LTC128B tok1 pos
     ("sm120", 0xffff000000ff7fae, 0x0001e000081a06ff, "0xffff0"), // LDGSTS_ARI_ARI_P 64,E,LTC128B tok1 neg
     ("sm120", 0x8000000000ff7fae, 0x0001e000081a06ff, "0x80000"), // LDGSTS_ARI_ARI_P 64,E,LTC128B tok1 min
-    ("sm120", 0x00000010ff007fae, 0x0001e000081a06ff, "0x10"), // LDGSTS_ARI_ARI_P 64,E,LTC128B tok2 pos
-    ("sm120", 0x0007fff0ff007fae, 0x0001e000081a06ff, "-0x10"), // LDGSTS_ARI_ARI_P 64,E,LTC128B tok2 neg (2026-08-26: BUG-180 s12@[32:44) vendor window law supersedes the era 19-bit pins)
+    ("sm120", 0x00000010ff007fae, 0x0001e000081a06ff, "RZ.64+0x10"), // LDGSTS_ARI_ARI_P 64,E,LTC128B tok2 pos
+    ("sm120", 0x0007fff0ff007fae, 0x0001e000081a06ff, "RZ.64+-0x10"), // LDGSTS_ARI_ARI_P 64,E,LTC128B tok2 neg (2026-08-26: BUG-180 s12@[32:44) vendor window law supersedes the era 19-bit pins)
     ("sm120", 0x00040000ff007fae, 0x0001e000081a06ff, "RZ.64"), // LDGSTS_ARI_ARI_P 64,E,LTC128B tok2 min
-    ("sm120", 0x00000010ff807fae, 0x0001e00008180aff, "0x10"), // LDGSTS_ARI_ARI_P 128,BYPASS,E,LTC128B tok2 pos
-    ("sm120", 0x0007fff0ff807fae, 0x0001e00008180aff, "-0x10"), // LDGSTS_ARI_ARI_P 128,BYPASS,E,LTC128B tok2 neg 
+    ("sm120", 0x00000010ff807fae, 0x0001e00008180aff, "RZ.64+0x10"), // LDGSTS_ARI_ARI_P 128,BYPASS,E,LTC128B tok2 pos
+    ("sm120", 0x0007fff0ff807fae, 0x0001e00008180aff, "RZ.64+-0x10"), // LDGSTS_ARI_ARI_P 128,BYPASS,E,LTC128B tok2 neg
     ("sm120", 0x00040000ff807fae, 0x0001e00008180aff, "RZ.64"), // LDGSTS_ARI_ARI_P 128,BYPASS,E,LTC128B tok2 min
     ("sm120", 0x0001000000ff7fae, 0x0001e000081a0aff, "0x10"), // LDGSTS_ARI_ARI_P 128,E,LTC128B tok1 pos
     ("sm120", 0xffff000000ff7fae, 0x0001e000081a0aff, "0xffff0"), // LDGSTS_ARI_ARI_P 128,E,LTC128B tok1 neg
@@ -280,17 +287,22 @@ const LAWB: &[(&str, u64, u64, &str)] = &[
     ("sm120", 0x0001000000ff7fae, 0x0001e000081a1200, "0x10"), // LDGSTS_ARI_dARI_P E,LTC128B tok1 pos
     ("sm120", 0xffff000000ff7fae, 0x0001e000081a1200, "0xffff0"), // LDGSTS_ARI_dARI_P E,LTC128B tok1 neg
     ("sm120", 0x8000000000ff7fae, 0x0001e000081a1200, "0x80000"), // LDGSTS_ARI_dARI_P E,LTC128B tok1 min
-    ("sm120", 0x00000010ff800dae, 0x0001c0000b980a00, "0x10"), // LDGSTS_ARURI_ARI 128,BYPASS,E,LTC128B tok2 pos
-    ("sm120", 0x0007fff0ff800dae, 0x0001c0000b980a00, "-0x10"), // LDGSTS_ARURI_ARI 128,BYPASS,E,LTC128B tok2 neg 
+    // Legal native SM120 words retain the explicit RZ.64 source base.
+    ("sm120", 0x00000010ff800dae, 0x0001c0000b980a00, "RZ.64+0x10"), // LDGSTS_ARURI_ARI 128,BYPASS,E,LTC128B tok2 pos
+    ("sm120", 0x0007fff0ff800dae, 0x0001c0000b980a00, "RZ.64+-0x10"), // LDGSTS_ARURI_ARI 128,BYPASS,E,LTC128B tok2 neg
     ("sm120", 0x00040000ff800dae, 0x0001c0000b980a00, "RZ.64"), // LDGSTS_ARURI_ARI 128,BYPASS,E,LTC128B tok2 min
-    ("sm120", 0x00000010ffbc7dae, 0x0001e000081a0218, "0x10"), // LDGSTS_ARURI_ARI_P E,LTC128B tok2 pos
-    ("sm120", 0x0003fff0ffbc7dae, 0x0001e000081a0218, "-0x10"), // LDGSTS_ARURI_ARI_P E,LTC128B tok2 neg
+    // Original S0/Y schedules in these historical fixtures are rejected
+    // by nvdisasm 13.1.80. Independent S1/Y field probes establish the
+    // address geometry; these original words are not exact NV-positive
+    // witnesses. The native full-word witnesses below keep their schedules.
+    ("sm120", 0x00000010ffbc7dae, 0x0001e000081a0218, "RZ.64+0x10"), // LDGSTS_ARURI_ARI_P E,LTC128B tok2 pos
+    ("sm120", 0x0003fff0ffbc7dae, 0x0001e000081a0218, "RZ.64+-0x10"), // LDGSTS_ARURI_ARI_P E,LTC128B tok2 neg
     ("sm120", 0x00020000ffbc7dae, 0x0001e000081a0218, "RZ.64"), // LDGSTS_ARURI_ARI_P E,LTC128B tok2 min
-    ("sm120", 0x00000010ff007dae, 0x0001e000081a0600, "0x10"), // LDGSTS_ARURI_ARI_P 64,E,LTC128B tok2 pos
-    ("sm120", 0x00000ff0ff007dae, 0x0001e000081a0600, "-0x10"), // LDGSTS_ARURI_ARI_P 64,E,LTC128B tok2 neg
-    ("sm120", 0x00000800ff007dae, 0x0001e000081a0600, "-0x800"), // LDGSTS_ARURI_ARI_P 64,E,LTC128B tok2 min
-    ("sm120", 0x00000010ff807dae, 0x0001e00008180a08, "0x10"), // LDGSTS_ARURI_ARI_P 128,BYPASS,E,LTC128B tok2 pos
-    ("sm120", 0x0007fff0ff807dae, 0x0001e00008180a08, "-0x10"), // LDGSTS_ARURI_ARI_P 128,BYPASS,E,LTC128B tok2 neg 
+    ("sm120", 0x00000010ff007dae, 0x0001e000081a0600, "RZ.64+0x10"), // LDGSTS_ARURI_ARI_P 64,E,LTC128B tok2 pos
+    ("sm120", 0x00000ff0ff007dae, 0x0001e000081a0600, "RZ.64+-0x10"), // LDGSTS_ARURI_ARI_P 64,E,LTC128B tok2 neg
+    ("sm120", 0x00000800ff007dae, 0x0001e000081a0600, "RZ.64+-0x800"), // LDGSTS_ARURI_ARI_P 64,E,LTC128B tok2 min
+    ("sm120", 0x00000010ff807dae, 0x0001e00008180a08, "RZ.64+0x10"), // LDGSTS_ARURI_ARI_P 128,BYPASS,E,LTC128B tok2 pos
+    ("sm120", 0x0007fff0ff807dae, 0x0001e00008180a08, "RZ.64+-0x10"), // LDGSTS_ARURI_ARI_P 128,BYPASS,E,LTC128B tok2 neg
     ("sm120", 0x00040000ff807dae, 0x0001e00008180a08, "RZ.64"), // LDGSTS_ARURI_ARI_P 128,BYPASS,E,LTC128B tok2 min
     ("sm120", 0x00001000ff000388, 0x0001c00000000800, "0x10"), // STS_ARI_R  tok1 pos
     ("sm120", 0xfffff000ff000388, 0x0001c00000000800, "0xfffff0"), // STS_ARI_R  tok1 neg
@@ -311,16 +323,35 @@ const LAWB: &[(&str, u64, u64, &str)] = &[
 
 #[test]
 fn t164_2_law_bracket_ldgsts_split() {
-    let i103 = DecodeIndex::build(&t103a());
-    let i120 = DecodeIndex::build(&t120());
+    let t103 = t103a();
+    let t120 = t120();
+    let i103 = DecodeIndex::build(&t103);
+    let i120 = DecodeIndex::build(&t120);
     for (tn, lo, hi, want_b) in LAWB {
-        let t = tbl(tn);
-        let idx = if tn == &"sm120" { &i120 } else { &i103 };
-        let got = dec(&t, idx, word(*lo, *hi));
+        let (t, idx) = if tn == &"sm120" { (&t120, &i120) } else { (&t103, &i103) };
+        let got = dec(t, idx, word(*lo, *hi));
         let brs: Vec<&str> = got.split('[').skip(1)
             .filter_map(|s| s.split(']').next()).collect();
         assert!(brs.iter().any(|b| b == want_b),
-            "law bracket [{want_b}] not in: {got}");
+            "law bracket [{want_b}] not in {hi:016x}{lo:016x}: {got}");
+    }
+}
+
+/// Independent nvdisasm 13.1.80 SM120 native anchors; these do not rely
+/// on the rejected historical 0x7dae fixtures above.
+#[test]
+fn t164_7_native_ldgsts_source_base_matches_nvdisasm() {
+    let t = t120();
+    let idx = DecodeIndex::build(&t);
+    for (w, expected) in [
+        (0x0001c0000b980a0000000010ff800daeu128,
+            "@P0 LDGSTS.E.BYPASS.LTC128B.128 [R128+UR0], [RZ.64+0x10]"),
+        (0x0001c0000b980a000007fff0ff800dae,
+            "@P0 LDGSTS.E.BYPASS.LTC128B.128 [R128+UR0+0x7f], [RZ.64+-0x10]"),
+        (0x0001c0000b980a0000040000ff800dae,
+            "@P0 LDGSTS.E.BYPASS.LTC128B.128 [R128+UR0+0x40], [RZ.64]"),
+    ] {
+        assert_eq!(dec(&t, &idx, w), expected);
     }
 }
 
@@ -368,12 +399,13 @@ const CTLX: &[(&str, u64, u64, &str)] = &[
 
 #[test]
 fn t164_4_no_elision_controls() {
-    let i103 = DecodeIndex::build(&t103a());
-    let i120 = DecodeIndex::build(&t120());
+    let t103 = t103a();
+    let t120 = t120();
+    let i103 = DecodeIndex::build(&t103);
+    let i120 = DecodeIndex::build(&t120);
     for (tn, lo, hi, want) in CTLX {
-        let t = tbl(tn);
-        let idx = if tn == &"sm120" { &i120 } else { &i103 };
-        let got = dec(&t, idx, word(*lo, *hi));
+        let (t, idx) = if tn == &"sm120" { (&t120, &i120) } else { (&t103, &i103) };
+        let got = dec(t, idx, word(*lo, *hi));
         assert_eq!(got, *want, "control no-elision {tn} {want}");
     }
 }

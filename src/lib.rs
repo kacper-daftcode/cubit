@@ -36,6 +36,7 @@ pub mod pred_liveness;
 pub mod ra;
 pub mod ra_full;
 pub mod render;
+pub mod roundtrip_audit;
 pub mod reg_liveness;
 pub mod printer;
 pub mod prof;

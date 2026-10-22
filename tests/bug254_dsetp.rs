@@ -215,22 +215,21 @@ fn t254_5_sentinels() {
         "b122 legs diverged: {r122:?}"
     );
     assert_eq!(r122[0], "DSETP.NEU.AND P0, PT, RZ.reuse, UR10, PT");
-    let x75: Vec<_> = tables
-        .iter()
-        .map(|t| dec(t, W_A ^ (1u128 << 75)).unwrap())
-        .collect();
-    assert!(
-        x75.windows(2).all(|w| w[0] == w[1]),
-        "b75 legs diverged: {x75:?}"
-    );
-    let inv3: Vec<_> = tables
-        .iter()
-        .map(|t| dec(t, W_A ^ (3u128 << 74)).unwrap())
-        .collect();
-    assert!(
-        inv3.windows(2).all(|w| w[0] == w[1]),
-        "inv3 legs diverged: {inv3:?}"
-    );
+    let x75: Vec<_> = tables.iter().map(|t| dec(t, W_A ^ (1u128 << 75)).unwrap()).collect();
+    // Native boolean[75:74] is an enum. Independent nvdisasm SM120 probes
+    // confirm XOR=2 and INVALID3=3; the latter is deliberately unsupported.
+    assert_eq!(x75[2], "DSETP.EQ.XOR P0, PT, R22, RZ, !P0");
+    let native = &tables[2];
+    let w = W_A ^ (1u128 << 75);
+    let ctrl = cubit::scheduling::decode_sched_upper32((w >> 96) as u32);
+    let source = format!("[{}] {} ;", cubit::scheduling::format_control_code(&ctrl), x75[2]);
+    assert_eq!(encode_instruction(&cubit::parse_cuasm_line(&source, 0).unwrap(), native).unwrap(), w);
+    assert!(dec(native, W_A ^ (3u128 << 74)).is_none(), "reserved INVALID3 is unsupported");
+    // Keep the pre-existing behavior of unmodified donor tables pinned.
+    assert_eq!(x75[0], x75[1]);
+    assert_eq!(x75[0], x75[3]);
+    let inv3: Vec<_> = [0usize, 1, 3].iter().map(|&i| dec(&tables[i], W_A ^ (3u128 << 74)).unwrap()).collect();
+    assert!(inv3.windows(2).all(|w| w[0] == w[1]), "donor inv3 legs diverged: {inv3:?}");
     // 260-kand sentinel (registered, donor-side, NOT this fix): unfielded
     // operand-modifier bakes in and_base make the encoder inject modifiers
     // -- DSETP MG slots {R_R_P: AND,NUM (abs62+abs73), GT,OR (abs73), LE,OR
@@ -247,7 +246,12 @@ fn t254_5_sentinels() {
         q, "DSETP.LTU.OR P2, PT, R72, |R116|, !P4",
         "260-kand witness drifted"
     );
-    for t in &tables[1..] {
+    assert_eq!(dec(native, enc(native, "DSETP.LTU.OR P2, PT, R72, R116, !P4")).unwrap(),
+        "DSETP.LTU.OR P2, PT, R72, R116, !P4", "native source signs must be authored");
+    let native_row = native.get("DSETP_P_P_R_R_P", "LTU,OR").unwrap();
+    assert_eq!((native_row.and_base >> 62) & 1, 0);
+    assert_eq!((native_row.variable_mask >> 62) & 1, 1);
+    for t in [&tables[1], &tables[3]] {
         let mg = t
             .entries
             .get("DSETP_P_P_R_R_P")

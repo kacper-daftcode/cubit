@@ -23,8 +23,23 @@ use cubit::table::IsaTable;
 
 include!("bug462_data.inc");
 
-fn tab(arch: &str) -> IsaTable {
-    IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()
+// Immutable fixtures only: every word still runs through decode/encode.
+fn pool() -> &'static std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)> {
+    static POOL: std::sync::OnceLock<std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)>> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| {
+        ["sm100a", "sm103a", "sm120", "sm121a"].into_iter().map(|arch| {
+            let table = IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap();
+            let index = DecodeIndex::build(&table);
+            (arch, (table, index))
+        }).collect()
+    })
+}
+fn tab(arch: &str) -> &'static IsaTable {
+    &pool().get(arch).unwrap().0
+}
+fn cached_index(table: &IsaTable) -> &'static DecodeIndex {
+    pool().values().find(|(fixture, _)| std::ptr::eq(fixture, table))
+        .map(|(_, index)| index).expect("table must come from the immutable fixture pool")
 }
 fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
     idx.decode(w, 0, t)
@@ -43,7 +58,7 @@ fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
 fn t462_1_enl2_ra255_hole() {
     for (w, leg) in REFUSE462 {
         let t = tab(leg);
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         assert_eq!(dec(&t, &idx, *w), None, "[{leg}] 462 claimed {w:#034x}");
     }
 }
@@ -54,7 +69,7 @@ fn t462_1_enl2_ra255_hole() {
 fn t462_2_kill_preserve() {
     for (w, leg) in KEEP462 {
         let t = tab(leg);
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         let got = dec(&t, &idx, *w).unwrap_or_else(|| panic!("[{leg}] 254 killed {w:#034x}"));
         assert!(got.contains("R254"), "[{leg}] 254 drift: {got}");
     }
@@ -86,7 +101,7 @@ fn t462_4_claim_census() {
         ("sm100a", 1170usize), // RIDE476 (F2-iter299, canonical c88778e): +1 cf/noga x3 (476b fantom _II forbid na STG.E.EL.ELL2.256.STRONG.GPU_ARURI_R_R_II)
         /* RIDE475r3 (F2-iter289, INC-289e, canonical 978c091): cf-dziedziczenie donorow 475 (+1136), R3 +3, R3b 121a +2 */
         ("sm103a", 1170usize),
-        ("sm120", 1168usize), // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim)
+        ("sm120", 1181usize), // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim)
         ("sm121a", 1184usize), // RIDE469: +17 cf (graft 469); canonical bd48e63 + // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim) (121a)
     ] {
         let raw = std::fs::read_to_string(format!("tables/{leg}.json")).unwrap();

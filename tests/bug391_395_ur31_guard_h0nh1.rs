@@ -50,11 +50,27 @@ use data::*;
 const M96: u128 = (1 << 96) - 1;
 const LEGS4: [&str; 4] = ["sm100a", "sm103a", "sm120", "sm121a"];
 
-fn tab(arch: &str) -> IsaTable {
-    IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()
+// The fixtures are immutable. Share only table parsing and index construction;
+// every corpus word still passes through the normal decoder and assertions.
+fn pool() -> &'static std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)> {
+    static POOL: std::sync::OnceLock<std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)>> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| {
+        ["sm100a", "sm103a", "sm120", "sm121a"].into_iter().map(|arch| {
+            let table = IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap();
+            let index = DecodeIndex::build(&table);
+            (arch, (table, index))
+        }).collect()
+    })
+}
+fn tab(arch: &str) -> &'static IsaTable {
+    &pool().get(arch).unwrap().0
+}
+fn cached_index(table: &IsaTable) -> &'static DecodeIndex {
+    pool().values().find(|(fixture, _)| std::ptr::eq(fixture, table))
+        .map(|(_, index)| index).expect("table must come from the immutable fixture pool")
 }
 fn dec96(t: &IsaTable, w: u128) -> Option<String> {
-    let idx = DecodeIndex::build(t);
+    let idx = cached_index(t);
     idx.decode(w & M96, 0, t).map(|d| to_sass(&d)).ok()
 }
 fn text_of(t: &IsaTable, w: u128) -> Option<String> {
@@ -70,7 +86,7 @@ fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
 /// guard x tok3-joint composes).
 #[test]
 fn t391_1_guard_law_vendor_exact() {
-    let tabs: Vec<IsaTable> = LEGS4.iter().map(|a| tab(a)).collect();
+    let tabs: Vec<&IsaTable> = LEGS4.iter().map(|a| tab(a)).collect();
     for (w, tag, ven) in LAW391 {
         for (li, leg) in LEGS4.iter().enumerate() {
             let got = text_of(&tabs[li], *w)
@@ -115,13 +131,13 @@ fn t391_2_guard_map_sweep() {
 /// 0x7c31 rows (plain key or RELU _P dotted key), never a foreign family.
 #[test]
 fn t391_3_guard_claim_route() {
-    let tabs: Vec<IsaTable> = LEGS4.iter().map(|a| tab(a)).collect();
+    let tabs: Vec<&IsaTable> = LEGS4.iter().map(|a| tab(a)).collect();
     for (w, tag, _ven) in LAW391 {
         if (w >> 12) & 0xf == 7 {
             continue; // elided guard cell still pins the unguarded claim
         }
         for (li, leg) in LEGS4.iter().enumerate() {
-            let idx = DecodeIndex::build(&tabs[li]);
+            let idx = cached_index(tabs[li]);
             let d = idx
                 .decode(*w & M96, 0, &tabs[li])
                 .unwrap_or_else(|_| panic!("391 route leg {leg} tag {tag}: HOLE"));
@@ -138,7 +154,7 @@ fn t391_3_guard_claim_route() {
 /// on x4 legs (pre-fix HOLE on the 3 sparse legs; sm121a shipped).
 #[test]
 fn t395_1_h0nh1_law_vendor_exact() {
-    let tabs: Vec<IsaTable> = LEGS4.iter().map(|a| tab(a)).collect();
+    let tabs: Vec<&IsaTable> = LEGS4.iter().map(|a| tab(a)).collect();
     for (w, tag, ven) in LAW395 {
         for (li, leg) in LEGS4.iter().enumerate() {
             let got = text_of(&tabs[li], *w)
@@ -210,13 +226,13 @@ fn t395_3_mint_circles() {
 /// rows (plain key or RELU _P dotted key).
 #[test]
 fn t395_4_h0nh1_claim_route() {
-    let tabs: Vec<IsaTable> = LEGS4.iter().map(|a| tab(a)).collect();
+    let tabs: Vec<&IsaTable> = LEGS4.iter().map(|a| tab(a)).collect();
     for (w, tag, _ven) in LAW395 {
         if w & (1 << 86) == 0 {
             continue;
         }
         for (li, leg) in LEGS4.iter().enumerate() {
-            let idx = DecodeIndex::build(&tabs[li]);
+            let idx = cached_index(tabs[li]);
             let d = idx
                 .decode(*w & M96, 0, &tabs[li])
                 .unwrap_or_else(|_| panic!("395 route leg {leg} tag {tag}: HOLE"));
@@ -235,7 +251,7 @@ fn t395_4_h0nh1_claim_route() {
 /// already pre-graft (measure_pre391: 3 HOLEs on sm121a exactly these).
 #[test]
 fn t395_5_invalid_markers_fail_closed() {
-    let tabs: Vec<IsaTable> = LEGS4.iter().map(|a| tab(a)).collect();
+    let tabs: Vec<&IsaTable> = LEGS4.iter().map(|a| tab(a)).collect();
     for (w, tag, ven) in INVALID395 {
         assert!(ven.contains(".INVALID"), "INVALID set drift: {tag} {ven}");
         for (li, leg) in LEGS4.iter().enumerate() {
@@ -256,7 +272,7 @@ fn t395_5_invalid_markers_fail_closed() {
 /// pre-fix on every leg; the graft must not tear them).
 #[test]
 fn t395_6_single_sign_regression_rail() {
-    let tabs: Vec<IsaTable> = LEGS4.iter().map(|a| tab(a)).collect();
+    let tabs: Vec<&IsaTable> = LEGS4.iter().map(|a| tab(a)).collect();
     let mut n = 0usize;
     for (w, tag, ven) in LAW395 {
         if w & (1 << 86) != 0 {

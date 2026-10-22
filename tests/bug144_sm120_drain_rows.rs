@@ -123,10 +123,11 @@ fn t144_3_decode_clean_no_rii_p_artifact_sm120() {
     }
 }
 
-/// New flag fields on tok6: neg (bit 75) and reuse (bit 124) decode to the
-/// authored spelling on sm120 (grafted on the vendor anchor word).
+/// Negation75 is legal. Independent NVIDIA SM120 probes on 2026-10-22
+/// reject every uniform-reuse bit122/123/124, correcting the old table's
+/// unsupported reuse claim without losing the fitted register/neg fields.
 #[test]
-fn t144_4_tok6_neg_and_reuse_flags_sm120() {
+fn t144_4_tok6_neg_survives_and_uniform_reuse_is_rejected_sm120() {
     let t = t120();
     let base = enc(&t, "UIADD3 UR4, UPT, UPT, UR5, UR6, UR7");
     let neg = dec(&t, base | (1u128 << 75));
@@ -134,11 +135,21 @@ fn t144_4_tok6_neg_and_reuse_flags_sm120() {
         neg.split(" /*").next().unwrap().ends_with("-UR7"),
         "bit75 must decode as negated tok6: {neg}"
     );
-    let reuse = dec(&t, base | (1u128 << 124));
-    assert!(
-        reuse.contains("UR7.reuse"),
-        "bit124 must decode as tok6 reuse: {reuse}"
-    );
+    for text in [
+        "UIADD3 UR4, UPT, UPT, UR5.reuse, UR6, UR7",
+        "UIADD3 UR4, UPT, UPT, UR5, UR6.reuse, UR7",
+        "UIADD3 UR4, UPT, UPT, UR5, UR6, UR7.reuse",
+    ] {
+        let parsed = parse_sass(text, 0).unwrap();
+        assert!(encode_instruction(&parsed, &t).is_err(), "vendor-invalid reuse encoded: {text}");
+    }
+    let index=t.decode_index();
+    for bit in [122,123,124] {
+        let invalid=base|(1u128<<bit);
+        let (report, _)=cubit::roundtrip_audit::audit_kernel(".text.invalid_uniform_reuse",0,
+            &invalid.to_le_bytes(),&t,&index,&mut |_|Ok(())).unwrap();
+        assert!(!report.passed,"invalid uniform reuse bit{bit} passed semantic audit");
+    }
     // and_base carried a stray constant only in [64:72); guard/neg/reuse of
     // the other operands are untouched (byte parity with sm103a).
     let t103 = t103a();

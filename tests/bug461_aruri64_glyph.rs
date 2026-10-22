@@ -21,8 +21,23 @@ use cubit::table::IsaTable;
 
 include!("bug461_data.inc");
 
-fn tab(arch: &str) -> IsaTable {
-    IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()
+// Immutable fixtures only: every word still runs through decode/encode.
+fn pool() -> &'static std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)> {
+    static POOL: std::sync::OnceLock<std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)>> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| {
+        ["sm100a", "sm103a", "sm120", "sm121a"].into_iter().map(|arch| {
+            let table = IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap();
+            let index = DecodeIndex::build(&table);
+            (arch, (table, index))
+        }).collect()
+    })
+}
+fn tab(arch: &str) -> &'static IsaTable {
+    &pool().get(arch).unwrap().0
+}
+fn cached_index(table: &IsaTable) -> &'static DecodeIndex {
+    pool().values().find(|(fixture, _)| std::ptr::eq(fixture, table))
+        .map(|(_, index)| index).expect("table must come from the immutable fixture pool")
 }
 fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
     idx.decode(w, 0, t)
@@ -42,7 +57,7 @@ fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
 fn t461_1_glyph_decode() {
     for (w, leg, want) in GLYPH461 {
         let t = tab(leg);
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         let got = dec(&t, &idx, *w);
         assert_eq!(got.as_deref(), Some(*want), "[{leg}] glyph {w:#034x}");
         assert!(want.contains("???255.64"), "glyph shape: {want}");
@@ -55,7 +70,7 @@ fn t461_1_glyph_decode() {
 fn t461_2_kill_preserve() {
     for (w, leg, want) in KEEP461_PREPOST {
         let t = tab(leg);
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         let got = dec(&t, &idx, *w);
         assert_eq!(got.as_deref(), Some(*want), "[{leg}] kill drift {w:#034x}");
     }
@@ -84,7 +99,7 @@ fn t461_4_census_attribution() {
     let want = [
         ("sm100a", 1170u32), // RIDE476 (F2-iter299, canonical c88778e): +1 cf/noga x3 (476b fantom _II forbid; _src474 key) // RIDE475r3 (F2-iter289, INC-289e, canonical 978c091)
         ("sm103a", 1170),
-        ("sm120", 1168), // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim)
+        ("sm120", 1181), // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim)
         ("sm121a", 1184), // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim) (121a)
     ];
     for (leg, want_cf) in want {
@@ -134,7 +149,7 @@ fn t461_4_census_attribution() {
 fn t461_5_u32_keeper() {
     for (w, leg, want) in U32KEEP461 {
         let t = tab(leg);
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         let got = dec(&t, &idx, *w);
         assert_eq!(got.as_deref(), Some(*want), "[{leg}] U32 drift {w:#034x}");
         assert!(want.contains("RZ.U32"), "expected RZ.U32 glyph: {want}");

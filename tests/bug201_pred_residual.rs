@@ -176,9 +176,10 @@ fn t201_5_authored_tok2_encode() {
     }
 }
 
-/// t201_6: tripwire — no pred/neg field outside the canonical window set
+/// t201_6: tripwire — no predicate field outside the canonical window set
 /// {(81,3),(84,3),(87,3),(90,1)} on all 30 scope rows; max one pred field
-/// per token; neg single at (90,1).
+/// per token; predicate negation single at (90,1). Floating source sign
+/// fields at (72,1)/(63,1) are separate operands, verified by nvdisasm.
 #[test]
 fn t201_6_no_residual_windows() {
     const CANON: [(u8, u8); 4] = [(81, 3), (84, 3), (87, 3), (90, 1)];
@@ -204,9 +205,17 @@ fn t201_6_no_residual_windows() {
                         assert!(CANON.contains(&(s, b)), "{p}: {key}::{mg} pred@({s},{b}) residual");
                         assert!(pred_toks.insert(f["token_idx"].as_u64().unwrap()), "{p}: {key}::{mg} dup tok");
                     }
-                    if e == "neg" {
-                        neg_n += 1;
-                        assert!(CANON.contains(&(s, b)), "{p}: {key}::{mg} neg@({s},{b}) residual");
+                    if e == "neg" || e == "inv" {
+                        let token = f["token_idx"].as_u64().unwrap();
+                        if token == 5 {
+                            neg_n += 1;
+                            assert_eq!((s, b), (90, 1), "{p}: {key}::{mg} predicate neg@({s},{b}) residual");
+                        } else {
+                            assert_eq!(e, "neg", "{p}: {key}::{mg} unexpected source inversion");
+                            assert!((token == 3 && (s, b) == (72, 1)) ||
+                                (token == 4 && (s, b) == (63, 1)),
+                                "{p}: {key}::{mg} source neg token {token}@({s},{b}) residual");
+                        }
                     }
                 }
                 assert_eq!(pred_toks.len(), 3, "{p}: {key}::{mg} needs 3 pred slots");
@@ -241,5 +250,23 @@ fn t201_7_corpus_anchor_retention() {
             assert_eq!(dec(&t, &idx, w), want, "{p}: retention {want}");
             assert_eq!(enc(&t, want), w & !SCHED, "{p}: retention roundtrip {want}");
         }
+    }
+}
+
+/// nvdisasm 13.1.80 SM120 anchors distinguish the floating source signs
+/// from the final predicate's independent negation window.
+#[test]
+fn t201_8_sm120_float_source_signs_are_separate() {
+    let t = tab("tables/sm120.json");
+    let idx = DecodeIndex::build(&t);
+    for (word, want) in [
+        (0x000fde0003f06100000000ff0400722au128, "DSETP.GE.AND P0, PT, -R4, RZ, PT"),
+        (0x000fde0003f06000800000ff0400722a, "DSETP.GE.AND P0, PT, R4, -RZ, PT"),
+        (0x000e24000bf01100000000082c007e2a, "DSETP.LT.AND P0, PT, -R44, UR8, PT"),
+        (0x000e24000bf01000800000082c007e2a, "DSETP.LT.AND P0, PT, R44, -UR8, PT"),
+        (0x000e24000390f1003ff000000e00742a, "DSETP.MAX.AND P0, P1, -R14, 1, PT"),
+    ] {
+        assert_eq!(dec(&t, &idx, word), want);
+        assert_eq!(enc(&t, want), word & !SCHED, "{want}");
     }
 }

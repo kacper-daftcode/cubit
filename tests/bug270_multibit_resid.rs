@@ -408,16 +408,27 @@ fn t270_4_encode_inverse() {
             f | (1 << 60) | (1 << 63)
         );
     }
-    // HSETP2 sm120 encode of 'GEU.AND' text stays fail-closed post-265:
-    // pre-265 the mg-name order mismatched the parser query; post-265 the
-    // renamed lattice carries only 'AND,F' (sm121a has the full 16-mg cmp
-    // lattice; sm120 GEU-word coverage = b4-forward/277-kand).
+    // SM120 native float RE now models the full HSETP2 comparison lattice.
+    // NVIDIA nvdisasm 13.1 independently confirms this exact guarded GEU
+    // word (bug270_sm120_nvdisasm_core9.json); the historical missing-mode
+    // rejection is superseded. Preserve every bit, including frozen control.
     let t = tab("sm120");
-    let r = parse_sass("@P0 HSETP2.GEU.AND P0, P0, R0, UR0, P0;", 0)
-        .map(|i| encode_instruction(&i, &t));
-    assert!(
-        matches!(r, Ok(Err(_))),
-        "HSETP2 sm120 mg-name drift must stay fail-closed"
+    let text = "@P0 HSETP2.GEU.AND P0, P0, R0, UR0, P0";
+    let expected = 0x02532e000800e0000000000000000e34u128;
+    let source = format!(".entry hsetp\n[B0-2--5:R1:W4:Y:S07] {text} ;\n.endentry\n");
+    let bytes = cubit::roundtrip_audit::encode_semantic_source(&source, &t).unwrap();
+    assert_eq!(bytes, expected.to_le_bytes());
+    let index = DecodeIndex::build(&t);
+    assert_eq!(to_sass(&index.decode(expected, 0, &t).unwrap()), text);
+    let mut failures = Vec::new();
+    let (report, emitted) = cubit::roundtrip_audit::audit_kernel(
+        ".text.hsetp", 0, &bytes, &t, &index,
+        &mut |failure| { failures.push(failure.clone()); Ok(()) },
+    ).unwrap();
+    assert!(report.passed && report.stream_verified, "{failures:?}");
+    assert_eq!(
+        cubit::roundtrip_audit::encode_semantic_source(&emitted, &t).unwrap(),
+        bytes,
     );
     // Encode-route limitation (pre-existing, registered): FI/II text typing
     // makes R_R_R_FI_II unreachable for plain float texts (is_float typing =>

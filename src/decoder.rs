@@ -385,7 +385,17 @@ impl DecodeIndex {
             if is_225_armed {
                 return None;
             }
-            if !is_memlike {
+            // Native BMSK has no source signs. Native DSETP already names
+            // every source-sign field and uses74/75 for boolean combine;
+            // the generic sign fallback must not absorb its INVALID3 enum.
+            // I2FP sign-like bits are inert or belong to datatype/rounding.
+            // UIADD3 names its source signs explicitly; bit74 selects X.
+            // Masking it would turn non-X ignored carry selectors into a
+            // spurious X instruction and change the decoded arithmetic.
+            let native_hi = table.target_sm() == 120 && base == "IMAD"
+                && (c.mod_group.split(',').any(|m| m == "HI")
+                    || c.key.split('_').next().unwrap_or("").split('.').any(|m| m == "HI"));
+            if !is_memlike && !native_hi && !(table.target_sm() == 120 && matches!(base, "BMSK" | "DSETP" | "I2FP" | "UIADD3")) {
                 let sign_bits: u128 = (3u128 << 62) | (3u128 << 72) | (3u128 << 74);
                 let m2 = c.match_mask & !sign_bits;
                 if (code_clean & m2 & !guard_mask) == (c.and_base & m2 & !guard_mask) {
@@ -839,7 +849,12 @@ impl DecodeIndex {
                 "UTMAPF" | "UTMAREDG" | "UTMASTG" | "UTMACCTL" |
                 "UTMACMDFLUSH" | "UTCATOMSWS" | "UTCHMMA" | "UTCIMMA" |
                 "UTCQMMA" | "SULD");
-            if is_alu && !is_225_armed {
+            // BMSK's generic sign band is text-inert on native SM120.
+            // Global109 is schedule yield, never arithmetic negation.
+            let native_hi = table.target_sm() == 120 && base_op == "IMAD"
+                && (matched.mod_group.split(',').any(|m| m == "HI")
+                    || matched.key.split('_').next().unwrap_or("").split('.').any(|m| m == "HI"));
+            if is_alu && !is_225_armed && !native_hi && !(table.target_sm() == 120 && matches!(base_op, "BMSK" | "I2FP")) {
                 // BUG-392: derive operand types from the robust key parser
                 // (parse_ins_key_op_types), not a naive split('_').skip(1):
                 // multi-component dotted prefixes ('HFMA2.BF16_V2.RELU_*',

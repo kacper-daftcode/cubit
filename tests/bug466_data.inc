@@ -1,5 +1,5 @@
 // BUG-466 machine-built pin data (gen466pins.py rc=2; no hand hex).
-pub const CANON466: &str = "cc2f62c379c3e190ef373ab9e8f76af0aeef326c"; // ride F2-iter275 (BUG-466 x3 ELL2.256 dARI-era rekanon -> plain vendor geometry)
+pub const CANON466: &str = "463a648c4ee0bd20cf013315a0ec6a2432f7975a"; // ride F2-iter275 (BUG-466 x3 ELL2.256 dARI-era rekanon -> plain vendor geometry)
 pub const LAW466_ROUTE: &[(u128, &str, &str)] = &[
     (
         0x000be4000824e100fe0000000000097eu128,

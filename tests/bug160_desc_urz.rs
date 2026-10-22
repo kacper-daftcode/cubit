@@ -20,14 +20,10 @@
 //! URZ there; field-less rows keep the historical URZ default. Mirrors
 //! format_utc_desc / format_auri_uronly / format_sts_lds_addr.
 //!
-//! PARKED (encode side = parser RE_DESC URZ -> 255): the ONE frozen
-//! publish-era line `LDG.E.LTC128B.128 R0, desc[URZ][R60.64+0x2400]
-//! !rsd[...]` (front-M artifact, results/cubitfix/049/rt98_v2.sass) encodes
-//! through canonical LDG_R_dARI['128,E,LTC128B'] (sub_ur0@[32:40)/8) whose
-//! silicon-proven published byte there is 0x3f -- produced under the old
-//! inverted law. Re-spelling the frozen glyph (URZ->UR63) or its bytes is a
-//! front-M/owner decision (text md5 gates + publish contract). t160_3/t160_4
-//! pin the parked contract so the chain stays byte-exact. See 160.md sec.5.
+//! Encode and IR rendering now use the same law. The historical residue
+//! fixture explicitly spells its numeric UR63 payload; it cannot redefine
+//! URZ for normal semantic assembly. Residue-bearing input remains outside
+//! the strict semantic audit.
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
@@ -67,11 +63,9 @@ fn t160_1_decode_law() {
     }
 }
 
-/// Re-encode of the new canonical renders reproduces the window byte for
-/// every NON-URZ value (UR63 round-trips now; pre-fix it collapsed to URZ /
-///  "UR255" unparseable junk). URZ-word re-encode is the parked half.
+/// Re-encode of canonical renders preserves both URZ and real UR63.
 #[test]
-fn t160_2_render_reencode_nonz() {
+fn t160_2_render_reencode_all_values() {
     let t = t103a();
     let idx = DecodeIndex::build(&t);
     let a1: u128 = 0x001fe2000c101906_000000ff02007986u128;
@@ -79,6 +73,7 @@ fn t160_2_render_reencode_nonz() {
     let cases: &[(u128, &str, u64)] = &[
         (a1,                                     "STG.E desc[UR6][R2.64], RZ",  0x06),
         (base | (0x3fu128 << 64),                "STG.E desc[UR63][R2.64], RZ", 0x3F),
+        (base | (0xffu128 << 64),                "STG.E desc[URZ][R2.64], RZ", 0xFF),
         (base,                                   "STG.E desc[UR0][R2.64], RZ",  0x00),
         (0x0009e2000c10194c_0002705044007986u128, "STG.E desc[UR76][R68.64+0x270], R80", 0x4C),
     ];
@@ -92,34 +87,40 @@ fn t160_2_render_reencode_nonz() {
     }
 }
 
-/// Parked-contract pin: the ONE frozen publish-era line keeps its
-/// silicon-proven bytes under BOTH tables in play (sm120 publish table and
-/// the tb_i82p3 chain table). The glyph stays `desc[URZ]`; bytes stay 0x3f
-/// in the [32:40) window (legacy inverted law) until the owner re-cuts the
-/// era text. If this pin breaks, the publish chain changed bytes.
+/// Original residue source stays explicit unsupported evidence; the real
+/// native STG identity must encode without residue.
 #[test]
-fn t160_3_era_contract_frozen() {
-    const PIN: &str = "@P5 LDG.E.LTC128B.128 R0, desc[URZ][R60.64+0x2400] !rsd[1:1,2:1,66:1,68:1,76:0,77:1,78:1,79:1,84:0,85:1,90:0]";
+fn t160_3_legacy_residue_fixture_is_strict_negative() {
+    const PIN: &str = "@P5 LDG.E.LTC128B.128 R0, desc[UR63][R60.64+0x2400] !rsd[1:1,2:1,66:1,68:1,76:0,77:1,78:1,79:1,84:0,85:1,90:0]";
     const WORD: u128 = 0x0009e4000820e914_0024003f3c005986u128;
-    for path in ["tables/sm120.json"] {
-        let t = IsaTable::load(std::path::Path::new(path)).unwrap();
-        let insn = parse_sass(&format!("{PIN} ;"), 0).unwrap();
-        let enc = encode_instruction(&insn, &t).expect("era line must encode");
-        assert_eq!(enc & M96, WORD & M96, "era publish line byte-exact ({path})");
-    }
+    assert!(cubit::roundtrip_audit::check_semantic_source(PIN).is_err());
+    let t = IsaTable::load(std::path::Path::new("tables/sm120.json")).unwrap();
+    let text = "@P5 STG.E.EL.STRONG.GPU [R60.U32+UR20+0x2400], R63";
+    let insn = parse_sass(text, 0).unwrap();
+    assert_eq!(encode_instruction(&insn, &t).unwrap() & M96, WORD & M96);
 }
 
-/// Documented parked parser state: URZ currently stores 63 encode-side
-/// (inverted legacy, see header). UR63 stores 63 too. A future owner-side
-/// flip must migrate the era artifact first (t160_3 will catch drift).
+/// The structured IR must preserve the distinction the vendor prints.
 #[test]
-fn t160_4_parser_parked_state() {
+fn t160_4_parser_preserves_zero_and_real_register() {
     let d = parse_sass("STG.E desc[URZ][R2.64], RZ ;", 0).unwrap();
-    assert!(matches!(d.operands[0], Operand::Desc { ur_idx: 63, .. }),
-        "parked: desc[URZ] encode-side value = 63: {:?}", d.operands[0]);
+    assert!(matches!(d.operands[0], Operand::Desc { ur_idx: 255, .. }),
+        "desc[URZ] encode-side value = 255: {:?}", d.operands[0]);
     let d = parse_sass("STG.E desc[UR63][R2.64], RZ ;", 0).unwrap();
     assert!(matches!(d.operands[0], Operand::Desc { ur_idx: 63, .. }),
         "desc[UR63] stays 63: {:?}", d.operands[0]);
+}
+
+#[test]
+fn t160_6_ir_renderer_keeps_zero_and_real_uniform_register_distinct() {
+    for (spelling, expected) in [("URZ", 255), ("UR63", 63)] {
+        let source = format!(".entry k\nSTG.E desc[{spelling}][R2.64], RZ ;\n.endentry\n");
+        let file = cubit::sass_file::parse_sass_file_str_strict(&source).unwrap();
+        let rendered = cubit::render::render_file(&file).unwrap();
+        assert!(rendered.contains(&format!("desc[{spelling}]")), "{rendered}");
+        let reparsed = cubit::sass_file::parse_sass_file_str_strict(&rendered).unwrap();
+        assert!(matches!(reparsed.kernels[0].instructions[0].operands[0], Operand::Desc { ur_idx, .. } if ur_idx == expected));
+    }
 }
 
 /// URZ-window decode now emits the parseable canonical spelling (pre-fix

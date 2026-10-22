@@ -35,8 +35,23 @@ use cubit::table::IsaTable;
 
 include!("bug467_data.inc");
 
-fn tab(arch: &str) -> IsaTable {
-    IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()
+// Immutable fixtures only: every word still runs through decode/encode.
+fn pool() -> &'static std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)> {
+    static POOL: std::sync::OnceLock<std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)>> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| {
+        ["sm100a", "sm103a", "sm120", "sm121a"].into_iter().map(|arch| {
+            let table = IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap();
+            let index = DecodeIndex::build(&table);
+            (arch, (table, index))
+        }).collect()
+    })
+}
+fn tab(arch: &str) -> &'static IsaTable {
+    &pool().get(arch).unwrap().0
+}
+fn cached_index(table: &IsaTable) -> &'static DecodeIndex {
+    pool().values().find(|(fixture, _)| std::ptr::eq(fixture, table))
+        .map(|(_, index)| index).expect("table must come from the immutable fixture pool")
 }
 fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
     idx.decode(w, 0, t)
@@ -57,7 +72,7 @@ fn t467_1_decode_fail_closed_anchors() {
     let mut n = 0;
     for (w, leg, tag, vendor) in DEGEN467_LAW {
         let t = tab(leg);
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         let got = dec(&t, &idx, *w);
         assert!(
             got.is_none(),
@@ -83,7 +98,7 @@ fn t467_2_probe_space_all_hole() {
     let mut n = 0;
     for (w, leg, tag) in DEGEN467_PROBES {
         let t = tab(leg);
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         let got = dec(&t, &idx, *w);
         assert!(
             got.is_none(),
@@ -118,7 +133,7 @@ fn t467_3_encode_refuse_fail_closed() {
 fn t467_4_keep_alive_siblings() {
     for (w, leg, tag, vendor) in KEEP467 {
         let t = tab(leg);
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         let got = dec(&t, &idx, *w);
         assert_eq!(
             got.as_deref(),
@@ -129,7 +144,7 @@ fn t467_4_keep_alive_siblings() {
     for (leg, text) in KEEP467_ENC {
         let t = tab(leg);
         let w = enc(&t, text).unwrap_or_else(|e| panic!("[{leg}] keep-enc '{text}' odmowil: {e}"));
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         assert!(
             dec(&t, &idx, w).is_some(),
             "[{leg}] keep-enc word of '{text}' musi dekodowac (circle)"
@@ -142,7 +157,7 @@ fn t467_4_keep_alive_siblings() {
         let t = tab(leg);
         let got = enc(&t, text).unwrap();
         assert_eq!(&got, w, "[{leg}] keep-enc mint geometry drift for '{text}'");
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         assert_eq!(
             dec(&t, &idx, got).as_deref(),
             Some(*vendor),
@@ -173,7 +188,7 @@ fn t467_5_census_and_source_pin() {
     for (leg, want) in [
         ("sm100a", 14879usize), // RIDE476 (F2-iter299, canonical c88778e): +11 -> 14879 // RIDE475R3 (F2-iter289): +3/+3/+2/+2 (NA/EU restore + alias + 121a R3b anomalie) -> 14868/14868/16005/23825; cf 1169/1169/1166/1183 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146 graft x4 nogi (dARI modsub lattice E*L2.256 frame b76=1: klon 6 donorow *_dARI EFL2.256/noga, fields/vm PARITY) + rekanon 462-mgs ENL2 [489-absorb: DELETE 13/13/7 mgs + 2 anomalie 121a; REPLACE 9 heritage _src462] -> raw 14865/14865/16003/23823; loader 121a 23821 (offset -2 _errata stoi); cf 1166/1166/1164/1181 // was: 13721usize // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468) // was: 10267 ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145),
         ("sm103a", 14879usize), // RIDE476 (F2-iter299, canonical c88778e): +11 -> 14879 // RIDE475R3 (F2-iter289): +3/+3/+2/+2 (NA/EU restore + alias + 121a R3b anomalie) -> 14868/14868/16005/23825; cf 1169/1169/1166/1183 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146 graft x4 nogi (dARI modsub lattice E*L2.256 frame b76=1: klon 6 donorow *_dARI EFL2.256/noga, fields/vm PARITY) + rekanon 462-mgs ENL2 [489-absorb: DELETE 13/13/7 mgs + 2 anomalie 121a; REPLACE 9 heritage _src462] -> raw 14865/14865/16003/23823; loader 121a 23821 (offset -2 _errata stoi); cf 1166/1166/1164/1181 // was: 13721usize // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468) // was: 10267 ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145),
-        ("sm120", 16015usize), // RIDE459a (F2-iter301, canonical 96372cb): -1 sm120 key (459a junk-mg "" / 64 DELETE -> key-del UR_II_..._UP_UP) -> forms 16015, variants -4=17631; sm121a variants -4=26385; cf stoi // RIDE476 (F2-iter299, canonical c88778e): +11 -> 16016 // RIDE475R3 (F2-iter289): +3/+3/+2/+2 (NA/EU restore + alias + 121a R3b anomalie) -> 14868/14868/16005/23825; cf 1169/1169/1166/1183 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146 graft x4 nogi (dARI modsub lattice E*L2.256 frame b76=1: klon 6 donorow *_dARI EFL2.256/noga, fields/vm PARITY) + rekanon 462-mgs ENL2 [489-absorb: DELETE 13/13/7 mgs + 2 anomalie 121a; REPLACE 9 heritage _src462] -> raw 14865/14865/16003/23823; loader 121a 23821 (offset -2 _errata stoi); cf 1166/1166/1164/1181 // was: 14859usize // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468) // was: 11405 ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145),
+        ("sm120", 16133usize), // RIDE459a (F2-iter301, canonical 96372cb): -1 sm120 key (459a junk-mg "" / 64 DELETE -> key-del UR_II_..._UP_UP) -> forms 16015, variants -4=17631; sm121a variants -4=26385; cf stoi // RIDE476 (F2-iter299, canonical c88778e): +11 -> 16016 // RIDE475R3 (F2-iter289): +3/+3/+2/+2 (NA/EU restore + alias + 121a R3b anomalie) -> 14868/14868/16005/23825; cf 1169/1169/1166/1183 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146 graft x4 nogi (dARI modsub lattice E*L2.256 frame b76=1: klon 6 donorow *_dARI EFL2.256/noga, fields/vm PARITY) + rekanon 462-mgs ENL2 [489-absorb: DELETE 13/13/7 mgs + 2 anomalie 121a; REPLACE 9 heritage _src462] -> raw 14865/14865/16003/23823; loader 121a 23821 (offset -2 _errata stoi); cf 1166/1166/1164/1181 // was: 14859usize // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468) // was: 11405 ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145),
         ("sm121a", 23833usize), // RIDE476 (F2-iter299, canonical c88778e): +8 -> raw 23833 // RIDE475R3 (F2-iter289): +3/+3/+2/+2 (NA/EU restore + alias + 121a R3b anomalie) -> 14868/14868/16005/23825; cf 1169/1169/1166/1183 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146 graft x4 nogi (dARI modsub lattice E*L2.256 frame b76=1: klon 6 donorow *_dARI EFL2.256/noga, fields/vm PARITY) + rekanon 462-mgs ENL2 [489-absorb: DELETE 13/13/7 mgs + 2 anomalie 121a; REPLACE 9 heritage _src462] -> raw 14865/14865/16003/23823; loader 121a 23821 (offset -2 _errata stoi); cf 1166/1166/1164/1181 // was: 22688usize // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468) // was: 19233 ride F2-iter282 BUG-469: +6 sm121a keys (widthless ARURI graft: 2x ELL2.256 R_R_ARURI donor-103a verbatim-era0 + mg R/R_P/P_R/P_R_P plain-band + 4x EF-band P_R_ARURI_P; canonical bd48e63),  // ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145),
     ] {
         let raw: serde_json::Value =

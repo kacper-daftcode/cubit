@@ -35,14 +35,30 @@ use cubit::table::IsaTable;
 
 include!("bug454_data.inc");
 
-fn tab(arch: &str) -> IsaTable {
-    IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()
+// Immutable fixtures only: every word still runs through decode/encode.
+fn pool() -> &'static std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)> {
+    static POOL: std::sync::OnceLock<std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)>> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| {
+        ["sm100a", "sm103a", "sm120", "sm121a"].into_iter().map(|arch| {
+            let table = IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap();
+            let index = DecodeIndex::build(&table);
+            (arch, (table, index))
+        }).collect()
+    })
+}
+fn tab(arch: &str) -> &'static IsaTable {
+    &pool().get(arch).unwrap().0
+}
+fn cached_index(table: &IsaTable) -> &'static DecodeIndex {
+    pool().values().find(|(fixture, _)| std::ptr::eq(fixture, table))
+        .map(|(_, index)| index).expect("table must come from the immutable fixture pool")
 }
 fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
     idx.decode(w, 0, t)
         .ok()
         .map(|d| to_sass(&d).trim().trim_end_matches(';').to_string())
 }
+// Serialize whole tests so every encoder reader shares the env hatch lock.
 static ERRATA_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
     let full = format!(" {text} ;");
@@ -61,9 +77,10 @@ fn nforms(arch: &str) -> usize {
 /// carriers ARURI/ARURI64 heal + 121a print-mangle cure; 468 cells).
 #[test]
 fn t454_1_heal_grid() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for (w, leg, vendor) in LAW454_HEAL {
         let t = tab(leg);
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         let got = dec(&t, &idx, *w);
         assert_eq!(got.as_deref(), Some(*vendor), "[{leg}] heal drift {w:#034x}");
     }
@@ -73,9 +90,10 @@ fn t454_1_heal_grid() {
 /// key na kazdej nodze (claim-set; wyklucza podwojny claim).
 #[test]
 fn t454_2_fixture_claim_single() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for (w, leg, _v) in LAW454_HEAL {
         let t = tab(leg);
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         let d = idx.decode(*w, 0, &t).expect("fixture HOLE");
         assert!(
             d.key.contains("ARURI"),
@@ -89,9 +107,10 @@ fn t454_2_fixture_claim_single() {
 /// stay HOLE on ALL legs (12 cells).
 #[test]
 fn t454_3_parity_holes() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for (w, leg) in HOLE454 {
         let t = tab(leg);
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         assert_eq!(dec(&t, &idx, *w), None, "[{leg}] parity-hole claimed {w:#034x}");
     }
 }
@@ -102,9 +121,10 @@ fn t454_3_parity_holes() {
 /// Trajektoria: pre-452 print 'RZ.64' -> 452 HOLE -> 461 glif.
 #[test]
 fn t454_4_standing() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for (w, leg) in STAND454 {
         let t = tab(leg);
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         let got = dec(&t, &idx, *w)
             .unwrap_or_else(|| panic!("[{leg}] HOLE after 461 {w:#034x}"));
         assert!(
@@ -119,11 +139,11 @@ fn t454_4_standing() {
 /// hatch CUBIT_DISABLE_ERRATA na sm103a (wzorzec t450_4).
 #[test]
 fn t454_5_mints() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for (text, leg, w, ghatch) in MINT454 {
         let t = tab(leg);
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         let got = if *ghatch {
-            let _g = ERRATA_LOCK.lock().unwrap();
             let e = enc(&t, text).expect_err("[sm103a] BUG-080 keeper must refuse");
             assert!(format!("{e}").contains("BUG-080"), "guard msg: {e}");
             std::env::set_var("CUBIT_DISABLE_ERRATA", "1");
@@ -143,7 +163,7 @@ fn t454_5_mints() {
 /// cytowaniem BUG-080 (keeper parity, wzorzec t450_5).
 #[test]
 fn t454_6_refuse_grid() {
-    let _g = ERRATA_LOCK.lock().unwrap();
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     let t = tab("sm103a");
     for (text, leg) in REFUSE454 {
         assert_eq!(*leg, "sm103a");
@@ -158,6 +178,7 @@ fn t454_6_refuse_grid() {
 /// on REDG.*.EL.*) mints the exact original fixture words (lo96).
 #[test]
 fn t454_8_era_mint_continuity() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for (text, leg, w) in ERAM454 {
         let t = tab(leg);
         let got = enc(&t, text).unwrap_or_else(|e| panic!("[{leg}] era-mint refuse {text}: {e}"));
@@ -168,7 +189,8 @@ fn t454_8_era_mint_continuity() {
 /// t454_7: canonical pin -- SOURCE.json base_revision == BUG-454 graft rev.
 #[test]
 fn t454_7_canonical_pin() {
-    assert_eq!(CANON454, "cc2f62c"); // ride F2-iter275 (BUG-466 ELL2.256 rekanon); was 23976eb; old:  ride F2-iter267 (BUG-432 ari-cavity); was a64b82b (BUG-463 ltc-widths);  ride F2-iter266 (BUG-463 ltc-widths); was f58ed16 (BUG-461 glyph); // ride F2-iter265 (BUG-461 glyph); was f376558 (BUG-462 narrow); // ride F2-iter264 (BUG-462 narrow); was 700524e (BUG-453 graft); // ride F2-iter263 (BUG-453 graft); was e03e034 (BUG-452 narrow) [flip-ride 467: pin 67b54f4 -> 668f842]
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
+    assert_eq!(CANON454, "463a648"); // ride F2-iter275 (BUG-466 ELL2.256 rekanon); was 23976eb; old:  ride F2-iter267 (BUG-432 ari-cavity); was a64b82b (BUG-463 ltc-widths);  ride F2-iter266 (BUG-463 ltc-widths); was f58ed16 (BUG-461 glyph); // ride F2-iter265 (BUG-461 glyph); was f376558 (BUG-462 narrow); // ride F2-iter264 (BUG-462 narrow); was 700524e (BUG-453 graft); // ride F2-iter263 (BUG-453 graft); was e03e034 (BUG-452 narrow) [flip-ride 467: pin 67b54f4 -> 668f842]
     let src: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(

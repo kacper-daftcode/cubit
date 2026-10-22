@@ -104,11 +104,14 @@ fn t291_2_keep_lanes_mint_unchanged() {
     let t121 = tab("sm121a");
     let w = enc(&t121, "LEA_P0 R22, R18, R19.reuse, 0x1");
     assert_eq!((w >> 122) & 7, 2, "LEA_P0 .reuse slot bit lost");
-    // data-taught explicit UR reuse field (BUG-144 class, sm120)
+    // Native SM120 bit sweeps disprove the historical UIADD3 reuse field.
+    // Correct explicit row repair must preserve the uniform reuse rejection.
     let t = tab("sm120");
     let a = enc(&t, "UIADD3 UR4, UPT, UPT, UR5, UR6, UR7");
-    let b = enc(&t, "UIADD3 UR4, UPT, UPT, UR5, UR6, UR7.reuse");
-    assert_eq!(b, a | (1 << 124), "explicit UR reuse @124 stays minted");
+    assert_eq!((a >> 122) & 7, 0);
+    let e = enc_res(&t, "UIADD3 UR4, UPT, UPT, UR5, UR6, UR7.reuse")
+        .expect_err("native UIADD3 reuse is vendor-illegal");
+    assert!(e.contains("BUG-252"), "{e}");
     // explicit-field decode anchors stay exact (bug241 style)
     assert_eq!(
         dec(&t, 0x040fe2000780a009000000ff0c087212),
@@ -194,54 +197,25 @@ fn t291_5_unmapped_variants_and_registered_325_evidence() {
         p | (1 << 122),
         "325-kand: vendor-hole reuse mint changed -- flip with its fix"
     );
-    // ROUNDTRIP EDGE (326-kand lane): corpus lines carry the disassembler's
-    // `!rsd[...]` byte-authority overlay (encoder.rs:2793 doctrine) exactly
-    // where donor-grafted rows mismatch vendor semantics; the 291 gate
-    // defers to the authored overlay there (text authored WITHOUT it still
-    // fails closed below). Witness: cusolver/libcusolver.so.1574
-    //   /*06d0*/ LEA.HI.X R9, R15.reuse, R6, R16.reuse, 0x2, P0 !rsd[122:0]
-    // (vendor x4 prints reuse ONLY on R16: the row's reuse@124 field is
-    // grafted onto tok2 -- phantom print + rsd cancel keep bytes exact).
-    let w = enc_res(
-        &t,
-        "LEA.HI.X R9, R15.reuse, R6, R16.reuse, 0x2, P0 !rsd[122:0]",
-    )
-    .expect("rsd-authored overlay line must keep roundtripping byte-exact");
-    let orig: u128 = 0x100fe400000f1410000000060f097211;
-    // byte-exact on the instruction+reuse bits (ctl sched upper32 is the
-    // encoder default; compare [127:96]-stripped plus reuse band)
-    assert_eq!(
-        w & !ctl_mask(),
-        orig & !ctl_mask(),
-        "rsd-authored LEA.HI-X witness byte drift"
-    );
-    // covered-alias lane (vendor-intent bit produced by another authored
-    // .reuse through the quirk binding): dual-reuse text WITHOUT the
-    // overlay keeps encoding the SAME hybrid word as pre-fix (tok2's
-    // explicit 122+124 pair mints both band bits -- byte-preserving
-    // w.r.t. the old behavior, rsd not required anymore for this shape);
-    // tok4-ONLY authored text (no other reuse token covers b124) still
-    // fails closed -- its intent would vanish byte-wise.
-    let w2 = enc(&t, "LEA.HI.X R9, R15.reuse, R6, R16.reuse, 0x2, P0");
-    assert_eq!(
-        (w2 >> 122) & 7,
-        0b101,
-        "covered-alias dual reuse: b122+b124 both mint via tok2 pair"
-    );
-    let e = enc_res(&t, "LEA.HI.X R9, R15, R6, R16.reuse, 0x2, P0")
-        .expect_err("tok4-only .reuse on this quirk row has no mint channel");
-    assert!(e.contains("BUG-291"), "unexpected: {e}");
-    let e = enc_res(&t, "FFMA.RP R23, R3, R27, R24.reuse")
-        .expect_err("FFMA mg=RP tok4-only .reuse has no mint channel");
-    assert!(e.contains("BUG-291"), "unexpected: {e}");
-    // ...while the full authored set rides the alias and stays byte-exact
-    // (cuobjdump corpus witness 0x1c0fe200000080180000001b03177223):
-    let w3 = enc(&t, "FFMA.RP R23, R3.reuse, R27.reuse, R24.reuse");
-    assert_eq!((w3 >> 122) & 7, 0b111, "FFMA.RP alias lane mints all three");
-}
-fn ctl_mask() -> u128 {
-    // [127:96] scheduling/mode window, MINUS the reuse band 122/123/124
-    // (the whole point of this pin is that the reuse bits are the byte
-    // contract of the corpus witness)
-    (0xffff_ffff_u128 << 96) & !(0b111u128 << 122)
+    // True native per-token reuse law replaces the historical aliased
+    // field workaround. All16 words were independently checked with
+    // nvdisasm -b SM120 (bug291_native_reuse_nvdisasm.json).
+    let idx = DecodeIndex::build(&t);
+    for mask in 0u128..8 {
+        let reuse = |n: u32| if mask & (1u128 << n) != 0 { ".reuse" } else { "" };
+        for (base, text) in [
+            (0x000fe400000f1410000000060f097211u128,
+             format!("LEA.HI.X R9, R15{}, R6{}, R16{}, 0x2, P0", reuse(0), reuse(1), reuse(2))),
+            (0x000fe200000080180000001b03177223u128,
+             format!("FFMA.RP R23, R3{}, R27{}, R24{}", reuse(0), reuse(1), reuse(2))),
+        ] {
+            let w = base | (mask << 122);
+            let decoded = idx.decode(w, 0, &t).unwrap();
+            assert_eq!(cubit::printer::to_sass_lossless(&decoded), text);
+            let ctrl = cubit::scheduling::decode_sched_upper32((w >> 96) as u32);
+            let source = format!("[{}] {text} ;", cubit::scheduling::format_control_code(&ctrl));
+            cubit::roundtrip_audit::check_semantic_source(&source).unwrap();
+            assert_eq!(encode_instruction(&cubit::parse_cuasm_line(&source, 0).unwrap(), &t).unwrap(), w, "{source}");
+        }
+    }
 }

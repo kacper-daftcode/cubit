@@ -9,12 +9,19 @@ Guards are active by default; the ones that shape how you write SASS:
   operand 3, as `nvdisasm` prints it. PTX spells `prmt.b32 d, a, b, c` with
   the selector last; the assembler encodes hardware order and rejects text it
   cannot place unambiguously, never silently swapping sel/b.
-- **`IMAD.HI[.U32]` is not encodable on sm_120** — silicon executes harvested
-  "HI" words as `IMAD.WIDE.U32` (`Rd` = LOW half, `Rd+1` clobbered), so the
-  assembler rejects the form. Use `IMAD.WIDE[.U32] Rd, Ra, Rb, RZ` and read
-  the high half from `Rd+1`, or the 5-operand pout form.
+- **`IMAD.HI[.U32]` must select its genuine SM120 opcode `0x227`.**
+  The historical HI-to-WIDE fallback (`0x225`) remains an error. The previous
+  blanket rejection was disproved by fresh ptxas output for `mad.hi.u32` and
+  1004 boundary/random triples on SM120 (2026-10-22): high32(a*b)+c was exact.
+  `WIDE` writes a register pair; genuine `HI` is a separate instruction.
+
 - **Predicate index 7 is PT** — literal `P7`/`UP7` and above is a hard
   assembler error; index 7 already names the always-true PT.
+- **SM120 `BRXU` offsets are signed 58-bit byte values, aligned to four bytes.**
+  The legacy `BRXU 0xT` shorthand means a nonnegative absolute code address;
+  it is lowered before table lookup to `BRXU URZ, T - PC - 16`.
+  Disassembly prints the explicit register and offset. Invalid alignment or
+  range is an error, and distant negative offsets retain all address bits.
 - **Plain `WARPSYNC R<n>` warns on sm_120** — legality depends on the
   surrounding schedule. Use `WARPSYNC.ALL ;`, or rely on intra-warp
   `STS`→`LDS` ordering.

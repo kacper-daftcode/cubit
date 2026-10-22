@@ -107,15 +107,14 @@ fn t173_4_encode_ridx_fail_closed() {
     assert!(!enc_res(&t, "LDCU.U8 UR7, c[0x3][R12+0x10] ;"));
 }
 
-/// t173_5: parked-152 domain untouched -- decode of the LEGAL LDCU.64
-/// UR-idx word keeps its pre-fix render verbatim (known pre-existing
-/// fabrication via LDCU.64_UR_cAI_II_II_?; remodel = parked 152).
+/// t173_5: native memory RE has closed the former parked-152 UR-index gap.
+/// NV13.1 independently prints the exact real UR5 destination/index/offset.
 #[test]
 fn t173_5_uridx_domain_parked152_unchanged() {
     let t = t120(); let idx = DecodeIndex::build(&t);
     let got = dec(&idx, w("000f220008000a0000004b00050577ac"), &t);
-    assert_eq!(got, "LDCU.64 UR0, c[0x0][0x0], 0x0, 0x0, UR0",
-        "parked-152 domain render must stay pre==post");
+    assert_eq!(got, "LDCU.64 UR5, c[0x0][UR5+0x258]",
+        "NV13.1-proven UR index and offset must be preserved");
     // positive control: LEGAL non-indexed LDCU.64 keeps its canonical text:
     assert_eq!(dec(&idx, w("000ea20008000a0000006b00ff0877ac"), &t),
         "LDCU.64 UR8, c[0x0][0x358]");

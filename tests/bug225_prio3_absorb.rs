@@ -484,7 +484,9 @@ fn t225_1_armed_bases_no_prio3_self_absorb_x3() {
 /// (table, w0 low96, expected glyph) — glyphs recorded by census pass 1.
 const ANCHORS: &[(&[&str], u128, &str)] = &[
     (&["a", "c"], 0x03800000000000400000795d, "NANOSLEEP 0x40"),
-    (&["s"], 0x00000000000000000000095d, "@P0 NANOSLEEP 0x0"),
+    // nvdisasm 13.1.80 SM120: predicate [87:90) is an explicit member
+    // predicate unless PT, independently of the execution guard.
+    (&["s"], 0x00000000000000000000095d, "@P0 NANOSLEEP P0, 0x0"),
     (
         &["a", "c", "s"],
         0x00000000000080000000791a,
@@ -498,26 +500,26 @@ const ANCHORS: &[(&[&str], u128, &str)] = &[
     (
         &["s"],
         0x000000000000000000ff082f,
-        "@P0 ELECT_P0 P0, UR0, P0",
+        "@P0 ELECT P0, URZ, P0",
     ),
     (&["a", "c"], 0x000e800000000000000073a1, "MATCH.ANY R0, R0"),
-    (&["s"], 0x000e000000000000000003a1, "@P0 MATCH.ANY R0, R0"),
+    (&["s"], 0x000e000000000000000003a1, "@P0 MATCH.ALL PT, R0, R0"),
     (&["a", "c"], 0x0200000000000000ff00098f, "@P0 CCTL.IVALL"),
-    (&["s"], 0x0000000000000000ff00098e, "@P0 CCTL.IVALL"),
+    (&["s"], 0x0000000000000000ff00098e, "@P0 REDG.ADD.EF [RZ], R0"),
     (&["a", "c", "s"], 0x0000000000000000000009ab, "@P0 ERRBAR"),
     (
         &["a", "c"],
         0x000080000000000000000992,
-        "@P0 MEMBAR.CTA.ALL",
+        "@P0 MEMBAR.ALL.CTA",
     ),
-    (&["s"], 0x000020000000000000007992, "MEMBAR.GPU.SC"),
+    (&["s"], 0x000020000000000000007992, "MEMBAR.SC.GPU"),
     (&["a", "c"], 0x00300000000000040000795c, "BPT.TRAP 0x1"),
-    (&["s"], 0x00300000000000040000095c, "@P0 BPT.TRAP 0x0"),
+    (&["s"], 0x00300000000000040000095c, "@P0 BPT.TRAP 0x1"),
     (&["a", "c", "s"], 0x038000000000000000007946, "YIELD"),
     (&["a", "c"], 0x00000000000000000000782d, "PREEXIT"),
     (&["s"], 0x00000000000000000000082d, "@P0 PREEXIT"),
     (&["a", "c"], 0x038000000000000000007948, "WARPSYNC.ALL"),
-    (&["s"], 0x038000000000000000007348, "WARPSYNC"),
+    (&["s"], 0x038000000000000000007348, "WARPSYNC R0"),
     (&["a", "c"], 0x000000000000000000ff72ca, "R2UR P0, URZ, R0"),
     (&["s"], 0x000e000000000000000002ca, "@P0 R2UR UR0, R0"),
     (

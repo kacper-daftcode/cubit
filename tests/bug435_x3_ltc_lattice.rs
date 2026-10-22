@@ -143,9 +143,6 @@ fn t435_6_mints_refuse_canon() {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
         for (w, text) in MINT435 {
-            if leg == "sm120" && SM120_090_SHADOW435.iter().any(|(_, st)| st == text) {
-                continue; // 090-era junk route owns this text on sm120
-            }
             let minted = enc(&t, text).unwrap_or_else(|| panic!("[{leg}] mint refused: {text}"));
             assert_eq!(minted, *w, "[{leg}] mint word != vendor law word: {text}");
             let got = dec(&t, &idx, minted).unwrap_or_default();
@@ -158,19 +155,22 @@ fn t435_6_mints_refuse_canon() {
             );
         }
     }
-    // sm120 090-shadow: plain LDG.E.LTC*.128 mints keep the era junk route
-    // (BUG-090 contract); machine-pinned words, one per shadowed mint class.
+    // Preserve the former scout's original word and prove its actual
+    // NVIDIA identity (LD.E). The old LDG spelling must now select the
+    // genuine native LDG word from MINT435, never the archived wrong word.
     {
         let t = tab("sm120");
-        for (w, text) in SM120_090_SHADOW435 {
-            let minted =
-                enc(&t, text).unwrap_or_else(|| panic!("[sm120] shadow mint refused: {text}"));
-            assert_eq!(minted, *w, "[sm120] 090-shadow mint drift: {text}");
+        for (old_word, text) in SM120_090_SHADOW435 {
+            let native = MINT435.iter().find(|(_, source)| source == text).unwrap().0;
+            assert_ne!(native, *old_word);
+            assert_eq!(enc(&t, text), Some(native));
+            assert_eq!(enc(&t, "LD.E R33, desc[UR12][R12.64]").unwrap() & ((1u128<<96)-1),
+                       old_word & ((1u128<<96)-1));
         }
     }
     assert_eq!(MINT435.len(), 47);
     assert_eq!(SM120_090_SHADOW435.len(), 1);
     assert_eq!(REFUSE435.len(), 5);
     // canonical pin (manifest pin check lives in the SOURCE.json pack)
-    assert!(CANON435.starts_with("cc2f62c")); // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+    assert!(CANON435.starts_with("463a648")); // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
 }

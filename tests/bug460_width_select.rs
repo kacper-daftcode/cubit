@@ -24,8 +24,23 @@ use cubit::table::IsaTable;
 
 include!("bug460_data.inc");
 
-fn tab(arch: &str) -> IsaTable {
-    IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()
+// Immutable fixtures only: every word still runs through decode/encode.
+fn pool() -> &'static std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)> {
+    static POOL: std::sync::OnceLock<std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)>> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| {
+        ["sm100a", "sm103a", "sm120", "sm121a"].into_iter().map(|arch| {
+            let table = IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap();
+            let index = DecodeIndex::build(&table);
+            (arch, (table, index))
+        }).collect()
+    })
+}
+fn tab(arch: &str) -> &'static IsaTable {
+    &pool().get(arch).unwrap().0
+}
+fn cached_index(table: &IsaTable) -> &'static DecodeIndex {
+    pool().values().find(|(fixture, _)| std::ptr::eq(fixture, table))
+        .map(|(_, index)| index).expect("table must come from the immutable fixture pool")
 }
 fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
     idx.decode(w, 0, t)
@@ -49,7 +64,7 @@ fn t460_1_mint_aruri64_oracle_words() {
     let mut idxs = std::collections::HashMap::new();
     for (word, text, leg) in T460_MINT64 {
         let t = tabs.entry(*leg).or_insert_with(|| tab(leg));
-        let i = idxs.entry(*leg).or_insert_with(|| DecodeIndex::build(t));
+        let i = idxs.entry(*leg).or_insert_with(|| cached_index(t));
         let got = enc(t, text.trim_end_matches(';').trim())
             .unwrap_or_else(|e| panic!("t460_1 refuse {leg} {text}: {e}"));
         assert_eq!(got, w(word), "t460_1 word {leg} {text}");
@@ -116,7 +131,7 @@ fn t460_5_rz32_keeper() {
     let mut idxs = std::collections::HashMap::new();
     for (word, text, leg) in T460_RZ32 {
         let t = tabs.entry(*leg).or_insert_with(|| tab(leg));
-        let i = idxs.entry(*leg).or_insert_with(|| DecodeIndex::build(t));
+        let i = idxs.entry(*leg).or_insert_with(|| cached_index(t));
         let got = enc(t, text.trim_end_matches(';').trim())
             .unwrap_or_else(|e| panic!("t460_5 refuse {leg} {text}: {e}"));
         assert_eq!(got, w(word), "t460_5 word {leg} {text}");
@@ -149,7 +164,7 @@ fn t460_7_sweepkeys_route_completeness() {
     let mut idxs = std::collections::HashMap::new();
     for (leg, key) in T460_SWEEPKEYS {
         let t = tabs.entry(*leg).or_insert_with(|| tab(leg));
-        let i = idxs.entry(*leg).or_insert_with(|| DecodeIndex::build(t));
+        let i = idxs.entry(*leg).or_insert_with(|| cached_index(t));
         let base_op = row_base_op(key);
         for (b, u, imm, v) in [(3, 5, 0, 9), (255u32, 0u32, 0u32, 0u32)] {
             if b == 255 {

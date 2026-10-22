@@ -88,6 +88,26 @@ enum Commands {
         #[arg(long)]
         allow_arch_mismatch: bool,
     },
+    /// Strict own-decoder semantic round-trip of every extracted cubin code section.
+    /// Compares complete 128-bit words; forbids raw words and residue overlays.
+    RoundtripStrict {
+        #[arg(short, long, default_value = "tables/sm120.json")]
+        table: PathBuf,
+        #[arg(required = true)]
+        inputs: Vec<PathBuf>,
+        /// Stream all failures to JSONL (includes input, section and address).
+        #[arg(long)]
+        failures: Option<PathBuf>,
+        /// Write complete per-input/per-kernel JSON reports.
+        #[arg(long)]
+        report: Option<PathBuf>,
+        /// Emit each audited section's editable frozen SASS, also on failure.
+        #[arg(long)]
+        sass_dir: Option<PathBuf>,
+        /// Write cubins rebuilt from emitted source; require full ELF byte identity.
+        #[arg(long)]
+        rebuilt_dir: Option<PathBuf>,
+    },
     /// Register-allocation pass over a .sass file (M4/BARRACUDA).
     ///
     /// `--mode identity` (M4.1): the plan maps every structurally-used
@@ -251,7 +271,7 @@ enum Commands {
         ///    /*0000*/  INSTR ;
         ///    /*0010*/  INSTR ;
         input: PathBuf,
-        /// Template cubin: provides ELF structure and scheduling ctrl words.
+        /// Template cubin: provides the ELF container. Instructions include their own scheduling.
         #[arg(short = 'T', long)]
         template: Option<PathBuf>,
         /// Reference cubin for EIATTR records (.nv.info sections).
@@ -323,6 +343,8 @@ fn main() -> Result<()> {
             inputs,
             allow_arch_mismatch,
         } => cmd_roundtrip(&table, &records, &inputs, allow_arch_mismatch),
+        Commands::RoundtripStrict { table, inputs, failures, report, sass_dir, rebuilt_dir } =>
+            cmd_roundtrip_strict(&table, &inputs, failures.as_deref(), report.as_deref(), sass_dir.as_deref(), rebuilt_dir.as_deref()),
         Commands::Ra {
             mode,
             plan,
@@ -625,6 +647,9 @@ fn load_cuobjdump_sass(path: &Path) -> Result<String> {
         .args(["-sass", &path.to_string_lossy()])
         .output()
         .context("failed to run cuobjdump")?;
+    if !out.status.success() {
+        bail!("cuobjdump failed ({}): {}", out.status, String::from_utf8_lossy(&out.stderr));
+    }
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
@@ -687,13 +712,13 @@ struct ParsedSassFile {
     kernel_order: Vec<String>,
 }
 
-fn parse_sass_file_full(text: &str) -> ParsedSassFile {
+fn parse_sass_file_full(text: &str) -> Result<ParsedSassFile> {
     use once_cell::sync::Lazy;
     static RE_INSN: Lazy<regex::Regex> =
-        Lazy::new(|| regex::Regex::new(r"^\s*/\*([0-9a-f]+)\*/\s+(.+?)\s*;").unwrap());
+        Lazy::new(|| regex::Regex::new(r"^\s*/\*([0-9a-fA-F]+)\*/\s+(.+?)\s*;").unwrap());
     // Also match raw instruction comments: /*addr*/  /* ? 0xNNNN...NNNN */
     static RE_RAW: Lazy<regex::Regex> = Lazy::new(|| {
-        regex::Regex::new(r"^\s*/\*([0-9a-f]+)\*/\s+/\*\s*\?\s*0x([0-9a-fA-F]+)\s*\*/").unwrap()
+        regex::Regex::new(r"^\s*/\*([0-9a-fA-F]+)\*/\s+/\*\s*\?\s*0x([0-9a-fA-F]+)\s*\*/").unwrap()
     });
     static RE_SHARED: Lazy<regex::Regex> =
         Lazy::new(|| regex::Regex::new(r"^\.shared\s+smem\[(\d+)\]").unwrap());
@@ -704,8 +729,9 @@ fn parse_sass_file_full(text: &str) -> ParsedSassFile {
     let mut kernel_order: Vec<String> = Vec::new();
     let mut cur_kernel = String::new();
 
-    for line in text.lines() {
+    for (line_number, line) in text.lines().enumerate() {
         let t = line.trim();
+        if t.is_empty() || t.starts_with('#') || t.starts_with(";;") { continue; }
         if t.starts_with("// ") && !t.contains("/*") {
             cur_kernel = t[3..].trim().to_string();
             // BUG-127: first-appearance (source) order. A contentless header
@@ -719,7 +745,7 @@ fn parse_sass_file_full(text: &str) -> ParsedSassFile {
             continue;
         }
         if cur_kernel.is_empty() {
-            continue;
+            bail!("address-format SASS line {} has no kernel header", line_number + 1);
         }
         // Parse .shared smem[N] directive
         if let Some(c) = RE_SHARED.captures(t) {
@@ -729,23 +755,27 @@ fn parse_sass_file_full(text: &str) -> ParsedSassFile {
             continue;
         }
         if let Some(c) = RE_RAW.captures(t) {
-            let addr = u32::from_str_radix(&c[1], 16).unwrap_or(0);
+            let addr = u32::from_str_radix(&c[1], 16).context("instruction address exceeds 32-bit address space")?;
             let raw_hex = c[2].to_string();
             // Store as special __raw__ prefix so encoder can emit raw bytes
             out.entry(cur_kernel.clone())
                 .or_default()
                 .push((addr, format!("__raw__0x{}", raw_hex)));
         } else if let Some(c) = RE_INSN.captures(t) {
-            let addr = u32::from_str_radix(&c[1], 16).unwrap_or(0);
+            let addr = u32::from_str_radix(&c[1], 16).context("instruction address exceeds 32-bit address space")?;
+            let tail = t[c.get(0).unwrap().end()..].trim();
+            if !tail.is_empty() && !tail.starts_with("//") {
+                bail!("address-format SASS line {} has unparsed trailing text", line_number + 1);
+            }
             let asm = c[2].trim().to_string();
             out.entry(cur_kernel.clone()).or_default().push((addr, asm));
-        }
+        } else { bail!("unrecognized address-format SASS at line {}: {t}", line_number + 1); }
     }
-    ParsedSassFile {
+    Ok(ParsedSassFile {
         kernels: out,
         shared_sizes,
         kernel_order,
-    }
+    })
 }
 
 const SCHED_MASK: u128 = (cubit::scheduling::CC_MASK as u128) << 64;
@@ -1367,6 +1397,85 @@ fn cmd_disassemble(
     Ok(())
 }
 
+fn cmd_roundtrip_strict(
+    table_path: &Path, inputs: &[PathBuf], failures_path: Option<&Path>,
+    report_path: Option<&Path>, sass_dir: Option<&Path>, rebuilt_dir: Option<&Path>,
+) -> Result<()> {
+    use std::io::Write;
+    use sha2::{Digest, Sha256};
+    let table_bytes = std::fs::read(table_path)?;
+    let table_sha256 = format!("{:x}", Sha256::digest(&table_bytes));
+    let table = IsaTable::from_json(std::str::from_utf8(&table_bytes)?)?;
+    // Refuse stale artifacts from an earlier run before writing any report.
+    for dir in [sass_dir, rebuilt_dir].into_iter().flatten() {
+        if dir.exists() && std::fs::read_dir(dir)?.next().is_some() {
+            bail!("strict output directory must be new or empty: {}", dir.display());
+        }
+    }
+    let mut failures = failures_path.map(std::fs::File::create).transpose()?.map(std::io::BufWriter::new);
+    if let Some(dir) = sass_dir { std::fs::create_dir_all(dir)?; }
+    if let Some(dir) = rebuilt_dir { std::fs::create_dir_all(dir)?; }
+    let mut reports = Vec::new();
+    let mut all_passed = true;
+    let mut total = 0usize;
+    let mut matched = 0usize;
+    let mut kernels = 0usize;
+    for (input_index, input) in inputs.iter().enumerate() {
+        let mut emit_failure = |failure: &cubit::roundtrip_audit::Failure| -> Result<()> {
+            if let Some(file) = failures.as_mut() {
+                serde_json::to_writer(&mut *file, &serde_json::json!({"input": input, "failure": failure}))?;
+                writeln!(file)?;
+            }
+            Ok(())
+        };
+        let result = (|| -> Result<_> {
+        let mut sources = Vec::new();
+        let mut emit_sass = |kernel: &cubit::roundtrip_audit::KernelReport, source: &str| -> Result<()> {
+            if let Some(dir) = sass_dir {
+                std::fs::write(dir.join(format!("input_{input_index:05}_section_{:05}.sass", kernel.section_index)), source)?;
+            }
+            if rebuilt_dir.is_some() { sources.push((kernel.section.clone(), source.to_string())); }
+            Ok(())
+        };
+            let bytes = std::fs::read(input)?;
+            let report = cubit::roundtrip_audit::audit_cubin(&bytes, &table, &mut emit_failure, &mut emit_sass)?;
+            if let Some(dir) = rebuilt_dir.filter(|_| report.passed) {
+                let mut rebuilt = cubit::elf::CubinFile::from_bytes(bytes.clone())?;
+                if sources.len() != rebuilt.text_sections.len() { bail!("semantic rebuild section count differs"); }
+                for (index, (section, source)) in sources.iter().enumerate() {
+                    if section != &rebuilt.text_sections[index].0 { bail!("semantic rebuild section order differs"); }
+                    cubit::roundtrip_audit::patch_semantic_section_at(&mut rebuilt, index, source, &table)?;
+                }
+                if rebuilt.bytes != bytes { bail!("complete ELF differs after semantic source rebuild"); }
+                std::fs::write(dir.join(format!("input_{input_index:05}.cubin")), rebuilt.bytes)?;
+            }
+            let sha256 = format!("{:x}", Sha256::digest(&bytes));
+            Ok((report, sha256))
+        })();
+        match result {
+            Ok((report, sha256)) => {
+                println!("{}: {} sections, {}/{} instructions match; {}", input.display(), report.kernels.len(), report.matched, report.instructions, if report.passed { "PASS" } else { "FAIL" });
+                total += report.instructions; matched += report.matched; kernels += report.kernels.len();
+                all_passed &= report.passed;
+                reports.push(serde_json::json!({"input": input, "sha256":sha256,
+                    "table_sha256":table_sha256,"rebuilt_elf_byte_identical":rebuilt_dir.map(|_|report.passed),"report": report}));
+            }
+            Err(error) => {
+                all_passed = false;
+                eprintln!("{}: FAIL: {error:#}", input.display());
+                let record = serde_json::json!({"input": input, "stage": "input", "error": format!("{error:#}")});
+                if let Some(file) = failures.as_mut() { serde_json::to_writer(&mut *file, &record)?; writeln!(file)?; }
+                reports.push(record);
+            }
+        }
+    }
+    if let Some(file) = failures.as_mut() { file.flush()?; }
+    if let Some(path) = report_path { std::fs::write(path, serde_json::to_vec_pretty(&reports)?)?; }
+    println!("STRICT TOTAL: {kernels} sections, {matched}/{total} complete 128-bit instructions match; {}", if all_passed && total > 0 { "PASS" } else { "FAIL" });
+    if !all_passed || total == 0 { bail!("strict semantic round-trip failed; inspect --failures / --report"); }
+    Ok(())
+}
+
 fn cmd_roundtrip(
     table_path: &Path,
     _records_path: &PathBuf,
@@ -1463,7 +1572,12 @@ fn cmd_roundtrip(
     );
     println!("  Mismatch: {grand_mismatch}");
     println!("  Error: {grand_error}");
-    Ok(())
+    if grand_total == 0 || grand_mismatch > 0 || grand_error > 0 {
+        bail!("NVIDIA reference round-trip failed: {grand_total} instructions, {grand_mismatch} mismatches, {grand_error} errors");
+    }
+    // The reference oracle alone does not exercise our decoder or scheduling.
+    // A passing roundtrip also requires the complete semantic text pipeline.
+    cmd_roundtrip_strict(table_path, inputs, None, None, None, None)
 }
 
 fn cmd_patch(
@@ -1900,7 +2014,7 @@ fn cmd_asm(
         );
     }
 
-    let parsed = parse_sass_file_full(&sass_text);
+    let parsed = parse_sass_file_full(&sass_text)?;
     let sass_kernels = parsed.kernels;
     let shared_sizes = parsed.shared_sizes;
     let kernel_order = parsed.kernel_order;
@@ -1921,6 +2035,10 @@ fn cmd_asm(
     }
 
     let mut cubin = CubinFile::load(template_path.unwrap())?;
+    for name in sass_kernels.keys().filter(|name| only_kernel.is_none_or(|only| name.as_str()==only)) {
+        let matches=cubin.text_sections.iter().filter(|(section,_,_)| section.strip_prefix(".text.").unwrap_or(section)==name).count();
+        if matches!=1 { bail!("source kernel '{name}' has {matches} matching template sections; expected exactly one"); }
+    }
 
     println!(
         "Template: SM{}, {} sections",
@@ -1957,29 +2075,36 @@ fn cmd_asm(
             }
         };
 
-        let orig_bytes = cubin.text_bytes(sec_idx)?.to_vec();
-        let mut new_code = orig_bytes.clone();
-        let (mut encoded, mut failed, mut skipped) = (0u64, 0u64, 0u64);
+        let mut new_code = cubin.text_bytes(sec_idx)?.to_vec();
+        let mut seen_addrs = std::collections::HashSet::new();
+        let (mut encoded, mut failed, skipped) = (0u64, 0u64, 0u64);
 
         for (addr, asm) in sass_insns {
             let offset = *addr as usize;
-            if offset + 16 > new_code.len() {
-                skipped += 1;
-                continue;
+            if offset % 16 != 0 || offset.checked_add(16).is_none_or(|end| end > new_code.len()) {
+                bail!("{kernel_name}: instruction address 0x{addr:x} is unaligned or outside template code");
+            }
+            if !seen_addrs.insert(offset) {
+                bail!("{kernel_name}: duplicate instruction at 0x{addr:x}");
             }
 
-            let orig_lo = u64::from_le_bytes(orig_bytes[offset..offset + 8].try_into().unwrap());
-            let orig_hi =
-                u64::from_le_bytes(orig_bytes[offset + 8..offset + 16].try_into().unwrap());
-            let _orig_code = ((orig_hi as u128) << 64) | orig_lo as u128;
-
             match (|| -> Result<u128> {
-                let insn = cubit::parse_sass(asm, *addr)?;
+                let annotation=asm.find("/* @sched");
+                let mut insn = cubit::parse_sass(annotation.map_or(asm.as_str(),|start|asm[..start].trim()), *addr)?;
+                if let Some(start) = annotation {
+                    if !asm[start..].starts_with("/* @sched 0x") { bail!("invalid explicit schedule annotation"); }
+                    let (value, tail) = asm[start + 12..].split_once("*/").context("unterminated schedule comment")?;
+                    if !tail.trim().is_empty() { bail!("unparsed text after schedule annotation"); }
+                    let value=value.trim();
+                    let cc = u32::from_str_radix(value, 16).context("invalid explicit schedule")?;
+                    if cc>0x1ffff { bail!("explicit schedule exceeds its 17-bit field"); }
+                    insn.ctrl = cubit::scheduling::decode_control_code(cc);
+                    insn.hand_sched = true;
+                }
                 cubit::encoder::encode_instruction(&insn, &table)
             })() {
                 Ok(code) => {
-                    let enc_lo = code as u64;
-                    new_code[offset..offset + 8].copy_from_slice(&enc_lo.to_le_bytes());
+                    new_code[offset..offset + 16].copy_from_slice(&code.to_le_bytes());
                     encoded += 1;
                 }
                 Err(e) => {
@@ -1999,6 +2124,7 @@ fn cmd_asm(
         println!("  {sec_name}: {encoded}/{total} encoded, {failed} failed, {skipped} skipped");
     }
 
+    if total_enc == 0 { bail!("asm: no source instructions matched template kernels"); }
     if total_fail > 0 {
         // BUG-043: fail-closed. A failed slot used to keep template bytes (here)
         // or become a zero word (directive/ELF paths), both under rc=0 — the

@@ -21,6 +21,7 @@ path = "src/main.rs"
 object = { version = "0.36", features = ["read", "write", "elf"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 clap = { version = "4", features = ["derive"] }
 regex = "1"
 anyhow = "1"

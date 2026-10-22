@@ -97,7 +97,8 @@ fn t459a_1_decode_matrix() {
 /// t459a_2: mint-circle (encode tekstow vendora, instr-bits [95:0]; ctrl
 /// poza porownaniem wg INC-249b) + junk-8token fail-closed x2 + census
 /// forms/variants/cf (lock A5 patch459a) + SOURCE.json (base_revision ==
-/// CANON459A + nota 459a). Klasa KILL pusta -- JUNK row = encode-side.
+/// CANON459A + structured SM120 source digest/census). Klasa KILL pusta --
+/// JUNK row = encode-side.
 #[test]
 fn t459a_2_mint_junk_census_source() {
     const CTL: u128 = !((1u128 << 96) - 1);
@@ -146,8 +147,42 @@ fn t459a_2_mint_junk_census_source() {
             .starts_with(CANON459A),
         "SOURCE pin drift po flipie 459a"
     );
-    assert!(
-        src["_459a_note"].as_str().unwrap().contains("459a"),
-        "brak _459a_note po flipie"
+    let sm120 = &src["tables"]["sm120.json"];
+    assert_eq!(
+        sm120["base_sha256"].as_str(),
+        Some("693cbf52034be5ad6c07b5a1a84c3be5bbc0a04b4839ece55b995ba686314a1f"),
+        "SM120 source digest drift"
     );
+    assert_eq!(sm120["instruction_forms"].as_u64(), Some(16133));
+    assert_eq!(sm120["encoding_variants"].as_u64(), Some(20831));
+}
+
+/// NVIDIA SM120 distinguishes X by bit74. Non-X ignores the carry selector
+/// bits varied by HOLEPAR, so its visible mnemonic cannot preserve those
+/// words. Do not promote vendor-visible but lossy words to strict successes.
+#[test]
+fn t459a_3_sm120_full_word_semantics() {
+    let (table, index) = pool().get("sm120").unwrap();
+    for (word, leg, _, tag, _) in HEAL459A.iter().chain(MINT459A) {
+        if *leg != "sm120" {
+            continue;
+        }
+        let mut failures = Vec::new();
+        let (report, _) = cubit::roundtrip_audit::audit_kernel(
+            ".text.uiadd3", 0, &word.to_le_bytes(), table, index,
+            &mut |failure| { failures.push(failure.clone()); Ok(()) },
+        ).unwrap();
+        assert!(report.passed && report.stream_verified, "{tag}: {failures:?}");
+        assert_eq!(report.matched, 1);
+    }
+    for (word, leg, _, tag, _) in HOLEPAR459A.iter().chain(REFPAR459A) {
+        if *leg != "sm120" {
+            continue;
+        }
+        let (report, _) = cubit::roundtrip_audit::audit_kernel(
+            ".text.uiadd3", 0, &word.to_le_bytes(), table, index,
+            &mut |_| Ok(()),
+        ).unwrap();
+        assert!(!report.passed, "lossy/invalid word accepted: {tag} {word:#034x}");
+    }
 }

@@ -156,8 +156,9 @@ fn t202_4_authored_tok2_all_scope_mgs() {
 }
 
 /// t202_5: table tripwire — every scope row on every table now carries
-/// exactly the canonical pred set {(1,81,3),(2,84,3),(5,87,3)} + neg (5,90,1),
-/// variable_mask covers [84:87), and the added field carries the _src marker.
+/// exactly the canonical pred set {(1,81,3),(2,84,3),(5,87,3)} + predicate
+/// inversion (5,90,1). Source negation is a separate operand property.
+/// The whole tok2 window must be variable and retain measured provenance.
 #[test]
 fn t202_5_canonical_field_set_tripwire() {
     const SCOPE: [(&str, &[&str]); 3] = [
@@ -182,11 +183,12 @@ fn t202_5_canonical_field_set_tripwire() {
                     match f["extraction"].as_str().unwrap_or("") {
                         "pred" => {
                             preds.push(t3);
-                            if t3 == (2, 84, 3) && f["_src"].as_str() == Some("bug202-2026-08-27") {
+                            if t3 == (2, 84, 3) && (f["_src"].as_str() == Some("bug202-2026-08-27")
+                                || g["_source"].as_str().is_some_and(|s| s.starts_with("re_sm120_tensor_fields.py:"))) {
                                 marked = true;
                             }
                         }
-                        "neg" => negs.push(t3),
+                        "neg" | "inv" if t3.0 == 5 => negs.push(t3),
                         _ => {}
                     }
                 }
@@ -195,7 +197,15 @@ fn t202_5_canonical_field_set_tripwire() {
                 assert_eq!(negs, vec![(5, 90, 1)], "{p}: {key}::{mg} neg set");
                 assert!(marked, "{p}: {key}::{mg} missing bug202 marker");
                 let vm = u128::from_str_radix(g["variable_mask"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
-                assert_ne!(vm & (7 << 84), 0, "{p}: {key}::{mg} vm missing [84:87)");
+                assert_eq!(vm & (7 << 84), 7 << 84, "{p}: {key}::{mg} vm missing [84:87)");
+                if p == "tables/sm120.json" {
+                    let signs: Vec<_> = g["fields"].as_array().unwrap().iter()
+                        .filter(|f| f["extraction"] == "neg" && f["token_idx"] != 5)
+                        .map(|f| (f["token_idx"].as_u64().unwrap(), f["shift"].as_u64().unwrap(), f["bits"].as_u64().unwrap()))
+                        .collect();
+                    let expected = if key.ends_with("_FI_P") { vec![(3, 72, 1)] } else { vec![(3, 72, 1), (4, 63, 1)] };
+                    assert_eq!(signs, expected, "{p}: {key}::{mg} measured source sign fields");
+                }
             }
         }
     }
@@ -252,5 +262,26 @@ fn t202_7_pt_elision_byte_exact() {
         for (text, lo, hi) in cases {
             assert_eq!(enc(&t, text), ((hi as u128) << 64 | lo as u128) & !SCHED, "{p}: PT-form {text}");
         }
+    }
+}
+
+/// Independent nvdisasm SM120 probes, 2026-10-22 (fullgate_alu_nvdisasm.json):
+/// operand signs at72/63 coexist with the exact three predicate windows.
+#[test]
+fn t202_8_source_signs_do_not_change_predicate_geometry() {
+    let t = tab("tables/sm120.json");
+    let idx = DecodeIndex::build(&t);
+    for (w, want) in [
+        (0x000fe20003f4e100000000060c00722au128, "DSETP.GEU.AND P2, PT, -R12, R6, PT"),
+        (0x000fe20003f4e000800000060c00722a, "DSETP.GEU.AND P2, PT, R12, -R6, PT"),
+        (0x000e240003f0c3007ff000002000742a, "DSETP.GTU.AND P0, PT, -|R32|, +INF , PT"),
+        (0x000e24000bf04100000000040a007e2a, "DSETP.GT.AND P0, PT, -R10, UR4, PT"),
+        (0x000e24000bf04000800000040a007e2a, "DSETP.GT.AND P0, PT, R10, -UR4, PT"),
+    ] {
+        assert_eq!(dec(&t, &idx, w), want);
+        let ctrl = cubit::scheduling::decode_sched_upper32((w >> 96) as u32);
+        let source = format!("[{}] {want} ;", cubit::scheduling::format_control_code(&ctrl));
+        let insn = cubit::parse_cuasm_line(&source, 0).unwrap();
+        assert_eq!(encode_instruction(&insn, &t).unwrap(), w, "{source}");
     }
 }

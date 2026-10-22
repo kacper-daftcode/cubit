@@ -113,11 +113,19 @@ fn bug045_upt_explicit_dest_encodes_same_as_canonical() {
 }
 
 #[test]
-fn bug045_hole_fail_closed_outside_gold() {
-    // tok2 (UR dest) baked URZ in the goldens — a different UR = a loud error, not a silent drop
-    enc("ULOP3.LUT UP0, UR5, UR16, UR4, URZ, 0xc0, !UPT")
-        .expect_err("UR dest other than URZ is outside fitted gold evidence");
-    // tok5 zaszyty URZ analogicznie
-    enc("ULOP3.LUT UP0, URZ, UR16, UR4, UR5, 0xc0, !UPT")
-        .expect_err("src URc other than URZ is outside fitted gold evidence");
+fn bug045_full_byte_uniform_fields_are_supported_without_silent_truncation() {
+    // The 2026-10-22 independent SM120 NVIDIA probes establish complete-byte
+    // destination and C-source fields. These exact formerly unfitted words
+    // are now valid; an old URZ-only refusal would reject real instructions.
+    for (expected, text) in [
+        (0x000fe2000f80c0ff0000000410057292u128, "ULOP3.LUT UP0, UR5, UR16, UR4, URZ, 0xc0, !UPT"),
+        (0x000fe2000f80c0050000000410ff7292, "ULOP3.LUT UP0, URZ, UR16, UR4, UR5, 0xc0, !UPT"),
+    ] {
+        assert_eq!(dec(expected), text);
+        let parsed = cubit::parse_cuasm_line(&format!("[B------:R-:W-:Y:S01] {text} ;"), 0).unwrap();
+        assert_eq!(encode_instruction(&parsed, &t120()).unwrap(), expected);
+    }
+    // Expanding the evidence does not permit an index beyond eight bits.
+    assert!(enc("ULOP3.LUT UP0, UR256, UR16, UR4, URZ, 0xc0, !UPT").is_err());
+    assert!(enc("ULOP3.LUT UP0, URZ, UR16, UR4, UR256, 0xc0, !UPT").is_err());
 }

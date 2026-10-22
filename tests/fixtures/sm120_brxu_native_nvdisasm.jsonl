@@ -1,0 +1,8 @@
+{"sass": "BRXU URZ, 0x5020", "word": "000fe2000b80000000000050ff087958", "nvidia_sass": "BRXU URZ 0x5020", "nvdisasm_sha256": "12153e5bcb8176cadfe15f6498c866db1a58de7bd53d660fe870428b6814049c"}
+{"sass": "BRXU URZ, 0x2b70", "word": "000fe2000b80000000000028ffdc7958", "nvidia_sass": "BRXU URZ 0x2b70", "nvdisasm_sha256": "12153e5bcb8176cadfe15f6498c866db1a58de7bd53d660fe870428b6814049c"}
+{"sass": "BRXU URZ, -0x310", "word": "000fe2000b83fffffffffffcff3c7958", "nvidia_sass": "BRXU URZ -0x310", "nvdisasm_sha256": "12153e5bcb8176cadfe15f6498c866db1a58de7bd53d660fe870428b6814049c"}
+{"sass": "BRXU UR4, -0x10000000004", "word": "000fe2000b83fffefffffffc04ff7958", "nvidia_sass": "BRXU UR4 -0x10000000004", "nvdisasm_sha256": "12153e5bcb8176cadfe15f6498c866db1a58de7bd53d660fe870428b6814049c"}
+{"sass": "BRXU UR4, -0x100000000000000", "word": "000fe2000b8300000000000004007958", "nvidia_sass": "BRXU UR4 -0x100000000000000", "nvdisasm_sha256": "12153e5bcb8176cadfe15f6498c866db1a58de7bd53d660fe870428b6814049c"}
+{"sass": "BRXU UR4, -0x200000000000000", "word": "000fe2000b8200000000000004007958", "nvidia_sass": "BRXU UR4 -0x200000000000000", "nvdisasm_sha256": "12153e5bcb8176cadfe15f6498c866db1a58de7bd53d660fe870428b6814049c"}
+{"sass": "BRXU UR4, 0x1fffffffffffffc", "word": "000fe2000b81fffffffffffc04ff7958", "nvidia_sass": "BRXU UR4 0x1fffffffffffffc", "nvdisasm_sha256": "12153e5bcb8176cadfe15f6498c866db1a58de7bd53d660fe870428b6814049c"}
+{"sass": "@!P3 BRXU UR4, 0x5020", "word": "000fe2000b800000000000500408b958", "nvidia_sass": "@!P3 BRXU UR4 0x5020", "nvdisasm_sha256": "12153e5bcb8176cadfe15f6498c866db1a58de7bd53d660fe870428b6814049c"}

@@ -11,6 +11,17 @@ use crate::ir::{Instruction, Operand};
 use crate::scheduling;
 use crate::table::{Extraction, Field, IsaTable};
 use anyhow::{Context, Result};
+use std::sync::LazyLock;
+
+// These raw-text scrapers are called repeatedly for each instruction and
+// operand suffix. Compile the fixed patterns once; every match and every
+// semantic/fit/errata check still runs for every instruction.
+static GUARD_PREFIX_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"^@!?\w+\s+").unwrap()
+});
+static BYTE_SELECTOR_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"\.B(\d)").unwrap()
+});
 
 // ---------------------------------------------------------------------------
 // System register IDs
@@ -656,34 +667,61 @@ fn check_pred_literal_errata(insn: &Instruction) -> Result<()> {
     Ok(())
 }
 
-/// BUG-002 scoped per-arch (BUG-049 register: cubit encoder hard-rejected
-/// `IMAD.HI[.U32]` on EVERY target, but the broken-HI erratum is
-/// silicon-verified on sm_120 ONLY — sm_121a silicon (SPARK q3, GB10) runs
-/// nvcc's IMAD.HI.U32 encodings with correct hi32 and Rd+1 untouched, and
-/// the sm_103a corpus carries ptxas-emitted IMAD.HI forms hardware honors.
-/// On non-120 targets the table is authoritative exactly like for every
-/// other opcode: a matching entry encodes the text, a missing entry fails
-/// honestly at lookup (no operand-compatible entry). Additionally, the table
-/// loader now maps SM121A (_meta.architecture) to real e_flags, so a genuine
-/// sm_121a table no longer pretends to be sm_120 here.
-fn check_imad_hi_erratum(insn: &Instruction, table: &IsaTable) -> Result<()> {
-    let is_imad = insn.opcode == "IMAD";
-    let has_hi = insn.modifiers.iter().any(|m| m == ".HI");
-    if !is_imad || !has_hi {
+/// Guard the historical HI-to-WIDE fallback, not the genuine HI opcode.
+/// SM120 ptxas emits opcode 0x227 for mad.hi.u32. A fresh silicon probe
+/// (1004 random/boundary triples) verifies high32(a*b)+c. The old blanket
+/// rejection conflated that instruction with the bad fallback opcode 0x225.
+fn check_imad_hi_erratum(
+    insn: &Instruction, table: &IsaTable, entry: &crate::table::ModGroupEntry,
+) -> Result<()> {
+    if insn.opcode != "IMAD" || !insn.modifiers.iter().any(|m| m == ".HI")
+        || table.target_sm() != 120 {
         return Ok(());
     }
-    // On sm_120 no harvested entry is trustworthy: silicon proved the "HI"
-    // encodings execute as IMAD.WIDE.U32 regardless of which entry matched.
-    // The poisoned entries were removed from tables/sm120.json, and every
-    // `.HI` IMAD text stays fail-closed there. Other targets: silicon-truth
-    // is that of their own table (verified on sm_121a per BUG-049).
-    if table.target_sm() != 120 {
-        return Ok(());
+    if entry.and_base & 0xff != 0x27 {
+        anyhow::bail!(
+            "BUG-002: IMAD.HI requires its dedicated HI opcode (low byte 0x27) on SM120; \
+             selected row carries opcode {:#x}. Refusing HI-to-WIDE fallback \
+             (0x225 writes the low product and clobbers Rd+1).",
+            entry.and_base & 0xfff
+        );
     }
-    anyhow::bail!(
-        "IMAD.HI is NOT encodable on this target: sm_120 silicon executes the          harvested `IMAD.HI` encodings as IMAD.WIDE.U32 — Rd receives the LOW half          and Rd+1 is silently CLOBBERED (BUG-002, silicon-verified). Use          `IMAD.WIDE[.U32] Rd, Ra, Rb, RZ` (or the 5-operand pout form) and read the          high half from Rd+1."
-    )
+    Ok(())
 }
+
+/// Dedicated native HI packets use only named operand modifiers. The generic
+/// ALU sign convention is not valid here: e.g. bit72 is text-inert, while
+/// Rc75 changes from arithmetic negation to bitwise inverse when X is set.
+fn check_native_imad_hi_modifiers(
+    insn: &Instruction, table: &IsaTable, entry: &crate::table::ModGroupEntry,
+) -> Result<()> {
+    if table.target_sm() != 120 || insn.opcode != "IMAD"
+        || !insn.modifiers.iter().any(|m| m == ".HI") {
+        return Ok(());
+    }
+    for (index, operand) in insn.operands.iter().enumerate() {
+        let (neg, abs, inv) = match operand {
+            Operand::Reg { neg, abs, inv, .. } | Operand::UReg { neg, abs, inv, .. } => (*neg, *abs, *inv),
+            _ => continue,
+        };
+        for (authored, name) in [(neg, "negation"), (abs, "absolute value"), (inv, "bitwise inverse")] {
+            if !authored { continue; }
+            let named = entry.fields.iter().any(|field| {
+                field.token_idx == index as i32 + 1 && field.bits > 0
+                    && match name {
+                        "negation" => matches!(field.extraction, Extraction::Neg | Extraction::NegShl1),
+                        "absolute value" => matches!(field.extraction, Extraction::Abs),
+                        _ => matches!(field.extraction, Extraction::Inv),
+                    }
+            });
+            if !named {
+                anyhow::bail!("IMAD.HI operand {} {name} has no explicit named field on SM120: {}", index + 1, insn.raw_text.trim());
+            }
+        }
+    }
+    Ok(())
+}
+
 
 /// BUG-008 shape detector: 4+-operand `IMAD.WIDE[.U32][.X]` WITHOUT a
 /// destination predicate whose c accumulator is not RZ. Silicon reads the c
@@ -899,6 +937,12 @@ fn check_mma_reg_alignment(insn: &Instruction) -> Result<()> {
         ("C", c, c4.then_some(4)),
     ] {
         if let Some(align) = rule {
+            // RZ in the C slot initializes the accumulator to zero; it is
+            // a sentinel, not the first register of a misaligned tuple.
+            // ptxas emits this form in the production SM120 GEMV kernels.
+            if name == "C" && val == 255 {
+                continue;
+            }
             if val % align != 0 {
                 anyhow::bail!(
                     "{:?} is ILLEGAL on silicon (BUG-037): the {name} operand of {} \
@@ -1670,6 +1714,16 @@ fn check_label_baked_symbol(insn: &Instruction, entry: &crate::table::ModGroupEn
     Ok(())
 }
 
+fn check_sm120_brxu_offset(offset: i128) -> Result<()> {
+    if offset % 4 != 0 {
+        anyhow::bail!("SM120 BRXU byte offset must be a multiple of 4");
+    }
+    if !(-(1i128 << 57)..=(1i128 << 57) - 4).contains(&offset) {
+        anyhow::bail!("SM120 BRXU offset is outside the signed 58-bit byte range");
+    }
+    Ok(())
+}
+
 /// Encode a parsed instruction using the per-modifier-group table.
 pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> {
     // BUG-091 (fail-closed): an unresolved label operand on a branch op must
@@ -1691,6 +1745,58 @@ pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> 
             anyhow::bail!(
                 "unresolved branch label {:?} on {} at addr 0x{:x} -- label has no                  definition in this input (BUG-091; nvdisasm `.L_x_N` definitions and                  the backtick-paren form are supported since the fix)",
                 bad, insn.opcode_full, insn.addr);
+        }
+    }
+    // The legacy one-target spelling denotes an absolute code address. On
+    // SM120 lower it to the ordinary register-plus-offset form BEFORE lookup:
+    // old BRXU_II harvest fields overlap the register byte and carry baked
+    // sign bits, so a later target fixup cannot repair the selected word.
+    // NVIDIA ptxas's brx.idx.uni lowering establishes PC + 16 + UR + offset.
+    // Only this shorthand is normalized; native two-operand instructions and
+    // other architectures do not enter this lowering.
+    if table.target_sm() == 120
+        && insn.opcode == "BRXU"
+        && insn.opcode_full == "BRXU"
+        && insn.modifiers.is_empty()
+        && insn.operands.len() == 1
+    {
+        let target = match &insn.operands[0] {
+            Operand::Imm32(value) => Some(*value as i128),
+            Operand::Imm64(value) => Some(*value as i128),
+            Operand::BranchTarget(value) => Some(*value as i128),
+            _ => None,
+        };
+        if let Some(target) = target {
+            if target < 0 {
+                anyhow::bail!("BRXU absolute target must be a nonnegative code address");
+            }
+            let offset = target - insn.addr as i128 - 16;
+            check_sm120_brxu_offset(offset)?;
+            let mut normalized = insn.clone();
+            normalized.operands = vec![
+                Operand::UReg {
+                    num: 255, neg: false, abs: false, inv: false,
+                    reuse: false, is_zero: true,
+                },
+                Operand::Imm32(offset as i64),
+            ];
+            normalized.key.clear();
+            return encode_instruction_inner(&normalized, table, true)
+                .context("encoding legacy BRXU absolute target as URZ plus a PC-relative offset");
+        }
+    }
+    // The canonical BRXU operand is a signed byte offset with two implicit
+    // low zero bits. Branch immediates bypass the generic table fit check,
+    // so validate this family explicitly before a shift can discard bits.
+    if table.target_sm() == 120 && insn.opcode == "BRXU" && insn.operands.len() == 2 {
+        let offset = match &insn.operands[1] {
+            Operand::Imm32(value) => Some(*value as i128),
+            Operand::Imm64(value) => Some(*value as i128),
+            Operand::BranchTarget(value) => Some(*value as i128),
+            _ => None,
+        };
+        if let Some(offset) = offset {
+            check_sm120_brxu_offset(offset)?;
         }
     }
     // BUG-184: LEPC target shape/range gate (always-on like the 091 gate
@@ -1874,7 +1980,7 @@ fn raw_op_tokens(raw: &str) -> Vec<String> {
         t
     };
     let t = t.trim().trim_end_matches(';').trim();
-    let t = regex::Regex::new(r"^@!?\w+\s+").unwrap().replace(t, "");
+    let t = GUARD_PREFIX_RE.replace(t, "");
     let parts: Vec<&str> = t.splitn(2, char::is_whitespace).collect();
     if parts.len() < 2 {
         return Vec::new();
@@ -2249,6 +2355,41 @@ fn encode_instruction_inner(
     table: &IsaTable,
     run_errata_checks: bool,
 ) -> Result<u128> {
+    // NVIDIA's two-register BAR.SYNC / BAR.RED / BAR.ARV encoding aliases both printed tokens
+    // onto the same physical byte. Different values have no representation.
+    if insn.opcode == "BAR" && insn.modifiers.iter().any(|m| m == ".SYNC" || m == ".RED" || m == ".ARV") {
+        let regs: Vec<_> = insn.operands.iter().filter_map(|op| match op {
+            Operand::Reg { num, .. } => Some(*num), _ => None,
+        }).collect();
+        if let [a, b] = regs.as_slice() {
+            if a != b {
+                anyhow::bail!("BAR register operands share one encoded register field; both must name the same register");
+            }
+        }
+    }
+    if insn.opcode == "UGETNEXTWORKID" {
+        let uniform_address = |operand: &Operand| match operand {
+            Operand::Addr { base_reg: None, base_reg_suffix: None, ur_reg: Some(reg), offset: 0 } => Some(*reg),
+            _ => None,
+        };
+        let pair = match insn.operands.as_slice() {
+            [a, b] => uniform_address(a).zip(uniform_address(b)),
+            _ => None,
+        };
+        if !pair.is_some_and(|(a,b)| a <= 253 && a.checked_add(1) == Some(b)) {
+            anyhow::bail!("UGETNEXTWORKID addresses share one encoded register field; expected [URn], [URn+1] without offsets");
+        }
+    }
+    if insn.opcode == "RPCMOV" {
+        let valid = match insn.operands.as_slice() {
+            [Operand::Reg { .. }, Operand::Label(name)] |
+            [Operand::Label(name), Operand::Reg { .. }] => name == "Rpc.LO",
+            _ => false,
+        };
+        if !valid {
+            anyhow::bail!("RPCMOV requires one general register and the explicit Rpc.LO operand");
+        }
+    }
     // Fail-closed operand errata (parser-level admission can't error here: the
     // .sass file reader silently drops lines whose parse fails — so the encoder
     // is the last place that can refuse a bad instruction noisily).
@@ -2354,7 +2495,10 @@ fn encode_instruction_inner(
     // text-parity), wiec refuse mint-side przenosi sie tutaj, PRZED
     // jakimkolwiek lookupiem kandydatow (w tym przed fallbackiem U32:
     // tekst z jawnym suffiksem '.64' nigdy nie moze mintowac slowa b90=0).
-    if insn.operands.iter().any(|op| {
+    // LDGSTS uses a distinct source-address format: NVIDIA renders RZ.64
+    // there normally, including a live UR index. The degenerate global-load
+    // rule above does not apply to that family.
+    if insn.opcode != "LDGSTS" && insn.operands.iter().any(|op| {
         matches!(op,
         Operand::Addr { base_reg: Some(255), ur_reg: Some(_),
                         base_reg_suffix: Some(sfx), .. } if sfx == "64")
@@ -2675,8 +2819,9 @@ fn encode_instruction_inner(
     // encode the HI modifier (silicon: such words are IMAD.WIDE.U32 and
     // clobber Rd+1).
     if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() {
-        check_imad_hi_erratum(insn, table)?;
+        check_imad_hi_erratum(insn, table, entry)?;
     }
+    check_native_imad_hi_modifiers(insn, table, entry)?;
     // BUG-178 (iter85, front MAIN; queue = fleet note 177 sec.5(b) "178-kand"):
     // a non-branch Label operand (any non-numeric identifier) degraded through
     // the `Label -> "II"` key family onto a BAKED-immediate row — a table
@@ -2771,7 +2916,13 @@ fn encode_instruction_inner(
     //   abs on Ra (operand index 1 for ALU): hi bit 9  (bit 73 overall)
     //   neg on Ra: hi bit 8  (bit 72 overall)
     {
-        let is_alu = !matches!(
+        // NVIDIA SM120 BMSK sign bits are inert; they never describe
+        // arithmetic operand signs (re_sm120_bmsk_uf2i_nvdisasm.json).
+        // I2FP R/UR sources likewise have text-inert62/63/72/73 bits;
+        // signedness is a datatype modifier, not a register negation.
+        let native_hi = table.target_sm() == 120 && insn.opcode == "IMAD"
+            && insn.modifiers.iter().any(|m| m == ".HI");
+        let is_alu = !native_hi && !(table.target_sm() == 120 && matches!(insn.opcode.as_str(), "BMSK" | "I2FP")) && !matches!(
             insn.opcode.as_str(),
             "LDG" | "LDL" | "LDS" | "LDC" | "LDCU" | "STG" | "STL" | "STS" |
             "ATOM" | "RED" | "BRA" | "BSSY" | "BSYNC" | "EXIT" | "RET" |
@@ -2870,7 +3021,7 @@ fn encode_instruction_inner(
             // For standard ALU: [Rd, Ra, Rb, ...] — Rd is a Reg, so ra/rb follow it.
             // For predicate-dest instructions (DSETP, FSETP, ISETP): [P, P, Ra, Rb, ...]
             // — the first non-pred is Ra, not Rd.
-            let has_reg_dest = matches!(insn.operands.first(), Some(Operand::Reg { .. }));
+            let has_reg_dest = matches!(insn.operands.first(), Some(Operand::Reg { .. } | Operand::UReg { .. }));
             let ra_idx = if has_reg_dest {
                 skip_preds + 1
             } else {
@@ -2940,6 +3091,14 @@ fn encode_instruction_inner(
                 code |= 1u128 << 75;
             }
         }
+    }
+
+    if table.target_sm() == 120 && matches!(insn.opcode.as_str(), "BMSK" | "I2FP")
+        && insn.operands.iter().any(|operand| matches!(operand,
+            Operand::Reg { neg: true, .. } | Operand::Reg { abs: true, .. }
+            | Operand::UReg { neg: true, .. } | Operand::UReg { abs: true, .. }))
+    {
+        anyhow::bail!("{} has no signed or absolute register operand encoding on SM120: {}", insn.opcode, insn.raw_text.trim());
     }
 
     // BUG-281 fail-closed: I2I has NO sign-modifiable register operands
@@ -3315,6 +3474,7 @@ fn encode_instruction_inner(
         code,
         &mod_group,
         crate::table::is_sm103a_encoding_family(table.ef_flags),
+        table.target_sm() == 120,
     );
 
     // Reuse bits [124:122] (Ra/Rb/Rc register cache reuse flags)
@@ -3737,6 +3897,13 @@ fn fit_lint_mode() -> FitLintMode {
         Ok("allow") => FitLintMode::Allow,
         _ => FitLintMode::Hard,
     })
+}
+
+/// The encoder caches its process-wide policy. Strict callers must inspect
+/// that actual policy as well as the current environment: removing an escape
+/// hatch after a permissive encode must never make the cached mode look hard.
+pub(crate) fn strict_fit_lint_active() -> bool {
+    matches!(fit_lint_mode(), FitLintMode::Hard)
 }
 
 fn fit_lint_warn_enabled() -> bool {
@@ -4966,8 +5133,7 @@ fn op_imm(insn: &Instruction, tok: i32) -> u64 {
         Some(Operand::Imm64(v)) => *v,
         Some(Operand::BranchTarget(t)) => *t as u64,
         Some(Operand::FloatImm(v)) => {
-            let f = f64::from_bits(*v);
-            (f as f32).to_bits() as u64
+            crate::ir::f64_bits_to_f32_bits(*v) as u64
         }
         // Desc[UR][R+off]: 'imm' extraction gives the byte offset
         Some(Operand::Desc { offset, .. }) => *offset as u64,
@@ -4986,7 +5152,7 @@ fn op_imm_dec(insn: &Instruction, tok: i32) -> u64 {
 
 fn op_f32(insn: &Instruction, tok: i32) -> u64 {
     match get_op(insn, tok) {
-        Some(Operand::FloatImm(v)) => (f64::from_bits(*v) as f32).to_bits() as u64,
+        Some(Operand::FloatImm(v)) => crate::ir::f64_bits_to_f32_bits(*v) as u64,
         Some(Operand::Imm32(v)) => {
             // Hex immediate in F32 context: treat as raw IEEE754 bits
             // *v is already the IEEE754 bit pattern
@@ -5015,7 +5181,10 @@ fn f32_to_f16(bits: u32) -> u16 {
     let exp = ((bits >> 23) & 0xFF) as i32;
     let frac = bits & 0x7FFFFF;
     if exp == 0xFF {
-        return (sign | 0x7C00 | if frac != 0 { 0x200 } else { 0 }) as u16;
+        // Exact floating literals carry a NaN payload too. Retain the ten
+        // representable fraction bits, rather than replacing every NaN by
+        // one canonical quiet NaN. A nonzero truncated payload stays NaN.
+        return (sign | 0x7C00 | if frac != 0 { (frac >> 13).max(1) } else { 0 }) as u16;
     }
     if exp == 0 {
         return sign as u16;
@@ -5039,7 +5208,7 @@ fn f64_to_f16_direct(bits: u64) -> u16 {
     let exp = ((bits >> 52) & 0x7FF) as i32;
     let frac = bits & 0xFFFFFFFFFFFFF;
     if exp == 0x7FF {
-        return (sign | 0x7C00 | if frac != 0 { 0x200 } else { 0 }) as u16;
+        return (sign | 0x7C00 | if frac != 0 { ((frac >> 42) as u32).max(1) } else { 0 }) as u16;
     }
     if exp == 0 {
         return sign as u16;
@@ -5061,7 +5230,7 @@ fn f64_to_f16_direct(bits: u64) -> u16 {
 fn op_f16_via_f32(insn: &Instruction, tok: i32) -> u64 {
     match get_op(insn, tok) {
         Some(Operand::FloatImm(v)) => {
-            let f32bits = (f64::from_bits(*v) as f32).to_bits();
+            let f32bits = crate::ir::f64_bits_to_f32_bits(*v);
             f32_to_f16(f32bits) as u64
         }
         _ => 0,
@@ -5100,7 +5269,7 @@ fn op_neg_f32(insn: &Instruction, tok: i32) -> u64 {
 /// keeps F32 behavior. Existing rows keep `f32` (raw IEEE bits for Imm32).
 fn op_f32_cast(insn: &Instruction, tok: i32) -> u64 {
     match get_op(insn, tok) {
-        Some(Operand::FloatImm(v)) => (f64::from_bits(*v) as f32).to_bits() as u64,
+        Some(Operand::FloatImm(v)) => crate::ir::f64_bits_to_f32_bits(*v) as u64,
         Some(Operand::Imm32(v)) => (*v as f32).to_bits() as u64,
         _ => 0,
     }
@@ -5218,7 +5387,7 @@ fn op_urz_flag(insn: &Instruction, tok: i32) -> u64 {
         return 0;
     }
     let text = insn.raw_text.trim().trim_end_matches(';').trim();
-    let text = regex::Regex::new(r"^@!?\w+\s+").unwrap().replace(text, "");
+    let text = GUARD_PREFIX_RE.replace(text, "");
     let parts: Vec<&str> = text.splitn(2, char::is_whitespace).collect();
     if parts.len() < 2 {
         return 0;
@@ -5264,7 +5433,7 @@ fn op_reuse(insn: &Instruction, tok: i32) -> u64 {
 fn op_bf16(insn: &Instruction, tok: i32) -> u64 {
     match get_op(insn, tok) {
         Some(Operand::FloatImm(v)) => {
-            let b = (f64::from_bits(*v) as f32).to_bits() as u64;
+            let b = crate::ir::f64_bits_to_f32_bits(*v) as u64;
             let r = (b >> 16) & 1;
             (b.wrapping_add(0x7FFF).wrapping_add(r)) >> 16
         }
@@ -5276,7 +5445,7 @@ fn op_bf16(insn: &Instruction, tok: i32) -> u64 {
 /// the base op name) equals `name` (F2F.F32.F64 vs F2F.F64.F32 direction).
 fn op_mnemod(insn: &Instruction, idx: u8, name: &str) -> u64 {
     let text = insn.raw_text.trim().trim_end_matches(';').trim();
-    let text = regex::Regex::new(r"^@!?\w+\s+").unwrap().replace(text, "");
+    let text = GUARD_PREFIX_RE.replace(text, "");
     let head = text.split_whitespace().next().unwrap_or("");
     let mods: Vec<&str> = head.split('.').skip(1).collect();
     match mods.get((idx as usize).saturating_sub(1)) {
@@ -5310,7 +5479,7 @@ fn op_byte_sel(insn: &Instruction, tok: i32) -> u64 {
     }
     // Parse the tok-th operand from raw text
     let text = insn.raw_text.trim().trim_end_matches(';').trim();
-    let text = regex::Regex::new(r"^@!?\w+\s+").unwrap().replace(text, "");
+    let text = GUARD_PREFIX_RE.replace(text, "");
     let parts: Vec<&str> = text.splitn(2, char::is_whitespace).collect();
     if parts.len() < 2 {
         return 0;
@@ -5341,7 +5510,7 @@ fn op_byte_sel(insn: &Instruction, tok: i32) -> u64 {
     }
     if let Some(op_text) = tokens.get((tok - 1) as usize) {
         // Look for .B0, .B1, .B2, .B3
-        if let Some(caps) = regex::Regex::new(r"\.B(\d)").unwrap().captures(op_text) {
+        if let Some(caps) = BYTE_SELECTOR_RE.captures(op_text) {
             return caps[1].parse::<u64>().unwrap_or(0);
         }
     }
@@ -5356,7 +5525,7 @@ fn op_token_text(insn: &Instruction, tok: i32) -> String {
         return String::new();
     }
     let text = insn.raw_text.trim().trim_end_matches(';').trim();
-    let text = regex::Regex::new(r"^@!?\w+\s+").unwrap().replace(text, "");
+    let text = GUARD_PREFIX_RE.replace(text, "");
     let parts: Vec<&str> = text.splitn(2, char::is_whitespace).collect();
     if parts.len() < 2 {
         return String::new();
@@ -5393,7 +5562,7 @@ fn op_hsel(insn: &Instruction, tok: i32) -> u64 {
         return 0;
     }
     let text = insn.raw_text.trim().trim_end_matches(';').trim();
-    let text = regex::Regex::new(r"^@!?\w+\s+").unwrap().replace(text, "");
+    let text = GUARD_PREFIX_RE.replace(text, "");
     let parts: Vec<&str> = text.splitn(2, char::is_whitespace).collect();
     if parts.len() < 2 {
         return 0;
@@ -5444,7 +5613,7 @@ fn op_mod_flag_value(insn: &Instruction, tok: i32, name: &str) -> u64 {
         return 0;
     }
     let text = insn.raw_text.trim().trim_end_matches(';').trim();
-    let text = regex::Regex::new(r"^@!?\w+\s+").unwrap().replace(text, "");
+    let text = GUARD_PREFIX_RE.replace(text, "");
     let parts: Vec<&str> = text.splitn(2, char::is_whitespace).collect();
     if parts.len() < 2 {
         return 0;
@@ -5683,6 +5852,7 @@ fn apply_branch_encoding(
     mut code: u128,
     mod_group: &str,
     sm103a: bool,
+    sm120: bool,
 ) -> u128 {
     if insn.opcode == "LEPC" {
         // BUG-184: LEPC Rn, <target> — vendor law (nvdisasm-13.3.73 bit-scan
@@ -5693,9 +5863,6 @@ fn apply_branch_encoding(
         // already refused loud by check_lepc_target; the range check below is
         // the same condition re-evaluated (belt-and-braces, unreachable when
         // the gate ran).
-        if !sm103a {
-            return code;
-        }
         let target: Option<i64> = insn.operands.get(1).and_then(|o| match o {
             Operand::BranchTarget(t) => Some(*t as i64),
             Operand::Imm32(v) => Some(*v),
@@ -5711,7 +5878,8 @@ fn apply_branch_encoding(
         }
         return code;
     }
-    if !BRANCH_OPS.iter().any(|&o| insn.opcode == o) && !(sm103a && insn.opcode == "WARPSYNC") {
+    let collective = insn.opcode == "WARPSYNC" && mod_group.split(',').any(|m| m == "COLLECTIVE");
+    if !BRANCH_OPS.iter().any(|&o| insn.opcode == o) && !(sm103a && insn.opcode == "WARPSYNC") && !collective {
         return code;
     }
 
@@ -5728,7 +5896,7 @@ fn apply_branch_encoding(
     let rel_mod = mod_group
         .split(',')
         .any(|m| m == "REL" || m == "COLLECTIVE")
-        || (op == "BRA" && mod_group.split(',').any(|m| m == "DIV"));
+        || (op == "BRA" && mod_group.split(',').any(|m| m == "DIV" || m == "CONV"));
     // b9 phase-3 #7: WARPSYNC.COLLECTIVE.ALL `(L)` (no register membermask)
     // is the same REL16 shape as the R-form -- vendor anchors cl1 prove
     // imm=(target-addr-16)>>4 for both; the gate is "has a resolved target",
@@ -5739,10 +5907,7 @@ fn apply_branch_encoding(
             || op.starts_with("RET")
             || op == "BRA"
             || (op == "WARPSYNC"
-                && (insn
-                    .operands
-                    .iter()
-                    .any(|o| matches!(o, Operand::Reg { .. }))
+                && (insn.operands.iter().any(|o| matches!(o, Operand::Reg { .. }))
                     || find_branch_target(insn).is_some())))
     {
         if let Some(target) = find_branch_target(insn) {
@@ -5766,8 +5931,8 @@ fn apply_branch_encoding(
             return code;
         }
         // fall through for CALL/RET: RET register placement below still applies
-    } else if op == "WARPSYNC" {
-        return code; // no legacy WARPSYNC handling
+    } else if op == "WARPSYNC" && (sm103a || !collective) {
+        return code; // SM120 COLLECTIVE target uses the dword split below
     }
 
     // BRX/BRXU: offset from register, second operand
@@ -5823,7 +5988,12 @@ fn apply_branch_encoding(
             code = (code & !(0xFF_u128 << 16)) | (((rq & 0xFF) as u128) << 16);
             let t32 = (((rq >> 8) << 2) as u64) & 0xFFFFFFFF;
             code = (code & !(0xFFFFFFFF_u128 << 32)) | ((t32 as u128) << 32);
-            if *offset < 0 {
+            if sm120 && op == "BRXU" {
+                // Upper18 are real signed q56 payload, not a blanket sign
+                // fill: offsets below -2^40 can have zero bits here too.
+                code = (code & !(0x3ffff_u128 << 64))
+                    | ((((rq >> 38) as u128) & 0x3ffff) << 64);
+            } else if *offset < 0 {
                 code |= 0x3FFFF_u128 << 64;
             }
             return code;
@@ -5891,10 +6061,10 @@ fn apply_branch_encoding(
             let t32 = ((((rq >> 8) << 2) as u64) | mod_bits) & 0xFFFFFFFF;
             code = (code & !(0xFFFFFFFF_u128 << 32)) | ((t32 as u128) << 32);
 
-            // Sign extension at [81:64]
-            if rel < 0 {
-                code |= 0x3FFFF_u128 << 64;
-            }
+            // Full upper18 bits of the signed56-bit dword quotient.
+            // These are address bits, not an original-word fidelity overlay.
+            code = (code & !(0x3ffff_u128 << 64))
+                | ((((rq >> 38) as u128) & 0x3ffff) << 64);
         }
     }
 

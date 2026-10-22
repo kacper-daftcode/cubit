@@ -26,8 +26,23 @@ use cubit::table::IsaTable;
 
 include!("bug466_data.inc");
 
-fn tab(arch: &str) -> IsaTable {
-    IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()
+// Immutable fixtures only: every word still runs through decode/encode.
+fn pool() -> &'static std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)> {
+    static POOL: std::sync::OnceLock<std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)>> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| {
+        ["sm100a", "sm103a", "sm120", "sm121a"].into_iter().map(|arch| {
+            let table = IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap();
+            let index = DecodeIndex::build(&table);
+            (arch, (table, index))
+        }).collect()
+    })
+}
+fn tab(arch: &str) -> &'static IsaTable {
+    &pool().get(arch).unwrap().0
+}
+fn cached_index(table: &IsaTable) -> &'static DecodeIndex {
+    pool().values().find(|(fixture, _)| std::ptr::eq(fixture, table))
+        .map(|(_, index)| index).expect("table must come from the immutable fixture pool")
 }
 fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
     idx.decode(w, 0, t)
@@ -50,7 +65,7 @@ fn t466_1_route_grid() {
     for (w, tag, vendor) in LAW466_ROUTE {
         for leg in X3 {
             let t = tab(leg);
-            let idx = DecodeIndex::build(&t);
+            let idx = cached_index(t);
             let got = dec(&t, &idx, *w);
             assert_eq!(
                 got.as_deref(),
@@ -70,7 +85,7 @@ fn t466_2_elide_grid() {
     for (w, tag, vendor) in LAW466_ELIDE {
         for leg in X3 {
             let t = tab(leg);
-            let idx = DecodeIndex::build(&t);
+            let idx = cached_index(t);
             assert_eq!(
                 dec(&t, &idx, *w).as_deref(),
                 Some(*vendor),
@@ -88,7 +103,7 @@ fn t466_3_standing_snap() {
     for (w, tag, snap) in STAND466 {
         for leg in X3 {
             let t = tab(leg);
-            let idx = DecodeIndex::build(&t);
+            let idx = cached_index(t);
             let exp = if *snap == "HOLE" { None } else { Some(*snap) };
             assert_eq!(
                 dec(&t, &idx, *w).as_deref(),
@@ -105,7 +120,7 @@ fn t466_4_kill_snap() {
     for (w, tag) in KILL466 {
         for leg in X3 {
             let t = tab(leg);
-            let idx = DecodeIndex::build(&t);
+            let idx = cached_index(t);
             assert!(
                 dec(&t, &idx, *w).is_none(),
                 "[{leg}] {tag} kill claimed {w:#034x}"
@@ -120,7 +135,7 @@ fn t466_4_kill_snap() {
 fn t466_5_control_121a() {
     for (w, name, vendor) in CTRL466 {
         let t = tab("sm121a");
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         let got = dec(&t, &idx, *w);
         assert_eq!(
             got.as_deref(),
@@ -137,7 +152,7 @@ fn t466_6_mint_circle() {
     for (w, vendor) in MINT466 {
         for leg in X3 {
             let t = tab(leg);
-            let idx = DecodeIndex::build(&t);
+            let idx = cached_index(t);
             let got = dec(&t, &idx, *w);
             assert_eq!(
                 got.as_deref(),
@@ -162,7 +177,7 @@ fn t466_7_elide_mint_circle() {
     for (w, vendor) in MINT466_ELIDE {
         for leg in X3 {
             let t = tab(leg);
-            let idx = DecodeIndex::build(&t);
+            let idx = cached_index(t);
             assert_eq!(
                 ((w >> 24) & 0xff, dec(&t, &idx, *w).as_deref()),
                 (255, Some(*vendor)),
@@ -238,5 +253,5 @@ fn t466_8_refuse_legacy_desc_form() {
 #[test]
 fn t466_9_canonical_pin() {
     assert_eq!(CANON466.len(), 40);
-    assert!(CANON466.starts_with("cc2f62c"));
+    assert!(CANON466.starts_with("463a648"));
 }

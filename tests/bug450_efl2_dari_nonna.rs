@@ -39,6 +39,7 @@ fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
         .map(|d| to_sass(&d).trim().trim_end_matches(';').to_string())
 }
 const LEGS450: [&str; 4] = ["sm100a", "sm103a", "sm120", "sm121a"];
+// Serialize whole tests so every encoder reader shares the env hatch lock.
 static ERRATA_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
     let full = format!(" {text} ;");
@@ -56,6 +57,7 @@ fn nforms(arch: &str) -> usize {
 /// cell (16 cells: 4 words x 4 legs; x3 heal + 121a standing parity).
 #[test]
 fn t450_1_heal_grid() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for (w, leg, vendor) in LAW450_HEAL {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
@@ -74,6 +76,7 @@ fn t450_1_heal_grid() {
 /// jako swiadkowie pre-stanu w data.inc). Teksty x4-unanim z arb447 law.
 #[test]
 fn t450_2_parity_holes_healed_453() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     const HEALED453: &[(u128, &str)] = &[
         (
             0x000be4000810182c000000261c30197eu128,
@@ -113,6 +116,7 @@ fn t450_2_parity_holes_healed_453() {
 /// donor-first). Poprzedni standing w komentarzu w data.inc.
 #[test]
 fn t450_3_cloneilleg_standing() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for (w,) in CLONEILLEG450 {
         for leg in LEGS450 {
             let t = tab(leg);
@@ -129,11 +133,11 @@ fn t450_3_cloneilleg_standing() {
 /// (wzorzec t447_5/INC-252f).
 #[test]
 fn t450_4_mints_x4() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for (text, leg, w, ghatch) in MINT450 {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
         let got = if *ghatch {
-            let _g = ERRATA_LOCK.lock().unwrap();
             let e = enc(&t, text).expect_err("[sm103a] BUG-060 guard must refuse even desc-base");
             assert!(format!("{e}").contains("BUG-060"), "guard msg: {e}");
             std::env::set_var("CUBIT_DISABLE_ERRATA", "1");
@@ -153,7 +157,7 @@ fn t450_4_mints_x4() {
 /// with the BUG-060 citation (keeper parity; REFUSE450 x2).
 #[test]
 fn t450_5_refuse_grid() {
-    let _g = ERRATA_LOCK.lock().unwrap();
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     let t = tab("sm103a");
     for (text, leg) in REFUSE450 {
         assert_eq!(*leg, "sm103a");
@@ -165,6 +169,7 @@ fn t450_5_refuse_grid() {
 /// t450_6: census tripwire -- +3 forms per x3 leg, 121a untouched.
 #[test]
 fn t450_6_census() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for (leg, n) in CENSUS450 {
         assert_eq!(
             nforms(leg),
@@ -177,7 +182,8 @@ fn t450_6_census() {
 /// t450_7: canonical pin -- SOURCE.json base_revision == BUG-450 graft rev.
 #[test]
 fn t450_7_canonical_pin() {
-    assert_eq!(CANON450, "cc2f62c"); // ride F2-iter275 (BUG-466 ELL2-plain); was 23976eb (BUG-465 modsub); ride F2-iter267 (BUG-432 ari-cavity); was a64b82b (BUG-463 ltc-widths);  ride F2-iter266 (BUG-463 ltc-widths); was f58ed16 (BUG-461 glyph); // ride F2-iter265 (BUG-461 glyph); was f376558 (BUG-462 narrow); // ride F2-iter264 (BUG-462 narrow); was 700524e (BUG-453 graft); // ride F2-iter263 (BUG-453 graft); was e03e034 (BUG-452 narrow); // ride F2-iter258 (BUG-454 graft) [flip-ride 467: pin 67b54f4 -> 668f842]
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
+    assert_eq!(CANON450, "463a648"); // ride F2-iter275 (BUG-466 ELL2-plain); was 23976eb (BUG-465 modsub); ride F2-iter267 (BUG-432 ari-cavity); was a64b82b (BUG-463 ltc-widths);  ride F2-iter266 (BUG-463 ltc-widths); was f58ed16 (BUG-461 glyph); // ride F2-iter265 (BUG-461 glyph); was f376558 (BUG-462 narrow); // ride F2-iter264 (BUG-462 narrow); was 700524e (BUG-453 graft); // ride F2-iter263 (BUG-453 graft); was e03e034 (BUG-452 narrow); // ride F2-iter258 (BUG-454 graft) [flip-ride 467: pin 67b54f4 -> 668f842]
     let src: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(

@@ -38,6 +38,11 @@
 //!   removal converts vendor-decodable words into decode holes => kept;
 //!   content repair = new-row synthesis, 278-kand (owner scope).
 //! DONORS sm100a/sm103a BYTE-UNTOUCHED (asserted in patch265.py).
+//!
+//! Native SM120 follow-up (2026-10-22): the canonical FSET/HSETP2 mode
+//! matrices now encode genuine GT/GEU forms. NVIDIA independently confirms
+//! the full-word witnesses below; the deleted legacy keys stay deleted and
+//! the other architectures retain their original acceptance/refusal checks.
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;
@@ -59,6 +64,38 @@ fn enc_res(t: &IsaTable, text: &str) -> Result<u128, String> {
 fn and_base(t: &IsaTable, key: &str, mg: &str) -> u128 {
     let g = t.entries[key].mod_groups.get(mg).expect("mg");
     u128::from(g.and_base)
+}
+
+fn native_sm120_word(t: &IsaTable, text: &str, expected: u128) {
+    // Independent nvdisasm SM120 witnesses, including nondefault scheduling.
+    let line = format!("[B0-2--5:R1:W4:Y:S07] {text} ;");
+    let insn = cubit::parse_cuasm_line(&line, 0).unwrap();
+    assert_eq!(encode_instruction(&insn, t).unwrap(), expected, "{line}");
+    let index = t.decode_index();
+    let decoded = index.decode(expected, 0, t).unwrap();
+    // NVIDIA spells BF.GT while the generic printer may order GT.BF.
+    // Compare their complete typed meaning, retaining the exact NV word.
+    let printed = cubit::parse_cuasm_line(
+        &format!("[B0-2--5:R1:W4:Y:S07] {} ;", cubit::printer::to_sass_lossless(&decoded)),
+        0,
+    ).unwrap();
+    assert_eq!(printed.opcode, insn.opcode);
+    assert_eq!(printed.operands, insn.operands);
+    let mut printed_modifiers = printed.modifiers.clone();
+    let mut expected_modifiers = insn.modifiers.clone();
+    printed_modifiers.sort();
+    expected_modifiers.sort();
+    assert_eq!(printed_modifiers, expected_modifiers);
+    let mut failures = Vec::new();
+    let (report, source) = cubit::roundtrip_audit::audit_kernel(
+        ".text.native265", 0, &expected.to_le_bytes(), t, &index,
+        &mut |failure| { failures.push(failure.clone()); Ok(()) },
+    ).unwrap();
+    assert!(report.passed && report.stream_verified, "{text}: {failures:?}");
+    assert_eq!(
+        cubit::roundtrip_audit::encode_semantic_source(&source, t).unwrap(),
+        expected.to_le_bytes(),
+    );
 }
 
 const W_I2IP_V0: u128 = 0x7239;
@@ -286,7 +323,7 @@ fn t265_4_i2ip_retype_decode_encode_and_fail_closed() {
             dec(&t, w1 & M96).as_deref(),
             Some("I2IP.U8.S32 R5, R4, R3, R2.H1")
         );
-        // fail-closed: phantom variants and the retired wrong name
+        // The phantom rounding variants remain fail-closed.
         assert!(
             enc_res(&t, "FRND.F16.CEIL R0, R0").is_err(),
             "{leg}: FRND.F16.CEIL still encodes"
@@ -295,10 +332,18 @@ fn t265_4_i2ip_retype_decode_encode_and_fail_closed() {
             enc_res(&t, "FRND.F16.FLOOR R0, R0").is_err(),
             "{leg}: FRND.F16.FLOOR still encodes"
         );
-        assert!(
-            enc_res(&t, "FSET.BF.GT.AND R0, R0, R0, P0").is_err(),
-            "{leg}: retired GT.AND encodes"
-        );
+        if leg == "sm120" {
+            // Genuine native GT is distinct from the old mislabeled F word.
+            native_sm120_word(&t, "FSET.BF.F.AND R0, R0, R0, P0",
+                0x02532e0000000000000000000000720a);
+            native_sm120_word(&t, "FSET.BF.GT.AND R0, R0, R0, P0",
+                0x02532e0000004000000000000000720a);
+        } else {
+            assert!(
+                enc_res(&t, "FSET.BF.GT.AND R0, R0, R0, P0").is_err(),
+                "{leg}: retired GT.AND encodes"
+            );
+        }
     }
     // rename makes the vendor spelling encodable; word == pre-fix silent word
     let f120 = enc_res(&tab("sm120"), "FSET.BF.F.AND R0, R0, R0, P0").expect("F enc sm120");
@@ -314,8 +359,12 @@ fn t265_4_i2ip_retype_decode_encode_and_fail_closed() {
     assert_eq!(h & M96, 0x80000000000000000007e34u128, "sm120 F word drift");
     // sm121a lattice reference: GEU variant still encodable there (16 mgs)
     assert!(enc_res(&tab("sm121a"), "HSETP2.GEU.AND P0, P0, R0, UR0, P0").is_ok());
-    // sm120 has no cmp-GEU R_UR_P mg -> fail closed (was: fail too, latent mislabel)
-    assert!(enc_res(&tab("sm120"), "HSETP2.GEU.AND P0, P0, R0, UR0, P0").is_err());
+    // Native SM120 now covers the real GEU selector as well as the F anchor.
+    let t120 = tab("sm120");
+    native_sm120_word(&t120, "HSETP2.F.AND P0, P0, R0, UR0, P0",
+        0x02532e00080000000000000000007e34);
+    native_sm120_word(&t120, "HSETP2.GEU.AND P0, P0, R0, UR0, P0",
+        0x02532e000800e0000000000000007e34);
 }
 
 #[test]

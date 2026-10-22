@@ -90,12 +90,14 @@ fn text_words(cubin: &[u8]) -> Vec<u128> {
     words
 }
 
+// LEPC/NOP/EXIT use only general registers. The old .ureg declaration was
+// unsupported and silently ignored; strict assembly now rejects it.
 #[test]
 fn t184_1_decode_anchor_view() {
     // 70 NOPs -> LEPC at addr 0x460; numeric absolute target 0x480 encodes
     // x = 0x480-0x460-0x10 = 0x10 (bit28), and decode prints it back to the
     // same absolute target (equal to the gold anchor view).
-    let mut sass = String::from(".entry k\n    .reg R0-R255\n    .ureg UR0-UR63\n");
+    let mut sass = String::from(".entry k\n    .reg R0-R255\n");
     for _ in 0..0x46 { sass.push_str("    NOP ;\n"); }
     sass.push_str("    LEPC R20, 0x480 ;\n    EXIT ;\n");
     let cubin = asm(&sass, "anchor", true).expect("asm");
@@ -110,7 +112,7 @@ fn t184_1_decode_anchor_view() {
 
 #[test]
 fn t184_2_label_rules_window_zero() {
-    let sass = ".entry k\n    .reg R0-R255\n    .ureg UR0-UR63\n    NOP ;\n    LEPC R7, `(.L_x_0) ;\n.L_x_0:\n    EXIT ;\n";
+    let sass = ".entry k\n    .reg R0-R255\n    NOP ;\n    LEPC R7, `(.L_x_0) ;\n.L_x_0:\n    EXIT ;\n";
     let cubin = asm(sass, "label", true).expect("asm");
     let w = text_words(&cubin)[1];
     assert_eq!((w >> 24) & 0x3FF_FFFF_FFFF_FFFF, 0x0, "x = 0x20-0x10-0x10");
@@ -128,7 +130,7 @@ fn t184_3_unresolved_label_refused() {
 
 #[test]
 fn t184_4_s58_overflow_refused() {
-    let sass = ".entry k\n    .reg R0-R255\n    .ureg UR0-UR63\n    NOP ;\n    LEPC R7, 0x200000000000020 ;\n    EXIT ;\n";
+    let sass = ".entry k\n    .reg R0-R255\n    NOP ;\n    LEPC R7, 0x200000000000020 ;\n    EXIT ;\n";
     let out = asm_fail_text(sass, "overflow");
     assert!(out.contains("out of the encodable window"), "got: {out}");
     assert!(out.contains("BUG-184"), "attribution lost: {out}");
@@ -136,7 +138,7 @@ fn t184_4_s58_overflow_refused() {
 
 #[test]
 fn t184_5_negative_target_roundtrip() {
-    let sass = ".entry k\n    .reg R0-R255\n    .ureg UR0-UR63\n    LEPC R20, -0x100 ;\n    EXIT ;\n";
+    let sass = ".entry k\n    .reg R0-R255\n    LEPC R20, -0x100 ;\n    EXIT ;\n";
     let cubin = asm(sass, "neg", true).expect("asm");
     let txt = disasm(&cubin, "neg", true);
     assert!(txt.contains("LEPC R20, -0x100"), "got: {txt}");
@@ -144,7 +146,7 @@ fn t184_5_negative_target_roundtrip() {
 
 #[test]
 fn t184_6_sm100a_same_law() {
-    let sass = ".entry k\n    .reg R0-R255\n    .ureg UR0-UR63\n    NOP ;\n    LEPC R7, 0x30 ;\n    EXIT ;\n";
+    let sass = ".entry k\n    .reg R0-R255\n    NOP ;\n    LEPC R7, 0x30 ;\n    EXIT ;\n";
     let cubin = asm(sass, "sm100", false).expect("asm(sm100a)");
     let w = text_words(&cubin)[1];
     assert_eq!((w >> 24) & 0x3FF_FFFF_FFFF_FFFF, 0x10, "x = 0x30-0x10-0x10");
@@ -163,7 +165,7 @@ fn t184_7_wrong_shape_refused() {
 #[test]
 fn t184_8_window_extremes_roundtrip() {
     // x = -2^57 -> target = addr+0x10-2^57 = -0x1fffffffffff_ff0 at addr 0
-    let sass = ".entry k\n    .reg R0-R255\n    .ureg UR0-UR63\n    LEPC R20, -144115188075855840 ;\n    EXIT ;\n";
+    let sass = ".entry k\n    .reg R0-R255\n    LEPC R20, -144115188075855840 ;\n    EXIT ;\n";
     let cubin = asm(sass, "extreme", true).expect("asm");
     let w = text_words(&cubin)[0];
     assert_eq!((w >> 24) & 0x3FF_FFFF_FFFF_FFFF, (1u128 << 57) | 0x10,

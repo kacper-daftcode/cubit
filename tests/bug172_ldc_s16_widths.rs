@@ -146,6 +146,22 @@ fn t172_6_polygon() {
             serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
         let mg = j.pointer(&format!("/instructions/{key}/mod_groups")).unwrap();
         let don = &mg[donor];
+        if path == "tables/sm120.json" && key == "LDCU_UR_cAI" {
+            // Native r15 RE remodeled the 64-bit donor to expose the actual
+            // UR index and guard. The earlier S16 row remains a fixed-URZ
+            // geometry; comparing its entire schema to that donor is invalid.
+            assert_eq!(don["and_base"].as_str().unwrap(), "0x0000000008000a0000000000000007ac");
+            let fields = don["fields"].as_array().unwrap();
+            assert!(fields.iter().any(|f| f["extraction"] == "sub_ur1" && f["shift"] == 24 && f["bits"] == 8));
+            assert!(fields.iter().any(|f| f["extraction"] == "guard" && f["shift"] == 12 && f["bits"] == 4));
+            let row = &mg["S16"];
+            let ab = u128::from_str_radix(row["and_base"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
+            let historical_donor = u128::from_str_radix(donor_ab.trim_start_matches("0x"), 16).unwrap();
+            assert_eq!(ab ^ historical_donor, 3u128 << 73 ^ ((historical_donor >> 73) & 0x7) << 73);
+            assert_eq!(row["_src"], "bug172-2026-08-26");
+            assert_eq!(row["fields"].as_array().unwrap().len(), 2);
+            continue;
+        }
         assert_eq!(don["and_base"].as_str().unwrap(), donor_ab, "{path} {key}/{donor} drift");
         let row = &mg["S16"];
         assert_eq!(row["_src"].as_str().unwrap(), "bug172-2026-08-26", "{path} {key} src");

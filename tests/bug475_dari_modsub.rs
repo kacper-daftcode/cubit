@@ -167,29 +167,16 @@ fn t475_7_census_and_source() {
     }
     let src: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
-    if CANON475 == "pending-475" {
-        // stan pre-flip: base_revision == 68ac5aa (474 canonical) + note.
-        assert!(
-            src["base_revision"]
-                .as_str()
-                .unwrap()
-                .starts_with("cc2f62c"),
-            "SOURCE pin pre-flip drift"
-        );
-        assert!(
-            src.get("_475_note").is_none(),
-            "_475_note istnieje przed flip475b"
-        );
-    } else {
-        assert!(
-            src["base_revision"].as_str().unwrap().starts_with(CANON475),
-            "SOURCE pin drift po flipie"
-        );
-        assert!(
-            src["_475_note"].as_str().unwrap().contains("475"),
-            "brak _475_note po flipie"
-        );
-    }
+    assert!(
+        src["base_revision"].as_str().unwrap().starts_with(CANON475),
+        "SOURCE pin drift po flipie"
+    );
+    // Structured provenance is emitted by sync_table.py; historical free-text
+    // flip notes are not part of its manifest schema.
+    assert_eq!(src["tables"]["sm120.json"]["base_sha256"],
+        "693cbf52034be5ad6c07b5a1a84c3be5bbc0a04b4839ece55b995ba686314a1f");
+    assert_eq!(src["tables"]["sm120.json"]["instruction_forms"], 16133);
+    assert_eq!(src["tables"]["sm120.json"]["encoding_variants"], 20831);
 }
 
 /// t475_8: corpus36 EXACT keep z era-pelna reprezentacja (0x000be400<<96|w;

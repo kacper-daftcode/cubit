@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 /// all `U*` uniform-datapath ops, LDCU (uniform constant load), SYNCS_UR
 /// (uniform-domain SYNCS, e.g. EXCH), S2UR). Guard bits [15:12] carry just
 /// (pred,neg); uniformness follows the family, both print paths agree.
-fn guard_is_uniform_family(key: &str) -> bool {
+pub(crate) fn guard_is_uniform_family(key: &str) -> bool {
     key.starts_with('U')
         || key.starts_with("LDCU")
         || key.starts_with("SYNCS_UR")
@@ -42,8 +42,23 @@ fn reuse_print_visible(raw: u128) -> bool {
     (raw >> 109) & 1 != 0
 }
 
-/// Format a decoded instruction as SASS text (without trailing ` ;`).
+/// Format a decoded instruction as NVIDIA-compatible SASS text (without ` ;`).
 pub fn to_sass(insn: &DecodedInst) -> String {
+    to_sass_impl(insn, false)
+}
+
+/// Format editable SASS with complete reuse hints and exact f32 NaN literals.
+///
+/// NVIDIA's display suppresses R-source reuse when the scheduling yield bit
+/// is clear. The hint still occupies a real, independently editable encoding
+/// field. Semantic round-trips print `.reuse` in that case too, without any
+/// residue annotations, raw words or changes to the decoded instruction.
+/// NaN payloads use the existing hexadecimal float operand syntax.
+pub fn to_sass_lossless(insn: &DecodedInst) -> String {
+    to_sass_impl(insn, true)
+}
+
+fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
     let by_token = group_by_token(&insn.fields);
     let raw = insn.raw_code;
 
@@ -114,6 +129,7 @@ pub fn to_sass(insn: &DecodedInst) -> String {
 
     // Special handling for branch instructions: decode target from raw bits
     if is_branch_op(&insn.opcode) {
+        let branch_base = insn.opcode.split('.').next().unwrap_or(&insn.opcode);
         let target = decode_branch_target(insn);
         let guard_prefix = if guard.is_empty() {
             String::new()
@@ -150,11 +166,23 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             };
             return format!("{guard_prefix}{opcode} {upred_str}, 0x{target:x}");
         }
+        // The canonical SM120 indirect branch rows describe a register plus
+        // a signed byte offset, without the PC adjustment of direct branches.
+        if (branch_base == "BRX" && insn.key == "BRX_R_II")
+            || (branch_base == "BRXU" && matches!(insn.key.as_str(), "BRXU_UR_II" | "BRXU.U_UR_II"))
+        {
+            // The legacy SM103a BRXU.U row has the same hardware payload;
+            // NVIDIA's raw SM103a/SM120 disassemblers agree on both anchors.
+            let reg = (insn.raw_code >> 24) & 0xff;
+            let prefix = if branch_base == "BRXU" { "UR" } else { "R" };
+            let reg_s = if reg == 255 { format!("{prefix}Z") } else { format!("{prefix}{reg}") };
+            return format!("{guard_prefix}{opcode} {reg_s}, {}", absolute_dword_target(insn.raw_code));
+        }
         // BRX: register at bits[31:24] plus signed byte offset; sm_103a layout
         // imm17 = rq[5:0]@[23:18] | rq[16:6]@[50:34], sext [63:45], off=rq<<4
         // (inverse of the encoder's verified BRX path; corpus prints
         // "BRX R2 -0x890" with an optional BRANCH_TARGETS comment).
-        if insn.opcode == "BRX" {
+        if branch_base == "BRX" {
             let lo64 = insn.raw_code as u64;
             let reg = (lo64 >> 24) & 0xFF;
             let rq = ((lo64 >> 18) & 0x3F) | (((lo64 >> 34) & 0x7FF) << 6);
@@ -172,9 +200,13 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             return format!("{guard_prefix}{opcode} R{reg}, {off_s}");
         }
         // RET/RET.NODEC: register at bits[31:24], then branch target
-        if insn.opcode.starts_with("RET") {
+        if branch_base == "RET" {
             let lo64 = insn.raw_code as u64;
             let reg = (lo64 >> 24) & 0xFF;
+            if insn.mod_group.split(',').any(|m| m == "ABS") || insn.opcode.contains(".ABS") {
+                let reg_s = if reg == 255 { "RZ".into() } else { format!("R{reg}") };
+                return format!("{guard_prefix}{opcode} {reg_s}, {}", absolute_dword_target(insn.raw_code));
+            }
             if reg != 0 && reg != 255 {
                 return format!("{guard_prefix}{opcode} R{reg}, 0x{target:x}");
             }
@@ -217,19 +249,19 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         // BRA.DIV URn, target (InsKey BRA_UR_II, mg "DIV"): the exception-weight
         // uniform register operand lives at bits[31:24]; without this the text
         // silently drops it and the round-trip loses the operand.
-        if insn.key.starts_with("BRA_UR_") {
+        if branch_base == "BRA" && op_types.first().is_some_and(|t| t == "UR") {
             let lo64 = insn.raw_code as u64;
             let ur = (lo64 >> 24) & 0xFF;
             return format!("{guard_prefix}{opcode} UR{ur}, 0x{target:x}");
         }
-        // CALL.ABS register-indirect (InsKey CALL_R, mg "ABS,NOINC"): nvdisasm
-        // prints "CALL.ABS.NOINC Rn" -- the operand is the register at
-        // bits[31:24], NOT a computed branch target (hexdb census 2026-08-25,
-        // iter72: 2154/2154 vendor ABS anchors are "R2"; zero immediate-ABS
-        // witnesses). The generic arm used to print decode_branch_target(raw)
-        // = addr+0x10 (rel==0 under this row) -> fabricated address text that
-        // no table row could re-encode (2,884 corpus lines; BUG-153).
-        if insn.opcode == "CALL" && insn.mod_group.contains("ABS") {
+        // CALL.ABS has distinct immediate (0x943) and register (0x343)
+        // encodings. The immediate is an absolute signed56-bit dword
+        // address, so it does not receive the relative pc+16 adjustment.
+        // Register-indirect calls take their register from bits[31:24].
+        if branch_base == "CALL" && (insn.mod_group.contains("ABS") || insn.opcode.contains(".ABS")) {
+            if insn.raw_code & 0xfff == 0x943 {
+                return format!("{guard_prefix}{opcode} {}", absolute_dword_target(insn.raw_code));
+            }
             let lo64 = insn.raw_code as u64;
             let reg = (lo64 >> 24) & 0xFF;
             let reg_s = if reg == 255 {
@@ -302,8 +334,12 @@ pub fn to_sass(insn: &DecodedInst) -> String {
             // Printing the raw field (e.g. "0x5", the WARPSYNC_II/ALL form used
             // to) breaks our own text->encode roundtrip (encoder treats operands
             // as absolute targets), so resolve both collective forms here.
-            let v = (((raw >> 18) & 0x3F) as u64) | ((((raw >> 34) & 0x3FF) as u64) << 6);
-            format!("0x{:x}", insn.addr as u64 + 16 + (v << 4))
+            let low = (raw >> 16) & 0xff;
+            let high = (raw >> 34) & 0xffff_ffff_ffff;
+            let rel = sign_extend((low | (high << 8)) as u64, 56) << 2;
+            let target = insn.addr as i64 + 16 + rel;
+            if target < 0 { format!("-0x{:x}", target.unsigned_abs()) }
+            else { format!("0x{target:x}") }
         } else if op_type == "II" && insn.opcode == "LEPC" {
             // LEPC (BUG-184): the II operand is a PC-relative code address.
             // Vendor law arbitrated with nvdisasm-13.3.73 bit-scan on the
@@ -348,6 +384,7 @@ pub fn to_sass(insn: &DecodedInst) -> String {
                 tok,
                 raw,
                 insn.ef_flags,
+                all_reuse,
             )
         };
         // BUG-255: an f64 special literal (+/-INF, +/-QNAN via the f64hi
@@ -381,7 +418,7 @@ pub fn to_sass(insn: &DecodedInst) -> String {
         // so an empty format result for a P slot is dropped here (not ", ").
         let pt_elide = op_type == "P" && crate::table::relu_pt_elide_key(&insn.key);
         let inv4_omitted = s.is_empty()
-            && op_type == "P"
+            && matches!(op_type.as_str(), "P" | "UP")
             && (pt_elide
                 || fields
                     .iter()
@@ -499,7 +536,7 @@ pub fn to_sass(insn: &DecodedInst) -> String {
     // BUG-326: the whole sideband is gated by the control yield bit (b109) —
     // with yield=0 the vendor print is plain (reuse_print_visible covers the
     // law + evidence; the dropped bits ride `!rsd[...]` in fidelity flows).
-    if reuse_print_visible(raw) {
+    if all_reuse || reuse_print_visible(raw) {
         let reuse_slots: [(u32, u32); 3] = [(122, 24), (123, 32), (124, 64)];
         for &(reuse_bit, slot_shift) in &reuse_slots {
             if (raw >> reuse_bit) & 1 != 0 {
@@ -540,6 +577,25 @@ pub fn to_sass(insn: &DecodedInst) -> String {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // Explicit reuse fields need not use the three conventional full-width
+    // R slots (e.g. shifted registers and UR sources). Preserve those fields
+    // through the ordinary `.reuse` operand syntax as well.
+    if all_reuse {
+        for field in &insn.fields {
+            if norm_ext(&field.extraction) != "reuse" || field.value == 0 || field.token_idx <= 0 {
+                continue;
+            }
+            let idx = (field.token_idx - 1) as usize;
+            if idx >= operands.len() || !matches!(op_types.get(idx).map(String::as_str), Some("R" | "UR" | "?"))
+                || operands[idx].contains(".reuse") { continue; }
+            if let Some(dot) = operands[idx].find('.') {
+                operands[idx].insert_str(dot, ".reuse");
+            } else {
+                operands[idx].push_str(".reuse");
             }
         }
     }
@@ -628,13 +684,25 @@ fn is_branch_op(opcode: &str) -> bool {
     // BRA, CALL, JMP, RET, BSSY need branch target decoding
     // BSYNC/BREAK do NOT have target addresses (just barrier operands)
     matches!(
-        opcode,
-        "BRA" | "BRA.U" | "BRX" | "BRXU" | "CALL" | "JMP" | "RET" | "RET.NODEC" | "BSSY"
+        opcode.split('.').next().unwrap_or(opcode),
+        "BRA" | "BRX" | "BRXU" | "CALL" | "JMP" | "RET" | "BSSY"
     )
 }
 
 fn is_bssy_op(opcode: &str) -> bool {
     matches!(opcode, "BSSY")
+}
+
+/// Absolute CALL/RET targets use the same signed dword field as relative
+/// branches, with the address supplied directly instead of adding pc+16.
+fn absolute_dword_target(raw: u128) -> String {
+    let quotient = ((raw >> 16) & 0xff) | (((raw >> 34) & ((1u128 << 48) - 1)) << 8);
+    let absolute = sign_extend(quotient as u64, 56) << 2;
+    if absolute < 0 {
+        format!("-0x{:x}", absolute.unsigned_abs())
+    } else {
+        format!("0x{absolute:x}")
+    }
 }
 
 /// Decode branch target address from raw instruction bits.
@@ -643,10 +711,6 @@ fn is_bssy_op(opcode: &str) -> bool {
 fn decode_branch_target(insn: &DecodedInst) -> u32 {
     let raw = insn.raw_code;
     let lo64 = raw as u64;
-    let hi64 = (raw >> 64) as u64;
-    // Strip scheduling bits from hi64 (bits [57:41] of hi64 = bits [121:105] of full)
-    let hi64_clean = hi64 & !((0x1FFFF_u64) << 41);
-
     if is_bssy_op(&insn.opcode) {
         // BSSY: rel = sign_extend_32bit(bits[63:32] of instruction)
         let rel = ((lo64 >> 32) & 0xFFFFFFFF) as i64;
@@ -659,24 +723,13 @@ fn decode_branch_target(insn: &DecodedInst) -> u32 {
         return (insn.addr as i64 + 16 + rel) as u32;
     }
 
-    // BRA/CALL/JMP: dword-split encoding
-    // lo_byte = bits[23:16] (8 bits)
-    // hi_part = bits[63:32] >> 2 (30 bits, sign extended)
-    let lo_byte = (lo64 >> 16) & 0xFF;
-    let hi_raw = (lo64 >> 32) & 0xFFFFFFFF;
-    let hi_part = hi_raw >> 2; // 30 bits of shifted dword offset
-
-    // Sign-extend hi_part from 30 bits using sign extension bits [81:64] (= hi64[17:0])
-    let sign_bits = hi64_clean & 0x3FFFF;
-    let hi_signed: i64 = if sign_bits != 0 || (hi_part >> 29) & 1 != 0 {
-        // Negative: sign-extend hi_part from 30 bits
-        (hi_part as i64) | (!(0x3FFFFFFFi64))
-    } else {
-        hi_part as i64
-    };
-
-    let rq = lo_byte as i64 | (hi_signed << 8);
-    let rel = rq * 4;
+    // NVIDIA SM120 bit sweeps: low8@[23:16] and high48@[81:34]
+    // form a signed 56-bit quotient in four-byte units. This includes
+    // DIV/CONV and relative CALL/RET. Compiler targets are usually aligned
+    // to sixteen bytes, but bits16/17 are real +4/+8 displacement bits.
+    let low = (raw >> 16) & 0xff;
+    let high = (raw >> 34) & 0xffff_ffff_ffff;
+    let rel = sign_extend((low | (high << 8)) as u64, 56) << 2;
     (insn.addr as i64 + 16 + rel) as u32
 }
 
@@ -891,6 +944,44 @@ fn mod_priority_for_key(base: &str, key: &str, m: &str) -> u8 {
 
 /// Opcode-aware modifier priority (overrides generic mod_priority for specific cases).
 fn mod_priority_for(base: &str, m: &str) -> u8 {
+    // NVIDIA places the memory-order mode before its scope.
+    if base == "MEMBAR" && matches!(m, "SC" | "ALL") {
+        return 0;
+    }
+    // NVIDIA packed min/max places the vector type before its independent
+    // mode flags (HMNMX2.BF16_V2.FTZ.NAN.XORSIGN).
+    if base == "HMNMX2" {
+        match m {
+            "BF16_V2" => return 0,
+            "FTZ" => return 1,
+            "NAN" => return 2,
+            "XORSIGN" => return 3,
+            _ => {}
+        }
+    }
+    // NVIDIA SM120 FMNMX uses independent FTZ, NAN, XORSIGN modifiers in
+    // this order; NAN here is a mode rather than a comparison predicate.
+    if base == "FMNMX" {
+        match m {
+            "FTZ" => return 0,
+            "NAN" => return 1,
+            "XORSIGN" => return 2,
+            _ => {}
+        }
+    }
+    if matches!(base, "VIMNMX" | "UVIMNMX") && m == "RELU" {
+        return 8;
+    }
+    if base == "UFLO" && m == "SH" {
+        return 8;
+    }
+    if base == "ULOP3" {
+        match m {
+            "LUT" => return 3,
+            "PAND" => return 8,
+            _ => {}
+        }
+    }
     // BUG-361: F2I prints dst-type < src-type < rounding < NTZ -- vendor law
     // `F2I.U64.TRUNC` / `F2I.U64.F64.TRUNC` / `F2I.FTZ.U32.TRUNC.NTZ` /
     // `F2I.U32.NTZ` / `F2I.S16.NTZ` (arb339 arb362 + mint probes on every
@@ -956,6 +1047,8 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             _ => {}
         }
     }
+    // UIMAD high-half mode precedes signedness (NVIDIA SM120 corpus).
+    if base == "UIMAD" && m == "HI" { return 3; }
     // BUG-226e: I2F prints the source width-type BEFORE the rounding mode
     // (vendor `I2F.U32.RP` / `I2F.U64.RP`, 1,467 pop226e witnesses; donor mg
     // names are alphabetical `RP,U32` so the stable sort used to keep the
@@ -1225,6 +1318,7 @@ fn format_operand(
     tok: i32,
     raw: u128,
     ef_flags: u32,
+    lossless: bool,
 ) -> String {
     match op_type {
         // R/UR type: when the field has imm extraction instead of reg/ureg
@@ -1252,6 +1346,9 @@ fn format_operand(
                 None => s,
             }
         }
+        // RPCMOV's implicit PC register is the literal symbol Rpc.LO. Its
+        // canonical rows fix the selector bit instead of modeling an integer.
+        "II" if ins_key.starts_with("RPCMOV_") => "Rpc.LO".to_string(),
         // R2P destination: always the predicate-register file token "PR"
         // (parsed as imm-0 in the corpus; printing the numeral round-trips
         // but loses the architectural form nvdisasm emits).
@@ -1321,7 +1418,7 @@ fn format_operand(
             }
         }
         "II" | "IM" | "LO" => format_imm_or_reg(fields, mod_group, ins_key, tok, raw),
-        "FI" => format_float_imm(fields),
+        "FI" => format_float_imm(fields, lossless),
         "L" | "SR" => format_lit_or_sysreg(fields, mod_group, raw),
         // BUG-179 (superset of parked-BUG-157): SYNCS- and ATOMS-family ARI
         // rows carry the uniform-register window baked as URZ in and_base
@@ -1359,7 +1456,8 @@ fn format_operand(
         // BUG-180: LDGSTS second (global-src) address is 64-bit
         // [Rn.64(+URm)(+s12off)] (arb180c t1/u2); STAS prints its shared
         // address with .64 unconditionally ([R3.64] odd legal, arb180 s3).
-        "ARI" | "AI" if ins_key.starts_with("LDGSTS") && tok == 2 => format_ldgsts_src(fields, raw),
+        "ARI" | "AI" if ins_key.starts_with("LDGSTS") && tok == 2 => format_ldgsts_src(fields, raw,
+            ef_flags == crate::elf_builder::EF_CUDA_SM120 && matches!(raw & 0xfff, 0xdae | 0xfae)),
         "ARI" | "AI" if ins_key.starts_with("STAS") && tok == 1 => format_addr_wide64(fields, raw),
         "ARI" | "AI" => format_addr(fields, raw, rz_signed_elide(ins_key)),
         // STS/LDS/LDSM use [R+UR+off] format, not desc[UR][R.64+off].
@@ -1377,7 +1475,8 @@ fn format_operand(
         // [R140+UR32]; pre-fix this was a fabricated desc[UR..][R..64] form);
         // tok2 is the GLOBAL 64-bit source [Rn.64(+URm)(+s12off)].
         "ARURI" if ins_key.starts_with("LDGSTS") && tok == 1 => format_ldgsts_shdst(fields, raw),
-        "ARURI" if ins_key.starts_with("LDGSTS") && tok == 2 => format_ldgsts_src(fields, raw),
+        "ARURI" if ins_key.starts_with("LDGSTS") && tok == 2 => format_ldgsts_src(fields, raw,
+            ef_flags == crate::elf_builder::EF_CUDA_SM120 && matches!(raw & 0xfff, 0xdae | 0xfae)),
         // BUG-038: plain uniform-indexed LDG.E/STG.E forms (class bytes 0x81/0x86)
         // render as [Rn.U32+URm(+0xoff)], not desc[UR][R.64] (that's the dARI world).
         // BUG-097: same plain-u32-ur shape on generic-memory LD_R_ARURI/ST_ARURI_R
@@ -1475,6 +1574,10 @@ fn format_operand(
         // the pre-442 guard never fired and the (1,1) free-form printed the
         // fabricated desc form). The desc-shape siblings (sub_r1+sub_ur0)
         // still fail the guard and stay on format_aruri.
+        // LDGMC uses a plain extended global address, with a separate
+        // uniform index. It does not use the descriptor spelling.
+        "ARURI" if ins_key.starts_with("LDGMC_") =>
+            format_plain_u32_ur(fields, raw, false, false, true, false),
         "ARURI"
             // BUG-469: widthless-ARURI graft sm121a covers pred-dest arms too
             // ('LDG_P_R_ARURI{,_P}' plain band, 'LDG.E.EF{,.LTCnm}_P_R_ARURI_P'
@@ -2134,6 +2237,11 @@ fn format_ureg_raw(fields: &[&DecodedField], raw: u128, ins_key: &str) -> String
     let mut reuse = false;
     let mut hsel: u64 = 0;
     let mut h0nh1 = false;
+    // Some operands (SM120 tensor scale selectors) split one eight-bit
+    // uniform-register number across disjoint fields. Reconstruct the
+    // logical operand before applying the URZ sentinel spelling.
+    let ureg_parts = fields.iter().filter(|f| norm_ext(&f.extraction).starts_with("ureg")).count();
+    let composite_ureg = ureg_parts > 1;
 
     for f in fields {
         let e = norm_ext(&f.extraction);
@@ -2142,12 +2250,17 @@ fn format_ureg_raw(fields: &[&DecodedField], raw: u128, ins_key: &str) -> String
             // register — e.g. "ULEA UR63, ...", "LDS.128 R8, [UR63]").
             // 6-bit ureg fields: 63 = URZ. Keep the source width to tell them apart.
             "ureg" => {
-                ureg = Some(f.value | (if f.bits >= 8 { 0x100 } else { 0 }));
+                ureg = Some(if composite_ureg { ureg.unwrap_or(0x100) | f.value }
+                    else { f.value | (if f.bits >= 8 { 0x100 } else { 0 }) });
             }
             "ureg_ff" => {
-                ureg = Some(f.value | 0x100);
+                ureg = Some(if composite_ureg { ureg.unwrap_or(0x100) | f.value } else { f.value | 0x100 });
             }
-            "ureg_shr3" => ureg = Some(f.value << 3),
+            "ureg_shr1" | "ureg_shr2" | "ureg_shr3" => {
+                let shift = e.strip_prefix("ureg_shr").unwrap().parse::<u32>().unwrap();
+                ureg = Some(if composite_ureg { ureg.unwrap_or(0x100) | (f.value << shift) }
+                    else { f.value << shift });
+            }
             "neg" => neg = f.value != 0,
             "abs" => abs_u = f.value != 0,
             "inv" => inv = f.value != 0,
@@ -2344,6 +2457,10 @@ fn format_imm(fields: &[&DecodedField], _mod_group: &str, ins_key: &str) -> Stri
                 || ins_key.starts_with("ULOP3");
             let is_setp = ins_key.starts_with("ISETP")
                 || ins_key.starts_with("UISETP")
+                || ins_key.starts_with("IADD_")
+                || (ins_key.starts_with("USEL") && (_mod_group.split(',').any(|m| m == "64") || ins_key.starts_with("USEL.64")))
+                || (ins_key.starts_with("SEL") && imm_bits == 33 &&
+                    (_mod_group.split(',').any(|m| m == "64") || ins_key.starts_with("SEL.64")))
                 || ins_key.starts_with("IADD3")
                 || ins_key.starts_with("UIADD3")
                 || ins_key.starts_with("IMAD")
@@ -2385,7 +2502,7 @@ fn format_imm(fields: &[&DecodedField], _mod_group: &str, ins_key: &str) -> Stri
 
 // ── FI — float immediate (half-float in HFMA2 etc.) ──────────────────────────
 
-fn format_float_imm(fields: &[&DecodedField]) -> String {
+fn format_float_imm(fields: &[&DecodedField], lossless: bool) -> String {
     let mut bits: Option<u32> = None;
     let mut f64_hi: Option<u32> = None;
     let mut neg = false;
@@ -2414,6 +2531,14 @@ fn format_float_imm(fields: &[&DecodedField]) -> String {
 
     if let Some(h) = f64_hi {
         return format_double(f64::from_bits((h as u64) << 32), neg);
+    }
+    // NVIDIA's QNAN glyph omits the literal's payload. Exact hexadecimal
+    // float operands are ordinary editable SASS and preserve that payload
+    // without a residue overlay. Keep vendor display unchanged by default.
+    if lossless && !neg && fields.iter().any(|f| matches!(norm_ext(&f.extraction).as_str(), "f32" | "f32cast" | "f16" | "f16_d" | "bf16")) {
+        if let Some(b) = bits.filter(|b| f32::from_bits(*b).is_nan()) {
+            return format!("0x{b:08x}F");
+        }
     }
     match bits {
         Some(b) => format_float(f32::from_bits(b), neg),
@@ -2503,7 +2628,7 @@ fn format_plain_u32_ur(
             "ureg" | "sub_ur1" => ur = Some(f.value),
             // BUG-442: canon-era plain rows carry the address-embedded offset
             // as sub_imm1 (same 24b@[63:40] window, same signed law as 'imm').
-            "imm" | "sub_imm1" => {
+            "imm" | "sub_imm1" | "sub_imm2" => {
                 if f.bits == 24 {
                     off = sign_extend(f.value, f.bits);
                     off_win24 = true;
@@ -3009,7 +3134,7 @@ fn format_ldgsts_shdst(fields: &[&DecodedField], raw: u128) -> String {
 /// (the desc-sink elision, e.g. `desc[UR255][..]`-era words render
 /// `[R212.64]`); UR63 prints literally (arb180c t1_urf). Offset is the
 /// s12 window @[32:44), `+-0x` sign glyph (s2/u2 probes).
-fn format_ldgsts_src(fields: &[&DecodedField], raw: u128) -> String {
+fn format_ldgsts_src(fields: &[&DecodedField], raw: u128, keep_rz: bool) -> String {
     let mut base_reg: Option<u64> = None;
     let mut ur_reg: Option<u64> = None;
     let mut offset: i64 = 0;
@@ -3044,10 +3169,12 @@ fn format_ldgsts_src(fields: &[&DecodedField], raw: u128) -> String {
         base_reg = Some((raw >> 24) as u64 & 0xFF);
     }
     let rn = base_reg.unwrap_or(0);
-    // BUG-164 law applies to the LDGSTS source slot too: RZ base + imm != 0
-    // elides to the bare window (same vendor family, plain-ARI doctrine).
-    if let Some(el) = elide_rz_base(rn, ur_reg, offset, has_offset, imm_width, true) {
-        return el;
+    // Native SM120 0xdae/0xfae retain the global RZ.64 pointer, including
+    // nonzero offsets. Other packets retain their existing display law.
+    if !keep_rz {
+        if let Some(el) = elide_rz_base(rn, ur_reg, offset, has_offset, imm_width, true) {
+            return el;
+        }
     }
     let reg_s = if rn == 255 {
         "RZ".to_string()

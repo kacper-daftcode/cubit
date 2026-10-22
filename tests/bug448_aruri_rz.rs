@@ -82,8 +82,8 @@ fn t448_2_keep_grid() {
     }
 }
 
-/// t448_3: standing snap -- pre==post cells outside 448 scope stay
-/// machine-snapped (121a-coverage class; zero silent heals/losses).
+/// t448_3: retain historical snapshots outside 448 scope, with a full-word
+/// source proof for the newly modeled native SM120 LDG.E.64 carrier.
 #[test]
 fn t448_3_standing_snap() {
     for (w, leg, snap) in STAND448 {
@@ -93,6 +93,23 @@ fn t448_3_standing_snap() {
         // "HOLE" in the machine data pins a decode hole (decode error).
         let exp = if *snap == "HOLE" { None } else { Some(*snap) };
         assert_eq!(got.as_deref(), exp, "[{leg}] standing drift {w:#034x}");
+        if *leg == "sm120" && *w == 0x00000000081e0b0000000004ff067981 {
+            // NVIDIA independently prints this complete original word as
+            // LDG.E.64 R6, [RZ.U32+UR4]. Keep its zero-valued ControlCode.
+            let source = ".entry standing\n[B------:R0:W0:-:S00] LDG.E.64 R6, [RZ.U32+UR4] ;\n.endentry\n";
+            let bytes = cubit::roundtrip_audit::encode_semantic_source(source, &t).unwrap();
+            assert_eq!(bytes, w.to_le_bytes());
+            let mut failures = Vec::new();
+            let (report, emitted) = cubit::roundtrip_audit::audit_kernel(
+                ".text.standing", 0, &bytes, &t, &idx,
+                &mut |failure| { failures.push(failure.clone()); Ok(()) },
+            ).unwrap();
+            assert!(report.passed && report.stream_verified, "{failures:?}");
+            assert_eq!(
+                cubit::roundtrip_audit::encode_semantic_source(&emitted, &t).unwrap(),
+                bytes,
+            );
+        }
     }
 }
 
@@ -171,5 +188,5 @@ fn t448_7_refuse() {
 /// (Ratchet itself carries no 448 row; pin asserts the documented state.)
 #[test]
 fn t448_8_canonical_pin() {
-    assert_eq!(CANON448, "cc2f62c"); // ride F2-iter275 (BUG-466 ELL2.256 rekanon); was 23976eb; old:  ride F2-iter267 (BUG-432 ari-cavity); was a64b82b (BUG-463 ltc-widths); // ride F2-iter266 (BUG-463 ltc-widths); was f58ed16 (BUG-461 glyph); // ride F2-iter265 (BUG-461 glyph); was f376558 (BUG-462 narrow); // ride F2-iter264 (BUG-462 narrow); was 700524e (BUG-453 graft); // ride F2-iter263 (BUG-453 graft); was e03e034 (BUG-452 narrow); // ride F2-iter258 (BUG-454 graft) [flip-ride 467: pin 67b54f4 -> 668f842]
+    assert_eq!(CANON448, "463a648"); // ride F2-iter275 (BUG-466 ELL2.256 rekanon); was 23976eb; old:  ride F2-iter267 (BUG-432 ari-cavity); was a64b82b (BUG-463 ltc-widths); // ride F2-iter266 (BUG-463 ltc-widths); was f58ed16 (BUG-461 glyph); // ride F2-iter265 (BUG-461 glyph); was f376558 (BUG-462 narrow); // ride F2-iter264 (BUG-462 narrow); was 700524e (BUG-453 graft); // ride F2-iter263 (BUG-453 graft); was e03e034 (BUG-452 narrow); // ride F2-iter258 (BUG-454 graft) [flip-ride 467: pin 67b54f4 -> 668f842]
 }

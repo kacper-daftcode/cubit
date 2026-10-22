@@ -62,10 +62,9 @@ fn asm_runs(spec: &[&str], tag: &str, n_runs: usize) -> Vec<Vec<u8>> {
 }
 
 fn text_order(cubin: &[u8]) -> Vec<String> {
-    let dir = std::env::temp_dir();
-    let probe = dir.join(format!("bug127_probe_{:x}.cubin", cubin.len() + cubin[31] as usize));
-    std::fs::write(&probe, cubin).unwrap();
-    let cf = cubit::elf::CubinFile::load(&probe).unwrap();
+    // Inspect the supplied bytes directly; equal-size concurrent fixtures
+    // may have different section order and must never share a probe file.
+    let cf = cubit::elf::CubinFile::from_bytes(cubin.to_vec()).unwrap();
     cf.text_sections.iter().map(|(n, _, _)| n.clone()).collect()
 }
 
