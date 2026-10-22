@@ -209,7 +209,7 @@ fn t476_8_census_and_source() {
     // Structured provenance is emitted by sync_table.py; historical free-text
     // flip notes are not part of its manifest schema.
     assert_eq!(src["tables"]["sm120.json"]["base_sha256"],
-        "693cbf52034be5ad6c07b5a1a84c3be5bbc0a04b4839ece55b995ba686314a1f");
+        "2580cfe2057acb315e2b8ad85a85cb61c3b74a62eb0037829161c7790fc0af3a");
     assert_eq!(src["tables"]["sm120.json"]["instruction_forms"], 16133);
     assert_eq!(src["tables"]["sm120.json"]["encoding_variants"], 20831);
 }

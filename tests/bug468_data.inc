@@ -1,4 +1,4 @@
-pub const CANON468: &str = "463a648c4ee0bd20cf013315a0ec6a2432f7975a";
+pub const CANON468: &str = "9c0e4cec355119065444f59d0710de372b9d0577";
 /// HEAL 9280 / ANCH 3104 / KILL 48 / EDGE 96 / MINT 212 -- gen468pins.py rc=2 fail-closed; werdykty z nvdisasm law.
 pub static HEAL468: &[(u128, &str, &str)] = &[
 (0x000be40008006b2cfe01e9261c30197eu128, "sm100a", "@P1 LDG.E.EF.EFL2.LTC64B.256.CONSTANT.CTA.PRIVATE R44, R48, [R28.64+UR38+0x3d20]"),
