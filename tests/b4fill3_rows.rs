@@ -34,6 +34,8 @@ fn t103a() -> IsaTable {
     IsaTable::load(std::path::Path::new("tables/sm103a.json")).unwrap()
 }
 const SCHED: u128 = 0xFFFF_FFFFu128 << 96;
+// Every test shares the process-wide environment exclusion boundary.
+static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// (gold word, addr, canonical render)
 static GOLD: &[(u128, u32, &str)] = &[
@@ -88,6 +90,7 @@ static GOLD: &[(u128, u32, &str)] = &[
 
 #[test]
 fn b4fill3_decode_render() {
+    let _test_env_guard = ENV_LOCK.lock().unwrap();
     let t = t103a();
     let idx = DecodeIndex::build(&t);
     let mut fails = Vec::new();
@@ -114,6 +117,7 @@ fn b4fill3_decode_render() {
 
 #[test]
 fn b4fill3_brxu_reencode_byte_exact() {
+    let _test_env_guard = ENV_LOCK.lock().unwrap();
     // era-grounded BRXU_II and_base: canonical text -> exact era bytes
     // (modulo sched bits, which the file pipeline regenerates via @sched).
     let t = t103a();
@@ -133,6 +137,7 @@ fn b4fill3_brxu_reencode_byte_exact() {
 
 #[test]
 fn b4fill3_bra_target_region_exact() {
+    let _test_env_guard = ENV_LOCK.lock().unwrap();
     // encode of the canonical BRA text reproduces the era dword-split target
     // region exactly; bits [33:32] are era-carry (rsd at file level).
     let t = t103a();
@@ -153,6 +158,7 @@ fn b4fill3_bra_target_region_exact() {
 
 #[test]
 fn b4fill3_efl2_parity_guard() {
+    let _test_env_guard = ENV_LOCK.lock().unwrap();
     let t = t103a();
     // odd Rn (R3): the HINT gold word w2 encodes from canonical text; compare
     // the row-owned region (fields + and_base constants minus sched).
@@ -218,6 +224,7 @@ fn b4fill3_efl2_parity_guard() {
 
 #[test]
 fn b4fill3_efl2_cross_matrix() {
+    let _test_env_guard = ENV_LOCK.lock().unwrap();
     // membership matrix: no cross-matching inside the ELL2/EFL2 family
     let t = t103a();
     let idx = DecodeIndex::build(&t);

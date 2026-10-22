@@ -33,11 +33,27 @@ const RELAX: u128 = 0xfu128 << 92;
 const PREV387: u128 = 0x7u128 << 61; // [63:61] = BUG-387 (b63: BUG-382)
 const PREV382: u128 = 0x7u128 << 88; // [90:88] = BUG-382
 
-fn tab(arch: &str) -> IsaTable {
-    IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()
+// The fixtures are immutable. Share only table parsing and index construction;
+// every corpus word still passes through the normal decoder and assertions.
+fn pool() -> &'static std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)> {
+    static POOL: std::sync::OnceLock<std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)>> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| {
+        ["sm100a", "sm103a", "sm120", "sm121a"].into_iter().map(|arch| {
+            let table = IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap();
+            let index = DecodeIndex::build(&table);
+            (arch, (table, index))
+        }).collect()
+    })
+}
+fn tab(arch: &str) -> &'static IsaTable {
+    &pool().get(arch).unwrap().0
+}
+fn cached_index(table: &IsaTable) -> &'static DecodeIndex {
+    pool().values().find(|(fixture, _)| std::ptr::eq(fixture, table))
+        .map(|(_, index)| index).expect("table must come from the immutable fixture pool")
 }
 fn dec(t: &IsaTable, w: u128) -> Option<String> {
-    DecodeIndex::build(t)
+    cached_index(t)
         .decode(w & M96, 0, t)
         .map(|d| to_sass(&d))
         .ok()

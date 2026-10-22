@@ -3483,10 +3483,47 @@ pub type CubinPatch<'a> = (&'a str, Vec<u8>, Option<Vec<u8>>);
 /// Patches are matched to template kernels by name. When names differ and both
 /// the template and the patch list contain exactly one kernel, they are matched
 /// by position and the template kernel is renamed in the output ELF.
+/// Unpatched kernels are retained. Each supplied patch must have one target;
+/// its instruction bytes, including scheduling, are copied without consulting
+/// the template instructions.
+/// Same-size sections preserve the exact ELF layout. Unchanged instruction
+/// payloads, including schedule/reuse-only edits, preserve resource metadata.
+/// Other edits retain the legacy register estimate, which is not a substitute
+/// for instruction-aware resource analysis.
 pub fn rebuild_cubin(template_bytes: &[u8], patches: &[CubinPatch<'_>]) -> Result<Vec<u8>> {
     use crate::elf::CubinFile;
     let mut cubin = CubinFile::from_bytes(template_bytes.to_vec())?;
     let mut renames: Vec<(String, String)> = Vec::new();
+
+    if patches.is_empty() {
+        anyhow::bail!("rebuild requires at least one kernel patch");
+    }
+    let single_rename = cubin.text_sections.len() == 1 && patches.len() == 1;
+    let mut seen = std::collections::BTreeSet::new();
+    for (name, code, _) in patches {
+        if !seen.insert(*name) {
+            anyhow::bail!("duplicate rebuild patch for kernel '{name}'");
+        }
+        let matches = cubin.text_sections.iter().filter(|(section, _, _)| {
+            section.strip_prefix(".text.").unwrap_or(section) == *name
+        }).count();
+        if matches > 1 || (matches == 0 && !single_rename) {
+            anyhow::bail!(
+                "rebuild patch '{name}' has {matches} matching template text sections; \
+                 each patch must target exactly one kernel"
+            );
+        }
+        if code.is_empty() || code.len() % 16 != 0 {
+            anyhow::bail!(
+                "rebuild patch '{name}' has {} bytes; expected a nonempty sequence \
+                 of complete 16-byte instructions", code.len()
+            );
+        }
+    }
+    validate_template_renames(
+        template_bytes,
+        &patches.iter().map(|(name, _, _)| (*name).to_string()).collect::<Vec<_>>(),
+    )?;
 
     for sec_idx in 0..cubin.text_sections.len() {
         let sec_name = cubin.text_sections[sec_idx].0.clone();
@@ -3506,54 +3543,34 @@ pub fn rebuild_cubin(template_bytes: &[u8], patches: &[CubinPatch<'_>]) -> Resul
             continue;
         };
 
-        let _orig_size = cubin.text_bytes(sec_idx)?.len();
+        let original = cubin.text_bytes(sec_idx)?;
+        let original_size = original.len();
+        let same_payload = instruction_payloads_unchanged(original, patch_code);
+        let new_register_estimate = rounded_register_estimate(patch_code);
         let mut code = patch_code.to_vec();
         let nop: [u8; 16] = [
             0x18, 0x79, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0,
             0x0f, 0x00,
         ];
-        // Target size: actual code aligned to 128 bytes (may be smaller than template)
-        let aligned = code.len().div_ceil(128) * 128;
-        let target_size = aligned;
+        // A same-size replacement must preserve compiler-selected section
+        // sizes, including small local helpers. New sizes retain the existing
+        // 128-byte alignment policy.
+        let target_size = if code.len() == original_size {
+            original_size
+        } else {
+            code.len().div_ceil(128) * 128
+        };
         while code.len() + 16 <= target_size {
             code.extend_from_slice(&nop);
         }
         code.resize(target_size, 0);
 
-        // Copy template scheduling for matching instructions (same lo-word).
-        // This provides nvcc's battle-tested stall/barrier values for instructions
-        // that happen to have the same opcode+operand encoding as the template.
-        // NOP-padded slots are copied entirely.
-        let orig_text = cubin.text_bytes(sec_idx)?.to_vec();
-        for i in (0..code.len().min(orig_text.len())).step_by(16) {
-            if i + 16 > code.len() || i + 16 > orig_text.len() {
-                break;
-            }
-            let new_lo = u64::from_le_bytes(code[i..i + 8].try_into().unwrap());
-            if new_lo == 0 && code[i + 8..i + 16] == [0u8; 8] {
-                code[i..i + 16].copy_from_slice(&orig_text[i..i + 16]);
-                continue;
-            }
-            let old_lo = u64::from_le_bytes(orig_text[i..i + 8].try_into().unwrap());
-            if new_lo == old_lo {
-                let new_hi = u64::from_le_bytes(code[i + 8..i + 16].try_into().unwrap());
-                let old_hi = u64::from_le_bytes(orig_text[i + 8..i + 16].try_into().unwrap());
-                let hi_sched_mask: u64 = 0x1FFFF << 41;
-                let merged_hi = (new_hi & !hi_sched_mask) | (old_hi & hi_sched_mask);
-                code[i + 8..i + 16].copy_from_slice(&merged_hi.to_le_bytes());
-            }
-        }
-
-        // Always update regcount from the new code (template may have lower limit)
-        {
-            let max_reg = detect_max_register(&code);
-            // BUG-011: never LOWER the template's REGCOUNT. The byte-lane
-            // heuristic stops at R127 (higher values in reg slots are usually
-            // immediates/RZ), so rebuilding a 255-reg reference kernel used to
-            // TRUNCATE REGCOUNT 255 -> 128 and the driver rejected the cubin
-            // with "illegal instruction" at launch (silicon-verified).
-            let derived = ((max_reg + 32) & !31).clamp(32, 255);
-            patch_regcount_in_elf_floor(&mut cubin.bytes, derived);
+        // The byte-lane scan is only a legacy growth estimate, not an ISA
+        // decoder: immediate bytes can resemble register numbers. Preserve
+        // metadata when only scheduling/reuse changed. All other edits retain
+        // the legacy floor, without lowering existing allocations (BUG-011).
+        if !same_payload {
+            patch_regcount_in_elf_floor(&mut cubin.bytes, &sec_name, new_register_estimate)?;
         }
 
         cubin.patch_text(sec_idx, &code)?;
@@ -3584,7 +3601,8 @@ pub fn rebuild_cubin(template_bytes: &[u8], patches: &[CubinPatch<'_>]) -> Resul
     Ok(cubin.bytes)
 }
 
-/// Scan SASS instruction bytes for the highest-numbered GPR (R0..R254).
+/// Legacy register-byte estimate, limited to values below128. Instruction
+/// immediates and flags share these byte lanes, so this is not a GPR census.
 fn detect_max_register(code: &[u8]) -> u32 {
     let mut max_reg = 0u32;
     for i in (0..code.len()).step_by(16) {
@@ -3592,8 +3610,8 @@ fn detect_max_register(code: &[u8]) -> u32 {
             break;
         }
         // Heuristic: scan standard register positions.
-        // Skip values >= 128 (likely non-register data — immediates, flags).
-        // SM120 max practical register count is ~128 (256 regs / 2 hw reserved).
+        // Retain the existing estimate's treatment of values >=128, including
+        // RZ. Actual higher-numbered registers require explicit resource data.
         let rd = code[i + 2] as u32;
         if rd < 128 && rd > max_reg {
             max_reg = rd;
@@ -3616,77 +3634,84 @@ fn detect_max_register(code: &[u8]) -> u32 {
     max_reg
 }
 
-/// Patch REGCOUNT EIATTR records in the raw ELF bytes.
-/// Finds SVAL attr=0x002f records in .nv.info sections and updates the regcount value.
-/// BUG-011: this is only allowed to RAISE each record — the template's value
-/// is the floor. Per-record independence keeps mixed templates (e.g. a
-/// 255-reg kernel next to an 8-reg stub) intact.
-///
-/// Scope is restricted to the real `.nv.info` / `.nv.info.<kernel>` sections:
-/// the `.nv.merc.nv.info.*` Mercury metadata carries its OWN small REGCOUNT
-/// (8 for the dispatch stub) that has nothing to do with the patched code's
-/// register pressure — a blind whole-file sweep truncated/rewrote those too
-/// (merc-info REGCOUNT 8 -> 128, driver-visible corruption).
-fn patch_regcount_in_elf_floor(bytes: &mut [u8], new_regcount: u32) {
-    // EIATTR REGCOUNT format: [0x04][0x2f][size_lo=0x08][size_hi=0x00][sym4bytes][regcount4bytes]
-    let pattern: [u8; 4] = [0x04, 0x2f, 0x08, 0x00];
-    let ranges = nv_info_section_ranges(bytes);
-    for (start, size) in ranges {
-        let end = (start + size).min(bytes.len());
-        let mut i = start;
-        while i + 12 <= end {
-            if bytes[i..i + 4] == pattern {
-                // Patch regcount at offset +8 (after 4-byte header + 4-byte sym)
-                let cur = u32::from_le_bytes(bytes[i + 8..i + 12].try_into().unwrap());
-                let v = cur.max(new_regcount);
-                bytes[i + 8..i + 12].copy_from_slice(&v.to_le_bytes());
-                i += 12;
-            } else {
-                i += 1;
-            }
-        }
-    }
+fn rounded_register_estimate(code: &[u8]) -> u32 {
+    ((detect_max_register(code) + 32) & !31).clamp(32, 255)
 }
 
-/// Byte ranges of `.nv.info*` sections EXCLUDING the Mercury metadata
-/// (`.nv.merc.nv.info*`). Empty-handed ELF parse failures yield an empty list
-/// (no patching — safer than a blind sweep).
-fn nv_info_section_ranges(bytes: &[u8]) -> Vec<(usize, usize)> {
-    let mut out = Vec::new();
-    if bytes.len() < 0x40 || &bytes[0..4] != b"\x7fELF" {
-        return out;
-    }
-    let e_shoff = u64::from_le_bytes(bytes[0x28..0x30].try_into().unwrap()) as usize;
-    let e_shentsize = u16::from_le_bytes(bytes[0x3A..0x3C].try_into().unwrap()) as usize;
-    let e_shnum = u16::from_le_bytes(bytes[0x3C..0x3E].try_into().unwrap()) as usize;
-    let e_shstrndx = u16::from_le_bytes(bytes[0x3E..0x40].try_into().unwrap()) as usize;
-    if e_shoff == 0 || e_shnum == 0 || e_shstrndx >= e_shnum {
-        return out;
-    }
-    let sh = |i: usize| -> Option<(u32, u64, u64)> {
-        let base = e_shoff + i * e_shentsize;
-        if base + e_shentsize > bytes.len() { return None; }
-        let name = u32::from_le_bytes(bytes[base..base+4].try_into().unwrap());
-        let off = u64::from_le_bytes(bytes[base+0x18..base+0x20].try_into().unwrap());
-        let size = u64::from_le_bytes(bytes[base+0x20..base+0x28].try_into().unwrap());
-        Some((name, off, size))
-    };
-    let Some((_, shstr_off, shstr_sz)) = sh(e_shstrndx) else { return out; };
-    let shstr_off = shstr_off as usize;
-    let shstr_end = shstr_off + shstr_sz as usize;
-    if shstr_end > bytes.len() { return out; }
-    for i in 0..e_shnum {
-        let Some((name_off, off, size)) = sh(i) else { continue; };
-        let no = shstr_off + name_off as usize;
-        if no >= shstr_end { continue; }
-        let end = bytes[no..shstr_end].iter().position(|&b| b == 0)
-            .map(|p| p + no).unwrap_or(shstr_end);
-        let Ok(name) = std::str::from_utf8(&bytes[no..end]) else { continue; };
-        if name.starts_with(".nv.info") && !name.contains("merc") {
-            out.push((off as usize, size as usize));
+fn instruction_payloads_unchanged(original: &[u8], replacement: &[u8]) -> bool {
+    // ControlCode105..121 and source-register reuse122..124 do not change
+    // register allocation. Every other instruction bit remains significant.
+    const NON_RESOURCE_BITS: u128 = ((1u128 << 20) - 1) << 105;
+    original.len() == replacement.len()
+        && original.chunks_exact(16).zip(replacement.chunks_exact(16)).all(|(old, new)| {
+            (u128::from_le_bytes(old.try_into().unwrap()) ^ u128::from_le_bytes(new.try_into().unwrap()))
+                & !NON_RESOURCE_BITS == 0
+        })
+}
+
+/// Patch REGCOUNT EIATTR records in the raw ELF bytes.
+/// Raise only REGCOUNT records whose symbol belongs to the patched section.
+/// Mercury records and allocations for other kernels are independent. Parse
+/// EIATTR boundaries so a matching byte pattern inside another payload is
+/// never mistaken for a resource record. Missing bindings make growth ambiguous.
+fn patch_regcount_in_elf_floor(bytes: &mut [u8], section_name: &str, new_regcount: u32) -> Result<()> {
+    use object::read::elf::{ElfFile, FileHeader, SectionHeader as _, Sym as _};
+    use object::{elf, Endianness, SectionIndex};
+
+    let positions = {
+        let data = &*bytes;
+        let file: ElfFile<'_, elf::FileHeader64<Endianness>> = ElfFile::parse(data)?;
+        let endian = file.endian();
+        let sections = file.elf_header().sections(endian, data)?;
+        let (target_index, target) = sections.enumerate().find(|(_, section)| {
+            sections.section_name(endian, section).ok() == Some(section_name.as_bytes())
+        }).ok_or_else(|| anyhow::anyhow!("missing resource target {section_name}"))?;
+        let kernel = section_name.strip_prefix(".text.").unwrap_or(section_name);
+        let local_info = format!(".nv.info.{kernel}");
+        let mut positions = Vec::new();
+        for section in sections.iter() {
+            let name = sections.section_name(endian, section)?;
+            if name != b".nv.info" && name != local_info.as_bytes() { continue; }
+            let contents = section.data(endian, data)?;
+            let mut offset = 0usize;
+            while offset + 4 <= contents.len() {
+                if contents[offset] == 0 && contents[offset..].iter().all(|&byte| byte == 0) { break; }
+                let format = contents[offset];
+                let payload = match format {
+                    4 => u16::from_le_bytes(contents[offset + 2..offset + 4].try_into()?) as usize,
+                    1..=3 => 0,
+                    _ => anyhow::bail!("invalid EIATTR format in {}", String::from_utf8_lossy(name)),
+                };
+                let end = offset.checked_add(4 + payload)
+                    .filter(|&end| end <= contents.len())
+                    .ok_or_else(|| anyhow::anyhow!("truncated EIATTR record in {}", String::from_utf8_lossy(name)))?;
+                if format == 4 && contents[offset + 1] == 0x2f {
+                    if payload != 8 { anyhow::bail!("invalid REGCOUNT record size in {}", String::from_utf8_lossy(name)); }
+                    let symbol = u32::from_le_bytes(contents[offset + 4..offset + 8].try_into()?) as usize;
+                    let link = match section.sh_link(endian) {
+                        0 => target.sh_link(endian),
+                        link => link,
+                    };
+                    let symbols = sections.symbol_table_by_index(endian, data, SectionIndex(link as usize))?;
+                    let symbol = symbols.symbols().get(symbol)
+                        .ok_or_else(|| anyhow::anyhow!("REGCOUNT symbol index is out of range"))?;
+                    if symbol.st_shndx(endian) as usize == target_index.0 {
+                        positions.push(section.sh_offset(endian) as usize + offset + 8);
+                    }
+                }
+                offset = end.div_ceil(4) * 4;
+            }
         }
+        if positions.is_empty() {
+            anyhow::bail!("cannot infer register allocation growth for {section_name}: no symbol-linked REGCOUNT record; explicit resource metadata is required");
+        }
+        positions
+    };
+    for position in positions {
+        let current = u32::from_le_bytes(bytes[position..position + 4].try_into()?);
+        bytes[position..position + 4].copy_from_slice(&current.max(new_regcount).to_le_bytes());
     }
-    out
+    Ok(())
 }
 
 /// BUG-039 pre-flight for `-T/--eiattr-from` rebuilds. Kernel renaming patches

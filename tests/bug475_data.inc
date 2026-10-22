@@ -2,7 +2,7 @@
 // rc=2 fail-closed. Evidence: work/bug475/{arb475_law.json (560 sond x4), claim475.json, corpus475_verify.json (36), patch475_log.json, canon_sim/ vs canon_pre/}.
 // BUG-475: dARI modsub lattice (b76=1) E*L2.256 (LDG 0x97e / STG 0x97f) + rekanon 462-mgs ENL2 (489-absorb).
 // Vendor law: 512/512 lattice rc=0 x4 (div wylacznie LDG l2=3 era-split standing-463; STG l2=3 glyph INVALID3), kills b91=0, ra255 REFUSE x4.
-pub const CANON475: &str = "cc2f62c";
+pub const CANON475: &str = "463a648";
 
 /// HEAL475: (word, leg, vendor text x4, kind) -- graft-celle dARI modsub (b76=1) dekoduja tekst vendora; kind heal=cold HOLE, heal462=cold MIS-glyph (rekanon 462 okien).
 pub static HEAL475: &[(u128, &str, &str, &str)] = &[
@@ -16359,6 +16359,6 @@ pub static REKANON475: &[(&str, &str, &str)] = &[
 pub static CENSUS475: &[(&str, usize)] = &[
     ("sm100a", 14879),
     ("sm103a", 14879),
-    ("sm120", 16015), // RIDE459a (F2-iter301, canonical 96372cb): -1 sm120 key (459a junk-mg "" / 64 DELETE -> key-del UR_II_..._UP_UP) -> forms 16015, variants -4=17631; sm121a variants -4=26385; cf stoi
+    ("sm120", 16133), // RIDE459a (F2-iter301, canonical 96372cb): -1 sm120 key (459a junk-mg "" / 64 DELETE -> key-del UR_II_..._UP_UP) -> forms 16015, variants -4=17631; sm121a variants -4=26385; cf stoi
     ("sm121a", 23833),
 ]; // RIDE476 (F2-iter299, canonical c88778e): +11/+11/+11/+8 (476 NA-side graft) -> 14879/14879/16016/23833 // RIDE475R3 (F2-iter289, INC-289e): 14868/14868/16005/23825

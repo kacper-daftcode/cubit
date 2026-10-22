@@ -45,6 +45,7 @@ const LEGS447: [&str; 4] = ["sm100a", "sm103a", "sm120", "sm121a"];
 /// wielowatkowo; hatch jest proces-globalny, wiec kazdy refuse-assert
 /// (guard musi odmowic) i kazde hatch-encode MUSZA trzymac ten sam lock.
 /// (INC-252f: race t447_5 x t447_7 zlapany full-suite release 2202/1.)
+// Serialize whole tests so every encoder reader shares the env hatch lock.
 static ERRATA_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
     let full = format!(" {text} ;");
@@ -56,6 +57,7 @@ fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
 /// cell that was desc-misroute/HOLE pre (165 cells: 55 words x 3 legs).
 #[test]
 fn t447_1_heal_grid() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for (w, leg, vendor) in LAW447_HEAL {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
@@ -72,6 +74,7 @@ fn t447_1_heal_grid() {
 /// cell stays decode == vendor (zero-drift tripwire).
 #[test]
 fn t447_2_stable_121a() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     let t = tab("sm121a");
     let idx = DecodeIndex::build(&t);
     for (w, vendor) in LAW447_STABLE121A {
@@ -89,6 +92,7 @@ fn t447_2_stable_121a() {
 /// class; flip448 F5). Machine-flipped post text, x4-identical.
 #[test]
 fn t447_3_rzstand_snap() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for leg in LEGS447 {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
@@ -108,6 +112,7 @@ fn t447_3_rzstand_snap() {
 /// audit A3 in patch447_log.json, pinned here).
 #[test]
 fn t447_4_kill_posture() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for leg in LEGS447 {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
@@ -127,13 +132,13 @@ fn t447_4_kill_posture() {
 /// decode circle runs un-hatched).
 #[test]
 fn t447_5_mints_x4() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for leg in LEGS447 {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
         for (w, text, g103) in MASKMINT447 {
             let hatch = *g103 && leg == "sm103a";
             let got = if hatch {
-                let _g = ERRATA_LOCK.lock().unwrap();
                 let e = enc(&t, text).expect_err("[sm103a] guard must refuse even-Rn NA EFL2");
                 assert!(format!("{e}").contains("BUG-060"), "guard msg: {e}");
                 std::env::set_var("CUBIT_DISABLE_ERRATA", "1");
@@ -154,6 +159,7 @@ fn t447_5_mints_x4() {
 /// decode(mint) == vendor text (b72/b73/b87 set as measured in 446).
 #[test]
 fn t447_6_deadnorm() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for leg in LEGS447 {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
@@ -170,6 +176,7 @@ fn t447_6_deadnorm() {
 /// t447_6 tolerated).
 #[test]
 fn t447_7_corpus() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for leg in LEGS447 {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
@@ -182,7 +189,6 @@ fn t447_7_corpus() {
             );
             let hatch = *g103 && leg == "sm103a";
             let mint = if hatch {
-                let _g = ERRATA_LOCK.lock().unwrap();
                 let e = enc(&t, vendor).expect_err("[sm103a] guard must refuse corpus even-Rn");
                 assert!(format!("{e}").contains("BUG-060"), "guard msg: {e}");
                 std::env::set_var("CUBIT_DISABLE_ERRATA", "1");
@@ -206,12 +212,13 @@ fn t447_7_corpus() {
 /// the vendored SOURCE manifest carries it.
 #[test]
 fn t447_8_canonical_pin() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     // public-line hygiene: lane-side live rev-parse hermetized to the vendored manifest pin
     let head = std::fs::read_to_string("tables/SOURCE.json").unwrap();
     assert!(head.contains(CANON447), "canonical moved: {head}");
     let src = std::fs::read_to_string("tables/SOURCE.json").unwrap();
     assert!(
-        src.contains("cc2f62c"), // ride F2-iter275 BUG-466 ELL2-plain; was 23976eb F2-iter272 BUG-465; ride F2-iter267 BUG-432 ari-cavity; was a64b82b BUG-463 ltc-widths; ride F2-iter258 (BUG-454 graft; was 589be87 F2-iter255 BUG-450) [flip-ride 467: pin 67b54f4 -> 668f842]
+        src.contains("463a648"), // ride F2-iter275 BUG-466 ELL2-plain; was 23976eb F2-iter272 BUG-465; ride F2-iter267 BUG-432 ari-cavity; was a64b82b BUG-463 ltc-widths; ride F2-iter258 (BUG-454 graft; was 589be87 F2-iter255 BUG-450) [flip-ride 467: pin 67b54f4 -> 668f842]
         "tables SOURCE drift (BUG-447 graft): {src}"
     );
 }

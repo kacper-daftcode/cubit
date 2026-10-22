@@ -75,20 +75,22 @@ fn t252_3_legal_paths_byte_stable() {
 }
 
 #[test]
-fn t252_4_explicit_ur_reuse_field_stays_authoritative() {
-    // UIADD3_UR_UP_UP_UR_UR_UR '' on sm120 carries a data-taught explicit
-    // reuse@124 (BUG-144 graft on a vendor anchor word); the generic guard
-    // must not touch the explicit path. The sm121a sibling row without
-    // mods is an era row (ureg/pred, no reuse fields at all) -- pre-fix it
-    // fabricated the same word via the generic slot fallback (probe252;
-    // byte-equal by coincidence); post-fix it must fail closed.
+fn t252_4_native_uiadd3_reuse_is_rejected() {
+    // The historical explicit UIADD3 reuse field was disproved by native
+    // SM120 probes: toggling any of122/123/124 yields undefined operation.
+    // An explicit field is not sufficient evidence to encode an illegal word.
+    // See fullgate independent proof bug144_uiadd_reuse_nvdisasm.json.
     let t = tab("sm120");
-    let w = enc(&t, "UIADD3 UR4, UPT, UPT, UR5, UR6, UR7.reuse");
-    assert_eq!(
-        w, 0x100fc2000fffe0070000000605047290,
-        "sm120 explicit drift"
-    );
-    assert_eq!((w >> 124) & 1, 1, "sm120: explicit reuse@124 lost");
+    for text in [
+        "UIADD3 UR4, UPT, UPT, UR5.reuse, UR6, UR7",
+        "UIADD3 UR4, UPT, UPT, UR5, UR6.reuse, UR7",
+        "UIADD3 UR4, UPT, UPT, UR5, UR6, UR7.reuse",
+    ] {
+        let e = try_enc(&t, text).expect_err("native UIADD3 uniform reuse is illegal");
+        assert!(e.contains("BUG-252"), "{text}: {e}");
+    }
+    assert_eq!(enc(&t, "UIADD3 UR4, UPT, UPT, UR5, UR6, UR7"),
+        0x000fc2000fffe0070000000605047290);
     let t121 = tab("sm121a");
     let e = try_enc(&t121, "UIADD3 UR4, UPT, UPT, UR5, UR6, UR7.reuse")
         .expect_err("sm121a era row has no explicit reuse field");

@@ -359,18 +359,14 @@ fn bug094_era_glif_encode_retention_both_tables() {
             .unwrap_or_else(|e| panic!("era glif encode (sm103a): {e}"));
         assert_eq!(w2, want, "era glif retention (sm103a): {line}");
     }
-    // The sm120 side routes through the BUG-090 scout row
-    // (LDG.E.LTC128B.128_R_dARI), whose baked desc-policy constants at bits
-    // 76/90 come from the v11-era geometry the scout was cloned from; the
-    // text+rsd-owned bits are identical (this exact equality is what the
-    // frozen-chain v13 vs v11 byte-parity gate proved in BUG-090).
-    let t = t120();
-    const SCOUT_CONST: u128 = (1u128 << 76) | (1u128 << 90);
-    for (&line, &(_, want)) in ERA_120.iter().zip(ERA.iter()) {
-        let insn = parse_sass(&format!("{line} ;"), 0).unwrap();
-        let w2 = encode_instruction(&insn, &t)
-            .unwrap_or_else(|e| panic!("era glif encode (sm120): {e}"));
-        assert_eq!(w2 & !SCOUT_CONST, want & !SCOUT_CONST,
-            "era glif retention (sm120, scout-const masked): {line}");
+    // The old sm120 scout captured genuine native NVIDIA text. It is
+    // retired; these original residue fixtures are explicitly unsupported
+    // by the strict source contract, rather than silently reinterpreted.
+    let t = t120(); let ix = DecodeIndex::build(&t);
+    for (&line, &(_, original_word)) in ERA_120.iter().zip(ERA.iter()) {
+        let error = cubit::roundtrip_audit::check_semantic_source(line).unwrap_err().to_string();
+        assert!(error.contains("residue"), "{error}");
+        assert!(ix.decode(original_word, 0, &t).is_err(),
+                "historical unsupported bit92 payload must stay explicit: {original_word:032x}");
     }
 }

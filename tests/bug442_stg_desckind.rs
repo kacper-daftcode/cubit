@@ -192,7 +192,7 @@ fn t442_6_source_manifest_and_invariants() {
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     let pin = m["base_revision"].as_str().unwrap().to_string();
     assert!(
-        pin.starts_with("cc2f62c"), // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+        pin.starts_with("463a648"), // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
         "SOURCE.json must pin canonical 57e7ecd (= BUG-447, ride-after e8d1af3 = BUG-443, 57e7ecd = BUG-442, ffa3244 = BUG-441): {pin}"
     );
     for leg in LEGS_442 {
@@ -241,7 +241,11 @@ fn t442_6_source_manifest_and_invariants() {
             // ride F2-iter250 (BUG-443 T1): the noE-family mgs '', '64', 'U8',
             // 'CONSTANT,PRIVATE' claim only the [Rn.U32+URm] form (b90 strict)
             // and steer encode U32-side; the BUG-442 canon-era mgs keep '64'.
-            let want = if ["E", "64,E", "128,E"].contains(&n.as_str()) {
+            // Native SM120 memory RE added the genuine E,U8 packet at
+            // b90=1: NVIDIA prints [Rn.64+URm]. Existing groups/arches keep
+            // their historical steering law; E,GPU,STRONG remains U32.
+            let want = if ["E", "64,E", "128,E"].contains(&n.as_str())
+                || (leg == "sm120" && n == "E,U8") {
                 Some("64")
             } else {
                 Some("U32")
@@ -289,6 +293,30 @@ fn t442_6_source_manifest_and_invariants() {
             );
         }
     }
+}
+
+#[test]
+fn t442_9_native_sm120_e_u8_keeps_64_bit_address_and_complete_word() {
+    // Independent nvdisasm SM120: clearing only b90 prints R100.U32.
+    // The production packet below has b90=1 and must retain R100.64.
+    let expected = 0x000fe2000c1001060000000564000986u128;
+    let text = "@P0 STG.E.U8 [R100.64+UR6], R5";
+    let source = format!(".entry stg_u8\n[B------:R-:W-:Y:S01] {text} ;\n.endentry\n");
+    let table = tab("sm120");
+    let bytes = cubit::roundtrip_audit::encode_semantic_source(&source, &table).unwrap();
+    assert_eq!(bytes, expected.to_le_bytes());
+    let index = table.decode_index();
+    assert_eq!(cubit::printer::to_sass_lossless(&index.decode(expected, 0, &table).unwrap()), text);
+    let mut failures = Vec::new();
+    let (report, emitted) = cubit::roundtrip_audit::audit_kernel(
+        ".text.stg_u8", 0, &bytes, &table, &index,
+        &mut |failure| { failures.push(failure.clone()); Ok(()) },
+    ).unwrap();
+    assert!(report.passed && report.stream_verified, "{failures:?}");
+    assert_eq!(
+        cubit::roundtrip_audit::encode_semantic_source(&emitted, &table).unwrap(),
+        bytes,
+    );
 }
 
 /// t442_7: sm121a key census +1 == BUG-442 post state (G3 donor-clone adds

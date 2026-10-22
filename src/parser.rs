@@ -172,9 +172,8 @@ fn parse_immediate(s: &str, is_float_context: bool) -> Option<Operand> {
         let hex_part = &body[..body.len() - 1]; // strip exactly one trailing 'F'
         if hex_part.len() == 8 && hex_part.bytes().all(|b| b.is_ascii_hexdigit()) {
             if let Ok(val) = u32::from_str_radix(hex_part, 16) {
-                let f = f32::from_bits(val);
-                let f64_val = if neg { -(f as f64) } else { f as f64 };
-                return Some(Operand::FloatImm(f64_val.to_bits()));
+                let bits = val ^ if neg { 1 << 31 } else { 0 };
+                return Some(Operand::FloatImm(crate::ir::f32_bits_to_f64_bits(bits)));
             }
         }
     }
@@ -296,6 +295,7 @@ fn parse_address(s: &str) -> Option<Operand> {
 
 /// Opcodes whose immediate operands are float values.
 const FLOAT_OPCODES: &[&str] = &[
+    "UFFMA", "UFADD", "UFMUL", "UFMNMX", "UFSEL",
     "FADD", "FMUL", "FFMA", "FSEL", "FMNMX", "FSET", "FSETP",
     // UFSETP is the uniform-datapath FSETP: its immediate compare value is an
     // f32 (corpus bakes 1.0 as 0x3f800000 at bits[63:32]; nvdisasm prints "1").
@@ -363,16 +363,12 @@ fn parse_single_operand(s: &str, is_float_context: bool) -> Operand {
         let ur_str = caps.name("UR").unwrap().as_str();
         // URZ is the zero uniform register. Vendor law for the 8-bit
         // descriptor window is 0xFF (BUG-160 decode-side fix; nvdisasm
-        // 13.3.73 probes: 255 renders desc[URZ], 63 renders the real UR63),
-        // but the ENCODE-side flip (URZ -> 255 here) is PARKED: the frozen
-        // publish-era line `LDG.E.LTC128B.128 R0, desc[URZ][R60.64+0x2400]
-        // !rsd[...]` (front-M artifact, results/cubitfix/049/rt98_v2.sass)
-        // encodes through canonical LDG_R_dARI['128,E,LTC128B']
-        // (sub_ur0@[32:40)/8) and its silicon-proven bytes carry 0x3f under
-        // the old inverted law; the frozen text cannot be re-spelled here.
-        // See results/cubitfix/160.md sec.5 -- owner decision required.
+        // 13.3.73 probes: 255 renders desc[URZ], 63 renders the real UR63).
+        // Preserve that semantic distinction in the IR; narrow table fields
+        // already handle truncation of the architectural zero sentinel. A
+        // historical residue-bearing source must not redefine URZ as UR63.
         let ur_idx = if ur_str == "URZ" {
-            63
+            255
         } else {
             ur_str.strip_prefix("UR").and_then(|n| n.parse::<u8>().ok()).unwrap_or(0)
         };
@@ -539,10 +535,8 @@ pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
     // filters '?' parts from table keys in full_key and scrapes their values
     // from raw_text for opaque fields).
     let text_clean = text.trim().trim_end_matches(';').trim();
-    let text_clean = regex::Regex::new(r"\s+[?&]\S+")
-        .unwrap()
-        .replace_all(text_clean, "")
-        .to_string();
+    static ANNOTATION_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+[?&]\S+").unwrap());
+    let text_clean = ANNOTATION_RE.replace_all(text_clean, "").to_string();
     // Bit-residue annotations from `disassemble` (fidelity markers): !rsd[...]
     // carries bits the nvdisasm-compatible text cannot express. Extracted here,
     // applied verbatim by the encoder overlay at the very end of encoding.

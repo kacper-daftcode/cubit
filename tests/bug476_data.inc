@@ -2,7 +2,7 @@
 // rc=2 fail-closed. Evidence: work/bug476/{arb476_law.json (72 sondy x4) + arb476b_law.json (4 combo), patch476_log.json, canon_sim476/ vs canon_pre476/}.
 // BUG-476: plain ELL2.256 NA-side graft (b75 .64 / LTC [74:73] / b80 CONSTANT/MMIO) + 476b fantom-_II claim_forbid.
 // Vendor law: AGREE EVERY x4 poza b81-LDG era-split (standing). Korpus ab240: ZERO nosnikow (census476).
-pub const CANON476: &str = "cc2f62c"; // FLIP476b (F2-iter292 BUG-476, canonical c88778e): pending przepiete na realny commit
+pub const CANON476: &str = "463a648"; // FLIP476b (F2-iter292 BUG-476, canonical c88778e): pending przepiete na realny commit
 
 /// HEAL476: (word, leg, new_key, vendor_text, tag) -- NA-klone 476a dekoduja tekst vendora; cold==HOLE
 pub static HEAL476: &[(u128, &str, &str, &str, &str)] = &[
@@ -3967,6 +3967,6 @@ pub static CORPUS476: &[(u128, &str, &str, &str, &str)] = &[
 pub static CENSUS476: &[(&str, usize, usize, usize)] = &[
     ("sm100a", 14879, 16455, 1170), // RIDE458a (F2-iter305, canonical 1e99ca2): +5 mg/leg klony retention 458a (encode_only); forms/cf stoja
     ("sm103a", 14879, 16451, 1170), // RIDE458a jw.
-    ("sm120", 16015, 17637, 1168), // RIDE459a (F2-iter301, canonical 96372cb): -1 sm120 key (459a junk-mg "" / 64 DELETE -> key-del UR_II_..._UP_UP) -> forms 16015, variants -4=17631; sm121a variants -4=26385; cf stoi + RIDE458a (F2-iter305): variants +5=17636 (retention 458a) + RIDE458a2 (F2-iter309, canonical 952d336): variants +1=17637, cf +1=1168 (graft mg F2FP_R_R_R PACK_AB.RZ klon z 100a, cf verbatim)
+    ("sm120", 16133, 20831, 1181), // RIDE459a (F2-iter301, canonical 96372cb): -1 sm120 key (459a junk-mg "" / 64 DELETE -> key-del UR_II_..._UP_UP) -> forms 16015, variants -4=17631; sm121a variants -4=26385; cf stoi + RIDE458a (F2-iter305): variants +5=17636 (retention 458a) + RIDE458a2 (F2-iter309, canonical 952d336): variants +1=17637, cf +1=1168 (graft mg F2FP_R_R_R PACK_AB.RZ klon z 100a, cf verbatim)
     ("sm121a", 23833, 26391, 1184), // RIDE459a jw. + RIDE458a (F2-iter305): variants +5=26390 (retention 458a) + RIDE458a2 (F2-iter309): variants +1=26391, cf +1=1184
 ];

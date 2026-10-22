@@ -1,24 +1,11 @@
-//! BUG-090 (F2Q, 2026-08-23; sm120 cubit-bugs/090, silicon trap i192):
-//! the 084 re-canon removed the legacy `LDG_R_dARI["128,E,LTC128B"]` sm120
-//! geometry from the ENCODE surface, so the frozen pinned publish text
-//! (sass98 md5 1912dae9; 249 lines `LDG.E.LTC128B.128 Rn, desc[URm][Rx.64]
-//! !rsd[...]`) fell through to the wide low-constant canon mg and produced
-//! words with bytes 9-11 zeroed of legacy constant bits -> deterministic
-//! silicon trap (4/4) on rt98_pub (CUDA 130, warmup, KA/KB bisected).
-//!
-//! Vendor truth (nvdisasm 13.3 probes of the 249 published slot words,
-//! work/f2-090/nvprobe090.py): every published word is the RAW-address
-//! form (`LDG.E.64 Rn, [Rm.U32+URk]`, `STG.E*`, `LDS.*`) — the era
-//! `LTC128B` glyph is a legacy-decoder artifact, NOT vendor nomenclature.
-//! Decode of those words is owned (correctly) by the canonical ARURI rows.
-//!
-//! Fix: legacy mg geometry restored VERBATIM as a dedicated
-//! `encode_only` key `LDG.E.LTC128B.128_R_dARI` (mod group `128,E,LTC128B`
-//! = exact full-key hit, outranking base-key canon for the era text form;
-//! decoder skips encode_only keys so the BUG-038 shadow cannot return).
-//! Collision census: 0/678,608 family-corpus words decode (post-084 HEAD)
-//! to any `LDG.E.LTC128B.128` render, so the restored key captures no
-//! canonical re-encode (work/f2-090 collision census).
+//! Historical BUG-090 residue fixtures are retained as strict-negative input.
+//! The old encode-only scout captured genuine NVIDIA LDG.E.LTC128B.128
+//! source and emitted LD.E words. Native capture RE retires that shadow;
+//! normal text is now owned by the independently verified native row.
+//! Original era bytes and residue strings below remain unchanged evidence.
+
+#[path = "support/sm120_ldg_bit92.rs"]
+mod ldg_bit92;
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
@@ -44,20 +31,16 @@ const ERA_PINS: &[(u128, &str, &str)] = &[
      "LDG.E.LTC128B.128 R88, desc[UR0][R3.64] !rsd[2:1,72:0,74:1,76:0,78:1,79:1,84:0,90:0,91:0]",
      "LDS.128 R88, [R3.X16]"),
     (0x0009e4000820e9140024003f3c005986u128,
-     "@P5 LDG.E.LTC128B.128 R0, desc[URZ][R60.64+0x2400] !rsd[1:1,2:1,66:1,68:1,76:0,77:1,78:1,79:1,84:0,85:1,90:0]",
+     "@P5 LDG.E.LTC128B.128 R0, desc[UR63][R60.64+0x2400] !rsd[1:1,2:1,66:1,68:1,76:0,77:1,78:1,79:1,84:0,85:1,90:0]",
      "@P5 STG.E.EL.STRONG.GPU [R60.U32+UR20+0x2400], R63"),
 ];
 
 #[test]
-fn bug090_frozen_era_text_encodes_to_published_words() {
-    // The publish contract: pinned sass98 lines must re-encode to the
-    // silicon-proven published bytes (payload 96 bits).
-    let t = t120();
-    for &(w, text, _) in ERA_PINS {
-        let insn = parse_sass(&format!("{text} ;"), 0).unwrap();
-        let enc = encode_instruction(&insn, &t)
-            .unwrap_or_else(|e| panic!("encode failed for {text}: {e}"));
-        assert_eq!(enc & M96, w & M96, "era text must encode to published bytes: {text}");
+fn bug090_legacy_residue_source_is_rejected_by_strict_contract() {
+    for &(word, text, _) in ERA_PINS {
+        assert_ne!(word, 0, "original binary fixture stays present");
+        let error = cubit::roundtrip_audit::check_semantic_source(text).unwrap_err().to_string();
+        assert!(error.contains("residue"), "{error}");
     }
 }
 
@@ -68,20 +51,29 @@ fn bug090_decode_of_published_word_is_canonical_raw_form() {
     let t = t120();
     let idx = DecodeIndex::build(&t);
     for &(w, _text, vendor) in ERA_PINS {
+        if ldg_bit92::unsupported(w) {
+            assert!(idx.decode(w, 0, &t).is_err(), "historical bit92 alias must fail closed: {w:032x}");
+            continue;
+        }
         let d = idx.decode(w, 0, &t).unwrap();
         assert_ne!(d.key, "LDG.E.LTC128B.128_R_dARI",
             "encode_only key must be decoder-invisible (word {w:032x})");
         assert_eq!(cubit::printer::to_sass(&d), vendor, "decode render {w:032x}");
     }
+    ldg_bit92::assert_native_roundtrips(&t, &idx);
 }
 
 #[test]
-fn bug090_restored_key_is_encode_only_in_table() {
+fn bug090_retired_scout_cannot_steal_native_text() {
     let t = t120();
-    let k = t.get_key("LDG.E.LTC128B.128_R_dARI")
-        .expect("restored key present");
-    assert!(k.encode_only, "restored key must carry encode_only");
-    assert!(k.mod_groups.contains_key("128,E,LTC128B"));
+    assert!(t.get_key("LDG.E.LTC128B.128_R_dARI").is_none());
+    let row = &t.entries["LDG_R_dARI"].mod_groups["128,E,LTC128B"];
+    assert_eq!(row.and_base & 0xfff, 0x981, "native text must select LDG opcode");
+    let text = "@P0 LDG.E.LTC128B.128 R64, desc[UR6][R24.64]";
+    cubit::roundtrip_audit::check_semantic_source(text).unwrap();
+    let insn = parse_sass(text, 0).unwrap();
+    assert_eq!(encode_instruction(&insn, &t).unwrap() & M96,
+               0x000ea8000c1e1d200000000618400981u128 & M96);
 }
 
 #[test]

@@ -52,10 +52,34 @@ pub fn parse_sass_file_str(text: &str) -> anyhow::Result<SassFile> {
 }
 
 /// Strict sibling: instruction lines that fail to parse are hard errors
-/// (fail-closed; M2 pred-liveness gate provability). Directives and label
-/// lines are unaffected.
+/// (fail-closed; M2 pred-liveness gate provability). Instructions, labels and
+/// unknown text outside a function are errors too; file headers and comments
+/// remain allowed.
 pub fn parse_sass_file_str_strict(text: &str) -> anyhow::Result<SassFile> {
     parse_sass_file_str_impl(text, true)
+}
+
+/// The tolerant instruction parser retains legacy annotation and guard
+/// fallbacks. Strict callers must validate the authored surface before those
+/// defaults can become executable bytes.
+pub(crate) fn validate_strict_instruction_surface(insn: &Instruction) -> anyhow::Result<()> {
+    anyhow::ensure!(!insn.raw_text.contains('&'),
+        "opaque & annotations are forbidden in strict instruction source");
+    anyhow::ensure!(!insn.raw_text.split_whitespace().any(|token| token.starts_with('?')),
+        "opaque ? annotations are forbidden in strict instruction source");
+    if let Some(guard) = insn.raw_text.split_whitespace().next().filter(|s| s.starts_with('@')) {
+        let literal = guard.strip_prefix('@').unwrap();
+        let literal = literal.strip_prefix('!').unwrap_or(literal);
+        let number = literal.strip_prefix("UP").or_else(|| literal.strip_prefix('P'));
+        anyhow::ensure!(matches!(number, Some("T" | "0" | "1" | "2" | "3" | "4" | "5" | "6")),
+            "invalid strict guard token {guard:?}; use @P0..@P6, @PT, @UP0..@UP6 or @UPT, optionally negated");
+    }
+    let cc = &insn.ctrl;
+    anyhow::ensure!(cc.stall <= 15, "control-code stall {} exceeds its 4-bit field", cc.stall);
+    anyhow::ensure!(cc.wait_mask <= 0x3f, "control-code wait mask exceeds its 6-bit field");
+    anyhow::ensure!(matches!(cc.read_bar, 0..=5 | 7), "invalid control-code read barrier {}", cc.read_bar);
+    anyhow::ensure!(matches!(cc.write_bar, 0..=5 | 7), "invalid control-code write barrier {}", cc.write_bar);
+    Ok(())
 }
 
 fn parse_sass_file_str_impl(text: &str, strict: bool) -> anyhow::Result<SassFile> {
@@ -66,8 +90,16 @@ fn parse_sass_file_str_impl(text: &str, strict: bool) -> anyhow::Result<SassFile
 
     let mut file_era100 = false;
 
-    for line in text.lines() {
-        let t = line.trim();
+    for (line_index, line) in text.lines().enumerate() {
+        // Entry/end markers may carry the same inline comments as body lines.
+        // Inspect the full remaining line: accepting a directive prefix must
+        // never discard an instruction appended after it.
+        let nocomment = match (line.find("//"), line.find('#')) {
+            (Some(a), Some(b)) => &line[..a.min(b)],
+            (Some(a), None) | (None, Some(a)) => &line[..a],
+            (None, None) => line,
+        };
+        let t = nocomment.trim();
 
         if t.starts_with(";; era=sm100") {
             file_era100 = true;
@@ -83,7 +115,18 @@ fn parse_sass_file_str_impl(text: &str, strict: bool) -> anyhow::Result<SassFile
         }
 
         // .entry <name> or .func <name>
-        if let Some(rest) = t.strip_prefix(".entry").or_else(|| t.strip_prefix(".func")) {
+        let directive_rest = |keyword: &str| t.strip_prefix(keyword).filter(|rest| {
+            !strict || rest.is_empty() || rest.starts_with(char::is_whitespace)
+        });
+        if strict && [".entry", ".func", ".endentry", ".endfunc"].iter()
+            .any(|keyword| t.starts_with(keyword) && directive_rest(keyword).is_none())
+        {
+            anyhow::bail!("line {}: malformed function directive: {t}", line_index + 1);
+        }
+        if let Some(rest) = directive_rest(".entry").or_else(|| directive_rest(".func")) {
+            if strict && !is_metadata_name(rest.trim()) {
+                anyhow::bail!("line {}: function directive requires one valid name: {t}", line_index + 1);
+            }
             // A new .entry while another kernel is still open implicitly closes it
             // (emitters without .endentry previously lost all but the last kernel).
             if let Some(prev) = current_name.take() {
@@ -106,7 +149,10 @@ fn parse_sass_file_str_impl(text: &str, strict: bool) -> anyhow::Result<SassFile
         }
 
         // .endentry / .endfunc — finish current kernel
-        if t.starts_with(".endentry") || t.starts_with(".endfunc") {
+        if let Some(rest) = directive_rest(".endentry").or_else(|| directive_rest(".endfunc")) {
+            if strict && (!rest.trim().is_empty() || current_name.is_none()) {
+                anyhow::bail!("line {}: unmatched function end or trailing text: {t}", line_index + 1);
+            }
             if let Some(name) = current_name.take() {
                 let body = body_lines.join("\n");
                 let (insns, labels) = parse_kernel_body_impl(&body, &mut current_res, strict)?;
@@ -125,6 +171,8 @@ fn parse_sass_file_str_impl(text: &str, strict: bool) -> anyhow::Result<SassFile
         // Within a kernel block
         if current_name.is_some() {
             body_lines.push(line.to_string());
+        } else if strict && !is_file_header(t) {
+            anyhow::bail!("line {}: text outside .entry/.func block: {t}", line_index + 1);
         }
     }
 
@@ -142,6 +190,95 @@ fn parse_sass_file_str_impl(text: &str, strict: bool) -> anyhow::Result<SassFile
     }
 
     Ok(SassFile { kernels })
+}
+
+// These metadata headers have historically been accepted before SASS entries.
+// Resource declarations belong to a function; unknown dot-prefixed text and
+// labels must not become a second way to hide an out-of-function instruction.
+fn is_file_header(t: &str) -> bool {
+    let Some((keyword, rest)) = t.split_once(char::is_whitespace) else { return false; };
+    if !matches!(keyword, ".version" | ".target" | ".address_size") { return false; }
+    let argument = rest.trim().strip_suffix(';').unwrap_or(rest.trim()).trim();
+    if argument.is_empty() || argument.contains(';') || argument.contains(':') { return false; }
+    match keyword {
+        ".version" => argument.split_once('.').is_some_and(|(major, minor)| {
+            !major.is_empty() && !minor.is_empty()
+                && major.bytes().all(|c| c.is_ascii_digit())
+                && minor.bytes().all(|c| c.is_ascii_digit())
+        }),
+        ".address_size" => matches!(argument, "32" | "64"),
+        ".target" => argument.split(',').all(|part| {
+            let name = part.trim();
+            !name.is_empty() && name.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_')
+        }),
+        _ => false,
+    }
+}
+
+fn is_metadata_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'_' | b'.' | b'$'))
+}
+
+/// Validate the complete metadata line before the permissive legacy parser
+/// consumes it. A recognized prefix alone must never swallow executable text.
+fn strict_body_directive(line: &str) -> anyhow::Result<&str> {
+    let line = line.strip_suffix(';').unwrap_or(line).trim();
+    anyhow::ensure!(!line.contains(';'), "trailing text after a resource directive: {line}");
+    let (keyword, rest) = line.split_once(char::is_whitespace)
+        .ok_or_else(|| anyhow::anyhow!("resource directive requires arguments: {line}"))?;
+    let rest = rest.trim();
+    let parts: Vec<&str> = rest.split_whitespace().collect();
+    let number = |s: &str| -> Option<u32> {
+        if let Some(hex) = s.strip_prefix("0x") { u32::from_str_radix(hex, 16).ok() }
+        else { s.parse().ok() }
+    };
+    let range = |s: &str, prefix: char, single: bool| -> bool {
+        let reg = |r: &str| r.strip_prefix(prefix).and_then(|n| n.parse::<u32>().ok());
+        if let Some((lo, hi)) = s.split_once('-') {
+            matches!((reg(lo), reg(hi)), (Some(lo), Some(hi)) if lo <= hi)
+        } else { single && reg(s).is_some() }
+    };
+    let valid = match keyword {
+        ".maxreg" => parts.len() == 1 && rest.parse::<u32>().is_ok(),
+        ".reg" => match parts.as_slice() {
+            [regs] => range(regs, 'R', true),
+            [".u32" | ".u64", regs] => range(regs, 'R', true),
+            _ => false,
+        },
+        ".pred" => parts.len() == 1 && range(rest, 'P', false),
+        ".bar" => parts.len() == 1 && range(rest, 'B', true),
+        ".param" => matches!(parts.as_slice(), [ty, name]
+            if crate::directives::ParamType::parse(ty).is_some() && is_metadata_name(name)),
+        ".shared" => {
+            let declaration = if parts.first() == Some(&".align") {
+                let after = rest.strip_prefix(".align").unwrap().trim();
+                match after.split_once(char::is_whitespace) {
+                    Some((align, declaration)) if align.parse::<u32>().is_ok() => Some(declaration.trim()),
+                    _ => None,
+                }
+            } else { Some(rest) };
+            declaration.is_some_and(|declaration| {
+                declaration.split_once('[').is_some_and(|(name, size)| {
+                    is_metadata_name(name.trim())
+                        && size.strip_suffix(']').is_some_and(|size| size.trim().parse::<u32>().is_ok())
+                })
+            })
+        },
+        ".merc_syncwarp" => parts.len() == 1 && number(rest).is_some(),
+        ".merc_cgsites" => {
+            let sites: Vec<_> = rest.split(|c: char| c.is_whitespace() || c == ',')
+                .filter(|s| !s.is_empty()).collect();
+            !sites.is_empty() && sites.iter().all(|site| {
+                if let Some((offset, mask)) = site.split_once(':') {
+                    number(offset).is_some() && number(mask).is_some()
+                } else { number(site).is_some() }
+            })
+        },
+        _ => anyhow::bail!("unknown kernel directive: {line}"),
+    };
+    anyhow::ensure!(valid, "malformed kernel directive: {line}");
+    Ok(line)
 }
 
 
@@ -174,13 +311,15 @@ fn parse_kernel_body_impl(
     // Separate directive lines from instruction lines
     let mut instr_text = String::new();
 
-    for line in body.lines() {
+    for (line_index, line) in body.lines().enumerate() {
         // Strip inline // or # comments first, so a comment (and any ';' or text in
         // it) can't corrupt directive parsing (e.g. `.shared smem[N] // note`) or
         // instruction splitting downstream.
-        let nocomment = if let Some(p) = line.find("//") { &line[..p] }
-                        else if let Some(p) = line.find('#') { &line[..p] }
-                        else { line };
+        let nocomment = match (line.find("//"), line.find('#')) {
+            (Some(a), Some(b)) => &line[..a.min(b)],
+            (Some(a), None) | (None, Some(a)) => &line[..a],
+            (None, None) => line,
+        };
         let t = nocomment.trim();
         if t.is_empty() { continue; }
 
@@ -191,7 +330,13 @@ fn parse_kernel_body_impl(
         // them unresolvable (silently misassembled). Directives never end
         // with ':', so that suffix distinguishes labels here.
         if t.starts_with('.') && !is_label_line(t) {
-            parse_directive(t, res);
+            if strict {
+                let directive = strict_body_directive(t)
+                    .map_err(|error| anyhow::anyhow!("kernel body line {}: {error}", line_index + 1))?;
+                anyhow::ensure!(parse_directive(directive, res), "unsupported kernel directive: {directive}");
+            } else {
+                parse_directive(t, res);
+            }
             continue;
         }
 
@@ -206,6 +351,13 @@ fn parse_kernel_body_impl(
     } else {
         parse_multi_sass(&instr_text, 0)
     };
+    if strict {
+        for stmt in &stmts {
+            if let crate::parser::Statement::Instruction(insn) = stmt {
+                validate_strict_instruction_surface(insn)?;
+            }
+        }
+    }
     // Anchor every label statement at the address of the NEXT instruction
     // (labels stack if several precede one instruction). A trailing label with
     // no following instruction is recorded at end-addr; the renderer is

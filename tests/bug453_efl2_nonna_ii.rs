@@ -28,8 +28,23 @@ use cubit::table::IsaTable;
 
 include!("bug453_data.inc");
 
-fn tab(arch: &str) -> IsaTable {
-    IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()
+// Immutable fixtures only: every word still runs through decode/encode.
+fn pool() -> &'static std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)> {
+    static POOL: std::sync::OnceLock<std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)>> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| {
+        ["sm100a", "sm103a", "sm120", "sm121a"].into_iter().map(|arch| {
+            let table = IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap();
+            let index = DecodeIndex::build(&table);
+            (arch, (table, index))
+        }).collect()
+    })
+}
+fn tab(arch: &str) -> &'static IsaTable {
+    &pool().get(arch).unwrap().0
+}
+fn cached_index(table: &IsaTable) -> &'static DecodeIndex {
+    pool().values().find(|(fixture, _)| std::ptr::eq(fixture, table))
+        .map(|(_, index)| index).expect("table must come from the immutable fixture pool")
 }
 fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
     idx.decode(w, 0, t)
@@ -39,6 +54,7 @@ fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
 fn deckey(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
     idx.decode(w, 0, t).ok().map(|d| d.key)
 }
+// Serialize whole tests so every encoder reader shares the env hatch lock.
 static ERRATA_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
     let full = format!(" {text} ;");
@@ -56,9 +72,10 @@ fn nforms(arch: &str) -> usize {
 /// (55 slow x 4 nogi; klasy (a) HOLE-heal i (b) TRUNC-heal).
 #[test]
 fn t453_1_trailer_grid() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for (w, leg, vendor) in LAW453_TRAILER {
         let t = tab(leg);
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         assert_eq!(
             dec(&t, &idx, *w).as_deref(),
             Some(*vendor),
@@ -71,9 +88,10 @@ fn t453_1_trailer_grid() {
 /// klucz bazowy nie _II; tie-break krotszym kluczem ma nie byc skradziony).
 #[test]
 fn t453_2_elide_stays_base() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for (w, leg, vendor) in ELIDE453 {
         let t = tab(leg);
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         assert_eq!(
             dec(&t, &idx, *w).as_deref(),
             Some(*vendor),
@@ -91,10 +109,11 @@ fn t453_2_elide_stays_base() {
 /// _II strict bije base broad; pred-cells do _II_P).
 #[test]
 fn t453_3_trailer_routes_ii() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     let mut n = 0;
     for (w, leg, vendor) in LAW453_TRAILER {
         let t = tab(leg);
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         let k = deckey(&t, &idx, *w).unwrap_or_else(|| panic!("[{leg}] trailer HOLE"));
         assert!(k.contains("_II"), "[{leg}] trailer {w:#034x} not _II: {k}");
         if vendor.contains(", !PT") || vendor.contains(", PT") {
@@ -116,6 +135,7 @@ fn t453_3_trailer_routes_ii() {
 /// objete (sobie slow nie ma w RESID453).
 #[test]
 fn t453_4_resid_holes_healed_463() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     const HEALED463: &[(u128, &str)] = &[
         (
             61739659495252407648695271340120447u128,
@@ -195,7 +215,7 @@ fn t453_4_resid_holes_healed_463() {
         for (hw, leg) in RESID453.iter().skip(i * 4).take(4) {
             assert_eq!(hw, w, "RESID453 grid order drift");
             let t = tab(leg);
-            let idx = DecodeIndex::build(&t);
+            let idx = cached_index(t);
             let got = dec(&t, &idx, *hw).unwrap_or_else(|| panic!("[{leg}] heal {hw:#034x} HOLE"));
             assert_eq!(got, *want, "[{leg}] heal {hw:#034x}");
         }
@@ -206,9 +226,10 @@ fn t453_4_resid_holes_healed_463() {
 /// b91=0 structure-kills, wszystkie nogi (16 cel).
 #[test]
 fn t453_5_kill_preserve() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for (w, leg) in KILL453 {
         let t = tab(leg);
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         assert_eq!(
             dec(&t, &idx, *w),
             None,
@@ -222,11 +243,11 @@ fn t453_5_kill_preserve() {
 /// (wzorzec t450_4/INC-252f).
 #[test]
 fn t453_6_mints_x4() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for (text, leg, w, ghatch) in MINT453 {
         let t = tab(leg);
-        let idx = DecodeIndex::build(&t);
+        let idx = cached_index(t);
         let got = if *ghatch {
-            let _g = ERRATA_LOCK.lock().unwrap();
             let e = enc(&t, text).expect_err("[sm103a] BUG-060 guard must refuse even desc-base");
             assert!(format!("{e}").contains("BUG-060"), "guard msg: {e}");
             std::env::set_var("CUBIT_DISABLE_ERRATA", "1");
@@ -246,6 +267,7 @@ fn t453_6_mints_x4() {
 /// cytatem BUG-452 (claim_forbid symmetric) na kazdej nodze.
 #[test]
 fn t453_7_refuse452_grid() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     const TEXTS: [&str; 2] = [
         "LDG.E.EFL2.256 R45, R48, desc[UR38][RZ.64], 0x99",
         "STG.E.EFL2.256 desc[UR38][RZ.64], R44, R48, 0xe4",
@@ -263,6 +285,7 @@ fn t453_7_refuse452_grid() {
 /// + canonical pin (SOURCE.json == BUG-453 graft rev).
 #[test]
 fn t453_8_census_and_canonical() {
+    let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for (leg, n) in CENSUS453 {
         assert_eq!(
             nforms(leg),
@@ -273,7 +296,7 @@ fn t453_8_census_and_canonical() {
     let src: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        src["base_revision"].as_str().unwrap().starts_with("cc2f62c"),
+        src["base_revision"].as_str().unwrap().starts_with("463a648"),
         "SOURCE.json must pin canonical {CANON453} (= BUG-453 graft, ride-after e03e0348d98b9d20ffb4ca557cfc6eae625cf995 = BUG-452 narrow): {:?}",
         src["base_revision"]
     );

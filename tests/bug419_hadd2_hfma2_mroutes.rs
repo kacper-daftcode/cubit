@@ -67,11 +67,27 @@ include!("bug419_data.inc");
 const LEGS: [&str; 4] = ["sm100a", "sm103a", "sm120", "sm121a"];
 const M96: u128 = (1u128 << 96) - 1;
 
-fn tab(arch: &str) -> IsaTable {
-    IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()
+// The fixtures are immutable. Share only table parsing and index construction;
+// every corpus word still passes through the normal decoder and assertions.
+fn pool() -> &'static std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)> {
+    static POOL: std::sync::OnceLock<std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)>> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| {
+        ["sm100a", "sm103a", "sm120", "sm121a"].into_iter().map(|arch| {
+            let table = IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap();
+            let index = DecodeIndex::build(&table);
+            (arch, (table, index))
+        }).collect()
+    })
+}
+fn tab(arch: &str) -> &'static IsaTable {
+    &pool().get(arch).unwrap().0
+}
+fn cached_index(table: &IsaTable) -> &'static DecodeIndex {
+    pool().values().find(|(fixture, _)| std::ptr::eq(fixture, table))
+        .map(|(_, index)| index).expect("table must come from the immutable fixture pool")
 }
 fn text_of(t: &IsaTable, w: u128) -> Option<String> {
-    let idx = DecodeIndex::build(t);
+    let idx = cached_index(t);
     idx.decode(w, 0, t).map(|d| to_sass(&d)).ok()
 }
 fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
@@ -334,7 +350,7 @@ fn t419_7_source_pin() {
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        m["base_revision"].as_str().unwrap().starts_with("cc2f62c"), // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+        m["base_revision"].as_str().unwrap().starts_with("463a648"), // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
         "SOURCE.json must pin canonical 57e7ecd [was ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, 1810912 = 435+434 hop, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b, 3f6ca6f = BUG-425, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422] (BUG-442 graft F2-iter246 z atrybucja; ride-chain): {:?}",
         m["base_revision"]
     );

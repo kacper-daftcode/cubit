@@ -111,9 +111,9 @@ fn t183_4_branch_gate_intact() {
 
 /// t183_5: sm120 table — same defect class, same gate, demonstrated on
 /// the IADD3 imm lane (verified pre-fix on clean 2f579f0:
-/// `IADD3 .., FOOBAR, RZ` silently encoded "OK"). The P2R PR-spelling is
-/// a different posture on sm120: no `P2R_R_II_R_II` key exists there, so
-/// it was already fail-closed at entry match (pre-existing, untouched).
+/// `IADD3 .., FOOBAR, RZ` silently encoded "OK"). The native P2R PR-form
+/// now has an independently verified row, so the same identifier gate
+/// must protect its mask immediate while numeric masks remain supported.
 #[test]
 fn t183_5_sm120_parity() {
     let t = t120();
@@ -122,7 +122,12 @@ fn t183_5_sm120_parity() {
     assert!(err.contains("FOOBAR"), "identifier missing: {err}");
     let w = enc(&t, "IADD3 R25, PT, PT, R25, 0x7b, RZ ;").expect("sm120 numeric encodes");
     assert_eq!((w >> 32) as u32, 0x7b, "sm120 IADD3 imm window");
-    enc(&t, "P2R R6, PR, R12, 0xff ;").expect_err("sm120 P2R PR-form stays fail-closed (key gap)");
+    // nvdisasm 13.1.80 -b SM120: P2R R6, PR, R12, 0xff.
+    assert_eq!(enc(&t, "P2R R6, PR, R12, 0xff ;").expect("native P2R numeric mask"),
+        0x000fc20000000000000000ff0c067803);
+    let err = enc(&t, "P2R R6, PR, R12, FOOBAR ;").expect_err("symbolic P2R mask must refuse");
+    assert!(err.contains("BUG-183"), "P2R attribution missing: {err}");
+    assert!(err.contains("FOOBAR"), "P2R identifier missing: {err}");
 }
 
 /// t183_6: fixed-point anchor — corpus-shape lines keep byte-identical

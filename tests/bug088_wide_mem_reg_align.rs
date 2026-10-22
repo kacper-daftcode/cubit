@@ -27,15 +27,17 @@ fn dec_text(t: &IsaTable, w: u128) -> String {
         .expect("decode must succeed")
 }
 
-fn t103a() -> IsaTable {
-    IsaTable::load(std::path::Path::new("tables/sm103a.json")).unwrap()
+fn t103a() -> &'static IsaTable {
+    static TABLE: std::sync::OnceLock<IsaTable> = std::sync::OnceLock::new();
+    TABLE.get_or_init(|| IsaTable::load(std::path::Path::new("tables/sm103a.json")).unwrap())
 }
 /// The env-unlock pin flips process-wide CUBIT_DISABLE_ERRATA; serialize all
 /// tests in this binary so no reject-case runs while the guard is off.
 static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-fn t120() -> IsaTable {
-    IsaTable::load(std::path::Path::new("tables/sm120.json")).unwrap()
+fn t120() -> &'static IsaTable {
+    static TABLE: std::sync::OnceLock<IsaTable> = std::sync::OnceLock::new();
+    TABLE.get_or_init(|| IsaTable::load(std::path::Path::new("tables/sm120.json")).unwrap())
 }
 
 fn enc(text: &str, t: &IsaTable) -> anyhow::Result<u128> {

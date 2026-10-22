@@ -1,0 +1,93 @@
+//! NVIDIA-disassembled production memory instructions and independent fields.
+use cubit::{IsaTable, decoder::DecodeIndex};
+#[test]
+fn memory_witnesses_encode_and_decode_without_residue() {
+ let table=IsaTable::load(&std::env::var_os("CUBIT_TABLE").map(std::path::PathBuf::from).unwrap_or_else(|| std::path::PathBuf::from("tables/sm120.json"))).unwrap();
+ let ix=DecodeIndex::build(&table);
+ for (expected,sass) in [
+  (0x008ee800001ea10b0000000a0800738bu128, "ATOM.E.CAS.STRONG.SM PT, R0, [R8], R10, R11"),
+  (0x000fe800091a021200c880080ac87faeu128, "LDGSTS.E.LTC128B [R200+0xc88], [R10.64+UR18+0x8], P2"),
+  (0x0005e200099a02ff0c08c00cd2077faeu128, "LDGSTS.E.LTC128B [R7+0xc08c], [R210.64+0xc], P3"),
+  (0x000ea8000c1e1d200000000618400981u128, "@P0 LDG.E.LTC128B.128 R64, desc[UR6][R24.64]"),
+  (0x0023e2000c1001060000001162000985u128, "@P0 ST.E.U8 [R98.64+UR6], R17"),
+  (0x000fe2000c1001060000000564000986u128, "@P0 STG.E.U8 [R100.64+UR6], R5"),
+  (0x000fe200001001050000000062000385u128, "@P0 ST.E.U8 [R98], R5"),
+  (0x004ea800081e090000000008ff030981u128, "@P0 LDG.E R3, [RZ.U32+UR8]"),
+  (0x000f2800081ee90000000012ff4a8981u128, "@!P0 LDG.E.STRONG.GPU R74, [RZ.U32+UR18]"),
+  (0x000fe2000810f3ff80000000000079a8u128, "ATOMG.E.ADD.S32.STRONG.GPU P0, R0, desc[URZ][R0.64], R0"),
+  (0x000fe2000810f33f80000000000079a8u128, "ATOMG.E.ADD.S32.STRONG.GPU P0, R0, desc[UR63][R0.64], R0"),
+  (0x000fe2000c12e3ff000000000000798eu128, "REDG.E.ADD.S32.STRONG.GPU desc[URZ][R0.64], R0"),
+  (0x000fe2000c12e33f000000000000798eu128, "REDG.E.ADD.S32.STRONG.GPU desc[UR63][R0.64], R0"),
+  (0x000fe20008180a0000000000ff007faeu128, "LDGSTS.E.BYPASS.LTC128B.128 [R0], [RZ.64+UR0], P0"),
+  (0x001ea400001ee50600000004080673a9u128, "ATOMG.E.CAS.64.STRONG.GPU PT, R6, [R8], R4, R6"),
+  (0x004ea200081ef30c800000190e1c29a8u128, "@P2 ATOMG.E.ADD.S32.STRONG.GPU PT, R28, desc[UR12][R14.64], R25"),
+  (0x000e240000000500fffffe0002ff73aau128, "QSPC.E.S P0, RZ, [R2+-0x2]"),
+  (0x0003e4000800020b00000018140073bau128, "UBLKCP.S.G [UR24], [UR20], UR11"),
+  (0x0003e20008010000000000102e0073b5u128, "UTMASTG.3D [UR16], [UR46]"),
+  (0x0005e4000c12e308000c08070a00798eu128, "REDG.E.ADD.S32.STRONG.GPU desc[UR8][R10.64+0xc08], R7"),
+  (0x0003e20008180a0a002000000e027faeu128, "LDGSTS.E.BYPASS.LTC128B.128 [R2+0x200], [R14.64+UR10], P0"),
+  (0x010f6400081e0b0000000004ff0c7981u128, "LDG.E.64 R12, [RZ.U32+UR4]"),
+  (0x0003e60000800100000000001e00a98fu128, "@!P2 CCTL.E.PF2 [R30]"),
+  (0x000ea20008000a0000008a00260477acu128, "LDCU.64 UR4, c[0x0][UR38+0x450]"),
+  (0x000ee60008000a0001000000ff1c77acu128, "LDCU.64 UR28, c[0x4][URZ]"),
+  (0x000fe20008000a0003ffffe0ff0377acu128, "LDCU.64 UR3, c[0xf][-0x1]"),
+  (0x000fe20008000a0003ffffe00e0377acu128, "LDCU.64 UR3, c[0xf][UR14+-0x1]"),
+  (0x0001e8000800000400000014ffff798cu128, "ATOMS.ADD RZ, [UR4], R20"),
+  (0x001e28000800000700000016ff19398cu128, "@P3 ATOMS.ADD R25, [UR7], R22"),
+  (0x000fe20008000009000005070b02798cu128, "ATOMS.ADD R2, [R11+UR9+0x5], R7"),
+  (0x000fe200080000ff000000070b02798cu128, "ATOMS.ADD R2, [R11+URZ], R7"),
+  (0x000f28000c1eb5000000020e102c7981u128, "LDG.E.U16.STRONG.SM R44, desc[UR14][R16.64+0x2]"),
+  (0x0000a200090341ff00000000300789a5u128, "@!P0 LDGMC.E.MIN.F16x2.RN.STRONG.SYS R7, [R48.64+URZ]"),
+  (0x0000a200090347ff00000000300789a5u128, "@!P0 LDGMC.E.MIN.BF16x2.RN.STRONG.SYS R7, [R48.64+URZ]"),
+  (0x0000a2000c1151000000000438398980u128, "@!P0 LD.E.U8.STRONG.SYS R57, desc[UR4][R56.64]"),
+  (0x0000a2000c1f51000000000404077981u128, "LDG.E.U8.STRONG.SYS R7, desc[UR4][R4.64]"),
+  (0x0000a400090341ff00000000040b09a4u128, "@P0 LDGMC.E.MAX.32.STRONG.SYS R11, [R4.64+URZ]"),
+  (0x0000a400090343ff00000000040b09a4u128, "@P0 LDGMC.E.MAX.S32.STRONG.SYS R11, [R4.64+URZ]"),
+  (0x0000a800088345ff000000000c1e09a4u128, "@P0 LDGMC.E.MIN.64.STRONG.SYS R30, [R12.64+URZ]"),
+  (0x0000a8000a0341ff00000000480809a5u128, "@P0 LDGMC.E.MAX.F16x2.RN.STRONG.SYS R8, [R72.64+URZ]"),
+  (0x0000a8000a0347ff00000000480809a5u128, "@P0 LDGMC.E.MAX.BF16x2.RN.STRONG.SYS R8, [R72.64+URZ]"),
+  (0x0000e200090345ff000a00003a0c89a5u128, "@!P0 LDGMC.E.MIN.F16x8.RN.STRONG.SYS R12, [R58.64+URZ+0xa00]"),
+  (0x0000e20009034bff000a00003a0c89a5u128, "@!P0 LDGMC.E.MIN.BF16x8.RN.STRONG.SYS R12, [R58.64+URZ+0xa00]"),
+  (0x0000e2000a0345ff000000003a4009a5u128, "@P0 LDGMC.E.MAX.F16x8.RN.STRONG.SYS R64, [R58.64+URZ]"),
+  (0x0000e2000a034bff000000003a4009a5u128, "@P0 LDGMC.E.MAX.BF16x8.RN.STRONG.SYS R64, [R58.64+URZ]"),
+  (0x00012200088341ff00058000063589a4u128, "@!P0 LDGMC.E.MIN.32.STRONG.SYS R53, [R6.64+URZ+0x580]"),
+  (0x00012200088343ff00058000063589a4u128, "@!P0 LDGMC.E.MIN.S32.STRONG.SYS R53, [R6.64+URZ+0x580]"),
+  (0x0001620000100400000000002a397983u128, "LDL.U16 R57, [R42]"),
+  (0x00016200088347ff00040000521689a4u128, "@!P0 LDGMC.E.MIN.S64.STRONG.SYS R22, [R82.64+URZ+0x400]"),
+  (0x00016200090345ff00040000521609a4u128, "@P0 LDGMC.E.MAX.64.STRONG.SYS R22, [R82.64+URZ+0x400]"),
+  (0x00016200090347ff00040000521609a4u128, "@P0 LDGMC.E.MAX.S64.STRONG.SYS R22, [R82.64+URZ+0x400]"),
+  (0x000162000c115b000000000416207980u128, "LD.E.64.STRONG.SYS R32, desc[UR4][R22.64]"),
+  (0x0001e200001000000000020c01007387u128, "STL.U8 [R1+0x2], R12"),
+  (0x0001e200001004000000000a01007387u128, "STL.U16 [R1], R10"),
+  (0x0001e2000800900000000e040a0075b4u128, "UTMALDG.2D [UR4], [UR10], desc[UR14]"),
+  (0x0001e2000804000000000000060079b9u128, "UTMACCTL.PF [UR6]"),
+  (0x0001e2000c115b040000000206001985u128, "@P1 ST.E.64.STRONG.SYS desc[UR4][R6.64], R2"),
+  (0x0001e40008011000000014081c0075b4u128, "UTMALDG.3D [UR8], [UR28], desc[UR20]"),
+  (0x0005e4000c10b904000024ff0c007985u128, "ST.E.STRONG.SM desc[UR4][R12.64+0x24], RZ"),
+  (0x000ea2000030060000000400015a7983u128, "LDL.LU.S16 R90, [R1+0x4]"),
+  (0x000ea4000c10b900000024040a087980u128, "LD.E.STRONG.SM R8, desc[UR4][R10.64+0x24]"),
+  (0x0041e4000c1151040000000506007985u128, "ST.E.U8.STRONG.SYS desc[UR4][R6.64], R5"),
+ ] {
+  let cc=cubit::scheduling::format_control_code(&cubit::scheduling::decode_sched_upper32((expected>>96) as u32));
+  let source=format!("[{cc}] {sass} ;");
+  let insn=cubit::parse_cuasm_line(&source,0).unwrap();
+  assert_eq!(cubit::encoder::encode_instruction(&insn,&table).unwrap(),expected,"NVIDIA source: {sass}");
+  let d=ix.decode(expected,0,&table).unwrap();
+  let own=cubit::printer::to_sass_lossless(&d);
+  let i=cubit::parse_cuasm_line(&format!("[{cc}] {own} ;"),0).unwrap();
+  assert_eq!(cubit::encoder::encode_instruction(&i,&table).unwrap(),expected,"own source: {own}; NVIDIA: {sass}");
+ }
+}
+
+#[test]
+fn descriptor_zero_sentinel_and_ldgsts_rz_source_keep_their_own_semantics() {
+ use cubit::ir::Operand;
+ for (spelling,expected) in [("URZ",255),("UR63",63)] {
+  let insn=cubit::parse_cuasm_line(&format!("LDG R0, desc[{spelling}][R2.64]"),0).unwrap();
+  assert!(matches!(insn.operands[1],Operand::Desc { ur_idx, .. } if ur_idx==expected));
+ }
+ let table=IsaTable::load(&std::env::var_os("CUBIT_TABLE").map(std::path::PathBuf::from).unwrap_or_else(|| std::path::PathBuf::from("tables/sm120.json"))).unwrap();
+ let insn=cubit::parse_cuasm_line("LDG.E.64 R12, [RZ.64+UR4]",0).unwrap();
+ let error=cubit::encoder::encode_instruction(&insn,&table).unwrap_err().to_string();
+ assert!(error.contains("claim-forbidden"),"{error}");
+}

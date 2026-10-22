@@ -67,8 +67,8 @@ fn bug049r_imad_hi_encodes_on_sm121a_same_table_bytes() {
 
     let p120 = write_table("SM120", false, false, "rej120");
     let t120 = IsaTable::load(&p120).unwrap();
-    let e = enc_result(&t120, HI_TEXT).unwrap_err();
-    assert!(e.contains("BUG-002") || e.contains("CLOBBERED"), "{e}");
+    let w120 = enc_result(&t120, HI_TEXT).unwrap();
+    assert_eq!(w120 & 0xfff, 0x227, "SM120 must encode the dedicated HI opcode");
 }
 
 #[test]

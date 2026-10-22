@@ -3,10 +3,15 @@
 //! desc[UR..][R..]" text. The 249 words below are the i108 golden set with
 //! nvdisasm-12.8 native renders (patch-probe per word, see the bug package
 //! 038). Invariants pinned here:
+//! Historical raw-U32 LDG bit92=1 words remain unchanged and must fail closed
+//! until that bit has a proven semantic representation. All other words:
 //!   1. decode renders EXACTLY the native text,
 //!   2. the text re-encodes byte-exact (modulo scheduling bits [127:96]),
 //!   3. the text encodable from scratch via the new ARURI/ARI entries
 //!      (encoder had no usable entry at all for STG/LDS classes pre-fix).
+
+#[path = "support/sm120_ldg_bit92.rs"]
+mod ldg_bit92;
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
@@ -274,7 +279,13 @@ fn bug038_census_renders_native_text_and_roundtrips() {
     let t = t120();
     let idx = DecodeIndex::build(&t);
     let mut fails = Vec::new();
+    let mut unsupported = 0;
     for &(_, addr, word, golden) in WORDS {
+        if ldg_bit92::unsupported(word) {
+            assert!(idx.decode(word, addr, &t).is_err(), "historical bit92 alias must fail closed: {word:032x}");
+            unsupported += 1;
+            continue;
+        }
         let d = match idx.decode(word, addr, &t) {
             Ok(d) => d,
             Err(e) => { fails.push(format!("0x{addr:04x}: decode fail: {e}")); continue; }
@@ -291,7 +302,9 @@ fn bug038_census_renders_native_text_and_roundtrips() {
             fails.push(format!("0x{addr:04x}: re-encode word diff {w2:032x} vs {word:032x}"));
         }
     }
-    assert!(fails.is_empty(), "{} failures:\n{}", fails.len(), fails[..5].join("\n"));
+    assert_eq!(unsupported, 21, "historical unsupported words must stay explicit");
+    ldg_bit92::assert_native_roundtrips(&t, &idx);
+    assert!(fails.is_empty(), "{} failures:\n{}", fails.len(), fails.iter().take(5).cloned().collect::<Vec<_>>().join("\n"));
 }
 
 #[test]

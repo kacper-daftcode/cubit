@@ -28,8 +28,23 @@ use cubit::table::IsaTable;
 
 include!("bug465_data.inc");
 
-fn tab(arch: &str) -> IsaTable {
-    IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()
+// Immutable fixtures only: every word still runs through decode/encode.
+fn pool() -> &'static std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)> {
+    static POOL: std::sync::OnceLock<std::collections::HashMap<&'static str, (IsaTable, DecodeIndex)>> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| {
+        ["sm100a", "sm103a", "sm120", "sm121a"].into_iter().map(|arch| {
+            let table = IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap();
+            let index = DecodeIndex::build(&table);
+            (arch, (table, index))
+        }).collect()
+    })
+}
+fn tab(arch: &str) -> &'static IsaTable {
+    &pool().get(arch).unwrap().0
+}
+fn cached_index(table: &IsaTable) -> &'static DecodeIndex {
+    pool().values().find(|(fixture, _)| std::ptr::eq(fixture, table))
+        .map(|(_, index)| index).expect("table must come from the immutable fixture pool")
 }
 fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
     idx.decode(w, 0, t)
@@ -51,7 +66,7 @@ fn t465_1_lattice_grid() {
     for (w, tag, vendor) in LAW465_LATTICE {
         for leg in LEGS465 {
             let t = tab(leg);
-            let idx = DecodeIndex::build(&t);
+            let idx = cached_index(t);
             let got = dec(&t, &idx, *w);
             assert_eq!(
                 got.as_deref(),
@@ -69,7 +84,7 @@ fn t465_2_elide_grid() {
     for (w, tag, vendor) in LAW465_ELIDE {
         for leg in LEGS465 {
             let t = tab(leg);
-            let idx = DecodeIndex::build(&t);
+            let idx = cached_index(t);
             let got = dec(&t, &idx, *w);
             assert_eq!(
                 got.as_deref(),
@@ -88,7 +103,7 @@ fn t465_3_standing_snap() {
     for (w, tag, snap) in STAND465 {
         for leg in LEGS465 {
             let t = tab(leg);
-            let idx = DecodeIndex::build(&t);
+            let idx = cached_index(t);
             let got = dec(&t, &idx, *w);
             let exp = if *snap == "HOLE" { None } else { Some(*snap) };
             assert_eq!(
@@ -106,7 +121,7 @@ fn t465_4_kill_snap() {
     for (w, tag) in KILL465 {
         for leg in LEGS465 {
             let t = tab(leg);
-            let idx = DecodeIndex::build(&t);
+            let idx = cached_index(t);
             assert!(
                 dec(&t, &idx, *w).is_none(),
                 "[{leg}] {tag} kill claimed {w:#034x}"
@@ -122,7 +137,7 @@ fn t465_5_control_464_base() {
     for (w, tag, vendor) in CTRL465 {
         for leg in LEGS465 {
             let t = tab(leg);
-            let idx = DecodeIndex::build(&t);
+            let idx = cached_index(t);
             let got = dec(&t, &idx, *w);
             assert_eq!(got.as_deref(), Some(*vendor), "[{leg}] {tag} control drift");
         }
@@ -138,7 +153,7 @@ fn t465_6_mint_circle() {
     for (w, vendor) in MINT465 {
         for leg in LEGS465 {
             let t = tab(leg);
-            let idx = DecodeIndex::build(&t);
+            let idx = cached_index(t);
             let got = dec(&t, &idx, *w);
             assert_eq!(
                 got.as_deref(),
@@ -161,7 +176,7 @@ fn t465_7_elide_mint_circle() {
     for (w, vendor) in MINT465_ELIDE {
         for leg in LEGS465 {
             let t = tab(leg);
-            let idx = DecodeIndex::build(&t);
+            let idx = cached_index(t);
             let got = dec(&t, &idx, *w);
             assert_eq!(
                 got.as_deref(),

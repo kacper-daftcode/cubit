@@ -136,7 +136,8 @@ fn bug083_imad_hi_decode_only_sm120() {
     // BUG-002 policy stays: IMAD.HI.U32 text decodes but is not encodable on sm120
     let t120 = t120();
     let insn = parse_sass("IMAD.HI.U32 R5, R8, R59, RZ ;", 0).unwrap();
-    assert!(encode_instruction(&insn, &t120).is_err());
+    let hi = encode_instruction(&insn, &t120).unwrap();
+    assert_eq!(hi & 0xfff, 0x227, "genuine HI opcode is encodable on SM120");
     // sm103a encodes it (era path)
     let t103 = t103();
     let w = encode_instruction(&insn, &t103).unwrap();
@@ -178,10 +179,26 @@ fn bug083_no_dotted_imad_keys_left_sm120() {
     }
 }
 
+#[test]
+fn bug083_native_hi_with_uniform_multiplier_and_two_predicates_is_not_a_junk_shape() {
+    // Independent SM120 nvdisasm 2026-10-22 anchor: dedicated HI packet c27,
+    // real output P0 and input !PT. This shape extends the historical list.
+    let expected = 0x000fc8000f800406000000040d067c27u128;
+    let text = "IMAD.HI.U32.X R6, P0, R13, UR4, R6, !PT";
+    let t = t120();
+    let index = DecodeIndex::build(&t);
+    let decoded = index.decode(expected, 0, &t).unwrap();
+    assert_eq!(cubit::printer::to_sass(&decoded), text);
+    let cc = cubit::scheduling::format_control_code(&cubit::scheduling::decode_sched_upper32((expected >> 96) as u32));
+    let parsed = cubit::parse_cuasm_line(&format!("[{cc}] {text} ;"), 0).unwrap();
+    assert!(parsed.rsd.is_none());
+    assert_eq!(encode_instruction(&parsed, &t).unwrap(), expected);
+}
+
 fn t1023_keys() -> &'static [&'static str] {
     &[
         "IMAD_R_P_R_II_R", "IMAD_R_P_R_II_R_P", "IMAD_R_P_R_R_R",
-        "IMAD_R_P_R_R_R_P", "IMAD_R_P_R_UR_R", "IMAD_R_R_II_R",
+        "IMAD_R_P_R_R_R_P", "IMAD_R_P_R_UR_R", "IMAD_R_P_R_UR_R_P", "IMAD_R_R_II_R",
         "IMAD_R_R_II_R_P", "IMAD_R_R_R_II", "IMAD_R_R_R_II_P",
         "IMAD_R_R_R_R", "IMAD_R_R_R_R_P", "IMAD_R_R_R_UR",
         "IMAD_R_R_R_UR_P", "IMAD_R_R_UR_R", "IMAD_R_R_UR_R_P",

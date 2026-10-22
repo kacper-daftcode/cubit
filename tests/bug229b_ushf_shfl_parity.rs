@@ -204,10 +204,22 @@ fn t229b_2_structure_sm120() {
     assert_eq!(mgs("SHFL_P_R_R_R_R"), ["BFLY", "DOWN", "IDX", "UP"]);
     assert_eq!(mgs("USHF_UR_UR_II_UR").len(), 32);
     assert_eq!(mgs("USHF_UR_UR_UR_II"), ["R,U64"]);
-    assert_eq!(
-        mgs("USHF_UR_UR_UR_UR"),
-        ["HI,R,S32", "HI,R,U32", "L,U32", "R,U64"]
-    );
+    let mut all_modes = Vec::new();
+    for dtype in ["S32", "S64", "U32", "U64"] {
+        for direction in ["L", "R"] {
+            for wrap in [false, true] {
+                for high in [false, true] {
+                    let mut mods = vec![dtype, direction];
+                    if wrap { mods.push("W"); }
+                    if high { mods.push("HI"); }
+                    mods.sort();
+                    all_modes.push(mods.join(","));
+                }
+            }
+        }
+    }
+    all_modes.sort();
+    assert_eq!(mgs("USHF_UR_UR_UR_UR"), all_modes);
     // graft repairs are load-bearing
     let idx = &ins["SHFL_P_R_R_II_II"]["mod_groups"]["IDX"];
     let fs = idx["fields"].as_array().unwrap();
@@ -312,5 +324,29 @@ fn t229b_4_encode_roundtrip_low96_sm120() {
         let insn = parse_sass(text, 0).expect("parse");
         let w = encode_instruction(&insn, &t).unwrap_or_else(|_| panic!("encode HOLE: {text}"));
         assert_eq!(w & M96, lo96 & M96, "encode drift: {text}");
+    }
+}
+
+#[test]
+fn t229b_5_all_register_modes_roundtrip_full_words() {
+    let t = tab(T120);
+    let idx = DecodeIndex::build(&t);
+    // All32 combinations independently accepted by nvdisasm SM120;
+    // fullgate_alu_nvdisasm.json records each word and its exact spelling.
+    for (dtype, typebits) in [("S64", 0u128), ("U64", 1), ("S32", 2), ("U32", 3)] {
+        for (direction, right) in [("L", false), ("R", true)] {
+            for wrap in [false, true] {
+                for high in [false, true] {
+                    let w = 0x000fe200080000070000000605047299u128
+                        | (typebits << 73) | ((right as u128) << 76)
+                        | ((wrap as u128) << 75) | ((high as u128) << 80);
+                    let text = format!("USHF.{direction}{}.{dtype}{} UR4, UR5, UR6, UR7", if wrap { ".W" } else { "" }, if high { ".HI" } else { "" });
+                    assert_eq!(cubit::printer::to_sass(&idx.decode(w, 0, &t).unwrap()), text);
+                    let ctrl = cubit::scheduling::decode_sched_upper32((w >> 96) as u32);
+                    let source = format!("[{}] {text} ;", cubit::scheduling::format_control_code(&ctrl));
+                    assert_eq!(cubit::encoder::encode_instruction(&cubit::parse_cuasm_line(&source, 0).unwrap(), &t).unwrap(), w, "{text}");
+                }
+            }
+        }
     }
 }

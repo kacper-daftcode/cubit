@@ -199,7 +199,7 @@ pub fn render_operand_r(op: &Operand, labels: Option<&LabelResolver>) -> Result<
             format!("c[0x{bank:x}]{}", &inner[..])
         }
         Operand::Desc { ur_idx, base_reg, base_reg_suffix, offset } => {
-            let ur = if *ur_idx == 63 {
+            let ur = if *ur_idx == 255 {
                 "URZ".to_string()
             } else {
                 format!("UR{ur_idx}")

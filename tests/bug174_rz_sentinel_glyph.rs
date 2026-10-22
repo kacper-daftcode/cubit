@@ -124,13 +124,12 @@ fn t174_5_post165_domain_landed() {
                "LDC.U8 R24, c[0x3][RZ]");
 }
 
-/// t174_6: LDCU (UR-dest) off==0 keeps its legacy/correct URZ-domain print;
-/// the flip is scoped to the R-dest LDC family.  (The 152-domain cAURI
-/// fabrication on this synth word is parked, pinned pre==post by t173_5.)
+/// t174_6: native memory RE closes the former UR-index fabrication;
+/// the distinct UR destination and UR address index must stay semantic.
 #[test]
 fn t174_6_ldcu_scoped_out() {
     let t = t120();
     let idx = DecodeIndex::build(&t);
     assert_eq!(dec(&idx, w("000f220008000a0000004b00050577ac"), &t),
-               "LDCU.64 UR0, c[0x0][0x0], 0x0, 0x0, UR0");
+               "LDCU.64 UR5, c[0x0][UR5+0x258]");
 }

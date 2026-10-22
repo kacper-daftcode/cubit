@@ -526,11 +526,16 @@ impl IsaTable {
         }
         let data = std::fs::read_to_string(path)
             .with_context(|| format!("failed to read {}", path.display()))?;
+        Self::from_json(&data)
+    }
+
+    /// Load exactly the JSON bytes a caller has already hashed or snapshotted.
+    pub fn from_json(data: &str) -> Result<Self> {
         // Detect format: unified ISA DB (has "_meta") or flat encoding
         if data.contains("\"_meta\"") && data.contains("\"instructions\"") {
-            Self::from_json_unified(&data)
+            Self::from_json_unified(data)
         } else {
-            Self::from_json_flat(&data)
+            Self::from_json_flat(data)
         }
     }
 
@@ -830,6 +835,7 @@ pub fn ur_hsel_invalid1_key(key: &str) -> bool {
     key.starts_with("HFMA2_R_R_R_UR")
         || key.starts_with("HMUL2_R_R_UR")
         || key.starts_with("HSETP2_P_P_R_UR_P")
+        || key == "HMNMX2_R_R_UR_P"
 }
 
 /// BUG-305: sibling value-validity law, armed F2-iter152. On the

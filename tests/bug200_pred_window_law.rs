@@ -213,15 +213,10 @@ fn t200_5_imad_carryout_pred_law() {
                 format!("IMAD.HI.U32 R8, {}, R6, UR11, R8", pname(k))
             };
             assert_eq!(text, want_hi, "{p}: HI tok2 law k={k}");
-            if p.ends_with("sm120.json") {
-                // BUG-002 red-line: IMAD.HI encode is refuse-by-errata on
-                // sm120 (silicon re-executes it as IMAD.WIDE low-half) —
-                // decode-side parity only, encode must stay refused.
-                let insn = parse_sass(&text, 0).unwrap();
-                assert!(encode_instruction(&insn, &t).is_err(), "{p}: sm120 IMAD.HI encode must refuse k={k}");
-            } else {
-                assert_eq!(enc(&t, &text), w81b & !SCHED, "{p}: HI tok2 roundtrip k={k}");
-            }
+            // nvdisasm 13.1.80 -b SM120 verifies all eight predicates on
+            // this dedicated 0xc27 HI packet. BUG-002 rejects the 0xc25
+            // HI-to-WIDE fallback; the genuine HI opcode is supported.
+            assert_eq!(enc(&t, &text), w81b & !SCHED, "{p}: HI tok2 roundtrip k={k}");
         }
         // trailing-P sibling form (U32,WIDE,X): authored asm + decode law.
         let text = "IMAD.WIDE.U32.X R10, R3, UR7, R10, P3";

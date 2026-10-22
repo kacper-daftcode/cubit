@@ -23,8 +23,8 @@ cubit asm kernel.sass -o kernel.cubin
 # Disassemble a cubin back to SASS
 cubit disassemble kernel.cubin -k my_kernel
 
-# Round-trip: binary → SASS text → binary (bit-exact)
-cubit roundtrip kernel.cubin
+# Strict semantic round-trip of every native code section (all 128 bits)
+cubit roundtrip-strict kernel.cubin --report result.json --failures failures.jsonl
 
 # Rebuild edited SASS while preserving an nvcc cubin's ELF metadata
 cubit asm modified.sass --template nvcc_kernel.cubin -o patched.cubin
@@ -33,10 +33,10 @@ cubit asm modified.sass --template nvcc_kernel.cubin -o patched.cubin
 cubit encode "IADD3 R5, PT, PT, R9, R4, R5 ;"
 ```
 
-Round-trip is through SASS text: disassemble, edit, re-assemble. Use
-`--frozen` on disassemble to preserve the original schedule verbatim (encoded
-as `[B:R:W:S]` prefixes per instruction); with `--frozen` the scheduler is
-bypassed — what you write is what you get.
+Strict round-trip uses Cubit's own decoder, editable SASS, a new parse and the
+assembler. The emitted `[B:R:W:S]` control prefixes preserve the explicit
+schedule; `.reuse` operands preserve real reuse hints even when NVIDIA's
+default display omits them.
 
 A `.sass` file can contain multiple kernels (`.entry` / `.endentry` blocks);
 cubit assembles them into a single multi-kernel cubin.
@@ -44,6 +44,57 @@ cubit assembles them into a single multi-kernel cubin.
 The assembler guards measured silicon traps fail-closed — constructs that
 would mis-encode or mis-execute are a hard error, not a silent wrong binary.
 See [docs/ENCODER_GUARDS.md](docs/ENCODER_GUARDS.md).
+
+### Strict semantic acceptance
+
+```bash
+cubit roundtrip-strict -t tables/sm120.json kernel.cubin \
+  --sass-dir /tmp/cubit-run/sass --rebuilt-dir /tmp/cubit-run/cubins \
+  --report /tmp/cubit-run/report.json --failures /tmp/cubit-run/failures.jsonl
+```
+
+The output directories must be new or empty. Every `.text` / `.text.*`
+section is checked, including anonymous functions and distinct physical
+sections that share a name. Each complete 128-bit word must survive both
+individual parsing and a second parse of the complete emitted source with
+labels. The command rejects `__raw__`, `!rsd`, permissive encoder switches,
+opaque modifier/operand placeholders (such as `.?6` or `???255`),
+unsupported binary layouts, empty code, partial instructions and architecture
+mismatches. Any failure produces a nonzero exit status.
+
+With `--rebuilt-dir`, all instructions are assembled again from the emitted
+source and replace their physical code sections. The ELF container retains
+its original metadata. A cubin is written only after the entire rebuilt ELF
+is byte-identical. Reports identify the input, table and actual emitted SASS
+bytes by SHA256. Strict library calls also reject a permissive fit policy
+cached by an earlier encode, even if its environment variable was removed.
+For fixed-size edits, the library's `patch_semantic_section_at` uses the same
+strict source parser and `KernelReport.text_index`, the position in
+`CubinFile.text_sections`. The legacy `section_index` is diagnostic and must
+not be passed to this patch API.
+Live predicate guards must use the bank selected by the encoded instruction
+form (`P` or `UP`); an authored bank mismatch is an error. `PT` and `UPT`
+normalize as equivalent boolean constants, including their negated forms.
+The low-level encoder and legacy template assembler retain compatibility
+aliases; use the strict code-only patch API to validate authored source.
+This API replaces code while retaining resource allocations, relocations and
+compiler metadata. It rejects metadata directives instead of silently dropping
+them. The caller must keep edits compatible with that existing metadata;
+changing registers, parameters, shared memory or compiler sites can require
+an explicit metadata-aware cubin build. Exact reconstruction proves the
+original binary; it does not validate arbitrary edited programs.
+
+Runtime coverage requires an explicit census as well as instruction fidelity.
+The `audit_manifest` example checks the required sections of each SHA256-pinned
+module, retains unresolved names as failures, and snapshots the exact manifest
+and table. `required_text_indices` identifies entries in
+`CubinFile::text_sections`, allowing equal local-function names. The report
+records the audited scope; unselected sections are retained as container data.
+
+```bash
+cargo run --release --example audit_manifest -- \
+  census.json tables/sm120.json /tmp/cubit-census-new
+```
 
 ### Residue annotations
 
@@ -56,10 +107,10 @@ disassembly appends an explicit annotation:
 F2F.F64.F32 R18, R19 !rsd[75:1,84:0] ;
 ```
 
-`!rsd[...]` is applied as the last overlay stage at encode, so frozen
-round-trips are bit-exact by construction on every decodable instruction.
-Default text stays nvdisasm-compatible — the annotation appears only where
-fidelity would otherwise be lost.
+This legacy export applies `!rsd[...]` as a final binary overlay. Use the
+strict semantic acceptance command above to prove assembler coverage: it
+rejects overlays and raw instruction exports. The legacy `roundtrip` command
+also requires the strict audit after its NVIDIA reference comparison passes.
 
 ### Mercury (capmerc) sections
 

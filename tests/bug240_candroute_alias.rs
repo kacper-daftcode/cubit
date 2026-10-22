@@ -85,12 +85,14 @@ fn t240_1_structure() {
             .any(|f| f.shift == 32 && f.bits == 8 && f.token_idx == 2));
     }
     for (k, mg) in [
-        ("IMNMX.S64_P_P_R_R_R_P_P", "S64"),
-        ("IMNMX.S64_P_P_R_R_II_P_P", "S64"),
-        ("IMNMX.U64_P_P_R_R_R_P_P", "U64"),
+        ("IMNMX_P_P_R_R_R_P_P", "S64"),
+        ("IMNMX_P_P_R_R_II_P_P", "S64"),
+        ("IMNMX_P_P_R_R_R_P_P", "U64"),
     ] {
-        t.get(k, mg)
-            .unwrap_or_else(|| panic!("alias mg {mg} missing under {k}"));
+        let row = t.get(k, mg)
+            .unwrap_or_else(|| panic!("canonical mg {mg} missing under {k}"));
+        assert_eq!((row.and_base >> 73) & 3, if mg == "S64" { 3 } else { 2 }, "{k}::{mg} type cell");
+        assert_eq!(row.and_base & 0xfff, if k.contains("_II_") { 0x817 } else { 0x217 });
     }
     let f32 = t.get("F2F.F32.F64_R_R", "").unwrap();
     let src = f32
@@ -236,4 +238,20 @@ fn t240_4_controls() {
         dec(&t, 0x003010000000000400047310 | (0x000e2200u128 << 96)),
         "F2F.F32.F64 R4, R4"
     );
+}
+
+#[test]
+fn t240_5_native_generic_cells_have_full_word_vendor_witnesses() {
+    let t = t120();
+    let idx = DecodeIndex::build(&t);
+    // Independent raw SM120 probes in fullgate_alu_nvdisasm.json.
+    for (w, text) in [
+        (0x000fe20001a286000000000302017217u128, "IMNMX.S64 P1, P2, R1, R2, R3, P3, P4"),
+        (0x000fe20001a284000000000302017217, "IMNMX.U64 P1, P2, R1, R2, R3, P3, P4"),
+    ] {
+        assert_eq!(to_sass(&idx.decode(w, 0, &t).unwrap()), text);
+        let ctrl = cubit::scheduling::decode_sched_upper32((w >> 96) as u32);
+        let source = format!("[{}] {text} ;", cubit::scheduling::format_control_code(&ctrl));
+        assert_eq!(encode_instruction(&cubit::parse_cuasm_line(&source, 0).unwrap(), &t).unwrap(), w);
+    }
 }

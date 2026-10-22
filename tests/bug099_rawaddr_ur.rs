@@ -43,6 +43,9 @@
 //! modes decode); LDG_R_ARURI::64,E deleted. sm120.json keeps mode-6 (its
 //! vendor bin truth) -- per-arch canonical. sm103a era-word round-trips now
 //! carry the mode bit through the !rsd[92:1] overlay (pins below).
+#[path = "support/sm120_ldg_bit92.rs"]
+mod ldg_bit92;
+
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;
@@ -173,10 +176,15 @@ fn bug099_decode_vendor_exact_sm120() {
     let idx = DecodeIndex::build(&t);
     for (name, gold) in [("95", GOLD95), ("99", GOLD99)] {
         for &(w, golden) in gold {
+            if ldg_bit92::unsupported(w) {
+                assert!(idx.decode(w, 0, &t).is_err(), "historical bit92 alias must fail closed: {w:032x}");
+                continue;
+            }
             let d = idx.decode(w, 0, &t).unwrap_or_else(|e| panic!("{name} sm120 word {w:032x}: {e}"));
             assert_eq!(cubit::printer::to_sass(&d), golden, "{name} sm120 word {w:032x}");
         }
     }
+    ldg_bit92::assert_native_roundtrips(&t, &idx);
 }
 
 #[test]
@@ -190,6 +198,10 @@ fn bug099_roundtrip_word_exact_both() {
         let idx = DecodeIndex::build(&t);
         for &(w, golden) in GOLD95.iter().chain(GOLD99) {
             let word = w;
+            if ldg_bit92::unsupported(word) {
+                assert!(idx.decode(word, 0, &t).is_err(), "historical bit92 alias must fail closed: {word:032x}");
+                continue;
+            }
             if word == 0x002ea200081e090000000004ff007981u128 { continue; }
             let d = idx.decode(word, 0, &t).unwrap();
             let text = cubit::printer::to_sass(&d);
@@ -245,7 +257,8 @@ fn bug099_mode2_rz_documented_residue() {
         assert_eq!(encode_instruction(&ov, &t).unwrap() & M96, mode6 & M96,
                    "rsd overlay reproduces the era mode-6 word");
     }
-    // sm120: unchanged -- mode-6 is the vendor bin truth there.
+    // Current native sm120 witnesses use mode2 as well. The original mode6
+    // fixture stays explicit and unsupported; it is never normalized as PASS.
     {
         let t = t120();
         let idx = DecodeIndex::build(&t);
@@ -253,7 +266,8 @@ fn bug099_mode2_rz_documented_residue() {
         assert_eq!(cubit::printer::to_sass(&d), "LDG.E R0, [RZ.U32+UR4]");
         let insn = parse_sass("LDG.E R0, [RZ.U32+UR4] ;", 0).unwrap();
         let w2 = encode_instruction(&insn, &t).unwrap();
-        assert_eq!(w2 & M96, mode6 & M96, "sm120 text encodes mode-6 form");
+        assert!(idx.decode(mode6, 0, &t).is_err(), "historical bit92 alias must fail closed");
+        assert_eq!(w2 & M96, word & M96, "native sm120 text encodes mode2 form");
     }
 }
 
@@ -284,7 +298,10 @@ fn bug099_encoder_width_routing() {
     let (t, want) = (t103(), 0x000e2400081e0b000008000806087981u128);
     let insn = parse_sass("LDG.E.64 R8, [R6.U32+UR8+0x800] ;", 0).unwrap();
     assert_eq!(encode_instruction(&insn, &t).unwrap() & M96, want & M96);
-    let (t, want) = (t120(), 0x000e2400181e0b000008000806087981u128);
-    let insn = parse_sass("LDG.E.64 R8, [R6.U32+UR8+0x800] ;", 0).unwrap();
-    assert_eq!(encode_instruction(&insn, &t).unwrap() & M96, want & M96);
+    // Preserve the old encoding as an explicit unsupported negative fixture.
+    let (t, historical) = (t120(), 0x000e2400181e0b000008000806087981u128);
+    let idx = DecodeIndex::build(&t);
+    assert!(ldg_bit92::unsupported(historical));
+    assert!(idx.decode(historical, 0, &t).is_err());
+    ldg_bit92::assert_native_roundtrips(&t, &idx);
 }

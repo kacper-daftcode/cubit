@@ -187,14 +187,26 @@ fn t326_5_encode_mint_unchanged_325_negatyw() {
 }
 
 #[test]
-fn t326_6_ur_domain_not_gated_bug144_pin_stays() {
-    // UR-domain explicit-field print keeps the authored spelling (t144_4
-    // hosts this): base+124 has yield=0 and STILL prints UR7.reuse. Vendor
-    // never prints UR.reuse in any legal word; this table-taught lane is
-    // authored-spelling-only, zero corpus exposure (census325).
+fn t326_6_native_uniform_reuse_is_illegal_with_either_yield() {
+    // Native SM120 independently rejects each uniform reuse bit, with yield
+    // both clear and set. The former table-authored spelling was unsupported
+    // by the hardware. Proof: bug144_uiadd_reuse_nvdisasm.json.
     let t = tab("sm120");
+    let idx = DecodeIndex::build(&t);
     let base = enc(&t, "UIADD3 UR4, UPT, UPT, UR5, UR6, UR7");
-    assert_eq!((base >> 109) & 1, 0, "default control must be yield=0");
-    let d = dec(&t, base | (1u128 << 124)).expect("decode ur reuse");
-    assert!(d.contains("UR7.reuse"), "UR print lane not gated: {d}");
+    assert_eq!((base >> 109) & 1, 0);
+    for yielding in [false, true] {
+        for bit in 122..=124 {
+            let w = base | (1u128 << bit) | if yielding { B109 } else { 0 };
+            if let Ok(decoded) = idx.decode(w, 0, &t) {
+                assert!(!cubit::printer::to_sass_lossless(&decoded).contains(".reuse"),
+                    "illegal UR reuse must not gain a semantic spelling");
+            }
+            let (report, _) = cubit::roundtrip_audit::audit_kernel(
+                ".text.illegal_uiadd_reuse", 2, &w.to_le_bytes(), &t, &idx,
+                &mut |_| Ok(()),
+            ).unwrap();
+            assert!(!report.passed, "illegal bit{bit} yielding={yielding} must fail strict audit");
+        }
+    }
 }

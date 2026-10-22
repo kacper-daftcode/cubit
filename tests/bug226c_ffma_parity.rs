@@ -211,11 +211,16 @@ fn t226c_1_phantoms_absent_donor_law_present() {
     let ab =
         u128::from_str_radix(r["and_base"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
     assert_eq!((ab >> 80) & 1, 1, "FTZ pivot b80 must be baked 1");
-    // dead-pin era mgs dropped fail-closed
-    let ur = ins["FFMA_R_R_UR_R"]["mod_groups"].as_object().unwrap();
-    assert!(ur.get("RM").is_none() && ur.get("RP").is_none());
-    let ii = ins["FFMA_R_R_R_II"]["mod_groups"].as_object().unwrap();
-    assert!(ii.get("RP").is_none());
+    // Independent SM120 probes confirm RM/RP in both packets. Rounding is
+    // the two-bit enum at78, with no unrelated payload changes.
+    for key in ["FFMA_R_R_UR_R", "FFMA_R_R_R_II"] {
+        let groups = ins[key]["mod_groups"].as_object().unwrap();
+        let base = u128::from_str_radix(groups[""]["and_base"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
+        for (mode, bits) in [("RM", 1u128), ("RP", 2)] {
+            let rounded = u128::from_str_radix(groups[mode]["and_base"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
+            assert_eq!(rounded ^ base, bits << 78, "{key}::{mode} rounding law");
+        }
+    }
     // new donor key
     let r = &ins["FFMA_R_R_R_UR"]["mod_groups"][""];
     let fs = r["fields"].as_array().unwrap();
@@ -297,5 +302,23 @@ fn t226c_4_encode_roundtrip_low96_sm120() {
         let insn = parse_sass(text, 0).expect("parse");
         let w = encode_instruction(&insn, &t).unwrap_or_else(|_| panic!("encode HOLE: {text}"));
         assert_eq!(w & M96, lo96 & M96, "encode drift: {text}");
+    }
+}
+
+#[test]
+fn t226c_5_rounding_modes_have_independent_full_word_witnesses() {
+    let t = tab(T120);
+    let idx = DecodeIndex::build(&t);
+    // nvdisasm -b SM120, 2026-10-22: fullgate_alu_nvdisasm.json.
+    for (w, text) in [
+        (0x000fe200080040040000000302017c23u128, "FFMA.RM R1, R2, UR3, R4"),
+        (0x000fe200080080040000000302017c23, "FFMA.RP R1, R2, UR3, R4"),
+        (0x000fe200000040033f80000002017423, "FFMA.RM R1, R2, R3, 1"),
+        (0x000fe200000080033f80000002017423, "FFMA.RP R1, R2, R3, 1"),
+    ] {
+        assert_eq!(cubit::printer::to_sass(&idx.decode(w, 0, &t).unwrap()), text);
+        let ctrl = cubit::scheduling::decode_sched_upper32((w >> 96) as u32);
+        let source = format!("[{}] {text} ;", cubit::scheduling::format_control_code(&ctrl));
+        assert_eq!(cubit::encoder::encode_instruction(&cubit::parse_cuasm_line(&source, 0).unwrap(), &t).unwrap(), w);
     }
 }

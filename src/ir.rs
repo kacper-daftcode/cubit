@@ -3,6 +3,34 @@
 //! Clean types that carry ALL information needed for encoding.
 //! The encoder never needs to re-parse raw ASM text.
 
+/// Widen an IEEE float value without quieting a signaling NaN. Exact float
+/// literals use the ordinary f64-valued IR, whose fraction has room for every
+/// f32 payload bit. Finite values retain Rust's normal numeric conversion.
+pub(crate) fn f32_bits_to_f64_bits(bits: u32) -> u64 {
+    let fraction = bits & 0x007f_ffff;
+    if bits & 0x7f80_0000 == 0x7f80_0000 && fraction != 0 {
+        ((bits as u64 & 0x8000_0000) << 32)
+            | 0x7ff0_0000_0000_0000
+            | ((fraction as u64) << 29)
+    } else {
+        (f32::from_bits(bits) as f64).to_bits()
+    }
+}
+
+/// Narrow a float value while retaining the representable NaN payload and
+/// signaling bit. A payload below f32 precision remains a NaN, rather than
+/// becoming infinity. Finite rounding remains the normal numeric conversion.
+pub(crate) fn f64_bits_to_f32_bits(bits: u64) -> u32 {
+    let fraction = bits & 0x000f_ffff_ffff_ffff;
+    if bits & 0x7ff0_0000_0000_0000 == 0x7ff0_0000_0000_0000 && fraction != 0 {
+        (((bits >> 32) as u32) & 0x8000_0000)
+            | 0x7f80_0000
+            | ((fraction >> 29) as u32).max(1)
+    } else {
+        (f64::from_bits(bits) as f32).to_bits()
+    }
+}
+
 /// Predicate guard: `@P0`, `@!P1`, `@UP2`, etc.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Guard {

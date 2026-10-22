@@ -217,21 +217,30 @@ fn t247_5_zero_corpus_sentinels() {
     // Registrations (arb vertices, corpus exposure measured ZERO):
     //  - b82 = .XORSIGN (vendor prints FMNMX.XORSIGN -> no table rows)
     //  - FTZ+NAN combo (arb E: FMNMX.FTZ.NAN vendor-legal -> no row)
-    // Both fail closed on all legs post-247. If grafts ever land (250-class
-    // decisions), these flip to positive asserts.
+    // Native SM120 RE now covers both modes. Older tables retain the
+    // historical fail-closed boundary; native words must match the independent
+    // vendor spelling and survive a complete128-bit semantic roundtrip.
     let w_xorsign = W_R_NOT_ABS ^ (1u128 << 82);
     let w_ftznan = W_FTZ_NOT ^ (1u128 << 81);
     for arch in ["sm100a", "sm103a", "sm120", "sm121a"] {
         let t = tab(arch);
         let idx = DecodeIndex::build(&t);
-        assert!(
-            idx.decode(w_xorsign, 0, &t).is_err(),
-            "{arch}: XORSIGN row unexpectedly present"
-        );
-        assert!(
-            idx.decode(w_ftznan, 0, &t).is_err(),
-            "{arch}: FTZ.NAN row unexpectedly present"
-        );
+        if arch == "sm120" {
+            // Independently verified with nvdisasm SM120 on2026-10-22:
+            // fullgate_alu_nvdisasm.json.
+            for (w, text) in [
+                (w_xorsign, "FMNMX.XORSIGN R2, |R9|, R2, !PT"),
+                (w_ftznan, "FMNMX.FTZ.NAN R133, R133, R2, !PT"),
+            ] {
+                assert_eq!(to_sass(&idx.decode(w, 0, &t).unwrap()), text);
+                let ctrl = cubit::scheduling::decode_sched_upper32((w >> 96) as u32);
+                let source = format!("[{}] {text} ;", cubit::scheduling::format_control_code(&ctrl));
+                assert_eq!(encode_instruction(&cubit::parse_cuasm_line(&source, 0).unwrap(), &t).unwrap(), w);
+            }
+        } else {
+            assert!(idx.decode(w_xorsign, 0, &t).is_err(), "{arch}: XORSIGN row unexpectedly present");
+            assert!(idx.decode(w_ftznan, 0, &t).is_err(), "{arch}: FTZ.NAN row unexpectedly present");
+        }
     }
     // L1 neg/idx spot law: flip b90 toggles '!', flip b88 walks pred idx.
     let t = tab("sm103a");
@@ -252,4 +261,22 @@ fn t247_5_zero_corpus_sentinels() {
         idx.decode(guarded, 0, &t).map(|d| to_sass(&d)).unwrap(),
         "@!P6 FMNMX R27, R11, UR12, !PT"
     );
+}
+
+#[test]
+fn t247_6_native_mode_order_matches_the_independent_oracle() {
+    let t = tab("sm120");
+    let idx = DecodeIndex::build(&t);
+    // All8 words independently checked: fmnmx_mode_order_nvdisasm.json.
+    for mode in 0u128..8 {
+        let w = 0x000fe200038000000000000209027209u128 | (mode << 80);
+        let text = format!("FMNMX{}{}{} R2, R9, R2, PT",
+            if mode & 1 != 0 { ".FTZ" } else { "" },
+            if mode & 2 != 0 { ".NAN" } else { "" },
+            if mode & 4 != 0 { ".XORSIGN" } else { "" });
+        assert_eq!(to_sass(&idx.decode(w, 0, &t).unwrap()), text);
+        let ctrl = cubit::scheduling::decode_sched_upper32((w >> 96) as u32);
+        let source = format!("[{}] {text} ;", cubit::scheduling::format_control_code(&ctrl));
+        assert_eq!(encode_instruction(&cubit::parse_cuasm_line(&source, 0).unwrap(), &t).unwrap(), w);
+    }
 }

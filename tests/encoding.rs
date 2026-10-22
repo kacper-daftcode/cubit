@@ -431,8 +431,22 @@ fn test_f2fp_unpack_b_decode_print() {
     // ptxas bytes for: F2FP.F16.E4M3.UNPACK_B R7, R8
     let code = 0x008fca00020006ff00000008ff07723e_u128;
     let d = index.decode(code, 0, &table).unwrap();
-    assert_eq!(d.opcode, "F2FP.F16.E4M3.UNPACK_B");
+    // The base opcode and modifiers may be stored separately. Pin the
+    // independently NVIDIA-confirmed surface and the complete native word.
     assert_eq!(cubit::printer::to_sass(&d), "F2FP.F16.E4M3.UNPACK_B R7, R8");
+    let source = ".entry unpack\n[B---3--:R-:W-:-:S05] F2FP.F16.E4M3.UNPACK_B R7, R8 ;\n.endentry\n";
+    let bytes = cubit::roundtrip_audit::encode_semantic_source(source, &table).unwrap();
+    assert_eq!(bytes, code.to_le_bytes());
+    let mut failures = Vec::new();
+    let (report, emitted) = cubit::roundtrip_audit::audit_kernel(
+        ".text.unpack", 0, &bytes, &table, &index,
+        &mut |failure| { failures.push(failure.clone()); Ok(()) },
+    ).unwrap();
+    assert!(report.passed && report.stream_verified, "{failures:?}");
+    assert_eq!(
+        cubit::roundtrip_audit::encode_semantic_source(&emitted, &table).unwrap(),
+        bytes,
+    );
 }
 
 // ── Bug-1 regression: wrong-signature table entries must be REJECTED ──────────

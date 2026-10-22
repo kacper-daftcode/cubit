@@ -157,7 +157,7 @@ pub fn parse_directive(line: &str, res: &mut KernelResources) -> bool {
             }
             let (sv, mv) = match tok.split_once(':') {
                 Some((s, m)) => (s, m),
-                None => (tok, "ffffffff"),
+                None => (tok, "0xffffffff"),
             };
             let parse = |t: &str| -> Option<u32> {
                 if let Some(h) = t.strip_prefix("0x") {

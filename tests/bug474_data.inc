@@ -1,4 +1,4 @@
-pub const CANON474: &str = "cc2f62c"; // FLIP474b (F2-iter286 BUG-474, canonical 68ac5aa): pending przepiete na realny commit
+pub const CANON474: &str = "463a648"; // FLIP474b (F2-iter286 BUG-474, canonical 68ac5aa): pending przepiete na realny commit
 /// HEAL 732 / ANCH 102 / KILL 24 / EDGE 2 / MINT 10 / MINTELIDE 20 / ENCTAIL 5 / MINTDESC 7 (skip-b060 2) -- gen474pins.py rc=2; werdykty z nvdisasm 13.3.73 law/claim474.
 pub static HEAL474: &[(u128, &str, &str)] = &[
     // EF_pinv1->LDG.E.EF.EFL2.256_R_R_ARURI_II_P
@@ -4796,7 +4796,7 @@ pub static MINTDESC474: &[(&str, &str, &str)] = &[
 pub static CENSUS474: &[(&str, usize)] = &[
     ("sm100a", 14879), // RIDE476 (F2-iter299, canonical c88778e): +11 -> 14879 // RIDE475R3 (F2-iter289, INC-289e): +3/+3/+2/+2 -> 14868/14868/16005/23825 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146/-2 keys (dARI modsub lattice b76=1 + rekanon 462-mgs ENL2) // was: 13721
     ("sm103a", 14879), // RIDE476 (F2-iter299, canonical c88778e): +11 -> 14879 // RIDE475R3 (F2-iter289, INC-289e): +3/+3/+2/+2 -> 14868/14868/16005/23825 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146/-2 keys (dARI modsub lattice b76=1 + rekanon 462-mgs ENL2) // was: 13721
-    ("sm120", 16015), // RIDE459a (F2-iter301, canonical 96372cb): -1 sm120 key (459a junk-mg "" / 64 DELETE -> key-del UR_II_..._UP_UP) -> forms 16015, variants -4=17631; sm121a variants -4=26385; cf stoi // RIDE476 (F2-iter299, canonical c88778e): +11 -> 16016 // RIDE475R3 (F2-iter289, INC-289e): +3/+3/+2/+2 -> 14868/14868/16005/23825 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146/-2 keys (dARI modsub lattice b76=1 + rekanon 462-mgs ENL2) // was: 14859
+    ("sm120", 16133), // RIDE459a (F2-iter301, canonical 96372cb): -1 sm120 key (459a junk-mg "" / 64 DELETE -> key-del UR_II_..._UP_UP) -> forms 16015, variants -4=17631; sm121a variants -4=26385; cf stoi // RIDE476 (F2-iter299, canonical c88778e): +11 -> 16016 // RIDE475R3 (F2-iter289, INC-289e): +3/+3/+2/+2 -> 14868/14868/16005/23825 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146/-2 keys (dARI modsub lattice b76=1 + rekanon 462-mgs ENL2) // was: 14859
     ("sm121a", 23833), // RIDE476 (F2-iter299, canonical c88778e): +8 -> 23833 // RIDE475R3 (F2-iter289, INC-289e): +3/+3/+2/+2 -> 14868/14868/16005/23825 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146/-2 keys (dARI modsub lattice b76=1 + rekanon 462-mgs ENL2) // was: 22688
 ];
 
