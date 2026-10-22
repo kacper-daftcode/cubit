@@ -1,5 +1,5 @@
 // BUG-467 machine-built pin data (gen467pins.py rc=0; no hand hex).
-pub const CANON467: &str = "463a648c4ee0bd20cf013315a0ec6a2432f7975a"; // ride F2-iter278 (BUG-467 delete 8 degenerate era-rows)
+pub const CANON467: &str = "9c0e4cec355119065444f59d0710de372b9d0577"; // ride F2-iter278 (BUG-467 delete 8 degenerate era-rows)
 /// 8 anchors word->vendor glyph (nvdisasm 13.3.73 raw -b, mint live); wszystkie rc=0 + ???0.
 pub const DEGEN467_LAW: &[(u128, &str, &str, &str)] = &[
     (0x000be400080010008000000000ff098au128, "sm120", "467.atom_s32_pp.anchor", "@P0 ATOM.???0.ADD.EF P0, RZ, desc[UR0][R0.64], R0"),

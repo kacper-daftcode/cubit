@@ -1,5 +1,5 @@
 // BUG-465 machine-built pin data (gen465pins.py rc=2; no hand hex).
-pub const CANON465: &str = "463a648c4ee0bd20cf013315a0ec6a2432f7975a" /* ride F2-iter275 (BUG-466 ELL2.256 dARI-era rekanon plain-geo): 67b54f4405b7f6d2d748d8221deb6a9a59cd3c2f canonical, was 23976eb44550254b12f8862ebc088d2c5d49dd72; */; // ride F2-iter272 (BUG-465 modsub plain E*L2.256 lattice; graft +1146 kluczy/noga)
+pub const CANON465: &str = "9c0e4cec355119065444f59d0710de372b9d0577" /* ride F2-iter275 (BUG-466 ELL2.256 dARI-era rekanon plain-geo): 67b54f4405b7f6d2d748d8221deb6a9a59cd3c2f canonical, was 23976eb44550254b12f8862ebc088d2c5d49dd72; */; // ride F2-iter272 (BUG-465 modsub plain E*L2.256 lattice; graft +1146 kluczy/noga)
 pub const LAW465_LATTICE: &[(u128, &str, &str)] = &[
     (
         0x000be4000810292c320000261c30197eu128,

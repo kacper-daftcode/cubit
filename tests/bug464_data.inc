@@ -1,5 +1,5 @@
 // BUG-464 machine-built pin data (gen464pins.py rc=2; no hand hex).
-pub const CANON464: &str = "463a648c4ee0bd20cf013315a0ec6a2432f7975a" /* ride F2-iter275 (BUG-466 ELL2.256 dARI-era rekanon plain-geo): 67b54f4405b7f6d2d748d8221deb6a9a59cd3c2f canonical, was 23976eb44550254b12f8862ebc088d2c5d49dd72; */; // ride F2-iter272 (BUG-465 modsub plain E*L2.256 lattice); was 4968113; old:  ride F2-iter270 (BUG-464 plain ARURI64 lattice);(graft +6 kluczy/noga)
+pub const CANON464: &str = "9c0e4cec355119065444f59d0710de372b9d0577" /* ride F2-iter275 (BUG-466 ELL2.256 dARI-era rekanon plain-geo): 67b54f4405b7f6d2d748d8221deb6a9a59cd3c2f canonical, was 23976eb44550254b12f8862ebc088d2c5d49dd72; */; // ride F2-iter272 (BUG-465 modsub plain E*L2.256 lattice); was 4968113; old:  ride F2-iter270 (BUG-464 plain ARURI64 lattice);(graft +6 kluczy/noga)
                                                                        // RIDE465-STAND: 15 wpisow STAND464 przeszly z HOLE na tekst vendora (modsub lattice 465; cross z arb464*-law era-unanim; fail-closed).
 pub const LAW464_HEAL: &[(u128, &str, &str)] = &[
     (

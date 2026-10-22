@@ -127,6 +127,11 @@ given. See [docs/MERC13_COMPANIONS.md](docs/MERC13_COMPANIONS.md).
 
 ### Scheduling
 
+Encoding roundtrips do not establish instruction identity or scheduling safety.
+The historical `IMMA.SF.16832.U8.U8` row is unvalidated; its former pipeline
+and overlap claims lack a numerical oracle and timing evidence. Compiler
+pipeline IDs alone do not prove independent physical execution units.
+
 cubit assigns scheduling metadata (stalls, barriers, yields) automatically:
 a dataflow-driven stall model, 6-scoreboard barrier allocation with
 recycling, write-after-read barriers for variable-latency loads, QMMA

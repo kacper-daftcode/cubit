@@ -583,18 +583,14 @@ fn pass_scheduling_hints(lines: &mut Vec<String>) {
 
 // ── Dual-issue reordering ────────────────────────────────────────────────────
 //
-// SM120 has separate pipelines: INT_ARITH, FP_ARITH, MMA_EXEC, TEX_LOAD.
-// Instructions on different pipelines can execute in parallel.
+// Overlap is a measured property of particular instruction forms and workloads.
+// Compiler scheduling pipe IDs are not proof of separate physical execution
+// resources. In particular, no retained validated IMMA.SF form or overlap test
+// supports the historical INT_ARITH/FP_ARITH/MMA_EXEC/TEX_LOAD mapping here.
 //
-// From RE data:
-//   QMMA/QMMA.SP → INT_ARITH pipeline
-//   UTCQMMA      → FP_ARITH pipeline
-//   MXQMMA       → TEX_LOAD pipeline
-//   IADD3/MOV/LOP3 → INT_ARITH pipeline
-//   FFMA/FADD    → FP_ARITH pipeline (overlaps with INT_ARITH!)
-//
-// Strategy: between consecutive QMMAs, move independent ALU/FP work to fill
-// the MMA pipeline bubble.  This is safe when there's no data dependency.
+// This pass only adds candidate comments; it performs no instruction reorder.
+// Before changing a schedule, prove operand/control independence and benchmark
+// the full-source-assembled native sequence with exact numerical outputs.
 
 fn pass_dual_issue_reorder(lines: &mut Vec<String>) {
     // Look for pairs of MMA instructions with no work between them
@@ -611,7 +607,7 @@ fn pass_dual_issue_reorder(lines: &mut Vec<String>) {
             let indent_len = lines[i].len() - lines[i].trim_start().len();
             let indent: String = lines[i].chars().take(indent_len).collect();
             lines.insert(i + 1, format!(
-                "{}// [ptxxx] dual-issue opportunity: consecutive MMA on INT_ARITH (res_busy_b=0)", indent));
+                "{}// [ptxxx] consecutive MMA candidate: dependencies and measured overlap required", indent));
             i += 3;
             continue;
         }
