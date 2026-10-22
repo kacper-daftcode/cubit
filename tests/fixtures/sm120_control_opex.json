@@ -1,0 +1,1989 @@
+{
+  "schema": 1,
+  "scope": "SM120 native instruction encoding. NVIDIA decoder acceptance and exact ordinary-SASS reassembly; not a GPU execution proof.",
+  "table_sha256": "693cbf52034be5ad6c07b5a1a84c3be5bbc0a04b4839ece55b995ba686314a1f",
+  "nvdisasm_sha256": "12153e5bcb8176cadfe15f6498c866db1a58de7bd53d660fe870428b6814049c",
+  "encoder_library_sha256": "da8863942ab15d82fd88a1f8dddbc71dd80bec2446f4a76d5b1d03a925da068f",
+  "sweeps": [
+    {
+      "artifact": "sass_perf/sparse_mla/control_probe/control_matrix.json",
+      "sha256": "62db366ca5b6028de6a24271ddf32935e59027e527eac3ed22634618f303dcdf"
+    },
+    {
+      "artifact": "review/sm120_control_guard/opex_anchor_sweep.json",
+      "sha256": "cf642f281e687532dba6e7395b1a4b89649f73bf02356cb1b3e8a47111ccf6e4"
+    }
+  ],
+  "native_census": {
+    "artifact": "review/sm120_control_guard/native_source_census.json",
+    "sha256": "b9ee95f2f83b69fd541c01a0e5996920e2bf93a06c34ee328ffe92bad44379b1",
+    "csv": {
+      "path": "/workspace/tmp/par31/H/final_native_419_v5/kernel_sources.csv",
+      "sha256": "16e1ee0591ee0b0188eccaa856e78a270ddd33e72e9d736174d9408ecbf68ccf"
+    },
+    "manifest": {
+      "path": "/workspace/tmp/par31/H/inventory/capture_known_native_420_manifest.json",
+      "sha256": "e89bcfc64005cdff543bf15de1b73e15fa476f211654da3851ef68de083a37a7"
+    },
+    "modules": 493,
+    "physical_sections": 3933,
+    "instructions": 11874176,
+    "low5_histogram": {
+      "0x00": 52010,
+      "0x01": 6121,
+      "0x02": 230388,
+      "0x03": 430240,
+      "0x04": 926829,
+      "0x05": 752522,
+      "0x06": 120719,
+      "0x07": 214796,
+      "0x08": 40010,
+      "0x09": 37858,
+      "0x0a": 22323,
+      "0x0b": 35389,
+      "0x0c": 97451,
+      "0x0d": 328731,
+      "0x0e": 51824,
+      "0x0f": 511047,
+      "0x10": 0,
+      "0x11": 4304158,
+      "0x12": 2006212,
+      "0x13": 59948,
+      "0x14": 530492,
+      "0x15": 854699,
+      "0x16": 214977,
+      "0x17": 10618,
+      "0x18": 16486,
+      "0x19": 3308,
+      "0x1a": 6932,
+      "0x1b": 8088,
+      "0x1c": 0,
+      "0x1d": 0,
+      "0x1e": 0,
+      "0x1f": 0
+    },
+    "reserved_Y_stall_cases": 0
+  },
+  "cases": [
+    {
+      "family": "QMMA",
+      "pc": 0,
+      "control": "B------:R-:W-:-:S00",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fc00000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 16,
+      "control": "B------:R-:W-:-:S01",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fc20000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 32,
+      "control": "B------:R-:W-:-:S02",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fc40000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 48,
+      "control": "B------:R-:W-:-:S03",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fc60000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 64,
+      "control": "B------:R-:W-:-:S04",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fc80000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 80,
+      "control": "B------:R-:W-:-:S05",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fca0000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 96,
+      "control": "B------:R-:W-:-:S06",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fcc0000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 112,
+      "control": "B------:R-:W-:-:S07",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fce0000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 128,
+      "control": "B------:R-:W-:-:S08",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fd00000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 144,
+      "control": "B------:R-:W-:-:S09",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fd20000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 160,
+      "control": "B------:R-:W-:-:S10",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fd40000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 176,
+      "control": "B------:R-:W-:-:S11",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fd60000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 192,
+      "control": "B------:R-:W-:-:S12",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fd80000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 208,
+      "control": "B------:R-:W-:-:S13",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fda0000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 224,
+      "control": "B------:R-:W-:-:S14",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fdc0000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 240,
+      "control": "B------:R-:W-:-:S15",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fde0000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 256,
+      "control": "B------:R-:W-:Y:S00",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fe00000002cff000000305050727a",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'qmma_', undefined value 0x10 for table 'TABLES_opex_3' at address 0x00000000\n"
+    },
+    {
+      "family": "QMMA",
+      "pc": 272,
+      "control": "B------:R-:W-:Y:S01",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fe20000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 288,
+      "control": "B------:R-:W-:Y:S02",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fe40000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 304,
+      "control": "B------:R-:W-:Y:S03",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fe60000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 320,
+      "control": "B------:R-:W-:Y:S04",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fe80000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 336,
+      "control": "B------:R-:W-:Y:S05",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fea0000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 352,
+      "control": "B------:R-:W-:Y:S06",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fec0000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 368,
+      "control": "B------:R-:W-:Y:S07",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000fee0000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 384,
+      "control": "B------:R-:W-:Y:S08",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000ff00000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 400,
+      "control": "B------:R-:W-:Y:S09",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000ff20000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 416,
+      "control": "B------:R-:W-:Y:S10",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000ff40000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 432,
+      "control": "B------:R-:W-:Y:S11",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000ff60000002cff000000305050727a",
+      "nvidia_accepted": true,
+      "nvidia_text": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "nvidia_error": ""
+    },
+    {
+      "family": "QMMA",
+      "pc": 448,
+      "control": "B------:R-:W-:Y:S12",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000ff80000002cff000000305050727a",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'qmma_', undefined value 0x1c for table 'TABLES_opex_3' at address 0x00000000\n"
+    },
+    {
+      "family": "QMMA",
+      "pc": 464,
+      "control": "B------:R-:W-:Y:S13",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000ffa0000002cff000000305050727a",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'qmma_', undefined value 0x1d for table 'TABLES_opex_3' at address 0x00000000\n"
+    },
+    {
+      "family": "QMMA",
+      "pc": 480,
+      "control": "B------:R-:W-:Y:S14",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000ffc0000002cff000000305050727a",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'qmma_', undefined value 0x1e for table 'TABLES_opex_3' at address 0x00000000\n"
+    },
+    {
+      "family": "QMMA",
+      "pc": 496,
+      "control": "B------:R-:W-:Y:S15",
+      "body": "QMMA.16832.F32.E4M3.E4M3 R80, R80, R48, RZ",
+      "full128": "000ffe0000002cff000000305050727a",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'qmma_', undefined value 0x1f for table 'TABLES_opex_3' at address 0x00000000\n"
+    },
+    {
+      "family": "MOV",
+      "pc": 512,
+      "control": "B------:R-:W-:-:S00",
+      "body": "MOV R170, R50",
+      "full128": "000fc00000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 528,
+      "control": "B------:R-:W-:-:S01",
+      "body": "MOV R170, R50",
+      "full128": "000fc20000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 544,
+      "control": "B------:R-:W-:-:S02",
+      "body": "MOV R170, R50",
+      "full128": "000fc40000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 560,
+      "control": "B------:R-:W-:-:S03",
+      "body": "MOV R170, R50",
+      "full128": "000fc60000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 576,
+      "control": "B------:R-:W-:-:S04",
+      "body": "MOV R170, R50",
+      "full128": "000fc80000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 592,
+      "control": "B------:R-:W-:-:S05",
+      "body": "MOV R170, R50",
+      "full128": "000fca0000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 608,
+      "control": "B------:R-:W-:-:S06",
+      "body": "MOV R170, R50",
+      "full128": "000fcc0000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 624,
+      "control": "B------:R-:W-:-:S07",
+      "body": "MOV R170, R50",
+      "full128": "000fce0000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 640,
+      "control": "B------:R-:W-:-:S08",
+      "body": "MOV R170, R50",
+      "full128": "000fd00000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 656,
+      "control": "B------:R-:W-:-:S09",
+      "body": "MOV R170, R50",
+      "full128": "000fd20000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 672,
+      "control": "B------:R-:W-:-:S10",
+      "body": "MOV R170, R50",
+      "full128": "000fd40000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 688,
+      "control": "B------:R-:W-:-:S11",
+      "body": "MOV R170, R50",
+      "full128": "000fd60000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 704,
+      "control": "B------:R-:W-:-:S12",
+      "body": "MOV R170, R50",
+      "full128": "000fd80000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 720,
+      "control": "B------:R-:W-:-:S13",
+      "body": "MOV R170, R50",
+      "full128": "000fda0000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 736,
+      "control": "B------:R-:W-:-:S14",
+      "body": "MOV R170, R50",
+      "full128": "000fdc0000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 752,
+      "control": "B------:R-:W-:-:S15",
+      "body": "MOV R170, R50",
+      "full128": "000fde0000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 768,
+      "control": "B------:R-:W-:Y:S00",
+      "body": "MOV R170, R50",
+      "full128": "000fe00000000f000000003200aa7202",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'mov__RR', undefined value 0x10 for table 'TABLES_opex_3' at address 0x00000000\n"
+    },
+    {
+      "family": "MOV",
+      "pc": 784,
+      "control": "B------:R-:W-:Y:S01",
+      "body": "MOV R170, R50",
+      "full128": "000fe20000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 800,
+      "control": "B------:R-:W-:Y:S02",
+      "body": "MOV R170, R50",
+      "full128": "000fe40000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 816,
+      "control": "B------:R-:W-:Y:S03",
+      "body": "MOV R170, R50",
+      "full128": "000fe60000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 832,
+      "control": "B------:R-:W-:Y:S04",
+      "body": "MOV R170, R50",
+      "full128": "000fe80000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 848,
+      "control": "B------:R-:W-:Y:S05",
+      "body": "MOV R170, R50",
+      "full128": "000fea0000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 864,
+      "control": "B------:R-:W-:Y:S06",
+      "body": "MOV R170, R50",
+      "full128": "000fec0000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 880,
+      "control": "B------:R-:W-:Y:S07",
+      "body": "MOV R170, R50",
+      "full128": "000fee0000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 896,
+      "control": "B------:R-:W-:Y:S08",
+      "body": "MOV R170, R50",
+      "full128": "000ff00000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 912,
+      "control": "B------:R-:W-:Y:S09",
+      "body": "MOV R170, R50",
+      "full128": "000ff20000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 928,
+      "control": "B------:R-:W-:Y:S10",
+      "body": "MOV R170, R50",
+      "full128": "000ff40000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 944,
+      "control": "B------:R-:W-:Y:S11",
+      "body": "MOV R170, R50",
+      "full128": "000ff60000000f000000003200aa7202",
+      "nvidia_accepted": true,
+      "nvidia_text": "MOV R170, R50",
+      "nvidia_error": ""
+    },
+    {
+      "family": "MOV",
+      "pc": 960,
+      "control": "B------:R-:W-:Y:S12",
+      "body": "MOV R170, R50",
+      "full128": "000ff80000000f000000003200aa7202",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'mov__RR', undefined value 0x1c for table 'TABLES_opex_3' at address 0x00000000\n"
+    },
+    {
+      "family": "MOV",
+      "pc": 976,
+      "control": "B------:R-:W-:Y:S13",
+      "body": "MOV R170, R50",
+      "full128": "000ffa0000000f000000003200aa7202",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'mov__RR', undefined value 0x1d for table 'TABLES_opex_3' at address 0x00000000\n"
+    },
+    {
+      "family": "MOV",
+      "pc": 992,
+      "control": "B------:R-:W-:Y:S14",
+      "body": "MOV R170, R50",
+      "full128": "000ffc0000000f000000003200aa7202",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'mov__RR', undefined value 0x1e for table 'TABLES_opex_3' at address 0x00000000\n"
+    },
+    {
+      "family": "MOV",
+      "pc": 1008,
+      "control": "B------:R-:W-:Y:S15",
+      "body": "MOV R170, R50",
+      "full128": "000ffe0000000f000000003200aa7202",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'mov__RR', undefined value 0x1f for table 'TABLES_opex_3' at address 0x00000000\n"
+    },
+    {
+      "family": "FFMA",
+      "pc": 0,
+      "control": "B------:R-:W-:-:S00",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fc00000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 16,
+      "control": "B------:R-:W-:-:S01",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fc20000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 32,
+      "control": "B------:R-:W-:-:S02",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fc40000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 48,
+      "control": "B------:R-:W-:-:S03",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fc60000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 64,
+      "control": "B------:R-:W-:-:S04",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fc80000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 80,
+      "control": "B------:R-:W-:-:S05",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fca0000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 96,
+      "control": "B------:R-:W-:-:S06",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fcc0000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 112,
+      "control": "B------:R-:W-:-:S07",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fce0000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 128,
+      "control": "B------:R-:W-:-:S08",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fd00000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 144,
+      "control": "B------:R-:W-:-:S09",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fd20000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 160,
+      "control": "B------:R-:W-:-:S10",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fd40000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 176,
+      "control": "B------:R-:W-:-:S11",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fd60000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 192,
+      "control": "B------:R-:W-:-:S12",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fd80000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 208,
+      "control": "B------:R-:W-:-:S13",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fda0000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 224,
+      "control": "B------:R-:W-:-:S14",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fdc0000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 240,
+      "control": "B------:R-:W-:-:S15",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fde0000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 256,
+      "control": "B------:R-:W-:Y:S00",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fe00000010065000000505c657223",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'ffma__RRR_RRR', undefined value 0x10 for table 'TABLES_opex_7' at address 0x00000100\n"
+    },
+    {
+      "family": "FFMA",
+      "pc": 272,
+      "control": "B------:R-:W-:Y:S01",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fe20000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 288,
+      "control": "B------:R-:W-:Y:S02",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fe40000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 304,
+      "control": "B------:R-:W-:Y:S03",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fe60000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 320,
+      "control": "B------:R-:W-:Y:S04",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fe80000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 336,
+      "control": "B------:R-:W-:Y:S05",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fea0000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 352,
+      "control": "B------:R-:W-:Y:S06",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fec0000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 368,
+      "control": "B------:R-:W-:Y:S07",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000fee0000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 384,
+      "control": "B------:R-:W-:Y:S08",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000ff00000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 400,
+      "control": "B------:R-:W-:Y:S09",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000ff20000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 416,
+      "control": "B------:R-:W-:Y:S10",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000ff40000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 432,
+      "control": "B------:R-:W-:Y:S11",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000ff60000010065000000505c657223",
+      "nvidia_accepted": true,
+      "nvidia_text": "FFMA.FTZ R101, R92, R80, R101",
+      "nvidia_error": ""
+    },
+    {
+      "family": "FFMA",
+      "pc": 448,
+      "control": "B------:R-:W-:Y:S12",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000ff80000010065000000505c657223",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'ffma__RRR_RRR', undefined value 0x1c for table 'TABLES_opex_7' at address 0x000001c0\n"
+    },
+    {
+      "family": "FFMA",
+      "pc": 464,
+      "control": "B------:R-:W-:Y:S13",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000ffa0000010065000000505c657223",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'ffma__RRR_RRR', undefined value 0x1d for table 'TABLES_opex_7' at address 0x000001d0\n"
+    },
+    {
+      "family": "FFMA",
+      "pc": 480,
+      "control": "B------:R-:W-:Y:S14",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000ffc0000010065000000505c657223",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'ffma__RRR_RRR', undefined value 0x1e for table 'TABLES_opex_7' at address 0x000001e0\n"
+    },
+    {
+      "family": "FFMA",
+      "pc": 496,
+      "control": "B------:R-:W-:Y:S15",
+      "body": "FFMA.FTZ R101, R92, R80, R101",
+      "full128": "000ffe0000010065000000505c657223",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'ffma__RRR_RRR', undefined value 0x1f for table 'TABLES_opex_7' at address 0x000001f0\n"
+    },
+    {
+      "family": "LDS",
+      "pc": 512,
+      "control": "B------:R-:W0:-:S00",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e00000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 528,
+      "control": "B------:R-:W0:-:S01",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e02000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 544,
+      "control": "B------:R-:W0:-:S02",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e04000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 560,
+      "control": "B------:R-:W0:-:S03",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e06000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 576,
+      "control": "B------:R-:W0:-:S04",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e08000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 592,
+      "control": "B------:R-:W0:-:S05",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e0a000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 608,
+      "control": "B------:R-:W0:-:S06",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e0c000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 624,
+      "control": "B------:R-:W0:-:S07",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e0e000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 640,
+      "control": "B------:R-:W0:-:S08",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e10000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 656,
+      "control": "B------:R-:W0:-:S09",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e12000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 672,
+      "control": "B------:R-:W0:-:S10",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e14000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 688,
+      "control": "B------:R-:W0:-:S11",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e16000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 704,
+      "control": "B------:R-:W0:-:S12",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e18000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 720,
+      "control": "B------:R-:W0:-:S13",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e1a000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 736,
+      "control": "B------:R-:W0:-:S14",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e1c000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 752,
+      "control": "B------:R-:W0:-:S15",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e1e000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 768,
+      "control": "B------:R-:W0:Y:S00",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e20000800080000af601376327984",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'lds_uniform_', undefined value 0x10 for table 'TABLES_opex_0' at address 0x00000300\n"
+    },
+    {
+      "family": "LDS",
+      "pc": 784,
+      "control": "B------:R-:W0:Y:S01",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e22000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 800,
+      "control": "B------:R-:W0:Y:S02",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e24000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 816,
+      "control": "B------:R-:W0:Y:S03",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e26000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 832,
+      "control": "B------:R-:W0:Y:S04",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e28000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 848,
+      "control": "B------:R-:W0:Y:S05",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e2a000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 864,
+      "control": "B------:R-:W0:Y:S06",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e2c000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 880,
+      "control": "B------:R-:W0:Y:S07",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e2e000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 896,
+      "control": "B------:R-:W0:Y:S08",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e30000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 912,
+      "control": "B------:R-:W0:Y:S09",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e32000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 928,
+      "control": "B------:R-:W0:Y:S10",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e34000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 944,
+      "control": "B------:R-:W0:Y:S11",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e36000800080000af601376327984",
+      "nvidia_accepted": true,
+      "nvidia_text": "LDS R50, [R118+UR19+0xaf60]",
+      "nvidia_error": ""
+    },
+    {
+      "family": "LDS",
+      "pc": 960,
+      "control": "B------:R-:W0:Y:S12",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e38000800080000af601376327984",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'lds_uniform_', undefined value 0x1c for table 'TABLES_opex_0' at address 0x000003c0\n"
+    },
+    {
+      "family": "LDS",
+      "pc": 976,
+      "control": "B------:R-:W0:Y:S13",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e3a000800080000af601376327984",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'lds_uniform_', undefined value 0x1d for table 'TABLES_opex_0' at address 0x000003d0\n"
+    },
+    {
+      "family": "LDS",
+      "pc": 992,
+      "control": "B------:R-:W0:Y:S14",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e3c000800080000af601376327984",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'lds_uniform_', undefined value 0x1e for table 'TABLES_opex_0' at address 0x000003e0\n"
+    },
+    {
+      "family": "LDS",
+      "pc": 1008,
+      "control": "B------:R-:W0:Y:S15",
+      "body": "LDS R50, [R118+UR19+0xaf60]",
+      "full128": "000e3e000800080000af601376327984",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'lds_uniform_', undefined value 0x1f for table 'TABLES_opex_0' at address 0x000003f0\n"
+    },
+    {
+      "family": "BRA",
+      "pc": 1024,
+      "control": "B------:R-:W-:-:S00",
+      "body": "BRA 0x0",
+      "full128": "000fc0000383fffffffffff800fc7947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1040,
+      "control": "B------:R-:W-:-:S01",
+      "body": "BRA 0x0",
+      "full128": "000fc2000383fffffffffff800f87947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1056,
+      "control": "B------:R-:W-:-:S02",
+      "body": "BRA 0x0",
+      "full128": "000fc4000383fffffffffff800f47947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1072,
+      "control": "B------:R-:W-:-:S03",
+      "body": "BRA 0x0",
+      "full128": "000fc6000383fffffffffff800f07947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1088,
+      "control": "B------:R-:W-:-:S04",
+      "body": "BRA 0x0",
+      "full128": "000fc8000383fffffffffff800ec7947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1104,
+      "control": "B------:R-:W-:-:S05",
+      "body": "BRA 0x0",
+      "full128": "000fca000383fffffffffff800e87947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1120,
+      "control": "B------:R-:W-:-:S06",
+      "body": "BRA 0x0",
+      "full128": "000fcc000383fffffffffff800e47947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1136,
+      "control": "B------:R-:W-:-:S07",
+      "body": "BRA 0x0",
+      "full128": "000fce000383fffffffffff800e07947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1152,
+      "control": "B------:R-:W-:-:S08",
+      "body": "BRA 0x0",
+      "full128": "000fd0000383fffffffffff800dc7947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1168,
+      "control": "B------:R-:W-:-:S09",
+      "body": "BRA 0x0",
+      "full128": "000fd2000383fffffffffff800d87947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1184,
+      "control": "B------:R-:W-:-:S10",
+      "body": "BRA 0x0",
+      "full128": "000fd4000383fffffffffff800d47947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1200,
+      "control": "B------:R-:W-:-:S11",
+      "body": "BRA 0x0",
+      "full128": "000fd6000383fffffffffff800d07947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1216,
+      "control": "B------:R-:W-:-:S12",
+      "body": "BRA 0x0",
+      "full128": "000fd8000383fffffffffff800cc7947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1232,
+      "control": "B------:R-:W-:-:S13",
+      "body": "BRA 0x0",
+      "full128": "000fda000383fffffffffff800c87947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1248,
+      "control": "B------:R-:W-:-:S14",
+      "body": "BRA 0x0",
+      "full128": "000fdc000383fffffffffff800c47947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1264,
+      "control": "B------:R-:W-:-:S15",
+      "body": "BRA 0x0",
+      "full128": "000fde000383fffffffffff800c07947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1280,
+      "control": "B------:R-:W-:Y:S00",
+      "body": "BRA 0x0",
+      "full128": "000fe0000383fffffffffff800bc7947",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'bra__CONV_DIV', undefined value 0x10 for table 'TABLES_opex_0' at address 0x00000500\n"
+    },
+    {
+      "family": "BRA",
+      "pc": 1296,
+      "control": "B------:R-:W-:Y:S01",
+      "body": "BRA 0x0",
+      "full128": "000fe2000383fffffffffff800b87947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1312,
+      "control": "B------:R-:W-:Y:S02",
+      "body": "BRA 0x0",
+      "full128": "000fe4000383fffffffffff800b47947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1328,
+      "control": "B------:R-:W-:Y:S03",
+      "body": "BRA 0x0",
+      "full128": "000fe6000383fffffffffff800b07947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1344,
+      "control": "B------:R-:W-:Y:S04",
+      "body": "BRA 0x0",
+      "full128": "000fe8000383fffffffffff800ac7947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1360,
+      "control": "B------:R-:W-:Y:S05",
+      "body": "BRA 0x0",
+      "full128": "000fea000383fffffffffff800a87947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1376,
+      "control": "B------:R-:W-:Y:S06",
+      "body": "BRA 0x0",
+      "full128": "000fec000383fffffffffff800a47947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1392,
+      "control": "B------:R-:W-:Y:S07",
+      "body": "BRA 0x0",
+      "full128": "000fee000383fffffffffff800a07947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1408,
+      "control": "B------:R-:W-:Y:S08",
+      "body": "BRA 0x0",
+      "full128": "000ff0000383fffffffffff8009c7947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1424,
+      "control": "B------:R-:W-:Y:S09",
+      "body": "BRA 0x0",
+      "full128": "000ff2000383fffffffffff800987947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1440,
+      "control": "B------:R-:W-:Y:S10",
+      "body": "BRA 0x0",
+      "full128": "000ff4000383fffffffffff800947947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1456,
+      "control": "B------:R-:W-:Y:S11",
+      "body": "BRA 0x0",
+      "full128": "000ff6000383fffffffffff800907947",
+      "nvidia_accepted": true,
+      "nvidia_text": "BRA 0x0",
+      "nvidia_error": ""
+    },
+    {
+      "family": "BRA",
+      "pc": 1472,
+      "control": "B------:R-:W-:Y:S12",
+      "body": "BRA 0x0",
+      "full128": "000ff8000383fffffffffff8008c7947",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'bra__CONV_DIV', undefined value 0x1c for table 'TABLES_opex_0' at address 0x000005c0\n"
+    },
+    {
+      "family": "BRA",
+      "pc": 1488,
+      "control": "B------:R-:W-:Y:S13",
+      "body": "BRA 0x0",
+      "full128": "000ffa000383fffffffffff800887947",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'bra__CONV_DIV', undefined value 0x1d for table 'TABLES_opex_0' at address 0x000005d0\n"
+    },
+    {
+      "family": "BRA",
+      "pc": 1504,
+      "control": "B------:R-:W-:Y:S14",
+      "body": "BRA 0x0",
+      "full128": "000ffc000383fffffffffff800847947",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'bra__CONV_DIV', undefined value 0x1e for table 'TABLES_opex_0' at address 0x000005e0\n"
+    },
+    {
+      "family": "BRA",
+      "pc": 1520,
+      "control": "B------:R-:W-:Y:S15",
+      "body": "BRA 0x0",
+      "full128": "000ffe000383fffffffffff800807947",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'bra__CONV_DIV', undefined value 0x1f for table 'TABLES_opex_0' at address 0x000005f0\n"
+    },
+    {
+      "family": "NOP",
+      "pc": 1536,
+      "control": "B------:R-:W-:-:S00",
+      "body": "NOP",
+      "full128": "000fc000000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1552,
+      "control": "B------:R-:W-:-:S01",
+      "body": "NOP",
+      "full128": "000fc200000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1568,
+      "control": "B------:R-:W-:-:S02",
+      "body": "NOP",
+      "full128": "000fc400000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1584,
+      "control": "B------:R-:W-:-:S03",
+      "body": "NOP",
+      "full128": "000fc600000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1600,
+      "control": "B------:R-:W-:-:S04",
+      "body": "NOP",
+      "full128": "000fc800000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1616,
+      "control": "B------:R-:W-:-:S05",
+      "body": "NOP",
+      "full128": "000fca00000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1632,
+      "control": "B------:R-:W-:-:S06",
+      "body": "NOP",
+      "full128": "000fcc00000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1648,
+      "control": "B------:R-:W-:-:S07",
+      "body": "NOP",
+      "full128": "000fce00000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1664,
+      "control": "B------:R-:W-:-:S08",
+      "body": "NOP",
+      "full128": "000fd000000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1680,
+      "control": "B------:R-:W-:-:S09",
+      "body": "NOP",
+      "full128": "000fd200000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1696,
+      "control": "B------:R-:W-:-:S10",
+      "body": "NOP",
+      "full128": "000fd400000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1712,
+      "control": "B------:R-:W-:-:S11",
+      "body": "NOP",
+      "full128": "000fd600000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1728,
+      "control": "B------:R-:W-:-:S12",
+      "body": "NOP",
+      "full128": "000fd800000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1744,
+      "control": "B------:R-:W-:-:S13",
+      "body": "NOP",
+      "full128": "000fda00000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1760,
+      "control": "B------:R-:W-:-:S14",
+      "body": "NOP",
+      "full128": "000fdc00000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1776,
+      "control": "B------:R-:W-:-:S15",
+      "body": "NOP",
+      "full128": "000fde00000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1792,
+      "control": "B------:R-:W-:Y:S00",
+      "body": "NOP",
+      "full128": "000fe000000000000000000000007918",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'nop_', undefined value 0x10 for table 'TABLES_opex_1' at address 0x00000700\n"
+    },
+    {
+      "family": "NOP",
+      "pc": 1808,
+      "control": "B------:R-:W-:Y:S01",
+      "body": "NOP",
+      "full128": "000fe200000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1824,
+      "control": "B------:R-:W-:Y:S02",
+      "body": "NOP",
+      "full128": "000fe400000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1840,
+      "control": "B------:R-:W-:Y:S03",
+      "body": "NOP",
+      "full128": "000fe600000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1856,
+      "control": "B------:R-:W-:Y:S04",
+      "body": "NOP",
+      "full128": "000fe800000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1872,
+      "control": "B------:R-:W-:Y:S05",
+      "body": "NOP",
+      "full128": "000fea00000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1888,
+      "control": "B------:R-:W-:Y:S06",
+      "body": "NOP",
+      "full128": "000fec00000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1904,
+      "control": "B------:R-:W-:Y:S07",
+      "body": "NOP",
+      "full128": "000fee00000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1920,
+      "control": "B------:R-:W-:Y:S08",
+      "body": "NOP",
+      "full128": "000ff000000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1936,
+      "control": "B------:R-:W-:Y:S09",
+      "body": "NOP",
+      "full128": "000ff200000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1952,
+      "control": "B------:R-:W-:Y:S10",
+      "body": "NOP",
+      "full128": "000ff400000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1968,
+      "control": "B------:R-:W-:Y:S11",
+      "body": "NOP",
+      "full128": "000ff600000000000000000000007918",
+      "nvidia_accepted": true,
+      "nvidia_text": "NOP",
+      "nvidia_error": ""
+    },
+    {
+      "family": "NOP",
+      "pc": 1984,
+      "control": "B------:R-:W-:Y:S12",
+      "body": "NOP",
+      "full128": "000ff800000000000000000000007918",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'nop_', undefined value 0x1c for table 'TABLES_opex_1' at address 0x000007c0\n"
+    },
+    {
+      "family": "NOP",
+      "pc": 2000,
+      "control": "B------:R-:W-:Y:S13",
+      "body": "NOP",
+      "full128": "000ffa00000000000000000000007918",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'nop_', undefined value 0x1d for table 'TABLES_opex_1' at address 0x000007d0\n"
+    },
+    {
+      "family": "NOP",
+      "pc": 2016,
+      "control": "B------:R-:W-:Y:S14",
+      "body": "NOP",
+      "full128": "000ffc00000000000000000000007918",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'nop_', undefined value 0x1e for table 'TABLES_opex_1' at address 0x000007e0\n"
+    },
+    {
+      "family": "NOP",
+      "pc": 2032,
+      "control": "B------:R-:W-:Y:S15",
+      "body": "NOP",
+      "full128": "000ffe00000000000000000000007918",
+      "nvidia_accepted": false,
+      "nvidia_text": null,
+      "nvidia_error": "nvdisasm error   : Opclass 'nop_', undefined value 0x1f for table 'TABLES_opex_1' at address 0x000007f0\n"
+    }
+  ]
+}
