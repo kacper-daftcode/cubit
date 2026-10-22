@@ -2,7 +2,7 @@
 // rc=2 fail-closed. Evidence: work/bug475/{arb475_law.json (560 sond x4), claim475.json, corpus475_verify.json (36), patch475_log.json, canon_sim/ vs canon_pre/}.
 // BUG-475: dARI modsub lattice (b76=1) E*L2.256 (LDG 0x97e / STG 0x97f) + rekanon 462-mgs ENL2 (489-absorb).
 // Vendor law: 512/512 lattice rc=0 x4 (div wylacznie LDG l2=3 era-split standing-463; STG l2=3 glyph INVALID3), kills b91=0, ra255 REFUSE x4.
-pub const CANON475: &str = "463a648";
+pub const CANON475: &str = "9c0e4ce";
 
 /// HEAL475: (word, leg, vendor text x4, kind) -- graft-celle dARI modsub (b76=1) dekoduja tekst vendora; kind heal=cold HOLE, heal462=cold MIS-glyph (rekanon 462 okien).
 pub static HEAL475: &[(u128, &str, &str, &str)] = &[

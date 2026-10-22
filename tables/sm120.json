@@ -246084,18 +246084,19 @@
   "IMMA.SF.16832.U8.U8_R_R_R_R_R_R_UR": {
    "_discovery": {
     "date": "2026-03-26",
-    "identity": "Block-scaled INT8 MMA on INT_ARITH pipeline (dual-issue with HMMA)",
-    "method": "session7: opcode 0x47E = IMMA | bit[10] (SF mode), hardware-verified",
-    "opcode_pattern": "QMMA.SF(0x47A) vs IMMA.SF(0x47E): differ at bit[2] only (FP vs INT input)",
-    "pipeline_dual_issue": "IMMA.SF (INT_ARITH) can execute in parallel with IMMA/QMMA/HMMA (HMMA pipeline)",
+    "identity": "Historical opcode 0x47e hypothesis; IMMA.SF identity and operand semantics unproven",
+    "method": "Historical opcode sweep classified nonzero output as OK without a numerical oracle; the mnemonic was assigned by analogy",
+    "opcode_pattern": "0x47a and 0x47e differ at bit2; that fact does not establish instruction identity or execution resources",
+    "pipeline_dual_issue": "UNVERIFIED: no validated native form or IMMA.SF versus QMMA/HMMA overlap measurement is retained",
     "sass_hex_example": {
-     "note": "Patched from IMMA(0x237), operand layout needs further RE for proper scale operands"
-    }
+     "note": "Unvalidated patched candidate; operand/scale mapping and native mnemonic require independent RE before hardware use"
+    },
+    "status": "unvalidated_historical_hypothesis"
    },
    "base_op": "IMMA.SF.16832.U8.U8",
    "mod_groups": {
     "": {
-     "_source": "session7: IMMA.SF = block-scaled INT8 MMA, hardware-verified on RTX 5090",
+     "_source": "Unverified historical opcode0x47e candidate; prior silicon label has no retained numerical or native-mnemonic validation",
      "and_base": "0x600000000000747e",
      "count": 1,
      "fields": [
@@ -246147,16 +246148,35 @@
    },
    "operand_sig": "R_R_R_R_R_R_UR",
    "scheduling": {
-    "confidence": "hardware_verified",
-    "latency_source": "inferred_from_QMMA.SF",
+    "confidence": "unverified",
+    "latency_source": "none: historical inference from QMMA.SF was not a measured IMMA.SF latency",
     "opcode_id": null,
-    "pipe_class": 37,
-    "pipe_name": "INT_ARITH",
-    "read_latency": 0,
-    "res_busy_a": 0,
-    "res_busy_b": 12,
-    "stall_base": 0,
-    "write_latency": 0
+    "_note": "Former pipeline and timing values are preserved under _historical_unvalidated_claims only; do not use as measured scheduling facts."
+   },
+   "_historical_unvalidated_claims": {
+    "discovery": {
+     "date": "2026-03-26",
+     "identity": "Block-scaled INT8 MMA on INT_ARITH pipeline (dual-issue with HMMA)",
+     "method": "session7: opcode 0x47E = IMMA | bit[10] (SF mode), hardware-verified",
+     "opcode_pattern": "QMMA.SF(0x47A) vs IMMA.SF(0x47E): differ at bit[2] only (FP vs INT input)",
+     "pipeline_dual_issue": "IMMA.SF (INT_ARITH) can execute in parallel with IMMA/QMMA/HMMA (HMMA pipeline)",
+     "sass_hex_example": {
+      "note": "Patched from IMMA(0x237), operand layout needs further RE for proper scale operands"
+     }
+    },
+    "scheduling": {
+     "confidence": "hardware_verified",
+     "latency_source": "inferred_from_QMMA.SF",
+     "opcode_id": null,
+     "pipe_class": 37,
+     "pipe_name": "INT_ARITH",
+     "read_latency": 0,
+     "res_busy_a": 0,
+     "res_busy_b": 12,
+     "stall_base": 0,
+     "write_latency": 0
+    },
+    "encoding_source": "session7: IMMA.SF = block-scaled INT8 MMA, hardware-verified on RTX 5090"
    }
   },
   "IMMA.SP.16832.S8.S8_R_R_R_R_R_II": {

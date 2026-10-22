@@ -2,7 +2,7 @@
 // rc=2 fail-closed. Evidence: work/bug476/{arb476_law.json (72 sondy x4) + arb476b_law.json (4 combo), patch476_log.json, canon_sim476/ vs canon_pre476/}.
 // BUG-476: plain ELL2.256 NA-side graft (b75 .64 / LTC [74:73] / b80 CONSTANT/MMIO) + 476b fantom-_II claim_forbid.
 // Vendor law: AGREE EVERY x4 poza b81-LDG era-split (standing). Korpus ab240: ZERO nosnikow (census476).
-pub const CANON476: &str = "463a648"; // FLIP476b (F2-iter292 BUG-476, canonical c88778e): pending przepiete na realny commit
+pub const CANON476: &str = "9c0e4ce"; // FLIP476b (F2-iter292 BUG-476, canonical c88778e): pending przepiete na realny commit
 
 /// HEAL476: (word, leg, new_key, vendor_text, tag) -- NA-klone 476a dekoduja tekst vendora; cold==HOLE
 pub static HEAL476: &[(u128, &str, &str, &str, &str)] = &[

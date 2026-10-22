@@ -150,7 +150,7 @@ fn t459a_2_mint_junk_census_source() {
     let sm120 = &src["tables"]["sm120.json"];
     assert_eq!(
         sm120["base_sha256"].as_str(),
-        Some("693cbf52034be5ad6c07b5a1a84c3be5bbc0a04b4839ece55b995ba686314a1f"),
+        Some("2580cfe2057acb315e2b8ad85a85cb61c3b74a62eb0037829161c7790fc0af3a"),
         "SM120 source digest drift"
     );
     assert_eq!(sm120["instruction_forms"].as_u64(), Some(16133));

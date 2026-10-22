@@ -253,5 +253,5 @@ fn t466_8_refuse_legacy_desc_form() {
 #[test]
 fn t466_9_canonical_pin() {
     assert_eq!(CANON466.len(), 40);
-    assert!(CANON466.starts_with("463a648"));
+    assert!(CANON466.starts_with("9c0e4ce"));
 }

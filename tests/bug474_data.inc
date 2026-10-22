@@ -1,4 +1,4 @@
-pub const CANON474: &str = "463a648"; // FLIP474b (F2-iter286 BUG-474, canonical 68ac5aa): pending przepiete na realny commit
+pub const CANON474: &str = "9c0e4ce"; // FLIP474b (F2-iter286 BUG-474, canonical 68ac5aa): pending przepiete na realny commit
 /// HEAL 732 / ANCH 102 / KILL 24 / EDGE 2 / MINT 10 / MINTELIDE 20 / ENCTAIL 5 / MINTDESC 7 (skip-b060 2) -- gen474pins.py rc=2; werdykty z nvdisasm 13.3.73 law/claim474.
 pub static HEAL474: &[(u128, &str, &str)] = &[
     // EF_pinv1->LDG.E.EF.EFL2.256_R_R_ARURI_II_P
