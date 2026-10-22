@@ -178,6 +178,10 @@ fn t474_6b_mintdesc_sealed_parity() {
 /// flip474b -- TESTOWO zawsze fail-closed na drift).
 #[test]
 fn t474_7_census_and_source() {
+    // Current byte-pinned cut; historical fixture provenance remains unchanged.
+    const CURRENT_VENDORED_CANON: &str = "afa885f47a1c32ac023ba3c7c9b8eb9876f20277";
+    assert_eq!(CANON474, "9c0e4ce", "historical fixture revision drift");
+
     for (leg, want) in CENSUS474 {
         let raw: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(format!("tables/{leg}.json")).unwrap())
@@ -188,13 +192,13 @@ fn t474_7_census_and_source() {
     let src: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        src["base_revision"].as_str().unwrap().starts_with(CANON474),
+        src["base_revision"].as_str().unwrap().starts_with(CURRENT_VENDORED_CANON),
         "SOURCE pin drift po flipie"
     );
     // Structured provenance is emitted by sync_table.py; historical free-text
     // flip notes are not part of its manifest schema.
     assert_eq!(src["tables"]["sm120.json"]["base_sha256"],
-        "2580cfe2057acb315e2b8ad85a85cb61c3b74a62eb0037829161c7790fc0af3a");
+        "31a6320989bb20abe23ce7cd52a3e19f752929ee26e40b49610cb0310dbda55e");
     assert_eq!(src["tables"]["sm120.json"]["instruction_forms"], 16133);
-    assert_eq!(src["tables"]["sm120.json"]["encoding_variants"], 20831);
+    assert_eq!(src["tables"]["sm120.json"]["encoding_variants"], 20837);
 }

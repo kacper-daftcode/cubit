@@ -101,6 +101,10 @@ fn t459a_1_decode_matrix() {
 /// JUNK row = encode-side.
 #[test]
 fn t459a_2_mint_junk_census_source() {
+    // Current byte-pinned cut; historical fixture provenance remains unchanged.
+    const CURRENT_VENDORED_CANON: &str = "afa885f47a1c32ac023ba3c7c9b8eb9876f20277";
+    assert_eq!(CANON459A, "9c0e4ce", "historical fixture revision drift");
+
     const CTL: u128 = !((1u128 << 96) - 1);
     for (w, leg, text, tag, _scope) in MINT459A {
         let m = enc(leg, text).unwrap_or_else(|e| panic!("[{leg}] mint {tag} err {e}"));
@@ -124,7 +128,13 @@ fn t459a_2_mint_junk_census_source() {
             .values()
             .map(|v| v["mod_groups"].as_object().map(|m| m.len()).unwrap_or(0))
             .sum();
-        assert_eq!(variants, *want_variants, "[{leg}] variants census drift");
+        // Six measured SM120 LDSM.8.MT1616 x1/x2 groups are new;
+        // the historical CENSUS array and every other architecture stay exact.
+        if *leg == "sm120" {
+            assert_eq!(*want_variants, 20831, "historical SM120 variants snapshot drift");
+        }
+        let current_variants = *want_variants + if *leg == "sm120" { 6 } else { 0 };
+        assert_eq!(variants, current_variants, "[{leg}] variants census drift");
         let cf = ins
             .values()
             .filter_map(|v| v["mod_groups"].as_object())
@@ -144,17 +154,17 @@ fn t459a_2_mint_junk_census_source() {
         src["base_revision"]
             .as_str()
             .unwrap()
-            .starts_with(CANON459A),
+            .starts_with(CURRENT_VENDORED_CANON),
         "SOURCE pin drift po flipie 459a"
     );
     let sm120 = &src["tables"]["sm120.json"];
     assert_eq!(
         sm120["base_sha256"].as_str(),
-        Some("2580cfe2057acb315e2b8ad85a85cb61c3b74a62eb0037829161c7790fc0af3a"),
+        Some("31a6320989bb20abe23ce7cd52a3e19f752929ee26e40b49610cb0310dbda55e"),
         "SM120 source digest drift"
     );
     assert_eq!(sm120["instruction_forms"].as_u64(), Some(16133));
-    assert_eq!(sm120["encoding_variants"].as_u64(), Some(20831));
+    assert_eq!(sm120["encoding_variants"].as_u64(), Some(20837));
 }
 
 /// NVIDIA SM120 distinguishes X by bit74. Non-X ignores the carry selector

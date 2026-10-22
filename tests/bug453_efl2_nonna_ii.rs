@@ -296,7 +296,7 @@ fn t453_8_census_and_canonical() {
     let src: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        src["base_revision"].as_str().unwrap().starts_with("9c0e4ce"),
+        src["base_revision"].as_str().unwrap().starts_with("afa885f47a1c32ac023ba3c7c9b8eb9876f20277"),
         "SOURCE.json must pin canonical {CANON453} (= BUG-453 graft, ride-after e03e0348d98b9d20ffb4ca557cfc6eae625cf995 = BUG-452 narrow): {:?}",
         src["base_revision"]
     );

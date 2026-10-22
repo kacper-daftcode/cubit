@@ -295944,6 +295944,80 @@
      "variable_mask": "0xfce000000000000f80000bffc0000",
      "_src": "bug429-2026-09-09",
      "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+    },
+    "8,MT1616": {
+     "and_base": "0x13800000000000000783b",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xfce000000000000f80000bffc0000",
+     "_src": "sm120-ldsm8-2026-10-22",
+     "_note": "LDSM.8.MT1616 x1/x2: CUDA13.1 PTX8-bit transposed matrix-load compiler anchors and bounded NVIDIA full-word datatype/count/address/register/guard probes. Data-type enum bits75:78=7, shape/count/address fields inherit measured sibling geometry. No mask widening, raw fields, or completion. x4, INVALID3 and other datatype enums remain unclaimed. No execution, latency or pipeline claim from decoder probes."
+    },
+    "2,8,MT1616": {
+     "and_base": "0x13900000000000000783b",
+     "count": null,
+     "fields": [
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2
+      },
+      {
+       "_src": "bug429-2026-09-09",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0xfce000000000000f80000bffc0000",
+     "_src": "sm120-ldsm8-2026-10-22",
+     "_note": "LDSM.8.MT1616 x1/x2: CUDA13.1 PTX8-bit transposed matrix-load compiler anchors and bounded NVIDIA full-word datatype/count/address/register/guard probes. Data-type enum bits75:78=7, shape/count/address fields inherit measured sibling geometry. No mask widening, raw fields, or completion. x4, INVALID3 and other datatype enums remain unclaimed. No execution, latency or pipeline claim from decoder probes."
     }
    },
    "operand_sig": "R_ARI",
@@ -296624,6 +296698,94 @@
      "variable_mask": "0x1fffe000000000001fc001ffffc0000",
      "_src": "bug426-2026-09-09",
      "_note": "BUG-426: LDSM M832 count closure (.2=b72/.4=b73) on the shared-bracket frames (arb426 66 probes + arb424 parity xchk, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0). Donor = frame-own 16,M832 verbatim (fields deep-copied), and_base |= measured count delta, vm verbatim, count=None. INVALID3/INVALID5/6/7 loud glyphs stay unclaimed; 429 ARI enum/count census NOT grafted (registration only); 423-era singles UNTOUCHED."
+    },
+    "8,MT1616": {
+     "and_base": "0x8013800000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+     "_src": "sm120-ldsm8-2026-10-22",
+     "_note": "LDSM.8.MT1616 x1/x2: CUDA13.1 PTX8-bit transposed matrix-load compiler anchors and bounded NVIDIA full-word datatype/count/address/register/guard probes. Data-type enum bits75:78=7, shape/count/address fields inherit measured sibling geometry. No mask widening, raw fields, or completion. x4, INVALID3 and other datatype enums remain unclaimed. No execution, latency or pipeline claim from decoder probes."
+    },
+    "2,8,MT1616": {
+     "and_base": "0x8013900000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+     "_src": "sm120-ldsm8-2026-10-22",
+     "_note": "LDSM.8.MT1616 x1/x2: CUDA13.1 PTX8-bit transposed matrix-load compiler anchors and bounded NVIDIA full-word datatype/count/address/register/guard probes. Data-type enum bits75:78=7, shape/count/address fields inherit measured sibling geometry. No mask widening, raw fields, or completion. x4, INVALID3 and other datatype enums remain unclaimed. No execution, latency or pipeline claim from decoder probes."
     }
    },
    "operand_sig": "R_ARURI",
@@ -297199,6 +297361,80 @@
      "variable_mask": "0x1fffe00000000000000000000000000",
      "_src": "bug426-2026-09-09",
      "_note": "BUG-426: LDSM M832 count closure (.2=b72/.4=b73) on the shared-bracket frames (arb426 66 probes + arb424 parity xchk, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0). Donor = frame-own 16,M832 verbatim (fields deep-copied), and_base |= measured count delta, vm verbatim, count=None. INVALID3/INVALID5/6/7 loud glyphs stay unclaimed; 429 ARI enum/count census NOT grafted (registration only); 423-era singles UNTOUCHED."
+    },
+    "8,MT1616": {
+     "and_base": "0x801380000000000ff00083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe00000000000000000000000000",
+     "_src": "sm120-ldsm8-2026-10-22",
+     "_note": "LDSM.8.MT1616 x1/x2: CUDA13.1 PTX8-bit transposed matrix-load compiler anchors and bounded NVIDIA full-word datatype/count/address/register/guard probes. Data-type enum bits75:78=7, shape/count/address fields inherit measured sibling geometry. No mask widening, raw fields, or completion. x4, INVALID3 and other datatype enums remain unclaimed. No execution, latency or pipeline claim from decoder probes."
+    },
+    "2,8,MT1616": {
+     "and_base": "0x801390000000000ff00083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "bug421422-2026-09-09"
+      }
+     ],
+     "variable_mask": "0x1fffe00000000000000000000000000",
+     "_src": "sm120-ldsm8-2026-10-22",
+     "_note": "LDSM.8.MT1616 x1/x2: CUDA13.1 PTX8-bit transposed matrix-load compiler anchors and bounded NVIDIA full-word datatype/count/address/register/guard probes. Data-type enum bits75:78=7, shape/count/address fields inherit measured sibling geometry. No mask widening, raw fields, or completion. x4, INVALID3 and other datatype enums remain unclaimed. No execution, latency or pipeline claim from decoder probes."
     }
    },
    "operand_sig": "R_AURI",

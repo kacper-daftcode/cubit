@@ -188,11 +188,14 @@ fn t438_6_masked_mints_x4() {
 /// t438_7: graft invariants on the tables themselves + manifest pin.
 #[test]
 fn t438_7_graft_invariants_and_manifest() {
+    // Current byte-pinned cut; historical fixture provenance remains unchanged.
+    const CURRENT_VENDORED_CANON: &str = "afa885f47a1c32ac023ba3c7c9b8eb9876f20277";
+
     let man: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     let pin = man["base_revision"].as_str().unwrap().to_string();
     assert!(
-        pin.starts_with("9c0e4ce"), // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+        pin.starts_with(CURRENT_VENDORED_CANON), // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
         "SOURCE.json must pin canonical 57e7ecd (= BUG-447, ride-after e8d1af3 = BUG-443, 57e7ecd = BUG-442, ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439): {pin}"
     );
     assert!(CANON438.starts_with("9c0e4ce"), "CANON438 const drift");

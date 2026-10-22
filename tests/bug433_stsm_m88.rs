@@ -180,11 +180,15 @@ fn t433_5_mints_refuse_canon() {
 /// the vendored tables carry the new sm120 key + the U16 relax.
 #[test]
 fn t433_6_source_manifest_and_table_presence() {
+    // Current byte-pinned cut; historical fixture provenance remains unchanged.
+    const CURRENT_VENDORED_CANON: &str = "afa885f47a1c32ac023ba3c7c9b8eb9876f20277";
+    assert_eq!(CANON433, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
+
     let src: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert_eq!(
         src["base_revision"].as_str().unwrap(),
-        CANON433,
+        CURRENT_VENDORED_CANON,
         "SOURCE.json canonical drift (ride-chain ffa3244 -> 57e7ecd = BUG-442 F2-iter246)"
     );
     let t = tab("sm120");

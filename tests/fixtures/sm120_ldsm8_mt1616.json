@@ -1,0 +1,3840 @@
+{
+  "schema": 1,
+  "scope": "SM120only, CPU_NVIDIAdecoder_and_assembly_evidence_notGPUsemantics_or_latency",
+  "canonical_table_sha256": "31a6320989bb20abe23ce7cd52a3e19f752929ee26e40b49610cb0310dbda55e",
+  "source": "sm120-ldsm8-2026-10-22",
+  "provenance": {
+    "fields_input.jsonl": "a26fde087c34ba89e847d94b4e925ac24a5f1d1268211b8fe43b67a7836374fb",
+    "fields_verified.jsonl": "e45767e7bf425292b0001e8a97652b685cd8c80061b0c9731e6a2a244fdd6b42",
+    "type_count.bin": "660bcbd2bc43b47823a2daaeb31589a60f50bbd5f26ed8aea8ce40b14a719420",
+    "type_count.nvidia.sass": "224e862f21204ffc9fd871f5a9b4c6ae0b9548854362c16ac0cd0edd5a798af8",
+    "nv_input.jsonl": "fa06521d8798b4fabde8253e028b2c3ab5fb0470906082fb6aff69da86356150",
+    "probe.ptx": "471954b212ad7d5b26c0c78c6a15fe76a4a445f604e388ecd9a35671039ecabb"
+  },
+  "field_witnesses": [
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000001380000000000040c783b",
+      "expected": "LDSM.8.MT1616 R12, [R4]",
+      "oracle_pc": 0,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R4]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 0,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000001380000000000040c083b",
+      "expected": "@P0 LDSM.8.MT1616 R12, [R4]",
+      "oracle_pc": 16,
+      "nvdisasm": "@P0 LDSM.8.MT1616 R12, [R4]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 3,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000001380000000000040c383b",
+      "expected": "@P3 LDSM.8.MT1616 R12, [R4]",
+      "oracle_pc": 32,
+      "nvdisasm": "@P3 LDSM.8.MT1616 R12, [R4]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 11,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000001380000000000040cb83b",
+      "expected": "@!P3 LDSM.8.MT1616 R12, [R4]",
+      "oracle_pc": 48,
+      "nvdisasm": "@!P3 LDSM.8.MT1616 R12, [R4]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 7,
+      "dst": 0,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620000013800000000000400783b",
+      "expected": "LDSM.8.MT1616 R0, [R4]",
+      "oracle_pc": 64,
+      "nvdisasm": "LDSM.8.MT1616 R0, [R4]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 7,
+      "dst": 4,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620000013800000000000404783b",
+      "expected": "LDSM.8.MT1616 R4, [R4]",
+      "oracle_pc": 80,
+      "nvdisasm": "LDSM.8.MT1616 R4, [R4]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 7,
+      "dst": 64,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620000013800000000000440783b",
+      "expected": "LDSM.8.MT1616 R64, [R4]",
+      "oracle_pc": 96,
+      "nvdisasm": "LDSM.8.MT1616 R64, [R4]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 7,
+      "dst": 128,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620000013800000000000480783b",
+      "expected": "LDSM.8.MT1616 R128, [R4]",
+      "oracle_pc": 112,
+      "nvdisasm": "LDSM.8.MT1616 R128, [R4]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 7,
+      "dst": 248,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e6200000138000000000004f8783b",
+      "expected": "LDSM.8.MT1616 R248, [R4]",
+      "oracle_pc": 128,
+      "nvdisasm": "LDSM.8.MT1616 R248, [R4]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 0,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000001380000000000000c783b",
+      "expected": "LDSM.8.MT1616 R12, [R0]",
+      "oracle_pc": 144,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R0]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 7,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000001380000000000070c783b",
+      "expected": "LDSM.8.MT1616 R12, [R7]",
+      "oracle_pc": 160,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R7]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 127,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620000013800000000007f0c783b",
+      "expected": "LDSM.8.MT1616 R12, [R127]",
+      "oracle_pc": 176,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R127]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 16,
+      "code": "000e62000001380000001000040c783b",
+      "expected": "LDSM.8.MT1616 R12, [R4+0x10]",
+      "oracle_pc": 192,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R4+0x10]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 128,
+      "code": "000e62000001380000008000040c783b",
+      "expected": "LDSM.8.MT1616 R12, [R4+0x80]",
+      "oracle_pc": 208,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R4+0x80]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 4096,
+      "code": "000e62000001380000100000040c783b",
+      "expected": "LDSM.8.MT1616 R12, [R4+0x1000]",
+      "oracle_pc": 224,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R4+0x1000]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 8388592,
+      "code": "000e6200000138007ffff000040c783b",
+      "expected": "LDSM.8.MT1616 R12, [R4+0x7ffff0]",
+      "oracle_pc": 240,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R4+0x7ffff0]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": -16,
+      "code": "000e620000013800fffff000040c783b",
+      "expected": "LDSM.8.MT1616 R12, [R4-0x10]",
+      "oracle_pc": 256,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R4+-0x10]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": -4096,
+      "code": "000e620000013800fff00000040c783b",
+      "expected": "LDSM.8.MT1616 R12, [R4-0x1000]",
+      "oracle_pc": 272,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R4+-0x1000]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 0,
+      "dst": 4,
+      "base": 7,
+      "uniform": 17,
+      "imm": 128,
+      "code": "000e620000013800000080000704083b",
+      "expected": "@P0 LDSM.8.MT1616 R4, [R7+0x80]",
+      "oracle_pc": 288,
+      "nvdisasm": "@P0 LDSM.8.MT1616 R4, [R7+0x80]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 11,
+      "dst": 128,
+      "base": 127,
+      "uniform": 32,
+      "imm": -16,
+      "code": "000e620000013800fffff0007f80b83b",
+      "expected": "@!P3 LDSM.8.MT1616 R128, [R127-0x10]",
+      "oracle_pc": 304,
+      "nvdisasm": "@!P3 LDSM.8.MT1616 R128, [R127+-0x10]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 3,
+      "dst": 248,
+      "base": 0,
+      "uniform": 62,
+      "imm": 4096,
+      "code": "000e6200000138000010000000f8383b",
+      "expected": "@P3 LDSM.8.MT1616 R248, [R0+0x1000]",
+      "oracle_pc": 320,
+      "nvdisasm": "@P3 LDSM.8.MT1616 R248, [R0+0x1000]"
+    },
+    {
+      "frame": "ARI",
+      "count": 1,
+      "guard": 7,
+      "dst": 64,
+      "base": 7,
+      "uniform": 0,
+      "imm": -4096,
+      "code": "000e620000013800fff000000740783b",
+      "expected": "LDSM.8.MT1616 R64, [R7-0x1000]",
+      "oracle_pc": 336,
+      "nvdisasm": "LDSM.8.MT1616 R64, [R7+-0x1000]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000001390000000000040c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R4]",
+      "oracle_pc": 352,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R4]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 0,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000001390000000000040c083b",
+      "expected": "@P0 LDSM.8.MT1616.2 R12, [R4]",
+      "oracle_pc": 368,
+      "nvdisasm": "@P0 LDSM.8.MT1616.2 R12, [R4]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 3,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000001390000000000040c383b",
+      "expected": "@P3 LDSM.8.MT1616.2 R12, [R4]",
+      "oracle_pc": 384,
+      "nvdisasm": "@P3 LDSM.8.MT1616.2 R12, [R4]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 11,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000001390000000000040cb83b",
+      "expected": "@!P3 LDSM.8.MT1616.2 R12, [R4]",
+      "oracle_pc": 400,
+      "nvdisasm": "@!P3 LDSM.8.MT1616.2 R12, [R4]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 7,
+      "dst": 0,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620000013900000000000400783b",
+      "expected": "LDSM.8.MT1616.2 R0, [R4]",
+      "oracle_pc": 416,
+      "nvdisasm": "LDSM.8.MT1616.2 R0, [R4]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 7,
+      "dst": 4,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620000013900000000000404783b",
+      "expected": "LDSM.8.MT1616.2 R4, [R4]",
+      "oracle_pc": 432,
+      "nvdisasm": "LDSM.8.MT1616.2 R4, [R4]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 7,
+      "dst": 64,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620000013900000000000440783b",
+      "expected": "LDSM.8.MT1616.2 R64, [R4]",
+      "oracle_pc": 448,
+      "nvdisasm": "LDSM.8.MT1616.2 R64, [R4]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 7,
+      "dst": 128,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620000013900000000000480783b",
+      "expected": "LDSM.8.MT1616.2 R128, [R4]",
+      "oracle_pc": 464,
+      "nvdisasm": "LDSM.8.MT1616.2 R128, [R4]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 7,
+      "dst": 248,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e6200000139000000000004f8783b",
+      "expected": "LDSM.8.MT1616.2 R248, [R4]",
+      "oracle_pc": 480,
+      "nvdisasm": "LDSM.8.MT1616.2 R248, [R4]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 0,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000001390000000000000c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R0]",
+      "oracle_pc": 496,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R0]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 7,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000001390000000000070c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R7]",
+      "oracle_pc": 512,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R7]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 127,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620000013900000000007f0c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R127]",
+      "oracle_pc": 528,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R127]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 16,
+      "code": "000e62000001390000001000040c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R4+0x10]",
+      "oracle_pc": 544,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R4+0x10]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 128,
+      "code": "000e62000001390000008000040c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R4+0x80]",
+      "oracle_pc": 560,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R4+0x80]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 4096,
+      "code": "000e62000001390000100000040c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R4+0x1000]",
+      "oracle_pc": 576,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R4+0x1000]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 8388592,
+      "code": "000e6200000139007ffff000040c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R4+0x7ffff0]",
+      "oracle_pc": 592,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R4+0x7ffff0]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": -16,
+      "code": "000e620000013900fffff000040c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R4-0x10]",
+      "oracle_pc": 608,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R4+-0x10]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": -4096,
+      "code": "000e620000013900fff00000040c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R4-0x1000]",
+      "oracle_pc": 624,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R4+-0x1000]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 0,
+      "dst": 4,
+      "base": 7,
+      "uniform": 17,
+      "imm": 128,
+      "code": "000e620000013900000080000704083b",
+      "expected": "@P0 LDSM.8.MT1616.2 R4, [R7+0x80]",
+      "oracle_pc": 640,
+      "nvdisasm": "@P0 LDSM.8.MT1616.2 R4, [R7+0x80]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 11,
+      "dst": 128,
+      "base": 127,
+      "uniform": 32,
+      "imm": -16,
+      "code": "000e620000013900fffff0007f80b83b",
+      "expected": "@!P3 LDSM.8.MT1616.2 R128, [R127-0x10]",
+      "oracle_pc": 656,
+      "nvdisasm": "@!P3 LDSM.8.MT1616.2 R128, [R127+-0x10]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 3,
+      "dst": 248,
+      "base": 0,
+      "uniform": 62,
+      "imm": 4096,
+      "code": "000e6200000139000010000000f8383b",
+      "expected": "@P3 LDSM.8.MT1616.2 R248, [R0+0x1000]",
+      "oracle_pc": 672,
+      "nvdisasm": "@P3 LDSM.8.MT1616.2 R248, [R0+0x1000]"
+    },
+    {
+      "frame": "ARI",
+      "count": 2,
+      "guard": 7,
+      "dst": 64,
+      "base": 7,
+      "uniform": 0,
+      "imm": -4096,
+      "code": "000e620000013900fff000000740783b",
+      "expected": "LDSM.8.MT1616.2 R64, [R7-0x1000]",
+      "oracle_pc": 688,
+      "nvdisasm": "LDSM.8.MT1616.2 R64, [R7+-0x1000]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801380000000005040c783b",
+      "expected": "LDSM.8.MT1616 R12, [R4+UR5]",
+      "oracle_pc": 704,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R4+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 0,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801380000000005040c083b",
+      "expected": "@P0 LDSM.8.MT1616 R12, [R4+UR5]",
+      "oracle_pc": 720,
+      "nvdisasm": "@P0 LDSM.8.MT1616 R12, [R4+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 3,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801380000000005040c383b",
+      "expected": "@P3 LDSM.8.MT1616 R12, [R4+UR5]",
+      "oracle_pc": 736,
+      "nvdisasm": "@P3 LDSM.8.MT1616 R12, [R4+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 11,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801380000000005040cb83b",
+      "expected": "@!P3 LDSM.8.MT1616 R12, [R4+UR5]",
+      "oracle_pc": 752,
+      "nvdisasm": "@!P3 LDSM.8.MT1616 R12, [R4+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 0,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620008013800000000050400783b",
+      "expected": "LDSM.8.MT1616 R0, [R4+UR5]",
+      "oracle_pc": 768,
+      "nvdisasm": "LDSM.8.MT1616 R0, [R4+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 4,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620008013800000000050404783b",
+      "expected": "LDSM.8.MT1616 R4, [R4+UR5]",
+      "oracle_pc": 784,
+      "nvdisasm": "LDSM.8.MT1616 R4, [R4+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 64,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620008013800000000050440783b",
+      "expected": "LDSM.8.MT1616 R64, [R4+UR5]",
+      "oracle_pc": 800,
+      "nvdisasm": "LDSM.8.MT1616 R64, [R4+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 128,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620008013800000000050480783b",
+      "expected": "LDSM.8.MT1616 R128, [R4+UR5]",
+      "oracle_pc": 816,
+      "nvdisasm": "LDSM.8.MT1616 R128, [R4+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 248,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e6200080138000000000504f8783b",
+      "expected": "LDSM.8.MT1616 R248, [R4+UR5]",
+      "oracle_pc": 832,
+      "nvdisasm": "LDSM.8.MT1616 R248, [R4+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 0,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801380000000005000c783b",
+      "expected": "LDSM.8.MT1616 R12, [R0+UR5]",
+      "oracle_pc": 848,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R0+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 7,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801380000000005070c783b",
+      "expected": "LDSM.8.MT1616 R12, [R7+UR5]",
+      "oracle_pc": 864,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R7+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 127,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620008013800000000057f0c783b",
+      "expected": "LDSM.8.MT1616 R12, [R127+UR5]",
+      "oracle_pc": 880,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R127+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 0,
+      "imm": 0,
+      "code": "000e62000801380000000000040c783b",
+      "expected": "LDSM.8.MT1616 R12, [R4+UR0]",
+      "oracle_pc": 896,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R4+UR0]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 17,
+      "imm": 0,
+      "code": "000e62000801380000000011040c783b",
+      "expected": "LDSM.8.MT1616 R12, [R4+UR17]",
+      "oracle_pc": 912,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R4+UR17]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 32,
+      "imm": 0,
+      "code": "000e62000801380000000020040c783b",
+      "expected": "LDSM.8.MT1616 R12, [R4+UR32]",
+      "oracle_pc": 928,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R4+UR32]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 62,
+      "imm": 0,
+      "code": "000e6200080138000000003e040c783b",
+      "expected": "LDSM.8.MT1616 R12, [R4+UR62]",
+      "oracle_pc": 944,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R4+UR62]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 16,
+      "code": "000e62000801380000001005040c783b",
+      "expected": "LDSM.8.MT1616 R12, [R4+UR5+0x10]",
+      "oracle_pc": 960,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R4+UR5+0x10]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 128,
+      "code": "000e62000801380000008005040c783b",
+      "expected": "LDSM.8.MT1616 R12, [R4+UR5+0x80]",
+      "oracle_pc": 976,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R4+UR5+0x80]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 4096,
+      "code": "000e62000801380000100005040c783b",
+      "expected": "LDSM.8.MT1616 R12, [R4+UR5+0x1000]",
+      "oracle_pc": 992,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R4+UR5+0x1000]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 8388592,
+      "code": "000e6200080138007ffff005040c783b",
+      "expected": "LDSM.8.MT1616 R12, [R4+UR5+0x7ffff0]",
+      "oracle_pc": 1008,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R4+UR5+0x7ffff0]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": -16,
+      "code": "000e620008013800fffff005040c783b",
+      "expected": "LDSM.8.MT1616 R12, [R4+UR5-0x10]",
+      "oracle_pc": 1024,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R4+UR5+-0x10]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": -4096,
+      "code": "000e620008013800fff00005040c783b",
+      "expected": "LDSM.8.MT1616 R12, [R4+UR5-0x1000]",
+      "oracle_pc": 1040,
+      "nvdisasm": "LDSM.8.MT1616 R12, [R4+UR5+-0x1000]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 0,
+      "dst": 4,
+      "base": 7,
+      "uniform": 17,
+      "imm": 128,
+      "code": "000e620008013800000080110704083b",
+      "expected": "@P0 LDSM.8.MT1616 R4, [R7+UR17+0x80]",
+      "oracle_pc": 1056,
+      "nvdisasm": "@P0 LDSM.8.MT1616 R4, [R7+UR17+0x80]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 11,
+      "dst": 128,
+      "base": 127,
+      "uniform": 32,
+      "imm": -16,
+      "code": "000e620008013800fffff0207f80b83b",
+      "expected": "@!P3 LDSM.8.MT1616 R128, [R127+UR32-0x10]",
+      "oracle_pc": 1072,
+      "nvdisasm": "@!P3 LDSM.8.MT1616 R128, [R127+UR32+-0x10]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 3,
+      "dst": 248,
+      "base": 0,
+      "uniform": 62,
+      "imm": 4096,
+      "code": "000e6200080138000010003e00f8383b",
+      "expected": "@P3 LDSM.8.MT1616 R248, [R0+UR62+0x1000]",
+      "oracle_pc": 1088,
+      "nvdisasm": "@P3 LDSM.8.MT1616 R248, [R0+UR62+0x1000]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 64,
+      "base": 7,
+      "uniform": 0,
+      "imm": -4096,
+      "code": "000e620008013800fff000000740783b",
+      "expected": "LDSM.8.MT1616 R64, [R7+UR0-0x1000]",
+      "oracle_pc": 1104,
+      "nvdisasm": "LDSM.8.MT1616 R64, [R7+UR0+-0x1000]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801390000000005040c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R4+UR5]",
+      "oracle_pc": 1120,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R4+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 0,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801390000000005040c083b",
+      "expected": "@P0 LDSM.8.MT1616.2 R12, [R4+UR5]",
+      "oracle_pc": 1136,
+      "nvdisasm": "@P0 LDSM.8.MT1616.2 R12, [R4+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 3,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801390000000005040c383b",
+      "expected": "@P3 LDSM.8.MT1616.2 R12, [R4+UR5]",
+      "oracle_pc": 1152,
+      "nvdisasm": "@P3 LDSM.8.MT1616.2 R12, [R4+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 11,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801390000000005040cb83b",
+      "expected": "@!P3 LDSM.8.MT1616.2 R12, [R4+UR5]",
+      "oracle_pc": 1168,
+      "nvdisasm": "@!P3 LDSM.8.MT1616.2 R12, [R4+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 0,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620008013900000000050400783b",
+      "expected": "LDSM.8.MT1616.2 R0, [R4+UR5]",
+      "oracle_pc": 1184,
+      "nvdisasm": "LDSM.8.MT1616.2 R0, [R4+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 4,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620008013900000000050404783b",
+      "expected": "LDSM.8.MT1616.2 R4, [R4+UR5]",
+      "oracle_pc": 1200,
+      "nvdisasm": "LDSM.8.MT1616.2 R4, [R4+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 64,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620008013900000000050440783b",
+      "expected": "LDSM.8.MT1616.2 R64, [R4+UR5]",
+      "oracle_pc": 1216,
+      "nvdisasm": "LDSM.8.MT1616.2 R64, [R4+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 128,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620008013900000000050480783b",
+      "expected": "LDSM.8.MT1616.2 R128, [R4+UR5]",
+      "oracle_pc": 1232,
+      "nvdisasm": "LDSM.8.MT1616.2 R128, [R4+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 248,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e6200080139000000000504f8783b",
+      "expected": "LDSM.8.MT1616.2 R248, [R4+UR5]",
+      "oracle_pc": 1248,
+      "nvdisasm": "LDSM.8.MT1616.2 R248, [R4+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 0,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801390000000005000c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R0+UR5]",
+      "oracle_pc": 1264,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R0+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 7,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801390000000005070c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R7+UR5]",
+      "oracle_pc": 1280,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R7+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 127,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e620008013900000000057f0c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R127+UR5]",
+      "oracle_pc": 1296,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R127+UR5]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 0,
+      "imm": 0,
+      "code": "000e62000801390000000000040c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R4+UR0]",
+      "oracle_pc": 1312,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R4+UR0]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 17,
+      "imm": 0,
+      "code": "000e62000801390000000011040c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R4+UR17]",
+      "oracle_pc": 1328,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R4+UR17]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 32,
+      "imm": 0,
+      "code": "000e62000801390000000020040c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R4+UR32]",
+      "oracle_pc": 1344,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R4+UR32]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 62,
+      "imm": 0,
+      "code": "000e6200080139000000003e040c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R4+UR62]",
+      "oracle_pc": 1360,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R4+UR62]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 16,
+      "code": "000e62000801390000001005040c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R4+UR5+0x10]",
+      "oracle_pc": 1376,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R4+UR5+0x10]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 128,
+      "code": "000e62000801390000008005040c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R4+UR5+0x80]",
+      "oracle_pc": 1392,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R4+UR5+0x80]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 4096,
+      "code": "000e62000801390000100005040c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R4+UR5+0x1000]",
+      "oracle_pc": 1408,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R4+UR5+0x1000]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 8388592,
+      "code": "000e6200080139007ffff005040c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R4+UR5+0x7ffff0]",
+      "oracle_pc": 1424,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R4+UR5+0x7ffff0]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": -16,
+      "code": "000e620008013900fffff005040c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R4+UR5-0x10]",
+      "oracle_pc": 1440,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R4+UR5+-0x10]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": -4096,
+      "code": "000e620008013900fff00005040c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [R4+UR5-0x1000]",
+      "oracle_pc": 1456,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R4+UR5+-0x1000]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 0,
+      "dst": 4,
+      "base": 7,
+      "uniform": 17,
+      "imm": 128,
+      "code": "000e620008013900000080110704083b",
+      "expected": "@P0 LDSM.8.MT1616.2 R4, [R7+UR17+0x80]",
+      "oracle_pc": 1472,
+      "nvdisasm": "@P0 LDSM.8.MT1616.2 R4, [R7+UR17+0x80]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 11,
+      "dst": 128,
+      "base": 127,
+      "uniform": 32,
+      "imm": -16,
+      "code": "000e620008013900fffff0207f80b83b",
+      "expected": "@!P3 LDSM.8.MT1616.2 R128, [R127+UR32-0x10]",
+      "oracle_pc": 1488,
+      "nvdisasm": "@!P3 LDSM.8.MT1616.2 R128, [R127+UR32+-0x10]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 3,
+      "dst": 248,
+      "base": 0,
+      "uniform": 62,
+      "imm": 4096,
+      "code": "000e6200080139000010003e00f8383b",
+      "expected": "@P3 LDSM.8.MT1616.2 R248, [R0+UR62+0x1000]",
+      "oracle_pc": 1504,
+      "nvdisasm": "@P3 LDSM.8.MT1616.2 R248, [R0+UR62+0x1000]"
+    },
+    {
+      "frame": "ARURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 64,
+      "base": 7,
+      "uniform": 0,
+      "imm": -4096,
+      "code": "000e620008013900fff000000740783b",
+      "expected": "LDSM.8.MT1616.2 R64, [R7+UR0-0x1000]",
+      "oracle_pc": 1520,
+      "nvdisasm": "LDSM.8.MT1616.2 R64, [R7+UR0+-0x1000]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801380000000005ff0c783b",
+      "expected": "LDSM.8.MT1616 R12, [UR5]",
+      "oracle_pc": 1536,
+      "nvdisasm": "LDSM.8.MT1616 R12, [UR5]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 0,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801380000000005ff0c083b",
+      "expected": "@P0 LDSM.8.MT1616 R12, [UR5]",
+      "oracle_pc": 1552,
+      "nvdisasm": "@P0 LDSM.8.MT1616 R12, [UR5]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 3,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801380000000005ff0c383b",
+      "expected": "@P3 LDSM.8.MT1616 R12, [UR5]",
+      "oracle_pc": 1568,
+      "nvdisasm": "@P3 LDSM.8.MT1616 R12, [UR5]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 11,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801380000000005ff0cb83b",
+      "expected": "@!P3 LDSM.8.MT1616 R12, [UR5]",
+      "oracle_pc": 1584,
+      "nvdisasm": "@!P3 LDSM.8.MT1616 R12, [UR5]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 0,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801380000000005ff00783b",
+      "expected": "LDSM.8.MT1616 R0, [UR5]",
+      "oracle_pc": 1600,
+      "nvdisasm": "LDSM.8.MT1616 R0, [UR5]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 4,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801380000000005ff04783b",
+      "expected": "LDSM.8.MT1616 R4, [UR5]",
+      "oracle_pc": 1616,
+      "nvdisasm": "LDSM.8.MT1616 R4, [UR5]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 64,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801380000000005ff40783b",
+      "expected": "LDSM.8.MT1616 R64, [UR5]",
+      "oracle_pc": 1632,
+      "nvdisasm": "LDSM.8.MT1616 R64, [UR5]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 128,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801380000000005ff80783b",
+      "expected": "LDSM.8.MT1616 R128, [UR5]",
+      "oracle_pc": 1648,
+      "nvdisasm": "LDSM.8.MT1616 R128, [UR5]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 248,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801380000000005fff8783b",
+      "expected": "LDSM.8.MT1616 R248, [UR5]",
+      "oracle_pc": 1664,
+      "nvdisasm": "LDSM.8.MT1616 R248, [UR5]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 0,
+      "imm": 0,
+      "code": "000e62000801380000000000ff0c783b",
+      "expected": "LDSM.8.MT1616 R12, [UR0]",
+      "oracle_pc": 1680,
+      "nvdisasm": "LDSM.8.MT1616 R12, [UR0]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 17,
+      "imm": 0,
+      "code": "000e62000801380000000011ff0c783b",
+      "expected": "LDSM.8.MT1616 R12, [UR17]",
+      "oracle_pc": 1696,
+      "nvdisasm": "LDSM.8.MT1616 R12, [UR17]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 32,
+      "imm": 0,
+      "code": "000e62000801380000000020ff0c783b",
+      "expected": "LDSM.8.MT1616 R12, [UR32]",
+      "oracle_pc": 1712,
+      "nvdisasm": "LDSM.8.MT1616 R12, [UR32]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 62,
+      "imm": 0,
+      "code": "000e6200080138000000003eff0c783b",
+      "expected": "LDSM.8.MT1616 R12, [UR62]",
+      "oracle_pc": 1728,
+      "nvdisasm": "LDSM.8.MT1616 R12, [UR62]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 16,
+      "code": "000e62000801380000001005ff0c783b",
+      "expected": "LDSM.8.MT1616 R12, [UR5+0x10]",
+      "oracle_pc": 1744,
+      "nvdisasm": "LDSM.8.MT1616 R12, [UR5+0x10]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 128,
+      "code": "000e62000801380000008005ff0c783b",
+      "expected": "LDSM.8.MT1616 R12, [UR5+0x80]",
+      "oracle_pc": 1760,
+      "nvdisasm": "LDSM.8.MT1616 R12, [UR5+0x80]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 4096,
+      "code": "000e62000801380000100005ff0c783b",
+      "expected": "LDSM.8.MT1616 R12, [UR5+0x1000]",
+      "oracle_pc": 1776,
+      "nvdisasm": "LDSM.8.MT1616 R12, [UR5+0x1000]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 8388592,
+      "code": "000e6200080138007ffff005ff0c783b",
+      "expected": "LDSM.8.MT1616 R12, [UR5+0x7ffff0]",
+      "oracle_pc": 1792,
+      "nvdisasm": "LDSM.8.MT1616 R12, [UR5+0x7ffff0]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": -16,
+      "code": "000e620008013800fffff005ff0c783b",
+      "expected": "LDSM.8.MT1616 R12, [UR5-0x10]",
+      "oracle_pc": 1808,
+      "nvdisasm": "LDSM.8.MT1616 R12, [UR5+-0x10]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": -4096,
+      "code": "000e620008013800fff00005ff0c783b",
+      "expected": "LDSM.8.MT1616 R12, [UR5-0x1000]",
+      "oracle_pc": 1824,
+      "nvdisasm": "LDSM.8.MT1616 R12, [UR5+-0x1000]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 0,
+      "dst": 4,
+      "base": 7,
+      "uniform": 17,
+      "imm": 128,
+      "code": "000e62000801380000008011ff04083b",
+      "expected": "@P0 LDSM.8.MT1616 R4, [UR17+0x80]",
+      "oracle_pc": 1840,
+      "nvdisasm": "@P0 LDSM.8.MT1616 R4, [UR17+0x80]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 11,
+      "dst": 128,
+      "base": 127,
+      "uniform": 32,
+      "imm": -16,
+      "code": "000e620008013800fffff020ff80b83b",
+      "expected": "@!P3 LDSM.8.MT1616 R128, [UR32-0x10]",
+      "oracle_pc": 1856,
+      "nvdisasm": "@!P3 LDSM.8.MT1616 R128, [UR32+-0x10]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 3,
+      "dst": 248,
+      "base": 0,
+      "uniform": 62,
+      "imm": 4096,
+      "code": "000e6200080138000010003efff8383b",
+      "expected": "@P3 LDSM.8.MT1616 R248, [UR62+0x1000]",
+      "oracle_pc": 1872,
+      "nvdisasm": "@P3 LDSM.8.MT1616 R248, [UR62+0x1000]"
+    },
+    {
+      "frame": "AURI",
+      "count": 1,
+      "guard": 7,
+      "dst": 64,
+      "base": 7,
+      "uniform": 0,
+      "imm": -4096,
+      "code": "000e620008013800fff00000ff40783b",
+      "expected": "LDSM.8.MT1616 R64, [UR0-0x1000]",
+      "oracle_pc": 1888,
+      "nvdisasm": "LDSM.8.MT1616 R64, [UR0+-0x1000]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801390000000005ff0c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [UR5]",
+      "oracle_pc": 1904,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [UR5]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 0,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801390000000005ff0c083b",
+      "expected": "@P0 LDSM.8.MT1616.2 R12, [UR5]",
+      "oracle_pc": 1920,
+      "nvdisasm": "@P0 LDSM.8.MT1616.2 R12, [UR5]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 3,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801390000000005ff0c383b",
+      "expected": "@P3 LDSM.8.MT1616.2 R12, [UR5]",
+      "oracle_pc": 1936,
+      "nvdisasm": "@P3 LDSM.8.MT1616.2 R12, [UR5]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 11,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801390000000005ff0cb83b",
+      "expected": "@!P3 LDSM.8.MT1616.2 R12, [UR5]",
+      "oracle_pc": 1952,
+      "nvdisasm": "@!P3 LDSM.8.MT1616.2 R12, [UR5]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 0,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801390000000005ff00783b",
+      "expected": "LDSM.8.MT1616.2 R0, [UR5]",
+      "oracle_pc": 1968,
+      "nvdisasm": "LDSM.8.MT1616.2 R0, [UR5]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 4,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801390000000005ff04783b",
+      "expected": "LDSM.8.MT1616.2 R4, [UR5]",
+      "oracle_pc": 1984,
+      "nvdisasm": "LDSM.8.MT1616.2 R4, [UR5]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 64,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801390000000005ff40783b",
+      "expected": "LDSM.8.MT1616.2 R64, [UR5]",
+      "oracle_pc": 2000,
+      "nvdisasm": "LDSM.8.MT1616.2 R64, [UR5]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 128,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801390000000005ff80783b",
+      "expected": "LDSM.8.MT1616.2 R128, [UR5]",
+      "oracle_pc": 2016,
+      "nvdisasm": "LDSM.8.MT1616.2 R128, [UR5]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 248,
+      "base": 4,
+      "uniform": 5,
+      "imm": 0,
+      "code": "000e62000801390000000005fff8783b",
+      "expected": "LDSM.8.MT1616.2 R248, [UR5]",
+      "oracle_pc": 2032,
+      "nvdisasm": "LDSM.8.MT1616.2 R248, [UR5]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 0,
+      "imm": 0,
+      "code": "000e62000801390000000000ff0c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [UR0]",
+      "oracle_pc": 2048,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [UR0]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 17,
+      "imm": 0,
+      "code": "000e62000801390000000011ff0c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [UR17]",
+      "oracle_pc": 2064,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [UR17]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 32,
+      "imm": 0,
+      "code": "000e62000801390000000020ff0c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [UR32]",
+      "oracle_pc": 2080,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [UR32]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 62,
+      "imm": 0,
+      "code": "000e6200080139000000003eff0c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [UR62]",
+      "oracle_pc": 2096,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [UR62]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 16,
+      "code": "000e62000801390000001005ff0c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [UR5+0x10]",
+      "oracle_pc": 2112,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [UR5+0x10]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 128,
+      "code": "000e62000801390000008005ff0c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [UR5+0x80]",
+      "oracle_pc": 2128,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [UR5+0x80]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 4096,
+      "code": "000e62000801390000100005ff0c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [UR5+0x1000]",
+      "oracle_pc": 2144,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [UR5+0x1000]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": 8388592,
+      "code": "000e6200080139007ffff005ff0c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [UR5+0x7ffff0]",
+      "oracle_pc": 2160,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [UR5+0x7ffff0]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": -16,
+      "code": "000e620008013900fffff005ff0c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [UR5-0x10]",
+      "oracle_pc": 2176,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [UR5+-0x10]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 12,
+      "base": 4,
+      "uniform": 5,
+      "imm": -4096,
+      "code": "000e620008013900fff00005ff0c783b",
+      "expected": "LDSM.8.MT1616.2 R12, [UR5-0x1000]",
+      "oracle_pc": 2192,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [UR5+-0x1000]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 0,
+      "dst": 4,
+      "base": 7,
+      "uniform": 17,
+      "imm": 128,
+      "code": "000e62000801390000008011ff04083b",
+      "expected": "@P0 LDSM.8.MT1616.2 R4, [UR17+0x80]",
+      "oracle_pc": 2208,
+      "nvdisasm": "@P0 LDSM.8.MT1616.2 R4, [UR17+0x80]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 11,
+      "dst": 128,
+      "base": 127,
+      "uniform": 32,
+      "imm": -16,
+      "code": "000e620008013900fffff020ff80b83b",
+      "expected": "@!P3 LDSM.8.MT1616.2 R128, [UR32-0x10]",
+      "oracle_pc": 2224,
+      "nvdisasm": "@!P3 LDSM.8.MT1616.2 R128, [UR32+-0x10]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 3,
+      "dst": 248,
+      "base": 0,
+      "uniform": 62,
+      "imm": 4096,
+      "code": "000e6200080139000010003efff8383b",
+      "expected": "@P3 LDSM.8.MT1616.2 R248, [UR62+0x1000]",
+      "oracle_pc": 2240,
+      "nvdisasm": "@P3 LDSM.8.MT1616.2 R248, [UR62+0x1000]"
+    },
+    {
+      "frame": "AURI",
+      "count": 2,
+      "guard": 7,
+      "dst": 64,
+      "base": 7,
+      "uniform": 0,
+      "imm": -4096,
+      "code": "000e620008013900fff00000ff40783b",
+      "expected": "LDSM.8.MT1616.2 R64, [UR0-0x1000]",
+      "oracle_pc": 2256,
+      "nvdisasm": "LDSM.8.MT1616.2 R64, [UR0+-0x1000]"
+    }
+  ],
+  "compiler_witnesses": [
+    {
+      "variant": ".text.b_transpose_x1",
+      "code": "001e220008013800000000050002783b",
+      "oracle_pc": 1216,
+      "nvdisasm": "LDSM.8.MT1616 R2, [R0+UR5]"
+    },
+    {
+      "variant": ".text.b_transpose_x1",
+      "code": "000e620008013800002100050004783b",
+      "oracle_pc": 1248,
+      "nvdisasm": "LDSM.8.MT1616 R4, [R0+UR5+0x2100]"
+    },
+    {
+      "variant": ".text.b_transpose",
+      "code": "000e62000801390000000005000c783b",
+      "oracle_pc": 1216,
+      "nvdisasm": "LDSM.8.MT1616.2 R12, [R0+UR5]"
+    }
+  ],
+  "unclaimed_words": [
+    {
+      "code": "000e62000801080000000005000c783b",
+      "oracle_pc": 64,
+      "datatype": 1,
+      "count_bits": 0,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e62000801090000000005000c783b",
+      "oracle_pc": 80,
+      "datatype": 1,
+      "count_bits": 1,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e620008010a0000000005000c783b",
+      "oracle_pc": 96,
+      "datatype": 1,
+      "count_bits": 2,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e620008010b0000000005000c783b",
+      "oracle_pc": 112,
+      "datatype": 1,
+      "count_bits": 3,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e62000801100000000005000c783b",
+      "oracle_pc": 128,
+      "datatype": 2,
+      "count_bits": 0,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e62000801110000000005000c783b",
+      "oracle_pc": 144,
+      "datatype": 2,
+      "count_bits": 1,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e62000801120000000005000c783b",
+      "oracle_pc": 160,
+      "datatype": 2,
+      "count_bits": 2,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e62000801130000000005000c783b",
+      "oracle_pc": 176,
+      "datatype": 2,
+      "count_bits": 3,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e62000801180000000005000c783b",
+      "oracle_pc": 192,
+      "datatype": 3,
+      "count_bits": 0,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e62000801190000000005000c783b",
+      "oracle_pc": 208,
+      "datatype": 3,
+      "count_bits": 1,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e620008011a0000000005000c783b",
+      "oracle_pc": 224,
+      "datatype": 3,
+      "count_bits": 2,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e620008011b0000000005000c783b",
+      "oracle_pc": 240,
+      "datatype": 3,
+      "count_bits": 3,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e62000801200000000005000c783b",
+      "oracle_pc": 256,
+      "datatype": 4,
+      "count_bits": 0,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e62000801210000000005000c783b",
+      "oracle_pc": 272,
+      "datatype": 4,
+      "count_bits": 1,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e62000801220000000005000c783b",
+      "oracle_pc": 288,
+      "datatype": 4,
+      "count_bits": 2,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e62000801230000000005000c783b",
+      "oracle_pc": 304,
+      "datatype": 4,
+      "count_bits": 3,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e62000801280000000005000c783b",
+      "oracle_pc": 320,
+      "datatype": 5,
+      "count_bits": 0,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e62000801290000000005000c783b",
+      "oracle_pc": 336,
+      "datatype": 5,
+      "count_bits": 1,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e620008012a0000000005000c783b",
+      "oracle_pc": 352,
+      "datatype": 5,
+      "count_bits": 2,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e620008012b0000000005000c783b",
+      "oracle_pc": 368,
+      "datatype": 5,
+      "count_bits": 3,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e62000801300000000005000c783b",
+      "oracle_pc": 384,
+      "datatype": 6,
+      "count_bits": 0,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e62000801310000000005000c783b",
+      "oracle_pc": 400,
+      "datatype": 6,
+      "count_bits": 1,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e62000801320000000005000c783b",
+      "oracle_pc": 416,
+      "datatype": 6,
+      "count_bits": 2,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e62000801330000000005000c783b",
+      "oracle_pc": 432,
+      "datatype": 6,
+      "count_bits": 3,
+      "reason": "unsupported_datatype_unclaimed"
+    },
+    {
+      "code": "000e620008013a0000000005000c783b",
+      "oracle_pc": 480,
+      "datatype": 7,
+      "count_bits": 2,
+      "reason": "new_x4_unclaimed"
+    },
+    {
+      "code": "000e620008013b0000000005000c783b",
+      "oracle_pc": 496,
+      "datatype": 7,
+      "count_bits": 3,
+      "reason": "new_INVALID3_unclaimed"
+    }
+  ],
+  "old_mod_groups": {
+    "LDSM_R_ARI": {
+      "16,2,M88": {
+        "and_base": "0x0000000000000100000000000000783b",
+        "count": 48,
+        "fields": [
+          {
+            "_src": "bug098-2026-08-23",
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0
+          },
+          {
+            "_src": "2aE",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_note": "9-bit base like sibling 16,4,M88 + LDS canon (pre-fix 7-bit clipped R>=128 silently)",
+            "_src": "bug148-2026-08-25",
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2
+          },
+          {
+            "_note": "imm at [63:40] like every family member (anchor 3b780400004000000001000000e20f00: 0x40 at byte5; pre-fix shift 31 read 0x8000)",
+            "_src": "bug098-2026-08-23",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0x000fee0000000000000000007f5e0000"
+      },
+      "16,4,M88": {
+        "and_base": "0x0000200000000200000000000000783b",
+        "count": 82,
+        "fields": [
+          {
+            "_src": "bug098-2026-08-23",
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0
+          },
+          {
+            "_src": "2aE",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug148-2026-08-25",
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2
+          },
+          {
+            "_src": "2aE",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0x000fce000000000000f80000bffc0000"
+      },
+      "16,M88": {
+        "_note": "plain ARI (bez bitow trybu 72/73 i bez bitu ARURI 91); kotwica mk19 3b080500008000000000000000620e00 @P0 LDSM.16.M88 R5, [R0+0x80]; vm wzor z 16,4,M88",
+        "_src": "bug098-2026-08-23",
+        "and_base": "0x0000000000000000000000000000783b",
+        "count": 1,
+        "fields": [
+          {
+            "_src": "bug098-2026-08-23",
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0
+          },
+          {
+            "_src": "bug098-2026-08-23",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug148-2026-08-25",
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2
+          },
+          {
+            "_src": "bug098-2026-08-23",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0x000fce000000000000f80000bffc0000"
+      },
+      "16,MT88": {
+        "and_base": "0x4000000000000000783b",
+        "count": null,
+        "fields": [
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0xfce000000000000f80000bffc0000",
+        "_src": "bug429-2026-09-09",
+        "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+      },
+      "16,2,MT88": {
+        "and_base": "0x4100000000000000783b",
+        "count": null,
+        "fields": [
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0xfce000000000000f80000bffc0000",
+        "_src": "bug429-2026-09-09",
+        "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+      },
+      "16,4,MT88": {
+        "and_base": "0x4200000000000000783b",
+        "count": null,
+        "fields": [
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0xfce000000000000f80000bffc0000",
+        "_src": "bug429-2026-09-09",
+        "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+      },
+      "16,M816": {
+        "and_base": "0x8000000000000000783b",
+        "count": null,
+        "fields": [
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0xfce000000000000f80000bffc0000",
+        "_src": "bug429-2026-09-09",
+        "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+      },
+      "16,2,M816": {
+        "and_base": "0x8100000000000000783b",
+        "count": null,
+        "fields": [
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0xfce000000000000f80000bffc0000",
+        "_src": "bug429-2026-09-09",
+        "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+      },
+      "16,4,M816": {
+        "and_base": "0x8200000000000000783b",
+        "count": null,
+        "fields": [
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0xfce000000000000f80000bffc0000",
+        "_src": "bug429-2026-09-09",
+        "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+      },
+      "16,M832": {
+        "and_base": "0xc000000000000000783b",
+        "count": null,
+        "fields": [
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0xfce000000000000f80000bffc0000",
+        "_src": "bug429-2026-09-09",
+        "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+      },
+      "16,2,M832": {
+        "and_base": "0xc100000000000000783b",
+        "count": null,
+        "fields": [
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0xfce000000000000f80000bffc0000",
+        "_src": "bug429-2026-09-09",
+        "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+      },
+      "16,4,M832": {
+        "and_base": "0xc200000000000000783b",
+        "count": null,
+        "fields": [
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0xfce000000000000f80000bffc0000",
+        "_src": "bug429-2026-09-09",
+        "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+      },
+      "16,MT1616": {
+        "and_base": "0x10000000000000000783b",
+        "count": null,
+        "fields": [
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0xfce000000000000f80000bffc0000",
+        "_src": "bug429-2026-09-09",
+        "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+      },
+      "16,2,MT1616": {
+        "and_base": "0x10100000000000000783b",
+        "count": null,
+        "fields": [
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0xfce000000000000f80000bffc0000",
+        "_src": "bug429-2026-09-09",
+        "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+      },
+      "16,4,MT1616": {
+        "and_base": "0x10200000000000000783b",
+        "count": null,
+        "fields": [
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2
+          },
+          {
+            "_src": "bug429-2026-09-09",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0xfce000000000000f80000bffc0000",
+        "_src": "bug429-2026-09-09",
+        "_note": "BUG-429: LDSM plain-ARI enum x count closure (arb429 63 probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0; ride = arb426 rA/rB 48-probe census re-probed with machine parity). Donor = frame-own 16,M88 verbatim (fields deep-copied), and_base |= measured enum [80:78) + count bits (.2=b72/.4=b73), vm verbatim, count=None. INVALID3/5/6/7 loud families stay UNTOUCHED."
+      }
+    },
+    "LDSM_R_ARURI": {
+      "16,4,M88": {
+        "and_base": "0x0000000008000200000000000000783b",
+        "count": 818,
+        "fields": [
+          {
+            "_src": "bug098-2026-08-23",
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0
+          },
+          {
+            "_src": "2aE",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "2aE",
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2
+          },
+          {
+            "_src": "2aE",
+            "bits": 8,
+            "extraction": "sub_ur1",
+            "shift": 32,
+            "token_idx": 2
+          },
+          {
+            "_src": "2aE",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0x1fffe00f7f0000001fc001ffffc0000",
+        "_src": "bug441-2026-09-11",
+        "_note": "BUG-441: full inert-band closure on the LDSM M88 ARURI frame (arb441 law 54 probes x4 AGREE/DIVERGENT=0): plain row band-rest {88,89,93,94} singles+all-11-combos+cross+rich vendor-legal inert x4; count rows .2/.4 relax the full inert band {84,85,86,87,88,89,90,92,93,94,95} (singles+pairs+full vendor-legal x4, D-under-count = own count rows). Pure relax: ab/fields/count invariant. Postures NOT grafted: INVALID3 loud (b72+b73), RC1 era carriers (440-doctrine)."
+      },
+      "16,4,MT88": {
+        "and_base": "0x0000000008004200000000000000783b",
+        "count": 272,
+        "fields": [
+          {
+            "_src": "bug098-2026-08-23",
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0
+          },
+          {
+            "_src": "2aE",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "2aE",
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2
+          },
+          {
+            "_src": "2aE",
+            "bits": 8,
+            "extraction": "sub_ur1",
+            "shift": 32,
+            "token_idx": 2
+          },
+          {
+            "_src": "2aE",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0x01ffee00000000000038001fff7c0000"
+      },
+      "16,M88": {
+        "and_base": "0x0000000008000000000000000000783b",
+        "count": 1,
+        "fields": [
+          {
+            "_src": "bug098-2026-08-23",
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0
+          },
+          {
+            "_src": "mk19",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "mk19",
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2
+          },
+          {
+            "_src": "mk19",
+            "bits": 8,
+            "extraction": "sub_ur1",
+            "shift": 32,
+            "token_idx": 2
+          },
+          {
+            "_src": "mk19",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0x1fffe00f7f0000001fc001ffffc0000",
+        "_src": "bug441-2026-09-11",
+        "_note": "BUG-441: full inert-band closure on the LDSM M88 ARURI frame (arb441 law 54 probes x4 AGREE/DIVERGENT=0): plain row band-rest {88,89,93,94} singles+all-11-combos+cross+rich vendor-legal inert x4; count rows .2/.4 relax the full inert band {84,85,86,87,88,89,90,92,93,94,95} (singles+pairs+full vendor-legal x4, D-under-count = own count rows). Pure relax: ab/fields/count invariant. Postures NOT grafted: INVALID3 loud (b72+b73), RC1 era carriers (440-doctrine)."
+      },
+      "16,M816": {
+        "and_base": "0x8008000000000000000083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur1",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+        "_src": "bug421422-2026-09-09",
+        "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). Donor geometry 16,M88; enum/count pinned via care; vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+      },
+      "16,2,M816": {
+        "and_base": "0x8008100000000000000083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur1",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+        "_src": "bug421422-2026-09-09",
+        "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). Donor geometry 16,M88; enum/count pinned via care; vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+      },
+      "16,4,M816": {
+        "and_base": "0x8008200000000000000083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur1",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+        "_src": "bug421422-2026-09-09",
+        "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). Donor geometry 16,M88; enum/count pinned via care; vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+      },
+      "16,M832": {
+        "and_base": "0x800c000000000000000083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur1",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+        "_src": "bug421422-2026-09-09",
+        "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). Donor geometry 16,M88; enum/count pinned via care; vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+      },
+      "16,MT1616": {
+        "and_base": "0x8010000000000000000083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur1",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+        "_src": "bug421422-2026-09-09",
+        "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). Donor geometry 16,M88; enum/count pinned via care; vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+      },
+      "16,2,MT1616": {
+        "and_base": "0x8010100000000000000083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur1",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+        "_src": "bug421422-2026-09-09",
+        "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). Donor geometry 16,M88; enum/count pinned via care; vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+      },
+      "16,4,MT1616": {
+        "and_base": "0x8010200000000000000083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur1",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+        "_src": "bug421422-2026-09-09",
+        "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). Donor geometry 16,M88; enum/count pinned via care; vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+      },
+      "16,2,M88": {
+        "and_base": "0x8000100000000000000083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug424-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug424-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2,
+            "_src": "bug424-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur1",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug424-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug424-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe00f7f0000001fc001ffffc0000",
+        "_src": "bug441-2026-09-11",
+        "_note": "BUG-441: full inert-band closure on the LDSM M88 ARURI frame (arb441 law 54 probes x4 AGREE/DIVERGENT=0): plain row band-rest {88,89,93,94} singles+all-11-combos+cross+rich vendor-legal inert x4; count rows .2/.4 relax the full inert band {84,85,86,87,88,89,90,92,93,94,95} (singles+pairs+full vendor-legal x4, D-under-count = own count rows). Pure relax: ab/fields/count invariant. Postures NOT grafted: INVALID3 loud (b72+b73), RC1 era carriers (440-doctrine)."
+      },
+      "16,MT88": {
+        "and_base": "0x8004000000000000000083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug424-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug424-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2,
+            "_src": "bug424-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur1",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug424-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug424-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+        "_src": "bug424-2026-09-09",
+        "_note": "BUG-424: LDSM ARURI-frame sparse enum/count closure (arb424 law, 68 probes nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0: full enum x count matrix uniform on the R+UR shared-bracket frame; .2=b72 legal x4 for M88/MT88 here, MT88 plain legal x4). Donor geometry 16,M88 verbatim (fields deep-copied), and_base |= measured delta, vm verbatim, count=None. INVALID3/INVALID5/6/7 loud glyphs and the M832-count construct cells stay unclaimed (426-scope contract); 423-era [R0+UR4] singles UNTOUCHED."
+      },
+      "16,2,MT88": {
+        "and_base": "0x8004100000000000000083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug424-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug424-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2,
+            "_src": "bug424-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur1",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug424-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug424-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+        "_src": "bug424-2026-09-09",
+        "_note": "BUG-424: LDSM ARURI-frame sparse enum/count closure (arb424 law, 68 probes nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0: full enum x count matrix uniform on the R+UR shared-bracket frame; .2=b72 legal x4 for M88/MT88 here, MT88 plain legal x4). Donor geometry 16,M88 verbatim (fields deep-copied), and_base |= measured delta, vm verbatim, count=None. INVALID3/INVALID5/6/7 loud glyphs and the M832-count construct cells stay unclaimed (426-scope contract); 423-era [R0+UR4] singles UNTOUCHED."
+      },
+      "16,2,M832": {
+        "and_base": "0x800c100000000000000083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug426-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug426-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2,
+            "_src": "bug426-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur1",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug426-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug426-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+        "_src": "bug426-2026-09-09",
+        "_note": "BUG-426: LDSM M832 count closure (.2=b72/.4=b73) on the shared-bracket frames (arb426 66 probes + arb424 parity xchk, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0). Donor = frame-own 16,M832 verbatim (fields deep-copied), and_base |= measured count delta, vm verbatim, count=None. INVALID3/INVALID5/6/7 loud glyphs stay unclaimed; 429 ARI enum/count census NOT grafted (registration only); 423-era singles UNTOUCHED."
+      },
+      "16,4,M832": {
+        "and_base": "0x800c200000000000000083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug426-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug426-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_r0",
+            "shift": 24,
+            "token_idx": 2,
+            "_src": "bug426-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur1",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug426-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug426-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe000000000001fc001ffffc0000",
+        "_src": "bug426-2026-09-09",
+        "_note": "BUG-426: LDSM M832 count closure (.2=b72/.4=b73) on the shared-bracket frames (arb426 66 probes + arb424 parity xchk, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0). Donor = frame-own 16,M832 verbatim (fields deep-copied), and_base |= measured count delta, vm verbatim, count=None. INVALID3/INVALID5/6/7 loud glyphs stay unclaimed; 429 ARI enum/count census NOT grafted (registration only); 423-era singles UNTOUCHED."
+      }
+    },
+    "LDSM_R_AURI": {
+      "16,M88": {
+        "and_base": "0x800000000000000ff00083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug413ii-2026-09-08"
+          },
+          {
+            "_src": "bug413ii-2026-09-08",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug413ii-2026-09-08",
+            "bits": 8,
+            "extraction": "sub_ur0",
+            "shift": 32,
+            "token_idx": 2
+          },
+          {
+            "_src": "bug413ii-2026-09-08",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0x1fffe00000000000000000000000000",
+        "_src": "bug413ii-2026-09-08",
+        "_note": "BUG-413(ii): LDSM AURI row (RZ-baked sub_r0 0xff@24 in care, AURI-ized donor clone of LDSM_R_ARURI|16,M88 x4-identical, asserted; arb413/arb413b law x4 AGREE EVERY). Mod-enum [80:78] + numbered b72/b73 per measured law; INVALID3/5/6/7 and b75/76/77-kill words stay unclaimed."
+      },
+      "16,2,M88": {
+        "and_base": "0x800010000000000ff00083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug413ii-2026-09-08"
+          },
+          {
+            "_src": "bug413ii-2026-09-08",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug413ii-2026-09-08",
+            "bits": 8,
+            "extraction": "sub_ur0",
+            "shift": 32,
+            "token_idx": 2
+          },
+          {
+            "_src": "bug413ii-2026-09-08",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0x1fffe00000000000000000000000000",
+        "_src": "bug413ii-2026-09-08",
+        "_note": "BUG-413(ii): LDSM AURI row (RZ-baked sub_r0 0xff@24 in care, AURI-ized donor clone of LDSM_R_ARURI|16,M88 x4-identical, asserted; arb413/arb413b law x4 AGREE EVERY). Mod-enum [80:78] + numbered b72/b73 per measured law; INVALID3/5/6/7 and b75/76/77-kill words stay unclaimed."
+      },
+      "16,4,M88": {
+        "and_base": "0x800020000000000ff00083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug413ii-2026-09-08"
+          },
+          {
+            "_src": "bug413ii-2026-09-08",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug413ii-2026-09-08",
+            "bits": 8,
+            "extraction": "sub_ur0",
+            "shift": 32,
+            "token_idx": 2
+          },
+          {
+            "_src": "bug413ii-2026-09-08",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0x1fffe00000000000000000000000000",
+        "_src": "bug413ii-2026-09-08",
+        "_note": "BUG-413(ii): LDSM AURI row (RZ-baked sub_r0 0xff@24 in care, AURI-ized donor clone of LDSM_R_ARURI|16,M88 x4-identical, asserted; arb413/arb413b law x4 AGREE EVERY). Mod-enum [80:78] + numbered b72/b73 per measured law; INVALID3/5/6/7 and b75/76/77-kill words stay unclaimed."
+      },
+      "16,MT88": {
+        "and_base": "0x800400000000000ff00083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug413ii-2026-09-08"
+          },
+          {
+            "_src": "bug413ii-2026-09-08",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug413ii-2026-09-08",
+            "bits": 8,
+            "extraction": "sub_ur0",
+            "shift": 32,
+            "token_idx": 2
+          },
+          {
+            "_src": "bug413ii-2026-09-08",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0x1fffe00000000000000000000000000",
+        "_src": "bug413ii-2026-09-08",
+        "_note": "BUG-413(ii): LDSM AURI row (RZ-baked sub_r0 0xff@24 in care, AURI-ized donor clone of LDSM_R_ARURI|16,M88 x4-identical, asserted; arb413/arb413b law x4 AGREE EVERY). Mod-enum [80:78] + numbered b72/b73 per measured law; INVALID3/5/6/7 and b75/76/77-kill words stay unclaimed."
+      },
+      "16,2,MT88": {
+        "and_base": "0x800410000000000ff00083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug413ii-2026-09-08"
+          },
+          {
+            "_src": "bug413ii-2026-09-08",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug413ii-2026-09-08",
+            "bits": 8,
+            "extraction": "sub_ur0",
+            "shift": 32,
+            "token_idx": 2
+          },
+          {
+            "_src": "bug413ii-2026-09-08",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0x1fffe00000000000000000000000000",
+        "_src": "bug413ii-2026-09-08",
+        "_note": "BUG-413(ii): LDSM AURI row (RZ-baked sub_r0 0xff@24 in care, AURI-ized donor clone of LDSM_R_ARURI|16,M88 x4-identical, asserted; arb413/arb413b law x4 AGREE EVERY). Mod-enum [80:78] + numbered b72/b73 per measured law; INVALID3/5/6/7 and b75/76/77-kill words stay unclaimed."
+      },
+      "16,4,MT88": {
+        "and_base": "0x800420000000000ff00083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug413ii-2026-09-08"
+          },
+          {
+            "_src": "bug413ii-2026-09-08",
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1
+          },
+          {
+            "_src": "bug413ii-2026-09-08",
+            "bits": 8,
+            "extraction": "sub_ur0",
+            "shift": 32,
+            "token_idx": 2
+          },
+          {
+            "_src": "bug413ii-2026-09-08",
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2
+          }
+        ],
+        "variable_mask": "0x1fffe00000000000000000000000000",
+        "_src": "bug413ii-2026-09-08",
+        "_note": "BUG-413(ii): LDSM AURI row (RZ-baked sub_r0 0xff@24 in care, AURI-ized donor clone of LDSM_R_ARURI|16,M88 x4-identical, asserted; arb413/arb413b law x4 AGREE EVERY). Mod-enum [80:78] + numbered b72/b73 per measured law; INVALID3/5/6/7 and b75/76/77-kill words stay unclaimed."
+      },
+      "16,M816": {
+        "and_base": "0x800800000000000ff00083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur0",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe00000000000000000000000000",
+        "_src": "bug421422-2026-09-09",
+        "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). AURI-ized clone per the 413ii convention (sub_r0 0xff@24 baked into care); vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+      },
+      "16,2,M816": {
+        "and_base": "0x800810000000000ff00083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur0",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe00000000000000000000000000",
+        "_src": "bug421422-2026-09-09",
+        "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). AURI-ized clone per the 413ii convention (sub_r0 0xff@24 baked into care); vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+      },
+      "16,4,M816": {
+        "and_base": "0x800820000000000ff00083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur0",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe00000000000000000000000000",
+        "_src": "bug421422-2026-09-09",
+        "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). AURI-ized clone per the 413ii convention (sub_r0 0xff@24 baked into care); vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+      },
+      "16,M832": {
+        "and_base": "0x800c00000000000ff00083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur0",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe00000000000000000000000000",
+        "_src": "bug421422-2026-09-09",
+        "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). AURI-ized clone per the 413ii convention (sub_r0 0xff@24 baked into care); vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+      },
+      "16,MT1616": {
+        "and_base": "0x801000000000000ff00083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur0",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe00000000000000000000000000",
+        "_src": "bug421422-2026-09-09",
+        "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). AURI-ized clone per the 413ii convention (sub_r0 0xff@24 baked into care); vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+      },
+      "16,2,MT1616": {
+        "and_base": "0x801010000000000ff00083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur0",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe00000000000000000000000000",
+        "_src": "bug421422-2026-09-09",
+        "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). AURI-ized clone per the 413ii convention (sub_r0 0xff@24 baked into care); vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+      },
+      "16,4,MT1616": {
+        "and_base": "0x801020000000000ff00083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur0",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug421422-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe00000000000000000000000000",
+        "_src": "bug421422-2026-09-09",
+        "_note": "BUG-421: LDSM mod-enum [80:78) closure on the shared-bracket frame (arb413/arb413b law x4 AGREE EVERY, DIVERGENT=0: enum 2=M816/3=M832/4=MT1616 legal, count b72=.2 b73=.4 both=INVALID3 measured for e1/e2/e4; M832 count variants unmeasured -> stay unclaimed). AURI-ized clone per the 413ii convention (sub_r0 0xff@24 baked into care); vm verbatim donor class (M88 ctrl-template). INVALID5/6/7 and INVALID3 cells stay unclaimed (pins bug421422)."
+      },
+      "16,2,M832": {
+        "and_base": "0x800c10000000000ff00083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug426-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug426-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur0",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug426-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug426-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe00000000000000000000000000",
+        "_src": "bug426-2026-09-09",
+        "_note": "BUG-426: LDSM M832 count closure (.2=b72/.4=b73) on the shared-bracket frames (arb426 66 probes + arb424 parity xchk, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0). Donor = frame-own 16,M832 verbatim (fields deep-copied), and_base |= measured count delta, vm verbatim, count=None. INVALID3/INVALID5/6/7 loud glyphs stay unclaimed; 429 ARI enum/count census NOT grafted (registration only); 423-era singles UNTOUCHED."
+      },
+      "16,4,M832": {
+        "and_base": "0x800c20000000000ff00083b",
+        "count": null,
+        "fields": [
+          {
+            "bits": 4,
+            "extraction": "guard",
+            "shift": 12,
+            "token_idx": 0,
+            "_src": "bug426-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "reg",
+            "shift": 16,
+            "token_idx": 1,
+            "_src": "bug426-2026-09-09"
+          },
+          {
+            "bits": 8,
+            "extraction": "sub_ur0",
+            "shift": 32,
+            "token_idx": 2,
+            "_src": "bug426-2026-09-09"
+          },
+          {
+            "bits": 24,
+            "extraction": "sub_imm1",
+            "shift": 40,
+            "token_idx": 2,
+            "_src": "bug426-2026-09-09"
+          }
+        ],
+        "variable_mask": "0x1fffe00000000000000000000000000",
+        "_src": "bug426-2026-09-09",
+        "_note": "BUG-426: LDSM M832 count closure (.2=b72/.4=b73) on the shared-bracket frames (arb426 66 probes + arb424 parity xchk, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0). Donor = frame-own 16,M832 verbatim (fields deep-copied), and_base |= measured count delta, vm verbatim, count=None. INVALID3/INVALID5/6/7 loud glyphs stay unclaimed; 429 ARI enum/count census NOT grafted (registration only); 423-era singles UNTOUCHED."
+      }
+    }
+  }
+}

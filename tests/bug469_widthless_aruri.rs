@@ -116,6 +116,10 @@ fn t469_4_mint_circle() {
 /// (10267/10267/11405).
 #[test]
 fn t469_5_census_and_source() {
+    // Current byte-pinned cut; historical fixture provenance remains unchanged.
+    const CURRENT_VENDORED_CANON: &str = "afa885f47a1c32ac023ba3c7c9b8eb9876f20277";
+    assert_eq!(CANON469, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
+
     for (leg, want) in CENSUS469 {
         let raw: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(format!("tables/{leg}.json")).unwrap())
@@ -127,7 +131,7 @@ fn t469_5_census_and_source() {
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert_eq!(
         src["base_revision"].as_str().unwrap(),
-        CANON469,
+        CURRENT_VENDORED_CANON,
         "SOURCE.json base_revision == canonical graft bd48e63"
     );
 }

@@ -243,9 +243,13 @@ fn t464_9_refuse461() {
 /// tripwire dla ride-flipow: zfcpatowane hashe przez flip464).
 #[test]
 fn t464_10_canonical_pin() {
+    // Current byte-pinned cut; historical fixture provenance remains unchanged.
+    const CURRENT_VENDORED_CANON: &str = "afa885f47a1c32ac023ba3c7c9b8eb9876f20277";
+    assert_eq!(CANON464, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
+
     let src = std::fs::read_to_string("tables/SOURCE.json").unwrap();
     assert!(
-        src.contains(CANON464),
+        src.contains(CURRENT_VENDORED_CANON),
         "SOURCE.json nie pina canonical 464-graftu ({}): {}",
         &CANON464[..8],
         src.lines().nth(3).unwrap_or("")

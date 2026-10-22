@@ -216,6 +216,10 @@ fn t413_2_sm121a_claim_map() {
 /// pinned canonical revision.
 #[test]
 fn t413_3_donor_contract_and_source_pin() {
+    // Current byte-pinned cut; historical fixture provenance remains unchanged.
+    const CURRENT_VENDORED_CANON: &str = "afa885f47a1c32ac023ba3c7c9b8eb9876f20277";
+    assert_eq!(CANON412413, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
+
     let t121 = tab("sm121a");
     let e121 = t121.get("STS_ARURI_R", "").unwrap();
     let mut want_base = 0u128;
@@ -250,7 +254,7 @@ fn t413_3_donor_contract_and_source_pin() {
     // SOURCE pin: canonical revision carries the 413(i) graft
     let src = std::fs::read_to_string("tables/SOURCE.json").unwrap();
     assert!(
-        src.contains(CANON412413),
+        src.contains(CURRENT_VENDORED_CANON),
         "SOURCE.json must pin canonical {CANON412413} (BUG-412+413(i) graft F2-iter230; rides e4f0915"
     );
 }

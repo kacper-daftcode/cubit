@@ -176,7 +176,7 @@ fn t463_6_census_attribution() {
             src["base_revision"]
                 .as_str()
                 .unwrap()
-                .starts_with("9c0e4ce"),
+                .starts_with("afa885f47a1c32ac023ba3c7c9b8eb9876f20277"),
             "SOURCE pin drift"
         );
     }

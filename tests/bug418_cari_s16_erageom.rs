@@ -181,10 +181,14 @@ fn enc_probe(t: &IsaTable, text: &str) -> u128 {
 /// t418_5: graft hygiene + canonical pin (ride-chain with attribution).
 #[test]
 fn t418_5_graft_hygiene_source_pin() {
+    // Current byte-pinned cut; historical fixture provenance remains unchanged.
+    const CURRENT_VENDORED_CANON: &str = "afa885f47a1c32ac023ba3c7c9b8eb9876f20277";
+    assert_eq!(CANON418, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
+
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        m["base_revision"].as_str().unwrap() == CANON418,
+        m["base_revision"].as_str().unwrap() == CURRENT_VENDORED_CANON,
         "SOURCE.json must pin canonical 2ae87b3 [was 18b6cec = BUG-418] (BUG-419 graft F2-iter228 z atrybucja; 419 rides 418): {:?}",
         m["base_revision"]
     );

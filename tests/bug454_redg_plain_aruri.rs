@@ -189,12 +189,16 @@ fn t454_8_era_mint_continuity() {
 /// t454_7: canonical pin -- SOURCE.json base_revision == BUG-454 graft rev.
 #[test]
 fn t454_7_canonical_pin() {
+    // Current byte-pinned cut; historical fixture provenance remains unchanged.
+    const CURRENT_VENDORED_CANON: &str = "afa885f47a1c32ac023ba3c7c9b8eb9876f20277";
+    assert_eq!(CANON454, "9c0e4ce", "historical fixture revision drift");
+
     let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     assert_eq!(CANON454, "9c0e4ce"); // ride F2-iter275 (BUG-466 ELL2.256 rekanon); was 23976eb; old:  ride F2-iter267 (BUG-432 ari-cavity); was a64b82b (BUG-463 ltc-widths);  ride F2-iter266 (BUG-463 ltc-widths); was f58ed16 (BUG-461 glyph); // ride F2-iter265 (BUG-461 glyph); was f376558 (BUG-462 narrow); // ride F2-iter264 (BUG-462 narrow); was 700524e (BUG-453 graft); // ride F2-iter263 (BUG-453 graft); was e03e034 (BUG-452 narrow) [flip-ride 467: pin 67b54f4 -> 668f842]
     let src: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        src["base_revision"].as_str().unwrap().starts_with(CANON454),
+        src["base_revision"].as_str().unwrap().starts_with(CURRENT_VENDORED_CANON),
         "SOURCE.json must pin canonical a64b82b (= BUG-463 ltc-widths; was f58ed16 (= BUG-461 glyph; was f376558 (= BUG-462 narrow; was 700524e (= BUG-453 graft; was e03e034 (BUG-452 narrow); was 4ee8431 (BUG-454 graft); was 589be874 = BUG-450): {:?}",
         src["base_revision"]
     );

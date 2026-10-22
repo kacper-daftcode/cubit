@@ -200,11 +200,15 @@ fn t443_7_noe_key_design() {
 /// revision (e8d1af3), never a silent table state.
 #[test]
 fn t443_8_canonical_pin() {
+    // Current byte-pinned cut; historical fixture provenance remains unchanged.
+    const CURRENT_VENDORED_CANON: &str = "afa885f47a1c32ac023ba3c7c9b8eb9876f20277";
+    assert_eq!(CANON443, "9c0e4ce", "historical fixture revision drift");
+
     let src = std::fs::read_to_string("tables/SOURCE.json").unwrap();
     let v: serde_json::Value = serde_json::from_str(&src).unwrap();
     let rev = v["base_revision"].as_str().unwrap();
     assert!(
-        rev.starts_with(CANON443),
+        rev.starts_with(CURRENT_VENDORED_CANON),
         "canonical drift: manifest {rev} (need {CANON443}*)"
     );
 }

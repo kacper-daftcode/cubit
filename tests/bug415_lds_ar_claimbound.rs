@@ -156,6 +156,10 @@ fn t415_4_mint_circle_junk_drop() {
 /// row-shape anchors, band configurations.
 #[test]
 fn t415_5_boundaries_and_graft_hygiene() {
+    // Current byte-pinned cut; historical fixture provenance remains unchanged.
+    const CURRENT_VENDORED_CANON: &str = "afa885f47a1c32ac023ba3c7c9b8eb9876f20277";
+    assert_eq!(CANON415, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
+
     // FLIP (BUG-420, F2-iter232, canonical 0eddad5): the six HOLE415
     // boundary words now DECODE vendor-exact x4 -- b72/b76/b77/b80 inert ->
     // base glyph; b78/b79 -> .X4/.X8 (arb420 law 195 probes x4 AGREE EVERY).
@@ -203,7 +207,7 @@ fn t415_5_boundaries_and_graft_hygiene() {
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        m["base_revision"].as_str().unwrap() == CANON415,
+        m["base_revision"].as_str().unwrap() == CURRENT_VENDORED_CANON,
         "SOURCE.json must pin canonical {CANON415} (BUG-415 graft F2-iter229 z atrybucja; 415 rides 2ae87b3 = BUG-419 < 418 < 417 < 414 < 409 < 395 < 405/406): {:?}",
         m["base_revision"]
     );
