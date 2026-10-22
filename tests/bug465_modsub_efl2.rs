@@ -354,9 +354,13 @@ fn t465_9_atlas_audit() {
 /// t465_10: canonical pin -- catena graftu (tabele vendored by sync).
 #[test]
 fn t465_10_canonical_pin() {
+    // Current byte-pinned cut; historical fixture provenance remains unchanged.
+    const CURRENT_VENDORED_CANON: &str = "afa885f47a1c32ac023ba3c7c9b8eb9876f20277";
+    assert_eq!(CANON465, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
+
     let src = std::fs::read_to_string("tables/SOURCE.json").unwrap();
     assert!(
-        src.contains(CANON465),
+        src.contains(CURRENT_VENDORED_CANON),
         "SOURCE.json nie pina canonical 465-graftu ({}): {}",
         &CANON465[..8],
         src.lines().nth(3).unwrap_or("")

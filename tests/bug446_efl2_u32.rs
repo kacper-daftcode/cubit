@@ -182,9 +182,13 @@ fn t446_8_corpus() {
 /// BUG-442 canonical 57e7ecd; no vendored-table diff rides this commit.
 #[test]
 fn t446_9_canonical_unchanged() {
+    // Current byte-pinned cut; historical fixture provenance remains unchanged.
+    const CURRENT_VENDORED_CANON: &str = "afa885f47a1c32ac023ba3c7c9b8eb9876f20277";
+    assert_eq!(CANON446, "9c0e4ce", "historical fixture revision drift");
+
     // public-line hygiene: lane-side live rev-parse hermetized to the vendored manifest pin
     let head = std::fs::read_to_string("tables/SOURCE.json").unwrap();
-    assert!(head.contains(CANON446), "canonical moved: {head}");
+    assert!(head.contains(CURRENT_VENDORED_CANON), "canonical moved: {head}");
     let src = std::fs::read_to_string("tables/SOURCE.json").unwrap();
-    assert!(src.contains("9c0e4ce"), "tables SOURCE drift (ride F2-iter275 BUG-466 ELL2-plain; was 23976eb F2-iter272 BUG-465; ride F2-iter267 BUG-432 ari-cavity; was a64b82b BUG-463 ltc-widths; ride F2-iter263 BUG-453 graft; was e03e034 F2-iter260 BUG-452 narrow; ride F2-iter258 BUG-454 graft; was 589be87 F2-iter255 BUG-450 graft; was 099faa0 F2-iter252 BUG-447): {src}"); // flip-ride 467: pin 67b54f4 -> 668f842
+    assert!(src.contains(CURRENT_VENDORED_CANON), "tables SOURCE drift (ride F2-iter275 BUG-466 ELL2-plain; was 23976eb F2-iter272 BUG-465; ride F2-iter267 BUG-432 ari-cavity; was a64b82b BUG-463 ltc-widths; ride F2-iter263 BUG-453 graft; was e03e034 F2-iter260 BUG-452 narrow; ride F2-iter258 BUG-454 graft; was 589be87 F2-iter255 BUG-450 graft; was 099faa0 F2-iter252 BUG-447): {src}"); // flip-ride 467: pin 67b54f4 -> 668f842
 }

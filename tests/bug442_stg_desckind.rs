@@ -188,11 +188,14 @@ fn t442_5_masked_mints_and_circles() {
 /// (ab/fields verbatim), 121a donor key parity with sm103a rows.
 #[test]
 fn t442_6_source_manifest_and_invariants() {
+    // Current byte-pinned cut; historical fixture provenance remains unchanged.
+    const CURRENT_VENDORED_CANON: &str = "afa885f47a1c32ac023ba3c7c9b8eb9876f20277";
+
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     let pin = m["base_revision"].as_str().unwrap().to_string();
     assert!(
-        pin.starts_with("9c0e4ce"), // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+        pin.starts_with(CURRENT_VENDORED_CANON), // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
         "SOURCE.json must pin canonical 57e7ecd (= BUG-447, ride-after e8d1af3 = BUG-443, 57e7ecd = BUG-442, ffa3244 = BUG-441): {pin}"
     );
     for leg in LEGS_442 {

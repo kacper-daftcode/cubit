@@ -185,6 +185,10 @@ fn t467_4_keep_alive_siblings() {
 /// RIDE475R3 (F2-iter289): +3/+3/+2/+2 (NA/EU restore + alias + 121a R3b anomalie) -> 14868/14868/16005/23825; cf 1169/1169/1166/1183 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146 graft x4 nogi (dARI modsub lattice E*L2.256 frame b76=1: klon 6 donorow *_dARI EFL2.256/noga, fields/vm PARITY) + rekanon 462-mgs ENL2 [489-absorb: DELETE 13/13/7 mgs + 2 anomalie 121a; REPLACE 9 heritage _src462] -> raw 14865/14865/16003/23823; loader 121a 23821 (offset -2 _errata stoi); cf 1166/1166/1164/1181 -> 14865/14865/16003/23823 (loader-121a 23821).
 #[test]
 fn t467_5_census_and_source_pin() {
+    // Current byte-pinned cut; historical fixture provenance remains unchanged.
+    const CURRENT_VENDORED_CANON: &str = "afa885f47a1c32ac023ba3c7c9b8eb9876f20277";
+    assert_eq!(CANON467, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
+
     for (leg, want) in [
         ("sm100a", 14879usize), // RIDE476 (F2-iter299, canonical c88778e): +11 -> 14879 // RIDE475R3 (F2-iter289): +3/+3/+2/+2 (NA/EU restore + alias + 121a R3b anomalie) -> 14868/14868/16005/23825; cf 1169/1169/1166/1183 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146 graft x4 nogi (dARI modsub lattice E*L2.256 frame b76=1: klon 6 donorow *_dARI EFL2.256/noga, fields/vm PARITY) + rekanon 462-mgs ENL2 [489-absorb: DELETE 13/13/7 mgs + 2 anomalie 121a; REPLACE 9 heritage _src462] -> raw 14865/14865/16003/23823; loader 121a 23821 (offset -2 _errata stoi); cf 1166/1166/1164/1181 // was: 13721usize // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468) // was: 10267 ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145),
         ("sm103a", 14879usize), // RIDE476 (F2-iter299, canonical c88778e): +11 -> 14879 // RIDE475R3 (F2-iter289): +3/+3/+2/+2 (NA/EU restore + alias + 121a R3b anomalie) -> 14868/14868/16005/23825; cf 1169/1169/1166/1183 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146 graft x4 nogi (dARI modsub lattice E*L2.256 frame b76=1: klon 6 donorow *_dARI EFL2.256/noga, fields/vm PARITY) + rekanon 462-mgs ENL2 [489-absorb: DELETE 13/13/7 mgs + 2 anomalie 121a; REPLACE 9 heritage _src462] -> raw 14865/14865/16003/23823; loader 121a 23821 (offset -2 _errata stoi); cf 1166/1166/1164/1181 // was: 13721usize // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468) // was: 10267 ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145),
@@ -201,7 +205,7 @@ fn t467_5_census_and_source_pin() {
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert_eq!(
         src["base_revision"].as_str().unwrap(),
-        CANON467,
+        CURRENT_VENDORED_CANON,
         "SOURCE.json base_revision == canonical graft 668f842"
     );
     // usuniete klucze nie wstana
