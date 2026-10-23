@@ -11,13 +11,16 @@ use std::collections::BTreeMap;
 /// Uniform-guard family law (BUG-171, census evidence hexdb 32.2M + sm120
 /// nv-harvest: vendor prints @UPn/@!UPn/@!UPT guards ONLY for these families —
 /// all `U*` uniform-datapath ops, LDCU (uniform constant load), SYNCS_UR
-/// (uniform-domain SYNCS, e.g. EXCH), S2UR). Guard bits [15:12] carry just
-/// (pred,neg); uniformness follows the family, both print paths agree.
+/// (uniform-domain SYNCS, e.g. EXCH), S2UR, CS2UR). Guard bits [15:12] carry
+/// just (pred,neg); uniformness follows the family, both print paths agree.
+/// CS2UR: nvdisasm 13.1 renders all 16 guard codes as @UPn/@!UPn/@!UPT
+/// (tools/re_sm120_cs2ur.py sweep, tests/fixtures/sm120_cs2ur_nvdisasm.jsonl).
 pub(crate) fn guard_is_uniform_family(key: &str) -> bool {
     key.starts_with('U')
         || key.starts_with("LDCU")
         || key.starts_with("SYNCS_UR")
         || key.starts_with("S2UR")
+        || key.starts_with("CS2UR")
 }
 
 /// BUG-325/326: vendor `.reuse` PRINT law -- the printer-side personality of
@@ -3889,10 +3892,32 @@ fn format_const_addr(fields: &[&DecodedField], ins_key: &str) -> String {
 /// SR_CirQueueIncrMinusOne / SR_NLATC (not NTID.Y/.Z), 0x2c..0x2e are
 /// SR_SM_SPA_VERSION / SR_MULTIPASSSHADERINFO / SR_LWINHI (not NCTAID.*),
 /// and 0x40/0x42/0x44 are *ERRORSTATUS / VIRTUALENGINEID (not
-/// WARPID/SMID/GRIDID).
+/// WARPID/SMID/GRIDID).  The 62 further names (SR_CLOCK, SR_PM*, SR_SNAP_PM*,
+/// SM_SHADER_TYPE, __HIR0X000, ...) and the bare `SR<decimal>` spelling of
+/// unnamed codes come from the nvdisasm-13.1 full 256-code sweep on CS2UR, S2R,
+/// CS2R and S2UR (tools/re_sm120_cs2ur.py; identical names on all four).
 static SYSREG_NAMES: &[(u32, &str)] = &[
     (0x00, "SR_LANEID"),
+    (0x01, "SR_CLOCK"),
+    (0x02, "SR_VIRTCFG"),
+    (0x03, "SR_VIRTID"),
     (0x0f, "SR_ORDERING_TICKET"),
+    (0x10, "SR_PRIM_TYPE"),
+    (0x11, "SR_INVOCATION_ID"),
+    (0x12, "SR_Y_DIRECTION"),
+    (0x13, "SR_THREAD_KILL"),
+    (0x14, "SM_SHADER_TYPE"),
+    (0x15, "SR_DIRECTCBEWRITEADDRESSLOW"),
+    (0x16, "SR_DIRECTCBEWRITEADDRESSHIGH"),
+    (0x17, "SR_DIRECTCBEWRITEENABLED"),
+    (0x18, "SR_SW_SCRATCH"),
+    (0x19, "SR_MACHINE_ID_1"),
+    (0x1a, "SR_MACHINE_ID_2"),
+    (0x1b, "SR_MACHINE_ID_3"),
+    (0x1c, "SR_AFFINITY"),
+    (0x1d, "SR_INVOCATION_INFO"),
+    (0x1e, "SR_WSCALEFACTOR_XY"),
+    (0x1f, "SR_WSCALEFACTOR_Z"),
     (0x20, "SR_TID"),
     (0x21, "SR_TID.X"),
     (0x22, "SR_TID.Y"),
@@ -3920,6 +3945,8 @@ static SYSREG_NAMES: &[(u32, &str)] = &[
     (0x3a, "SR_LEMASK"),
     (0x3b, "SR_GTMASK"),
     (0x3c, "SR_GEMASK"),
+    (0x3d, "SR_REGALLOC"),
+    (0x3e, "SR_BARRIERALLOC"),
     (0x40, "SR_GLOBALERRORSTATUS"),
     (0x41, "SR_CGAERRORSTATUS"),
     (0x42, "SR_WARPERRORSTATUS"),
@@ -3929,12 +3956,53 @@ static SYSREG_NAMES: &[(u32, &str)] = &[
     (0x51, "SR_CLOCKHI"),
     (0x52, "SR_GLOBALTIMERLO"),
     (0x53, "SR_GLOBALTIMERHI"),
+    (0x54, "SR_ESR_PC"),
+    (0x55, "SR_ESR_PC_HI"),
+    (0x60, "SR_HWTASKID"),
+    (0x61, "SR_CIRCULARQUEUEENTRYINDEX"),
+    (0x62, "SR_CIRCULARQUEUEENTRYADDRESSLOW"),
+    (0x63, "SR_CIRCULARQUEUEENTRYADDRESSHIGH"),
+    (0x64, "SR_PM0"),
+    (0x65, "SR_PM_HI0"),
+    (0x66, "SR_PM1"),
+    (0x67, "SR_PM_HI1"),
+    (0x68, "SR_PM2"),
+    (0x69, "SR_PM_HI2"),
+    (0x6a, "SR_PM3"),
+    (0x6b, "SR_PM_HI3"),
+    (0x6c, "SR_PM4"),
+    (0x6d, "SR_PM_HI4"),
+    (0x6e, "SR_PM5"),
+    (0x6f, "SR_PM_HI5"),
+    (0x70, "SR_PM6"),
+    (0x71, "SR_PM_HI6"),
+    (0x72, "SR_PM7"),
+    (0x73, "SR_PM_HI7"),
+    (0x74, "SR_SNAP_PM0"),
+    (0x75, "SR_SNAP_PM_HI0"),
+    (0x76, "SR_SNAP_PM1"),
+    (0x77, "SR_SNAP_PM_HI1"),
+    (0x78, "SR_SNAP_PM2"),
+    (0x79, "SR_SNAP_PM_HI2"),
+    (0x7a, "SR_SNAP_PM3"),
+    (0x7b, "SR_SNAP_PM_HI3"),
+    (0x7c, "SR_SNAP_PM4"),
+    (0x7d, "SR_SNAP_PM_HI4"),
+    (0x7e, "SR_SNAP_PM5"),
+    (0x7f, "SR_SNAP_PM_HI5"),
+    (0x80, "SR_SNAP_PM6"),
+    (0x81, "SR_SNAP_PM_HI6"),
+    (0x82, "SR_SNAP_PM7"),
+    (0x83, "SR_SNAP_PM_HI7"),
     (0x84, "SR_VARIABLE_RATE"),
+    (0x85, "__HIR0X000"),
     (0x88, "SR_CgaCtaId"),
     (0x89, "SR_GpcLocalCgaId"),
     (0x8a, "SR_CgaSize"),
     (0x8b, "SR_CTARegPoolSz"),
     (0x8d, "SR_TMemSz"),
+    (0x8e, "SR_CONTEXT_SAVE_ADDR_LO"),
+    (0x8f, "SR_CONTEXT_SAVE_ADDR_HI"),
     (0xff, "SRZ"),
 ];
 
@@ -3968,7 +4036,7 @@ fn format_sysreg(fields: &[&DecodedField], raw: u128) -> String {
             return name.to_string();
         }
     }
-    format!("SR_0x{id:04x}")
+    format!("SR{id}")
 }
 
 // ── B — barrier ───────────────────────────────────────────────────────────────

@@ -102,7 +102,7 @@ fn t459a_1_decode_matrix() {
 #[test]
 fn t459a_2_mint_junk_census_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "afa885f47a1c32ac023ba3c7c9b8eb9876f20277";
+    const CURRENT_VENDORED_CANON: &str = "59561b2882d8b3bf9dd7e3cab98826d8b2e7358e";
     assert_eq!(CANON459A, "9c0e4ce", "historical fixture revision drift");
 
     const CTL: u128 = !((1u128 << 96) - 1);
@@ -160,10 +160,10 @@ fn t459a_2_mint_junk_census_source() {
     let sm120 = &src["tables"]["sm120.json"];
     assert_eq!(
         sm120["base_sha256"].as_str(),
-        Some("31a6320989bb20abe23ce7cd52a3e19f752929ee26e40b49610cb0310dbda55e"),
+        Some("d6570b9d694aef1de173bd1f93caae2430b64b3a3dbdad0be82bed82db31806d"),
         "SM120 source digest drift"
     );
-    assert_eq!(sm120["instruction_forms"].as_u64(), Some(16133));
+    assert_eq!(sm120["instruction_forms"].as_u64(), Some(16132));
     assert_eq!(sm120["encoding_variants"].as_u64(), Some(20837));
 }
 

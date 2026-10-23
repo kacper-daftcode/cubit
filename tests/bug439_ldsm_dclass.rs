@@ -138,7 +138,7 @@ fn t439_5_source_manifest_and_invariants() {
         src["base_revision"]
             .as_str()
             .unwrap()
-            .starts_with("afa885f47a1c32ac023ba3c7c9b8eb9876f20277"), // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+            .starts_with("59561b2882d8b3bf9dd7e3cab98826d8b2e7358e"), // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
         "SOURCE.json must pin canonical 57e7ecd [was ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, 1810912 = 435+434 hop, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b] (BUG-442 graft F2-iter246 z atrybucja; ride-chain): {:?}",
         src["base_revision"]
     );

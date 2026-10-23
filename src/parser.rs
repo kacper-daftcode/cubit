@@ -409,8 +409,11 @@ fn parse_single_operand(s: &str, is_float_context: bool) -> Operand {
         }
     }
 
-    // System register: SR_TID.X, SR_CTAID.X, SRZ (zero; encodes as 0xff)
-    if s.starts_with("SR_") || s == "SRZ" {
+    // System register: SR_TID.X, SR_CTAID.X, SRZ (zero; encodes as 0xff), the
+    // nvdisasm SR<decimal> spelling of unnamed codes and its two non-SR_ names.
+    if s.starts_with("SR_") || s == "SRZ" || s == "SM_SHADER_TYPE" || s == "__HIR0X000"
+        || (s.len() > 2 && s.starts_with("SR") && s.as_bytes()[2..].iter().all(|b| b.is_ascii_digit()))
+    {
         return Operand::SysReg(s.to_string());
     }
 

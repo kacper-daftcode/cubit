@@ -26153,6 +26153,6 @@ pub static MINT468: &[(&str, &str)] = &[
 pub static CENSUS468: &[(&str, usize)] = &[
     ("sm100a", 14879),
     ("sm103a", 14879),
-    ("sm120", 16133), // RIDE459a (F2-iter301, canonical 96372cb): -1 sm120 key (459a junk-mg "" / 64 DELETE -> key-del UR_II_..._UP_UP) -> forms 16015, variants -4=17631; sm121a variants -4=26385; cf stoi
+    ("sm120", 16132), // 2026-10-23 CS2UR (canonical 59561b2): -1 sm120 key (junk CS2UR_UR_II removed; CS2UR_UR_L gains the plain group) = 16132 // RIDE459a (F2-iter301, canonical 96372cb): -1 sm120 key (459a junk-mg "" / 64 DELETE -> key-del UR_II_..._UP_UP) -> forms 16015, variants -4=17631; sm121a variants -4=26385; cf stoi
     ("sm121a", 23833),
 ]; // RIDE476 (F2-iter299, canonical c88778e): +11/+11/+11/+8 (476 NA-side graft) -> 14879/14879/16016/23833 // RIDE475R3 (F2-iter289, INC-289e): +3/+3/+2/+2 -> 14868/14868/16005/23825 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146/-2 keys (dARI modsub lattice b76=1 + rekanon 462-mgs ENL2) // was: raw 13721x2/14859/22688 RIDE474-pre // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468)
