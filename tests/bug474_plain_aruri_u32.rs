@@ -179,7 +179,7 @@ fn t474_6b_mintdesc_sealed_parity() {
 #[test]
 fn t474_7_census_and_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "afa885f47a1c32ac023ba3c7c9b8eb9876f20277";
+    const CURRENT_VENDORED_CANON: &str = "59561b2882d8b3bf9dd7e3cab98826d8b2e7358e";
     assert_eq!(CANON474, "9c0e4ce", "historical fixture revision drift");
 
     for (leg, want) in CENSUS474 {
@@ -198,7 +198,7 @@ fn t474_7_census_and_source() {
     // Structured provenance is emitted by sync_table.py; historical free-text
     // flip notes are not part of its manifest schema.
     assert_eq!(src["tables"]["sm120.json"]["base_sha256"],
-        "31a6320989bb20abe23ce7cd52a3e19f752929ee26e40b49610cb0310dbda55e");
-    assert_eq!(src["tables"]["sm120.json"]["instruction_forms"], 16133);
+        "d6570b9d694aef1de173bd1f93caae2430b64b3a3dbdad0be82bed82db31806d");
+    assert_eq!(src["tables"]["sm120.json"]["instruction_forms"], 16132);
     assert_eq!(src["tables"]["sm120.json"]["encoding_variants"], 20837);
 }

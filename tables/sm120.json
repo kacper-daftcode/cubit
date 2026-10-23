@@ -12873,84 +12873,70 @@
     "write_latency": 0
    }
   },
-  "CS2UR_UR_II": {
-   "base_op": "CS2UR",
-   "ctrl_class": "s2r",
-   "mercury": [],
-   "mod_groups": {
-    "": {
-     "and_base": "0x000000000000000000000000000008cb",
-     "fields": [
-      {
-       "bits": 4,
-       "extraction": "guard",
-       "shift": 12,
-       "token_idx": 0
-      },
-      {
-       "bits": 8,
-       "extraction": "ureg",
-       "shift": 16,
-       "token_idx": 1
-      },
-      {
-       "bits": 2,
-       "extraction": "imm",
-       "shift": 72,
-       "token_idx": 2
-      },
-      {
-       "bits": 3,
-       "extraction": "imm",
-       "shift": 76,
-       "token_idx": 0
-      }
-     ],
-     "variable_mask": "0x1c000000007073ff00000000fffff000"
-    }
-   },
-   "operand_sig": "UR_II",
-   "scheduling": {
-    "_all_entries": [
-     {
-      "name": "CS2UR",
-      "opcode_id": 26,
-      "pipe_name": "MEMORY",
-      "read_latency": 0,
-      "write_latency": 0
-     },
-     {
-      "name": "CS2UR (synthetic)",
-      "opcode_id": null,
-      "pipe_name": "SPECIAL",
-      "read_latency": 20,
-      "write_latency": 0
-     }
-    ],
-    "confidence": "synthetic",
-    "def_latency": 20,
-    "is_variable_latency": true,
-    "latency_source": "synthetic",
-    "opcode_id": null,
-    "pipe_class": 15,
-    "pipe_name": "SPECIAL",
-    "ptxas_raw": null,
-    "read_latency": 20,
-    "stall_base": 4,
-    "throughput": 8,
-    "write_latency": 0
-   }
-  },
   "CS2UR_UR_L": {
    "base_op": "CS2UR",
    "ctrl_class": "s2r",
    "mercury": [],
    "mod_groups": {
+    "": {
+     "and_base": "0x000000000001000000000000000008cb",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "cs2ur-sm120-2026-10-23"
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "cs2ur-sm120-2026-10-23"
+      },
+      {
+       "bits": 8,
+       "extraction": "sysreg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "cs2ur-sm120-2026-10-23"
+      }
+     ],
+     "variable_mask": "0x000000000000ff000000000000fff000",
+     "_src": "cs2ur-sm120-2026-10-23",
+     "_note": "nvdisasm 13.1 sweeps: uniform guard[15:12], URd[23:16] (255 = URZ), system-register id[79:72]; bit80=1 is the 64-bit/plain form."
+    },
     "32": {
-     "and_base": "0x000000000000500000000000000778cb",
-     "count": 1,
-     "fields": [],
-     "variable_mask": "0x1c000000007000ff00000000ff000000"
+     "and_base": "0x000000000000000000000000000008cb",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "cs2ur-sm120-2026-10-23"
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "cs2ur-sm120-2026-10-23"
+      },
+      {
+       "bits": 8,
+       "extraction": "sysreg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "cs2ur-sm120-2026-10-23"
+      }
+     ],
+     "variable_mask": "0x000000000000ff000000000000fff000",
+     "_src": "cs2ur-sm120-2026-10-23",
+     "_note": "CS2UR.32: same measured fields, bit80=0."
     }
    },
    "operand_sig": "UR_L",

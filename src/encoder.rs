@@ -77,11 +77,90 @@ fn sysreg_id(name: &str) -> Option<u64> {
         "SR_CTARegPoolSz" => 0x8b,
         "SR_TMemSz" => 0x8d,
         "SRZ" => 0xff,
-        // Numeric escape hatch: SR_0x<hex> keeps any raw code (also unknown to
-        // nvdisasm) encodable bit-exactly.
+        // Names the printer already rendered (nvdisasm-13.3 sweep) but the
+        // encoder could not read back.
+        "SR_CirQueueIncrMinusOne" => 0x29,
+        "SR_NLATC" => 0x2a,
+        "SR_SM_SPA_VERSION" => 0x2c,
+        "SR_MULTIPASSSHADERINFO" => 0x2d,
+        "SR_LWINHI" => 0x2e,
+        // nvdisasm-13.1 names (tools/re_sm120_cs2ur.py sweep; same on S2R/CS2R/S2UR).
+        "SR_CLOCK" => 0x01,
+        "SR_VIRTCFG" => 0x02,
+        "SR_VIRTID" => 0x03,
+        "SR_PRIM_TYPE" => 0x10,
+        "SR_INVOCATION_ID" => 0x11,
+        "SR_Y_DIRECTION" => 0x12,
+        "SR_THREAD_KILL" => 0x13,
+        "SM_SHADER_TYPE" => 0x14,
+        "SR_DIRECTCBEWRITEADDRESSLOW" => 0x15,
+        "SR_DIRECTCBEWRITEADDRESSHIGH" => 0x16,
+        "SR_DIRECTCBEWRITEENABLED" => 0x17,
+        "SR_SW_SCRATCH" => 0x18,
+        "SR_MACHINE_ID_1" => 0x19,
+        "SR_MACHINE_ID_2" => 0x1a,
+        "SR_MACHINE_ID_3" => 0x1b,
+        "SR_AFFINITY" => 0x1c,
+        "SR_INVOCATION_INFO" => 0x1d,
+        "SR_WSCALEFACTOR_XY" => 0x1e,
+        "SR_WSCALEFACTOR_Z" => 0x1f,
+        "SR_REGALLOC" => 0x3d,
+        "SR_BARRIERALLOC" => 0x3e,
+        "SR_ESR_PC" => 0x54,
+        "SR_ESR_PC_HI" => 0x55,
+        "SR_HWTASKID" => 0x60,
+        "SR_CIRCULARQUEUEENTRYINDEX" => 0x61,
+        "SR_CIRCULARQUEUEENTRYADDRESSLOW" => 0x62,
+        "SR_CIRCULARQUEUEENTRYADDRESSHIGH" => 0x63,
+        "SR_PM0" => 0x64,
+        "SR_PM_HI0" => 0x65,
+        "SR_PM1" => 0x66,
+        "SR_PM_HI1" => 0x67,
+        "SR_PM2" => 0x68,
+        "SR_PM_HI2" => 0x69,
+        "SR_PM3" => 0x6a,
+        "SR_PM_HI3" => 0x6b,
+        "SR_PM4" => 0x6c,
+        "SR_PM_HI4" => 0x6d,
+        "SR_PM5" => 0x6e,
+        "SR_PM_HI5" => 0x6f,
+        "SR_PM6" => 0x70,
+        "SR_PM_HI6" => 0x71,
+        "SR_PM7" => 0x72,
+        "SR_PM_HI7" => 0x73,
+        "SR_SNAP_PM0" => 0x74,
+        "SR_SNAP_PM_HI0" => 0x75,
+        "SR_SNAP_PM1" => 0x76,
+        "SR_SNAP_PM_HI1" => 0x77,
+        "SR_SNAP_PM2" => 0x78,
+        "SR_SNAP_PM_HI2" => 0x79,
+        "SR_SNAP_PM3" => 0x7a,
+        "SR_SNAP_PM_HI3" => 0x7b,
+        "SR_SNAP_PM4" => 0x7c,
+        "SR_SNAP_PM_HI4" => 0x7d,
+        "SR_SNAP_PM5" => 0x7e,
+        "SR_SNAP_PM_HI5" => 0x7f,
+        "SR_SNAP_PM6" => 0x80,
+        "SR_SNAP_PM_HI6" => 0x81,
+        "SR_SNAP_PM7" => 0x82,
+        "SR_SNAP_PM_HI7" => 0x83,
+        "__HIR0X000" => 0x85,
+        "SR_CONTEXT_SAVE_ADDR_LO" => 0x8e,
+        "SR_CONTEXT_SAVE_ADDR_HI" => 0x8f,
+        // Numeric spellings: nvdisasm renders unnamed codes as SR<decimal>;
+        // SR_0x<hex> stays as the escape hatch for any raw code.
         _ => {
-            let h = name.strip_prefix("SR_0x")?;
-            u64::from_str_radix(h, 16).ok()?
+            if let Some(h) = name.strip_prefix("SR_0x") {
+                u64::from_str_radix(h, 16).ok()?
+            } else {
+                let d = name.strip_prefix("SR")?;
+                if d.is_empty() || !d.bytes().all(|b| b.is_ascii_digit()) {
+                    return None;
+                }
+                let id: u64 = d.parse().ok()?;
+                if id > 0xff { return None; }
+                id
+            }
         }
     };
     Some(id)
