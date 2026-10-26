@@ -179,7 +179,7 @@ fn t474_6b_mintdesc_sealed_parity() {
 #[test]
 fn t474_7_census_and_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "59561b2882d8b3bf9dd7e3cab98826d8b2e7358e";
+    const CURRENT_VENDORED_CANON: &str = "8d26508a0a5aa0accf01c1ac38ef16a37fd535bc";
     assert_eq!(CANON474, "9c0e4ce", "historical fixture revision drift");
 
     for (leg, want) in CENSUS474 {
@@ -198,7 +198,7 @@ fn t474_7_census_and_source() {
     // Structured provenance is emitted by sync_table.py; historical free-text
     // flip notes are not part of its manifest schema.
     assert_eq!(src["tables"]["sm120.json"]["base_sha256"],
-        "d6570b9d694aef1de173bd1f93caae2430b64b3a3dbdad0be82bed82db31806d");
+        "d6c2a2ae30935c9bea2051ad3a31a46bf5b6de776e65d187e220b69afd437836");
     assert_eq!(src["tables"]["sm120.json"]["instruction_forms"], 16132);
-    assert_eq!(src["tables"]["sm120.json"]["encoding_variants"], 20837);
+    assert_eq!(src["tables"]["sm120.json"]["encoding_variants"], 20844);  // 2026-10-25 CCTL (canonical 8d26508): +7 mod groups in CCTL_ARI (E,PF1/WB/IV/RS/PML2/RML2 + DML2,E), keys unchanged 16132, variants 20837 -> 20844
 }

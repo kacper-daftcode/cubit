@@ -186,7 +186,7 @@ fn t467_4_keep_alive_siblings() {
 #[test]
 fn t467_5_census_and_source_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "59561b2882d8b3bf9dd7e3cab98826d8b2e7358e";
+    const CURRENT_VENDORED_CANON: &str = "8d26508a0a5aa0accf01c1ac38ef16a37fd535bc";
     assert_eq!(CANON467, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     for (leg, want) in [

@@ -1625327,6 +1625327,216 @@
      ],
      "variable_mask": "0x0000000000000000ffffffffff00f000",
      "count": 1
+    },
+    "E,PF1": {
+     "and_base": "0x0000000000000100000000000000098f",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "cctl-sm120-2026-10-25"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1,
+       "_src": "cctl-sm120-2026-10-25"
+      },
+      {
+       "bits": 32,
+       "extraction": "sub_imm1",
+       "shift": 32,
+       "token_idx": 1,
+       "_src": "cctl-sm120-2026-10-25"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffffffff00f000",
+     "_src": "cctl-sm120-2026-10-25",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], address register[31:24] (255 = RZ), signed offset[63:32], E = bit 72, operation[90:87] = 0 (PF1); bits 73-76 add a trailing immediate and bit 80 an unknown modifier - both left out of the mask."
+    },
+    "E,WB": {
+     "and_base": "0x0000000001000100000000000000098f",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "cctl-sm120-2026-10-25"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1,
+       "_src": "cctl-sm120-2026-10-25"
+      },
+      {
+       "bits": 32,
+       "extraction": "sub_imm1",
+       "shift": 32,
+       "token_idx": 1,
+       "_src": "cctl-sm120-2026-10-25"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffffffff00f000",
+     "_src": "cctl-sm120-2026-10-25",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], address register[31:24] (255 = RZ), signed offset[63:32], E = bit 72, operation[90:87] = 2 (WB); bits 73-76 add a trailing immediate and bit 80 an unknown modifier - both left out of the mask."
+    },
+    "E,IV": {
+     "and_base": "0x0000000001800100000000000000098f",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "cctl-sm120-2026-10-25"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1,
+       "_src": "cctl-sm120-2026-10-25"
+      },
+      {
+       "bits": 32,
+       "extraction": "sub_imm1",
+       "shift": 32,
+       "token_idx": 1,
+       "_src": "cctl-sm120-2026-10-25"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffffffff00f000",
+     "_src": "cctl-sm120-2026-10-25",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], address register[31:24] (255 = RZ), signed offset[63:32], E = bit 72, operation[90:87] = 3 (IV); bits 73-76 add a trailing immediate and bit 80 an unknown modifier - both left out of the mask."
+    },
+    "E,RS": {
+     "and_base": "0x0000000002800100000000000000098f",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "cctl-sm120-2026-10-25"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1,
+       "_src": "cctl-sm120-2026-10-25"
+      },
+      {
+       "bits": 32,
+       "extraction": "sub_imm1",
+       "shift": 32,
+       "token_idx": 1,
+       "_src": "cctl-sm120-2026-10-25"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffffffff00f000",
+     "_src": "cctl-sm120-2026-10-25",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], address register[31:24] (255 = RZ), signed offset[63:32], E = bit 72, operation[90:87] = 5 (RS); bits 73-76 add a trailing immediate and bit 80 an unknown modifier - both left out of the mask."
+    },
+    "E,PML2": {
+     "and_base": "0x0000000004800100000000000000098f",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "cctl-sm120-2026-10-25"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1,
+       "_src": "cctl-sm120-2026-10-25"
+      },
+      {
+       "bits": 32,
+       "extraction": "sub_imm1",
+       "shift": 32,
+       "token_idx": 1,
+       "_src": "cctl-sm120-2026-10-25"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffffffff00f000",
+     "_src": "cctl-sm120-2026-10-25",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], address register[31:24] (255 = RZ), signed offset[63:32], E = bit 72, operation[90:87] = 9 (PML2); bits 73-76 add a trailing immediate and bit 80 an unknown modifier - both left out of the mask."
+    },
+    "DML2,E": {
+     "and_base": "0x0000000005000100000000000000098f",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "cctl-sm120-2026-10-25"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1,
+       "_src": "cctl-sm120-2026-10-25"
+      },
+      {
+       "bits": 32,
+       "extraction": "sub_imm1",
+       "shift": 32,
+       "token_idx": 1,
+       "_src": "cctl-sm120-2026-10-25"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffffffff00f000",
+     "_src": "cctl-sm120-2026-10-25",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], address register[31:24] (255 = RZ), signed offset[63:32], E = bit 72, operation[90:87] = 10 (DML2); bits 73-76 add a trailing immediate and bit 80 an unknown modifier - both left out of the mask."
+    },
+    "E,RML2": {
+     "and_base": "0x0000000005800100000000000000098f",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "cctl-sm120-2026-10-25"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1,
+       "_src": "cctl-sm120-2026-10-25"
+      },
+      {
+       "bits": 32,
+       "extraction": "sub_imm1",
+       "shift": 32,
+       "token_idx": 1,
+       "_src": "cctl-sm120-2026-10-25"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffffffff00f000",
+     "_src": "cctl-sm120-2026-10-25",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], address register[31:24] (255 = RZ), signed offset[63:32], E = bit 72, operation[90:87] = 11 (RML2); bits 73-76 add a trailing immediate and bit 80 an unknown modifier - both left out of the mask."
     }
    }
   },
