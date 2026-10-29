@@ -29364,6 +29364,72 @@
     "write_latency": 0
    }
   },
+  "F2FP.BF16.E8.UNPACK_B_R_R": {
+   "base_op": "F2FP.BF16.E8.UNPACK_B",
+   "ctrl_class": "alu_simple",
+   "mercury": [],
+   "mod_groups": {
+    "": {
+     "and_base": "0x00000000020816ff00000000ff00023e",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "f2fp-e8-sm120-2026-10-28"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "f2fp-e8-sm120-2026-10-28"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2,
+       "_src": "f2fp-e8-sm120-2026-10-28"
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 123,
+       "token_idx": 2,
+       "_src": "f2fp-e8-sm120-2026-10-28"
+      },
+      {
+       "bits": 1,
+       "extraction": "opmod:H1",
+       "shift": 88,
+       "token_idx": 2,
+       "_src": "f2fp-e8-sm120-2026-10-28"
+      }
+     ],
+     "variable_mask": "0x0800000001000000000000ff00fff000",
+     "_src": "f2fp-e8-sm120-2026-10-28",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], destination[23:16], source[39:32], .H1 = bit 88, .reuse = bit 123; bits [87:80] = 0x08 select the UE8M0 source group and bit 76 the BF16 destination (E8 has no F16 destination, the other UNPACK_B sources no BF16 one). PTX cvt.rn.bf16x2.ue8m0x2."
+    }
+   },
+   "operand_sig": "R_R",
+   "scheduling": {
+    "confidence": "synthetic",
+    "def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 36,
+    "pipe_name": "FP_ARITH",
+    "ptxas_raw": null,
+    "read_latency": 4,
+    "stall_base": 4,
+    "throughput": 2,
+    "write_latency": 0
+   }
+  },
   "F2FP.F16.E5M2.UNPACK_B_R_R": {
    "base_op": "F2FP.F16.E5M2.UNPACK_B",
    "ctrl_class": "alu_simple",

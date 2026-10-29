@@ -194,7 +194,7 @@ fn t409_4_mint_circle_inert_drop() {
 #[test]
 fn t409_5_graft_hygiene_source_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "8d26508a0a5aa0accf01c1ac38ef16a37fd535bc";
+    const CURRENT_VENDORED_CANON: &str = "f1e02b361015563a2153fb7bf87ebbd5845001ed";
 
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();

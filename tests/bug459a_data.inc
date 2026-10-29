@@ -2579,7 +2579,7 @@ pub const JUNK459A_TEXT: &str = "UIADD3 UR10, UPT, UPT, UR7, -0x10, URZ, UPT, UP
 pub static CENSUS459A: &[(&str, usize, usize, usize)] = &[
     ("sm100a", 14879, 16455, 1170),
     ("sm103a", 14879, 16451, 1170),
-    ("sm120", 16132, 20831, 1181), // 2026-10-23 CS2UR (canonical 59561b2): -1 sm120 key (junk CS2UR_UR_II removed; CS2UR_UR_L gains the plain group) = 16132 // RIDE458a2 (F2-iter309, canonical 952d336): variants +1, cf +1 (graft mg PACK_AB.RZ, cf verbatim z klona 100a)
+    ("sm120", 16133, 20831, 1181), // 2026-10-28 F2FP.BF16.E8.UNPACK_B_R_R (canonical f1e02b3): +1 sm120 key (UE8M0 -> BF16x2 unpack) = 16133 // 2026-10-23 CS2UR (canonical 59561b2): -1 sm120 key (junk CS2UR_UR_II removed; CS2UR_UR_L gains the plain group) = 16132 // RIDE458a2 (F2-iter309, canonical 952d336): variants +1, cf +1 (graft mg PACK_AB.RZ, cf verbatim z klona 100a)
     ("sm121a", 23833, 26391, 1184), // RIDE458a2 jw.
 ];
 

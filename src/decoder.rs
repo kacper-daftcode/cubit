@@ -575,8 +575,11 @@ impl DecodeIndex {
             // models AGREE). Same stripped-upper32 blind spot as BUG-362a:
             // fail closed here with attribution.
             let key = matched.key.as_str();
+            // F2I rows only: F2FP.BF16.E8.UNPACK_B_R_R (UE8M0 -> BF16x2, 2026-10-28) carries a
+            // measured .reuse (nvdisasm 13.1 renders `Rb.reuse` for it) and must not be caught here.
             let is_363_ftz_bf16 = matched.mod_group.is_empty()
                 && matched.key.ends_with("_R_R")
+                && key.starts_with("F2I")
                 && (key.starts_with("F2I.FTZ") || key.contains(".BF16.") || key == "F2I.BF16_R_R");
             let reuse_bad = (matched.key == "F2I_R_R"
                 && matches!(
