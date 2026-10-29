@@ -16359,6 +16359,6 @@ pub static REKANON475: &[(&str, &str, &str)] = &[
 pub static CENSUS475: &[(&str, usize)] = &[
     ("sm100a", 14879),
     ("sm103a", 14879),
-    ("sm120", 16132), // 2026-10-23 CS2UR (canonical 59561b2): -1 sm120 key (junk CS2UR_UR_II removed; CS2UR_UR_L gains the plain group) = 16132 // RIDE459a (F2-iter301, canonical 96372cb): -1 sm120 key (459a junk-mg "" / 64 DELETE -> key-del UR_II_..._UP_UP) -> forms 16015, variants -4=17631; sm121a variants -4=26385; cf stoi
+    ("sm120", 16133), // 2026-10-28 F2FP.BF16.E8.UNPACK_B_R_R (canonical f1e02b3): +1 sm120 key (UE8M0 -> BF16x2 unpack) = 16133 // 2026-10-23 CS2UR (canonical 59561b2): -1 sm120 key (junk CS2UR_UR_II removed; CS2UR_UR_L gains the plain group) = 16132 // RIDE459a (F2-iter301, canonical 96372cb): -1 sm120 key (459a junk-mg "" / 64 DELETE -> key-del UR_II_..._UP_UP) -> forms 16015, variants -4=17631; sm121a variants -4=26385; cf stoi
     ("sm121a", 23833),
 ]; // RIDE476 (F2-iter299, canonical c88778e): +11/+11/+11/+8 (476 NA-side graft) -> 14879/14879/16016/23833 // RIDE475R3 (F2-iter289, INC-289e): 14868/14868/16005/23825

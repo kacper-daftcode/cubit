@@ -102,7 +102,7 @@ fn t459a_1_decode_matrix() {
 #[test]
 fn t459a_2_mint_junk_census_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "8d26508a0a5aa0accf01c1ac38ef16a37fd535bc";
+    const CURRENT_VENDORED_CANON: &str = "f1e02b361015563a2153fb7bf87ebbd5845001ed";
     assert_eq!(CANON459A, "9c0e4ce", "historical fixture revision drift");
 
     const CTL: u128 = !((1u128 << 96) - 1);
@@ -134,7 +134,8 @@ fn t459a_2_mint_junk_census_source() {
         if *leg == "sm120" {
             assert_eq!(*want_variants, 20831, "historical SM120 variants snapshot drift");
         }
-        let current_variants = *want_variants + if *leg == "sm120" { 13 } else { 0 };
+        // 2026-10-28: + the F2FP.BF16.E8.UNPACK_B_R_R row (UE8M0 -> BF16x2; canonical f1e02b3) = 14.
+        let current_variants = *want_variants + if *leg == "sm120" { 14 } else { 0 };
         assert_eq!(variants, current_variants, "[{leg}] variants census drift");
         let cf = ins
             .values()
@@ -161,11 +162,11 @@ fn t459a_2_mint_junk_census_source() {
     let sm120 = &src["tables"]["sm120.json"];
     assert_eq!(
         sm120["base_sha256"].as_str(),
-        Some("d6c2a2ae30935c9bea2051ad3a31a46bf5b6de776e65d187e220b69afd437836"),
+        Some("1f08343c7c583d01a4e909e8420e3c2edcbecbef661fdcfd278e78c30900b121"),
         "SM120 source digest drift"
     );
-    assert_eq!(sm120["instruction_forms"].as_u64(), Some(16132));
-    assert_eq!(sm120["encoding_variants"].as_u64(), Some(20844));  // 2026-10-25 CCTL (canonical 8d26508): +7 mod groups in CCTL_ARI (E,PF1/WB/IV/RS/PML2/RML2 + DML2,E), keys unchanged 16132, variants 20837 -> 20844
+    assert_eq!(sm120["instruction_forms"].as_u64(), Some(16133));  // 2026-10-28 F2FP.BF16.E8.UNPACK_B_R_R (canonical f1e02b3): +1 sm120 key
+    assert_eq!(sm120["encoding_variants"].as_u64(), Some(20845));  // 2026-10-28 F2FP.BF16.E8.UNPACK_B_R_R (canonical f1e02b3): +1 sm120 key, variants 20844 -> 20845; 2026-10-25 CCTL (canonical 8d26508): +7 mod groups in CCTL_ARI (E,PF1/WB/IV/RS/PML2/RML2 + DML2,E), keys unchanged 16132, variants 20837 -> 20844
 }
 
 /// NVIDIA SM120 distinguishes X by bit74. Non-X ignores the carry selector
