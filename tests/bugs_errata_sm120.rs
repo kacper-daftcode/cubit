@@ -206,19 +206,29 @@ fn bug007_stg_desc_words_decode_as_stg() {
 }
 
 // ── BUG-008 ─────────────────────────────────────────────────────────────────
-// 4-operand IMAD.WIDE with c != RZ: silicon reads c as the 64-bit pair
-// (Rc,Rc+1) — a register the text never names silently shapes the hi half.
-// Encodable (ptxas emits the form too) but the driver warns loudly; sm_103a
-// (ptxas-faithful corpus) stays quiet.
+// 4-operand IMAD.WIDE with a register c: c and d are 64-bit pairs named by
+// their even base register (Rd:Rd+1 = Ra * Rb + Rc:Rc+1) — nvcc's spelling
+// for every 64-bit address computation (190 sites in the served MoE kernels),
+// so the even idiom is silent. A pair on an ODD register cannot be aligned:
+// that spelling warns, naming the odd register and the pair it implies.
+// sm_103a (ptxas-faithful corpus) stays quiet.
 #[test]
 fn bug008_wide_cpair_warns_precisely() {
-    let w = warns(&t120(), "IMAD.WIDE.U32 R46, R34, 0x3d1, R18 ;");
-    assert!(w.iter().any(|m| m.contains("BUG-008") && m.contains("R19")), "{w:?}");
+    // the nvcc idiom: even pairs, with and without the accumulate-in-place form
+    assert!(warns(&t120(), "IMAD.WIDE.U32 R46, R34, 0x3d1, R18 ;").is_empty());
+    assert!(warns(&t120(), "IMAD.WIDE.U32 R4, R3, 0x10, R4 ;").is_empty());
+    assert!(warns(&t120(), "IMAD.WIDE R12, R12, 0x4, R16 ;").is_empty());
+    // odd accumulator / odd destination: the pair cannot be aligned
+    let w = warns(&t120(), "IMAD.WIDE.U32 R46, R34, 0x3d1, R19 ;");
+    assert!(w.iter().any(|m| m.contains("BUG-008") && m.contains("accumulator c R19 (pair R19:R20)")), "{w:?}");
+    let w = warns(&t120(), "IMAD.WIDE.U32 R47, R34, 0x3d1, R18 ;");
+    assert!(w.iter().any(|m| m.contains("BUG-008") && m.contains("destination R47 (pair R47:R48)")), "{w:?}");
     assert!(warns(&t120(), "IMAD.WIDE.U32 R46, R34, 0x3d1, RZ ;").is_empty());
     assert!(warns(&t120(), "IMAD.WIDE.U32 R46, PT, R34, R35, R18 ;").is_empty());
     assert!(warns(&t103a(), "IMAD.WIDE.U32 R2, R5, 0x8, R2 ;").is_empty());
     // ptxas-faithful encodings keep working everywhere
     assert_ne!(enc(&t120(), "IMAD.WIDE.U32 R46, R34, 0x3d1, R18 ;"), 0);
+    assert_ne!(enc(&t120(), "IMAD.WIDE.U32 R46, R34, 0x3d1, R19 ;"), 0);
 }
 
 // ── BUG-009 (ported at source) ──────────────────────────────────────────────

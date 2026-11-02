@@ -20,6 +20,8 @@ fn meta_for(g: &gold_manifest::GoldRow) -> KernelMeta {
             ordinal: i,
             offset: i * 8,
             size: if i < g.ptr { 8 } else { 4 },
+            space: if i < g.ptr { 5 } else { 0 },
+            log_align: 0,
         })
         .collect();
     KernelMeta {

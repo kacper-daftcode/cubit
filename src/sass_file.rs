@@ -241,6 +241,7 @@ fn strict_body_directive(line: &str) -> anyhow::Result<&str> {
     };
     let valid = match keyword {
         ".maxreg" => parts.len() == 1 && rest.parse::<u32>().is_ok(),
+        ".regcount" => parts.len() == 1 && rest.parse::<u32>().is_ok_and(|n| (2..=255).contains(&n)),
         ".reg" => match parts.as_slice() {
             [regs] => range(regs, 'R', true),
             [".u32" | ".u64", regs] => range(regs, 'R', true),
@@ -248,8 +249,18 @@ fn strict_body_directive(line: &str) -> anyhow::Result<&str> {
         },
         ".pred" => parts.len() == 1 && range(rest, 'P', false),
         ".bar" => parts.len() == 1 && range(rest, 'B', true),
-        ".param" => matches!(parts.as_slice(), [ty, name]
-            if crate::directives::ParamType::parse(ty).is_some() && is_metadata_name(name)),
+        ".param" => match parts.as_slice() {
+            [ty, name, attrs @ ..] => {
+                crate::directives::ParamType::parse(ty).is_some()
+                    && is_metadata_name(name)
+                    && attrs.iter().all(|attr| {
+                        attr.split_once('=').is_some_and(|(key, value)| {
+                            matches!(key, "offset" | "space" | "logalign") && number(value).is_some()
+                        })
+                    })
+            }
+            _ => false,
+        },
         ".shared" => {
             let declaration = if parts.first() == Some(&".align") {
                 let after = rest.strip_prefix(".align").unwrap().trim();
@@ -417,22 +428,19 @@ pub fn kernel_def_to_meta(
         }
     }
 
-    // Build parameter list from directives
-    let mut offset = 0u32;
-    let params: Vec<EiKernelParam> = def.resources.params.iter().enumerate()
-        .map(|(i, p)| {
-            let size = p.ty.size();
-            let aligned_offset = (offset + size - 1) & !(size - 1);
-            offset = aligned_offset + size;
-            EiKernelParam {
-                index: i as u32,
-                ordinal: i as u32,
-                offset: aligned_offset,
-                size,
-            }
+    // Build parameter list from directives (explicit offset= / space= /
+    // logalign= attributes win over the natural layout rule).
+    let params: Vec<EiKernelParam> = def.resources.param_layout().iter().enumerate()
+        .map(|(i, slot)| EiKernelParam {
+            index: i as u32,
+            ordinal: i as u32,
+            offset: slot.offset,
+            size: slot.size,
+            space: slot.space,
+            log_align: slot.log_align,
         }).collect();
 
-    let cbank_param_size = offset as u16;
+    let cbank_param_size = def.resources.param_space_size() as u16;
     // QMMA uses internal registers beyond the explicit operands.
     // Tungsten uses regcount=48 for QMMA kernels.
     let has_qmma = def.instructions.iter().any(|insn| insn.opcode == "QMMA");
@@ -859,7 +867,7 @@ fn merc_exec_positions(instructions: &[Instruction]) -> MercExecPositions {
 /// Series boundaries: an instruction that is a branch target, and the position
 /// CALL/BRA/BRX/JMP/BREAK/BSSY/BSYNC (navic odpowiednia na s_stg_branch).
 /// mk12: per-STG (dreg/dur/guard) — merc_stg_meta ponizej. dreg: kursor
-/// the 02 38 record on bytes [19],[20] (u16 LE) = dreg << 6; RZ as 0x3ff
+/// the 02 38 record on bytes \[19\],\[20\] (u16 LE) = dreg << 6; RZ as 0x3ff
 /// (R3->0x00c0, R5->0x0140, R7->0x01c0, R9->0x0240, R11->0x02c0,
 /// R21->0x0540, RZ->0xffc0). Zastepuje model mk10b (40|par<<7, 1+(ser>>1)
 /// == seria R5+2n). dur: desc-UR -> (b17,b18) = (dur<<6)|2 (fala A:
@@ -870,7 +878,7 @@ fn merc_exec_positions(instructions: &[Instruction]) -> MercExecPositions {
 /// @Pn -> (n<<3), @!Pn -> (n<<3)|1, @UPn -> (n<<3)|2, @!UPn -> (n<<3)|3.
 pub fn merc_guard_code(g: Option<&crate::ir::Guard>) -> u8 {
     match g {
-        Some(g) if !(g.pred == 7 && !g.negated) => {
+        Some(g) if g.pred != 7 || g.negated => {
             let mut v = g.pred << 3;
             if g.uniform {
                 v |= 2;
@@ -999,7 +1007,7 @@ fn merc_stg_meta(instructions: &[Instruction]) -> MercStgMeta {
         areg.push(a);
         // mk41: full predicate code (0xf8 = none, Pn<<3|neg / UPn<<3|2|neg)
         let g: u8 = match &ins.guard {
-            Some(g) if !(g.pred == 7 && !g.negated) => {
+            Some(g) if g.pred != 7 || g.negated => {
                 let mut v = g.pred << 3;
                 if g.uniform { v |= 2; }
                 if g.negated { v |= 1; }
@@ -1251,7 +1259,7 @@ pub struct MercMcScan {
 
 /// mk35: skany pomocnicze domkniecia mk35 (REDUX/CREDUX dst-grid,
 /// ISETP-UR mini, guardy BAR per-lane, dst-reg loadow param, dst loadu
-/// c[0x358]). A separate function (we do not bloat the short merc_param_scan).
+/// c\[0x358\]). A separate function (we do not bloat the short merc_param_scan).
 pub struct MercMk35 {
     /// (lane, dreg) for param-window LDC/LDCU loads (c[0x380..]).
     pub load_dreg: Vec<(u32, u8)>,
@@ -1264,7 +1272,7 @@ pub struct MercMk35 {
     pub redux: Vec<(u32, u8, u8)>,
     /// mk60: 0132100a records, full decode (lane, 16B) — supersedes redux.
     pub redux2: Vec<(u32, [u8; 16])>,
-    /// dst-reg loadu okna c[0x358] (cbank-variant ladder: (dreg<<6)|3).
+    /// dst-reg loadu okna c\[0x358\] (cbank-variant ladder: (dreg<<6)|3).
     pub cbank358_dreg: Option<u8>,
 }
 
@@ -1339,7 +1347,7 @@ pub fn merc_mk35_scan(instructions: &[Instruction]) -> MercMk35 {
     o
 }
 
-/// mk41: para ISETP(non-EX) [head] + ISETP.*.EX [tail] -> JEDEN mini na lane
+/// mk41: para ISETP(non-EX) \[head\] + ISETP.*.EX \[tail\] -> JEDEN mini na lane
 /// heada. Klasy: 0=para czysto-rejestrowa (42102e14); 1=imm w head (42103006);
 /// 2=operand UR w parze (42103214). Head kasuje bit bitmapy.
 /// (mk35 change: the previous NE+UR-noEX rule misfired across the corpus.)
@@ -1418,13 +1426,13 @@ pub fn merc_xsetp_scan(instructions: &[Instruction]) -> Vec<(u32, u8)> {
 
 /// mk52: minis UISETP (UP-dst) + ULEA carry-out (korpus sm_100, merclab/mk52
 /// c1..c26 — counter/emulator validation + corpus bitmap):
-///  * para UISETP(non-EX, dst UPn) [head] i UISETP.*.EX (..., UPn ostatnim
-///    with a UR operand) [tail] -> a class mini on the head lane: 42103406 when head OR
+///  * para UISETP(non-EX, dst UPn) \[head\] i UISETP.*.EX (..., UPn ostatnim
+///    with a UR operand) \[tail\] -> a class mini on the head lane: 42103406 when head OR
 ///    tail carries an imm literal; 42103614 otherwise. Right after it a
 ///    42104014 mini — when the tail itself has NO imm.
-///  * UISETP non-EX lancuch (ostatni operand = !?UP<num>, pisarz dowolny):
+///  * UISETP non-EX lancuch (ostatni operand = !?UP`<num>`, pisarz dowolny):
 ///    a single mini on its own lane — 42103406 when it has an imm, else 42103614.
-///  * ULEA with carry-out (2nd token = UP<num>): the 42254214 mini on its own lane.
+///  * ULEA with carry-out (2nd token = UP`<num>`): the 42254214 mini on its own lane.
 ///    (ULEA.HI.X with carry-in alone: no record; verified ormtr-9/9.)
 ///
 /// mk61 (merclab/mk61 c1..c22, EXACT 14117/14119 kerneli count + 9556/9556
@@ -2580,7 +2588,7 @@ pub fn merc_txt_has_imm_literal(line: &str) -> bool {
 /// mk67: dialekt legacy-xmma fp32 (cublasLt.so.1170..1436): JEDYNE kerny
 /// of the corpus, where FFMA lanes get the 41 17 10 0a mini (candidacy (b)
 /// z frontu po mk66; EXACT 18932/18932 korpus: 141 kerneli `*xmma*ffma_fp32*`
-/// all with records at 1/FFMA; 233 kernels `*xmma*cp32*` (complex<f32>)
+/// all with records at 1/FFMA; 233 kernels `*xmma*cp32*` (complex`<f32>`)
 /// i 10473 pozostale z FFMA — zadnych rekordow). To dialekt producenta
 /// (offline-built Ampere templates), not an instruction trait.
 pub fn merc_ffma_fp32_dialect(kernel_name: &str) -> bool {
@@ -2748,7 +2756,7 @@ pub fn merc_ulop3_0606(text: &str) -> bool {
 /// 7233/7233; atrybucja bitmapowa c3/c5 + window-TLV c1 + fit c9/quasi-final).
 /// Form (exactly 8 tokens): IADD3.X Rd, PT, PT, x, y, RZ, p, q.
 ///  * tok1==tok2=="PT", tok5=="RZ", guard dowolny;
-///  * no token carries UR<num> (fail-closed — corpus: zero such hosts);
+///  * no token carries UR`<num>` (fail-closed — corpus: zero such hosts);
 ///  * literal imm (0x..|dziesietne, tez ujemne) w x lub y -> 42 1d 0a 06
 ///    i ogon (tok6,tok7)==(Pn,Pn);
 ///  * x,y oba z klasy rejestrowej ('-'/'~'/'.reuse' ok) -> 42 1d 08 14
@@ -2918,7 +2926,7 @@ pub fn merc_mini2_scan(kernel_name: &str, instructions: &[Instruction]) -> Vec<(
 }
 
 /// mk42 (dekod mk37/mk38 + domkniecie w mk42/edge9..edge13): kazdy LD
-/// (generic, base "LD") z adresem w formie desc[URm][Ry.64(+off)] dostaje
+/// (generic, base "LD") z adresem w formie desc\[URm\]\[Ry.64(+off)\] dostaje
 /// the 02 22 32 32 edge record. Selection EXACT (1721/1721 corpus
 /// sm_100 kernels; duplicated loop instances consistent). LD without a desc bracket:
 /// no record (10 gate-fail kernels in the corpus = plain LD). The record carries
@@ -3054,7 +3062,7 @@ pub fn merc_edge_ld_scan(
 ///  1) the kernel name contains "annotated_ptr" (c8: without this step 133
 ///     false predictions in cusolver.438/456 + cublasLt.567 — lanes
 ///     tekstowo identyczne; zero wspolnych kerneli z rodzina 02223232);
-///  2) desc[URm] used in desc form ONLY by base LDG lanes
+///  2) desc\[URm\] used in desc form ONLY by base LDG lanes
 ///     (c7b: 238 UR-ow LDG-only maja rekordy; 40+32 dzielone ze
 ///     STG/REDG/LDGSTS — none — and the 68 LDCU-only do not either; the full rule
 ///     daje EXACT 72/72 z porzadkiem lane-rosnaco).

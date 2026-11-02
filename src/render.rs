@@ -21,7 +21,7 @@
 //! fail-closed: every stored label must be emitted exactly once, and operands
 //! it cannot print are a hard error, never a guess.
 
-use crate::directives::ParamType;
+use crate::directives::{KernelParam, ParamType};
 use crate::ir::{Instruction, Operand};
 use crate::sass_file::{KernelDef, SassFile};
 use crate::scheduling::format_control_code;
@@ -29,21 +29,24 @@ use anyhow::{bail, Context, Result};
 
 const IND: &str = "    ";
 
-fn param_type_str(t: &ParamType) -> &'static str {
-    match t {
-        ParamType::U8 => "u8",
-        ParamType::U16 => "u16",
-        ParamType::U32 => "u32",
-        ParamType::U64 => "u64",
-        ParamType::S8 => "s8",
-        ParamType::S16 => "s16",
-        ParamType::S32 => "s32",
-        ParamType::S64 => "s64",
-        ParamType::F16 => "f16",
-        ParamType::F32 => "f32",
-        ParamType::F64 => "f64",
-        ParamType::Ptr => "ptr",
+fn param_type_str(t: &ParamType) -> String {
+    t.spelling()
+}
+
+/// `.param <type> <name>` plus the explicit `offset=` / `space=` / `logalign=`
+/// attributes the declaration carried (they pin EIATTR_KPARAM_INFO exactly).
+pub fn param_directive(p: &KernelParam) -> String {
+    let mut line = format!(".param {} {}", param_type_str(&p.ty), p.name);
+    if let Some(off) = p.offset {
+        line.push_str(&format!(" offset=0x{off:x}"));
     }
+    if let Some(space) = p.space {
+        line.push_str(&format!(" space={space}"));
+    }
+    if let Some(la) = p.log_align {
+        line.push_str(&format!(" logalign={la}"));
+    }
+    line
 }
 
 fn reg_name(num: u8) -> String {
@@ -233,7 +236,7 @@ fn render_payload(ins: &Instruction, labels: Option<&LabelResolver>) -> Result<S
     if let Some(g) = &ins.guard {
         // Bare PT/UPT guards are dropped exactly like nvdisasm emits; the
         // negated true-guard prints as @!PT / @!UPT (QMMA drain pattern).
-        if !(g.pred == 7 && !g.negated) {
+        if g.pred != 7 || g.negated {
             s.push('@');
             if g.negated {
                 s.push('!');
@@ -301,6 +304,9 @@ fn render_kernel(k: &KernelDef) -> Result<Vec<String>> {
     if let Some(hi) = res.max_reg {
         lines.push(format!("{IND}.reg R0-R{hi}"));
     }
+    if let Some(n) = res.regcount {
+        lines.push(format!("{IND}.regcount {n}"));
+    }
     if let Some(hi) = res.max_pred {
         lines.push(format!("{IND}.pred P0-P{hi}"));
     }
@@ -308,7 +314,7 @@ fn render_kernel(k: &KernelDef) -> Result<Vec<String>> {
         lines.push(format!("{IND}.bar B0-B{}", res.num_barriers - 1));
     }
     for p in &res.params {
-        lines.push(format!("{IND}.param {} {}", param_type_str(&p.ty), p.name));
+        lines.push(format!("{IND}{}", param_directive(p)));
     }
     for s in &res.shared {
         if s.align != 1 {

@@ -22,7 +22,7 @@ fn meta_with_load() -> KernelMeta {
         regcount: 16,
         exit_offsets: vec![0u32],
         cbank_param_size: 8,
-        params: vec![KernelParam { index: 0, ordinal: 0, offset: 0, size: 8 }],
+        params: vec![KernelParam { index: 0, ordinal: 0, offset: 0, size: 8, space: 5, log_align: 0 }],
         merc_param_loads: vec![(1, 0, 0, 8, 0xf8)],
         merc_param_load_dreg: vec![4],
         ..Default::default()

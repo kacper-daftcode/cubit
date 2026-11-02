@@ -5,7 +5,7 @@
 //! 2. enc = and_base
 //! 3. For each field: enc |= extract(operand, extraction) << shift
 //! 4. Apply branch encoding (BRA/BSSY/BRX/RET)
-//! 5. Inject scheduling bits [127:105]
+//! 5. Inject scheduling bits \[127:105\]
 
 use crate::ir::{Instruction, Operand};
 use crate::scheduling;
@@ -84,7 +84,7 @@ fn sysreg_id(name: &str) -> Option<u64> {
         "SR_SM_SPA_VERSION" => 0x2c,
         "SR_MULTIPASSSHADERINFO" => 0x2d,
         "SR_LWINHI" => 0x2e,
-        // nvdisasm-13.1 names (tools/re_sm120_cs2ur.py sweep; same on S2R/CS2R/S2UR).
+        // nvdisasm-13.1 names (tools/probes/re_sm120_cs2ur.py sweep; same on S2R/CS2R/S2UR).
         "SR_CLOCK" => 0x01,
         "SR_VIRTCFG" => 0x02,
         "SR_VIRTID" => 0x03,
@@ -803,29 +803,33 @@ fn check_native_imad_hi_modifiers(
 
 
 /// BUG-008 shape detector: 4+-operand `IMAD.WIDE[.U32][.X]` WITHOUT a
-/// destination predicate whose c accumulator is not RZ. Silicon reads the c
-/// operand of a wide IMAD as the 64-BIT PAIR (Rc, Rc+1) — so the encoded word
-/// implicitly consumes a register the text never names (Rc+1), and the hi half
-/// of the result silently includes its content. The 5-operand pout form
-/// (`IMAD.WIDE.U32 Rd, Pn, Ra, Rb, Rc`, PT legal) makes the pair-c semantics
-/// canonical; `c = RZ` zero-extends safely. ptxas emits the bare 4-op form too,
-/// so this stays a WARNING (the word itself is encodable/possibly-intended).
-fn imad_wide_implicit_cpair(insn: &Instruction, table: &IsaTable) -> bool {
+/// destination predicate whose c accumulator is a register other than RZ.
+/// Returns `(Rd, Rc)` for that shape.
+///
+/// A wide IMAD computes `Rd:Rd+1 = Ra * Rb + Rc:Rc+1`: the c operand (and the
+/// destination) is a 64-bit register PAIR named by its even base register —
+/// the standard SASS spelling, the one nvcc emits for every 64-bit address
+/// computation (190 sites in the served MoE kernels, the `LDC.64` pair
+/// idiom). The pair semantics are therefore not a defect of the text; the
+/// trap is a pair on an ODD register, which cannot denote an aligned pair.
+/// The silicon behaviour of the odd spelling is not measured yet (it is the
+/// GPU probe of KNOWN_ISSUES); the encoder keeps warning about it.
+fn imad_wide_cpair_shape(insn: &Instruction, table: &IsaTable) -> Option<(u8, u8)> {
     if insn.opcode != "IMAD" || !insn.modifiers.iter().any(|m| m == ".WIDE") {
-        return false;
+        return None;
     }
     if table.target_sm() != 120 {
-        return false;
+        return None;
     }
     if matches!(
         insn.operands.get(1),
         Some(Operand::Pred { .. } | Operand::UPred { .. })
     ) {
-        return false;
+        return None;
     }
     let n = insn.operands.len();
     if n < 4 {
-        return false;
+        return None;
     }
     let has_x = insn.modifiers.iter().any(|m| m == ".X");
     let c_idx = if has_x
@@ -838,11 +842,15 @@ fn imad_wide_implicit_cpair(insn: &Instruction, table: &IsaTable) -> bool {
         n - 1
     };
     if c_idx < 3 {
-        return false;
+        return None;
     }
+    let d = match &insn.operands[0] {
+        Operand::Reg { num, .. } => *num,
+        _ => return None,
+    };
     match &insn.operands[c_idx] {
-        Operand::Reg { num, .. } => *num != 255,
-        _ => true,
+        Operand::Reg { num, .. } if *num != 255 => Some((d, *num)),
+        _ => None,
     }
 }
 
@@ -1257,23 +1265,41 @@ pub fn errata_warnings(insn: &Instruction, table: &IsaTable) -> Vec<String> {
             "WARPSYNC with a register membermask ({:?}) is context-sensitive on sm_120              silicon (BUG-005: accepted by cubit+nvdisasm, ILLEGAL depending on              surrounding schedule). Safer: the corpus-blessed barrier-wide form `WARPSYNC.ALL ;`, or drop WARPSYNC entirely when intra-warp ordering suffices (sm_120 honors STS->LDS without a sync)",
             insn.raw_text.trim()));
     }
-    // BUG-008: 4-op IMAD.WIDE with c != RZ — the word encodes fine and ptxas
-    // emits it, but the c operand of a wide IMAD is read by silicon as the
-    // 64-bit pair (Rc, Rc+1): the assembly consumes a register the text never
-    // names. (silicon probes first flagged this form as "runs IMAD-32";
-    // their own data — Rd+1 == R(c+1) — equally proves correct wide execution
-    // with a 64-bit c. Either way the form is treacherous; spell it out or use
-    // the canonical 5-operand pout form.)
-    if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() && imad_wide_implicit_cpair(insn, table) {
-        out.push(format!(
-            "{:?} is a 4-operand IMAD.WIDE with c != RZ (BUG-008): silicon reads c \
-             as the 64-bit pair (Rc, Rc+1), so the result's hi half silently \
-             includes R{}, a register the text never names. Canonical:              `IMAD.WIDE[.U32] Rd, Pn(PT), Ra, Rb, Rc` (5-op pout) or c=RZ.",
-            insn.raw_text.trim(),
-            match &insn.operands[insn.operands.len()-1] {
-                Operand::Reg { num, .. } => (num + 1).to_string(),
-                _ => "?".to_string(),
-            }));
+    // BUG-008: 4-op IMAD.WIDE with a register c. The c operand and the
+    // destination of a wide IMAD are 64-bit pairs named by their even base
+    // register (`Rd:Rd+1 = Ra * Rb + Rc:Rc+1`) — the spelling nvcc emits for
+    // every 64-bit address computation, so the even-register idiom is not
+    // reported. (The first silicon probes read the form as "runs IMAD-32";
+    // their own data — Rd+1 == R(c+1) — equally proves wide execution with a
+    // 64-bit c; the hardware re-verification is the GPU probe listed in
+    // docs/KNOWN_ISSUES.md.) An ODD base register cannot denote an aligned
+    // pair: that spelling stays a warning. CUBIT_NOTE_IDIOMS=1 also prints
+    // an informational note for the even idiom.
+    if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() {
+        if let Some((d, c)) = imad_wide_cpair_shape(insn, table) {
+            let odd: Vec<String> = [("destination", d), ("accumulator c", c)]
+                .iter()
+                .filter(|(_, r)| r % 2 == 1)
+                .map(|(role, r)| format!("{role} R{r} (pair R{r}:R{})", r + 1))
+                .collect();
+            if !odd.is_empty() {
+                out.push(format!(
+                    "{:?}: IMAD.WIDE reads c and writes d as 64-bit register pairs \
+                     (Rd:Rd+1 = Ra * Rb + Rc:Rc+1) and a pair must start on an even \
+                     register; here the {} is odd (BUG-008). Use an even base register, \
+                     the 5-operand form `IMAD.WIDE[.U32] Rd, Pn, Ra, Rb, Rc`, or c = RZ.",
+                    insn.raw_text.trim(),
+                    odd.join(" and the ")
+                ));
+            } else if std::env::var_os("CUBIT_NOTE_IDIOMS").is_some() {
+                out.push(format!(
+                    "note: {:?} accumulates the 64-bit pair R{c}:R{} (IMAD.WIDE pair idiom, \
+                     as nvcc spells it); the text names the pair by its base register.",
+                    insn.raw_text.trim(),
+                    c + 1
+                ));
+            }
+        }
     }
     // BUG-034: dead-write dest-UP selector (see helper; corpus-legal, so WARN).
     if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() {
@@ -3004,7 +3030,8 @@ fn encode_instruction_inner(
         // signedness is a datatype modifier, not a register negation.
         let native_hi = table.target_sm() == 120 && insn.opcode == "IMAD"
             && insn.modifiers.iter().any(|m| m == ".HI");
-        let is_alu = !native_hi && !(table.target_sm() == 120 && matches!(insn.opcode.as_str(), "BMSK" | "I2FP")) && !matches!(
+        let sign_law_base = table.target_sm() == 120 && matches!(insn.opcode.as_str(), "BMSK" | "I2FP");
+        let non_alu_base = matches!(
             insn.opcode.as_str(),
             "LDG" | "LDL" | "LDS" | "LDC" | "LDCU" | "STG" | "STL" | "STS" |
             "ATOM" | "RED" | "BRA" | "BSSY" | "BSYNC" | "EXIT" | "RET" |
@@ -3092,6 +3119,7 @@ fn encode_instruction_inner(
             "UTMACMDFLUSH" | "UTCATOMSWS" | "UTCHMMA" | "UTCIMMA" |
             "UTCQMMA" | "SULD"
         );
+        let is_alu = !(native_hi || sign_law_base || non_alu_base);
         if is_alu {
             // Find Ra (typically operand index 1) and Rb (operand index 2)
             // For most ALU: op0=Rd, op1=Ra, op2=Rb
@@ -5961,7 +5989,9 @@ fn apply_branch_encoding(
         return code;
     }
     let collective = insn.opcode == "WARPSYNC" && mod_group.split(',').any(|m| m == "COLLECTIVE");
-    if !BRANCH_OPS.iter().any(|&o| insn.opcode == o) && !(sm103a && insn.opcode == "WARPSYNC") && !collective {
+    let branch_op = BRANCH_OPS.iter().any(|&o| insn.opcode == o);
+    let sm103a_warpsync = sm103a && insn.opcode == "WARPSYNC";
+    if !(branch_op || sm103a_warpsync || collective) {
         return code;
     }
 

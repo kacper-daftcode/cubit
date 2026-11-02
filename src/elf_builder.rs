@@ -16,7 +16,7 @@
 //!   7  .nv.info              (global REGCOUNT/FRAME_SIZE per kernel)
 //!
 //! Per-kernel (N×):
-//!   8+ki          .nv.info.K[i]    (per-kernel attributes)
+//!   8+ki          .nv.info.K\[i\]    (per-kernel attributes)
 //!
 //! Fixed after info:
 //!   8+N           .nv.compat
@@ -24,7 +24,7 @@
 //!  10+N           .rela.debug_frame (empty)
 //!
 //! Per-kernel (N×):
-//!  11+N+ki        .text.K[i]       (SASS instructions)
+//!  11+N+ki        .text.K\[i\]       (SASS instructions)
 //!
 //! Fixed:
 //!  11+2N          .nv.shared.reserved.0  (NOBITS, 0x40 minimum)
@@ -38,18 +38,18 @@
 //! driver overcommits only user_size bytes and the first STS past it
 //! raises ILLEGAL_ADDRESS (b10 pilot k3 smemrev, 700 before launch
 //! made it visible; vendor n=3 sizes 16/1024/4096 pin the law).
-//!  12+2N+ki       .nv.shared.K[i]        (NOBITS, per-kernel shared_size)
+//!  12+2N+ki       .nv.shared.K\[i\]        (NOBITS, per-kernel shared_size)
 //!
 //! Per-kernel (N×):
-//!  13+3N+ki       .nv.constant0.K[i]
-//!  13+4N+ki       .nv.capmerc.text.K[i]  (Mercury EXIT stub)
+//!  13+3N+ki       .nv.constant0.K\[i\]
+//!  13+4N+ki       .nv.capmerc.text.K\[i\]  (Mercury EXIT stub)
 //!
 //! Fixed Mercury:
 //!  13+5N          .nv.merc.debug_frame
 //!  14+5N          .nv.merc.nv.info
 //!
 //! Per-kernel Mercury (N×):
-//!  15+5N+ki       .nv.merc.nv.info.K[i]
+//!  15+5N+ki       .nv.merc.nv.info.K\[i\]
 //!
 //! Fixed Mercury:
 //!  15+6N          .nv.merc.rela.debug_frame
@@ -409,7 +409,7 @@ pub struct MercFeatures {
     pub stg_w128: bool,
     /// Per-STG: desc-parameter position (u31 = unknown -> fallback idx-row).
     pub stg_desc_pos: Vec<u32>,
-    /// mk32: per-STG low register of the [R<num>.64] address pair (255 when
+    /// mk32: per-STG low register of the \[R`<num>`.64\] address pair (255 when
     /// absent/unknown). Source of truth for (b12,b13) of record 0238:
     /// u16 = (areg<<6)|2. Supersedes the mk10b..mk31 "position in the
     /// descriptor pool" models (convergent via nvcc-style allocation); 144/144 lab.
@@ -480,7 +480,7 @@ pub struct MercFeatures {
     /// mk10c: param-window loads from code: (lane, pi, uniform01, width, guard).
     /// Empty = legacy path (desc block).
     pub param_loads: Vec<(u32, u32, u8, u8, u8)>,
-    /// mk10c: lane of the c[0x358] load (cbank/D record).
+    /// mk10c: lane of the c\[0x358\] load (cbank/D record).
     pub cbank_lane: Option<u32>,
     /// mk10c: lane of S2R instructions (010b040a anchor per S2R).
     pub s2r_lanes: Vec<u32>,
@@ -496,7 +496,7 @@ pub struct MercFeatures {
     /// mk41: full guard code per S2R (0xf8 default).
     pub s2r_guard: Vec<u8>,
     /// mk17a: R-dest number per anchor-S2R (parallel to s2r_lanes/s2r_sr) —
-    /// f4 payload of the 010b040a record, bytes [10:11] = (dest<<6)|1. Empirics
+    /// f4 payload of the 010b040a record, bytes \[10:11\] = (dest<<6)|1. Empirics
     /// mk20-oracle: 90/90 anchors. A short/empty vector = fallback to the
     /// gated MercFeatures.anchor_f4 (iter AE model).
     pub s2r_dest: Vec<u32>,
@@ -526,7 +526,7 @@ pub struct MercFeatures {
     pub xor_reg_lanes: Vec<(u32, u32, u32, u32, u8)>,
     /// mk13: REDUX.* (warp reduce) -> event record 01 32 10 0a (16B) in a lane;
     /// the lane does NOT get a bitmap bit (the record replaces the t4 node; gold p_redux
-    /// slot10). Bytes [6]=0x4d + [10,11]=(lane bits?) — one gold sample,
+    /// slot10). Bytes \[6\]=0x4d + \[10,11\]=(lane bits?) — one gold sample,
     /// model = observed constant + [10..12] adjustment by dest register?
     /// (parked: if a second REDUX pattern shows up, fit b10/11).
     pub redux_pos: Vec<u32>,
@@ -647,7 +647,7 @@ pub struct MercFeatures {
     pub redux2: Vec<(u32, [u8; 16])>,
     /// mk60: scan available (disables legacy-synth from bare opcodes).
     pub redux2_scanned: bool,
-    /// mk35: dst-reg of the c[0x358] load for the cbank variant (b10,b11).
+    /// mk35: dst-reg of the c\[0x358\] load for the cbank variant (b10,b11).
     pub cbank358_dreg: Option<u8>,
     /// mk40: store matrix of 0238 records for ST.E (2a32) / STL (2006).
     /// (lane, cls 1=ST.E 2=STL, wsel 0=U8/1=U16/2=4B/3=64/4=128,
@@ -3491,6 +3491,38 @@ pub type CubinPatch<'a> = (&'a str, Vec<u8>, Option<Vec<u8>>);
 /// Other edits retain the legacy register estimate, which is not a substitute
 /// for instruction-aware resource analysis.
 pub fn rebuild_cubin(template_bytes: &[u8], patches: &[CubinPatch<'_>]) -> Result<Vec<u8>> {
+    rebuild_cubin_with_resources(template_bytes, patches, &RebuildResources::default())
+}
+
+/// Resource policy for [`rebuild_cubin_with_resources`].
+#[derive(Debug, Clone, Default)]
+pub struct RebuildResources {
+    /// Register count per kernel known from the source (`.regcount N`, or the
+    /// `.reg` range): when the instruction payload changed, the EIATTR_REGCOUNT
+    /// floor is this value instead of the legacy byte-lane estimate
+    /// (raise-only, like before).
+    pub declared_regcount: std::collections::BTreeMap<String, u32>,
+    /// Refuse to write a cubin whose EIATTR_REGCOUNT moves a kernel into a
+    /// different register-allocation class (units of 8 registers per thread
+    /// = 256 per warp) than the template recorded: that changes the occupancy
+    /// the compiler computed. `false` = the legacy behaviour (raise silently).
+    pub refuse_occupancy_change: bool,
+}
+
+/// Registers are allocated per warp in units of 256 (8 per thread): the
+/// allocation class of a register count, and the resident warps it allows on
+/// a 64 K-register SM (SM120: 65 536 registers per SM).
+pub fn regcount_allocation(regcount: u32) -> (u32, u32) {
+    let units = regcount.div_ceil(8);
+    (units, 65_536 / (units.max(1) * 256))
+}
+
+/// [`rebuild_cubin`] with an explicit resource policy.
+pub fn rebuild_cubin_with_resources(
+    template_bytes: &[u8],
+    patches: &[CubinPatch<'_>],
+    resources: &RebuildResources,
+) -> Result<Vec<u8>> {
     use crate::elf::CubinFile;
     let mut cubin = CubinFile::from_bytes(template_bytes.to_vec())?;
     let mut renames: Vec<(String, String)> = Vec::new();
@@ -3546,7 +3578,12 @@ pub fn rebuild_cubin(template_bytes: &[u8], patches: &[CubinPatch<'_>]) -> Resul
         let original = cubin.text_bytes(sec_idx)?;
         let original_size = original.len();
         let same_payload = instruction_payloads_unchanged(original, patch_code);
-        let new_register_estimate = rounded_register_estimate(patch_code);
+        let declared_regcount = resources
+            .declared_regcount
+            .get(patch_name)
+            .or_else(|| resources.declared_regcount.get(kernel_name))
+            .copied();
+        let new_register_estimate = declared_regcount.unwrap_or_else(|| rounded_register_estimate(patch_code));
         let mut code = patch_code.to_vec();
         let nop: [u8; 16] = [
             0x18, 0x79, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0,
@@ -3570,7 +3607,21 @@ pub fn rebuild_cubin(template_bytes: &[u8], patches: &[CubinPatch<'_>]) -> Resul
         // metadata when only scheduling/reuse changed. All other edits retain
         // the legacy floor, without lowering existing allocations (BUG-011).
         if !same_payload {
-            patch_regcount_in_elf_floor(&mut cubin.bytes, &sec_name, new_register_estimate)?;
+            let (before, after) = patch_regcount_in_elf_floor(&mut cubin.bytes, &sec_name, new_register_estimate)?;
+            let (class_before, warps_before) = regcount_allocation(before);
+            let (class_after, warps_after) = regcount_allocation(after);
+            if resources.refuse_occupancy_change && class_before != class_after {
+                anyhow::bail!(
+                    "{kernel_name}: the rebuilt code needs EIATTR_REGCOUNT {after} but the \
+                     template records {before}; that moves the kernel from {class_before} to \
+                     {class_after} allocation units of 256 registers per warp ({warps_before} -> \
+                     {warps_after} resident warps per SM), i.e. a different occupancy than the \
+                     compiler computed. Keep the code within {} registers (R0..R{}), declare the \
+                     intended `.regcount`, or pass --allow-regcount-change to accept it.",
+                    before,
+                    before.saturating_sub(3),
+                );
+            }
         }
 
         cubin.patch_text(sec_idx, &code)?;
@@ -3654,7 +3705,8 @@ fn instruction_payloads_unchanged(original: &[u8], replacement: &[u8]) -> bool {
 /// Mercury records and allocations for other kernels are independent. Parse
 /// EIATTR boundaries so a matching byte pattern inside another payload is
 /// never mistaken for a resource record. Missing bindings make growth ambiguous.
-fn patch_regcount_in_elf_floor(bytes: &mut [u8], section_name: &str, new_regcount: u32) -> Result<()> {
+/// Returns the register count before and after (the maximum over the records).
+fn patch_regcount_in_elf_floor(bytes: &mut [u8], section_name: &str, new_regcount: u32) -> Result<(u32, u32)> {
     use object::read::elf::{ElfFile, FileHeader, SectionHeader as _, Sym as _};
     use object::{elf, Endianness, SectionIndex};
 
@@ -3707,11 +3759,15 @@ fn patch_regcount_in_elf_floor(bytes: &mut [u8], section_name: &str, new_regcoun
         }
         positions
     };
+    let (mut before, mut after) = (0u32, 0u32);
     for position in positions {
         let current = u32::from_le_bytes(bytes[position..position + 4].try_into()?);
-        bytes[position..position + 4].copy_from_slice(&current.max(new_regcount).to_le_bytes());
+        let raised = current.max(new_regcount);
+        bytes[position..position + 4].copy_from_slice(&raised.to_le_bytes());
+        before = before.max(current);
+        after = after.max(raised);
     }
-    Ok(())
+    Ok((before, after))
 }
 
 /// BUG-039 pre-flight for `-T/--eiattr-from` rebuilds. Kernel renaming patches
@@ -6535,25 +6591,12 @@ fn build_merc_nv_info_13(meta: &KernelMeta, merc_sz: u64, sass_exits: &[u32]) ->
         fmt: EiFmt::Sized,
         data: MERC_HASH.to_vec(),
     });
-    // KPARAM_INFO (0x17), reverse ordinal, mk28 format (same as main side).
+    // KPARAM_INFO (0x17), reverse ordinal (same record as the main side).
     for param in meta.params.iter().rev() {
-        let mut d = vec![0u8; 12];
-        d[4] = param.ordinal as u8;
-        let off16 = param.offset as u16;
-        d[6] = (off16 & 0xff) as u8;
-        d[7] = (off16 >> 8) as u8;
-        d[9] = 0xf0 | if param.size == 8 { 0x05 } else { 0x00 };
-        d[10] = match param.size {
-            1 | 2 => 0x01,
-            4 => 0x11,
-            8 => 0x21,
-            16 => 0x31,
-            _ => 0x21,
-        };
         records.push(EiRecord {
             attr: 0x0017,
             fmt: EiFmt::Sized,
-            data: d,
+            data: kparam_info_record(param),
         });
     }
     records.push(EiRecord {
@@ -6636,7 +6679,21 @@ fn build_merc_nv_info_13(meta: &KernelMeta, merc_sz: u64, sass_exits: &[u32]) ->
 
 // ── KernelMeta extension ──────────────────────────────────────────────────────
 
-use crate::eiattr::KernelMeta;
+use crate::eiattr::{KernelMeta, KernelParam};
+
+/// The 12-byte payload of an EIATTR_KPARAM_INFO record:
+/// `[u32 index = 0][u16 ordinal][u16 offset][u32 size word]`, where the size
+/// word is `size << 18 | 0x1f << 12 | space << 8 | log_align` (see
+/// [`KernelParam::size_word`]). Measured on 768 census kernels (sizes 1..2176,
+/// 8-byte pointers space 5, scalars and by-value structs space 0).
+pub fn kparam_info_record(param: &KernelParam) -> Vec<u8> {
+    let mut d = Vec::with_capacity(12);
+    d.extend_from_slice(&0u32.to_le_bytes());
+    d.extend_from_slice(&(param.ordinal as u16).to_le_bytes());
+    d.extend_from_slice(&(param.offset as u16).to_le_bytes());
+    d.extend_from_slice(&param.size_word().to_le_bytes());
+    d
+}
 
 impl KernelMeta {
     /// Generate per-kernel EIATTR records for .nv.info.K, matching nvcc 12.8.
@@ -6686,31 +6743,12 @@ impl KernelMeta {
 
         // 3. KPARAM_INFO (attr=0x17): one 12-byte record per parameter,
         // in REVERSE ordinal order (matching working Tungsten cubins).
-        // Format: [u32 index=0][u8 ordinal][u8 pad][u16 offset][u32 size_space_cbank]
+        // Format: [u32 index=0][u16 ordinal][u16 offset][u32 size word]
         for param in self.params.iter().rev() {
-            let mut d = vec![0u8; 12];
-            d[4] = param.ordinal as u8;
-            d[5] = 0x00;
-            let off16 = param.offset as u16;
-            d[6] = (off16 & 0xFF) as u8;
-            d[7] = (off16 >> 8) as u8;
-            d[8] = 0x00; // logAlignment (always 0)
-            // mk28 (lab corpus): d[9] = 0xF0 | Space; Space 0x5 = GLOBAL for
-            // 8B (pointer class), 0x0 for scalars (corpus: 190x F5/0x21 for
-            // 8B; 7x F0/0x11 for u32 scalars).
-            d[9] = 0xf0 | if param.size == 8 { 0x05 } else { 0x00 };
-            d[10] = match param.size {
-                1 | 2 => 0x01,
-                4 => 0x11,
-                8 => 0x21,
-                16 => 0x31,
-                _ => 0x21,
-            };
-            d[11] = 0x00;
             records.push(EiRecord {
                 attr: 0x0017,
                 fmt: EiFmt::Sized,
-                data: d,
+                data: kparam_info_record(param),
             });
         }
 
@@ -6860,7 +6898,9 @@ impl KernelMeta {
             records.push(EiRecord {
                 attr: 0x0019,
                 fmt: EiFmt::Byte,
-                data: vec![self.cbank_param_size as u8],
+                // 16-bit HVAL: the DeepGEMM MQA kernels carry 0x300 bytes of
+                // parameters (five CUtensorMaps by value), beyond one byte.
+                data: self.cbank_param_size.to_le_bytes().to_vec(),
             });
             let total = self.cbank_param_size as u32;
             let kparam_w1 = (total << 16) | 0x0380u32;

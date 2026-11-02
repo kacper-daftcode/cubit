@@ -20,7 +20,7 @@ fn meta_with_loads(loads: Vec<(u32, u32, u8, u8, u8)>, dregs: Vec<u8>) -> Kernel
         num_barriers: 0,
         exit_offsets: vec![(0u32)],
         cbank_param_size: 8,
-        params: vec![KernelParam { index: 0, ordinal: 0, offset: 0, size: 8 }],
+        params: vec![KernelParam { index: 0, ordinal: 0, offset: 0, size: 8, space: 5, log_align: 0 }],
         merc_param_loads: loads,
         merc_param_load_dreg: dregs,
         ..Default::default()
@@ -150,8 +150,8 @@ fn mk35_no_loads_no_records_sm103() {
         exit_offsets: vec![16],
         cbank_param_size: 24,
         params: vec![
-            KernelParam { index: 0, ordinal: 0, offset: 0, size: 4 },
-            KernelParam { index: 1, ordinal: 1, offset: 4, size: 4 },
+            KernelParam { index: 0, ordinal: 0, offset: 0, size: 4, space: 0, log_align: 0 },
+            KernelParam { index: 1, ordinal: 1, offset: 4, size: 4, space: 0, log_align: 0 },
         ],
         ..Default::default()
     };

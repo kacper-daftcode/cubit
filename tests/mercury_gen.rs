@@ -22,6 +22,8 @@ fn meta(name: &str, n_params: u32, exits: u32, smem: u32, bars: u8, cbank: u16) 
             ordinal: i,
             offset: i * 8,
             size: 8,
+            space: 5,
+            log_align: 0,
         })
         .collect();
     KernelMeta {

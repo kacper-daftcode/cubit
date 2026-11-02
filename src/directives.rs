@@ -1,17 +1,23 @@
 //! Parser for .sass file directives: .entry, .reg, .param, .shared, etc.
 
 /// Parameter type in a kernel entry.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParamType {
     U8, U16, U32, U64,
     S8, S16, S32, S64,
     F16, F32, F64,
     Ptr,  // 64-bit pointer
+    /// An aggregate passed by value (`b8[N]`): a struct of N bytes.
+    Bytes(u32),
 }
 
 impl ParamType {
     pub fn parse(s: &str) -> Option<Self> {
-        match s.to_lowercase().as_str() {
+        let lower = s.to_lowercase();
+        if let Some(n) = lower.strip_prefix("b8[").and_then(|r| r.strip_suffix(']')) {
+            return n.parse::<u32>().ok().filter(|&n| n > 0).map(Self::Bytes);
+        }
+        match lower.as_str() {
             "u8"  => Some(Self::U8),  "u16" => Some(Self::U16),
             "u32" => Some(Self::U32), "u64" => Some(Self::U64),
             "s8"  => Some(Self::S8),  "s16" => Some(Self::S16),
@@ -29,15 +35,71 @@ impl ParamType {
             Self::U16 | Self::S16 | Self::F16 => 2,
             Self::U32 | Self::S32 | Self::F32 => 4,
             Self::U64 | Self::S64 | Self::F64 | Self::Ptr => 8,
+            Self::Bytes(n) => *n,
+        }
+    }
+
+    /// Alignment of the parameter inside the constant-bank parameter block
+    /// when no explicit `offset=` is declared. Scalars align to their size.
+    /// A by-value aggregate aligns to the largest power of two (<= 8) that
+    /// divides its size: the CUDA ABI aligns a struct to its most aligned
+    /// member, which the byte count alone cannot tell (nvcc places 16-byte
+    /// structs at both 8- and 16-byte offsets); `disassemble --frozen`
+    /// therefore always writes the exact offset.
+    pub fn natural_align(&self) -> u32 {
+        match self {
+            Self::Bytes(n) => [8u32, 4, 2].into_iter().find(|a| n % a == 0).unwrap_or(1),
+            other => other.size(),
+        }
+    }
+
+    /// EIATTR_KPARAM_INFO address space field: nvcc records 5 for pointer
+    /// parameters and 0 for scalars and by-value aggregates.
+    pub fn default_space(&self) -> u8 {
+        if *self == Self::Ptr { 5 } else { 0 }
+    }
+
+    /// The spelling `disassemble --frozen` / `render` use for the type.
+    pub fn spelling(&self) -> String {
+        match self {
+            Self::U8 => "u8".into(), Self::U16 => "u16".into(),
+            Self::U32 => "u32".into(), Self::U64 => "u64".into(),
+            Self::S8 => "s8".into(), Self::S16 => "s16".into(),
+            Self::S32 => "s32".into(), Self::S64 => "s64".into(),
+            Self::F16 => "f16".into(), Self::F32 => "f32".into(),
+            Self::F64 => "f64".into(), Self::Ptr => "ptr".into(),
+            Self::Bytes(n) => format!("b8[{n}]"),
         }
     }
 }
 
 /// A kernel parameter (.param directive).
+///
+/// `.param <type> <name> [offset=<bytes>] [space=<n>] [logalign=<n>]`
+///
+/// The optional attributes pin the EIATTR_KPARAM_INFO record exactly: the
+/// offset inside the parameter block (otherwise the natural layout rule of
+/// [`KernelResources::param_layout`] applies), the address-space nibble and
+/// the pointee log2 alignment byte (otherwise the type's defaults).
 #[derive(Debug, Clone)]
 pub struct KernelParam {
     pub ty: ParamType,
     pub name: String,
+    /// Explicit byte offset inside the parameter block (`offset=`).
+    pub offset: Option<u32>,
+    /// Explicit KPARAM_INFO address space (`space=`).
+    pub space: Option<u8>,
+    /// Explicit KPARAM_INFO pointee log2 alignment (`logalign=`).
+    pub log_align: Option<u8>,
+}
+
+/// One parameter of the resolved constant-bank layout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParamSlot {
+    pub offset: u32,
+    pub size: u32,
+    pub space: u8,
+    pub log_align: u8,
 }
 
 /// A shared memory allocation (.shared directive).
@@ -67,6 +129,9 @@ pub struct KernelResources {
     pub merc_cgsites: Vec<(u32, u32)>,
     /// Kernel parameters in declaration order.
     pub params: Vec<KernelParam>,
+    /// Exact EIATTR_REGCOUNT declared with `.regcount N` (the value ptxas
+    /// recorded); None = derive from the `.reg` range ([`Self::reg_count`]).
+    pub regcount: Option<u32>,
     /// Shared memory declarations.
     pub shared: Vec<SharedMemDecl>,
     /// mk41: marker ery zrodla z `;; era=sm100` (disasm --frozen):
@@ -75,16 +140,49 @@ pub struct KernelResources {
 }
 
 impl KernelResources {
-    /// Total size of .param space in bytes (sum of all param sizes, 4-byte aligned each).
+    /// Constant-bank layout of the declared parameters, in declaration order.
+    /// An explicit `offset=` wins; otherwise each parameter is placed at the
+    /// next offset aligned to its [`ParamType::natural_align`] (nvcc's rule for
+    /// scalars and pointers). The parameter block itself starts at
+    /// c\[0x0\]\[0x380\] on SM120 (the offsets here are relative to it).
+    pub fn param_layout(&self) -> Vec<ParamSlot> {
+        let mut next = 0u32;
+        self.params
+            .iter()
+            .map(|p| {
+                let size = p.ty.size();
+                let align = p.ty.natural_align();
+                let offset = p.offset.unwrap_or((next + align - 1) & !(align - 1));
+                next = next.max(offset + size);
+                ParamSlot {
+                    offset,
+                    size,
+                    space: p.space.unwrap_or_else(|| p.ty.default_space()),
+                    log_align: p.log_align.unwrap_or(0),
+                }
+            })
+            .collect()
+    }
+
+    /// Total size of the parameter block in bytes: the end of the last
+    /// parameter, unrounded (EIATTR_CBANK_PARAM_SIZE as ptxas records it —
+    /// 768/768 census kernels, 131 of them not a multiple of 8).
     pub fn param_space_size(&self) -> u32 {
-        self.params.iter().map(|p| (p.ty.size() + 3) & !3).sum()
+        self.param_layout().iter().map(|s| s.offset + s.size).max().unwrap_or(0)
     }
 
     /// Register count for REGCOUNT EIATTR.
+    ///
+    /// With `.regcount N` the declared value is used verbatim (ptxas records
+    /// `highest register touched + 3`, unrounded: 55, 114, 128 in the v6
+    /// MoE kernels). Without it the count is derived from the `.reg` range:
     /// SM120 (Blackwell) allocates registers in blocks of 32.
     /// Using smaller granularity causes ILLEGAL_INSTRUCTION on any register
     /// whose index falls outside the allocated block.
     pub fn reg_count(&self) -> u32 {
+        if let Some(n) = self.regcount {
+            return n.clamp(2, 255);
+        }
         let raw = self.max_reg.map(|r| r + 1).unwrap_or(32).max(2);
         // BUG-011: hardware caps REGCOUNT at 255 (R255 is the RZ alias — a
         // `.reg R0-R255` kernel is exactly 255 regs). The block-rounding used
@@ -114,6 +212,18 @@ pub fn parse_directive(line: &str, res: &mut KernelResources) -> bool {
             let hi = if n > 0 { n - 1 } else { 0 };
             let cur = res.max_reg.unwrap_or(0);
             res.max_reg = Some(cur.max(hi));
+        }
+        return true;
+    }
+
+    if let Some(rest) = line.strip_prefix(".regcount") {
+        // .regcount <N> — the exact EIATTR_REGCOUNT (disassemble --frozen
+        // writes the value ptxas recorded; asm checks the granule-shadow law
+        // against the registers the code touches).
+        if let Ok(n) = rest.trim().parse::<u32>() {
+            if (2..=255).contains(&n) {
+                res.regcount = Some(n);
+            }
         }
         return true;
     }
@@ -188,15 +298,32 @@ pub fn parse_directive(line: &str, res: &mut KernelResources) -> bool {
     }
 
     if let Some(rest) = line.strip_prefix(".param") {
-        // .param <type> <name>
-        let parts: Vec<&str> = rest.trim().splitn(2, char::is_whitespace).collect();
-        if parts.len() == 2 {
-            if let Some(ty) = ParamType::parse(parts[0]) {
-                res.params.push(KernelParam {
-                    ty,
-                    name: parts[1].trim().to_string(),
-                });
+        // .param <type> <name> [offset=<n>] [space=<n>] [logalign=<n>]
+        let mut parts = rest.split_whitespace();
+        if let (Some(ty), Some(name)) = (parts.next().and_then(ParamType::parse), parts.next()) {
+            let mut param = KernelParam {
+                ty,
+                name: name.to_string(),
+                offset: None,
+                space: None,
+                log_align: None,
+            };
+            for attr in parts {
+                let Some((key, value)) = attr.split_once('=') else { continue };
+                let value = value.trim();
+                let parsed = value
+                    .strip_prefix("0x")
+                    .map(|h| u32::from_str_radix(h, 16))
+                    .unwrap_or_else(|| value.parse::<u32>());
+                let Ok(v) = parsed else { continue };
+                match key {
+                    "offset" => param.offset = Some(v),
+                    "space" => param.space = u8::try_from(v).ok().filter(|s| *s < 16),
+                    "logalign" => param.log_align = u8::try_from(v).ok(),
+                    _ => {}
+                }
             }
+            res.params.push(param);
         }
         return true;
     }

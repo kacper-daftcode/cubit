@@ -19,76 +19,101 @@ use std::collections::BTreeMap;
 // EIATTR attribute IDs
 // ---------------------------------------------------------------------------
 
-/// Known EIATTR attribute identifiers.
+/// Known EIATTR attribute identifiers (as `cuobjdump -elf` names them;
+/// identifiers measured 2026-11-02 by aligning the raw `.nv.info*` records of
+/// 272 census kernels with cuobjdump's listing — see `tools/eiattr_names.py`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(u16)]
 pub enum EiAttr {
-    SwWar             = 0x0007,
-    SharedSize        = 0x0008,
-    MinStackSize      = 0x0004,
-    KParamInfo        = 0x000a,
-    FrameSize         = 0x0011,
-    MinStackSizeAlt   = 0x0012,
-    CbankParamSize    = 0x0019,
-    MaxregCount       = 0x001b,
-    ExitInstrOffsets  = 0x001c,
-    S2rCtaidOffsets   = 0x001d,
-    CtaIdInstrOffsets = 0x001e,
-    MaxThreads        = 0x0023,
-    NumBarriers       = 0x0025,
-    Regcount          = 0x002f,
-    ImageSize         = 0x0036,
-    CudaApiVersion    = 0x0037,
-    VrcCtaInitCount   = 0x0039,
-    SparseMmaMask     = 0x0050,
-    // Note: ParamCbank uses same ID 0x000a as KParamInfo — context-dependent
+    MaxThreads           = 0x0005,
+    ParamCbank           = 0x000a,
+    Reqntid              = 0x0010,
+    FrameSize            = 0x0011,
+    MinStackSize         = 0x0012,
+    KParamInfo           = 0x0017,
+    CbankParamSize       = 0x0019,
+    MaxregCount          = 0x001b,
+    ExitInstrOffsets     = 0x001c,
+    S2rCtaidOffsets      = 0x001d,
+    CrsStackSize         = 0x001e,
+    CoopGroupInstrOffs   = 0x0028,
+    CoopGroupMaskRegids  = 0x0029,
+    Regcount             = 0x002f,
+    IntWarpWideOffsets   = 0x0031,
+    SwWar                = 0x0036,
+    CudaApiVersion       = 0x0037,
+    NumMbarriers         = 0x0038,
+    MbarrierInstrOffsets = 0x0039,
+    UnusedLoadByteOffset = 0x0044,
+    VrcCtaInitCount      = 0x004a,
+    NumBarriers          = 0x004c,
+    SparseMmaMask        = 0x0050,
+    RegReconfig          = 0x0054,
+    Annotations          = 0x0055,
+    MercuryIsaVersion    = 0x005f,
 }
 
 impl EiAttr {
     pub fn from_u16(v: u16) -> Option<Self> {
         match v {
-            0x0004 => Some(EiAttr::MinStackSize),
-            0x0007 => Some(EiAttr::SwWar),
-            0x0008 => Some(EiAttr::SharedSize),
-            0x000a => Some(EiAttr::KParamInfo),
+            0x0005 => Some(EiAttr::MaxThreads),
+            0x000a => Some(EiAttr::ParamCbank),
+            0x0010 => Some(EiAttr::Reqntid),
             0x0011 => Some(EiAttr::FrameSize),
-            0x0012 => Some(EiAttr::MinStackSizeAlt),
+            0x0012 => Some(EiAttr::MinStackSize),
+            0x0017 => Some(EiAttr::KParamInfo),
             0x0019 => Some(EiAttr::CbankParamSize),
             0x001b => Some(EiAttr::MaxregCount),
             0x001c => Some(EiAttr::ExitInstrOffsets),
             0x001d => Some(EiAttr::S2rCtaidOffsets),
-            0x001e => Some(EiAttr::CtaIdInstrOffsets),
-            0x0023 => Some(EiAttr::MaxThreads),
-            0x0025 => Some(EiAttr::NumBarriers),
+            0x001e => Some(EiAttr::CrsStackSize),
+            0x0028 => Some(EiAttr::CoopGroupInstrOffs),
+            0x0029 => Some(EiAttr::CoopGroupMaskRegids),
             0x002f => Some(EiAttr::Regcount),
-            0x0036 => Some(EiAttr::ImageSize),
+            0x0031 => Some(EiAttr::IntWarpWideOffsets),
+            0x0036 => Some(EiAttr::SwWar),
             0x0037 => Some(EiAttr::CudaApiVersion),
-            0x0039 => Some(EiAttr::VrcCtaInitCount),
+            0x0038 => Some(EiAttr::NumMbarriers),
+            0x0039 => Some(EiAttr::MbarrierInstrOffsets),
+            0x0044 => Some(EiAttr::UnusedLoadByteOffset),
+            0x004a => Some(EiAttr::VrcCtaInitCount),
+            0x004c => Some(EiAttr::NumBarriers),
             0x0050 => Some(EiAttr::SparseMmaMask),
+            0x0054 => Some(EiAttr::RegReconfig),
+            0x0055 => Some(EiAttr::Annotations),
+            0x005f => Some(EiAttr::MercuryIsaVersion),
             _ => None,
         }
     }
 
     pub fn name(&self) -> &'static str {
         match self {
-            EiAttr::SwWar             => "EIATTR_SW_WAR",
-            EiAttr::SharedSize        => "EIATTR_SHARED_SIZE",
-            EiAttr::MinStackSize      => "EIATTR_MIN_STACK_SIZE",
-            EiAttr::KParamInfo        => "EIATTR_KPARAM_INFO",
-            EiAttr::FrameSize         => "EIATTR_FRAME_SIZE",
-            EiAttr::MinStackSizeAlt   => "EIATTR_MIN_STACK_SIZE_ALT",
-            EiAttr::CbankParamSize    => "EIATTR_CBANK_PARAM_SIZE",
-            EiAttr::MaxregCount       => "EIATTR_MAXREG_COUNT",
-            EiAttr::ExitInstrOffsets  => "EIATTR_EXIT_INSTR_OFFSETS",
-            EiAttr::S2rCtaidOffsets   => "EIATTR_S2RCTAID_INSTR_OFFSETS",
-            EiAttr::CtaIdInstrOffsets => "EIATTR_CTAID_INSTR_OFFSETS",
-            EiAttr::MaxThreads        => "EIATTR_MAX_THREADS",
-            EiAttr::NumBarriers       => "EIATTR_NUM_BARRIERS",
-            EiAttr::Regcount          => "EIATTR_REGCOUNT",
-            EiAttr::ImageSize         => "EIATTR_IMAGE_SIZE",
-            EiAttr::CudaApiVersion    => "EIATTR_CUDA_API_VERSION",
-            EiAttr::VrcCtaInitCount   => "EIATTR_VRC_CTA_INIT_COUNT",
-            EiAttr::SparseMmaMask     => "EIATTR_SPARSE_MMA_MASK",
+            EiAttr::MaxThreads           => "EIATTR_MAX_THREADS",
+            EiAttr::ParamCbank           => "EIATTR_PARAM_CBANK",
+            EiAttr::Reqntid              => "EIATTR_REQNTID",
+            EiAttr::FrameSize            => "EIATTR_FRAME_SIZE",
+            EiAttr::MinStackSize         => "EIATTR_MIN_STACK_SIZE",
+            EiAttr::KParamInfo           => "EIATTR_KPARAM_INFO",
+            EiAttr::CbankParamSize       => "EIATTR_CBANK_PARAM_SIZE",
+            EiAttr::MaxregCount          => "EIATTR_MAXREG_COUNT",
+            EiAttr::ExitInstrOffsets     => "EIATTR_EXIT_INSTR_OFFSETS",
+            EiAttr::S2rCtaidOffsets      => "EIATTR_S2RCTAID_INSTR_OFFSETS",
+            EiAttr::CrsStackSize         => "EIATTR_CRS_STACK_SIZE",
+            EiAttr::CoopGroupInstrOffs   => "EIATTR_COOP_GROUP_INSTR_OFFSETS",
+            EiAttr::CoopGroupMaskRegids  => "EIATTR_COOP_GROUP_MASK_REGIDS",
+            EiAttr::Regcount             => "EIATTR_REGCOUNT",
+            EiAttr::IntWarpWideOffsets   => "EIATTR_INT_WARP_WIDE_INSTR_OFFSETS",
+            EiAttr::SwWar                => "EIATTR_SW_WAR",
+            EiAttr::CudaApiVersion       => "EIATTR_CUDA_API_VERSION",
+            EiAttr::NumMbarriers         => "EIATTR_NUM_MBARRIERS",
+            EiAttr::MbarrierInstrOffsets => "EIATTR_MBARRIER_INSTR_OFFSETS",
+            EiAttr::UnusedLoadByteOffset => "EIATTR_UNUSED_LOAD_BYTE_OFFSET",
+            EiAttr::VrcCtaInitCount      => "EIATTR_VRC_CTA_INIT_COUNT",
+            EiAttr::NumBarriers          => "EIATTR_NUM_BARRIERS",
+            EiAttr::SparseMmaMask        => "EIATTR_SPARSE_MMA_MASK",
+            EiAttr::RegReconfig          => "EIATTR_REG_RECONFIG",
+            EiAttr::Annotations          => "EIATTR_ANNOTATIONS",
+            EiAttr::MercuryIsaVersion    => "EIATTR_MERCURY_ISA_VERSION",
         }
     }
 }
@@ -97,16 +122,22 @@ impl EiAttr {
 // EIATTR record
 // ---------------------------------------------------------------------------
 
-/// Format type for an EIATTR value.
+/// Format type for an EIATTR value. The variant names are historical; the
+/// byte they serialize to and cuobjdump's name for it are given per variant
+/// (measured on the census cubins, 2026-11-02).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EiFmt {
-    /// 1-byte value (EIFMT_BVAL, fmt=0x03) — standard nvcc encoding.
+    /// fmt byte 0x03 = EIFMT_HVAL: a 16-bit value in the two bytes after the
+    /// attribute (`data[0]` low, `data[1]` high; a single data byte means high = 0).
+    /// MAXREG_COUNT, CBANK_PARAM_SIZE, SPARSE_MMA_MASK, MERCURY_ISA_VERSION.
     Byte,
-    /// 1-byte value (fmt=0x01) — alternate nvcc encoding used for attr=0x2b.
+    /// fmt byte 0x01 = EIFMT_NVAL: no value (REG_RECONFIG, RESERVED_SMEM_USED,
+    /// TCGEN05_1CTA_USED); the two bytes after the attribute are zero.
     BValAlt,
-    /// 2-byte value (EIFMT_HVAL).
+    /// fmt byte 0x02 = EIFMT_BVAL: an 8-bit value (NUM_BARRIERS,
+    /// VRC_CTA_INIT_COUNT); `data[0]` carries it, the fourth byte is zero.
     Half,
-    /// Variable-size value (EIFMT_SVAL).
+    /// fmt byte 0x04 = EIFMT_SVAL: a sized payload.
     Sized,
 }
 
@@ -199,9 +230,9 @@ pub struct NvInfoSection {
 
 impl NvInfoSection {
     /// Parse EIATTR records from raw section bytes (real NVIDIA format):
-    ///   SVAL (0x04): [fmt][attr_byte][size_lo][size_hi][data...] 4-byte aligned
-    ///   HVAL (0x02): [fmt][attr_byte][val_lo][val_hi]            (4 bytes total)
-    ///   BVAL (0x03): [fmt][attr_byte][val][pad]                  (4 bytes total)
+    ///   SVAL (0x04): \[fmt\]\[attr_byte\]\[size_lo\]\[size_hi\][data...] 4-byte aligned
+    ///   HVAL (0x02): \[fmt\]\[attr_byte\]\[val_lo\]\[val_hi\]            (4 bytes total)
+    ///   BVAL (0x03): \[fmt\]\[attr_byte\]\[val\]\[pad\]                  (4 bytes total)
     pub fn parse(name: &str, data: &[u8]) -> Result<Self> {
         let mut records = Vec::new();
         let mut off = 0;
@@ -227,14 +258,19 @@ impl NvInfoSection {
                     (EiFmt::Half, d, off + 4)
                 }
                 0x03 => {
-                    // BVAL: [0x03][attr][val][pad] (4 bytes)
-                    let val = if off + 3 <= data.len() { data[off+2] } else { 0 };
-                    (EiFmt::Byte, vec![val], off + 4)
+                    // fmt 3 = EIFMT_HVAL in cuobjdump's naming: [0x03][attr][val_lo][val_hi]
+                    // (CBANK_PARAM_SIZE 0x300 of the DeepGEMM MQA kernels, MAXREG_COUNT,
+                    // SPARSE_MMA_MASK). Both value bytes are kept; `as_u8` reads the low one.
+                    let d = if off + 4 <= data.len() {
+                        data[off+2..off+4].to_vec()
+                    } else { vec![0, 0] };
+                    (EiFmt::Byte, d, off + 4)
                 }
                 0x01 => {
-                    // Legacy BVAL (some old cubins): same 4-byte layout
+                    // fmt 1 = EIFMT_NVAL (REG_RECONFIG, RESERVED_SMEM_USED, TCGEN05_1CTA_USED):
+                    // no value; the two bytes after the attribute are zero.
                     let val = if off + 3 <= data.len() { data[off+2] } else { 0 };
-                    (EiFmt::Byte, vec![val], off + 4)
+                    (EiFmt::BValAlt, vec![val], off + 4)
                 }
                 _ => { off += 4; continue; }
             };
@@ -247,9 +283,9 @@ impl NvInfoSection {
     }
 
     /// Serialize records to binary using real NVIDIA EIATTR format:
-    ///   SVAL: [0x04][attr_byte][size_lo][size_hi][data...] aligned to 4 bytes
-    ///   HVAL: [0x02][attr_byte][val_lo][val_hi]           (4 bytes, value=16-bit)
-    ///   BVAL: [0x03][attr_byte][val][pad]                 (4 bytes, value=8-bit)
+    ///   SVAL: \[0x04\]\[attr_byte\]\[size_lo\]\[size_hi\][data...] aligned to 4 bytes
+    ///   HVAL: \[0x02\]\[attr_byte\]\[val_lo\]\[val_hi\]           (4 bytes, value=16-bit)
+    ///   BVAL: \[0x03\]\[attr_byte\]\[val\]\[pad\]                 (4 bytes, value=8-bit)
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut out = Vec::new();
 
@@ -387,7 +423,7 @@ pub struct KernelMeta {
     /// positions; the old model: param-queue position — agrees when 1 descriptor/param).
     /// u32::MAX = nieznane (fallback emitera).
     pub merc_stg_desc_pos: Vec<u32>,
-    /// Jakakolwiek BAR pod predykatem (wariant rekordu BAR payload[0]=01).
+    /// Jakakolwiek BAR pod predykatem (wariant rekordu BAR payload\[0\]=01).
     pub merc_bar_pred: bool,
 
     /// Mercury: bit per param — slot loaded via LDCU* (uniform datapath).
@@ -409,7 +445,7 @@ pub struct KernelMeta {
     /// — lands in byte 28 of the 02 38 record (fs10-grid 2026-08-05).
     pub merc_stg_off: Vec<i32>,
     /// Mercury mk10b: per-STG pakiet kursora serii: bit7=null-tail
-    /// (value==RZ, off==0), bity[6:0] = indeks w serii blokowej (reset na
+    /// (value==RZ, off==0), bity\[6:0\] = indeks w serii blokowej (reset na
     /// cflow edges: branch targets + after EXIT/RET/CALL/BRA/BRX/etc.).
     pub merc_stg_ser: Vec<u8>,
     /// mk12: per-STG numer rejestru danych (kursor b19/b20 = dreg<<6; 255=RZ).
@@ -418,7 +454,7 @@ pub struct KernelMeta {
     pub merc_stg_dur: Vec<u8>,
     /// wave A: per-STG predicate variant (0=none, 1=@Pn, 2=@!Pn; record b4).
     pub merc_stg_guard: Vec<u8>,
-    /// mk32: per-STG niski rejestr pary adresowej [R<num>.64] (255=nieznany).
+    /// mk32: per-STG niski rejestr pary adresowej \[R`<num>`.64\] (255=nieznany).
     pub merc_stg_areg: Vec<u8>,
     /// Mercury mk11: instrukcje MMA -> rekord 025a w lane. Krotka
     /// (lane, cls, d, a, b, c, b8flags); cls per `mercury::merc_mma_class`.
@@ -427,7 +463,7 @@ pub struct KernelMeta {
     pub merc_mma: Vec<MmaLane>,
     /// Mercury mk11+mk51: DMUL/DADD z natychmiastowym f64 -> rekord
     /// 020f120e/020c1e0e w lane:
-    /// (lane, variant [0=DMUL,1=DADD], d, a, imm_top32, pred [mk41], b7).
+    /// (lane, variant [0=DMUL,1=DADD], d, a, imm_top32, pred \[mk41\], b7).
     /// b7 = 2*negA + 4*absA; zrodlo RZ kodowane jako 0x3ff.
     pub merc_f64imm: Vec<F64ImmLane>,
     /// Mercury mk51: DFMA z natychmiastowym f64 -> rekord 020d1c0e
@@ -441,7 +477,7 @@ pub struct KernelMeta {
     pub merc_pad_pos: Vec<u32>,
     /// Mercury mk10c: strumien ladowan cbank-parametrow jako rekordy lane:
     /// (lane, pi, uniform [0=LDC*,1=LDCU*], width_bajty, guard [0/1/2]) per
-    /// instrukcja LDC/LDCU z okna c[0x0][0x380+]. nvcc emituje rekord 0222
+    /// instrukcja LDC/LDCU z okna c\[0x0\]\[0x380+\]. nvcc emituje rekord 0222
     /// NA KAZDY LOAD (powtorne loady tego samego slotu => wiele rekordow),
     /// strumien posortowany po pozycjach kodu. Pusty = sciezka legacy
     /// (desc block per param_order).
@@ -449,8 +485,8 @@ pub struct KernelMeta {
     /// guard). mk19: the second field = the RAW byte offset c_off-0x380
     /// (wczesniej indeks 8B pi; korpus ma paramy 4B-pakowane pod 0x384).
     pub merc_param_loads: Vec<(u32, u32, u8, u8, u8)>,
-    /// Mercury mk10c: lane instrukcji LDCU.64 c[0x0][0x358] (rekord cbank
-    /// 010b0e0a zajmuje lane swojego loadu w strumieniu; None = po desc[0]).
+    /// Mercury mk10c: lane instrukcji LDCU.64 c\[0x0\]\[0x358\] (rekord cbank
+    /// 010b0e0a zajmuje lane swojego loadu w strumieniu; None = po desc\[0\]).
     pub merc_cbank_lane: Option<u32>,
     /// Mercury mk10c: lane kazdego S2R — anchor-rekord 010b040a powstaje
     /// per S2R (pek w gold: #anchors-1 == #S2R na 148/148 jadrach).
@@ -462,7 +498,7 @@ pub struct KernelMeta {
     /// bitmap (an unpredicated BRA, incl. the trailing one past EXIT, has no bit;
     /// gold q_switch slot5). Zrodlo: guard z sass.
     pub merc_guarded_bra: Vec<u32>,
-    /// Mercury mk13: LDG.E.CONSTANT through desc[URx][Rn.64] = an extra entry
+    /// Mercury mk13: LDG.E.CONSTANT through desc\[URx\]\[Rn.64\] = an extra entry
     /// w puli slotow deskryptorow (klucz (pi, mech=2), pozycja = lane
     /// uzycia). Gold v_ldg_u64: STG pi1 dostaje slot s=2 bo LDG.C@3 zajmuje
     /// s=1 (pi0,2). (lane, pi).
@@ -474,7 +510,7 @@ pub struct KernelMeta {
     /// gives the old template). Empty when no BAR carries arguments.
     pub merc_bar_args: Vec<(u32, u32)>,
     /// Mercury mk13: LOP3-xor w formie REJESTROWEJ (Rd, Ra, Rb, RZ, 0x3c) —
-    /// the 0129 record (16B: dst@[10], srcA@[12], srcB@[14]); the lane gets no bit.
+    /// the 0129 record (16B: dst@\[10\], srcA@\[12\], srcB@\[14\]); the lane gets no bit.
     /// (lane, dst, srcA, srcB, guard).
     pub merc_xor_reg: Vec<(u32, u32, u32, u32, u8)>,
     /// Mercury mk13: enum SR per lane S2R (rownolegle do merc_s2r_lanes) —
@@ -512,7 +548,7 @@ pub struct KernelMeta {
     /// mk53-w: (lane, imm) of 0123400a wait events per DEPBAR.
     pub merc_ldgsts2_waits: Vec<(u32, u8)>,
     /// Mercury mk14: rekordy atomowe (ATOMG/ATOMS) per instrukcja:
-    /// (lane, cls [mercury::MERC_ATOM_CLS_*], guard 0/1/2, dst, addr,
+    /// (lane, cls \[mercury::MERC_ATOM_CLS_*\], guard 0/1/2, dst, addr,
     /// src1, src2, subop_b6); registers: 255 = RZ/none. RED* stay on
     /// sciezce legacy REC_ATOM (k_atom/v_atom byte-exact).
     pub merc_atoms: Vec<AtomRec>,
@@ -527,8 +563,8 @@ pub struct KernelMeta {
     /// (lane, kind): 0 = FIND_AND_SET, 1 = AND. Rekord 51 01 01 63 (18B)
     /// for FIND_AND_SET, the 41 63 08 0a mini for AND (gold mkvmem).
     pub merc_utca: Vec<(u32, u8)>,
-    /// mk27: ATOMS.<op> z imm w adresie [URx+imm]: (lane, imm_bajty, op)
-    /// op: 0 = OR, 1 = AND, 2 = inny. Rekord 024e8432 z imm w tail [28:32].
+    /// mk27: ATOMS.`<op>` z imm w adresie [URx+imm]: (lane, imm_bajty, op)
+    /// op: 0 = OR, 1 = AND, 2 = inny. Rekord 024e8432 z imm w tail \[28:32\].
     pub merc_atom_smem: Vec<(u32, u32, u8)>,
     /// mk28: BRA self-loop lanes (`BRA L_x` where the target == its own
     /// martwy spin-trap za strefa funkcji wewnetrznych). W dialekcie UTCA
@@ -655,19 +691,19 @@ pub struct KernelMeta {
     /// 1=42103406, 2=42104014 (kolejnosc = lane-asc; para class-mini+4014
     /// na lane heada). Bitmapowe bity NIE ruszane (decyzja po harnessie).
     pub merc_usetp_minis: Vec<(u32, u8)>,
-    /// mk52: the 42254214 mini — ULEA with carry-out (2nd token UP<num>), own lane.
+    /// mk52: the 42254214 mini — ULEA with carry-out (2nd token UP`<num>`), own lane.
     pub merc_ulea_upco: Vec<u32>,
     /// mk41: sm_100 source (the ;; era=sm100 marker via disasm --frozen).
     pub merc_era100: bool,
     /// mk35: rekordy 0132 lane-sorted: (lane, kind, dreg);
     /// kind 0 = REDUX.*-typowane (b6=4d), 1 = CREDUX (b6=51, b13=01);
-    /// dreg = numer docelowego UR -> grid [10:12]=(dreg<<6)|1.
+    /// dreg = numer docelowego UR -> grid \[10:12\]=(dreg<<6)|1.
     /// A bare "REDUX" (no dot) does NOT get a record — it keeps its
     /// bitmap bit (at_and lane6, mkvmem) — it does not enter this list.
     pub merc_redux: Vec<(u32, u8, u8)>,   // mk60: legacy (gold-synth only)
     /// mk60: 0132100a records from the text scan (lane, 16B). None = no scan.
     pub merc_redux2: Option<Vec<(u32, [u8; 16])>>,
-    /// mk35: dst-reg loadu c[0x358] (wariant cbank (b10,b11)=(dreg<<6)|3).
+    /// mk35: dst-reg loadu c\[0x358\] (wariant cbank (b10,b11)=(dreg<<6)|3).
     pub merc_cbank358_dreg: Option<u8>,
     /// mk40 (store matrix from the sm_100 corpus, analysis/merclab/mk40): lanes
     /// ST.E (generic, rekord 0238 b2=2a b3=32) i STL (local, b2=20 b3=06).
@@ -690,7 +726,7 @@ pub struct KernelMeta {
     /// merc_stg_pos; puste = legacy (kernel-globalne stg_u8/wide/w128 —
     /// laboratoria jednolite pod tym wzgledem; korpus mieszany).
     pub merc_stg_wsel: Vec<u8>,
-    /// mk63: per-STG semafor (rownolegle do merc_stg_pos), bity [2:0]:
+    /// mk63: per-STG semafor (rownolegle do merc_stg_pos), bity \[2:0\]:
     /// kwalifikator semantyczny rekordu 02380e32 — 0 plain / 1 EF /
     /// 2 STRONG.SYS / 3 STRONG.GPU / 4 STRONG.SM, i.e. (b7,b8) =
     /// (0x11,0)/(0x10,0)/(0x21,2)/(0xa1,1)/(0xa1,0) (korpus mk63 c13:
@@ -699,7 +735,7 @@ pub struct KernelMeta {
     /// store2: STRONG tuz przed EXIT + MEMBAR.ALL.* w epilogu, syherk).
     pub merc_stg_sem: Vec<u8>,
     /// mk42: DEF-USE edge records (tag 02 22 32 32) for generic LD with
-    /// desc[URm][Ry.64(+off)]. Selection EXACT on the sm_100 corpus
+    /// desc\[URm\]\[Ry.64(+off)\]. Selection EXACT on the sm_100 corpus
     /// (mk42/edge9: 1721/1721 kerneli multiset (X,Y,C,off) == rekordy,
     /// duplicates consistent). Payload: b4=pred (full mk41 code), b6=class
     /// rozmiaru (U8=0x10,S8=0x11,U16=0x12,S16=0x13,32=0x14,64=0x15,
@@ -708,13 +744,13 @@ pub struct KernelMeta {
     /// [19:21) = (merc_edge_maxur<<6)|2 stale per kernel.
     /// Krotki: (lane, b4, b6, b7, b8, X, Y, C, off).
     pub merc_edge_ld: Vec<EdgeLdRec>,
-    /// mk42: the kernel-wide max UR number in desc[URn] (0 when none).
+    /// mk42: the kernel-wide max UR number in desc\[URn\] (0 when none).
     pub merc_edge_maxur: u16,
     /// mk50: edge records (tag 02 22 1e 32) for LDG with
-    /// desc[URm][Ry.64(+off)] in *annotated_ptr* kernels (corpus: only
+    /// desc\[URm\]\[Ry.64(+off)\] in *annotated_ptr* kernels (corpus: only
     /// libcublas.so.72 sm_100, 72/72 kerneli EXACT — merclab/mk50 c8b;
     /// zero false hits across the remaining 18227 corpus kernels).
-    /// An extra per-UR gate: desc[URm] used exclusively by lanes
+    /// An extra per-UR gate: desc\[URm\] used exclusively by lanes
     /// bazowe LDG (wspoldzielenie ze STG/LDGSTS/REDG wylacza emisje —
     /// UR4 vs UR10/14 configuration in cuds_symv). Payload: b4=pred (full
     /// mk41 code), b6=0x40/0x50/0x60 for 4B/8B/16B, (b7,b8)=(0x81,0x40),
@@ -732,6 +768,33 @@ pub struct KernelParam {
     pub ordinal: u32,
     pub offset: u32,
     pub size: u32,
+    /// Address-space nibble of the KPARAM_INFO size word (5 = pointer, 0 =
+    /// scalar / by-value aggregate; nvcc also records 4 for some pointers).
+    pub space: u8,
+    /// Pointee log2 alignment byte of the KPARAM_INFO size word.
+    pub log_align: u8,
+}
+
+impl KernelParam {
+    /// The 32-bit size word of an EIATTR_KPARAM_INFO record as nvcc writes
+    /// it: `size << 18 | 0x1f << 12 | space << 8 | log_align` (cbank 0x1f is
+    /// the parameter bank). Measured on 768 census kernels: sizes 1..2176,
+    /// spaces 0/4/5, log alignments 0/4.
+    pub fn size_word(&self) -> u32 {
+        (self.size << 18) | (0x1f << 12) | ((self.space as u32 & 0xf) << 8) | self.log_align as u32
+    }
+
+    /// Inverse of [`Self::size_word`].
+    pub fn from_record(index: u32, ordinal: u32, offset: u32, size_word: u32) -> Self {
+        KernelParam {
+            index,
+            ordinal,
+            offset,
+            size: size_word >> 18,
+            space: ((size_word >> 8) & 0xf) as u8,
+            log_align: (size_word & 0xff) as u8,
+        }
+    }
 }
 
 impl KernelMeta {
@@ -745,6 +808,20 @@ impl KernelMeta {
         global: &NvInfoSection,
         per_kernel: &NvInfoSection,
         kernel_name: &str,
+    ) -> Self {
+        Self::from_sections_for_symbol(global, per_kernel, kernel_name, None)
+    }
+
+    /// Like [`Self::from_sections`], but the function-valued records of the
+    /// global `.nv.info` section (REGCOUNT, FRAME_SIZE, MIN_STACK_SIZE) are
+    /// taken only for `func_sym` — the kernel's symbol-table index. Without
+    /// the filter a multi-kernel cubin hands every kernel the values of the
+    /// last record in the section.
+    pub fn from_sections_for_symbol(
+        global: &NvInfoSection,
+        per_kernel: &NvInfoSection,
+        kernel_name: &str,
+        func_sym: Option<u32>,
     ) -> Self {
         let mut meta = KernelMeta {
             name: kernel_name.to_string(),
@@ -866,21 +943,19 @@ impl KernelMeta {
 
         // Extract from global section (REGCOUNT, FRAME_SIZE, MIN_STACK_SIZE)
         for rec in &global.records {
+            let Some((func, val)) = rec.as_func_val() else { continue };
+            if func_sym.is_some_and(|s| s != func) {
+                continue;
+            }
             match rec.attr {
                 0x002f => { // REGCOUNT
-                    if let Some((_, val)) = rec.as_func_val() {
-                        meta.regcount = val;
-                    }
+                    meta.regcount = val;
                 }
                 0x0011 => { // FRAME_SIZE
-                    if let Some((_, val)) = rec.as_func_val() {
-                        meta.frame_size = val;
-                    }
+                    meta.frame_size = val;
                 }
-                0x0004 => { // MIN_STACK_SIZE
-                    if let Some((_, val)) = rec.as_func_val() {
-                        meta.min_stack_size = val;
-                    }
+                0x0012 => { // MIN_STACK_SIZE
+                    meta.min_stack_size = val;
                 }
                 _ => {}
             }
@@ -895,7 +970,7 @@ impl KernelMeta {
                 0x001b => { // MAXREG_COUNT
                     if let Some(v) = rec.as_u16() { meta.maxreg_count = v; }
                 }
-                0x0025 => { // NUM_BARRIERS
+                0x004c => { // NUM_BARRIERS (HVAL in nvcc cubins)
                     if let Some(v) = rec.as_u8() { meta.num_barriers = v; }
                 }
                 0x001c => { // EXIT_INSTR_OFFSETS
@@ -918,20 +993,22 @@ impl KernelMeta {
                 0x0037 => { // CUDA_API_VERSION
                     if let Some(v) = rec.as_u32() { meta.cuda_api_version = v; }
                 }
-                0x000a => { // KPARAM_INFO
-                    if rec.data.len() >= 16 {
-                        let param = KernelParam {
-                            index: u32::from_le_bytes(rec.data[0..4].try_into().unwrap()),
-                            ordinal: u32::from_le_bytes(rec.data[4..8].try_into().unwrap()),
-                            offset: u32::from_le_bytes(rec.data[8..12].try_into().unwrap()),
-                            size: u32::from_le_bytes(rec.data[12..16].try_into().unwrap()),
-                        };
+                0x0017 => { // KPARAM_INFO: index u32, ordinal u16, offset u16, size word u32
+                    if rec.data.len() >= 12 {
+                        let param = KernelParam::from_record(
+                            u32::from_le_bytes(rec.data[0..4].try_into().unwrap()),
+                            u16::from_le_bytes(rec.data[4..6].try_into().unwrap()) as u32,
+                            u16::from_le_bytes(rec.data[6..8].try_into().unwrap()) as u32,
+                            u32::from_le_bytes(rec.data[8..12].try_into().unwrap()),
+                        );
                         meta.params.push(param);
                     }
                 }
                 _ => {}
             }
         }
+        // nvcc writes the KPARAM_INFO records in reverse ordinal order.
+        meta.params.sort_by_key(|p| p.ordinal);
 
         // Mercury mk14: ghost __syncwarp sites. attr 0x28 = SVAL lista offsetow
         // (byte) warp-sync points; in parallel attr 0x29 = masks per site.
@@ -1137,13 +1214,37 @@ pub fn parse_cubin_metadata(elf_data: &[u8]) -> Result<BTreeMap<String, KernelMe
     // Find .nv.info sections
     let mut global_info = None;
     let mut kernel_infos: BTreeMap<String, NvInfoSection> = BTreeMap::new();
+    // Function symbol indices (the first word of REGCOUNT / FRAME_SIZE /
+    // MIN_STACK_SIZE records in the global .nv.info names a .symtab entry).
+    let mut symbol_index: BTreeMap<String, u32> = BTreeMap::new();
 
     for i in 0..e_shnum {
         let sh = e_shoff + i * e_shentsize;
         if sh + 64 > elf_data.len() { break; }
         let sh_name_off = u32::from_le_bytes(elf_data[sh..sh + 4].try_into()?) as usize;
+        let sh_type = u32::from_le_bytes(elf_data[sh + 4..sh + 8].try_into()?);
         let sh_offset = u64::from_le_bytes(elf_data[sh + 24..sh + 32].try_into()?) as usize;
         let sh_size = u64::from_le_bytes(elf_data[sh + 32..sh + 40].try_into()?) as usize;
+        let sh_link = u32::from_le_bytes(elf_data[sh + 40..sh + 44].try_into()?) as usize;
+        let sh_entsize = u64::from_le_bytes(elf_data[sh + 56..sh + 64].try_into()?) as usize;
+
+        if sh_type == 2 && sh_entsize >= 24 && sh_link < e_shnum {
+            // SHT_SYMTAB: names live in the linked string table
+            let link = e_shoff + sh_link * e_shentsize;
+            let str_off = u64::from_le_bytes(elf_data[link + 24..link + 32].try_into()?) as usize;
+            let str_size = u64::from_le_bytes(elf_data[link + 32..link + 40].try_into()?) as usize;
+            if str_off + str_size <= elf_data.len() && sh_offset + sh_size <= elf_data.len() {
+                let strtab = &elf_data[str_off..str_off + str_size];
+                for (idx, sym) in elf_data[sh_offset..sh_offset + sh_size].chunks_exact(sh_entsize).enumerate() {
+                    let st_name = u32::from_le_bytes(sym[..4].try_into()?) as usize;
+                    if st_name == 0 || st_name >= strtab.len() { continue; }
+                    let end = strtab[st_name..].iter().position(|&b| b == 0).map_or(strtab.len(), |p| st_name + p);
+                    let sym_name = String::from_utf8_lossy(&strtab[st_name..end]).to_string();
+                    symbol_index.entry(sym_name).or_insert(idx as u32);
+                }
+            }
+            continue;
+        }
 
         let name = get_string(sh_name_off);
         if !name.starts_with(".nv.info") || name.contains("merc") {
@@ -1169,7 +1270,8 @@ pub fn parse_cubin_metadata(elf_data: &[u8]) -> Result<BTreeMap<String, KernelMe
 
     let mut result = BTreeMap::new();
     for (kernel_name, per_kernel) in &kernel_infos {
-        let meta = KernelMeta::from_sections(&global, per_kernel, kernel_name);
+        let func_sym = symbol_index.get(kernel_name.as_str()).copied();
+        let meta = KernelMeta::from_sections_for_symbol(&global, per_kernel, kernel_name, func_sym);
         result.insert(kernel_name.clone(), meta);
     }
 
@@ -1226,7 +1328,7 @@ mod tests {
             exit_offsets: vec![0x40, 0x120],
             cbank_param_size: 12,
             params: vec![
-                KernelParam { index: 0, ordinal: 0, offset: 0, size: 8 },
+                KernelParam { index: 0, ordinal: 0, offset: 0, size: 8, space: 5, log_align: 0 },
             ],
             cuda_api_version: 0x83,
             shared_size: 0,
@@ -1342,8 +1444,8 @@ mod tests {
         // Serialize and reparse
         let global_bytes = global.to_bytes();
         let kernel_bytes = kernel.to_bytes();
-        assert!(global_bytes.len() > 0);
-        assert!(kernel_bytes.len() > 0);
+        assert!(!global_bytes.is_empty());
+        assert!(!kernel_bytes.is_empty());
 
         let global_parsed = NvInfoSection::parse(".nv.info", &global_bytes).unwrap();
         let kernel_parsed = NvInfoSection::parse(".nv.info.test_kernel", &kernel_bytes).unwrap();

@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 #[command(
     name = "cubit",
     version,
-    about = "SM120 CUDA assembler — bitfield encoding"
+    about = "SASS assembler and disassembler for NVIDIA Blackwell GPUs (SM120, SM103a, SM100a, SM121a): encode, decode, round-trip, patch and schedule machine code"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -26,7 +26,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Validate encoder against records.jsonl.
+    /// Re-encode every instruction of a harvest records file and compare with the recorded word.
     Validate {
         #[arg(short, long, default_value = "tables/sm120.json")]
         table: PathBuf,
@@ -108,21 +108,19 @@ enum Commands {
         #[arg(long)]
         rebuilt_dir: Option<PathBuf>,
     },
-    /// Register-allocation pass over a .sass file (M4/BARRACUDA).
+    /// Register-allocation pass over a .sass file: rename registers inside declared windows, or allocate from scratch.
     ///
-    /// `--mode identity` (M4.1): the plan maps every structurally-used
-    /// register 1:1 and the pass PROVES it observed all of them (span-
-    /// expanded transfer sets, coverage check, rewriter reporting zero
-    /// changed numerals). Output text is byte-verbatim from the input.
-    /// `--mode pin` (M4.2): windowed pin-override splice; lines outside the
-    /// windows are byte-verbatim, window lines carry the renames, and a
-    /// re-parse proof must hold before anything is written.
-    /// Fail-closed: strict parse, unknown role families, plan gaps, pin
-    /// collisions / boundary-live pins / span tearing all stop the run.
+    /// `--mode identity` proves the pass sees every register the text uses and
+    /// emits the input unchanged. `--mode pin` applies the renames of a plan
+    /// inside its windows; lines outside the windows are copied byte for byte
+    /// and the result must re-parse before anything is written. `--mode full`
+    /// allocates registers from zero over the liveness spans and emits through
+    /// the renderer. Fail-closed: a strict parse error, an unknown operand
+    /// role, a gap in the plan, a pin collision or a span torn by a window
+    /// stops the run with no output.
     Ra {
-        /// Allocation mode: "identity" (M4.1), "pin" (M4.2 windowed
-        /// pin-override; requires --plan) or "full" (M4.3b allocate-from-zero
-        /// via liveness span groups; emission through the M4.3a renderer).
+        /// Allocation mode: "identity", "pin" (windowed renames; requires
+        /// --plan) or "full" (allocate from zero over liveness spans).
         #[arg(long, default_value = "identity")]
         mode: String,
         /// Pin-override plan JSON (only with --mode pin):
@@ -139,22 +137,21 @@ enum Commands {
         #[arg(long)]
         report: Option<PathBuf>,
     },
-    /// Instruction-reordering scheduler pass (M4.5/M4.6 BARRACUDA b1).
+    /// Instruction-reordering scheduler pass: list-schedule declared windows of a .sass file under a cost model.
     ///
-    /// `--mode identity` (M4.5): builds the reordering-legality dependency
-    /// graph (register roles from the M3.5 data table, Strict predicate
-    /// roles, ctrl classes from --table), verifies the zero permutation
-    /// against every edge with the same checker mutating modes must pass,
-    /// and emits the input byte-verbatim. `--mode list` (M4.6): windowed
-    /// list scheduling priced by the m9 cost model (--plan + --cost);
-    /// mover lines are emitted verbatim reordered inside their window,
-    /// everything else byte-verbatim, legality machine-checked by
-    /// verify_permutation plus a full re-parse proof. Fail-closed: strict
-    /// parse, unknown roles/classes, plan/cost contract violations, or a
-    /// cost-model regression all stop the run with no output.
+    /// `--mode identity` builds the dependency graph (register and predicate
+    /// roles from the table's operand roles, control classes from --table),
+    /// checks that the unchanged order satisfies every edge and emits the
+    /// input byte for byte. `--mode list` reorders the instructions inside
+    /// the windows of --plan by the cost model of --cost; everything outside
+    /// the windows is copied verbatim and the new order is checked against
+    /// every dependency edge and re-parsed before it is written. Fail-closed:
+    /// a strict parse error, an unknown role or class, a plan or cost-model
+    /// violation, or a schedule that costs more than the input stops the run
+    /// with no output.
     Sched {
-        /// Scheduling mode: "identity" (M4.5) or "list" (M4.6 windowed
-        /// list scheduling; requires --plan and --cost).
+        /// Scheduling mode: "identity" or "list" (windowed list scheduling;
+        /// requires --plan and --cost).
         #[arg(long, default_value = "identity")]
         mode: String,
         /// ISA table for ctrl-class lookup (same role as `cubit asm -t`).
@@ -164,9 +161,8 @@ enum Commands {
         /// {"kernels":{"<name>":{"windows":[[s,e),...]}}}
         #[arg(long)]
         plan: Option<PathBuf>,
-        /// m9 cost model JSON (only with --mode list): a bare cost model,
-        /// or the canonical table carrying a cost_model section, e.g.
-        /// tables/sm103a.json.
+        /// Cost model JSON (only with --mode list): a bare cost model, or a
+        /// table carrying a cost_model section, e.g. tables/sm103a.json.
         #[arg(long)]
         cost: Option<PathBuf>,
         /// Input .sass file (directive format).
@@ -179,21 +175,19 @@ enum Commands {
         #[arg(long)]
         report: Option<PathBuf>,
     },
-    /// POSTFIX-103 v0 -- stall-sufficiency legalizer for sm_103a
-    /// (BARRACUDA b1 / STALLSUF-1).
+    /// Raise the stall counts of hand-scheduled windows to the minimum floors measured on silicon (sm_103a rules today).
     ///
-    /// Raises the stall digits of hand-scheduled windows to the
-    /// silicon-measured minimum floors (rules are DATA: --rules
-    /// the stallfix section of tables/sm103a.json, scope-locked by arch
-    /// against --plan).
-    /// Raise-only: never lowers a stall, never touches B/R/W/Y bits --
-    /// the emission diff is exactly the stall field of each raised
-    /// instruction (1 byte per raise at slot +0xd), everything else
-    /// byte-verbatim, proven by a strict re-parse of the output.
-    /// Fail-closed: strict parse, arch mismatch, unknown kernel, window
-    /// out of range/overlap, a non-annotated instruction inside a window,
-    /// or the guard-D1 pathology (flaky at every S<=8, no stall
-    /// legalizes it) all stop the run with no output.
+    /// The rules are data: --rules points at the `stallfix` section of a
+    /// table (tables/sm103a.json) and must match the architecture of --plan.
+    /// Raise-only: a stall is never lowered and the barrier, read/write
+    /// scoreboard and yield fields are never touched, so the output differs
+    /// from the input in exactly the stall digits that were raised; the
+    /// output is re-parsed before it is written. Fail-closed: a strict parse
+    /// error, an architecture mismatch, an unknown kernel, a window out of
+    /// range or overlapping another, an instruction without a control code
+    /// inside a window, or a dependency the measured rules cannot legalize
+    /// with any stall stops the run with no output. SM120 rules: see
+    /// docs/SM120_STALLFIX_PLAN.md.
     Stallfix {
         /// Legalize plan JSON:
         /// {"arch":"sm_103a","kernels":{"<name>":{"windows":[[s,e),...]}}}
@@ -213,15 +207,15 @@ enum Commands {
         #[arg(long)]
         report: Option<PathBuf>,
     },
-    /// Standalone IR -> SASS text renderer (M4.3a BARRACUDA b1).
+    /// Re-print a .sass file from its parsed form alone (no input line is copied through).
     ///
-    /// Parses the input file (strict) and reprints it from the structured IR
-    /// alone -- no original lines are spliced. On the certified R0b corpus the
-    /// output is byte-identical to the input (gate G14a). `--verify` re-parses
-    /// the rendered text and requires full structural equality with the input
-    /// IR (opcode/guard/operands/ctrl/rsd/labels); a mismatch aborts with rc!=0
-    /// and no output file. Fail-closed: strict parse errors, unrenderable
-    /// operands and unemittted label anchors all stop the run.
+    /// Parses the input strictly and renders every instruction, directive
+    /// and label from the structured representation. `--verify` re-parses the
+    /// rendered text and requires it to be structurally identical to the
+    /// input (opcode, guard, operands, control code, labels); a mismatch
+    /// exits non-zero and writes nothing. Fail-closed: a strict parse error,
+    /// an operand the renderer cannot spell, or a label it cannot place stops
+    /// the run.
     Render {
         /// Input .sass file (directive format).
         input: PathBuf,
@@ -289,14 +283,19 @@ enum Commands {
         /// standalone cubins. Extract from a cubin: .nv.capmerc.text.* section.
         #[arg(long)]
         mercury_stub: Option<PathBuf>,
+        /// With -T / --eiattr-from: accept a rebuilt kernel whose register count
+        /// lands in a different allocation class (units of 8 registers per
+        /// thread) than the template recorded, i.e. a different occupancy than
+        /// the compiler computed. Default: refuse with the two counts.
+        #[arg(long)]
+        allow_regcount_change: bool,
     },
     /// Show ISA table info.
     Info {
         #[arg(short, long, default_value = "tables/sm120.json")]
         table: PathBuf,
     },
-    /// Assemble multiple SASS instructions from a string (Keystone-like API).
-    /// Handles labels, multi-instruction blocks, and branch target resolution.
+    /// Assemble several SASS instructions given as one string (labels and branch targets resolved) and print the words.
     AsmText {
         #[arg(short, long, default_value = "tables/sm120.json")]
         table: PathBuf,
@@ -394,6 +393,7 @@ fn main() -> Result<()> {
             output,
             kernel,
             mercury_stub,
+            allow_regcount_change,
         } => cmd_asm(
             &table,
             &input,
@@ -402,6 +402,7 @@ fn main() -> Result<()> {
             &output,
             kernel.as_deref(),
             mercury_stub.as_deref(),
+            allow_regcount_change,
         ),
         Commands::AsmText {
             table,
@@ -585,7 +586,7 @@ fn cmd_sched(
     Ok(())
 }
 
-/// `cubit stallfix` -- POSTFIX-103 v0 driver (STALLSUF-1 / BARRACUDA b1).
+/// `cubit stallfix` driver: raise-only stall legalization against measured floors.
 ///
 /// Same output contract as cmd_sched: with -o, output text + report
 /// (stderr summary); without -o, the run is validation-only and the report
@@ -600,7 +601,7 @@ fn cmd_stallfix(
     let plan_text = std::fs::read_to_string(plan)
         .with_context(|| format!("stallfix: cannot read plan {}", plan.display()))?;
     let plan: cubit::stallfix::StallFixPlan = serde_json::from_str(&plan_text)
-        .with_context(|| format!("stallfix: plan {} is not valid POSTFIX-103 JSON", plan.display()))?;
+        .with_context(|| format!("stallfix: plan {} is not a valid legalize-plan JSON (expected {{\"arch\": .., \"kernels\": {{..}}}})", plan.display()))?;
     let rules = cubit::stallfix::StallRules::load(rules)?;
     let text = std::fs::read_to_string(input)
         .with_context(|| format!("cannot read {}", input.display()))?;
@@ -1057,9 +1058,9 @@ fn cmd_disassemble(
 
         // Resolve from EIATTR (.nv.info.<kernel>): .shared smem[N] and the kernel
         // parameter layout (KPARAM_INFO, attr 0x17 — one 12-byte record per param:
-        // index[0..4], ordinal[4..6], offset[6..8], sizefield[8..12] where
-        // size_bytes = sizefield >> 18). Params let `--frozen` emit `.param`.
-        let (shared_size, kparams): (u32, Vec<(u32, u32)>) = {
+        // index[0..4], ordinal[4..6], offset[6..8], size word[8..12]; see
+        // eiattr::KernelParam::size_word). Params let `--frozen` emit `.param`.
+        let (shared_size, kparams): (u32, Vec<cubit::eiattr::KernelParam>) = {
             let elf_obj: ElfFile<'_, elf::FileHeader64<Endianness>> =
                 ElfFile::parse(cubin.bytes.as_slice()).expect("failed to re-parse ELF");
             let endian = elf_obj.endian();
@@ -1082,7 +1083,7 @@ fn cmd_disassemble(
                     break;
                 }
             }
-            let mut kparams: Vec<(u32, u32)> = Vec::new();
+            let mut kparams: Vec<cubit::eiattr::KernelParam> = Vec::new();
             let info_sec_name = format!(".nv.info.{kernel_name}");
             for section in sections.iter() {
                 let sname = match sections.section_name(endian, section) {
@@ -1113,14 +1114,12 @@ fn cmd_disassemble(
                                 }
                             }
                             if fmt == 0x04 && attr == 0x17 && dsz >= 12 {
-                                let ordinal = u16::from_le_bytes([payload[4], payload[5]]) as u32;
-                                let sizefield = u32::from_le_bytes([
-                                    payload[8],
-                                    payload[9],
-                                    payload[10],
-                                    payload[11],
-                                ]);
-                                kparams.push((ordinal, sizefield >> 18));
+                                kparams.push(cubit::eiattr::KernelParam::from_record(
+                                    u32::from_le_bytes(payload[0..4].try_into().unwrap()),
+                                    u16::from_le_bytes([payload[4], payload[5]]) as u32,
+                                    u16::from_le_bytes([payload[6], payload[7]]) as u32,
+                                    u32::from_le_bytes(payload[8..12].try_into().unwrap()),
+                                ));
                             }
                             pos += dsz;
                         }
@@ -1226,19 +1225,35 @@ fn cmd_disassemble(
                     }
                 }
             }
-            let reg_decl = (max_reg + 4).min(255); // margin for .64/.128/WIDE register pairs
+            // EIATTR_REGCOUNT of this kernel (ptxas: highest register touched
+            // + 3, unrounded). With it the `.entry` pins the exact value through
+            // `.regcount`; `.reg` then names the registers the text uses. Without
+            // it (no REGCOUNT record) keep the historical margin for the pair
+            // widths the register regex cannot see, and let `asm` round.
+            let eiattr_regcount = eiattr_meta
+                .get(kernel_name)
+                .map(|m| m.regcount)
+                .filter(|&n| n >= 2);
+            let reg_decl = match eiattr_regcount {
+                Some(n) => max_reg.min(n.saturating_sub(1)),
+                None => (max_reg + 4).min(255), // margin for .64/.128/WIDE register pairs
+            };
 
             // Parameters from the cubin's EIATTR (KPARAM_INFO) for a self-contained
             // .entry — so the text re-assembles WITHOUT --eiattr-from. Ordinal order;
-            // size 8 -> u64, else u32 (matches the kernel's cbank param layout).
+            // each declaration carries the exact offset and, where it differs
+            // from the type's default, the address space / pointee alignment, so
+            // `asm` reproduces the KPARAM_INFO records byte for byte.
             let mut params = kparams.clone();
-            params.sort_by_key(|(ord, _)| *ord);
+            params.sort_by_key(|p| p.ordinal);
 
             lines.push(format!(".entry {kernel_name}"));
             lines.push(format!("    .reg R0-R{reg_decl}"));
-            for (i, (_ord, size)) in params.iter().enumerate() {
-                let ty = if *size > 4 { "u64" } else { "u32" };
-                lines.push(format!("    .param {ty} p{i}"));
+            if let Some(n) = eiattr_regcount {
+                lines.push(format!("    .regcount {n}"));
+            }
+            for (i, p) in params.iter().enumerate() {
+                lines.push(format!("    {}", cubit::render::param_directive(&param_decl_from_record(p, i))));
             }
             if shared_size > 0 {
                 lines.push(format!("    .shared smem[{shared_size}]"));
@@ -1973,6 +1988,7 @@ fn merge_syncwarp_from_reference(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn cmd_asm(
     table_path: &Path,
     sass_path: &PathBuf,
@@ -1981,6 +1997,7 @@ fn cmd_asm(
     output_path: &PathBuf,
     only_kernel: Option<&str>,
     mercury_stub_path: Option<&std::path::Path>,
+    allow_regcount_change: bool,
 ) -> Result<()> {
     use cubit::elf::CubinFile;
 
@@ -2011,6 +2028,7 @@ fn cmd_asm(
             output_path,
             only_kernel,
             mercury_stub.as_deref(),
+            allow_regcount_change,
         );
     }
 
@@ -2031,6 +2049,7 @@ fn cmd_asm(
             output_path,
             only_kernel,
             mercury_stub.as_deref(),
+            allow_regcount_change,
         );
     }
 
@@ -2081,7 +2100,7 @@ fn cmd_asm(
 
         for (addr, asm) in sass_insns {
             let offset = *addr as usize;
-            if offset % 16 != 0 || offset.checked_add(16).is_none_or(|end| end > new_code.len()) {
+            if !offset.is_multiple_of(16) || offset.checked_add(16).is_none_or(|end| end > new_code.len()) {
                 bail!("{kernel_name}: instruction address 0x{addr:x} is unaligned or outside template code");
             }
             if !seen_addrs.insert(offset) {
@@ -2151,6 +2170,29 @@ fn cmd_asm(
     Ok(())
 }
 
+/// The `.param` declaration that reproduces one EIATTR_KPARAM_INFO record:
+/// the type from (size, space) — `ptr` for 8-byte space-5 pointers, `u64`/
+/// `u32`/`u16`/`u8` for scalars, `b8[N]` for by-value aggregates — plus the
+/// exact offset and any non-default space / pointee alignment.
+fn param_decl_from_record(p: &cubit::eiattr::KernelParam, index: usize) -> cubit::directives::KernelParam {
+    use cubit::directives::ParamType;
+    let ty = match (p.size, p.space) {
+        (8, 5) => ParamType::Ptr,
+        (8, _) => ParamType::U64,
+        (4, _) => ParamType::U32,
+        (2, _) => ParamType::U16,
+        (1, _) => ParamType::U8,
+        (n, _) => ParamType::Bytes(n),
+    };
+    cubit::directives::KernelParam {
+        space: Some(p.space).filter(|&s| s != ty.default_space()),
+        log_align: Some(p.log_align).filter(|&a| a != 0),
+        offset: Some(p.offset),
+        ty,
+        name: format!("p{index}"),
+    }
+}
+
 /// BUG-044 (fail-closed, sm120 i120): rebuild_cubin copies the reference's
 /// EIATTR + .nv.constant0 VERBATIM. If a kernel's sass declares a different
 /// .param footprint than the reference records, the driver sizes the copied
@@ -2167,13 +2209,51 @@ fn preflight_param_footprint_vs_reference(
         Ok(ref_meta) => {
             for e in entries {
                 let sass_size = e.meta.cbank_param_size;
-                if let Some(rm) = ref_meta.get(&e.name) {
-                    if rm.cbank_param_size != sass_size {
-                        anyhow::bail!(
-                            "asm {via}: kernel '{}' declares {} byte(s) of .params but the                              reference records {} byte(s) in EIATTR — that metadata is copied                              verbatim, so the driver would shape the parameter block per the                              REFERENCE and the tail params would read garbage. Use a reference                              with a matching .param signature or assemble without {via}.",
-                            e.name, sass_size, rm.cbank_param_size
-                        );
+                let Some(rm) = ref_meta.get(&e.name) else { continue };
+                let describe = |p: &cubit::eiattr::KernelParam| {
+                    let mut d = format!("p{} {} byte(s) at +0x{:x}", p.ordinal, p.size, p.offset);
+                    if p.space != 0 || p.log_align != 0 {
+                        d.push_str(&format!(" (space {}, log-align {})", p.space, p.log_align));
                     }
+                    d
+                };
+                let mut differences = Vec::new();
+                if rm.cbank_param_size != sass_size {
+                    differences.push(format!(
+                        "parameter block {} byte(s) in the .entry vs {} byte(s) in the reference",
+                        sass_size, rm.cbank_param_size
+                    ));
+                }
+                if rm.params.len() != e.meta.params.len() {
+                    differences.push(format!(
+                        "{} .param declaration(s) vs {} EIATTR_KPARAM_INFO record(s)",
+                        e.meta.params.len(), rm.params.len()
+                    ));
+                }
+                for (ours, theirs) in e.meta.params.iter().zip(rm.params.iter()) {
+                    if (ours.offset, ours.size, ours.space, ours.log_align)
+                        != (theirs.offset, theirs.size, theirs.space, theirs.log_align)
+                    {
+                        differences.push(format!(
+                            "{} declared, {} in the reference",
+                            describe(ours), describe(theirs)
+                        ));
+                    }
+                }
+                if !differences.is_empty() {
+                    let reference: Vec<String> = rm.params.iter().enumerate()
+                        .map(|(i, p)| cubit::render::param_directive(&param_decl_from_record(p, i)))
+                        .collect();
+                    anyhow::bail!(
+                        "asm {via}: kernel '{}': the .param declarations do not match the \
+                         reference cubin's EIATTR (copied verbatim, so the driver would lay \
+                         out the arguments per the REFERENCE and the mismatched parameters \
+                         would read garbage):\n  - {}\nDeclare the reference layout \
+                         (what `disassemble --frozen` writes):\n    {}\nor assemble without {via}.",
+                        e.name,
+                        differences.join("\n  - "),
+                        reference.join("\n    ")
+                    );
                 }
             }
         }
@@ -2186,6 +2266,7 @@ fn preflight_param_footprint_vs_reference(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn cmd_asm_build_elf(
     table: &IsaTable,
     _sass_text: &str,
@@ -2196,6 +2277,7 @@ fn cmd_asm_build_elf(
     output_path: &PathBuf,
     only_kernel: Option<&str>,
     mercury_stub_data: Option<&[u8]>,
+    allow_regcount_change: bool,
 ) -> Result<()> {
     use cubit::elf_builder::KernelEntry;
 
@@ -2538,6 +2620,8 @@ fn cmd_asm_build_elf(
                             ordinal: params.len() as u32,
                             offset: start - base,
                             size: 8,
+                            space: 5,
+                            log_align: 0,
                         });
                     } else if is_ldcu64_nondesc {
                         // LDCU.64 but NOT desc[] -> two consecutive 4-byte scalars
@@ -2547,12 +2631,16 @@ fn cmd_asm_build_elf(
                             ordinal: params.len() as u32,
                             offset: off1,
                             size: 4,
+                            space: 0,
+                            log_align: 0,
                         });
                         params.push(cubit::eiattr::KernelParam {
                             index: 0,
                             ordinal: params.len() as u32,
                             offset: off1 + 4,
                             size: 4,
+                            space: 0,
+                            log_align: 0,
                         });
                         i += 1;
                     } else {
@@ -2562,6 +2650,8 @@ fn cmd_asm_build_elf(
                             ordinal: params.len() as u32,
                             offset: start - base,
                             size: 4,
+                            space: 0,
+                            log_align: 0,
                         });
                         i += 1;
                     }
@@ -2899,13 +2989,11 @@ fn cmd_asm_build_elf(
                         }
                     }
                     if re_regw.is_match(&outreg) {
-                        if re_s2r.is_match(clean) {
-                            lastw.insert(outreg.clone(), "MID");
-                        } else if readers.iter().skip(1).any(|rn| lastw.get(*rn) == Some(&"MID")) {
-                            lastw.insert(outreg.clone(), "MID");
-                        } else {
-                            lastw.insert(outreg.clone(), base0);
-                        }
+                        // a value derived from S2R (thread/block ids), directly
+                        // or through a reader of such a value, taints as "MID"
+                        let mid = re_s2r.is_match(clean)
+                            || readers.iter().skip(1).any(|rn| lastw.get(*rn) == Some(&"MID"));
+                        lastw.insert(outreg.clone(), if mid { "MID" } else { base0 });
                     }
                 }
                 if !bar_pos.is_empty() && meta.num_barriers == 0 {
@@ -3315,7 +3403,8 @@ fn cmd_asm_build_elf(
                         // mk40 (lustro): store-matrix ST.E/STL.
                         if base0 == "ST" || base0 == "STL" {
                             let opf = m2.get(1).map(|x| x.as_str()).unwrap_or("");
-                            if !opf.contains("ENL2") && !(base0 == "ST" && term_skip63b.contains(&(ii as u32))) {
+                            let skip63b = base0 == "ST" && term_skip63b.contains(&(ii as u32));
+                            if !(opf.contains("ENL2") || skip63b) {
                                 let wsel: u8 = if opf.contains(".128") {
                                     4
                                 } else if opf.contains(".64") {
@@ -4290,7 +4379,7 @@ fn cmd_asm_build_elf(
     // If --eiattr-from is provided, use rebuild_cubin (copies ELF structure +
     // EIATTR from reference, replaces only .text sections with new instruction bytes)
     let cubin_bytes = if let Some(ref_path) = eiattr_path {
-        use cubit::elf_builder::rebuild_cubin;
+        use cubit::elf_builder::{rebuild_cubin_with_resources, RebuildResources};
         println!("Using EIATTR from: {}", ref_path.display());
         let ref_bytes = std::fs::read(ref_path)
             .with_context(|| format!("cannot read {}", ref_path.display()))?;
@@ -4299,7 +4388,11 @@ fn cmd_asm_build_elf(
             .iter()
             .map(|e| (e.name.as_str(), e.code.clone(), e.mercury_stub.clone()))
             .collect();
-        rebuild_cubin(&ref_bytes, &patches)?
+        let resources = RebuildResources {
+            declared_regcount: Default::default(),
+            refuse_occupancy_change: !allow_regcount_change,
+        };
+        rebuild_cubin_with_resources(&ref_bytes, &patches, &resources)?
     } else {
         use cubit::elf_builder::{build_cubin_for_arch, build_cubin_mercury_for_arch};
         if tensor_class_kernels {
@@ -4341,6 +4434,7 @@ fn cmd_asm_build_elf(
 fn lint_kparam_ldcu(_def: &cubit::sass_file::KernelDef, _standalone: bool) {}
 
 /// Assemble a .sass file with .entry/.endentry directives.
+#[allow(clippy::too_many_arguments)]
 fn cmd_asm_directive_format(
     table: &IsaTable,
     sass_text: &str,
@@ -4349,6 +4443,7 @@ fn cmd_asm_directive_format(
     output_path: &PathBuf,
     only_kernel: Option<&str>,
     mercury_stub: Option<&[u8]>,
+    allow_regcount_change: bool,
 ) -> Result<()> {
     use cubit::elf_builder::KernelEntry;
     use cubit::sass_file::{auto_detect_resources, kernel_def_to_meta, parse_sass_file_str_strict};
@@ -4429,6 +4524,8 @@ fn cmd_asm_directive_format(
     }
 
     let mut entries: Vec<KernelEntry> = Vec::new();
+    // Register count per kernel from the .entry (`.regcount N` or the .reg range).
+    let mut declared_regcounts: std::collections::BTreeMap<String, u32> = Default::default();
     let mut total_enc = 0u64;
     let mut total_fail = 0u64;
     let mut total_insns = 0u64;
@@ -5427,10 +5524,17 @@ fn cmd_asm_directive_format(
                 if !shadowed.is_empty() {
                     shadowed.sort_unstable();
                     shadowed.dedup();
+                    let regs = shadowed.iter().map(|r| r.to_string()).collect::<Vec<_>>().join("/R");
+                    // Stays a WARN even under an explicit `.regcount`: nvcc itself
+                    // emits code touching R(N-2)/R(N-1) under EIATTR_REGCOUNT N
+                    // (FlashInfer sparse_mla_streaming_dsv4_nvfp4: R126/R127 at
+                    // regcount 128), so the BUG-075 law as measured on i115 does
+                    // not describe the compiler's own allocations — see
+                    // docs/KNOWN_ISSUES.md (silicon re-measurement pending).
                     eprintln!(
                         "  WARN {}: uses R{} with regcount={} — BUG-040/075: on sm_120 & sm_103a silicon                          only R0..R{} are usable (the last 2 registers are the granule                          shadow); these read/write as ILLEGAL (measured i115: rc=64 ->                          R62/R63 illegal, rc=66 fine). Raise the declared .reg count by 2                          or remap the affected registers.",
                         def.name,
-                        shadowed.iter().map(|r| r.to_string()).collect::<Vec<_>>().join("/R"),
+                        regs,
                         n,
                         n - 3
                     );
@@ -5457,6 +5561,11 @@ fn cmd_asm_directive_format(
             .iter()
             .map(|i| i.opcode_full.clone())
             .collect();
+        // The .entry's own register count (`.regcount N` verbatim, else the
+        // granule-rounded `.reg` range) is the floor a template rebuild raises
+        // EIATTR_REGCOUNT to when the instruction payload changed — never the
+        // byte-lane guess, which cannot see registers behind immediates.
+        declared_regcounts.insert(def.name.clone(), meta.regcount);
         entries.push(KernelEntry {
             name: def.name.clone(),
             code: code_bytes,
@@ -5494,24 +5603,29 @@ fn cmd_asm_directive_format(
     }
 
     // Build cubin
+    let resources = cubit::elf_builder::RebuildResources {
+        declared_regcount: declared_regcounts,
+        refuse_occupancy_change: !allow_regcount_change,
+    };
+    let reference_for_report = template_path.or(eiattr_path);
     let cubin_bytes = if let Some(tmpl) = template_path {
-        use cubit::elf_builder::rebuild_cubin;
+        use cubit::elf_builder::rebuild_cubin_with_resources;
         let tmpl_bytes = std::fs::read(tmpl)?;
         preflight_param_footprint_vs_reference(&tmpl_bytes, &entries, "-T")?;
         let patches: Vec<cubit::elf_builder::CubinPatch> = entries
             .iter()
             .map(|e| (e.name.as_str(), e.code.clone(), e.mercury_stub.clone()))
             .collect();
-        rebuild_cubin(&tmpl_bytes, &patches)?
+        rebuild_cubin_with_resources(&tmpl_bytes, &patches, &resources)?
     } else if let Some(ref_path) = eiattr_path {
-        use cubit::elf_builder::rebuild_cubin;
+        use cubit::elf_builder::rebuild_cubin_with_resources;
         let ref_bytes = std::fs::read(ref_path)?;
         preflight_param_footprint_vs_reference(&ref_bytes, &entries, "--eiattr-from")?;
         let patches: Vec<cubit::elf_builder::CubinPatch> = entries
             .iter()
             .map(|e| (e.name.as_str(), e.code.clone(), e.mercury_stub.clone()))
             .collect();
-        rebuild_cubin(&ref_bytes, &patches)?
+        rebuild_cubin_with_resources(&ref_bytes, &patches, &resources)?
     } else {
         use cubit::elf_builder::{build_cubin_for_arch, build_cubin_mercury_for_arch};
         if tensor_class_kernels {
@@ -5529,6 +5643,29 @@ fn cmd_asm_directive_format(
     std::fs::write(output_path, &cubin_bytes)
         .with_context(|| format!("cannot write {}", output_path.display()))?;
     println!("Written: {}", output_path.display());
+    if let Some(reference) = reference_for_report {
+        // The reference's EIATTR is copied verbatim and REGCOUNT is only ever
+        // raised, so the count printed per kernel above (the .entry's own) is
+        // not necessarily what the cubin carries: report the effective value.
+        if let (Ok(out_meta), Ok(ref_meta)) = (
+            cubit::eiattr::parse_cubin_metadata(&cubin_bytes),
+            std::fs::read(reference).and_then(|b| {
+                cubit::eiattr::parse_cubin_metadata(&b).map_err(std::io::Error::other)
+            }),
+        ) {
+            for e in &entries {
+                let Some(out) = out_meta.get(&e.name) else { continue };
+                let reference_rc = ref_meta.get(&e.name).map(|m| m.regcount);
+                match reference_rc {
+                    Some(r) if r != out.regcount => println!(
+                        "  {}: EIATTR_REGCOUNT in cubin = {} (reference {r}, .entry {})",
+                        e.name, out.regcount, e.meta.regcount
+                    ),
+                    _ => println!("  {}: EIATTR_REGCOUNT in cubin = {}", e.name, out.regcount),
+                }
+            }
+        }
+    }
     println!("Total:   {total_enc} encoded ({total_fail} failed)");
     Ok(())
 }
@@ -5606,13 +5743,11 @@ fn cmd_merc_dump(input: &Path, kernel: Option<&str>, strict: bool) -> Result<()>
             None
         }
     };
-    let (endian, sections);
-    let parsed_sections;
-    match &elf {
+    let parsed_sections = match &elf {
         Some(e) => {
-            endian = e.endian();
-            sections = e.elf_header().sections(e.endian(), bytes.as_slice())?;
-            parsed_sections = sections
+            let endian = e.endian();
+            let sections = e.elf_header().sections(endian, bytes.as_slice())?;
+            sections
                 .iter()
                 .filter_map(|section| {
                     let name = sections
@@ -5621,12 +5756,10 @@ fn cmd_merc_dump(input: &Path, kernel: Option<&str>, strict: bool) -> Result<()>
                         .map(|n| String::from_utf8_lossy(n).to_string())?;
                     Some((name, section.sh_offset(endian), section.sh_size(endian)))
                 })
-                .collect::<Vec<_>>();
+                .collect::<Vec<_>>()
         }
-        None => {
-            parsed_sections = manual.take().unwrap();
-        }
-    }
+        None => manual.take().unwrap(),
+    };
     let mut shown = 0usize;
     for (name, sec_off, sec_size) in &parsed_sections {
         let name = name.clone();
