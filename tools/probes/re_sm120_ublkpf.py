@@ -37,7 +37,7 @@ LEGACY_KEY = "UBLKPF.L2_AUR_UR"
 SIBLING_KEY = "UBLKCP_AURI_AURI_UR_II"
 KEYS = {"UBLKPF_AURI_UR": "AURI_UR", "UBLKPF_AURI_UR_II": "AURI_UR_II"}
 GROUP = "L2"
-FIXTURE = pathlib.Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "sm120_ublkpf_nvdisasm.jsonl"
+FIXTURE = pathlib.Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "sm120_ublkpf_nvdisasm.jsonl"
 TEXT = re.compile(r"(@!?UP[0-6T] )?UBLKPF\.L2 \[UR(Z|\d+)\], UR(Z|\d+)(, desc\[UR(Z|\d+)\])?")
 
 

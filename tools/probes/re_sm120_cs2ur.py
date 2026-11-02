@@ -24,7 +24,7 @@ import subprocess
 PROVENANCE = "cs2ur-sm120-2026-10-23"
 SCHEDULE = ((1 << 17) - 1) << 105
 OPCODE = 0x8cb
-FIXTURE = pathlib.Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "sm120_cs2ur_nvdisasm.jsonl"
+FIXTURE = pathlib.Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "sm120_cs2ur_nvdisasm.jsonl"
 
 
 def field(shift, bits, extraction, token):

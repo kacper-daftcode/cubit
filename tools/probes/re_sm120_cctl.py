@@ -29,7 +29,7 @@ OPCODE = 0x98f
 # the control code of the native word (nvdisasm refuses a CCTL with an all-zero control code)
 NATIVE_CTRL = 0x0001e400 << 96
 OPS = {0: "PF1", 1: "PF2", 2: "WB", 3: "IV", 5: "RS", 9: "PML2", 10: "DML2", 11: "RML2"}
-FIXTURE = pathlib.Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "sm120_cctl_nvdisasm.jsonl"
+FIXTURE = pathlib.Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "sm120_cctl_nvdisasm.jsonl"
 
 
 def field(shift, bits, extraction, token):

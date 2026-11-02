@@ -102,7 +102,7 @@ fn t459a_1_decode_matrix() {
 #[test]
 fn t459a_2_mint_junk_census_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "137cd34e40d42feb914716ea59250725875fa45b";
+    const CURRENT_VENDORED_CANON: &str = "77a3dfaacb757210f54923931a8129bc4a486494";
     assert_eq!(CANON459A, "9c0e4ce", "historical fixture revision drift");
 
     const CTL: u128 = !((1u128 << 96) - 1);
@@ -136,7 +136,8 @@ fn t459a_2_mint_junk_census_source() {
         }
         // 2026-10-28: + the F2FP.BF16.E8.UNPACK_B_R_R row (UE8M0 -> BF16x2; canonical f1e02b3) = 14.
         // 2026-10-29: + the three STSM.8.MT168 groups and the two UBLKPF.L2 rows (canonical 137cd34) = 19.
-        let current_variants = *want_variants + if *leg == "sm120" { 19 } else { 0 };
+        // 2026-11-02: + 12 HMUL2_R_R_FI_FI + 30 LDSM FP4/FP6 + 7 PRMT_R_R_UR_R + 2 ARRIVES_ARURI + 4 UTMASTG groups (canonical 77a3dfa) = 74.
+        let current_variants = *want_variants + if *leg == "sm120" { 74 } else { 0 };
         assert_eq!(variants, current_variants, "[{leg}] variants census drift");
         let cf = ins
             .values()
@@ -163,11 +164,11 @@ fn t459a_2_mint_junk_census_source() {
     let sm120 = &src["tables"]["sm120.json"];
     assert_eq!(
         sm120["base_sha256"].as_str(),
-        Some("67ac72494213d3d1ebc225626728fff454872fe20bf1b41ec4dafc79d262e81d"),
+        Some("d9b7b26fa9833e99f1fd002f044d327b25f8a0bdfe636a5f6aaa51d28ff52fbc"),
         "SM120 source digest drift"
     );
-    assert_eq!(sm120["instruction_forms"].as_u64(), Some(16135));  // 2026-10-29 ATOMS [R+UR+imm] / STSM.8.MT168 / UBLKPF.L2 (canonical 137cd34): +2 sm120 keys (UBLKPF_AURI_UR, UBLKPF_AURI_UR_II), +3 STSM_ARI_R groups, ATOMS_R_ARURI_R MAX,S32 re-measured (variants 20845 -> 20850) = 16135. // 2026-10-28 F2FP.BF16.E8.UNPACK_B_R_R (canonical f1e02b3): +1 sm120 key
-    assert_eq!(sm120["encoding_variants"].as_u64(), Some(20850));  // 2026-10-29 ATOMS [R+UR+imm] / STSM.8.MT168 / UBLKPF.L2 (canonical 137cd34): +2 sm120 keys (UBLKPF_AURI_UR, UBLKPF_AURI_UR_II), +3 STSM_ARI_R groups, ATOMS_R_ARURI_R MAX,S32 re-measured (variants 20845 -> 20850) = 16135. // 2026-10-28 F2FP.BF16.E8.UNPACK_B_R_R (canonical f1e02b3): +1 sm120 key, variants 20844 -> 20845; 2026-10-25 CCTL (canonical 8d26508): +7 mod groups in CCTL_ARI (E,PF1/WB/IV/RS/PML2/RML2 + DML2,E), keys unchanged 16132, variants 20837 -> 20844
+    assert_eq!(sm120["instruction_forms"].as_u64(), Some(16138));  // 2026-11-02 HMUL2 imm / LDSM FP4-FP6 / PRMT UR / ARRIVES.LDGSTSBAR / UTMASTG dims (canonical 77a3dfa): +3 sm120 keys (HMUL2_R_R_FI_FI, PRMT_R_R_UR_R, ARRIVES_ARURI), +30 LDSM_R_ARI and +4 UTMASTG groups (variants 20850 -> 20905) = 16138. // 2026-10-29 ATOMS [R+UR+imm] / STSM.8.MT168 / UBLKPF.L2 (canonical 137cd34): +2 sm120 keys (UBLKPF_AURI_UR, UBLKPF_AURI_UR_II), +3 STSM_ARI_R groups, ATOMS_R_ARURI_R MAX,S32 re-measured (variants 20845 -> 20850) = 16135. // 2026-10-28 F2FP.BF16.E8.UNPACK_B_R_R (canonical f1e02b3): +1 sm120 key
+    assert_eq!(sm120["encoding_variants"].as_u64(), Some(20905));  // 2026-11-02 HMUL2 imm / LDSM FP4-FP6 / PRMT UR / ARRIVES.LDGSTSBAR / UTMASTG dims (canonical 77a3dfa): +3 sm120 keys (HMUL2_R_R_FI_FI, PRMT_R_R_UR_R, ARRIVES_ARURI), +30 LDSM_R_ARI and +4 UTMASTG groups (variants 20850 -> 20905) = 16138. // 2026-10-29 ATOMS [R+UR+imm] / STSM.8.MT168 / UBLKPF.L2 (canonical 137cd34): +2 sm120 keys (UBLKPF_AURI_UR, UBLKPF_AURI_UR_II), +3 STSM_ARI_R groups, ATOMS_R_ARURI_R MAX,S32 re-measured (variants 20845 -> 20850) = 16135. // 2026-10-28 F2FP.BF16.E8.UNPACK_B_R_R (canonical f1e02b3): +1 sm120 key, variants 20844 -> 20845; 2026-10-25 CCTL (canonical 8d26508): +7 mod groups in CCTL_ARI (E,PF1/WB/IV/RS/PML2/RML2 + DML2,E), keys unchanged 16132, variants 20837 -> 20844
 }
 
 /// NVIDIA SM120 distinguishes X by bit74. Non-X ignores the carry selector

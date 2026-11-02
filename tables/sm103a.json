@@ -1,14 +1,285 @@
 {
  "_meta": {
   "architecture": "SM103a",
-  "bug203": "2026-08-27 coverage-gap rows (witness-first probe203 + flips199 graft pool)",
-  "bug204": "2026-08-27 sm120 ATOMS AURI (64,9)->(64,8) watch closure (mirror BUG-143-E2) + ARI_R witness-first rows MIN/MIN,S32/MAX,S32/INC/EXCH + phantom rebuilds (probe204a x3 arch, law arb204)",
-  "bug205": "2026-08-27 generic-ATOM MIN lane rows (witness-first probe205; law arb205 bit-walk)",
-  "bug206": "2026-08-27 REDG scope SM/SYS closure (witness-first probe206a..d)",
-  "bug210": "2026-08-27 REDUX/CREDUX law closure (arb210 graft law; XOR/MIN/MAX/S32-variants + MAXABS/MINABS/F32 CREDUX + inert-bit vm-parity; sm120 op-window tightened)",
-  "bug211": "2026-08-27 ATOMS AND/OR/XOR .S32 glyph-space closure (b73 width toggle; ARI_R+AURI_R donor-clones x3 tabs; law arb211; graft-only witnesses) + b72 vendor-inert moved to vm-parity data-side (PART C; prio-3 no longer serves ATOMS after the is_memlike src arm)",
-  "bug215": "2026-08-27 ATOMS EXCH .64 witnessed closure: native u64 shared atomicExch row (probe u64_215, payload arch-eq); MAX/ADD .64 = CAST.SPIN CAS-loop, INC .64 = no overload (negative vendor-emission classes); width-3 stays fail-closed (vendor .INVALID3, 216-law)",
   "codename": "Blackwell",
+  "gpu": "B300 SXM6",
+  "instruction_width": 128,
+  "provenance": {
+   "legend": "Rows (instructions.<key>.mod_groups.<group>) may carry `_src`: a tag naming the measurement that produced or last repaired the row; `sources` below lists every tag in this table with its kind, date and, where it exists, the cubit tool and test that hold the evidence. `_note` on a row is the measurement in prose (bit positions, nvdisasm behaviour, what stays outside the row). Rows without `_src` are the 2026-06..08 harvest: fields learned from compiler output and validated by the round-trip census, not by per-field probes; their audit state is tracked in cubit's docs/KNOWN_ISSUES.md (tools/audit_table.py, tools/audit_dynamic.py). `history` keeps the fix-wave notes that used to be loose `_meta.bugNNN` keys, verbatim; `errata` keeps the former top-level `_errata_*` notes (sm121a).",
+   "rows_total": 16451,
+   "rows_without_src": 15952,
+   "sources": {
+    "bug154-2026-08-25": {
+     "rows": 1,
+     "kind": "encoder fix wave (cubit BUG-154)",
+     "date": "2026-08-25",
+     "test": "tests/bug154_syncs_phasechk.rs"
+    },
+    "bug157-6anchor-derived": {
+     "rows": 1,
+     "kind": "encoder fix wave (cubit BUG-157)",
+     "test": "tests/bug157_syncs_ari_ur.rs"
+    },
+    "bug168-2026-08-25": {
+     "rows": 1,
+     "kind": "encoder fix wave (cubit BUG-168)",
+     "date": "2026-08-25",
+     "test": "tests/bug168_uplop3_lattice.rs"
+    },
+    "bug172-2026-08-26": {
+     "rows": 3,
+     "kind": "encoder fix wave (cubit BUG-172)",
+     "date": "2026-08-26",
+     "test": "tests/bug172_ldc_s16_widths.rs"
+    },
+    "bug175-2026-08-26": {
+     "rows": 3,
+     "kind": "encoder fix wave (cubit BUG-175)",
+     "date": "2026-08-26",
+     "test": "tests/bug175_ldc_cari_widths.rs"
+    },
+    "bug203": {
+     "rows": 52,
+     "kind": "encoder fix wave (cubit BUG-203)",
+     "test": "tests/bug203_atom_coverage.rs"
+    },
+    "bug204-2026-08-27": {
+     "rows": 5,
+     "kind": "encoder fix wave (cubit BUG-204)",
+     "date": "2026-08-27",
+     "test": "tests/bug204_atoms_auri_watch.rs"
+    },
+    "bug205": {
+     "rows": 12,
+     "kind": "encoder fix wave (cubit BUG-205)",
+     "test": "tests/bug205_atom_min.rs"
+    },
+    "bug206": {
+     "rows": 51,
+     "kind": "encoder fix wave (cubit BUG-206)",
+     "test": "tests/bug206_redg_scope.rs"
+    },
+    "bug210-2026-08-27 (arb210/b/c grafts probe206a x3 arch; law op[80:78)/b73, CREDUX op[79:78]/b73/b74+b80alias)": {
+     "rows": 16,
+     "kind": "encoder fix wave (cubit BUG-210)",
+     "date": "2026-08-27"
+    },
+    "bug211-2026-08-27": {
+     "rows": 6,
+     "kind": "encoder fix wave (cubit BUG-211)",
+     "date": "2026-08-27",
+     "test": "tests/bug211_atoms_s32_glyph.rs"
+    },
+    "bug215-2026-08-27": {
+     "rows": 1,
+     "kind": "encoder fix wave (cubit BUG-215)",
+     "date": "2026-08-27",
+     "test": "tests/bug215_atoms_exch64.rs"
+    },
+    "bug239-2026-08-28": {
+     "rows": 4,
+     "kind": "encoder fix wave (cubit BUG-239)",
+     "date": "2026-08-28",
+     "test": "tests/bug239_donor_graft_port.rs"
+    },
+    "bug241-2026-08-28": {
+     "rows": 12,
+     "kind": "encoder fix wave (cubit BUG-241)",
+     "date": "2026-08-28",
+     "test": "tests/bug241_encode_holes.rs"
+    },
+    "bug244-2026-08-28": {
+     "rows": 5,
+     "kind": "encoder fix wave (cubit BUG-244)",
+     "date": "2026-08-28",
+     "test": "tests/bug244_f2f_donor.rs"
+    },
+    "bug247-2026-08-28": {
+     "rows": 4,
+     "kind": "encoder fix wave (cubit BUG-247)",
+     "date": "2026-08-28",
+     "test": "tests/bug247_fmnmx.rs"
+    },
+    "bug249-2026-08-28": {
+     "rows": 1,
+     "kind": "encoder fix wave (cubit BUG-249)",
+     "date": "2026-08-28",
+     "test": "tests/bug249_fsel.rs"
+    },
+    "bug334-2026-09-01": {
+     "rows": 2,
+     "kind": "encoder fix wave (cubit BUG-334)",
+     "date": "2026-09-01",
+     "test": "tests/bug334_ldgsts_alloc_rows.rs"
+    },
+    "bug354-2026-09-02": {
+     "rows": 17,
+     "kind": "encoder fix wave (cubit BUG-354)",
+     "date": "2026-09-02",
+     "test": "tests/bug354_hfma2_sparse_modlane.rs"
+    },
+    "bug359-2026-09-03": {
+     "rows": 6,
+     "kind": "encoder fix wave (cubit BUG-359)",
+     "date": "2026-09-03",
+     "test": "tests/bug359_ldgsts_alloc_crosses.rs"
+    },
+    "bug360-2026-09-03": {
+     "rows": 3,
+     "kind": "encoder fix wave (cubit BUG-360)",
+     "date": "2026-09-03",
+     "test": "tests/bug360_ldgsts_desc_ltc_law.rs"
+    },
+    "bug367-2026-09-04": {
+     "rows": 30,
+     "kind": "encoder fix wave (cubit BUG-367)",
+     "date": "2026-09-04",
+     "test": "tests/bug367_hfma2_sparse_satftz.rs"
+    },
+    "bug368-369-2026-09-04": {
+     "rows": 3,
+     "kind": "encoder fix wave (cubit BUG-368)",
+     "test": "tests/bug368_shfl_rform.rs"
+    },
+    "bug373_375-2026-09-04": {
+     "rows": 2,
+     "kind": "encoder fix wave (cubit BUG-373)",
+     "test": "tests/bug373_ldgsts_guard_pv.rs"
+    },
+    "bug376-2026-09-04": {
+     "rows": 21,
+     "kind": "encoder fix wave (cubit BUG-376)",
+     "date": "2026-09-04",
+     "test": "tests/bug376_ldgsts_ltc_lattice.rs"
+    },
+    "bug381-2026-09-05": {
+     "rows": 92,
+     "kind": "encoder fix wave (cubit BUG-381)",
+     "date": "2026-09-05",
+     "test": "tests/bug381_hfma2_rrrr_ur_lattice.rs"
+    },
+    "bug386-2026-09-05": {
+     "rows": 12,
+     "kind": "encoder fix wave (cubit BUG-386)",
+     "date": "2026-09-05",
+     "test": "tests/bug386_ldgsts_basegaps.rs"
+    },
+    "bug400-2026-09-07": {
+     "rows": 21,
+     "kind": "encoder fix wave (cubit BUG-400)",
+     "date": "2026-09-07",
+     "test": "tests/bug400_pred_ltc_windows.rs"
+    },
+    "bug413ii-2026-09-08": {
+     "rows": 7,
+     "kind": "encoder fix wave (cubit BUG-413ii)",
+     "date": "2026-09-08",
+     "test": "tests/bug413ii_ldsm_s8_auri.rs"
+    },
+    "bug421422-2026-09-09": {
+     "rows": 15,
+     "kind": "encoder fix wave (cubit BUG-421422)",
+     "date": "2026-09-09",
+     "test": "tests/bug421422_ldsm_enum_s16.rs"
+    },
+    "bug424-2026-09-09": {
+     "rows": 2,
+     "kind": "encoder fix wave (cubit BUG-424)",
+     "date": "2026-09-09",
+     "test": "tests/bug424_ldsm_aruri_sparse.rs"
+    },
+    "bug426-2026-09-09": {
+     "rows": 4,
+     "kind": "encoder fix wave (cubit BUG-426)",
+     "date": "2026-09-09",
+     "test": "tests/bug426_m832_counts.rs"
+    },
+    "bug427-2026-09-09": {
+     "rows": 2,
+     "kind": "encoder fix wave (cubit BUG-427)",
+     "date": "2026-09-09",
+     "test": "tests/bug427_s16_frames.rs"
+    },
+    "bug429-2026-09-09": {
+     "rows": 12,
+     "kind": "encoder fix wave (cubit BUG-429)",
+     "date": "2026-09-09",
+     "test": "tests/bug429_ldsm_ari_closure.rs"
+    },
+    "bug433-2026-09-10": {
+     "rows": 2,
+     "kind": "encoder fix wave (cubit BUG-433)",
+     "date": "2026-09-10",
+     "test": "tests/bug433_stsm_m88.rs"
+    },
+    "bug435-2026-09-10": {
+     "rows": 28,
+     "kind": "encoder fix wave (cubit BUG-435)",
+     "date": "2026-09-10",
+     "test": "tests/bug435_x3_ltc_lattice.rs"
+    },
+    "bug435b-2026-09-10": {
+     "rows": 4,
+     "kind": "encoder fix wave (cubit BUG-435b)",
+     "date": "2026-09-10",
+     "test": "tests/bug435_x3_ltc_lattice.rs"
+    },
+    "bug438-2026-09-11": {
+     "rows": 6,
+     "kind": "encoder fix wave (cubit BUG-438)",
+     "date": "2026-09-11",
+     "test": "tests/bug438_stsm_mt_urelax.rs"
+    },
+    "bug441-2026-09-11": {
+     "rows": 3,
+     "kind": "encoder fix wave (cubit BUG-441)",
+     "date": "2026-09-11",
+     "test": "tests/bug441_ldsm_bandrest_count.rs"
+    },
+    "tc5-mk307": {
+     "rows": 27,
+     "kind": "fix wave (undated tag)"
+    }
+   },
+   "history": {
+    "bug203": "2026-08-27 coverage-gap rows (witness-first probe203 + flips199 graft pool)",
+    "bug204": "2026-08-27 sm120 ATOMS AURI (64,9)->(64,8) watch closure (mirror BUG-143-E2) + ARI_R witness-first rows MIN/MIN,S32/MAX,S32/INC/EXCH + phantom rebuilds (probe204a x3 arch, law arb204)",
+    "bug205": "2026-08-27 generic-ATOM MIN lane rows (witness-first probe205; law arb205 bit-walk)",
+    "bug206": "2026-08-27 REDG scope SM/SYS closure (witness-first probe206a..d)",
+    "bug210": "2026-08-27 REDUX/CREDUX law closure (arb210 graft law; XOR/MIN/MAX/S32-variants + MAXABS/MINABS/F32 CREDUX + inert-bit vm-parity; sm120 op-window tightened)",
+    "bug211": "2026-08-27 ATOMS AND/OR/XOR .S32 glyph-space closure (b73 width toggle; ARI_R+AURI_R donor-clones x3 tabs; law arb211; graft-only witnesses) + b72 vendor-inert moved to vm-parity data-side (PART C; prio-3 no longer serves ATOMS after the is_memlike src arm)",
+    "bug215": "2026-08-27 ATOMS EXCH .64 witnessed closure: native u64 shared atomicExch row (probe u64_215, payload arch-eq); MAX/ADD .64 = CAST.SPIN CAS-loop, INC .64 = no overload (negative vendor-emission classes); width-3 stays fail-closed (vendor .INVALID3, 216-law)",
+    "bug239": "2026-08-28 donor DFMA.RP tok2 neg@72 + HMUL2_R_R_UR hsel graft-port from sm120 (BUG-226d) -- 1,483 omission-ghosts zeroed, gold239 census",
+    "bug329": "2026-09-01 sparse FI_FI tok2 sign-window closure (BUG-329), legs sm100a+sm103a, key HFMA2_R_R_R_FI_FI mg '': +abs@73 tok2 + hsel[75:74] tok2. Fixes decode SILENT-drop of .H0_H0/.H1_H1/.INVALID1 on sparse legs + encode loud-refuse (measure_pre329; arb312 L2..L5 + arb329 x4 agree). abs@73 = field-closure (generic rescue already exact; 320/327 mechanism). sparse II_FI key NOT cloned (NEGATYW: guard!=7 words decode/encode vendor-equal via FI_FI row; guard generic). Residuum: tok3-sign lanes sparse = loud holes (353-kand). patch329.py replayable+idempotent.",
+    "bug334": "2026-09-01 LDGSTS desc L1-allocate '128,E' rows on LDGSTS_ARI_dARI{,_P} (mirror BUG-311 sm120; law arb334 x4 agree: b81 alloc<->BYPASS, dst-imm 20b@44 owns [52:44], desc-imm 12b@32 signed). Pre-fix: F-word decode HOLE; authored 'LDGSTS.E.128' superset-minted BYPASS+LTC words (silent wrong-code).ZFILL/LTC crosses for the alloc family stay loud-refuse (359-kand). patch334.py replayable+idempotent (re-run skip-idem).",
+    "bug353": "2026-09-02 BUG-353: HFMA2 sparse-leg FI/II lattice tok3 sign-window closure on HFMA2_R_R_R_FI_FI mg \"\" (legs sm100a+sm103a): +neg@84/abs@83/hsel@[82:81]/h0nh1@86 tok3 fields + vm |= {81,82,83,84,86} -- exact mirror of dense sm120 mg \"\" geometry (279/271-era). Law: arb329 S-group nvdisasm 13.3.73 raw -b x4 models agree on EVERY probe. Cures: sparse decode LOUD holes 16/16 (incl II-lattice guard siblings), hsel/h0nh1 mint loud REFUSE (5/5), 355-class sign->tok4-f16 silent fold mangle on this row. INVALID5 (h0nh1 x hsel1) stays doctrine-HOLE fail-closed. Corpus exposure census353: 0 of 97,338 lattice words per leg carry the window -> corpus-invisible graft. patch353.py replayable+idempotent.",
+    "bug354": "2026-09-02 BUG-354: HFMA2 sparse-leg FI/II lattice (0x431 family) mod-lane closure, legs sm100a+sm103a, key HFMA2_R_R_R_FI_FI + 6 dotted _P keys: DIRECT {F32,FMZ,F32,FMZ}, BF16 lanes {BF16_V2, BF16_V2,FMZ} (tok4/tok5 f16->bf16 swap, 288-era dense delta law), RELU base mgs x6 (b79 + pv7 elision bake), RELU _P dotted keys x6 (pred 3b@87 + inv@90 tok6). Law: arb354 108 probes nvdisasm 13.3.73 raw -b, x4 models agree on EVERY probe. Cures sparse decode LOUD holes 30/30 + mint REFUSE 15/15 (measure_pre354; no silent-mangle class on this window). Kills stay HOLE: SATxRELU rc=1, F32xBF16 INVALID3-285, b91 rc=1, INVALID5/6, stray [90:87] w/o b79 (289). SAT/FTZ/OOB lanes registered as 367-kand (law in arb354, beyond registered scope). Corpus exposure census354. patch354.py replayable+idempotent.",
+    "bug359": "2026-09-03 LDGSTS desc L1-alloc '128,E' crosses x {LTC128B,ZFILL,both} on LDGSTS_ARI_dARI{,_P} x3 legs (law arb334+arb359 134 probes x4 agree: b81 alloc<->BYPASS, b73 LTC and b82 ZFILL legal with alloc on both pred classes incl triple; dst-imm 20b@44 owns [52:44], desc-imm 12b@32 signed). Pre-fix: decode HOLE x3 + authored loud-refuse (measure_pre359); corpus-invisible (0/5 window-claims on 30,049-slot battery). sm121a dotted keys already cover non-P crosses; sm121a trailing-_P desc LDGSTS gap (incl corpus witness B) = pre-existing 37x-kand, out of scope. patch359.py replayable+idempotent.",
+    "bug360": "2026-09-03 BUG-360: (A) sm100a LDGSTS desc non-128 imm2 era widths 15/18/14b -> 12b@32 signed (i84-180 port; arb360 x4 agree: desc 12b signed '+-0x800', ext bits [49:44] = dst-imm; pre-fix sm100a silent drop of authored '+0x1000' + silent sign-R RAW print of [0x800..0xfff] = 28 corpus slots sm_100). (B) b72 = LTC 128B/256B discriminator (NOT UR bit; UR = 8b@64, vendor UR56/88/152 legal): dual closed, LTC128B rows ur0 9->8b, LTC256B rows grafted for E/64,E classes both keys x3 legs. (C) ur0 9->8b fleet-wide on LDGSTS_ARI_dARI{,_P} x3 legs: b72=1 words on un-rowed classes (LTC64B, 128-family LTC256B, BYPASS crosses) now fail closed HOLE (376-kand). Corpus-invisible: b72/b71/ghost-ext all 0 on 30,049 slots. patch360.py replayable+idempotent.",
+    "bug362": "2026-09-03 BUG-362: F2I TRUNC/F64/FLOOR lattice era-row closure x4 legs: (S) sign window abs@62/neg@63 tok2 grafted (arb362 S-group 27 probes + arb339 A5/B4, x4 agree; pre-fix HOLE x4); (I) inert b73/74 vm-relax (arb362 I + arb362b; vendor text-inert). (362a reuse [124:122] vendor-ILLEGAL = engine decoder arm; 362c nibble-alias zone = pinned HOLE.",
+    "bug363": "2026-09-03 BUG-363: F2I R_R FTZ (byte10=0x21) + BF16 (0x40) lattice closure x4 legs (arb341b G/H + arb363 326 probes incl S-signs x288 G-guard R-reuse-illegal x16 X-0x61-illegal, x4 AGREE): 96 keyed era rows/leg 'F2I.FTZ[.T][.R]_R_R' + 'F2I[.T].BF16[.R]_R_R' era geometry (signs in, reuse OUT -- vendor rc=1, fail-closed via decoder BUG-363 arm); legacy mgs F2I_R_R::{FTZ,NTZ (dst@15 = sev-A silent dst corruption on 100a/103a) + FTZ,NTZ,TRUNC,U32 (guard-pinned)} deleted and replaced by name-true keyed rows; sm120/121a era key F2I.FTZ.U32.TRUNC.NTZ_R_R normalized (signs added, reuse field dropped). byte10=0x61 + [83:81] alias cells pinned HOLE.",
+    "bug367": "2026-09-04 BUG-367: HFMA2 sparse-leg FI/II lattice (0x431 family) SAT/FTZ/OOB lane closure = lattice completion vs the dense row set, legs sm100a+sm103a: 12 DIRECT mgs + 6 BF16 mgs (bf16sub swap) + 6 RELU base mgs (pv7 bake) + 6 RELU _P dotted keys (pred 3b@87 + inv@90 tok6) on HFMA2_R_R_R_FI_FI. Law: arb354 108 probes + arb367 79 probes, nvdisasm 13.3.73 raw -b, x4 models agree on EVERY legal probe (DIVERGENT=0). Cures sparse decode LOUD holes 91/91 + mint REFUSE 27/27 (measure_pre367; zero WRONG cells = no silent-mangle class). Kills stay HOLE: SATxRELU any-combo (xFTZ/xOOB rc=1), b91 x scope, F32xBF16 INVALID3-285, stray [90:87] w/o b79 (289 vendor-INERT; dense armed lane unchanged). Corpus exposure ZERO = census354 window bits {76..80,85}+pv on 97,338 lattice words/leg x4. patch367.py replayable+idempotent.",
+    "bug368": "2026-09-04 BUG-368: SHFL R-form (b1 0x73) [57:40]=0 pin -> vm-relax (vendor-inert: arb368 A/B junk sweep x4 modes x4 models). R-form pola juz poprawne (pred 3b@81, reg@64 t5); era mgs x4 mode-pinned stoja.",
+    "bug369": "2026-09-04 BUG-369: cross-leg SHFL II-form over-strict closure = lustro 358 (pred (4,12,1)->(3,81,1) na II_II{BFLY,IDX,UP} + R_II[IDX]; vm |= [71:64] inert II-form; II_II[IDX] imm28@53->imm5 + II_II/II_R[DOWN] imm6@53->imm5 = cure mode-junk SILENT MISPRINT (era DOWN claimowal BFLY przez b58 pod polem); R_II[IDX] imm32@40->imm13 + klony UP/DOWN/BFLY z pinned-mode = cure mode-junk claim empire (0x21/0x4001f/0x1400001f); II_R[UP/DOWN] vm |= [52:40] inert. Law: arb358 73 + arb368 40 sond x4 AGREE EVERY. Cures: HOLE pred<PT II-form x2-3 nogi + HOLE IIR x3 + misprinty + encode intent-drop + REFUSE R_II UP/DOWN/BFLY.",
+    "bug371": "2026-09-04 BUG-371: HFMA2 tok4 abs field closure: appended abs 1b@83 token_idx=4 to every HFMA2 mod_group with Reg/UReg tok4 lacking the field (pre-fix authored |R4|/|R5| silently minted GENERIC b74 = tok2 hsel cross-read -> vendor 'R2.INVALID1'; b83-set words were LOUD decode HOLE on these rows). Law: arb371 2,560 + arb371b 1,728 probes x4 models AGREE EVERY (b83=tok4 abs, b84=tok4 neg [already field-carried], b74/75=tok2 hsel cross-read). pure additive graft: ab/vm invariant (engine carves field bits at match, decoder.rs:131); dense thin rows reach BUG-320 donor geometry. ENGINE ZERO.",
+    "bug374": "2026-09-04 BUG-374: LDGSTS desc BYPASS+ZFILL non-alloc row closure: += np 128,BYPASS,E,ZFILL x3 legs (cures sm120 loud HOLE + era silent mis-claim printing phantom ', PT' via the _P row on nib-7 words); += _P 128,BYPASS,E x3 (vendor-legal x4, was HOLE x3 era+120 = wider than the 374-kand note, BUG-371 precedent); += _P 128,BYPASS,E,ZFILL sm120 (era legs had it). Law: arb359 88 + arb373_375 109 + bisect 6 probes x4 AGREE EVERY (b81=BYPASS/b82=ZFILL/b73=LTC pure ab deltas asserted in-leg; nibble [90:87] = pred_inv4 PT-elided law confirmed on F-class geometry). ENGINE ZERO.",
+    "bug376": "2026-09-04 BUG-376: LDGSTS desc LTC lattice completion (arb376b 99 probes x4 AGREE EVERY: LTC [73:72] upright 0/64B/128B/256B; BYPASS=b81 CLEAR; size=[75:74] E/64/128 (3=INVALID3 kill); EVERY (size,BYPASS,ZFILL)xLTC cell legal both sides; print order 'LDGSTS.E[.BYPASS][.LTCxB][.sz][.ZFILL]'). += LTC64B x6 bases + LTC256B x4 bases both sides + '128,BYPASS,E,LTC128B,ZFILL' x3 np (cures silent phantom ', PT' via _P row on nib-0 words on 100a/103a measured pre; sm120 HOLE) + sm120 _P same cell (was absent; 100a/103a carried it pre). Pre: HOLE/REFUSE x4 both sides (measure_pre376{,_extra}). baked-template inheritance = verbatim donor clone per leg (100a/103a non-ZFILL _P bake 0x1e000<<96, _P ZFILL donors bake none; sm120 _P uniform). deltas f1..f11/p3..p12 asserted. ENGINE ZERO.",
+    "bug380": "2026-09-05 BUG-380: F2I F64-src (byte10=0x30, b76=1) lattice completion x4 legs: +22 rows/leg (plain/NTZ/FLOOR.U32/S64/U64/FLOOR.NTZ/CEIL/CEIL.NTZ full dst closure; donor-clone per dst from the TRUNC family, cell swap only, claim envelopes verbatim) + 'F64,S64'/F2I.S64.F64_R_R plain-S64 alias relax (3<<73) + abs@62/neg@63 fields (pre: HOLE). Law: arb380/380b/380c/c2/380d 187 probes x4 models AGREE EVERY; 96-cell (round x nibble) sweeps; reuse ILLEGAL everywhere (decoder BUG-380a arm, engine side). Pre-fix 364/384 cells HOLE x4 legs (measure_pre379_380). b76=0 narrow-dst sub-lattice = 390-kand (HOLE fail-closed kept).",
+    "bug381": "2026-09-05 BUG-381: HFMA2 sparse-leg R_R_R_R (0x231) + R_R_UR_R (0x7c31) mod-lattice completion vs the dense row set, legs sm100a+sm103a: 34 mgs (22 direct + 12 RELU pv7-bake) + 12 RELU _P dotted keys (pred 3b@87 + inv@90 tok5) per family. Law: arb381 176 + arb381b 26 = 202 probes, nvdisasm 13.3.73 raw -b, x4 models agree on EVERY probe (DIVERGENT=0). Cures sparse decode LOUD holes 130/134 + mint REFUSE 33/33 (measure_pre381; zero WRONG cells). Kills stay HOLE: SATxRELU any-combo, b91 on 0x231, F32xBF16 INVALID3-285, stray b90/pv/b92/b93/b95 vendor-INERT (289 doctrine). HFMA2_R_R_R_R_R 5-reg key + UR-side guard@[15:12] + sparse 0x231 tok2/tok3 sign fields + inert-window relax = separate candidates (394/391/392/393). patch381.py replayable+idempotent.",
+    "bug382": "2026-09-04 BUG-382: SHFL stray-window relax x4 legs -- vm |= b63 + [90:88] on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb382 98 sond nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY (b63/b88/b89/b90 write-inert kazda rodzina x tryb; b91 = KILL x4 na kazdej klasie = pin zostaje; ball-probe {63,88,89,90} inert). Pre (publish f1f3dd78, canonical 6742fdf, measure_pre382): 224 ogniwa junk HOLE x4 nogi, 0 cichego misprintu. II_R IDX/BFLY absent x4 = bez zmian (residuum 358, 368 sec.6). 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
+    "bug386": "2026-09-05 BUG-386: LDGSTS desc base-gap lattice completion ('BYPASS,E' s32 / '64,BYPASS,E' / 'E,ZFILL' / '64,E,ZFILL' / 'BYPASS,E,ZFILL' / '64,BYPASS,E,ZFILL' x np/_P). arb386 31 per-cell probes + arb376b 99-matrix x4 AGREE EVERY (DIVERGENT=0); composite purity deltas asserted (np pure; _P ZFILL-carrier crossing B82|TOPD on 100a/103a; sm120 pure). Donor-clone graft, baked [127:105] templates ride verbatim. Witness care-match per row. Pre-fix: HOLE x4 decode both geometries + loud FAIL encode x8 (measure_pre386). Lattice post EXACT 30/30. ENGINE ZERO.",
+    "bug387": "2026-09-05 BUG-387: SHFL b62-region stray-window relax x4 legs -- vm |= b62 + b61 ([62:61], b63 z BUG-382) on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb387 280 sond + arb387b, nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY (b62/b61 write-inert kazda rodzina x tryb x 2 warianty wartosci; combo b62|b63 + b62|ball inert; b64/65 = live reg-c [71:64] na RR/II_R; b91 = KILL x4 = pin zostaje; b92-b95 inert = okno [95:92] POZA zakresem, pinned -> 396-kand; dziedzictwo arb382 dla [90:88]+b63). Pre (publish 042ffa91, canonical 9713fd6, measure_pre387): 112 ogniw b62/b61 HOLE x4 nogi, 0 cichego misprintu. II_R IDX/BFLY absent x4 = bez zmian (residuum 358, 368 sec.6). 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
+    "bug388": "2026-09-05 BUG-388: plain sub_imm window decls -- 38 arb378-DIVERGE carriers / 104 rows x4 legs do vendor-true geometry (arb388+arb388b, nvdisasm 13.3.73 raw -b, x4 modele AGREE KAZDA sonda, DIVERGENT=0; zbiezne z BUG-156 window-law). LDGSTS sm100a tok2 -> 12b@32; LDS_R_ARURI|S8 / ATOM(G) CAS tok3 / dARI-desc REDG/STG/ST/LDG/LD -> 24b@40 SIGNED; sm121a ST/LD ARI -> 32b@32 SIGNED; sm121a LDC/LDCU cAI '' extr->cm16_off/cm17_off; UGETNEXT BROADCAST para 8b@24 bez offsetu (DELETE sub_imm1 24b@28). Kolateral (arb388+arb388c x4): G UR-clip [32..40) 4/5/6->8b (LDG/LD dARI + LDS_R_ARURI|S8, 40 rows); H sub_r0 9->8 bleed (LDGSTS sm100a 14 rows @16, CAS 121a 4 rows, LDS_R_ARURI|S8 121a; 147-class); I-J vendor-inert junk-band relax (UGETNEXT [16..24)+[32..72); sm121a LDC  [32..38)+[59..64), LDCU '' [32..37)+[59..64); singles+band+ball x4). Pre (publish 05d2e7e9, measure_pre388): 2299 komorek = 1050 MATCH / 1154 WRONG cichy misprint (flip znaku LDC b53, fabrykowane +0x1, corrupt baza R) / 95 HOLE. ENGINE: SubURm1 printer arm (para raw+1) -- jedyna zmiana src. Residua rejestrowane: 398 (cAI [24..32) index zanegowany + ?cAURI + sub_ur1@64 inwersja), 399 (glif +-0x na ARURI STS/LDS).",
+    "bug390": "2026-09-06 BUG-390: F2I F64-src (byte10=0x30, b76=0) NARROW-dst sub-lattice x4 legs: +32 rows/leg (plain/NTZ/FLOOR/FLOOR.NTZ/CEIL/CEIL.NTZ/TRUNC/TRUNC.NTZ full {U8,S8,U16,S16} closure; donor-clone per dst-class from the wide b76=1 family, byte9 cell-swap 0x??<<72 incl b76 1->0, claim envelopes verbatim, b73/b74 alias relax inherited). Law: arb390 147 + arb390b 52 = 199 probes x4 models AGREE EVERY: 128-cell full [79:72] sweep all legal; dst {b75,b72} 00 U8/01 S8/ 10 U16/11 S16; b73/b74 text-inert; abs@62/neg@63 tok2 on every axis; guard generic; reuse [124:122] ILLEGAL (26 probes rc=1; engine decoder-arm extension = cubit-side). Pre-fix 512/512 cells HOLE x4 legs + 128/128 encode loud-FAIL (measure_pre390; t380_6 posture). Corpus census390: b76=0 bucket LDL-shaped/claimed (sample390 x40), no anchor-shaped words -> graft corpus-invisible.",
+    "bug393": "2026-09-06 BUG-393: HFMA2 0x231-bases inert-window relax x4 legs -- FULL MOD-CLOSURE: 36 mgs x 4 legs (24 non-RELU full [55:40]|[59:56]|[87:90]|[92:95]; 12 RELU sans [87:90] = pv-elision live field). Vendor law: measure_pre394 170 sond + balls + measure393_closure 144 tetrady x 31 prob (nvdisasm 13.3.73 raw -b x4 modele AGREE; b91 KILL x144 stays; b78/b86 markers stand). Sparse-parity [55:40] domknieta. 0x7c31 UR-family out-of-scope (391/395 tail).",
+    "bug396": "2026-09-05 BUG-396: SHFL [95:92] stray-window relax x4 legs -- vm |= (0xf<<92) on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb387 b93/b95 56/56 + arb387b b92/b94/ball 42/42 + arb396 84/84 composition (pairs inside window + ball with [63:61]/[90:88]), nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY, DIVERGENT=0, teksty == clean anchors. b91 = KILL x4 = pin zostaje; b96+ = fields (rozlaczne, aserty); [63:61] (387) + b63/[90:88] (382) stoja. Pre (publish fe384b27, canonical 93bc221, measure_pre396): 224 ogniwa b92..b95 + 56 ball HOLE x4 nogi, 0 cichego misprintu; kontrole 382/387 zywe. II_R IDX/BFLY absent = residuum 358/368 stoi. 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
+    "bug400": "2026-09-07 BUG-400: pred/LTC window [64..72) vendor-true declarations on dARI/ARI LDG/LD rows (canonical graft, adding-only: plain LTC mgs + <KEY>_P trailing-pred keys with pred_inv4@64 tok=last). Vendor law arb400 (307 probes: nibble x LTC x combos x b70/b71-ball; corpus-derived carriers incl sm121a synth) + arb400b (198 cross-combo probes: b70/b71/ball x {pv 0,1,8} x {ltc 0,1}; 165/165 cross-checks vs pv/ltc baselines MATCH); nvdisasm 13.3.73 raw -b x4 models DIVERGENT=0): [64:68)=inv4 pred window (0 elide, v->P(7-v), 8->!PT, 9..15->!P(15-v)); [68:70)=LTC code (1/2/3 = LTC64B/LTC128B/LTC256B); b70/b71 INERT. Closes verify388post residuum 400 (77 WRONG cells x 11 carriers). ENGINE src ZERO changes (pred_inv4 machinery + mod priorities already shipped; sm121a LDG_R_dARI_P precedent).",
+    "bug403": "2026-09-06 BUG-403: F2I F64-src WIDE (b76=1) TRUNC.NTZ axis donor closure x4 legs: +4 rows/leg (era mgs 'F64,NTZ,TRUNC[,U32/U64]' + 'F64,NTZ,S64,TRUNC'; keyed F2I[.U32/.U64/.S64].F64.TRUNC.NTZ_R_R); donor-clone per dst-class from the wide TRUNC donors, byte9 cell-swap 0xd0|nib -> 0xf0|nib (set b77 NTZ), claim envelopes verbatim, b73/b74 alias relax (3<<73) inherited. Law: arb403 34 + arb403b 3 = 37 probes x4 models AGREE EVERY: all 16 nibble cells legal (dst {b75,b72}+S32 default, b73/b74 inert); abs/neg tok2 everywhere (9 probes); guard generic; reuse [124:122] ILLEGAL rc=1 x4 (4 probes; engine decoder-arm ext = cubit-side). Pre-fix 64/64 cells HOLE x4 legs + 16/16 encode loud-FAIL (measure_pre403; t390_7 posture flipped).",
+    "settle038c_mk302": "2026-08-24 mk302 settle/0x038c merge (decyzja wlasciciela 2026-08-24 (3), draft merclab/mk295/data/cubit_038c_draft_v8.json -> dekoder k3 + table): +1 mod group AND on ATOMS_R_ARI_R = klasa settle/TCGTSETTLE (para okien deallokacji TMEM tcgen05; nvdisasm-class render ATOMS.AND RZ,[Rb+imm8],Rv). Evidence: saga mk262-295 na krzemie B300 (fizyka drzwi/deponu R9, reguly uznania mk268, reguly wykonania okna elected mk276-278, maszyna kontekstu 5-czystych-domkniec mk280-288, mapa trapow 715/719/721 mk294) + 27 slow kanonicznych (dealloc/mv probes, arch-blizniaczo 100a==103a) + 2 saga. Gate mk302: EXACT old-vs-new dis-diff = wylacznie ?->ATOMS.AND na tych liniach (zero flip na liniach dekodowanych), roundtrip rc identyczny, paritet nvdisasm na liniach zmienionych 100%. Encoder-side note: BUG-080 fail-closed na predykatowych atomach nadal obejmuje te klase (item F2-Q; silicon counter-evidence dla tej podklasy stoi w sagach mk279-293).",
+    "sigfix": "run31h: sig-bit resync dla klas *SETP (iter N)"
+   },
+   "errata": {}
+  },
   "ctrl_classes": {
    "alu_iadd3": {
     "constraints": [
@@ -271,8 +542,6 @@
    }
   },
   "derived_from": "nvdisasm pairing on 31.8M-instruction corpus (cuBLAS/cuSOLVER/etc), sm_100+sm_103 cubins",
-  "gpu": "B300 SXM6",
-  "instruction_width": 128,
   "pipe_classes": {
    "0": "UNKNOWN_0",
    "1": "CTRL_FLOW",
@@ -311,35 +580,7 @@
    "6": "MEMORY_SHARED",
    "7": "MEMORY_LOCAL",
    "9": "TEXTURE"
-  },
-  "settle038c_mk302": "2026-08-24 mk302 settle/0x038c merge (decyzja wlasciciela 2026-08-24 (3), draft merclab/mk295/data/cubit_038c_draft_v8.json -> dekoder k3 + table): +1 mod group AND on ATOMS_R_ARI_R = klasa settle/TCGTSETTLE (para okien deallokacji TMEM tcgen05; nvdisasm-class render ATOMS.AND RZ,[Rb+imm8],Rv). Evidence: saga mk262-295 na krzemie B300 (fizyka drzwi/deponu R9, reguly uznania mk268, reguly wykonania okna elected mk276-278, maszyna kontekstu 5-czystych-domkniec mk280-288, mapa trapow 715/719/721 mk294) + 27 slow kanonicznych (dealloc/mv probes, arch-blizniaczo 100a==103a) + 2 saga. Gate mk302: EXACT old-vs-new dis-diff = wylacznie ?->ATOMS.AND na tych liniach (zero flip na liniach dekodowanych), roundtrip rc identyczny, paritet nvdisasm na liniach zmienionych 100%. Encoder-side note: BUG-080 fail-closed na predykatowych atomach nadal obejmuje te klase (item F2-Q; silicon counter-evidence dla tej podklasy stoi w sagach mk279-293).",
-  "sigfix": "run31h: sig-bit resync dla klas *SETP (iter N)",
-  "bug239": "2026-08-28 donor DFMA.RP tok2 neg@72 + HMUL2_R_R_UR hsel graft-port from sm120 (BUG-226d) -- 1,483 omission-ghosts zeroed, gold239 census",
-  "bug329": "2026-09-01 sparse FI_FI tok2 sign-window closure (BUG-329), legs sm100a+sm103a, key HFMA2_R_R_R_FI_FI mg '': +abs@73 tok2 + hsel[75:74] tok2. Fixes decode SILENT-drop of .H0_H0/.H1_H1/.INVALID1 on sparse legs + encode loud-refuse (measure_pre329; arb312 L2..L5 + arb329 x4 agree). abs@73 = field-closure (generic rescue already exact; 320/327 mechanism). sparse II_FI key NOT cloned (NEGATYW: guard!=7 words decode/encode vendor-equal via FI_FI row; guard generic). Residuum: tok3-sign lanes sparse = loud holes (353-kand). patch329.py replayable+idempotent.",
-  "bug334": "2026-09-01 LDGSTS desc L1-allocate '128,E' rows on LDGSTS_ARI_dARI{,_P} (mirror BUG-311 sm120; law arb334 x4 agree: b81 alloc<->BYPASS, dst-imm 20b@44 owns [52:44], desc-imm 12b@32 signed). Pre-fix: F-word decode HOLE; authored 'LDGSTS.E.128' superset-minted BYPASS+LTC words (silent wrong-code).ZFILL/LTC crosses for the alloc family stay loud-refuse (359-kand). patch334.py replayable+idempotent (re-run skip-idem).",
-  "bug353": "2026-09-02 BUG-353: HFMA2 sparse-leg FI/II lattice tok3 sign-window closure on HFMA2_R_R_R_FI_FI mg \"\" (legs sm100a+sm103a): +neg@84/abs@83/hsel@[82:81]/h0nh1@86 tok3 fields + vm |= {81,82,83,84,86} -- exact mirror of dense sm120 mg \"\" geometry (279/271-era). Law: arb329 S-group nvdisasm 13.3.73 raw -b x4 models agree on EVERY probe. Cures: sparse decode LOUD holes 16/16 (incl II-lattice guard siblings), hsel/h0nh1 mint loud REFUSE (5/5), 355-class sign->tok4-f16 silent fold mangle on this row. INVALID5 (h0nh1 x hsel1) stays doctrine-HOLE fail-closed. Corpus exposure census353: 0 of 97,338 lattice words per leg carry the window -> corpus-invisible graft. patch353.py replayable+idempotent.",
-  "bug354": "2026-09-02 BUG-354: HFMA2 sparse-leg FI/II lattice (0x431 family) mod-lane closure, legs sm100a+sm103a, key HFMA2_R_R_R_FI_FI + 6 dotted _P keys: DIRECT {F32,FMZ,F32,FMZ}, BF16 lanes {BF16_V2, BF16_V2,FMZ} (tok4/tok5 f16->bf16 swap, 288-era dense delta law), RELU base mgs x6 (b79 + pv7 elision bake), RELU _P dotted keys x6 (pred 3b@87 + inv@90 tok6). Law: arb354 108 probes nvdisasm 13.3.73 raw -b, x4 models agree on EVERY probe. Cures sparse decode LOUD holes 30/30 + mint REFUSE 15/15 (measure_pre354; no silent-mangle class on this window). Kills stay HOLE: SATxRELU rc=1, F32xBF16 INVALID3-285, b91 rc=1, INVALID5/6, stray [90:87] w/o b79 (289). SAT/FTZ/OOB lanes registered as 367-kand (law in arb354, beyond registered scope). Corpus exposure census354. patch354.py replayable+idempotent.",
-  "bug359": "2026-09-03 LDGSTS desc L1-alloc '128,E' crosses x {LTC128B,ZFILL,both} on LDGSTS_ARI_dARI{,_P} x3 legs (law arb334+arb359 134 probes x4 agree: b81 alloc<->BYPASS, b73 LTC and b82 ZFILL legal with alloc on both pred classes incl triple; dst-imm 20b@44 owns [52:44], desc-imm 12b@32 signed). Pre-fix: decode HOLE x3 + authored loud-refuse (measure_pre359); corpus-invisible (0/5 window-claims on 30,049-slot battery). sm121a dotted keys already cover non-P crosses; sm121a trailing-_P desc LDGSTS gap (incl corpus witness B) = pre-existing 37x-kand, out of scope. patch359.py replayable+idempotent.",
-  "bug360": "2026-09-03 BUG-360: (A) sm100a LDGSTS desc non-128 imm2 era widths 15/18/14b -> 12b@32 signed (i84-180 port; arb360 x4 agree: desc 12b signed '+-0x800', ext bits [49:44] = dst-imm; pre-fix sm100a silent drop of authored '+0x1000' + silent sign-R RAW print of [0x800..0xfff] = 28 corpus slots sm_100). (B) b72 = LTC 128B/256B discriminator (NOT UR bit; UR = 8b@64, vendor UR56/88/152 legal): dual closed, LTC128B rows ur0 9->8b, LTC256B rows grafted for E/64,E classes both keys x3 legs. (C) ur0 9->8b fleet-wide on LDGSTS_ARI_dARI{,_P} x3 legs: b72=1 words on un-rowed classes (LTC64B, 128-family LTC256B, BYPASS crosses) now fail closed HOLE (376-kand). Corpus-invisible: b72/b71/ghost-ext all 0 on 30,049 slots. patch360.py replayable+idempotent.",
-  "bug362": "2026-09-03 BUG-362: F2I TRUNC/F64/FLOOR lattice era-row closure x4 legs: (S) sign window abs@62/neg@63 tok2 grafted (arb362 S-group 27 probes + arb339 A5/B4, x4 agree; pre-fix HOLE x4); (I) inert b73/74 vm-relax (arb362 I + arb362b; vendor text-inert). (362a reuse [124:122] vendor-ILLEGAL = engine decoder arm; 362c nibble-alias zone = pinned HOLE.",
-  "bug363": "2026-09-03 BUG-363: F2I R_R FTZ (byte10=0x21) + BF16 (0x40) lattice closure x4 legs (arb341b G/H + arb363 326 probes incl S-signs x288 G-guard R-reuse-illegal x16 X-0x61-illegal, x4 AGREE): 96 keyed era rows/leg 'F2I.FTZ[.T][.R]_R_R' + 'F2I[.T].BF16[.R]_R_R' era geometry (signs in, reuse OUT -- vendor rc=1, fail-closed via decoder BUG-363 arm); legacy mgs F2I_R_R::{FTZ,NTZ (dst@15 = sev-A silent dst corruption on 100a/103a) + FTZ,NTZ,TRUNC,U32 (guard-pinned)} deleted and replaced by name-true keyed rows; sm120/121a era key F2I.FTZ.U32.TRUNC.NTZ_R_R normalized (signs added, reuse field dropped). byte10=0x61 + [83:81] alias cells pinned HOLE.",
-  "bug367": "2026-09-04 BUG-367: HFMA2 sparse-leg FI/II lattice (0x431 family) SAT/FTZ/OOB lane closure = lattice completion vs the dense row set, legs sm100a+sm103a: 12 DIRECT mgs + 6 BF16 mgs (bf16sub swap) + 6 RELU base mgs (pv7 bake) + 6 RELU _P dotted keys (pred 3b@87 + inv@90 tok6) on HFMA2_R_R_R_FI_FI. Law: arb354 108 probes + arb367 79 probes, nvdisasm 13.3.73 raw -b, x4 models agree on EVERY legal probe (DIVERGENT=0). Cures sparse decode LOUD holes 91/91 + mint REFUSE 27/27 (measure_pre367; zero WRONG cells = no silent-mangle class). Kills stay HOLE: SATxRELU any-combo (xFTZ/xOOB rc=1), b91 x scope, F32xBF16 INVALID3-285, stray [90:87] w/o b79 (289 vendor-INERT; dense armed lane unchanged). Corpus exposure ZERO = census354 window bits {76..80,85}+pv on 97,338 lattice words/leg x4. patch367.py replayable+idempotent.",
-  "bug369": "2026-09-04 BUG-369: cross-leg SHFL II-form over-strict closure = lustro 358 (pred (4,12,1)->(3,81,1) na II_II{BFLY,IDX,UP} + R_II[IDX]; vm |= [71:64] inert II-form; II_II[IDX] imm28@53->imm5 + II_II/II_R[DOWN] imm6@53->imm5 = cure mode-junk SILENT MISPRINT (era DOWN claimowal BFLY przez b58 pod polem); R_II[IDX] imm32@40->imm13 + klony UP/DOWN/BFLY z pinned-mode = cure mode-junk claim empire (0x21/0x4001f/0x1400001f); II_R[UP/DOWN] vm |= [52:40] inert. Law: arb358 73 + arb368 40 sond x4 AGREE EVERY. Cures: HOLE pred<PT II-form x2-3 nogi + HOLE IIR x3 + misprinty + encode intent-drop + REFUSE R_II UP/DOWN/BFLY.",
-  "bug368": "2026-09-04 BUG-368: SHFL R-form (b1 0x73) [57:40]=0 pin -> vm-relax (vendor-inert: arb368 A/B junk sweep x4 modes x4 models). R-form pola juz poprawne (pred 3b@81, reg@64 t5); era mgs x4 mode-pinned stoja.",
-  "bug371": "2026-09-04 BUG-371: HFMA2 tok4 abs field closure: appended abs 1b@83 token_idx=4 to every HFMA2 mod_group with Reg/UReg tok4 lacking the field (pre-fix authored |R4|/|R5| silently minted GENERIC b74 = tok2 hsel cross-read -> vendor 'R2.INVALID1'; b83-set words were LOUD decode HOLE on these rows). Law: arb371 2,560 + arb371b 1,728 probes x4 models AGREE EVERY (b83=tok4 abs, b84=tok4 neg [already field-carried], b74/75=tok2 hsel cross-read). pure additive graft: ab/vm invariant (engine carves field bits at match, decoder.rs:131); dense thin rows reach BUG-320 donor geometry. ENGINE ZERO.",
-  "bug374": "2026-09-04 BUG-374: LDGSTS desc BYPASS+ZFILL non-alloc row closure: += np 128,BYPASS,E,ZFILL x3 legs (cures sm120 loud HOLE + era silent mis-claim printing phantom ', PT' via the _P row on nib-7 words); += _P 128,BYPASS,E x3 (vendor-legal x4, was HOLE x3 era+120 = wider than the 374-kand note, BUG-371 precedent); += _P 128,BYPASS,E,ZFILL sm120 (era legs had it). Law: arb359 88 + arb373_375 109 + bisect 6 probes x4 AGREE EVERY (b81=BYPASS/b82=ZFILL/b73=LTC pure ab deltas asserted in-leg; nibble [90:87] = pred_inv4 PT-elided law confirmed on F-class geometry). ENGINE ZERO.",
-  "bug376": "2026-09-04 BUG-376: LDGSTS desc LTC lattice completion (arb376b 99 probes x4 AGREE EVERY: LTC [73:72] upright 0/64B/128B/256B; BYPASS=b81 CLEAR; size=[75:74] E/64/128 (3=INVALID3 kill); EVERY (size,BYPASS,ZFILL)xLTC cell legal both sides; print order 'LDGSTS.E[.BYPASS][.LTCxB][.sz][.ZFILL]'). += LTC64B x6 bases + LTC256B x4 bases both sides + '128,BYPASS,E,LTC128B,ZFILL' x3 np (cures silent phantom ', PT' via _P row on nib-0 words on 100a/103a measured pre; sm120 HOLE) + sm120 _P same cell (was absent; 100a/103a carried it pre). Pre: HOLE/REFUSE x4 both sides (measure_pre376{,_extra}). baked-template inheritance = verbatim donor clone per leg (100a/103a non-ZFILL _P bake 0x1e000<<96, _P ZFILL donors bake none; sm120 _P uniform). deltas f1..f11/p3..p12 asserted. ENGINE ZERO.",
-  "bug382": "2026-09-04 BUG-382: SHFL stray-window relax x4 legs -- vm |= b63 + [90:88] on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb382 98 sond nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY (b63/b88/b89/b90 write-inert kazda rodzina x tryb; b91 = KILL x4 na kazdej klasie = pin zostaje; ball-probe {63,88,89,90} inert). Pre (publish f1f3dd78, canonical 6742fdf, measure_pre382): 224 ogniwa junk HOLE x4 nogi, 0 cichego misprintu. II_R IDX/BFLY absent x4 = bez zmian (residuum 358, 368 sec.6). 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
-  "bug380": "2026-09-05 BUG-380: F2I F64-src (byte10=0x30, b76=1) lattice completion x4 legs: +22 rows/leg (plain/NTZ/FLOOR.U32/S64/U64/FLOOR.NTZ/CEIL/CEIL.NTZ full dst closure; donor-clone per dst from the TRUNC family, cell swap only, claim envelopes verbatim) + 'F64,S64'/F2I.S64.F64_R_R plain-S64 alias relax (3<<73) + abs@62/neg@63 fields (pre: HOLE). Law: arb380/380b/380c/c2/380d 187 probes x4 models AGREE EVERY; 96-cell (round x nibble) sweeps; reuse ILLEGAL everywhere (decoder BUG-380a arm, engine side). Pre-fix 364/384 cells HOLE x4 legs (measure_pre379_380). b76=0 narrow-dst sub-lattice = 390-kand (HOLE fail-closed kept).",
-  "bug381": "2026-09-05 BUG-381: HFMA2 sparse-leg R_R_R_R (0x231) + R_R_UR_R (0x7c31) mod-lattice completion vs the dense row set, legs sm100a+sm103a: 34 mgs (22 direct + 12 RELU pv7-bake) + 12 RELU _P dotted keys (pred 3b@87 + inv@90 tok5) per family. Law: arb381 176 + arb381b 26 = 202 probes, nvdisasm 13.3.73 raw -b, x4 models agree on EVERY probe (DIVERGENT=0). Cures sparse decode LOUD holes 130/134 + mint REFUSE 33/33 (measure_pre381; zero WRONG cells). Kills stay HOLE: SATxRELU any-combo, b91 on 0x231, F32xBF16 INVALID3-285, stray b90/pv/b92/b93/b95 vendor-INERT (289 doctrine). HFMA2_R_R_R_R_R 5-reg key + UR-side guard@[15:12] + sparse 0x231 tok2/tok3 sign fields + inert-window relax = separate candidates (394/391/392/393). patch381.py replayable+idempotent.",
-  "bug386": "2026-09-05 BUG-386: LDGSTS desc base-gap lattice completion ('BYPASS,E' s32 / '64,BYPASS,E' / 'E,ZFILL' / '64,E,ZFILL' / 'BYPASS,E,ZFILL' / '64,BYPASS,E,ZFILL' x np/_P). arb386 31 per-cell probes + arb376b 99-matrix x4 AGREE EVERY (DIVERGENT=0); composite purity deltas asserted (np pure; _P ZFILL-carrier crossing B82|TOPD on 100a/103a; sm120 pure). Donor-clone graft, baked [127:105] templates ride verbatim. Witness care-match per row. Pre-fix: HOLE x4 decode both geometries + loud FAIL encode x8 (measure_pre386). Lattice post EXACT 30/30. ENGINE ZERO.",
-  "bug387": "2026-09-05 BUG-387: SHFL b62-region stray-window relax x4 legs -- vm |= b62 + b61 ([62:61], b63 z BUG-382) on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb387 280 sond + arb387b, nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY (b62/b61 write-inert kazda rodzina x tryb x 2 warianty wartosci; combo b62|b63 + b62|ball inert; b64/65 = live reg-c [71:64] na RR/II_R; b91 = KILL x4 = pin zostaje; b92-b95 inert = okno [95:92] POZA zakresem, pinned -> 396-kand; dziedzictwo arb382 dla [90:88]+b63). Pre (publish 042ffa91, canonical 9713fd6, measure_pre387): 112 ogniw b62/b61 HOLE x4 nogi, 0 cichego misprintu. II_R IDX/BFLY absent x4 = bez zmian (residuum 358, 368 sec.6). 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
-  "bug396": "2026-09-05 BUG-396: SHFL [95:92] stray-window relax x4 legs -- vm |= (0xf<<92) on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb387 b93/b95 56/56 + arb387b b92/b94/ball 42/42 + arb396 84/84 composition (pairs inside window + ball with [63:61]/[90:88]), nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY, DIVERGENT=0, teksty == clean anchors. b91 = KILL x4 = pin zostaje; b96+ = fields (rozlaczne, aserty); [63:61] (387) + b63/[90:88] (382) stoja. Pre (publish fe384b27, canonical 93bc221, measure_pre396): 224 ogniwa b92..b95 + 56 ball HOLE x4 nogi, 0 cichego misprintu; kontrole 382/387 zywe. II_R IDX/BFLY absent = residuum 358/368 stoi. 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
-  "bug388": "2026-09-05 BUG-388: plain sub_imm window decls -- 38 arb378-DIVERGE carriers / 104 rows x4 legs do vendor-true geometry (arb388+arb388b, nvdisasm 13.3.73 raw -b, x4 modele AGREE KAZDA sonda, DIVERGENT=0; zbiezne z BUG-156 window-law). LDGSTS sm100a tok2 -> 12b@32; LDS_R_ARURI|S8 / ATOM(G) CAS tok3 / dARI-desc REDG/STG/ST/LDG/LD -> 24b@40 SIGNED; sm121a ST/LD ARI -> 32b@32 SIGNED; sm121a LDC/LDCU cAI '' extr->cm16_off/cm17_off; UGETNEXT BROADCAST para 8b@24 bez offsetu (DELETE sub_imm1 24b@28). Kolateral (arb388+arb388c x4): G UR-clip [32..40) 4/5/6->8b (LDG/LD dARI + LDS_R_ARURI|S8, 40 rows); H sub_r0 9->8 bleed (LDGSTS sm100a 14 rows @16, CAS 121a 4 rows, LDS_R_ARURI|S8 121a; 147-class); I-J vendor-inert junk-band relax (UGETNEXT [16..24)+[32..72); sm121a LDC  [32..38)+[59..64), LDCU '' [32..37)+[59..64); singles+band+ball x4). Pre (publish 05d2e7e9, measure_pre388): 2299 komorek = 1050 MATCH / 1154 WRONG cichy misprint (flip znaku LDC b53, fabrykowane +0x1, corrupt baza R) / 95 HOLE. ENGINE: SubURm1 printer arm (para raw+1) -- jedyna zmiana src. Residua rejestrowane: 398 (cAI [24..32) index zanegowany + ?cAURI + sub_ur1@64 inwersja), 399 (glif +-0x na ARURI STS/LDS).",
-  "bug390": "2026-09-06 BUG-390: F2I F64-src (byte10=0x30, b76=0) NARROW-dst sub-lattice x4 legs: +32 rows/leg (plain/NTZ/FLOOR/FLOOR.NTZ/CEIL/CEIL.NTZ/TRUNC/TRUNC.NTZ full {U8,S8,U16,S16} closure; donor-clone per dst-class from the wide b76=1 family, byte9 cell-swap 0x??<<72 incl b76 1->0, claim envelopes verbatim, b73/b74 alias relax inherited). Law: arb390 147 + arb390b 52 = 199 probes x4 models AGREE EVERY: 128-cell full [79:72] sweep all legal; dst {b75,b72} 00 U8/01 S8/ 10 U16/11 S16; b73/b74 text-inert; abs@62/neg@63 tok2 on every axis; guard generic; reuse [124:122] ILLEGAL (26 probes rc=1; engine decoder-arm extension = cubit-side). Pre-fix 512/512 cells HOLE x4 legs + 128/128 encode loud-FAIL (measure_pre390; t380_6 posture). Corpus census390: b76=0 bucket LDL-shaped/claimed (sample390 x40), no anchor-shaped words -> graft corpus-invisible.",
-  "bug403": "2026-09-06 BUG-403: F2I F64-src WIDE (b76=1) TRUNC.NTZ axis donor closure x4 legs: +4 rows/leg (era mgs 'F64,NTZ,TRUNC[,U32/U64]' + 'F64,NTZ,S64,TRUNC'; keyed F2I[.U32/.U64/.S64].F64.TRUNC.NTZ_R_R); donor-clone per dst-class from the wide TRUNC donors, byte9 cell-swap 0xd0|nib -> 0xf0|nib (set b77 NTZ), claim envelopes verbatim, b73/b74 alias relax (3<<73) inherited. Law: arb403 34 + arb403b 3 = 37 probes x4 models AGREE EVERY: all 16 nibble cells legal (dst {b75,b72}+S32 default, b73/b74 inert); abs/neg tok2 everywhere (9 probes); guard generic; reuse [124:122] ILLEGAL rc=1 x4 (4 probes; engine decoder-arm ext = cubit-side). Pre-fix 64/64 cells HOLE x4 legs + 16/16 encode loud-FAIL (measure_pre403; t390_7 posture flipped).",
-  "bug393": "2026-09-06 BUG-393: HFMA2 0x231-bases inert-window relax x4 legs -- FULL MOD-CLOSURE: 36 mgs x 4 legs (24 non-RELU full [55:40]|[59:56]|[87:90]|[92:95]; 12 RELU sans [87:90] = pv-elision live field). Vendor law: measure_pre394 170 sond + balls + measure393_closure 144 tetrady x 31 prob (nvdisasm 13.3.73 raw -b x4 modele AGREE; b91 KILL x144 stays; b78/b86 markers stand). Sparse-parity [55:40] domknieta. 0x7c31 UR-family out-of-scope (391/395 tail).",
-  "bug400": "2026-09-07 BUG-400: pred/LTC window [64..72) vendor-true declarations on dARI/ARI LDG/LD rows (canonical graft, adding-only: plain LTC mgs + <KEY>_P trailing-pred keys with pred_inv4@64 tok=last). Vendor law arb400 (307 probes: nibble x LTC x combos x b70/b71-ball; corpus-derived carriers incl sm121a synth) + arb400b (198 cross-combo probes: b70/b71/ball x {pv 0,1,8} x {ltc 0,1}; 165/165 cross-checks vs pv/ltc baselines MATCH); nvdisasm 13.3.73 raw -b x4 models DIVERGENT=0): [64:68)=inv4 pred window (0 elide, v->P(7-v), 8->!PT, 9..15->!P(15-v)); [68:70)=LTC code (1/2/3 = LTC64B/LTC128B/LTC256B); b70/b71 INERT. Closes verify388post residuum 400 (77 WRONG cells x 11 carriers). ENGINE src ZERO changes (pred_inv4 machinery + mod priorities already shipped; sm121a LDG_R_dARI_P precedent)."
+  }
  },
  "cost_model": {
   "arch": "sm_103a",

@@ -1,19 +1,531 @@
 {
  "_meta": {
   "architecture": "SM120",
-  "bug203": "2026-08-27 coverage-gap rows (witness-first probe203 + flips199 graft pool)",
-  "bug204": "2026-08-27 sm120 ATOMS AURI (64,9)->(64,8) watch closure (mirror BUG-143-E2) + ARI_R witness-first rows MIN/MIN,S32/MAX,S32/INC/EXCH + phantom rebuilds (probe204a x3 arch, law arb204)",
-  "bug205": "2026-08-27 generic-ATOM MIN lane rows (witness-first probe205; law arb205 bit-walk)",
-  "bug206": "2026-08-27 REDG scope SM/SYS closure (witness-first probe206a..d)",
-  "bug210": "2026-08-27 REDUX_UR_R vm op-window tighten ({73,78,79,80} out; INVALID6/7 absorb -> HOLE; arb210 law)",
-  "bug211": "2026-08-27 ATOMS AND/OR/XOR .S32 glyph-space closure (b73 width toggle; ARI_R+AURI_R donor-clones x3 tabs; law arb211; graft-only witnesses) + b72 vendor-inert moved to vm-parity data-side (PART C; prio-3 no longer serves ATOMS after the is_memlike src arm)",
-  "bug215": "2026-08-27 ATOMS EXCH .64 witnessed closure: native u64 shared atomicExch row (probe u64_215, payload arch-eq); MAX/ADD .64 = CAST.SPIN CAS-loop, INC .64 = no overload (negative vendor-emission classes); width-3 stays fail-closed (vendor .INVALID3, 216-law)",
-  "bug221": "2026-08-27 sm120 SYNCS lane family closure: donor-clone SYNCS_{P_ARURI,R_ARI,R_ARURI,UR_AURI_UR}_* keys + 5 R_AURI_R mg from canonical sm100a (witness-first arrive220 + corpus signatures; graft arb220b 132/132 x3). Cures silent .RED-drop and ARI base-drop absorbs (class-218) + expect_tx EXCH.64 PHASECHK holes on sm120.",
-  "bug224": "2026-08-27 sm120 SYNCS base-key closure: donor-clone key SYNCS (mg CCTL,IVALL) from canonical sm100a; cures 8-line corpus HOLE (SYNCS.CCTL.IVALL, one word modulo sched). graft arb224 x3: b72=WBALL toggle, b73 opaque, b91=IV [R+UR] form-select -- unwitnessed, stay fail-closed x3 (222-class).",
-  "bug226": "2026-08-27 sm120 vendor-parity patch 1: FSETP bool-op window {b75,b74} + IADD3 .X gate b74 -- 7 R_R mgs + 8 landing mgs donor-cloned, II-key field repair + 3 OR mgs, bare UR keys rebuilt, 4 IADD3 rows donor-cloned. Cures 3,910 corpus words (truth226/baseline226); graft arb226 x{100a,120a} print-identical. patch226.py replayable+idempotent.",
-  "bug226b": "2026-08-27 sm120 vendor-parity patch 2: int-shift block -- LEA_R_R_UR_II_P key donor-cloned; LEA HI,SX32 mg x3 donor-cloned; LEA_R_R_R_II_P[HI,SX32,X] replaced (inv@63/imm@75 restored); SHF mg R,S64 x2 + R,U32 + HI,L,U64 donor-cloned; SHF_R_R_UR_R[HI,R,S32] replaced (ureg@32/reg pair restored). Cures 4,496 corpus words (truth226b vs donor-decode 4,496/4,496); graft arb226b x{100a,120a} LEA identical, SHF identical modulo b77 arch pivot (228-kand). patch226b.py replayable+idempotent.",
-  "bug229b": "2026-08-27 SHFL/USHF donor-law rewrite: 24 era scaffold keys deleted, 7 canonical keys re-rowed from sm100a donor (3 graft repairs; 610,832+12,417 occurrence-paired proofs); patch229b.py",
   "codename": "Blackwell",
+  "gpu": "RTX 5090",
+  "instruction_width": 128,
+  "provenance": {
+   "legend": "Rows (instructions.<key>.mod_groups.<group>) may carry `_src`: a tag naming the measurement that produced or last repaired the row; `sources` below lists every tag in this table with its kind, date and, where it exists, the cubit tool and test that hold the evidence. `_note` on a row is the measurement in prose (bit positions, nvdisasm behaviour, what stays outside the row). Rows without `_src` are the 2026-06..08 harvest: fields learned from compiler output and validated by the round-trip census, not by per-field probes; their audit state is tracked in cubit's docs/KNOWN_ISSUES.md (tools/audit_table.py, tools/audit_dynamic.py). `history` keeps the fix-wave notes that used to be loose `_meta.bugNNN` keys, verbatim; `errata` keeps the former top-level `_errata_*` notes (sm121a).",
+   "rows_total": 20905,
+   "rows_without_src": 19340,
+   "sources": {
+    "arrives-ldgstsbar-sm120-2026-11-02": {
+     "rows": 2,
+     "kind": "nvdisasm 13.1 field probe",
+     "date": "2026-11-02",
+     "tool": "tools/probes/re_sm120_arrives_ldgstsbar.py",
+     "test": "tests/sm120_arrives_ldgstsbar.rs"
+    },
+    "atoms-aruri-sm120-2026-10-29": {
+     "rows": 1,
+     "kind": "nvdisasm 13.1 field probe",
+     "date": "2026-10-29",
+     "tool": "tools/probes/re_sm120_atoms_aruri.py",
+     "test": "tests/bug477_atoms_aruri_print.rs"
+    },
+    "bug098-2026-08-23": {
+     "rows": 1,
+     "kind": "encoder fix wave (cubit BUG-098)",
+     "date": "2026-08-23",
+     "test": "tests/bug098_ldsm_recanon.rs"
+    },
+    "bug099-2026-08-23": {
+     "rows": 9,
+     "kind": "encoder fix wave (cubit BUG-099)",
+     "date": "2026-08-23",
+     "test": "tests/bug099_rawaddr_ur.rs"
+    },
+    "bug152-2026-08-25": {
+     "rows": 1,
+     "kind": "encoder fix wave (cubit BUG-152)",
+     "date": "2026-08-25",
+     "test": "tests/bug152_ldcu_cauri_sm120.rs"
+    },
+    "bug165-2026-08-25": {
+     "rows": 5,
+     "kind": "encoder fix wave (cubit BUG-165)",
+     "date": "2026-08-25",
+     "test": "tests/bug165_sm120_ldc_widths.rs"
+    },
+    "bug167-2026-08-26": {
+     "rows": 3,
+     "kind": "encoder fix wave (cubit BUG-167)",
+     "date": "2026-08-26",
+     "test": "tests/bug167_ldc_ari_widths.rs"
+    },
+    "bug169-2026-08-25": {
+     "rows": 1,
+     "kind": "encoder fix wave (cubit BUG-169)",
+     "date": "2026-08-25",
+     "test": "tests/bug169_sm120_uplop3_eco.rs"
+    },
+    "bug172-2026-08-26": {
+     "rows": 3,
+     "kind": "encoder fix wave (cubit BUG-172)",
+     "date": "2026-08-26",
+     "test": "tests/bug172_ldc_s16_widths.rs"
+    },
+    "bug203": {
+     "rows": 56,
+     "kind": "encoder fix wave (cubit BUG-203)",
+     "test": "tests/bug203_atom_coverage.rs"
+    },
+    "bug204-2026-08-27": {
+     "rows": 5,
+     "kind": "encoder fix wave (cubit BUG-204)",
+     "date": "2026-08-27",
+     "test": "tests/bug204_atoms_auri_watch.rs"
+    },
+    "bug205": {
+     "rows": 12,
+     "kind": "encoder fix wave (cubit BUG-205)",
+     "test": "tests/bug205_atom_min.rs"
+    },
+    "bug206": {
+     "rows": 51,
+     "kind": "encoder fix wave (cubit BUG-206)",
+     "test": "tests/bug206_redg_scope.rs"
+    },
+    "bug211-2026-08-27": {
+     "rows": 6,
+     "kind": "encoder fix wave (cubit BUG-211)",
+     "date": "2026-08-27",
+     "test": "tests/bug211_atoms_s32_glyph.rs"
+    },
+    "bug215-2026-08-27": {
+     "rows": 1,
+     "kind": "encoder fix wave (cubit BUG-215)",
+     "date": "2026-08-27",
+     "test": "tests/bug215_atoms_exch64.rs"
+    },
+    "bug221-2026-08-27": {
+     "rows": 14,
+     "kind": "encoder fix wave (cubit BUG-221)",
+     "date": "2026-08-27",
+     "test": "tests/bug221_syncs_arrive_sm120.rs"
+    },
+    "bug224-2026-08-27": {
+     "rows": 1,
+     "kind": "encoder fix wave (cubit BUG-224)",
+     "date": "2026-08-27",
+     "test": "tests/bug224_syncs_cctl_sm120.rs"
+    },
+    "bug226-2026-08-27": {
+     "rows": 4,
+     "kind": "encoder fix wave (cubit BUG-226)",
+     "date": "2026-08-27",
+     "test": "tests/bug226_fsetp_iadd3_parity.rs"
+    },
+    "bug226b-2026-08-27": {
+     "rows": 5,
+     "kind": "encoder fix wave (cubit BUG-226b)",
+     "date": "2026-08-27",
+     "test": "tests/bug226_fsetp_iadd3_parity.rs"
+    },
+    "bug226d-2026-08-28": {
+     "rows": 41,
+     "kind": "encoder fix wave (cubit BUG-226d)",
+     "date": "2026-08-28",
+     "test": "tests/bug226_fsetp_iadd3_parity.rs"
+    },
+    "bug226e-2026-08-28": {
+     "rows": 17,
+     "kind": "encoder fix wave (cubit BUG-226e)",
+     "date": "2026-08-28",
+     "test": "tests/bug226_fsetp_iadd3_parity.rs"
+    },
+    "bug229-2026-08-27": {
+     "rows": 1,
+     "kind": "encoder fix wave (cubit BUG-229)",
+     "date": "2026-08-27",
+     "test": "tests/bug229_lea_imm5_parity.rs"
+    },
+    "bug229b-2026-08-27": {
+     "rows": 44,
+     "kind": "encoder fix wave (cubit BUG-229b)",
+     "date": "2026-08-27",
+     "test": "tests/bug229_lea_imm5_parity.rs"
+    },
+    "bug230-2026-08-28": {
+     "rows": 1,
+     "kind": "encoder fix wave (cubit BUG-230)",
+     "date": "2026-08-28",
+     "test": "tests/bug230_lea_neg_parity.rs"
+    },
+    "bug234-2026-08-28": {
+     "rows": 1,
+     "kind": "encoder fix wave (cubit BUG-234)",
+     "date": "2026-08-28",
+     "test": "tests/bug234_ffma2_parity.rs"
+    },
+    "bug240-2026-08-28": {
+     "rows": 4,
+     "kind": "encoder fix wave (cubit BUG-240)",
+     "date": "2026-08-28",
+     "test": "tests/bug240_candroute_alias.rs"
+    },
+    "bug241-2026-08-28": {
+     "rows": 44,
+     "kind": "encoder fix wave (cubit BUG-241)",
+     "date": "2026-08-28",
+     "test": "tests/bug241_encode_holes.rs"
+    },
+    "bug243-2026-08-28": {
+     "rows": 36,
+     "kind": "encoder fix wave (cubit BUG-243)",
+     "date": "2026-08-28",
+     "test": "tests/bug243_hfma2.rs"
+    },
+    "bug248-2026-08-28": {
+     "rows": 2,
+     "kind": "encoder fix wave (cubit BUG-248)",
+     "date": "2026-08-28",
+     "test": "tests/bug248_dadd_sm120.rs"
+    },
+    "bug249-2026-08-28": {
+     "rows": 4,
+     "kind": "encoder fix wave (cubit BUG-249)",
+     "date": "2026-08-28",
+     "test": "tests/bug249_fsel.rs"
+    },
+    "bug274-2026-08-29": {
+     "rows": 45,
+     "kind": "encoder fix wave (cubit BUG-274)",
+     "date": "2026-08-29",
+     "test": "tests/bug274_opsuffix.rs"
+    },
+    "bug279-2026-08-29": {
+     "rows": 48,
+     "kind": "encoder fix wave (cubit BUG-279)",
+     "date": "2026-08-29",
+     "test": "tests/bug279_ftzsigns.rs"
+    },
+    "bug281-2026-08-30": {
+     "rows": 1,
+     "kind": "encoder fix wave (cubit BUG-281)",
+     "date": "2026-08-30",
+     "test": "tests/bug281_i2isat.rs"
+    },
+    "bug282-2026-08-29": {
+     "rows": 2,
+     "kind": "encoder fix wave (cubit BUG-282)",
+     "date": "2026-08-29",
+     "test": "tests/bug282_i2ipsat.rs"
+    },
+    "bug285-2026-08-30": {
+     "rows": 48,
+     "kind": "encoder fix wave (cubit BUG-285)",
+     "date": "2026-08-30",
+     "test": "tests/bug285_bf16v2_mods.rs"
+    },
+    "bug294-2026-08-30": {
+     "rows": 3,
+     "kind": "encoder fix wave (cubit BUG-294)",
+     "date": "2026-08-30",
+     "test": "tests/bug294_i2i_variants.rs"
+    },
+    "bug311-2026-09-01": {
+     "rows": 2,
+     "kind": "encoder fix wave (cubit BUG-311)",
+     "date": "2026-09-01",
+     "test": "tests/bug311_ldgsts_desc.rs"
+    },
+    "bug316-2026-09-01": {
+     "rows": 5,
+     "kind": "encoder fix wave (cubit BUG-316)",
+     "date": "2026-09-01",
+     "test": "tests/bug316_movm_namespace.rs"
+    },
+    "bug320-2026-09-01": {
+     "rows": 4,
+     "kind": "encoder fix wave (cubit BUG-320)",
+     "date": "2026-09-01",
+     "test": "tests/bug320_hfma2_purereg_residuum.rs"
+    },
+    "bug324-2026-09-01": {
+     "rows": 113,
+     "kind": "encoder fix wave (cubit BUG-324)",
+     "date": "2026-09-01",
+     "test": "tests/bug324_rform_suffix_window.rs"
+    },
+    "bug339-2026-09-02": {
+     "rows": 9,
+     "kind": "encoder fix wave (cubit BUG-339)",
+     "date": "2026-09-02",
+     "test": "tests/bug339_f2i_era_closure.rs"
+    },
+    "bug340-2026-09-02": {
+     "rows": 5,
+     "kind": "encoder fix wave (cubit BUG-340)",
+     "date": "2026-09-02",
+     "test": "tests/bug340_f2ip_opmodh1.rs"
+    },
+    "bug343-2026-09-02": {
+     "rows": 42,
+     "kind": "encoder fix wave (cubit BUG-343)",
+     "date": "2026-09-02",
+     "test": "tests/bug343_hfma2_negwin_modclosure.rs"
+    },
+    "bug359-2026-09-03": {
+     "rows": 6,
+     "kind": "encoder fix wave (cubit BUG-359)",
+     "date": "2026-09-03",
+     "test": "tests/bug359_ldgsts_alloc_crosses.rs"
+    },
+    "bug360-2026-09-03": {
+     "rows": 4,
+     "kind": "encoder fix wave (cubit BUG-360)",
+     "date": "2026-09-03",
+     "test": "tests/bug360_ldgsts_desc_ltc_law.rs"
+    },
+    "bug368-369-2026-09-04": {
+     "rows": 3,
+     "kind": "encoder fix wave (cubit BUG-368)",
+     "test": "tests/bug368_shfl_rform.rs"
+    },
+    "bug373_375-2026-09-04": {
+     "rows": 3,
+     "kind": "encoder fix wave (cubit BUG-373)",
+     "test": "tests/bug373_ldgsts_guard_pv.rs"
+    },
+    "bug376-2026-09-04": {
+     "rows": 22,
+     "kind": "encoder fix wave (cubit BUG-376)",
+     "date": "2026-09-04",
+     "test": "tests/bug376_ldgsts_ltc_lattice.rs"
+    },
+    "bug380-2026-09-05": {
+     "rows": 22,
+     "kind": "encoder fix wave (cubit BUG-380)",
+     "date": "2026-09-05"
+    },
+    "bug386-2026-09-05": {
+     "rows": 12,
+     "kind": "encoder fix wave (cubit BUG-386)",
+     "date": "2026-09-05",
+     "test": "tests/bug386_ldgsts_basegaps.rs"
+    },
+    "bug390-2026-09-06": {
+     "rows": 32,
+     "kind": "encoder fix wave (cubit BUG-390)",
+     "date": "2026-09-06",
+     "test": "tests/bug390_f2i_narrow_lattice.rs"
+    },
+    "bug400-2026-09-07": {
+     "rows": 21,
+     "kind": "encoder fix wave (cubit BUG-400)",
+     "date": "2026-09-07",
+     "test": "tests/bug400_pred_ltc_windows.rs"
+    },
+    "bug403-2026-09-06": {
+     "rows": 4,
+     "kind": "encoder fix wave (cubit BUG-403)",
+     "date": "2026-09-06",
+     "test": "tests/bug403_f2i_wide_trunc_ntz.rs"
+    },
+    "bug413ii-2026-09-08": {
+     "rows": 7,
+     "kind": "encoder fix wave (cubit BUG-413ii)",
+     "date": "2026-09-08",
+     "test": "tests/bug413ii_ldsm_s8_auri.rs"
+    },
+    "bug421422-2026-09-09": {
+     "rows": 15,
+     "kind": "encoder fix wave (cubit BUG-421422)",
+     "date": "2026-09-09",
+     "test": "tests/bug421422_ldsm_enum_s16.rs"
+    },
+    "bug424-2026-09-09": {
+     "rows": 2,
+     "kind": "encoder fix wave (cubit BUG-424)",
+     "date": "2026-09-09",
+     "test": "tests/bug424_ldsm_aruri_sparse.rs"
+    },
+    "bug426-2026-09-09": {
+     "rows": 4,
+     "kind": "encoder fix wave (cubit BUG-426)",
+     "date": "2026-09-09",
+     "test": "tests/bug426_m832_counts.rs"
+    },
+    "bug427-2026-09-09": {
+     "rows": 2,
+     "kind": "encoder fix wave (cubit BUG-427)",
+     "date": "2026-09-09",
+     "test": "tests/bug427_s16_frames.rs"
+    },
+    "bug429-2026-09-09": {
+     "rows": 12,
+     "kind": "encoder fix wave (cubit BUG-429)",
+     "date": "2026-09-09",
+     "test": "tests/bug429_ldsm_ari_closure.rs"
+    },
+    "bug433-2026-09-10": {
+     "rows": 3,
+     "kind": "encoder fix wave (cubit BUG-433)",
+     "date": "2026-09-10",
+     "test": "tests/bug433_stsm_m88.rs"
+    },
+    "bug435-2026-09-10": {
+     "rows": 28,
+     "kind": "encoder fix wave (cubit BUG-435)",
+     "date": "2026-09-10",
+     "test": "tests/bug435_x3_ltc_lattice.rs"
+    },
+    "bug435b-2026-09-10": {
+     "rows": 6,
+     "kind": "encoder fix wave (cubit BUG-435b)",
+     "date": "2026-09-10",
+     "test": "tests/bug435_x3_ltc_lattice.rs"
+    },
+    "bug438-2026-09-11": {
+     "rows": 6,
+     "kind": "encoder fix wave (cubit BUG-438)",
+     "date": "2026-09-11",
+     "test": "tests/bug438_stsm_mt_urelax.rs"
+    },
+    "bug441-2026-09-11": {
+     "rows": 3,
+     "kind": "encoder fix wave (cubit BUG-441)",
+     "date": "2026-09-11",
+     "test": "tests/bug441_ldsm_bandrest_count.rs"
+    },
+    "cctl-sm120-2026-10-25": {
+     "rows": 7,
+     "kind": "nvdisasm 13.1 field probe",
+     "date": "2026-10-25",
+     "tool": "tools/probes/re_sm120_cctl.py",
+     "test": "tests/sm120_cctl_register_forms.rs"
+    },
+    "cs2ur-sm120-2026-10-23": {
+     "rows": 2,
+     "kind": "nvdisasm 13.1 field probe",
+     "date": "2026-10-23",
+     "tool": "tools/probes/re_sm120_cs2ur.py",
+     "test": "tests/sm120_cs2ur_sysreg.rs"
+    },
+    "dsv41-sm120-2026-10-22": {
+     "rows": 541,
+     "kind": "nvdisasm 13.1 field probe",
+     "date": "2026-10-22",
+     "tool": "tools/probes/re_sm120_dsv41.py",
+     "test": "tests/dsv41_re_fields.rs"
+    },
+    "f2-181": {
+     "rows": 7,
+     "kind": "fix wave (undated tag)"
+    },
+    "f2fp-e8-sm120-2026-10-28": {
+     "rows": 1,
+     "kind": "nvdisasm 13.1 field probe",
+     "date": "2026-10-28",
+     "tool": "tools/probes/re_sm120_f2fp_e8.py",
+     "test": "tests/sm120_f2fp_e8_unpack.rs"
+    },
+    "hmul2-imm-sm120-2026-11-02": {
+     "rows": 12,
+     "kind": "nvdisasm 13.1 field probe",
+     "date": "2026-11-02",
+     "tool": "tools/probes/re_sm120_hmul2_imm.py",
+     "test": "tests/sm120_hmul2_imm.rs"
+    },
+    "ldsm-fp4-fp6-sm120-2026-11-02": {
+     "rows": 30,
+     "kind": "nvdisasm 13.1 field probe",
+     "date": "2026-11-02",
+     "tool": "tools/probes/re_sm120_ldsm_fp4.py",
+     "test": "tests/sm120_ldsm_fp4.rs"
+    },
+    "mk302-2026-08-24 (saga mk262-295 + nvcc corpus; merge pod decyzje wlasciciela 2026-08-24 (3))": {
+     "rows": 1,
+     "kind": "nvcc corpus merge (mk-series)",
+     "date": "2026-08-24"
+    },
+    "prmt-ur-sm120-2026-11-02": {
+     "rows": 7,
+     "kind": "nvdisasm 13.1 field probe",
+     "date": "2026-11-02",
+     "tool": "tools/probes/re_sm120_prmt_ur.py",
+     "test": "tests/sm120_prmt_ur.rs"
+    },
+    "sm120-ldsm8-2026-10-22": {
+     "rows": 6,
+     "kind": "nvdisasm 13.1 field probe",
+     "date": "2026-10-22",
+     "test": "tests/sm120_ldsm8_mt1616.rs"
+    },
+    "sm120-native-capture-control-2026-10-22": {
+     "rows": 22,
+     "kind": "native CUPTI capture",
+     "date": "2026-10-22",
+     "tool": "tools/probes/re_sm120_capture_control_fields.py"
+    },
+    "stsm8-mt168-sm120-2026-10-29": {
+     "rows": 3,
+     "kind": "nvdisasm 13.1 field probe",
+     "date": "2026-10-29",
+     "tool": "tools/probes/re_sm120_stsm8_mt168.py",
+     "test": "tests/sm120_stsm8_mt168.rs"
+    },
+    "ublkpf-l2-sm120-2026-10-29": {
+     "rows": 2,
+     "kind": "nvdisasm 13.1 field probe",
+     "date": "2026-10-29",
+     "tool": "tools/probes/re_sm120_ublkpf.py",
+     "test": "tests/sm120_ublkpf_l2.rs"
+    },
+    "utmastg-dims-sm120-2026-11-02": {
+     "rows": 4,
+     "kind": "nvdisasm 13.1 field probe",
+     "date": "2026-11-02",
+     "tool": "tools/probes/re_sm120_utmastg_dims.py",
+     "test": "tests/sm120_utmastg_dims.rs"
+    }
+   },
+   "history": {
+    "bug203": "2026-08-27 coverage-gap rows (witness-first probe203 + flips199 graft pool)",
+    "bug204": "2026-08-27 sm120 ATOMS AURI (64,9)->(64,8) watch closure (mirror BUG-143-E2) + ARI_R witness-first rows MIN/MIN,S32/MAX,S32/INC/EXCH + phantom rebuilds (probe204a x3 arch, law arb204)",
+    "bug205": "2026-08-27 generic-ATOM MIN lane rows (witness-first probe205; law arb205 bit-walk)",
+    "bug206": "2026-08-27 REDG scope SM/SYS closure (witness-first probe206a..d)",
+    "bug210": "2026-08-27 REDUX_UR_R vm op-window tighten ({73,78,79,80} out; INVALID6/7 absorb -> HOLE; arb210 law)",
+    "bug211": "2026-08-27 ATOMS AND/OR/XOR .S32 glyph-space closure (b73 width toggle; ARI_R+AURI_R donor-clones x3 tabs; law arb211; graft-only witnesses) + b72 vendor-inert moved to vm-parity data-side (PART C; prio-3 no longer serves ATOMS after the is_memlike src arm)",
+    "bug215": "2026-08-27 ATOMS EXCH .64 witnessed closure: native u64 shared atomicExch row (probe u64_215, payload arch-eq); MAX/ADD .64 = CAST.SPIN CAS-loop, INC .64 = no overload (negative vendor-emission classes); width-3 stays fail-closed (vendor .INVALID3, 216-law)",
+    "bug221": "2026-08-27 sm120 SYNCS lane family closure: donor-clone SYNCS_{P_ARURI,R_ARI,R_ARURI,UR_AURI_UR}_* keys + 5 R_AURI_R mg from canonical sm100a (witness-first arrive220 + corpus signatures; graft arb220b 132/132 x3). Cures silent .RED-drop and ARI base-drop absorbs (class-218) + expect_tx EXCH.64 PHASECHK holes on sm120.",
+    "bug224": "2026-08-27 sm120 SYNCS base-key closure: donor-clone key SYNCS (mg CCTL,IVALL) from canonical sm100a; cures 8-line corpus HOLE (SYNCS.CCTL.IVALL, one word modulo sched). graft arb224 x3: b72=WBALL toggle, b73 opaque, b91=IV [R+UR] form-select -- unwitnessed, stay fail-closed x3 (222-class).",
+    "bug226": "2026-08-27 sm120 vendor-parity patch 1: FSETP bool-op window {b75,b74} + IADD3 .X gate b74 -- 7 R_R mgs + 8 landing mgs donor-cloned, II-key field repair + 3 OR mgs, bare UR keys rebuilt, 4 IADD3 rows donor-cloned. Cures 3,910 corpus words (truth226/baseline226); graft arb226 x{100a,120a} print-identical. patch226.py replayable+idempotent.",
+    "bug226b": "2026-08-27 sm120 vendor-parity patch 2: int-shift block -- LEA_R_R_UR_II_P key donor-cloned; LEA HI,SX32 mg x3 donor-cloned; LEA_R_R_R_II_P[HI,SX32,X] replaced (inv@63/imm@75 restored); SHF mg R,S64 x2 + R,U32 + HI,L,U64 donor-cloned; SHF_R_R_UR_R[HI,R,S32] replaced (ureg@32/reg pair restored). Cures 4,496 corpus words (truth226b vs donor-decode 4,496/4,496); graft arb226b x{100a,120a} LEA identical, SHF identical modulo b77 arch pivot (228-kand). patch226b.py replayable+idempotent.",
+    "bug229b": "2026-08-27 SHFL/USHF donor-law rewrite: 24 era scaffold keys deleted, 7 canonical keys re-rowed from sm100a donor (3 graft repairs; 610,832+12,417 occurrence-paired proofs); patch229b.py",
+    "bug248": "2026-08-28 sm120 DADD vendor-parity closure: DADD_R_R_R + DADD_R_R_UR key rows grafted byte-copy from donor sm103a (parity with sm100a; laws arb248 guard/sign/UR walks + law248 census 141,819 uniq DADD words on 2,406-cubin battery, nvdisasm 13.3.73): guard 4b@12 true field replaces era PT-bake; tok2 neg@72/abs@73 replaces bogus neg_abs/neg_shl1; tok3 R: neg@75/abs@74, reuse@124; UR cell: ureg@32 + neg@63/abs@62 + b91 mandatory in and_base (era placeholder vmask=0 absorbed nothing -> 11,939 HOLE). Cures gold245 sm120 DADD 95,052 DIFF + 11,939 HOLE. patch248.py replayable+idempotent.",
+    "bug258": "2026-08-29 BUG-258: era 2-bit 'neg' sign-window split on the 4 corpus-exposed rows (routex258/law251: 1,359 routed words, values {0,1} only - injured {2,3} class empty). arb258 raw -b: DFMA tok2 b72=neg/b73=abs (RM==RP, models SM120==SM121a==SM103a); UFADD tok2 b72=neg/b73=abs, tok3 SWAPPED b74=abs/b75=neg (SM120==SM121a; SM103a has no UFADD). and_base/vmask unchanged. patch258.py replayable+idempotent. Corpus-zero census residuum (51 sm120 fields incl. I2I/DMMA; 66 sm121a incl. DFMA FI RM/RP + FFMA/DMMA/HADD2...) fail-closed = 261-kand.",
+    "bug261": "2026-08-29 BUG-261: post-258 2-bit 'neg' residuum closure (census261 51 sm120 + 66 sm121a fields; donors 0). arb261 laws (raw -b, and_base hosts + corpus witnesses, 40+ probe sets x4 models): A sign neg-lines (neg@s, abs@s+1) on DFMA FI RM/RP / DMMA tok2 / FADD x4 / FFMA tok2 x8 mgs / FMNMX_FI_P / FSET.BF.GT.AND / UFFMA tok2 / UFSETP tok3; B swapped (abs@s, neg@s+1) on DMMA tok4 / FFMA_P_* tok4,tok3 / UFFMA tok4; C hsel retype ('neg'->'hsel', same bits) on HADD2 x3 / HFMA2 x2 / HMNMX2 / HMUL2 / HSETP2 [arb: v2 .H0_H0, v3 .H1_H1; per-bit binding proven on BF16_V2 witnesses]. and_base/vmask unchanged. SKIP+registry (vendor-INVALID / head-mismatch rows): I2I.S16/U16 x2, I2IP.U8 x4, FMNMX II_? = 265-kand b3-line. Exposure routex261 full 2,406 battery: injured = sm121a FFMA '' tok2 2,384 w (value-2 ghost '-|'), HADD2 FI 7/7 w, HADD2_'?' 104 w, HFMA2 BF16 35 w; all other rows {0,1}-only or zero routing. patch261.py replayable+idempotent.",
+    "bug316": "2026-09-01 MOVM name-space sibling closure (BUG-316): 5 vendor-legal sibling lanes armed on the 0x23a lattice (x2 legs sm120+sm121a): U4TO8.MT88, 16.M832, U4TO8.M832 (era phantom rewritten -- it never matched), 16.M864, U4TO8.M864; strict clones of the BUG-283 MT88 geometry with ns pins at [79:75]. NOT armed by doctrine (bug210/215 precedent): vendor INVALID5/6/7 + INVALID3 lanes and rc0-empty combos stay HOLE fail-closed (pins bug316). Law: arb283 G-sweep + arb316 380 probes, nvdisasm 13.3.73 raw -b, x4 models agree on every probe. patch316.py replayable+idempotent.",
+    "bug320": "2026-09-01 HFMA2 pure-reg 0x231 residuum closure (BUG-320/321): abs@83 tok4 fielded on mg '',BF16_V2 (+clones) -- closes decode hole x2 legs AND the era b74 ghost-mint for authored '|Rc|'; mod lanes F32/FMZ/F32,FMZ (off '') + BF16_V2,FMZ armed as clone-bakes; [55:40] text-inert band decode-relaxed (316 doctrine; enables the lone corpus word t10.cubin@0x410 = w321). NOT armed: BF16xF32 (INVALID3, 285 doctrine), SAT/FTZ/OOB/RELU pure-reg (344-kand), tok3 neg63/abs62 (343-kand), R_R_UR_R tok4 ghost (345-kand), R_R_R_R_R window (346-kand). Law: arb320 a/b/c 312 probes nvdisasm 13.3.73 raw -b x4 models agree on every probe; arb287 H-set. patch320.py replayable+idempotent.",
+    "bug324": "2026-09-01 BUG-324 suffix-window-carrier closure on pure-reg/clustered R-forms (HFMA2_R_R_R_UR 0xe31, HFMA2_R_R_UR_R 0xc31: full donor II_II window = 23 direct lanes + 12 RELU mg + 12 RELU _P dotted keys pred@87/inv@90; HMUL2_R_R_R 0x232, HMUL2_R_R_UR 0xc32: legal lanes FMZ/SAT/FTZ + BF16 crosses, b79 text-inert vm-relaxed; NO OOB alias / b78 INVALID1 = HOLE, no RELU). Kills (unarmed, stay HOLE): SATxRELU (rc=1 x4), F32xBF16 INVALID3 (285 doctrine), HMUL2 b80+b76 INVALID3, HMUL2 b78 INVALID1. Law: arb324 404 probes nvdisasm 13.3.73 raw -b x4 models agree on every probe. patch324.py replayable+idempotent.",
+    "bug327": "2026-09-01 HFMA2 pure-reg 0x231 abs-window closure (BUG-327): abs@73 tok2 + abs@62 tok3 fielded on all 6 mandatory mgs of HFMA2_R_R_R_R, legs sm120+sm121a (behavioral parity pre-existed via generic sign rescue -- this is pure field-closure + has_field_abs defer parity, 320 mechanism; corpus exposure 0 per census327). NOT armed: neg@63 tok3 + neg@72 \"\"-row (343-kand residuum), SAT/FTZ/OOB/RELU (344-kand), R_R_UR_R tok4 ghost (345-kand), R_R_R_R_R (346-kand). Law: arb327 72 probes nvdisasm 13.3.73 raw -b x4 models agree on every probe; arb293 J-set. patch327.py replayable+idempotent.",
+    "bug330": "2026-09-01 II_FI tok4 f16@48 field-closure (BUG-330), legs sm120+sm121a: key HFMA2_R_R_R_II_FI x36 mgs + 12 RELU _P era keys, extraction mirrored from II_II siblings (f16_d / bf16 on BF16_V2 rows). Behavioral parity pre-existed (FI_FI shadow owns g7 imm words; census corpus-zero II-lattice) -- zarodek b87..b90+imm48: HOLE->armed (measure_pre329b). Law: arb329 71 probes nvdisasm 13.3.73 raw -b x4 agree. patch330.py replayable+idempotent.",
+    "bug343": "2026-09-02 BUG-343/344: HFMA2 pure-reg krata 0x231 neg-window closure (neg@63 tok3 all 6 mgs + neg@72 tok2 on 4 non-BF16 mgs; parity pre-existed via generic sign rescue per measure_pre343 => pure field-closure + has_field_neg defer parity) + mod-window closure (12 DIRECT + 6 BF16 lanes, 12 base-key RELU mg with pv7 elision bake, 12 RELU _P dotted keys pred@87/inv@90 tok5; mirror of the 324 sibling window, law by arb320b K/L + arb343 = 48 probes x4 agree on EVERY probe; kills stay HOLE: SATxRELU rc=1, F32xBF16 INVALID3-285, b91). Corpus exposure census343: SAT/FTZ/RELU/neg63 = 0/53,653; neg72 = one known instrument word t10.cubin@0x410 (decode parity pre-exists). Legs sm120+sm121a; donors sm100a/sm103a byte-invariant (BUG-315 owner scope). patch343.py replayable+idempotent.",
+    "bug359": "2026-09-03 LDGSTS desc L1-alloc '128,E' crosses x {LTC128B,ZFILL,both} on LDGSTS_ARI_dARI{,_P} x3 legs (law arb334+arb359 134 probes x4 agree: b81 alloc<->BYPASS, b73 LTC and b82 ZFILL legal with alloc on both pred classes incl triple; dst-imm 20b@44 owns [52:44], desc-imm 12b@32 signed). Pre-fix: decode HOLE x3 + authored loud-refuse (measure_pre359); corpus-invisible (0/5 window-claims on 30,049-slot battery). sm121a dotted keys already cover non-P crosses; sm121a trailing-_P desc LDGSTS gap (incl corpus witness B) = pre-existing 37x-kand, out of scope. patch359.py replayable+idempotent.",
+    "bug360": "2026-09-03 BUG-360: (A) sm100a LDGSTS desc non-128 imm2 era widths 15/18/14b -> 12b@32 signed (i84-180 port; arb360 x4 agree: desc 12b signed '+-0x800', ext bits [49:44] = dst-imm; pre-fix sm100a silent drop of authored '+0x1000' + silent sign-R RAW print of [0x800..0xfff] = 28 corpus slots sm_100). (B) b72 = LTC 128B/256B discriminator (NOT UR bit; UR = 8b@64, vendor UR56/88/152 legal): dual closed, LTC128B rows ur0 9->8b, LTC256B rows grafted for E/64,E classes both keys x3 legs. (C) ur0 9->8b fleet-wide on LDGSTS_ARI_dARI{,_P} x3 legs: b72=1 words on un-rowed classes (LTC64B, 128-family LTC256B, BYPASS crosses) now fail closed HOLE (376-kand). Corpus-invisible: b72/b71/ghost-ext all 0 on 30,049 slots. patch360.py replayable+idempotent.",
+    "bug362": "2026-09-03 BUG-362: F2I TRUNC/F64/FLOOR lattice era-row closure x4 legs: (S) sign window abs@62/neg@63 tok2 grafted (arb362 S-group 27 probes + arb339 A5/B4, x4 agree; pre-fix HOLE x4); (I) inert b73/74 vm-relax (arb362 I + arb362b; vendor text-inert). (362a reuse [124:122] vendor-ILLEGAL = engine decoder arm; 362c nibble-alias zone = pinned HOLE.",
+    "bug363": "2026-09-03 BUG-363: F2I R_R FTZ (byte10=0x21) + BF16 (0x40) lattice closure x4 legs (arb341b G/H + arb363 326 probes incl S-signs x288 G-guard R-reuse-illegal x16 X-0x61-illegal, x4 AGREE): 96 keyed era rows/leg 'F2I.FTZ[.T][.R]_R_R' + 'F2I[.T].BF16[.R]_R_R' era geometry (signs in, reuse OUT -- vendor rc=1, fail-closed via decoder BUG-363 arm); legacy mgs F2I_R_R::{FTZ,NTZ (dst@15 = sev-A silent dst corruption on 100a/103a) + FTZ,NTZ,TRUNC,U32 (guard-pinned)} deleted and replaced by name-true keyed rows; sm120/121a era key F2I.FTZ.U32.TRUNC.NTZ_R_R normalized (signs added, reuse field dropped). byte10=0x61 + [83:81] alias cells pinned HOLE.",
+    "bug368": "2026-09-04 BUG-368: SHFL R-form (b1 0x73) [57:40]=0 pin -> vm-relax (vendor-inert: arb368 A/B junk sweep x4 modes x4 models). R-form pola juz poprawne (pred 3b@81, reg@64 t5); era mgs x4 mode-pinned stoja.",
+    "bug369": "2026-09-04 BUG-369: cross-leg SHFL II-form over-strict closure = lustro 358 (pred (4,12,1)->(3,81,1) na II_II{BFLY,IDX,UP} + R_II[IDX]; vm |= [71:64] inert II-form; II_II[IDX] imm28@53->imm5 + II_II/II_R[DOWN] imm6@53->imm5 = cure mode-junk SILENT MISPRINT (era DOWN claimowal BFLY przez b58 pod polem); R_II[IDX] imm32@40->imm13 + klony UP/DOWN/BFLY z pinned-mode = cure mode-junk claim empire (0x21/0x4001f/0x1400001f); II_R[UP/DOWN] vm |= [52:40] inert. Law: arb358 73 + arb368 40 sond x4 AGREE EVERY. Cures: HOLE pred<PT II-form x2-3 nogi + HOLE IIR x3 + misprinty + encode intent-drop + REFUSE R_II UP/DOWN/BFLY.",
+    "bug371": "2026-09-04 BUG-371: HFMA2 tok4 abs field closure: appended abs 1b@83 token_idx=4 to every HFMA2 mod_group with Reg/UReg tok4 lacking the field (pre-fix authored |R4|/|R5| silently minted GENERIC b74 = tok2 hsel cross-read -> vendor 'R2.INVALID1'; b83-set words were LOUD decode HOLE on these rows). Law: arb371 2,560 + arb371b 1,728 probes x4 models AGREE EVERY (b83=tok4 abs, b84=tok4 neg [already field-carried], b74/75=tok2 hsel cross-read). pure additive graft: ab/vm invariant (engine carves field bits at match, decoder.rs:131); dense thin rows reach BUG-320 donor geometry. ENGINE ZERO.",
+    "bug374": "2026-09-04 BUG-374: LDGSTS desc BYPASS+ZFILL non-alloc row closure: += np 128,BYPASS,E,ZFILL x3 legs (cures sm120 loud HOLE + era silent mis-claim printing phantom ', PT' via the _P row on nib-7 words); += _P 128,BYPASS,E x3 (vendor-legal x4, was HOLE x3 era+120 = wider than the 374-kand note, BUG-371 precedent); += _P 128,BYPASS,E,ZFILL sm120 (era legs had it). Law: arb359 88 + arb373_375 109 + bisect 6 probes x4 AGREE EVERY (b81=BYPASS/b82=ZFILL/b73=LTC pure ab deltas asserted in-leg; nibble [90:87] = pred_inv4 PT-elided law confirmed on F-class geometry). ENGINE ZERO.",
+    "bug376": "2026-09-04 BUG-376: LDGSTS desc LTC lattice completion (arb376b 99 probes x4 AGREE EVERY: LTC [73:72] upright 0/64B/128B/256B; BYPASS=b81 CLEAR; size=[75:74] E/64/128 (3=INVALID3 kill); EVERY (size,BYPASS,ZFILL)xLTC cell legal both sides; print order 'LDGSTS.E[.BYPASS][.LTCxB][.sz][.ZFILL]'). += LTC64B x6 bases + LTC256B x4 bases both sides + '128,BYPASS,E,LTC128B,ZFILL' x3 np (cures silent phantom ', PT' via _P row on nib-0 words on 100a/103a measured pre; sm120 HOLE) + sm120 _P same cell (was absent; 100a/103a carried it pre). Pre: HOLE/REFUSE x4 both sides (measure_pre376{,_extra}). baked-template inheritance = verbatim donor clone per leg (100a/103a non-ZFILL _P bake 0x1e000<<96, _P ZFILL donors bake none; sm120 _P uniform). deltas f1..f11/p3..p12 asserted. ENGINE ZERO.",
+    "bug380": "2026-09-05 BUG-380: F2I F64-src (byte10=0x30, b76=1) lattice completion x4 legs: +22 rows/leg (plain/NTZ/FLOOR.U32/S64/U64/FLOOR.NTZ/CEIL/CEIL.NTZ full dst closure; donor-clone per dst from the TRUNC family, cell swap only, claim envelopes verbatim) + 'F64,S64'/F2I.S64.F64_R_R plain-S64 alias relax (3<<73) + abs@62/neg@63 fields (pre: HOLE). Law: arb380/380b/380c/c2/380d 187 probes x4 models AGREE EVERY; 96-cell (round x nibble) sweeps; reuse ILLEGAL everywhere (decoder BUG-380a arm, engine side). Pre-fix 364/384 cells HOLE x4 legs (measure_pre379_380). b76=0 narrow-dst sub-lattice = 390-kand (HOLE fail-closed kept).",
+    "bug382": "2026-09-04 BUG-382: SHFL stray-window relax x4 legs -- vm |= b63 + [90:88] on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb382 98 sond nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY (b63/b88/b89/b90 write-inert kazda rodzina x tryb; b91 = KILL x4 na kazdej klasie = pin zostaje; ball-probe {63,88,89,90} inert). Pre (publish f1f3dd78, canonical 6742fdf, measure_pre382): 224 ogniwa junk HOLE x4 nogi, 0 cichego misprintu. II_R IDX/BFLY absent x4 = bez zmian (residuum 358, 368 sec.6). 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
+    "bug384": "2026-09-05 BUG-384: delete harvest-junk HFMA2 dense era keys HFMA2.BF16_V2_R_R_R_R + HFMA2_R_R_R_R_R (sm120/sm121a only): junk-baked claims (H0_H0 bakes b61/b75/b82; 5-reg odd windows guard1b@13/reg@18/@33/@66) with incomplete field sets; arb384 lattice 168 probes x2 legs + arb384b window law = HFMA2_R_R_R_R windows; the 5-reg row WON inert-window words and printed garbage (2 live WRONG cells) -> delete reroutes to the main rows (vendor-true). census384 battery 34,087,886 words: 420/420 corpus hits vendor-exact pre==post. Encode unchanged: era keys never minted; 5-token HFMA2 stays loud (394-kand). ENGINE ZERO; precedent 165/173 dead-shell removal.",
+    "bug386": "2026-09-05 BUG-386: LDGSTS desc base-gap lattice completion ('BYPASS,E' s32 / '64,BYPASS,E' / 'E,ZFILL' / '64,E,ZFILL' / 'BYPASS,E,ZFILL' / '64,BYPASS,E,ZFILL' x np/_P). arb386 31 per-cell probes + arb376b 99-matrix x4 AGREE EVERY (DIVERGENT=0); composite purity deltas asserted (np pure; _P ZFILL-carrier crossing B82|TOPD on 100a/103a; sm120 pure). Donor-clone graft, baked [127:105] templates ride verbatim. Witness care-match per row. Pre-fix: HOLE x4 decode both geometries + loud FAIL encode x8 (measure_pre386). Lattice post EXACT 30/30. ENGINE ZERO.",
+    "bug387": "2026-09-05 BUG-387: SHFL b62-region stray-window relax x4 legs -- vm |= b62 + b61 ([62:61], b63 z BUG-382) on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb387 280 sond + arb387b, nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY (b62/b61 write-inert kazda rodzina x tryb x 2 warianty wartosci; combo b62|b63 + b62|ball inert; b64/65 = live reg-c [71:64] na RR/II_R; b91 = KILL x4 = pin zostaje; b92-b95 inert = okno [95:92] POZA zakresem, pinned -> 396-kand; dziedzictwo arb382 dla [90:88]+b63). Pre (publish 042ffa91, canonical 9713fd6, measure_pre387): 112 ogniw b62/b61 HOLE x4 nogi, 0 cichego misprintu. II_R IDX/BFLY absent x4 = bez zmian (residuum 358, 368 sec.6). 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
+    "bug388": "2026-09-05 BUG-388: plain sub_imm window decls -- 38 arb378-DIVERGE carriers / 104 rows x4 legs do vendor-true geometry (arb388+arb388b, nvdisasm 13.3.73 raw -b, x4 modele AGREE KAZDA sonda, DIVERGENT=0; zbiezne z BUG-156 window-law). LDGSTS sm100a tok2 -> 12b@32; LDS_R_ARURI|S8 / ATOM(G) CAS tok3 / dARI-desc REDG/STG/ST/LDG/LD -> 24b@40 SIGNED; sm121a ST/LD ARI -> 32b@32 SIGNED; sm121a LDC/LDCU cAI '' extr->cm16_off/cm17_off; UGETNEXT BROADCAST para 8b@24 bez offsetu (DELETE sub_imm1 24b@28). Kolateral (arb388+arb388c x4): G UR-clip [32..40) 4/5/6->8b (LDG/LD dARI + LDS_R_ARURI|S8, 40 rows); H sub_r0 9->8 bleed (LDGSTS sm100a 14 rows @16, CAS 121a 4 rows, LDS_R_ARURI|S8 121a; 147-class); I-J vendor-inert junk-band relax (UGETNEXT [16..24)+[32..72); sm121a LDC  [32..38)+[59..64), LDCU '' [32..37)+[59..64); singles+band+ball x4). Pre (publish 05d2e7e9, measure_pre388): 2299 komorek = 1050 MATCH / 1154 WRONG cichy misprint (flip znaku LDC b53, fabrykowane +0x1, corrupt baza R) / 95 HOLE. ENGINE: SubURm1 printer arm (para raw+1) -- jedyna zmiana src. Residua rejestrowane: 398 (cAI [24..32) index zanegowany + ?cAURI + sub_ur1@64 inwersja), 399 (glif +-0x na ARURI STS/LDS).",
+    "bug390": "2026-09-06 BUG-390: F2I F64-src (byte10=0x30, b76=0) NARROW-dst sub-lattice x4 legs: +32 rows/leg (plain/NTZ/FLOOR/FLOOR.NTZ/CEIL/CEIL.NTZ/TRUNC/TRUNC.NTZ full {U8,S8,U16,S16} closure; donor-clone per dst-class from the wide b76=1 family, byte9 cell-swap 0x??<<72 incl b76 1->0, claim envelopes verbatim, b73/b74 alias relax inherited). Law: arb390 147 + arb390b 52 = 199 probes x4 models AGREE EVERY: 128-cell full [79:72] sweep all legal; dst {b75,b72} 00 U8/01 S8/ 10 U16/11 S16; b73/b74 text-inert; abs@62/neg@63 tok2 on every axis; guard generic; reuse [124:122] ILLEGAL (26 probes rc=1; engine decoder-arm extension = cubit-side). Pre-fix 512/512 cells HOLE x4 legs + 128/128 encode loud-FAIL (measure_pre390; t380_6 posture). Corpus census390: b76=0 bucket LDL-shaped/claimed (sample390 x40), no anchor-shaped words -> graft corpus-invisible.",
+    "bug393": "2026-09-06 BUG-393: HFMA2 0x231-bases inert-window relax x4 legs -- FULL MOD-CLOSURE: 36 mgs x 4 legs (24 non-RELU full [55:40]|[59:56]|[87:90]|[92:95]; 12 RELU sans [87:90] = pv-elision live field). Vendor law: measure_pre394 170 sond + balls + measure393_closure 144 tetrady x 31 prob (nvdisasm 13.3.73 raw -b x4 modele AGREE; b91 KILL x144 stays; b78/b86 markers stand). Sparse-parity [55:40] domknieta. 0x7c31 UR-family out-of-scope (391/395 tail).",
+    "bug396": "2026-09-05 BUG-396: SHFL [95:92] stray-window relax x4 legs -- vm |= (0xf<<92) on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb387 b93/b95 56/56 + arb387b b92/b94/ball 42/42 + arb396 84/84 composition (pairs inside window + ball with [63:61]/[90:88]), nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY, DIVERGENT=0, teksty == clean anchors. b91 = KILL x4 = pin zostaje; b96+ = fields (rozlaczne, aserty); [63:61] (387) + b63/[90:88] (382) stoja. Pre (publish fe384b27, canonical 93bc221, measure_pre396): 224 ogniwa b92..b95 + 56 ball HOLE x4 nogi, 0 cichego misprintu; kontrole 382/387 zywe. II_R IDX/BFLY absent = residuum 358/368 stoi. 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
+    "bug400": "2026-09-07 BUG-400: pred/LTC window [64..72) vendor-true declarations on dARI/ARI LDG/LD rows (canonical graft, adding-only: plain LTC mgs + <KEY>_P trailing-pred keys with pred_inv4@64 tok=last). Vendor law arb400 (307 probes: nibble x LTC x combos x b70/b71-ball; corpus-derived carriers incl sm121a synth) + arb400b (198 cross-combo probes: b70/b71/ball x {pv 0,1,8} x {ltc 0,1}; 165/165 cross-checks vs pv/ltc baselines MATCH); nvdisasm 13.3.73 raw -b x4 models DIVERGENT=0): [64:68)=inv4 pred window (0 elide, v->P(7-v), 8->!PT, 9..15->!P(15-v)); [68:70)=LTC code (1/2/3 = LTC64B/LTC128B/LTC256B); b70/b71 INERT. Closes verify388post residuum 400 (77 WRONG cells x 11 carriers). ENGINE src ZERO changes (pred_inv4 machinery + mod priorities already shipped; sm121a LDG_R_dARI_P precedent).",
+    "bug403": "2026-09-06 BUG-403: F2I F64-src WIDE (b76=1) TRUNC.NTZ axis donor closure x4 legs: +4 rows/leg (era mgs 'F64,NTZ,TRUNC[,U32/U64]' + 'F64,NTZ,S64,TRUNC'; keyed F2I[.U32/.U64/.S64].F64.TRUNC.NTZ_R_R); donor-clone per dst-class from the wide TRUNC donors, byte9 cell-swap 0xd0|nib -> 0xf0|nib (set b77 NTZ), claim envelopes verbatim, b73/b74 alias relax (3<<73) inherited. Law: arb403 34 + arb403b 3 = 37 probes x4 models AGREE EVERY: all 16 nibble cells legal (dst {b75,b72}+S32 default, b73/b74 inert); abs/neg tok2 everywhere (9 probes); guard generic; reuse [124:122] ILLEGAL rc=1 x4 (4 probes; engine decoder-arm ext = cubit-side). Pre-fix 64/64 cells HOLE x4 legs + 16/16 encode loud-FAIL (measure_pre403; t390_7 posture flipped)."
+   },
+   "errata": {}
+  },
   "ctrl_classes": {
    "alu_iadd3": {
     "constraints": [
@@ -305,7 +817,6 @@
     "upper32": "0x000fe200"
    }
   },
-  "gpu": "RTX 5090",
   "hardware_config": {
    "barrier_scoreboards_per_sm": 6,
    "compression": {
@@ -360,7 +871,6 @@
    },
    "source": "Ghidra RE of GSP firmware (driver 590.48.01) + RTX 5090 driver API verification"
   },
-  "instruction_width": 128,
   "o2_revision": "2026-08-25 consolidation rev3 (see CHANGELOG O2)",
   "pipe_classes": {
    "0": "UNKNOWN_0",
@@ -435,36 +945,7 @@
    "inskeys_with_scheduling": 1439,
    "inskeys_without_ctrl_class": 183,
    "sched_only_entries": 597
-  },
-  "bug248": "2026-08-28 sm120 DADD vendor-parity closure: DADD_R_R_R + DADD_R_R_UR key rows grafted byte-copy from donor sm103a (parity with sm100a; laws arb248 guard/sign/UR walks + law248 census 141,819 uniq DADD words on 2,406-cubin battery, nvdisasm 13.3.73): guard 4b@12 true field replaces era PT-bake; tok2 neg@72/abs@73 replaces bogus neg_abs/neg_shl1; tok3 R: neg@75/abs@74, reuse@124; UR cell: ureg@32 + neg@63/abs@62 + b91 mandatory in and_base (era placeholder vmask=0 absorbed nothing -> 11,939 HOLE). Cures gold245 sm120 DADD 95,052 DIFF + 11,939 HOLE. patch248.py replayable+idempotent.",
-  "bug258": "2026-08-29 BUG-258: era 2-bit 'neg' sign-window split on the 4 corpus-exposed rows (routex258/law251: 1,359 routed words, values {0,1} only - injured {2,3} class empty). arb258 raw -b: DFMA tok2 b72=neg/b73=abs (RM==RP, models SM120==SM121a==SM103a); UFADD tok2 b72=neg/b73=abs, tok3 SWAPPED b74=abs/b75=neg (SM120==SM121a; SM103a has no UFADD). and_base/vmask unchanged. patch258.py replayable+idempotent. Corpus-zero census residuum (51 sm120 fields incl. I2I/DMMA; 66 sm121a incl. DFMA FI RM/RP + FFMA/DMMA/HADD2...) fail-closed = 261-kand.",
-  "bug261": "2026-08-29 BUG-261: post-258 2-bit 'neg' residuum closure (census261 51 sm120 + 66 sm121a fields; donors 0). arb261 laws (raw -b, and_base hosts + corpus witnesses, 40+ probe sets x4 models): A sign neg-lines (neg@s, abs@s+1) on DFMA FI RM/RP / DMMA tok2 / FADD x4 / FFMA tok2 x8 mgs / FMNMX_FI_P / FSET.BF.GT.AND / UFFMA tok2 / UFSETP tok3; B swapped (abs@s, neg@s+1) on DMMA tok4 / FFMA_P_* tok4,tok3 / UFFMA tok4; C hsel retype ('neg'->'hsel', same bits) on HADD2 x3 / HFMA2 x2 / HMNMX2 / HMUL2 / HSETP2 [arb: v2 .H0_H0, v3 .H1_H1; per-bit binding proven on BF16_V2 witnesses]. and_base/vmask unchanged. SKIP+registry (vendor-INVALID / head-mismatch rows): I2I.S16/U16 x2, I2IP.U8 x4, FMNMX II_? = 265-kand b3-line. Exposure routex261 full 2,406 battery: injured = sm121a FFMA '' tok2 2,384 w (value-2 ghost '-|'), HADD2 FI 7/7 w, HADD2_'?' 104 w, HFMA2 BF16 35 w; all other rows {0,1}-only or zero routing. patch261.py replayable+idempotent.",
-  "bug316": "2026-09-01 MOVM name-space sibling closure (BUG-316): 5 vendor-legal sibling lanes armed on the 0x23a lattice (x2 legs sm120+sm121a): U4TO8.MT88, 16.M832, U4TO8.M832 (era phantom rewritten -- it never matched), 16.M864, U4TO8.M864; strict clones of the BUG-283 MT88 geometry with ns pins at [79:75]. NOT armed by doctrine (bug210/215 precedent): vendor INVALID5/6/7 + INVALID3 lanes and rc0-empty combos stay HOLE fail-closed (pins bug316). Law: arb283 G-sweep + arb316 380 probes, nvdisasm 13.3.73 raw -b, x4 models agree on every probe. patch316.py replayable+idempotent.",
-  "bug320": "2026-09-01 HFMA2 pure-reg 0x231 residuum closure (BUG-320/321): abs@83 tok4 fielded on mg '',BF16_V2 (+clones) -- closes decode hole x2 legs AND the era b74 ghost-mint for authored '|Rc|'; mod lanes F32/FMZ/F32,FMZ (off '') + BF16_V2,FMZ armed as clone-bakes; [55:40] text-inert band decode-relaxed (316 doctrine; enables the lone corpus word t10.cubin@0x410 = w321). NOT armed: BF16xF32 (INVALID3, 285 doctrine), SAT/FTZ/OOB/RELU pure-reg (344-kand), tok3 neg63/abs62 (343-kand), R_R_UR_R tok4 ghost (345-kand), R_R_R_R_R window (346-kand). Law: arb320 a/b/c 312 probes nvdisasm 13.3.73 raw -b x4 models agree on every probe; arb287 H-set. patch320.py replayable+idempotent.",
-  "bug324": "2026-09-01 BUG-324 suffix-window-carrier closure on pure-reg/clustered R-forms (HFMA2_R_R_R_UR 0xe31, HFMA2_R_R_UR_R 0xc31: full donor II_II window = 23 direct lanes + 12 RELU mg + 12 RELU _P dotted keys pred@87/inv@90; HMUL2_R_R_R 0x232, HMUL2_R_R_UR 0xc32: legal lanes FMZ/SAT/FTZ + BF16 crosses, b79 text-inert vm-relaxed; NO OOB alias / b78 INVALID1 = HOLE, no RELU). Kills (unarmed, stay HOLE): SATxRELU (rc=1 x4), F32xBF16 INVALID3 (285 doctrine), HMUL2 b80+b76 INVALID3, HMUL2 b78 INVALID1. Law: arb324 404 probes nvdisasm 13.3.73 raw -b x4 models agree on every probe. patch324.py replayable+idempotent.",
-  "bug327": "2026-09-01 HFMA2 pure-reg 0x231 abs-window closure (BUG-327): abs@73 tok2 + abs@62 tok3 fielded on all 6 mandatory mgs of HFMA2_R_R_R_R, legs sm120+sm121a (behavioral parity pre-existed via generic sign rescue -- this is pure field-closure + has_field_abs defer parity, 320 mechanism; corpus exposure 0 per census327). NOT armed: neg@63 tok3 + neg@72 \"\"-row (343-kand residuum), SAT/FTZ/OOB/RELU (344-kand), R_R_UR_R tok4 ghost (345-kand), R_R_R_R_R (346-kand). Law: arb327 72 probes nvdisasm 13.3.73 raw -b x4 models agree on every probe; arb293 J-set. patch327.py replayable+idempotent.",
-  "bug330": "2026-09-01 II_FI tok4 f16@48 field-closure (BUG-330), legs sm120+sm121a: key HFMA2_R_R_R_II_FI x36 mgs + 12 RELU _P era keys, extraction mirrored from II_II siblings (f16_d / bf16 on BF16_V2 rows). Behavioral parity pre-existed (FI_FI shadow owns g7 imm words; census corpus-zero II-lattice) -- zarodek b87..b90+imm48: HOLE->armed (measure_pre329b). Law: arb329 71 probes nvdisasm 13.3.73 raw -b x4 agree. patch330.py replayable+idempotent.",
-  "bug343": "2026-09-02 BUG-343/344: HFMA2 pure-reg krata 0x231 neg-window closure (neg@63 tok3 all 6 mgs + neg@72 tok2 on 4 non-BF16 mgs; parity pre-existed via generic sign rescue per measure_pre343 => pure field-closure + has_field_neg defer parity) + mod-window closure (12 DIRECT + 6 BF16 lanes, 12 base-key RELU mg with pv7 elision bake, 12 RELU _P dotted keys pred@87/inv@90 tok5; mirror of the 324 sibling window, law by arb320b K/L + arb343 = 48 probes x4 agree on EVERY probe; kills stay HOLE: SATxRELU rc=1, F32xBF16 INVALID3-285, b91). Corpus exposure census343: SAT/FTZ/RELU/neg63 = 0/53,653; neg72 = one known instrument word t10.cubin@0x410 (decode parity pre-exists). Legs sm120+sm121a; donors sm100a/sm103a byte-invariant (BUG-315 owner scope). patch343.py replayable+idempotent.",
-  "bug359": "2026-09-03 LDGSTS desc L1-alloc '128,E' crosses x {LTC128B,ZFILL,both} on LDGSTS_ARI_dARI{,_P} x3 legs (law arb334+arb359 134 probes x4 agree: b81 alloc<->BYPASS, b73 LTC and b82 ZFILL legal with alloc on both pred classes incl triple; dst-imm 20b@44 owns [52:44], desc-imm 12b@32 signed). Pre-fix: decode HOLE x3 + authored loud-refuse (measure_pre359); corpus-invisible (0/5 window-claims on 30,049-slot battery). sm121a dotted keys already cover non-P crosses; sm121a trailing-_P desc LDGSTS gap (incl corpus witness B) = pre-existing 37x-kand, out of scope. patch359.py replayable+idempotent.",
-  "bug360": "2026-09-03 BUG-360: (A) sm100a LDGSTS desc non-128 imm2 era widths 15/18/14b -> 12b@32 signed (i84-180 port; arb360 x4 agree: desc 12b signed '+-0x800', ext bits [49:44] = dst-imm; pre-fix sm100a silent drop of authored '+0x1000' + silent sign-R RAW print of [0x800..0xfff] = 28 corpus slots sm_100). (B) b72 = LTC 128B/256B discriminator (NOT UR bit; UR = 8b@64, vendor UR56/88/152 legal): dual closed, LTC128B rows ur0 9->8b, LTC256B rows grafted for E/64,E classes both keys x3 legs. (C) ur0 9->8b fleet-wide on LDGSTS_ARI_dARI{,_P} x3 legs: b72=1 words on un-rowed classes (LTC64B, 128-family LTC256B, BYPASS crosses) now fail closed HOLE (376-kand). Corpus-invisible: b72/b71/ghost-ext all 0 on 30,049 slots. patch360.py replayable+idempotent.",
-  "bug362": "2026-09-03 BUG-362: F2I TRUNC/F64/FLOOR lattice era-row closure x4 legs: (S) sign window abs@62/neg@63 tok2 grafted (arb362 S-group 27 probes + arb339 A5/B4, x4 agree; pre-fix HOLE x4); (I) inert b73/74 vm-relax (arb362 I + arb362b; vendor text-inert). (362a reuse [124:122] vendor-ILLEGAL = engine decoder arm; 362c nibble-alias zone = pinned HOLE.",
-  "bug363": "2026-09-03 BUG-363: F2I R_R FTZ (byte10=0x21) + BF16 (0x40) lattice closure x4 legs (arb341b G/H + arb363 326 probes incl S-signs x288 G-guard R-reuse-illegal x16 X-0x61-illegal, x4 AGREE): 96 keyed era rows/leg 'F2I.FTZ[.T][.R]_R_R' + 'F2I[.T].BF16[.R]_R_R' era geometry (signs in, reuse OUT -- vendor rc=1, fail-closed via decoder BUG-363 arm); legacy mgs F2I_R_R::{FTZ,NTZ (dst@15 = sev-A silent dst corruption on 100a/103a) + FTZ,NTZ,TRUNC,U32 (guard-pinned)} deleted and replaced by name-true keyed rows; sm120/121a era key F2I.FTZ.U32.TRUNC.NTZ_R_R normalized (signs added, reuse field dropped). byte10=0x61 + [83:81] alias cells pinned HOLE.",
-  "bug369": "2026-09-04 BUG-369: cross-leg SHFL II-form over-strict closure = lustro 358 (pred (4,12,1)->(3,81,1) na II_II{BFLY,IDX,UP} + R_II[IDX]; vm |= [71:64] inert II-form; II_II[IDX] imm28@53->imm5 + II_II/II_R[DOWN] imm6@53->imm5 = cure mode-junk SILENT MISPRINT (era DOWN claimowal BFLY przez b58 pod polem); R_II[IDX] imm32@40->imm13 + klony UP/DOWN/BFLY z pinned-mode = cure mode-junk claim empire (0x21/0x4001f/0x1400001f); II_R[UP/DOWN] vm |= [52:40] inert. Law: arb358 73 + arb368 40 sond x4 AGREE EVERY. Cures: HOLE pred<PT II-form x2-3 nogi + HOLE IIR x3 + misprinty + encode intent-drop + REFUSE R_II UP/DOWN/BFLY.",
-  "bug368": "2026-09-04 BUG-368: SHFL R-form (b1 0x73) [57:40]=0 pin -> vm-relax (vendor-inert: arb368 A/B junk sweep x4 modes x4 models). R-form pola juz poprawne (pred 3b@81, reg@64 t5); era mgs x4 mode-pinned stoja.",
-  "bug371": "2026-09-04 BUG-371: HFMA2 tok4 abs field closure: appended abs 1b@83 token_idx=4 to every HFMA2 mod_group with Reg/UReg tok4 lacking the field (pre-fix authored |R4|/|R5| silently minted GENERIC b74 = tok2 hsel cross-read -> vendor 'R2.INVALID1'; b83-set words were LOUD decode HOLE on these rows). Law: arb371 2,560 + arb371b 1,728 probes x4 models AGREE EVERY (b83=tok4 abs, b84=tok4 neg [already field-carried], b74/75=tok2 hsel cross-read). pure additive graft: ab/vm invariant (engine carves field bits at match, decoder.rs:131); dense thin rows reach BUG-320 donor geometry. ENGINE ZERO.",
-  "bug374": "2026-09-04 BUG-374: LDGSTS desc BYPASS+ZFILL non-alloc row closure: += np 128,BYPASS,E,ZFILL x3 legs (cures sm120 loud HOLE + era silent mis-claim printing phantom ', PT' via the _P row on nib-7 words); += _P 128,BYPASS,E x3 (vendor-legal x4, was HOLE x3 era+120 = wider than the 374-kand note, BUG-371 precedent); += _P 128,BYPASS,E,ZFILL sm120 (era legs had it). Law: arb359 88 + arb373_375 109 + bisect 6 probes x4 AGREE EVERY (b81=BYPASS/b82=ZFILL/b73=LTC pure ab deltas asserted in-leg; nibble [90:87] = pred_inv4 PT-elided law confirmed on F-class geometry). ENGINE ZERO.",
-  "bug376": "2026-09-04 BUG-376: LDGSTS desc LTC lattice completion (arb376b 99 probes x4 AGREE EVERY: LTC [73:72] upright 0/64B/128B/256B; BYPASS=b81 CLEAR; size=[75:74] E/64/128 (3=INVALID3 kill); EVERY (size,BYPASS,ZFILL)xLTC cell legal both sides; print order 'LDGSTS.E[.BYPASS][.LTCxB][.sz][.ZFILL]'). += LTC64B x6 bases + LTC256B x4 bases both sides + '128,BYPASS,E,LTC128B,ZFILL' x3 np (cures silent phantom ', PT' via _P row on nib-0 words on 100a/103a measured pre; sm120 HOLE) + sm120 _P same cell (was absent; 100a/103a carried it pre). Pre: HOLE/REFUSE x4 both sides (measure_pre376{,_extra}). baked-template inheritance = verbatim donor clone per leg (100a/103a non-ZFILL _P bake 0x1e000<<96, _P ZFILL donors bake none; sm120 _P uniform). deltas f1..f11/p3..p12 asserted. ENGINE ZERO.",
-  "bug382": "2026-09-04 BUG-382: SHFL stray-window relax x4 legs -- vm |= b63 + [90:88] on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb382 98 sond nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY (b63/b88/b89/b90 write-inert kazda rodzina x tryb; b91 = KILL x4 na kazdej klasie = pin zostaje; ball-probe {63,88,89,90} inert). Pre (publish f1f3dd78, canonical 6742fdf, measure_pre382): 224 ogniwa junk HOLE x4 nogi, 0 cichego misprintu. II_R IDX/BFLY absent x4 = bez zmian (residuum 358, 368 sec.6). 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
-  "bug380": "2026-09-05 BUG-380: F2I F64-src (byte10=0x30, b76=1) lattice completion x4 legs: +22 rows/leg (plain/NTZ/FLOOR.U32/S64/U64/FLOOR.NTZ/CEIL/CEIL.NTZ full dst closure; donor-clone per dst from the TRUNC family, cell swap only, claim envelopes verbatim) + 'F64,S64'/F2I.S64.F64_R_R plain-S64 alias relax (3<<73) + abs@62/neg@63 fields (pre: HOLE). Law: arb380/380b/380c/c2/380d 187 probes x4 models AGREE EVERY; 96-cell (round x nibble) sweeps; reuse ILLEGAL everywhere (decoder BUG-380a arm, engine side). Pre-fix 364/384 cells HOLE x4 legs (measure_pre379_380). b76=0 narrow-dst sub-lattice = 390-kand (HOLE fail-closed kept).",
-  "bug386": "2026-09-05 BUG-386: LDGSTS desc base-gap lattice completion ('BYPASS,E' s32 / '64,BYPASS,E' / 'E,ZFILL' / '64,E,ZFILL' / 'BYPASS,E,ZFILL' / '64,BYPASS,E,ZFILL' x np/_P). arb386 31 per-cell probes + arb376b 99-matrix x4 AGREE EVERY (DIVERGENT=0); composite purity deltas asserted (np pure; _P ZFILL-carrier crossing B82|TOPD on 100a/103a; sm120 pure). Donor-clone graft, baked [127:105] templates ride verbatim. Witness care-match per row. Pre-fix: HOLE x4 decode both geometries + loud FAIL encode x8 (measure_pre386). Lattice post EXACT 30/30. ENGINE ZERO.",
-  "bug384": "2026-09-05 BUG-384: delete harvest-junk HFMA2 dense era keys HFMA2.BF16_V2_R_R_R_R + HFMA2_R_R_R_R_R (sm120/sm121a only): junk-baked claims (H0_H0 bakes b61/b75/b82; 5-reg odd windows guard1b@13/reg@18/@33/@66) with incomplete field sets; arb384 lattice 168 probes x2 legs + arb384b window law = HFMA2_R_R_R_R windows; the 5-reg row WON inert-window words and printed garbage (2 live WRONG cells) -> delete reroutes to the main rows (vendor-true). census384 battery 34,087,886 words: 420/420 corpus hits vendor-exact pre==post. Encode unchanged: era keys never minted; 5-token HFMA2 stays loud (394-kand). ENGINE ZERO; precedent 165/173 dead-shell removal.",
-  "bug387": "2026-09-05 BUG-387: SHFL b62-region stray-window relax x4 legs -- vm |= b62 + b61 ([62:61], b63 z BUG-382) on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb387 280 sond + arb387b, nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY (b62/b61 write-inert kazda rodzina x tryb x 2 warianty wartosci; combo b62|b63 + b62|ball inert; b64/65 = live reg-c [71:64] na RR/II_R; b91 = KILL x4 = pin zostaje; b92-b95 inert = okno [95:92] POZA zakresem, pinned -> 396-kand; dziedzictwo arb382 dla [90:88]+b63). Pre (publish 042ffa91, canonical 9713fd6, measure_pre387): 112 ogniw b62/b61 HOLE x4 nogi, 0 cichego misprintu. II_R IDX/BFLY absent x4 = bez zmian (residuum 358, 368 sec.6). 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
-  "bug396": "2026-09-05 BUG-396: SHFL [95:92] stray-window relax x4 legs -- vm |= (0xf<<92) on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb387 b93/b95 56/56 + arb387b b92/b94/ball 42/42 + arb396 84/84 composition (pairs inside window + ball with [63:61]/[90:88]), nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY, DIVERGENT=0, teksty == clean anchors. b91 = KILL x4 = pin zostaje; b96+ = fields (rozlaczne, aserty); [63:61] (387) + b63/[90:88] (382) stoja. Pre (publish fe384b27, canonical 93bc221, measure_pre396): 224 ogniwa b92..b95 + 56 ball HOLE x4 nogi, 0 cichego misprintu; kontrole 382/387 zywe. II_R IDX/BFLY absent = residuum 358/368 stoi. 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
-  "bug388": "2026-09-05 BUG-388: plain sub_imm window decls -- 38 arb378-DIVERGE carriers / 104 rows x4 legs do vendor-true geometry (arb388+arb388b, nvdisasm 13.3.73 raw -b, x4 modele AGREE KAZDA sonda, DIVERGENT=0; zbiezne z BUG-156 window-law). LDGSTS sm100a tok2 -> 12b@32; LDS_R_ARURI|S8 / ATOM(G) CAS tok3 / dARI-desc REDG/STG/ST/LDG/LD -> 24b@40 SIGNED; sm121a ST/LD ARI -> 32b@32 SIGNED; sm121a LDC/LDCU cAI '' extr->cm16_off/cm17_off; UGETNEXT BROADCAST para 8b@24 bez offsetu (DELETE sub_imm1 24b@28). Kolateral (arb388+arb388c x4): G UR-clip [32..40) 4/5/6->8b (LDG/LD dARI + LDS_R_ARURI|S8, 40 rows); H sub_r0 9->8 bleed (LDGSTS sm100a 14 rows @16, CAS 121a 4 rows, LDS_R_ARURI|S8 121a; 147-class); I-J vendor-inert junk-band relax (UGETNEXT [16..24)+[32..72); sm121a LDC  [32..38)+[59..64), LDCU '' [32..37)+[59..64); singles+band+ball x4). Pre (publish 05d2e7e9, measure_pre388): 2299 komorek = 1050 MATCH / 1154 WRONG cichy misprint (flip znaku LDC b53, fabrykowane +0x1, corrupt baza R) / 95 HOLE. ENGINE: SubURm1 printer arm (para raw+1) -- jedyna zmiana src. Residua rejestrowane: 398 (cAI [24..32) index zanegowany + ?cAURI + sub_ur1@64 inwersja), 399 (glif +-0x na ARURI STS/LDS).",
-  "bug390": "2026-09-06 BUG-390: F2I F64-src (byte10=0x30, b76=0) NARROW-dst sub-lattice x4 legs: +32 rows/leg (plain/NTZ/FLOOR/FLOOR.NTZ/CEIL/CEIL.NTZ/TRUNC/TRUNC.NTZ full {U8,S8,U16,S16} closure; donor-clone per dst-class from the wide b76=1 family, byte9 cell-swap 0x??<<72 incl b76 1->0, claim envelopes verbatim, b73/b74 alias relax inherited). Law: arb390 147 + arb390b 52 = 199 probes x4 models AGREE EVERY: 128-cell full [79:72] sweep all legal; dst {b75,b72} 00 U8/01 S8/ 10 U16/11 S16; b73/b74 text-inert; abs@62/neg@63 tok2 on every axis; guard generic; reuse [124:122] ILLEGAL (26 probes rc=1; engine decoder-arm extension = cubit-side). Pre-fix 512/512 cells HOLE x4 legs + 128/128 encode loud-FAIL (measure_pre390; t380_6 posture). Corpus census390: b76=0 bucket LDL-shaped/claimed (sample390 x40), no anchor-shaped words -> graft corpus-invisible.",
-  "bug403": "2026-09-06 BUG-403: F2I F64-src WIDE (b76=1) TRUNC.NTZ axis donor closure x4 legs: +4 rows/leg (era mgs 'F64,NTZ,TRUNC[,U32/U64]' + 'F64,NTZ,S64,TRUNC'; keyed F2I[.U32/.U64/.S64].F64.TRUNC.NTZ_R_R); donor-clone per dst-class from the wide TRUNC donors, byte9 cell-swap 0xd0|nib -> 0xf0|nib (set b77 NTZ), claim envelopes verbatim, b73/b74 alias relax (3<<73) inherited. Law: arb403 34 + arb403b 3 = 37 probes x4 models AGREE EVERY: all 16 nibble cells legal (dst {b75,b72}+S32 default, b73/b74 inert); abs/neg tok2 everywhere (9 probes); guard generic; reuse [124:122] ILLEGAL rc=1 x4 (4 probes; engine decoder-arm ext = cubit-side). Pre-fix 64/64 cells HOLE x4 legs + 16/16 encode loud-FAIL (measure_pre403; t390_7 posture flipped).",
-  "bug393": "2026-09-06 BUG-393: HFMA2 0x231-bases inert-window relax x4 legs -- FULL MOD-CLOSURE: 36 mgs x 4 legs (24 non-RELU full [55:40]|[59:56]|[87:90]|[92:95]; 12 RELU sans [87:90] = pv-elision live field). Vendor law: measure_pre394 170 sond + balls + measure393_closure 144 tetrady x 31 prob (nvdisasm 13.3.73 raw -b x4 modele AGREE; b91 KILL x144 stays; b78/b86 markers stand). Sparse-parity [55:40] domknieta. 0x7c31 UR-family out-of-scope (391/395 tail).",
-  "bug400": "2026-09-07 BUG-400: pred/LTC window [64..72) vendor-true declarations on dARI/ARI LDG/LD rows (canonical graft, adding-only: plain LTC mgs + <KEY>_P trailing-pred keys with pred_inv4@64 tok=last). Vendor law arb400 (307 probes: nibble x LTC x combos x b70/b71-ball; corpus-derived carriers incl sm121a synth) + arb400b (198 cross-combo probes: b70/b71/ball x {pv 0,1,8} x {ltc 0,1}; 165/165 cross-checks vs pv/ltc baselines MATCH); nvdisasm 13.3.73 raw -b x4 models DIVERGENT=0): [64:68)=inv4 pred window (0 elide, v->P(7-v), 8->!PT, 9..15->!P(15-v)); [68:70)=LTC code (1/2/3 = LTC64B/LTC128B/LTC256B); b70/b71 INERT. Closes verify388post residuum 400 (77 WRONG cells x 11 carriers). ENGINE src ZERO changes (pred_inv4 machinery + mod priorities already shipped; sm121a LDG_R_dARI_P precedent)."
+  }
  },
  "instructions": {
   "ACQBULK": {
@@ -296072,6 +296553,1116 @@
      "variable_mask": "0xfce000000000000f80000bffc0000",
      "_src": "sm120-ldsm8-2026-10-22",
      "_note": "LDSM.8.MT1616 x1/x2: CUDA13.1 PTX8-bit transposed matrix-load compiler anchors and bounded NVIDIA full-word datatype/count/address/register/guard probes. Data-type enum bits75:78=7, shape/count/address fields inherit measured sibling geometry. No mask widening, raw fields, or completion. x4, INVALID3 and other datatype enums remain unclaimed. No execution, latency or pipeline claim from decoder probes."
+    },
+    "M88,U4x16P64TO8": {
+     "and_base": "0x0000000000002800000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 5 (U4x16P64TO8), shape [80:78] = 0 (M88), count [73:72] = 0 (x1; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b4x16_p64."
+    },
+    "2,M88,U4x16P64TO8": {
+     "and_base": "0x0000000000002900000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 5 (U4x16P64TO8), shape [80:78] = 0 (M88), count [73:72] = 1 (2; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b4x16_p64."
+    },
+    "4,M88,U4x16P64TO8": {
+     "and_base": "0x0000000000002a00000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 5 (U4x16P64TO8), shape [80:78] = 0 (M88), count [73:72] = 2 (4; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b4x16_p64."
+    },
+    "MT88,U4x16P64TO8": {
+     "and_base": "0x0000000000006800000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 5 (U4x16P64TO8), shape [80:78] = 1 (MT88), count [73:72] = 0 (x1; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b4x16_p64."
+    },
+    "2,MT88,U4x16P64TO8": {
+     "and_base": "0x0000000000006900000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 5 (U4x16P64TO8), shape [80:78] = 1 (MT88), count [73:72] = 1 (2; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b4x16_p64."
+    },
+    "4,MT88,U4x16P64TO8": {
+     "and_base": "0x0000000000006a00000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 5 (U4x16P64TO8), shape [80:78] = 1 (MT88), count [73:72] = 2 (4; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b4x16_p64."
+    },
+    "M816,U4x16P64TO8": {
+     "and_base": "0x000000000000a800000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 5 (U4x16P64TO8), shape [80:78] = 2 (M816), count [73:72] = 0 (x1; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b4x16_p64."
+    },
+    "2,M816,U4x16P64TO8": {
+     "and_base": "0x000000000000a900000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 5 (U4x16P64TO8), shape [80:78] = 2 (M816), count [73:72] = 1 (2; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b4x16_p64."
+    },
+    "4,M816,U4x16P64TO8": {
+     "and_base": "0x000000000000aa00000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 5 (U4x16P64TO8), shape [80:78] = 2 (M816), count [73:72] = 2 (4; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b4x16_p64."
+    },
+    "M832,U4x16P64TO8": {
+     "and_base": "0x000000000000e800000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 5 (U4x16P64TO8), shape [80:78] = 3 (M832), count [73:72] = 0 (x1; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b4x16_p64."
+    },
+    "2,M832,U4x16P64TO8": {
+     "and_base": "0x000000000000e900000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 5 (U4x16P64TO8), shape [80:78] = 3 (M832), count [73:72] = 1 (2; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b4x16_p64."
+    },
+    "4,M832,U4x16P64TO8": {
+     "and_base": "0x000000000000ea00000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 5 (U4x16P64TO8), shape [80:78] = 3 (M832), count [73:72] = 2 (4; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b4x16_p64."
+    },
+    "MT1616,U4x16P64TO8": {
+     "and_base": "0x0000000000012800000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 5 (U4x16P64TO8), shape [80:78] = 4 (MT1616), count [73:72] = 0 (x1; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b4x16_p64."
+    },
+    "2,MT1616,U4x16P64TO8": {
+     "and_base": "0x0000000000012900000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 5 (U4x16P64TO8), shape [80:78] = 4 (MT1616), count [73:72] = 1 (2; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b4x16_p64."
+    },
+    "4,MT1616,U4x16P64TO8": {
+     "and_base": "0x0000000000012a00000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 5 (U4x16P64TO8), shape [80:78] = 4 (MT1616), count [73:72] = 2 (4; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b4x16_p64."
+    },
+    "M88,U6x16P32TO8": {
+     "and_base": "0x0000000000003000000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 6 (U6x16P32TO8), shape [80:78] = 0 (M88), count [73:72] = 0 (x1; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b6x16_p32."
+    },
+    "2,M88,U6x16P32TO8": {
+     "and_base": "0x0000000000003100000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 6 (U6x16P32TO8), shape [80:78] = 0 (M88), count [73:72] = 1 (2; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b6x16_p32."
+    },
+    "4,M88,U6x16P32TO8": {
+     "and_base": "0x0000000000003200000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 6 (U6x16P32TO8), shape [80:78] = 0 (M88), count [73:72] = 2 (4; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b6x16_p32."
+    },
+    "MT88,U6x16P32TO8": {
+     "and_base": "0x0000000000007000000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 6 (U6x16P32TO8), shape [80:78] = 1 (MT88), count [73:72] = 0 (x1; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b6x16_p32."
+    },
+    "2,MT88,U6x16P32TO8": {
+     "and_base": "0x0000000000007100000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 6 (U6x16P32TO8), shape [80:78] = 1 (MT88), count [73:72] = 1 (2; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b6x16_p32."
+    },
+    "4,MT88,U6x16P32TO8": {
+     "and_base": "0x0000000000007200000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 6 (U6x16P32TO8), shape [80:78] = 1 (MT88), count [73:72] = 2 (4; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b6x16_p32."
+    },
+    "M816,U6x16P32TO8": {
+     "and_base": "0x000000000000b000000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 6 (U6x16P32TO8), shape [80:78] = 2 (M816), count [73:72] = 0 (x1; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b6x16_p32."
+    },
+    "2,M816,U6x16P32TO8": {
+     "and_base": "0x000000000000b100000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 6 (U6x16P32TO8), shape [80:78] = 2 (M816), count [73:72] = 1 (2; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b6x16_p32."
+    },
+    "4,M816,U6x16P32TO8": {
+     "and_base": "0x000000000000b200000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 6 (U6x16P32TO8), shape [80:78] = 2 (M816), count [73:72] = 2 (4; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b6x16_p32."
+    },
+    "M832,U6x16P32TO8": {
+     "and_base": "0x000000000000f000000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 6 (U6x16P32TO8), shape [80:78] = 3 (M832), count [73:72] = 0 (x1; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b6x16_p32."
+    },
+    "2,M832,U6x16P32TO8": {
+     "and_base": "0x000000000000f100000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 6 (U6x16P32TO8), shape [80:78] = 3 (M832), count [73:72] = 1 (2; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b6x16_p32."
+    },
+    "4,M832,U6x16P32TO8": {
+     "and_base": "0x000000000000f200000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 6 (U6x16P32TO8), shape [80:78] = 3 (M832), count [73:72] = 2 (4; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b6x16_p32."
+    },
+    "MT1616,U6x16P32TO8": {
+     "and_base": "0x0000000000013000000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 6 (U6x16P32TO8), shape [80:78] = 4 (MT1616), count [73:72] = 0 (x1; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b6x16_p32."
+    },
+    "2,MT1616,U6x16P32TO8": {
+     "and_base": "0x0000000000013100000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 6 (U6x16P32TO8), shape [80:78] = 4 (MT1616), count [73:72] = 1 (2; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b6x16_p32."
+    },
+    "4,MT1616,U6x16P32TO8": {
+     "and_base": "0x0000000000013200000000000000083b",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "ldsm-fp4-fp6-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffff00fffff000",
+     "_src": "ldsm-fp4-fp6-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], base register[31:24] (255 = RZ), signed 24-bit offset[63:40]; datatype [77:75] = 6 (U6x16P32TO8), shape [80:78] = 4 (MT1616), count [73:72] = 2 (4; 3 = INVALID3). Shapes 5-7 (INVALIDn), datatype codes 1-4 (unnamed), bit 91 ([R+UR] address) and the text-inert bits 32-39, 64-71, 74, 81-90, 92-95 are outside the row (fail-closed). PTX ldmatrix .b8x16.b6x16_p32."
     }
    },
    "operand_sig": "R_ARI",
@@ -1625611,6 +1627202,126 @@
      ],
      "variable_mask": "0x0000000000000000000000ffff00f000",
      "count": 1
+    },
+    "1D": {
+     "and_base": "0x000000000800000000000000000003b5",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "utmastg-dims-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 1,
+       "_src": "utmastg-dims-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "utmastg-dims-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000000000ffff00f000",
+     "_src": "utmastg-dims-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: uniform guard[15:12], tensor-map UR[39:32] (255 = URZ), shared UR[31:24] (255 = URZ); dimension code [81:79] = 0 (1D; 0 = 1D .. 4 = 5D, 5-7 INVALIDn); bit 91 required. Bit 76 (desc[UR] operand), 82 (.IM2COL), 83 (.SCATTER4) and the text-inert bits 16-23, 40-63, 72-75, 77, 78, 84-90, 92-95 are outside the row (fail-closed). Same geometry as the harvest-era 3D group. PTX cp.async.bulk.tensor.1d.global.shared::cta."
+    },
+    "2D": {
+     "and_base": "0x000000000800800000000000000003b5",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "utmastg-dims-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 1,
+       "_src": "utmastg-dims-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "utmastg-dims-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000000000ffff00f000",
+     "_src": "utmastg-dims-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: uniform guard[15:12], tensor-map UR[39:32] (255 = URZ), shared UR[31:24] (255 = URZ); dimension code [81:79] = 1 (2D; 0 = 1D .. 4 = 5D, 5-7 INVALIDn); bit 91 required. Bit 76 (desc[UR] operand), 82 (.IM2COL), 83 (.SCATTER4) and the text-inert bits 16-23, 40-63, 72-75, 77, 78, 84-90, 92-95 are outside the row (fail-closed). Same geometry as the harvest-era 3D group. PTX cp.async.bulk.tensor.2d.global.shared::cta."
+    },
+    "4D": {
+     "and_base": "0x000000000801800000000000000003b5",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "utmastg-dims-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 1,
+       "_src": "utmastg-dims-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "utmastg-dims-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000000000ffff00f000",
+     "_src": "utmastg-dims-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: uniform guard[15:12], tensor-map UR[39:32] (255 = URZ), shared UR[31:24] (255 = URZ); dimension code [81:79] = 3 (4D; 0 = 1D .. 4 = 5D, 5-7 INVALIDn); bit 91 required. Bit 76 (desc[UR] operand), 82 (.IM2COL), 83 (.SCATTER4) and the text-inert bits 16-23, 40-63, 72-75, 77, 78, 84-90, 92-95 are outside the row (fail-closed). Same geometry as the harvest-era 3D group. PTX cp.async.bulk.tensor.4d.global.shared::cta."
+    },
+    "5D": {
+     "and_base": "0x000000000802000000000000000003b5",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "utmastg-dims-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 32,
+       "token_idx": 1,
+       "_src": "utmastg-dims-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "utmastg-dims-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0000000000000000000000ffff00f000",
+     "_src": "utmastg-dims-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: uniform guard[15:12], tensor-map UR[39:32] (255 = URZ), shared UR[31:24] (255 = URZ); dimension code [81:79] = 4 (5D; 0 = 1D .. 4 = 5D, 5-7 INVALIDn); bit 91 required. Bit 76 (desc[UR] operand), 82 (.IM2COL), 83 (.SCATTER4) and the text-inert bits 16-23, 40-63, 72-75, 77, 78, 84-90, 92-95 are outside the row (fail-closed). Same geometry as the harvest-era 3D group. PTX cp.async.bulk.tensor.5d.global.shared::cta."
     }
    }
   },
@@ -1628733,6 +1630444,1338 @@
     "throughput": 4,
     "write_latency": 0
    }
+  },
+  "ARRIVES_ARURI": {
+   "ctrl_class": "alu_simple",
+   "mercury": [],
+   "scheduling": {
+    "_all_entries": [
+     {
+      "name": "UBLKPF",
+      "opcode_id": 175,
+      "pipe_name": "INT_ARITH",
+      "read_latency": 2,
+      "write_latency": 1
+     },
+     {
+      "name": "UBLKPF (synthetic)",
+      "opcode_id": null,
+      "pipe_name": "INT_ARITH",
+      "read_latency": 2,
+      "write_latency": 1
+     }
+    ],
+    "confidence": "synthetic",
+    "def_latency": 2,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 37,
+    "pipe_name": "INT_ARITH",
+    "ptxas_raw": null,
+    "read_latency": 2,
+    "stall_base": 1,
+    "throughput": 2,
+    "write_latency": 1
+   },
+   "base_op": "ARRIVES",
+   "operand_sig": "ARURI",
+   "mod_groups": {
+    "64,ARVCNT,LDGSTSBAR": {
+     "and_base": "0x0000000008001a0000000000000009b0",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "arrives-ldgstsbar-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1,
+       "_src": "arrives-ldgstsbar-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "arrives-ldgstsbar-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 1,
+       "_src": "arrives-ldgstsbar-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x00000000000000ffffffff00ff00f000",
+     "_src": "arrives-ldgstsbar-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], base register[31:24] (255 = RZ, printed [UR+imm]), uniform register[71:64] (255 = URZ), signed 24-bit offset[63:40] (elided at 0); opcode 0x9b0 with bit 91 (required: the [R+UR+imm] frame), bit 72 = 0 (LDGSTSBAR; 1 prints ???1), [75:73] = 5 (.64; other codes print ???n), bit 76 = 1 (.ARVCNT; bit 77 with 76 = .INVALID3). Bits 16-23, 32-39, 78-90, 92-95 are text-inert - all outside the row (fail-closed). PTX cp.async.mbarrier.arrive.shared.b64."
+    },
+    "64,LDGSTSBAR": {
+     "and_base": "0x0000000008000a0000000000000009b0",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "arrives-ldgstsbar-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1,
+       "_src": "arrives-ldgstsbar-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 64,
+       "token_idx": 1,
+       "_src": "arrives-ldgstsbar-sm120-2026-11-02"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 1,
+       "_src": "arrives-ldgstsbar-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x00000000000000ffffffff00ff00f000",
+     "_src": "arrives-ldgstsbar-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], base register[31:24] (255 = RZ, printed [UR+imm]), uniform register[71:64] (255 = URZ), signed 24-bit offset[63:40] (elided at 0); opcode 0x9b0 with bit 91 (required: the [R+UR+imm] frame), bit 72 = 0 (LDGSTSBAR; 1 prints ???1), [75:73] = 5 (.64; other codes print ???n), bit 76 = 0 (no .ARVCNT; bit 77 with 76 = .INVALID3). Bits 16-23, 32-39, 78-90, 92-95 are text-inert - all outside the row (fail-closed). PTX cp.async.mbarrier.arrive.noinc.shared.b64."
+    }
+   },
+   "_src": "arrives-ldgstsbar-sm120-2026-11-02"
+  },
+  "PRMT_R_R_UR_R": {
+   "base_op": "PRMT",
+   "operand_sig": "R_R_UR_R",
+   "mod_groups": {
+    "": {
+     "and_base": "0x00000000080000000000000000000c16",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 32,
+       "token_idx": 3,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 4,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x00000000000000ff000000fffffff000",
+     "_src": "prmt-ur-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], Ra[31:24], selector UR[39:32] (255 = URZ), Rc[71:64] (255 = RZ); opcode 0xc16 with bit 91 (required), mode [74:72] = 0 (plain; 7 = INVALID7, unclaimed). Bits 40-63, 75-90, 92-95 are text-inert - outside the row (fail-closed). The uniform-selector twin of PRMT_R_R_R_R (0x216) / PRMT_R_R_II_R (0x816)."
+    },
+    "F4E": {
+     "and_base": "0x00000000080001000000000000000c16",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 32,
+       "token_idx": 3,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 4,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x00000000000000ff000000fffffff000",
+     "_src": "prmt-ur-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], Ra[31:24], selector UR[39:32] (255 = URZ), Rc[71:64] (255 = RZ); opcode 0xc16 with bit 91 (required), mode [74:72] = 1 (F4E; 7 = INVALID7, unclaimed). Bits 40-63, 75-90, 92-95 are text-inert - outside the row (fail-closed). The uniform-selector twin of PRMT_R_R_R_R (0x216) / PRMT_R_R_II_R (0x816)."
+    },
+    "B4E": {
+     "and_base": "0x00000000080002000000000000000c16",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 32,
+       "token_idx": 3,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 4,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x00000000000000ff000000fffffff000",
+     "_src": "prmt-ur-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], Ra[31:24], selector UR[39:32] (255 = URZ), Rc[71:64] (255 = RZ); opcode 0xc16 with bit 91 (required), mode [74:72] = 2 (B4E; 7 = INVALID7, unclaimed). Bits 40-63, 75-90, 92-95 are text-inert - outside the row (fail-closed). The uniform-selector twin of PRMT_R_R_R_R (0x216) / PRMT_R_R_II_R (0x816)."
+    },
+    "RC8": {
+     "and_base": "0x00000000080003000000000000000c16",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 32,
+       "token_idx": 3,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 4,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x00000000000000ff000000fffffff000",
+     "_src": "prmt-ur-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], Ra[31:24], selector UR[39:32] (255 = URZ), Rc[71:64] (255 = RZ); opcode 0xc16 with bit 91 (required), mode [74:72] = 3 (RC8; 7 = INVALID7, unclaimed). Bits 40-63, 75-90, 92-95 are text-inert - outside the row (fail-closed). The uniform-selector twin of PRMT_R_R_R_R (0x216) / PRMT_R_R_II_R (0x816)."
+    },
+    "ECL": {
+     "and_base": "0x00000000080004000000000000000c16",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 32,
+       "token_idx": 3,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 4,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x00000000000000ff000000fffffff000",
+     "_src": "prmt-ur-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], Ra[31:24], selector UR[39:32] (255 = URZ), Rc[71:64] (255 = RZ); opcode 0xc16 with bit 91 (required), mode [74:72] = 4 (ECL; 7 = INVALID7, unclaimed). Bits 40-63, 75-90, 92-95 are text-inert - outside the row (fail-closed). The uniform-selector twin of PRMT_R_R_R_R (0x216) / PRMT_R_R_II_R (0x816)."
+    },
+    "ECR": {
+     "and_base": "0x00000000080005000000000000000c16",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 32,
+       "token_idx": 3,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 4,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x00000000000000ff000000fffffff000",
+     "_src": "prmt-ur-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], Ra[31:24], selector UR[39:32] (255 = URZ), Rc[71:64] (255 = RZ); opcode 0xc16 with bit 91 (required), mode [74:72] = 5 (ECR; 7 = INVALID7, unclaimed). Bits 40-63, 75-90, 92-95 are text-inert - outside the row (fail-closed). The uniform-selector twin of PRMT_R_R_R_R (0x216) / PRMT_R_R_II_R (0x816)."
+    },
+    "RC16": {
+     "and_base": "0x00000000080006000000000000000c16",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 32,
+       "token_idx": 3,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 64,
+       "token_idx": 4,
+       "_src": "prmt-ur-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x00000000000000ff000000fffffff000",
+     "_src": "prmt-ur-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], Ra[31:24], selector UR[39:32] (255 = URZ), Rc[71:64] (255 = RZ); opcode 0xc16 with bit 91 (required), mode [74:72] = 6 (RC16; 7 = INVALID7, unclaimed). Bits 40-63, 75-90, 92-95 are text-inert - outside the row (fail-closed). The uniform-selector twin of PRMT_R_R_R_R (0x216) / PRMT_R_R_II_R (0x816)."
+    }
+   },
+   "_src": "prmt-ur-sm120-2026-11-02"
+  },
+  "HMUL2_R_R_FI_FI": {
+   "base_op": "HMUL2",
+   "ctrl_class": "alu_simple",
+   "mercury": [],
+   "scheduling": {
+    "_all_entries": [
+     {
+      "name": "HMUL2",
+      "opcode_id": 66,
+      "pipe_name": "MMA_EXEC",
+      "read_latency": 11,
+      "write_latency": 4
+     },
+     {
+      "name": "HMUL2 (synthetic)",
+      "opcode_id": null,
+      "pipe_name": "FP_ARITH",
+      "read_latency": 4,
+      "write_latency": 0
+     }
+    ],
+    "confidence": "hw_measured",
+    "def_latency": 4,
+    "hw_def_latency": 4,
+    "is_variable_latency": false,
+    "latency_source": "hw_measured",
+    "opcode_id": null,
+    "pipe_class": 36,
+    "pipe_name": "FP_ARITH",
+    "ptxas_raw": null,
+    "read_latency": 4,
+    "stall_base": 4,
+    "throughput": 2,
+    "write_latency": 0
+   },
+   "operand_sig": "R_R_FI_FI",
+   "mod_groups": {
+    "": {
+     "and_base": "0x00000000000000000000000000000832",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0400000000000f00fffffffffffff000",
+     "_src": "hmul2-imm-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], Ra[31:24] (255 = RZ) with -Ra (bit 72), |Ra| (bit 73) and the half selector [75:74] (2 = .H0_H0, 3 = .H1_H1; 1 = INVALID1, unclaimed), high immediate [63:48] (printed first) and low immediate [47:32] as f16; opcode 0x832, bit 85 = 0 (f16), modifiers none (76 FMZ, 77 SAT, 80 FTZ). Bit 78 (.INVALID3), bit 91 (illegal) and the text-inert bits 64-71, 79, 81-84, 86-90, 92-95 are outside the row (fail-closed). The packed-immediate twin of HMUL2_R_R_R (0x232) / HMUL2_R_R_UR (0xc32)."
+    },
+    "FMZ": {
+     "and_base": "0x00000000000010000000000000000832",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0400000000000f00fffffffffffff000",
+     "_src": "hmul2-imm-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], Ra[31:24] (255 = RZ) with -Ra (bit 72), |Ra| (bit 73) and the half selector [75:74] (2 = .H0_H0, 3 = .H1_H1; 1 = INVALID1, unclaimed), high immediate [63:48] (printed first) and low immediate [47:32] as f16; opcode 0x832, bit 85 = 0 (f16), modifiers FMZ (76 FMZ, 77 SAT, 80 FTZ). Bit 78 (.INVALID3), bit 91 (illegal) and the text-inert bits 64-71, 79, 81-84, 86-90, 92-95 are outside the row (fail-closed). The packed-immediate twin of HMUL2_R_R_R (0x232) / HMUL2_R_R_UR (0xc32)."
+    },
+    "SAT": {
+     "and_base": "0x00000000000020000000000000000832",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0400000000000f00fffffffffffff000",
+     "_src": "hmul2-imm-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], Ra[31:24] (255 = RZ) with -Ra (bit 72), |Ra| (bit 73) and the half selector [75:74] (2 = .H0_H0, 3 = .H1_H1; 1 = INVALID1, unclaimed), high immediate [63:48] (printed first) and low immediate [47:32] as f16; opcode 0x832, bit 85 = 0 (f16), modifiers SAT (76 FMZ, 77 SAT, 80 FTZ). Bit 78 (.INVALID3), bit 91 (illegal) and the text-inert bits 64-71, 79, 81-84, 86-90, 92-95 are outside the row (fail-closed). The packed-immediate twin of HMUL2_R_R_R (0x232) / HMUL2_R_R_UR (0xc32)."
+    },
+    "FMZ,SAT": {
+     "and_base": "0x00000000000030000000000000000832",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0400000000000f00fffffffffffff000",
+     "_src": "hmul2-imm-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], Ra[31:24] (255 = RZ) with -Ra (bit 72), |Ra| (bit 73) and the half selector [75:74] (2 = .H0_H0, 3 = .H1_H1; 1 = INVALID1, unclaimed), high immediate [63:48] (printed first) and low immediate [47:32] as f16; opcode 0x832, bit 85 = 0 (f16), modifiers FMZ,SAT (76 FMZ, 77 SAT, 80 FTZ). Bit 78 (.INVALID3), bit 91 (illegal) and the text-inert bits 64-71, 79, 81-84, 86-90, 92-95 are outside the row (fail-closed). The packed-immediate twin of HMUL2_R_R_R (0x232) / HMUL2_R_R_UR (0xc32)."
+    },
+    "FTZ": {
+     "and_base": "0x00000000000100000000000000000832",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0400000000000f00fffffffffffff000",
+     "_src": "hmul2-imm-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], Ra[31:24] (255 = RZ) with -Ra (bit 72), |Ra| (bit 73) and the half selector [75:74] (2 = .H0_H0, 3 = .H1_H1; 1 = INVALID1, unclaimed), high immediate [63:48] (printed first) and low immediate [47:32] as f16; opcode 0x832, bit 85 = 0 (f16), modifiers FTZ (76 FMZ, 77 SAT, 80 FTZ). Bit 78 (.INVALID3), bit 91 (illegal) and the text-inert bits 64-71, 79, 81-84, 86-90, 92-95 are outside the row (fail-closed). The packed-immediate twin of HMUL2_R_R_R (0x232) / HMUL2_R_R_UR (0xc32)."
+    },
+    "FTZ,SAT": {
+     "and_base": "0x00000000000120000000000000000832",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 48,
+       "token_idx": 3,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "f16",
+       "shift": 32,
+       "token_idx": 4,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0400000000000f00fffffffffffff000",
+     "_src": "hmul2-imm-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], Ra[31:24] (255 = RZ) with -Ra (bit 72), |Ra| (bit 73) and the half selector [75:74] (2 = .H0_H0, 3 = .H1_H1; 1 = INVALID1, unclaimed), high immediate [63:48] (printed first) and low immediate [47:32] as f16; opcode 0x832, bit 85 = 0 (f16), modifiers FTZ,SAT (76 FMZ, 77 SAT, 80 FTZ). Bit 78 (.INVALID3), bit 91 (illegal) and the text-inert bits 64-71, 79, 81-84, 86-90, 92-95 are outside the row (fail-closed). The packed-immediate twin of HMUL2_R_R_R (0x232) / HMUL2_R_R_UR (0xc32)."
+    },
+    "BF16_V2": {
+     "and_base": "0x00000000002000000000000000000832",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0400000000000f00fffffffffffff000",
+     "_src": "hmul2-imm-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], Ra[31:24] (255 = RZ) with -Ra (bit 72), |Ra| (bit 73) and the half selector [75:74] (2 = .H0_H0, 3 = .H1_H1; 1 = INVALID1, unclaimed), high immediate [63:48] (printed first) and low immediate [47:32] as bf16; opcode 0x832, bit 85 = 1 (.BF16_V2), modifiers none (76 FMZ, 77 SAT, 80 FTZ). Bit 78 (.INVALID3), bit 91 (illegal) and the text-inert bits 64-71, 79, 81-84, 86-90, 92-95 are outside the row (fail-closed). The packed-immediate twin of HMUL2_R_R_R (0x232) / HMUL2_R_R_UR (0xc32)."
+    },
+    "BF16_V2,FMZ": {
+     "and_base": "0x00000000002010000000000000000832",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0400000000000f00fffffffffffff000",
+     "_src": "hmul2-imm-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], Ra[31:24] (255 = RZ) with -Ra (bit 72), |Ra| (bit 73) and the half selector [75:74] (2 = .H0_H0, 3 = .H1_H1; 1 = INVALID1, unclaimed), high immediate [63:48] (printed first) and low immediate [47:32] as bf16; opcode 0x832, bit 85 = 1 (.BF16_V2), modifiers FMZ (76 FMZ, 77 SAT, 80 FTZ). Bit 78 (.INVALID3), bit 91 (illegal) and the text-inert bits 64-71, 79, 81-84, 86-90, 92-95 are outside the row (fail-closed). The packed-immediate twin of HMUL2_R_R_R (0x232) / HMUL2_R_R_UR (0xc32)."
+    },
+    "BF16_V2,SAT": {
+     "and_base": "0x00000000002020000000000000000832",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0400000000000f00fffffffffffff000",
+     "_src": "hmul2-imm-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], Ra[31:24] (255 = RZ) with -Ra (bit 72), |Ra| (bit 73) and the half selector [75:74] (2 = .H0_H0, 3 = .H1_H1; 1 = INVALID1, unclaimed), high immediate [63:48] (printed first) and low immediate [47:32] as bf16; opcode 0x832, bit 85 = 1 (.BF16_V2), modifiers SAT (76 FMZ, 77 SAT, 80 FTZ). Bit 78 (.INVALID3), bit 91 (illegal) and the text-inert bits 64-71, 79, 81-84, 86-90, 92-95 are outside the row (fail-closed). The packed-immediate twin of HMUL2_R_R_R (0x232) / HMUL2_R_R_UR (0xc32)."
+    },
+    "BF16_V2,FMZ,SAT": {
+     "and_base": "0x00000000002030000000000000000832",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0400000000000f00fffffffffffff000",
+     "_src": "hmul2-imm-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], Ra[31:24] (255 = RZ) with -Ra (bit 72), |Ra| (bit 73) and the half selector [75:74] (2 = .H0_H0, 3 = .H1_H1; 1 = INVALID1, unclaimed), high immediate [63:48] (printed first) and low immediate [47:32] as bf16; opcode 0x832, bit 85 = 1 (.BF16_V2), modifiers FMZ,SAT (76 FMZ, 77 SAT, 80 FTZ). Bit 78 (.INVALID3), bit 91 (illegal) and the text-inert bits 64-71, 79, 81-84, 86-90, 92-95 are outside the row (fail-closed). The packed-immediate twin of HMUL2_R_R_R (0x232) / HMUL2_R_R_UR (0xc32)."
+    },
+    "BF16_V2,FTZ": {
+     "and_base": "0x00000000002100000000000000000832",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0400000000000f00fffffffffffff000",
+     "_src": "hmul2-imm-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], Ra[31:24] (255 = RZ) with -Ra (bit 72), |Ra| (bit 73) and the half selector [75:74] (2 = .H0_H0, 3 = .H1_H1; 1 = INVALID1, unclaimed), high immediate [63:48] (printed first) and low immediate [47:32] as bf16; opcode 0x832, bit 85 = 1 (.BF16_V2), modifiers FTZ (76 FMZ, 77 SAT, 80 FTZ). Bit 78 (.INVALID3), bit 91 (illegal) and the text-inert bits 64-71, 79, 81-84, 86-90, 92-95 are outside the row (fail-closed). The packed-immediate twin of HMUL2_R_R_R (0x232) / HMUL2_R_R_UR (0xc32)."
+    },
+    "BF16_V2,FTZ,SAT": {
+     "and_base": "0x00000000002120000000000000000832",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 16,
+       "token_idx": 1,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 24,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "reuse",
+       "shift": 122,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "neg",
+       "shift": 72,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 1,
+       "extraction": "abs",
+       "shift": 73,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 2,
+       "extraction": "hsel",
+       "shift": 74,
+       "token_idx": 2,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 48,
+       "token_idx": 3,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      },
+      {
+       "bits": 16,
+       "extraction": "bf16",
+       "shift": 32,
+       "token_idx": 4,
+       "_src": "hmul2-imm-sm120-2026-11-02"
+      }
+     ],
+     "variable_mask": "0x0400000000000f00fffffffffffff000",
+     "_src": "hmul2-imm-sm120-2026-11-02",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], Rd[23:16], Ra[31:24] (255 = RZ) with -Ra (bit 72), |Ra| (bit 73) and the half selector [75:74] (2 = .H0_H0, 3 = .H1_H1; 1 = INVALID1, unclaimed), high immediate [63:48] (printed first) and low immediate [47:32] as bf16; opcode 0x832, bit 85 = 1 (.BF16_V2), modifiers FTZ,SAT (76 FMZ, 77 SAT, 80 FTZ). Bit 78 (.INVALID3), bit 91 (illegal) and the text-inert bits 64-71, 79, 81-84, 86-90, 92-95 are outside the row (fail-closed). The packed-immediate twin of HMUL2_R_R_R (0x232) / HMUL2_R_R_UR (0xc32)."
+    }
+   },
+   "_src": "hmul2-imm-sm120-2026-11-02"
   }
  },
  "operand_roles": {

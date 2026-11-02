@@ -1,5 +1,5 @@
 //! SM120 F2FP.BF16.E8.UNPACK_B (UE8M0 -> BF16x2, PTX cvt.rn.bf16x2.ue8m0x2) measured with nvdisasm 13.1
-//! (tools/re_sm120_f2fp_e8.py). Every probed word (guard, destination, source incl. RZ, .H1, .reuse)
+//! (tools/probes/re_sm120_f2fp_e8.py). Every probed word (guard, destination, source incl. RZ, .H1, .reuse)
 //! decodes to NVIDIA's text and that text reassembles all 128 bits. The form is the block-scale decode of
 //! FlashInfer 0.7.2's DeepSeek-V4.1 full-BF16 sparse-MLA prefill kernel (image r21 AOT cubin, 48 words).
 use cubit::{decoder::DecodeIndex, table::IsaTable};

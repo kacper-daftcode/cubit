@@ -1,5 +1,5 @@
 //! SM120 STSM.8.MT168 (8-bit transposed matrix store, PTX stmatrix.sync.aligned.m16n8.xN.trans.b8)
-//! measured with nvdisasm 13.1 (tools/re_sm120_stsm8_mt168.py). Every probed word (guard, base
+//! measured with nvdisasm 13.1 (tools/probes/re_sm120_stsm8_mt168.py). Every probed word (guard, base
 //! register incl. RZ, source register incl. RZ, signed offset, the plain / .2 / .4 counts) decodes
 //! to NVIDIA's text - in NVIDIA's modifier order - and that text reassembles all 128 bits. The
 //! lattice (INVALID3 count, the text-inert datatype bits 76/77, the other shapes, the bit-80 alias,

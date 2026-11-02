@@ -495,19 +495,24 @@ def validate_table(data: bytes, arch: str) -> dict[str, Any]:
         raise SyncError(f"canonical table is not valid UTF-8 JSON: {exc}") from exc
 
     extra_top_level = sorted(set(table) - ALLOWED_TOP_LEVEL)
-    # underscore-prefixed top-level keys are the reserved annotation zone
-    # (sm121a carries the 121a lane's `_errata_*` evidence notes by design)
-    soft_annotations = [k for k in extra_top_level if k.startswith("_")]
-    hard_junk = [k for k in extra_top_level if not k.startswith("_")]
-    if hard_junk:
-        raise SyncError(f"unexpected top-level records: {', '.join(hard_junk)}")
-    if soft_annotations:
-        print(f"note: {len(soft_annotations)} reserved top-level annotations "
-              f"(^-prefixed) tolerated ({extra_top_level[0]}, …)")
+    # 2026-11-02: the top level is exactly the documented records; the former
+    # loose `_errata_*` notes (sm121a) live under _meta.provenance.errata.
+    if extra_top_level:
+        raise SyncError(f"unexpected top-level records: {', '.join(extra_top_level)}")
 
     meta = table.get("_meta", {})
     if meta.get("architecture") != arch or meta.get("instruction_width") != 128:
         raise SyncError(f"canonical table is not an {arch} 128-bit ISA database")
+    # Provenance convention (blackwell-isa README "Data Model"): every `_src`
+    # tag carried by a row is described in _meta.provenance.sources; the loose
+    # per-wave `_meta.bugNNN` keys are gone (they live in provenance.history).
+    provenance = meta.get("provenance")
+    if not isinstance(provenance, dict) or not isinstance(provenance.get("sources"), dict) \
+            or not provenance.get("legend"):
+        raise SyncError("_meta.provenance (legend + sources) is missing")
+    loose = sorted(k for k in meta if re.fullmatch(r"bug\d+[a-z]*|fix_\w+|sigfix|pruned_junk|settle\w+", k))
+    if loose:
+        raise SyncError(f"loose fix-wave keys in _meta (belong in provenance.history): {', '.join(loose[:5])}")
 
     instructions = table.get("instructions")
     if not isinstance(instructions, dict) or not instructions:
@@ -519,6 +524,7 @@ def validate_table(data: bytes, arch: str) -> dict[str, Any]:
     legacy_ctrl_classes = {"none", "static_ctrl", "unknown"}
     variants = 0
     high_bit_entries: list[str] = []
+    src_tags: set[str] = set()
     for key, entry in instructions.items():
         if not isinstance(entry, dict):
             raise SyncError(f"{key} must be an object")
@@ -541,6 +547,8 @@ def validate_table(data: bytes, arch: str) -> dict[str, Any]:
             and_base = parse_u128(variant.get("and_base"), f"{context}.and_base")
             if and_base >> 105:
                 high_bit_entries.append(context)
+            if isinstance(variant.get("_src"), str):
+                src_tags.add(variant["_src"])
 
             variable_mask = variant.get("variable_mask")
             if variable_mask is not None:
@@ -570,6 +578,12 @@ def validate_table(data: bytes, arch: str) -> dict[str, Any]:
                     raise SyncError(
                         f"{field_context} uses unknown extraction {extraction!r}"
                     )
+
+    undocumented = sorted(src_tags - set(provenance["sources"]))
+    if undocumented:
+        raise SyncError(
+            f"{len(undocumented)} row `_src` tag(s) not described in _meta.provenance.sources: "
+            f"{', '.join(undocumented[:5])}")
 
     baseline = BAKED_CTRL_BASELINE[arch]
     if len(high_bit_entries) > baseline:

@@ -1,7 +1,7 @@
 //! SM120 vendor witnesses that exposed lossy DSv4.1 instruction rows.
 //!
 //! Oracle: NVIDIA nvdisasm 13.1.80, independently captured by
-//! tools/re_sm120_dsv41.py. No raw instructions or residue overlays enter
+//! tools/probes/re_sm120_dsv41.py. No raw instructions or residue overlays enter
 //! the assembler; every complete 128-bit word must come from editable SASS.
 
 use cubit::{decoder::DecodeIndex, roundtrip_audit::audit_kernel, table::IsaTable};

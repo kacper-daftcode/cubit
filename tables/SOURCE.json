@@ -1,13 +1,13 @@
 {
   "schema": 2,
   "repository": "https://github.com/kacper-daftcode/blackwell-isa",
-  "base_revision": "137cd34e40d42feb914716ea59250725875fa45b",
+  "base_revision": "77a3dfaacb757210f54923931a8129bc4a486494",
   "tables": {
     "sm120.json": {
       "arch": "SM120",
-      "base_sha256": "67ac72494213d3d1ebc225626728fff454872fe20bf1b41ec4dafc79d262e81d",
-      "instruction_forms": 16135,
-      "encoding_variants": 20850,
+      "base_sha256": "d9b7b26fa9833e99f1fd002f044d327b25f8a0bdfe636a5f6aaa51d28ff52fbc",
+      "instruction_forms": 16138,
+      "encoding_variants": 20905,
       "sched_only_entries": 597,
       "sections": [
         "operand_roles"
@@ -15,7 +15,7 @@
     },
     "sm103a.json": {
       "arch": "SM103a",
-      "base_sha256": "706389fcbdda6ee903538d21fb663e72ab062867f434fc0263d5304ea6b62cf5",
+      "base_sha256": "a179d23cbebb16e0c37758dd0f15a5b9aa8901a6521f0b2c2bfe9ef67e1cdc15",
       "instruction_forms": 14879,
       "encoding_variants": 16451,
       "sched_only_entries": 0,
@@ -27,7 +27,7 @@
     },
     "sm100a.json": {
       "arch": "SM100a",
-      "base_sha256": "063cd9e71ba4cbfdf15ce35a2748595fafd6c6a86f590a187338ae6a6ed0a3cb",
+      "base_sha256": "751314c52f794af4c889f04cefcb44e7701b6d84f9d82fe7f41bf479132b0c99",
       "instruction_forms": 14879,
       "encoding_variants": 16455,
       "sched_only_entries": 0,
@@ -37,46 +37,11 @@
     },
     "sm121a.json": {
       "arch": "SM121A",
-      "base_sha256": "0cecc8e1328ac0a7b93522ac3cddf15d798b472d5eacfd47ba4c0cce478de4fe",
+      "base_sha256": "c3fddd6559eabbcf8a792ea8e3e59ec19cd6ca0b46e1bb2f08aaaf38848769e3",
       "instruction_forms": 23833,
       "encoding_variants": 26391,
       "sched_only_entries": 597,
-      "sections": [
-        "_errata_2026_08_23_149",
-        "_errata_2026_08_23_150",
-        "_errata_2026_08_23_154",
-        "_errata_2026_08_23_155",
-        "_errata_2026_08_23_158",
-        "_errata_2026_08_23_161",
-        "_errata_2026_08_23_162",
-        "_errata_2026_08_23_170",
-        "_errata_2026_08_23_182",
-        "_errata_2026_08_23_183",
-        "_errata_2026_08_23_184",
-        "_errata_2026_08_23_185",
-        "_errata_2026_08_23_186",
-        "_errata_2026_08_23_187",
-        "_errata_2026_08_23_188",
-        "_errata_2026_08_23_189",
-        "_errata_2026_08_23_190",
-        "_errata_2026_08_23_197",
-        "_errata_2026_08_24_198",
-        "_errata_2026_08_24_201",
-        "_errata_2026_08_24_203",
-        "_errata_2026_08_24_206",
-        "_errata_2026_08_24_213",
-        "_errata_2026_08_24_214",
-        "_errata_2026_08_24_215",
-        "_errata_2026_08_24_216",
-        "_errata_2026_08_24_217",
-        "_errata_2026_08_24_218",
-        "_errata_2026_08_24_219",
-        "_errata_2026_08_24_220",
-        "_errata_2026_08_24_221",
-        "_errata_2026_08_24_222",
-        "_errata_2026_08_24_223",
-        "_pending_note"
-      ]
+      "sections": []
     }
   }
 }

@@ -136,6 +136,10 @@ fn six_new_groups_clone_measured_siblings_and_every_old_group_stays_exact() {
         let key = format!("LDSM_R_{frame}");
         let groups = raw["instructions"][&key]["mod_groups"].as_object().unwrap();
         let mut old = groups.clone();
+        // 2026-11-02: the FP4 / FP6 unpacking datatypes (U4x16P64TO8 / U6x16P32TO8) joined
+        // LDSM_R_ARI as 30 measured groups (tools/probes/re_sm120_ldsm_fp4.py, canonical
+        // 77a3dfa; pinned by tests/sm120_ldsm_fp4.rs) - they are not part of this snapshot.
+        old.retain(|_, g| g["_src"] != "ldsm-fp4-fp6-sm120-2026-11-02");
         for (new_name, donor_name) in [("8,MT1616", "16,MT1616"), ("2,8,MT1616", "16,2,MT1616")] {
             let new = old.remove(new_name).unwrap();
             let donor = &groups[donor_name];
@@ -187,9 +191,13 @@ fn x4_invalid3_and_unsupported_datatypes_remain_unclaimed() {
             "LDSM.U6x16P32TO8.MT1616",
         ] {
             let source = format!("{opcode} R12, {address}");
+            // 2026-11-02: the FP4 / FP6 datatypes are measured for the [R+imm] address
+            // (tests/sm120_ldsm_fp4.rs); the [R+UR] and [UR] frames stay unclaimed.
+            let measured_now = address == "[R4]" && opcode.starts_with("LDSM.U");
             if let Ok(parsed) = cubit::parse_sass(&source, 0) {
-                assert!(
-                    cubit::encoder::encode_instruction(&parsed, table).is_err(),
+                assert_eq!(
+                    cubit::encoder::encode_instruction(&parsed, table).is_ok(),
+                    measured_now,
                     "{source}"
                 );
             }

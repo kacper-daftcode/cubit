@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 /// (uniform-domain SYNCS, e.g. EXCH), S2UR, CS2UR). Guard bits [15:12] carry
 /// just (pred,neg); uniformness follows the family, both print paths agree.
 /// CS2UR: nvdisasm 13.1 renders all 16 guard codes as @UPn/@!UPn/@!UPT
-/// (tools/re_sm120_cs2ur.py sweep, tests/fixtures/sm120_cs2ur_nvdisasm.jsonl).
+/// (tools/probes/re_sm120_cs2ur.py sweep, tests/fixtures/sm120_cs2ur_nvdisasm.jsonl).
 pub(crate) fn guard_is_uniform_family(key: &str) -> bool {
     key.starts_with('U')
         || key.starts_with("LDCU")
@@ -1040,6 +1040,27 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     if m == "BF16_V2" && matches!(base, "HSETP" | "HSETP2") {
         return 0;
     }
+    // 2026-11-02 (tools/audit_dynamic.py, 3 584 HSETP2 probe words): nvdisasm 13.1
+    // prints `HSETP2.F.H_AND.FTZ.AND` - the comparison, then the half-combine
+    // H_AND/H_OR, then FTZ, then the boolean op; the generic buckets put FTZ first.
+    if matches!(base, "HSETP" | "HSETP2") {
+        match m {
+            "F" | "T" => return 1,
+            "H_AND" | "H_OR" => return 2,
+            "FTZ" => return 4,
+            _ => {}
+        }
+    }
+    // 2026-11-02 (audit_dynamic, 144 ISETP words): `ISETP.T.S64.AND` - the
+    // constant-true comparison precedes the width like the other comparisons.
+    if matches!(base, "ISETP" | "UISETP") && m == "T" {
+        return 1;
+    }
+    // 2026-11-02 (audit_dynamic, 247 F2FP words): `F2FP.RELU.BF16.F32.PACK_AB` -
+    // RELU is the first modifier of the pack conversions.
+    if base == "F2FP" && m == "RELU" {
+        return 0;
+    }
     // op18: UTCATOMSWS — nvdisasm order: 2CTA < op (FIND_AND_SET/AND) < ALIGN
     // (UTCATOMSWS.2CTA.FIND_AND_SET.ALIGN, UTCATOMSWS.FIND_AND_SET.ALIGN).
     if base == "UTCATOMSWS" {
@@ -1169,10 +1190,22 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
         // (nvdisasm 13.1: STSM.8.MT168.4 [R111+0x10800], R68 and
         // LDSM.8.MT1616.2 R12, [R0+UR5]); the generic size bucket (6)
         // printed it after the shape and the count (STSM.MT168.4.8).
+        // 2026-11-02: the FP4/FP6 unpacking datatypes share the slot
+        // (nvdisasm 13.1: LDSM.U4x16P64TO8.M816.2 R66, [R72+0xa000]).
         match m {
-            "16" | "8" => return 4,
+            "16" | "8" | "U4x16P64TO8" | "U6x16P32TO8" => return 4,
             "M88" | "MT88" | "M816" | "M832" | "MT168" | "MT1616" => return 5,
             "2" | "4" => return 6,
+            _ => {}
+        }
+    }
+    // ARRIVES.LDGSTSBAR.64.ARVCNT (nvdisasm 13.1 sweeps 2026-11-02): barrier
+    // kind, then the size, then the arrive-count flag.
+    if base == "ARRIVES" {
+        match m {
+            "LDGSTSBAR" => return 4,
+            "64" => return 5,
+            "ARVCNT" => return 6,
             _ => {}
         }
     }
@@ -1317,6 +1350,9 @@ fn format_guard_uni(fields: &[&DecodedField], uni: bool) -> String {
 
 // ── operand dispatch ──────────────────────────────────────────────────────────
 
+// One call site (to_sass_impl); the eight inputs are the decoded row's
+// context and bundling them into a struct would only move the same values.
+#[allow(clippy::too_many_arguments)]
 fn format_operand(
     op_type: &str,
     fields: &[&DecodedField],
@@ -1616,8 +1652,11 @@ fn format_operand(
         // the sm103a family keeps the BUG-143 plain bracket [R+UR+off] with
         // the base sentinel printed (130 vendor anchors; documented
         // render-parity delta vs nvdisasm's RZ elision).
+        // ARRIVES.LDGSTSBAR (2026-11-02, nvdisasm 13.1 sweeps) prints the same
+        // sm120 glyph: [URn(+off)] with the RZ base elided, [Rm+URn(+off)] otherwise.
         "AURI" | "ARURI"
-            if ins_key.starts_with("ATOMS") && ef_flags == crate::elf_builder::EF_CUDA_SM120 =>
+            if (ins_key.starts_with("ATOMS") || ins_key.starts_with("ARRIVES"))
+                && ef_flags == crate::elf_builder::EF_CUDA_SM120 =>
         {
             format_atoms_auri(fields, raw)
         }
@@ -3899,7 +3938,7 @@ fn format_const_addr(fields: &[&DecodedField], ins_key: &str) -> String {
 /// WARPID/SMID/GRIDID).  The 62 further names (SR_CLOCK, SR_PM*, SR_SNAP_PM*,
 /// SM_SHADER_TYPE, __HIR0X000, ...) and the bare `SR<decimal>` spelling of
 /// unnamed codes come from the nvdisasm-13.1 full 256-code sweep on CS2UR, S2R,
-/// CS2R and S2UR (tools/re_sm120_cs2ur.py; identical names on all four).
+/// CS2R and S2UR (tools/probes/re_sm120_cs2ur.py; identical names on all four).
 static SYSREG_NAMES: &[(u32, &str)] = &[
     (0x00, "SR_LANEID"),
     (0x01, "SR_CLOCK"),

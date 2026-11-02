@@ -1,15 +1,421 @@
 {
- "_errata_2026_08_23_149": "149 (port fleet BUG-089, F2Q): junk mg X usunieta z IADD3_R_P_P_R_R_R (sig tok5 'R' mapowany na imm@[63:32], and_base bit64=1 -> hijack slow IADD3.X imm z Rc-odd); IADD3_R_P_P_R_II_R/X: +tok7 neg@90, +tok8 inv@80 (per-slot negacja tail-pred), variable_mask 0x1ffffe00038fe8... -> 0x...78fe8... . Krzemowy dowod 121a: nvdisasm 13.0.85 na patch-cubinie sm_121a, 18/18 EXACT vs goldeny floty (work/q2/bug089_port_iter82). Klucze pre-fix byly BYTE-ident z fleet sm120-pre. Patrz results/errata/149_bug089_port_121a.md.",
- "_errata_2026_08_23_150": "150: UIADD3.X z imm-src2 (UR,UP,UP,UR,I,UR,UP,UP) - DOMKNIECIE dziury dekodera (bit74=1 aktywuje dwa tail-UP na formie II; sondy nvdisasm 13.0.88 patch-cubin sm_121a, work/q2/uiadd3audit_iter83). Dodano mg 'X' do UIADD3_UR_UP_UP_UR_II_UR_UP_UP: guard@12, dst@16, UPo@81/@84, Us1@24+inv72, imm32@32 signed, Us3@64+inv75, UPt7@87+neg90, UPt8@77+neg80. Powiazane fixy z bramki EXACT: (a) UIADD3_UR_UP_UP_UR_UR_UR_UP_UP mg X: tok7 pred 4b->3b+neg@90 (render !UPx zamiast UP13/UP15; printer gap od zawsze, ujawnione sonda A); (b) UIADD3_UR_UP_UP_UR_II_UR mg '': variable_mask += bity 77-80/87-90 (vendor IGNORUJE tail-bity na formie plain; bez tego slowa plain z tail-junk spadaly do mg X przez priority-3 ALU sign-tolerant (m2 maskuje bit74) => faszywy render .X; (c) usunieto zdegenerowany klucz UIADD3.X_UR_UP_UP_UR_UR_UR_UP_UP (harvest _instances=1, pola tok5/6 skolapsowane na src1; zero-winner na cenzusie 91304). Nota: lokalny sm120-only klucz UIADD3_UR_UP_UP_UR_II_UR_P = artefakt (sprzeczne pola); na 121a jego przestrzen to forma plain II -> brak hole. Patrz results/errata/150_*.md",
- "_errata_2026_08_23_154": "UISETP 5-token (non-EX) rebuild: 2x128 mg (op x cmp8 x sign4) w dwoch umbrella UISETP_UP_UP_UR_UR_UP / UISETP_UP_UP_UR_II_UP z kotwic nvdisasm-13.0; pruned 28 nazwanych kluczy harvest-junk; encoder fail-closed INVALID3 tez dla 5-token (GB10 trap zmierzony iter111: rc=3 CUDA_ERROR_ILLEGAL_INSTRUCTION x4); dekoder: p3 sign-tolerant fallback nie zdejmuje juz bit72 dla mg z mod EX (ERR-154).",
- "_errata_2026_08_23_155": "155 (port fleet BUG-097, branch fix/bug-097 03e6e59): generic-memory LD/ST family re-canon. Usunieto 20 harvest-junk kluczy (LD.E.128.STRONG.SYS_R_dARI, LD.E.128/64/S8/U16/U8_R_dARI*, LD.E_R_dARI(_R), ST.E.128.STRONG.SYS/128/64/U16/U8/E_dARI_R); 4 klucze canon value-replace (LD_R_ARI, LD_R_dARI, ST_ARI_R, ST_dARI_R) + 2 nowe (LD_R_ARURI, ST_ARURI_R) - wszystkie verbatim z fleet post-097 (sm103a geometry; pre-fix u nas BYTE-ident z fleet sm120-pre). Pre-fix decode renderowal desc-slot/base/dst przesuniete (vendor LD.E.128.STRONG.SYS R24, desc[UR16][R32.64] -> desc[UR0][R16.64]) i plain-u32-ur (LD.E R0, [RZ.U32+UR4]) jako desc-form. Printer: ARURI arm +LD_/ST_ (mod-order arm LD/ST byl od iter55). Krzem 121a: nvdisasm 13.0.88 -b SM121a, 120/120 gold (sm100 census anchors) EXACT; cubit decode 120/120, encode M96 120/120; census 91304 0-fail 95mm=baseline (12 slow ST.E.128.STRONG.SYS -> canon key ST_dARI_R, EXACT-neutralne); master 1015/2; cargo 96/96 (+3 pin tests/bug097_port_121a.rs). Backup tables/sm121a.json.bak-iter113-pre097port. Patrz results/errata/155_bug097_port_121a.md.",
- "_errata_2026_08_23_158": "ERR-158: DSETP FI RT hole \u2014 4 dotted synth keys (GEU/GT/GTU/NEU.AND, baked-mods, empty mg -> encode-unreachable) folded into generic DSETP_P_P_R_FI_P as mg rows (geometry verbatim, 121a-corpus-verified); broken unobserved mg rows AND,GE/MAX/MIN/NE (reg@32 / no-tok4) removed fail-closed. krzem/gates: ADDENDUM_iter114",
- "_errata_2026_08_23_161": "ERR-161: DSETP FI full cmp sweep \u2014 12 brakujacych mg (MIN/LT/EQ/LE/NE/GE/NUM/NAN/LTU/EQU/LEU/MAX) + geometria 4 starych (GT/GEU/GTU/NEU) ujednolicona do krzemowej (tok1@81,tok2@84,tok5@87+neg@90,reg neg_abs@72; wczesniej tok1@6/tok2,5@12=guard-mirror, |R8| z bitu1 \u2014 corpus-niewidoczne, sweep MISMATCH). Krzem sweep 16/16 nvdisasm -b SM121a; delta2: neg/abs tok3 b72/73, neg tok5 b90, guard-neg b15. Gates: ADDENDUM_iter116",
- "_errata_2026_08_23_162": "ERR-162: port fleet BUG-094 (5eb1453): LDS/LDL/STL re-canon (S8/U16 S16 mgs, addr_scale [79:78] na 64, junk keys -16, LDL.LU phantom UR0 fix, STL_AURI_R add), LDG 128,E,LTC128B junk mg out + encode_only retention row; krzem 121a: 202/202 GOLD nvdisasm EXACT, addr_scale sweep + b4fill2 4/4; printer ATOM size-order juz byl (err129)",
- "_errata_2026_08_23_170": "170: LDG/STG dARI II sweep (probe_ii127, 65 truth nvcc13 sm_121a): prune 40 kluczy harvest-junk (20x _II halving reg@25/ureg@33/imm slivers @43-48, 13x dotted LDG bez pola imm, 7x STG _R_R/EF.128/STRONG.* reg@25/ureg@65); rebuild 4 dotted (S8.CONSTANT +sub_imm2@40(24b) - imm byl cicho gubiony; S8.STRONG.SM/U16.STRONG.SM halving URZ; LTC128B.64 canon z .128-shape); add 3 dotted LTC128B[.64/.128].CONSTANT (dyskryminator LTC128B=bit69 w bajcie@64; bez nich LTC128B.CONSTANT hijackowany przez mg LTC256B); add 5 umbrella LDG_R_dARI rows (E,GPU,S8,STRONG f3 / E,GPU,STRONG,U8 f1 / E,S8,STRONG,SYS 53 / E,STRONG,SYS,U8 51 / E,SM,STRONG,U8 b1 - dziury DECODE_FAIL). byte72: b32=f9/59/b9 scope, U8=-8, S8=-6, U16=-4 od bazy scope. st.global.L2::128B = nielegalne w PTX (load-only). Gates: ADDENDUM_iter127.",
  "_meta": {
   "architecture": "SM121A",
   "codename": "Blackwell",
+  "gpu": "NVIDIA GB10 (DGX Spark)",
+  "instruction_width": 128,
+  "provenance": {
+   "legend": "Rows (instructions.<key>.mod_groups.<group>) may carry `_src`: a tag naming the measurement that produced or last repaired the row; `sources` below lists every tag in this table with its kind, date and, where it exists, the cubit tool and test that hold the evidence. `_note` on a row is the measurement in prose (bit positions, nvdisasm behaviour, what stays outside the row). Rows without `_src` are the 2026-06..08 harvest: fields learned from compiler output and validated by the round-trip census, not by per-field probes; their audit state is tracked in cubit's docs/KNOWN_ISSUES.md (tools/audit_table.py, tools/audit_dynamic.py). `history` keeps the fix-wave notes that used to be loose `_meta.bugNNN` keys, verbatim; `errata` keeps the former top-level `_errata_*` notes (sm121a).",
+   "rows_total": 26391,
+   "rows_without_src": 25783,
+   "sources": {
+    "ERR-194 port fleet b4fill4 (f2i38-ldef); silicon-verify nvdisasm SM121a 25/25 iter143": {
+     "rows": 25,
+     "kind": "fix wave (undated tag)"
+    },
+    "bug247-2026-08-28": {
+     "rows": 5,
+     "kind": "encoder fix wave (cubit BUG-247)",
+     "date": "2026-08-28",
+     "test": "tests/bug247_fmnmx.rs"
+    },
+    "bug249-2026-08-28": {
+     "rows": 4,
+     "kind": "encoder fix wave (cubit BUG-249)",
+     "date": "2026-08-28",
+     "test": "tests/bug249_fsel.rs"
+    },
+    "bug274-2026-08-29": {
+     "rows": 45,
+     "kind": "encoder fix wave (cubit BUG-274)",
+     "date": "2026-08-29",
+     "test": "tests/bug274_opsuffix.rs"
+    },
+    "bug279-2026-08-29": {
+     "rows": 48,
+     "kind": "encoder fix wave (cubit BUG-279)",
+     "date": "2026-08-29",
+     "test": "tests/bug279_ftzsigns.rs"
+    },
+    "bug281-2026-08-30": {
+     "rows": 1,
+     "kind": "encoder fix wave (cubit BUG-281)",
+     "date": "2026-08-30",
+     "test": "tests/bug281_i2isat.rs"
+    },
+    "bug282-2026-08-29": {
+     "rows": 2,
+     "kind": "encoder fix wave (cubit BUG-282)",
+     "date": "2026-08-29",
+     "test": "tests/bug282_i2ipsat.rs"
+    },
+    "bug285-2026-08-30": {
+     "rows": 48,
+     "kind": "encoder fix wave (cubit BUG-285)",
+     "date": "2026-08-30",
+     "test": "tests/bug285_bf16v2_mods.rs"
+    },
+    "bug294-2026-08-30": {
+     "rows": 3,
+     "kind": "encoder fix wave (cubit BUG-294)",
+     "date": "2026-08-30",
+     "test": "tests/bug294_i2i_variants.rs"
+    },
+    "bug316-2026-09-01": {
+     "rows": 5,
+     "kind": "encoder fix wave (cubit BUG-316)",
+     "date": "2026-09-01",
+     "test": "tests/bug316_movm_namespace.rs"
+    },
+    "bug320-2026-09-01": {
+     "rows": 4,
+     "kind": "encoder fix wave (cubit BUG-320)",
+     "date": "2026-09-01",
+     "test": "tests/bug320_hfma2_purereg_residuum.rs"
+    },
+    "bug324-2026-09-01": {
+     "rows": 103,
+     "kind": "encoder fix wave (cubit BUG-324)",
+     "date": "2026-09-01",
+     "test": "tests/bug324_rform_suffix_window.rs"
+    },
+    "bug339-2026-09-02": {
+     "rows": 3,
+     "kind": "encoder fix wave (cubit BUG-339)",
+     "date": "2026-09-02",
+     "test": "tests/bug339_f2i_era_closure.rs"
+    },
+    "bug343-2026-09-02": {
+     "rows": 42,
+     "kind": "encoder fix wave (cubit BUG-343)",
+     "date": "2026-09-02",
+     "test": "tests/bug343_hfma2_negwin_modclosure.rs"
+    },
+    "bug348-2026-09-03": {
+     "rows": 12,
+     "kind": "encoder fix wave (cubit BUG-348)",
+     "date": "2026-09-03",
+     "test": "tests/bug348_hmul2_deadrow.rs"
+    },
+    "bug358-2026-09-02": {
+     "rows": 1,
+     "kind": "encoder fix wave (cubit BUG-358)",
+     "date": "2026-09-02",
+     "test": "tests/bug358_shfl_iiera.rs"
+    },
+    "bug368-369-2026-09-04": {
+     "rows": 2,
+     "kind": "encoder fix wave (cubit BUG-368)",
+     "test": "tests/bug368_shfl_rform.rs"
+    },
+    "bug373_375-2026-09-04": {
+     "rows": 11,
+     "kind": "encoder fix wave (cubit BUG-373)",
+     "test": "tests/bug373_ldgsts_guard_pv.rs"
+    },
+    "bug376-2026-09-04": {
+     "rows": 26,
+     "kind": "encoder fix wave (cubit BUG-376)",
+     "date": "2026-09-04",
+     "test": "tests/bug376_ldgsts_ltc_lattice.rs"
+    },
+    "bug380-2026-09-05": {
+     "rows": 22,
+     "kind": "encoder fix wave (cubit BUG-380)",
+     "date": "2026-09-05"
+    },
+    "bug386-2026-09-05": {
+     "rows": 12,
+     "kind": "encoder fix wave (cubit BUG-386)",
+     "date": "2026-09-05",
+     "test": "tests/bug386_ldgsts_basegaps.rs"
+    },
+    "bug390-2026-09-06": {
+     "rows": 32,
+     "kind": "encoder fix wave (cubit BUG-390)",
+     "date": "2026-09-06",
+     "test": "tests/bug390_f2i_narrow_lattice.rs"
+    },
+    "bug400-2026-09-07": {
+     "rows": 14,
+     "kind": "encoder fix wave (cubit BUG-400)",
+     "date": "2026-09-07",
+     "test": "tests/bug400_pred_ltc_windows.rs"
+    },
+    "bug403-2026-09-06": {
+     "rows": 4,
+     "kind": "encoder fix wave (cubit BUG-403)",
+     "date": "2026-09-06",
+     "test": "tests/bug403_f2i_wide_trunc_ntz.rs"
+    },
+    "bug412413-2026-09-08": {
+     "rows": 3,
+     "kind": "encoder fix wave (cubit BUG-412413)",
+     "date": "2026-09-08",
+     "test": "tests/bug412413_urz_window_stsneg.rs"
+    },
+    "bug413ii-2026-09-08": {
+     "rows": 7,
+     "kind": "encoder fix wave (cubit BUG-413ii)",
+     "date": "2026-09-08",
+     "test": "tests/bug413ii_ldsm_s8_auri.rs"
+    },
+    "bug416-2026-09-10": {
+     "rows": 12,
+     "kind": "encoder fix wave (cubit BUG-416)",
+     "date": "2026-09-10",
+     "test": "tests/bug416_ltc_lanecross.rs"
+    },
+    "bug421422-2026-09-09": {
+     "rows": 15,
+     "kind": "encoder fix wave (cubit BUG-421422)",
+     "date": "2026-09-09",
+     "test": "tests/bug421422_ldsm_enum_s16.rs"
+    },
+    "bug424-2026-09-09": {
+     "rows": 1,
+     "kind": "encoder fix wave (cubit BUG-424)",
+     "date": "2026-09-09",
+     "test": "tests/bug424_ldsm_aruri_sparse.rs"
+    },
+    "bug425-2026-09-09": {
+     "rows": 4,
+     "kind": "encoder fix wave (cubit BUG-425)",
+     "date": "2026-09-09",
+     "test": "tests/bug425_sts_addrscale.rs"
+    },
+    "bug425b-2026-09-10": {
+     "rows": 1,
+     "kind": "encoder fix wave (cubit BUG-425b)",
+     "date": "2026-09-10",
+     "test": "tests/bug425_sts_addrscale.rs"
+    },
+    "bug426-2026-09-09": {
+     "rows": 4,
+     "kind": "encoder fix wave (cubit BUG-426)",
+     "date": "2026-09-09",
+     "test": "tests/bug426_m832_counts.rs"
+    },
+    "bug427-2026-09-09": {
+     "rows": 2,
+     "kind": "encoder fix wave (cubit BUG-427)",
+     "date": "2026-09-09",
+     "test": "tests/bug427_s16_frames.rs"
+    },
+    "bug429-2026-09-09": {
+     "rows": 11,
+     "kind": "encoder fix wave (cubit BUG-429)",
+     "date": "2026-09-09",
+     "test": "tests/bug429_ldsm_ari_closure.rs"
+    },
+    "bug433-2026-09-10": {
+     "rows": 1,
+     "kind": "encoder fix wave (cubit BUG-433)",
+     "date": "2026-09-10",
+     "test": "tests/bug433_stsm_m88.rs"
+    },
+    "bug435-2026-09-10": {
+     "rows": 13,
+     "kind": "encoder fix wave (cubit BUG-435)",
+     "date": "2026-09-10",
+     "test": "tests/bug435_x3_ltc_lattice.rs"
+    },
+    "bug435b-2026-09-10": {
+     "rows": 4,
+     "kind": "encoder fix wave (cubit BUG-435b)",
+     "date": "2026-09-10",
+     "test": "tests/bug435_x3_ltc_lattice.rs"
+    },
+    "bug438-2026-09-11": {
+     "rows": 6,
+     "kind": "encoder fix wave (cubit BUG-438)",
+     "date": "2026-09-11",
+     "test": "tests/bug438_stsm_mt_urelax.rs"
+    },
+    "bug441-2026-09-11": {
+     "rows": 3,
+     "kind": "encoder fix wave (cubit BUG-441)",
+     "date": "2026-09-11",
+     "test": "tests/bug441_ldsm_bandrest_count.rs"
+    },
+    "err197-2026-08-23-spark-iter146": {
+     "rows": 3,
+     "kind": "fix wave (undated tag)"
+    },
+    "err199-2026-08-24-spark-iter150": {
+     "rows": 14,
+     "kind": "fix wave (undated tag)"
+    },
+    "err200-2026-08-24-spark-iter151": {
+     "rows": 1,
+     "kind": "fix wave (undated tag)"
+    },
+    "exec-verify patch ku_geu cmp[79:76]=0 + iter172: krzem truth-fit 0/512 (edge battery incl NaN/inf/denorm), sweep legalnosci nvdisasm 16/16": {
+     "rows": 1,
+     "kind": "fix wave (undated tag)"
+    },
+    "exec-verify patch ku_geu cmp[79:76]=1 + iter172: krzem truth-fit 0/512 (edge battery incl NaN/inf/denorm), sweep legalnosci nvdisasm 16/16": {
+     "rows": 1,
+     "kind": "fix wave (undated tag)"
+    },
+    "exec-verify patch ku_geu cmp[79:76]=2 + iter172: krzem truth-fit 0/512 (edge battery incl NaN/inf/denorm), sweep legalnosci nvdisasm 16/16": {
+     "rows": 1,
+     "kind": "fix wave (undated tag)"
+    },
+    "exec-verify patch ku_geu cmp[79:76]=3 + iter172: krzem truth-fit 0/512 (edge battery incl NaN/inf/denorm), sweep legalnosci nvdisasm 16/16": {
+     "rows": 1,
+     "kind": "fix wave (undated tag)"
+    },
+    "exec-verify patch ku_geu cmp[79:76]=7 + iter172: krzem truth-fit 0/512 (edge battery incl NaN/inf/denorm), sweep legalnosci nvdisasm 16/16": {
+     "rows": 1,
+     "kind": "fix wave (undated tag)"
+    },
+    "exec-verify patch ku_geu cmp[79:76]=9 + iter172: krzem truth-fit 0/512 (edge battery incl NaN/inf/denorm), sweep legalnosci nvdisasm 16/16": {
+     "rows": 1,
+     "kind": "fix wave (undated tag)"
+    },
+    "exec-verify patch ku_geu cmp[79:76]=a + iter172: krzem truth-fit 0/512 (edge battery incl NaN/inf/denorm), sweep legalnosci nvdisasm 16/16": {
+     "rows": 1,
+     "kind": "fix wave (undated tag)"
+    },
+    "exec-verify patch ku_geu cmp[79:76]=b + iter172: krzem truth-fit 0/512 (edge battery incl NaN/inf/denorm), sweep legalnosci nvdisasm 16/16": {
+     "rows": 1,
+     "kind": "fix wave (undated tag)"
+    },
+    "exec-verify patch ku_geu cmp[79:76]=f + iter172: krzem truth-fit 0/512 (edge battery incl NaN/inf/denorm), sweep legalnosci nvdisasm 16/16": {
+     "rows": 1,
+     "kind": "fix wave (undated tag)"
+    },
+    "iter144-2026-08-23": {
+     "rows": 2,
+     "kind": "SM121a port/refit iteration (fleet GB10 vendor words)"
+    },
+    "iter167: port+refit of fleet b9/p18#16 (sm103a) on GB10 sm_121a vendor words (probe_setpf16 eqv, nvcc13.0 O0/O3, n=11); EXACT-gated sched-masked": {
+     "rows": 1,
+     "kind": "SM121a port/refit iteration (fleet GB10 vendor words)"
+    },
+    "iter167: port+refit of fleet b9/p18#16 (sm103a) on GB10 sm_121a vendor words (probe_setpf16 eqv, nvcc13.0 O0/O3, n=13); EXACT-gated sched-masked": {
+     "rows": 4,
+     "kind": "SM121a port/refit iteration (fleet GB10 vendor words)"
+    },
+    "iter167: port+refit of fleet b9/p18#16 (sm103a) on GB10 sm_121a vendor words (probe_setpf16 eqv, nvcc13.0 O0/O3, n=14); EXACT-gated sched-masked": {
+     "rows": 2,
+     "kind": "SM121a port/refit iteration (fleet GB10 vendor words)"
+    },
+    "iter167: port+refit of fleet b9/p18#16 (sm103a) on GB10 sm_121a vendor words (probe_setpf16 eqv, nvcc13.0 O0/O3, n=17); EXACT-gated sched-masked": {
+     "rows": 2,
+     "kind": "SM121a port/refit iteration (fleet GB10 vendor words)"
+    },
+    "iter167: port+refit of fleet b9/p18#16 (sm103a) on GB10 sm_121a vendor words (probe_setpf16 eqv, nvcc13.0 O0/O3, n=18); EXACT-gated sched-masked": {
+     "rows": 2,
+     "kind": "SM121a port/refit iteration (fleet GB10 vendor words)"
+    },
+    "vendor-word harvest harv_ur_O3.cubin:ku_ge + iter172: krzem truth-fit 0/512 (edge battery incl NaN/inf/denorm), sweep legalnosci nvdisasm 16/16": {
+     "rows": 1,
+     "kind": "fix wave (undated tag)"
+    },
+    "vendor-word harvest harv_ur_O3.cubin:ku_geu + iter172: krzem truth-fit 0/512 (edge battery incl NaN/inf/denorm), sweep legalnosci nvdisasm 16/16": {
+     "rows": 1,
+     "kind": "fix wave (undated tag)"
+    },
+    "vendor-word harvest harv_ur_O3.cubin:ku_gt + iter172: krzem truth-fit 0/512 (edge battery incl NaN/inf/denorm), sweep legalnosci nvdisasm 16/16": {
+     "rows": 1,
+     "kind": "fix wave (undated tag)"
+    },
+    "vendor-word harvest harv_ur_O3.cubin:ku_gtu + iter172: krzem truth-fit 0/512 (edge battery incl NaN/inf/denorm), sweep legalnosci nvdisasm 16/16": {
+     "rows": 1,
+     "kind": "fix wave (undated tag)"
+    },
+    "vendor-word harvest harv_ur_O3.cubin:ku_nan + iter172: krzem truth-fit 0/512 (edge battery incl NaN/inf/denorm), sweep legalnosci nvdisasm 16/16": {
+     "rows": 1,
+     "kind": "fix wave (undated tag)"
+    },
+    "vendor-word harvest harv_ur_O3.cubin:ku_ne + iter172: krzem truth-fit 0/512 (edge battery incl NaN/inf/denorm), sweep legalnosci nvdisasm 16/16": {
+     "rows": 1,
+     "kind": "fix wave (undated tag)"
+    },
+    "vendor-word harvest harv_ur_O3.cubin:ku_neu + iter172: krzem truth-fit 0/512 (edge battery incl NaN/inf/denorm), sweep legalnosci nvdisasm 16/16": {
+     "rows": 1,
+     "kind": "fix wave (undated tag)"
+    }
+   },
+   "history": {
+    "bug253": "2026-08-28 BUG-253: DFMA_R_R_R_R[''] tok2 sign window split (era 2-bit neg@72 conflated abs-only window into spurious neg; 170 uniq corpus words cured; arb253 raw SM121a==SM103a: b72=neg b73=abs). and_base/vmask unchanged; patch253.py replayable+idempotent. RM/RP + DFMA_R_R_R_FI RM/RP 2b@72 instances + global 2-bit neg census (53 sm120 + 70 sm121a post) = 258-kand.",
+    "bug254": "2026-08-28 BUG-254: sm121a DSETP wholesale donor-structure replacement (32 era keys deleted: 30 typed DSETP.<CMP>.<BOOL>_* shells + II_P/L_P junk shells [zero-routing proven by ablation 33,213M/2,434H IDENT]; mod_groups of DSETP_P_P_R_R_P/_R_UR_P/_R_FI_P = byte-copy of sm103a donor rows; top-level sm121a-native; _restored_from_sm120 dropped on R_R_P). Evidence: dec254 law251 census 38,317 uniq (pre: 2,434 HOLE + 2,670 DIFF on sm121a leg only); arb254 raw SM121a==SM103a on all text probes (reg 8b@24/@32, preds 3b@81/84/87 + neg@90, bool b74=OR/b75=XOR, cmp 4b@[79:76] 16-map, ureg 8b@32, b91 mandatory UR). reuse-b122 121a print suppression = 256-sib [owner]; donor-side field gaps (neg@72/abs@73/abs@62 on AND,EQ; UR neg@63/abs@62) corpus-zero = 259-kand. patch254.py replayable+idempotent.",
+    "bug258": "2026-08-29 BUG-258: era 2-bit 'neg' sign-window split on the 4 corpus-exposed rows (routex258/law251: 1,359 routed words, values {0,1} only - injured {2,3} class empty). arb258 raw -b: DFMA tok2 b72=neg/b73=abs (RM==RP, models SM120==SM121a==SM103a); UFADD tok2 b72=neg/b73=abs, tok3 SWAPPED b74=abs/b75=neg (SM120==SM121a; SM103a has no UFADD). and_base/vmask unchanged. patch258.py replayable+idempotent. Corpus-zero census residuum (51 sm120 fields incl. I2I/DMMA; 66 sm121a incl. DFMA FI RM/RP + FFMA/DMMA/HADD2...) fail-closed = 261-kand.",
+    "bug261": "2026-08-29 BUG-261: post-258 2-bit 'neg' residuum closure (census261 51 sm120 + 66 sm121a fields; donors 0). arb261 laws (raw -b, and_base hosts + corpus witnesses, 40+ probe sets x4 models): A sign neg-lines (neg@s, abs@s+1) on DFMA FI RM/RP / DMMA tok2 / FADD x4 / FFMA tok2 x8 mgs / FMNMX_FI_P / FSET.BF.GT.AND / UFFMA tok2 / UFSETP tok3; B swapped (abs@s, neg@s+1) on DMMA tok4 / FFMA_P_* tok4,tok3 / UFFMA tok4; C hsel retype ('neg'->'hsel', same bits) on HADD2 x3 / HFMA2 x2 / HMNMX2 / HMUL2 / HSETP2 [arb: v2 .H0_H0, v3 .H1_H1; per-bit binding proven on BF16_V2 witnesses]. and_base/vmask unchanged. SKIP+registry (vendor-INVALID / head-mismatch rows): I2I.S16/U16 x2, I2IP.U8 x4, FMNMX II_? = 265-kand b3-line. Exposure routex261 full 2,406 battery: injured = sm121a FFMA '' tok2 2,384 w (value-2 ghost '-|'), HADD2 FI 7/7 w, HADD2_'?' 104 w, HFMA2 BF16 35 w; all other rows {0,1}-only or zero routing. patch261.py replayable+idempotent.",
+    "bug316": "2026-09-01 MOVM name-space sibling closure (BUG-316): 5 vendor-legal sibling lanes armed on the 0x23a lattice (x2 legs sm120+sm121a): U4TO8.MT88, 16.M832, U4TO8.M832 (era phantom rewritten -- it never matched), 16.M864, U4TO8.M864; strict clones of the BUG-283 MT88 geometry with ns pins at [79:75]. NOT armed by doctrine (bug210/215 precedent): vendor INVALID5/6/7 + INVALID3 lanes and rc0-empty combos stay HOLE fail-closed (pins bug316). Law: arb283 G-sweep + arb316 380 probes, nvdisasm 13.3.73 raw -b, x4 models agree on every probe. patch316.py replayable+idempotent.",
+    "bug320": "2026-09-01 HFMA2 pure-reg 0x231 residuum closure (BUG-320/321): abs@83 tok4 fielded on mg '',BF16_V2 (+clones) -- closes decode hole x2 legs AND the era b74 ghost-mint for authored '|Rc|'; mod lanes F32/FMZ/F32,FMZ (off '') + BF16_V2,FMZ armed as clone-bakes; [55:40] text-inert band decode-relaxed (316 doctrine; enables the lone corpus word t10.cubin@0x410 = w321). NOT armed: BF16xF32 (INVALID3, 285 doctrine), SAT/FTZ/OOB/RELU pure-reg (344-kand), tok3 neg63/abs62 (343-kand), R_R_UR_R tok4 ghost (345-kand), R_R_R_R_R window (346-kand). Law: arb320 a/b/c 312 probes nvdisasm 13.3.73 raw -b x4 models agree on every probe; arb287 H-set. patch320.py replayable+idempotent.",
+    "bug324": "2026-09-01 BUG-324 suffix-window-carrier closure on pure-reg/clustered R-forms (HFMA2_R_R_R_UR 0xe31, HFMA2_R_R_UR_R 0xc31: full donor II_II window = 23 direct lanes + 12 RELU mg + 12 RELU _P dotted keys pred@87/inv@90; HMUL2_R_R_R 0x232, HMUL2_R_R_UR 0xc32: legal lanes FMZ/SAT/FTZ + BF16 crosses, b79 text-inert vm-relaxed; NO OOB alias / b78 INVALID1 = HOLE, no RELU). Kills (unarmed, stay HOLE): SATxRELU (rc=1 x4), F32xBF16 INVALID3 (285 doctrine), HMUL2 b80+b76 INVALID3, HMUL2 b78 INVALID1. Law: arb324 404 probes nvdisasm 13.3.73 raw -b x4 models agree on every probe. patch324.py replayable+idempotent.",
+    "bug327": "2026-09-01 HFMA2 pure-reg 0x231 abs-window closure (BUG-327): abs@73 tok2 + abs@62 tok3 fielded on all 6 mandatory mgs of HFMA2_R_R_R_R, legs sm120+sm121a (behavioral parity pre-existed via generic sign rescue -- this is pure field-closure + has_field_abs defer parity, 320 mechanism; corpus exposure 0 per census327). NOT armed: neg@63 tok3 + neg@72 \"\"-row (343-kand residuum), SAT/FTZ/OOB/RELU (344-kand), R_R_UR_R tok4 ghost (345-kand), R_R_R_R_R (346-kand). Law: arb327 72 probes nvdisasm 13.3.73 raw -b x4 models agree on every probe; arb293 J-set. patch327.py replayable+idempotent.",
+    "bug330": "2026-09-01 II_FI tok4 f16@48 field-closure (BUG-330), legs sm120+sm121a: key HFMA2_R_R_R_II_FI x36 mgs + 12 RELU _P era keys, extraction mirrored from II_II siblings (f16_d / bf16 on BF16_V2 rows). Behavioral parity pre-existed (FI_FI shadow owns g7 imm words; census corpus-zero II-lattice) -- zarodek b87..b90+imm48: HOLE->armed (measure_pre329b). Law: arb329 71 probes nvdisasm 13.3.73 raw -b x4 agree. patch330.py replayable+idempotent.",
+    "bug343": "2026-09-02 BUG-343/344: HFMA2 pure-reg krata 0x231 neg-window closure (neg@63 tok3 all 6 mgs + neg@72 tok2 on 4 non-BF16 mgs; parity pre-existed via generic sign rescue per measure_pre343 => pure field-closure + has_field_neg defer parity) + mod-window closure (12 DIRECT + 6 BF16 lanes, 12 base-key RELU mg with pv7 elision bake, 12 RELU _P dotted keys pred@87/inv@90 tok5; mirror of the 324 sibling window, law by arb320b K/L + arb343 = 48 probes x4 agree on EVERY probe; kills stay HOLE: SATxRELU rc=1, F32xBF16 INVALID3-285, b91). Corpus exposure census343: SAT/FTZ/RELU/neg63 = 0/53,653; neg72 = one known instrument word t10.cubin@0x410 (decode parity pre-exists). Legs sm120+sm121a; donors sm100a/sm103a byte-invariant (BUG-315 owner scope). patch343.py replayable+idempotent.",
+    "bug348": "2026-09-03 BUG-348: sm121a HMUL2_R_R_R (0x232) era dead-row rebuild: 12-mg clone of the post-324 sm120 donor (guard 4b incl inv, tok2/hsel fields restored); squatters HMUL2.BF16_V2_R_R_R + HMUL2_R_R_R_R deleted. Pre: 885 HOLE + 1,393 wrong-text of 2,278 distinct corpus words (all vendor-legal). Law: arb348 78 probes + arb324 469, x4 agree. Doctrine HOLE kept: INVALID1/INVALID3/b91/stray/RELU-window/band. Fleet-unique R_R_R_R phantom (= 372-kand followup census on other legs: none -- asserted absent x3).",
+    "bug358": "2026-09-02 BUG-358: sm121a SHFL II-form era over-strict closure: pred (3,81) era field zamiast mylnego (4,12) na 8 wierszach (BFLY/IDX dotted + generic II_II IDX/UP + II_R UP + R_II DOWN/UP/BFLY) + vm-relax [71:64] (write-inert na tok5-imm) + vm-relax [52:40] na II_R + clone II_R DOWN mg. Law: arb358 73 sondy nvdisasm 13.3.73 raw -b x4 agree EVERY probe (mode map [59:58]=IDX/UP/DOWN/BFLY, b1 0x7f/0x75/0x79/0x73 = II_II/R_II/II_R/R_R). Cures: decode HOLE pred<PT (16 mierzonych) + HOLE IIR + SILENT MISDECODE RII-jug64 (junk-claim 0x0,UR20) + mint intent-drop pred->PT + mint REFUSE II_R DOWN. Corpus-invisible (74 kotwice SHFL: pred!=PT/[71:64]!=0/IIR = ZERO na II-form). patch358.py replayable+idempotent.",
+    "bug362": "2026-09-03 BUG-362: F2I TRUNC/F64/FLOOR lattice era-row closure x4 legs: (S) sign window abs@62/neg@63 tok2 grafted (arb362 S-group 27 probes + arb339 A5/B4, x4 agree; pre-fix HOLE x4); (I) inert b73/74 vm-relax (arb362 I + arb362b; vendor text-inert). (362a reuse [124:122] vendor-ILLEGAL = engine decoder arm; 362c nibble-alias zone = pinned HOLE.",
+    "bug363": "2026-09-03 BUG-363: F2I R_R FTZ (byte10=0x21) + BF16 (0x40) lattice closure x4 legs (arb341b G/H + arb363 326 probes incl S-signs x288 G-guard R-reuse-illegal x16 X-0x61-illegal, x4 AGREE): 96 keyed era rows/leg 'F2I.FTZ[.T][.R]_R_R' + 'F2I[.T].BF16[.R]_R_R' era geometry (signs in, reuse OUT -- vendor rc=1, fail-closed via decoder BUG-363 arm); legacy mgs F2I_R_R::{FTZ,NTZ (dst@15 = sev-A silent dst corruption on 100a/103a) + FTZ,NTZ,TRUNC,U32 (guard-pinned)} deleted and replaced by name-true keyed rows; sm120/121a era key F2I.FTZ.U32.TRUNC.NTZ_R_R normalized (signs added, reuse field dropped). byte10=0x61 + [83:81] alias cells pinned HOLE.",
+    "bug368": "2026-09-04 BUG-368: SHFL R-form closure na sm121a: [57:40]=0 pin -> vm-relax x2 BFLY rows + UP mg pred (4,12,1)->(3,81,1) + vm |= [57:40] + klony DOWN/IDX z UP-patched (mode pinned 2/0; arb358 A-b173 + arb368 G/C x4 vendor-legal). II-form keys byte-invariant (358).",
+    "bug371": "2026-09-04 BUG-371: HFMA2 tok4 abs field closure: appended abs 1b@83 token_idx=4 to every HFMA2 mod_group with Reg/UReg tok4 lacking the field (pre-fix authored |R4|/|R5| silently minted GENERIC b74 = tok2 hsel cross-read -> vendor 'R2.INVALID1'; b83-set words were LOUD decode HOLE on these rows). Law: arb371 2,560 + arb371b 1,728 probes x4 models AGREE EVERY (b83=tok4 abs, b84=tok4 neg [already field-carried], b74/75=tok2 hsel cross-read). pure additive graft: ab/vm invariant (engine carves field bits at match, decoder.rs:131); dense thin rows reach BUG-320 donor geometry. ENGINE ZERO.",
+    "bug373": "2026-09-04 BUG-373: sm121a LDGSTS desc dotted guard widen 3->4b@12 (pv@15 was field-dropped: decode printed '@P0' where vendor renders '@!P0', g=15 '@!PT' elided; encode lint-loud). claim-space invariant: b15 already vm-covered, widen only extends the carved render extraction. Law: arb373_375 G373 sweeps x16 x3 classes x4 AGREE.",
+    "bug375": "2026-09-04 BUG-375: sm121a trailing-_P LDGSTS desc family ported; SAME GRAFT cures the pre-existing donor dst-imm wrong-width render defect: sub_imm1 16b->20b@44 on all 22 desc mgs (vendor law x4: 20b SIGNED @[63:44] == era geometry; corpus words with imm>=0x8000 printed '+-0x100'-class for vendor '+0xff00'-class on the donors pre-373, attr373_375 642-word BAD class closing). 11 dotted keys cloned to *_P with era-style pred 3b@87 + neg 1b@90 tok3 (nibble [90:87]: v&7 pred, v&8 invert, v=7 PT-elided vendor law == era map; P375 sweep x4 AGREE incl SM121a. The 121a pred_inv4 inverted map [LDG.E.*_dARI_P convention] was REJECTED for this family by the arb sweep), cures HOLE incl corpus witness B. ab/vm = donor; ENGINE ZERO.",
+    "bug376": "2026-09-04 BUG-376: sm121a LDGSTS desc dotted LTC lattice completion: += 13 np + 13 _P dotted keys (LTC64B+LTC256B x6 bases, BYPASS.LTC128B.128.ZFILL twins). arb376b 99 probes x4 AGREE EVERY (SM121a uniform with era legs); deltas pure (g1..g8/g1p.. asserted); _P clones inherit post-375 pred fields (3b@87+1b@90 tok3 via donor). Pre: family HOLE incl encode REFUSE (measure_pre376). Lattice EXACT 24/24. ENGINE ZERO.",
+    "bug380": "2026-09-05 BUG-380: F2I F64-src (byte10=0x30, b76=1) lattice completion x4 legs: +22 rows/leg (plain/NTZ/FLOOR.U32/S64/U64/FLOOR.NTZ/CEIL/CEIL.NTZ full dst closure; donor-clone per dst from the TRUNC family, cell swap only, claim envelopes verbatim) + 'F64,S64'/F2I.S64.F64_R_R plain-S64 alias relax (3<<73) + abs@62/neg@63 fields (pre: HOLE). Law: arb380/380b/380c/c2/380d 187 probes x4 models AGREE EVERY; 96-cell (round x nibble) sweeps; reuse ILLEGAL everywhere (decoder BUG-380a arm, engine side). Pre-fix 364/384 cells HOLE x4 legs (measure_pre379_380). b76=0 narrow-dst sub-lattice = 390-kand (HOLE fail-closed kept).",
+    "bug382": "2026-09-04 BUG-382: SHFL stray-window relax x4 legs -- vm |= b63 + [90:88] on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb382 98 sond nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY (b63/b88/b89/b90 write-inert kazda rodzina x tryb; b91 = KILL x4 na kazdej klasie = pin zostaje; ball-probe {63,88,89,90} inert). Pre (publish f1f3dd78, canonical 6742fdf, measure_pre382): 224 ogniwa junk HOLE x4 nogi, 0 cichego misprintu. II_R IDX/BFLY absent x4 = bez zmian (residuum 358, 368 sec.6). 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
+    "bug384": "2026-09-05 BUG-384: delete harvest-junk HFMA2 dense era keys HFMA2.BF16_V2_R_R_R_R + HFMA2_R_R_R_R_R (sm120/sm121a only): junk-baked claims (H0_H0 bakes b61/b75/b82; 5-reg odd windows guard1b@13/reg@18/@33/@66) with incomplete field sets; arb384 lattice 168 probes x2 legs + arb384b window law = HFMA2_R_R_R_R windows; the 5-reg row WON inert-window words and printed garbage (2 live WRONG cells) -> delete reroutes to the main rows (vendor-true). census384 battery 34,087,886 words: 420/420 corpus hits vendor-exact pre==post. Encode unchanged: era keys never minted; 5-token HFMA2 stays loud (394-kand). ENGINE ZERO; precedent 165/173 dead-shell removal.",
+    "bug386": "2026-09-05 BUG-386: sm121a LDGSTS desc dotted base-gap completion: += 6 np + 6 _P dotted keys (BYPASS s32/64, ZFILL s32/64, BYPASS.ZFILL s32/64). arb386 31 per-cell probes x4 AGREE EVERY; deltas pure (gc1..gc5/gc1p..gc5p asserted); _P clones inherit post-375 pred fields (3b@87+1b@90 tok3) via donor; hi32==0 asserted. Pre: HOLE x4 + encode FAIL (measure_pre386). Lattice EXACT 30/30. ENGINE ZERO.",
+    "bug387": "2026-09-05 BUG-387: SHFL b62-region stray-window relax x4 legs -- vm |= b62 + b61 ([62:61], b63 z BUG-382) on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb387 280 sond + arb387b, nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY (b62/b61 write-inert kazda rodzina x tryb x 2 warianty wartosci; combo b62|b63 + b62|ball inert; b64/65 = live reg-c [71:64] na RR/II_R; b91 = KILL x4 = pin zostaje; b92-b95 inert = okno [95:92] POZA zakresem, pinned -> 396-kand; dziedzictwo arb382 dla [90:88]+b63). Pre (publish 042ffa91, canonical 9713fd6, measure_pre387): 112 ogniw b62/b61 HOLE x4 nogi, 0 cichego misprintu. II_R IDX/BFLY absent x4 = bez zmian (residuum 358, 368 sec.6). 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
+    "bug388": "2026-09-05 BUG-388: plain sub_imm window decls -- 38 arb378-DIVERGE carriers / 104 rows x4 legs do vendor-true geometry (arb388+arb388b, nvdisasm 13.3.73 raw -b, x4 modele AGREE KAZDA sonda, DIVERGENT=0; zbiezne z BUG-156 window-law). LDGSTS sm100a tok2 -> 12b@32; LDS_R_ARURI|S8 / ATOM(G) CAS tok3 / dARI-desc REDG/STG/ST/LDG/LD -> 24b@40 SIGNED; sm121a ST/LD ARI -> 32b@32 SIGNED; sm121a LDC/LDCU cAI '' extr->cm16_off/cm17_off; UGETNEXT BROADCAST para 8b@24 bez offsetu (DELETE sub_imm1 24b@28). Kolateral (arb388+arb388c x4): G UR-clip [32..40) 4/5/6->8b (LDG/LD dARI + LDS_R_ARURI|S8, 40 rows); H sub_r0 9->8 bleed (LDGSTS sm100a 14 rows @16, CAS 121a 4 rows, LDS_R_ARURI|S8 121a; 147-class); I-J vendor-inert junk-band relax (UGETNEXT [16..24)+[32..72); sm121a LDC  [32..38)+[59..64), LDCU '' [32..37)+[59..64); singles+band+ball x4). Pre (publish 05d2e7e9, measure_pre388): 2299 komorek = 1050 MATCH / 1154 WRONG cichy misprint (flip znaku LDC b53, fabrykowane +0x1, corrupt baza R) / 95 HOLE. ENGINE: SubURm1 printer arm (para raw+1) -- jedyna zmiana src. Residua rejestrowane: 398 (cAI [24..32) index zanegowany + ?cAURI + sub_ur1@64 inwersja), 399 (glif +-0x na ARURI STS/LDS).",
+    "bug390": "2026-09-06 BUG-390: F2I F64-src (byte10=0x30, b76=0) NARROW-dst sub-lattice x4 legs: +32 rows/leg (plain/NTZ/FLOOR/FLOOR.NTZ/CEIL/CEIL.NTZ/TRUNC/TRUNC.NTZ full {U8,S8,U16,S16} closure; donor-clone per dst-class from the wide b76=1 family, byte9 cell-swap 0x??<<72 incl b76 1->0, claim envelopes verbatim, b73/b74 alias relax inherited). Law: arb390 147 + arb390b 52 = 199 probes x4 models AGREE EVERY: 128-cell full [79:72] sweep all legal; dst {b75,b72} 00 U8/01 S8/ 10 U16/11 S16; b73/b74 text-inert; abs@62/neg@63 tok2 on every axis; guard generic; reuse [124:122] ILLEGAL (26 probes rc=1; engine decoder-arm extension = cubit-side). Pre-fix 512/512 cells HOLE x4 legs + 128/128 encode loud-FAIL (measure_pre390; t380_6 posture). Corpus census390: b76=0 bucket LDL-shaped/claimed (sample390 x40), no anchor-shaped words -> graft corpus-invisible.",
+    "bug393": "2026-09-06 BUG-393: HFMA2 0x231-bases inert-window relax x4 legs -- FULL MOD-CLOSURE: 36 mgs x 4 legs (24 non-RELU full [55:40]|[59:56]|[87:90]|[92:95]; 12 RELU sans [87:90] = pv-elision live field). Vendor law: measure_pre394 170 sond + balls + measure393_closure 144 tetrady x 31 prob (nvdisasm 13.3.73 raw -b x4 modele AGREE; b91 KILL x144 stays; b78/b86 markers stand). Sparse-parity [55:40] domknieta. 0x7c31 UR-family out-of-scope (391/395 tail).",
+    "bug396": "2026-09-05 BUG-396: SHFL [95:92] stray-window relax x4 legs -- vm |= (0xf<<92) on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb387 b93/b95 56/56 + arb387b b92/b94/ball 42/42 + arb396 84/84 composition (pairs inside window + ball with [63:61]/[90:88]), nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY, DIVERGENT=0, teksty == clean anchors. b91 = KILL x4 = pin zostaje; b96+ = fields (rozlaczne, aserty); [63:61] (387) + b63/[90:88] (382) stoja. Pre (publish fe384b27, canonical 93bc221, measure_pre396): 224 ogniwa b92..b95 + 56 ball HOLE x4 nogi, 0 cichego misprintu; kontrole 382/387 zywe. II_R IDX/BFLY absent = residuum 358/368 stoi. 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
+    "bug398": "2026-09-07 BUG-398-C: sm121a cAI-family junk band [64..72) vendor-true relax (canonical graft, ONE table; ENGINE-side phase A = cAURI printer/parser arm in cubit src, closing the 410-kand corpus render exposure as well). Vendor law arb398 (per-bit b64..b71 + ball + ball x off0, corpus-derived carriers per grafted mg, nvdisasm 13.3.73 raw -b, x4 models unanimous): [64..72) FULLY INERT on LDC_R_cAI {\"\",64} / LDCU_UR_cAI {\"\",64,128,U8} / LDCU_UR_cAURI {\"\",64,128,U8}; [RZ]/[URZ] at offset-zero = BUG-174 offset-law (off0-without-ball control identical), NOT a band property -- arb388d ball reading corrected. LDC.U16_R_cAI EXCLUDED: b64..b67 = pred window (400-class). Monotone relax; collision/claim audits pre==post.",
+    "bug400": "2026-09-07 BUG-400: pred/LTC window [64..72) vendor-true declarations on dARI/ARI LDG/LD rows (canonical graft, adding-only: plain LTC mgs + <KEY>_P trailing-pred keys with pred_inv4@64 tok=last). Vendor law arb400 (307 probes: nibble x LTC x combos x b70/b71-ball; corpus-derived carriers incl sm121a synth) + arb400b (198 cross-combo probes: b70/b71/ball x {pv 0,1,8} x {ltc 0,1}; 165/165 cross-checks vs pv/ltc baselines MATCH); nvdisasm 13.3.73 raw -b x4 models DIVERGENT=0): [64:68)=inv4 pred window (0 elide, v->P(7-v), 8->!PT, 9..15->!P(15-v)); [68:70)=LTC code (1/2/3 = LTC64B/LTC128B/LTC256B); b70/b71 INERT. Closes verify388post residuum 400 (77 WRONG cells x 11 carriers). ENGINE src ZERO changes (pred_inv4 machinery + mod priorities already shipped; sm121a LDG_R_dARI_P precedent).",
+    "bug403": "2026-09-06 BUG-403: F2I F64-src WIDE (b76=1) TRUNC.NTZ axis donor closure x4 legs: +4 rows/leg (era mgs 'F64,NTZ,TRUNC[,U32/U64]' + 'F64,NTZ,S64,TRUNC'; keyed F2I[.U32/.U64/.S64].F64.TRUNC.NTZ_R_R); donor-clone per dst-class from the wide TRUNC donors, byte9 cell-swap 0xd0|nib -> 0xf0|nib (set b77 NTZ), claim envelopes verbatim, b73/b74 alias relax (3<<73) inherited. Law: arb403 34 + arb403b 3 = 37 probes x4 models AGREE EVERY: all 16 nibble cells legal (dst {b75,b72}+S32 default, b73/b74 inert); abs/neg tok2 everywhere (9 probes); guard generic; reuse [124:122] ILLEGAL rc=1 x4 (4 probes; engine decoder-arm ext = cubit-side). Pre-fix 64/64 cells HOLE x4 legs + 16/16 encode loud-FAIL (measure_pre403; t390_7 posture flipped).",
+    "bug407": "2026-09-06 BUG-407: sm121a USETMAXREG misroute fix (canonical graft, ONE table). Vendor law: arb407_census (full ab240 battery 2,406 cubins -> 344 words / 18 distinct: 280 DEALLOC + 64 TRY_ALLOC; zero other vendor forms) + arb407_vendor (nvdisasm 13.3.73 raw -b x4 models on full-128 words with native control prefixes, AGREE EVERY, DIVERGENT=0): DEALLOC.CTAPOOL imm10 = b72=1/b73=0/b74=1/[83:81]=111 (UPT unprinted); TRY_ALLOC.CTAPOOL UPn,imm10 = b73=1/b72=0/b74=1 (corpus UP0-only). Fix: b74 care-1 on both rows (DEALLOC row previously never strict-matched real words; relaxed TRY row claimed them = DEALLOC->TRY misroute + phantom UPT token + doubled mod \"TRY_ALLOC.CTAPOOL._ALLOC.CTAPOOL\"; TRUE TRY words had the same doubled mod) + mg \"_ALLOC.CTAPOOL\" -> \"\" (vendor-true render) + operand_sig \"ALLOC.CTAPOOL_UP_II\" -> \"UP_II\" hygiene. Claim partition verified exact on 18 corpus words (12 D / 6 T, cross=0). Other legs byte-invariant. ENGINE src ZERO changes.",
+    "bug416": "2026-09-10 BUG-416: 121a LDG lane-cross LTC lattice closure -- REPAIR of the harvested LDG_R_dARI_P|128,E,LTC128B FABRICATION (ab 0c1019..7980 junk lane, dead pred window) to the true 7981-lane geometry (donor-verbatim _P|128,E | 2<<68); LDG_R_dARI_P += 128,E,LTC64B/128,E,LTC256B; LD E-lane (TRUE 0c1019/0980) closure: LD_R_dARI += E,LTC64B/128B/256B + LD_R_dARI_P += E,E,LTC64B/128B/256B (pred_inv4@64) + LD_R_dARI|E vm |= 3<<70 measured-inert relax. Vendor law: arb416 (33p) + arb416d (22p) + arb400c (27p), nvdisasm 13.3.73 raw -b x4 AGREE EVERY, DIVERGENT=0. ENGINE src ZERO. Corpus exposure ZERO (census416, 2,406 cubins). Scope-cut of BUG-400 closed.",
+    "fix_049r": "BUG-049r completion (post fleet c379405): IMAD.HI/HI.U32 mod-groups cloned from IMAD base entries; delta = const {bits0,1} [+bit73 clr dla U32], stala na wszystkich 804 instancjach korpusu; gate: results/q2/imad_hi_gate.txt",
+    "fix_050": "BUG-050: DMMA.8x8x4 guard/Rd/Ra/Rb/Rc@[12:16)/16/24/32/64; Rc hi-word; removed mangled DMMA_R_R_R_R@8x8x4; goldens: 5/5 EXACT (dmma_gate.py); removed ghost _UP x2 (decode ambiguity, unobserved)",
+    "pruned_junk": [
+     "iter109: ISETP_P_P_R_UR_UR (0 mod_groups, harvest-junk placeholder; 5th operand cannot be UR on sm_121a silicon: exhaustive tok5 field grid 16/16 = P-class only, 128 single-bit flips + 256-combo family grid zero UR-last renders; upstream post-BUG-086 canon has no such key either. Errata 119 follow-up, resolution in results/errata/119."
+    ]
+   },
+   "errata": {
+    "_errata_2026_08_23_149": "149 (port fleet BUG-089, F2Q): junk mg X usunieta z IADD3_R_P_P_R_R_R (sig tok5 'R' mapowany na imm@[63:32], and_base bit64=1 -> hijack slow IADD3.X imm z Rc-odd); IADD3_R_P_P_R_II_R/X: +tok7 neg@90, +tok8 inv@80 (per-slot negacja tail-pred), variable_mask 0x1ffffe00038fe8... -> 0x...78fe8... . Krzemowy dowod 121a: nvdisasm 13.0.85 na patch-cubinie sm_121a, 18/18 EXACT vs goldeny floty (work/q2/bug089_port_iter82). Klucze pre-fix byly BYTE-ident z fleet sm120-pre. Patrz results/errata/149_bug089_port_121a.md.",
+    "_errata_2026_08_23_150": "150: UIADD3.X z imm-src2 (UR,UP,UP,UR,I,UR,UP,UP) - DOMKNIECIE dziury dekodera (bit74=1 aktywuje dwa tail-UP na formie II; sondy nvdisasm 13.0.88 patch-cubin sm_121a, work/q2/uiadd3audit_iter83). Dodano mg 'X' do UIADD3_UR_UP_UP_UR_II_UR_UP_UP: guard@12, dst@16, UPo@81/@84, Us1@24+inv72, imm32@32 signed, Us3@64+inv75, UPt7@87+neg90, UPt8@77+neg80. Powiazane fixy z bramki EXACT: (a) UIADD3_UR_UP_UP_UR_UR_UR_UP_UP mg X: tok7 pred 4b->3b+neg@90 (render !UPx zamiast UP13/UP15; printer gap od zawsze, ujawnione sonda A); (b) UIADD3_UR_UP_UP_UR_II_UR mg '': variable_mask += bity 77-80/87-90 (vendor IGNORUJE tail-bity na formie plain; bez tego slowa plain z tail-junk spadaly do mg X przez priority-3 ALU sign-tolerant (m2 maskuje bit74) => faszywy render .X; (c) usunieto zdegenerowany klucz UIADD3.X_UR_UP_UP_UR_UR_UR_UP_UP (harvest _instances=1, pola tok5/6 skolapsowane na src1; zero-winner na cenzusie 91304). Nota: lokalny sm120-only klucz UIADD3_UR_UP_UP_UR_II_UR_P = artefakt (sprzeczne pola); na 121a jego przestrzen to forma plain II -> brak hole. Patrz results/errata/150_*.md",
+    "_errata_2026_08_23_154": "UISETP 5-token (non-EX) rebuild: 2x128 mg (op x cmp8 x sign4) w dwoch umbrella UISETP_UP_UP_UR_UR_UP / UISETP_UP_UP_UR_II_UP z kotwic nvdisasm-13.0; pruned 28 nazwanych kluczy harvest-junk; encoder fail-closed INVALID3 tez dla 5-token (GB10 trap zmierzony iter111: rc=3 CUDA_ERROR_ILLEGAL_INSTRUCTION x4); dekoder: p3 sign-tolerant fallback nie zdejmuje juz bit72 dla mg z mod EX (ERR-154).",
+    "_errata_2026_08_23_155": "155 (port fleet BUG-097, branch fix/bug-097 03e6e59): generic-memory LD/ST family re-canon. Usunieto 20 harvest-junk kluczy (LD.E.128.STRONG.SYS_R_dARI, LD.E.128/64/S8/U16/U8_R_dARI*, LD.E_R_dARI(_R), ST.E.128.STRONG.SYS/128/64/U16/U8/E_dARI_R); 4 klucze canon value-replace (LD_R_ARI, LD_R_dARI, ST_ARI_R, ST_dARI_R) + 2 nowe (LD_R_ARURI, ST_ARURI_R) - wszystkie verbatim z fleet post-097 (sm103a geometry; pre-fix u nas BYTE-ident z fleet sm120-pre). Pre-fix decode renderowal desc-slot/base/dst przesuniete (vendor LD.E.128.STRONG.SYS R24, desc[UR16][R32.64] -> desc[UR0][R16.64]) i plain-u32-ur (LD.E R0, [RZ.U32+UR4]) jako desc-form. Printer: ARURI arm +LD_/ST_ (mod-order arm LD/ST byl od iter55). Krzem 121a: nvdisasm 13.0.88 -b SM121a, 120/120 gold (sm100 census anchors) EXACT; cubit decode 120/120, encode M96 120/120; census 91304 0-fail 95mm=baseline (12 slow ST.E.128.STRONG.SYS -> canon key ST_dARI_R, EXACT-neutralne); master 1015/2; cargo 96/96 (+3 pin tests/bug097_port_121a.rs). Backup tables/sm121a.json.bak-iter113-pre097port. Patrz results/errata/155_bug097_port_121a.md.",
+    "_errata_2026_08_23_158": "ERR-158: DSETP FI RT hole \u2014 4 dotted synth keys (GEU/GT/GTU/NEU.AND, baked-mods, empty mg -> encode-unreachable) folded into generic DSETP_P_P_R_FI_P as mg rows (geometry verbatim, 121a-corpus-verified); broken unobserved mg rows AND,GE/MAX/MIN/NE (reg@32 / no-tok4) removed fail-closed. krzem/gates: ADDENDUM_iter114",
+    "_errata_2026_08_23_161": "ERR-161: DSETP FI full cmp sweep \u2014 12 brakujacych mg (MIN/LT/EQ/LE/NE/GE/NUM/NAN/LTU/EQU/LEU/MAX) + geometria 4 starych (GT/GEU/GTU/NEU) ujednolicona do krzemowej (tok1@81,tok2@84,tok5@87+neg@90,reg neg_abs@72; wczesniej tok1@6/tok2,5@12=guard-mirror, |R8| z bitu1 \u2014 corpus-niewidoczne, sweep MISMATCH). Krzem sweep 16/16 nvdisasm -b SM121a; delta2: neg/abs tok3 b72/73, neg tok5 b90, guard-neg b15. Gates: ADDENDUM_iter116",
+    "_errata_2026_08_23_162": "ERR-162: port fleet BUG-094 (5eb1453): LDS/LDL/STL re-canon (S8/U16 S16 mgs, addr_scale [79:78] na 64, junk keys -16, LDL.LU phantom UR0 fix, STL_AURI_R add), LDG 128,E,LTC128B junk mg out + encode_only retention row; krzem 121a: 202/202 GOLD nvdisasm EXACT, addr_scale sweep + b4fill2 4/4; printer ATOM size-order juz byl (err129)",
+    "_errata_2026_08_23_170": "170: LDG/STG dARI II sweep (probe_ii127, 65 truth nvcc13 sm_121a): prune 40 kluczy harvest-junk (20x _II halving reg@25/ureg@33/imm slivers @43-48, 13x dotted LDG bez pola imm, 7x STG _R_R/EF.128/STRONG.* reg@25/ureg@65); rebuild 4 dotted (S8.CONSTANT +sub_imm2@40(24b) - imm byl cicho gubiony; S8.STRONG.SM/U16.STRONG.SM halving URZ; LTC128B.64 canon z .128-shape); add 3 dotted LTC128B[.64/.128].CONSTANT (dyskryminator LTC128B=bit69 w bajcie@64; bez nich LTC128B.CONSTANT hijackowany przez mg LTC256B); add 5 umbrella LDG_R_dARI rows (E,GPU,S8,STRONG f3 / E,GPU,STRONG,U8 f1 / E,S8,STRONG,SYS 53 / E,STRONG,SYS,U8 51 / E,SM,STRONG,U8 b1 - dziury DECODE_FAIL). byte72: b32=f9/59/b9 scope, U8=-8, S8=-6, U16=-4 od bazy scope. st.global.L2::128B = nielegalne w PTX (load-only). Gates: ADDENDUM_iter127.",
+    "_errata_2026_08_23_182": "SYNCS RED mg x2 (cluster-scope, bit74) + exec-sem SYNX2",
+    "_errata_2026_08_23_183": "MEMBAR vendor-form closure: ALL.CTA bit79, SC.SYS bits{76,77}, +MEMBAR.ALL.SYS bits{76,77,79}",
+    "_errata_2026_08_23_184": "UBLKCP.S.S (DSMEM push, bit73+74) + desc[URn] cache_hint formy (bit76, desc_ur@[47:40]): +S.S_AURI_AURI_UR, +S.G/G.S_AURI_AURI_UR_II, +UBLKPF.L2_AURI_II; multicast note: ptxas 13.0.88 na sm_121a NIE emituje hw-mcast (CALL c[0x4][0] runtime fallback dla masek >1 bit; mask==1/runtime-mask slowo == plain S.G)",
+    "_errata_2026_08_23_185": "UTMASTG.1D-5D (TMA store, opcode 0x3b5) + UTMALDG.3D/4D/5D: wymiar=(dim-1)<<79, bit91 rodzina UTMA; +UTMASTG.2D_AURI_AURI_II (L2::cache_hint, bit76=desc, desc_ur@[47:40)); legacy _AUR_ rows bez zmian (patrz nota w apply_185.py); relacja: err180 \"bit79 desc-mode\" = bit wymiaru 2D.",
+    "_errata_2026_08_23_186": "UTMAPF.L2.1D-5D +desc _II (opcode 0x5b8, TMA tensor prefetch L2), UTMACCTL.PF (opcode 0x9b9, prefetch.tensormap), UTMALDG/UTMASTG desc _II domkniecie wymiarow; siatka wspoldzielona z err185 (dim-1<<79, bit76=desc, desc_ur@[47:40), bit91=rodzina).",
+    "_errata_2026_08_23_187": "UTMALDG tensor MULTICAST = emulacja runtime na sm_121a: mask==1 (lub imm 0x1) -> plain UTMALDG.ND slowo (semantic == non-multicast, ex-sched); mask>1 bit -> CALL.ABS.NOINC thunk c[0x4][R0], zero UTMALDG w cubinie. .cta_group::2 TMA hard-unsupported; UTMAPF tylko .L2; UTMASTG multicast odrzucone. Kontrola: sm_90a/sm_103a maja prawdziwy UTMALDG.2D.MULTICAST [URa],[URb],URm. 0 nowych kluczy; EXACT 6/6 na istniejacych wpisach.",
+    "_errata_2026_08_23_188": "188: UTMALDG.1D rekanon na siatke err180 (nowy wiersz _AURI_AURI, bit79=0); legacy 1D/2D_AUR_AUR usuniete (WATCH z err180 rozstrzygniety: render-trap desc[UR][R.64]); klucze 15329->15328; EXACT work/q2/iter138/exact_188.py",
+    "_errata_2026_08_23_189": "err189 2026-08-23 (spark iter139): WATCH po err188 - ostatni legacy klucz _AUR_ (non-I) z grid-rodzenstwem: UBLKCP.S.G_AUR_AUR_UR mial fingerprint kompatybilny z siatkowym UBLKCP.S.G_AURI_AURI_UR (0 konfliktow na 28 wspolnych bitach maski) i 0 slow w cenzusie (12/12 obserwowanych UBLKCP.* bierze siatke, render canon-exact). Kasacja jak err188/err098. Bez zmian: UBLKRED.G.S.ADD[.S32]_AUR_AUR_UR x2 (brak siatkowego rodzenstwa 0x3bb, rodzina nieobserwowana - park, patrz ADDENDUM iter139).",
+    "_errata_2026_08_23_190": "err190 2026-08-23 (spark iter139): UBLKRED.G.S park z err189 ROZSTRZYGNIETY pierwszymi slowami vendor (cp.reduce.async.bulk): legacy ADD/ADD.S32 _AUR_AUR_UR = ZYWE pulapki (plain ADD renderowal desc[UR][R.64], U64=decode miss). Kasacja x2 + siatka 16 wierszy _AURI_AURI_UR (8 op x 32/64b; op@[89:87], U64=bit82, okna UR jak UBLKCP.S.G). REDUKCJE .min/.max/.and/.or/.xor/.inc/.dec + U64 potwierdzone krzemiowo.",
+    "_errata_2026_08_23_197": "err197 (spark iter146, delta floty a134de9): VIADD.S32.ISAT = nowa klasa consumer-Blackwell na 121a (120==121a byte-ident, 10/10); ptxas 13.0 O0/O3 lowering add.sat.s32 -> 1x VIADD (nie 5-op makro IADD3+2xPLOP3.LUT R.SIGN+2xSEL jak 103a). +2 wiersze VIADD (R_R_R 21 slow, R_R_II imm32) exact-fit + type-grid siatka byte9 (32/16x2/S32/S16x2/U8x4/S8x4/INVALID6/7) + .ISAT@80 decode-attested. PLOP3.LUT R.SIGN forma: dekoder 121a POSIADA (12 slow 103a render pole-w-pole identycznie, walki 8 pol OK) -> +wiersz PLOP3.LUT_P_P_R_R_R_II_II (port floty); compiler-emisja absent. EXACT gate: work/q2/iter146/plop3sat/gate_err197.py.",
+    "_errata_2026_08_24_198": "ERR-198: VIMNMX.U8x4/VIMNMX.S8x4 (bit74 width, bit72 sign) + VIADD.S8x4 (bit73 sign on width grid [73:76): U8x4=4(bit75),S8x4=5); VIADD.U8x4 and_base +=bit75 (byl junk->drop w re-encode). Dowod: vabsdiff4.u32.u32.u32/s32 lowering na sm_121a (sm_103a ma VABSDIFF4 hw - park err196); harvest 142 slow EXACT.",
+    "_errata_2026_08_24_201": "ERR-201: LEPC dest = para 64-bit o parzystej bazie (err200 doprecyzowane: Rd32->Rd(EVEN):Rd+1 := VA64(PC)+0x20); odd dest trapuje na GB10 deterministycznie; encoder fail-closed (check_lepc_pair_semantics_sm121), decode full-fidelity. Scheduling zmierzony (m9lepc iter152): lat ~10cy, tput ~2cy-op/SMSP - obalony S2R-mirror provisional (S2R ~32cy/8cy). Dowody: results/q3/m9lepc_iter152_*, errata/201. Piny: tests/err201_lepc_pair_semantics_121a.rs (2).",
+    "_errata_2026_08_24_203": "ERR-203: adresy ctrl-flow = pary 64-bit o parzystej bazie (lustro ERR-201 LEPC). RET.REL.NODEC/RET.ABS.NODEC link Rn:Rn+1, CALL.ABS.NOINC target Rn:Rn+1; odd trapuje na GB10 deterministycznie (ILLEGAL_INSTRUCTION); RET.ABS link twardo R20:R21 (and_base piecze 0x14@[31:24]). Encoder fail-closed (check_retctrl_even_pair_sm121), decode full-fidelity. Dziura byla CICHA (odd slowo enkodowalo sie i trapowalo dopiero na krzemiu). Dowody: results/q3/M9CC_CALL_ABI_121a.md (iter155), errata/203. Piny: tests/err203_retctrl_even_linkreg_121a.rs (5). Follow-up z iter156 DOMKNIETY (iter158): printer RET.ABS.NODEC renderuje vendor-exact `RET.ABS.NODEC R20 0x0` (spacja, imm literal 0x0, nigdy pc-derived); encoder przyjmuje fraze przez fieldless wiersz RET.ABS.NODEC_? z fail-closed walidacja (odd -> ERR-203; even != R20 lub imm != 0 -> brak realizacji, loud, zadnego cichego aliasu na baked word). Piny err203 8/8 (5+3 nowe); cargo 739/739; census 91682 0-fail / 1mm-LEPC(baseline); identity 27/27 PERFECT-IDENT.",
+    "_errata_2026_08_24_206": "ERR-206 / rq21: immediate REL galezi (BRA/CALL.REL/RET.REL) na sm_121a = SIGNED 21-BIT, nie 20-bit. rq=(target-addr-16)>>4; rq[5:0]@[23:18], rq[15:6]@[43:34], rq[20:16]@[48:44] (NIE [47:44]), sign-ext [63:49] + [81:64] all-copies. Poprzedni fit imm20 (iter52, EXACT na 16008 slowach) trzymal tylko przez korpus <<8MB (|rq|<0x80000 => rq19==rq20). Dyskryminatory krzemowe (ptxas -O0, ~9.6MB cia\u0142o, run EXACT 5/5): fwd rq=+0x927c6 slowo 003fde0003800000_0000927c00180947 ([63:48]=0x0000 przy rq19=1), bwd rq=-0x927c6 slowo 003fde000383ffff_ffff6d8000e80947 (bit48=1 przy rq19=0). Blad byl ALGORYTMICZNY (encoder apply_branch_encoding + printer decode_branch_target), maski wierszy juz variable - zadnych zmian wierszy. Ta sama szerokosc co sm_103a BUG-115 (flota 1dfbf36). Piny: tests/rq21_bra_rel21_121a.rs 7/7 (6 FAIL pre-fix = kontrola). Bramki: cargo 756/756 (749+7), cenzus 91802 0-fail 0-mm, master 1081+2, identity 27/27 PERFECT-IDENT. Dowody: work/q2/rq21_iter199/, errata/206_branch_rel21_imm_121a.md.",
+    "_errata_2026_08_24_213": "ERR-213 (iter211): SHFL merged-imm c13@[52:40] odbudowa: IDX/DOWN II-form ze szablonu sm103a (+[52:48] wg 26 kotwic nvcc13), BFLY idem, IDX R-form 8->13b; NOWE R-form DOWN/UP/BFLY (klasa b1=0x75, sm121a-spec; sm103a b1=0x73); skasowane falszywe okna sm120: SHFL.IDX_P_R_R_II_II(+_?), mg IDX w SHFL_P_R_R_II_R/R_R (ab 03e01f0000007f89 b1=0x7f = tylko-II okno). PARK: UP II-form (b1 0x79/0x7f + c-RZ render kwir) = KANDYDAT.",
+    "_errata_2026_08_24_214": "ERR-214 (iter212): SHFL.UP 3 okna: II_II mg UP = b1 0x7f + c13 ((32-w)<<8) [ZAMIANA falszywego okna 0x79]; II_R mg UP = b1 0x79 + tok5 reg@64 (w32 c-RZ render); R_R mg UP = b1 0x73 lane R@32 c R@64 [ZAMIANA duplikatu 0x79]; R_II mg UP (0x75) z iter211 nietkniete; kotwice probe1_up/probe2_up nvcc13 (29 slow); szablon pol sm103a, vm = wiersz IDX iter211.",
+    "_errata_2026_08_24_215": "ERR-215 (iter213): bug123-parity 121a DOMKNIETA \u2014 LDG.E.EU/NA base (34->37/37) + EU/NA .64 + EU .128 (mg LDG_R_dARI) + narrow EU.U8/EU.U16/NA.S8/NA.U16 (nowe klucze, klon EF.S8/U16) + STG.E.EU base/.64/.128 + STG.E.NA.64 (nowe klucze, klon EL/NA.128); policy 3b@[86:84] EU=4 NA=5, rozmiar byte[79:72]; kotwice nvcc13.0.88 pol215 (24 ksztalty) + iter212 ldg_evict; predykowane @pp LDG/STG z polityka = obnizka do BRA (brak naturalnych slow @P).",
+    "_errata_2026_08_24_216": "ERR-216 (iter214): ERR-216-cand DOMKNIETY \u2014 L2-256 dARI-klasa: 4 nowe klucze (LDG.E.EL.ENL2.256_R_R_dARI, LDG.E.NA.ENL2.256_R_R_dARI klon ENL2 bajt10 0x12->0x22/0x52; STG.E.EF.ENL2.256_dARI_R_R, STG.E.EU.ENL2.256_dARI_R_R 0x12->0x02/0x42); kotwice naturalne pol216 (createpolicy.fractional + ld/st.global.L2::cache_hint .v8, v8.f32, nvcc 13.0.88); *5-token II-256 trailer-imm (fleet BUG-123) NIE jest emitowany przez ptxas 13.0 na zadnej probkowanej frakcji (policy siedzi w deskryptorze UR) \u2014 geometria II-256 PARK az do toolcha wspierajacego trailer; predykowane formy @pp: brak naturalnych slow (obnizka jak iter213).",
+    "_errata_2026_08_24_217": "ERR-217 (iter215): parity-port fleet BUG-125 (3dd866a) \u2014 F2I f32-imm forma F2I_R_FI PROBED-POSITIVE na sm_121a: ptxas 13.0.88 emituje naturalne kotwice (F2I.S8/S16.TRUNC.NTZ, F2I[.U32].FLOOR/CEIL.NTZ z cvt literal; S32/U32.TRUNC + 64-bit fold). Oracle sweep x128 nvdisasm-13.0.88: geometria identyczna jak sm_103a (type {76,75,72}, round [79:78], NTZ b77, FTZ b80; 6/7 INVALID), 96 mod groups, and_base z naszych slow sweepowych. Kod: parser F2I float-context + decoder prio-3 fail-closed F2I + printer key-scope FI mod-order (port src z 3dd866a). F2IP f32-imm (F2IP.U8.F32.TRUNC.NTZ R5, RZ, 1.5, RZ; opcode 0x0843) bez zmianki = osobny KANDYDAT (ERR-218+).",
+    "_errata_2026_08_24_218": "ERR-218 (iter216): parity-port fleet BUG-126 (4fa0d21) \u2014 USHF imm-form na sm_121a: oracle sweep x32 nvdisasm-13.0.88 potwierdza geometrie floty (dir b76, sign b73, width b74, W b75, HI b80) i 32/32 legalne (brak INVALID). Klucz USHF_UR_UR_II_UR: 5 harvest-mg (m.in. 'L,U32' z uszkodzonym bake byte3=0xff, brak pola src@24) -> ZASTAPIONE 32 czystymi wierszami klasy (and_base z naszych slow sweepowych, vm guard+dst+src+imm32+src2+sched, pola 5). Pre-fix: sweep-formy 5 dot. kombinacji (np. HI,R,U32 ze src!=URZ) padaly dekoderowo (byte3!=0xff). Kod: decoder prio-3 fail-closed +='USHF' (port 4fa0d21; pre-fix lossy !rsd[74:1] ). Druk dir[.W].type[.HI] == 13.0.88. Dowody: work/q2/iter216/, errata/218. Dodatkowo: usunieto harvest-junk mg 'HI,L,U32,W' z USHF_UR_UR_UR_UR (and_base bucket opcode 0x899 = forma II; sweep x32 0x899 dowodzi, ze vendor drukuje tam WYLACZNIE forme imm; 0 slow korpusu 123 atrybuowalo sie do tego mg; pre-fix mg hijackowal slowa HI,L,U32,W ze src2!=URZ renderujac imm jako UR1).",
+    "_errata_2026_08_24_219": "ERR-219 (iter217): USHF R-form (bucket 0x299) domknieta na sm_121a: oracle sweep x32 nvdisasm-13.0.88 32/32 legalne, geometria == ERR-218 == fleet BUG-126 (dir b76, sign b73, width b74, W b75, HI b80; druk dir[.W].type[.HI]). USHF_UR_UR_UR_UR: 3 harvest-mg (2 z bucket 0x899-imm junk + 1 L,U32 bez pola c) -> 32 czyste wiersze klasy (and_base z naturalnej kotwicy 0x210, vm guard+dst+a+b+c+sched, 5 pol). Prune: 3 junk mg bucket-0x899 z USHF_UR_UR_UR_II (strict-hity na 223/330 naturalnych slow imm-form \u2014 aktywny hijack-risk; wygrywaly z nimi wiersze klasy II_UR dysambiguacja). Delete: one-off baked keys USHF.L.U32_UR_UR_UR_UR (brak pola c, bake c=URZ) i USHF.R.U32.HI_UR_UR_UR_UR (4-bit pola => MIS-DECODE naturalnego 0270 URZ->UR15). Park: 0x499 (UR_UR_UR_II, c=imm) bez naturalnych kotwic nvcc (2 harvest-mg zostawione) = ERR-220-cand. Klucze: -2. Dowody: work/q2/iter217/, errata/219.",
+    "_errata_2026_08_24_220": "ERR-220 (iter218, spark): USHF forma I-last (bucket 0x499, USHF_UR_UR_UR_II) domknieta \u2014 z pomiaru patch-probe na kotwicy naturalnej (ushf218.cubin @0x210): sweep x32 = 32/32 LEGALNE; druk 'USHF.<dir>[.W].<S|U><32|64>[.HI] URd, URa, URf, imm' (imm32@[63:32] OSTATNIM operandem, fill-UR@[71:64] 3ci \u2014 odwrotnie niz forma 0x899 ERR-218). 2 harvest-mg (HI,L,U64 / R,U32,W bez guard, reuse-junk) -> 32 czyste wiersze klasy (guard+dst+a+fill+imm, vm=guard|dst|a|imm|fill|sched). guard sweep @[15:12]: @UP0..6/PT OK; imm hex unsigned; UR63 legalny. Korpus 92,096: 0 slow 0x499 (forma corpus-absent, jak R-form ERR-219). Bramki: gate_err220_iter218.json (dec/enc 32/32 EXACT, nat-probe 7/7); pins tests/err220_ushf_ilast.rs.",
+    "_errata_2026_08_24_221": "ERR-221 (iter221, spark): F2IP forma f32-imm (F2IP_R_R_FI_R, opcode 0x0843) domknieta \u2014 residuum z ERR-217 (roundtrip f2i217.cubin blad 1/7). NOWY klucz: 32 mod groups (typ U8/S8 x round blank/INVALID1/INVALID2/TRUNC x NTZ x RELU), pola guard@12/dst@16/tok2@24/imm-f32@32/tok4@64+opmod:H1@72, vm=guard|dst|tok2|imm|tok4|H1|sched. Typ idx 2/3 = vendor INVALID2/INVALID3 -> fail-closed (decoder prio-3 +F2IP). parser +F2IP do FLOAT_OPCODES; printer key-scope porzadek modow type<F32<round<NTZ<RELU.",
+    "_errata_2026_08_24_222": "ERR-222 (iter222, spark): F2IP forma R_R_R_R (opcode 0x243) \u2014 render-drift legacy wierszy domkniety WYMIANA: 14 legacy kluczy (uszkodzone and_base 0x27a/0x23c/0x238, neg@72 vs vendor .H1, junk neg/reuse @122/123/124, C-shape sig '?', pin-guard _P0/_P2/_P5, typ-INVALID2) -> 1 klucz F2IP_R_R_R_R z pelna klasa 32 mod groups (typ U8/S8 x round blank/INVALID1/INVALID2/TRUNC x NTZ x RELU), pola guard@12/dst@16/tok2@24/tok3@32/opmod:H1@72/tok4@64, vm=guard|dst|tok2|tok3|tok4|H1|sched (mirroring ERR-221 FI). Dowody: sweep222a/b/c/d (work/q2/iter222). Klucze 15457 -> 15444. printer key-scope mod-order rozszerzony na F2IP_R_R_R_R.",
+    "_errata_2026_08_24_223": "ERR-223 (iter223, spark): F2IP II-phantom domkniety \u2014 usunieto wiersz F2IP.S8.F32.NTZ_R_R_R_II (sm120-heritage count=32, syntetyczny enumerator; and_base bitowo == grupie F32,NTZ,S8 klucza F2IP_R_R_R_R z ERR-222, vm wlasciwym podzbiorem => zbior slow wiersza = podzbior klasy R4; nvdisasm-13.0.88 drukuje tok4@[71:64] ZAWSZE jako rejestr (sweep222c R9/R5/R7[.H1] na realnych rejestrach, sweep223a matryca byte9 x64 na naturalnej kotwicy FI); emission hunt iter223 (cvt.rzi/rni z literalem f32 -> forma FI z imm-f32 w tok3, tok4=RZ; cvt.pack.* odrzucone przez ptxas-13.0 sm_121a) \u2014 sciezki do imm8 w tok4 BRAK. Wiersz byl cieniowany przez F2IP_R_R_R_R w DecodeIndex (baseline decode-identyczne); census WIDE/mgate WIDE: klucz nigdy nie uzyty. Klucze 15444 -> 15443. Fleet-watch: identyczny wiersz w sm120.json (count=32) = ten sam ksztalt fantomu \u2014 rekomendowany audyt po stronie sm120.",
+    "_pending_note": {}
+   }
+  },
   "ctrl_classes": {
    "alu_iadd3": {
     "constraints": [
@@ -301,9 +707,6 @@
     "upper32": "0x000fe200"
    }
   },
-  "fix_049r": "BUG-049r completion (post fleet c379405): IMAD.HI/HI.U32 mod-groups cloned from IMAD base entries; delta = const {bits0,1} [+bit73 clr dla U32], stala na wszystkich 804 instancjach korpusu; gate: results/q2/imad_hi_gate.txt",
-  "fix_050": "BUG-050: DMMA.8x8x4 guard/Rd/Ra/Rb/Rc@[12:16)/16/24/32/64; Rc hi-word; removed mangled DMMA_R_R_R_R@8x8x4; goldens: 5/5 EXACT (dmma_gate.py); removed ghost _UP x2 (decode ambiguity, unobserved)",
-  "gpu": "NVIDIA GB10 (DGX Spark)",
   "hardware_config": {
    "barrier_scoreboards_per_sm": 6,
    "compression": {
@@ -358,7 +761,6 @@
    },
    "source": "Ghidra RE of GSP firmware (driver 590.48.01) + RTX 5090 driver API verification"
   },
-  "instruction_width": 128,
   "pipe_classes": {
    "0": "UNKNOWN_0",
    "1": "CTRL_FLOW",
@@ -398,9 +800,6 @@
    "7": "MEMORY_LOCAL",
    "9": "TEXTURE"
   },
-  "pruned_junk": [
-   "iter109: ISETP_P_P_R_UR_UR (0 mod_groups, harvest-junk placeholder; 5th operand cannot be UR on sm_121a silicon: exhaustive tok5 field grid 16/16 = P-class only, 128 single-bit flips + 256-combo family grid zero UR-last renders; upstream post-BUG-086 canon has no such key either. Errata 119 follow-up, resolution in results/errata/119."
-  ],
   "sources": {
    "encoding": "fork of sm120.json (identical encoding proven on 1.3M-instr corpus, 0 diffs nvdisasm SM120 vs SM121a); deltas probed locally on GB10",
    "mercury": "copied from sm120",
@@ -448,42 +847,8 @@
    "inskeys_without_ctrl_class": 0,
    "sched_only_entries": 597,
    "total_sched_opcodes": 565
-  },
-  "bug253": "2026-08-28 BUG-253: DFMA_R_R_R_R[''] tok2 sign window split (era 2-bit neg@72 conflated abs-only window into spurious neg; 170 uniq corpus words cured; arb253 raw SM121a==SM103a: b72=neg b73=abs). and_base/vmask unchanged; patch253.py replayable+idempotent. RM/RP + DFMA_R_R_R_FI RM/RP 2b@72 instances + global 2-bit neg census (53 sm120 + 70 sm121a post) = 258-kand.",
-  "bug254": "2026-08-28 BUG-254: sm121a DSETP wholesale donor-structure replacement (32 era keys deleted: 30 typed DSETP.<CMP>.<BOOL>_* shells + II_P/L_P junk shells [zero-routing proven by ablation 33,213M/2,434H IDENT]; mod_groups of DSETP_P_P_R_R_P/_R_UR_P/_R_FI_P = byte-copy of sm103a donor rows; top-level sm121a-native; _restored_from_sm120 dropped on R_R_P). Evidence: dec254 law251 census 38,317 uniq (pre: 2,434 HOLE + 2,670 DIFF on sm121a leg only); arb254 raw SM121a==SM103a on all text probes (reg 8b@24/@32, preds 3b@81/84/87 + neg@90, bool b74=OR/b75=XOR, cmp 4b@[79:76] 16-map, ureg 8b@32, b91 mandatory UR). reuse-b122 121a print suppression = 256-sib [owner]; donor-side field gaps (neg@72/abs@73/abs@62 on AND,EQ; UR neg@63/abs@62) corpus-zero = 259-kand. patch254.py replayable+idempotent.",
-  "bug258": "2026-08-29 BUG-258: era 2-bit 'neg' sign-window split on the 4 corpus-exposed rows (routex258/law251: 1,359 routed words, values {0,1} only - injured {2,3} class empty). arb258 raw -b: DFMA tok2 b72=neg/b73=abs (RM==RP, models SM120==SM121a==SM103a); UFADD tok2 b72=neg/b73=abs, tok3 SWAPPED b74=abs/b75=neg (SM120==SM121a; SM103a has no UFADD). and_base/vmask unchanged. patch258.py replayable+idempotent. Corpus-zero census residuum (51 sm120 fields incl. I2I/DMMA; 66 sm121a incl. DFMA FI RM/RP + FFMA/DMMA/HADD2...) fail-closed = 261-kand.",
-  "bug261": "2026-08-29 BUG-261: post-258 2-bit 'neg' residuum closure (census261 51 sm120 + 66 sm121a fields; donors 0). arb261 laws (raw -b, and_base hosts + corpus witnesses, 40+ probe sets x4 models): A sign neg-lines (neg@s, abs@s+1) on DFMA FI RM/RP / DMMA tok2 / FADD x4 / FFMA tok2 x8 mgs / FMNMX_FI_P / FSET.BF.GT.AND / UFFMA tok2 / UFSETP tok3; B swapped (abs@s, neg@s+1) on DMMA tok4 / FFMA_P_* tok4,tok3 / UFFMA tok4; C hsel retype ('neg'->'hsel', same bits) on HADD2 x3 / HFMA2 x2 / HMNMX2 / HMUL2 / HSETP2 [arb: v2 .H0_H0, v3 .H1_H1; per-bit binding proven on BF16_V2 witnesses]. and_base/vmask unchanged. SKIP+registry (vendor-INVALID / head-mismatch rows): I2I.S16/U16 x2, I2IP.U8 x4, FMNMX II_? = 265-kand b3-line. Exposure routex261 full 2,406 battery: injured = sm121a FFMA '' tok2 2,384 w (value-2 ghost '-|'), HADD2 FI 7/7 w, HADD2_'?' 104 w, HFMA2 BF16 35 w; all other rows {0,1}-only or zero routing. patch261.py replayable+idempotent.",
-  "bug316": "2026-09-01 MOVM name-space sibling closure (BUG-316): 5 vendor-legal sibling lanes armed on the 0x23a lattice (x2 legs sm120+sm121a): U4TO8.MT88, 16.M832, U4TO8.M832 (era phantom rewritten -- it never matched), 16.M864, U4TO8.M864; strict clones of the BUG-283 MT88 geometry with ns pins at [79:75]. NOT armed by doctrine (bug210/215 precedent): vendor INVALID5/6/7 + INVALID3 lanes and rc0-empty combos stay HOLE fail-closed (pins bug316). Law: arb283 G-sweep + arb316 380 probes, nvdisasm 13.3.73 raw -b, x4 models agree on every probe. patch316.py replayable+idempotent.",
-  "bug320": "2026-09-01 HFMA2 pure-reg 0x231 residuum closure (BUG-320/321): abs@83 tok4 fielded on mg '',BF16_V2 (+clones) -- closes decode hole x2 legs AND the era b74 ghost-mint for authored '|Rc|'; mod lanes F32/FMZ/F32,FMZ (off '') + BF16_V2,FMZ armed as clone-bakes; [55:40] text-inert band decode-relaxed (316 doctrine; enables the lone corpus word t10.cubin@0x410 = w321). NOT armed: BF16xF32 (INVALID3, 285 doctrine), SAT/FTZ/OOB/RELU pure-reg (344-kand), tok3 neg63/abs62 (343-kand), R_R_UR_R tok4 ghost (345-kand), R_R_R_R_R window (346-kand). Law: arb320 a/b/c 312 probes nvdisasm 13.3.73 raw -b x4 models agree on every probe; arb287 H-set. patch320.py replayable+idempotent.",
-  "bug324": "2026-09-01 BUG-324 suffix-window-carrier closure on pure-reg/clustered R-forms (HFMA2_R_R_R_UR 0xe31, HFMA2_R_R_UR_R 0xc31: full donor II_II window = 23 direct lanes + 12 RELU mg + 12 RELU _P dotted keys pred@87/inv@90; HMUL2_R_R_R 0x232, HMUL2_R_R_UR 0xc32: legal lanes FMZ/SAT/FTZ + BF16 crosses, b79 text-inert vm-relaxed; NO OOB alias / b78 INVALID1 = HOLE, no RELU). Kills (unarmed, stay HOLE): SATxRELU (rc=1 x4), F32xBF16 INVALID3 (285 doctrine), HMUL2 b80+b76 INVALID3, HMUL2 b78 INVALID1. Law: arb324 404 probes nvdisasm 13.3.73 raw -b x4 models agree on every probe. patch324.py replayable+idempotent.",
-  "bug327": "2026-09-01 HFMA2 pure-reg 0x231 abs-window closure (BUG-327): abs@73 tok2 + abs@62 tok3 fielded on all 6 mandatory mgs of HFMA2_R_R_R_R, legs sm120+sm121a (behavioral parity pre-existed via generic sign rescue -- this is pure field-closure + has_field_abs defer parity, 320 mechanism; corpus exposure 0 per census327). NOT armed: neg@63 tok3 + neg@72 \"\"-row (343-kand residuum), SAT/FTZ/OOB/RELU (344-kand), R_R_UR_R tok4 ghost (345-kand), R_R_R_R_R (346-kand). Law: arb327 72 probes nvdisasm 13.3.73 raw -b x4 models agree on every probe; arb293 J-set. patch327.py replayable+idempotent.",
-  "bug330": "2026-09-01 II_FI tok4 f16@48 field-closure (BUG-330), legs sm120+sm121a: key HFMA2_R_R_R_II_FI x36 mgs + 12 RELU _P era keys, extraction mirrored from II_II siblings (f16_d / bf16 on BF16_V2 rows). Behavioral parity pre-existed (FI_FI shadow owns g7 imm words; census corpus-zero II-lattice) -- zarodek b87..b90+imm48: HOLE->armed (measure_pre329b). Law: arb329 71 probes nvdisasm 13.3.73 raw -b x4 agree. patch330.py replayable+idempotent.",
-  "bug343": "2026-09-02 BUG-343/344: HFMA2 pure-reg krata 0x231 neg-window closure (neg@63 tok3 all 6 mgs + neg@72 tok2 on 4 non-BF16 mgs; parity pre-existed via generic sign rescue per measure_pre343 => pure field-closure + has_field_neg defer parity) + mod-window closure (12 DIRECT + 6 BF16 lanes, 12 base-key RELU mg with pv7 elision bake, 12 RELU _P dotted keys pred@87/inv@90 tok5; mirror of the 324 sibling window, law by arb320b K/L + arb343 = 48 probes x4 agree on EVERY probe; kills stay HOLE: SATxRELU rc=1, F32xBF16 INVALID3-285, b91). Corpus exposure census343: SAT/FTZ/RELU/neg63 = 0/53,653; neg72 = one known instrument word t10.cubin@0x410 (decode parity pre-exists). Legs sm120+sm121a; donors sm100a/sm103a byte-invariant (BUG-315 owner scope). patch343.py replayable+idempotent.",
-  "bug358": "2026-09-02 BUG-358: sm121a SHFL II-form era over-strict closure: pred (3,81) era field zamiast mylnego (4,12) na 8 wierszach (BFLY/IDX dotted + generic II_II IDX/UP + II_R UP + R_II DOWN/UP/BFLY) + vm-relax [71:64] (write-inert na tok5-imm) + vm-relax [52:40] na II_R + clone II_R DOWN mg. Law: arb358 73 sondy nvdisasm 13.3.73 raw -b x4 agree EVERY probe (mode map [59:58]=IDX/UP/DOWN/BFLY, b1 0x7f/0x75/0x79/0x73 = II_II/R_II/II_R/R_R). Cures: decode HOLE pred<PT (16 mierzonych) + HOLE IIR + SILENT MISDECODE RII-jug64 (junk-claim 0x0,UR20) + mint intent-drop pred->PT + mint REFUSE II_R DOWN. Corpus-invisible (74 kotwice SHFL: pred!=PT/[71:64]!=0/IIR = ZERO na II-form). patch358.py replayable+idempotent.",
-  "bug348": "2026-09-03 BUG-348: sm121a HMUL2_R_R_R (0x232) era dead-row rebuild: 12-mg clone of the post-324 sm120 donor (guard 4b incl inv, tok2/hsel fields restored); squatters HMUL2.BF16_V2_R_R_R + HMUL2_R_R_R_R deleted. Pre: 885 HOLE + 1,393 wrong-text of 2,278 distinct corpus words (all vendor-legal). Law: arb348 78 probes + arb324 469, x4 agree. Doctrine HOLE kept: INVALID1/INVALID3/b91/stray/RELU-window/band. Fleet-unique R_R_R_R phantom (= 372-kand followup census on other legs: none -- asserted absent x3).",
-  "bug362": "2026-09-03 BUG-362: F2I TRUNC/F64/FLOOR lattice era-row closure x4 legs: (S) sign window abs@62/neg@63 tok2 grafted (arb362 S-group 27 probes + arb339 A5/B4, x4 agree; pre-fix HOLE x4); (I) inert b73/74 vm-relax (arb362 I + arb362b; vendor text-inert). (362a reuse [124:122] vendor-ILLEGAL = engine decoder arm; 362c nibble-alias zone = pinned HOLE.",
-  "bug363": "2026-09-03 BUG-363: F2I R_R FTZ (byte10=0x21) + BF16 (0x40) lattice closure x4 legs (arb341b G/H + arb363 326 probes incl S-signs x288 G-guard R-reuse-illegal x16 X-0x61-illegal, x4 AGREE): 96 keyed era rows/leg 'F2I.FTZ[.T][.R]_R_R' + 'F2I[.T].BF16[.R]_R_R' era geometry (signs in, reuse OUT -- vendor rc=1, fail-closed via decoder BUG-363 arm); legacy mgs F2I_R_R::{FTZ,NTZ (dst@15 = sev-A silent dst corruption on 100a/103a) + FTZ,NTZ,TRUNC,U32 (guard-pinned)} deleted and replaced by name-true keyed rows; sm120/121a era key F2I.FTZ.U32.TRUNC.NTZ_R_R normalized (signs added, reuse field dropped). byte10=0x61 + [83:81] alias cells pinned HOLE.",
-  "bug368": "2026-09-04 BUG-368: SHFL R-form closure na sm121a: [57:40]=0 pin -> vm-relax x2 BFLY rows + UP mg pred (4,12,1)->(3,81,1) + vm |= [57:40] + klony DOWN/IDX z UP-patched (mode pinned 2/0; arb358 A-b173 + arb368 G/C x4 vendor-legal). II-form keys byte-invariant (358).",
-  "bug371": "2026-09-04 BUG-371: HFMA2 tok4 abs field closure: appended abs 1b@83 token_idx=4 to every HFMA2 mod_group with Reg/UReg tok4 lacking the field (pre-fix authored |R4|/|R5| silently minted GENERIC b74 = tok2 hsel cross-read -> vendor 'R2.INVALID1'; b83-set words were LOUD decode HOLE on these rows). Law: arb371 2,560 + arb371b 1,728 probes x4 models AGREE EVERY (b83=tok4 abs, b84=tok4 neg [already field-carried], b74/75=tok2 hsel cross-read). pure additive graft: ab/vm invariant (engine carves field bits at match, decoder.rs:131); dense thin rows reach BUG-320 donor geometry. ENGINE ZERO.",
-  "bug373": "2026-09-04 BUG-373: sm121a LDGSTS desc dotted guard widen 3->4b@12 (pv@15 was field-dropped: decode printed '@P0' where vendor renders '@!P0', g=15 '@!PT' elided; encode lint-loud). claim-space invariant: b15 already vm-covered, widen only extends the carved render extraction. Law: arb373_375 G373 sweeps x16 x3 classes x4 AGREE.",
-  "bug375": "2026-09-04 BUG-375: sm121a trailing-_P LDGSTS desc family ported; SAME GRAFT cures the pre-existing donor dst-imm wrong-width render defect: sub_imm1 16b->20b@44 on all 22 desc mgs (vendor law x4: 20b SIGNED @[63:44] == era geometry; corpus words with imm>=0x8000 printed '+-0x100'-class for vendor '+0xff00'-class on the donors pre-373, attr373_375 642-word BAD class closing). 11 dotted keys cloned to *_P with era-style pred 3b@87 + neg 1b@90 tok3 (nibble [90:87]: v&7 pred, v&8 invert, v=7 PT-elided vendor law == era map; P375 sweep x4 AGREE incl SM121a. The 121a pred_inv4 inverted map [LDG.E.*_dARI_P convention] was REJECTED for this family by the arb sweep), cures HOLE incl corpus witness B. ab/vm = donor; ENGINE ZERO.",
-  "bug376": "2026-09-04 BUG-376: sm121a LDGSTS desc dotted LTC lattice completion: += 13 np + 13 _P dotted keys (LTC64B+LTC256B x6 bases, BYPASS.LTC128B.128.ZFILL twins). arb376b 99 probes x4 AGREE EVERY (SM121a uniform with era legs); deltas pure (g1..g8/g1p.. asserted); _P clones inherit post-375 pred fields (3b@87+1b@90 tok3 via donor). Pre: family HOLE incl encode REFUSE (measure_pre376). Lattice EXACT 24/24. ENGINE ZERO.",
-  "bug382": "2026-09-04 BUG-382: SHFL stray-window relax x4 legs -- vm |= b63 + [90:88] on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb382 98 sond nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY (b63/b88/b89/b90 write-inert kazda rodzina x tryb; b91 = KILL x4 na kazdej klasie = pin zostaje; ball-probe {63,88,89,90} inert). Pre (publish f1f3dd78, canonical 6742fdf, measure_pre382): 224 ogniwa junk HOLE x4 nogi, 0 cichego misprintu. II_R IDX/BFLY absent x4 = bez zmian (residuum 358, 368 sec.6). 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
-  "bug380": "2026-09-05 BUG-380: F2I F64-src (byte10=0x30, b76=1) lattice completion x4 legs: +22 rows/leg (plain/NTZ/FLOOR.U32/S64/U64/FLOOR.NTZ/CEIL/CEIL.NTZ full dst closure; donor-clone per dst from the TRUNC family, cell swap only, claim envelopes verbatim) + 'F64,S64'/F2I.S64.F64_R_R plain-S64 alias relax (3<<73) + abs@62/neg@63 fields (pre: HOLE). Law: arb380/380b/380c/c2/380d 187 probes x4 models AGREE EVERY; 96-cell (round x nibble) sweeps; reuse ILLEGAL everywhere (decoder BUG-380a arm, engine side). Pre-fix 364/384 cells HOLE x4 legs (measure_pre379_380). b76=0 narrow-dst sub-lattice = 390-kand (HOLE fail-closed kept).",
-  "bug386": "2026-09-05 BUG-386: sm121a LDGSTS desc dotted base-gap completion: += 6 np + 6 _P dotted keys (BYPASS s32/64, ZFILL s32/64, BYPASS.ZFILL s32/64). arb386 31 per-cell probes x4 AGREE EVERY; deltas pure (gc1..gc5/gc1p..gc5p asserted); _P clones inherit post-375 pred fields (3b@87+1b@90 tok3) via donor; hi32==0 asserted. Pre: HOLE x4 + encode FAIL (measure_pre386). Lattice EXACT 30/30. ENGINE ZERO.",
-  "bug384": "2026-09-05 BUG-384: delete harvest-junk HFMA2 dense era keys HFMA2.BF16_V2_R_R_R_R + HFMA2_R_R_R_R_R (sm120/sm121a only): junk-baked claims (H0_H0 bakes b61/b75/b82; 5-reg odd windows guard1b@13/reg@18/@33/@66) with incomplete field sets; arb384 lattice 168 probes x2 legs + arb384b window law = HFMA2_R_R_R_R windows; the 5-reg row WON inert-window words and printed garbage (2 live WRONG cells) -> delete reroutes to the main rows (vendor-true). census384 battery 34,087,886 words: 420/420 corpus hits vendor-exact pre==post. Encode unchanged: era keys never minted; 5-token HFMA2 stays loud (394-kand). ENGINE ZERO; precedent 165/173 dead-shell removal.",
-  "bug387": "2026-09-05 BUG-387: SHFL b62-region stray-window relax x4 legs -- vm |= b62 + b61 ([62:61], b63 z BUG-382) on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb387 280 sond + arb387b, nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY (b62/b61 write-inert kazda rodzina x tryb x 2 warianty wartosci; combo b62|b63 + b62|ball inert; b64/65 = live reg-c [71:64] na RR/II_R; b91 = KILL x4 = pin zostaje; b92-b95 inert = okno [95:92] POZA zakresem, pinned -> 396-kand; dziedzictwo arb382 dla [90:88]+b63). Pre (publish 042ffa91, canonical 9713fd6, measure_pre387): 112 ogniw b62/b61 HOLE x4 nogi, 0 cichego misprintu. II_R IDX/BFLY absent x4 = bez zmian (residuum 358, 368 sec.6). 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
-  "bug396": "2026-09-05 BUG-396: SHFL [95:92] stray-window relax x4 legs -- vm |= (0xf<<92) on 57 rows (era 14/leg x3: II_II x4 + II_R x2 + R_II x4 + RR x4; 121a: keyed BFLY/IDX II_II/R_II/RR + II_II x3 + II_R x2 + R_II x3 + RR x4). Vendor law: arb387 b93/b95 56/56 + arb387b b92/b94/ball 42/42 + arb396 84/84 composition (pairs inside window + ball with [63:61]/[90:88]), nvdisasm 13.3.73 raw -b, x4 modele AGREE EVERY, DIVERGENT=0, teksty == clean anchors. b91 = KILL x4 = pin zostaje; b96+ = fields (rozlaczne, aserty); [63:61] (387) + b63/[90:88] (382) stoja. Pre (publish fe384b27, canonical 93bc221, measure_pre396): 224 ogniwa b92..b95 + 56 ball HOLE x4 nogi, 0 cichego misprintu; kontrole 382/387 zywe. II_R IDX/BFLY absent = residuum 358/368 stoi. 121a '_?' residuum byte-invariant. ENGINE ZERO changes.",
-  "bug388": "2026-09-05 BUG-388: plain sub_imm window decls -- 38 arb378-DIVERGE carriers / 104 rows x4 legs do vendor-true geometry (arb388+arb388b, nvdisasm 13.3.73 raw -b, x4 modele AGREE KAZDA sonda, DIVERGENT=0; zbiezne z BUG-156 window-law). LDGSTS sm100a tok2 -> 12b@32; LDS_R_ARURI|S8 / ATOM(G) CAS tok3 / dARI-desc REDG/STG/ST/LDG/LD -> 24b@40 SIGNED; sm121a ST/LD ARI -> 32b@32 SIGNED; sm121a LDC/LDCU cAI '' extr->cm16_off/cm17_off; UGETNEXT BROADCAST para 8b@24 bez offsetu (DELETE sub_imm1 24b@28). Kolateral (arb388+arb388c x4): G UR-clip [32..40) 4/5/6->8b (LDG/LD dARI + LDS_R_ARURI|S8, 40 rows); H sub_r0 9->8 bleed (LDGSTS sm100a 14 rows @16, CAS 121a 4 rows, LDS_R_ARURI|S8 121a; 147-class); I-J vendor-inert junk-band relax (UGETNEXT [16..24)+[32..72); sm121a LDC  [32..38)+[59..64), LDCU '' [32..37)+[59..64); singles+band+ball x4). Pre (publish 05d2e7e9, measure_pre388): 2299 komorek = 1050 MATCH / 1154 WRONG cichy misprint (flip znaku LDC b53, fabrykowane +0x1, corrupt baza R) / 95 HOLE. ENGINE: SubURm1 printer arm (para raw+1) -- jedyna zmiana src. Residua rejestrowane: 398 (cAI [24..32) index zanegowany + ?cAURI + sub_ur1@64 inwersja), 399 (glif +-0x na ARURI STS/LDS).",
-  "bug390": "2026-09-06 BUG-390: F2I F64-src (byte10=0x30, b76=0) NARROW-dst sub-lattice x4 legs: +32 rows/leg (plain/NTZ/FLOOR/FLOOR.NTZ/CEIL/CEIL.NTZ/TRUNC/TRUNC.NTZ full {U8,S8,U16,S16} closure; donor-clone per dst-class from the wide b76=1 family, byte9 cell-swap 0x??<<72 incl b76 1->0, claim envelopes verbatim, b73/b74 alias relax inherited). Law: arb390 147 + arb390b 52 = 199 probes x4 models AGREE EVERY: 128-cell full [79:72] sweep all legal; dst {b75,b72} 00 U8/01 S8/ 10 U16/11 S16; b73/b74 text-inert; abs@62/neg@63 tok2 on every axis; guard generic; reuse [124:122] ILLEGAL (26 probes rc=1; engine decoder-arm extension = cubit-side). Pre-fix 512/512 cells HOLE x4 legs + 128/128 encode loud-FAIL (measure_pre390; t380_6 posture). Corpus census390: b76=0 bucket LDL-shaped/claimed (sample390 x40), no anchor-shaped words -> graft corpus-invisible.",
-  "bug403": "2026-09-06 BUG-403: F2I F64-src WIDE (b76=1) TRUNC.NTZ axis donor closure x4 legs: +4 rows/leg (era mgs 'F64,NTZ,TRUNC[,U32/U64]' + 'F64,NTZ,S64,TRUNC'; keyed F2I[.U32/.U64/.S64].F64.TRUNC.NTZ_R_R); donor-clone per dst-class from the wide TRUNC donors, byte9 cell-swap 0xd0|nib -> 0xf0|nib (set b77 NTZ), claim envelopes verbatim, b73/b74 alias relax (3<<73) inherited. Law: arb403 34 + arb403b 3 = 37 probes x4 models AGREE EVERY: all 16 nibble cells legal (dst {b75,b72}+S32 default, b73/b74 inert); abs/neg tok2 everywhere (9 probes); guard generic; reuse [124:122] ILLEGAL rc=1 x4 (4 probes; engine decoder-arm ext = cubit-side). Pre-fix 64/64 cells HOLE x4 legs + 16/16 encode loud-FAIL (measure_pre403; t390_7 posture flipped).",
-  "bug393": "2026-09-06 BUG-393: HFMA2 0x231-bases inert-window relax x4 legs -- FULL MOD-CLOSURE: 36 mgs x 4 legs (24 non-RELU full [55:40]|[59:56]|[87:90]|[92:95]; 12 RELU sans [87:90] = pv-elision live field). Vendor law: measure_pre394 170 sond + balls + measure393_closure 144 tetrady x 31 prob (nvdisasm 13.3.73 raw -b x4 modele AGREE; b91 KILL x144 stays; b78/b86 markers stand). Sparse-parity [55:40] domknieta. 0x7c31 UR-family out-of-scope (391/395 tail).",
-  "bug407": "2026-09-06 BUG-407: sm121a USETMAXREG misroute fix (canonical graft, ONE table). Vendor law: arb407_census (full ab240 battery 2,406 cubins -> 344 words / 18 distinct: 280 DEALLOC + 64 TRY_ALLOC; zero other vendor forms) + arb407_vendor (nvdisasm 13.3.73 raw -b x4 models on full-128 words with native control prefixes, AGREE EVERY, DIVERGENT=0): DEALLOC.CTAPOOL imm10 = b72=1/b73=0/b74=1/[83:81]=111 (UPT unprinted); TRY_ALLOC.CTAPOOL UPn,imm10 = b73=1/b72=0/b74=1 (corpus UP0-only). Fix: b74 care-1 on both rows (DEALLOC row previously never strict-matched real words; relaxed TRY row claimed them = DEALLOC->TRY misroute + phantom UPT token + doubled mod \"TRY_ALLOC.CTAPOOL._ALLOC.CTAPOOL\"; TRUE TRY words had the same doubled mod) + mg \"_ALLOC.CTAPOOL\" -> \"\" (vendor-true render) + operand_sig \"ALLOC.CTAPOOL_UP_II\" -> \"UP_II\" hygiene. Claim partition verified exact on 18 corpus words (12 D / 6 T, cross=0). Other legs byte-invariant. ENGINE src ZERO changes.",
-  "bug398": "2026-09-07 BUG-398-C: sm121a cAI-family junk band [64..72) vendor-true relax (canonical graft, ONE table; ENGINE-side phase A = cAURI printer/parser arm in cubit src, closing the 410-kand corpus render exposure as well). Vendor law arb398 (per-bit b64..b71 + ball + ball x off0, corpus-derived carriers per grafted mg, nvdisasm 13.3.73 raw -b, x4 models unanimous): [64..72) FULLY INERT on LDC_R_cAI {\"\",64} / LDCU_UR_cAI {\"\",64,128,U8} / LDCU_UR_cAURI {\"\",64,128,U8}; [RZ]/[URZ] at offset-zero = BUG-174 offset-law (off0-without-ball control identical), NOT a band property -- arb388d ball reading corrected. LDC.U16_R_cAI EXCLUDED: b64..b67 = pred window (400-class). Monotone relax; collision/claim audits pre==post.",
-  "bug400": "2026-09-07 BUG-400: pred/LTC window [64..72) vendor-true declarations on dARI/ARI LDG/LD rows (canonical graft, adding-only: plain LTC mgs + <KEY>_P trailing-pred keys with pred_inv4@64 tok=last). Vendor law arb400 (307 probes: nibble x LTC x combos x b70/b71-ball; corpus-derived carriers incl sm121a synth) + arb400b (198 cross-combo probes: b70/b71/ball x {pv 0,1,8} x {ltc 0,1}; 165/165 cross-checks vs pv/ltc baselines MATCH); nvdisasm 13.3.73 raw -b x4 models DIVERGENT=0): [64:68)=inv4 pred window (0 elide, v->P(7-v), 8->!PT, 9..15->!P(15-v)); [68:70)=LTC code (1/2/3 = LTC64B/LTC128B/LTC256B); b70/b71 INERT. Closes verify388post residuum 400 (77 WRONG cells x 11 carriers). ENGINE src ZERO changes (pred_inv4 machinery + mod priorities already shipped; sm121a LDG_R_dARI_P precedent).",
-  "bug416": "2026-09-10 BUG-416: 121a LDG lane-cross LTC lattice closure -- REPAIR of the harvested LDG_R_dARI_P|128,E,LTC128B FABRICATION (ab 0c1019..7980 junk lane, dead pred window) to the true 7981-lane geometry (donor-verbatim _P|128,E | 2<<68); LDG_R_dARI_P += 128,E,LTC64B/128,E,LTC256B; LD E-lane (TRUE 0c1019/0980) closure: LD_R_dARI += E,LTC64B/128B/256B + LD_R_dARI_P += E,E,LTC64B/128B/256B (pred_inv4@64) + LD_R_dARI|E vm |= 3<<70 measured-inert relax. Vendor law: arb416 (33p) + arb416d (22p) + arb400c (27p), nvdisasm 13.3.73 raw -b x4 AGREE EVERY, DIVERGENT=0. ENGINE src ZERO. Corpus exposure ZERO (census416, 2,406 cubins). Scope-cut of BUG-400 closed."
+  }
  },
- "_pending_note": {},
  "instructions": {
   "ACQBULK": {
    "base_op": "ACQBULK",
@@ -2087001,30 +2087366,5 @@
     "write_latency": 0
    }
   }
- },
- "_errata_2026_08_23_182": "SYNCS RED mg x2 (cluster-scope, bit74) + exec-sem SYNX2",
- "_errata_2026_08_23_183": "MEMBAR vendor-form closure: ALL.CTA bit79, SC.SYS bits{76,77}, +MEMBAR.ALL.SYS bits{76,77,79}",
- "_errata_2026_08_23_184": "UBLKCP.S.S (DSMEM push, bit73+74) + desc[URn] cache_hint formy (bit76, desc_ur@[47:40]): +S.S_AURI_AURI_UR, +S.G/G.S_AURI_AURI_UR_II, +UBLKPF.L2_AURI_II; multicast note: ptxas 13.0.88 na sm_121a NIE emituje hw-mcast (CALL c[0x4][0] runtime fallback dla masek >1 bit; mask==1/runtime-mask slowo == plain S.G)",
- "_errata_2026_08_23_185": "UTMASTG.1D-5D (TMA store, opcode 0x3b5) + UTMALDG.3D/4D/5D: wymiar=(dim-1)<<79, bit91 rodzina UTMA; +UTMASTG.2D_AURI_AURI_II (L2::cache_hint, bit76=desc, desc_ur@[47:40)); legacy _AUR_ rows bez zmian (patrz nota w apply_185.py); relacja: err180 \"bit79 desc-mode\" = bit wymiaru 2D.",
- "_errata_2026_08_23_186": "UTMAPF.L2.1D-5D +desc _II (opcode 0x5b8, TMA tensor prefetch L2), UTMACCTL.PF (opcode 0x9b9, prefetch.tensormap), UTMALDG/UTMASTG desc _II domkniecie wymiarow; siatka wspoldzielona z err185 (dim-1<<79, bit76=desc, desc_ur@[47:40), bit91=rodzina).",
- "_errata_2026_08_23_187": "UTMALDG tensor MULTICAST = emulacja runtime na sm_121a: mask==1 (lub imm 0x1) -> plain UTMALDG.ND slowo (semantic == non-multicast, ex-sched); mask>1 bit -> CALL.ABS.NOINC thunk c[0x4][R0], zero UTMALDG w cubinie. .cta_group::2 TMA hard-unsupported; UTMAPF tylko .L2; UTMASTG multicast odrzucone. Kontrola: sm_90a/sm_103a maja prawdziwy UTMALDG.2D.MULTICAST [URa],[URb],URm. 0 nowych kluczy; EXACT 6/6 na istniejacych wpisach.",
- "_errata_2026_08_23_188": "188: UTMALDG.1D rekanon na siatke err180 (nowy wiersz _AURI_AURI, bit79=0); legacy 1D/2D_AUR_AUR usuniete (WATCH z err180 rozstrzygniety: render-trap desc[UR][R.64]); klucze 15329->15328; EXACT work/q2/iter138/exact_188.py",
- "_errata_2026_08_23_189": "err189 2026-08-23 (spark iter139): WATCH po err188 - ostatni legacy klucz _AUR_ (non-I) z grid-rodzenstwem: UBLKCP.S.G_AUR_AUR_UR mial fingerprint kompatybilny z siatkowym UBLKCP.S.G_AURI_AURI_UR (0 konfliktow na 28 wspolnych bitach maski) i 0 slow w cenzusie (12/12 obserwowanych UBLKCP.* bierze siatke, render canon-exact). Kasacja jak err188/err098. Bez zmian: UBLKRED.G.S.ADD[.S32]_AUR_AUR_UR x2 (brak siatkowego rodzenstwa 0x3bb, rodzina nieobserwowana - park, patrz ADDENDUM iter139).",
- "_errata_2026_08_23_190": "err190 2026-08-23 (spark iter139): UBLKRED.G.S park z err189 ROZSTRZYGNIETY pierwszymi slowami vendor (cp.reduce.async.bulk): legacy ADD/ADD.S32 _AUR_AUR_UR = ZYWE pulapki (plain ADD renderowal desc[UR][R.64], U64=decode miss). Kasacja x2 + siatka 16 wierszy _AURI_AURI_UR (8 op x 32/64b; op@[89:87], U64=bit82, okna UR jak UBLKCP.S.G). REDUKCJE .min/.max/.and/.or/.xor/.inc/.dec + U64 potwierdzone krzemiowo.",
- "_errata_2026_08_23_197": "err197 (spark iter146, delta floty a134de9): VIADD.S32.ISAT = nowa klasa consumer-Blackwell na 121a (120==121a byte-ident, 10/10); ptxas 13.0 O0/O3 lowering add.sat.s32 -> 1x VIADD (nie 5-op makro IADD3+2xPLOP3.LUT R.SIGN+2xSEL jak 103a). +2 wiersze VIADD (R_R_R 21 slow, R_R_II imm32) exact-fit + type-grid siatka byte9 (32/16x2/S32/S16x2/U8x4/S8x4/INVALID6/7) + .ISAT@80 decode-attested. PLOP3.LUT R.SIGN forma: dekoder 121a POSIADA (12 slow 103a render pole-w-pole identycznie, walki 8 pol OK) -> +wiersz PLOP3.LUT_P_P_R_R_R_II_II (port floty); compiler-emisja absent. EXACT gate: work/q2/iter146/plop3sat/gate_err197.py.",
- "_errata_2026_08_24_198": "ERR-198: VIMNMX.U8x4/VIMNMX.S8x4 (bit74 width, bit72 sign) + VIADD.S8x4 (bit73 sign on width grid [73:76): U8x4=4(bit75),S8x4=5); VIADD.U8x4 and_base +=bit75 (byl junk->drop w re-encode). Dowod: vabsdiff4.u32.u32.u32/s32 lowering na sm_121a (sm_103a ma VABSDIFF4 hw - park err196); harvest 142 slow EXACT.",
- "_errata_2026_08_24_201": "ERR-201: LEPC dest = para 64-bit o parzystej bazie (err200 doprecyzowane: Rd32->Rd(EVEN):Rd+1 := VA64(PC)+0x20); odd dest trapuje na GB10 deterministycznie; encoder fail-closed (check_lepc_pair_semantics_sm121), decode full-fidelity. Scheduling zmierzony (m9lepc iter152): lat ~10cy, tput ~2cy-op/SMSP - obalony S2R-mirror provisional (S2R ~32cy/8cy). Dowody: results/q3/m9lepc_iter152_*, errata/201. Piny: tests/err201_lepc_pair_semantics_121a.rs (2).",
- "_errata_2026_08_24_203": "ERR-203: adresy ctrl-flow = pary 64-bit o parzystej bazie (lustro ERR-201 LEPC). RET.REL.NODEC/RET.ABS.NODEC link Rn:Rn+1, CALL.ABS.NOINC target Rn:Rn+1; odd trapuje na GB10 deterministycznie (ILLEGAL_INSTRUCTION); RET.ABS link twardo R20:R21 (and_base piecze 0x14@[31:24]). Encoder fail-closed (check_retctrl_even_pair_sm121), decode full-fidelity. Dziura byla CICHA (odd slowo enkodowalo sie i trapowalo dopiero na krzemiu). Dowody: results/q3/M9CC_CALL_ABI_121a.md (iter155), errata/203. Piny: tests/err203_retctrl_even_linkreg_121a.rs (5). Follow-up z iter156 DOMKNIETY (iter158): printer RET.ABS.NODEC renderuje vendor-exact `RET.ABS.NODEC R20 0x0` (spacja, imm literal 0x0, nigdy pc-derived); encoder przyjmuje fraze przez fieldless wiersz RET.ABS.NODEC_? z fail-closed walidacja (odd -> ERR-203; even != R20 lub imm != 0 -> brak realizacji, loud, zadnego cichego aliasu na baked word). Piny err203 8/8 (5+3 nowe); cargo 739/739; census 91682 0-fail / 1mm-LEPC(baseline); identity 27/27 PERFECT-IDENT.",
- "_errata_2026_08_24_206": "ERR-206 / rq21: immediate REL galezi (BRA/CALL.REL/RET.REL) na sm_121a = SIGNED 21-BIT, nie 20-bit. rq=(target-addr-16)>>4; rq[5:0]@[23:18], rq[15:6]@[43:34], rq[20:16]@[48:44] (NIE [47:44]), sign-ext [63:49] + [81:64] all-copies. Poprzedni fit imm20 (iter52, EXACT na 16008 slowach) trzymal tylko przez korpus <<8MB (|rq|<0x80000 => rq19==rq20). Dyskryminatory krzemowe (ptxas -O0, ~9.6MB cia\u0142o, run EXACT 5/5): fwd rq=+0x927c6 slowo 003fde0003800000_0000927c00180947 ([63:48]=0x0000 przy rq19=1), bwd rq=-0x927c6 slowo 003fde000383ffff_ffff6d8000e80947 (bit48=1 przy rq19=0). Blad byl ALGORYTMICZNY (encoder apply_branch_encoding + printer decode_branch_target), maski wierszy juz variable - zadnych zmian wierszy. Ta sama szerokosc co sm_103a BUG-115 (flota 1dfbf36). Piny: tests/rq21_bra_rel21_121a.rs 7/7 (6 FAIL pre-fix = kontrola). Bramki: cargo 756/756 (749+7), cenzus 91802 0-fail 0-mm, master 1081+2, identity 27/27 PERFECT-IDENT. Dowody: work/q2/rq21_iter199/, errata/206_branch_rel21_imm_121a.md.",
- "_errata_2026_08_24_213": "ERR-213 (iter211): SHFL merged-imm c13@[52:40] odbudowa: IDX/DOWN II-form ze szablonu sm103a (+[52:48] wg 26 kotwic nvcc13), BFLY idem, IDX R-form 8->13b; NOWE R-form DOWN/UP/BFLY (klasa b1=0x75, sm121a-spec; sm103a b1=0x73); skasowane falszywe okna sm120: SHFL.IDX_P_R_R_II_II(+_?), mg IDX w SHFL_P_R_R_II_R/R_R (ab 03e01f0000007f89 b1=0x7f = tylko-II okno). PARK: UP II-form (b1 0x79/0x7f + c-RZ render kwir) = KANDYDAT.",
- "_errata_2026_08_24_214": "ERR-214 (iter212): SHFL.UP 3 okna: II_II mg UP = b1 0x7f + c13 ((32-w)<<8) [ZAMIANA falszywego okna 0x79]; II_R mg UP = b1 0x79 + tok5 reg@64 (w32 c-RZ render); R_R mg UP = b1 0x73 lane R@32 c R@64 [ZAMIANA duplikatu 0x79]; R_II mg UP (0x75) z iter211 nietkniete; kotwice probe1_up/probe2_up nvcc13 (29 slow); szablon pol sm103a, vm = wiersz IDX iter211.",
- "_errata_2026_08_24_215": "ERR-215 (iter213): bug123-parity 121a DOMKNIETA \u2014 LDG.E.EU/NA base (34->37/37) + EU/NA .64 + EU .128 (mg LDG_R_dARI) + narrow EU.U8/EU.U16/NA.S8/NA.U16 (nowe klucze, klon EF.S8/U16) + STG.E.EU base/.64/.128 + STG.E.NA.64 (nowe klucze, klon EL/NA.128); policy 3b@[86:84] EU=4 NA=5, rozmiar byte[79:72]; kotwice nvcc13.0.88 pol215 (24 ksztalty) + iter212 ldg_evict; predykowane @pp LDG/STG z polityka = obnizka do BRA (brak naturalnych slow @P).",
- "_errata_2026_08_24_216": "ERR-216 (iter214): ERR-216-cand DOMKNIETY \u2014 L2-256 dARI-klasa: 4 nowe klucze (LDG.E.EL.ENL2.256_R_R_dARI, LDG.E.NA.ENL2.256_R_R_dARI klon ENL2 bajt10 0x12->0x22/0x52; STG.E.EF.ENL2.256_dARI_R_R, STG.E.EU.ENL2.256_dARI_R_R 0x12->0x02/0x42); kotwice naturalne pol216 (createpolicy.fractional + ld/st.global.L2::cache_hint .v8, v8.f32, nvcc 13.0.88); *5-token II-256 trailer-imm (fleet BUG-123) NIE jest emitowany przez ptxas 13.0 na zadnej probkowanej frakcji (policy siedzi w deskryptorze UR) \u2014 geometria II-256 PARK az do toolcha wspierajacego trailer; predykowane formy @pp: brak naturalnych slow (obnizka jak iter213).",
- "_errata_2026_08_24_217": "ERR-217 (iter215): parity-port fleet BUG-125 (3dd866a) \u2014 F2I f32-imm forma F2I_R_FI PROBED-POSITIVE na sm_121a: ptxas 13.0.88 emituje naturalne kotwice (F2I.S8/S16.TRUNC.NTZ, F2I[.U32].FLOOR/CEIL.NTZ z cvt literal; S32/U32.TRUNC + 64-bit fold). Oracle sweep x128 nvdisasm-13.0.88: geometria identyczna jak sm_103a (type {76,75,72}, round [79:78], NTZ b77, FTZ b80; 6/7 INVALID), 96 mod groups, and_base z naszych slow sweepowych. Kod: parser F2I float-context + decoder prio-3 fail-closed F2I + printer key-scope FI mod-order (port src z 3dd866a). F2IP f32-imm (F2IP.U8.F32.TRUNC.NTZ R5, RZ, 1.5, RZ; opcode 0x0843) bez zmianki = osobny KANDYDAT (ERR-218+).",
- "_errata_2026_08_24_218": "ERR-218 (iter216): parity-port fleet BUG-126 (4fa0d21) \u2014 USHF imm-form na sm_121a: oracle sweep x32 nvdisasm-13.0.88 potwierdza geometrie floty (dir b76, sign b73, width b74, W b75, HI b80) i 32/32 legalne (brak INVALID). Klucz USHF_UR_UR_II_UR: 5 harvest-mg (m.in. 'L,U32' z uszkodzonym bake byte3=0xff, brak pola src@24) -> ZASTAPIONE 32 czystymi wierszami klasy (and_base z naszych slow sweepowych, vm guard+dst+src+imm32+src2+sched, pola 5). Pre-fix: sweep-formy 5 dot. kombinacji (np. HI,R,U32 ze src!=URZ) padaly dekoderowo (byte3!=0xff). Kod: decoder prio-3 fail-closed +='USHF' (port 4fa0d21; pre-fix lossy !rsd[74:1] ). Druk dir[.W].type[.HI] == 13.0.88. Dowody: work/q2/iter216/, errata/218. Dodatkowo: usunieto harvest-junk mg 'HI,L,U32,W' z USHF_UR_UR_UR_UR (and_base bucket opcode 0x899 = forma II; sweep x32 0x899 dowodzi, ze vendor drukuje tam WYLACZNIE forme imm; 0 slow korpusu 123 atrybuowalo sie do tego mg; pre-fix mg hijackowal slowa HI,L,U32,W ze src2!=URZ renderujac imm jako UR1).",
- "_errata_2026_08_24_219": "ERR-219 (iter217): USHF R-form (bucket 0x299) domknieta na sm_121a: oracle sweep x32 nvdisasm-13.0.88 32/32 legalne, geometria == ERR-218 == fleet BUG-126 (dir b76, sign b73, width b74, W b75, HI b80; druk dir[.W].type[.HI]). USHF_UR_UR_UR_UR: 3 harvest-mg (2 z bucket 0x899-imm junk + 1 L,U32 bez pola c) -> 32 czyste wiersze klasy (and_base z naturalnej kotwicy 0x210, vm guard+dst+a+b+c+sched, 5 pol). Prune: 3 junk mg bucket-0x899 z USHF_UR_UR_UR_II (strict-hity na 223/330 naturalnych slow imm-form \u2014 aktywny hijack-risk; wygrywaly z nimi wiersze klasy II_UR dysambiguacja). Delete: one-off baked keys USHF.L.U32_UR_UR_UR_UR (brak pola c, bake c=URZ) i USHF.R.U32.HI_UR_UR_UR_UR (4-bit pola => MIS-DECODE naturalnego 0270 URZ->UR15). Park: 0x499 (UR_UR_UR_II, c=imm) bez naturalnych kotwic nvcc (2 harvest-mg zostawione) = ERR-220-cand. Klucze: -2. Dowody: work/q2/iter217/, errata/219.",
- "_errata_2026_08_24_220": "ERR-220 (iter218, spark): USHF forma I-last (bucket 0x499, USHF_UR_UR_UR_II) domknieta \u2014 z pomiaru patch-probe na kotwicy naturalnej (ushf218.cubin @0x210): sweep x32 = 32/32 LEGALNE; druk 'USHF.<dir>[.W].<S|U><32|64>[.HI] URd, URa, URf, imm' (imm32@[63:32] OSTATNIM operandem, fill-UR@[71:64] 3ci \u2014 odwrotnie niz forma 0x899 ERR-218). 2 harvest-mg (HI,L,U64 / R,U32,W bez guard, reuse-junk) -> 32 czyste wiersze klasy (guard+dst+a+fill+imm, vm=guard|dst|a|imm|fill|sched). guard sweep @[15:12]: @UP0..6/PT OK; imm hex unsigned; UR63 legalny. Korpus 92,096: 0 slow 0x499 (forma corpus-absent, jak R-form ERR-219). Bramki: gate_err220_iter218.json (dec/enc 32/32 EXACT, nat-probe 7/7); pins tests/err220_ushf_ilast.rs.",
- "_errata_2026_08_24_221": "ERR-221 (iter221, spark): F2IP forma f32-imm (F2IP_R_R_FI_R, opcode 0x0843) domknieta \u2014 residuum z ERR-217 (roundtrip f2i217.cubin blad 1/7). NOWY klucz: 32 mod groups (typ U8/S8 x round blank/INVALID1/INVALID2/TRUNC x NTZ x RELU), pola guard@12/dst@16/tok2@24/imm-f32@32/tok4@64+opmod:H1@72, vm=guard|dst|tok2|imm|tok4|H1|sched. Typ idx 2/3 = vendor INVALID2/INVALID3 -> fail-closed (decoder prio-3 +F2IP). parser +F2IP do FLOAT_OPCODES; printer key-scope porzadek modow type<F32<round<NTZ<RELU.",
- "_errata_2026_08_24_222": "ERR-222 (iter222, spark): F2IP forma R_R_R_R (opcode 0x243) \u2014 render-drift legacy wierszy domkniety WYMIANA: 14 legacy kluczy (uszkodzone and_base 0x27a/0x23c/0x238, neg@72 vs vendor .H1, junk neg/reuse @122/123/124, C-shape sig '?', pin-guard _P0/_P2/_P5, typ-INVALID2) -> 1 klucz F2IP_R_R_R_R z pelna klasa 32 mod groups (typ U8/S8 x round blank/INVALID1/INVALID2/TRUNC x NTZ x RELU), pola guard@12/dst@16/tok2@24/tok3@32/opmod:H1@72/tok4@64, vm=guard|dst|tok2|tok3|tok4|H1|sched (mirroring ERR-221 FI). Dowody: sweep222a/b/c/d (work/q2/iter222). Klucze 15457 -> 15444. printer key-scope mod-order rozszerzony na F2IP_R_R_R_R.",
- "_errata_2026_08_24_223": "ERR-223 (iter223, spark): F2IP II-phantom domkniety \u2014 usunieto wiersz F2IP.S8.F32.NTZ_R_R_R_II (sm120-heritage count=32, syntetyczny enumerator; and_base bitowo == grupie F32,NTZ,S8 klucza F2IP_R_R_R_R z ERR-222, vm wlasciwym podzbiorem => zbior slow wiersza = podzbior klasy R4; nvdisasm-13.0.88 drukuje tok4@[71:64] ZAWSZE jako rejestr (sweep222c R9/R5/R7[.H1] na realnych rejestrach, sweep223a matryca byte9 x64 na naturalnej kotwicy FI); emission hunt iter223 (cvt.rzi/rni z literalem f32 -> forma FI z imm-f32 w tok3, tok4=RZ; cvt.pack.* odrzucone przez ptxas-13.0 sm_121a) \u2014 sciezki do imm8 w tok4 BRAK. Wiersz byl cieniowany przez F2IP_R_R_R_R w DecodeIndex (baseline decode-identyczne); census WIDE/mgate WIDE: klucz nigdy nie uzyty. Klucze 15444 -> 15443. Fleet-watch: identyczny wiersz w sm120.json (count=32) = ten sam ksztalt fantomu \u2014 rekomendowany audyt po stronie sm120."
+ }
 }

@@ -1,5 +1,5 @@
 //! SM120 UBLKPF.L2 (bulk L2 prefetch, PTX cp.async.bulk.prefetch.L2) measured with nvdisasm 13.1
-//! (tools/re_sm120_ublkpf.py). Every probed word (uniform guard, address UR incl. URZ, size UR incl.
+//! (tools/probes/re_sm120_ublkpf.py). Every probed word (uniform guard, address UR incl. URZ, size UR incl.
 //! URZ, the descriptor UR under bit 76) decodes to NVIDIA's text through the measured keys
 //! `UBLKPF_AURI_UR` / `UBLKPF_AURI_UR_II` (`L2`) - not the harvest-era `UBLKPF.L2_AUR_UR` whose
 //! AUR signature printed a fabricated `desc[UR24][R24.64]` - and that text reassembles all 128

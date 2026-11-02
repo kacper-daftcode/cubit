@@ -35,7 +35,7 @@ NATIVE_CTRL = 0x000fe800 << 96
 SCHEDULE = ((1 << 23) - 1) << 105
 KEY = "STSM_ARI_R"
 GROUPS = {0: ("8,MT168", "16,MT168"), 1: ("2,8,MT168", "16,2,MT168"), 2: ("4,8,MT168", "16,4,MT168")}
-FIXTURE = pathlib.Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "sm120_stsm8_mt168_nvdisasm.jsonl"
+FIXTURE = pathlib.Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "sm120_stsm8_mt168_nvdisasm.jsonl"
 TEXT = re.compile(r"(@!?P[0-6T] )?STSM\.8\.MT168(\.2|\.4)? \[(R(Z|\d+))?(\+?-?0x[0-9a-f]+)?\], R(Z|\d+)")
 
 

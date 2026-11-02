@@ -2,7 +2,7 @@
 //!
 //! The canonical `ATOMS_R_ARURI_R` / `MAX,S32` row was a harvest leftover: it read the address UR
 //! byte [71:64] as a fourth register operand, declared no offset field and no guard, and its
-//! variable mask excluded the offset bits - the same defect tools/re_sm120_memory_fields.py had
+//! variable mask excluded the offset bits - the same defect tools/probes/re_sm120_memory_fields.py had
 //! retired on `ATOMS_R_ARI_R_R`. The decoder still reached the row through its broad
 //! memory-address fallback and printed `ATOMS.MAX.S32 RZ, [R157], R58` for the shipped word
 //! 0x0001e200090002070151003a9dff798c (nvdisasm: `[R157+UR7+0x15100]`); the encoder then refused
@@ -10,7 +10,7 @@
 //! 0.7.2's GLM-5.3 MG prefill kernel (sparse_mla_prefill_mg_kernel<ModelType 3>, sm_120 AOT cubin
 //! of vLLM-Moet image r21) did not round-trip.
 //!
-//! Fix: the canonical row carries the measured fields (tools/re_sm120_atoms_aruri.py, nvdisasm
+//! Fix: the canonical row carries the measured fields (tools/probes/re_sm120_atoms_aruri.py, nvdisasm
 //! 13.1, 65 form words + 54 lattice words in tests/fixtures/sm120_atoms_aruri_nvdisasm.jsonl):
 //! guard [15:12], Rd [23:16], base R [31:24] (255 = RZ -> `[UR+imm]`), Rb [39:32], signed offset
 //! [63:40], UR [71:64]; opcode 0x98c + bit 91 = uniform-indexed address, [90:87] = 2 (MAX),

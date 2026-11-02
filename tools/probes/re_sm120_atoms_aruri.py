@@ -37,7 +37,7 @@ NATIVE_CTRL = 0x0001e200 << 96
 SCHEDULE = ((1 << 23) - 1) << 105
 KEY = "ATOMS_R_ARURI_R"
 GROUP = "MAX,S32"
-FIXTURE = pathlib.Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "sm120_atoms_aruri_nvdisasm.jsonl"
+FIXTURE = pathlib.Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "sm120_atoms_aruri_nvdisasm.jsonl"
 TEXT = re.compile(r"(@!?P[0-6T] )?ATOMS\.MAX\.S32 R(Z|\d+), \[(R\d+\+)?UR(Z|\d+)(\+-?0x[0-9a-f]+)?\], R(Z|\d+)")
 OPS = {0: "ADD", 1: "MIN", 2: "MAX", 3: "INC", 4: "DEC", 5: "AND", 6: "OR", 7: "XOR", 8: "EXCH"}
 

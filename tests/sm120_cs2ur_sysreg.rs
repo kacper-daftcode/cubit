@@ -1,4 +1,4 @@
-//! SM120 CS2UR operand fields measured with nvdisasm 13.1 (tools/re_sm120_cs2ur.py).
+//! SM120 CS2UR operand fields measured with nvdisasm 13.1 (tools/probes/re_sm120_cs2ur.py).
 //! Every swept word (uniform guard, URd incl. URZ, all 256 system registers,
 //! plain and .32) decodes to NVIDIA's text and that text reassembles all 128 bits.
 use cubit::{decoder::DecodeIndex, table::IsaTable};

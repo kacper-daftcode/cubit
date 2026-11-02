@@ -1,4 +1,4 @@
-//! SM120 CCTL register-address forms measured with nvdisasm 13.1 (tools/re_sm120_cctl.py).
+//! SM120 CCTL register-address forms measured with nvdisasm 13.1 (tools/probes/re_sm120_cctl.py).
 //! Every swept `.E` word (guard, address register incl. RZ, signed offset, the eight operations
 //! PF1 / PF2 / WB / IV / RS / PML2 / DML2 / RML2) decodes to NVIDIA's text and that text
 //! reassembles all 128 bits. The E-less words are in the fixture for the record; their rows are

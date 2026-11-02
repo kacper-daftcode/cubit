@@ -92,7 +92,7 @@ fn packed_comparison_modes_do_not_alias_operand_half_selectors() {
 fn independent_nvidia_modes_and_operand_probes_reassemble_without_residue() {
     let t = table();
     let ix = DecodeIndex::build(&t);
-    // Captured independently by tools/re_sm120_float_fields.py --verify-oracle.
+    // Captured independently by tools/probes/re_sm120_float_fields.py --verify-oracle.
     // Expected words and text come from NVIDIA, not from the Cubit table.
     let mut count = 0;
     for line in include_str!("fixtures/sm120_float_nvdisasm.jsonl").lines() {

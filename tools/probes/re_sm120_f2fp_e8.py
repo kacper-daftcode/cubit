@@ -34,7 +34,7 @@ NATIVE_CTRL = 0x000fe200 << 96
 BASE = 0x00000000020816ff00000000ff00023e | (7 << 12)
 DONOR = "F2FP.F16.E4M3.UNPACK_B_R_R"
 KEY = "F2FP.BF16.E8.UNPACK_B_R_R"
-FIXTURE = pathlib.Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "sm120_f2fp_e8_nvdisasm.jsonl"
+FIXTURE = pathlib.Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "sm120_f2fp_e8_nvdisasm.jsonl"
 TEXT = re.compile(r"(@!?P[0-6T] )?F2FP\.BF16\.E8\.UNPACK_B R(Z|\d+), R(Z|\d+)(\.reuse)?(\.H1)?")
 
 

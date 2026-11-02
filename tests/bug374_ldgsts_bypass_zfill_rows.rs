@@ -224,7 +224,7 @@ fn t374_5_kill_lint_and_provenance() {
     let raw: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/sm120.json").unwrap()).unwrap();
     assert!(
-        raw["_meta"]["bug374"]
+        raw["_meta"]["provenance"]["history"]["bug374"]
             .as_str()
             .unwrap_or("")
             .contains("BUG-374"),

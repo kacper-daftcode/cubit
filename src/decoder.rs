@@ -4,7 +4,7 @@
 //! check if `(code & ~variable_mask) == and_base`. Since all 379 bases
 //! are unique, this gives an unambiguous match.
 //!
-//! For performance, we build an index on the opcode bits [15:0] for O(1) lookup.
+//! For performance, we build an index on the opcode bits \[15:0\] for O(1) lookup.
 
 use crate::table::{IsaTable, Field, Extraction};
 use anyhow::Result;
@@ -303,6 +303,17 @@ impl DecodeIndex {
                 // hijacked by phantom rows. Fail closed; witnessed widths are
                 // coverage rows in tables (patch211).
                 "ATOMS" |
+                // ARRIVES.LDGSTSBAR (2026-11-02): the barrier kind (b72), the
+                // size enum [75:73] and the ARVCNT flag (b76) sit in the
+                // sign window; nvdisasm prints ???n for the other size codes.
+                // The row has no sign-able register operand. Fail closed.
+                "ARRIVES" |
+                // PRMT (2026-11-02, PRMT_R_R_UR_R sweeps): the permute mode
+                // [74:72] (F4E/B4E/RC8/ECL/ECR/RC16, 7 = INVALID7) sits in the
+                // sign window, so a sign-tolerant match let the tiebreak pick
+                // an arbitrary mode (bit-63 neighbour printed PRMT.RC16 ...,
+                // -UR7); bits 62/63 are text-inert on the UR form. Fail closed.
+                "PRMT" |
                 "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "QMMA" |
                 // BUG-224: SYNCS carries neighbor-form law at b72
                 // (.IVALL/.WBALL), b73 (opaque enum), b91 (operandful
@@ -395,7 +406,8 @@ impl DecodeIndex {
             let native_hi = table.target_sm() == 120 && base == "IMAD"
                 && (c.mod_group.split(',').any(|m| m == "HI")
                     || c.key.split('_').next().unwrap_or("").split('.').any(|m| m == "HI"));
-            if !is_memlike && !native_hi && !(table.target_sm() == 120 && matches!(base, "BMSK" | "DSETP" | "I2FP" | "UIADD3")) {
+            let sign_law_base = table.target_sm() == 120 && matches!(base, "BMSK" | "DSETP" | "I2FP" | "UIADD3");
+            if !(is_memlike || native_hi || sign_law_base) {
                 let sign_bits: u128 = (3u128 << 62) | (3u128 << 72) | (3u128 << 74);
                 let m2 = c.match_mask & !sign_bits;
                 if (code_clean & m2 & !guard_mask) == (c.and_base & m2 & !guard_mask) {
@@ -857,7 +869,8 @@ impl DecodeIndex {
             let native_hi = table.target_sm() == 120 && base_op == "IMAD"
                 && (matched.mod_group.split(',').any(|m| m == "HI")
                     || matched.key.split('_').next().unwrap_or("").split('.').any(|m| m == "HI"));
-            if is_alu && !is_225_armed && !native_hi && !(table.target_sm() == 120 && matches!(base_op, "BMSK" | "I2FP")) {
+            let sign_law_base = table.target_sm() == 120 && matches!(base_op, "BMSK" | "I2FP");
+            if is_alu && !(is_225_armed || native_hi || sign_law_base) {
                 // BUG-392: derive operand types from the robust key parser
                 // (parse_ins_key_op_types), not a naive split('_').skip(1):
                 // multi-component dotted prefixes ('HFMA2.BF16_V2.RELU_*',
