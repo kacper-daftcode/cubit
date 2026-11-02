@@ -1165,9 +1165,13 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     if base == "LDSM" || base == "STSM" {
         // b9p11: STSM shares the LDSM vendor order (BUG-098 anchors; STSM
         // anchor corpus_p12_stmatrix O0 0x190 = STSM.16.M88.4 [R0], R4).
+        // 2026-10-29: the 8-bit datatype sits in the same slot as 16
+        // (nvdisasm 13.1: STSM.8.MT168.4 [R111+0x10800], R68 and
+        // LDSM.8.MT1616.2 R12, [R0+UR5]); the generic size bucket (6)
+        // printed it after the shape and the count (STSM.MT168.4.8).
         match m {
-            "16" => return 4,
-            "M88" | "MT88" | "M816" => return 5,
+            "16" | "8" => return 4,
+            "M88" | "MT88" | "M816" | "M832" | "MT168" | "MT1616" => return 5,
             "2" | "4" => return 6,
             _ => {}
         }

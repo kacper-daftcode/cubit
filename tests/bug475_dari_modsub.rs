@@ -159,7 +159,7 @@ fn t475_6_refuse_parity() {
 #[test]
 fn t475_7_census_and_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "f1e02b361015563a2153fb7bf87ebbd5845001ed";
+    const CURRENT_VENDORED_CANON: &str = "137cd34e40d42feb914716ea59250725875fa45b";
     assert_eq!(CANON475, "9c0e4ce", "historical fixture revision drift");
 
     for (leg, want) in CENSUS475 {
@@ -178,9 +178,9 @@ fn t475_7_census_and_source() {
     // Structured provenance is emitted by sync_table.py; historical free-text
     // flip notes are not part of its manifest schema.
     assert_eq!(src["tables"]["sm120.json"]["base_sha256"],
-        "1f08343c7c583d01a4e909e8420e3c2edcbecbef661fdcfd278e78c30900b121");
-    assert_eq!(src["tables"]["sm120.json"]["instruction_forms"], 16133);  // 2026-10-28 F2FP.BF16.E8.UNPACK_B_R_R (canonical f1e02b3): +1 sm120 key
-    assert_eq!(src["tables"]["sm120.json"]["encoding_variants"], 20845);  // 2026-10-28 F2FP.BF16.E8.UNPACK_B_R_R (canonical f1e02b3): +1 sm120 key, variants 20844 -> 20845; 2026-10-25 CCTL (canonical 8d26508): +7 mod groups in CCTL_ARI (E,PF1/WB/IV/RS/PML2/RML2 + DML2,E), keys unchanged 16132, variants 20837 -> 20844
+        "67ac72494213d3d1ebc225626728fff454872fe20bf1b41ec4dafc79d262e81d");
+    assert_eq!(src["tables"]["sm120.json"]["instruction_forms"], 16135);  // 2026-10-29 ATOMS [R+UR+imm] / STSM.8.MT168 / UBLKPF.L2 (canonical 137cd34): +2 sm120 keys (UBLKPF_AURI_UR, UBLKPF_AURI_UR_II), +3 STSM_ARI_R groups, ATOMS_R_ARURI_R MAX,S32 re-measured (variants 20845 -> 20850) = 16135. // 2026-10-28 F2FP.BF16.E8.UNPACK_B_R_R (canonical f1e02b3): +1 sm120 key
+    assert_eq!(src["tables"]["sm120.json"]["encoding_variants"], 20850);  // 2026-10-29 ATOMS [R+UR+imm] / STSM.8.MT168 / UBLKPF.L2 (canonical 137cd34): +2 sm120 keys (UBLKPF_AURI_UR, UBLKPF_AURI_UR_II), +3 STSM_ARI_R groups, ATOMS_R_ARURI_R MAX,S32 re-measured (variants 20845 -> 20850) = 16135. // 2026-10-28 F2FP.BF16.E8.UNPACK_B_R_R (canonical f1e02b3): +1 sm120 key, variants 20844 -> 20845; 2026-10-25 CCTL (canonical 8d26508): +7 mod groups in CCTL_ARI (E,PF1/WB/IV/RS/PML2/RML2 + DML2,E), keys unchanged 16132, variants 20837 -> 20844
 }
 
 /// t475_8: corpus36 EXACT keep z era-pelna reprezentacja (0x000be400<<96|w;

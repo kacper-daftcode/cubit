@@ -5651,53 +5651,55 @@
      "variable_mask": "0x1c000000037003fffffffffffffff000"
     },
     "MAX,S32": {
-     "and_base": "0x0000000009000200000000000000798c",
-     "count": 1,
+     "and_base": "0x0000000009000200000000000000098c",
+     "count": null,
      "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "atoms-aruri-sm120-2026-10-29"
+      },
       {
        "bits": 8,
        "extraction": "reg",
        "shift": 16,
-       "token_idx": 1
+       "token_idx": 1,
+       "_src": "atoms-aruri-sm120-2026-10-29"
       },
       {
        "bits": 8,
        "extraction": "sub_r0",
        "shift": 24,
-       "token_idx": 2
+       "token_idx": 2,
+       "_src": "atoms-aruri-sm120-2026-10-29"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur1",
+       "shift": 64,
+       "token_idx": 2,
+       "_src": "atoms-aruri-sm120-2026-10-29"
+      },
+      {
+       "bits": 24,
+       "extraction": "sub_imm2",
+       "shift": 40,
+       "token_idx": 2,
+       "_src": "atoms-aruri-sm120-2026-10-29"
       },
       {
        "bits": 8,
        "extraction": "reg",
        "shift": 32,
-       "token_idx": 3
-      },
-      {
-       "bits": 8,
-       "extraction": "reg",
-       "shift": 64,
-       "token_idx": 4
-      },
-      {
-       "bits": 1,
-       "extraction": "reuse",
-       "shift": 122,
-       "token_idx": 2
-      },
-      {
-       "bits": 1,
-       "extraction": "reuse",
-       "shift": 123,
-       "token_idx": 3
-      },
-      {
-       "bits": 1,
-       "extraction": "reuse",
-       "shift": 124,
-       "token_idx": 4
+       "token_idx": 3,
+       "_src": "atoms-aruri-sm120-2026-10-29"
       }
      ],
-     "variable_mask": "0x1c000000037003ff000000ffffff0000"
+     "variable_mask": "0x00000000000000fffffffffffffff000",
+     "_src": "atoms-aruri-sm120-2026-10-29",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], destination[23:16], base register[31:24] (255 = RZ, printed [UR+imm]), source[39:32], signed offset[63:40], uniform register[71:64] (255 = URZ); opcode 0x98c with bit 91 is the uniform-indexed address (0x38c = [R+imm]; the mixes are illegal), [90:87] = 2 MAX, bit 73 = S32. Bits 72/76/77/80-86/92-95 are text-inert, 74/75 INVALID3/INVALID5, 78/79 the .X4/.X8 scale - all outside the row. Replaces the harvest leftover that read the UR byte as a fourth register and had no offset field."
     },
     "OR": {
      "and_base": "0x000000000b000000000000000000798c",
@@ -366856,6 +366858,149 @@
     "write_latency": 1
    }
   },
+  "UBLKPF_AURI_UR": {
+   "base_op": "UBLKPF",
+   "ctrl_class": "alu_simple",
+   "mercury": [],
+   "mod_groups": {
+    "L2": {
+     "and_base": "0x000000000800000000000000000003bc",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ublkpf-l2-sm120-2026-10-29"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 24,
+       "token_idx": 1,
+       "_src": "ublkpf-l2-sm120-2026-10-29"
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 2,
+       "_src": "ublkpf-l2-sm120-2026-10-29"
+      }
+     ],
+     "variable_mask": "0x00000000000000ff00000000ff00f000",
+     "_src": "ublkpf-l2-sm120-2026-10-29",
+     "_note": "nvdisasm 13.1 sweeps: uniform guard[15:12], address UR[31:24] (255 = URZ), size UR[71:64] (255 = URZ); opcode 0x3bc with bit 91 (required) is UBLKPF.L2 - no bit toggles the .L2 text. Bits 16-23, 32-47, 48-63, 72-75, 77-90, 92-95 are text-inert and bit 76 adds the descriptor operand (the _II key) - all outside this row. PTX cp.async.bulk.prefetch.L2.global."
+    }
+   },
+   "operand_sig": "AURI_UR",
+   "scheduling": {
+    "_all_entries": [
+     {
+      "name": "UBLKPF",
+      "opcode_id": 175,
+      "pipe_name": "INT_ARITH",
+      "read_latency": 2,
+      "write_latency": 1
+     },
+     {
+      "name": "UBLKPF (synthetic)",
+      "opcode_id": null,
+      "pipe_name": "INT_ARITH",
+      "read_latency": 2,
+      "write_latency": 1
+     }
+    ],
+    "confidence": "synthetic",
+    "def_latency": 2,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 37,
+    "pipe_name": "INT_ARITH",
+    "ptxas_raw": null,
+    "read_latency": 2,
+    "stall_base": 1,
+    "throughput": 2,
+    "write_latency": 1
+   }
+  },
+  "UBLKPF_AURI_UR_II": {
+   "base_op": "UBLKPF",
+   "ctrl_class": "alu_simple",
+   "mercury": [],
+   "mod_groups": {
+    "L2": {
+     "and_base": "0x000000000800100000000000000003bc",
+     "count": null,
+     "fields": [
+      {
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0,
+       "_src": "ublkpf-l2-sm120-2026-10-29"
+      },
+      {
+       "bits": 8,
+       "extraction": "sub_ur0",
+       "shift": 24,
+       "token_idx": 1,
+       "_src": "ublkpf-l2-sm120-2026-10-29"
+      },
+      {
+       "bits": 8,
+       "extraction": "ureg",
+       "shift": 64,
+       "token_idx": 2,
+       "_src": "ublkpf-l2-sm120-2026-10-29"
+      },
+      {
+       "bits": 8,
+       "extraction": "desc_ur",
+       "shift": 40,
+       "token_idx": 3,
+       "_src": "ublkpf-l2-sm120-2026-10-29"
+      }
+     ],
+     "variable_mask": "0x00000000000000ff0000ff00ff00f000",
+     "_src": "ublkpf-l2-sm120-2026-10-29",
+     "_note": "nvdisasm 13.1 sweeps: uniform guard[15:12], address UR[31:24] (255 = URZ), size UR[71:64] (255 = URZ), descriptor UR[47:40] (255 = URZ) with the descriptor-present bit 76 fixed; opcode 0x3bc with bit 91 (required). Same text-inert neighbourhood as the plain row. PTX cp.async.bulk.prefetch.L2.global with an L2 cache hint."
+    }
+   },
+   "operand_sig": "AURI_UR_II",
+   "scheduling": {
+    "_all_entries": [
+     {
+      "name": "UBLKPF",
+      "opcode_id": 175,
+      "pipe_name": "INT_ARITH",
+      "read_latency": 2,
+      "write_latency": 1
+     },
+     {
+      "name": "UBLKPF (synthetic)",
+      "opcode_id": null,
+      "pipe_name": "INT_ARITH",
+      "read_latency": 2,
+      "write_latency": 1
+     }
+    ],
+    "confidence": "synthetic",
+    "def_latency": 2,
+    "is_variable_latency": true,
+    "latency_source": "synthetic",
+    "opcode_id": null,
+    "pipe_class": 37,
+    "pipe_name": "INT_ARITH",
+    "ptxas_raw": null,
+    "read_latency": 2,
+    "stall_base": 1,
+    "throughput": 2,
+    "write_latency": 1
+   }
+  },
   "UBLKRED.G.S.ADD.S32_AUR_AUR_UR": {
    "base_op": "UBLKRED.G.S.ADD.S32",
    "ctrl_class": "ctrl_flow",
@@ -446781,6 +446926,43 @@
      "_src": "bug438-2026-09-11",
      "_note": "BUG-438 G1/G2: STSM.16 MT88/MT168 closure + b80 alias relax. Vendor law arb438 27p + arb433 C-set x4: MT88(e1)/MT168(e2) counts plain/.2/.4 legal x4; b80 alias e4/e5/e6 == e0/e1/e2 x4; INVALID3 e3/e7 + count .6 loud HOLE doctrine (standing). Donor own M88 rows; ab |= 1<<78 (MT88)/1<<79 (MT168); vm |= 1<<80 on all 9 mgs; count=None."
     },
+    "8,MT168": {
+     "and_base": "0x00000000000088000000000000000844",
+     "count": null,
+     "fields": [
+      {
+       "_src": "stsm8-mt168-sm120-2026-10-29",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "stsm8-mt168-sm120-2026-10-29",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "_src": "stsm8-mt168-sm120-2026-10-29",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "_src": "stsm8-mt168-sm120-2026-10-29",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffffffff00f000",
+     "_src": "stsm8-mt168-sm120-2026-10-29",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], base register[31:24] (255 = RZ, printed [imm]), source register[39:32], signed offset[63:40], count[73:72] (0 plain, 1 .2, 2 .4; 3 INVALID3), bit 75 = .8 (bits 76/77 text-inert), shape[79:78] = 2 MT168 (0 M88, 1 MT88, 3 INVALID3 unclaimed). Fields of the 16,MT168 donor; the variable mask is exactly the measured fields (the donors' text-inert bit-80 alias is not inherited). PTX stmatrix.sync.aligned.m16n8.x1/x2/x4.trans.b8."
+    },
     "16,2,MT88": {
      "and_base": "0x41000000000000000844",
      "count": null,
@@ -446855,6 +447037,43 @@
      "_src": "bug438-2026-09-11",
      "_note": "BUG-438 G1/G2: STSM.16 MT88/MT168 closure + b80 alias relax. Vendor law arb438 27p + arb433 C-set x4: MT88(e1)/MT168(e2) counts plain/.2/.4 legal x4; b80 alias e4/e5/e6 == e0/e1/e2 x4; INVALID3 e3/e7 + count .6 loud HOLE doctrine (standing). Donor own M88 rows; ab |= 1<<78 (MT88)/1<<79 (MT168); vm |= 1<<80 on all 9 mgs; count=None."
     },
+    "2,8,MT168": {
+     "and_base": "0x00000000000089000000000000000844",
+     "count": null,
+     "fields": [
+      {
+       "_src": "stsm8-mt168-sm120-2026-10-29",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "stsm8-mt168-sm120-2026-10-29",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "_src": "stsm8-mt168-sm120-2026-10-29",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "_src": "stsm8-mt168-sm120-2026-10-29",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffffffff00f000",
+     "_src": "stsm8-mt168-sm120-2026-10-29",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], base register[31:24] (255 = RZ, printed [imm]), source register[39:32], signed offset[63:40], count[73:72] (0 plain, 1 .2, 2 .4; 3 INVALID3), bit 75 = .8 (bits 76/77 text-inert), shape[79:78] = 2 MT168 (0 M88, 1 MT88, 3 INVALID3 unclaimed). Fields of the 16,2,MT168 donor; the variable mask is exactly the measured fields (the donors' text-inert bit-80 alias is not inherited). PTX stmatrix.sync.aligned.m16n8.x1/x2/x4.trans.b8."
+    },
     "16,4,MT88": {
      "and_base": "0x42000000000000000844",
      "count": null,
@@ -446928,6 +447147,43 @@
      "variable_mask": "0x10000ffffffffff00f000",
      "_src": "bug438-2026-09-11",
      "_note": "BUG-438 G1/G2: STSM.16 MT88/MT168 closure + b80 alias relax. Vendor law arb438 27p + arb433 C-set x4: MT88(e1)/MT168(e2) counts plain/.2/.4 legal x4; b80 alias e4/e5/e6 == e0/e1/e2 x4; INVALID3 e3/e7 + count .6 loud HOLE doctrine (standing). Donor own M88 rows; ab |= 1<<78 (MT88)/1<<79 (MT168); vm |= 1<<80 on all 9 mgs; count=None."
+    },
+    "4,8,MT168": {
+     "and_base": "0x0000000000008a000000000000000844",
+     "count": null,
+     "fields": [
+      {
+       "_src": "stsm8-mt168-sm120-2026-10-29",
+       "bits": 4,
+       "extraction": "guard",
+       "shift": 12,
+       "token_idx": 0
+      },
+      {
+       "_src": "stsm8-mt168-sm120-2026-10-29",
+       "bits": 8,
+       "extraction": "sub_r0",
+       "shift": 24,
+       "token_idx": 1
+      },
+      {
+       "_src": "stsm8-mt168-sm120-2026-10-29",
+       "bits": 24,
+       "extraction": "sub_imm1",
+       "shift": 40,
+       "token_idx": 1
+      },
+      {
+       "_src": "stsm8-mt168-sm120-2026-10-29",
+       "bits": 8,
+       "extraction": "reg",
+       "shift": 32,
+       "token_idx": 2
+      }
+     ],
+     "variable_mask": "0x0000000000000000ffffffffff00f000",
+     "_src": "stsm8-mt168-sm120-2026-10-29",
+     "_note": "nvdisasm 13.1 sweeps: guard[15:12], base register[31:24] (255 = RZ, printed [imm]), source register[39:32], signed offset[63:40], count[73:72] (0 plain, 1 .2, 2 .4; 3 INVALID3), bit 75 = .8 (bits 76/77 text-inert), shape[79:78] = 2 MT168 (0 M88, 1 MT88, 3 INVALID3 unclaimed). Fields of the 16,4,MT168 donor; the variable mask is exactly the measured fields (the donors' text-inert bit-80 alias is not inherited). PTX stmatrix.sync.aligned.m16n8.x1/x2/x4.trans.b8."
     }
    },
    "operand_sig": "ARI_R",
