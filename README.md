@@ -1,250 +1,190 @@
 # cubit
 
-Open-source SASS assembler and disassembler for NVIDIA SM120 (Blackwell).
-Assembles, disassembles, schedules, patches, and round-trips SM120 machine
-code with full decode coverage on the validation corpus. Assembly and
-disassembly require no nvcc or ptxas; the `roundtrip` command validates with
-`cuobjdump` as an independent reference oracle.
+An assembler and disassembler for NVIDIA Blackwell SASS — the machine code of SM120 (RTX 50-series /
+RTX PRO 6000), with tables for SM103a (B300), SM100a (B200) and SM121a (DGX Spark). It encodes SASS
+text to 128-bit instruction words, decodes cubins back to text, rebuilds cubins byte for byte, and
+assembles stand-alone kernels with their ELF metadata, without `nvcc` or `ptxas`. The instruction
+tables come from [blackwell-isa](https://github.com/kacper-daftcode/blackwell-isa), measured against
+NVIDIA's `nvdisasm`; the project's own hand-written SM120 kernels have run in production since
+2026-06.
+
+**Coverage today (SM120, 2026-11-02).** The strict round trip — decode every word, print it,
+re-parse the text, re-encode, compare all 128 bits — passes on **1 811 600 / 1 811 600 instructions**
+of the production kernel set it is gated on: 169 cubins of FlashInfer 0.7.2 (sparse-MLA, CAKE
+DSV4.1, MXFP8 GEMM), b12x MoE and DeepGEMM SM120 kernels. The whole-cubin path
+(`disassemble --frozen` → `asm -T`) reproduces all 157 of those cubins that contain code byte for
+byte. Those numbers are the definition of "coverage" used here; what is *not* covered is listed in
+[docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 
 ## Install
 
 ```bash
-cargo build --release
+git clone https://github.com/kacper-daftcode/cubit.git
+cd cubit
+cargo build --release          # Rust 1.87 or newer; the ISA tables ship in tables/
+./target/release/cubit --help
 ```
 
-Rust 1.87+. The ISA tables ship with the repo.
+No CUDA toolkit is needed to assemble or disassemble. The optional checks against NVIDIA's tools
+(`cubit roundtrip`, the probes under `tools/probes/`) use `cuobjdump` / `nvdisasm` from a CUDA 13
+installation.
 
-## Usage
+## Quickstart
 
 ```bash
-# Assemble SASS to cubin
-cubit asm kernel.sass -o kernel.cubin
+# Decode one instruction word (little-endian 128-bit hex) and encode text back
+cubit decode 0x000fe200002000007780778068687832
+cubit encode "HMUL2.BF16_V2 R104, R104, 5.19229685853482762853e+33, 5.19229685853482762853e+33 ;"
 
-# Disassemble a cubin back to SASS
+# Disassemble a cubin; --frozen keeps the compiler's schedule as [B:R:W:Y:S] prefixes and
+# emits a self-contained .entry (registers, exact parameter layout, shared memory)
 cubit disassemble kernel.cubin -k my_kernel
+cubit disassemble --frozen kernel.cubin -o kernel.sass
 
-# Strict semantic round-trip of every native code section (all 128 bits)
-cubit roundtrip-strict kernel.cubin --report result.json --failures failures.jsonl
+# Rebuild the cubin from that text: byte-identical when nothing was changed
+cubit asm -T kernel.cubin kernel.sass -o rebuilt.cubin && cmp kernel.cubin rebuilt.cubin
 
-# Rebuild edited SASS while preserving an nvcc cubin's ELF metadata
-cubit asm modified.sass --template nvcc_kernel.cubin -o patched.cubin
+# Prove coverage on any cubin: every word must survive decode -> text -> encode
+cubit roundtrip-strict kernel.cubin --report report.json --failures failures.jsonl
 
-# Encode a single instruction
-cubit encode "IADD3 R5, PT, PT, R9, R4, R5 ;"
+# Assemble a kernel written from scratch (directive format)
+cat > add.sass <<'EOF'
+.entry add_one
+    .reg R0-R7
+    .param ptr out
+    LDCU.64 UR4, c[0x0][0x358] ;
+    LDC.64 R2, c[0x0][0x380] ;
+    MOV R4, 0x1 ;
+    STG.E desc[UR4][R2.64], R4 ;
+    EXIT ;
+.endentry
+EOF
+cubit asm add.sass -o add.cubin
 ```
 
-Strict round-trip uses Cubit's own decoder, editable SASS, a new parse and the
-assembler. The emitted `[B:R:W:S]` control prefixes preserve the explicit
-schedule; `.reuse` operands preserve real reuse hints even when NVIDIA's
-default display omits them.
+Instruction syntax is NVIDIA's (`nvdisasm` output). On SM120 kernel parameters start at
+`c[0x0][0x380]` (`LDC` / `LDC.64`), the global-memory descriptor for `LDG`/`STG` is loaded with
+`LDCU.64 URx, c[0x0][0x358]`. The assembler schedules instructions it finds without a control code
+(stalls, scoreboard barriers, yields, drains before back edges); a `[B------:R-:W-:Y:S01]` prefix
+freezes the control code of that instruction.
 
-A `.sass` file can contain multiple kernels (`.entry` / `.endentry` blocks);
-cubit assembles them into a single multi-kernel cubin.
+## Commands
 
-The assembler guards measured silicon traps fail-closed — constructs that
-would mis-encode or mis-execute are a hard error, not a silent wrong binary.
-See [docs/ENCODER_GUARDS.md](docs/ENCODER_GUARDS.md).
+| command | one line |
+|---|---|
+| `asm` | assemble a `.sass` file into a cubin; `-T <cubin>` rebuilds a template's ELF around the new code, `--eiattr-from` copies only its metadata |
+| `disassemble` | cubin (or host ELF) → SASS text; `--frozen` for re-assemblable text with the exact schedule and `.entry` header |
+| `roundtrip-strict` | the coverage proof: every 128-bit word of every code section must decode, print, re-parse and re-encode identically |
+| `roundtrip` | the legacy round trip against `cuobjdump` as the reference disassembler |
+| `encode` / `decode` / `asm-text` | one instruction or a block of text ↔ instruction words |
+| `patch` | disassemble → re-encode → write a patched cubin |
+| `ra`, `sched`, `render` | passes over `.sass` text: windowed register renaming / allocation, list scheduling under a cost model, re-printing from the parsed form |
+| `stallfix` | raise stalls in hand-scheduled windows to measured silicon floors (sm_103a rules; SM120: [docs/SM120_STALLFIX_PLAN.md](docs/SM120_STALLFIX_PLAN.md)) |
+| `merc-dump` | dump the Mercury (`.nv.capmerc`) companion sections |
+| `info` | table statistics |
+| `validate` | re-encode a harvest records file (needs a private `records.jsonl`; the public table check is `tools/sync_table.py --validate-only`) |
 
-### Strict semantic acceptance
+`cubit <command> --help` has the full option list. Errors are fail-closed: an instruction the
+encoder cannot prove, a reserved control code, a `.param` layout that disagrees with a template's
+metadata, or a register count that would change a template kernel's occupancy stop the run with a
+message that names the fix (`--allow-regcount-change`, the declarations to use, …).
 
-```bash
-cubit roundtrip-strict -t tables/sm120.json kernel.cubin \
-  --sass-dir /tmp/cubit-run/sass --rebuilt-dir /tmp/cubit-run/cubins \
-  --report /tmp/cubit-run/report.json --failures /tmp/cubit-run/failures.jsonl
-```
-
-The output directories must be new or empty. Every `.text` / `.text.*`
-section is checked, including anonymous functions and distinct physical
-sections that share a name. Each complete 128-bit word must survive both
-individual parsing and a second parse of the complete emitted source with
-labels. The command rejects `__raw__`, `!rsd`, permissive encoder switches,
-opaque modifier/operand placeholders (such as `.?6` or `???255`),
-unsupported binary layouts, empty code, partial instructions and architecture
-mismatches. Any failure produces a nonzero exit status.
-
-With `--rebuilt-dir`, all instructions are assembled again from the emitted
-source and replace their physical code sections. The ELF container retains
-its original metadata. A cubin is written only after the entire rebuilt ELF
-is byte-identical. Reports identify the input, table and actual emitted SASS
-bytes by SHA256. Strict library calls also reject a permissive fit policy
-cached by an earlier encode, even if its environment variable was removed.
-For fixed-size edits, the library's `patch_semantic_section_at` uses the same
-strict source parser and `KernelReport.text_index`, the position in
-`CubinFile.text_sections`. The legacy `section_index` is diagnostic and must
-not be passed to this patch API.
-Live predicate guards must use the bank selected by the encoded instruction
-form (`P` or `UP`); an authored bank mismatch is an error. `PT` and `UPT`
-normalize as equivalent boolean constants, including their negated forms.
-The low-level encoder and legacy template assembler retain compatibility
-aliases; use the strict code-only patch API to validate authored source.
-This API replaces code while retaining resource allocations, relocations and
-compiler metadata. It rejects metadata directives instead of silently dropping
-them. The caller must keep edits compatible with that existing metadata;
-changing registers, parameters, shared memory or compiler sites can require
-an explicit metadata-aware cubin build. Exact reconstruction proves the
-original binary; it does not validate arbitrary edited programs.
-
-Runtime coverage requires an explicit census as well as instruction fidelity.
-The `audit_manifest` example checks the required sections of each SHA256-pinned
-module, retains unresolved names as failures, and snapshots the exact manifest
-and table. `required_text_indices` identifies entries in
-`CubinFile::text_sections`, allowing equal local-function names. The report
-records the audited scope; unselected sections are retained as container data.
-
-```bash
-cargo run --release --example audit_manifest -- \
-  census.json tables/sm120.json /tmp/cubit-census-new
-```
-
-### Residue annotations
-
-Some hardware bits are invisible in nvdisasm-compatible SASS text (convergence
-barrier IDs, F2F mnemod order bits, epoch-window edges). For those,
-disassembly appends an explicit annotation:
+### Directive format
 
 ```
-[B------:R-:W-:Y:S05]  @P1 BRA L_2310 !rsd[24:1] ;
-F2F.F64.F32 R18, R19 !rsd[75:1,84:0] ;
+.entry <name>
+    .reg R0-R<n>               # registers the code uses
+    .regcount <N>              # optional: the exact EIATTR_REGCOUNT (what --frozen writes)
+    .param <type> <name> [offset=0x..] [space=N] [logalign=N]
+                               # u8/u16/u32/u64/s*/f16/f32/f64, ptr (8-byte pointer), b8[N] (struct by value)
+    .shared [.align A] <name>[<bytes>]
+    <instructions, labels, optional [B:R:W:Y:S] control codes>
+.endentry
 ```
 
-This legacy export applies `!rsd[...]` as a final binary overlay. Use the
-strict semantic acceptance command above to prove assembler coverage: it
-rejects overlays and raw instruction exports. The legacy `roundtrip` command
-also requires the strict audit after its NVIDIA reference comparison passes.
-
-### Mercury (capmerc) sections
-
-```bash
-cubit merc-dump kernel.cubin -k my_kernel [--strict]
-```
-
-`cubit asm` emits the nvcc 13.3 companion sections statelessly (default;
-`CUBIT_MERC13=0` selects byte-legacy output). It chooses the Mercury layout
-per kernel: plain kernels keep the static stub; kernels containing
-tcgen05/TMA-class instructions (`UTCHMMA`, `UTCQMMA`, `UTMALDG`/`UTMASTG`,
-`UTCBAR`, …) are emitted Mercury-free unless `--mercury-stub <blob>` is
-given. See [docs/MERC13_COMPANIONS.md](docs/MERC13_COMPANIONS.md).
-
-### Scheduling
-
-Encoding roundtrips do not establish instruction identity or scheduling safety.
-The historical `IMMA.SF.16832.U8.U8` row is unvalidated; its former pipeline
-and overlap claims lack a numerical oracle and timing evidence. Compiler
-pipeline IDs alone do not prove independent physical execution units.
-
-cubit assigns scheduling metadata (stalls, barriers, yields) automatically:
-a dataflow-driven stall model, 6-scoreboard barrier allocation with
-recycling, write-after-read barriers for variable-latency loads, QMMA
-warp-cooperative constraints and drain insertion, and back-edge drains
-before backward branches. Output verified on RTX 5090.
-
-For hand-scheduling, cubit accepts inline control codes that override the
-auto-scheduler per instruction:
-
-```
-[B------:R-:W-:Y:S05] FMUL R40, R40, R30 ;
-```
-
-On SM120, hand-scheduled yield is valid with stalls 1 through 11. Encoding
-rejects `Y:S00` and `Y:S12` through `Y:S15`, which NVIDIA marks as reserved;
-use `-` instead of `Y` for those stalls. The automatic scheduler drops only
-its own yield hint while retaining the delay and scoreboard fields. Parsing
-and disassembly still expose reserved controls for reverse engineering.
-The independent sweeps and native-corpus census are recorded in
-[the control-field proof](docs/SM120_CONTROL_OPEX.md).
-
-See [docs/sasstuning.md](docs/sasstuning.md) for the measured field guide.
-
-## SM103a stall legalizer
-
-```bash
-cubit stallfix --plan plan.json --rules tables/sm103a.json in.sass \
-    [-o out.sass] [--report rep.json]
-```
-
-Raises stalls inside declared windows to the measured SM103a silicon floors
-(raise-only, fail-closed, byte-proven re-parse). See
-[docs/POSTFIX103_STALLFIX.md](docs/POSTFIX103_STALLFIX.md).
+A file may hold several `.entry` blocks; they become one multi-kernel cubin.
 
 ## Tables
 
-Every architecture table published by
-[blackwell-isa](https://github.com/kacper-daftcode/blackwell-isa) is vendored
-byte-exact under `tables/`, one file per architecture, with base revision and
-SHA-256 pins in `tables/SOURCE.json`:
+The four architecture tables published by blackwell-isa are vendored byte-exact under `tables/` and
+pinned by revision and SHA-256 in `tables/SOURCE.json`; `python3 tools/sync_table.py` re-vendors
+and runs the suite, `--check` verifies the pins (CI), `--validate-only` checks structure, extraction
+vocabulary, provenance convention and the control-bit ratchet. The tables are data, never edited
+here: fixes go to blackwell-isa (`tools/probes/` holds the measurements that produced the SM120 rows
+added since 2026-10).
 
-| table | arch | silicon | status |
+| table | silicon | what the gate proves | not proved |
 |---|---|---|---|
-| `sm120.json` | SM120 | RTX 5090 / DGX-class Blackwell | full pipeline + silicon REGRESS (frozen-RT bit-identical, 257/257 golden census) |
-| `sm103a.json` | SM103a | B300 | full pipeline incl. scheduling cost model, stall-fix floors and operand roles as in-table sections (`cost_model`, `stallfix`, `operand_roles`) |
-| `sm100a.json` | SM100a | B200 | encode/decode layer = canonical sm103a copy + tcgen05 delta layer (119/119 probe-pair byte parity); offline replay on the archived 20.0M-instruction sm_100 corpus: 99.92% EXACT-minus-sched. No B300 timing data is smeared in |
-| `sm121a.json` | SM121A | GB10 (DGX Spark) | decode/encode incl. the `pred_inv4` trailing-pred map (fleet GB10 gold set passes 208/208); timing/fine-scheduling data pending a GB10 campaign |
+| `sm120.json` | RTX 5090 / RTX PRO 6000 (production kernels 2026-06..10) | strict census 1 811 600 / 1 811 600 words, 157 / 157 cubins byte-identical through `--frozen` → `asm -T`, the suite's measured-form fixtures | semantics of rows measured by encoding only ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) T6); 19 340 of 20 905 variants are harvest rows (T1) |
+| `sm103a.json` | B300 | the suite (encode/decode fixtures, `stallfix` rules, cost model); 323 / 323 cubins byte-exact as of 2026-09-18 | not re-run since (needs the B300 corpus) |
+| `sm100a.json` | B200 | encoding layer = SM103a + tcgen05 deltas; 99.92 % exact-minus-schedule on a 20 M-instruction archive as of 2026-08-26 | no B200 silicon run; scheduling data inherited |
+| `sm121a.json` | GB10 (DGX Spark) | the suite's GB10 fixtures; 0 decode differences vs SM120 on 648 992 raw instructions as of 2026-09-18 | timing / scheduling data |
 
-Select per invocation with `-t tables/<arch>.json` / `CUBIT_TABLE`, or per
-process with `cubit.select_table("<arch>")` (names like `sm100a` / `sm121a`
-resolve to the vendored files directly). The output cubin's ELF header gets
-its architecture flags from the active table. (The `cost_model` / `stallfix`
-sections can also be passed to `--cost` / `--rules` simply by pointing them
-at the arch table.)
-Validation: `tools/sync_table.py --validate-only` (structure + control-bit
-ratchet) and `--check` (byte-pin), plus the Cargo suite, which fails closed
-on any table load error. `CUBIT_TABLE` overrides the active table strictly: a
-missing or malformed override is an error, not a fallback.
+Select a table with `-t tables/<arch>.json` or `CUBIT_TABLE`; the output cubin's ELF flags follow the
+table.
 
 ## Python bindings
 
 ```bash
-pip install -e .   # builds the native extension via maturin
+python3 -m venv .venv && . .venv/bin/activate
+pip install maturin && pip install -e .     # builds the native extension (verified on Python 3.12, 2026-11-02)
 ```
 
 ```python
 import cubit
-
 lo, hi = cubit.encode("IADD3 R5, PT, PT, R9, R4, R5 ;", addr=0)
-info = cubit.decode(lo, hi, addr=0)
-code_bytes, n = cubit.asm("    EXIT ;\n", addr=0)
+info = cubit.decode(lo, hi, addr=0)            # key, mod_group, fields ...
+code, n = cubit.asm("    EXIT ;\n", addr=0)    # bytes, instruction count
 insns = cubit.decode_kernel("kernel.cubin", "my_kernel")
+cubit.select_table("sm103a")                   # per-process table switch
 ```
 
-The active ISA table is switchable per process
-(`cubit.select_table("sm103a")`) — see
-[docs/PYTHON_API_ARCH_SELECT.md](docs/PYTHON_API_ARCH_SELECT.md).
+See [docs/PYTHON_API_ARCH_SELECT.md](docs/PYTHON_API_ARCH_SELECT.md).
 
-## Examples
+## Documentation
 
-See [examples/](examples/) for complete kernels (QMMA GEMV, pipelined MMA,
-IMMA U8, sparse GEMV) with host harnesses. On SM120, kernel parameters live
-in the regular constant bank: use `LDC` / `LDC.64` for offsets beginning at
-`c[0x0][0x380]`; `LDCU` remains appropriate for uniform descriptors such as
-`c[0x0][0x358]`.
+- [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) — everything known to be imperfect, with status and what it needs
+- [CHANGELOG.md](CHANGELOG.md) — user-visible changes and the table revisions they vendor
+- [docs/TESTS.md](docs/TESTS.md) — index of the 425 test files (the `bugNNN` files are the encoder's executable specification)
+- [docs/ENCODER_GUARDS.md](docs/ENCODER_GUARDS.md) — the fail-closed guards and the silicon traps behind them
+- [docs/MERC13_COMPANIONS.md](docs/MERC13_COMPANIONS.md) — ELF companion sections: what a template rebuild copies, what a standalone build regenerates, what differs from nvcc
+- [docs/SM120_CONTROL_OPEX.md](docs/SM120_CONTROL_OPEX.md) — the measured control-code layout and the reserved yield/stall combinations
+- [docs/sasstuning.md](docs/sasstuning.md), [docs/nvcc-kloop-reference.md](docs/nvcc-kloop-reference.md) — scheduling notes for hand-written kernels (measured-on-date markers inside)
+- [docs/SM120_STALLFIX_PLAN.md](docs/SM120_STALLFIX_PLAN.md), [docs/SCHED_LEGALITY_ORACLE.md](docs/SCHED_LEGALITY_ORACLE.md), [docs/POSTFIX103_STALLFIX.md](docs/POSTFIX103_STALLFIX.md) — scheduling legality
+- [tools/probes/README.md](tools/probes/README.md) — the nvdisasm measurements behind the table rows
 
-## Project layout
+## Repository layout
 
 ```
-src/       Rust crate (lib + CLI binary)
-tables/    ISA bitfield tables and provenance pins
-examples/  Tensor-core kernel examples (.sass, host harnesses)
-tests/     Encoding roundtrip + assembler integration tests
-tools/     ISA table sync and validation scripts
-docs/      Guards, emitter, scheduling, and tuning notes
+src/            the crate (library + `cubit` binary)
+tables/         vendored ISA tables + SOURCE.json pins (175 MB of JSON: four architectures)
+tests/          425 test files (one binary each); tests/fixtures/ = nvdisasm fixtures of measured forms (< 1 MB)
+tools/          sync_table.py (vendoring gate), asm_roundtrip.py, audit_table.py, audit_dynamic.py,
+                gen_tests_index.py, check_public_surface.sh, probes/ (measurements)
+examples/       SASS kernels with host harnesses (QMMA GEMV, pipelined MMA, IMMA U8, sparse GEMV),
+                audit_manifest / audit_words / recheck_failures example binaries
+test_data/      one SASS source used by the examples' tests
+docs/           see above
 ```
 
 ## Limitations
 
-- Hardware-validated targets: SM120 (RTX 5090) and SM103a (B300); SM100a and
-  SM121A are covered by canonical-parity and fleet-golden evidence
-  respectively (no fresh silicon campaign behind either yet — see the Tables
-  section for exact gates).
-- The ELF companion sections are regenerated by the sovereign emitter; the
-  approximated fields are listed in
-  [docs/MERC13_COMPANIONS.md](docs/MERC13_COMPANIONS.md).
+- Encoding evidence is not semantic evidence: a row that round-trips says how `nvdisasm` names a
+  word, not what the hardware does with it. Rows measured in 2026-10/11 without execution are
+  listed in KNOWN_ISSUES T6.
+- `stallfix` has silicon-measured rules for sm_103a only.
+- A template rebuild (`asm -T`) copies the template's metadata; a kernel whose registers, shared
+  memory or parameters differ from the template needs a standalone build or a matching template.
+- The test suite takes about 90 minutes on 16 cores (each of the 425 test binaries loads the 46 MB
+  table).
+- Open items with their status: [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 
-## Related
+## Related projects
 
-- **[blackwell-isa](https://github.com/kacper-daftcode/blackwell-isa)** — the SM120
-  ISA database cubit encodes against.
-- **[sasskit](https://github.com/kacper-daftcode/sasskit)** — post-compilation
-  SASS optimizer built on cubit (mutation search, register recoloring).
+- [blackwell-isa](https://github.com/kacper-daftcode/blackwell-isa) — the ISA databases cubit vendors
+  and the generated HTML references.
+- [sasskit](https://github.com/kacper-daftcode/sasskit) — post-compilation SASS optimizer for SM120
+  built on cubit (mutation search, register recoloring, scheduling analysis).
 
 ## License
 

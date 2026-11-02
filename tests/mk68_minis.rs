@@ -1,7 +1,8 @@
-// mk68: (1) a UISETP imm+imm pair -> additionally 42103e06 on the EX-tail lane;
-// (2) F2FP fp8 SATFINITE -> 4212ec26, F2FP fp8->f16 UNPACK_B -> 4112720a;
-// (3) ULOP3.LUT 0606: class (A) UP-write with tok1=URn, class (B) 0xb8/0x80000000,
-//     the negative classes (UP with tok1=URZ, plain 6-tok) are recordless.
+//! Mercury mini-record scanners (mk68): (1) a UISETP imm+imm pair additionally
+//! emits 42103e06 on the EX-tail lane; (2) F2FP fp8 SATFINITE -> 4212ec26 and
+//! F2FP fp8->f16 UNPACK_B -> 4112720a; (3) ULOP3.LUT 0606: class (A) UP-write
+//! with tok1=URn, class (B) 0xb8/0x80000000; the negative classes (UP with
+//! tok1=URZ, plain 6-token) produce no record.
 use cubit::ir::{ControlCode, Guard, Instruction};
 use cubit::sass_file::{merc_mini2_scan, merc_usetp_scan};
 

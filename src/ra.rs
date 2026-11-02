@@ -16,7 +16,7 @@
 //! silicon-certified R0b REFUTED the naive legality readings (see
 //! results/fe/M4/M4_1 report): LDG.E.*.128 dest quads appear at R4k+2
 //! bases, UIMAD.WIDE appears with odd UR dest (UR13 -- legal), and
-//! desc[URx] is a separate 8-bit descriptor namespace (UR64..UR252 in
+//! desc\[URx\] is a separate 8-bit descriptor namespace (UR64..UR252 in
 //! certified code) exempt from architectural-UR rules. The only
 //! silicon-positive alignment constraint today is the MMA-tuple rule
 //! (BUG-037), enforced in the ENCODER -- RA does not double-gate it.
@@ -294,7 +294,7 @@ fn dom_name(dom: RegDom) -> &'static str {
 /// Classes flagged: width-2/4/8 spans whose bases break the EVEN/QUAD
 /// regularities (corpus says: happen and are legal), R/UR spans crossing
 /// the domain end, and any width outside 1/2/4/8 (unprecedented class).
-/// desc_namespace spans (desc[URx]) are exempt: separate 8-bit namespace.
+/// desc_namespace spans (desc\[URx\]) are exempt: separate 8-bit namespace.
 pub fn span_notes(insns: &[Instruction], xfers: &[RegXfer]) -> Vec<String> {
     let mut notes: Vec<String> = Vec::new();
     for (ins, x) in insns.iter().zip(xfers.iter()) {
@@ -415,7 +415,7 @@ pub struct OperandChange {
 ///     separate namespace -- M3.5/M4.1; pinning it is M4.3 territory);
 ///     src must occur in the kernel (typo trap); no-op pins rejected;
 ///   * BOUNDARY: src AND dst of every pin must be dead at each window edge
-///     (live_in[start] and live_out[end-1]) -- renaming a value that
+///     (live_in\[start\] and live_out[end-1]) -- renaming a value that
 ///     crosses the window edge would desync it from its partner occurrences
 ///     outside the window;
 ///   * SPAN-INTEGRITY: width>1 spans (WIDE/.64 pairs, .128/.256 quads)

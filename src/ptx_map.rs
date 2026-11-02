@@ -72,7 +72,7 @@ pub enum SassTemplate {
     BarSync { aligned: bool },
     /// b9p12: barrier.arrive[.aligned] (direct II_II / pack + BAR.ARV).
     BarArrive { aligned: bool },
-    /// b9p12: discard.global.L2 [a], 128 = CCTL.E.RML2 [pair].
+    /// b9p12: discard.global.L2 \[a\], 128 = CCTL.E.RML2 \[pair\].
     DiscardL2,
     /// Global load (scalar or vector).
     LdGlobal,
@@ -117,7 +117,7 @@ pub enum SassTemplate {
     /// b9 phase-3 #2: 64-bit bitwise logic (and/or/xor/not.b64) -> two
     /// 32-bit LOP3.LUT for the lo/hi halves of the register pair. Form and
     /// LUT bytes are vendor anchors (ptxas 13.3 -O0 sm_103a, probes
-    /// work/b9p4/probes/bl{1,2,3}; 24-word payload parity IDENT bytes[0:12]
+    /// work/b9p4/probes/bl{1,2,3}; 24-word payload parity IDENT bytes\[0:12\]
     /// modulo the scheduling dword + decode-equivalence by nvdisasm):
     ///   bin reg-src: LOP3.LUT Rd_{lo,hi}, Ra_{lo,hi}, Rb_{lo,hi}, RZ, lut, !PT
     ///   bin imm-src: LOP3.LUT Rd_{lo,hi}, Ra_{lo,hi}, imm{lo,hi},  RZ, lut, !PT
@@ -161,18 +161,18 @@ pub enum SassTemplate {
     /// vendor anchors (ptxas 13.3 sm_103a probes work/b9p6/at1..at7 -- full
     /// byte-parity evidence in results/b9/atomred_parity/). Semantics beyond
     /// decode in lower_atomic (ptx_lower.rs); summary:
-    ///   global/generic -> ATOM[G].E.<suffix>.STRONG.<scope> PT, Rd,
-    ///                     desc[UR4][Ra.64+off], Rv   (CAS: plain [Ra+off],
+    ///   global/generic -> ATOM\[G\].E.`<suffix>`.STRONG.`<scope>` PT, Rd,
+    ///                     desc\[UR4\]\[Ra.64+off\], Rv   (CAS: plain [Ra+off],
     ///                     no desc; compare operand inserted before value)
-    ///   shared         -> ATOMS.<suffix> Rd, [Ra+off], Rv   (sem/scope
+    ///   shared         -> ATOMS.`<suffix>` Rd, [Ra+off], Rv   (sem/scope
     ///                     stripped; UR/uniform datapath form not used)
     ///   acq_rel.gpu    -> vendor glue: MEMBAR.ALL.GPU; ERRBAR; CGAERRBAR;
-    ///                     <atomic>; CCTL.IVALL   (at5_sem -O0 anchor)
+    ///                     `<atomic>`; CCTL.IVALL   (at5_sem -O0 anchor)
     /// BUG-080 policy: guarded atomic-class ops are fail-closed (silicon
     /// drops them on sm_103a; the encoder hard-fails them upstream).
     Atom,
     /// b9 phase-3 #4: PTX reduction atomic (no return value):
-    ///   red.global -> REDG.E.<suffix>.STRONG.GPU desc[UR4][Ra.64+off], Rv
+    ///   red.global -> REDG.E.`<suffix>`.STRONG.GPU desc\[UR4\]\[Ra.64+off\], Rv
     /// Anchored for add.u32 / add.f32 only (probes at5); other op/type
     /// combos fail closed even where RE-table mgs exist.
     Red,
@@ -206,11 +206,11 @@ pub enum SassTemplate {
     /// offset carried in an R register; vendor builds the CGA-wide address
     /// per access (S2R SR_CgaCtaId + LEA <<24) and drives the SYNCS op at
     /// [Ra+URZ]. Summary of the anchored forms:
-    ///   init [mb], n         -> S2R rx,SR_CgaCtaId ; LEA ra,rx,rb,0x18 ;
+    ///   init \[mb\], n         -> S2R rx,SR_CgaCtaId ; LEA ra,rx,rb,0x18 ;
     ///                           IADD3 rc,PT,PT,-rc,0x100000,RZ ;
     ///                           SHF.L.U32 rh,rc,0xb,RZ ; SHF.L.U32 rl,rc,0x1,RZ ;
     ///                           R2UR U60,rl ; R2UR U61,rh ; R2UR U62,ra ;
-    ///                           SYNCS.EXCH.64 URZ,[U62],U60   (count encoded
+    ///                           SYNCS.EXCH.64 URZ,\[U62\],U60   (count encoded
     ///                           as (0x100000-n)<<1 | (0x100000-n)<<33 pair)
     ///   try_wait.parity      -> addr glue ; phase (imm->MOV+SHF.L by 31,
     ///                           reg->SHF.L by 31) ;
@@ -231,10 +231,10 @@ pub enum SassTemplate {
     /// b9 phase-3 #7: barrier.cluster family -> guarded UCGABAR protocol
     /// with a runtime cluster-presence test (vendor anchors cl1/cl3, ptxas
     /// 13.3 -O0 sm_103a; byte-parity 142/142 in results/b9/cluster_parity/).
-    /// Every form reads the cluster gate c[0x0][0x36c] and branches between
+    /// Every form reads the cluster gate c\[0x0\]\[0x36c\] and branches between
     /// the UCGABAR path (real cluster launch) and the degenerate fallback.
     ///   arrive[.release] non-aligned:
-    ///     LDC r, c[0x0][0x36c]; ISETP.EQ.U32.AND P0, PT, r, 0x1, PT;
+    ///     LDC r, c\[0x0\]\[0x36c\]; ISETP.EQ.U32.AND P0, PT, r, 0x1, PT;
     ///     @!P0 BRA `(else); MOV r, 0xffffffff; WARPSYNC.COLLECTIVE.ALL `(mid);
     ///     [MEMBAR.ALL.GPU; ERRBAR; CGAERRBAR;] UCGABAR_ARV; ENDCOLLECTIVE;
     ///     mid: BRA `(end); else: MOV r, 0xffffffff;
@@ -311,7 +311,7 @@ pub enum SassTemplate {
     GridDep { wait: bool },
     /// cp.async non-bulk family -> LDGSTS + LDGDEPBAR/DEPBAR protocol
     /// (anchors cp1/cp2/cp3 + corpus anchors b_cpasync/p_ldgsts/p13):
-    ///   cp.async.{ca,cg}.shared.global[.L2::{128B,256B}] [d], [g], N{, sz}
+    ///   cp.async.{ca,cg}.shared.global[.L2::{128B,256B}] \[d\], \[g\], N{, sz}
     ///   N=4 -> .E ; 8 -> .E.64 ; 16 -> .E.128
     ///   .cg -> .BYPASS ; L2 hint -> .LTC128B/.LTC256B
     ///   src-size operand present (any value, imm or reg) -> .ZFILL plus
@@ -338,7 +338,7 @@ pub enum SassTemplate {
     /// Vendor forms (-O0 == -O3, probes ldsm1 + corpus b_ldmatrix/p11/p_ldsm/
     /// p12): `LDSM.16.M88 Rd, [Rn]` (x1, single dst), `LDSM.16.M88.4 Rd4,
     /// [Rn]` (x4, aligned dst quad), `STSM.16.M88.4 [Rn], Rs4` (src quad).
-    /// Address is a plain [Rn] 32-bit shared offset (64-bit pair bases yield
+    /// Address is a plain \[Rn\] 32-bit shared offset (64-bit pair bases yield
     /// their lo half per the AliasPair/cvta convention); nonzero [Rn+imm] is
     /// fail-closed (unattested in corpus), as are x2 forms and guards.
     Ldsm { store: bool },
@@ -415,7 +415,7 @@ pub enum SassTemplate {
     /// mul.lo.s64 / mad.lo.s64 / mul.hi.u64: shared vendor -O0 mul64
     /// network (anchors s64_mullo/s64_mulloi/s64_madlo/s64_mulhi; -O3 uses
     /// a lean 3..4-op form -- documented divergence):
-    ///   t0 = IMAD.WIDE.U32 [Pc0,] alo, blo[, addend]   (addend = RZ pair
+    ///   t0 = IMAD.WIDE.U32 \[Pc0,\] alo, blo[, addend]   (addend = RZ pair
     ///        for mul; c pair + Pc0 carry-out for mad)
     ///   t1 = IMAD.WIDE.U32 ahi, blo, RZ
     ///   t2 = IMAD.WIDE.U32 Pc2, alo, bhi, t1
@@ -426,7 +426,7 @@ pub enum SassTemplate {
     /// mul.lo keeps {t0.lo, s1}; mad.lo same (t0 carries c); mul.hi keeps t3.
     Mul64 { kind: Mul64Kind },
     /// cp.async.bulk.shared::cluster.global.mbarrier::complete_tx::bytes
-    /// [dst], [src], sz, [mbar] -> UBLKCP + single-lane elect loop with
+    /// \[dst\], \[src\], sz, \[mbar\] -> UBLKCP + single-lane elect loop with
     /// per-op CGA address glue (vendor anchors corpus b_bulk_cp -O0; -O3
     /// diverges into the uniform datapath -- documented). UR window
     /// UR52..UR56 (fixed, gateway-local; vendor -O0 reuses UR4..9 but UR4
@@ -437,7 +437,7 @@ pub enum SassTemplate {
     ///   SHF.R.U32.HI t,RZ,0x4,sz ; PRMT t,t,0x5410,RZ ; R2UR UR52,t
     ///   S2R+LEA (mbar) ; R2UR UR56,mb ; R2UR UR55,ad
     ///   PLOP3 pl,PT,PT,PT,PT,0x80,0x8 ; LOOP: @pl ELECT pe,URZ,PT ;
-    ///   @pe PLOP3 pl,PT,pe,PT,PT,0x8,0x80 ; UBLKCP.S.G [UR55],[UR53],UR52 ;
+    ///   @pe PLOP3 pl,PT,pe,PT,PT,0x8,0x80 ; UBLKCP.S.G \[UR55\],\[UR53\],UR52 ;
     ///   PLOP3 pe,PT,PT,PT,PT,0x8,0x80 ; @pl BRA.U.ANY `(LOOP)
     CpAsyncBulk,
     /// mad.wide.u32 -> IMAD.U32 + IMAD.HI.U32 + IADD3/IADD3.X add of the

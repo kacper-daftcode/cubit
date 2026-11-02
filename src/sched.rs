@@ -26,7 +26,7 @@
 //!     RET/EXIT/BSSY/BSYNC...), barriers (BAR/DEPBAR...), NOP, hand-sched
 //!     instructions (`[B..:R..:W..:Y:S..]` prefix = owner-authored schedule),
 //!     and the LDCU family (constant-uniform epoch/discriminator risk,
-//!     design.md sec.7: relative positions of LDCU vs desc[UR] users are
+//!     design.md sec.7: relative positions of LDCU vs desc\[UR\] users are
 //!     load-bearing). Anchor edges are emitted against the surrounding
 //!     anchor pair (previous-anchor -> i -> next-anchor plus the
 //!     consecutive-anchor chain), which transitivity lifts to full
@@ -374,7 +374,7 @@ fn is_mem_chain_class(cc: &CtrlClass) -> bool {
 /// completion tracked as M4-open/b4-follow-up.
 /// Members semantic-only: MEM = reads/writes an aliasing-capable space
 /// (constant-bank reads LDC are NOT members); ANCHOR = control flow /
-/// barrier-sync / NOP / LDCU-family (c[0x0] uniform epoch, design.md sec.7).
+/// barrier-sync / NOP / LDCU-family (c\[0x0\] uniform epoch, design.md sec.7).
 pub fn fallback_class(ins: &Instruction) -> Option<CtrlClass> {
     const MEM: &[&str] = &[
         "LDG", "LDGX", "LD", "LDS", "LDSM", "LDTM", "LDL", "LDGSTS", "LDGDEPBAR",

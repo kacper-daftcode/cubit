@@ -96,7 +96,7 @@ pub struct RegSpan {
     /// RA-full must honor it when picking group homes.
     pub align: u8,
     /// True when this "UR" number is actually a descriptor-table index
-    /// (desc[URx]): an 8-bit namespace distinct from architectural URs
+    /// (desc\[URx\]): an 8-bit namespace distinct from architectural URs
     /// (certified kernels routinely use desc[UR64..UR252]; the liveness
     /// sets still clip at 64). RA validation must not apply UR-domain
     /// rules to these.

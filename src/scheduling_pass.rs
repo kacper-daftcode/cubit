@@ -7,7 +7,7 @@
 //! When an `IsaTable` is provided, per-InsKey `ctrl_class` information
 //! is used to enforce hardware-verified scheduling constraints:
 //! - MUFU: wait_mask forbidden (corrupts TABLES_opex_0 decode)
-//! - IADD3+RZ: wait_mask and write_bar forbidden (hi[7:0]=0xFF forced)
+//! - IADD3+RZ: wait_mask and write_bar forbidden (hi\[7:0\]=0xFF forced)
 //! - Correct long-latency detection (write_bar assignment) per class
 
 use crate::ctrl_class::{CtrlClass, iadd3_rc2_is_rz};
@@ -462,7 +462,7 @@ const LATENCY_LDC: u8 = 30;
 /// BUG-170 (2026-08-26, front-M iter88): the opclasses `uplop3_lut_2out_` /
 /// `plop3_lut_2out_` (every PLOP3.LUT / UPLOP3.LUT form) reinterpret ctrl word
 /// bits [105:110) = stall[0:4) | yield<<4 as an index into TABLES_opex_1
-/// (nvdisasm 13.3.73, "Opclass '<u>plop3_lut_2out_', undefined value 0x1e for
+/// (nvdisasm 13.3.73, "Opclass '`<u>`plop3_lut_2out_', undefined value 0x1e for
 /// table 'TABLES_opex_1'" + dataflow abort). Empirical law, 32-value bit-scan
 /// on corpus payloads + vendor census (hexdb 32.2M: 5,970 UPLOP3 + 144,796
 /// PLOP3 rows, zero outliers): DEFINED = 0x00..=0x0F and 0x11..=0x1B;
@@ -1989,7 +1989,7 @@ pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
 }
 
 /// Apply SM120 OPEX legality after CLI scheduling post-passes. Only controls
-/// owned by the generator may be passed here; [CC] instructions stay frozen.
+/// owned by the generator may be passed here; \[CC\] instructions stay frozen.
 /// The encoder rejects reserved author controls instead of calling this helper.
 pub fn legalize_generated_sm120_controls(insns: &mut [Instruction]) {
     for insn in insns.iter_mut().filter(|x| !x.hand_sched) {
@@ -3505,7 +3505,7 @@ fn run_verify(insns: &[Instruction], table: Option<&IsaTable>, print: bool) -> V
 /// Insert IADD3+RZ delay instructions where the scheduler computed a stall
 /// that cannot be encoded in the instruction's non-standard scheduling layout.
 ///
-/// IADD3 with Rc2=RZ forces hi_lower32[7:0]=0xFF, giving a hardware-enforced
+/// IADD3 with Rc2=RZ forces hi_lower32\[7:0\]=0xFF, giving a hardware-enforced
 /// 15-cycle stall regardless of upper32 scheduling bits.
 pub fn insert_stall_gaps(insns: &mut Vec<Instruction>, table: Option<&IsaTable>) {
     // Preserve mode: never widen stalls on a fully hand-scheduled kernel.
@@ -3569,12 +3569,12 @@ fn insn_is_backward_branch(insn: &Instruction) -> bool {
 
 // ── Convergence barrier pass ─────────────────────────────────────────────────
 
-/// Post-encoding pass: set BRA bits[31:24] to the convergence barrier ID.
+/// Post-encoding pass: set BRA bits\[31:24\] to the convergence barrier ID.
 ///
 /// Algorithm:
 /// 1. Scan for BSSY instructions → record (barrier_id, bssy_addr, target_addr)
 /// 2. For each BRA in the encoded bytes, check if it falls inside a BSSY region
-/// 3. If so, patch byte at offset+3 (bits[31:24]) with the barrier number
+/// 3. If so, patch byte at offset+3 (bits\[31:24\]) with the barrier number
 ///
 /// A BRA at address A is "inside" a BSSY region if bssy_addr < A < target_addr.
 /// Handles nesting: innermost BSSY wins (highest start address).

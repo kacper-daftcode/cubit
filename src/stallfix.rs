@@ -178,7 +178,7 @@ impl StallRules {
             None => text,
         };
         let r: StallRules = serde_json::from_str(text)
-            .context("stallfix: rules JSON is not valid POSTFIX-103 JSON")?;
+            .context("stallfix: rules JSON is not a valid stallfix rule set (rules_version, floor_global, ...)")?;
         r.sanity()?;
         Ok(r)
     }

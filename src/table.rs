@@ -108,7 +108,7 @@ pub enum Extraction {
     /// UPT = sel 7) per the i93 field census (206775 UP records).
     UPredGate,
     /// Trailing guard-pred inverted 4-bit map (sm_121a convention; LDG
-    /// [67:64] / .256 [90:87] windows): PT/none -> 0, Pn -> 7-n, !PT -> 8,
+    /// \[67:64\] / .256 \[90:87\] windows): PT/none -> 0, Pn -> 7-n, !PT -> 8,
     /// !Pn -> 15-n. Ported 1:1 from the SM121a fleet implementation (q2
     /// iter38) — same window as `pred` on sm_103a, different value mapping.
     PredInv4,
@@ -403,7 +403,7 @@ pub struct InsKeyEntry {
     /// Scheduling class — None if not available (old table format).
     pub ctrl_class: Option<crate::ctrl_class::CtrlClass>,
     /// Resolved hi_upper32 value from ctrl_class → ctrl_epoch chain.
-    /// Contains mode bits [31:17] and default scheduling bits [16:0].
+    /// Contains mode bits \[31:17\] and default scheduling bits \[16:0\].
     pub epoch_upper32: Option<u32>,
     /// BUG-090: encoder-visible, decoder-invisible row (frozen-era text
     /// compatibility). DecodeIndex::build skips these keys.
@@ -794,7 +794,7 @@ pub fn load_records(path: &Path) -> Result<Vec<Record>> {
 /// BUG-279: true when a table/instruction key belongs to the HFMA2 packed-f16
 /// immediate family grafted in BUG-279 (parents HFMA2_R_R_R_{II_FI,FI_FI,II_II},
 /// their RELU _P dotted keys and the new FTZ/OOB dotted keys). Used by the
-/// printer/encoder arms for the tok3 hsel window [82:81] (vendor value 1 =
+/// printer/encoder arms for the tok3 hsel window \[82:81\] (vendor value 1 =
 /// the ".F32" operand modifier on this family, arb279/arb279b x4 models).
 pub fn hfma2_immfam_key(key: &str) -> bool {
     if !key.starts_with("HFMA2") {
@@ -839,7 +839,7 @@ pub fn ur_hsel_invalid1_key(key: &str) -> bool {
 }
 
 /// BUG-305: sibling value-validity law, armed F2-iter152. On the
-/// `HFMA2_R_R_UR_R` rows (UR tok3, hsel window [61:60]) value 1 reads as
+/// `HFMA2_R_R_UR_R` rows (UR tok3, hsel window \[61:60\]) value 1 reads as
 /// the vendor `.F32` operand modifier -- arb297 G1/I1 + arb297b G41
 /// (nvdisasm 13.3.73 raw -b, x4 models SM100a/SM103a/SM120/SM121a agree
 /// on every probe): 0='' 1='.F32' 2='.H0_H0' 3='.H1_H1; signs compose

@@ -1,6 +1,24 @@
 # SM120 SASS Kernel Tuning Guide
 
-Measured scheduling facts and tuning patterns for SASS kernels on RTX 5090 (SM120).
+Scheduling facts and tuning patterns for hand-written SASS kernels on RTX 5090 (SM120).
+
+> **Status of these claims (reviewed 2026-11-02).** Everything below was measured in 2026-06..08 on an
+> RTX 5090 with the project's own kernels (QMMA GEMV / sparse-MLA decode) and has **not been re-run
+> since**; treat each line as "measured on that date with that kernel". Two claims are contradicted by
+> nvcc's own SM120 code on disk and must not be read as hardware laws:
+>
+> - "QMMA: always S11, cannot encode `wait_mask`" — nvcc's FP8×FP4 MoE kernels (2026-11) schedule
+>   chained QMMAs at `S01` with yield, use `S15`/`S08` only before a dependent consumer, and put wait
+>   masks (`[B-1----]`, `[B----4-]`) on QMMAs. The S11 + `UIADD3 URZ` drain pattern is what *cubit's*
+>   scheduler emits and what the 2026-06 kernels were validated with; it is a sufficient recipe, not
+>   the only legal one.
+> - "EIATTR regcount = 72 → usable R0–R69, R70+ ILLEGAL" (the BUG-040/075 shadow law) — FlashInfer's
+>   `sparse_mla_streaming_dsv4_nvfp4` kernel touches R126/R127 under regcount 128. The law is queued
+>   for a silicon re-measurement (`docs/KNOWN_ISSUES.md` A1); cubit keeps it as a warning.
+>
+> The measured control-code layout and the reserved yield/stall combinations are in
+> [SM120_CONTROL_OPEX.md](SM120_CONTROL_OPEX.md) (evidence pinned by fixtures and tests). The SM120
+> stall floors are not measured yet ([SM120_STALLFIX_PLAN.md](SM120_STALLFIX_PLAN.md)).
 
 ## Critical Hardware Facts
 

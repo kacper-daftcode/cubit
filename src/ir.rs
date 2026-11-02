@@ -89,14 +89,14 @@ pub enum Operand {
         ur_reg: Option<u8>,
         offset: i64,
     },
-    /// Constant memory c[bank][offset] or c[bank][R+offset].
+    /// Constant memory c\[bank\]\[offset\] or c\[bank\]\[R+offset\].
     ConstMem {
         bank: u16,
         base_reg: Option<u8>,
         ur_reg: Option<u8>,
         offset: i64,
     },
-    /// Descriptor desc[UR][R+offset].
+    /// Descriptor desc\[UR\]\[R+offset\].
     Desc {
         ur_idx: u8,
         base_reg: Option<u8>,
@@ -140,7 +140,7 @@ pub struct Instruction {
     /// Bit-level residue overlay from `!rsd[...]` annotations: (bit, value)
     /// assignments applied at the END of encoding. Emitted by `disassemble`
     /// whenever decoded text would otherwise lose bits that nvdisasm's surface
-    /// syntax never shows (e.g. F2F mnemod pair bits [75,84], BRA token slots).
+    /// syntax never shows (e.g. F2F mnemod pair bits \[75,84\], BRA token slots).
     pub rsd: Option<Vec<(u8, u8)>>,
     /// Raw SASS text (for diagnostics only — encoder does NOT use this).
     pub raw_text: String,

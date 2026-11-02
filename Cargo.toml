@@ -1,6 +1,6 @@
 [package]
 name = "cubit"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.87"
 description = "Open-source SASS assembler and disassembler for NVIDIA Blackwell GPUs (SM120/SM103a)"

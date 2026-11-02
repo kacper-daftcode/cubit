@@ -2,9 +2,9 @@
 //!
 //! String format: `B------:R-:W-:-:S01`
 //!
-//! SM120 scheduling: 17-bit word packed into upper32[25:9] of the 128-bit
+//! SM120 scheduling: 17-bit word packed into upper32\[25:9\] of the 128-bit
 //! instruction (i.e. `packed << 9`).  Layout of the 17-bit packed word:
-//!   wait_mask[16:11] | read_bar[10:8] | write_bar[7:5] | yield[4] | stall[3:0]
+//!   wait_mask\[16:11\] | read_bar\[10:8\] | write_bar\[7:5\] | yield\[4\] | stall\[3:0\]
 //!
 //! Derived from tungsten LLVM backend `buildSchedUpper32`.
 
@@ -17,7 +17,7 @@ static CC_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^B(0|-)(1|-)(2|-)(3|-)(4|-)(5|-):R[0-5\-]:W[0-5\-]:(Y|-):S\d{2}$").unwrap()
 });
 
-/// Scheduling field sits at upper32[25:9] — i.e. the 17-bit packed word
+/// Scheduling field sits at upper32\[25:9\] — i.e. the 17-bit packed word
 /// is shifted left by 9 within the upper32.
 pub const SCHED_SHIFT: u32 = 9;
 /// Mask covering the scheduling field within upper32.
@@ -86,7 +86,7 @@ pub fn encode_control_code(cc: &ControlCode) -> u32 {
         | (cc.stall as u32)
 }
 
-/// Encode a ControlCode into upper32 format: packed << 9 (bits [25:9]).
+/// Encode a ControlCode into upper32 format: packed << 9 (bits \[25:9\]).
 /// This matches tungsten's `buildSchedUpper32`.
 pub fn encode_sched_upper32(cc: &ControlCode) -> u32 {
     encode_control_code(cc) << SCHED_SHIFT
@@ -102,7 +102,7 @@ pub fn decode_control_code(code: u32) -> ControlCode {
     }
 }
 
-/// Decode scheduling from an upper32 value (extract bits [25:9], unshift).
+/// Decode scheduling from an upper32 value (extract bits \[25:9\], unshift).
 pub fn decode_sched_upper32(upper32: u32) -> ControlCode {
     decode_control_code((upper32 >> SCHED_SHIFT) & 0x1FFFF)
 }

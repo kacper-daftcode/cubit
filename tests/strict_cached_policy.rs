@@ -1,3 +1,6 @@
+//! The encoder's fit policy is cached per process: a permissive `CUBIT_FIT_LINT` seen at the
+//! first encode must keep the strict source API rejecting that encoder even after the variable
+//! is cleared (child-process test).
 use cubit::{encoder::encode_instruction, parser::parse_sass, table::IsaTable};
 
 /// Every child starts with a fresh encoder policy cache. Changing its environment

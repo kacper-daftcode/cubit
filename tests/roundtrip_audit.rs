@@ -1,3 +1,6 @@
+//! Strict round-trip audit library (`roundtrip_audit`): per-kernel and per-cubin audits of
+//! decode -> editable SASS -> re-parse -> re-encode, the semantic-source checker that rejects
+//! raw words, residue overlays and permissive switches, and the Failure records the CLI reports.
 use cubit::decoder::DecodeIndex;
 use cubit::roundtrip_audit::{audit_cubin, audit_kernel, check_semantic_source, Failure};
 use cubit::table::IsaTable;

@@ -14,3 +14,7 @@ tables/lookup.bin
 
 # Build outputs / scratch
 *.cubin
+
+# Build directories (a stray tests/target-suite build tree was tracked until 2026-11-02)
+/tests/target-suite/
+**/target/

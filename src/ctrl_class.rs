@@ -14,21 +14,21 @@
 /// instruction-discriminator positions in the ctrl word.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CtrlClass {
-    /// 3-source ALU (IADD3, IMAD, FFMA, HFMA2) — Rc2 at hi[7:0].
-    /// When Rc2=RZ (255): hi[7:0]=0xFF forced; no independent wait_mask or write_bar.
+    /// 3-source ALU (IADD3, IMAD, FFMA, HFMA2) — Rc2 at hi\[7:0\].
+    /// When Rc2=RZ (255): hi\[7:0\]=0xFF forced; no independent wait_mask or write_bar.
     AluIadd3,
     /// 2-source ALU (MOV, SEL, IADD, FADD, FMUL, comparisons, conversions).
     AluSimple,
     /// IMAD.WIDE — upper32 must be 0x000fc000 (not 0x000fe200 epoch).
     ImadWide,
-    /// System register read — hi[15:8] = SR code (opcode extension).
+    /// System register read — hi\[15:8\] = SR code (opcode extension).
     S2r,
-    /// MUFU transcendentals — hi[15:8] = function code (TABLES_opex_0).
+    /// MUFU transcendentals — hi\[15:8\] = function code (TABLES_opex_0).
     /// wait_mask FORBIDDEN: setting it corrupts opex_0 table decode.
     Mufu,
-    /// 32-bit constant bank load — hi[11:8]=0x8 is type discriminator.
+    /// 32-bit constant bank load — hi\[11:8\]=0x8 is type discriminator.
     Ldc,
-    /// 64-bit constant bank load — hi[11:8]=0xa is type discriminator.
+    /// 64-bit constant bank load — hi\[11:8\]=0xa is type discriminator.
     Ldc64,
     /// 32-bit uniform constant bank load.
     Ldcu,
@@ -44,9 +44,9 @@ pub enum CtrlClass {
     LdGeneric,
     /// Generic global store (non-descriptor form).
     StGeneric,
-    /// Shared memory load — hi[11:8]=0x8 type discriminator.
+    /// Shared memory load — hi\[11:8\]=0x8 type discriminator.
     Lds,
-    /// Shared memory store — hi[11:8]=0x8 type discriminator.
+    /// Shared memory store — hi\[11:8\]=0x8 type discriminator.
     Sts,
     /// Local memory load.
     Ldl,
@@ -156,7 +156,7 @@ impl CtrlClass {
 
     /// Returns true if the scheduler may set `wait_mask` bits for this class.
     ///
-    /// Only classes whose scheduling is encoded at standard upper32[16:0]
+    /// Only classes whose scheduling is encoded at standard upper32\[16:0\]
     /// positions can use wait_mask.  Classes with non-standard scheduling
     /// layout (LDC, LDG, STG, IMAD.WIDE, etc.) or fully-static encoding
     /// cannot — the scheduler falls back to stall-based dependency.
@@ -173,13 +173,13 @@ impl CtrlClass {
     /// Returns true if the scheduler may set a `write_bar` for this class.
     ///
     /// Only assign write_bar to long-latency producers whose consumers
-    /// can encode wait_mask in the standard upper32[16:0] layout.
+    /// can encode wait_mask in the standard upper32\[16:0\] layout.
     /// For IADD3+RZ, the caller must additionally check `iadd3_rc2_is_rz`.
     pub fn can_set_write_bar(&self) -> bool {
         self.has_standard_upper32_sched()
     }
 
-    /// Returns true if upper32[16:0] uses the standard 17-bit scheduling
+    /// Returns true if upper32\[16:0\] uses the standard 17-bit scheduling
     /// layout (wait_mask|read_bar|write_bar|yield|stall).
     ///
     /// Classes where hi_lower32_sched_mask != 0 have scheduling in lower32
@@ -214,7 +214,7 @@ impl CtrlClass {
 
 /// Check whether an IADD3 instruction has Rc2=RZ as its last register operand.
 ///
-/// When Rc2=RZ, hi[7:0]=0xFF is forced by hardware (stall forced to 15,
+/// When Rc2=RZ, hi\[7:0\]=0xFF is forced by hardware (stall forced to 15,
 /// no independent wait_mask or write_bar possible).
 pub fn iadd3_rc2_is_rz(insn: &crate::ir::Instruction) -> bool {
     if insn.opcode != "IADD3" && insn.opcode != "UIADD3" {

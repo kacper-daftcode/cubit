@@ -1,6 +1,11 @@
 # nvcc QMMA GEMV K-loop Reference (SM120)
 
-Exact disassembly of nvcc's K-loop for `qmma_gemv_fused` kernel (4096×4096 FP8).
+Disassembly notes on nvcc's K-loop for the `qmma_gemv_fused` kernel (4096×4096 FP8), transcribed
+2026-06 from nvcc 12.8 output. Status (2026-11-02): a reading of one compiler output, not re-generated
+since; the register and barrier assignments are specific to that build. For current compiler
+schedules use `cubit disassemble --frozen` on the kernel at hand (the FP8×FP4 MoE kernels of
+2026-11 show the same structure: LDG burst under 4 barriers, QMMA chains at S01 with yield, drains
+before the back edge).
 
 ## K-loop Structure
 
