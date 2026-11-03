@@ -4,7 +4,29 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
-## 0.2.0 — 2026-11-02
+## 0.2.0 — 2026-11-03 (tag `v0.2.0`)
+
+**History rewritten on 2026-11-03 — clones made before that date must be re-cloned.** The committed
+Cargo build directory `tests/target-suite/` (458 files, 195 MB, commit `07b331b` of 2026-09-05) was
+removed from the whole history with `git filter-repo --path tests/target-suite --invert-paths
+--preserve-commit-hashes`; 461 commits stay 461, every commit message, author and date is unchanged,
+the tree at `main` is identical, 18 commits from `07b331b` onwards have new ids (`fd11931` → `cd88768`,
+`0d51705` → `02c1b30`, `c2d83a5` → `d7413e6`, `accd984` → `fc18522`; the ids quoted in older entries
+below and in commit messages are the pre-rewrite ids). Pack size 56.5 MB → 12.6 MB. `main` was
+force-pushed once, with the owner's sanction; no other branch exists on the public remote.
+
+GPU results of the 2026-11-02 night window (RTX 5090, cubit-assembled probe kernels): the packed
+HMUL2 immediates behave as the register form (4/4 PASS: identity, negation, `.H1_H1` broadcast), a loop
+with an LDC-loaded bound iterates exactly n times (4/4), standalone cubins launch; a kernel declared
+at regcount 64 touching R62/R63 and one at regcount 128 touching R126/R127 both fault with
+`CUDA_ERROR_ILLEGAL_INSTRUCTION` (715) while R60/R61 at 64 work — **the BUG-040/075 shadow law is
+confirmed at 64 and 128**. The "nvcc contradicts it" note of 2026-11-02 was wrong: FlashInfer's
+`sparse_mla_streaming_dsv4_nvfp4` kernels use `USETMAXREG.TRY_ALLOC.CTAPOOL 0xd8` (register
+reconfiguration, `EIATTR_REG_RECONFIG`), so their text legitimately uses registers above the launch
+regcount 128 (up to R213). The BUG-008 probe (one kernel with four IMAD.WIDE variants incl. an odd
+pair base R7) also faulted with 715 — consistent with "an odd pair base is illegal", but the four
+variants are split into separate kernels for the next window before that is recorded as measured.
+
 
 Quality session over the whole public face (cubit + blackwell-isa); every change below was gated by
 `tools/sync_table.py` (vendoring + the full suite), `cargo clippy --release -- -D warnings` on the

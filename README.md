@@ -16,6 +16,10 @@ DSV4.1, MXFP8 GEMM), b12x MoE and DeepGEMM SM120 kernels. The whole-cubin path
 byte. Those numbers are the definition of "coverage" used here; what is *not* covered is listed in
 [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 
+> **Re-clone notice (2026-11-03).** The repository history was rewritten once to remove a committed
+> build directory (195 MB; see CHANGELOG 0.2.0). Clones and forks made before 2026-11-03 do not share
+> history with `main` any more: re-clone instead of pulling.
+
 ## Install
 
 ```bash
