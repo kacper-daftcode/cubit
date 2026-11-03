@@ -134,7 +134,7 @@ fn t175_5_polygon() {
         serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
     let mg = j.pointer("/instructions/LDC_R_cARI/mod_groups").unwrap();
     let don = &mg["64"];
-    let donor_ab: u128 = 0x0000200000000a000000000000007b82;
+    let donor_ab: u128 = 0x0000000000000a000000000000007b82; // 2026-11-03 hygiene pass: baked control word (bit 109) cleared
     assert_eq!(don["and_base"].as_str().unwrap(),
                format!("0x{donor_ab:032x}"), "donor '64' and_base drift");
     // existing groups preserved with their pre-patch fields (162/147 domain):

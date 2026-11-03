@@ -157,7 +157,7 @@ fn t415_4_mint_circle_junk_drop() {
 #[test]
 fn t415_5_boundaries_and_graft_hygiene() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "77a3dfaacb757210f54923931a8129bc4a486494";
+    const CURRENT_VENDORED_CANON: &str = "66197820ecba6d7094d35b5c7748f448a7599ddf";
     assert_eq!(CANON415, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     // FLIP (BUG-420, F2-iter232, canonical 0eddad5): the six HOLE415
@@ -258,7 +258,7 @@ fn t415_5_boundaries_and_graft_hygiene() {
         tabj["instructions"]["LDS_R_ARI"]["mod_groups"]["S8"]["and_base"]
             .as_str()
             .unwrap(),
-        "0x00002000000002000000000000000984",
+        "0x00000000000002000000000000000984", // 2026-11-03 hygiene pass: control word (bit 109) cleared
         "S8 owning row and_base moved"
     );
 }

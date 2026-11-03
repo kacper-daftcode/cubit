@@ -138,9 +138,11 @@ fn t172_6_polygon() {
         ("tables/sm120.json", "LDC_R_cAI",   "64", "0x0000000000000a000000000000000b82"),
         ("tables/sm120.json", "LDC_R_cARI",  "64", "0x0000000000000a000000000000000b82"),
         ("tables/sm120.json", "LDCU_UR_cAI", "64", "0x0000000008000a0000000000ff0077ac"),
-        ("tables/sm103a.json", "LDC_R_cAI",   "S8", "0x000e20000000020000000880ff000b82"),
-        ("tables/sm103a.json", "LDCU_UR_cAI", "S8", "0x000e22000800020000000000ff0077ac"),
-        ("tables/sm103a.json", "LDC_R_cARI",  "64", "0x0000200000000a000000000000007b82"),
+        // 2026-11-03 hygiene pass (blackwell-isa 64eaa21): the control word the harvest baked into
+        // bits [127:105] of these templates is cleared (0x000e2000.., 0x000e2200.., 0x00002000.. -> 0)
+        ("tables/sm103a.json", "LDC_R_cAI",   "S8", "0x000000000000020000000880ff000b82"),
+        ("tables/sm103a.json", "LDCU_UR_cAI", "S8", "0x000000000800020000000000ff0077ac"),
+        ("tables/sm103a.json", "LDC_R_cARI",  "64", "0x0000000000000a000000000000007b82"),
     ] {
         let j: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();

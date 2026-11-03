@@ -315,8 +315,14 @@ class SyncError(RuntimeError):
 # 412+413/425/427 convention) and +2 SM121A (STS_ARURI_R S8/S16 only; the
 # STS_AURI_R 121a donor bakes none like its 425 siblings). SM100a
 # 1681->1685, SM103a 1677->1681, SM120 1141->1145, SM121A 544->546.
-BAKED_CTRL_BASELINE = {"SM120": 1145, "SM103a": 1681, "SM100a": 1685,
-                       "SM121A": 546}
+# 2026-11-03 hygiene pass (canonical tables, blackwell-isa-internal/tools/
+# hygiene_pass.py): the baked control-code bits [127:105] of every harvest
+# variant were cleared (SM120 880, SM103a 1670, SM100a 1674, SM121A 546 rows;
+# decode/encode proven identical: census 1 811 600 / 1 811 600 per cubin,
+# 157/157 cubins byte-identical through disassemble --frozen -> asm -T).
+# The ratchet is now zero for every table: a template that bakes a control
+# word is a defect, not a convention.
+BAKED_CTRL_BASELINE = {"SM120": 0, "SM103a": 0, "SM100a": 0, "SM121A": 0}
 
 FIXED_EXTRACTIONS = {
     "",

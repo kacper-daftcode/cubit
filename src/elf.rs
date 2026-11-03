@@ -276,8 +276,13 @@ pub fn sm_from_ef_flags(flags: u32) -> u32 {
 }
 
 fn parse_sm_version(flags: u32) -> SmVersion {
+    // Two e_flags layouts: the old one keeps the SM number in the low byte
+    // (sm_20 .. sm_90, always >= 20); the current one keeps feature flag bits
+    // there (0x02, 0x04, and 0x08 = the 'a' arch-specific variant, so sm_100a
+    // = 0x0600_640a) and the SM number in [19:8]. Any low byte below 0x10 is
+    // a flag byte - `< 10` mis-read the 'a' variants (0x0a) as sm_10.
     let sm_field = flags & 0xFF;
-    if sm_field < 10 {
+    if sm_field < 0x10 {
         SmVersion { sm: (flags >> 8) & 0xFFF, compute: (flags >> 20) & 0xFFF }
     } else {
         SmVersion { sm: sm_field, compute: (flags >> 16) & 0xFF }

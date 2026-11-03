@@ -120,9 +120,9 @@ added since 2026-10).
 | table | silicon | what the gate proves | not proved |
 |---|---|---|---|
 | `sm120.json` | RTX 5090 / RTX PRO 6000 (production kernels 2026-06..10) | strict census 1 811 600 / 1 811 600 words, 157 / 157 cubins byte-identical through `--frozen` → `asm -T`, the suite's measured-form fixtures | semantics of rows measured by encoding only ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) T6); 19 340 of 20 905 variants are harvest rows (T1) |
-| `sm103a.json` | B300 | the suite (encode/decode fixtures, `stallfix` rules, cost model); 323 / 323 cubins byte-exact as of 2026-09-18 | not re-run since (needs the B300 corpus) |
-| `sm100a.json` | B200 | encoding layer = SM103a + tcgen05 deltas; 99.92 % exact-minus-schedule on a 20 M-instruction archive as of 2026-08-26 | no B200 silicon run; scheduling data inherited |
-| `sm121a.json` | GB10 (DGX Spark) | the suite's GB10 fixtures; 0 decode differences vs SM120 on 648 992 raw instructions as of 2026-09-18 | timing / scheduling data |
+| `sm103a.json` | B300 | the suite (encode/decode fixtures, `stallfix` rules, cost model); re-run 2026-11-03 on the B300 host `cold-face-bounces-fin-02`: 177 / 177 SM103a cubins of the publish corpus byte-identical through `--frozen` → `asm -T` (104 words carried as `__raw__`), strict semantic round trip 77 543 / 77 656 words — the refused words are fail-closed refusals of silicon-unsafe forms (BUG-080 guarded ATOMS, BUG-004 predicate form) plus 8 re-encode mismatches ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) V1) | no silicon run of cubit-assembled SM103a kernels since 2026-09 |
+| `sm100a.json` | B200 | encoding layer = SM103a + tcgen05 deltas; re-run 2026-11-03 on `cold-face-bounces-fin-02`: 99.924 % exact-minus-schedule on the archived 20 024 512-instruction sm_100 population (1 134 cubins with a vendor golden), 151 / 151 `cub_100a` cubins byte-identical through `--frozen` → `asm -T`, strict 8 103 / 8 136 words | no B200 silicon run; scheduling data inherited; until 2026-11-03 cubit mis-read the sm_100a ELF flags as sm_10 (KNOWN_ISSUES A11) |
+| `sm121a.json` | GB10 (DGX Spark) | the suite's GB10 fixtures; 0 decode differences vs SM120 on 648 992 raw instructions as of 2026-09-18 | not re-run: the GB10 corpus is not on any host this project reaches (checked 2026-11-03); timing / scheduling data |
 
 Select a table with `-t tables/<arch>.json` or `CUBIT_TABLE`; the output cubin's ELF flags follow the
 table.

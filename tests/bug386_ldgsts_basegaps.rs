@@ -372,7 +372,8 @@ fn t386_5_template_inheritance_and_vm_cleanliness() {
                 }
             }
         }
-        let want = if leg == "sm120" { 12 } else { 8 };
+        // 2026-11-03 hygiene pass: no grafted template bakes a control word any more (was 12 / 8)
+        let want = 0;
         assert_eq!(baked, want, "{leg}: grafted baked census drift");
     }
     let raw: serde_json::Value =

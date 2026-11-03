@@ -183,10 +183,11 @@ fn t374_4_p_bypass_zfill_sm120_vendor_exact() {
         16,
     )
     .unwrap();
-    // convention delta measured: ab>>96 == 0x1e000 (inert bits >104, no
+    // convention delta measured: ab>>96 was 0x1e000 (inert bits >104, no
     // M96 care impact -- the patch asserts claim-space identity vs the
-    // sm103a sibling and care-matches the vendor witness N2).
-    assert_eq!(ab >> 96, 0x1e000, "sm120 TOPD convention drift");
+    // sm103a sibling and care-matches the vendor witness N2). The 2026-11-03
+    // hygiene pass cleared every baked control word: ab>>96 == 0 now.
+    assert_eq!(ab >> 96, 0, "sm120 TOPD convention drift");
 }
 
 #[test]

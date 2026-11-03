@@ -1295,6 +1295,16 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             _ => {}
         }
     }
+    // 2026-11-03 (dynamic audit, nvdisasm 13.1 x 30 BRA words): the uniform
+    // branch prints `.U` before the convergence qualifier - `BRA.U.ANY`, not
+    // `BRA.ANY.U` (the alphabetical group name "ANY,U").
+    if base == "BRA" {
+        match m {
+            "U" => return 2,
+            "ANY" | "ALL" => return 5,
+            _ => {}
+        }
+    }
     // BUG-192 / b11 (RP-2): UTCCP — nvdisasm prints the direction pair T.S
     // before 2CTA and the shape (UTCCP.T.S.2CTA.128dp128bit; arb190a
     // nvdisasm-13.3.73 bit-scan + 192-b battery anchors). Legacy key order
@@ -1566,6 +1576,7 @@ fn format_operand(
                 false,
                 false,
                 plain_u32,
+                lossless,
             )
         }
         // BUG-454: REDG plain uniform-indexed 64-bit address family
@@ -1581,7 +1592,7 @@ fn format_operand(
         // przez patch461 = canonical f58ed16; mint-side nadal refuse = arm
         // encodera BUG-461). Bazy 0..254 drukuja 'R{n}.64' jak dotychczas;
         // U32-form (b90=0) nie przechodzi przez ta galaz.
-        "ARURI64" if ins_key.starts_with("REDG.E") => format_plain_u32_ur(fields, raw, false, true, false, false),
+        "ARURI64" if ins_key.starts_with("REDG.E") => format_plain_u32_ur(fields, raw, false, true, false, false, lossless),
         // BUG-464: plain (nNA) EFL2.256 ARURI64 family (klucze graftu
         // LDG.E.EFL2.256_R_R_ARURI64{,_P,_II,_II_P} / STG.E.EFL2.256_ARURI64_R_R{,_II}).
         // Tekst vendora: '[R{n}.64+UR{m}(+-off)]' zawsze z '.64' (b75 frame),
@@ -1602,7 +1613,7 @@ fn format_operand(
                     || ins_key.contains(".ENL2.")
                     || ins_key.contains(".ELL2.")) =>
         {
-            format_plain_u32_ur(fields, raw, false, false, true, false)
+            format_plain_u32_ur(fields, raw, false, false, true, false, lossless)
         }
         // BUG-099/095: canon-era key names LDG_R_ARURI / STG_ARURI_R whose
         // repaired mod groups carry the same plain (reg/ureg/imm) field shape
@@ -1620,7 +1631,7 @@ fn format_operand(
         // LDGMC uses a plain extended global address, with a separate
         // uniform index. It does not use the descriptor spelling.
         "ARURI" if ins_key.starts_with("LDGMC_") =>
-            format_plain_u32_ur(fields, raw, false, false, true, false),
+            format_plain_u32_ur(fields, raw, false, false, true, false, lossless),
         "ARURI"
             // BUG-469: widthless-ARURI graft sm121a covers pred-dest arms too
             // ('LDG_P_R_ARURI{,_P}' plain band, 'LDG.E.EF{,.LTCnm}_P_R_ARURI_P'
@@ -1638,7 +1649,7 @@ fn format_operand(
                     .iter()
                     .any(|f| matches!(norm_ext(&f.extraction).as_str(), "reg" | "sub_r0")) =>
         {
-            format_plain_u32_ur(fields, raw, false, false, false, false)
+            format_plain_u32_ur(fields, raw, false, false, false, false, lossless)
         }
         // BUG-154: SYNCS.PHASECHK.TRANS64[.TRYWAIT] ARURI rows are plain
         // uniform-datapath bracket addresses in vendor text --
@@ -2652,6 +2663,7 @@ fn format_plain_u32_ur(
     glyph255: bool,
     plain64: bool,
     plain_u32: bool,
+    lossless: bool,
 ) -> String {
     let mut base: Option<u64> = None;
     let mut ur: Option<u64> = None;
@@ -2749,6 +2761,15 @@ fn format_plain_u32_ur(
     // [92:96) jest vendor-inert na tym frame (vm go kryje) -- surowe bity
     // raw nigdy nie wplywaja na wybor szerokosci tutaj.
     if (efl2_na || plain64 || plain_u32) && base == Some(255) && ur.is_some() {
+        // 2026-11-03 (dynamic audit, 1 129 LDG/STG `_ARURI` rows): the vendor
+        // text "[URm(+off)]" is shared by the b75=0 (`_ARURI`, U32 base) and
+        // b75=1 (`_ARURI64`) twins once the base is RZ, and the assembler
+        // mints the .64 word for it (BUG-464). The display print follows the
+        // vendor; the lossless print keeps the U32 twin distinguishable as
+        // "[RZ.U32+URm(+off)]", which the encoder routes to the `_ARURI` row.
+        if plain_u32 && lossless {
+            return format!("[RZ.U32+{u}{o}]");
+        }
         return format!("[{u}{o}]");
     }
     // BUG-474: plain_u32 (blizniaki b75=0) ma width zawsze 'U32' -- surowa

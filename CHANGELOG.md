@@ -4,6 +4,45 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-03 (after `v0.2.0`)
+
+- **Tables: hygiene pass** (blackwell-isa `64eaa21`): the control-code bits [127:105] every harvest
+  template still baked (880 SM120 / 1 670 SM103a / 1 674 SM100a / 546 SM121a variants) are cleared
+  and the 43 + 17 + 17 + 52 entries without `base_op` / `operand_sig` carry them. No decode or
+  encode change: census 1 811 600 / 1 811 600 identical per cubin (166 cubins), 157 / 157 cubins
+  byte-identical through `disassemble --frozen → asm -T`. `tools/sync_table.py`'s baked-control
+  ratchet is zero for every table now.
+- **Tables: dynamic-audit batch 1** (blackwell-isa `6619782`, SM120): LDGSTS shared-address base
+  field 9 → 8 bits (70 rows; `[R5+0x10]` printed as `[R261+0x10]`), the text-inert `reuse` field
+  removed from 13 LDC/LDCU rows, 22 harvest rows removed whose words nvdisasm names as other
+  instructions (FSETP → P2R.B3, F2FP ↔ HMMA, LOP3.LUT → SEL, QMMA → MOVM, the HMMA `_P0_`
+  mnemonics); 16 126 forms / 20 883 variants; census identical. Fixture
+  `tests/fixtures/sm120_audit_20261103_nvdisasm.jsonl`, test `tests/sm120_audit_20261103.rs`.
+  Audit state: 1 977 flagged rows (2026-11-02) → 483 (`docs/KNOWN_ISSUES.md` T1 lists the
+  remaining families); `tools/audit_dynamic.py --replay` re-scores an earlier run's words and
+  nvdisasm texts against the current table, and compares the display print with the vendor while
+  re-encoding the lossless print.
+- **Printer**: the lossless print spells the U32 twin of a UR-indexed global address with an RZ
+  base as `[RZ.U32+URm(+off)]` (the display print keeps the vendor's `[URm(+off)]`, which the
+  assembler mints as the .64 twin); `BRA.U.ANY` (was `BRA.ANY.U`).
+- **ELF: `a`-variant e_flags were parsed as sm_10** (`0x0600_640a`: the low byte 0x0a failed the
+  `< 10` flag-byte test). Every cubin assembled with `sm100a.json` carried `.note.nv.cuinfo` SM byte
+  0x0a, the legacy `.nv.compat` blob and the non-sm_100 Mercury variant, and the table could not be
+  used on real sm_100 cubins without `--allow-arch-mismatch`. Fixed (`parse_sm_version`: any low
+  byte below 0x10 is a flag byte); `tests/encoding.rs::ef_flags_arch_detection` pins the variants.
+  Found re-verifying the SM100a corpus on cold-face-bounces-fin-02 (KNOWN_ISSUES A11).
+- **BUG-040/075 WARN** is suppressed for kernels that reconfigure their register budget
+  (`USETMAXREG`); the law itself is confirmed on sm_120 silicon (KNOWN_ISSUES A1).
+- **BUG-362a, two text oracles**: the 30 reuse-armed F2I TRUNC lattice words are refused by
+  nvdisasm 13.1 and 13.3 alike (`TABLES_opex_0` undefined value = the reuse/yield byte);
+  fixture `tests/fixtures/sm120_f2i_reuse_362a_nvdisasm.jsonl`, test
+  `tests/sm120_f2i_reuse_362a.rs`; the decoder stays fail-closed until the silicon probe
+  (`T/gpu/kernels/f2i_reuse_362a_b{122,123,124}`) answers (KNOWN_ISSUES A12).
+- **Validation claims re-run on the B300 host** (cold-face-bounces-fin-02, 2026-11-03): SM103a
+  publish corpus 177 / 177 and SM100a 151 / 151 cubins byte-identical through `--frozen → asm -T`,
+  strict 85 646 / 85 792 words; SM100a archive 99.924 % exact-minus-schedule over 20 024 512
+  instructions (gate 99.90 PASS). The GB10 corpus is not on that host (README, KNOWN_ISSUES V1–V3).
+
 ## 0.2.0 — 2026-11-03 (tag `v0.2.0`)
 
 **History rewritten on 2026-11-03 — clones made before that date must be re-cloned.** The committed

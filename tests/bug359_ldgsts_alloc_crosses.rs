@@ -310,17 +310,17 @@ fn t359_5_donor_rows_and_alloc_plain_invariant() {
         let t = tab(leg);
         let g = &t.entries["LDGSTS_ARI_dARI"].mod_groups["128,BYPASS,E,LTC128B"];
         assert_eq!(
-            g.and_base, 0x0001e0000b981a000000000000000fae,
+            g.and_base, 0x000000000b981a000000000000000fae, // 2026-11-03 hygiene pass: baked control word [127:105] cleared
             "{leg} dARI donor ab drift"
         );
         let g = &t.entries["LDGSTS_ARI_dARI"].mod_groups["128,E"];
         assert_eq!(
-            g.and_base, 0x0001e0000b9a18000000000000000fae,
+            g.and_base, 0x000000000b9a18000000000000000fae, // 2026-11-03 hygiene pass: control word cleared
             "{leg} dARI alloc-plain ab drift"
         );
         let g = &t.entries["LDGSTS_ARI_dARI_P"].mod_groups["128,E"];
         assert_eq!(
-            g.and_base, 0x0001e000081a18000000000000007fae,
+            g.and_base, 0x00000000081a18000000000000007fae, // 2026-11-03 hygiene pass: control word cleared
             "{leg} dARI_P alloc-plain ab drift"
         );
     }

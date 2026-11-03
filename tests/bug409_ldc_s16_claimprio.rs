@@ -194,7 +194,7 @@ fn t409_4_mint_circle_inert_drop() {
 #[test]
 fn t409_5_graft_hygiene_source_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "77a3dfaacb757210f54923931a8129bc4a486494";
+    const CURRENT_VENDORED_CANON: &str = "66197820ecba6d7094d35b5c7748f448a7599ddf";
 
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
@@ -222,7 +222,7 @@ fn t409_5_graft_hygiene_source_pin() {
     .unwrap();
     assert_eq!(
         mg["and_base"].as_str().unwrap(),
-        "0xe20000000060000000880ff000b82"
+        "0x000000000000060000000880ff000b82" // 2026-11-03 hygiene pass: 0x000e2000.. control word cleared
     );
     assert_eq!(vm >> 37 & 1, 1, "graft missing b37");
     assert_eq!(vm >> 59 & 1, 1, "402 b59 inert bit lost");

@@ -17,6 +17,10 @@ process. Each word is then classified:
   both_reject           nvdisasm rejects and cubit decodes nothing (fine: an illegal variant)
   other_row             cubit decodes the word through a different row than the one it was built
                         from (recorded, not a defect by itself)
+  reuse_inert           same text, re-encode differs only in control-code / reuse bits [127:105]
+                        (text-inert for both oracles; not a row defect)
+  --replay words_in.jsonl re-runs cubit and the classification on an earlier run's words and
+  nvdisasm texts (words of rows that left the table are skipped).
 
 Selection: `--flagged findings.jsonl` (rows named by tools/audit_table.py) and/or `--family REGEX`
 (base opcode families). Output: `<out>/words.jsonl` (all words with both texts and classes),
@@ -127,10 +131,28 @@ def main():
     ap.add_argument("--max-rows", type=int, default=4000)
     ap.add_argument("--jobs", type=int, default=8)
     ap.add_argument("--out", type=pathlib.Path, required=True)
+    ap.add_argument("--replay", type=pathlib.Path,
+                    help="words_in.jsonl of an earlier run: reuse its words and nvdisasm texts, only re-run cubit "
+                         "and the classification (the state of the current table / binary against the same oracle)")
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     table = json.load(open(args.table))
     ins = table["instructions"]
+    if args.replay:
+        words_in = args.out / "words_in.jsonl"
+        kept, dropped = [], 0
+        for line in args.replay.read_text().splitlines():
+            it = json.loads(line)
+            if it["key"] in ins and it["group"] in ins[it["key"]]["mod_groups"]:
+                kept.append(line)
+            else:
+                dropped += 1  # the row no longer exists: its probe words are not a finding against it
+        print(f"replaying {len(kept)} words ({dropped} of rows that left the table skipped)")
+        words_in.write_text("".join(l + "\n" for l in kept))
+        words_out = args.out / "words.jsonl"
+        subprocess.run([args.cubit_example, str(words_in), args.table, str(words_out)], check=True)
+        classify(args, words_out)
+        return
     selected = collections.OrderedDict()
     if args.flagged:
         for line in open(args.flagged):
@@ -167,6 +189,10 @@ def main():
     words_in.write_text("".join(json.dumps(it) + "\n" for it in words))
     words_out = args.out / "words.jsonl"
     subprocess.run([args.cubit_example, str(words_in), args.table, str(words_out)], check=True)
+    classify(args, words_out)
+
+
+def classify(args, words_out):
     classes = collections.Counter()
     per_row = collections.defaultdict(collections.Counter)
     findings = []
@@ -183,6 +209,12 @@ def main():
             cls = "text_mismatch"
         elif it.get("reencode") != "ok":
             cls = "reencode_mismatch"
+            re = it["reencode"]
+            if re.startswith("mismatch:") and (int(re[9:], 16) ^ int(it["word"], 16)) & ~SCHEDULE_MASK == 0:
+                # only control-code / reuse bits differ: both oracles print the same text for
+                # them (the decoder matches [104:0]; the strict round trip carries them in the
+                # control code or an `!rsd` overlay) - a text-inert bit, not a row defect
+                cls = "reuse_inert"
         else:
             cls = "ok"
         if cls == "ok" and (it.get("cubit_key"), it.get("cubit_group")) != (it["key"], it["group"]):
@@ -190,7 +222,7 @@ def main():
         it["class"] = cls
         classes[cls] += 1
         per_row[(it["key"], it["group"])][cls] += 1
-        if cls not in ("ok", "both_reject", "other_row"):
+        if cls not in ("ok", "both_reject", "other_row", "reuse_inert"):
             findings.append(it)
     (args.out / "dynamic_findings.jsonl").write_text("".join(json.dumps(f) + "\n" for f in findings))
     print("classes:", dict(classes))

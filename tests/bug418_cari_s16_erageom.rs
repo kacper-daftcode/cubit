@@ -182,7 +182,7 @@ fn enc_probe(t: &IsaTable, text: &str) -> u128 {
 #[test]
 fn t418_5_graft_hygiene_source_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "77a3dfaacb757210f54923931a8129bc4a486494";
+    const CURRENT_VENDORED_CANON: &str = "66197820ecba6d7094d35b5c7748f448a7599ddf";
     assert_eq!(CANON418, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     let m: serde_json::Value =
@@ -197,7 +197,7 @@ fn t418_5_graft_hygiene_source_pin() {
     let mg = &tabj["instructions"]["LDC_R_cARI"]["mod_groups"]["S16"];
     assert_eq!(
         mg["and_base"].as_str().unwrap(),
-        "0x2000000006000000000000007b82",
+        "0x00000000000006000000000000007b82", // 2026-11-03 hygiene pass: bit 109 (yield) of the baked control word cleared
         "and_base moved"
     );
     let vm = u128::from_str_radix(

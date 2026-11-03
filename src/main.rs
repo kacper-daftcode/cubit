@@ -5508,7 +5508,16 @@ fn cmd_asm_directive_format(
         // on hardware (the last two registers are the allocation-granule
         // shadow). WARN, not error: tools accept the text and the shadow
         // depends on the final regcount, not on the instruction form.
-        if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() {
+        // A kernel that reconfigures its register budget at run time
+        // (USETMAXREG, EIATTR_REG_RECONFIG: nvcc's warp-specialised kernels
+        // such as FlashInfer sparse_mla_streaming_dsv4_nvfp4 run R126/R127
+        // under a launch regcount of 128) is outside the law's scope: the
+        // launch regcount is not the budget the registers are used under.
+        // Re-measured 2026-11-02/03 on sm_120 (T/gpu regcount_shadow_64 and
+        // _128 fault, the _safe variants run): the law holds for every
+        // kernel without USETMAXREG.
+        let reconfigures = insns_with_ctrl.iter().any(|i| i.opcode.starts_with("USETMAXREG"));
+        if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() && !reconfigures {
             let n = meta.regcount;
             if n >= 3 {
                 let mut shadowed = Vec::new();
@@ -5525,12 +5534,11 @@ fn cmd_asm_directive_format(
                     shadowed.sort_unstable();
                     shadowed.dedup();
                     let regs = shadowed.iter().map(|r| r.to_string()).collect::<Vec<_>>().join("/R");
-                    // Stays a WARN even under an explicit `.regcount`: nvcc itself
-                    // emits code touching R(N-2)/R(N-1) under EIATTR_REGCOUNT N
-                    // (FlashInfer sparse_mla_streaming_dsv4_nvfp4: R126/R127 at
-                    // regcount 128), so the BUG-075 law as measured on i115 does
-                    // not describe the compiler's own allocations — see
-                    // docs/KNOWN_ISSUES.md (silicon re-measurement pending).
+                    // Stays a WARN even under an explicit `.regcount`: the
+                    // shadow depends on the final regcount, and a kernel that
+                    // is launched with more registers than it declares runs
+                    // (docs/KNOWN_ISSUES.md A1; law re-confirmed on sm_120
+                    // 2026-11-02/03 at 64 and 128).
                     eprintln!(
                         "  WARN {}: uses R{} with regcount={} — BUG-040/075: on sm_120 & sm_103a silicon                          only R0..R{} are usable (the last 2 registers are the granule                          shadow); these read/write as ILLEGAL (measured i115: rc=64 ->                          R62/R63 illegal, rc=66 fine). Raise the declared .reg count by 2                          or remap the affected registers.",
                         def.name,

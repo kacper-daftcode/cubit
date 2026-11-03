@@ -124,7 +124,7 @@ fn t167_5_polygon() {
         assert_eq!((ab >> 73) & 0x7, wbits, "{g} width bits");
         assert_eq!((ab >> 91) & 0x1, 0, "LDC (not LDCU) discriminator");
         let f: Vec<_> = row["fields"].as_array().unwrap().iter().map(|f| f["extraction"].as_str().unwrap()).collect();
-        assert_eq!(f, ["guard", "reg", "sub_r1", "cm16_off", "reuse"], "clone of '64': {f:?}");
+        assert_eq!(f, ["guard", "reg", "sub_r1", "cm16_off"], "clone of '64': {f:?}"); // 2026-11-03: text-inert reuse field removed (audit batch 1)
         assert_eq!(row["variable_mask"], cari["64"]["variable_mask"], "vm == live donor");
     }
     // 2026-08-26 compose: S16 l anded via BUG-172 (its own header told this
@@ -133,5 +133,5 @@ fn t167_5_polygon() {
     assert_eq!(u128::from_str_radix(s16["and_base"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap() >> 73 & 0x7, 3, "S16 width bits");
     assert_eq!(s16["variable_mask"], cari["64"]["variable_mask"], "S16 vm == live donor");
     let s16f: Vec<_> = s16["fields"].as_array().unwrap().iter().map(|f| f["extraction"].as_str().unwrap()).collect();
-    assert_eq!(s16f, ["guard", "reg", "sub_r1", "cm16_off", "reuse"], "S16 clone of '64': {s16f:?}");
+    assert_eq!(s16f, ["guard", "reg", "sub_r1", "cm16_off"], "S16 clone of '64': {s16f:?}");
 }

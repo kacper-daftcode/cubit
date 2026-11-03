@@ -39,10 +39,16 @@ fn main() -> Result<()> {
             }
             Ok(d) => {
                 decoded_n += 1;
+                // The display print is what nvdisasm's text is compared with; the
+                // lossless print (which may carry spellings the vendor elides, e.g.
+                // `[RZ.U32+URm]` for the U32 twin of a UR-indexed address) is what
+                // must re-encode bit for bit.
                 let text = cubit::printer::to_sass_lossless(&d);
+                let display = cubit::printer::to_sass(&d);
                 item["cubit_key"] = Value::String(d.key.clone());
                 item["cubit_group"] = Value::String(d.mod_group.clone());
-                item["cubit_text"] = Value::String(text.clone());
+                item["cubit_text"] = Value::String(display.trim_end_matches(';').trim().to_string());
+                item["cubit_text_lossless"] = Value::String(text.clone());
                 let ctrl = cubit::scheduling::decode_sched_upper32((word >> 96) as u32);
                 let source = format!("[{}] {text} ;", cubit::scheduling::format_control_code(&ctrl));
                 let reencode = (|| -> Result<u128> {

@@ -277,7 +277,7 @@ fn t402_7_grafted_row_polygon() {
     assert_eq!(vm & (1 << 59), 1 << 59);
     assert_eq!(
         u128::from_str_radix(ab.trim_start_matches("0x"), 16).unwrap(),
-        0x000e00000800080000000000000007acu128
+        0x000000000800080000000000000007acu128 // 2026-11-03 hygiene pass: the baked control word (0x000e0000 in [127:105]) is cleared
     );
     let (fs, vm, _ab) = shape("LDCU_UR_cAI", "S16");
     assert_eq!(fs, [("ureg".into(), 8, 16), ("cm17_off".into(), 22, 37)]);
@@ -294,6 +294,6 @@ fn t402_7_grafted_row_polygon() {
     assert_eq!(vm & (1 << 59), 1 << 59);
     assert_eq!(
         u128::from_str_radix(ab.trim_start_matches("0x"), 16).unwrap(),
-        0xe20000000060000000880ff000b82u128
+        0x60000000880ff000b82u128 // 2026-11-03 hygiene pass: 0x000e2000.. control word cleared
     );
 }

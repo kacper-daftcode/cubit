@@ -178,8 +178,9 @@ fn t234_1_structure_donor_clone_graft_fields() {
     for b in [74u32, 75, 124, 81, 82, 83, 88, 63, 72, 122, 123] {
         assert_eq!((vm >> b) & 1, 1, "bit {b} must be variable");
     }
-    // donor-template baked ctrl[19:14] = 0x3f (satisfied by all corpus words)
-    assert_eq!((ab >> (96 + 14)) & 0x3F, 0x3F, "baked ctrl template");
+    // the donor template used to bake ctrl[19:14] = 0x3f (satisfied by all corpus words);
+    // since the 2026-11-03 hygiene pass no template carries a control word: [127:105] = 0.
+    assert_eq!(ab >> 105, 0, "baked ctrl template");
 }
 
 #[test]

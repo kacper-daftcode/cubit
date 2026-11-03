@@ -75,7 +75,9 @@ fn t165_1_polygon() {
         assert_eq!((ab >> 73) & 0x7, wbits, "LDC_R_cAI[{g}] width bits");
         assert_eq!((ab >> 91) & 0x1, 0, "LDC (not LDCU) discriminator");
         let f: Vec<_> = row["fields"].as_array().unwrap().iter().map(|f| f["extraction"].as_str().unwrap()).collect();
-        assert_eq!(f, ["guard", "reg", "sub_r1", "cm16_off", "reuse"], "clone of '64': {f:?}");
+        // 2026-11-03 (dynamic audit batch 1): the text-inert `reuse` field at bit 122 left every
+        // LDC/LDCU row (nvdisasm prints the same text with the bit set or clear).
+        assert_eq!(f, ["guard", "reg", "sub_r1", "cm16_off"], "clone of '64': {f:?}");
         assert_eq!(row["variable_mask"], ldc["64"]["variable_mask"], "vm must equal live donor");
     }
     let ldcu = j.pointer("/instructions/LDCU_UR_cAI/mod_groups").unwrap();

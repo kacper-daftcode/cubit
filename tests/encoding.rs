@@ -781,6 +781,16 @@ mod sm103a {
         assert_eq!(cubit::elf::sm_from_ef_flags(0x06006402), 100);
         assert_eq!(cubit::elf::sm_from_ef_flags(0x06006702), 103);
         assert_eq!(cubit::elf::sm_from_ef_flags(0x06007802), 120);
+        // the 'a' variants carry flag bit 0x08 in the low byte (sm_100a = 0x0a):
+        // they were parsed as sm_10 until 2026-11-03 (found re-verifying the
+        // SM100a corpus on cold-face-bounces-fin-02: every cubin assembled with
+        // sm100a.json carried cuinfo SM byte 0x0a and the legacy compat blob)
+        assert_eq!(cubit::elf::sm_from_ef_flags(0x0600640a), 100);
+        assert_eq!(cubit::elf::sm_from_ef_flags(0x0600670a), 103);
+        assert_eq!(cubit::elf::sm_from_ef_flags(0x0600790a), 121);
+        assert_eq!(cubit::elf::sm_from_ef_flags(0x05004b04), 75);
+        let t = cubit::table::IsaTable::load(std::path::Path::new("tables/sm100a.json")).unwrap();
+        assert_eq!(t.target_sm(), 100, "sm100a.json must target sm_100, not sm_10");
     }
 
     #[test]

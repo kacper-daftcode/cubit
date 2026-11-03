@@ -388,7 +388,8 @@ fn indirect_branch_payload_is_not_pc_relative_or_limited_to_17_bits() {
         }
     }
     let decoded = index.decode(WORDS[53], 0x100, &table).unwrap();
-    assert_eq!(cubit::printer::to_sass_lossless(&decoded), "@P0 BRA.ANY.U 0xc0");
+    // nvdisasm order (2026-11-03 audit, 19 words): `.U` before the convergence qualifier
+    assert_eq!(cubit::printer::to_sass_lossless(&decoded), "@P0 BRA.U.ANY 0xc0");
 }
 
 #[test]
