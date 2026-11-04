@@ -148,7 +148,7 @@ fn t186_6_table_lane_invariants() {
         // D3 structural: UTCOMMA ''/BLOCK16 tok2 owns [32:40).
         for mg_name in ["", "BLOCK16"] {
             let v: serde_json::Value =
-                serde_json::from_str(&std::fs::read_to_string(p).unwrap()).unwrap();
+                serde_json::from_str(&cubit::table::read_table_text(p).unwrap()).unwrap();
             let fs = v["instructions"]["UTCOMMA_II_II_II_II_II_II_UP"]["mod_groups"][mg_name]
                 ["fields"].as_array().unwrap();
             let tok2: Vec<_> = fs.iter()
@@ -166,7 +166,7 @@ fn t186_6_table_lane_invariants() {
 // raw table access for invariant assertions (the public row API normalizes).
 fn cubit_table_raw(path: &str, key: &str, mg: &str) -> (u128, u128, bool) {
     let v: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text(path).unwrap()).unwrap();
     let g = &v["instructions"][key]["mod_groups"][mg];
     let ab = u128::from_str_radix(g["and_base"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
     let vm = u128::from_str_radix(g["variable_mask"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();

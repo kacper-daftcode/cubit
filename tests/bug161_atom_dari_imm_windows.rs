@@ -56,7 +56,7 @@ fn imm_s23(w: u128) -> i64 {
 #[test]
 fn t161_1_window_polygon() {
     let j: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm103a.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm103a.json").unwrap()).unwrap();
     let mut seen = 0;
     for (key, mg, bits, tok) in [
         ("ATOMG_P_R_dARI_R", "E,GPU,MIN,S32,STRONG", 23u64, 3u64),

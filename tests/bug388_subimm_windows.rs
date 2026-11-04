@@ -783,7 +783,7 @@ fn t388_1_geometry_polygon() {
     for (leg, key, mg, ext, bits, shift, tok) in geo {
         let (ext, tok, bits, shift) = (*ext, *tok, *bits, *shift);
         let j: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(format!("tables/{leg}.json")).unwrap())
+            serde_json::from_str(&cubit::table::read_table_text(format!("tables/{leg}.json")).unwrap())
                 .unwrap();
         let row = j
             .pointer(&format!("/instructions/{key}/mod_groups/{mg}"))

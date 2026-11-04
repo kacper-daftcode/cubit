@@ -118,7 +118,7 @@ pub struct CostModel {
 
 impl CostModel {
     pub fn load(path: &std::path::Path) -> Result<Self> {
-        let text = std::fs::read_to_string(path)
+        let text = crate::table::read_table_text(path)
             .with_context(|| format!("sched: cannot read cost model {}", path.display()))?;
         let mut cm = Self::from_str_json(&text)
             .with_context(|| format!("sched: cost model {} is not valid M4.6 JSON (neither a bare cost model nor a canonical table carrying a cost_model section)", path.display()))?;

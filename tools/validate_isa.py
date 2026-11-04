@@ -12,6 +12,9 @@ Usage:
 
 import json, sys, argparse
 from collections import Counter
+import sys as _sys, pathlib as _pathlib
+_sys.path.insert(0, str(_pathlib.Path(__file__).resolve().parent))
+from tablefile import load_table  # plain tables/<arch>.json or the vendored .json.gz
 
 OP_TYPES = ['ARURI','cAI','dARI','ARI','UP','UR','SR','FI','II','IM','LO','R','P','L','B','?']
 MODIFIER_EXTS = ('neg','abs','reuse','inv','','none','guard','guard_neg')
@@ -89,7 +92,7 @@ def main():
     ap.add_argument('--summary', action='store_true')
     args = ap.parse_args()
     
-    t = json.load(open(args.table))
+    t = load_table(args.table)
     
     totals = Counter()
     all_issues = []

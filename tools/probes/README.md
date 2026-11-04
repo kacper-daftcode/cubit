@@ -28,6 +28,9 @@ produced are listed with their tags.
 | script | measured | `_src` tag (rows in `sm120.json`) | test |
 |---|---|---|---|
 | `re_sm120_hmul2_imm.py` | `HMUL2[.BF16_V2][.FMZ][.SAT][.FTZ] Rd, Ra, imm, imm` (0x832): packed f16/bf16 immediates, `-Ra`, `\|Ra\|`, `.H0_H0`/`.H1_H1`; the 12 664-word gap of the FlashInfer CAKE DSV4.1 kernels | `hmul2-imm-sm120-2026-11-02` (12) | `sm120_hmul2_imm.rs` |
+| `re_sm120_ldl_aruri.py` | `LDL[.size][.LU] Rd, [Ra+URb+imm]` (0x983 with the bit-91 frame): the three-term local address the GB10-host census found missing (95 cuBLASLt words) | `ldl-aruri-sm120-2026-11-04` (14) | `sm120_ldl_aruri.rs` |
+| `re_sm120_mufu_ur.py` | `MUFU.<fn>[.F16/.BF16] Rd, URb` (0xd08): the 10 functions × the half types they take, abs/neg on the UR operand; rebuilt four harvest rows that decoded EX2 as LG2 | `mufu-ur-sm120-2026-11-04` (26) | `sm120_mufu_ur.rs` |
+| `re_sm120_imad_alias.py` | nvdisasm's `IMAD.MOV` / `.IADD` / `.SHL` display law over the four-operand forms (144 words); removed 7 alias-named harvest groups, added the U32 twins | `imad-alias-sm120-2026-11-04` (4) | `sm120_imad_alias.rs` |
 | `re_sm120_ldsm_fp4.py` | `LDSM.U4x16P64TO8` / `LDSM.U6x16P32TO8` `[R+imm]` (0x83b): FP4/FP6 matrix loads, all shapes and counts; DeepGEMM grouped FP8×FP4 GEMMs | `ldsm-fp4-fp6-sm120-2026-11-02` (30) | `sm120_ldsm_fp4.rs` |
 | `re_sm120_prmt_ur.py` | `PRMT[.mode] Rd, Ra, URsel, Rc` (0xc16): the uniform-selector permute, 7 modes | `prmt-ur-sm120-2026-11-02` (7) | `sm120_prmt_ur.rs` |
 | `re_sm120_arrives_ldgstsbar.py` | `ARRIVES.LDGSTSBAR.64[.ARVCNT] [R+UR+imm]` (0x9b0): mbarrier arrive with the cp.async count | `arrives-ldgstsbar-sm120-2026-11-02` (2) | `sm120_arrives_ldgstsbar.rs` |

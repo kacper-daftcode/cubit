@@ -97,20 +97,21 @@ fn t380_2_mint_word_exact_x4() {
 }
 
 #[test]
-fn t380_3_reuse_arm_fail_closed_x4() {
-    // full-128: any reuse bit on the family = loud BUG-380a attributed HOLE
+fn t380_3_reuse_window_decodes_x4() {
+    // full-128: until 2026-11-03 any reuse bit on the family was a loud BUG-380a attributed HOLE
+    // (nvdisasm refuses the words). The silicon arm of BUG-362a (f2i_reuse_362a_b122/b123/b124,
+    // RTX PRO 6000 Server Edition, 2026-11-03) executed reuse-armed F2I words with the plain result;
+    // the F2I opclass decodes, the text is the plain word's up to the `.reuse` hint.
     for leg in LEGS4 {
         let t = tab(leg);
         for (rb, _rsuf) in ROUNDS {
             for n in [1u128, 5] {
                 let base = (A380 & !(0xffu128 << 72)) | (((rb as u128) | n) << 72);
+                let plain = dec128(&t, base).unwrap();
                 for rbit in [122u32, 124] {
                     let w = base | (1u128 << rbit);
-                    let msg = dec128(&t, w).err().unwrap_or_default();
-                    assert!(
-                        msg.contains("BUG-380") || msg.contains("BUG-362"),
-                        "{leg} reuse-armed 0x{w:032x} decoded: {msg}"
-                    );
+                    let armed = dec128(&t, w).unwrap_or_else(|e| panic!("{leg} reuse-armed 0x{w:032x} refused: {e}"));
+                    assert_eq!(armed.replace(".reuse", ""), plain, "{leg} 0x{w:032x}");
                 }
             }
         }

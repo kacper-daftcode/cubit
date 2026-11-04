@@ -226,6 +226,15 @@ pub fn pred_xfer(insn: &Instruction, mode: XferMode) -> PredXfer {
             }
             true
         }
+        // Strict-only delta (2026-11-04, SM120 stallfix R11): the select family reads its
+        // trailing predicate as a data operand (`SEL R8, R4, R5, P0`), the pair the SM120
+        // stall-floor measurement calls `pcarry`. Compat stays blind to it (predcheck.py parity).
+        "SEL" | "FSEL" | "DSEL" if mode == XferMode::Strict => {
+            if let Some(&last) = p.last() {
+                use_at(&mut x, last);
+            }
+            true
+        }
         "BRA" if convdiv => {
             if let Some(&first) = p.first() {
                 def_at(&mut x, first);

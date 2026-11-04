@@ -1,16 +1,24 @@
 #!/usr/bin/env python3
 """Synchronize cubit's vendored ISA tables from blackwell-isa (O2 layout).
 
-One table per architecture, vendored byte-exact, plus a single manifest at
-tables/SOURCE.json pinning every table to the canonical revision:
+One table per architecture, vendored byte-exact as `tables/<arch>.json.gz`
+(single-member gzip, mtime 0, level 9 - deterministic for unchanged bytes),
+plus a single manifest at tables/SOURCE.json pinning every table to the
+canonical revision by the SHA-256 of the *decompressed* JSON:
 
-  * default mode: copy tables/<arch>.json from the canonical checkout and
-    rewrite the manifest (runs the test suite as a fail-closed gate),
-  * --check: verify tables/*.json byte-match the manifest pins (CI byte-pin;
-    with --source-repo present, also byte-compares against the canonical
-    checkout at the pinned revisions),
+  * default mode: compress tables/<arch>.json from the canonical checkout into
+    tables/<arch>.json.gz, refresh a plain tables/<arch>.json if one is unpacked,
+    rewrite the manifest and run the test suite as a fail-closed gate,
+  * --check: decompress every tables/*.json.gz and verify the SHA-256 against
+    the manifest pins (CI byte-pin; a stale unpacked tables/<arch>.json is an
+    error too; with --source-repo present, also byte-compares against the
+    canonical checkout at the pinned revisions),
   * --validate-only: structural validation of the vendored tables only
-    (pre-check; no canonical repo needed).
+    (pre-check; no canonical repo needed),
+  * --unpack: write the plain tables/<arch>.json files (git-ignored) for
+    people who want to read the JSON directly; nothing in the build or the
+    test suite needs them - `cubit::table::read_table_bytes` and
+    `tools/tablefile.py` read the .gz twin transparently.
 
 The vendored files are generated data: never edit them by hand (rule R1).
 Fixes go to the canonical database or to the export pipeline, then land here
@@ -34,6 +42,9 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE_REPO = ROOT.parent / "blackwell-isa"
 TABLES_DIR = ROOT / "tables"
 MANIFEST = TABLES_DIR / "SOURCE.json"
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from tablefile import compress_table, gz_twin, read_table_bytes  # noqa: E402
 
 # arch name -> canonical _meta.architecture value
 ARCH_TABLES = {
@@ -585,6 +596,16 @@ def validate_table(data: bytes, arch: str) -> dict[str, Any]:
                         f"{field_context} uses unknown extraction {extraction!r}"
                     )
 
+    # `_meta.key_aliases` (2026-11-04): retired key -> the key that carries the rows today.
+    aliases = meta.get("key_aliases", {})
+    if not isinstance(aliases, dict):
+        raise SyncError("_meta.key_aliases must be an object (old key -> current key)")
+    for old, new in aliases.items():
+        if old in instructions:
+            raise SyncError(f"_meta.key_aliases: {old} is still an instruction key")
+        if not isinstance(new, str) or new not in instructions:
+            raise SyncError(f"_meta.key_aliases: {old} -> {new!r} does not name an instruction key")
+
     undocumented = sorted(src_tags - set(provenance["sources"]))
     if undocumented:
         raise SyncError(
@@ -647,7 +668,7 @@ def sync_tables(source_repo: Path) -> None:
 
     TABLES_DIR.mkdir(exist_ok=True)
     for name, (data, _summary, _rev) in staged.items():
-        (TABLES_DIR / name).write_bytes(data)
+        write_vendored(name, data)
 
     # 2026-08-26: write the manifest BEFORE the cargo gate. The gate's
     # arch_vendoring manifest_pin test compares vendored tables against the
@@ -707,16 +728,20 @@ def check_tables(source_repo: Path | None) -> None:
     base_revision = manifest.get("base_revision")
     for name, entry in manifest["tables"].items():
         entry.setdefault("base_revision", base_revision)  # schema-2 top-level pin
-        dest = TABLES_DIR / name
-        if not dest.is_file():
-            raise SyncError(f"vendored table is missing: {dest}")
-        actual = digest(dest.read_bytes())
+        data = vendored_bytes(name)
+        actual = digest(data)
         if actual != entry.get("base_sha256"):
             raise SyncError(
-                f"{dest} does not match the manifest pin; "
+                f"{gz_twin(TABLES_DIR / name)} does not match the manifest pin; "
                 "run tools/sync_table.py after updating the canonical revision"
             )
-        validate_table(dest.read_bytes(), ARCH_TABLES[name])
+        plain = TABLES_DIR / name
+        if plain.is_file() and digest(plain.read_bytes()) != actual:
+            raise SyncError(
+                f"{plain} is a stale unpacked copy (differs from {gz_twin(plain).name}); "
+                "run tools/sync_table.py --unpack or delete it"
+            )
+        validate_table(data, ARCH_TABLES[name])
         print(f"pinned {name}: sha256 {actual[:16]}… ({entry['base_revision'][:12]})")
     if source_repo is not None:
         repo = source_repo.resolve()
@@ -743,12 +768,41 @@ def check_tables(source_repo: Path | None) -> None:
         print(f"canonical checkout {repo} matches all pins")
 
 
+def vendored_bytes(name: str) -> bytes:
+    """Plain JSON bytes of a vendored table (the .gz is the file in git; a plain
+    unpacked copy, when present, is checked separately against the pin)."""
+    gz = gz_twin(TABLES_DIR / name)
+    if not gz.is_file():
+        raise SyncError(f"vendored table is missing: {gz}")
+    try:
+        return read_table_bytes(gz)
+    except OSError as exc:
+        raise SyncError(f"{gz} is not a valid gzip stream: {exc}") from exc
+
+
+def write_vendored(name: str, data: bytes) -> None:
+    """Write tables/<name>.gz (deterministic gzip of the canonical bytes) and
+    refresh an unpacked plain copy if the developer keeps one."""
+    gz = gz_twin(TABLES_DIR / name)
+    gz.write_bytes(compress_table(data))
+    plain = TABLES_DIR / name
+    if plain.is_file():
+        plain.write_bytes(data)
+
+
+def unpack_tables() -> None:
+    manifest = load_manifest()
+    for name, entry in manifest["tables"].items():
+        data = vendored_bytes(name)
+        if digest(data) != entry.get("base_sha256"):
+            raise SyncError(f"{gz_twin(TABLES_DIR / name)} does not match the manifest pin")
+        (TABLES_DIR / name).write_bytes(data)
+        print(f"unpacked {TABLES_DIR / name} ({len(data) / 1e6:.1f} MB, git-ignored)")
+
+
 def validate_only() -> None:
     for name, arch in ARCH_TABLES.items():
-        dest = TABLES_DIR / name
-        if not dest.is_file():
-            raise SyncError(f"vendored table is missing: {dest}")
-        summary = validate_table(dest.read_bytes(), arch)
+        summary = validate_table(vendored_bytes(name), arch)
         print(
             f"validated {name}: {summary['instruction_forms']} forms / "
             f"{summary['encoding_variants']} variants (structure, no pin)"
@@ -765,6 +819,10 @@ def main() -> int:
     parser.add_argument("--validate-only", action="store_true",
                         help="structurally validate the vendored tables "
                              "(no canonical repo needed)")
+    parser.add_argument("--unpack", action="store_true",
+                        help="write the plain tables/<arch>.json files from the "
+                             "vendored .json.gz (git-ignored convenience; nothing "
+                             "requires them)")
     args = parser.parse_args()
 
     source_repo = args.source_repo
@@ -773,6 +831,9 @@ def main() -> int:
 
     if args.validate_only:
         validate_only()
+        return 0
+    if args.unpack:
+        unpack_tables()
         return 0
     if args.check:
         check_tables(source_repo)

@@ -102,7 +102,7 @@ const CURED: &[(&str, u128, u64)] = &[
 #[test]
 fn t230_1_structure_sm120() {
     let j: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(T120).unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text(T120).unwrap()).unwrap();
     let ins = &j["instructions"];
     // era phantom gone, no LEA_P0* anywhere
     for (k, _) in ins.as_object().unwrap() {

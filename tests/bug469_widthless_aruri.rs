@@ -117,12 +117,12 @@ fn t469_4_mint_circle() {
 #[test]
 fn t469_5_census_and_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "66197820ecba6d7094d35b5c7748f448a7599ddf";
+    const CURRENT_VENDORED_CANON: &str = "6f11f6b2c59e0b9366153c685540d90491486454";
     assert_eq!(CANON469, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     for (leg, want) in CENSUS469 {
         let raw: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(format!("tables/{leg}.json")).unwrap())
+            serde_json::from_str(&cubit::table::read_table_text(format!("tables/{leg}.json")).unwrap())
                 .unwrap();
         let got = raw["instructions"].as_object().unwrap().len();
         assert_eq!(got, *want, "[{leg}] key census post-469");
@@ -142,7 +142,7 @@ fn t469_5_census_and_source() {
 #[test]
 fn t469_6_graft_shape() {
     let raw: serde_json::Value = serde_json::from_str::<serde_json::Value>(
-        &std::fs::read_to_string("tables/sm121a.json").unwrap(),
+        &cubit::table::read_table_text("tables/sm121a.json").unwrap(),
     )
     .unwrap();
     let ins = raw["instructions"].as_object().unwrap();

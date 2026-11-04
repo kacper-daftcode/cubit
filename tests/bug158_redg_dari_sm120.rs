@@ -61,7 +61,7 @@ fn imm_s24(w: u128) -> i64 {
 #[test]
 fn t158_1_table_geometry() {
     let j: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm120.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm120.json").unwrap()).unwrap();
     for mg in ["ADD,E,GPU,STRONG", "AND,E,GPU,STRONG"] {
         let row = j.pointer(&format!("/instructions/REDG_dARI_R/mod_groups/{mg}"))
             .unwrap_or_else(|| panic!("row REDG_dARI_R[{mg}] missing"));

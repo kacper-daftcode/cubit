@@ -104,7 +104,7 @@ fn t462_4_claim_census() {
         ("sm120", 1181usize), // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim)
         ("sm121a", 1184usize), // RIDE469: +17 cf (graft 469); canonical bd48e63 + // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim) (121a)
     ] {
-        let raw = std::fs::read_to_string(format!("tables/{leg}.json")).unwrap();
+        let raw = cubit::table::read_table_text(format!("tables/{leg}.json")).unwrap();
         let n = raw.matches("\"claim_forbid\"").count();
         assert_eq!(n, want, "[{leg}] claim_forbid census");
     }

@@ -135,7 +135,7 @@ fn t229_1_cured_anchors_decode_exact_sm120() {
 #[test]
 fn t229_2_structure_and_stability_sm120() {
     let j: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(T120).unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text(T120).unwrap()).unwrap();
     let ins = &j["instructions"];
     // impostors gone
     assert!(ins["LEA_R_R_II_R"].is_null(), "era key must be deleted");

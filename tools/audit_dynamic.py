@@ -14,6 +14,10 @@ process. Each word is then classified:
   decode_miss           nvdisasm names the word, cubit decodes nothing (the row cannot own its
                         own canonical word -> wrong fields / mask)
   cubit_decodes_illegal nvdisasm rejects the word, cubit decodes it (the row claims an illegal word)
+  vendor_unknown        nvdisasm has no text for the word and the row that decodes it is a measured
+                        undocumented form (its `_src` provenance entry carries `nvdisasm_sm120:
+                        "no text"`: E3M4 block-scaled MMA, the tcgen05 kinds the SM120 silicon runs,
+                        FFMA2) - "nvdisasm does not know the word", never a defect (owner 2026-11-03)
   both_reject           nvdisasm rejects and cubit decodes nothing (fine: an illegal variant)
   other_row             cubit decodes the word through a different row than the one it was built
                         from (recorded, not a defect by itself)
@@ -40,6 +44,9 @@ import pathlib
 import re
 import subprocess
 import tempfile
+import sys as _sys, pathlib as _pathlib
+_sys.path.insert(0, str(_pathlib.Path(__file__).resolve().parent))
+from tablefile import load_table  # plain tables/<arch>.json or the vendored .json.gz
 
 SCHEDULE_MASK = ((1 << 23) - 1) << 105
 DEFAULT_CTRL = 0x000fe200 << 96  # stall 1, yield, no barriers - legal for every class
@@ -136,7 +143,7 @@ def main():
                          "and the classification (the state of the current table / binary against the same oracle)")
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
-    table = json.load(open(args.table))
+    table = load_table(args.table)
     ins = table["instructions"]
     if args.replay:
         words_in = args.out / "words_in.jsonl"
@@ -151,7 +158,7 @@ def main():
         words_in.write_text("".join(l + "\n" for l in kept))
         words_out = args.out / "words.jsonl"
         subprocess.run([args.cubit_example, str(words_in), args.table, str(words_out)], check=True)
-        classify(args, words_out)
+        classify(args, words_out, table)
         return
     selected = collections.OrderedDict()
     if args.flagged:
@@ -189,20 +196,35 @@ def main():
     words_in.write_text("".join(json.dumps(it) + "\n" for it in words))
     words_out = args.out / "words.jsonl"
     subprocess.run([args.cubit_example, str(words_in), args.table, str(words_out)], check=True)
-    classify(args, words_out)
+    classify(args, words_out, table)
 
 
-def classify(args, words_out):
+def vendor_unknown_rows(table):
+    """Rows whose provenance says nvdisasm has no text for their words on SM120 (undocumented forms
+    measured on silicon): (key, group) pairs."""
+    sources = table.get("_meta", {}).get("provenance", {}).get("sources", {})
+    tags = {t for t, e in sources.items() if isinstance(e, dict) and e.get("nvdisasm_sm120") == "no text"}
+    rows = set()
+    for k, e in table["instructions"].items():
+        for g, v in e.get("mod_groups", {}).items():
+            if v.get("_src") in tags:
+                rows.add((k, g))
+    return rows
+
+
+def classify(args, words_out, table):
     classes = collections.Counter()
     per_row = collections.defaultdict(collections.Counter)
     findings = []
+    unknown_rows = vendor_unknown_rows(table)
     for line in open(words_out):
         it = json.loads(line)
         nv, ct = it.get("nvidia_sass"), it.get("cubit_text")
         if nv is None and ct is None:
             cls = "both_reject"
         elif nv is None:
-            cls = "cubit_decodes_illegal"
+            decoded_by = (it.get("cubit_key"), it.get("cubit_group"))
+            cls = "vendor_unknown" if decoded_by in unknown_rows else "cubit_decodes_illegal"
         elif ct is None:
             cls = "decode_miss"
         elif normalise(nv) != normalise(ct):
@@ -222,7 +244,7 @@ def classify(args, words_out):
         it["class"] = cls
         classes[cls] += 1
         per_row[(it["key"], it["group"])][cls] += 1
-        if cls not in ("ok", "both_reject", "other_row", "reuse_inert"):
+        if cls not in ("ok", "both_reject", "other_row", "reuse_inert", "vendor_unknown"):
             findings.append(it)
     (args.out / "dynamic_findings.jsonl").write_text("".join(json.dumps(f) + "\n" for f in findings))
     print("classes:", dict(classes))

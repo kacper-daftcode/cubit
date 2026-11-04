@@ -26,7 +26,7 @@ const SASS_PLAIN: &str = ".entry t\n    .param u64 out\n    LDC.64 R2, c[0x0][0x
 /// addr_scale na STS_ARI_R/128 (stan sprzed 4b266e4).
 fn write_stale_table(dir: &std::path::Path) -> std::path::PathBuf {
     let mut v: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm120.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm120.json").unwrap()).unwrap();
     let row = &mut v["instructions"]["STS_ARI_R"]["mod_groups"]["128"];
     let fields = row["fields"].as_array_mut().unwrap();
     fields.retain(|f| f["extraction"] != "addr_scale");

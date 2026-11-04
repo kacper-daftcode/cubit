@@ -112,12 +112,12 @@ fn t468_5_mint_circle() {
 #[test]
 fn t468_6_census_and_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "66197820ecba6d7094d35b5c7748f448a7599ddf";
+    const CURRENT_VENDORED_CANON: &str = "6f11f6b2c59e0b9366153c685540d90491486454";
     assert_eq!(CANON468, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     for (leg, want) in CENSUS468 {
         let raw: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(format!("tables/{leg}.json")).unwrap())
+            serde_json::from_str(&cubit::table::read_table_text(format!("tables/{leg}.json")).unwrap())
                 .unwrap();
         let got = raw["instructions"].as_object().unwrap().len();
         assert_eq!(got, *want, "[{leg}] key census post-468");
@@ -139,7 +139,7 @@ fn t468_7_graft_vs_donor_transform() {
     let sel_nm = [(1u8, "LTC64B"), (2u8, "LTC128B"), (3u8, "LTC256B")];
     for leg in ["sm100a", "sm103a", "sm120", "sm121a"] {
         let raw: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(format!("tables/{leg}.json")).unwrap())
+            serde_json::from_str(&cubit::table::read_table_text(format!("tables/{leg}.json")).unwrap())
                 .unwrap();
         let ins = raw["instructions"].as_object().unwrap();
         let mut n = 0usize;

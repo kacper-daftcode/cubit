@@ -59,7 +59,7 @@ fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
 fn t374_1_structure_rows_and_attribution() {
     for leg in LEGS3 {
         let raw: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(format!("tables/{leg}.json")).unwrap())
+            serde_json::from_str(&cubit::table::read_table_text(format!("tables/{leg}.json")).unwrap())
                 .unwrap();
         let np = raw["instructions"]["LDGSTS_ARI_dARI"]["mod_groups"]
             .as_object()
@@ -171,7 +171,7 @@ fn t374_4_p_bypass_zfill_sm120_vendor_exact() {
     // 359-era inert upper region (ab>>96 == 0x1e000 on those rows; the
     // M96 claim window is untouched).
     let raw: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm120.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm120.json").unwrap()).unwrap();
     let p = raw["instructions"]["LDGSTS_ARI_dARI_P"]["mod_groups"]
         .as_object()
         .unwrap();
@@ -223,7 +223,7 @@ fn t374_5_kill_lint_and_provenance() {
         );
     }
     let raw: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm120.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm120.json").unwrap()).unwrap();
     assert!(
         raw["_meta"]["provenance"]["history"]["bug374"]
             .as_str()

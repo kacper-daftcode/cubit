@@ -157,7 +157,7 @@ fn t415_4_mint_circle_junk_drop() {
 #[test]
 fn t415_5_boundaries_and_graft_hygiene() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "66197820ecba6d7094d35b5c7748f448a7599ddf";
+    const CURRENT_VENDORED_CANON: &str = "6f11f6b2c59e0b9366153c685540d90491486454";
     assert_eq!(CANON415, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     // FLIP (BUG-420, F2-iter232, canonical 0eddad5): the six HOLE415
@@ -212,7 +212,7 @@ fn t415_5_boundaries_and_graft_hygiene() {
         m["base_revision"]
     );
     let tabj: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm121a.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm121a.json").unwrap()).unwrap();
     let band = 0xffu128 << 64;
     let vm_of = |key: &str, mg: &str| -> u128 {
         u128::from_str_radix(

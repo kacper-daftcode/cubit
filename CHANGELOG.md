@@ -4,7 +4,72 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
-## Unreleased — 2026-11-03 (after `v0.2.0`)
+## Unreleased — 2026-11-04
+
+- **Tables vendored as gzip**: `tables/<arch>.json.gz` (0.5–0.9 MB each) replace the 38–59 MB
+  plain files in git; `tables/SOURCE.json` still pins the SHA-256 of the decompressed JSON. The
+  loader (`cubit::table::read_table_bytes` / `read_table_text`) serves `tables/sm120.json` from
+  the plain file when one exists and from the `.gz` twin otherwise (30 ms), the CLI, the Python
+  bindings, the tests (54 files that opened the JSON directly now go through it) and the Python
+  tools (`tools/tablefile.py`) all use it; the bundled SM120 table is `include_bytes!` of the gz
+  (binary 54 → 8 MB). `tools/sync_table.py` writes the gz (deterministic, mtime 0), `--check`
+  decompresses and compares and rejects a stale unpacked copy, `--unpack` writes the plain JSON
+  (git-ignored) for people who want it. New dependency `flate2`.
+- **Silicon results of 2026-11-03** (4x NVIDIA RTX PRO 6000 Server Edition, cubit-assembled probes;
+  README "SM120 laws measured on silicon"): **BUG-008** — even c reads the pair c:c+1, the PT form
+  is the same, RZ zero-extends, an odd c faults (715): the encoder refuses an odd c with the
+  measurement in the message (an odd destination stays a warning; `CUBIT_DISABLE_ERRATA` for RE).
+  **BUG-040/075** confirmed at 64 and 128 with both controls. **BUG-362a** — `F2I` with reuse bits
+  executes with the plain result; the decoder's ~130-row fail-closed arm is removed, the words
+  decode (the source slot's bit prints `.reuse` and re-encodes), the fixture records the silicon
+  verdict per word. **HMUL2** packed immediates 4/4. **`stallfix` for SM120**: 23 measured floors →
+  rules v3 in `tables/sm120.json` (`floor_pcarry_d0/d1`, `guard_d0_forbid`, `floor_guard_d1`,
+  `floor_urpath_d1`, `floor_xread_d1/d2`, `floor_uguard_d2` are new keys, all defaulting to "no
+  rule" so the sm_103a v2 section is unchanged; a predicate producer directly followed by its `@P`
+  guard consumer is a violation on SM120; R2UR boundaries raise to the cap until the corrected
+  `r2ur` kernel runs); the harness lives in `tools/stallfloor/`; `tests/stallfix_sm120.rs`;
+  `docs/SM120_STALLFIX_PLAN.md` §4. `SEL`/`FSEL`/`DSEL` read their trailing predicate in the
+  Strict predicate-transfer mode.
+- **Tables: era keys retired** (blackwell-isa 2026-11-04): the 20 SM120 keys with a glued predicate
+  token in the mnemonic (`QMMA.16816.F16.E4M3.E4M3_P0_R_R_R_R`, `F2IP.U8.F32_P2_…`, `DMMA.8x8x4_P5_…`,
+  `S2R_P0_R_L`, `MOV_P0_R_II`, …; 10 of them in sm121a) are `_meta.key_aliases` of the plain keys —
+  the loader resolves an alias as an encoder-visible, decoder-invisible copy, so `bug280`/`bug340`
+  and old text keep working while the decoder never prints a glued mnemonic. The DMMA.8x8x4 and
+  F2FP.F16.F32.PACK_AB plain rows gained their guard field (and PACK_AB the text-inert [71:64])
+  by probe; `MOV_P0`/`PLOP3.LUT_P1` had claimed UMOV/UPLOP3 words. Test
+  `tests/sm120_era_keys_20261104.rs` + fixture.
+- **Tables: undocumented forms stay and are marked** (owner's decision): the E3M4 block-scaled MMA
+  rows (22; 11 dense combinations executed on RTX PRO 6000), the tcgen05 kinds the SM120 silicon
+  runs (UTCHMMA/UTCIMMA/UTCQMMA.1CTA on RTX 5090, UTCATOMSWS) and FFMA2 carry a `_src` whose
+  provenance says `nvdisasm_sm120: "no text"`; `tools/audit_dynamic.py` classifies their words as
+  `vendor_unknown` (never a defect). Audit state replayed against this tree: 483 → **463 rows**
+  (`docs/KNOWN_ISSUES.md` T1).
+- **Printer / decoder**: `F2FP.SATFINITE…` modifier order; F2FP excluded from the sign-window
+  fallback (bits 73/74/82/83 are rejected by nvdisasm, 79–81 are `???n`); the F2FP PACK_AB lattice
+  recorded in the era-keys fixture.
+- **Validation claims**: SM121a re-run on the GB10 host `gx4` (2026-11-04): 91 927 / 91 927 words
+  decode, text parity 99.59 % (373 differences in 17 keys — the 2026-09 "0 differences" does not
+  reproduce for text parity; KNOWN_ISSUES V3); the same corpus's sm_120 half revealed 97 `LDL.64
+  [R+UR+imm]` decode holes and a `MUFU` UR-form function field — fixed below.
+- **Tables: GB10-census follow-up** (blackwell-isa `15caf70`): `LDL_R_ARURI` (`LDL[.size][.LU] Rd,
+  [Ra+URb+imm]`, 14 groups, 351 probe words; the printer prints the plain `[R+UR+imm]` sum for LDL/STL
+  like LDS/STS instead of a fabricated `desc[UR][R.64+off]`), `MUFU_R_UR` rebuilt (10 functions × the
+  half types they take, abs/neg on the UR operand, 494 words; four harvest rows had decoded EX2 as
+  LG2 and RSQ as RCP / RCP64H; `MUFU.<fn>.F16` order; MUFU excluded from the sign-window fallback),
+  `F2F.F64.F32_R_R` / `F2F.F32.F64_R_R` rebuilt on SM120 and SM121a (the sm121a rows had their
+  register fields one bit off and the `F2F_R_R` harvest group swallowed 217 census words with the
+  wrong type order; on SM120 that group assembled `F2F.F32.F64 R8, |R15|` without the abs), and
+  **nvdisasm's `IMAD.MOV` / `.IADD` / `.SHL` display law** measured on 144 words (`.MOV` when a = RZ,
+  b = RZ, b = 0, or b = 1 with c = RZ; `.IADD` when b = 1 and c is a register; `.SHL` when b is a
+  power of two in 2..2^30 and c = RZ; never with a UR c): the printer derives the name, the encoder
+  accepts an alias only in that shape, the seven alias-named harvest groups (which had put the Ra
+  token on the Rb field: `IMAD.MOV.U32 R4, RZ, R14, 0x10` printed as `R4, R14, R14, 0x10`) are gone
+  and every four-operand form has a `U32` twin. Probes `tools/probes/re_sm120_{ldl_aruri,mufu_ur,
+  imad_alias}.py`, tests `sm120_ldl_aruri`, `sm120_mufu_ur`, `sm120_f2f_pair_20261104`,
+  `sm120_imad_alias`. SM120: 16 107 forms / 20 894 variants.
+- NaN immediates: the display print keeps the lossless payload (decision recorded in KNOWN_ISSUES A8).
+
+## 2026-11-03 (`6392786`, after `v0.2.0`)
 
 - **Tables: hygiene pass** (blackwell-isa `64eaa21`): the control-code bits [127:105] every harvest
   template still baked (880 SM120 / 1 670 SM103a / 1 674 SM100a / 546 SM121a variants) are cleared

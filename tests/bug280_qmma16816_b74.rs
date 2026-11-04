@@ -42,7 +42,12 @@ const M96: u128 = (1u128 << 96) - 1;
 const B74: u128 = 1u128 << 74;
 const LANE_AB: u128 = 0x400000000000000027au128;
 const VM_R: u128 = 0x1c000000000005ff800000fffffff000u128; // _R post-widen
-const VM_PN: u128 = 0x8000000000005ff800000fffffff000u128; // _P0/_P2/_P5 post-widen
+// 2026-11-04 (blackwell-isa, session T-3): the three `_P0/_P2/_P5` era keys are retired into
+// `_meta.key_aliases` -> `QMMA.16816.F16.E4M3.E4M3_R_R_R_R` (nvdisasm names their words with the
+// plain mnemonic; the plain row's mask was a superset, the fields identical). cubit resolves the
+// alias as an encoder-visible copy of the plain row, so the keys still exist for these pins and
+// carry VM_R; the old `_Pn` mask (0x8000000000005ff800000fffffff000) is history.
+const VM_PN: u128 = VM_R;
 const KEYS_R: &str = "QMMA.16816.F16.E4M3.E4M3_R_R_R_R";
 const KEYS_PN: [&str; 3] = [
     "QMMA.16816.F16.E4M3.E4M3_P0_R_R_R_R",

@@ -53,7 +53,7 @@ fn row<'a>(j: &'a serde_json::Value, key: &str, mg: &str) -> Option<&'a serde_js
 fn t156_1_geometry_polygon() {
     for path in ["tables/sm103a.json", "tables/sm120.json"] {
         let j: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+            serde_json::from_str(&cubit::table::read_table_text(path).unwrap()).unwrap();
         let a_rows = [
             ("LD_R_ARI", "E"),
             ("LD_R_ARI", "64,E"),

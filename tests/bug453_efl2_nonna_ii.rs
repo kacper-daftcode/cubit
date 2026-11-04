@@ -63,7 +63,7 @@ fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
 }
 fn nforms(arch: &str) -> usize {
     let v: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(format!("tables/{arch}.json")).unwrap())
+        serde_json::from_str(&cubit::table::read_table_text(format!("tables/{arch}.json")).unwrap())
             .unwrap();
     v["instructions"].as_object().unwrap().len()
 }
@@ -296,7 +296,7 @@ fn t453_8_census_and_canonical() {
     let src: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        src["base_revision"].as_str().unwrap().starts_with("66197820ecba6d7094d35b5c7748f448a7599ddf"),
+        src["base_revision"].as_str().unwrap().starts_with("6f11f6b2c59e0b9366153c685540d90491486454"),
         "SOURCE.json must pin canonical {CANON453} (= BUG-453 graft, ride-after e03e0348d98b9d20ffb4ca557cfc6eae625cf995 = BUG-452 narrow): {:?}",
         src["base_revision"]
     );

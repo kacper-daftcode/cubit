@@ -172,7 +172,7 @@ fn run(manifest_path: &Path, table_path: &Path, out: &Path) -> Result<()> {
             bail!("duplicate module SHA256 {sha}");
         }
     }
-    let table_bytes = fs::read(table_path)?;
+    let table_bytes = cubit::table::read_table_bytes(table_path)?;
     let table = IsaTable::from_json(std::str::from_utf8(&table_bytes)?)?;
     let ix = DecodeIndex::build(&table);
     fresh_directory(out)?;
@@ -263,7 +263,7 @@ mod tests {
                     .unwrap_or_else(|| {
                         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tables/sm120.json")
                     });
-                fs::read(source).unwrap()
+                cubit::table::read_table_bytes(source).unwrap()
             });
             let table = root.join("table.json");
             fs::write(&table, bytes).unwrap();

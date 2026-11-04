@@ -133,7 +133,7 @@ fn t287_1_structure_transplant_census() {
     // provenance census: exactly 13 bug287 tags on sm121a, ZERO elsewhere.
     let count_tags = |arch: &str| -> usize {
         let v: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(format!("tables/{arch}.json")).unwrap())
+            serde_json::from_str(&cubit::table::read_table_text(format!("tables/{arch}.json")).unwrap())
                 .unwrap();
         let mut n = 0usize;
         for (_k, e) in v["instructions"].as_object().unwrap() {
@@ -157,7 +157,7 @@ fn t287_1_structure_transplant_census() {
     assert_eq!(count_tags("sm103a"), 0, "donor sm103a untouched");
     // _bug287 provenance tag present on the mg.
     let v: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm121a.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm121a.json").unwrap()).unwrap();
     assert!(
         v["instructions"]["HFMA2_R_R_R_R"]["mod_groups"][""]
             .get("_bug287")

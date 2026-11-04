@@ -48,7 +48,7 @@ fn enc_err(table: &IsaTable, s: &str) -> String {
 /// Patch one field's `bits` in the sm103a table and load the grafted copy.
 fn grafted_table(key: &str, mods: &str, extraction: &str, token_idx: i64, bits: u32) -> IsaTable {
     let mut v: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm103a.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm103a.json").unwrap()).unwrap();
     let fields = v["instructions"][key]["mod_groups"][mods]["fields"]
         .as_array_mut()
         .unwrap_or_else(|| panic!("no fields for {key}::{mods}"));

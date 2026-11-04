@@ -30,6 +30,9 @@ import collections
 import json
 import pathlib
 import re
+import sys as _sys, pathlib as _pathlib
+_sys.path.insert(0, str(_pathlib.Path(__file__).resolve().parent))
+from tablefile import load_table  # plain tables/<arch>.json or the vendored .json.gz
 
 SLOTS = {"Rd[23:16]": (16, 8), "Ra[31:24]": (24, 8), "Rb/UR[39:32]": (32, 8),
          "imm/off[63:40]": (40, 24), "Rc/UR[71:64]": (64, 8), "mode[87:80]": (80, 8)}
@@ -129,7 +132,7 @@ def main() -> int:
     parser.add_argument("--out", type=pathlib.Path)
     parser.add_argument("--summary", action="store_true")
     args = parser.parse_args()
-    table = json.load(open(args.table))
+    table = load_table(args.table)
     findings, stats = audit(table)
     if args.out:
         with args.out.open("w") as fh:

@@ -812,8 +812,13 @@ fn check_native_imad_hi_modifiers(
 /// computation (190 sites in the served MoE kernels, the `LDC.64` pair
 /// idiom). The pair semantics are therefore not a defect of the text; the
 /// trap is a pair on an ODD register, which cannot denote an aligned pair.
-/// The silicon behaviour of the odd spelling is not measured yet (it is the
-/// GPU probe of KNOWN_ISSUES); the encoder keeps warning about it.
+/// Measured 2026-11-03 (4x RTX PRO 6000 Server Edition, test host, cubit-
+/// assembled probes `bug008_{even,odd,pt,rz}`): even c reads the pair c:c+1
+/// (`IMAD.WIDE.U32 R10, R4, R5, R6` with R6:R7 = 0x11151113:0x22222222 stores
+/// 0x2222222411151113), the 5-operand PT form equals it, c = RZ zero-extends,
+/// and an ODD c (`IMAD.WIDE.U32 R10, R4, R5, R7`) faults the launch with
+/// CUDA_ERROR_ILLEGAL_INSTRUCTION (715). An odd c is therefore refused by
+/// `check_imad_wide_odd_pair`; an odd d is not measured and stays a warning.
 fn imad_wide_cpair_shape(insn: &Instruction, table: &IsaTable) -> Option<(u8, u8)> {
     if insn.opcode != "IMAD" || !insn.modifiers.iter().any(|m| m == ".WIDE") {
         return None;
@@ -1277,19 +1282,16 @@ pub fn errata_warnings(insn: &Instruction, table: &IsaTable) -> Vec<String> {
     // an informational note for the even idiom.
     if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() {
         if let Some((d, c)) = imad_wide_cpair_shape(insn, table) {
-            let odd: Vec<String> = [("destination", d), ("accumulator c", c)]
-                .iter()
-                .filter(|(_, r)| r % 2 == 1)
-                .map(|(role, r)| format!("{role} R{r} (pair R{r}:R{})", r + 1))
-                .collect();
-            if !odd.is_empty() {
+            // an odd c is refused by check_imad_wide_odd_pair (measured fault);
+            // an odd destination pair is not measured: warn.
+            if d % 2 == 1 {
                 out.push(format!(
-                    "{:?}: IMAD.WIDE reads c and writes d as 64-bit register pairs \
-                     (Rd:Rd+1 = Ra * Rb + Rc:Rc+1) and a pair must start on an even \
-                     register; here the {} is odd (BUG-008). Use an even base register, \
-                     the 5-operand form `IMAD.WIDE[.U32] Rd, Pn, Ra, Rb, Rc`, or c = RZ.",
+                    "{:?}: IMAD.WIDE writes d as a 64-bit register pair (Rd:Rd+1 = Ra * Rb + \
+                     Rc:Rc+1) and nvcc always starts the pair on an even register; here the \
+                     destination R{d} (pair R{d}:R{}) is odd (BUG-008; the odd-c form faults on \
+                     sm_120 silicon, the odd-d form is not measured). Use an even destination.",
                     insn.raw_text.trim(),
-                    odd.join(" and the ")
+                    d + 1
                 ));
             } else if std::env::var_os("CUBIT_NOTE_IDIOMS").is_some() {
                 out.push(format!(
@@ -1546,6 +1548,39 @@ fn check_atom_desc_pair_parity_sm103(insn: &Instruction, table: &IsaTable) -> Re
                     "ATOMG/REDG desc-form address pair R{}.64 has an ODD base -- SILICON-ILLEGAL on sm_103a                     (BUG-078; B300 krunp A/B 2026-08-22 with a VALID VA in the pair: odd base ->                     CUDA_ERROR_ILLEGAL_INSTRUCTION 10/10 across epochs, even base -> executes, memory                     updated exactly. NOTE the atom-path fault priority masks the trap behind                     ILLEGAL_ADDRESS when the address itself is invalid, so a garbage-address probe                     cannot discriminate -- unlike STG/LDG (BUG-076/077) where odd traps pre-memory.                     Only the .EL classes are exempt: they encode the single-32-bit-offset desc mode                     ([Rn.U32+URm]) which has no register pair at all. Renumber the address pair to                     an even base (RA pin) instead of assembling the odd-base word; decode stays                     full-fidelity for RE."
                 , r);
             }
+        }
+    }
+    Ok(())
+}
+
+/// BUG-008 (silicon, sm_120): a 4-operand `IMAD.WIDE[.U32]` whose c operand is
+/// a register reads the 64-bit pair Rc:Rc+1, and the pair base must be EVEN.
+/// Measured 2026-11-03 on 4x RTX PRO 6000 Server Edition (test host; cubit-
+/// assembled probe kernels, driver API launch, `T/gpu/out_testhost/probes.log`):
+///
+/// * `bug008_even`: `IMAD.WIDE.U32 R10, R4, R5, R6`, R6:R7 = 0x11151113:0x22222222,
+///   R4 * R5 = 2 * 1 -> stored 0x2222222411151113 = pair(c_lo, c_hi) + a*b;
+/// * `bug008_pt`: the 5-operand `IMAD.WIDE.U32 R10, PT, R4, R5, R6` stores the same;
+/// * `bug008_rz`: c = RZ stores 0x0000000200040002 = a*b zero-extended;
+/// * `bug008_odd`: `IMAD.WIDE.U32 R10, R4, R5, R7` -> CUDA_ERROR_ILLEGAL_INSTRUCTION
+///   (715) at launch; the kernel differs from `bug008_even` only in c = R7.
+///
+/// The even spelling is nvcc's own idiom (190 sites in the served MoE kernels)
+/// and encodes silently; the odd spelling is refused here (CUBIT_DISABLE_ERRATA
+/// keeps the escape hatch for RE tooling; decode stays full-fidelity). An odd
+/// DESTINATION pair is not measured and stays a warning (`errata_warnings`).
+fn check_imad_wide_odd_pair(insn: &Instruction, table: &IsaTable) -> Result<()> {
+    if let Some((_d, c)) = imad_wide_cpair_shape(insn, table) {
+        if c % 2 == 1 {
+            anyhow::bail!(
+                "{:?}: IMAD.WIDE reads c as the 64-bit register pair Rc:Rc+1 and an ODD pair base \
+                 faults on sm_120 silicon (BUG-008, measured 2026-11-03 on RTX PRO 6000 Server \
+                 Edition: `IMAD.WIDE.U32 R10, R4, R5, R7` -> CUDA_ERROR_ILLEGAL_INSTRUCTION 715, the \
+                 same kernel with R6 stores pair(R6:R7) + a*b). Here c = R{c} (pair R{c}:R{}). Use an \
+                 even base register, the 5-operand form `IMAD.WIDE[.U32] Rd, Pn, Ra, Rb, Rc`, or \
+                 c = RZ; CUBIT_DISABLE_ERRATA=1 assembles the word anyway (RE tooling).",
+                insn.raw_text.trim(), c + 1
+            );
         }
     }
     Ok(())
@@ -2512,6 +2547,7 @@ fn encode_instruction_inner(
         check_atom_desc_pair_parity_sm103(insn, table)?;
         check_guarded_atomic_sm103(insn, table)?;
         check_wide_mem_reg_align_sm103(insn, table)?;
+        check_imad_wide_odd_pair(insn, table)?;
     }
     let mod_group = crate::table::extract_mod_group(&insn.raw_text);
 
@@ -2533,44 +2569,52 @@ fn encode_instruction_inner(
         mod_group
     };
 
-    // BUG-012: IMAD.MOV is an ALIAS of plain IMAD — nvdisasm prints it when both
-    // multiplier operands are RZ. Accept the alias only in that exact shape
-    // (fail-closed otherwise) and encode via the plain rows.
-    // BUG-083: the strip must apply ONLY to the bare `MOV` alias. `MOV,U32` is a
-    // real row (bit73=0, the U32/signed discriminator); stripping `MOV` from it
-    // left mg="U32" which does not exist for these keys, and the "" fallback
-    // silently encoded the SIGNED plain row (bit73=1) — 16,866 corpus words
-    // re-encoded with bit73 flipped before this fix.
-    let mov_alias = insn.opcode == "IMAD" && mod_group.split(',').any(|m| m == "MOV");
-    // `MOV,U32` keeps its own mod_group (own table row); alias-shape still enforced.
-    let mov_u32 = mov_alias && mod_group.split(',').any(|m| m == "U32");
-    if mov_alias {
-        let is_rz = |o: &Operand| {
-            matches!(
-                o,
-                Operand::Reg {
-                    num: 255,
-                    neg: false,
-                    abs: false,
-                    inv: false,
-                    ..
+    // BUG-012 / BUG-083 / 2026-11-04: `IMAD.MOV` / `.IADD` / `.SHL` are nvdisasm's display aliases of
+    // the four-operand IMAD (law in crate::printer::imad_alias, measured on 144 words). The text is
+    // accepted only in the shape the vendor prints it for (fail-closed otherwise: `IMAD.MOV R4, R6,
+    // R14, R10` is not a move) and encodes through the plain / U32 rows - the table carries no
+    // alias-named groups since 2026-11-04.
+    let mod_group = if insn.opcode == "IMAD" {
+        let mods: Vec<&str> = mod_group.split(',').filter(|m| !m.is_empty()).collect();
+        let written = mods.iter().find(|m| matches!(**m, "MOV" | "IADD" | "SHL")).copied();
+        if let Some(written) = written {
+            let rz = |o: &Operand| matches!(o, Operand::Reg { num: 255, .. });
+            let imm = |o: &Operand| match o { Operand::Imm32(v) => Some(*v), _ => None };
+            let ops = &insn.operands;
+            if ops.len() != 4 || mods.iter().any(|m| !matches!(*m, "MOV" | "IADD" | "SHL" | "U32")) {
+                anyhow::bail!("IMAD.{written} is a display alias of the four-operand IMAD only (got: {})", insn.raw_text.trim());
+            }
+            let expected = crate::printer::imad_alias(
+                rz(&ops[1]), rz(&ops[2]), imm(&ops[2]), rz(&ops[3]), matches!(ops[3], Operand::UReg { .. }));
+            if expected != Some(written) {
+                anyhow::bail!(
+                    "IMAD.{written} is nvdisasm's name for {} - these operands print as {} (got: {}). The law: .MOV when a = RZ, \
+                     b = RZ, b = 0 or b = 1 with c = RZ; .IADD when b = 1 and c is a register; .SHL when b is a power of two \
+                     and c = RZ; never with a UR c.",
+                    match written { "MOV" => "a move of c", "IADD" => "a + c", _ => "a << log2(b)" },
+                    expected.map(|a| format!("IMAD.{a}")).unwrap_or_else(|| "plain IMAD".into()),
+                    insn.raw_text.trim()
+                );
+            }
+            let stripped = mods.iter().filter(|m| !matches!(**m, "MOV" | "IADD" | "SHL")).copied().collect::<Vec<_>>().join(",");
+            // sm120 carries the plain / U32 rows (2026-11-04); the other tables still hold the
+            // alias-named harvest groups - use them there so their words keep encoding
+            let key = {
+                let mut k = String::from("IMAD");
+                for op in &insn.operands {
+                    k.push('_');
+                    k.push_str(crate::parser::operand_type_label_pub(op));
                 }
-            )
-        };
-        let ok = insn.operands.len() >= 3 && is_rz(&insn.operands[1]) && is_rz(&insn.operands[2]);
-        if !ok {
-            anyhow::bail!(
-                "IMAD.MOV alias requires multiplier operands RZ, RZ (got: {})",
-                insn.raw_text
-            );
+                k
+            };
+            if table.get(&key, &stripped).is_some() || table.get(&key, &mod_group).is_none() {
+                stripped
+            } else {
+                mod_group
+            }
+        } else {
+            mod_group
         }
-    }
-    let mod_group = if mov_alias && !mov_u32 {
-        mod_group
-            .split(',')
-            .filter(|m| *m != "MOV")
-            .collect::<Vec<_>>()
-            .join(",")
     } else {
         mod_group
     };

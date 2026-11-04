@@ -27,9 +27,12 @@ fn manifest_pin_matches_every_vendored_table() {
     assert_eq!(m["schema"], 2);
     for (name, entry) in m["tables"].as_object().unwrap() {
         // byte-exact SHA pin is CI-verified by `sync_table --check`; here the
-        // contract is structural: every pinned table exists and matches its
-        // manifest counters.
-        let bytes = std::fs::read(Path::new("tables").join(name)).unwrap();
+        // contract is structural: every pinned table exists (as the vendored
+        // `.json.gz`, 2026-11-04, or an unpacked plain copy) and matches its
+        // manifest counters; the pin itself is the SHA-256 of the plain bytes.
+        let bytes = cubit::table::read_table_bytes(Path::new("tables").join(name)).unwrap();
+        let sha = format!("{:x}", <sha2::Sha256 as sha2::Digest>::digest(&bytes));
+        assert_eq!(sha, entry["base_sha256"].as_str().unwrap(), "{name} SHA-256 pin");
         let t: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(t["instructions"].as_object().unwrap().len(),
                    entry["instruction_forms"].as_u64().unwrap() as usize, "{name} forms");
@@ -73,7 +76,7 @@ fn sm121a_pred_inv4_decode_and_roundtrip() {
     // LDG.E.EFL2.256_R_R_dARI_P: trailing pred field at [90:87].
     let base = {
         let row = &serde_json::from_slice::<serde_json::Value>(
-            &std::fs::read("tables/sm121a.json").unwrap()).unwrap()["instructions"]
+            &cubit::table::read_table_bytes("tables/sm121a.json").unwrap()).unwrap()["instructions"]
             ["LDG.E.EFL2.256_R_R_dARI_P"]["mod_groups"][""];
         u128::from_str_radix(row["and_base"].as_str().unwrap().trim_start_matches("0x"), 16)
             .unwrap()

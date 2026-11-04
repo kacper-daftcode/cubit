@@ -129,6 +129,38 @@ pub struct StallRules {
     /// unlike the P-domain D1 pathology; measured clean band 8..=11).
     #[serde(default = "default_uguard_d1")]
     pub floor_uguard_d1: u8,
+    // v3 keys (SM120 measurement 2026-11-03, docs/SM120_STALLFIX_PLAN.md §4):
+    // every one defaults to "no rule" so that the sm_103a v2 section keeps
+    // its measured behaviour byte for byte.
+    /// v3 R11: ISETP P write -> predicate DATA read (SEL/PLOP3-class
+    /// operand, not a guard, not a carry-in) at d0 (SM120: 5).
+    #[serde(default)]
+    pub floor_pcarry_d0: u8,
+    /// v3 R11: the same pair at d1 (SM120: 4).
+    #[serde(default)]
+    pub floor_pcarry_d1: u8,
+    /// v3: no stall up to cap legalizes a P producer -> @P guard at d0
+    /// (SM120: 641 888 / 655 360 threads still wrong at S11); the site is a
+    /// violation, not a raise.
+    #[serde(default)]
+    pub guard_d0_forbid: bool,
+    /// v3: when `guard_d1_forbid` is false, the floor applied to every
+    /// guard-D1 pair regardless of consumer class (SM120: 11, the single
+    /// clean value measured; 0 = no rule).
+    #[serde(default)]
+    pub floor_guard_d1: u8,
+    /// v3 R7 at d1: uniform-ALU UR write -> same-domain read with one
+    /// instruction between (SM120: 3).
+    #[serde(default)]
+    pub floor_urpath_d1: u8,
+    /// v3 R8 at d1 / d2 (SM120: 4 / 2).
+    #[serde(default)]
+    pub floor_xread_d1: u8,
+    #[serde(default)]
+    pub floor_xread_d2: u8,
+    /// v3 R10 at d2 (SM120: 6).
+    #[serde(default)]
+    pub floor_uguard_d2: u8,
     #[serde(default)]
     pub rules_version: String,
     #[serde(default)]
@@ -165,7 +197,7 @@ fn default_true() -> bool {
 
 impl StallRules {
     pub fn load(path: &std::path::Path) -> Result<Self> {
-        let text = std::fs::read_to_string(path)
+        let text = crate::table::read_table_text(path)
             .with_context(|| format!("stallfix: cannot read rules {}", path.display()))?;
         Self::from_str_json(&text)
             .with_context(|| format!("stallfix: rules {}", path.display()))
@@ -203,6 +235,13 @@ impl StallRules {
             ("floor_r2ur_d0", self.floor_r2ur_d0),
             ("floor_uguard_d0", self.floor_uguard_d0),
             ("floor_uguard_d1", self.floor_uguard_d1),
+            ("floor_pcarry_d0", self.floor_pcarry_d0),
+            ("floor_pcarry_d1", self.floor_pcarry_d1),
+            ("floor_guard_d1", self.floor_guard_d1),
+            ("floor_urpath_d1", self.floor_urpath_d1),
+            ("floor_xread_d1", self.floor_xread_d1),
+            ("floor_xread_d2", self.floor_xread_d2),
+            ("floor_uguard_d2", self.floor_uguard_d2),
         ] {
             if f > self.cap_stall {
                 bail!(
@@ -646,6 +685,45 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                                 meets(f, rules.floor_uguard_d1, "R10-uguard-d1");
                             }
                         }
+                        // v3: R7 / R8 one instruction later (SM120 measured
+                        // urpath d1 = 3, xread d1 = 4; 0 = no rule).
+                        if !live_ur_alu.is_empty() && cons_alu && !crx.uuses.is_disjoint(&live_ur_alu) {
+                            let f = floors.get_mut(&(kidx, i)).unwrap();
+                            if is_uniform_op(cons) {
+                                if rules.floor_urpath_d1 > 0 { meets(f, rules.floor_urpath_d1, "R7-urpath-d1"); }
+                            } else if rules.floor_xread_d1 > 0 {
+                                meets(f, rules.floor_xread_d1, "R8-xread-d1");
+                            }
+                        }
+                    } else if d == 3 {
+                        // v3: R8 at d2 (SM120: 2) and R10 at d2 (SM120: 6).
+                        if rules.floor_xread_d2 > 0 && !live_ur_alu.is_empty() && cons_alu
+                            && !is_uniform_op(cons) && !crx.uuses.is_disjoint(&live_ur_alu)
+                        {
+                            let f = floors.get_mut(&(kidx, i)).unwrap();
+                            meets(f, rules.floor_xread_d2, "R8-xread-d2");
+                        }
+                        if let Some(g) = &cons.guard {
+                            if rules.floor_uguard_d2 > 0 && g.uniform && g.pred < 7 && live_up_isetp.contains(&g.pred) {
+                                let f = floors.get_mut(&(kidx, i)).unwrap();
+                                meets(f, rules.floor_uguard_d2, "R10-uguard-d2");
+                            }
+                        }
+                    }
+                    // v3 R11 (SM120): a tracked P consumed as a predicate DATA
+                    // operand (SEL P0, PLOP3 inputs, ...): neither a guard nor a
+                    // carry-in, which have their own rules below. Measured
+                    // ISETP -> SEL: d0 = 5, d1 = 4, d2 free.
+                    if d <= 2 && cpx.known && !cpx.uses.is_empty() {
+                        let floor = if d == 1 { rules.floor_pcarry_d0 } else { rules.floor_pcarry_d1 };
+                        if floor > 0 {
+                            let cin_set: BTreeSet<u8> = cin.iter().copied().collect();
+                            let hit = live.iter().any(|p| cpx.uses.contains(p) && !cin_set.contains(p) && grd != Some(*p));
+                            if hit {
+                                let f = floors.get_mut(&(kidx, i)).unwrap();
+                                meets(f, floor, if d == 1 { "R11-pcarry-d0" } else { "R11-pcarry-d1" });
+                            }
+                        }
                     }
                     for p in live.clone() {
                         if d == 1 && cin.contains(&p) {
@@ -664,6 +742,27 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                             let prod_stall = prod.ctrl.stall;
                             let class = guard_consumer_class(cons);
                             match d {
+                                1 if rules.guard_d0_forbid => {
+                                    // v3 (SM120 2026-11-03): no stall up to the cap closes
+                                    // a P producer -> @P guard at d0 (ISETP -> @P0 IADD3:
+                                    // 641 888 / 655 360 threads wrong at S11, S00 = the
+                                    // hardware interlock, not a schedule). Raise-only cannot
+                                    // fix it: violation, eliminate the d0 distance.
+                                    d1_violations.push(serde_json::json!({
+                                        "kernel": k.name, "prod_idx": i,
+                                        "prod_op": prod.opcode_full,
+                                        "prod_stall": prod_stall,
+                                        "guard_idx": j,
+                                        "guard_op": cons.opcode_full,
+                                        "class": class,
+                                        "reason": "guard at d0 (consumer directly after the \
+                                            predicate producer): no stall count up to the cap \
+                                            legalizes it on sm_120 (measured 2026-11-03, RTX PRO \
+                                            6000 Server Edition: S01..S11 all wrong). Move the \
+                                            consumer at least two slots away (d1 floor 11, d2 \
+                                            floor 9) or test the predicate through SEL/PLOP3."
+                                    }));
+                                }
                                 1 => {
                                     meets(f, rules.floor_guard_d0, "R3-guard-d0");
                                     if prod_stall >= rules.legacy_stall_risk_from {
@@ -689,7 +788,17 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                                         action: "noop".to_string(),
                                     };
                                     if !rules.guard_d1_forbid {
-                                        site.action = "allowed-by-rules".to_string();
+                                        // v3: a measured floor for every class (SM120: 11)
+                                        if rules.floor_guard_d1 > 0 {
+                                            meets(f, rules.floor_guard_d1, "R3-guard-d1");
+                                            site.action = if prod_stall < rules.floor_guard_d1 {
+                                                format!("floor-raise:S{:02}->S{:02}", prod_stall, rules.floor_guard_d1)
+                                            } else {
+                                                "noop".to_string()
+                                            };
+                                        } else {
+                                            site.action = "allowed-by-rules".to_string();
+                                        }
                                     } else {
                                         match class {
                                             // R6 (v1 census-hi): isetp-class D1 legal for
@@ -817,8 +926,8 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
     // v1: zebrane naruszenia guard-D1 = jeden fail z kompletna mapa stanowisk
     if !d1_violations.is_empty() {
         bail!(
-            "stallfix: {} guard-D1 site(s) cannot be legalized in place under \
-             the v1 class rules (raise-only, cap {}):\n{}",
+            "stallfix: {} guard site(s) cannot be legalized in place under \
+             the measured class rules (raise-only, cap {}):\n{}",
             d1_violations.len(),
             rules.cap_stall,
             d1_violations

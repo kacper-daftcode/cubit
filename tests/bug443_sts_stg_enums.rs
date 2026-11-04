@@ -154,7 +154,7 @@ fn t443_6_mints() {
 #[test]
 fn t443_7_noe_key_design() {
     let t = tab("sm103a");
-    let src = std::fs::read_to_string("tables/sm103a.json").unwrap();
+    let src = cubit::table::read_table_text("tables/sm103a.json").unwrap();
     let v: serde_json::Value = serde_json::from_str(&src).unwrap();
     let mgs = v["instructions"]["STG_ARURI_R"]["mod_groups"]
         .as_object()
@@ -201,7 +201,7 @@ fn t443_7_noe_key_design() {
 #[test]
 fn t443_8_canonical_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "66197820ecba6d7094d35b5c7748f448a7599ddf";
+    const CURRENT_VENDORED_CANON: &str = "6f11f6b2c59e0b9366153c685540d90491486454";
     assert_eq!(CANON443, "9c0e4ce", "historical fixture revision drift");
 
     let src = std::fs::read_to_string("tables/SOURCE.json").unwrap();

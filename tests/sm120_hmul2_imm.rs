@@ -90,7 +90,7 @@ fn the_shipped_census_words_round_trip() {
 
 #[test]
 fn the_measured_rows_carry_the_provenance_and_a_fail_closed_mask() {
-    let raw: Value = serde_json::from_slice(&std::fs::read(table_path()).unwrap()).unwrap();
+    let raw: Value = serde_json::from_slice(&cubit::table::read_table_bytes(table_path()).unwrap()).unwrap();
     let groups = raw["instructions"][KEY]["mod_groups"].as_object().unwrap();
     let number = |v: &Value| u128::from_str_radix(v.as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
     let mut measured = 0;

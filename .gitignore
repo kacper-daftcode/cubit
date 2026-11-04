@@ -12,6 +12,13 @@ tables/records.jsonl
 tables/lookup.bin
 /.canonical/
 
+# The vendored ISA tables are tables/<arch>.json.gz (2026-11-04); the plain
+# JSON is an unpacked convenience (`tools/sync_table.py --unpack`), not tracked
+/tables/sm120.json
+/tables/sm103a.json
+/tables/sm100a.json
+/tables/sm121a.json
+
 # Build outputs / scratch
 *.cubin
 

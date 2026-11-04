@@ -128,7 +128,7 @@ fn all_three_independent_ptx_compiler_instructions_roundtrip_full128() {
 
 #[test]
 fn six_new_groups_clone_measured_siblings_and_every_old_group_stays_exact() {
-    let raw: Value = serde_json::from_slice(&std::fs::read(table_path()).unwrap()).unwrap();
+    let raw: Value = serde_json::from_slice(&cubit::table::read_table_bytes(table_path()).unwrap()).unwrap();
     assert_eq!(fixture()["source"], "sm120-ldsm8-2026-10-22");
     let number =
         |v: &Value| u128::from_str_radix(v.as_str().unwrap().trim_start_matches("0x"), 16).unwrap();

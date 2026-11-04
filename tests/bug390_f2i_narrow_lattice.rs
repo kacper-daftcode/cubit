@@ -255,11 +255,17 @@ const REUSE_W: [u128; 26] = [
 ];
 
 #[test]
-fn t390_3_reuse_fail_closed_x4() {
+fn t390_3_reuse_window_decodes_x4() {
+    // 2026-11-03: the silicon arm of BUG-362a (f2i_reuse_362a_b122/b123/b124, RTX PRO 6000 Server
+    // Edition) executed reuse-armed F2I words with the plain result; nvdisasm's refusal is a text
+    // verdict. The words decode, and their text is the plain word's text up to the `.reuse` hint.
+    let reuse_mask: u128 = 0x7u128 << 122;
     for leg in LEGS4 {
         let t = tab(leg);
         for w in REUSE_W {
-            assert!(dec128(&t, w).is_err(), "{leg} reuse word 0x{w:032x}");
+            let armed = dec128(&t, w).unwrap_or_else(|e| panic!("{leg} reuse word 0x{w:032x} refused: {e}"));
+            let plain = dec128(&t, w & !reuse_mask).unwrap();
+            assert_eq!(armed.replace(".reuse", ""), plain, "{leg} 0x{w:032x}");
         }
     }
 }

@@ -25,7 +25,7 @@ byte. Those numbers are the definition of "coverage" used here; what is *not* co
 ```bash
 git clone https://github.com/kacper-daftcode/cubit.git
 cd cubit
-cargo build --release          # Rust 1.87 or newer; the ISA tables ship in tables/
+cargo build --release          # Rust 1.87 or newer; the ISA tables ship in tables/ (gzip, read in place)
 ./target/release/cubit --help
 ```
 
@@ -83,7 +83,7 @@ freezes the control code of that instruction.
 | `encode` / `decode` / `asm-text` | one instruction or a block of text ↔ instruction words |
 | `patch` | disassemble → re-encode → write a patched cubin |
 | `ra`, `sched`, `render` | passes over `.sass` text: windowed register renaming / allocation, list scheduling under a cost model, re-printing from the parsed form |
-| `stallfix` | raise stalls in hand-scheduled windows to measured silicon floors (sm_103a rules; SM120: [docs/SM120_STALLFIX_PLAN.md](docs/SM120_STALLFIX_PLAN.md)) |
+| `stallfix` | raise stalls in hand-scheduled windows to measured silicon floors (sm_103a and SM120 rules; [docs/SM120_STALLFIX_PLAN.md](docs/SM120_STALLFIX_PLAN.md)) |
 | `merc-dump` | dump the Mercury (`.nv.capmerc`) companion sections |
 | `info` | table statistics |
 | `validate` | re-encode a harvest records file (needs a private `records.jsonl`; the public table check is `tools/sync_table.py --validate-only`) |
@@ -110,22 +110,45 @@ A file may hold several `.entry` blocks; they become one multi-kernel cubin.
 
 ## Tables
 
-The four architecture tables published by blackwell-isa are vendored byte-exact under `tables/` and
-pinned by revision and SHA-256 in `tables/SOURCE.json`; `python3 tools/sync_table.py` re-vendors
-and runs the suite, `--check` verifies the pins (CI), `--validate-only` checks structure, extraction
-vocabulary, provenance convention and the control-bit ratchet. The tables are data, never edited
-here: fixes go to blackwell-isa (`tools/probes/` holds the measurements that produced the SM120 rows
-added since 2026-10).
+The four architecture tables published by blackwell-isa are vendored byte-exact under `tables/` as
+`tables/<arch>.json.gz` (gzip; 0.5–0.9 MB each instead of 38–59 MB of JSON) and pinned by revision
+and SHA-256 of the decompressed JSON in `tables/SOURCE.json`. Nothing has to be unpacked: the loader
+(`cubit::table::read_table_bytes`, used by the CLI, the Python bindings and the tests) reads
+`tables/sm120.json` from the plain file when one exists and from `tables/sm120.json.gz` otherwise
+(decompression ≈ 30 ms), and `tools/tablefile.py` does the same for the Python tools. To read the
+JSON directly, `python3 tools/sync_table.py --unpack` writes the plain `tables/<arch>.json` files
+(git-ignored). `python3 tools/sync_table.py` re-vendors from a blackwell-isa checkout and runs the
+suite, `--check` decompresses and verifies the pins (CI; a stale unpacked copy is an error),
+`--validate-only` checks structure, extraction vocabulary, provenance convention and the control-bit
+ratchet. The tables are data, never edited here: fixes go to blackwell-isa (`tools/probes/` holds
+the measurements that produced the SM120 rows added since 2026-10).
 
 | table | silicon | what the gate proves | not proved |
 |---|---|---|---|
-| `sm120.json` | RTX 5090 / RTX PRO 6000 (production kernels 2026-06..10) | strict census 1 811 600 / 1 811 600 words, 157 / 157 cubins byte-identical through `--frozen` → `asm -T`, the suite's measured-form fixtures | semantics of rows measured by encoding only ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) T6); 19 340 of 20 905 variants are harvest rows (T1) |
+| `sm120.json` | RTX 5090 / RTX PRO 6000 (production kernels 2026-06..10; probe kernels 2026-11-02/03) | strict census 1 811 600 / 1 811 600 words, 157 / 157 cubins byte-identical through `--frozen` → `asm -T`, the suite's measured-form fixtures; the silicon laws below | semantics of rows measured by encoding only ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) T6); 19 270 of 20 863 variants are harvest rows (T1); the cuBLASLt sm_120 corpus on the GB10 host shows 97 `LDL.64 [R+UR+imm]` decode holes and a `MUFU` UR-form function field (T1) |
 | `sm103a.json` | B300 | the suite (encode/decode fixtures, `stallfix` rules, cost model); re-run 2026-11-03 on the B300 host `cold-face-bounces-fin-02`: 177 / 177 SM103a cubins of the publish corpus byte-identical through `--frozen` → `asm -T` (104 words carried as `__raw__`), strict semantic round trip 77 543 / 77 656 words — the refused words are fail-closed refusals of silicon-unsafe forms (BUG-080 guarded ATOMS, BUG-004 predicate form) plus 8 re-encode mismatches ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) V1) | no silicon run of cubit-assembled SM103a kernels since 2026-09 |
 | `sm100a.json` | B200 | encoding layer = SM103a + tcgen05 deltas; re-run 2026-11-03 on `cold-face-bounces-fin-02`: 99.924 % exact-minus-schedule on the archived 20 024 512-instruction sm_100 population (1 134 cubins with a vendor golden), 151 / 151 `cub_100a` cubins byte-identical through `--frozen` → `asm -T`, strict 8 103 / 8 136 words | no B200 silicon run; scheduling data inherited; until 2026-11-03 cubit mis-read the sm_100a ELF flags as sm_10 (KNOWN_ISSUES A11) |
-| `sm121a.json` | GB10 (DGX Spark) | the suite's GB10 fixtures; 0 decode differences vs SM120 on 648 992 raw instructions as of 2026-09-18 | not re-run: the GB10 corpus is not on any host this project reaches (checked 2026-11-03); timing / scheduling data |
+| `sm121a.json` | GB10 (DGX Spark) | the suite's GB10 fixtures; **re-run 2026-11-04 on the GB10 host `gx4`** (the 2026-09 census script over the 648 992-instruction corpus, 91 927 unique words): 91 927 / 91 927 decode, text parity 91 554 / 91 927 = 99.59 % (373 differences in 17 keys: `F2F` type order 217, `LDL.64 [R+UR+imm]` print 95, `R2P`, `BAR`, `IMNMX`, `SEL`, IMMA `.ROW/.COL`, … — [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) V3) | the 2026-09 "0 differences" is not reproduced for text parity at this revision; timing / scheduling data; no cubit-assembled kernel executed on a GB10 |
 
-Select a table with `-t tables/<arch>.json` or `CUBIT_TABLE`; the output cubin's ELF flags follow the
-table.
+Select a table with `-t tables/<arch>.json` (or the `.json.gz` path) or `CUBIT_TABLE`; the output
+cubin's ELF flags follow the table.
+
+**SM120 laws measured on silicon** (cubit-assembled probe kernels, driver-API launches, 2026-11-02 on an
+RTX 5090 and 2026-11-03 on 4x NVIDIA RTX PRO 6000 Server Edition; logs under the session's `T/gpu/`):
+
+- *Register shadow* (BUG-040/075): a kernel declared at regcount N may use R0..R(N−3); touching
+  R(N−2) or R(N−1) faults the launch (`CUDA_ERROR_ILLEGAL_INSTRUCTION`), measured at 64 and 128 with
+  the safe pair as control. `asm` warns; kernels that reconfigure registers (`USETMAXREG`) are exempt.
+- *`IMAD.WIDE` pairs* (BUG-008): the 4-operand form reads c as the 64-bit pair c:c+1 (nvcc's idiom),
+  the 5-operand PT form is the same, c = RZ zero-extends, and an **odd c faults the launch** — the
+  encoder refuses it and names the measurement.
+- *F2I reuse bits* (BUG-362a): `F2I` words with a reuse bit set execute with the plain result although
+  nvdisasm 13.1 and 13.3 refuse to print them; cubit decodes them (nvdisasm is a text oracle).
+- *Packed `HMUL2` immediates* multiply like the register form (identity, negation, `.H1_H1` broadcast).
+- *Stall floors* for `stallfix`: 23 dependency-path floors (`tables/sm120.json`, `stallfix` section,
+  rules v3; [docs/SM120_STALLFIX_PLAN.md](docs/SM120_STALLFIX_PLAN.md) §4). A predicate producer
+  directly followed by its `@P` guard consumer is not legalized by any stall up to 11 on SM120; S00
+  behaves as a hardware interlock.
 
 ## Python bindings
 
@@ -161,7 +184,7 @@ See [docs/PYTHON_API_ARCH_SELECT.md](docs/PYTHON_API_ARCH_SELECT.md).
 
 ```
 src/            the crate (library + `cubit` binary)
-tables/         vendored ISA tables + SOURCE.json pins (175 MB of JSON: four architectures)
+tables/         vendored ISA tables (four architectures, gzip: 2.5 MB; 183 MB of JSON unpacked) + SOURCE.json pins
 tests/          425 test files (one binary each); tests/fixtures/ = nvdisasm fixtures of measured forms (< 1 MB)
 tools/          sync_table.py (vendoring gate), asm_roundtrip.py, audit_table.py, audit_dynamic.py,
                 gen_tests_index.py, check_public_surface.sh, probes/ (measurements)
@@ -176,11 +199,12 @@ docs/           see above
 - Encoding evidence is not semantic evidence: a row that round-trips says how `nvdisasm` names a
   word, not what the hardware does with it. Rows measured in 2026-10/11 without execution are
   listed in KNOWN_ISSUES T6.
-- `stallfix` has silicon-measured rules for sm_103a only.
+- `stallfix` rules are measured for sm_103a (v2) and SM120 (v3, 2026-11-03); on SM120 the R2UR
+  boundary floor is still owed (the pass raises it to the cap meanwhile).
 - A template rebuild (`asm -T`) copies the template's metadata; a kernel whose registers, shared
   memory or parameters differ from the template needs a standalone build or a matching template.
-- The test suite takes about 90 minutes on 16 cores (each of the 425 test binaries loads the 46 MB
-  table).
+- The test suite takes about two hours on 16 cores (each of the 430 test binaries loads and parses
+  the 46 MB SM120 table; decompressing it costs 30 ms).
 - Open items with their status: [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 
 ## Related projects

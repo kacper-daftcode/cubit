@@ -140,7 +140,7 @@ fn t171_4_no_spillover_to_p_family() {
 fn t171_5_no_guard_rows_of_uniform_families_print_up() {
     for path in ["tables/sm120.json", "tables/sm103a.json"] {
         let j: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+            serde_json::from_str(&cubit::table::read_table_text(path).unwrap()).unwrap();
         let t = IsaTable::load(std::path::Path::new(path)).unwrap();
         let idx = DecodeIndex::build(&t);
         let mut checked = 0u32;

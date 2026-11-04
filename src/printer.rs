@@ -603,22 +603,23 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
         }
     }
 
-    // BUG-012: IMAD.MOV idiom alias — with both multiplier operands RZ the
-    // instruction is a pure move; nvdisasm prints `.MOV`. Render it so the text
-    // matches nvdisasm (encoder accepts the alias, rejecting non-RZ misuse).
-    // BUG-083: nvdisasm applies the MOV alias only when the moved operand is in
-    // the R domain (or an immediate); `IMAD Rx, RZ, RZ, URn` / `-URn` stays
-    // plain (0 MOV-aliased UR samples in the 2049-cubin census, 896 plain UR
-    // samples that must not be aliased).
+    // BUG-012 / BUG-083 / 2026-11-04 (tools/probes/re_sm120_imad_alias.py, 144 words, nvdisasm 13.1):
+    // the `.MOV` / `.IADD` / `.SHL` names of a four-operand IMAD are a print of its operands, not
+    // an encoding. The law: `.MOV` when the product is identically zero or one times a (a = RZ, or
+    // b = RZ, or b = imm 0, or b = imm 1 with c = RZ) and c is a register or an immediate; `.IADD`
+    // when b = imm 1 and c is a register other than RZ; `.SHL` when b is an immediate power of two
+    // in 2..=2^30 and c = RZ; a UR c never takes an alias (BUG-083); `.U32` follows the alias.
+    // The table carries no alias-named groups any more (a 'MOV' / 'SHL' / 'IADD' mod from an older
+    // table is dropped here and re-derived).
     let opcode = if insn.opcode == "IMAD"
-        && insn.mod_group.split(',').all(|m| m.trim().is_empty())
-        && operands.len() >= 3
-        && operands[1] == "RZ"
-        && operands[2] == "RZ"
-        && !operands[3].starts_with("UR")
-        && !operands[3].starts_with("-UR")
+        && operands.len() == 4
+        && insn.mod_group.split(',').all(|m| matches!(m.trim(), "" | "U32" | "MOV" | "SHL" | "IADD"))
     {
-        format!("{opcode}.MOV")
+        let u32 = insn.mod_group.split(',').any(|m| m.trim() == "U32");
+        match imad_alias_of_text(&operands[1], &operands[2], &operands[3]) {
+            Some(alias) => format!("IMAD.{alias}{}", if u32 { ".U32" } else { "" }),
+            None => format!("IMAD{}", if u32 { ".U32" } else { "" }),
+        }
     } else {
         opcode
     };
@@ -1058,7 +1059,17 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     }
     // 2026-11-02 (audit_dynamic, 247 F2FP words): `F2FP.RELU.BF16.F32.PACK_AB` -
     // RELU is the first modifier of the pack conversions.
+    // 2026-11-04 (PACK_AB lattice sweep, nvdisasm 13.1: bit 77): `F2FP.SATFINITE.F16.F32.PACK_AB`,
+    // `F2FP.SATFINITE.RELU.F16.F32.PACK_AB` - SATFINITE precedes RELU, both precede the types.
+    if base == "F2FP" && m == "SATFINITE" {
+        return 0;
+    }
     if base == "F2FP" && m == "RELU" {
+        return 1;
+    }
+    // 2026-11-04 (tools/probes/re_sm120_mufu_ur.py, 494 words): `MUFU.EX2.F16`, `MUFU.COS.BF16` -
+    // the function precedes the half type.
+    if base == "MUFU" && matches!(m, "COS" | "SIN" | "EX2" | "LG2" | "RCP" | "RSQ" | "RCP64H" | "RSQ64H" | "SQRT" | "TANH") {
         return 0;
     }
     // op18: UTCATOMSWS — nvdisasm order: 2CTA < op (FIND_AND_SET/AND) < ALIGN
@@ -1515,10 +1526,15 @@ fn format_operand(
         "ARI" | "AI" => format_addr(fields, raw, rz_signed_elide(ins_key)),
         // STS/LDS/LDSM use [R+UR+off] format, not desc[UR][R.64+off].
         // starts_with covers size-suffixed variants: STS.64, LDS.128, etc.
+        // 2026-11-04: LDL/STL (local memory) print the same plain sum - nvdisasm 13.1
+        // `LDL.64 R14, [R18+UR12+0x20]` (sm120 row LDL_R_ARURI measured by
+        // tools/probes/re_sm120_ldl_aruri.py; the sm121a twin printed the fabricated
+        // desc[UR][R.64+off] form for 95 words of the GB10 census).
         "ARURI"
             if {
                 let op = ins_key.split('_').next().unwrap_or("");
                 op.starts_with("STS") || op.starts_with("LDS") || op.starts_with("LDSM")
+                    || op.starts_with("LDL") || op.starts_with("STL")
             } =>
         {
             format_sts_lds_addr(fields, raw)
@@ -4459,5 +4475,35 @@ mod tests {
         assert_eq!(sign_extend(0xffffff8, 24), -8);
         assert_eq!(sign_extend(0x100, 32), 256);
         assert_eq!(sign_extend(0x80000000, 32), i32::MIN as i64);
+    }
+}
+
+
+/// nvdisasm's display alias of a four-operand `IMAD Rd, a, b, c` (SM120, measured 2026-11-04,
+/// `tests/fixtures/sm120_imad_alias_nvdisasm.jsonl`): `MOV` / `IADD` / `SHL` or none. Operands are the
+/// printed strings (`RZ`, `R6`, `-R10`, `0x10`, `-0x80000000`, `UR8`).
+pub fn imad_alias_of_text(a: &str, b: &str, c: &str) -> Option<&'static str> {
+    let is_rz = |s: &str| matches!(s.trim_start_matches('-'), "RZ");
+    let imm = |s: &str| -> Option<i64> {
+        let (neg, body) = match s.strip_prefix('-') { Some(r) => (true, r), None => (false, s) };
+        let v = i64::from_str_radix(body.strip_prefix("0x")?, 16).ok()?;
+        Some(if neg { -v } else { v })
+    };
+    imad_alias(is_rz(a), is_rz(b), imm(b), is_rz(c), c.trim_start_matches('-').starts_with("UR"))
+}
+
+/// The alias law on operand facts (shared by the printer and the encoder).
+pub fn imad_alias(a_rz: bool, b_rz: bool, b_imm: Option<i64>, c_rz: bool, c_ur: bool) -> Option<&'static str> {
+    if c_ur {
+        return None;
+    }
+    if a_rz || b_rz || b_imm == Some(0) || (b_imm == Some(1) && c_rz) {
+        Some("MOV")
+    } else if b_imm == Some(1) && !c_rz {
+        Some("IADD")
+    } else if matches!(b_imm, Some(v) if (2..=(1i64 << 30)).contains(&v) && v & (v - 1) == 0) && c_rz {
+        Some("SHL")
+    } else {
+        None
     }
 }

@@ -135,7 +135,7 @@ const CURED: &[(&str, u128, u64)] = &[
 
 #[test]
 fn t234_1_structure_donor_clone_graft_fields() {
-    let raw = std::fs::read_to_string(T120).unwrap();
+    let raw = cubit::table::read_table_text(T120).unwrap();
     let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
     let ins = v["instructions"].as_object().unwrap();
     let ff2: Vec<&String> = ins.keys().filter(|k| k.starts_with("FFMA2")).collect();

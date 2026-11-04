@@ -116,7 +116,7 @@ fn t286_1_structure_repair_census() {
     // field tags on sm121a and ZERO on sm120 + donors (byte-untouched legs).
     let count_tags = |arch: &str| -> usize {
         let v: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(format!("tables/{arch}.json")).unwrap())
+            serde_json::from_str(&cubit::table::read_table_text(format!("tables/{arch}.json")).unwrap())
                 .unwrap();
         let mut n = 0usize;
         for (_k, e) in v["instructions"].as_object().unwrap() {

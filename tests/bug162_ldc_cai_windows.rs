@@ -78,7 +78,7 @@ fn w(hex: &str) -> u128 {
 #[test]
 fn t162_1_window_polygon() {
     let j: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm103a.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm103a.json").unwrap()).unwrap();
     let mut seen = 0;
     for (key, mg, ext, shift, bits) in [
         ("LDC_R_cAI", "", "cm16_off", 38u64, 21u64),

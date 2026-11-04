@@ -58,7 +58,7 @@ fn w(hex: &str) -> u128 {
 #[test]
 fn t165_1_polygon() {
     let j: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm120.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm120.json").unwrap()).unwrap();
     for k in [
         "LDC.64_R_cAI", "LDC.64_P_R_cAI", "LDC.64_R_II", "LDC_R_II",
         "LDC.U8_R_cAI", "LDC.U8_R_cAI_?", "LDC.U16_R_cAI", "LDC.U16_R_cAI_II",

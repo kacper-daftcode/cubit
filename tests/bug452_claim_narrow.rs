@@ -123,7 +123,7 @@ fn t452_6_era_unchanged() {
 fn t452_7_data_attribution() {
     for leg in ["sm100a", "sm103a", "sm120", "sm121a"] {
         let v: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(format!("tables/{leg}.json")).unwrap())
+            serde_json::from_str(&cubit::table::read_table_text(format!("tables/{leg}.json")).unwrap())
                 .unwrap();
         let ins = v["instructions"].as_object().unwrap();
         let mut l1 = 0;

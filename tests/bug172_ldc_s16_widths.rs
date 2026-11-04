@@ -145,7 +145,7 @@ fn t172_6_polygon() {
         ("tables/sm103a.json", "LDC_R_cARI",  "64", "0x0000000000000a000000000000007b82"),
     ] {
         let j: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+            serde_json::from_str(&cubit::table::read_table_text(path).unwrap()).unwrap();
         let mg = j.pointer(&format!("/instructions/{key}/mod_groups")).unwrap();
         let don = &mg[donor];
         if path == "tables/sm120.json" && key == "LDCU_UR_cAI" {

@@ -36,7 +36,7 @@ fn enc_err(table: &IsaTable, s: &str) -> String {
 /// sm103a table and load the grafted copy.
 fn grafted_table<F: Fn(&mut serde_json::Value) -> usize>(f: F) -> IsaTable {
     let mut v: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm103a.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm103a.json").unwrap()).unwrap();
     let n = f(&mut v);
     assert!(n > 0, "graft matched no field");
     let nanos = std::time::SystemTime::now()

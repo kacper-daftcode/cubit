@@ -81,7 +81,7 @@ fn bug049_uimad_wide_reencode_origword_stable() {
 fn bug049_uimad_wide_phantom_rows_removed() {
     // Phantom narrow rows (1b/4b fields, baked dest bit) thrown out of the
     // repo table: they were quietly taking over the renumbered words (class 049).
-    let raw = std::fs::read_to_string("tables/sm120.json").unwrap();
+    let raw = cubit::table::read_table_text("tables/sm120.json").unwrap();
     let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
     let ins = v["instructions"].as_object().unwrap();
     for k in ["UIMAD.WIDE_UR_UR_II_UR", "UIMAD.WIDE_UR_UR_UR_II",

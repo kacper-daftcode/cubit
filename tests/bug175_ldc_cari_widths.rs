@@ -131,7 +131,7 @@ fn t175_4_fail_closed_preserved() {
 fn t175_5_polygon() {
     let path = "tables/sm103a.json";
     let j: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text(path).unwrap()).unwrap();
     let mg = j.pointer("/instructions/LDC_R_cARI/mod_groups").unwrap();
     let don = &mg["64"];
     let donor_ab: u128 = 0x0000000000000a000000000000007b82; // 2026-11-03 hygiene pass: baked control word (bit 109) cleared

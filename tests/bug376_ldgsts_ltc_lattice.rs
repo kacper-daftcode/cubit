@@ -117,7 +117,7 @@ fn t376_1_structure_lattice_exact() {
     .collect();
     for leg in LEGS3 {
         let raw: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(format!("tables/{leg}.json")).unwrap())
+            serde_json::from_str(&cubit::table::read_table_text(format!("tables/{leg}.json")).unwrap())
                 .unwrap();
         let ins = raw["instructions"].as_object().unwrap();
         for key in ["LDGSTS_ARI_dARI", "LDGSTS_ARI_dARI_P"] {
@@ -139,7 +139,7 @@ fn t376_1_structure_lattice_exact() {
     // 121a dotted: exact 30 np + 30 _P keys post-386 (24 + 12 base-gap);
     // all 26 376-grafts keep their _src tag.
     let raw: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm121a.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm121a.json").unwrap()).unwrap();
     let ins = raw["instructions"].as_object().unwrap();
     let npp = ins
         .keys()
@@ -396,7 +396,7 @@ fn t376_5_template_inheritance_and_vm_cleanliness() {
     };
     for leg in LEGS3 {
         let raw: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(format!("tables/{leg}.json")).unwrap())
+            serde_json::from_str(&cubit::table::read_table_text(format!("tables/{leg}.json")).unwrap())
                 .unwrap();
         let ins = raw["instructions"].as_object().unwrap();
         let mut baked = 0usize;
@@ -437,7 +437,7 @@ fn t376_5_template_inheritance_and_vm_cleanliness() {
         assert_eq!(baked, want, "{leg}: grafted baked-template census drift");
     }
     let raw: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm121a.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm121a.json").unwrap()).unwrap();
     for (k, e) in raw["instructions"].as_object().unwrap() {
         if !k.contains("LDGSTS.E") || !(k.ends_with("_ARI_dARI") || k.ends_with("_ARI_dARI_P")) {
             continue;

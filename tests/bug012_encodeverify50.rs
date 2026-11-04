@@ -166,9 +166,11 @@ fn bug012_junk_renders_gone() {
     let d = idx.decode(0x000fe200078e02fffffffffeff1d7424, 0, &t).unwrap();
     assert_eq!(format!("{d}").trim_end_matches([' ', ';']),
                "IMAD.MOV R29, RZ, RZ, -0x2");
-    // ... and the alias encodes back, while a non-RZ misuse fails closed.
+    // ... and the alias encodes back, while a misuse fails closed. (2026-11-04, measured alias law,
+    // tests/sm120_imad_alias.rs: nvdisasm prints `.MOV` whenever a = RZ, so `IMAD.MOV R29, RZ, R5, -0x2`
+    // is a vendor shape now; a non-zero product is the misuse.)
     let insn = parse_sass("IMAD.MOV R29, RZ, RZ, -0x2", 0).unwrap();
     let code = encode_instruction(&insn, &t).unwrap();
     assert_eq!(code & !SCHED, 0x000fe200078e02fffffffffeff1d7424 & !SCHED);
-    assert!(encode_instruction(&parse_sass("IMAD.MOV R29, RZ, R5, -0x2", 0).unwrap(), &t).is_err());
+    assert!(encode_instruction(&parse_sass("IMAD.MOV R29, R6, R5, -0x2", 0).unwrap(), &t).is_err());
 }

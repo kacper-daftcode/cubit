@@ -85,7 +85,7 @@ fn the_kv_prefetch_words_of_the_sparse_mla_prefill_kernels_round_trip() {
 
 #[test]
 fn the_measured_keys_mirror_the_ublkcp_siblings_and_outrank_the_harvest_key() {
-    let raw: Value = serde_json::from_slice(&std::fs::read(table_path()).unwrap()).unwrap();
+    let raw: Value = serde_json::from_slice(&cubit::table::read_table_bytes(table_path()).unwrap()).unwrap();
     let ins = &raw["instructions"];
     let number = |v: &Value| u128::from_str_radix(v.as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
     let geometry = |g: &Value| g["fields"].as_array().unwrap().iter()

@@ -60,7 +60,8 @@ static TABLE_STATE: LazyLock<RwLock<TableState>> = LazyLock::new(|| {
 fn resolve_table_spec(spec: &str) -> Result<(String, PathBuf), String> {
     let mut tried: Vec<String> = Vec::new();
     let p = Path::new(spec);
-    if p.is_file() {
+    // Plain JSON or the vendored `.json.gz` twin (the loader decompresses).
+    if crate::table::table_file_available(p) {
         let key = p
             .canonicalize()
             .ok()
@@ -85,7 +86,7 @@ fn resolve_table_spec(spec: &str) -> Result<(String, PathBuf), String> {
         for dir in ["tables", concat!(env!("CARGO_MANIFEST_DIR"), "/tables")] {
             let cand = PathBuf::from(dir).join(format!("{n}.json"));
             tried.push(cand.display().to_string());
-            if cand.is_file() {
+            if crate::table::table_file_available(&cand) {
                 return Ok((n.clone(), cand));
             }
         }

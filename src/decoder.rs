@@ -291,6 +291,11 @@ impl DecodeIndex {
             // ("ATOMG.E.INC ...PT, |R5|", 253 JUNK_LEGAL + 18 JUNK_INVALID on
             // flipdec_ctl). Fail closed; legal-but-unwitnessed widths are
             // coverage gaps, see blindlab results/cubitfix/199.md sec.6.
+            // IMAD is NOT in this list (tried 2026-11-04 with the U32 twins): `IMAD R5, -R4,
+            // R3, R2` carries its real neg law in bit 72 without a row field (BUG-296 pin), so
+            // the sign-tolerant match is what decodes it. The BUG-083 class (a `.U32` word
+            // printed as the signed row) is closed by the U32 twins instead: a strict match
+            // on the twin outranks the relaxed match on the signed row.
             let is_memlike = matches!(base,
                 "LD" | "ST" |
                 "LDG" | "LDL" | "LDS" | "LDC" | "LDCU" | "STG" | "STL" | "STS" |
@@ -314,6 +319,19 @@ impl DecodeIndex {
                 // an arbitrary mode (bit-63 neighbour printed PRMT.RC16 ...,
                 // -UR7); bits 62/63 are text-inert on the UR form. Fail closed.
                 "PRMT" |
+                // F2FP (2026-11-04, PACK_AB lattice sweep on 0x23e with nvdisasm 13.1): bits
+                // 62/63/72 are text-inert, 73/74 are rejected, 75 = RELU, 76 = BF16, 77 =
+                // SATFINITE, 78 = MERGE_C, 79-81 = `???n`. The sign window therefore carries
+                // the family's type law, and a sign-tolerant match absorbed rejected words
+                // (bit 74) as the plain PACK_AB row. The plain row claims the inert bits
+                // explicitly (canonical t3-2026-11-04); everything else fails closed.
+                "F2FP" |
+                // MUFU (2026-11-04, tools/probes/re_sm120_mufu_ur.py): the function enum
+                // [77:74] and the half-type bits 72/73 sit in the sign window, so a
+                // sign-tolerant match printed INVALID6.F16 (RCP64H + F16) as `RCP.F16`,
+                // INVALID10 as `SQRT.BF16` and the rejected both-halves word as `-UR7`.
+                // Every legal (function, type) pair is a row; fail closed otherwise.
+                "MUFU" |
                 "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "QMMA" |
                 // BUG-224: SYNCS carries neighbor-form law at b72
                 // (.IVALL/.WBALL), b73 (opaque enum), b91 (operandful
@@ -559,203 +577,22 @@ impl DecodeIndex {
         let entry = table.get(&matched.key, &matched.mod_group)
             .ok_or_else(|| anyhow::anyhow!("table entry not found for {}::{}", matched.key, matched.mod_group))?;
 
-        // BUG-362a (fail-closed, vendor-ILLEGAL reuse window): any of the
-        // reuse bits [124:122] set on an F2I TRUNC/F64/FLOOR lattice word is
-        // nvdisasm-ILLEGAL (rc=1) on all 4 models -- arb362 R-group 24
-        // probes + arb362b 6 probes, x4 models AGREE on every probe (incl
-        // the yield=1 variants the BUG-325/326 print law would otherwise
-        // stamp a ghost `.reuse` on). The stripped-upper32 claim zone
-        // cannot see these bits (the and_base match mask is 96-bit), so the
-        // era-row claims leaked through: pre-fix the engine printed a plain
-        // word (or `.reuse` under yield) where the vendor refuses the word
-        // (donor tables claim identically = 362-nota donor-parity
-        // overclaim). Fail closed with attribution.
-        if (code >> 122) & 0x7 != 0 {
-            // BUG-380a extension (same vendor law, measured on the F64-src
-            // lattice completion, 2026-09-05): reuse [124:122] is ILLEGAL
-            // on every row of the newly grafted F64-src (byte10=0x30,
-            // b76=1) plain/NTZ/FLOOR[F64/U32/U64/S64]/FLOOR.NTZ/CEIL/
-            // CEIL.NTZ family (arb380c 17 probes incl 'F64,S64' plain,
-            // x4 models AGREE, rc=1 every cell). The same law closes the
-            // pre-existing 'F64,S64' / F2I.S64.F64_R_R gap (arb380c2).
-            // BUG-363 extension: the F2I R_R FTZ (byte10=0x21) / BF16
-            // (byte10=0x40) era rows (grafted as keyed `F2I.FTZ[.T][.R]_R_R`
-            // / `F2I[.T].BF16[.R]_R_R` rows, claim window 96-bit only) carry
-            // NO reuse field because ANY reuse bit on those lattices is
-            // vendor-ILLEGAL (arb363 R-group 16 probes: lanes 0x31/0xf0 x
-            // {0x21,0x40} x {122,123,124,all}, nvdisasm 13.3.73 raw -b, x4
-            // models AGREE). Same stripped-upper32 blind spot as BUG-362a:
-            // fail closed here with attribution.
-            let key = matched.key.as_str();
-            // F2I rows only: F2FP.BF16.E8.UNPACK_B_R_R (UE8M0 -> BF16x2, 2026-10-28) carries a
-            // measured .reuse (nvdisasm 13.1 renders `Rb.reuse` for it) and must not be caught here.
-            let is_363_ftz_bf16 = matched.mod_group.is_empty()
-                && matched.key.ends_with("_R_R")
-                && key.starts_with("F2I")
-                && (key.starts_with("F2I.FTZ") || key.contains(".BF16.") || key == "F2I.BF16_R_R");
-            let reuse_bad = (matched.key == "F2I_R_R"
-                && matches!(
-                    matched.mod_group.as_str(),
-                    "S64,TRUNC"
-                        | "TRUNC,U64"
-                        | "F64,TRUNC"
-                        | "F64,TRUNC,U32"
-                        | "F64,TRUNC,U64"
-                        | "F64,S64,TRUNC"
-                        | "F64,FLOOR"
-                        // BUG-380a: grafted F64-src lattice (canonical a53eb20)
-                        // + the 'F64,S64' pre-existing gap (arb380c2).
-                        | "F64"
-                        | "F64,U32"
-                        | "F64,U64"
-                        | "F64,S64"
-                        | "F64,NTZ"
-                        | "F64,NTZ,U32"
-                        | "F64,NTZ,U64"
-                        | "F64,NTZ,S64"
-                        | "F64,FLOOR,U32"
-                        | "F64,FLOOR,U64"
-                        | "F64,FLOOR,S64"
-                        | "CEIL,F64"
-                        | "CEIL,F64,U32"
-                        | "CEIL,F64,U64"
-                        | "CEIL,F64,S64"
-                        | "CEIL,F64,NTZ"
-                        | "CEIL,F64,NTZ,U32"
-                        | "CEIL,F64,NTZ,U64"
-                        | "CEIL,F64,NTZ,S64"
-                        | "F64,FLOOR,NTZ"
-                        | "F64,FLOOR,NTZ,U32"
-                        | "F64,FLOOR,NTZ,U64"
-                        | "F64,FLOOR,NTZ,S64"
-                        // BUG-390a (same vendor law; arb390 128-cell sweep
-                        // + arb390b per-axis set = 199 probes x4 AGREE;
-                        // 26 ILLEGAL probes rc=1 x4): grafted F64-src
-                        // b76=0 NARROW-dst sub-lattice (canonical a10350c).
-                        | "F64,U8"
-                        | "F64,S8"
-                        | "F64,U16"
-                        | "F64,S16"
-                        | "F64,NTZ,U8"
-                        | "F64,NTZ,S8"
-                        | "F64,NTZ,U16"
-                        | "F64,NTZ,S16"
-                        | "F64,FLOOR,U8"
-                        | "F64,FLOOR,S8"
-                        | "F64,FLOOR,U16"
-                        | "F64,FLOOR,S16"
-                        | "F64,FLOOR,NTZ,U8"
-                        | "F64,FLOOR,NTZ,S8"
-                        | "F64,FLOOR,NTZ,U16"
-                        | "F64,FLOOR,NTZ,S16"
-                        | "CEIL,F64,U8"
-                        | "CEIL,F64,S8"
-                        | "CEIL,F64,U16"
-                        | "CEIL,F64,S16"
-                        | "CEIL,F64,NTZ,U8"
-                        | "CEIL,F64,NTZ,S8"
-                        | "CEIL,F64,NTZ,U16"
-                        | "CEIL,F64,NTZ,S16"
-                        | "F64,TRUNC,U8"
-                        | "F64,S8,TRUNC"
-                        | "F64,TRUNC,U16"
-                        | "F64,S16,TRUNC"
-                        | "F64,NTZ,TRUNC,U8"
-                        | "F64,NTZ,S8,TRUNC"
-                        | "F64,NTZ,TRUNC,U16"
-                        | "F64,NTZ,S16,TRUNC"
-                        // BUG-403 (same vendor law; arb403 C probes 4x
-                        // rc=1 x4 AGREE): grafted F64-src WIDE b76=1
-                        // TRUNC.NTZ axis (canonical 2285a05).
-                        | "F64,NTZ,TRUNC"
-                        | "F64,NTZ,TRUNC,U32"
-                        | "F64,NTZ,TRUNC,U64"
-                        | "F64,NTZ,S64,TRUNC"
-                ))
-                || (matched.mod_group.is_empty()
-                    && matches!(
-                        matched.key.as_str(),
-                        "F2I.S64.TRUNC_R_R"
-                            | "F2I.U64.TRUNC_R_R"
-                            | "F2I.U32.F64.TRUNC_R_R"
-                            | "F2I.U64.F64.TRUNC_R_R"
-                            | "F2I.S64.F64.TRUNC_R_R"
-                            | "F2I.F64.TRUNC_R_R"
-                            | "F2I.F64.FLOOR_R_R"
-                            // BUG-380a: grafted keyed F64-src lattice rows
-                            // (canonical a53eb20) + the F2I.S64.F64_R_R gap.
-                            | "F2I.F64_R_R"
-                            | "F2I.U32.F64_R_R"
-                            | "F2I.U64.F64_R_R"
-                            | "F2I.S64.F64_R_R"
-                            | "F2I.F64.NTZ_R_R"
-                            | "F2I.U32.F64.NTZ_R_R"
-                            | "F2I.U64.F64.NTZ_R_R"
-                            | "F2I.S64.F64.NTZ_R_R"
-                            | "F2I.U32.F64.FLOOR_R_R"
-                            | "F2I.U64.F64.FLOOR_R_R"
-                            | "F2I.S64.F64.FLOOR_R_R"
-                            | "F2I.F64.CEIL_R_R"
-                            | "F2I.U32.F64.CEIL_R_R"
-                            | "F2I.U64.F64.CEIL_R_R"
-                            | "F2I.S64.F64.CEIL_R_R"
-                            | "F2I.F64.CEIL.NTZ_R_R"
-                            | "F2I.U32.F64.CEIL.NTZ_R_R"
-                            | "F2I.U64.F64.CEIL.NTZ_R_R"
-                            | "F2I.S64.F64.CEIL.NTZ_R_R"
-                            | "F2I.F64.FLOOR.NTZ_R_R"
-                            | "F2I.U32.F64.FLOOR.NTZ_R_R"
-                            | "F2I.U64.F64.FLOOR.NTZ_R_R"
-                            | "F2I.S64.F64.FLOOR.NTZ_R_R"
-                            // BUG-390a: grafted keyed F64-src b76=0
-                            // narrow-dst rows (canonical a10350c).
-                            | "F2I.U8.F64_R_R"
-                            | "F2I.U8.F64.NTZ_R_R"
-                            | "F2I.U8.F64.FLOOR_R_R"
-                            | "F2I.U8.F64.FLOOR.NTZ_R_R"
-                            | "F2I.U8.F64.CEIL_R_R"
-                            | "F2I.U8.F64.CEIL.NTZ_R_R"
-                            | "F2I.U8.F64.TRUNC_R_R"
-                            | "F2I.U8.F64.TRUNC.NTZ_R_R"
-                            | "F2I.S8.F64_R_R"
-                            | "F2I.S8.F64.NTZ_R_R"
-                            | "F2I.S8.F64.FLOOR_R_R"
-                            | "F2I.S8.F64.FLOOR.NTZ_R_R"
-                            | "F2I.S8.F64.CEIL_R_R"
-                            | "F2I.S8.F64.CEIL.NTZ_R_R"
-                            | "F2I.S8.F64.TRUNC_R_R"
-                            | "F2I.S8.F64.TRUNC.NTZ_R_R"
-                            | "F2I.U16.F64_R_R"
-                            | "F2I.U16.F64.NTZ_R_R"
-                            | "F2I.U16.F64.FLOOR_R_R"
-                            | "F2I.U16.F64.FLOOR.NTZ_R_R"
-                            | "F2I.U16.F64.CEIL_R_R"
-                            | "F2I.U16.F64.CEIL.NTZ_R_R"
-                            | "F2I.U16.F64.TRUNC_R_R"
-                            | "F2I.U16.F64.TRUNC.NTZ_R_R"
-                            | "F2I.S16.F64_R_R"
-                            | "F2I.S16.F64.NTZ_R_R"
-                            | "F2I.S16.F64.FLOOR_R_R"
-                            | "F2I.S16.F64.FLOOR.NTZ_R_R"
-                            | "F2I.S16.F64.CEIL_R_R"
-                            | "F2I.S16.F64.CEIL.NTZ_R_R"
-                            | "F2I.S16.F64.TRUNC_R_R"
-                            | "F2I.S16.F64.TRUNC.NTZ_R_R"
-                            // BUG-403: grafted keyed F64-src WIDE b76=1
-                            // TRUNC.NTZ rows (canonical 2285a05).
-                            | "F2I.F64.TRUNC.NTZ_R_R"
-                            | "F2I.U32.F64.TRUNC.NTZ_R_R"
-                            | "F2I.U64.F64.TRUNC.NTZ_R_R"
-                            | "F2I.S64.F64.TRUNC.NTZ_R_R"
-                    ))
-                || is_363_ftz_bf16;
-            if reuse_bad {
-                return Err(anyhow::anyhow!(
-                    "vendor-ILLEGAL reuse bit [124:122] set on the F2I lattice row {}::{} (BUG-362/BUG-363/BUG-380; code 0x{:032x})",
-                    matched.key, matched.mod_group, code
-                ));
-            }
-        }
+        // BUG-362a, closed on silicon 2026-11-03. nvdisasm (13.1 and 13.3) refuses every F2I
+        // word with a reuse bit [124:122] set ("Opclass 'f2i_...', undefined value for table
+        // 'TABLES_opex_0'": the opex value is the reuse/yield byte), and from 2026-09 to
+        // 2026-11-03 the decoder treated that as a legality verdict and refused the whole F2I
+        // lattice with any reuse bit set (BUG-362/363/380/390/403, a ~130-row match list that
+        // lived here). The silicon arm answered on 2026-11-03 (T/gpu probes `f2i_reuse_362a_b122/
+        // b123/b124`, 4x RTX PRO 6000 Server Edition, test host, 18:05Z): a cubit-assembled kernel
+        // executing `F2I.U64.F64.TRUNC R6, R4` with bit 122, 123 or 124 set stores the plain result
+        // (0xe8d4a51000 for 1e12); no launch error. nvdisasm is a text oracle, not the legality
+        // oracle: the reuse bits are register-cache hints that F2I ignores, as on every other
+        // opcode. The words decode like any other word; the bit of the slot the source occupies
+        // (123 for the [39:32] slot F2I reads) prints as `.reuse` through the generic sideband and
+        // re-encodes bit-exact, the bits of slots F2I has no operand in are text-inert and ride
+        // the `!rsd` residue of the frozen path like every other text-inert bit.
+        // Evidence: tests/fixtures/sm120_f2i_reuse_362a_nvdisasm.jsonl (both nvdisasm verdicts,
+        // the silicon verdict per word), tests/sm120_f2i_reuse_362a.rs; docs/KNOWN_ISSUES.md A12.
 
         // Extract fields
         let mut fields = Vec::with_capacity(entry.fields.len());

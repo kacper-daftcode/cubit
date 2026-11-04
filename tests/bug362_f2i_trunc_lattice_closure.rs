@@ -350,9 +350,13 @@ fn t362_3_sign_mints_word_exact_and_negative_controls() {
 }
 
 #[test]
-fn t362_4_reuse_window_fail_closed() {
-    // arb362 R-group + arb362b battery: (word || reuse-bit/yield) decoded
-    // full-128 must HOLE with the BUG-362 attribution on every leg
+fn t362_4_reuse_window_decodes_after_the_silicon_arm() {
+    // arb362 R-group + arb362b battery: (word || reuse-bit/yield). Until 2026-11-03 every
+    // word HOLEd with the BUG-362 attribution (nvdisasm 13.1/13.3 refuse them). The silicon arm
+    // (T/gpu f2i_reuse_362a_b122/b123/b124, RTX PRO 6000 Server Edition, 2026-11-03) executed
+    // the reuse-armed F2I.U64.F64.TRUNC with the plain result for each bit, so the words decode:
+    // the text equals the plain word's text up to the `.reuse` hint, and a word whose single
+    // reuse bit names the slot of an operand re-encodes from its lossless print bit for bit.
     let battery: &[u128] = &[
         0x040000000020d9000000001a00167311u128,
         0x040020000020d9000000001a00167311u128,
@@ -385,22 +389,39 @@ fn t362_4_reuse_window_fail_closed() {
         0x080020000030d10000000006001a7311u128,
         0x080000000030510000000006001a7311u128,
     ];
+    let reuse_mask: u128 = 0x7u128 << 122;
     for leg in LEGS4 {
         let t = tab(leg);
+        let idx = DecodeIndex::build(&t);
         for w in battery {
-            let e = dec128(&t, *w);
-            let msg = e.err().unwrap_or_default();
-            assert!(
-                msg.contains("BUG-362"),
-                "{leg} reuse-armed 0x{w:032x} decoded: {msg}"
-            );
+            let armed = dec128(&t, *w).unwrap_or_else(|e| panic!("{leg} reuse-armed 0x{w:032x} refused: {e}"));
+            let plain = dec128(&t, *w & !reuse_mask).unwrap();
+            assert_eq!(armed.replace(".reuse", ""), plain, "{leg} 0x{w:032x}: text differs beyond the reuse hint");
+            // one reuse bit set: it prints as `.reuse` on the operand of its slot (122 = [31:24],
+            // 123 = [39:32] - the slot F2I's source occupies, 124 = [71:64]) and re-encodes bit for
+            // bit; a bit whose slot has no operand on this row is text-inert (plain print)
+            let bits = (*w >> 122) & 0x7;
+            if bits.count_ones() == 1 {
+                let d = idx.decode(*w, 0, &t).unwrap();
+                let slot_shift = match bits { 1 => 24, 2 => 32, _ => 64 };
+                let has_operand = d.fields.iter().any(|f| f.shift == slot_shift && f.bits == 8
+                    && (f.extraction == "reg" || f.extraction == "reg_ff"));
+                let lossless = cubit::printer::to_sass_lossless(&d);
+                assert_eq!(lossless.contains(".reuse"), has_operand,
+                           "{leg} 0x{w:032x}: reuse print vs operand slot ({lossless})");
+                if has_operand {
+                    let back = enc(&t, &lossless).unwrap();
+                    assert_eq!(back & M96, *w & M96, "{leg} 0x{w:032x}: payload changed by the round trip");
+                    assert_eq!((back >> 122) & 0x7, bits, "{leg} 0x{w:032x}: reuse bit lost by the round trip ({lossless})");
+                }
+            }
         }
     }
-    // scope guard: a reuse-armed word of a non-lattice class is untouched by
-    // the arm (IMAD.WIDE.U32: yield=0 plain print per the 325/326 law)
+    // a reuse-armed word of a non-lattice class decodes as before
+    // (IMAD.WIDE.U32: yield=0 plain print per the 325/326 law)
     for leg in LEGS4 {
         let t = tab(leg);
-        let w = enc(&t, "IMAD.WIDE.U32 R4, R5, R6, R7").unwrap();
+        let w = enc(&t, "IMAD.WIDE.U32 R4, R6, R8, R10")  /* even pair: an odd c is refused since 2026-11-03 (BUG-008 measured) */.unwrap();
         assert!(dec128(&t, w | (1u128 << 122)).is_ok(), "{leg} IMAD gated");
     }
 }

@@ -197,7 +197,7 @@ const CURED: &[(&str, u128, u64)] = &[
 
 #[test]
 fn t226d_1_phantoms_absent_donor_law_present() {
-    let raw = std::fs::read_to_string(T120).unwrap();
+    let raw = cubit::table::read_table_text(T120).unwrap();
     let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
     let ins = v["instructions"].as_object().unwrap();
     for k in [

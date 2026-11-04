@@ -152,7 +152,7 @@ fn t293_1_structure_census_tags() {
 
 fn count_tags(arch: &str, tag: &str) -> usize {
     let j: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(format!("tables/{arch}.json")).unwrap())
+        serde_json::from_str(&cubit::table::read_table_text(format!("tables/{arch}.json")).unwrap())
             .unwrap();
     let mut n = 0usize;
     for (_k, e) in j["instructions"].as_object().unwrap() {

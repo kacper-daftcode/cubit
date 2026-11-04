@@ -348,7 +348,7 @@ fn v1_violations_collect_all_sites() {
     ]);
     let err = run_file(&src, &pl("[[0,6]]"), &rules()).unwrap_err();
     let msg = format!("{err:#}");
-    assert!(msg.contains("2 guard-D1 site(s)"), "{msg}");
+    assert!(msg.contains("2 guard site(s)"), "{msg}");
     assert!(msg.matches("\"prod_idx\":3").count() == 1, "{msg}");
     assert!(msg.matches("\"prod_idx\":0").count() == 1, "{msg}");
 }

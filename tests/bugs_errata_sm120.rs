@@ -209,26 +209,36 @@ fn bug007_stg_desc_words_decode_as_stg() {
 // 4-operand IMAD.WIDE with a register c: c and d are 64-bit pairs named by
 // their even base register (Rd:Rd+1 = Ra * Rb + Rc:Rc+1) — nvcc's spelling
 // for every 64-bit address computation (190 sites in the served MoE kernels),
-// so the even idiom is silent. A pair on an ODD register cannot be aligned:
-// that spelling warns, naming the odd register and the pair it implies.
+// so the even idiom is silent. Measured 2026-11-03 on 4x RTX PRO 6000 Server
+// Edition (cubit-assembled probes bug008_{even,odd,pt,rz}): even c stores
+// pair(c_lo, c_hi) + a*b, the 5-operand PT form equals it, c = RZ zero-extends,
+// and an ODD c faults the launch (CUDA_ERROR_ILLEGAL_INSTRUCTION 715) — so the
+// odd-c spelling is a hard error naming the register, the pair and the
+// measurement; an odd DESTINATION pair is not measured and stays a warning.
 // sm_103a (ptxas-faithful corpus) stays quiet.
 #[test]
-fn bug008_wide_cpair_warns_precisely() {
+fn bug008_wide_cpair_even_silent_odd_c_refused() {
     // the nvcc idiom: even pairs, with and without the accumulate-in-place form
     assert!(warns(&t120(), "IMAD.WIDE.U32 R46, R34, 0x3d1, R18 ;").is_empty());
     assert!(warns(&t120(), "IMAD.WIDE.U32 R4, R3, 0x10, R4 ;").is_empty());
     assert!(warns(&t120(), "IMAD.WIDE R12, R12, 0x4, R16 ;").is_empty());
-    // odd accumulator / odd destination: the pair cannot be aligned
-    let w = warns(&t120(), "IMAD.WIDE.U32 R46, R34, 0x3d1, R19 ;");
-    assert!(w.iter().any(|m| m.contains("BUG-008") && m.contains("accumulator c R19 (pair R19:R20)")), "{w:?}");
+    assert_ne!(enc(&t120(), "IMAD.WIDE.U32 R46, R34, 0x3d1, R18 ;"), 0);
+    // odd accumulator: the measured fault -> refused, citing the measurement
+    let e = enc_err(&t120(), "IMAD.WIDE.U32 R46, R34, 0x3d1, R19 ;");
+    assert!(e.contains("BUG-008") && e.contains("c = R19 (pair R19:R20)") && e.contains("2026-11-03")
+            && e.contains("CUDA_ERROR_ILLEGAL_INSTRUCTION"), "{e}");
+    let e = enc_err(&t120(), "IMAD.WIDE R10, R4, R5, R7 ;");
+    assert!(e.contains("BUG-008") && e.contains("c = R7 (pair R7:R8)"), "{e}");
+    // odd destination: not measured, warns
     let w = warns(&t120(), "IMAD.WIDE.U32 R47, R34, 0x3d1, R18 ;");
     assert!(w.iter().any(|m| m.contains("BUG-008") && m.contains("destination R47 (pair R47:R48)")), "{w:?}");
+    assert_ne!(enc(&t120(), "IMAD.WIDE.U32 R47, R34, 0x3d1, R18 ;"), 0);
+    // RZ, the 5-operand form and sm_103a are untouched
     assert!(warns(&t120(), "IMAD.WIDE.U32 R46, R34, 0x3d1, RZ ;").is_empty());
     assert!(warns(&t120(), "IMAD.WIDE.U32 R46, PT, R34, R35, R18 ;").is_empty());
+    assert_ne!(enc(&t120(), "IMAD.WIDE.U32 R46, PT, R34, R35, R19 ;"), 0);
     assert!(warns(&t103a(), "IMAD.WIDE.U32 R2, R5, 0x8, R2 ;").is_empty());
-    // ptxas-faithful encodings keep working everywhere
-    assert_ne!(enc(&t120(), "IMAD.WIDE.U32 R46, R34, 0x3d1, R18 ;"), 0);
-    assert_ne!(enc(&t120(), "IMAD.WIDE.U32 R46, R34, 0x3d1, R19 ;"), 0);
+    assert_ne!(enc(&t103a(), "IMAD.WIDE.U32 R4, R5, R6, R7 ;"), 0);
 }
 
 // ── BUG-009 (ported at source) ──────────────────────────────────────────────
@@ -726,7 +736,7 @@ fn bug023_div_conv_p_ur_ii_encode_byte_exact() {
 /// Table with the harvest artifact grafted next to the correct row.
 fn bug023_shadow_table() -> IsaTable {
     let mut v: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string("tables/sm120.json").unwrap()).unwrap();
+        &cubit::table::read_table_text("tables/sm120.json").unwrap()).unwrap();
     let ins = v["instructions"].as_object_mut().unwrap();
     let artifact = ins["BRA_UR_II"].clone(); // the UR_II-shaped record family
     ins.insert("BRA.DIV_P_UR_II".into(), artifact);
@@ -755,7 +765,7 @@ fn bug023_artifact_only_table_fails_closed() {
     // encoded the artifact's and_base (the original bug report); now the
     // lookup must reject the artifact and error out.
     let mut v: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string("tables/sm120.json").unwrap()).unwrap();
+        &cubit::table::read_table_text("tables/sm120.json").unwrap()).unwrap();
     let ins = v["instructions"].as_object_mut().unwrap();
     let artifact = ins["BRA_UR_II"].clone();
     ins.insert("BRA.DIV_P_UR_II".into(), artifact);

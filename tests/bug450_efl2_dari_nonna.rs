@@ -48,7 +48,7 @@ fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
 }
 fn nforms(arch: &str) -> usize {
     let v: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(format!("tables/{arch}.json")).unwrap())
+        serde_json::from_str(&cubit::table::read_table_text(format!("tables/{arch}.json")).unwrap())
             .unwrap();
     v["instructions"].as_object().unwrap().len()
 }
@@ -183,7 +183,7 @@ fn t450_6_census() {
 #[test]
 fn t450_7_canonical_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "66197820ecba6d7094d35b5c7748f448a7599ddf";
+    const CURRENT_VENDORED_CANON: &str = "6f11f6b2c59e0b9366153c685540d90491486454";
     assert_eq!(CANON450, "9c0e4ce", "historical fixture revision drift");
 
     let _test_env_guard = ERRATA_LOCK.lock().unwrap();

@@ -112,7 +112,7 @@ fn t392_4_field_token_placement() {
     let tabs_raw: Vec<serde_json::Value> = LEGS4
         .iter()
         .map(|a| {
-            serde_json::from_str(&std::fs::read_to_string(format!("tables/{a}.json")).unwrap())
+            serde_json::from_str(&cubit::table::read_table_text(format!("tables/{a}.json")).unwrap())
                 .unwrap()
         })
         .collect();

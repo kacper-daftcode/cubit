@@ -62,7 +62,7 @@ fn imm_ari(w: u128) -> i64 {
 fn t155_1_window_at_40_no_overlap() {
     for path in ["tables/sm103a.json", "tables/sm120.json"] {
         let j: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+            serde_json::from_str(&cubit::table::read_table_text(path).unwrap()).unwrap();
         for (key, mg) in [
             ("ATOMG_P_R_ARI_R_R", "64,CAS,E,STRONG,SYS"),
             ("ATOM_P_R_ARI_R_R", "CAS,E,GPU,STRONG"),

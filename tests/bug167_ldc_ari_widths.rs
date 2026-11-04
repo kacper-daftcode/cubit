@@ -113,7 +113,7 @@ fn t167_4_fail_closed_preserved() {
 #[test]
 fn t167_5_polygon() {
     let j: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm120.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm120.json").unwrap()).unwrap();
     let cari = j.pointer("/instructions/LDC_R_cARI/mod_groups").unwrap();
     let donor_ab = cari["64"]["and_base"].as_str().unwrap();
     assert_eq!(donor_ab, "0x0000000000000a000000000000000b82", "donor drift");

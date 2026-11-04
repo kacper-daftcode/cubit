@@ -13,7 +13,88 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
 
-const BUNDLED_SM120_JSON: &str = include_str!("../tables/sm120.json");
+/// The SM120 table compiled into the binary (used when no `tables/` directory
+/// is reachable and for the compile-time aux sections). Vendored gzip-compressed
+/// (2026-11-04: `tables/<arch>.json.gz` are the files in git; the plain JSON is
+/// a generated, git-ignored convenience written by `tools/sync_table.py --unpack`).
+const BUNDLED_SM120_GZ: &[u8] = include_bytes!("../tables/sm120.json.gz");
+
+/// The bundled SM120 table as JSON text, decompressed once per process.
+fn bundled_sm120_json() -> &'static str {
+    static TEXT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    TEXT.get_or_init(|| {
+        let bytes = gunzip(BUNDLED_SM120_GZ).expect("the bundled SM120 table is a valid gzip stream");
+        String::from_utf8(bytes).expect("the bundled SM120 table is UTF-8 JSON")
+    })
+}
+
+/// Decompress one gzip member (the vendored tables are written by Python's
+/// `gzip.compress(..., mtime=0)`: a single member, ISIZE trailer = plain length).
+fn gunzip(data: &[u8]) -> Result<Vec<u8>> {
+    use std::io::Read;
+    let hint = if data.len() >= 4 {
+        u32::from_le_bytes([data[data.len() - 4], data[data.len() - 3], data[data.len() - 2], data[data.len() - 1]]) as usize
+    } else { 0 };
+    let mut out = Vec::with_capacity(hint);
+    flate2::read::MultiGzDecoder::new(data).read_to_end(&mut out).context("gzip stream is corrupt")?;
+    Ok(out)
+}
+
+/// `true` when `path` can be opened by [`read_table_bytes`]: the file itself
+/// or its gzip-compressed twin `<path>.gz` exists.
+pub fn table_file_available(path: &Path) -> bool {
+    path.is_file() || gz_twin(path).is_some_and(|gz| gz.is_file())
+}
+
+fn gz_twin(path: &Path) -> Option<std::path::PathBuf> {
+    let name = path.file_name()?.to_str()?;
+    if name.ends_with(".gz") { return None; }
+    Some(path.with_file_name(format!("{name}.gz")))
+}
+
+/// Read a table file transparently: `tables/sm120.json` is served from the
+/// plain file when it exists, else from `tables/sm120.json.gz` (decompressed);
+/// a path ending in `.gz` is always decompressed. The bytes returned are the
+/// canonical JSON bytes that `tables/SOURCE.json` pins (SHA-256 of the plain
+/// text), whichever file they came from. Decompressed bytes are cached per
+/// process (keyed by path, length and mtime of the `.gz` file), so the test
+/// suite's repeated loads of one table decompress it once.
+pub fn read_table_bytes(path: impl AsRef<Path>) -> Result<Vec<u8>> {
+    let path = path.as_ref();
+    let is_gz = path.extension().is_some_and(|e| e == "gz");
+    if !is_gz && path.is_file() {
+        return std::fs::read(path).with_context(|| format!("failed to read {}", path.display()));
+    }
+    let gz_path = if is_gz { path.to_path_buf() } else {
+        match gz_twin(path) {
+            Some(gz) if gz.is_file() => gz,
+            _ => anyhow::bail!(
+                "table file not found: {} (neither the plain JSON nor its gzip twin {}.gz exists; \
+                 the vendored tables are `tables/<arch>.json.gz`, run from the repository root or \
+                 pass --table / CUBIT_TABLE)", path.display(), path.display()),
+        }
+    };
+    use std::sync::{Arc, Mutex, OnceLock};
+    type Key = (std::path::PathBuf, u64, Option<std::time::SystemTime>);
+    static CACHE: OnceLock<Mutex<HashMap<Key, Arc<Vec<u8>>>>> = OnceLock::new();
+    let meta = std::fs::metadata(&gz_path).with_context(|| format!("failed to stat {}", gz_path.display()))?;
+    let key: Key = (gz_path.canonicalize().unwrap_or_else(|_| gz_path.clone()), meta.len(), meta.modified().ok());
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some(hit) = cache.lock().ok().and_then(|c| c.get(&key).cloned()) {
+        return Ok((*hit).clone());
+    }
+    let raw = std::fs::read(&gz_path).with_context(|| format!("failed to read {}", gz_path.display()))?;
+    let plain = gunzip(&raw).with_context(|| format!("failed to decompress {}", gz_path.display()))?;
+    if let Ok(mut c) = cache.lock() { c.insert(key, Arc::new(plain.clone())); }
+    Ok(plain)
+}
+
+/// [`read_table_bytes`] as UTF-8 text.
+pub fn read_table_text(path: impl AsRef<Path>) -> Result<String> {
+    let path = path.as_ref();
+    String::from_utf8(read_table_bytes(path)?)
+        .with_context(|| format!("{} is not UTF-8", path.display()))
+}
 
 // ---------------------------------------------------------------------------
 // JSON schema
@@ -513,19 +594,21 @@ impl IsaTable {
         }
         for p in &["tables/sm120.json", "sm120.json"] {
             let path = Path::new(p);
-            if path.exists() { return Self::load(path); }
+            if table_file_available(path) { return Self::load(path); }
         }
-        Self::from_json_unified(BUNDLED_SM120_JSON)
+        Self::from_json_unified(bundled_sm120_json())
             .context("failed to load the bundled SM120 table")
     }
 
+    /// Load a table file; `tables/<arch>.json` is read from the plain file or,
+    /// when only the vendored `tables/<arch>.json.gz` exists, decompressed on
+    /// the fly ([`read_table_text`]). `@bundled` selects the compiled-in SM120 table.
     pub fn load(path: &Path) -> Result<Self> {
         if path == Path::new("@bundled") {
-            return Self::from_json_unified(BUNDLED_SM120_JSON)
+            return Self::from_json_unified(bundled_sm120_json())
                 .context("failed to load the bundled SM120 table");
         }
-        let data = std::fs::read_to_string(path)
-            .with_context(|| format!("failed to read {}", path.display()))?;
+        let data = read_table_text(path)?;
         Self::from_json(&data)
     }
 
@@ -579,6 +662,28 @@ impl IsaTable {
                 ike.epoch_upper32 = epoch_upper32;
                 ike.encode_only = encode_only;
                 entries.insert(key.clone(), ike);
+            }
+        }
+
+        // `_meta.key_aliases` (blackwell-isa, 2026-11-04): retired key names that
+        // still resolve. The target entry is cloned under the old name as an
+        // encoder-visible, decoder-invisible entry: `table.entries[old]` and text
+        // written with the old mnemonic keep working, the decoder never prints the
+        // retired name (the 20 era keys with a glued predicate token in the
+        // mnemonic, `QMMA.16816.F16.E4M3.E4M3_P0_R_R_R_R` -> `..._R_R_R_R`, are the
+        // first use; docs/KNOWN_ISSUES.md T1, blackwell-isa README "Data Model").
+        if let Some(aliases) = raw.get("_meta").and_then(|m| m.get("key_aliases")).and_then(|v| v.as_object()) {
+            for (old, new) in aliases {
+                let Some(target) = new.as_str() else { continue };
+                if entries.contains_key(old.as_str()) {
+                    anyhow::bail!("_meta.key_aliases: alias {old} collides with an instruction key");
+                }
+                let Some(src) = entries.get(target) else {
+                    anyhow::bail!("_meta.key_aliases: alias {old} -> {target}: target is not in the table");
+                };
+                let mut ike = src.clone();
+                ike.encode_only = true;
+                entries.insert(old.clone(), ike);
             }
         }
 
@@ -714,7 +819,7 @@ impl IsaTable {
     pub fn bundled_aux(name: &str) -> Option<serde_json::Value> {
         use std::sync::OnceLock;
         static RAW: OnceLock<Option<serde_json::Value>> = OnceLock::new();
-        let raw = RAW.get_or_init(|| serde_json::from_str(BUNDLED_SM120_JSON).ok());
+        let raw = RAW.get_or_init(|| serde_json::from_str(bundled_sm120_json()).ok());
         raw.as_ref()?.get(name).cloned()
     }
 
@@ -991,7 +1096,7 @@ mod tests {
 
     #[test]
     fn bundled_table_is_self_contained() {
-        let table = IsaTable::from_json_unified(super::BUNDLED_SM120_JSON).unwrap();
+        let table = IsaTable::from_json_unified(super::bundled_sm120_json()).unwrap();
         // 2_481 keys (1_541 InsKeys x mod-groups); the >=2_000 bar came from the
         // old canonical-derived export which counted raw variants differently.
         // 2026-08-28 BUG-226d: era phantom cleanup (canonical b2e5227) takes

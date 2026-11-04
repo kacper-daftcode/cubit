@@ -175,10 +175,11 @@ enum Commands {
         #[arg(long)]
         report: Option<PathBuf>,
     },
-    /// Raise the stall counts of hand-scheduled windows to the minimum floors measured on silicon (sm_103a rules today).
+    /// Raise the stall counts of hand-scheduled windows to the minimum floors measured on silicon (sm_103a and SM120 rules).
     ///
     /// The rules are data: --rules points at the `stallfix` section of a
-    /// table (tables/sm103a.json) and must match the architecture of --plan.
+    /// table (tables/sm103a.json, tables/sm120.json) and must match the
+    /// architecture of --plan.
     /// Raise-only: a stall is never lowered and the barrier, read/write
     /// scoreboard and yield fields are never touched, so the output differs
     /// from the input in exactly the stall digits that were raised; the
@@ -186,15 +187,15 @@ enum Commands {
     /// error, an architecture mismatch, an unknown kernel, a window out of
     /// range or overlapping another, an instruction without a control code
     /// inside a window, or a dependency the measured rules cannot legalize
-    /// with any stall stops the run with no output. SM120 rules: see
-    /// docs/SM120_STALLFIX_PLAN.md.
+    /// with any stall stops the run with no output. SM120 rules (v3, measured
+    /// 2026-11-03): docs/SM120_STALLFIX_PLAN.md.
     Stallfix {
         /// Legalize plan JSON:
         /// {"arch":"sm_103a","kernels":{"<name>":{"windows":[[s,e),...]}}}
         #[arg(long)]
         plan: PathBuf,
         /// Measured rules JSON: bare rules, or the canonical table carrying
-        /// a stallfix section (e.g. tables/sm103a.json).
+        /// a stallfix section (tables/sm103a.json or tables/sm120.json).
         #[arg(long)]
         rules: PathBuf,
         /// Input .sass file (directive format).
@@ -1418,7 +1419,9 @@ fn cmd_roundtrip_strict(
 ) -> Result<()> {
     use std::io::Write;
     use sha2::{Digest, Sha256};
-    let table_bytes = std::fs::read(table_path)?;
+    // The report pins the canonical JSON bytes (what tables/SOURCE.json pins),
+    // whether they came from the plain file or the vendored .json.gz.
+    let table_bytes = cubit::table::read_table_bytes(table_path)?;
     let table_sha256 = format!("{:x}", Sha256::digest(&table_bytes));
     let table = IsaTable::from_json(std::str::from_utf8(&table_bytes)?)?;
     // Refuse stale artifacts from an earlier run before writing any report.

@@ -248,7 +248,7 @@ fn t200_6_no_coincidence_windows_in_kand_rows() {
     ];
     for p in TABS {
         let raw: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(p).unwrap()).unwrap();
+            serde_json::from_str(&cubit::table::read_table_text(p).unwrap()).unwrap();
         let ins = &raw["instructions"];
         for (key, mgs) in KAND {
             for mg in mgs {

@@ -118,7 +118,7 @@ fn t386_1_structure_lattice_exact_30() {
     .collect();
     for leg in LEGS3 {
         let raw: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(format!("tables/{leg}.json")).unwrap())
+            serde_json::from_str(&cubit::table::read_table_text(format!("tables/{leg}.json")).unwrap())
                 .unwrap();
         let ins = raw["instructions"].as_object().unwrap();
         for key in ["LDGSTS_ARI_dARI", "LDGSTS_ARI_dARI_P"] {
@@ -134,7 +134,7 @@ fn t386_1_structure_lattice_exact_30() {
     }
     // 121a dotted: exact 30 np + 30 _P keys; 12 grafts _src-tagged.
     let raw: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm121a.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm121a.json").unwrap()).unwrap();
     let ins = raw["instructions"].as_object().unwrap();
     let npp = ins
         .keys()
@@ -334,7 +334,7 @@ fn t386_5_template_inheritance_and_vm_cleanliness() {
     let lattice_bits = B72 | B73 | B74 | B75 | B81 | B82;
     for leg in LEGS3 {
         let raw: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(format!("tables/{leg}.json")).unwrap())
+            serde_json::from_str(&cubit::table::read_table_text(format!("tables/{leg}.json")).unwrap())
                 .unwrap();
         let ins = raw["instructions"].as_object().unwrap();
         let mut baked = 0usize;
@@ -377,7 +377,7 @@ fn t386_5_template_inheritance_and_vm_cleanliness() {
         assert_eq!(baked, want, "{leg}: grafted baked census drift");
     }
     let raw: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm121a.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm121a.json").unwrap()).unwrap();
     let ins = raw["instructions"].as_object().unwrap();
     for (k, e) in ins {
         if k.starts_with("LDGSTS") && k.contains("_ARI_dARI") {

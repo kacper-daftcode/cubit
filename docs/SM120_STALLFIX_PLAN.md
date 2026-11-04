@@ -4,8 +4,11 @@
 Today it has rules for sm_103a only (`tables/sm103a.json`, `stallfix` section; see
 [POSTFIX103_STALLFIX.md](POSTFIX103_STALLFIX.md)). This document is the SM120 counterpart's plan:
 what the rules look like, how they are measured, what is prepared and what still needs silicon.
-Status 2026-11-02: rule format fixed, measurement harness written and assembled (CPU), **the
-floors themselves need a GPU run** (`docs/KNOWN_ISSUES.md` A3).
+Status 2026-11-04: **measured.** The harness ran on 2026-11-03 18:05Z on 4x NVIDIA RTX PRO 6000 Server
+Edition (23 floors, §4), the `stallfix` section of `sm120.json` carries them (rules v3, blackwell-isa
+2026-11-04), `cubit stallfix` applies them (`tests/stallfix_sm120.rs`), the harness lives in
+[tools/stallfloor/](../tools/stallfloor/README.md). Still owed: the `r2ur` floor (harness v3 kernels
+prepared) and the S12–S15 band (§4).
 
 ## 1. Rule format (the `stallfix` section of `sm120.json`)
 
@@ -57,11 +60,49 @@ measured floor and nothing else may change (byte diff = the stall digits), the `
 reject a `sm_103a` plan against SM120 rules, and the `guard_d1` class resolution must match the
 measurement. The sm_103a test (`tests/stallfix_*.rs`) is the template.
 
-## 4. What needs silicon
+## 4. Measured floors (2026-11-03, 4x NVIDIA RTX PRO 6000 Server Edition)
 
-- The floors (§2 run). Expected scale: SM120 and SM103a share the issue pipeline model but not the
-  clock or the uniform datapath details; nothing in the table today says SM120 floors equal SM103a's.
-- Whether the guard-at-d1 pathology exists on SM120 at all (B300: data-class consumers never
-  legalize).
-- The S12–S15 band: decoder-reserved with yield on SM120; without yield they encode — whether they
-  execute or hang is not measured (`cap_stall` stays 11 until then).
+Harness v2 (`tools/stallfloor/`), 370 cubit-assembled kernels, 32 CTAs × 1 024 threads × 20
+repetitions, raw results `tools/stallfloor/stall_floors_sm120_20261103.json` (SHA-256 pinned in the
+section's `provenance`). Every path but `r2ur` passed its model check (CPU model = scoreboarded
+reference kernel, 0 of 32 768 threads differ). Floor = smallest producer stall S with 0 mismatching
+threads such that every larger S is clean; `d` = number of one-cycle filler instructions between
+producer and consumer.
+
+| path (producer → consumer) | d0 | d1 | d2 | rule keys |
+|---|---|---|---|---|
+| `rpath` IADD3 → IADD3 | S04 | S00 | S00 | `floor_global` 4 (R1) |
+| `xchain` IADD3.X cout → IADD3.X cin | S04 | S00 | S00 | `floor_global` |
+| `urpath` UIADD3 → UIADD3 | S04 | S03 | S00 | `floor_global` (R7), `floor_urpath_d1` 3 |
+| `pcarry` ISETP → SEL reading the predicate | S05 | S04 | S00 | `floor_pcarry_d0` 5, `floor_pcarry_d1` 4 (R11, new) |
+| `dmix` IMAD.WIDE.U32 cout → IADD3.X cin | S05 | S00 | S00 | `floor_dmix_d0` 5 |
+| `guard` ISETP → `@P0 IADD3` | **none ≤ S11** (641 888 / 655 360 wrong at S11) | S11 (S10: 643 744 wrong) | S09 | `guard_d0_forbid`, `floor_guard_d1` 11 (every class; `guard_d1_forbid` false), `floor_guard_d2` 9 |
+| `xread` UIADD3 UR → vector IADD3 reading the UR | S06 | S04 | S02 | `floor_xread_d0/d1/d2` 6/4/2 |
+| `uguard` UISETP → `@UP0 UIADD3` | S10 | S08 | S06 | `floor_uguard_d0/d1/d2` 10/8/6 |
+| `mufu` MUFU.RCP → FFMA | none | none | none | variable latency: the scoreboard is the only legal schedule (the pass never writes barriers) |
+| `r2ur` IADD3 → R2UR | model mismatch | — | — | `floor_r2ur_d0` = `cap_stall` 11 until measured (below) |
+
+Readings:
+
+- S00 was clean on every path at every distance, MUFU included: on sm_120 a stall count of 0 is a
+  hardware interlock, not "no stall". It is never used as a floor (the pass never writes S00).
+- The register and uniform ALU paths match sm_103a (`floor_global` 4, `dmix` 5, `xread` 6, `uguard`
+  10/8); the predicate → guard path does not: sm_103a legalizes guard-d0 at S07, SM120 at no stall up
+  to the cap. A guarded consumer directly after its predicate producer is a `stallfix` violation on
+  SM120 (move it two slots away, or read the predicate as data: `pcarry` needs 5).
+- `guard d1 = 11` is the single clean value measured (S12–S15 are outside the sweep: decoder-reserved
+  with yield, unmeasured without); it is applied to every consumer class because no class split was
+  measured on SM120 (the sm_103a isetp/data/atomic split stays sm_103a's).
+- `r2ur`: the v2 CPU model summed every thread's own `a + b`, but `R2UR UR9, R6` broadcasts one
+  lane's R6 (24 576 of 32 768 threads differed from the scoreboarded reference). Harness v3
+  (2026-11-04) makes the r2ur inputs warp-uniform; the 37 kernels are regenerated and queued for the
+  next GPU window. Until then the rules carry the cap for R2UR boundaries — the most conservative
+  legal stall, not a guess.
+- Occupancy: one geometry (32 CTAs × 1 024 threads) as in the sm_103a census; the 1×32 geometry was
+  not run.
+
+## 5. What still needs silicon
+
+- The `r2ur` floor (v3 kernels, `tools/stallfloor/stallfloor_gen.py --paths r2ur`).
+- The S12–S15 band without yield (whether it executes or hangs); `cap_stall` stays 11.
+- Guard-d1 consumer classes other than data (isetp / atomic) and the 1×32 geometry.

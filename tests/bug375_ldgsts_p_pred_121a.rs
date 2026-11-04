@@ -52,7 +52,7 @@ fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
 #[test]
 fn t375_1_structure_11_p_clones_era_pred() {
     let raw: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm121a.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm121a.json").unwrap()).unwrap();
     let ins = raw["instructions"].as_object().unwrap();
     let base: Vec<&String> = ins
         .keys()
@@ -216,7 +216,7 @@ fn t375_5_kill_and_provenance() {
     let d = dec(&t, w).expect("121a BYPASS.64 roundtrip");
     assert_eq!(d.trim(), "LDGSTS.E.BYPASS.64 [R3], desc[UR14][R22.64], P1");
     let raw: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm121a.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm121a.json").unwrap()).unwrap();
     assert!(
         raw["_meta"]["provenance"]["history"]["bug375"]
             .as_str()

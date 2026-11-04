@@ -199,7 +199,7 @@ fn t226b_2_stable_anchors_unchanged_sm120() {
     // structural: donated rows carry the donor field law (inv@63 on the LEA
     // Rb token; ureg@32 on the SHF HI,R,S32 row; imm@75 present).
     let j: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(T120).unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text(T120).unwrap()).unwrap();
     let lea = &j["instructions"]["LEA_R_R_R_II_P"]["mod_groups"]["HI,SX32,X"];
     let fs = lea["fields"].as_array().unwrap();
     assert!(

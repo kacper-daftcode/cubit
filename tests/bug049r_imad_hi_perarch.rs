@@ -16,7 +16,7 @@ use cubit::table::IsaTable;
 
 fn write_table(arch: &str, with_hi_entry: bool, strip_imad: bool, tag: &str) -> std::path::PathBuf {
     let src: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm120.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm120.json").unwrap()).unwrap();
     let mut t = src.clone();
     t["_meta"]["architecture"] = serde_json::Value::String(arch.into());
     if strip_imad {

@@ -194,7 +194,7 @@ fn t409_4_mint_circle_inert_drop() {
 #[test]
 fn t409_5_graft_hygiene_source_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "66197820ecba6d7094d35b5c7748f448a7599ddf";
+    const CURRENT_VENDORED_CANON: &str = "6f11f6b2c59e0b9366153c685540d90491486454";
 
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
@@ -205,7 +205,7 @@ fn t409_5_graft_hygiene_source_pin() {
     );
     // row shape: and_base invariant at the pinned value, vm carries b37+b59
     let tabj: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm100a.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm100a.json").unwrap()).unwrap();
     let mg = &tabj["instructions"]["LDC_R_cAI"]["mod_groups"]["S16"];
     let vm = u128::from_str_radix(
         mg["variable_mask"]

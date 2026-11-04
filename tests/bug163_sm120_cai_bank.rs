@@ -61,7 +61,7 @@ fn w(hex: &str) -> u128 {
 #[test]
 fn t163_1_window_polygon() {
     let j: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm120.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm120.json").unwrap()).unwrap();
     let row = j.pointer("/instructions/LDC_R_cAI/mod_groups/").unwrap();
     let fields = row["fields"].as_array().unwrap();
     assert_eq!(fields.len(), 2, "LDC_R_cAI[\"\"] field count: {fields:?}");

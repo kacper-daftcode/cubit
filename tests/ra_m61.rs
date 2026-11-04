@@ -132,14 +132,20 @@ fn t61_5_pt_as_plan_key_or_value_is_rejected() {
 
 #[test]
 fn t61_6_unknown_predicate_family_fails_closed() {
-    // SEL carries a selector predicate but is outside the pred_liveness
-    // families -- the RA pass must refuse the run, not pass it through.
-    let src = ksrc("    SEL R0, R1, R2, P3 ;\n");
+    // A predicate-carrying instruction outside the pred_liveness families -- the RA
+    // pass must refuse the run, not pass it through. (SEL/FSEL/DSEL used to be the
+    // example; since 2026-11-04 the Strict transfer knows their selector read for the
+    // SM120 stallfix R11 rule, so FSETP - predicate destinations, not modelled - is
+    // the unknown family here.)
+    let src = ksrc("    FSETP.GT.AND P3, PT, R1, R2, PT ;\n");
     let err = run_file(&src, RaMode::Identity).unwrap_err();
     assert!(
         format!("{err:#}").contains("unknown predicate-role"),
-        "SEL-with-pred must fail closed: {err:#}"
+        "FSETP-with-pred must fail closed: {err:#}"
     );
+    // SEL's selector predicate is a known read now: the run goes through
+    let src = ksrc("    SEL R0, R1, R2, P3 ;\n");
+    assert!(run_file(&src, RaMode::Identity).is_ok(), "SEL selector read is modelled");
 }
 
 #[test]

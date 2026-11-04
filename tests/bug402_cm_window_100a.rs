@@ -237,7 +237,7 @@ fn t402_6_other_legs_behavior_anchor() {
 #[test]
 fn t402_7_grafted_row_polygon() {
     let j: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string("tables/sm100a.json").unwrap()).unwrap();
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm100a.json").unwrap()).unwrap();
     let shape = |key: &str, mg: &str| -> (Vec<(String, u64, u64)>, u128, String) {
         let row = j
             .pointer(&format!("/instructions/{key}/mod_groups/{mg}"))

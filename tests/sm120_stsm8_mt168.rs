@@ -95,7 +95,7 @@ fn the_p_fragment_stores_of_the_swapab_prefill_kernels_round_trip() {
 
 #[test]
 fn the_three_groups_carry_the_donor_fields_with_bit_75_and_a_fail_closed_mask() {
-    let raw: Value = serde_json::from_slice(&std::fs::read(table_path()).unwrap()).unwrap();
+    let raw: Value = serde_json::from_slice(&cubit::table::read_table_bytes(table_path()).unwrap()).unwrap();
     let groups = raw["instructions"]["STSM_ARI_R"]["mod_groups"].as_object().unwrap();
     let number = |v: &Value| u128::from_str_radix(v.as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
     for (name, donor_name, count_bits) in [("8,MT168", "16,MT168", 0u128), ("2,8,MT168", "16,2,MT168", 1 << 72), ("4,8,MT168", "16,4,MT168", 1 << 73)] {

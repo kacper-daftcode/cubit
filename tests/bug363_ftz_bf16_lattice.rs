@@ -1,7 +1,7 @@
 //! BUG-363 (F2-iter192, loop5/blind front2, 2026-09-03): F2I R_R FTZ
 //! (b80 => byte10=0x21) + BF16 (b86 => byte10=0x40) lattice closure x4 legs
 //! + sev-A dst-field repair. canonical fbcef1c; ENGINE arm: decoder.rs
-//! BUG-363 reuse fail-closed extension (name-scoped era keys).
+//! BUG-363 reuse fail-closed extension (name-scoped era keys) - the reuse arm itself was retired on 2026-11-03 (silicon, see t363_5).
 //!
 //! PRE (publish cubit_py-6d34fe3 1b20d31b.. + canonical cfcd697;
 //!   work/bug363/measure_pre363.json):
@@ -130,7 +130,7 @@ fn t363_1_structure_keyed_rows_and_legacy_deleted() {
         let _ = &t;
         // legacy mgs deleted on all legs
         let j: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(format!("tables/{leg}.json")).unwrap())
+            serde_json::from_str(&cubit::table::read_table_text(format!("tables/{leg}.json")).unwrap())
                 .unwrap();
         let mgs = j["instructions"]["F2I_R_R"]["mod_groups"]
             .as_object()
@@ -334,15 +334,17 @@ fn t363_4_mints_incl_sevA_repair_and_pred() {
 fn t363_5_fail_closed_and_guards() {
     for leg in LEGS4 {
         let t = tab(leg);
-        // reuse => vendor rc=1 (arb363 R-group) => engine HOLE with BUG-363
+        // reuse => vendor rc=1 (arb363 R-group). Until 2026-11-03 the engine HOLEd these words
+        // with the BUG-363 attribution; the silicon arm of BUG-362a (f2i_reuse_362a_b122/b123/b124,
+        // RTX PRO 6000 Server Edition) executed reuse-armed F2I words with the plain result, so by
+        // the owner's rule (silicon is the legality oracle) the whole F2I opclass decodes: the text
+        // is the plain word's text up to the `.reuse` hint of the source's slot.
         for (lane, b10) in [(0x31u8, 0x21u8), (0xf0, 0x21), (0x11, 0x40), (0xc0, 0x40)] {
+            let plain = dec128(&t, mk(lane, b10, 7, 4, 6)).unwrap();
             for rbits in [1u128, 2, 4, 7] {
                 let w = mk(lane, b10, 7, 4, 6) | (rbits << 122);
-                let e = dec128(&t, w).unwrap_err();
-                assert!(
-                    e.contains("BUG-363"),
-                    "{leg} {lane:#04x} reuse {rbits}: {e}"
-                );
+                let armed = dec128(&t, w).unwrap_or_else(|e| panic!("{leg} {lane:#04x} reuse {rbits}: {e}"));
+                assert_eq!(armed.replace(".reuse", ""), plain, "{leg} {lane:#04x} reuse {rbits}");
             }
         }
         // byte10=0x61 (FTZ+BF16) vendor rc=1 => claim HOLE
@@ -362,7 +364,7 @@ fn t363_5_fail_closed_and_guards() {
             Some("F2I.U8.CEIL R4, R6"),
             "{leg} plain"
         );
-        let w = enc(&t, "IMAD.WIDE.U32 R4, R5, R6, R7").unwrap();
+        let w = enc(&t, "IMAD.WIDE.U32 R4, R6, R8, R10")  /* even pair: an odd c is refused since 2026-11-03 (BUG-008 measured) */.unwrap();
         assert!(
             dec128(&t, w | (1u128 << 122)).is_ok(),
             "{leg} IMAD reuse intact"
