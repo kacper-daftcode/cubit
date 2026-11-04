@@ -74,6 +74,9 @@ INNER_TOP:
 
 /// WAR variant (342 WAR_NESTED): outer-head pointer bump overwrites the
 /// inner-loop load address.
+// BUG-421 refinement: the inner load's consumer is GUARDED on purpose — an unguarded
+// consumer waits the write barrier, which releases the address latch (no read barrier
+// owed afterwards); the wrap-WAR this test pins needs the latch still pending.
 const WAR_NESTED: &str = ".entry t
     .param u64 io
     LDC R6, c[0x0][0x28] ;
@@ -84,7 +87,7 @@ OUTER_TOP:
     ISETP.GT.AND P1, PT, R10, 0x4, PT ;
 INNER_TOP:
     LDG.E.128 R20, [R2.64] ;
-    IMAD R24, R20, R21, RZ ;
+    @P2 IMAD R24, R20, R21, RZ ;
     IADD3 R6, PT, PT, R6, 0x1, RZ ;
     ISETP.GT.AND P0, PT, R6, 0x100, PT ;
     @P0 BRA INNER_TOP ;

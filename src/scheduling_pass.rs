@@ -24,6 +24,9 @@ const LATENCY_PRED_BRANCH: u8 = 9; // ISETP/UISETP whose predicate is consumed b
 const STORE_LATCH: u8 = 9;      // store operand-latch latency across a loop back-edge (WAR)
 const LOAD_LOOPCARRY_STALL: u8 = 10; // load whose result is loop-carried: retire before back-edge
 const LATENCY_CTRL: u8 = 5;     // EXIT, BRA, RET
+/// BUG-422: minimum stall on BAR.SYNC/BAR.RED before the next instruction — a shared-memory
+/// access issued within 5 cycles of the barrier slips past it (silicon sm120; ptxas floor 6).
+const LATENCY_BAR_SYNC: u8 = 6;
 const LATENCY_S2R: u8 = 4;      // S2R, CS2R
 // Stores latch their source operands (address + data) a few cycles after issue.
 // A following writer of a store source reg (pointer bump / accumulator re-zero)
@@ -1657,6 +1660,19 @@ pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
         if is_control_flow(op) && !st.stage3 {
             insns[i].ctrl.stall = insns[i].ctrl.stall.max(LATENCY_CTRL);
         }
+        // BUG-422: `BAR.SYNC` / `BAR.RED` block *deferred* — the warp keeps issuing for a
+        // few cycles after the barrier instruction, and a shared-memory access issued
+        // within 5 cycles of it slips past the barrier. Silicon (sm120, sparse-MLA
+        // softmax: cross-warp max/sum reduction `STS; BAR.SYNC; LDS x8`): S01..S05 on the
+        // BAR -> nondeterministic stale LDS values (wrong output in ~40 % of the tokens),
+        // S06 -> bit-exact. ptxas never goes below 6 cycles between a BAR.SYNC and the next
+        // shared-memory instruction (`BAR.SYNC ... S06` before an LDS, or S01 followed by a
+        // non-memory S05). The floor is applied to every BAR form; the encoder re-injects
+        // the scheduler's stall for barrier-class instructions (main.rs, static-ctrl
+        // reinject), so this reaches the bytes in the default path as well.
+        if op == "BAR" {
+            insns[i].ctrl.stall = insns[i].ctrl.stall.max(LATENCY_BAR_SYNC);
+        }
 
         // Producer-side stall for multi-cycle ALU without write barriers.
         // nvcc uses stall-based synchronization (not barriers) for ALU results:
@@ -2283,20 +2299,44 @@ fn record_defs(st: &mut SchedulerState, insn: &Instruction, idx: usize, barrier:
 /// BUG-421: forward control flow of the kernel, consulted by the consumer / overwriter
 /// scans so they follow EXECUTION paths instead of textual order.
 ///
-/// * `fwd[j] = Some((target, unconditional))` for a branch at `j` whose resolved target
-///   lies AFTER `j`. An unconditional forward branch (`BRA lbl` under no guard — the
-///   `BRA join` closing an if/else arm) makes the scan CONTINUE AT THE TARGET: the code
-///   textually after it is the other arm, dead on this path. A guarded forward branch
-///   (`@P BRA arm2`, `BRA.U UP0, lbl`) FORKS the scan: both the fall-through and the
-///   taken arm need their own first consumer / overwriter.
-/// * `term[j]` — `EXIT` / `RET`: the path ends here.
+/// * `fwd[j] = Some(target)` for a branch at `j` whose resolved target lies AFTER `j`;
+///   `cond[j]` = its condition: `None` = unconditional (`BRA join` closing an if/else arm:
+///   the scan CONTINUES AT THE TARGET — the code textually after it is the other arm, dead
+///   on this path), `Some(Some((p, neg)))` = vector-predicate guard `@P`/`@!P`,
+///   `Some(None)` = other condition (uniform guard / predicate operand: always a fork).
+/// * `term[j]` — unguarded `EXIT` / `RET`: the path ends here.
+/// * Predicate knowledge along a path (`Known`): after `@!P5 BRA skip` falls through, P5
+///   is known TRUE until something redefines it, so a later `@!P5 BRA skip2` on the same
+///   path is NOT a fork (the same uniform predicate guards both blocks: the infeasible
+///   "skip the first block, execute the second" path would otherwise manufacture
+///   loop-carried consumers whose segments span the whole loop and exhaust the six
+///   scoreboards — every load then overflows onto one barrier with drains).
 ///
 /// Backward branches (loop back-edges) keep the existing treatment: the scan falls
-/// through (= the loop-exit path) and the loop-carried paths are covered by the
-/// `edges` / wrap logic of the callers.
+/// through (= the loop-exit path, the guard known FALSE there) and the loop-carried
+/// paths are covered by the `edges` / wrap logic of the callers.
 struct FlowInfo {
-    fwd: Vec<Option<(usize, bool)>>,
+    fwd: Vec<Option<usize>>,
+    cond: Vec<Option<Option<(u8, bool)>>>,
+    /// Backward guarded branch at `j`: `(p, neg)` of its vector guard (fall-through knowledge).
+    back_guard: Vec<Option<(u8, bool)>>,
     term: Vec<bool>,
+}
+
+/// Known value of P0..P6 along a scan path: -1 unknown, 0 false, 1 true.
+type Known = [i8; 7];
+
+/// Debug bisection of the BUG-421 refinements (CUBIT_BUG421_LEGACY bitmask): 1 = no
+/// predicate knowledge, 2 = no RAW-waiter stop, 4 = loop-carried overwriter always,
+/// 8 = loop-carried consumer scan always.
+fn bug421_legacy(bit: u8) -> bool {
+    std::env::var("CUBIT_BUG421_LEGACY").ok().and_then(|v| v.parse::<u8>().ok()).is_some_and(|m| m & bit != 0)
+}
+const KNOWN_NONE: Known = [-1; 7];
+
+/// `a` knows no more than `b` (every fact of `a` holds in `b`).
+fn known_le(a: &Known, b: &Known) -> bool {
+    (0..7).all(|p| a[p] == -1 || a[p] == b[p])
 }
 
 impl FlowInfo {
@@ -2308,9 +2348,16 @@ impl FlowInfo {
             addr2idx.insert(ins.addr, i);
         }
         let mut fwd = vec![None; n];
+        let mut cond = vec![None; n];
+        let mut back_guard = vec![None; n];
         let mut term = vec![false; n];
         for (j, ins) in insns.iter().enumerate() {
             let op = ins.opcode.as_str();
+            let vguard: Option<(u8, bool)> = ins
+                .guard
+                .as_ref()
+                .filter(|g| g.pred < 7 && !g.uniform)
+                .map(|g| (g.pred, g.negated));
             let guarded = ins.guard.as_ref().is_some_and(|g| g.pred < 7);
             // `BRA.U UP0, lbl` / `BRA !P0, lbl`: a predicate OPERAND makes it conditional.
             let pred_operand = ins
@@ -2330,26 +2377,63 @@ impl FlowInfo {
             let Some(t) = branch_target(ins) else { continue };
             let Some(&ti) = addr2idx.get(&t) else { continue };
             if ti <= j {
+                if !pred_operand { back_guard[j] = vguard; }
                 continue;
             }
-            fwd[j] = Some((ti, unconditional));
+            fwd[j] = Some(ti);
+            cond[j] = if unconditional { None } else if pred_operand { Some(None) } else { Some(vguard) };
         }
-        FlowInfo { fwd, term }
+        FlowInfo { fwd, cond, back_guard, term }
     }
 
-    /// Successors of `j` in scan order: `(next_index, is_fork_branch)`. Empty = path ends.
-    fn next(&self, j: usize, n: usize) -> Vec<usize> {
+    /// Forget what is known about every predicate written by instruction `j`.
+    fn kill(writes_j: &[u16], known: &mut Known) {
+        for w in writes_j {
+            if (128..135).contains(w) { known[(*w - 128) as usize] = -1; }
+        }
+    }
+
+    /// Successors of `j` in scan order with the predicate knowledge of each path.
+    /// Empty = path ends. Two entries = fork (taken first).
+    fn next(&self, j: usize, n: usize, known: &Known) -> Vec<(usize, Known)> {
         if self.term[j] {
             return Vec::new();
         }
+        let fall = |k: Known| -> Vec<(usize, Known)> { if j + 1 < n { vec![(j + 1, k)] } else { Vec::new() } };
         match self.fwd[j] {
-            Some((t, true)) => vec![t],
-            Some((t, false)) => {
-                let mut v = vec![t];
-                if j + 1 < n { v.push(j + 1); }
-                v
+            Some(t) => match self.cond[j] {
+                None => vec![(t, *known)],
+                Some(Some((p, neg))) => {
+                    let taken_val: i8 = if neg { 0 } else { 1 };
+                    if bug421_legacy(1) {
+                        let mut v = vec![(t, *known)];
+                        v.extend(fall(*known));
+                        return v;
+                    }
+                    if known[p as usize] != -1 {
+                        if known[p as usize] == taken_val { vec![(t, *known)] } else { fall(*known) }
+                    } else {
+                        let mut kt = *known; kt[p as usize] = taken_val;
+                        let mut kf = *known; kf[p as usize] = 1 - taken_val;
+                        let mut v = vec![(t, kt)];
+                        v.extend(fall(kf));
+                        v
+                    }
+                }
+                Some(None) => {
+                    let mut v = vec![(t, *known)];
+                    v.extend(fall(*known));
+                    v
+                }
+            },
+            None => {
+                // backward guarded branch: on the fall-through its guard is known false
+                let mut k = *known;
+                if let Some((p, neg)) = self.back_guard[j] {
+                    if k[p as usize] == -1 { k[p as usize] = if neg { 1 } else { 0 }; }
+                }
+                fall(k)
             }
-            None => if j + 1 < n { vec![j + 1] } else { Vec::new() },
         }
     }
 }
@@ -2373,50 +2457,73 @@ fn raw_consumers(
     //
     // BUG-421: "path" is an EXECUTION path — the scan follows forward control flow
     // (`FlowInfo`): an unconditional forward branch continues at its target, a guarded
-    // forward branch forks. `seen[j]` = union of the live sets already scanned from `j`;
-    // a path arriving with no new live register is redundant (the earlier walk from `j`
-    // found the same first consumer), which bounds the walk on diamonds and joins.
+    // forward branch forks unless the predicate's value is already known on the path.
+    // `seen[j]` = (live set, knowledge) pairs already scanned from `j`; a path arriving
+    // with no new live register and at least the knowledge of an earlier walk is
+    // redundant (that walk explored a superset of its paths and found the same first
+    // consumers), which bounds the walk on diamonds and joins.
     let mut waiters: Vec<usize> = Vec::new();
-    let mut seen: Vec<Vec<u16>> = vec![Vec::new(); n];
-    let scan = |waiters: &mut Vec<usize>, seen: &mut Vec<Vec<u16>>, lo: usize, hi: usize, dsts: &[u16]| -> bool {
-        // Returns true when EVERY path found an unguarded consumer (or ended) before `hi`.
-        if lo >= hi || dsts.is_empty() { return false; }
-        let mut work: Vec<(usize, Vec<u16>)> = vec![(lo, dsts.to_vec())];
-        let mut all_done = true;
-        while let Some((start, live0)) = work.pop() {
+    let mut seen: Vec<Vec<(Vec<u16>, Known)>> = vec![Vec::new(); n];
+    // Back-edges of the loops enclosing the producer: a path reaching one of them with
+    // live destinations still unconsumed makes the NEXT iteration's readers consumers.
+    let is_backedge = |j: usize| -> bool {
+        edges.iter().any(|&(t, b)| t <= last_setter && last_setter <= b && j == b)
+    };
+    let scan = |waiters: &mut Vec<usize>, seen: &mut Vec<Vec<(Vec<u16>, Known)>>, lo: usize, hi: usize, dsts: &[u16]| -> (bool, bool) {
+        // Returns (open_exit, open_back): some path left [lo, hi) (reached `hi` or jumped
+        // past it) with unconsumed live destinations / some path reached an enclosing
+        // back-edge with unconsumed live destinations.
+        if lo >= hi || dsts.is_empty() { return (false, false); }
+        let mut work: Vec<(usize, Vec<u16>, Known)> = vec![(lo, dsts.to_vec(), KNOWN_NONE)];
+        let (mut open_exit, mut open_back) = (false, false);
+        while let Some((start, live0, known0)) = work.pop() {
             let mut live = live0;
+            let mut known = known0;
             let mut j = start;
             let mut done = false;
             while j < hi && !live.is_empty() {
-                if live.iter().all(|d| seen[j].contains(d)) { done = true; break; }
-                for d in &live { if !seen[j].contains(d) { seen[j].push(*d); } }
+                if seen[j].iter().any(|(l, k)| live.iter().all(|d| l.contains(d)) && known_le(k, &known)) {
+                    done = true;
+                    break;
+                }
+                seen[j].push((live.clone(), known));
                 if reads[j].iter().any(|r| live.contains(r)) {
                     if !waiters.contains(&j) { waiters.push(j); }
                     if !guarded[j] { done = true; break; }
                 }
                 live.retain(|d| !writes[j].contains(d));
-                let succ = flow.next(j, n);
+                if is_backedge(j) && !live.is_empty() { open_back = true; }
+                FlowInfo::kill(&writes[j], &mut known);
+                let succ = flow.next(j, n, &known);
                 match succ.len() {
                     0 => { done = true; break; }       // EXIT / RET / end of text
-                    1 => { j = succ[0]; }
+                    1 => { j = succ[0].0; known = succ[0].1; }
                     _ => {
                         // fork: taken arm on the worklist, fall-through continues here
-                        work.push((succ[0], live.clone()));
-                        j = succ[1];
+                        work.push((succ[0].0, live.clone(), succ[0].1));
+                        j = succ[1].0;
+                        known = succ[1].1;
                     }
                 }
             }
-            if !done && !live.is_empty() { all_done = false; }
+            if !done && !live.is_empty() { open_exit = true; }
         }
-        all_done
+        (open_exit, open_back)
     };
     let fwd_end = if lback != usize::MAX { (lback + 1).min(n) } else { n };
-    let done = scan(&mut waiters, &mut seen, last_setter + 1, fwd_end, dsts);
-    if lback != usize::MAX && !done {
-        scan(&mut waiters, &mut seen, lback + 1, n, dsts);
+    let (open_exit, mut open_back) = scan(&mut waiters, &mut seen, last_setter + 1, fwd_end, dsts);
+    if lback != usize::MAX && open_exit {
+        // the loop-exit path (and anything a forward jump out of the loop reaches)
+        let (_, ob) = scan(&mut waiters, &mut seen, lback + 1, n, dsts);
+        open_back |= ob;
     }
+    let done = !open_back;
     let mut wrap = false;
-    if ltop != usize::MAX && last_setter <= lback {
+    // BUG-421: when EVERY forward path found an unguarded consumer inside the iteration
+    // (`done`), the barrier is waited before the back-edge and the next iteration's
+    // readers are covered — no loop-carried waiter (which would stretch the use over
+    // the whole loop and starve the scoreboard colouring).
+    if ltop != usize::MAX && last_setter <= lback && (!done || bug421_legacy(8)) {
         // BUG-342: consumers reachable via ANY enclosing back-edge, not only the
         // innermost loop. A producer inside a nested loop whose consumer sits in
         // an outer loop head (textually above, below the outer top) is a genuine
@@ -2454,32 +2561,78 @@ fn war_overwriter(
     flow: &FlowInfo,
     i: usize,
     opk: &[u16],
+    stop_at: &[usize],
+    early: Option<(usize, &[bool])>,
     ltop: usize,
     lback: usize,
     edges: &[(usize, usize)],
     n: usize,
 ) -> Vec<(usize, bool)> {
+    // `early = Some((dist, can_wait))` (CUBIT_SB_SHARE policy): a path that has advanced
+    // `dist` instructions from the memory op without meeting an overwriter gets the read
+    // barrier waited RIGHT THERE (first waitable instruction) instead of at the far
+    // overwriter. A wait is always correct wherever it sits; by then the latch is long
+    // released, so it costs nothing — and the use no longer reserves a scoreboard across
+    // hundreds of instructions (a gather's address pair rewritten only by the softmax, a
+    // reduction store's data rewritten only in the epilogue: such uses took every colour
+    // of the HMMA chain between them).
+    // `stop_at`: instructions after which the late operand is certainly released on any
+    // path through them — for a LOAD, its unguarded RAW waiters: the address is read when
+    // the load issues to the memory pipe, strictly before its data (write barrier) returns,
+    // so an overwriter beyond such a waiter needs no read-barrier wait (BUG-421 colouring
+    // relief: without it the WAR of e.g. a softmax mask `LDS R2, [R0]` stayed pending until
+    // the loop's next iteration and reserved a scoreboard over the whole loop body).
     let mut out = Vec::new();
     // Fall-through: first overwriter on EVERY forward execution path (BUG-421: follow
     // forward control flow — an unconditional `BRA join` continues at the join instead
     // of walking into the other, dead arm; a guarded forward branch forks). Within the
     // loop or after it.
-    let mut visited = vec![false; n];
-    let mut work: Vec<usize> = flow.next(i, n);
-    while let Some(start) = work.pop() {
+    // `need_carried`: some path reaches the loop back-edge (index > lback, or the end of
+    // the walk inside the loop) WITHOUT an overwriter — only then can the next iteration's
+    // first overwriter be the first to touch the operand. When every path overwrites (and
+    // therefore waits the read barrier) inside the iteration, the loop-carried waiter is
+    // redundant: it would stretch the use over the whole loop body, and 64 such uses (one
+    // per HMMA of a QK chain) exhaust the six scoreboards -> every load overflows onto one
+    // barrier with drains (observed: all QK fragment loads on B0, each HMMA waiting for the
+    // loads of the NEXT k-step, software pipelining defeated).
+    // A path that LEAVES the loop (forward jump past the back-edge, fall-through of the
+    // back-edge branch) never re-enters: only a path that reaches an enclosing loop's
+    // back-edge instruction itself without an overwriter needs the next iteration's one.
+    let in_loop = ltop != usize::MAX && i <= lback;
+    let is_backedge_of_i = |j: usize| -> bool {
+        edges.iter().any(|&(t, b)| t <= i && i <= b && j == b)
+    };
+    let mut need_carried = false;
+    let mut visited: Vec<Vec<Known>> = vec![Vec::new(); n];
+    let mut work: Vec<(usize, Known, usize)> = flow.next(i, n, &KNOWN_NONE)
+        .into_iter().map(|(j, k)| (j, k, 1usize)).collect();
+    while let Some((start, known0, dist0)) = work.pop() {
         let mut j = start;
+        let mut known = known0;
+        let mut dist = dist0;
         loop {
-            if j >= n || visited[j] { break; }
-            visited[j] = true;
+            if j >= n { break; }
+            if visited[j].iter().any(|k| known_le(k, &known)) { break; }
+            visited[j].push(known);
             if writes[j].iter().any(|w| opk.contains(w)) {
                 if !out.contains(&(j, false)) { out.push((j, false)); }
                 break;
             }
-            let succ = flow.next(j, n);
+            if !bug421_legacy(2) && stop_at.contains(&j) { break; }
+            if let Some((d, can_wait)) = early {
+                if dist >= d && can_wait[j] {
+                    if !out.contains(&(j, false)) { out.push((j, false)); }
+                    break;
+                }
+            }
+            if in_loop && is_backedge_of_i(j) { need_carried = true; }
+            FlowInfo::kill(&writes[j], &mut known);
+            let succ = flow.next(j, n, &known);
+            dist += 1;
             match succ.len() {
                 0 => break,
-                1 => j = succ[0],
-                _ => { work.push(succ[0]); j = succ[1]; }
+                1 => { j = succ[0].0; known = succ[0].1; }
+                _ => { work.push((succ[0].0, succ[0].1, dist)); j = succ[1].0; known = succ[1].1; }
             }
         }
     }
@@ -2487,7 +2640,7 @@ fn war_overwriter(
     // the next iteration (BUG-342): an overwriter in an outer loop head is earlier
     // in re-entry order than any inner one; scanning only [innermost_top, i)
     // missed it and left the late-latched operand unprotected across that edge.
-    if ltop != usize::MAX && i <= lback {
+    if in_loop && (need_carried || bug421_legacy(4)) {
         let outer_top = edges
             .iter()
             .filter(|&&(t, b)| t <= i && i <= b)
@@ -2722,6 +2875,9 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
     // Fixed barrier colour for uses pushed by the PINNED pass below (None for
     // normal allocator-coloured uses).
     let mut pin_of: Vec<Option<u8>> = Vec::new();
+    // BUG-421: per load, its UNGUARDED RAW waiters — past them the load's address latch
+    // is certainly released (see `war_overwriter::stop_at`).
+    let mut raw_stop: Vec<Vec<usize>> = vec![Vec::new(); n];
 
     // ---- RAW: variable-latency producers (loads batched, MMA excluded) ----
     let mut i = 0usize;
@@ -2834,6 +2990,8 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
             n,
         );
         if !waiters.is_empty() {
+            let stops: Vec<usize> = waiters.iter().copied().filter(|&w| !guarded[w]).collect();
+            for &g in &group { raw_stop[g] = stops.clone(); }
             let segs = build_segs(group[0], &waiters, ltop[last], lback[last], &edges);
             uses.push(BarUse {
                 setters: group.clone(),
@@ -2847,6 +3005,10 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
     }
 
     // ---- WAR: read-barriers on memory ops whose late operands are overwritten ----
+    // CUBIT_SB_SHARE policy: early release of far WAR uses (see war_overwriter::early).
+    let sb_share_policy = std::env::var("CUBIT_SB_SHARE").ok().as_deref() == Some("1");
+    let rb_early_dist: usize = std::env::var("CUBIT_RB_EARLY").ok().and_then(|s| s.parse().ok()).unwrap_or(64);
+    let rb_early: Option<(usize, &[bool])> = if sb_share_policy { Some((rb_early_dist, &can_wait)) } else { None };
     // Late-latched operand set of memory op `idx` (address regs of loads, data+address
     // of stores, fragment regs of cooperative MMA). Shared by the auto WAR pass and the
     // PINNED pass below (BUG-117: a hand_sched memory op whose tag carries `R{b}`).
@@ -2889,7 +3051,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         // data). Both are real WARs at high occupancy and are load-bearing for correctness
         // (dropping the loop-carried load-address rb corrupts the gather: 337/340 wrong).
         let mut waiters: Vec<usize> = Vec::new();
-        for (ow, _w) in war_overwriter(&writes, &flow, idx, &opk, ltop[idx], lback[idx], &edges, n) {
+        for (ow, _w) in war_overwriter(&writes, &flow, idx, &opk, &raw_stop[idx], rb_early, ltop[idx], lback[idx], &edges, n) {
             if !waiters.contains(&ow) {
                 waiters.push(ow);
             }
@@ -2962,7 +3124,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         if late.is_empty() { continue; }
         let opk: Vec<u16> = late.iter().map(|&r| rk(false, r)).collect();
         let mut waiters: Vec<usize> = Vec::new();
-        for (ow, _w) in war_overwriter(&writes, &flow, i, &opk, ltop[i], lback[i], &edges, n) {
+        for (ow, _w) in war_overwriter(&writes, &flow, i, &opk, &raw_stop[i], rb_early, ltop[i], lback[i], &edges, n) {
             if !insns[ow].hand_sched && !waiters.contains(&ow) { waiters.push(ow); }
         }
         if waiters.is_empty() { continue; }
@@ -2986,6 +3148,24 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         v
     };
 
+    // BUG-421 (colouring policy, CUBIT_SB_SHARE=1): SM120 scoreboards are COUNTERS — ptxas
+    // puts several in-flight loads of different widths and address streams on one
+    // scoreboard with no drain between them and lets the consumer wait once (spec B,
+    // sparse_mla_prefill_dsv41_bf16: `LDG.E.U8 R67 … W5`, `LDG.E.U8 R66 … W5`,
+    // `LDG.E.64 R64 … W5`, `LDG.E.64 R62 … W5`, consumer `[B-----5]`). Sharing is therefore
+    // safe; its only cost is a coarser wait. Under this policy:
+    //  * a use that finds no free scoreboard SHARES the one whose occupants overlap it the
+    //    most (long-lived uses cluster together) instead of forcing its setter to DRAIN a
+    //    displaced barrier (the drain serialised a register-prefetch stream: each gather
+    //    load waited for the previous one to RETURN — 1/3 of all stall samples of the
+    //    sparse-MLA kernel sat on those loads);
+    //  * a LONG use (span > CUBIT_SB_LONG, default 256 instructions: a prefetch whose
+    //    consumer is far away) is coloured only from the top two scoreboards, so the short
+    //    uses of the compute between (fragment loads of an HMMA chain) keep four colours of
+    //    their own instead of overflowing onto the prefetch barrier and waiting for DRAM.
+    // Default (unset) keeps the drain-on-overflow behaviour.
+    let sb_share = std::env::var("CUBIT_SB_SHARE").ok().as_deref() == Some("1");
+    let sb_long: usize = std::env::var("CUBIT_SB_LONG").ok().and_then(|s| s.parse().ok()).unwrap_or(256);
     for &u in &order {
         let sidx = idxset(&uses[u].segs);
         if let Some(b) = pin_of[u] {
@@ -2995,9 +3175,22 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
             for &i in &sidx { occ[i] |= 1 << b; }
             continue;
         }
+        let span: usize = uses[u].segs.iter().map(|&(a, b)| b.saturating_sub(a)).sum();
+        let is_long = sb_share && span > sb_long;
+        let first_colour: u8 = if is_long { (NUM_BARRIERS as u8).saturating_sub(2) } else { 0 };
         let mut chosen: Option<u8> = None;
-        for b in 0..NUM_BARRIERS as u8 {
+        for b in first_colour..NUM_BARRIERS as u8 {
             if sidx.iter().all(|&i| occ[i] & (1 << b) == 0) { chosen = Some(b); break; }
+        }
+        if chosen.is_none() && sb_share {
+            // share: the scoreboard already busiest over our segment (clustering)
+            let mut best = first_colour;
+            let mut best_cost = usize::MAX;
+            for b in first_colour..NUM_BARRIERS as u8 {
+                let free = sidx.iter().filter(|&&i| occ[i] & (1 << b) == 0).count();
+                if free < best_cost { best_cost = free; best = b; }
+            }
+            chosen = Some(best);
         }
         let b = match chosen {
             Some(b) => b,

@@ -178,3 +178,41 @@ top:
     assert!(rb < 6, "STS must carry a read barrier (got R{rb})");
     assert!(waits(&insns, bump, rb), "in-loop overwriter must wait R{rb} (wait_mask {:#04x})", insns[bump].ctrl.wait_mask);
 }
+
+/// t421_5 (address latch released by the load's own RAW wait): the mask load's address
+/// register R0 is overwritten only in the next iteration / after the loop, but the load's
+/// unguarded data consumer (`ISETP ... R2`) sits right behind it. Past that consumer the
+/// address has certainly been read (data cannot return before the address was consumed),
+/// so NO read barrier / loop-carried WAR use is owed — pre-refinement every such load
+/// reserved a scoreboard over the whole loop body (colouring starvation in the sparse-MLA
+/// QK chain). With a GUARDED consumer the read barrier must still be waited.
+#[test]
+fn t421_5_load_rb_released_by_unguarded_raw_waiter() {
+    let src_unguarded = "\
+.entry t
+    .param u64 io
+    MOV R0, 0x100 ;
+    MOV R9, 0x4 ;
+top:
+    LDS R2, [R0] ;
+    ISETP.GE.AND P0, PT, R2, RZ, PT ;
+    IADD3 R9, PT, PT, R9, -0x1, RZ ;
+    ISETP.NE.AND P1, PT, R9, RZ, PT ;
+    @P1 BRA top ;
+    IADD3 R0, PT, PT, R0, 0x20, RZ ;
+    EXIT ;
+";
+    let insns = pipeline(src_unguarded);
+    let lds = idx_of(&insns, "LDS", 0);
+    let bump = idx_of(&insns, "IADD3", 1); // IADD3 R0 after the loop
+    assert_eq!(insns[lds].ctrl.read_bar, 7, "address latch covered by the RAW wait: no read barrier expected");
+    assert_eq!(insns[bump].ctrl.wait_mask & 0x3f, 0, "post-loop bump owes no wait");
+
+    let src_guarded = src_unguarded.replace("    ISETP.GE.AND P0, PT, R2, RZ, PT ;", "    @P2 ISETP.GE.AND P0, PT, R2, RZ, PT ;");
+    let insns = pipeline(&src_guarded);
+    let lds = idx_of(&insns, "LDS", 0);
+    let bump = idx_of(&insns, "IADD3", 1);
+    let rb = insns[lds].ctrl.read_bar;
+    assert!(rb < 6, "guarded consumer: the load must keep a read barrier (got R{rb})");
+    assert!(waits(&insns, bump, rb), "post-loop bump must wait R{rb} (wait_mask {:#04x})", insns[bump].ctrl.wait_mask);
+}
