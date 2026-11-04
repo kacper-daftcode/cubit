@@ -2280,10 +2280,85 @@ fn record_defs(st: &mut SchedulerState, insn: &Instruction, idx: usize, barrier:
 /// until each destination is redefined; loop-carried consumers are the reads in
 /// `[ltop, last_setter)` that precede a redefinition.
 #[allow(clippy::too_many_arguments)]
+/// BUG-421: forward control flow of the kernel, consulted by the consumer / overwriter
+/// scans so they follow EXECUTION paths instead of textual order.
+///
+/// * `fwd[j] = Some((target, unconditional))` for a branch at `j` whose resolved target
+///   lies AFTER `j`. An unconditional forward branch (`BRA lbl` under no guard — the
+///   `BRA join` closing an if/else arm) makes the scan CONTINUE AT THE TARGET: the code
+///   textually after it is the other arm, dead on this path. A guarded forward branch
+///   (`@P BRA arm2`, `BRA.U UP0, lbl`) FORKS the scan: both the fall-through and the
+///   taken arm need their own first consumer / overwriter.
+/// * `term[j]` — `EXIT` / `RET`: the path ends here.
+///
+/// Backward branches (loop back-edges) keep the existing treatment: the scan falls
+/// through (= the loop-exit path) and the loop-carried paths are covered by the
+/// `edges` / wrap logic of the callers.
+struct FlowInfo {
+    fwd: Vec<Option<(usize, bool)>>,
+    term: Vec<bool>,
+}
+
+impl FlowInfo {
+    fn build(insns: &[Instruction]) -> FlowInfo {
+        use std::collections::HashMap;
+        let n = insns.len();
+        let mut addr2idx: HashMap<u32, usize> = HashMap::new();
+        for (i, ins) in insns.iter().enumerate() {
+            addr2idx.insert(ins.addr, i);
+        }
+        let mut fwd = vec![None; n];
+        let mut term = vec![false; n];
+        for (j, ins) in insns.iter().enumerate() {
+            let op = ins.opcode.as_str();
+            let guarded = ins.guard.as_ref().is_some_and(|g| g.pred < 7);
+            // `BRA.U UP0, lbl` / `BRA !P0, lbl`: a predicate OPERAND makes it conditional.
+            let pred_operand = ins
+                .operands
+                .iter()
+                .any(|o| matches!(o, Operand::Pred { num, .. } | Operand::UPred { num, .. } if *num < 7));
+            let unconditional = !guarded && !pred_operand;
+            if matches!(op, "EXIT" | "RET") {
+                // `@P0 EXIT` (the early-out of a CTA-index guard) is NOT a terminator:
+                // the path continues when the predicate is false.
+                term[j] = unconditional;
+                continue;
+            }
+            if !matches!(op, "BRA" | "JMP") {
+                continue;
+            }
+            let Some(t) = branch_target(ins) else { continue };
+            let Some(&ti) = addr2idx.get(&t) else { continue };
+            if ti <= j {
+                continue;
+            }
+            fwd[j] = Some((ti, unconditional));
+        }
+        FlowInfo { fwd, term }
+    }
+
+    /// Successors of `j` in scan order: `(next_index, is_fork_branch)`. Empty = path ends.
+    fn next(&self, j: usize, n: usize) -> Vec<usize> {
+        if self.term[j] {
+            return Vec::new();
+        }
+        match self.fwd[j] {
+            Some((t, true)) => vec![t],
+            Some((t, false)) => {
+                let mut v = vec![t];
+                if j + 1 < n { v.push(j + 1); }
+                v
+            }
+            None => if j + 1 < n { vec![j + 1] } else { Vec::new() },
+        }
+    }
+}
+
 fn raw_consumers(
     reads: &[Vec<u16>],
     writes: &[Vec<u16>],
     guarded: &[bool],
+    flow: &FlowInfo,
     last_setter: usize,
     dsts: &[u16],
     ltop: usize,
@@ -2295,24 +2370,50 @@ fn raw_consumers(
     // it waits, the load has completed and the destination registers are ready for every
     // later reader. Collect consumers up to and INCLUDING the first UNGUARDED one per path
     // (a guarded first reader may be skipped, so a following reader still needs the wait).
+    //
+    // BUG-421: "path" is an EXECUTION path — the scan follows forward control flow
+    // (`FlowInfo`): an unconditional forward branch continues at its target, a guarded
+    // forward branch forks. `seen[j]` = union of the live sets already scanned from `j`;
+    // a path arriving with no new live register is redundant (the earlier walk from `j`
+    // found the same first consumer), which bounds the walk on diamonds and joins.
     let mut waiters: Vec<usize> = Vec::new();
-    let scan = |waiters: &mut Vec<usize>, lo: usize, hi: usize, dsts: &[u16]| -> bool {
-        let mut live: Vec<u16> = dsts.to_vec();
-        let mut j = lo;
-        while j < hi && !live.is_empty() {
-            if reads[j].iter().any(|r| live.contains(r)) {
-                if !waiters.contains(&j) { waiters.push(j); }
-                if !guarded[j] { return true; }
+    let mut seen: Vec<Vec<u16>> = vec![Vec::new(); n];
+    let scan = |waiters: &mut Vec<usize>, seen: &mut Vec<Vec<u16>>, lo: usize, hi: usize, dsts: &[u16]| -> bool {
+        // Returns true when EVERY path found an unguarded consumer (or ended) before `hi`.
+        if lo >= hi || dsts.is_empty() { return false; }
+        let mut work: Vec<(usize, Vec<u16>)> = vec![(lo, dsts.to_vec())];
+        let mut all_done = true;
+        while let Some((start, live0)) = work.pop() {
+            let mut live = live0;
+            let mut j = start;
+            let mut done = false;
+            while j < hi && !live.is_empty() {
+                if live.iter().all(|d| seen[j].contains(d)) { done = true; break; }
+                for d in &live { if !seen[j].contains(d) { seen[j].push(*d); } }
+                if reads[j].iter().any(|r| live.contains(r)) {
+                    if !waiters.contains(&j) { waiters.push(j); }
+                    if !guarded[j] { done = true; break; }
+                }
+                live.retain(|d| !writes[j].contains(d));
+                let succ = flow.next(j, n);
+                match succ.len() {
+                    0 => { done = true; break; }       // EXIT / RET / end of text
+                    1 => { j = succ[0]; }
+                    _ => {
+                        // fork: taken arm on the worklist, fall-through continues here
+                        work.push((succ[0], live.clone()));
+                        j = succ[1];
+                    }
+                }
             }
-            live.retain(|d| !writes[j].contains(d));
-            j += 1;
+            if !done && !live.is_empty() { all_done = false; }
         }
-        false
+        all_done
     };
     let fwd_end = if lback != usize::MAX { (lback + 1).min(n) } else { n };
-    let done = scan(&mut waiters, last_setter + 1, fwd_end, dsts);
+    let done = scan(&mut waiters, &mut seen, last_setter + 1, fwd_end, dsts);
     if lback != usize::MAX && !done {
-        scan(&mut waiters, lback + 1, n, dsts);
+        scan(&mut waiters, &mut seen, lback + 1, n, dsts);
     }
     let mut wrap = false;
     if ltop != usize::MAX && last_setter <= lback {
@@ -2333,7 +2434,7 @@ fn raw_consumers(
         let mut hi = last_setter;
         for (t, _b) in enc {
             let before = waiters.len();
-            scan(&mut waiters, t, hi, dsts);
+            scan(&mut waiters, &mut seen, t, hi, dsts);
             if waiters.len() > before {
                 wrap = true;
             }
@@ -2350,6 +2451,7 @@ fn raw_consumers(
 /// (covers every non-last iteration). Returns each as (overwriter, wrap).
 fn war_overwriter(
     writes: &[Vec<u16>],
+    flow: &FlowInfo,
     i: usize,
     opk: &[u16],
     ltop: usize,
@@ -2358,14 +2460,28 @@ fn war_overwriter(
     n: usize,
 ) -> Vec<(usize, bool)> {
     let mut out = Vec::new();
-    // Fall-through: first overwriter in linear program order (within loop or after it).
-    let mut j = i + 1;
-    while j < n {
-        if writes[j].iter().any(|w| opk.contains(w)) {
-            out.push((j, false));
-            break;
+    // Fall-through: first overwriter on EVERY forward execution path (BUG-421: follow
+    // forward control flow — an unconditional `BRA join` continues at the join instead
+    // of walking into the other, dead arm; a guarded forward branch forks). Within the
+    // loop or after it.
+    let mut visited = vec![false; n];
+    let mut work: Vec<usize> = flow.next(i, n);
+    while let Some(start) = work.pop() {
+        let mut j = start;
+        loop {
+            if j >= n || visited[j] { break; }
+            visited[j] = true;
+            if writes[j].iter().any(|w| opk.contains(w)) {
+                if !out.contains(&(j, false)) { out.push((j, false)); }
+                break;
+            }
+            let succ = flow.next(j, n);
+            match succ.len() {
+                0 => break,
+                1 => j = succ[0],
+                _ => { work.push(succ[0]); j = succ[1]; }
+            }
         }
-        j += 1;
     }
     // Loop-carried: first overwriter at/after the OUTERMOST enclosing loop top in
     // the next iteration (BUG-342): an overwriter in an outer loop head is earlier
@@ -2588,6 +2704,8 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
     // loop-NEST view for BUG-342 wrap-liveness (consumers / WAR overwriters can
     // sit in ANY enclosing loop, not only the innermost one).
     let (edges, ltop, lback) = resolved_back_edges(insns);
+    // BUG-421: forward control flow for path-following consumer / overwriter scans.
+    let flow = FlowInfo::build(insns);
 
     let writes: Vec<Vec<u16>> = insns.iter()
         .map(|x| dest_regs(x).into_iter().map(|(u, r)| rk(u, r)).collect()).collect();
@@ -2707,6 +2825,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
             &reads,
             &writes,
             &guarded,
+            &flow,
             last,
             &gd,
             ltop[last],
@@ -2770,7 +2889,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         // data). Both are real WARs at high occupancy and are load-bearing for correctness
         // (dropping the loop-carried load-address rb corrupts the gather: 337/340 wrong).
         let mut waiters: Vec<usize> = Vec::new();
-        for (ow, _w) in war_overwriter(&writes, idx, &opk, ltop[idx], lback[idx], &edges, n) {
+        for (ow, _w) in war_overwriter(&writes, &flow, idx, &opk, ltop[idx], lback[idx], &edges, n) {
             if !waiters.contains(&ow) {
                 waiters.push(ow);
             }
@@ -2811,7 +2930,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
             continue;
         }
         let (waiters, _wrap) = raw_consumers(
-            &reads, &writes, &guarded, i, &gd, ltop[i], lback[i], &edges, n,
+            &reads, &writes, &guarded, &flow, i, &gd, ltop[i], lback[i], &edges, n,
         );
         let auto_waiters: Vec<usize> = waiters
             .into_iter()
@@ -2843,7 +2962,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         if late.is_empty() { continue; }
         let opk: Vec<u16> = late.iter().map(|&r| rk(false, r)).collect();
         let mut waiters: Vec<usize> = Vec::new();
-        for (ow, _w) in war_overwriter(&writes, i, &opk, ltop[i], lback[i], &edges, n) {
+        for (ow, _w) in war_overwriter(&writes, &flow, i, &opk, ltop[i], lback[i], &edges, n) {
             if !insns[ow].hand_sched && !waiters.contains(&ow) { waiters.push(ow); }
         }
         if waiters.is_empty() { continue; }
