@@ -3668,6 +3668,14 @@ fn encode_instruction_inner(
 
     // Branch encoding (address-dependent, separate from field system)
     let sm120_family = crate::table::is_sm120_encoding_family(table.ef_flags);
+    // WAVE-11 note: the 496 law is discriminated inside apply_branch_encoding by
+    // ws496_target, which requires a REG operand -- that is exactly the
+    // `[P,] Rn, <target>` form. The `ALL,COLLECTIVE` form has no register and keeps
+    // the 16-scaled REL16 layout written by the normal field system (imm_shr2 /
+    // imm_shr10), which is what main already did. Gating this on the row's field
+    // signature alone was wrong: that row carries imm_shr2@16/8 too, so the gate
+    // fired on it and re-encoded `0x70` as `0x80` (nvdisasm: 0x187948 is 0x70,
+    // 0x1c7948 is 0x80).
     if sm120_family && insn.opcode == "WARPSYNC" {
         check_warpsync496_target(insn)?;
     }
@@ -6143,10 +6151,15 @@ fn apply_branch_encoding(
         // the vendor law is target = addr + 0x10 + (sext56(rq) << 2) with
         // rq = byte2@[23:16] | bits[80:34]<<8, sign at rq55=word81 (arb496 +
         // arb496b + arb496c x4: 1228/1228 fit-exact; native anchors
-        // vendor_t120 @0x70/0x100/0x150). The sm103a-family REL16 branch
-        // above does not run on this era. Far/misaligned targets are refused
-        // loud by check_warpsync496_target before we get here (belt-and-braces
-        // re-check inline).
+        // vendor_t120 @0x70/0x100/0x150).
+        //
+        // WAVE-11 INTEGRATION: the discriminator is the OPERAND SHAPE, not the
+        // row's field signature. `ws496_target` already requires a Reg member
+        // mask, i.e. exactly the `[P,] Rn, <target>` form. The ALL/COLLECTIVE
+        // form has NO register: main let it fall through to the dword-split law
+        // below, which writes (target - addr - 0x10) >> 2 -- and that is what
+        // nvdisasm agrees with (0x187948 prints `0x70`; re-encoding it through
+        // the 496 law yields 0x1c7948, which prints `0x80`).
         if sm120 {
             if let Some(target) = ws496_target(insn) {
                 let x = target.wrapping_sub(insn.addr as i64).wrapping_sub(0x10);
@@ -6155,9 +6168,13 @@ fn apply_branch_encoding(
                 code = (code & !(0xFFu128 << 16)) | (((rq & 0xFF) as u128) << 16);
                 code = (code & !(0xFFFF_FFFF_FFFFu128 << 34))
                     | ((((rq >> 8) & 0xFFFF_FFFF_FFFF) as u128) << 34);
+                return code;
             }
         }
-        return code; // no other legacy WARPSYNC handling
+        if sm103a || !rel_mod {
+            return code;
+        }
+        // SM120 COLLECTIVE without a register: fall through to the dword split.
     }
 
     // BRX/BRXU: offset from register, second operand
