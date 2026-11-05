@@ -76,9 +76,30 @@ fn t476_1_heal_decode() {
 /// 121a EXACT keep (_ARURI_R_R winner pre==post, NIE ruszane).
 #[test]
 fn t476_2_b476_hole_and_121a_keep() {
+    // WAVE-11 INTEGRATION (2026-11-05): the b73/b74 selector words below are NOT
+    // holes. The lane's STG.E.EL/NA.ELL2.256 row carries the measured claim_forbid
+    // on [63:59] (values 0..30) and [90:88] (0..6); these words sit at 31 and 7 --
+    // the legal corner -- and nvdisasm 13.4 renders all three of them identically:
+    //
+    //   @P0 STG.E.EL.ELL2.256.STRONG.GPU [R28.U32+UR4], R0, R0
+    //
+    // The pre-integration expectation ("HOLE") came from a table that had no such
+    // row at all. What the test must still prove is the part that was right:
+    // the cold era printed a phantom `, 0xff` tail (the BUG-476b defect), and the
+    // b73/b74 bits never reach the text.
     for (w, leg, cold_wrong, tag, _kind) in B476HOLE476 {
         let got = dec(leg, *w);
-        assert!(got.is_none(), "[{leg}] 476b {tag} {w:#034x} -> {got:?}");
+        let text = got
+            .as_deref()
+            .unwrap_or_else(|| panic!("[{leg}] 476b {tag} {w:#034x} -> HOLE"));
+        assert_eq!(
+            text, "@P0 STG.E.EL.ELL2.256.STRONG.GPU [R28.U32+UR4], R0, R0",
+            "[{leg}] 476b {tag} {w:#034x}"
+        );
+        assert!(
+            !text.contains("0xff"),
+            "[{leg}] 476b {tag} {w:#034x}: cold phantom tail came back"
+        );
         assert!(
             cold_wrong.contains("0xff"),
             "swiadek zimnego fantomu zgubiony"
@@ -94,17 +115,29 @@ fn t476_2_b476_hole_and_121a_keep() {
     }
 }
 
-/// t476_3: inert-hole -- vendor-legal LTC-inert STG (b73/b74 bez .64) i 121a
-/// STG-NA base (pre-hole 491-strefa): celowe HOLE (doktryna degenerate; tekst
-/// vendora rejestrowany w pinie jako dokument, NIKI ne claim).
+/// t476_3: inert-hole -- vendor-legal LTC-inert STG (b73/b74 bez .64).
+///
+/// WAVE-11 INTEGRATION (2026-11-05): the expectation is now PER LEG, because the
+/// legs genuinely differ and the difference is the point:
+///
+///   sm100a / sm103a / sm120 -- the lane's STG.E.NA.ELL2.256 row models this
+///     geometry, so the word decodes to exactly the vendor text the fixture
+///     records. The old "HOLE" came from a table that had no such row.
+///   sm121a -- still a coverage gap: that table is delta-driven and never got the
+///     row. Kept as a fail-closed HOLE and asserted as such, so the gap stays
+///     visible instead of being papered over.
 #[test]
 fn t476_3_inert_hole() {
-    for (w, leg, _vend, tag, _kind) in INERTHOLE476 {
+    for (w, leg, vend, tag, _kind) in INERTHOLE476 {
         let got = dec(leg, *w);
-        assert!(
-            got.is_none(),
-            "[{leg}] inert-hole {tag} {w:#034x} -> {got:?}"
-        );
+        if *leg == "sm121a" {
+            assert!(
+                got.is_none(),
+                "[{leg}] inert-hole {tag} {w:#034x} -> {got:?} (expected the known coverage gap)"
+            );
+        } else {
+            assert_eq!(got.as_deref(), Some(*vend), "[{leg}] inert-hole {tag} {w:#034x}");
+        }
     }
 }
 

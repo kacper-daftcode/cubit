@@ -44,7 +44,17 @@ fn enc(text: &str, t: &IsaTable) -> anyhow::Result<u128> {
 // payload with the default ctrl pattern 0x000fc200..; the scheduled cubins
 // carry the same payload -- nvdisasm hex differs only in the ctrl field).
 const W_ATOMG_EVEN: u128 = 0x000fc200081ef10480000028023a79a8u128;
-const W_ATOMG_EL_ODD: u128 = 0x000fc200082ee10400000028053a79a8u128;
+// WAVE-11 INTEGRATION (2026-11-05): the ATOMG `.EL` fixed point was re-pinned.
+// The era word (0x…2ee1…) is descriptor-less: nvdisasm 13.4 renders it as
+// `[R5.U32+UR4]`, NOT as the `desc[UR4][R5.64]` text the test feeds in. The
+// integrated tables carry the lane's .EL geometry, which round-trips the declared
+// text exactly (nvdisasm: 0x…2ef1… -> `desc[UR4][R5.64]`).
+//
+// The two REDG `.EL` words are UNCHANGED on purpose: neither the era word nor any
+// replacement makes nvdisasm print `desc[UR4][R5.64]` for them (it prints
+// `[R5.U32+UR4]` / `[RZ.U32+UR4]`), so REDG's descriptor form is a separate open
+// question -- left exactly as it was rather than guessed at.
+const W_ATOMG_EL_ODD: u128 = 0x000fc200082ef10480000028053a79a8u128;
 const W_REDG_EL_ODD: u128 = 0x000fc2000820e104000000280500798eu128;
 const W_REDG_EL_RZ: u128 = 0x000fc2000820e10400000028ff00798eu128;
 
