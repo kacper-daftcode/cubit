@@ -102,7 +102,7 @@ fn t459a_1_decode_matrix() {
 #[test]
 fn t459a_2_mint_junk_census_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "6f11f6b2c59e0b9366153c685540d90491486454";
+    const CURRENT_VENDORED_CANON: &str = "bb11659a2956bfe50f1307a53f83a6852dd01503";
     assert_eq!(CANON459A, "9c0e4ce", "historical fixture revision drift");
 
     const CTL: u128 = !((1u128 << 96) - 1);
@@ -167,7 +167,7 @@ fn t459a_2_mint_junk_census_source() {
     let sm120 = &src["tables"]["sm120.json"];
     assert_eq!(
         sm120["base_sha256"].as_str(),
-        Some("e61189da687e0d928b4cc3618416cc81939c34529f5749d3f7495b26f80aa25f"),
+        Some("bde27b66c3ed0f89228105aca6219b524e6904cdba7defd975e5a870ef5c4be8"),
         "SM120 source digest drift"
     );
     assert_eq!(sm120["instruction_forms"].as_u64(), Some(16107));  // 2026-11-04 (canonical T-3 batches b063d43/15caf70/6f11f6b): -20 era keys (now _meta.key_aliases), +1 LDL_R_ARURI = 16107 forms; variants 20883 -> 20894 (LDL +14, MUFU_R_UR 4 -> 26, IMAD -7 alias groups +4 U32 twins, F2F_R_R F32,F64 removed); sm121a -10 era keys = 23823 raw / 23821 loader-visible, variants 26380. // 2026-11-03 dynamic-audit batch 1 (canonical 6619782): -12 sm120 keys / -22 variants (FSETP_P_P_L_FI_P, FSETP_P_P_L_L_P, F2FP.F16.F32.PACK_AB_P_R_R_R, HMMA *_P0_* rows, LOP3.LUT_P_R_R_R_R_II_P, QMMA.16816.F16.E4M3.E4M3_P_R_R_R_R: their words are other instructions for nvdisasm) = 16126 forms, 20883 variants; LDGSTS base field 8 bits, LDC/LDCU reuse field removed; hygiene pass (canonical 64eaa21) cleared the baked control bits, counts unchanged. // 2026-11-02 HMUL2 imm / LDSM FP4-FP6 / PRMT UR / ARRIVES.LDGSTSBAR / UTMASTG dims (canonical 77a3dfa): +3 sm120 keys (HMUL2_R_R_FI_FI, PRMT_R_R_UR_R, ARRIVES_ARURI), +30 LDSM_R_ARI and +4 UTMASTG groups (variants 20850 -> 20905) = 16138. // 2026-10-29 ATOMS [R+UR+imm] / STSM.8.MT168 / UBLKPF.L2 (canonical 137cd34): +2 sm120 keys (UBLKPF_AURI_UR, UBLKPF_AURI_UR_II), +3 STSM_ARI_R groups, ATOMS_R_ARURI_R MAX,S32 re-measured (variants 20845 -> 20850) = 16135. // 2026-10-28 F2FP.BF16.E8.UNPACK_B_R_R (canonical f1e02b3): +1 sm120 key

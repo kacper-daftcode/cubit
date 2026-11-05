@@ -671,6 +671,16 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
         }
     }
 
+    // IMMA tensor-core operands carry the matrix layout in the mnemonic text:
+    // nvdisasm always prints the A source `.ROW` and the B source `.COL`
+    // (sm_120 and sm_121a; GB10 census 2026-11-04 flagged the 121a IMMA words).
+    // The layout bits sit at [73]/[74] baked ROW/COL (0) in and_base, so the
+    // parser already accepts the suffix and re-encodes the identical word.
+    if insn.opcode.starts_with("IMMA") && operands.len() >= 3 {
+        operands[1].push_str(".ROW");
+        operands[2].push_str(".COL");
+    }
+
     if operands.is_empty() {
         format!("{guard_prefix}{opcode}")
     } else {
@@ -1002,6 +1012,20 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             "F16" | "F32" | "F64" | "BF16" => return 5,
             "FLOOR" | "CEIL" | "RN" | "TRUNC" => return 6,
             "NTZ" => return 7,
+            _ => {}
+        }
+    }
+    // F2IP: same vendor order as F2I -- dst-type < src-type < rounding < NTZ < RELU
+    // (GB10 census 2026-11-04: `F2IP.U8.F32.TRUNC.NTZ`, cubit printed
+    // `F2IP.F32.NTZ.TRUNC.U8`; nvdisasm -b SM121/SM120 agree). RELU trails (the
+    // RELU'd F2IP words carry it last in the vendor text).
+    if base == "F2IP" {
+        match m {
+            "U8" | "S8" | "U16" | "S16" | "U32" | "S32" | "U64" | "S64" => return 4,
+            "F16" | "F32" | "F64" | "BF16" => return 5,
+            "FLOOR" | "CEIL" | "RN" | "TRUNC" => return 6,
+            "NTZ" => return 7,
+            "RELU" => return 8,
             _ => {}
         }
     }
@@ -1683,8 +1707,11 @@ fn format_operand(
         // sm120 glyph: [URn(+off)] with the RZ base elided, [Rm+URn(+off)] otherwise.
         "AURI" | "ARURI"
             if (ins_key.starts_with("ATOMS") || ins_key.starts_with("ARRIVES"))
-                && ef_flags == crate::elf_builder::EF_CUDA_SM120 =>
+                && crate::table::is_sm120_encoding_family(ef_flags) =>
         {
+            // sm_121a (GB10) shares the sm_120 glyph: the GB10 census of 2026-11-04
+            // showed `ATOMS.ADD RZ, [R14+UR7], R3` rendered as the descriptor form
+            // `desc[UR7][R14.64]` because this arm was gated on sm_120 only.
             format_atoms_auri(fields, raw)
         }
         "ARURI"

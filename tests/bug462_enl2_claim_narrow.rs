@@ -102,7 +102,7 @@ fn t462_4_claim_census() {
         /* RIDE475r3 (F2-iter289, INC-289e, canonical 978c091): cf-dziedziczenie donorow 475 (+1136), R3 +3, R3b 121a +2 */
         ("sm103a", 1170usize),
         ("sm120", 1181usize), // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim)
-        ("sm121a", 1184usize), // RIDE469: +17 cf (graft 469); canonical bd48e63 + // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim) (121a)
+        ("sm121a", 1185usize), // 2026-11-04 (T-4): +1 cf (SM120 row adopted into SM121a in the text-parity pass) // RIDE469: +17 cf (graft 469); canonical bd48e63 + // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim) (121a)
     ] {
         let raw = cubit::table::read_table_text(format!("tables/{leg}.json")).unwrap();
         let n = raw.matches("\"claim_forbid\"").count();

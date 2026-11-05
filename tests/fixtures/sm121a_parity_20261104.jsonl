@@ -1,0 +1,11 @@
+{"word": "000fd000000000000000007e05007804", "nvidia_sass": "R2P PR, R5, 0x7e", "key": "R2P_L_R_II"}
+{"word": "000fd800000100000000000000007b1d", "nvidia_sass": "BAR.SYNC.DEFER_BLOCKING 0x0", "key": "BAR_II_II"}
+{"word": "001fe4000bffe400000000083c3c7c17", "nvidia_sass": "IMNMX.U64 PT, PT, R60, R60, UR8, PT, !PT", "key": "IMNMX_P_P_R_R_UR_P_P"}
+{"word": "000fc60000800001ffffffff02027407", "nvidia_sass": "SEL.64 R2, R2, -0x1, P1", "key": "SEL_R_R_II_P"}
+{"word": "000e22000000000000000000030673c4", "nvidia_sass": "REDUX UR6, R3", "key": "REDUX_UR_R"}
+{"word": "000fc80000000000000080000000791a", "nvidia_sass": "DEPBAR.LE SB0, 0x0", "key": "DEPBAR_L_II"}
+{"word": "0001e80008000007000000030eff798c", "nvidia_sass": "ATOMS.ADD RZ, [R14+UR7], R3", "key": "ATOMS.ADD_R_ARURI_R"}
+{"word": "004fc8000000c4ff00000002ff007243", "nvidia_sass": "F2IP.U8.F32.TRUNC.NTZ R0, RZ, R2, RZ", "key": "F2IP_R_R_R_R"}
+{"word": "004fe200004054ff0000000406087237", "nvidia_sass": "IMMA.16816.S8.S8 R8, R6.ROW, R4.COL, RZ", "key": "IMMA.16816.S8.S8_R_R_R_R"}
+{"word": "004fe20000405cff0000000608087237", "nvidia_sass": "IMMA.16832.S8.S8 R8, R8.ROW, R6.COL, RZ", "key": "IMMA.16832.S8.S8_R_R_R_R"}
+{"word": "020fe2000fffe40000000001100a7885", "nvidia_sass": "UIMNMX.U64 UPT, UPT, UR10, UR16, 0x1, !UPT, !UPT", "key": "UIMNMX.U64_UP_UP_UR_UR_II_UP_UP"}

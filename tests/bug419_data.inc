@@ -859,13 +859,19 @@ pub const DOCTRINE419: &[(u128, &str, &str, &str)] = &[
 ];
 
 /// 121a UIMNMX tie-break witnesses: pre == post (junk-surgery neutral).
+// 2026-11-04 (T-4): the SM121a UIMNMX.U64 immediate-form row was an over-broad harvest row that
+// fabricated a decode for these 8 words (different opcodes, trailing UPT,UPT) even though nvdisasm
+// -b SM121 rejects every one of them (all 8 -> Illegal instruction). The T-4 parity pass rebuilt the
+// row from the SM120 U64 register-form layout, narrowed to the one opcode the census carries
+// (`0x885`, `UIMNMX.U64 UPT, UPT, UR10, UR16, 0x1, !UPT, !UPT`); these illegal witnesses now
+// fail-closed (HOLE), matching nvdisasm.
 pub const UIMNMX419: &[(u128, &str)] = &[
-    (0x000000000fffe4000000000110ddcb75, "@!UP4 UIMNMX.U64 UP12, UP12, UR221, UR110, 0x1b, UPT, UPT"),
-    (0x000000000fffe4000000000113309e7d, "@!UP1 UIMNMX.U64 UP9, UP9, UR48, UR207, 0x66, UPT, UPT"),
-    (0x000000000fffe40000000001110a1fb5, "@UP1 UIMNMX.U64 UP1, UP1, UR10, UR246, 0x21, UPT, UPT"),
-    (0x000000000fffe4000000000117a08f7d, "@!UP0 UIMNMX.U64 UP8, UP8, UR160, UR239, 0xf4, UPT, UPT"),
-    (0x000000000fffe40000000001131e2b35, "@UP2 UIMNMX.U64 UP2, UP2, UR30, UR102, 0x63, UPT, UPT"),
-    (0x000000000fffe4000000000110d5acd5, "@!UP2 UIMNMX.U64 UP10, UP10, UR213, UR154, 0x1a, UPT, UPT"),
-    (0x000000000fffe40000000001151c2f9d, "@UP2 UIMNMX.U64 UP2, UP2, UR28, UR243, 0xa3, UPT, UPT"),
-    (0x000000000fffe4000000000112732a95, "@UP2 UIMNMX.U64 UP2, UP2, UR115, UR82, 0x4e, UPT, UPT"),
+    (0x000000000fffe4000000000110ddcb75, "HOLE"),
+    (0x000000000fffe4000000000113309e7d, "HOLE"),
+    (0x000000000fffe40000000001110a1fb5, "HOLE"),
+    (0x000000000fffe4000000000117a08f7d, "HOLE"),
+    (0x000000000fffe40000000001131e2b35, "HOLE"),
+    (0x000000000fffe4000000000110d5acd5, "HOLE"),
+    (0x000000000fffe40000000001151c2f9d, "HOLE"),
+    (0x000000000fffe4000000000112732a95, "HOLE"),
 ];

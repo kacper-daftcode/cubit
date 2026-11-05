@@ -370,10 +370,12 @@ fn t363_5_fail_closed_and_guards() {
             "{leg} IMAD reuse intact"
         );
         if leg == "sm103a" {
+            // 2026-11-04 (T-4): F2IP prints the nvdisasm order dst-type < src-type < round < NTZ
+            // (`F2IP.S8.F32.NTZ`), the same law as F2I; the encoder still accepts any modifier order.
             let w = enc(&t, "F2IP.F32.NTZ.S8 R4, R6, R8, R10").unwrap();
             assert_eq!(
                 dec96(&t, w).as_deref(),
-                Some("F2IP.F32.NTZ.S8 R4, R6, R8, R10"),
+                Some("F2IP.S8.F32.NTZ R4, R6, R8, R10"),
                 "F2IP print intact"
             );
         }

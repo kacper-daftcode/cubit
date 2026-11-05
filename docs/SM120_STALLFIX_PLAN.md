@@ -7,8 +7,9 @@ what the rules look like, how they are measured, what is prepared and what still
 Status 2026-11-04: **measured.** The harness ran on 2026-11-03 18:05Z on 4x NVIDIA RTX PRO 6000 Server
 Edition (23 floors, §4), the `stallfix` section of `sm120.json` carries them (rules v3, blackwell-isa
 2026-11-04), `cubit stallfix` applies them (`tests/stallfix_sm120.rs`), the harness lives in
-[tools/stallfloor/](../tools/stallfloor/README.md). Still owed: the `r2ur` floor (harness v3 kernels
-prepared) and the S12–S15 band (§4).
+[tools/stallfloor/](../tools/stallfloor/README.md). The `r2ur` floor was measured 2026-11-04 (silicon
+v3, harness v3 warp-uniform kernels, `model_r2ur` PASS, 26 floors PASS) at 4 (= the global floor);
+still owed: the S12–S15 band (§4).
 
 ## 1. Rule format (the `stallfix` section of `sm120.json`)
 
@@ -24,7 +25,7 @@ The same keys as the sm_103a section, so the pass needs no new code paths:
 | `floor_guard_d0`, `floor_guard_d2` | predicate producer → `@P`/`@!P` guard consumer at d0 / d2 | 7, 5 |
 | `guard_d1_forbid`, `guard_d1_isetp_floor` | the guard-at-d1 pathology: class-resolved (isetp-class legal 5..11, data-class never) | true, 5 |
 | `floor_xread_d0` | uniform ALU UR write → vector op reading the UR at d0 | 6 |
-| `floor_r2ur_d0` | the R2UR conversion boundary at d0 (either direction) | 8 |
+| `floor_r2ur_d0` | the R2UR conversion boundary at d0 (either direction) | 8 (sm_103a); SM120 measured 4 (2026-11-04) |
 | `floor_uguard_d0`, `floor_uguard_d1` | `UISETP` → `@UP` guard at d0 / d1 | 10, 8 |
 | `legacy_stall_risk_from` | stall value below which legacy text is reported | 1 |
 
@@ -80,7 +81,7 @@ producer and consumer.
 | `xread` UIADD3 UR → vector IADD3 reading the UR | S06 | S04 | S02 | `floor_xread_d0/d1/d2` 6/4/2 |
 | `uguard` UISETP → `@UP0 UIADD3` | S10 | S08 | S06 | `floor_uguard_d0/d1/d2` 10/8/6 |
 | `mufu` MUFU.RCP → FFMA | none | none | none | variable latency: the scoreboard is the only legal schedule (the pass never writes barriers) |
-| `r2ur` IADD3 → R2UR | model mismatch | — | — | `floor_r2ur_d0` = `cap_stall` 11 until measured (below) |
+| `r2ur` IADD3 → R2UR | 4 | 0 | 0 | measured 2026-11-04 (silicon v3, warp-uniform kernels, `model_r2ur` PASS): `floor_r2ur_d0` 4 (= `floor_global`) |
 
 Readings:
 
@@ -95,9 +96,10 @@ Readings:
   measured on SM120 (the sm_103a isetp/data/atomic split stays sm_103a's).
 - `r2ur`: the v2 CPU model summed every thread's own `a + b`, but `R2UR UR9, R6` broadcasts one
   lane's R6 (24 576 of 32 768 threads differed from the scoreboarded reference). Harness v3
-  (2026-11-04) makes the r2ur inputs warp-uniform; the 37 kernels are regenerated and queued for the
-  next GPU window. Until then the rules carry the cap for R2UR boundaries — the most conservative
-  legal stall, not a guess.
+  (2026-11-04) makes the r2ur inputs warp-uniform; **measured on silicon the same day** (4× RTX PRO
+  6000 Server Edition, `T/gpu/out_testhost/stall_floors.json`: `model_r2ur` PASS, all 26 floors PASS):
+  `floor_r2ur_d0` = 4 at d0, 0 at d1/d2 — the same as the global floor, so no R2UR-specific raise is
+  needed. The rules no longer carry the cap for R2UR boundaries.
 - Occupancy: one geometry (32 CTAs × 1 024 threads) as in the sm_103a census; the 1×32 geometry was
   not run.
 

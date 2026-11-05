@@ -112,7 +112,7 @@ fn t468_5_mint_circle() {
 #[test]
 fn t468_6_census_and_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "6f11f6b2c59e0b9366153c685540d90491486454";
+    const CURRENT_VENDORED_CANON: &str = "bb11659a2956bfe50f1307a53f83a6852dd01503";
     assert_eq!(CANON468, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     for (leg, want) in CENSUS468 {

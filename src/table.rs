@@ -565,6 +565,15 @@ pub fn is_sm103a_encoding_family(ef_flags: u32) -> bool {
     matches!((ef_flags >> 8) & 0xFFF, 100 | 103)
 }
 
+/// Encoding-layer family predicate for the consumer-Blackwell line: sm_120
+/// (RTX 5090, 0x78) and sm_121a (GB10, 0x79) share the SM120 encoding space
+/// (the sm121a table is delta-driven vs sm120; GB10 census 2026-11-04: 0 decode
+/// differences over 91 927 words). Printer decisions gated on sm_120 therefore
+/// apply verbatim to sm_121a (e.g. the ATOMS/ARRIVES `[Rm+URn(+off)]` glyph).
+pub fn is_sm120_encoding_family(ef_flags: u32) -> bool {
+    matches!((ef_flags >> 8) & 0xFFF, 120 | 121)
+}
+
 fn parse_hex_u128(s: &str) -> Result<u128> {
     let s = s.trim();
     let digits = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")).unwrap_or(s);

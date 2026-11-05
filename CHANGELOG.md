@@ -4,6 +4,34 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-04 (session T-4)
+
+- **SM121a text parity to 100 %** (blackwell-isa `bb11659`, owner decision NEEDS_OWNER 17):
+  the 60 remaining GB10-census text differences (`docs/KNOWN_ISSUES.md` V3) are closed. Table side
+  (`blackwell-isa-internal/tools/t4_sm121a_parity.py`, SM121a is delta-driven vs SM120): the measured
+  SM120 rows adopted for `R2P`, `IMNMX`, `SEL.64` (its 33-bit immediate → `-0x1`), `REDUX` (the
+  duplicate op=0 `.AND` group gone), `BAR` (the era rows that baked a spurious second immediate
+  replaced by SM120's per-form keys), `DEPBAR` (the `SBn` token restored); the one SM121a-only harvest
+  row `UIMNMX.U64` immediate form rebuilt from the SM120 register-form layout. Printer side (shared
+  with SM120): `ATOMS`/`ARRIVES` `[Rm+URn(+off)]` glyph now fires for the whole sm_120 encoding family
+  (`table::is_sm120_encoding_family`, which includes sm_121a — it was gated on sm_120 only, so SM121a
+  rendered the descriptor form `desc[UR][R.64]`); the `F2IP` modifier order (`.U8.F32.TRUNC.NTZ`, same
+  law as F2I); the `IMMA` `.ROW`/`.COL` matrix-layout print on the A/B operands (the layout bits are
+  baked ROW/COL in `and_base`, so the parser already re-encodes the identical word). Parity on the 373
+  recorded mismatch words: **372 / 373** — the residue is `LEPC` (a PC-relative target the isolated-word
+  census renders at address 0; byte-identical to the vendor in a full disassembly). Test
+  `tests/sm121a_parity_20261104.rs` + fixture; SM121a 23 823 → 23 825 forms / 26 380 → 26 381 variants
+  (the census tests re-pinned to blackwell-isa `bb11659`).
+- **SM120 `stallfix` r2ur floor measured** (silicon v3, 2026-11-04, 4× RTX PRO 6000 Server Edition):
+  `floor_r2ur_d0` 11 → **4** (== `floor_global`). Harness v3 r2ur kernels with warp-uniform inputs:
+  `model_r2ur` PASS, 26 floors PASS on every path (R2UR broadcasts one lane; the v2 model that summed
+  per-thread values was wrong). `tests/stallfix_sm120.rs` re-pinned; `docs/KNOWN_ISSUES.md` A3 closed
+  in full. The register-shadow law (A1) was re-confirmed on the same run (regcount 64 and 128 → 715),
+  the LDC-bound loop passed 4/4 (A10); the LDSM FP4 fragment was executed (A3/T6, layout recorded).
+- **The four blackwell-isa HTML references** regenerated with the merged `export_html.py` (origin
+  lineage + the ported measured control-word layout / per-variant provenance / date·revision·SHA header;
+  NEEDS_OWNER 14). `blackwell-isa-internal` merged onto origin (`1c7c4c2`, no force push).
+
 ## Unreleased — 2026-11-04
 
 - **Tables vendored as gzip**: `tables/<arch>.json.gz` (0.5–0.9 MB each) replace the 38–59 MB

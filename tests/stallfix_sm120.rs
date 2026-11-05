@@ -61,7 +61,7 @@ fn section_is_the_measured_sm120_set() {
     assert_eq!((r.floor_xread_d0, r.floor_xread_d1, r.floor_xread_d2), (6, 4, 2));
     assert_eq!(r.floor_urpath_d1, 3);
     assert_eq!((r.floor_uguard_d0, r.floor_uguard_d1, r.floor_uguard_d2), (10, 8, 6));
-    assert_eq!(r.floor_r2ur_d0, r.cap_stall, "r2ur is unmeasured on SM120: cap, never a guess");
+    assert_eq!(r.floor_r2ur_d0, r.floor_global, "r2ur measured 2026-11-04 (4x RTX PRO 6000 Server Edition, v3 warp-uniform kernels): floor 4 = floor_global");
     assert!(r.provenance["measured"].as_str().unwrap().contains("RTX PRO 6000"));
     assert_eq!(r.provenance["stall_floors_json_sha256"].as_str().map(str::len), Some(64));
 }
@@ -219,12 +219,14 @@ fn uniform_domain_floors() {
 }
 
 #[test]
-fn r2ur_boundary_raises_to_the_cap() {
+fn r2ur_boundary_floor_measured() {
+    // r2ur measured 2026-11-04 (v3 warp-uniform kernels, model_r2ur PASS): floor 4 at d0,
+    // == floor_global (was raised to the cap while unmeasured).
     let (s, why) = raised_to(&[
         "[B------:R-:W-:-:S00] IADD3 R6, PT, PT, R4, R5, RZ",
         "[B------:R-:W-:-:S00] R2UR UR9, R6",
         "EXIT"], 0);
-    assert_eq!((s, why.iter().any(|r| r == "R9-r2ur")), (11, true), "{why:?}");
+    assert_eq!((s, why.iter().any(|r| r == "R9-r2ur")), (4, true), "{why:?}");
 }
 
 #[test]

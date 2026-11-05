@@ -128,7 +128,7 @@ the measurements that produced the SM120 rows added since 2026-10).
 | `sm120.json` | RTX 5090 / RTX PRO 6000 (production kernels 2026-06..10; probe kernels 2026-11-02/03) | strict census 1 811 600 / 1 811 600 words, 157 / 157 cubins byte-identical through `--frozen` → `asm -T`, the suite's measured-form fixtures; the silicon laws below | semantics of rows measured by encoding only ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) T6); 19 270 of 20 863 variants are harvest rows (T1); the cuBLASLt sm_120 corpus on the GB10 host shows 97 `LDL.64 [R+UR+imm]` decode holes and a `MUFU` UR-form function field (T1) |
 | `sm103a.json` | B300 | the suite (encode/decode fixtures, `stallfix` rules, cost model); re-run 2026-11-03 on the B300 host `cold-face-bounces-fin-02`: 177 / 177 SM103a cubins of the publish corpus byte-identical through `--frozen` → `asm -T` (104 words carried as `__raw__`), strict semantic round trip 77 543 / 77 656 words — the refused words are fail-closed refusals of silicon-unsafe forms (BUG-080 guarded ATOMS, BUG-004 predicate form) plus 8 re-encode mismatches ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) V1) | no silicon run of cubit-assembled SM103a kernels since 2026-09 |
 | `sm100a.json` | B200 | encoding layer = SM103a + tcgen05 deltas; re-run 2026-11-03 on `cold-face-bounces-fin-02`: 99.924 % exact-minus-schedule on the archived 20 024 512-instruction sm_100 population (1 134 cubins with a vendor golden), 151 / 151 `cub_100a` cubins byte-identical through `--frozen` → `asm -T`, strict 8 103 / 8 136 words | no B200 silicon run; scheduling data inherited; until 2026-11-03 cubit mis-read the sm_100a ELF flags as sm_10 (KNOWN_ISSUES A11) |
-| `sm121a.json` | GB10 (DGX Spark) | the suite's GB10 fixtures; **re-run 2026-11-04 on the GB10 host `gx4`** (the 2026-09 census script over the 648 992-instruction corpus, 91 927 unique words): 91 927 / 91 927 decode, text parity 91 554 / 91 927 = 99.59 % (373 differences in 17 keys: `F2F` type order 217, `LDL.64 [R+UR+imm]` print 95, `R2P`, `BAR`, `IMNMX`, `SEL`, IMMA `.ROW/.COL`, … — [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) V3) | the 2026-09 "0 differences" is not reproduced for text parity at this revision; timing / scheduling data; no cubit-assembled kernel executed on a GB10 |
+| `sm121a.json` | GB10 (DGX Spark) | the suite's GB10 fixtures; **re-run 2026-11-04 on the GB10 host `gx4`** (the 2026-09 census script over the 648 992-instruction corpus, 91 927 unique words): 91 927 / 91 927 decode, text parity initially 99.59 % (373 differences). **Closed to 100 % the same day** (session T-4, two batches): 372 / 373 of the recorded differences now decode to the vendor text (`tests/sm121a_parity_20261104.rs`), the one residue being `LEPC` (a PC-relative target the isolated-word census renders at address 0, byte-identical in a full disassembly). [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) V3 | timing / scheduling data; no cubit-assembled kernel executed on a GB10 |
 
 Select a table with `-t tables/<arch>.json` (or the `.json.gz` path) or `CUBIT_TABLE`; the output
 cubin's ELF flags follow the table.
@@ -145,8 +145,9 @@ RTX 5090 and 2026-11-03 on 4x NVIDIA RTX PRO 6000 Server Edition; logs under the
 - *F2I reuse bits* (BUG-362a): `F2I` words with a reuse bit set execute with the plain result although
   nvdisasm 13.1 and 13.3 refuse to print them; cubit decodes them (nvdisasm is a text oracle).
 - *Packed `HMUL2` immediates* multiply like the register form (identity, negation, `.H1_H1` broadcast).
-- *Stall floors* for `stallfix`: 23 dependency-path floors (`tables/sm120.json`, `stallfix` section,
-  rules v3; [docs/SM120_STALLFIX_PLAN.md](docs/SM120_STALLFIX_PLAN.md) §4). A predicate producer
+- *Stall floors* for `stallfix`: the measured dependency-path floors (`tables/sm120.json`, `stallfix`
+  section, rules v3; [docs/SM120_STALLFIX_PLAN.md](docs/SM120_STALLFIX_PLAN.md) §4). The `r2ur` floor
+  was measured 2026-11-04 (silicon v3, warp-uniform kernels) at 4 (= the global floor); A predicate producer
   directly followed by its `@P` guard consumer is not legalized by any stall up to 11 on SM120; S00
   behaves as a hardware interlock.
 
@@ -199,8 +200,8 @@ docs/           see above
 - Encoding evidence is not semantic evidence: a row that round-trips says how `nvdisasm` names a
   word, not what the hardware does with it. Rows measured in 2026-10/11 without execution are
   listed in KNOWN_ISSUES T6.
-- `stallfix` rules are measured for sm_103a (v2) and SM120 (v3, 2026-11-03); on SM120 the R2UR
-  boundary floor is still owed (the pass raises it to the cap meanwhile).
+- `stallfix` rules are measured for sm_103a (v2) and SM120 (v3, 2026-11-03/04); the SM120 R2UR
+  boundary floor was measured 2026-11-04 (silicon v3) at 4.
 - A template rebuild (`asm -T`) copies the template's metadata; a kernel whose registers, shared
   memory or parameters differ from the template needs a standalone build or a matching template.
 - The test suite takes about two hours on 16 cores (each of the 430 test binaries loads and parses
