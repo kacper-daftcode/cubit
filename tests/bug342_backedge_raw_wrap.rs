@@ -116,13 +116,19 @@ OUTER_TOP:
     ISETP.GT.AND P1, PT, R10, 0x4, PT ;
 INNER_TOP:
     LDG.E.128 R20, [R2.64] ;
-    IMAD R24, R20, R21, RZ ;
+    @P2 IMAD R24, R20, R21, RZ ;
     IADD3 R6, PT, PT, R6, 0x1, RZ ;
     ISETP.GT.AND P0, PT, R6, 0x100, PT ;
     @P0 BRA INNER_TOP ;
     @P1 BRA OUTER_TOP ;
     EXIT ;
 ";
+// BUG-478 refinement: the load's consumer above is GUARDED (`@P2 IMAD`). An UNGUARDED
+// consumer waits the load's write barrier, and a load reads its address strictly before
+// its data returns, so past such a consumer the address latch is released and no
+// read-barrier wait is owed by later overwriters (the outer-head bump would then carry
+// no wait — correctly). The guarded consumer may be skipped, so the read barrier must
+// still reach the outer-head bump: that is what t342_4 pins.
 
 #[test]
 fn t342_1_nested_tail_ldg_gets_barrier_waited_at_outer_head() {
