@@ -2080,7 +2080,7 @@ fn ws496_target(insn: &Instruction) -> Option<i64> {
     }
     match insn.operands.last() {
         Some(Operand::BranchTarget(t)) => Some(*t as i64),
-        Some(Operand::Imm32(v)) => Some(*v as i64),
+        Some(Operand::Imm32(v)) => Some(*v),
         Some(Operand::Imm64(v)) => Some(*v as i64),
         _ => None,
     }
@@ -6140,12 +6140,10 @@ fn apply_branch_encoding(
         }
         return code;
     }
-    if !BRANCH_OPS.iter().any(|&o| insn.opcode == o)
-        && !(sm103a && insn.opcode == "WARPSYNC")
-        // BUG-496: the 496-law WARPSYNC.COLLECTIVE rows live outside the
-        // legacy BRANCH_OPS roster; let the sm120/sm121 arm reach them.
-        && !(sm120 && insn.opcode == "WARPSYNC")
-    {
+    // BUG-496: the 496-law WARPSYNC.COLLECTIVE rows live outside the legacy
+    // BRANCH_OPS roster; let the sm120/sm121 arm reach them.
+    let warpsync_arm = insn.opcode == "WARPSYNC" && (sm103a || sm120);
+    if !(BRANCH_OPS.iter().any(|&o| insn.opcode == o) || warpsync_arm) {
         return code;
     }
 
