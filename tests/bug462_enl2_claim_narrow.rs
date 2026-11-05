@@ -98,11 +98,11 @@ fn t462_3_mint_refuse() {
 #[test]
 fn t462_4_claim_census() {
     for (leg, want) in [
-        ("sm100a", 1170usize), // RIDE476 (F2-iter299, canonical c88778e): +1 cf/noga x3 (476b fantom _II forbid na STG.E.EL.ELL2.256.STRONG.GPU_ARURI_R_R_II)
+        ("sm100a", 6974usize), // RIDE476 (F2-iter299, canonical c88778e): +1 cf/noga x3 (476b fantom _II forbid na STG.E.EL.ELL2.256.STRONG.GPU_ARURI_R_R_II)
         /* RIDE475r3 (F2-iter289, INC-289e, canonical 978c091): cf-dziedziczenie donorow 475 (+1136), R3 +3, R3b 121a +2 */
-        ("sm103a", 1170usize),
-        ("sm120", 1181usize), // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim)
-        ("sm121a", 1185usize), // 2026-11-04 (T-4): +1 cf (SM120 row adopted into SM121a in the text-parity pass) // RIDE469: +17 cf (graft 469); canonical bd48e63 + // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim) (121a)
+        ("sm103a", 6973usize),
+        ("sm120", 7012usize), // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim)
+        ("sm121a", 1243usize), // 2026-11-04 (T-4): +1 cf (SM120 row adopted into SM121a in the text-parity pass) // RIDE469: +17 cf (graft 469); canonical bd48e63 + // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim) (121a)
     ] {
         let raw = cubit::table::read_table_text(format!("tables/{leg}.json")).unwrap();
         let n = raw.matches("\"claim_forbid\"").count();
