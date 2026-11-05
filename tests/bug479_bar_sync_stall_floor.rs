@@ -1,4 +1,5 @@
-//! BUG-422 (session V, sparse-MLA prefill SASS on sm_120, 2026-11-04): `BAR.SYNC` /
+//! BUG-479 (reported by session V as "BUG-422" on 2026-11-04 — that number was already
+//! taken by `bug421422_ldsm_enum_s16.rs`, hence 479 here; sparse-MLA prefill SASS on sm_120): `BAR.SYNC` /
 //! `BAR.RED` block *deferred* — the warp keeps issuing for a few cycles after the barrier
 //! instruction, so a shared-memory access issued within 5 cycles of it slips past the
 //! barrier and reads stale data. Silicon (rtx-pro-6000, 1 CTA/SM, 8 warps): the softmax
@@ -12,7 +13,7 @@
 //! barrier class falls to `base_latency = 1`), and the encoder's static-control path then
 //! emitted S01 — the main.rs re-injection comment already promised "BAR=6" without anything
 //! computing it. The hazard was masked in every earlier cubit kernel by scoreboard waits
-//! on the first load after the barrier (overflow drains); the BUG-421 colouring relief
+//! on the first load after the barrier (overflow drains); the BUG-478 colouring relief
 //! removed those waits and exposed it.
 
 use cubit::encoder::encode_instruction;
@@ -40,9 +41,9 @@ const SRC: &str = "\
     EXIT ;
 ";
 
-/// t422_1: the scheduler assigns BAR.SYNC a stall of at least 6.
+/// t479_1: the scheduler assigns BAR.SYNC a stall of at least 6.
 #[test]
-fn t422_1_bar_sync_stall_floor_in_schedule() {
+fn t479_1_bar_sync_stall_floor_in_schedule() {
     let f = parse_sass_file_str_strict(SRC).unwrap();
     let mut insns = f.kernels[0].instructions.clone();
     let tab = t120();
@@ -56,11 +57,11 @@ fn t422_1_bar_sync_stall_floor_in_schedule() {
     );
 }
 
-/// t422_2: the stall reaches the encoded word through the static-control re-injection
+/// t479_2: the stall reaches the encoded word through the static-control re-injection
 /// (the path main.rs takes for barrier-class instructions): bits [44:41] of the high
 /// word hold the stall count.
 #[test]
-fn t422_2_bar_sync_stall_reaches_the_bytes() {
+fn t479_2_bar_sync_stall_reaches_the_bytes() {
     let f = parse_sass_file_str_strict(SRC).unwrap();
     let mut insns = f.kernels[0].instructions.clone();
     let tab = t120();

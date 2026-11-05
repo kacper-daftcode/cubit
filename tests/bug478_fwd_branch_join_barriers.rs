@@ -1,4 +1,6 @@
-//! BUG-421 (session V, sparse-MLA prefill SASS on sm_120, 2026-11-04): the barrier
+//! BUG-478 (reported by session V as "BUG-421" on 2026-11-04 — that number was already
+//! taken by the LDSM enum pins of `bug421422_ldsm_enum_s16.rs`, hence 478 here; the
+//! sparse-MLA prefill SASS on sm_120): the barrier
 //! allocator `reallocate_barriers` walked program order LINEARLY when looking for
 //! the consumers of a variable-latency producer (`raw_consumers`) and for the
 //! overwriters of a late-latched memory operand (`war_overwriter`). Forward control
@@ -51,13 +53,13 @@ fn waits(insns: &[Instruction], waiter: usize, bar: u8) -> bool {
     bar < 6 && (insns[waiter].ctrl.wait_mask >> bar) & 1 == 1
 }
 
-/// t421_1 (WAR across an if/else JOIN): arm 1 stores R4; arm 2 redefines R4 (dead on
+/// t478_1 (WAR across an if/else JOIN): arm 1 stores R4; arm 2 redefines R4 (dead on
 /// the arm-1 path) and stores R5; the first instruction after the join overwrites R4
 /// and must wait the arm-1 store's read barrier. Pre-fix the arm-1 store's only
 /// waiter was arm 2's `MOV R4, 0x5`, so on the arm-1 path `MOV R4, RZ` clobbered the
 /// store data before the STS latched it (the sparse-MLA fp8/fp4 dequant join).
 #[test]
-fn t421_1_war_read_barrier_survives_join() {
+fn t478_1_war_read_barrier_survives_join() {
     let src = "\
 .entry t
     .param u64 io
@@ -96,12 +98,12 @@ join:
     );
 }
 
-/// t421_2 (RAW across an if/else SPLIT): a load before `@P0 BRA arm2` is consumed
+/// t478_2 (RAW across an if/else SPLIT): a load before `@P0 BRA arm2` is consumed
 /// in BOTH arms; each arm's first consumer must wait the write barrier. Pre-fix only
 /// the textually first consumer (arm 1) waited; arm 2 read the register file before
 /// the load retired.
 #[test]
-fn t421_2_raw_write_barrier_reaches_both_arms() {
+fn t478_2_raw_write_barrier_reaches_both_arms() {
     let src = "\
 .entry t
     .param u64 io
@@ -125,12 +127,12 @@ join:
     assert!(waits(&insns, c2, wb), "arm-2 consumer must wait W{wb} (wait_mask {:#04x})", insns[c2].ctrl.wait_mask);
 }
 
-/// t421_3 (RAW across a JOIN after an unconditional branch): the consumer sits after
+/// t478_3 (RAW across a JOIN after an unconditional branch): the consumer sits after
 /// the join; arm 2 (textually between the load and the join) redefines the loaded
 /// register on ITS path only. Pre-fix the linear scan saw arm 2's redefinition, dropped
 /// R4 from the live set and left the join consumer WITHOUT a wait on the arm-1 path.
 #[test]
-fn t421_3_raw_join_consumer_waits_despite_other_arm_redefinition() {
+fn t478_3_raw_join_consumer_waits_despite_other_arm_redefinition() {
     let src = "\
 .entry t
     .param u64 io
@@ -152,11 +154,11 @@ join:
     assert!(waits(&insns, cons, wb), "join consumer must wait W{wb} (wait_mask {:#04x})", insns[cons].ctrl.wait_mask);
 }
 
-/// t421_4 (regression guard): straight-line and loop shapes keep their waiters —
+/// t478_4 (regression guard): straight-line and loop shapes keep their waiters —
 /// a loop-carried store-data WAR (the back-edge overwriter) and the fall-through
 /// overwriter both still wait the store's read barrier.
 #[test]
-fn t421_4_loop_shape_unchanged() {
+fn t478_4_loop_shape_unchanged() {
     let src = "\
 .entry t
     .param u64 io
@@ -179,7 +181,7 @@ top:
     assert!(waits(&insns, bump, rb), "in-loop overwriter must wait R{rb} (wait_mask {:#04x})", insns[bump].ctrl.wait_mask);
 }
 
-/// t421_5 (address latch released by the load's own RAW wait): the mask load's address
+/// t478_5 (address latch released by the load's own RAW wait): the mask load's address
 /// register R0 is overwritten only in the next iteration / after the loop, but the load's
 /// unguarded data consumer (`ISETP ... R2`) sits right behind it. Past that consumer the
 /// address has certainly been read (data cannot return before the address was consumed),
@@ -187,7 +189,7 @@ top:
 /// reserved a scoreboard over the whole loop body (colouring starvation in the sparse-MLA
 /// QK chain). With a GUARDED consumer the read barrier must still be waited.
 #[test]
-fn t421_5_load_rb_released_by_unguarded_raw_waiter() {
+fn t478_5_load_rb_released_by_unguarded_raw_waiter() {
     let src_unguarded = "\
 .entry t
     .param u64 io
@@ -215,4 +217,38 @@ top:
     let rb = insns[lds].ctrl.read_bar;
     assert!(rb < 6, "guarded consumer: the load must keep a read barrier (got R{rb})");
     assert!(waits(&insns, bump, rb), "post-loop bump must wait R{rb} (wait_mask {:#04x})", insns[bump].ctrl.wait_mask);
+}
+
+/// t478_6 (T-5 maintainer refinement, 2026-11-05): a guarded forward jump OUT of a loop.
+/// The load's consumer on the `@P3 BRA out` path sits at `out`, textually after the
+/// fall-through exit code, which has its own (unguarded) consumer. The original scan
+/// resumed every path that left the loop at `lback + 1`, found the fall-through consumer
+/// first and stopped — the consumer at `out` never waited. Each exit path now resumes at
+/// the index it actually reached.
+#[test]
+fn t478_6_forward_exit_from_loop_resumes_at_its_target() {
+    let src = "\
+.entry t
+    .param u64 io
+    MOV R9, 0x4 ;
+top:
+    LDG.E R4, desc[UR4][R2.64] ;
+    @P3 BRA out ;
+    IADD3 R9, PT, PT, R9, -0x1, RZ ;
+    ISETP.NE.AND P0, PT, R9, RZ, PT ;
+    @P0 BRA top ;
+    IADD3 R6, PT, PT, R4, 0x1, RZ ;
+    EXIT ;
+out:
+    IADD3 R7, PT, PT, R4, 0x2, RZ ;
+    EXIT ;
+";
+    let insns = pipeline(src);
+    let ldg = idx_of(&insns, "LDG.E", 0);
+    let fall = idx_of(&insns, "IADD3", 1); // IADD3 R6 (fall-through exit)
+    let out = idx_of(&insns, "IADD3", 2); // IADD3 R7 (jump exit)
+    let wb = insns[ldg].ctrl.write_bar;
+    assert!(wb < 6, "LDG must carry a write barrier (got W{wb})");
+    assert!(waits(&insns, fall, wb), "fall-through exit consumer must wait W{wb} (wait_mask {:#04x})", insns[fall].ctrl.wait_mask);
+    assert!(waits(&insns, out, wb), "jump-exit consumer at `out` must wait W{wb} (wait_mask {:#04x})", insns[out].ctrl.wait_mask);
 }

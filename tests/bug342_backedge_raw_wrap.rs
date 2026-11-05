@@ -123,7 +123,7 @@ INNER_TOP:
     @P1 BRA OUTER_TOP ;
     EXIT ;
 ";
-// BUG-421 refinement: the load's consumer above is GUARDED (`@P2 IMAD`). An UNGUARDED
+// BUG-478 refinement: the load's consumer above is GUARDED (`@P2 IMAD`). An UNGUARDED
 // consumer waits the load's write barrier, and a load reads its address strictly before
 // its data returns, so past such a consumer the address latch is released and no
 // read-barrier wait is owed by later overwriters (the outer-head bump would then carry

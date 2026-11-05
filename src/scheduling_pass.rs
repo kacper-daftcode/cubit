@@ -24,10 +24,15 @@ const LATENCY_PRED_BRANCH: u8 = 9; // ISETP/UISETP whose predicate is consumed b
 const STORE_LATCH: u8 = 9;      // store operand-latch latency across a loop back-edge (WAR)
 const LOAD_LOOPCARRY_STALL: u8 = 10; // load whose result is loop-carried: retire before back-edge
 const LATENCY_CTRL: u8 = 5;     // EXIT, BRA, RET
-/// BUG-422: minimum stall on BAR.SYNC/BAR.RED before the next instruction — a shared-memory
+/// BUG-479: minimum stall on BAR.SYNC/BAR.RED before the next instruction — a shared-memory
 /// access issued within 5 cycles of the barrier slips past it (silicon sm120; ptxas floor 6).
 const LATENCY_BAR_SYNC: u8 = 6;
 const LATENCY_S2R: u8 = 4;      // S2R, CS2R
+/// BUG-480: key of vector predicate P<n> in the `(uniform, reg)` register-key space of
+/// `src_regs` / `dest_regs`. GPRs occupy 0..=254 (R255 = RZ is never keyed), so predicates sit
+/// above the GPR file; before 2026-11-05 they were keyed as `128 + n` in a `u8`, which made every
+/// GPR R128..R254 look like a predicate (no scoreboard, no read barrier — session V's "BUG gpr128").
+const PRED_KEY: u16 = 256;
 // Stores latch their source operands (address + data) a few cycles after issue.
 // A following writer of a store source reg (pointer bump / accumulator re-zero)
 // must be held off this long so the store reads the intended values (WAR).
@@ -78,8 +83,8 @@ fn store_data_gprs(insn: &Instruction) -> Vec<u8> {
     let bases: Vec<u8> = mem_addr_base_regs(insn).into_iter()
         .filter(|(u, _)| !*u).map(|(_, r)| r).collect();
     src_regs(insn).into_iter()
-        .filter(|(u, r)| !*u && *r < 128 && !bases.contains(r))
-        .map(|(_, r)| r).collect()
+        .filter(|(u, r)| !*u && *r < PRED_KEY && !bases.contains(&(*r as u8)))
+        .map(|(_, r)| r as u8).collect()
 }
 
 /// Source GPRs a warp-cooperative MMA (QMMA/HMMA/IMMA/DMMA) latches over its long
@@ -96,7 +101,7 @@ fn mma_src_gprs(insn: &Instruction) -> Vec<u8> {
     if !is_warp_mma(insn.opcode.as_str()) { return Vec::new(); }
     let mut out: Vec<u8> = Vec::new();
     for (u, r) in src_regs(insn) {
-        if !u && r < 128 && !out.contains(&r) { out.push(r); }
+        if !u && r < PRED_KEY && !out.contains(&(r as u8)) { out.push(r as u8); }
     }
     out
 }
@@ -609,9 +614,9 @@ fn sched2_raw_deficit(insns: &[Instruction], st: &SchedulerState, cons: usize, r
         .and_then(|s| s.parse().ok()).unwrap_or(7usize);
     let mut need: usize = 0;
     for (is_u, reg) in src_regs(&insns[cons]) {
-        if reg >= 128 {
+        if reg >= PRED_KEY {
             // predicate RAW
-            if let Some(pd) = st.pred_defs.get((reg - 128) as usize).and_then(|d| d.as_ref()) {
+            if let Some(pd) = st.pred_defs.get((reg - PRED_KEY) as usize).and_then(|d| d.as_ref()) {
                 let lat = if pd.is_carry {
                     if cons_is_ctrl { LATENCY_CARRY_PRED_BRANCH as usize } else { LATENCY_ALU as usize }
                 } else {
@@ -931,7 +936,7 @@ impl SchedulerState {
 
 // ── Operand extraction helpers ───────────────────────────────────────────────
 
-fn dest_regs(insn: &Instruction) -> Vec<(bool, u8)> {
+fn dest_regs(insn: &Instruction) -> Vec<(bool, u16)> {
     let mut out = Vec::new();
     let op = insn.opcode.as_str();
     if is_store(op) || is_control_flow(op) || is_barrier_insn(op) {
@@ -940,14 +945,14 @@ fn dest_regs(insn: &Instruction) -> Vec<(bool, u8)> {
     if let Some(first) = insn.operands.first() {
         match first {
             Operand::Reg { num, .. } => {
-                out.push((false, *num));
+                out.push((false, *num as u16));
                 if (insn.opcode_full.contains(".64") || insn.opcode_full.contains(".128")
                     || insn.opcode_full.contains("WIDE")) && *num < 255 {
-                    out.push((false, num + 1));
+                    out.push((false, *num as u16 + 1));
                 }
                 if insn.opcode_full.contains(".128") {
-                    if *num < 254 { out.push((false, num + 2)); }
-                    if *num < 253 { out.push((false, num + 3)); }
+                    if *num < 254 { out.push((false, *num as u16 + 2)); }
+                    if *num < 253 { out.push((false, *num as u16 + 3)); }
                 }
                 // BUG-101: .256 memory forms (LDG_R_R_dARI family) write a 256-bit
                 // payload; per the M3.5 census doctrine the two printed base registers
@@ -957,7 +962,7 @@ fn dest_regs(insn: &Instruction) -> Vec<(bool, u8)> {
                 // stale read (TS2-LDG-WAIT sibling class). Mirror reg_liveness.rs.
                 if insn.opcode_full.contains(".256") {
                     for r in 1..4u8 {
-                        if *num <= 255 - r { out.push((false, num + r)); }
+                        if *num <= 255 - r { out.push((false, *num as u16 + r as u16)); }
                     }
                 }
                 // MMA writes a multi-register accumulator: m16n8 F32 = 4 regs, F16 = 2.
@@ -966,18 +971,18 @@ fn dest_regs(insn: &Instruction) -> Vec<(bool, u8)> {
                 if matches!(op, "QMMA" | "HMMA" | "IMMA" | "DMMA") {
                     let w: u16 = if insn.opcode_full.contains(".F32") { 4 } else { 2 };
                     for r in 1..w {
-                        if (*num as u16) + r < 256 { out.push((false, (*num as u16 + r) as u8)); }
+                        if (*num as u16) + r < 256 { out.push((false, *num as u16 + r)); }
                     }
                 }
             }
             Operand::UReg { num, .. } => {
-                out.push((true, *num));
+                out.push((true, *num as u16));
                 // UIMAD.WIDE.* writes a 64-bit uniform result = UR pair
                 // (M3.5 doctrine). Without the +1, a consumer of the hi
                 // half (URd+1) never sees this producer (BUG-108 sibling
                 // of the BUG-101 span hole, uniform domain).
                 if insn.opcode_full.contains("WIDE") && *num < 62 {
-                    out.push((true, num + 1));
+                    out.push((true, *num as u16 + 1));
                 }
             }
             _ => {}
@@ -988,7 +993,7 @@ fn dest_regs(insn: &Instruction) -> Vec<(bool, u8)> {
     if insn.opcode_full.contains(".256") && !is_store(insn.opcode.as_str()) {
         if let Some(Operand::Reg { num: n2, .. }) = insn.operands.get(1) {
             for r in 0..4u8 {
-                if *n2 <= 255 - r { out.push((false, n2 + r)); }
+                if *n2 <= 255 - r { out.push((false, *n2 as u16 + r as u16)); }
             }
         }
     }
@@ -1000,9 +1005,9 @@ fn dest_regs(insn: &Instruction) -> Vec<(bool, u8)> {
     // `UTCATOMSWS.* URd, URn` form is already covered by the generic UReg match.)
     if op == "UTCATOMSWS" {
         if let Some(Operand::UPred { num, .. }) = insn.operands.first() {
-            if *num < 7 { out.push((true, 64 + *num)); }
+            if *num < 7 { out.push((true, 64 + *num as u16)); }
             if let Some(Operand::UReg { num, .. }) = insn.operands.get(1) {
-                if *num < 255 { out.push((true, *num)); }
+                if *num < 255 { out.push((true, *num as u16)); }
             }
         }
     }
@@ -1010,7 +1015,7 @@ fn dest_regs(insn: &Instruction) -> Vec<(bool, u8)> {
     // Record the register so consumers see SHFL (with its write barrier) as producer.
     if op == "SHFL" {
         if let Some(Operand::Reg { num, .. }) = insn.operands.get(1) {
-            out.push((false, *num));
+            out.push((false, *num as u16));
         }
     }
     // Pred outputs for ISETP, LEA, IADD3, etc.
@@ -1019,17 +1024,17 @@ fn dest_regs(insn: &Instruction) -> Vec<(bool, u8)> {
     if is_pred_writer(op) || op == "LEA" || is_carry_pred_writer(op) {
         // Capture pred from operand 0 (ISETP primary result)
         if let Some(Operand::Pred { num, .. }) = insn.operands.first() {
-            out.push((false, 128 + *num));
+            out.push((false, PRED_KEY + *num as u16));
         }
         // Capture pred from operand 1 (ISETP secondary / IADD3 carry)
         if let Some(Operand::Pred { num, .. }) = insn.operands.get(1) {
-            out.push((false, 128 + *num));
+            out.push((false, PRED_KEY + *num as u16));
         }
     }
     out
 }
 
-fn src_regs(insn: &Instruction) -> Vec<(bool, u8)> {
+fn src_regs(insn: &Instruction) -> Vec<(bool, u16)> {
     let mut out = Vec::new();
     let op = insn.opcode.as_str();
     let is_mma = matches!(op, "QMMA" | "HMMA" | "IMMA" | "DMMA");
@@ -1053,7 +1058,7 @@ fn src_regs(insn: &Instruction) -> Vec<(bool, u8)> {
     for (op_idx, operand) in insn.operands.iter().enumerate().skip(start) {
         match operand {
             Operand::Reg { num, .. } if *num < 255 => {
-                out.push((false, *num));
+                out.push((false, *num as u16));
                 // MMA instructions read multi-register operands:
                 // operand 1 (A): 4 regs, operand 2 (B): 2 regs, operand 3 (C/acc): 4 regs
                 if is_mma {
@@ -1064,7 +1069,7 @@ fn src_regs(insn: &Instruction) -> Vec<(bool, u8)> {
                         _ => 1,
                     };
                     for r in 1..width {
-                        if *num + r < 255 { out.push((false, num + r)); }
+                        if *num + r < 255 { out.push((false, *num as u16 + r as u16)); }
                     }
                 } else if is_store(op) {
                     // Store data operand spans multiple regs for wide stores:
@@ -1076,7 +1081,7 @@ fn src_regs(insn: &Instruction) -> Vec<(bool, u8)> {
                     let w: u16 = if insn.opcode_full.contains(".256") || insn.opcode_full.contains(".128") { 4 }
                                  else if insn.opcode_full.contains(".64") { 2 } else { 1 };
                     for r in 1..w {
-                        if (*num as u16) + r < 256 { out.push((false, (*num as u16 + r) as u8)); }
+                        if (*num as u16) + r < 256 { out.push((false, *num as u16 + r)); }
                     }
                 } else if is_wide_src && op_idx > 1 && Some(op_idx) == wide_addend_idx {
                     // BUG-110: WIDE pair span applies ONLY to the addend
@@ -1084,31 +1089,31 @@ fn src_regs(insn: &Instruction) -> Vec<(bool, u8)> {
                     // reg_liveness.rs M3.5 doctrine, BUG-108: multiplicands
                     // are 32-bit). Extending it to every register past op 1
                     // fabricated phantom R(n+1) reads (~78 FP on rt98).
-                    if *num < 255 { out.push((false, num + 1)); }
+                    if *num < 255 { out.push((false, *num as u16 + 1)); }
                 }
             }
             Operand::UReg { num, .. } if *num < 63 => {
-                out.push((true, *num));
+                out.push((true, *num as u16));
                 // UIMAD.WIDE reads its 64-bit uniform addend as a UR pair;
                 // the addend is the last non-predicate operand — same
                 // BUG-110 doctrine as the register arm above.
                 if is_wide_src && op_idx > 1 && Some(op_idx) == wide_addend_idx && *num + 1 < 63 {
-                    out.push((true, num + 1));
+                    out.push((true, *num as u16 + 1));
                 }
             }
-            Operand::Pred { num, .. } if *num < 7 => out.push((false, 128 + *num)),
-            Operand::UPred { num, .. } if *num < 7 => out.push((true, 64 + *num)),
+            Operand::Pred { num, .. } if *num < 7 => out.push((false, PRED_KEY + *num as u16)),
+            Operand::UPred { num, .. } if *num < 7 => out.push((true, 64 + *num as u16)),
             Operand::Addr { base_reg: Some(r), ur_reg, .. } => {
-                out.push((false, *r));
-                if let Some(u) = ur_reg { out.push((true, *u)); }
+                out.push((false, *r as u16));
+                if let Some(u) = ur_reg { out.push((true, *u as u16)); }
             }
             Operand::Desc { ur_idx, base_reg, .. } => {
-                out.push((true, *ur_idx));
-                if let Some(r) = base_reg { out.push((false, *r)); }
+                out.push((true, *ur_idx as u16));
+                if let Some(r) = base_reg { out.push((false, *r as u16)); }
             }
             Operand::ConstMem { base_reg: Some(r), ur_reg, .. } => {
-                out.push((false, *r));
-                if let Some(u) = ur_reg { out.push((true, *u)); }
+                out.push((false, *r as u16));
+                if let Some(u) = ur_reg { out.push((true, *u as u16)); }
             }
             _ => {}
         }
@@ -1120,8 +1125,8 @@ fn src_regs(insn: &Instruction) -> Vec<(bool, u8)> {
     if is_control_flow(op) {
         if let Some(first) = insn.operands.first() {
             match first {
-                Operand::Pred { num, .. } if *num < 7 => out.push((false, 128 + *num)),
-                Operand::UPred { num, .. } if *num < 7 => out.push((true, 64 + *num)),
+                Operand::Pred { num, .. } if *num < 7 => out.push((false, PRED_KEY + *num as u16)),
+                Operand::UPred { num, .. } if *num < 7 => out.push((true, 64 + *num as u16)),
                 _ => {}
             }
         }
@@ -1129,7 +1134,7 @@ fn src_regs(insn: &Instruction) -> Vec<(bool, u8)> {
     // Guard predicate is a source
     if let Some(g) = &insn.guard {
         if g.pred < 7 {
-            out.push((g.uniform, if g.uniform { 64 + g.pred } else { 128 + g.pred }));
+            out.push((g.uniform, if g.uniform { 64 + g.pred as u16 } else { PRED_KEY + g.pred as u16 }));
         }
     }
     out
@@ -1167,11 +1172,11 @@ fn load_addr_gprs(insn: &Instruction) -> Vec<u8> {
     out
 }
 
-/// GPR destinations of an instruction (numbers < 128), for WAR-writer detection.
+/// GPR destinations of an instruction (R0..R254), for WAR-writer detection.
 fn dest_gprs(insn: &Instruction) -> Vec<u8> {
     dest_regs(insn).into_iter()
-        .filter(|(u, r)| !*u && *r < 128)
-        .map(|(_, r)| r)
+        .filter(|(u, r)| !*u && *r < PRED_KEY)
+        .map(|(_, r)| r as u8)
         .collect()
 }
 
@@ -1258,7 +1263,7 @@ fn compute_addr_feeding(insns: &[Instruction]) -> Vec<bool> {
         if dest_tainted {
             for (u, r) in src_regs(insn) {
                 if u { if (r as usize) < 64 { tu[r as usize] = true; } }
-                else if (r as usize) < 128 { tg[r as usize] = true; }
+                else if r < PRED_KEY { tg[r as usize] = true; }
             }
         }
         // Seed: the address-base registers of a memory op carry an address.
@@ -1274,7 +1279,7 @@ fn compute_addr_feeding(insns: &[Instruction]) -> Vec<bool> {
         if matches!(op, "STS" | "STSM" | "STL") {
             for (u, r) in src_regs(insn) {
                 if u { if (r as usize) < 64 { tu[r as usize] = true; } }
-                else if (r as usize) < 128 { tg[r as usize] = true; }
+                else if r < PRED_KEY { tg[r as usize] = true; }
             }
         }
     }
@@ -1425,9 +1430,9 @@ pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
         for (is_uniform, reg) in &srcs {
             let def = if *is_uniform {
                 st.ureg_defs.get(*reg as usize).and_then(|d| d.as_ref())
-            } else if *reg >= 128 {
+            } else if *reg >= PRED_KEY {
                 // Predicate register — stall only, no barrier
-                if let Some(pdef) = st.pred_defs.get((*reg - 128) as usize).and_then(|d| d.as_ref()) {
+                if let Some(pdef) = st.pred_defs.get((*reg - PRED_KEY) as usize).and_then(|d| d.as_ref()) {
                     let clock_dist = issue_clock.saturating_sub(pdef.clock);
                     let lat = if pdef.is_carry {
                         // Carry pred → @P BRA needs extra cycles (branch pred pipeline)
@@ -1489,7 +1494,7 @@ pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
             for (is_uniform, reg) in &dsts {
                 let def = if *is_uniform {
                     st.ureg_defs.get(*reg as usize).and_then(|d| d.as_ref())
-                } else if *reg < 128 {
+                } else if *reg < PRED_KEY {
                     st.gpr_defs.get(*reg as usize).and_then(|d| d.as_ref())
                 } else {
                     None
@@ -1660,7 +1665,7 @@ pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
         if is_control_flow(op) && !st.stage3 {
             insns[i].ctrl.stall = insns[i].ctrl.stall.max(LATENCY_CTRL);
         }
-        // BUG-422: `BAR.SYNC` / `BAR.RED` block *deferred* — the warp keeps issuing for a
+        // BUG-479: `BAR.SYNC` / `BAR.RED` block *deferred* — the warp keeps issuing for a
         // few cycles after the barrier instruction, and a shared-memory access issued
         // within 5 cycles of it slips past the barrier. Silicon (sm120, sparse-MLA
         // softmax: cross-warp max/sum reduction `STS; BAR.SYNC; LDS x8`): S01..S05 on the
@@ -2084,7 +2089,7 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<HazardReport> {
     // negative): `armed[b] == Some(pidx)` fired only for the newest armer.
     let mut armed: [Vec<usize>; NUM_BARRIERS] = std::array::from_fn(|_| Vec::new());
     let mut out: Vec<HazardReport> = Vec::new();
-    let mut seen: std::collections::HashSet<(u32, bool, u8)> = std::collections::HashSet::new();
+    let mut seen: std::collections::HashSet<(u32, bool, u16)> = std::collections::HashSet::new();
     let mut clock: usize = 0;
     // Floor for barrier-less long-latency RAW: mirrors the LONG_LATENCY_ESTIMATE used
     // by the auto path when a consumer cannot encode a wait. A producer->consumer
@@ -2137,7 +2142,7 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<HazardReport> {
         }
         // 2) check sources.
         for (is_u, reg) in src_regs(insn) {
-            if reg >= 128 { continue; } // predicate — no barrier mechanism
+            if reg >= PRED_KEY { continue; } // predicate — no barrier mechanism
             let owner = if is_u { ureg_owner.get(reg as usize).copied().flatten() }
                         else { gpr_owner[reg as usize] };
             if let Some((pidx, maybe_wb, pclock)) = owner {
@@ -2184,7 +2189,7 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<HazardReport> {
                 if !g.uniform && g.pred < 7 { flag_srcs.push(g.pred); }
             }
             for (is_u, reg) in src_regs(insn) {
-                if !is_u && (128..135).contains(&reg) { flag_srcs.push(reg - 128); }
+                if !is_u && (PRED_KEY..PRED_KEY + 7).contains(&reg) { flag_srcs.push((reg - PRED_KEY) as u8); }
             }
             flag_srcs.sort_unstable();
             flag_srcs.dedup();
@@ -2211,14 +2216,14 @@ pub fn report_hazards(insns: &[Instruction]) -> Vec<HazardReport> {
         // 3) record defs.
         let wb = if insn.ctrl.write_bar < NUM_BARRIERS as u8 { Some(insn.ctrl.write_bar) } else { None };
         for (is_u, reg) in dest_regs(insn) {
-            if reg >= 128 {
+            if reg >= PRED_KEY {
                 // predicate defs for the BUG-062 flag-latency audit: only the
                 // silicon-measured producer classes (ISETP*/PLOP3* family of the
                 // i134 census) register a floor; any other predicate writer makes
                 // the producer unknown (None) so unmeasured classes stay silent.
-                if !is_u && reg < 135 {
+                if !is_u && reg < PRED_KEY + 7 {
                     let op = insn.opcode.as_str();
-                    pred_owner[(reg - 128) as usize] =
+                    pred_owner[(reg - PRED_KEY) as usize] =
                         if op.starts_with("ISETP") || op.starts_with("PLOP3") {
                             Some((i, my_clock))
                         } else {
@@ -2277,8 +2282,8 @@ fn record_defs(st: &mut SchedulerState, insn: &Instruction, idx: usize, barrier:
             if (reg as usize) < st.ureg_defs.len() {
                 st.ureg_defs[reg as usize] = Some(def);
             }
-        } else if reg >= 128 {
-            let pidx = (reg - 128) as usize;
+        } else if reg >= PRED_KEY {
+            let pidx = (reg - PRED_KEY) as usize;
             if pidx < st.pred_defs.len() {
                 st.pred_defs[pidx] = Some(PredDef { clock, is_carry });
             }
@@ -2295,8 +2300,9 @@ fn record_defs(st: &mut SchedulerState, insn: &Instruction, idx: usize, barrier:
 /// value in the NEXT loop iteration (loop-carried). Forward consumers are found
 /// until each destination is redefined; loop-carried consumers are the reads in
 /// `[ltop, last_setter)` that precede a redefinition.
-#[allow(clippy::too_many_arguments)]
-/// BUG-421: forward control flow of the kernel, consulted by the consumer / overwriter
+/// (The doc block above describes `raw_consumers` below; `FlowInfo` sits between them.)
+///
+/// BUG-478: forward control flow of the kernel, consulted by the consumer / overwriter
 /// scans so they follow EXECUTION paths instead of textual order.
 ///
 /// * `fwd[j] = Some(target)` for a branch at `j` whose resolved target lies AFTER `j`;
@@ -2326,11 +2332,11 @@ struct FlowInfo {
 /// Known value of P0..P6 along a scan path: -1 unknown, 0 false, 1 true.
 type Known = [i8; 7];
 
-/// Debug bisection of the BUG-421 refinements (CUBIT_BUG421_LEGACY bitmask): 1 = no
+/// Debug bisection of the BUG-478 refinements (CUBIT_BUG478_LEGACY bitmask): 1 = no
 /// predicate knowledge, 2 = no RAW-waiter stop, 4 = loop-carried overwriter always,
 /// 8 = loop-carried consumer scan always.
-fn bug421_legacy(bit: u8) -> bool {
-    std::env::var("CUBIT_BUG421_LEGACY").ok().and_then(|v| v.parse::<u8>().ok()).is_some_and(|m| m & bit != 0)
+fn bug478_legacy(bit: u8) -> bool {
+    std::env::var("CUBIT_BUG478_LEGACY").ok().and_then(|v| v.parse::<u8>().ok()).is_some_and(|m| m & bit != 0)
 }
 const KNOWN_NONE: Known = [-1; 7];
 
@@ -2389,7 +2395,7 @@ impl FlowInfo {
     /// Forget what is known about every predicate written by instruction `j`.
     fn kill(writes_j: &[u16], known: &mut Known) {
         for w in writes_j {
-            if (128..135).contains(w) { known[(*w - 128) as usize] = -1; }
+            if (PRED_KEY..PRED_KEY + 7).contains(w) { known[(*w - PRED_KEY) as usize] = -1; }
         }
     }
 
@@ -2405,7 +2411,7 @@ impl FlowInfo {
                 None => vec![(t, *known)],
                 Some(Some((p, neg))) => {
                     let taken_val: i8 = if neg { 0 } else { 1 };
-                    if bug421_legacy(1) {
+                    if bug478_legacy(1) {
                         let mut v = vec![(t, *known)];
                         v.extend(fall(*known));
                         return v;
@@ -2438,6 +2444,7 @@ impl FlowInfo {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn raw_consumers(
     reads: &[Vec<u16>],
     writes: &[Vec<u16>],
@@ -2455,7 +2462,7 @@ fn raw_consumers(
     // later reader. Collect consumers up to and INCLUDING the first UNGUARDED one per path
     // (a guarded first reader may be skipped, so a following reader still needs the wait).
     //
-    // BUG-421: "path" is an EXECUTION path — the scan follows forward control flow
+    // BUG-478: "path" is an EXECUTION path — the scan follows forward control flow
     // (`FlowInfo`): an unconditional forward branch continues at its target, a guarded
     // forward branch forks unless the predicate's value is already known on the path.
     // `seen[j]` = (live set, knowledge) pairs already scanned from `j`; a path arriving
@@ -2469,13 +2476,19 @@ fn raw_consumers(
     let is_backedge = |j: usize| -> bool {
         edges.iter().any(|&(t, b)| t <= last_setter && last_setter <= b && j == b)
     };
-    let scan = |waiters: &mut Vec<usize>, seen: &mut Vec<Vec<(Vec<u16>, Known)>>, lo: usize, hi: usize, dsts: &[u16]| -> (bool, bool) {
-        // Returns (open_exit, open_back): some path left [lo, hi) (reached `hi` or jumped
-        // past it) with unconsumed live destinations / some path reached an enclosing
-        // back-edge with unconsumed live destinations.
-        if lo >= hi || dsts.is_empty() { return (false, false); }
-        let mut work: Vec<(usize, Vec<u16>, Known)> = vec![(lo, dsts.to_vec(), KNOWN_NONE)];
-        let (mut open_exit, mut open_back) = (false, false);
+    // Returns (exits, open_back): `exits` = the states `(index, live, known)` of every path
+    // that left [lo, hi) with unconsumed live destinations — at `hi` itself (the loop-exit
+    // fall-through) or at the target of a forward jump out of the range (`@P BRA out` from
+    // inside the loop; T-5 refinement: before, every such path was resumed at `lback + 1`,
+    // so a consumer at the jump target never waited when an earlier instruction of the
+    // fall-through exit code read the register); `open_back` = some path reached an
+    // enclosing back-edge with unconsumed live destinations.
+    type Exit = (usize, Vec<u16>, Known);
+    let scan = |waiters: &mut Vec<usize>, seen: &mut Vec<Vec<(Vec<u16>, Known)>>, lo: usize, hi: usize, dsts: &[u16], known_lo: Known| -> (Vec<Exit>, bool) {
+        let mut exits: Vec<Exit> = Vec::new();
+        if lo >= hi || dsts.is_empty() { return (exits, false); }
+        let mut work: Vec<(usize, Vec<u16>, Known)> = vec![(lo, dsts.to_vec(), known_lo)];
+        let mut open_back = false;
         while let Some((start, live0, known0)) = work.pop() {
             let mut live = live0;
             let mut known = known0;
@@ -2506,24 +2519,28 @@ fn raw_consumers(
                     }
                 }
             }
-            if !done && !live.is_empty() { open_exit = true; }
+            if !done && !live.is_empty() && j >= hi { exits.push((j, live, known)); }
         }
-        (open_exit, open_back)
+        (exits, open_back)
     };
     let fwd_end = if lback != usize::MAX { (lback + 1).min(n) } else { n };
-    let (open_exit, mut open_back) = scan(&mut waiters, &mut seen, last_setter + 1, fwd_end, dsts);
-    if lback != usize::MAX && open_exit {
-        // the loop-exit path (and anything a forward jump out of the loop reaches)
-        let (_, ob) = scan(&mut waiters, &mut seen, lback + 1, n, dsts);
-        open_back |= ob;
+    let (exits, mut open_back) = scan(&mut waiters, &mut seen, last_setter + 1, fwd_end, dsts, KNOWN_NONE);
+    if lback != usize::MAX {
+        // the loop-exit paths: each resumes where it left the loop (the fall-through at
+        // `lback + 1`, or the target of a forward jump out of the loop) with its own live
+        // set and predicate knowledge
+        for (j, live, known) in exits {
+            let (_, ob) = scan(&mut waiters, &mut seen, j, n, &live, known);
+            open_back |= ob;
+        }
     }
     let done = !open_back;
     let mut wrap = false;
-    // BUG-421: when EVERY forward path found an unguarded consumer inside the iteration
+    // BUG-478: when EVERY forward path found an unguarded consumer inside the iteration
     // (`done`), the barrier is waited before the back-edge and the next iteration's
     // readers are covered — no loop-carried waiter (which would stretch the use over
     // the whole loop and starve the scoreboard colouring).
-    if ltop != usize::MAX && last_setter <= lback && (!done || bug421_legacy(8)) {
+    if ltop != usize::MAX && last_setter <= lback && (!done || bug478_legacy(8)) {
         // BUG-342: consumers reachable via ANY enclosing back-edge, not only the
         // innermost loop. A producer inside a nested loop whose consumer sits in
         // an outer loop head (textually above, below the outer top) is a genuine
@@ -2541,7 +2558,7 @@ fn raw_consumers(
         let mut hi = last_setter;
         for (t, _b) in enc {
             let before = waiters.len();
-            scan(&mut waiters, &mut seen, t, hi, dsts);
+            scan(&mut waiters, &mut seen, t, hi, dsts, KNOWN_NONE);
             if waiters.len() > before {
                 wrap = true;
             }
@@ -2556,6 +2573,7 @@ fn raw_consumers(
 /// wait the read-barrier: the linear fall-through one (covers the last loop
 /// iteration / straight-line code) and the loop-carried one across the back-edge
 /// (covers every non-last iteration). Returns each as (overwriter, wrap).
+#[allow(clippy::too_many_arguments)]
 fn war_overwriter(
     writes: &[Vec<u16>],
     flow: &FlowInfo,
@@ -2579,11 +2597,11 @@ fn war_overwriter(
     // `stop_at`: instructions after which the late operand is certainly released on any
     // path through them — for a LOAD, its unguarded RAW waiters: the address is read when
     // the load issues to the memory pipe, strictly before its data (write barrier) returns,
-    // so an overwriter beyond such a waiter needs no read-barrier wait (BUG-421 colouring
+    // so an overwriter beyond such a waiter needs no read-barrier wait (BUG-478 colouring
     // relief: without it the WAR of e.g. a softmax mask `LDS R2, [R0]` stayed pending until
     // the loop's next iteration and reserved a scoreboard over the whole loop body).
     let mut out = Vec::new();
-    // Fall-through: first overwriter on EVERY forward execution path (BUG-421: follow
+    // Fall-through: first overwriter on EVERY forward execution path (BUG-478: follow
     // forward control flow — an unconditional `BRA join` continues at the join instead
     // of walking into the other, dead arm; a guarded forward branch forks). Within the
     // loop or after it.
@@ -2618,7 +2636,7 @@ fn war_overwriter(
                 if !out.contains(&(j, false)) { out.push((j, false)); }
                 break;
             }
-            if !bug421_legacy(2) && stop_at.contains(&j) { break; }
+            if !bug478_legacy(2) && stop_at.contains(&j) { break; }
             if let Some((d, can_wait)) = early {
                 if dist >= d && can_wait[j] {
                     if !out.contains(&(j, false)) { out.push((j, false)); }
@@ -2640,7 +2658,7 @@ fn war_overwriter(
     // the next iteration (BUG-342): an overwriter in an outer loop head is earlier
     // in re-entry order than any inner one; scanning only [innermost_top, i)
     // missed it and left the late-latched operand unprotected across that edge.
-    if in_loop && (need_carried || bug421_legacy(4)) {
+    if in_loop && (need_carried || bug478_legacy(4)) {
         let outer_top = edges
             .iter()
             .filter(|&&(t, b)| t <= i && i <= b)
@@ -2841,7 +2859,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         return;
     }
 
-    let rk = |u: bool, r: u8| -> u16 { ((u as u16) << 8) | r as u16 };
+    let rk = |u: bool, r: u16| -> u16 { ((u as u16) << 9) | r };
 
     // Clear barrier fields on non-frozen insns (keep stalls/yields from `schedule`).
     for ins in insns.iter_mut() {
@@ -2857,7 +2875,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
     // loop-NEST view for BUG-342 wrap-liveness (consumers / WAR overwriters can
     // sit in ANY enclosing loop, not only the innermost one).
     let (edges, ltop, lback) = resolved_back_edges(insns);
-    // BUG-421: forward control flow for path-following consumer / overwriter scans.
+    // BUG-478: forward control flow for path-following consumer / overwriter scans.
     let flow = FlowInfo::build(insns);
 
     let writes: Vec<Vec<u16>> = insns.iter()
@@ -2875,7 +2893,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
     // Fixed barrier colour for uses pushed by the PINNED pass below (None for
     // normal allocator-coloured uses).
     let mut pin_of: Vec<Option<u8>> = Vec::new();
-    // BUG-421: per load, its UNGUARDED RAW waiters — past them the load's address latch
+    // BUG-478: per load, its UNGUARDED RAW waiters — past them the load's address latch
     // is certainly released (see `war_overwriter::stop_at`).
     let mut raw_stop: Vec<Vec<usize>> = vec![Vec::new(); n];
 
@@ -2965,7 +2983,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
                     if let Some((k0, _)) = key0 {
                         if k0 < 0x100 {
                             let b = k0 as u8;
-                            let pair = [rk(false, b), rk(false, b.saturating_add(1))];
+                            let pair = [rk(false, b as u16), rk(false, b as u16 + 1)];
                             if writes[j].iter().any(|w| pair.contains(w)) { break; }
                         }
                     }
@@ -3045,7 +3063,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         let late: Vec<u8> = late_operands(idx);
         if late.is_empty() { continue; }
         if !insn_can_set_write_bar(&insns[idx], table) { continue; } // rb shares the same field encoding
-        let opk: Vec<u16> = late.iter().map(|&r| rk(false, r)).collect();
+        let opk: Vec<u16> = late.iter().map(|&r| rk(false, r as u16)).collect();
         // Protect BOTH the within-iteration (fall-through) and the loop-carried
         // (next-iteration) overwriter of every late-latched operand (load address or store
         // data). Both are real WARs at high occupancy and are load-bearing for correctness
@@ -3122,7 +3140,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         if b >= NUM_BARRIERS as u8 { continue; }
         let late: Vec<u8> = late_operands(i);
         if late.is_empty() { continue; }
-        let opk: Vec<u16> = late.iter().map(|&r| rk(false, r)).collect();
+        let opk: Vec<u16> = late.iter().map(|&r| rk(false, r as u16)).collect();
         let mut waiters: Vec<usize> = Vec::new();
         for (ow, _w) in war_overwriter(&writes, &flow, i, &opk, &raw_stop[i], rb_early, ltop[i], lback[i], &edges, n) {
             if !insns[ow].hand_sched && !waiters.contains(&ow) { waiters.push(ow); }
@@ -3148,7 +3166,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         v
     };
 
-    // BUG-421 (colouring policy, CUBIT_SB_SHARE=1): SM120 scoreboards are COUNTERS — ptxas
+    // BUG-478 (colouring policy, CUBIT_SB_SHARE=1): SM120 scoreboards are COUNTERS — ptxas
     // puts several in-flight loads of different widths and address streams on one
     // scoreboard with no drain between them and lets the consumer wait once (spec B,
     // sparse_mla_prefill_dsv41_bf16: `LDG.E.U8 R67 … W5`, `LDG.E.U8 R66 … W5`,
@@ -3498,7 +3516,7 @@ fn sb_step(
     wrap: Option<(usize, usize)>,
     print: bool,
 ) {
-    let rk = |u: bool, r: u8| -> u16 { ((u as u16) << 8) | r as u16 };
+    let rk = |u: bool, r: u16| -> u16 { ((u as u16) << 9) | r };
     // kind: 0 = unprotected RAW, 1 = broken WAR, 2 = recycle-stale. The linear
     // pass always counts/prints (identical to pre-347, per-event) and only
     // RECORDS its keys; the wrap pass counts/prints strictly-new keys.
@@ -3586,8 +3604,8 @@ fn sb_step(
     // it did NOT wait → the memory op may latch the overwritten value (broken rb).
     for r in dest_regs(&insns[i])
         .into_iter()
-        .filter(|(u, _)| !*u)
-        .map(|(_, r)| r)
+        .filter(|(u, r)| !*u && *r < PRED_KEY)
+        .map(|(_, r)| r as u8)
     {
         if let Some(&(b, midx)) = st.rbp.get(&r) {
             // Distance coverage: a GLOBAL LOAD consumes its address ~at issue, so an
@@ -3616,7 +3634,7 @@ fn sb_step(
                     1,
                     i,
                     midx,
-                    rk(false, r),
+                    rk(false, r as u16),
                     format!(
                         "  BROKEN WAR: insn[{i}] {} overwrites R{r} before rb (barrier {b}) of mem-op insn[{midx}] {} is waited",
                         insns[i].opcode_full, insns[midx].opcode_full

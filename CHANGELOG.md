@@ -4,6 +4,57 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-05 (session T-5: session V's scheduler fixes integrated)
+
+Session V (the sparse-MLA prefill SASS kernel, 2026-11-04) found three defects in the auto-scheduler
+that every cubit kernel with if/else arms, a barrier followed by a shared-memory access, or registers
+above R127 was exposed to; earlier kernels were protected by accidental overflow drains. V's two commits
+(`b17895d`, `1f1a998` on `53e9ed8`) are cherry-picked verbatim, then renumbered: V reported them as
+"BUG-421/422", numbers that `tests/bug421422_ldsm_enum_s16.rs` already owns.
+
+- **BUG-478 — the barrier allocator follows forward control flow** (`reallocate_barriers`):
+  `raw_consumers` / `war_overwriter` scanned program order linearly, so after an unconditional
+  `BRA join` closing an if/else arm the scan walked into the other (dead) arm and took its first
+  match as the waiter, and a guarded forward branch did not fork the scan (the taken arm's first
+  consumer never waited). Silicon symptom (sm_120, 1 CTA/SM): the fp8 dequant arm's last
+  `STS.128 …, R8` was "waited" by an instruction of the fp4 arm; the join's `IADD3 R11` clobbered the
+  store data → nondeterministic wrong KV rows in ~1 % of the tokens. Now: path-following scans
+  (`FlowInfo`: unconditional forward branch = continue at the target, guarded forward branch = fork,
+  first consumer / overwriter on every path, `seen` sets bound the walk on diamonds and joins) with
+  V's refinements — predicate knowledge along a path (`@!P5 BRA a` … `@!P5 BRA b` is one path, not
+  four), a load's address latch is released by its own unguarded RAW waiter, loop-carried
+  consumers / overwriters only when a path reaches an enclosing back-edge with the operand pending.
+  Maintainer refinement (T-5): a path that leaves a loop through a guarded forward jump resumes at
+  the jump target, not at the loop-exit fall-through (pre-fix a consumer at the target never waited
+  when the fall-through exit code read the register first; `t478_6`). Tests
+  `tests/bug478_fwd_branch_join_barriers.rs` (6), `bug342` / `bug347` fixtures made consumer-guarded so
+  their wrap-WAR pins stay real hazards. `CUBIT_BUG478_LEGACY=<bits>` restores the pre-refinement
+  behaviours for bisection.
+- **BUG-479 — `BAR.SYNC` stall floor 6**: `BAR.SYNC` / `BAR.RED` block deferred; a shared-memory
+  access issued within 5 cycles of the barrier slips past it (silicon: the softmax cross-warp
+  reduction `STS; BAR.SYNC; LDS ×8` wrong in ~40 % of the tokens at S01..S05, exact at S06; ptxas
+  never goes below 6). `schedule()` had no floor for `BAR` (the `main.rs` re-injection comment promised
+  "BAR=6" without anything computing it) → S01 in every cubit kernel; `LATENCY_BAR_SYNC = 6` now
+  reaches the bytes through the static-control re-injection. Frozen (`[CC]`-prefixed) barriers are
+  untouched, so the census / frozen round trips are unchanged by construction. Tests
+  `tests/bug479_bar_sync_stall_floor.rs`.
+- **`CUBIT_SB_SHARE=1` — scoreboard-sharing colouring policy (opt-in)**: scoreboards are counters;
+  ptxas puts several in-flight loads on one and waits once. Under the knob a use that finds no free
+  scoreboard shares the busiest one instead of draining its setter (the drain serialised a 16-load
+  register prefetch), long uses (span > `CUBIT_SB_LONG`, default 256) are confined to the top two
+  scoreboards, far WAR uses are released early (`CUBIT_RB_EARLY`, default 64 walked instructions).
+  Effect on V's kernel: 1.09–1.13× → 0.66–0.72× of the ptxas reference, bits unchanged. **Stays
+  opt-in** (see `docs/KNOWN_ISSUES.md` A13 for the measurement on the production kernels and what a
+  default change needs).
+- **BUG-480 — the scheduler now tracks R128–R254** (V's "BUG gpr128"): registers were keyed as
+  `(uniform, u8)` with vector predicates at `128 + n`, so every GPR ≥ R128 was taken for a
+  predicate — a load into R128+ got no scoreboard, a store with data in R128+ no read barrier, and a
+  write to R128..R134 "redefined" P0..P6 for the predicate-latency model (V kept its kernel in R0–R125
+  because of it). Predicates now live at `PRED_KEY + n` in a `u16` key space; the R128+ kernel and its
+  R<128 twin schedule identically (`tests/bug480_sched_gpr128.rs`).
+- V's kernel build (`vllm-moet tools/dsv41_sm120/sparse_mla_sass/build_sparse_mla_sass.sh`) reproduces
+  the validated cubin **byte for byte** from this tree (2 663 words; checked 2026-11-05).
+
 ## Unreleased — 2026-11-04 (session T-4)
 
 - **SM121a text parity to 100 %** (blackwell-isa `bb11659`, owner decision NEEDS_OWNER 17):

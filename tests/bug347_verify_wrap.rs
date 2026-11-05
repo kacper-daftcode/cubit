@@ -74,7 +74,7 @@ INNER_TOP:
 
 /// WAR variant (342 WAR_NESTED): outer-head pointer bump overwrites the
 /// inner-loop load address.
-// BUG-421 refinement: the inner load's consumer is GUARDED on purpose — an unguarded
+// BUG-478 refinement: the inner load's consumer is GUARDED on purpose — an unguarded
 // consumer waits the write barrier, which releases the address latch (no read barrier
 // owed afterwards); the wrap-WAR this test pins needs the latch still pending.
 const WAR_NESTED: &str = ".entry t
