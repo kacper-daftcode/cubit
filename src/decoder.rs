@@ -255,7 +255,17 @@ impl DecodeIndex {
             // classes that the vendor refuses or prints '???255.64'). The
             // candidate is dropped across ALL match priorities so the word
             // fails closed instead of rendering a vendor-nonexistent text.
-            if !c.claim_forbid.is_empty() && c.claim_forbid.iter().any(|cf| cf.rejects(code_clean)) {
+            //
+            // BUG-512/518 (wave 11, from the lane): the exclusion is evaluated
+            // against the FULL 128-bit word, not `code_clean`. `decode` strips
+            // bits [127:96] before matching (scheduling/stall/yield/opex), but a
+            // claim can legitimately name a value up there -- the lane's
+            // claim_forbid on ctrl[109:105] and on reuse[123:122] were silently
+            // inert under `code_clean`. Every exclusion registered before this
+            // arm lives below bit 96, where `code == code_clean`, so the change
+            // is identity on all of them (audited in the lane: 116/116 engaged,
+            // 0 changed, 0 bad).
+            if !c.claim_forbid.is_empty() && c.claim_forbid.iter().any(|cf| cf.rejects(code)) {
                 return None;
             }
             let strict = (code_clean & c.match_mask & !guard_mask) == (c.and_base & c.match_mask & !guard_mask);
@@ -680,7 +690,16 @@ impl DecodeIndex {
                 // ghost sign). Field-carried era F2I.*_R_R rows (neg@63/
                 // abs@62 tok2, vendor-parity) are bit_covered and never pass
                 // through here. Fail closed on the bare ghost glyphs.
-                "F2I" | "F2IP" | "USHF"
+                "F2I" | "F2IP" | "USHF" |
+                // wave 11 (2026-11-04): IDP carries the type selector [74:73],
+                // the 2A form selector b76 and the illegal b77 in the very
+                // window this post-pass reads as sign modifiers, and it has no
+                // sign-modifiable register operand at all: nvdisasm 13.4 over
+                // all 256 values of [79:72] prints `|Ra|`/`-Ra` for NONE of
+                // them (the only modifier it ever prints is `-Rc` from b75,
+                // now a neg field on the row). Without the arm, b72 rendered a
+                // ghost `-R15` -- measured on the enum sweep fixture.
+                "IDP"
             );
             // BUG-225: same census-driven family as the prio-3 gate above —
             // control/sync + tmem/tensor bases have no sign-modifiable
@@ -757,17 +776,30 @@ impl DecodeIndex {
                         });
                     }
                 };
+                // BUG-458b: F2FP family ghost-sign synthesis is vendor-WRONG
+                // (arb458bf law x4 AGREE EVERY: b62/b63/b72/b73 inert; b73
+                // REFUSE-side handled table-side by claim_forbid; b72 on
+                // MERGE_C-semantic forms = real '.H1' selector, D-h1 item,
+                // legacy glyph kept there). Suppress per bit via table arm.
+                let f2fp_arm = |bit: u32| crate::table::f2fp_sign_arm(&matched.key, &matched.mod_group, bit);
                 if reg_class(rb_tok) {
-                    add(63, rb_tok, "neg");
-                    add(62, rb_tok, "abs");
+                    // BUG-505b FLIP-B (GHOST62-505A): vendor NEVER prints
+                    // abs bars on the VIADD family (arb505b_law 171 sond x4;
+                    // 16 ghost sondy {62,63,72} x fmt{0,3} x2 nogi era --
+                    // b62 = ghost '|R|'/'|UR|'; b63 '-UR' / b72 neg stay:
+                    // real vendor signs era). Suppress b62 synth via arm.
+                    if !f2fp_arm(63) { add(63, rb_tok, "neg"); }
+                    if !f2fp_arm(62) && !crate::table::viadd_sign_arm(&matched.key, 62) {
+                        add(62, rb_tok, "abs");
+                    }
                 }
                 if reg_class(ra_tok) {
-                    add(72, ra_tok, "neg");
+                    if !f2fp_arm(72) { add(72, ra_tok, "neg"); }
                     // BUG-419: b73 is vendor-INERT on the HADD2 `.F32`
                     // 3-token dotted rows (0x430 FI FI frame; arb419
                     // A.F32.bit73 x4 models: no `|Ra|` print) -- block the
                     // generic synth there.
-                    if !crate::table::hadd2_f32_abs_inert_key(&matched.key) {
+                    if !crate::table::hadd2_f32_abs_inert_key(&matched.key) && !f2fp_arm(73) {
                         add(73, ra_tok, "abs");
                     }
                 }

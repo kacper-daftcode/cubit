@@ -308,6 +308,17 @@ const FLOAT_OPCODES: &[&str] = &[
     // context the textual `16` parsed to Imm32(16) and encoded 0x00000010 in the
     // same trap class as BUG-034 (UFSETP).
     "F2I",
+    // FMNMX3 imm-form (wave 11, canonical row FMNMX3_R_R_FI_R_P/'' on sm_100a /
+    // sm_103a, BUG-508 fields re-keyed II -> FI): the third-operand immediate is
+    // an f32 at bits [63:32] (nvdisasm-13.3 prints 0x3f800000 as `1`, 0x40000000
+    // as `2`, 0x00000002 as `2.8025969286496341418e-45`; corpus witness cusolver
+    // gebal_singleton_kernel `FMNMX3 R2, R8.reuse, 1, R28, !PT` =
+    // 0x041fe2000780001c3f80000008027876). The pre-wave-11 harvest key
+    // FMNMX3_R_R_II_R_P baked 0x3f800000 into and_base and routed the text
+    // immediate into a 6-bit field at [95:90], so every value other than 1.0 was
+    // silently mis-encoded; the textual `1` must parse as FloatImm so the FI key
+    // is selected (BUG-034 / BUG-125 trap class otherwise).
+    "FMNMX3",
 ];
 
 fn parse_single_operand(s: &str, is_float_context: bool) -> Operand {

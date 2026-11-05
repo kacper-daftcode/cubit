@@ -245,7 +245,7 @@ fn t421_5_source_pins_52cb73c() {
         m["base_revision"]
     );
     // Current vendoring carries the unchanged historical graft at a new cut.
-    const CURRENT_VENDORED_CANON: &str = "bb11659a2956bfe50f1307a53f83a6852dd01503";
+    const CURRENT_VENDORED_CANON: &str = "e99598afb9157e90290325b75915f143aff63625";
     assert_eq!(m["base_revision"].as_str().unwrap(), CURRENT_VENDORED_CANON);
     assert_eq!(CANON421422, "9c0e4cec355119065444f59d0710de372b9d0577");
 }

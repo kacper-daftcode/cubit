@@ -2009,6 +2009,50 @@ pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> 
 /// encoded the baked v=0 word (render side printed `0x0`). Refuse wrong
 /// shapes and out-of-window targets with attribution; the payload itself is
 /// injected by apply_branch_encoding's LEPC arm (fixup-owned, BUG-023 law).
+/// BUG-496: sm_120/sm_121 WARPSYNC.COLLECTIVE Rn, <target> shape/range gate.
+/// Vendor law on this era: target = addr + 0x10 + (byte2 << 2) with byte2 an
+/// unsigned 8-bit immediate at [23:16] (arb496 byte2 sweep 256/256 x4 AGREE;
+/// native anchors vendor_t120). Pre-fix the target operand silently encoded
+/// NOTHING on this family (the apply returned the code unchanged) -- a silent
+/// payload loss. Fail-closed, not CUBIT_DISABLE_ERRATA-unlockable: this guards
+/// byte production. Fires only on the R-form (Reg operand then a resolved
+/// target); bare WARPSYNC.ALL / target-less forms pass through.
+/// BUG-496: resolved target of the WARPSYNC [P,] Rn, <target> form: last
+/// operand as absolute address, with a Reg (membermask) operand present.
+/// Numeric Imm operands are accepted (the printer emits resolved absolute
+/// targets; labels come through the BUG-091 pass as BranchTarget).
+fn ws496_target(insn: &Instruction) -> Option<i64> {
+    if insn.opcode != "WARPSYNC" {
+        return None;
+    }
+    if !insn.operands.iter().any(|o| matches!(o, Operand::Reg { .. })) {
+        return None;
+    }
+    match insn.operands.last() {
+        Some(Operand::BranchTarget(t)) => Some(*t as i64),
+        Some(Operand::Imm32(v)) => Some(*v as i64),
+        Some(Operand::Imm64(v)) => Some(*v as i64),
+        _ => None,
+    }
+}
+
+fn check_warpsync496_target(insn: &Instruction) -> Result<()> {
+    let Some(t) = ws496_target(insn) else {
+        return Ok(()); // not the [P,] R_II target form -- other shapes keep
+                       // their own gates (BUG-005 refuse, bare ALL, etc.)
+    };
+    let x = t.wrapping_sub(insn.addr as i64).wrapping_sub(0x10);
+    let rq = x >> 2;
+    if x & 3 != 0 || !(-(1i64 << 55)..=(1i64 << 55) - 1).contains(&rq) {
+        anyhow::bail!(
+            "WARPSYNC.COLLECTIVE target 0x{:x} at addr 0x{:x} is out of the encodable              window (rq = (target - addr - 0x10) >> 2 must fit s56 on the sm120/sm121              law, BUG-496); pre-fix this encoded a silent stale field",
+            t as u64,
+            insn.addr
+        );
+    }
+    Ok(())
+}
+
 fn check_lepc_target(insn: &Instruction) -> Result<()> {
     if insn.opcode != "LEPC" {
         return Ok(());
@@ -3623,12 +3667,16 @@ fn encode_instruction_inner(
     }
 
     // Branch encoding (address-dependent, separate from field system)
+    let sm120_family = crate::table::is_sm120_encoding_family(table.ef_flags);
+    if sm120_family && insn.opcode == "WARPSYNC" {
+        check_warpsync496_target(insn)?;
+    }
     code = apply_branch_encoding(
         insn,
         code,
         &mod_group,
         crate::table::is_sm103a_encoding_family(table.ef_flags),
-        table.target_sm() == 120,
+        sm120_family,
     );
 
     // Reuse bits [124:122] (Ra/Rb/Rc register cache reuse flags)
@@ -4395,7 +4443,7 @@ fn fit_dom_token(dom: &FitDom) -> i32 {
 /// Class (c): payloads owned by apply_branch_encoding are exempt from table
 /// coverage (BUG-023 doctrine; mirrors entry_matches_operands and the field
 /// loop's WARPSYNC skip).
-fn fit_fixup_owned(insn: &Instruction, tok: i32, ws_family: bool) -> bool {
+fn fit_fixup_owned(insn: &Instruction, tok: i32, ws_family: bool, w120_ef_flags: u32) -> bool {
     let op = insn.opcode.as_str();
     let is_branch = BRANCH_OPS.contains(&op);
     let operand = get_op(insn, tok);
@@ -4404,7 +4452,8 @@ fn fit_fixup_owned(insn: &Instruction, tok: i32, ws_family: bool) -> bool {
     // whose table is the sm103a derivative). The pre-family exact ef_flags
     // check hard-failed re-encode of every corpus WARPSYNC.COLLECTIVE on
     // sm100a (139,570 instructions of the b4 sm_100 population).
-    let ws = ws_family && op == "WARPSYNC";
+    // BUG-496: same fixup ownership on the sm120/sm121 family (byte2<<2 law).
+    let ws = (ws_family || crate::table::is_sm120_encoding_family(w120_ef_flags)) && op == "WARPSYNC";
     if (is_branch || ws)
         && matches!(
             operand,
@@ -4558,7 +4607,7 @@ fn aggregate_fit_audit(
 
     for (dom, pieces) in &doms {
         let tok = fit_dom_token(dom);
-        if fit_fixup_owned(insn, tok, ws_family) {
+        if fit_fixup_owned(insn, tok, ws_family, table.ef_flags) {
             continue;
         }
         let v = fit_dom_value(insn, dom);
@@ -6032,10 +6081,12 @@ fn apply_branch_encoding(
         }
         return code;
     }
-    let collective = insn.opcode == "WARPSYNC" && mod_group.split(',').any(|m| m == "COLLECTIVE");
-    let branch_op = BRANCH_OPS.iter().any(|&o| insn.opcode == o);
-    let sm103a_warpsync = sm103a && insn.opcode == "WARPSYNC";
-    if !(branch_op || sm103a_warpsync || collective) {
+    if !BRANCH_OPS.iter().any(|&o| insn.opcode == o)
+        && !(sm103a && insn.opcode == "WARPSYNC")
+        // BUG-496: the 496-law WARPSYNC.COLLECTIVE rows live outside the
+        // legacy BRANCH_OPS roster; let the sm120/sm121 arm reach them.
+        && !(sm120 && insn.opcode == "WARPSYNC")
+    {
         return code;
     }
 
@@ -6087,8 +6138,26 @@ fn apply_branch_encoding(
             return code;
         }
         // fall through for CALL/RET: RET register placement below still applies
-    } else if op == "WARPSYNC" && (sm103a || !collective) {
-        return code; // SM120 COLLECTIVE target uses the dword split below
+    } else if op == "WARPSYNC" {
+        // BUG-496: sm120/sm121 family WARPSYNC.COLLECTIVE [P,] Rn, <target> --
+        // the vendor law is target = addr + 0x10 + (sext56(rq) << 2) with
+        // rq = byte2@[23:16] | bits[80:34]<<8, sign at rq55=word81 (arb496 +
+        // arb496b + arb496c x4: 1228/1228 fit-exact; native anchors
+        // vendor_t120 @0x70/0x100/0x150). The sm103a-family REL16 branch
+        // above does not run on this era. Far/misaligned targets are refused
+        // loud by check_warpsync496_target before we get here (belt-and-braces
+        // re-check inline).
+        if sm120 {
+            if let Some(target) = ws496_target(insn) {
+                let x = target.wrapping_sub(insn.addr as i64).wrapping_sub(0x10);
+                let rq56 = (x >> 2) & ((1i64 << 56) - 1);
+                let rq = rq56 as u64;
+                code = (code & !(0xFFu128 << 16)) | (((rq & 0xFF) as u128) << 16);
+                code = (code & !(0xFFFF_FFFF_FFFFu128 << 34))
+                    | ((((rq >> 8) & 0xFFFF_FFFF_FFFF) as u128) << 34);
+            }
+        }
+        return code; // no other legacy WARPSYNC handling
     }
 
     // BRX/BRXU: offset from register, second operand

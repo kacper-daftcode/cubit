@@ -1,0 +1,256 @@
+{"word": "001f8c0000000007000000060f0f7226", "nvidia_sass": "IDP.4A.U8.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000000107000000060f0f7226", "nvidia_sass": "IDP.4A.U8.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000000207000000060f0f7226", "nvidia_sass": "IDP.4A.S8.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000000307000000060f0f7226", "nvidia_sass": "IDP.4A.S8.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000000407000000060f0f7226", "nvidia_sass": "IDP.4A.U8.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000000507000000060f0f7226", "nvidia_sass": "IDP.4A.U8.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000000607000000060f0f7226", "nvidia_sass": "IDP.4A.S8.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000000707000000060f0f7226", "nvidia_sass": "IDP.4A.S8.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000000807000000060f0f7226", "nvidia_sass": "IDP.4A.U8.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000000907000000060f0f7226", "nvidia_sass": "IDP.4A.U8.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000000a07000000060f0f7226", "nvidia_sass": "IDP.4A.S8.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000000b07000000060f0f7226", "nvidia_sass": "IDP.4A.S8.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000000c07000000060f0f7226", "nvidia_sass": "IDP.4A.U8.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000000d07000000060f0f7226", "nvidia_sass": "IDP.4A.U8.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000000e07000000060f0f7226", "nvidia_sass": "IDP.4A.S8.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000000f07000000060f0f7226", "nvidia_sass": "IDP.4A.S8.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000001007000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000001107000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000001207000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000001307000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000001407000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000001507000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000001607000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000001707000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000001807000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000001907000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000001a07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000001b07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000001c07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000001d07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000001e07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000001f07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000002007000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000002107000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000002207000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000002307000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000002407000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000002507000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000002607000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000002707000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000002807000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000002907000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000002a07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000002b07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000002c07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000002d07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000002e07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000002f07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000003007000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000003107000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000003207000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000003307000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000003407000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000003507000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000003607000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000003707000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000003807000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000003907000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000003a07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000003b07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000003c07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000003d07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000003e07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000003f07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000004007000000060f0f7226", "nvidia_sass": "IDP.4A.U8.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000004107000000060f0f7226", "nvidia_sass": "IDP.4A.U8.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000004207000000060f0f7226", "nvidia_sass": "IDP.4A.S8.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000004307000000060f0f7226", "nvidia_sass": "IDP.4A.S8.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000004407000000060f0f7226", "nvidia_sass": "IDP.4A.U8.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000004507000000060f0f7226", "nvidia_sass": "IDP.4A.U8.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000004607000000060f0f7226", "nvidia_sass": "IDP.4A.S8.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000004707000000060f0f7226", "nvidia_sass": "IDP.4A.S8.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000004807000000060f0f7226", "nvidia_sass": "IDP.4A.U8.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000004907000000060f0f7226", "nvidia_sass": "IDP.4A.U8.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000004a07000000060f0f7226", "nvidia_sass": "IDP.4A.S8.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000004b07000000060f0f7226", "nvidia_sass": "IDP.4A.S8.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000004c07000000060f0f7226", "nvidia_sass": "IDP.4A.U8.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000004d07000000060f0f7226", "nvidia_sass": "IDP.4A.U8.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000004e07000000060f0f7226", "nvidia_sass": "IDP.4A.S8.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000004f07000000060f0f7226", "nvidia_sass": "IDP.4A.S8.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000005007000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000005107000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000005207000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000005307000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000005407000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000005507000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000005607000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000005707000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000005807000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000005907000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000005a07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000005b07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000005c07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000005d07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000005e07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000005f07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000006007000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000006107000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000006207000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000006307000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000006407000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000006507000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000006607000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000006707000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000006807000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000006907000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000006a07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000006b07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000006c07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000006d07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000006e07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000006f07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c0000007007000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000007107000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000007207000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000007307000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000007407000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000007507000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000007607000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000007707000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000007807000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000007907000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000007a07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000007b07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000007c07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000007d07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000007e07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000007f07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000008007000000060f0f7226", "nvidia_sass": "IDP.4A.U8.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000008107000000060f0f7226", "nvidia_sass": "IDP.4A.U8.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000008207000000060f0f7226", "nvidia_sass": "IDP.4A.S8.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000008307000000060f0f7226", "nvidia_sass": "IDP.4A.S8.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000008407000000060f0f7226", "nvidia_sass": "IDP.4A.U8.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000008507000000060f0f7226", "nvidia_sass": "IDP.4A.U8.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000008607000000060f0f7226", "nvidia_sass": "IDP.4A.S8.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000008707000000060f0f7226", "nvidia_sass": "IDP.4A.S8.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000008807000000060f0f7226", "nvidia_sass": "IDP.4A.U8.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000008907000000060f0f7226", "nvidia_sass": "IDP.4A.U8.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000008a07000000060f0f7226", "nvidia_sass": "IDP.4A.S8.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000008b07000000060f0f7226", "nvidia_sass": "IDP.4A.S8.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000008c07000000060f0f7226", "nvidia_sass": "IDP.4A.U8.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000008d07000000060f0f7226", "nvidia_sass": "IDP.4A.U8.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000008e07000000060f0f7226", "nvidia_sass": "IDP.4A.S8.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000008f07000000060f0f7226", "nvidia_sass": "IDP.4A.S8.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000009007000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000009107000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000009207000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000009307000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000009407000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000009507000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000009607000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000009707000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000009807000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000009907000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000009a07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000009b07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000009c07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000009d07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000009e07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c0000009f07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000a007000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000a107000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000a207000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000a307000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000a407000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000a507000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000a607000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000a707000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000a807000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000a907000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000aa07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000ab07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000ac07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000ad07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000ae07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000af07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000b007000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000b107000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000b207000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000b307000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000b407000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000b507000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000b607000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000b707000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000b807000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000b907000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000ba07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000bb07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000bc07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000bd07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000be07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000bf07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000c007000000060f0f7226", "nvidia_sass": "IDP.4A.U8.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000c107000000060f0f7226", "nvidia_sass": "IDP.4A.U8.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000c207000000060f0f7226", "nvidia_sass": "IDP.4A.S8.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000c307000000060f0f7226", "nvidia_sass": "IDP.4A.S8.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000c407000000060f0f7226", "nvidia_sass": "IDP.4A.U8.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000c507000000060f0f7226", "nvidia_sass": "IDP.4A.U8.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000c607000000060f0f7226", "nvidia_sass": "IDP.4A.S8.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000c707000000060f0f7226", "nvidia_sass": "IDP.4A.S8.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000c807000000060f0f7226", "nvidia_sass": "IDP.4A.U8.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000c907000000060f0f7226", "nvidia_sass": "IDP.4A.U8.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000ca07000000060f0f7226", "nvidia_sass": "IDP.4A.S8.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000cb07000000060f0f7226", "nvidia_sass": "IDP.4A.S8.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000cc07000000060f0f7226", "nvidia_sass": "IDP.4A.U8.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000cd07000000060f0f7226", "nvidia_sass": "IDP.4A.U8.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000ce07000000060f0f7226", "nvidia_sass": "IDP.4A.S8.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000cf07000000060f0f7226", "nvidia_sass": "IDP.4A.S8.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000d007000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000d107000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000d207000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000d307000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000d407000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000d507000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000d607000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000d707000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000d807000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000d907000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000da07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000db07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000dc07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000dd07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.U16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000de07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000df07000000060f0f7226", "nvidia_sass": "IDP.2A.LO.S16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000e007000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000e107000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000e207000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000e307000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000e407000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000e507000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000e607000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000e707000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000e807000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000e907000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000ea07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000eb07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000ec07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000ed07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000ee07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000ef07000000060f0f7226", "nvidia_sass": null, "nvdisasm": "13.4.92"}
+{"word": "001f8c000000f007000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000f107000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000f207000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000f307000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.U8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000f407000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000f507000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000f607000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000f707000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.S8 R15, R15, R6, R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000f807000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000f907000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000fa07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000fb07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.U8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000fc07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000fd07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.U16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000fe07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}
+{"word": "001f8c000000ff07000000060f0f7226", "nvidia_sass": "IDP.2A.HI.S16.S8 R15, R15, R6, -R7", "nvdisasm": "13.4.92"}

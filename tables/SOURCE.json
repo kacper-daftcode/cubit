@@ -1,13 +1,13 @@
 {
   "schema": 2,
   "repository": "https://github.com/kacper-daftcode/blackwell-isa",
-  "base_revision": "bb11659a2956bfe50f1307a53f83a6852dd01503",
+  "base_revision": "e99598afb9157e90290325b75915f143aff63625",
   "tables": {
     "sm120.json": {
       "arch": "SM120",
-      "base_sha256": "bde27b66c3ed0f89228105aca6219b524e6904cdba7defd975e5a870ef5c4be8",
-      "instruction_forms": 16107,
-      "encoding_variants": 20894,
+      "base_sha256": "0cbf268ee5c86e396e72a2f3fc6019952691388b265e04fa9e66267d3794f623",
+      "instruction_forms": 16143,
+      "encoding_variants": 26612,
       "sched_only_entries": 597,
       "sections": [
         "operand_roles",
@@ -16,9 +16,9 @@
     },
     "sm103a.json": {
       "arch": "SM103a",
-      "base_sha256": "4eddd702431b0346866a7e8dbbf8126cf65349f1fcd0d4a0441a9a55d57714ea",
-      "instruction_forms": 14879,
-      "encoding_variants": 16451,
+      "base_sha256": "d1e72376689bcee1e7f016d95dfdd0009965caf1155a60611208494d59689108",
+      "instruction_forms": 14902,
+      "encoding_variants": 22199,
       "sched_only_entries": 0,
       "sections": [
         "cost_model",
@@ -28,9 +28,9 @@
     },
     "sm100a.json": {
       "arch": "SM100a",
-      "base_sha256": "1c4c331f9c1fe7b83c8b7c46921f0346c0aabf7fc5c1d749600212bc2885b83b",
-      "instruction_forms": 14879,
-      "encoding_variants": 16455,
+      "base_sha256": "22522614ba9d40bceb2bc64c6f0ede7d37f1c50d0d6d3d8d9914084c4e135472",
+      "instruction_forms": 14902,
+      "encoding_variants": 22199,
       "sched_only_entries": 0,
       "sections": [
         "operand_roles"
@@ -38,9 +38,9 @@
     },
     "sm121a.json": {
       "arch": "SM121A",
-      "base_sha256": "e33b1487f00da58e2cf6220a7b274479629735a43eaecbb356315fa26594e74f",
-      "instruction_forms": 23825,
-      "encoding_variants": 26381,
+      "base_sha256": "23f577af93b026a24bbdc9528975f3eda9f8ef63f599c9a9cc73a95d49a00660",
+      "instruction_forms": 23850,
+      "encoding_variants": 26406,
       "sched_only_entries": 597,
       "sections": []
     }

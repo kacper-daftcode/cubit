@@ -570,6 +570,11 @@ pub fn is_sm103a_encoding_family(ef_flags: u32) -> bool {
 /// (the sm121a table is delta-driven vs sm120; GB10 census 2026-11-04: 0 decode
 /// differences over 91 927 words). Printer decisions gated on sm_120 therefore
 /// apply verbatim to sm_121a (e.g. the ATOMS/ARRIVES `[Rm+URn(+off)]` glyph).
+///
+/// Wave 11 note: the same predicate is what the lane's BUG-496 arm reads for
+/// WARPSYNC.COLLECTIVE -- sm_120/sm_121 use the 496-era 8-bit target law
+/// (target = addr + 0x10 + (byte2 << 2), arb496 x4) instead of the sm_100/103
+/// REL16 layout of BUG-116. Nothing outside WARPSYNC keys on it.
 pub fn is_sm120_encoding_family(ef_flags: u32) -> bool {
     matches!((ef_flags >> 8) & 0xFFF, 120 | 121)
 }
@@ -997,6 +1002,74 @@ pub fn ur_hsel_f32_key(key: &str) -> bool {
 /// under the F32 route the Ra abs bit b73 is vendor-INERT
 /// (`HADD2.F32 R0, R0, ...`, never `|R0|`) -- the generic FP abs recovery
 /// fallback (Ra@24 -> raw b73) must NOT fire on these keys.
+/// BUG-458b helper: vendor x4 (arb458bf AGREE EVERY, carriers x all
+/// F2FP-family mg rows x guards {@P0,@!PT}) treats the generic abs/neg
+/// bits as INERT across the whole F2FP family: b62/b63 inert everywhere,
+/// b73 vendor-REFUSE (or baked as the real E4M3/E5M2 type selector on
+/// the UNPACK_B rows, never ghost-printed), b72 inert too -- EXCEPT on
+/// MERGE_C-semantic forms (era `*MERGE_C*` keys and the x3 generic
+/// `*MERGE_C*` mg rows) where b72 is the real `.H1` selector of the last
+/// operand (vendor prints 'Rz.H1'; the legacy ghost glyph there stays
+/// until D-h1, a separate ledger item). Returns true when the generic
+/// ghost-sign synth must be suppressed for the given bit.
+/// BUG-505b FLIP-B (GHOST62-505A; osobny commit chaina po FLIP505B-A
+/// tables): vendor NIGDY nie drukuje abs-bar `|..|` na rodzinie VIADD --
+/// arb505b_law 171 sond x4 AGREE (nvdisasm 13.3.73), w tym 16 sond ghost
+/// {62,63,72} x fmt{0,3} x2 nogi era: b62 = ghost bars '|R|'/'|UR|' na
+/// operandach R/UR (hot-rec pre-arm; PRESTUDY505b sec. GHOST-ABS
+/// iter0596). b63 '-UR' oraz b72 neg = REALNE znaki vendora na erze
+/// (law 505a) -- zostaja uzbrojone; b73 = selektor fmt pieczony w
+/// and_base dokladnych kluczy 505b (nigdy wolny na slowie claimnietym),
+/// wiec nie wymaga armu. Arm tlumi b62 zaabs-synteze dla base_op VIADD
+/// (klucze *_R_R_UR tabeli 505b + mg rodziny 505a). Pack t505b_3 byl
+/// PACK-RED 16/32 pre-arm by design (bramka chainscriptu).
+pub fn viadd_sign_arm(key: &str, bit: u32) -> bool {
+    let base = key
+        .split('_')
+        .next()
+        .unwrap_or("")
+        .split('.')
+        .next()
+        .unwrap_or("");
+    if base != "VIADD" {
+        return false;
+    }
+    bit == 62
+}
+
+pub fn f2fp_sign_arm(key: &str, mod_group: &str, bit: u32) -> bool {
+    let base = key.split('_').next().unwrap_or("").split('.').next().unwrap_or("");
+    if base != "F2FP" {
+        return false;
+    }
+    match bit {
+        62 | 63 | 73 => true,
+        // D1 (458b-D-h1, iter370 probe; re-pin base cafd97a0 iter0843): b72 ghost-neg
+        // znika WSZEDZIE na F2FP; na MERGE_C-semantyce b72 to prawdziwy
+        // selektor '.H1' ostatniego operandu -- druk w printer.rs (blok
+        // BUG-458b-D1), x4 AGREE arb458bf law (128 sond: 44+44
+        // PACK_AB_MERGE_C, 12+12 MERGE_C, 8+8 ZOMBIE).
+        72 => true,
+        _ => false,
+    }
+}
+
+/// BUG-458b F5: era P-dest F2FP keys (`*PACK_AB_P_R_R_R` on sm120/sm121a)
+/// carry NO pred field in any row, so the generic P-slot print emits an
+/// explicit `PT,` dest. Vendor (arb458bf fresh law x2 legs x 2 guards x the
+/// full ghost-variant sweep) ELIDES a PT dest on exactly these five keys.
+/// Listed explicitly (fail-closed, measured set only).
+pub fn f2fp_p_dest_pt_elide_key(key: &str) -> bool {
+    matches!(
+        key,
+        "F2FP.BF16.F32.PACK_AB_P_R_R_R"
+            | "F2FP.RELU.BF16.F32.PACK_AB_P_R_R_R"
+            | "F2FP.SATFINITE.BF16.F32.PACK_AB_P_R_R_R"
+            | "F2FP.SATFINITE.F16.F32.PACK_AB_P_R_R_R"
+            | "F2FP.SATFINITE.RELU.F16.F32.PACK_AB_P_R_R_R"
+    )
+}
+
 pub fn hadd2_f32_abs_inert_key(key: &str) -> bool {
     matches!(
         key,
@@ -1014,6 +1087,17 @@ pub fn relu_pt_elide_key(key: &str) -> bool {
     head.starts_with("HFMA2")
         && head.contains("RELU")
         && (key.ends_with("_R_FI_FI_R_P") || key.ends_with("_R_II_II_R_P"))
+}
+
+/// BUG-495 (wave 11, from the lane): ENDCOLLECTIVE trailing-P -- the vendor ELIDES
+/// the token at PT. arb495/arb495b x4 AGREE EVERY, nvdisasm 13.3.73 raw -b:
+/// v=7 & neg=0 prints the bare `ENDCOLLECTIVE`; P0..P6 and !Pv print. The bare form
+/// is the only native one observed (redux/vote/match cubins, x3 carriers,
+/// sm120 + sm121a). Silicon confirmation of the surrounding encoding:
+/// the shipped deep_gemm kernels execute WARPSYNC.COLLECTIVE -> ELECT -> ENDCOLLECTIVE
+/// with this exact payload (census 56248/56248, see wave11 REPORT 10e).
+pub fn endc_pt_elide_key(key: &str) -> bool {
+    key.starts_with("ENDCOLLECTIVE_P")
 }
 
 pub fn r_hsel_invalid1_slot(ins_key: &str, tok: i32) -> bool {

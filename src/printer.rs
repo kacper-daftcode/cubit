@@ -328,6 +328,11 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
         } else if op_type == "II"
             && insn.opcode == "WARPSYNC"
             && insn.mod_group.split(',').any(|m| m.trim() == "COLLECTIVE")
+            || (op_type == "II"
+                && insn.opcode == "WARPSYNC.COLLECTIVE"
+                && fields.iter().any(|f| {
+                    norm_ext(&f.extraction) == "imm" && f.shift == 16 && f.bits == 8
+                }))
         {
             // WARPSYNC.COLLECTIVE[.ALL] [Rn,] <partner target>: the encoded field
             // is the number of 16-byte slots ahead; nvdisasm prints the RESOLVED
@@ -337,12 +342,39 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
             // Printing the raw field (e.g. "0x5", the WARPSYNC_II/ALL form used
             // to) breaks our own text->encode roundtrip (encoder treats operands
             // as absolute targets), so resolve both collective forms here.
-            let low = (raw >> 16) & 0xff;
-            let high = (raw >> 34) & 0xffff_ffff_ffff;
-            let rel = sign_extend((low | (high << 8)) as u64, 56) << 2;
-            let target = insn.addr as i64 + 16 + rel;
-            if target < 0 { format!("-0x{:x}", target.unsigned_abs()) }
-            else { format!("0x{target:x}") }
+            // BUG-496 arm: there are TWO WARPSYNC.COLLECTIVE target families,
+            // era-distinguished by the sched-band marker (0x..fc.. frames ->
+            // sm120/sm121 natives, 0x..ea.. frames -> sm100a/sm103 natives).
+            // The measured 496-frame rows (key WARPSYNC.COLLECTIVE_* under
+            // mod_group "", so the legacy condition above cannot see them --
+            // DecodedInst.opcode carries the row's base_op there) express the
+            // target as rq = byte2@[23:16] | bits[80:34]<<8 with sign at
+            // rq55=word81: vendor law target = addr + 0x10 + (sext56(rq) << 2)
+            // (arb496+496b+496c: 1228/1228 fit-exact; byte2 sweep 256/256).
+            // The law is picked by the matched row's FIELD SIGNATURE (no new
+            // extraction type): imm field at (shift 16, bits 8) => 496-law,
+            // else the 116-law. On the OLD tables the alternate branch below
+            // reproduces the legacy output bit-exactly (inert guard: rows such
+            // as the pre-fix WARPSYNC.COLLECTIVE_R_II raw-printed the field and
+            // still do -- the widened condition only fires on the 496 rows).
+            let sig496 = insn.opcode == "WARPSYNC.COLLECTIVE"
+                && fields
+                    .iter()
+                    .any(|f| norm_ext(&f.extraction) == "imm" && f.shift == 16 && f.bits == 8);
+            if sig496 {
+                let rq56: i64 = (((raw >> 16) & 0xFF) as i64)
+                    | ((((raw >> 34) & 0xFFFF_FFFF_FFFF) as i64) << 8);
+                let rq = (rq56 << 8) >> 8; // sext56 (sign at bit 55 = word 81)
+                let target = (insn.addr as i64).wrapping_add(0x10 + (rq << 2));
+                if target < 0 {
+                    format!("-0x{:x}", target.unsigned_abs())
+                } else {
+                    format!("0x{target:x}")
+                }
+            } else {
+                let v = (((raw >> 18) & 0x3F) as u64) | ((((raw >> 34) & 0x3FF) as u64) << 6);
+                format!("0x{:x}", insn.addr as u64 + 16 + (v << 4))
+            }
         } else if op_type == "II" && insn.opcode == "LEPC" {
             // LEPC (BUG-184): the II operand is a PC-relative code address.
             // Vendor law arbitrated with nvdisasm-13.3.73 bit-scan on the
@@ -419,7 +451,14 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
         }
         // pred_inv4 zero window = no guard pred: nvdisasm OMITS the token,
         // so an empty format result for a P slot is dropped here (not ", ").
-        let pt_elide = op_type == "P" && crate::table::relu_pt_elide_key(&insn.key);
+        // wave 11: the lane's three elision laws compose. relu_pt_elide (BUG-419,
+        // sm121a RELU dest-PT), endc_pt_elide (BUG-495: vendor elides the trailing
+        // PT on ENDCOLLECTIVE_P -- nvdisasm x4 AGREE, the only native form is bare)
+        // and f2fp_p_dest_pt_elide (BUG-458b/F5: the five PACK_AB_P_R_R_R keys).
+        let pt_elide = op_type == "P"
+            && (crate::table::relu_pt_elide_key(&insn.key)
+                || crate::table::endc_pt_elide_key(&insn.key)
+                || crate::table::f2fp_p_dest_pt_elide_key(&insn.key));
         let inv4_omitted = s.is_empty()
             && matches!(op_type.as_str(), "P" | "UP")
             && (pt_elide
@@ -679,6 +718,45 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
     if insn.opcode.starts_with("IMMA") && operands.len() >= 3 {
         operands[1].push_str(".ROW");
         operands[2].push_str(".COL");
+    }
+
+    // BUG-458c/499 (F2FP UNPACK_B arity-collapse): generyczne wiersze
+    // F2FP_R_R_R_R (sm120/sm121a) niosa mg UNPACK_B z polami TYLKO na tok1
+    // (Rd) i tok3 (Rb); tok2/tok4 sa syntezowane RZ. Vendor drukuje UNPACK_B
+    // zawsze 2-op 'Rd, Rb' (census iter332: 386 junk slow/noga x2,
+    // verbatim-collapse == vendor 386/386 x2, VNONUNPACK=0; arm martwy na x3 --
+    // UNPACK_B mieszka tam pod F2FP_R_R). Kolaps 'Rd, RZ, Rb, RZ' -> [op0, op2]
+    // verbatim (niosa .reuse/.H*); encode nietkniety (mint routuje do
+    // era-wierszy *_R_R; mint==korpus EXACT 386/386 x2 na [0:96)).
+    if insn.opcode == "F2FP"
+        && insn.key.ends_with("_R_R_R_R")
+        && insn.mod_group.split(',').any(|m| m.trim() == "UNPACK_B")
+        && operands.len() == 4
+        && operands[1] == "RZ"
+        && operands[3] == "RZ"
+    {
+        operands = vec![operands[0].clone(), operands[2].clone()];
+    }
+
+    // BUG-458b-D1 (MERGE_C '.H1' selektor): arb458bf law x4 AGREE (128
+    // sond H1-PENDING) -- na MERGE_C-semantyce (era klucze *MERGE_C* lub
+    // mg *MERGE_C* na x3) b72 to selektor .H1 OSTATNIEGO operandu; vendor
+    // drukuje 'Rz.H1'/'RZ.H1'. Ghost '-Ra'@b72 jest tlumiony decoder-side
+    // (f2fp_sign_arm bit72 -> suppress wszedzie); tu doklejamy glyph.
+    // Encode-side '.H1' mint = HOLE standing (128/128 None na det458b --
+    // ledger D1-L1, era-encoder hsel brak pola; nie zakres armu).
+    if insn.opcode == "F2FP"
+        && (insn.key.contains("MERGE_C") || insn.mod_group.contains("MERGE_C"))
+        && ((insn.raw_code >> 72) & 1) == 1
+    {
+        if let Some(last) = operands.last_mut() {
+            let is_plain_reg = last.starts_with('R')
+                && (last == "RZ"
+                    || (last[1..].chars().all(|c| c.is_ascii_digit()) && last.len() > 1));
+            if is_plain_reg {
+                last.push_str(".H1");
+            }
+        }
     }
 
     if operands.is_empty() {
@@ -1483,6 +1561,17 @@ fn format_operand(
         // BUG-419: HFMA2 two-imm R-final RELU trailing slot -- PT elided
         // (arb419 x4 models); non-TP values print as-is.
         "P" if crate::table::relu_pt_elide_key(ins_key) => {
+            let s = format_pred_with_raw(fields, false, 0);
+            if s == "PT" {
+                String::new()
+            } else {
+                s
+            }
+        }
+        // BUG-458b F5: era P-dest F2FP keys (no pred field anywhere in the
+        // row set) -- vendor elides a PT dest (arb458bf fresh law x2 legs);
+        // non-PT values print as-is. Mirror of the 419 arm above.
+        "P" if crate::table::f2fp_p_dest_pt_elide_key(ins_key) => {
             let s = format_pred_with_raw(fields, false, 0);
             if s == "PT" {
                 String::new()
