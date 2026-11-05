@@ -20,10 +20,11 @@
 //!     question (b12-full-2), not an encoder-legality one. Era corpus
 //!     (rt98_ref.s103): 44 odd desc-atom words, ALL .EL -> encoder census
 //!     delta = 0. 2026-11-05: the era text `desc[URm][Rn.64]` + `.EL` no
-//!     longer mints that plain word (it was the BUG-041 downcast) -- it is a
-//!     hard error (BUG-041 doctrine, t3b) until the wave-11 descriptor-pair
-//!     form is measured on silicon. The plain form is written as the vendor
-//!     prints it, `[Rn.U32+URm(+off)]`.
+//!     longer mints that plain word (it was the BUG-041 downcast) -- it mints
+//!     the real pair word (measured on silicon the same day: executes through
+//!     the 64-bit address; the owner lifted the hard-error doctrine) and
+//!     rides this rule (t3b). The plain form is written as the vendor prints
+//!     it, `[Rn.U32+URm(+off)]`.
 //! Decode untouched. sm120: no evidence -> guard scoped to target_sm()==103.
 
 use cubit::encoder::encode_instruction;
@@ -81,8 +82,8 @@ fn t2_sm103a_atomg_even_base_fixed_point() {
 // Until 2026-11-05 the same words were minted from the era text
 // `desc[UR4][R5.64]` through a mis-keyed `_P_R_dARI_R` row -- the BUG-041
 // downcast (64-bit text, 32-bit word). With the wave-11 tables that text would
-// mint the real descriptor-pair word, which has never executed: the BUG-041
-// doctrine keeps it a hard error (t3b; owner decision pending, NEEDS_OWNER 28).
+// mint the real descriptor-pair word (silicon-legal, 2026-11-05; the BUG-041
+// hard error is gone, t3b pins the pair word and the parity rule on it).
 // REDG keeps the BUG-454 era-glyph fallback (`PT, desc[..]` -> plain word).
 #[test]
 fn t3_sm103a_el_plain_form_fixed_points() {
@@ -110,19 +111,17 @@ fn t3_sm103a_el_plain_form_fixed_points() {
 }
 
 #[test]
-fn t3b_sm103a_el_desc_pair_text_stays_a_hard_error() {
-    // BUG-041 doctrine: `.EL` + `desc[URm][Rn.64]` is refused on every base (odd and even
-    // alike) until the pair form is measured on silicon -- it must never mint the plain
-    // word again, and the pair word is unexecuted. The non-EL pair keeps the BUG-078 rule.
+fn t3b_sm103a_el_desc_pair_rides_the_parity_rule() {
+    // BUG-041 doctrine lifted 2026-11-05 (owner, after the silicon probe): the `.EL` descriptor-pair
+    // text mints the real pair word -- never the plain U32 word again -- and so rides this rule:
+    // the odd base R5 is refused on sm_103a like every pair, the even base R2 mints bits 76 + 63.
     let t = t103a();
-    for text in [
-        "ATOMG.E.ADD.EL.STRONG.GPU PT, R58, desc[UR4][R5.64], R40",
-        "ATOMG.E.ADD.EL.STRONG.GPU PT, R58, desc[UR4][R2.64], R40",
-    ] {
-        let e = enc(text, &t).expect_err(&format!("the .EL descriptor-pair text must not encode: {text}"));
-        let msg = format!("{e}");
-        assert!(msg.contains("BUG-041") && msg.contains("no operand-compatible table entry"), "{text}: got: {e}");
-    }
+    let e = enc("ATOMG.E.ADD.EL.STRONG.GPU PT, R58, desc[UR4][R5.64], R40", &t)
+        .expect_err("odd-base .EL descriptor pair must not encode for sm_103a");
+    assert!(format!("{e}").contains("BUG-078"), "got: {e}");
+    let w = enc("ATOMG.E.ADD.EL.STRONG.GPU PT, R58, desc[UR4][R2.64], R40", &t).unwrap();
+    assert_eq!((w >> 76) & 1, 1, "descriptor form bit");
+    assert_eq!((w >> 63) & 1, 1, "64-bit address pair bit (not the U32 downcast)");
 }
 
 // (4) arch scoping: sm120 has no verdict -> odd trap form stays encodable.

@@ -37,12 +37,9 @@ fn run_asm(sass: &str, tag: &str) -> (std::process::Output, std::path::PathBuf) 
 
 // zero-load desc-atom: 024d record dropped -> WARN must fire
 const Z0_REDG: &str = ".entry z0\n    .param u64 p0\n    @P0 REDG.E.ADD.EL.STRONG.GPU PT, desc[UR4][R2.64], R5 ;\n    EXIT ;\n";
-// 2026-11-05: the era text `ATOMG.E.ADD.EL... desc[UR4][R2.64]` is a hard error since the wave-11
-// tables (BUG-041 doctrine: it used to mint the plain U32 word silently; the real .EL pair row is
-// unexecuted). The desc-atom shape this test needs is the unguarded non-EL pair (even base, so the
-// BUG-078 parity rule and the BUG-080 guarded-atom rule stay out of the way); the 024e record and the
-// zero-param WARN do not depend on the guard.
-const Z0_ATOMG: &str = ".entry z0a\n    .param u64 p0\n    ATOMG.E.ADD.STRONG.GPU PT, R5, desc[UR4][R2.64], R5 ;\n    EXIT ;\n";
+// 2026-11-05: on the wave-11 tables this text mints the real `.EL` descriptor-pair word (it used
+// to mint the plain U32 word through a mis-keyed row; the form executes on silicon, BUG-041 lifted).
+const Z0_ATOMG: &str = ".entry z0a\n    .param u64 p0\n    @P0 ATOMG.E.ADD.EL.STRONG.GPU PT, R5, desc[UR4][R2.64], R5 ;\n    EXIT ;\n";
 // control: lane loads present -> laned path, record emitted, no WARN
 const ZP: &str = ".entry zp\n    LDC R1, c[0x0][0x37c] ;\n    LDC.64 R2, c[0x0][0x380] ;\n    LDCU.64 UR4, c[0x0][0x358] ;\n    @P0 REDG.E.ADD.EL.STRONG.GPU PT, desc[UR4][R2.64], R5 ;\n    EXIT ;\n";
 

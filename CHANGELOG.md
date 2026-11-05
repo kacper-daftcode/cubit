@@ -4,6 +4,23 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-05 (session T-6: BUG-041 doctrine lifted by the owner)
+
+- **`ATOMG.E.<op>.EL.STRONG.GPU Pd, Rd, desc[URm][Rn.64], Rb` assembles** — the `.EL` descriptor-pair form
+  (bits 76 + 63). It was a hard error since 2026-03 because the text silently minted the plain U32 word
+  (`[Rn.U32+URm]`, bit 76 clear; `CUDA_ERROR_ILLEGAL_ADDRESS` on silicon) through a mis-keyed row; the
+  wave-11 tables carry the real pair row, nvdisasm 13.0 / 13.3 / 13.4 render the word as written on the
+  four models (coldface, `HANDOVER_TO_T6.md` §3: word `000fc200082ef10480000028053a79a8` →
+  `ATOMG.E.ADD.EL.STRONG.GPU PT, R58, desc[UR4][R5.64], R40`), and the silicon probe of 2026-11-05 17:27Z
+  (test host, RTX PRO 6000 Server Edition, driver 580; `atomg_el_pair` vs the nvcc pair `atomg_desc_ctl` and
+  the plain `.EL` form `atomg_el_plain`, one thread each, `out` above 4 GiB) shows the pair form **executes
+  through the 64-bit descriptor-pair address and returns the old value**, identical to the other two. Owner's
+  decision 21:59 CET: the doctrine is lifted. The explicit guard `check_atom_el_desc64_bug041` (`44c9a4d`) is
+  removed; the hazard stays pinned positively — `tests/bug041_atomg_el_desc.rs` asserts the minted word carries
+  bits 63 + 76, is never the U32 word, and decodes back to the same text (also through the CLI); on sm_103a the
+  pair rides the BUG-078 odd-base rule (`bug078` t3b). REDG has no `.EL` pair row on sm120 and stays a hard
+  error. KNOWN_ISSUES A15 closed.
+
 ## Unreleased — 2026-11-05 (session T-6, item 2: session T-5's gate-2 measurement landed on the wave-11 tables)
 
 Session T-5 measured these on `bb11659` and died before gating them; re-applied with the same probes on

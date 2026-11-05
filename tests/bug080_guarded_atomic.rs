@@ -88,8 +88,8 @@ fn t3_sm103a_unguarded_nonel_fixed_points() {
 // O1-road question): guarded .EL ATOMG/REDG encode at the pinned era words.
 // 2026-11-05: the words are spelled as nvdisasm prints them,
 // `[Rn.U32+URm]` (the era text `desc[UR38][R82.64]` was the BUG-041 downcast
-// glyph of the same plain word; it is a hard error now -- BUG-041 doctrine,
-// bug078 t3b; REDG keeps the BUG-454 era-glyph fallback onto the plain word).
+// glyph of the same plain word; it mints the real pair word now -- bug078 t3b;
+// REDG keeps the BUG-454 era-glyph fallback onto the plain word).
 #[test]
 fn t4_sm103a_el_guarded_exempt_fixed_points() {
     assert_eq!(
