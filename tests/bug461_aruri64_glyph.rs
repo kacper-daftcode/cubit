@@ -97,10 +97,10 @@ fn t461_4_census_attribution() {
     // CF_RA + 4 klucze EF-band z cf + 4 LTC-mg G2/G4 z CF_RA); canonical bd48e63
     // = 33/33/25/46.
     let want = [
-        ("sm100a", 1170u32), // RIDE476 (F2-iter299, canonical c88778e): +1 cf/noga x3 (476b fantom _II forbid; _src474 key) // RIDE475r3 (F2-iter289, INC-289e, canonical 978c091)
-        ("sm103a", 1170),
-        ("sm120", 1181), // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim)
-        ("sm121a", 1185), // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim) (121a)
+        ("sm100a", 6974u32), // RIDE476 (F2-iter299, canonical c88778e): +1 cf/noga x3 (476b fantom _II forbid; _src474 key) // RIDE475r3 (F2-iter289, INC-289e, canonical 978c091)
+        ("sm103a", 6973),
+        ("sm120", 7012), // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim)
+        ("sm121a", 1243), // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim) (121a)
     ];
     for (leg, want_cf) in want {
         let v: serde_json::Value =

@@ -518,27 +518,27 @@ pub const STAND466: &[(u128, &str, &str)] = &[
     (
         0x000be40008d4e100fe0000041c00097eu128,
         "arb466b.L.b87",
-        "HOLE",
+        "@P0 LDG.E.NA.ELL2.256.STRONG.GPU R0, R0, [R28.U32+UR4], P6",
     ),
     (
         0x000be4000954e100fe0000041c00097eu128,
         "arb466b.L.b88",
-        "HOLE",
+        "@P0 LDG.E.NA.ELL2.256.STRONG.GPU R0, R0, [R28.U32+UR4], P5",
     ),
     (
         0x000be4000a54e100fe0000041c00097eu128,
         "arb466b.L.b89",
-        "HOLE",
+        "@P0 LDG.E.NA.ELL2.256.STRONG.GPU R0, R0, [R28.U32+UR4], P3",
     ),
     (
         0x000be4000f54e204f80000001c00097fu128,
         "arb466b.S.b73",
-        "HOLE",
+        "@P0 STG.E.NA.ELL2.256.STRONG.GPU [R28.U32+UR4], R0, R0",
     ),
     (
         0x000be4000f54e404f80000001c00097fu128,
         "arb466b.S.b74",
-        "HOLE",
+        "@P0 STG.E.NA.ELL2.256.STRONG.GPU [R28.U32+UR4], R0, R0",
     ),
     (
         0x000be4000f54e804f80000001c00097fu128,
@@ -568,7 +568,7 @@ pub const STAND466: &[(u128, &str, &str)] = &[
     (
         0x000be4000fd4e004f80000001c00097fu128,
         "arb466b.S.b87",
-        "HOLE",
+        "@P0 STG.E.NA.ELL2.256.STRONG.GPU [R28.U32+UR4], R0, R0",
     ),
 ];
 pub const KILL466: &[(u128, &str)] = &[
