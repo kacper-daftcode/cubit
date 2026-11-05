@@ -19,7 +19,9 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   law as F2I); the `IMMA` `.ROW`/`.COL` matrix-layout print on the A/B operands (the layout bits are
   baked ROW/COL in `and_base`, so the parser already re-encodes the identical word). Parity on the 373
   recorded mismatch words: **372 / 373** — the residue is `LEPC` (a PC-relative target the isolated-word
-  census renders at address 0; byte-identical to the vendor in a full disassembly). Test
+  census renders at address 0; byte-identical to the vendor in a full disassembly). Confirmed by the
+  full GB10 census re-run at this revision (`gx4`, 2026-11-05: 91 927 / 91 927 decode, 1 text
+  mismatch = `LEPC`; the sm_120 half 0 text mismatches). Test
   `tests/sm121a_parity_20261104.rs` + fixture; SM121a 23 823 → 23 825 forms / 26 380 → 26 381 variants
   (the census tests re-pinned to blackwell-isa `bb11659`).
 - **SM120 `stallfix` r2ur floor measured** (silicon v3, 2026-11-04, 4× RTX PRO 6000 Server Edition):
