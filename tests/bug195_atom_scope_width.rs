@@ -125,22 +125,34 @@ fn t195_3_no_junk_glyph_remnants() {
 }
 
 #[test]
-fn t195_4_unwitnessed_scope_fails_closed() {
-    // graft: EXCH donor with scope=0x3 (CONSTANT.CTA.PRIVATE) — vendor-legal
-    // glyph but zero rows by doctrine (no witness): decode must NOT fabricate
-    // an ATOMG.E.EXCH.* rendering.
+fn t195_4_unwitnessed_scope_renders_vendor_text() {
+    // Graft: EXCH donor with scope=0x3 (CONSTANT.CTA.PRIVATE).
+    //
+    // WAVE-11 INTEGRATION (2026-11-05): this was a deliberate HOLE ("vendor-legal
+    // glyph but zero rows by doctrine, no witness"). The merged lane canon carries
+    // the row, and the word now decodes -- with the modifier order fixed in the
+    // printer (ATOM/ATOMG print scope BEFORE residency; nvdisasm 13.4:
+    // `ATOMG.E.EXCH.CONSTANT.CTA.PRIVATE PT, R3, desc[UR4][R2.64], R7`).
+    //
+    // The assertion therefore flips from "must not fabricate" to "must match the
+    // vendor exactly". What it still guards is the thing the original test was
+    // really about: no junk artefacts in the rendering (abs-bars, predicate
+    // hallucination, rsd markers) and, new here, the exact vendor wording.
     for p in ["tables/sm120.json", "tables/sm103a.json"] {
         let t = tab(p);
         let idx = DecodeIndex::build(&t);
         let hi: u64 = (0x001eac000c1ef104u64 & !(0xf << (77 - 64))) | (0x3u64 << (77 - 64));
         let w = ((hi as u128) << 64) | 0x80000007020379a8u128;
-        match idx.decode(w, 0, &t) {
-            Ok(d) => {
-                let s = cubit::printer::to_sass(&d);
-                assert!(!s.starts_with("ATOMG.E.EXCH"), "{p}: fabricated EXCH: {s}");
-            }
-            Err(_) => {}
-        }
+        let got = match idx.decode(w, 0, &t) {
+            Ok(d) => cubit::printer::to_sass(&d),
+            Err(e) => panic!("{p}: vendor-legal EXCH word must decode: {e}"),
+        };
+        assert!(
+            got.starts_with("ATOMG.E.EXCH.CONSTANT.CTA.PRIVATE"),
+            "{p}: modifier order must be scope-before-residency (nvdisasm): {got}"
+        );
+        assert!(!got.contains('|'), "{p}: abs-junk remnant: {got}");
+        assert!(!got.contains("!rsd"), "{p}: rsd-junk remnant: {got}");
     }
 }
 

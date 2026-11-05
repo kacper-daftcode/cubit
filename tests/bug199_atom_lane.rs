@@ -61,18 +61,34 @@ fn t199_2_atom_generic_s64_sm_row() {
     assert_eq!(enc & !(0xFFFF_FFFFu128 << 96), w & !(0xFFFF_FFFFu128 << 96));
 }
 
-/// t199_3 (C): width flips on width-incomplete families are fail-closed
-/// across all three tables (legal-but-uncovered AND vendor-INVALID alike).
+/// t199_3 (C): width flips on width-incomplete families.
+///
+/// WAVE-11 INTEGRATION (2026-11-05): the INC widths are no longer holes. The lane's
+/// ATOMG canon models the full [74:73] width space, and nvdisasm 13.4 names every
+/// one of the three flips on all three legs:
+///   [74:73]=1 -> ATOMG.E.INC.S32.STRONG.GPU   2 -> .64   3 -> .S64
+/// cubit now decodes exactly those strings (verified per leg). The two genuine
+/// vendor-INVALID cases below stay fail-closed and are still asserted as holes:
+/// CAS width 3 (vendor INVALID3) and the F32-FTZ width 0 (vendor INVALID8) -- there
+/// the vendor prints a `?`-marker name, not an instruction.
 #[test]
 fn t199_3_width_flips_fail_closed() {
     let inc = (0x80000002040579a8u64, 0x001eec00099ef108u64); // ATOMG.E.INC U32 GPU
     let cas_sm = (0x00000006040573a9u64, 0x002ea200001ea107u64); // W probe CAS.SM
     let f32 = (0x8010007c86ff79a3u64, 0x000368000c1ef33eu64); // ATOMG ADD.F32.FTZ anchor
+    let want_inc = [
+        (1u64, "ATOMG.E.INC.S32.STRONG.GPU PT, R5, desc[UR8][R4.64], R2"),
+        (2, "ATOMG.E.INC.64.STRONG.GPU PT, R5, desc[UR8][R4.64], R2"),
+        (3, "ATOMG.E.INC.S64.STRONG.GPU PT, R5, desc[UR8][R4.64], R2"),
+    ];
     for p in ["tables/sm103a.json", "tables/sm120.json", "tables/sm100a.json"] {
         let t = tab(p); let idx = DecodeIndex::build(&t);
-        for wv in [1u64, 2, 3] {
-            assert!(dec(&t, &idx, flip_w(inc.0, inc.1, wv)).is_none(),
-                "{p}: INC width {wv} must be HOLE");
+        for (wv, want) in want_inc {
+            assert_eq!(
+                dec(&t, &idx, flip_w(inc.0, inc.1, wv)).as_deref(),
+                Some(want),
+                "{p}: INC width {wv} (nvdisasm-measured text)"
+            );
         }
         assert!(dec(&t, &idx, flip_w(cas_sm.0, cas_sm.1, 3)).is_none(),
             "{p}: CAS width 3 (vendor INVALID3) must be HOLE");
@@ -123,11 +139,21 @@ fn t199_6_complete_family_sibling_routing() {
     assert_eq!(g, "ATOMG.E.MAX.S32.STRONG.GPU PT, R2, desc[UR4][R2.64], R6");
 }
 
-/// t199_7: residuum posture — sm103a keeps the ATOM MAX.S64.SM HOLE
-/// (arch-local-witness doctrine, 197); only sm100a gained the row (t199_2).
+/// t199_7: sm103a ATOM MAX.S64.SM.
+///
+/// WAVE-11 INTEGRATION (2026-11-05): this used to be a deliberate arch-local HOLE
+/// (the 197 doctrine: only sm100a had the row). The merged lane canon carries the
+/// row on sm103a too, and nvdisasm 13.4 renders the word exactly as cubit now does:
+///   `ATOM.E.MAX.S64.STRONG.SM PT, R2, desc[UR4][R2.64], R6`
+/// So the assertion flips from "stays HOLE" to "decodes to the vendor text". The
+/// encode side is checked too, so the row cannot claim a word it cannot mint back.
 #[test]
-fn t199_7_sm103a_atom_s64_sm_stays_hole() {
+fn t199_7_sm103a_atom_s64_sm_decodes() {
     let t = tab("tables/sm103a.json"); let idx = DecodeIndex::build(&t);
     let w = word(0x800000060202798a, 0x001eac00091eb704);
-    assert!(dec(&t, &idx, w).is_none(), "sm103a ATOM MAX.S64.SM stays HOLE");
+    let want = "ATOM.E.MAX.S64.STRONG.SM PT, R2, desc[UR4][R2.64], R6";
+    assert_eq!(dec(&t, &idx, w).as_deref(), Some(want), "sm103a ATOM MAX.S64.SM");
+    let ins = parse_sass(want, 0).unwrap();
+    let enc = encode_instruction(&ins, &t).expect("re-encode the sm103a row");
+    assert_eq!(enc & !(0xFFFF_FFFFu128 << 96), w & !(0xFFFF_FFFFu128 << 96));
 }
