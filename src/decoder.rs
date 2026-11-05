@@ -369,6 +369,13 @@ impl DecodeIndex {
                 // lossy "!rsd[74:1]" path (R,U32 imm-form words absorbed by the
                 // R,U64 row). Fail closed; every legal combo is already a row.
                 "USHF" |
+                // SHF (2026-11-05, tools/probes/re_sm120_shf.py, nvdisasm 13.1): the vector
+                // funnel shift packs the same law — unsigned b73, 32-bit b74, W b75, right b76 —
+                // inside the window, and bit 72 is text-inert; a sign-tolerant match printed the
+                // b72 neighbour of `SHF.R.U32` as `SHF.R.W.U32 R2, -R4, ...`. Every legal
+                // (direction, type, W, HI) combination of the five forms is a measured row;
+                // fail closed otherwise.
+                "SHF" |
                 // BUG-282: I2IP carries a real op-suffix law inside the Rc
                 // sign window (arb282 + arb276b, nvdisasm x4 models):
                 // b74=.SAT b75=.SATRELU on the 0x7239 4-op lattice;

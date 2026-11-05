@@ -355,7 +355,7 @@ fn t465_9_atlas_audit() {
 #[test]
 fn t465_10_canonical_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "2eed3ac77c45c24a27ad1b3bad71c9b088ae5e9b";
+    const CURRENT_VENDORED_CANON: &str = "377b507fa4fbb19e159b80eabe35c2ac72aafbf1";
     assert_eq!(CANON465, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     let src = std::fs::read_to_string("tables/SOURCE.json").unwrap();

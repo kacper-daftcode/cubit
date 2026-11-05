@@ -6,8 +6,9 @@
 //! * the measured floors land as raises on the producer of each path's d0 pair (rpath 4, dmix 5,
 //!   pcarry 5 (R11, new: a predicate read as data), xread 6, uguard 10) and the d1/d2 keys that
 //!   sm_103a never had (pcarry d1 4, urpath d1 3, xread d1 4 / d2 2, uguard d2 6, guard d2 9);
-//! * a predicate producer directly followed by its `@P` guard consumer is a violation on SM120
-//!   (`guard_d0_forbid`: no stall up to the cap closed it, 641 888 / 655 360 threads wrong at S11);
+//! * a predicate producer directly followed by its `@P` guard consumer needs S13 on SM120 (v4, measured
+//!   2026-11-05 in the S12..S15 band: S12 still wrong, S13..S15 clean; the v3 sweep ended at S11 and
+//!   called the site a violation);
 //!   guard at d1 is a raise to 11 for every consumer class (`floor_guard_d1`, the single clean
 //!   value measured), not the sm_103a class split;
 //! * R2UR boundaries raise to the cap (11): the measurement's CPU model was wrong for that path,
@@ -52,12 +53,12 @@ fn raised_to(insns: &[&str], idx: u32) -> (u8, Vec<String>) {
 fn section_is_the_measured_sm120_set() {
     let r = rules();
     assert_eq!(r.arch, "sm_120");
-    assert_eq!(r.rules_version, "v3");
-    assert_eq!(r.cap_stall, 11);
+    assert_eq!(r.rules_version, "v4"); // 2026-11-05: guard d0 measured in the S12..S15 band
+    assert_eq!(r.cap_stall, 15);
     assert_eq!((r.floor_global, r.floor_dmix_d0), (4, 5));
     assert_eq!((r.floor_pcarry_d0, r.floor_pcarry_d1), (5, 4));
-    assert!(r.guard_d0_forbid && !r.guard_d1_forbid);
-    assert_eq!((r.floor_guard_d1, r.floor_guard_d2), (11, 9));
+    assert!(!r.guard_d0_forbid && !r.guard_d1_forbid);
+    assert_eq!((r.floor_guard_d0, r.floor_guard_d1, r.floor_guard_d2), (13, 11, 9), "guard d0 13 measured 2026-11-05 (harness v4, S12..S15 band: S12 wrong, S13..S15 clean)");
     assert_eq!((r.floor_xread_d0, r.floor_xread_d1, r.floor_xread_d2), (6, 4, 2));
     assert_eq!(r.floor_urpath_d1, 3);
     assert_eq!((r.floor_uguard_d0, r.floor_uguard_d1, r.floor_uguard_d2), (10, 8, 6));
@@ -129,15 +130,23 @@ fn pcarry_d0_floor5_and_d1_floor4_r11() {
     assert!(!why.iter().any(|r| r.starts_with("R11")), "{why:?}");
 }
 
+/// 2026-11-05 (harness v4, T-5): guard at d0 is a raise to 13, not a violation. The v3 sweep ended at
+/// S11 (all wrong); S12 is still wrong, S13 / S14 / S15 are clean — on the data consumer and on a
+/// guarded branch alike. cubit's own `schedule()` emits S14 before `@P BRA` (one above the floor).
 #[test]
-fn guard_d0_is_a_violation_on_sm120() {
-    let src = kern(&[
+fn guard_d0_is_raised_to_13_on_sm120() {
+    let (s, why) = raised_to(&[
         "[B------:R-:W-:-:S09] ISETP.LT.U32.AND P0, PT, R4, R5, PT",
         "[B------:R-:W-:-:S04] @P0 IADD3 R8, PT, PT, R4, R5, RZ",
-        "EXIT"]);
-    let err = format!("{:#}", run_file(&src, &pl("[[0,2]]"), &rules()).unwrap_err());
-    assert!(err.contains("1 guard site(s)") && err.contains("guard at d0"), "{err}");
-    assert!(err.contains("2026-11-03") && err.contains("RTX PRO 6000"), "{err}");
+        "EXIT"], 0);
+    assert_eq!(s, 13);
+    assert!(why.iter().any(|r| r == "R3-guard-d0"), "{why:?}");
+    // S14 (what schedule() writes before a guarded branch) is above the floor: nothing to raise
+    let (s, why) = raised_to(&[
+        "[B------:R-:W-:-:S14] ISETP.LT.U32.AND P0, PT, R4, R5, PT",
+        "[B------:R-:W-:-:S05] @P0 IADD3 R8, PT, PT, R4, R5, RZ",
+        "EXIT"], 0);
+    assert_eq!((s, why.len()), (0, 0), "no raise record expected for a producer already at S14");
 }
 
 #[test]

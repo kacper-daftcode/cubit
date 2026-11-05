@@ -77,7 +77,8 @@ producer and consumer.
 | `urpath` UIADD3 → UIADD3 | S04 | S03 | S00 | `floor_global` (R7), `floor_urpath_d1` 3 |
 | `pcarry` ISETP → SEL reading the predicate | S05 | S04 | S00 | `floor_pcarry_d0` 5, `floor_pcarry_d1` 4 (R11, new) |
 | `dmix` IMAD.WIDE.U32 cout → IADD3.X cin | S05 | S00 | S00 | `floor_dmix_d0` 5 |
-| `guard` ISETP → `@P0 IADD3` | **none ≤ S11** (641 888 / 655 360 wrong at S11) | S11 (S10: 643 744 wrong) | S09 | `guard_d0_forbid`, `floor_guard_d1` 11 (every class; `guard_d1_forbid` false), `floor_guard_d2` 9 |
+| `guard` ISETP → `@P0 IADD3` | **S13** (v4, 2026-11-05: S11 641 888 and S12 618 880 / 655 360 wrong, S13–S15 clean) | S11 (S10: 643 744 wrong) | S09 | `floor_guard_d0` 13 (v4; v3 had `guard_d0_forbid` because its sweep ended at S11), `floor_guard_d1` 11 (every class; `guard_d1_forbid` false), `floor_guard_d2` 9 |
+| `guardbra` ISETP → `@P0 BRA` over the effect instruction (v4, new) | S13 (S12: 644 800 wrong) | S11 | S09 | the same rule keys as `guard` — a guarded branch obeys the data-guard law; cubit's `schedule()` writes S14 there |
 | `xread` UIADD3 UR → vector IADD3 reading the UR | S06 | S04 | S02 | `floor_xread_d0/d1/d2` 6/4/2 |
 | `uguard` UISETP → `@UP0 UIADD3` | S10 | S08 | S06 | `floor_uguard_d0/d1/d2` 10/8/6 |
 | `mufu` MUFU.RCP → FFMA | none | none | none | variable latency: the scoreboard is the only legal schedule (the pass never writes barriers) |
@@ -88,9 +89,14 @@ Readings:
 - S00 was clean on every path at every distance, MUFU included: on sm_120 a stall count of 0 is a
   hardware interlock, not "no stall". It is never used as a floor (the pass never writes S00).
 - The register and uniform ALU paths match sm_103a (`floor_global` 4, `dmix` 5, `xread` 6, `uguard`
-  10/8); the predicate → guard path does not: sm_103a legalizes guard-d0 at S07, SM120 at no stall up
-  to the cap. A guarded consumer directly after its predicate producer is a `stallfix` violation on
-  SM120 (move it two slots away, or read the predicate as data: `pcarry` needs 5).
+  10/8); the predicate → guard path does not: sm_103a legalizes guard-d0 at S07, SM120 at **S13** (v4).
+  v3 called the site a violation because its sweep ended at S11; harness v4 (2026-11-05) swept the
+  S12–S15 band: S12 still wrong, S13/S14/S15 clean, on the data consumer and on a guarded branch alike.
+  `cap_stall` is 15 in v4 (the band executes without yield; with yield it stays decoder-reserved and
+  the pass never writes it). cubit's `schedule()` emits S14 before `@P BRA` — legal, one above the floor.
+- **Second SKU (2026-11-05, `rtx` = 2× RTX 5090 / GB202):** the whole v3 set re-run (`T/remote/rtx5090/`):
+  `floors` and `model_check` identical field by field to the RTX PRO 6000 run; the v4 band was measured on
+  GB202 first (the test host was serving an A/B at the time) — see the report for the confirmation status.
 - `guard d1 = 11` is the single clean value measured (S12–S15 are outside the sweep: decoder-reserved
   with yield, unmeasured without); it is applied to every consumer class because no class split was
   measured on SM120 (the sm_103a isetp/data/atomic split stays sm_103a's).
@@ -106,5 +112,8 @@ Readings:
 ## 5. What still needs silicon
 
 - The `r2ur` floor (v3 kernels, `tools/stallfloor/stallfloor_gen.py --paths r2ur`).
-- The S12–S15 band without yield (whether it executes or hangs); `cap_stall` stays 11.
+- ~~The S12–S15 band without yield~~ — measured 2026-11-05 (executes; guard d0 = 13); `cap_stall` 15.
+- Floors for the fp16 / fp32 ALU producers (`HADD2`, `HMUL2`, `F2FP`, `FMUL`, `FFMA`) and the HMMA chain:
+  the classes that dominate a hand-scheduled attention kernel (1 776 of 2 663 instructions of the sparse-MLA
+  kernel sit at S05 with no measured floor) — harness v5 paths with an S15 reference kernel as the oracle.
 - Guard-d1 consumer classes other than data (isetp / atomic) and the 1×32 geometry.

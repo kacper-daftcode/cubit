@@ -182,7 +182,7 @@ fn enc_probe(t: &IsaTable, text: &str) -> u128 {
 #[test]
 fn t418_5_graft_hygiene_source_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "2eed3ac77c45c24a27ad1b3bad71c9b088ae5e9b";
+    const CURRENT_VENDORED_CANON: &str = "377b507fa4fbb19e159b80eabe35c2ac72aafbf1";
     assert_eq!(CANON418, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     let m: serde_json::Value =

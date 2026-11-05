@@ -4,6 +4,45 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-05 (session T-6, item 2: session T-5's gate-2 measurement landed on the wave-11 tables)
+
+Session T-5 measured these on `bb11659` and died before gating them; re-applied with the same probes on
+blackwell-isa `377b507` (on top of the wave-11 tables), gated and pushed by T-6.
+
+- **Tables: tcgen05 `LDTM`/`STTM` rebuilt from measurement on sm100a and sm103a** (blackwell-isa, provenance
+  `ldtm-sttm-sm100-2026-11-05`; `tools/probes/re_sm100_ldtm_sttm.py`, nvdisasm 13.1 `-b SM100` / `-b SM103`,
+  576 form + 80 lattice words, text-identical on both targets): `LDTM_R_II` and `STTM_II_R` carry 96 measured
+  groups each (shape enum bits {87, 82, 81}, count `x2^n` at [85:83], `PACK16BIT` / `EXPAND16BIT` bit 80,
+  8-bit register and UR fields with 255 = RZ / URZ, the 24-bit tmem offset at [63:40], bit 91 = frame). This
+  closes KNOWN_ISSUES V5 (a): the five tcgen05 words of the 2026-11-03 B300 strict round trip — the
+  `16dp32bit_t16_t31` x2 / x8 / x32 harvest rows had no UR field (`tmem[URZ+0x20]` re-encoded as
+  `tmem[UR192+0x20]`) — now round-trip (`tests/sm100a_ldtm_sttm.rs`). Printer: the LDTM/STTM guard is
+  **uniform** (`@UP0 LDTM …`, nvdisasm prints all 16 guard codes as `@UPn`), and `PACK16BIT` /
+  `EXPAND16BIT` print after the count (`LDTM.16dp32bit_t16_t31.x8.PACK16BIT`). V5 (b)/(c) — a reuse bit
+  on an immediate-source `UMOV`, the mode bit of `I2F.S16` — stay text-inert bits the strict path cannot
+  carry (the frozen `!rsd` path does); documented, not fixed.
+- **Tables: the SM120 `SHF` family rebuilt from measurement** (dynamic-audit batch 3, blackwell-isa
+  provenance `shf-sm120-2026-11-05`; `tools/probes/re_sm120_shf.py`, 380 form + 78 lattice words): the 40
+  dotted harvest keys (`SHF.L.U32_R_R_II_R`, `SHF.R.S32.HI_R_R_II_R_II_II_?`, …) are gone and the five forms
+  — 0x219 `Rd, Ra, Rb, Rc`, 0x419 `Rd, Ra, Rc, imm32`, 0x819 `Rd, Ra, imm32, Rc`, 0xc19 `Rd, Ra, URb, Rc`,
+  0xe19 `Rd, Ra, Rc, URb` — carry 32 measured modifier groups each (bit 73 unsigned, 74 32-bit, 75 `.W`,
+  76 `.R`, 80 `.HI`). The decoder's prio-3 sign-window fallback no longer absorbs SHF words (bit 72 is
+  text-inert; the b72 neighbour of `SHF.R.U32` printed as `SHF.R.W.U32 R2, -R4, …`). `tests/sm120_shf.rs`.
+  Keys 16 143 → 16 103, variants 26 612 → 26 656 (on the wave-11 tables; T-5 measured the family on
+  `bb11659`, the rows are re-applied unchanged). Audit replay of the complete 2026-11-04 word set at this
+  tree (`T/audit/dyn10`): **463 → 423 rows** with at least one defect (444 after wave 11 alone; SHF 13 → 1 —
+  the one left is a reuse-bit variant nvdisasm refuses on the UR form); the production census is unchanged
+  (session report part 6).
+- **`stallfix` v4 for SM120** (blackwell-isa `377b507`): `guard_d0_forbid` false, `floor_guard_d0` 13,
+  `cap_stall` 15, `legacy_stall_risk_from` 15. Harness v4 (T-5, 2026-11-05, `rtx` = 2× RTX 5090 / GB202, 98
+  kernels; the `guard` path swept to S15 and a new `guardbra` path `ISETP → @P BRA`): S12 still wrong
+  (618 880 / 655 360 threads), S13 / S14 / S15 clean, on the data consumer and on the guarded branch alike.
+  The v3 sweep had ended at S11 and called the site a violation, which refused session V's silicon-validated
+  kernel (S14 at its 7 guard-d0 sites) and cubit's own `schedule()` output (S14 before `@P BRA`).
+  `tests/stallfix_sm120.rs`: `guard_d0_is_raised_to_13_on_sm120`. The RTX PRO 6000 confirmation of the
+  S13 point is still owed (NEEDS_OWNER 24); every other floor agreed on both SKUs field by field.
+- `docs/SM120_STALLFIX_PLAN.md` §4 carries the v4 reading; `tools/probes/README.md` lists the two probes.
+
 ## Unreleased — 2026-11-05 (session T-6: wave 11 merged onto main, the suite green again)
 
 Another agent ("coldface", B300 host) moved both public `main`s on 2026-11-05: blackwell-isa `e99598a`
@@ -108,7 +147,6 @@ above R127 was exposed to; earlier kernels were protected by accidental overflow
   R<128 twin schedule identically (`tests/bug480_sched_gpr128.rs`).
 - V's kernel build (`vllm-moet tools/dsv41_sm120/sparse_mla_sass/build_sparse_mla_sass.sh`) reproduces
   the validated cubin **byte for byte** from this tree (2 663 words; checked 2026-11-05).
-
 ## Unreleased — 2026-11-04 (session T-4)
 
 - **SM121a text parity to 100 %** (blackwell-isa `bb11659`, owner decision NEEDS_OWNER 17):

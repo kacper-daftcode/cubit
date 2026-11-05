@@ -637,7 +637,11 @@ const NEGS: &[(&[&str], u128, u32, &str)] = &[
     (&["a", "c"], 0x0838000000000000010009e7, 62, "UTCCP"),
     (&["a", "c"], 0x0820900000000008100075b4, 62, "UTMALDG"),
     (&["a", "c"], 0x0804000000000000000079ee, 72, "LDTM"),
-    (&["a", "c"], 0x080400c000000001000079ed, 62, "STTM"), // pre: |R1| junk
+    // 2026-11-05 (tools/probes/re_sm100_ldtm_sttm.py, nvdisasm 13.1 -b SM100): bit 62 is bit 22 of
+    // the measured 24-bit tmem offset (`STTM tmem[UR192+0x400000], R1` IS the vendor text), so the
+    // old b62 negative no longer holds; bit 72 (the offset high byte, outside the measured rows)
+    // is the fail-closed neighbour now.
+    (&["a", "c"], 0x080400c000000001000079ed, 72, "STTM"), // pre: |R1| junk
     (&["a", "c"], 0x000007000000000000ff73aa, 72, "QSPC"),
     (&["a", "c"], 0x0800020000000000000003ba, 72, "UBLKCP"),
 ];

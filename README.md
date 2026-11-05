@@ -134,7 +134,9 @@ Select a table with `-t tables/<arch>.json` (or the `.json.gz` path) or `CUBIT_T
 cubin's ELF flags follow the table.
 
 **SM120 laws measured on silicon** (cubit-assembled probe kernels, driver-API launches, 2026-11-02 on an
-RTX 5090 and 2026-11-03 on 4x NVIDIA RTX PRO 6000 Server Edition; logs under the session's `T/gpu/`):
+RTX 5090 and 2026-11-03/04 on 4x NVIDIA RTX PRO 6000 Server Edition; **re-measured 2026-11-05 on a second
+SKU, 2x RTX 5090 / GB202 — every law below holds identically**; logs under the session's `T/gpu/` and
+`T/remote/rtx5090/`):
 
 - *Register shadow* (BUG-040/075): a kernel declared at regcount N may use R0..R(N−3); touching
   R(N−2) or R(N−1) faults the launch (`CUDA_ERROR_ILLEGAL_INSTRUCTION`), measured at 64 and 128 with
@@ -146,10 +148,18 @@ RTX 5090 and 2026-11-03 on 4x NVIDIA RTX PRO 6000 Server Edition; logs under the
   nvdisasm 13.1 and 13.3 refuse to print them; cubit decodes them (nvdisasm is a text oracle).
 - *Packed `HMUL2` immediates* multiply like the register form (identity, negation, `.H1_H1` broadcast).
 - *Stall floors* for `stallfix`: the measured dependency-path floors (`tables/sm120.json`, `stallfix`
-  section, rules v3; [docs/SM120_STALLFIX_PLAN.md](docs/SM120_STALLFIX_PLAN.md) §4). The `r2ur` floor
-  was measured 2026-11-04 (silicon v3, warp-uniform kernels) at 4 (= the global floor); A predicate producer
-  directly followed by its `@P` guard consumer is not legalized by any stall up to 11 on SM120; S00
-  behaves as a hardware interlock.
+  section, rules v4; [docs/SM120_STALLFIX_PLAN.md](docs/SM120_STALLFIX_PLAN.md) §4). The `r2ur` floor
+  was measured 2026-11-04 (silicon v3, warp-uniform kernels) at 4 (= the global floor); a predicate producer
+  directly followed by its `@P` guard consumer needs **S13** (v4, 2026-11-05: the S12..S15 band measured,
+  S12 still wrong; the same law for a guarded branch); S00 behaves as a hardware interlock. The 26 v3
+  floors and the model checks are identical on GB202.
+- *Asynchronous forms* (2026-11-05, both SKUs): `ARRIVES.LDGSTSBAR.64.ARVCNT` arrives with
+  `cp.async.mbarrier.arrive.noinc` semantics (the form without `.ARVCNT` is net-neutral), `UTMASTG.2D
+  [smem, x, y], [tensor map]` stores the tensor-map box at the coordinates, and `LDSM.U4x16P64TO8.M816.2`
+  gives lane *l* the four U4 elements of row *l/4*, columns 4·(l mod 4)..+3 of matrix *m* in `Rd+m`
+  (zero-extended to bytes; `Rd+2`/`Rd+3` untouched).
+- *Driver requirement:* cubit's standalone cubins carry the CUDA-13 ELF identity; a CUDA 12.9 driver
+  (575.51.02) crashes in `cuModuleLoad` on it, 580.x drivers load it ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) A14).
 
 ## Python bindings
 

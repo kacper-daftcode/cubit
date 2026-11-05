@@ -15,12 +15,17 @@ use std::collections::BTreeMap;
 /// just (pred,neg); uniformness follows the family, both print paths agree.
 /// CS2UR: nvdisasm 13.1 renders all 16 guard codes as @UPn/@!UPn/@!UPT
 /// (tools/probes/re_sm120_cs2ur.py sweep, tests/fixtures/sm120_cs2ur_nvdisasm.jsonl).
+/// LDTM / STTM (tcgen05 tensor-memory load / store, sm_100a / sm_103a): nvdisasm 13.1 prints
+/// all 16 guard codes as `@UPn` / `@!UPn` / `@!UPT` (`tools/probes/re_sm100_ldtm_sttm.py`,
+/// `tests/fixtures/sm100a_ldtm_sttm_nvdisasm.jsonl`, 2026-11-05).
 pub(crate) fn guard_is_uniform_family(key: &str) -> bool {
     key.starts_with('U')
         || key.starts_with("LDCU")
         || key.starts_with("SYNCS_UR")
         || key.starts_with("S2UR")
         || key.starts_with("CS2UR")
+        || key.starts_with("LDTM")
+        || key.starts_with("STTM")
 }
 
 /// BUG-325/326: vendor `.reuse` PRINT law -- the printer-side personality of
@@ -1168,6 +1173,15 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     }
     if base == "F2FP" && m == "RELU" {
         return 1;
+    }
+    // 2026-11-05 (tools/probes/re_sm100_ldtm_sttm.py, 576 words, nvdisasm 13.1 -b SM100/SM103):
+    // `LDTM.16dp32bit_t16_t31.x8.PACK16BIT`, `STTM.16dp256bit.x8.EXPAND16BIT` - the shape, then the
+    // count, then PACK16BIT / EXPAND16BIT last (the sorted group key puts them before `xN`).
+    if matches!(base, "LDTM" | "STTM") {
+        match m {
+            "PACK16BIT" | "EXPAND16BIT" => return 9,
+            _ => {}
+        }
     }
     // 2026-11-04 (tools/probes/re_sm120_mufu_ur.py, 494 words): `MUFU.EX2.F16`, `MUFU.COS.BF16` -
     // the function precedes the half type.
