@@ -4,6 +4,22 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## 2026-11-05 (session B300) — `asm --driver-abi 12`: the CUDA-12 ELF identity for the 12.9 driver
+
+- **KNOWN_ISSUES A14 fixed (pending silicon)**: `asm` writes the CUDA-13 ELF identity
+  (`EI_OSABI 0x41`, `EI_ABIVERSION 8`, `e_flags 0x06_00_SS_fX`), which SIGSEGVs `cuModuleLoad` on
+  the CUDA-12.9 driver (measured 2026-11-05 on rtx, driver 575.51.02; a garbage file fails cleanly
+  with `CUDA_ERROR_INVALID_IMAGE`). `--driver-abi 12` rewrites the three header fields to the
+  CUDA-12 convention (`EI_OSABI 0x33`, `EI_ABIVERSION 7`, `e_flags 0x00_SS_0A_SS` -- SM in [7:0] and
+  [23:16], `0x5 | ('a' ? 0x8 : 0)` in [11:8]); the same bytes then load and run on 12.9 (specification
+  `T/gpu/cubin12.py`). Default stays 13 -- today's cubins are byte-identical (frozen `asm -T` tests
+  green). Applies to all three `asm` paths (template rebuild, standalone ELF build, directive format);
+  `src/elf.rs::rewrite_driver_abi_12` carries the unit test. The 580.x drivers load both identities.
+  Silicon re-verification of the emitted 12-identity on rtx: T/K (the measurement that motivated the
+  feature used the Python rewrite, not this emitter).
+
+## Unreleased — 2026-11-04 (session T-4)
+
 ## Unreleased — 2026-11-06 (session T-7: the scheduler's atomics, the shared footprint)
 
 - **BUG-482 — the scheduler tracks the atomics' operands** (KNOWN_ISSUES A17, found 2026-11-05 by the

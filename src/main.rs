@@ -290,6 +290,14 @@ enum Commands {
         /// the compiler computed. Default: refuse with the two counts.
         #[arg(long)]
         allow_regcount_change: bool,
+        /// ELF identity of the output cubin: `13` (CUDA-13: EI_OSABI 0x41,
+        /// EI_ABIVERSION 8, e_flags 0x06_00_SS_fX -- today's bytes, the default)
+        /// or `12` (CUDA-12: EI_OSABI 0x33, EI_ABIVERSION 7, e_flags 0x00_SS_0A_SS).
+        /// The CUDA-13 identity crashes the CUDA-12.9 driver's loader
+        /// (cuModuleLoad SIGSEGV, driver 575); the 580.x drivers load both
+        /// (KNOWN_ISSUES A14, measured 2026-11-05 on rtx).
+        #[arg(long, default_value = "13")]
+        driver_abi: u32,
     },
     /// Show ISA table info.
     Info {
@@ -395,6 +403,7 @@ fn main() -> Result<()> {
             kernel,
             mercury_stub,
             allow_regcount_change,
+            driver_abi,
         } => cmd_asm(
             &table,
             &input,
@@ -404,6 +413,7 @@ fn main() -> Result<()> {
             kernel.as_deref(),
             mercury_stub.as_deref(),
             allow_regcount_change,
+            driver_abi,
         ),
         Commands::AsmText {
             table,
@@ -2001,8 +2011,13 @@ fn cmd_asm(
     only_kernel: Option<&str>,
     mercury_stub_path: Option<&std::path::Path>,
     allow_regcount_change: bool,
+    driver_abi: u32,
 ) -> Result<()> {
     use cubit::elf::CubinFile;
+
+    if driver_abi != 12 && driver_abi != 13 {
+        bail!("--driver-abi must be 12 or 13 (got {driver_abi})");
+    }
 
     let table = IsaTable::load(table_path)?;
     let sass_text = std::fs::read_to_string(sass_path)
@@ -2032,6 +2047,7 @@ fn cmd_asm(
             only_kernel,
             mercury_stub.as_deref(),
             allow_regcount_change,
+            driver_abi,
         );
     }
 
@@ -2053,6 +2069,7 @@ fn cmd_asm(
             only_kernel,
             mercury_stub.as_deref(),
             allow_regcount_change,
+            driver_abi,
         );
     }
 
@@ -2157,6 +2174,9 @@ fn cmd_asm(
         );
     }
 
+    if driver_abi == 12 {
+        cubit::elf::rewrite_driver_abi_12(&mut cubin.bytes);
+    }
     cubin.write(output_path.as_path())?;
 
     let orig = std::fs::read(template_path.unwrap())?;
@@ -2281,6 +2301,7 @@ fn cmd_asm_build_elf(
     only_kernel: Option<&str>,
     mercury_stub_data: Option<&[u8]>,
     allow_regcount_change: bool,
+    driver_abi: u32,
 ) -> Result<()> {
     use cubit::elf_builder::KernelEntry;
 
@@ -4381,7 +4402,7 @@ fn cmd_asm_build_elf(
     merge_syncwarp_from_reference(&mut entries, eiattr_path);
     // If --eiattr-from is provided, use rebuild_cubin (copies ELF structure +
     // EIATTR from reference, replaces only .text sections with new instruction bytes)
-    let cubin_bytes = if let Some(ref_path) = eiattr_path {
+    let mut cubin_bytes = if let Some(ref_path) = eiattr_path {
         use cubit::elf_builder::{rebuild_cubin_with_resources, RebuildResources};
         println!("Using EIATTR from: {}", ref_path.display());
         let ref_bytes = std::fs::read(ref_path)
@@ -4411,6 +4432,9 @@ fn cmd_asm_build_elf(
         }
     };
 
+    if driver_abi == 12 {
+        cubit::elf::rewrite_driver_abi_12(&mut cubin_bytes);
+    }
     std::fs::write(output_path, &cubin_bytes)?;
 
     println!(
@@ -4447,6 +4471,7 @@ fn cmd_asm_directive_format(
     only_kernel: Option<&str>,
     mercury_stub: Option<&[u8]>,
     allow_regcount_change: bool,
+    driver_abi: u32,
 ) -> Result<()> {
     use cubit::elf_builder::KernelEntry;
     use cubit::sass_file::{auto_detect_resources, kernel_def_to_meta, parse_sass_file_str_strict};
@@ -5619,7 +5644,7 @@ fn cmd_asm_directive_format(
         refuse_occupancy_change: !allow_regcount_change,
     };
     let reference_for_report = template_path.or(eiattr_path);
-    let cubin_bytes = if let Some(tmpl) = template_path {
+    let mut cubin_bytes = if let Some(tmpl) = template_path {
         use cubit::elf_builder::rebuild_cubin_with_resources;
         let tmpl_bytes = std::fs::read(tmpl)?;
         preflight_param_footprint_vs_reference(&tmpl_bytes, &entries, "-T")?;
@@ -5651,6 +5676,9 @@ fn cmd_asm_directive_format(
         }
     };
 
+    if driver_abi == 12 {
+        cubit::elf::rewrite_driver_abi_12(&mut cubin_bytes);
+    }
     std::fs::write(output_path, &cubin_bytes)
         .with_context(|| format!("cannot write {}", output_path.display()))?;
     println!("Written: {}", output_path.display());

@@ -288,3 +288,75 @@ fn parse_sm_version(flags: u32) -> SmVersion {
         SmVersion { sm: sm_field, compute: (flags >> 16) & 0xFF }
     }
 }
+
+/// Rewrite the CUDA-13 ELF identity of a cubin to the CUDA-12 convention so a
+/// 12.x driver loads it: `EI_OSABI` 0x41 -> 0x33, `EI_ABIVERSION` 8 -> 7,
+/// `e_flags` 0x06_00_SS_fX (SM in [15:8], 'a' = bit 3) -> 0x00_SS_0A_SS
+/// (SM in [7:0] and [23:16], 0x5 | ('a' ? 0x8 : 0) in [11:8]).
+/// Measured 2026-11-05 on `rtx` (driver 575.51.02 / CUDA 12.9): the CUDA-13
+/// identity SIGSEGVs `cuModuleLoad` (a garbage file returns
+/// `CUDA_ERROR_INVALID_IMAGE` cleanly); the rewritten bytes load and run --
+/// all T probes PASS, the measured laws identical to the 580-driver hosts,
+/// which load both identities. No-op on bytes that already carry the 12
+/// layout. Specification: `T/gpu/cubin12.py` (KNOWN_ISSUES A14).
+pub fn rewrite_driver_abi_12(buf: &mut [u8]) {
+    if buf.len() < 0x34 || buf[..4] != [0x7f, b'E', b'L', b'F'] {
+        return;
+    }
+    let ef = u32::from_le_bytes([buf[0x30], buf[0x31], buf[0x32], buf[0x33]]);
+    if (ef >> 24) == 0x06 {
+        let sm = (ef >> 8) & 0xff;
+        let acc: u32 = if ef & 0x8 != 0 { 0x8 } else { 0 };
+        let ef12 = (sm << 16) | ((0x5 | acc) << 8) | sm;
+        buf[0x30..0x34].copy_from_slice(&ef12.to_le_bytes());
+    }
+    if buf[7] == 0x41 {
+        buf[7] = 0x33;
+    }
+    if buf[8] == 8 {
+        buf[8] = 7;
+    }
+}
+
+#[cfg(test)]
+mod driver_abi_tests {
+    use super::rewrite_driver_abi_12;
+
+    fn header(abi13: bool, e_flags: u32) -> Vec<u8> {
+        let mut b = vec![0u8; 0x40];
+        b[..4].copy_from_slice(b"\x7fELF");
+        b[7] = if abi13 { 0x41 } else { 0x33 };
+        b[8] = if abi13 { 8 } else { 7 };
+        b[0x30..0x34].copy_from_slice(&e_flags.to_le_bytes());
+        b
+    }
+
+    /// A14: the CUDA-12 identity rewrite, per the rtx measurement
+    /// (T/gpu/cubin12.py is the specification; driver 575.51.02 / CUDA 12.9).
+    #[test]
+    fn a14_driver_abi_12_identity_rewrite() {
+        // sm_120 (no 'a' bit): 0x06_00_78_02 -> 0x00_78_05_78
+        let mut b = header(true, 0x0600_7802);
+        rewrite_driver_abi_12(&mut b);
+        assert_eq!((b[7], b[8]), (0x33, 7));
+        assert_eq!(&b[0x30..0x34], &0x0078_0578u32.to_le_bytes());
+        // sm_100a ('a' bit 3): 0x06_00_64_0a -> 0x00_64_0d_64
+        let mut b = header(true, 0x0600_640a);
+        rewrite_driver_abi_12(&mut b);
+        assert_eq!(&b[0x30..0x34], &0x0064_0d64u32.to_le_bytes());
+        // already-12 bytes: no-op
+        let mut b = header(false, 0x0064_0d64);
+        rewrite_driver_abi_12(&mut b);
+        assert_eq!((b[7], b[8]), (0x33, 7));
+        assert_eq!(&b[0x30..0x34], &0x0064_0d64u32.to_le_bytes());
+        // non-ELF / short buffer: untouched
+        let mut b = vec![1u8, 2, 3];
+        rewrite_driver_abi_12(&mut b);
+        assert_eq!(b, vec![1u8, 2, 3]);
+        // a legacy pre-13 e_flags layout (no 0x06 prefix): flags kept
+        let mut b = header(true, 0x0000_0050);
+        rewrite_driver_abi_12(&mut b);
+        assert_eq!(&b[0x30..0x34], &0x0000_0050u32.to_le_bytes());
+        assert_eq!((b[7], b[8]), (0x33, 7));
+    }
+}
