@@ -1364,18 +1364,18 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     // Measured with nvdisasm 13.4 on the wave-11 corpus word
     // 0x001eac000c1e710480000007020379a8:
     //   vendor `ATOMG.E.EXCH.CONSTANT.CTA.PRIVATE PT, R3, desc[UR4][R2.64], R7`
-    //   cubit  `ATOMG.E.EXCH.CONSTANT.PRIVATE.CTA PT, ...`   <- alphabetical, wrong
-    // The table's mod_group string is emitted alphabetically, so without this arm
-    // PRIVATE (residency) lands before CTA (scope). Bucket order: kind(E/NA/EL)
-    // < size < CONSTANT < cache-op < scope(GPU/SYS/SM/CTA) < consistency
-    // < PRIVATE/HINT (last).
+    //   before `ATOMG.E.EXCH.CONSTANT.PRIVATE.CTA PT, ...`   <- alphabetical, wrong
+    //
+    // ONLY the scope/residency pair is re-ranked here. The op token (`ADD`, `EXCH`,
+    // `MAX`, …) and the EF/EL/EU kind keep their existing buckets: vendor order on
+    // the real REDG rows is `REDG.E.ADD.EF.64.CONSTANT.CTA.PRIVATE`, i.e. op BEFORE
+    // kind. A first cut of this arm gave EF bucket 3 and produced `REDG.EF.ADD`,
+    // which t225_2 caught.
     if matches!(base, "ATOM" | "ATOMG" | "RED" | "REDG" | "ATOMS") {
         match m {
-            "EL" | "NA" | "EN" | "EF" | "EU" => return 3,
-            "ELL2" | "ENL2" | "EFL2" | "RML2" => return 4,
             "CONSTANT" => return 6,
-            "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" => return 8,
             "GPU" | "SYS" | "SM" | "CTA" => return 7,
+            "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" => return 8,
             "PRIVATE" | "HINT" => return 9,
             _ => {}
         }
