@@ -35,14 +35,7 @@ fn enc(text: &str, t: &IsaTable) -> anyhow::Result<u128> {
 // Encoder fixed points captured pre-guard (cubit-1952927 lib path); the
 // guard rejects or passes through, it never changes payload bits.
 const W_ATOMG_PLAIN: u128 = 0x000fc200081ef1148000002c221679a8u128; // unguarded non-EL
-// WAVE-11 INTEGRATION (2026-11-05): W_ATOMG_EL_GUARDED re-pinned. The era word
-// 0x…2ee1… is descriptor-less -- nvdisasm 13.4 prints `[R82.U32+UR38]` for it,
-// while the test feeds `desc[UR38][R82.64]`. The integrated tables carry the
-// lane's .EL geometry and mint 0x…2ef1…, which nvdisasm renders as
-// `@P3 ATOMG.E.ADD.EL.STRONG.GPU PT, R214, desc[UR38][R82.64], R77` -- the
-// declared text exactly. W_REDG_EL_GUARDED is UNCHANGED (cubit still mints the
-// same word; the REDG descriptor form is a separate open question).
-const W_ATOMG_EL_GUARDED: u128 = 0x000fc200082ef1268000004d52d639a8u128; // .EL guarded, desc-form
+const W_ATOMG_EL_GUARDED: u128 = 0x000fc200082ee1260000004d52d639a8u128; // era .EL guarded
 const W_REDG_EL_GUARDED: u128 = 0x000fc2000820e10000000051d100498eu128; // era .EL guarded
 
 // (1) the silicon-proven trap class: guarded non-EL ATOMG, all guard shapes.
@@ -91,13 +84,21 @@ fn t3_sm103a_unguarded_nonel_fixed_points() {
     enc("ATOMS.ADD R10, [R12], R14", &t103a()).expect("unguarded ATOMS unaffected");
 }
 
-// (4) .EL era forms exempt (loud IA at default-desc; descriptor port is the
+// (4) .EL plain forms exempt (loud IA at default-desc; descriptor port is the
 // O1-road question): guarded .EL ATOMG/REDG encode at the pinned era words.
+// 2026-11-05: the words are spelled as nvdisasm prints them,
+// `[Rn.U32+URm]` (the era text `desc[UR38][R82.64]` was the BUG-041 downcast
+// glyph of the same plain word; it is a hard error now -- BUG-041 doctrine,
+// bug078 t3b; REDG keeps the BUG-454 era-glyph fallback onto the plain word).
 #[test]
 fn t4_sm103a_el_guarded_exempt_fixed_points() {
     assert_eq!(
-        enc("@P3 ATOMG.E.ADD.EL.STRONG.GPU PT, R214, desc[UR38][R82.64], R77", &t103a()).unwrap(),
+        enc("@P3 ATOMG.E.ADD.EL.STRONG.GPU PT, R214, [R82.U32+UR38], R77", &t103a()).unwrap(),
         W_ATOMG_EL_GUARDED
+    );
+    assert_eq!(
+        enc("@P4 REDG.E.ADD.EL.STRONG.GPU [R209.U32+UR0], R81", &t103a()).unwrap(),
+        W_REDG_EL_GUARDED
     );
     assert_eq!(
         enc("@P4 REDG.E.ADD.EL.STRONG.GPU PT, desc[UR0][R209.64], R81", &t103a()).unwrap(),

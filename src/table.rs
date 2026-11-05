@@ -1037,7 +1037,7 @@ pub fn viadd_sign_arm(key: &str, bit: u32) -> bool {
     bit == 62
 }
 
-pub fn f2fp_sign_arm(key: &str, mod_group: &str, bit: u32) -> bool {
+pub fn f2fp_sign_arm(key: &str, _mod_group: &str, bit: u32) -> bool {
     let base = key.split('_').next().unwrap_or("").split('.').next().unwrap_or("");
     if base != "F2FP" {
         return false;

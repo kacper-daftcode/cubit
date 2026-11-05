@@ -190,7 +190,7 @@ fn t454_8_era_mint_continuity() {
 #[test]
 fn t454_7_canonical_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "e99598afb9157e90290325b75915f143aff63625";
+    const CURRENT_VENDORED_CANON: &str = "2eed3ac77c45c24a27ad1b3bad71c9b088ae5e9b";
     assert_eq!(CANON454, "9c0e4ce", "historical fixture revision drift");
 
     let _test_env_guard = ERRATA_LOCK.lock().unwrap();

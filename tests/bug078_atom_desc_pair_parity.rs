@@ -13,13 +13,17 @@
 //!     ILLEGAL_ADDRESS (the memory fault precedes the parity check on the
 //!     atom path), unlike STG/LDG where odd traps pre-memory. ATOM parity
 //!     probing therefore REQUIRES a working transaction.
-//!   .EL classes exempt: ATOMG/REDG *.EL.STRONG.GPU encode in the
-//!     single-32-bit-offset desc mode (vendor render `[Rn.U32+URm]`, same
-//!     mode family as ELL2/EFL2 in BUG-076/077) -- no pair, no parity rule;
-//!     their transactions are default-desc-rejected at the memory stage
-//!     (B12 silicon facts) -- descriptor-campaign question (b12-full-2),
-//!     not an encoder-legality one. Era corpus (rt98_ref.s103): 44 odd
-//!     desc-atom words, ALL .EL -> encoder census delta = 0.
+//!   The plain .EL form (ATOMG/REDG *.EL.STRONG.GPU, vendor render
+//!     `[Rn.U32+URm(+off)]`, same mode family as ELL2/EFL2 in BUG-076/077)
+//!     has no pair and no parity rule; its transactions are default-desc-
+//!     rejected at the memory stage (B12 silicon facts) -- descriptor-campaign
+//!     question (b12-full-2), not an encoder-legality one. Era corpus
+//!     (rt98_ref.s103): 44 odd desc-atom words, ALL .EL -> encoder census
+//!     delta = 0. 2026-11-05: the era text `desc[URm][Rn.64]` + `.EL` no
+//!     longer mints that plain word (it was the BUG-041 downcast) -- it is a
+//!     hard error (BUG-041 doctrine, t3b) until the wave-11 descriptor-pair
+//!     form is measured on silicon. The plain form is written as the vendor
+//!     prints it, `[Rn.U32+URm(+off)]`.
 //! Decode untouched. sm120: no evidence -> guard scoped to target_sm()==103.
 
 use cubit::encoder::encode_instruction;
@@ -44,17 +48,7 @@ fn enc(text: &str, t: &IsaTable) -> anyhow::Result<u128> {
 // payload with the default ctrl pattern 0x000fc200..; the scheduled cubins
 // carry the same payload -- nvdisasm hex differs only in the ctrl field).
 const W_ATOMG_EVEN: u128 = 0x000fc200081ef10480000028023a79a8u128;
-// WAVE-11 INTEGRATION (2026-11-05): the ATOMG `.EL` fixed point was re-pinned.
-// The era word (0x…2ee1…) is descriptor-less: nvdisasm 13.4 renders it as
-// `[R5.U32+UR4]`, NOT as the `desc[UR4][R5.64]` text the test feeds in. The
-// integrated tables carry the lane's .EL geometry, which round-trips the declared
-// text exactly (nvdisasm: 0x…2ef1… -> `desc[UR4][R5.64]`).
-//
-// The two REDG `.EL` words are UNCHANGED on purpose: neither the era word nor any
-// replacement makes nvdisasm print `desc[UR4][R5.64]` for them (it prints
-// `[R5.U32+UR4]` / `[RZ.U32+UR4]`), so REDG's descriptor form is a separate open
-// question -- left exactly as it was rather than guessed at.
-const W_ATOMG_EL_ODD: u128 = 0x000fc200082ef10480000028053a79a8u128;
+const W_ATOMG_EL_ODD: u128 = 0x000fc200082ee10400000028053a79a8u128;
 const W_REDG_EL_ODD: u128 = 0x000fc2000820e104000000280500798eu128;
 const W_REDG_EL_RZ: u128 = 0x000fc2000820e10400000028ff00798eu128;
 
@@ -80,14 +74,31 @@ fn t2_sm103a_atomg_even_base_fixed_point() {
     );
 }
 
-// (3) .EL classes exempt (single-offset desc mode, no register pair):
-// odd base encodes at the pinned words; RZ base too (era idiom).
+// (3) The plain .EL form (single 32-bit offset, no register pair) is outside
+// the rule: it encodes at the pinned words from the vendor's own text
+// `[Rn.U32+URm]` (nvdisasm 13.1 -b SM103 on W_ATOMG_EL_ODD / W_REDG_EL_ODD /
+// W_REDG_EL_RZ; measured rows 2026-11-05, tests/sm120_atomg_el_aruri.rs).
+// Until 2026-11-05 the same words were minted from the era text
+// `desc[UR4][R5.64]` through a mis-keyed `_P_R_dARI_R` row -- the BUG-041
+// downcast (64-bit text, 32-bit word). With the wave-11 tables that text would
+// mint the real descriptor-pair word, which has never executed: the BUG-041
+// doctrine keeps it a hard error (t3b; owner decision pending, NEEDS_OWNER 28).
+// REDG keeps the BUG-454 era-glyph fallback (`PT, desc[..]` -> plain word).
 #[test]
-fn t3_sm103a_el_classes_exempt_fixed_point() {
+fn t3_sm103a_el_plain_form_fixed_points() {
     assert_eq!(
-        enc("ATOMG.E.ADD.EL.STRONG.GPU PT, R58, desc[UR4][R5.64], R40", &t103a()).unwrap(),
+        enc("ATOMG.E.ADD.EL.STRONG.GPU PT, R58, [R5.U32+UR4], R40", &t103a()).unwrap(),
         W_ATOMG_EL_ODD
     );
+    assert_eq!(
+        enc("REDG.E.ADD.EL.STRONG.GPU [R5.U32+UR4], R40", &t103a()).unwrap(),
+        W_REDG_EL_ODD
+    );
+    assert_eq!(
+        enc("REDG.E.ADD.EL.STRONG.GPU [RZ.U32+UR4], R40", &t103a()).unwrap(),
+        W_REDG_EL_RZ
+    );
+    // the BUG-454 era glyph for REDG still maps onto the plain words
     assert_eq!(
         enc("REDG.E.ADD.EL.STRONG.GPU PT, desc[UR4][R5.64], R40", &t103a()).unwrap(),
         W_REDG_EL_ODD
@@ -96,6 +107,22 @@ fn t3_sm103a_el_classes_exempt_fixed_point() {
         enc("REDG.E.ADD.EL.STRONG.GPU PT, desc[UR4][RZ.64], R40", &t103a()).unwrap(),
         W_REDG_EL_RZ
     );
+}
+
+#[test]
+fn t3b_sm103a_el_desc_pair_text_stays_a_hard_error() {
+    // BUG-041 doctrine: `.EL` + `desc[URm][Rn.64]` is refused on every base (odd and even
+    // alike) until the pair form is measured on silicon -- it must never mint the plain
+    // word again, and the pair word is unexecuted. The non-EL pair keeps the BUG-078 rule.
+    let t = t103a();
+    for text in [
+        "ATOMG.E.ADD.EL.STRONG.GPU PT, R58, desc[UR4][R5.64], R40",
+        "ATOMG.E.ADD.EL.STRONG.GPU PT, R58, desc[UR4][R2.64], R40",
+    ] {
+        let e = enc(text, &t).expect_err(&format!("the .EL descriptor-pair text must not encode: {text}"));
+        let msg = format!("{e}");
+        assert!(msg.contains("BUG-041") && msg.contains("no operand-compatible table entry"), "{text}: got: {e}");
+    }
 }
 
 // (4) arch scoping: sm120 has no verdict -> odd trap form stays encodable.

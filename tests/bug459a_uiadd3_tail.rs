@@ -102,7 +102,7 @@ fn t459a_1_decode_matrix() {
 #[test]
 fn t459a_2_mint_junk_census_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "e99598afb9157e90290325b75915f143aff63625";
+    const CURRENT_VENDORED_CANON: &str = "2eed3ac77c45c24a27ad1b3bad71c9b088ae5e9b";
     assert_eq!(CANON459A, "9c0e4ce", "historical fixture revision drift");
 
     const CTL: u128 = !((1u128 << 96) - 1);
@@ -141,7 +141,7 @@ fn t459a_2_mint_junk_census_source() {
         // 2026-11-04: - 20 era keys (now _meta.key_aliases) + 14 LDL_R_ARURI + 22 MUFU_R_UR (4 -> 26) - 3 IMAD (7 alias groups
         //             -> 4 U32 twins) - 1 F2F_R_R 'F32,F64' + 1 (MUFU/F2F rebuild accounting; canonical 6f11f6b) = 63.
         //
-        // WAVE-11 INTEGRATION (2026-11-05, canonical e99598a): 63 -> 5781. The lane lineage merged onto the
+        // WAVE-11 INTEGRATION (2026-11-05, canonical e99598a (wave 11; pin now 2eed3ac)): 63 -> 5781. The lane lineage merged onto the
         // 2026-11-05 main brings the whole October row canon: the BUG-509 ATOM/ATOMG enumeration alone is
         // +5747 rows (2876 + 2871, each carrying the silicon-confirmed claim_forbid on [63:60] -- nibbles 0..7
         // TRAP on the RTX PRO 6000, measured 2026-11-05), plus the F2FP/VIADD/ELL2.256 families. Every one of
@@ -174,7 +174,7 @@ fn t459a_2_mint_junk_census_source() {
     let sm120 = &src["tables"]["sm120.json"];
     assert_eq!(
         sm120["base_sha256"].as_str(),
-        Some("0cbf268ee5c86e396e72a2f3fc6019952691388b265e04fa9e66267d3794f623"),
+        Some("d756d8c7af0ca5f1dfd193d7a073f587df7b80299583bbe1d5ebed020fafb58b"),
         "SM120 source digest drift"
     );
     assert_eq!(sm120["instruction_forms"].as_u64(), Some(16143));  // 2026-11-04 (canonical T-3 batches b063d43/15caf70/6f11f6b): -20 era keys (now _meta.key_aliases), +1 LDL_R_ARURI = 16107 forms; variants 20883 -> 20894 (LDL +14, MUFU_R_UR 4 -> 26, IMAD -7 alias groups +4 U32 twins, F2F_R_R F32,F64 removed); sm121a -10 era keys = 23823 raw / 23821 loader-visible, variants 26380. // 2026-11-03 dynamic-audit batch 1 (canonical 6619782): -12 sm120 keys / -22 variants (FSETP_P_P_L_FI_P, FSETP_P_P_L_L_P, F2FP.F16.F32.PACK_AB_P_R_R_R, HMMA *_P0_* rows, LOP3.LUT_P_R_R_R_R_II_P, QMMA.16816.F16.E4M3.E4M3_P_R_R_R_R: their words are other instructions for nvdisasm) = 16126 forms, 20883 variants; LDGSTS base field 8 bits, LDC/LDCU reuse field removed; hygiene pass (canonical 64eaa21) cleared the baked control bits, counts unchanged. // 2026-11-02 HMUL2 imm / LDSM FP4-FP6 / PRMT UR / ARRIVES.LDGSTSBAR / UTMASTG dims (canonical 77a3dfa): +3 sm120 keys (HMUL2_R_R_FI_FI, PRMT_R_R_UR_R, ARRIVES_ARURI), +30 LDSM_R_ARI and +4 UTMASTG groups (variants 20850 -> 20905) = 16138. // 2026-10-29 ATOMS [R+UR+imm] / STSM.8.MT168 / UBLKPF.L2 (canonical 137cd34): +2 sm120 keys (UBLKPF_AURI_UR, UBLKPF_AURI_UR_II), +3 STSM_ARI_R groups, ATOMS_R_ARURI_R MAX,S32 re-measured (variants 20845 -> 20850) = 16135. // 2026-10-28 F2FP.BF16.E8.UNPACK_B_R_R (canonical f1e02b3): +1 sm120 key

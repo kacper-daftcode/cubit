@@ -1511,13 +1511,17 @@ fn check_ldg_desc_pair_parity_sm103(insn: &Instruction, table: &IsaTable) -> Res
 ///   address faults as ILLEGAL_ADDRESS *before* the pair-parity check, so
 ///   garbage-address odd probes read IA and CANNOT see the trap -- the
 ///   valid-address A/B is mandatory for atoms.
-///   .EL classes (ATOMG/REDG *.EL.STRONG.GPU) are EXEMPT: they encode in the
-///   single-32-bit-offset desc mode (vendor render `[Rn.U32+URm]`, same mode
-///   family as the BUG-076/077 ELL2/EFL2 exemptions) -- no register pair
-///   exists in the word, so the parity rule does not apply. (Their
-///   transactions are default-desc-rejected at the memory stage on sm_103a
-///   regardless -- B12 silicon facts -- a separate descriptor-campaign
-///   question, b12-full-2.)
+///   The plain `.EL` form (ATOMG/REDG *.EL.STRONG.GPU, vendor render
+///   `[Rn.U32+URm(+off)]`, same mode family as the BUG-076/077 ELL2/EFL2
+///   exemptions) has no register pair, so the parity rule does not apply to
+///   it; it is an Addr operand and never reaches the Desc arm below. Until
+///   2026-11-05 the era text `desc[URm][Rn.64]` + `.EL` minted that plain word
+///   (a textual exemption here); the wave-11 tables carry the real `.EL`
+///   descriptor-pair rows, so that text is refused by the BUG-041 guard
+///   (`check_atom_el_desc64_bug041`, doctrine) and would otherwise ride the
+///   rule like every other pair word. (The plain .EL transactions are
+///   default-desc-rejected at the memory stage on sm_103a regardless -- B12
+///   silicon facts -- a separate descriptor-campaign question, b12-full-2.)
 /// Untested non-EL atom sub-classes ride the default fail-closed rule; RZ
 /// base stays inside the guard like in BUG-076/077 (no era usage, no
 /// silicon counter-evidence; era RZ atoms are all .EL hence exempt).
@@ -1530,12 +1534,15 @@ fn check_atom_desc_pair_parity_sm103(insn: &Instruction, table: &IsaTable) -> Re
     if table.target_sm() != 103 {
         return Ok(());
     }
-    let mods = crate::table::extract_mod_group(&insn.raw_text);
-    // Evidenced exemptions (silicon/census): .EL classes encode in the
-    // single-offset desc mode ([Rn.U32+URm]); no pair -> no parity rule.
-    if mods.split(',').any(|m| m == "EL") {
-        return Ok(());
-    }
+    // Until 2026-11-05 the `.EL` classes were exempt here because the only
+    // `.EL` rows were the plain single-offset form ([Rn.U32+URm], no pair),
+    // which the era text `desc[URm][Rn.64]` silently minted (the BUG-041
+    // downcast). The wave-11 tables (blackwell-isa e99598a) carry the real
+    // `.EL` descriptor-pair rows (bits 76 + 63): that text is now refused up
+    // front by `check_atom_el_desc64_bug041` (doctrine, owner decision
+    // pending) and, should the errata gate be lifted, rides the same odd-base
+    // rule as every pair; the plain `.EL` form is spelled `[Rn.U32+URm(+off)]`
+    // (an Addr operand, never a Desc one) and is not touched by this guard.
     for op in &insn.operands {
         if let Operand::Desc {
             base_reg: Some(r),
@@ -1545,8 +1552,51 @@ fn check_atom_desc_pair_parity_sm103(insn: &Instruction, table: &IsaTable) -> Re
         {
             if sfx == "64" && r % 2 == 1 {
                 anyhow::bail!(
-                    "ATOMG/REDG desc-form address pair R{}.64 has an ODD base -- SILICON-ILLEGAL on sm_103a                     (BUG-078; B300 krunp A/B 2026-08-22 with a VALID VA in the pair: odd base ->                     CUDA_ERROR_ILLEGAL_INSTRUCTION 10/10 across epochs, even base -> executes, memory                     updated exactly. NOTE the atom-path fault priority masks the trap behind                     ILLEGAL_ADDRESS when the address itself is invalid, so a garbage-address probe                     cannot discriminate -- unlike STG/LDG (BUG-076/077) where odd traps pre-memory.                     Only the .EL classes are exempt: they encode the single-32-bit-offset desc mode                     ([Rn.U32+URm]) which has no register pair at all. Renumber the address pair to                     an even base (RA pin) instead of assembling the odd-base word; decode stays                     full-fidelity for RE."
+                    "ATOMG/REDG desc-form address pair R{}.64 has an ODD base -- SILICON-ILLEGAL on sm_103a                     (BUG-078; B300 krunp A/B 2026-08-22 with a VALID VA in the pair: odd base ->                     CUDA_ERROR_ILLEGAL_INSTRUCTION 10/10 across epochs, even base -> executes, memory                     updated exactly. NOTE the atom-path fault priority masks the trap behind                     ILLEGAL_ADDRESS when the address itself is invalid, so a garbage-address probe                     cannot discriminate -- unlike STG/LDG (BUG-076/077) where odd traps pre-memory.                     The plain `.EL` form is spelled `[Rn.U32+URm(+off)]` (single 32-bit offset, no                     register pair) and is not subject to this rule; a `desc[URm][Rn.64]` text                     with `.EL` is refused earlier (BUG-041 doctrine). Renumber the                     address pair to an even base (RA pin) instead of assembling the odd-base word;                     decode stays full-fidelity for RE."
                 , r);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// BUG-041 doctrine (owner's decision pending, NEEDS_OWNER 28): `ATOMG`/`REDG`
+/// `.EL` with a 64-bit descriptor pair `desc[URm][Rn.64]` is a hard error.
+///
+/// History: on 2026-03 silicon the text `ATOMG.E.ADD.EL.STRONG.GPU PT, R28,
+/// desc[UR4][R16.64], R5` was silently minted as the plain U32 word
+/// (`[R16.U32+UR4]`, bit 76 clear) and the kernel faulted with
+/// CUDA_ERROR_ILLEGAL_ADDRESS on the first dependent access; since then the
+/// text has been refused ("no operand-compatible table entry": the tables had
+/// no `.EL` descriptor row). The wave-11 tables (blackwell-isa e9b0808,
+/// 2026-11-05) carry the real `.EL` descriptor-pair rows (`ATOMG_P_R_dARI_R`,
+/// bits 76 + 63 set; nvdisasm renders the minted word as written), so the
+/// refusal no longer falls out of the table and is made explicit here. The
+/// form has never executed (nvcc never emits it, no corpus has it) -- the
+/// doctrine stays until the silicon probe says what the word does. The plain
+/// `.EL` form is written as the vendor prints it: `[Rn.U32+URm(+off)]`
+/// (`tests/sm120_atomg_el_aruri.rs`). `CUBIT_DISABLE_ERRATA=1` lifts the
+/// refusal for RE; decode of the pair word is untouched.
+fn check_atom_el_desc64_bug041(insn: &Instruction) -> Result<()> {
+    if insn.opcode != "ATOMG" && insn.opcode != "REDG" {
+        return Ok(());
+    }
+    if !insn.modifiers.iter().any(|m| m == ".EL") {
+        return Ok(());
+    }
+    for op in &insn.operands {
+        if let Operand::Desc { base_reg_suffix: Some(sfx), .. } = op {
+            if sfx == "64" {
+                anyhow::bail!(
+                    "BUG-041: `{}` with `.EL` and a 64-bit descriptor pair `desc[URm][Rn.64]` is refused -- \
+                     no operand-compatible table entry is admitted for this text until the form is measured \
+                     on silicon (owner decision pending, NEEDS_OWNER 28). Before 2026-11-05 the text silently \
+                     minted the plain U32 word (`[Rn.U32+URm]`, bit 76 clear) and faulted on silicon; the \
+                     wave-11 tables carry the real pair row (bits 76 + 63), which has never executed. Write \
+                     the plain .EL form as the vendor prints it, `[Rn.U32+URm(+off)]`, or set \
+                     CUBIT_DISABLE_ERRATA=1 to mint the pair word for RE.",
+                    insn.opcode
+                );
             }
         }
     }
@@ -2588,6 +2638,7 @@ fn encode_instruction_inner(
         check_efl2_addr_parity_sm103(insn, table)?;
         check_stg_desc_pair_parity_sm103(insn, table)?;
         check_ldg_desc_pair_parity_sm103(insn, table)?;
+        check_atom_el_desc64_bug041(insn)?; // doctrine first: the .EL pair text is refused on every arch and base
         check_atom_desc_pair_parity_sm103(insn, table)?;
         check_guarded_atomic_sm103(insn, table)?;
         check_wide_mem_reg_align_sm103(insn, table)?;

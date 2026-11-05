@@ -4,6 +4,60 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-05 (session T-6: wave 11 merged onto main, the suite green again)
+
+Another agent ("coldface", B300 host) moved both public `main`s on 2026-11-05: blackwell-isa `e99598a`
+(wave 11, the "lane October stack": +1 285 310 / −63 555 table lines, see its CHANGELOG) and cubit
+`f452227` + `9ff63c8` (the lane's engine arms BUG-479b / 495 / 496 / 458b / 458c / 505b / 512 / 518 / 493 /
+051, tables re-vendored from `e99598a`, tests `wave11_fmnmx3_f32_imm.rs`, `wave11_idp_type_law.rs`), gated
+by the lane's census (sm120 238 848 / 238 848, deep_gemm 56 248 / 56 248) but **not by `cargo test`**.
+`1312d44` merges that `main` with session T-5's `ed4d316` (no conflicts; T's commits touch only
+`src/scheduling_pass.rs`). On the merged tree the suite was red; this entry is the triage.
+
+- **Wave 11 arms, as merged (from the lane's commit messages; measured on nvdisasm 13.3 / silicon by the
+  lane):** `claim_forbid` evaluated on the full 128-bit word (BUG-512/518: exclusions above bit 96 were
+  inert under `code_clean`); IDP excluded from the decoder's ghost-sign synthesis (b72 printed a ghost
+  `-R15`); F2FP ghost-sign suppression per bit, `UNPACK_B` 4-operand junk collapsed to the vendor 2-operand
+  form, `MERGE_C` `.H1` selector (b72), the five `PACK_AB_P_R_R_R` keys' `PT` destination elided (BUG-458b/c);
+  VIADD `|R|` ghost suppressed (BUG-505b); `ENDCOLLECTIVE` trailing `PT` elided (BUG-495); the sm120/sm121
+  `WARPSYNC.COLLECTIVE [P,] Rn, <target>` 8-bit target law (target = addr + 0x10 + (byte2 << 2), BUG-496)
+  with the `ALL.COLLECTIVE` form kept on the dword-split layout (`9ff63c8`); `FMNMX3` immediates parsed as
+  f32 (the harvest key baked 0x3f800000 and routed the text into a 6-bit field).
+- **ATOMG `.EL` plain form — "our pin was wrong" (`tests/b4fill2_rows.rs`, `bug041`, `bug078` t3,
+  `bug080` t4):** the sm103a / sm100a era keys `ATOMG.E.{ADD,OR}.EL.STRONG.GPU_P_R_dARI_R` keyed the plain
+  `[Ra.U32+URb(+off)]` word (bit 76 clear) as a 64-bit descriptor form, so cubit printed
+  `desc[UR6][RZ.64]` for a word nvdisasm 13.1 reads as `[RZ.U32+UR6]` on SM103 / SM120 / SM100 alike, and
+  the era text `desc[URm][Rn.64]` + `.EL` minted the plain word — the BUG-041 downcast kept alive on
+  sm103a as "era fixed points". Wave 11 carries the real `.EL` descriptor rows (`ATOMG_P_R_dARI_R`, bits
+  76 + 63 set), so the era text now mints the faithful pair word and the mis-keyed text re-encoded to a
+  different word. Measured (`tools/probes/re_sm120_atomg_el_aruri.py`, 98 form + 25 lattice words on each
+  of `-b SM120` / `SM103` / `SM100`, text-identical): the rows are rebuilt as `…_P_R_ARURI_R` on the three
+  tables (blackwell-isa, provenance `atomg-el-aruri-2026-11-05`): Pd [83:81], Rd, Ra, Rb, 8-bit URb
+  [71:64], **signed 23-bit offset [62:40]** (the sm120 rows had a 24-bit field that swallowed the width
+  bit 63 — `+-0x10` minted the `.64` word — a 6-bit UR field and no Pd field); bit 63 (address width) and
+  bit 76 (descriptor) are `claim_forbid` so the decoder's broad operand-window match cannot claim the
+  `[Ra.64+URb]` word. Printer: the 23-bit window at [62:40] prints the vendor's `+-0x…` glyph. Tests:
+  `tests/sm120_atomg_el_aruri.rs` (the fixture replayed on the three tables, lattice fail-closed); the
+  pins of `b4fill2`, `bug078` t3 and `bug080` t4 re-spelled with the vendor's text for the same words.
+  **BUG-041 doctrine unchanged** (owner decision pending, NEEDS_OWNER 28): `.EL` + `desc[URm][Rn.64]` stays
+  a hard error. The wave-11 rows would mint the real pair word (bits 63 + 76, rendered by nvdisasm as
+  written, never executed), so the refusal no longer falls out of the tables — it is an explicit encoder
+  guard now (`check_atom_el_desc64_bug041`, `CUBIT_DISABLE_ERRATA=1` lifts it for RE; `bug041` unchanged,
+  `bug078` t3b). **BUG-078:** the `.EL` text exemption is gone (it assumed the text could only mint the
+  plain word); the plain `.EL` form (`[Rn.U32+URm]`, an Addr operand) was never subject to the rule. REDG
+  keeps the BUG-454 era-glyph fallback (`PT, desc[..]` → plain word).
+- **The other agent's own fixes of the same red suite, reviewed and taken:** coldface fixed 47 of its 49
+  red tests on its branch `wave-11/integration` (six commits after `9ff63c8`, cherry-picked here with their
+  authorship: `165b986b` behavioural pins, `40a91c13` / `c646cad5` / `eca1fe84` census counters, variant
+  snapshots and table digests, `b12b226e` / `3eab74e2` printer arm + the t195_4 / t199_3 / t199_7 pins).
+  Independent check (T-6, nvdisasm 13.1): the t195_4 / t199_3 / t199_7 / t373_1 / t476 verdicts agree
+  with ours; the counter re-pins are taken with the values of the final tree (two more `claim_forbid`
+  rows per table from the ATOMG rows, canonical `2eed3ac`, sm120 digest `d756d8c7…`); their `bug078` t3 /
+  `bug080` t4 re-pins (the `.EL` descriptor text → pair word) are replaced by the vendor-text pins above
+  (they contradict the BUG-041 doctrine and left the sm103a decode text wrong); their ATOM printer arm
+  (CONSTANT < scope < PRIVATE) is superseded by the family arm measured on the whole lattice (it left
+  `.64.EF`, `.EF.MMIO.S32`, `.CONSTANT.EF.VC` out of order). Per-test comparison: session report part 6.
+
 ## Unreleased — 2026-11-05 (session T-5: session V's scheduler fixes integrated)
 
 Session V (the sparse-MLA prefill SASS kernel, 2026-11-04) found three defects in the auto-scheduler

@@ -49,19 +49,22 @@ def write_fixture(out: pathlib.Path, rows: list[dict]) -> None:
             fh.write(json.dumps(r) + "\n")
 
 
-def probe_words(nvdisasm: str, name: str, words, ctrl: int, check_form, check_lattice=None):
+def probe_words(nvdisasm: str, name: str, words, ctrl: int, check_form, check_lattice=None, arch: str = "SM120"):
     """Measure `(word, lattice)` pairs; returns fixture rows. `check_form(word, text)` must
-    hold for every form word; `check_lattice(word, text)` (text may be None) for lattice words."""
-    scratch = pathlib.Path(f"/tmp/re_sm120_{name}_probe.bin")
+    hold for every form word; `check_lattice(word, text)` (text may be None) for lattice words.
+    `arch` is nvdisasm's `-b` target (`SM120`, `SM100`, `SM103`, `SM121`)."""
+    scratch = pathlib.Path(f"/tmp/re_{arch.lower()}_{name}_probe.bin")
     version, digest = nvdisasm_identity(nvdisasm)
     rows = []
     for w, lattice in words:
-        body = nvdisasm_text(nvdisasm, scratch, w, ctrl)
+        body = nvdisasm_text(nvdisasm, scratch, w, ctrl, arch)
         if not lattice:
             assert body is not None and check_form(w, body), f"{w:032x}: {body}"
         elif check_lattice is not None:
             assert check_lattice(w, body), f"{w:032x}: {body}"
         row = {"word": f"{w:032x}", "nvidia_sass": body, "nvdisasm": version, "nvdisasm_sha256": digest}
+        if arch != "SM120":
+            row["arch"] = arch
         if lattice:
             row["lattice"] = True
         rows.append(row)
@@ -84,7 +87,10 @@ def field_mask(fields: list[dict]) -> int:
 def load_table(path: pathlib.Path) -> dict:
     before = path.read_bytes()
     table = json.loads(before)
-    assert (json.dumps(table, indent=1) + "\n").encode() == before, "unexpected table formatting"
+    # canonical formatting is `json.dumps(indent=1)` + "\n"; the wave-11 tables (2026-11-05) were
+    # written without the final newline -- accepted, `save_table` restores the canonical form
+    canonical = json.dumps(table, indent=1).encode()
+    assert before in (canonical + b"\n", canonical), "unexpected table formatting"
     return table
 
 

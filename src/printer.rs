@@ -1265,7 +1265,7 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     // ATOMG/REDG/ATOMS: E first, then operation, then SIZE (BUG-094: vendor
     // prints ATOMG.E.CAS.64.STRONG.SYS, not ATOMG.E.CAS.STRONG.64.SYS), then
     // consistency (STRONG), then scope (GPU/SYS)
-    if matches!(base, "ATOMG" | "REDG" | "ATOMS" | "ATOM") {
+    if matches!(base, "ATOMG" | "REDG" | "ATOMS" | "ATOM" | "RED") {
         match m {
             "ADD" | "MIN" | "MAX" | "CAS" | "INC" | "DEC" | "EXCH"
             // mk35: booleans as a subop too (REDG.E.AND.STRONG.GPU; AND/AND? not LOP3)
@@ -1273,22 +1273,36 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             // BUG-094b: CAST/SPIN are also an operation name (ATOM.E.CAST.SPIN.64:
             // the size PRINTS after them, before STRONG)
             | "CAST" | "SPIN" => return 4,
+            // 2026-11-05 (wave-11 ATOM/ATOMG `_P_R_dARI_R` lattices, 5 777 groups measured against
+            // nvdisasm 13.1 one word per group, T/t6/atom_lattice_audit.py): the cache policy
+            // prints right after the operation and BEFORE the type / size
+            // (ATOMG.E.ADD.EF.64.STRONG.SYS, ATOMG.E.AND.EL.S32.CONSTANT.GPU); the generic bucket
+            // (5) sorted it alphabetically among the sizes (`.64.EF`). 925 of the first 1 287
+            // lattice groups printed out of order before this arm.
+            "EF" | "EL" | "EU" | "LU" | "NA" | "EN" => return 5,
             // BUG-203: nvdisasm prints FTZ/RN in the data-type bucket, between
             // the type and STRONG (ATOMG.E.ADD.F32x2.FTZ.RN.STRONG.GPU, never
             // .E.FTZ.ADD.F32x2...); old generic bucket pinned FTZ to 3 (before
             // the op) — 18 probe203 witnesses (scalar F32 + F32x2/x4 lanes).
-            "FTZ" | "RN" => return 5,
+            // The types share the bucket (alphabetical within it: F32.FTZ.RN).
+            "FTZ" | "RN" | "64" | "128" | "S32" | "U32" | "S64" | "U64" | "F32" | "F64" | "F16x2"
+            | "F16x4" | "F16x8" | "BF16x2" | "F32x2" | "F32x4" | "F16" | "BF16" => return 6,
             // BUG-179: nvdisasm prints the POPC return-count qualifier BEFORE
             // the operation (ATOMS.POPC.INC.32, never .INC.POPC); it is the
             // only POPC-bearing row in either table (iter83 whole-table scan).
             // (BUG-181 carried the identical arm; compose keeps one copy.)
             "POPC" => return 3,
-            "64" | "128" => return 5,
-            "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" => return 6,
+            // consistency / memory kind: STRONG, CONSTANT, MMIO (2026-11-05: MMIO and CONSTANT
+            // sit in the STRONG slot -- ATOMG.E.EXCH.EF.S32.MMIO.GPU, ATOMG.E.XOR.EF.128.CONSTANT.PRIVATE)
+            "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" | "CONSTANT" | "MMIO" => return 7,
             // BUG-195: SM is a scope too (probe195 g3 sweep: [77:81)=0x5) and
             // prints last like the other scopes (ATOM.E.AND.STRONG.SM, never
             // .AND.SM.STRONG — 3 hexdb anchors, 142-era row render-parity fix).
-            "GPU" | "SYS" | "SM" | "CTA" | "GL" | "IL" | "MMU" => return 7,
+            // 2026-11-05: VC is a scope as well (ATOMG.E.EXCH.EF.CONSTANT.VC).
+            "GPU" | "SYS" | "SM" | "CTA" | "VC" | "GL" | "IL" | "MMU" => return 8,
+            // 2026-11-05: PRIVATE prints after the scope (ATOMG.E.ADD.EF.128.STRONG.SM.PRIVATE,
+            // ATOMG.E.INC.EL.64.CONSTANT.CTA.PRIVATE), like the LDG/STG arm below.
+            "PRIVATE" => return 9,
             _ => {}
         }
     }
@@ -1359,27 +1373,12 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             _ => {}
         }
     }
-    // WAVE-11 INTEGRATION (2026-11-05): the ATOM/ATOMG/REDG family prints its
-    // scope class BEFORE the residency class, the opposite of LDG/STG above.
-    // Measured with nvdisasm 13.4 on the wave-11 corpus word
-    // 0x001eac000c1e710480000007020379a8:
-    //   vendor `ATOMG.E.EXCH.CONSTANT.CTA.PRIVATE PT, R3, desc[UR4][R2.64], R7`
-    //   before `ATOMG.E.EXCH.CONSTANT.PRIVATE.CTA PT, ...`   <- alphabetical, wrong
-    //
-    // ONLY the scope/residency pair is re-ranked here. The op token (`ADD`, `EXCH`,
-    // `MAX`, …) and the EF/EL/EU kind keep their existing buckets: vendor order on
-    // the real REDG rows is `REDG.E.ADD.EF.64.CONSTANT.CTA.PRIVATE`, i.e. op BEFORE
-    // kind. A first cut of this arm gave EF bucket 3 and produced `REDG.EF.ADD`,
-    // which t225_2 caught.
-    if matches!(base, "ATOM" | "ATOMG" | "RED" | "REDG" | "ATOMS") {
-        match m {
-            "CONSTANT" => return 6,
-            "GPU" | "SYS" | "SM" | "CTA" => return 7,
-            "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" => return 8,
-            "PRIVATE" | "HINT" => return 9,
-            _ => {}
-        }
-    }
+    // WAVE-11 INTEGRATION (2026-11-05, coldface `b12b226e` / `3eab74e2`): the ATOM/ATOMG/REDG
+    // family printed its residency class before the scope class (`ATOMG.E.EXCH.CONSTANT.PRIVATE.CTA`
+    // for the vendor's `ATOMG.E.EXCH.CONSTANT.CTA.PRIVATE`). The diagnosis stands; the ranking now
+    // lives in the family arm above (T-6 measured the whole wave-11 `ATOM_P_R_dARI_R` /
+    // `ATOMG_P_R_dARI_R` lattice, 5 777 groups, against nvdisasm 13.1: cache kind < type/size <
+    // STRONG/CONSTANT/MMIO < scope incl. VC < PRIVATE), so no separate arm is needed here.
     // BUG-097: generic-memory LD/ST share the global family order — nvdisasm
     // prints size BEFORE consistency/scope (LD.E.128.STRONG.SYS, ST.E.64.STRONG.GPU),
     // while the generic priority bucketed STRONG/GPU/SYS together with E (all 3) and
@@ -2839,8 +2838,14 @@ fn format_plain_u32_ur(
             "ureg" | "sub_ur1" => ur = Some(f.value),
             // BUG-442: canon-era plain rows carry the address-embedded offset
             // as sub_imm1 (same 24b@[63:40] window, same signed law as 'imm').
+            // 2026-11-05 (tools/probes/re_sm120_atomg_el_aruri.py, nvdisasm 13.1 -b SM120/SM103/SM100):
+            // the plain `.EL` ATOMG form `[Ra.U32+URb+off]` carries a SIGNED 23-bit offset at
+            // [62:40] -- bit 63 is the address width, not the sign -- and prints it with the same
+            // `+-0x..` glyph (bit 62 set = `+-0x400000`, 0x7fffff = `+-0x1`). No other row on this
+            // print path has a 23-bit window (checked over the four tables), so the arm is inert
+            // elsewhere.
             "imm" | "sub_imm1" | "sub_imm2" => {
-                if f.bits == 24 {
+                if f.bits == 24 || (f.bits == 23 && f.shift == 40) {
                     off = sign_extend(f.value, f.bits);
                     off_win24 = true;
                 } else {

@@ -30,8 +30,14 @@ static GOLD: &[(u128, &str)] = &[
     (0x000fe6000309c0ff0000080048ff7812u128, "LOP3.LUT.PAND P4, RZ, R72, 0x800, RZ, 0xc0, P6"),
     // ATOMG/REDG .EL.STRONG.GPU forms (REDG: era desc+PT golden byl
     // pomiarem MISROUTE x2 [census408: vendor x4 = plain [R.U32+UR(+imm)]];
-    // ride F2-iter258 BUG-454 -- ATOMG desc stoi)
-    (0x000f6400082ee10600000051ffda39a8u128, "@P3 ATOMG.E.ADD.EL.STRONG.GPU PT, R218, desc[UR6][RZ.64], R81"),
+    // ride F2-iter258 BUG-454). ATOMG: the same misroute -- the era key
+    // `ATOMG.E.ADD.EL.STRONG.GPU_P_R_dARI_R` printed `desc[UR6][RZ.64]` for a
+    // word nvdisasm 13.1 (-b SM103 / SM120 / SM100) reads as `[RZ.U32+UR6]`
+    // (bit 76 clear = no descriptor, bit 63 clear = U32 base); since the
+    // wave-11 tables carry the real `.EL` descriptor rows, the era text
+    // re-encoded to a different word. Measured row 2026-11-05
+    // (tools/probes/re_sm120_atomg_el_aruri.py, tests/sm120_atomg_el_aruri.rs).
+    (0x000f6400082ee10600000051ffda39a8u128, "@P3 ATOMG.E.ADD.EL.STRONG.GPU PT, R218, [RZ.U32+UR6], R81"),
     (0x0009e4000820e11400000051d100498eu128, "@P4 REDG.E.ADD.EL.STRONG.GPU [R209.U32+UR20], R81"),
     (0x0009e4000aa0e1140a2400404200298eu128, "@P2 REDG.E.AND.EL.STRONG.GPU [R66.U32+UR20+0xa2400], R64"),
     (0x0009e4000b20e1140a2400171900798eu128, "REDG.E.OR.EL.STRONG.GPU [R25.U32+UR20+0xa2400], R23"),

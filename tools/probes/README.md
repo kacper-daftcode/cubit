@@ -47,6 +47,7 @@ produced are listed with their tags.
 | `re_sm120_float_fields.py` | native float packets rebuilt from independently probed fields | 2026-10-22 capture rows | `dsv41_float_re.rs` |
 | `re_sm120_tensor_fields.py` | semantic tensor, election and scalar/vector ALU field repairs | 2026-10-22 capture rows | `bug202_dsetp_tok2_explicit.rs` |
 | `re_sm120_branch_fields.py` | `BRA.DIV`'s REL16 layout repair | 2026-10-22 capture rows | (census) |
+| `re_sm120_atomg_el_aruri.py` | the plain uniform-indexed `.EL` atomic `ATOMG.E.{ADD,OR}.EL.STRONG.GPU Pd, Rd, [Ra.U32+URb(+off)], Rb` (0x9a8): Pd / 8-bit UR / signed 23-bit offset fields, width bit 63 and descriptor bit 76 excluded; measured on `-b SM120`, `-b SM103`, `-b SM100` (text-identical) and applied to the three tables (the sm103a / sm100a `_P_R_dARI_R` era keys replaced) | `atomg-el-aruri-2026-11-05` (2 rows per table) | `sm120_atomg_el_aruri.rs` |
 
 Provenance tags of the form `bugNNN-<date>` (113 rows `bug324-2026-09-01`, …) come from the
 2026-08/09 encoder bug-fix waves (`tests/bugNNN_*.rs` hold the pinned words); rows with no `_src`
