@@ -6,7 +6,7 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
 
 ## Unreleased — 2026-11-06 (session T-8: the LEA family, the allocator's WAW rule, the audit oracle corrected)
 
-- **Tables vendored from blackwell-isa `09a7141`** (sm120 16 063 forms / 26 596 variants, sm103a / sm100a
+- **Tables vendored from blackwell-isa `7094efc`** (sm120 16 054 forms / 26 611 variants, sm103a / sm100a
   14 912 / 22 363, sm121a unchanged): the **`LEA` family rebuilt from measurement on the three tables**
   (`tools/probes/re_sm120_lea.py`, nvdisasm 13.1 `-b SM120`, `-b SM103` / `-b SM100` text-identical for
   all 824 probe words per target; fixtures `tests/fixtures/{sm120,sm103a,sm100a}_lea_nvdisasm.jsonl`, test
@@ -27,6 +27,25 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   `bug381`, `bug459a`, `bug476`); `bug229` / `bug230` / `b3004` re-pinned to the measured family (the
   `.X` pivot word of `bug229` now prints the vendor's 6-token text that the 2026-08 pin had parked as a
   known gap).
+- **`ATOMS_R_ARURI_R` measured over its whole operation × type lattice** (`tools/probes/re_sm120_atoms_aruri_ops.py`,
+  nvdisasm 13.1 `-b SM120`, 720 form + 27 lattice words; `tests/sm120_atoms_aruri_ops.rs`; blackwell-isa
+  `0a0f539`): `ATOMS.<op>[.S32|.64|.128] Rd, [Ra+URb(+imm)], Rb` (0x98c + frame bit 91) — operation [90:87]
+  ADD / MIN / MAX / INC / DEC / AND / OR / XOR / EXCH (9+ `INVALIDn`), type [75:73] plain / S32 / 64 / 128
+  (others `INVALIDn`), 36 groups replace the one measured (`MAX,S32`, 2026-10-29) and six harvest groups that
+  read the UR byte as a fourth register (`ATOMS.AND R4, [R7+UR4], R8` printed `ATOMS.AND R4, [R7], R8, R4` and
+  did not re-encode); the four 0x98c junk groups of `ATOMS_R_ARI_R_R` and the mis-keyed `ATOMS_R_AURI_R`
+  [EXCH] (it absorbed `ATOMS.INVALID10` words as `EXCH`) retired. `bug211` re-pinned: the `.64` word of the
+  RZ-base AND form now prints the vendor text on sm120 (`@P0 ATOMS.AND.64 RZ, [UR8+0x14], R3`), the sm103a /
+  sm100a tables keep the hole.
+- **Nine harvest keys whose every probe word nvdisasm rejects retired** (`DADD_R_II_R`, `DMUL_R_R_R_II_?`,
+  `DMUL_R_R_R_II_II_II_?`, `DMUL_R_R_R_R`, `MOV_R_UR_II_?`, `MOV_R_UR_II_II_?`, `MOV.64_R_UR_II_?`,
+  `MOV.64_R_UR_II_II_?`, `MOV.64_R_UR_UR`; blackwell-isa `5222c58`): re-measured after the oracle correction,
+  no witness among the 237 844 distinct words of the production census (every word decoded once per row for
+  the count), no alias target, a measured sibling carries the real form. The audit's "every probe word
+  illegal" class is 17 rows after the oracle correction (168 on 2026-11-05 — the race's artefact); the eight
+  left are the documented `IMMA.SF.16832.U8.U8` hypothesis and rows whose canonical word decodes through
+  another row with one illegal reuse-bit variant. **Audit at the pushed tables: 230 rows** (`T/audit/dyn14`;
+  LEA, ATOMS and F2FP closed; nvdisasm-rejects-cubit-decodes 59 words).
 - **BUG-485 — the barrier allocator has a WAW rule** (KNOWN_ISSUES A17's open remainder, NEEDS_OWNER 34).
   `raw_consumers` collected only the READERS of a variable-latency producer's destinations as waiters; an
   instruction that overwrote a still-live destination merely dropped it from the live set, so a dead load
