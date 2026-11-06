@@ -333,6 +333,22 @@ fn merc_exit_offsets(sass_exits: &[u32], st_size: u64) -> Vec<u32> {
 }
 
 /// Fallback SASS EXIT scan (same lo12 pattern as sass_file's meta builder).
+/// The `.nv.info.<kernel>` records of a kernel entry. A `KernelMeta` whose `exit_offsets` is
+/// empty (an entry built from code bytes rather than from text — the `asm` path fills the list
+/// while parsing) gets the EXIT words of its code, as nvcc records them (every EXIT, measured on
+/// 759 census kernels, A5); until 2026-11-06 the emitter wrote a single `0x0` in that case.
+fn kernel_info_records(k: &KernelEntry, func_sym_idx: u32, const0_sym_idx: u32) -> crate::eiattr::NvInfoSection {
+    if k.meta.exit_offsets.is_empty() {
+        let exits = scan_sass_exits(&k.code);
+        if !exits.is_empty() {
+            let mut meta = k.meta.clone();
+            meta.exit_offsets = exits;
+            return meta.to_kernel_records_with_sym_and_const(func_sym_idx, const0_sym_idx);
+        }
+    }
+    k.meta.to_kernel_records_with_sym_and_const(func_sym_idx, const0_sym_idx)
+}
+
 fn scan_sass_exits(code: &[u8]) -> Vec<u32> {
     let mut out = Vec::new();
     for (i, chunk) in code.chunks(16).enumerate() {
@@ -3515,6 +3531,80 @@ pub struct RebuildResources {
     /// = 256 per warp) than the template recorded: that changes the occupancy
     /// the compiler computed. `false` = the legacy behaviour (raise silently).
     pub refuse_occupancy_change: bool,
+    /// Write the cubin even when the template's positional `.nv.info.<kernel>`
+    /// records (lists of byte offsets into the kernel's code — see
+    /// [`stale_positional_metadata`]) no longer name the instructions they were
+    /// recorded for; the default refuses and names the record and offset.
+    pub allow_stale_metadata: bool,
+}
+
+/// The `.nv.info.<kernel>` records that are lists of byte offsets into the kernel's
+/// `.text` (attribute, entry stride; the offset is the first `u32` of each entry).
+/// Measured on 759 kernels of the sm_120 census (2026-11-06): `EXIT_INSTR_OFFSETS`
+/// (every kernel; exactly the EXIT words of the code, 759 / 759), `COOP_GROUP_INSTR_OFFSETS`
+/// (661), `INT_WARP_WIDE_INSTR_OFFSETS` (208), `MBARRIER_INSTR_OFFSETS` (522; 16-byte
+/// entries `(offset, 0xff, mbarrier smem address, flags)`). No other record of the census
+/// addresses the code, and no census cubin relocates into `.text`.
+pub const POSITIONAL_EIATTRS: [(u16, &str, usize); 4] = [
+    (0x001c, "EIATTR_EXIT_INSTR_OFFSETS", 4),
+    (0x0028, "EIATTR_COOP_GROUP_INSTR_OFFSETS", 4),
+    (0x0031, "EIATTR_INT_WARP_WIDE_INSTR_OFFSETS", 4),
+    (0x0039, "EIATTR_MBARRIER_INSTR_OFFSETS", 16),
+];
+
+/// The SM120 / SM100-family `EXIT` opcode (bits [11:0] of a word).
+const EXIT_OPCODE: u32 = 0x94d;
+
+fn opcode_at(code: &[u8], off: usize) -> Option<u32> {
+    code.get(off..off + 4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]) & 0xfff)
+}
+
+/// The template's positional `.nv.info.<kernel>` records checked against the rebuilt code
+/// (KNOWN_ISSUES A5): a template rebuild copies them verbatim, so an edit that moves
+/// instructions leaves them pointing at other words. Each returned line names one record
+/// entry whose offset no longer holds the kind of instruction the template had there (or
+/// lies outside the new code), plus — `EXIT_INSTR_OFFSETS` being exactly the EXIT words on
+/// every census kernel — every EXIT of the new code the list does not name. Empty when the
+/// listed instructions kept their places (same-length edits, schedule / register changes).
+pub fn stale_positional_metadata(
+    cubin: &crate::elf::CubinFile,
+    kernel: &str,
+    template_code: &[u8],
+    new_code: &[u8],
+) -> Vec<String> {
+    let mut out = Vec::new();
+    let Some(idx) = cubin.find_section(&format!(".nv.info.{kernel}")) else { return out };
+    let Some(bytes) = cubin.section_bytes(idx) else { return out };
+    let Ok(sec) = crate::eiattr::NvInfoSection::parse(&format!(".nv.info.{kernel}"), bytes) else { return out };
+    for rec in &sec.records {
+        let Some(&(_, name, stride)) = POSITIONAL_EIATTRS.iter().find(|(a, _, _)| *a == rec.attr) else { continue };
+        let mut listed = Vec::new();
+        let mut i = 0;
+        while i + 4 <= rec.data.len() {
+            let off = u32::from_le_bytes(rec.data[i..i + 4].try_into().unwrap()) as usize;
+            listed.push(off);
+            match (opcode_at(template_code, off), opcode_at(new_code, off)) {
+                (Some(a), Some(b)) if a == b => {}
+                (Some(a), Some(b)) => out.push(format!(
+                    "{name} names offset {off:#x}: the template had opcode {a:#05x} there, the rebuilt code has {b:#05x}"
+                )),
+                (Some(a), None) => out.push(format!(
+                    "{name} names offset {off:#x} (opcode {a:#05x} in the template), beyond the rebuilt code's {} bytes",
+                    new_code.len()
+                )),
+                (None, _) => {} // a template record outside its own code: not ours to judge
+            }
+            i += stride;
+        }
+        if rec.attr == 0x001c {
+            for off in (0..new_code.len()).step_by(16) {
+                if opcode_at(new_code, off) == Some(EXIT_OPCODE) && !listed.contains(&off) {
+                    out.push(format!("{name} does not name the EXIT at offset {off:#x} of the rebuilt code"));
+                }
+            }
+        }
+    }
+    out
 }
 
 /// Registers are allocated per warp in units of 256 (8 per thread): the
@@ -3586,6 +3676,7 @@ pub fn rebuild_cubin_with_resources(
         let original = cubin.text_bytes(sec_idx)?;
         let original_size = original.len();
         let same_payload = instruction_payloads_unchanged(original, patch_code);
+        let template_code = original.to_vec();
         let declared_regcount = resources
             .declared_regcount
             .get(patch_name)
@@ -3609,6 +3700,31 @@ pub fn rebuild_cubin_with_resources(
             code.extend_from_slice(&nop);
         }
         code.resize(target_size, 0);
+
+        // A5: the template's positional metadata (EXIT / COOP_GROUP / INT_WARP_WIDE /
+        // MBARRIER instruction-offset lists) is copied verbatim; an edit that moved the
+        // listed instructions would leave it naming other words. Schedule / reuse edits
+        // never move anything, so only a changed payload is checked.
+        if !same_payload {
+            let stale = stale_positional_metadata(&cubin, kernel_name, &template_code, &code);
+            if !stale.is_empty() {
+                if resources.allow_stale_metadata {
+                    for line in &stale {
+                        eprintln!("warning: {kernel_name}: {line} (kept as copied: --allow-stale-metadata)");
+                    }
+                } else {
+                    anyhow::bail!(
+                        "{kernel_name}: the rebuilt code moved instructions that the template's \
+                         .nv.info.{kernel_name} records address by byte offset, so the copied metadata \
+                         would be stale:\n  {}\nKeep the listed instructions at their offsets (same-length \
+                         edits; pad with NOP), build the kernel standalone (`asm` without -T regenerates \
+                         the records), or pass --allow-stale-metadata to write the cubin with the \
+                         template's records as they are.",
+                        stale.join("\n  ")
+                    );
+                }
+            }
+        }
 
         // The byte-lane scan is only a legacy growth estimate, not an ISA
         // decoder: immediate bytes can resemble register numbers. Preserve
@@ -4042,7 +4158,7 @@ impl CubinBuilder {
         for (ki, k) in kernels.iter().enumerate() {
             let sym = func_sym_idx(ki) as u32;
             let csym = const0_sym_idx(ki) as u32;
-            let data = k.meta.to_kernel_records_with_sym_and_const(sym, csym);
+            let data = kernel_info_records(k, sym, csym);
             per_kernel_info.push(data.to_bytes());
         }
 
@@ -4882,7 +4998,7 @@ impl CubinBuilder {
             let k = &kernels[ki];
             let sym = func_sym_idx(ki) as u32;
             let const_sym = const0_sym_idx(ki) as u32;
-            let data = k.meta.to_kernel_records_with_sym_and_const(sym, const_sym);
+            let data = kernel_info_records(k, sym, const_sym);
             per_kernel_info.push(data.to_bytes());
         }
 
@@ -5942,7 +6058,7 @@ impl CubinBuilder {
             let k = &kernels[ki];
             let sym = func_sym_idx(ki) as u32;
             let const_sym = const0_sym_idx(ki) as u32;
-            let data = k.meta.to_kernel_records_with_sym_and_const(sym, const_sym);
+            let data = kernel_info_records(k, sym, const_sym);
             per_kernel_info.push(data.to_bytes());
         }
 

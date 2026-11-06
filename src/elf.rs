@@ -253,6 +253,20 @@ impl CubinFile {
         None
     }
 
+    /// The bytes of section `sec_idx` (by section-header index, as [`CubinFile::find_section`]
+    /// returns it); `None` for an index or extent outside the file.
+    pub fn section_bytes(&self, sec_idx: usize) -> Option<&[u8]> {
+        let e_shoff = u64::from_le_bytes(self.bytes[0x28..0x30].try_into().ok()?) as usize;
+        let e_shentsize = u16::from_le_bytes([self.bytes[0x3A], self.bytes[0x3B]]) as usize;
+        let e_shnum = u16::from_le_bytes([self.bytes[0x3C], self.bytes[0x3D]]) as usize;
+        if sec_idx >= e_shnum { return None; }
+        let sh_offset_pos = e_shoff + sec_idx * e_shentsize + 0x18;
+        let sh_size_pos = e_shoff + sec_idx * e_shentsize + 0x20;
+        let off = u64::from_le_bytes(self.bytes.get(sh_offset_pos..sh_offset_pos + 8)?.try_into().ok()?) as usize;
+        let size = u64::from_le_bytes(self.bytes.get(sh_size_pos..sh_size_pos + 8)?.try_into().ok()?) as usize;
+        self.bytes.get(off..off.checked_add(size)?)
+    }
+
     /// Patch a section data in-place.
     pub fn patch_section(&mut self, sec_idx: usize, data: &[u8]) -> anyhow::Result<()> {
         let e_shoff = u64::from_le_bytes(self.bytes[0x28..0x30].try_into().unwrap()) as usize;

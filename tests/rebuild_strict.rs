@@ -2,7 +2,15 @@
 
 use cubit::eiattr::KernelMeta;
 use cubit::elf::CubinFile;
-use cubit::elf_builder::{build_cubin, rebuild_cubin, KernelEntry};
+use cubit::elf_builder::{build_cubin, rebuild_cubin, rebuild_cubin_with_resources, KernelEntry, RebuildResources};
+
+/// The template below is `[NOP, EXIT]`; a one-word patch drops the EXIT the template's
+/// EIATTR_EXIT_INSTR_OFFSETS names at 0x10, which the default policy refuses since 2026-11-06
+/// (A5, `tests/a5_positional_metadata.rs`). The tests that patch one word are about the code
+/// bytes and the ELF layout, so they keep the template's records explicitly.
+fn stale_ok() -> RebuildResources {
+    RebuildResources { allow_stale_metadata: true, ..Default::default() }
+}
 
 fn load_table() -> cubit::table::IsaTable {
     let path = std::env::var_os("CUBIT_TABLE").map(std::path::PathBuf::from)
@@ -66,7 +74,7 @@ fn encoded_schedule_and_high_operands_override_matching_low_word() {
     let original = template(&["kernel"]);
     // Same opcode and low operands, different stall, wait, and high operand bits.
     let changed = NOP ^ (7u128 << 105) ^ (1u128 << 117) ^ (1u128 << 80);
-    let output = rebuild_cubin(&original, &[("kernel", changed.to_le_bytes().to_vec(), None)]).unwrap();
+    let output = rebuild_cubin_with_resources(&original, &[("kernel", changed.to_le_bytes().to_vec(), None)], &stale_ok()).unwrap();
     let rebuilt = text(output, "kernel");
     assert_eq!(&rebuilt[..16], changed.to_le_bytes().as_slice());
     assert_ne!(&rebuilt[..16], &text(original, "kernel")[..16]);
@@ -75,7 +83,7 @@ fn encoded_schedule_and_high_operands_override_matching_low_word() {
 #[test]
 fn zero_instruction_never_resurrects_template_code() {
     let original = template(&["kernel"]);
-    let output = rebuild_cubin(&original, &[("kernel", vec![0; 16], None)]).unwrap();
+    let output = rebuild_cubin_with_resources(&original, &[("kernel", vec![0; 16], None)], &stale_ok()).unwrap();
     let rebuilt = text(output, "kernel");
     assert_eq!(&rebuilt[..16], &[0; 16]);
     // Alignment padding is newly encoded NOPs, not the old second instruction.
@@ -86,7 +94,7 @@ fn zero_instruction_never_resurrects_template_code() {
 fn partial_patch_keeps_unselected_kernel_and_replaces_selected_kernel() {
     let original = template(&["first", "second"]);
     let changed = (NOP ^ (3u128 << 105)).to_le_bytes().to_vec();
-    let output = rebuild_cubin(&original, &[("first", changed.clone(), None)]).unwrap();
+    let output = rebuild_cubin_with_resources(&original, &[("first", changed.clone(), None)], &stale_ok()).unwrap();
     assert_eq!(&text(output.clone(), "first")[..16], changed.as_slice());
     assert_eq!(text(output, "second"), text(original, "second"));
 }
@@ -116,7 +124,7 @@ fn rejects_empty_and_incomplete_patches() {
 fn single_kernel_rename_still_uses_new_instruction_bytes() {
     let original = template(&["long_kernel_name"]);
     let changed = (NOP ^ (9u128 << 105)).to_le_bytes().to_vec();
-    let output = rebuild_cubin(&original, &[("renamed", changed.clone(), None)]).unwrap();
+    let output = rebuild_cubin_with_resources(&original, &[("renamed", changed.clone(), None)], &stale_ok()).unwrap();
     assert_eq!(&text(output, "renamed")[..16], changed.as_slice());
 }
 

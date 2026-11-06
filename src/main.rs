@@ -290,6 +290,13 @@ enum Commands {
         /// the compiler computed. Default: refuse with the two counts.
         #[arg(long)]
         allow_regcount_change: bool,
+        /// With -T / --eiattr-from: write the cubin even when the rebuilt code moved
+        /// instructions that the template's `.nv.info.<kernel>` records address by byte
+        /// offset (EXIT / COOP_GROUP / INT_WARP_WIDE / MBARRIER instruction-offset lists,
+        /// copied verbatim from the template — KNOWN_ISSUES A5). Default: refuse and name
+        /// the record and offset.
+        #[arg(long)]
+        allow_stale_metadata: bool,
         /// ELF identity of the output cubin: `13` (CUDA-13: EI_OSABI 0x41,
         /// EI_ABIVERSION 8, e_flags 0x06_00_SS_fX -- today's bytes, the default)
         /// or `12` (CUDA-12: EI_OSABI 0x33, EI_ABIVERSION 7, e_flags 0x00_SS_0A_SS).
@@ -403,6 +410,7 @@ fn main() -> Result<()> {
             kernel,
             mercury_stub,
             allow_regcount_change,
+            allow_stale_metadata,
             driver_abi,
         } => cmd_asm(
             &table,
@@ -413,6 +421,7 @@ fn main() -> Result<()> {
             kernel.as_deref(),
             mercury_stub.as_deref(),
             allow_regcount_change,
+            allow_stale_metadata,
             driver_abi,
         ),
         Commands::AsmText {
@@ -2011,6 +2020,7 @@ fn cmd_asm(
     only_kernel: Option<&str>,
     mercury_stub_path: Option<&std::path::Path>,
     allow_regcount_change: bool,
+    allow_stale_metadata: bool,
     driver_abi: u32,
 ) -> Result<()> {
     use cubit::elf::CubinFile;
@@ -2047,6 +2057,7 @@ fn cmd_asm(
             only_kernel,
             mercury_stub.as_deref(),
             allow_regcount_change,
+            allow_stale_metadata,
             driver_abi,
         );
     }
@@ -2069,6 +2080,7 @@ fn cmd_asm(
             only_kernel,
             mercury_stub.as_deref(),
             allow_regcount_change,
+            allow_stale_metadata,
             driver_abi,
         );
     }
@@ -2301,6 +2313,7 @@ fn cmd_asm_build_elf(
     only_kernel: Option<&str>,
     mercury_stub_data: Option<&[u8]>,
     allow_regcount_change: bool,
+    allow_stale_metadata: bool,
     driver_abi: u32,
 ) -> Result<()> {
     use cubit::elf_builder::KernelEntry;
@@ -4415,6 +4428,7 @@ fn cmd_asm_build_elf(
         let resources = RebuildResources {
             declared_regcount: Default::default(),
             refuse_occupancy_change: !allow_regcount_change,
+            allow_stale_metadata,
         };
         rebuild_cubin_with_resources(&ref_bytes, &patches, &resources)?
     } else {
@@ -4471,6 +4485,7 @@ fn cmd_asm_directive_format(
     only_kernel: Option<&str>,
     mercury_stub: Option<&[u8]>,
     allow_regcount_change: bool,
+    allow_stale_metadata: bool,
     driver_abi: u32,
 ) -> Result<()> {
     use cubit::elf_builder::KernelEntry;
@@ -5642,6 +5657,7 @@ fn cmd_asm_directive_format(
     let resources = cubit::elf_builder::RebuildResources {
         declared_regcount: declared_regcounts,
         refuse_occupancy_change: !allow_regcount_change,
+        allow_stale_metadata,
     };
     let reference_for_report = template_path.or(eiattr_path);
     let mut cubin_bytes = if let Some(tmpl) = template_path {
