@@ -53,10 +53,18 @@ fn aliases() -> serde_json::Map<String, Value> {
 fn the_twenty_era_keys_are_aliases_of_plain_keys() {
     let (table, _) = table_and_index();
     let al = aliases();
-    assert_eq!(al.len(), 20, "sm120.json key_aliases");
+    // 20 glued-predicate era keys (2026-11-04) + the three dotted BRA harvest keys retired by the
+    // measured family (2026-11-06, T-9: `BRA.U_UP_II`, `BRA.DIV_UR_II`, `BRA.U_?_II` -> the plain keys)
+    assert_eq!(al.len(), 23, "sm120.json key_aliases");
     let glued = regex::Regex::new(r"_P\d_").unwrap();
+    let mut glued_n = 0;
     for (old, new) in &al {
         let new = new.as_str().unwrap();
+        if old.starts_with("BRA.") {
+            assert!(matches!(new, "BRA_UP_II" | "BRA_UR_II" | "BRA_II"), "{old} -> {new}");
+            continue;
+        }
+        glued_n += 1;
         assert!(glued.is_match(old) && !glued.is_match(new), "{old} -> {new}");
         let e = table.entries.get(old).unwrap_or_else(|| panic!("alias {old} does not resolve"));
         assert!(e.encode_only, "{old}: an alias is decoder-invisible");
@@ -64,6 +72,7 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
         assert!(!target.encode_only, "{new}: the plain key is a real row");
         assert_eq!(e.mod_groups.keys().collect::<Vec<_>>(), target.mod_groups.keys().collect::<Vec<_>>());
     }
+    assert_eq!(glued_n, 20, "the twenty glued-predicate era keys");
     // no instruction key carries a glued predicate token any more
     let raw: Value = serde_json::from_slice(&cubit::table::read_table_bytes(table_path()).unwrap()).unwrap();
     let left: Vec<&String> = raw["instructions"].as_object().unwrap().keys().filter(|k| glued.is_match(k)).collect();
