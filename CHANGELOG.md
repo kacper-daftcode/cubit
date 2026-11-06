@@ -68,6 +68,17 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   re-pinned (its witness decodes through `HFMA2_R_R_R_R` since the September HFMA2 closures; sm121a keeps
   the era row). `tests/bug484_hadd2_h1h1a_spelling.rs`, fixture `sm120_hadd2_sel_nvdisasm.jsonl`.
 
+- **KNOWN_ISSUES A13 closed as documented: `CUBIT_SB_SHARE=1` stays opt-in.** Session K measured the policy
+  on the production MoE set (2026-11-05, test host GPU 0): 84 / 84 kernels bit-identical to the shipped
+  cubins and to the default re-assembly, deterministic; time-neutral (median +0.3 % at E=64, 0.0 % at E=8,
+  range −6.9…+4.2 % on small kernels). The gain is for scoreboard-starved kernels (session V's sparse-MLA
+  attention, 1.6×); flipping the default would re-schedule every cubit-assembled production kernel for no
+  measured gain there. The README names the switch. **New A19:** with the BUG-483 size restored, the
+  default scheduler is still +34…37 % (`mc4_k4096_a32`) / +58 % (`mc4_k6144_a32`) slower than the 2026-06
+  `5912400` schedule on the MC4 MoE prefill kernels (34 read barriers where the shipped schedule set 75 —
+  the fragment-register WAR protection; AFRAG and k2048 at or below the shipped time); the shipped cubins
+  stay pinned, the frozen shipped schedules are the safe regeneration path and the oracle for the allocator.
+
 ## Unreleased — 2026-11-05 (session T-6: BUG-041 doctrine lifted by the owner)
 
 - **`ATOMG.E.<op>.EL.STRONG.GPU Pd, Rd, desc[URm][Rn.64], Rb` assembles** — the `.EL` descriptor-pair form

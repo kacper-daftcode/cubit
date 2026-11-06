@@ -70,7 +70,10 @@ Instruction syntax is NVIDIA's (`nvdisasm` output). On SM120 kernel parameters s
 `c[0x0][0x380]` (`LDC` / `LDC.64`), the global-memory descriptor for `LDG`/`STG` is loaded with
 `LDCU.64 URx, c[0x0][0x358]`. The assembler schedules instructions it finds without a control code
 (stalls, scoreboard barriers, yields, drains before back edges); a `[B------:R-:W-:Y:S01]` prefix
-freezes the control code of that instruction.
+freezes the control code of that instruction. `CUBIT_SB_SHARE=1` selects the scoreboard-sharing
+colouring (counter semantics, ptxas's practice): bit-identical results on the 84 production MoE
+kernels it was measured on and time-neutral there (+0.3 %), 1.6× on scoreboard-starved kernels such
+as the sparse-MLA attention; it stays opt-in (KNOWN_ISSUES A13).
 
 ## Commands
 
