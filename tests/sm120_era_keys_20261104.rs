@@ -57,13 +57,24 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
     // measured family (2026-11-06, T-9: `BRA.U_UP_II`, `BRA.DIV_UR_II`, `BRA.U_?_II` -> the plain keys)
     // + the two dotted RET harvest keys retired by the BRX / BRXU / RET family (2026-11-06, T-10:
     // `RET.REL.NODEC_R_II`, `RET.REL.NODEC_R` -> `RET_R_II`)
-    assert_eq!(al.len(), 25, "sm120.json key_aliases");
+    // + the five dense IMMA harvest twins retired by the IMMA family (T-10: `_P_` / `_?` keys -> the typed keys)
+    assert_eq!(al.len(), 30, "sm120.json key_aliases");
     let glued = regex::Regex::new(r"_P\d_").unwrap();
     let mut glued_n = 0;
     for (old, new) in &al {
         let new = new.as_str().unwrap();
         if old.starts_with("BRA.") {
             assert!(matches!(new, "BRA_UP_II" | "BRA_UR_II" | "BRA_II"), "{old} -> {new}");
+            continue;
+        }
+        if old.starts_with("RET.REL.NODEC_R") {
+            assert_eq!(new, "RET_R_II", "{old} -> {new}");
+            continue;
+        }
+        if old.starts_with("IMMA.") {
+            // the dense IMMA twins: `_P_R_R_R_R` / `_R_R_R_R_?` / `_R_R_R_R_II_?` -> the typed `_R_R_R_R` key
+            assert!(new.starts_with("IMMA.168") && new.ends_with("_R_R_R_R"), "{old} -> {new}");
+            assert!(table.entries.get(new).is_some_and(|e| !e.encode_only), "{new}: the typed key is a real row");
             continue;
         }
         glued_n += 1;

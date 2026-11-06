@@ -343,6 +343,13 @@ impl DecodeIndex {
                 // Every legal (function, type) pair is a row; fail closed otherwise.
                 "MUFU" |
                 "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "QMMA" |
+                // IMMA (2026-11-06, tools/probes/re_sm120_imma.py, nvdisasm 13.1): the dense
+                // family's law sits in the window -- 72 = the sparse form, 73 / 74 the only legal
+                // ROW / COL layouts (`???1` / `???0` otherwise), 75 the shape, 76 / 78 the types,
+                // 77 / 79 INVALID3; a sign-tolerant match printed the bit-72 word as `-R24.ROW`
+                // and the bit-73 word as `|R24|.ROW`. Every legal (shape, A, B, SAT, UP) is a
+                // measured row; fail closed otherwise.
+                "IMMA" |
                 // BUG-224: SYNCS carries neighbor-form law at b72
                 // (.IVALL/.WBALL), b73 (opaque enum), b91 (operandful
                 // SYNCS.CCTL.IV [R+UR]) — all inside/adjacent to the prio-3
