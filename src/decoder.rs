@@ -395,6 +395,12 @@ impl DecodeIndex {
                 // (direction, type, W, HI) combination of the five forms is a measured row;
                 // fail closed otherwise.
                 "SHF" |
+                // ISETP / UISETP (2026-11-06, session G, tools/probes/re_sm120_isetp.py, nvdisasm 13.1):
+                // the family's law sits in the window -- 72 = `.EX`, 73 = signed, [75:74] the boolean
+                // (3 = `INVALID3`); a sign-tolerant match printed the INVALID3 word `ISETP.GE.INVALID3`
+                // as `ISETP.GE.XOR`. Every legal (comparison, boolean, type, EX) is a measured row on
+                // the ten keys; fail closed otherwise.
+                "ISETP" | "UISETP" |
                 // LEA (2026-11-06, tools/probes/re_sm120_lea.py, nvdisasm 13.1 on SM120 / SM103 /
                 // SM100): the family packs .SX32 (b73) and .X (b74) inside the window and names
                 // its sign bits (72, 63) as `neg` / `inv` fields on every row; a sign-tolerant
