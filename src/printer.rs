@@ -1756,6 +1756,12 @@ fn format_operand(
         // encodera BUG-461). Bazy 0..254 drukuja 'R{n}.64' jak dotychczas;
         // U32-form (b90=0) nie przechodzi przez ta galaz.
         "ARURI64" if ins_key.starts_with("REDG.E") => format_plain_u32_ur(fields, raw, false, true, false, false, lossless),
+        // 2026-11-06 (tools/probes/re_sm120_atomg_el_aruri64.py, nvdisasm 13.1 -b SM120/SM103/SM100):
+        // the 64-bit-base twin of the plain `.EL` atomic, `ATOMG.E.<op>.EL.STRONG.GPU Pd, Rd,
+        // [Ra.64+URb(+off)], Rb` (width bit 63 set, rows `..._P_R_ARURI64_R`): the `.64` glyph is part
+        // of the frame (bits 90/91 are not the width here), base 255 prints the degenerate `???255`
+        // like the REDG twin (BUG-461), the offset is the signed 23-bit window of the U32 row.
+        "ARURI64" if ins_key.starts_with("ATOMG.E.") => format_plain_u32_ur(fields, raw, false, true, true, false, lossless),
         // BUG-464: plain (nNA) EFL2.256 ARURI64 family (klucze graftu
         // LDG.E.EFL2.256_R_R_ARURI64{,_P,_II,_II_P} / STG.E.EFL2.256_ARURI64_R_R{,_II}).
         // Tekst vendora: '[R{n}.64+UR{m}(+-off)]' zawsze z '.64' (b75 frame),
@@ -2932,7 +2938,9 @@ fn format_plain_u32_ur(
     // pol 0x00/0x99/0xff, imm signed<<5, pred4; NIE glif 461-REDG). Band
     // [92:96) jest vendor-inert na tym frame (vm go kryje) -- surowe bity
     // raw nigdy nie wplywaja na wybor szerokosci tutaj.
-    if (efl2_na || plain64 || plain_u32) && base == Some(255) && ur.is_some() {
+    // (2026-11-06: `glyph255` wins over the elision -- the ATOMG `.EL` 64-bit-base twin prints the
+    // degenerate `[???255.64+URm]` for base 255 like the REDG twin, measured on the three targets.)
+    if (efl2_na || plain64 || plain_u32) && base == Some(255) && ur.is_some() && !glyph255 {
         // 2026-11-03 (dynamic audit, 1 129 LDG/STG `_ARURI` rows): the vendor
         // text "[URm(+off)]" is shared by the b75=0 (`_ARURI`, U32 base) and
         // b75=1 (`_ARURI64`) twins once the base is RZ, and the assembler

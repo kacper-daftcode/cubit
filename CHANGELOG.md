@@ -79,6 +79,16 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   the fragment-register WAR protection; AFRAG and k2048 at or below the shipped time); the shipped cubins
   stay pinned, the frozen shipped schedules are the safe regeneration path and the oracle for the allocator.
 
+- **Tables: the 64-bit-base twin of the plain `.EL` atomic** (blackwell-isa `582dfd8`, provenance
+  `atomg-el-aruri64-2026-11-06`; `tools/probes/re_sm120_atomg_el_aruri64.py`, nvdisasm 13.1, 74 form + 8 lattice
+  words, text-identical on `-b SM120` / `SM103` / `SM100`): `ATOMG.E.{ADD,OR}.EL.STRONG.GPU Pd, Rd,
+  [Ra.64+URb(+off)], Rb` — the fields of the 2026-11-05 U32 rows with the width bit 63 set, bit 76 (the
+  descriptor form) excluded; base 255 prints the degenerate `???255.64` glyph like the REDG twin (BUG-461,
+  decode only). The U32 rows exclude bit 63 since 2026-11-05, so these words failed closed — the four
+  `[R8.64+UR7(+-0x1)]` decode misses of the dynamic audit (`T/audit/dyn10`) decode and round-trip now
+  (`tests/sm120_atomg_el_aruri64.rs`). Keys +2 per table (sm120 16 098, sm103a / sm100a 14 904), the
+  claim_forbid census +2 per table (the BUG-461 REDG census now counts REDG keys only).
+
 ## Unreleased — 2026-11-05 (session T-6: BUG-041 doctrine lifted by the owner)
 
 - **`ATOMG.E.<op>.EL.STRONG.GPU Pd, Rd, desc[URm][Rn.64], Rb` assembles** — the `.EL` descriptor-pair form

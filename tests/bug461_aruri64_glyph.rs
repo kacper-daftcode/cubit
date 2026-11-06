@@ -97,10 +97,10 @@ fn t461_4_census_attribution() {
     // CF_RA + 4 klucze EF-band z cf + 4 LTC-mg G2/G4 z CF_RA); canonical bd48e63
     // = 33/33/25/46.
     let want = [
-        ("sm100a", 6976u32), // T-6 (canonical 2eed3ac): +2 claim_forbid rows per table = the measured ATOMG .EL rows (bit 63 / bit 76 excluded) -> 6976 / 6975 / 7014 // RIDE476 (F2-iter299, canonical c88778e): +1 cf/noga x3 (476b fantom _II forbid; _src474 key) // RIDE475r3 (F2-iter289, INC-289e, canonical 978c091)
-        ("sm103a", 6975),
+        ("sm100a", 6978u32), // 2026-11-06 T-7 (canonical 582dfd8): +2 claim_forbid rows per table = the ATOMG .EL 64-bit-base rows (bit 76 excluded) -> 6978 / 6977 / 7016 // T-6 (canonical 2eed3ac): +2 claim_forbid rows per table = the measured ATOMG .EL rows (bit 63 / bit 76 excluded) -> 6976 / 6975 / 7014 // RIDE476 (F2-iter299, canonical c88778e): +1 cf/noga x3 (476b fantom _II forbid; _src474 key) // RIDE475r3 (F2-iter289, INC-289e, canonical 978c091)
+        ("sm103a", 6977), // 2026-11-06 T-7: see above
 // T-6 (canonical 2eed3ac): +2 claim_forbid rows per table = the measured ATOMG .EL rows (bit 63 / bit 76 excluded) -> 6976 / 6975 / 7014 //
-        ("sm120", 7014), // T-6 (canonical 2eed3ac): +2 claim_forbid rows per table = the measured ATOMG .EL rows (bit 63 / bit 76 excluded) -> 6976 / 6975 / 7014 // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim)
+        ("sm120", 7016), // 2026-11-06 T-7 (canonical 582dfd8): +2 claim_forbid rows = the ATOMG .EL 64-bit-base rows // T-6 (canonical 2eed3ac): +2 claim_forbid rows per table = the measured ATOMG .EL rows (bit 63 / bit 76 excluded) -> 6976 / 6975 / 7014 // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim)
         ("sm121a", 1243), // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim) (121a)
     ];
     for (leg, want_cf) in want {
@@ -124,7 +124,11 @@ fn t461_4_census_attribution() {
                     n_cf += 1;
                 }
             }
-            if k.ends_with("_ARURI64_R") {
+            // 2026-11-06 (T-7): the two measured ATOMG `.EL` 64-bit-base keys also end in `_ARURI64_R`
+            // (`ATOMG.E.{ADD,OR}.EL.STRONG.GPU_P_R_ARURI64_R`, provenance atomg-el-aruri64-2026-11-06)
+            // and carry a claim_forbid on bit 76 (the descriptor form) by measurement; this census is
+            // the REDG family's (BUG-461: no data-side claim_forbid on the 3072 REDG rows).
+            if k.starts_with("REDG") && k.ends_with("_ARURI64_R") {
                 n_a64 += 1;
                 if rec["_src461"] == "bug461-2026-09-14" {
                     n_src461 += 1;
