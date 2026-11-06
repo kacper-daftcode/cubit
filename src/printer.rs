@@ -552,7 +552,12 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
                 || fields
                     .iter()
                     .any(|f| norm_ext(&f.extraction) == "pred_inv4"));
-        if !inv4_omitted {
+        // R2P (session G, 2026-11-06, tools/probes/re_sm120_plop3_p2r_r2p.py, nvdisasm 13.1 on SM120 /
+        // SM103 / SM100): the vendor ELIDES the byte mask when it is 0xff -- `R2P PR, R0`, `R2P PR, R0.B1`;
+        // every other value prints (`R2P PR, R0, 0x6`, `0x0`, `0x1ff`). The bare spelling encodes through
+        // the encode-only `R2P_II_R` row (0xff baked); the explicit `0xff` stays a bitwise alias.
+        let r2p_mask_elided = op_type == "II" && tok == 3 && insn.key.starts_with("R2P_II_R_II") && s == "0xff";
+        if !inv4_omitted && !r2p_mask_elided {
             operands.push(s);
         }
     }
@@ -2834,9 +2839,13 @@ fn format_imm(fields: &[&DecodedField], _mod_group: &str, ins_key: &str, lossles
             // IMAD/UIMAD, VIMNMX.
             // UCLEA / UBMSK: nvdisasm prints their immediates unsigned too (2026-11-06, T-10:
             // `UCLEA UR0, UPT, UR0, 0x8000, 0x1`, `UBMSK.W UR0, UR0, 0xffffffff`).
+            // P2R / R2P: the 32-bit predicate masks print unsigned too (session G, 2026-11-06,
+            // tools/probes/re_sm120_plop3_p2r_r2p.py: `P2R R17, PR, RZ, 0xffffffff`, `R2P PR, R0, 0x80000000`).
             let is_unsigned_op = ins_key.starts_with("VIADDMNMX")
                 || ins_key.starts_with("UCLEA")
                 || ins_key.starts_with("UBMSK")
+                || ins_key.starts_with("P2R")
+                || ins_key.starts_with("R2P")
                 || ins_key.starts_with("MOV")
                 || ins_key.starts_with("UMOV")
                 || ins_key.starts_with("SHF")
