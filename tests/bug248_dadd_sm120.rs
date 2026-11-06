@@ -140,7 +140,11 @@ fn t248_1_structure() {
         ins("DADD_R_R_FI").mod_groups.contains_key(""),
         "FI key alive"
     );
-    assert!(t.entries.contains_key("DADD_R_II_R"), "II_R alive");
+    // 2026-11-06 (T-8): `DADD_R_II_R` is retired -- every probe word of the row is illegal for nvdisasm
+    // 13.1 (opcode 0x029 with the immediate in the register slot), no census witness, no alias target
+    // (blackwell-isa-internal tools/audit_fix_20261106.py (3)); the live immediate form is `DADD_R_R_II`.
+    assert!(!t.entries.contains_key("DADD_R_II_R"), "II_R junk key retired (T-8)");
+    assert!(t.entries.contains_key("DADD_R_R_II"), "the immediate form is DADD_R_R_II");
 }
 
 #[test]
