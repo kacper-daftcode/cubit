@@ -350,6 +350,13 @@ impl DecodeIndex {
                 // and the bit-73 word as `|R24|.ROW`. Every legal (shape, A, B, SAT, UP) is a
                 // measured row; fail closed otherwise.
                 "IMMA" |
+                // IDP (2026-11-06, T-11, tools/probes/re_sm120_idp.py, nvdisasm 13.1 on the four
+                // targets): the family's law sits in the window -- 73 / 74 the signedness of the
+                // two types (`S8.U8` vs `U8.S8` vs the symmetric pairs), 75 `-Rc`, 72 text-inert;
+                // [77:76] the mode (4A / 2A.LO / 2A.HI, 10 illegal). A sign-tolerant match printed
+                // every mixed-type word as the `S8.S8` sibling (NEEDS 36). Every legal (mode, type,
+                // type) is a measured row on both operand shapes; fail closed otherwise.
+                "IDP" |
                 // BUG-224: SYNCS carries neighbor-form law at b72
                 // (.IVALL/.WBALL), b73 (opaque enum), b91 (operandful
                 // SYNCS.CCTL.IV [R+UR]) — all inside/adjacent to the prio-3

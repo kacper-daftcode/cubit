@@ -142,13 +142,13 @@ fn idp_ra_sign_window_is_inert() {
 fn idp_2a_lo_form_and_b77_fail_closed() {
     let t = table("tables/sm120.json");
     let idx = DecodeIndex::build(&t);
-    // b76 selects the 2A form the table has (LO), b77 makes it HI (a hole).
+    // [77:76] is the mode: 01 = 2A.LO, 11 = 2A.HI (a hole until the family was measured whole on
+    // 2026-11-06, T-11: `tools/probes/re_sm120_idp.py`, `tests/sm120_idp.rs`), 10 illegal.
     let lo2a = CORPUS_U8U8 | (1 << 76);
     assert_eq!(dec(&t, lo2a), "IDP.2A.LO.U16.U8 R15, R15, R6, R7");
-    for w in [lo2a | (1 << 77), CORPUS_U8U8 | (1 << 77)] {
-        assert!(idx.decode(w, 0, &t).is_err(),
-                "{w:032x} must fail closed (no HI row, b77 illegal on 4A)");
-    }
+    assert_eq!(dec(&t, lo2a | (1 << 77)), "IDP.2A.HI.U16.U8 R15, R15, R6, R7");
+    let w = CORPUS_U8U8 | (1 << 77);
+    assert!(idx.decode(w, 0, &t).is_err(), "{w:032x} must fail closed (mode 10 is illegal)");
 }
 
 #[test]

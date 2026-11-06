@@ -1132,6 +1132,12 @@ fn mod_priority_for_key(base: &str, key: &str, m: &str) -> u8 {
     if base == "IDP" && (m == "2A" || m == "4A") {
         return 2;
     }
+    // 2026-11-06 (T-11, tools/probes/re_sm120_idp.py, nvdisasm 13.1 on the four targets): the high
+    // half selector follows the accumulate form like `LO` does -- `IDP.2A.HI.U16.U8`, never
+    // `IDP.2A.U16.U8.HI` (the generic rank puts `HI` after the types for SHF / USHF).
+    if base == "IDP" && m == "HI" {
+        return 3;
+    }
     if key == "F2I_R_FI" {
         match m {
             "U8" | "S8" | "U16" | "S16" | "U32" | "S32" | "U64" | "S64" => return 4,
