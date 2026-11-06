@@ -96,6 +96,34 @@ pub fn read_table_text(path: impl AsRef<Path>) -> Result<String> {
         .with_context(|| format!("{} is not UTF-8", path.display()))
 }
 
+/// Identity of the file [`read_table_bytes`] serves `path` from (the plain
+/// file, or its gzip twin): canonical path, size, modification time.
+type TableFileKey = (std::path::PathBuf, u64, Option<std::time::SystemTime>);
+
+fn table_file_identity(path: &Path) -> Option<TableFileKey> {
+    let file = if path.is_file() { path.to_path_buf() } else { gz_twin(path).filter(|gz| gz.is_file())? };
+    let meta = std::fs::metadata(&file).ok()?;
+    Some((file.canonicalize().unwrap_or(file), meta.len(), meta.modified().ok()))
+}
+
+/// The per-process cache of parsed tables behind [`IsaTable::load`].
+fn parsed_table_cache() -> &'static std::sync::Mutex<HashMap<TableFileKey, std::sync::Arc<IsaTable>>> {
+    static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<TableFileKey, std::sync::Arc<IsaTable>>>> =
+        std::sync::OnceLock::new();
+    CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+/// `false` the first time a key is seen in this process, `true` from then on.
+fn seen_once(key: &TableFileKey) -> bool {
+    static SEEN: std::sync::OnceLock<std::sync::Mutex<std::collections::HashSet<TableFileKey>>> =
+        std::sync::OnceLock::new();
+    let seen = SEEN.get_or_init(|| std::sync::Mutex::new(std::collections::HashSet::new()));
+    match seen.lock() {
+        Ok(mut s) => !s.insert(key.clone()),
+        Err(_) => false,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // JSON schema
 // ---------------------------------------------------------------------------
@@ -617,13 +645,43 @@ impl IsaTable {
     /// Load a table file; `tables/<arch>.json` is read from the plain file or,
     /// when only the vendored `tables/<arch>.json.gz` exists, decompressed on
     /// the fly ([`read_table_text`]). `@bundled` selects the compiled-in SM120 table.
+    ///
+    /// Parsed tables are cached per process from the second load of the same
+    /// file on (keyed by the file's path, size and modification time, so a
+    /// rewritten table is parsed again): parsing the 56 MB SM120 JSON costs
+    /// ~0.4 s in release, a clone of the parsed table ~10 ms, and a test
+    /// binary loads the same four tables once per test. A process that loads
+    /// a table once (the CLI) pays nothing — no master copy is kept until a
+    /// second load shows the table is reused. `CUBIT_TABLE_CACHE=0` disables it.
     pub fn load(path: &Path) -> Result<Self> {
         if path == Path::new("@bundled") {
             return Self::from_json_unified(bundled_sm120_json())
                 .context("failed to load the bundled SM120 table");
         }
+        let key = if std::env::var("CUBIT_TABLE_CACHE").is_ok_and(|v| v == "0") {
+            None
+        } else {
+            table_file_identity(path)
+        };
+        if let Some(k) = &key {
+            if let Some(hit) = parsed_table_cache().lock().ok().and_then(|c| c.get(k).cloned()) {
+                return Ok((*hit).clone());
+            }
+        }
         let data = read_table_text(path)?;
-        Self::from_json(&data)
+        let table = Self::from_json(&data)?;
+        if let Some(k) = key {
+            if let Ok(mut c) = parsed_table_cache().lock() {
+                // a parallel loader may have filled it meanwhile (keep theirs); the first
+                // load of a file records the key only, the second stores the master copy
+                if let std::collections::hash_map::Entry::Vacant(slot) = c.entry(k.clone()) {
+                    if seen_once(&k) {
+                        slot.insert(std::sync::Arc::new(table.clone()));
+                    }
+                }
+            }
+        }
+        Ok(table)
     }
 
     /// Load exactly the JSON bytes a caller has already hashed or snapshotted.
@@ -1203,5 +1261,39 @@ mod tests {
         // 2026-08-28 BUG-226d: era phantom cleanup (canonical b2e5227) takes
         // sm120 InsKeys 1507 -> 1471 on purpose; bar lowered 1_500 -> 1_400.
         assert!(table.num_keys() >= 1_400, "bundled table shrank unexpectedly");
+    }
+
+    /// R3: the parsed-table cache hands out clones of one parse from the second
+    /// load on, keyed by the file's identity — the same table whichever way it is
+    /// named (plain path or the `.gz` twin), re-parsed when the file changes.
+    #[test]
+    fn parsed_table_cache_serves_clones_of_the_same_file() {
+        let dir = std::env::temp_dir().join(format!("cubit_table_cache_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let gz = dir.join("t.json.gz");
+        let json = r#"{"TEST_R":{"mod_groups":{"":{"and_base":"0x1","fields":[]}}}}"#;
+        let mut enc = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        std::io::Write::write_all(&mut enc, json.as_bytes()).unwrap();
+        std::fs::write(&gz, enc.finish().unwrap()).unwrap();
+        let plain = dir.join("t.json");
+        // the plain name resolves to the gz twin: one identity
+        let id_plain = super::table_file_identity(&plain).expect("twin found");
+        let id_gz = super::table_file_identity(&gz).expect("gz found");
+        assert_eq!(id_plain, id_gz);
+        assert!(super::table_file_identity(&dir.join("missing.json")).is_none());
+        // three loads: the first parses, the second parses and fills the cache, the third is a clone
+        for _ in 0..3 {
+            let t = IsaTable::load(&plain).unwrap();
+            assert_eq!(t.num_keys(), 1);
+        }
+        assert!(super::parsed_table_cache().lock().unwrap().contains_key(&id_plain), "cached from the second load on");
+        // a rewritten file (new size) is a new identity: parsed afresh, the old entry is not served
+        let json2 = r#"{"TEST_R":{"mod_groups":{"":{"and_base":"0x1","fields":[]}}},"OTHER_R":{"mod_groups":{"":{"and_base":"0x2","fields":[]}}}}"#;
+        let mut enc = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        std::io::Write::write_all(&mut enc, json2.as_bytes()).unwrap();
+        std::fs::write(&gz, enc.finish().unwrap()).unwrap();
+        assert_ne!(super::table_file_identity(&plain).unwrap(), id_plain);
+        assert_eq!(IsaTable::load(&plain).unwrap().num_keys(), 2);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
