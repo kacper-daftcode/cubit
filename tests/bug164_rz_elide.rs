@@ -307,9 +307,11 @@ const LAWB: &[(&str, u64, u64, &str)] = &[
     ("sm120", 0x00001000ff000388, 0x0001c00000000800, "0x10"), // STS_ARI_R  tok1 pos
     ("sm120", 0xfffff000ff000388, 0x0001c00000000800, "0xfffff0"), // STS_ARI_R  tok1 neg
     ("sm120", 0x80000000ff000388, 0x0001c00000000800, "0x800000"), // STS_ARI_R  tok1 min
-    ("sm120", 0x00001000ff000188, 0x0001c00000000a00, "0x10"), // STS_ARI_R 64 tok1 pos
-    ("sm120", 0xfffff000ff000188, 0x0001c00000000a00, "0xfffff0"), // STS_ARI_R 64 tok1 neg
-    ("sm120", 0x80000000ff000188, 0x0001c00000000a00, "0x800000"), // STS_ARI_R 64 tok1 min
+    // 2026-11-06 (T-10 audit): STS.64's opcode byte is 0x388 like the other STS widths -- nvdisasm 13.1 rejects every
+    // 0x188 word (bit 9 clear); the sm120 row bakes bit 9 now, the three sm120 pins carry the legal words.
+    ("sm120", 0x00001000ff000388, 0x0001c00000000a00, "0x10"), // STS_ARI_R 64 tok1 pos
+    ("sm120", 0xfffff000ff000388, 0x0001c00000000a00, "0xfffff0"), // STS_ARI_R 64 tok1 neg
+    ("sm120", 0x80000000ff000388, 0x0001c00000000a00, "0x800000"), // STS_ARI_R 64 tok1 min
     ("sm120", 0x00001000ff000388, 0x0000000000000c00, "0x10"), // STS_ARI_R 128 tok1 pos
     ("sm120", 0xfffff000ff000388, 0x0000000000000c00, "0xfffff0"), // STS_ARI_R 128 tok1 neg
     ("sm120", 0x80000000ff000388, 0x0000000000000c00, "0x800000"), // STS_ARI_R 128 tok1 min

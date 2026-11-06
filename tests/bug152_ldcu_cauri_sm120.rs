@@ -114,8 +114,13 @@ fn t152_4_encode_plain_bakes_urz_sentinel() {
 fn t152_5_cauri_key_gone_and_u8_ur_fail_closed() {
     let t = t120();
     assert!(t.entries.get("LDCU_UR_cAURI").is_none(), "junk-signature key must be deleted");
-    // U8+UR has zero vendor witnesses: the BUG-132 roundtrip guard must
-    // refuse it instead of silently dropping the .U8 modifier.
+    // 2026-08: "U8+UR has zero vendor witnesses -> fail closed". Re-pinned 2026-11-06 (T-10 audit batch,
+    // `audit-fix-2026-11-06-t10`): nvdisasm 13.1 names the UR-indexed U8 form (`LDCU.U8 UR5, c[0x0][UR7]`),
+    // so the [U8] group carries the uniform index field like the measured "" / [64] groups and the text
+    // encodes -- and decodes back to itself -- instead of being refused on the strength of a missing witness.
     let insn = parse_sass("LDCU.U8 UR5, c[0x0][UR5+0x258]", 0).expect("parse");
-    assert!(encode_instruction(&insn, &t).is_err(), "U8+UR form must fail closed");
+    let w = encode_instruction(&insn, &t).expect("U8+UR form encodes (nvdisasm names it)");
+    assert_eq!((w >> 24) as u8, 5, "the index register lands in [31:24]");
+    let d = DecodeIndex::build(&t).decode(w, 0, &t).expect("decodes");
+    assert_eq!(cubit::printer::to_sass(&d), "LDCU.U8 UR5, c[0x0][UR5+0x258]");
 }

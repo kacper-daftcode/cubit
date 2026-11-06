@@ -83,12 +83,14 @@ fn t165_1_polygon() {
     let ldcu = j.pointer("/instructions/LDCU_UR_cAI/mod_groups").unwrap();
     for (g, wbits) in [("U16", 2u128), ("S8", 1u128)] {
         let row = &ldcu[g];
-        assert_eq!(row["_src"].as_str().unwrap(), "bug165-2026-08-25");
+        // 2026-11-06 (T-10 audit): the size groups carry the uniform index field like the measured "" / [64]
+        // groups (nvdisasm 13.1 names `LDCU.U16 UR5, c[0x0][UR7+0x10]`); provenance moved to the audit batch.
+        assert_eq!(row["_src"].as_str().unwrap(), "audit-fix-2026-11-06-t10");
         let ab = u128::from_str_radix(row["and_base"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
         assert_eq!((ab >> 73) & 0x7, wbits);
         assert_eq!((ab >> 91) & 0x1, 1, "LDCU discriminator");
         let f: Vec<_> = row["fields"].as_array().unwrap().iter().map(|f| f["extraction"].as_str().unwrap()).collect();
-        assert_eq!(f, ["ureg", "cm17_off"], "clone of '64': {f:?}");
+        assert_eq!(f, ["ureg", "cm17_off", "sub_ur1"], "clone of '64' + the index field: {f:?}");
     }
     // kept-with-evidence: canonical LDCU width groups stay (encode byte-exact)
     for g in ["128", "U8"] {

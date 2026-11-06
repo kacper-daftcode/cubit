@@ -119,8 +119,10 @@ fn t172_5_fail_closed_preserved() {
     assert!(!dec_res(&idx, w("000e240000000e0000c0000018187b82"), &t), "INVALID7 idx");
     // LDCU R-index (vendor-ILLEGAL per arb167 round2 / 173-kand) stays closed, incl. w3:
     assert!(!dec_res(&idx, w("000e24000800060000c0000018187b82"), &t), "LDCU.R-idx S16");
-    // LDCU UR-indexed cAURI = parked-152 domain: S16 variant not modelled, stays closed.
-    assert!(!dec_res(&idx, w("000f22000800060000004b00050577ac"), &t), "LDCU cAURI S16 (UR-idx)");
+    // LDCU UR-indexed S16: parked in 2026-08 ("not modelled, stays closed"); measured 2026-11-06 (T-10 audit):
+    // nvdisasm 13.1 names `LDCU.S16 UR5, c[0x0][UR7+0x10]`, so the size groups carry the uniform index field
+    // like the measured "" / [64] groups and the word decodes.
+    assert!(dec_res(&idx, w("000f22000800060000004b00050577ac"), &t), "LDCU S16 UR-indexed decodes (nvdisasm names it)");
     // encode-side: LDCU with R index has no row regardless of width.
     assert!(!enc_res(&t, "LDCU.S16 UR4, c[0x0][R5]"), "LDCU R-idx encode");
     // 128-indexed LDC = vendor INVALID6: encode stays closed.
@@ -159,9 +161,14 @@ fn t172_6_polygon() {
             let row = &mg["S16"];
             let ab = u128::from_str_radix(row["and_base"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
             let historical_donor = u128::from_str_radix(donor_ab.trim_start_matches("0x"), 16).unwrap();
-            assert_eq!(ab ^ historical_donor, 3u128 << 73 ^ ((historical_donor >> 73) & 0x7) << 73);
-            assert_eq!(row["_src"], "bug172-2026-08-26");
-            assert_eq!(row["fields"].as_array().unwrap().len(), 2);
+            // 2026-11-06 (T-10 audit, `audit-fix-2026-11-06-t10`): the S16 row carries the uniform index field
+            // [31:24] now (nvdisasm names `LDCU.S16 UR5, c[0x0][UR7+0x10]`), so its and_base has the index byte
+            // cleared where the historical donor baked URZ; the width bits [75:73] are still the S16 code.
+            assert_eq!((ab ^ historical_donor) & !(0xffu128 << 24), 3u128 << 73 ^ ((historical_donor >> 73) & 0x7) << 73);
+            assert_eq!(row["_src"], "audit-fix-2026-11-06-t10");
+            let fields = row["fields"].as_array().unwrap();
+            assert_eq!(fields.len(), 3);
+            assert!(fields.iter().any(|f| f["extraction"] == "sub_ur1" && f["shift"] == 24 && f["bits"] == 8));
             continue;
         }
         assert_eq!(don["and_base"].as_str().unwrap(), donor_ab, "{path} {key}/{donor} drift");

@@ -99,11 +99,15 @@ fn the_rows_carry_the_provenance_and_the_junk_keys_are_gone() {
     for gone in [
         "CS2R_R_R_?", "DADD_R_R_R_II_?", "DMUL_R_R_R_II_II_?", "FSETP_P_P_L_FI_P", "FSEL_R_R_L_P", "SULD.D.BA.2D.STRONG.SM.TRAP_R_AR_UR",
         "HMMA.16816.F32_P_R_R_R_R", "QMMA.16832.F32.E4M3.E4M3_P_R_R_R_R", "MOV_P_R_R", "MOV_R_R_II_II_?", "MOV_R_R_II_II_II_?",
-        "IADD_R_R_R_II", "IADD.X_R_R_R_P", "UIADD3.64_UR_UP_UP_UR_II_II", "LD_R_ARURI", "PLOP3.LUT_P_P_P_P_UP_II_II",
+        "IADD_R_R_R_II", "IADD.X_R_R_R_P", "UIADD3.64_UR_UP_UP_UR_II_II", "PLOP3.LUT_P_P_P_P_UP_II_II",
     ] {
         assert!(!ins.contains_key(gone), "{gone} should be retired");
     }
     assert!(!ins["MUFU_R_II"]["mod_groups"].as_object().unwrap().contains_key("RCP64H"));
+    // batch 3: two batch-1 retirements undone with the measurement -- BUG-097's plain U32+UR LD.E form and
+    // BUG-089's canonical IADD3_R_P_P_R_II_R [X] row are back (their own pins hold them)
+    assert_eq!(ins["LD_R_ARURI"]["mod_groups"]["E"]["_src"], SOURCE);
+    assert!(ins["IADD3_R_P_P_R_II_R"]["mod_groups"].as_object().unwrap().contains_key("X"));
     assert!(!ins["F2I_R_UR"]["mod_groups"].as_object().unwrap().contains_key("NTZ,U32"));
     let mut n = 0;
     for (key, e) in ins {
