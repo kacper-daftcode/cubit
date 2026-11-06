@@ -144,6 +144,38 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
         } else {
             format!("{guard} ")
         };
+        // The measured BRA family (`bra-family-2026-11-06`, tools/probes/re_sm120_bra.py): six keys
+        // `BRA[_P][_UR|_UP]_II`. Operands in the vendor's order: the predicate [89:87] + `!` 90 (PT
+        // elided, `!PT` printed), then `[~]URn` ([31:24], `~` = bit 82, 255 = URZ) or `[!]UPn`
+        // ([26:24], `!` 27, 7 = UPT) on the frame-bit forms, then the target as nvdisasm prints it
+        // at this address: PC + 16 + the signed 56-bit dword offset, negative as `-0x…` (the old
+        // path wrapped it to 32 bits: `BRA 0xffffeb60` for `BRA -0x14a0`).
+        if branch_base == "BRA"
+            && matches!(
+                insn.key.as_str(),
+                "BRA_II" | "BRA_P_II" | "BRA_UR_II" | "BRA_P_UR_II" | "BRA_UP_II" | "BRA_P_UP_II"
+            )
+        {
+            let mut ops: Vec<String> = Vec::new();
+            if insn.key.starts_with("BRA_P_") {
+                let p = ((insn.raw_code >> 87) & 0x7) as u8;
+                let n = ((insn.raw_code >> 90) & 1) as u8;
+                if !(p == 7 && n == 0) {
+                    ops.push(format!("{}{}", if n == 1 { "!" } else { "" }, if p == 7 { "PT".to_string() } else { format!("P{p}") }));
+                }
+            }
+            if insn.key.contains("_UP_") {
+                let up = ((insn.raw_code >> 24) & 0x7) as u8;
+                let n = ((insn.raw_code >> 27) & 1) as u8;
+                ops.push(format!("{}{}", if n == 1 { "!" } else { "" }, if up == 7 { "UPT".to_string() } else { format!("UP{up}") }));
+            } else if insn.key.contains("_UR_") {
+                let ur = ((insn.raw_code >> 24) & 0xff) as u8;
+                let inv = ((insn.raw_code >> 82) & 1) == 1;
+                ops.push(format!("{}{}", if inv { "~" } else { "" }, if ur == 255 { "URZ".to_string() } else { format!("UR{ur}") }));
+            }
+            ops.push(signed_branch_target(insn));
+            return format!("{guard_prefix}{opcode} {}", ops.join(", "));
+        }
         // BRA/CALL/JMP: format as "opcode target"
         // BSSY/BSYNC/BREAK: format as "opcode [barrier,] target"
         if is_bssy_op(&insn.opcode) {
@@ -802,6 +834,17 @@ fn absolute_dword_target(raw: u128) -> String {
     }
 }
 
+/// The direct-branch target as nvdisasm prints it: PC + 16 + the signed 56-bit dword offset
+/// ([23:16] + [81:34]), negative as `-0x…` (an isolated word at address 0 with a backward target).
+fn signed_branch_target(insn: &DecodedInst) -> String {
+    let raw = insn.raw_code;
+    let low = (raw >> 16) & 0xff;
+    let high = (raw >> 34) & 0xffff_ffff_ffff;
+    let rel = sign_extend((low | (high << 8)) as u64, 56) << 2;
+    let t = insn.addr as i64 + 16 + rel;
+    if t < 0 { format!("-0x{:x}", -t) } else { format!("0x{t:x}") }
+}
+
 /// Decode branch target address from raw instruction bits.
 /// BRA/CALL/JMP/RET: split-word encoding with dword offset.
 /// BSSY/BSYNC/BREAK: byte offset at [63:32].
@@ -1055,6 +1098,16 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     // NVIDIA places the memory-order mode before its scope.
     if base == "MEMBAR" && matches!(m, "SC" | "ALL") {
         return 0;
+    }
+    // BRA (measured 2026-11-06, tools/probes/re_sm120_bra.py): `BRA[.INC|.DEC][.U|.DIV|.CONV][.ANY][.NOT_TID0]`.
+    if base == "BRA" {
+        match m {
+            "INC" | "DEC" => return 0,
+            "U" | "DIV" | "CONV" => return 1,
+            "ANY" => return 2,
+            "NOT_TID0" => return 3,
+            _ => {}
+        }
     }
     // NVIDIA packed min/max places the vector type before its independent
     // mode flags (HMNMX2.BF16_V2.FTZ.NAN.XORSIGN).
