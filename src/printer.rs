@@ -1017,7 +1017,7 @@ fn format_opcode(base: &str, mod_group: &str, key: &str) -> String {
     // `F2FP.SATFINITE.RELU.E4M3.BF16.UNPACK_B_MERGE_C`, `F2FP.E5M2.F16.UNPACK_B_MERGE_C` — the reverse
     // of the pack forms (`F2FP.BF16.F32.PACK_AB` = destination first). The alphabetical group key put
     // BF16 before E4M3 (the F16 twins happened to sort right).
-    let unpack_merge = base == "F2FP" && mods.iter().any(|m| *m == "UNPACK_B_MERGE_C");
+    let unpack_merge = base == "F2FP" && mods.contains(&"UNPACK_B_MERGE_C");
     mods.sort_by_key(|m| {
         if unpack_merge && matches!(*m, "E4M3" | "E5M2") {
             return 4;
