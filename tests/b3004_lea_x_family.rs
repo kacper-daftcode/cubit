@@ -98,8 +98,10 @@ fn b3004_lea_hi_x_matches_the_vendor_text_token_for_token() {
                    "LEA.HI.X R40, P1, R39.reuse, UR4, R16, 0x1c, !PT", "{name}");
         let text = dec(&t, W_LEA_HI_X);
         assert_eq!(enc(&t, &text) & NOSCHED, W_LEA_HI_X & NOSCHED, "{name}: round trip");
-        // the .X word must not fall into the HI group of the plain LEA row
-        assert_eq!(key(&t, W_LEA_HI_X), "LEA.HI.X_R_P_R_UR_R_II_P", "{name}");
+        // the .X word must not fall into the HI group of the plain LEA row (2026-11-06 T-8: the family
+        // rebuilt from measurement, tools/probes/re_sm120_lea.py -- the `.X` row is the `HI,X` group of the
+        // carry-in key `LEA_R_P_R_UR_R_II_P`, the dotted B300-4 key is retired)
+        assert_eq!(key(&t, W_LEA_HI_X), "LEA_R_P_R_UR_R_II_P", "{name}");
         // and the plain LEA.HI mode is untouched (B300-1 regression guard)
         assert_eq!(key(&t, W_IADD3 | 1), "LEA_R_P_R_UR_R_II", "{name}");
     }

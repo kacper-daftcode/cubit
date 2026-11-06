@@ -768,6 +768,50 @@ fn check_imad_hi_erratum(
     Ok(())
 }
 
+/// The LEA family (rows rebuilt from measurement 2026-11-06, `tools/probes/re_sm120_lea.py`):
+/// the sign bits 72 (Ra) and 63 (Rb / URb) are the arithmetic negation `-R` on the forms
+/// without `.X` and the bitwise inverse `~R` on the `.X` forms — nvdisasm names them that way
+/// on SM120 / SM103 / SM100, and the rows carry the glyph's own field (`neg` or `inv`). The
+/// generic encoder maps `-` to `neg` fields and `~` to `inv` fields only; a glyph the selected
+/// row has no field for used to be DROPPED silently (`LEA.HI.X R4, ~R8, UR10, R6, 0x1, PT`
+/// minted the word without bit 72 through the B300-4 row). Refuse instead, naming the law.
+fn check_lea_sign_glyphs(insn: &Instruction, entry: &crate::table::ModGroupEntry) -> Result<()> {
+    if insn.opcode != "LEA" {
+        return Ok(());
+    }
+    let is_x = insn.modifiers.iter().any(|m| m == ".X");
+    for (index, operand) in insn.operands.iter().enumerate() {
+        let (neg, abs, inv) = match operand {
+            Operand::Reg { neg, abs, inv, .. } | Operand::UReg { neg, abs, inv, .. } => (*neg, *abs, *inv),
+            _ => continue,
+        };
+        for (authored, name, want) in [
+            (neg, "negation `-`", Extraction::Neg),
+            (abs, "absolute value `|…|`", Extraction::Abs),
+            (inv, "bitwise inverse `~`", Extraction::Inv),
+        ] {
+            if !authored {
+                continue;
+            }
+            let named = entry.fields.iter().any(|field| {
+                field.token_idx == index as i32 + 1 && field.bits > 0 && field.extraction == want
+            });
+            if !named {
+                anyhow::bail!(
+                    "LEA operand {} carries a {name} the selected row has no field for; the measured law \
+                     (nvdisasm 13.1, SM120 / SM103 / SM100): the sign bits of Ra and Rb/URb print `-` on the \
+                     forms without .X and the bitwise inverse `~` on the .X forms (this text is {}), an immediate \
+                     <b> has no sign bit, and LEA has no absolute-value glyph: {}",
+                    index + 1,
+                    if is_x { "an .X form: write `~R`" } else { "not an .X form: write `-R`" },
+                    insn.raw_text.trim()
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Dedicated native HI packets use only named operand modifiers. The generic
 /// ALU sign convention is not valid here: e.g. bit72 is text-inert, while
 /// Rc75 changes from arithmetic negation to bitwise inverse when X is set.
@@ -3026,6 +3070,7 @@ fn encode_instruction_inner(
         check_imad_hi_erratum(insn, table, entry)?;
     }
     check_native_imad_hi_modifiers(insn, table, entry)?;
+    check_lea_sign_glyphs(insn, entry)?;
     // BUG-178 (iter85, front MAIN; queue = fleet note 177 sec.5(b) "178-kand"):
     // a non-branch Label operand (any non-numeric identifier) degraded through
     // the `Label -> "II"` key family onto a BAKED-immediate row — a table

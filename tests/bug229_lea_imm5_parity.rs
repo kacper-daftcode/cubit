@@ -141,8 +141,15 @@ fn t229_2_structure_and_stability_sm120() {
     assert!(ins["LEA_R_R_II_R"].is_null(), "era key must be deleted");
     let s = ins["LEA_R_R_II_II"]["mod_groups"].as_object().unwrap();
     assert!(!s.contains_key("HI"), "era shadow mg must be deleted");
-    for kept in ["", "HI,SX32", "HI,SX32,X", "HI,X"] {
+    // 2026-11-06 T-8 (LEA family rebuilt from measurement, tools/probes/re_sm120_lea.py): the `.X` groups
+    // carry the carry-in operand as their own token, so they live on `LEA_R_R_II_II_P`; the imm32 key
+    // keeps the two groups without a carry-in.
+    for kept in ["", "HI,SX32"] {
         assert!(s.contains_key(kept), "sibling mg {kept} must be kept");
+    }
+    let sx = ins["LEA_R_R_II_II_P"]["mod_groups"].as_object().unwrap();
+    for kept in ["X", "HI,SX32,X"] {
+        assert!(sx.contains_key(kept), "carry-in mg {kept} must be kept on the _P key");
     }
     // UR row carries the donor field law
     let fs = ins["LEA_R_R_UR_R_II"]["mod_groups"]["HI"]["fields"]
@@ -193,13 +200,12 @@ fn t229_3_law_pivots_and_fail_closed_sm120() {
     let base = 0x078fb8ff0000000139377811u128;
     let got = decode(&t, mk(base ^ (1 << 80), 0x000fe400)).unwrap();
     assert_eq!(got, "LEA R55, R57, 0x1, 0x17");
-    // b74 flip (.X pivot per graft on vendor): this crafted word is absorbed
-    // by II_II["HI,SX32"] (226b donor-clone) printing .SX32 4-token while
-    // nvdisasm renders .X 6-token — a latent parity gap with ZERO corpus
-    // exposure (all witnessed .X forms match the _P rows today). Parked as
-    // 232-kand LOW; pinned here so the boundary is machine-visible.
+    // b74 flip (.X pivot): nvdisasm renders the 6-token `.X` form with its carry-in `!PT`
+    // (the word's [90:87] = 0xf). Until the T-8 rebuild (2026-11-06, tools/probes/re_sm120_lea.py)
+    // this word was absorbed by II_II["HI,SX32"] and printed `LEA.HI.SX32 R55, R57, 0x1, 0x17`
+    // (parked as 232-kand LOW); the measured family prints the vendor text.
     let got = decode(&t, mk(base ^ (1 << 74), 0x000fe400)).unwrap();
-    assert_eq!(got, "LEA.HI.SX32 R55, R57, 0x1, 0x17");
+    assert_eq!(got, "LEA.HI.X R55, R57, 0x1, RZ, 0x17, !PT");
     let got = decode(&t, mk(base ^ (1 << 75), 0x000fe400)).unwrap();
     assert_eq!(got, "LEA.HI R55, R57, 0x1, RZ, 0x16");
     // fail-closed: b91-cleared witness must not round-trip through any

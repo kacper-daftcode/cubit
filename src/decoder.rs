@@ -376,6 +376,14 @@ impl DecodeIndex {
                 // (direction, type, W, HI) combination of the five forms is a measured row;
                 // fail closed otherwise.
                 "SHF" |
+                // LEA (2026-11-06, tools/probes/re_sm120_lea.py, nvdisasm 13.1 on SM120 / SM103 /
+                // SM100): the family packs .SX32 (b73) and .X (b74) inside the window and names
+                // its sign bits (72, 63) as `neg` / `inv` fields on every row; a sign-tolerant
+                // match let the `.X` row absorb a plain word whose text-inert carry-in bits
+                // [90:87] differ from nvcc's `!PT` (printed `LEA.X R4, R8, R10, 0x1, P2` for
+                // nvdisasm's `LEA R4, R8, R10, 0x1`). Every legal (form, HI, X, SX32, Pd)
+                // combination is a measured row; fail closed otherwise.
+                "LEA" |
                 // BUG-282: I2IP carries a real op-suffix law inside the Rc
                 // sign window (arb282 + arb276b, nvdisasm x4 models):
                 // b74=.SAT b75=.SATRELU on the 0x7239 4-op lattice;

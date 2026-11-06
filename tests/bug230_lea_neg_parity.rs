@@ -118,7 +118,10 @@ fn t230_1_structure_sm120() {
     };
     assert!(has("neg", 1, 72, 2), "neg@72 tok2 missing");
     assert!(has("neg", 1, 63, 3), "neg@63 tok3 missing");
-    assert!(has("reuse", 1, 122, 2) && has("reuse", 1, 123, 3));
+    // 2026-11-06 T-8 (LEA family rebuilt from measurement, tools/probes/re_sm120_lea.py): the measured rows
+    // carry no reuse fields -- `.reuse` on Ra / Rb reaches bits 122 / 123 through the encoder's generic
+    // register slots (the words of t230_2 round-trip them); the sign fields and imm5@75 are as pinned.
+    assert!(!has("reuse", 1, 122, 2) && !has("reuse", 1, 123, 3), "reuse is not a row field since the T-8 rebuild");
     assert!(
         has("imm", 5, 75, 4),
         "imm must stay 5b@75 (231-kand: donor imm6 diverges)"
