@@ -57,6 +57,17 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   `0x<8 hex>D` (the high dword, which is all the word holds; the parser reads it back) and the half lanes under `II`-typed
   tokens as the half's f32 literal; every case re-encodes bit for bit (`tests/a8_nan_payload_lanes.rs`). The display print
   is the vendor's, unchanged.
+- **Tables vendored from blackwell-isa `39bafbb` — NEEDS 44: the `IMMA.SF.16832.U8.U8_R_R_R_R_R_R_UR` hypothesis row
+  (opcode 0x47e, 2026-03-26, no numerical oracle) is the measured `QMMA.SF.16832.F32.UNIDENTIFIED.E8_R_R_R_R_R_R_UR`.**
+  Session R measured the word on sm_120 silicon (2026-11-06, test host GPU 0; cubit-assembled probes next to the documented
+  QMMA.SF E4M3.E4M3 / E2M1.E2M1 forms on identical fragments): it executes, writes fp32, honours the E8M0 block scales
+  (scale 0xff → NaN, scale ×2 → result ×2) and matches neither documented input type (64.0 / 0.0 / 28.0 on A = 0x38,
+  B = 0x40) — an undocumented QMMA.SF-family variant selected by opcode bit 2, input element types unidentified, not an
+  integer MMA. The row carries the family's fields (the hypothesis read R6 at [55:48] and had no UR field — R's first probe
+  on that model scattered garbage), provenance `qmma-sf-opcode-bit2-silicon-2026-11-06` (`nvdisasm_sm120: "no text"`), the
+  old key as an alias (`tests/needs44_qmma_sf_bit2.rs`; the IMMA / U8 claims withdrawn). **The SM120 dynamic audit's
+  replay at this table (`T/audit/dyn23`, 85 873 words): 0 rows with a finding** — the last named exception is gone, and
+  the `nan_glyph` class is empty (A8). KNOWN_ISSUES T1 17 560, T5 closed as measured.
 - **NEEDS 39** — `docs/SCHED_LEGALITY_ORACLE.md` carries the design note for the path-aware verifier walk (blocks, joined
   states, a worklist fixpoint; ~400 lines, a session's work; acceptance criteria) — not implemented, the owner's call.
 

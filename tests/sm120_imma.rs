@@ -144,7 +144,10 @@ fn the_rows_are_the_measured_ones_and_the_harvest_keys_are_gone() {
         assert!(!ins.contains_key(junk), "{junk} retired");
         assert_eq!(raw["_meta"]["key_aliases"][junk], junk.replace("_P_R_R_R_R", "_R_R_R_R").replace("_R_R_R_R_II_?", "_R_R_R_R").replace("_R_R_R_R_?", "_R_R_R_R"));
     }
-    // the sparse / scale-factor keys are another family and stay
+    // the sparse keys are another family and stay; the "IMMA.SF" hypothesis row (opcode 0x47e) was measured on
+    // silicon on 2026-11-06 (NEEDS 44) and is the QMMA.SF opcode-bit-2 variant now, the old key its alias
     assert!(ins.contains_key("IMMA.SP.16832.S8.U8_R_R_R_R_R_II"));
-    assert!(ins.contains_key("IMMA.SF.16832.U8.U8_R_R_R_R_R_R_UR"));
+    assert!(!ins.contains_key("IMMA.SF.16832.U8.U8_R_R_R_R_R_R_UR"));
+    assert!(ins.contains_key("QMMA.SF.16832.F32.UNIDENTIFIED.E8_R_R_R_R_R_R_UR"));
+    assert_eq!(raw["_meta"]["key_aliases"]["IMMA.SF.16832.U8.U8_R_R_R_R_R_R_UR"], "QMMA.SF.16832.F32.UNIDENTIFIED.E8_R_R_R_R_R_R_UR");
 }

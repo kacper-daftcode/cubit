@@ -21,8 +21,10 @@
 //! * `LDG_R_ARURI` ×3 / `STG_ARURI_R` ×3 / `ST_ARURI_R` — the 64-bit-base plain form with base 255 is the
 //!   vendor's degenerate glyph `[???255.64+UR6+0x10]` (the U32 width prints `[RZ.U32+UR6+0x10]` normally)
 //!   → printed text-faithfully like the REDG / ATOMG `.EL` twins (BUG-461 doctrine); the encoder refuses it.
-//! * `IMMA.SF.16832.U8.U8_R_R_R_R_R_R_UR` stays: the documented hypothesis (every probe word rejected), kept
-//!   by the owner's rule for undocumented forms until a numerical oracle on silicon.
+//! * the `IMMA.SF.16832.U8.U8_R_R_R_R_R_R_UR` hypothesis (every probe word rejected by nvdisasm) stayed at T-11 by the
+//!   owner's rule for undocumented forms; on 2026-11-06 R measured the word on sm_120 silicon (NEEDS 44) and the row is
+//!   now the QMMA.SF opcode-bit-2 variant `QMMA.SF.16832.F32.UNIDENTIFIED.E8_R_R_R_R_R_R_UR` with the family's fields
+//!   and a registered `nvdisasm_sm120: "no text"` provenance (the audit's `vendor_unknown` class, no longer a finding).
 
 use cubit::{decoder::DecodeIndex, encoder::encode_instruction, parser::parse_sass, printer::to_sass, table::IsaTable};
 use serde_json::Value;
