@@ -5,7 +5,7 @@
 //! bypassed, never "repairing" an authored order; illegal orders are
 //! refused before any emission.
 
-use cubit::sched::{parse_mode_kind, run_file_cost, CostModel, SchedMode, SchedPlan};
+use cubit::sched::{run_file_cost, CostModel, SchedMode, SchedPlan};
 use cubit::table::IsaTable;
 
 fn table() -> IsaTable {

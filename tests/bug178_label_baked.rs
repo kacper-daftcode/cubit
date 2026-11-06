@@ -156,7 +156,7 @@ fn t178_5_anchor_fixed_point() {
     let t = t103();
     let idx = DecodeIndex::build(&t);
     // canonical +QNAN anchor: full byte-exact round-trip of the text lane.
-    let want = u128::from_str_radix("000fe200048000007fc00000ff077808", 16).unwrap();
+    let _want = u128::from_str_radix("000fe200048000007fc00000ff077808", 16).unwrap();
     let w = enc(&t, "FSEL R7, RZ, +QNAN , !P1 ;").expect("+QNAN admitted");
     assert_eq!((w >> 32) as u32, 0x7FC0_0000, "imm lane");
     let d = idx.decode(w, 0, &t).expect("decode own word");

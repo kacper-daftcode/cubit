@@ -99,7 +99,7 @@ fn t373_1_structure_guard_widen_121a() {
     // rows 16639 -> 16650 (+11 widened; the 375 _P clones inherit the
     // widened guard and add +11 baked-into-16650? no: clones are counted
     // separately below).
-    for (k, e) in ins {
+    for (_k, e) in ins {
         let Some(mgz) = e.get("mod_groups").and_then(|x| x.as_object()) else {
             continue;
         };

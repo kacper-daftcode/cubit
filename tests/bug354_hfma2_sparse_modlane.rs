@@ -471,7 +471,7 @@ fn t354_5_relu_pv_law_x4() {
             "{leg}: pv7 word prints un-elided"
         );
         // pv7+inv1 = '!PT'; pv+inv = '!Pv'
-        let got = dec(&t, (FI | B79 | (7 << 87) | (1 << 90))).unwrap();
+        let got = dec(&t, FI | B79 | (7 << 87) | (1 << 90)).unwrap();
         assert_eq!(
             got, "HFMA2.RELU R2, R3, R4, 0, 0, !PT",
             "{leg}: !PT law drift"

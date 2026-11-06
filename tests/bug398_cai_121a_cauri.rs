@@ -50,7 +50,7 @@ fn t398_1_vendor_law_sm121a() {
     let t = tab("sm121a");
     let idx = DecodeIndex::build(&t);
     for (lo, hi, tag, vendor) in LAW398.iter().chain(LAW398B.iter()) {
-        let got = dec(&t, &idx, ((*lo as u128) | ((*hi as u128) << 64)))
+        let got = dec(&t, &idx, (*lo as u128) | ((*hi as u128) << 64))
             .unwrap_or_else(|| panic!("[sm121a] {tag} fell HOLE -- graft routing lost"));
         assert_eq!(&got, vendor, "[sm121a] {tag} render != vendor x4 law");
     }
@@ -67,7 +67,7 @@ fn t398_2_claim_routing() {
         ROUTE398.iter().map(|(t, k, mg)| (*t, (*k, *mg))).collect();
     for (lo, hi, tag, _v) in LAW398.iter().chain(LAW398B.iter()) {
         let d = idx
-            .decode(((*lo as u128) | ((*hi as u128) << 64)), 0, &t)
+            .decode((*lo as u128) | ((*hi as u128) << 64), 0, &t)
             .unwrap_or_else(|_| panic!("[sm121a] {tag} HOLE in route pin"));
         let (wk, wmg) = route[*tag];
         assert_eq!(
@@ -90,8 +90,8 @@ fn t398_3_decode_text_encode_circle() {
     let idx = DecodeIndex::build(&t);
     for (lo, hi, tag, _v) in LAW398.iter().chain(LAW398B.iter()) {
         let w = ((*lo as u128) | ((*hi as u128) << 64)) & !JUNK_BAND & ((1u128 << 96) - 1);
-        let text = dec(&t, &idx, ((*lo as u128) | ((*hi as u128) << 64))).unwrap();
-        let pw = (*lo as u128) | ((*hi as u128) << 64);
+        let text = dec(&t, &idx, (*lo as u128) | ((*hi as u128) << 64)).unwrap();
+        let _pw = (*lo as u128) | ((*hi as u128) << 64);
         if text.contains("URZ]") || text.contains("URZ+") {
             // bare-URZ const slot stays un-mintable on every leg (t398_5);
             // only the URZ glyph is excluded from the circle.
@@ -123,7 +123,7 @@ fn t398_4_corpus_qcauri_closure() {
             continue;
         }
         n += 1;
-        let got = dec(&t, &idx, ((*lo as u128) | ((*hi as u128) << 64))).unwrap();
+        let got = dec(&t, &idx, (*lo as u128) | ((*hi as u128) << 64)).unwrap();
         assert_eq!(&got, vendor, "[sm121a] {tag} corpus word != vendor");
         assert!(!got.contains('?'), "[sm121a] {tag} still opaque: {got}");
     }
@@ -149,7 +149,7 @@ fn t398_5_postures() {
     let t = tab("sm121a");
     let idx = DecodeIndex::build(&t);
     for (lo, hi, tag) in POSTURE_HOLE398 {
-        assert!(dec(&t, &idx, ((*lo as u128) | ((*hi as u128) << 64))).is_none(),
+        assert!(dec(&t, &idx, (*lo as u128) | ((*hi as u128) << 64)).is_none(),
             "[sm121a] {tag} (400-class pred window) unexpectedly decodes -- close 400 first, don't bend this pin");
     }
     // (b) encode hole REGISTERED CLOSED by BUG-448 (see doc above): mints
@@ -163,7 +163,7 @@ fn t398_5_postures() {
     for (leg, lo, hi, tag, pre_text) in LEGACY_PRE398 {
         let tb = tab(leg);
         let i2 = DecodeIndex::build(&tb);
-        let got = dec(&tb, &i2, ((*lo as u128) | ((*hi as u128) << 64)))
+        let got = dec(&tb, &i2, (*lo as u128) | ((*hi as u128) << 64))
             .unwrap_or_else(|| panic!("[{leg}] {tag} corpus claim lost"));
         assert_eq!(
             &got, pre_text,

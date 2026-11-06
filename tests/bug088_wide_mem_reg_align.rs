@@ -15,7 +15,6 @@
 //! byte-exact fixed points (guard is reject/pass-through, never rewrites).
 //! Scope: sm_103a table only; encoder side; decode untouched.
 
-use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;
 use cubit::table::IsaTable;

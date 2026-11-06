@@ -7,7 +7,7 @@
 //! Zrodla bajtow zlotych: oryginalne sekcje .nv.info.* z
 //! merclab/mkvmem.sm_103a.cubin and merclab/k_sync.cubin.
 
-use cubit::eiattr::{KernelMeta, KernelParam};
+use cubit::eiattr::KernelMeta;
 use cubit::elf_builder::generate_mercury_full;
 
 fn hx(s: &str) -> Vec<u8> {

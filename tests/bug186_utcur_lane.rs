@@ -129,7 +129,7 @@ fn t186_5_encode_trailing_ur_roundtrip() {
 #[test]
 fn t186_6_table_lane_invariants() {
     for p in ["tables/sm103a.json", "tables/sm100a.json"] {
-        let t = tab(p);
+        let _t = tab(p);
         for (key, mg_name) in [
             ("UTCQMMA_II_II_II_II_II_UR_UP", ""), ("UTCQMMA_II_II_II_II_II_UR_UP", "2CTA"),
             ("UTCIMMA_II_II_II_II_II_UR_UP", ""), ("UTCIMMA_II_II_II_II_II_UR_UP", "2CTA"),

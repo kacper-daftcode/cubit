@@ -225,7 +225,7 @@ fn t339_4_fail_closed_residua() {
             "{leg}: B1n2 alias decode (BUG-362)"
         );
     }
-    let t = tab("sm120");
+    let _t = tab("sm120");
     // Post-341 attributed flip (arb341 C-sweep law, x4 vendor AGREE): the
     // era pin S16.NTZ leaves the U8 vendor lane -- pre-341 byte9=0x00 was the
     // D1 silent wrong-code pin (authored 'F2I.S16.NTZ' minted a vendor-U8

@@ -71,7 +71,7 @@ fn bug098_decode_vendor_exact_sm120() {
 fn bug098_roundtrip_word_exact_sm103a() {
     let t = t103();
     let idx = DecodeIndex::build(&t);
-    for &(w, golden) in GOLD {
+    for &(w, _golden) in GOLD {
         let d = idx.decode(w, 0, &t).unwrap();
         let text = cubit::printer::to_sass(&d);
         let insn = parse_sass(&format!("{text} ;"), 0).unwrap();
@@ -85,7 +85,7 @@ fn bug098_roundtrip_word_exact_sm103a() {
 fn bug098_roundtrip_word_exact_sm120() {
     let t = t120();
     let idx = DecodeIndex::build(&t);
-    for &(w, golden) in GOLD {
+    for &(w, _golden) in GOLD {
         let d = idx.decode(w, 0, &t).unwrap();
         let text = cubit::printer::to_sass(&d);
         let insn = parse_sass(&format!("{text} ;"), 0).unwrap();

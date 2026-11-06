@@ -8,7 +8,7 @@
 //! w cublasLt.536) — mini 41471216 obsluguje slownik mini2 (mk40).
 
 use cubit::sass_file::{kernel_def_to_meta, merc_mc_scan, parse_sass_file_str};
-use cubit::ir::{ControlCode, Guard, Instruction};
+use cubit::ir::{ControlCode, Instruction};
 use cubit::sass_file;
 use std::collections::BTreeSet;
 

@@ -153,7 +153,7 @@ fn t443_6_mints() {
 /// their verbatim print texts, noE mgs print STG/.64/.U8/CONSTANT.PRIVATE.
 #[test]
 fn t443_7_noe_key_design() {
-    let t = tab("sm103a");
+    let _t = tab("sm103a");
     let src = cubit::table::read_table_text("tables/sm103a.json").unwrap();
     let v: serde_json::Value = serde_json::from_str(&src).unwrap();
     let mgs = v["instructions"]["STG_ARURI_R"]["mod_groups"]

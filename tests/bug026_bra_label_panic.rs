@@ -1,10 +1,10 @@
 //! BUG-026 (sm120 registry: file 026 / iter87): `cubit asm` panic
 //! "index out of bounds" on a backward branch to a label when the unit has
 //! >=2 LDC/LDCU. Root cause: the opcode-name list for generate_mercury_full
-//! was built from the pre-insertion `def.instructions`, but code from post-insertion
-//! (the uniform backward-branch pad/drain lengthens the stream) — OOB index.
-//! Fix: scoop from `insns_with_ctrl`; generate_mercury_full fails loud on mismatch.
-//! The test goes through the real binary (end-to-end asm flow).
+//! > was built from the pre-insertion `def.instructions`, but code from post-insertion
+//! > (the uniform backward-branch pad/drain lengthens the stream) — OOB index.
+//! > Fix: scoop from `insns_with_ctrl`; generate_mercury_full fails loud on mismatch.
+//! > The test goes through the real binary (end-to-end asm flow).
 
 use std::process::Command;
 

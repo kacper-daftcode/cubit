@@ -1,7 +1,7 @@
 //! b9 phase-1 pins for the PTX gateway (ptx_parse/ptx_map/ptx_opt/ptx_lower).
 //! Doctrine: every behavior here was first observed fail-closed or against a
 //! vendor (ptxas 13.3 sm_103a) anchor — see the internal research archive
-use cubit::ptx_lower::{lower_kernel, sass_label};
+use cubit::ptx_lower::lower_kernel;
 use cubit::ptx_parse::parse_ptx;
 use cubit::table::IsaTable;
 

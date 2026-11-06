@@ -11,7 +11,6 @@
 //!    rekordow regionowych) = park mk29-RE.
 use cubit::eiattr::{KernelMeta, KernelParam};
 use cubit::elf_builder::generate_mercury_full;
-use cubit::ir::{ControlCode, Guard, Instruction};
 use cubit::mercury::{merc_barrier_id, merc_region09_record, CapMerc, McScanText, mc_scan_lines};
 
 fn hex(b: &[u8]) -> String {

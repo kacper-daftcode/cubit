@@ -3,7 +3,6 @@
 //! doctrine, dependency-graph semantics, checker correctness, and the
 //! fail-closed role/class rules.
 
-use cubit::ir::Operand;
 use cubit::parser::parse_sass;
 use cubit::sched::{
     build_graph, fallback_class, parse_mode_kind, run_file, verify_permutation, EdgeClass,

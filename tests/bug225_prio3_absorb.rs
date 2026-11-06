@@ -455,7 +455,7 @@ fn t225_1_armed_bases_no_prio3_self_absorb_x3() {
                     continue; // strict/relaxed/broad still own the flip
                 }
                 if let Ok(d) = idx.decode(w1, 0, &t) {
-                    let cbase = base_of(&d.key).to_string();
+                    let _cbase = base_of(&d.key).to_string();
                     assert!(
                         !(d.key == *k
                             && &d.mod_group == mgn

@@ -21,7 +21,6 @@
 //! allowlist entry removed). Guidance: emit 2x LDC.64 instead.
 //! Decode stays full-fidelity for RE — these are encode-side pins only.
 
-use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;
 use cubit::table::IsaTable;

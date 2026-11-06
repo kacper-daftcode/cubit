@@ -93,7 +93,7 @@ fn t146_4_integral_and_small_sci_forms_unchanged() {
     let s = dec(&t, &idx, w);
     assert_eq!(s.split(';').next().unwrap().trim(), "FCHK P0, |R5|, 10");
     // exponent < 0 trims (regression arm of format_g20)
-    let w2 = (0x3400000000007823u128); // FFMA R0,R0,2^-23,R0
+    let w2 = 0x3400000000007823u128; // FFMA R0,R0,2^-23,R0
     let s2 = dec(&t, &idx, w2);
     assert!(s2.contains("1.1920928955078125e-07"), "trim arm changed: {s2}");
 }
@@ -107,6 +107,6 @@ fn t146_5_fchk_fi_row_int_text_still_routes_value_semantics() {
     assert_eq!(enc(&t, "FCHK P0, R21, 6890499"),
                (0x4ad2480615007902u128) | (0x0u128 << 64));
     let idx = DecodeIndex::build(&t);
-    let w = (0x4ad2480615007902u128);
+    let w = 0x4ad2480615007902u128;
     assert!(dec(&t, &idx, w).contains("6890499"));
 }

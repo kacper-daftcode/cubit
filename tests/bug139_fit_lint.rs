@@ -182,7 +182,7 @@ fn t139_5_cli_warn_mode_logs_and_preserves_payload() {
         (r.status.success(), String::from_utf8_lossy(&r.stderr).into_owned(),
          std::fs::read(&out).ok())
     };
-    let (ok_w, err_w, cubin_w) = run(Some("warn"));
+    let (ok_w, err_w, _cubin_w) = run(Some("warn"));
     let (ok_n, err_n, cubin_n) = run(None);
     // BUG-389: default mode fail-closes on the cm16 window misfit line
     assert!(!ok_n, "BUG-389: default mode must fail closed on the cm16 sign-window mint");
