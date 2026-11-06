@@ -6159,10 +6159,17 @@ fn apply_branch_encoding(
     // the SM120 dword-split layout (which lands the offset at [23:16]+[63:32]).
     // sm_103a: BRA.DIV also uses the REL16 layout (imm16@([23:18]|[43:34]),
     // mod_bits=2 at [33:32]) — fitted on 14,924 corpus-gap samples (GF2 exact).
+    // 2026-11-06 (T-10): BRA is no longer routed through the sm_103a REL16 arm. nvdisasm 13.1
+    // `-b SM103` / `-b SM100` render every word of the measured BRA family (551 probe words,
+    // tests/fixtures/sm103a_bra_nvdisasm.jsonl) exactly as `-b SM120` does: the target is the
+    // 56-bit dword offset at [23:16] + [81:34] of the dword-split path below. The REL16 arm's
+    // 21-bit `rq` (sign extension into [63:49], [81:64] untouched) is a sub-case of that law --
+    // identical for every 16-byte-aligned target within 2^24 bytes, which is why the 14 924 corpus
+    // samples fitted both -- and wrong beyond it (`BRA.DIV 0x200000000000000` re-encoded with
+    // [81:64] clear).
     let rel_mod = mod_group
         .split(',')
-        .any(|m| m == "REL" || m == "COLLECTIVE")
-        || (op == "BRA" && mod_group.split(',').any(|m| m == "DIV" || m == "CONV"));
+        .any(|m| m == "REL" || m == "COLLECTIVE");
     // b9 phase-3 #7: WARPSYNC.COLLECTIVE.ALL `(L)` (no register membermask)
     // is the same REL16 shape as the R-form -- vendor anchors cl1 prove
     // imm=(target-addr-16)>>4 for both; the gate is "has a resolved target",
@@ -6171,7 +6178,6 @@ fn apply_branch_encoding(
         && rel_mod
         && (op == "CALL"
             || op.starts_with("RET")
-            || op == "BRA"
             || (op == "WARPSYNC"
                 && (insn.operands.iter().any(|o| matches!(o, Operand::Reg { .. }))
                     || find_branch_target(insn).is_some())))
@@ -6193,7 +6199,7 @@ fn apply_branch_encoding(
                 (((rq21 as u128) >> 16) & 0x1F) | if rq21 & 0x10_0000 != 0 { 0xF_FFE0 } else { 0 };
             code = (code & !(0x000F_FFFF_u128 << 44)) | (hi20 << 44);
         }
-        if op == "WARPSYNC" || op == "BRA" {
+        if op == "WARPSYNC" {
             return code;
         }
         // fall through for CALL/RET: RET register placement below still applies
@@ -6270,23 +6276,30 @@ fn apply_branch_encoding(
             }
             return code;
         }
-        // BRXU.U URn, imm (dispatch-table form, two operands): the imm token
-        // is a raw byte offset — legacy semantics, legacy layout.
-        if let Some(Operand::Imm32(offset)) = insn.operands.get(1) {
+        // `[Pn, ]Rn <off>` / `[Pn, ]URn <off>`: the register-relative byte offset is the immediate
+        // operand after the register (the predicate operand of the measured `_P_` keys precedes it,
+        // 2026-11-06, tools/probes/re_sm120_brx_ret.py). Measured layout (sm_120, nvdisasm 13.1,
+        // identical on -b SM103 / SM100): a signed 56-bit dword at [23:16] (bits 9:2) + [81:34]
+        // (bits 57:10); the mode bits [33:32] (`.U` / `.DIV` / `.CONV` of BRXU) are the row's and
+        // stay untouched -- the old write of a 32-bit `t32` into [63:32] cleared them, and the
+        // blanket sign fill of [81:64] for a negative offset was wrong below -2^40.
+        let reg_pos = insn.operands.iter().position(|o| matches!(o, Operand::Reg { .. } | Operand::UReg { .. }));
+        if let Some(Operand::Imm32(offset)) = reg_pos.and_then(|i| insn.operands.get(i + 1)) {
             let rq = if *offset >= 0 {
                 *offset >> 2
             } else {
                 -((-*offset) >> 2)
             };
+            if sm120 {
+                let rq56 = (rq as u64) & ((1u64 << 56) - 1);
+                code = (code & !(0xFF_u128 << 16)) | (((rq56 & 0xFF) as u128) << 16);
+                code = (code & !(0xFFFF_FFFF_FFFF_u128 << 34)) | ((((rq56 >> 8) & 0xFFFF_FFFF_FFFF) as u128) << 34);
+                return code;
+            }
             code = (code & !(0xFF_u128 << 16)) | (((rq & 0xFF) as u128) << 16);
             let t32 = (((rq >> 8) << 2) as u64) & 0xFFFFFFFF;
             code = (code & !(0xFFFFFFFF_u128 << 32)) | ((t32 as u128) << 32);
-            if sm120 && op == "BRXU" {
-                // Upper18 are real signed q56 payload, not a blanket sign
-                // fill: offsets below -2^40 can have zero bits here too.
-                code = (code & !(0x3ffff_u128 << 64))
-                    | ((((rq >> 38) as u128) & 0x3ffff) << 64);
-            } else if *offset < 0 {
+            if *offset < 0 {
                 code |= 0x3FFFF_u128 << 64;
             }
             return code;
@@ -6330,7 +6343,7 @@ fn apply_branch_encoding(
     // BRA/CALL/JMP/RET: dword-split encoding (SM120 layout; on sm_103a the
     // REL forms were already handled above and must not be double-written)
     let sm103a_rel_done =
-        sm103a && rel_mod && (op == "CALL" || op.starts_with("RET") || op == "BRA");
+        sm103a && rel_mod && (op == "CALL" || op.starts_with("RET"));
     if let Some(target) = find_branch_target(insn).filter(|_| !sm103a_rel_done) {
         let is_abs = mod_group.split(',').any(|m| m == "ABS");
         if !is_abs {

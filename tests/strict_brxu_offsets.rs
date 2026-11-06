@@ -30,7 +30,10 @@ fn native_q56_offsets_match_nvidia_complete_words_and_editable_source() {
         let bytes = encode_semantic_source(&source(sass), table).unwrap();
         assert_eq!(bytes, word.to_le_bytes(), "{sass}");
         let decoded = index.decode(word, 0, table).unwrap();
-        assert_eq!(cubit::printer::to_sass_lossless(&decoded), sass);
+        // 2026-11-06 (T-10, the measured BRX/BRXU/RET family): the print is the vendor's text --
+        // register and offset as one operand, no comma (`BRXU URZ 0x5020`); the comma spelling
+        // of the `sass` column stays accepted on input (the encode above).
+        assert_eq!(cubit::printer::to_sass_lossless(&decoded), row["nvidia_sass"].as_str().unwrap());
         let mut failures = Vec::new();
         let (report, emitted) = audit_kernel(
             ".text.brxu", 0, &bytes, table, &index,

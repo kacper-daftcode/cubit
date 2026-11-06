@@ -23,6 +23,30 @@ process. Each word is then classified:
                         from (recorded, not a defect by itself)
   reuse_inert           same text, re-encode differs only in control-code / reuse bits [127:105]
                         (text-inert for both oracles; not a row defect)
+  reuse_rejected        nvdisasm rejects the word because a reuse bit [124:122] sits on a slot that
+                        holds no register; with the reuse bits cleared nvdisasm names the word with
+                        the text cubit prints for it. The BUG-362a / KNOWN_ISSUES A12 class: on silicon
+                        the bit is inert (F2I measured 2026-11-03), nvdisasm is a text oracle only
+                        (owner 2026-11-03) -- not a row defect. Measured per word (one nvdisasm call
+                        on the stripped word; the verdicts are kept in words.jsonl as `nvidia_sass_noreuse`).
+  inert_failclosed      nvdisasm names the word, cubit decodes nothing for it, and cubit ASSEMBLES the
+                        vendor's text to a different word that nvdisasm names with the same text
+                        (`vendor_encode` from examples/audit_words.rs, one nvdisasm call on the
+                        assembled word, kept as `nvidia_sass_of_vendor_encode`). The bits in which the
+                        two words differ are text-inert for the vendor; the measured rows fail closed
+                        on them -- the convention of every measured family (LEA, SHF, BRA, ...;
+                        KNOWN_ISSUES T1), not a defect.
+  nan_glyph             both texts agree and carry the vendor's `+/-QNAN` / `SNAN` glyph, which drops
+                        the NaN payload; the glyph is not re-encodable by design (KNOWN_ISSUES A8: the
+                        parser parks QNAN -- bimodal payload lanes; the owner's 2026-11-04 print
+                        policy keeps it) -- documented, not counted
+  vendor_invalid        nvdisasm's text carries an `INVALIDn` / `???n` glyph: the vendor marks the
+                        encoding invalid (an undefined enum value). cubit decoding NOTHING for it is
+                        the fail-closed answer (counted here, not a defect); cubit printing the SAME
+                        text (the harvest keys that carry the glyph in their mnemonic, e.g.
+                        `QMMA.SP.INVALID0.F16.E2M3.E2M3`) is `ok` -- a faithful rendering of what the
+                        vendor prints; cubit printing a valid-looking text for it stays
+                        `cubit_decodes_illegal` (the row claims an invalid word).
   --replay words_in.jsonl re-runs cubit and the classification on an earlier run's words and
   nvdisasm texts (words of rows that left the table are skipped).
 
@@ -222,23 +246,71 @@ def vendor_unknown_rows(table):
     return rows
 
 
+REUSE_MASK = 7 << 122
+
+
+def vendor_invalid_text(text):
+    return text is not None and ("INVALID" in text or "???" in text)
+
+
 def classify(args, words_out, table):
     classes = collections.Counter()
     per_row = collections.defaultdict(collections.Counter)
     findings = []
     unknown_rows = vendor_unknown_rows(table)
-    for line in open(words_out):
-        it = json.loads(line)
+    items = [json.loads(line) for line in open(words_out)]
+    # `reuse_rejected`: nvdisasm's verdict on the reuse-stripped word, measured once and kept;
+    # `inert_failclosed`: nvdisasm's verdict on cubit's assembly of the vendor text, likewise
+    scratch = None
+    for it in items:
+        nv, ct = it.get("nvidia_sass"), it.get("cubit_text")
+        if nv is None and ct is not None and (int(it["word"], 16) & REUSE_MASK) and "nvidia_sass_noreuse" not in it:
+            if scratch is None:
+                scratch = tempfile.mkdtemp(prefix="audit_dyn_noreuse_")
+            stripped = int(it["word"], 16) & ~REUSE_MASK
+            it["nvidia_sass_noreuse"] = nvdisasm_one(args.nvdisasm, stripped & ~SCHEDULE_MASK, stripped & SCHEDULE_MASK, scratch)
+        ve = it.get("vendor_encode")
+        if nv is not None and ct is None and ve and not ve.startswith("error") and "nvidia_sass_of_vendor_encode" not in it:
+            if scratch is None:
+                scratch = tempfile.mkdtemp(prefix="audit_dyn_noreuse_")
+            w2 = int(ve, 16)
+            if w2 == int(it["word"], 16):
+                it["nvidia_sass_of_vendor_encode"] = nv  # same word: not a miss of inert bits (kept as decode_miss below)
+            else:
+                it["nvidia_sass_of_vendor_encode"] = nvdisasm_one(args.nvdisasm, w2 & ~SCHEDULE_MASK, w2 & SCHEDULE_MASK, scratch)
+    for it in items:
         nv, ct = it.get("nvidia_sass"), it.get("cubit_text")
         if nv is None and ct is None:
             cls = "both_reject"
         elif nv is None:
             decoded_by = (it.get("cubit_key"), it.get("cubit_group"))
-            cls = "vendor_unknown" if decoded_by in unknown_rows else "cubit_decodes_illegal"
+            stripped_text = it.get("nvidia_sass_noreuse")
+            if decoded_by in unknown_rows:
+                cls = "vendor_unknown"
+            elif stripped_text is not None and normalise(stripped_text) == normalise(ct):
+                cls = "reuse_rejected"
+            else:
+                cls = "cubit_decodes_illegal"
         elif ct is None:
-            cls = "decode_miss"
+            ve = it.get("vendor_encode", "")
+            ve_text = it.get("nvidia_sass_of_vendor_encode")
+            if vendor_invalid_text(nv):
+                cls = "vendor_invalid"
+            elif ve and not ve.startswith("error") and int(ve, 16) != int(it["word"], 16) \
+                    and ve_text is not None and normalise(ve_text) == normalise(nv):
+                cls = "inert_failclosed"
+            else:
+                cls = "decode_miss"
+        elif vendor_invalid_text(nv) and normalise(nv) != normalise(ct):
+            cls = "cubit_decodes_illegal"  # a valid-looking text for a word the vendor marks invalid
         elif normalise(nv) != normalise(ct):
             cls = "text_mismatch"
+        elif it.get("reencode") != "ok" and ("QNAN" in nv or "SNAN" in nv):
+            # the texts agree and carry the vendor's NaN glyph, which drops the payload: the owner's
+            # print policy (2026-11-04, KNOWN_ISSUES A8) keeps the glyph on these lanes; the glyph is
+            # not re-encodable by design (the parser parks QNAN: bimodal payload lanes) -- documented,
+            # not counted
+            cls = "nan_glyph"
         elif it.get("reencode") != "ok":
             cls = "reencode_mismatch"
             re = it["reencode"]
@@ -254,8 +326,9 @@ def classify(args, words_out, table):
         it["class"] = cls
         classes[cls] += 1
         per_row[(it["key"], it["group"])][cls] += 1
-        if cls not in ("ok", "both_reject", "other_row", "reuse_inert", "vendor_unknown"):
+        if cls not in ("ok", "both_reject", "other_row", "reuse_inert", "vendor_unknown", "reuse_rejected", "inert_failclosed", "vendor_invalid", "nan_glyph"):
             findings.append(it)
+    words_out.write_text("".join(json.dumps(it) + "\n" for it in items))
     (args.out / "dynamic_findings.jsonl").write_text("".join(json.dumps(f) + "\n" for f in findings))
     print("classes:", dict(classes))
     bad_rows = {r: c for r, c in per_row.items() if any(k in c for k in ("text_mismatch", "decode_miss", "cubit_decodes_illegal", "reencode_mismatch"))}

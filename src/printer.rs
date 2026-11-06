@@ -206,6 +206,55 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
             };
             return format!("{guard_prefix}{opcode} {upred_str}, 0x{target:x}");
         }
+        // The measured BRX / BRXU / RET family (`brx-ret-family-2026-11-06`, tools/probes/
+        // re_sm120_brx_ret.py, nvdisasm 13.1): eight keys `{BRX,BRXU,RET}[_P]_{R,UR}_II` whose rows
+        // carry the 56-bit dword offset as `imm_shr2@16` + `imm_shr10@34`. The vendor spells the
+        // register and the target as ONE operand (`BRX R8 -0x3f00`, `RET.REL.NODEC R2 0x0`,
+        // `BRXU.U !P4, UR8 0x100`): no comma between them; a predicate operand precedes with a
+        // comma; BRX / BRXU print the offset relative to the register (`off * 4`, elided when 0),
+        // RET.REL the absolute target (PC + 16 + off * 4), RET.ABS `off * 4` always.
+        if matches!(branch_base, "BRX" | "BRXU" | "RET")
+            && matches!(
+                insn.key.as_str(),
+                "BRX_R_II" | "BRX_P_R_II" | "BRXU_UR_II" | "BRXU_P_UR_II"
+                    | "RET_R_II" | "RET_P_R_II" | "RET_UR_II" | "RET_P_UR_II"
+            )
+            && insn.fields.iter().any(|f| f.extraction == "imm_shr10" && f.shift == 34 && f.bits == 48)
+            && insn.fields.iter().any(|f| f.extraction == "imm_shr2" && f.shift == 16 && f.bits == 8)
+        {
+            let mut head = String::new();
+            if insn.key.contains("_P_") {
+                let p = ((insn.raw_code >> 87) & 0x7) as u8;
+                let n = ((insn.raw_code >> 90) & 1) as u8;
+                if !(p == 7 && n == 0) {
+                    head = format!("{}{}, ", if n == 1 { "!" } else { "" }, if p == 7 { "PT".to_string() } else { format!("P{p}") });
+                }
+            }
+            let reg = ((insn.raw_code >> 24) & 0xff) as u8;
+            let uniform = insn.key.contains("_UR_");
+            let reg_s = match (uniform, reg) {
+                (true, 255) => "URZ".to_string(),
+                (true, n) => format!("UR{n}"),
+                (false, 255) => "RZ".to_string(),
+                (false, n) => format!("R{n}"),
+            };
+            let is_ret_rel = branch_base == "RET" && !insn.mod_group.split(',').any(|m| m == "ABS");
+            let tgt = if is_ret_rel {
+                format!(" {}", signed_branch_target(insn))
+            } else {
+                let low = (insn.raw_code >> 16) & 0xff;
+                let high = (insn.raw_code >> 34) & 0xffff_ffff_ffff;
+                let off = sign_extend((low | (high << 8)) as u64, 56) << 2;
+                if off == 0 && branch_base != "RET" {
+                    String::new()
+                } else if off < 0 {
+                    format!(" -0x{:x}", -off)
+                } else {
+                    format!(" 0x{off:x}")
+                }
+            };
+            return format!("{guard_prefix}{opcode} {head}{reg_s}{tgt}");
+        }
         // The canonical SM120 indirect branch rows describe a register plus
         // a signed byte offset, without the PC adjustment of direct branches.
         if (branch_base == "BRX" && insn.key == "BRX_R_II")
@@ -457,6 +506,7 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
                 raw,
                 insn.ef_flags,
                 all_reuse,
+                &insn.fields,
             )
         };
         // BUG-255: an f64 special literal (+/-INF, +/-QNAN via the f64hi
@@ -1099,8 +1149,9 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     if base == "MEMBAR" && matches!(m, "SC" | "ALL") {
         return 0;
     }
-    // BRA (measured 2026-11-06, tools/probes/re_sm120_bra.py): `BRA[.INC|.DEC][.U|.DIV|.CONV][.ANY][.NOT_TID0]`.
-    if base == "BRA" {
+    // BRA (measured 2026-11-06, tools/probes/re_sm120_bra.py): `BRA[.INC|.DEC][.U|.DIV|.CONV][.ANY][.NOT_TID0]`;
+    // BRXU the same (`BRXU.INC.DIV`, tools/probes/re_sm120_brx_ret.py).
+    if base == "BRA" || base == "BRXU" {
         match m {
             "INC" | "DEC" => return 0,
             "U" | "DIV" | "CONV" => return 1,
@@ -1583,6 +1634,7 @@ fn format_operand(
     raw: u128,
     ef_flags: u32,
     lossless: bool,
+    all_fields: &[DecodedField],
 ) -> String {
     match op_type {
         // R/UR type: when the field has imm extraction instead of reg/ureg
@@ -1704,6 +1756,9 @@ fn format_operand(
         // elide it (iter83 census: 2,183 LDGSTS + 5 STAS machine anchors,
         // zero vendor `+URZ`; nvdisasm arb179 D/E). Self-guarded on the raw
         // window so relaxed/broad fallback matches stay legacy-shaped.
+        // 2026-11-06 (audit): the window must really be the baked sink -- when a register operand
+        // of the row lives at [71:64] (`ATOMS.CAST.SPIN PT, [R7+0x10], R8, RZ`: the fourth operand),
+        // its RZ is an operand, not a uniform sink, and the vendor prints no `+URZ`.
         "ARI"
             if (ins_key.starts_with("SYNCS") || ins_key.starts_with("ATOMS"))
                 && !fields.iter().any(|f| {
@@ -1712,6 +1767,7 @@ fn format_operand(
                         "sub_ur0" | "sub_ur1" | "ureg"
                     )
                 })
+                && !all_fields.iter().any(|f| f.shift == 64 && f.bits == 8 && norm_ext(&f.extraction) == "reg")
                 && ((raw >> 64) & 0xFF) == 0xFF =>
         {
             format_syncs_ari(fields, raw, ins_key)
@@ -3342,6 +3398,36 @@ fn format_addr(fields: &[&DecodedField], raw: u128, signed_elide: bool) -> Strin
 /// BUG-179/157: format_addr plus a spliced `+URZ` for ARI rows whose uniform
 /// window is a baked sink constant (see the dispatch arm above).
 fn format_syncs_ari(fields: &[&DecodedField], raw: u128, ins_key: &str) -> String {
+    // An RZ base prints as the uniform sink alone (2026-11-06, nvdisasm 13.1 `-b SM120`:
+    // `SYNCS.ARRIVE.TRANS64.A1T0 R4, [URZ+0x10], R8`, `… [URZ], R8`, `… [URZ+-0x800000], R8`),
+    // never `[0x10+URZ]` / `[RZ+URZ]`; a negative offset carries the family's `+-0x` glyph.
+    let mut base: Option<u64> = None;
+    let mut offset: i64 = 0;
+    let mut has_off = false;
+    for f in fields {
+        let e = norm_ext(&f.extraction);
+        match e.as_str() {
+            "sub_r0" | "sub_r1" => base = Some(f.value),
+            "reg" if base.is_none() => base = Some(f.value),
+            s if s.starts_with("sub_imm") => {
+                offset |= sub_imm_off(s, f.value, f.bits);
+                has_off = true;
+            }
+            _ => {}
+        }
+    }
+    if base == Some(255) {
+        let off_s = if has_off && offset != 0 {
+            if offset < 0 {
+                format!("+-0x{:x}", (-offset) as u64)
+            } else {
+                format!("+0x{offset:x}")
+            }
+        } else {
+            String::new()
+        };
+        return format!("[URZ{off_s}]");
+    }
     let s = format_addr(fields, raw, rz_signed_elide(ins_key));
     let Some(inner) = s.strip_prefix('[').and_then(|x| x.strip_suffix(']')) else {
         return s;
@@ -3771,7 +3857,10 @@ fn format_syncs_addr(fields: &[&DecodedField]) -> String {
     };
     let off_s = if has_off && offset != 0 {
         if offset < 0 {
-            format!("-0x{:x}", (-offset) as u64)
+            // nvdisasm's glyph for a negative UR-indexed offset is `+-0x..` on this family too
+            // (2026-11-06, `SYNCS.ARRIVE.TRANS64.RED R4, [R7+UR6+-0x1], R8`), as on the
+            // descriptor forms (`desc[UR6][R2.64+-0x80]`).
+            format!("+-0x{:x}", (-offset) as u64)
         } else {
             format!("+0x{offset:x}")
         }
@@ -4494,9 +4583,13 @@ fn format_double(f: f64, neg: bool) -> String {
         };
         return format!("{sneg}{kind} ");
     }
+    // Zero prints as nvdisasm prints it (2026-11-06, nvdisasm 13.1 `-b SM120` on the DFMA / MUFU.RCP64H
+    // f64hi window): `0` for +0.0, `-0.0` for a negative zero (sign bit 63 or an explicit neg field).
+    // The historical arm returned "1" for every zero immediate ("integer 1 used as double constant"),
+    // which printed `DFMA R4, R6, R8, 1` for a word whose immediate is 0 and re-encoded it as 1.0.
     if f == 0.0 {
-        return "1".to_string();
-    } // integer 1 used as double constant
+        return if neg != f.is_sign_negative() { "-0.0".to_string() } else { "0".to_string() };
+    }
     if f == f.trunc() && f.abs() < 16_777_216.0 {
         return format!("{neg_s}{}", f as i64);
     }

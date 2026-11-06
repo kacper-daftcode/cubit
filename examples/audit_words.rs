@@ -36,6 +36,22 @@ fn main() -> Result<()> {
         match index.decode(word, 0, &table) {
             Err(e) => {
                 item["cubit_error"] = Value::String(e.to_string());
+                // 2026-11-06 (T-10): for a word cubit does not decode but nvdisasm names, assemble
+                // the vendor's text (with the word's control code) -- the audit's `inert_failclosed`
+                // class compares the result with the probe word (bits the vendor text does not carry
+                // are text-inert; the measured rows fail closed on them by convention).
+                if let Some(nv) = item.get("nvidia_sass").and_then(Value::as_str).map(str::to_string) {
+                    let ctrl = cubit::scheduling::decode_sched_upper32((word >> 96) as u32);
+                    let source = format!("[{}] {nv} ;", cubit::scheduling::format_control_code(&ctrl));
+                    let encoded = (|| -> Result<u128> {
+                        let parsed = cubit::parse_cuasm_line(&source, 0)?;
+                        cubit::encoder::encode_instruction(&parsed, &table)
+                    })();
+                    item["vendor_encode"] = Value::String(match encoded {
+                        Ok(w) => format!("{w:032x}"),
+                        Err(e) => format!("error:{}", e.to_string().lines().next().unwrap_or("")),
+                    });
+                }
             }
             Ok(d) => {
                 decoded_n += 1;

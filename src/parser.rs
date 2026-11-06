@@ -622,7 +622,8 @@ pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
         // "R20 0x60" → "R20, 0x60"  (space between reg and target)
         // Also handles: "UR8 -0x144b0" and negative offsets
         static RE_BRANCH_SPACE: LazyLock<Regex> = LazyLock::new(|| {
-            Regex::new(r"(U?R\d+)\s+(-?0x[0-9a-fA-F]+|-?\d+)").unwrap()
+            // `RZ` / `URZ` too (`BRX RZ 0x100`, `RET.REL URZ 0x110` -- nvdisasm 13.1, 2026-11-06).
+            Regex::new(r"(U?R(?:\d+|Z))\s+(-?0x[0-9a-fA-F]+|-?\d+)").unwrap()
         });
         operands_str = RE_BRANCH_SPACE.replace(&operands_str, "$1, $2").to_string();
     }
@@ -694,6 +695,16 @@ pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
             }
             operands.push(op);
         }
+    }
+
+    // BRX / BRXU with a register and no offset: nvdisasm elides a zero offset (`BRX R8`,
+    // `BRXU.U UR4`; measured 2026-11-06, tools/probes/re_sm120_brx_ret.py). The operand is the
+    // register-relative byte offset 0 -- make it explicit so the text resolves to the `_R_II` /
+    // `_UR_II` keys like every other spelling of the family.
+    if (base_op == "BRX" || base_op == "BRXU")
+        && matches!(operands.last(), Some(Operand::Reg { .. }) | Some(Operand::UReg { .. }))
+    {
+        operands.push(Operand::Imm32(0));
     }
 
     // Build InsKey
