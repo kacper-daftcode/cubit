@@ -87,6 +87,21 @@ fn store_data_gprs(insn: &Instruction) -> Vec<u8> {
         .map(|(_, r)| r as u8).collect()
 }
 
+/// Data GPRs of an atomic / reduction (`Rb`, and `Rc` of CAS, at the access width) — latched
+/// asynchronously after issue exactly like a store's data (BUG-482: ptxas tags every
+/// `ATOMS.MAX.S32 RZ, [R157+UR7+0x15100], R58` of the sparse-MLA kernels with a read barrier;
+/// cubit protected only the address registers of the family). A later writer of one of these
+/// before the latch is a WAR the overwriter must wait.
+fn atom_data_gprs(insn: &Instruction) -> Vec<u8> {
+    let op = insn.opcode.as_str();
+    if !(is_atom_with_return(op) || is_reduction(op)) { return Vec::new(); }
+    let bases: Vec<u8> = mem_addr_base_regs(insn).into_iter()
+        .filter(|(u, _)| !*u).map(|(_, r)| r).collect();
+    src_regs(insn).into_iter()
+        .filter(|(u, r)| !*u && *r < PRED_KEY && !bases.contains(&(*r as u8)))
+        .map(|(_, r)| r as u8).collect()
+}
+
 /// Source GPRs a warp-cooperative MMA (QMMA/HMMA/IMMA/DMMA) latches over its long
 /// multi-cycle read window after issue: A/B fragments, the C accumulator and the QMMA.SF
 /// scale-factor registers. Exactly the store-data situation: a later writer of one of
@@ -936,10 +951,80 @@ impl SchedulerState {
 
 // ── Operand extraction helpers ───────────────────────────────────────────────
 
+/// Atomics with a register return: `ATOM` / `ATOMG` (global) and `ATOMS` (shared).
+/// `RED` / `REDG` are the reductions without a return (see `is_reduction`).
+fn is_atom_with_return(op: &str) -> bool {
+    matches!(op, "ATOM" | "ATOMG" | "ATOMS")
+}
+
+/// Reductions: `RED.E.ADD.STRONG.GPU desc[UR4][R2.64], R7` — operand 0 is the ADDRESS,
+/// operand 1 the data; there is no destination (BUG-482: the generic skip-1 source rule
+/// used to drop the address registers of a reduction).
+fn is_reduction(op: &str) -> bool {
+    matches!(op, "RED" | "REDG")
+}
+
+/// BUG-482 (KNOWN_ISSUES A17): index of the register destination of an atomic with a
+/// register return. The family prints `[Pd,] Rd, [addr], Rb[, Rc]`; nvcc's shape carries
+/// the predicate destination first (`ATOMG.E.ADD.STRONG.GPU PT, R6, desc[UR4][R2.64], R7`),
+/// so `Rd` is operand 1 whenever operand 0 is a predicate. `ATOMS.CAST.SPIN P0, [R2], R4,
+/// R5` has a predicate result and no register result → `None`. Mirrors the "atom" role
+/// class of `reg_liveness.rs` (the first register operand is the destination). Before
+/// the fix `dest_regs` took operand 0 — the predicate — so `Rd` had no producer, the write
+/// barrier the long-latency class requests was dropped as waiter-less, and a consumer of
+/// `Rd` read the register before the atomic returned (silicon: wrong old values,
+/// `T/gpu/kernels/atomg_*.sass`, 2026-11-05).
+fn atom_rd_index(insn: &Instruction) -> Option<usize> {
+    if !is_atom_with_return(insn.opcode.as_str()) {
+        return None;
+    }
+    match (insn.operands.first(), insn.operands.get(1)) {
+        (Some(Operand::Reg { .. }), _) => Some(0),
+        (Some(Operand::Pred { .. }), Some(Operand::Reg { .. })) => Some(1),
+        _ => None,
+    }
+}
+
+/// Access width of an atomic / reduction in 32-bit registers, from the opcode modifiers:
+/// `.64` / `.S64` / `.U64` / `.F64` / `.F32x2` / `.F16x4` = a pair, `.128` / `.F32x4` /
+/// `.F16x8` = a quad, else one register. Both the destination and the data operands
+/// (`Rb`, and `Rc` of CAS) are read/written at this width.
+fn atom_access_regs(opcode_full: &str) -> u16 {
+    let has = |m: &str| opcode_full.contains(m);
+    if has(".128") || has(".F32x4") || has(".F16x8") {
+        4
+    } else if has(".64") || has(".S64") || has(".U64") || has(".F64") || has(".F32x2") || has(".F16x4") {
+        2
+    } else {
+        1
+    }
+}
+
 fn dest_regs(insn: &Instruction) -> Vec<(bool, u16)> {
     let mut out = Vec::new();
     let op = insn.opcode.as_str();
     if is_store(op) || is_control_flow(op) || is_barrier_insn(op) {
+        return out;
+    }
+    // BUG-482: the ATOM family — `Rd` is the first REGISTER operand (operand 1 behind a
+    // predicate destination), spanning the access width; a real predicate destination
+    // (`Pn`, not `PT`) is a result too. Nothing else of the instruction is written.
+    if is_atom_with_return(op) {
+        if let Some(idx) = atom_rd_index(insn) {
+            if let Some(Operand::Reg { num, .. }) = insn.operands.get(idx) {
+                if *num < 255 {
+                    for r in 0..atom_access_regs(&insn.opcode_full) {
+                        if (*num as u16) + r < 255 { out.push((false, *num as u16 + r)); }
+                    }
+                }
+            }
+        }
+        if let Some(Operand::Pred { num, .. }) = insn.operands.first() {
+            if *num < 7 { out.push((false, PRED_KEY + *num as u16)); }
+        }
+        return out;
+    }
+    if is_reduction(op) {
         return out;
     }
     if let Some(first) = insn.operands.first() {
@@ -1050,7 +1135,11 @@ fn src_regs(insn: &Instruction) -> Vec<(bool, u16)> {
     };
     // BUG-101: .256 loads name TWO dest base registers (each a 128-bit quad);
     // the second leading Reg is a destination, not a source.
-    let start = if is_store(op) { 0 }
+    // BUG-482: a reduction's operand 0 is its ADDRESS (a source); an atomic with a
+    // register return starts its sources after `Rd` (operand 1 behind a `Pd`); the
+    // predicate-only `ATOMS.CAST.SPIN Pd, [addr], …` starts after `Pd` like everything else.
+    let start = if is_store(op) || is_reduction(op) { 0 }
+        else if let Some(rd) = atom_rd_index(insn) { rd + 1 }
         else if insn.opcode_full.contains(".256")
             && matches!(insn.operands.first(), Some(Operand::Reg { .. }))
             && matches!(insn.operands.get(1), Some(Operand::Reg { .. })) { 2 }
@@ -1070,6 +1159,12 @@ fn src_regs(insn: &Instruction) -> Vec<(bool, u16)> {
                     };
                     for r in 1..width {
                         if *num + r < 255 { out.push((false, *num as u16 + r as u16)); }
+                    }
+                } else if is_atom_with_return(op) || is_reduction(op) {
+                    // BUG-482: the data operands of an atomic / reduction (`Rb`, and `Rc`
+                    // of CAS) are read at the access width — `.64` forms read a pair.
+                    for r in 1..atom_access_regs(&insn.opcode_full) {
+                        if (*num as u16) + r < 255 { out.push((false, *num as u16 + r)); }
                     }
                 } else if is_store(op) {
                     // Store data operand spans multiple regs for wide stores:
@@ -3055,7 +3150,11 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
             // over-allocates the PV-loop scoreboards (recycle pressure → wrong at 2 CTAs/SM).
             let dests = dest_gprs(&insns[idx]);
             let a = load_addr_gprs(&insns[idx]);
-            if a.iter().any(|x| dests.contains(x)) { Vec::new() } else { a }
+            let mut v = if a.iter().any(|x| dests.contains(x)) { Vec::new() } else { a };
+            // BUG-482: an atomic / reduction latches its DATA late like a store (ptxas: a
+            // read barrier on every `ATOMS.MAX.S32 RZ, [..], R58`); protect it too.
+            for r in atom_data_gprs(&insns[idx]) { if !v.contains(&r) { v.push(r); } }
+            v
         } else { Vec::new() }
     };
     for idx in 0..n {
@@ -3736,7 +3835,14 @@ fn sb_step(
             // mma_src_gprs) — an overwriting load must wait the MMA's rb.
             mma_src_gprs(&insns[i])
         } else if is_long_latency(op) {
-            load_addr_gprs(&insns[i])
+            // BUG-482: the data registers of an atomic / reduction are late-latched too.
+            let mut v = load_addr_gprs(&insns[i]);
+            for r in atom_data_gprs(&insns[i]) {
+                if !v.contains(&r) {
+                    v.push(r);
+                }
+            }
+            v
         } else {
             Vec::new()
         };

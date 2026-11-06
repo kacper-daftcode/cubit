@@ -4,6 +4,26 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-06 (session T-7: the scheduler's atomics, the shared footprint)
+
+- **BUG-482 — the scheduler tracks the atomics' operands** (KNOWN_ISSUES A17, found 2026-11-05 by the
+  NEEDS 28 silicon probe). `dest_regs` took operand 0 as every instruction's destination; on nvcc's shape
+  `ATOMG.E.ADD.STRONG.GPU PT, R6, desc[UR4][R2.64], R7` — and every `ATOM* Pd, Rd, …` form — that is the
+  predicate, so `Rd` had no producer, the write barrier the long-latency class requests was dropped as
+  waiter-less, and a consumer of `Rd` read it before the atomic returned (test host, RTX PRO 6000 Server
+  Edition: old values `0xac0799b5` / `0x9d0c99b5` / `0x8d059935` instead of `0x100`; correct with a
+  hand-written `W2` / `B--2---`). `Rd` was also a false *source*, the address of `RED`/`REDG` (operand 0)
+  was not a source at all, `.64` data operands were single registers, and the family's data registers
+  had no WAR protection (ptxas tags every `ATOMS.MAX.S32 RZ, [R157+UR7+0x15100], R58` of the sparse-MLA
+  kernels with a read barrier — 1 248 sites in the census). Now: on `ATOM`/`ATOMG`/`ATOMS` the first
+  REGISTER operand is the destination (operand 1 behind a `Pd`; `RZ` = no result), spanning the access
+  width (`.64`/`.S64`/`.U64`/`.F64`/`.F32x2`/`.F16x4` a pair, `.128`/`.F32x4`/`.F16x8` a quad), a real
+  `Pn` destination is a result too, sources start after `Rd`, `RED`/`REDG` sources start at the address,
+  data operands span the access width and are late-latched like a store's (read barrier, waited by the
+  overwriter). Mirrors the "atom" role class of `reg_liveness.rs`. `tests/bug482_atom_pd_rd_dest.rs`
+  (7 pins; 6 fail on the previous scheduler). Exposure: the 97 production SASS sources that assemble carry
+  no atomics and re-assemble byte-identical in `.text`; frozen (`[CC]`-prefixed) kernels keep their control
+  codes.
 ## Unreleased — 2026-11-05 (session T-6: BUG-041 doctrine lifted by the owner)
 
 - **`ATOMG.E.<op>.EL.STRONG.GPU Pd, Rd, desc[URm][Rn.64], Rb` assembles** — the `.EL` descriptor-pair form
