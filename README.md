@@ -254,7 +254,7 @@ docs/           see above
 - A template rebuild (`asm -T`) copies the template's metadata; a kernel whose registers, shared
   memory or parameters differ from the template needs a standalone build or a matching template.
 - The test suite takes about 40 minutes in `--release` on 16 cores (the push gate: 466 binaries in 39 min on
-  2026-11-06; about two hours in the debug profile) — each of the 464 test binaries loads and parses the 46 MB SM120 table; decompressing it
+  2026-11-06; about two hours in the debug profile) — each of the 468 test binaries loads and parses the 46 MB SM120 table; decompressing it
   costs 30 ms.
 - A shipped cubin is reproduced byte for byte from its frozen text (`disassemble --frozen` →
   `asm -T`); re-assembling its `.sass` source with a newer cubit is a regeneration whose control codes
