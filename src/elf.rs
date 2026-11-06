@@ -291,8 +291,8 @@ fn parse_sm_version(flags: u32) -> SmVersion {
 
 /// Rewrite the CUDA-13 ELF identity of a cubin to the CUDA-12 convention so a
 /// 12.x driver loads it: `EI_OSABI` 0x41 -> 0x33, `EI_ABIVERSION` 8 -> 7,
-/// `e_flags` 0x06_00_SS_fX (SM in [15:8], 'a' = bit 3) -> 0x00_SS_0A_SS
-/// (SM in [7:0] and [23:16], 0x5 | ('a' ? 0x8 : 0) in [11:8]).
+/// `e_flags` 0x06_00_SS_fX (SM in `[15:8]`, 'a' = bit 3) -> 0x00_SS_0A_SS
+/// (SM in `[7:0]` and `[23:16]`, 0x5 | ('a' ? 0x8 : 0) in `[11:8]`).
 /// Measured 2026-11-05 on `rtx` (driver 575.51.02 / CUDA 12.9): the CUDA-13
 /// identity SIGSEGVs `cuModuleLoad` (a garbage file returns
 /// `CUDA_ERROR_INVALID_IMAGE` cleanly); the rewritten bytes load and run --

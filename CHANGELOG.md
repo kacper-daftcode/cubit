@@ -70,6 +70,10 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   canonicalises by sorting and cannot express `S8.U8` vs `U8.S8`; the schema already uses typed keys for this
   collision (`IMMA.16816.{S8.U8,U8.S8}_…` on sm120, `IDP.4A.{S8.U8,U8.S8}_R_R_R_R` on sm121a). Rows + fixture +
   test are coldface's next step; nvdisasm 13.1 confirms his eight fixture words on the three sm_120-family targets.
+- **CI green again**: the `cargo doc --no-deps` step (`RUSTDOCFLAGS=-D warnings`) had failed since `1d8c450`
+  (2026-11-06 03:22Z, `52767f9`'s run) on four rustdoc intra-doc links in the `--driver-abi 12` comment of
+  `src/elf.rs` (`[15:8]`, `[7:0]`, `[23:16]`, `[11:8]` read as links); the test and clippy steps were green.
+  The bit ranges are code spans now. `f064bed`'s and `bc8c2bd`'s runs fail the same way at their end.
 - **KNOWN_ISSUES A14 closed** (coldface's C10 verified from the artefacts: the native `--driver-abi 12` cubin equals
   the `cubin12.py` rewrite byte for byte and executes on `rtx` / driver 575.51.02; the default identity still
   crashes that loader — the README's "driver ≥ 580 or `--driver-abi 12`" stands); **R1's seven tautological
