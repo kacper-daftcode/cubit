@@ -161,13 +161,13 @@ fn vendor_operand_semantics_are_not_replaced_by_self_consistent_aliases() {
         (WORDS[45], "CALL.ABS.NOINC 0x4"),
         (WORDS[46], "@!P0 F2FP.SATFINITE.E4M3.F32.PACK_AB_MERGE_C R44, R43, R44, RZ"),
         (WORDS[47], "@!P1 BRA !P2, 0x4c0"),
-        (WORDS[48], "RET.ABS.NODEC R20, 0x0"),
+        (WORDS[48], "RET.ABS.NODEC R20 0x0"),
         (WORDS[49], "SEL.64 R4, R4, UR4, !P0"),
         (WORDS[50], "F2FP.SATFINITE.E4M3.F16.UNPACK_B_MERGE_C R5, R5, RZ"),
         (WORDS[51], "WARPSYNC R8"),
         (WORDS[52], "MEMBAR.SC.SYS"),
-        (WORDS[54], "BRX R34, -0x2690"),
-        (WORDS[55], "BRXU UR4, -0x970"),
+        (WORDS[54], "BRX R34 -0x2690"),
+        (WORDS[55], "BRXU UR4 -0x970"),
         (WORDS[56], "NANOSLEEP 0x118"),
         (WORDS[57], "F2FP.F16.E2M1.UNPACK_B R17, R17"),
         (WORDS[58], "ISETP.NE.XOR P1, PT, R16, UR7, !P0"),
@@ -289,7 +289,7 @@ fn absolute_ret_target_is_independent_of_instruction_address() {
     for address in [0, 16, 896, 0x10000] {
         let decoded = index.decode(WORDS[48], address, &table).unwrap();
         let source = cubit::printer::to_sass_lossless(&decoded);
-        assert_eq!(source, "RET.ABS.NODEC R20, 0x0");
+        assert_eq!(source, "RET.ABS.NODEC R20 0x0");
         let parsed = cubit::parse_sass(&format!("{source} ;"), address).unwrap();
         // Scheduling is intentionally independent of operand/address semantics.
         let encoded = cubit::encoder::encode_instruction(&parsed, &table).unwrap();
@@ -381,7 +381,7 @@ fn indirect_branch_payload_is_not_pc_relative_or_limited_to_17_bits() {
         for address in [0, 16, 896] {
             let decoded = index.decode(word, address, &table).unwrap();
             let source = cubit::printer::to_sass_lossless(&decoded);
-            assert!(source.ends_with(&format!("{register}, {expected}")), "{source}");
+            assert!(source.ends_with(&format!("{register} {expected}")), "{source}"); // 2026-11-06 T-10: the vendor spelling, register and target as one operand
             let far = index.decode(word ^ (1 << 64), address, &table).unwrap();
             let source = cubit::printer::to_sass_lossless(&far);
             assert!(source.ends_with(if register == "R34" { "-0x10000002690" } else { "-0x10000000970" }), "{source}");

@@ -626,8 +626,9 @@ pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
         // "R20 0x60" → "R20, 0x60"  (space between reg and target)
         // Also handles: "UR8 -0x144b0" and negative offsets
         static RE_BRANCH_SPACE: LazyLock<Regex> = LazyLock::new(|| {
-            // `RZ` / `URZ` too (`BRX RZ 0x100`, `RET.REL URZ 0x110` -- nvdisasm 13.1, 2026-11-06).
-            Regex::new(r"(U?R(?:\d+|Z))\s+(-?0x[0-9a-fA-F]+|-?\d+)").unwrap()
+            // `RZ` / `URZ` too (`BRX RZ 0x100`, `RET.REL URZ 0x110` -- nvdisasm 13.1, 2026-11-06), and a label
+            // in the target slot (the frozen path emits `RET.ABS.NODEC R20 L_0` once it resolves the target).
+            Regex::new(r"(U?R(?:\d+|Z))\s+(-?0x[0-9a-fA-F]+|-?\d+|[A-Za-z_.$][\w.$]*)$").unwrap()
         });
         operands_str = RE_BRANCH_SPACE.replace(&operands_str, "$1, $2").to_string();
     }

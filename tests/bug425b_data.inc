@@ -77,7 +77,9 @@ pub const FUZZ425B_DECODE: &[(u128, u32, &str, [Option<&str>; 4], [Option<&str>;
 ];
 #[rustfmt::skip]
 pub const ERA425B: &[(u128, &str, [Option<&str>; 4])] = &[
-    (0x0001c00000000a000000100005000188, "sts64-oldera", [Some("@P0 STS.64 [R5+0x10], R0"), Some("@P0 STS.64 [R5+0x10], R0"), Some("@P0 STS.64 [R5+0x10], R0"), None]),
+    // 2026-11-06 (T-10 audit): on sm120 the 0x188 words (opcode bit 9 clear) are rejected by nvdisasm 13.1 for every
+    // [71:64] value and have zero corpus exposure; STS.64 bakes bit 9 like the other STS widths -> the sm120 arm fails closed.
+    (0x0001c00000000a000000100005000188, "sts64-oldera", [Some("@P0 STS.64 [R5+0x10], R0"), Some("@P0 STS.64 [R5+0x10], R0"), None, None]),
     (0x0001c0000000080000001000ff000388, "stspl-oldera", [Some("@P0 STS [0x10], R0"), Some("@P0 STS [0x10], R0"), Some("@P0 STS [0x10], R0"), Some("@P0 STS [0x10], R0")]),
 ];
 #[rustfmt::skip]
@@ -100,10 +102,10 @@ pub const LEGAL425B: &[(u128, &str, [Option<&str>; 4])] = &[
 ];
 #[rustfmt::skip]
 pub const TOLER425B: &[(u128, &str, [Option<&str>; 4])] = &[
-    (0x000fc20000000a00000000040a007188, "ari.64.b9=0,b11=0", [Some("STS.64 [R10], R4"), Some("STS.64 [R10], R4"), Some("STS.64 [R10], R4"), None]),
-    (0x000fc20008000a04000055040a007188, "aruri.64.b9=0,b11=0", [Some("STS.64 [R10+0x55], R4"), Some("STS.64 [R10+0x55], R4"), Some("STS.64 [R10+0x55], R4"), None]),
+    (0x000fc20000000a00000000040a007188, "ari.64.b9=0,b11=0", [Some("STS.64 [R10], R4"), Some("STS.64 [R10], R4"), None, None]), // sm120: fail-closed since 2026-11-06 (T-10, opcode bit 9)
+    (0x000fc20008000a04000055040a007188, "aruri.64.b9=0,b11=0", [Some("STS.64 [R10+0x55], R4"), Some("STS.64 [R10+0x55], R4"), None, None]), // sm120: fail-closed since 2026-11-06 (T-10, opcode bit 9)
     (0x000fc20008000a04000055040a007388, "aruri.64.b9=1,b11=0", [Some("STS.64 [R10+0x55], R4"), Some("STS.64 [R10+0x55], R4"), Some("STS.64 [R10+0x55], R4"), None]),
-    (0x000fc20008000a0400005504ff007188, "auri.64.b9=0,b11=0", [Some("STS.64 [0x55], R4"), Some("STS.64 [0x55], R4"), Some("STS.64 [0x55], R4"), None]),
+    (0x000fc20008000a0400005504ff007188, "auri.64.b9=0,b11=0", [Some("STS.64 [0x55], R4"), Some("STS.64 [0x55], R4"), None, None]), // sm120: fail-closed since 2026-11-06 (T-10, opcode bit 9)
     (0x000fc20008000a0400005504ff007388, "auri.64.b9=1,b11=0", [Some("STS.64 [0x55], R4"), Some("STS.64 [0x55], R4"), Some("STS.64 [0x55], R4"), None]),
 ];
 pub const CLAIMCOUNT425B: usize = 511; // 520-grid claims-preserved == post-425 reference

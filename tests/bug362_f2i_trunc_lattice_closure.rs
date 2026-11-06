@@ -97,10 +97,16 @@ fn t362_1_structure_rows_carry_sign_and_alias_window() {
         }
         if !leg.starts_with("sm10") {
             for k in era {
+                // 2026-11-06 (T-10 audit): on sm120 the dotted `F2I.{S64,U64}.TRUNC_R_R` era twins are gone
+                // (one-bit-off register fields; their words are the `F2I_R_R` row's -- see bug339) and the
+                // `F2I_R_R` groups above carry the sign window for them.
+                if leg == "sm120" && matches!(k, "F2I.S64.TRUNC_R_R" | "F2I.U64.TRUNC_R_R") {
+                    continue;
+                }
                 rows.push((k, ""));
             }
         }
-        let expect = if leg.starts_with("sm10") { 7 } else { 10 };
+        let expect = if leg.starts_with("sm10") { 7 } else if leg == "sm120" { 8 } else { 10 };
         assert_eq!(rows.len(), expect, "{leg} row census");
         for (key, mg) in rows {
             let g = &t.entries[key].mod_groups[mg];
@@ -109,8 +115,9 @@ fn t362_1_structure_rows_carry_sign_and_alias_window() {
             assert_eq!((g.variable_mask >> 73) & 3, 3, "{leg} {key}::{mg} alias vm");
         }
     }
-    // era-key S64/U64 parity preserved (b72 flip only in ab, not in fields/vm)
-    for leg in ["sm120", "sm121a"] {
+    // era-key S64/U64 parity preserved (b72 flip only in ab, not in fields/vm) -- sm121a only since
+    // 2026-11-06 (the sm120 twins are retired; the sm120 law lives on the `F2I_R_R` groups, bug339)
+    for leg in ["sm121a"] {
         let t = tab(leg);
         let s = &t.entries["F2I.S64.TRUNC_R_R"].mod_groups[""];
         let u = &t.entries["F2I.U64.TRUNC_R_R"].mod_groups[""];

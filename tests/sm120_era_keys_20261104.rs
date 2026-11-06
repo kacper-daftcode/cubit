@@ -55,7 +55,9 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
     let al = aliases();
     // 20 glued-predicate era keys (2026-11-04) + the three dotted BRA harvest keys retired by the
     // measured family (2026-11-06, T-9: `BRA.U_UP_II`, `BRA.DIV_UR_II`, `BRA.U_?_II` -> the plain keys)
-    assert_eq!(al.len(), 23, "sm120.json key_aliases");
+    // + the two dotted RET harvest keys retired by the BRX / BRXU / RET family (2026-11-06, T-10:
+    // `RET.REL.NODEC_R_II`, `RET.REL.NODEC_R` -> `RET_R_II`)
+    assert_eq!(al.len(), 25, "sm120.json key_aliases");
     let glued = regex::Regex::new(r"_P\d_").unwrap();
     let mut glued_n = 0;
     for (old, new) in &al {

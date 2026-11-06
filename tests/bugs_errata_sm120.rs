@@ -372,12 +372,12 @@ fn bug027_brxu_abs_roundtrip_all_evidence_pairs() {
     // Original v88, SHIFT=368 and SHIFT=16 site/target pairs. The native
     // disassembly names URZ and the relative byte offset, not the shorthand.
     for (addr, target, native, expected) in [
-        (0x7820, 0xc850, "BRXU URZ, 0x5020", 0x000fe2000b80000000000050ff087958),
-        (0x9cd0, 0xc850, "BRXU URZ, 0x2b70", 0x000fe2000b80000000000028ffdc7958),
-        (0x76b0, 0xc6e0, "BRXU URZ, 0x5020", 0x000fe2000b80000000000050ff087958),
-        (0x9b60, 0xc6e0, "BRXU URZ, 0x2b70", 0x000fe2000b80000000000028ffdc7958),
-        (0x7810, 0xc840, "BRXU URZ, 0x5020", 0x000fe2000b80000000000050ff087958),
-        (0x9cc0, 0xc840, "BRXU URZ, 0x2b70", 0x000fe2000b80000000000028ffdc7958),
+        (0x7820, 0xc850, "BRXU URZ 0x5020", 0x000fe2000b80000000000050ff087958),
+        (0x9cd0, 0xc850, "BRXU URZ 0x2b70", 0x000fe2000b80000000000028ffdc7958),
+        (0x76b0, 0xc6e0, "BRXU URZ 0x5020", 0x000fe2000b80000000000050ff087958),
+        (0x9b60, 0xc6e0, "BRXU URZ 0x2b70", 0x000fe2000b80000000000028ffdc7958),
+        (0x7810, 0xc840, "BRXU URZ 0x5020", 0x000fe2000b80000000000050ff087958),
+        (0x9cc0, 0xc840, "BRXU URZ 0x2b70", 0x000fe2000b80000000000028ffdc7958),
     ] {
         assert_brxu_native_word(&t, &idx, addr, target, native, expected);
     }
@@ -387,7 +387,7 @@ fn bug027_brxu_abs_roundtrip_all_evidence_pairs() {
 fn bug027_brxu_backward_branch_sign_bits() {
     let t = t120();
     let idx = DecodeIndex::build(&t);
-    assert_brxu_native_word(&t, &idx, 0x400, 0x100, "BRXU URZ, -0x310",
+    assert_brxu_native_word(&t, &idx, 0x400, 0x100, "BRXU URZ -0x310",
                            0x000fe2000b83fffffffffffcff3c7958);
 }
 
