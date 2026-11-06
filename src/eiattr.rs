@@ -7,10 +7,11 @@
 //! Binary format: each record is `(u8 format, u8 data_size, u16 attr_id, data[data_size])`
 //! aligned to 4 bytes.
 //!
-//! Format types:
-//!   EIFMT_BVAL (0x01) — 1 byte value, padded to 4
+//! Format types ([`EiFmt`]; cuobjdump's names, measured on the census cubins 2026-11-02):
+//!   EIFMT_NVAL (0x01) — no value, 4 bytes
+//!   EIFMT_BVAL (0x02) — 1 byte value, padded to 4
 //!   EIFMT_HVAL (0x03) — 2 byte value (u16), padded to 4
-//!   EIFMT_SVAL (0x04) — sized value (data_size bytes follow)
+//!   EIFMT_SVAL (0x04) — sized value (data_size bytes follow, padded to 4)
 
 use anyhow::{Context, Result};
 use std::collections::BTreeMap;
@@ -122,41 +123,45 @@ impl EiAttr {
 // EIATTR record
 // ---------------------------------------------------------------------------
 
-/// Format type for an EIATTR value. The variant names are historical; the
-/// byte they serialize to and cuobjdump's name for it are given per variant
-/// (measured on the census cubins, 2026-11-02).
+/// Format type of an EIATTR record: cuobjdump's `EIFMT_*` names, the byte each
+/// serializes to and the attributes measured with it on the census cubins
+/// (2026-11-02). Until 2026-11-06 the variants carried historical names
+/// (`Byte` = HVAL, `Half` = BVAL, `BValAlt` = NVAL, `Sized` = SVAL).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EiFmt {
+    /// fmt byte 0x01 = EIFMT_NVAL: no value (REG_RECONFIG, RESERVED_SMEM_USED,
+    /// TCGEN05_1CTA_USED); the two bytes after the attribute are zero.
+    NVal,
+    /// fmt byte 0x02 = EIFMT_BVAL: an 8-bit value (NUM_BARRIERS,
+    /// VRC_CTA_INIT_COUNT); `data[0]` carries it, the fourth byte is zero.
+    BVal,
     /// fmt byte 0x03 = EIFMT_HVAL: a 16-bit value in the two bytes after the
     /// attribute (`data[0]` low, `data[1]` high; a single data byte means high = 0).
     /// MAXREG_COUNT, CBANK_PARAM_SIZE, SPARSE_MMA_MASK, MERCURY_ISA_VERSION.
-    Byte,
-    /// fmt byte 0x01 = EIFMT_NVAL: no value (REG_RECONFIG, RESERVED_SMEM_USED,
-    /// TCGEN05_1CTA_USED); the two bytes after the attribute are zero.
-    BValAlt,
-    /// fmt byte 0x02 = EIFMT_BVAL: an 8-bit value (NUM_BARRIERS,
-    /// VRC_CTA_INIT_COUNT); `data[0]` carries it, the fourth byte is zero.
-    Half,
-    /// fmt byte 0x04 = EIFMT_SVAL: a sized payload.
-    Sized,
+    HVal,
+    /// fmt byte 0x04 = EIFMT_SVAL: a sized payload (`[fmt][attr][size u16][data…]`,
+    /// padded to 4 bytes).
+    SVal,
 }
 
 impl EiFmt {
+    /// The variant of a format byte (unknown bytes read as a sized payload, as
+    /// [`NvInfoSection::parse`] treats them); the inverse of [`EiFmt::to_u8`].
     pub fn from_u8(v: u8) -> Self {
         match v {
-            0x01 => EiFmt::BValAlt,
-            0x02 => EiFmt::Byte,
-            0x03 => EiFmt::Half,
-            _ => EiFmt::Sized,
+            0x01 => EiFmt::NVal,
+            0x02 => EiFmt::BVal,
+            0x03 => EiFmt::HVal,
+            _ => EiFmt::SVal,
         }
     }
 
     pub fn to_u8(&self) -> u8 {
         match self {
-            EiFmt::Byte    => 0x03,
-            EiFmt::BValAlt => 0x01,
-            EiFmt::Half    => 0x02,
-            EiFmt::Sized   => 0x04,
+            EiFmt::NVal => 0x01,
+            EiFmt::BVal => 0x02,
+            EiFmt::HVal => 0x03,
+            EiFmt::SVal => 0x04,
         }
     }
 }
@@ -229,10 +234,11 @@ pub struct NvInfoSection {
 }
 
 impl NvInfoSection {
-    /// Parse EIATTR records from raw section bytes (real NVIDIA format):
+    /// Parse EIATTR records from raw section bytes (NVIDIA's format):
     ///   SVAL (0x04): \[fmt\]\[attr_byte\]\[size_lo\]\[size_hi\][data...] 4-byte aligned
-    ///   HVAL (0x02): \[fmt\]\[attr_byte\]\[val_lo\]\[val_hi\]            (4 bytes total)
-    ///   BVAL (0x03): \[fmt\]\[attr_byte\]\[val\]\[pad\]                  (4 bytes total)
+    ///   HVAL (0x03): \[fmt\]\[attr_byte\]\[val_lo\]\[val_hi\]            (4 bytes total, 16-bit value)
+    ///   BVAL (0x02): \[fmt\]\[attr_byte\]\[val\]\[pad\]                  (4 bytes total, 8-bit value)
+    ///   NVAL (0x01): \[fmt\]\[attr_byte\]\[0\]\[0\]                      (4 bytes total, no value)
     pub fn parse(name: &str, data: &[u8]) -> Result<Self> {
         let mut records = Vec::new();
         let mut off = 0;
@@ -248,14 +254,15 @@ impl NvInfoSection {
                     let end = (off + 4 + size).min(data.len());
                     let d = data[off+4..end].to_vec();
                     let next = (off + 4 + size + 3) & !3;
-                    (EiFmt::Sized, d, next)
+                    (EiFmt::SVal, d, next)
                 }
                 0x02 => {
-                    // HVAL: [0x02][attr][val_lo][val_hi] (4 bytes)
+                    // fmt 2 = EIFMT_BVAL: [0x02][attr][val][pad] (4 bytes); both
+                    // bytes are kept (`as_u8` reads the value byte).
                     let d = if off + 4 <= data.len() {
                         data[off+2..off+4].to_vec()
                     } else { vec![0, 0] };
-                    (EiFmt::Half, d, off + 4)
+                    (EiFmt::BVal, d, off + 4)
                 }
                 0x03 => {
                     // fmt 3 = EIFMT_HVAL in cuobjdump's naming: [0x03][attr][val_lo][val_hi]
@@ -264,13 +271,13 @@ impl NvInfoSection {
                     let d = if off + 4 <= data.len() {
                         data[off+2..off+4].to_vec()
                     } else { vec![0, 0] };
-                    (EiFmt::Byte, d, off + 4)
+                    (EiFmt::HVal, d, off + 4)
                 }
                 0x01 => {
                     // fmt 1 = EIFMT_NVAL (REG_RECONFIG, RESERVED_SMEM_USED, TCGEN05_1CTA_USED):
                     // no value; the two bytes after the attribute are zero.
                     let val = if off + 3 <= data.len() { data[off+2] } else { 0 };
-                    (EiFmt::BValAlt, vec![val], off + 4)
+                    (EiFmt::NVal, vec![val], off + 4)
                 }
                 _ => { off += 4; continue; }
             };
@@ -282,33 +289,34 @@ impl NvInfoSection {
         Ok(NvInfoSection { name: name.to_string(), records })
     }
 
-    /// Serialize records to binary using real NVIDIA EIATTR format:
+    /// Serialize records to NVIDIA's EIATTR format (the inverse of [`NvInfoSection::parse`]):
     ///   SVAL: \[0x04\]\[attr_byte\]\[size_lo\]\[size_hi\][data...] aligned to 4 bytes
-    ///   HVAL: \[0x02\]\[attr_byte\]\[val_lo\]\[val_hi\]           (4 bytes, value=16-bit)
-    ///   BVAL: \[0x03\]\[attr_byte\]\[val\]\[pad\]                 (4 bytes, value=8-bit)
+    ///   HVAL: \[0x03\]\[attr_byte\]\[val_lo\]\[val_hi\]           (4 bytes, value=16-bit)
+    ///   BVAL: \[0x02\]\[attr_byte\]\[val\]\[pad\]                 (4 bytes, value=8-bit)
+    ///   NVAL: \[0x01\]\[attr_byte\]\[0\]\[0\]                     (4 bytes, no value)
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut out = Vec::new();
 
         for rec in &self.records {
             let attr_byte = (rec.attr & 0xFF) as u8;
             match rec.fmt {
-                EiFmt::Byte => {
-                    // BVAL: [0x03][attr][val_lo][val_hi] = 4 bytes
+                EiFmt::HVal => {
+                    // HVAL: [0x03][attr][val_lo][val_hi] = 4 bytes
                     // val_hi is usually 0x00 but can be non-zero (e.g. attr 0x5f = 0x0101)
                     out.push(0x03);
                     out.push(attr_byte);
                     out.push(rec.data.first().copied().unwrap_or(0));
                     out.push(rec.data.get(1).copied().unwrap_or(0));
                 }
-                EiFmt::BValAlt => {
-                    // BVAL alt: [0x01][attr][val][0x00] = 4 bytes (nvcc fmt for attr=0x2b)
+                EiFmt::NVal => {
+                    // NVAL: [0x01][attr][val][0x00] = 4 bytes (no value; nvcc writes 0)
                     out.push(0x01);
                     out.push(attr_byte);
                     out.push(rec.data.first().copied().unwrap_or(0));
                     out.push(0x00);
                 }
-                EiFmt::Half => {
-                    // HVAL: [0x02][attr][val_lo][val_hi] = 4 bytes
+                EiFmt::BVal => {
+                    // BVAL: [0x02][attr][val][pad] = 4 bytes
                     out.push(0x02);
                     out.push(attr_byte);
                     if rec.data.len() >= 2 {
@@ -319,7 +327,7 @@ impl NvInfoSection {
                         out.push(0);
                     }
                 }
-                EiFmt::Sized => {
+                EiFmt::SVal => {
                     // SVAL: [0x04][attr][size_lo][size_hi][data...] aligned to 4 bytes
                     let size = rec.data.len() as u16;
                     out.push(0x04);
@@ -1046,142 +1054,6 @@ impl KernelMeta {
 
         meta
     }
-
-    /// Build EIATTR records for writing a new cubin.
-    pub fn to_global_records(&self, func_sym_idx: u32) -> NvInfoSection {
-        let mut records = Vec::new();
-
-        // REGCOUNT
-        let mut data = Vec::new();
-        data.extend_from_slice(&func_sym_idx.to_le_bytes());
-        data.extend_from_slice(&self.regcount.to_le_bytes());
-        records.push(EiRecord { attr: 0x002f, fmt: EiFmt::Sized, data });
-
-        // FRAME_SIZE
-        let mut data = Vec::new();
-        data.extend_from_slice(&func_sym_idx.to_le_bytes());
-        data.extend_from_slice(&self.frame_size.to_le_bytes());
-        records.push(EiRecord { attr: 0x0011, fmt: EiFmt::Sized, data });
-
-        // MIN_STACK_SIZE (0x12 in real NVIDIA SM120, not 0x0004)
-        let mut data = Vec::new();
-        data.extend_from_slice(&func_sym_idx.to_le_bytes());
-        data.extend_from_slice(&self.min_stack_size.to_le_bytes());
-        records.push(EiRecord { attr: 0x0012, fmt: EiFmt::Sized, data });
-
-        NvInfoSection { name: ".nv.info".to_string(), records }
-    }
-
-    /// Build per-kernel EIATTR records.
-    pub fn to_kernel_records(&self) -> NvInfoSection {
-        self.to_kernel_records_with_sym(0)
-    }
-
-    /// Generate per-kernel EIATTR records matching real NVIDIA SM120 format.
-    /// `func_sym_idx` = function symbol table index (from .symtab).
-    pub fn to_kernel_records_with_sym(&self, func_sym_idx: u32) -> NvInfoSection {
-        let mut records = Vec::new();
-
-        // 1. CUDA_API_VERSION (0x37): 4 bytes, value = 0x80 (CUDA 11.x SM120)
-        let api_ver = if self.cuda_api_version != 0 { self.cuda_api_version } else { 0x80 };
-        records.push(EiRecord {
-            attr: 0x0037, fmt: EiFmt::Sized,
-            data: api_ver.to_le_bytes().to_vec()
-        });
-
-        // 2. MAX_THREADS (0x17): 12 zero bytes (unlimited = use defaults)
-        records.push(EiRecord {
-            attr: 0x0017, fmt: EiFmt::Sized,
-            data: vec![0u8; 12]
-        });
-
-        // 3. SPARSE_MMA_MASK (0x50): BVAL = 0
-        records.push(EiRecord { attr: 0x0050, fmt: EiFmt::Byte, data: vec![0] });
-
-        // 4. MAXREG_COUNT (0x1b): BVAL = actual register count used
-        let maxreg = if self.maxreg_count == 0 || self.maxreg_count == 0xFF {
-            self.regcount.min(255) as u8
-        } else {
-            self.maxreg_count as u8
-        };
-        records.push(EiRecord { attr: 0x001b, fmt: EiFmt::Byte, data: vec![maxreg] });
-
-        // 4a. Attr 0x4c (HVAL=1): required SM120 capability flag (present in all SM120 cubins)
-        records.push(EiRecord { attr: 0x004c, fmt: EiFmt::Half, data: vec![1, 0] });
-
-        // 4b. Attr 0x4a (HVAL=0): VRC_CTA_INIT_COUNT
-        records.push(EiRecord { attr: 0x004a, fmt: EiFmt::Half, data: vec![0, 0] });
-
-        // 4c. NUM_BARRIERS (0x25): BVAL = number of convergence barriers used
-        if self.num_barriers > 0 {
-            records.push(EiRecord { attr: 0x0025, fmt: EiFmt::Byte, data: vec![self.num_barriers] });
-        }
-
-        // 4d. SHARED_SIZE (0x08): SVAL = static shared + 0x400 platform
-        // reserved cap (b10 F-2; the driver accounting total, matching
-        // ptxas resource usage on sm_103a)
-        if self.shared_size > 0 {
-            records.push(EiRecord {
-                attr: 0x0008, fmt: EiFmt::Sized,
-                data: (self.shared_size + 0x400).to_le_bytes().to_vec(),
-            });
-        }
-
-        // 5. EXIT_INSTR_OFFSETS (0x1c): list of EXIT byte offsets
-        if !self.exit_offsets.is_empty() {
-            let mut data = Vec::new();
-            for off in &self.exit_offsets {
-                data.extend_from_slice(&off.to_le_bytes());
-            }
-            records.push(EiRecord { attr: 0x001c, fmt: EiFmt::Sized, data });
-        } else {
-            // Emit one dummy offset at 0 if no exits found
-            records.push(EiRecord {
-                attr: 0x001c, fmt: EiFmt::Sized,
-                data: 0u32.to_le_bytes().to_vec()
-            });
-        }
-
-        // 6. Attr 0x05: 12 bytes, first word = 0x100 (unknown — thread count hint?)
-        let mut data05 = vec![0u8; 12];
-        data05[0..4].copy_from_slice(&256u32.to_le_bytes());
-        records.push(EiRecord { attr: 0x0005, fmt: EiFmt::Sized, data: data05 });
-
-        // 7. CTAID_OFFSETS (0x1e): 4 bytes = offset of first S2R CTAID instruction (0=none)
-        records.push(EiRecord {
-            attr: 0x001e, fmt: EiFmt::Sized,
-            data: 0u32.to_le_bytes().to_vec()
-        });
-
-        // 8. CBANK_PARAM_SIZE (0x19): BVAL = total parameter space size in bytes
-        let cbank_sz = self.cbank_param_size as u8;
-        records.push(EiRecord { attr: 0x0019, fmt: EiFmt::Byte, data: vec![cbank_sz] });
-
-        // 9. KPARAM_INFO (0x0a): one record per parameter.
-        //    Correct formula from nvcc 12.8 reverse engineering:
-        //    word1 = (param_size_bytes << 16) | cbank_byte_offset
-        //    e.g. for u64: (8 << 16) | 0x380 = 0x00080380
-        //    NOT (cbank_offset << 16) | (size >> 1) which was wrong.
-        // word0 = function symbol table index (note: use const0_sym_idx for full correctness)
-        // SM120/CUDA 12.8: parameters start at cbank offset 0x0380.
-        for param in &self.params {
-            let cbank_off = 0x0380u32 + param.offset;
-            let kparam_w1 = (param.size << 16) | cbank_off;
-            let mut kparam_data = Vec::with_capacity(8);
-            kparam_data.extend_from_slice(&func_sym_idx.to_le_bytes());
-            kparam_data.extend_from_slice(&kparam_w1.to_le_bytes());
-            records.push(EiRecord { attr: 0x000a, fmt: EiFmt::Sized, data: kparam_data });
-        }
-
-        // 10. IMAGE_SIZE (0x36): 4 bytes = 0
-        records.push(EiRecord {
-            attr: 0x0036, fmt: EiFmt::Sized,
-            data: 0u32.to_le_bytes().to_vec()
-        });
-
-        let sec_name = format!(".nv.info.{}", self.name);
-        NvInfoSection { name: sec_name, records }
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1290,7 +1162,7 @@ mod tests {
     fn test_record_roundtrip() {
         let rec = EiRecord {
             attr: 0x001b,
-            fmt: EiFmt::Half,
+            fmt: EiFmt::BVal,
             data: vec![0xFF, 0x00],
         };
         assert_eq!(rec.as_u16(), Some(0xFF));
@@ -1302,8 +1174,8 @@ mod tests {
         let section = NvInfoSection {
             name: ".nv.info.test".to_string(),
             records: vec![
-                EiRecord { attr: 0x001b, fmt: EiFmt::Half, data: vec![0xFF, 0x00] },
-                EiRecord { attr: 0x0025, fmt: EiFmt::Byte, data: vec![0x02] },
+                EiRecord { attr: 0x001b, fmt: EiFmt::BVal, data: vec![0xFF, 0x00] },
+                EiRecord { attr: 0x0025, fmt: EiFmt::HVal, data: vec![0x02] },
             ],
         };
 
@@ -1438,21 +1310,38 @@ mod tests {
             merc_ldgsts2_waits: Vec::new(),
         };
 
-        let global = meta.to_global_records(8);
-        let kernel = meta.to_kernel_records();
+        // The global section the ELF builder writes (REGCOUNT / FRAME_SIZE / MIN_STACK_SIZE as
+        // SVAL (function symbol, value) pairs) and the per-kernel records of the current emitter
+        // (`to_kernel_records_with_sym_and_const`; the pre-2026-08 `to_kernel_records` set with
+        // its historical attribute ids was removed 2026-11-06, A7).
+        let func_sym = 8u32;
+        let mut global = NvInfoSection { name: ".nv.info".into(), records: Vec::new() };
+        for (attr, val) in [(0x002fu16, meta.regcount), (0x0011, meta.frame_size), (0x0012, meta.min_stack_size)] {
+            let mut data = func_sym.to_le_bytes().to_vec();
+            data.extend_from_slice(&val.to_le_bytes());
+            global.records.push(EiRecord { attr, fmt: EiFmt::SVal, data });
+        }
+        let kernel = meta.to_kernel_records_with_sym_and_const(func_sym, 9);
 
-        // Serialize and reparse
+        // Serialize and reparse: every record survives with its format byte
         let global_bytes = global.to_bytes();
         let kernel_bytes = kernel.to_bytes();
         assert!(!global_bytes.is_empty());
         assert!(!kernel_bytes.is_empty());
-
         let global_parsed = NvInfoSection::parse(".nv.info", &global_bytes).unwrap();
         let kernel_parsed = NvInfoSection::parse(".nv.info.test_kernel", &kernel_bytes).unwrap();
+        assert_eq!(kernel_parsed.records.len(), kernel.records.len());
+        for (a, b) in kernel.records.iter().zip(&kernel_parsed.records) {
+            assert_eq!((a.attr, a.fmt), (b.attr, b.fmt), "record {:#x} changed its format through the bytes", a.attr);
+            assert_eq!(EiFmt::from_u8(a.fmt.to_u8()), a.fmt);
+        }
+        assert_eq!(kernel_parsed.to_bytes(), kernel_bytes);
 
         let meta2 = KernelMeta::from_sections(&global_parsed, &kernel_parsed, "test_kernel");
         assert_eq!(meta2.regcount, 16);
         assert_eq!(meta2.num_barriers, 1);
         assert_eq!(meta2.exit_offsets, vec![0x40, 0x120]);
+        assert_eq!(meta2.cbank_param_size, 12);
+        assert_eq!(meta2.params.len(), 1);
     }
 }
