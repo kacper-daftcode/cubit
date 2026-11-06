@@ -101,15 +101,20 @@ fn t171_2_invariants_p_and_covered_uni() {
     }
 }
 
-/// t171_3 (encode symmetry, sm120): the @UP/@P spellings carry identical
-/// payload and round-trip to the vendor word bits [0:96). PASS pre == post.
+/// t171_3 (encode, sm120): the @UP spelling round-trips to the vendor word bits [0:96).
+/// Until 2026-11-06 this pin also asserted that `@P2 LDCU.64 ...` assembled to the SAME word
+/// ("glyph is a print-level distinction") -- that silence is KNOWN_ISSUES A16 (a vector guard
+/// written on a uniform-datapath form ran the ARRIVES probe's init under an uninitialised UP2);
+/// the encoder now refuses the mismatched class and names the family (session T-11,
+/// `tests/a16_guard_class.rs`). The bits are still shared; the spelling is not.
 #[test]
 fn t171_3_encode_glyph_symmetry() {
     let t = t120();
     let a = enc(&t, "@UP2 LDCU.64 UR10, c[0x0][0x490]");
-    let b = enc(&t, "@P2 LDCU.64 UR10, c[0x0][0x490]");
-    assert_eq!(a, b, "glyph is a print-level distinction, bits [15:12] equal");
     assert_eq!(a & L96, w96("08000a0000009200ff0a27ac"), "vendor word");
+    let insn = parse_sass("@P2 LDCU.64 UR10, c[0x0][0x490]", 0).unwrap();
+    let err = encode_instruction(&insn, &t).unwrap_err().to_string();
+    assert!(err.contains("A16") && err.contains("uniform-datapath"), "{err}");
 }
 
 /// t171_4 (no spillover to P-families, synthetic guard flips; PASS pre ==

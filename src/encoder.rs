@@ -2999,6 +2999,8 @@ fn encode_instruction_inner(
     // BUG-132: remember which mod-group the winning candidate carries so the
     // post-encode check can tell an exact-cover match from a "" fallback.
     let mut selected_mg = String::new();
+    // A16: the key the word is minted from, for the guard-class check below.
+    let mut selected_key = String::new();
     for (k, mg) in &candidates {
         match table.get(k, mg) {
             Some(e) => match entry_matches_operands(insn, e) {
@@ -3015,6 +3017,7 @@ fn encode_instruction_inner(
                     }
                     entry = Some(e);
                     selected_mg = mg.clone();
+                    selected_key = k.clone();
                     break;
                 }
                 Err(why) => attempts.push(format!("({k}, \"{mg}\") REJECTED: {why}")),
@@ -3071,6 +3074,33 @@ fn encode_instruction_inner(
     }
     check_native_imad_hi_modifiers(insn, table, entry)?;
     check_lea_sign_glyphs(insn, entry)?;
+    // A16 (found 2026-11-05 writing the ARRIVES probe, fixed 2026-11-06, T-11): the guard bits
+    // [15:12] carry only (predicate, negation); whether they name `P2` or `UP2` follows the
+    // row's family (`printer::guard_is_uniform_family` -- the uniform datapath: U*, LDCU,
+    // SYNCS_UR*, S2UR, CS2UR, LDTM, STTM). A vector guard written on a uniform-datapath form
+    // (`@!P2 SYNCS.EXCH.64 URZ, [UR8], UR6`) therefore assembled silently as the word nvdisasm
+    // names `@!UP2 SYNCS.EXCH.64 ...`, and the init ran under an uninitialised UP2. Refuse the
+    // mismatch with the family named; `@PT` / `@UPT` read no register and stay interchangeable.
+    if let Some(g) = &insn.guard {
+        let family_uniform = crate::printer::guard_is_uniform_family(&selected_key);
+        if g.pred != 7 && g.uniform != family_uniform {
+            let (written, wanted) = if g.uniform { ("UP", "P") } else { ("P", "UP") };
+            anyhow::bail!(
+                "encode error at {}: predicate bank mismatch (A16) -- the guard @{}{}{} names a {} \
+                 predicate, but {} is a {} instruction (table key {}) whose guard bits [15:12] \
+                 name {}{}: the word would assemble as @{}{}{} silently. Write the {} guard, or \
+                 guard a branch around the instruction",
+                insn.raw_text.trim(),
+                if g.negated { "!" } else { "" }, written, g.pred,
+                if g.uniform { "uniform" } else { "vector" },
+                insn.opcode_full,
+                if family_uniform { "uniform-datapath" } else { "vector-datapath" },
+                selected_key, wanted, g.pred,
+                if g.negated { "!" } else { "" }, wanted, g.pred,
+                if family_uniform { "@UPn" } else { "@Pn" },
+            );
+        }
+    }
     // BUG-178 (iter85, front MAIN; queue = fleet note 177 sec.5(b) "178-kand"):
     // a non-branch Label operand (any non-numeric identifier) degraded through
     // the `Label -> "II"` key family onto a BAKED-immediate row — a table
