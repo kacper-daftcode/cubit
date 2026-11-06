@@ -2196,7 +2196,7 @@ fn format_reg(
 
     // Recover abs from raw instruction bits (FP instructions; RZ excluded)
     let rn = reg.unwrap_or(255);
-    if !abs && rn != 255 && is_fp_ins(ins_key) && !crate::table::hadd2_f32_abs_inert_key(ins_key) {
+    if !abs && rn != 255 && is_fp_ins(ins_key) && !crate::table::hadd2_f32_abs_inert(ins_key, raw) {
         // The abs flag position depends on which register SLOT this operand occupies,
         // determined by the field's actual shift (NOT the token index):
         //   Ra @[31:24] -> abs at bit 73;  Rb @[39:32] -> abs at bit 62.

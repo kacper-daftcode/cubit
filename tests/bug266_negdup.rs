@@ -295,9 +295,10 @@ fn t266_5_encode_no_fabrication() {
     assert!(dec(&t, W_HFMA2B & M96)
         .expect("decode")
         .contains(", UR8.H0_H0,"));
-    // 265-kand anchor: phantom head row still registered (removal queued).
+    // 265-kand anchor: phantom head row still registered on sm121a (removal queued);
+    // BUG-484 (2026-11-06, T-7): the sm120 `HADD2_R_R_R` row is rebuilt from measurement and the 278-kand keeper `HADD2_R_R_II_II_II_II_?` is retired there — its witness (an HFMA2 word) decodes through `HFMA2_R_R_R_R` since the September HFMA2 closures; sm121a keeps the era state.
     for leg in ["sm120", "sm121a"] {
         let t = tab(leg);
-        assert!(t.entries.contains_key("HADD2_R_R_II_II_II_II_?"));
+        assert_eq!(t.entries.contains_key("HADD2_R_R_II_II_II_II_?"), leg == "sm121a");
     }
 }

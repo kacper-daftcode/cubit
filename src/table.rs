@@ -1077,6 +1077,14 @@ pub fn hadd2_f32_abs_inert_key(key: &str) -> bool {
     )
 }
 
+/// BUG-484 (2026-11-06): the same law on the register form `HADD2_R_R_R`, whose `.F32` groups
+/// are selected by bit 78 of the word (`tools/probes/re_sm120_hadd2_sel.py`: nvdisasm 13.1
+/// prints no `|Ra|` for bit 73 under `.F32`; the rebuilt `F32*` groups carry no `abs` field
+/// on Ra). `raw` is the instruction word.
+pub fn hadd2_f32_abs_inert(key: &str, raw: u128) -> bool {
+    hadd2_f32_abs_inert_key(key) || (key == "HADD2_R_R_R" && (raw >> 78) & 1 == 1)
+}
+
 /// BUG-419: trailing predicate elision law of the HFMA2 two-imm R-final
 /// `.RELU` dotted keys (frames 0x7831; keys `HFMA2*RELU_R_R_{FI_FI,II_II}_R_P`):
 /// arb419 x4 models AGREE EVERY -- vendor ELIDES the trailing slot when the

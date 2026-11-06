@@ -208,7 +208,7 @@ fn t444_6_shared_arm_ride() {
 #[test]
 fn t444_7_canonical_unchanged() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "377b507fa4fbb19e159b80eabe35c2ac72aafbf1";
+    const CURRENT_VENDORED_CANON: &str = "ac04a77277e4dc5235ac623b532abdf8504cea5b";
 
     // public-line hygiene: lane-side live rev-parse hermetized to the vendored manifest pin
     let head = std::fs::read_to_string("tables/SOURCE.json").unwrap();

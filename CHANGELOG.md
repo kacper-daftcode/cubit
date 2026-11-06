@@ -45,6 +45,29 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   `tests/bug483_nv_shared_footprint.rs`; `b10_harness_fixes` F-2 and `merc_companions` re-pinned to the
   declared size.
 
+- **BUG-484 — `HADD2.H1H1A Rd, Ra, Rb` assembles again, as the vendor's `HADD2 Rd, Ra.H1_H1, Rb`; the
+  SM120 `HADD2` register form rebuilt from measurement** (session K's finding of 2026-11-05: the production
+  kernels `exl3-wave-m8/k1_m8{,g}.sass` — 256 sites, built by cubit `5912400` — did not assemble on `main`).
+  `H1H1A` was cubit's own 2026-08-08 mnemonic-suffix row (blackwell-isa `8f773da`, "Ra = H1_H1 baked into
+  the mnemonic", added because the plain row then dropped the selector), retired at the O2 cut without an
+  alias. nvdisasm 13.1 names the words `HADD2 Rn, Rn.H1_H1, Rn`; the spelling is now an INPUT alias in the
+  parser (rewritten before encoding, never printed; `HADD2.H1H1A` with a non-register Ra is refused). Both
+  kernels re-assemble to the shipped `.text` (`k1_m8` 923 / 923 words identical; `k1_m8g` 934 / 935 — the
+  one difference is `ISETP … R24, RZ` written as the register form the source spells, where the 2026-06
+  encoder minted the equivalent immediate `0x0` form). Measuring the form showed the plain row itself
+  incomplete (`tools/probes/re_sm120_hadd2_sel.py`, 181 form + 36 lattice words): **blackwell-isa
+  `ac04a77`** rebuilds `HADD2_R_R_R` with 12 measured groups — Ra selector [75:74], Rb [61:60] (0 natural,
+  2 `.H0_H0`, 3 `.H1_H1`, 1 = `INVALID1` outside the rows), `-Ra` 72, `|Ra|` 73 (text-inert under `.F32`),
+  `-Rb` 63, `|Rb|` 62, `.SAT` 77, `.F32` 78, `.FTZ` 80, `.BF16_V2` 85 — and retires the dotted twins
+  `HADD2.F32_R_R_R` / `HADD2.BF16_V2_R_R_R` and five register-opcode junk rows (`HADD2_R_R_R_R`,
+  `HADD2_R_R_R_II_?`, `HADD2_R_R_R_II_II_?`, `HADD2_R_R_II`, `HADD2_R_R_II_II_II_II_?`): before, a word
+  with `|R5|` printed `HADD2 R9, R2, 0x7000, 0x5, 0, 0, UR0`, the `F32` group was a harvest sample with
+  `-Ra`, `Rd = RZ`, `Rb.H0_H0` baked into `and_base`, and `BF16_V2` had no sign fields. The decoder's
+  `.F32` bit-73 arm (`hadd2_f32_abs_inert`) now covers the register form. Keys 16 103 → 16 096, variants
+  26 656 → 26 658; the BUG-261/265/266/274/276 pins that asserted the junk "keeper" row on sm120 are
+  re-pinned (its witness decodes through `HFMA2_R_R_R_R` since the September HFMA2 closures; sm121a keeps
+  the era row). `tests/bug484_hadd2_h1h1a_spelling.rs`, fixture `sm120_hadd2_sel_nvdisasm.jsonl`.
+
 ## Unreleased — 2026-11-05 (session T-6: BUG-041 doctrine lifted by the owner)
 
 - **`ATOMG.E.<op>.EL.STRONG.GPU Pd, Rd, desc[URm][Rn.64], Rb` assembles** — the `.EL` descriptor-pair form

@@ -157,7 +157,7 @@ fn t415_4_mint_circle_junk_drop() {
 #[test]
 fn t415_5_boundaries_and_graft_hygiene() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "377b507fa4fbb19e159b80eabe35c2ac72aafbf1";
+    const CURRENT_VENDORED_CANON: &str = "ac04a77277e4dc5235ac623b532abdf8504cea5b";
     assert_eq!(CANON415, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     // FLIP (BUG-420, F2-iter232, canonical 0eddad5): the six HOLE415

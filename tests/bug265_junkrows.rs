@@ -372,11 +372,13 @@ fn t265_5_keepers_and_registrations() {
     // 278-kand: HADD2-'?' bucket kept (112 vendor-decodable 'HFMA2 4R+reuse'
     // words; removal => holes). Witness still decodes, never a hole.
     let w2: u128 = 0x0000000000ff13007231u128 | (0x40fe400000000000u128 << 64);
+    // BUG-484 (2026-11-06, T-7): the sm120 `HADD2_R_R_R` row is rebuilt from measurement and the 278-kand keeper `HADD2_R_R_II_II_II_II_?` is retired there — its witness (an HFMA2 word) decodes through `HFMA2_R_R_R_R` since the September HFMA2 closures; sm121a keeps the era state.
     for leg in ["sm120", "sm121a"] {
         let t = tab(leg);
-        assert!(
+        assert_eq!(
             t.entries.contains_key("HADD2_R_R_II_II_II_II_?"),
-            "{leg}: keeper row removed"
+            leg == "sm121a",
+            "{leg}: keeper row state"
         );
         assert!(
             dec(&t, w2 & M96).is_some(),

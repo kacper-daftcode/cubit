@@ -181,7 +181,7 @@ fn t433_5_mints_refuse_canon() {
 #[test]
 fn t433_6_source_manifest_and_table_presence() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "377b507fa4fbb19e159b80eabe35c2ac72aafbf1";
+    const CURRENT_VENDORED_CANON: &str = "ac04a77277e4dc5235ac623b532abdf8504cea5b";
     assert_eq!(CANON433, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     let src: serde_json::Value =

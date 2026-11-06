@@ -806,7 +806,7 @@ impl DecodeIndex {
                     // 3-token dotted rows (0x430 FI FI frame; arb419
                     // A.F32.bit73 x4 models: no `|Ra|` print) -- block the
                     // generic synth there.
-                    if !crate::table::hadd2_f32_abs_inert_key(&matched.key) && !f2fp_arm(73) {
+                    if !crate::table::hadd2_f32_abs_inert(&matched.key, code_clean) && !f2fp_arm(73) {
                         add(73, ra_tok, "abs");
                     }
                 }

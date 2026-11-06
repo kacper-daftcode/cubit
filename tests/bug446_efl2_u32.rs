@@ -183,7 +183,7 @@ fn t446_8_corpus() {
 #[test]
 fn t446_9_canonical_unchanged() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "377b507fa4fbb19e159b80eabe35c2ac72aafbf1";
+    const CURRENT_VENDORED_CANON: &str = "ac04a77277e4dc5235ac623b532abdf8504cea5b";
     assert_eq!(CANON446, "9c0e4ce", "historical fixture revision drift");
 
     // public-line hygiene: lane-side live rev-parse hermetized to the vendored manifest pin

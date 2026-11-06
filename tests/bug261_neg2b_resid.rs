@@ -176,7 +176,7 @@ fn t261_1_structure() {
     for (key, mg, sh) in [
         ("DMMA.8x8x4_R_R_R_R", "", 72u32),
         ("FADD.SAT_R_R_R", "", 72u32),
-        ("HADD2.F32_R_R_R", "", 60u32),
+        ("HADD2_R_R_R", "F32", 60u32), // BUG-484 (2026-11-06): the dotted twin is retired; the measured F32 group of the plain key carries the window
         ("HSETP2_P_P_R_UR_P", "AND,F", 74u32), // BUG-265 rename (arb265 B: cmp [79:76]=0=F)
         ("UFFMA_UR_UR_UR_UR", "", 74u32),
     ] {
@@ -310,10 +310,12 @@ fn t261_3_decode_hsel_laws() {
     );
     // sm120 leg law spot-checks.
     let t = tab("sm120");
-    let h = and_base(&t, "HADD2.F32_R_R_R", "");
+    // BUG-484 (2026-11-06): the plain key's measured `F32` group (no baked sample: the era dotted
+    // row had `-Ra`, `Rd = RZ` and `Rb.H0_H0` in its and_base and printed `HADD2 R0, RZ, R0.H0_H0`).
+    let h = and_base(&t, "HADD2_R_R_R", "F32");
     assert_eq!(
         dec(&t, (h | (2 << 60)) & M96).as_deref(),
-        Some("@P0 HADD2 R0, RZ, R0.H0_H0")
+        Some("@P0 HADD2.F32 R0, R0, R0.H0_H0")
     );
     // FLIPPED 2026-08-29 (BUG-265): mg 'GEU.AND' renamed 'AND,F'; the base
     // decodes vendor 'HSETP2.F.AND' (arb265 B, x4 models) -- pre-flip text

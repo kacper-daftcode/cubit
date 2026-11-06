@@ -587,7 +587,7 @@ pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
         .with_context(|| format!("unrecognized SASS: {text:?}"))?;
 
     let pred_str = caps.name("Pred").map_or("", |m| m.as_str()).trim().to_string();
-    let op_full = caps.name("Op").unwrap().as_str().to_string();
+    let mut op_full = caps.name("Op").unwrap().as_str().to_string();
     let operands_str = caps.name("Operands").map_or("", |m| m.as_str()).to_string();
 
     // Parse predicate guard
@@ -602,7 +602,7 @@ pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
     // (`.F32.FMZ`), so downstream modifier scans see a canonical shape.
     let op_parts: Vec<&str> = op_full.split('.').collect();
     let base_op = op_parts[0].to_string();
-    let modifiers: Vec<String> = op_parts[1..]
+    let mut modifiers: Vec<String> = op_parts[1..]
         .iter()
         .flat_map(|s| s.split(','))
         .filter(|s| !s.is_empty())
@@ -630,6 +630,8 @@ pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
     // Parse operands
     let operands_str = operands_str.trim();
     let mut operands = Vec::new();
+    // BUG-484: a legacy input spelling rewritten to the vendor text (see below).
+    let mut raw_text_override: Option<String> = None;
     if !operands_str.is_empty() {
         // Split by comma, respecting brackets
         let mut depth = 0;
@@ -648,6 +650,34 @@ pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
         }
         if !current.trim().is_empty() {
             tokens.push(current.trim().to_string());
+        }
+
+        // BUG-484: the legacy input spelling `HADD2.H1H1A Rd, Ra, Rb` (cubit's own
+        // mnemonic-suffix row of 2026-08-08, blackwell-isa 8f773da, retired at the
+        // O2 cut 4340cdf without an alias) means the vendor's `HADD2 Rd, Ra.H1_H1, Rb`
+        // — the fp16 half-selector on Ra, which nvdisasm 13.1 prints exactly so and
+        // the plain `HADD2_R_R_R` row encodes (shipped `exl3-wave-m8/k1_m8{,g}` words,
+        // `tests/bug484_hadd2_h1h1a_spelling.rs`). Accepted on input only; never printed.
+        if base_op == "HADD2" && modifiers.iter().any(|m| m == ".H1H1A") {
+            static RE_PLAIN_REG: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^R\d+$").unwrap());
+            match tokens.get(1) {
+                Some(ra) if RE_PLAIN_REG.is_match(ra) => {
+                    tokens[1] = format!("{ra}.H1_H1");
+                }
+                other => anyhow::bail!(
+                    "HADD2.H1H1A (legacy spelling of `HADD2 Rd, Ra.H1_H1, Rb`) needs a plain register as Ra, got {other:?}: {text:?}"
+                ),
+            }
+            modifiers.retain(|m| m.as_str() != ".H1H1A");
+            op_full = base_op.clone();
+            for m in &modifiers { op_full.push_str(m); }
+            // The encoder reads the requested modifier group from `raw_text`: carry the
+            // vendor spelling there as well (`HADD2.H1H1A R16, R16, R16` → `HADD2 R16, R16.H1_H1, R16`).
+            static RE_H1H1A_RA: LazyLock<Regex> = LazyLock::new(|| {
+                Regex::new(r"^(\s*(?:@!?U?P\w+\s+)?HADD2\S*\s+[^,]+,\s*)(R\d+)(\s*,)").unwrap()
+            });
+            let t = text.replacen(".H1H1A", "", 1);
+            raw_text_override = Some(RE_H1H1A_RA.replace(&t, "${1}${2}.H1_H1${3}").to_string());
         }
 
         for tok in &tokens {
@@ -684,7 +714,7 @@ pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
         ctrl: ControlCode::default(),
         hand_sched: false,
         rsd,
-        raw_text: text.to_string(),
+        raw_text: raw_text_override.unwrap_or_else(|| text.to_string()),
     })
 }
 
