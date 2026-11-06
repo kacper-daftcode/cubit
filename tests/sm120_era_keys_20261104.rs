@@ -59,7 +59,9 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
     // `RET.REL.NODEC_R_II`, `RET.REL.NODEC_R` -> `RET_R_II`)
     // + the five dense IMMA harvest twins retired by the IMMA family (T-10: `_P_` / `_?` keys -> the typed keys)
     // + the SAT-less `FADD.SAT_R_R_R` harvest row retired by the audit exceptions (T-11: -> `FADD_R_R_R`)
-    assert_eq!(al.len(), 31, "sm120.json key_aliases");
+    // + the three dotted HSETP2 harvest keys retired by the measured family (2026-11-06, G: the encode-only
+    //   twin `HSETP2.GEU.AND_P_P_R_R_P` and the mis-tokenised `_P_P_R_R_R` / `_P_P_R_UR_UR` -> the plain keys)
+    assert_eq!(al.len(), 34, "sm120.json key_aliases");
     let glued = regex::Regex::new(r"_P\d_").unwrap();
     let mut glued_n = 0;
     for (old, new) in &al {
@@ -75,6 +77,11 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
         if old == "FADD.SAT_R_R_R" {
             // the SAT-less harvest row retired by the T-11 audit exceptions: its words are plain FADD words
             assert_eq!(new, "FADD_R_R_R", "{old} -> {new}");
+            continue;
+        }
+        if old.starts_with("HSETP2.") {
+            // the dotted HSETP2 harvest keys: their words are the plain keys' (selectors are fields there)
+            assert_eq!(new, if old.ends_with("_UR_UR") { "HSETP2_P_P_R_UR_P" } else { "HSETP2_P_P_R_R_P" }, "{old} -> {new}");
             continue;
         }
         if old.starts_with("IMMA.") {

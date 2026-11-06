@@ -49,15 +49,32 @@ def write_fixture(out: pathlib.Path, rows: list[dict]) -> None:
             fh.write(json.dumps(r) + "\n")
 
 
-def probe_words(nvdisasm: str, name: str, words, ctrl: int, check_form, check_lattice=None, arch: str = "SM120"):
+def probe_words(nvdisasm: str, name: str, words, ctrl: int, check_form, check_lattice=None, arch: str = "SM120",
+                jobs: int = 1):
     """Measure `(word, lattice)` pairs; returns fixture rows. `check_form(word, text)` must
     hold for every form word; `check_lattice(word, text)` (text may be None) for lattice words.
-    `arch` is nvdisasm's `-b` target (`SM120`, `SM100`, `SM103`, `SM121`)."""
+    `arch` is nvdisasm's `-b` target (`SM120`, `SM100`, `SM103`, `SM121`). `jobs` > 1 runs that
+    many nvdisasm processes at a time, each on its own scratch file (session G, 2026-11-06: the
+    2026-11-04 oracle race came from two probes sharing one file); the rows keep the input order."""
     scratch = pathlib.Path(f"/tmp/re_{arch.lower()}_{name}_probe.bin")
     version, digest = nvdisasm_identity(nvdisasm)
+    words = list(words)
+    if jobs > 1:
+        import concurrent.futures
+        import threading
+        local = threading.local()
+
+        def one(w):
+            if not hasattr(local, "scratch"):
+                local.scratch = scratch.with_name(f"{scratch.stem}_{threading.get_ident()}.bin")
+            return nvdisasm_text(nvdisasm, local.scratch, w, ctrl, arch)
+
+        with concurrent.futures.ThreadPoolExecutor(jobs) as pool:
+            bodies = list(pool.map(one, [w for w, _ in words]))
+    else:
+        bodies = [nvdisasm_text(nvdisasm, scratch, w, ctrl, arch) for w, _ in words]
     rows = []
-    for w, lattice in words:
-        body = nvdisasm_text(nvdisasm, scratch, w, ctrl, arch)
+    for (w, lattice), body in zip(words, bodies):
         if not lattice:
             assert body is not None and check_form(w, body), f"{w:032x}: {body}"
         elif check_lattice is not None:
