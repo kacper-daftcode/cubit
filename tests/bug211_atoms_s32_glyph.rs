@@ -99,9 +99,17 @@ fn t211_4_prio3_arm_fail_closed_unwitnessed_widths() {
         assert!(dec(&t, &idx, w64).is_none(), "{p}: b74 (.64) must fail closed");
         let w3 = word(0x000020050009738c, 0x008e280002800000 | B73 | (1u64 << 10));
         assert!(dec(&t, &idx, w3).is_none(), "{p}: width=3 must fail closed");
-        // same on the AURI form
+        // same on the AURI form -- until 2026-11-06 (T-8): the uniform-indexed ATOMS lattice is measured
+        // (`tools/probes/re_sm120_atoms_aruri_ops.py`: type [75:73] 2 = `.64`, legal on every operation),
+        // so on sm120 the b74 word decodes to the vendor text `@P0 ATOMS.AND.64 RZ, [UR8+0x14], R3`
+        // (nvdisasm 13.1 -b SM120) through `ATOMS_R_ARURI_R` [64,AND]; the sm103a / sm100a tables keep the
+        // hole (their rows are not rebuilt).
         let w64a = word(0x00001403ffff098c, 0x0007e8000a800008 | (1u64 << 10));
-        assert!(dec(&t, &idx, w64a).is_none(), "{p}: AURI b74 must fail closed");
+        if *p == T120 {
+            assert_eq!(dec(&t, &idx, w64a).as_deref().map(str::trim_end), Some("@P0 ATOMS.AND.64 RZ, [UR8+0x14], R3"), "{p}: the measured .64 group");
+        } else {
+            assert!(dec(&t, &idx, w64a).is_none(), "{p}: AURI b74 must fail closed");
+        }
     }
 }
 
