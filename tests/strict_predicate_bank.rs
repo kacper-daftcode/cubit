@@ -55,19 +55,23 @@ fn native_predicate_banks_preserve_complete_words_and_editable_source() {
 }
 
 #[test]
-fn wrong_banks_fail_closed_while_legacy_encoder_aliases_stay_compatible() {
+fn wrong_banks_fail_closed_in_both_apis() {
     let table = table();
     let mut checked = 0;
     for row in fixtures().iter().filter(|row| row["bank_matches"] == false) {
         let source = row["source"].as_str().unwrap();
         let error = encode_semantic_source(source, table).unwrap_err().to_string();
         assert!(error.contains("predicate bank mismatch"), "{source}: {error}");
-        // The strict API owns this check. The historical general encoder's
-        // accepted spelling aliases remain unchanged (including BUG-171).
+        // Until 2026-11-06 the strict API owned this check and the general encoder kept the
+        // wrong-bank spelling as a bitwise alias (BUG-171). That silence is KNOWN_ISSUES A16 (a
+        // vector guard on a uniform form ran the ARRIVES probe's init under an uninitialised
+        // UP2): `encode_instruction` refuses the mismatch itself now, naming both classes
+        // (session T-11, `tests/a16_guard_class.rs`); the fixture words stay the vendor's.
         let line = source.lines().find(|line| line.starts_with('[')).unwrap();
         let parsed = cubit::parse_cuasm_line(line, 0).unwrap();
-        let legacy = cubit::encoder::encode_instruction(&parsed, table).unwrap();
-        assert_eq!(legacy, expected(row));
+        let legacy = cubit::encoder::encode_instruction(&parsed, table).unwrap_err().to_string();
+        assert!(legacy.contains("predicate bank mismatch (A16)"), "{source}: {legacy}");
+        let _ = expected(row);
         checked += 1;
     }
     assert_eq!(checked, 20);

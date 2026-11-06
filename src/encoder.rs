@@ -1979,8 +1979,11 @@ pub fn encode_instruction(insn: &Instruction, table: &IsaTable) -> Result<u128> 
                 Operand::Imm32(offset as i64),
             ];
             normalized.key.clear();
-            return encode_instruction_inner(&normalized, table, true)
-                .context("encoding legacy BRXU absolute target as URZ plus a PC-relative offset");
+            // (the inner error stays in the message: `anyhow::Context` would hide e.g. the A16
+            // predicate-bank refusal behind this note in `to_string()`)
+            return encode_instruction_inner(&normalized, table, true).map_err(|e| {
+                anyhow::anyhow!("{e} (while encoding the legacy BRXU absolute target as URZ plus a PC-relative offset)")
+            });
         }
     }
     // The canonical BRXU operand is a signed byte offset with two implicit
