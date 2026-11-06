@@ -1296,6 +1296,12 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     if matches!(base, "ISETP" | "UISETP") && m == "T" {
         return 1;
     }
+    // 2026-11-06 (session G, tools/probes/re_sm120_fsetp_dsetp.py, nvdisasm 13.1): the constant comparisons
+    // of the float setp family precede FTZ like the other comparisons -- `FSETP.F.FTZ.AND`, `FSETP.T.FTZ.OR`;
+    // DSETP names the codes 0 / 15 `MIN` / `MAX` (`DSETP.MIN.AND`, `DSETP.MAX.XOR`) and has no FTZ.
+    if matches!(base, "FSETP" | "DSETP") && matches!(m, "F" | "T" | "MIN" | "MAX") {
+        return 1;
+    }
     // 2026-11-02 (audit_dynamic, 247 F2FP words): `F2FP.RELU.BF16.F32.PACK_AB` -
     // RELU is the first modifier of the pack conversions.
     // 2026-11-04 (PACK_AB lattice sweep, nvdisasm 13.1: bit 77): `F2FP.SATFINITE.F16.F32.PACK_AB`,
@@ -4633,8 +4639,11 @@ fn format_double(f: f64, neg: bool) -> String {
     // f64hi window): `0` for +0.0, `-0.0` for a negative zero (sign bit 63 or an explicit neg field).
     // The historical arm returned "1" for every zero immediate ("integer 1 used as double constant"),
     // which printed `DFMA R4, R6, R8, 1` for a word whose immediate is 0 and re-encoded it as 1.0.
+    // The negative zero carries the vendor's token-level pad like the INF / NaN glyphs (session G,
+    // 2026-11-06, tools/probes/re_sm120_fsetp_dsetp.py: `DSETP.GT.AND P0, PT, R2, -0.0 , PT` mid-line;
+    // the BUG-255 tail-trim above shaves it when the immediate is the last operand -- `DFMA R4, R6, R8, -0.0`).
     if f == 0.0 {
-        return if neg != f.is_sign_negative() { "-0.0".to_string() } else { "0".to_string() };
+        return if neg != f.is_sign_negative() { "-0.0 ".to_string() } else { "0".to_string() };
     }
     if f == f.trunc() && f.abs() < 16_777_216.0 {
         return format!("{neg_s}{}", f as i64);

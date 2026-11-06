@@ -196,22 +196,16 @@ fn t226_2_stable_anchors_unchanged_sm120() {
 fn t226_3_fail_closed_boundaries_sm120() {
     let t = tab(T120);
     // INVALID3 lattice word (b74|b75 on an EQ.OR base): all table rows pin
-    // the bool-op lattice but the prio-3 sign window {62,63,72,73,74,75}
-    // still absorbs it as OR with b75 silently dropped (same on the donor
-    // tables; the lawful FSETP sign decodes -- 918 AND,GT + 332 AND,NEU --
-    // ride the same tier, so arming it is src work scoped per base, logged
-    // as 226-forward). The enforced contract (bug089-class): the rendered
-    // text must NOT re-encode to the INVALID3 word, so the frozen __raw__
-    // path keeps the exact bits.
+    // the bool-op lattice; until 2026-11-06 the prio-3 sign window
+    // {62,63,72,73,74,75} still absorbed it as OR with b75 silently dropped
+    // (the "226-forward" item: arming the base was src work). Session G
+    // measured the family whole (tools/probes/re_sm120_fsetp_dsetp.py: every
+    // (comparison, boolean, FTZ) a row; the lawful sign decodes -- 918 AND,GT
+    // + 332 AND,NEU -- are strict matches on their own fields) and took FSETP
+    // off the sign-tolerant fallback: the INVALID3 word fails closed now, the
+    // stronger form of the bug089-class contract (nothing to re-encode).
     let invalid3 = 0x00702400000000ff0700720b | (1u128 << 75);
-    let got = decode(&t, mk(invalid3, 0x000fe200)).expect("absorbed decodes");
-    let insn = parse_sass(&got, 0).unwrap();
-    let re = encode_instruction(&insn, &t).map(|c| c & M96).ok();
-    assert_ne!(
-        re,
-        Some(invalid3 & M96),
-        "INVALID3 must not survive a text round-trip"
-    );
+    assert!(decode(&t, mk(invalid3, 0x000fe200)).is_err(), "INVALID3 absorbed");
     // b91 set (vendor NOGLYPH) must not decode via any FSETP row.
     let b91 = 0x00702400000000ff0700720b | (1u128 << 91);
     assert!(decode(&t, mk(b91, 0x000fe200)).is_err(), "b91 absorbed");

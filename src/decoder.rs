@@ -401,6 +401,12 @@ impl DecodeIndex {
                 // as `ISETP.GE.XOR`. Every legal (comparison, boolean, type, EX) is a measured row on
                 // the ten keys; fail closed otherwise.
                 "ISETP" | "UISETP" |
+                // FSETP (2026-11-06, session G, tools/probes/re_sm120_fsetp_dsetp.py, nvdisasm 13.1): the
+                // boolean [75:74] (3 = `INVALID3`) sits in the window next to the measured sign fields
+                // 72 / 73 / 62 / 63; a sign-tolerant match printed `FSETP.GT.INVALID3` as `FSETP.GT.XOR`.
+                // Every (comparison, boolean, FTZ) is a measured row on the three keys; fail closed
+                // otherwise (DSETP is in `sign_law_base` below for the same reason).
+                "FSETP" |
                 // LEA (2026-11-06, tools/probes/re_sm120_lea.py, nvdisasm 13.1 on SM120 / SM103 /
                 // SM100): the family packs .SX32 (b73) and .X (b74) inside the window and names
                 // its sign bits (72, 63) as `neg` / `inv` fields on every row; a sign-tolerant

@@ -183,7 +183,10 @@ fn t202_5_canonical_field_set_tripwire() {
                     match f["extraction"].as_str().unwrap_or("") {
                         "pred" => {
                             preds.push(t3);
+                            // 2026-11-06 (session G): the family's rows are measured whole by
+                            // tools/probes/re_sm120_fsetp_dsetp.py -- the explicit tok2 field carries that tag.
                             if t3 == (2, 84, 3) && (f["_src"].as_str() == Some("bug202-2026-08-27")
+                                || f["_src"].as_str() == Some("fsetp-dsetp-family-2026-11-06")
                                 || g["_source"].as_str().is_some_and(|s| s.starts_with("re_sm120_tensor_fields.py:"))) {
                                 marked = true;
                             }
