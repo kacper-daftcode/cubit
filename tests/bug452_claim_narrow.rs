@@ -129,7 +129,10 @@ fn t452_7_data_attribution() {
         let mut l1 = 0;
         let mut l2 = 0;
         for (k, rec) in ins {
-            let hit = k.ends_with("_ARURI64_R")
+            // 2026-11-06 (T-7): the two measured ATOMG `.EL` 64-bit-base keys also end in
+            // `_ARURI64_R` (provenance atomg-el-aruri64-2026-11-06, claim_forbid on bit 76 by
+            // measurement); this census is the REDG family's (BUG-452/461 attribution).
+            let hit = (k.ends_with("_ARURI64_R") && k.starts_with("REDG"))
                 || k == "LDG.E.EFL2.256_R_R_dARI"
                 || k == "LDG.E.EFL2.256_R_R_dARI_P"
                 || k == "STG.E.EFL2.256_dARI_R_R";
