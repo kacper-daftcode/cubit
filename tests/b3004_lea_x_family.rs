@@ -9,13 +9,17 @@
 //! its `IADD3.X_*` row is junk (T1) and `IADD.XOR` is absent even there.
 //!
 //! Notes pinned by this test:
-//! * the era group `IADD3_R_P_P_R_UR_R_P_P / X` (count 20 864) is retired to
-//!   encode-only retention: its 4-bit pred @87 swallowed the neg bit (P15) and
-//!   its `pred @77` sat inside the imm window -- decode moves to the measured
-//!   row, round-trip bits identical;
-//! * the second trailing `, !PT` of the vendor `IADD3.X` text is a constant
-//!   of the family (bits 91..121 probed, nothing drives it): the cubit text
-//!   carries one carry-in token, `LEA.HI.X` matches nvdisasm token for token.
+//! * IADD.XOR and LEA.HI.X as coldface measured them (taken by T-7 after re-measuring every field on
+//!   nvdisasm 13.1 `-b SM103` / `SM100` / `SM120`);
+//! * IADD3.X -- REPLACED by T-7 (2026-11-06): the proposal baked the second trailing predicate as a
+//!   constant `!PT` ("bits 91..121 probed, nothing drives it" -- the wrong window) and printed `-R`
+//!   for the inverted operands. Measured: the vendor text carries TWO carry-in predicates, Pc at
+//!   [89:87] with its negation at bit 90 and Pd at [79:77] with its negation at bit 80 (`pred@77`
+//!   0..7 with bit 80 -> `!P0`..`!PT`, bit 80 clear -> `PT`), and the `~` glyph for bits 72 / 63 / 75.
+//!   The harvest row `IADD3_R_P_P_R_UR_R_P_P / X` (count 20 864) already modelled both carry-ins; its
+//!   one defect -- a 4-bit `pred @87` swallowing the negation bit 90 (coldface's diagnosis, P8..P15 for
+//!   negated words) -- is repaired in blackwell-isa (3-bit pred + `neg @90`, tag
+//!   iadd3x-urform-carry-neg-2026-11-06) on sm120 / sm103a / sm100a, and the row stays decode-live.
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
@@ -64,15 +68,24 @@ fn b3004_iadd_xor_decodes_as_the_one_predicate_form() {
 }
 
 #[test]
-fn b3004_iadd3_x_decodes_via_the_measured_row_not_the_retired_era_group() {
-    for name in ["tables/sm103a.json", "tables/sm100a.json"] {
+fn b3004_iadd3_x_two_carry_ins_through_the_repaired_harvest_row() {
+    // T-7 (2026-11-06): both carry-in predicates are operands; the first one's negation is bit 90.
+    for name in ["tables/sm120.json", "tables/sm103a.json", "tables/sm100a.json"] {
         let t = table(name);
-        assert_eq!(key(&t, W_IADD3_X), "IADD3.X_R_P_P_R_UR_R_P", "{name}");
-        // one carry-in token (the second vendor !PT is a family constant -- see the module doc)
+        assert_eq!(key(&t, W_IADD3_X), "IADD3_R_P_P_R_UR_R_P_P", "{name}");
         assert_eq!(clean(&dec(&t, W_IADD3_X)),
-                   "IADD3.X R40, P1, P0, R39.reuse, UR4, R16, !PT", "{name}");
+                   "IADD3.X R40, P1, P0, R39.reuse, UR4, R16, !PT, !PT", "{name}");
         let text = dec(&t, W_IADD3_X);
         assert_eq!(enc(&t, &text) & NOSCHED, W_IADD3_X & NOSCHED, "{name}: round trip");
+        // a non-PT second carry-in (pred@77 = 5, bit 80 clear -> `P5`) and a negated first one
+        // (pred@87 = 5, bit 90 set -> `!P5`): the proposal's baked `!PT` could not decode this word.
+        let w2 = (W_IADD3_X & !((7u128 << 77) | (1u128 << 80) | (7u128 << 87))) | (5u128 << 77) | (5u128 << 87) | (1u128 << 90);
+        assert_eq!(clean(&dec(&t, w2)), "IADD3.X R40, P1, P0, R39.reuse, UR4, R16, !P5, P5", "{name}");
+        assert_eq!(enc(&t, &dec(&t, w2)) & NOSCHED, w2 & NOSCHED, "{name}: round trip of the two-predicate word");
+        // the inverted operands print with the `~` glyph (bits 72 / 63 / 75)
+        let w3 = W_IADD3_X | (1u128 << 72) | (1u128 << 63) | (1u128 << 75);
+        assert_eq!(clean(&dec(&t, w3)), "IADD3.X R40, P1, P0, ~R39.reuse, ~UR4, ~R16, !PT, !PT", "{name}");
+        assert_eq!(enc(&t, &dec(&t, w3)) & NOSCHED, w3 & NOSCHED, "{name}: round trip of the ~ word");
         assert_eq!(key(&t, W_IADD3), "IADD3_R_P_P_R_UR_R", "{name}");
     }
 }
