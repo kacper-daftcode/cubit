@@ -357,6 +357,11 @@ impl DecodeIndex {
                 // every mixed-type word as the `S8.S8` sibling (NEEDS 36). Every legal (mode, type,
                 // type) is a measured row on both operand shapes; fail closed otherwise.
                 "IDP" |
+                // USETMAXREG (2026-11-06, T-11, nvdisasm 13.1 on the four targets): bit 72 = DEALLOC,
+                // 73 = TRY_ALLOC, 74 = CTAPOOL (`???0` otherwise), 63 text-inert -- the form law sits
+                // in the window, so a sign-tolerant match printed the bit-63 DEALLOC word as
+                // `USETMAXREG.TRY_ALLOC.CTAPOOL UPT, 0x0`. Fail closed (the inert bit is unclaimed).
+                "USETMAXREG" |
                 // BUG-224: SYNCS carries neighbor-form law at b72
                 // (.IVALL/.WBALL), b73 (opaque enum), b91 (operandful
                 // SYNCS.CCTL.IV [R+UR]) — all inside/adjacent to the prio-3

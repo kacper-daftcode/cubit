@@ -79,10 +79,10 @@ pub const POSTURE442: &[(u128, &str)] = &[
 /// vendor text in the doc comment (registrated classes, NOT healed).
 pub const GAP442: &[(u128, &str, &str)] = &[
     // C.j90.raRZ: loud-glyph ???255; vendor: 'STG.E [???255.64+UR4], R4'
-    (0x000fc2000c10090400000004ff007986, "STG.E [RZ.64+UR4], R4", "C.j90.raRZ.sm100a"),
-    (0x000fc2000c10090400000004ff007986, "STG.E [RZ.64+UR4], R4", "C.j90.raRZ.sm120"),
-    (0x000fc2000c10090400000004ff007986, "STG.E [RZ.64+UR4], R4", "C.j90.raRZ.sm103a"),
-    (0x000fc2000c10090400000004ff007986, "STG.E [RZ.64+UR4], R4", "C.j90.raRZ.sm121a"),
+    (0x000fc2000c10090400000004ff007986, "STG.E [???255.64+UR4], R4", "C.j90.raRZ.sm100a"), // 2026-11-06 T-11: the vendor's degenerate glyph for base 255 under the .64 width (BUG-461 doctrine; nvdisasm 13.1 on the four targets)
+    (0x000fc2000c10090400000004ff007986, "STG.E [???255.64+UR4], R4", "C.j90.raRZ.sm120"),
+    (0x000fc2000c10090400000004ff007986, "STG.E [???255.64+UR4], R4", "C.j90.raRZ.sm103a"),
+    (0x000fc2000c10090400000004ff007986, "STG.E [???255.64+UR4], R4", "C.j90.raRZ.sm121a"),
     // C.j90.ur255: urz-elide gap (444-kand); vendor: 'STG.E [R4.64+URZ], R4' -- HEALED by BUG-444 x4 (444-kand closed)
     (0x000fc2000c1009ff0000000404007986, "STG.E [R4.64+URZ], R4", "C.j90.ur255.sm100a"), // healed 444
     (0x000fc2000c1009ff0000000404007986, "STG.E [R4.64+URZ], R4", "C.j90.ur255.sm120"), // healed 444

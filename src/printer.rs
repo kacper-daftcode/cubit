@@ -762,6 +762,17 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
     {
         operands.remove(0);
     }
+    // ULEA's optional UP operand (T-11, 2026-11-06, nvdisasm 13.1 on the four targets): the field
+    // [83:81] prints `UP0..UP6` and is elided at 7 (UPT) -- `ULEA UR0, -UR7, UR0, 0x1` is the vendor's
+    // text for the `_UP_` row's UPT word, the same word the 4-operand row owns (123 census witnesses of
+    // the `_UP_` row carry UP0..UP2; the 649 of the 4-operand row carry 7). Same alias doctrine as
+    // BUG-045: the explicit `UPT,` spelling still assembles to the same bits.
+    if insn.opcode == "ULEA"
+        && op_types.get(1).map(|t| t == "UP").unwrap_or(false)
+        && operands.get(1).map(|s| s == "UPT").unwrap_or(false)
+    {
+        operands.remove(1);
+    }
 
     // BUG-104 (ur-up URZ elision): the *_UR_UP enable-UR slot encodes URZ as
     // 0xFF; nvdisasm then prints the SHORT form without the UR token entirely
@@ -1671,6 +1682,10 @@ fn format_operand(
         // RPCMOV's implicit PC register is the literal symbol Rpc.LO. Its
         // canonical rows fix the selector bit instead of modeling an integer.
         "II" if ins_key.starts_with("RPCMOV_") => "Rpc.LO".to_string(),
+        // BMOV.64's first operand is the special register ATEXIT_PC: nvdisasm 13.1 prints it for every
+        // value of [23:16] on the four targets (T-11, 2026-11-06, T/t11/exc_probe.py); the harvest row
+        // `BMOV.64_II_UR [64]` carried the token without a field and cubit printed `0x0`.
+        "II" if ins_key.starts_with("BMOV.64_II_UR") => "ATEXIT_PC".to_string(),
         // R2P destination: always the predicate-register file token "PR"
         // (parsed as imm-0 in the corpus; printing the numeral round-trips
         // but loses the architectural form nvdisasm emits).
@@ -1855,18 +1870,18 @@ fn format_operand(
                     || ins_key.contains(".ELL2."))
                 && !ins_key.contains(".NA.")
                 && (raw >> 75) & 1 == 0;
-            format_plain_u32_ur(
-                fields,
-                raw,
-                ins_key.starts_with("LDG.E.NA.EFL2")
-                    || ins_key.starts_with("STG.E.NA.EFL2")
-                    || (ins_key.contains(".ELL2.")
-                        && (ins_key.starts_with("LDG.E.") || ins_key.starts_with("STG.E."))),
-                false,
-                false,
-                plain_u32,
-                lossless,
-            )
+            let efl2_na = ins_key.starts_with("LDG.E.NA.EFL2")
+                || ins_key.starts_with("STG.E.NA.EFL2")
+                || (ins_key.contains(".ELL2.")
+                    && (ins_key.starts_with("LDG.E.") || ins_key.starts_with("STG.E.")));
+            // BUG-461 doctrine, applied to the whole plain 64-bit-base family (T-11, 2026-11-06,
+            // nvdisasm 13.1 -b SM120 = SM103: `LDG.E.LTC128B.128 R4, [???255.64+UR6+0x10]`,
+            // `STG.E.128 [???255.64+UR5+0x10], R6`, `ST.E.64 [???255.64+UR5+0x10], R6`; the U32
+            // width prints `[RZ.U32+UR6+0x10]` normally): base 255 under the `.64` width is the
+            // vendor's degenerate glyph, printed text-faithfully like the REDG / ATOMG `.EL`
+            // twins; the encoder refuses to mint it (BUG-461 mint-side).
+            let glyph255 = !efl2_na && !plain_u32 && (raw >> 90) & 0b11 == 0b11;
+            format_plain_u32_ur(fields, raw, efl2_na, glyph255, false, plain_u32, lossless)
         }
         // BUG-454: REDG plain uniform-indexed 64-bit address family
         // (_ARURI64_R rows; ERR-268 recanon fleet-side). Same bracket law
@@ -1944,7 +1959,8 @@ fn format_operand(
                     .iter()
                     .any(|f| matches!(norm_ext(&f.extraction).as_str(), "reg" | "sub_r0")) =>
         {
-            format_plain_u32_ur(fields, raw, false, false, false, false, lossless)
+            // the same BUG-461 glyph law as the LDG.E / STG.E arm above (T-11): `.64` + base 255
+            format_plain_u32_ur(fields, raw, false, (raw >> 90) & 0b11 == 0b11, false, false, lossless)
         }
         // BUG-154: SYNCS.PHASECHK.TRANS64[.TRYWAIT] ARURI rows are plain
         // uniform-datapath bracket addresses in vendor text --

@@ -19,6 +19,8 @@ process. Each word is then classified:
                         "no text"`: E3M4 block-scaled MMA, the tcgen05 kinds the SM120 silicon runs,
                         FFMA2) - "nvdisasm does not know the word", never a defect (owner 2026-11-03)
   both_reject           nvdisasm rejects and cubit decodes nothing (fine: an illegal variant)
+  vendor_glyph          both print the vendor's degenerate glyph (`[???255.64+UR..]`) and the encoder refuses to
+                        mint it -- the BUG-461 doctrine (T-11); named, not counted
   other_row             cubit decodes the word through a different row than the one it was built
                         from (recorded, not a defect by itself)
   reuse_inert           same text, re-encode differs only in control-code / reuse bits [127:105]
@@ -320,6 +322,11 @@ def classify(args, words_out, table):
                 cls = "inert_failclosed"
             else:
                 cls = "decode_miss"
+        elif vendor_invalid_text(nv) and normalise(nv) == normalise(ct) and str(it.get("reencode", "")).startswith("error"):
+            # the vendor's degenerate glyph printed as the vendor prints it (`[???255.64+UR..]`: the plain
+            # 64-bit-base address with base 255 -- BUG-461 doctrine, T-11 2026-11-06: text-faithful decode,
+            # the encoder refuses to mint the glyph) -- named, not counted
+            cls = "vendor_glyph"
         elif vendor_invalid_text(nv) and normalise(nv) != normalise(ct):
             cls = "cubit_decodes_illegal"  # a valid-looking text for a word the vendor marks invalid
         elif normalise(nv) != normalise(ct):
@@ -355,7 +362,7 @@ def classify(args, words_out, table):
         it["class"] = cls
         classes[cls] += 1
         per_row[(it["key"], it["group"])][cls] += 1
-        if cls not in ("ok", "both_reject", "other_row", "reuse_inert", "vendor_unknown", "reuse_rejected", "inert_failclosed", "vendor_invalid", "nan_glyph", "inert_bits", "silicon_illegal"):
+        if cls not in ("ok", "both_reject", "other_row", "reuse_inert", "vendor_unknown", "reuse_rejected", "inert_failclosed", "vendor_invalid", "nan_glyph", "inert_bits", "silicon_illegal", "vendor_glyph"):
             findings.append(it)
     words_out.write_text("".join(json.dumps(it) + "\n" for it in items))
     (args.out / "dynamic_findings.jsonl").write_text("".join(json.dumps(f) + "\n" for f in findings))

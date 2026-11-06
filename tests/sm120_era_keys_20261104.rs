@@ -58,7 +58,8 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
     // + the two dotted RET harvest keys retired by the BRX / BRXU / RET family (2026-11-06, T-10:
     // `RET.REL.NODEC_R_II`, `RET.REL.NODEC_R` -> `RET_R_II`)
     // + the five dense IMMA harvest twins retired by the IMMA family (T-10: `_P_` / `_?` keys -> the typed keys)
-    assert_eq!(al.len(), 30, "sm120.json key_aliases");
+    // + the SAT-less `FADD.SAT_R_R_R` harvest row retired by the audit exceptions (T-11: -> `FADD_R_R_R`)
+    assert_eq!(al.len(), 31, "sm120.json key_aliases");
     let glued = regex::Regex::new(r"_P\d_").unwrap();
     let mut glued_n = 0;
     for (old, new) in &al {
@@ -69,6 +70,11 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
         }
         if old.starts_with("RET.REL.NODEC_R") {
             assert_eq!(new, "RET_R_II", "{old} -> {new}");
+            continue;
+        }
+        if old == "FADD.SAT_R_R_R" {
+            // the SAT-less harvest row retired by the T-11 audit exceptions: its words are plain FADD words
+            assert_eq!(new, "FADD_R_R_R", "{old} -> {new}");
             continue;
         }
         if old.starts_with("IMMA.") {

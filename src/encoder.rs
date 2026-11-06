@@ -1871,6 +1871,9 @@ fn check_label_baked_symbol(insn: &Instruction, entry: &crate::table::ModGroupEn
             "P2R" | "R2P" => name == "PR",
             "UP2UR" => name == "UPR",
             "RPCMOV" => name.eq_ignore_ascii_case("Rpc.LO"),
+            // BMOV.64's first operand is the special register ATEXIT_PC (nvdisasm 13.1 on the
+            // four targets, T-11 2026-11-06); the row carries the token without a field
+            "BMOV" => name == "ATEXIT_PC" && insn.opcode_full.starts_with("BMOV.64"),
             _ => false,
         };
         if system_symbol {
