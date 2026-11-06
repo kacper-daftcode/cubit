@@ -43,12 +43,15 @@ import json
 import pathlib
 import re
 import subprocess
+import itertools
 import tempfile
+import threading
 import sys as _sys, pathlib as _pathlib
 _sys.path.insert(0, str(_pathlib.Path(__file__).resolve().parent))
 from tablefile import load_table  # plain tables/<arch>.json or the vendored .json.gz
 
 SCHEDULE_MASK = ((1 << 23) - 1) << 105
+_SCRATCH_SEQ = itertools.count()
 DEFAULT_CTRL = 0x000fe200 << 96  # stall 1, yield, no barriers - legal for every class
 TEXT_RE = re.compile(r"/\*0000\*/\s*(.*?)\s*;")
 
@@ -114,11 +117,18 @@ def words_for_row(key, group, row):
 
 
 def nvdisasm_one(nvdisasm, word, ctrl, scratch_dir):
-    path = pathlib.Path(scratch_dir) / f"{word:032x}.bin"
+    # One scratch file per CALL (2026-11-06): the same word is probed once per row that generates it,
+    # and two threads sharing `<word>.bin` raced (one unlinked the file the other was about to pass to
+    # nvdisasm) -- the 2026-11-04 run recorded 386 legal words as "rejected" that way (the records were
+    # corrected by re-measurement, `T/audit/dyn/words_in_fixed.jsonl`). A failure that is not nvdisasm's
+    # own "Illegal instruction" verdict is an error, never a verdict.
+    path = pathlib.Path(scratch_dir) / f"{word:032x}-{threading.get_ident()}-{next(_SCRATCH_SEQ)}.bin"
     path.write_bytes((word | ctrl).to_bytes(16, "little"))
     r = subprocess.run([nvdisasm, "-b", "SM120", "-hex", str(path)], capture_output=True, text=True)
     path.unlink(missing_ok=True)
     if r.returncode:
+        if "Illegal instruction" not in r.stderr and "Invalid instruction" not in r.stderr and "undefined value" not in r.stderr:
+            raise RuntimeError(f"nvdisasm failed on {word:032x}: {r.stderr.strip()[:200]}")
         return None
     m = TEXT_RE.search(r.stdout)
     return m.group(1).strip() if m else None

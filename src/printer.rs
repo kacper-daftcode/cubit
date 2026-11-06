@@ -1012,7 +1012,18 @@ fn format_opcode(base: &str, mod_group: &str, key: &str) -> String {
     if mods.is_empty() {
         return base.to_string();
     }
-    mods.sort_by_key(|m| mod_priority_for_key(base, key, m));
+    // 2026-11-06 (dynamic audit T1, 96 words of the 8 BF16 `UNPACK_B_MERGE_C` groups, nvdisasm 13.1):
+    // the FP8 -> half unpack-with-merge prints the SOURCE type before the destination type —
+    // `F2FP.SATFINITE.RELU.E4M3.BF16.UNPACK_B_MERGE_C`, `F2FP.E5M2.F16.UNPACK_B_MERGE_C` — the reverse
+    // of the pack forms (`F2FP.BF16.F32.PACK_AB` = destination first). The alphabetical group key put
+    // BF16 before E4M3 (the F16 twins happened to sort right).
+    let unpack_merge = base == "F2FP" && mods.iter().any(|m| *m == "UNPACK_B_MERGE_C");
+    mods.sort_by_key(|m| {
+        if unpack_merge && matches!(*m, "E4M3" | "E5M2") {
+            return 4;
+        }
+        mod_priority_for_key(base, key, m)
+    });
     let suffix: String = mods.iter().map(|m| format!(".{m}")).collect();
     format!("{base}{suffix}")
 }
