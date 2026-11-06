@@ -114,11 +114,22 @@ fn atom_data_gprs(insn: &Instruction) -> Vec<u8> {
 /// protect them with a read-barrier on the MMA, waited by the overwriting load.
 fn mma_src_gprs(insn: &Instruction) -> Vec<u8> {
     if !is_warp_mma(insn.opcode.as_str()) { return Vec::new(); }
+    // NEEDS 38 (T-10, 2026-11-06): `CUBIT_MMA_SRC_RB=0` switches the rule OFF -- no read barrier on an
+    // MMA for its source fragments, so an overwriting load does not wait it (ptxas sets a read barrier
+    // on 0 of the 39 624 HMMA/QMMA of the sm_120 census and overwrites fragments with LDS/LDSM at S01).
+    // An A/B switch for the owner's decision, measured with K's harness (bits + time); the default is
+    // today's rule, which the 2026-06 warm-cache corruption above was measured against.
+    if !mma_src_rb_enabled() { return Vec::new(); }
     let mut out: Vec<u8> = Vec::new();
     for (u, r) in src_regs(insn) {
         if !u && r < PRED_KEY && !out.contains(&(r as u8)) { out.push(r as u8); }
     }
     out
+}
+
+/// NEEDS 38 switch: the MMA-source read-barrier rule is on unless `CUBIT_MMA_SRC_RB=0`.
+pub fn mma_src_rb_enabled() -> bool {
+    std::env::var("CUBIT_MMA_SRC_RB").ok().as_deref() != Some("0")
 }
 
 /// The GPR(s) holding a store's ADDRESS (a store latches its address late, exactly like

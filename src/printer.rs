@@ -2792,7 +2792,11 @@ fn format_imm(fields: &[&DecodedField], _mod_group: &str, ins_key: &str) -> Stri
             // VIADDMNMX before VIADD), LOP3/ULOP3, SEL/USEL, LEA/ULEA, MOV/UMOV,
             // SHF/USHF. Signed always (incl abs > 0xFFFFFF): *SETP, IADD3/UIADD3,
             // IMAD/UIMAD, VIMNMX.
+            // UCLEA / UBMSK: nvdisasm prints their immediates unsigned too (2026-11-06, T-10:
+            // `UCLEA UR0, UPT, UR0, 0x8000, 0x1`, `UBMSK.W UR0, UR0, 0xffffffff`).
             let is_unsigned_op = ins_key.starts_with("VIADDMNMX")
+                || ins_key.starts_with("UCLEA")
+                || ins_key.starts_with("UBMSK")
                 || ins_key.starts_with("MOV")
                 || ins_key.starts_with("UMOV")
                 || ins_key.starts_with("SHF")
@@ -4810,6 +4814,11 @@ pub fn imad_alias_of_text(a: &str, b: &str, c: &str) -> Option<&'static str> {
         let v = i64::from_str_radix(body.strip_prefix("0x")?, 16).ok()?;
         Some(if neg { -v } else { v })
     };
+    // A uniform register in the b slot takes no alias either (2026-11-06, T-10, nvdisasm 13.1:
+    // `IMAD R4, RZ, UR7, R10`, `IMAD R4, R6, UR7, RZ`, `IMAD R4, RZ, UR7, RZ` -- never `IMAD.MOV`).
+    if b.trim_start_matches('-').starts_with("UR") {
+        return None;
+    }
     imad_alias(is_rz(a), is_rz(b), imm(b), is_rz(c), c.trim_start_matches('-').starts_with("UR"))
 }
 

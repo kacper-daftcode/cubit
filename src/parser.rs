@@ -302,6 +302,10 @@ const FLOAT_OPCODES: &[&str] = &[
     // Without float context the textual `1` parsed to Imm32(1) and silently
     // encoded 0x00000001 (BUG-034, UFSETP.II-form).
     "DADD", "DMUL", "DFMA", "DSET", "DSETP", "UFSETP",
+    // MUFU's immediate forms are float (the f64 high half of RCP64H / RSQ64H, f32 otherwise):
+    // `MUFU.RCP64H R4, 0` / `, 1` are `MUFU_R_FI` words (2026-11-06, T-10; the integer-typed
+    // `MUFU_R_II [RCP64H]` harvest twin is retired).
+    "MUFU",
     "HADD2", "HMUL2", "HFMA2", "HSET2", "HSETP2",
     // F2I imm-form (BUG-125, F2I_R_FI): fresh nvcc-13.3 emit `F2I.U32.CEIL.NTZ
     // R0, 16` bakes the f32 immediate 0x41800000 at bits [63:32]; without float

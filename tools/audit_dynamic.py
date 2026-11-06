@@ -36,6 +36,13 @@ process. Each word is then classified:
                         two words differ are text-inert for the vendor; the measured rows fail closed
                         on them -- the convention of every measured family (LEA, SHF, BRA, ...;
                         KNOWN_ISSUES T1), not a defect.
+  inert_bits            both texts agree; cubit's re-encode of the text differs from the probe word in
+                        bits below the control code that nvdisasm's text does not express -- measured:
+                        nvdisasm names the re-encoded word with the same text (one call, kept as
+                        `nvidia_sass_of_reencode`). The probe word carries text-inert bits the row
+                        tolerates on decode and the canonical encoding does not reproduce (the
+                        harvest's junk byte of `WARPSYNC.ALL`, bit 34 of `UBMSK.W`, ...) -- not a defect
+                        (no census word carries them: the strict census is 100 %).
   nan_glyph             both texts agree and carry the vendor's `+/-QNAN` / `SNAN` glyph, which drops
                         the NaN payload; the glyph is not re-encodable by design (KNOWN_ISSUES A8: the
                         parser parks QNAN -- bimodal payload lanes; the owner's 2026-11-04 print
@@ -269,6 +276,14 @@ def classify(args, words_out, table):
                 scratch = tempfile.mkdtemp(prefix="audit_dyn_noreuse_")
             stripped = int(it["word"], 16) & ~REUSE_MASK
             it["nvidia_sass_noreuse"] = nvdisasm_one(args.nvdisasm, stripped & ~SCHEDULE_MASK, stripped & SCHEDULE_MASK, scratch)
+        re_ = it.get("reencode", "")
+        if nv is not None and ct is not None and normalise(nv) == normalise(ct) and re_.startswith("mismatch:") \
+                and "nvidia_sass_of_reencode" not in it:
+            w2 = int(re_[9:], 16)
+            if (w2 ^ int(it["word"], 16)) & ~SCHEDULE_MASK:
+                if scratch is None:
+                    scratch = tempfile.mkdtemp(prefix="audit_dyn_noreuse_")
+                it["nvidia_sass_of_reencode"] = nvdisasm_one(args.nvdisasm, w2 & ~SCHEDULE_MASK, w2 & SCHEDULE_MASK, scratch)
         ve = it.get("vendor_encode")
         if nv is not None and ct is None and ve and not ve.startswith("error") and "nvidia_sass_of_vendor_encode" not in it:
             if scratch is None:
@@ -319,6 +334,9 @@ def classify(args, words_out, table):
                 # them (the decoder matches [104:0]; the strict round trip carries them in the
                 # control code or an `!rsd` overlay) - a text-inert bit, not a row defect
                 cls = "reuse_inert"
+            elif re.startswith("mismatch:") and it.get("nvidia_sass_of_reencode") is not None \
+                    and normalise(it["nvidia_sass_of_reencode"]) == normalise(nv):
+                cls = "inert_bits"
         else:
             cls = "ok"
         if cls == "ok" and (it.get("cubit_key"), it.get("cubit_group")) != (it["key"], it["group"]):
@@ -326,7 +344,7 @@ def classify(args, words_out, table):
         it["class"] = cls
         classes[cls] += 1
         per_row[(it["key"], it["group"])][cls] += 1
-        if cls not in ("ok", "both_reject", "other_row", "reuse_inert", "vendor_unknown", "reuse_rejected", "inert_failclosed", "vendor_invalid", "nan_glyph"):
+        if cls not in ("ok", "both_reject", "other_row", "reuse_inert", "vendor_unknown", "reuse_rejected", "inert_failclosed", "vendor_invalid", "nan_glyph", "inert_bits"):
             findings.append(it)
     words_out.write_text("".join(json.dumps(it) + "\n" for it in items))
     (args.out / "dynamic_findings.jsonl").write_text("".join(json.dumps(f) + "\n" for f in findings))
