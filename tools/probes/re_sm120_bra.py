@@ -29,6 +29,14 @@ text for every probe word -- the 0x547 uniform-predicate form is illegal there):
 plus the lattice); `apply <sm120.json>` replaces every `BRA*` key with the measured keys
 `BRA_II`, `BRA_P_II`, `BRA_UR_II`, `BRA_P_UR_II`, `BRA_UP_II`, `BRA_P_UP_II` (one group per legal
 modifier set; the `PT` operand elided = baked on the keys without `_P_`).
+
+SM103a / SM100a parity (session T-10, 2026-11-06): `probe --arch SM103` / `SM100` measures the same
+551 words with `nvdisasm -b SM103` / `-b SM100` -- every text is identical to the SM120 text, the
+uniform-predicate form 0x547 included (T-9's note that it was sm_120-only was wrong: nvdisasm 13.1
+renders `BRA.U UP0, 0x110` on the three targets, and the sm103a harvest counted 17 806 such words).
+`apply --arch sm103a <sm103a.json>` (and `sm100a`) replaces the 5 harvest keys / 9 rows of those
+tables with the same six measured keys (fixtures `tests/fixtures/sm103a_bra_nvdisasm.jsonl`,
+`sm100a_bra_nvdisasm.jsonl`; test `tests/sm103a_sm100a_bra.rs`).
 """
 import argparse
 import itertools
@@ -167,11 +175,11 @@ def lattice_ok(w, t):
     return inert or "INVALID" in t or "???" in t
 
 
-def probe(nvdisasm, out=FIXTURE):
+def probe(nvdisasm, out=FIXTURE, arch="SM120"):
     rows = nvprobe.probe_words(
         nvdisasm, "bra", sweep_words(), NATIVE_CTRL,
         check_form=lambda w, t: TEXT.fullmatch(t) is not None and t == expected_text(w),
-        check_lattice=lattice_ok)
+        check_lattice=lattice_ok, arch=arch)
     nvprobe.write_fixture(out, rows)
     n_form = sum(1 for r in rows if not r.get("lattice"))
     print(f"{out}: {n_form} form words, {len(rows) - n_form} lattice words")
@@ -206,7 +214,7 @@ def group_rows(key, upform, with_pred, with_ur):
     return groups
 
 
-def apply(table_path):
+def apply(table_path, arch="sm120"):
     path = pathlib.Path(table_path)
     table = nvprobe.load_table(path)
     ins = table["instructions"]
@@ -240,13 +248,17 @@ def apply(table_path):
     rows = [g for e in ins.values() for g in e.get("mod_groups", {}).values()]
     prov["rows_total"] = len(rows)
     prov["rows_without_src"] = sum(1 for g in rows if g.get("_src") is None)
+    nv_arch = {"sm120": "SM120", "sm103a": "SM103", "sm100a": "SM100"}[arch]
     sources[PROVENANCE] = {
         "rows": total,
-        "kind": "nvdisasm 13.1 field probe (-b SM120)",
+        "kind": f"nvdisasm 13.1 field probe (-b {nv_arch})",
         "date": "2026-11-06",
         "tool": "tools/probes/re_sm120_bra.py",
-        "test": "tests/sm120_bra.rs",
+        "test": "tests/sm120_bra.rs" if arch == "sm120" else "tests/sm103a_sm100a_bra.rs",
     }
+    if arch != "sm120":
+        sources[PROVENANCE]["note"] = ("SM103a / SM100a parity of the SM120 measurement (T-10): the 551 probe words render "
+                                       f"the same text on -b {nv_arch}; fixture tests/fixtures/{arch}_bra_nvdisasm.jsonl")
     nvprobe.save_table(path, table)
     print(f"{path}: BRA {len(old_keys)} keys / {old_rows} rows -> 6 keys / {total} measured rows")
 
@@ -256,14 +268,17 @@ def main():
     sub = parser.add_subparsers(dest="command", required=True)
     p = sub.add_parser("probe")
     p.add_argument("--nvdisasm", default="/usr/local/lib/python3.12/dist-packages/triton/backends/nvidia/bin/nvdisasm")
-    p.add_argument("--out", type=pathlib.Path, default=FIXTURE)
+    p.add_argument("--out", type=pathlib.Path, default=None)
+    p.add_argument("--arch", default="SM120", choices=["SM120", "SM103", "SM100"], help="nvdisasm -b target")
     a = sub.add_parser("apply")
     a.add_argument("table")
+    a.add_argument("--arch", default="sm120", choices=["sm120", "sm103a", "sm100a"])
     args = parser.parse_args()
     if args.command == "probe":
-        probe(args.nvdisasm, args.out)
+        out = args.out or (FIXTURE if args.arch == "SM120" else nvprobe.FIXTURES / f"{args.arch.lower()}a_bra_nvdisasm.jsonl")
+        probe(args.nvdisasm, out, args.arch)
     else:
-        apply(args.table)
+        apply(args.table, args.arch)
 
 
 if __name__ == "__main__":

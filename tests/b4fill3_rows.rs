@@ -60,21 +60,25 @@ static GOLD: &[(u128, u32, &str)] = &[
         0x0260,
         "LDG.E.NA.EFL2.256.STRONG.GPU R32, R28, [R24.U32+UR6]",
     ), // healed 447
-    // BRA-plain era: targets = dword-split (verified vs sm120-table renders)
+    // BRA-plain era: targets = dword-split (verified vs sm120-table renders).
+    // Re-pinned 2026-11-06 (T-10, the measured BRA family on sm103a): the era words carry the
+    // mode bits [33:32] -- 1 = `.U`, 3 = `.CONV` -- which nvdisasm 13.1 prints on `-b SM103`
+    // exactly as on SM120 (`@!P0 BRA.U -0x70` at address 0, `@P0 BRA.CONV 0x83b0`); the rt98
+    // gold `BRA 0x170` was an era rendering that discarded them.
     (
         0x000fc2000383fffffffffffd00e08947u128,
         0x01e0,
-        "@!P0 BRA 0x170",
+        "@!P0 BRA.U 0x170",
     ),
-    (0x000fc2000383ffffffffffd100247947u128, 0x3920, "BRA 0x9c0"),
-    (0x000fc2000383ffffffffffbd008c7947u128, 0x5fc0, "BRA 0x1e00"),
+    (0x000fc2000383ffffffffffd100247947u128, 0x3920, "BRA.U 0x9c0"),
+    (0x000fc2000383ffffffffffbd008c7947u128, 0x5fc0, "BRA.U 0x1e00"),
     (
         0x000fe200038000000000008300e80947u128,
         0x0210,
-        "@P0 BRA 0x85c0",
+        "@P0 BRA.CONV 0x85c0",
     ),
-    (0x000fe2000383ffffffffffe900187947u128, 0x7830, "BRA 0x60a0"),
-    (0x010fe2000383ffffffffffbd00a07947u128, 0xc750, "BRA 0x85e0"),
+    (0x000fe2000383ffffffffffe900187947u128, 0x7830, "BRA.U 0x60a0"),
+    (0x010fe2000383ffffffffffbd00a07947u128, 0xc750, "BRA.U 0x85e0"),
     // BRXU 1-token era: both dispatch to 0xc850
     (
         0x000fe2000b80000000000050ff087958u128,
@@ -143,7 +147,7 @@ fn b4fill3_bra_target_region_exact() {
     let t = t103a();
     let tgtmask: u128 = ((0xFFu128 << 16) | (0xFFFF_FFFFu128 << 32)) & !(0b11u128 << 32);
     for &(word, addr, golden) in &GOLD[..] {
-        if !golden.contains("BRA ") {
+        if !golden.contains("BRA") || golden.contains("BRXU") {
             continue;
         }
         let insn = parse_sass(&format!("{golden} ;"), addr).unwrap();
