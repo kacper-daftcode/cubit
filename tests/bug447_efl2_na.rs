@@ -140,7 +140,7 @@ fn t447_5_mints_x4() {
             let hatch = *g103 && leg == "sm103a";
             let got = if hatch {
                 let e = enc(&t, text).expect_err("[sm103a] guard must refuse even-Rn NA EFL2");
-                assert!(format!("{e}").contains("BUG-060"), "guard msg: {e}");
+                assert!(e.to_string().contains("BUG-060"), "guard msg: {e}");
                 std::env::set_var("CUBIT_DISABLE_ERRATA", "1");
                 let r = enc(&t, text);
                 std::env::remove_var("CUBIT_DISABLE_ERRATA");
@@ -190,7 +190,7 @@ fn t447_7_corpus() {
             let hatch = *g103 && leg == "sm103a";
             let mint = if hatch {
                 let e = enc(&t, vendor).expect_err("[sm103a] guard must refuse corpus even-Rn");
-                assert!(format!("{e}").contains("BUG-060"), "guard msg: {e}");
+                assert!(e.to_string().contains("BUG-060"), "guard msg: {e}");
                 std::env::set_var("CUBIT_DISABLE_ERRATA", "1");
                 let r = enc(&t, vendor);
                 std::env::remove_var("CUBIT_DISABLE_ERRATA");

@@ -32,13 +32,13 @@ fn cubin(sm: u8, sections: &[(&str, Vec<u8>)]) -> Vec<u8> {
     out.extend_from_slice(&names);
     let mut code_offsets = Vec::new();
     for (_, code) in sections {
-        while out.len() % 16 != 0 {
+        while !out.len().is_multiple_of(16) {
             out.push(0);
         }
         code_offsets.push(out.len());
         out.extend_from_slice(code);
     }
-    while out.len() % 8 != 0 {
+    while !out.len().is_multiple_of(8) {
         out.push(0);
     }
     let shoff = out.len();

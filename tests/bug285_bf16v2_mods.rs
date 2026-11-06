@@ -780,15 +780,15 @@ fn t285_1_structure() {
             let e = &t.entries[p];
             let sig = p.strip_prefix("HFMA2_").unwrap();
             let base = &e.mod_groups[""];
-            let ab0 = u128::from(base.and_base);
+            let ab0 = base.and_base;
             assert_eq!((ab0 >> 85) & 1, 0, "{leg}|{p}: '' b85 drift");
             for nm in NEW_MGS {
                 let g = e
                     .mod_groups
                     .get(nm)
                     .unwrap_or_else(|| panic!("{leg}|{p}|{nm}: mg missing"));
-                let ab = u128::from(g.and_base);
-                let vm = u128::from(g.variable_mask);
+                let ab = g.and_base;
+                let vm = g.variable_mask;
                 assert_eq!((ab >> 85) & 1, 1, "{leg}|{p}|{nm}: b85 not baked");
                 assert_eq!((vm >> 85) & 1, 0, "{leg}|{p}|{nm}: b85 variable");
                 // suffix window [79:76] carved per-mg into and_base
@@ -817,7 +817,7 @@ fn t285_1_structure() {
             }
             // RELU PT-bake: ab carries b79|PT@87, no pred field
             let g = &e.mod_groups["BF16_V2,RELU"];
-            let ab = u128::from(g.and_base);
+            let ab = g.and_base;
             assert_eq!((ab >> 79) & 1, 1, "{leg}|{p}: RELU b79");
             assert_eq!((ab >> 87) & 7, 7, "{leg}|{p}: RELU PT bake");
             assert!(
@@ -832,8 +832,8 @@ fn t285_1_structure() {
                     .get(k.as_str())
                     .unwrap_or_else(|| panic!("{leg}|{k}: key missing"));
                 let g = &e.mod_groups[""];
-                let ab = u128::from(g.and_base);
-                let vm = u128::from(g.variable_mask);
+                let ab = g.and_base;
+                let vm = g.variable_mask;
                 assert_eq!((ab >> 85) & 1, 1, "{leg}|{k}: b85");
                 assert_eq!((ab >> 79) & 1, 1, "{leg}|{k}: b79");
                 assert_eq!((vm >> 87) & 7, 7, "{leg}|{k}: pred window in vm");

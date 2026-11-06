@@ -187,7 +187,7 @@ fn t287_2_decode_law_vendor_exact_both_legs() {
         (host | (1 << 84), "HFMA2 R1, R2, R3, -R4"),
         (host | (1 << 84) | (2 << 81), "HFMA2 R1, R2, R3, -R4.H0_H0"),
         (
-            (host & !(0xf << 12)) | (0 << 12),
+            ((host & !(0xf << 12))),
             "@P0 HFMA2 R1, R2, R3, R4",
         ),
         (

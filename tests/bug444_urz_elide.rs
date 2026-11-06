@@ -174,7 +174,7 @@ fn t444_5_urz_parse_fail_closed() {
         " STG.E [URZ.64+UR4], R4 ;",
         " STG.E [R4.64+UR4+URZ], R4 ;",
     ] {
-        let full = format!("{bad}");
+        let full = bad.to_string();
         let refused = match parse_sass(&full, 0) {
             Err(_) => true,
             Ok(p) => encode_instruction(&p, &t).is_err(),

@@ -103,7 +103,7 @@ fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
 fn t419_1_law_grid_vendor_exact() {
     for (w, tag, leg, vendor) in LAW419 {
         let t = tab(leg);
-        let got = text_of(&t, *w).unwrap_or_else(|| "HOLE".to_string());
+        let got = text_of(t, *w).unwrap_or_else(|| "HOLE".to_string());
         assert_eq!(
             got.as_str(),
             *vendor,
@@ -119,7 +119,7 @@ fn t419_2_invalid3_doctrine_hole() {
     for (w, tag, leg, vendor) in DOCTRINE419 {
         assert!(vendor.contains("INVALID3"), "doctrine tag {tag}");
         let t = tab(leg);
-        let got = text_of(&t, *w).unwrap_or_else(|| "HOLE".to_string());
+        let got = text_of(t, *w).unwrap_or_else(|| "HOLE".to_string());
         assert_eq!(
             got.as_str(),
             "HOLE",
@@ -179,7 +179,7 @@ fn t419_3_encode_circles_and_bare_relu() {
     ];
     for (leg, text, want) in circles {
         let t = tab(leg);
-        let w = enc(&t, &format!("{text} ;"))
+        let w = enc(t, &format!("{text} ;"))
             .unwrap_or_else(|e| panic!("{leg} mint failed for {text:?}: {e}"));
         assert_eq!(
             w & M96,
@@ -188,7 +188,7 @@ fn t419_3_encode_circles_and_bare_relu() {
             w & M96,
             want
         );
-        let back = text_of(&t, w).unwrap_or_else(|| "HOLE".to_string());
+        let back = text_of(t, w).unwrap_or_else(|| "HOLE".to_string());
         assert_eq!(back.as_str(), *text, "{leg} roundtrip {text:?}");
     }
     // bare RELU (PT elided): pred defaults to 7, decode elides the slot:
@@ -197,11 +197,11 @@ fn t419_3_encode_circles_and_bare_relu() {
             continue; // 121a era-key mint posture unchanged (t417 contract)
         }
         let t = tab(leg);
-        let w = enc(&t, "HFMA2.RELU R1, R2, 1, 1, R3 ;")
+        let w = enc(t, "HFMA2.RELU R1, R2, 1, 1, R3 ;")
             .unwrap_or_else(|e| panic!("{leg} bare-RELU mint failed: {e}"));
         assert_eq!((w >> 87) & 0x7, 7, "{leg}: bare RELU must mint PT (pred=7)");
         assert_eq!((w >> 90) & 1, 0, "{leg}: bare RELU inv bit must stay 0");
-        let back = text_of(&t, w).unwrap_or_else(|| "HOLE".to_string());
+        let back = text_of(t, w).unwrap_or_else(|| "HOLE".to_string());
         assert_eq!(
             back.as_str(),
             "HFMA2.RELU R1, R2, 1, 1, R3",
@@ -228,7 +228,7 @@ fn t419_4_encode_refuses() {
     ];
     for (leg, text) in refuses {
         let t = tab(leg);
-        let r = enc(&t, &format!("{text} ;"));
+        let r = enc(t, &format!("{text} ;"));
         assert!(
             r.is_err(),
             "{leg}: {text:?} must refuse (minted 0x{:032x})",
@@ -335,7 +335,7 @@ fn t419_5_row_shape_audit() {
 fn t419_6_uimnmx_witnesses_unchanged() {
     let t = tab("sm121a");
     for (w, pre) in UIMNMX419 {
-        let got = text_of(&t, *w).unwrap_or_else(|| "HOLE".to_string());
+        let got = text_of(t, *w).unwrap_or_else(|| "HOLE".to_string());
         assert_eq!(
             got.as_str(),
             *pre,

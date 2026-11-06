@@ -46,7 +46,7 @@ fn enc(t: &IsaTable, text: &str) -> u128 {
 }
 fn and_base(t: &IsaTable, key: &str, mg: &str) -> u128 {
     let g = t.entries[key].mod_groups.get(mg).expect("mg");
-    u128::from(g.and_base)
+    g.and_base
 }
 
 // routex266 corpus witnesses (full 128-bit; the rust harness masks ctl).
@@ -117,7 +117,7 @@ fn t266_1_structure() {
         let t = tab(leg);
         let g = &t.entries["IMNMX_P_P_R_R_II_P_P"].mod_groups;
         let mut n = 0;
-        for (_m, e) in g {
+        for e in g.values() {
             n += e
                 .fields
                 .iter()

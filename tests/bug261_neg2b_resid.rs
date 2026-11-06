@@ -45,7 +45,7 @@ fn enc(t: &IsaTable, text: &str) -> u128 {
 }
 fn and_base(t: &IsaTable, key: &str, mg: &str) -> u128 {
     let g = t.entries[key].mod_groups.get(mg).expect("mg");
-    u128::from(g.and_base)
+    g.and_base
 }
 
 // routex261 corpus witnesses (full 128-bit; engine matches 96-bit payload).
@@ -71,7 +71,7 @@ fn t261_1_structure() {
         let t = tab(leg);
         let mut hits: Vec<(String, i32, u32)> = Vec::new();
         for (k, row) in &t.entries {
-            for (_mg, g) in &row.mod_groups {
+            for g in row.mod_groups.values() {
                 for f in &g.fields {
                     if f.extraction == Extraction::Neg && f.bits == 2 {
                         hits.push((k.clone(), f.token_idx, f.shift));
@@ -90,7 +90,7 @@ fn t261_1_structure() {
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
         for (k, row) in &t.entries {
-            for (_mg, g) in &row.mod_groups {
+            for g in row.mod_groups.values() {
                 for f in &g.fields {
                     assert!(
                         !(f.extraction == Extraction::Neg && f.bits == 2),
@@ -181,8 +181,8 @@ fn t261_1_structure() {
         ("UFFMA_UR_UR_UR_UR", "", 74u32),
     ] {
         let g = &t.entries[key].mod_groups[mg];
-        let abm: u128 = g.and_base.into();
-        let vm: u128 = g.variable_mask.into();
+        let abm: u128 = g.and_base;
+        let vm: u128 = g.variable_mask;
         assert_eq!((abm >> sh) & 3, 0, "{key} and_base window baked");
         assert_eq!((vm >> sh) & 3, 3, "{key} window lost variability");
     }
@@ -260,10 +260,13 @@ fn t261_2_decode_sign_laws() {
         );
     }
     let t = tab("sm121a");
-    let f = and_base(&t, "FADD.SAT_R_R_R", "");
+    // 2026-11-06 (T-11): the SAT-less `FADD.SAT_R_R_R` harvest row (Ra = RZ baked) is retired -- an alias of
+    // `FADD_R_R_R`; the law under test (bit 73 = |Ra|) reads the same on the plain row's own base word
+    // (its harvest and_base carries guard P1 and Ra = R0).
+    let f = and_base(&t, "FADD_R_R_R", "");
     assert_eq!(
         dec(&t, (f | (2 << 72)) & M96).as_deref(),
-        Some("@P0 FADD R0, |RZ|, R0")
+        Some("@P1 FADD R0, |R0|, R0")
     );
     let m = and_base(&t, "FMNMX_R_R_FI_P", "");
     assert_eq!(

@@ -58,7 +58,7 @@ fn t461_1_glyph_decode() {
     for (w, leg, want) in GLYPH461 {
         let t = tab(leg);
         let idx = cached_index(t);
-        let got = dec(&t, &idx, *w);
+        let got = dec(t, idx, *w);
         assert_eq!(got.as_deref(), Some(*want), "[{leg}] glyph {w:#034x}");
         assert!(want.contains("???255.64"), "glyph shape: {want}");
     }
@@ -71,7 +71,7 @@ fn t461_2_kill_preserve() {
     for (w, leg, want) in KEEP461_PREPOST {
         let t = tab(leg);
         let idx = cached_index(t);
-        let got = dec(&t, &idx, *w);
+        let got = dec(t, idx, *w);
         assert_eq!(got.as_deref(), Some(*want), "[{leg}] kill drift {w:#034x}");
     }
 }
@@ -82,7 +82,7 @@ fn t461_2_kill_preserve() {
 fn t461_3_mint_refuse() {
     for (leg, text) in MINTREF461 {
         let t = tab(leg);
-        let e = enc(&t, text).expect_err("mint must refuse");
+        let e = enc(t, text).expect_err("mint must refuse");
         assert!(e.contains("BUG-461"), "[{leg}] cite: {e}");
     }
 }
@@ -155,7 +155,7 @@ fn t461_5_u32_keeper() {
     for (w, leg, want) in U32KEEP461 {
         let t = tab(leg);
         let idx = cached_index(t);
-        let got = dec(&t, &idx, *w);
+        let got = dec(t, idx, *w);
         assert_eq!(got.as_deref(), Some(*want), "[{leg}] U32 drift {w:#034x}");
         assert!(want.contains("RZ.U32"), "expected RZ.U32 glyph: {want}");
     }

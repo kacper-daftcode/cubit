@@ -85,10 +85,10 @@ fn t264_1_structure() {
             );
         }
         // vmask keeps the full harvested window (payload-gap registrations).
-        let vm = u128::from(g.variable_mask);
+        let vm = g.variable_mask;
         assert_eq!((vm >> 60) & 0xF, 0xF, "{key} vmask window");
         assert_eq!(
-            u128::from(g.and_base) >> 60 & 0xF,
+            g.and_base >> 60 & 0xF,
             0,
             "{key} and_base window"
         );

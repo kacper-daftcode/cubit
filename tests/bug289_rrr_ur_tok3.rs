@@ -329,7 +329,7 @@ fn t289_2_decode_law_vendor_exact() {
             "HFMA2 R1, R2, R3.H0_NH1, UR4.reuse",
         ),
         // dst / RZ variants x b86 (G-set)
-        ((1 << 86) | (0xff << 16) - (1 << 16), "unreachable"),
+        ((1 << 86) | ((0xff << 16) - (1 << 16)), "unreachable"),
     ];
     for arch in ["sm120", "sm121a"] {
         let t = tab(arch);

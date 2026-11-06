@@ -182,7 +182,8 @@ fn t311_4_e128_alloc_family_mints() {
     assert_eq!((w >> 44) & 0xF_FFFF, 0x70, "dst imm window raw");
     assert_eq!((w >> 32) & 0xFFF, 0x708, "desc imm window raw");
     // and BYPASS witnesses must NOT be claimed by the new rows (b81 pinned)
-    for w in [w] {
+    {
+        let w = w;
         let _ = w;
     }
 }
@@ -222,7 +223,7 @@ fn t311_5_fail_closed_and_boundaries() {
     // the vendor negative spelling:
     let err = enc(&t, "LDGSTS.E.BYPASS.128 [R27+0x80000], desc[UR18][R24.64]").unwrap_err();
     assert!(
-        format!("{}", err).contains("BUG-378"),
+        err.to_string().contains("BUG-378"),
         "authored +0x80000 on the signed 20b window must fail closed with attribution: {err}"
     );
     let w = enc(&t, "LDGSTS.E.BYPASS.128 [R27+-0x80000], desc[UR18][R24.64]").unwrap();

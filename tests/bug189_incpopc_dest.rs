@@ -84,11 +84,8 @@ fn t189_3_sink_window_not_a_register_fabrication() {
     let t = tab("tables/sm120.json");
     let idx = DecodeIndex::build(&t);
     for w in SINK_VIOLATORS {
-        match dec(&t, &idx, *w) {
-            Some(s) => assert!(!s.contains("POPC.INC"),
-                "sink-window fabrication {w:#034x} -> {s}"),
-            None => {}
-        }
+        if let Some(s) = dec(&t, &idx, *w) { assert!(!s.contains("POPC.INC"),
+        "sink-window fabrication {w:#034x} -> {s}") }
     }
 }
 

@@ -324,7 +324,7 @@ fn t387_2_vendor_junk_words_decode_clean_x4() {
     for (w, text) in cases {
         for leg in LEGS {
             let t = tab(leg);
-            let got = dec(&t, *w).unwrap_or_else(|| panic!("{leg} HOLE on {w:#034x}"));
+            let got = dec(t, *w).unwrap_or_else(|| panic!("{leg} HOLE on {w:#034x}"));
             assert_eq!(&got, *text, "{leg} wrong-text {w:#034x}");
         }
     }
@@ -381,14 +381,14 @@ fn t387_3_mint_unchanged_and_roundtrip_clean() {
     for leg in LEGS {
         let t = tab(leg);
         for (text, want) in anchors {
-            let w = enc(&t, text).unwrap_or_else(|e| panic!("{leg} REFUSE {text}: {e}"));
+            let w = enc(t, text).unwrap_or_else(|e| panic!("{leg} REFUSE {text}: {e}"));
             assert_eq!(w & M96, want & M96, "{leg} mint drift: {text}");
             assert_eq!(
                 w & (0x7u128 << 61),
                 0,
                 "{leg} mint leaks [63:61] junk: {text}"
             );
-            let got = dec(&t, w).unwrap_or_else(|| panic!("{leg} redec HOLE {text}"));
+            let got = dec(t, w).unwrap_or_else(|| panic!("{leg} redec HOLE {text}"));
             assert_eq!(&got, *text, "{leg} roundtrip {text}");
         }
     }
@@ -407,7 +407,7 @@ fn t387_4_kill_deferral_and_field_boundary_x4() {
         let w = w0 | (1u128 << 91);
         for leg in LEGS {
             let t = tab(leg);
-            assert!(dec(&t, w).is_none(), "{leg} b91 kill claimed on {w:#034x}");
+            assert!(dec(t, w).is_none(), "{leg} b91 kill claimed on {w:#034x}");
         }
     }
     // okno [95:92] (dawny deferral 396-kand) -- po BUG-396 (graft
@@ -418,7 +418,7 @@ fn t387_4_kill_deferral_and_field_boundary_x4() {
         for leg in LEGS {
             let t = tab(leg);
             let got =
-                dec(&t, w).unwrap_or_else(|| panic!("{leg} b{b} [95:92] HOLE post-396 {w:#034x}"));
+                dec(t, w).unwrap_or_else(|| panic!("{leg} b{b} [95:92] HOLE post-396 {w:#034x}"));
             assert_eq!(
                 &got, "SHFL.BFLY P0, R18, R10, R11, R16",
                 "{leg} b{b} [95:92] wrong-text {w:#034x}"
@@ -430,12 +430,12 @@ fn t387_4_kill_deferral_and_field_boundary_x4() {
     let rr_down = 0x000fc200000000100800000b0a127389u128;
     for leg in LEGS {
         let t = tab(leg);
-        let got = dec(&t, rr_down | (1u128 << 64)).unwrap();
+        let got = dec(t, rr_down | (1u128 << 64)).unwrap();
         assert_eq!(
             &got, "SHFL.DOWN P0, R18, R10, R11, R17",
             "{leg} b64 field lost"
         );
-        let got = dec(&t, rr_down | (1u128 << 65)).unwrap();
+        let got = dec(t, rr_down | (1u128 << 65)).unwrap();
         assert_eq!(
             &got, "SHFL.DOWN P0, R18, R10, R11, R18",
             "{leg} b65 field lost"
@@ -450,7 +450,7 @@ fn t387_5_flips_with_attribution_era_class() {
     let w0 = 0x000000000800000000007f89u128 ^ (7u128 << 61);
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
-        let got = dec(&t, w0).unwrap_or_else(|| panic!("{leg} t225-window HOLE"));
+        let got = dec(t, w0).unwrap_or_else(|| panic!("{leg} t225-window HOLE"));
         assert_eq!(&got, "SHFL.DOWN P0, R0, R0, 0x0, 0x0", "{leg} wrong-text");
     }
     // II_R IDX/BFLY absent x4 = residuum no-claim 358/368 sec.6: mint musi
@@ -461,7 +461,7 @@ fn t387_5_flips_with_attribution_era_class() {
             "SHFL.IDX P0, R9, R18, 0x1f, R16",
             "SHFL.BFLY P0, R9, R18, 0x1f, R16",
         ] {
-            assert!(enc(&t, text).is_err(), "{leg} II_R {text} minted?!");
+            assert!(enc(t, text).is_err(), "{leg} II_R {text} minted?!");
         }
     }
 }

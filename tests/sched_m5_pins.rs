@@ -169,8 +169,7 @@ fn t5_fail_closed_battery() {
     // anchor crossing (BRA inside window)
     let br = ".entry k\n    [B------:R-:W-:-:S00] BRA L_x ;\nL_x:  [B------:R-:W-:-:S00] IADD3 R2, R0, R1, RZ ;\n    EXIT ;\n";
     let e = window_pins(br, &plan(r#"{"kernels":{"k":{"windows":[[0,2]]}}}"#), &table())
-        .err()
-        .expect("anchor-class must fail closed");
+        .expect_err("anchor-class must fail closed");
     assert!(format!("{e:#}").contains("anchor-class"), "{e:#}");
     // authored order moving a pin -> replay refuses before emission
     let mut order: Vec<u32> = (0..12).collect();

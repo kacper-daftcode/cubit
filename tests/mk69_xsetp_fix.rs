@@ -17,7 +17,7 @@ fn mk_ins(lane: u32, opf: &str, text: &str) -> Instruction {
     Instruction {
         addr: lane * 16,
         opcode: opf.split('.').next().unwrap_or(opf).to_string(),
-        opcode_full: opf.to_string().into(),
+        opcode_full: opf.to_string(),
         key: String::new(),
         guard: None::<Guard>,
         operands: Vec::new(),

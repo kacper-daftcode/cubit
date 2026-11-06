@@ -138,7 +138,7 @@ fn t293_1_structure_census_tags() {
     for arch in ["sm100a", "sm103a", "sm120", "sm121a"] {
         let t = tab(arch);
         for (k, e) in &t.entries {
-            for (_mgn, mg) in &e.mod_groups {
+            for mg in e.mod_groups.values() {
                 assert!(
                     !mg.fields
                         .iter()

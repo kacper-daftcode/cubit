@@ -139,7 +139,7 @@ fn t450_4_mints_x4() {
         let idx = DecodeIndex::build(&t);
         let got = if *ghatch {
             let e = enc(&t, text).expect_err("[sm103a] BUG-060 guard must refuse even desc-base");
-            assert!(format!("{e}").contains("BUG-060"), "guard msg: {e}");
+            assert!(e.to_string().contains("BUG-060"), "guard msg: {e}");
             std::env::set_var("CUBIT_DISABLE_ERRATA", "1");
             let r = enc(&t, text);
             std::env::remove_var("CUBIT_DISABLE_ERRATA");
@@ -162,7 +162,7 @@ fn t450_5_refuse_grid() {
     for (text, leg) in REFUSE450 {
         assert_eq!(*leg, "sm103a");
         let e = enc(&t, text).expect_err("[sm103a] guard must refuse even desc-base");
-        assert!(format!("{e}").contains("BUG-060"), "guard msg: {e}");
+        assert!(e.to_string().contains("BUG-060"), "guard msg: {e}");
     }
 }
 

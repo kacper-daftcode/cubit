@@ -163,7 +163,7 @@ fn t46_mem_and_scoreboard_and_nop_are_segment_walls() {
     let wait = "[B----4-:R-:W-:Y:S05] IADD3 R30, PT, PT, R30, -0x1, RZ ;";
     let lines = [
         "    [B------:R-:W-:-:S00] IADD3 R2, R0, R1, RZ ;",       // 0
-        &format!("    [B------:R-:W-:-:S00] IADD3 R3, R2, 0x1, RZ ;"), // 1 chain link (seg A mover)
+        &"    [B------:R-:W-:-:S00] IADD3 R3, R2, 0x1, RZ ;".to_string(), // 1 chain link (seg A mover)
         &format!("    {ldg}"),                                 // 2 mem pin
         "    [B------:R-:W-:-:S00] IADD3 R10, R10, 0x1, RZ ;",  // 3
         "    [B------:R-:W-:-:S00] IADD3 R11, R11, 0x1, RZ ;",  // 4

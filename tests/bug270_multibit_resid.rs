@@ -174,12 +174,12 @@ fn t270_1_structure_and_skip_registry() {
         // harvest fields, no b85 in ab) instead of the bare name.
         let mg = &t.entries["HFMA2_R_R_R_II_II"].mod_groups["BF16_V2"];
         assert_ne!(
-            u128::from(mg.and_base),
+            mg.and_base,
             0x11,
             "{arch}: II_II BF16_V2 era junk fingerprint back"
         );
         assert_eq!(
-            (u128::from(mg.and_base) >> 85) & 1,
+            (mg.and_base >> 85) & 1,
             1,
             "{arch}: 285-armed II_II BF16_V2 b85 bake lost"
         );
@@ -205,7 +205,7 @@ fn t270_1_structure_and_skip_registry() {
     // junk fingerprint, not the name (attribution as on the II_II leg).
     let mg = &t.entries["HFMA2_R_R_R_FI_FI"].mod_groups["BF16_V2"];
     assert_ne!(
-        u128::from(mg.and_base),
+        mg.and_base,
         0x11,
         "sm121a: FI_FI BF16_V2 era junk fingerprint back"
     );

@@ -85,7 +85,8 @@ fn b10_f1_globaltimer_lane() {
 
 #[test]
 fn b10_f1_globaltimer_lohi_fail_closed() {
-    for snippet in ["mov.u32 %r1, %globaltimer_lo;"] {
+    {
+        let snippet = "mov.u32 %r1, %globaltimer_lo;";
         let ptx = format!(r#"{} .visible .entry k(
     .param .u64 k_param_0
 )

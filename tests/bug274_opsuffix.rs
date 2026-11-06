@@ -386,7 +386,7 @@ fn t274_4_corpus_neutral_companions() {
         // no b85 in and_base), not the bare name.
         let mg = &t.entries["HFMA2_R_R_R_FI_FI"].mod_groups["BF16_V2"];
         assert_ne!(
-            u128::from(mg.and_base),
+            mg.and_base,
             0x11,
             "{arch}: FI_FI BF16_V2 era junk fingerprint back"
         );

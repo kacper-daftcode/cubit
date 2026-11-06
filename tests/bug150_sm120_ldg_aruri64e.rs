@@ -25,7 +25,7 @@ fn t150_1_native_geometry_has_no_hidden_bit92_field() {
     assert_eq!(g.and_base & (1u128<<92),0);
     assert_eq!(g.variable_mask & (1u128<<92),0,"unknown semantic bit must not be hidden in a permissive mask");
     assert!(g.fields.iter().all(|f| !(f.shift<=92 && 92<f.shift+f.bits)));
-    assert!(t.entries.get("LDG.E.64_R_ARURI").map_or(true,|e| !e.mod_groups.contains_key("64,E")),"old winning mode6 shadow must remain retired");
+    assert!(t.entries.get("LDG.E.64_R_ARURI").is_none_or(|e| !e.mod_groups.contains_key("64,E")),"old winning mode6 shadow must remain retired");
     assert_eq!(g.addr_width.as_deref(),Some("U32"));
 }
 #[test]

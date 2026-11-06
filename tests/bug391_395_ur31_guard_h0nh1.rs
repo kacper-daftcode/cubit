@@ -89,7 +89,7 @@ fn t391_1_guard_law_vendor_exact() {
     let tabs: Vec<&IsaTable> = LEGS4.iter().map(|a| tab(a)).collect();
     for (w, tag, ven) in LAW391 {
         for (li, leg) in LEGS4.iter().enumerate() {
-            let got = text_of(&tabs[li], *w)
+            let got = text_of(tabs[li], *w)
                 .unwrap_or_else(|| panic!("391 leg {leg} tag {tag}: HOLE on 0x{w:032x}"));
             assert_eq!(
                 got.as_str(),
@@ -118,7 +118,7 @@ fn t391_2_guard_map_sweep() {
         for a in LEGS4 {
             let t = tab(a);
             let got =
-                text_of(&t, w).unwrap_or_else(|| panic!("391 map leg {a} g{g}: HOLE 0x{w:032x}"));
+                text_of(t, w).unwrap_or_else(|| panic!("391 map leg {a} g{g}: HOLE 0x{w:032x}"));
             assert!(
                 got.starts_with(&format!("{}HFMA2 ", want[g as usize])),
                 "391 map leg {a} g{g}: {got:?}"
@@ -139,7 +139,7 @@ fn t391_3_guard_claim_route() {
         for (li, leg) in LEGS4.iter().enumerate() {
             let idx = cached_index(tabs[li]);
             let d = idx
-                .decode(*w & M96, 0, &tabs[li])
+                .decode(*w & M96, 0, tabs[li])
                 .unwrap_or_else(|_| panic!("391 route leg {leg} tag {tag}: HOLE"));
             assert!(
                 d.key == "HFMA2_R_R_UR_R" || d.key.ends_with("RELU_R_R_UR_R_P"),
@@ -157,7 +157,7 @@ fn t395_1_h0nh1_law_vendor_exact() {
     let tabs: Vec<&IsaTable> = LEGS4.iter().map(|a| tab(a)).collect();
     for (w, tag, ven) in LAW395 {
         for (li, leg) in LEGS4.iter().enumerate() {
-            let got = text_of(&tabs[li], *w)
+            let got = text_of(tabs[li], *w)
                 .unwrap_or_else(|| panic!("395 leg {leg} tag {tag}: HOLE on 0x{w:032x}"));
             assert_eq!(
                 got.as_str(),
@@ -190,7 +190,7 @@ fn t395_2_donor_field_structure() {
                         && f.token_idx == 3
                 });
                 assert!(has, "{leg}|{k}: missing donor h0nh1 field");
-                let ab: u128 = g.and_base.into();
+                let ab: u128 = g.and_base;
                 assert_eq!(ab & (1 << 86), 0, "{leg}|{k}: and_base widened");
                 rows += 1;
             }
@@ -207,7 +207,7 @@ fn t395_3_mint_circles() {
     for (w, text) in CIRCLE391_395 {
         for a in LEGS4 {
             let t = tab(a);
-            let eb = enc(&t, text)
+            let eb = enc(t, text)
                 .unwrap_or_else(|e| panic!("395 mint refuse leg {a} text {text}: {e}"));
             assert_eq!(
                 eb & M96,
@@ -234,7 +234,7 @@ fn t395_4_h0nh1_claim_route() {
         for (li, leg) in LEGS4.iter().enumerate() {
             let idx = cached_index(tabs[li]);
             let d = idx
-                .decode(*w & M96, 0, &tabs[li])
+                .decode(*w & M96, 0, tabs[li])
                 .unwrap_or_else(|_| panic!("395 route leg {leg} tag {tag}: HOLE"));
             assert!(
                 d.key == "HFMA2_R_R_UR_R" || d.key.ends_with("RELU_R_R_UR_R_P"),
@@ -256,11 +256,11 @@ fn t395_5_invalid_markers_fail_closed() {
         assert!(ven.contains(".INVALID"), "INVALID set drift: {tag} {ven}");
         for (li, leg) in LEGS4.iter().enumerate() {
             assert!(
-                text_of(&tabs[li], *w).is_none(),
+                text_of(tabs[li], *w).is_none(),
                 "395 INVALID leg {leg} tag {tag}: decoded 0x{w:032x}"
             );
             assert!(
-                enc(&tabs[li], ven).is_err(),
+                enc(tabs[li], ven).is_err(),
                 "395 INVALID leg {leg} tag {tag}: marker text encoded"
             );
         }
@@ -282,7 +282,7 @@ fn t395_6_single_sign_regression_rail() {
             continue;
         }
         for (li, leg) in LEGS4.iter().enumerate() {
-            let got = text_of(&tabs[li], *w)
+            let got = text_of(tabs[li], *w)
                 .unwrap_or_else(|| panic!("395 rail leg {leg} tag {tag}: HOLE"));
             assert_eq!(got.as_str(), *ven, "395 rail leg {leg} tag {tag}");
             n += 1;

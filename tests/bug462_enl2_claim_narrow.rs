@@ -59,7 +59,7 @@ fn t462_1_enl2_ra255_hole() {
     for (w, leg) in REFUSE462 {
         let t = tab(leg);
         let idx = cached_index(t);
-        assert_eq!(dec(&t, &idx, *w), None, "[{leg}] 462 claimed {w:#034x}");
+        assert_eq!(dec(t, idx, *w), None, "[{leg}] 462 claimed {w:#034x}");
     }
 }
 
@@ -70,7 +70,7 @@ fn t462_2_kill_preserve() {
     for (w, leg) in KEEP462 {
         let t = tab(leg);
         let idx = cached_index(t);
-        let got = dec(&t, &idx, *w).unwrap_or_else(|| panic!("[{leg}] 254 killed {w:#034x}"));
+        let got = dec(t, idx, *w).unwrap_or_else(|| panic!("[{leg}] 254 killed {w:#034x}"));
         assert!(got.contains("R254"), "[{leg}] 254 drift: {got}");
     }
 }
@@ -81,7 +81,7 @@ fn t462_2_kill_preserve() {
 fn t462_3_mint_refuse() {
     for (leg, text) in MINTREF462 {
         let t = tab(leg);
-        let e = enc(&t, text).expect_err("mint must refuse");
+        let e = enc(t, text).expect_err("mint must refuse");
         let ok = e.contains("claim-forbidden") || e.contains("ODD base");
         assert!(ok, "[{leg}] refuse msg: {e}");
     }

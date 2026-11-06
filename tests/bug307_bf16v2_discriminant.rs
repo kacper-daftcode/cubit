@@ -55,10 +55,10 @@ fn t307_1_structure() {
         let pl = mgs
             .get("")
             .unwrap_or_else(|| panic!("{key}: '' row missing"));
-        assert_eq!((u128::from(bf.and_base) >> b) & 1, 1, "{key}: BF16 pin");
-        assert_eq!((u128::from(pl.and_base) >> b) & 1, 0, "{key}: '' clear");
+        assert_eq!((bf.and_base >> b) & 1, 1, "{key}: BF16 pin");
+        assert_eq!((pl.and_base >> b) & 1, 0, "{key}: '' clear");
         // discriminant must be match-owned: not vm/field covered
-        assert_eq!((u128::from(bf.variable_mask) >> b) & 1, 0);
+        assert_eq!((bf.variable_mask >> b) & 1, 0);
         for f in &bf.fields {
             assert!(
                 f.shift > b || f.shift + f.bits <= b,
@@ -93,11 +93,11 @@ fn t307_1_structure() {
             let b = 85u32;
             let m = &d.entries[key].mod_groups;
             assert_eq!(
-                (u128::from(m["BF16_V2"].and_base) >> b) & 1,
+                (m["BF16_V2"].and_base >> b) & 1,
                 1,
                 "{leg} {key}"
             );
-            assert_eq!((u128::from(m[""].and_base) >> b) & 1, 0, "{leg} {key} ''");
+            assert_eq!((m[""].and_base >> b) & 1, 0, "{leg} {key} ''");
         }
     }
 }

@@ -117,7 +117,7 @@ fn t258_1_structure() {
     let t = tab("sm121a");
     for mg in ["RM", "RP"] {
         let g = &t.entries["DFMA_R_R_R_R"].mod_groups[mg];
-        let ab: u128 = g.and_base.into();
+        let ab: u128 = g.and_base;
         assert_eq!((ab >> 72) & 3, 0, "DFMA {mg} and_base window bits baked!");
     }
 }

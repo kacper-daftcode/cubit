@@ -185,11 +185,11 @@ fn t384_2_era_shapes_vendor_exact_roundtrip() {
             "@P4 HFMA2 R10, R31.H0_H0, R17.H0_H0, R10.H0_H0",
         ),
         (
-            0x0000000000240800_2000000000000231u128 >> 0,
+            0x0000000000240800_2000000000000231u128,
             "@P0 HFMA2.BF16_V2 R0, R0.H0_H0, R0.H0_H0, R0.H0_H0",
         ),
         (
-            0x0000000000040802_200000011c024231u128 >> 0,
+            0x0000000000040802_200000011c024231u128,
             "@P4 HFMA2 R2, R28.H0_H0, R1.H0_H0, R2.H0_H0",
         ),
     ];
@@ -204,7 +204,7 @@ fn t384_2_era_shapes_vendor_exact_roundtrip() {
         // the pre-fix live WRONG cell: 5-reg row won this word and printed
         // garbage regs; post-delete the main row renders the vendor text
         // (inert b40, arb384 flip40 x2 legs):
-        let base5: u128 = 0x0000000000040802_200000011c024231u128 >> 0;
+        let base5: u128 = 0x0000000000040802_200000011c024231u128;
         let got =
             dec(&t, base5 ^ (1 << 40)).unwrap_or_else(|| panic!("{leg}: HOLE on flip40 witness"));
         assert_eq!(&got, "@P4 HFMA2 R2, R28.H0_H0, R1.H0_H0, R2.H0_H0");

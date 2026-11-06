@@ -70,7 +70,7 @@ fn t378_1_sign_window_loud_24b() {
 fn t378_2_desc_12b_window() {
     for leg in ["sm100a", "sm103a", "sm120"] {
         let tab = t(leg);
-        let bad = format!("LDGSTS.E.LTC128B.64 [R115+0x180], desc[UR4][R4.64+0x800], P3 ;");
+        let bad = "LDGSTS.E.LTC128B.64 [R115+0x180], desc[UR4][R4.64+0x800], P3 ;".to_string();
         let err = enc(&tab, &bad).expect_err("sign-window desc offset must fail closed");
         assert!(err.contains("BUG-378"), "{leg}: {err}");
         let w = enc(

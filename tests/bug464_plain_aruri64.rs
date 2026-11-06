@@ -67,7 +67,7 @@ fn t464_1_heal_grid() {
         for leg in LEGS464 {
             let t = tab(leg);
             let idx = cached_index(t);
-            let got = dec(&t, &idx, *w);
+            let got = dec(t, idx, *w);
             assert_eq!(
                 got.as_deref(),
                 Some(*vendor),
@@ -85,7 +85,7 @@ fn t464_2_elide_grid() {
         for leg in LEGS464 {
             let t = tab(leg);
             let idx = cached_index(t);
-            let got = dec(&t, &idx, *w);
+            let got = dec(t, idx, *w);
             assert_eq!(
                 got.as_deref(),
                 Some(*vendor),
@@ -103,7 +103,7 @@ fn t464_3_standing_snap() {
         for leg in LEGS464 {
             let t = tab(leg);
             let idx = cached_index(t);
-            let got = dec(&t, &idx, *w);
+            let got = dec(t, idx, *w);
             let exp = if *snap == "HOLE" { None } else { Some(*snap) };
             assert_eq!(
                 got.as_deref(),
@@ -123,7 +123,7 @@ fn t464_4_kill_snap() {
             let t = tab(leg);
             let idx = cached_index(t);
             assert!(
-                dec(&t, &idx, *w).is_none(),
+                dec(t, idx, *w).is_none(),
                 "[{leg}] {tag} kill claimed {w:#034x}"
             );
         }
@@ -139,7 +139,7 @@ fn t464_5_reuse_parity() {
         for leg in LEGS464 {
             let t = tab(leg);
             let idx = cached_index(t);
-            let got = dec(&t, &idx, *w);
+            let got = dec(t, idx, *w);
             assert_eq!(
                 got.as_deref(),
                 Some(*snap),
@@ -158,7 +158,7 @@ fn t464_6_era_shadow() {
         for leg in LEGS464 {
             let t = tab(leg);
             let idx = cached_index(t);
-            let got = dec(&t, &idx, *w);
+            let got = dec(t, idx, *w);
             assert_eq!(
                 got.as_deref(),
                 Some(*snap),
@@ -177,7 +177,7 @@ fn t464_7_mint_circle() {
         for leg in LEGS464 {
             let t = tab(leg);
             let idx = cached_index(t);
-            let got = dec(&t, &idx, *w);
+            let got = dec(t, idx, *w);
             assert_eq!(
                 got.as_deref(),
                 Some(*vendor),
@@ -185,9 +185,9 @@ fn t464_7_mint_circle() {
             );
             // encode odzyskuje core-slowo (era-mnemosina encodera vs dowod:
             // porownanie przez decode circle powyzej + nvdisasm w genetorze)
-            let re = enc(&t, vendor);
+            let re = enc(t, vendor);
             if let Ok(rw) = re {
-                let g2 = dec(&t, &idx, rw);
+                let g2 = dec(t, idx, rw);
                 assert_eq!(g2.as_deref(), Some(*vendor), "[{leg}] re-mint circle drift");
             }
             // refuse (BUG-060 guard na sm103a even-base) jest prawidlowa
@@ -204,15 +204,15 @@ fn t464_8_elide_mint_circle() {
         for leg in LEGS464 {
             let t = tab(leg);
             let idx = cached_index(t);
-            let got = dec(&t, &idx, *w);
+            let got = dec(t, idx, *w);
             assert_eq!(
                 got.as_deref(),
                 Some(*vendor),
                 "[{leg}] elide-word decode drift {w:#034x}"
             );
             let rw =
-                enc(&t, vendor).unwrap_or_else(|e| panic!("[{leg}] elide-mint FAIL {vendor}: {e}"));
-            let g2 = dec(&t, &idx, rw);
+                enc(t, vendor).unwrap_or_else(|e| panic!("[{leg}] elide-mint FAIL {vendor}: {e}"));
+            let g2 = dec(t, idx, rw);
             assert_eq!(g2.as_deref(), Some(*vendor), "[{leg}] elide re-mint drift");
         }
     }
@@ -229,7 +229,7 @@ fn t464_9_refuse461() {
             "LDG.E.EFL2.256 R44, R48, [RZ.64+UR38], 0x99",
             "STG.E.EFL2.256 [RZ.64+UR38], R44, R48, 0xa0",
         ] {
-            let e = enc(&t, txt);
+            let e = enc(t, txt);
             assert!(e.is_err(), "[{leg}] RZ.64 plain ARURI64 nie refused: {txt}");
             assert!(
                 e.unwrap_err().contains("461"),

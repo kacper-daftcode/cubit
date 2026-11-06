@@ -294,14 +294,12 @@ fn t234_4_encode_roundtrip_low96_sm120() {
 fn t234_5_donor_ur_form_law() {
     let t = tab(T103);
     const W: u128 = 0x092000a90000000464647c49u128;
-    for (glyph, w96, ctl) in [
-        // corpus representative (occurrence class 512/512)
-        (
+    {
+        let (glyph, w96, ctl) = (
             "FFMA2 R100, R100.F32x2.HI_LO, UR4.F32, R169.reuse.F32",
             W,
             0x100fe200u64,
-        ),
-    ] {
+        );
         let got = decode(&t, mk(w96, ctl)).unwrap_or_else(|e| panic!("HOLE {glyph}: {e}"));
         assert_eq!(&got, glyph, "donor UR-form law broke @{ctl:#x}");
     }

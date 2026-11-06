@@ -100,7 +100,7 @@ fn t452_5_mint_refuse() {
     let t = tab("sm103a");
     for text in MINTREF452 {
         let e = enc(&t, text).expect_err("mint must refuse");
-        assert!(format!("{e}").contains("BUG-452"), "guard msg: {e}");
+        assert!(e.to_string().contains("BUG-452"), "guard msg: {e}");
     }
 }
 

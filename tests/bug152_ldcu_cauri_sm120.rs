@@ -106,7 +106,7 @@ fn t152_3_plain_decode_fixedpoint() {
 fn t152_4_encode_plain_bakes_urz_sentinel() {
     let t = t120();
     let w = enc(&t, "LDCU UR4, c[0x0][0x570]");
-    assert_eq!((w >> 24) as u8 & 0xff, 0xff, "plain form must bake the URZ sentinel byte");
+    assert_eq!(((w >> 24) as u8), 0xff, "plain form must bake the URZ sentinel byte");
     assert_eq!(w, parts(PLAIN_FIXEDPOINT[0].0, PLAIN_FIXEDPOINT[0].1));
 }
 

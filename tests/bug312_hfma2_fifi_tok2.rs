@@ -107,7 +107,7 @@ fn t312_2_decode_vendor_law_exact() {
         // arb312 L0 (0x74 lane, tok2 R5@24 window, tok3 RZ)
         (
             &t103,
-            0x00000000000000ff0000000005000431u128 | (7 << 12) | (0 << 16) | (5 << 24),
+            (0x00000000000000ff0000000005000431u128 | (7 << 12)) | (5 << 24),
             "HFMA2 R0, R5, RZ, 0, 0",
         ),
         // L4: tok2 hsel v2... armed on sm120 leg (arb312 L4 law text)

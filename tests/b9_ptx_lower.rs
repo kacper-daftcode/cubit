@@ -147,7 +147,7 @@ fn b9_pred_reuse_caps_at_p6() {
     body.push_str(".reg .pred %p<12>;\n.reg .b32 %r<3>;\nmov.b32 %r1, 1;\n");
     for i in 1..11 {
         body.push_str(&format!("setp.gt.s32 %p{}, %r1, {};\n", i, i));
-        body.push_str(&format!("@%p1 mov.b32 %r2, %r1;\n").replace("%p1", &format!("%p{}", i)));
+        body.push_str(&"@%p1 mov.b32 %r2, %r1;\n".to_string().replace("%p1", &format!("%p{}", i)));
     }
     body.push_str("ret;\n");
     let ptx = format!(r#"{} .visible .entry k(
@@ -287,7 +287,7 @@ fn b9p2_pred_exhaustion_fail_closed() {
     }
     for i in 1..=9 {
         body.push_str(&format!("    selp.b32 %r2, {}, 0, %p{};\n", i, i));
-        body.push_str(&format!("    add.u32 %r3, %r3, %r2;\n"));
+        body.push_str(&"    add.u32 %r3, %r3, %r2;\n".to_string());
     }
     let ptx = format!(r#"{} .visible .entry k(
     .param .u64 k_param_0
@@ -675,7 +675,7 @@ fn b9p5_carry_chain_forms() {
     // the carry ops by shape (dst-carry or cin tail).
     let carry: Vec<&str> = ia.to_vec();
     assert!(carry.iter().any(|l| l.contains("IADD3 ") && !l.contains("-")
-        && l.split(',').nth(1).map_or(false, |t| t.trim().starts_with('P')
+        && l.split(',').nth(1).is_some_and(|t| t.trim().starts_with('P')
             && !t.trim().starts_with("PT"))), "add.cc writes a cout pred:\n{}", text);
     assert!(carry.iter().any(|l| l.starts_with("    IADD3.X") && l.contains(", RZ, RZ, P") && !l.contains("-0x")),
         "addc imm0 -> RZ normalization:\n{}", text);
@@ -1870,7 +1870,7 @@ fn b9p11_gpr_cap_rz_trap() {
 }}"#, PROLOG, body);
     let kernels = parse_ptx(&ptx).unwrap();
     let err = lower_kernel(&kernels[0]).err().map(|e| format!("{e}"));
-    assert!(err.as_deref().map_or(false, |e| e.contains("GPR space exhausted")),
+    assert!(err.as_deref().is_some_and(|e| e.contains("GPR space exhausted")),
         "must bail fail-closed: {:?}", err);
     // and a just-legal chain still lowers
     let mut body = String::new();

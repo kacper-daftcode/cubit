@@ -23,8 +23,8 @@ fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
 }
 fn word(lo: u64, hi: u64) -> u128 { ((hi as u128) << 64) | lo as u128 }
 fn flip_w(lo: u64, hi: u64, wv: u64) -> u128 {
-    let w = word(lo, hi) & !(3u128 << 73) | (wv as u128) << 73;
-    w
+    
+    word(lo, hi) & !(3u128 << 73) | (wv as u128) << 73
 }
 
 /// t199_1 (A): OOD probes — UR is NOT derivable from imm; broken windows

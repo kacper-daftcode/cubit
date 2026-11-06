@@ -116,9 +116,8 @@ fn t126_3_roundtrip_32() {
 /// jako USHF.R.U32 i re-enkoduje payload-identycznie.
 #[test]
 fn t126_4_corpus_anchor_r_u32() {
-    for w in [
-        0x000fe200080016ff0000000404047899u128, // pol3 k_st+0x60
-    ] {
+    {
+        let w = 0x000fe200080016ff0000000404047899u128;
         let got = dec103(w).unwrap();
         assert!(got.contains("USHF.R.U32 UR4, UR4, 0x4, URZ"), "{got}");
         assert!(!got.contains("!rsd"), "{got}");

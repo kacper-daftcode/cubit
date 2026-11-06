@@ -81,7 +81,7 @@ fn t454_1_heal_grid() {
     for (w, leg, vendor) in LAW454_HEAL {
         let t = tab(leg);
         let idx = cached_index(t);
-        let got = dec(&t, &idx, *w);
+        let got = dec(t, idx, *w);
         assert_eq!(got.as_deref(), Some(*vendor), "[{leg}] heal drift {w:#034x}");
     }
 }
@@ -94,7 +94,7 @@ fn t454_2_fixture_claim_single() {
     for (w, leg, _v) in LAW454_HEAL {
         let t = tab(leg);
         let idx = cached_index(t);
-        let d = idx.decode(*w, 0, &t).expect("fixture HOLE");
+        let d = idx.decode(*w, 0, t).expect("fixture HOLE");
         assert!(
             d.key.contains("ARURI"),
             "[{leg}] fixture {w:#034x} routed via {} (nie ARURI clone)",
@@ -111,7 +111,7 @@ fn t454_3_parity_holes() {
     for (w, leg) in HOLE454 {
         let t = tab(leg);
         let idx = cached_index(t);
-        assert_eq!(dec(&t, &idx, *w), None, "[{leg}] parity-hole claimed {w:#034x}");
+        assert_eq!(dec(t, idx, *w), None, "[{leg}] parity-hole claimed {w:#034x}");
     }
 }
 
@@ -125,7 +125,7 @@ fn t454_4_standing() {
     for (w, leg) in STAND454 {
         let t = tab(leg);
         let idx = cached_index(t);
-        let got = dec(&t, &idx, *w)
+        let got = dec(t, idx, *w)
             .unwrap_or_else(|| panic!("[{leg}] HOLE after 461 {w:#034x}"));
         assert!(
             got.contains("???255.64"),
@@ -144,17 +144,17 @@ fn t454_5_mints() {
         let t = tab(leg);
         let idx = cached_index(t);
         let got = if *ghatch {
-            let e = enc(&t, text).expect_err("[sm103a] BUG-080 keeper must refuse");
-            assert!(format!("{e}").contains("BUG-080"), "guard msg: {e}");
+            let e = enc(t, text).expect_err("[sm103a] BUG-080 keeper must refuse");
+            assert!(e.to_string().contains("BUG-080"), "guard msg: {e}");
             std::env::set_var("CUBIT_DISABLE_ERRATA", "1");
-            let r = enc(&t, text);
+            let r = enc(t, text);
             std::env::remove_var("CUBIT_DISABLE_ERRATA");
             r.unwrap_or_else(|e| panic!("[{leg}] hatch mint refuse {text}: {e}"))
         } else {
-            enc(&t, text).unwrap_or_else(|e| panic!("[{leg}] mint refuse {text}: {e}"))
+            enc(t, text).unwrap_or_else(|e| panic!("[{leg}] mint refuse {text}: {e}"))
         };
         assert_eq!(got & !ERA454, *w & !ERA454, "[{leg}] mint lo96 drift {text}");
-        let back = dec(&t, &idx, got).unwrap_or_else(|| panic!("[{leg}] mint HOLE {text}"));
+        let back = dec(t, idx, got).unwrap_or_else(|| panic!("[{leg}] mint HOLE {text}"));
         assert_eq!(&back, text, "[{leg}] circle drift {text} -> {back}");
     }
 }
@@ -167,8 +167,8 @@ fn t454_6_refuse_grid() {
     let t = tab("sm103a");
     for (text, leg) in REFUSE454 {
         assert_eq!(*leg, "sm103a");
-        let e = enc(&t, text).expect_err("[sm103a] BUG-080 keeper must refuse");
-        assert!(format!("{e}").contains("BUG-080"), "guard msg: {e}");
+        let e = enc(t, text).expect_err("[sm103a] BUG-080 keeper must refuse");
+        assert!(e.to_string().contains("BUG-080"), "guard msg: {e}");
     }
 }
 
@@ -181,7 +181,7 @@ fn t454_8_era_mint_continuity() {
     let _test_env_guard = ERRATA_LOCK.lock().unwrap();
     for (text, leg, w) in ERAM454 {
         let t = tab(leg);
-        let got = enc(&t, text).unwrap_or_else(|e| panic!("[{leg}] era-mint refuse {text}: {e}"));
+        let got = enc(t, text).unwrap_or_else(|e| panic!("[{leg}] era-mint refuse {text}: {e}"));
         assert_eq!(got & !ERA454, *w & !ERA454, "[{leg}] era-mint lo96 drift {text}");
     }
 }

@@ -516,7 +516,7 @@ fn t358_4_fail_closed_residua_stay_hole() {
     // kontrast-piny 368-residuum ODWROCONE do pozytywnego prawa vendor.
     // R-form UP pred<PT teraz claim+poprawny text (arb368 C: x4 ZGODNE)
     let wr = 0x00006400000000100c00000b0a127389u128; // BFLY R_R P0 corpus
-    let wup = (wr & !(0x3u128 << 58)) | (1u128 << 58) | (0u128 << 81);
+    let wup = (wr & !(0x3u128 << 58)) | (1u128 << 58);
     let got = dec(&t, wup);
     let want = "SHFL.UP P0, R18, R10, R11, R16";
     assert_eq!(

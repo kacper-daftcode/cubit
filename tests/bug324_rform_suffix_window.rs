@@ -1682,7 +1682,7 @@ fn t324_1_structure_graft_and_donors() {
                 "{leg}: donor dotted 324 key: {k}"
             );
             if k == "HMUL2_R_R_R" || k == "HMUL2_R_R_UR" {
-                for (mgn, _mg) in &t.entries[k].mod_groups {
+                for mgn in t.entries[k].mod_groups.keys() {
                     let mgn: &String = mgn;
                     assert!(!mgn.contains("RELU"), "{leg} {k}[{mgn}] donor RELU lane");
                 }

@@ -324,7 +324,8 @@ fn t272_4_era_anchors_and_lanes() {
     // zero word never decodes; predicate-suffix lane was already fail-closed
     // at key lookup (parse never produces a Pred out of 'P0.BAR') -- pin
     // the documented sibling closure
-    for leg in ["sm120"] {
+    {
+        let leg = "sm120";
         let t = tab(leg);
         assert!(dec(&t, 0).is_none(), "{leg}: zero word decodes");
         assert!(

@@ -150,7 +150,7 @@ fn t158_3_encode_vendor_bytes() {
     ];
     for (text, want_low) in cases {
         let w = enc(&t, text);
-        assert_eq!(w & !(SCHED >> 96 << 96 | 0), w, "mask noop"); // clarity: w already masked
+        assert_eq!(w & !(SCHED >> 96 << 96), w, "mask noop"); // clarity: w already masked
         let want_masked = want_low & !SCHED;
         // vendor sched bytes are not authoritative here: compare payload+idle-ctrl bits only
         let cmp_mask: u128 = !SCHED;

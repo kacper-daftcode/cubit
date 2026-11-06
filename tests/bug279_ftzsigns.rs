@@ -76,7 +76,7 @@ fn t279_1_structure_graft_and_donors() {
             assert_eq!(mgs.len(), 36, "{leg}|{p}: mg count drift");
             for mg in mgs.values() {
                 // tok3 sign/hsel armed on EVERY row, with vm covering the bits
-                let vm: u128 = mg.variable_mask.into();
+                let vm: u128 = mg.variable_mask;
                 for (ex, shift, bits) in [
                     (Extraction::Neg, 84u32, 1u32),
                     (Extraction::Abs, 83, 1),
@@ -150,7 +150,7 @@ fn t279_1_structure_graft_and_donors() {
         // the full 271 structure pin lives in tests/bug271_h0nh1.rs)
         for p in PARENTS {
             let g = &t.entries[p].mod_groups[""];
-            let vm: u128 = g.variable_mask.into();
+            let vm: u128 = g.variable_mask;
             assert_eq!(vm & (1 << 85), 0, "{leg}|{p}: b85 variable");
             assert_ne!(vm & (1 << 86), 0, "{leg}|{p}: 271 b86 arm lost");
         }

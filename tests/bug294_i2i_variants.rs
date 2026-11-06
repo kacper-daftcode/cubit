@@ -191,7 +191,7 @@ fn t294_3_killbit_and_holds() {
     for leg in ["sm120", "sm121a"] {
         let t = tab(leg);
         for (_, ab) in ROWS {
-            let vb = ab | (base & !(0xF << 12)) | (0x0u128 << 12); // variant + guard0 payload
+            let vb = ab | (base & !(0xF << 12)); // variant + guard0 payload
             for (tag, w) in [
                 ("variant+b91 kill", vb | (1 << 91)),
                 ("variant+b91 kill PT", (vb | (7 << 12)) | (1 << 91)),

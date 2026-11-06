@@ -77,7 +77,7 @@ fn t453_1_trailer_grid() {
         let t = tab(leg);
         let idx = cached_index(t);
         assert_eq!(
-            dec(&t, &idx, *w).as_deref(),
+            dec(t, idx, *w).as_deref(),
             Some(*vendor),
             "[{leg}] trailer drift {w:#034x}"
         );
@@ -93,11 +93,11 @@ fn t453_2_elide_stays_base() {
         let t = tab(leg);
         let idx = cached_index(t);
         assert_eq!(
-            dec(&t, &idx, *w).as_deref(),
+            dec(t, idx, *w).as_deref(),
             Some(*vendor),
             "[{leg}] elide drift {w:#034x}"
         );
-        let k = deckey(&t, &idx, *w).unwrap_or_else(|| panic!("[{leg}] elide HOLE"));
+        let k = deckey(t, idx, *w).unwrap_or_else(|| panic!("[{leg}] elide HOLE"));
         assert!(
             !k.contains("_II"),
             "[{leg}] elide word claimed by _II key {k} ({w:#034x})"
@@ -114,7 +114,7 @@ fn t453_3_trailer_routes_ii() {
     for (w, leg, vendor) in LAW453_TRAILER {
         let t = tab(leg);
         let idx = cached_index(t);
-        let k = deckey(&t, &idx, *w).unwrap_or_else(|| panic!("[{leg}] trailer HOLE"));
+        let k = deckey(t, idx, *w).unwrap_or_else(|| panic!("[{leg}] trailer HOLE"));
         assert!(k.contains("_II"), "[{leg}] trailer {w:#034x} not _II: {k}");
         if vendor.contains(", !PT") || vendor.contains(", PT") {
             assert!(
@@ -216,7 +216,7 @@ fn t453_4_resid_holes_healed_463() {
             assert_eq!(hw, w, "RESID453 grid order drift");
             let t = tab(leg);
             let idx = cached_index(t);
-            let got = dec(&t, &idx, *hw).unwrap_or_else(|| panic!("[{leg}] heal {hw:#034x} HOLE"));
+            let got = dec(t, idx, *hw).unwrap_or_else(|| panic!("[{leg}] heal {hw:#034x} HOLE"));
             assert_eq!(got, *want, "[{leg}] heal {hw:#034x}");
         }
     }
@@ -231,7 +231,7 @@ fn t453_5_kill_preserve() {
         let t = tab(leg);
         let idx = cached_index(t);
         assert_eq!(
-            dec(&t, &idx, *w),
+            dec(t, idx, *w),
             None,
             "[{leg}] kill-word claimed {w:#034x}"
         );
@@ -248,17 +248,17 @@ fn t453_6_mints_x4() {
         let t = tab(leg);
         let idx = cached_index(t);
         let got = if *ghatch {
-            let e = enc(&t, text).expect_err("[sm103a] BUG-060 guard must refuse even desc-base");
-            assert!(format!("{e}").contains("BUG-060"), "guard msg: {e}");
+            let e = enc(t, text).expect_err("[sm103a] BUG-060 guard must refuse even desc-base");
+            assert!(e.to_string().contains("BUG-060"), "guard msg: {e}");
             std::env::set_var("CUBIT_DISABLE_ERRATA", "1");
-            let r = enc(&t, text);
+            let r = enc(t, text);
             std::env::remove_var("CUBIT_DISABLE_ERRATA");
             r.unwrap_or_else(|e| panic!("[{leg}] hatch mint refuse {text}: {e}"))
         } else {
-            enc(&t, text).unwrap_or_else(|e| panic!("[{leg}] mint refuse {text}: {e}"))
+            enc(t, text).unwrap_or_else(|e| panic!("[{leg}] mint refuse {text}: {e}"))
         };
         assert_eq!(got, *w, "[{leg}] mint drift {text}");
-        let back = dec(&t, &idx, got).unwrap_or_else(|| panic!("[{leg}] mint HOLE {text}"));
+        let back = dec(t, idx, got).unwrap_or_else(|| panic!("[{leg}] mint HOLE {text}"));
         assert_eq!(&back, text, "[{leg}] circle drift {text} -> {back}");
     }
 }
@@ -275,8 +275,8 @@ fn t453_7_refuse452_grid() {
     for leg in REFUSE453_452 {
         let t = tab(leg);
         for text in TEXTS {
-            let e = enc(&t, text).expect_err("[{leg}] RZ.64 desc must refuse");
-            assert!(format!("{e}").contains("452"), "[{leg}] refuse msg: {e}");
+            let e = enc(t, text).expect_err("[{leg}] RZ.64 desc must refuse");
+            assert!(e.to_string().contains("452"), "[{leg}] refuse msg: {e}");
         }
     }
 }

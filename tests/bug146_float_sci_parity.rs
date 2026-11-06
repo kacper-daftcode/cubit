@@ -105,7 +105,7 @@ fn t146_5_fchk_fi_row_int_text_still_routes_value_semantics() {
     // not a vendor form for this family.
     let t = t103a();
     assert_eq!(enc(&t, "FCHK P0, R21, 6890499"),
-               (0x4ad2480615007902u128) | (0x0u128 << 64));
+               (0x4ad2480615007902u128));
     let idx = DecodeIndex::build(&t);
     let w = 0x4ad2480615007902u128;
     assert!(dec(&t, &idx, w).contains("6890499"));

@@ -82,7 +82,7 @@ fn t271_1_structure_and_donors() {
                 });
                 if has_hsel {
                     assert!(has_nh1, "{leg}|{k}: 279-armed row missing h0nh1");
-                    let vm: u128 = g.variable_mask.into();
+                    let vm: u128 = g.variable_mask;
                     assert_ne!(vm & (1 << 86), 0, "{leg}|{k}: b86 not variable");
                     armed += 1;
                 } else {
@@ -105,7 +105,7 @@ fn t271_1_structure_and_donors() {
                 .count(),
             0
         );
-        let vm: u128 = g.variable_mask.into();
+        let vm: u128 = g.variable_mask;
         assert_eq!(vm & (1 << 86), 0, "{leg}: II_II_II widened?");
     }
     // sm121a BF16 hosts:
@@ -116,7 +116,7 @@ fn t271_1_structure_and_donors() {
         && f.bits == 1
         && f.token_idx == 3));
     let g = &t.entries["HMUL2_R_R_UR"].mod_groups["BF16_V2"];
-    let vmh: u128 = g.variable_mask.into();
+    let vmh: u128 = g.variable_mask;
     assert_ne!(vmh & (1 << 86), 0, "HMUL2 reclaim lost");
     assert!(
         !g.fields.iter().any(|f| f.extraction == Extraction::H0NH1),

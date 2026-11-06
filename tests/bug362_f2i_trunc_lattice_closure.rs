@@ -117,7 +117,8 @@ fn t362_1_structure_rows_carry_sign_and_alias_window() {
     }
     // era-key S64/U64 parity preserved (b72 flip only in ab, not in fields/vm) -- sm121a only since
     // 2026-11-06 (the sm120 twins are retired; the sm120 law lives on the `F2I_R_R` groups, bug339)
-    for leg in ["sm121a"] {
+    {
+        let leg = "sm121a";
         let t = tab(leg);
         let s = &t.entries["F2I.S64.TRUNC_R_R"].mod_groups[""];
         let u = &t.entries["F2I.U64.TRUNC_R_R"].mod_groups[""];

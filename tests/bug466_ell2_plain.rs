@@ -66,7 +66,7 @@ fn t466_1_route_grid() {
         for leg in X3 {
             let t = tab(leg);
             let idx = cached_index(t);
-            let got = dec(&t, &idx, *w);
+            let got = dec(t, idx, *w);
             assert_eq!(
                 got.as_deref(),
                 Some(*vendor),
@@ -87,7 +87,7 @@ fn t466_2_elide_grid() {
             let t = tab(leg);
             let idx = cached_index(t);
             assert_eq!(
-                dec(&t, &idx, *w).as_deref(),
+                dec(t, idx, *w).as_deref(),
                 Some(*vendor),
                 "[{leg}] {tag} elide drift {w:#034x}"
             );
@@ -106,7 +106,7 @@ fn t466_3_standing_snap() {
             let idx = cached_index(t);
             let exp = if *snap == "HOLE" { None } else { Some(*snap) };
             assert_eq!(
-                dec(&t, &idx, *w).as_deref(),
+                dec(t, idx, *w).as_deref(),
                 exp,
                 "[{leg}] {tag} standing drift {w:#034x}"
             );
@@ -122,7 +122,7 @@ fn t466_4_kill_snap() {
             let t = tab(leg);
             let idx = cached_index(t);
             assert!(
-                dec(&t, &idx, *w).is_none(),
+                dec(t, idx, *w).is_none(),
                 "[{leg}] {tag} kill claimed {w:#034x}"
             );
         }
@@ -136,7 +136,7 @@ fn t466_5_control_121a() {
     for (w, name, vendor) in CTRL466 {
         let t = tab("sm121a");
         let idx = cached_index(t);
-        let got = dec(&t, &idx, *w);
+        let got = dec(t, idx, *w);
         assert_eq!(
             got.as_deref(),
             Some(*vendor),
@@ -153,18 +153,18 @@ fn t466_6_mint_circle() {
         for leg in X3 {
             let t = tab(leg);
             let idx = cached_index(t);
-            let got = dec(&t, &idx, *w);
+            let got = dec(t, idx, *w);
             assert_eq!(
                 got.as_deref(),
                 Some(*vendor),
                 "[{leg}] mint-word decode drift {w:#034x}"
             );
-            let re = enc(&t, vendor);
+            let re = enc(t, vendor);
             assert!(re.is_ok(), "[{leg}] mint refuse: {:?}", re.err());
             let rw = re.unwrap();
             // era-blind circle: re-mintowane slowo dekoduje sie na ten sam
             // tekst vendora (era-window encodera != era nosnika).
-            let g2 = dec(&t, &idx, rw);
+            let g2 = dec(t, idx, rw);
             assert_eq!(g2.as_deref(), Some(*vendor), "[{leg}] re-mint circle drift");
         }
     }
@@ -179,16 +179,16 @@ fn t466_7_elide_mint_circle() {
             let t = tab(leg);
             let idx = cached_index(t);
             assert_eq!(
-                ((w >> 24) & 0xff, dec(&t, &idx, *w).as_deref()),
+                ((w >> 24) & 0xff, dec(t, idx, *w).as_deref()),
                 (255, Some(*vendor)),
                 "[{leg}] elide-mint snap {w:#034x}"
             );
-            let re = enc(&t, vendor);
+            let re = enc(t, vendor);
             assert!(re.is_ok(), "[{leg}] elide-mint refuse: {:?}", re.err());
             let rw = re.unwrap();
             assert_eq!((rw >> 24) & 0xff, 255, "[{leg}] elide re-mint base != 255");
             assert_eq!(
-                dec(&t, &idx, rw).as_deref(),
+                dec(t, idx, rw).as_deref(),
                 Some(*vendor),
                 "[{leg}] elide circle"
             );
@@ -221,7 +221,7 @@ fn t466_8b_mint_gain_ell2() {
     ] {
         for leg in X3 {
             let t = tab(leg);
-            let w = enc(&t, txt).unwrap_or_else(|e| panic!("[{leg}] mint-gain {txt:?}: {e}"));
+            let w = enc(t, txt).unwrap_or_else(|e| panic!("[{leg}] mint-gain {txt:?}: {e}"));
             assert_eq!(w, want, "[{leg}] mint-gain word {txt:?}");
         }
     }
@@ -235,7 +235,7 @@ fn t466_8_refuse_legacy_desc_form() {
             "LDG.E.NA.ELL2.256.STRONG.GPU R8, R12, desc[UR4][R3.64]",
             "STG.E.NA.ELL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12",
         ] {
-            let re = enc(&t, txt);
+            let re = enc(t, txt);
             assert!(
                 re.is_err(),
                 "[{leg}] legacy desc-form minted: {txt} -> {:?}",
@@ -245,7 +245,7 @@ fn t466_8_refuse_legacy_desc_form() {
     }
     // 121a keeper: desc-form mintuje nadal (sigma nie ruszona).
     let t = tab("sm121a");
-    let re = enc(&t, "LDG.E.ELL2.256 R0, R0, desc[UR0][R40.64]");
+    let re = enc(t, "LDG.E.ELL2.256 R0, R0, desc[UR0][R40.64]");
     assert!(re.is_ok(), "[sm121a] desc keeper refuse: {:?}", re.err());
 }
 

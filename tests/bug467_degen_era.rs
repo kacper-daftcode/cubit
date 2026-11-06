@@ -73,7 +73,7 @@ fn t467_1_decode_fail_closed_anchors() {
     for (w, leg, tag, vendor) in DEGEN467_LAW {
         let t = tab(leg);
         let idx = cached_index(t);
-        let got = dec(&t, &idx, *w);
+        let got = dec(t, idx, *w);
         assert!(
             got.is_none(),
             "[{leg}] {tag}: era-word musi byc HOLE, decode dal {got:?} (vendor: {vendor})"
@@ -99,7 +99,7 @@ fn t467_2_probe_space_all_hole() {
     for (w, leg, tag) in DEGEN467_PROBES {
         let t = tab(leg);
         let idx = cached_index(t);
-        let got = dec(&t, &idx, *w);
+        let got = dec(t, idx, *w);
         assert!(
             got.is_none(),
             "[{leg}] {tag}: probe {w:#034x} musi byc HOLE, decode dal {got:?}"
@@ -117,7 +117,7 @@ fn t467_3_encode_refuse_fail_closed() {
     let mut n = 0;
     for (leg, text) in REFUSE467 {
         let t = tab(leg);
-        let r = enc(&t, text);
+        let r = enc(t, text);
         assert!(
             r.is_err(),
             "[{leg}] encode '{text}' musi odmawiac, dal {r:034x?}"
@@ -134,7 +134,7 @@ fn t467_4_keep_alive_siblings() {
     for (w, leg, tag, vendor) in KEEP467 {
         let t = tab(leg);
         let idx = cached_index(t);
-        let got = dec(&t, &idx, *w);
+        let got = dec(t, idx, *w);
         assert_eq!(
             got.as_deref(),
             Some(*vendor),
@@ -143,10 +143,10 @@ fn t467_4_keep_alive_siblings() {
     }
     for (leg, text) in KEEP467_ENC {
         let t = tab(leg);
-        let w = enc(&t, text).unwrap_or_else(|e| panic!("[{leg}] keep-enc '{text}' odmowil: {e}"));
+        let w = enc(t, text).unwrap_or_else(|e| panic!("[{leg}] keep-enc '{text}' odmowil: {e}"));
         let idx = cached_index(t);
         assert!(
-            dec(&t, &idx, w).is_some(),
+            dec(t, idx, w).is_some(),
             "[{leg}] keep-enc word of '{text}' musi dekodowac (circle)"
         );
     }
@@ -155,11 +155,11 @@ fn t467_4_keep_alive_siblings() {
     // vendor-LEGALNE na sm121a; hazard-hipoteza obalona).
     for (w, leg, text, vendor) in KEEP467_ENC_WORD {
         let t = tab(leg);
-        let got = enc(&t, text).unwrap();
+        let got = enc(t, text).unwrap();
         assert_eq!(&got, w, "[{leg}] keep-enc mint geometry drift for '{text}'");
         let idx = cached_index(t);
         assert_eq!(
-            dec(&t, &idx, got).as_deref(),
+            dec(t, idx, got).as_deref(),
             Some(*vendor),
             "[{leg}] keep-enc circle text drift '{text}'"
         );

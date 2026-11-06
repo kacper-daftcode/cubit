@@ -84,7 +84,7 @@ fn t253_1_structure() {
     for arch in ["sm100a", "sm103a", "sm120"] {
         let t = tab(arch);
         for (k, row) in &t.entries {
-            for (_mg, g) in &row.mod_groups {
+            for g in row.mod_groups.values() {
                 for f in &g.fields {
                     assert!(
                         f.extraction != Extraction::NegShl1,

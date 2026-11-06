@@ -337,7 +337,7 @@ fn t376_3_encode_cured_and_phantom_killed() {
     for leg in LEGS {
         let t = tab(leg);
         let w = mold(F, 2, false, 2, true);
-        let d = dec(&t, w).expect(&format!("{leg}: code-2 cross HOLE (376 regression)"));
+        let d = dec(&t, w).unwrap_or_else(|| panic!("{leg}: code-2 cross HOLE (376 regression)"));
         assert!(
             !d.contains(", PT"),
             "{leg}: phantom ', PT' resurrected: {d}"

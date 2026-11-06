@@ -57,7 +57,7 @@ fn t463_1_heal_decode() {
     for (w, leg, want) in HEAL463 {
         let t = tab(leg);
         let idx = cached_index(t);
-        let got = dec(&t, &idx, *w);
+        let got = dec(t, idx, *w);
         assert_eq!(got.as_deref(), Some(*want), "[{leg}] heal {w:#034x}");
     }
 }
@@ -69,7 +69,7 @@ fn t463_2_anchors() {
     for (w, leg, want) in ANCH463 {
         let t = tab(leg);
         let idx = cached_index(t);
-        let got = dec(&t, &idx, *w);
+        let got = dec(t, idx, *w);
         assert_eq!(got.as_deref(), Some(*want), "[{leg}] anchor {w:#034x}");
     }
 }
@@ -81,7 +81,7 @@ fn t463_3_kill_preserve() {
     for (w, leg) in KILL463 {
         let t = tab(leg);
         let idx = cached_index(t);
-        assert_eq!(dec(&t, &idx, *w), None, "[{leg}] kill-claim {w:#034x}");
+        assert_eq!(dec(t, idx, *w), None, "[{leg}] kill-claim {w:#034x}");
     }
 }
 
@@ -91,7 +91,7 @@ fn t463_3_kill_preserve() {
 fn t463_4_mint_circle() {
     for (leg, text) in MINTCIR463 {
         let t = tab(leg);
-        let w = enc(&t, text).unwrap_or_else(|e| panic!("[{leg}] mint {text}: {e}"));
+        let w = enc(t, text).unwrap_or_else(|e| panic!("[{leg}] mint {text}: {e}"));
         let sel = ((w >> 73) & 3) as u8;
         let want: u8 = if text.contains("LTC64B") {
             1
@@ -104,7 +104,7 @@ fn t463_4_mint_circle() {
         };
         assert_eq!(sel, want, "[{leg}] selector {text} -> {sel}");
         let idx = cached_index(t);
-        let got = dec(&t, &idx, w);
+        let got = dec(t, idx, w);
         assert_eq!(got.as_deref(), Some(*text), "[{leg}] circle {text}");
     }
 }
@@ -115,7 +115,7 @@ fn t463_4_mint_circle() {
 fn t463_5_mint_refuse() {
     for (leg, text) in MINTREF463 {
         let t = tab(leg);
-        let e = enc(&t, text).expect_err("mint must refuse");
+        let e = enc(t, text).expect_err("mint must refuse");
         assert!(e.contains("BUG-452"), "[{leg}] cite: {e}");
     }
 }
@@ -189,7 +189,7 @@ fn t463_7_era_glyph_legal() {
     for (w, leg, want) in ERAGLYPH463 {
         let t = tab(leg);
         let idx = cached_index(t);
-        let got = dec(&t, &idx, *w);
+        let got = dec(t, idx, *w);
         assert_eq!(got.as_deref(), Some(*want), "[{leg}] era/glyph {w:#034x}");
     }
 }

@@ -72,10 +72,10 @@ fn minimal_cubin(sections: &[(&str, Vec<u8>)]) -> Vec<u8> {
     let names_offset = bytes.len(); bytes.extend_from_slice(&names);
     let mut code_offsets = Vec::new();
     for (_, code) in sections {
-        while bytes.len() % 16 != 0 { bytes.push(0); }
+        while !bytes.len().is_multiple_of(16) { bytes.push(0); }
         code_offsets.push(bytes.len()); bytes.extend_from_slice(code);
     }
-    while bytes.len() % 8 != 0 { bytes.push(0); }
+    while !bytes.len().is_multiple_of(8) { bytes.push(0); }
     let shoff = bytes.len();
     bytes.resize(shoff + (sections.len() + 2) * 64, 0);
     bytes[..7].copy_from_slice(b"\x7fELF\x02\x01\x01");

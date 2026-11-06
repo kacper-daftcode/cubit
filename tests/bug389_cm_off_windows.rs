@@ -140,7 +140,7 @@ fn t389_3_four_legs_refuse_and_anchor_exact() {
 /// sign-window mutation of each anchor refuses closed.
 #[test]
 fn t389_4_corpus_anchors_exact_and_signbit_refused() {
-    let anchors: &[(&str, u128, &str)] = &ANCHORS;
+    let anchors: &[(&str, u128, &str)] = ANCHORS;
     for (leg, word, text) in anchors {
         let tab = t(leg);
         let w = enc(&tab, text).unwrap_or_else(|e| panic!("[{leg}] anchor mints: {text}: {e}"));

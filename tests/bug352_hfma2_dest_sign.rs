@@ -206,7 +206,7 @@ fn t352_3_src_signs_stay_legal_word_exact() {
             ("HFMA2.RELU R2, R3, R4, 0, 0, P0", W_RELU_P0),
             ("HFMA2.RELU R2, R3, R4, 0, 0, !P0", W_RELU_NP0),
         ] {
-            let w = enc_res(&t, txt).expect(&format!("{leg}: legal src sign must mint [{txt}]"));
+            let w = enc_res(&t, txt).unwrap_or_else(|_| panic!("{leg}: legal src sign must mint [{txt}]"));
             assert_eq!(w, want, "{leg}: word drift for {txt:?}");
         }
         if leg == "sm120" || leg == "sm121a" {
@@ -240,7 +240,7 @@ fn t352_4_decode_untouched_plain_never_signed_dest() {
             (W_UR, "UR4"),
             (W_RELU_P0, "P0"),
         ] {
-            let d = dec(&t, w).expect(&format!("{leg}: signed-src word decodes"));
+            let d = dec(&t, w).unwrap_or_else(|| panic!("{leg}: signed-src word decodes"));
             assert!(d.contains(frag), "{leg}: decode lost {frag:?} in {d:?}");
             // roundtrip parity: re-encode the decoded text == source word
             let re = enc_res(&t, d.trim()).expect("re-encode");
@@ -264,7 +264,7 @@ fn t352_5_arm_scope_and_refusal_surface() {
     // (c) RZ-dest signed spellings refuse too (RZ is Reg 255 internally).
     for leg in LEGS {
         let t = tab(leg);
-        let w = enc_res(&t, "FFMA R1, R2, R3, R4").expect(&format!("{leg}: FFMA plain mints"));
+        let w = enc_res(&t, "FFMA R1, R2, R3, R4").unwrap_or_else(|_| panic!("{leg}: FFMA plain mints"));
         assert_ne!(w, 0, "{leg}: FFMA mint sanity");
         if let Err(e) = enc_res(&t, "FFMA -R1, R2, R3, R4") {
             assert!(

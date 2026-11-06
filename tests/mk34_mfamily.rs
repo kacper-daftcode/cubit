@@ -57,7 +57,7 @@ fn mb_ops() -> Vec<String> {
     ]
     .iter()
     .map(|s| s.to_string())
-    .chain(std::iter::repeat("NOP".to_string()).take(11))
+    .chain(std::iter::repeat_n("NOP".to_string(), 11))
     .collect()
 }
 
@@ -86,7 +86,7 @@ fn bc_ops() -> Vec<String> {
     ]
     .iter()
     .map(|s| s.to_string())
-    .chain(std::iter::repeat("NOP".to_string()).take(10))
+    .chain(std::iter::repeat_n("NOP".to_string(), 10))
     .collect()
 }
 

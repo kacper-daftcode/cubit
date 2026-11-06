@@ -49,7 +49,7 @@ fn dec(t: &IsaTable, word: u128) -> String {
 fn key(t: &IsaTable, word: u128) -> String {
     let idx = DecodeIndex::build(t);
     let i = idx.decode(word, 0, t).unwrap();
-    format!("{}", i.key)
+    i.key.to_string()
 }
 fn clean(s: &str) -> &str {
     s.trim_end_matches([' ', ';'])

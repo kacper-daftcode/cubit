@@ -211,7 +211,7 @@ fn t403_5_guard_and_pred_forms_x4() {
         assert_eq!(dec96(&t, w).as_deref(), Some(txt), "{leg} pred rt");
         let want =
             ((A403 & !(0xffu128 << 72) & !(0xfu128 << 12)) | (0xf1u128 << 72) | (1u128 << 12))
-                | w & (3u128 << 96 | 0); // pred mint = cell + g1 (byte0/byte1 verbatim)
+                | w & (3u128 << 96); // pred mint = cell + g1 (byte0/byte1 verbatim)
         assert_eq!(
             w & !((0xfu128) << 12) & M96,
             want & !((0xfu128) << 12) & M96,

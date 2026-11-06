@@ -125,7 +125,7 @@ fn b4fill3_brxu_reencode_byte_exact() {
     // era-grounded BRXU_II and_base: canonical text -> exact era bytes
     // (modulo sched bits, which the file pipeline regenerates via @sched).
     let t = t103a();
-    for &(word, addr, golden) in &GOLD[..] {
+    for &(word, addr, golden) in GOLD {
         if !golden.starts_with("BRXU ") {
             continue;
         }
@@ -146,7 +146,7 @@ fn b4fill3_bra_target_region_exact() {
     // region exactly; bits [33:32] are era-carry (rsd at file level).
     let t = t103a();
     let tgtmask: u128 = ((0xFFu128 << 16) | (0xFFFF_FFFFu128 << 32)) & !(0b11u128 << 32);
-    for &(word, addr, golden) in &GOLD[..] {
+    for &(word, addr, golden) in GOLD {
         if !golden.contains("BRA") || golden.contains("BRXU") {
             continue;
         }

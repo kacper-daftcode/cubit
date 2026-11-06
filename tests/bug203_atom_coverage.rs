@@ -209,9 +209,8 @@ fn t203_6_atom_flip_pool_decode() {
     for tp in TABS {
         let t = tab(tp); let idx = DecodeIndex::build(&t);
         for (g, lo, hi) in FLIP_ATOM {
-            if g.contains("MAX.STRONG.SM") || g.contains("MAX.S32.STRONG.SM") || g.contains("MAX.64.STRONG.SM") {
-                if tp.ends_with("sm103a.json") { continue; } // sm103a stays HOLE (no arch-local witness; BUG-199 stance)
-            }
+            if (g.contains("MAX.STRONG.SM") || g.contains("MAX.S32.STRONG.SM") || g.contains("MAX.64.STRONG.SM"))
+                && tp.ends_with("sm103a.json") { continue; } // sm103a stays HOLE (no arch-local witness; BUG-199 stance)
             if (g.contains("CAS.S32.STRONG.SYS") || g.contains("CAS.64.STRONG.SYS")) && tp.ends_with("sm120.json") {
                 continue; // sm120 lacks the CAS.SYS donor row (no witness)
             }

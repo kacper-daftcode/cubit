@@ -72,7 +72,7 @@ fn t1_sm103a_ldc64_odd_dest_rejected() {
         "LDC.64 R201, c[0x0][0x380]", // odd high
         "LDC.64 R53, c[0x0][R4]",     // cARI register-offset form, same law
     ] {
-        let e = enc(text, &t103a())
+        let e = enc(text, t103a())
             .expect_err(&format!("LDC.64 odd dest must not encode for sm_103a: {text}"));
         assert!(format!("{e}").contains("BUG-088"), "{text}: got: {e}");
     }
@@ -88,13 +88,13 @@ fn t2_sm103a_ldcu64_odd_dest_rejected() {
         "LDCU.64 UR61, c[0x0][0x358]",
         "LDCU.64 UR63, c[0x0][0x358]", // real UR63 traps; only URZ exempt
     ] {
-        let e = enc(text, &t103a())
+        let e = enc(text, t103a())
             .expect_err(&format!("LDCU.64 odd dest must not encode for sm_103a: {text}"));
         assert!(format!("{e}").contains("BUG-088"), "{text}: got: {e}");
     }
-    assert_eq!(enc("LDCU.64 UR4, c[0x0][0x358]", &t103a()).unwrap(), W_LDCU64_UR4);
-    assert_eq!(enc("LDCU.64 UR62, c[0x0][0x358]", &t103a()).unwrap(), W_LDCU64_UR62);
-    assert_eq!(enc("LDCU.64 URZ, c[0x0][0x358]", &t103a()).unwrap(), W_LDCU64_URZ);
+    assert_eq!(enc("LDCU.64 UR4, c[0x0][0x358]", t103a()).unwrap(), W_LDCU64_UR4);
+    assert_eq!(enc("LDCU.64 UR62, c[0x0][0x358]", t103a()).unwrap(), W_LDCU64_UR62);
+    assert_eq!(enc("LDCU.64 URZ, c[0x0][0x358]", t103a()).unwrap(), W_LDCU64_URZ);
 }
 
 // (3) LDS.64/STS.64 even-odd law + RZ exemption fixed points.
@@ -107,13 +107,13 @@ fn t3_sm103a_lds_sts_64_parity() {
         "STS.64 [R8], R5",
         "STS.64 [R8], R201",
     ] {
-        let e = enc(text, &t103a())
+        let e = enc(text, t103a())
             .expect_err(&format!("64-bit LDS/STS odd register must not encode for sm_103a: {text}"));
         assert!(format!("{e}").contains("BUG-088"), "{text}: got: {e}");
     }
-    assert_eq!(enc("LDS.64 R6, [R8]", &t103a()).unwrap(), W_LDS64_R6);
-    assert_eq!(enc("STS.64 [R8], R6", &t103a()).unwrap(), W_STS64_R6);
-    assert_eq!(enc("STS.64 [R8], RZ", &t103a()).unwrap(), W_STS64_RZ);
+    assert_eq!(enc("LDS.64 R6, [R8]", t103a()).unwrap(), W_LDS64_R6);
+    assert_eq!(enc("STS.64 [R8], R6", t103a()).unwrap(), W_STS64_R6);
+    assert_eq!(enc("STS.64 [R8], RZ", t103a()).unwrap(), W_STS64_RZ);
 }
 
 // (4) the .128 law: %4!=0 rejected everywhere; odd-quad >=11 rejected; the
@@ -131,15 +131,15 @@ fn t4_sm103a_lds_sts_128_alignment_law() {
         "LDS.128 R52, [R5]",            // LDS dest same law (quad 13)
         "LDS.128 R13, [R5]",
     ] {
-        let e = enc(text, &t103a())
+        let e = enc(text, t103a())
             .expect_err(&format!("128-bit LDS/STS illegal alignment must not encode: {text}"));
         assert!(format!("{e}").contains("BUG-088"), "{text}: got: {e}");
     }
-    assert_eq!(enc("STS.128 [R5.X16], R200", &t103a()).unwrap(), W_STS128_R200);
-    assert_eq!(enc("STS.128 [R5.X16], R28", &t103a()).unwrap(), W_STS128_R28);
-    assert_eq!(enc("STS.128 [R5.X16+0x10], R32", &t103a()).unwrap(), W_STS128_R32_IMM);
-    assert_eq!(enc("LDS.128 R48, [R5]", &t103a()).unwrap(), W_LDS128_R48);
-    assert_eq!(enc("LDS.128 R4, [R5]", &t103a()).unwrap(), W_LDS128_R4);
+    assert_eq!(enc("STS.128 [R5.X16], R200", t103a()).unwrap(), W_STS128_R200);
+    assert_eq!(enc("STS.128 [R5.X16], R28", t103a()).unwrap(), W_STS128_R28);
+    assert_eq!(enc("STS.128 [R5.X16+0x10], R32", t103a()).unwrap(), W_STS128_R32_IMM);
+    assert_eq!(enc("LDS.128 R48, [R5]", t103a()).unwrap(), W_LDS128_R48);
+    assert_eq!(enc("LDS.128 R4, [R5]", t103a()).unwrap(), W_LDS128_R4);
 }
 
 // (5) deliberately unguarded: plain 32-bit LDC, LDC.64 even + RZ fixed points.
@@ -156,17 +156,17 @@ fn t4_sm103a_lds_sts_128_alignment_law() {
 #[test]
 fn t5_sm103a_unconstrained_forms_fixed_points() {
     let _env_guard = ENV_LOCK.lock().unwrap();
-    assert_eq!(enc("LDC.64 R54, c[0x0][0x380]", &t103a()).unwrap(), W_LDC64_R54);
-    assert_eq!(enc("LDC.64 RZ, c[0x0][0x380]", &t103a()).unwrap(), W_LDC64_RZ);
+    assert_eq!(enc("LDC.64 R54, c[0x0][0x380]", t103a()).unwrap(), W_LDC64_R54);
+    assert_eq!(enc("LDC.64 RZ, c[0x0][0x380]", t103a()).unwrap(), W_LDC64_RZ);
     // The era W_LDC128_R53 word (width-dropped plain LDC) still DECODES and
     // re-encodes byte-identically as the plain load it actually encodes:
     let t = t103a();
-    let plain = dec_text(&t, W_LDC128_R53);
+    let plain = dec_text(t, W_LDC128_R53);
     assert!(plain.contains("LDC R53, c[0x0][0x380]"), "era word is plain LDC: {plain}");
     assert!(!plain.contains("128"), "no width may be claimed for W_LDC128_R53: {plain}");
-    assert_eq!(enc(&plain, &t).unwrap(), W_LDC128_R53,
+    assert_eq!(enc(&plain, t).unwrap(), W_LDC128_R53,
                "plain decode of the era word stays a byte-exact fixed point");
-    assert_eq!(enc("LDC R53, c[0x0][0x388]", &t103a()).unwrap(), W_LDC32_R53);
+    assert_eq!(enc("LDC R53, c[0x0][0x388]", t103a()).unwrap(), W_LDC32_R53);
 }
 
 // (6) scope + env unlock: sm120 table passes the era-illegal shapes through
@@ -176,18 +176,18 @@ fn t5_sm103a_unconstrained_forms_fixed_points() {
 fn t6_scope_and_env_unlock() {
     let _env_guard = ENV_LOCK.lock().unwrap();
     assert_eq!(
-        enc("LDC.64 R53, c[0x0][0x380]", &t120()).unwrap(),
+        enc("LDC.64 R53, c[0x0][0x380]", t120()).unwrap(),
         W_LDC64_R53_120,
         "guard must stay sm_103a-scoped (no sm120 silicon evidence)"
     );
     // era word encodes fine on the sm120 table as well (frozen-chain safety)
-    enc("STS.128 [R5.X16+0x10], R204", &t120())
+    enc("STS.128 [R5.X16+0x10], R204", t120())
         .expect("sm120 table must stay unguarded");
     unsafe { std::env::set_var("CUBIT_DISABLE_ERRATA", "1") };
-    let w = enc("LDC.64 R53, c[0x0][0x380]", &t103a());
+    let w = enc("LDC.64 R53, c[0x0][0x380]", t103a());
     unsafe { std::env::remove_var("CUBIT_DISABLE_ERRATA") };
     assert_eq!(w.unwrap(), 0x000fc20000000a000000e000ff357b82, "env unlock must pass through byte-identically");
     // guard active again after env removal
-    enc("LDC.64 R53, c[0x0][0x380]", &t103a())
+    enc("LDC.64 R53, c[0x0][0x380]", t103a())
         .expect_err("guard must re-engage once CUBIT_DISABLE_ERRATA is unset");
 }

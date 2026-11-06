@@ -88,8 +88,8 @@ fn t276_1_structure_deletions_widen_and_donors() {
         let t = tab(leg);
         // widen: (80,81) armed, and_base + fields untouched (BUG-265 H1 arm)
         let g = &t.entries["I2IP.U8.S32_R_R_R_R"].mod_groups[""];
-        let ab: u128 = g.and_base.into();
-        let vm: u128 = g.variable_mask.into();
+        let ab: u128 = g.and_base;
+        let vm: u128 = g.variable_mask;
         assert_eq!(ab, 0x7239, "{leg}: I2IP '' and_base drift");
         // BUG-282 flip: (62,63) Rb-sign-slot widened in too (arb282 E2:
         // text-inert x4; ghost sign-arm removed in decoder.rs same wave)
@@ -327,7 +327,7 @@ fn t276_5_keepers_registrations_and_anchors() {
     // A_b74: b74=1 keeps the vendor decode == engine row); the gap is b74=0.
     let t120 = tab("sm120");
     let g = &t120.entries["QMMA.16816.F16.E4M3.E4M3_R_R_R_R"].mod_groups[""];
-    let ab: u128 = g.and_base.into();
+    let ab: u128 = g.and_base;
     assert_eq!(
         ab & (1u128 << 74),
         1u128 << 74,

@@ -56,8 +56,8 @@ fn t251_1_structure() {
     // rows may use it); this pin flips 31 -> 0 as the 254-era sentinel.
     let t = tab("sm121a");
     let mut n = 0;
-    for (_k, row) in &t.entries {
-        for (_mg, g) in &row.mod_groups {
+    for row in t.entries.values() {
+        for g in row.mod_groups.values() {
             for f in &g.fields {
                 if f.extraction == Extraction::NegAbs {
                     n += 1;
@@ -69,7 +69,7 @@ fn t251_1_structure() {
     for arch in ["sm100a", "sm103a", "sm120"] {
         let t = tab(arch);
         for (k, row) in &t.entries {
-            for (_mg, g) in &row.mod_groups {
+            for g in row.mod_groups.values() {
                 for f in &g.fields {
                     assert!(
                         f.extraction != Extraction::NegAbs,

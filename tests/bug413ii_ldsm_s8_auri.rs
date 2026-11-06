@@ -118,13 +118,13 @@ fn t413ii_3_defect_texts_mint() {
             .unwrap_or_else(|| panic!("[{leg}] S8 AURI mint refuse"));
         assert_eq!(
             w1 & M96,
-            0x0800020080000004ff5d7984u128 & !0u128 | 0x0800020080000004ff5d7984u128
+            0x0800020080000004ff5d7984u128 | 0x0800020080000004ff5d7984u128
         );
         let w2 = enc(&t, "LDSM.16.M88 R16, [UR4+-0x800000] ;")
             .unwrap_or_else(|| panic!("[{leg}] LDSM AURI mint refuse"));
         assert_eq!(
             w2 & M96,
-            0x0800000080000004ff10783bu128 & !0u128 | 0x0800000080000004ff10783bu128
+            0x0800000080000004ff10783bu128 | 0x0800000080000004ff10783bu128
         );
         // the BUG-132 anti-silent-drop contract: both sign spellings mint
         // one word and reprint as the vendor '+-' glyph (399-style).

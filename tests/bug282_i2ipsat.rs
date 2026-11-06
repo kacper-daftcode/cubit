@@ -57,8 +57,8 @@ fn t282_1_structure_graft_and_donors() {
         let base = &t.entries["I2IP.U8.S32_R_R_R_R"].mod_groups;
         assert_eq!(base.len(), 1, "{leg}: I2IP base mg set drift");
         let g0 = &base[""];
-        let ab: u128 = g0.and_base.into();
-        let vm: u128 = g0.variable_mask.into();
+        let ab: u128 = g0.and_base;
+        let vm: u128 = g0.variable_mask;
         assert_eq!(ab, 0x7239, "{leg}: I2IP '' and_base drift");
         assert_eq!(
             vm,
@@ -82,8 +82,8 @@ fn t282_1_structure_graft_and_donors() {
             let _ = bop; // base_op/sig proven by the decode-text pins (t282_2/3)
             assert_eq!(e.mod_groups.len(), 1, "{leg}: {nk} must be mg '' only");
             let g = &e.mod_groups[""];
-            let gab: u128 = g.and_base.into();
-            let gvm: u128 = g.variable_mask.into();
+            let gab: u128 = g.and_base;
+            let gvm: u128 = g.variable_mask;
             assert_eq!(gab, 0x7239u128 | (1u128 << bit), "{leg}: {nk} and_base");
             assert_eq!(gvm, vm, "{leg}: {nk} vmask must equal widened base");
             assert_eq!(g.fields.len(), 6, "{leg}: {nk} fields copy");

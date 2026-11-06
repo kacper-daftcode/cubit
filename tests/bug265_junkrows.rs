@@ -63,7 +63,7 @@ fn enc_res(t: &IsaTable, text: &str) -> Result<u128, String> {
 }
 fn and_base(t: &IsaTable, key: &str, mg: &str) -> u128 {
     let g = t.entries[key].mod_groups.get(mg).expect("mg");
-    u128::from(g.and_base)
+    g.and_base
 }
 
 fn native_sm120_word(t: &IsaTable, text: &str, expected: u128) {
@@ -135,12 +135,12 @@ fn t265_1_structure_deletions_and_renames() {
         // fields, b85 absent from and_base) instead of the bare name.
         let mg = &t.entries["HFMA2_R_R_R_II_II"].mod_groups["BF16_V2"];
         assert_ne!(
-            u128::from(mg.and_base),
+            mg.and_base,
             0x11,
             "{leg}: HFMA2_R_R_R_II_II BF16_V2 era junk fingerprint back"
         );
         assert_eq!(
-            (u128::from(mg.and_base) >> 85) & 1,
+            (mg.and_base >> 85) & 1,
             1,
             "{leg}: 285-armed BF16_V2 mg lost its b85 bake"
         );
@@ -161,8 +161,8 @@ fn t265_1_structure_deletions_and_renames() {
             "{leg}: I2IP opmod:H1 missing"
         );
         // and_base/variable_mask of the retyped row unchanged
-        let ab: u128 = g.and_base.into();
-        let vm: u128 = g.variable_mask.into();
+        let ab: u128 = g.and_base;
+        let vm: u128 = g.variable_mask;
         assert_eq!(ab, 0x7239, "{leg}: I2IP '' and_base drift");
         // BUG-276 flip: (80,81) armed into the vmask (vendor text-inert,
         // arb276 D x4 models; decode-hole reclaim of vendor-legal words)
@@ -188,7 +188,7 @@ fn t265_1_structure_deletions_and_renames() {
     let t121 = tab("sm121a");
     let mg = &t121.entries["HFMA2_R_R_R_FI_FI"].mod_groups["BF16_V2"];
     assert_ne!(
-        u128::from(mg.and_base),
+        mg.and_base,
         0x11,
         "sm121a: HFMA2_R_R_R_FI_FI BF16_V2 era junk fingerprint back"
     );
