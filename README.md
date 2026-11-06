@@ -79,6 +79,9 @@ the MC4 MoE prefill kernels (K ≥ 4096) and costs 3–30 % on most others — a
 opt-in (KNOWN_ISSUES A19). `CUBIT_MMA_SRC_RB=0` drops the read barrier cubit puts on an MMA for its
 source fragments (ptxas sets none; measured 2026-11-06 on the 90 production kernels: bits identical,
 time-neutral — the decision whether the rule stays the default is the owner's, KNOWN_ISSUES A22).
+`CUBIT_GUARDED_READER_SETTLES=1` lets the first reader of a load settle its write barrier guarded or not
+(ptxas's practice; measured 2026-11-06: the 89 production MoE sources are byte-identical under it, V's
+sparse-MLA kernel loses 6 prologue waits, bits identical, time within noise — opt-in, KNOWN_ISSUES A24).
 `CUBIT_VERIFY=1` runs the read-only scoreboard verifier on every kernel it
 assembles (frozen or scheduled) and prints each unprotected RAW / broken WAR; `CUBIT_VERIFY_RBPROBE=1`
 adds the read-barrier coverage probe of the legality oracle (`tools/sched_oracle.py`, KNOWN_ISSUES A4).
@@ -136,7 +139,7 @@ the measurements that produced the SM120 rows added since 2026-10).
 
 | table | silicon | what the gate proves | not proved |
 |---|---|---|---|
-| `sm120.json` | RTX 5090 / RTX PRO 6000 (production kernels 2026-06..10; probe kernels 2026-11-02/03) | strict census 1 811 600 / 1 811 600 words, 157 / 157 cubins byte-identical through `--frozen` → `asm -T`, the suite's measured-form fixtures; the silicon laws below | semantics of rows measured by encoding only ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) T6); 18 845 of 26 580 variants are harvest rows — their dynamic audit against nvdisasm is at its end state: 14 rows left, each a named exception (T1); the cuBLASLt sm_120 corpus on the GB10 host (92 543 words) has two decode holes left, `UFFMA.SAT` and a `UIMNMX.U64` form (the 95 `LDL.64 [R+UR+imm]` holes and the `MUFU` UR-form field were closed 2026-11-04; T1, V3) |
+| `sm120.json` | RTX 5090 / RTX PRO 6000 (production kernels 2026-06..10; probe kernels 2026-11-02/03) | strict census 1 811 600 / 1 811 600 words, 157 / 157 cubins byte-identical through `--frozen` → `asm -T`, the suite's measured-form fixtures; the silicon laws below | semantics of rows measured by encoding only ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) T6); 18 841 of 26 598 variants are harvest rows — their dynamic audit against nvdisasm is at its end state: 1 row left, the documented `IMMA.SF` hypothesis (T1); the cuBLASLt sm_120 corpus on the GB10 host (92 543 words) has two decode holes left, `UFFMA.SAT` and a `UIMNMX.U64` form (the 95 `LDL.64 [R+UR+imm]` holes and the `MUFU` UR-form field were closed 2026-11-04; T1, V3) |
 | `sm103a.json` | B300 | the suite (encode/decode fixtures, `stallfix` rules, cost model); re-run 2026-11-03 on the B300 host `cold-face-bounces-fin-02`: 177 / 177 SM103a cubins of the publish corpus byte-identical through `--frozen` → `asm -T` (104 words carried as `__raw__`), strict semantic round trip 77 548 / 77 656 words (coldface's third pass at `52767f9`, 2026-11-06) — the refused words are fail-closed refusals of silicon-unsafe forms (BUG-080 guarded ATOMS, BUG-004 predicate form) plus 2 re-encode residues of text-inert bits (`UMOV URd, 0x0` with a reuse bit; [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) V1, V5) | no silicon run of cubit-assembled SM103a kernels since 2026-09 |
 | `sm100a.json` | B200 | encoding layer = SM103a + tcgen05 deltas; re-run 2026-11-03 on `cold-face-bounces-fin-02`: 99.924 % exact-minus-schedule on the archived 20 024 512-instruction sm_100 population (1 134 cubins with a vendor golden), 151 / 151 `cub_100a` cubins byte-identical through `--frozen` → `asm -T`, strict 8 108 / 8 136 words (third pass at `52767f9`, 2026-11-06; one text-inert-bit residue, `I2F.S16` — V5) | no B200 silicon run; scheduling data inherited; until 2026-11-03 cubit mis-read the sm_100a ELF flags as sm_10 (KNOWN_ISSUES A11) |
 | `sm121a.json` | GB10 (DGX Spark) | the suite's GB10 fixtures; **re-run 2026-11-04 on the GB10 host `gx4`** (the 2026-09 census script over the 648 992-instruction corpus, 91 927 unique words): 91 927 / 91 927 decode, text parity initially 99.59 % (373 differences). **Closed to 100 % the same day** (session T-4, two batches) and **confirmed by the full re-run at the pushed revision** (`gx4`, 2026-11-05, cubit `2ac57c0`): **91 927 / 91 927 words decode, 1 text mismatch** — `LEPC`, a PC-relative target the isolated-word census renders at address 0 (byte-identical in a full disassembly). `tests/sm121a_parity_20261104.rs`; [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) V3 | timing / scheduling data; no cubit-assembled kernel executed on a GB10 |
@@ -193,7 +196,9 @@ SKU, 2x RTX 5090 / GB202 — every law below holds identically**; logs under the
   `mc4_k6144` (1.38× → 1.01×, 1.61× → 0.96× of the shipped time) and cost 3–30 % on 57 of the other 79 kernels
   (A19 — per-kernel switches, the default is the owner's NEEDS 31); `CUBIT_MMA_SRC_RB=0` changes no bit and no
   measurable time (C/B median 1.000; V's sparse-MLA kernel 1 055 → 1 054 µs) — the MMA-source read barriers are
-  free on this set and stay on (A22, NEEDS 38). Bits identical in every arm.
+  free on this set and stay on (A22, NEEDS 38); `CUBIT_GUARDED_READER_SETTLES=1` changes no MoE source and
+  removes 6 prologue waits from V's kernel (bits identical, time within the run-to-run band — A24, NEEDS 37).
+  Bits identical in every arm.
 
 ## Python bindings
 

@@ -4,6 +4,58 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-06 (session T-11: coldface's D2 reviewed and the IDP family measured whole; A16 closed; the SM120 audit's 14 named exceptions → 1; NEEDS 37 measured as `CUBIT_GUARDED_READER_SETTLES=1`)
+
+- **Tables vendored from blackwell-isa `c896e8f`** (sm120 15 964 forms / 26 598 variants, from 15 953 / 26 580;
+  sm103a / sm100a 14 925 / 22 439, from 14 913 / 22 420; sm121a 23 860 / 26 421, from 23 850 / 26 406):
+  - **The `IDP` family measured whole on the four tables** (`tools/probes/re_sm120_idp.py`, nvdisasm 13.1: 128 form +
+    480 lattice words per table, the same text on `-b SM120` / `SM103` / `SM100` / `SM121` for every word; fixtures
+    `tests/fixtures/{sm120,sm103a,sm100a,sm121a}_idp_nvdisasm.jsonl`, test `tests/sm120_idp.rs`). Law: guard [15:12],
+    Rd [23:16], Ra [31:24], Rb [39:32] (0x7226) / URb [39:32] (opcode byte 0xc26 + bit 91), Rc [71:64]; [77:76] the
+    mode (`4A` / `2A.LO` / `2A.HI`, 10 illegal), 73 / 74 the signedness of the two types, 75 `-Rc`; 72, 78, 79,
+    [63:40], [95:80] text-inert. Twelve legal forms per operand shape; the mixed-type forms carry typed keys
+    (NEEDS 36 = the owner's D2 of 2026-11-06 — coldface's `IDP.4A.{S8.U8,U8.S8}_R_R_R_R` rows, blackwell-isa `42192f0`,
+    are the first of them and were taken as they are; his test `tests/wave11_idp_type_law.rs` fails on the pre-D2
+    tables and passes here), the symmetric forms stay mod-group rows of `IDP_R_R_R_R` / `IDP_R_R_UR_R`; sm121a keeps
+    typed keys for every register form. **What the measurement closed:** the uniform-register rows (the 2026-08
+    harvest donor and D2's three copies of it) had no `-Rc` field and failed closed on the inert bit 72, so
+    `IDP.4A.U8.U8 R15, R15, UR6, -R7` printed as the `S8.S8` row through the sign-tolerant fallback; the 2A half of
+    the family had no rows (the mixed `LO` types, every `HI` form — 6 register + 8 uniform forms) and a `2A.LO.U16.U8`
+    word with bit 72 set printed as `2A.LO.S16.S8`; the sm121a register rows lacked `-Rc` and baked `Rc = RZ`, its
+    two `_?` twins of the S8.S8 row are retired (aliases). The decoder's sign-tolerant fallback is off for IDP; the
+    printer orders `IDP.2A.HI.U16.U8` as nvdisasm does.
+  - **The SM120 dynamic audit's named exceptions: 14 → 1** (the replay of the complete audit word set at this table,
+    `T/audit/dyn22`, 85 886 words: text differences 0, re-encode mismatches 0; the row left is the documented
+    `IMMA.SF.16832.U8.U8` hypothesis — every probe word vendor-rejected, kept by the owner's rule until a numerical
+    oracle on silicon). Each re-measured with nvdisasm 13.1 on the four targets (`tests/sm120_audit_t11.rs`):
+    `DEPBAR.LE`'s scoreboard field names SB0..SB5 (6 / 7 are `INVALID6` / `INVALID7` — claim-forbidden now, the
+    encoder refuses `SB7`); `FADD.SAT_R_R_R` was a SAT-less harvest row (no bit 77, `Ra = RZ` baked; retired, alias
+    `FADD_R_R_R`); ULEA's bit 72 is `-URa` (a field on the 4-operand row) and its UP operand prints `UP0..UP6` and is
+    elided at 7 (the printer elides a `UPT` operand; the explicit spelling stays a bitwise alias as BUG-045 does for
+    ULOP3); ULOP3's dest-less row baked the source predicate as `!UPT` ([89:87] + 90 are fields now — the
+    UPT-destination words print the vendor's six operands and `UPT` / `!UPn` sources round-trip); `BMOV.64`'s first
+    operand is the special register `ATEXIT_PC` (printed and parsed as the literal; the old `0x0` stays accepted);
+    USETMAXREG is off the sign-tolerant fallback (72 = DEALLOC, 73 = TRY_ALLOC, 74 = CTAPOOL, 63 text-inert — the
+    bit-63 DEALLOC word used to print as `TRY_ALLOC … UPT, 0x0`, it fails closed now); the plain 64-bit-base
+    `LDG` / `STG` / `ST` forms with base 255 print the vendor's degenerate glyph `[???255.64+UR6+0x10]` (the U32 width
+    prints `[RZ.U32+UR6+0x10]` normally) — the BUG-461 doctrine of the REDG / ATOMG `.EL` twins applied consistently:
+    decode text-faithful, the encoder refuses to mint the glyph (and the old cubit-only `[RZ.64+UR..]` spelling);
+    `tools/audit_dynamic.py` names the class (`vendor_glyph`) instead of counting it.
+- **A16 closed — the encoder refuses a guard whose predicate bank disagrees with the instruction's family**
+  (`tests/a16_guard_class.rs`): `@!P2 SYNCS.EXCH.64 URZ, [UR8], UR6` used to assemble silently as the word nvdisasm
+  names `@!UP2 SYNCS.EXCH.64 …` (the guard bits carry only predicate + negation; the bank follows the family — U*,
+  LDCU, SYNCS_UR*, S2UR, CS2UR, LDTM, STTM); only the strict code-only path checked it, after the fact. Every encode
+  refuses now with both classes named ("predicate bank mismatch (A16) — … Write the @UPn guard, or guard a branch
+  around the instruction"); `@PT` / `@UPT` stay interchangeable; decode and print are unchanged. `bug171` t171_3 pinned
+  the silence as "a print-level distinction" — it pins the refusal now.
+- **NEEDS 37 measured, not decided — `CUBIT_GUARDED_READER_SETTLES=1`** (`tests/needs37_guarded_reader.rs`; default =
+  today's rule): the first reader of a load settles its write barrier guarded or not (the ptxas evidence: a predicated
+  instruction's wait is honoured whether or not its guard is true, 50 / 50 census sites); today's rule makes the
+  reader behind a guarded first reader wait too. On the production set the switch changes nothing in the 89 MoE
+  sources (byte-identical) and removes 6 waits from V's `sparse_mla_prefill_v41` prologue; on silicon (test host, V's
+  harness) bits identical 8 / 8 cases and time within the run-to-run band (1 054 / 1 152 / 2 445 / 1 055 µs vs
+  1 055 / 1 154 / 2 445 / 1 054). The default stays — the owner's (KNOWN_ISSUES A24).
+
 ## Unreleased — 2026-11-06 (session T-10: the SM120 dynamic audit to its end state — 14 named exceptions; BRA on sm103a / sm100a; the BRX / BRXU / RET and dense IMMA families; NEEDS 38 measured as `CUBIT_MMA_SRC_RB=0`; the public-face review)
 
 - **Tables vendored from blackwell-isa `c258f8a`** (sm120 15 953 forms / 26 580 variants, from 16 045 / 26 646;
