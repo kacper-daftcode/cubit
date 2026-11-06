@@ -1715,19 +1715,15 @@ fn t324_2_decode_vendor_exact_x2() {
             continue;
         }
         assert_eq!(dec(&t120, *w).as_deref(), Some(*text), "sm120 decode {tag}");
-        if tag.contains("_232_") && false {
-            // (retired by BUG-348: era-HOLE tripwire was scoped to the dead
-            // sm121a row; the donor-mirror rebuild decodes every 0x232 legal
-            // probe vendor-exact, same as sm120 -- measured in t348_2 and
-            // routex348)
-            unreachable!();
-        } else {
-            assert_eq!(
-                dec(&t121, *w).as_deref(),
-                Some(*text),
-                "sm121a decode {tag}"
-            );
-        }
+        // (retired by BUG-348: the era-HOLE tripwire was scoped to the dead
+        // sm121a row; the donor-mirror rebuild decodes every 0x232 legal
+        // probe vendor-exact, same as sm120 -- measured in t348_2 and
+        // routex348)
+        assert_eq!(
+            dec(&t121, *w).as_deref(),
+            Some(*text),
+            "sm121a decode {tag}"
+        );
     }
 }
 
@@ -1876,16 +1872,12 @@ fn t324_5_corpus_anchors_unchanged() {
             Some(*text),
             "sm120 anchor {w:#x}"
         );
-        if (*w & 0xfff) == 0x232 && false {
-            // (retired by BUG-348: era-HOLE tripwire; anchors now decode
-            // vendor-exact on sm121a, same branch as everything else)
-            unreachable!();
-        } else {
-            assert_eq!(
-                dec(&t121, *w).as_deref(),
-                Some(*text),
-                "sm121a anchor {w:#x}"
-            );
-        }
+        // (retired by BUG-348: the era-HOLE tripwire; anchors now decode
+        // vendor-exact on sm121a, same branch as everything else)
+        assert_eq!(
+            dec(&t121, *w).as_deref(),
+            Some(*text),
+            "sm121a anchor {w:#x}"
+        );
     }
 }

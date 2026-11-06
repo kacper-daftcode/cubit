@@ -397,7 +397,10 @@ fn t274_4_corpus_neutral_companions() {
             "{arch}: 278 keeper state"
         );
         // '// 265-line phantoms stay pruned for the family neighbors:'
-        assert!(t.entries.get("HFMA2_R_R_II_II_II_II_?").is_none() || true);
+        assert!(
+            t.entries.get("HFMA2_R_R_II_II_II_II_?").is_none(),
+            "{arch}: 265-line HFMA2 phantom stays pruned for the family neighbors"
+        );
     }
 }
 

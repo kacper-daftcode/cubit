@@ -87,7 +87,15 @@ fn t3_roundtrip_family() {
         ] {
             let s = dec(&t, w);
             let w2 = enc(&t, &s);
-            assert_eq!((w2 >> 96) as u32 & 0, 0); // noop guard
+            // (R1, 2026-11-06: the old `(w2 >> 96) as u32 & 0` was a literal
+            // noop. [127:96] is the CONTROL word: the re-encode of decoded
+            // text carries the encoder's DEFAULT ctrl for the ULEA family
+            // -- pin it so a ctrl-word change in the encoder shows here.)
+            assert_eq!(
+                (w2 >> 96) as u32,
+                0x000FC200,
+                "roundtrip {s}: default ULEA ctrl word"
+            );
             // the [95:0] payload must match (ctrl = encoder default)
             assert_eq!(w2 & ((1u128 << 96) - 1), w & ((1u128 << 96) - 1), "roundtrip {s}");
         }

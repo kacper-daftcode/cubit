@@ -143,7 +143,7 @@ fn t303_3_legal_controls_word_exact() {
     let w = enc_res(&t120, "SHFL.BFLY P0, R12, R21, R10, R11").unwrap();
     assert_eq!(w & M96, 0x0000000b0c00000a150c7389, "sm120 SHFL.BFLY ctrl");
     let wl = enc_res(&t121, "SHFL.BFLY P0, R12, R21, R10, R11").unwrap();
-    assert_eq!((wl & M96).trailing_zeros() >= 0, true); // encodes
+    assert_ne!(wl & M96, 0, "sm121a SHFL.BFLY ctrl encodes");
     assert!(
         dec_print(&t121, wl).unwrap().starts_with("SHFL.BFLY P0,"),
         "sm121a SHFL.BFLY roundtrip print"

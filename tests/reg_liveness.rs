@@ -150,7 +150,10 @@ L_loop:
     assert!(k.ins[0].rlive_in.contains(&5) && k.ins[0].rlive_in.contains(&6));
     assert!(k.ins[1].rlive_in.contains(&4));
     assert!(!k.ins[5].rlive_in.contains(&4), "consumed by the store");
-    assert!(k.ins[5].ulive_in.contains(&20) == false || true);
+    assert!(
+        !k.ins[5].ulive_in.contains(&20),
+        "UR20 (the STG desc base) is dead after the store"
+    );
     assert!(k.unknown_ops.is_empty());
 }
 

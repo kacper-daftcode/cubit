@@ -1207,7 +1207,12 @@ fn b9p8_mbar_cluster_and_fence() {
     let text = lowered.to_sass_text();
     assert!(text.contains("NOP"), "fence.mbarrier_init -> NOP anchor: {}", text);
     assert!(text.contains("SYNCS.ARRIVE.TRANS64.RED.A1T0 RZ, ["), "{}", text);
-    assert!(!text.contains("SYNCS.ARRIVE.TRANS64.RED.A1T0 RZ, [R") || true);
+    // (R1, 2026-11-06: this line used to be `assert!(!text.contains(".. [R")
+    // || true)` -- a fossil of an expected-but-never-implemented mg/desc
+    // rendering. The cluster arrive lowers through the REGISTER address
+    // (`mov.b32 %r1, mb` -> the `[R..` form); pin the actual shape. The
+    // encode pin below covers its legality.)
+    assert!(text.contains("SYNCS.ARRIVE.TRANS64.RED.A1T0 RZ, [R"), "{}", text);
     let (bytes, n) = assemble_body(&text);
     assert!(bytes.len() == n * 16, "all lines must encode (incl. RED ARURI mg)");
 }
