@@ -4,6 +4,62 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-06/07 (session T-12: the T1 production line's first two batches — HSETP2 and ISETP / UISETP measured whole by session G; the suite in 2 minutes (R3); the template rebuild checks its positional metadata (A5); EiFmt named after cuobjdump (A7); NaN payloads on every immediate lane (A8))
+
+- **Tables vendored from blackwell-isa `6dff9c7`** (sm120 15 961 forms / 26 662 variants, from 15 964 / 26 598; sm103a /
+  sm100a / sm121a unchanged). KNOWN_ISSUES T1: **26 662 rows, 9 101 with `_src` — 17 561 harvest rows left** (18 841 at
+  `78285f5`). Both batches are session G's (the T1 production line: G measures, T reviews, gates and pushes); each word of
+  their fixtures was re-measured by T with nvdisasm 13.1 on `-b SM120` / `SM103` / `SM100` before the take.
+  - **HSETP2 measured whole** (`tools/probes/re_sm120_hsetp2.py`, 1 002 form + 88 lattice words, the same text on the three
+    targets; `tests/fixtures/sm120_hsetp2_nvdisasm.jsonl`, `tests/sm120_hsetp2.rs`): the 384 + 384 "mode grid" rows of
+    `HSETP2_P_P_R_R_P` / `HSETP2_P_P_R_UR_P` (2026-10-22, no `_src`) were field-correct and are re-emitted from the
+    measurement with provenance `hsetp2-family-2026-11-06`; three dotted harvest keys (`HSETP2.GEU.AND_P_P_R_R_P` encode-only
+    twin, `HSETP2.GEU.AND_P_P_R_R_R` / `_P_P_R_UR_UR` — a `R2.H0_H0, R3.H0_H0` sample mis-tokenised as a third register) are
+    `_meta.key_aliases` of the plain keys (0 census witnesses). Law: opcode 0x234 (register) / 0xe34 + bit 91 (uniform);
+    Ra [31:24] with `-Ra` 72, `|Ra|` 73, selector [75:74]; Rb / URb [39:32] with selector [61:60], `|Rb|` 62, `-Rb` 63; the
+    type [65:64] (fp16 / `.BF16_V2`; 1, 3 = `INVALID1` / `INVALID3`), the boolean [70:69] (AND / OR / XOR; 3 = `INVALID3`),
+    `.H_AND` 71, the comparison [79:76], `.FTZ` 80, Pd0 [83:81], Pd1 [86:84], Pc [89:87] + `!` 90; [23:16], [59:40], 66–68,
+    [95:92] text-inert (fail-closed). `nvprobe.probe_words(jobs=N)` runs nvdisasm in parallel on per-worker scratch files.
+  - **ISETP / UISETP measured whole** (`tools/probes/re_sm120_isetp.py`, 1 944 form + 192 lattice words;
+    `tests/fixtures/sm120_isetp_nvdisasm.jsonl`, `tests/sm120_isetp.rs`): 960 groups on the ten keys
+    `ISETP_P_P_R_{R,UR,II}_P`, `UISETP_UP_UP_UR_{UR,II}_UP` and their `.EX` twins — 576 rows with `isetp-family-2026-11-06`
+    (509 harvest rows rebuilt: they baked PT guards and a sample's predicates and their masks excluded their own fields; 67
+    missing immediate-form groups added) + the 384 dsv41 rows of 2026-10-22 reproduced field for field and kept. Law: the
+    `.EX` carry-in `[!]Pn` at [71:68] is read only with bit 72 (`.EX`); without it the window is text-inert and nvcc writes
+    PT (7 414 / 7 414 census words), so the non-EX rows bake `[70:68] = 7` and fail closed elsewhere; 73 signed, [75:74] the
+    boolean (3 = `INVALID3`), [78:76] the comparison, **80 = the 64-bit compare (`.S64` / `.U64`) — SM120-only: text-inert on
+    `-b SM103` / `SM100`** (977 of the 2 136 sweep words differ by that suffix alone; the sm103a / sm100a harvest `S64` / `U64`
+    groups are a question for the B300 lane). Decoder: ISETP / UISETP off the priority-3 sign-tolerant fallback
+    (`ISETP.GE.INVALID3` used to print as `.XOR`). Census strict 1 811 600 / 1 811 600 with 7 414 ISETP / UISETP words.
+  - A vendor rendering rule met in both reviews, for the record: nvdisasm prints `.reuse` only when the control word's yield
+    bit (109) is set — a fixture's `.reuse` texts are reproducible only under the probe's control code (`0x000fe200`).
+- **R3 closed — the test suite runs in 2 minutes** (was 32 min in `--release` on 16 cores at the T-11 gate, ~90 in debug):
+  `IsaTable::load` caches a parsed table per process from its second load on (keyed by path, size and mtime; the CLI, which
+  loads once, keeps no copy; `CUBIT_TABLE_CACHE=0` disables it) — `cargo test --release` alone drops to 12.5 min; and
+  **`tools/test_suite.py`** runs the test binaries in parallel, longest first, with the `cargo test` totals (`--release -j 16
+  -t 2`: 2.0 min, the same 2 68x passed / 0 failed / 9 ignored as `cargo test`). The push gate uses it from T-12 on; plain
+  `cargo test` stays the reference.
+- **A5 — the template rebuild (`asm -T` / `--eiattr-from`) checks the positional `.nv.info.<kernel>` records it copies.**
+  Measured on the 759 kernels of the sm_120 census: four records are lists of byte offsets into the code — EXIT_INSTR_OFFSETS
+  (exactly the EXIT words, 759 / 759), COOP_GROUP_INSTR_OFFSETS (661), INT_WARP_WIDE_INSTR_OFFSETS (208),
+  MBARRIER_INSTR_OFFSETS (522, 16-byte entries); only the EXIT list has a code-only law, the other three are compiler analysis
+  (translatable along an edit, not regenerable); no census record points elsewhere into the code, no census cubin relocates
+  into `.text`. The frozen path (A20) keeps every instruction in place, so verbatim copying stays exact there; an edit that
+  moves a listed instruction is refused with the record, the offset and both opcodes named (`--allow-stale-metadata` writes
+  the cubin with the template's records as they are). A `KernelEntry` built from code bytes without `exit_offsets` had its
+  EXIT list written as a single `0x0`; it is the code's EXIT words now (`tests/a5_positional_metadata.rs`).
+- **A7 — `EiFmt` variants are cuobjdump's names** (`NVal` 0x01, `BVal` 0x02, `HVal` 0x03, `SVal` 0x04; the historical `Byte`
+  / `Half` / `BValAlt` / `Sized` contradicted their bytes and `from_u8` was not the inverse of `to_u8`); the pre-2026-08
+  record set `KernelMeta::to_kernel_records` and friends removed. No byte changes.
+- **A8 — NaN immediates keep their payload through the lossless print on every lane.** Measured (nvdisasm 13.1, SM120 =
+  SM103): every payload of the f64 high dword (DFMA, MUFU.RCP64H) and of the fp16 / bf16 halves of HFMA2 prints the same
+  `+/-QNAN` / `+/-SNAN` glyph — the vendor's text cannot carry it. The lossless print spells a NaN f64 immediate as
+  `0x<8 hex>D` (the high dword, which is all the word holds; the parser reads it back) and the half lanes under `II`-typed
+  tokens as the half's f32 literal; every case re-encodes bit for bit (`tests/a8_nan_payload_lanes.rs`). The display print
+  is the vendor's, unchanged.
+- **NEEDS 39** — `docs/SCHED_LEGALITY_ORACLE.md` carries the design note for the path-aware verifier walk (blocks, joined
+  states, a worklist fixpoint; ~400 lines, a session's work; acceptance criteria) — not implemented, the owner's call.
+
 ## Unreleased — 2026-11-06 (session T-11: coldface's D2 reviewed and the IDP family measured whole; A16 closed; the SM120 audit's 14 named exceptions → 1; NEEDS 37 measured as `CUBIT_GUARDED_READER_SETTLES=1`)
 
 - **Tables vendored from blackwell-isa `c896e8f`** (sm120 15 964 forms / 26 598 variants, from 15 953 / 26 580;

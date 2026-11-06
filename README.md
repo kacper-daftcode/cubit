@@ -253,9 +253,9 @@ docs/           see above
   guard band); the SM120 R2UR boundary floor was measured 2026-11-04 (silicon v3) at 4.
 - A template rebuild (`asm -T`) copies the template's metadata; a kernel whose registers, shared
   memory or parameters differ from the template needs a standalone build or a matching template.
-- The test suite takes about 40 minutes in `--release` on 16 cores (the push gate: 466 binaries in 39 min on
-  2026-11-06; about two hours in the debug profile) — each of the 468 test binaries loads and parses the 46 MB SM120 table; decompressing it
-  costs 30 ms.
+- The test suite: `python3 tools/test_suite.py --release` runs the ~470 test binaries in parallel and finishes in about
+  2 minutes on 16 cores (2026-11-06; the same passed / failed / ignored totals as `cargo test`); plain `cargo test --release`
+  runs them one after another in about 12 minutes (parsed tables are cached per process from their second load on).
 - A shipped cubin is reproduced byte for byte from its frozen text (`disassemble --frozen` →
   `asm -T`); re-assembling its `.sass` source with a newer cubit is a regeneration whose control codes
   follow the current allocator (KNOWN_ISSUES A20).
