@@ -1,13 +1,13 @@
-//! BUG-040 (rejestr sm120: 040_regcount_usable_n_minus_2.md, CONFIRMED krzem
-//! i115): zadeklarowany regcount=N daje uzywalne R0..R(N-3) — ostatnie 2
-//! rejestry sa cieniem granuly alokacji; MOV R(N-2)/R(N-1) =
+//! BUG-040 (sm120 registry: 040_regcount_usable_n_minus_2.md, CONFIRMED on silicon,
+//! i115): a declared regcount = N gives the usable registers R0..R(N-3) -- the last two
+//! are the shadow of the allocation granule; `MOV R(N-2)` / `R(N-1)` =
 //! CUDA_ERROR_ILLEGAL_INSTRUCTION (rc=64: R62/R63 ILLEGAL; rc=66 OK).
-//! Fix: asm WARN-uje (nie odrzuca — narzedzia akceptuja forme) przy uzyciu
-//! R(N-2)/R(N-1) wzgledem finalnego regcount kernela, tylko dla targetu
-//! sm_120 (i115) i sm_103a (BUG-075, 2026-08-22: band sweep R96..R254 +
-//! graft/patch controls), honorujac CUBIT_DISABLE_ERRATA. Od BUG-075 formuła
-//! regcount zawsze zostawia zapas +3, wiec WARN scopowany do jawnych
-//! under-deklaracji `.reg` (w praktyce wylacznie pasmo @N=255: R253/R254).
+//! Fix: `asm` WARNS (does not refuse -- the tools accept the form) on a use of
+//! R(N-2)/R(N-1) relative to the kernel's final regcount, for the sm_120 target
+//! (i115) and sm_103a (BUG-075, 2026-08-22: band sweep R96..R254 + graft/patch
+//! controls), honouring CUBIT_DISABLE_ERRATA. Since BUG-075 the regcount formula
+//! always leaves a +3 margin, so the WARN is scoped to explicit `.reg`
+//! under-declarations (in practice only the @N=255 band: R253/R254).
 
 use std::process::Command;
 
