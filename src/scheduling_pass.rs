@@ -132,6 +132,18 @@ pub fn mma_src_rb_enabled() -> bool {
     std::env::var("CUBIT_MMA_SRC_RB").ok().as_deref() != Some("0")
 }
 
+/// NEEDS 37 switch (T-11, 2026-11-06): with `CUBIT_GUARDED_READER_SETTLES=1` the FIRST reader of a
+/// load on an execution path settles its write barrier whether or not that reader is guarded --
+/// the readers behind it carry no wait of their own. The ptxas evidence (50 / 50 census sites,
+/// NEEDS_OWNER 37): a wait carried by a predicated instruction is honoured whether or not the guard
+/// is true, so the barrier is released at the first reader either way. Today's rule (the default)
+/// collects consumers up to and including the first UNGUARDED one per path, so a guarded first
+/// reader makes the next reader wait too (V's `sparse_mla_prefill_v41`: 2 extra waits since BUG-485;
+/// the production MoE set: see `T/REPORT.md` part 11). An A/B switch for the owner's decision.
+pub fn guarded_reader_settles() -> bool {
+    std::env::var("CUBIT_GUARDED_READER_SETTLES").ok().as_deref() == Some("1")
+}
+
 /// The GPR(s) holding a store's ADDRESS (a store latches its address late, exactly like
 /// its data). If that pointer is overwritten before the store retires its address read
 /// (e.g. a loop-carried `IADD.64 Rptr, Rptr, stride` bumping the output pointer), the
@@ -2599,6 +2611,7 @@ fn raw_consumers(
     // consumers), which bounds the walk on diamonds and joins.
     let mut waiters: Vec<usize> = Vec::new();
     let mut seen: Vec<Vec<(Vec<u16>, Known)>> = vec![Vec::new(); n];
+    let settles = guarded_reader_settles();
     // Back-edges of the loops enclosing the producer: a path reaching one of them with
     // live destinations still unconsumed makes the NEXT iteration's readers consumers.
     let is_backedge = |j: usize| -> bool {
@@ -2639,7 +2652,10 @@ fn raw_consumers(
                 let overwrites_live = writes[j].iter().any(|w| live.contains(w));
                 if reads_live || overwrites_live {
                     if !waiters.contains(&j) { waiters.push(j); }
-                    if !guarded[j] { done = true; break; }
+                    // NEEDS 37 (`CUBIT_GUARDED_READER_SETTLES=1`): the first reader settles the
+                    // barrier guarded or not (its wait is honoured either way -- the ptxas evidence
+                    // below); today's rule needs an unguarded one.
+                    if !guarded[j] || settles { done = true; break; }
                 }
                 // (ptxas evidence, 2026-11-06, 50 / 50 sites in the sm_120 census: a wait carried by a
                 // PREDICATED instruction is honoured whether or not the guard is true — the next
@@ -3150,7 +3166,10 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
             n,
         );
         if !waiters.is_empty() {
-            let stops: Vec<usize> = waiters.iter().copied().filter(|&w| !guarded[w]).collect();
+            // the waiters after which the load has certainly issued: the unguarded ones -- every
+            // waiter under the NEEDS 37 switch (a guarded waiter's wait is honoured too)
+            let settles = guarded_reader_settles();
+            let stops: Vec<usize> = waiters.iter().copied().filter(|&w| settles || !guarded[w]).collect();
             for &g in &group { raw_stop[g] = stops.clone(); }
             let segs = build_segs(group[0], &waiters, ltop[last], lback[last], &edges);
             uses.push(BarUse {
