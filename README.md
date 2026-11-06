@@ -136,9 +136,9 @@ the measurements that produced the SM120 rows added since 2026-10).
 
 | table | silicon | what the gate proves | not proved |
 |---|---|---|---|
-| `sm120.json` | RTX 5090 / RTX PRO 6000 (production kernels 2026-06..10; probe kernels 2026-11-02/03) | strict census 1 811 600 / 1 811 600 words, 157 / 157 cubins byte-identical through `--frozen` → `asm -T`, the suite's measured-form fixtures; the silicon laws below | semantics of rows measured by encoding only ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) T6); 18 845 of 26 580 variants are harvest rows — their dynamic audit against nvdisasm is at its end state: 14 rows left, each a named exception (T1); the cuBLASLt sm_120 corpus on the GB10 host shows 97 `LDL.64 [R+UR+imm]` decode holes and a `MUFU` UR-form function field (T1) |
-| `sm103a.json` | B300 | the suite (encode/decode fixtures, `stallfix` rules, cost model); re-run 2026-11-03 on the B300 host `cold-face-bounces-fin-02`: 177 / 177 SM103a cubins of the publish corpus byte-identical through `--frozen` → `asm -T` (104 words carried as `__raw__`), strict semantic round trip 77 543 / 77 656 words — the refused words are fail-closed refusals of silicon-unsafe forms (BUG-080 guarded ATOMS, BUG-004 predicate form) plus 8 re-encode mismatches ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) V1) | no silicon run of cubit-assembled SM103a kernels since 2026-09 |
-| `sm100a.json` | B200 | encoding layer = SM103a + tcgen05 deltas; re-run 2026-11-03 on `cold-face-bounces-fin-02`: 99.924 % exact-minus-schedule on the archived 20 024 512-instruction sm_100 population (1 134 cubins with a vendor golden), 151 / 151 `cub_100a` cubins byte-identical through `--frozen` → `asm -T`, strict 8 103 / 8 136 words | no B200 silicon run; scheduling data inherited; until 2026-11-03 cubit mis-read the sm_100a ELF flags as sm_10 (KNOWN_ISSUES A11) |
+| `sm120.json` | RTX 5090 / RTX PRO 6000 (production kernels 2026-06..10; probe kernels 2026-11-02/03) | strict census 1 811 600 / 1 811 600 words, 157 / 157 cubins byte-identical through `--frozen` → `asm -T`, the suite's measured-form fixtures; the silicon laws below | semantics of rows measured by encoding only ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) T6); 18 845 of 26 580 variants are harvest rows — their dynamic audit against nvdisasm is at its end state: 14 rows left, each a named exception (T1); the cuBLASLt sm_120 corpus on the GB10 host (92 543 words) has two decode holes left, `UFFMA.SAT` and a `UIMNMX.U64` form (the 95 `LDL.64 [R+UR+imm]` holes and the `MUFU` UR-form field were closed 2026-11-04; T1, V3) |
+| `sm103a.json` | B300 | the suite (encode/decode fixtures, `stallfix` rules, cost model); re-run 2026-11-03 on the B300 host `cold-face-bounces-fin-02`: 177 / 177 SM103a cubins of the publish corpus byte-identical through `--frozen` → `asm -T` (104 words carried as `__raw__`), strict semantic round trip 77 548 / 77 656 words (coldface's third pass at `52767f9`, 2026-11-06) — the refused words are fail-closed refusals of silicon-unsafe forms (BUG-080 guarded ATOMS, BUG-004 predicate form) plus 2 re-encode residues of text-inert bits (`UMOV URd, 0x0` with a reuse bit; [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) V1, V5) | no silicon run of cubit-assembled SM103a kernels since 2026-09 |
+| `sm100a.json` | B200 | encoding layer = SM103a + tcgen05 deltas; re-run 2026-11-03 on `cold-face-bounces-fin-02`: 99.924 % exact-minus-schedule on the archived 20 024 512-instruction sm_100 population (1 134 cubins with a vendor golden), 151 / 151 `cub_100a` cubins byte-identical through `--frozen` → `asm -T`, strict 8 108 / 8 136 words (third pass at `52767f9`, 2026-11-06; one text-inert-bit residue, `I2F.S16` — V5) | no B200 silicon run; scheduling data inherited; until 2026-11-03 cubit mis-read the sm_100a ELF flags as sm_10 (KNOWN_ISSUES A11) |
 | `sm121a.json` | GB10 (DGX Spark) | the suite's GB10 fixtures; **re-run 2026-11-04 on the GB10 host `gx4`** (the 2026-09 census script over the 648 992-instruction corpus, 91 927 unique words): 91 927 / 91 927 decode, text parity initially 99.59 % (373 differences). **Closed to 100 % the same day** (session T-4, two batches) and **confirmed by the full re-run at the pushed revision** (`gx4`, 2026-11-05, cubit `2ac57c0`): **91 927 / 91 927 words decode, 1 text mismatch** — `LEPC`, a PC-relative target the isolated-word census renders at address 0 (byte-identical in a full disassembly). `tests/sm121a_parity_20261104.rs`; [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) V3 | timing / scheduling data; no cubit-assembled kernel executed on a GB10 |
 
 Select a table with `-t tables/<arch>.json` (or the `.json.gz` path) or `CUBIT_TABLE`; the output
@@ -171,6 +171,29 @@ SKU, 2x RTX 5090 / GB202 — every law below holds identically**; logs under the
   (zero-extended to bytes; `Rd+2`/`Rd+3` untouched).
 - *Driver requirement:* cubit's standalone cubins carry the CUDA-13 ELF identity; a CUDA 12.9 driver
   (575.51.02) crashes in `cuModuleLoad` on it, 580.x drivers load it ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) A14).
+- *The `.EL` descriptor-pair atomics* (NEEDS 28, 2026-11-05 on the RTX PRO 6000): `ATOMG.E.<op>.EL.STRONG.GPU
+  Pd, Rd, desc[URm][Rn.64], Rb` (bits 63 + 76) executes, lands at the 64-bit descriptor address (> 4 GiB) and
+  returns the old value like nvcc's non-EL pair — the 2026-03 "silent U32 downcast" was a mis-keyed table row,
+  since rebuilt and pinned (KNOWN_ISSUES A15).
+- *Atomics return through the write barrier* (BUG-482, 2026-11-05/06): a consumer of the `Rd` of an
+  `ATOM*/ATOMG/ATOMS Pd, Rd, …` form that is not covered by the atomic's write barrier reads garbage
+  (`0xac0799b5` for the expected `0x100`); the scheduler tracks the destination, the address and the data of
+  the family since (A17).
+- *`.nv.shared` is the whole per-CTA allocation* (BUG-483, 2026-11-05/06): a 1 KB over-declaration crossed the
+  32 KB carveout step at 4 CTAs/SM and made the L1-bound MC4 MoE kernels 1.4–2.0× slower; the section is sized
+  exactly now (A18).
+- *IADD3 bit 76 is inert on sm_120* (NEEDS 35, 2026-11-06): the word nvdisasm `-b SM103` names `IADD.XOR`
+  computes a+b+c on sm_120 silicon — `IADD.XOR` is an sm103a / sm100a row only; the sm120 rows keep the bit
+  outside their masks.
+- *Multi-register MMA operands are alignment-checked by the hardware* (BUG-037, 2026-06): an A / B / C fragment
+  whose first register is off its alignment is `ILLEGAL_INSTRUCTION`; the encoder refuses such text
+  (nvdisasm prints it).
+- *Read-barrier policies, measured on the 84 production MoE kernels with K's harness* (2026-11-05/06, test
+  host RTX PRO 6000): `CUBIT_RB_CHAIN=1` + `CUBIT_SB_SHARE=1` reproduce the 2026-06 speed of `mc4_k4096` /
+  `mc4_k6144` (1.38× → 1.01×, 1.61× → 0.96× of the shipped time) and cost 3–30 % on 57 of the other 79 kernels
+  (A19 — per-kernel switches, the default is the owner's NEEDS 31); `CUBIT_MMA_SRC_RB=0` changes no bit and no
+  measurable time (C/B median 1.000; V's sparse-MLA kernel 1 055 → 1 054 µs) — the MMA-source read barriers are
+  free on this set and stay on (A22, NEEDS 38). Bits identical in every arm.
 
 ## Python bindings
 
@@ -221,12 +244,13 @@ docs/           see above
 - Encoding evidence is not semantic evidence: a row that round-trips says how `nvdisasm` names a
   word, not what the hardware does with it. Rows measured in 2026-10/11 without execution are
   listed in KNOWN_ISSUES T6.
-- `stallfix` rules are measured for sm_103a (v2) and SM120 (v3, 2026-11-03/04); the SM120 R2UR
-  boundary floor was measured 2026-11-04 (silicon v3) at 4.
+- `stallfix` rules are measured for sm_103a (v2) and SM120 (v4, 2026-11-03/05: the v3 floors + the S12..S15
+  guard band); the SM120 R2UR boundary floor was measured 2026-11-04 (silicon v3) at 4.
 - A template rebuild (`asm -T`) copies the template's metadata; a kernel whose registers, shared
   memory or parameters differ from the template needs a standalone build or a matching template.
-- The test suite takes about two hours on 16 cores (each of the 464 test binaries loads and parses
-  the 46 MB SM120 table; decompressing it costs 30 ms).
+- The test suite takes about 40 minutes in `--release` on 16 cores (the push gate: 466 binaries in 39 min on
+  2026-11-06; about two hours in the debug profile) — each of the 464 test binaries loads and parses the 46 MB SM120 table; decompressing it
+  costs 30 ms.
 - A shipped cubin is reproduced byte for byte from its frozen text (`disassemble --frozen` →
   `asm -T`); re-assembling its `.sass` source with a newer cubit is a regeneration whose control codes
   follow the current allocator (KNOWN_ISSUES A20).
