@@ -4,6 +4,53 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-06 (session T-8: the LEA family, the allocator's WAW rule, the audit oracle corrected)
+
+- **Tables vendored from blackwell-isa `09a7141`** (sm120 16 063 forms / 26 596 variants, sm103a / sm100a
+  14 912 / 22 363, sm121a unchanged): the **`LEA` family rebuilt from measurement on the three tables**
+  (`tools/probes/re_sm120_lea.py`, nvdisasm 13.1 `-b SM120`, `-b SM103` / `-b SM100` text-identical for
+  all 824 probe words per target; fixtures `tests/fixtures/{sm120,sm103a,sm100a}_lea_nvdisasm.jsonl`, test
+  `tests/sm120_lea.rs`): `LEA[.HI][.X][.SX32] Rd, [Pd,] Ra, <b>, [Rc,] imm5 [, Pcin]` × register / imm32 /
+  UR forms × {a `Pd` token, `PT` baked} = 36 rows on 24 keys replace 56 / 18 / 18 harvest keys (NEEDS_OWNER
+  30, the audit's largest family). What changes for users: the plain `LEA R4, R8, R10, 0x1` word no longer
+  decodes as `LEA.HI.X … RZ, 0x1, PT`, the `.X` forms print their carry-in (`, PT` / `, !P2`) and nvdisasm's
+  bitwise-inverse glyph (`LEA.HI.X R9, ~R12, UR14, RZ, 0x2, PT` — before: `-R12`), 26 372 production LEA
+  words and the census round-trip unchanged (1 811 600 / 1 811 600). The decoder's sign-tolerant fallback
+  is off for `LEA` (every legal combination is a measured row; text-inert bits fail closed), and the
+  **encoder refuses a sign glyph the row has no field for** instead of dropping it: `LEA.HI.X R4, -R8, …`
+  (an `.X` form wants `~`) and `LEA R4, ~R8, …` are errors naming the law — before, `LEA.HI.X R4, ~R8,
+  UR10, R6, 0x1, PT` minted the word WITHOUT bit 72 through the sm103a B300-4 row (`neg` field, `~` text).
+  Also: the two `F2FP.*.F32.PACK_AB_R_R_R_?` junk twins and the duplicate `F2FP_R_R` TF32 group retired
+  (their words decode through the measured rows unchanged); the printer prints the `UNPACK_B_MERGE_C`
+  conversions in the vendor's order — source type first, `F2FP.SATFINITE.RELU.E4M3.BF16.UNPACK_B_MERGE_C`
+  (96 audit words were `BF16.E4M3`). Census pins re-pinned (`tests/bug*_data.inc`, `bug176`, `bug289`,
+  `bug381`, `bug459a`, `bug476`); `bug229` / `bug230` / `b3004` re-pinned to the measured family (the
+  `.X` pivot word of `bug229` now prints the vendor's 6-token text that the 2026-08 pin had parked as a
+  known gap).
+- **BUG-485 — the barrier allocator has a WAW rule** (KNOWN_ISSUES A17's open remainder, NEEDS_OWNER 34).
+  `raw_consumers` collected only the READERS of a variable-latency producer's destinations as waiters; an
+  instruction that overwrote a still-live destination merely dropped it from the live set, so a dead load
+  (never read before the register is rewritten by an ALU op, a load of another class or a load of another
+  address stream) got no write barrier and the overwriter no wait — its asynchronous writeback could land
+  after the new value. Now the overwriter is a waiter like a reader (ptxas waits the barrier there too);
+  an unguarded one ends the scan on its path. `tests/bug485_waw_dead_load.rs` (5 pins; 3 red on the old
+  allocator). Effect on the production sources (`T/t8/moe/cmp_prod_485b.log`): 97 of 99 byte-identical in
+  `.text`; `sparse_mla_prefill_v41` (2 control words: the guarded `@P0 VIMNMX.S32 R18/R19, R2, RZ, !PT`
+  overwriters of `LDC R18/R19` wait their barrier) and `mla_prefill_state2` (the same pattern + a
+  recolouring) carry additional waits — the shipped cubins stay pinned; a regeneration of either carries
+  the extra waits. Evidence recorded on the way (50 / 50 sites of the sm_120 census): a wait on a
+  PREDICATED instruction is honoured whether or not the guard is true — ptxas puts no wait on the next
+  unguarded reader behind `@P0 SHF … R10` of an `LDC R10` — so cubit's "a guarded first reader may be
+  skipped" rule is conservative, not a hazard (left as is; relaxing it removes waits, needs an A/B).
+- **`tools/audit_dynamic.py`: the nvdisasm scratch-file race fixed.** Two rows probing the same word in
+  parallel shared `<word>.bin`; one unlinked the file the other was about to pass to nvdisasm, and the
+  tool recorded the failure as "rejected". The 2026-11-04 record set had 386 such legal words (LDG 163,
+  IMMA 32, SHF 28, LEA 18, …, F2FP 13); re-measured 2026-11-06 (`T/audit/dyn/words_in_fixed.jsonl`), the
+  scratch name is unique per call and a failure that is not nvdisasm's own verdict raises. With the
+  corrected oracle and this entry's rows the audit stands at **255 rows** with at least one defect
+  (418 on the T-7 tables: 43 LEA rows gone, 120 of the rest are the "nvdisasm rejects, cubit decodes"
+  class that the race had inflated to 474).
+
 ## Unreleased — 2026-11-05 (session B300 / coldface, reviewed and taken by T-7 2026-11-06) — `asm --driver-abi 12`: the CUDA-12 ELF identity for the 12.9 driver
 
 - **KNOWN_ISSUES A14 fixed (pending silicon)**: `asm` writes the CUDA-13 ELF identity
