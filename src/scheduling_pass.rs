@@ -2595,10 +2595,24 @@ fn raw_consumers(
                     break;
                 }
                 seen[j].push((live.clone(), known));
-                if reads[j].iter().any(|r| live.contains(r)) {
+                // BUG-485 (NEEDS_OWNER 34, 2026-11-06): an instruction that OVERWRITES a still-live
+                // destination without reading it is a waiter too (WAW). The producer's writeback is
+                // asynchronous: without the wait it can land AFTER the overwriter's value and the
+                // register ends up holding the dead load's result (ptxas waits the barrier on such
+                // overwriters). Before, the register merely dropped out of the live set and a dead
+                // load with no reader before an overwriter of another class got no barrier at all
+                // (same-class loads of one address stream are issue-ordered and batched instead).
+                let reads_live = reads[j].iter().any(|r| live.contains(r));
+                let overwrites_live = writes[j].iter().any(|w| live.contains(w));
+                if reads_live || overwrites_live {
                     if !waiters.contains(&j) { waiters.push(j); }
                     if !guarded[j] { done = true; break; }
                 }
+                // (ptxas evidence, 2026-11-06, 50 / 50 sites in the sm_120 census: a wait carried by a
+                // PREDICATED instruction is honoured whether or not the guard is true — the next
+                // unguarded reader of the same load behind `@P0 SHF … R10` carries no wait of its
+                // own — so a guarded overwriter that waited here settles the register for the readers
+                // behind it, and the live set drops it like before.)
                 live.retain(|d| !writes[j].contains(d));
                 if is_backedge(j) && !live.is_empty() { open_back = true; }
                 FlowInfo::kill(&writes[j], &mut known);
