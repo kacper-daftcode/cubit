@@ -3219,6 +3219,58 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         pin_of.push(None);
     }
 
+    // ---- A19 experiment (CUBIT_RB_CHAIN=1, default off; KNOWN_ISSUES A19, T-9 2026-11-06) ----
+    // The 2026-06 `5912400` schedules of the MC4 MoE prefill kernels (the shipped cubins, +34…58 %
+    // faster than today's default on `mc4_k4096` / `mc4_k6144`) carry a read barrier on every
+    // sub-word global load (`LDG.E.U8` scale bytes) that the NEXT global load in program order
+    // waits — a chain that paces the issue of consecutive scalar loads (T-8 report part 8 §5:
+    // 32 of the 41 extra read barriers). Not a WAR protection (the address register is never
+    // rewritten in the loop), so the WAR pass above never produces it. Under the switch the
+    // chain is reproduced as plain rb uses (setter = the sub-word load, waiter = the next global
+    // load before the next control-flow instruction; merged into the load's WAR use when it has
+    // one). Legality is unaffected either way (a wait is never a hazard); the switch exists to
+    // measure the mechanism on silicon — the default flip is the owner's decision (NEEDS 31).
+    if std::env::var("CUBIT_RB_CHAIN").ok().as_deref() == Some("1") {
+        let is_global_load = |i: usize| -> bool {
+            matches!(insns[i].opcode.as_str(), "LDG" | "LD") && !insns[i].hand_sched
+        };
+        let sub_word = |i: usize| -> bool {
+            let f = insns[i].opcode_full.as_str();
+            f.contains(".U8") || f.contains(".S8") || f.contains(".U16") || f.contains(".S16")
+        };
+        for i in 0..n {
+            if !is_global_load(i) || !sub_word(i) || !insn_can_set_write_bar(&insns[i], table) {
+                continue;
+            }
+            let mut waiter: Option<usize> = None;
+            for j in (i + 1)..n {
+                if is_control_flow(insns[j].opcode.as_str()) {
+                    break;
+                }
+                if is_global_load(j) {
+                    waiter = Some(j);
+                    break;
+                }
+            }
+            let Some(j) = waiter else { continue };
+            let existing = uses
+                .iter()
+                .enumerate()
+                .position(|(k, u)| u.is_rb && u.setters == [i] && pin_of[k].is_none());
+            if let Some(u) = existing {
+                if !uses[u].waiters.contains(&j) {
+                    uses[u].waiters.push(j);
+                    let w = uses[u].waiters.clone();
+                    uses[u].segs = build_segs(i, &w, ltop[i], lback[i], &edges);
+                }
+            } else {
+                let segs = build_segs(i, &[j], ltop[i], lback[i], &edges);
+                uses.push(BarUse { setters: vec![i], waiters: vec![j], is_rb: true, segs });
+                pin_of.push(None);
+            }
+        }
+    }
+
     // ---- PINNED producers (BUG-117 / TS2-LDG256-AUTOWAIT exp-5): a hand_sched
     // `[CC]`-tagged variable-latency producer (e.g. an LDG.E.NA.ELL2.256.STRONG.GPU
     // carrying a verbatim champion tag) keeps its write-barrier word untouched,
