@@ -8,7 +8,7 @@ tables come from [blackwell-isa](https://github.com/kacper-daftcode/blackwell-is
 NVIDIA's `nvdisasm`; the project's own hand-written SM120 kernels have run in production since
 2026-06.
 
-**Coverage today (SM120, 2026-11-02).** The strict round trip — decode every word, print it,
+**Coverage today (SM120, gated on every push; last 2026-11-06).** The strict round trip — decode every word, print it,
 re-parse the text, re-encode, compare all 128 bits — passes on **1 811 600 / 1 811 600 instructions**
 of the production kernel set it is gated on: 169 cubins of FlashInfer 0.7.2 (sparse-MLA, CAKE
 DSV4.1, MXFP8 GEMM), b12x MoE and DeepGEMM SM120 kernels. The whole-cubin path
@@ -76,7 +76,10 @@ kernels it was measured on and time-neutral there (+0.3 %), 1.6× on scoreboard-
 as the sparse-MLA attention; it stays opt-in (KNOWN_ISSUES A13). `CUBIT_RB_CHAIN=1` adds the 2026-06
 read-barrier chain on sub-word global loads; with `CUBIT_SB_SHARE=1` it reproduces the shipped speed of
 the MC4 MoE prefill kernels (K ≥ 4096) and costs 3–30 % on most others — a per-kernel switch, also
-opt-in (KNOWN_ISSUES A19). `CUBIT_VERIFY=1` runs the read-only scoreboard verifier on every kernel it
+opt-in (KNOWN_ISSUES A19). `CUBIT_MMA_SRC_RB=0` drops the read barrier cubit puts on an MMA for its
+source fragments (ptxas sets none; measured 2026-11-06 on the 90 production kernels: bits identical,
+time-neutral — the decision whether the rule stays the default is the owner's, KNOWN_ISSUES A22).
+`CUBIT_VERIFY=1` runs the read-only scoreboard verifier on every kernel it
 assembles (frozen or scheduled) and prints each unprotected RAW / broken WAR; `CUBIT_VERIFY_RBPROBE=1`
 adds the read-barrier coverage probe of the legality oracle (`tools/sched_oracle.py`, KNOWN_ISSUES A4).
 
@@ -133,7 +136,7 @@ the measurements that produced the SM120 rows added since 2026-10).
 
 | table | silicon | what the gate proves | not proved |
 |---|---|---|---|
-| `sm120.json` | RTX 5090 / RTX PRO 6000 (production kernels 2026-06..10; probe kernels 2026-11-02/03) | strict census 1 811 600 / 1 811 600 words, 157 / 157 cubins byte-identical through `--frozen` → `asm -T`, the suite's measured-form fixtures; the silicon laws below | semantics of rows measured by encoding only ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) T6); 19 270 of 20 863 variants are harvest rows (T1); the cuBLASLt sm_120 corpus on the GB10 host shows 97 `LDL.64 [R+UR+imm]` decode holes and a `MUFU` UR-form function field (T1) |
+| `sm120.json` | RTX 5090 / RTX PRO 6000 (production kernels 2026-06..10; probe kernels 2026-11-02/03) | strict census 1 811 600 / 1 811 600 words, 157 / 157 cubins byte-identical through `--frozen` → `asm -T`, the suite's measured-form fixtures; the silicon laws below | semantics of rows measured by encoding only ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) T6); 18 856 of 26 557 variants are harvest rows — their dynamic audit against nvdisasm is at its end state: 22 rows left, each a named exception (T1); the cuBLASLt sm_120 corpus on the GB10 host shows 97 `LDL.64 [R+UR+imm]` decode holes and a `MUFU` UR-form function field (T1) |
 | `sm103a.json` | B300 | the suite (encode/decode fixtures, `stallfix` rules, cost model); re-run 2026-11-03 on the B300 host `cold-face-bounces-fin-02`: 177 / 177 SM103a cubins of the publish corpus byte-identical through `--frozen` → `asm -T` (104 words carried as `__raw__`), strict semantic round trip 77 543 / 77 656 words — the refused words are fail-closed refusals of silicon-unsafe forms (BUG-080 guarded ATOMS, BUG-004 predicate form) plus 8 re-encode mismatches ([docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) V1) | no silicon run of cubit-assembled SM103a kernels since 2026-09 |
 | `sm100a.json` | B200 | encoding layer = SM103a + tcgen05 deltas; re-run 2026-11-03 on `cold-face-bounces-fin-02`: 99.924 % exact-minus-schedule on the archived 20 024 512-instruction sm_100 population (1 134 cubins with a vendor golden), 151 / 151 `cub_100a` cubins byte-identical through `--frozen` → `asm -T`, strict 8 103 / 8 136 words | no B200 silicon run; scheduling data inherited; until 2026-11-03 cubit mis-read the sm_100a ELF flags as sm_10 (KNOWN_ISSUES A11) |
 | `sm121a.json` | GB10 (DGX Spark) | the suite's GB10 fixtures; **re-run 2026-11-04 on the GB10 host `gx4`** (the 2026-09 census script over the 648 992-instruction corpus, 91 927 unique words): 91 927 / 91 927 decode, text parity initially 99.59 % (373 differences). **Closed to 100 % the same day** (session T-4, two batches) and **confirmed by the full re-run at the pushed revision** (`gx4`, 2026-11-05, cubit `2ac57c0`): **91 927 / 91 927 words decode, 1 text mismatch** — `LEPC`, a PC-relative target the isolated-word census renders at address 0 (byte-identical in a full disassembly). `tests/sm121a_parity_20261104.rs`; [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) V3 | timing / scheduling data; no cubit-assembled kernel executed on a GB10 |
@@ -191,7 +194,7 @@ See [docs/PYTHON_API_ARCH_SELECT.md](docs/PYTHON_API_ARCH_SELECT.md).
 
 - [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) — everything known to be imperfect, with status and what it needs
 - [CHANGELOG.md](CHANGELOG.md) — user-visible changes and the table revisions they vendor
-- [docs/TESTS.md](docs/TESTS.md) — index of the 425 test files (the `bugNNN` files are the encoder's executable specification)
+- [docs/TESTS.md](docs/TESTS.md) — index of the 463 test files (the `bugNNN` files are the encoder's executable specification)
 - [docs/ENCODER_GUARDS.md](docs/ENCODER_GUARDS.md) — the fail-closed guards and the silicon traps behind them
 - [docs/MERC13_COMPANIONS.md](docs/MERC13_COMPANIONS.md) — ELF companion sections: what a template rebuild copies, what a standalone build regenerates, what differs from nvcc
 - [docs/SM120_CONTROL_OPEX.md](docs/SM120_CONTROL_OPEX.md) — the measured control-code layout and the reserved yield/stall combinations
@@ -204,7 +207,7 @@ See [docs/PYTHON_API_ARCH_SELECT.md](docs/PYTHON_API_ARCH_SELECT.md).
 ```
 src/            the crate (library + `cubit` binary)
 tables/         vendored ISA tables (four architectures, gzip: 2.5 MB; 183 MB of JSON unpacked) + SOURCE.json pins
-tests/          425 test files (one binary each); tests/fixtures/ = nvdisasm fixtures of measured forms (< 1 MB)
+tests/          463 test files (one binary each); tests/fixtures/ = nvdisasm fixtures of measured forms (< 1 MB)
 tools/          sync_table.py (vendoring gate), asm_roundtrip.py, audit_table.py, audit_dynamic.py,
                 gen_tests_index.py, check_public_surface.sh, probes/ (measurements)
 examples/       SASS kernels with host harnesses (QMMA GEMV, pipelined MMA, IMMA U8, sparse GEMV),
@@ -222,7 +225,7 @@ docs/           see above
   boundary floor was measured 2026-11-04 (silicon v3) at 4.
 - A template rebuild (`asm -T`) copies the template's metadata; a kernel whose registers, shared
   memory or parameters differ from the template needs a standalone build or a matching template.
-- The test suite takes about two hours on 16 cores (each of the 430 test binaries loads and parses
+- The test suite takes about two hours on 16 cores (each of the 463 test binaries loads and parses
   the 46 MB SM120 table; decompressing it costs 30 ms).
 - A shipped cubin is reproduced byte for byte from its frozen text (`disassemble --frozen` →
   `asm -T`); re-assembling its `.sass` source with a newer cubit is a regeneration whose control codes
