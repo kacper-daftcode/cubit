@@ -73,7 +73,12 @@ Instruction syntax is NVIDIA's (`nvdisasm` output). On SM120 kernel parameters s
 freezes the control code of that instruction. `CUBIT_SB_SHARE=1` selects the scoreboard-sharing
 colouring (counter semantics, ptxas's practice): bit-identical results on the 84 production MoE
 kernels it was measured on and time-neutral there (+0.3 %), 1.6× on scoreboard-starved kernels such
-as the sparse-MLA attention; it stays opt-in (KNOWN_ISSUES A13).
+as the sparse-MLA attention; it stays opt-in (KNOWN_ISSUES A13). `CUBIT_RB_CHAIN=1` adds the 2026-06
+read-barrier chain on sub-word global loads; with `CUBIT_SB_SHARE=1` it reproduces the shipped speed of
+the MC4 MoE prefill kernels (K ≥ 4096) and costs 3–30 % on most others — a per-kernel switch, also
+opt-in (KNOWN_ISSUES A19). `CUBIT_VERIFY=1` runs the read-only scoreboard verifier on every kernel it
+assembles (frozen or scheduled) and prints each unprotected RAW / broken WAR; `CUBIT_VERIFY_RBPROBE=1`
+adds the read-barrier coverage probe of the legality oracle (`tools/sched_oracle.py`, KNOWN_ISSUES A4).
 
 ## Commands
 
@@ -219,6 +224,9 @@ docs/           see above
   memory or parameters differ from the template needs a standalone build or a matching template.
 - The test suite takes about two hours on 16 cores (each of the 430 test binaries loads and parses
   the 46 MB SM120 table; decompressing it costs 30 ms).
+- A shipped cubin is reproduced byte for byte from its frozen text (`disassemble --frozen` →
+  `asm -T`); re-assembling its `.sass` source with a newer cubit is a regeneration whose control codes
+  follow the current allocator (KNOWN_ISSUES A20).
 - Open items with their status: [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 
 ## Related projects

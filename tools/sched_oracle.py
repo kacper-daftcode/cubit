@@ -475,12 +475,19 @@ def stats_kernel(lines):
 #     sm_120.  DIVERGENCE (cubit stricter), never a REJECT.
 #   * `store-latch-distance`: ptxas overwrites a global store's address/data
 #     registers without waiting its read barrier (or without setting one) once
-#     >= STORE_LATCH_FLOOR issue cycles have passed (census minimum 43; cubit's
-#     verifier: "distance does NOT cover a store" -- its 2026-06 race was at 25
-#     cycles).  >= floor: DIVERGENCE with the distance; below: REJECT.
+#     >= STORE_LATCH_FLOOR issue cycles have passed on the shortest control-flow
+#     path (census minimum 20: `STG.E desc[UR12][R28.64+0x380], R39` ... `MOV R29`
+#     in the FlashInfer sparse-MLA kernels; 132 sites between 20 and 42, 1 099
+#     above; cubit's verifier: "distance does NOT cover a store" -- its 2026-06
+#     race was at 25 cycles, a contradiction left to a silicon A/B).  >= floor:
+#     DIVERGENCE with the distance; below: REJECT.
 #   * `lds-address-latch` (soft): LDS/LDSM/LDL address registers overwritten
 #     before the load's result is waited (ptxas does it at S01 and up; cubit's
 #     model says the MIO replay can re-latch the address).  DIVERGENCE.
+#   * `load-address-latch`: the verifier's own WAR on a load that carries a read
+#     barrier, overwritten inside the 3-cycle LOAD_ADDR_LATCH window without the
+#     wait (census: `LDGSTS` + `IADD.64` of its address pair at 2 cycles).
+#     DIVERGENCE.
 #   * `recycle`: a scoreboard re-armed by a producer of another latency class
 #     while an earlier result is still pending -- a hazard under last-only
 #     semantics, none under the counter semantics ptxas (and cubit's
@@ -501,7 +508,7 @@ def stats_kernel(lines):
 HARD_CLASSES = {"store", "atom"}
 MMA_CLASSES = {"mma"}
 SOFT_CLASSES = {"load", "load-selfref"}
-STORE_LATCH_FLOOR = 43
+STORE_LATCH_FLOOR = 20
 
 
 def stall_distance(lines, a: int, b: int):
@@ -723,10 +730,15 @@ def classify_verifier_events(events, lines):
                 div.append({"divergence": "nonlinear-path", "event": ev})
                 continue
             mop = ev.split("of mem-op insn[")[1].split("] ")[1].split()[0] if "of mem-op insn[" in ev else ""
-            is_store = mop.split(".")[0] in GLOBAL_STORE
+            mbase = mop.split(".")[0]
             d = paths[widx]
-            if is_store and isinstance(d, int) and d >= STORE_LATCH_FLOOR:
+            if mbase in GLOBAL_STORE and isinstance(d, int) and d >= STORE_LATCH_FLOOR:
                 div.append({"divergence": "store-latch-distance", "distance": d, "event": ev})
+            elif mbase in LOADS:
+                # a load's address register overwritten inside cubit's LOAD_ADDR_LATCH window (3
+                # issue cycles; LDS/LDSM/LDL never covered) while ptxas left the overwriter without
+                # the wait: the address was consumed at issue (census: LDGSTS at 2 cycles)
+                div.append({"divergence": "load-address-latch", "distance": d, "event": ev})
             else:
                 core_war += 1
             continue

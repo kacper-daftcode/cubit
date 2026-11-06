@@ -4,7 +4,78 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
-## Unreleased — 2026-11-06 (session B300 s3, C10/C11; for T review) — the scheduling-legality oracle (A4) exists
+## Unreleased — 2026-11-06 (session T-9: coldface's B300 s3 commits C10 / C11 / C13 reviewed and taken, BUG-486, the legality oracle verified against the census, A19 measured with `CUBIT_RB_CHAIN`, the BRA family, the reproduction contract)
+
+- **Tables vendored from blackwell-isa `b75cc20`** (sm120 16 045 forms / 26 646 variants; the other three
+  tables unchanged): **the `BRA` family rebuilt from measurement** (`tools/probes/re_sm120_bra.py`, nvdisasm
+  13.1 `-b SM120`, 519 form words every text predicted by the layout + 32 lattice words, fixture
+  `tests/fixtures/sm120_bra_nvdisasm.jsonl`, test `tests/sm120_bra.rs`): target = PC + 16 + a signed 56-bit dword
+  offset ([23:16] + [81:34]), guard [15:12], predicate operand [89:87] + `!` 90 (PT elided), mode [33:32] plain /
+  `.U` / `.DIV` / `.CONV`, 85 `.INC`, 86 `.DEC`, 84 `.ANY` and 83 `.NOT_TID0` with `.U`, the UR operand [31:24] +
+  `~` 82 behind the frame bit 91 (`.DIV` / `.CONV` only), `[!]UPn` [26:24] + 27 on the 0x547 form. Six keys
+  `BRA[_P][_UR|_UP]_II` × one group per legal modifier set = 66 rows replace 15 harvest keys / 31 rows
+  (`BRA_II_II_II_?` and the other `_?` junk keys, the triplicated `CONV` / `DIV` groups with `guard@29` /
+  `imm_shr3@28` junk fields, `BRA_UP_II [""]` / `BRA_UR_II [""]`, `BRA_UP_II [U]` that claimed `BRA.INVALID1` words,
+  `BRA_P_UR_II [CONV]` that printed `PT, UR6` for the vendor's `~UR6`; the dotted keys `BRA.U_UP_II`, `BRA.DIV_UR_II`,
+  `BRA.U_?_II` are `_meta.key_aliases`). What changes for users: the printer prints the family in the vendor's
+  order and glyphs (`BRA.INC.U.ANY.NOT_TID0`, `BRA.CONV ~URZ, 0x20`, `BRA.U.ANY !UP3, -0x40`, `BRA.DIV !P2, UR6,
+  0x110`) and **a negative target as nvdisasm prints it** (`BRA -0x14a0` for an isolated backward word; before: the
+  32-bit wrap `BRA 0xffffeb60`); text-inert bits (92-95, the UR field without the frame bit, 83 / 84 without `.U`)
+  fail closed like in every measured family. Census 1 811 600 / 1 811 600 unchanged; `b4fill2` re-pinned (`~URZ`,
+  the rt98 gold text was an era rendering). Dynamic audit at these tables: **230 → 215 rows** (`T/audit/dyn15`;
+  the six BRA rows left are 29 harvest-junk words with inert bits set, `decode_miss` by the fail-closed
+  convention). Census pins re-pinned (keys 16 054 → 16 045, variants 26 611 → 26 646, `claim_forbid` 7 013 → 7 011).
+- **BUG-486 — register-indirect control flow is not a static branch target; three verifier model gaps**
+  (found reviewing the A4 oracle against the sm_120 census). `branch_target` resolved the `0x0` of
+  `RET.REL.NODEC R2, 0x0` to instruction 0, so every in-kernel subroutine return was a back-edge over the whole
+  kernel for `resolved_back_edges` (the loop-aware verifier re-walked the kernel as a loop body and reported the
+  prologue's `S2R` / `MOV` / `LEA` as loop-carried overwriters of a bare store — 16 of the oracle's 16 REJECTs on
+  the B300 corpus; `load_result_loop_carried` and the allocator's loop logic saw the same phantom loop; no
+  production source has a RET). RET/PRET, BRX/BRXU, JMX/JMXU, `CALL.ABS` and any control-flow op carrying a
+  non-RZ GPR have no static target. The verifier: a waited WRITE barrier releases a mem-op's late-latched
+  operands too (the result landed, the address was consumed — ptxas's `LDS R3, [R2]` W0 → `… R3` B0 → `MOV R2`
+  shape); `DEPBAR.<m> SBb, imm` drains scoreboard b (the allocator's audit did since rt98); `src_regs` no longer
+  counts `Rd` of `SHFL.* Pd, Rd, …` as a source. `tests/bug486_ret_not_a_back_edge.rs` (5 pins, 2 red before);
+  the 99 production sources re-assemble byte-identical. `tests/bug347_verify_wrap.rs::t347_4` re-pinned (its
+  dropped wrap wait is caught with the load's write barrier removed — with it, the inner loop's data wait makes
+  the drop physically harmless under the new rule).
+- **The scheduling-legality oracle (KNOWN_ISSUES A4) verified against the production census** — coldface's C11
+  (`tools/sched_oracle.py`, `tests/sched_legality_oracle.rs`, two publish-corpus fixtures) taken with its
+  authorship and two corrections: the read-barrier coverage probe is a **verifier mode**
+  (`verify_scoreboard_rb_probe` / `CUBIT_VERIFY_RBPROBE=1`: every bare late-latching mem-op tracked under a
+  virtual barrier nothing waits — the first design injected a free barrier index into the R slot and nvcc uses
+  all six on most real kernels, so it ran on none of them), and findings are routed into **measured classes**
+  before the verdict: `mma-source-rb` (ptxas sets a read barrier on 0 of the census's 39 624 HMMA/QMMA, 717 720
+  overwriter sites — cubit protects MMA sources against an overwriting load), `store-latch-distance` (ptxas
+  overwrites a store's registers without its rb from 20 issue cycles on the shortest control-flow path; cubit
+  never covers a store by distance), `lds-address-latch`, `load-address-latch`, `recycle` (counter semantics),
+  `guard-complement` (`@P1 LDG R19` … `@!P1 PRMT R19`), `nonlinear-path` (two instructions connected only through
+  a jump — the linear walk's limitation), `unreachable` (listed, not counted). Over the 752 frozen nvcc kernels of
+  the census every verdict is ACCEPT or a named divergence; **no REJECT** — the bar the review set. The two
+  places where cubit's allocator pays for the stricter model in production (MMA-source read barriers, the store
+  latch) are named in KNOWN_ISSUES A4 for an A/B.
+- **A19: `CUBIT_RB_CHAIN=1` (default off)** — the shipped `5912400` read-barrier chain on the sub-word global
+  loads (byte load k → the next global load waits its rb; `tests/a19_rb_chain.rs`) as an opt-in switch, measured on
+  the test host with K's method (bits identical in every arm): `mc4_k4096_a32` shipped 340.6 µs — default 1.379×,
+  chain 1.156×, `CUBIT_SB_SHARE=1` 1.177×, **both 1.012×**; `mc4_k6144_a32` shipped 533.1 — 1.608× / 1.569× /
+  1.588× / **0.962×**. Over the whole MoE set (K's K1 harness, 84 kernels, bits S = B = C identical 84 / 84) both
+  switches close the five MC4 K ≥ 4096 prefill kernels and cost 3–30 % on 57 of the other 79 — a per-kernel
+  opt-in, not a default (the flip is the owner's decision, NEEDS_OWNER 31). KNOWN_ISSUES A19 carries the table.
+- **Reproduction contract (KNOWN_ISSUES A20):** a shipped cubin is reproduced byte for byte from its frozen text
+  (`disassemble --frozen` → `asm -T`, the path the gate holds at 157 / 157) with any cubit since 0.2.0;
+  re-assembling the `.sass` source is a *regeneration* whose control codes follow the current allocator
+  (BUG-485 added two waits to `sparse_mla_prefill_v41`) and needs its validation pass before it ships. No
+  `--at <rev>` mode.
+- **C14 (IDP mixed types): D2 — typed keys** (R's rule; the case in `T/NEEDS_OWNER.md` 36): the mod-group model
+  canonicalises by sorting and cannot express `S8.U8` vs `U8.S8`; the schema already uses typed keys for this
+  collision (`IMMA.16816.{S8.U8,U8.S8}_…` on sm120, `IDP.4A.{S8.U8,U8.S8}_R_R_R_R` on sm121a). Rows + fixture +
+  test are coldface's next step; nvdisasm 13.1 confirms his eight fixture words on the three sm_120-family targets.
+- **KNOWN_ISSUES A14 closed** (coldface's C10 verified from the artefacts: the native `--driver-abi 12` cubin equals
+  the `cubin12.py` rewrite byte for byte and executes on `rtx` / driver 575.51.02; the default identity still
+  crashes that loader — the README's "driver ≥ 580 or `--driver-abi 12`" stands); **R1's seven tautological
+  assertions are real pins** (coldface's C13, taken as is).
+
+### Coldface's own notes for the three commits (B300 s3, kept for the record)
 
 - **KNOWN_ISSUES A14: fixed, measured (C10)**: silicon re-verification of the native `--driver-abi 12`
   emitter on rtx (GB202, driver 575.51.02 / CUDA 12.9): the freshly assembled 12-identity cubin

@@ -1154,16 +1154,17 @@ fn src_regs(insn: &Instruction) -> Vec<(bool, u16)> {
     // BUG-482: a reduction's operand 0 is its ADDRESS (a source); an atomic with a
     // register return starts its sources after `Rd` (operand 1 behind a `Pd`); the
     // predicate-only `ATOMS.CAST.SPIN Pd, [addr], …` starts after `Pd` like everything else.
+    // BUG-486: `SHFL.* Pd, Rd, Ra, Rb, imm` — operand 0 is the predicate result, operand 1 the
+    // register result (dest_regs records it); the sources start behind it. Counting Rd as a
+    // source made the verifier report a false RAW (`SHFL.IDX PT, R35, …` "reads" the R35 an
+    // LDS.128 was still writing) and gave the allocator a false waiter.
+    let shfl_pd_rd = op == "SHFL" && matches!(insn.operands.first(), Some(Operand::Pred { .. }));
     let start = if is_store(op) || is_reduction(op) { 0 }
         else if let Some(rd) = atom_rd_index(insn) { rd + 1 }
-        // BUG-486: `SHFL.* Pd, Rd, Ra, Rb, imm` — operand 0 is the predicate result, operand 1 the
-        // register result (dest_regs records it); the sources start behind it. Counting Rd as a
-        // source made the verifier report a false RAW (`SHFL.IDX PT, R35, …` "reads" the R35 an
-        // LDS.128 was still writing) and gave the allocator a false waiter.
-        else if op == "SHFL" && matches!(insn.operands.first(), Some(Operand::Pred { .. })) { 2 }
-        else if insn.opcode_full.contains(".256")
-            && matches!(insn.operands.first(), Some(Operand::Reg { .. }))
-            && matches!(insn.operands.get(1), Some(Operand::Reg { .. })) { 2 }
+        else if shfl_pd_rd
+            || (insn.opcode_full.contains(".256")
+                && matches!(insn.operands.first(), Some(Operand::Reg { .. }))
+                && matches!(insn.operands.get(1), Some(Operand::Reg { .. }))) { 2 }
         else { 1 };
     for (op_idx, operand) in insn.operands.iter().enumerate().skip(start) {
         match operand {

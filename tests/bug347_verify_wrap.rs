@@ -247,6 +247,12 @@ fn t347_4_wrap_war_caught() {
         for x in bad.iter_mut() {
             x.ctrl.stall = 0;
         }
+        // BUG-486 (2026-11-06): a waited WRITE barrier releases the load's address latch too
+        // (the result landed, so the address was consumed) -- in this shape the inner loop waits
+        // the LDG's data before the back-edge, which makes the dropped wrap wait physically
+        // harmless. Take the write barrier off the load so the only release left is the rb wait
+        // this test removes: the wrap re-walk must still catch it.
+        bad[ldg].ctrl.write_bar = 7;
         let rep = verify_scoreboard_report(&bad, Some(&tab));
         assert!(
             rep.war >= 1,

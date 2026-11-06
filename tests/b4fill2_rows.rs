@@ -105,8 +105,12 @@ fn b4fill2_render_only() {
         // (silicon-ILLEGAL per m48 P1-P3); encoder rejects them fail-closed
         // (tests/bug059_imnmx_sm103.rs pins the reject + sm120 control).
         (0x020fec00038002000003ffffdada7817u128, "IMNMX P0, P0, R218, R218, 0x3ffff, PT, P0"), // BUG-241 re-pin: vendor nvdisasm prints bare IMNMX (cell (1,0)), no abs ghost -- see tests/bug059_imnmx_sm103.rs t4 note
-        (0x000fe200080400000000002aff407947u128, "BRA.DIV P0, URZ, 0x2910"),
-        (0x000fe2000c04000000000003ff047947u128, "BRA.CONV !P0, URZ, 0x20"),
+        // 2026-11-06 (T-9, BRA family measured, tools/probes/re_sm120_bra.py): bit 82 is the
+        // bitwise-inverse glyph of the UR operand on the DIV / CONV forms; both words carry it and
+        // nvdisasm 13.1 prints `~URZ` on -b SM120, SM103 and SM100 alike (the rt98 gold text `URZ`
+        // was an era rendering).
+        (0x000fe200080400000000002aff407947u128, "BRA.DIV P0, ~URZ, 0x2910"),
+        (0x000fe2000c04000000000003ff047947u128, "BRA.CONV !P0, ~URZ, 0x20"),
         // NVIDIA nvdisasm13.1.80 raw SM103a and SM120 agree: the encoded
         // payload is a signed byte offset. The old -1/0x11 pins used table
         // fragments rather than the complete split immediate.
