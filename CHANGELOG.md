@@ -4,6 +4,28 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-06 (session B300 s3, C10/C11; for T review) — the scheduling-legality oracle (A4) exists
+
+- **KNOWN_ISSUES A14: fixed, measured (C10)**: silicon re-verification of the native `--driver-abi 12`
+  emitter on rtx (GB202, driver 575.51.02 / CUDA 12.9): the freshly assembled 12-identity cubin
+  loads and executes (bug008_even stores `0x2222222411151113`, the A2 even-pair law, equal to the
+  580-host value); its header is byte-identical to the `cubin12.py` rewrite (`EI_OSABI 0x33` /
+  `EI_ABIVERSION 7` / `e_flags 0x00780578`) and the a12/a13 cubins differ in the three identity
+  fields only; the default-13 cubin still SIGSEGVs `cuModuleLoad` (subprocess, rc -11) while a
+  garbage file returns `CUDA_ERROR_INVALID_IMAGE` 200 cleanly. Artifacts:
+  `pubwave/wave11/b300/c10_a14_silicon/` (B300 host).
+- **KNOWN_ISSUES A4 implemented (C11)**: the static scheduling-legality oracle of
+  `docs/SCHED_LEGALITY_ORACLE.md` as `tools/sched_oracle.py` (corpus driver over
+  `disassemble --frozen` + `CUBIT_VERIFY=1 asm` -- cubit's own scoreboard verifier does all
+  operand extraction) plus the **rb-coverage probe** for the `ebbd1dc` shape the verifier cannot
+  see by construction: a schedule that never SET a store's read barrier is invisible to it, so the
+  probe injects a free barrier index into every bare late-latching mem-op (batched by disjoint
+  register sets; R255/RZ findings are non-events) and re-verifies. `tests/sched_legality_oracle.rs`
+  pins P1 (clean frozen schedule accepted), P2a (wait-stripped variant -> BROKEN WAR),
+  P2b (rb-missing variant -> the probe), the probe's no-false-positive property and two
+  publish-corpus fixtures. `--stats` emits the per-kernel rb/wb/wait/stall accounting (A19 data:
+  where extra read barriers come from), `--resched` oracles cubit's own emitted schedule of the
+  same stream, `--stallfix` reports stall-floor raises (invariant 6, report-only).
 ## Unreleased — 2026-11-06 (session T-8: the LEA family, the allocator's WAW rule, the audit oracle corrected)
 
 - **Tables vendored from blackwell-isa `7094efc`** (sm120 16 054 forms / 26 611 variants, sm103a / sm100a

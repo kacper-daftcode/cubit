@@ -1,0 +1,63 @@
+.entry _Z14kalloc_c1_n128Py
+    .reg R0-R7
+    .regcount 10
+    .param ptr p0 offset=0x0
+    .shared smem[1040]
+    .merc_cgsites 0x40:0xffffffff 0x1f0:0xffffffff
+    [B------:R-:W-:Y:S01] LDC R1, c[0x0][0x37c] ;
+    [B------:R-:W0:Y:S02] S2R R5, SR_TID.X ;
+    [B0-----:R-:W-:-:S13] ISETP.GT.U32.AND P0, PT, R5, 0x1f, PT ;
+    [B------:R-:W-:Y:S05] @P0 BRA L_200 ;
+    [B------:R-:W-:Y:S05] WARPSYNC.ALL ;
+    [B------:R-:W-:-:S13] ELECT P0, URZ, PT ;
+    [B------:R-:W-:Y:S05] @!P0 BRA L_1f0 ;
+    [B------:R-:W0:Y:S01] S2UR UR5, SR_CgaCtaId ;
+    [B------:R-:W-:Y:S01] UMOV UR8, 0x4 ;
+    [B------:R-:W-:Y:S01] UMOV UR4, 0x40 ;
+    [B------:R-:W-:Y:S01] IMAD.MOV.U32 R3, RZ, RZ, 0xf ;
+    [B------:R-:W-:Y:S01] UMOV UR7, 0x400 ;
+    [B------:R-:W-:Y:S01] IMAD.MOV.U32 R7, RZ, RZ, 0x1 ;
+    [B0-----:R-:W-:Y:S01] ULEA UR6, UR5, UR4, 0x18 ;
+    [B------:R-:W-:Y:S04] DEPBAR.LE SB0, 0x36 ;
+    [B------:R-:W0:Y:S01] UTCATOMSWS.FIND_AND_SET.ALIGN UP0, UR4, UR8 ;
+    [B------:R-:W-:Y:S01] ULEA UR7, UR5, UR7, 0x18 ;
+    [B0-----:R-:W-:Y:S01] IMAD.U32 R0, RZ, RZ, UR4 ;
+    [B------:R-:W-:Y:S10] BRA.U UP0, L_190 ;
+L_130:  [B------:R-:W-:Y:S01] UMOV UR4, 0x4 ;
+    [B------:R-:W-:Y:S05] NANOSLEEP 0x64 ;
+    [B------:R-:W-:Y:S04] DEPBAR.LE SB0, 0x36 ;
+    [B------:R-:W0:Y:S02] UTCATOMSWS.FIND_AND_SET.ALIGN UP0, UR4, UR4 ;
+    [B0-----:R-:W-:Y:S01] IMAD.U32 R0, RZ, RZ, UR4 ;
+    [B------:R-:W-:Y:S06] BRA.U !UP0, L_130 ;
+L_190:  [B------:R-:W-:Y:S02] SHF.L.U32 R2, R3, R0.reuse, RZ ;
+    [B------:R-:W-:Y:S01] SHF.L.U32 R3, R7, R0, RZ ;
+    [B------:R-:W-:Y:S02] IMAD.SHL.U32 R0, R0, 0x20, RZ ;
+    [B------:R0:W-:Y:S04] ATOMS.OR RZ, [UR6+0x14], R2 ;
+    [B------:R0:W-:Y:S04] ATOMS.OR RZ, [UR6+0x18], R3 ;
+    [B------:R0:W-:Y:S02] STS [UR7], R0 ;
+L_1f0:  [B------:R-:W-:Y:S05] WARPSYNC.ALL ;
+L_200:  [B------:R-:W-:Y:S05] WARPSYNC.ALL ;
+    [B------:R-:W1:Y:S01] LDCU.64 UR4, c[0x0][0x380] ;
+    [B------:R-:W-:Y:S01] BAR.SYNC.DEFER_BLOCKING 0x0, 0x0 ;
+    [B-1----:R-:W-:-:S04] ISETP.NE.U32.AND P0, PT, RZ, UR4, PT ;
+    [B------:R-:W-:-:S13] ISETP.NE.U32.AND.EX P0, PT, RZ, UR5, PT, P0 ;
+    [B------:R-:W-:Y:S05] @!P0 EXIT ;
+    [B0-----:R-:W0:Y:S01] LDC.64 R2, c[0x0][0x380] ;
+    [B------:R-:W1:Y:S01] LDCU.64 UR4, c[0x0][0x358] ;
+    [B0-----:R-:W-:-:S05] IMAD.WIDE.U32 R2, R5, 0x8, R2 ;
+    [B-1----:R-:W-:Y:S01] STG.E.64 desc[UR4][R2.64], RZ ;
+    [B------:R-:W-:Y:S05] EXIT ;
+L_2b0:  [B------:R-:W-:-:S00] BRA L_2b0 ;
+    [B------:R-:W-:-:S00] NOP ;
+    [B------:R-:W-:-:S00] NOP ;
+    [B------:R-:W-:-:S00] NOP ;
+    [B------:R-:W-:-:S00] NOP ;
+    [B------:R-:W-:-:S00] NOP ;
+    [B------:R-:W-:-:S00] NOP ;
+    [B------:R-:W-:-:S00] NOP ;
+    [B------:R-:W-:-:S00] NOP ;
+    [B------:R-:W-:-:S00] NOP ;
+    [B------:R-:W-:-:S00] NOP ;
+    [B------:R-:W-:-:S00] NOP ;
+    [B------:R-:W-:-:S00] NOP ;
+.endentry

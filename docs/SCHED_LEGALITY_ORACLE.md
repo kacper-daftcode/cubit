@@ -5,8 +5,13 @@ Why: the scheduler's 2-CTA/SM WAR bug (a missing store-address read barrier, fix
 comparing cubit's schedule of a kernel with the schedule nvcc gave the same instruction stream:
 every dependency nvcc protects with a scoreboard or a stall, cubit must protect too. This document
 specifies that check as a static oracle over the frozen census kernels; it is the specification for
-`tests/sched_legality_corpus.rs` (status 2026-11-02: specified, not yet implemented —
-`docs/KNOWN_ISSUES.md` A4).
+`tests/sched_legality_corpus.rs` (status 2026-11-06: **implemented** — as `tools/sched_oracle.py`,
+the corpus driver, plus `tests/sched_legality_oracle.rs`, the 6 in-tree pins of P1/P2a/P2b, the
+probe's no-false-positive property and two publish-corpus fixtures. The core insight beyond this
+spec: the verifier alone is blind to a schedule that never SET the read barrier — the 2026-06
+shape itself — so the tool's rb-coverage probe injects a free barrier index into every bare
+late-latching mem-op, batched by disjoint register sets, and re-verifies; R255/RZ findings are
+non-events. See KNOWN_ISSUES A4).
 
 ## Corpus
 
