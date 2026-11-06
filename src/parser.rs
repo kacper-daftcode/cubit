@@ -177,6 +177,21 @@ fn parse_immediate(s: &str, is_float_context: bool) -> Option<Operand> {
             }
         }
     }
+    // Hex f64 high word: 0x<exactly 8 hex digits>D — the high dword of an f64 immediate, which
+    // is all the instruction word carries (DFMA / DADD / DMUL / DSETP / MUFU.RCP64H: field
+    // `f64hi` at [63:32]). The lossless printer spells a NaN f64 immediate this way because
+    // nvdisasm's `+/-QNAN` glyph has no payload (A8, 2026-11-06); the same 8-digit rule as `F`.
+    if (s.starts_with("0x") || s.starts_with("-0x")) && s.ends_with('D') {
+        let neg = s.starts_with('-');
+        let body = s.trim_start_matches('-').trim_start_matches("0x");
+        let hex_part = &body[..body.len() - 1];
+        if hex_part.len() == 8 && hex_part.bytes().all(|b| b.is_ascii_hexdigit()) {
+            if let Ok(hi) = u32::from_str_radix(hex_part, 16) {
+                let hi = hi ^ if neg { 1 << 31 } else { 0 };
+                return Some(Operand::FloatImm((hi as u64) << 32));
+            }
+        }
+    }
     // Hex integer: 0x..., -0x...
     if s.starts_with("0x") || s.starts_with("0X") || s.starts_with("-0x") || s.starts_with("-0X") {
         let neg = s.starts_with('-');

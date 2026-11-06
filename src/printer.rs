@@ -1662,7 +1662,7 @@ fn format_operand(
                 e.starts_with("imm") && !e.contains("shr")
             }) =>
         {
-            format_imm(fields, mod_group, ins_key)
+            format_imm(fields, mod_group, ins_key, lossless)
         }
         // R with a byte_sel field (R2P/I2F "R0.B1" form): append .B<n> when set.
         "R" => {
@@ -1765,7 +1765,7 @@ fn format_operand(
                 s
             }
         }
-        "II" | "IM" | "LO" => format_imm_or_reg(fields, mod_group, ins_key, tok, raw),
+        "II" | "IM" | "LO" => format_imm_or_reg(fields, mod_group, ins_key, tok, raw, lossless),
         "FI" => format_float_imm(fields, lossless),
         "L" | "SR" => format_lit_or_sysreg(fields, mod_group, raw),
         // BUG-179 (superset of parked-BUG-157): SYNCS- and ATOMS-family ARI
@@ -2445,6 +2445,7 @@ fn format_imm_or_reg(
     ins_key: &str,
     tok: i32,
     raw: u128,
+    lossless: bool,
 ) -> String {
     // If any imm-like extraction is present → format as immediate
     let has_imm = fields.iter().any(|f| {
@@ -2509,7 +2510,7 @@ fn format_imm_or_reg(
                 return format!("0x{lut:x}");
             }
         }
-        return format_imm(fields, mod_group, ins_key);
+        return format_imm(fields, mod_group, ins_key, lossless);
     }
     // Might also be an R slot formatted as II (IMAD.SHL case)
     format_reg(fields, mod_group, tok, raw, ins_key)
@@ -2733,7 +2734,7 @@ fn format_ureg_raw(fields: &[&DecodedField], raw: u128, ins_key: &str) -> String
 
 // ── II / IM / LO — immediate ──────────────────────────────────────────────────
 
-fn format_imm(fields: &[&DecodedField], _mod_group: &str, ins_key: &str) -> String {
+fn format_imm(fields: &[&DecodedField], _mod_group: &str, ins_key: &str, lossless: bool) -> String {
     let mut imm: i64 = 0;
     let mut has_imm = false;
     let mut is_f32 = false;
@@ -2797,9 +2798,20 @@ fn format_imm(fields: &[&DecodedField], _mod_group: &str, ins_key: &str) -> Stri
 
     if is_f64 {
         let bits64 = (f64_hi as u64) << 32;
+        // A8: a NaN high dword keeps its payload in the lossless print (see format_float_imm)
+        if lossless && !neg && f64::from_bits(bits64).is_nan() {
+            return format!("0x{f64_hi:08x}D");
+        }
         return format_double(f64::from_bits(bits64), neg);
     }
     if is_f32 {
+        // A8: the fp16 / bf16 halves and f32 values under an `II`-typed token print the
+        // vendor's payload-less NaN glyph by default; the lossless print keeps the payload
+        // as the f32 hex literal the parser and the half lanes read back bit-exactly
+        // (the half <-> f32 <-> f64 conversions are payload-preserving shifts).
+        if lossless && !neg && f32::from_bits(f32_bits).is_nan() {
+            return format!("0x{f32_bits:08x}F");
+        }
         return format_float(f32::from_bits(f32_bits), neg);
     }
     if has_imm {
@@ -2905,6 +2917,14 @@ fn format_float_imm(fields: &[&DecodedField], lossless: bool) -> String {
     }
 
     if let Some(h) = f64_hi {
+        // A8 (2026-11-06): the f64 immediate is its high dword in the word; nvdisasm's
+        // `+/-QNAN` / `+/-SNAN` carry only the sign and the quiet bit (measured: every payload
+        // of the hi dword prints the same glyph on SM120 / SM103). The lossless print spells a
+        // NaN high dword as `0x<8 hex>D` (`D` = the high word of an f64), which the parser
+        // reads back bit-exactly.
+        if lossless && !neg && f64::from_bits((h as u64) << 32).is_nan() {
+            return format!("0x{h:08x}D");
+        }
         return format_double(f64::from_bits((h as u64) << 32), neg);
     }
     // NVIDIA's QNAN glyph omits the literal's payload. Exact hexadecimal
@@ -2967,7 +2987,7 @@ fn format_lit_or_sysreg(fields: &[&DecodedField], mod_group: &str, raw: u128) ->
             };
         }
     }
-    format_imm(fields, mod_group, "")
+    format_imm(fields, mod_group, "", false)
 }
 
 // ── ARI — address expression [R+off] or [R.64+UR+off] ───────────────────────
