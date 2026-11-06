@@ -337,6 +337,7 @@ Conventions: a `bugNNN_*.rs` file is the executable specification of one numbere
 | `bug479_bar_sync_stall_floor.rs` | 2 | BUG-479 (reported by session V as "BUG-422" on 2026-11-04 — that number was already taken by `bug421422_ldsm_enum_s16.rs`, hence 479 here; sparse-MLA prefill SASS on sm_120): `BAR.SYNC` / `BAR.RED` block *deferred* — the warp keeps issuing for a few cycles … |
 | `bug480_sched_gpr128.rs` | 3 | BUG-480 (session V's "BUG gpr128", 2026-11-04; fixed 2026-11-05): the scheduler keyed registers as `(uniform, u8)` with vector predicates at `128 + n`, so every GPR R128..R254 was taken for a predicate: a load into R128+ got no scoreboard / its consumers … |
 | `bug482_atom_pd_rd_dest.rs` | 7 | BUG-482 (KNOWN_ISSUES A17, found 2026-11-05 by the NEEDS 28 silicon probe; fixed 2026-11-06): the scheduler took operand 0 as the destination of every instruction, so the atomics with a predicate destination first — nvcc's shape `ATOMG.E.ADD.STRONG.GPU PT, … |
+| `bug483_nv_shared_footprint.rs` | 4 | BUG-483 (session K's finding of 2026-11-05, fixed 2026-11-06): the `.nv.shared.<K>` section was sized `.shared smem[N]` + 0x400 for every kernel (b10 F-2, cubit `a0e5438`, 2026-08-24). The +0x400 is ptxas's LAYOUT — user shared data starts at window offset … |
 
 ## Measured SM120 forms (27 files)
 

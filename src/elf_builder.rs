@@ -29,15 +29,23 @@
 //! Fixed:
 //!  11+2N          .nv.shared.reserved.0  (NOBITS, 0x40 minimum)
 //!
-//! b10 F-2 (smem pilot catch): ptxas on sm_103a emits, for any kernel
-//! with static shared memory, `.nv.shared.<K>` sized user_size+0x400
-//! (a fixed 1KB platform-reserved cap, symbol `.nv.reservedSmem.cap`,
-//! WEAK UND value 0x400) and loads user tile at window offset 0x400.
-//! `.nv.reservedSmem.offset0` is ALWAYS 0x40 (not the size); PT_LOAD
-//! RW memsz = max-kernel total + reserved.0 (0x40). Without this the
-//! driver overcommits only user_size bytes and the first STS past it
-//! raises ILLEGAL_ADDRESS (b10 pilot k3 smemrev, 700 before launch
-//! made it visible; vendor n=3 sizes 16/1024/4096 pin the law).
+//! Shared footprint (b10 F-2 → BUG-483): ptxas lays user shared data out
+//! at window offset 0x400 (a 1 KB system head, symbol `.nv.reservedSmem.cap`
+//! WEAK UND value 0x400) and sizes `.nv.shared.<K>` = user + 0x400 (every
+//! one of the 668 nvcc sm_120 census kernels: sh_size >= 0x400, exactly
+//! 0x400 for kernels without statics). The section size is the WHOLE
+//! per-CTA static allocation — the driver adds nothing (session K,
+//! 2026-11-05: 4 CTAs x 8 192 B fit the 32 KB carveout step, 4 x 9 216 do
+//! not, 1.4-2.0x on the L1-bound MoE kernels). So `.shared smem[N]` is
+//! emitted verbatim as sh_size: the PTX path declares its 0x400-based
+//! footprint (ptx_parse `shared_footprint`), hand-written SASS declares
+//! what it addresses from 0 (the shipped 2026-06 production cubins). From
+//! a0e5438 (2026-08-24) to 2026-11-06 the +0x400 was added HERE for every
+//! kernel — right for the b10 PTX kernels (whose STS past `user` faulted
+//! with ILLEGAL_ADDRESS when the section was `user` alone), 1 KB/CTA of
+//! unused allocation for every hand-written one. `.nv.reservedSmem.offset0`
+//! is ALWAYS 0x40 (not the size); PT_LOAD RW memsz = max-kernel footprint +
+//! reserved.0 (0x40).
 //!  12+2N+ki       .nv.shared.K\[i\]        (NOBITS, per-kernel shared_size)
 //!
 //! Per-kernel (N×):
@@ -4333,8 +4341,10 @@ impl CubinBuilder {
                         if sec_idx_in_file == shared_k(ki) {
                             {
                                 let usz = kernels[ki].meta.shared_size as u64;
-                                // b10 F-2: +0x400 reserved cap when smem used
-                                found_sz = if usz > 0 { usz + 0x400 } else { 0x40 };
+                                // BUG-483: the declared footprint verbatim (the b10 F-2
+                                // `+0x400` lived here from a0e5438 to 2026-11-06; the head is
+                                // the PTX path's layout and is declared there now)
+                                found_sz = if usz > 0 { usz } else { 0x40 };
                             }
                             break;
                         }
@@ -4427,8 +4437,9 @@ impl CubinBuilder {
                 PF_R | PF_W,
                 shared_off,
                 0,
-                // b10 F-2: vendor footprint = user_max>0 ? user+cap+r0 : r0(0x40)
-                if max_shared > 0x40 { max_shared + 0x400 + 0x40 } else { 0x40 },
+                // vendor footprint = smem_max>0 ? smem_max + r0 : r0(0x40) (BUG-483: the
+                // declared footprint already covers ptxas's 0x400 head where there is one)
+                if max_shared > 0x40 { max_shared + 0x40 } else { 0x40 },
                 8,
             );
             phi += 1;
@@ -5089,7 +5100,10 @@ impl CubinBuilder {
         // mk28: kolejnosc nvcc — per-kernel .nv.shared.K PRZED reserved.0.
         for ki in 0..n {
             let sh_size = kernels[ki].meta.shared_size as u64;
-            // b10 F-2: +0x400 platform-reserved cap (vendor law)
+            // BUG-483: the declared footprint verbatim (`.shared smem[N]` == sh_size; the PTX
+            // path declares ptxas's 0x400 head itself, hand-written SASS declares what it
+            // addresses from 0 — the former unconditional `+0x400` cost every hand-written
+            // kernel 1 KB per CTA)
             if sh_size > 0 {
                 secs.push((
                     shn_shared_k[ki],
@@ -5100,7 +5114,7 @@ impl CubinBuilder {
                     0,
                     text_k(ki) as u32,
                     0,
-                    Some(sh_size + 0x400),
+                    Some(sh_size),
                 ));
             } else {
                 // Even if shared_size is 0, we still need the section for index consistency
@@ -5389,8 +5403,9 @@ impl CubinBuilder {
         let text_start = sec_off[text_k(0)];
         let text_end = text_start + (0..n).map(|ki| sec_size[text_k(ki)]).sum::<u64>();
 
-        // b10 F-2: vendor footprint (smem: user+0x400+0x40; else 0x40)
-        let shared_memsz: u64 = if max_shared > 0x40 { max_shared + 0x400 + 0x40 } else { 0x40 };
+        // vendor footprint (smem: footprint + 0x40; else 0x40) — BUG-483: the declared
+        // footprint already covers ptxas's 0x400 head where the layout has one
+        let shared_memsz: u64 = if max_shared > 0x40 { max_shared + 0x40 } else { 0x40 };
         let shared_filesz: u64 = 0;
 
         let const_start = sec_off[const0_k(0)];
@@ -6178,7 +6193,7 @@ impl CubinBuilder {
         // nvcc law (13.3 + 12.8): section exists ONLY for static-smem kernels.
         for &ki in &smem_ki {
             let sh_size = kernels[ki].meta.shared_size as u64;
-            // b10 F-2: +0x400 platform-reserved cap (vendor law)
+            // BUG-483: the declared footprint verbatim (see the legacy builder above)
             secs.push((
                 shn_shared_k[ki],
                 SHT_NOBITS,
@@ -6188,7 +6203,7 @@ impl CubinBuilder {
                 0,
                 text_k(ki) as u32,
                 0,
-                Some(sh_size + 0x400),
+                Some(sh_size),
             ));
         }
 
@@ -6451,8 +6466,9 @@ impl CubinBuilder {
         let text_start = sec_off[text_k(0)];
         let text_end = text_start + (0..n).map(|ki| sec_size[text_k(ki)]).sum::<u64>();
 
-        // b10 F-2: vendor footprint (smem: user+0x400+0x40; else 0x40)
-        let shared_memsz: u64 = if max_shared > 0x40 { max_shared + 0x400 + 0x40 } else { 0x40 };
+        // vendor footprint (smem: footprint + 0x40; else 0x40) — BUG-483: the declared
+        // footprint already covers ptxas's 0x400 head where the layout has one
+        let shared_memsz: u64 = if max_shared > 0x40 { max_shared + 0x40 } else { 0x40 };
         let shared_filesz: u64 = 0;
 
         let const_start = sec_off[const0_k(0)];

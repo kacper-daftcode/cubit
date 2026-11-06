@@ -269,8 +269,9 @@ fn m13_merc_symtab_law() {
     assert_eq!(ms[10].size, (cap_len + 0xf) & !0xf, "phase-1 st_size law");
     assert_eq!(ms[10].info, 0x12, "GLOBAL FUNC");
     assert_eq!(ms[10].other, 0x10, "hidden");
-    // .nv.shared.k sized user+0x400 (F-2), reserved.0 present
-    assert_eq!(ss.iter().find(|s| s.name == ".nv.shared.k").unwrap().size, 1024 + 0x400);
+    // .nv.shared.k sized as declared (BUG-483: `.shared smem[1024]` is the footprint; the
+    // F-2 `+0x400` was the PTX layout's head, declared there since 2026-11-06), reserved.0 present
+    assert_eq!(ss.iter().find(|s| s.name == ".nv.shared.k").unwrap().size, 1024);
 }
 
 /// Mercury info record law (both global- and per-kernel-side).

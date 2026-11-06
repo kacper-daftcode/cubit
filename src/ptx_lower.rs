@@ -590,7 +590,17 @@ pub struct LoweredKernel {
     pub instructions: Vec<Instruction>,
     pub max_regs: u8,
     pub params: Vec<crate::ptx_parse::PtxParam>,
+    /// The user's static `.shared` bytes (see `shared_footprint` for what is declared).
     pub shared_bytes: usize,
+    /// BUG-483: the static shared footprint of the ptxas-style layout (0x400 head +
+    /// aligned statics; 0x400 alone for extern-only kernels) — the `.shared smem[N]`
+    /// of the emitted text and so the `.nv.shared.<K>` size. Before 2026-11-06 the
+    /// text declared `shared_bytes` and the ELF builder added the head to EVERY kernel,
+    /// hand-written SASS included (b10 F-2, `a0e5438`): the b10 kernels got the right
+    /// section by accident of layer, and every hand-written kernel (which addresses the
+    /// window from 0) paid 1 KB per CTA — at 4 CTAs/SM the 32 KB carveout step
+    /// (session K, 2026-11-05: MC4/AFRAG MoE kernels 1.4–2.0x slower than shipped).
+    pub shared_footprint: usize,
     /// BUG-118 gate waivers declared by emitters: (reg, PRMT-selector)
     /// dead-byte self-reads that are legal on first touch (see RegAlloc).
     pub dead_read_ok: std::collections::BTreeSet<(u8, i64)>,
@@ -608,8 +618,10 @@ impl LoweredKernel {
             // Using u64 for all params ensures Size=8 matches CBANK_PARAM_SIZE.
             lines.push(format!("    .param u64 {}", p.name));
         }
-        if self.shared_bytes > 0 {
-            lines.push(format!("    .shared .align 16 smem[{}]", self.shared_bytes));
+        // BUG-483: declare the footprint the layout addresses (0x400 head + statics), not
+        // the user bytes — `.shared smem[N]` IS the `.nv.shared.<K>` section size.
+        if self.shared_footprint > 0 {
+            lines.push(format!("    .shared .align 16 smem[{}]", self.shared_footprint));
         }
         lines.push(String::new());
 
@@ -1829,6 +1841,7 @@ pub fn lower_kernel(kernel: &PtxKernel) -> Result<LoweredKernel> {
         max_regs: alloc.max_gpr(),
         params: kernel.params.clone(),
         shared_bytes: kernel.shared_bytes,
+        shared_footprint: kernel.shared_footprint,
         dead_read_ok: alloc.dead_read_ok.clone(),
     };
     // BUG-118: fail-closed use-before-def gate on the artifact exactly as

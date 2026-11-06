@@ -10,6 +10,13 @@
 //!        symbols .nv.reservedSmem.offset0=0x40 / .cap=0x400. Our cubins
 //!        claimed only user bytes -> first STS past driver accounting
 //!        raised ILLEGAL_ADDRESS (700). Vendor n=3 (16/1024/4096 B).
+//!        BUG-483 (2026-11-06): the +0x400 is ptxas's LAYOUT (user data at
+//!        window offset 0x400), not a driver add-on — the section size is the
+//!        whole per-CTA allocation. The PTX path now declares its 0x400-based
+//!        footprint in `.shared smem[N]` (tests/bug483_nv_shared_footprint.rs)
+//!        and the ELF builder emits `.shared smem[N]` verbatim: the SASS-path
+//!        pins below read N, not N+0x400 (hand-written kernels address the
+//!        window from 0 and were paying 1 KB per CTA for nothing).
 //!   F-3  shfl dst token `reg|pred` was collapsed into ONE pseudo-register
 //!        operand ("r7|p2"); SHFL wrote a fresh allocation while readers
 //!        of the plain name saw a different never-written register --
@@ -232,12 +239,15 @@ fn b10_f2_smem_reserved_cap_law() {
     let data = std::fs::read(&cubin).unwrap();
     let secs = elf_sections(&data);
     let shared = secs.iter().find(|(n, _)| n == ".nv.shared.k").unwrap();
-    assert_eq!(shared.1, 1024 + 0x400, "user+cap: {:?}", secs);
+    // BUG-483: `.shared smem[1024]` declares the footprint — the section is 1024 bytes
+    // (it was 1024 + 0x400 from a0e5438 to 2026-11-06; the head belongs to the PTX
+    // path's layout, see tests/bug483_nv_shared_footprint.rs).
+    assert_eq!(shared.1, 1024, "declared footprint: {:?}", secs);
     let reserved = secs.iter().find(|(n, _)| n == ".nv.shared.reserved.0").unwrap();
     assert_eq!(reserved.1, 0x40);
     assert_eq!(sym_value(&data, ".nv.reservedSmem.offset0"), Some(0x40));
     assert_eq!(sym_value(&data, ".nv.reservedSmem.cap"), Some(0x400));
-    assert_eq!(pt_load_rw_memsz(&data), Some(1024 + 0x400 + 0x40));
+    assert_eq!(pt_load_rw_memsz(&data), Some(1024 + 0x40));
 }
 
 #[test]

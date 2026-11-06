@@ -28,7 +28,16 @@ pub struct PtxKernel {
     /// type is "b32", "b64", "f32", "pred", etc.
     pub reg_decls: HashMap<String, String>,
     pub body: Vec<PtxStmt>,
+    /// Bytes of the (last) static `.shared` declaration — the user's own size.
     pub shared_bytes: usize,
+    /// BUG-483: the static shared footprint of the ptxas-style layout below — the end
+    /// of the last static symbol (0x400 head + aligned statics), or 0x400 when only
+    /// `.extern .shared` is declared, or 0 without any shared declaration. This is the
+    /// `.shared smem[N]` the lowered text declares and therefore the `.nv.shared.<K>`
+    /// section size: the ELF builder emits the declared footprint verbatim (nvcc's
+    /// law `sh_size = user + 0x400` is this layout's consequence, not a driver add-on;
+    /// hand-written SASS addresses the window from 0 and declares what it uses).
+    pub shared_footprint: usize,
     /// b9 phase-3 #4: static+extern shared symbol -> window offset, laid out
     /// ptxas-style: base 0x400 (1KB reserved head, anchors shsym/at7), decl
     /// order, each aligned up to its .align; .extern (dynamic) syms come
@@ -550,6 +559,11 @@ pub fn parse_ptx(text: &str) -> Result<Vec<PtxKernel>> {
             // b9 phase-3 #4: shared window layout (ptxas 13.3 sm_103a anchors
             // shsym/at7: statics first in decl order, align-up; then externs).
             let mut shared_syms = HashMap::new();
+            // BUG-483: the static footprint of this layout — the end of the last static
+            // symbol (or the 0x400 head alone when only `.extern .shared` is declared) —
+            // is what the `.nv.shared.<K>` section must cover; the ELF builder no longer
+            // adds the head itself (hand-written SASS addresses the window from 0).
+            let mut shared_footprint: usize = 0;
             {
                 let mut cur: i64 = 0x400;
                 let mut n_ext = 0usize;
@@ -559,6 +573,9 @@ pub fn parse_ptx(text: &str) -> Result<Vec<PtxKernel>> {
                     shared_syms.insert(nm.clone(), cur);
                     cur += *sz as i64;
                 }
+                if !shared_decls.is_empty() {
+                    shared_footprint = cur as usize;
+                }
                 for (nm, _sz, al, ext) in &shared_decls {
                     if !*ext { continue; }
                     cur = (cur + (*al as i64) - 1) & !((*al as i64) - 1);
@@ -566,7 +583,7 @@ pub fn parse_ptx(text: &str) -> Result<Vec<PtxKernel>> {
                 }
                 let _ = n_ext;
             }
-            kernels.push(PtxKernel { name, params, reg_decls, body, shared_bytes, shared_syms, explicit_cluster });
+            kernels.push(PtxKernel { name, params, reg_decls, body, shared_bytes, shared_footprint, shared_syms, explicit_cluster });
         } else {
             i += 1;
         }

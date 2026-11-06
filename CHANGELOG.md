@@ -24,6 +24,27 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   (7 pins; 6 fail on the previous scheduler). Exposure: the 97 production SASS sources that assemble carry
   no atomics and re-assemble byte-identical in `.text`; frozen (`[CC]`-prefixed) kernels keep their control
   codes.
+- **BUG-483 — `.nv.shared.<K>` is the declared footprint, not footprint + 0x400** (session K's finding of
+  2026-11-05, `K/REPORT.md` §1.2). Since `a0e5438` (2026-08-24, b10 F-2) the ELF builder sized every
+  kernel's shared section `.shared smem[N]` + 0x400, reading ptxas's output as a driver law. It is ptxas's
+  LAYOUT: user shared data starts at window offset 0x400 behind a 1 KB system head, so `sh_size = user +
+  0x400` follows (all 668 nvcc sm_120 census kernels have `sh_size >= 0x400`, exactly 0x400 without
+  statics). The section size is the whole per-CTA static allocation — the driver adds nothing on top (K,
+  test host GPU 0: 4 CTAs × 8 192 B fit the 32 KB carveout step, 4 × 9 216 B need the next one → smaller L1
+  → the re-assembled L1-bound MC4/AFRAG MoE prefill kernels ran 1.4–2.0× slower than the shipped 2026-06
+  cubins, `mc4_k4096_a32` 337 → 670 µs; with the section patched back to 8 192 the shipped time returns,
+  `K/k1/smem_probe2.py`). The b10 PTX kernels had faulted in 2026-08 because the PTX path lays their data
+  out at 0x400+ (`ptx_parse` shared layout) but declared only the user bytes — the fix landed one layer too
+  low and every hand-written kernel, which addresses the window from 0, paid 1 KB per CTA. Now `.shared
+  smem[N]` is the section size verbatim (as `disassemble --frozen` already reads it and `asm -T` already
+  reproduces it), PT_LOAD RW memsz = footprint + 0x40, and the PTX path declares its 0x400-based footprint
+  (`PtxKernel::shared_footprint` = head + aligned statics; the head alone for extern-only kernels, which
+  previously declared nothing although their lowered addresses start at 0x400) — the b10 cubins are
+  byte-identical to before. The 97 production sources re-assemble with `.nv.shared` = the shipped cubins'
+  (8 192 / 7 168 / 4 096 / 3 072 / 1 024 / 32 768 / 40 960 / 45 376), `.text` unchanged.
+  `tests/bug483_nv_shared_footprint.rs`; `b10_harness_fixes` F-2 and `merc_companions` re-pinned to the
+  declared size.
+
 ## Unreleased — 2026-11-05 (session T-6: BUG-041 doctrine lifted by the owner)
 
 - **`ATOMG.E.<op>.EL.STRONG.GPU Pd, Rd, desc[URm][Rn.64], Rb` assembles** — the `.EL` descriptor-pair form
