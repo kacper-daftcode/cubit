@@ -188,7 +188,7 @@ fn register_growth_updates_only_the_symbol_matched_allocation() {
     payload.extend_from_slice(&allocations["target"].0.to_le_bytes());
     payload.extend_from_slice(&7u32.to_le_bytes());
     payload.resize(20, 0);
-    info_records.records.push(cubit::eiattr::EiRecord { attr: 0x70, fmt: cubit::eiattr::EiFmt::Sized, data: payload });
+    info_records.records.push(cubit::eiattr::EiRecord { attr: 0x70, fmt: cubit::eiattr::EiFmt::SVal, data: payload });
     let info = info_records.to_bytes();
     assert_eq!(info.len(), original_info.len());
     cubin.patch_section(cubin.find_section(".nv.info").unwrap(), &info).unwrap();

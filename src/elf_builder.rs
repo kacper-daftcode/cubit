@@ -4013,21 +4013,21 @@ impl CubinBuilder {
                 d.extend_from_slice(&k.meta.regcount.to_le_bytes());
                 records.push(EiRecord {
                     attr: 0x002f,
-                    fmt: EiFmt::Sized,
+                    fmt: EiFmt::SVal,
                     data: d,
                 });
                 let mut d = sym.to_le_bytes().to_vec();
                 d.extend_from_slice(&k.meta.frame_size.to_le_bytes());
                 records.push(EiRecord {
                     attr: 0x0011,
-                    fmt: EiFmt::Sized,
+                    fmt: EiFmt::SVal,
                     data: d,
                 });
                 let mut d = sym.to_le_bytes().to_vec();
                 d.extend_from_slice(&k.meta.min_stack_size.to_le_bytes());
                 records.push(EiRecord {
                     attr: 0x0012,
-                    fmt: EiFmt::Sized,
+                    fmt: EiFmt::SVal,
                     data: d,
                 });
             }
@@ -4849,7 +4849,7 @@ impl CubinBuilder {
                 d.extend_from_slice(&k.meta.regcount.to_le_bytes());
                 records.push(EiRecord {
                     attr: 0x002f,
-                    fmt: EiFmt::Sized,
+                    fmt: EiFmt::SVal,
                     data: d,
                 });
 
@@ -4857,7 +4857,7 @@ impl CubinBuilder {
                 d.extend_from_slice(&k.meta.frame_size.to_le_bytes());
                 records.push(EiRecord {
                     attr: 0x0011,
-                    fmt: EiFmt::Sized,
+                    fmt: EiFmt::SVal,
                     data: d,
                 });
 
@@ -4865,7 +4865,7 @@ impl CubinBuilder {
                 d.extend_from_slice(&k.meta.min_stack_size.to_le_bytes());
                 records.push(EiRecord {
                     attr: 0x0012,
-                    fmt: EiFmt::Sized,
+                    fmt: EiFmt::SVal,
                     data: d,
                 });
             }
@@ -4907,7 +4907,7 @@ impl CubinBuilder {
                 d.extend_from_slice(&k.meta.regcount.to_le_bytes());
                 records.push(EiRecord {
                     attr: 0x002f,
-                    fmt: EiFmt::Sized,
+                    fmt: EiFmt::SVal,
                     data: d,
                 });
 
@@ -4915,7 +4915,7 @@ impl CubinBuilder {
                 d.extend_from_slice(&k.meta.frame_size.to_le_bytes());
                 records.push(EiRecord {
                     attr: 0x0011,
-                    fmt: EiFmt::Sized,
+                    fmt: EiFmt::SVal,
                     data: d,
                 });
 
@@ -4923,7 +4923,7 @@ impl CubinBuilder {
                 d.extend_from_slice(&k.meta.min_stack_size.to_le_bytes());
                 records.push(EiRecord {
                     attr: 0x0012,
-                    fmt: EiFmt::Sized,
+                    fmt: EiFmt::SVal,
                     data: d,
                 });
             }
@@ -5906,7 +5906,7 @@ impl CubinBuilder {
                 d.extend_from_slice(&k.meta.regcount.to_le_bytes());
                 records.push(EiRecord {
                     attr: 0x002f,
-                    fmt: EiFmt::Sized,
+                    fmt: EiFmt::SVal,
                     data: d,
                 });
 
@@ -5914,7 +5914,7 @@ impl CubinBuilder {
                 d.extend_from_slice(&k.meta.frame_size.to_le_bytes());
                 records.push(EiRecord {
                     attr: 0x0011,
-                    fmt: EiFmt::Sized,
+                    fmt: EiFmt::SVal,
                     data: d,
                 });
             }
@@ -5925,7 +5925,7 @@ impl CubinBuilder {
                 d.extend_from_slice(&k.meta.min_stack_size.to_le_bytes());
                 records.push(EiRecord {
                     attr: 0x0012,
-                    fmt: EiFmt::Sized,
+                    fmt: EiFmt::SVal,
                     data: d,
                 });
             }
@@ -5967,16 +5967,16 @@ impl CubinBuilder {
                 let sym = merc_func_sym_idx(ki) as u32;
                 let mut d = sym.to_le_bytes().to_vec();
                 d.extend_from_slice(&k.meta.regcount.min(16).to_le_bytes());
-                records.push(EiRecord { attr: 0x002f, fmt: EiFmt::Sized, data: d });
+                records.push(EiRecord { attr: 0x002f, fmt: EiFmt::SVal, data: d });
                 let mut d = sym.to_le_bytes().to_vec();
                 d.extend_from_slice(&0u32.to_le_bytes());
-                records.push(EiRecord { attr: 0x0011, fmt: EiFmt::Sized, data: d });
+                records.push(EiRecord { attr: 0x0011, fmt: EiFmt::SVal, data: d });
             }
             for ki in 0..n {
                 let sym = merc_func_sym_idx(ki) as u32;
                 let mut d = sym.to_le_bytes().to_vec();
                 d.extend_from_slice(&0u32.to_le_bytes());
-                records.push(EiRecord { attr: 0x0012, fmt: EiFmt::Sized, data: d });
+                records.push(EiRecord { attr: 0x0012, fmt: EiFmt::SVal, data: d });
             }
             NvInfoSection {
                 name: ".nv.merc.nv.info".into(),
@@ -6544,16 +6544,16 @@ fn build_merc_nv_info_k_legacy(meta: &KernelMeta, _merc_func_sym: u32) -> Vec<u8
     } else {
         0x83
     };
-    records.push(EiRecord { attr: 0x0037, fmt: EiFmt::Sized, data: api_ver.to_le_bytes().to_vec() });
-    records.push(EiRecord { attr: 0x005a, fmt: EiFmt::Sized, data: MERC_HASH.to_vec() });
+    records.push(EiRecord { attr: 0x0037, fmt: EiFmt::SVal, data: api_ver.to_le_bytes().to_vec() });
+    records.push(EiRecord { attr: 0x005a, fmt: EiFmt::SVal, data: MERC_HASH.to_vec() });
     let mut d = vec![0u8; 12];
     d[9] = 0xf0;
     d[10] = 0x21;
-    records.push(EiRecord { attr: 0x000a, fmt: EiFmt::Sized, data: d });
-    records.push(EiRecord { attr: 0x0050, fmt: EiFmt::Byte, data: vec![0] });
-    records.push(EiRecord { attr: 0x001b, fmt: EiFmt::Byte, data: vec![0xff] });
-    records.push(EiRecord { attr: 0x004a, fmt: EiFmt::Half, data: vec![0, 0] });
-    records.push(EiRecord { attr: 0x001c, fmt: EiFmt::Sized, data: 0xa0u32.to_le_bytes().to_vec() });
+    records.push(EiRecord { attr: 0x000a, fmt: EiFmt::SVal, data: d });
+    records.push(EiRecord { attr: 0x0050, fmt: EiFmt::HVal, data: vec![0] });
+    records.push(EiRecord { attr: 0x001b, fmt: EiFmt::HVal, data: vec![0xff] });
+    records.push(EiRecord { attr: 0x004a, fmt: EiFmt::BVal, data: vec![0, 0] });
+    records.push(EiRecord { attr: 0x001c, fmt: EiFmt::SVal, data: 0xa0u32.to_le_bytes().to_vec() });
     NvInfoSection { name: "".into(), records }.to_bytes()
 }
 
@@ -6589,7 +6589,7 @@ fn build_merc_nv_info_13(meta: &KernelMeta, merc_sz: u64, sass_exits: &[u32]) ->
 
     records.push(EiRecord {
         attr: 0x0066,
-        fmt: EiFmt::Sized,
+        fmt: EiFmt::SVal,
         data: 3u32.to_le_bytes().to_vec(),
     });
     let api_ver = match meta.cuda_api_version {
@@ -6598,43 +6598,43 @@ fn build_merc_nv_info_13(meta: &KernelMeta, merc_sz: u64, sass_exits: &[u32]) ->
     };
     records.push(EiRecord {
         attr: 0x0037,
-        fmt: EiFmt::Sized,
+        fmt: EiFmt::SVal,
         data: api_ver.to_le_bytes().to_vec(),
     });
     // Mercury content hash — constant across kernels (nvcc 13.3).
     records.push(EiRecord {
         attr: 0x005a,
-        fmt: EiFmt::Sized,
+        fmt: EiFmt::SVal,
         data: MERC_HASH.to_vec(),
     });
     // KPARAM_INFO (0x17), reverse ordinal (same record as the main side).
     for param in meta.params.iter().rev() {
         records.push(EiRecord {
             attr: 0x0017,
-            fmt: EiFmt::Sized,
+            fmt: EiFmt::SVal,
             data: kparam_info_record(param),
         });
     }
     records.push(EiRecord {
         attr: 0x0050,
-        fmt: EiFmt::Byte,
+        fmt: EiFmt::HVal,
         data: vec![0],
     });
     records.push(EiRecord {
         attr: 0x001b,
-        fmt: EiFmt::Byte,
+        fmt: EiFmt::HVal,
         data: vec![0xff],
     });
     if meta.num_barriers > 0 {
         records.push(EiRecord {
             attr: 0x004c,
-            fmt: EiFmt::Half,
+            fmt: EiFmt::BVal,
             data: vec![meta.num_barriers, 0],
         });
     }
     records.push(EiRecord {
         attr: 0x005f,
-        fmt: EiFmt::Byte,
+        fmt: EiFmt::HVal,
         data: vec![1, 1],
     });
     if !meta.merc_wwide_sites.is_empty() {
@@ -6644,7 +6644,7 @@ fn build_merc_nv_info_13(meta: &KernelMeta, merc_sz: u64, sass_exits: &[u32]) ->
         }
         records.push(EiRecord {
             attr: 0x0031,
-            fmt: EiFmt::Sized,
+            fmt: EiFmt::SVal,
             data: d,
         });
     }
@@ -6657,7 +6657,7 @@ fn build_merc_nv_info_13(meta: &KernelMeta, merc_sz: u64, sass_exits: &[u32]) ->
         }
         records.push(EiRecord {
             attr: 0x0029,
-            fmt: EiFmt::Sized,
+            fmt: EiFmt::SVal,
             data: m29,
         });
         let mut s28 = Vec::with_capacity(4 * n);
@@ -6666,13 +6666,13 @@ fn build_merc_nv_info_13(meta: &KernelMeta, merc_sz: u64, sass_exits: &[u32]) ->
         }
         records.push(EiRecord {
             attr: 0x0028,
-            fmt: EiFmt::Sized,
+            fmt: EiFmt::SVal,
             data: s28,
         });
     }
     records.push(EiRecord {
         attr: 0x004a,
-        fmt: EiFmt::Half,
+        fmt: EiFmt::BVal,
         data: vec![0, 0],
     });
     // EXIT_INSTR_OFFSETS in Mercury space (phase-1 divisor law).
@@ -6682,7 +6682,7 @@ fn build_merc_nv_info_13(meta: &KernelMeta, merc_sz: u64, sass_exits: &[u32]) ->
     }
     records.push(EiRecord {
         attr: 0x001c,
-        fmt: EiFmt::Sized,
+        fmt: EiFmt::SVal,
         data: d,
     });
 
@@ -6739,7 +6739,7 @@ impl KernelMeta {
         // 1. EIATTR_LANGUAGE = PTX (0x66, SVAL u32=3)
         records.push(EiRecord {
             attr: 0x0066,
-            fmt: EiFmt::Sized,
+            fmt: EiFmt::SVal,
             data: 3u32.to_le_bytes().to_vec(),
         });
 
@@ -6753,7 +6753,7 @@ impl KernelMeta {
         let api_ver = if api_ver == 0x83 { 0x85 } else { api_ver };
         records.push(EiRecord {
             attr: 0x0037,
-            fmt: EiFmt::Sized,
+            fmt: EiFmt::SVal,
             data: api_ver.to_le_bytes().to_vec(),
         });
 
@@ -6763,7 +6763,7 @@ impl KernelMeta {
         for param in self.params.iter().rev() {
             records.push(EiRecord {
                 attr: 0x0017,
-                fmt: EiFmt::Sized,
+                fmt: EiFmt::SVal,
                 data: kparam_info_record(param),
             });
         }
@@ -6773,12 +6773,12 @@ impl KernelMeta {
         if has_utca {
             records.push(EiRecord {
                 attr: 0x004f,
-                fmt: EiFmt::Sized,
+                fmt: EiFmt::SVal,
                 data: 6u32.to_le_bytes().to_vec(),
             });
             records.push(EiRecord {
                 attr: 0x0041,
-                fmt: EiFmt::BValAlt,
+                fmt: EiFmt::NVal,
                 data: vec![],
             });
         }
@@ -6786,7 +6786,7 @@ impl KernelMeta {
         // 5. SPARSE_MMA_MASK (attr 0x50, BVAL 0) — always
         records.push(EiRecord {
             attr: 0x0050,
-            fmt: EiFmt::Byte,
+            fmt: EiFmt::HVal,
             data: vec![0],
         });
 
@@ -6794,7 +6794,7 @@ impl KernelMeta {
         if has_utca {
             records.push(EiRecord {
                 attr: 0x0051,
-                fmt: EiFmt::BValAlt,
+                fmt: EiFmt::NVal,
                 data: vec![],
             });
         }
@@ -6802,7 +6802,7 @@ impl KernelMeta {
         // 7. MAXREG_COUNT (attr 0x1b = 0xff) — always
         records.push(EiRecord {
             attr: 0x001b,
-            fmt: EiFmt::Byte,
+            fmt: EiFmt::HVal,
             data: vec![0xff],
         });
 
@@ -6812,7 +6812,7 @@ impl KernelMeta {
         if self.num_barriers > 0 {
             records.push(EiRecord {
                 attr: 0x004c,
-                fmt: EiFmt::Half,
+                fmt: EiFmt::BVal,
                 data: vec![self.num_barriers, 0],
             });
         }
@@ -6820,7 +6820,7 @@ impl KernelMeta {
         // 9. MERCURY_ISA_VERSION 1.1 (attr 0x5f) — always
         records.push(EiRecord {
             attr: 0x005f,
-            fmt: EiFmt::Byte,
+            fmt: EiFmt::HVal,
             data: vec![1, 1],
         });
 
@@ -6834,7 +6834,7 @@ impl KernelMeta {
             }
             records.push(EiRecord {
                 attr: 0x0031,
-                fmt: EiFmt::Sized,
+                fmt: EiFmt::SVal,
                 data: d,
             });
         }
@@ -6851,7 +6851,7 @@ impl KernelMeta {
             }
             records.push(EiRecord {
                 attr: 0x0029,
-                fmt: EiFmt::Sized,
+                fmt: EiFmt::SVal,
                 data: m29,
             });
             let mut s28 = Vec::with_capacity(4 * n);
@@ -6860,7 +6860,7 @@ impl KernelMeta {
             }
             records.push(EiRecord {
                 attr: 0x0028,
-                fmt: EiFmt::Sized,
+                fmt: EiFmt::SVal,
                 data: s28,
             });
         }
@@ -6868,7 +6868,7 @@ impl KernelMeta {
         // 13. VRC_CTA_INIT_COUNT (attr 0x4a, HVAL = 0x80 for tmem, else 0)
         records.push(EiRecord {
             attr: 0x004a,
-            fmt: EiFmt::Half,
+            fmt: EiFmt::BVal,
             data: if has_utca { vec![0x80, 0] } else { vec![0, 0] },
         });
 
@@ -6876,7 +6876,7 @@ impl KernelMeta {
         if self.exit_offsets.is_empty() {
             records.push(EiRecord {
                 attr: 0x001c,
-                fmt: EiFmt::Sized,
+                fmt: EiFmt::SVal,
                 data: 0u32.to_le_bytes().to_vec(),
             });
         } else {
@@ -6886,7 +6886,7 @@ impl KernelMeta {
             }
             records.push(EiRecord {
                 attr: 0x001c,
-                fmt: EiFmt::Sized,
+                fmt: EiFmt::SVal,
                 data,
             });
         }
@@ -6902,7 +6902,7 @@ impl KernelMeta {
         if has_1e {
             records.push(EiRecord {
                 attr: 0x001e,
-                fmt: EiFmt::Sized,
+                fmt: EiFmt::SVal,
                 data: 0u32.to_le_bytes().to_vec(),
             });
         }
@@ -6913,7 +6913,7 @@ impl KernelMeta {
         if !self.params.is_empty() {
             records.push(EiRecord {
                 attr: 0x0019,
-                fmt: EiFmt::Byte,
+                fmt: EiFmt::HVal,
                 // 16-bit HVAL: the DeepGEMM MQA kernels carry 0x300 bytes of
                 // parameters (five CUtensorMaps by value), beyond one byte.
                 data: self.cbank_param_size.to_le_bytes().to_vec(),
@@ -6925,7 +6925,7 @@ impl KernelMeta {
             kparam_data.extend_from_slice(&kparam_w1.to_le_bytes());
             records.push(EiRecord {
                 attr: 0x000a,
-                fmt: EiFmt::Sized,
+                fmt: EiFmt::SVal,
                 data: kparam_data,
             });
         }
@@ -6934,14 +6934,14 @@ impl KernelMeta {
         //     214/214 val=8; cubit dawniej emitowal 0)
         records.push(EiRecord {
             attr: 0x0036,
-            fmt: EiFmt::Sized,
+            fmt: EiFmt::SVal,
             data: 8u32.to_le_bytes().to_vec(),
         });
 
         // 19. NVSAL_SW_WAR (attr 0x6b = 1) — era sm_103a
         records.push(EiRecord {
             attr: 0x006b,
-            fmt: EiFmt::Byte,
+            fmt: EiFmt::HVal,
             data: vec![1],
         });
 
