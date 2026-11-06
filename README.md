@@ -222,7 +222,7 @@ See [docs/PYTHON_API_ARCH_SELECT.md](docs/PYTHON_API_ARCH_SELECT.md).
 
 - [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) — everything known to be imperfect, with status and what it needs
 - [CHANGELOG.md](CHANGELOG.md) — user-visible changes and the table revisions they vendor
-- [docs/TESTS.md](docs/TESTS.md) — index of the 464 test files (the `bugNNN` files are the encoder's executable specification)
+- [docs/TESTS.md](docs/TESTS.md) — index of the 468 test files (the `bugNNN` files are the encoder's executable specification)
 - [docs/ENCODER_GUARDS.md](docs/ENCODER_GUARDS.md) — the fail-closed guards and the silicon traps behind them
 - [docs/MERC13_COMPANIONS.md](docs/MERC13_COMPANIONS.md) — ELF companion sections: what a template rebuild copies, what a standalone build regenerates, what differs from nvcc
 - [docs/SM120_CONTROL_OPEX.md](docs/SM120_CONTROL_OPEX.md) — the measured control-code layout and the reserved yield/stall combinations
@@ -235,7 +235,7 @@ See [docs/PYTHON_API_ARCH_SELECT.md](docs/PYTHON_API_ARCH_SELECT.md).
 ```
 src/            the crate (library + `cubit` binary)
 tables/         vendored ISA tables (four architectures, gzip: 2.5 MB; 183 MB of JSON unpacked) + SOURCE.json pins
-tests/          464 test files (one binary each); tests/fixtures/ = nvdisasm fixtures of measured forms (< 1 MB)
+tests/          468 test files (one binary each); tests/fixtures/ = nvdisasm fixtures of measured forms (< 1 MB)
 tools/          sync_table.py (vendoring gate), asm_roundtrip.py, audit_table.py, audit_dynamic.py,
                 gen_tests_index.py, check_public_surface.sh, probes/ (measurements)
 examples/       SASS kernels with host harnesses (QMMA GEMV, pipelined MMA, IMMA U8, sparse GEMV),
