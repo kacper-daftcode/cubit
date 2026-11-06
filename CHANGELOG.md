@@ -4,9 +4,9 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
-## Unreleased — 2026-11-06 (session T-10: the SM120 dynamic audit to its end state — 22 named exceptions; BRA on sm103a / sm100a; the BRX / BRXU / RET family; NEEDS 38 measured as `CUBIT_MMA_SRC_RB=0`; the public-face review)
+## Unreleased — 2026-11-06 (session T-10: the SM120 dynamic audit to its end state — 14 named exceptions; BRA on sm103a / sm100a; the BRX / BRXU / RET and dense IMMA families; NEEDS 38 measured as `CUBIT_MMA_SRC_RB=0`; the public-face review)
 
-- **Tables vendored from blackwell-isa `71ff64f`** (sm120 15 934 forms / 26 557 variants, from 16 045 / 26 646;
+- **Tables vendored from blackwell-isa `c258f8a`** (sm120 15 953 forms / 26 580 variants, from 16 045 / 26 646;
   sm103a / sm100a 14 913 / 22 420, from 14 912 / 22 363; sm121a unchanged):
   - **`BRA` on sm103a / sm100a is the measured SM120 family** (`tools/probes/re_sm120_bra.py probe --arch SM103` /
     `SM100`: the 551 words of the SM120 sweep print the same text on the three nvdisasm targets, the uniform-predicate
@@ -30,10 +30,21 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
     `BRXU.INC.U !P4, UR8 0x100`); both spellings assemble; `BRX R8` (a zero offset) assembles; the encoder writes the
     56-bit offset without touching BRXU's mode bits (the old 32-bit write cleared `.U` / `.DIV` / `.CONV`) and without
     the wrong sign fill of [81:64] below −2^40. `strict_brxu_offsets` re-pinned to the vendor print.
-  - **The dynamic audit of the SM120 harvest rows is at its end state: 215 → 22 rows, every one a named exception**
-    (KNOWN_ISSUES T1 lists the 22 with what closes each: the IMMA.16816/16832 harvest rows (8), the T5 `IMMA.SF`
-    hypothesis, the seven RZ-base 64-bit descriptor words the decoder tolerates and the encoder refuses (BUG-461), the
-    `UPT`-destination elision of ULEA / ULOP3, `BMOV.64 ATEXIT_PC`, `DEPBAR SB7`, `FADD.SAT` bit 62, `USETMAXREG` bit 63).
+  - **The dense `IMMA` family measured** (`tools/probes/re_sm120_imma.py`, nvdisasm 13.1 `-b SM120`, 240 form + 16 lattice
+    words, fixture `tests/fixtures/sm120_imma_nvdisasm.jsonl`, test `tests/sm120_imma.rs`; measured by the session's second
+    instance, reviewed and applied by T-10): opcode 0x237, Rd [23:16], Ra [31:24] `.ROW`, Rb [39:32] `.COL`, Rc [71:64];
+    bit 86 the dense frame, 75 the shape (`16816` / `16832`), 76 A = `S8` (else `U8`), 78 B = `S8`, 82 `.SAT`; bits 73 /
+    74 the only legal layouts (`???1` / `???0` otherwise — baked, fail-closed); the fifth operand `[!]UPn` = the 4-bit
+    `pred_inv4` window [90:87]; bit 72 the sparse form. Typed keys `IMMA.<shape>.<A>.<B>[.SAT]_R_R_R_R[_UP]` (the type
+    pair is order-sensitive, a sorted mod-group name cannot tell `S8.U8` from `U8.S8`): 32 keys × 1 row replace the 14
+    dense harvest keys (2-bit-shifted register fields that printed `R4, R6.ROW, R8.COL, R10` for the vendor's `R16,
+    R24.ROW, R8.COL, R40`, `neg` junk on the layout bits whose canonical words rendered `R8.???0`, the `_P_` / `_?`
+    twins → aliases). The decoder's sign-tolerant fallback is off for IMMA (bits 72–79 carry the family's law).
+  - **The dynamic audit of the SM120 harvest rows is at its end state: 215 → 14 rows, every one a named exception**
+    (`T/audit/dyn21`; KNOWN_ISSUES T1 lists the 14 with what closes each: the T5 `IMMA.SF` hypothesis, the seven RZ-base
+    64-bit descriptor words the decoder tolerates and the encoder refuses (BUG-461), the `UPT`-destination elision of
+    ULEA / ULOP3, `BMOV.64 ATEXIT_PC`, `DEPBAR SB7`, `FADD.SAT` bit 62, `USETMAXREG` bit 63; the eight IMMA.16816/16832
+    harvest rows of the 22 at `dyn20` left with the IMMA family).
     Closed by T-10 (`blackwell-isa-internal tools/audit_fix_20261106_t10.py` + `_t10b.py`, every repair asserted against
     nvdisasm 13.1 before the write, retirements checked against the 249 929 distinct words of the production census +
     our kernels; `tests/sm120_audit_t10.rs`): 15 harvest-row field repairs — ATOMG CAS Pd = [83:81] (the harvest's
@@ -41,16 +52,20 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
     are illegal) and the text-inert [71:64] fail-closed, the MOV / WARPSYNC / VOTE / VOTEU junk fields, IMAD.X Ra = RZ
     baked, UFMUL's three 8-bit URs, UTMAREDG's operand slots, USETMAXREG's 10-bit count, the LDCU index field (the size
     groups could not mint `c[0x0][URn]`), BAR.RED.{AND,OR} count-less twins (the vendor elides a zero thread count),
-    HADD2 fp16 immediates, the SYNCS RED.A1T0 destination [23:16], the F2I.NTZ UR-form fields — and 72 junk keys / 8
-    groups retired (the `_?` partial keys, the shifted-field `_P_R_R_R_R` HMMA ×5 / QMMA ×20 twins, SULD (nvdisasm:
-    `SULD.P.1D.EF.INVALID0.IGN`), the FSETP / FSEL / IADD / IADD3 / UIADD3 junk shapes, the LDGSTS LTC128B harvest
-    twins, …). Printer: a zero f64 immediate prints `0` / `-0.0` as nvdisasm does (DFMA / DADD / DMUL / MUFU.RCP64H —
+    HADD2 fp16 immediates, the SYNCS RED.A1T0 destination [23:16], the F2I.NTZ UR-form fields — and 105 junk keys / 5
+    groups retired (the `_?` partial keys, the shifted-field `_P_R_R_R_R` HMMA ×5 / QMMA ×51 twins, SULD (nvdisasm:
+    `SULD.P.1D.EF.INVALID0.IGN`), the FSETP / FSEL / IADD / IADD3 / UIADD3 junk shapes, the LDGSTS `[64,E,LTC128B]`
+    harvest twin, …); three batch-1 retirements that cubit's pins refuted were undone with the measurement (`_t10c.py` /
+    `_t10d.py`: `LD_R_ARURI [E]` with measured fields, `IADD3_R_P_P_R_II_R [X]`, the LDGSTS `[128,E,LTC128B]` rows + a
+    PT-baked twin for the vendor's elided PT operand) and `STS_ARI_R [64]` keeps the BUG-425 / 425b tolerance bits with
+    opcode bit 9 baked (`_t10e.py`). Printer: a zero f64 immediate prints `0` / `-0.0` as nvdisasm does (DFMA / DADD / DMUL / MUFU.RCP64H —
     the old arm printed `1` and re-encoded 1.0), the SYNCS `[R+UR+-0x..]` glyph, `[URZ+0x10]` / `[URZ]` for an RZ base on
     the SYNCS / ATOMS baked-sink rows, no `+URZ` splice when a register operand lives in the UR window
     (`ATOMS.CAST.SPIN PT, [R7+0x10], R8, RZ`), UCLEA / UBMSK immediates unsigned, no IMAD `.MOV` alias with a UR b
     operand (`IMAD R4, RZ, UR7, R10`); parser: MUFU is a float-immediate opcode (`MUFU.RCP64H R4, 0`). The audit tool
-    names five measured non-defect classes instead of counting them (`reuse_rejected`, `inert_failclosed`, `inert_bits`,
-    `vendor_invalid`, `nan_glyph`; `tools/audit_dynamic.py`). Census 1 811 600 / 1 811 600 and the 99 production sources
+    names six measured non-defect classes instead of counting them (`reuse_rejected`, `inert_failclosed`, `inert_bits`,
+    `vendor_invalid`, `nan_glyph`, `silicon_illegal` — a text both oracles print that the encoder refuses under a
+    silicon-measured law, BUG-037's MMA operand alignment; `tools/audit_dynamic.py`). Census 1 811 600 / 1 811 600 and the 99 production sources
     byte-identical throughout (gate below).
 - **NEEDS 38 (i) measured, not decided — `CUBIT_MMA_SRC_RB=0`** (default = today's rule; `tests/needs38_mma_src_rb.rs`):
   the MMA-source read-barrier rule as an opt-in relaxation. Test host GPU 0, K's K1 harness (`pt2-needs38-moe`, 25 reps,

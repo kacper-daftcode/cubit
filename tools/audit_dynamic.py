@@ -54,6 +54,10 @@ process. Each word is then classified:
                         `QMMA.SP.INVALID0.F16.E2M3.E2M3`) is `ok` -- a faithful rendering of what the
                         vendor prints; cubit printing a valid-looking text for it stays
                         `cubit_decodes_illegal` (the row claims an invalid word).
+  silicon_illegal       both texts agree; cubit refuses to assemble the text because a silicon-measured
+                        law forbids the word (BUG-037: a multi-register MMA operand off its alignment is
+                        ILLEGAL_INSTRUCTION on the RTX 5090 -- the encoder's documented refusal, which
+                        nvdisasm's text-only view does not make); counted, not a defect
   --replay words_in.jsonl re-runs cubit and the classification on an earlier run's words and
   nvdisasm texts (words of rows that left the table are skipped).
 
@@ -337,6 +341,13 @@ def classify(args, words_out, table):
             elif re.startswith("mismatch:") and it.get("nvidia_sass_of_reencode") is not None \
                     and normalise(it["nvidia_sass_of_reencode"]) == normalise(nv):
                 cls = "inert_bits"
+            elif re.startswith("error:") and "ILLEGAL on silicon" in re:
+                # the texts agree; cubit refuses to assemble the text because a silicon-measured
+                # law forbids the word (BUG-037: a multi-register MMA operand off its alignment --
+                # ILLEGAL_INSTRUCTION on the RTX 5090, tests/bug037_mma_align.rs); nvdisasm prints
+                # the text without that check. The refusal is the encoder's documented behaviour,
+                # not a row defect -- counted, named, never a finding
+                cls = "silicon_illegal"
         else:
             cls = "ok"
         if cls == "ok" and (it.get("cubit_key"), it.get("cubit_group")) != (it["key"], it["group"]):
@@ -344,7 +355,7 @@ def classify(args, words_out, table):
         it["class"] = cls
         classes[cls] += 1
         per_row[(it["key"], it["group"])][cls] += 1
-        if cls not in ("ok", "both_reject", "other_row", "reuse_inert", "vendor_unknown", "reuse_rejected", "inert_failclosed", "vendor_invalid", "nan_glyph", "inert_bits"):
+        if cls not in ("ok", "both_reject", "other_row", "reuse_inert", "vendor_unknown", "reuse_rejected", "inert_failclosed", "vendor_invalid", "nan_glyph", "inert_bits", "silicon_illegal"):
             findings.append(it)
     words_out.write_text("".join(json.dumps(it) + "\n" for it in items))
     (args.out / "dynamic_findings.jsonl").write_text("".join(json.dumps(f) + "\n" for f in findings))

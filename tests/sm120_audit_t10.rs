@@ -127,3 +127,26 @@ fn the_rows_carry_the_provenance_and_the_junk_keys_are_gone() {
     assert_eq!(raw["_meta"]["provenance"]["sources"][SOURCE]["rows"], n);
     assert!(n >= 20, "{n} repaired rows");
 }
+
+/// The audit's `silicon_illegal` class (dyn21, 2026-11-06): the three words of the old `IMMA.16832.S8.S8.SAT` harvest
+/// probe whose registers, read through the measured fields, sit off the MMA operand alignment. nvdisasm names them
+/// (its view is text-only); cubit prints the same text and refuses to assemble it under BUG-037 (a multi-register MMA
+/// operand off its alignment is ILLEGAL_INSTRUCTION on the RTX 5090, `tests/bug037_mma_align.rs`). The refusal is the
+/// encoder's documented behaviour, not a row defect -- the class is counted and named, never a finding.
+#[test]
+fn the_silicon_illegal_words_print_the_vendor_text_and_the_encoder_refuses_them_under_bug037() {
+    let (table, _) = loaded();
+    for (word, text) in [
+        (0x0000_0000_0044_5c28_0000_0008_1bfc_0237u128, "@P0 IMMA.16832.S8.S8.SAT R252, R27.ROW, R8.COL, R40"),
+        (0x0000_0000_0044_5c28_0000_000b_fc10_0237u128, "@P0 IMMA.16832.S8.S8.SAT R16, R252.ROW, R11.COL, R40"),
+        (0x0000_0000_0044_5c28_0000_00ff_1810_0237u128, "@P0 IMMA.16832.S8.S8.SAT R16, R24.ROW, RZ.COL, R40"),
+    ] {
+        let (key, printed) = decode(word).unwrap_or_else(|| panic!("{word:032x} must decode"));
+        assert_eq!(key, "IMMA.16832.S8.S8.SAT_R_R_R_R");
+        assert_eq!(printed, text);
+        let parsed = cubit::parse_cuasm_line(&format!("[B------:R-:W-:Y:S02] {text} ;"), 0).unwrap();
+        let err = cubit::encoder::encode_instruction(&parsed, table).err().unwrap_or_else(|| panic!("{text}: BUG-037 must refuse"));
+        let msg = err.to_string();
+        assert!(msg.contains("ILLEGAL on silicon") && msg.contains("BUG-037"), "{text}: {msg}");
+    }
+}
