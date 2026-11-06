@@ -16,10 +16,10 @@
 //!   * Vendor LDCU.128 word pin below is extracted from
 //!     corpus/cublas/libcublas.so.841.sm_100.cubin (kernel
 //!     sphpr2_kernel_64addr, slot 0x160).
-//! Authoring `LDC.128 R..., c[...]` now FAILS CLOSED via the BUG-132
-//! verify_mod_group_retained check (no table row expresses the combination;
-//! allowlist entry removed). Guidance: emit 2x LDC.64 instead.
-//! Decode stays full-fidelity for RE — these are encode-side pins only.
+//!     Authoring `LDC.128 R..., c[...]` now FAILS CLOSED via the BUG-132
+//!     verify_mod_group_retained check (no table row expresses the combination;
+//!     allowlist entry removed). Guidance: emit 2x LDC.64 instead.
+//!     Decode stays full-fidelity for RE — these are encode-side pins only.
 
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;

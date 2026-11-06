@@ -10,8 +10,8 @@
 //! L1 EFL2.256 desc + 462 ENL2/ELL2 + legacy 099 ZOSTAJA) + printer-arm
 //! (format_plain_u32_ur glyph255=true wylacznie na galezce REDG.E ARURI64)
 //! + encoder refuse mint-side (cytat BUG-461; kontynuacja polisy BUG-452:
-//! tekst '.64' z baza R255/RZ nie mintuje; fallback U32 niedozwolony).
-//! Witness: tests/bug461_data.inc (maszynowe gen461pins.py rc=2).
+//!   tekst '.64' z baza R255/RZ nie mintuje; fallback U32 niedozwolony).
+//!   Witness: tests/bug461_data.inc (maszynowe gen461pins.py rc=2).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

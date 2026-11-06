@@ -34,17 +34,17 @@
 //!   - LDC_R_cARI '64': sub_imm2@32/22 (offset at the wrong absolute
 //!     position; corpus offsets all 0 => 2929/2929 "ok" vacuously; a real
 //!     c[0x4][R16+0x400] word rendered with the offset DROPPED)
-//! Fix = data-only window moves (13 rows, tables/sm103a.json via
-//! work/i76/patch162.py) to the canonical single carriers
-//! cm16_off@38/21 (LDC*) / cm17_off@37/22 (LDCU*) -- donor geometry of the
-//! canonical sm120 rows -- plus printer sign-print for the cm-composed
-//! offset path (src/printer.rs format_const_addr; off_field/sub_imm-carrier
-//! paths untouched). sub_ur1/sub_r1 indices are NOT touched here: parked
-//! patch151 (sub_ur1 9->8) and parked patch147 (sub_r1 narrowing) stay
-//! replay-disjoint with patch162 (field-surgical edits, machine-checked).
-//! Byte-neutrality on the corpus: every corpus word has bank==0 (or bank4
-//! covered by @[54:59) on .64 rows), off bits <= 49, sign bit53 == 0; both
-//! window sets emit/read identical bits for that shape (battery162 A/B/C
+//!     Fix = data-only window moves (13 rows, tables/sm103a.json via
+//!     work/i76/patch162.py) to the canonical single carriers
+//!     cm16_off@38/21 (LDC*) / cm17_off@37/22 (LDCU*) -- donor geometry of the
+//!     canonical sm120 rows -- plus printer sign-print for the cm-composed
+//!     offset path (src/printer.rs format_const_addr; off_field/sub_imm-carrier
+//!     paths untouched). sub_ur1/sub_r1 indices are NOT touched here: parked
+//!     patch151 (sub_ur1 9->8) and parked patch147 (sub_r1 narrowing) stay
+//!     replay-disjoint with patch162 (field-surgical edits, machine-checked).
+//!     Byte-neutrality on the corpus: every corpus word has bank==0 (or bank4
+//!     covered by @[54:59) on .64 rows), off bits <= 49, sign bit53 == 0; both
+//!     window sets emit/read identical bits for that shape (battery162 A/B/C
 //! + corpus A/B machine-checks).
 
 use cubit::decoder::DecodeIndex;

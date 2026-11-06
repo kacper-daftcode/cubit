@@ -20,8 +20,8 @@
 //!     (rendered-fine) text un-encodable; field dropped.
 //!   * IMAD.MOV: printer/encoder alias for IMAD with both multiplier operands
 //!     RZ (nvdisasm idiom; 149 renders in the R0 kernel aliased).
-//! Pinned per word: decode == golden nvdisasm text, re-encode == word (mod
-//! scheduling bits [127:96]).
+//!     Pinned per word: decode == golden nvdisasm text, re-encode == word (mod
+//!     scheduling bits [127:96]).
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;

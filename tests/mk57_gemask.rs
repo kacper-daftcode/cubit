@@ -7,8 +7,8 @@
 //! - the b13=04 geo-anchor record for LDC @ c[0x0][0x2f8] -> b12=0x44
 //!   (c5: 12 records / 9 cusparse kernels glu_qdcsrsv2/csrqr/binary_search:
 //!   lane<->record bijection 1:1, 0 FP, 0 records 0x44 without a 0x2f8 lane).
-//! Po mk57 emulator 010b040a (boot + per-S2R-lane + per-LDC-lane z mapa
-//! {2f8:44,360:1,364:2,368:3,370:4,374:5,378:6}): 18932/18932 EXACT.
+//!   Po mk57 emulator 010b040a (boot + per-S2R-lane + per-LDC-lane z mapa
+//!   {2f8:44,360:1,364:2,368:3,370:4,374:5,378:6}): 18932/18932 EXACT.
 use cubit::mercury::{merc_ldc_geo, merc_s2r_sr_enum};
 
 #[test]

@@ -7,7 +7,7 @@
 //!   fail-closed), b6=08, the rest 0,
 //! - host = the last slotted instruction before the DEPBAR (zero-weight skip),
 //! - legacy mk14.3 (no LDGSTS desc forms): single-wait with the true imm too.
-//! Gold vectors = literal bytes from the sm_100 corpus (the mk54hA atlas keep-set).
+//!   Gold vectors = literal bytes from the sm_100 corpus (the mk54hA atlas keep-set).
 use cubit::mercury::{build_ldgsts2_wait, merc_ldgsts2_scan, merc_ldgsts2_waits, merc_ldgsts_scan};
 
 fn hx(s: &str) -> Vec<u8> {

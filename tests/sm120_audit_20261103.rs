@@ -17,7 +17,7 @@
 //!   fixture still decode through the `F2FP.F16.F32.PACK_AB_P2` / `HMMA.SP.1688.F16` era rows with
 //!   texts the vendor does not print - the era-key question in T/NEEDS_OWNER.md and
 //!   docs/KNOWN_ISSUES.md T1.
-//! The production census (1 811 600 words, 166 cubins) decodes identically before and after.
+//!   The production census (1 811 600 words, 166 cubins) decodes identically before and after.
 use cubit::{decoder::DecodeIndex, table::IsaTable};
 use serde_json::Value;
 use std::{path::PathBuf, sync::OnceLock};

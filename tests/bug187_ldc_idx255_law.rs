@@ -23,12 +23,12 @@
 //!     expectation as vendor truth (circular).
 //!   * main 2bd2a82 parity: 22/22 sweep + widths 0..5 == vendor,
 //!     INVALID6/7 fail-closed (arb187_sweep.json).
-//! Action: re-pin t174_5 expectation to `LDC.U8 R24, c[0x3][RZ]` at
-//! compose time (pin lives on parked-174/rehearsal branches); this file
-//! pins the same law directly on main so a resurrection of the
-//! absolute-plain shape goes red immediately.  No src/table change.
-//! Neg-ctl: current binary + pre-165 table (wt/f2-174-ctl @ 8e02983)
-//! renders `LDC R24, 0x30000` -- every pin below flips red there.
+//!     Action: re-pin t174_5 expectation to `LDC.U8 R24, c[0x3][RZ]` at
+//!     compose time (pin lives on parked-174/rehearsal branches); this file
+//!     pins the same law directly on main so a resurrection of the
+//!     absolute-plain shape goes red immediately.  No src/table change.
+//!     Neg-ctl: current binary + pre-165 table (wt/f2-174-ctl @ 8e02983)
+//!     renders `LDC R24, 0x30000` -- every pin below flips red there.
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

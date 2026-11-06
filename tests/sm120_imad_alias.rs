@@ -8,7 +8,7 @@
 //! print of the operands: the table's alias-named harvest groups (`MOV`, `MOV,U32`, `IADD`, `SHL,U32`
 //! - they baked a sample's operands and put the Ra token on the Rb field, `IMAD.MOV.U32 R4, RZ, R14,
 //! 0x10` printed as `R4, R14, R14, 0x10`) are gone, every form has a `U32` twin of its plain row, the
-//! printer derives the name, the encoder accepts an alias only in the shape the vendor prints it for.
+//!   printer derives the name, the encoder accepts an alias only in the shape the vendor prints it for.
 use cubit::{decoder::DecodeIndex, table::IsaTable};
 use serde_json::Value;
 use std::{path::PathBuf, sync::OnceLock};

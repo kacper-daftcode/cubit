@@ -12,7 +12,7 @@
 //!     P3 MAX.S64 -> base reg R10 -> R58).
 //! Vendor law (arb196b.json, nvdisasm 13.3.73 bit-walk over 6 donor words
 //! + paired-anchor census): dest pred = bits [81:84) identity P0..P6,PT;
-//! bit84 = .EF-form flag (zero 32M-corpus exposure -> stays baked, fail-closed).
+//!   bit84 = .EF-form flag (zero 32M-corpus exposure -> stays baked, fail-closed).
 //!
 //! Ride-after base: merge of BUG-195 (6d653be) scope/width rows. Battery A
 //! (atomdb 30,406) and corpus A/B (sm120 392 / sm103 2014) are byte-exact.

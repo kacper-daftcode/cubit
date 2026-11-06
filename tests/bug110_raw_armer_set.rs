@@ -12,9 +12,9 @@
 //!     instructions past the producer without a wait mask (covered by timing, silicon EXACT)
 //!     => these stay LOUD (the distance-amnesty doctrine = cand-112, a decision after
 //!     silicon calibration, NOT in this fix);
-//! meanwhile the detection hole: with a batch of N producers on one barrier
-//! reading a MEMBER != last without a wait passed silently (false
-//! negative — the `armed[b] == Some(pidx)` guard fires only for the last one).
+//!     meanwhile the detection hole: with a batch of N producers on one barrier
+//!     reading a MEMBER != last without a wait passed silently (false
+//!     negative — the `armed[b] == Some(pidx)` guard fires only for the last one).
 //!
 //! Fix: (a) `armed[b]` = the set of ALL armers since the last drain
 //! (wait_mask clears the set, as before); (b) `DEPBAR.<m> SBb, imm` clears

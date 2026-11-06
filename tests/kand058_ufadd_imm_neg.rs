@@ -5,11 +5,11 @@
 //!  * `UFADD UR7, UR6, -12583039` ("int" token) -> gold ..63 =
 //!    f32(-12583039.0) = 0xcb40007f (an ieee cast of the VALUE) + bit2=1; cubit
 //!    wrote the raw int value.
-//! Fix: the new `neg_f32` (FloatImm/Imm32 sign) and `f32cast`
-//! (Imm32 -> f32 VALUE, because nvdisasm prints integral f32 patterns
-//! as ints) extractions. Purely additive: no existing repo row uses them
-//! (neg+f32 on one token lives only on DFMA_R_R_FI_R tok3 -> `neg`/`f32`,
-//! unchanged). Adoption = the local sm121a table on the SPARK side.
+//!    Fix: the new `neg_f32` (FloatImm/Imm32 sign) and `f32cast`
+//!    (Imm32 -> f32 VALUE, because nvdisasm prints integral f32 patterns
+//!    as ints) extractions. Purely additive: no existing repo row uses them
+//!    (neg+f32 on one token lives only on DFMA_R_R_FI_R tok3 -> `neg`/`f32`,
+//!    unchanged). Adoption = the local sm121a table on the SPARK side.
 
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;

@@ -18,11 +18,11 @@
 //! stay authoritative: the fixup skips explicit bits and the field-level
 //! extraction is untouched. The wider explicit-field inventory (122 sm120
 //! + 705 sm121a + 5 sm103a/sm100a rows) is tracked as the 263-kand
-//! (latent; needs per-family census+arb, owner severity).
-//! Repro pre-fix (published cubit-b505503, probe252.py): on all four legs
-//! `FSEL R5, |R3|.reuse, |UR11|.reuse, !P2` encoded silently with b123=1;
-//! `IMAD R4, R5, UR6.reuse, R7` likewise (IMAD_UR carries no explicit
-//! reuse field on any leg).
+//!   (latent; needs per-family census+arb, owner severity).
+//!   Repro pre-fix (published cubit-b505503, probe252.py): on all four legs
+//!   `FSEL R5, |R3|.reuse, |UR11|.reuse, !P2` encoded silently with b123=1;
+//!   `IMAD R4, R5, UR6.reuse, R7` likewise (IMAD_UR carries no explicit
+//!   reuse field on any leg).
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;
 use cubit::table::IsaTable;

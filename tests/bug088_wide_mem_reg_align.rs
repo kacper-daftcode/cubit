@@ -11,9 +11,9 @@
 //!   * LDC.128 R-form: 2026-08-24 BUG-135 nullifies "unguarded/no constraint"
 //!     (probes were width-dropped plain loads); authoring is now fail-closed
 //!     (no such encoding; nvdisasm INVALID6/7) -- pins in bug135.
-//! Pins both trap classes (fail-closed, BUG-088 message) and the legal-form
-//! byte-exact fixed points (guard is reject/pass-through, never rewrites).
-//! Scope: sm_103a table only; encoder side; decode untouched.
+//!     Pins both trap classes (fail-closed, BUG-088 message) and the legal-form
+//!     byte-exact fixed points (guard is reject/pass-through, never rewrites).
+//!     Scope: sm_103a table only; encoder side; decode untouched.
 
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;

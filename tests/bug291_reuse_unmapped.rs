@@ -27,8 +27,8 @@
 //! REGISTERED, NOT FIXED HERE: 325-kand (encode mint of reuse bits on the
 //! vendor-HOLE HFMA2 R-form class -> word nvdisasm rejects rc=1; arb
 //! + publish evidence in work/bug291) and 326-kand (decode sideband
-//! prints `.reuse` on those vendor-hole words; corpus exposure ZERO per
-//! census291 suppressed-table).
+//!   prints `.reuse` on those vendor-hole words; corpus exposure ZERO per
+//!   census291 suppressed-table).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

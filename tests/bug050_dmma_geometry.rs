@@ -7,8 +7,8 @@
 //! decoding goldens rendered `DMMA.INVALID2 R8, -R2, R4, R0`.
 //! Fix: geometry from the ptxas goldens (identical for -arch=sm_120 and sm_121a)
 //! + phantom removal + a decoder-shadow co-fix: the `DFMA_R_R_FI_R` row
-//! (and_base 0x803, 1-bit guard@12) cieniowal decode goldenow DMMA;
-//! zastapiony wierszem z corpus-regression spark (1476 instancji).
+//!   (and_base 0x803, 1-bit guard@12) cieniowal decode goldenow DMMA;
+//!   zastapiony wierszem z corpus-regression spark (1476 instancji).
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;

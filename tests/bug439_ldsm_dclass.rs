@@ -239,7 +239,7 @@ fn t439_5_source_manifest_and_invariants() {
 /// on sm121a: 15725 -> 15726; previous census waves in history).
 /// FLIP (BUG-443, canonical e8d1af3): +19 sm121a keys (8 T2 base E-form
 /// + 11 T3 cross STG other-family enum keys; STS S8/S16 land as mgs and
-/// do not move the counter) 15726 -> 15745. FLIP-ride (BUG-453, canonical 700524e): +3 sm121a keys (EFL2.256 non-NA dARI _II donor-first synth) 15745 -> 15760. FLIP-ride (BUG-463, canonical a64b82b): +12 sm121a keys (LTC-width LTC64B/128B/256B nNA EFL2.256 dARI synth) 15760 -> 15760. FLIP-ride (BUG-464, canonical 4968113): +6 sm121a keys (plain nNA ARURI64 EFL2.256 lattice) 15760 -> 15766.
+///   do not move the counter) 15726 -> 15745. FLIP-ride (BUG-453, canonical 700524e): +3 sm121a keys (EFL2.256 non-NA dARI _II donor-first synth) 15745 -> 15760. FLIP-ride (BUG-463, canonical a64b82b): +12 sm121a keys (LTC-width LTC64B/128B/256B nNA EFL2.256 dARI synth) 15760 -> 15760. FLIP-ride (BUG-464, canonical 4968113): +6 sm121a keys (plain nNA ARURI64 EFL2.256 lattice) 15760 -> 15766.
 #[test]
 fn t439_6_key_census_unchanged() {
     let raw: serde_json::Value =

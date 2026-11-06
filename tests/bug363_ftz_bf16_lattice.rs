@@ -1,7 +1,7 @@
 //! BUG-363 (F2-iter192, loop5/blind front2, 2026-09-03): F2I R_R FTZ
 //! (b80 => byte10=0x21) + BF16 (b86 => byte10=0x40) lattice closure x4 legs
 //! + sev-A dst-field repair. canonical fbcef1c; ENGINE arm: decoder.rs
-//! BUG-363 reuse fail-closed extension (name-scoped era keys) - the reuse arm itself was retired on 2026-11-03 (silicon, see t363_5).
+//!   BUG-363 reuse fail-closed extension (name-scoped era keys) - the reuse arm itself was retired on 2026-11-03 (silicon, see t363_5).
 //!
 //! PRE (publish cubit_py-6d34fe3 1b20d31b.. + canonical cfcd697;
 //!   work/bug363/measure_pre363.json):
@@ -12,22 +12,22 @@
 //!     corruption, encoder-side) + probe word dst R4 decoded as 'R8' x2
 //!     legs. lane 0xf0 mg carried dst@16 but pinned guard=7 + no signs;
 //!     era key on 120/121a carried an unprobed reuse field (vendor-ILLEGAL).
-//! LAW (arb341b G/H 48+48 lanes + arb363 326 probes incl S-signs x288 /
-//!   G-pred / R-reuse-illegal x16 / X-0x61-illegal x3 / A-aliases; nvdisasm
-//!   13.3.73 raw -b, x4 models AGREE on every legal probe): full 48-lane
-//!   closure per class; signs tok2 legal in all 3 armed combos; guard field
-//!   carries pred forms; ANY reuse bit => rc=1; byte10=0x61 => rc=1;
-//!   byte9 aliases 73/74 inert; byte10 aliases [83:81] stay pinned (HOLE).
-//! FIX: D delete legacy mgs; N1/N2 keyed era rows x96/leg (era geometry,
-//!   signs IN, reuse field OUT); era key F2I.FTZ.U32.TRUNC.NTZ_R_R on
-//!   120/121a normalized in place. Expected overlap: keyed lane-0x31 FTZ x
-//!   retained R_UR sister (mirrors pre-existing lane-0xf0 pattern).
-//! CORPUS (census362/ab240 2,406): lane 0xf0 slots 10,576 claim-carrying on
-//!   the 4 legs (text unchanged: same fields dst@16), lane 0x31: 2 slots
-//!   sm_103a (text repair x2 = the abtext attribution); every other
-//!   FTZ/BF16 lane corpus-ZERO => the graft is corpus-invisible apart from
-//!   those 2 repaired slots and newly-claimed HOLEs being loud->text on
-//!   lanes with zero occupancy.
+//!     LAW (arb341b G/H 48+48 lanes + arb363 326 probes incl S-signs x288 /
+//!     G-pred / R-reuse-illegal x16 / X-0x61-illegal x3 / A-aliases; nvdisasm
+//!     13.3.73 raw -b, x4 models AGREE on every legal probe): full 48-lane
+//!     closure per class; signs tok2 legal in all 3 armed combos; guard field
+//!     carries pred forms; ANY reuse bit => rc=1; byte10=0x61 => rc=1;
+//!     byte9 aliases 73/74 inert; byte10 aliases [83:81] stay pinned (HOLE).
+//!     FIX: D delete legacy mgs; N1/N2 keyed era rows x96/leg (era geometry,
+//!     signs IN, reuse field OUT); era key F2I.FTZ.U32.TRUNC.NTZ_R_R on
+//!     120/121a normalized in place. Expected overlap: keyed lane-0x31 FTZ x
+//!     retained R_UR sister (mirrors pre-existing lane-0xf0 pattern).
+//!     CORPUS (census362/ab240 2,406): lane 0xf0 slots 10,576 claim-carrying on
+//!     the 4 legs (text unchanged: same fields dst@16), lane 0x31: 2 slots
+//!     sm_103a (text repair x2 = the abtext attribution); every other
+//!     FTZ/BF16 lane corpus-ZERO => the graft is corpus-invisible apart from
+//!     those 2 repaired slots and newly-claimed HOLEs being loud->text on
+//!     lanes with zero occupancy.
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

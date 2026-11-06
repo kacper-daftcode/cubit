@@ -17,16 +17,16 @@
 //! decoded by the canonical LDCU_UR_cAI key => shell_wins = 0 (never-winner
 //! on real populations, pre-remodel by mask); real corpus texts (2014 sm103
 //! + 392 sm120 renders) never feed an LDCU R-index/UR-index form to the
-//! encoder; encode of the R-index text form already fails (no idx field)
-//! and decode of the synthetic probes is FAIL-CLOSED pre-fix.
-//! Fix = data-only (work/bug173/patch173.py): DELETE key LDCU_UR_cARI.
-//! Behavior change: zero on every real population (shell never won);
-//! removes a fabrication hazard (loose shells with an ILLEGAL geometry
-//! could start winning after any canonical-mask change).
-//! Out of scope (documented): the LDCU.64_UR_cAI_II_II_? fabrication on
-//! the LEGAL LDCU.64 UR-idx word (parked-152 cAURI remodel, pinned
-//! pre==post in t173_5); 174-kand LDC-idx RZ-sentinel (separate class).
-//! Compose: key disjoint from every parked patch (machine-checked).
+//!   encoder; encode of the R-index text form already fails (no idx field)
+//!   and decode of the synthetic probes is FAIL-CLOSED pre-fix.
+//!   Fix = data-only (work/bug173/patch173.py): DELETE key LDCU_UR_cARI.
+//!   Behavior change: zero on every real population (shell never won);
+//!   removes a fabrication hazard (loose shells with an ILLEGAL geometry
+//!   could start winning after any canonical-mask change).
+//!   Out of scope (documented): the LDCU.64_UR_cAI_II_II_? fabrication on
+//!   the LEGAL LDCU.64 UR-idx word (parked-152 cAURI remodel, pinned
+//!   pre==post in t173_5); 174-kand LDC-idx RZ-sentinel (separate class).
+//!   Compose: key disjoint from every parked patch (machine-checked).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

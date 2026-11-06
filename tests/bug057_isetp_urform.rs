@@ -5,21 +5,21 @@
 //!    LE.U32.AND: ureg 5b (truth 8b); NE.U32.AND: NO tok3 field
 //!    (the R operand vanished from the render/match within the window); LT.U32.AND: ureg 2b
 //!    + baked b36; GT.U32.OR: dest-pred 1b (P>=2 broke the match).
-//! Truth (nvdisasm 13.3 per-bit probes on the rt98 slot + vendor goldens
-//! mm.sass from s6: GE.AND S32 0x004fda000bf06270|0x0000000500007c0c,
-//! GE.U64 0x000fe4000bf16070|0x0000000414007c0c):
+//!      Truth (nvdisasm 13.3 per-bit probes on the rt98 slot + vendor goldens
+//!      mm.sass from s6: GE.AND S32 0x004fda000bf06270|0x0000000500007c0c,
+//!      GE.U64 0x000fe4000bf16070|0x0000000414007c0c):
 //!  * dest P 3b, src P 3b, R 8b, UR 8b, tok5 P 3b, inv
 //!    regardless of cmp/bool/type (F5..I2 sweep); cmp=3b@[78:76]
 //!    (F=000,LT=001,EQ=010,T?=011,GT=100,NE=101,GE=110,LE=111),
 //!    bool=[75:74], type=(80,73): S32=01/U32=00/S64=11/U64=10 (R+UR FORM).
-//! Fix: 21 rows in repo sm120.json + 24 rows in tb_i82p2 -> tb_i82p3:
-//! fields=TEMPLATE above, vm |= windows, and_base: zero only under windows
-//! (the mod region [72:80] untouched - the .U32->era-drift semantics migration
-//! is a separate decision, F2Q-058-kand). Frozen chain rt98: v3 == v2 textually
-//! (md5 3f9be6e4), final cubin == 3d15ab6a byte-wise (GATE byte-exact).
-//! Value of the fix: the IR/decode path (barracuda lift, liveness, sched) no
-//! longer sees truncated operands; encode+detail-decode produce words
-//! byte-consistent with nvdisasm for UR>=32 / P>=2 (two-sided pins below).
+//!    Fix: 21 rows in repo sm120.json + 24 rows in tb_i82p2 -> tb_i82p3:
+//!    fields=TEMPLATE above, vm |= windows, and_base: zero only under windows
+//!    (the mod region [72:80] untouched - the .U32->era-drift semantics migration
+//!    is a separate decision, F2Q-058-kand). Frozen chain rt98: v3 == v2 textually
+//!    (md5 3f9be6e4), final cubin == 3d15ab6a byte-wise (GATE byte-exact).
+//!    Value of the fix: the IR/decode path (barracuda lift, liveness, sched) no
+//!    longer sees truncated operands; encode+detail-decode produce words
+//!    byte-consistent with nvdisasm for UR>=32 / P>=2 (two-sided pins below).
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::table::IsaTable;

@@ -7,17 +7,17 @@
 //! decode defect on main 2bd2a82, not a harvest cosmetic:
 //!   * odd second data register (bit32=1 folds into the 9-bit [24:33)
 //!     sink window): main 2bd2a82 renders
-//!       ATOMS.CAST.SPIN P0, [R256+0x14], R3, R3     (main, wrong)
+//!     ATOMS.CAST.SPIN P0, [R256+0x14], R3, R3     (main, wrong)
 //!     vendor: ATOMS.CAST.SPIN P0, [R0+0x14], R3, R3
 //!   * bit32 poked on the INC/POPC UR-addressed shape: main renders
 //!     [R511+UR4+0xc]; vendor ignores the bit: [UR4+0xc].
-//! Fix = data-only 9->8 narrowing of exactly the 10 residue rows
-//! (patch188.py; _src "f2-188-2026-08-26"). Anchored populations are
-//! empty for these rows on ALL measured corpora (1.88M sm120 words,
-//! 32M hexdb atom lines, 9,130 atom census) — but 5/5 odd-reg probes
-//! are vendor-wrong pre-fix, so the live-defect class (BUG-143 E1 /
-//! 147 / 148) is confirmed on sm120 rails with the fleet's arbitration
-//! method instead of geometry transfer alone.
+//!     Fix = data-only 9->8 narrowing of exactly the 10 residue rows
+//!     (patch188.py; _src "f2-188-2026-08-26"). Anchored populations are
+//!     empty for these rows on ALL measured corpora (1.88M sm120 words,
+//!     32M hexdb atom lines, 9,130 atom census) — but 5/5 odd-reg probes
+//!     are vendor-wrong pre-fix, so the live-defect class (BUG-143 E1 /
+//!     147 / 148) is confirmed on sm120 rails with the fleet's arbitration
+//!     method instead of geometry transfer alone.
 //!
 //! Pins below additionally lock the AURI-vs-dARI priority audit
 //! (fleet-note i87 sec.3.5): the i87-rejected ATOMS_R_dARI

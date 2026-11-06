@@ -10,7 +10,7 @@
 //!     flattening of shared vector groups)
 //!   * ld.global.v2.b64 -> LDG.E.128 / st.global.v2.b64 -> STG.E.128
 //!     (q3/q4 + corpus p13/p29 -O0 law)
-//! Doctrine: fail-closed on unanchored shapes.
+//!     Doctrine: fail-closed on unanchored shapes.
 use cubit::ptx_lower::lower_kernel;
 use cubit::ptx_parse::parse_ptx;
 use cubit::table::IsaTable;

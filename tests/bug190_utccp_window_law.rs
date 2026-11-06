@@ -11,11 +11,11 @@
 //!   - tmem_ur     @[24:32)   8-bit, 0xff = URZ (elided); UR0..UR64 literal
 //!   - gdesc_ur    @[32:40)   8-bit, 0xff prints gdesc[URZ]
 //!   - tmem_off    @[40:56)   full 16-bit; with URZ base the vendor elides
-//!                            the register: `tmem[0x800]`, never URZ+off
-//! Shape discriminants vs donor 'S,T' = subsets of {83,84,85,88} (2CTA=85).
-//! Fix: tables sm103a/sm100a.json data-only (patch190.py replayable:
-//! 7-row rebuild to donor clone, 3 mk306 rows off12->16 + guard field),
-//! printer.rs tmem URZ+off elision, encoder.rs absolute tmem[0x..] scrape.
+//!     the register: `tmem[0x800]`, never URZ+off
+//!     Shape discriminants vs donor 'S,T' = subsets of {83,84,85,88} (2CTA=85).
+//!     Fix: tables sm103a/sm100a.json data-only (patch190.py replayable:
+//!     7-row rebuild to donor clone, 3 mk306 rows off12->16 + guard field),
+//!     printer.rs tmem URZ+off elision, encoder.rs absolute tmem[0x..] scrape.
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

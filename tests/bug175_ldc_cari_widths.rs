@@ -9,14 +9,14 @@
 //! w0/w1/w2 words = '?' fail-closed, zero fabrication.
 //! Arbitration nvdisasm-13.3.73 on sm_103a (work/i81/arb/arb175_offsetlaw.json
 //! + arb175_bankwalk.json, REAL offset anchor flips): U8/S8/U16 indexed LEGAL;
-//! idx law = off s16@[38:54), bank u5@[54:59) (bank31 -> 0x1f, bits [59:64)+
-//! inert), idx u8@[24:32) with 0xff sentinel (vendor elides to non-idx form).
-//! Fix = data-only ADD of 3 groups (work/i81/patch175.py): and_base/vm =
-//! width-swap of the '64' donor, fields = canonical carrier cm16_off@38/21
-//! (identical to the post-ff target of parked-147/162; existing rows ''/'64'
-//! NOT touched -> compose-disjoint with 147/162/172 by construction).
-//! Out of scope: cARI ''/'64' carrier repair = parked-162 domain; S16 idx =
-//! parked-172 domain; LDCU R-idx = vendor-ILLEGAL (173); cAURI = parked-152.
+//!   idx law = off s16@[38:54), bank u5@[54:59) (bank31 -> 0x1f, bits [59:64)+
+//!   inert), idx u8@[24:32) with 0xff sentinel (vendor elides to non-idx form).
+//!   Fix = data-only ADD of 3 groups (work/i81/patch175.py): and_base/vm =
+//!   width-swap of the '64' donor, fields = canonical carrier cm16_off@38/21
+//!   (identical to the post-ff target of parked-147/162; existing rows ''/'64'
+//!   NOT touched -> compose-disjoint with 147/162/172 by construction).
+//!   Out of scope: cARI ''/'64' carrier repair = parked-162 domain; S16 idx =
+//!   parked-172 domain; LDCU R-idx = vendor-ILLEGAL (173); cAURI = parked-152.
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

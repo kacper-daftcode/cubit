@@ -79,7 +79,7 @@ fn shape_from(text: &str, marker_substr: &str) -> Vec<String> {
 }
 
 /// 1. add.sat.s32 -> 5-op vendor -O0 macro (anchor corpus p27 0x290-0x2d0):
-/// IADD3 + 2x PLOP3.LUT R.SIGN + 2x SEL. Structural pin (RA-agnostic).
+///    IADD3 + 2x PLOP3.LUT R.SIGN + 2x SEL. Structural pin (RA-agnostic).
 #[test]
 fn b9p13_addsat_shape() {
     let t = lower("    ld.global.s32 %r1, [%rd2];\n    ld.global.s32 %r2, [%rd2+0x4];\n    add.sat.s32 %r3, %r1, %r2;");
@@ -91,7 +91,7 @@ fn b9p13_addsat_shape() {
 }
 
 /// 2. add.sat.s32 ENCODE byte-parity vs harvested vendor anchors (payload
-/// bytes[0:12]; anchors corpus p27 O0 0x290-0x2d0, md5_manifest).
+///    bytes[0:12]; anchors corpus p27 O0 0x290-0x2d0, md5_manifest).
 #[test]
 fn b9p13_addsat_encode_parity() {
     let (b, n) = assemble_body(
@@ -137,7 +137,7 @@ fn b9p13_plop3sign_fields() {
 }
 
 /// 4. sin.approx.f32 -> FMUL.RZ + MUFU.SIN (scale 1/2pi NOT dropped; p18 O0
-/// 0x4d0-0x4e0). cos -> MUFU.COS sibling.
+///    0x4d0-0x4e0). cos -> MUFU.COS sibling.
 #[test]
 fn b9p13_sincos_shape_and_parity() {
     let t = lower("    ld.global.b32 %r1, [%rd2];\n    sin.approx.f32 %r2, %r1;");

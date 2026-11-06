@@ -91,9 +91,9 @@ fn t462_3_mint_refuse() {
 /// f58ed16] -- po L2-UNCLAIM BUG-461 (zdjetych 3072 cf/noga z wierszy REDG
 /// *_ARURI64_R; glif drukarski zamiast HOLE) sklad: L1 452=3 + legacy 099=3
 /// + 462=15/15/7/11 = 21/21/13/17 (atrybucja danych, fail-closed na drift).
-/// Trajektoria: 452=3075 -> 453=+3 -> 462=+15/15/7/11 -> 461=-3072/noga.
-/// [ride 463: +12 cf/noga (LTC klucze); canonical a64b82b] = 33/33/25/29.
-/// [RIDE469 (F2-iter285): graft 469 sm121a +17 cf (mg 0x981 CF_RA/CF_RA_PRED7
+///   Trajektoria: 452=3075 -> 453=+3 -> 462=+15/15/7/11 -> 461=-3072/noga.
+///   [ride 463: +12 cf/noga (LTC klucze); canonical a64b82b] = 33/33/25/29.
+///   [RIDE469 (F2-iter285): graft 469 sm121a +17 cf (mg 0x981 CF_RA/CF_RA_PRED7
 /// + EF-klucze); canonical bd48e63] = 33/33/25/46.
 #[test]
 fn t462_4_claim_census() {

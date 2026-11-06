@@ -3,13 +3,13 @@
 //! D1 corpus + sweep (work/bug123/sweep.ptx, ptxas 13.3.73):
 //!
 //!   * II-wiersze .256 z trailer-imm (LDG_R_R_dARI_II — NOWY klucz):
-//!       256,E,EL,ENL2 / 256,E,EF,ENL2 / 256,E,ENL2,LTC256B /
-//!       256,CONSTANT,E,ENL2,LTC256B
+//!     256,E,EL,ENL2 / 256,E,EF,ENL2 / 256,E,ENL2,LTC256B /
+//!     256,CONSTANT,E,ENL2,LTC256B
 //!     geometria trailer-imm: imm[5:0]@57 (pole 6b, no-imm default 0x3f)
 //!     + imm_shr7[7] -> printing ", 0x93"/", 0x83"/", 0x81"/", 0x1".
-//!     No-imm forms (field=0x3f, bit72=1) = separate 4-token rows —
-//!     disambiguation purely by key (token count), zero match_mask collisions
-//!     (noimm requires [57:63]=0x7f & bit72=1 as fixed states).
+//!       No-imm forms (field=0x3f, bit72=1) = separate 4-token rows —
+//!       disambiguation purely by key (token count), zero match_mask collisions
+//!       (noimm requires [57:63]=0x7f & bit72=1 as fixed states).
 //!   * noimm .256 polityki na LDG_R_R_dARI: 256,E,EL,ENL2 / 256,E,EF,ENL2 /
 //!   * noimm .256 policies on LDG_R_R_dARI: 256,E,EL,ENL2 / 256,E,EF,ENL2 /
 //!     256,E,ENL2,EU (b10 nibble: ENL2=0x12, EL=0x22, EF=0x02, EU=0x42).

@@ -160,7 +160,7 @@ pub const LAW438_STABLE: &[(u128, &str)] = &[
 /// POSTURE438: loud INVALID3/glyph classes + unmapped width (STS.S16 HEALED by 443
 /// trendflip to vendor text cell-by-cell below; INVALID7 standing HOLE = 285 doctrine)
 /// + STS.AURI-beyond + STG other-family/kill single postures STAY engine-HOLE
-/// pre==post x4 (NOT grafted by 438; registrations per report).
+///   pre==post x4 (NOT grafted by 438; registrations per report).
 pub const POSTURE438: &[(u128, &str, &str)] = &[
     (0x000fc2000000030000000104f8000844, "arb433.B.e0.n6.sm100a", "HOLE"),
     (0x000fc2000000030000000104f8000844, "arb433.B.e0.n6.sm103a", "HOLE"),

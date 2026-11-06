@@ -10,9 +10,9 @@
 //!   decode twins: sm120 HADD2.F32 316,207 DIFF + HADD2 24,501 + BF16_V2
 //!   5,956 (era rows dropped fields / 4-token monster), LOP3.LUT 7,196 DIFF
 //!   + 2,524 HOLE (P-form swallowed leading pred / R-row leaked the leading
-//!   value into the tail print), SHF.L.U32 630, SHF.L.U64.HI 10,350,
-//!   SHF.R.U64 14 HOLE; donors: HADD2.F32 316,207 (tok2 neg drop),
-//!   LOP3.LUT 15,303 (same P-law).
+//!     value into the tail print), SHF.L.U32 630, SHF.L.U64.HI 10,350,
+//!     SHF.R.U64 14 HOLE; donors: HADD2.F32 316,207 (tok2 neg drop),
+//!     LOP3.LUT 15,303 (same P-law).
 //!
 //! Arb laws (arb241.json, transplant probes, vendor prints):
 //!   HADD2 'F32': tok2 neg@72 + hsel 2b@74, tok3 abs@62 (also grafted on

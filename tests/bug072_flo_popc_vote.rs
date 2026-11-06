@@ -16,10 +16,10 @@
 //!      negation does not change the read, PT dest drops out. Active in
 //!      both modes (predcheck.py has no VOTE arm; the certified corpus
 //!      carries no VOTE, so G8a parity is untouched).
-//! Both layers resolve ctrl-class via the grounded NEUTRAL_ALU fallback
-//! (FLO/POPC/VOTE/VOTEU are base-op listed), so identity/list run clean.
-//! Pins are repro-first: the sched test failed pre-fix with the sm120
-//! error shape; reg/pred pins pin the exact transfer sets.
+//!      Both layers resolve ctrl-class via the grounded NEUTRAL_ALU fallback
+//!      (FLO/POPC/VOTE/VOTEU are base-op listed), so identity/list run clean.
+//!      Pins are repro-first: the sched test failed pre-fix with the sm120
+//!      error shape; reg/pred pins pin the exact transfer sets.
 
 use cubit::parser::parse_sass;
 use cubit::pred_liveness::{pred_xfer, XferMode};

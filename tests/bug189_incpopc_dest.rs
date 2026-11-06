@@ -16,9 +16,9 @@
 //!     (1,876,934 sm120 words, 32,210,952 sm103-corpus words, 9,130
 //!     atoms_all, 11,280 era) — production dest exposure is LATENT; the row
 //!     itself is LIVE on sm103/sm100 (478 anchors, all dest=RZ).
-//! Pre-fix main 2bd2a82 renders every dest!=0xff probe as `RZ,` (winner189:
-//! 9/9 diverge) and cicho emits uC-INVALID words on encode of `Rv>0` texts
-//! (writes the register into the [7:15) sink instead of failing).
+//!     Pre-fix main 2bd2a82 renders every dest!=0xff probe as `RZ,` (winner189:
+//!     9/9 diverge) and cicho emits uC-INVALID words on encode of `Rv>0` texts
+//!     (writes the register into the [7:15) sink instead of failing).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

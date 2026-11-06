@@ -48,8 +48,8 @@
 //!    b79('.RELU trailing-P')/b80('.FTZ') x4 (missing dotted R-final rows).
 //!  - B/C tok5 hsel window [81:83) b81='R0.INVALID1'/b82='R0.H0_H0' x4
 //!    (needs r_hsel_invalid1_slot extension to HFMA2 tok5 = engine change).
-//!  B.bit78 vendor 'HFMA2.INVALID3 ...' = INVALID-mnemonic -> engine HOLE
-//!  is the 285/324-doctrine posture (kept, pinned).
+//!    B.bit78 vendor 'HFMA2.INVALID3 ...' = INVALID-mnemonic -> engine HOLE
+//!    is the 285/324-doctrine posture (kept, pinned).
 //!
 //! Witness data: tests/bug417_data.inc (gen417pins.py; rc=2 self-checks).
 //! Foreign flip WITH attribution: POSTURE405_6 24 cells CLOSED (post :=

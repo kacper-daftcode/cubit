@@ -17,8 +17,8 @@
 //!   3. printer extra-trailing-pred negation consults an explicit neg/inv
 //!      field on that token first and only then falls back to the legacy
 //!      bit80 heuristic (correct solely for the carry-pred slot).
-//! Anchors: the two vendor words of cubit-bugs/089/repro089 (hopb @0370 /
-//! @d710), nvdisasm 13.3 render as golden.
+//!      Anchors: the two vendor words of cubit-bugs/089/repro089 (hopb @0370 /
+//!      @d710), nvdisasm 13.3 render as golden.
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

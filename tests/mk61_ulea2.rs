@@ -6,8 +6,8 @@
 //!  * class-2: [UR|URZ, UR|URZ, UR|URZ, imm<=15] 4 tokens, no .HI/.X
 //!    (imma '@!UP0 ULEA UR11, UR11, UR14, 0x3' DOES carry — a guard does not exclude;
 //!    imm>15 (0x18/0x1e) does NOT carry — the 2-kernel cusparse-cub 838 park).
-//! EXACT: 14117/14119 kerneli count + 9556/9556 okien porzadku; porownanie
-//! ze 138 rozwiazanymi kernelami atrybucji (c8): 138/138 zgodnych lane-setow.
+//!    EXACT: 14117/14119 kerneli count + 9556/9556 okien porzadku; porownanie
+//!    ze 138 rozwiazanymi kernelami atrybucji (c8): 138/138 zgodnych lane-setow.
 
 use cubit::eiattr::{KernelMeta, KernelParam};
 use cubit::elf_builder::generate_mercury_full;

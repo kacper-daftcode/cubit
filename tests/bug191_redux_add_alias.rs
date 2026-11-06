@@ -10,8 +10,8 @@
 //!     3=[SUM] -- the [78:81) field IS AND/OR/XOR/SUM semantics;
 //!   * corpus census (9,417 hexdb lanes, work/i90/silicon/redux_census.tsv)
 //!     agrees 1:1 with the glyph<->opbity map for every anchored form.
-//!   op: 0=AND(bare) 1=OR 2=XOR 3=SUM; bit73=.S32 (CREDUX base 72cc
-//!   carries MIN=2/MAX=0 instead -- untouched here).
+//!     op: 0=AND(bare) 1=OR 2=XOR 3=SUM; bit73=.S32 (CREDUX base 72cc
+//!     carries MIN=2/MAX=0 instead -- untouched here).
 //!
 //! Pre-fix defect (silent wrong-code, encode-side): `REDUX.ADD.U32` rode
 //! MOD_DROP_TOLERATED and selected the "" row -> word op=0 -> hardware

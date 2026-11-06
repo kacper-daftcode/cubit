@@ -8,8 +8,8 @@
 //!    our own emit is BVAL (1 byte) — the meta parser returned 0; fixed;
 //!  - asm with -T/--eiattr-from: pre-flight compares the sass .param footprint vs the
 //!    reference; a mismatch = a hard error naming the instruction, no file.
-//! Without a reference the emit is already correct (16 B, KPARAM_INFO x3) — the
-//! regression pins that too.
+//!    Without a reference the emit is already correct (16 B, KPARAM_INFO x3) — the
+//!    regression pins that too.
 
 use std::process::Command;
 

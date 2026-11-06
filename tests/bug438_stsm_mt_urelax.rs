@@ -14,10 +14,10 @@
 //!    (own sm121a 8-bit donor-parity; j70/j71 silent-truncation healed);
 //!  - G4b x4 STG.E_ARURI_R|'E' vm |= junk whitelist {81,82,83,87,88,89,92,
 //!    93,94,95} x4.
-//! NOT grafted (pinned standing here): INVALID3 STSM loud class; STS
-//! S16/INVALID7 width maps; STG other-family enums (j72-j86) + desc
-//! j90-misroute (442-kand, x3 snapped text) + kill singles j76/j91; era-rc1
-//! carriers posture continuity.
+//!    NOT grafted (pinned standing here): INVALID3 STSM loud class; STS
+//!    S16/INVALID7 width maps; STG other-family enums (j72-j86) + desc
+//!    j90-misroute (442-kand, x3 snapped text) + kill singles j76/j91; era-rc1
+//!    carriers posture continuity.
 //!
 //! Witness data: tests/bug438_data.inc (machine-built by
 //! work/bug438/gen438pins.py; rc=2 self-checks; no hand hex).

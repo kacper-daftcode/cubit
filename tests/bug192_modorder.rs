@@ -10,8 +10,8 @@
 //!     witness corpus (ptxas 13.3 tcgen05.cp 12/12 forms, arb190a.json):
 //!     "UTCCP.T.S.2CTA.128dp128bit tmem[UR0], gdesc[UR4]".
 //!     The old render was `UTCCP.128dp128bit.S.T`.
-//! Encoding is unchanged (printer-only); the assembler mod lookup is
-//! order-independent (extract_mod_group sorts), so both spellings assemble.
+//!     Encoding is unchanged (printer-only); the assembler mod lookup is
+//!     order-independent (extract_mod_group sorts), so both spellings assemble.
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

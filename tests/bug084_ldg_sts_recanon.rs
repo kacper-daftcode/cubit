@@ -18,12 +18,12 @@
 //!     zero-content field removed + bit2 pinned -- ERRBAR (0x79ab) itself
 //!     is vendor-real: 2,254 corpus anchors across p_fence/k31/k33c1..);
 //!   * LDG.E.ENL2.256 pair-form missing entirely (LDG_R_R_dARI key absent).
-//! Parity: (False,True)=119,865 records 100% fixed, (True,True)=557,047
-//! unchanged, residual (False,False)=1,680 = text-parity classes only
-//! (LDGSTS `.BYPASS.E` render order = printer RP-class, STS `[R+URZ]`
-//! UR255 alias print, `[URn+-0x..]` sign format, LDG.E [Rn.64+UR+imm]
-//! geometry gap = b4 coverage). ok->BAD: 16 records, all the cosmetic
-//! `+-` sign-format class (now rendering like sm103a's print).
+//!     Parity: (False,True)=119,865 records 100% fixed, (True,True)=557,047
+//!     unchanged, residual (False,False)=1,680 = text-parity classes only
+//!     (LDGSTS `.BYPASS.E` render order = printer RP-class, STS `[R+URZ]`
+//!     UR255 alias print, `[URn+-0x..]` sign format, LDG.E [Rn.64+UR+imm]
+//!     geometry gap = b4 coverage). ok->BAD: 16 records, all the cosmetic
+//!     `+-` sign-format class (now rendering like sm103a's print).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

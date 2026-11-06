@@ -19,9 +19,9 @@
 //!     field windows (machine-verified), so one strict row serves all.
 //!   * printer: the shared-atom bracket arm (verbatim port of the BUG-143
 //!     hook a6049c1 -> ATOMS+ARURI prints [R+UR+off], 0xFF = URZ sink).
-//! Modifier spelling: nvdisasm prints "ATOMS.POPC.INC.32", cubit sorts mod
-//! tokens ("ATOMS.INC.POPC.32") - documented print dialect, same class as
-//! BUG-143 t143_2 (compare modifier sets when crossing to vendor text).
+//!     Modifier spelling: nvdisasm prints "ATOMS.POPC.INC.32", cubit sorts mod
+//!     tokens ("ATOMS.INC.POPC.32") - documented print dialect, same class as
+//!     BUG-143 t143_2 (compare modifier sets when crossing to vendor text).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

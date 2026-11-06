@@ -10,8 +10,8 @@
 //!  - cmd_asm (the .entry path) parses strict (any unparseable segment
 //!    is an error, not a skip),
 //!  - lib `cubit::assemble` likewise strict.
-//! SASS has a single guard field — emitting a predicate composition correctly
-//! means a PLOP3 on the author's side, not the assembler's.
+//!    SASS has a single guard field — emitting a predicate composition correctly
+//!    means a PLOP3 on the author's side, not the assembler's.
 
 use cubit::parser::parse_sass;
 use cubit::sass_file::parse_sass_file_str_strict;

@@ -30,8 +30,8 @@
 //! Witness data: tests/bug414_data.inc (machine-built by
 //! work/bug414x/gen414pins.py from arb414{,b,c}_law.json + measure414.json
 //! + attr_u16.json; rc=2 self-checks; no hand hex).
-//! Foreign flip WITH attribution: t399_6 (414 posture) rewritten into the
-//! closed-414 contract below.
+//!   Foreign flip WITH attribution: t399_6 (414 posture) rewritten into the
+//!   closed-414 contract below.
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

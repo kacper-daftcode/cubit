@@ -4,7 +4,7 @@
 
 /// LAW441_HEAL: BUG-441 graft scope -- band-rest {88,89,93,94} singles+combos
 /// + cross-D mixes + rich carriers (plain row) + full inert band under count
-/// rows .2/.4: decode == vendor text x4 legs (HOLE pre-graft on every leg).
+///   rows .2/.4: decode == vendor text x4 legs (HOLE pre-graft on every leg).
 pub const LAW441_HEAL: &[(u128, &str)] = &[
     (0x000000000810010000000004ff10783b, "LDSM.16.M88.2 R16, [UR4]"), // F2.b84
     (0x000000000810020000000004ff10783b, "LDSM.16.M88.4 R16, [UR4]"), // F4.b84

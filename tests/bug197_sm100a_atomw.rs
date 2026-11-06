@@ -2,13 +2,13 @@
 //! Data-only patch197.py on tables/sm100a.json: PART A adds the 13 rows
 //! parked-BUG-195 carries on sm103a (10 ATOMG_P_R_dARI_R width/scope groups
 //! + REDG SM/SYS + CAS.SM); PART B mirrors parked-BUG-196's donor pred-window
-//! law (26 rows -> pred [81:84)); PART C canonicalizes CAS.SYS ab[7:11)=7.
-//! sm100a was withdrawn from BUG-196 precisely because it lacked these width
-//! rows — this patch closes the full lane in one pass.
+//!   law (26 rows -> pred [81:84)); PART C canonicalizes CAS.SYS ab[7:11)=7.
+//!   sm100a was withdrawn from BUG-196 precisely because it lacked these width
+//!   rows — this patch closes the full lane in one pass.
 //!
 //! Witnesses (nvdisasm 13.3.73 on real sm_100a builds probe195{,b,e}_100a
 //! + graft197a in-place): glyphs and payload words verified bitwise.
-//! Census-first: zero anchor exposure in atomdb sm_100 class (16,053 IDENT).
+//!   Census-first: zero anchor exposure in atomdb sm_100 class (16,053 IDENT).
 //!
 //! NOTE (compose): sm-scope rows print SM in mod-group-name position until
 //! parked-195's printer.rs arm (STRONG-last) lands; the witness literals

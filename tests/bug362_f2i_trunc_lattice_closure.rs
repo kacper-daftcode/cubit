@@ -16,24 +16,24 @@
 //!   - dst-selector [75:72] aliases: b73/b74-armed cells HOLE x4 although
 //!     they are the vendor's alias cells of every class (arb339 B1n2/B1nf +
 //!     arb362c 12 probes: the alias lattice is fully measured below).
-//! FIX parts:
-//!   S table graft: {abs 1b@62, neg 1b@63} tok2 fields on 34 rows
+//!     FIX parts:
+//!     S table graft: {abs 1b@62, neg 1b@63} tok2 fields on 34 rows
 //!     (7 generic F2I_R_R mgs on 100a/103a; 3 generic + 7 era *_R_R keys on
 //!     120/121a) -- field-carried, claim-invariant on [62:63].
-//!   I table graft: vm |= 3<<73 on the same rows = the alias-bit closure.
+//!     I table graft: vm |= 3<<73 on the same rows = the alias-bit closure.
 //!     Vendor law for the byte9-low-nibble [75:72] dst selector on the
 //!     byte10=0x30 anchor: {0,2,4,6}->U32, {1,3,5,7}->F64-def,
 //!     {8,a,c,e}->U64, {9,b,d,f}->S64 (nvdisasm x4 agree; engine decodes
 //!     each class through its own row). On the byte10=0x20 A-anchor the
 //!     same alias pairs hold for the S64/U64 rows (arb339 A2b73/74).
-//!   a ENGINE decoder arm: matched lattice row + any reuse bit set = HOLE.
-//! CORPUS (census362 over ab240 2,406): sign-armed slots = 0, reuse-armed
-//!   claimed slots = 0, pre-fix HOLE slots on these ops = 0 -- the graft is
-//!   corpus-invisible; the only corpus-visible change of the iteration is
-//!   the BUG-361 print law (own pin file).
-//! NOT-DONE registrations: 'F2I.F64.FLOOR.NTZ' cell (b77-armed FLOOR anchor)
-//!   = vendor-legal un-rowed class HOLE x4 (380-kand); the era keys carry
-//!   the pre-existing 2aE-era shifted fields.
+//!     a ENGINE decoder arm: matched lattice row + any reuse bit set = HOLE.
+//!     CORPUS (census362 over ab240 2,406): sign-armed slots = 0, reuse-armed
+//!     claimed slots = 0, pre-fix HOLE slots on these ops = 0 -- the graft is
+//!     corpus-invisible; the only corpus-visible change of the iteration is
+//!     the BUG-361 print law (own pin file).
+//!     NOT-DONE registrations: 'F2I.F64.FLOOR.NTZ' cell (b77-armed FLOOR anchor)
+//!     = vendor-legal un-rowed class HOLE x4 (380-kand); the era keys carry
+//!     the pre-existing 2aE-era shifted fields.
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

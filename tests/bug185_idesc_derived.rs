@@ -10,15 +10,15 @@
 //!     1,362/1,362 anchors derived-consistent (sm103a+sm100a).
 //!   - [48:56) IS a real 8-bit window: the trailing explicit-UR form
 //!     (`..., idesc[UR11], UR6, !UPT`) = the *_UR_ table rows; 0xff elides.
-//! Pre-fix defects (LATENT by census — zero trailing-UR corpus words):
-//!   (a) '' _UR_ rows of UTCQMMA/UTCIMMA/UTCHMMA_UR_UP_II carried tok2 at
-//!       (24,8) = DUPLICATE of tok1: decode of a non-2CTA _UR_ word missed
-//!       the row (prio-3 stole it to the UTCHMMA family with the sector
-//!       discriminator [72,73] masked) and ENCODE clobbered tok1 with tok2's
-//!       value (double write into [24:32)).
-//!   (b) any textual idesc value/offset silently baked at encode.
-//! Fix: data (patch185.py: tok2 -> (32,8) on the 3 rows, sm103a+sm100a) +
-//! encoder gate check_idesc_derived (refuse mismatch, always-on).
+//!     Pre-fix defects (LATENT by census — zero trailing-UR corpus words):
+//!     (a) '' _UR_ rows of UTCQMMA/UTCIMMA/UTCHMMA_UR_UP_II carried tok2 at
+//!     (24,8) = DUPLICATE of tok1: decode of a non-2CTA _UR_ word missed
+//!     the row (prio-3 stole it to the UTCHMMA family with the sector
+//!     discriminator [72,73] masked) and ENCODE clobbered tok1 with tok2's
+//!     value (double write into [24:32)).
+//!     (b) any textual idesc value/offset silently baked at encode.
+//!     Fix: data (patch185.py: tok2 -> (32,8) on the 3 rows, sm103a+sm100a) +
+//!     encoder gate check_idesc_derived (refuse mismatch, always-on).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

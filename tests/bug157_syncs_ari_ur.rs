@@ -12,15 +12,15 @@
 //!      (printed `R170, [UR40+0x180e0], R170` — base dropped), P-side
 //!      SYNCS_P_dARI_R (printed `desc[UR13][R2.64+0xe0]` — desc fabricated).
 //!      103/103 P_dARI wins were fabrications; key deleted.
-//! Data fix (patch157.py): dup@24 removed from two R_AURI groups (tok1=reg@16,
-//! tok3=reg@32, sibling geometry); SYNCS_P_dARI_R deleted; SYNCS_R_ARURI_R
-//! gains anchor-derived group "ARRIVE,RED,TRANS64" (encode fixed-point of the
-//! corrected render; the six RED-only anchors).
-//! Printer fix (src/printer.rs): SYNCS mod priority arm; ARURI+SYNCS routed to
-//! format_addr (plain [R+UR+off], never desc); ARI+SYNCS without UR field and
-//! raw @[64:72)==0xff splices "+URZ"; format_addr URZ law is window-width
-//! aware (8-bit windows: 255=URZ, 63=UR63 — BUG-160 law; narrower legacy
-//! windows keep 63=URZ).
+//!      Data fix (patch157.py): dup@24 removed from two R_AURI groups (tok1=reg@16,
+//!      tok3=reg@32, sibling geometry); SYNCS_P_dARI_R deleted; SYNCS_R_ARURI_R
+//!      gains anchor-derived group "ARRIVE,RED,TRANS64" (encode fixed-point of the
+//!      corrected render; the six RED-only anchors).
+//!      Printer fix (src/printer.rs): SYNCS mod priority arm; ARURI+SYNCS routed to
+//!      format_addr (plain [R+UR+off], never desc); ARI+SYNCS without UR field and
+//!      raw @[64:72)==0xff splices "+URZ"; format_addr URZ law is window-width
+//!      aware (8-bit windows: 255=URZ, 63=UR63 — BUG-160 law; narrower legacy
+//!      windows keep 63=URZ).
 //!
 //! Anchors below = vendor witnesses from the 32.2M-line hexdb + nv-harvest
 //! (arch tag per row; decode/encode through tables/sm103a.json).

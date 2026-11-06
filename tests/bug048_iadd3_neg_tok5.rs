@@ -18,11 +18,11 @@
 //!    .X form regardless of the cin slot — the `-Rn` glyph in that slot comes from
 //!    author records (s6 i122), not nvdisasm; the encoder maps `-` onto the canonical
 //!    inversion bit (the printer shows `~` after the round-trip, like nvdisasm).
-//! Fix (data level, symmetry with the IADD3.X_ row): + `neg` tok5 in the
-//! "X" group of the `IADD3_R_P_P_R_R_R_P_P` row — tables/sm120.json + sm103a.json.
-//! Extraction::Neg already degrades back to inv, so the existing golden
-//! tok5 encodings (~R) are bitwise unchanged (frozen-RT rt98 == 3d15ab6a,
-//! stale).
+//!    Fix (data level, symmetry with the IADD3.X_ row): + `neg` tok5 in the
+//!    "X" group of the `IADD3_R_P_P_R_R_R_P_P` row — tables/sm120.json + sm103a.json.
+//!    Extraction::Neg already degrades back to inv, so the existing golden
+//!    tok5 encodings (~R) are bitwise unchanged (frozen-RT rt98 == 3d15ab6a,
+//!    stale).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

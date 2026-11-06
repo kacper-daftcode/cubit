@@ -1,7 +1,7 @@
 //! BUG-076 (from the B12 A/B O3 wrapper; guard
 //! + probe matrix executed F2 2026-08-22): STG desc-form with a 64-bit
-//! address pair `desc[URm][Rn.64]` requires an EVEN pair base Rn on sm_103a
-//! silicon -- OPPOSITE polarity to BUG-060 (LDG.E.NA.EFL2.256 needs ODD).
+//!   address pair `desc[URm][Rn.64]` requires an EVEN pair base Rn on sm_103a
+//!   silicon -- OPPOSITE polarity to BUG-060 (LDG.E.NA.EFL2.256 needs ODD).
 //!
 //! Silicon (B300, krunp harness, GPU idle-windows 2026-08-22; records in
 //! the internal fix archive + krun_stats2.txt):

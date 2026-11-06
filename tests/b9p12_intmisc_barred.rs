@@ -1,8 +1,8 @@
 //! b9p12 (phase-3 #10) pins: intmisc lane (lop3/prmt/bfe/bfind/sad) + bar.red
 //! + setmaxnreg + trap + ld.volatile + discard.global.L2 + barrier pack;
-//! plus the phase-1 guess-mapping fixes clz/popc/brev (vendor -O0 macros).
-//! Anchors: work/b9p12/probes corpus O0 cubins + work/b9p12/t probes;
-//! doctrine: fail-closed on unanchored shapes.
+//!   plus the phase-1 guess-mapping fixes clz/popc/brev (vendor -O0 macros).
+//!   Anchors: work/b9p12/probes corpus O0 cubins + work/b9p12/t probes;
+//!   doctrine: fail-closed on unanchored shapes.
 use cubit::ptx_lower::lower_kernel;
 use cubit::ptx_parse::parse_ptx;
 use cubit::table::IsaTable;

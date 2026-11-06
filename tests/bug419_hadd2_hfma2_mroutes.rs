@@ -30,8 +30,8 @@
 //!    care-eater over [72:80)], neg@77/78/80) + route bits lifted out of
 //!    the era variable_masks on all four legs = measured claim-tighten
 //!    + care-routing; new mgs SAT/FTZ/BF16_V2/FTZ,SAT/BF16_V2,SAT/
-//!    BF16_V2,FTZ/BF16_V2,FTZ,SAT/F32-absorber cloned from the cleaned
-//!    ''; F32 branch = dotted keys HADD2.F32[.SAT/.FTZ]_R_R_FI.
+//!      BF16_V2,FTZ/BF16_V2,FTZ,SAT/F32-absorber cloned from the cleaned
+//!      ''; F32 branch = dotted keys HADD2.F32[.SAT/.FTZ]_R_R_FI.
 //!  * HFMA2 parents x4 (+II_II on 120/121a): new mgs cloned per law
 //!    (b86 relax where measured-inert); 121a FI_FI_R era tok0 junk
 //!    reg@[76..93) removed from ''+BF16_V2; hsel(2)@81 tok5 on the new

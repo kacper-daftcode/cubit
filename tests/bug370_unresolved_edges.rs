@@ -15,8 +15,8 @@
 //!     principle but unit-uninterpreted (6 rt98, new `ConstBase` class --
 //!     still UNVERIFIED, honestly attributed).
 //!   - static target outside the kernel / unresolved Label -> `OutTarget`.
-//! rt98 totals post-classification: KernelA 52 -> 42 (36 RegTarget + 6
-//! ConstBase), KernelB 12 -> 2 (RegTarget); classic counters untouched.
+//!     rt98 totals post-classification: KernelA 52 -> 42 (36 RegTarget + 6
+//!     ConstBase), KernelB 12 -> 2 (RegTarget); classic counters untouched.
 //!
 //! Flow: parse -> schedule() -> reallocate_barriers() (the production path,
 //! bug117/342/347 idiom), then verify_scoreboard_report() assertions.

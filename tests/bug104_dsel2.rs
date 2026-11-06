@@ -14,8 +14,8 @@
 //!     (kind-fixed paths already map URZ -> 0xFF in 8-bit desc slots);
 //!   * process catch: UTCQMMA_WS tok2 field pointed at @24 (tok2 overlay);
 //!     sibling geometry (UTCHMMA_WS, all 6-op/7-op rows) puts tok2 at @32.
-//! After the fix: 2028/2028 anchors payload-clean (residual deltas are the
-//! separate 103-kand ctrl_hi dispatch class, bits [127:96], parked).
+//!     After the fix: 2028/2028 anchors payload-clean (residual deltas are the
+//!     separate 103-kand ctrl_hi dispatch class, bits [127:96], parked).
 //!
 //! Pins compare payload bits [95:0]; bits [127:96] carry the scheduler
 //! default word (0x0fc200 -- vs vendor 0x11d800/0x1f200/... = 103-kand).

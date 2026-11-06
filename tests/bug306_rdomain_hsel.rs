@@ -15,17 +15,17 @@
 //!     arb297 K1 + arb306 G7/G9/G57) -- R-side mirror of the BUG-305 UR
 //!     law, subsuming the BUG-279 imm-family arm on its R tokens;
 //!   * values 2/3 keep the shared '.H0_H0'/'.H1_H1' mapping everywhere.
-//! PRE-FIX (measure_pre306, pub pyo3-740b191): decode printed '.H0_H1' on
-//! every INVALID1-class v1 probe and on the plain-row '.F32' slots
-//! (misprints); encode MINTED v1 from authored '.H0_H1' on HADD2/HMUL2/
-//! HFMA2 slots (silent wrong-code class), while '.F32' on non-immfam rows
-//! was 272-refused (safe). HSETP2/HMNMX2 authored hsel-v1 spellings were
-//! already entry-lookup refused (safe; unchanged here).
-//! CORPUS EXPOSURE ZERO (routex306, 2,406-cubin battery x4 legs: no
-//! hsel==1 word on ANY R-class hsel slot; the 117,894 fingerprint
-//! collisions on the weak sm121a FI_FI row decode as LEA/ULEA/UTMASTG,
-//! verify_fifi: H-family claims 0). Sibling scopes stay disjoint: UR
-//! tokens = BUG-297/305 laws; imm/FI tokens = BUG-279 lanes.
+//!     PRE-FIX (measure_pre306, pub pyo3-740b191): decode printed '.H0_H1' on
+//!     every INVALID1-class v1 probe and on the plain-row '.F32' slots
+//!     (misprints); encode MINTED v1 from authored '.H0_H1' on HADD2/HMUL2/
+//!     HFMA2 slots (silent wrong-code class), while '.F32' on non-immfam rows
+//!     was 272-refused (safe). HSETP2/HMNMX2 authored hsel-v1 spellings were
+//!     already entry-lookup refused (safe; unchanged here).
+//!     CORPUS EXPOSURE ZERO (routex306, 2,406-cubin battery x4 legs: no
+//!     hsel==1 word on ANY R-class hsel slot; the 117,894 fingerprint
+//!     collisions on the weak sm121a FI_FI row decode as LEA/ULEA/UTMASTG,
+//!     verify_fifi: H-family claims 0). Sibling scopes stay disjoint: UR
+//!     tokens = BUG-297/305 laws; imm/FI tokens = BUG-279 lanes.
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;
