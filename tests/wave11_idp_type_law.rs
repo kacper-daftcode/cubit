@@ -14,12 +14,13 @@
 //! (`remote/idp_enum_window.json`, `tests/fixtures/sm120_idp_enum_nvdisasm.jsonl`),
 //! reproduced on SM100 and SM103.
 //!
-//! Known gap, pinned below: `IDP.4A.S8.U8` and `IDP.4A.U8.S8` are distinct
-//! encodings whose texts differ only in operand order, and the table's
-//! mod-group model is a *sorted* comma set (`extract_mod_group` sorts), so one
-//! row cannot express either. Neither form occurs in any measured corpus; a word
-//! with mixed type bits still decodes as the S8,S8 sibling and therefore does
-//! not round-trip. Tracked as a known issue, not silently accepted.
+//! Mixed types, resolved 2026-11-06 (NEEDS 36 -> D2, T-9's call): `IDP.4A.S8.U8`
+//! and `IDP.4A.U8.S8` are distinct encodings whose texts differ only in operand
+//! order; the mod-group model is a *sorted* comma set, so D2 gives them their own
+//! typed rows (plus the typed UR lattice and the sm121a harvest repair) --
+//! `idp_mixed_types_round_trip_through_typed_keys` below pins decode == vendor
+//! text and the LOW96 round trip on all four tables. Neither mixed form occurs
+//! in any measured corpus (count stays 0).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
@@ -68,18 +69,50 @@ fn idp_type_bits_are_care() {
 }
 
 #[test]
-fn idp_mixed_types_are_a_known_gap() {
-    // Documented limitation: 0x02 (S8,U8) and 0x04 (U8,S8) are legal, distinct
-    // words whose mod-groups collide after sorting. This test exists so the gap
-    // shows up as a deliberate, dated assertion instead of a silent surprise.
-    let t = table("tables/sm120.json");
-    for enum_ in [2u128, 4] {
-        let w = CORPUS_U8U8 | (enum_ << 72);
-        let got = dec(&t, w);
-        assert_eq!(got, "IDP.4A.S8.S8 R15, R15, R6, R7",
-                   "enum {enum_:#x}: absorbed by the S8,S8 sibling (known gap)");
-        assert_ne!(enc(&t, &got) & LOW96, w & LOW96,
-                   "and consequently not round-trip-stable");
+fn idp_mixed_types_round_trip_through_typed_keys() {
+    // NEEDS 36, resolved as D2 typed keys (T-9's call, 2026-11-06; ISA
+    // `idp-mixed-d2-2026-11-06`): the mod-group name is a sorted set, so one
+    // row cannot express S8.U8 vs U8.S8 -- the mixed types now carry their own
+    // typed rows (IDP.4A.S8.U8 / IDP.4A.U8.S8 keys) on all four tables, plus
+    // the typed UR lattice (the U8.U8 UR form is measured too, enum 0/1) and
+    // the sm121a harvest repair (its R-form opcode is 0x0226). Measured:
+    // bit 73 = the Rb/URb sign, bit 74 = the Rc sign (the wave-11 256-value
+    // sweep + nvdisasm 13.3 on SM103/SM100/SM120/SM121, this session).
+    // This test REPLACES the `idp_mixed_types_are_a_known_gap` pin: against
+    // pre-D2 tables it fails by design (the mixed words used to be absorbed
+    // by the S8,S8 sibling through the sign-tolerant fallback).
+    let ab_ur: u128 = 0x00000000080006ff0000000400007c26;
+    let ur_base = ab_ur & !(0xffu128 << 72)
+        & !((0xffu128 << 16) | (0xffu128 << 24) | (0xffu128 << 32) | (0xffu128 << 64));
+    for leg in ["tables/sm120.json", "tables/sm103a.json", "tables/sm100a.json",
+                "tables/sm121a.json"] {
+        let t = table(leg);
+        let opcode: u128 = if leg.contains("sm121a") { 0x226 } else { 0x7226 };
+        let lo = opcode | (7u128 << 12) | (15u128 << 16) | (15u128 << 24)
+            | (6u128 << 32) | (7u128 << 64);
+        for (enum_, text) in [
+            (0u128, "IDP.4A.U8.U8 R15, R15, R6, R7"),
+            (2u128, "IDP.4A.S8.U8 R15, R15, R6, R7"),
+            (4u128, "IDP.4A.U8.S8 R15, R15, R6, R7"),
+            (6u128, "IDP.4A.S8.S8 R15, R15, R6, R7"),
+        ] {
+            let w = lo | (enum_ << 72);
+            let got = dec(&t, w);
+            assert_eq!(got, text, "{leg}: enum {enum_:#x}");
+            assert_eq!(enc(&t, &got) & LOW96, w & LOW96, "{leg}: enum {enum_:#x} round trip");
+        }
+        for (enum_, text) in [
+            (0u128, "IDP.4A.U8.U8 R15, R15, UR6, R7"),
+            (2u128, "IDP.4A.S8.U8 R15, R15, UR6, R7"),
+            (4u128, "IDP.4A.U8.S8 R15, R15, UR6, R7"),
+            (6u128, "IDP.4A.S8.S8 R15, R15, UR6, R7"),
+        ] {
+            let w = ur_base | (enum_ << 72) | (7u128 << 12) | (15u128 << 16)
+                | (15u128 << 24) | (6u128 << 32) | (7u128 << 64);
+            let got = dec(&t, w);
+            assert_eq!(got, text, "{leg}: UR enum {enum_:#x}");
+            assert_eq!(enc(&t, &got) & LOW96, w & LOW96, "{leg}: UR enum {enum_:#x} round trip");
+        }
     }
 }
 
