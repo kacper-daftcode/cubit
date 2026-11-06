@@ -12,13 +12,21 @@ layer the verifier cannot see by construction:
 
   * rb-coverage probe (the `ebbd1dc` shape): the verifier only tracks a
     late-latched operand if the reader carries a read barrier (R slot). A
-    schedule that never SET the barrier is invisible to it. The probe injects
-    a free barrier index into the R slot of every late-latching mem-op that
-    has none (one disjoint batch at a time), re-verifies, and reports every
-    BROKEN WAR that fires: those are un-protected races on a late-latched
-    operand -- exactly what the 2026-06 scheduler bug produced. Findings on
+    schedule that never SET the barrier is invisible to it. The probe runs
+    the verifier in `CUBIT_VERIFY_RBPROBE=1` mode (cubit
+    `verify_scoreboard_rb_probe`): every late-latching mem-op without a read
+    barrier is tracked under a virtual barrier nothing ever waits, so every
+    overwriter of its late-latched operands is a BROKEN WAR: an un-protected
+    race on a late-latched operand -- exactly what the 2026-06 scheduler bug
+    produced. (The first design injected a free barrier index into the R
+    slot and re-verified; nvcc uses all six scoreboards on most real kernels,
+    so that probe ran on none of them -- "no-free-barrier".) Findings on
     R255 (RZ, the architectural zero register: a write never changes what a
-    store latches from it) are non-events and filtered.
+    store latches from it) are non-events and filtered; findings whose writer
+    is not reachable from the mem-op in the static control-flow graph are
+    listed as `unreachable` (the verifier's linear walk, not a race); a
+    mem-op's late operands are released by a wait on its write barrier as
+    well (its result landed, so its operands were consumed -- BUG-486).
 
 Required properties (the oracle's own self-test, `--self-test`):
   P1  frozen nvcc schedules: 0 verifier findings, 0 probe findings per kernel;
@@ -77,7 +85,6 @@ def find_cubit(explicit: str | None) -> str:
     if os.environ.get("CUBIT_BIN"):
         cands.append(os.environ["CUBIT_BIN"])
     cands.append(os.path.join(REPO, "target", "release", "cubit"))
-    cands.append("/root/sm103a/pubwave/cubit-w11-target/release/cubit")
     for c in cands:
         if c and os.access(c, os.X_OK):
             return c
@@ -318,20 +325,6 @@ def late_latch_regs(body: str):
     return None, set()
 
 
-def used_barriers(lines):
-    used = set()
-    for it in lines:
-        if isinstance(it, Insn):
-            for i in range(6):
-                if it.code.wait & (1 << i):
-                    used.add(i)
-            if it.code.r != "-":
-                used.add(int(it.code.r))
-            if it.code.w != "-":
-                used.add(int(it.code.w))
-    return used
-
-
 # ---------------------------------------------------------------------------
 # verify driver
 # ---------------------------------------------------------------------------
@@ -345,17 +338,21 @@ LOOP_RE = re.compile(r"CUBIT_VERIFY_LOOP: (\d+) unresolvable control-flow edge")
 ENC_RE = re.compile(r"^\s+(\S+): (\d+)/(\d+) encoded \((\d+) failed\)")
 
 
-def verify_text(cubit, table, text, scratch):
+def verify_text(cubit, table, text, scratch, probe=False):
     """CUBIT_VERIFY=1 asm on frozen text -> per-kernel dicts with counts and
     parsed event lines. Verify runs before encoding, so even kernels whose
-    re-encode fails (census real-gap words) still produce a report."""
+    re-encode fails (census real-gap words) still produce a report.
+    `probe=True` adds CUBIT_VERIFY_RBPROBE=1 (the rb-coverage probe)."""
     src = os.path.join(scratch, "probe_in.sass")
     out = os.path.join(scratch, "probe_out.cubin")
     with open(src, "w") as f:
         f.write(text)
+    env = {"CUBIT_VERIFY": "1"}
+    if probe:
+        env["CUBIT_VERIFY_RBPROBE"] = "1"
     try:
         r = run_cubit(cubit, ["asm", "--table", table, "--output", out, src],
-                      env={"CUBIT_VERIFY": "1"}, timeout=600)
+                      env=env, timeout=600)
     except subprocess.TimeoutExpired:
         return None, [{"error": "asm timeout"}]
     kernels = []
@@ -402,11 +399,14 @@ def klass_of(cands, midx):
 
 
 def probe_kernel(cubit, table, lines, scratch):
-    """Inject a free read barrier into every late-latching mem-op that has
-    none, batched by disjoint register sets, and report the BROKEN WARs that
-    fire: unprotected late-latch races. RZ (R255) findings are filtered --
-    the architectural zero register cannot race. Cross-talk (an event whose
-    mem-op is not a batch member) is dropped."""
+    """The rb-coverage probe: cubit's verifier in `CUBIT_VERIFY_RBPROBE=1` mode
+    tracks every late-latching mem-op WITHOUT a read barrier under a virtual
+    barrier nothing ever waits (`verify_scoreboard_rb_probe`), so each
+    overwriter of such a mem-op's late-latched operands is a BROKEN WAR tagged
+    "(probe: …)". One run per kernel; no free scoreboard needed (nvcc uses all
+    six on most census kernels, which left the first design — inject a free
+    barrier index into the R slot — with nothing to inject). RZ (R255) findings
+    are filtered — the architectural zero register cannot race."""
     cands = []
     for it in lines:
         if not isinstance(it, Insn) or it.code.r != "-":
@@ -416,42 +416,25 @@ def probe_kernel(cubit, table, lines, scratch):
         if klass is None or not regs:
             continue
         cands.append((it, klass, regs))
-    if not cands:
-        return {"status": "clean-no-candidates", "findings": [], "n_candidates": 0}
-    used = used_barriers(lines)
-    free = [b for b in range(6) if b not in used]
-    if not free:
-        return {"status": "no-free-barrier", "findings": [], "n_candidates": len(cands)}
-    b = free[0]
-    batches, cur, cur_regs = [], [], set()
-    for cand in cands:
-        if cand[2] & cur_regs:
-            batches.append(cur)
-            cur, cur_regs = [], set()
-        cur.append(cand)
-        cur_regs |= cand[2]
-    if cur:
-        batches.append(cur)
-    findings, touched = [], set()
-    for batch in batches:
-        for it, _, _ in batch:
-            it.code.r = str(b)
-            touched.add(it.idx)
-        _, reps = verify_text(cubit, table, emit(lines), scratch)
-        for rep in reps:
-            for ev in rep.get("events", []):
-                m = WAR_RE.search(ev)
-                if not m:
-                    continue
-                widx, r, midx = int(m.group(1)), int(m.group(2)), int(m.group(4))
-                if r == 255 or midx not in touched:
-                    continue
-                findings.append({"writer_idx": widx, "reg": r, "memop_idx": midx,
-                                 "class": klass_of(cands, midx), "event": ev})
-        for it, _, _ in batch:
-            it.code.r = "-"
+    _, reps = verify_text(cubit, table, emit(lines), scratch, probe=True)
+    findings = []
+    for rep in reps:
+        if "error" in rep:
+            return {"status": "error", "findings": [], "n_candidates": len(cands),
+                    "error": rep}
+        for ev in rep.get("events", []):
+            if "(probe:" not in ev:
+                continue
+            m = WAR_RE.search(ev)
+            if not m:
+                continue
+            widx, r, midx = int(m.group(1)), int(m.group(2)), int(m.group(4))
+            if r == 255:
+                continue
+            findings.append({"writer_idx": widx, "reg": r, "memop_idx": midx,
+                             "class": klass_of(cands, midx), "event": ev})
     return {"status": "probed", "findings": findings, "n_candidates": len(cands),
-            "probe_barrier": b}
+            "probe_barrier": "virtual"}
 
 
 # ---------------------------------------------------------------------------
@@ -482,16 +465,43 @@ def stats_kernel(lines):
     return st
 
 
-# Late-latch classes where NO real-world window bounds the race (cubit's
-# fail-closed stance): a finding on these is a REJECT.
-HARD_CLASSES = {"store", "mma", "atom"}
-# LDS/LDL/LDSM: the address latch is bounded by the MIO replay window (the
-# skinny tree-reduce repro raced at stall=9, >=2 CTAs/SM); nvcc schedules its
-# LDS bare whenever writers sit far outside that window. A probe finding on
-# these classes against a FROZEN nvcc schedule is a model-divergence report
-# (cubit stricter than nvcc -- the safe direction for this oracle), not a
-# cubit deficit. Distances are reported for the owner/T doctrine call.
+# Verdict classes, measured on the sm_120 production census (T-9, 2026-11-06, 752
+# frozen nvcc kernels / 1 811 600 words, `T/t9/oracle/`) -- the ptxas evidence
+# cubit's stricter model is compared against:
+#   * `mma-source-rb`: cubit's allocator protects an MMA's source fragments with
+#     a read barrier when a later load overwrites them; ptxas sets a read
+#     barrier on 0 of the census's 39 624 HMMA/QMMA (840 661 overwriter sites,
+#     LDS/LDSM among them at S01) -- the MMA reads its fragments at issue on
+#     sm_120.  DIVERGENCE (cubit stricter), never a REJECT.
+#   * `store-latch-distance`: ptxas overwrites a global store's address/data
+#     registers without waiting its read barrier (or without setting one) once
+#     >= STORE_LATCH_FLOOR issue cycles have passed (census minimum 43; cubit's
+#     verifier: "distance does NOT cover a store" -- its 2026-06 race was at 25
+#     cycles).  >= floor: DIVERGENCE with the distance; below: REJECT.
+#   * `lds-address-latch` (soft): LDS/LDSM/LDL address registers overwritten
+#     before the load's result is waited (ptxas does it at S01 and up; cubit's
+#     model says the MIO replay can re-latch the address).  DIVERGENCE.
+#   * `recycle`: a scoreboard re-armed by a producer of another latency class
+#     while an earlier result is still pending -- a hazard under last-only
+#     semantics, none under the counter semantics ptxas (and cubit's
+#     CUBIT_SB_SHARE policy, A13) rely on.  DIVERGENCE.
+#   * `guard-complement`: an UNPROTECTED RAW whose producer and consumer carry
+#     complementary guards (`@P1 LDG R19` ... `@!P1 PRMT R19`) -- the verifier
+#     is predicate-blind.  DIVERGENCE.
+#   * `nonlinear-path`: the two instructions are connected only through a jump
+#     (an unconditional BRA / EXIT / RET lies between them in the text): the
+#     verifier's linear walk carried a fall-through state that no path has
+#     and saw none of the waits on the real paths -- a limitation of the walk,
+#     reported, not a race.  DIVERGENCE.
+#   * `unreachable`: the writer is not reachable from the mem-op in the static
+#     control-flow graph (a subroutine body behind the store's EXIT; the
+#     verifier's walk is linear).  Listed, not counted.
+# Everything else (an unprotected RAW, a store/atomic overwriter below the
+# floor, a verifier WAR that is not a store-distance case) is a REJECT.
+HARD_CLASSES = {"store", "atom"}
+MMA_CLASSES = {"mma"}
 SOFT_CLASSES = {"load", "load-selfref"}
+STORE_LATCH_FLOOR = 43
 
 
 def stall_distance(lines, a: int, b: int):
@@ -503,19 +513,235 @@ def stall_distance(lines, a: int, b: int):
     return total
 
 
-def classify_findings(findings, lines):
-    """Tag each probe finding with reader class + linear stall distance and
-    split it into hard (real late-latch, REJECT) vs soft (LDS-replay window
-    divergence, report)."""
-    hard, soft = [], []
-    for f in findings:
-        f["distance"] = (stall_distance(lines, f["memop_idx"], f["writer_idx"])
-                         if f["writer_idx"] > f["memop_idx"] else "wrap")
-        if f["class"] in HARD_CLASSES:
-            hard.append(f)
+LABEL_RE = re.compile(r"\b(L_[\w]+)\b")
+UNCOND_TERMINATORS = {"EXIT", "RET", "BRA", "JMP", "BRX", "BRXU", "JMX", "JMXU",
+                      "KILL", "BREAK"}
+
+
+def reachable_from(lines):
+    """Forward reachability over the kernel's static control-flow graph:
+    returns a function memop_idx -> set of instruction indices reachable from
+    it (the mem-op itself excluded unless a loop returns to it).
+
+    Successors: the fall-through unless the instruction is an UNGUARDED
+    terminator (EXIT / RET / unconditional BRA / register-indirect dispatch /
+    KILL / BREAK); the static label targets of BRA / CALL / BSSY-class
+    operands (`L_x`); nothing for RET (a return continues at the CALL's
+    fall-through, which the CALL already has). The verifier's walk is linear
+    and carries state across such terminators (that is pessimism it keeps for
+    cubit's own schedules); here it would turn a bare store before an EXIT
+    into "races" against the out-of-line subroutines that follow it in the
+    text (T-9's reading of the C11 corpus: 16 REJECTs were this + BUG-486)."""
+    insns = [it for it in lines if isinstance(it, Insn)]
+    label_at = {}
+    for it in insns:
+        for m in LABEL_RE.finditer(it.lead):
+            label_at.setdefault(m.group(1), it.idx)
+    # a label on its own line (no instruction) binds to the next instruction
+    pending = []
+    for it in lines:
+        if isinstance(it, Insn):
+            for lab in pending:
+                label_at.setdefault(lab, it.idx)
+            pending = []
         else:
+            s = it.strip()
+            if s.endswith(":") and s.startswith("L_"):
+                pending.append(s[:-1])
+    def bra_is_unconditional(body):
+        # `BRA L_x` / `BRA PT, L_x` fall through never; `BRA P0, L_x`, `@P0 BRA`,
+        # `BRA.DIV P0, URZ, L_x`, `BRA.CONV ~UR6, L_x` can.
+        m = re.match(r"BRA((?:\.\w+)*)\s*(.*)$", body.split(";")[0])
+        if not m or ".DIV" in m.group(1) or ".CONV" in m.group(1):
+            return False
+        toks = [t.strip() for t in m.group(2).split(",")]
+        return not any(re.fullmatch(r"!?U?P[0-6]", t) for t in toks)
+
+    succ = {}
+    n = len(insns)
+    for it in insns:
+        out = set()
+        body = it.body.strip()
+        guarded = body.startswith("@")
+        op = it.opcode
+        terminates = op == "RET" or (
+            not guarded and op in UNCOND_TERMINATORS
+            and (op != "BRA" or bra_is_unconditional(body)))
+        if not terminates and it.idx + 1 < n:
+            out.add(it.idx + 1)
+        if op in ("BRA", "CALL", "BSSY", "JMP", "BRX", "BRXU", "JMX", "JMXU"):
+            for m in LABEL_RE.finditer(body):
+                if m.group(1) in label_at:
+                    out.add(label_at[m.group(1)])
+        succ[it.idx] = out
+    stall = {it.idx: it.code.s for it in insns}
+    cache = {}
+
+    def dist(start):
+        """Shortest issue distance (sum of S codes of the instructions issued strictly between)
+        from `start` to every instruction reachable from it (Dijkstra, non-negative weights)."""
+        if start in cache:
+            return cache[start]
+        import heapq
+        best = {}
+        heap = [(0, k) for k in succ.get(start, ())]
+        heapq.heapify(heap)
+        while heap:
+            d, k = heapq.heappop(heap)
+            if k in best:
+                continue
+            best[k] = d
+            for nk in succ.get(k, ()):
+                if nk not in best:
+                    heapq.heappush(heap, (d + stall.get(k, 0), nk))
+        cache[start] = best
+        return best
+
+    def reach(start):
+        return dist(start)
+    reach.dist = dist
+    return reach
+
+
+def back_edge_distance(lines, memop, writer):
+    """Issue distance of a loop-carried pair (writer index < mem-op index):
+    stalls from the mem-op to the first backward branch after it whose
+    target is at or before the writer, plus stalls from that target to the
+    writer. None when no such branch exists (the verifier saw an edge the
+    text does not show)."""
+    insns = [it for it in lines if isinstance(it, Insn)]
+    label_at = {}
+    for it in insns:
+        for m in LABEL_RE.finditer(it.lead):
+            label_at.setdefault(m.group(1), it.idx)
+    for it in insns:
+        if it.idx < memop or it.opcode not in ("BRA", "JMP"):
+            continue
+        for m in LABEL_RE.finditer(it.body):
+            t = label_at.get(m.group(1))
+            if t is not None and t <= writer:
+                d = sum(x.code.s for x in insns if memop < x.idx <= it.idx)
+                d += sum(x.code.s for x in insns if t <= x.idx < writer)
+                return d
+    return None
+
+
+def linear_segment_has_terminator(lines, a, b):
+    """True when an UNGUARDED EXIT / RET / unconditional BRA / register dispatch lies strictly
+    between a and b in text order (the verifier's linear walk crossed it)."""
+    lo, hi = (a, b) if a < b else (b, a)
+    for it in lines:
+        if not isinstance(it, Insn) or not (lo < it.idx < hi):
+            continue
+        body = it.body.strip()
+        if body.startswith("@"):
+            continue
+        if it.opcode == "RET" or (it.opcode in UNCOND_TERMINATORS and it.opcode != "BRA"):
+            return True
+        if it.opcode == "BRA":
+            m = re.match(r"BRA((?:\.\w+)*)\s*(.*)$", body.split(";")[0])
+            if m and ".DIV" not in m.group(1) and ".CONV" not in m.group(1):
+                toks = [t.strip() for t in m.group(2).split(",")]
+                if not any(re.fullmatch(r"!?U?P[0-6]", t) for t in toks):
+                    return True
+    return False
+
+
+def guards_complementary(lines, a, b):
+    """True when instructions a and b carry guards on the same predicate with
+    opposite polarity (`@P1` / `@!P1`): at most one of them executes."""
+    g = {}
+    for it in lines:
+        if isinstance(it, Insn) and it.idx in (a, b):
+            m = re.match(r"@(!?)(U?P[0-6T])\b", it.body.strip())
+            g[it.idx] = (m.group(2), m.group(1) == "!") if m else None
+    ga, gb = g.get(a), g.get(b)
+    return bool(ga and gb and ga[0] == gb[0] and ga[1] != gb[1] and ga[0] not in ("PT", "UPT"))
+
+
+def classify_findings(findings, lines):
+    """Tag each probe finding with reader class + issue distance and route it:
+    hard (a store/atomic overwriter below STORE_LATCH_FLOOR -> REJECT),
+    divergence (a documented class, see the table above), soft (LDS-address
+    class) and unreachable (control-flow artefact)."""
+    hard, soft, unreachable, diverg = [], [], [], []
+    reach = reachable_from(lines)
+    for f in findings:
+        paths = reach(f["memop_idx"])
+        if f["writer_idx"] not in paths:
+            f["distance"] = None
+            f["unreachable"] = True
+            unreachable.append(f)
+            continue
+        # the shortest control-flow path, not the text order: a writer behind an unconditional
+        # branch is reached through the branch's target, never by falling through it
+        f["distance"] = paths[f["writer_idx"]]
+        if f["writer_idx"] < f["memop_idx"]:
+            f["wrap"] = True
+        if linear_segment_has_terminator(lines, f["memop_idx"], f["writer_idx"]):
+            # the verifier walked the text across an unconditional jump: the state it carried into
+            # the writer is the fall-through state of a path that does not exist; whatever the real
+            # paths do (waits, re-arms) it did not see -- a limitation of the linear walk, reported
+            f["divergence"] = "nonlinear-path"
+            diverg.append(f)
+        elif f["class"] in MMA_CLASSES:
+            f["divergence"] = "mma-source-rb"
+            diverg.append(f)
+        elif f["class"] in HARD_CLASSES:
+            d = f["distance"]
+            if isinstance(d, int) and d >= STORE_LATCH_FLOOR:
+                f["divergence"] = "store-latch-distance"
+                diverg.append(f)
+            else:
+                hard.append(f)
+        else:
+            f["divergence"] = "lds-address-latch"
             soft.append(f)
-    return hard, soft
+    return hard, soft, unreachable, diverg
+
+
+def classify_verifier_events(events, lines):
+    """Route the plain verifier's events: a BROKEN WAR on a store whose
+    overwriter sits >= STORE_LATCH_FLOOR cycles away and an UNPROTECTED RAW
+    between complementary guards are documented divergences; an event whose
+    second instruction is not reachable from the first in the control-flow
+    graph is the linear walk's artefact (listed as `unreachable`); everything
+    else stays a core violation. Returns (core_raw, core_war, divergences,
+    unreachable)."""
+    core_raw = core_war = 0
+    div, unreachable = [], []
+    reach = reachable_from(lines)
+    for ev in events:
+        m = WAR_RE.search(ev)
+        if m:
+            widx, _r, midx = int(m.group(1)), int(m.group(2)), int(m.group(4))
+            paths = reach(midx)
+            if widx not in paths:
+                unreachable.append({"event": ev})
+                continue
+            if linear_segment_has_terminator(lines, midx, widx):
+                div.append({"divergence": "nonlinear-path", "event": ev})
+                continue
+            mop = ev.split("of mem-op insn[")[1].split("] ")[1].split()[0] if "of mem-op insn[" in ev else ""
+            is_store = mop.split(".")[0] in GLOBAL_STORE
+            d = paths[widx]
+            if is_store and isinstance(d, int) and d >= STORE_LATCH_FLOOR:
+                div.append({"divergence": "store-latch-distance", "distance": d, "event": ev})
+            else:
+                core_war += 1
+            continue
+        mr = re.search(r"UNPROTECTED RAW: insn\[(\d+)\] .* <- var-producer insn\[(\d+)\]", ev)
+        if mr:
+            ci, pi = int(mr.group(1)), int(mr.group(2))
+            if ci not in reach(pi):
+                unreachable.append({"event": ev})
+            elif guards_complementary(lines, ci, pi):
+                div.append({"divergence": "guard-complement", "event": ev})
+            elif linear_segment_has_terminator(lines, pi, ci):
+                div.append({"divergence": "nonlinear-path", "event": ev})
+            else:
+                core_raw += 1
+    return core_raw, core_war, div, unreachable
 
 
 # ---------------------------------------------------------------------------
@@ -564,13 +790,30 @@ def oracle_text(cubit, table, text, scratch, do_stats=False, do_stallfix=False):
         rep = reps_ok[0] if reps_ok else {"raw": -1, "war": -1, "recycle": -1}
         res.update({k: rep.get(k, 0) for k in ("raw", "war", "recycle", "loop_unresolved")})
         res["verify_events"] = rep.get("events", [])[:20]
+        core_raw, core_war, vdiv, vunr = classify_verifier_events(rep.get("events", []), lines)
+        # the verifier prints every event, so the routed counts are exact
+        res["core_raw"], res["core_war"] = core_raw, core_war
+        res["verifier_divergences"] = vdiv
+        res["verifier_unreachable"] = vunr
+        res["core_events"] = [e for e in rep.get("events", [])
+                              if (e.startswith("BROKEN WAR") or e.startswith("UNPROTECTED RAW"))
+                              and e not in {x["event"] for x in vdiv} and e not in {x["event"] for x in vunr}][:12]
         probe = probe_kernel(cubit, table, lines, scratch)
-        hard, soft = classify_findings(probe.get("findings", []), lines)
+        hard, soft, unreachable, diverg = classify_findings(probe.get("findings", []), lines)
         probe["findings_hard"] = hard
         probe["findings_soft"] = soft
+        probe["findings_unreachable"] = unreachable
+        probe["findings_divergence"] = diverg
         res["probe"] = probe
         res["rb_war_findings"] = len(hard) + len(soft)
         res["rb_war_hard"] = len(hard)
+        res["rb_war_unreachable"] = len(unreachable) + len(vunr)
+        dclasses = {}
+        for f in diverg + vdiv + soft:
+            dclasses[f["divergence"]] = dclasses.get(f["divergence"], 0) + 1
+        if res["recycle"]:
+            dclasses["recycle"] = res["recycle"]
+        res["divergence_classes"] = dclasses
         if do_stats:
             res["stats"] = stats_kernel(lines)
         if do_stallfix:
@@ -585,13 +828,15 @@ def oracle_text(cubit, table, text, scratch, do_stats=False, do_stallfix=False):
         #                 findings at large/loop-carried distances); the safe
         #                 direction for this oracle -- reported with data for
         #                 the owner/T doctrine, never silenced;
-        #  ACCEPT      -- clean on every counter.
-        core_bad = res["raw"] or res["war"] or res["rb_war_hard"]
+        #  ACCEPT      -- clean on every counter (probe findings whose writer
+        #                 is not reachable from the mem-op in the control-flow
+        #                 graph are listed, never counted: a linear-walk artefact).
+        core_bad = res["core_raw"] or res["core_war"] or res["rb_war_hard"]
         if res["verify_errors"] or res["raw"] < 0:
             res["status"] = "ERROR"
         elif core_bad:
             res["status"] = "REJECT"
-        elif res["recycle"] or soft:
+        elif dclasses:
             res["status"] = "DIVERGENCE"
         else:
             res["status"] = "ACCEPT"
@@ -776,14 +1021,18 @@ def main():
     for x in all_results:
         if x.get("status") != "ACCEPT":
             print(f"  {x.get('status')}: {x.get('cubin', '')} {x.get('name', '?')} "
-                  f"raw={x.get('raw')} war={x.get('war')} "
-                  f"recycle={x.get('recycle')} probe_hard={x.get('rb_war_hard')} "
-                  f"probe_soft="
-                  f"{len((x.get('probe') or {}).get('findings_soft', []))}")
+                  f"raw={x.get('core_raw', x.get('raw'))} war={x.get('core_war', x.get('war'))} "
+                  f"probe_hard={x.get('rb_war_hard')} "
+                  f"divergences={x.get('divergence_classes')} "
+                  f"probe_unreachable={x.get('rb_war_unreachable', 0)}")
             for f_ in (x.get("probe") or {}).get("findings_hard", [])[:6]:
                 print(f"      {f_['event']}")
             for f_ in (x.get("probe") or {}).get("findings_soft", [])[:6]:
                 print(f"      [soft d={f_.get('distance')}] {f_['event'][:110]}")
+            for f_ in (x.get("probe") or {}).get("findings_unreachable", [])[:4]:
+                print(f"      [unreachable] {f_['event'][:110]}")
+            for e in x.get("core_events", [])[:6]:
+                print(f"      [core] {e[:120]}")
             if x.get("error"):
                 print(f"      {x['error']}")
     if args.json:

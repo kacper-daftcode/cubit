@@ -425,6 +425,22 @@ fn store_precedes_backedge(insns: &[Instruction], i: usize) -> bool {
 }
 
 fn branch_target(insn: &Instruction) -> Option<u32> {
+    // BUG-486: register-indirect control flow has no static target. `RET.REL.NODEC R2, 0x0`
+    // returns to R2 + imm, `BRX R4, 0x10` / `JMX` dispatch through the register and
+    // `CALL.ABS.NOINC 0x0` carries a relocation; their immediate must not resolve to an
+    // in-kernel address (0x0 is instruction 0 — every subroutine return used to become a
+    // back-edge over the whole kernel, and the loop-aware verifier / allocator walked it).
+    // Mirrors `unresolved_edge_class`: a non-RZ GPR on a control-flow op = register-indirect.
+    let op = insn.opcode.as_str();
+    if matches!(op, "RET" | "PRET" | "BRX" | "BRXU" | "JMX" | "JMXU") {
+        return None;
+    }
+    if op == "CALL" && insn.opcode_full.contains(".ABS") {
+        return None;
+    }
+    if insn.operands.iter().any(|o| matches!(o, Operand::Reg { num, .. } if *num != 255)) {
+        return None;
+    }
     insn.operands.iter().find_map(|o| match o {
         Operand::Imm32(v) => Some(*v as u32),
         Operand::BranchTarget(a) => Some(*a),
@@ -1140,6 +1156,11 @@ fn src_regs(insn: &Instruction) -> Vec<(bool, u16)> {
     // predicate-only `ATOMS.CAST.SPIN Pd, [addr], …` starts after `Pd` like everything else.
     let start = if is_store(op) || is_reduction(op) { 0 }
         else if let Some(rd) = atom_rd_index(insn) { rd + 1 }
+        // BUG-486: `SHFL.* Pd, Rd, Ra, Rb, imm` — operand 0 is the predicate result, operand 1 the
+        // register result (dest_regs records it); the sources start behind it. Counting Rd as a
+        // source made the verifier report a false RAW (`SHFL.IDX PT, R35, …` "reads" the R35 an
+        // LDS.128 was still writing) and gave the allocator a false waiter.
+        else if op == "SHFL" && matches!(insn.operands.first(), Some(Operand::Pred { .. })) { 2 }
         else if insn.opcode_full.contains(".256")
             && matches!(insn.operands.first(), Some(Operand::Reg { .. }))
             && matches!(insn.operands.get(1), Some(Operand::Reg { .. })) { 2 }
@@ -3560,7 +3581,20 @@ fn unresolved_edge_class(
 /// Read-only scoreboard verification as a pure report (no printing) so tests
 /// and tooling can assert on it. Same analysis the CUBIT_VERIFY path runs.
 pub fn verify_scoreboard_report(insns: &[Instruction], table: Option<&IsaTable>) -> VerifyReport {
-    run_verify(insns, table, false)
+    run_verify(insns, table, false, false)
+}
+
+/// The scheduling-legality oracle's read-barrier coverage probe (KNOWN_ISSUES A4,
+/// `tools/sched_oracle.py`): the same read-only verification, but every late-latching
+/// mem-op WITHOUT a read barrier is tracked as if it carried one that nothing ever waits
+/// (the virtual barrier `VIRTUAL_RB`). A schedule that never SET a store's read barrier
+/// is invisible to the plain verifier by construction (the 2026-06 `ebbd1dc` shape); in
+/// this mode every overwriter of such a mem-op's late-latched operands is a BROKEN WAR
+/// (released only by the mem-op's waited write barrier, BUG-486). Replaces the tool's
+/// first design (inject a free barrier index into the R slot and re-verify), which has no
+/// barrier to inject on the kernels that matter — nvcc uses all six on most census kernels.
+pub fn verify_scoreboard_rb_probe(insns: &[Instruction], table: Option<&IsaTable>) -> VerifyReport {
+    run_verify(insns, table, false, true)
 }
 
 /// Public wrapper so main.rs can run the verifier on fully-frozen kernels (where
@@ -3588,8 +3622,13 @@ pub fn verify_scoreboard_public(insns: &[Instruction], table: Option<&IsaTable>)
 /// those are counted in `unresolved_edges` and printed on a separate
 /// CUBIT_VERIFY_LOOP line instead of being silently skipped (fail-loud).
 fn verify_scoreboard(insns: &[Instruction], table: Option<&IsaTable>) {
-    run_verify(insns, table, true);
+    let probe = std::env::var("CUBIT_VERIFY_RBPROBE").ok().as_deref() == Some("1");
+    run_verify(insns, table, true, probe);
 }
+
+/// Barrier id of the rb-coverage probe (`verify_scoreboard_rb_probe`): outside the six
+/// real scoreboards, so no wait mask ever releases it.
+const VIRTUAL_RB: u8 = NUM_BARRIERS as u8;
 
 /// Live barrier state of the simulated warp scoreboard. Cloned at loop backs so
 /// the BUG-347 wrap pass can re-run a loop body from its end-of-iteration
@@ -3628,6 +3667,7 @@ fn sb_step(
     seen: &mut std::collections::HashSet<(u8, usize, usize, u16)>,
     wrap: Option<(usize, usize)>,
     print: bool,
+    rb_probe: bool,
 ) {
     let rk = |u: bool, r: u16| -> u16 { ((u as u16) << 9) | r };
     // kind: 0 = unprotected RAW, 1 = broken WAR, 2 = recycle-stale. The linear
@@ -3674,10 +3714,33 @@ fn sb_step(
                 );
             }
         };
-    let wm = insns[i].ctrl.wait_mask;
+    let mut wm = insns[i].ctrl.wait_mask;
+    // `DEPBAR.<m> SBb, imm` is the instruction-level drain of scoreboard b: it carries no
+    // wait-mask bit (the barrier index is operand 0), so without this the verifier reported
+    // every read behind a DEPBAR-drained barrier as an unprotected RAW (the allocator's hazard
+    // audit has modelled it since rt98; BUG-486 brings the verifier in line, same full-drain
+    // reading of the LE threshold).
+    if insns[i].opcode == "DEPBAR" {
+        if let Some(Operand::Imm32(v)) = insns[i].operands.first() {
+            if (0..NUM_BARRIERS as i64).contains(v) {
+                wm |= 1 << *v;
+            }
+        }
+    }
     if wm != 0 {
         st.pending.retain(|_, &mut (b, _)| (wm & (1 << b)) == 0);
-        st.rbp.retain(|_, &mut (b, _)| (wm & (1 << b)) == 0);
+        // A late-latched operand is released by a wait on the mem-op's read barrier, and
+        // (BUG-486) by a wait on the mem-op's WRITE barrier: a variable-latency op whose
+        // result has landed has consumed its operands (ptxas schedules `LDS R3, [R2]` W0 →
+        // `… R3` B0 → `MOV R2, …` with no read barrier on the LDS — the address cannot be
+        // re-latched after completion). Stores have no write barrier and keep the rb rule.
+        st.rbp.retain(|_, &mut (b, midx)| {
+            if (wm & (1 << b)) != 0 {
+                return false;
+            }
+            let wb = insns[midx].ctrl.write_bar;
+            !(wb < NUM_BARRIERS as u8 && (wm & (1 << wb)) != 0)
+        });
     }
     for (u, r) in src_regs(&insns[i]) {
         if let Some(&(b, pidx)) = st.pending.get(&rk(u, r)) {
@@ -3749,8 +3812,10 @@ fn sb_step(
                     midx,
                     rk(false, r as u16),
                     format!(
-                        "  BROKEN WAR: insn[{i}] {} overwrites R{r} before rb (barrier {b}) of mem-op insn[{midx}] {} is waited",
-                        insns[i].opcode_full, insns[midx].opcode_full
+                        "  BROKEN WAR: insn[{i}] {} overwrites R{r} before rb (barrier {b}) of mem-op insn[{midx}] {} is waited{}",
+                        insns[i].opcode_full,
+                        insns[midx].opcode_full,
+                        if b == VIRTUAL_RB { " (probe: the mem-op has no read barrier)" } else { "" }
                     ),
                     rep,
                 );
@@ -3824,9 +3889,14 @@ fn sb_step(
             st.pending.insert(*d, (wb, i));
         }
     }
-    // register this mem-op's rb-protected late operands
-    let rb = insns[i].ctrl.read_bar;
-    if rb < NUM_BARRIERS as u8 {
+    // register this mem-op's rb-protected late operands (in probe mode also the operands
+    // of a mem-op that carries NO read barrier, under the never-waited virtual barrier)
+    let rb = match insns[i].ctrl.read_bar {
+        b if b < NUM_BARRIERS as u8 => b,
+        _ if rb_probe => VIRTUAL_RB,
+        _ => 7,
+    };
+    if rb <= VIRTUAL_RB {
         let op = insns[i].opcode.as_str();
         let late = if matches!(op, "STS" | "STSM" | "STL") {
             // Shared/local stores latch their operands fast (on-chip) and any reader is
@@ -3866,7 +3936,7 @@ fn sb_step(
     }
 }
 
-fn run_verify(insns: &[Instruction], table: Option<&IsaTable>, print: bool) -> VerifyReport {
+fn run_verify(insns: &[Instruction], table: Option<&IsaTable>, print: bool, rb_probe: bool) -> VerifyReport {
     use std::collections::{HashMap, HashSet};
     let mut rep = VerifyReport::default();
     let mut seen: HashSet<(u8, usize, usize, u16)> = HashSet::new();
@@ -3879,7 +3949,7 @@ fn run_verify(insns: &[Instruction], table: Option<&IsaTable>, print: bool) -> V
     let mut snaps: Vec<Option<SbState>> = vec![None; edges.len()];
     let mut st = SbState::default();
     for i in 0..insns.len() {
-        sb_step(insns, i, table, &mut st, &mut rep, &mut seen, None, print);
+        sb_step(insns, i, table, &mut st, &mut rep, &mut seen, None, print, rb_probe);
         if let Some(&ei) = back2edge.get(&i) {
             snaps[ei] = Some(st.clone());
         }
@@ -3906,6 +3976,7 @@ fn run_verify(insns: &[Instruction], table: Option<&IsaTable>, print: bool) -> V
                 &mut seen,
                 Some((top, back)),
                 print,
+                rb_probe,
             );
         }
     }
