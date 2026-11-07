@@ -37,6 +37,9 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   - **15 stale provenance legends re-counted** (blackwell-isa `3dde6e1`, found by T-16's merge check): the `_meta.provenance.sources`
     row counts of fifteen pre-2026-11 tags lagged the table since their rows were rewritten or retired (`dsv41-sm120-2026-10-22` 529 →
     516, `bug226d` 36 → 28, `bug226e` 17 → 4, `bug339` 9 → 0, …); the entries with 0 live rows stay as history. No row changes.
+  - **The same hygiene on the other three tables** (blackwell-isa `b214b0e`, vendored as `124299b`): `sm103a.json` two LEA legends and
+    `rows_total` 22 439 → 22 445 (the six MUFU packed-half rows of `8aa5f34` never updated it), `sm100a.json` the two LEA legends,
+    `sm121a.json` `bug226d` 1 → 0; the revision pins `3dde6e1 → b214b0e`, no count changes.
 
 ## Unreleased — 2026-11-07 (session T-16: the T1 production line's run 4 — the 256-bit global load's U32 uniform-indexed form, the 256-bit global store and the global reduction's uniform-indexed forms measured whole by session G)
 
