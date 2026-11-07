@@ -112,7 +112,9 @@ fn t308_3_signed_operands_fail_closed_with_attribution() {
         ("sm103a", "F2IP.F32.NTZ.S8 R4, -R6, R8, R10"), // b72 -> hsel .H1
         ("sm103a", "F2IP.F32.NTZ.S8 R4, R6, R8, -R10"), // b75 -> .RELU
         ("sm103a", "F2IP.F32.NTZ.S8 R4, R6, |R8|, R10"), // b62 vendor-inert
-        ("sm120", "@!P1 F2I.U32.TRUNC.NTZ R4, -R6"),
+        // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the two sm120 F2I cases are legal mints now -- every
+        // group of the measured F2I_R_R carries |Ra| 62 / -Ra 63 (nvdisasm prints `F2I.U32.TRUNC.NTZ R4, -R6`):
+        //   ("sm120", "@!P1 F2I.U32.TRUNC.NTZ R4, -R6"), ("sm120", "F2I.U32.NTZ R1, -R15")
         ("sm120", "@P0 F2IP.U8.F32 R4, -R6, R8, R10"),
         ("sm120", "F2IP.S8.F32.NTZ R6, R8, |R10|, 0x6"),
         ("sm120", "@UP0 USHF.L.U32 UR3, |UR5|, 0x6, UR9"),
@@ -123,7 +125,6 @@ fn t308_3_signed_operands_fail_closed_with_attribution() {
             "sm121a",
             "@P0 F2IP.F32.INVALID1.NTZ.RELU.S8 R4, |R6|, 1.5, R8",
         ),
-        ("sm120", "F2I.U32.NTZ R1, -R15"), // era-adjacent non-field lane
     ];
     for (arch, text) in cases {
         let text = text.strip_suffix(';').unwrap_or(text);

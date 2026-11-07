@@ -323,15 +323,26 @@ fn t265_4_i2ip_retype_decode_encode_and_fail_closed() {
             dec(&t, w1 & M96).as_deref(),
             Some("I2IP.U8.S32 R5, R4, R3, R2.H1")
         );
-        // The phantom rounding variants remain fail-closed.
-        assert!(
-            enc_res(&t, "FRND.F16.CEIL R0, R0").is_err(),
-            "{leg}: FRND.F16.CEIL still encodes"
-        );
-        assert!(
-            enc_res(&t, "FRND.F16.FLOOR R0, R0").is_err(),
-            "{leg}: FRND.F16.FLOOR still encodes"
-        );
+        // The phantom rounding variants remain fail-closed -- except on sm120, where the FRND lattice is measured whole
+        // (2026-11-07, session G, tools/probes/re_sm120_conv.py: `FRND.F16.CEIL` = type F16 + rounding 2 at [79:78]).
+        if leg == "sm120" {
+            let w = enc_res(&t, "FRND.F16.CEIL R0, R0").expect("measured FRND.F16.CEIL row");
+            assert_eq!(dec(&t, w & M96).as_deref(), Some("FRND.F16.CEIL R0, R0"), "{leg}");
+        } else {
+            assert!(
+                enc_res(&t, "FRND.F16.CEIL R0, R0").is_err(),
+                "{leg}: FRND.F16.CEIL still encodes"
+            );
+        }
+        if leg == "sm120" {
+            let w = enc_res(&t, "FRND.F16.FLOOR R0, R0").expect("measured FRND.F16.FLOOR row");
+            assert_eq!(dec(&t, w & M96).as_deref(), Some("FRND.F16.FLOOR R0, R0"), "{leg}");
+        } else {
+            assert!(
+                enc_res(&t, "FRND.F16.FLOOR R0, R0").is_err(),
+                "{leg}: FRND.F16.FLOOR still encodes"
+            );
+        }
         if leg == "sm120" {
             // Genuine native GT is distinct from the old mislabeled F word.
             native_sm120_word(&t, "FSET.BF.F.AND R0, R0, R0, P0",

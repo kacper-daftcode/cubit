@@ -1142,7 +1142,7 @@ fn format_opcode(base: &str, mod_group: &str, key: &str) -> String {
 /// NTZ (`F2I.FTZ.U32.CEIL.NTZ R0, 16`, nvdisasm-13.3 oracle sweep x96), while
 /// the legacy register-form F2I_R_R rows keep their alphabetical/priority
 /// prints (gold-locked pre-125 renders — do NOT unify silently).
-fn mod_priority_for_key(base: &str, key: &str, m: &str) -> u8 {
+fn mod_priority_for_key(base: &str, _key: &str, m: &str) -> u8 {
     // BUG-226d: IDP prints the accumulate form before the low/high selector
     // (vendor `IDP.2A.LO.U16.U8`, never `IDP.LO.2A...`, 27 corpus witnesses).
     if base == "IDP" && (m == "2A" || m == "4A") {
@@ -1154,14 +1154,9 @@ fn mod_priority_for_key(base: &str, key: &str, m: &str) -> u8 {
     if base == "IDP" && m == "HI" {
         return 3;
     }
-    if key == "F2I_R_FI" {
-        match m {
-            "U8" | "S8" | "U16" | "S16" | "U32" | "S32" | "U64" | "S64" => return 4,
-            "FLOOR" | "CEIL" | "RN" | "TRUNC" => return 5,
-            "NTZ" => return 6,
-            _ => {}
-        }
-    }
+    // The BUG-125 key-scoped F2I_R_FI arm (dst-type < rounding < NTZ, no source type) is gone: the measured
+    // F2I_R_FI key (2026-11-07, session G, tools/probes/re_sm120_conv.py) carries the F16 / F64 / BF16 sources too
+    // and follows the BUG-361 law of the whole mnemonic below (dst-type < src-type < rounding < NTZ).
     mod_priority_for(base, m)
 }
 
@@ -1245,6 +1240,17 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             "F16" | "F32" | "F64" | "BF16" => return 5,
             "FLOOR" | "CEIL" | "RN" | "TRUNC" => return 6,
             "NTZ" => return 7,
+            _ => {}
+        }
+    }
+    // FRND (2026-11-07, session G, tools/probes/re_sm120_conv.py, nvdisasm 13.1 on SM120 / SM103 / SM100): FTZ, then
+    // the type, then the rounding -- `FRND.FTZ.F64.FLOOR`, `FRND.BF16.TRUNC`; the generic ranks put the rounding
+    // (unknown = 5) level with the type and the group name's alphabetical order printed `FRND.CEIL.F16`.
+    if base == "FRND" {
+        match m {
+            "FTZ" => return 0,
+            "F16" | "F64" | "BF16" => return 1,
+            "FLOOR" | "CEIL" | "TRUNC" => return 2,
             _ => {}
         }
     }
@@ -2397,11 +2403,18 @@ fn format_reg(
             abs = ((raw >> s) & 1) != 0;
         }
     }
-    let base = if rn == 255 {
+    let mut base = if rn == 255 {
         "RZ".to_string()
     } else {
         format!("R{rn}")
     };
+    // 2026-11-07 (session G, tools/probes/re_sm120_conv.py, nvdisasm 13.1): on the F16 / BF16 sources of F2I /
+    // FRND / MUFU the half selector `.H1` (bit 60) composes INSIDE the sign wrapper -- `|R2.H1|`, `-|R2.H1|` --
+    // like every lane suffix on the UR path (BUG-273); the generic R tail below would print `|R2|.H1`.
+    if opmods.iter().any(|m| m == "H1") && ["F2I", "FRND", "MUFU"].iter().any(|p| ins_key.starts_with(p)) {
+        base.push_str(".H1");
+        opmods.retain(|m| m != "H1");
+    }
 
     let s = if inv {
         format!("~{base}")
@@ -2633,6 +2646,8 @@ fn format_ureg_raw(fields: &[&DecodedField], raw: u128, ins_key: &str) -> String
     let mut reuse = false;
     let mut hsel: u64 = 0;
     let mut h0nh1 = false;
+    let mut bsel: u64 = 0;
+    let mut opmods: Vec<String> = Vec::new();
     // Some operands (SM120 tensor scale selectors) split one eight-bit
     // uniform-register number across disjoint fields. Reconstruct the
     // logical operand before applying the URZ sentinel spelling.
@@ -2668,7 +2683,16 @@ fn format_ureg_raw(fields: &[&DecodedField], raw: u128, ins_key: &str) -> String
             // (BUG-273 closed the pipe cosmetics: the suffix composes
             // INSIDE the sign wrapper below — vendor "|UR6.H0_NH1|").
             "h0nh1" => h0nh1 = f.value != 0,
+            // 2026-11-07 (session G, tools/probes/re_sm120_conv.py, nvdisasm 13.1): the I2F uniform source carries
+            // the 8-bit byte selector (`I2F.S8 R4, UR2.B1`) and the 16-bit `.H1` (`I2F.S16 R4, UR3.H1`) exactly like
+            // the register source -- the UR path did not render them.
+            "byte_sel" | "bytesel" => bsel = f.value,
             _ => {}
+        }
+        if let Some(name) = f.extraction.strip_prefix("opmod:") {
+            if f.value != 0 {
+                opmods.push(format!(".{name}"));
+            }
         }
     }
 
@@ -2737,7 +2761,8 @@ fn format_ureg_raw(fields: &[&DecodedField], raw: u128, ins_key: &str) -> String
         _ => "",
     };
     let nh1 = if h0nh1 { ".H0_NH1" } else { "" };
-    let core = format!("{base}{hs}{nh1}");
+    let bs = if bsel != 0 { format!(".B{bsel}") } else { String::new() };
+    let core = format!("{base}{hs}{nh1}{bs}{}", opmods.concat());
     let s = if inv {
         format!("~{core}")
     } else if neg && abs_u {
@@ -2881,9 +2906,17 @@ fn format_imm(fields: &[&DecodedField], _mod_group: &str, ins_key: &str, lossles
                 || ins_key.starts_with("IMAD")
                 || ins_key.starts_with("UIMAD")
                 || ins_key.starts_with("VIMNMX");
+            // I2F (2026-11-07, session G, tools/probes/re_sm120_conv.py, nvdisasm 13.1): the integer immediate prints
+            // as a signed hexadecimal for the signed source types (`I2F R4, -0x80000000`, `I2F.S64 R4, -0x10`) and
+            // unsigned for U8 .. U64 (`I2F.U32 R4, 0xfffffff0`).
+            let i2f_unsigned = ins_key.starts_with("I2F")
+                && _mod_group.split(',').any(|m| matches!(m, "U8" | "U16" | "U32" | "U64"));
+            if ins_key.starts_with("I2F") && !i2f_unsigned {
+                return format!("-0x{abs_val:x}");
+            }
             if is_setp {
                 return format!("-0x{abs_val:x}");
-            } else if is_unsigned_op {
+            } else if is_unsigned_op || i2f_unsigned {
                 // MOV/UMOV: show as unsigned hex, using full immediate field width
                 let mask = if imm_bits >= 64 {
                     u64::MAX

@@ -77,7 +77,9 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
     //   -> the plain key of their opcode)
     // + the nine junk keys retired by the measured uniform FP32 ALU (2026-11-07, G: the `_II` / `_L` / `_?` spellings
     //   of the f32 immediate forms of UFADD / UFMUL / UFFMA / UFSEL -> the f32 key)
-    assert_eq!(al.len(), 99, "sm120.json key_aliases");
+    // + the 213 keys retired by the measured conversions (2026-11-07, G: the 207 dotted F2I keys, `I2F.RP_R_R`, four
+    //   dotted FRND keys -> the plain key of their operand signature; the integer-spelling `MUFU_R_II` -> `MUFU_R_FI`)
+    assert_eq!(al.len(), 312, "sm120.json key_aliases");
     let glued = regex::Regex::new(r"_P\d_").unwrap();
     let mut glued_n = 0;
     for (old, new) in &al {
@@ -119,6 +121,13 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
         }
         if old.starts_with("UFSETP") {
             assert!(matches!(new, "UFSETP_UP_UP_UR_UR_UP" | "UFSETP_UP_UP_UR_FI_UP"), "{old} -> {new}");
+            continue;
+        }
+        if ["F2I.", "I2F.", "FRND."].iter().any(|m| old.starts_with(m)) || old == "MUFU_R_II" {
+            // the conversion junk keys: the modifiers in the key -> the plain key of the operand signature
+            let mn = old.split(['.', '_']).next().unwrap();
+            assert!(new.starts_with(mn) && !new.contains('.'), "{old} -> {new}");
+            assert!(table.entries.get(new).is_some_and(|e| !e.encode_only), "{new}: the plain key is a real row");
             continue;
         }
         if ["UFADD", "UFMUL", "UFFMA", "UFSEL"].iter().any(|m| old.starts_with(m)) {

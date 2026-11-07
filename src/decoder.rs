@@ -436,6 +436,11 @@ impl DecodeIndex {
                 // form is a measured row on the 14 keys; fail closed otherwise. The uniform twin (UFADD / UFMUL /
                 // UFFMA / UFSEL, tools/probes/re_sm120_ufp32_alu.py) carries the same law in the same bits.
                 "FADD" | "FMUL" | "FFMA" | "FMNMX" | "UFADD" | "UFMUL" | "UFFMA" | "UFSEL" |
+                // I2F / FRND (2026-11-07, session G, tools/probes/re_sm120_conv.py, nvdisasm 13.1): I2F's destination
+                // type [77:75] and FRND's text-inert bits 72-74 sit in the window (the fallback printed the `I2F.???0`
+                // glyph word as `I2F.F16` and FRND's bit-72 neighbour as `FRND R4, -R2`). Every legal (type, rounding,
+                // selector) state is a measured row; fail closed otherwise (F2I and MUFU are in the list above).
+                "I2F" | "FRND" |
                 // BUG-283: MOVM.16 carries the vendor name-space law in bits
                 // [79:75] (arb283 G x4 models: [77:75] 0=16 / 1=U4TO8 /
                 // 5..7=INVALID5..7, [79:78] 0=MT88 / 1=M832 / 2=M864 /

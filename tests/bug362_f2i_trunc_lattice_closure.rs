@@ -112,7 +112,8 @@ fn t362_1_structure_rows_carry_sign_and_alias_window() {
             let g = &t.entries[key].mod_groups[mg];
             let has = |bit: u32| g.fields.iter().any(|f| f.shift == bit && f.token_idx == 2);
             assert!(has(62) && has(63), "{leg} {key}::{mg} sign window");
-            assert_eq!((g.variable_mask >> 73) & 3, 3, "{leg} {key}::{mg} alias vm");
+            // sm120: the measured rows fail closed on 73 / 74 (2026-11-07, session G, tools/probes/re_sm120_conv.py)
+            assert_eq!((g.variable_mask >> 73) & 3, if leg == "sm120" { 0 } else { 3 }, "{leg} {key}::{mg} alias vm");
         }
     }
     // era-key S64/U64 parity preserved (b72 flip only in ab, not in fields/vm) -- sm121a only since
@@ -314,7 +315,9 @@ fn t362_2_decode_law_battery_vendor_exact_x4() {
     for leg in LEGS4 {
         let t = tab(leg);
         for (w, want) in words {
-            assert_eq!(dec96(&t, *w).as_deref(), Some(*want), "{leg} {want}");
+            // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stays on the other legs
+            let expect = if leg == "sm120" && (*w >> 73) & 3 != 0 { None } else { Some(*want) };
+            assert_eq!(dec96(&t, *w).as_deref(), expect, "{leg} {want}");
         }
     }
 }
@@ -450,7 +453,9 @@ fn t362_5_alias_lattice_full_sweep_and_borders() {
         let t = tab(leg);
         for n in 0..16u128 {
             let w = (base & !(0xFu128 << 72)) | (n << 72);
-            assert_eq!(dec96(&t, w).as_deref(), Some(law(n)), "{leg} nibble {n}");
+            // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stays on the other legs
+            let want = if leg == "sm120" && n & 6 != 0 { None } else { Some(law(n)) };
+            assert_eq!(dec96(&t, w).as_deref(), want, "{leg} nibble {n}");
         }
     }
     // border: the b77-armed FLOOR anchor WAS a vendor-legal UN-ROWED class

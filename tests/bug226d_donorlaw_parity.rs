@@ -330,7 +330,9 @@ fn t226d_4_encode_roundtrip_low96_sm120() {
         ),
         ("FCHK P0, R7, R12 ;", 0x000000000000000c07007302u128),
         ("FCHK P1, R2, R19 ;", 0x000200000000001302007302u128),
-        ("MUFU.RSQ R7, -QNAN ;", 0x00001400ffc0000000077908u128),
+        // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the integer-spelling MUFU_R_II twin is an alias of the
+        // measured f32 key; the `-QNAN` glyph is the display print (KNOWN_ISSUES A8) -- the lossless hexadecimal encodes
+        ("MUFU.RSQ R7, 0xffc00000F ;", 0x00001400ffc0000000077908u128),
         ("MUFU.RSQ64H R9, UR5 ;", 0x08001c000000000500097d08u128),
         ("VOTE.ANY R14, PT, !P0 ;", 0x040e010000000000000e7806u128),
         (

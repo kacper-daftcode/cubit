@@ -90,8 +90,15 @@ fn the_measured_rows_carry_the_provenance_and_a_fail_closed_mask() {
     let groups = raw["instructions"][KEY]["mod_groups"].as_object().unwrap();
     let number = |v: &Value| u128::from_str_radix(v.as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
     let mut measured = 0;
+    let mut remeasured = 0;
     for (name, g) in groups {
         if g["_src"] != SOURCE {
+            // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the 16 .F16 / .BF16 rows carry the half selector
+            // `.H1` (bit 60, `MUFU.RCP.F16 R4, UR2.H1`) the 2026-11-04 measurement did not probe -- re-measured by G
+            assert_eq!(g["_src"], "conv-family-2026-11-07", "{name}");
+            assert!(name.contains("F16"), "{name}: only the half-typed rows were re-measured");
+            assert!(g["fields"].as_array().unwrap().iter().any(|f| f["extraction"] == "opmod:H1" && f["shift"] == 60), "{name}: .H1 field");
+            remeasured += 1;
             continue;
         }
         measured += 1;
@@ -107,7 +114,7 @@ fn the_measured_rows_carry_the_provenance_and_a_fail_closed_mask() {
         assert_eq!(number(&g["and_base"]) & field_mask, 0, "{name}");
         assert!(g["count"].is_null(), "{name}");
     }
-    assert_eq!(measured, 26);
+    assert_eq!((measured, remeasured), (10, 16));
 }
 
 #[test]

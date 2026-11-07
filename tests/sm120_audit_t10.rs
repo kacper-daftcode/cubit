@@ -103,12 +103,15 @@ fn the_rows_carry_the_provenance_and_the_junk_keys_are_gone() {
     ] {
         assert!(!ins.contains_key(gone), "{gone} should be retired");
     }
-    assert!(!ins["MUFU_R_II"]["mod_groups"].as_object().unwrap().contains_key("RCP64H"));
+    // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the whole MUFU_R_II twin is an alias of the measured f32 key
+    assert!(ins.get("MUFU_R_II").is_none());
+    assert_eq!(raw["_meta"]["key_aliases"]["MUFU_R_II"], "MUFU_R_FI");
     // batch 3: two batch-1 retirements undone with the measurement -- BUG-097's plain U32+UR LD.E form and
     // BUG-089's canonical IADD3_R_P_P_R_II_R [X] row are back (their own pins hold them)
     assert_eq!(ins["LD_R_ARURI"]["mod_groups"]["E"]["_src"], SOURCE);
     assert!(ins["IADD3_R_P_P_R_II_R"]["mod_groups"].as_object().unwrap().contains_key("X"));
-    assert!(!ins["F2I_R_UR"]["mod_groups"].as_object().unwrap().contains_key("NTZ,U32"));
+    // `NTZ,U32` on F2I_R_UR is a measured group of the full lattice now (2026-11-07, session G; the harvest row was junk)
+    assert_eq!(ins["F2I_R_UR"]["mod_groups"]["NTZ,U32"]["_src"], "conv-family-2026-11-07");
     let mut n = 0;
     for (key, e) in ins {
         for (name, g) in e["mod_groups"].as_object().unwrap() {

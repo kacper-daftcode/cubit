@@ -135,19 +135,33 @@ fn t363_1_structure_keyed_rows_and_legacy_deleted() {
         let mgs = j["instructions"]["F2I_R_R"]["mod_groups"]
             .as_object()
             .unwrap();
-        assert!(
-            !mgs.contains_key("FTZ,NTZ"),
-            "{leg}: FTZ,NTZ mg still present"
-        );
-        assert!(
-            !mgs.contains_key("FTZ,NTZ,TRUNC,U32"),
-            "{leg}: FTZ,NTZ,TRUNC,U32 mg still present"
-        );
+        // sm120: `FTZ,NTZ` is a measured group of the full F2I lattice (2026-11-07, session G, tools/probes/re_sm120_conv.py)
+        if leg == "sm120" {
+            assert_eq!(mgs["FTZ,NTZ"]["_src"], "conv-family-2026-11-07", "{leg}: FTZ,NTZ measured");
+        } else {
+            assert!(
+                !mgs.contains_key("FTZ,NTZ"),
+                "{leg}: FTZ,NTZ mg still present"
+            );
+        }
+        if leg == "sm120" {
+            assert_eq!(mgs["FTZ,NTZ,TRUNC,U32"]["_src"], "conv-family-2026-11-07", "{leg}: FTZ,NTZ,TRUNC,U32 measured");
+        } else {
+            assert!(
+                !mgs.contains_key("FTZ,NTZ,TRUNC,U32"),
+                "{leg}: FTZ,NTZ,TRUNC,U32 mg still present"
+            );
+        }
         // 96 keyed rows with exact era shape, signs in, NO reuse field
         for lane in lanes() {
             for (b10, nm) in [(0x21u8, ftz_text(lane)), (0x40u8, bf16_text(lane))] {
                 let key = format!("{nm}_R_R");
-                let row = &j["instructions"][&key]["mod_groups"][""];
+                // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): on sm120 the dotted keys are aliases of the
+                // measured F2I_R_R; the row is its group of the same (sorted) modifiers, fail-closed on 73 / 74
+                let mut mods: Vec<&str> = nm.split('.').skip(1).collect();
+                mods.sort_unstable();
+                let group = mods.join(",");
+                let row = if leg == "sm120" { &j["instructions"]["F2I_R_R"]["mod_groups"][&group] } else { &j["instructions"][&key]["mod_groups"][""] };
                 assert!(row.is_object(), "{leg}: missing row {key}");
                 let ab = u128::from_str_radix(
                     row["and_base"].as_str().unwrap().trim_start_matches("0x"),
@@ -165,7 +179,7 @@ fn t363_1_structure_keyed_rows_and_legacy_deleted() {
                     16,
                 )
                 .unwrap();
-                assert_eq!(vm & (0xff << 72), 0x06u128 << 72, "{leg} {key} vm byte9");
+                assert_eq!(vm & (0xff << 72), if leg == "sm120" { 0 } else { 0x06u128 << 72 }, "{leg} {key} vm byte9");
                 let flds: Vec<(u64, u64, &str)> = row["fields"]
                     .as_array()
                     .unwrap()
@@ -275,15 +289,16 @@ fn t363_3_signs_pred_and_alias_decode() {
         );
         // byte9 alias bits 73/74 text-inert (arb363 A-group)
         let w = mk(0x33, 0x21, 7, 4, 6);
+        // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stays on the other legs
         assert_eq!(
             dec96(&t, w).as_deref(),
-            Some("F2I.FTZ.NTZ R4, R6"),
+            if leg == "sm120" { None } else { Some("F2I.FTZ.NTZ R4, R6") },
             "{leg} alias"
         );
         let w = mk(0x13, 0x40, 7, 4, 6);
         assert_eq!(
             dec96(&t, w).as_deref(),
-            Some("F2I.BF16 R4, R6"),
+            if leg == "sm120" { None } else { Some("F2I.BF16 R4, R6") },
             "{leg} alias"
         );
     }
@@ -384,11 +399,14 @@ fn t363_5_fail_closed_and_guards() {
             // shared window; decode renders the vendor-canonical R form (law
             // anchored pre-fix: both texts mint the same word and nvdisasm
             // prints the R form -- work/bug363 raport).
+            // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the harvest R_UR row was a 0x305 register word
+            // with a UR label; the measured F2I_R_UR is the real uniform form (0xd05 + bit 91) and nvdisasm prints `UR6`
             let w = enc(&t, "F2I.FTZ.U32.TRUNC.NTZ R4, UR6").unwrap();
+            assert_eq!((w >> 91) & 1, 1, "{leg} the uniform frame bit");
             assert_eq!(
                 dec96(&t, w).as_deref(),
-                Some("F2I.FTZ.U32.TRUNC.NTZ R4, R6"),
-                "{leg} R_UR canonical-display law"
+                Some("F2I.FTZ.U32.TRUNC.NTZ R4, UR6"),
+                "{leg} R_UR measured form"
             );
         }
     }

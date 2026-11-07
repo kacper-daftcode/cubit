@@ -5948,7 +5948,9 @@ fn op_mod_flag_value(insn: &Instruction, tok: i32, name: &str) -> u64 {
         let mut rest = op_text.as_str();
         while let Some(i) = rest.find(&needle) {
             let after = &rest[i + needle.len()..];
-            if after.is_empty() || after.starts_with('.') || after == " " {
+            // `|R2.H1|`: the conversions' half selector composes inside the abs pipes (2026-11-07, session G,
+            // tools/probes/re_sm120_conv.py), so a closing bar ends the segment too
+            if after.is_empty() || after.starts_with('.') || after == " " || after.starts_with('|') {
                 return 1;
             }
             rest = &rest[i + 1..];

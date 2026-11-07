@@ -187,9 +187,10 @@ fn t390_1_lattice_decode_vendor_exact_x4() {
         for (b9, head) in LATTICE {
             let w = (A390 & !(0xffu128 << 72)) | (b9 << 72);
             let want = format!("{head} R26, R6");
+            // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stays on the other legs
             assert_eq!(
                 dec96(&t, w).as_deref(),
-                Some(want.as_str()),
+                if leg == "sm120" && b9 & 0x06 != 0 { None } else { Some(want.as_str()) },
                 "{leg} byte9 0x{b9:02x}"
             );
         }

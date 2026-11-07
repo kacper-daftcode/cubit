@@ -70,9 +70,11 @@ fn t380_1_lattice_decode_vendor_exact_x4() {
             for n in 0..16u128 {
                 let w = (A380 & !(0xffu128 << 72)) | (((rb as u128) | n) << 72);
                 let want = format!("F2I.{}{} R26, R6", dst_of(n as u8), rsuf);
+                // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stays on the other legs
+                let want = if leg == "sm120" && n & 6 != 0 { None } else { Some(want.as_str()) };
                 assert_eq!(
                     dec96(&t, w).as_deref(),
-                    Some(want.as_str()),
+                    want,
                     "{leg} round 0x{rb:02x} nibble {n:x}"
                 );
             }
@@ -105,7 +107,8 @@ fn t380_3_reuse_window_decodes_x4() {
     for leg in LEGS4 {
         let t = tab(leg);
         for (rb, _rsuf) in ROUNDS {
-            for n in [1u128, 5] {
+            // nibble 5 carries the alias bit 74: fail closed on the measured sm120 rows (2026-11-07, session G)
+            for n in if leg == "sm120" { [1u128, 9] } else { [1u128, 5] } {
                 let base = (A380 & !(0xffu128 << 72)) | (((rb as u128) | n) << 72);
                 let plain = dec128(&t, base).unwrap();
                 for rbit in [122u32, 124] {
@@ -172,9 +175,10 @@ fn t380_5_pred_roundtrip_and_s64_alias_relax() {
         // S64 plain alias relax: n in {9,b,d,f} all decode vendor text
         for n in [0x9u128, 0xb, 0xd, 0xf] {
             let w = (A380 & !(0xfu128 << 72)) | (0x10u128 << 72) | (n << 72);
+            // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stays on the other legs
             assert_eq!(
                 dec96(&t, w).as_deref(),
-                Some("F2I.S64.F64 R26, R6"),
+                if leg == "sm120" && n != 0x9 { None } else { Some("F2I.S64.F64 R26, R6") },
                 "{leg} S64 alias nibble {n:x}"
             );
         }
@@ -221,9 +225,10 @@ fn t379_1_a_anchor_alias_pred_audit_x4() {
                     v
                 };
                 let want = format!("{pre}F2I.U64.TRUNC R22, R26");
+                // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stays on the other legs
                 assert_eq!(
                     dec96(&t, w).as_deref(),
-                    Some(want.as_str()),
+                    if leg == "sm120" && n != 0x8 { None } else { Some(want.as_str()) },
                     "{leg} A-anchor n{n:x} g{g}"
                 );
             }
@@ -233,7 +238,7 @@ fn t379_1_a_anchor_alias_pred_audit_x4() {
                 ((SE1 | (1 << 72)) & !(0xfu128 << 72) & !(0xfu128 << 12)) | (n << 72) | (1 << 12);
             assert_eq!(
                 dec96(&t, w).as_deref(),
-                Some("@P1 F2I.S64.TRUNC R22, R26"),
+                if leg == "sm120" && n != 0x9 { None } else { Some("@P1 F2I.S64.TRUNC R22, R26") },
                 "{leg} A-anchor S64 n{n:x} g1"
             );
         }

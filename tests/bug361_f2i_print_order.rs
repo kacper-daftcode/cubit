@@ -222,8 +222,10 @@ fn t361_1_decode_battery_vendor_exact_x4() {
     for leg in LEGS4 {
         let t = tab(leg);
         for (w, want) in words {
+            // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stays on the other legs
+            let expect = if leg == "sm120" && (*w >> 73) & 3 != 0 { None } else { Some(*want) };
             let got = dec(&t, *w);
-            assert_eq!(got.as_deref(), Some(*want), "{leg} {want} (0x{w:024x})");
+            assert_eq!(got.as_deref(), expect, "{leg} {want} (0x{w:024x})");
         }
     }
 }
