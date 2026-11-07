@@ -4,6 +4,35 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-07 (session T-15: the T1 production line's run 3 / 4 — the 256-bit global load's 64-bit uniform-indexed address form measured whole by session G)
+
+- **Tables vendored from blackwell-isa `5cb10e5`** (sm120 11 725 forms / 34 079 variants, from 14 805 / 32 555; sm103a / sm100a /
+  sm121a unchanged). KNOWN_ISSUES T1: **34 079 rows, 22 290 with `_src` — 11 789 harvest rows left** (14 865 at `8aa5f34`).
+  Session G's run-3 batch 11 (measured by G run 3, committed and announced by G run 4), re-measured word by word by T-15
+  (`T/t15/review/b11`) with the full census text-parity check: the whole production LDG / STG / LD / `ARURI` witness set — 13
+  keys, **18 346 / 18 346 words** (`LDS_R_ARURI` 5 857, `LDG_R_dARI` 4 372, `STG_dARI_R` 3 381, `LDSM_R_ARURI` 1 648, …) — prints
+  nvdisasm 13.1's text with the new table and G's printer, 0 undecoded, 0 re-encode failures; the census carries no word of the
+  touched keys themselves (0 witnesses on all 3 088).
+  - **LDG.256 ARURI64 measured whole** (G's `af3329f`, taken as `5cb10e5`; `tools/probes/re_sm120_ldg256.py --form ARURI64`, 4 952
+    form + 17 lattice words — the same text on `-b SM103` / `SM100` for every form word, the L2 = 3 lattice plane `INVALID3` there
+    as in batch 10; `tests/fixtures/sm120_ldg256_aruri64_nvdisasm.jsonl`, `tests/sm120_ldg256_aruri64.rs`): the 256-bit global
+    load (opcode 0x97e, frame bit 91) in its 64-bit uniform-indexed address form `[Ra.64+URb(+off)]` (bit 75 = `.64`, bit 76
+    clear) — the four new plain keys `LDG_R_R_ARURI64[_II][_P]` carry 1 152 measured groups each (6 cache × 3 L2 × 4 LTC × the
+    16-value strength / scope / PRIVATE enum), provenance `ldg256-family-2026-11-07` (the legend 4 608 → 9 216); **the 3 084
+    dotted one-group harvest keys of the form are `_meta.key_aliases` of the plain key of their operand signature** (every one
+    names a group of its target; 8 of their rows carried coldface's `wave11-integration-2026-11-05` tag — reproduced by the
+    measured rows, that legend 44 → 36; 0 census witnesses). Law = batch 10's with bit 76 clear: guard [15:12], Rd1 [23:16], Ra
+    [31:24] — **RZ legal and elided (`[URb(+off)]`, the U32 twin's text)**, URb [39:32] (255 = `URZ`, printed), the signed 17-bit
+    offset in 32-byte units [56:40], the trailing byte [63:57] + 72 elided at 0xff (the `_II` keys), Rd0 [71:64], LTC [74:73],
+    the strength / scope / PRIVATE enum [80:77], L2 [82:81], cache [86:84], the trailing predicate [90:87] (`pred_inv4`, the `_P`
+    keys); bit 83 and [95:92] text-inert, fail-closed; no `claim_forbid` (every base is legal). Printer only (2 hunks): the plain
+    keys print the `[Ra.64+URb(+off)]` arm; **BUG-464's rule widened to the whole 256-bit family — the bare `[URm(+off)]`
+    spelling of the NA family mints the `.64` word** now that every group has a measured `.64` twin (the lossless print keeps
+    `[RZ.U32+URm(+off)]` for the U32 word, so it re-encodes bit-exact; the census round trip is unchanged). Re-pinned on sm120:
+    bug448 (the new mint), bug461 / 463 heal words with bits 83 / 92–95 fail closed, **bug464 `.C3.ldg_b86` (`LDG.E.NA.EFL2.256
+    …, 0x99`) is a legal word the vendor names — HOLE lifted**, bug465 (the LDG half of the graft lives on the plain keys' groups;
+    the STG half stays until STG.256), bug468 graft census 2 320 → 16, claim_forbid rows 10 837 → 10 833, era-keys 1 101 → 4 185.
+
 ## Unreleased — 2026-11-07 (session T-14, gated and pushed by T-15: the T1 production line's run 3 — the 256-bit global load's descriptor form measured whole by session G; the sm103a MUFU packed-half lanes measured by T on the B300; NEEDS 46 measured)
 
 - **Tables vendored from blackwell-isa `8aa5f34`** (sm120 14 805 forms / 32 555 variants, from 15 583 / 28 729; sm103a
