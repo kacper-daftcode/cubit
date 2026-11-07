@@ -86,7 +86,8 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
     //   (2026-11-07, G batch 10: `LDG.E.<cache>.<L2>[.LTC].256.<scope>_R_R_dARI[_II][_P]` -> the plain key of their
     //   operand signature, whose 1 152 measured groups include the one each dotted key spelled)
     // + the 3 084 dotted keys of the load's `.64` uniform-indexed form (G batch 11: `..._R_R_ARURI64[_II][_P]`)
-    assert_eq!(al.len(), 4185, "sm120.json key_aliases");
+    // + the 3 120 dotted keys of the load's U32 uniform-indexed form (G batch 12: `..._R_R_ARURI[_II][_P]`)
+    assert_eq!(al.len(), 7305, "sm120.json key_aliases");
     let glued = regex::Regex::new(r"_P\d_").unwrap();
     let mut glued_n = 0;
     for (old, new) in &al {

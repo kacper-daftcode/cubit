@@ -1892,13 +1892,19 @@ fn format_operand(
         // (nvdisasm: `LD.E R0, [RZ.U32+UR4]`); the desc-form print mislabels the UR
         // index as a descriptor selector and silently changes the instruction's
         // meaning for RE text.
+        // 2026-11-07 (session G, batch 12, tools/probes/re_sm120_ldg256.py): the measured plain keys of the
+        // 256-bit load's U32 uniform-indexed form (`LDG_R_R_ARURI[_II][_P]`, 1 152 groups each, bit 75 clear)
+        // print the BUG-474 law -- `[Ra.U32+URb(+off)]`, base 255 elided to `[URb(+off)]` in the display print
+        // and `[RZ.U32+URb(+off)]` in the lossless one (nvdisasm 13.1 on SM120 / SM103 / SM100).
         "ARURI"
             if ins_key.starts_with("LDG.E")
                 || ins_key.starts_with("STG.E")
                 || ins_key.starts_with("REDG.E")
                 || ins_key.starts_with("ATOMG.E")
                 || ins_key.starts_with("LD_")
-                || ins_key.starts_with("ST_") =>
+                || ins_key.starts_with("ST_")
+                || ins_key == "LDG_R_R_ARURI"
+                || ins_key.starts_with("LDG_R_R_ARURI_") =>
         {
             // BUG-446: EFL2.256 NA family (121a-only keys) prints the address
             // width-fixed U32 + <<5-scaled signed offset (arb446 law).
@@ -1916,12 +1922,15 @@ fn format_operand(
             // warunki (efl2_na || plain_u32) -- wynik identyczny, zero zmiany
             // zachowania pre-key (claim-space tych komorek przed graftem =
             // HOLE, claim474 218/218 x noga).
-            let plain_u32 = (ins_key.starts_with("LDG.E.") || ins_key.starts_with("STG.E."))
+            let plain_u32 = ((ins_key.starts_with("LDG.E.") || ins_key.starts_with("STG.E."))
                 && (ins_key.contains(".EFL2.")
                     || ins_key.contains(".ENL2.")
                     || ins_key.contains(".ELL2."))
                 && !ins_key.contains(".NA.")
-                && (raw >> 75) & 1 == 0;
+                && (raw >> 75) & 1 == 0)
+                // session G batch 12: the measured plain keys (every group incl. the NA ones; bit 75 is clear on all)
+                || ins_key == "LDG_R_R_ARURI"
+                || ins_key.starts_with("LDG_R_R_ARURI_");
             let efl2_na = ins_key.starts_with("LDG.E.NA.EFL2")
                 || ins_key.starts_with("STG.E.NA.EFL2")
                 || (ins_key.contains(".ELL2.")
