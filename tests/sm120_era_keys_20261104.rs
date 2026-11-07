@@ -109,7 +109,10 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
     //   tools/probes/re_sm120_rows.py --family tensor: 73 byte-identical `_P_` twins of the QMMA.SP / HMMA.SP / HMMA /
     //   DMMA plain keys, the three `QMMA..._UP_II_?` and `DMMA.8x8x4_R_R_R_R_?` junk spellings, the dotted
     //   `HMMA.1684.F32.TF32_R_R_R_R` twin of `HMMA_R_R_R_R`'s measured group -> the key cubit decodes their words through)
-    assert_eq!(al.len(), 14691, "sm120.json key_aliases"); // 14 613 + 78 (T-16: batches 12-14 and G run 5 batch 15 on one base)
+    // + the 148 twin keys retired by the row verification of the long tail (G run 5 batch 16, the six other families:
+    //   dotted twins, integer spellings of float-immediate forms, `?` / phantom-token junk, byte-identical rows -> the key
+    //   cubit decodes their words through; `tests/sm120_rows_<family>.rs` pins each)
+    assert_eq!(al.len(), 14839, "sm120.json key_aliases"); // 14 691 + 148 (T-17: batches 12-16 on one base)
     let glued = regex::Regex::new(r"_P\d_").unwrap();
     let mut glued_n = 0;
     for (old, new) in &al {

@@ -275,8 +275,8 @@ impl DecodeIndex {
             // Broad match: for entries with no learned fields, OR for memory-addressing
             // InsKeys (containing ARI/AI/dARI/ARURI) where the base register field is
             // commonly missing from the table but is always at the standard Ra slot.
-            let no_fields = table.get(&c.key, &c.mod_group)
-                .map(|e| e.fields.is_empty()).unwrap_or(false);
+            let entry = table.get(&c.key, &c.mod_group);
+            let no_fields = entry.map(|e| e.fields.is_empty()).unwrap_or(false);
             // 2026-11-07 (session G, batch 14, tools/probes/re_sm120_redg.py): the measured plain keys of the
             // global reduction's uniform-indexed forms (`REDG_ARURI_R` / `REDG_ARURI64_R`, 9 216 rows) have a field
             // on every live slot; the only standard slot without one is [23:16] -- the atomic's destination, which
@@ -284,8 +284,15 @@ impl DecodeIndex {
             // a word carrying it; the measured rows fail closed on text-inert bits instead (T-10's convention for
             // every measured family), so the two keys stay on the strict / relaxed paths. No production word sets
             // the slot (the strict census is 1 811 600 / 1 811 600 either way).
+            // 2026-11-07 (session G run 5, tools/probes/re_sm120_rows.py): a row verified field by field over the
+            // whole word (`_src` = `rows-<family>-…`) has a field on every live slot and fails closed on the text-inert
+            // ones (T-10's convention for every measured family) -- it stays on the strict / relaxed paths, like the
+            // measured REDG keys of batch 14 do by name (the REDG lattice rows carry `redg-aruri-family-…`, not a
+            // `rows-` tag, so both conditions stay).
+            let row_probe = entry.is_some_and(|e| e.row_probe);
             let is_mem_addr = (c.key.contains("_ARI") || c.key.contains("_AI")
                 || c.key.contains("dARI") || c.key.contains("ARURI"))
+                && !row_probe
                 && !matches!(c.key.as_str(), "REDG_ARURI_R" | "REDG_ARURI64_R");
             if no_fields || is_mem_addr {
                 let broad = (code_clean & c.broad_relaxed_match_mask & !guard_mask) == (c.and_base & c.broad_relaxed_match_mask & !guard_mask);
@@ -351,6 +358,9 @@ impl DecodeIndex {
                 // Every legal (function, type) pair is a row; fail closed otherwise.
                 "MUFU" |
                 "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "QMMA" |
+                // LDGMC / STSM (2026-11-07, session G run 5, re_sm120_rows.py --family memory): memory ops without
+                // sign-able operands; the multicast reduction's op / type law sits in the window. Fail closed.
+                "LDGMC" | "STSM" |
                 // IMMA (2026-11-06, tools/probes/re_sm120_imma.py, nvdisasm 13.1): the dense
                 // family's law sits in the window -- 72 = the sparse form, 73 / 74 the only legal
                 // ROW / COL layouts (`???1` / `???0` otherwise), 75 the shape, 76 / 78 the types,
@@ -517,7 +527,8 @@ impl DecodeIndex {
                 && (c.mod_group.split(',').any(|m| m == "HI")
                     || c.key.split('_').next().unwrap_or("").split('.').any(|m| m == "HI"));
             let sign_law_base = table.target_sm() == 120 && matches!(base, "BMSK" | "DSETP" | "I2FP" | "UIADD3");
-            if !(is_memlike || native_hi || sign_law_base) {
+            // (a row verified field by field names its sign bits as fields and fails closed on the rest: no fallback)
+            if !(is_memlike || native_hi || sign_law_base || row_probe) {
                 let sign_bits: u128 = (3u128 << 62) | (3u128 << 72) | (3u128 << 74);
                 let m2 = c.match_mask & !sign_bits;
                 if (code_clean & m2 & !guard_mask) == (c.and_base & m2 & !guard_mask) {

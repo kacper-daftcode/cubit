@@ -1,8 +1,8 @@
 //! SM120 tensor-core long tail (QMMA / HMMA / OMMA / DMMA / IMMA) (session G run 5, 2026-11-07; KNOWN_ISSUES T1): the remaining harvest rows of
 //! QMMA, HMMA, OMMA, DMMA, IMMA verified row by row with nvdisasm 13.1 over the whole
 //! 128-bit word by `tools/probes/re_sm120_rows.py --family tensor` -- 264 rows measured (14554 canonical +
-//! field words, 21 census witnesses), 78 shadowed keys (78 rows) retired as aliases, 0 named
-//! exceptions. Fixture `tests/fixtures/sm120_rows_tensor_nvdisasm.jsonl`; the test body is `tests/sm120_rows_common.inc`.
+//! field words, 21 census witnesses), 78 shadowed keys (78 rows) retired as aliases, 0 unreachable
+//! rows of staying keys deleted, 0 named exceptions. Fixture `tests/fixtures/sm120_rows_tensor_nvdisasm.jsonl`; the test body is `tests/sm120_rows_common.inc`.
 
 const FAMILY: &str = "tensor";
 const SOURCE: &str = "rows-tensor-2026-11-07";
@@ -10,8 +10,12 @@ const MNEMONICS: &[&str] = &["QMMA", "HMMA", "OMMA", "DMMA", "IMMA"];
 const FIXTURE: &str = include_str!("fixtures/sm120_rows_tensor_nvdisasm.jsonl");
 const MEASURED_ROWS: usize = 264;
 const ALIAS_ROWS: usize = 78;
+const DEAD_ROWS: usize = 0;
 const FORM_WORDS: usize = 14554;
 const WITNESS_WORDS: usize = 21;
+/// Harvest rows of the family's mnemonics that batches 12-14 measure or retire on their own branches (LDG.256 /
+/// STG.256 / REDG lattices): harvest on this base, not this family's; 0 once those batches are on `main`.
+const LEFT_TO_OTHER_BATCHES: usize = 0;
 const ALIAS_KEYS: &[(&str, &str)] = &[
     ("DMMA.8x8x4.RM_P_R_R_R_R", "DMMA.8x8x4.RM_R_R_R_R"),
     ("DMMA.8x8x4.RP_P_R_R_R_R", "DMMA.8x8x4.RP_R_R_R_R"),

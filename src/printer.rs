@@ -1211,6 +1211,41 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             _ => {}
         }
     }
+    // 2026-11-07 (session G run 5, tools/probes/re_sm120_rows.py --family intalu, nvdisasm 13.1): the mixed-precision
+    // FHADD prints the type, then the rounding, then SAT -- `FHADD.BF16.RM.SAT`, `FHADD.RZ.SAT` (the generic ranks
+    // put SAT before the rounding).
+    if base == "FHADD" {
+        match m {
+            "BF16" => return 0,
+            "RM" | "RP" | "RZ" => return 1,
+            "SAT" => return 2,
+            _ => {}
+        }
+    }
+    // 2026-11-07 (session G run 5, re_sm120_rows.py --family half, nvdisasm 13.1): I2FP prints the destination type,
+    // the source type, then the rounding -- `I2FP.F32.U32.RZ` (the generic ranks put RZ before the source type).
+    if base == "I2FP" || base == "UI2FP" {
+        match m {
+            "F32" | "F16" | "BF16" => return 0,
+            "S32" | "U32" | "S16" | "U16" | "S8" | "U8" => return 1,
+            "RM" | "RP" | "RZ" => return 2,
+            _ => {}
+        }
+    }
+    // 2026-11-07 (session G run 5, re_sm120_rows.py --family memory, nvdisasm 13.1): the multicast reduction load
+    // prints `E`, the operation, the type / width, the rounding, then the strength and scope --
+    // `LDGMC.E.ADD.F32.RN.STRONG.SYS`, `LDGMC.E.MIN.64.STRONG.SYS` (the generic ranks put the scope first).
+    if base == "LDGMC" {
+        match m {
+            "E" => return 0,
+            "ADD" | "MIN" | "MAX" | "HPADD" | "AND" | "OR" | "XOR" | "INC" | "DEC" => return 1,
+            "32" | "64" | "S32" | "S64" | "U32" | "U64" | "F32" | "F32x4" | "F64" | "F16x2" | "F16x8" | "BF16x2" | "BF16x8" => return 2,
+            "RN" => return 3,
+            "STRONG" | "CONSTANT" | "WEAK" | "MMIO" => return 4,
+            "SYS" | "GPU" | "CTA" | "SM" => return 5,
+            _ => {}
+        }
+    }
     if matches!(base, "VIMNMX" | "UVIMNMX") && m == "RELU" {
         return 8;
     }

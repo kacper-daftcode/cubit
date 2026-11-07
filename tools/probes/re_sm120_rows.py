@@ -83,7 +83,69 @@ FAMILIES = {
 
 # (key, group) -> reason: rows whose structure nvdisasm confirms but which stay harvest on purpose (named in
 # G/NEEDS_OWNER.md): the probe reports them as `exception`, apply leaves them, the test lists them
-EXCEPTIONS: dict[str, dict[tuple[str, str], str]] = {}
+EXCEPTIONS: dict[str, dict[tuple[str, str], str]] = {
+    "intalu": {
+        # the carry-out predicate at [83:81]: at PT the vendor elides it (`IMAD.HI R32, R64, UR96, R24`), a spelling
+        # whose plain key has no `HI` / `HI,X` group -- cubit prints the `_P_` row's explicit `PT`; the plain groups
+        # are legal words nvdisasm names (G/NEEDS_OWNER.md 11)
+        ("IMAD_R_P_R_UR_R", "HI"): "the PT carry-out word is the plain key's spelling (IMAD_R_R_UR_R has no HI group); cubit prints the explicit PT",
+        ("IMAD_R_P_R_UR_R_P", "HI,U32,X"): "the PT carry-out word is the plain key's spelling (IMAD_R_R_UR_R_P has no HI,U32,X group); cubit prints the explicit PT",
+        ("IMAD_R_P_R_UR_R_P", "HI,X"): "the PT carry-out word is the plain key's spelling (IMAD_R_R_UR_R_P has no HI,X group); cubit prints the explicit PT",
+        ("R2UR_P_UR_R", "FILL"): "the PT predicate word is the plain key's spelling (R2UR_UR_R has no FILL group); cubit prints the explicit PT",
+    },
+    "control": {
+        ("WARPSYNC.COLLECTIVE_R_II", ""): "the immediate is a 50-bit field the vendor prints whole (0x169696969696978 for the "
+                                         "probe's pattern); cubit's row reads 20 bits of it -- the collective mask / target law "
+                                         "needs its own probe (G/NEEDS_OWNER.md 10)",
+    },
+}
+# key prefix -> reason: whole mnemonics / keys left harvest on purpose in run 5 although the probe verifies them -- the
+# 2026-08/09 bug-wave tests pin their harvest structure or their tolerant decode of text-inert bits (bug148 / 163 /
+# 164 / 167 / 172 / 188 / 204 / 226e / 265 / 271 / 274 / 279 / 285 / 288 / 311 / 330 / 340 / 359 / 360 / 413ii / 415 /
+# 419 / 420 / 425 / 425b); re-pinning those suites to the measured doctrine is T's call (the batch-10..14 pattern), so
+# the rows keep their records in the fixture (status `exception`) and nothing of theirs moves in the table
+WAVE_PINNED = ("pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of "
+               "those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12)")
+EXCEPTION_PREFIXES: dict[str, dict[str, str]] = {
+    "half": {"HFMA2": WAVE_PINNED + " (bug265 / 271 / 274 / 279 / 285 / 288 / 330)", "HADD2": WAVE_PINNED + " (bug271 / 419)",
+             "F2IP": WAVE_PINNED + " (bug340)", "F2F.": WAVE_PINNED + " (bug226e)",
+             "I2IP": WAVE_PINNED + " (bug265 / 275 / 276 / 282 / 284 / 296)"},
+    "memory": {"LDGSTS": WAVE_PINNED + " (bug164 / 311 / 359 / 360 / 373)", "LDS_": WAVE_PINNED + " (bug148 / 413ii / 415 / 420)",
+               "STS_": WAVE_PINNED + " (bug425 / 425b)", "LDL_": WAVE_PINNED + " (bug415 / 420)", "STL_": WAVE_PINNED + " (bug425)",
+               "MOVM": WAVE_PINNED + " (bug272 / 276 / 283)"},
+    "intalu": {"LDC": WAVE_PINNED + " (bug163 / 167 / 172 / 409)"},
+    "atomic": {"ATOMS": WAVE_PINNED + " (bug188 / 204)"},
+}
+# hand decisions the shadow rule cannot make on its own (each one measured in the family's note):
+#   MANUAL_ALIAS: key -> target. The integer spelling `S2R_R_II` of the system-register read (nvdisasm prints `SR90`
+#   for an unnamed code, cubit decodes that spelling through the junk key) -> `S2R_R_L`; the dotted `UBMSK.W_*` twins
+#   of `UBMSK_*`'s `W` group (same text, one text-inert bit apart: the encoder mints the plain row's word).
+#   MANUAL_DEAD: (key, group) -> the key whose row decodes the group's words afterwards. The harvest named the `!` of
+#   IMAD.X's carry-in predicate a modifier (`B90`); the `U32,WIDE,X` row of the same key carries bit 90 as a field.
+#   The integer spelling `HFMA2_R_R_II_II_R` of the f16-pair immediate form -> `HFMA2_R_R_FI_FI_R` (the FMUL_R_R_II
+#   precedent: the hexadecimal literal still encodes through the alias; its RELU groups' words have the dotted
+#   `HFMA2.*.RELU_R_R_FI_FI_R_P` rows).
+#   `ATOMS_R_ARI` (one group, `32,INC,POPC`, URZ baked at [71:64]) -> `ATOMS_R_ARURI`: the vendor spells the word
+#   `[R16+URZ+imm]`, the uniform-indexed form with URZ, which the measured `_ARURI` row's UR field covers (0 census
+#   witnesses on either; the harvest `_ARI` row claimed the inert-bit neighbours the measured row fails closed on and
+#   printed them `[imm]`, bug188's pin).
+MANUAL_ALIAS: dict[str, dict[str, str]] = {
+    "intalu": {"S2R_R_II": "S2R_R_L"},
+    "uniform": {"UBMSK.W_UR_UR_II": "UBMSK_UR_UR_II", "UBMSK.W_UR_UR_UR": "UBMSK_UR_UR_UR"},
+    "half": {"HFMA2_R_R_II_II_R": "HFMA2_R_R_FI_FI_R"},
+    "atomic": {"ATOMS_R_ARI": "ATOMS_R_ARURI"},
+}
+#   MANUAL_FIELDS: key prefix -> fields cubit keeps on the rows although nvdisasm 13.1 prints nothing for the bit. IMAD's
+#   bit 72: text-inert for nvdisasm on every IMAD form (`IMAD R32, R48, R80, R24` with 72 set prints the same), kept by
+#   cubit as the negation of Ra (`IMAD R5, -R4, R3, R2`; BUG-296, re-affirmed by T-3 on 2026-11-04 with the U32 twins).
+#   The row carries the field (tok = the register at the Ra slot [31:24]); the bit-72 word is neither a form word nor a
+#   lattice word of the fixture (class `cubit_law`); the owner confirms or retires the law on silicon (NEEDS 13).
+MANUAL_FIELDS: dict[str, dict[str, list]] = {
+    "intalu": {"IMAD_": [["neg", 72, 1, 24]]},  # [extraction, bit, bits, the slot shift whose token takes the field]
+}
+MANUAL_DEAD: dict[str, dict[tuple[str, str], str]] = {
+    "intalu": {("IMAD_R_P_R_II_R_P", "B90,U32,WIDE,X"): "IMAD_R_P_R_II_R_P"},
+}
 
 
 def tag_of(family: str) -> str:
@@ -271,16 +333,23 @@ def run_example(binary: str, items: list[dict], *extra) -> list[dict]:
 
 # --- the probe -------------------------------------------------------------------------------------------------
 
-def select_rows(table: dict, family: str, only_keys=None):
+def select_rows(table: dict, family: str, only_keys=None, also_in: dict | None = None):
+    """The family's harvest rows (and, on an applied table, the rows this family tagged). `also_in` = another table
+    the row must be a harvest row of as well -- the rows another batch measures or retires on a branch not yet on
+    the base (the LDG.256 / STG.256 / REDG lattices of batches 12-14) are not probed again."""
     mns = set(FAMILIES[family])
     rows = []
     for key, entry in table["instructions"].items():
         if mnemonic_of(key) not in mns or (only_keys and key not in only_keys):
             continue
         for group, row in entry.get("mod_groups", {}).items():
-            # the harvest rows, and (on an applied table: re-verification) the rows this family tagged
-            if row.get("_src") in (None, tag_of(family)):
-                rows.append((key, group, row))
+            if row.get("_src") not in (None, tag_of(family)):
+                continue
+            if also_in is not None:
+                other = also_in["instructions"].get(key, {}).get("mod_groups", {}).get(group)
+                if other is None or other.get("_src") not in (None, tag_of(family)):
+                    continue
+            rows.append((key, group, row))
     return rows
 
 
@@ -298,7 +367,8 @@ def load_census(path: pathlib.Path | None):
 
 def probe(args):
     table = nvprobe.load_table(pathlib.Path(args.table))
-    rows = select_rows(table, args.family, set(args.keys) if args.keys else None)
+    also = nvprobe.load_table(pathlib.Path(args.also_harvest_in)) if args.also_harvest_in else None
+    rows = select_rows(table, args.family, set(args.keys) if args.keys else None, also)
     census = load_census(pathlib.Path(args.census) if args.census else None)
     nv = Nvdisasm(args.nvdisasm, args.arch, args.jobs, pathlib.Path(args.nv_cache) if args.nv_cache else None)
     print(f"{len(rows)} harvest rows of family {args.family} ({', '.join(FAMILIES[args.family])}); nvdisasm {nv.version}")
@@ -348,7 +418,7 @@ def probe(args):
         rec = {"key": key, "group": group, "fields": [[f["shift"], f["bits"], f["token_idx"], f["extraction"]] for f in fields]}
         v = {"key": key, "group": group, "count": row.get("count"), "problems": [], "reuse_add": [], "cubit": {}}
         if w0 is None:
-            rec.update(w0=None, t0=None, status="canonical_illegal")
+            rec.update(w0=None, t0=None, status="canonical_illegal", reason="nvdisasm rejects every canonical word of the row")
             v["status"] = "canonical_illegal"
             v["problems"].append("nvdisasm rejects every canonical word of the row")
             stats["canonical_illegal"] += 1
@@ -400,6 +470,11 @@ def probe(args):
                 want = 0 if f["extraction"] == "guard" else f["token_idx"]
                 if (cls == "guard" and want == 0) or (cls == "operand" and tok == want):
                     by_class["field"].append([b, t])
+                    # a declared `neg` the vendor prints as the ones' complement `~X` (the carry forms of IADD3.X /
+                    # UIMAD.X / IADD.X): the extraction is `inv`
+                    toks = tokens(t)
+                    if f["extraction"] == "neg" and tok is not None and tok + 1 < len(toks) and toks[tok + 1] == "~" + toks0[tok + 1]:
+                        v.setdefault("ext_fix", {})[f["shift"]] = "inv"
                 else:
                     by_class["complex" if cls == "complex" else "field_wrong"].append([b, t])
                     v["problems"].append(f"field bit {b} ({f['extraction']} tok {f['token_idx']}) moves {cls} {tok}: {t!r}")
@@ -420,12 +495,23 @@ def probe(args):
                     added = ["reuse", b, 1, tok]
                 elif same_form and new == "-" + old:
                     added = ["neg", b, 1, tok]
+                elif same_form and new == "~" + old:
+                    added = ["inv", b, 1, tok]
                 elif same_form and new == f"|{old}|":
                     added = ["abs", b, 1, tok]
+                elif same_form and new == "!" + old and (old.startswith("P") or old.startswith("UP")):
+                    added = ["neg", b, 1, tok]  # the predicate's `!` is spelled `neg` on the measured rows (bug247's pin)
+                # an address whose base register gains / loses a width or scale suffix (`[R48.64+UR64]`, `[R2.X4+0x10]`,
+                # `[RZ.U32+UR4]`): the vendor spells another address form -- another row's word (a coverage gap when
+                # the table has none), never this row's operand
+                strip = lambda s: re.sub(r"\.(64|U32|X4|X8|X16)(?=[+\]])", "", s)  # noqa: E731
+                form_neighbour = old.startswith("[") and new.startswith("[") and strip(old) == strip(new) and old != new
                 if added is not None:
                     # a sign / abs / reuse bit on an operand of this row the harvest never declared: a field
                     by_class["field"].append([b, t])
                     v.setdefault("fields_add", []).append(added)
+                elif form_neighbour:
+                    by_class["operand_other"].append([b, t])
                 elif same_form:
                     by_class["operand_other"].append([b, t])
                     v["problems"].append(f"bit {b} outside the fields moves operand {tok} of the same form: {t!r}")
@@ -450,12 +536,34 @@ def probe(args):
                     and ("." in tok_text or "e" in tok_text or tok_text.endswith(("INF", "NAN"))) and f["bits"] in (16, 32):
                 nf["extraction"] = ("bf16" if "BF16" in (key + group) else "f16") if f["bits"] == 16 else "f32"
                 v.setdefault("fields_fix", []).append([f["shift"], f["extraction"], nf["extraction"]])
+            if f["shift"] in v.get("ext_fix", {}):
+                nf["extraction"] = v["ext_fix"][f["shift"]]
+                v.setdefault("fields_fix", []).append([f["shift"], f["extraction"], nf["extraction"]])
+            if f["extraction"] in ("pred", "upred") and f["bits"] == 4:
+                # a 4-bit predicate window is the 3-bit predicate plus its `!` bit (the vendor prints `!PT` for 15; a
+                # plain `pred` of 4 bits printed `P15`): split into the measured rows' `pred` + `neg` pair
+                nf["bits"] = 3
+                target_fields.append(nf)
+                target_fields.append({"bits": 1, "extraction": "neg", "shift": f["shift"] + 3, "token_idx": f["token_idx"]})
+                v.setdefault("fields_fix", []).append([f["shift"], f["extraction"] + "4", f["extraction"] + "3+neg"])
+                continue
             target_fields.append(nf)
         for ext, shift, nb, tok in v.get("fields_add", []):
             if not any(tf["shift"] == shift for tf in target_fields):
                 target_fields.append({"bits": nb, "extraction": ext, "shift": shift, "token_idx": tok})
+        for prefix, extra in MANUAL_FIELDS.get(args.family, {}).items():
+            if key.startswith(prefix):
+                for ext, bit, nb, slot in extra:
+                    tok_slot = next((tf["token_idx"] for tf in target_fields if tf["shift"] == slot and is_reg(tf["extraction"])), None)
+                    if tok_slot is None or any(tf["shift"] == bit for tf in target_fields):
+                        continue
+                    target_fields.append({"bits": nb, "extraction": ext, "shift": bit, "token_idx": tok_slot})
+                    if bit in by_class["inert"]:
+                        by_class["inert"].remove(bit)
+                    by_class["cubit_law"].append([bit, nv.cache[(w0 ^ (1 << bit)) | CTRL]])
+                    v.setdefault("fields_add", []).append([ext, bit, nb, tok_slot])
         rec["fields"] = [[tf["shift"], tf["bits"], tf["token_idx"], tf["extraction"]] for tf in target_fields]
-        for c in ("field", "modifier", "operand_other", "glyph", "complex", "field_wrong"):
+        for c in ("field", "modifier", "operand_other", "glyph", "complex", "field_wrong", "cubit_law"):
             if by_class[c]:
                 rec[c] = by_class[c]
         rec["inert"] = by_class["inert"]
@@ -471,7 +579,7 @@ def probe(args):
         v["cubit"] = {k: c0.get(k) for k in ("cubit_key", "cubit_group", "cubit_text_lossless", "reencode", "cubit_error", "vendor_encode") if k in c0}
         # a re-encode the encoder refuses on a silicon law (BUG-037: multi-register MMA operands off their alignment)
         # is the `silicon_illegal` class of tools/audit_dynamic.py: the text is the vendor's, the word is not mintable
-        silicon = lambda c: str(c.get("reencode", "")).startswith("error:") and "ILLEGAL on silicon" in c["reencode"]  # noqa: E731
+        silicon = lambda c: str(c.get("reencode", "")).startswith("error:") and "silicon" in c["reencode"]  # noqa: E731
         # cubit-side findings are kept apart from the vendor-side ones: the row's structure is decided by nvdisasm; a
         # cubit text / re-encode difference is either healed by the structure apply writes (the fixed field types,
         # the added fields -- checked by re-running the probe on the applied table) or a cubit defect to fix
@@ -504,6 +612,13 @@ def probe(args):
                               f"re-encode {c.get('reencode')} for {t!r}")
         if silicon_words:
             rec["silicon_bits"] = silicon_words
+        # a row none of whose own words cubit decodes through it, every one printed vendor-true by a sibling key that
+        # spells an elided operand (`[UR4+0x10]` is the `[RZ+UR4+0x10]` word): an encoder-only row -- its fields are
+        # the vendor's, the test does not ask the decoder to reach it
+        own_words = [w0 | CTRL] + [(w0 ^ (1 << b)) | CTRL for b, _ in by_class["field"]]
+        if own_words and all("cubit_error" not in cubit[w] and (cubit[w]["cubit_key"], cubit[w]["cubit_group"]) != (key, group)
+                             for w in own_words):
+            rec["shadow_only"] = True
         # witnesses
         rec["witnesses"] = []
         fm = sum(((1 << tf["bits"]) - 1) << tf["shift"] for tf in target_fields)
@@ -518,21 +633,59 @@ def probe(args):
             # the witness must lie inside the row's measured shape: its constant bits equal and_base's
             if (w & ~SCHEDULE & ~fm) != (int(row["and_base"], 16) & ~SCHEDULE & ~fm):
                 v["problems"].append(f"census witness {w:032x} carries bits outside the fields")
+        wave = next((r for pfx, r in EXCEPTION_PREFIXES.get(args.family, {}).items() if key.startswith(pfx)), None)
         if (key, group) in EXCEPTIONS.get(args.family, {}):
             v["status"] = "exception"
             rec["reason"] = EXCEPTIONS[args.family][(key, group)]
+        elif wave is not None:
+            v["status"] = "exception"
+            rec["reason"] = wave
         elif v["problems"]:
             v["status"] = "harvest"
+            rec["reason"] = v["problems"][0][:200]  # the first vendor-side finding: the row stays harvest, named
         else:
             v["status"] = "measured"
         # a row whose canonical word cubit already decodes through another key that prints the vendor's text and
         # re-encodes it bit-exact is unreachable (a byte-identical `_P_` twin, a `_?` junk spelling, a dotted twin of a
         # plain key's group, the integer spelling of a float-immediate form): it retires as a `_meta.key_aliases`
         # entry -- whatever else is wrong with its structure
+        # (a row the census reaches -- production words cubit decodes through it -- is alive whatever its canonical
+        # word does: S2R_R_L's `SR_TID.X` words vs the `SR90` spelling of the probe's immediate)
+        # ... and only when the shadowing key is a twin of this one: the same operand signature (a dotted twin), the
+        # integer spelling of a float-immediate form (`_II` for `_FI`), a junk spelling (`?`, or more operand tokens
+        # than the vendor's text has), or a byte-identical row structure (the `_P_` tensor twins). A key that prints
+        # the same text with an operand elided (`[UR4+0x10]` for `[RZ+UR4+0x10]`, `LDC` without its register, the
+        # explicit-predicate `_P` variants, IADD3's carry-in predicates) is NOT a twin: it is the encoder's path for
+        # the other spelling (the BUG-464 pattern) and stays, measured or named.
+        def twin_ok(target_key):
+            if target_key == key:
+                return False
+            sig_k, sig_t = key.split("_", 1)[1] if "_" in key else "", target_key.split("_", 1)[1] if "_" in target_key else ""
+            if "?" in key or sig_k == sig_t or sig_k.replace("II", "FI") == sig_t.replace("II", "FI"):
+                return True
+            vendor_sig = (kt.get("base_key") or "").split("_", 1)[1] if "_" in (kt.get("base_key") or "") else ""
+            if sig_k.count("_") + 1 > vendor_sig.count("_") + 1 and vendor_sig:
+                return True  # phantom operand tokens in the harvest key (the `_P_` tensor twins: no P in any text)
+            # (a byte-identical row under a different signature is NOT a twin: `LDC_R_cARI` / `LDC_R_cAI` share
+            # their words at RZ, but each key is the encoder's path for its own spelling -- the census writes both)
+            return False
         if v["status"] != "exception" and "shadowed_by" in v and c0["cubit_text_lossless"] == t0 \
-                and (c0["reencode"] == "ok" or silicon(c0)):
-            v["status"] = "alias"
+                and (c0["reencode"] == "ok" or silicon(c0)) and not witness_of[(key, group)] and twin_ok(v["shadowed_by"][0]):
+            if mnemonic_of(v["shadowed_by"][0]) == mnemonic_of(key):
+                v["status"] = "alias"
+            else:
+                # a harvest key named after one mnemonic whose bits are another's (`F2IP.U8.F32.NTZ_P_R_R_R_R` is an
+                # HMMA word): no alias across mnemonics -- the row is dead, the key empties and goes
+                v["status"] = "dead"
             rec["target"] = v["shadowed_by"][0]
+        if key in MANUAL_ALIAS.get(args.family, {}) and wave is None:
+            v["status"] = "alias"
+            rec["target"] = v.get("shadowed_by", [MANUAL_ALIAS[args.family][key]])[0]
+            rec["manual"] = True
+        if (key, group) in MANUAL_DEAD.get(args.family, {}) and wave is None:
+            v["status"] = "dead"
+            rec["target"] = MANUAL_DEAD[args.family][(key, group)]
+            rec["manual"] = True
         rec["status"] = v["status"]
         stats[v["status"]] += 1
         fixture.append(rec)
@@ -549,19 +702,32 @@ def probe(args):
         if all(r["status"] == "alias" for r, _ in pairs) and len(pairs) == len(rows_of_key[k]):
             best = max(pairs, key=lambda p: (p[1].get("count") or 0))
             retiring[k] = best[0]["target"]
-    for k, tgt in list(retiring.items()):
-        if tgt in retiring:
+    # a target that retires itself forwards to its own target (resolved to a fixpoint; a cycle keeps the keys)
+    for k in list(retiring):
+        seen, t = {k}, retiring[k]
+        while t in retiring and t not in seen:
+            seen.add(t)
+            t = retiring[t]
+        if t in seen:
             del retiring[k]
+        else:
+            retiring[k] = t
+    for rec in fixture[1:]:
+        # a row target that retires itself forwards to its own alias target (the `S2R_R_L_II` -> `S2R_R_II` ->
+        # `S2R_R_L` chain): the test decodes the word through the key that stays
+        if rec.get("target") in retiring:
+            rec["target"] = retiring[rec["target"]]
     for rec, v in zip(fixture[1:], verdict["rows"]):
         if rec["status"] == "alias":
             if rec["key"] in retiring:
                 rec["alias_target"] = retiring[rec["key"]]
             else:
+                # an unreachable row of a key that stays (its other rows are live): cubit decodes its canonical word
+                # through another key with the vendor text -- the row is dead and is deleted (documented here and
+                # asserted by the test: the key keeps its live rows, the word keeps its real row)
                 stats["alias"] -= 1
-                stats["harvest"] += 1
-                rec["status"] = v["status"] = "harvest"
-                v["problems"].append("shadowed, but the key cannot retire whole (other live rows, or the target retires too)")
-                rec.pop("target", None)
+                stats["dead"] += 1
+                rec["status"] = v["status"] = "dead"
     n_cubit = sum(1 for v in verdict["rows"] if v["status"] == "measured" and v["cubit_problems"])
     stats["measured_with_cubit_problems"] = n_cubit
 
@@ -634,6 +800,18 @@ def apply(args):
         row["_note"] = note_for(family, rec)
         tagged += 1
     retired, deleted = [], []
+    dead = 0
+    alias_targets = set(table["_meta"].get("key_aliases", {}).values()) | {rec.get("alias_target") for rec in recs}
+    for rec in recs:
+        if rec["status"] == "dead" and rec["key"] in ins and rec["group"] in ins[rec["key"]].get("mod_groups", {}):
+            if len(ins[rec["key"]]["mod_groups"]) == 1 and rec["key"] in alias_targets:
+                print(f"  keeping the last row of alias target {rec['key']} ({rec['group']!r}) -- dead by the probe, needed by the aliases")
+                continue
+            del ins[rec["key"]]["mod_groups"][rec["group"]]
+            dead += 1
+            if not ins[rec["key"]]["mod_groups"]:
+                del ins[rec["key"]]
+                deleted.append(rec["key"])
     aliases = sorted({(rec["key"], rec["alias_target"]) for rec in recs if rec["status"] == "alias"}) + list(args.alias or [])
     for junk, target in aliases:
         if junk in ins and target in ins:
@@ -652,8 +830,8 @@ def apply(args):
                             "kind": "nvdisasm 13.1 per-row field verification over the whole word (-b SM120)", "date": DATE,
                             "tool": f"tools/probes/re_sm120_rows.py --family {family}", "test": f"tests/sm120_rows_{family}.rs"}
     nvprobe.save_table(path, table)
-    print(f"{path}: {tagged} rows tagged {src} ({added} guard / sign / abs / reuse fields added), {len(retired)} keys retired as "
-          f"aliases {retired}, {len(deleted)} keys deleted {deleted}; rows without _src now {prov['rows_without_src']}")
+    print(f"{path}: {tagged} rows tagged {src} ({added} fields added / retyped), {len(retired)} keys retired as aliases "
+          f"{retired}, {dead} dead rows deleted ({len(deleted)} keys emptied {deleted}); rows without _src now {prov['rows_without_src']}")
 
 
 def main():
@@ -665,6 +843,8 @@ def main():
     p.add_argument("--census", default=None)
     p.add_argument("--witnesses", type=int, default=3)
     p.add_argument("--keys", nargs="*", default=None)
+    p.add_argument("--also-harvest-in", default=None,
+                   help="a second table the row must be a harvest row of too (skip rows another batch handles elsewhere)")
     p.add_argument("--nvdisasm", default=NVDISASM)
     p.add_argument("--arch", default="SM120")
     p.add_argument("--jobs", type=int, default=24)

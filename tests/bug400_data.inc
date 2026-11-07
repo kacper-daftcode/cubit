@@ -376,9 +376,12 @@ pub const ROUTE400: &[(&str, &str, &str)] = &[
     ("sm120-sub_imm22-24b36.pv1ltc1", "LDG_R_dARI_P", "E,GPU,LTC64B,STRONG,U16"),
     ("sm120-sub_imm22-24b36.pv13ltc2", "LDG_R_dARI_P", "E,GPU,LTC128B,STRONG,U16"),
     ("sm120-sub_imm22-24b36.pv1imm", "LDG_R_dARI_P", "E,GPU,STRONG,U16"),
-    ("sm120-sub_imm22-24b36.b70", "LDG_R_dARI", "E,GPU,STRONG,U16"),
-    ("sm120-sub_imm22-24b36.b71", "LDG_R_dARI", "E,GPU,STRONG,U16"),
-    ("sm120-sub_imm22-24b36.ball7071", "LDG_R_dARI", "E,GPU,STRONG,U16"),
+    // 2026-11-07 (session G run 5, re_sm120_rows.py --family memory): the plain `LDG_R_dARI` row is measured and fails
+    // closed on the text-inert bit 70 (T-10's convention); the bug400 `_P` sibling still tolerates it and claims the
+    // word with the same text (`PT` elided)
+    ("sm120-sub_imm22-24b36.b70", "LDG_R_dARI_P", "E,GPU,STRONG,U16"),
+    ("sm120-sub_imm22-24b36.b71", "LDG_R_dARI_P", "E,GPU,STRONG,U16"),  // idem (G run 5: the measured plain row fails closed on the inert bits)
+    ("sm120-sub_imm22-24b36.ball7071", "LDG_R_dARI_P", "E,GPU,STRONG,U16"),  // idem (G run 5: the measured plain row fails closed on the inert bits)
     ("sm120-sub_imm22-24b37.base", "LDG_R_dARI", "128,E,STRONG,SYS"),
     ("sm120-sub_imm22-24b37.pv1", "LDG_R_dARI_P", "128,E,STRONG,SYS"),
     ("sm120-sub_imm22-24b37.pv2", "LDG_R_dARI_P", "128,E,STRONG,SYS"),
@@ -394,9 +397,9 @@ pub const ROUTE400: &[(&str, &str, &str)] = &[
     ("sm120-sub_imm22-24b37.pv1ltc1", "LDG_R_dARI_P", "128,E,LTC64B,STRONG,SYS"),
     ("sm120-sub_imm22-24b37.pv13ltc2", "LDG_R_dARI_P", "128,E,LTC128B,STRONG,SYS"),
     ("sm120-sub_imm22-24b37.pv1imm", "LDG_R_dARI_P", "128,E,STRONG,SYS"),
-    ("sm120-sub_imm22-24b37.b70", "LDG_R_dARI", "128,E,STRONG,SYS"),
-    ("sm120-sub_imm22-24b37.b71", "LDG_R_dARI", "128,E,STRONG,SYS"),
-    ("sm120-sub_imm22-24b37.ball7071", "LDG_R_dARI", "128,E,STRONG,SYS"),
+    ("sm120-sub_imm22-24b37.b70", "LDG_R_dARI_P", "128,E,STRONG,SYS"),  // G run 5: the measured plain row fails closed on the inert bits 70 / 71; the bug400 _P sibling claims the word (same text)
+    ("sm120-sub_imm22-24b37.b71", "LDG_R_dARI_P", "128,E,STRONG,SYS"),  // G run 5: the measured plain row fails closed on the inert bits 70 / 71; the bug400 _P sibling claims the word (same text)
+    ("sm120-sub_imm22-24b37.ball7071", "LDG_R_dARI_P", "128,E,STRONG,SYS"),  // G run 5: the measured plain row fails closed on the inert bits 70 / 71; the bug400 _P sibling claims the word (same text)
     ("sm120-sub_imm22-24b38.base", "LDG_R_dARI", "128,E,GPU,STRONG"),
     ("sm120-sub_imm22-24b38.pv1", "LDG_R_dARI_P", "128,E,GPU,STRONG"),
     ("sm120-sub_imm22-24b38.pv2", "LDG_R_dARI_P", "128,E,GPU,STRONG"),
@@ -412,9 +415,9 @@ pub const ROUTE400: &[(&str, &str, &str)] = &[
     ("sm120-sub_imm22-24b38.pv1ltc1", "LDG_R_dARI_P", "128,E,GPU,LTC64B,STRONG"),
     ("sm120-sub_imm22-24b38.pv13ltc2", "LDG_R_dARI_P", "128,E,GPU,LTC128B,STRONG"),
     ("sm120-sub_imm22-24b38.pv1imm", "LDG_R_dARI_P", "128,E,GPU,STRONG"),
-    ("sm120-sub_imm22-24b38.b70", "LDG_R_dARI", "128,E,GPU,STRONG"),
-    ("sm120-sub_imm22-24b38.b71", "LDG_R_dARI", "128,E,GPU,STRONG"),
-    ("sm120-sub_imm22-24b38.ball7071", "LDG_R_dARI", "128,E,GPU,STRONG"),
+    ("sm120-sub_imm22-24b38.b70", "LDG_R_dARI_P", "128,E,GPU,STRONG"),  // G run 5: the measured plain row fails closed on the inert bits 70 / 71; the bug400 _P sibling claims the word (same text)
+    ("sm120-sub_imm22-24b38.b71", "LDG_R_dARI_P", "128,E,GPU,STRONG"),  // G run 5: the measured plain row fails closed on the inert bits 70 / 71; the bug400 _P sibling claims the word (same text)
+    ("sm120-sub_imm22-24b38.ball7071", "LDG_R_dARI_P", "128,E,GPU,STRONG"),  // G run 5: the measured plain row fails closed on the inert bits 70 / 71; the bug400 _P sibling claims the word (same text)
     ("sm121a-sub_imm12-24b32.base", "LD_R_ARI", "128,E"),
     ("sm121a-sub_imm12-24b32.pv1", "LD_R_ARI_P", "128,E"),
     ("sm121a-sub_imm12-24b32.pv2", "LD_R_ARI_P", "128,E"),

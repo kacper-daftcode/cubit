@@ -183,6 +183,11 @@ struct JsonModGroup {
     /// ModGroupEntry::claim_forbid); absent = legacy cube-claim behavior.
     #[serde(default)]
     pub claim_forbid: Vec<JsonClaimForbid>,
+    /// The row's provenance tag (`_meta.provenance.sources`); `rows-<family>-2026-11-07` marks a row verified
+    /// field by field over the whole word by `tools/probes/re_sm120_rows.py` (session G run 5) -- such a row has a
+    /// field on every live slot and fails closed on the rest, so the decoder keeps it off the broad match.
+    #[serde(default, rename = "_src")]
+    pub src: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -502,6 +507,10 @@ pub struct ModGroupEntry {
     /// BUG-099: optional pinned address width for uniform-indexed global
     /// address rows ("U32"/"64"); see JsonModGroup::addr_width.
     pub addr_width: Option<String>,
+    /// Verified field by field over the whole word by the per-row probe (session G run 5, `_src` =
+    /// `rows-<family>-2026-11-07`): the decoder's broad match (standard register slots freed for memory keys) is
+    /// off for the row -- its mask is exactly its fields, fail closed on the text-inert slots.
+    pub row_probe: bool,
 }
 
 /// The modifier groups of one instruction key, shared between the key and its
@@ -920,7 +929,8 @@ impl IsaTable {
                         vm
                 };
 
-                mod_groups.insert(mods, ModGroupEntry { and_base, claim_forbid: jmg.claim_forbid.iter().map(|cf| ClaimForbid { shift: cf.shift, bits: cf.bits, values: cf.values.clone() }).collect(), variable_mask, fields, encode_only: jmg.encode_only, addr_width: jmg.addr_width.clone() });
+                let row_probe = jmg.src.as_deref().is_some_and(|s| s.starts_with("rows-"));
+                mod_groups.insert(mods, ModGroupEntry { and_base, claim_forbid: jmg.claim_forbid.iter().map(|cf| ClaimForbid { shift: cf.shift, bits: cf.bits, values: cf.values.clone() }).collect(), variable_mask, fields, encode_only: jmg.encode_only, addr_width: jmg.addr_width.clone(), row_probe });
             }
 
             entries.insert(key, InsKeyEntry { mod_groups: mod_groups.into(), ctrl_class: None, epoch_upper32: None, encode_only: jik.encode_only });
