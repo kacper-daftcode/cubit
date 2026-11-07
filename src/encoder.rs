@@ -4819,7 +4819,15 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
         ),
 
         // Register
-        Extraction::Reg => fit_soft(insn, field, op_reg(insn, field.token_idx) as i64, false),
+        Extraction::Reg => {
+            // BAR.SYNC.DEFER_BLOCKING can omit its zero register count. The
+            // implicit token is RZ (0xFF), not R0 (which is the CTA barrier id).
+            if insn.opcode == "BAR" && field.token_idx == 2 && get_op(insn, field.token_idx).is_none() {
+                fit(insn, field, 255)
+            } else {
+                fit_soft(insn, field, op_reg(insn, field.token_idx) as i64, false)
+            }
+        }
         Extraction::UReg => {
             // UMOV dest slot: corpus rule "URZ reads as 0xFF in source slots"
             // does not extend to the uniform move destination — FA4 hardware

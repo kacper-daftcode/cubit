@@ -813,6 +813,12 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
         }
     }
 
+    // BAR.SYNC DEFER_BLOCKING: the register-count RZ is implicit in the defer
+    // form; it still occupies the declared reg@32 field when re-encoded.
+    if insn.key.starts_with("BAR.SYNC.DEFER_BLOCKING") && operands.last().is_some_and(|s| s == "RZ") {
+        operands.pop();
+    }
+
     // IMMA tensor-core operands carry the matrix layout in the mnemonic text:
     // nvdisasm always prints the A source `.ROW` and the B source `.COL`
     // (sm_120 and sm_121a; GB10 census 2026-11-04 flagged the 121a IMMA words).
@@ -2041,6 +2047,9 @@ fn format_operand(
                 && crate::table::is_sm103a_encoding_family(ef_flags) =>
         {
             format_shared_atom_addr(fields, raw)
+        }
+        "ARURI" if ins_key == "ARRIVES_ARURI" => {
+            format_arrives_ur_short(fields, raw).unwrap_or_else(|| format_aruri(fields, raw))
         }
         "ARURI" => format_aruri(fields, raw),
         // No-immediate / UR-only address variants (ARUR/AUR/AURI/AURR/ARURR).
@@ -4071,6 +4080,35 @@ fn format_aruri(fields: &[&DecodedField], raw: u128) -> String {
 }
 
 // ── dARI — descriptor address ────────────────────────────────────────────────
+
+fn format_arrives_ur_short(fields: &[&DecodedField], raw: u128) -> Option<String> {
+    let mut base = None;
+    let mut ur = None;
+    let mut offset = 0i64;
+    for f in fields {
+        match norm_ext(&f.extraction).as_str() {
+            "sub_r0" => base = Some(f.value),
+            "sub_ur1" => ur = Some(f.value),
+            "sub_imm2" => offset = sub_imm_off("sub_imm2", f.value, f.bits),
+            _ => {}
+        }
+    }
+    if base != Some(255) {
+        return None;
+    }
+    let ur_s = match ur.unwrap_or((raw >> 64) as u64 & 0xff) {
+        255 => "URZ".to_string(),
+        n => format!("UR{n}"),
+    };
+    let off_s = if offset < 0 {
+        format!("+-0x{:x}", (-offset) as u64)
+    } else if offset > 0 {
+        format!("+0x{offset:x}")
+    } else {
+        String::new()
+    };
+    Some(format!("[{ur_s}{off_s}]"))
+}
 
 fn format_desc_addr(fields: &[&DecodedField], raw: u128) -> String {
     format_aruri(fields, raw)
