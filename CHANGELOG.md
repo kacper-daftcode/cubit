@@ -57,6 +57,35 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   `0x<8 hex>D` (the high dword, which is all the word holds; the parser reads it back) and the half lanes under `II`-typed
   tokens as the half's f32 literal; every case re-encodes bit for bit (`tests/a8_nan_payload_lanes.rs`). The display print
   is the vendor's, unchanged.
+- **Tables vendored from blackwell-isa `e1e8598`** (sm120 15 840 forms / 26 442 variants, from 15 961 / 26 662;
+  **rows without `_src` 17 561 → 16 905**) — session G's batches 3 and 4, each re-measured word by word by T:
+  - **FSETP / DSETP measured whole** (`tools/probes/re_sm120_fsetp_dsetp.py`, 1 022 form + 12 glyph + 223 lattice
+    words, the same text on the three targets; `tests/fixtures/sm120_fsetp_dsetp_nvdisasm.jsonl`,
+    `tests/sm120_fsetp_dsetp.rs`): the 432 "mode grid" rows of the six keys `FSETP_P_P_R_{R,UR,FI}_P` (0x20b / 0xc0b +
+    91 / 0x80b) and `DSETP_P_P_R_{R,UR,FI}_P` (0x22a / 0xe2a + 91 / 0x42a) confirmed field by field and re-emitted with
+    provenance `fsetp-dsetp-family-2026-11-06` (DSETP's `reuse` fields dropped: text-inert there). 112 junk keys gone:
+    100 dotted encode-only twins `FSETP.<cmp>[.FTZ].<bool>_P_P_R_{R,UR,FI,II}_P` (byte-identical copies of the plain
+    keys' groups, decoder-invisible, 0 witnesses — deleted, the SHF / HADD2 precedent; the spellings still assemble
+    through the plain keys), `FSETP_P_P_L_L_P` (five vendor-rejected "label" rows — deleted), 11 aliases
+    (`FSETP.{GE,NAN}.FTZ.AND_P_P_R_R_R`, `FSETP.{GEU,NEU}.AND_P_P_R_UR_UR`, `FSETP.NEU.OR_P_P_R_UR_UR`,
+    `FSETP.NE.FTZ.AND_P_P_R_R_?`, `FSETP.NEU.{AND,OR}_P_P_R_R_P_?`, `FSETP_P_P_II_II_P`, `FSETP_P_P_II_R_P` → the plain
+    key of their opcode; `FSETP_P_P_R_II_P` → `FSETP_P_P_R_FI_P` — the hexadecimal-f32 spelling `0x3f800000` still
+    encodes through the alias). Law: Ra [31:24] with `-Ra` 72, `|Ra|` 73; Rb / URb [39:32] with `|Rb|` 62, `-Rb` 63, or
+    the immediate at [63:32] (f32 / the f64 high half); the boolean [75:74] (3 = `INVALID3`); the comparison [79:76]
+    (**DSETP names 0 / 15 `MIN` / `MAX`**); 80 `.FTZ` on FSETP, text-inert on DSETP; Pd0 [83:81], Pd1 [86:84], Pc
+    [89:87] + `!` 90. Decoder: FSETP off the priority-3 sign-tolerant fallback (`FSETP.GT.INVALID3` printed as `.XOR` —
+    the bug226 "226-forward" item); printer: `FSETP.F.FTZ.AND` / `DSETP.MIN.AND` order, the f64 `-0.0 ` token pad
+    mid-line.
+  - **PLOP3 / P2R / R2P measured whole** (`tools/probes/re_sm120_plop3_p2r_r2p.py`, 202 form + 158 lattice words;
+    `tests/sm120_plop3_p2r_r2p.rs`): 8 rows with `plop3-p2r-r2p-family-2026-11-06` — the two PLOP3 harvest rows rebuilt
+    (LUT = [66:64] + [76:72]; bit 67 = the third source predicate is uniform, the `_UP_` key; Pc [70:68] + `!` 71, Pb
+    [79:77] + `!` 80, Pd0 / Pd1 / Pa as the SETP family), the four P2R dsv41 rows with **the mask widened to 32 bits**
+    (`P2R R17, PR, RZ, 0x80000040`; the 2026-10-22 rows had swept 0..255 and carried an 8-bit field, so masks above 0xff
+    did not decode; `.B1` / `.B2` / `.B3` at [77:76]), the R2P dsv41 row reproduced (`R20.reuse.B2`; the mask prints
+    unsigned) and the new encode-only `R2P_II_R` — the vendor's bare spelling `R2P PR, R0` = the mask 0xff baked, which
+    cubit's printer now elides like the vendor (the explicit `, 0xff` stays a bitwise alias). 10 junk keys retired as
+    aliases (`PLOP3.LUT_P_P_P_P_P_II_II` and its era alias, seven P2R shapes with `PR` read as a register / label and
+    6–7-bit masks, `R2P_?_R_II`, `R2P_L_R_II`).
 - **Tables vendored from blackwell-isa `39bafbb` — NEEDS 44: the `IMMA.SF.16832.U8.U8_R_R_R_R_R_R_UR` hypothesis row
   (opcode 0x47e, 2026-03-26, no numerical oracle) is the measured `QMMA.SF.16832.F32.UNIDENTIFIED.E8_R_R_R_R_R_R_UR`.**
   Session R measured the word on sm_120 silicon (2026-11-06, test host GPU 0; cubit-assembled probes next to the documented
