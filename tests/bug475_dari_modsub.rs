@@ -159,7 +159,7 @@ fn t475_6_refuse_parity() {
 #[test]
 fn t475_7_census_and_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "3103829f20eeb56d9ece67b5ade3d2a2a8cbcfe1" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "08b5f8f7b079927a814aeeaa8d9880c9ab2915d8" /* K3.1 FlashMLA 256-bit descriptor forms */;
     assert_eq!(CANON475, "9c0e4ce", "historical fixture revision drift");
 
     for (leg, want) in CENSUS475 {
