@@ -3761,7 +3761,9 @@ fn format_utc_desc(tok: i32, fields: &[&DecodedField], tok4_fields: &[&DecodedFi
     // Kind: prefer the extraction family actually present on this token
     // (works for LDTM/STTM tmem[] tokens as well); UTC tok1 is mixed-kind
     // and selects via dsel2 (gdesc=1, tmem=2).
-    let kind = if fields
+    let kind = if dsel == Some(2) {
+        "tmem"
+    } else if fields
         .iter()
         .any(|f| norm_ext(&f.extraction).starts_with("gdesc"))
     {

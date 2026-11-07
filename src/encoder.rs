@@ -3162,6 +3162,17 @@ fn encode_instruction_inner(
     check_idesc_derived(insn, entry)?;
 
     let mut code = entry.and_base;
+    // Overlapping descriptor UR and offset components share one value's bits.
+    // Compose them from zero, rather than OR-ing against a donor's stale payload.
+    let tmem_component_mask = entry.fields.iter().fold(0u128, |mask, field| {
+        match &field.extraction {
+            Extraction::LblPat(name) if matches!(name.as_str(), "tmem_ur" | "tdesc_off" | "gdesc_off" | "tmem_off") => {
+                mask | ((field.mask as u128) << field.shift)
+            }
+            _ => mask,
+        }
+    });
+    code &= !tmem_component_mask;
 
     // Apply field extractions
     for field in &entry.fields {
@@ -3182,7 +3193,7 @@ fn encode_instruction_inner(
         let value = extract_value(insn, field)?;
         let mask128 = (field.mask as u128) << field.shift;
         let shared_tmem_component = matches!(&field.extraction,
-            Extraction::LblPat(name) if matches!(name.as_str(), "tmem_ur" | "tdesc_off"))
+            Extraction::LblPat(name) if matches!(name.as_str(), "tmem_ur" | "tdesc_off" | "gdesc_off" | "tmem_off"))
             && entry.fields.iter().any(|other| !std::ptr::eq(other, field)
                 && field.shift < other.shift + other.bits
                 && other.shift < field.shift + field.bits);
@@ -5589,6 +5600,7 @@ fn op_neg(insn: &Instruction, tok: i32) -> u64 {
     match get_op(insn, tok) {
         Some(Operand::Reg { neg: true, .. }) => 1,
         Some(Operand::UReg { neg: true, .. }) => 1,
+        Some(Operand::UPred { neg: true, .. }) => 1,
         _ => 0,
     }
 }
