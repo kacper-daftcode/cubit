@@ -1,5 +1,5 @@
-//! mk45: rekordy 010b0c0a (CS2R Rd, SRZ) — siatka payloadu domknieta
-//! korpusowo (EXACT 184252/184361 par; bramka SR==SRZ).
+//! mk45: the 010b0c0a records (CS2R Rd, SRZ) — the payload grid closed on the
+//! corpus (EXACT 184252/184361 pairs; the gate SR==SRZ).
 use cubit::mercury::merc_cs2r_srz_record;
 
 fn expected(dst: u32, guard: u8) -> [u8; 16] {

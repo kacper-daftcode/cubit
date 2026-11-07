@@ -1,7 +1,7 @@
 //! BUG-195 — ATOM/ATOMG/REDG scope+width closure; 142-sec.5 residuum
 //! (owner: front2/blind F2-iter94). All rows data-only via patch195.py,
 //! each backed by an nvcc/ptxas 13.3.73 witness (probe195{a..e}, arch-eq
-//! sm_120a==sm_103a==sm_100a) or a graft-sonda rendered legal by nvdisasm
+//! sm_120a==sm_103a==sm_100a) or a graft probe rendered legal by nvdisasm
 //! (arb195 g1 = ATOM-generic {1,5} flip).
 //!
 //! Vendor law (arb195/arb195b.json, nvdisasm 13.3.73):

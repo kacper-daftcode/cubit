@@ -1,9 +1,9 @@
 //! mk50 (2026-08-13): 02 22 1e 32 edge records for LDG with desc[URm][Ry.64(+off)]
 //! in *annotated_ptr* kernels (the mk42 02223232 sibling for LD desc).
 //! Pins from the sm_100 corpus (merclab/mk50 c1..c10: 2986 records, 72/72 kernels
-//! EXACT + porzadek lane-rosnaco; zero falszywych bramkowan poza
-//! libcublas.so.72). Bramka: nazwa z "annotated_ptr" + desc-UR wylacznie
-//! pod lane'y bazowe LDG (wspoldzielenie ze STG/LDGSTS/REDG wylacza UR).
+//! EXACT + lane-ascending order; zero false gatings outside libcublas.so.72).
+//! The gate: a name with "annotated_ptr" + a desc UR used only under the base LDG
+//! lanes (sharing with STG / LDGSTS / REDG disables the UR).
 
 use cubit::eiattr::{KernelMeta, KernelParam};
 use cubit::elf_builder::generate_mercury_full;

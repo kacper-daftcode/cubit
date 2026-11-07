@@ -20,9 +20,9 @@
 //!   IMAD.U32 _UR (sm120+sm103a), BRXU.U / LOP3.LUT.PAND / IADD3.X.RCNEG /
 //!   BAR.SYNC.DEFER_BLOCKING (tb_i82p3; there the mods live in the key name).
 //!
-//! Kontrola pre-fix (HEAD 22e27ef8, ta sama binarka/testy): t132_1 i t132_5
+//! Pre-fix control (HEAD 22e27ef8, the same binary / tests): t132_1 and t132_5
 //! FAIL (encode OK instead of an error — silent drop; sweep: 3/3 silent), t132_2,
-//! t132_3, t132_4 PASS (inwarianty niezalezne od fixa).
+//! t132_3, t132_4 PASS (invariants independent of the fix).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

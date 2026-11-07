@@ -1,24 +1,24 @@
-//! BUG-453 pins (F2-iter263, loop5/blind front2, 2026-09-13): non-NA dARI
-//! EFL2.256 trailing policy-imm -- rodziny `LDG.E.EFL2.256[_R_R_dARI{,_P}]` /
-//! `STG.E.EFL2.256[_dARI_R_R]` nie mialy wariantow `_II` na ZADNEJ nodze
-//! (donor 121a tez; fuzz450 TRUNC-POLICY-DONOR). Defekt: (a) slowa z
-//! policy-imm != 0xff i b72=0 = HOLE-parity (coverage-gap donor-side);
-//! (b) b72=1 pol!=0xff = broad-claim ze SCIETA przycinka (engine drukowal
-//! bez ', 0xNN', vendor z trailerem). Graft = canonical e03e034 -> 700524e:
-//! ADD 3 klucze/noga x4 (DONOR-FIRST, 121a tez) syntezowane transformem
-//! bit-delta zmierzonym na NA-parach (baza->_II) tej samej nogi
-//! [LDG: delA=setV=0x100fe00000000000000; STG: 0x7000000f800000000000000],
-//! claim_forbid (452 [24:32)==255) kopiowane verbatim, ENGINE src ZERO.
-//! Vendor law: arb453 (94 sondy) + arb453b (18) + arb453c (16) -- nvdisasm
-//! 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0: pol 8b pelny zakres legal,
-//! 0xff ELIDED (baza strict wygrywa tie-break krotszym kluczem), trailer
-//! PRZED pred-out, imm17/19 signed<<5, RZ/URZ glyph legal, guard/era-b118/
-//! reuse-b122 legalne; KILL x4: ra255 (452) + b91=0. Poza scope
-//! (parity-HOLE resid, rejestracje): nNA LTC64B (463), vendor-noop bity
-//! (STG 72/73/87/[92:96), LDG [92:96); 463), plain ARURI trailer (464),
-//! modsub MMIO/CONSTANT/EF/PRIVATE (465). Witness data:
-//! tests/bug453_data.inc (machine-built by work/bug453/gen453pins.py;
-//! rc=2 fail-closed; no hand hex; minty nvdisasm-crossed x4 przy generacji).
+//! BUG-453 pins (F2-iter263, loop5/blind front2, 2026-09-13): the non-NA dARI
+//! EFL2.256 trailing policy immediate -- the families `LDG.E.EFL2.256[_R_R_dARI{,_P}]`
+//! / `STG.E.EFL2.256[_dARI_R_R]` had no `_II` variants on ANY leg (the 121a donor
+//! too; fuzz450 TRUNC-POLICY-DONOR). The defect: (a) words with policy-imm != 0xff and
+//! b72 = 0 = HOLE parity (a coverage gap on the donor side); (b) b72 = 1, pol != 0xff
+//! = a broad claim with a CLIPPED trailer (the engine printed without ', 0xNN', the
+//! vendor with the trailer). Graft = canonical e03e034 -> 700524e: ADD 3 keys per
+//! leg x4 (DONOR-FIRST, 121a too), synthesised by the bit-delta transform measured
+//! on the NA pairs (base -> _II) of the same leg [LDG: delA = setV =
+//! 0x100fe00000000000000; STG: 0x7000000f800000000000000], claim_forbid (452
+//! [24:32) == 255) copied verbatim, ENGINE source changes ZERO.
+//! Vendor law: arb453 (94 probes) + arb453b (18) + arb453c (16) -- nvdisasm 13.3.73
+//! raw -b x4 AGREE EVERY / DIVERGENT = 0: the 8-bit field legal over its full range,
+//! 0xff ELIDED (the strict base wins the tie-break with the shorter key), the trailer
+//! BEFORE the pred-out, imm17/19 signed<<5, the RZ / URZ glyph legal, guard / era
+//! b118 / reuse b122 legal; KILL x4: ra255 (452) + b91 = 0. Out of scope (parity-HOLE
+//! residue, registered): nNA LTC64B (463), the vendor no-op bits (STG 72/73/87/[92:96),
+//! LDG [92:96); 463), the plain ARURI trailer (464), the modsub MMIO / CONSTANT / EF /
+//! PRIVATE (465). Witness data: tests/bug453_data.inc (machine-built by
+//! work/bug453/gen453pins.py; rc=2 fail-closed; no hand hex; the mints
+//! nvdisasm-crossed x4 at generation time).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

@@ -5,7 +5,7 @@
 //! z pristine ffa3244 byte-exact x4 = e309967e/5cf2536a/a8a6cac8/7e2a2e26;
 //! idem rerun all-skip). ENGINE: JEDEN printer-arm soak (STG_ARURI_R
 //! canon-era plain shape sub_ur1/sub_r0/sub_imm1 -> format_plain_u32_ur;
-//! reszta src ZERO) + tools/sync_table.py ratchet SM121A 541->544 (3 donor
+//! the rest of the source ZERO) + tools/sync_table.py ratchet SM121A 541->544 (3 donor
 //! templates). Vendor law arb442 25 + arb442b 12 + arb442c 4 probes,
 //! nvdisasm 13.3.73 raw -b x4 models AGREE EVERY / DIVERGENT=0
 //! (work/bug442/arb442*_law.json): (1,0)=[R.U32+UR], (1,1)=[R.64+UR],

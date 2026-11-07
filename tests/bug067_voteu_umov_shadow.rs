@@ -1,10 +1,10 @@
-//! BUG-067 (F2Q-055-kand -> FIXED, F2-iter17): wiersz-fantom
-//! `VOTEU_UP_P::ANY` w tables/sm120.json (count=10, provenance: harvest-era
-//! zanieczyszczenie slowami UMOV) cieniowal dekoder przestrzeni UMOV.imm==0:
-//! zlote slowa `UMOV URn, 0x0` (nvcc korpus 738 cubinow sm_103 + 12 uniq
-//! slotow rt98_pub) dekodowaly sie jako `VOTEU.ANY UP0, P0 !rsd[...]`
-//! (semantyczne smieci do RE/renderu; roundtrip bajtowy ratowal rsd).
-//! Prawda vendor (nvdisasm 13.3): opcode UMOV = [11:0]==0x882, VOTEU = 0x886;
+//! BUG-067 (candidate F2Q-055 -> FIXED, F2-iter17): the phantom row
+//! `VOTEU_UP_P::ANY` in tables/sm120.json (count=10, provenance: a harvest-era
+//! contamination with UMOV words) shadowed the decoder's UMOV.imm == 0 space: the
+//! golden words `UMOV URn, 0x0` (the nvcc corpus of 738 sm_103 cubins + 12 uniq
+//! rt98_pub slots) decoded as `VOTEU.ANY UP0, P0 !rsd[...]` (semantic garbage for
+//! RE / the render; the byte round trip was saved by the rsd).
+//! The vendor's truth (nvdisasm 13.3): opcode UMOV = [11:0] == 0x882, VOTEU = 0x886;
 //! the ANY phantom had fields/mask too wide (incl. reg 8b) and matched
 //! words with [63:32]==0.
 //! TRUE-MODEL 2-token (cuobjdump/cuobjmap gold corpus cusparse/cutlass):

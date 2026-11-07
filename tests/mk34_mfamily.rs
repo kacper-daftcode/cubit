@@ -3,19 +3,19 @@
 //! ground truth on the nodes nvcc emits (g5b dump of the M+0x288 list,
 //! analysis/re/shim/g5b.py) for b_mbarrier and b_bulk_cp.
 //!
-//! Kluczowe poprawki vs lane-space-era mk30b:
+//! The key corrections vs the lane-space-era mk30b:
 //!  - the mbarrier-counter USHF pair ("USHF ..,0xb" + "USHF ..,0x1" after
 //!    a d1-UIADD3) has no nodes at all — the lanes fall out of the bitmap space
 //!    (slot skip), not merely losing their bit;
-//!  - FENCE.ASYNC tez nodeless (b_bulk_cp lane18);
+//!  - FENCE.ASYNC also nodeless (b_bulk_cp lane18);
 //!  - EXCH/ARRIVE(all) / PLOP3-tx / UBLKCP host records — no bit;
-//!  - kazdy BRA w m-family ma wezel t4 flaga=1 (dowod: bloby n13/n19/n32/n33
-//!    b_mbarrier z offsetami skokow), wyjatek: samo-petla;
-//!  - MOV R?,0x400 i ULEA prologu maja bity (wezly flag=1) — reguly kasujace
-//!    mk30b (mov400/ulea_x/bra_np/s2ur_extra) bylo lane-space artefaktami.
+//!  - every BRA in the m-family has a t4 node with flag=1 (evidence: the blobs
+//!    n13/n19/n32/n33 of b_mbarrier with the jump offsets), exception: the self-loop;
+//!  - MOV R?,0x400 and the prologue ULEA have bits (nodes with flag=1) — the mk30b
+//!    deleting rules (mov400/ulea_x/bra_np/s2ur_extra) were lane-space artefacts.
 //!
-//! Oczekiwane listy bitow to literalne TYPE4BITS z dumpow g5b (ktore ==
-//! bitmap-set nvcc na oryginalnych cubinach, mk33 README).
+//! The expected bit lists are the literal TYPE4BITS of the g5b dumps (which == the
+//! nvcc bitmap set on the original cubins, mk33 README).
 
 use cubit::eiattr::KernelMeta;
 use cubit::elf_builder::generate_mercury_full;

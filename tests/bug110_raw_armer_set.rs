@@ -24,10 +24,10 @@
 //! non-predicate operand, mirroring reg_liveness.rs M3.5); multiplicands
 //! stay 32-bit. RECYCLE (BUG-102) preserved: prev = last armer.
 //!
-//! Kontrola pozytywna: pre-fix t110_1/t110_2/t110_7 FAIL, reszta PASS.
+//! Positive control: pre-fix t110_1 / t110_2 / t110_7 FAIL, the rest PASS.
 //!
-//! Fixture: prolog LDCU/LDC na wb0/wb1 + drenaz [B01----] (izolacja od
-//! scenariusza, ktory pracuje na wb2/wb3).
+//! Fixture: an LDCU / LDC prologue on wb0 / wb1 + the drain [B01----] (isolation
+//! from the scenario, which works on wb2 / wb3).
 
 use cubit::sass_file::parse_sass_file_str_strict;
 use cubit::scheduling_pass::report_hazards;

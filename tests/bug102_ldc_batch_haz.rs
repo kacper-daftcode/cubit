@@ -1,5 +1,5 @@
-//! BUG-102 (102-kand, ex-F2Q "102-kand" z raportu 101): `report_hazards` WARN
-//! RECYCLE byl falszywie glosny na legalnym vendorowym batchingu barrierow.
+//! BUG-102 (candidate 102, ex-F2Q "102-kand" from report 101): the `report_hazards`
+//! WARN RECYCLE was falsely loud on the vendor's legal barrier batching.
 //!
 //! Evidence (certified rt98_v2 publish text, silicon-EXACT na B300): ptxas
 //! kumuluje WIELE async-producentow na JEDNEJ barierze zapisu z pojedynczym

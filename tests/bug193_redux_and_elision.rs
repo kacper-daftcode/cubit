@@ -1,22 +1,22 @@
 //! BUG-193 — sm120 REDUX bare-AND elision (owner: front2/blind F2-iter93).
-//! Kand z noty 192 sec.6(b): 3 anchory sm_120a (bug142 gold: red1_120,
-//! ptx1_120, ptx2_120) vendor drukuje BARE `REDUX UR5, R0`, dekoder main
-//! 2bd2a82 drukowal `REDUX.AND` (mg 'AND' wygrywal tiebreak nad mg '' —
-//! opaque_mod pola tok0 przegrywaly popcount; klasa tiebreak z BUG-089).
+//! Candidate from note 192 sec. 6(b): on 3 sm_120a anchors (the bug142 gold: red1_120,
+//! ptx1_120, ptx2_120) the vendor prints the BARE `REDUX UR5, R0`, the main decoder
+//! 2bd2a82 printed `REDUX.AND` (mg 'AND' won the tiebreak over mg '' — the opaque_mod
+//! fields of tok0 lost the popcount; the tiebreak class of BUG-089).
 //!
-//! Prawo vendora (arb193.json: ptxas+nvdisasm 13.3.73, sm_120a, sweep
-//! 16-stanowy op[78:81) x bit73-S32): op=0 => BARE `REDUX` (AND elidowany
-//! rowniez przy S32: `REDUX.S32`); op 1..5 => OR/XOR/SUM/MIN/MAX (+.S32);
-//! 6/7 => INVALID6/7. Krzem-prawo op0=AND: BUG-191 (B300 patched-op).
+//! Vendor law (arb193.json: ptxas + nvdisasm 13.3.73, sm_120a, the 16-state sweep
+//! op[78:81) x bit73-S32): op = 0 => the BARE `REDUX` (AND elided at S32 too:
+//! `REDUX.S32`); op 1..5 => OR / XOR / SUM / MIN / MAX (+ .S32); 6/7 => INVALID6/7.
+//! The silicon law op0 = AND: BUG-191 (the B300 patched op).
 //!
-//! Fix data-only (patch193.py replayable, idempotent): mg 'AND' ->
-//! encode_only (retencja tekstu legacy, decode-invisible), mg '' ->
-//! usuniete opaque_mod pola (druk czystego bare; popcount tiebreak
-//! wygrywa z wierszami op>0 bo ab-op=0 == code). sm103a/sm100a juz
-//! kanonicznie bare — nietkniete. Residuum (194-kand): stany S32-sibir
-//! (op0/1/2/3 + b73=1) i INVALID6/7 druk na main = junk/min-max z !rsd —
-//! zero kotwic korpusowych, poprawny wymaga wierszy, ktorych render
-//! XOR.S32/SUM.S32 zalezy od parked-192 printer-arm (ta sama fala ff).
+//! Fix, data only (patch193.py, replayable, idempotent): mg 'AND' -> encode_only
+//! (the legacy text retained, decode-invisible), mg '' -> the opaque_mod fields
+//! removed (a clean bare print; the popcount tiebreak wins against the op > 0 rows
+//! because ab-op = 0 == the code). sm103a / sm100a already canonically bare —
+//! untouched. Residue (candidate 194): the S32 sibling states (op0/1/2/3 + b73 = 1)
+//! and INVALID6/7 print on main as junk / min-max with !rsd — zero corpus anchors;
+//! the correct print needs rows whose XOR.S32 / SUM.S32 render depends on the
+//! parked-192 printer arm (the same ff wave).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

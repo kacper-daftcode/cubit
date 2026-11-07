@@ -1,19 +1,20 @@
-//! BUG-452 pins (F2-iter260, loop5/blind front2, 2026-09-13): donor-first
-//! claim-narrowing -- claim_forbid {shift:24, bits:8, values:[255]} na:
-//! L1 EFL2.256 desc (dARI): 3 klucze/noga. Vendor rc=1 gated x4 na base=255
-//!    (arb452 g2 + sondy _P; 0..254 legal). Pre: engine drukowal 'RZ.64'.
-//! L2 REDG *_ARURI64_R a64: 3072 kluczy/noga. Vendor rc=0 ale drukuje glif
-//!    '???255.64' (arb452 g3; U32-form KEEP 'RZ.U32' = 451-law, nietkniety).
-//!    Unclaim (HOLE-parity doktryna) zamiast nowego glifu -- rejestr
-//!    towarzyszacy: text-parity '???255.64' = opcjonalny printer-arm.
-//! Era-klasy z fuzz evidence (CLONE-ILLEG-447 x7 / CLONE-ILLEG-454 x32)
-//! REKLASYFIKOWANE do 449-standing: canonical-era siblings gated-legal x4
-//! (arb452 g4 32/32 + sondy c447), zaden nie nalezy do przestrzeni L1/L2;
-//! ich decode ma byc NIETKNIETE (pin t452_6).
-//! Mechanizm: opcjonalne pole mg 'claim_forbid' (doktryna BUG-099); ENGINE
-//! guardi: decoder drop-kandydata na wszystkich priorytetach + encoder
-//! fail-closed przy mincie (symetria). Canonical 4ee8431 -> e03e034.
-//! Witness: tests/bug452_data.inc (maszynowe gen452pins.py rc=2).
+//! BUG-452 pins (F2-iter260, loop5/blind front2, 2026-09-13): donor-first claim
+//! narrowing -- claim_forbid {shift:24, bits:8, values:[255]} on:
+//! L1 the EFL2.256 desc forms (dARI): 3 keys per leg. Vendor rc=1 (gated) x4 at
+//!    base = 255 (arb452 g2 + the _P probes; 0..254 legal). Before: the engine
+//!    printed 'RZ.64'.
+//! L2 REDG *_ARURI64_R a64: 3072 keys per leg. Vendor rc=0 but prints the glyph
+//!    '???255.64' (arb452 g3; the U32 form KEEPS 'RZ.U32' = the 451 law, untouched).
+//!    Unclaim (the HOLE-parity doctrine) instead of a new glyph -- the companion
+//!    registration: text parity for '???255.64' = an optional printer arm.
+//! The era classes from the fuzz evidence (CLONE-ILLEG-447 x7 / CLONE-ILLEG-454 x32)
+//! RECLASSIFIED to 449-standing: canonical-era siblings, gated-legal x4 (arb452 g4
+//! 32/32 + the c447 probes), none belongs to the L1 / L2 space; their decode must
+//! stay UNTOUCHED (pin t452_6).
+//! Mechanism: the optional mg field 'claim_forbid' (the BUG-099 doctrine); ENGINE
+//! guards: the decoder drops the candidate at every priority + the encoder fails
+//! closed on a mint (symmetry). Canonical 4ee8431 -> e03e034.
+//! Witness: tests/bug452_data.inc (machine-built by gen452pins.py rc=2).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

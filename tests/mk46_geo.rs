@@ -1,9 +1,9 @@
-//! mk46: rekordy 010b060a (geo-anchory smem): host = S2UR ze SR geometrii
-//! (CTAID.X/Y/Z -> role 4/5/6 == id sysreg, CgaCtaId -> 0x2c, SWINHI -> 0x2d;
-//! klasa b13=2) LUB LDCU .32 z okna stalych drivera c[0x0][off] (0x360..0x378
+//! mk46: the 010b060a records (smem geo anchors): the host = an S2UR from a geometry SR
+//! (CTAID.X/Y/Z -> roles 4/5/6 == the sysreg id, CgaCtaId -> 0x2c, SWINHI -> 0x2d;
+//! class b13=2) OR an LDCU .32 from the driver constant window c[0x0][off] (0x360..0x378
 //! without 0x36c -> roles 1..6, 0x2f8/0x2fc -> 68/69; class b13=4). Closure
-//! korpusowe (676 plikow sm_100, 18932 kerneli): multiset (klasa,rola,dst)
-//! EXACT 17674/17674 kerneli z rekordami; porzadek strumienia == porzadek
+//! on the corpus (676 sm_100 files, 18932 kernels): the multiset (class, role, dst)
+//! EXACT 17674/17674 kernels with records; the stream order == the lane order
 //! lane (17674/17674); b4 = 0xfa / 0x03 guarded; do not touch the bitmaps.
 use cubit::mercury::{merc_geo_anchor, merc_geo_record};
 

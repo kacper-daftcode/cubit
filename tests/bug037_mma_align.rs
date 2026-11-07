@@ -1,4 +1,4 @@
-//! BUG-037 (rejestr sm120: 037/ / iter46+iter47): enkoder akceptowal
+//! BUG-037 (sm120 registry: 037/ / iter46 + iter47): the encoder accepted
 //! misaligned multi-register MMA operands which on silicon give
 //! ILLEGAL_INSTRUCTION (`IMMA.16832.S8.S8 R8, R42, R44, R8` with A=R42:
 //! asm OK without WARN, run = FAIL 27 ILLEGAL; A=R40 works).

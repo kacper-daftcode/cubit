@@ -1,21 +1,21 @@
-//! BUG-369 (F2-iter194, loop5/blind front2, 2026-09-04): cross-leg
-//! SHFL II-form over-strict + mode-junk SILENT MISPRINT closure na
-//! sm100a/sm103a/sm120 = lustro graftu 358 (sm121a). Rejestracja
-//! 369-kand LOW (358.md sec.6, F2-iter185). Canonical patch368_369.py
-//! (0933cf6 -> c913faa), ride-after d31adfa7/BUG-367. sm121a II-form
-//! byte-invariant (asserted in patch).
+//! BUG-369 (F2-iter194, loop5/blind front2, 2026-09-04): the cross-leg SHFL
+//! II-form over-strictness + the mode-junk SILENT MISPRINT closure on sm100a / sm103a /
+//! sm120 = the mirror of the 358 graft (sm121a). Registered as candidate 369 LOW
+//! (358.md sec. 6, F2-iter185). Canonical patch368_369.py (0933cf6 -> c913faa),
+//! ride-after d31adfa7 / BUG-367. The sm121a II form byte-invariant (asserted in the
+//! patch).
 //!
-//! LAW: arb358 73 sondy + arb368 40 sond (nvdisasm 13.3.73 raw -b, x4
-//! modele AGREE EVERY probe, DIVERGENT=0): pred[83:81] legal x4 na
-//! II-form; [71:64] write-inert na tok5-imm (jug64); [52:40] inert na
-//! II_R; lane5@[57:53] inert na R_II; mode@[59:58]=IDX/UP/DOWN/BFLY.
+//! LAW: arb358 73 probes + arb368 40 probes (nvdisasm 13.3.73 raw -b, x4 models AGREE
+//! on EVERY probe, DIVERGENT = 0): pred[83:81] legal x4 on the II form; [71:64]
+//! write-inert on the tok5 immediate (jug64); [52:40] inert on II_R; lane5@[57:53]
+//! inert on R_II; mode@[59:58] = IDX / UP / DOWN / BFLY.
 //! Pre-fix (publish cubit_py-d31adfa7; canonical 0933cf6;
-//! work/bug368_369/measure_pre368_369.json): decode HOLE pred<PT IIII
-//! {IDX,UP,BFLY} + R_II x4 na 100a/103a (+RII+IIR HOLE na sm120);
-//! SILENT MISPRINT mode-junk x3 nogi ('0x21'/'0x4001f'/'0x1400001f' --
-//! era II_II[IDX] imm28@53 + DOWN imm6@53 (b58 pod polem) + R_II[IDX]
-//! imm32@40 claim-empire); encode intent-drop pred->PT + cicha
-//! BFLY->DOWN x2 nogi era; REFUSE R_II UP/DOWN/BFLY x3 nogi.
+//! work/bug368_369/measure_pre368_369.json): a decode HOLE for pred < PT on IIII
+//! {IDX, UP, BFLY} + R_II x4 on 100a / 103a (+ RII + IIR HOLE on sm120); the SILENT
+//! MISPRINT of the mode junk on 3 legs ('0x21' / '0x4001f' / '0x1400001f' -- the era
+//! II_II[IDX] imm28@53 + DOWN imm6@53 (b58 under the field) + the R_II[IDX] imm32@40
+//! claim empire); the encode dropped the intent pred -> PT + a silent BFLY -> DOWN on 2
+//! era legs; REFUSE R_II UP / DOWN / BFLY on 3 legs.
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;

@@ -1,18 +1,18 @@
 //! BUG-368 (F2-iter194, loop5/blind front2, 2026-09-04): SHFL R-form
-//! (b1 0x73) closure -- [57:40]=0 window pin -> vm-relax x4 nogi +
+//! (b1 0x73) closure -- the [57:40]=0 window pin -> vm relax on 4 legs +
 //! sm121a UP mg pred repair (4,12)->(3,81) + sm121a DOWN/IDX mg
-//! completion (klony z UP-patched, mode pinned). Rejestracja 368-kand
+//! completion (clones of the UP-patched row, mode pinned). Registered as candidate 368
 //! LOW (358.md sec.6, F2-iter185; arb358 A-b173). Canonical graft
 //! patch368_369.py (0933cf6 -> c913faa), ride-after d31adfa7/BUG-367.
 //!
-//! LAW: arb368 40 sond + arb358 73 sondy (nvdisasm 13.3.73 raw -b, x4
-//! modele SM100a/SM103a/SM120/SM121a AGREE on EVERY probe, DIVERGENT=0):
-//! [57:40] write-inert na R-form x4 modes x junk {0xc0c0,0x201f,0x3ffff};
-//! pred[83:81] legalne na R-form x4; guard niezalezny od pred/junk;
-//! R-form DOWN/IDX vendor-legal x4 takze z max junk (arb368 G).
+//! LAW: arb368 40 probes + arb358 73 probes (nvdisasm 13.3.73 raw -b, x4
+//! models SM100a/SM103a/SM120/SM121a AGREE on EVERY probe, DIVERGENT=0):
+//! [57:40] write-inert on the R form x4 modes x junk {0xc0c0,0x201f,0x3ffff};
+//! pred[83:81] legal on the R form x4; the guard independent of pred / junk;
+//! R-form DOWN / IDX vendor-legal x4 also with the maximal junk (arb368 G).
 //! Pre-fix (publish cubit_py-d31adfa7 0aac6654..; canonical 0933cf6;
-//! work/bug368_369/measure_pre368_369.json): RR-junk HOLE x4 nogi;
-//! sm121a RR-clean UP pred<PT HOLE + IDX/DOWN HOLE (brak mg); era
+//! work/bug368_369/measure_pre368_369.json): RR-junk HOLE on 4 legs;
+//! sm121a RR-clean UP pred<PT HOLE + IDX / DOWN HOLE (no mg); era
 //! RR-clean OK. NOT grafted: era+121a [63] pin = 382-kand LOW (E-b63
 //! vendor-inert, loud HOLE stoi), II_R IDX/BFLY residuum (358, pin w
 //! t368_4).

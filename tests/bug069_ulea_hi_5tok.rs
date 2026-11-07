@@ -1,10 +1,10 @@
-//! BUG-069 (F2Q-069-kand z 067 findings; zamkniete F2 2026-08-22):
-//! vendor 5-token form `ULEA.HI UR6, UR6, 0x1, URZ, 0x1b` (libcusparse.so.663
-//! @3536, sm_103 gold) renderowala sie blednie w OBU tabelach (render-parity,
-//! dekoder tracil operand albo fuzowal imm).
+//! BUG-069 (candidate F2Q-069 from the 067 findings; closed F2 2026-08-22): the
+//! vendor's 5-token form `ULEA.HI UR6, UR6, 0x1, URZ, 0x1b` (libcusparse.so.663
+//! @3536, sm_103 gold) rendered wrongly in BOTH tables (render parity: the decoder
+//! lost an operand or fused the immediates).
 //!
-//! Mechanika (empiria CUBIT_DEBUG_DECODE + inspekcja wierszy):
-//! - sm103a: prawidlowy wiersz ULEA_UR_UR_II_UR_II mg "HI" istnial z DOBRA
+//! Mechanics (CUBIT_DEBUG_DECODE empirics + a reading of the rows):
+//! - sm103a: the correct row ULEA_UR_UR_II_UR_II mg "HI" existed with the RIGHT
 //!   geometry (8-bit ureg/imm32/imm5), but it lost the candidate race to
 //!   the wider ULEA_UR_UR_II_II mg "" row: its imm/6b field swallowed
 //!   bit80 = the HI MOD DISCRIMINATOR (match_mask = ~variable_mask & ~field_mask
@@ -18,12 +18,12 @@
 //!   the family was served by the misfitted singleton ULEA_UR_UR_II_II mg "HI" (imm
 //!   3-bit "pred", src3 dropped, URZ->RZ) and ULEA_UR_UR_II_UR_II mg "HI"
 //!   with the same misfit geometry. Data fix: the dedicated row and
-//!   II_UR_II(HI) przebudowane do geometrii rodziny (kotwice: 122 slow
-//!   vendor libcusparse + gold 663), fantomy (ULEA_UR_UR_II_II,"HI") i
-//!   (ULEA_UR_UR_UR_II,"HI") usuniete (0 kotwic vendor, render stratny).
+//!   II_UR_II(HI) rebuilt to the family's geometry (anchors: 122 vendor words of
+//!   libcusparse + the gold 663), the phantoms (ULEA_UR_UR_II_II,"HI") and
+//!   (ULEA_UR_UR_UR_II,"HI") removed (0 vendor anchors, a lossy render).
 //!
-//! Stale slow = payload zlotych rekordow (records/*.jsonl), ctrl = domyslny
-//! wzorzec enkodera 0x000fc200.
+//! The word constants = the payload of the golden records (records/*.jsonl), ctrl =
+//! the encoder's default pattern 0x000fc200.
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

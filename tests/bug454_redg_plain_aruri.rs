@@ -1,30 +1,30 @@
 //! BUG-454 pins (F2-iter258, loop5/blind front2, 2026-09-13): REDG
 //! plain-ARURI ERR-268 recanon fleet-side.
-//! (a) 121a print-mangle: 3,072 kluczy *_ARURI64_R dekoduje sie manglowane
-//!     (name-suffix artifact + zapad operanda do samego imm) -- sweep408
+//! (a) the 121a print mangle: 3,072 keys *_ARURI64_R decode mangled (a name-suffix
+//!     artefact + the operand collapsing to the bare imm) -- sweep408
 //!     RG-GATE-MISS 9,216/3,072x3. ENGINE: printer arm op ARURI64 ->
 //!     format_plain_u32_ur (OP_TYPES printer+decoder). Post: 9,216/9,216
 //!     heal == vendor (measure454), HOLE-parity 3,072/3,072.
 //! (b) x2 (sm100a/sm103a) desc-misroute: era keys
-//!     REDG.E.{ADD,AND,OR}.EL.STRONG.GPU_P_dARI_R renderowaly desc+PT mimo
-//!     ze vendor x4 drukuje plain [R.U32+UR(+imm)] -- census408: 1,344 slow
-//!     / 5 uniq w 56 fixture-kubinach floty. R2 DELETE era keys + R1 GRAFT.
-//! (c) x3 HOLE: cala rodzina ARURI_R/ARURI64 absent na x3 mimo vendor-
-//!     legal x4 (gated, uC-gate artifact klasy 408). R1 GRAFT 6,144 kluczy
-//!     donor-121a verbatim per noga (count=None, _src454; patch454.py
-//!     replayable+idempotent, replay z 589be874 byte-exact x4).
-//!     sm120: 3 natywne EL ARURI_R (ureg 6b) zastapione donorem (ureg 8b)
+//!     REDG.E.{ADD,AND,OR}.EL.STRONG.GPU_P_dARI_R rendered desc + PT although
+//!     the vendor prints plain [R.U32+UR(+imm)] on all 4 -- census408: 1,344 words
+//!     / 5 uniq in 56 fleet fixture cubins. R2 DELETE the era keys + R1 GRAFT.
+//! (c) the x3 HOLE: the whole family ARURI_R / ARURI64 absent on x3 although
+//!     vendor-legal x4 (gated, a uC-gate artefact of class 408). R1 GRAFT 6,144 keys,
+//!     the 121a donor verbatim per leg (count=None, _src454; patch454.py
+//!     replayable + idempotent, the replay from 589be874 byte-exact x4).
+//!     sm120: the 3 native EL ARURI_R rows (ureg 6b) replaced by the donor (ureg 8b)
 //!     = R3 (heal UR64..254 legal x4).
 //! Canonical 589be874 -> 4ee8431 -> e03e034 (ride 452; CANON454 pin t454_7).
-//! Law: arb454 (157 sond gated ctrl[112:110]=0b111 x4 AGREE EVERY /
+//! Law: arb454 (157 probes gated ctrl[112:110]=0b111 x4 AGREE EVERY /
 //! DIVERGENT=0): width b90, URZ@0xff (bug444), imm win24 signed '+-'
 //! (bug438), guard full, rv255=RZ, PT-slot absent. b91=0 R-only =
-//! HOLE-parity (pin t454_3). base=255 na ARURI64: vendor '???255.64' --
-//! graft claimuje donor-symmetric (standing t454_4, dowod-452; zwezenie
-//! = cykl 452). Encode '.64'-address text mints b90=0-side word = pre-
-//! existing latent na 121a (publish 75caed16 repro) = 460-kand, NIE
-//! scope 454 (decode+print+fidelity fix tylko).
-//! Witness data: tests/bug454_data.inc (maszynowe gen454pins.py; rc=2;
+//! HOLE parity (pin t454_3). base = 255 on ARURI64: the vendor's '???255.64' --
+//! the graft claims donor-symmetric (standing t454_4, the 452 evidence; the
+//! narrowing = the 452 cycle). Encoding a '.64'-address text mints the b90=0-side
+//! word = a pre-existing latent on 121a (publish 75caed16 repro) = candidate 460,
+//! NOT in the scope of 454 (a decode + print + fidelity fix only).
+//! Witness data: tests/bug454_data.inc (machine-built by gen454pins.py; rc=2;
 //! mints nvdisasm-cross gated x4 w generacji).
 
 use cubit::decoder::DecodeIndex;

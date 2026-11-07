@@ -14,8 +14,8 @@
 //! - mk56 additionally: SR_LEMASK=9, SR_GTMASK=10 in merc_s2r_sr_enum
 //!   (c10: corpus 1:1 245 GTMASK / 2 LEMASK; the dominant E02 mk55 residual).
 //!   The c7 emulator: 17951/18932 kernels multiset+byte EXACT for
-//!   boot + per-S2R-lane + per-LDC-lane (reszta = klasy value-analysis,
-//!   parked mk57: MOV/IMAD/LEA/LOP3/LDG + LDC poza oknem fix-map).
+//!   boot + per-S2R-lane + per-LDC-lane (the rest = the value-analysis classes,
+//!   parked mk57: MOV/IMAD/LEA/LOP3/LDG + LDC outside the fix-map window).
 use cubit::mercury::{merc_ldc_geo, merc_s2r_sr_enum};
 
 #[test]

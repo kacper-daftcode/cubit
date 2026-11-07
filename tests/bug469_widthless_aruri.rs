@@ -1,22 +1,22 @@
 //! BUG-469 pins (F2-iter282, loop5/blind front2, 2026-09-16): LDG widthless
 //! ARURI graft sm121a (PRESTUDY469 plan A+B; iter281 law-complete). Scope:
-//!  (A) kopia verbatim 2 kluczy z sm103a -> sm121a (era [127:96] clear):
+//!  (A) a verbatim copy of 2 keys from sm103a -> sm121a (the era [127:96] clear):
 //!      'LDG.E.EL.ELL2.256.STRONG.GPU_R_R_ARURI',
 //!      'LDG.E.NA.ELL2.256.STRONG.GPU_R_R_ARURI' (claim-set == donor x3).
 //!  (B) mg adds plain-band b84=1: LDG_R_ARURI x4 sel [69:68], LDG.E_R_ARURI
 //!      ride-fix mg['E'] (b92 pinned-1 -> vm, vendor-inert) + mg LTCnm x3,
 //!      LDG_R_ARURI_P x4 (+pred_inv4@64), LDG_P_R_ARURI{,_P} (+pred@81;
-//!      cf pred7 = split od R-formy).
-//!  (C) 4 nowe klucze EF-band b84=0: LDG.E.EF{,.LTCnm}_P_R_ARURI_P.
-//!  ENGINE: printer.rs 099-arm guard +('_P_R_ARURI') scopowany (zero
-//!  kluczy pre-istniejacych w zasiegu contains('_P_R_ARURI')).
+//!      cf pred7 = the split from the R form).
+//!  (C) 4 new EF-band keys b84=0: LDG.E.EF{,.LTCnm}_P_R_ARURI_P.
+//!  ENGINE: the printer.rs 099-arm guard +('_P_R_ARURI') scoped (zero
+//!  pre-existing keys within contains('_P_R_ARURI')).
 //! Vendor law: arb469 (143) + arb469b (37) nvdisasm 13.3.73 raw -b x4 AGREE
-//! EVERY/DIVERGENT=0 + korpus ab240 101 slow vendor-legal x4 (HOLE 121a,
+//! EVERY / DIVERGENT=0 + the ab240 corpus: 101 words vendor-legal x4 (HOLE 121a,
 //! publish e7d4a91f). Kills: b91=0 rc=1 x4; cf ra255 (.64+ra255 -> HOLE-
-//! parity, vendor '???255.64' = 461-doktryna junk-glyph); EF pred=7 elide
+//! parity, the vendor's '???255.64' = the 461-doctrine junk glyph); EF pred=7 elide
 //! ('LDG.E.EF R7,...') claim_forbid (standing 483). Canonical 08a6145 ->
-//! bd48e63 (patch469.py replay x2 byte-exact + idem; audity A0(sym x3)/
-//! A0b(108 komorek law)/A1(NONE->GRAFT 224/STABLE 894/BAD 0, grid 1118)/
+//! bd48e63 (patch469.py replay x2 byte-exact + idempotent; audits A0 (sym x3) /
+//! A0b (108 law cells) / A1 (NONE->GRAFT 224 / STABLE 894 / BAD 0, grid 1118) /
 //! A2(corpus 101 graft-winner)/A3(kill+standing not-graft)/A4(x3 byte-equal,
 //! 121a delta==plan)/A5(19227->19233)/A7 fail-closed).
 //! Witness: tests/bug469_data.inc (maszynowe gen469pins.py rc=2).

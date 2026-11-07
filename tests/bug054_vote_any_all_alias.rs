@@ -6,11 +6,11 @@
 //!  * decode: an ALL word rendered as `VOTE.ANY` (tie-break across rows
 //!    without a mode field); the ANY.P word paired even with the VOTEU row.
 //!    Truth (nvcc 13.3 -arch=sm_120 goldens on this host, vote.cu/v.ptx):
-//!  * formy P-dest: ALL/ANY rozni bit 72 (ALL=0, ANY=1); w pozostalych
-//!    bitach operandow identyczne (dest P @[83:81], src P @[89:87],
-//!    src-neg @90)! Wszystkie 6 goldenow ponizej pochodzi z nvcc/ptxas.
-//!    Fix (tabela): `VOTE.ANY_P_P` and_base |= 1<<72; oba wiersze P-dest maja
-//!    variable_mask z bitem 72 (deterministyczny rozdzial ALL/ANY, R-forma
+//!  * the P-dest forms: ALL / ANY differ in bit 72 (ALL = 0, ANY = 1); identical in
+//!    the other operand bits (dest P @[83:81], src P @[89:87], src-neg @90)! All 6
+//!    goldens below come from nvcc / ptxas.
+//!    Fix (table): `VOTE.ANY_P_P` and_base |= 1<<72; both P-dest rows carry a
+//!    variable_mask with bit 72 (a deterministic ALL / ANY split; the R form
 //!    (VOTE.ANY R0, PT, PT) was already healthy and it produced the bit-72 evidence).
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

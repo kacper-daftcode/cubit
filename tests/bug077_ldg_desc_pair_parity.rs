@@ -1,4 +1,4 @@
-//! BUG-077 (F2Q; znalezione przy matrycy BUG-076, zamkniete F2 2026-08-22):
+//! BUG-077 (F2Q; found with the BUG-076 matrix, closed F2 2026-08-22):
 //! LDG desc-form with a 64-bit address pair `desc[URm][Rn.64]` requires an
 //! EVEN pair base Rn on sm_103a for every true-pair desc class.
 //!

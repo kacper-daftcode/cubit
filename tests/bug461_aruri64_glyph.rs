@@ -1,17 +1,17 @@
 //! BUG-461 pins (F2-iter265, loop5/blind front2, 2026-09-14): text-parity
-//! glif '???255.64' dla L2 REDG *_ARURI64_R zamiast HOLE (452 swiadomie
-//! wybral HOLE-parity; rejestr 452_claim_narrow_donor_first_103a.md sec.5).
+//! glyph '???255.64' for L2 REDG *_ARURI64_R instead of HOLE (452 deliberately
+//! chose HOLE parity; the registry 452_claim_narrow_donor_first_103a.md sec. 5).
 //! Vendor law (arb452 g3 + triage461 fresh nvdisasm 13.3.73 era-gated x4
-//! AGREE EVERY/DIVERGENT=0): base[24:32)==255 -> rc=0, glif
-//! '[???255.64+UR..(+off)]'; 0..254 -> 'R{n}.64' (kill-preserve);
-//! U32-form (b90=0) 255 -> 'RZ.U32' KEEPER (451-law, nietkniety).
-//! Fix: data-side L2-UNCLAIM (canonical f376558 -> f58ed16, patch461.py
-//! replayable+idempotent, 12,288 adnotacji zdjetych z 3072 kluczy x4;
-//! L1 EFL2.256 desc + 462 ENL2/ELL2 + legacy 099 ZOSTAJA) + printer-arm
-//! (format_plain_u32_ur glyph255=true wylacznie na galezce REDG.E ARURI64)
-//! + encoder refuse mint-side (cytat BUG-461; kontynuacja polisy BUG-452:
-//!   tekst '.64' z baza R255/RZ nie mintuje; fallback U32 niedozwolony).
-//!   Witness: tests/bug461_data.inc (maszynowe gen461pins.py rc=2).
+//! AGREE EVERY / DIVERGENT=0): base[24:32) == 255 -> rc=0, the glyph
+//! '[???255.64+UR..(+off)]'; 0..254 -> 'R{n}.64' (kill-preserve); the U32 form
+//! (b90=0) 255 -> 'RZ.U32' KEEPER (the 451 law, untouched).
+//! Fix: the data-side L2 UNCLAIM (canonical f376558 -> f58ed16, patch461.py
+//! replayable + idempotent, 12,288 annotations lifted from 3072 keys x4; L1
+//! EFL2.256 desc + 462 ENL2 / ELL2 + the legacy 099 STAY) + the printer arm
+//! (format_plain_u32_ur glyph255=true only on the REDG.E ARURI64 branch) + the
+//! encoder's mint-side refuse (the BUG-461 citation; the BUG-452 policy continued:
+//!   a '.64' text with base R255 / RZ does not mint; the U32 fallback is not allowed).
+//!   Witness: tests/bug461_data.inc (machine-built by gen461pins.py rc=2).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

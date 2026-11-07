@@ -1,6 +1,6 @@
 //! BUG-376 (F2-iter198, loop5/blind front2, 2026-09-04): LDGSTS desc LTC
 //! lattice completion. Registered 376-kand LOW at F2-iter190 (360.md sec.6):
-//! "reszta kraty LTC"; the arb matrix also exposed the code-2 ZFILL cross
+//! "the rest of the LTC lattice"; the arb matrix also exposed the code-2 ZFILL cross
 //! gap (np '128,BYPASS,E,LTC128B,ZFILL' absent x3 era legs = MEASURED silent
 //! phantom ', PT' via the _P row on nib-0 words on sm100a/sm103a, sm120
 //! HOLE both sides; the class 374 cured for the non-LTC sibling).
@@ -10,7 +10,7 @@
 //! cells decode HOLE + encode loud REFUSE x4 legs BOTH key-sides, ZERO
 //! silent wrong-text beyond the one phantom class cured here.
 //!
-//! LAW (arb376 108 donor-row sweeps + arb376b 99 lattice probes + sondy,
+//! LAW (arb376 108 donor-row sweeps + arb376b 99 lattice probes + probes,
 //! nvdisasm 13.3.73 raw -b, x4 models SM100a/SM103a/SM120/SM121a AGREE on
 //! EVERY probe, DIVERGENT=0): LTC code [73:72] upright (0 none / 1 LTC64B /
 //! 2 LTC128B / 3 LTC256B); BYPASS = b81 CLEAR (inverted polarity; XOR-delta

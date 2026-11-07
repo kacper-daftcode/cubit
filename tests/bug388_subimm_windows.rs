@@ -2,27 +2,27 @@
 //! window decls -> vendor-true geometry (38 arb378-DIVERGE carriers /
 //! 104 rows x4 legs + collateral G/H/I-J). Registration 388-kand
 //! (378.md sec.7, F2-iter201). Canonical graft patch388.py (c155d00 ->
-//! bacdfb5, tables-only) + ENGINE: SubURm1 printer arm (jedyna zmiana
-//! src: [URn],[URn+1] para drukowala [URn],[URn]).
+//! bacdfb5, tables-only) + ENGINE: the SubURm1 printer arm (the only source
+//! change: the pair [URn],[URn+1] printed as [URn],[URn]).
 //!
-//! LAW: arb388 (56 flipow/nosnik x4) + arb388b (lattice: zero/unit/
-//! maxpos/sign/allones/combo/granice) + arb388c (per-row rbleed/urclip/
-//! junk band+ball), nvdisasm 13.3.73 raw -b, x4 modele SM100a/SM103a/
-//! SM120/SM121a AGREE na KAZDEJ sondzie, DIVERGENT=0; zbiezne z BUG-156
-//! window-law. Prawo: LDGSTS sm100a tok2 = 12b@32 SIGNED; LDS|S8 /
+//! LAW: arb388 (56 flips per carrier x4) + arb388b (lattice: zero / unit /
+//! maxpos / sign / all-ones / combo / edges) + arb388c (per-row rbleed / urclip /
+//! junk band + ball), nvdisasm 13.3.73 raw -b, x4 models SM100a/SM103a/
+//! SM120/SM121a AGREE on EVERY probe, DIVERGENT=0; consistent with the BUG-156
+//! window law. The law: LDGSTS sm100a tok2 = 12b@32 SIGNED; LDS|S8 /
 //! ATOM(G) CAS tok3 / dARI-desc REDG/STG/ST/LDG/LD = 24b@40 SIGNED;
 //! sm121a ST/LD ARI = 32b@32 SIGNED; sm121a LDC/LDCU cAI '' =
 //! cm16_off/cm17_off (bank 5b@[54..59) + signed 16/17b); UGETNEXT =
-//! para 8b@24, offset nie istnieje (DELETE sub_imm1).
+//! a pair 8b@24, the offset does not exist (DELETE sub_imm1).
 //! Pre-fix (publish cubit_py-05d2e7e9 910e172a.., tables pre_tabs @
-//! 05d2e7e9; measure_pre388, 2299 komorek): 1050 MATCH / 1154 WRONG
-//! (cichy misprint: flip znaku LDC b53, fabrykowane +0x1, corrupt baza
-//! R476) / 95 HOLE.
-//! Residua (rejestracje, loud w pinach): 398-kand (cAI [24..32) index
-//! zanegowany + '?cAURI' fallback; sektory smem-UR LDGSTS/LDCU drukuja
-//! inwersje), 399-kand (glif '+-0x' vendor dla negatywnych offsetow
-//! plain ARI/ARURI; silnik drukuje '-0x'; t2 ma glyph-norm z licznikiem
-//! audytu).
+//! 05d2e7e9; measure_pre388, 2299 cells): 1050 MATCH / 1154 WRONG (silent
+//! misprints: the LDC b53 sign flip, a fabricated +0x1, a corrupt base R476) /
+//! 95 HOLE.
+//! Residues (registered, loud in the pins): candidate 398 (the cAI [24..32) index
+//! negated + the '?cAURI' fallback; the smem-UR sectors of LDGSTS / LDCU print
+//! inversions), candidate 399 (the vendor's '+-0x' glyph for negative offsets of
+//! plain ARI / ARURI; the engine prints '-0x'; t2 carries a glyph normalisation
+//! with an audit counter).
 use cubit::decoder::DecodeIndex;
 use cubit::table::IsaTable;
 

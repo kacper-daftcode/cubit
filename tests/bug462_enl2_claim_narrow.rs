@@ -3,14 +3,14 @@
 //! wszystkich ISTNIEJACYCH wierszach desc dARI ENL2.256 (48 mod-grup:
 //! 15/15/7/11 na nogach; LDG/STG R_R{,_II,_P} + 121a ELL2.256). Vendor law:
 //! nvdisasm 13.3.73 era-gated x4 AGREE EVERY -- base [24:32)==255 to rc=1
-//! REFUSE na kazdym zawezanym wierszu; anchory legalne (254; sweep
-//! {0,28,127,253} arb462e). Pre: engine drukowal 'desc[URx][RZ.64]'.
-//! Keeper NIE claimowane: KEEPER-RZ 1501 wierszy (m.in. produkcyjny ATOMG
-//! desc RZ.64 z census452quick; pin t462_5) i ELL2.256 na 100a/103a/120
-//! (vendor: plain '[Rx.U32+URy]', base=255 ACCEPT '[URy]'; divergence
-//! text-parity = 466-kand, pin t462_6 dokumentuje postawe). sm103a RZ-mint
-//! po stronie enkodera odpalal juz BUG-077 (odd desc pair) -- refuse'ow
-//! szuka sie tu w wyniku JEDNEGO z dwoch fail-closed armow (t462_3).
+//! REFUSE on every narrowed row; the anchors legal (254; the sweep {0,28,127,253}
+//! arb462e). Before: the engine printed 'desc[URx][RZ.64]'.
+//! Keepers NOT claimed: KEEPER-RZ 1501 rows (among them the production ATOMG desc
+//! RZ.64 from census452quick; pin t462_5) and ELL2.256 on 100a / 103a / 120 (the
+//! vendor: plain '[Rx.U32+URy]', base=255 ACCEPT '[URy]'; the text-parity
+//! divergence = candidate 466, pin t462_6 documents the posture). The sm103a RZ
+//! mint on the encoder side already tripped BUG-077 (odd desc pair) -- the refuses
+//! are looked for here as the result of ONE of the two fail-closed arms (t462_3).
 //! Canonical 700524e -> f376558 (48 mg claim_forbid + 19 instr _src462;
 //! patch462.py replay+idem byte-exact x4; audit semantyczny zero innego
 //! diffu). Witness: tests/bug462_data.inc (maszynowe gen462pins.py).

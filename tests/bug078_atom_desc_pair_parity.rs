@@ -1,4 +1,4 @@
-//! BUG-078 (F2Q-078-kand; follow-up BUG-076/077, zamkniete F2 2026-08-22):
+//! BUG-078 (candidate F2Q-078; a follow-up of BUG-076/077, closed F2 2026-08-22):
 //! ATOMG/REDG desc-form with a 64-bit address pair `desc[URm][Rn.64]`
 //! (non-EL classes -- the true register-pair desc addressing mode, vendor
 //! render `desc[URm][Rn.64]`) requires an EVEN pair base Rn on sm_103a.

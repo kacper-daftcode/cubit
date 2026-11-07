@@ -1,5 +1,5 @@
 //! BUG-179 — ATOMS baked-URZ-sink ARI rows: render + encode parity (owner:
-//! loop5/blind iter83). Found by the `_ARI_`-bez-UR row audit (note 157 b):
+//! loop5/blind iter83). Found by the `_ARI_`-without-UR row audit (note 157 b):
 //! SYNCS-class rows outside SYNCS.
 //!
 //! Root (census-first; 9,130 ATOMS vendor words in the 32.2M-line hexdb):

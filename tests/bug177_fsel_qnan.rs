@@ -1,5 +1,5 @@
 //! BUG-177 (F2-iter84, front2/blind; queue = fleet note 159 sec.5(b)
-//! "FSEL/F32 QNAN dodatni drukuje bez '+'"): f32 NaN immediate glyph law
+//! "FSEL / F32: a positive QNAN prints without '+'"): the f32 NaN immediate glyph law
 //! in the decode-side printer (format_float NaN arm).
 //!
 //! Census-first (hexdb 32.2M, work/bug177/anchors177.tsv): 6,380 vendor

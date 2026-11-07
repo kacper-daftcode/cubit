@@ -7,7 +7,7 @@
 //! HFMA2 R171/RZ-imma, IMAD.MOV/ISETP rsd series (census noise source on
 //! every table edit; see the internal fix archive census residuals).
 //!
-//! Fix (u zrodla): candidates are collected in sorted (key, mod_group)
+//! Fix (at the source): candidates are collected in sorted (key, mod_group)
 //! order AND the disambiguation tuple ends in the total-order tiebreak
 //! (key, mod_group) — unique per table entry. Decode is now a pure function
 //! of (table, word).

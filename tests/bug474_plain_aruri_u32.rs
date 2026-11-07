@@ -1,30 +1,30 @@
-//! BUG-474 pins (F2-iter285, loop5/blind front2, 2026-09-17): plain (nNA)
-//! E*L2.256 ARURI U32-sibling (b75=0) -- blizniaki '_ARURI' CALEJ rodziny
-//! plain ARURI64 x4 nogi (464 baza 6 / 465 lattice / 468 LTC-sel; 3456
-//! donorow/noga -> +3454/+3454/+3454/+3455 kluczy; skip-celle pre-claimed:
-//! x3 LDG+STG.EL.ELL2.256.STRONG.GPU [466-row] + 121a LDG [469-row]; 121a
-//! STG-twin (466 x3-only) heal-uje tam komorke). and_base &= ~(1<<75);
-//! vm/fields/base_op/ctrl/scheduling verbatim z donora; count=None.
-//! ENGINE printer.rs: format_plain_u32_ur +flaga plain_u32 (kluczem LDG.E./
-//! STG.E. + token E*L2 + !.NA. + raw b75==0): width zawsze 'U32' (STG
-//! [91:90]==3 NIE moze leakowac '.64' reg. 099), baza 255 -> czysta elizja
-//! '[URm(+off)]'. ENCODER: w guardzie Addr{base:None,ur} kandydaci
-//! '_ARURI64' PRZED '_ARURI' (obietnica 464-arm: '[URm]' mintuje b75=1;
-//! explicit '[Rn.U32+URm]' mintuje wiersz _ARURI b75=0 osobnym kluczem).
-//! Vendor law: arb474 (165) + arb474b (62) + arb474c (8) + arb474d (15) sond
-//! nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0 + claim474 227 sond x4
-//! (EXACT 3/noga flip75-ctrl + HOLE 218/noga + REFUSE-OK 6/noga, MIS 0).
-//! KILL: b91=0 rc=1 x4; b76=1 REFUSE x4 (po U32 NIE ma desc-formy). Encode:
-//! desc-formy plain-L2 = sealed parity pre==post (MINTDESC 7 + ENCTAIL 5;
-//! korekta iter286), explicit-U32 mint b75=0 (skip sm103a-even-base = BUG-060
-//! guard parity). Standing:
-//! junk L2=3 (INVALID3/RML2 wspoldzielone z 469, HOLE-parity), inert-parity
-//! (b83/band pinowane jak strona .64), NA-side lattice gap = 485-kand.
-//! Data: patch474.py replay z canon_pre (bd48e63-content) byte-exact x4 +
-//! idem all-skip 13817; audity A0/A0b(226)/A1(420-422 heal/noga)/A2/A3/A4
-//! (+3454 x3, +3455 121a, reszta byte-equal)/A5(->13721/13721/14859/22688)/
-//! A6/A7 fail-closed. Canonical commit = cc2f62c379c3e190ef373ab9e8f76af0aeef326c (INC-283a: flip po publish469; flip474b iter286).
-//! Witness: tests/bug474_data.inc (maszynowe gen474pins.py rc=2).
+//! BUG-474 pins (F2-iter285, loop5/blind front2, 2026-09-17): the plain (nNA)
+//! E*L2.256 ARURI U32 sibling (b75 = 0) -- the '_ARURI' twins of the WHOLE plain
+//! ARURI64 family on 4 legs (464 base 6 / 465 lattice / 468 LTC sel; 3456 donors per
+//! leg -> +3454 / +3454 / +3454 / +3455 keys; skipped cells pre-claimed: x3
+//! LDG + STG.EL.ELL2.256.STRONG.GPU [the 466 row] + 121a LDG [the 469 row]; the 121a
+//! STG twin (466 x3 only) heals that cell). and_base &= ~(1<<75); vm / fields /
+//! base_op / ctrl / scheduling verbatim from the donor; count = None.
+//! ENGINE printer.rs: format_plain_u32_ur + the flag plain_u32 (keyed by LDG.E. /
+//! STG.E. + the E*L2 token + !.NA. + raw b75 == 0): the width always 'U32' (STG
+//! [91:90] == 3 must NOT leak '.64', rule 099), base 255 -> the clean elision
+//! '[URm(+off)]'. ENCODER: in the Addr{base: None, ur} guard the '_ARURI64' candidates
+//! BEFORE '_ARURI' (the 464-arm promise: '[URm]' mints b75 = 1; an explicit
+//! '[Rn.U32+URm]' mints the _ARURI row b75 = 0 as a separate key).
+//! Vendor law: arb474 (165) + arb474b (62) + arb474c (8) + arb474d (15) probes,
+//! nvdisasm 13.3.73 raw -b x4 AGREE EVERY / DIVERGENT = 0 + claim474 227 probes x4
+//! (EXACT 3 per leg flip75-ctrl + HOLE 218 per leg + REFUSE-OK 6 per leg, MIS 0).
+//! KILL: b91 = 0 rc=1 x4; b76 = 1 REFUSE x4 (there is NO desc form after U32). Encode:
+//! the plain-L2 desc forms = sealed parity pre == post (MINTDESC 7 + ENCTAIL 5; the
+//! iter286 correction), the explicit U32 mint b75 = 0 (skip sm103a-even-base = the
+//! BUG-060 guard parity). Standing:
+//! the junk L2 = 3 (INVALID3 / RML2 shared with 469, HOLE parity), inert parity
+//! (b83 / the band pinned like the .64 side), the NA-side lattice gap = candidate 485.
+//! Data: patch474.py replay from canon_pre (bd48e63 content) byte-exact x4 +
+//! idempotent all-skip 13817; audits A0 / A0b (226) / A1 (420-422 heal per leg) / A2 /
+//! A3 / A4 (+3454 x3, +3455 121a, the rest byte-equal) / A5 (-> 13721/13721/14859/22688) /
+//! A6 / A7 fail-closed. Canonical commit = cc2f62c379c3e190ef373ab9e8f76af0aeef326c (INC-283a: the flip after publish469; flip474b iter286).
+//! Witness: tests/bug474_data.inc (machine-built by gen474pins.py rc=2).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

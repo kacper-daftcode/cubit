@@ -1,12 +1,11 @@
-//! BUG-127 (F2-Q F-1 z merc.md, severity encoder-side): legacy emisja
-//! wielo-kernelowa (format adresowy `// name`) byla NIEDETERMINISTYCZNA
-//! miedzy runami — kolejnosc kerneli brana z iteracji HashMap (randomizacja
-//! per proces), co przewracalo ordynaly .text/.nv.info.*/capmerc/strtab/
-//! symtab/.rela. Repro pre-fix (cubit-6b0dc52, k_two.sass, 8 runow):
-//! 2 rozne md5 (3x vs 5x). Fix: parse_sass_file_full rejestruje kolejnosc
-//! pierwszego pojawienia (source order), cmd_asm_build_elf emituje w tej
-//! kolejnosci (mapa moze miec klucze spoza order vec — ida na koniec,
-//! sortowane po nazwie; nigdy nondeterministycznie).
+//! BUG-127 (F2-Q F-1 from merc.md, severity encoder-side): the legacy multi-kernel
+//! emission (the `// name` address format) was NON-DETERMINISTIC between runs — the
+//! kernel order came from a HashMap iteration (randomised per process), which
+//! upset the ordinals of .text / .nv.info.* / capmerc / strtab / symtab / .rela.
+//! Repro pre-fix (cubit-6b0dc52, k_two.sass, 8 runs): 2 different md5s (3x vs 5x).
+//! Fix: parse_sass_file_full records the order of first appearance (source order),
+//! cmd_asm_build_elf emits in that order (the map may hold keys outside the order
+//! vec — they go last, sorted by name; never non-deterministically).
 
 use std::process::Command;
 

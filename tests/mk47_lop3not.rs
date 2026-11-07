@@ -1,8 +1,8 @@
-//! mk47: rekordy 012b{00|04}0a (16B): host = lane
-//! `LOP3.LUT Rd, RZ, Rs, RZ, 0x33, !PT` (kanoniczny NOT-MOV; LUT 0x33 = !B).
+//! mk47: the 012b{00|04}0a records (16B): host = the lane
+//! `LOP3.LUT Rd, RZ, Rs, RZ, 0x33, !PT` (the canonical NOT-MOV; LUT 0x33 = !B).
 //! Rd always R<n>; class (tag byte 2): 0x00 when Rs = R<n>, 0x04 when Rs =
-//! UR<n>. Domkniecie korpusowe (676 plikow sm_100): multiset
-//! (guard,Rd,Rs,cls) EXACT 7305/7305 kerneli z rekordami + 0 kerneli
+//! UR<n>. The corpus closure (676 sm_100 files): the multiset
+//! (guard,Rd,Rs,cls) EXACT 7305/7305 kernels with records + 0 kernels
 //! with a lane pattern but no record (17684 records: 16478 R + 1206 UR).
 //! The host lane gets no bitmap bit (the "record replaces the t4 node" doctrine).
 use cubit::mercury::merc_lop3_not_record;

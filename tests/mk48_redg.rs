@@ -1,11 +1,11 @@
-//! mk48: rekordy 024d{0e|24|2e}32 (32B): host = lane REDG (domkniecie swapu
-//! 024d0e32<->024d2432 z atlasu mk46; +307 orig-only 024d2e32 bylo niewidoczne).
+//! mk48: the 024d{0e|24|2e}32 records (32B): host = the REDG lane (closing the
+//! 024d0e32<->024d2432 swap of the mk46 atlas; +307 orig-only 024d2e32 were invisible).
 //!
 //! sm_100 corpus (676 files): record<->lane pairing by the
 //! (addr,descUR,data,imm) key, multiset-EXACT; full byte agreement
-//! 22342/22342 rekordow, 1322/1335 kerneli (13 = forma non-desc S32,
-//! tez obsluzona). Porzadek strumienia == lane-asc (72/72 grup remisowe
-//! MIN/MAX o identycznych slotach). Tabela klas:
+//! 22342/22342 records, 1322/1335 kernels (13 = the non-desc S32 form, also
+//! handled). The stream order == lane-ascending (72/72 tied MIN/MAX groups with
+//! identical slots). The class table:
 //!   F32.FTZ.RN -> b2=0e b6=80 b7=44 b8=03
 //!   F64.RN     -> b2=0e b6=80 b7=47 b8=03 (slot danych |2)
 //!   int desc   -> b2=24 b8=01; b6: ADD 00 / MIN 10 / MAX 20 / AND 50 / OR 60;

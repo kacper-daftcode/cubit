@@ -4,7 +4,7 @@
 //! had only 9 pairs from {e2m3,e4m3,e5m2} => ENC-FAIL for 16 legal pairs
 //! (nvcc encodes -arch=sm_120 and -arch=sm_121a identically; GB10 silicon:
 //! fp8 and fp4 execute, 25/25 EXACT locally + nvdisasm crosscheck 25/25).
-//! Fix: port 32 wpisow (16 nowych par x {plain, _P}) z tabeli spark.
+//! Fix: 32 entries ported (16 new pairs x {plain, _P}) from the spark table.
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::table::IsaTable;

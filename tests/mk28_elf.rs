@@ -1,10 +1,10 @@
 //! mk28: ELF/EIATTR fidelity sm_103a (nvcc 13.x):
 //! - the canonical .nv.info.K record set and order (byte-wise like nvcc),
-//! - bitmapowe reguly dialektu UTCA (BRA epilog vs samo-petla),
-//! - bramki: tmem (4f/41/51, 4a=0x80), NUM_BARRIERS (4c), SW_WAR (36=8),
+//! - the bitmap rules of the UTCA dialect (BRA epilogue vs self-loop),
+//! - the gates: tmem (4f/41/51, 4a=0x80), NUM_BARRIERS (4c), SW_WAR (36=8),
 //!   NVSAL_SW_WAR (6b=1), LANGUAGE (66=3), API (37=0x85).
 //!
-//! Zrodla bajtow zlotych: oryginalne sekcje .nv.info.* z
+//! Sources of the golden bytes: the original .nv.info.* sections of
 //! merclab/mkvmem.sm_103a.cubin and merclab/k_sync.cubin.
 
 use cubit::eiattr::KernelMeta;

@@ -7,7 +7,7 @@
 //! = GENUINE `desc[URx][Ry.64]` + trailing policy-imm/pred-out legal).
 //! Graft = canonical 099faa0 -> 589be874: ADD 3 keys per x3 leg cloned
 //! VERBATIM from sm121a (count=None, _src450), 121a byte-untouched,
-//! ENGINE src ZERO. Deferred-from-447 overlap worry DOMKNIETY maszynowo:
+//! ENGINE src ZERO. The overlap worry deferred from 447 CLOSED by machine:
 //! patch450 A2 = 0 pair-intersections (3x3 space-components per row pair)
 //! between the new rows and ALL pre-existing x3 rows (discriminators
 //! [79:75]=11100 & b82=0 & b86=0 sit in strict masks; ENL2/ELL2/NA rows

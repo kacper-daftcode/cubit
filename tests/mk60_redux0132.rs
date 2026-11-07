@@ -1,12 +1,12 @@
 //! mk60: 0132100a records (16B) per REDUX/CREDUX lane — closing the
 //! overproduction (the mk59hA front: new-only 289) + a full class decode:
 //!   CREDUX.MAX.S32 -> b6=55, CREDUX.MIN.S32 -> b6=51, CREDUX.MIN -> b6=50,
-//!   REDUX.SUM.S32  -> b6=4d (ale dst==UR79 BEZ rekordu: 88/88 korpus);
-//!   REDUX.OR (3376 lane'ow), goly REDUX, guardy: NIGDY rekordu.
-//! Pola: (b10,b11)=LE16((URd<<6)|1), (b12,b13)=LE16(src<<6), RZ-src ->
-//! 0xffc0; (b14,b15)=0; b4=f8 zawsze (guard -> fail-closed).
-//! Korpus l2 676 / 18932 kerneli (merclab/mk60 c1/c2): align lane->rekord
-//! EXACT (parowanie podzbioru noszacego, porzadek zachowany).
+//!   REDUX.SUM.S32  -> b6=4d (but dst==UR79 WITHOUT a record: 88/88 in the corpus);
+//!   REDUX.OR (3376 lanes), the bare REDUX, guards: NEVER a record.
+//! Fields: (b10,b11)=LE16((URd<<6)|1), (b12,b13)=LE16(src<<6), an RZ source ->
+//! 0xffc0; (b14,b15)=0; b4=f8 always (a guard -> fail-closed).
+//! The l2 corpus, 676 / 18932 kernels (merclab/mk60 c1/c2): the lane -> record
+//! alignment EXACT (a pairing of the carrying subset, order preserved).
 use cubit::mercury::merc_redux2_record;
 
 fn hex(b: Option<[u8; 16]>) -> String {

@@ -11,7 +11,7 @@
 //! EVERY/DIVERGENT=0; work/bug446/arb446_law.json): '[Rx.U32+URy]' INVARIANT
 //! under full policy-byte + dead-bit + pred_inv4 sweeps; b91=0 kill x4
 //! (rc=1); b72/b73/b87 render-neutral on STG; policy/pred/imm/URZ/RZ data
-//! moves print 1:1. (post-447 ride, F2-iter252: x3 legs przepisane przez graft 099faa0
+//! moves print 1:1. (post-447 ride, F2-iter252: the x3 legs rewritten by the graft 099faa0
 //! donor-clone 121a NA-ARURI; X3STAND446 = 150 vendor-heal + 6 rz-move,
 //! atrybucja '// healed 447' w .inc.)
 //! Defect evidence: vdrift442_full 110 corpus cells

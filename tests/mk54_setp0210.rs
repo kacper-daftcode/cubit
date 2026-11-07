@@ -1,8 +1,8 @@
-//! mk54: rekordy rodziny 02 10 (klasa SETP):
-//!   02 10 02 14 = PLOP3.LUT z uniform Pc (Pd, PT, Pa, PT, UPn, l1, l2)
-//!   02 10 04 14 = UPLOP3.LUT (wszystkie predy uniform; Pt/Pa/Pb == UPT)
-//!   02 10 16 0e = DSETP z imm f64, Pt==PT i Pc==PT (marker 13@b14)
-//!   02 10 0a 0e = DSETP z imm f64, Pt!=PT lub Pc!=PT (marker 13@b17)
+//! mk54: the records of the 02 10 family (the SETP class):
+//!   02 10 02 14 = PLOP3.LUT with a uniform Pc (Pd, PT, Pa, PT, UPn, l1, l2)
+//!   02 10 04 14 = UPLOP3.LUT (all predicates uniform; Pt/Pa/Pb == UPT)
+//!   02 10 16 0e = DSETP with an f64 imm, Pt==PT and Pc==PT (marker 13@b14)
+//!   02 10 0a 0e = DSETP with an f64 imm, Pt!=PT or Pc!=PT (marker 13@b17)
 //! Gold vectors = literal bytes from the sm_100 corpus (merclab/mk54 c20:
 //! 4347/4347 kernels multiset+sequence EXACT, bidirectional).
 use cubit::mercury::{merc_dsetpimm_record, merc_plop3u_record, merc_uplop3_record};

@@ -12,11 +12,11 @@
 //! Native SM120 LDGSTS 0xdae/0xfae are a measured exception: the global
 //! source keeps RZ.64 with nonzero offsets (exact nvdisasm 13.1.80 anchors).
 //!
-//! Pins: t164_1 decode==nvdisasm (47 arbitrowane formy minus klasy parked-geo
-//! z BUG-155/161 ff), t164_2 decode==law dla LDGSTS/split/baked-imm (pozostale
-//! nogi niosa parked-147/158/160 quirks i sa osobno kontrolowane), t164_3
-//! encode identity + kompat wsteczny "[RZ+0x10]", t164_4 kontrol-brak-elizji
-//! (imm0/baza!=RZ), t164_5 fixed-point decode(encode(decode(w))).
+//! Pins: t164_1 decode == nvdisasm (47 arbitrated forms minus the parked-geo classes
+//! of BUG-155/161 ff), t164_2 decode == law for LDGSTS / split / baked-imm (the
+//! other legs carry the parked-147/158/160 quirks and are checked separately), t164_3
+//! encode identity + the backward-compatible "[RZ+0x10]", t164_4 the no-elision
+//! control (imm 0 / base != RZ), t164_5 the fixed point decode(encode(decode(w))).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

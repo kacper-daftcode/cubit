@@ -1,9 +1,9 @@
 //! mk41 (2026-08-12): XSETP-pair mini records + full predicate codes.
-//! Piny bajtowe: xlab probes (nvcc sm_100a & sm_103a era-inwariantne):
-//! - para ISETP(non-EX)+ISETP.*.EX -> JEDEN mini 4B na lane HEAD-a,
+//! Byte pins: xlab probes (nvcc sm_100a & sm_103a, era-invariant):
+//! - the pair ISETP(non-EX) + ISETP.*.EX -> ONE 4B mini on the HEAD's lane,
 //! - the head loses its bitmap bit (a mini instead of the t4 node),
-//! - tag: 42102e14 (para czysto-rejestrowa) / 42103006 (imm w head)
-//!   / 42103214 (operand UR w parze).
+//! - tag: 42102e14 (a pure-register pair) / 42103006 (an imm in the head)
+//!   / 42103214 (a UR operand in the pair).
 
 use cubit::eiattr::{KernelMeta, KernelParam};
 use cubit::elf_builder::generate_mercury_full;

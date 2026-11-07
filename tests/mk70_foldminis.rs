@@ -1,10 +1,10 @@
 //! mk70 (2026-08-13): the 28-family minis — the early-exit prolog idiom
 //! cublas-COMMONS (OR-fold of predicates through (U)LOP3.LUT + @P EXIT / BRA[.U]).
-//! Atrybucja merclab/mk70 c1..c19 (l2 korpus 18932 kern):
+//! Attribution merclab/mk70 c1..c19 (the l2 corpus, 18932 kernels):
 //!   42281414 EXACT 16/16, 42282414 EXACT 21/21,
 //!   41271004 pure EXACT 18729 (resid xmma-selfimm, park mk71),
 //!   41281004 over=0 (resid xmma, park mk71).
-//! Dowody okienkowe: rotm_kernel_val dd (cublas.153) tight-window (36,44):
+//! Window evidence: rotm_kernel_val dd (cublas.153), tight window (36,44):
 //! TLV19=41281004 -> L41 ULOP3.fc !UPT, TLV20=42282414 -> L42 ULOP3.fc UP0.
 
 use cubit::sass_file::merc_fold28;

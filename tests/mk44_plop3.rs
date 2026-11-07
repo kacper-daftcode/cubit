@@ -1,6 +1,6 @@
-//! mk44: generalizacja rekordow 0110060a (PLOP3 dual-output, nibswap-LUT pair).
-//! Zrodla: korpus EQ 5902/5902 kerneli (K4 w mk44/c011m), sondy nvcc
-//! sm_100a/sm_103a (mk44/lutsweep, probe101) — era-inwariantne.
+//! mk44: the generalisation of the 0110060a records (PLOP3 dual-output, the nibble-swapped LUT pair).
+//! Sources: the corpus, EQ 5902/5902 kernels (K4 in mk44/c011m), nvcc probes on
+//! sm_100a / sm_103a (mk44/lutsweep, probe101) — era-invariant.
 use cubit::mercury::{merc_plop3_record, MERC_TMA_A, MERC_TMA_B, MERC_TMA_C};
 
 #[test]

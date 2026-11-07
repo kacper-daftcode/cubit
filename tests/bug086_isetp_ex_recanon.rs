@@ -1,4 +1,4 @@
-//! BUG-086 (F2Q-086-kand, residuum klasy z 074; fixed F2 2026-08-23):
+//! BUG-086 (candidate F2Q-086, the residue of the 074 class; fixed F2 2026-08-23):
 //! The ISETP/UISETP family in tables/sm120.json was legacy-harvest junk:
 //! (a) EX (dual-pred, 6-token) family missing entirely -- EX words were
 //!     absorbed by 5-token rows, scrambling operands (`-|R23|`, imm `0xff, 0x0`

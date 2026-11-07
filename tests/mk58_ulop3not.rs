@@ -6,7 +6,7 @@
 //! (merclab/mk58 c3/c4). Guard: none -> 0xfa (the |2 bit relative to 0xf8 from mk47);
 //! only negated @!UPn ((n<<3)|3) — a positive @UPn without a single
 //! corpus occurrence -> fail-closed. Lane without a bitmap bit (675/134,
-//! doktryna 'rekord zastepuje wezel t4').
+//! the doctrine 'the record replaces the t4 node').
 use cubit::mercury::merc_ulop3_not_record;
 
 trait Hex {

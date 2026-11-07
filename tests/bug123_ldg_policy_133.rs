@@ -2,26 +2,25 @@
 //! !rsd, and the encoder had no rows. Class fixed in full.
 //! D1 corpus + sweep (work/bug123/sweep.ptx, ptxas 13.3.73):
 //!
-//!   * II-wiersze .256 z trailer-imm (LDG_R_R_dARI_II — NOWY klucz):
+//!   * the .256 II rows with the trailing immediate (LDG_R_R_dARI_II — a NEW key):
 //!     256,E,EL,ENL2 / 256,E,EF,ENL2 / 256,E,ENL2,LTC256B /
 //!     256,CONSTANT,E,ENL2,LTC256B
-//!     geometria trailer-imm: imm[5:0]@57 (pole 6b, no-imm default 0x3f)
+//!     the trailing-imm geometry: imm[5:0]@57 (a 6-bit field, the no-imm default 0x3f)
 //!     + imm_shr7[7] -> printing ", 0x93"/", 0x83"/", 0x81"/", 0x1".
 //!       No-imm forms (field=0x3f, bit72=1) = separate 4-token rows —
 //!       disambiguation purely by key (token count), zero match_mask collisions
 //!       (noimm requires [57:63]=0x7f & bit72=1 as fixed states).
-//!   * noimm .256 polityki na LDG_R_R_dARI: 256,E,EL,ENL2 / 256,E,EF,ENL2 /
 //!   * noimm .256 policies on LDG_R_R_dARI: 256,E,EL,ENL2 / 256,E,EF,ENL2 /
 //!     256,E,ENL2,EU (b10 nibble: ENL2=0x12, EL=0x22, EF=0x02, EU=0x42).
 //!   * STG_dARI_R_R: 256,E,EF,ENL2 (EF = clear bit84 as on the LDG side).
 //!   * single-reg LDG_R_dARI: E,LU / 128,E,LU / E,EL / 128,E,EL / 64,E,EL /
 //!   * LTC marker (b8 hi-nibble 0x10/0x20/0x30; CONSTANT=bit79):
 //!     E,LTC64B / E,LTC256B / CONSTANT,E,LTC128B / 64,CONSTANT,E,LTC64B.
-//!   * printer: EU dodane do bucketa L1-hint (LDG.E.EU.ENL2.256, bylo
-//!     LDG.E.ENL2.EU.256 — render-parity b11 pernvidisam).
+//!   * printer: EU added to the L1-hint bucket (LDG.E.EU.ENL2.256; it was
+//!     LDG.E.ENL2.EU.256 — render parity with nvdisasm, b11).
 //!
-//! Wszystkie teksty = nvdisasm-13.3 golden (korpus pol*+sweep, 904 slow);
-//! wszystkie slowa krzemiowo OK (D1 matrix.json, run_legality). Raport:
+//! Every text = the nvdisasm 13.3 golden (the pol* corpus + the sweep, 904 words);
+//! every word silicon-OK (D1 matrix.json, run_legality). Report:
 //! the internal fix archive
 
 use cubit::decoder::DecodeIndex;

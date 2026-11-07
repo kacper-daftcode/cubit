@@ -1,26 +1,25 @@
 //! BUG-396 (F2-iter207, loop5/blind front2, 2026-09-05): SHFL [95:92]
-//! stray-window relax -- b92/b93/b94/b95 write-inert na WSZYSTKICH
-//! graftowanych rodzinach SHFL (RR x4 tryby, R_II x4, II_II x4, II_R x2)
-//! x4 nogi. Rejestracja 396-kand LOW (387.md sec.7, F2-iter206).
-//! Canonical graft patch396.py (93bc221 -> c155d00, tabele-only,
-//! ENGINE ZERO).
+//! stray-window relax -- b92/b93/b94/b95 write-inert on ALL grafted SHFL
+//! families (RR x4 modes, R_II x4, II_II x4, II_R x2) on 4 legs. Registered as
+//! candidate 396 LOW (387.md sec. 7, F2-iter206). Canonical graft patch396.py
+//! (93bc221 -> c155d00, tables only, ENGINE ZERO).
 //!
-//! LAW: arb387 (iter206) 280 sond: b93/b95 inert 56/56 x4 modele;
-//! arb387b: b92/b94/ball(92..95) legal-unanimous 42/42 x4; arb396
-//! (iter207) 84 sondy kompozycji: pary wewnatrz okna (92|93, 94|95,
-//! 92|94, 93|95) + ball okna + ball z regionami [63:61] (BUG-387) i
-//! [90:88]+b63 (BUG-382) = 84/84 rc=0 JEDNOMYSLNE x4, tekst == clean
-//! anchor; arb396b: rodzina t225 x okno (7/7). nvdisasm 13.3.73 raw -b,
-//! x4 modele SM100a/SM103a/SM120/SM121a AGREE na KAZDEJ sondzie,
-//! DIVERGENT=0. b91 = KILL x4 na kazdej klasie (pin ZOSTAJE); b64/b65 =
-//! LIVE reg-c field [71:64] na RR/II_R (granica dolna, zostaje).
-//! Bity >=96: poza domena tabel (M96) -- vendor rozszerza tam Rc
-//! (397-kand); relax rozlaczny z pólsetem [127:96] ex definitione.
+//! LAW: arb387 (iter206) 280 probes: b93/b95 inert 56/56 x4 models; arb387b:
+//! b92/b94/ball(92..95) legal, unanimous 42/42 x4; arb396 (iter207) 84
+//! composition probes: pairs inside the window (92|93, 94|95, 92|94, 93|95) +
+//! the window ball + the ball with the regions [63:61] (BUG-387) and [90:88]+b63
+//! (BUG-382) = 84/84 rc=0 UNANIMOUS x4, text == the clean anchor; arb396b: the
+//! t225 family x the window (7/7). nvdisasm 13.3.73 raw -b, x4 models
+//! SM100a/SM103a/SM120/SM121a AGREE on EVERY probe, DIVERGENT=0. b91 = KILL x4
+//! on every class (the pin STAYS); b64/b65 = the LIVE reg-c field [71:64] on
+//! RR / II_R (the lower edge, stays).
+//! Bits >= 96: outside the tables' domain (M96) -- the vendor extends Rc there
+//! (candidate 397); the relax is disjoint from the half-word [127:96] by definition.
 //! Pre-fix (publish cubit_py-fe384b27 81d27aa0..; canonical 93bc221;
-//! measure_pre396.json): 224 ogniwa b92..b95 + 56 ball LOUD HOLE x4
-//! nogi, 0 DECODED (zero cichego misprintu); kontrole b62/b61/b63
-//! DECODED 56/56 (grafy 387/382 zywe), b91 HOLE 56/56 (kill);
-//! II_R IDX/BFLY mint REFUSE x8 = residuum 358/368 sec.6 (zostaje).
+//! measure_pre396.json): 224 b92..b95 cells + 56 ball LOUD HOLE on 4 legs,
+//! 0 DECODED (zero silent misprints); the controls b62/b61/b63 DECODED 56/56
+//! (the 387 / 382 grafts alive), b91 HOLE 56/56 (kill);
+//! II_R IDX / BFLY mint REFUSE x8 = the residue of 358/368 sec. 6 (stays).
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;

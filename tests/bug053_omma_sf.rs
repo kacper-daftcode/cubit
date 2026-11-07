@@ -5,8 +5,8 @@
 //! to encode it"). The real geometry (nvdisasm + bit variants on gx4):
 //! reg 8b /24/32/40/52 + Rc in the hi word, UR6 @[63:60]; byte @[87:80] is the
 //! variant discriminator (E8=0x08, UE4M3.4X=0x04). GB10 silicon executes.
-//! Fix: geometria klonowana z rodziny QMMA.SF + czysty and_base (usuniety
-//! okaleczaly bit68, ktory nalezy do pola Rc).
+//! Fix: the geometry cloned from the QMMA.SF family + a clean and_base (the
+//! crippling bit 68, which belongs to the Rc field, removed).
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::table::IsaTable;

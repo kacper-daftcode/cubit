@@ -1,20 +1,20 @@
-//! BUG-468 pins (F2-iter280, loop5/blind front2, 2026-09-16): LTC-width
-//! selektor [74:73] lattice closure -- LDG E*L2.256 plain ARURI64 (nNA)
-//! x3 sel (2304 kluczy/noga: {LTC64B,LTC128B,LTC256B} x 768 donorow z
-//! 464/465-lattice) + NA-side LTC128B/LTC256B (16/noga; LTC64B dzialal
-//! pre). Klony donorow verbatim (vm/fields), ZMIANA TYLKO and_base |=
-//! sel<<73 + base_op + count=None + _src468; ENGINE ZERO (data-only).
-//! Vendor law (arb468 3140 sond nvdisasm 13.3.73 raw -b x4 AGREE
-//! EVERY/DIVERGENT=0): 192 ramki x sel{0,1,2,3} wszystkie vendor-legal,
-//! REFUSE 0; mnemonic-regula = wstawka .LTCnm. PO tokenie L2
-//! (EFL2/ENL2/ELL2); kills b91=0 rc=1 x4 pod kazdym sel; ra255 ->
-//! '[URm(+imm)]' elizja bazy, ur255 -> 'URZ' (plain-geometria 464 -- kill
-//! ra255 z 452 dotyczy WYLACZNIE dARI desc-form). Canonical 668f8429 ->
-//! 08a6145 (patch468.py replay+idem; audity A0(sym,count-121a=41 drift
-//! metadata)/A0b(2320 mnem==vendor)/A1(NONE->GRAFT 9376/STABLE 3232/
-//! STRICTIFY 0/BAD 0)/A2(strict-set mapa-donora 9280)/A3(killsym 144)/
-//! A4(+2320/noga exact)/A5/A7 fail-closed).
-//! Witness: tests/bug468_data.inc (maszynowe gen468pins.py rc=2).
+//! BUG-468 pins (F2-iter280, loop5/blind front2, 2026-09-16): the LTC-width
+//! selector [74:73] lattice closure -- LDG E*L2.256 plain ARURI64 (nNA) x3 sel (2304
+//! keys per leg: {LTC64B, LTC128B, LTC256B} x the 768 donors of the 464 / 465
+//! lattice) + the NA side LTC128B / LTC256B (16 per leg; LTC64B worked before). Donor
+//! clones verbatim (vm / fields), the ONLY CHANGE and_base |= sel<<73 + base_op +
+//! count = None + _src468; ENGINE ZERO (data only).
+//! Vendor law (arb468 3140 probes nvdisasm 13.3.73 raw -b x4 AGREE EVERY /
+//! DIVERGENT = 0): 192 frames x sel {0,1,2,3} all vendor-legal, REFUSE 0; the mnemonic
+//! rule = the infix .LTCnm. AFTER the L2 token (EFL2 / ENL2 / ELL2); the kills b91 = 0
+//! rc=1 x4 under every sel; ra255 -> the base elision '[URm(+imm)]', ur255 -> 'URZ'
+//! (the plain geometry of 464 -- the ra255 kill of 452 concerns ONLY the dARI desc
+//! form). Canonical 668f8429 -> 08a6145 (patch468.py replay + idempotent; audits A0
+//! (sym, count-121a = 41 a metadata drift) / A0b (2320 mnemonics == vendor) / A1
+//! (NONE -> GRAFT 9376 / STABLE 3232 / STRICTIFY 0 / BAD 0) / A2 (the strict-set
+//! donor map 9280) / A3 (killsym 144) / A4 (+2320 per leg exact) / A5 / A7
+//! fail-closed).
+//! Witness: tests/bug468_data.inc (machine-built by gen468pins.py rc=2).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

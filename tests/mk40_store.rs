@@ -1,5 +1,5 @@
-//! mk40 (2026-08-12): store-matrix 0238 + mini-slownik korpusowy.
-//! Piny bajtowe: korpus sm_100 (mk40/stgfields fits; mk40lab probes).
+//! mk40 (2026-08-12): the 0238 store matrix + a mini corpus dictionary.
+//! Byte pins: the sm_100 corpus (mk40/stgfields fits; mk40lab probes).
 
 use cubit::eiattr::{KernelMeta, KernelParam};
 use cubit::elf_builder::generate_mercury_full;

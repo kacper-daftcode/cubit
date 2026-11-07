@@ -1,9 +1,9 @@
-//! BUG-032 (rejestr sm120: 032 / iter92 + i93 census): operand GATE MMA
-//! (trailing UP rodzin QMMA/HMMA, sel 3b@87 + inv@90) ma konwencje nazw
-//! ODWROCONA wzgledem nvdisasm: nvdisasm UPn <=> sel 7-n, UPT <=> sel 0,
-//! a cubit drukowal/kodowal sel=n, UPT=7. Wewnetrzny roundtrip kubita dzialal
-//! (inwersja symetryczna obu stron), ale tekst nvdisasm -> cubit asm dawal
-//! INNA wartosc sel niz kanon (bit-exact re-emisja cudzych kerneli zlamana).
+//! BUG-032 (sm120 registry: 032 / iter92 + the i93 census): the MMA GATE operand
+//! (the trailing UP of the QMMA / HMMA families, sel 3b@87 + inv@90) has a naming
+//! convention INVERTED with respect to nvdisasm: nvdisasm UPn <=> sel 7-n, UPT <=> sel 0,
+//! while cubit printed / encoded sel = n, UPT = 7. cubit's internal round trip worked
+//! (a symmetric inversion on both sides), but the text nvdisasm -> cubit asm gave a
+//! DIFFERENT sel value than the canon (the bit-exact re-emission of foreign kernels broken).
 //!
 //! Scope (i93 verdict, 206775 UP records, 2113 cubins): inversion ONLY
 //! on the MMA gate operand; ALL other upred fields ( dest,  src

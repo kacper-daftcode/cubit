@@ -7,8 +7,8 @@
 //!  * count EXACT past the diverge gate (mk10 era): P2-hybrid H = 6021->8022
 //!    corpus TLV-exact kernels (+2001), strict containment P2<=H
 //!    (6021 shared, 0 lost) — the change is a no-regression guarantee.
-//!  * plain-BSSY (dialekty stalych producentow; 00/39 = inne rodzaje
-//!    rekordow regionowych) = park mk29-RE.
+//!  * plain BSSY (the dialects of the constant producers; 00/39 = other kinds
+//!    of region records) = parked, mk29-RE.
 use cubit::eiattr::{KernelMeta, KernelParam};
 use cubit::elf_builder::generate_mercury_full;
 use cubit::mercury::{merc_barrier_id, merc_region09_record, CapMerc, McScanText, mc_scan_lines};

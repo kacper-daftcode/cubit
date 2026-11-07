@@ -26,7 +26,7 @@
 //! should the row ever leave retention, era strict-match still works
 //! (zweryfikowane arytmetycznie w nocie raportu 122.md).
 //!
-//! Piny t122_1/2/5 FAIL przed fixem (kontrola), t122_3/4/6 = kotwice PASS.
+//! Pins t122_1/2/5 FAIL before the fix (control), t122_3/4/6 = anchors, PASS.
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

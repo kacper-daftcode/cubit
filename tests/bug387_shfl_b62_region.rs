@@ -1,21 +1,21 @@
 //! BUG-387 (F2-iter206, loop5/blind front2, 2026-09-05): SHFL b62-region
-//! stray-window relax -- [62:61] write-inert na WSZYSTKICH graftowanych
-//! rodzinach SHFL (RR x4 tryby, R_II x4, II_II x4, II_R x2) x4 nogi (b63
-//! nosi BUG-382). Rejestracja 387-kand LOW (382.md sec.7, F2-iter200).
-//! Canonical graft patch387.py (9713fd6 -> 93bc221, tabele-only, ENGINE ZERO).
+//! stray-window relax -- [62:61] write-inert on ALL grafted SHFL families (RR
+//! x4 modes, R_II x4, II_II x4, II_R x2) on 4 legs (b63 is carried by BUG-382).
+//! Registered as candidate 387 LOW (382.md sec. 7, F2-iter200). Canonical graft
+//! patch387.py (9713fd6 -> 93bc221, tables only, ENGINE ZERO).
 //!
-//! LAW: arb387 280 sond (28 ksztaltow = 14 rodzin x 2 warianty wartosci,
-//! nvdisasm 13.3.73 raw -b, x4 modele SM100a/SM103a/SM120/SM121a AGREE na
-//! KAZDEJ sondzie, DIVERGENT=0) + arb387b (okno [95:92], t225 exact-words):
-//! b62 + b61 write-inert na kazdej rodzinie x trybie x wariancie; combo
-//! b62|b63 + b62|ball(63,[90:88]) inert; b64/b65 = LIVE reg-c field [71:64]
-//! na RR/II_R (render zmienia, granica dolna okna); b91 = KILL x4 na kazdej
-//! klasie (pin ZOSTAJE); b92..b95 inert = okno [95:92] POZA zakresem 387
-//! (pin ZOSTAJE) -> 396-kand.
+//! LAW: arb387 280 probes (28 shapes = 14 families x 2 value variants,
+//! nvdisasm 13.3.73 raw -b, x4 models SM100a/SM103a/SM120/SM121a AGREE on
+//! EVERY probe, DIVERGENT=0) + arb387b (the [95:92] window, t225 exact words):
+//! b62 + b61 write-inert on every family x mode x variant; the combos
+//! b62|b63 + b62|ball(63,[90:88]) inert; b64/b65 = the LIVE reg-c field [71:64]
+//! on RR / II_R (the render changes: the lower edge of the window); b91 = KILL x4
+//! on every class (the pin STAYS); b92..b95 inert = the [95:92] window OUTSIDE
+//! the scope of 387 (the pin STAYS) -> candidate 396.
 //! Pre-fix (publish cubit_py-042ffa91 6748f0c8..; canonical 9713fd6;
-//! measure_pre387.json): 56 ogniw b62 + 56 ogniw b61 LOUD HOLE x4 nogi,
-//! 0 cichego misprintu; II_R IDX/BFLY mint REFUSE x4 = residuum no-claim
-//! 358/368 sec.6 (poza zakresem -- zostaje).
+//! measure_pre387.json): 56 b62 cells + 56 b61 cells LOUD HOLE on 4 legs, 0
+//! silent misprints; II_R IDX / BFLY mint REFUSE x4 = the no-claim residue of
+//! 358/368 sec. 6 (out of scope -- stays).
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;

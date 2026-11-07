@@ -1,22 +1,22 @@
-//! BUG-466 pins (F2-iter275, loop5/blind front2, 2026-09-16): rekanon x3
-//! ELL2.256 dARI-era frame do prawdziwej geometrii plain vendora. Legacy
-//! wiersze LDG_R_R_dARI/STG_dARI_R_R mgs {'256,E,EL,ELL2,GPU,STRONG',
-//! '256,E,ELL2,GPU,NA,STRONG'} nosily desc-geometry (ur 5b@32/9b@64, imm
-//! shr2 20b@37 / imm shr5u 16b@40) -- OBALONE vendor-law (arb466 180 sond +
-//! arb466b 85 tagow, nvdisasm 13.3.73 raw -b x3 AGREE EVERY/DIVERGENT=0):
-//! plain '[R{n}.U32+UR{m}(+/-imm<<5)]', base 255 -> elizja '[URm]', ur
-//! 8b@32 (LDG) / 8b@64 (STG), ur 255 -> URZ, imm17 (LDG [56:40)) / imm19
-//! (STG [58:40)) signed<<5, b76=1 KILL rc=1 x3. Canonical 67b54f4: delete
-//! 4 mgs x3 nogi + 4 klucze *_ARURI z ta sama and_base, vm +bit znaku imm,
-//! fields = donor-geo sub_r0/sub_ur1/sub_imm2_shr5; sm121a nietknieta
-//! (jej ELL2 dARI row na innym pin-bande = prawdziwy desc, CTRL466 keeper).
-//! ENGINE: arm printera ARURI poszerzony o rodzine .ELL2. x
-//! {LDG.E.,STG.E.} ride'ujaca efl2_na mode (width U32 fixed + 255-elide).
-//! Standing NIEclaimowane (snap pre==post HOLE; wpisane klase STAND466):
-//! b75=1 '.64' + LTC sel [74:73] + b80/b81/b85 lattice era-frame (476-kand
-//! NOWY) + pred-out [90:87] (477-kand NOWY). Witness data:
-//! tests/bug466_data.inc (machine-built by work/bug466467/gen466pins.py
-//! rc=2; no hand hex; mints nvdisasm-crossed x3).
+//! BUG-466 pins (F2-iter275, loop5/blind front2, 2026-09-16): the x3 re-canon of
+//! the ELL2.256 dARI-era frame onto the vendor's real plain geometry. The legacy rows
+//! LDG_R_R_dARI / STG_dARI_R_R mgs {'256,E,EL,ELL2,GPU,STRONG', '256,E,ELL2,GPU,NA,
+//! STRONG'} carried a desc geometry (ur 5b@32 / 9b@64, imm shr2 20b@37 / imm shr5u
+//! 16b@40) -- REFUTED by the vendor law (arb466 180 probes + arb466b 85 tags,
+//! nvdisasm 13.3.73 raw -b x3 AGREE EVERY / DIVERGENT = 0): plain
+//! '[R{n}.U32+UR{m}(+/-imm<<5)]', base 255 -> the elision '[URm]', ur 8b@32 (LDG) /
+//! 8b@64 (STG), ur 255 -> URZ, imm17 (LDG [56:40)) / imm19 (STG [58:40)) signed<<5,
+//! b76 = 1 KILL rc=1 x3. Canonical 67b54f4: delete 4 mgs on 3 legs + 4 keys *_ARURI
+//! with the same and_base, vm + the imm sign bit, fields = the donor geometry
+//! sub_r0 / sub_ur1 / sub_imm2_shr5; sm121a untouched (its ELL2 dARI row on another
+//! pin band = a real desc, the CTRL466 keeper).
+//! ENGINE: the ARURI printer arm widened by the family .ELL2. x {LDG.E., STG.E.}
+//! riding the efl2_na mode (width U32 fixed + the 255 elision).
+//! Standing, NOT claimed (snapshot pre == post HOLE; recorded as the class STAND466):
+//! b75 = 1 '.64' + the LTC selector [74:73] + the b80 / b81 / b85 lattice of the era
+//! frame (candidate 476, NEW) + the pred-out [90:87] (candidate 477, NEW). Witness
+//! data: tests/bug466_data.inc (machine-built by work/bug466467/gen466pins.py rc=2;
+//! no hand hex; the mints nvdisasm-crossed x3).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

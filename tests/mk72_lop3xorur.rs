@@ -6,7 +6,7 @@
 //! are R registers, the srcB operand UR<n>, unguarded (b4=0xf8 fixed; guarded
 //! forms unobserved -> fail-closed). 16B: `01 29 08 04 f8 00 04 00 01 f8 |
 //! dst<<6|1 u16 | a<<6 u16 | b<<6 u16`. Lane without a bitmap bit (the
-//! mk13/mk47/mk58/mk71: rekord zastepuje wezel t4).
+//! mk13/mk47/mk58/mk71: the record replaces the t4 node).
 use cubit::mercury::merc_lop3_xor_ur_record;
 
 trait Hex {

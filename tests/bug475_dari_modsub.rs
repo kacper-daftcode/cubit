@@ -1,30 +1,33 @@
-//! BUG-475 pins (F2-iter287/288, loop5/blind front2, 2026-09-17): dARI modsub
-//! lattice (b76=1) na frame E*L2.256 (LDG 0x97e / STG 0x97f, desc[URx][Ry.64])
-//! -- klon 6 donorow *_dARI EFL2.256/noga (LDG x4 {,_P,_II,_II_P}, STG x2
-//! {_II}) na kratke 191 kombinacji/op (l1,l2,sem \ baza; l2!=3) = +1146
-//! kluczy/noga; clone zmienia TYLKO and_base (piny [77:86), b76=1) + base_op;
-//! vm/fields verbatim. REKANON 462-mgs ENL2 (489-absorb): DELETE 13/13/7 mgs
-//! ENL2 ltc=0 na widthless-kluczach (puste LDG_R_R_dARI/STG_dARI_R_R kasacja
-//! x100a/103a; x120 mg tylko), 121a REPLACE 9 heritage _src462 lattice-named +
-//! DELETE 2 anomalie-tokenowe NA/EU (count=0 dead). ENGINE ZERO src (sciezka
-//! op dARI sterowana podpisem). Vendor law: arb475 560 sond nvdisasm 13.3.73
-//! raw -b x4 AGREE EVERY poza l2=3 (div = wylacznie 64 komorki LDG l2=3
-//! era-split standing-463; STG l2=3 glyph INVALID3); kills b91=0 rc=1 x4;
-//! ra255 REFUSE x4 (BRAK elizji '[URm]' plain-464); ur255 desc[URZ]; imm
-//! podpisane<<5 w nawiasie desc; STG LTC-sel [74:73] inert x4. Data:
-//! patch475.py replay z canon_pre (68ac5aa-content) byte-exact x4 + idem
-//! all-skip 4584; audity A0/A0b(408)/A1/A2/A4(+1146 -2 key x4)/A5 census
-//! (14868/14868/16005/23825)/A9-R2 (+R3/R3b: NA/EU/alias + 121a anomalie) fail-closed. Canonical commit = cc2f62c379c3e190ef373ab9e8f76af0aeef326c
-//! (serializacja INC-283a: po publish474; flip475b faza B). Korpus: 36 uniq
-//! dARI w ab240 EXACT keep x4 (era-korekta iter288: corpus475_verify_v2).
-//! Witness: tests/bug475_data.inc (maszynowe gen475pins.py rc=2; macierz klas
-//! lock x claim475 engine-truth; NOTA: A1 split heal/heal462 bylo candidate-
-//! based -- generator mierzy slinikowo: 6/6/4/4 vs A1 3/3/3/4; suma zgodna).
-//! R3 (F2-iter289, INC-289d): R2 over-delete po mis-klasyfikacji 489 --
-//! odtworzenie pokrycia vendor-legal: NA/EU ENL2.256 dARI (klon-okna grafta,
-//! NIE verbatim 462 [ur5@32+imm20@37shr2]; arb475r3 27 sond x4 div0/invalid0,
-//! cold-MIS=15) + alias-encode ".E.256.ENL2" (LDG_R_R_dARI mg encode_only).
-//! collision-sweep 596x4 diffs=0; verify475r3 GATE PASS; 121a bajtowo nietkn.
+//! BUG-475 pins (F2-iter287/288, loop5/blind front2, 2026-09-17): the dARI modsub
+//! lattice (b76 = 1) on the E*L2.256 frame (LDG 0x97e / STG 0x97f, desc[URx][Ry.64])
+//! -- a clone of the 6 *_dARI EFL2.256 donors per leg (LDG x4 {,_P,_II,_II_P}, STG x2
+//! {_II}) onto the lattice of 191 combinations per op (l1, l2, sem \ base; l2 != 3) =
+//! +1146 keys per leg; the clone changes ONLY and_base (the pins [77:86), b76 = 1) +
+//! base_op; vm / fields verbatim. The RE-CANON of the 462 mgs ENL2 (the 489 absorb):
+//! DELETE 13/13/7 mgs ENL2 ltc = 0 on the widthless keys (the emptied LDG_R_R_dARI /
+//! STG_dARI_R_R deleted on x100a / 103a; on x120 the mg only), 121a REPLACE 9 heritage
+//! _src462 lattice-named + DELETE 2 token anomalies NA / EU (count = 0, dead). ENGINE
+//! ZERO source changes (the dARI op path is driven by the signature). Vendor law:
+//! arb475 560 probes nvdisasm 13.3.73 raw -b x4 AGREE EVERY except l2 = 3 (the
+//! divergence = exactly the 64 LDG l2 = 3 cells, the era split standing from 463; STG
+//! l2 = 3 the glyph INVALID3); the kills b91 = 0 rc=1 x4; ra255 REFUSE x4 (NO '[URm]'
+//! elision as in plain 464); ur255 desc[URZ]; the imm signed<<5 inside the desc
+//! brackets; the STG LTC selector [74:73] inert x4. Data: patch475.py replay from
+//! canon_pre (68ac5aa content) byte-exact x4 + idempotent all-skip 4584; audits A0 /
+//! A0b (408) / A1 / A2 / A4 (+1146 -2 keys x4) / A5 census (14868/14868/16005/23825) /
+//! A9-R2 (+R3 / R3b: NA / EU / alias + the 121a anomalies) fail-closed. Canonical commit = cc2f62c379c3e190ef373ab9e8f76af0aeef326c
+//! (serialisation INC-283a: after publish474; flip475b phase B). Corpus: 36 uniq dARI
+//! in ab240 EXACT keep x4 (the era correction of iter288: corpus475_verify_v2).
+//! Witness: tests/bug475_data.inc (machine-built by gen475pins.py rc=2; the class
+//! matrix locked x claim475 engine truth; NOTE: the A1 split heal / heal462 was
+//! candidate-based -- the generator measures through the engine: 6/6/4/4 vs A1
+//! 3/3/3/4; the sums agree).
+//! R3 (F2-iter289, INC-289d): the R2 over-delete after the 489 mis-classification --
+//! the vendor-legal coverage restored: NA / EU ENL2.256 dARI (clones of the graft's
+//! window, NOT the verbatim 462 [ur5@32 + imm20@37 shr2]; arb475r3 27 probes x4 div 0
+//! / invalid 0, cold-MIS = 15) + the alias encode ".E.256.ENL2" (LDG_R_R_dARI mg
+//! encode_only). The collision sweep 596 x4 diffs = 0; verify475r3 GATE PASS; 121a
+//! byte-untouched.
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

@@ -1,9 +1,9 @@
-//! mk49: rekordy 024e*32 (32B) — rodzina ATOM.E/ATOMG/ATOMS (domkniecie
-//! frontu mk48: 024e2032/024e3032/024e6832/024e8a32/024e8232 orig-only +
+//! mk49: the 024e*32 records (32B) — the ATOM.E / ATOMG / ATOMS family (closing the
+//! mk48 front: 024e2032/024e3032/024e6832/024e8a32/024e8232 orig-only +
 //! mistaken mk14-tuple classes for 024e5232-b6/b7, 024e2432-b7, 024e8432).
 //!
 //! sm_100 corpus (676 files): full byte agreement 11898/11898 records,
-//! 2929/2929 kerneli, porzadek strumienia == lane-asc. CAST.SPIN /
+//! 2929/2929 kernels, the stream order == lane-ascending. CAST.SPIN /
 //! ATOM.E.CAS.* are recordless (c8: once skipped, pairing is 1:1).
 //! Tabela klas (b2): 20=ATOM.E desc float (b6: F16x2 00 / BF16x2 18 /
 //! F32 48 / F64 78), 68=ATOM.E desc int (ADD 00 / ADD.64 60 / MAX.S32 42 /

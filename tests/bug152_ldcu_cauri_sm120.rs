@@ -1,6 +1,6 @@
-//! BUG-152 (F2-iter73; zrodlo: nota 151 sec.5): tables/sm120.json carried a
+//! BUG-152 (F2-iter73; source: note 151 sec. 5): tables/sm120.json carried a
 //! separate signature LDCU_UR_cAURI (groups ""/U8/64/128) that no src path
-//! supports: decode of UR-indexed words printed `?cAURI` (dowod:
+//! supports: decode of UR-indexed words printed `?cAURI` (evidence:
 //! work/i71/p120raw, probe word 0x...050577ac -> "LDCU UR5, ?cAURI"), and
 //! encoding the text form `LDCU URn, c[0x0][URn+0xOFF]` failed closed
 //! (parser key LDCU_UR_cAI vs UR-capable row only under cAURI).

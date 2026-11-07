@@ -2,7 +2,7 @@
 //! operands (trsv/sphpr/sphpmv — nvdis l2 drops the suffix, frozen-sass
 //! prints it; the simplified R<num> parse rejected them), (b) the full guard code b4 =
 //! merc_guard_code (pred<<3|uni<<1|neg; none/@P7 -> 0xf8) instead of the tri-state
-//! 0/1/2 mapowanego w from_parts. Korpus l2 EXACT: liczniki 18932/18932,
+//! 0/1/2 mapped in from_parts. The l2 corpus EXACT: counters 18932/18932,
 //! payload+b4 19374/19374 (merclab/mk73 c1/c3).
 use cubit::sass_file::{kernel_def_to_meta, merc_guard_code, parse_sass_file_str};
 

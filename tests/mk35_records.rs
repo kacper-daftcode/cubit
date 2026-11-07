@@ -1,8 +1,8 @@
-//! mk35 (2026-08-11): regresje z zamkniecia wide-sweep (198 -> 214/214):
-//! siatka rol desc = (dst-load-reg<<6)|C (C = drabinka szerokosci),
-//! zachowanie REDUX/CREDUX, ISETP-UR mini, guardy BAR per-lane,
+//! mk35 (2026-08-11): regressions from the wide-sweep closure (198 -> 214/214):
+//! the desc role grid = (dst-load-reg<<6)|C (C = the width ladder),
+//! the REDUX / CREDUX behaviour, the ISETP-UR mini, the per-lane BAR guards,
 //! no record fabrication when the kernel loads no parameters,
-//! rekord REDG-desc-form (024d2432), STG.128 b6=0x60+flaga dreg.
+//! the REDG desc-form record (024d2432), STG.128 b6=0x60 + the dreg flag.
 
 use cubit::eiattr::{KernelMeta, KernelParam};
 use cubit::elf_builder::generate_mercury_full;

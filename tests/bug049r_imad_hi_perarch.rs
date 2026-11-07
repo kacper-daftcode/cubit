@@ -10,7 +10,7 @@
 //! Fix at the source: arch_ef_flags knows SM121 => target_sm()==121; the BUG-002
 //! guard fires ONLY for sm_120 (the only arch with silicon evidence of the
 //! HI->WIDE breakage). On other arches the table is authoritative, as for every opcode.
-//! sm_120 reject pozostaje nietkniety (bugs_errata_sm120::bug002_* go paletuje).
+//! The sm_120 reject stays untouched (bugs_errata_sm120::bug002_* pins it).
 use cubit::encoder::encode_instruction;
 use cubit::table::IsaTable;
 

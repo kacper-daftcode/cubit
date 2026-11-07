@@ -9,20 +9,20 @@
 //! MEASUREMENT (pre-fix publish cubit_py-aa5a610.so 9dce9a44.., canonical
 //! 5c12995; work/bug358/measure_pre358.json):
 //!  (a) decode HOLE pred<PT on IIII {IDX,UP,BFLY} + R_II x4 + IIR-UP
-//!      (16 zmierzonych); HOLE IIR p7 ([52:40] pin); HOLE [71:64]!=0
+//!      (16 measured); HOLE IIR p7 ([52:40] pin); HOLE [71:64]!=0
 //!      IIII x4; SILENT MISDECODE R_II jug64 x4 ('...0x0, UR20' junk);
-//!      II_R DOWN brak => HOLE + mint REFUSE.
-//!  (b) authored mints pred<PT cicho do PT (intent-drop via (4,12) field
-//!      piszacy w guard slot; '@!P1 ... PT' redec 'P9').
-//! LAW: arb358 73 sondy nvdisasm 13.3.73 raw -b, x4 modele AGREE on
+//!      II_R DOWN missing => HOLE + mint REFUSE.
+//!  (b) authored mints silently turned pred<PT into PT (intent drop via the (4,12)
+//!      field writing into the guard slot; '@!P1 ... PT' re-decoded as 'P9').
+//! LAW: arb358 73 probes nvdisasm 13.3.73 raw -b, x4 models AGREE on
 //! EVERY probe: mode2b@[59:58]=IDX/UP/DOWN/BFLY; b1 0x7f=II_II,
-//! 0x75=R_II, 0x79=II_R, 0x73=R_R; pred[83:81] legalne na kazdej II-form
-//! rodzinie x4, niezalezne od guard[15:12]; [71:64] inert na tok5-imm;
-//! [52:40] inert na II_R. Corpus exposure ZERO (74 kotwice SHFL battery
+//! 0x75=R_II, 0x79=II_R, 0x73=R_R; pred[83:81] legal on every II-form family
+//! x4, independent of guard[15:12]; [71:64] inert on the tok5 immediate;
+//! [52:40] inert on II_R. Corpus exposure ZERO (74 anchors of the SHFL battery
 //! ab240: II-form pred!=PT / [71:64]!=0 / II_R = 0).
 //! NOT grafted: _? junk rows (iter211 ERR-213). CLOSED since: R-form UP
 //! pinned pred + cross-leg II-form = BUG-368/369 (F2-iter194, canonical
-//! c913faa): kontrast-piny w t358_4 odwrocone do prawa vendor z atrybucja.
+//! c913faa): the contrast pins in t358_4 inverted to the vendor law, with attribution.
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;

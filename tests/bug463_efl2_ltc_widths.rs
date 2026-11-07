@@ -1,10 +1,10 @@
 //! BUG-463 pins (F2-iter266, loop5/blind front2, 2026-09-14): nNA EFL2.256
 //! dARI frame donor-symmetric holes -- (a) vendor-noop band vm-relax
 //! (STG {72,73,74,87,92..95}; LDG {92..95}), (b) LTC-width selektor [74:73]
-//! klucze LTC64B/128B/256B absent x4 (ab |= selbits, forma = NA LTC64B
-//! delta {73}; claim_forbid BUG-452 verbatim; count=None).
-//! Vendor law (arb463 44 + arb463b 12 + arb463c 5 sond nvdisasm 13.3.73
-//! raw -b x4 AGREE EVERY/DIVERGENT=0): band noop pod pole4/pol00/polff/
+//! the keys LTC64B / 128B / 256B absent x4 (ab |= selbits, the form = NA LTC64B
+//! delta {73}; the BUG-452 claim_forbid verbatim; count=None).
+//! Vendor law (arb463 44 + arb463b 12 + arb463c 5 probes nvdisasm 13.3.73
+//! raw -b x4 AGREE EVERY / DIVERGENT=0): the band a no-op under pole4 / pol00 / polff /
 //! @P0/rich; pol sweep {00,01,64,7f,ff} (0xff elided, trailer PRZED
 //! pred-out); kills b91 + ra255 (452) rc=1 x4 obu selektorow; URZ/RZ glyph
 //! legalne; era-b118/reuse-b122 legalne; imm17 signed '+-'. Canonical

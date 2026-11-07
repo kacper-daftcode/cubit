@@ -1,18 +1,18 @@
 //! BUG-382 (F2-iter200, loop5/blind front2, 2026-09-04): SHFL stray-window
-//! relax -- b63 + [90:88] write-inert na WSZYSTKICH graftowanych rodzinach
-//! SHFL (RR x4 tryby, R_II x4, II_II x4, II_R x2) x4 nogi. Rejestracja
-//! 382-kand LOW (368_369.md sec.6, F2-iter194; arb368 E w reku). Canonical
-//! graft patch382.py (6742fdf -> 47e4ce4, tabele-only, ENGINE ZERO).
+//! relax -- b63 + [90:88] write-inert on ALL grafted SHFL families (RR x4 modes,
+//! R_II x4, II_II x4, II_R x2) on 4 legs. Registered as candidate 382 LOW
+//! (368_369.md sec. 6, F2-iter194; arb368 E in hand). Canonical graft
+//! patch382.py (6742fdf -> 47e4ce4, tables only, ENGINE ZERO).
 //!
-//! LAW: arb382 98 sond (nvdisasm 13.3.73 raw -b, x4 modele
-//! SM100a/SM103a/SM120/SM121a AGREE na KAZDEJ sondzie, DIVERGENT=0):
-//! b63/b88/b89/b90 write-inert (junk word -> identyczny czysty tekst) na
-//! kazdej rodzinie x trybie; ball-probe {63,88,89,90} inert; b91 = KILL
-//! x4 na kazdej klasie (pin ZOSTAJE).
+//! LAW: arb382 98 probes (nvdisasm 13.3.73 raw -b, x4 models
+//! SM100a/SM103a/SM120/SM121a AGREE on EVERY probe, DIVERGENT=0):
+//! b63/b88/b89/b90 write-inert (a junk word -> the identical clean text) on
+//! every family x mode; the ball probe {63,88,89,90} inert; b91 = KILL x4 on
+//! every class (the pin STAYS).
 //! Pre-fix (publish cubit_py-f1f3dd78 caef5dea..; canonical 6742fdf;
-//! measure_pre382.json): 224 ogniwa junk-bit LOUD HOLE x4 nogi, 0 cichego
-//! misprintu; II_R IDX/BFLY mint REFUSE x4 = residuum no-claim (368 sec.6,
-//! poza zakresem -- zostaje).
+//! measure_pre382.json): 224 junk-bit cells LOUD HOLE on 4 legs, 0 silent
+//! misprints; II_R IDX / BFLY mint REFUSE x4 = the no-claim residue (368 sec. 6,
+//! out of scope -- stays).
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;

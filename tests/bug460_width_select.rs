@@ -1,20 +1,19 @@
-//! BUG-460 pins (F2-iter262, loop5/blind front2, 2026-09-13): encoder
-//! width-select ARURI64. Tekst '... [Rn.64+URm(+off)]' typowal sie
-//! suffix-blindo jako _ARURI_R (operand_type_label gubi suffix) i mincil
-//! slowo U32-shape (b90=0) na WSZYSTKICH 4 nogach -- z cichym render-driftem
-//! roundtrip .64 -> .U32 (triage460: 20/20 vs publish cubit_py-9594899e;
-//! klasa WRONG-FORM = strata informacji o szerokosci adresu w bajtach).
-//! Dodatkowo '[RZ.64+URx]' mintowal omijajac claim_forbid BUG-452 (guard
-//! siedzi na wierszach ARURI64 -- L2 encode-side pelny zasieg dopiero po
-//! tym fixie). Fix (encoder, ~1 arm, canonical STOI e03e034): gdy Addr ma
-//! base+UR i suffix=="64", kandydaci *_ARURI64_* ida NAJWYZSZYM
-//! priorytetem przed suffix-blindo lancuchem; fit fail-closed jak dotad
-//! (entry_matches_operands); rodziny bez wierszy ARURI64 (wszystkie poza
-//! REDG, census: _ARURI64* tylko REDG 3072/noga x4) zachowuja sciezke
-//! ARURI bez zmian. Vendor law b90 (arb454 x4 AGREE): '.64' iff b90=1.
-//! Piny vendor-proven: kazda celka MINT64 zgate'owana nvdisasm 13.3.73
-//! -b SM103a (donor-verbatim x4, patch454 A2) przy GENERACJI (gen460pins.py,
-//! rc=2 fail-closed, zero recznego hex). Witness: tests/bug460_data.inc.
+//! BUG-460 pins (F2-iter262, loop5/blind front2, 2026-09-13): the encoder's
+//! ARURI64 width select. The text '... [Rn.64+URm(+off)]' was typed suffix-blind as
+//! _ARURI_R (operand_type_label drops the suffix) and minted the U32-shape word
+//! (b90 = 0) on ALL 4 legs -- with a silent render drift in the round trip .64 ->
+//! .U32 (triage460: 20/20 vs the publish cubit_py-9594899e; the WRONG-FORM class =
+//! the loss of the address-width information in the bytes). In addition
+//! '[RZ.64+URx]' minted around the BUG-452 claim_forbid (the guard sits on the
+//! ARURI64 rows -- the L2 encode side reaches its full range only after this fix).
+//! Fix (encoder, ~1 arm, canonical STANDS at e03e034): when the Addr has base + UR
+//! and the suffix == "64", the *_ARURI64_* candidates go FIRST, before the
+//! suffix-blind chain; the fit fails closed as before (entry_matches_operands);
+//! families without ARURI64 rows (all but REDG; census: _ARURI64* only REDG, 3072 per
+//! leg x4) keep the ARURI path unchanged. Vendor law for b90 (arb454 x4 AGREE): '.64'
+//! iff b90 = 1. Vendor-proven pins: every MINT64 cell gated with nvdisasm 13.3.73
+//! -b SM103a (donor-verbatim x4, patch454 A2) at GENERATION time (gen460pins.py,
+//! rc=2 fail-closed, zero hand hex). Witness: tests/bug460_data.inc.
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

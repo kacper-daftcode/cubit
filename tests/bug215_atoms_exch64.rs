@@ -1,8 +1,8 @@
 //! BUG-215 (F2-iter106, front2/blind, 2026-08-27): ATOMS EXCH .64
-//! WITNESSED closure — 215-kand sondy over the ATOMS .64 legs
+//! WITNESSED closure — the candidate-215 probes over the ATOMS .64 legs
 //! (MIN/MAX/ADD/INC/EXCH; MIN answered negative in 208).
 //!
-//! Vendor-emission sondy (work/bug215/probe/u64_215.cu, nvcc 13.3.73,
+//! Vendor-emission probes (work/bug215/probe/u64_215.cu, nvcc 13.3.73,
 //! sm_100a/103a/120a, payload byte-identical arch-eq):
 //!  - atomicExch(shared u64)  -> ATOMS.EXCH.64 R4, [R5+0x2000], R2  NATIVE
 //!  - atomicMax(shared u64/s64) -> ATOMS.CAST.SPIN.64 CAS-loop (negative)

@@ -10,10 +10,10 @@
 //! vendor-corpus anchor words (libcublas/Lt/cusolver/cusparse, sm_100/103),
 //! geometry consistent with the sm103a sibling (069); method: field-window deduction
 //! from value-per-bit correlation per template + per-anchor verification.
-//! Uwaga metodowa (pin): nvdisasm -hex drukuje hi64 NA LINII POWYZEJ tekstu —
-//! nalezy do instrukcji POWYZEJ (layout pliku [lo64][hi64]); sparowanie
-//! "hi-line + trailing-lo" daje slowo przesuniete o instrukcje ( falszywe
-//! "nvdisasm renderuje te same bajty inaczej" — artefakt parowania, B79-pre).
+//! A note on method (pinned): nvdisasm -hex prints the hi64 ON THE LINE ABOVE the
+//! text — it belongs to the instruction ABOVE (file layout [lo64][hi64]); pairing
+//! "hi line + trailing lo" gives a word shifted by one instruction (the false
+//! "nvdisasm renders the same bytes differently" — a pairing artefact, B79-pre).
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;

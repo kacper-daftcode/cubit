@@ -1,8 +1,8 @@
 //! BUG-425b pins (F2-iter238B, loop5/blind front2, 2026-09-10): fuzz-harvest
-//! residual repair nad BUG-425. Canonical 3f6ca6f -> 52cb73c (patch425b.py
-//! replayable+idempotent; ENGINE zero src). Klasy: (B) sm121a STS_ARURI_R|U16
+//! residual repair over BUG-425. Canonical 3f6ca6f -> 52cb73c (patch425b.py
+//! replayable + idempotent; ENGINE zero src). Classes: (B) sm121a STS_ARURI_R|U16
 //! imm-field restore [clone canonical sm103a verbatim]; (A/D-width) sm121a
-//! STS_AURI_R width-pin [75:73); (C) STS_ARI_R|64 x3 nogi usuniecie pola
+//! STS_AURI_R width pin [75:73); (C) STS_ARI_R|64 on 3 legs: the field
 //! urz_expl@11 (b11 -> care, vendor-ILLEGAL (x,1) refuse); era-retention
 //! t164-carriers + pre-existing TOLER625.. (b11=0) snapshots.
 //!
