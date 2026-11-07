@@ -90,12 +90,15 @@ fn t283_1_structure_graft_and_donors() {
         // sibling-era row untouched (316-kand: it never matched; registered)
         assert!(t.entries.contains_key("MOVM.U4TO8.M832_R_R"), "{leg}");
     }
-    // donors byte-untouched: still no MOVM keys at all (315-kand, owner scope)
+    // HIDDEN-B300 superseded the empty-donor assertion with six measured rows.
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
-        for k in t.entries.keys() {
-            assert!(!k.starts_with("MOVM"), "{leg}: donor carries {k}");
+        for key in ["MOVM.16.MT88_R_R", "MOVM.U4TO8.MT88_R_R",
+                    "MOVM.16.M832_R_R", "MOVM.U4TO8.M832_R_R",
+                    "MOVM.16.M864_R_R", "MOVM.U4TO8.M864_R_R"] {
+            assert!(t.entries.contains_key(key), "{leg}: missing measured {key}");
         }
+        assert_eq!(t.entries.keys().filter(|key| key.starts_with("MOVM")).count(), 6);
     }
 }
 
