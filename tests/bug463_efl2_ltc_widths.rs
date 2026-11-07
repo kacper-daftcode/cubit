@@ -176,7 +176,7 @@ fn t463_6_census_attribution() {
             src["base_revision"]
                 .as_str()
                 .unwrap()
-                .starts_with("090e2bd869dc") /* K3.1 FlashKDA UTMALDG 1D descriptor form */,
+                .starts_with("69f97e10f05e") /* K3.1 FlashKDA FP32 ALU tail forms */,
             "SOURCE pin drift"
         );
     }
