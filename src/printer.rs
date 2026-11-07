@@ -2331,11 +2331,13 @@ fn format_reg(
     //        else       -> .F32x2 + .LO_HI(b81) or .HI_LO(default) [+ .NP(b83)]
     //   t3:  b88        -> .F32
     //        else       -> .F32x2.HI_LO
-    //   t4:             -> .F32x2.HI_LO always (neg@75/abs@74/reuse@124 are
-    //                      row fields, graft-proven)
+    //   t4:  b85        -> .F32, else .F32x2.HI_LO (neg@75/abs@74/reuse@124
+    //                      are row fields; K3.1 production witnesses measure
+    //                      both b85 values on the R and UR forms)
     if ins_key.starts_with("FFMA2") {
         let b81 = (raw >> 81) & 1 != 0;
         let b82 = (raw >> 82) & 1 != 0;
+        let b85 = (raw >> 85) & 1 != 0;
         let b88 = (raw >> 88) & 1 != 0;
         let ur_form = ins_key == "FFMA2_R_R_UR_R";
         match tok {
@@ -2376,7 +2378,9 @@ fn format_reg(
                 // R-form t3 (UR-form t3 handled in the UR branch of
                 // format_operand): bit law b88 -> .F32 else .F32x2.HI_LO
                 if b88 {
-                    opmods.push("F32".to_string());
+                    if !opmods.iter().any(|m| m == "F32") {
+                        opmods.push("F32".to_string());
+                    }
                 } else {
                     opmods.push("F32x2".to_string());
                     opmods.push("HI_LO".to_string());
@@ -2385,7 +2389,13 @@ fn format_reg(
             4 => {
                 if ur_form {
                     // UR-form t4 = .F32 always (corpus 512/512 + graft corners)
-                    opmods.push("F32".to_string());
+                    if !opmods.iter().any(|m| m == "F32") {
+                        opmods.push("F32".to_string());
+                    }
+                } else if b85 {
+                    if !opmods.iter().any(|m| m == "F32") {
+                        opmods.push("F32".to_string());
+                    }
                 } else {
                     opmods.push("F32x2".to_string());
                     opmods.push("HI_LO".to_string());
