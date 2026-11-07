@@ -4,6 +4,55 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-07 (session T-14, gated and pushed by T-15: the T1 production line's run 3 — the 256-bit global load's descriptor form measured whole by session G; the sm103a MUFU packed-half lanes measured by T on the B300; NEEDS 46 measured)
+
+- **Tables vendored from blackwell-isa `8aa5f34`** (sm120 14 805 forms / 32 555 variants, from 15 583 / 28 729; sm103a
+  14 926 forms / 22 445 variants, from 14 925 / 22 439; sm100a / sm121a unchanged). KNOWN_ISSUES T1: **32 555 rows, 17 690 with
+  `_src` — 14 865 harvest rows left** (15 647 at `94ff281`). Session G's run-3 batch 10, re-measured word by word by T
+  (`T/t14/review/b10`) with, new for this run, the **full census text-parity check**: every one of the 249 929 distinct
+  words of the production census + our kernels is decoded with the old and the new table, and every word of a touched key
+  (all of them, not a sample) is compared with nvdisasm 13.1's text — the whole production LDG / STG / LD witness
+  set, 8 020 / 8 020 words print the vendor's text with the new table and the new printer rank.
+  - **LDG.256 dARI measured whole** (G's `348535f`; `tools/probes/re_sm120_ldg256.py --form dari`, 4 888 form + 81 lattice
+    words — the same text on `-b SM103` / `SM100` for every form word, the L2 = 3 plane prints `INVALID3` there against
+    SM120's `RML2.???` glyphs (lattice either way); `tests/fixtures/sm120_ldg256_dari_nvdisasm.jsonl`, `tests/sm120_ldg256_dari.rs`):
+    the 256-bit global load (opcode 0x97e, frame bit 91) in its descriptor address form `desc[URb][Ra.64(+off)]` — the four
+    plain keys `LDG_R_R_dARI[_II][_P]` carry 1 152 measured groups each (6 cache × 3 L2 × 4 LTC × the 16-value strength /
+    scope / PRIVATE enum; 4 607 groups added), provenance `ldg256-family-2026-11-07`; **the 781 dotted one-group harvest
+    keys of the form are `_meta.key_aliases` of the plain key of their operand signature** (every one names a group of its
+    target; 0 census witnesses). Law: guard [15:12], Rd1 [23:16], Ra [31:24] (RZ illegal → `claim_forbid`), URb [39:32], the
+    signed 17-bit offset in 32-byte units [56:40], the trailing byte [63:57] + 72 elided at 0xff (the `_II` keys), Rd0
+    [71:64], LTC [74:73], bits 75 / 76 = base width + descriptor, the strength / scope / PRIVATE enum [80:77], L2 [82:81],
+    cache [86:84] (EF / none / EL / LU / EU / NA), the trailing predicate [90:87] (`pred_inv4`, PT elided: the `_P` keys);
+    bit 83 and [95:92] text-inert, fail-closed. Printer: the LDG / STG modifier rank gains the LTC widths (after the L2 hint,
+    before the size), MMIO (the STRONG / CONSTANT slot), VC (a scope) and LU (the cache slot) — 2 590 of the 4 888 words
+    printed out of order before. Re-pinned on sm120: the claim_forbid census 7 011 → 10 837, bug466's "legacy desc-form"
+    refusal lifted for `LDG.E.NA.ELL2.256.STRONG.GPU desc[..]` (a legal word the vendor names), the heal words of
+    bug453 / 463 / 475 with the text-inert bits 92–95 fail closed, era-keys 320 → 1 101.
+- **The sm103a MUFU packed-half lanes measured** (blackwell-isa `8aa5f34`; `tools/probes/re_sm103_mufu_x2.py`, run on the
+  B300 host with **nvdisasm 13.3.73** on `-b SM103` — 13.0.85 and 13.1 print the same text for every one of the 384 lattice +
+  674 single-bit sweep + 281 fixture words; `tests/fixtures/sm103a_mufu_x2_nvdisasm.jsonl` (108 form + 173 lattice words),
+  `tests/sm103a_mufu_x2.rs`): `MUFU.EX2.BF16x2` / `MUFU.EX2.F16x2 Rd, [-|]Ra[|] | [-|]URa[|] | imm_hi, imm_lo` — `.BF16x2` =
+  bit 80 with the half code 0, `.F16x2` = the half code 3 ([73:72]); **EX2 is the only function the packed lanes admit** (the
+  other 15 values print `INVALIDn`, unclaimed); the immediate form carries two halves, hi [63:48] printed first and lo
+  [47:32], as bf16 / f16 literals; bit 60 (`.H1` of the scalar half lanes) is text-inert in the lanes; bit 80 with a half
+  code and half 3 with bit 80 are illegal. On `-b SM120` / `SM100` bit 80 is text-inert and half 3 illegal, so the rows live
+  on sm103a only: the groups `BF16x2,EX2` / `EX2,F16x2` on `MUFU_R_R` and `MUFU_R_UR` and the new key `MUFU_R_FI_FI` (the
+  HMUL2 / HADD2 packed-immediate convention), provenance `mufu-x2-sm103a-2026-11-07` (6 rows). No code change: every form
+  word decodes to its measured row (which wins the decoder's unexplained-variance tiebreak over the harvest `EX2` row whose
+  mask lets bit 80 float), prints the vendor's text — the lossless print spells a NaN half's payload as a hex literal
+  (A8) — and re-encodes bit for bit; sm120 / sm100a decode none of the lane words. The scalar sm103a MUFU harvest rows are
+  the family proper (`re_sm120_conv.py --arch SM103`), a later batch. Silicon not measured (the B300 was busy); no compiler
+  word of the B300 corpora (2 145 cubins, 149 934 sm_100 / sm_103 MUFU words) uses either lane. The sm103a census pins
+  re-pinned (`bug381` pins the two sparse legs separately now).
+- **NEEDS 46 measured, not decided** (T-14 on the B300, nvdisasm 13.3.73 + 13.0.85; `T/NEEDS_OWNER.md` 46): the 64-bit ISETP
+  compare (bit 80, `.S64` / `.U64`) is SM120-only in every nvdisasm 13.x build — on `-b SM103` / `SM100` bit 80 is text-inert
+  (0 of the 2 136 ISETP sweep words carry the suffix there). The four sm103a / sm100a harvest `S64` / `U64` groups
+  (`ISETP_P_P_R_UR_P`: AND,GE,U64 / AND,GT,U64 / AND,NE,S64 / NE,OR,S64, identical on both tables) are text phantoms —
+  their canonical words print `.U32` compares or are illegal on every target — and no ISETP word of 2 145 corpus cubins
+  (1 347 282 sm_100 + 688 446 sm_103 + 43 886 sm_120 ISETP words) sets bit 80. Whether sm_103a silicon compares 64 bits
+  with the bit is a 2-second probe when the B300 is idle; the groups stay until the owner / G run 3 decide.
+
 ## Unreleased — 2026-11-07 (session T-13: the T1 production line's batches 5–9 — UFSETP, the FP32 ALU, its uniform twin, the conversions and FSET / FSEL / FCHK measured whole by session G; NEEDS 44 closed on silicon — the QMMA.SF opcode-bit-2 variant is MXINT8 × MXINT8; R1 at zero lints; R2's Polish headers gone)
 
 - **Tables vendored from blackwell-isa `94ff281`** (sm120 15 583 forms / 28 729 variants, from 15 807 / 26 581; sm103a /
