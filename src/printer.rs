@@ -1118,6 +1118,10 @@ fn mod_priority(m: &str) -> u8 {
 }
 
 fn format_opcode(base: &str, mod_group: &str, key: &str) -> String {
+    if key == "FHFMA.BF16.H1_R_R_R_R" {
+        // H1 is an operand selector in this typed key, not a mnemonic modifier.
+        return "FHFMA.BF16".to_string();
+    }
     if mod_group.is_empty() {
         return base.to_string();
     }

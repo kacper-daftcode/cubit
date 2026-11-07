@@ -2795,6 +2795,11 @@ fn encode_instruction_inner(
         candidates.push((format!("{clean_opcode}{sig64}"), String::new()));
         candidates.push((format!("{}{sig64}", insn.opcode), String::new()));
     }
+    if insn.opcode == "FHFMA" && insn.modifiers.iter().any(|m| m == ".BF16") && insn.raw_text.contains(".H1") {
+        // Operands' H1 bits live at 83/84, not in the mnemonic. The distinct
+        // key is required only for lookup; the table's base_op prints FHFMA.BF16.
+        candidates.push(("FHFMA.BF16.H1_R_R_R_R".to_string(), String::new()));
+    }
     candidates.extend([
         (fk.clone(), mod_group.clone()),
         (insn.key.clone(), mod_group.clone()),
