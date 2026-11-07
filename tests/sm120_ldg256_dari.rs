@@ -185,7 +185,10 @@ fn the_rows_are_measured_and_the_dotted_keys_are_gone() {
         assert!(ins[new]["mod_groups"].get(&group).is_some(), "{old}: its spelling names no group {group} of {new}");
     }
     assert_eq!(n_alias, 781, "the dotted one-group keys of the descriptor form");
-    assert_eq!(raw["_meta"]["provenance"]["sources"][SOURCE]["rows"], 4 * GROUPS_PER_KEY);
+    // the legend counts the whole family's tag (one address form per batch): it equals the live count and covers these keys
+    let tagged = ins.values().filter_map(|e| e["mod_groups"].as_object()).flat_map(|m| m.values()).filter(|g| g["_src"] == SOURCE).count();
+    assert_eq!(raw["_meta"]["provenance"]["sources"][SOURCE]["rows"], tagged);
+    assert!(tagged >= 4 * GROUPS_PER_KEY, "{tagged}");
     let number = |v: &Value| u128::from_str_radix(v.as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
     for key in KEYS {
         assert_eq!(ins[key]["_src"], SOURCE, "{key}");

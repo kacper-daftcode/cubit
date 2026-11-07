@@ -85,7 +85,8 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
     // + the 781 dotted one-group harvest keys of the 256-bit load's descriptor form retired by the measured family
     //   (2026-11-07, G batch 10: `LDG.E.<cache>.<L2>[.LTC].256.<scope>_R_R_dARI[_II][_P]` -> the plain key of their
     //   operand signature, whose 1 152 measured groups include the one each dotted key spelled)
-    assert_eq!(al.len(), 1101, "sm120.json key_aliases");
+    // + the 3 084 dotted keys of the load's `.64` uniform-indexed form (G batch 11: `..._R_R_ARURI64[_II][_P]`)
+    assert_eq!(al.len(), 4185, "sm120.json key_aliases");
     let glued = regex::Regex::new(r"_P\d_").unwrap();
     let mut glued_n = 0;
     for (old, new) in &al {
@@ -136,8 +137,8 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
             assert!(table.entries.get(new).is_some_and(|e| !e.encode_only), "{new}: the plain key is a real row");
             continue;
         }
-        if old.starts_with("LDG.") && old.contains("_R_R_dARI") {
-            // the 256-bit load's dotted descriptor-form keys: the modifier tokens -> a group of the plain key
+        if old.starts_with("LDG.") && old.contains("_R_R_") {
+            // the 256-bit load's dotted keys (descriptor / .64 uniform-indexed forms): the modifier tokens -> a group of the plain key
             let sig = old.split_once('_').unwrap().1;
             assert_eq!(new, format!("LDG_{sig}"), "{old} -> {new}");
             let target = table.entries.get(new).unwrap_or_else(|| panic!("{new} missing"));

@@ -1969,11 +1969,15 @@ fn format_operand(
         // audyt key-setu: pre keys z '_ARURI64' pod LDG.E/STG.E == rodzina
         // 464 (6/noga), post == +1146/noga (wszystkie z '.E*L2.256').
         // NA-side zostaje na armie BUG-446 (sig 'ARURI', inny zmecz).
+        // 2026-11-07 (session G, batch 11, tools/probes/re_sm120_ldg256.py): the measured plain keys of the
+        // 256-bit load's `.64` uniform-indexed form (`LDG_R_R_ARURI64[_II][_P]`, 1 152 groups each) print the same
+        // law -- `[Ra.64+URb(+off)]`, base 255 elided to `[URb(+off)]` (nvdisasm 13.1 on SM120 / SM103 / SM100).
         "ARURI64"
-            if (ins_key.starts_with("LDG.E.") || ins_key.starts_with("STG.E."))
+            if ((ins_key.starts_with("LDG.E.") || ins_key.starts_with("STG.E."))
                 && (ins_key.contains(".EFL2.")
                     || ins_key.contains(".ENL2.")
-                    || ins_key.contains(".ELL2.")) =>
+                    || ins_key.contains(".ELL2.")))
+                || ins_key.starts_with("LDG_R_R_ARURI64") =>
         {
             format_plain_u32_ur(fields, raw, false, false, true, false, lossless)
         }
@@ -3196,7 +3200,10 @@ fn format_plain_u32_ur(
         // mints the .64 word for it (BUG-464). The display print follows the
         // vendor; the lossless print keeps the U32 twin distinguishable as
         // "[RZ.U32+URm(+off)]", which the encoder routes to the `_ARURI` row.
-        if plain_u32 && lossless {
+        // 2026-11-07 (session G, batch 11): the NA family has a `.64` twin for every group too (the measured
+        // `LDG_R_R_ARURI64` rows), so its U32 words need the same lossless spelling to re-encode bit-exact --
+        // the bare `[URm]` mints the `.64` word for the whole 256-bit family (BUG-464's rule).
+        if (plain_u32 || efl2_na) && lossless {
             return format!("[RZ.U32+{u}{o}]");
         }
         return format!("[{u}{o}]");

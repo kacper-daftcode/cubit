@@ -112,7 +112,7 @@ fn t468_5_mint_circle() {
 #[test]
 fn t468_6_census_and_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "8aa5f34f25ed2b4ad3008e78ce8ceb93508b9eb2" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "af3329fcf5ccae12bfd97e67a0797264a1449c8d" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON468, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     for (leg, want) in CENSUS468 {
@@ -201,6 +201,9 @@ fn t468_7_graft_vs_donor_transform() {
             );
             assert_eq!(mg["fields"], dmg["fields"], "[{leg}] {k} fields != donor");
         }
-        assert_eq!(n, 2320, "[{leg}] graft census");
+        // 2026-11-07 (session G, batches 10-11): on sm120 the LDG keys of the 468 graft (`_R_R_dARI` / `_R_R_ARURI64`
+        // LTC cells) are groups of the measured plain keys now; the 16 left are STG / `_R_R_ARURI` cells (batch 12
+        // and STG.256 retire those too).
+        assert_eq!(n, if leg == "sm120" { 16 } else { 2320 }, "[{leg}] graft census");
     }
 }

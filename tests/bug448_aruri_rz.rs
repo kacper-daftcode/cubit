@@ -124,7 +124,13 @@ fn t448_4_elided_mints() {
         for (mw, vendor) in MASKMINT448 {
             let got = enc(&t, vendor)
                 .unwrap_or_else(|e| panic!("[{leg}] elided mint refuse {vendor}: {e}"));
-            assert_eq!(got, *mw, "[{leg}] elided mint drift {vendor}");
+            // 2026-11-07 (session G, batch 11, tools/probes/re_sm120_ldg256.py): on sm120 the NA family has its
+            // `.64` twin for every group (the measured `LDG_R_R_ARURI64[_II][_P]` rows), so the bare `[URm(+off)]`
+            // spelling mints the `.64` word like the rest of the 256-bit family (BUG-464's rule; the vendor text is
+            // the same for both twins). The explicit `[RZ.U32+URm]` keeps the U32 word (t448_5); the decode circle
+            // prints the vendor text either way.
+            let mw = if leg == "sm120" && (*mw & 0xfff) == 0x97e { *mw | (1u128 << 75) } else { *mw };
+            assert_eq!(got, mw, "[{leg}] elided mint drift {vendor}");
             let back =
                 dec(&t, &idx, got).unwrap_or_else(|| panic!("[{leg}] elided circle HOLE {vendor}"));
             assert_eq!(
@@ -145,7 +151,10 @@ fn t448_5_alias_mints() {
             let w_el = enc(&t, elided)
                 .unwrap_or_else(|e| panic!("[{leg}] alias elided refuse {elided}: {e}"));
             let w_rz = enc(&t, rz).unwrap_or_else(|e| panic!("[{leg}] alias rz refuse {rz}: {e}"));
-            assert_eq!(w_el, *mw, "[{leg}] elided != mint {elided}");
+            // sm120 since G batch 11: the bare spelling mints the `.64` twin (see t448_4), the `[RZ.U32+URm]`
+            // spelling the U32 word -- the two twins of one vendor text
+            let mw_el = if leg == "sm120" && (*mw & 0xfff) == 0x97e { *mw | (1u128 << 75) } else { *mw };
+            assert_eq!(w_el, mw_el, "[{leg}] elided != mint {elided}");
             assert_eq!(w_rz, *mw, "[{leg}] rz-spelling != mint {rz}");
         }
     }

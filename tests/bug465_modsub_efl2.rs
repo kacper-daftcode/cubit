@@ -68,6 +68,12 @@ fn t465_1_lattice_grid() {
             let t = tab(leg);
             let idx = cached_index(t);
             let got = dec(t, idx, *w);
+            // 2026-11-07 (session G, batch 11): the measured sm120 rows of the 256-bit load fail closed on the
+            // text-inert bits 83 / 92-95 (T-10's convention for measured rows); the `_b92` cells carry bit 92.
+            if leg == "sm120" && (*w & 0xfff) == 0x97e && (*w & ((1u128 << 83) | (0xfu128 << 92))) != 0 {
+                assert_eq!(got, None, "[{leg}] {tag} {w:#034x}: inert bits fail closed (G batch 11)");
+                continue;
+            }
             assert_eq!(
                 got.as_deref(),
                 Some(*vendor),
@@ -262,9 +268,18 @@ fn t465_9_atlas_audit() {
                 assert!(k.contains(".256"), "{leg}:{k} width lost");
             }
         }
-        assert_eq!(n_src462, 1146, "{leg}: _src465 census drift");
+        // 2026-11-07 (session G, batch 11, tools/probes/re_sm120_ldg256.py): on sm120 the LDG half of the 465 graft
+        // (the dotted `..._R_R_ARURI64[_II][_P]` keys, 764 of the 1 146) is retired into the measured plain keys
+        // `LDG_R_R_ARURI64[_II][_P]` (1 152 groups each, `_meta.key_aliases` for every dotted name); the lattice walk
+        // below checks the same pins on the plain key's group named by the tokens. The STG half stays until STG.256.
+        let g11 = leg == "sm120";
+        assert_eq!(n_src462, if g11 { 382 } else { 1146 }, "{leg}: _src465 census drift");
         for (ldg, donors) in [(true, &donors_ldg[..]), (false, &donors_stg[..])] {
             for dk in donors {
+                if g11 && ldg {
+                    assert_eq!(v["_meta"]["key_aliases"][*dk].as_str().map(|s| s.starts_with("LDG_R_R_ARURI64")), Some(true), "{leg}: donor {dk} aliased");
+                    continue;
+                }
                 assert!(ins.get(*dk).is_some(), "{leg}: donor {dk} absent");
             }
             let dvm = |dk: &str| {
@@ -320,6 +335,19 @@ fn t465_9_atlas_audit() {
                             } else {
                                 format!("{bop}_ARURI64_R_R{s}")
                             };
+                            if g11 && ldg {
+                                let target = v["_meta"]["key_aliases"][&nk].as_str().unwrap_or_else(|| panic!("{leg}: {nk} not an alias"));
+                                assert_eq!(target, format!("LDG_R_R_ARURI64{s}"), "{leg}: {nk}");
+                                let mut toks: Vec<&str> = bop.split('.').skip(1).collect();
+                                toks.sort_unstable();
+                                let g = &ins[target]["mod_groups"][toks.join(",")];
+                                assert!(g.is_object(), "{leg}: {nk}: no group {} on {target}", toks.join(","));
+                                let dab = u128::from_str_radix(g["and_base"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
+                                assert_eq!((dab >> 77) & 0x1FF, pins, "{leg}:{nk} pin-seg drift (measured group)");
+                                assert_eq!((dab >> 83) & 1, 0, "{leg}:{nk} b83");
+                                assert_eq!(g["_src"], "ldg256-family-2026-11-07", "{leg}:{nk}");
+                                continue;
+                            }
                             let e = ins.get(&nk).unwrap_or_else(|| panic!("{leg}: {nk} absent"));
                             let dab = u128::from_str_radix(
                                 e["mod_groups"][""]["and_base"]
@@ -354,7 +382,7 @@ fn t465_9_atlas_audit() {
 #[test]
 fn t465_10_canonical_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "8aa5f34f25ed2b4ad3008e78ce8ceb93508b9eb2" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "af3329fcf5ccae12bfd97e67a0797264a1449c8d" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON465, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     let src = std::fs::read_to_string("tables/SOURCE.json").unwrap();
