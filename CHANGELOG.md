@@ -4,6 +4,71 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-07 (session T-16: the T1 production line's run 4 — the 256-bit global load's U32 uniform-indexed form, the 256-bit global store and the global reduction's uniform-indexed forms measured whole by session G)
+
+- **Tables vendored from blackwell-isa `3a94df3`** (sm120 1 309 forms / 39 203 variants, from 11 725 / 34 079; sm103a / sm100a /
+  sm121a unchanged). KNOWN_ISSUES T1: **39 203 rows, 37 827 with `_src` — 1 376 harvest rows left** (11 789 at `5cb10e5`).
+  Session G's run-4 batches 12–14, re-measured word by word by T-16 (`T/t16/review/b12` … `b14`: 4 969 + 2 233 + 9 392 fixture
+  words identical on SM120, the same text on `-b SM103` / `SM100` except the five L2 = 3 lattice words of batch 12) with the census
+  text-parity check widened to **the whole production census** — all 249 929 distinct words of the production cubins and our
+  kernels decoded with each batch's engine and table before and after it: the same key, display text, lossless text and
+  re-encode verdict for every word (0 changes per batch; the memory family — `LDG_R_dARI`, `STG_dARI_R`, `LD_R_dARI`, `REDG_dARI_R`,
+  `LDS_R_ARURI`, `LDSM_R_ARURI`, `LDGSTS_ARI_dARI[_P]`, `STS_ARURI_R`, `ATOMS_*`, `ATOMG_P_R_dARI_R`, `SYNCS_*_ARURI_R`, … — 19 387 words on 18
+  keys, 0 text differences vs nvdisasm 13.1); the census carries no word of the 10 428 retired keys or the 12 added ones. Each
+  batch's test fails 5 / 5 on the previous table and passes 5 / 5 on its own (T's runs).
+  - **LDG.256 ARURI measured whole** (G's `020ab68`, taken as `10b1a6a`; `tools/probes/re_sm120_ldg256.py --form ARURI`, 4 952
+    form + 17 lattice words; `tests/fixtures/sm120_ldg256_aruri_nvdisasm.jsonl`, `tests/sm120_ldg256_aruri.rs`): the 256-bit global
+    load (opcode 0x97e, frame bit 91) in its 32-bit uniform-indexed form `[Ra.U32+URb(+off)]` (bits 75 / 76 clear) — the four new
+    plain keys `LDG_R_R_ARURI[_II][_P]` with 1 152 measured groups each (6 cache × 3 L2 × 4 LTC × the 16-value strength / scope /
+    PRIVATE enum), provenance `ldg256-family-2026-11-07` (the legend 9 216 → 13 824: **the whole 0x97e opcode is measured on its
+    twelve plain keys**); **the 3 120 dotted one-group harvest keys of the form are `_meta.key_aliases`** of the plain key of their
+    signature (11 of their rows carried `wave11-integration-2026-11-05` — reproduced, that legend 36 → 25; 5 carried a `claim_forbid`,
+    10 833 → 10 828: RZ is a legal elided base). Law = batches 10–11's with bits 75 / 76 clear; RZ elides to `[URb(+off)]` — the
+    `.64` twin's text, so the lossless print spells `[RZ.U32+URb(+off)]` (re-encodes the U32 word) and the bare spelling mints the
+    `.64` word (BUG-464 / 474). Printer only: the plain keys on the BUG-474 `plain_u32` arm. Re-pinned on sm120: bug474 (8 heal words
+    with bit 92 fail closed; **5 `b86-zone` anchor drills — `LDG.E.EU.EFL2.256`, `LDG.E.NA.EFL2.256` bare / `0x99` / `LTC128B`,
+    `LDG.E.NA.ELL2.256` on `[R28.U32+UR38]` — are legal words the vendor names on the three targets, HOLE lifted**), bug468 graft
+    census 16 → 0, claim_forbid census in bug459a / 461 / 462 / 463 / 476, era-keys 4 185 → 7 305.
+  - **STG.256 measured whole** (G's `722e69e`, taken as `3216477`; `tools/probes/re_sm120_stg256.py`, 2 140 form + 93 lattice
+    words — **the same text on the three targets for every word**; `tests/fixtures/sm120_stg256_nvdisasm.jsonl`,
+    `tests/sm120_stg256.rs`): the 256-bit global store (opcode 0x97f, frame bit 91) in its three address forms — the six new plain
+    keys `STG_{dARI,ARURI,ARURI64}_R_R[_II]` with 288 measured groups each (6 cache × 3 L2 × the store's 16-value enum), provenance
+    `stg256-family-2026-11-07` (1 728 rows); **the 1 164 dotted one-group harvest keys of the opcode are `_meta.key_aliases`** (4
+    wave11 rows reproduced, that legend 25 → 21). Law: Rs1 [23:16], Ra [31:24] (RZ illegal on the descriptor form → `claim_forbid`,
+    elided on the uniform-indexed forms), Rs0 [39:32], **a signed 19-bit 32-byte-unit offset [58:40]** (the load's is 17 bits),
+    **the trailing byte split [63:59] + [90:88]** (elided at 0xff; `imm@59:5` + `imm_shr5@88:3` on the `_II` keys), URb [71:64],
+    75 / 76 the address form, **the store's own enum [80:77] — STRONG.SM.PRIVATE at 4, SYS.ORDERED / STRONG.SYS.ORDERED /
+    MMIO.SYS.ORDERED at 13–15** (the load has CONSTANT / CONSTANT.VC / .VC.PRIVATE / .GPU there), L2 [82:81], cache [86:84]; no LTC
+    width and no trailing predicate — [74:72], 83, 87, [95:92] text-inert, fail closed. Printer only: the plain store keys on the
+    ARURI64 / U32 arms, **`ORDERED` in the LDG / STG modifier rank after the scope** (the generic rank printed
+    `STG.E.NA.EFL2.ORDERED.256.MMIO.SYS`). Re-pinned on sm120 (the STG half of the 2026-09 EFL2.256 waves): the inert-bit cells 72 /
+    73 / 74 / 87 / 94 fail closed (bug446 / 447 / 453 / 463 / 464 / 466 / 474 / 475 / 476), bug448 (the bare `[UR38]` store spelling
+    mints `.64`), bug452 inventory 1 → 0, bug465 (the STG half of the graft on the plain keys; `_src465` 382 → 0), **bug466
+    `STG.E.NA.ELL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12` is legal — the store's refusal lifted like the load's**, **bug474's
+    three store `b86-zone` drills legal, HOLE lifted**, bug475 (`STG_dARI_R_R` is the measured plain key), claim_forbid 10 828 →
+    11 013 (+576 measured descriptor rows with the RZ exclusion, −391 retired), era-keys 7 305 → 8 469.
+  - **REDG uniform-indexed forms measured whole** (G's `13ff289`, taken as `3a94df3`; `tools/probes/re_sm120_redg.py`, 9 334 form +
+    58 lattice words — the same text on the three targets for every word; `tests/fixtures/sm120_redg_aruri_nvdisasm.jsonl`,
+    `tests/sm120_redg_aruri.rs`): the global reduction (opcode 0x98e, bit 91 = the uniform-indexed form, bit 90 = the base width) —
+    the two new plain keys `REDG_ARURI_R` (6 144 groups = 2 `.E` × 8 ops × 4 types × 6 cache × 16 scope; **the no-`.E` plane of the
+    U32 form is legal, 3 072 groups the harvest never saw**) and `REDG_ARURI64_R` (3 072 groups — **the `.64` base needs `.E`; without
+    it the vendor prints the `REDG.???0.<op>` glyph plane**), provenance `redg-aruri-family-2026-11-07` (9 216 rows); **the 6 144
+    dotted one-group harvest keys are `_meta.key_aliases`** (0 census witnesses; the census REDG words are the descriptor form's,
+    `REDG_dARI_R`, untouched). Law: [23:16] text-inert (the atomic's destination slot), Ra [31:24] (RZ prints `[RZ.U32+URb]` on U32
+    and the `???255` glyph on `.64` — printed, never minted, BUG-461), Rb [39:32], a signed 24-bit byte offset [63:40], URb [71:64],
+    `.E` 72, type [75:73], the load's enum [80:77], cache [86:84], op [89:87]; 76, 82, 83, [95:92] inert, fail closed. cubit: the
+    printer arms for the two keys and **two key-scoped engine guards** — the decoder's broad match (which frees the standard register
+    slots for memory keys with narrow harvest masks) is off for exactly `REDG_ARURI_R` / `REDG_ARURI64_R` (their only slot without a
+    field is the inert [23:16]; measured rows fail closed on it), and the encoder refuses a `.64` uniform-indexed text whose
+    mnemonic has a measured plain `_ARURI64` key (LDG.256, STG.256, REDG — the only ones) but no row for the text's modifier group,
+    instead of minting the U32 twin (`REDG.ADD.EL.STRONG.GPU [R2.64+UR4], R6` minted the U32 word before); the ordinary `LDG.E.64 …
+    [R.64+UR]` chain and the ATOMG `.EL` pair are untouched. Verified by T-16: the 99 production sources byte-identical in `.text`,
+    the frozen census 157 / 157, the strict census 1 811 600 / 1 811 600, every census word's key / text / re-encode unchanged.
+    Re-pinned on sm120: bug452 / bug461 (the 3 072 dotted `.64` keys → the one plain key), era-keys 8 469 → 14 613.
+  - Base shifts handled by T-16 as the exact three-way merge: G's three commits cherry-picked (`-x`) onto the NEEDS 48 tip, every
+    revision pin re-pointed to T's blackwell-isa commit and T-14's sm103a pins kept (`T/t16/reapply.py`; T's tables == G's bytes
+    at every step, the engine == G's `ab2900e`).
+
 ## Unreleased — 2026-11-07 (session T-15: the T1 production line's run 3 / 4 — the 256-bit global load's 64-bit uniform-indexed address form measured whole by session G)
 
 - **Tables vendored from blackwell-isa `5cb10e5`** (sm120 11 725 forms / 34 079 variants, from 14 805 / 32 555; sm103a / sm100a /
