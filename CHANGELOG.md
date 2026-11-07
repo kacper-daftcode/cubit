@@ -4,6 +4,40 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-07 (session T-16, gate 2: the T1 production line's run 5 — the tensor-core long tail verified row by row by session G)
+
+- **Tables vendored from blackwell-isa `3dde6e1`** (sm120 1 231 forms / 39 125 variants, from 1 309 / 39 203; sm103a / sm100a /
+  sm121a unchanged). KNOWN_ISSUES T1: **39 125 rows, 38 091 with `_src` — 1 034 harvest rows left** (1 376 at `3a94df3`).
+  Session G's run-5 batch 15, re-measured by T-16 (`T/t16/review/b15`): all 28 288 distinct words of the fixture (the canonical word
+  and the 109 single-bit flips of every row, their recorded texts or rejections, the 21 census witnesses) re-rendered identical with
+  nvdisasm 13.1 on SM120 (on `-b SM103` / `SM100` the tensor words differ, as the five mnemonics do there); the whole production
+  census (249 929 distinct words, among them 6 249 on the seven census-bearing tensor keys whose rows were rewritten) decodes to the
+  same key, display text, lossless text and re-encode verdict before and after, 0 text differences vs nvdisasm on those 6 249; the
+  batch's test fails 3 / 4 on the previous table and passes 4 / 4 on its own.
+  - **The tensor-core long tail — QMMA / HMMA / OMMA / DMMA / IMMA — verified row by row** (G's `b1b332b`, taken as `1886972` by G's own
+    `tools/probes/re_sm120_rows.py apply --family tensor` run on T's table — the tool reproduces G's commit byte for byte on G's base,
+    and T's result is exactly T's base + G's delta; `tests/fixtures/sm120_rows_tensor_nvdisasm.jsonl`, `tests/sm120_rows_tensor.rs`,
+    the shared body `tests/sm120_rows_common.inc`, `examples/text_keys.rs`): **a new method for the long tail** — per harvest row the
+    canonical word and every single-bit flip of bits 0..104 / 122..125 are rendered by nvdisasm and diffed token by token against the
+    canonical text; the row is measured (`rows-tensor-2026-11-07`, 264 rows) when every declared field bit moves exactly its own operand
+    token, no undeclared bit moves an operand of the same form, cubit decodes the canonical word to the row with the vendor text and
+    re-encodes it, and every census witness does too; `variable_mask` becomes exactly the field bits (fail closed on the text-inert
+    bits); 149 undeclared fields the vendor names were added (`.reuse` on the B operand at bit 123 on 137 rows, the guard on 4 HMMA
+    rows, `-Ra` 72 / `-Rb` 63 on 4 HMMA rows each); **78 shadowed twin keys are `_meta.key_aliases`** (73 byte-identical `_P_` twins of
+    the plain `QMMA.SP` / `HMMA.SP` / `HMMA` / `DMMA` keys, the `_UP_II_?` / `_R_R_R_R_?` junk spellings, the dotted
+    `HMMA.1684.F32.TF32_R_R_R_R` twin of `HMMA_R_R_R_R`'s group; 0 deletions, 0 census witnesses). Laws recorded: QMMA shape 75 /
+    accumulator 77 / A type [79:78] + 83 / B type 79 + 85, `.SP` 80, the `UP` gate [89:87] printed inverted (`UP0` = 7) with `!` at 90,
+    `.reuse` only on the B operand (122 / 124 are nvdisasm's "undefined opex value"); HMMA shape 75 (+ 78 = `INVALID3`), accumulator 76,
+    BF16 82 / TF32 83, `.SP` 73; DMMA rounding [79:78], `|Ra|` 73 / `|Rb|` 62 / `|Rc|` 74 / `-Rc` 75; IMMA's `ROW` / `COL` glyph planes
+    at 73 / 74. cubit: HMMA / DMMA / OMMA join IMMA / IDP off the priority-3 sign-tolerant decode fallback (HMMA's shape bit sits in the
+    sign window — the `HMMA.INVALID3.F16.BF16` word decoded as the 1684 row); 30 rows have field flips the encoder refuses on the
+    BUG-037 alignment law (text checked, refusal accepted on exactly those words). The 25 `INVALIDn`-keyed rows are verified as faithful
+    glyph keys (keep or fail closed = the owner's, G's NEEDS 9 / T's NEEDS 41). Re-pinned on sm120: bug276 / bug280 / bug283 (the measured
+    `QMMA.16816.F16.E4M3.E4M3` row fails closed on its text-inert bit 74; the BUG-280 reclaim stands on sm121a), era-keys 14 613 → 14 691.
+  - **15 stale provenance legends re-counted** (blackwell-isa `3dde6e1`, found by T-16's merge check): the `_meta.provenance.sources`
+    row counts of fifteen pre-2026-11 tags lagged the table since their rows were rewritten or retired (`dsv41-sm120-2026-10-22` 529 →
+    516, `bug226d` 36 → 28, `bug226e` 17 → 4, `bug339` 9 → 0, …); the entries with 0 live rows stay as history. No row changes.
+
 ## Unreleased — 2026-11-07 (session T-16: the T1 production line's run 4 — the 256-bit global load's U32 uniform-indexed form, the 256-bit global store and the global reduction's uniform-indexed forms measured whole by session G)
 
 - **Tables vendored from blackwell-isa `3a94df3`** (sm120 1 309 forms / 39 203 variants, from 11 725 / 34 079; sm103a / sm100a /
