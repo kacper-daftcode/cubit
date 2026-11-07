@@ -3315,7 +3315,7 @@ fn encode_instruction_inner(
             "LDTM" | "STTM" | "STAS" | "STSM" | "UTCCP" | "UTMALDG" |
             "UTMAPF" | "UTMAREDG" | "UTMASTG" | "UTMACCTL" |
             "UTMACMDFLUSH" | "UTCATOMSWS" | "UTCHMMA" | "UTCIMMA" |
-            "UTCQMMA" | "SULD"
+            "UTCQMMA" | "SULD" | "VIMNMX3"
         );
         let is_alu = !(native_hi || sign_law_base || non_alu_base);
         if is_alu {
@@ -3552,6 +3552,7 @@ fn encode_instruction_inner(
                 | "UTCIMMA"
                 | "UTCQMMA"
                 | "SULD"
+                | "VIMNMX3"
         );
         if is_303_armed {
             let field_neg = |tok: i32| -> bool {

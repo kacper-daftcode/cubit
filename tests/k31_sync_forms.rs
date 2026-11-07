@@ -92,6 +92,8 @@ fn all_helper_rows_have_registered_measurements() {
             for (name, g) in ins[key]["mod_groups"].as_object().unwrap() {
                 if key == "UGETNEXTWORKID_AURI_AURI" && name == "BROADCAST" {
                     assert_eq!(g["_src"], Value::Null);
+                } else if key == "ARRIVES_ARURI" && name == "64,ARVCNT,LDGSTSBAR" {
+                    assert_eq!(g["_src"], "k31-alu-tail-flashmla-2026-11-07");
                 } else {
                     assert_eq!(g["_src"], SRC, "{arch}: {key}");
                 }
@@ -114,8 +116,11 @@ fn all_helper_rows_have_registered_measurements() {
                 .as_object()
                 .unwrap()
                 .len(),
-            7
+            10
         );
+        for group in ["2D,GATHER4", "2CTA,2D,GATHER4", "2CTA,5D"] {
+            assert_eq!(ins["UTMALDG_AURI_AURI_II"]["mod_groups"][group]["_src"], "k31-utma-flashmla-2026-11-07");
+        }
         assert_eq!(ins["SYNCS_R_ARURI_R"]["_src"], Value::Null);
     }
 }

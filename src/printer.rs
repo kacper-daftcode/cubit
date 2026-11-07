@@ -4107,9 +4107,7 @@ fn format_arrives_ur_short(fields: &[&DecodedField], raw: u128) -> Option<String
             _ => {}
         }
     }
-    if base != Some(255) {
-        return None;
-    }
+    let base = base?;
     let ur_s = match ur.unwrap_or((raw >> 64) as u64 & 0xff) {
         255 => "URZ".to_string(),
         n => format!("UR{n}"),
@@ -4121,7 +4119,11 @@ fn format_arrives_ur_short(fields: &[&DecodedField], raw: u128) -> Option<String
     } else {
         String::new()
     };
-    Some(format!("[{ur_s}{off_s}]"))
+    if base == 255 {
+        Some(format!("[{ur_s}{off_s}]"))
+    } else {
+        Some(format!("[R{base}+{ur_s}{off_s}]"))
+    }
 }
 
 fn format_desc_addr(fields: &[&DecodedField], raw: u128) -> String {

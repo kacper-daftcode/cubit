@@ -477,7 +477,7 @@ impl DecodeIndex {
                 "LDTM" | "STTM" | "STAS" | "STSM" | "UTCCP" | "UTMALDG" |
                 "UTMAPF" | "UTMAREDG" | "UTMASTG" | "UTMACCTL" |
                 "UTMACMDFLUSH" | "UTCATOMSWS" | "UTCHMMA" | "UTCIMMA" |
-                "UTCQMMA" | "SULD");
+                "UTCQMMA" | "SULD" | "VIMNMX3");
             if is_225_armed {
                 return None;
             }
@@ -776,7 +776,7 @@ impl DecodeIndex {
                 "LDTM" | "STTM" | "STAS" | "STSM" | "UTCCP" | "UTMALDG" |
                 "UTMAPF" | "UTMAREDG" | "UTMASTG" | "UTMACCTL" |
                 "UTMACMDFLUSH" | "UTCATOMSWS" | "UTCHMMA" | "UTCIMMA" |
-                "UTCQMMA" | "SULD");
+                "UTCQMMA" | "SULD" | "VIMNMX3");
             // BMSK's generic sign band is text-inert on native SM120.
             // Global109 is schedule yield, never arithmetic negation.
             let native_hi = table.target_sm() == 120 && base_op == "IMAD"
