@@ -67,13 +67,15 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
     // + the ten junk keys retired by the measured PLOP3 / P2R / R2P family (G: the dotted `PLOP3.LUT_P_P_P_P_P_II_II`
     //   twin -- the era alias `PLOP3.LUT_P1_...` follows it to the plain key -- seven P2R and two R2P harvest keys)
     // + the IMMA.SF hypothesis key renamed to the measured QMMA.SF opcode-bit-2 variant (2026-11-06, NEEDS 44:
-    //   `IMMA.SF.16832.U8.U8_R_R_R_R_R_R_UR` -> `QMMA.SF.16832.F32.UNIDENTIFIED.E8_R_R_R_R_R_R_UR`)
+    //   `IMMA.SF.16832.U8.U8_R_R_R_R_R_R_UR` -> `QMMA.SF.16832.F32.UNIDENTIFIED.E8_R_R_R_R_R_R_UR`), and that
+    //   interim name itself once the element types were identified on silicon (2026-11-07, T-13:
+    //   -> `QMMA.SF.16832.F32.MXINT8.MXINT8.E8_R_R_R_R_R_R_UR`)
     // + the six UFSETP junk keys retired by the measured UFSETP family (G: the integer-spelling twin
     //   `UFSETP_UP_UP_UR_II_UP` and five dotted harvest samples -> the plain key of their opcode)
     // + the 27 junk keys retired by the measured FP32 ALU family (2026-11-07, G: mis-tokenised `_?` / `_L` / `_R_R_R_R`
     //   harvest keys, dotted twins with the modifier in the key, the integer-spelling `*_II*` twins of the f32 forms
     //   -> the plain key of their opcode)
-    assert_eq!(al.len(), 89, "sm120.json key_aliases");
+    assert_eq!(al.len(), 90, "sm120.json key_aliases");
     let glued = regex::Regex::new(r"_P\d_").unwrap();
     let mut glued_n = 0;
     for (old, new) in &al {
@@ -106,9 +108,10 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
             assert!(matches!(new, "FSETP_P_P_R_R_P" | "FSETP_P_P_R_UR_P" | "FSETP_P_P_R_FI_P"), "{old} -> {new}");
             continue;
         }
-        if old == "IMMA.SF.16832.U8.U8_R_R_R_R_R_R_UR" {
-            // the 2026-03 hypothesis key, measured on silicon 2026-11-06 (NEEDS 44): a QMMA.SF opcode-bit-2 variant
-            assert_eq!(new, "QMMA.SF.16832.F32.UNIDENTIFIED.E8_R_R_R_R_R_R_UR", "{old} -> {new}");
+        if old == "IMMA.SF.16832.U8.U8_R_R_R_R_R_R_UR" || old == "QMMA.SF.16832.F32.UNIDENTIFIED.E8_R_R_R_R_R_R_UR" {
+            // the 2026-03 hypothesis key and the interim 2026-11-06 name: the QMMA.SF opcode-bit-2 variant, measured
+            // on silicon as the MXINT8 x MXINT8 block-scaled MMA (NEEDS 44, 2026-11-07)
+            assert_eq!(new, "QMMA.SF.16832.F32.MXINT8.MXINT8.E8_R_R_R_R_R_R_UR", "{old} -> {new}");
             assert!(table.entries.get(new).is_some_and(|e| !e.encode_only), "{new}: the measured row is a real row");
             continue;
         }

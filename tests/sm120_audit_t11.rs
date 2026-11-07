@@ -23,7 +23,7 @@
 //!   → printed text-faithfully like the REDG / ATOMG `.EL` twins (BUG-461 doctrine); the encoder refuses it.
 //! * the `IMMA.SF.16832.U8.U8_R_R_R_R_R_R_UR` hypothesis (every probe word rejected by nvdisasm) stayed at T-11 by the
 //!   owner's rule for undocumented forms; on 2026-11-06 R measured the word on sm_120 silicon (NEEDS 44) and the row is
-//!   now the QMMA.SF opcode-bit-2 variant `QMMA.SF.16832.F32.UNIDENTIFIED.E8_R_R_R_R_R_R_UR` with the family's fields
+//!   now the QMMA.SF opcode-bit-2 variant `QMMA.SF.16832.F32.MXINT8.MXINT8.E8_R_R_R_R_R_R_UR` (named `UNIDENTIFIED` until the 2026-11-07 measurement) with the family's fields
 //!   and a registered `nvdisasm_sm120: "no text"` provenance (the audit's `vendor_unknown` class, no longer a finding).
 
 use cubit::{decoder::DecodeIndex, encoder::encode_instruction, parser::parse_sass, printer::to_sass, table::IsaTable};
