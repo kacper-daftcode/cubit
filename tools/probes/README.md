@@ -76,3 +76,4 @@ probes do not execute anything on a GPU; where the *semantics* of a form had to 
 assumption is listed in `docs/KNOWN_ISSUES.md`.
 - `re_k31_f2fp_e2m1.py`: K3.1 BF16/E2M1 UNPACK_B register/immediate E8M0 scales; independent SM103/SM100 field probes plus H's production census and silicon result (`k31_f2fp_e2m1.rs`).
 - `re_k31_fsetp.py`: K3.1 trtllm-gen FSETP GT/GEU FTZ AND; 2331 production witnesses and independent SM103/SM100 probes, 96 measured groups per R_R/R_FI form on each target (`k31_fsetp.rs`).
+- `re_k31_f2fp_pack.py`: K3.1 SATFINITE BF16 F32 PACK_AB (opcode 0x23e), one typed donor row plus local field/forbidden-bit probes on SM103 and SM100 (`k31_f2fp_pack.rs`).
