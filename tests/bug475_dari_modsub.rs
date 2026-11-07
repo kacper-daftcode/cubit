@@ -159,7 +159,7 @@ fn t475_6_refuse_parity() {
 #[test]
 fn t475_7_census_and_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "69f97e10f05e" /* K3.1 FlashKDA FP32 ALU tail forms */;
+    const CURRENT_VENDORED_CANON: &str = "d26f5a69ff64" /* K3.1 F2FP packed uniform source tail */;
     assert_eq!(CANON475, "9c0e4ce", "historical fixture revision drift");
 
     for (leg, want) in CENSUS475 {
