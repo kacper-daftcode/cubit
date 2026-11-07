@@ -1005,6 +1005,8 @@ fn norm_ext(s: &str) -> String {
         "None" => return "none".to_string(),
         "Cm16Off" => return "cm16off".to_string(),
         "Cm17Off" => return "cm17off".to_string(),
+        "E2m1Ra" => return "e2m1_ra".to_string(),
+        "E2m1Scale" => return "e2m1_scale".to_string(),
         _ => {}
     }
     // Parameterised forms: SubImm(1) → sub_imm1, SubR(0) → sub_r0
@@ -1664,6 +1666,23 @@ fn format_guard_uni(fields: &[&DecodedField], uni: bool) -> String {
 
 // One call site (to_sass_impl); the eight inputs are the decoded row's
 // context and bundling them into a struct would only move the same values.
+fn e2m1_selector_suffix(fields: &[&DecodedField]) -> Option<String> {
+    for f in fields {
+        match norm_ext(&f.extraction).as_str() {
+            "e2m1_scale" => {
+                return Some(format!(".{}", ["H0", "H1", "B0", "B1", "B2", "B3", "INVALID6", "INVALID7"][f.value as usize]));
+            }
+            "e2m1_ra" => {
+                let value = fields.iter().filter(|x| norm_ext(&x.extraction) == "e2m1_ra")
+                    .map(|x| x.value << u64::from(x.shift != 72)).sum::<u64>();
+                return (value != 0).then(|| format!(".B{value}"));
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 #[allow(clippy::too_many_arguments)]
 fn format_operand(
     op_type: &str,
@@ -1690,6 +1709,9 @@ fn format_operand(
         // R with a byte_sel field (R2P/I2F "R0.B1" form): append .B<n> when set.
         "R" => {
             let s = format_reg(fields, mod_group, tok, raw, ins_key);
+            if let Some(suffix) = e2m1_selector_suffix(fields) {
+                return format!("{s}{suffix}");
+            }
             let bsel = fields
                 .iter()
                 .find(|f| {
@@ -1788,8 +1810,14 @@ fn format_operand(
                 s
             }
         }
-        "II" | "IM" | "LO" => format_imm_or_reg(fields, mod_group, ins_key, tok, raw, lossless),
-        "FI" => format_float_imm(fields, lossless),
+        "II" | "IM" | "LO" => {
+            let s = format_imm_or_reg(fields, mod_group, ins_key, tok, raw, lossless);
+            format!("{s}{}", e2m1_selector_suffix(fields).unwrap_or_default())
+        }
+        "FI" => {
+            let s = format_float_imm(fields, lossless);
+            format!("{s}{}", e2m1_selector_suffix(fields).unwrap_or_default())
+        }
         "L" | "SR" => format_lit_or_sysreg(fields, mod_group, raw),
         // BUG-179 (superset of parked-BUG-157): SYNCS- and ATOMS-family ARI
         // rows carry the uniform-register window baked as URZ in and_base

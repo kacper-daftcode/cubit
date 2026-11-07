@@ -203,7 +203,7 @@ fn t444_6_shared_arm_ride() {
 #[test]
 fn t444_7_canonical_unchanged() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "dac48ad5211abc34b37010990cdf243b7e0cee41" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "fded90aee97587d462542302682d7edc44f9071e" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
 
     // public-line hygiene: lane-side live rev-parse hermetized to the vendored manifest pin
     let head = std::fs::read_to_string("tables/SOURCE.json").unwrap();

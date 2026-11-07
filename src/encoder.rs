@@ -198,7 +198,7 @@ fn extraction_accepts(ext: &Extraction, op: &Operand) -> bool {
         // Flags / guard / opaque mods are non-discriminating: they read optional
         // attributes (neg/abs/reuse/...) and legitimately default to 0.
         Guard | GuardLo3 | GuardNeg | Neg | NegShl1 | Reuse | Inv | Abs | NegAbs | ByteSel
-        | HalfSel | H0NH1 | OpaqueModifier | OpModFlag(_) | MnemMod(..) | UrExpl | UrExplInv
+        | HalfSel | H0NH1 | E2m1Ra | E2m1Scale | OpaqueModifier | OpModFlag(_) | MnemMod(..) | UrExpl | UrExplInv
         | YieldInv | AddrScale | None => true,
 
         // Float immediates / value-cast float: read the value itself.
@@ -2553,6 +2553,8 @@ fn check_operand_suffixes(insn: &Instruction, entry: &crate::table::ModGroupEntr
                             && seg.starts_with('B')
                             && seg[1..].chars().all(|c| c.is_ascii_digit())
                     }
+                    Extraction::E2m1Ra => matches!(seg.as_str(), "B0" | "B1" | "B2" | "B3"),
+                    Extraction::E2m1Scale => matches!(seg.as_str(), "H0" | "H1" | "B0" | "B1" | "B2" | "B3"),
                     _ => false,
                 }
             });
@@ -4933,6 +4935,17 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
             fit(insn, field, (a & 1) << 1 | (n & 1))
         }
         Extraction::ByteSel => fit(insn, field, op_byte_sel(insn, field.token_idx)),
+        Extraction::E2m1Ra => {
+            let selector = op_byte_sel(insn, field.token_idx);
+            fit(insn, field, if field.shift == 72 { selector & 1 } else { selector >> 1 })
+        }
+        Extraction::E2m1Scale => {
+            let text = op_token_text(insn, field.token_idx);
+            let value = [("H0", 0), ("H1", 1), ("B0", 2), ("B1", 3), ("B2", 4), ("B3", 5)]
+                .into_iter().find_map(|(name, value)| text.contains(&format!(".{name}")).then_some(value))
+                .unwrap_or(0);
+            fit(insn, field, value)
+        }
         Extraction::LblPat(pat) => {
             // Double-bracket operands (Operand::Desc) carry the UR id structurally;
             // raw scraping only understands the single-bracket desc[URn] form.

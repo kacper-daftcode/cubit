@@ -341,6 +341,8 @@ FIXED_EXTRACTIONS = {
     "addr_scale",
     "barrier",
     "byte_sel",
+    "e2m1_ra",
+    "e2m1_scale",
     "cm16_off",
     "cm17_off",
     "bf16",
@@ -651,7 +653,7 @@ def load_manifest() -> dict[str, Any]:
     return manifest
 
 
-def sync_tables(source_repo: Path) -> None:
+def sync_tables(source_repo: Path, run_tests: bool = True) -> None:
     source_repo = source_repo.resolve()
     repo_text = run_git(source_repo, "rev-parse", "--show-toplevel")
     repo = Path(repo_text).resolve()
@@ -710,12 +712,15 @@ def sync_tables(source_repo: Path) -> None:
         }
     MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n")
 
-    print("running cargo test gate on the vendored candidates...")
-    result = subprocess.run(["cargo", "test", "--quiet"], cwd=ROOT, check=False)
-    if result.returncode:
-        raise SyncError(
-            "candidate tables failed cargo test; vendored tables and the "
-            "manifest were written (pin consistent with the tables)")
+    if run_tests:
+        print("running cargo test gate on the vendored candidates...")
+        result = subprocess.run(["cargo", "test", "--quiet"], cwd=ROOT, check=False)
+        if result.returncode:
+            raise SyncError(
+                "candidate tables failed cargo test; vendored tables and the "
+                "manifest were written (pin consistent with the tables)")
+    else:
+        print("wrote vendored candidates (stage-only; tests are a separate, explicit report)")
     for name, (_d, summary, _rev) in staged.items():
         print(
             f"synchronized {name}: {summary['instruction_forms']} forms / "
@@ -819,6 +824,8 @@ def main() -> int:
     parser.add_argument("--validate-only", action="store_true",
                         help="structurally validate the vendored tables "
                              "(no canonical repo needed)")
+    parser.add_argument("--stage-only", action="store_true",
+                        help="stage canonical candidates without running the full cargo gate")
     parser.add_argument("--unpack", action="store_true",
                         help="write the plain tables/<arch>.json files from the "
                              "vendored .json.gz (git-ignored convenience; nothing "
@@ -840,7 +847,7 @@ def main() -> int:
         return 0
     if source_repo is None:
         raise SyncError("no canonical checkout found (use --source-repo)")
-    sync_tables(source_repo)
+    sync_tables(source_repo, run_tests=not args.stage_only)
     return 0
 
 

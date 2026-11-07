@@ -74,3 +74,4 @@ Ground truth used by every probe: `nvdisasm` 13.1 (`-b SM120 -hex` on a 16-byte 
 sm100a / sm103a probe passes `-b SM100` / `-b SM103` through `nvprobe.probe_words(arch=…)`). The
 probes do not execute anything on a GPU; where the *semantics* of a form had to be assumed, the
 assumption is listed in `docs/KNOWN_ISSUES.md`.
+- `re_k31_f2fp_e2m1.py`: K3.1 BF16/E2M1 UNPACK_B register/immediate E8M0 scales; independent SM103/SM100 field probes plus H's production census and silicon result (`k31_f2fp_e2m1.rs`).

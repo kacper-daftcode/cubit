@@ -1360,6 +1360,8 @@ fn extraction_name(e: &Extraction) -> String {
         Extraction::OpaqueModifier => "opaque_mod".into(),
         Extraction::OpModFlag(n) => format!("opmod:{n}"),
         Extraction::HalfSel => "hsel".into(),
+        Extraction::E2m1Ra => "e2m1_ra".into(),
+        Extraction::E2m1Scale => "e2m1_scale".into(),
         Extraction::H0NH1 => "h0nh1".into(),
         Extraction::AddrScale => "addr_scale".into(),
         Extraction::BF16 => "bf16".into(),

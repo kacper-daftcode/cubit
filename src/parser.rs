@@ -146,6 +146,11 @@ fn parse_predicate(s: &str) -> Option<Operand> {
 fn parse_immediate(s: &str, is_float_context: bool) -> Option<Operand> {
     let s = s.trim();
 
+    // The selected row still validates these operand suffixes. Strip only the
+    // E2M1 scale selectors, including after scientific notation.
+    let s = [".H0", ".H1", ".B0", ".B1", ".B2", ".B3"].iter()
+        .find_map(|suffix| s.strip_suffix(suffix)).unwrap_or(s);
+
     // Float special values: INF, NAN
     if s.eq_ignore_ascii_case("INF") || s.eq_ignore_ascii_case("+INF") {
         return Some(Operand::FloatImm(f64::INFINITY.to_bits()));
@@ -321,7 +326,7 @@ const FLOAT_OPCODES: &[&str] = &[
     // `MUFU.RCP64H R4, 0` / `, 1` are `MUFU_R_FI` words (2026-11-06, T-10; the integer-typed
     // `MUFU_R_II [RCP64H]` harvest twin is retired).
     "MUFU",
-    "HADD2", "HMUL2", "HFMA2", "HSET2", "HSETP2",
+    "HADD2", "HMUL2", "HFMA2", "HSET2", "HSETP2", "F2FP",
     // F2I imm-form (BUG-125, F2I_R_FI): fresh nvcc-13.3 emit `F2I.U32.CEIL.NTZ
     // R0, 16` bakes the f32 immediate 0x41800000 at bits [63:32]; without float
     // context the textual `16` parsed to Imm32(16) and encoded 0x00000010 in the
