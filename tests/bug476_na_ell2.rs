@@ -1,31 +1,31 @@
-//! BUG-476 pins (F2-iter291/292, loop5/blind front2, 2026-09-17): plain
-//! ELL2.256 dARI-era side-bits standing -- 476a NA-side graft + 476b fantom-_II.
-//! 476a: NA-klony z donorow EL, delta 0x7@[86:84] (EL nibble 0x2 -> NA 0x5)
-//! zmierzona verbatim z par 466; vm/fields/ctrl/scheduling verbatim, count
-//! zdjety, _src476. LDG x4 nogi (+8: STRONG.GPU_R_R_ARURI64; LTC{64B,128B,
-//! 256B}.256.STRONG.GPU_R_R_ARURI{,64}; CONSTANT.GPU_R_R_ARURI{,64}; swiadek:
-//! Sna.b75b73/b75b74 heal przez klon-64 vm-side) + STG x3 nogi (+3:
-//! STRONG.GPU_ARURI64_R_R; MMIO.SYS.ORDERED_ARURI_R_R{,64}; 121a STG-NA base
-//! absent -> 121a-parity [NT], NIE graftowane). NIE graftowane: LTC256B x b75
-//! (nie sondowane), _II/_P, b81 LDG era-split INVALID3/RML2 + b85-NA
-//! E.INVALID7 + b81-STG INVALID3 x4 (standing-loud 285/440; 476c ledger).
-//! 476b: STG.E.EL.ELL2.256.STRONG.GPU_ARURI_R_R_II (_src474) drukowal fantom
-//! ', 0xff' na Sel.{b73,b74,b73b74} (pola nienazwane {72,73,87}->token4);
-//! vendor b73/b74 tu INERT x4 -> claim_forbid [74:73] in {1,2,3} = HOLE-parity
-//! (ekspozycja ab240 ZERO, census476). 121a NIE ruszana (winner _ARURI_R_R
-//! EXACT pre==post). ENGINE ZERO src. Vendor law: arb476 72 sondy + arb476b 4
-//! combo, nvdisasm 13.3.73 raw -b x4 AGREE EVERY poza b81 split. Data:
-//! patch476.py replay byte-exact x4 + idem all-skip 44; audity A0/A0b(29)/A1
-//! (heal 29/29/29/16; b476-hole 3x3)/A2/A3/A4(+11/+11/+11/+8; touched==476b
-//! -key x3)/A5 (14879/14879/16016/23833; cf 1170/1170/1167/1183) fail-closed.
-//! Canonical commit = cc2f62c379c3e190ef373ab9e8f76af0aeef326c
-//! (serializacja INC-283a: po publish475; flip476b faza B). Census476b: 771 kluczy/noga ze wzorcem {72,73,87}-token4
-//! -- poza zakresem bez prawa per-rama (aneks raportu).
-//! Witness: tests/bug476_data.inc (maszynowe gen476pins.py rc=2; macierz klas
-//! lock x patch476_log.json A1/A5: HEAL 29x3+16, B476 3x3+keep3, INERT 12+1,
-//! BASE 131, STANDING 32, CORPUS 36, MINT 234 wierszy (220 exact +
-//! 14 inert-kanon roundtrip; INC-299a: emisja generatora ustawiona na klasie
-//! roundtrip z docstringu, roundtrip razem 44).
+//! BUG-476 pins (F2-iter291/292, loop5/blind front2, 2026-09-17): the plain
+//! ELL2.256 dARI-era side bits, standing -- 476a the NA-side graft + 476b the phantom
+//! _II. 476a: NA clones of the EL donors, delta 0x7@[86:84] (the EL nibble 0x2 -> NA
+//! 0x5) measured verbatim from the 466 pairs; vm / fields / ctrl / scheduling verbatim,
+//! count removed, _src476. LDG on 4 legs (+8: STRONG.GPU_R_R_ARURI64; LTC{64B,128B,
+//! 256B}.256.STRONG.GPU_R_R_ARURI{,64}; CONSTANT.GPU_R_R_ARURI{,64}; witness:
+//! Sna.b75b73 / b75b74 heal through the clone-64 on the vm side) + STG on 3 legs (+3:
+//! STRONG.GPU_ARURI64_R_R; MMIO.SYS.ORDERED_ARURI_R_R{,64}; the 121a STG-NA base is
+//! absent -> 121a parity [NT], NOT grafted). NOT grafted: LTC256B x b75 (not probed),
+//! _II/_P, the b81 LDG era split INVALID3 / RML2 + b85-NA E.INVALID7 + b81-STG INVALID3
+//! x4 (standing-loud 285 / 440; the 476c ledger). 476b: STG.E.EL.ELL2.256.STRONG.GPU_
+//! ARURI_R_R_II (_src474) printed a phantom ', 0xff' on Sel.{b73, b74, b73b74} (the
+//! unnamed fields {72,73,87} -> token 4); the vendor's b73 / b74 are INERT here x4 ->
+//! claim_forbid [74:73] in {1,2,3} = HOLE parity (exposure ab240 ZERO, census476). 121a
+//! NOT touched (the winner _ARURI_R_R EXACT pre == post). ENGINE: zero source changes.
+//! Vendor law: arb476 72 probes + arb476b 4 combos, nvdisasm 13.3.73 raw -b x4 AGREE
+//! EVERY except the b81 split. Data: patch476.py replay byte-exact x4 + idempotent
+//! all-skip 44; audits A0 / A0b (29) / A1 (heal 29/29/29/16; the b476 hole 3x3) / A2 /
+//! A3 / A4 (+11/+11/+11/+8; touched == the 476b key x3) / A5 (14879/14879/16016/23833;
+//! cf 1170/1170/1167/1183) fail-closed. Canonical commit =
+//! cc2f62c379c3e190ef373ab9e8f76af0aeef326c (serialisation INC-283a: after publish475;
+//! the flip476b phase B). Census476b: 771 keys per leg with the {72,73,87}-token-4
+//! pattern -- out of scope without a per-frame law (the report's annex).
+//! Witness: tests/bug476_data.inc (machine-built by gen476pins.py rc=2; the class
+//! matrix locked x patch476_log.json A1 / A5: HEAL 29x3+16, B476 3x3 + keep 3, INERT
+//! 12+1, BASE 131, STANDING 32, CORPUS 36, MINT 234 rows (220 exact + 14 inert-canon
+//! round trip; INC-299a: the generator's emission set on the round-trip class from the
+//! docstring, round trip 44 in total).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

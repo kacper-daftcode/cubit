@@ -1,31 +1,30 @@
-//! BUG-467 pins (F2-iter278, loop5/blind front2, 2026-09-16): DELETE x8
-//! degenerate era-rows (canonical 67b54f4 -> 668f842). Registry 467-kand
-//! (residuum 462): sm120 x3 klucze _P_P ATOM/ATOMG dARI + sm121a x4 klucze
-//! STG.E{,_P,64,128} dARI nobracket-mangle; audiencja poszerzyla o sm121a
-//! STG.E_II_R (ta sama zdegenerowana ramka era; po usunieciu x4 przejalby
-//! mangle na siebie).
+//! BUG-467 pins (F2-iter278, loop5/blind front2, 2026-09-16): DELETE x8 degenerate
+//! era rows (canonical 67b54f4 -> 668f842). Registry candidate 467 (the residue of
+//! 462): sm120 x3 keys _P_P ATOM / ATOMG dARI + sm121a x4 keys STG.E{,_P,64,128} dARI
+//! with the no-bracket mangle; the audience widened by sm121a STG.E_II_R (the same
+//! degenerate era frame; after the x4 deletion it would have taken the mangle over).
 //!
-//! Defekt pre (publish e13567b3): silnik claimowal slowa z ramka era
-//! [ab=0x08001000@64:96 (sm120) / 0x0c001000@64:96 (sm121a)] i drukowal
-//! mangle: ATOMG.E.ADD renderowane jako 'ATOMG.E.OR.STRONG.GPU' (oba klucze
-//! ADD i OR mialy IDENTYCZNE ab=0x80010008000000000ff09a8), ekstra token
-//! '0x0', 'PT' vs vendor 'RZ', 'E' vs vendor 'EF'; sm121a x4: nobracket
-//! 'STG.E 0x0, R0' (brak adresu w ogole). Vendor (nvdisasm 13.3.73 raw -b)
-//! drukuje dla CALEGO claim-space'u glif degenerate: ATOM.???0.ADD.EF /
-//! ATOMG.???0.ADD.EF / STG.???0.EF.U8 -- arb467b+arb467c 216/216 sond
-//! (27 mutacji x 8 klas: ureg [64:72), reuse b122/123/124, pred [81:84),
-//! guard [12:16), imm/regs, combo) rc=0 I WSZYSTKIE '???0'. Rodzenstwo
-//! legalne (P_R dARI sm120; STG.E.EL/SM/EU/NA, STG_dARI_R mgs na sm121a)
-//! renderuje poprawnie => degeneracja siedzi w ramce era, nie w low12.
+//! The defect before (publish e13567b3): the engine claimed words with the era frame
+//! [ab = 0x08001000@64:96 (sm120) / 0x0c001000@64:96 (sm121a)] and printed a mangle:
+//! ATOMG.E.ADD rendered as 'ATOMG.E.OR.STRONG.GPU' (the ADD and OR keys had an
+//! IDENTICAL ab = 0x80010008000000000ff09a8), an extra token '0x0', 'PT' vs the
+//! vendor's 'RZ', 'E' vs the vendor's 'EF'; sm121a x4: the no-bracket 'STG.E 0x0, R0'
+//! (no address at all). The vendor (nvdisasm 13.3.73 raw -b) prints the degenerate
+//! glyph for the WHOLE claim space: ATOM.???0.ADD.EF / ATOMG.???0.ADD.EF /
+//! STG.???0.EF.U8 -- arb467b + arb467c 216/216 probes (27 mutations x 8 classes: ureg
+//! [64:72), reuse b122/123/124, pred [81:84), guard [12:16), imm/regs, combo) rc=0 AND
+//! ALL '???0'. The legal siblings (P_R dARI on sm120; STG.E.EL/SM/EU/NA, the STG_dARI_R
+//! mgs on sm121a) render correctly => the degeneracy sits in the era frame, not in
+//! low12.
 //!
-//! Fix = DELETE calej klasy x8 (doktryna fail-closed dla glifow vendor-
-//! invalid: decoder.rs F2I.???6/???7 + 285 INVALID-enum HOLE-parity; 452
-//! HOLE-posture). Encode-side pre i post: no-entry fail-closed dla tekstow
-//! mangle'owanych i dla glifu '???0'. Claim-space post-delete pusta
-//! (A0b-post), trzecich claimantow brak (A0b). Census ekspozycji ab240
-//! (34.0M slow x4 nogi) = 0 nosnikow (LATENT). Zero ENGINE src. Witness
-//! data: tests/bug467_data.inc (machine-built by work/bug467/gen467pins.py
-//! rc=0; anchors/keeps minted live nvdisasm; no hand hex).
+//! Fix = DELETE the whole class x8 (the fail-closed doctrine for vendor-invalid
+//! glyphs: decoder.rs F2I.???6/???7 + the 285 INVALID-enum HOLE parity; the 452 HOLE
+//! posture). Encode side pre and post: no-entry fail-closed for the mangled texts and
+//! for the '???0' glyph. The claim space after the deletion is empty (A0b-post), no
+//! third claimants (A0b). Exposure census ab240 (34.0M words x 4 legs) = 0 carriers
+//! (LATENT). Zero ENGINE source changes. Witness data: tests/bug467_data.inc
+//! (machine-built by work/bug467/gen467pins.py rc=0; anchors / keeps minted live with
+//! nvdisasm; no hand hex).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

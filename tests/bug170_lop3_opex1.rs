@@ -1,34 +1,34 @@
-//! BUG-170 (front-main iter88, 2026-08-26, loop5/blind; kandydat 170 z raportu
-//! 168 sec.8 = "control-emission UPLOP3", lane front-M/asm): kubiny skladane
-//! z TEKSTU z UPLOP3.LUT dostawaly od schedulera control word, na ktorym
-//! nvdisasm -c abort ("Opclass 'uplop3_lut_2out_', undefined value 0x1e for
-//! table 'TABLES_opex_1'") — pre-existing na main, odtworzone work/i88.
+//! BUG-170 (front-main iter88, 2026-08-26, loop5/blind; candidate 170 from report
+//! 168 sec. 8 = "control emission of UPLOP3", lane front-M/asm): cubins assembled
+//! from TEXT with UPLOP3.LUT received a control word from the scheduler on which
+//! nvdisasm -c aborts ("Opclass 'uplop3_lut_2out_', undefined value 0x1e for table
+//! 'TABLES_opex_1'") -- pre-existing on main, reproduced in work/i88.
 //!
-//! Prawo (raport results/cubitfix/170.md):
-//!   ctrl bity slowa [105:110) = stall[0:4) | yield<<4 sa dla opclass
-//!   uplop3_lut_2out_ / plop3_lut_2out_ indeksem TABLES_opex_1.
-//!   Defined = 0x00..=0x0F i 0x11..=0x1B; undefined = 0x10 (yield przy
-//!   stall 0) i 0x1C..=0x1F (yield przy stall 12..=15).
-//!   Dowody: bit-scan 32/32 na payloadach korpusowych (work/i88/arb) +
-//!   census vendor hexdb 32.2M: 5,970 wierszy UPLOP3 + 144,796 PLOP3, zero
-//!   poza zbiorem legalnym. Stage-3 RULE-2 (ptxas-derived: clear Y przy
-//!   stall==0 i stall>=12) = dokladnie to samo prawo — zbieznosc niezalezna.
-//! Root cause: legacy path ustawial yield bezwarunkowo na UPLOP3
-//!   (scheduling_pass "uniform datapath writers keep the yield") i dokladal
-//!   stall 14 = LATENCY_PRED(13)+1 => 0x1e na KAZDEJ tekstowej UPLOP3.
-//! Fix: scheduling_pass::opex1_lop3_legalize — sweep koncowy schedule() +
-//!   sweep po post-passach main.rs (settle MMA / back-edge): stall 0 -> 1
-//!   przy yield (ksztalt 0x11 dominujacy u vendora), stall >= 12 traci yield
-//!   i zachowuje stall (ksztalty 0x0C/0x0F sa w korpusie). hand_sched frozen:
-//!   bity autorskie nietkniete.
-//! sm120: tabele sm120 nie maja nosnego wiersza UPLOP3 (168 sec.8), lane
-//!   defensywny przez ten sam kod wspoldzielony.
+//! Law (report results/cubitfix/170.md):
+//!   the control bits of the word [105:110) = stall[0:4) | yield<<4 are, for the
+//!   opclasses uplop3_lut_2out_ / plop3_lut_2out_, an index into TABLES_opex_1.
+//!   Defined = 0x00..=0x0F and 0x11..=0x1B; undefined = 0x10 (yield with stall 0)
+//!   and 0x1C..=0x1F (yield with stall 12..=15).
+//!   Evidence: a bit scan 32/32 on corpus payloads (work/i88/arb) + the vendor hexdb
+//!   census of 32.2M words: 5,970 UPLOP3 rows + 144,796 PLOP3, none outside the legal
+//!   set. Stage-3 RULE-2 (ptxas-derived: clear Y at stall == 0 and stall >= 12) = exactly
+//!   the same law -- an independent convergence.
+//! Root cause: the legacy path set yield unconditionally on UPLOP3 (scheduling_pass
+//!   "uniform datapath writers keep the yield") and added stall 14 = LATENCY_PRED(13)+1
+//!   => 0x1e on EVERY textual UPLOP3.
+//! Fix: scheduling_pass::opex1_lop3_legalize -- a final sweep of schedule() + a sweep
+//!   after main.rs's post-passes (settle MMA / back-edge): stall 0 -> 1 with yield (the
+//!   shape 0x11 dominant at the vendor), stall >= 12 loses the yield and keeps the stall
+//!   (the shapes 0x0C / 0x0F are in the corpus). hand_sched frozen: the author's bits
+//!   untouched.
+//! sm120: the sm120 tables have no carrying UPLOP3 row (168 sec. 8); the lane is
+//!   defended by the same shared code.
 //!
-//! Piny: t170_1 repro-core 0x1e -> stall zachowany, yield zdjety;
-//! t170_2 53 uniq korpusowe UPLOP3 (hexdb, z t168) wszystkie legalne;
-//! t170_3 PLOP3 forma legalna; t170_4 hand_sched frozen nietkniete;
-//! t170_5 byte-level: zakodowane slowa maja [105:110) w zbiorze legalnym.
-//! Neg-ctl (main 2bd2a82): t170_1/t170_2/t170_5 FAIL (0x1e), t170_3/t170_4 PASS.
+//! Pins: t170_1 repro core 0x1e -> stall kept, yield removed; t170_2 the 53 uniq
+//! corpus UPLOP3 (hexdb, from t168) all legal; t170_3 the PLOP3 form legal; t170_4
+//! hand_sched frozen untouched; t170_5 byte level: the encoded words have [105:110)
+//! in the legal set. Negative control (main 2bd2a82): t170_1 / t170_2 / t170_5 FAIL
+//! (0x1e), t170_3 / t170_4 PASS.
 
 use cubit::encoder::encode_instruction;
 use cubit::ir::{ControlCode, Instruction};

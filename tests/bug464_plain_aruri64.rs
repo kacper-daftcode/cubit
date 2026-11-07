@@ -1,24 +1,24 @@
-//! BUG-464 pins (F2-iter270, loop5/blind front2, 2026-09-15): plain (nNA)
-//! ARURI64 EFL2.256 lattice graft (canonical +6 kluczy/noga x4: LDG
-//! *_R_R_ARURI64{,_P,_II,_II_P} + STG *_ARURI64_R_R{,_II}) + ENGINE army
-//! (printer format_plain_u32_ur plain64; encoder `_ARURI64` fallback dla
-//! elizji bazy '[URm(+off)]'). Rodzina byla absent x4 (engine HOLE, vendor
-//! rc=0 -- fz nosniki klasy STANDING z 453): flz frame {b75,b84,b91} + lo
-//! 0x97e/0x97f. Vendor law: arb464/464b/464c/464d 508 sond nvdisasm 13.3.73
-//! raw -b x4 AGREE EVERY/DIVERGENT=0 -- pol 8-bit pelny zakres (trailer
-//! ', 0xNN' PRZED pred-out), 0xff = ELIDED (baza strict len-tie jak NA/dARI),
-//! imm17/19 signed<<5 '+-', UR 0xff=URZ, pred_inv4 [90:87], rzedy era
-//! [118:126) inert, band [92:96) inert, STG 72/73/74/87 inert (463-paritet,
-//! flagi None-mirror), KILL tylko b91=0, baza 255 -> czysta elizja
-//! '[UR38]'/'[URZ]'/'[UR38+0x40020]' (448-law-side, NIE glif 461-REDG --
-//! mintowalna przez encoder fallback ARURI64). Standing nieclaimowane
-//! (post==pre snap): modsub 465 (b77/78/79/80/81/82/84off/85), LTC ARURI LDG
-//! [74:73] (468-family), U32 sibling b75=0 (474-kand), b83 inert pinned
-//! (HOLE-parity lustro dARI; vm celowo bez b83). reuse-klasa b124 ->
-//! '.reuse' parity z rodzina EFL2.256 (jak dARI/NA); era-kill '[0:96) core'
-//! = 449-era-shadow. Witness data: tests/bug464_data.inc (machine-built by
-//! work/bug464/gen464pins.py; rc=2 fail-closed; no hand hex; mints
-//! nvdisasm-crossed x4 at generation time).
+//! BUG-464 pins (F2-iter270, loop5/blind front2, 2026-09-15): the plain (nNA)
+//! ARURI64 EFL2.256 lattice graft (canonical: +6 keys per leg x4: LDG
+//! *_R_R_ARURI64{,_P,_II,_II_P} + STG *_ARURI64_R_R{,_II}) + the ENGINE arm (printer
+//! format_plain_u32_ur plain64; encoder `_ARURI64` fallback for the elided base
+//! '[URm(+off)]'). The family was absent on all four legs (an engine HOLE, vendor
+//! rc=0 -- the fz carriers of the STANDING class from 453): the flz frame
+//! {b75,b84,b91} + low 0x97e / 0x97f. Vendor law: arb464 / 464b / 464c / 464d, 508
+//! probes, nvdisasm 13.3.73 raw -b x4 AGREE EVERY / DIVERGENT = 0 -- the 8-bit field
+//! over its full range (the trailer ', 0xNN' BEFORE the pred-out), 0xff = ELIDED (the
+//! strict length-tie base as on NA / dARI), imm17/19 signed<<5 '+-', UR 0xff = URZ,
+//! pred_inv4 [90:87], the era rows [118:126) inert, the band [92:96) inert, STG
+//! 72/73/74/87 inert (463 parity, None-mirror flags), KILL only at b91 = 0, base 255 ->
+//! a clean elision '[UR38]' / '[URZ]' / '[UR38+0x40020]' (the 448 law side, NOT the
+//! 461-REDG glyph -- mintable through the encoder's ARURI64 fallback). Standing,
+//! unclaimed (post == pre snapshot): the 465 modsub (b77/78/79/80/81/82/84off/85), the
+//! LTC ARURI LDG [74:73] (the 468 family), the U32 sibling b75 = 0 (candidate 474),
+//! b83 inert pinned (HOLE parity, a mirror of dARI; vm deliberately without b83). The
+//! reuse class b124 -> '.reuse' parity with the EFL2.256 family (as dARI / NA); the
+//! era kill '[0:96) core' = the 449 era shadow. Witness data: tests/bug464_data.inc
+//! (machine-built by work/bug464/gen464pins.py; rc=2 fail-closed; no hand hex; the
+//! mints nvdisasm-crossed x4 at generation time).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

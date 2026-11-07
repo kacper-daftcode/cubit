@@ -1,22 +1,21 @@
-//! BUG-194 — sm120 REDUX_UR_R S32-sibling rows (owner: iter92, loop5/blind
-//! front MAIN). Kand z noty 193 sec.8: stany op[78:81) in {0,1,2,3} z b73=1
-//! sa legalne u vendora (arb193.json: ptxas+nvdisasm 13.3.73 sm_120a, pelny
-//! sweep 16-stanowy) — `REDUX.S32` (AND elidowany tez przy S32),
-//! `REDUX.OR.S32`, `REDUX.XOR.S32`, `REDUX.SUM.S32`. Zmergowana baza
-//! (193+192) dekodowala je jako ZLY mnemonik: op0s1 `REDUX.MIN.S32`,
-//! op1s1 `REDUX.MAX.S32`, op2/3s1 operand-junk `|R0|`; encode byl fail-closed
-//! (guard BUG-132), czyli brak cichego zlego kodu, ale calkowita dziura RE.
-//! Zero kotwic korpusowych dla tych stanow (census 193: hexdb REDUX lane ma
-//! tylko 3 anchory sm_120a, wszystkie op0 b73=0).
+//! BUG-194 -- the sm120 REDUX_UR_R S32-sibling rows (owner: iter92, loop5/blind,
+//! front MAIN). Candidate from note 193 sec. 8: the states op[78:81) in {0,1,2,3}
+//! with b73 = 1 are legal at the vendor (arb193.json: ptxas + nvdisasm 13.3.73 sm_120a,
+//! the full 16-state sweep) -- `REDUX.S32` (AND elided at S32 too), `REDUX.OR.S32`,
+//! `REDUX.XOR.S32`, `REDUX.SUM.S32`. The merged base (193 + 192) decoded them as the
+//! WRONG mnemonic: op0s1 `REDUX.MIN.S32`, op1s1 `REDUX.MAX.S32`, op2/3s1 the operand
+//! junk `|R0|`; the encode was fail-closed (guard BUG-132), so no silent wrong code,
+//! but a complete RE hole. Zero corpus anchors for these states (census 193: the hexdb
+//! REDUX lane has only 3 sm_120a anchors, all op0 with b73 = 0).
 //!
-//! Fix data-only (work/i92/patch194.py replayable+idempotent): +4 wiersze
-//! [S32 / OR,S32 / S32,XOR / S32,SUM] z ab = BASE|op<<78|1<<73, vm i pola
-//! identyczne jak u rodzenstwa. Render porzadku `.SUM.S32` wymaga printer-arm
-//! parked-192 (stad baza = merge 192+193, ride-after z noty 193 sec.8).
-//! op6/7 (vendor INVALID6/INVALID7) POZA ZAKRESEM zgodnie z doktryna domu
-//! (piny 135/172: stanom INVALID nie daje sie wierszy; dekoder NIE moze
-//! fabrykowac czystego mnemonika). Residuum op6/7 = znany junk (t194_6);
-//! ewentualna vm-narrowing robota -> hard fail-closed = decyzja wlasciciela.
+//! Fix, data only (work/i92/patch194.py, replayable + idempotent): +4 rows
+//! [S32 / OR,S32 / S32,XOR / S32,SUM] with ab = BASE | op<<78 | 1<<73, vm and fields
+//! identical to the siblings'. The render order `.SUM.S32` needs the parked-192 printer
+//! arm (hence the base = the merge 192 + 193, ride-after from note 193 sec. 8).
+//! op6/7 (the vendor's INVALID6 / INVALID7) OUT OF SCOPE by the house doctrine (pins
+//! 135 / 172: INVALID states get no rows; the decoder must NOT fabricate a clean
+//! mnemonic). The op6/7 residue = known junk (t194_6); a possible vm-narrowing job ->
+//! hard fail-closed = the owner's decision.
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

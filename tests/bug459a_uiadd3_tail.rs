@@ -1,30 +1,29 @@
-//! BUG-459a pins (F2-iter296 pre-study + iter301 wykonanie, loop5/blind
-//! front2, 2026-09-18): UIADD3 plain junk-tail ", UPT, UPT" -- DELETE junk
-//! mod-groups "" / "64" z kluczy UIADD3_UR_UP_UP_UR_{UR,II}_UR_UP_UP
-//! (sm120+sm121a). Junk-mgs mialy pred-out bity [77:81)+[87:91) spine na
-//! default 0xf/0xf BEZ ekstrakcji tokenow 6..8 -> drukowaly suffix ", UPT,
-//! UPT" i shadowowaly dobre wiersze 6-tokenowe (winner-shadow; na 100a/103a
-//! te same slowa trafialy w poprawne wiersze -- junk mg tam byl nieszkodliwy
-//! -> A4b nogi bajtowo nietkniete). sm120: klucz UR_II pusty po kasacji ->
-//! key-del (DOKLADNIE 1). Prawo vendora (arb459a 136 sond, nvdisasm 13.3.73
-//! raw -b x4 AGREE EVERY): natywne slowa imm/UR + sweep guard [12:16) x16 +
-//! rama .64 ZAWSZE drukuja forme 6-tokenowa; bity [77:91) DEAD na ramie imm
-//! (flip = vendor bez zmian). Audity patch459a.py: A0 (zawartosc kasowanych
-//! mg and_base/vm lock + brak ekstrakcji [77:91)), A4 (removed==DOKLADNIE
-//! {UR_II} sm120, touched=={UR_UR} sm120 + oba klucze sm121a), A4b
-//! byte-parity 100a/103a, A5 census (14879/14879/16015/23833 forms;
-//! 16450/16446/17631/26385 variants; cf 1170/1170/1167/1183) fail-closed.
-//! ENGINE cubit NIE ruszony (table-only). Canonical commit 96372cb (po 476
-//! c88778e; serializacja INC-283a).
-//! Witness: tests/bug459a_data.inc (maszynowe gen459apins.py rc=2; macierz
-//! klas lock): HEAL 66 (33 sm120 + 33 sm121a), EXACT 8 (121a), HOLEPAR 8
-//! (sm120 flip77..80,87..90 -- vendor-legal poza oknem dobrego wiersza),
-//! REFPAR 190 (vendor refuse, hole-parity x2), X3STABLE 66 + X3STANDING 16
-//! (x3 overprint dead-bitow [77:91): UIADD3.X + UPx-tail, cold==hot,
-//! 408-residuum companion -- parity-only wg doktryny 285/440), MINT 8
-//! (4 teksty x {120,121a}), JUNK 8-token encode fail-closed x2.
-//! Klasa KILL = 0 (delete nie zdejmuje zadnego overclaimu dekodera; pre-fix
-//! junk-mint 0xfc2000fffe0fffffffff0070a7890 potwierdzony encode-side).
+//! BUG-459a pins (F2-iter296 pre-study + iter301 execution, loop5/blind front2,
+//! 2026-09-18): the UIADD3 plain junk tail ", UPT, UPT" -- DELETE the junk mod groups
+//! "" / "64" from the keys UIADD3_UR_UP_UP_UR_{UR,II}_UR_UP_UP (sm120 + sm121a). The
+//! junk mod groups had the pred-out bits [77:81) + [87:91) baked at the default
+//! 0xf / 0xf WITHOUT an extraction of tokens 6..8 -> they printed the suffix ", UPT,
+//! UPT" and shadowed the good 6-token rows (winner shadow; on 100a / 103a the same
+//! words landed in the correct rows -- the junk mg was harmless there -> the A4b legs
+//! byte-untouched). sm120: the UR_II key is empty after the deletion -> key deletion
+//! (EXACTLY 1). Vendor law (arb459a, 136 probes, nvdisasm 13.3.73 raw -b x4 AGREE
+//! EVERY): the native imm / UR words + the guard sweep [12:16) x16 + the .64 frame
+//! ALWAYS print the 6-token form; bits [77:91) DEAD on the imm frame (a flip = the
+//! vendor unchanged). Audits of patch459a.py: A0 (the content of the deleted mgs'
+//! and_base / vm locked + no extraction of [77:91)), A4 (removed == EXACTLY {UR_II}
+//! sm120, touched == {UR_UR} sm120 + both keys on sm121a), A4b byte parity 100a / 103a,
+//! A5 census (14879/14879/16015/23833 forms; 16450/16446/17631/26385 variants;
+//! cf 1170/1170/1167/1183) fail-closed. The cubit ENGINE NOT touched (table only).
+//! Canonical commit 96372cb (after 476 c88778e; serialisation INC-283a).
+//! Witness: tests/bug459a_data.inc (machine-built by gen459apins.py rc=2; the class
+//! matrix locked): HEAL 66 (33 sm120 + 33 sm121a), EXACT 8 (121a), HOLEPAR 8 (sm120
+//! flips 77..80, 87..90 -- vendor-legal outside the good row's window), REFPAR 190
+//! (vendor refuse, hole parity x2), X3STABLE 66 + X3STANDING 16 (the x3 overprint of
+//! the dead bits [77:91): UIADD3.X + the UPx tail, cold == hot, the 408 residue
+//! companion -- parity only, by the 285 / 440 doctrine), MINT 8 (4 texts x {120,121a}),
+//! JUNK 8-token encode fail-closed x2. The KILL class = 0 (the deletion lifts no
+//! decoder overclaim; the pre-fix junk mint 0xfc2000fffe0fffffffff0070a7890 confirmed
+//! on the encode side).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

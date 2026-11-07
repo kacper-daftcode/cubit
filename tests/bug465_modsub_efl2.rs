@@ -1,24 +1,24 @@
-//! BUG-465 pins (F2-iter272, loop5/blind front2, 2026-09-15): modsub lattice
-//! nad plain (nNA) ARURI64 EFL2.256 frame -- L1 [85:84] {0:EF,1:base,2:EL,
-//! 3:LU} x L2-hint [82:81] {0:EFL2,1:ENL2,2:ELL2; 3 = era-split standing:
-//! SM100a/103a 'INVALID3' vs SM120/121a 'RML2.256.???1.???0', nigdy kluczem}
-//! x sem [80:77] 16-wartosciowy per-op atlas. LDG i STG atlasy roznia sie na
-//! {4: CONSTANT vs STRONG.SM.PRIVATE; 13/14/15: VC-klasa vs *ORDERED}; atlas
-//! REDG (iter72) NIE przeniesiony (LDG sem=4 mierzone inaczej). 1146 nowych
-//! kluczy/noga x4 (LDG 191 kombinacji x4 formy {,_P,_II,_II_P} + STG 191 x2),
-//! canonical 23976eb (clone wlasnych 6 kluczy 464: and_base piny [77:86) +
-//! base_op, reszta verbatim, claim_forbid None, count=None). Vendor law:
-//! arb465 (123 sondy) + arb465b (382 slowa kratki) nvdisasm 13.3.73 raw -b
-//! x4 AGREE EVERY/DIVERGENT=0 poza by-design l2=3 era-split. Dziedziczenie
-//! zmierzone: pol-trailer/imm/elide ra255/pred4/band 92-95 identyczne jak
-//! na bazie 464; kille b91=0 trzymaja na modsub (G.*). ENGINE delta: guard
-//! armu printera ARURI64 poszerzony z starts_with('*_EFL2') na rodzine
-//! *{EFL2,ENL2,ELL2}* (base_op niesie token); encoder fallback '_ARURI64'
-//! generywny przez clean_opcode (bez zmian). Standing NIEclaimowane
-//! (snap pre==post HOLE; t465_3): l2=3 era-split + dARI modsub b76=1
-//! (475-kand; bug123 ma EF.ENL2 desc-form z innej klasy adresowej, nie
-//! konfliktuje). Witness data: tests/bug465_data.inc (machine-built by
-//! work/bug465/gen465pins.py rc=2; no hand hex; mints nvdisasm-crossed x4).
+//! BUG-465 pins (F2-iter272, loop5/blind front2, 2026-09-15): the modsub lattice
+//! over the plain (nNA) ARURI64 EFL2.256 frame -- L1 [85:84] {0:EF, 1:base, 2:EL,
+//! 3:LU} x the L2 hint [82:81] {0:EFL2, 1:ENL2, 2:ELL2; 3 = an era split, standing:
+//! SM100a / 103a 'INVALID3' vs SM120 / 121a 'RML2.256.???1.???0', never a key} x
+//! sem [80:77], a 16-value per-op atlas. The LDG and STG atlases differ at {4: CONSTANT
+//! vs STRONG.SM.PRIVATE; 13/14/15: the VC class vs *ORDERED}; the REDG atlas (iter72)
+//! NOT carried over (LDG sem = 4 measures differently). 1146 new keys per leg x4
+//! (LDG 191 combinations x 4 forms {,_P,_II,_II_P} + STG 191 x 2), canonical 23976eb
+//! (clones of the own 6 keys of 464: the and_base pins [77:86) + base_op, the rest
+//! verbatim, claim_forbid None, count = None). Vendor law: arb465 (123 probes) +
+//! arb465b (382 lattice words), nvdisasm 13.3.73 raw -b x4 AGREE EVERY / DIVERGENT = 0
+//! except the by-design l2 = 3 era split. Inheritance measured: the field trailer /
+//! imm / the ra255 elision / pred4 / the band 92-95 identical to the 464 base; the
+//! b91 = 0 kills hold on the modsub (G.*). ENGINE delta: the guard of the ARURI64
+//! printer arm widened from starts_with('*_EFL2') to the family *{EFL2,ENL2,ELL2}*
+//! (base_op carries the token); the encoder fallback '_ARURI64' is generic through
+//! clean_opcode (unchanged). Standing, NOT claimed (snapshot pre == post HOLE;
+//! t465_3): the l2 = 3 era split + the dARI modsub b76 = 1 (candidate 475; bug123 has
+//! an EF.ENL2 desc form of another address class, no conflict). Witness data:
+//! tests/bug465_data.inc (machine-built by work/bug465/gen465pins.py rc=2; no hand
+//! hex; the mints nvdisasm-crossed x4).
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

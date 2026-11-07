@@ -1,33 +1,32 @@
-//! BUG-168 (front-main iter78, loop5/blind; queue item "UPLOP3.LUT 2-bit
-//! lattice imm render (64 linie, 7 uniq)" z raportu 153 sec.5 / noszony
-//! iter72..77): encoder check_uplop3_lut_lattice mrozil prawo ery BUG-030
-//! ({0,0x40,0x80,0xc0} x {0,0x4,0x8,0xc}) => 64 linie korpusu (8/44 uniq
-//! tekstow hexdb) fail-closed: pary (0xf8,0x8f) i (0x2,0x20).
-//! Prawo vendora (nvdisasm 13.3.73, matryca na szkielecie korpusowym
-//! (0x40,0x4), work/i78/arb166.json + up_arb*; 107/107 uniq slow == vendor
-//! pre i post na sm103a):
-//!   tok5 (v1) = shr1@[65:67)<<1 | shr2@[71:77)<<2  => v1 in [0,0xfe] EVEN
-//!   tok6 (v2) = [16:24) 8-bit, niezalezny od v1 ((0x40,0x14)/(0x40,0x44)/
-//!          (0x40,0x9) legalne; korpusowe v2==rot4(v1) = relacja SEMANTYCZNA,
-//!          nie struktura enkodowania).
-//! Fix: (1) tables/sm103a.json UPLOP3_UP_UP_UP_UP_UP_II_II 'LUT': usuniecie
-//! redundantnego overlap-pola imm_shr4@[16:20) tok6 (fabrykowal v1 gdy bit
-//! [16:20) niespojny z shr2: pre-fix sonda v1_78 drukowala 0xf8 vs vendor
-//! 0x78, sonda v2=0x09 drukowala 0xd0 vs vendor 0x40) + tok7 imm [16:48) ->
-//! [16:24) (vendor ignoruje [24:.), dowod sondy v2=0x104 -> "0x4"); bity
-//! [24:32) staja sie matched-0, census 107/107 slow ma tam 0 (bezstratne).
-//! (2) src/encoder.rs: lattice-check = UP-forma (4 operandy UPred): v1 in
-//! [0,0xfe] parzysty (bit0 bez magazynu), v2 in [0,0xff], bez relacji;
-//! legacy P-forma zostaje na starej regule (fail-closed).
-//! sm120: SWIADOMIE poza zakresem (kandydat 169): pelny wiersz UP przegrywa
-//! tiebreak dekodera (score na enum Extraction::Pred, upred==pred) z junk-
-//! -ekosystemem PLOP3.LUT_P1 (score +16); pre-fix fabrykuje 17/107 uniq
-//! (dowody work/i78/up168_fixverify*.json).
-//! Piny: t168_1 decode==tekst korpusowy 44 uniq; t168_2 arb-matrix decode
-//! == vendor (9 form, w tym 3 pre-fabrykowane); t168_3 encode 44 teksty
-//! payload[0:96)==corpus word; t168_4 fail-closed: v1 odd / >0xfe / v2>0xff;
-//! t168_5 strict-hole: slowo z [24]!=0 fail-closed (vendor-inert); t168_6
-//! fixed-point decode->encode->same-word + legacy rule nienaruszona.
+//! BUG-168 (front-main iter78, loop5/blind; queue item "UPLOP3.LUT 2-bit lattice imm
+//! render (64 lines, 7 uniq)" from report 153 sec. 5, carried through iter72..77): the
+//! encoder's check_uplop3_lut_lattice froze the BUG-030 era law ({0,0x40,0x80,0xc0} x
+//! {0,0x4,0x8,0xc}) => 64 corpus lines (8 / 44 uniq hexdb texts) failed closed: the
+//! pairs (0xf8,0x8f) and (0x2,0x20).
+//! Vendor law (nvdisasm 13.3.73, a matrix on the corpus skeleton (0x40,0x4),
+//! work/i78/arb166.json + up_arb*; 107/107 uniq words == vendor pre and post on sm103a):
+//!   tok5 (v1) = shr1@[65:67)<<1 | shr2@[71:77)<<2  => v1 in [0,0xfe], EVEN
+//!   tok6 (v2) = [16:24) 8-bit, independent of v1 ((0x40,0x14)/(0x40,0x44)/(0x40,0x9)
+//!          are legal; the corpus's v2 == rot4(v1) is a SEMANTIC relation, not a
+//!          structure of the encoding).
+//! Fix: (1) tables/sm103a.json UPLOP3_UP_UP_UP_UP_UP_II_II 'LUT': the redundant
+//! overlapping field imm_shr4@[16:20) of tok6 removed (it fabricated v1 whenever bits
+//! [16:20) disagreed with shr2: pre-fix the v1_78 probe printed 0xf8 vs the vendor's
+//! 0x78, the v2=0x09 probe printed 0xd0 vs the vendor's 0x40) + tok7 imm [16:48) ->
+//! [16:24) (the vendor ignores [24:.), proof: the v2=0x104 probe -> "0x4"); bits
+//! [24:32) become matched-0, the census's 107/107 words carry 0 there (lossless).
+//! (2) src/encoder.rs: the lattice check = the UP form (4 UPred operands): v1 in
+//! [0,0xfe] even (bit 0 has no storage), v2 in [0,0xff], no relation between them;
+//! the legacy P form stays on the old rule (fail-closed).
+//! sm120: DELIBERATELY out of scope (candidate 169): the full UP row loses the
+//! decoder tiebreak (score on the enum Extraction::Pred, upred == pred) to the
+//! PLOP3.LUT_P1 junk ecosystem (score +16); pre-fix it fabricates 17 / 107 uniq
+//! (evidence work/i78/up168_fixverify*.json).
+//! Pins: t168_1 decode == the corpus text, 44 uniq; t168_2 arb-matrix decode ==
+//! vendor (9 forms, 3 of them pre-fabricated); t168_3 encode of the 44 texts,
+//! payload[0:96) == the corpus word; t168_4 fail-closed: v1 odd / > 0xfe / v2 > 0xff;
+//! t168_5 strict hole: a word with [24] != 0 fails closed (vendor-inert); t168_6
+//! fixed point decode -> encode -> the same word + the legacy rule untouched.
 
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;

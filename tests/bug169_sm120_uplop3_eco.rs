@@ -1,24 +1,24 @@
-//! BUG-169 (F2-iter80, front2/blind): ekosystem UPLOP3/PLOP3 na sm120.
-//! Zrodlo: nota 168 sec.8 (169-kand). ROOT: napis "upred" w tabelach
-//! trafial na Extraction::Pred (kolaps enuma) => key_field_consistency_score
-//! nigdy nie widzial upred (is_upred martwe); junk-wiersz
-//! UPLOP3_UP_P_P_P_P_II_II (0 kotwic) wygrywal tiebreak z prawdziwa
-//! UP-forma i fabrykowal 17/107 uniq slow korpusowych na sm120.
-//! Arbitraz nvdisasm-13.3.73 (work/bug169/arb, kubiny sm120-class):
+//! BUG-169 (F2-iter80, front2/blind): the UPLOP3 / PLOP3 ecosystem on sm120.
+//! Source: note 168 sec. 8 (candidate 169). ROOT: the string "upred" in the tables
+//! landed on Extraction::Pred (an enum collapse) => key_field_consistency_score
+//! never saw a upred (is_upred was dead); the junk row UPLOP3_UP_P_P_P_P_II_II
+//! (0 anchors) won the tiebreak against the real UP form and fabricated 17 / 107
+//! uniq corpus words on sm120.
+//! Arbitration with nvdisasm 13.3.73 (work/bug169/arb, sm120-class cubins):
 //!   dest[81:84) tok2[84:87) tok3[87:90)+neg@90 tok4[77:80)+neg@80
-//!   tok5[68:71)+neg@71 (bit71 NIE nalezy do v1 -- sonda tok5b71)
-//!   v1 = [64:67) | [72:77)<<3  pelne 8 bitow (sonda bit64 -> 0x1);
-//!   v2 = [16:24); bit67 inert (fail-closed, doktryna t168_5).
-//! Poprawki danych: (1) wiersz UPLOP3.LUT_UP_UP_UP_UP_UP_II_II na prawo
-//! powyzej (era-stub mial imm_shr6@75/imm_shr2@18 + 2 pola), (2) kasacja
-//! junk UPLOP3_UP_P_P_P_P_II_II, (3) PLOP3.LUT_P_P_P_P_UP_II_II tok6:
-//! swap imm/imm_shr5 -> imm/imm_shr3 (59/423 uniq swap-class), (4) twin
-//! PLOP3_P_P_P_P_UP_II_II += imm@64(3) (315/423, dotychczas poprawne
-//! tylko dla low3==0 -- latentne).
-//! Encoder: era-030 lattice-check (ops 6/7: {0x0,0x40,0x80,0xc0}x{0,4,8,0xc})
-//! POZOSTAJE na main (klasa 0xf8/0x2 fail-closed asm-side) -- relaks do
-//! pelnego 8-bit prawa = decyzja compose z parked-168 (kolizja linii
-//! check_uplop3_lut_lattice; dowody oddania: sonde work/bug169/arb).
+//!   tok5[68:71)+neg@71 (bit 71 does NOT belong to v1 -- probe tok5b71)
+//!   v1 = [64:67) | [72:77)<<3, the full 8 bits (probe bit64 -> 0x1);
+//!   v2 = [16:24); bit 67 inert (fail-closed, the t168_5 doctrine).
+//! Data fixes: (1) the row UPLOP3.LUT_UP_UP_UP_UP_UP_II_II onto the law above (the
+//! era stub had imm_shr6@75 / imm_shr2@18 + 2 fields), (2) the junk
+//! UPLOP3_UP_P_P_P_P_II_II deleted, (3) PLOP3.LUT_P_P_P_P_UP_II_II tok6: the swap
+//! imm/imm_shr5 -> imm/imm_shr3 (59 / 423 uniq in the swap class), (4) the twin
+//! PLOP3_P_P_P_P_UP_II_II += imm@64(3) (315 / 423; correct so far only for low3 == 0
+//! -- latent).
+//! Encoder: the era-030 lattice check (ops 6/7: {0x0,0x40,0x80,0xc0} x {0,4,8,0xc})
+//! STAYS on main (the 0xf8 / 0x2 class fails closed on the asm side) -- relaxing it
+//! to the full 8-bit law = a compose decision with parked-168 (a line collision in
+//! check_uplop3_lut_lattice; the evidence handed over: the probes in work/bug169/arb).
 use cubit::decoder::DecodeIndex;
 use cubit::encoder::encode_instruction;
 use cubit::parser::parse_sass;
