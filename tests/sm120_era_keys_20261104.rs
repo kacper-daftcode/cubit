@@ -68,7 +68,9 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
     //   twin -- the era alias `PLOP3.LUT_P1_...` follows it to the plain key -- seven P2R and two R2P harvest keys)
     // + the IMMA.SF hypothesis key renamed to the measured QMMA.SF opcode-bit-2 variant (2026-11-06, NEEDS 44:
     //   `IMMA.SF.16832.U8.U8_R_R_R_R_R_R_UR` -> `QMMA.SF.16832.F32.UNIDENTIFIED.E8_R_R_R_R_R_R_UR`)
-    assert_eq!(al.len(), 56, "sm120.json key_aliases");
+    // + the six UFSETP junk keys retired by the measured UFSETP family (G: the integer-spelling twin
+    //   `UFSETP_UP_UP_UR_II_UP` and five dotted harvest samples -> the plain key of their opcode)
+    assert_eq!(al.len(), 62, "sm120.json key_aliases");
     let glued = regex::Regex::new(r"_P\d_").unwrap();
     let mut glued_n = 0;
     for (old, new) in &al {
@@ -105,6 +107,10 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
             // the 2026-03 hypothesis key, measured on silicon 2026-11-06 (NEEDS 44): a QMMA.SF opcode-bit-2 variant
             assert_eq!(new, "QMMA.SF.16832.F32.UNIDENTIFIED.E8_R_R_R_R_R_R_UR", "{old} -> {new}");
             assert!(table.entries.get(new).is_some_and(|e| !e.encode_only), "{new}: the measured row is a real row");
+            continue;
+        }
+        if old.starts_with("UFSETP") {
+            assert!(matches!(new, "UFSETP_UP_UP_UR_UR_UP" | "UFSETP_UP_UP_UR_FI_UP"), "{old} -> {new}");
             continue;
         }
         if old.starts_with("IMMA.") {

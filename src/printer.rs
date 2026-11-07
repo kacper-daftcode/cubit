@@ -1301,10 +1301,10 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     if matches!(base, "ISETP" | "UISETP") && m == "T" {
         return 1;
     }
-    // 2026-11-06 (session G, tools/probes/re_sm120_fsetp_dsetp.py, nvdisasm 13.1): the constant comparisons
-    // of the float setp family precede FTZ like the other comparisons -- `FSETP.F.FTZ.AND`, `FSETP.T.FTZ.OR`;
-    // DSETP names the codes 0 / 15 `MIN` / `MAX` (`DSETP.MIN.AND`, `DSETP.MAX.XOR`) and has no FTZ.
-    if matches!(base, "FSETP" | "DSETP") && matches!(m, "F" | "T" | "MIN" | "MAX") {
+    // 2026-11-06 (session G, tools/probes/re_sm120_fsetp_dsetp.py + re_sm120_ufsetp.py, nvdisasm 13.1): the
+    // constant comparisons of the float setp family precede FTZ like the other comparisons -- `FSETP.F.FTZ.AND`,
+    // `UFSETP.T.FTZ.OR`; DSETP names the codes 0 / 15 `MIN` / `MAX` (`DSETP.MIN.AND`, `DSETP.MAX.XOR`) and has no FTZ.
+    if matches!(base, "FSETP" | "UFSETP" | "DSETP") && matches!(m, "F" | "T" | "MIN" | "MAX") {
         return 1;
     }
     // 2026-11-02 (audit_dynamic, 247 F2FP words): `F2FP.RELU.BF16.F32.PACK_AB` -
