@@ -1568,6 +1568,11 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" => return 7,
             "GPU" | "SYS" | "SM" | "CTA" | "VC" => return 8,
             "HINT" => return 9,
+            // 2026-11-07 (session G, batch 13, tools/probes/re_sm120_stg256.py, nvdisasm 13.1 on SM120 / SM103 /
+            // SM100): the 256-bit store's scope enum has three ORDERED values that print after the scope --
+            // `STG.E.EFL2.256.SYS.ORDERED`, `.STRONG.SYS.ORDERED`, `.MMIO.SYS.ORDERED` (the generic rank put the
+            // token before the size). Never together with PRIVATE on a measured word.
+            "ORDERED" => return 9,
             _ => {}
         }
     }
@@ -1895,7 +1900,8 @@ fn format_operand(
         // 2026-11-07 (session G, batch 12, tools/probes/re_sm120_ldg256.py): the measured plain keys of the
         // 256-bit load's U32 uniform-indexed form (`LDG_R_R_ARURI[_II][_P]`, 1 152 groups each, bit 75 clear)
         // print the BUG-474 law -- `[Ra.U32+URb(+off)]`, base 255 elided to `[URb(+off)]` in the display print
-        // and `[RZ.U32+URb(+off)]` in the lossless one (nvdisasm 13.1 on SM120 / SM103 / SM100).
+        // and `[RZ.U32+URb(+off)]` in the lossless one (nvdisasm 13.1 on SM120 / SM103 / SM100). Batch 13
+        // (tools/probes/re_sm120_stg256.py): the 256-bit store's plain keys `STG_ARURI_R_R[_II]` the same way.
         "ARURI"
             if ins_key.starts_with("LDG.E")
                 || ins_key.starts_with("STG.E")
@@ -1904,7 +1910,8 @@ fn format_operand(
                 || ins_key.starts_with("LD_")
                 || ins_key.starts_with("ST_")
                 || ins_key == "LDG_R_R_ARURI"
-                || ins_key.starts_with("LDG_R_R_ARURI_") =>
+                || ins_key.starts_with("LDG_R_R_ARURI_")
+                || ins_key.starts_with("STG_ARURI_R_R") =>
         {
             // BUG-446: EFL2.256 NA family (121a-only keys) prints the address
             // width-fixed U32 + <<5-scaled signed offset (arb446 law).
@@ -1930,7 +1937,9 @@ fn format_operand(
                 && (raw >> 75) & 1 == 0)
                 // session G batch 12: the measured plain keys (every group incl. the NA ones; bit 75 is clear on all)
                 || ins_key == "LDG_R_R_ARURI"
-                || ins_key.starts_with("LDG_R_R_ARURI_");
+                || ins_key.starts_with("LDG_R_R_ARURI_")
+                // session G batch 13: the 256-bit store's measured U32 keys (the same law, bit 75 clear)
+                || ins_key.starts_with("STG_ARURI_R_R");
             let efl2_na = ins_key.starts_with("LDG.E.NA.EFL2")
                 || ins_key.starts_with("STG.E.NA.EFL2")
                 || (ins_key.contains(".ELL2.")
@@ -1981,12 +1990,14 @@ fn format_operand(
         // 2026-11-07 (session G, batch 11, tools/probes/re_sm120_ldg256.py): the measured plain keys of the
         // 256-bit load's `.64` uniform-indexed form (`LDG_R_R_ARURI64[_II][_P]`, 1 152 groups each) print the same
         // law -- `[Ra.64+URb(+off)]`, base 255 elided to `[URb(+off)]` (nvdisasm 13.1 on SM120 / SM103 / SM100).
+        // Batch 13 (tools/probes/re_sm120_stg256.py): the 256-bit store's plain keys `STG_ARURI64_R_R[_II]` too.
         "ARURI64"
             if ((ins_key.starts_with("LDG.E.") || ins_key.starts_with("STG.E."))
                 && (ins_key.contains(".EFL2.")
                     || ins_key.contains(".ENL2.")
                     || ins_key.contains(".ELL2.")))
-                || ins_key.starts_with("LDG_R_R_ARURI64") =>
+                || ins_key.starts_with("LDG_R_R_ARURI64")
+                || ins_key.starts_with("STG_ARURI64_R_R") =>
         {
             format_plain_u32_ur(fields, raw, false, false, true, false, lossless)
         }

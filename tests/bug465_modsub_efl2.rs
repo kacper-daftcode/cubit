@@ -272,12 +272,15 @@ fn t465_9_atlas_audit() {
         // (the dotted `..._R_R_ARURI64[_II][_P]` keys, 764 of the 1 146) is retired into the measured plain keys
         // `LDG_R_R_ARURI64[_II][_P]` (1 152 groups each, `_meta.key_aliases` for every dotted name); the lattice walk
         // below checks the same pins on the plain key's group named by the tokens. The STG half stays until STG.256.
+        // Batch 13 (tools/probes/re_sm120_stg256.py): the STG half (382 dotted `..._ARURI64_R_R[_II]` keys) is retired
+        // into the measured plain keys `STG_ARURI64_R_R[_II]` (288 groups each) the same way -> 0 `_src465` keys on sm120.
         let g11 = leg == "sm120";
-        assert_eq!(n_src462, if g11 { 382 } else { 1146 }, "{leg}: _src465 census drift");
+        assert_eq!(n_src462, if g11 { 0 } else { 1146 }, "{leg}: _src465 census drift");
         for (ldg, donors) in [(true, &donors_ldg[..]), (false, &donors_stg[..])] {
             for dk in donors {
-                if g11 && ldg {
-                    assert_eq!(v["_meta"]["key_aliases"][*dk].as_str().map(|s| s.starts_with("LDG_R_R_ARURI64")), Some(true), "{leg}: donor {dk} aliased");
+                if g11 {
+                    let want = if ldg { "LDG_R_R_ARURI64" } else { "STG_ARURI64_R_R" };
+                    assert_eq!(v["_meta"]["key_aliases"][*dk].as_str().map(|s| s.starts_with(want)), Some(true), "{leg}: donor {dk} aliased");
                     continue;
                 }
                 assert!(ins.get(*dk).is_some(), "{leg}: donor {dk} absent");
@@ -335,9 +338,10 @@ fn t465_9_atlas_audit() {
                             } else {
                                 format!("{bop}_ARURI64_R_R{s}")
                             };
-                            if g11 && ldg {
+                            if g11 {
                                 let target = v["_meta"]["key_aliases"][&nk].as_str().unwrap_or_else(|| panic!("{leg}: {nk} not an alias"));
-                                assert_eq!(target, format!("LDG_R_R_ARURI64{s}"), "{leg}: {nk}");
+                                let want = if ldg { format!("LDG_R_R_ARURI64{s}") } else { format!("STG_ARURI64_R_R{s}") };
+                                assert_eq!(target, want, "{leg}: {nk}");
                                 let mut toks: Vec<&str> = bop.split('.').skip(1).collect();
                                 toks.sort_unstable();
                                 let g = &ins[target]["mod_groups"][toks.join(",")];
@@ -345,7 +349,7 @@ fn t465_9_atlas_audit() {
                                 let dab = u128::from_str_radix(g["and_base"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
                                 assert_eq!((dab >> 77) & 0x1FF, pins, "{leg}:{nk} pin-seg drift (measured group)");
                                 assert_eq!((dab >> 83) & 1, 0, "{leg}:{nk} b83");
-                                assert_eq!(g["_src"], "ldg256-family-2026-11-07", "{leg}:{nk}");
+                                assert_eq!(g["_src"], if ldg { "ldg256-family-2026-11-07" } else { "stg256-family-2026-11-07" }, "{leg}:{nk}");
                                 continue;
                             }
                             let e = ins.get(&nk).unwrap_or_else(|| panic!("{leg}: {nk} absent"));
@@ -382,7 +386,7 @@ fn t465_9_atlas_audit() {
 #[test]
 fn t465_10_canonical_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "10b1a6a23621ecba578854ba3a93b98b52e89c4e" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "32164774851848308d7c1c2591e3e2cac9b86bde" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON465, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     let src = std::fs::read_to_string("tables/SOURCE.json").unwrap();

@@ -87,7 +87,8 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
     //   operand signature, whose 1 152 measured groups include the one each dotted key spelled)
     // + the 3 084 dotted keys of the load's `.64` uniform-indexed form (G batch 11: `..._R_R_ARURI64[_II][_P]`)
     // + the 3 120 dotted keys of the load's U32 uniform-indexed form (G batch 12: `..._R_R_ARURI[_II][_P]`)
-    assert_eq!(al.len(), 7305, "sm120.json key_aliases");
+    // + the 1 164 dotted keys of the 256-bit store (G batch 13: `STG.E.<cache>.<L2>.256.<scope>_{dARI,ARURI,ARURI64}_R_R[_II]`)
+    assert_eq!(al.len(), 8469, "sm120.json key_aliases");
     let glued = regex::Regex::new(r"_P\d_").unwrap();
     let mut glued_n = 0;
     for (old, new) in &al {
@@ -138,10 +139,10 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
             assert!(table.entries.get(new).is_some_and(|e| !e.encode_only), "{new}: the plain key is a real row");
             continue;
         }
-        if old.starts_with("LDG.") && old.contains("_R_R_") {
-            // the 256-bit load's dotted keys (descriptor / .64 uniform-indexed forms): the modifier tokens -> a group of the plain key
-            let sig = old.split_once('_').unwrap().1;
-            assert_eq!(new, format!("LDG_{sig}"), "{old} -> {new}");
+        if (old.starts_with("LDG.") && old.contains("_R_R_")) || (old.starts_with("STG.") && old.contains(".256")) {
+            // the 256-bit load's / store's dotted keys (the three address forms): the modifier tokens -> a group of the plain key
+            let (mn, sig) = old.split_once('_').unwrap();
+            assert_eq!(new, format!("{}_{sig}", mn.split('.').next().unwrap()), "{old} -> {new}");
             let target = table.entries.get(new).unwrap_or_else(|| panic!("{new} missing"));
             assert!(!target.encode_only, "{new}: the plain key is a real row");
             let mut toks: Vec<&str> = old.split('_').next().unwrap().split('.').skip(1).collect();

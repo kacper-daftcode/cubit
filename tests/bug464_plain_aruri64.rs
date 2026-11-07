@@ -75,6 +75,12 @@ fn t464_1_heal_grid() {
                 assert_eq!(got, None, "[{leg}] {tag} {w:#034x}: inert bits fail closed (G batch 11)");
                 continue;
             }
+            // Batch 13 (tools/probes/re_sm120_stg256.py): the store's measured `STG_ARURI64_R_R[_II]` rows the same way
+            // ([74:72] / 83 / 87 / [95:92] text-inert on the 256-bit store; the `.Cg.stg685` cell carries bit 94).
+            if leg == "sm120" && (*w & 0xfff) == 0x97f && (*w & ((7u128 << 72) | (1u128 << 83) | (1u128 << 87) | (0xfu128 << 92))) != 0 {
+                assert_eq!(got, None, "[{leg}] {tag} {w:#034x}: inert bits fail closed (G batch 13)");
+                continue;
+            }
             assert_eq!(
                 got.as_deref(),
                 Some(*vendor),
@@ -258,7 +264,7 @@ fn t464_9_refuse461() {
 #[test]
 fn t464_10_canonical_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "10b1a6a23621ecba578854ba3a93b98b52e89c4e" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "32164774851848308d7c1c2591e3e2cac9b86bde" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON464, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     let src = std::fs::read_to_string("tables/SOURCE.json").unwrap();

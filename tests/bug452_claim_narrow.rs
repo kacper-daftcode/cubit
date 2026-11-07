@@ -175,7 +175,8 @@ fn t452_7_data_attribution() {
         // `LDG.E.EFL2.256_R_R_dARI[_P]` keys are groups of the measured plain keys `LDG_R_R_dARI` / `_P` (the
         // RZ-base claim_forbid is measured there: desc[UR][RZ.64] is illegal on nvdisasm 13.1); only the STG
         // key of the three remains a dotted key on that leg.
-        let want_l1 = if leg == "sm120" { 1 } else { 3 };
+        // Batch 13 (tools/probes/re_sm120_stg256.py): the STG key is a group of the measured `STG_dARI_R_R` too -> 0.
+        let want_l1 = if leg == "sm120" { 0 } else { 3 };
         assert_eq!((l1, l2), (want_l1, 3072), "[{leg}] inventory drift");
     }
 }

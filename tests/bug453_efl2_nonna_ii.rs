@@ -223,6 +223,12 @@ fn t453_4_resid_holes_healed_463() {
                 assert_eq!(dec(t, idx, *hw), None, "[{leg}] heal {hw:#034x}: inert bits fail closed (G batch 10)");
                 continue;
             }
+            // Batch 13 (tools/probes/re_sm120_stg256.py): the 256-bit store's measured rows (`STG_{dARI,ARURI,ARURI64}_R_R[_II]`)
+            // fail closed on [74:72] / 83 / 87 / [95:92] the same way (no LTC width, no predicate on the store).
+            if *leg == "sm120" && (*hw & 0xfff) == 0x97f && (*hw & ((7u128 << 72) | (1u128 << 83) | (1u128 << 87) | (0xfu128 << 92))) != 0 {
+                assert_eq!(dec(t, idx, *hw), None, "[{leg}] heal {hw:#034x}: inert bits fail closed (G batch 13)");
+                continue;
+            }
             let got = dec(t, idx, *hw).unwrap_or_else(|| panic!("[{leg}] heal {hw:#034x} HOLE"));
             assert_eq!(got, *want, "[{leg}] heal {hw:#034x}");
         }
@@ -303,7 +309,7 @@ fn t453_8_census_and_canonical() {
     let src: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        src["base_revision"].as_str().unwrap().starts_with("10b1a6a23621ecba578854ba3a93b98b52e89c4e") /* 2026-11-06 T-11 (was c258f8a, T-10) */,
+        src["base_revision"].as_str().unwrap().starts_with("32164774851848308d7c1c2591e3e2cac9b86bde") /* 2026-11-06 T-11 (was c258f8a, T-10) */,
         "SOURCE.json must pin canonical {CANON453} (= BUG-453 graft, ride-after e03e0348d98b9d20ffb4ca557cfc6eae625cf995 = BUG-452 narrow): {:?}",
         src["base_revision"]
     );

@@ -67,6 +67,14 @@ fn t466_1_route_grid() {
             let t = tab(leg);
             let idx = cached_index(t);
             let got = dec(t, idx, *w);
+            // 2026-11-07 (session G, batch 13, tools/probes/re_sm120_stg256.py): the 256-bit store's measured rows
+            // (`STG_{dARI,ARURI,ARURI64}_R_R[_II]`) fail closed on the text-inert bits [74:72] / 83 / 87 / [95:92]
+            // (T-10's convention for measured rows); the `.S.b72` / `.S.b73` cells carry one of them.
+            if leg == "sm120" && (*w & 0xfff) == 0x97f && (*w & ((7u128 << 72) | (1u128 << 83) | (1u128 << 87) | (0xfu128 << 92))) != 0 {
+                assert_eq!(got, None, "[{leg}] {tag} {w:#034x}: inert bits fail closed (G batch 13)");
+                n += 1;
+                continue;
+            }
             assert_eq!(
                 got.as_deref(),
                 Some(*vendor),
@@ -105,6 +113,11 @@ fn t466_3_standing_snap() {
             let t = tab(leg);
             let idx = cached_index(t);
             let exp = if *snap == "HOLE" { None } else { Some(*snap) };
+            // G batch 13: the store's measured rows fail closed on the inert bits (see t466_1)
+            if leg == "sm120" && (*w & 0xfff) == 0x97f && (*w & ((7u128 << 72) | (1u128 << 83) | (1u128 << 87) | (0xfu128 << 92))) != 0 {
+                assert_eq!(dec(t, idx, *w), None, "[{leg}] {tag} {w:#034x}: inert bits fail closed (G batch 13)");
+                continue;
+            }
             assert_eq!(
                 dec(t, idx, *w).as_deref(),
                 exp,
@@ -240,11 +253,13 @@ fn t466_8_refuse_legacy_desc_form() {
             // SM100): the NA.ELL2 descriptor form of the 256-bit load is a legal word the vendor names
             // (`LDG.E.NA.ELL2.256.STRONG.GPU R8, R12, desc[UR4][R3.64]` = group `256,E,ELL2,GPU,NA,STRONG` of the
             // measured `LDG_R_R_dARI`); the 2026-09 refusal stood on the harvest's silence, not on a vendor
-            // rejection. On sm120 it mints and decodes back to the same text; the STG twin keeps the refusal
-            // until the STG.256 family is measured.
-            if leg == "sm120" && txt.starts_with("LDG") {
+            // rejection. On sm120 it mints and decodes back to the same text. Batch 13 (tools/probes/re_sm120_stg256.py):
+            // the STG twin the same -- `STG.E.NA.ELL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12` is group
+            // `256,E,ELL2,GPU,NA,STRONG` of the measured `STG_dARI_R_R`, named by nvdisasm on the three targets.
+            if leg == "sm120" {
                 let w = re.unwrap_or_else(|e| panic!("[{leg}] measured desc-form refused: {txt}: {e}"));
-                assert_eq!(w, 0x000fc2000854f908fe000004030c797eu128, "[{leg}] {txt}");
+                let want = if txt.starts_with("LDG") { 0x000fc2000854f908fe000004030c797eu128 } else { 0x000fc2000f54f804f8000008050c797fu128 };
+                assert_eq!(w, want, "[{leg}] {txt}");
                 let idx = cached_index(t);
                 assert_eq!(dec(t, idx, w).as_deref(), Some(txt), "[{leg}] {txt}");
                 continue;
