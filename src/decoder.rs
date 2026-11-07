@@ -277,8 +277,16 @@ impl DecodeIndex {
             // commonly missing from the table but is always at the standard Ra slot.
             let no_fields = table.get(&c.key, &c.mod_group)
                 .map(|e| e.fields.is_empty()).unwrap_or(false);
-            let is_mem_addr = c.key.contains("_ARI") || c.key.contains("_AI")
-                || c.key.contains("dARI") || c.key.contains("ARURI");
+            // 2026-11-07 (session G, batch 14, tools/probes/re_sm120_redg.py): the measured plain keys of the
+            // global reduction's uniform-indexed forms (`REDG_ARURI_R` / `REDG_ARURI64_R`, 9 216 rows) have a field
+            // on every live slot; the only standard slot without one is [23:16] -- the atomic's destination, which
+            // nvdisasm ignores on the reduction (text-inert on SM120 / SM103 / SM100). The broad match would absorb
+            // a word carrying it; the measured rows fail closed on text-inert bits instead (T-10's convention for
+            // every measured family), so the two keys stay on the strict / relaxed paths. No production word sets
+            // the slot (the strict census is 1 811 600 / 1 811 600 either way).
+            let is_mem_addr = (c.key.contains("_ARI") || c.key.contains("_AI")
+                || c.key.contains("dARI") || c.key.contains("ARURI"))
+                && !matches!(c.key.as_str(), "REDG_ARURI_R" | "REDG_ARURI64_R");
             if no_fields || is_mem_addr {
                 let broad = (code_clean & c.broad_relaxed_match_mask & !guard_mask) == (c.and_base & c.broad_relaxed_match_mask & !guard_mask);
                 if broad { return Some((c, 2u8)); }    // priority 2 = broad-only

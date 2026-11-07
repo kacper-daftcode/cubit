@@ -2762,6 +2762,12 @@ fn encode_instruction_inner(
             insn.raw_text
         );
     }
+    // 2026-11-07 (session G, batch 14, tools/probes/re_sm120_redg.py): the `.64` uniform-indexed address names the
+    // `_ARURI64` row family; when that key exists for the mnemonic but has no row for the text's modifier group
+    // (`REDG.ADD.EL.STRONG.GPU [R2.64+UR4], R6` -- the `.64` base without `.E` is the vendor's `REDG.???0` glyph
+    // plane; the measured `REDG_ARURI64_R` carries the `.E` groups only), the plain `_ARURI` chain below must not
+    // mint the U32 word for a `.64` text. Remembered here, checked once the winning candidate is known.
+    let mut aruri64_key_present: Option<String> = None;
     if insn.operands.iter().any(|op| {
         matches!(op,
         Operand::Addr { base_reg: Some(_), ur_reg: Some(_),
@@ -2790,6 +2796,10 @@ fn encode_instruction_inner(
         candidates.push((format!("{}{sig64}", insn.opcode), mod_group.clone()));
         candidates.push((format!("{clean_opcode}{sig64}"), String::new()));
         candidates.push((format!("{}{sig64}", insn.opcode), String::new()));
+        let plain64 = format!("{}{sig64}", clean_opcode.split('.').next().unwrap_or(""));
+        if table.entries.contains_key(&plain64) {
+            aruri64_key_present = Some(plain64);
+        }
     }
     candidates.extend([
         (fk.clone(), mod_group.clone()),
@@ -3072,6 +3082,16 @@ fn encode_instruction_inner(
         }
         msg
     })?;
+    if let Some(k64) = &aruri64_key_present {
+        if !selected_key.contains("ARURI64") {
+            anyhow::bail!(
+                "encode error at {}: the `.64` uniform-indexed address names the measured {k64} rows, which have no row \
+                 for this modifier group (nvdisasm names the word with a `???` glyph or not at all); refusing to mint the \
+                 U32 twin ({selected_key}) for a `.64` text",
+                insn.raw_text
+            );
+        }
+    }
     // BUG-002 guard: IMAD.HI text must never ride an entry that does not
     // encode the HI modifier (silicon: such words are IMAD.WIDE.U32 and
     // clobber Rd+1).

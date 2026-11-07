@@ -1911,7 +1911,10 @@ fn format_operand(
                 || ins_key.starts_with("ST_")
                 || ins_key == "LDG_R_R_ARURI"
                 || ins_key.starts_with("LDG_R_R_ARURI_")
-                || ins_key.starts_with("STG_ARURI_R_R") =>
+                || ins_key.starts_with("STG_ARURI_R_R")
+                // 2026-11-07 (session G, batch 14, tools/probes/re_sm120_redg.py): the measured plain key
+                // `REDG_ARURI_R` (6 144 groups, bit 90 clear) -- `[Ra.U32+URb(+off)]`, RZ printed (`[RZ.U32+URb]`)
+                || ins_key == "REDG_ARURI_R" =>
         {
             // BUG-446: EFL2.256 NA family (121a-only keys) prints the address
             // width-fixed U32 + <<5-scaled signed offset (arb446 law).
@@ -1966,7 +1969,9 @@ fn format_operand(
         // przez patch461 = canonical f58ed16; mint-side nadal refuse = arm
         // encodera BUG-461). Bazy 0..254 drukuja 'R{n}.64' jak dotychczas;
         // U32-form (b90=0) nie przechodzi przez ta galaz.
-        "ARURI64" if ins_key.starts_with("REDG.E") => format_plain_u32_ur(fields, raw, false, true, false, false, lossless),
+        // 2026-11-07 (session G, batch 14, tools/probes/re_sm120_redg.py): the measured plain key `REDG_ARURI64_R`
+        // (3 072 groups) prints the same law -- `[Ra.64+URb(+off)]`, base 255 as the vendor's `???255` glyph.
+        "ARURI64" if ins_key.starts_with("REDG.E") || ins_key == "REDG_ARURI64_R" => format_plain_u32_ur(fields, raw, false, true, false, false, lossless),
         // 2026-11-06 (tools/probes/re_sm120_atomg_el_aruri64.py, nvdisasm 13.1 -b SM120/SM103/SM100):
         // the 64-bit-base twin of the plain `.EL` atomic, `ATOMG.E.<op>.EL.STRONG.GPU Pd, Rd,
         // [Ra.64+URb(+off)], Rb` (width bit 63 set, rows `..._P_R_ARURI64_R`): the `.64` glyph is part

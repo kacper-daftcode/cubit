@@ -118,6 +118,10 @@ fn t452_6_era_unchanged() {
     }
 }
 
+fn mgs_len(rec: &serde_json::Value) -> usize {
+    rec["mod_groups"].as_object().map_or(0, |m| m.len())
+}
+
 /// t452_7: data-attribution -- kazda zaanotowana instrukcja nosi _src452
 /// i forbid 255@24 na wszystkich nogach; liczniki dokladnie 3+3072.
 #[test]
@@ -144,6 +148,16 @@ fn t452_7_data_attribution() {
                 l2 += 1;
             } else {
                 l1 += 1;
+            }
+            // 2026-11-07 (session G, batch 14, tools/probes/re_sm120_redg.py): on sm120 the 3 072 dotted
+            // `REDG.E…_ARURI64_R` keys are `_meta.key_aliases` of the one measured plain key `REDG_ARURI64_R`
+            // (3 072 groups, `_src` redg-aruri-family-2026-11-07, no claim_forbid -- BUG-461's glyph stays a print
+            // matter); the 452 / 461 markers were the dotted keys'. The other legs are untouched.
+            if leg == "sm120" && k == "REDG_ARURI64_R" {
+                assert_eq!(rec["_src"], "redg-aruri-family-2026-11-07", "[{leg}] {k} measured");
+                assert_eq!(mgs_len(rec), 3072, "[{leg}] {k} groups");
+                assert!(rec["mod_groups"].as_object().unwrap().values().all(|g| g.get("claim_forbid").is_none()), "[{leg}] {k} forbid");
+                continue;
             }
             assert_eq!(rec["_src452"], "bug452-2026-09-13", "[{leg}] {k} src");
             let mgs = rec["mod_groups"].as_object().unwrap();
@@ -176,7 +190,8 @@ fn t452_7_data_attribution() {
         // RZ-base claim_forbid is measured there: desc[UR][RZ.64] is illegal on nvdisasm 13.1); only the STG
         // key of the three remains a dotted key on that leg.
         // Batch 13 (tools/probes/re_sm120_stg256.py): the STG key is a group of the measured `STG_dARI_R_R` too -> 0.
-        let want_l1 = if leg == "sm120" { 0 } else { 3 };
-        assert_eq!((l1, l2), (want_l1, 3072), "[{leg}] inventory drift");
+        // Batch 14 (tools/probes/re_sm120_redg.py): the 3 072 dotted REDG `.64` keys -> the one plain key.
+        let (want_l1, want_l2) = if leg == "sm120" { (0, 1) } else { (3, 3072) };
+        assert_eq!((l1, l2), (want_l1, want_l2), "[{leg}] inventory drift");
     }
 }
