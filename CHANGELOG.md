@@ -4,8 +4,49 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
-## Unreleased — 2026-11-07 (session T-13: the T1 production line's batches 5–6 — UFSETP and the FP32 ALU measured whole by session G; NEEDS 44 closed on silicon — the QMMA.SF opcode-bit-2 variant is MXINT8 × MXINT8; R1 at zero lints; R2's nine headers)
+## Unreleased — 2026-11-07 (session T-13: the T1 production line's batches 5–8 — UFSETP, the FP32 ALU, its uniform twin and the conversions measured whole by session G; NEEDS 44 closed on silicon — the QMMA.SF opcode-bit-2 variant is MXINT8 × MXINT8; R1 at zero lints; R2's Polish headers gone)
 
+- **Tables vendored from blackwell-isa `9d054e4`** (sm120 15 589 forms / 28 542 variants, from 15 807 / 26 581; sm103a /
+  sm100a / sm121a unchanged). KNOWN_ISSUES T1: **28 542 rows, 12 788 with `_src` — 15 754 harvest rows left** (16 156 at
+  `dac48ad`). Session G's batches 7 and 8, re-measured word by word by T and re-applied on T's table (G's commits were
+  stacked on batch 6; each probe's `apply` on T's table is byte-identical to G's table plus the NEEDS 44 rename):
+  - **Uniform FP32 ALU measured whole — UFADD / UFMUL / UFFMA / UFSEL** (`tools/probes/re_sm120_ufp32_alu.py`, 1 025 form +
+    30 glyph + 278 lattice + 4 neighbour words; `tests/fixtures/sm120_ufp32_alu_nvdisasm.jsonl`, `tests/sm120_ufp32_alu.rs`):
+    444 rows on the 9 plain keys `UFADD_UR_UR_{UR,FI}` (0x254 / 0x454 + 91; **URb in the C slot [71:64]**), `UFMUL_UR_UR_{UR,FI}`
+    (0x256 / 0x856 + 91), `UFFMA_UR_UR_UR_UR` / `_UR_FI` / `_FI_UR` (0x255 / 0x455 / 0x855 + 91), `UFSEL_UR_UR_{UR,FI}_UP`
+    (0x251 / 0x851 + 91) — 441 with `ufp32-alu-family-2026-11-07`, 3 dsv41 rows reproduced field for field and kept with their
+    tag; 143 harvest rows rewritten (T-10's `UFMUL_UR_UR_UR` row lacked the sign fields — its legend count follows, 25 → 24)
+    and **298 missing groups added** (`UFMUL_UR_UR_UR` had 1 of 168, `UFADD_UR_UR_UR` 1 of 16, `UFFMA_UR_UR_UR_UR` 1 of 24);
+    9 junk keys retired as aliases (the `_II` / `_L` / `_?` spellings → the f32 key; the hexadecimal f32 literal still
+    assembles through them). **The family is SM120-only: every one of the 1 337 sweep words is illegal on `-b SM103` /
+    `SM100`** (like UFSETP; the sm103a / sm100a tables carry none of the four mnemonics). Law = the FP32 ALU law in the uniform
+    datapath (guard `@[!]UPn`; URa `-` 72 / `|` 73; B [39:32] `|` 62 / `-` 63 or f32 [63:32]; the C slot `|` 74 / `-` 75; the
+    FADD / FMUL / FFMA modifiers as on the vector family; UFSEL `[.FTZ]` + UPc [89:87] / `!` 90 with `UPT` spelled); no
+    `.reuse`; bit 81 on the register forms of UFADD / UFFMA = `UFHADD` / `UFHFMA` (neighbours, no key anywhere). Decoder: the
+    four mnemonics on the priority-3 fail-closed list; printer: the FP32 order arm covers the uniform twins
+    (`UFMUL.FTZ.D2.RM.SAT`; 442 words printed `.SAT` first before).
+  - **Conversions measured whole — F2I / I2F / FRND / MUFU** (`tools/probes/re_sm120_conv.py`, 2 494 form + 18 glyph + 547
+    lattice words; `-b SM100` identical, `-b SM103` differs on 6 MUFU words — the B300 packed-half lanes `.F16x2` / `.BF16x2`,
+    text-inert / illegal on SM120 and SM100; `tests/fixtures/sm120_conv_nvdisasm.jsonl`, `tests/sm120_conv.rs`): 2 030 rows on
+    the 12 plain keys `F2I_R_{R,UR,FI}` (0x305 / 0x311), `I2F_R_{R,UR,II}` (0x306 / 0x312), `FRND_R_{R,UR,FI}` (0x307 / 0x313),
+    `MUFU_R_{R,UR,FI}` (0x308) — 2 020 with `conv-family-2026-11-07`, 10 of T-4's `MUFU_R_UR` rows kept with their tag (the 16
+    `.F16` / `.BF16` rows gain the `.H1` selector); 130 harvest rows rewritten and **1 890 missing groups added** (the F2I
+    lattice is 512 per form; four keys are new: `F2I_R_FI`, `I2F_R_II`, `FRND_R_UR`, `FRND_R_FI`); **213 junk keys retired as
+    aliases — the 207 dotted F2I keys** (`F2I.FTZ.U32.TRUNC.NTZ_R_R` had 190 census words; they decode on `F2I_R_R` and print
+    the vendor's text), `I2F.RP_R_R`, four dotted FRND keys, `MUFU_R_II` → `_FI`; the 2026-09 bug-wave legends (bug380 / 390 /
+    403) follow their live count 0. Law: two opcodes per conversion × R / UR (+0xc00, bit 91) / imm (+0x800); F2I dst width
+    [76:75] + signed 72, src [86:84], NTZ 77, rounding [79:78], FTZ 80 → `F2I[.FTZ][.dst][.src][.rnd][.NTZ]`; I2F dst [77:75],
+    src width [85:84] + signed 74, `.B1..B3` [61:60] / `.H1` 60 on the 8- / 16-bit sources, the immediate signed for S-types;
+    FRND type [77:75] = [86:84] → `FRND[.FTZ][.type][.rnd]`; MUFU fn [77:74], half [73:72]; **the F16 / BF16 sources of F2I /
+    FRND / MUFU take `.H1` at bit 60 too, composed inside the sign pipes (`-|R2.H1|`)**; no `.reuse` (text-inert); the `???n` /
+    `INVALIDn` states fail closed. **F2F excluded** (its type pair is order-significant — `G/NEEDS_OWNER.md` 3). Doctrine, as
+    on every measured family: the 2026-09 F2I pins (bug339 / 341 / 361 / 362 / 363 / 379-380 / 390 / 403) expected the
+    text-inert bits 73 / 74 to decode as aliases; the measured sm120 rows fail closed on them (0 census words carry the bits;
+    the other three legs unchanged) — those tests are re-pinned on the sm120 leg, bug308 / bug341's signed F2I mints are legal
+    now, bug226d's `-QNAN` is the lossless hex. Decoder: I2F / FRND on the priority-3 fail-closed list; printer: the FRND
+    `[.FTZ][.type][.rnd]` order, the BUG-125 key-scoped `F2I_R_FI` arm folded into the BUG-361 mnemonic law, `.B<n>` / `.H1`
+    rendered on UR operands, `.H1` inside the sign pipes, the I2F immediate signed / unsigned by type; parser: FRND's float
+    immediate; encoder: the suffix scrape accepts `|R2.H1|`.
 - **Tables vendored from blackwell-isa `dac48ad`** (sm120 15 807 forms / 26 581 variants, from 15 834 / 26 341; sm103a /
   sm100a / sm121a unchanged). KNOWN_ISSUES T1: **26 581 rows, 10 425 with `_src` — 16 156 harvest rows left** (16 612 at
   `63e5040`). Session G's batch 6 and T-13's NEEDS 44 closure:
