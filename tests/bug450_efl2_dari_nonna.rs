@@ -183,7 +183,7 @@ fn t450_6_census() {
 #[test]
 fn t450_7_canonical_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "08b5f8f7b079927a814aeeaa8d9880c9ab2915d8" /* K3.1 FlashMLA 256-bit descriptor forms */;
+    const CURRENT_VENDORED_CANON: &str = "4dcfd12eae2a30104ef70bf45811ed3dffc63b76" /* K3.1 small LDG constant descriptor forms */;
     assert_eq!(CANON450, "9c0e4ce", "historical fixture revision drift");
 
     let _test_env_guard = ERRATA_LOCK.lock().unwrap();
