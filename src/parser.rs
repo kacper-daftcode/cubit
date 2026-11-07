@@ -330,6 +330,9 @@ const FLOAT_OPCODES: &[&str] = &[
     // FRND's immediate form is float too (2026-11-07, session G, tools/probes/re_sm120_conv.py: `FRND.F16 R4, 1`
     // = the f16 half 0x3c00, `FRND.F64 R4, 1` = the f64 high dword 0x3ff00000, `FRND R4, 1` = 0x3f800000).
     "FRND",
+    // FCHK's immediate is an f32 too (2026-11-07, session G, tools/probes/re_sm120_fset_fsel_fchk.py: `FCHK P0, R2, 1`
+    // = 0x3f800000 at [63:32]; the harvest's integer-spelling FCHK_P_R_II twin is an alias of FCHK_P_R_FI).
+    "FCHK",
     // FMNMX3 imm-form (wave 11, canonical row FMNMX3_R_R_FI_R_P/'' on sm_100a /
     // sm_103a, BUG-508 fields re-keyed II -> FI): the third-operand immediate is
     // an f32 at bits [63:32] (nvdisasm-13.3 prints 0x3f800000 as `1`, 0x40000000

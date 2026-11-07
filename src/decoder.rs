@@ -441,6 +441,11 @@ impl DecodeIndex {
                 // glyph word as `I2F.F16` and FRND's bit-72 neighbour as `FRND R4, -R2`). Every legal (type, rounding,
                 // selector) state is a measured row; fail closed otherwise (F2I and MUFU are in the list above).
                 "I2F" | "FRND" |
+                // FSET / FSEL / FCHK (2026-11-07, session G, tools/probes/re_sm120_fset_fsel_fchk.py): FSET's boolean
+                // [75:74] (3 = INVALID3, printed as `.XOR` by the fallback) and the text-inert 74-79 of FSEL / FCHK sit in
+                // the window; every (comparison, boolean, FTZ) / FTZ / plain state is a measured row on the nine keys;
+                // fail closed otherwise.
+                "FSET" | "FSEL" | "FCHK" |
                 // BUG-283: MOVM.16 carries the vendor name-space law in bits
                 // [79:75] (arb283 G x4 models: [77:75] 0=16 / 1=U4TO8 /
                 // 5..7=INVALID5..7, [79:78] 0=MT88 / 1=M832 / 2=M864 /

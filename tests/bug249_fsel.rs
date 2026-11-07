@@ -181,6 +181,16 @@ fn t249_1_structure() {
         assert_eq!(ga.fields.len(), gb.fields.len(), "donor parity {key}");
         for leg in ["sm120", "sm121a"] {
             let gc = &tab(leg).entries[key].mod_groups[""];
+            if leg == "sm120" && key != "FSEL_R_R_II_P" {
+                // 2026-11-07 (session G, tools/probes/re_sm120_fset_fsel_fchk.py): the sm120 rows are measured whole --
+                // the donor's opcode and operand fields, the guard, the sign windows; no harvest count, the FI / UR
+                // forms without the donor's unused reuse bits (text-inert on them) -- parity with the donor is the law's
+                assert_eq!(gc.and_base & 0xfff, gb.and_base & 0xfff, "{leg} != donor opcode on {key}");
+                for shift in [12u32, 16, 24, 72, 73, 87, 90] {
+                    assert!(gc.fields.iter().any(|f| f.shift == shift), "{leg} {key}: field @{shift}");
+                }
+                continue;
+            }
             assert_eq!(gc.and_base, gb.and_base, "{leg} != donor on {key}");
             assert_eq!(
                 gc.variable_mask, gb.variable_mask,

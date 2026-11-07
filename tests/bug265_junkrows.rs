@@ -277,7 +277,9 @@ fn t265_3_rename_witness_laws_vendor_equal() {
     // arb265 C + base decode: FSET.BF base prints '.F.AND' both legs
     for leg in ["sm120", "sm121a"] {
         let t = tab(leg);
-        let f = and_base(&t, "FSET.BF.F.AND_R_R_R_P", "");
+        // 2026-11-07 (session G, tools/probes/re_sm120_fset_fsel_fchk.py): on sm120 the dotted key is an alias of the
+        // measured FSET_R_R_R_P -- the base word is its `AND,BF,F` group's
+        let f = if leg == "sm120" { and_base(&t, "FSET_R_R_R_P", "AND,BF,F") } else { and_base(&t, "FSET.BF.F.AND_R_R_R_P", "") };
         assert_eq!(
             dec(&t, f & M96).as_deref(),
             Some("@P0 FSET.BF.F.AND R0, R0, R0, P0"),

@@ -1326,6 +1326,18 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     if matches!(base, "FSETP" | "UFSETP" | "DSETP") && matches!(m, "F" | "T" | "MIN" | "MAX") {
         return 1;
     }
+    // 2026-11-07 (session G, tools/probes/re_sm120_fset_fsel_fchk.py, nvdisasm 13.1 on SM120 / SM103 / SM100): the
+    // register-destination compare prints `FSET.BF.<cmp>[.FTZ].<bool>` -- BF first, then the comparison (F and T like
+    // the others), FTZ, the boolean; the generic ranks printed `FSET.NEU.FTZ.BF.XOR`.
+    if base == "FSET" {
+        match m {
+            "BF" => return 0,
+            "F" | "T" => return 1,
+            "FTZ" => return 2,
+            "AND" | "OR" | "XOR" => return 3,
+            _ => {}
+        }
+    }
     // 2026-11-02 (audit_dynamic, 247 F2FP words): `F2FP.RELU.BF16.F32.PACK_AB` -
     // RELU is the first modifier of the pack conversions.
     // 2026-11-04 (PACK_AB lattice sweep, nvdisasm 13.1: bit 77): `F2FP.SATFINITE.F16.F32.PACK_AB`,

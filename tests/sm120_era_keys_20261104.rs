@@ -79,7 +79,10 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
     //   of the f32 immediate forms of UFADD / UFMUL / UFFMA / UFSEL -> the f32 key)
     // + the 213 keys retired by the measured conversions (2026-11-07, G: the 207 dotted F2I keys, `I2F.RP_R_R`, four
     //   dotted FRND keys -> the plain key of their operand signature; the integer-spelling `MUFU_R_II` -> `MUFU_R_FI`)
-    assert_eq!(al.len(), 312, "sm120.json key_aliases");
+    // + the eight junk keys retired by the measured FSET / FSEL / FCHK family (2026-11-07, G: the dotted `FSET.BF.F.AND`
+    //   twin, six mis-tokenised FSEL keys, the integer-spelling `FCHK_P_R_II` -> the plain key of their opcode; the
+    //   BUG-178 / BUG-249 `+QNAN` lane `FSEL_R_R_II_P` stays a key)
+    assert_eq!(al.len(), 320, "sm120.json key_aliases");
     let glued = regex::Regex::new(r"_P\d_").unwrap();
     let mut glued_n = 0;
     for (old, new) in &al {
@@ -127,6 +130,12 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
             // the conversion junk keys: the modifiers in the key -> the plain key of the operand signature
             let mn = old.split(['.', '_']).next().unwrap();
             assert!(new.starts_with(mn) && !new.contains('.'), "{old} -> {new}");
+            assert!(table.entries.get(new).is_some_and(|e| !e.encode_only), "{new}: the plain key is a real row");
+            continue;
+        }
+        if ["FSET", "FSEL", "FCHK"].iter().any(|m| old.starts_with(m)) {
+            // the FSET / FSEL / FCHK junk keys: their words are the plain keys' (register / f32-immediate / uniform form)
+            assert!(new.starts_with(&old[..4]) && !new.contains('.') && !new.contains('?') && !new.contains("II"), "{old} -> {new}");
             assert!(table.entries.get(new).is_some_and(|e| !e.encode_only), "{new}: the plain key is a real row");
             continue;
         }
