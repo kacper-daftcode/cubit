@@ -1437,7 +1437,7 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     ) {
         match m {
             "L2" => return 1,
-            "2D" | "3D" | "4D" | "5D" => return 2,
+            "2D" | "3D" | "4D" | "5D" | "GATHER4" => return 2,
             "MULTICAST" => return 3,
             "2CTA" => return 4,
             _ => {}
