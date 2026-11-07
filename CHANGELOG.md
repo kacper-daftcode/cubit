@@ -4,6 +4,27 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-07 (session T-13: the T1 production line's batch 5 — UFSETP measured whole by session G)
+
+- **Tables vendored from blackwell-isa `63e5040`** (sm120 15 834 forms / 26 341 variants, from 15 840 / 26 442; sm103a /
+  sm100a / sm121a unchanged). KNOWN_ISSUES T1: **26 341 rows, 9 729 with `_src` — 16 612 harvest rows left** (16 905 at
+  `e1e8598`). Session G's batch 5, re-measured word by word by T before the take:
+  - **UFSETP measured whole** (`tools/probes/re_sm120_ufsetp.py`, 394 form + 6 glyph + 66 lattice words;
+    `tests/fixtures/sm120_ufsetp_nvdisasm.jsonl`, `tests/sm120_ufsetp.rs`): the 96 + 96 "mode grid" rows of
+    `UFSETP_UP_UP_UR_UR_UP` (0x253 + 91) / `UFSETP_UP_UP_UR_FI_UP` (0x853 + 91) of 2026-10-22 were field-correct and are
+    re-emitted from the measurement with provenance `ufsetp-family-2026-11-06`. **The family is SM120-only: nvdisasm 13.1
+    rejects every one of the 466 sweep words on `-b SM103` / `SM100`** (the sm103a / sm100a tables have no UFSETP key).
+    Six keys retired as `_meta.key_aliases` (0 census witnesses): the encode-only integer-spelling twin
+    `UFSETP_UP_UP_UR_II_UP` → `_FI_UP` (the hexadecimal f32 literal still assembles through the alias) and five dotted
+    harvest samples with a baked guard and predicates (`UFSETP.GT.AND_UP_UP_UR_UR_UP`, `UFSETP.NEU.{AND,OR}_UP_UP_UR_UR_UP`,
+    `UFSETP.NEU.AND_UP_UP_UR_{FI,II}_UP`). Law = FSETP in the uniform datapath: guard [15:12] (`@[!]UPn`); URa [31:24],
+    `-URa` 72, `|URa|` 73; URb [39:32] with `|URb|` 62, `-URb` 63, or the f32 immediate at [63:32]; the boolean [75:74]
+    (3 = `INVALID3`); the comparison [79:76]; `.FTZ` 80; UPd0 [83:81]; UPd1 [86:84]; UPc [89:87] + `!` 90; bit 91 set
+    (clear = illegal); no `.reuse` (nvdisasm rejects the reuse bits on the uniform opclass); [23:16], the unused part of
+    [71:40] and [95:92] text-inert (fail-closed). Decoder: UFSETP joins FSETP off the priority-3 sign-tolerant fallback
+    (`UFSETP.GT.INVALID3` used to print as `.XOR`); printer: `UFSETP.F.FTZ.AND` / `UFSETP.T.FTZ.OR` order (the constant
+    comparisons precede FTZ, as on FSETP).
+
 ## Unreleased — 2026-11-06/07 (session T-12: the T1 production line's first two batches — HSETP2 and ISETP / UISETP measured whole by session G; the suite in 2 minutes (R3); the template rebuild checks its positional metadata (A5); EiFmt named after cuobjdump (A7); NaN payloads on every immediate lane (A8))
 
 - **Tables vendored from blackwell-isa `6dff9c7`** (sm120 15 961 forms / 26 662 variants, from 15 964 / 26 598; sm103a /
