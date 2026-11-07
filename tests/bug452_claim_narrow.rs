@@ -171,6 +171,11 @@ fn t452_7_data_attribution() {
                 );
             }
         }
-        assert_eq!((l1, l2), (3, 3072), "[{leg}] inventory drift");
+        // 2026-11-07 (session G, batch 10, tools/probes/re_sm120_ldg256.py): on sm120 the two dotted
+        // `LDG.E.EFL2.256_R_R_dARI[_P]` keys are groups of the measured plain keys `LDG_R_R_dARI` / `_P` (the
+        // RZ-base claim_forbid is measured there: desc[UR][RZ.64] is illegal on nvdisasm 13.1); only the STG
+        // key of the three remains a dotted key on that leg.
+        let want_l1 = if leg == "sm120" { 1 } else { 3 };
+        assert_eq!((l1, l2), (want_l1, 3072), "[{leg}] inventory drift");
     }
 }

@@ -82,7 +82,10 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
     // + the eight junk keys retired by the measured FSET / FSEL / FCHK family (2026-11-07, G: the dotted `FSET.BF.F.AND`
     //   twin, six mis-tokenised FSEL keys, the integer-spelling `FCHK_P_R_II` -> the plain key of their opcode; the
     //   BUG-178 / BUG-249 `+QNAN` lane `FSEL_R_R_II_P` stays a key)
-    assert_eq!(al.len(), 320, "sm120.json key_aliases");
+    // + the 781 dotted one-group harvest keys of the 256-bit load's descriptor form retired by the measured family
+    //   (2026-11-07, G batch 10: `LDG.E.<cache>.<L2>[.LTC].256.<scope>_R_R_dARI[_II][_P]` -> the plain key of their
+    //   operand signature, whose 1 152 measured groups include the one each dotted key spelled)
+    assert_eq!(al.len(), 1101, "sm120.json key_aliases");
     let glued = regex::Regex::new(r"_P\d_").unwrap();
     let mut glued_n = 0;
     for (old, new) in &al {
@@ -131,6 +134,17 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
             let mn = old.split(['.', '_']).next().unwrap();
             assert!(new.starts_with(mn) && !new.contains('.'), "{old} -> {new}");
             assert!(table.entries.get(new).is_some_and(|e| !e.encode_only), "{new}: the plain key is a real row");
+            continue;
+        }
+        if old.starts_with("LDG.") && old.contains("_R_R_dARI") {
+            // the 256-bit load's dotted descriptor-form keys: the modifier tokens -> a group of the plain key
+            let sig = old.split_once('_').unwrap().1;
+            assert_eq!(new, format!("LDG_{sig}"), "{old} -> {new}");
+            let target = table.entries.get(new).unwrap_or_else(|| panic!("{new} missing"));
+            assert!(!target.encode_only, "{new}: the plain key is a real row");
+            let mut toks: Vec<&str> = old.split('_').next().unwrap().split('.').skip(1).collect();
+            toks.sort_unstable();
+            assert!(target.mod_groups.contains_key(&toks.join(",")), "{old}: its spelling names no group of {new}");
             continue;
         }
         if ["FSET", "FSEL", "FCHK"].iter().any(|m| old.starts_with(m)) {

@@ -1544,9 +1544,19 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     // LDG.E.NA.EFL2.256.STRONG.GPU.HINT (was mis-ordered EFL2.HINT.256...).
     if base == "LDG" || base == "STG" {
         match m {
-            "EL" | "NA" | "EN" | "EF" | "EU" => return 3,
+            // (LU joined the cache slot 2026-11-07 with the 256-bit load's plain keys: `LDG.E.LU.EFL2.256`)
+            "EL" | "NA" | "EN" | "EF" | "EU" | "LU" => return 3,
             "ELL2" | "ENL2" | "EFL2" | "RML2" => return 4,
-            "CONSTANT" => return 6,
+            // 2026-11-07 (session G, tools/probes/re_sm120_ldg256.py, nvdisasm 13.1 on SM120 / SM103 / SM100,
+            // the 4 608 groups of the 256-bit load per address form): the LTC width prints after the L2 hint
+            // and before the size (`LDG.E.EF.EFL2.LTC128B.256.CONSTANT.CTA`; the generic rank put LTC128B
+            // before EFL2 and LTC64B / LTC256B after the size), MMIO sits in the STRONG / CONSTANT slot
+            // (`LDG.E.EF.EFL2.256.MMIO.GPU`) and VC is a scope (`LDG.E.EF.EFL2.256.CONSTANT.VC.PRIVATE`) --
+            // the plain keys `LDG_R_R_{dARI,ARURI,ARURI64}[_II][_P]` carry these groups (the dotted harvest
+            // keys spelled the order in their base_op). 2 590 of the 4 888 dARI fixture words printed out of
+            // order before this arm.
+            "LTC64B" | "LTC128B" | "LTC256B" => return 5,
+            "CONSTANT" | "MMIO" => return 7,
             // BUG-443: STG base (noE offlane) prints scope-class LAST --
             // vendor `STG.CONSTANT.PRIVATE [Rx.U32+URy]` (arb443 noE.CPRIV
             // cross x4 models AGREE); generic bucket 5 would put PRIVATE
@@ -1556,7 +1566,7 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             // the BUG-443 noE cross row itself.
             "PRIVATE" => return 9,
             "STRONG" | "WEAK" | "ACQUIRE" | "RELEASE" => return 7,
-            "GPU" | "SYS" | "SM" | "CTA" => return 8,
+            "GPU" | "SYS" | "SM" | "CTA" | "VC" => return 8,
             "HINT" => return 9,
             _ => {}
         }

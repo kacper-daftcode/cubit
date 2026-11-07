@@ -216,6 +216,13 @@ fn t453_4_resid_holes_healed_463() {
             assert_eq!(hw, w, "RESID453 grid order drift");
             let t = tab(leg);
             let idx = cached_index(t);
+            // 2026-11-07 (session G, batch 10, tools/probes/re_sm120_ldg256.py): the sm120 descriptor-form rows are
+            // measured (`LDG_R_R_dARI[_II][_P]`) and fail closed on the text-inert bits 83 / 92-95 (T-10's convention
+            // for measured rows); the "pole4" words of this grid carry one of them. The other legs are untouched.
+            if *leg == "sm120" && (*hw & 0xfff) == 0x97e && (*hw & ((1u128 << 83) | (0xfu128 << 92))) != 0 {
+                assert_eq!(dec(t, idx, *hw), None, "[{leg}] heal {hw:#034x}: inert bits fail closed (G batch 10)");
+                continue;
+            }
             let got = dec(t, idx, *hw).unwrap_or_else(|| panic!("[{leg}] heal {hw:#034x} HOLE"));
             assert_eq!(got, *want, "[{leg}] heal {hw:#034x}");
         }
@@ -296,7 +303,7 @@ fn t453_8_census_and_canonical() {
     let src: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        src["base_revision"].as_str().unwrap().starts_with("94ff2817d9a496f68d9fe1dd0eef5d354ab33bff") /* 2026-11-06 T-11 (was c258f8a, T-10) */,
+        src["base_revision"].as_str().unwrap().starts_with("348535fad475ce160b9d60d20fdf607448aeda7e") /* 2026-11-06 T-11 (was c258f8a, T-10) */,
         "SOURCE.json must pin canonical {CANON453} (= BUG-453 graft, ride-after e03e0348d98b9d20ffb4ca557cfc6eae625cf995 = BUG-452 narrow): {:?}",
         src["base_revision"]
     );

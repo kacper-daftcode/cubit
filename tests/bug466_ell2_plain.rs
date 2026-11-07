@@ -236,6 +236,19 @@ fn t466_8_refuse_legacy_desc_form() {
             "STG.E.NA.ELL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12",
         ] {
             let re = enc(t, txt);
+            // 2026-11-07 (session G, batch 10, tools/probes/re_sm120_ldg256.py, nvdisasm 13.1 -b SM120 = SM103 =
+            // SM100): the NA.ELL2 descriptor form of the 256-bit load is a legal word the vendor names
+            // (`LDG.E.NA.ELL2.256.STRONG.GPU R8, R12, desc[UR4][R3.64]` = group `256,E,ELL2,GPU,NA,STRONG` of the
+            // measured `LDG_R_R_dARI`); the 2026-09 refusal stood on the harvest's silence, not on a vendor
+            // rejection. On sm120 it mints and decodes back to the same text; the STG twin keeps the refusal
+            // until the STG.256 family is measured.
+            if leg == "sm120" && txt.starts_with("LDG") {
+                let w = re.unwrap_or_else(|e| panic!("[{leg}] measured desc-form refused: {txt}: {e}"));
+                assert_eq!(w, 0x000fc2000854f908fe000004030c797eu128, "[{leg}] {txt}");
+                let idx = cached_index(t);
+                assert_eq!(dec(t, idx, w).as_deref(), Some(txt), "[{leg}] {txt}");
+                continue;
+            }
             assert!(
                 re.is_err(),
                 "[{leg}] legacy desc-form minted: {txt} -> {:?}",
