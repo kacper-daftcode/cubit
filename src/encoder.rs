@@ -3176,7 +3176,19 @@ fn encode_instruction_inner(
         }
         let value = extract_value(insn, field)?;
         let mask128 = (field.mask as u128) << field.shift;
-        code = (code & !mask128) | ((value as u128 & field.mask as u128) << field.shift);
+        let shared_tmem_component = matches!(&field.extraction,
+            Extraction::LblPat(name) if matches!(name.as_str(), "tmem_ur" | "tdesc_off"))
+            && entry.fields.iter().any(|other| !std::ptr::eq(other, field)
+                && field.shift < other.shift + other.bits
+                && other.shift < field.shift + field.bits);
+        // A zero offset must not erase UR>=64 carried by the overlapping
+        // tmem_ur field. Keep disjoint assignment strict for all other rows.
+        let payload = (value as u128 & field.mask as u128) << field.shift;
+        if shared_tmem_component {
+            code |= payload;
+        } else {
+            code = (code & !mask128) | payload;
+        }
     }
 
     // BUG-452: symmetric mint-side claim-forbid guard. The decoder drops

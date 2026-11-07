@@ -78,3 +78,4 @@ assumption is listed in `docs/KNOWN_ISSUES.md`.
 - `re_k31_fsetp.py`: K3.1 trtllm-gen FSETP GT/GEU FTZ AND; 2331 production witnesses and independent SM103/SM100 probes, 96 measured groups per R_R/R_FI form on each target (`k31_fsetp.rs`).
 - `re_k31_f2fp_pack.py`: K3.1 SATFINITE BF16 F32 PACK_AB (opcode 0x23e), one typed donor row plus local field/forbidden-bit probes on SM103 and SM100 (`k31_f2fp_pack.rs`).
 - `re_k31_packed_fp32.py`: K3.1 FADD2/FMUL2 immediate/UR forms, FADD2/FMUL2 register-type masks, H production witnesses and independent F32/F32x2 lane/type sweeps (`k31_packed_fp32.rs`).
+- `re_k31_utchmma.py`: UTCHMMA structured tmem/gdesc/idesc addresses, the overlapping UR/off mask fix, all 153 production witnesses (`k31_utchmma.rs`).

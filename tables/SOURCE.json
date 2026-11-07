@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "repository": "https://github.com/kacper-daftcode/blackwell-isa",
-  "base_revision": "7a2ddf5d93201d5096465304ee4ccebd95d8f382",
+  "base_revision": "3103829f20eeb56d9ece67b5ade3d2a2a8cbcfe1",
   "tables": {
     "sm120.json": {
       "arch": "SM120",
@@ -16,7 +16,7 @@
     },
     "sm103a.json": {
       "arch": "SM103a",
-      "base_sha256": "bd659b55cd0dfa2c7c2583c8d4afc5cbb9d95bab0216139c1f0c5118b74599b5",
+      "base_sha256": "15003b1ad1524822c6728f040031d6c2765b70ccccd057776634e97eeea6266c",
       "instruction_forms": 14932,
       "encoding_variants": 22593,
       "sched_only_entries": 0,
@@ -28,7 +28,7 @@
     },
     "sm100a.json": {
       "arch": "SM100a",
-      "base_sha256": "3ead9406f74b18c42464c3c511286652ee15084b6bd93205dcc57559fc9b9ab8",
+      "base_sha256": "8308d2a4dc06286632a1b9b228749fb8b40149bcfa71e3a2b22f06602b795048",
       "instruction_forms": 14932,
       "encoding_variants": 22593,
       "sched_only_entries": 0,
