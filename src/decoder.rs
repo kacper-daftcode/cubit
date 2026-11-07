@@ -433,8 +433,9 @@ impl DecodeIndex {
                 // three-operand FADD / FMUL / FMNMX the C-slot sign bits 74 / 75 are text-inert (the
                 // fallback absorbed `FADD R4, R2, R3` with bit 74 set), FMUL's `.FMZ` 76 and FFMA's `|Rc|` 74 /
                 // `-Rc` 75 are law. Every legal (denormal mode, scale, rounding, SAT / FTZ, NAN, XORSIGN) x
-                // form is a measured row on the 14 keys; fail closed otherwise.
-                "FADD" | "FMUL" | "FFMA" | "FMNMX" |
+                // form is a measured row on the 14 keys; fail closed otherwise. The uniform twin (UFADD / UFMUL /
+                // UFFMA / UFSEL, tools/probes/re_sm120_ufp32_alu.py) carries the same law in the same bits.
+                "FADD" | "FMUL" | "FFMA" | "FMNMX" | "UFADD" | "UFMUL" | "UFFMA" | "UFSEL" |
                 // BUG-283: MOVM.16 carries the vendor name-space law in bits
                 // [79:75] (arb283 G x4 models: [77:75] 0=16 / 1=U4TO8 /
                 // 5..7=INVALID5..7, [79:78] 0=MT88 / 1=M832 / 2=M864 /
