@@ -32,13 +32,13 @@ fn all_utma_witnesses_round_trip() {
 }
 
 #[test]
-fn three_new_rows_preserve_the_seven_existing_ones() {
+fn three_new_rows_preserve_the_other_dimension_rows() {
     for arch in ["sm103a", "sm100a"] {
         let raw: Value = serde_json::from_slice(&cubit::table::read_table_bytes(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()).unwrap();
         assert_eq!(raw["_meta"]["provenance"]["sources"][SRC]["rows"], 3);
         let entry = &raw["instructions"]["UTMALDG_AURI_AURI_II"];
         let groups = entry["mod_groups"].as_object().unwrap();
-        assert_eq!(groups.len(), 10);
+        assert_eq!(groups.len(), 11);
         for group in ["2D,GATHER4", "2CTA,2D,GATHER4", "2CTA,5D"] {
             assert_eq!(groups[group]["_src"], SRC);
             let fields = groups[group]["fields"].as_array().unwrap();

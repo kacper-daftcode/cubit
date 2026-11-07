@@ -159,7 +159,7 @@ fn t475_6_refuse_parity() {
 #[test]
 fn t475_7_census_and_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "f3ffbd9bc37a" /* K3.1 FlashKDA MOVM matrix move form */;
+    const CURRENT_VENDORED_CANON: &str = "090e2bd869dc" /* K3.1 FlashKDA UTMALDG 1D descriptor form */;
     assert_eq!(CANON475, "9c0e4ce", "historical fixture revision drift");
 
     for (leg, want) in CENSUS475 {

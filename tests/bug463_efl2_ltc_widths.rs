@@ -176,7 +176,7 @@ fn t463_6_census_attribution() {
             src["base_revision"]
                 .as_str()
                 .unwrap()
-                .starts_with("f3ffbd9bc37a") /* K3.1 FlashKDA MOVM matrix move form */,
+                .starts_with("090e2bd869dc") /* K3.1 FlashKDA UTMALDG 1D descriptor form */,
             "SOURCE pin drift"
         );
     }
