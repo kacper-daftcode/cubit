@@ -70,7 +70,10 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
     //   `IMMA.SF.16832.U8.U8_R_R_R_R_R_R_UR` -> `QMMA.SF.16832.F32.UNIDENTIFIED.E8_R_R_R_R_R_R_UR`)
     // + the six UFSETP junk keys retired by the measured UFSETP family (G: the integer-spelling twin
     //   `UFSETP_UP_UP_UR_II_UP` and five dotted harvest samples -> the plain key of their opcode)
-    assert_eq!(al.len(), 62, "sm120.json key_aliases");
+    // + the 27 junk keys retired by the measured FP32 ALU family (2026-11-07, G: mis-tokenised `_?` / `_L` / `_R_R_R_R`
+    //   harvest keys, dotted twins with the modifier in the key, the integer-spelling `*_II*` twins of the f32 forms
+    //   -> the plain key of their opcode)
+    assert_eq!(al.len(), 89, "sm120.json key_aliases");
     let glued = regex::Regex::new(r"_P\d_").unwrap();
     let mut glued_n = 0;
     for (old, new) in &al {
@@ -111,6 +114,12 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
         }
         if old.starts_with("UFSETP") {
             assert!(matches!(new, "UFSETP_UP_UP_UR_UR_UP" | "UFSETP_UP_UP_UR_FI_UP"), "{old} -> {new}");
+            continue;
+        }
+        if ["FADD", "FMUL", "FFMA", "FMNMX"].iter().any(|m| old.starts_with(m)) {
+            // the FP32 ALU junk keys: their words are the plain keys' (register / f32-immediate / uniform form by opcode)
+            assert!(new.starts_with(&old[..4]) && !new.contains('.') && !new.contains('?') && !new.contains("II"), "{old} -> {new}");
+            assert!(table.entries.get(new).is_some_and(|e| !e.encode_only), "{new}: the plain key is a real row");
             continue;
         }
         if old.starts_with("IMMA.") {

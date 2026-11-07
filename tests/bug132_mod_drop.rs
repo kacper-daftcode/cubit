@@ -39,18 +39,26 @@ fn enc(t: &IsaTable, line: &str) -> anyhow::Result<u128> {
 
 /// t132_1: row-less mod combinations must FAIL loudly (not silently
 /// zakodowac innej wariancie). Komunikat nazywa klase + zgubione mody.
+/// 2026-11-07 (session G, tools/probes/re_sm120_fp32_alu.py): the FADD grid is measured whole -- `FADD.RZ.SAT` and
+/// `FADD.FTZ.RZ.SAT` are legal rows now (nvdisasm names them); the row-less combination is `.FMZ`, which FADD
+/// does not have (bit 76 is text-inert on FADD; FMZ is FMUL / FFMA law).
 #[test]
 fn t132_1_uncovered_combo_fails_loud() {
     let t = t120();
-    for line in ["FADD.RZ.SAT R1, R2, R3 ;", "FADD.FTZ.RZ.SAT R1, R2, R3 ;"] {
+    for line in ["FADD.FMZ R1, R2, R3 ;", "FADD.FTZ.FMZ.RZ R1, R2, R3 ;"] {
         match enc(&t, line) {
             Ok(w) => panic!("{line:?} silently encoded as 0x{w:032x} (BUG-132 regression)"),
             Err(e) => {
                 let m = format!("{e:#}");
                 assert!(m.contains("silent modifier drop"), "{line:?}: wrong error: {m}");
-                assert!(m.contains("SAT"), "{line:?}: error must name the dropped mod: {m}");
+                assert!(m.contains("FMZ"), "{line:?}: error must name the dropped mod: {m}");
             }
         }
+    }
+    for line in ["FADD.RZ.SAT R1, R2, R3 ;", "FADD.FTZ.RZ.SAT R1, R2, R3 ;"] {
+        let w = enc(&t, line).unwrap_or_else(|e| panic!("{line:?}: {e:#}"));
+        assert_eq!((w >> 77) & 1, 1, "{line:?}: SAT bit 77");
+        assert_eq!((w >> 78) & 3, 3, "{line:?}: RZ = rounding 3 at [79:78]");
     }
 }
 
@@ -113,10 +121,13 @@ fn t132_5_combo_sweep_matches_table_coverage() {
     let idx = DecodeIndex::build(&t);
     let mut bailed = 0u32;
     let mut encoded = 0u32;
+    // 2026-11-07 (session G): every {FTZ, rounding, SAT} combination is a measured row (16 groups); the FMZ
+    // dimension (FMUL / FFMA law, text-inert on FADD) keeps the row-less side of the sweep.
+    for fmz in ["", "FMZ."] {
     for ftz in ["", "FTZ."] {
         for rnd in ["", "RM.", "RP.", "RZ."] {
             for sat in ["", "SAT."] {
-                let mods = format!("{ftz}{rnd}{sat}").trim_end_matches('.').to_string();
+                let mods = format!("{fmz}{ftz}{rnd}{sat}").trim_end_matches('.').to_string();
                 let line = format!("FADD{} R1, R2, R3 ;",
                     if mods.is_empty() { String::new() } else { format!(".{mods}") });
                 match enc(&t, &line) {
@@ -147,7 +158,8 @@ fn t132_5_combo_sweep_matches_table_coverage() {
             }
         }
     }
-    assert!(encoded > 0 && bailed > 0, "sweep degenerated: {encoded}/{bailed}");
+    }
+    assert_eq!((encoded, bailed), (16, 16), "sweep degenerated: {encoded}/{bailed}");
 }
 
 /// t132_6: tolerowane idiomy (allowlista, kazdy z dowodem bajtowym/stabilnosci

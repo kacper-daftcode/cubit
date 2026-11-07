@@ -196,8 +196,10 @@ fn t226c_1_phantoms_absent_donor_law_present() {
     let ab =
         u128::from_str_radix(r["and_base"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
     assert_eq!((ab >> 91) & 1, 1, "UR identity pivot b91 must be baked 1");
-    // II row: donor FI law on sm120 key name
-    let r = &ins["FFMA_R_R_R_II"]["mod_groups"]["FTZ"];
+    // II row: donor FI law on sm120 key name. 2026-11-07 (session G, tools/probes/re_sm120_fp32_alu.py): the
+    // integer-spelling twin `FFMA_R_R_R_II` is an alias of the measured f32 key -- the same law on `FFMA_R_R_R_FI`.
+    assert_eq!(v["_meta"]["key_aliases"]["FFMA_R_R_R_II"], "FFMA_R_R_R_FI");
+    let r = &ins["FFMA_R_R_R_FI"]["mod_groups"]["FTZ"];
     let fs = r["fields"].as_array().unwrap();
     let has = |e: &str, b: u64, s: u64, t: u64| {
         fs.iter().any(|f| {
@@ -213,7 +215,7 @@ fn t226c_1_phantoms_absent_donor_law_present() {
     assert_eq!((ab >> 80) & 1, 1, "FTZ pivot b80 must be baked 1");
     // Independent SM120 probes confirm RM/RP in both packets. Rounding is
     // the two-bit enum at78, with no unrelated payload changes.
-    for key in ["FFMA_R_R_UR_R", "FFMA_R_R_R_II"] {
+    for key in ["FFMA_R_R_UR_R", "FFMA_R_R_R_FI"] {
         let groups = ins[key]["mod_groups"].as_object().unwrap();
         let base = u128::from_str_radix(groups[""]["and_base"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
         for (mode, bits) in [("RM", 1u128), ("RP", 2)] {

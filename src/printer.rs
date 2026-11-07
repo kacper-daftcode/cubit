@@ -1203,6 +1203,18 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             _ => {}
         }
     }
+    // 2026-11-07 (session G, tools/probes/re_sm120_fp32_alu.py, nvdisasm 13.1 on SM120 / SM103 / SM100): the FP32
+    // ALU prints the denormal mode, then FMUL's scale, then the rounding, then SAT -- `FMUL.FTZ.D2.RM.SAT`,
+    // `FFMA.FMZ.RZ.SAT`, `FADD.FTZ.RP.SAT`; the generic ranks put SAT (3) before the rounding (5) and the scale (5).
+    if matches!(base, "FADD" | "FMUL" | "FFMA") {
+        match m {
+            "FTZ" | "FMZ" => return 0,
+            "D8" | "D4" | "D2" | "M2" | "M4" | "M8" => return 1,
+            "RM" | "RP" | "RZ" => return 2,
+            "SAT" => return 3,
+            _ => {}
+        }
+    }
     if matches!(base, "VIMNMX" | "UVIMNMX") && m == "RELU" {
         return 8;
     }
