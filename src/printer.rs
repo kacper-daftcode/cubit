@@ -4813,6 +4813,41 @@ impl std::fmt::Display for DecodedInst {
     }
 }
 
+/// nvdisasm's display alias of a four-operand `IMAD Rd, a, b, c` (SM120, measured 2026-11-04,
+/// `tests/fixtures/sm120_imad_alias_nvdisasm.jsonl`): `MOV` / `IADD` / `SHL` or none. Operands are the
+/// printed strings (`RZ`, `R6`, `-R10`, `0x10`, `-0x80000000`, `UR8`).
+pub fn imad_alias_of_text(a: &str, b: &str, c: &str) -> Option<&'static str> {
+    let is_rz = |s: &str| matches!(s.trim_start_matches('-'), "RZ");
+    let imm = |s: &str| -> Option<i64> {
+        let (neg, body) = match s.strip_prefix('-') { Some(r) => (true, r), None => (false, s) };
+        let v = i64::from_str_radix(body.strip_prefix("0x")?, 16).ok()?;
+        Some(if neg { -v } else { v })
+    };
+    // A uniform register in the b slot takes no alias either (2026-11-06, T-10, nvdisasm 13.1:
+    // `IMAD R4, RZ, UR7, R10`, `IMAD R4, R6, UR7, RZ`, `IMAD R4, RZ, UR7, RZ` -- never `IMAD.MOV`).
+    if b.trim_start_matches('-').starts_with("UR") {
+        return None;
+    }
+    imad_alias(is_rz(a), is_rz(b), imm(b), is_rz(c), c.trim_start_matches('-').starts_with("UR"))
+}
+
+/// The alias law on operand facts (shared by the printer and the encoder).
+pub fn imad_alias(a_rz: bool, b_rz: bool, b_imm: Option<i64>, c_rz: bool, c_ur: bool) -> Option<&'static str> {
+    if c_ur {
+        return None;
+    }
+    if a_rz || b_rz || b_imm == Some(0) || (b_imm == Some(1) && c_rz) {
+        Some("MOV")
+    } else if b_imm == Some(1) && !c_rz {
+        Some("IADD")
+    } else if matches!(b_imm, Some(v) if (2..=(1i64 << 30)).contains(&v) && v & (v - 1) == 0) && c_rz {
+        Some("SHL")
+    } else {
+        None
+    }
+}
+
+
 // ── tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -4860,40 +4895,5 @@ mod tests {
         assert_eq!(sign_extend(0xffffff8, 24), -8);
         assert_eq!(sign_extend(0x100, 32), 256);
         assert_eq!(sign_extend(0x80000000, 32), i32::MIN as i64);
-    }
-}
-
-
-/// nvdisasm's display alias of a four-operand `IMAD Rd, a, b, c` (SM120, measured 2026-11-04,
-/// `tests/fixtures/sm120_imad_alias_nvdisasm.jsonl`): `MOV` / `IADD` / `SHL` or none. Operands are the
-/// printed strings (`RZ`, `R6`, `-R10`, `0x10`, `-0x80000000`, `UR8`).
-pub fn imad_alias_of_text(a: &str, b: &str, c: &str) -> Option<&'static str> {
-    let is_rz = |s: &str| matches!(s.trim_start_matches('-'), "RZ");
-    let imm = |s: &str| -> Option<i64> {
-        let (neg, body) = match s.strip_prefix('-') { Some(r) => (true, r), None => (false, s) };
-        let v = i64::from_str_radix(body.strip_prefix("0x")?, 16).ok()?;
-        Some(if neg { -v } else { v })
-    };
-    // A uniform register in the b slot takes no alias either (2026-11-06, T-10, nvdisasm 13.1:
-    // `IMAD R4, RZ, UR7, R10`, `IMAD R4, R6, UR7, RZ`, `IMAD R4, RZ, UR7, RZ` -- never `IMAD.MOV`).
-    if b.trim_start_matches('-').starts_with("UR") {
-        return None;
-    }
-    imad_alias(is_rz(a), is_rz(b), imm(b), is_rz(c), c.trim_start_matches('-').starts_with("UR"))
-}
-
-/// The alias law on operand facts (shared by the printer and the encoder).
-pub fn imad_alias(a_rz: bool, b_rz: bool, b_imm: Option<i64>, c_rz: bool, c_ur: bool) -> Option<&'static str> {
-    if c_ur {
-        return None;
-    }
-    if a_rz || b_rz || b_imm == Some(0) || (b_imm == Some(1) && c_rz) {
-        Some("MOV")
-    } else if b_imm == Some(1) && !c_rz {
-        Some("IADD")
-    } else if matches!(b_imm, Some(v) if (2..=(1i64 << 30)).contains(&v) && v & (v - 1) == 0) && c_rz {
-        Some("SHL")
-    } else {
-        None
     }
 }

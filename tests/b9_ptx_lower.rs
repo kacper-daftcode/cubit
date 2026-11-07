@@ -287,7 +287,7 @@ fn b9p2_pred_exhaustion_fail_closed() {
     }
     for i in 1..=9 {
         body.push_str(&format!("    selp.b32 %r2, {}, 0, %p{};\n", i, i));
-        body.push_str(&"    add.u32 %r3, %r3, %r2;\n".to_string());
+        body.push_str("    add.u32 %r3, %r3, %r2;\n");
     }
     let ptx = format!(r#"{} .visible .entry k(
     .param .u64 k_param_0
@@ -1877,7 +1877,7 @@ fn b9p11_gpr_cap_rz_trap() {
     for i in 3..40 {
         body.push_str(&format!("add.u32 %r{}, %r{}, 1;\n", i, i - 1));
     }
-    let t = lower_text(&body.replace("%r", "%r"));
+    let t = lower_text(&body);
     assert!(t.contains("IADD3"), "{}", t);
 }
 

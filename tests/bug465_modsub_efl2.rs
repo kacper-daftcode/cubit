@@ -311,7 +311,7 @@ fn t465_9_atlas_audit() {
                             op = if ldg { "LDG" } else { "STG" },
                             l2 = l2tok[l2 as usize]
                         );
-                        let mut pins: u128 = (sem as u128 & 0xF)
+                        let pins: u128 = (sem as u128 & 0xF)
                             | (((l2 as u128) & 3) << 4)
                             | (((l1 as u128) & 3) << 7);
                         for (dk, s) in donors.iter().zip(sfx.iter()) {
@@ -343,7 +343,6 @@ fn t465_9_atlas_audit() {
                             assert!(e["_src465"].is_string());
                             assert_eq!(e["base_op"], serde_json::Value::String(bop.clone()));
                         }
-                        pins &= 0x1FF;
                     }
                 }
             }

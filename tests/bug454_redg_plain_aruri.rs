@@ -66,13 +66,6 @@ fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
     encode_instruction(&parsed, t).map_err(|e| e.to_string())
 }
 const ERA454: u128 = (0xFFFFFFFFu128) << 96;
-fn nforms(arch: &str) -> usize {
-    let v: serde_json::Value =
-        serde_json::from_str(&cubit::table::read_table_text(format!("tables/{arch}.json")).unwrap())
-            .unwrap();
-    v["instructions"].as_object().unwrap().len()
-}
-
 /// t454_1: heal grid -- decode == vendor text on every leg (fixture x4 +
 /// carriers ARURI/ARURI64 heal + 121a print-mangle cure; 468 cells).
 #[test]

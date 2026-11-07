@@ -23,6 +23,7 @@ use cubit::printer::to_sass;
 use cubit::table::IsaTable;
 
 const M96: u128 = (1u128 << 96) - 1;
+#[allow(dead_code)] // the four legs, named for the record
 const LEGS: [&str; 4] = ["sm100a", "sm103a", "sm120", "sm121a"];
 // era-era exemplar: LDGSTS.E.128 non-P with guard nibble baked at g=8.
 const F: u128 = 0x000000000b9a180e0000000016038fae_u128;

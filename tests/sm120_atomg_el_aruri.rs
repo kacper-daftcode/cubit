@@ -64,7 +64,7 @@ fn check(i: usize, word: u128, vendor: &str) -> String {
 
 #[test]
 fn every_probed_word_matches_nvidia_and_reassembles_all_128_bits_on_the_three_tables() {
-    for i in 0..TABLES.len() {
+    for (i, (name, _)) in TABLES.iter().enumerate() {
         let mut n = 0;
         let mut keys = std::collections::BTreeSet::new();
         for row in fixture(i) {
@@ -76,8 +76,8 @@ fn every_probed_word_matches_nvidia_and_reassembles_all_128_bits_on_the_three_ta
             keys.insert(check(i, word, vendor));
             n += 1;
         }
-        assert_eq!(n, 98, "{}: form words in the fixture", TABLES[i].0);
-        assert_eq!(keys.len(), 2, "{}: ADD and OR", TABLES[i].0);
+        assert_eq!(n, 98, "{}: form words in the fixture", name);
+        assert_eq!(keys.len(), 2, "{}: ADD and OR", name);
     }
 }
 
@@ -138,7 +138,7 @@ fn the_rows_are_the_measured_ones_and_the_era_keys_are_gone() {
 
 #[test]
 fn the_lattice_around_the_form_is_never_rendered_as_another_text() {
-    for i in 0..TABLES.len() {
+    for (i, (name, _)) in TABLES.iter().enumerate() {
         let (table, index) = &loaded()[i];
         let (mut n, mut undecoded) = (0, 0);
         for row in fixture(i) {
@@ -152,13 +152,13 @@ fn the_lattice_around_the_form_is_never_rendered_as_another_text() {
                 Ok(d) => {
                     let own = cubit::printer::to_sass_lossless(&d);
                     let vendor = row["nvidia_sass"].as_str();
-                    assert_eq!(Some(own.as_str()), vendor, "{}: lattice word {word:032x}", TABLES[i].0);
+                    assert_eq!(Some(own.as_str()), vendor, "{}: lattice word {word:032x}", name);
                     assert!(!KEYS.contains(&d.key.as_str()) || vendor.unwrap().contains(".U32+"),
-                        "{}: lattice word {word:032x} claimed by {}", TABLES[i].0, d.key);
+                        "{}: lattice word {word:032x} claimed by {}", name, d.key);
                 }
             }
         }
-        assert_eq!(n, 25, "{}: lattice words in the fixture", TABLES[i].0);
-        assert!(undecoded >= 3, "{}: the illegal words (bit 76 alone, frame bit clear) fail closed", TABLES[i].0);
+        assert_eq!(n, 25, "{}: lattice words in the fixture", name);
+        assert!(undecoded >= 3, "{}: the illegal words (bit 76 alone, frame bit clear) fail closed", name);
     }
 }

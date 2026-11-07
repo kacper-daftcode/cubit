@@ -51,15 +51,15 @@ fn w(hex: &str) -> u128 { u128::from_str_radix(hex, 16).unwrap() }
 #[test]
 fn t173_1_key_absent() {
     let t = t120();
-    assert!(t.entries.get("LDCU_UR_cARI").is_none(),
+    assert!(!t.entries.contains_key("LDCU_UR_cARI"),
         "LDCU_UR_cARI must be deleted (vendor-ILLEGAL geometry, never-winner)");
     // canonical neighbor LDCU_UR_cAI must stay:
-    assert!(t.entries.get("LDCU_UR_cAI").is_some(), "LDCU_UR_cAI must remain");
+    assert!(t.entries.contains_key("LDCU_UR_cAI"), "LDCU_UR_cAI must remain");
     // 2026-08-26 compose: LDCU_UR_cAURI is intentionally ABSENT -- the
     // BUG-152 fold into LDCU_UR_cAI survives (cAURI rows were never-winner
     // shells and the fold carries the encode path: `LDCU UR5,
     // c[0x0][UR5+0x258]` encodes byte-exact through LDCU_UR_cAI['']).
-    assert!(t.entries.get("LDCU_UR_cAURI").is_none(), "cAURI stays folded (BUG-152)");
+    assert!(!t.entries.contains_key("LDCU_UR_cAURI"), "cAURI stays folded (BUG-152)");
     let i5 = parse_sass("LDCU UR5, c[0x0][UR5+0x258] ;", 0).unwrap();
     assert!(encode_instruction(&i5, &t).is_ok(), "folded cAURI form encodes via cAI");
 }

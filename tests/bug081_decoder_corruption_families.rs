@@ -142,7 +142,7 @@ fn t4_lea_neg_goes_to_src_not_predicate() {
 fn t5_fsetp_junk_keys_deleted() {
     let t = t120();
     for k in ["FSETP_P_P_R_L_P", "FSETP_P_P_L_II_P", "FSETP_P_P_L_R_P"] {
-        assert!(t.entries.get(k).is_none(), "junk key {k}");
+        assert!(!t.entries.contains_key(k), "junk key {k}");
     }
     // and compare-op must not be hijacked for literal compares
     let code = enc("FSETP.NEU.AND P0, PT, R68, 1, PT", &t).unwrap();

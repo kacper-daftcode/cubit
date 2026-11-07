@@ -32,6 +32,7 @@ use cubit::parser::parse_sass;
 use cubit::printer::to_sass;
 use cubit::table::IsaTable;
 
+#[allow(dead_code)] // the four legs, named for the record
 const LEGS4: [&str; 4] = ["sm100a", "sm103a", "sm120", "sm121a"];
 
 fn tab(arch: &str) -> IsaTable {

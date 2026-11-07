@@ -45,6 +45,7 @@ const UIMAD_ORIG: u128 = 0x000fe2000f8e001000000400131a78a5;
 /// rt98_pub.cubin .text.KernelA ins1538 (REDG.E.AND.EL.STRONG.GPU desc).
 const REDG_AND_ORIG: u128 = 0x0009e4000aa0e1140a2400404200298e;
 /// rt98_pub.cubin .text.KernelA ins3188 (REDG.E.OR.EL.STRONG.GPU desc).
+#[allow(dead_code)] // the original word, kept as the record of the finding
 const REDG_OR_ORIG: u128 = 0x0009e4000b20e1140a2400171900798e;
 /// rt98_pub.cubin .text.KernelA ins2158 (ISETP.GT.U32 mixed form per era; nvdisasm 13.3: plain GT.AND).
 const ISETP_ORIG: u128 = 0x001fda000bf24270000000161a007c0c;

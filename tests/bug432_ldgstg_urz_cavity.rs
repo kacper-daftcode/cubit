@@ -17,12 +17,6 @@ fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
         .ok()
         .map(|d| to_sass(&d).trim().trim_end_matches(';').to_string())
 }
-fn dec121(w: u128) -> Option<String> {
-    let t = t121();
-    let idx = DecodeIndex::build(&t);
-    dec(&t, &idx, w)
-}
-
 /// t432_1: match cells -- post-432 decode == verbatim vendor text x klasa.
 #[test]
 fn t432_1_match_cells() {

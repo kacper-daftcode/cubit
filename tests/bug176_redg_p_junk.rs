@@ -64,14 +64,14 @@ fn t176_1_junk_absent_honest_keep() {
         "REDG.E.MIN.S32.STRONG.GPU_P_dARI_R",
         "REDG.E.OR.STRONG.GPU_P_dARI_R",
     ] {
-        assert!(t2.entries.get(k).is_none(), "{k} must be deleted");
+        assert!(!t2.entries.contains_key(k), "{k} must be deleted");
     }
     for k in [
         "REDG.E.MIN.STRONG.GPU_dARI_R",
         "REDG.E.MAX.S32.STRONG.GPU_dARI_R",
         "REDG_dARI_R",
     ] {
-        assert!(t2.entries.get(k).is_some(), "{k} must remain");
+        assert!(t2.entries.contains_key(k), "{k} must remain");
     }
     // sm103a stays untouched: REDG_P_dARI_R there is NOT junk -- it is the
     // vendor-true PT-sink form family (tests/bug128_redg_pt_alias.rs: 13
@@ -80,7 +80,7 @@ fn t176_1_junk_absent_honest_keep() {
     let t3 = t103();
     for k in ["REDG_P_dARI_R", "REDG_dARI_R"] {
         assert!(
-            t3.entries.get(k).is_some(),
+            t3.entries.contains_key(k),
             "{k} must remain (sm103a out of scope)"
         );
     }
@@ -95,7 +95,7 @@ fn t176_1_junk_absent_honest_keep() {
         "REDG.E.OR.EL.STRONG.GPU_P_dARI_R",
     ] {
         assert!(
-            t3.entries.get(k).is_none(),
+            !t3.entries.contains_key(k),
             "{k} must stay deleted (BUG-454 R2)"
         );
     }
@@ -105,7 +105,7 @@ fn t176_1_junk_absent_honest_keep() {
         "REDG.E.OR.EL.STRONG.GPU_ARURI_R",
     ] {
         assert!(
-            t3.entries.get(k).is_some(),
+            t3.entries.contains_key(k),
             "{k} must exist post-454 (donor-clone)"
         );
     }

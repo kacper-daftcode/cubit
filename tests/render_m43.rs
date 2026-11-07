@@ -59,7 +59,7 @@ fn t_render_orphan_labels_preserved() {
     let out = run_file(&src, true).unwrap();
     // L_10 rides its instruction (addr 0x10); the stacked pair L_20/L_30 both
     // anchor at 0x20: first as a label-only line, last on the instruction.
-    let want = src.replacen("L_20:\nL_30:  [B", "L_20:\nL_30:  [B", 1);
+    let want = src.clone();
     assert_eq!(out, want, "stacked/orphan labels drifted");
     let sf = parse_sass_file_str_strict(&src).unwrap();
     let k = &sf.kernels[0];

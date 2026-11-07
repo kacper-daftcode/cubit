@@ -181,11 +181,6 @@ fn t311_4_e128_alloc_family_mints() {
     let w = enc(&t, "LDGSTS.E.128 [R7+0x70], desc[UR6][R4.64+0x708]").unwrap();
     assert_eq!((w >> 44) & 0xF_FFFF, 0x70, "dst imm window raw");
     assert_eq!((w >> 32) & 0xFFF, 0x708, "desc imm window raw");
-    // and BYPASS witnesses must NOT be claimed by the new rows (b81 pinned)
-    {
-        let w = w;
-        let _ = w;
-    }
 }
 
 #[test]

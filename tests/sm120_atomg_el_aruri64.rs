@@ -65,7 +65,7 @@ fn check(i: usize, word: u128, vendor: &str) -> String {
 
 #[test]
 fn every_probed_word_matches_nvidia_and_reassembles_all_128_bits_on_the_three_tables() {
-    for i in 0..TABLES.len() {
+    for (i, (name, _)) in TABLES.iter().enumerate() {
         let mut n = 0;
         let mut glyph255 = 0;
         let mut keys = std::collections::BTreeSet::new();
@@ -79,9 +79,9 @@ fn every_probed_word_matches_nvidia_and_reassembles_all_128_bits_on_the_three_ta
             glyph255 += usize::from(vendor.contains("???255"));
             n += 1;
         }
-        assert_eq!(n, 74, "{}: form words in the fixture", TABLES[i].0);
-        assert_eq!(glyph255, 2, "{}: the two base-255 words print the degenerate glyph", TABLES[i].0);
-        assert_eq!(keys.len(), 2, "{}: ADD and OR", TABLES[i].0);
+        assert_eq!(n, 74, "{}: form words in the fixture", name);
+        assert_eq!(glyph255, 2, "{}: the two base-255 words print the degenerate glyph", name);
+        assert_eq!(keys.len(), 2, "{}: ADD and OR", name);
     }
 }
 
@@ -106,15 +106,15 @@ fn the_audit_words_decode_and_round_trip() {
 #[test]
 fn the_neighbours_stay_on_their_rows() {
     let base = 0x00000000082ee1068000005108da79a8u128 | CTRL; // ADD, Ra = R8, URb = UR6, Rd = R218, Rb = R81
-    for i in 0..TABLES.len() {
+    for (i, (name, _)) in TABLES.iter().enumerate() {
         let (table, index) = &loaded()[i];
         let u32_word = base & !(1u128 << 63);
         let d = index.decode(u32_word, 0, table).unwrap();
-        assert_eq!(d.key, "ATOMG.E.ADD.EL.STRONG.GPU_P_R_ARURI_R", "{}", TABLES[i].0);
+        assert_eq!(d.key, "ATOMG.E.ADD.EL.STRONG.GPU_P_R_ARURI_R", "{}", name);
         assert_eq!(cubit::printer::to_sass(&d), "ATOMG.E.ADD.EL.STRONG.GPU PT, R218, [R8.U32+UR6], R81");
         let desc_word = base | (1u128 << 76);
         let d = index.decode(desc_word, 0, table).unwrap();
-        assert!(!KEYS.contains(&d.key.as_str()), "{}: {}", TABLES[i].0, d.key);
+        assert!(!KEYS.contains(&d.key.as_str()), "{}: {}", name, d.key);
         assert_eq!(cubit::printer::to_sass(&d), "ATOMG.E.ADD.EL.STRONG.GPU PT, R218, desc[UR6][R8.64], R81");
     }
 }

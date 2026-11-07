@@ -176,8 +176,6 @@ fn b9p13_ex2_lg2_shapes() {
     assert_eq!(l2[6], "FSEL @5, @4, @3, @2 ;");
 }
 
-/// 6.
-
 /// 6. div.approx.f32 -> 8-op macro (mufu1 O0 0x1c0-0x280, FI-folded: FSETP/FMUL
 ///    imm slots, O3-anchor). Tanh/abs single-op forms.
 #[test]

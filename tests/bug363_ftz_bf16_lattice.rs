@@ -290,7 +290,7 @@ fn t363_3_signs_pred_and_alias_decode() {
 }
 
 #[test]
-fn t363_4_mints_incl_sevA_repair_and_pred() {
+fn t363_4_mints_incl_sev_a_repair_and_pred() {
     for leg in LEGS4 {
         let t = tab(leg);
         // sev-A repair: dst@16 everywhere == vendor mint (0x...057305 family)

@@ -46,13 +46,6 @@ fn dec(idx: &DecodeIndex, w: u128, t: &IsaTable) -> String {
     s.trim().to_string()
 }
 fn w(hex: &str) -> u128 { u128::from_str_radix(hex, 16).unwrap() }
-fn enc_ok(t: &IsaTable, text: &str) -> bool {
-    match parse_sass(text, 0) {
-        Ok(insn) => encode_instruction(&insn, t).is_ok(),
-        Err(_) => false,
-    }
-}
-
 /// t177_1: FSEL positive-QNAN anchors (both bimodal payload lanes) decode
 /// vendor-exact: "+QNAN".
 #[test]

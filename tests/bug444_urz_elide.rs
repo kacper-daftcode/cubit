@@ -56,13 +56,8 @@ fn t444_1_healed_grid() {
             let t = tab(leg);
             let idx = DecodeIndex::build(&t);
             let got = dec(&t, &idx, *w);
-            if *scope == "x4" {
-                assert_eq!(
-                    got.as_deref(),
-                    Some(*vendor),
-                    "[{leg}] heal drift {w:#034x}"
-                );
-            } else if leg == "sm121a" {
+            if *scope == "x4" || leg == "sm121a" {
+                // x4 rows heal on every leg; x3 rows heal on sm121a (the desc snap) and stand HOLE elsewhere
                 assert_eq!(
                     got.as_deref(),
                     Some(*vendor),

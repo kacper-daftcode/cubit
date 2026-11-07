@@ -55,6 +55,7 @@ const PROBES418: [(u128, &str, &str); 50] = [
     (0x000f6200000006000000000005000b82u128, "zero_off", "@P0 LDC.S16 R0, c[0x0][R5]"),
     (0x000f62000000060007c0000005000b82u128, "zero_off_bank31", "@P0 LDC.S16 R0, c[0x1f][R5]"),
 ];
+#[allow(dead_code)] // generated data: read by some includers only
 const FIX418: [&str; 47] = [
     "bank_b54",
     "bank_b55",

@@ -100,7 +100,7 @@ fn mk40_mini_ffma2_emitted_bit0() {
 #[test]
 fn mk40_break_preexit_minis() {
     let mut m = meta_with_load();
-    m.merc_mini2 = vec![(2, 0x0a0005_41), (4, 0x0a026241)];
+    m.merc_mini2 = vec![(2, 0x0a00_0541), (4, 0x0a026241)];
     let o = ops(8);
     let out = generate_mercury_full(&dummy_code(8), 0x0c, Some(&o), &m, false);
     let cm = CapMerc::parse(&out, true).unwrap();

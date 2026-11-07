@@ -63,9 +63,12 @@ fn mb_neg(t: &IsaTable) -> usize {
 
 // arb270 host words (payload part; ctl mask convention of the harness).
 const W_IIFI_V1: u128 = 0x000fc600000001ff00000000ff037431; // 'HFMA2 R3, -RZ, RZ, 0, 0'
+#[allow(dead_code)] // documentary base word of the family
 const W_FIII_BASE: u128 = 0x00000000000000ff3f800000ff000431; // 'HFMA2 R0, RZ, RZ, 1.875, 0'
 const W_RRUR_BASE: u128 = 0x00000000080000000000000000000e31; // 'HFMA2 R0, R0, R0, UR0'
+#[allow(dead_code)] // documentary base word of the family
 const W_HSETP_BASE: u128 = 0x00000000080000000000000000000e34; // 'HSETP2 P0, P0, R0, UR0, P0'
+#[allow(dead_code)] // documentary base word of the family
 const W_FRND_BASE: u128 = 0x00000000001008000000000000000307; // 'FRND.F16 R0, R0'
 
 #[test]

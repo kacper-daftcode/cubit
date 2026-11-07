@@ -196,15 +196,6 @@ fn t390_1_lattice_decode_vendor_exact_x4() {
     }
 }
 
-fn dst_of(n: u8) -> &'static str {
-    match n & 0x9 {
-        0x0 => "U8",
-        0x1 => "S8",
-        0x8 => "U16",
-        _ => "S16",
-    }
-}
-
 #[test]
 fn t390_2_mint_word_exact_32_classes_x4() {
     // every (round x NTZ x dst) class mints its base-nibble cell word

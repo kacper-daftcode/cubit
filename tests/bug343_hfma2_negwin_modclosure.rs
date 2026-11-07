@@ -44,6 +44,7 @@ const B78: u128 = 1 << 78;
 const B79: u128 = 1 << 79;
 const B80: u128 = 1 << 80;
 const B85: u128 = 1 << 85;
+#[allow(dead_code)] // the uniform-frame bit, named for the record
 const B91: u128 = 1 << 91;
 // HOST lattice: 0x231 | PT | R1@16, R2@24, R3@32, R4@64
 const HOST: u128 = 0x231 | (7 << 12) | (1 << 16) | (2 << 24) | (3 << 32) | (4 << 64);

@@ -102,12 +102,12 @@ fn bug098_sm120_junk_keys_gone() {
         "LDSM.16.M88.4_R_ARURI", "LDSM.16.M88_R_AUR", "LDSM.16.MT88.4_R_AR",
         "LDSM.16.MT88.4_R_ARURI"];
     for k in junk {
-        assert!(t.entries.get(k).is_none(), "junk key still present: {k}");
+        assert!(!t.entries.contains_key(k), "junk key still present: {k}");
     }
-    assert!(t.entries.get("LDSM_R_ARI").is_some());
-    assert!(t.entries.get("LDSM_R_ARURI").is_some());
+    assert!(t.entries.contains_key("LDSM_R_ARI"));
+    assert!(t.entries.contains_key("LDSM_R_ARURI"));
     // same verdict on canon: plain-ARI modgroup must exist post-fix
     let c = t103();
     let ari = c.entries.get("LDSM_R_ARI").expect("canon LDSM_R_ARI");
-    assert!(ari.mod_groups.get("16,M88").is_some(), "canon plain-ARI mg missing");
+    assert!(ari.mod_groups.contains_key("16,M88"), "canon plain-ARI mg missing");
 }

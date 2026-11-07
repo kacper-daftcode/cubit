@@ -143,7 +143,7 @@ fn t153_6_fix_is_printer_only() {
     assert_eq!(g.fields.len(), 1, "CALL_R[ABS,NOINC] must have the single Ra field");
     let f = &g.fields[0];
     assert_eq!((f.shift, f.bits), (24, 8), "Ra window");
-    assert!(t.entries["CALL_II"].mod_groups.get("ABS,NOINC").is_none()
-            && t.entries["CALL_II"].mod_groups.get("ABS").is_none(),
+    assert!(!t.entries["CALL_II"].mod_groups.contains_key("ABS,NOINC")
+            && !t.entries["CALL_II"].mod_groups.contains_key("ABS"),
             "no immediate-ABS row may appear silently (zero vendor witnesses)");
 }

@@ -48,16 +48,6 @@ fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
         .map(|d| to_sass(&d).trim().trim_end_matches(';').to_string())
 }
 const LEGS_442: [&str; 4] = ["sm100a", "sm103a", "sm120", "sm121a"];
-fn leg_of(tag: &str) -> String {
-    tag.rsplit('.')
-        .next()
-        .unwrap()
-        .split(' ')
-        .next()
-        .unwrap()
-        .to_string()
-}
-
 /// t442_1: healed grid -- decode == vendor text x4 legs on every (1,1)
 /// free-form word (10 words x4; dup tag arb438b.STG.j90 == A.j90 folded).
 #[test]

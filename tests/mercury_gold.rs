@@ -133,8 +133,8 @@ fn gold_all_kernels_byte_exact() {
                 k
             ));
         }
-        if out == gold && resid.is_some() {
-            unexpected_pass.push(format!("{} (residual: {})", g.name, resid.unwrap()));
+        if let (true, Some(r)) = (out == gold, resid) {
+            unexpected_pass.push(format!("{} (residual: {})", g.name, r));
         }
         if out == gold {
             covered += 1;

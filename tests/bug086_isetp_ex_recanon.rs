@@ -43,12 +43,6 @@ fn enc(text: &str, t: &IsaTable) -> anyhow::Result<u128> {
     encode_instruction(&insn, t)
 }
 
-fn dec_render(word: u128, t: &IsaTable) -> String {
-    let idx = DecodeIndex::build(t);
-    let d = idx.decode(word, 0, t).expect("decode");
-    cubit::printer::to_sass(&d)
-}
-
 const PAYLOAD: u128 = (1u128 << 96) - 1;
 
 fn norm(t: &str) -> String {

@@ -113,7 +113,7 @@ fn t152_4_encode_plain_bakes_urz_sentinel() {
 #[test]
 fn t152_5_cauri_key_gone_and_u8_ur_fail_closed() {
     let t = t120();
-    assert!(t.entries.get("LDCU_UR_cAURI").is_none(), "junk-signature key must be deleted");
+    assert!(!t.entries.contains_key("LDCU_UR_cAURI"), "junk-signature key must be deleted");
     // 2026-08: "U8+UR has zero vendor witnesses -> fail closed". Re-pinned 2026-11-06 (T-10 audit batch,
     // `audit-fix-2026-11-06-t10`): nvdisasm 13.1 names the UR-indexed U8 form (`LDCU.U8 UR5, c[0x0][UR7]`),
     // so the [U8] group carries the uniform index field like the measured "" / [64] groups and the text

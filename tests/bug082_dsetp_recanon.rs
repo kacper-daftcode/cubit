@@ -114,7 +114,7 @@ fn t4_dsetp_junk_keys_deleted() {
     }
     for k in ["DSETP_P_P_R_L_P", "DSETP_P_P_R_II_P",
               "DSETP.NEU.OR_P_P_R_R_P_II_II_?", "DSETP.EQ.AND_P_P_R_UR_P_II_?"] {
-        assert!(t.entries.get(k).is_none(), "junk key {k} still present");
+        assert!(!t.entries.contains_key(k), "junk key {k} still present");
     }
 }
 

@@ -29,7 +29,6 @@ impl H {
         p.to_str().unwrap().to_string()
     }
     fn path(&self, name: &str) -> std::path::PathBuf { self.0.join(name) }
-    fn paths(&self, name: String) -> String { self.0.join(name).to_str().unwrap().to_string() }
 }
 
 fn run_asm(args: &[String]) -> std::process::Output {

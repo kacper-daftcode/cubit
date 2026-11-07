@@ -31,10 +31,10 @@ fn t103() -> IsaTable {
 }
 
 /// FA4 trap pad: two words after BPT.TRAP (fa4_fwd_hdim64_fp16_full.cubin).
-const W_A: u128 = 0x000fea0003c3ffff_ffffff54_023c7950; // @0xab00
-const W_B: u128 = 0x000fea0003c3ffff_ffffff54_02307950; // @0xab30
+const W_A: u128 = 0x000f_ea00_03c3_ffff_ffff_ff54_023c_7950; // @0xab00
+const W_B: u128 = 0x000f_ea00_03c3_ffff_ffff_ff54_0230_7950; // @0xab30
 /// Normalna kohorta (merclab q_tail_call.cubin @0x0110, nvdisasm-verbatim).
-const W_C: u128 = 0x000fea0003c3ffff_fffffffc_02b87950;
+const W_C: u128 = 0x000f_ea00_03c3_ffff_ffff_fffc_02b8_7950;
 /// Region outside scheduling (as in bug049): the decoder matches 96 bits.
 const NOSCHED: u128 = !(0xFFFF_FFFFu128 << 96);
 
@@ -126,8 +126,8 @@ fn t115_5_phantom_ret_ii_removed() {
 #[test]
 fn t115_6_far_ret_words_encode_byte_exact() {
     for (w, addr, text) in [
-        (0x002fec0003c3ffff_fffff52c_3a087950u128, 0xad3d0u32, "RET.REL.NODEC R58, 0x0"),
-        (0x001fea0003c3ffff_ffffef38_14387950u128, 0x10c710u32, "RET.REL.NODEC R20, 0x0"),
+        (0x002f_ec00_03c3_ffff_ffff_f52c_3a08_7950_u128, 0xad3d0u32, "RET.REL.NODEC R58, 0x0"),
+        (0x001f_ea00_03c3_ffff_ffff_ef38_1438_7950_u128, 0x10c710u32, "RET.REL.NODEC R20, 0x0"),
     ] {
         let rc = enc103(text, addr);
         assert_eq!(rc & NOSCHED, w & NOSCHED,

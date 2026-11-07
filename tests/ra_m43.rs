@@ -38,7 +38,7 @@ fn t_full_basic_renumber_sound() {
     // to SHARE homes across disjoint lifetimes (that's the point of RA):
     // only per-position co-live separation is required, audited natively.
     assert_ne!(p.r["7"], p.r["9"]);
-    assert!(!(p.r["7"].to_string() == ""));
+    assert!(!p.r["7"].to_string().is_empty());
 }
 
 #[test]

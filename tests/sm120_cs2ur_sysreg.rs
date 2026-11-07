@@ -42,7 +42,7 @@ fn every_probed_cs2ur_word_matches_nvidia_and_reassembles_all_128_bits() {
 #[test]
 fn cs2ur_has_no_immediate_form_and_rejects_out_of_range_operands() {
     let table = table();
-    assert!(table.entries.get("CS2UR_UR_II").is_none());
+    assert!(!table.entries.contains_key("CS2UR_UR_II"));
     for source in ["CS2UR UR4, 0x0 ;", "CS2UR UR256, SR_CLOCKLO ;", "CS2UR UR4, SR256 ;"] {
         let parsed = match cubit::parse_sass(source, 0) {
             Ok(parsed) => parsed,

@@ -70,7 +70,7 @@ fn check(i: usize, word: u128, vendor: &str) -> String {
 
 #[test]
 fn every_probed_word_matches_nvidia_and_reassembles_all_128_bits_on_the_three_tables() {
-    for i in 0..TABLES.len() {
+    for (i, (name, _)) in TABLES.iter().enumerate() {
         let mut n = 0;
         let mut keys = std::collections::BTreeSet::new();
         for row in fixture(i) {
@@ -82,14 +82,14 @@ fn every_probed_word_matches_nvidia_and_reassembles_all_128_bits_on_the_three_ta
             keys.insert(check(i, word, vendor));
             n += 1;
         }
-        assert_eq!(n, 615, "{}: form words in the fixture", TABLES[i].0);
-        assert_eq!(keys.len(), 24, "{}: the 24 keys of the family are all reached: {keys:?}", TABLES[i].0);
+        assert_eq!(n, 615, "{}: form words in the fixture", name);
+        assert_eq!(keys.len(), 24, "{}: the 24 keys of the family are all reached: {keys:?}", name);
     }
 }
 
 #[test]
 fn the_lattice_around_the_family_is_never_rendered_as_another_text() {
-    for i in 0..TABLES.len() {
+    for (i, (name, _)) in TABLES.iter().enumerate() {
         let (table, index) = &loaded()[i];
         let (mut n, mut undecoded) = (0, 0);
         for row in fixture(i) {
@@ -104,12 +104,12 @@ fn the_lattice_around_the_family_is_never_rendered_as_another_text() {
                     // a lattice word nvdisasm names (text-inert bit) may only print exactly that text
                     let vendor = row["nvidia_sass"].as_str();
                     assert_eq!(Some(cubit::printer::to_sass_lossless(&d).as_str()), vendor,
-                        "{}: lattice word {word:032x} decodes as another text", TABLES[i].0);
+                        "{}: lattice word {word:032x} decodes as another text", name);
                 }
             }
         }
-        assert_eq!(n, 209, "{}", TABLES[i].0);
-        assert_eq!(undecoded, 209, "{}: every lattice word stays unclaimed (inert bits, wrong frame, .SX32 without .HI, unused opcodes)", TABLES[i].0);
+        assert_eq!(n, 209, "{}", name);
+        assert_eq!(undecoded, 209, "{}: every lattice word stays unclaimed (inert bits, wrong frame, .SX32 without .HI, unused opcodes)", name);
     }
 }
 
@@ -185,24 +185,24 @@ fn one_production_word_per_class_prints_the_vendor_text() {
 /// `LEA.HI.X R4, ~R8, UR10, R6, 0x1, PT` minted the word WITHOUT bit 72 through the B300-4 row.
 #[test]
 fn the_sign_glyph_is_enforced_not_dropped() {
-    for i in 0..TABLES.len() {
+    for (i, (name, _)) in TABLES.iter().enumerate() {
         let (table, _) = &loaded()[i];
-        let ok = |text: &str| reencode(table, CTRL, text).unwrap_or_else(|e| panic!("{}: {text}: {e}", TABLES[i].0));
+        let ok = |text: &str| reencode(table, CTRL, text).unwrap_or_else(|e| panic!("{}: {text}: {e}", name));
         let refused = |text: &str| {
-            let e = reencode(table, CTRL, text).err().unwrap_or_else(|| panic!("{}: {text} must be refused", TABLES[i].0)).to_string();
-            assert!(e.contains("bitwise inverse") || e.contains("negation") || e.contains("absolute value"), "{}: {text}: {e}", TABLES[i].0);
+            let e = reencode(table, CTRL, text).err().unwrap_or_else(|| panic!("{}: {text} must be refused", name)).to_string();
+            assert!(e.contains("bitwise inverse") || e.contains("negation") || e.contains("absolute value"), "{}: {text}: {e}", name);
         };
-        assert_eq!(ok("LEA.HI.X R4, ~R8, UR10, R6, 0x1, PT") & (1 << 72), 1 << 72, "{}", TABLES[i].0);
-        assert_eq!(ok("LEA.HI.X R4, R8, ~UR10, R6, 0x1, PT") & (1 << 63), 1 << 63, "{}", TABLES[i].0);
-        assert_eq!(ok("LEA R4, -R8, R10, 0x1") & (1 << 72), 1 << 72, "{}", TABLES[i].0);
-        assert_eq!(ok("LEA.HI R4, R8, -UR10, R6, 0x1") & (1 << 63), 1 << 63, "{}", TABLES[i].0);
+        assert_eq!(ok("LEA.HI.X R4, ~R8, UR10, R6, 0x1, PT") & (1 << 72), 1 << 72, "{}", name);
+        assert_eq!(ok("LEA.HI.X R4, R8, ~UR10, R6, 0x1, PT") & (1 << 63), 1 << 63, "{}", name);
+        assert_eq!(ok("LEA R4, -R8, R10, 0x1") & (1 << 72), 1 << 72, "{}", name);
+        assert_eq!(ok("LEA.HI R4, R8, -UR10, R6, 0x1") & (1 << 63), 1 << 63, "{}", name);
         refused("LEA.HI.X R4, -R8, UR10, R6, 0x1, PT");
         refused("LEA.X R4, R8, -R10, 0x1, PT");
         refused("LEA R4, ~R8, R10, 0x1");
         refused("LEA.HI R4, R8, ~UR10, R6, 0x1");
         refused("LEA R4, |R8|, R10, 0x1");
         // the imm32 form has no <b> sign bit: `-0x10` is the 32-bit immediate 0xfffffff0, printed unsigned
-        assert_eq!((ok("LEA R4, R8, -0x10, 0x1") >> 32) & 0xffff_ffff, 0xffff_fff0, "{}", TABLES[i].0);
+        assert_eq!((ok("LEA R4, R8, -0x10, 0x1") >> 32) & 0xffff_ffff, 0xffff_fff0, "{}", name);
     }
 }
 

@@ -36,27 +36,6 @@ const PROLOG: &str = r#"
 .address_size 64
 "#;
 
-fn lower_text(body: &str) -> String {
-    let ptx = format!(r#"{} .visible .entry k(
-    .param .u64 k_param_0,
-    .param .u64 k_param_1
-)
-{{
-    .reg .pred %p<6>;
-    .reg .b32 %r<24>;
-    .reg .b64 %rd<8>;
-    .reg .f32 %f<8>;
-    ld.param.b64 %rd1, [k_param_0];
-    ld.param.b64 %rd2, [k_param_1];
-{}
-    st.global.b64 [%rd2], %rd3;
-    ret;
-}}"#, PROLOG, body);
-    let kernels = parse_ptx(&ptx).expect("parse ptx");
-    let ks = lower_kernel(&kernels[0]).expect("lower");
-    ks.instructions.iter().map(|i| format!("{:?}", i)).collect::<Vec<_>>().join("\n")
-}
-
 // ── F-1 ───────────────────────────────────────────────────────────────────
 #[test]
 fn b10_f1_globaltimer_lane() {

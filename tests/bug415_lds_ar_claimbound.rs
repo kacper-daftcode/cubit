@@ -51,11 +51,6 @@ fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<(String, String)> {
         .map(|d| (to_sass(&d), format!("{}|{}", d.key, d.mod_group)))
         .ok()
 }
-fn enc_probe(t: &IsaTable, text: &str) -> u128 {
-    let ins = parse_sass(text, 0).unwrap();
-    encode_instruction(&ins, t).unwrap()
-}
-
 /// t415_1: sm121a class cells decode vendor-exact x36 and claim the
 /// contract rows (S8 -> LDS_R_ARI|S8, U16 -> LDS_R_ARI|U16, U8 junk ->
 /// LDS.U8_R_ARI, U8 base -> LDS_R_ARI|U8).

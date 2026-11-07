@@ -42,22 +42,22 @@ fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> String {
 /// (word incl. sched stripe, vendor text)
 const WITNESS: &[(u128, &str)] = &[
     // sibling sub_ur0@32/8 (desc-UR) odd: bit32=1 bled into addr-R pre-fix
-    (0x000fe8000c1e1b00_00000009_044c7981, "LDG.E.64 R76, desc[UR9][R4.64]"),
+    (0x000f_e800_0c1e_1b00_0000_0009_044c_7981, "LDG.E.64 R76, desc[UR9][R4.64]"),
     // sibling reg@32/8 = RZ sentinel 255 (data reg of the 256-bit store)
-    (0x000fc8000f121814_f80000ff_08ff797f, "STG.E.ENL2.256 desc[UR20][R8.64], RZ, RZ"),
+    (0x000f_c800_0f12_1814_f800_00ff_08ff_797f, "STG.E.ENL2.256 desc[UR20][R8.64], RZ, RZ"),
     // ATOM-family CAS (BUG-143 E1 analog): sibling reg@32/8 = odd compare reg
-    (0x000fe800001f450a_00000009_0c0a73a9, "ATOMG.E.CAS.64.STRONG.SYS PT, R10, [R12], R9, R10"),
+    (0x000f_e800_001f_450a_0000_0009_0c0a_73a9, "ATOMG.E.CAS.64.STRONG.SYS PT, R10, [R12], R9, R10"),
 ];
 
 /// Even-UR / even-reg controls (clean pre and post):
 const CONTROL: &[(u128, &str)] = &[
-    (0x000fe8000c1e1b00_00000008_044c7981, "LDG.E.64 R76, desc[UR8][R4.64]"),
-    (0x000fc8000f121814_f800000a_080b797f, "STG.E.ENL2.256 desc[UR20][R8.64], R10, R11"),
-    (0x000fe800001f450a_00000008_0c0a73a9, "ATOMG.E.CAS.64.STRONG.SYS PT, R10, [R12], R8, R10"),
+    (0x000f_e800_0c1e_1b00_0000_0008_044c_7981, "LDG.E.64 R76, desc[UR8][R4.64]"),
+    (0x000f_c800_0f12_1814_f800_000a_080b_797f, "STG.E.ENL2.256 desc[UR20][R8.64], R10, R11"),
+    (0x000f_e800_001f_450a_0000_0008_0c0a_73a9, "ATOMG.E.CAS.64.STRONG.SYS PT, R10, [R12], R8, R10"),
 ];
 
 /// Synthetic no-cover probe: LDS_R_ARI '' with bit32 poked to 1.
-const LDS_BIT32: u128 = 0x000fe80000000800_00000001_27027984;
+const LDS_BIT32: u128 = 0x000f_e800_0000_0800_0000_0001_2702_7984;
 
 #[test]
 fn t148_1_witness_decode_vendor_exact() {

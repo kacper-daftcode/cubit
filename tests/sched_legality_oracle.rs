@@ -155,11 +155,8 @@ fn a4_oracle_p1_corpus_fixtures_accepted() {
 fn a4_oracle_repro_shape_is_a_real_address_war() {
     let insns = kernel_insns(&repro("0", "B0-----"));
     let stg = insns.iter().find(|x| x.opcode == "STG").expect("store");
-    let has_r2 = stg.operands.iter().any(|o| match o {
-        Operand::Addr { base_reg: Some(2), .. }
-        | Operand::Desc { base_reg: Some(2), .. } => true,
-        _ => false,
-    });
+    let has_r2 = stg.operands.iter().any(|o| matches!(o, Operand::Addr { base_reg: Some(2), .. }
+        | Operand::Desc { base_reg: Some(2), .. }));
     assert!(has_r2, "the store must address through R2");
     let writer = insns.iter().find(|x| x.opcode == "IADD3").expect("writer");
     let writes_r2 = matches!(writer.operands.first(),

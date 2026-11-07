@@ -1673,7 +1673,7 @@ fn t324_1_structure_graft_and_donors() {
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
         assert!(
-            t.entries.get("HFMA2_R_R_R_UR").is_none(),
+            !t.entries.contains_key("HFMA2_R_R_R_UR"),
             "{leg}: donor got e31"
         );
         for k in t.entries.keys() {

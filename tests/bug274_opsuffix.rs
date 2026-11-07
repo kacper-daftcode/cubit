@@ -378,7 +378,7 @@ fn t274_4_corpus_neutral_companions() {
         let t = tab(arch);
         // 270/265 junk-registers stay closed:
         assert!(
-            t.entries.get("HFMA2_R_R_R_R_?").is_none(),
+            !t.entries.contains_key("HFMA2_R_R_R_R_?"),
             "{arch}: R_? junk back"
         );
         // F2-iter157 (BUG-285) attribution: the arb285-armed mg exists by
@@ -398,7 +398,7 @@ fn t274_4_corpus_neutral_companions() {
         );
         // '// 265-line phantoms stay pruned for the family neighbors:'
         assert!(
-            t.entries.get("HFMA2_R_R_II_II_II_II_?").is_none(),
+            !t.entries.contains_key("HFMA2_R_R_II_II_II_II_?"),
             "{arch}: 265-line HFMA2 phantom stays pruned for the family neighbors"
         );
     }

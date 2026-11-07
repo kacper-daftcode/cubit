@@ -241,7 +241,7 @@ fn t476_8_census_and_source() {
         // CURRENT measured values (the ATOM/ATOMG BUG-509 enumeration alone is +5747 rows, each with the
         // silicon-confirmed claim_forbid on [63:60]), so the historical "+63 delta" accounting is gone: the
         // tuple *is* the snapshot. Adjudicated in pubwave/wave11/INTEGRATION.md.
-        let current_variants = *want_variants + if *leg == "sm120" { 0 } else { 0 };
+        let current_variants = *want_variants;
         assert_eq!(variants, current_variants, "[{leg}] variants census drift");
         // errata pseudo-entries (sm121a) nie maja mod_groups -> traktowane
         // jako 0, dokladnie jak A5 patch476 (.get('mod_groups', {})); INC-299a

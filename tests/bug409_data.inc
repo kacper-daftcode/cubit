@@ -1,6 +1,7 @@
 // machine-built by work/bug409x/gen409pins.py from arb409_law.json +
 // measure409_{pre,post}_*.json (34 full-128 probes; vendor texts unanimous x4;
 // self-checked: attr delta exactly the six sff flip cells, postures byte-identical)
+#[allow(dead_code)] // the canonical commit of the measurement (generated data)
 const CANON409: &str = "2f31522dd8328745504f7f8d86757c0a5db85915";
 const PROBES409: [(u128, &str, &str); 34] = [
     (0x000f62000000060007ffffe000000b82u128, "s00|allones22", "@P0 LDC.S16 R0, c[0x1f][R0+-0x1]"),

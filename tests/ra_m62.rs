@@ -7,10 +7,12 @@ use cubit::ra::{run_file, PinKernelPlan, PinPlan, RaMode};
 use std::collections::BTreeMap;
 
 fn pin(kname: &str, windows: &[(u32, u32)], p: &[(u8, u8)], up: &[(u8, u8)]) -> RaMode {
-    let mut kp = PinKernelPlan::default();
-    kp.windows = windows.to_vec();
-    kp.p = p.iter().copied().collect();
-    kp.up = up.iter().copied().collect();
+    let kp = PinKernelPlan {
+        windows: windows.to_vec(),
+        p: p.iter().copied().collect(),
+        up: up.iter().copied().collect(),
+        ..PinKernelPlan::default()
+    };
     let mut kernels = BTreeMap::new();
     kernels.insert(kname.to_string(), kp);
     RaMode::Pin(PinPlan { kernels })

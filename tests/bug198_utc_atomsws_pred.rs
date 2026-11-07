@@ -56,7 +56,7 @@ fn t198_1_plain_fas_dest_up_law() {
         let t = tab(p);
         let idx = DecodeIndex::build(&t);
         for k in 0u64..8 {
-            let w = (((hi & !((0x7u64 << 17))) | (k << 17)) as u128) << 64 | (lo as u128);
+            let w = (((hi & !(0x7u64 << 17)) | (k << 17)) as u128) << 64 | (lo as u128);
             let want_p = if k == 7 { "UPT".to_string() } else { format!("UP{k}") };
             let text = dec(&t, &idx, w);
             assert_eq!(

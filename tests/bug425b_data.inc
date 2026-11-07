@@ -47,6 +47,7 @@ pub const REFUSE425B: &[(u128, &str)] = &[
     (0x000fc2000800040400005504ff007b88, "auri.U16.b9=1,b11=1"),
 ];
 #[rustfmt::skip]
+#[allow(clippy::type_complexity)] // generated data
 pub const FUZZ425B_DECODE: &[(u128, u32, &str, [Option<&str>; 4], [Option<&str>; 4])] = &[
     (0x000fc2000800052e7fffff040a007988, 18, "B", [Some("STS.U16 [R10+UR46+0x7fffff], R4"), Some("STS.U16 [R10+UR46+0x7fffff], R4"), Some("STS.U16 [R10+UR46+0x7fffff], R4"), Some("STS.U16 [R10+UR46+0x7fffff], R4")], [Some("STS_ARURI_R|U16"), Some("STS_ARURI_R|U16"), Some("STS_ARURI_R|U16"), Some("STS_ARURI_R|U16")]),
     (0x000fc200080005ba7fffff040a007988, 40, "B", [Some("STS.U16 [R10+UR186+0x7fffff], R4"), Some("STS.U16 [R10+UR186+0x7fffff], R4"), Some("STS.U16 [R10+UR186+0x7fffff], R4"), Some("STS.U16 [R10+UR186+0x7fffff], R4")], [Some("STS_ARURI_R|U16"), Some("STS_ARURI_R|U16"), Some("STS_ARURI_R|U16"), Some("STS_ARURI_R|U16")]),
