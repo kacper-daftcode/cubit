@@ -4,11 +4,11 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
-## Unreleased — 2026-11-07 (session T-13: the T1 production line's batches 5–8 — UFSETP, the FP32 ALU, its uniform twin and the conversions measured whole by session G; NEEDS 44 closed on silicon — the QMMA.SF opcode-bit-2 variant is MXINT8 × MXINT8; R1 at zero lints; R2's Polish headers gone)
+## Unreleased — 2026-11-07 (session T-13: the T1 production line's batches 5–9 — UFSETP, the FP32 ALU, its uniform twin, the conversions and FSET / FSEL / FCHK measured whole by session G; NEEDS 44 closed on silicon — the QMMA.SF opcode-bit-2 variant is MXINT8 × MXINT8; R1 at zero lints; R2's Polish headers gone)
 
-- **Tables vendored from blackwell-isa `9d054e4`** (sm120 15 589 forms / 28 542 variants, from 15 807 / 26 581; sm103a /
-  sm100a / sm121a unchanged). KNOWN_ISSUES T1: **28 542 rows, 12 788 with `_src` — 15 754 harvest rows left** (16 156 at
-  `dac48ad`). Session G's batches 7 and 8, re-measured word by word by T and re-applied on T's table (G's commits were
+- **Tables vendored from blackwell-isa `94ff281`** (sm120 15 583 forms / 28 729 variants, from 15 807 / 26 581; sm103a /
+  sm100a / sm121a unchanged). KNOWN_ISSUES T1: **28 729 rows, 13 082 with `_src` — 15 647 harvest rows left** (16 156 at
+  `dac48ad`). Session G's batches 7, 8 and 9, re-measured word by word by T and re-applied on T's table (G's commits were
   stacked on batch 6; each probe's `apply` on T's table is byte-identical to G's table plus the NEEDS 44 rename):
   - **Uniform FP32 ALU measured whole — UFADD / UFMUL / UFFMA / UFSEL** (`tools/probes/re_sm120_ufp32_alu.py`, 1 025 form +
     30 glyph + 278 lattice + 4 neighbour words; `tests/fixtures/sm120_ufp32_alu_nvdisasm.jsonl`, `tests/sm120_ufp32_alu.rs`):
@@ -47,6 +47,21 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
     `[.FTZ][.type][.rnd]` order, the BUG-125 key-scoped `F2I_R_FI` arm folded into the BUG-361 mnemonic law, `.B<n>` / `.H1`
     rendered on UR operands, `.H1` inside the sign pipes, the I2F immediate signed / unsigned by type; parser: FRND's float
     immediate; encoder: the suffix scrape accepts `|R2.H1|`.
+  - **FSET / FSEL / FCHK measured whole** (`tools/probes/re_sm120_fset_fsel_fchk.py`, 885 form + 15 glyph + 375 lattice
+    words, the same text on the three targets; `tests/fixtures/sm120_fset_fsel_fchk_nvdisasm.jsonl`,
+    `tests/sm120_fset_fsel_fchk.rs`): 297 rows with `fset-fsel-fchk-family-2026-11-07` on the 9 plain keys `FSET_R_R_{R,FI,UR}_P`
+    (0x20a / 0x80a / 0xc0a + 91; `_FI_P` / `_UR_P` are new keys), `FSEL_R_R_{R,FI,UR}_P` (0x208 / 0x808 / 0xc08 + 91), `FCHK_P_R_{R,FI,UR}`
+    (0x302 / 0x902 / 0xd02 + 91) — 102 rows rewritten in place (the 2026-10-22 FSET mode grid, the FSEL / FCHK harvest rows,
+    three of the four bug249 FSEL rows with the same fields; that legend 4 → 1) and **195 groups added**; 8 junk keys retired as
+    aliases (`FSET.BF.F.AND_R_R_R_P`, six FSEL tokenisations, `FCHK_P_R_II` → `_FI`); **`FSEL_R_R_II_P` kept** — the BUG-178 /
+    BUG-249 canonical `+QNAN` lane, measured by that wave. Law: FSET = the FSETP law with a register destination (bool
+    [75:74], cmp [79:76], FTZ 80, Pc [89:87] / `!` 90; **`.BF` on every word** → `FSET.BF.<cmp>[.FTZ].<bool>`), FSEL `[.FTZ]` + Pc
+    (PT spelled), FCHK Pd [83:81] with no modifier and no `.reuse` (text-inert); `-Ra` 72 / `|Ra|` 73 / reuse 122, `|B|` 62 /
+    `-B` 63 / Rb reuse 123 or f32 [63:32]. Decoder: the three mnemonics on the priority-3 fail-closed list; printer: the
+    `FSET.BF.<cmp>[.FTZ].<bool>` order (115 words printed `FSET.NEU.FTZ.BF.XOR` before); parser: FCHK's immediate is a float
+    (`FCHK P0, R2, 1` encoded the integer 1 before). Re-pinned by G: bug249 / bug265, the `claim_forbid` census 7 012 → 7 011 in
+    bug459a / 461 / 462 / 463 / 476 (the junk `FCHK_P_R_UR` row carried a `claim_forbid` on the opcode nibble; the measured
+    row pins the whole opcode).
 - **Tables vendored from blackwell-isa `dac48ad`** (sm120 15 807 forms / 26 581 variants, from 15 834 / 26 341; sm103a /
   sm100a / sm121a unchanged). KNOWN_ISSUES T1: **26 581 rows, 10 425 with `_src` — 16 156 harvest rows left** (16 612 at
   `63e5040`). Session G's batch 6 and T-13's NEEDS 44 closure:
