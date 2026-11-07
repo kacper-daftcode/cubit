@@ -116,8 +116,9 @@ fn all_helper_rows_have_registered_measurements() {
                 .as_object()
                 .unwrap()
                 .len(),
-            10
+            11
         );
+        assert_eq!(ins["UTMALDG_AURI_AURI_II"]["mod_groups"]["1D"]["_src"], "k31-utma1d-flashkda-2026-11-07");
         for group in ["2D,GATHER4", "2CTA,2D,GATHER4", "2CTA,5D"] {
             assert_eq!(ins["UTMALDG_AURI_AURI_II"]["mod_groups"][group]["_src"], "k31-utma-flashmla-2026-11-07");
         }

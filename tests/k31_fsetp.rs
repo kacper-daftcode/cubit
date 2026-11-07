@@ -5,6 +5,7 @@ use cubit::{decoder::DecodeIndex, table::IsaTable};
 use serde_json::Value;
 
 const SRC: &str = "k31-fsetp-trtllm-2026-11-07";
+const ALU_REST_SRC: &str = "k31-alu-tail-flashmla-2026-11-07";
 const KEYS: [&str; 2] = ["FSETP_P_P_R_R_P", "FSETP_P_P_R_FI_P"];
 
 fn fixture() -> Vec<Value> {
@@ -57,8 +58,9 @@ fn measured_groups_and_aliases_are_complete() {
             assert_eq!(entry["_src"], SRC);
             let groups = entry["mod_groups"].as_object().unwrap();
             assert_eq!(groups.len(), 96, "{arch}: {key}");
-            for g in groups.values() {
-                assert_eq!(g["_src"], SRC);
+            for (name, g) in groups {
+                let want_src = if key == "FSETP_P_P_R_FI_P" && name == "AND,EQ" { ALU_REST_SRC } else { SRC };
+                assert_eq!(g["_src"], want_src, "{arch}: {key}::{name}");
                 let actual = g["fields"].as_array().unwrap().iter().fold(0u128, |m, f| m | (((1u128 << f["bits"].as_u64().unwrap()) - 1) << f["shift"].as_u64().unwrap()));
                 let declared = u128::from_str_radix(g["variable_mask"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
                 assert_eq!(declared, actual, "{arch}: {key}");
