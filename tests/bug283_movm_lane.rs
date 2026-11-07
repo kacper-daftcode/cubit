@@ -274,8 +274,11 @@ fn t283_5_doctrine_anchors_and_keepers() {
             Some("@P0 I2I.U8.S32.SAT R0, R0"),
             "{leg}: 281-armed 0x238 decode drift"
         );
+        // 2026-11-07 (session G run 5, re_sm120_rows.py --family tensor): the sm120 lane row is measured and
+        // fails closed on its text-inert bit 74 -- the canonical mint (b74 = 1) carries the text there
+        let lane = if leg == "sm120" { 0x27a | (1u128 << 74) } else { 0x27a };
         assert_eq!(
-            dec(&t, 0x27a).as_deref(),
+            dec(&t, lane).as_deref(),
             Some("@P0 QMMA.16816.F16.E4M3.E4M3 R0, R0, R0, R0"),
             "{leg}: 280-armed 0x27a decode drift"
         );

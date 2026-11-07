@@ -152,7 +152,7 @@ fn t415_4_mint_circle_junk_drop() {
 #[test]
 fn t415_5_boundaries_and_graft_hygiene() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "3a94df3d4a35baf71c94f92cfee6de5c3659ce40" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "3dde6e176ff5f7273ccd86d4f3e29913db353ca0" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON415, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     // FLIP (BUG-420, F2-iter232, canonical 0eddad5): the six HOLE415

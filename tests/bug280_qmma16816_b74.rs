@@ -48,6 +48,12 @@ const VM_R: u128 = 0x1c000000000005ff800000fffffff000u128; // _R post-widen
 // alias as an encoder-visible copy of the plain row, so the keys still exist for these pins and
 // carry VM_R; the old `_Pn` mask (0x8000000000005ff800000fffffff000) is history.
 const VM_PN: u128 = VM_R;
+// 2026-11-07 (session G run 5, tools/probes/re_sm120_rows.py --family tensor, nvdisasm 13.1): the sm120 lane row is
+// measured field by field over the whole word -- the mask is exactly its fields (guard, the four registers, `-Ra` 72,
+// `-Rb` 63 and the `.reuse` of the B operand at 123, which the vendor names and the harvest never declared); the
+// text-inert bit 74 fails closed like every measured family's inert bits (T-10's convention), the bake b74 = 1 stays
+// the canonical mint. The BUG-280 reclaim (b74 tolerated) stands on sm121a.
+const VM_R_120: u128 = 0x8000000000001ff800000fffffff000u128;
 const KEYS_R: &str = "QMMA.16816.F16.E4M3.E4M3_R_R_R_R";
 const KEYS_PN: [&str; 3] = [
     "QMMA.16816.F16.E4M3.E4M3_P0_R_R_R_R",
@@ -86,15 +92,17 @@ fn t280_1_structure_widen_and_donors() {
                 g.and_base, LANE_AB,
                 "{leg}: {nk} and_base drift (b74 bake must stay = canonical mint)"
             );
+            let measured = leg == "sm120";
             assert_eq!(
-                g.variable_mask, vmexp,
-                "{leg}: {nk} vmask drift (280 widen)"
+                g.variable_mask, if measured { VM_R_120 } else { vmexp },
+                "{leg}: {nk} vmask drift (280 widen / G run 5 measurement)"
             );
-            // b74 widened; the measured discriminants + kill-bit stay care
+            // b74 widened on sm121a; on sm120 the measured row fails closed on it (text-inert); the measured
+            // discriminants + kill-bit stay care on both
             assert_eq!(
                 (g.variable_mask >> 74) & 1,
-                1,
-                "{leg}: {nk} b74 not in vmask (280 widen missing)"
+                if measured { 0 } else { 1 },
+                "{leg}: {nk} b74 in vmask (280 widen vs the sm120 measurement)"
             );
             for b in [91u32, 75, 76, 77, 78, 79, 80, 83] {
                 assert_eq!(
@@ -108,8 +116,9 @@ fn t280_1_structure_widen_and_donors() {
                     "{leg}: {nk} and_base drift on b{b}"
                 );
             }
-            // fields unchanged: guard@12 + {reg@16, neg@72+reg@24, neg@63+reg@32, reg@64}
-            assert_eq!(g.fields.len(), 7, "{leg}: {nk} field count drift");
+            // fields: guard@12 + {reg@16, neg@72+reg@24, neg@63+reg@32, reg@64} (+ the measured `.reuse`@123 of the
+            // B operand on sm120)
+            assert_eq!(g.fields.len(), if measured { 8 } else { 7 }, "{leg}: {nk} field count drift");
         }
     }
     for leg in ["sm100a", "sm103a"] {
@@ -158,6 +167,12 @@ fn t280_2_decode_law_vendor_exact() {
     for leg in ["sm120", "sm121a"] {
         let t = tab(leg);
         for (w, exp) in cases {
+            // sm120 (G run 5 measurement): the b74 = 0 twin fails closed (text-inert bit outside the measured
+            // fields); the canonical b74 = 1 word carries the vendor text. sm121a: the 280 reclaim, both decode.
+            if leg == "sm120" && (w >> 74) & 1 == 0 {
+                assert_eq!(dec(&t, w).as_deref(), None, "{leg}: b74 = 0 twin must fail closed {w:#x}");
+                continue;
+            }
             assert_eq!(
                 dec(&t, w).as_deref(),
                 Some(exp),
@@ -165,13 +180,17 @@ fn t280_2_decode_law_vendor_exact() {
             );
         }
         // PT-guard bare form (guard=7) prints without prefix, b74-free and not
+        if leg == "sm120" {
+            assert_eq!(dec(&t, 0x27a | (7 << 12)).as_deref(), None, "{leg}: guard7 b74 = 0 twin must fail closed");
+        } else {
+            assert_eq!(
+                dec(&t, 0x27a | (7 << 12)).as_deref(),
+                dec(&t, 0x27a | (7 << 12) | B74).as_deref(),
+                "{leg}: guard7 b74 pair drift"
+            );
+        }
         assert_eq!(
-            dec(&t, 0x27a | (7 << 12)).as_deref(),
             dec(&t, 0x27a | (7 << 12) | B74).as_deref(),
-            "{leg}: guard7 b74 pair drift"
-        );
-        assert_eq!(
-            dec(&t, 0x27a | (7 << 12)).as_deref(),
             Some("QMMA.16816.F16.E4M3.E4M3 R0, R0, R0, R0"),
             "{leg}: guard7 lane text drift"
         );
@@ -203,12 +222,19 @@ fn t280_3_encode_mint_and_reclaim_semantics() {
     for leg in ["sm120", "sm121a"] {
         let tl = tab(leg);
         let t1 = dec(&tl, WIT).unwrap();
-        let t0 = dec(&tl, WIT & !B74).unwrap();
         assert_eq!(
             t1, "QMMA.16816.F16.E4M3.E4M3 R52, R8, R12, R52",
             "{leg}: witness text drift"
         );
-        assert_eq!(t0, t1, "{leg}: b74=0 twin must decode vendor-equal");
+        // sm120 (G run 5 measurement): the b74 = 0 twin fails closed; sm121a keeps the reclaim
+        let t0 = if leg == "sm120" {
+            assert!(dec(&tl, WIT & !B74).is_none(), "{leg}: b74=0 twin must fail closed on the measured row");
+            t1.clone()
+        } else {
+            let t0 = dec(&tl, WIT & !B74).unwrap();
+            assert_eq!(t0, t1, "{leg}: b74=0 twin must decode vendor-equal");
+            t0
+        };
         let w = enc_res(&tl, &t0).expect("re-encode of reclaimed text");
         assert_eq!(
             w & M96,

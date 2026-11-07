@@ -49,6 +49,22 @@ fn aliases() -> serde_json::Map<String, Value> {
     raw["_meta"]["key_aliases"].as_object().unwrap().clone()
 }
 
+/// The mnemonics whose remaining harvest keys the per-row verification of session G run 5 retires (the mnemonic lists
+/// of `tools/probes/re_sm120_rows.py` FAMILIES; the glued `_Pn_` era keys of the same mnemonics keep their own arm).
+const ROW_PROBE_FAMILIES: &[&str] = &[
+    "QMMA", "HMMA", "OMMA", "DMMA",
+    "HFMA2", "HMNMX2", "HADD2", "HSET2", "F2FP", "I2FP", "F2IP", "I2IP", "UF2FP", "UI2FP", "F2F", "UF2I", "UI2F",
+    "VIMNMX", "IADD", "IMAD", "IADD3", "IMNMX", "IABS", "VIADD", "SGXT", "BMSK", "PRMT", "LOP3", "SEL", "MOV", "FLO", "POPC",
+    "BREV", "R2UR", "LDC", "S2R", "CS2R", "MOV64IUR", "LDCU", "S2UR", "FHADD", "DMUL", "DADD",
+    "USHF", "ULEA", "ULOP3", "UFLO", "UMOV", "UIADD3", "UIMAD", "USEL", "UIMNMX", "UBMSK", "UVIMNMX", "UPRMT", "UCLEA",
+    "UBREV", "UPOPC", "UISETP", "REDUX", "ELECT",
+    "LDG", "STG", "LD", "ST", "LDS", "STS", "LDL", "STL", "LDGSTS", "LDGMC", "LDSM", "STSM", "MOVM", "CCTL", "QSPC",
+    "LDGDEPBAR", "UTMALDG", "UTMASTG", "UTMACCTL", "UTMACMDFLUSH", "UBLKCP", "UBLKRED", "UBLKPF",
+    "ATOMG", "ATOM", "ATOMS", "REDG",
+    "WARPSYNC", "CALL", "BSSY", "BSYNC", "EXIT", "BREAK", "BAR", "MEMBAR", "NOP", "YIELD", "PREEXIT", "ERRBAR", "CGAERRBAR",
+    "ACQBULK", "ACQSHMINIT", "NANOSLEEP", "BMOV", "UCGABAR",
+];
+
 #[test]
 fn the_twenty_era_keys_are_aliases_of_plain_keys() {
     let (table, _) = table_and_index();
@@ -89,7 +105,11 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
     // + the 3 120 dotted keys of the load's U32 uniform-indexed form (G batch 12: `..._R_R_ARURI[_II][_P]`)
     // + the 1 164 dotted keys of the 256-bit store (G batch 13: `STG.E.<cache>.<L2>.256.<scope>_{dARI,ARURI,ARURI64}_R_R[_II]`)
     // + the 6 144 dotted keys of the reduction's uniform-indexed forms (G batch 14: `REDG.E.<op>[.cache][.type].<scope>_{ARURI,ARURI64}_R`)
-    assert_eq!(al.len(), 14613, "sm120.json key_aliases");
+    // + the 78 shadowed tensor-core twins retired by the row verification (2026-11-07, G run 5,
+    //   tools/probes/re_sm120_rows.py --family tensor: 73 byte-identical `_P_` twins of the QMMA.SP / HMMA.SP / HMMA /
+    //   DMMA plain keys, the three `QMMA..._UP_II_?` and `DMMA.8x8x4_R_R_R_R_?` junk spellings, the dotted
+    //   `HMMA.1684.F32.TF32_R_R_R_R` twin of `HMMA_R_R_R_R`'s measured group -> the key cubit decodes their words through)
+    assert_eq!(al.len(), 14691, "sm120.json key_aliases"); // 14 613 + 78 (T-16: batches 12-14 and G run 5 batch 15 on one base)
     let glued = regex::Regex::new(r"_P\d_").unwrap();
     let mut glued_n = 0;
     for (old, new) in &al {
@@ -175,6 +195,15 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
             // the dense IMMA twins: `_P_R_R_R_R` / `_R_R_R_R_?` / `_R_R_R_R_II_?` -> the typed `_R_R_R_R` key
             assert!(new.starts_with("IMMA.168") && new.ends_with("_R_R_R_R"), "{old} -> {new}");
             assert!(table.entries.get(new).is_some_and(|e| !e.encode_only), "{new}: the typed key is a real row");
+            continue;
+        }
+        if !glued.is_match(old) && ROW_PROBE_FAMILIES.iter().any(|m| old.split(['.', '_']).next() == Some(m)) {
+            // the keys retired by the per-row verification of the long tail (session G run 5, 2026-11-07,
+            // tools/probes/re_sm120_rows.py; `tests/sm120_rows_<family>.rs` pins each alias and its canonical word):
+            // a shadowed twin (`_P_` / `_?` / dotted / integer-spelling) -> the real key cubit decodes its words through
+            let mn = old.split(['.', '_']).next().unwrap();
+            assert_eq!(new.split(['.', '_']).next().unwrap(), mn, "{old} -> {new}");
+            assert!(table.entries.get(new).is_some_and(|e| !e.encode_only), "{new}: the target is a real row");
             continue;
         }
         glued_n += 1;

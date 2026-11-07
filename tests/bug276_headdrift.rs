@@ -169,11 +169,24 @@ fn t276_2_former_lattice_bases_post_state() {
         // family documentary for the owner audit). The bare word now decodes
         // VENDOR-EQUAL (arb276 A / arb280 A agree: '@P0' text identical with
         // b74 on/off). Sibling lanes keep their b74 bakes = owner scope.
-        assert_eq!(
-            dec(&t, 0x27a).as_deref(),
-            Some("@P0 QMMA.16816.F16.E4M3.E4M3 R0, R0, R0, R0"),
-            "{leg}: 280-armed 0x27a decode drift"
-        );
+        // 2026-11-07 (session G run 5, tools/probes/re_sm120_rows.py --family tensor): on sm120 the lane row is
+        // measured field by field; its text-inert bit 74 fails closed like every measured family's inert bits
+        // (T-10's convention), so the bare word (b74 = 0) is a hole again and the canonical mint (b74 = 1)
+        // carries the text. sm121a keeps the BUG-280 reclaim.
+        if leg == "sm120" {
+            assert_eq!(dec(&t, 0x27a).as_deref(), None, "{leg}: measured lane row fails closed on inert b74");
+            assert_eq!(
+                dec(&t, 0x27a | (1 << 74)).as_deref(),
+                Some("@P0 QMMA.16816.F16.E4M3.E4M3 R0, R0, R0, R0"),
+                "{leg}: canonical lane word decode drift"
+            );
+        } else {
+            assert_eq!(
+                dec(&t, 0x27a).as_deref(),
+                Some("@P0 QMMA.16816.F16.E4M3.E4M3 R0, R0, R0, R0"),
+                "{leg}: 280-armed 0x27a decode drift"
+            );
+        }
         // 0x238 / 0x2000238 (vendor 2-op I2I.U8.S32.SAT territory): junk
         // claimants (SAT_P live poison, SATRELU_P, U8_P_?, F2IP.RELU_P sm120)
         // deleted -> honest holes at 276. BUG-281 FLIP (F2-iter147,

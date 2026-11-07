@@ -358,6 +358,12 @@ impl DecodeIndex {
                 // and the bit-73 word as `|R24|.ROW`. Every legal (shape, A, B, SAT, UP) is a
                 // measured row; fail closed otherwise.
                 "IMMA" |
+                // HMMA / DMMA / OMMA (2026-11-07, session G run 5, tools/probes/re_sm120_rows.py --family tensor,
+                // nvdisasm 13.1): HMMA's shape sits in the window (75 = 1688 vs 1684 / 16816, 78 = `INVALID3`), the
+                // operand signs are measured fields (`-Ra` 72, `-Rb` 63; DMMA: `|Ra|` 73, `|Rb|` 62, `|Rc|` 74,
+                // `-Rc` 75) -- a sign-tolerant match printed the `HMMA.INVALID3.F16.BF16` word as the 1684 row.
+                // Every row of the three mnemonics is verified field by field; fail closed otherwise.
+                "HMMA" | "DMMA" | "OMMA" |
                 // IDP (2026-11-06, T-11, tools/probes/re_sm120_idp.py, nvdisasm 13.1 on the four
                 // targets): the family's law sits in the window -- 73 / 74 the signedness of the
                 // two types (`S8.U8` vs `U8.S8` vs the symmetric pairs), 75 `-Rc`, 72 text-inert;
