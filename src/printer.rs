@@ -1804,7 +1804,7 @@ fn format_operand(
             // pins b88=1 (other cells fail-closed), so .F32 is the only
             // reachable shape (graft arb234z x{100a,103a}, corpus 512/512).
             // Donor UR rows have no opmod fields for this slot.
-            if ins_key == "FFMA2_R_R_UR_R" && tok == 3 {
+            if matches!(ins_key.split('_').next(), Some("FFMA2" | "FADD2" | "FMUL2")) && tok == 3 {
                 format!("{s}.F32")
             } else {
                 s
@@ -2292,6 +2292,23 @@ fn format_reg(
     // ".H0_H0" on every R operand (corpus: 100% of HSETP2 records).
     if ins_key.starts_with("HSETP") && !fields.iter().any(|f| norm_ext(&f.extraction) == "hsel") {
         opmods.push("H0_H0".to_string());
+    }
+
+    if ins_key.starts_with("FADD2") || ins_key.starts_with("FMUL2") {
+        if tok == 2 {
+            if !opmods.iter().any(|m| m == "F32") {
+                if !opmods.iter().any(|m| m == "F32x2") { opmods.push("F32x2".to_string()); }
+                if !opmods.iter().any(|m| m == "HI_LO") { opmods.push("HI_LO".to_string()); }
+            }
+        } else if tok == 3 && fields.iter().any(|f| norm_ext(&f.extraction) == "reg")
+            && !opmods.iter().any(|m| m == "F32") {
+            if fields.iter().any(|f| f.extraction == "opmod:F32") {
+                if !opmods.iter().any(|m| m == "F32x2") { opmods.push("F32x2".to_string()); }
+                if !opmods.iter().any(|m| m == "HI_LO") { opmods.push("HI_LO".to_string()); }
+            } else {
+                opmods.push("F32".to_string());
+            }
+        }
     }
 
     // BUG-234: FFMA2 lane decorations are vendor defaults, not row fields

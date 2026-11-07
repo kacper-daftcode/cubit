@@ -2562,6 +2562,8 @@ fn check_operand_suffixes(insn: &Instruction, entry: &crate::table::ModGroupEntr
             let default_notation = (hsetp_default && seg == "H0_H0")
                 || (ffma2_default
                     && matches!(seg.as_str(), "F32" | "F32x2" | "HI_LO" | "LO_HI" | "NP"))
+                || (matches!(insn.opcode.as_str(), "FADD2" | "FMUL2")
+                    && matches!(seg.as_str(), "F32" | "F32x2" | "HI_LO"))
                 || (plop3_sign && seg == "SIGN")
                 || (imma_sel
                     && (seg == "ROW"

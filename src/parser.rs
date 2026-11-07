@@ -326,7 +326,7 @@ const FLOAT_OPCODES: &[&str] = &[
     // `MUFU.RCP64H R4, 0` / `, 1` are `MUFU_R_FI` words (2026-11-06, T-10; the integer-typed
     // `MUFU_R_II [RCP64H]` harvest twin is retired).
     "MUFU",
-    "HADD2", "HMUL2", "HFMA2", "HSET2", "HSETP2", "F2FP",
+    "HADD2", "HMUL2", "HFMA2", "HSET2", "HSETP2", "F2FP", "FADD2", "FMUL2", "FFMA2",
     // F2I imm-form (BUG-125, F2I_R_FI): fresh nvcc-13.3 emit `F2I.U32.CEIL.NTZ
     // R0, 16` bakes the f32 immediate 0x41800000 at bits [63:32]; without float
     // context the textual `16` parsed to Imm32(16) and encoded 0x00000010 in the
