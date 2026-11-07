@@ -4,8 +4,51 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
-## Unreleased — 2026-11-07 (session T-13: the T1 production line's batch 5 — UFSETP measured whole by session G)
+## Unreleased — 2026-11-07 (session T-13: the T1 production line's batches 5–6 — UFSETP and the FP32 ALU measured whole by session G; NEEDS 44 closed on silicon — the QMMA.SF opcode-bit-2 variant is MXINT8 × MXINT8; R1 at zero lints; R2's nine headers)
 
+- **Tables vendored from blackwell-isa `dac48ad`** (sm120 15 807 forms / 26 581 variants, from 15 834 / 26 341; sm103a /
+  sm100a / sm121a unchanged). KNOWN_ISSUES T1: **26 581 rows, 10 425 with `_src` — 16 156 harvest rows left** (16 612 at
+  `63e5040`). Session G's batch 6 and T-13's NEEDS 44 closure:
+  - **FP32 ALU measured whole — FADD / FMUL / FFMA / FMNMX** (G's `dad8393`; `tools/probes/re_sm120_fp32_alu.py`, 1 636 form
+    + 30 glyph + 492 lattice + 16 neighbour words, the same text on `-b SM120` / `SM103` / `SM100`;
+    `tests/fixtures/sm120_fp32_alu_nvdisasm.jsonl`, `tests/sm120_fp32_alu.rs`; re-measured word by word by T): 696 rows
+    with `fp32-alu-family-2026-11-07` on the 14 plain keys `FADD_R_R_{R,FI,UR}`, `FMUL_R_R_{R,FI,UR}`, `FFMA_R_R_R_R` /
+    `_R_R_R_FI` / `_R_R_FI_R` / `_R_R_UR_R` / `_R_R_R_UR`, `FMNMX_R_R_{R,FI,UR}_P` — 355 harvest rows rewritten in place
+    (`FADD_R_R_R` baked a sample's guard and claimed the unused reuse bit 123; the `|Rb|` 62 field was missing) and **341
+    missing groups added** (`FMUL_R_R_FI` / `_UR` had 3 of 168 groups, `FADD_R_R_R` 5 of 16); 27 junk keys retired as
+    `_meta.key_aliases` (the `_?` / `_L` / `_R_R_R_R` mis-tokenised harvest keys, the dotted twins with the modifier in
+    the key — `FADD.RZ_R_R_R`'s row decoded the `.RM` word as `.RZ` —, the integer-spelling `*_II*` twins of the f32
+    forms: the 185 census words of `FMUL_R_R_II` decode on `FMUL_R_R_FI` now and still print nvdisasm's text — checked
+    by T on 733 sampled census words of the 14 keys). Law: Ra [31:24] (`-` 72, `|` 73, `.reuse` 122); B [39:32] (Rb /
+    URb, `|` 62, `-` 63) or f32 [63:32]; the C slot [71:64] (FFMA Rc with `|` 74 / `-` 75; text-inert on the
+    three-operand forms); FADD `[.FTZ][.RM|.RP|.RZ][.SAT]` (80 / [79:78] / 77); FMUL `[.FTZ|.FMZ][.D8…M8][.RND][.SAT]`
+    (scale [86:84]: 4 = unspelled, 0 = `INVALID0`, FTZ + FMZ = `INVALID3`); FFMA the same without the scale; FMNMX
+    `[.FTZ][.NAN][.XORSIGN]` + Pc [89:87] / `!` 90; `.reuse` per form (FADD Rb = 124; FFMA by slot). Measured and left
+    unclaimed: bit 81 on the register / UR forms of FADD / FFMA = `FHADD` / `FHFMA`, bit 65 on FMNMX = `FMNMX.IS_A Rd, Pd,
+    Ra, Rb, Pc`. Decoder: the four mnemonics off the priority-3 sign-tolerant fallback (it absorbed the text-inert C-slot
+    sign bit 74); printer: `FMUL.FTZ.D2.RM.SAT` / `FFMA.RM.SAT` / `FADD.FTZ.RP.SAT` order (751 of the form words printed
+    `FMUL.SAT.D2` before). bug132 / bug226c re-pinned to the measured grid.
+  - **NEEDS 44 closed on silicon: the QMMA.SF opcode-bit-2 variant (0x47e) is the block-scaled MMA over MXINT8 × MXINT8**
+    (T-13's `dac48ad`; test host GPU 0, RTX PRO 6000 Blackwell SE, kernel `needs44_types` with the five documented
+    diagonal type pairs and the 0x47e word on identical fragments): byte-value sweeps of A and of B against three
+    references give 32 · (int8(a)/64) · (int8(b)/64) exactly for all 6 × 256 cases — OCP MX INT8 elements
+    (two's-complement int8 with six fractional bits, range [−2, 1.984375], under the E8M0 block scale), fp32 output; one-hot
+    bytes light one D row (A) / one D column (B) exactly as `E4M3.E4M3` does (the m16n8k32 8-bit fragment layout); a byte
+    is one element; D · 2^(s−127) for every scale with NaN at 0xff. The row is
+    `QMMA.SF.16832.F32.MXINT8.MXINT8.E8_R_R_R_R_R_R_UR`, the hypothesis key and the interim `UNIDENTIFIED` key its aliases,
+    provenance `qmma-sf-mxint8-silicon-2026-11-07`; `tests/fixtures/sm120_qmma_sf_mxint8_silicon.jsonl` (the measured
+    sweeps) and `tests/needs44_qmma_sf_bit2.rs` (6 pins incl. the MXINT8 law on the 1 536 measured values). Side result
+    from the same run: the documented `E2M1` type code computes exactly the E2M3 map on bits [5:0] of the container for
+    every byte value (PTX puts `.e2m1` in bits [5:2]; the silicon does not mask bits [1:0]) — the rows are correctly
+    named; R's 2026-11-06 `E2M1.E2M1` results were unpadded inputs. Not measured: the type-field lattice under bit 2.
+- **R1 closed — `cargo clippy --release --all-targets` at 0 warnings**: the 84 hand lints left after T-11's mechanical
+  pass (21 `get(k).is_some()` → `contains_key`, 13 hex-literal regroupings, 9 unused test helpers deleted, 10 documentary
+  constants kept under an explicit `#[allow(dead_code)]`, the generated witness tables under
+  `#[allow(clippy::type_complexity)]`, seven `TABLES` index loops as `enumerate`, bug444's two identical heal arms
+  merged, a handful of one-offs) and the printer's `#[cfg(test)]` module moved to the end of the file (a pure reorder).
+- **R2**: the nine remaining Polish `//!` headers translated (bug168, bug169, bug170, bug194, bug459a, bug464, bug465,
+  bug467, bug476; doc comments only). A wider census afterwards: 11 files still carry two or more Polish lines inside
+  otherwise English headers (listed in KNOWN_ISSUES R2).
 - **Tables vendored from blackwell-isa `63e5040`** (sm120 15 834 forms / 26 341 variants, from 15 840 / 26 442; sm103a /
   sm100a / sm121a unchanged). KNOWN_ISSUES T1: **26 341 rows, 9 729 with `_src` — 16 612 harvest rows left** (16 905 at
   `e1e8598`). Session G's batch 5, re-measured word by word by T before the take:
