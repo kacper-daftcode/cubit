@@ -1213,8 +1213,33 @@ fn check_idesc_derived(insn: &Instruction, entry: &crate::table::ModGroupEntry) 
 /// (UPLOP3_UP_P_P_P_P_II_II, zero witnesses in both corpora) keeps the
 /// 030-era strict 2-bit rule — relaxing it there would open silent
 /// truncation through its 3-bit imm field (fit_soft never bails).
-fn check_uplop3_lut_lattice(insn: &Instruction) -> Result<()> {
+fn check_uplop3_lut_lattice(insn: &Instruction, table: &IsaTable) -> Result<()> {
     if insn.opcode != "UPLOP3" || insn.operands.len() < 7 {
+        return Ok(());
+    }
+    // K3.1 FlashMLA measured the SM120 key directly on SM100/SM103: this
+    // form stores all eight bits as imm[64:66] | imm_shr3[72:77], so the
+    // retired overlapping row's even-only shr1|shr2 restriction is wrong.
+    // Keep the historical guard on targets that do not carry the new key;
+    // range checking of the replacement's two exact-width fields is enough.
+    if table.target_sm() != 120
+        && table
+            .get("UPLOP3.LUT_UP_UP_UP_UP_UP_II_II", "")
+            .is_some()
+    {
+        for oi in [5usize, 6usize] {
+            let value = match &insn.operands[oi] {
+                Operand::Imm32(value) => *value,
+                Operand::Imm64(value) => *value as i64,
+                _ => continue,
+            };
+            anyhow::ensure!(
+                (0..=0xff).contains(&value),
+                "{:?}: operand {} of measured split-field UPLOP3.LUT must be an unsigned 8-bit immediate",
+                insn.raw_text.trim(),
+                oi + 1,
+            );
+        }
         return Ok(());
     }
     let up_form = insn.operands[1..5]
@@ -2645,7 +2670,7 @@ fn encode_instruction_inner(
     if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() {
         check_pred_literal_errata(insn)?;
         check_mma_reg_alignment(insn)?;
-        check_uplop3_lut_lattice(insn)?;
+        check_uplop3_lut_lattice(insn, table)?;
         check_imnmx_sm103_erratum(insn, table)?;
         check_efl2_addr_parity_sm103(insn, table)?;
         check_stg_desc_pair_parity_sm103(insn, table)?;

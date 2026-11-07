@@ -176,7 +176,7 @@ fn t463_6_census_attribution() {
             src["base_revision"]
                 .as_str()
                 .unwrap()
-                .starts_with("d26f5a69ff64") /* K3.1 F2FP packed uniform source tail */,
+                .starts_with("cc1d7cf3ca25") /* K3.1 remaining FlashMLA tail forms */,
             "SOURCE pin drift"
         );
     }

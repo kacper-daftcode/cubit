@@ -146,11 +146,21 @@ fn t168_3_encode_payload_byte_exact() {
 }
 
 #[test]
-fn t168_4_fail_closed_outside_lattice() {
+fn t168_4_full_eight_bits_are_legal_but_overflow_fails_closed() {
     let t = t103a();
+    // K3.1 direct SM103/SM100 probes retired the overlapping even-only
+    // row. The measured split fields imm[64:66]+imm_shr3[72:77] store every
+    // 8-bit value, including the values this older test called odd failures.
+    for good in [0x1, 0x41, 0x43, 0xfe, 0xff] {
+        let text = format!("UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, {good:#x}, 0x4");
+        let word = enc(&t, &text);
+        let index = DecodeIndex::build(&t);
+        let decoded = index.decode(word, 0, &t).expect("decode full eight-bit immediate");
+        assert!(cubit::printer::to_sass(&decoded).contains(&format!("{good:#x}, 0x4")));
+    }
     for bad in [
-        "UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, 0x41, 0x4",  // v1 odd (bit0 bez magazynu)
         "UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, 0x100, 0x4", // v1 > 0xfe
+        "UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, 0x101, 0x4", // v1 > 0xff
         "UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, 0x40, 0x100", // v2 > 0xff
         "UPLOP3.LUT UP0, UPT, UPT, UPT, UPT, -0x8, 0x4",  // ujemny
     ] {
