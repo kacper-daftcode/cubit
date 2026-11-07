@@ -68,6 +68,16 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   - Base shifts handled by T-16 as the exact three-way merge: G's three commits cherry-picked (`-x`) onto the NEEDS 48 tip, every
     revision pin re-pointed to T's blackwell-isa commit and T-14's sm103a pins kept (`T/t16/reapply.py`; T's tables == G's bytes
     at every step, the engine == G's `ab2900e`).
+- **BUG-487 — `_meta.key_aliases` deep-copied their target's whole group map; the alias now shares it** (`cubit::table::ModGroups`,
+  an `Arc` behind `InsKeyEntry::mod_groups`; `tests/bug487_alias_shared_groups.rs`). Found by T-16's gate on the batch-14 table: with
+  14 613 aliases whose targets carry up to 6 144 groups the loader materialised **36 804 246 cloned rows for 39 203 real ones** —
+  `cubit decode` of one word took **21 GB and 8.5 s** (3.9 GB / 1.9 s at `5cb10e5`; the growth since the first aliases of 2026-11-04),
+  every test binary 40–55 GB, and `tools/test_suite.py -j 16` drove the build host out of memory (the production worker was
+  OOM-killed at 18:59Z — T-16's incident, logged). Fixed: the same `cubit decode` is **0.56 GB / 0.7 s** on the batch-14 table
+  (0.54 GB on `5cb10e5`'s), the heaviest test binary 2.0 GB; the alias contract is unchanged (present in `entries`, `encode_only`,
+  the target's rows by name and value; copy-on-write through `ModGroups::make_mut` for the tests that poison rows) and
+  `num_groups()` counts each shared map once (it summed the alias copies before). The push gate measures `cubit decode`'s peak RSS
+  and caps every test process (`ulimit -v`) before any parallel run.
 
 ## Unreleased — 2026-11-07 (session T-15: the T1 production line's run 3 / 4 — the 256-bit global load's 64-bit uniform-indexed address form measured whole by session G)
 

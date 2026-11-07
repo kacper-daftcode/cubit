@@ -504,11 +504,71 @@ pub struct ModGroupEntry {
     pub addr_width: Option<String>,
 }
 
+/// The modifier groups of one instruction key, shared between the key and its
+/// `_meta.key_aliases` clones.
+///
+/// 2026-11-07 (session T-16, BUG-487): the alias clones used to deep-copy the target's
+/// whole group map (`InsKeyEntry::clone`), which is quadratic in the measured
+/// lattices -- `REDG_ARURI_R` has 6 144 groups and 3 072 aliases, so the sm120
+/// table at blackwell-isa `3a94df3` materialised 36.7 million `ModGroupEntry`
+/// copies for its 39 203 rows: `cubit decode` of one word took 21 GB of RAM and
+/// 8.5 s (3.9 GB / 1.9 s at `5cb10e5`), every test binary 40-55 GB, and sixteen
+/// of them in parallel drove the build host out of memory. An alias now shares
+/// the target's groups through an `Arc` (the clone is one pointer); the entry
+/// keeps its own `encode_only` flag, so the alias stays encoder-visible and
+/// decoder-invisible as before. Reads are unchanged: the wrapper derefs to the
+/// map and `&mod_groups` iterates it.
+#[derive(Debug, Clone, Default)]
+pub struct ModGroups(std::sync::Arc<HashMap<String, ModGroupEntry>>);
+
+impl ModGroups {
+    /// Shared ownership of the same group map (the alias clone).
+    pub fn shares_with(&self, other: &ModGroups) -> bool {
+        std::sync::Arc::ptr_eq(&self.0, &other.0)
+    }
+
+    /// Mutable access, copy-on-write: a map shared with an alias is copied first, so
+    /// editing a key's rows (the tests' row poisoning) never edits its aliases' view.
+    pub fn make_mut(&mut self) -> &mut HashMap<String, ModGroupEntry> {
+        std::sync::Arc::make_mut(&mut self.0)
+    }
+}
+
+impl From<HashMap<String, ModGroupEntry>> for ModGroups {
+    fn from(m: HashMap<String, ModGroupEntry>) -> Self {
+        ModGroups(std::sync::Arc::new(m))
+    }
+}
+
+impl std::ops::Deref for ModGroups {
+    type Target = HashMap<String, ModGroupEntry>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'a> IntoIterator for &'a ModGroups {
+    type Item = (&'a String, &'a ModGroupEntry);
+    type IntoIter = std::collections::hash_map::Iter<'a, String, ModGroupEntry>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut ModGroups {
+    type Item = (&'a String, &'a mut ModGroupEntry);
+    type IntoIter = std::collections::hash_map::IterMut<'a, String, ModGroupEntry>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.make_mut().iter_mut()
+    }
+}
+
 /// All modifier groups for one instruction key.
 #[derive(Debug, Clone)]
 pub struct InsKeyEntry {
-    /// Map from modifier group string ("", "X", "64,E", etc.) to encoding.
-    pub mod_groups: HashMap<String, ModGroupEntry>,
+    /// Map from modifier group string ("", "X", "64,E", etc.) to encoding
+    /// (shared with the key's `_meta.key_aliases` clones, see [`ModGroups`]).
+    pub mod_groups: ModGroups,
     /// Scheduling class — None if not available (old table format).
     pub ctrl_class: Option<crate::ctrl_class::CtrlClass>,
     /// Resolved hi_upper32 value from ctrl_class → ctrl_epoch chain.
@@ -744,6 +804,9 @@ impl IsaTable {
         // retired name (the 20 era keys with a glued predicate token in the
         // mnemonic, `QMMA.16816.F16.E4M3.E4M3_P0_R_R_R_R` -> `..._R_R_R_R`, are the
         // first use; docs/KNOWN_ISSUES.md T1, blackwell-isa README "Data Model").
+        // The clone shares the target's group map (`ModGroups`, an Arc): with the
+        // measured lattices of 2026-11-07 (14 613 aliases, targets of up to 6 144
+        // groups) a deep copy was 36.7 million rows and 21 GB per process.
         if let Some(aliases) = raw.get("_meta").and_then(|m| m.get("key_aliases")).and_then(|v| v.as_object()) {
             for (old, new) in aliases {
                 let Some(target) = new.as_str() else { continue };
@@ -860,7 +923,7 @@ impl IsaTable {
                 mod_groups.insert(mods, ModGroupEntry { and_base, claim_forbid: jmg.claim_forbid.iter().map(|cf| ClaimForbid { shift: cf.shift, bits: cf.bits, values: cf.values.clone() }).collect(), variable_mask, fields, encode_only: jmg.encode_only, addr_width: jmg.addr_width.clone() });
             }
 
-            entries.insert(key, InsKeyEntry { mod_groups, ctrl_class: None, epoch_upper32: None, encode_only: jik.encode_only });
+            entries.insert(key, InsKeyEntry { mod_groups: mod_groups.into(), ctrl_class: None, epoch_upper32: None, encode_only: jik.encode_only });
         }
 
         Ok(IsaTable { entries, ef_flags: crate::elf_builder::EF_CUDA_SM120, aux: HashMap::new(),
@@ -925,8 +988,15 @@ impl IsaTable {
         self.entries.len()
     }
 
+    /// The number of encoding rows: every group map counted once (an alias entry shares its
+    /// target's map, see [`ModGroups`] — before 2026-11-07 the aliases' copies were summed too).
     pub fn num_groups(&self) -> usize {
-        self.entries.values().map(|e| e.mod_groups.len()).sum()
+        let mut seen: std::collections::HashSet<*const HashMap<String, ModGroupEntry>> = std::collections::HashSet::new();
+        self.entries
+            .values()
+            .filter(|e| seen.insert(std::sync::Arc::as_ptr(&e.mod_groups.0)))
+            .map(|e| e.mod_groups.len())
+            .sum()
     }
 }
 
