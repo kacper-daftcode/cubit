@@ -4,6 +4,26 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-08 (session T-21, batch 6: ISETP / UISETP on sm121a / sm103a / sm100a, FSETP / DSETP on sm103a / sm100a, PLOP3 / P2R / R2P on the three)
+
+- **Tables vendored from blackwell-isa `0525e95`** (sm121a 9 334 forms / 36 884 variants, rows without `_src` 11 160 → 10 000;
+  sm103a 651 / 33 532, 1 584 → 1 280; sm100a 650 / 33 526, 1 584 → 1 280). `tools/probes/re_sm120_isetp.py` gains `--arch SM121`
+  (the 64-bit compare renders there as on SM120) and `--witnesses`, and an `apply` for the other tables (subsets, retired
+  out-of-lattice groups, dotted keys → aliases; on SM103 / SM100 two types and bit 80 fail-closed — NEEDS 46, the four phantom
+  `.S64` / `.U64` groups retired). Measurement: SM121 1 944 form + 192 lattice + **3 155 GB10 witness words** (579 64-bit compares)
+  obey the SM120 law; SM103 / SM100 967 form + 1 169 lattice words (the 977 bit-80 words print the 32-bit text).
+  `re_sm120_fsetp_dsetp.py --arch SM103` / `SM100` (NEEDS 58): the sm120 law holds word for word; the donors' `.OR` reading of bit 75
+  and the baked `|Rb|` of `DSETP LTU,OR` are gone. `re_sm120_plop3_p2r_r2p.py --arch SM103` / `SM100` / `SM121`: the law holds; the
+  sm103a / sm100a harvest `PLOP3_P_P_P_P_P_II_II` row with a "pred" field inside the opcode nibble (it claimed the bit-80 ISETP
+  words and encoded PLOP3 texts as R2P words) retired. Tests `tests/sm121a_isetp.rs`, `tests/sm103a_sm100a_isetp.rs`,
+  `tests/sm103a_sm100a_fsetp_dsetp.rs`, `tests/sm121a_plop3_p2r_r2p.rs`, `tests/sm103a_sm100a_plop3_p2r_r2p.rs`.
+- Decoder: the DSETP sign-law arm (the boolean `INVALID3` fails closed instead of printing `.XOR`) covers every table now that the
+  family is measured on all four.
+- Re-pins: bug254 (the donors decode the boolean like sm120; no injected `|R116|`), bug139 / bug140 (the 2026-08 "byte-exact"
+  PLOP3 words were `R2P PR, R0.B3, 0x0` for nvdisasm — the measured words are the vendor's PLOP3), the census pins.
+- Gates: GB10 91 927 / 91 927 (287 ISETP words moved to the plain keys, texts unchanged); B300 85 704 / 85 792, 0 words with a
+  changed text or key.
+
 ## Unreleased — 2026-11-08 (session T-21, batch 5: sm121a LDG.256 (three address forms) + STG.256 + REDG uniform-indexed forms measured on `-b SM121`; the GB10 and B300 corpora as suite pins)
 
 - **Tables vendored from blackwell-isa `f254702`** (sm121a 9 488 forms / 37 077 variants from 23 754 / 26 595; rows without
