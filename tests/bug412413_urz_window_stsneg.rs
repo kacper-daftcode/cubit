@@ -258,7 +258,7 @@ fn t413_2_sm121a_claim_map() {
 #[test]
 fn t413_3_donor_contract_and_source_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "04bcb53c9a822b46ba4d490e00662e16fb786372" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "5043aeee9cf9340493a279122b21b9815c60104f" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON412413, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     let t121 = tab("sm121a");

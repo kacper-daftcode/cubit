@@ -742,8 +742,9 @@ fn t225_3_negatives_fail_closed_not_self() {
 /// separate 226 finding; see results/cubitfix/225.md sec. 5). 2026-11-08: FENCE
 /// (tools/probes/re_sm120_fence_view_async.py) and VOTE / VOTEU
 /// (tools/probes/re_sm120_vote.py) are measured field by field and armed; their
-/// exposed words decode through the measured rows, not the fallback. USETMAXREG
-/// stays unarmed (its rows are not measured per field).
+/// exposed words decode through the measured rows, not the fallback; USETMAXREG
+/// followed the same day (tools/probes/re_sm120_usetmaxreg.py) -- none of the
+/// four is on the fallback path any more.
 #[test]
 fn t225_4_exposed_bases_not_silenced() {
     let t = load("tables/sm120.json");

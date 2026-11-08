@@ -33,7 +33,10 @@ def nvdisasm_text(nvdisasm: str, scratch: pathlib.Path, word: int, ctrl: int, ar
     scratch.write_bytes((word | ctrl).to_bytes(16, "little"))
     r = subprocess.run([nvdisasm, "-b", arch, "-hex", str(scratch)], capture_output=True, text=True)
     if r.returncode:
-        assert "Illegal instruction" in r.stderr, f"{word:032x}: {r.stderr.strip()[:200]}"
+        # two spellings of a rejected word: the generic `Illegal instruction`, and the opex-table refusal
+        # (`Opclass '...', undefined value 0x.. for table 'TABLES_opex_0'` -- a reuse bit on a word whose
+        # operation class has no reuse slot, e.g. USETMAXREG.TRY_ALLOC with bit 122; 2026-11-08)
+        assert "Illegal instruction" in r.stderr or "undefined value" in r.stderr, f"{word:032x}: {r.stderr.strip()[:200]}"
         return None
     m = _TEXT.search(r.stdout)
     # a word nvdisasm neither rejects nor renders (no instruction line) is unnamed

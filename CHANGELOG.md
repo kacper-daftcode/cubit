@@ -4,7 +4,7 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
-## Unreleased — 2026-11-10 (session T-26: the review queue — the B300 latency model of pull request 3)
+## Unreleased — 2026-11-10 (session T-26: the review queue — the B300 latency model of pull request 3; `USETMAXREG` measured and the SM120 async idioms document from the megakernel branch)
 
 - **`sched`: per-class dependency latency (cost-model schema 2; pull request 3, `94e7dae`).** A cost file may carry `dep_latency_cy` — rows
   (producer class, consumer kind) → cycles — and `dep_latency_default_cy`; a RAW edge is then priced from the producer's *start*
@@ -27,6 +27,15 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   measurement behind it and is not taken; `t_m3_imad_display_aliases_take_the_measured_imad_class` and
   `imad_display_aliases_take_the_measured_imad_floor` pin the measured membership instead. Not measured: the constant load
   `IMAD.MOV.U32 R, RZ, RZ, imm` (kept in the class, the conservative side) and the edges into an IMAD, carry, guard or cross-domain consumer.
+
+- **`USETMAXREG` measured** (`tools/probes/re_sm120_usetmaxreg.py`, 73 form + 148 lattice words; measured 2026-11-08 on the branch `r0b-mk-items`; tables vendored from blackwell-isa
+  `5043aee` = that branch's `940fb83` on today's tip: sm120 only, rows unchanged at 38 848): the uniform guard, the ten-bit register count [41:32] (the count itself, in hex — ptxas emits multiples of 8 in 24..256,
+  the field admits 0..1023), the operation [73:72] (1 DEALLOC, 2 TRY_ALLOC), the pool bit 74 (clear = the unclaimed vendor glyph `.???0`),
+  UPd [83:81] on TRY_ALLOC (text-inert on DEALLOC, baked at 7); the reuse bits are illegal on the opcode (nvdisasm refuses the opex-table
+  value) — a control-word law the scheduler respects. The DEALLOC row had no guard field and neither row was measured per field
+  (KNOWN_ISSUES T1 exception 9, closed); USETMAXREG joins the decoder's fail-closed bases — none of BUG-225's four exposed bases is on the
+  sign-bit fallback any more (`tests/sm120_usetmaxreg.rs`). `nvprobe.nvdisasm_text` accepts nvdisasm's second rejection spelling
+  (`undefined value … for table 'TABLES_opex_0'`) as an illegal word.
 
 ## Unreleased — 2026-11-09 (sessions T-23 / T-24 / T-25: the sm121a / sm103a / sm100a long tails verified row by row — T1 2 654 → 811 and 893 → 357 / 357 —, the decoder's fail-closed zone around a measured row, the 2026-08/09 battery re-pinned to the measured-row doctrine)
 

@@ -584,6 +584,10 @@ impl DecodeIndex {
                 // window and the sign fallback absorbed the text-inert bits 62 / 63 / 74 / 75. Every (mode, form) of
                 // the two opcodes is a measured row with every live slot as a field; fail closed.
                 "VOTE" | "VOTEU" |
+                // USETMAXREG (2026-11-08, tools/probes/re_sm120_usetmaxreg.py, nvdisasm 13.1): a count immediate and a
+                // uniform predicate -- no sign-able operand; the operation [73:72] and the pool bit 74 sit in the window.
+                // Both rows are measured with every live slot as a field; fail closed.
+                "USETMAXREG" |
                 "UGETNEXTWORKID" | "UVIRTCOUNT" | "QSPC" | "RPCMOV" | "SHFL" |
                 "UBLKCP" | "UBLKPF" | "UBLKRED" | "R2P" | "R2UR" | "UP2UR" |
                 "LDTM" | "STTM" | "STAS" | "STSM" | "UTCCP" | "UTMALDG" |
