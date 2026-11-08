@@ -1,18 +1,18 @@
 //! SM120 memory long tail (the plain LDG / STG / LD / ST / LDGMC keys, LDSM / CCTL / UTMA / UBLK …; LDGSTS / LDS / STS / LDL / STL / MOVM stay for the wave re-pins) (session G run 5, 2026-11-07; KNOWN_ISSUES T1): the remaining harvest rows of
 //! LDG, STG, LD, ST, LDS, STS, LDL, STL, LDGSTS, LDGMC, LDSM, STSM, MOVM, CCTL, QSPC, LDGDEPBAR, UTMALDG, UTMASTG, UTMACCTL, UTMACMDFLUSH, UBLKCP, UBLKRED, UBLKPF verified row by row with nvdisasm 13.1 over the whole
 //! 128-bit word by `tools/probes/re_sm120_rows.py --family memory` -- 270 rows measured (13833 canonical +
-//! field words, 159 census witnesses), 3 shadowed keys (3 rows) retired as aliases, 0 unreachable
-//! rows of staying keys deleted, 21 named exceptions. Fixture `tests/fixtures/sm120_rows_memory_nvdisasm.jsonl`; the test body is `tests/sm120_rows_common.inc`.
-//! Session T-18 (2026-11-08): the rows run 5 verified but held back while the 2026-08/09 bug-wave tests pinned their harvest
-//! structure (`EXCEPTION_PREFIXES`, G/NEEDS_OWNER.md 12) take their measured status -- those suites are re-pinned to the
-//! measured doctrine in the same commit (blackwell-isa fd736a7).
+//! field words, 159 census witnesses), 4 shadowed keys (4 rows) retired as aliases, 0 unreachable
+//! rows of staying keys deleted, 20 named exceptions. Fixture `tests/fixtures/sm120_rows_memory_nvdisasm.jsonl`; the test body is `tests/sm120_rows_common.inc`.
+//! Session T-18 (2026-11-08): batch 1 lifted the 2026-08/09 bug-wave pin (the verified rows take their measured status);
+//! batch 2 retired the whole-key twins of the long-tail named exceptions as `_meta.key_aliases` (aliases for twins -- the
+//! alias key's canonical word decodes through the target family key vendor-true, 0 census witnesses).
 
 const FAMILY: &str = "memory";
 const SOURCE: &str = "rows-memory-2026-11-07";
 const MNEMONICS: &[&str] = &["LDG", "STG", "LD", "ST", "LDS", "STS", "LDL", "STL", "LDGSTS", "LDGMC", "LDSM", "STSM", "MOVM", "CCTL", "QSPC", "LDGDEPBAR", "UTMALDG", "UTMASTG", "UTMACCTL", "UTMACMDFLUSH", "UBLKCP", "UBLKRED", "UBLKPF"];
 const FIXTURE: &str = include_str!("fixtures/sm120_rows_memory_nvdisasm.jsonl");
 const MEASURED_ROWS: usize = 270;
-const ALIAS_ROWS: usize = 3;
+const ALIAS_ROWS: usize = 4;
 const DEAD_ROWS: usize = 0;
 const FORM_WORDS: usize = 13833;
 const WITNESS_WORDS: usize = 159;
@@ -21,6 +21,7 @@ const WITNESS_WORDS: usize = 159;
 const LEFT_TO_OTHER_BATCHES: usize = 0;
 const ALIAS_KEYS: &[(&str, &str)] = &[
     ("CCTL.IVALL_?_?", "CCTL"),
+    ("CCTL.IVALL_P", "CCTL"),
     ("LDG.E.STRONG.GPU_R_ARURI", "LDG_R_ARURI"),
     ("LDS_P_R_A", "LDS_R_ARI"),
 ];
@@ -29,7 +30,6 @@ const EXCEPTIONS: &[(&str, &str, &str)] = &[
     ("CCTL.E.PF1_AR", "", "the key does not spell the vendor text: 'CCTL.PF1 [R48+0x5a5a5a5a]' -> CCTL.PF1_ARI / 'PF1'"),
     ("CCTL.E.PF2_AR", "", "the key does not spell the vendor text: 'CCTL.PF1 [R48+0x5a5a5a5a]' -> CCTL.PF1_ARI / 'PF1'"),
     ("CCTL.E.PML2_AR", "", "the key does not spell the vendor text: 'CCTL.PF2 [R48+0x5a5a5a5a]' -> CCTL.PF2_ARI / 'PF2'"),
-    ("CCTL.IVALL_P", "", "the key does not spell the vendor text: 'CCTL.IVALL' -> CCTL.IVALL / 'IVALL'"),
     ("LD_R_dARI", "E,STRONG,SYS", "bit 40 outside the fields moves operand 2 of the same form: 'LD.E.STRONG.SYS R16, desc[UR48][R32.64+0x1]'"),
     ("STL_AURI_R", "", "field bit 72 (sub_ur0 tok 1) is text-inert"),
     ("STL_AURI_R", "128", "field bit 72 (sub_ur0 tok 1) is text-inert"),

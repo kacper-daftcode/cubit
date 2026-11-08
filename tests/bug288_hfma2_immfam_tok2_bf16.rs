@@ -80,7 +80,7 @@ fn t288_1_structure_census_tags() {
                 continue;
             }
             // 2026-11-08 (T-18): the `_meta.key_aliases` clones (the integer spellings `HFMA2*_R_R_II_II_R*` of the
-            // f16-pair forms -> `*_R_R_FI_FI_R*`, blackwell-isa fd736a7) share their target's group map and are
+            // f16-pair forms -> `*_R_R_FI_FI_R*`, blackwell-isa 7f12b68) share their target's group map and are
             // encoder-only: a clone named `BF16_V2` carries the target's plain f16 groups too -- census real keys only
             if entry.encode_only {
                 continue;

@@ -112,7 +112,7 @@ fn the_twenty_era_keys_are_aliases_of_plain_keys() {
     // + the 148 twin keys retired by the row verification of the long tail (G run 5 batch 16, the six other families:
     //   dotted twins, integer spellings of float-immediate forms, `?` / phantom-token junk, byte-identical rows -> the key
     //   cubit decodes their words through; `tests/sm120_rows_<family>.rs` pins each)
-    assert_eq!(al.len(), 14874, "sm120.json key_aliases"); // 14 691 + 148 (T-17: batches 12-16 on one base) + 35 (T-18: the wave-pinned twin keys of run 5 retired)
+    assert_eq!(al.len(), 14906, "sm120.json key_aliases"); // 14 691 + 148 (T-17) + 35 (T-18 b1 wave twins) + 32 (T-18 b2 long-tail whole-key twins)
     let glued = regex::Regex::new(r"_P\d_").unwrap();
     let mut glued_n = 0;
     for (old, new) in &al {

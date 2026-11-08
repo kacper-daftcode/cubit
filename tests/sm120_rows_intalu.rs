@@ -1,18 +1,18 @@
 //! SM120 integer ALU long tail (VIMNMX / IADD / IMAD / IADD3 / IMNMX / PRMT / LOP3 / SEL / MOV / FLO / LDC / S2R / FHADD / DMUL / DADD …) (session G run 5, 2026-11-07; KNOWN_ISSUES T1): the remaining harvest rows of
 //! VIMNMX, IADD, IMAD, IADD3, IMNMX, IABS, VIADD, SGXT, BMSK, PRMT, LOP3, SEL, MOV, FLO, POPC, BREV, R2UR, LDC, S2R, CS2R, MOV64IUR, LDCU, S2UR, FHADD, DMUL, DADD verified row by row with nvdisasm 13.1 over the whole
 //! 128-bit word by `tools/probes/re_sm120_rows.py --family intalu` -- 167 rows measured (7055 canonical +
-//! field words, 177 census witnesses), 105 shadowed keys (105 rows) retired as aliases, 4 unreachable
-//! rows of staying keys deleted, 41 named exceptions. Fixture `tests/fixtures/sm120_rows_intalu_nvdisasm.jsonl`; the test body is `tests/sm120_rows_common.inc`.
-//! Session T-18 (2026-11-08): the rows run 5 verified but held back while the 2026-08/09 bug-wave tests pinned their harvest
-//! structure (`EXCEPTION_PREFIXES`, G/NEEDS_OWNER.md 12) take their measured status -- those suites are re-pinned to the
-//! measured doctrine in the same commit (blackwell-isa fd736a7).
+//! field words, 177 census witnesses), 120 shadowed keys (120 rows) retired as aliases, 4 unreachable
+//! rows of staying keys deleted, 26 named exceptions. Fixture `tests/fixtures/sm120_rows_intalu_nvdisasm.jsonl`; the test body is `tests/sm120_rows_common.inc`.
+//! Session T-18 (2026-11-08): batch 1 lifted the 2026-08/09 bug-wave pin (the verified rows take their measured status);
+//! batch 2 retired the whole-key twins of the long-tail named exceptions as `_meta.key_aliases` (aliases for twins -- the
+//! alias key's canonical word decodes through the target family key vendor-true, 0 census witnesses).
 
 const FAMILY: &str = "intalu";
 const SOURCE: &str = "rows-intalu-2026-11-07";
 const MNEMONICS: &[&str] = &["VIMNMX", "IADD", "IMAD", "IADD3", "IMNMX", "IABS", "VIADD", "SGXT", "BMSK", "PRMT", "LOP3", "SEL", "MOV", "FLO", "POPC", "BREV", "R2UR", "LDC", "S2R", "CS2R", "MOV64IUR", "LDCU", "S2UR", "FHADD", "DMUL", "DADD"];
 const FIXTURE: &str = include_str!("fixtures/sm120_rows_intalu_nvdisasm.jsonl");
 const MEASURED_ROWS: usize = 167;
-const ALIAS_ROWS: usize = 105;
+const ALIAS_ROWS: usize = 120;
 const DEAD_ROWS: usize = 4;
 const FORM_WORDS: usize = 7055;
 const WITNESS_WORDS: usize = 177;
@@ -23,6 +23,7 @@ const ALIAS_KEYS: &[(&str, &str)] = &[
     ("BMSK.W_R_R_R", "BMSK_R_R_R"),
     ("CS2R.32_R_L", "CS2R_R_L"),
     ("CS2R_R_?_II_II_?", "CS2R_R_L"),
+    ("CS2R_R_II", "CS2R_R_L"),
     ("DADD_R_R_II", "DADD_R_R_FI"),
     ("DADD_R_R_R_II_II_?", "DADD_R_R_R"),
     ("DADD_R_R_R_II_II_II_?", "DADD_R_R_R"),
@@ -50,8 +51,12 @@ const ALIAS_KEYS: &[(&str, &str)] = &[
     ("IADD.X_R_R_UR_P", "IADD_R_R_UR_P"),
     ("IADD3.X_R_P_P_R_UR_R_P_P", "IADD3_R_P_P_R_UR_R_P_P"),
     ("IADD3_P_R_P_P_R_II_R", "IADD3_R_P_P_R_II_R"),
+    ("IADD3_R_P_P_R_II_II", "IADD3_R_P_P_R_II_R"),
+    ("IADD3_R_P_P_R_R_II", "IADD3_R_P_P_R_R_R"),
     ("IADD3_R_P_P_R_R_II_II", "IADD3_R_P_P_R_R_R"),
+    ("IADD3_R_P_P_R_UR_II", "IADD3_R_P_P_R_UR_R"),
     ("IADD3_R_P_P_R_UR_II_II", "IADD3_R_P_P_R_UR_R"),
+    ("IADD3_R_P_P_R_UR_UR", "IADD3_R_P_P_R_UR_R"),
     ("IADD_P_R_R_II", "IADD_R_R_II"),
     ("IADD_P_R_R_R", "IADD_R_R_R"),
     ("IADD_R_P_R_R_?", "IADD_R_P_R_R"),
@@ -73,20 +78,25 @@ const ALIAS_KEYS: &[(&str, &str)] = &[
     ("LOP3.LUT_P_R_R_II_R_II_P_?", "LOP3_P_R_R_II_R_II_P"),
     ("LOP3.LUT_P_R_R_II_R_II_P_II_?", "LOP3_P_R_R_II_R_II_P"),
     ("LOP3.LUT_P_R_R_II_R_II_P_II_II_?", "LOP3_P_R_R_II_R_II_P"),
+    ("LOP3.LUT_P_R_R_R_R_II_II", "LOP3_P_R_R_R_R_II_P"),
     ("LOP3.LUT_P_R_R_UR_R_II_P", "LOP3_P_R_R_UR_R_II_P"),
+    ("LOP3.LUT_R_R_II_R_II_II", "LOP3_R_R_II_R_II_P"),
     ("LOP3.LUT_R_R_II_R_II_II_?", "LOP3_R_R_II_R_II_P"),
     ("LOP3.LUT_R_R_II_R_II_II_II_?", "LOP3_R_R_II_R_II_P"),
     ("LOP3.LUT_R_R_II_R_II_II_II_II_?", "LOP3_R_R_II_R_II_P"),
     ("LOP3.LUT_R_R_II_R_II_P", "LOP3_R_R_II_R_II_P"),
     ("LOP3.LUT_R_R_II_R_II_P_II_II_II_?", "LOP3_R_R_II_R_II_P"),
+    ("LOP3.LUT_R_R_R_R_II_II", "LOP3_R_R_R_R_II_P"),
     ("LOP3.LUT_R_R_R_R_II_II_?", "LOP3_R_R_R_R_II_P"),
     ("LOP3.LUT_R_R_R_R_II_II_II_?", "LOP3_R_R_R_R_II_P"),
     ("LOP3.LUT_R_R_R_R_II_P", "LOP3_R_R_R_R_II_P"),
     ("LOP3.LUT_R_R_R_R_II_P_II_II_?", "LOP3_R_R_R_R_II_P"),
+    ("LOP3.LUT_R_R_UR_R_II_II", "LOP3_R_R_UR_R_II_P"),
     ("LOP3.LUT_R_R_UR_R_II_II_?", "LOP3_R_R_UR_R_II_P"),
     ("LOP3.LUT_R_R_UR_R_II_P", "LOP3_R_R_UR_R_II_P"),
     ("LOP3.LUT_R_R_UR_R_II_P_II_?", "LOP3_R_R_UR_R_II_P"),
     ("LOP3.LUT_R_R_UR_R_II_P_II_II_?", "LOP3_R_R_UR_R_II_P"),
+    ("LOP3_P_R_II_R_II_R_P", "LOP3_P_R_R_II_R_II_P"),
     ("MOV.64_R_II", "MOV_R_II"),
     ("MOV.64_R_II_?", "MOV_R_II"),
     ("MOV.64_R_R", "MOV_R_R"),
@@ -104,6 +114,7 @@ const ALIAS_KEYS: &[(&str, &str)] = &[
     ("S2R_R_L_II_?", "S2R_R_L"),
     ("S2R_R_L_II_II_?", "S2R_R_L"),
     ("S2R_R_L_II_II_II_?", "S2R_R_L"),
+    ("S2UR_UR_II", "S2UR_UR_L"),
     ("SEL.64_R_R_II_P", "SEL_R_R_II_P"),
     ("SEL_P_R_R_II_P", "SEL_R_R_II_P"),
     ("SEL_R_R_II_P_?", "SEL_R_R_II_P"),
@@ -111,16 +122,20 @@ const ALIAS_KEYS: &[(&str, &str)] = &[
     ("SEL_R_R_R_P_II_II_?", "SEL_R_R_R_P"),
     ("SEL_R_R_R_P_II_II_II_?", "SEL_R_R_R_P"),
     ("SEL_R_R_R_P_II_II_II_II_?", "SEL_R_R_R_P"),
+    ("VIMNMX.S32_R_R_II_II", "VIMNMX_R_R_II_P"),
     ("VIMNMX.S32_R_R_II_P", "VIMNMX_R_R_II_P"),
     ("VIMNMX.S32_R_R_II_P_?", "VIMNMX_R_R_II_P"),
     ("VIMNMX.S32_R_R_R_P_?", "VIMNMX_R_R_II_P"),
+    ("VIMNMX.S32_R_R_R_R", "VIMNMX_R_R_R_P"),
     ("VIMNMX.S32_R_R_R_R_?", "VIMNMX_R_R_R_P"),
     ("VIMNMX.S32_R_R_R_R_II_?", "VIMNMX_R_R_R_P"),
     ("VIMNMX.S32_R_R_R_R_II_II_?", "VIMNMX_R_R_R_P"),
+    ("VIMNMX.S32_R_R_UR_UR", "VIMNMX_R_R_UR_P"),
     ("VIMNMX.S32_R_R_UR_UR_?", "VIMNMX_R_R_UR_P"),
     ("VIMNMX.S32_R_R_UR_UR_II_?", "VIMNMX_R_R_UR_P"),
     ("VIMNMX.S32_R_R_UR_UR_II_II_?", "VIMNMX_R_R_UR_P"),
     ("VIMNMX.S32_R_R_UR_UR_II_II_II_?", "VIMNMX_R_R_UR_P"),
+    ("VIMNMX.U32_R_R_II_II", "VIMNMX_R_R_II_P"),
     ("VIMNMX.U32_R_R_II_P", "VIMNMX_R_R_II_P"),
     ("VIMNMX.U32_R_R_II_P_P", "VIMNMX_R_R_II_P"),
     ("VIMNMX.U32_R_R_UR_P", "VIMNMX_R_R_UR_P"),
@@ -128,7 +143,6 @@ const ALIAS_KEYS: &[(&str, &str)] = &[
 ];
 /// Rows of the family's mnemonics that stay without `_src` (key, group, reason) -- `G/NEEDS_OWNER.md`.
 const EXCEPTIONS: &[(&str, &str, &str)] = &[
-    ("CS2R_R_II", "", "the key does not spell the vendor text: 'CS2R R32, SRZ' -> CS2R_R_L / ''"),
     ("CS2R_R_R", "", "the key does not spell the vendor text: 'CS2R.32 R32, SRZ' -> CS2R.32_R_L / '32'"),
     ("FLO_R_UR", "SH,U32", "the key does not spell the vendor text: 'FLO.U32.SH R16, R32' -> FLO.U32.SH_R_R / 'SH,U32'"),
     ("IADD.64.X_R_P_R_II_P", "", "nvdisasm rejects every canonical word of the row"),
@@ -139,13 +153,9 @@ const EXCEPTIONS: &[(&str, &str, &str)] = &[
     ("IADD.64_R_R_UR_UR", "", "nvdisasm rejects every canonical word of the row"),
     ("IADD.X_R_P_R_R_R", "", "the key does not spell the vendor text: 'IADD.X R16, P2, ~R32, R48, P2' -> IADD.X_R_P_R_R_P / 'X'"),
     ("IADD3.X_R_P_P_R_II_R_P_P", "", "bit 32 outside the fields moves operand 5 of the same form: 'IADD3.X R48, P3, PT, R64, 0x0, RZ, P3, !PT'"),
-    ("IADD3_R_P_P_R_II_II", "", "the key does not spell the vendor text: 'IADD3 R32, PT, PT, R48, 0x5a5a, RZ' -> IADD3_R_P_P_R_II_R / ''"),
     ("IADD3_R_P_P_R_II_R", "X", "the key does not spell the vendor text: 'IADD3.X R32, PT, PT, R48, 0x5a5a5a5a, R80, PT, !PT' -> IADD3.X_R_P_P_R_II_R_P_P / 'X'"),
-    ("IADD3_R_P_P_R_R_II", "", "the key does not spell the vendor text: 'IADD3 R32, PT, PT, R48, R64, R90' -> IADD3_R_P_P_R_R_R / ''"),
     ("IADD3_R_P_P_R_R_R", "", "bit 84 outside the fields moves operand 3 of the same form: 'IADD3 R32, PT, P6, R48, R64, R96'"),
     ("IADD3_R_P_P_R_R_R_P_P", "X", "census witness 000fc400007fe4ff0000000708077210 carries bits outside the fields"),
-    ("IADD3_R_P_P_R_UR_II", "", "the key does not spell the vendor text: 'IADD3 R32, PT, PT, R48, UR1, R90' -> IADD3_R_P_P_R_UR_R / ''"),
-    ("IADD3_R_P_P_R_UR_UR", "", "the key does not spell the vendor text: 'IADD3 R16, PT, PT, -R32, UR1, RZ' -> IADD3_R_P_P_R_UR_R / ''"),
     ("IMAD_R_P_R_II_R", "U32,WIDE", "field bit 84 (pred tok 2) is text-inert"),
     ("IMAD_R_P_R_R_R", "HI,U32", "field bit 84 (pred tok 2) is text-inert"),
     ("IMAD_R_P_R_R_R", "U32,WIDE", "field bit 84 (pred tok 2) is text-inert"),
@@ -154,21 +164,11 @@ const EXCEPTIONS: &[(&str, &str, &str)] = &[
     ("IMAD_R_P_R_UR_R_P", "HI,X", "the PT carry-out word is the plain key's spelling (IMAD_R_R_UR_R_P has no HI,X group); cubit prints the explicit PT"),
     ("LDCU_UR_cAI", "64", "the key does not spell the vendor text: 'LDCU.64 UR32, c[0xd][UR48+0x5a5a]' -> LDCU.64_UR_cAURI / '64'"),
     ("LDC_R_cAI", "64", "the key does not spell the vendor text: 'LDC.64 R32, c[0x1a][R48+0x5a5a]' -> LDC.64_R_cARI / '64'"),
-    ("LOP3.LUT_P_R_R_R_R_II_II", "", "the key does not spell the vendor text: 'LOP3.LUT P1, RZ, R48, R64, RZ, 0xe8, !PT' -> LOP3.LUT_P_R_R_R_R_II_P / 'LUT'"),
-    ("LOP3.LUT_R_R_II_R_II_II", "", "the key does not spell the vendor text: 'LOP3.LUT R64, R80, 0x5a5a5a5a, R90, 0x68, !PT' -> LOP3.LUT_R_R_II_R_II_P / 'LUT'"),
-    ("LOP3.LUT_R_R_R_R_II_II", "", "the key does not spell the vendor text: 'LOP3.LUT R32, R48, R64, RZ, 0x68, !PT' -> LOP3.LUT_R_R_R_R_II_P / 'LUT'"),
-    ("LOP3.LUT_R_R_UR_R_II_II", "", "the key does not spell the vendor text: 'LOP3.LUT R48, R64, UR1, RZ, 0x5a, !PT' -> LOP3.LUT_R_R_UR_R_II_P / 'LUT'"),
-    ("LOP3_P_R_II_R_II_R_P", "LUT", "the key does not spell the vendor text: 'LOP3.LUT P0, RZ, R32, 0x7fffffff, R4, 0xc8, !PT' -> LOP3.LUT_P_R_R_II_R_II_P / 'LUT'"),
     ("MOV_P_R_II", "", "the key does not spell the vendor text: 'UMOV UR48, 0x5a5a5a5a' -> UMOV_UR_II / ''"),
     ("R2UR_P_UR_R", "FILL", "the PT predicate word is the plain key's spelling (R2UR_UR_R has no FILL group); cubit prints the explicit PT"),
-    ("S2UR_UR_II", "", "the key does not spell the vendor text: 'S2UR UR32, SR_SNAP_PM_HI6' -> S2UR_UR_L / ''"),
     ("SEL.64_R_R_R_P", "", "nvdisasm rejects every canonical word of the row"),
     ("VIADD.U8x4_R_R_R", "", "the key does not spell the vendor text: 'VIADD.32 R32, R64, R96' -> VIADD.32_R_R_R / '32'"),
-    ("VIMNMX.S32_R_R_II_II", "", "the key does not spell the vendor text: 'VIMNMX.S32 R48, R64, 0x5a, PT' -> VIMNMX.S32_R_R_II_P / 'S32'"),
-    ("VIMNMX.S32_R_R_R_R", "", "the key does not spell the vendor text: 'VIMNMX.S32 R16, R32, R48, PT' -> VIMNMX.S32_R_R_R_P / 'S32'"),
     ("VIMNMX.S32_R_R_UR_P", "", "the key does not spell the vendor text: 'VIMNMX.U32 R48, R64, 0x20, PT' -> VIMNMX.U32_R_R_II_P / 'U32'"),
-    ("VIMNMX.S32_R_R_UR_UR", "", "the key does not spell the vendor text: 'VIMNMX.S32 R16, R32, UR5, PT' -> VIMNMX.S32_R_R_UR_P / 'S32'"),
-    ("VIMNMX.U32_R_R_II_II", "", "the key does not spell the vendor text: 'VIMNMX.U32 R32, R48, 0x1a5af, PT' -> VIMNMX.U32_R_R_II_P / 'U32'"),
 ];
 
 include!("sm120_rows_common.inc");

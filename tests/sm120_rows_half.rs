@@ -5,7 +5,7 @@
 //! rows of staying keys deleted, 37 named exceptions. Fixture `tests/fixtures/sm120_rows_half_nvdisasm.jsonl`; the test body is `tests/sm120_rows_common.inc`.
 //! Session T-18 (2026-11-08): the rows run 5 verified but held back while the 2026-08/09 bug-wave tests pinned their harvest
 //! structure (`EXCEPTION_PREFIXES`, G/NEEDS_OWNER.md 12) take their measured status -- those suites are re-pinned to the
-//! measured doctrine in the same commit (blackwell-isa fd736a7).
+//! measured doctrine in the same commit (blackwell-isa 7f12b68).
 
 const FAMILY: &str = "half";
 const SOURCE: &str = "rows-half-2026-11-07";
