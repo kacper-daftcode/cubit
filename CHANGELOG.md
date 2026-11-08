@@ -4,6 +4,19 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-08 (session T-20, batch 3: sm103a / sm100a REDG uniform-indexed forms measured on `-b SM103` / `SM100` — the first batch of the B300 line)
+
+- **Tables vendored from blackwell-isa `6a468a2`** (sm103a 8 784 forms / 25 517 variants from 14 926 / 22 445, sm100a 8 783 /
+  25 511 from 14 925 / 22 439; rows without `_src` 15 858 → 9 714 on both). `tools/probes/re_sm120_redg.py --arch SM103` /
+  `SM100`: G's batch-14 sweep (9 334 form + 58 lattice words) prints the same text on both targets word for word;
+  `REDG_ARURI_R` / `REDG_ARURI64_R` created with the 9 216 measured rows per table, the 6 144 dotted harvest keys of each
+  retired as `_meta.key_aliases`. Test `tests/sm103a_sm100a_redg_aruri.rs` (the five sm120 checks over the two tables; on
+  sm103a a guard-predicated non-EL REDG is refused by BUG-080 — the silicon law — and the test accepts exactly that).
+- Re-pins: bug452 / bug461 (the measured plain key on the two legs; the 2026-09 fuzz words with a text-inert bit fail closed
+  on the measured rows as on sm120 since batch 14), bug176 / bug381 / bug463 / bug467 and the data of bug450 / 453 / 459a /
+  468 / 469 / 474 / 475 / 476 (the sm103a / sm100a key / variant census).
+- Gate: the B300 publish corpus strict round trip unchanged at 85 704 / 85 792 words, 288 / 328 cubins strict-exact.
+
 ## Unreleased — 2026-11-08 (session T-20, batch 2: sm121a FSETP / DSETP measured on `-b SM121` — the first batch of the GB10 line; a GB10 census regression closed)
 
 - **Tables vendored from blackwell-isa `75e9d20`** (sm121a 23 754 forms / 26 595 variants, from 23 860 / 26 421; rows without `_src`
