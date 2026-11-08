@@ -1,18 +1,21 @@
 //! SM120 integer ALU long tail (VIMNMX / IADD / IMAD / IADD3 / IMNMX / PRMT / LOP3 / SEL / MOV / FLO / LDC / S2R / FHADD / DMUL / DADD …) (session G run 5, 2026-11-07; KNOWN_ISSUES T1): the remaining harvest rows of
 //! VIMNMX, IADD, IMAD, IADD3, IMNMX, IABS, VIADD, SGXT, BMSK, PRMT, LOP3, SEL, MOV, FLO, POPC, BREV, R2UR, LDC, S2R, CS2R, MOV64IUR, LDCU, S2UR, FHADD, DMUL, DADD verified row by row with nvdisasm 13.1 over the whole
-//! 128-bit word by `tools/probes/re_sm120_rows.py --family intalu` -- 164 rows measured (6937 canonical +
-//! field words, 174 census witnesses), 96 shadowed keys (96 rows) retired as aliases, 4 unreachable
-//! rows of staying keys deleted, 53 named exceptions. Fixture `tests/fixtures/sm120_rows_intalu_nvdisasm.jsonl`; the test body is `tests/sm120_rows_common.inc`.
+//! 128-bit word by `tools/probes/re_sm120_rows.py --family intalu` -- 167 rows measured (7055 canonical +
+//! field words, 177 census witnesses), 105 shadowed keys (105 rows) retired as aliases, 4 unreachable
+//! rows of staying keys deleted, 41 named exceptions. Fixture `tests/fixtures/sm120_rows_intalu_nvdisasm.jsonl`; the test body is `tests/sm120_rows_common.inc`.
+//! Session T-18 (2026-11-08): the rows run 5 verified but held back while the 2026-08/09 bug-wave tests pinned their harvest
+//! structure (`EXCEPTION_PREFIXES`, G/NEEDS_OWNER.md 12) take their measured status -- those suites are re-pinned to the
+//! measured doctrine in the same commit (blackwell-isa fd736a7).
 
 const FAMILY: &str = "intalu";
 const SOURCE: &str = "rows-intalu-2026-11-07";
 const MNEMONICS: &[&str] = &["VIMNMX", "IADD", "IMAD", "IADD3", "IMNMX", "IABS", "VIADD", "SGXT", "BMSK", "PRMT", "LOP3", "SEL", "MOV", "FLO", "POPC", "BREV", "R2UR", "LDC", "S2R", "CS2R", "MOV64IUR", "LDCU", "S2UR", "FHADD", "DMUL", "DADD"];
 const FIXTURE: &str = include_str!("fixtures/sm120_rows_intalu_nvdisasm.jsonl");
-const MEASURED_ROWS: usize = 164;
-const ALIAS_ROWS: usize = 96;
+const MEASURED_ROWS: usize = 167;
+const ALIAS_ROWS: usize = 105;
 const DEAD_ROWS: usize = 4;
-const FORM_WORDS: usize = 6937;
-const WITNESS_WORDS: usize = 174;
+const FORM_WORDS: usize = 7055;
+const WITNESS_WORDS: usize = 177;
 /// Harvest rows of the family's mnemonics that batches 12-14 measure or retire on their own branches (LDG.256 /
 /// STG.256 / REDG lattices): harvest on this base, not this family's; 0 once those batches are on `main`.
 const LEFT_TO_OTHER_BATCHES: usize = 0;
@@ -57,6 +60,15 @@ const ALIAS_KEYS: &[(&str, &str)] = &[
     ("IMNMX.S64_P_P_R_R_UR_P_P", "IMNMX_P_P_R_R_UR_P_P"),
     ("IMNMX.U64_P_P_R_R_R_P_P", "IMNMX_P_P_R_R_R_P_P"),
     ("IMNMX.U64_P_P_R_R_UR_P_P", "IMNMX_P_P_R_R_UR_P_P"),
+    ("LDC.64_R_cAI_II", "LDC_R_cAI"),
+    ("LDC.64_R_cAI_II_?", "LDC_R_cAI"),
+    ("LDC.64_R_cAI_II_II_?", "LDC_R_cAI"),
+    ("LDC.64_R_cAI_II_II_II_?", "LDC_R_cAI"),
+    ("LDC.64_R_cAI_II_II_II_II_?", "LDC_R_cAI"),
+    ("LDC_R_cAI_II", "LDC_R_cAI"),
+    ("LDC_R_cAI_II_?", "LDC_R_cAI"),
+    ("LDC_R_cAI_II_II_?", "LDC_R_cAI"),
+    ("LDC_R_cAI_II_II_II_?", "LDC_R_cAI"),
     ("LOP3.LUT_P_R_R_II_R_II_P", "LOP3_P_R_R_II_R_II_P"),
     ("LOP3.LUT_P_R_R_II_R_II_P_?", "LOP3_P_R_R_II_R_II_P"),
     ("LOP3.LUT_P_R_R_II_R_II_P_II_?", "LOP3_P_R_R_II_R_II_P"),
@@ -140,20 +152,8 @@ const EXCEPTIONS: &[(&str, &str, &str)] = &[
     ("IMAD_R_P_R_UR_R", "HI", "the PT carry-out word is the plain key's spelling (IMAD_R_R_UR_R has no HI group); cubit prints the explicit PT"),
     ("IMAD_R_P_R_UR_R_P", "HI,U32,X", "the PT carry-out word is the plain key's spelling (IMAD_R_R_UR_R_P has no HI,U32,X group); cubit prints the explicit PT"),
     ("IMAD_R_P_R_UR_R_P", "HI,X", "the PT carry-out word is the plain key's spelling (IMAD_R_R_UR_R_P has no HI,X group); cubit prints the explicit PT"),
-    ("LDC.64_R_cAI_II", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug163 / 167 / 172 / 409)"),
-    ("LDC.64_R_cAI_II_?", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug163 / 167 / 172 / 409)"),
-    ("LDC.64_R_cAI_II_II_?", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug163 / 167 / 172 / 409)"),
-    ("LDC.64_R_cAI_II_II_II_?", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug163 / 167 / 172 / 409)"),
-    ("LDC.64_R_cAI_II_II_II_II_?", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug163 / 167 / 172 / 409)"),
-    ("LDCU_UR_cAI", "64", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug163 / 167 / 172 / 409)"),
-    ("LDC_R_cAI", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug163 / 167 / 172 / 409)"),
-    ("LDC_R_cAI", "64", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug163 / 167 / 172 / 409)"),
-    ("LDC_R_cAI_II", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug163 / 167 / 172 / 409)"),
-    ("LDC_R_cAI_II_?", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug163 / 167 / 172 / 409)"),
-    ("LDC_R_cAI_II_II_?", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug163 / 167 / 172 / 409)"),
-    ("LDC_R_cAI_II_II_II_?", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug163 / 167 / 172 / 409)"),
-    ("LDC_R_cARI", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug163 / 167 / 172 / 409)"),
-    ("LDC_R_cARI", "64", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug163 / 167 / 172 / 409)"),
+    ("LDCU_UR_cAI", "64", "the key does not spell the vendor text: 'LDCU.64 UR32, c[0xd][UR48+0x5a5a]' -> LDCU.64_UR_cAURI / '64'"),
+    ("LDC_R_cAI", "64", "the key does not spell the vendor text: 'LDC.64 R32, c[0x1a][R48+0x5a5a]' -> LDC.64_R_cARI / '64'"),
     ("LOP3.LUT_P_R_R_R_R_II_II", "", "the key does not spell the vendor text: 'LOP3.LUT P1, RZ, R48, R64, RZ, 0xe8, !PT' -> LOP3.LUT_P_R_R_R_R_II_P / 'LUT'"),
     ("LOP3.LUT_R_R_II_R_II_II", "", "the key does not spell the vendor text: 'LOP3.LUT R64, R80, 0x5a5a5a5a, R90, 0x68, !PT' -> LOP3.LUT_R_R_II_R_II_P / 'LUT'"),
     ("LOP3.LUT_R_R_R_R_II_II", "", "the key does not spell the vendor text: 'LOP3.LUT R32, R48, R64, RZ, 0x68, !PT' -> LOP3.LUT_R_R_R_R_II_P / 'LUT'"),

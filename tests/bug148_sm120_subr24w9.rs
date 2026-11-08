@@ -125,12 +125,14 @@ fn t148_5_no_cover_residual_not_folded() {
     // `!rsd[32:1]` overlay).
     let t = t120();
     let idx = DecodeIndex::build(&t);
-    let got = dec(&t, &idx, LDS_BIT32);
-    assert_eq!(got, "LDS R2, [R39]", "no R+256 hallucination; text is the base form");
-    let reenc = enc(&t, &got);
-    let delta = (LDS_BIT32 ^ reenc) & !SCHED;
-    assert_eq!(delta, 1u128 << 32,
-        "only bit32 may be unexplained (CLI !rsd[32:1]); delta={delta:#036x}");
+    // 2026-11-08 (T-18, rows-memory-2026-11-07): LDS_R_ARI is measured field by field now (nvdisasm 13.1 over the
+    // whole word) -- its mask is exactly its fields, so the synthetic bit32 (inert, between sub_r0 [24:32) and
+    // sub_imm1 [40:64)) is fail-closed, not folded into the base register (the very R+256 hallucination this test
+    // guards against). The base word without bit32 still decodes `LDS R2, [R39]`; 0 census words carry the bit.
+    assert!(idx.decode(LDS_BIT32, 0, &t).is_err(), "measured row must fail closed on the inert bit32, not fold it");
+    let base = LDS_BIT32 & !(1u128 << 32);
+    assert_eq!(dec(&t, &idx, base), "LDS R2, [R39]", "base word decodes the plain form");
+    assert_eq!(enc(&t, "LDS R2, [R39]") & !SCHED, base & !SCHED, "and re-encodes to it");
     // a fabricated wide numeral is fail-closed at the parser boundary
     // ("every bracket component must classify once"), before encode
     assert!(parse_sass("LDS R2, [R295] ;", 0).is_err(),

@@ -70,6 +70,12 @@ fn t271_1_structure_and_donors() {
             if !super_family(k) {
                 continue;
             }
+            // 2026-11-08 (T-18): the `_meta.key_aliases` clones (`HFMA2_R_R_R_II_II_II` -> `HFMA2_R_R_R_FI_FI` since
+            // blackwell-isa fd736a7, the integer spelling of the f16-pair form) share their target's group map and are
+            // encoder-only -- the target's rows, not more rows; count real keys only
+            if e.encode_only {
+                continue;
+            }
             for g in e.mod_groups.values() {
                 let has_hsel = g.fields.iter().any(|f| {
                     f.extraction == Extraction::HalfSel && f.shift == 81 && f.token_idx == 3
@@ -95,9 +101,17 @@ fn t271_1_structure_and_donors() {
         // F2-iter157 (BUG-285): +36 armed rows from the b85 BF16_V2
         // cross-key graft (12 mgs x3 parents carry the post-279 '' field set
         // incl. the tok3 hsel+h0nh1 pair; canonical e41a438): 96 -> 132.
-        assert_eq!(armed, 132, "{leg}: armed family row count drift");
+        // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 the harvest '' row of HFMA2_R_R_R_II_II was unreachable
+        // (its canonical word decodes through HFMA2_R_R_R_FI_FI with the vendor's text) and is deleted: 132 -> 131.
+        assert_eq!(armed, if leg == "sm120" { 131 } else { 132 }, "{leg}: armed family row count drift");
         // skipped registered: II_II_II keeps b86 outside vm (hole)
+        // (T-18: on sm120 HFMA2_R_R_R_II_II_II is an alias of HFMA2_R_R_R_FI_FI -- nvdisasm prints its canonical word
+        // `HFMA2 R32, -RZ, RZ, 0, 0` as the f16-pair form, tests/fixtures/sm120_rows_half_nvdisasm.jsonl -- so the
+        // II_II_II spelling resolves to the measured FI_FI rows; the 288-kand hole is the target's business now)
         let g = &t.entries["HFMA2_R_R_R_II_II_II"].mod_groups[""];
+        if leg == "sm120" {
+            assert!(t.entries["HFMA2_R_R_R_II_II_II"].encode_only, "{leg}: II_II_II is an alias clone");
+        } else {
         assert_eq!(
             g.fields
                 .iter()
@@ -107,6 +121,7 @@ fn t271_1_structure_and_donors() {
         );
         let vm: u128 = g.variable_mask;
         assert_eq!(vm & (1 << 86), 0, "{leg}: II_II_II widened?");
+        }
     }
     // sm121a BF16 hosts:
     let t = tab("sm121a");

@@ -99,10 +99,42 @@ fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
 /// A-window signs/hsel/inert (417) + A routes +A-F32 geometry + B/C
 /// dotted routes + RELU pred law + tok5 markers; per-word x leg x vendor
 /// from nvdisasm x4 AGREE EVERY).
+/// 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 these LAW419 cells carry a bit the measured HADD2.F32 / HFMA2.F32
+/// rows fail closed on -- the text-inert immediate-high / modifier bits [48:81] and the HFMA2 b78/b81/b86 route bits,
+/// which the 2026-08/09 "absorb window" tolerated. The measured row's mask is its fields (the measured-row convention);
+/// the three other legs keep the heal. 0 census witnesses (T-18 whole-census parity).
+const LAW419_SM120_FAIL_CLOSED: &[u128] = &[
+    0x00000000000040000001000000000430u128,
+    0x00000000000040000002000000000430u128,
+    0x00000000000040000100000000000430u128,
+    0x00000000000040004000000000000430u128,
+    0x00000000000040008000000000000430u128,
+    0x00000000000040010000000000000430u128,
+    0x00000000000040800000000000000430u128,
+    0x00000000000042000000000000000430u128,
+    0x00000000000050000000000000000430u128,
+    0x000000000000c0000000000000000430u128,
+    0x00000000000240000000000000000430u128,
+    0x00000000000040ff0000000000000430u128,
+    0x000000000000e0000000000000000430u128,
+    0x00000000002440003f803f8000007831u128,
+    0x00000000006040003f803f8000007831u128,
+    0x00000000002040003f803f8000007831u128,
+    0x00000000002050003f803f8000007831u128,
+    0x00000000002140003f803f8000007831u128,
+];
+
 #[test]
 fn t419_1_law_grid_vendor_exact() {
     for (w, tag, leg, vendor) in LAW419 {
         let t = tab(leg);
+        if *leg == "sm120" && LAW419_SM120_FAIL_CLOSED.contains(w) {
+            assert!(
+                text_of(t, *w).is_none(),
+                "419 law {tag} word 0x{w:032x}: a measured row tolerates a text-inert bit"
+            );
+            continue;
+        }
         let got = text_of(t, *w).unwrap_or_else(|| "HOLE".to_string());
         assert_eq!(
             got.as_str(),
@@ -274,12 +306,21 @@ fn t419_5_row_shape_audit() {
             assert!(t.get(key, "").is_some(), "{leg}: missing {key}");
         }
         // F32 absorb law: the F32,SAT row's vm must carry b80.
+        // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 HADD2.F32.SAT_R_R_FI is measured field by field -- FTZ is
+        // its own dotted key (HADD2.F32.FTZ_R_R_FI), so bit 80 is a modifier bit (another group's word), not a field,
+        // and the measured row's mask is its fields: b80 is NOT in its vm. The three other legs keep the absorb window.
         let fs = t.get("HADD2.F32.SAT_R_R_FI", "").unwrap();
-        assert_ne!(
-            fs.variable_mask & (1 << 80),
-            0,
-            "{leg}: F32,SAT must relax b80 (absorb law)"
-        );
+        if leg == "sm120" {
+            assert_eq!(fs.variable_mask & (1 << 80), 0, "{leg}: measured F32,SAT must fail closed on the b80 FTZ modifier");
+            assert!(t.get("HADD2.F32.FTZ.SAT_R_R_FI", "").is_some() || t.get("HADD2.F32.FTZ_R_R_FI", "").is_some(),
+                "{leg}: FTZ is its own measured key");
+        } else {
+            assert_ne!(
+                fs.variable_mask & (1 << 80),
+                0,
+                "{leg}: F32,SAT must relax b80 (absorb law)"
+            );
+        }
         // HFMA2 R-final parents: tok5 hsel on '' + BF16_V2; route care.
         for pk in ["HFMA2_R_R_FI_FI_R", "HFMA2_R_R_II_II_R"] {
             if t.get(pk, "").is_none() {
@@ -350,7 +391,7 @@ fn t419_7_source_pin() {
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        m["base_revision"].as_str().unwrap().starts_with("37d030fcde23a26a7b7166307279d8270efa2259") /* 2026-11-06 T-11 (was c258f8a, T-10) */, // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+        m["base_revision"].as_str().unwrap().starts_with("fd736a771f7fb7fb9bde3b092430f9f41f793154") /* 2026-11-06 T-11 (was c258f8a, T-10) */, // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
         "SOURCE.json must pin canonical 57e7ecd [was ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, 1810912 = 435+434 hop, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b, 3f6ca6f = BUG-425, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422] (BUG-442 graft F2-iter246 z atrybucja; ride-chain): {:?}",
         m["base_revision"]
     );

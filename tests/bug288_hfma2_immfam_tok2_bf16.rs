@@ -79,6 +79,12 @@ fn t288_1_structure_census_tags() {
             if !key.starts_with("HFMA2") {
                 continue;
             }
+            // 2026-11-08 (T-18): the `_meta.key_aliases` clones (the integer spellings `HFMA2*_R_R_II_II_R*` of the
+            // f16-pair forms -> `*_R_R_FI_FI_R*`, blackwell-isa fd736a7) share their target's group map and are
+            // encoder-only: a clone named `BF16_V2` carries the target's plain f16 groups too -- census real keys only
+            if entry.encode_only {
+                continue;
+            }
             for (mg_name, mg) in &entry.mod_groups {
                 let fs = &mg.fields;
                 let h = fs
@@ -128,7 +134,8 @@ fn t288_1_structure_census_tags() {
                 }
             }
         }
-        assert_eq!(part_a, 96, "{arch}: Part A armed rows != 96");
+        // (T-18, rows-half-2026-11-07: on sm120 the unreachable '' row of HFMA2_R_R_R_II_II is deleted -- 96 -> 95)
+        assert_eq!(part_a, if arch == "sm120" { 95 } else { 96 }, "{arch}: Part A armed rows != 96");
         assert!(
             bf16_fields >= 80,
             "{arch}: bf16 field census too small ({bf16_fields})"
@@ -155,7 +162,8 @@ fn t288_1_structure_census_tags() {
         }
         n
     };
-    assert_eq!(count_tags("sm120", "bug288-2026-08-31"), 272);
+    // (T-18: the deleted '' row of HFMA2_R_R_R_II_II carried two bug288 fields -- 272 -> 270 on sm120)
+    assert_eq!(count_tags("sm120", "bug288-2026-08-31"), 270);
     assert_eq!(count_tags("sm121a", "bug288-2026-08-31"), 272);
     assert_eq!(count_tags("sm100a", "bug288-2026-08-31"), 0);
     assert_eq!(count_tags("sm103a", "bug288-2026-08-31"), 0);
@@ -355,7 +363,15 @@ fn t288_5_fail_closed_and_siblings_untouched() {
             .iter()
             .any(|f| f.shift == 72 && f.token_idx == 2));
         // era shells stay 2-field, never re-armed here (registered residual)
+        // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 both era shells are `_meta.key_aliases` entries of
+        // HFMA2_R_R_R_FI_FI -- nvdisasm prints their canonical words (`HFMA2 R32, -RZ, RZ, 0, 0`) as the f16-pair form
+        // (tests/fixtures/sm120_rows_half_nvdisasm.jsonl, status `alias`); the spellings resolve to the measured-era
+        // FI_FI rows, the shells themselves are gone. sm121a keeps them.
         for k in ["HFMA2_R_R_R_II_II_II", "HFMA2_R_R_R_II_II_II_?"] {
+            if arch == "sm120" {
+                assert!(t.entries[k].encode_only, "{k}: an alias clone of HFMA2_R_R_R_FI_FI");
+                continue;
+            }
             let mg = &t.entries[k].mod_groups[""];
             assert_eq!(mg.fields.len(), 2, "{k} era shell moved");
             assert!(!mg

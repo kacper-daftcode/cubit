@@ -167,7 +167,12 @@ fn t427_4_census_and_donor_shape() {
                 .filter(|f| !matches!(f.extraction, cubit::table::Extraction::AddrScale))
                 .map(|f| (f.shift, f.bits))
                 .collect();
-            assert_eq!(shape, want, "[{leg}] {key} S16 fields drift (minus scale)");
+            // 2026-11-08 (T-18, rows-memory-2026-11-07): on sm120 the U16 donor is measured now (`row_probe`) and
+            // carries the guard as a field, so its shape differs from the S16 harvest sibling; compare the S16 row
+            // against the U16 donor only where the donor stays harvest (the shape-clone invariant is a harvest-era one).
+            if !d.row_probe {
+                assert_eq!(shape, want, "[{leg}] {key} S16 fields drift (minus scale)");
+            }
             let sc: Vec<_> = g
                 .fields
                 .iter()
@@ -180,15 +185,27 @@ fn t427_4_census_and_donor_shape() {
                 "[{leg}] {key} S16 scale-arm"
             );
             if key != "LDS_R_AURI" {
+                // the measured U16 donor clears its field bits (incl. the baked guard) from and_base; compare the b73
+                // width delta outside those bits
+                let dfmask = d.fields.iter().fold(0u128, |m, f| m | (((1u128 << f.bits) - 1) << f.shift));
                 assert_eq!(
-                    g.and_base ^ d.and_base,
-                    1u128 << 73,
+                    (g.and_base ^ d.and_base) & !dfmask,
+                    (1u128 << 73) & !dfmask,
                     "[{leg}] {key} S16 ab delta != b73"
                 );
-                assert_eq!(
-                    g.variable_mask, d.variable_mask,
-                    "[{leg}] {key} S16 vm drift"
-                );
+                // 2026-11-08 (T-18, rows-memory-2026-11-07): on sm120 the U16 donor was among the 192 rows G run 5
+                // verified field by field (wave-pinned here) and is measured now (`row_probe`): its mask is exactly its
+                // fields (fail closed on the text-inert slots), narrower than the S16 harvest sibling's tolerant mask.
+                // The width-bit (b73) and_base delta is untouched; the `vm == donor` equality no longer holds.
+                if d.row_probe {
+                    let fmask = d.fields.iter().fold(0u128, |m, f| m | (((1u128 << f.bits) - 1) << f.shift));
+                    assert_eq!(d.variable_mask, fmask, "[{leg}] {key} measured U16 vm == fields");
+                } else {
+                    assert_eq!(
+                        g.variable_mask, d.variable_mask,
+                        "[{leg}] {key} S16 vm drift"
+                    );
+                }
             }
         }
     }
@@ -200,13 +217,13 @@ fn t427_5_source_pins_52cb73c() {
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        m["base_revision"].as_str().unwrap().starts_with("37d030fcde23a26a7b7166307279d8270efa2259") /* 2026-11-06 T-11 (was c258f8a, T-10) */, // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+        m["base_revision"].as_str().unwrap().starts_with("fd736a771f7fb7fb9bde3b092430f9f41f793154") /* 2026-11-06 T-11 (was c258f8a, T-10) */, // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
         "SOURCE.json must pin canonical 57e7ecd [was ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, 1810912 = 435+434 hop, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b, 3f6ca6f = BUG-425, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422] (BUG-442 graft F2-iter246 z atrybucja; ride-chain): {:?}",
         m["base_revision"]
     );
     assert!(CANON427.starts_with("9c0e4ce"), "CANON427 const drift");
     // Current vendoring carries the unchanged historical graft at a new cut.
-    const CURRENT_VENDORED_CANON: &str = "37d030fcde23a26a7b7166307279d8270efa2259" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "fd736a771f7fb7fb9bde3b092430f9f41f793154" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(m["base_revision"].as_str().unwrap(), CURRENT_VENDORED_CANON);
     assert_eq!(CANON427, "9c0e4cec355119065444f59d0710de372b9d0577");
 }

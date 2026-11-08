@@ -64,16 +64,21 @@ fn t163_1_window_polygon() {
         serde_json::from_str(&cubit::table::read_table_text("tables/sm120.json").unwrap()).unwrap();
     let row = j.pointer("/instructions/LDC_R_cAI/mod_groups/").unwrap();
     let fields = row["fields"].as_array().unwrap();
-    assert_eq!(fields.len(), 2, "LDC_R_cAI[\"\"] field count: {fields:?}");
+    // 2026-11-08 (T-18, rows-intalu-2026-11-07): LDC_R_cAI[""] is measured field by field now (nvdisasm 13.1 over the
+    // whole word) -- the guard [12:15] that the harvest baked to PT is a field, so the row carries 3 fields (reg,
+    // cm16_off, guard) and its mask is exactly the fields. The cm16_off carrier is unchanged at [38:21] tok 2.
+    assert_eq!(fields.len(), 3, "LDC_R_cAI[\"\"] field count: {fields:?}");
     let car: Vec<_> = fields.iter().filter(|f| f["extraction"] == "cm16_off").collect();
     assert_eq!(car.len(), 1);
     assert_eq!(car[0]["shift"].as_u64().unwrap(), 38);
     assert_eq!(car[0]["bits"].as_u64().unwrap(), 21);
     assert_eq!(car[0]["token_idx"].as_u64().unwrap(), 2);
+    // the cm16_off carrier keeps its harvest field provenance (the row probe re-uses the field dict; only the row's
+    // `_src` becomes rows-intalu-2026-11-07)
     assert_eq!(car[0]["_src"].as_str().unwrap(), "bug163-2026-08-25");
     for f in fields {
         let e = f["extraction"].as_str().unwrap();
-        assert!(e == "cm16_off" || e == "reg", "unexpected field {f:?}");
+        assert!(e == "cm16_off" || e == "reg" || e == "guard", "unexpected field {f:?}");
     }
     // siblings untouched
     let r64 = j.pointer("/instructions/LDC_R_cAI/mod_groups/64/fields").unwrap();

@@ -73,7 +73,11 @@ fn t279_1_structure_graft_and_donors() {
             // F2-iter157 (BUG-285, canonical e41a438): +12 b85 BF16_V2
             // cross-key mgs (8 non-RELU + 4 RELU PT-baked mirrors, arb285
             // x4) = 36.
-            assert_eq!(mgs.len(), 36, "{leg}|{p}: mg count drift");
+            // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 the harvest '' row of HFMA2_R_R_R_II_II was unreachable
+            // (its canonical word decodes through HFMA2_R_R_R_FI_FI with the vendor's text; tests/fixtures/
+            // sm120_rows_half_nvdisasm.jsonl, status `dead`) and is deleted: 36 -> 35 there.
+            let dead_base = leg == "sm120" && p == "HFMA2_R_R_R_II_II";
+            assert_eq!(mgs.len(), 36 - dead_base as usize, "{leg}|{p}: mg count drift");
             for mg in mgs.values() {
                 // tok3 sign/hsel armed on EVERY row, with vm covering the bits
                 let vm: u128 = mg.variable_mask;
@@ -149,7 +153,12 @@ fn t279_1_structure_graft_and_donors() {
         // window (F2-iter143 flip: vm bit + field on every armed row —
         // the full 271 structure pin lives in tests/bug271_h0nh1.rs)
         for p in PARENTS {
-            let g = &t.entries[p].mod_groups[""];
+            // (T-18: on sm120 the '' row of HFMA2_R_R_R_II_II is deleted -- the plain SAT group carries the pin)
+            let g = match t.entries[p].mod_groups.get("") {
+                Some(g) => g,
+                None if leg == "sm120" && p == "HFMA2_R_R_R_II_II" => &t.entries[p].mod_groups["SAT"],
+                None => panic!("{leg}|{p}: mg '' missing"),
+            };
             let vm: u128 = g.variable_mask;
             assert_eq!(vm & (1 << 85), 0, "{leg}|{p}: b85 variable");
             assert_ne!(vm & (1 << 86), 0, "{leg}|{p}: 271 b86 arm lost");

@@ -65,14 +65,11 @@ fn t340_1_structure_retag_and_relax() {
         );
         assert_eq!((g.variable_mask >> 63) & 1, 1, "{k}: b63 decode-relaxed");
     }
-    // NTZ_P shadow row untouched (neg@72 tok2 + neg@63 tok3 kept as-is)
-    let g = &tab("sm120").entries["F2IP.U8.F32.NTZ_P_R_R_R_R"].mod_groups[""];
-    assert!(
-        g.fields
-            .iter()
-            .any(|f| f.shift == 72 && matches!(f.extraction, Extraction::Neg)),
-        "NTZ_P shadow keeps its (dead) neg field"
-    );
+    // 2026-11-08 (T-18, rows-half-2026-11-07): the F2IP.U8.F32.NTZ_P_R_R_R_R key was an unreachable harvest row --
+    // nvdisasm names its only canonical word `HMMA.1688.F16 R32, R64, R96, R24` (the bits are an HMMA word, not an
+    // F2IP one; tests/fixtures/sm120_rows_half_nvdisasm.jsonl, status `dead`), so the key is deleted and the word keeps
+    // its real HMMA row. The measured-doctrine deletion of a cross-mnemonic dead key (no alias across mnemonics).
+    assert!(!tab("sm120").entries.contains_key("F2IP.U8.F32.NTZ_P_R_R_R_R"), "the dead cross-mnemonic key is gone");
     // other legs do not grow the era-key form
     for leg in ["sm100a", "sm103a", "sm121a"] {
         assert!(!tab(leg).entries.contains_key("F2IP.U8.F32_P0_R_R_R_R"));

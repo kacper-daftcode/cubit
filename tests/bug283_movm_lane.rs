@@ -47,6 +47,13 @@ use cubit::table::IsaTable;
 
 const M96: u128 = (1u128 << 96) - 1;
 const NEW_VM: u128 = 0xf7ff07fffffffffffffff000u128;
+// 2026-11-08 (T-18): on sm120 MOVM.16.MT88_R_R is measured field by field (G run 5's row probe, nvdisasm 13.1 over the
+// whole word; `rows-memory-2026-11-07`, tests/fixtures/sm120_rows_memory_nvdisasm.jsonl): the fields are the guard,
+// Rd and Ra (the same three), the mask is exactly the fields, and every bit of the armed inert bands ([74:32],
+// [90:80], [95:92], the sign slots 62 / 63 / 72 / 73) is text-inert for nvdisasm -- the measured row fails closed on
+// them (the measured-row convention of T-10, every batch since); the vendor's text for those words is the base
+// word's. sm121a keeps the 283 widen.
+const MEASURED_VM_SM120: u128 = 0xfffff000u128;
 const JUNK: [&str; 4] = [
     "MOVM.16.MT88_P0_R_R",
     "MOVM.16.MT88_P2_R_R",
@@ -75,7 +82,7 @@ fn t283_1_structure_graft_and_donors() {
         let e = &t.entries["MOVM.16.MT88_R_R"];
         let mg = &e.mod_groups[""];
         assert_eq!(mg.and_base, 0x23au128, "{leg}: R_R ab drift");
-        assert_eq!(mg.variable_mask, NEW_VM, "{leg}: R_R vm drift");
+        assert_eq!(mg.variable_mask, if leg == "sm120" { MEASURED_VM_SM120 } else { NEW_VM }, "{leg}: R_R vm drift");
         let want = [
             (4u32, 12u32, 0i32),
             (8u32, 16u32, 1i32),
@@ -128,6 +135,7 @@ fn t283_2_decode_law_vendor_equal() {
             );
         }
         // sub-op band fully inert, incl. the era 'R128' misread words
+        // (T-18: on sm120 the measured row fails closed on the band -- see MEASURED_VM_SM120)
         for w in [
             0x23au128,
             0x30000023a,
@@ -135,6 +143,10 @@ fn t283_2_decode_law_vendor_equal() {
             0xb0000023a,
             0x1f0000023a,
         ] {
+            if leg == "sm120" && w != 0x23a {
+                assert!(dec(&t, w).is_none(), "{leg}: a measured row tolerates the text-inert sub-op band at {w:#x}");
+                continue;
+            }
             assert_eq!(
                 dec(&t, w).as_deref(),
                 Some("@P0 MOVM.16.MT88 R0, R0"),
@@ -159,11 +171,22 @@ fn t283_2_decode_law_vendor_equal() {
             ),
         ];
         for (w, exp) in cases {
+            if leg == "sm120" && (w >> 32) & 0x1f != 0 {
+                // T-18: the measured row fails closed on the text-inert sub-op band; the payload composes without it
+                assert!(dec(&t, w).is_none(), "{leg}: a measured row tolerates the sub-op band at {w:#x}");
+                assert_eq!(dec(&t, w & !(0x1fu128 << 32)).as_deref(), Some(exp), "{leg} payload {w:#x} without the band");
+                continue;
+            }
             assert_eq!(dec(&t, w).as_deref(), Some(exp), "{leg} payload {w:#x}");
         }
         // text-inert singles on the armed inert bands print plain (no ghosts)
+        // (T-18: on sm120 they fail closed -- the measured row's mask is its fields; nothing to ghost on a hole)
         for b in (37u32..75).chain(80..91).chain(92..96) {
             let w = 0x23au128 | (1u128 << b);
+            if leg == "sm120" {
+                assert!(dec(&t, w).is_none(), "{leg}: a measured row tolerates the text-inert b{b}");
+                continue;
+            }
             assert_eq!(
                 dec(&t, w).as_deref(),
                 Some("@P0 MOVM.16.MT88 R0, R0"),
@@ -253,8 +276,13 @@ fn t283_4_fail_closed_holes_and_sign_gate() {
             assert!(e.contains("BUG-283"), "{leg}: 283 gate attribution: {e}");
         }
         // sign-window bits stay text-inert on decode (ghost post-pass gated)
+        // (T-18: on sm120 the measured row fails closed on them -- no ghost sign can appear on a hole)
         for b in [62u32, 63, 72, 73] {
             let w = 0x23au128 | (1u128 << b);
+            if leg == "sm120" {
+                assert!(dec(&t, w).is_none(), "{leg}: a measured row tolerates the text-inert sign slot b{b}");
+                continue;
+            }
             assert_eq!(
                 dec(&t, w).as_deref(),
                 Some("@P0 MOVM.16.MT88 R0, R0"),
@@ -286,6 +314,11 @@ fn t283_5_doctrine_anchors_and_keepers() {
         // flipped era tripwire (was: '@P0 MOVM.16.MT88_P5 R0, R128' junk
         // print; BUG-283 armed the vendor law): cluster words decode plain
         for w in [0x30000023au128, 0x70000023a, 0xb0000023a] {
+            if leg == "sm120" {
+                // T-18: the measured row fails closed on the text-inert sub-op band (MEASURED_VM_SM120)
+                assert!(dec(&t, w).is_none(), "{leg}: a measured row tolerates the sub-op band at {w:#x}");
+                continue;
+            }
             assert_eq!(
                 dec(&t, w).as_deref(),
                 Some("@P0 MOVM.16.MT88 R0, R0"),

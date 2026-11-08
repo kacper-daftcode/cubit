@@ -119,14 +119,27 @@ fn t360_1_structure_widths_dual_closed() {
                 );
             }
             // grafted LTC256B lattice rows
+            // 2026-11-08 (T-18, rows-memory-2026-11-07): on sm120 the LTC128B donors of this graft were among the 192
+            // rows G run 5 verified field by field (wave-pinned here) and are measured now (`row_probe`): their mask is
+            // exactly their fields (fail closed on the text-inert slots), narrower than the LTC256B harvest grafts'
+            // tolerant masks. The and_base b72 delta is untouched; the `vm == donor` equality no longer holds where the
+            // donor is measured.
+            let fmask = |g: &cubit::table::ModGroupEntry| g.fields.iter().fold(0u128, |m, f| m | (((1u128 << f.bits) - 1) << f.shift));
             for (donor, new) in [("E,LTC128B", "E,LTC256B"), ("64,E,LTC128B", "64,E,LTC256B")] {
                 let d = &t.entries[key].mod_groups[donor];
                 let n = &t.entries[key]
                     .mod_groups
                     .get(new)
                     .unwrap_or_else(|| panic!("{leg} {key}::{new} graft missing"));
-                assert_eq!(n.and_base ^ d.and_base, B72, "{leg} {key}::{new} ab delta");
-                assert_eq!(n.variable_mask, d.variable_mask, "{leg} {key}::{new} vm");
+                // the measured donor clears its field bits (guard / address / reuse) from and_base; compare the graft
+                // delta outside those bits -- the b72 LTC256B flag is a lattice bit, not a field, so it is untouched.
+                let outside = !fmask(d) & !fmask(n);
+                assert_eq!((n.and_base ^ d.and_base) & outside, B72 & outside, "{leg} {key}::{new} ab delta");
+                if d.row_probe {
+                    assert_eq!(d.variable_mask, fmask(d), "{leg} {key}::{donor} measured vm == fields");
+                } else {
+                    assert_eq!(n.variable_mask, d.variable_mask, "{leg} {key}::{new} vm");
+                }
             }
         }
         // pairwise claim-disjoint (strict; the pre-360 dual is closed)

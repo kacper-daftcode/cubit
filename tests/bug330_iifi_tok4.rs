@@ -99,7 +99,14 @@ fn t330_1_structure_graft_and_siblings() {
             }
         }
         // II_II siblings untouched (era-288 geometry)
-        let iiii = &t.entries["HFMA2_R_R_R_II_II"].mod_groups[""];
+        // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 the harvest '' row of HFMA2_R_R_R_II_II was unreachable
+        // (its canonical word decodes through HFMA2_R_R_R_FI_FI with the vendor's text; tests/fixtures/
+        // sm120_rows_half_nvdisasm.jsonl, status `dead`) and is deleted -- the key's SAT group keeps the geometry
+        let iiii = match t.entries["HFMA2_R_R_R_II_II"].mod_groups.get("") {
+            Some(g) => g,
+            None if leg == "sm120" => &t.entries["HFMA2_R_R_R_II_II"].mod_groups["SAT"],
+            None => panic!("{leg}: II_II '' missing"),
+        };
         assert_eq!(tok4(iiii), 1, "{leg}: II_II '' lost its tok4 field");
     }
     // sparse legs: no II_FI/II_II keys at all (329/330 sparse-NEGATYW line)

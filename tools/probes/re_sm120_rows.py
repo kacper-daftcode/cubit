@@ -99,23 +99,14 @@ EXCEPTIONS: dict[str, dict[tuple[str, str], str]] = {
                                          "needs its own probe (G/NEEDS_OWNER.md 10)",
     },
 }
-# key prefix -> reason: whole mnemonics / keys left harvest on purpose in run 5 although the probe verifies them -- the
-# 2026-08/09 bug-wave tests pin their harvest structure or their tolerant decode of text-inert bits (bug148 / 163 /
-# 164 / 167 / 172 / 188 / 204 / 226e / 265 / 271 / 274 / 279 / 285 / 288 / 311 / 330 / 340 / 359 / 360 / 413ii / 415 /
-# 419 / 420 / 425 / 425b); re-pinning those suites to the measured doctrine is T's call (the batch-10..14 pattern), so
-# the rows keep their records in the fixture (status `exception`) and nothing of theirs moves in the table
-WAVE_PINNED = ("pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of "
-               "those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12)")
-EXCEPTION_PREFIXES: dict[str, dict[str, str]] = {
-    "half": {"HFMA2": WAVE_PINNED + " (bug265 / 271 / 274 / 279 / 285 / 288 / 330)", "HADD2": WAVE_PINNED + " (bug271 / 419)",
-             "F2IP": WAVE_PINNED + " (bug340)", "F2F.": WAVE_PINNED + " (bug226e)",
-             "I2IP": WAVE_PINNED + " (bug265 / 275 / 276 / 282 / 284 / 296)"},
-    "memory": {"LDGSTS": WAVE_PINNED + " (bug164 / 311 / 359 / 360 / 373)", "LDS_": WAVE_PINNED + " (bug148 / 413ii / 415 / 420)",
-               "STS_": WAVE_PINNED + " (bug425 / 425b)", "LDL_": WAVE_PINNED + " (bug415 / 420)", "STL_": WAVE_PINNED + " (bug425)",
-               "MOVM": WAVE_PINNED + " (bug272 / 276 / 283)"},
-    "intalu": {"LDC": WAVE_PINNED + " (bug163 / 167 / 172 / 409)"},
-    "atomic": {"ATOMS": WAVE_PINNED + " (bug188 / 204)"},
-}
+# key prefix -> reason: whole mnemonics / keys left harvest on purpose although the probe verifies them. Run 5
+# (2026-11-07) kept 192 rows of HFMA2 / HADD2 / F2IP / F2F / I2IP / LDGSTS / LDS / STS / LDL / STL / MOVM / LDC / ATOMS
+# here because the 2026-08/09 bug-wave tests (bug148 / 163 / 164 / 167 / 172 / 188 / 204 / 226e / 265 / 271 / 274 /
+# 279 / 285 / 288 / 311 / 330 / 340 / 359 / 360 / 413ii / 415 / 419 / 420 / 425 / 425b, 46 binaries / 67 tests) pinned
+# their harvest structure or their tolerant decode of text-inert bits (status `exception` in the fixtures, G/NEEDS_OWNER.md
+# 12). Session T-18 (2026-11-08) re-pinned those suites to the measured doctrine and lifted the pin: the table is empty,
+# the rows take the status their measurement gives them (measured / alias / dead / harvest, like every other row).
+EXCEPTION_PREFIXES: dict[str, dict[str, str]] = {}
 # hand decisions the shadow rule cannot make on its own (each one measured in the family's note):
 #   MANUAL_ALIAS: key -> target. The integer spelling `S2R_R_II` of the system-register read (nvdisasm prints `SR90`
 #   for an unnamed code, cubit decodes that spelling through the junk key) -> `S2R_R_L`; the dotted `UBMSK.W_*` twins
@@ -140,8 +131,11 @@ MANUAL_ALIAS: dict[str, dict[str, str]] = {
 #   cubit as the negation of Ra (`IMAD R5, -R4, R3, R2`; BUG-296, re-affirmed by T-3 on 2026-11-04 with the U32 twins).
 #   The row carries the field (tok = the register at the Ra slot [31:24]); the bit-72 word is neither a form word nor a
 #   lattice word of the fixture (class `cubit_law`); the owner confirms or retires the law on silicon (NEEDS 13).
+#   Not on the `HI` groups: bit 72 of the HI packet is text-inert and not a negation (cubit's `native_hi` law, pinned by
+#   tests/sm120_oracle_semantics.rs; the T-17 correction of blackwell-isa 37d030f) -- the fifth element lists the
+#   modifier tokens whose groups the field does not apply to.
 MANUAL_FIELDS: dict[str, dict[str, list]] = {
-    "intalu": {"IMAD_": [["neg", 72, 1, 24]]},  # [extraction, bit, bits, the slot shift whose token takes the field]
+    "intalu": {"IMAD_": [["neg", 72, 1, 24, ["HI"]]]},  # [extraction, bit, bits, the slot shift whose token takes the field, excluded modifier tokens]
 }
 MANUAL_DEAD: dict[str, dict[tuple[str, str], str]] = {
     "intalu": {("IMAD_R_P_R_II_R_P", "B90,U32,WIDE,X"): "IMAD_R_P_R_II_R_P"},
@@ -553,7 +547,9 @@ def probe(args):
                 target_fields.append({"bits": nb, "extraction": ext, "shift": shift, "token_idx": tok})
         for prefix, extra in MANUAL_FIELDS.get(args.family, {}).items():
             if key.startswith(prefix):
-                for ext, bit, nb, slot in extra:
+                for ext, bit, nb, slot, *excluded in extra:
+                    if excluded and any(m in group.split(",") for m in excluded[0]):
+                        continue
                     tok_slot = next((tf["token_idx"] for tf in target_fields if tf["shift"] == slot and is_reg(tf["extraction"])), None)
                     if tok_slot is None or any(tf["shift"] == bit for tf in target_fields):
                         continue
@@ -784,20 +780,25 @@ def apply(args):
         # as an integer) plus the guard / sign / abs / reuse bits the sweep found on this row's operands
         old = {(f["shift"], f["bits"]): f for f in row.get("fields", [])}
         fields = []
+        new_fields = 0
         for shift, bits, tok, ext in rec["fields"]:
             f = dict(old.get((shift, bits), {}))
             if not f or f.get("extraction") != ext or f.get("token_idx") != tok:
-                added += 1
+                new_fields += 1
             f.update({"bits": bits, "extraction": ext, "shift": shift, "token_idx": tok})
             f.setdefault("_src", src)
             fields.append(f)
-        row["fields"] = fields
         mask = fields_mask(fields)
         base = int(row["and_base"], 16) & ~SCHEDULE & ~mask
+        if row.get("_src") == src and new_fields == 0 and len(fields) == len(old) \
+                and int(row["and_base"], 16) == base and int(row["variable_mask"], 16) == mask:
+            continue  # already applied with this structure: the row (and a hand-extended `_note`) stays as it is
+        added += new_fields
+        row["fields"] = fields
         row["and_base"] = f"0x{base:032x}"
         row["variable_mask"] = f"0x{mask:032x}"
         row["_src"] = src
-        row["_note"] = note_for(family, rec)
+        row["_note"] = note_for(family, rec) + (f" {args.note_suffix}" if args.note_suffix else "")
         tagged += 1
     retired, deleted = [], []
     dead = 0
@@ -860,6 +861,7 @@ def main():
     a.add_argument("--verdict", default=None)
     a.add_argument("--alias", nargs=2, action="append", metavar=("JUNK", "TARGET"))
     a.add_argument("--delete", nargs="*")
+    a.add_argument("--note-suffix", default=None, help="appended to the `_note` of every row this run tags")
     args = parser.parse_args()
     if args.command == "probe":
         probe(args)

@@ -67,16 +67,27 @@ fn t284_1_structure_widen_and_donors() {
             let g = &e.mod_groups[""];
             let ab: u128 = g.and_base;
             let vm: u128 = g.variable_mask;
-            assert_eq!(
-                ab,
-                0x7239u128 | ((bit != 0) as u128) << bit,
-                "{leg}: {nk} and_base drift"
-            );
-            assert_eq!(vm, VM_POST284, "{leg}: {nk} vmask drift (284 widen)");
+            // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 the plain row is measured field by field (nvdisasm 13.1
+            // over the whole word, tests/fixtures/sm120_rows_half_nvdisasm.jsonl): the guard is a field (and_base
+            // 0x239), the `.reuse` bits 122-124 are fields (9 fields), the mask is exactly the fields -- the 284 window
+            // [95:82] \ b91 and the (80,81) / (62,63) bits are text-inert and fail closed (the measured-row convention).
+            // The SAT / SATRELU rows (bug282's) and the sm121a leg keep the wave structure.
+            let measured = leg == "sm120" && nk == "I2IP.U8.S32_R_R_R_R";
+            if measured {
+                assert_eq!(ab, 0x239, "{leg}: {nk} and_base drift (measured: the guard is a field)");
+                assert_eq!(vm, 0x1c000000000001ff000000fffffff000u128, "{leg}: {nk} vmask drift (measured: the fields)");
+            } else {
+                assert_eq!(
+                    ab,
+                    0x7239u128 | ((bit != 0) as u128) << bit,
+                    "{leg}: {nk} and_base drift"
+                );
+                assert_eq!(vm, VM_POST284, "{leg}: {nk} vmask drift (284 widen)");
+            }
             assert_eq!((vm >> 73) & 1, 0, "{leg}: {nk} b73 back in vmask");
             assert_eq!((vm >> 91) & 1, 0, "{leg}: {nk} kill-bit b91 in vmask");
-            // field set unchanged: 6 fields, opmod:H1@72 tok4 intact (265 arm)
-            assert_eq!(g.fields.len(), 6, "{leg}: {nk} field count drift");
+            // field set unchanged: 6 fields, opmod:H1@72 tok4 intact (265 arm); + 3 reuse fields on the measured row
+            assert_eq!(g.fields.len(), if measured { 9 } else { 6 }, "{leg}: {nk} field count drift");
             assert!(
                 g.fields.iter().any(|f| f.token_idx == 4
                     && f.shift == 72
@@ -105,6 +116,27 @@ fn t284_2_decode_laws_widened_words_vendor_equal() {
     let regs = base | (5 << 16) | (4 << 24) | (3 << 32) | (2 << 64);
     for leg in ["sm120", "sm121a"] {
         let t = tab(leg);
+        // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 the plain I2IP.U8.S32_R_R_R_R row is measured field by
+        // field: the window [95:82] \ b91, (80,81) and (62,63) are text-inert for nvdisasm (the record's `inert` list in
+        // tests/fixtures/sm120_rows_half_nvdisasm.jsonl) and the measured row's mask is its fields -- every plain-row
+        // word carrying a window bit fails closed (the measured-row convention); the base words decode vendor-true
+        // and the H1 arm composes without the window. The SAT / SATRELU rows (bug282's) keep the widen.
+        if leg == "sm120" {
+            assert_eq!(dec(&t, base).as_deref(), Some("I2IP.U8.S32 R0, R0, R0, R0"), "{leg}: base");
+            assert_eq!(dec(&t, regs).as_deref(), Some("I2IP.U8.S32 R5, R4, R3, R2"), "{leg}: regs");
+            for b in [82u32, 83, 84, 85, 86, 87, 88, 89, 90, 92, 93, 94, 95, 80, 81, 62, 63] {
+                assert!(dec(&t, base | (1 << b)).is_none(), "{leg}: a measured row tolerates the text-inert b{b} (plain)");
+                assert!(dec(&t, regs | (1 << b)).is_none(), "{leg}: a measured row tolerates the text-inert b{b} (regs)");
+            }
+            assert!(dec(&t, regs | (0x3DFFu128 << 82)).is_none(), "{leg}: full window + regs");
+            assert_eq!(dec(&t, base | (1 << 72)).as_deref(), Some("I2IP.U8.S32 R0, R0, R0, R0.H1"), "{leg}: H1");
+            let fw = 0x3DFFu128 << 82;
+            let sat = dec(&t, base | fw | (1 << 74)).unwrap();
+            assert!(sat.contains(".SAT") && !sat.contains("SATRELU"), "{leg}: FW+SAT {sat} (bug282's row keeps the widen)");
+            let srl = dec(&t, base | fw | (1 << 75)).unwrap();
+            assert!(srl.contains(".SATRELU"), "{leg}: FW+SATRELU {srl}");
+            continue;
+        }
         // every single inert bit alone = base text (plain + regs)
         for b in [82u32, 83, 84, 85, 86, 87, 88, 89, 90, 92, 93, 94, 95] {
             assert_eq!(
@@ -212,6 +244,12 @@ fn t284_4_encode_unchanged_and_text_stable() {
         // re-encode yields the canonical base word (inert bits cleared =
         // the documented word-lossy/text-stable reclaim behavior)
         for w in [w0 | fw, w1 | fw, ws | fw] {
+            // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 the measured plain row fails closed on the text-inert
+            // window (w0 / w1); the SAT row (bug282's) keeps the text-stable reclaim.
+            if leg == "sm120" && w != ws | fw {
+                assert!(dec(&t, w).is_none(), "{leg}: a measured row tolerates the text-inert window at {w:#x}");
+                continue;
+            }
             let txt = dec(&t, w).expect("widened word must decode");
             let w2 = enc_res(&t, &txt).expect("re-encode of widened decode");
             assert_eq!(w2, w & !WIN284, "{leg}: widen re-encode != base word");
@@ -224,6 +262,12 @@ fn t284_5_registrations_anchors_tripwires() {
     for leg in ["sm120", "sm121a"] {
         let t = tab(leg);
         // ex-sentinel words from t275_5/t282_5 now decode VENDOR-EQUAL
+        // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 the measured plain row fails closed on the text-inert
+        // [90:87] window and b86 (the measured-row convention; see t284_1); sm121a keeps the 284 widen.
+        if leg == "sm120" {
+            assert!(dec(&t, 0x30000000000000000007239u128).is_none(), "{leg}: a measured row tolerates [90:87]=3");
+            assert!(dec(&t, 0x7239u128 | (1 << 86)).is_none(), "{leg}: a measured row tolerates b86");
+        } else {
         assert_eq!(
             dec(&t, 0x30000000000000000007239u128).as_deref(),
             Some("I2IP.U8.S32 R0, R0, R0, R0"),
@@ -234,6 +278,7 @@ fn t284_5_registrations_anchors_tripwires() {
             Some("I2IP.U8.S32 R0, R0, R0, R0"),
             "{leg}: b86 (HFMA2 .H0_NH1 slot) not text-inert here"
         );
+        }
         // b73+b86 stays a hole (b73 care dominates; 275 narrow intact)
         assert!(
             dec(&t, 0x2000000000000007239u128 | (1 << 86)).is_none(),
@@ -254,11 +299,19 @@ fn t284_5_registrations_anchors_tripwires() {
         );
         // BUG-283 flip (was: 276-era junk print '_P5 R0, R128' tripwire):
         // lane armed to the vendor law (canonical 1beab0f)
-        assert_eq!(
-            dec(&t, 0x70000023a).as_deref(),
-            Some("@P0 MOVM.16.MT88 R0, R0"),
-            "{leg}: 283-armed MOVM anchor"
-        );
+        // 2026-11-08 (T-18, rows-memory-2026-11-07): on sm120 the measured MOVM.16.MT88_R_R row fails closed on its
+        // text-inert sub-op band [36:32] (the measured-row convention; tests/bug283_movm_lane.rs) -- the base word
+        // carries the anchor there.
+        if leg == "sm120" {
+            assert!(dec(&t, 0x70000023a).is_none(), "{leg}: a measured row tolerates the MOVM sub-op band");
+            assert_eq!(dec(&t, 0x23a).as_deref(), Some("@P0 MOVM.16.MT88 R0, R0"), "{leg}: MOVM base anchor");
+        } else {
+            assert_eq!(
+                dec(&t, 0x70000023a).as_deref(),
+                Some("@P0 MOVM.16.MT88 R0, R0"),
+                "{leg}: 283-armed MOVM anchor"
+            );
+        }
         // BUG-272 FLIP (was: 272-class tripwire): unknown operand-suffix
         // text now FAILS CLOSED on encode (272 gate; twin pin in t275_5 +
         // full class pins in tests/bug272_enopsuffix.rs).

@@ -30,6 +30,18 @@ use cubit::table::IsaTable;
 
 include!("bug438_data.inc");
 
+/// 2026-11-08 (T-18, rows-memory-2026-11-07): on sm120 these law-grid words carry a bit the measured
+/// LDS / STS / LDSM / STSM rows fail closed on -- the text-inert control / sub-UR / gap bits nvdisasm
+/// names as the base word (verified: nvdisasm text == the base text, 0 census witnesses). The measured-row
+/// convention; the three other legs keep the harvest tolerance.
+const SM120_FAIL_CLOSED: &[u128] = &[
+    0x0007c200880005e0ffffff04ff00e988u128,
+    0x0007e200880005e0ffffff04ff00e988u128,
+    0x000fc200880005e0ffffff04ff00e988u128,
+    0x000fe200880005e0ffffff04ff00e988u128,
+];
+
+
 fn tab(arch: &str) -> IsaTable {
     IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()
 }
@@ -75,6 +87,10 @@ fn t438_2_sts_auri_width_era_band_x4() {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
         for (w, vendor) in LAW438_STS_HEAL {
+            if leg == "sm120" && SM120_FAIL_CLOSED.contains(w) {
+                assert!(dec(&t, &idx, *w).is_none(), "[{leg}] STS {vendor}: measured row tolerates a text-inert bit");
+                continue;
+            }
             let got = dec(&t, &idx, *w).unwrap_or_else(|| panic!("[{leg}] STS {vendor} HOLE"));
             assert_eq!(&got, vendor, "[{leg}] STS text != vendor");
         }
@@ -104,6 +120,10 @@ fn t438_4_stable_anchors_x4() {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
         for (w, vendor) in LAW438_STABLE {
+            if leg == "sm120" && SM120_FAIL_CLOSED.contains(w) {
+                assert!(dec(&t, &idx, *w).is_none(), "[{leg}] STABLE {vendor}: measured row tolerates a text-inert bit");
+                continue;
+            }
             let got = dec(&t, &idx, *w).unwrap_or_else(|| panic!("[{leg}] STABLE {vendor} HOLE"));
             assert_eq!(&got, vendor, "[{leg}] STABLE text != vendor (drift!)");
         }
@@ -189,7 +209,7 @@ fn t438_6_masked_mints_x4() {
 #[test]
 fn t438_7_graft_invariants_and_manifest() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "37d030fcde23a26a7b7166307279d8270efa2259" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "fd736a771f7fb7fb9bde3b092430f9f41f793154" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
 
     let man: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
@@ -261,11 +281,19 @@ fn t438_7_graft_invariants_and_manifest() {
                 let g = &ins["STS_AURI_R"]["mod_groups"][wd];
                 let vm = g["variable_mask"].as_str().unwrap();
                 let vm = u128::from_str_radix(vm.trim_start_matches("0x"), 16).unwrap();
-                assert_eq!(
-                    vm & (1u128 << 95),
-                    1u128 << 95,
-                    "[{leg}] STS AURI {wd} b95 relax lost"
-                );
+                // 2026-11-08 (T-18, rows-memory-2026-11-07): on sm120 STS_AURI_R is measured field by field now -- its
+                // mask is exactly its fields, so the harvest "era-band relax" (vm |= 1<<95, a text-inert bit) is gone:
+                // the row fails closed on bit 95 (the measured-row convention). sm100a / sm103a keep the harvest relax.
+                let measured = g["_src"].as_str().is_some_and(|s| s.starts_with("rows-"));
+                if leg == "sm120" && measured {
+                    assert_eq!(vm & (1u128 << 95), 0, "[{leg}] STS AURI {wd} measured: fails closed on text-inert b95");
+                } else {
+                    assert_eq!(
+                        vm & (1u128 << 95),
+                        1u128 << 95,
+                        "[{leg}] STS AURI {wd} b95 relax lost"
+                    );
+                }
                 let fs = g["fields"].as_array().unwrap();
                 let uf = fs
                     .iter()

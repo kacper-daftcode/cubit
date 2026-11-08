@@ -300,16 +300,27 @@ fn t272_4_era_anchors_and_lanes() {
         // BUG-283 flip (was: 276-era junk print '_P5 R0, R128' tripwire):
         // the 0x23a MOVM lane is armed to the vendor law (canonical
         // 1beab0f) -- plain name, sub-op band text-inert
-        assert_eq!(
-            dec(&t, 0x70000023a).as_deref(),
-            Some("@P0 MOVM.16.MT88 R0, R0"),
-            "{leg}: 283-armed MOVM anchor"
-        );
-        assert_eq!(
-            dec(&t, 0x30000000000000000007239u128).as_deref(),
-            Some("I2IP.U8.S32 R0, R0, R0, R0"),
-            "{leg}: 284 window anchor"
-        );
+        // 2026-11-08 (T-18): on sm120 MOVM.16.MT88_R_R (rows-memory-2026-11-07) and I2IP.U8.S32_R_R_R_R (rows-half-
+        // 2026-11-07) are measured field by field; the MOVM sub-op band [36:32] and the I2IP [90:87] window are
+        // text-inert for nvdisasm and the measured rows' masks are their fields -- both anchor words fail closed
+        // (the measured-row convention), their base words decode vendor-true. sm121a keeps the wave anchors.
+        if leg == "sm120" {
+            assert!(dec(&t, 0x70000023a).is_none(), "{leg}: a measured row tolerates the MOVM sub-op band");
+            assert_eq!(dec(&t, 0x23a).as_deref(), Some("@P0 MOVM.16.MT88 R0, R0"), "{leg}: MOVM base word");
+            assert!(dec(&t, 0x30000000000000000007239u128).is_none(), "{leg}: a measured row tolerates the I2IP [90:87] window");
+            assert_eq!(dec(&t, 0x7239u128).as_deref(), Some("I2IP.U8.S32 R0, R0, R0, R0"), "{leg}: I2IP base word");
+        } else {
+            assert_eq!(
+                dec(&t, 0x70000023a).as_deref(),
+                Some("@P0 MOVM.16.MT88 R0, R0"),
+                "{leg}: 283-armed MOVM anchor"
+            );
+            assert_eq!(
+                dec(&t, 0x30000000000000000007239u128).as_deref(),
+                Some("I2IP.U8.S32 R0, R0, R0, R0"),
+                "{leg}: 284 window anchor"
+            );
+        }
         assert!(
             dec(&t, 0x2000000000000007239u128).is_none(),
             "{leg}: 275 hole anchor"

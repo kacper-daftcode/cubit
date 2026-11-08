@@ -90,22 +90,31 @@ fn t276_1_structure_deletions_widen_and_donors() {
         let g = &t.entries["I2IP.U8.S32_R_R_R_R"].mod_groups[""];
         let ab: u128 = g.and_base;
         let vm: u128 = g.variable_mask;
-        assert_eq!(ab, 0x7239, "{leg}: I2IP '' and_base drift");
-        // BUG-282 flip: (62,63) Rb-sign-slot widened in too (arb282 E2:
-        // text-inert x4; ghost sign-arm removed in decoder.rs same wave)
-        // BUG-275 flip: b73 OUT of the vmask again (vendor-undefined '.???n'
-        // payload-gap closed; decode hole per 125/274/282 doctrine).
-        // BUG-284 flip: payload window [95:82] \ b91 armed vendor
-        // text-inert (arb284 560 probes x4 models; b91 kill-bit rc=1 x4
-        // stays care = hole preserved). 276 (80,81) doctrine extended.
-        assert_eq!(
-            vm,
-            0x1c000000000001ff000000fffffff000u128
-                | (3u128 << 80)
-                | (3u128 << 62)
-                | (0x3DFFu128 << 82),
-            "{leg}: I2IP '' vmask missing (80,81)|(62,63)|win95-82-minus-b91 arm or b73 drift"
-        );
+        // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 the row is measured field by field (nvdisasm 13.1 over the
+        // whole word, tests/fixtures/sm120_rows_half_nvdisasm.jsonl): the guard is a field (and_base 0x239), the
+        // `.reuse` bits 122-124 are fields and the mask is exactly the fields -- the widened windows (80,81) / (62,63) /
+        // [95:82] \ b91 are text-inert and fail closed (the measured-row convention). sm121a keeps the wave state.
+        if leg == "sm120" {
+            assert_eq!(ab, 0x239, "{leg}: I2IP '' and_base drift (measured: the guard is a field)");
+            assert_eq!(vm, 0x1c000000000001ff000000fffffff000u128, "{leg}: I2IP '' vmask drift (measured: the fields)");
+        } else {
+            assert_eq!(ab, 0x7239, "{leg}: I2IP '' and_base drift");
+            // BUG-282 flip: (62,63) Rb-sign-slot widened in too (arb282 E2:
+            // text-inert x4; ghost sign-arm removed in decoder.rs same wave)
+            // BUG-275 flip: b73 OUT of the vmask again (vendor-undefined '.???n'
+            // payload-gap closed; decode hole per 125/274/282 doctrine).
+            // BUG-284 flip: payload window [95:82] \ b91 armed vendor
+            // text-inert (arb284 560 probes x4 models; b91 kill-bit rc=1 x4
+            // stays care = hole preserved). 276 (80,81) doctrine extended.
+            assert_eq!(
+                vm,
+                0x1c000000000001ff000000fffffff000u128
+                    | (3u128 << 80)
+                    | (3u128 << 62)
+                    | (0x3DFFu128 << 82),
+                "{leg}: I2IP '' vmask missing (80,81)|(62,63)|win95-82-minus-b91 arm or b73 drift"
+            );
+        }
         // keepers: real family rows intact
         for k in [
             "I2IP.U8.S32_R_R_R_R",
@@ -216,7 +225,15 @@ fn t276_2_former_lattice_bases_post_state() {
             Some("@P0 MOVM.16.MT88 R0, R0"),
             "{leg}: 283-armed 0x23a decode drift"
         );
+        // 2026-11-08 (T-18, rows-memory-2026-11-07): on sm120 MOVM.16.MT88_R_R is measured field by field
+        // (tests/fixtures/sm120_rows_memory_nvdisasm.jsonl): the sub-op band [36:32] is text-inert for nvdisasm (the
+        // record's `inert` list) and the measured row's mask is its fields (guard, Rd, Ra) -- the band words fail
+        // closed (the measured-row convention); nvdisasm's text for them is still the base word's.
         for w in [0x70000023au128, 0xb0000023au128, 0x30000023au128] {
+            if leg == "sm120" {
+                assert!(dec(&t, w).is_none(), "{leg}: a measured row tolerates the text-inert sub-op band at {w:#x}");
+                continue;
+            }
             assert_eq!(
                 dec(&t, w).as_deref(),
                 Some("@P0 MOVM.16.MT88 R0, R0"),
@@ -290,6 +307,19 @@ fn t276_4_widen_laws_vendor_equal() {
             Some("I2IP.U8.S32 R0, R0, R0, R0"),
             "{leg}: base"
         );
+        // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 the measured I2IP.U8.S32_R_R_R_R row fails closed on the
+        // text-inert (80,81) window (the `inert` list of its fixture record; the mask is the fields) -- the vendor text
+        // of those words is the base word's, and the payload registers / the H1 arm still compose without the window.
+        if leg == "sm120" {
+            for v in 1u128..4 {
+                assert!(dec(&t, 0x7239 | (v << 80)).is_none(), "{leg}: a measured row tolerates (80,81)={v}");
+            }
+            let w = 0x7239u128 | (5 << 16) | (19 << 24) | (7 << 32) | (42 << 64);
+            assert_eq!(dec(&t, w).as_deref(), Some("I2IP.U8.S32 R5, R19, R7, R42"), "{leg}: payload");
+            assert!(dec(&t, (0x239u128 | (3u128 << 80)) & M96).is_none(), "{leg}: t265_2 word fails closed");
+            assert_eq!(dec(&t, 0x7239u128 | (1u128 << 72)).as_deref(), Some("I2IP.U8.S32 R0, R0, R0, R0.H1"), "{leg}: H1");
+            continue;
+        }
         for v in 1u128..4 {
             assert_eq!(
                 dec(&t, 0x7239 | (v << 80)).as_deref(),

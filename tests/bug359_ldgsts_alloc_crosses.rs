@@ -59,10 +59,20 @@ fn t359_1_structure_claims_and_donor_parity() {
                 .unwrap_or_else(|| panic!("{leg} {key}::{mg} missing"))
         };
         // dARI crosses: ab delta vs in-key donors exactly b81 / b82 / b81|b82.
+        // 2026-11-08 (T-18, rows-memory-2026-11-07): on sm120 the BYPASS dARI groups were among the 192 rows G run 5
+        // verified field by field (wave-pinned here) and are measured now (`row_probe`) -- their mask is exactly their
+        // fields (fail closed on the text-inert slots), narrower than the harvest siblings' tolerant masks. The
+        // and_base alloc/ltc/zfill deltas are untouched. Where one side is measured the raw `vm == donor` no longer
+        // holds; what holds is the and_base graft delta and the measured row's own field mask.
+        let fmask = |g: &cubit::table::ModGroupEntry| g.fields.iter().fold(0u128, |m, f| m | (((1u128 << f.bits) - 1) << f.shift));
         let dl = get("LDGSTS_ARI_dARI", "128,BYPASS,E,LTC128B");
         let nl = get("LDGSTS_ARI_dARI", "128,E,LTC128B");
         assert_eq!(nl.and_base ^ dl.and_base, B81, "{leg} dARI LTC delta");
-        assert_eq!(nl.variable_mask, dl.variable_mask, "{leg} dARI LTC vm");
+        if dl.row_probe {
+            assert_eq!(dl.variable_mask, fmask(dl), "{leg} measured dARI BYPASS LTC vm == fields");
+        } else {
+            assert_eq!(nl.variable_mask, dl.variable_mask, "{leg} dARI LTC vm");
+        }
         let dz = get("LDGSTS_ARI_dARI", "128,E");
         let nz = get("LDGSTS_ARI_dARI", "128,E,ZFILL");
         assert_eq!(nz.and_base ^ dz.and_base, B82, "{leg} dARI ZFILL delta");

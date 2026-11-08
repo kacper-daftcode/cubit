@@ -779,7 +779,15 @@ fn t285_1_structure() {
         for p in PARENTS {
             let e = &t.entries[p];
             let sig = p.strip_prefix("HFMA2_").unwrap();
-            let base = &e.mod_groups[""];
+            // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 the harvest '' row of HFMA2_R_R_R_II_II is deleted (an
+            // unreachable row -- its canonical word is HFMA2_R_R_R_FI_FI's spelling for nvdisasm; tests/fixtures/
+            // sm120_rows_half_nvdisasm.jsonl, status `dead`); the b85 bake of the BF16_V2 groups is checked against
+            // the key's plain SAT group there (b85 = 0 on every non-BF16_V2 group).
+            let base = match e.mod_groups.get("") {
+                Some(g) => g,
+                None if leg == "sm120" && p == "HFMA2_R_R_R_II_II" => &e.mod_groups["SAT"],
+                None => panic!("{leg}|{p}: mg '' missing"),
+            };
             let ab0 = base.and_base;
             assert_eq!((ab0 >> 85) & 1, 0, "{leg}|{p}: '' b85 drift");
             for nm in NEW_MGS {

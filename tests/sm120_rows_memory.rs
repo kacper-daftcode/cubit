@@ -1,24 +1,28 @@
 //! SM120 memory long tail (the plain LDG / STG / LD / ST / LDGMC keys, LDSM / CCTL / UTMA / UBLK …; LDGSTS / LDS / STS / LDL / STL / MOVM stay for the wave re-pins) (session G run 5, 2026-11-07; KNOWN_ISSUES T1): the remaining harvest rows of
 //! LDG, STG, LD, ST, LDS, STS, LDL, STL, LDGSTS, LDGMC, LDSM, STSM, MOVM, CCTL, QSPC, LDGDEPBAR, UTMALDG, UTMASTG, UTMACCTL, UTMACMDFLUSH, UBLKCP, UBLKRED, UBLKPF verified row by row with nvdisasm 13.1 over the whole
-//! 128-bit word by `tools/probes/re_sm120_rows.py --family memory` -- 199 rows measured (10166 canonical +
-//! field words, 93 census witnesses), 2 shadowed keys (2 rows) retired as aliases, 0 unreachable
-//! rows of staying keys deleted, 93 named exceptions. Fixture `tests/fixtures/sm120_rows_memory_nvdisasm.jsonl`; the test body is `tests/sm120_rows_common.inc`.
+//! 128-bit word by `tools/probes/re_sm120_rows.py --family memory` -- 270 rows measured (13833 canonical +
+//! field words, 159 census witnesses), 3 shadowed keys (3 rows) retired as aliases, 0 unreachable
+//! rows of staying keys deleted, 21 named exceptions. Fixture `tests/fixtures/sm120_rows_memory_nvdisasm.jsonl`; the test body is `tests/sm120_rows_common.inc`.
+//! Session T-18 (2026-11-08): the rows run 5 verified but held back while the 2026-08/09 bug-wave tests pinned their harvest
+//! structure (`EXCEPTION_PREFIXES`, G/NEEDS_OWNER.md 12) take their measured status -- those suites are re-pinned to the
+//! measured doctrine in the same commit (blackwell-isa fd736a7).
 
 const FAMILY: &str = "memory";
 const SOURCE: &str = "rows-memory-2026-11-07";
 const MNEMONICS: &[&str] = &["LDG", "STG", "LD", "ST", "LDS", "STS", "LDL", "STL", "LDGSTS", "LDGMC", "LDSM", "STSM", "MOVM", "CCTL", "QSPC", "LDGDEPBAR", "UTMALDG", "UTMASTG", "UTMACCTL", "UTMACMDFLUSH", "UBLKCP", "UBLKRED", "UBLKPF"];
 const FIXTURE: &str = include_str!("fixtures/sm120_rows_memory_nvdisasm.jsonl");
-const MEASURED_ROWS: usize = 199;
-const ALIAS_ROWS: usize = 2;
+const MEASURED_ROWS: usize = 270;
+const ALIAS_ROWS: usize = 3;
 const DEAD_ROWS: usize = 0;
-const FORM_WORDS: usize = 10166;
-const WITNESS_WORDS: usize = 93;
+const FORM_WORDS: usize = 13833;
+const WITNESS_WORDS: usize = 159;
 /// Harvest rows of the family's mnemonics that batches 12-14 measure or retire on their own branches (LDG.256 /
 /// STG.256 / REDG lattices): harvest on this base, not this family's; 0 once those batches are on `main`.
-const LEFT_TO_OTHER_BATCHES: usize = 0; // 4269 on G's base (batch 11 + 15); 0 here -- batches 12-14 are on this base (T-17)
+const LEFT_TO_OTHER_BATCHES: usize = 0;
 const ALIAS_KEYS: &[(&str, &str)] = &[
     ("CCTL.IVALL_?_?", "CCTL"),
     ("LDG.E.STRONG.GPU_R_ARURI", "LDG_R_ARURI"),
+    ("LDS_P_R_A", "LDS_R_ARI"),
 ];
 /// Rows of the family's mnemonics that stay without `_src` (key, group, reason) -- `G/NEEDS_OWNER.md`.
 const EXCEPTIONS: &[(&str, &str, &str)] = &[
@@ -26,91 +30,19 @@ const EXCEPTIONS: &[(&str, &str, &str)] = &[
     ("CCTL.E.PF2_AR", "", "the key does not spell the vendor text: 'CCTL.PF1 [R48+0x5a5a5a5a]' -> CCTL.PF1_ARI / 'PF1'"),
     ("CCTL.E.PML2_AR", "", "the key does not spell the vendor text: 'CCTL.PF2 [R48+0x5a5a5a5a]' -> CCTL.PF2_ARI / 'PF2'"),
     ("CCTL.IVALL_P", "", "the key does not spell the vendor text: 'CCTL.IVALL' -> CCTL.IVALL / 'IVALL'"),
-    ("LDGSTS_ARI_ARI", "128,BYPASS,E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_ARI", "64,E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_ARI", "E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_ARI_P", "128,BYPASS,E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_ARI_P", "128,E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_ARI_P", "64,E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_ARI_P", "E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_ARURI", "128,BYPASS,E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_ARURI", "128,E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_ARURI", "64,E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_ARURI", "E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_ARURI_P", "128,BYPASS,E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_ARURI_P", "128,E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_ARURI_P", "E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_dARI", "128,BYPASS,E", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_dARI", "128,BYPASS,E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_dARI", "64,E", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_dARI", "64,E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_dARI", "E", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_dARI", "E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_dARI_P", "128,BYPASS,E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_dARI_P", "64,E", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_dARI_P", "64,E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_dARI_P", "E", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDGSTS_ARI_dARI_P", "E,LTC128B", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug164 / 311 / 359 / 360 / 373)"),
-    ("LDL_R_ARI", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug415 / 420)"),
-    ("LDL_R_ARI", "128", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug415 / 420)"),
-    ("LDL_R_ARI", "64", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug415 / 420)"),
-    ("LDL_R_ARI", "64,LU", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug415 / 420)"),
-    ("LDL_R_ARI", "LU", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug415 / 420)"),
-    ("LDL_R_ARI", "LU,S16", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug415 / 420)"),
-    ("LDL_R_ARI", "S16", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug415 / 420)"),
-    ("LDL_R_ARI", "U16", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug415 / 420)"),
-    ("LDL_R_AURI", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug415 / 420)"),
-    ("LDL_R_AURI", "128", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug415 / 420)"),
-    ("LDL_R_AURI", "64", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug415 / 420)"),
-    ("LDS_P_R_A", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug148 / 413ii / 415 / 420)"),
-    ("LDS_R_ARI", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug148 / 413ii / 415 / 420)"),
-    ("LDS_R_ARI", "128", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug148 / 413ii / 415 / 420)"),
-    ("LDS_R_ARI", "64", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug148 / 413ii / 415 / 420)"),
-    ("LDS_R_ARI", "S8", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug148 / 413ii / 415 / 420)"),
-    ("LDS_R_ARI", "U16", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug148 / 413ii / 415 / 420)"),
-    ("LDS_R_ARI", "U8", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug148 / 413ii / 415 / 420)"),
-    ("LDS_R_ARURI", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug148 / 413ii / 415 / 420)"),
-    ("LDS_R_ARURI", "128", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug148 / 413ii / 415 / 420)"),
-    ("LDS_R_ARURI", "64", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug148 / 413ii / 415 / 420)"),
-    ("LDS_R_ARURI", "S8", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug148 / 413ii / 415 / 420)"),
-    ("LDS_R_ARURI", "U16", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug148 / 413ii / 415 / 420)"),
-    ("LDS_R_ARURI", "U8", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug148 / 413ii / 415 / 420)"),
-    ("LDS_R_AURI", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug148 / 413ii / 415 / 420)"),
-    ("LDS_R_AURI", "128", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug148 / 413ii / 415 / 420)"),
-    ("LDS_R_AURI", "64", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug148 / 413ii / 415 / 420)"),
-    ("LDS_R_AURI", "U16", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug148 / 413ii / 415 / 420)"),
-    ("LDS_R_AURI", "U8", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug148 / 413ii / 415 / 420)"),
     ("LD_R_dARI", "E,STRONG,SYS", "bit 40 outside the fields moves operand 2 of the same form: 'LD.E.STRONG.SYS R16, desc[UR48][R32.64+0x1]'"),
-    ("MOVM.16.MT88_R_R", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug272 / 276 / 283)"),
-    ("STL_ARI_R", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425)"),
-    ("STL_ARI_R", "128", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425)"),
-    ("STL_ARI_R", "64", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425)"),
-    ("STL_ARI_R", "S16", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425)"),
-    ("STL_ARI_R", "U16", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425)"),
-    ("STL_ARI_R", "U8", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425)"),
-    ("STL_AURI_R", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425)"),
-    ("STL_AURI_R", "128", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425)"),
-    ("STL_AURI_R", "64", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425)"),
-    ("STL_P_ARI_R", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425)"),
+    ("STL_AURI_R", "", "field bit 72 (sub_ur0 tok 1) is text-inert"),
+    ("STL_AURI_R", "128", "field bit 72 (sub_ur0 tok 1) is text-inert"),
+    ("STL_AURI_R", "64", "field bit 72 (sub_ur0 tok 1) is text-inert"),
+    ("STL_P_ARI_R", "", "the key does not spell the vendor text: 'STL.EF.U8 [R48+0x5a5a5a], R64' -> STL.EF.U8_ARI_R / 'EF,U8'"),
     ("STSM.8.MT168.2_AR_R", "", "the key does not spell the vendor text: 'STSM.8.MT168.2 [R32], R0' -> STSM.8.MT168.2_ARI_R / '2,8,MT168'"),
-    ("STS_ARI_R", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425 / 425b)"),
-    ("STS_ARI_R", "128", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425 / 425b)"),
-    ("STS_ARI_R", "U16", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425 / 425b)"),
-    ("STS_ARI_R", "U8", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425 / 425b)"),
-    ("STS_ARURI_R", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425 / 425b)"),
-    ("STS_ARURI_R", "128", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425 / 425b)"),
-    ("STS_ARURI_R", "64", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425 / 425b)"),
-    ("STS_ARURI_R", "S16", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425 / 425b)"),
-    ("STS_ARURI_R", "S8", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425 / 425b)"),
-    ("STS_ARURI_R", "U16", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425 / 425b)"),
-    ("STS_ARURI_R", "U8", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425 / 425b)"),
-    ("STS_AURI_R", "", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425 / 425b)"),
-    ("STS_AURI_R", "128", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425 / 425b)"),
-    ("STS_AURI_R", "64", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425 / 425b)"),
-    ("STS_AURI_R", "S16", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425 / 425b)"),
-    ("STS_AURI_R", "S8", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425 / 425b)"),
-    ("STS_AURI_R", "U16", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425 / 425b)"),
-    ("STS_AURI_R", "U8", "pinned by the 2026-08/09 bug-wave tests: the row verifies field by field (this record), the re-pin of those suites to the measured doctrine is T's -- left for T-16 / run 6 (G/NEEDS_OWNER.md 12) (bug425 / 425b)"),
+    ("STS_ARURI_R", "", "field bit 72 (sub_ur1 tok 1) is text-inert"),
+    ("STS_ARURI_R", "128", "field bit 72 (sub_ur1 tok 1) is text-inert"),
+    ("STS_ARURI_R", "64", "field bit 72 (sub_ur1 tok 1) is text-inert"),
+    ("STS_ARURI_R", "S16", "field bit 72 (sub_ur1 tok 1) is text-inert"),
+    ("STS_ARURI_R", "S8", "field bit 72 (sub_ur1 tok 1) is text-inert"),
+    ("STS_ARURI_R", "U16", "field bit 72 (sub_ur1 tok 1) is text-inert"),
+    ("STS_ARURI_R", "U8", "field bit 72 (sub_ur1 tok 1) is text-inert"),
     ("UBLKCP.S.G_AUR_AUR_UR", "", "the key does not spell the vendor text: 'UBLKCP.G.G [UR32], [UR48], UR64' -> UBLKCP.G.G_AURI_AURI_UR / 'G,G'"),
     ("UBLKPF.L2_AUR_UR", "", "the key does not spell the vendor text: 'UBLKPF.L2 [UR32], UR48' -> UBLKPF.L2_AURI_UR / 'L2'"),
     ("UBLKRED.G.S.ADD.S32_AUR_AUR_UR", "", "the key does not spell the vendor text: 'UBLKRED.G.INVALID0.ADD [UR32], [UR48], UR64' -> UBLKRED.G.INVALID0.ADD_AURI_AURI_UR / 'ADD,G,INVALID0'"),

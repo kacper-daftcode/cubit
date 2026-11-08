@@ -105,19 +105,31 @@ fn t274_1_structure() {
                 "BF16_V2,FTZ,RELU",
                 "BF16_V2,OOB,RELU",
             ];
+            // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 the harvest '' row of HFMA2_R_R_R_II_II was unreachable --
+            // its canonical word `HFMA2 R16, -RZ, RZ, 203.25, 203.25` decodes through HFMA2_R_R_R_FI_FI with the vendor's
+            // text (tests/fixtures/sm120_rows_half_nvdisasm.jsonl, status `dead`) -- and is deleted; the 35 wave-era
+            // groups of the key (bug274 / 279 / 285, each with its own `_src`) stay as they are.
+            let dead_base = arch == "sm120" && p == "HFMA2_R_R_R_II_II";
             for mg in expect_mgs {
+                if dead_base && mg.is_empty() {
+                    assert!(!e.mod_groups.contains_key(mg), "{arch}|{p}: the dead '' row is back");
+                    continue;
+                }
                 assert!(
                     e.mod_groups.contains_key(mg),
                     "{arch}|{p}: missing mg '{mg}'"
                 );
             }
-            assert_eq!(e.mod_groups.len(), expect_mgs.len(), "{arch}|{p}: mg count");
+            assert_eq!(e.mod_groups.len(), expect_mgs.len() - dead_base as usize, "{arch}|{p}: mg count");
+            let base_window = e.mod_groups.get("").map_or(0, |g| g.and_base & (0xF << 76));
             let check = |mg: &str, bits: u128, relu: bool| {
+                if dead_base && mg.is_empty() {
+                    return;
+                }
                 let g = &e.mod_groups[mg];
-                let base_ab = e.mod_groups[""].and_base;
                 let ab = g.and_base;
                 let vm = g.variable_mask;
-                let want_window = bits | base_ab & (0xF << 76) | if relu { 1 << 79 } else { 0 };
+                let want_window = bits | base_window | if relu { 1 << 79 } else { 0 };
                 assert_eq!(
                     ab & (0xF << 76),
                     want_window,
@@ -409,7 +421,12 @@ fn t274_5_sentinels_279_and_anchors() {
     for arch in ["sm120", "sm121a"] {
         let t = tab(arch);
         for p in PARENTS {
-            let g = &t.entries[p].mod_groups[""];
+            // (T-18: on sm120 the '' row of HFMA2_R_R_R_II_II is deleted -- see t274_1; its SAT group carries the pin)
+            let g = match t.entries[p].mod_groups.get("") {
+                Some(g) => g,
+                None if arch == "sm120" && p == "HFMA2_R_R_R_II_II" => &t.entries[p].mod_groups["SAT"],
+                None => panic!("{arch}|{p}: mg '' missing"),
+            };
             // 279 CLOSED (F2-iter142): tok3 window is now armed on mg '' -- the
             // sentinel flips to require the armed fields (neg@84/abs@83/hsel@81)
             // while FTZ@80 stays mg-addressed (b80 pinned on '', carried by the

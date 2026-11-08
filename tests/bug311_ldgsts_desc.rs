@@ -56,6 +56,13 @@ fn t311_1_row_structure_and_claim_disjointness() {
             .unwrap_or_else(|| panic!("{key}::{mg} missing"))
     };
     // L1-allocate sibling family grafted on both keys (canonical 8fc8395).
+    // 2026-11-08 (T-18, rows-memory-2026-11-07): the BYPASS groups of this lattice were among the 192 rows G run 5
+    // verified field by field (wave-pinned by this suite); they are measured now (`row_probe`), so their mask is
+    // exactly their fields (fail closed on the text-inert slots) and the guard / predicate are fields -- narrower than
+    // the harvest siblings' tolerant masks. The and_base lattice deltas (b81 alloc, b73 LTC) are untouched; the
+    // field-level shape of the address operands is unchanged. The donor rows (128,E, ...) stay harvest, pinned by the
+    // out-of-scope bug373 / 376 / 386 suites. The `vm == donor` / `shape == donor` invariants of the harvest era no
+    // longer hold where one side is measured; what holds is the and_base graft delta and the measured row's own mask.
     let d = get("LDGSTS_ARI_dARI", "128,BYPASS,E");
     let n = get("LDGSTS_ARI_dARI", "128,E");
     assert_eq!(n.and_base & !M96, d.and_base & !M96, "same ctrl template");
@@ -64,26 +71,26 @@ fn t311_1_row_structure_and_claim_disjointness() {
         1u128 << 81,
         "only b81 (alloc)"
     );
-    let shape = |g: &cubit::table::ModGroupEntry| {
-        g.fields
-            .iter()
-            .map(|f| (f.shift, f.bits, f.token_idx))
-            .collect::<Vec<_>>()
+    let fmask = |g: &cubit::table::ModGroupEntry| {
+        g.fields.iter().fold(0u128, |m, f| m | (((1u128 << f.bits) - 1) << f.shift))
     };
-    assert_eq!(shape(n), shape(d), "dARI 128,E := donor field shape");
-    assert_eq!(n.variable_mask, d.variable_mask, "vm inherited from donor");
+    // the measured BYPASS row's mask is exactly its fields (the measured-row convention); the harvest donor keeps the
+    // wider tolerant mask (pinned by bug373 / 376 / 386)
+    assert!(d.row_probe, "128,BYPASS,E is measured now");
+    assert_eq!(d.variable_mask, fmask(d), "measured 128,BYPASS,E vm == fields");
+    assert!(!n.row_probe, "128,E stays harvest (out-of-scope lattice pins)");
     let dp = get("LDGSTS_ARI_dARI_P", "128,BYPASS,E,LTC128B");
     let np = get("LDGSTS_ARI_dARI_P", "128,E");
+    // the measured dp cleared its field bits (incl. the guard the harvest baked) from and_base; compare the b73/b81
+    // lattice delta outside the field bits of both rows
+    let outside = !fmask(dp) & !fmask(np) & M96;
     assert_eq!(
-        (np.and_base ^ dp.and_base) & M96,
-        (1u128 << 73) | (1u128 << 81),
+        (np.and_base ^ dp.and_base) & outside,
+        ((1u128 << 73) | (1u128 << 81)) & outside,
         "_P: b73 LTC off, b81 alloc on"
     );
-    assert_eq!(shape(np), shape(dp), "dARI_P 128,E := donor field shape");
-    assert_eq!(
-        np.variable_mask, dp.variable_mask,
-        "vm inherited from donor"
-    );
+    assert!(dp.row_probe, "128,BYPASS,E,LTC128B is measured now");
+    assert_eq!(dp.variable_mask, fmask(dp), "measured dARI_P BYPASS vm == fields");
     // claim separation: b73/b81 sit OUTSIDE variable_mask of every sibling
     for key in ["LDGSTS_ARI_dARI", "LDGSTS_ARI_dARI_P"] {
         for (mg, gg) in &t.entries[key].mod_groups {

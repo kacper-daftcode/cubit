@@ -99,14 +99,22 @@ fn t145_3_sm120_encode_byte_exact_vs_vendor() {
     for (text, word) in cases {
         assert_eq!(enc(&t, text), word & !SCHED, "encode payload must equal vendor word");
     }
-    // short spelling (absent UR) carries the same 0xFF URZ sentinel
+    // 2026-11-08 (T-18, rows-atomic-2026-11-07): ATOMS.POPC.INC.32's uniform-indexed row is measured field by field
+    // (nvdisasm 13.1 over the whole word; ATOMS_R_ARI is an alias of the measured ATOMS_R_ARURI). The UR window is a
+    // real field now, so the vendor distinguishes `URZ` (0xFF) from `UR0` (0x00): `[R0+URZ+0x44]` keeps the 0xFF
+    // sentinel and renders `+URZ+`, while the UR-less spelling `[R0+0x44]` encodes UR0 and nvdisasm names it
+    // `[R0+UR0+0x44]` (verified on silicon-text: both words round-trip to their own vendor text). The harvest row
+    // used to collapse the two to the 0xFF sentinel; the measured row is vendor-exact.
     let full = enc(&t, "ATOMS.POPC.INC.32 RZ, [R0+URZ+0x44]");
     let short = enc(&t, "ATOMS.POPC.INC.32 RZ, [R0+0x44]");
-    assert_eq!(full, short, "both spellings carry 0xFF in the UR window");
+    assert_ne!(full, short, "measured row: URZ (0xFF) and UR0 (0x00) are distinct UR values");
+    assert_eq!((full >> 64) & 0xFF, 0xFF, "full spelling carries the 0xFF URZ sentinel");
+    assert_eq!((short >> 64) & 0xFF, 0x00, "UR-less spelling encodes UR0");
     // roundtrip stability of the renderer
     let idx = DecodeIndex::build(&t);
     let back = dec(&t, &idx, full);
     assert!(back.contains("+URZ+"), "render must carry the URZ token, got: {back}");
+    assert_eq!(dec(&t, &idx, short), "ATOMS.POPC.INC.32 RZ, [R0+UR0+0x44]", "UR-less spelling renders UR0");
 }
 
 #[test]

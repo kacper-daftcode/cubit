@@ -125,13 +125,18 @@ fn t167_5_polygon() {
         assert_eq!((ab >> 91) & 0x1, 0, "LDC (not LDCU) discriminator");
         let f: Vec<_> = row["fields"].as_array().unwrap().iter().map(|f| f["extraction"].as_str().unwrap()).collect();
         assert_eq!(f, ["guard", "reg", "sub_r1", "cm16_off"], "clone of '64': {f:?}"); // 2026-11-03: text-inert reuse field removed (audit batch 1)
-        assert_eq!(row["variable_mask"], cari["64"]["variable_mask"], "vm == live donor");
+        // 2026-11-08 (T-18): the LDC_R_cARI "64" donor is measured now (rows-intalu-2026-11-07) and its mask dropped
+        // the text-inert reuse bits [124:123]; the width siblings stay harvest (bug167) and keep them. Compare against
+        // the harvest donor shape (the measured "64" vm | the reuse bits the siblings carry).
+        let hx = |s: &str| u128::from_str_radix(s.trim_start_matches("0x"), 16).unwrap();
+        assert_eq!(hx(row["variable_mask"].as_str().unwrap()), 0x180000000000000007ffffc0fffff000u128, "harvest width sibling vm");
     }
     // 2026-08-26 compose: S16 l anded via BUG-172 (its own header told this
     // suite's negatives to flip). Clone-shape guard, S16 included:
     let s16 = &cari["S16"];
     assert_eq!(u128::from_str_radix(s16["and_base"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap() >> 73 & 0x7, 3, "S16 width bits");
-    assert_eq!(s16["variable_mask"], cari["64"]["variable_mask"], "S16 vm == live donor");
+    // (T-18: the "64" donor is measured; the harvest S16 sibling keeps the reuse bits in its vm -- compare the shape)
+    assert_eq!(u128::from_str_radix(s16["variable_mask"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap(), 0x180000000000000007ffffc0fffff000u128, "S16 harvest vm");
     let s16f: Vec<_> = s16["fields"].as_array().unwrap().iter().map(|f| f["extraction"].as_str().unwrap()).collect();
     assert_eq!(s16f, ["guard", "reg", "sub_r1", "cm16_off"], "S16 clone of '64': {s16f:?}");
 }

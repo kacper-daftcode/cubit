@@ -124,11 +124,20 @@ fn t296_4_cross_read_siblings_still_decode() {
             "{leg}: b75 .SATRELU decode law drift"
         );
         // b62/b63 stay text-inert (post-282 era: no ghost print)
-        assert_eq!(
-            dec(&t, w_payload | (1u128 << 62)).as_deref(),
-            Some("I2IP.U8.S32 R5, R4, R3, R2"),
-            "{leg}: b62 inert law drift"
-        );
+        // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 the plain I2IP.U8.S32_R_R_R_R row is measured field by field
+        // (tests/fixtures/sm120_rows_half_nvdisasm.jsonl): b62 is text-inert for nvdisasm and the measured row's mask is
+        // its fields, so the word fails closed (no ghost print is possible on a word that does not decode); sm121a
+        // keeps the 282 widen.
+        if leg == "sm120" {
+            assert!(dec(&t, w_payload | (1u128 << 62)).is_none(), "{leg}: a measured row tolerates the text-inert b62");
+            assert_eq!(dec(&t, w_payload).as_deref(), Some("I2IP.U8.S32 R5, R4, R3, R2"), "{leg}: base word");
+        } else {
+            assert_eq!(
+                dec(&t, w_payload | (1u128 << 62)).as_deref(),
+                Some("I2IP.U8.S32 R5, R4, R3, R2"),
+                "{leg}: b62 inert law drift"
+            );
+        }
     }
 }
 

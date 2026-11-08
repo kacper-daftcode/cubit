@@ -100,10 +100,22 @@ fn t204_4_b72_vendor_inert_decode_parity() {
     // the vendor glyph of the unflipped word on every table.
     for p in TABS {
         let t = tab(p); let idx = DecodeIndex::build(&t);
-        let w = word(0x00000000ffff698c, 0x0001e40009000206 | (1u64 << 8)); // +b72
-        let got = dec(&t, &idx, w).expect("b72 word decode hole");
-        assert_eq!(got, "@P6 ATOMS.MAX.S32 RZ, [UR6], R0", "{p} b72 inert parity");
+        // 2026-11-08 (T-18, rows-atomic-2026-11-07): on sm120 the uniform-indexed ATOMS AURI row is measured field by
+        // field now (nvdisasm 13.1 over the whole word) -- its mask is exactly its fields, so the synthetic b72 (the
+        // sub_ur high bit, inert for nvdisasm) fails closed instead of being tolerated; the base word decodes
+        // vendor-true, 0 census words carry the bit. The register-address ARI form keeps b72 inside its measured mask
+        // (it has no UR operand there), so its b72 word still decodes vendor-true on every leg. sm103a / sm100a keep
+        // the harvest tolerance on the AURI form too (not measured in this batch).
+        let w = word(0x00000000ffff698c, 0x0001e40009000206 | (1u64 << 8)); // AURI +b72
         let w2 = word(0x000000030007738c, 0x004e280001000200 | (1u64 << 8)); // ARI +b72
+        if p == &T120 {
+            assert!(dec(&t, &idx, w).is_none(), "{p}: measured AURI row must fail closed on the inert b72");
+            let base = word(0x00000000ffff698c, 0x0001e40009000206);
+            assert_eq!(dec(&t, &idx, base).as_deref(), Some("@P6 ATOMS.MAX.S32 RZ, [UR6], R0"), "{p} base AURI");
+        } else {
+            let got = dec(&t, &idx, w).expect("b72 word decode hole");
+            assert_eq!(got, "@P6 ATOMS.MAX.S32 RZ, [UR6], R0", "{p} b72 inert parity");
+        }
         let got2 = dec(&t, &idx, w2).expect("b72 ARI word decode hole");
         assert_eq!(got2, "ATOMS.MAX.S32 R7, [R0], R3", "{p} b72 ARI inert parity");
     }

@@ -329,9 +329,23 @@ fn t164_2_law_bracket_ldgsts_split() {
     let t120 = t120();
     let i103 = DecodeIndex::build(&t103);
     let i120 = DecodeIndex::build(&t120);
+    // 2026-11-08 (T-18, rows-memory-2026-11-07): on sm120 the LDGSTS ARURI_P 64,E,LTC128B row is measured field by
+    // field now -- its mask is exactly its fields, so these three LAWB words (which carry a text-inert bit 89 the
+    // harvest row tolerated; nvdisasm rejects them under the full control stripe) fail closed. The measured-row
+    // convention; sm103a keeps the harvest decode. 0 census witnesses.
+    const SM120_FAIL_CLOSED: &[u128] = &[
+        0x0001e000099a060000c1000000ff7faeu128,
+        0x0001e000099a0600ffff000000ff7faeu128,
+        0x0001e000099a060080c0000000ff7faeu128,
+    ];
     for (tn, lo, hi, want_b) in LAWB {
         let (t, idx) = if tn == &"sm120" { (&t120, &i120) } else { (&t103, &i103) };
-        let got = dec(t, idx, word(*lo, *hi));
+        let w = word(*lo, *hi);
+        if tn == &"sm120" && SM120_FAIL_CLOSED.contains(&w) {
+            assert!(idx.decode(w, 0, t).is_err(), "sm120 measured row tolerates a text-inert bit: {hi:016x}{lo:016x}");
+            continue;
+        }
+        let got = dec(t, idx, w);
         let brs: Vec<&str> = got.split('[').skip(1)
             .filter_map(|s| s.split(']').next()).collect();
         assert!(brs.iter().any(|b| b == want_b),

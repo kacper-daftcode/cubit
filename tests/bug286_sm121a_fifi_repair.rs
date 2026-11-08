@@ -278,12 +278,22 @@ fn t286_5_anchors_era_and_invalid_law() {
         let t = tab(arch);
         let era = t.entries.get("HFMA2_R_R_R_FI_II").expect("era row present");
         let g = era.mod_groups.get("").unwrap();
-        assert_eq!(
-            g.and_base & M96,
-            0x00ff3f800000ff000431u128 & M96,
-            "{arch} era ab drifted"
-        );
-        assert_eq!(g.fields.len(), 9, "{arch} era field census");
+        // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 HFMA2_R_R_R_FI_II is a `_meta.key_aliases` entry of
+        // HFMA2_R_R_R_FI_FI (blackwell-isa fd736a7): nvdisasm prints its canonical word `HFMA2 R32, RZ, RZ, 1.875,
+        // 203.25` as the f16-pair form (tests/fixtures/sm120_rows_half_nvdisasm.jsonl, status `alias`), so the era
+        // spelling resolves to the target's measured-era rows (encode-visible, as before) and its own harvest row is
+        // gone. sm121a keeps the era row.
+        if arch == "sm120" {
+            assert!(era.encode_only, "{arch}: HFMA2_R_R_R_FI_II is an alias clone");
+            assert!(t.entries.contains_key("HFMA2_R_R_R_FI_FI"), "{arch}: the alias target");
+        } else {
+            assert_eq!(
+                g.and_base & M96,
+                0x00ff3f800000ff000431u128 & M96,
+                "{arch} era ab drifted"
+            );
+            assert_eq!(g.fields.len(), 9, "{arch} era field census");
+        }
         // 306 law intact on sm121a (hsel v1 spellings on the R-domain):
         assert_eq!(
             dec(&t, (HOST | (3 << 81)) & M96).as_deref(),

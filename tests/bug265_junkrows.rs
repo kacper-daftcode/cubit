@@ -144,7 +144,14 @@ fn t265_1_structure_deletions_and_renames() {
             1,
             "{leg}: 285-armed BF16_V2 mg lost its b85 bake"
         );
-        assert!(t.entries["HFMA2_R_R_R_II_II"].mod_groups.contains_key(""));
+        // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 the '' row of HFMA2_R_R_R_II_II was unreachable -- its
+        // canonical word decodes through HFMA2_R_R_R_FI_FI with the vendor's text (`HFMA2 R16, -RZ, RZ, 203.25, 203.25`;
+        // tests/fixtures/sm120_rows_half_nvdisasm.jsonl, status `dead`) -- and is deleted; the key keeps its live rows.
+        if leg == "sm120" {
+            assert!(!t.entries["HFMA2_R_R_R_II_II"].mod_groups.contains_key(""), "{leg}: the dead '' row is back");
+        } else {
+            assert!(t.entries["HFMA2_R_R_R_II_II"].mod_groups.contains_key(""));
+        }
         // retype: era neg 2b@72 gone, opmod:H1 1b@72 present
         let g = &t.entries["I2IP.U8.S32_R_R_R_R"].mod_groups[""];
         assert!(
@@ -163,6 +170,15 @@ fn t265_1_structure_deletions_and_renames() {
         // and_base/variable_mask of the retyped row unchanged
         let ab: u128 = g.and_base;
         let vm: u128 = g.variable_mask;
+        // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 the row is measured field by field (nvdisasm 13.1 over the
+        // whole word; tests/fixtures/sm120_rows_half_nvdisasm.jsonl): the guard is a field (and_base 0x239), the
+        // `.reuse` bits 122-124 are fields and the mask is exactly the fields -- the wave-era widened windows are
+        // text-inert and fail closed (the measured-row convention). sm121a keeps the wave structure.
+        if leg == "sm120" {
+            assert_eq!(ab, 0x239, "{leg}: I2IP '' and_base drift (measured: the guard is a field)");
+            assert_eq!(vm, 0x1c000000000001ff000000fffffff000u128, "{leg}: I2IP '' vmask drift (measured: the fields)");
+            continue;
+        }
         assert_eq!(ab, 0x7239, "{leg}: I2IP '' and_base drift");
         // BUG-276 flip: (80,81) armed into the vmask (vendor text-inert,
         // arb276 D x4 models; decode-hole reclaim of vendor-legal words)
@@ -257,11 +273,19 @@ fn t265_2_poison_rows_closed_and_hole_parity() {
         // BUG-276 flip (the 276-kand reclaim promised below pre-276): the
         // vendor-legal (80,81)-set words decode via the widened I2IP '' row
         // (arb276b B1 x4 models: '@P0 I2IP.U8.S32 R0, R0, R0, R0').
-        assert_eq!(
-            dec(&t, (0x239u128 | (3 << 80)) & M96).as_deref(),
-            Some("@P0 I2IP.U8.S32 R0, R0, R0, R0"),
-            "{leg}: 276 (80,81) reclaim missing"
-        );
+        // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 the I2IP.U8.S32_R_R_R_R row is measured field by field
+        // (nvdisasm 13.1 over the whole word; tests/fixtures/sm120_rows_half_nvdisasm.jsonl): bits 80 / 81 are text-inert
+        // (the record's `inert` list) and the measured row's mask is its fields, so the word fails closed -- the
+        // measured-row convention (T-10, every batch since); the vendor's text is still that of the base word.
+        if leg == "sm120" {
+            assert!(dec(&t, (0x239u128 | (3 << 80)) & M96).is_none(), "{leg}: a measured row tolerates text-inert bits 80 / 81");
+        } else {
+            assert_eq!(
+                dec(&t, (0x239u128 | (3 << 80)) & M96).as_deref(),
+                Some("@P0 I2IP.U8.S32 R0, R0, R0, R0"),
+                "{leg}: 276 (80,81) reclaim missing"
+            );
+        }
     }
 }
 

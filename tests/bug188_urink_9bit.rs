@@ -108,12 +108,13 @@ fn t188_4_bit32_residual_not_folded_into_sink() {
     let poked: u128 = 0x000fe8000d800004_00000c01ffff7f8c; // A_popc ^ 1<<32
     let t = t120();
     let idx = DecodeIndex::build(&t);
-    let got = dec(&t, &idx, poked);
-    assert_eq!(got, "ATOMS.POPC.INC.32 RZ, [UR4+0xc]",
-        "no R511 hallucination (bit32 fold): {got}");
-    let reenc = enc(&t, &got);
-    let delta = (poked ^ reenc) & !SCHED;
-    assert_eq!(delta, 1u128 << 32, "only bit32 may be unexplained: {delta:#036x}");
+    // 2026-11-08 (T-18, rows-atomic-2026-11-07): ATOMS.POPC.INC.32's uniform-indexed row is measured field by field
+    // now -- its mask is exactly its fields, so the synthetic bit32 (inert) is fail-closed, not folded into the base
+    // register (the R511 hallucination this test guards against). The un-poked word still decodes vendor-true; 0 census
+    // words carry the bit.
+    assert!(idx.decode(poked, 0, &t).is_err(), "measured row must fail closed on the inert bit32, not fold it");
+    let base = poked & !(1u128 << 32);
+    assert_eq!(dec(&t, &idx, base), "ATOMS.POPC.INC.32 RZ, [UR4+0xc]", "base word decodes vendor-true");
 }
 
 /// Priority-audit watchtower: the rejected 142-era descriptor row for the

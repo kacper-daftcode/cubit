@@ -197,7 +197,10 @@ fn t226e_1_structure() {
     );
     assert!(hasf("F2F.F64.F32_R_R", "neg", 63, 2));
     assert!(hasf("F2F.F64.F32_R_R", "abs", 62, 2));
-    assert!(hasf("F2F.F64.F32_R_R_R", "neg", 63, 2));
+    // 2026-11-08 (T-18, rows-half-2026-11-07): the 3-operand F2F.F64.F32_R_R_R harvest row was unreachable -- nvdisasm
+    // prints its canonical word `F2F.F64.F32 R16, R32` as the 2-operand form -- so it is a `_meta.key_aliases` entry of
+    // F2F.F64.F32_R_R now (the typed-key convention F2F carries); its fields live on the measured target above.
+    assert_eq!(v["_meta"]["key_aliases"]["F2F.F64.F32_R_R_R"], "F2F.F64.F32_R_R", "F2F.F64.F32_R_R_R aliased to the 2-op row");
     assert!(hasf("F2F.F16.F32_R_R", "abs", 62, 2));
     assert!(hasf("F2F.BF16.F32_R_R", "neg", 63, 2));
     assert!(hasf("F2F.BF16.F32_R_R", "abs", 62, 2));
