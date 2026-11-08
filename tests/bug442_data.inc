@@ -90,7 +90,10 @@ pub const GAP442: &[(u128, &str, &str)] = &[
     (0x000fc2000c1009ff0000000404007986, "STG.E [R4.64+URZ], R4", "C.j90.ur255.sm121a"), // healed 444
     // F.desc.pl: loud-glyph ???0 desc (443 b72=0 family); vendor: 'STG.???0 desc[UR4][R4.64], R4'
     (0x000fc2000c1018040000000404007986, "STG.E desc[UR4][R4.64], R4", "F.desc.pl.sm100a"),
-    (0x000fc2000c1018040000000404007986, "STG.E desc[UR4][R4.64], R4", "F.desc.pl.sm120"),
+    // 2026-11-07 (G run 5 batch 16, re-applied by T-17): the plain `STG_dARI_R` row is measured field by field
+    // (rows-memory-2026-11-07) and fails closed on the vendor's `???0` glyph plane -- the measured-row convention
+    // (an INVALIDn / ???n plane is never claimed); the engine text "STG.E …" was the tolerant path's guess.
+    (0x000fc2000c1018040000000404007986, "HOLE", "F.desc.pl.sm120"),
     (0x000fc2000c1018040000000404007986, "STG.E desc[UR4][R4.64], R4", "F.desc.pl.sm103a"),
     (0x000fc2000c1018040000000404007986, "HOLE", "F.desc.pl.sm121a"),
     // G.ref.ur255: urz-elide gap (444-kand, pre-existing (1,0)); vendor: 'STG.E [R4.U32+URZ], R4' -- HEALED by BUG-444 x4 (444-kand closed)

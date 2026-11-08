@@ -45,11 +45,20 @@ fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
 /// x4-unanimous vendor text on every leg.
 #[test]
 fn t443_1_heal_grid() {
+    // 2026-11-07 (G run 5 batch 16, re-applied by T-17): on sm120 the 97 cells of HEAL443_SM120_FAIL_CLOSED are holes
+    // again -- the ordinary store's keys are measured field by field (rows-memory-2026-11-07) and fail closed on their
+    // text-inert bits (the `.j<bit>` cells) and on the `.64` uniform-indexed form that has no row of its own (the `.b90`
+    // cells; the 2026-09 heal decoded them through the U32 rows' tolerant match and the text never re-encoded). The
+    // measured-row convention; the three other legs keep the heal. 0 census witnesses.
     for leg in LEGS443 {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
         for (w, vendor) in LAW443_HEAL {
             let got = dec(&t, &idx, *w);
+            if leg == "sm120" && HEAL443_SM120_FAIL_CLOSED.contains(w) {
+                assert_eq!(got, None, "[{leg}] a measured row tolerates an inert bit / an unrowed form {w:#034x}: {got:?}");
+                continue;
+            }
             assert_eq!(
                 got.as_deref(),
                 Some(*vendor),
@@ -201,7 +210,7 @@ fn t443_7_noe_key_design() {
 #[test]
 fn t443_8_canonical_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "6b41208d6dda05b6d14868a1ce44426132a45a36" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "37d030fcde23a26a7b7166307279d8270efa2259" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON443, "9c0e4ce", "historical fixture revision drift");
 
     let src = std::fs::read_to_string("tables/SOURCE.json").unwrap();

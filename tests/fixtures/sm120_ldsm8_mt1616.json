@@ -2066,7 +2066,7 @@
   "old_mod_groups": {
     "LDSM_R_ARI": {
       "16,2,M88": {
-        "and_base": "0x0000000000000100000000000000783b",
+        "and_base": "0x0000000000000100000000000000083b",
         "count": 48,
         "fields": [
           {
@@ -2100,10 +2100,12 @@
             "token_idx": 2
           }
         ],
-        "variable_mask": "0x000fee0000000000000000007f5e0000"
+        "variable_mask": "0x0000000000000000ffffff00fffff000",
+        "_src": "rows-memory-2026-11-07",
+        "_note": "Row verified field by field with nvdisasm 13.1 (-b SM120; session G run 5, 2026-11-07, tools/probes/re_sm120_rows.py --family memory): canonical word 00000000000001005a5a5a003020783b = `LDSM.16.M88.2 R32, [R48+0x5a5a5a]`; every field bit moves its own operand token; bits outside the fields: modifier bits [72, 78, 79, 80] (other groups' words), neighbouring-form bits [91], vendor-invalid glyph planes [73], illegal [0, 2, 3, 6, 7, 8, 9, 10, 11, 75, 76, 77], text-inert [32, 33, 34, 35, 36, 37, 38, 39, 64, 65, 66, 67, 68, 69, 70, 71, 74, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 122, 123, 124, 125] (fail closed: the mask is the fields)."
       },
       "16,4,M88": {
-        "and_base": "0x0000000000000200000000000000783b",
+        "and_base": "0x0000000000000200000000000000083b",
         "count": 82,
         "fields": [
           {
@@ -2135,7 +2137,9 @@
             "token_idx": 2
           }
         ],
-        "variable_mask": "0x000fce000000000000f80000bffc0000"
+        "variable_mask": "0x0000000000000000ffffff00fffff000",
+        "_src": "rows-memory-2026-11-07",
+        "_note": "Row verified field by field with nvdisasm 13.1 (-b SM120; session G run 5, 2026-11-07, tools/probes/re_sm120_rows.py --family memory): canonical word 00000000000002005a5a5a003020783b = `LDSM.16.M88.4 R32, [R48+0x5a5a5a]`; every field bit moves its own operand token; bits outside the fields: modifier bits [73, 78, 79, 80] (other groups' words), neighbouring-form bits [91], vendor-invalid glyph planes [1, 72], illegal [0, 2, 3, 6, 7, 8, 9, 10, 11, 75, 76, 77], text-inert [32, 33, 34, 35, 36, 37, 38, 39, 64, 65, 66, 67, 68, 69, 70, 71, 74, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 122, 123, 124, 125] (fail closed: the mask is the fields)."
       },
       "16,M88": {
         "_note": "plain ARI (bez bitow trybu 72/73 i bez bitu ARURI 91); kotwica mk19 3b080500008000000000000000620e00 @P0 LDSM.16.M88 R5, [R0+0x80]; vm wzor z 16,4,M88",
@@ -2665,7 +2669,7 @@
         "_note": "BUG-441: full inert-band closure on the LDSM M88 ARURI frame (arb441 law 54 probes x4 AGREE/DIVERGENT=0): plain row band-rest {88,89,93,94} singles+all-11-combos+cross+rich vendor-legal inert x4; count rows .2/.4 relax the full inert band {84,85,86,87,88,89,90,92,93,94,95} (singles+pairs+full vendor-legal x4, D-under-count = own count rows). Pure relax: ab/fields/count invariant. Postures NOT grafted: INVALID3 loud (b72+b73), RC1 era carriers (440-doctrine)."
       },
       "16,4,MT88": {
-        "and_base": "0x0000000008004200000000000000783b",
+        "and_base": "0x0000000008004200000000000000083b",
         "count": 272,
         "fields": [
           {
@@ -2704,7 +2708,9 @@
             "token_idx": 2
           }
         ],
-        "variable_mask": "0x01ffee00000000000038001fff7c0000"
+        "variable_mask": "0x0000000000000000fffffffffffff000",
+        "_src": "rows-memory-2026-11-07",
+        "_note": "Row verified field by field with nvdisasm 13.1 (-b SM120; session G run 5, 2026-11-07, tools/probes/re_sm120_rows.py --family memory): canonical word 00000000080042005a5a5a403020783b = `LDSM.16.MT88.4 R32, [R48+UR64+0x5a5a5a]`; every field bit moves its own operand token; bits outside the fields: modifier bits [73, 78, 79] (other groups' words), neighbouring-form bits [91], vendor-invalid glyph planes [72, 80], illegal [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 75, 76, 77], text-inert [64, 65, 66, 67, 68, 69, 70, 71, 74, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 122, 123, 124, 125] (fail closed: the mask is the fields)."
       },
       "16,M88": {
         "and_base": "0x0000000008000000000000000000783b",
@@ -3836,5 +3842,8 @@
         "_note": "BUG-426: LDSM M832 count closure (.2=b72/.4=b73) on the shared-bracket frames (arb426 66 probes + arb424 parity xchk, nvdisasm 13.3.73 raw -b x4 AGREE EVERY/DIVERGENT=0). Donor = frame-own 16,M832 verbatim (fields deep-copied), and_base |= measured count delta, vm verbatim, count=None. INVALID3/INVALID5/6/7 loud glyphs stay unclaimed; 429 ARI enum/count census NOT grafted (registration only); 423-era singles UNTOUCHED."
       }
     }
-  }
+  },
+  "notes": [
+    "2026-11-07 (G run 5 batch 16, re-applied by T-17): the snapshot's LDSM_R_ARI 16,2,M88 / 16,4,M88 and LDSM_R_ARURI 16,4,MT88 rows carry the row probe's measured form (rows-memory-2026-11-07: _src, _note, and_base without the schedule / field bits, variable_mask = the fields); the fields are unchanged -- the rows were verified field by field, not weakened."
+  ]
 }
