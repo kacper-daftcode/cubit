@@ -26,14 +26,27 @@ every word of the sweep):
 
 96 groups per FSETP key (16 x 3 x FTZ), 48 per DSETP key; 432 rows.
 
-`probe [--arch SM120|SM103|SM100] [--jobs N]` writes `tests/fixtures/<table>_fsetp_dsetp_nvdisasm.jsonl`;
-`apply <sm120.json>` rewrites the six keys' groups and retires: the 100 dotted encode-only twins whose row
+`probe [--arch SM120|SM103|SM100|SM121] [--jobs N] [--witnesses corpus.jsonl]` writes
+`tests/fixtures/<table>_fsetp_dsetp_nvdisasm.jsonl` (`--witnesses`: the FSETP / DSETP words of a census corpus --
+`{"hex", "sass"}` lines, the GB10 corpus of sm121a -- appended as `witness` rows with their own control codes, each
+checked against the law like a form word); `apply <table.json>` rewrites the six keys' groups and retires: the 100 dotted encode-only twins whose row
 is a byte-identical copy of the plain key's group and the five remaining "label" rows of `FSETP_P_P_L_L_P`
 (deleted -- decoder-invisible / vendor-rejected words, 0 census witnesses; the 2026-11-03 audit had already
 deleted that key's other five rows and its `_L_FI_P` sibling); the mis-tokenised harvest keys
 `FSETP.<m>_P_P_R_R_R`, `_P_P_R_UR_UR`, `_P_P_R_R_?`, `_P_P_R_R_P_?`, `FSETP_P_P_II_II_P`, `FSETP_P_P_II_R_P` and the integer-spelling twin
 `FSETP_P_P_R_II_P` (the encode path of hexadecimal f32 literals, kept as an alias of the f32 key) as
 `_meta.key_aliases` of the plain keys.
+
+Session T-20 (2026-11-08) -- `sm121a.json` (the GB10 line): the same law holds word for word on `-b SM121` (every
+form, glyph and lattice word of the sweep, and the 2 688 FSETP / DSETP words of the GB10 census corpus, each with its own control code). On that table
+the harvest had the plain keys with a third of the groups (FSETP_P_P_R_R_P 33 / 96, _R_FI_P 32, _R_II_P 32, DSETP 25 /
+16 / 14 of 48), no `FSETP_P_P_R_UR_P` at all and 105 dotted one-group keys carrying the census words (not encode-only
+twins): `apply` creates the missing key from the family template, adds the missing groups and retires every dotted
+key whose tokens name a group of the plain key of its operand signature as a `_meta.key_aliases` entry (the batch 10-14
+convention: an alias, not a deletion, where the key carried harvest counts). The same junk keys as on sm120 exist
+there and take the same aliases. This closed a live regression of the GB10 census: the batch-3 decoder arm (FSETP off
+the sign-tolerant match, every table) had left the sm121a harvest rows -- no sign fields -- without a route for the
+564 signed FSETP words of the corpus (`T/t20/gb10/census_sm121a_before.jsonl`).
 """
 from __future__ import annotations
 
@@ -47,7 +60,7 @@ import nvprobe  # noqa: E402
 
 PROVENANCE = "fsetp-dsetp-family-2026-11-06"
 CTRL = 0x000f_e200 << 96
-TABLE_OF = {"SM120": "sm120", "SM103": "sm103a", "SM100": "sm100a"}
+TABLE_OF = {"SM120": "sm120", "SM103": "sm103a", "SM100": "sm100a", "SM121": "sm121a"}
 FCMP = ["F", "LT", "EQ", "LE", "GT", "NE", "GE", "NUM", "NAN", "LTU", "EQU", "LEU", "GTU", "NEU", "GEU", "T"]
 DCMP = ["MIN"] + FCMP[1:15] + ["MAX"]
 BOOL = ["AND", "OR", "XOR"]
@@ -222,17 +235,45 @@ def lattice_ok(w, t):
     return text_ok(w & ~sum(1 << b for b in inert_bits(key)), t)
 
 
-def probe(nvdisasm, arch, out, jobs):
+def witness_words(corpus: pathlib.Path) -> list[int]:
+    """The FSETP / DSETP words of a census corpus (`{"hex", "sass"}` lines; the GB10 corpus of sm121a), with their own
+    control codes, distinct, sorted."""
+    import json
+    import re
+    out = set()
+    for line in corpus.read_text().splitlines():
+        if not line.strip():
+            continue
+        r = json.loads(line)
+        if re.match(r"^(@!?U?P[T\d] )?[FD]SETP\b", r["sass"]):
+            out.add(int(r["hex"], 16))
+    return sorted(out)
+
+
+def probe(nvdisasm, arch, out, jobs, witnesses=None):
     words = sweep_words()
     rows = nvprobe.probe_words(nvdisasm, "fsetp_dsetp", [(w, lat) for w, lat, _ in words], CTRL, check_form=text_ok,
                                check_lattice=lattice_ok, arch=arch, jobs=jobs)
     for row, (_, _, glyph) in zip(rows, words):
         if glyph:
             row["glyph"] = True
+    n_wit = 0
+    if witnesses is not None:
+        # T-20: the census words of the table's own corpus, each checked against the law (text_ok reads the word's own
+        # .reuse bits; the NaN glyph words of the corpus, if any, are marked like the sweep's)
+        wit = witness_words(witnesses)
+        wrows = nvprobe.probe_words(nvdisasm, "fsetp_dsetp_wit", [(w, False) for w in wit], 0, check_form=text_ok, arch=arch, jobs=jobs)
+        for row in wrows:
+            row["witness"] = True
+            if any(g in row["nvidia_sass"] for g in ("QNAN", "SNAN")):
+                row["glyph"] = True
+        rows += wrows
+        n_wit = len(wrows)
     nvprobe.write_fixture(out, rows)
-    n_form = sum(1 for r in rows if not r.get("lattice") and not r.get("glyph"))
+    n_form = sum(1 for r in rows if not r.get("lattice") and not r.get("glyph") and not r.get("witness"))
     n_glyph = sum(1 for r in rows if r.get("glyph"))
-    print(f"{out}: {n_form} form words, {n_glyph} glyph words, {len(rows) - n_form - n_glyph} lattice words ({arch})")
+    print(f"{out}: {n_form} form words, {n_glyph} glyph words, {len(rows) - n_form - n_glyph - n_wit} lattice words, "
+          f"{n_wit} witness words ({arch})")
 
 
 NOTE = ("FSETP / DSETP measured with nvdisasm 13.1 (-b SM120 = SM103 = SM100), tools/probes/re_sm120_fsetp_dsetp.py (session G, "
@@ -269,35 +310,53 @@ def apply(table_path):
     path = pathlib.Path(table_path)
     table = nvprobe.load_table(path)
     ins = table["instructions"]
-    rewritten = 0
+    rewritten = added = 0
+    # the family template for a plain key the harvest never had (sm121a: FSETP_P_P_R_UR_P) -- the engine attributes of
+    # the register form; base_op / operand_sig from the key
+    template = ins[next(k for k in FORMS if k in ins)]
     for key, (_, _, _, double) in FORMS.items():
-        old = ins[key]
-        entry = {k: v for k, v in old.items() if k in ("base_op", "ctrl_class", "mercury", "operand_sig", "scheduling")}
+        old = ins.get(key)
+        entry = {k: v for k, v in (old or template).items() if k in ("base_op", "ctrl_class", "mercury", "operand_sig", "scheduling")}
+        entry["base_op"], entry["operand_sig"] = key.split("_", 1)
         groups = {}
         for cmp in range(16):
             for bool_ in range(3):
                 for ftz in ((0,) if double else (0, 1)):
                     groups[group_name(key, cmp, bool_, ftz)] = measured_row(key, cmp, bool_, ftz)
-        assert set(groups) == set(old["mod_groups"]), f"{key}: the measured lattice is the harvest's groups"
+        old_groups = old["mod_groups"] if old else {}
+        # sm120 (2026-11-06): the measured lattice was exactly the harvest's 2026-10-22 grid; sm121a (T-20): the harvest
+        # had a third of the groups -- a subset of the lattice, never a group outside it
+        assert set(old_groups) <= set(groups), f"{key}: harvest groups outside the measured lattice: {sorted(set(old_groups) - set(groups))}"
+        added += len(set(groups) - set(old_groups))
         entry["mod_groups"] = groups
         entry["_src"] = PROVENANCE
         ins[key] = entry
-        rewritten += len(groups)
-    # the dotted encode-only twins: byte-identical copies of a plain group -> deleted
+        rewritten += len(old_groups)
     plain_of = {"P_P_R_R_P": "FSETP_P_P_R_R_P", "P_P_R_UR_P": "FSETP_P_P_R_UR_P", "P_P_R_FI_P": "FSETP_P_P_R_FI_P", "P_P_R_II_P": "FSETP_P_P_R_FI_P"}
     deleted = []
+    aliases = table["_meta"].setdefault("key_aliases", {})
+    retired = []
     if "FSETP_P_P_L_L_P" in ins:  # the "label"-typed junk key: its words are vendor-rejected (the 2026-11-03 audit)
         del ins["FSETP_P_P_L_L_P"]
         deleted.append("FSETP_P_P_L_L_P")
     for k in list(ins):
-        if k.startswith("FSETP.") and k not in REMOVED_JUNK:
+        if (k.startswith("FSETP.") or k.startswith("DSETP.")) and k not in REMOVED_JUNK:
             osig = k.split("_", 1)[1]
             name = ",".join(sorted(k.split("_")[0].split(".")[1:]))
-            assert osig in plain_of and name in ins[plain_of[osig]]["mod_groups"] and ins[k].get("encode_only"), k
-            del ins[k]
-            deleted.append(k)
-    aliases = table["_meta"].setdefault("key_aliases", {})
-    retired = []
+            if k.startswith("DSETP."):
+                plain = {"P_P_R_R_P": "DSETP_P_P_R_R_P", "P_P_R_UR_P": "DSETP_P_P_R_UR_P", "P_P_R_FI_P": "DSETP_P_P_R_FI_P"}.get(osig)
+            else:
+                plain = plain_of.get(osig)
+            assert plain is not None and name in ins[plain]["mod_groups"], f"{k}: the tokens name no measured group of a plain key"
+            if all(g.get("encode_only") for g in ins[k]["mod_groups"].values()):
+                # sm120: the dotted encode-only twins were byte-identical copies of a plain group -> deleted
+                del ins[k]
+                deleted.append(k)
+            else:
+                # sm121a (T-20): a dotted harvest key that carried census words -> an alias of the plain key (batch 10-14)
+                del ins[k]
+                aliases[k] = plain
+                retired.append(k)
     for junk, target in REMOVED_JUNK.items():
         if junk in ins:
             del ins[junk]
@@ -307,11 +366,15 @@ def apply(table_path):
     rows = [g for e in ins.values() for g in e.get("mod_groups", {}).values()]
     prov["rows_total"] = len(rows)
     prov["rows_without_src"] = sum(1 for g in rows if g.get("_src") is None)
+    sm121a = path.name.startswith("sm121a")
     prov["sources"][PROVENANCE] = {"rows": sum(1 for g in rows if g.get("_src") == PROVENANCE),
-                                   "kind": "nvdisasm 13.1 field probe (-b SM120 / SM103 / SM100)", "date": "2026-11-06",
-                                   "tool": "tools/probes/re_sm120_fsetp_dsetp.py", "test": "tests/sm120_fsetp_dsetp.rs"}
+                                   "kind": "nvdisasm 13.1 field probe (-b SM121; the sm120 law of 2026-11-06 holds word for word)" if sm121a
+                                   else "nvdisasm 13.1 field probe (-b SM120 / SM103 / SM100)",
+                                   "date": "2026-11-08" if sm121a else "2026-11-06",
+                                   "tool": "tools/probes/re_sm120_fsetp_dsetp.py", "test": f"tests/{'sm121a' if sm121a else 'sm120'}_fsetp_dsetp.rs"}
     nvprobe.save_table(path, table)
-    print(f"{path}: FSETP / DSETP rows rewritten {rewritten}; {len(deleted)} keys deleted (the dotted twins + FSETP_P_P_L_L_P); {len(retired)} keys retired as aliases: {retired}")
+    print(f"{path}: FSETP / DSETP rows rewritten {rewritten}, groups added {added}; {len(deleted)} keys deleted (the dotted encode-only twins + "
+          f"FSETP_P_P_L_L_P); {len(retired)} keys retired as aliases: {retired if len(retired) < 15 else str(len(retired)) + ' (dotted harvest keys + the junk keys)'}")
 
 
 def main():
@@ -322,12 +385,13 @@ def main():
     p.add_argument("--arch", default="SM120", choices=sorted(TABLE_OF))
     p.add_argument("--out", type=pathlib.Path, default=None)
     p.add_argument("--jobs", type=int, default=1)
+    p.add_argument("--witnesses", type=pathlib.Path, default=None, help="a census corpus ({hex, sass} lines): its FSETP / DSETP words become witness rows")
     a = sub.add_parser("apply")
     a.add_argument("table")
     args = parser.parse_args()
     if args.command == "probe":
         out = args.out or nvprobe.FIXTURES / f"{TABLE_OF[args.arch]}_fsetp_dsetp_nvdisasm.jsonl"
-        probe(args.nvdisasm, args.arch, out, args.jobs)
+        probe(args.nvdisasm, args.arch, out, args.jobs, args.witnesses)
     else:
         apply(args.table)
 

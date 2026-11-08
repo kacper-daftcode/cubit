@@ -535,7 +535,10 @@ impl DecodeIndex {
             // 62 / 63 text-inert, 73 = `.U32`, 74 = `.X`, 75 = the measured `-Rc` field), every row is measured or
             // a T-3 / T-10 row with its fields: fail closed outside the masks.
             let native_hi = table.target_sm() == 120 && base == "IMAD";
-            let sign_law_base = table.target_sm() == 120 && matches!(base, "BMSK" | "DSETP" | "I2FP" | "UIADD3");
+            // DSETP: measured on sm120 (G, 2026-11-06) and on sm121a (T-20, 2026-11-08, the same law on -b SM121) --
+            // the boolean [75:74] sits in the window and a sign-tolerant match printed the INVALID3 word as `.XOR`.
+            let sign_law_base = (table.target_sm() == 120 && matches!(base, "BMSK" | "DSETP" | "I2FP" | "UIADD3"))
+                || (table.target_sm() == 121 && base == "DSETP");
             // (a row verified field by field names its sign bits as fields and fails closed on the rest: no fallback)
             if !(is_memlike || native_hi || sign_law_base || row_probe) {
                 let sign_bits: u128 = (3u128 << 62) | (3u128 << 72) | (3u128 << 74);
