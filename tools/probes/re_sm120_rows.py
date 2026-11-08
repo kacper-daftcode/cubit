@@ -263,6 +263,18 @@ MANUAL_ROW_FIELDS: dict[str, dict] = {
         "UBLKRED_AURI_AURI_UR": [[12, 4, "guard", 0], [32, 8, "sub_ur0", 1], [24, 8, "sub_ur0", 2], [64, 8, "ureg", 3]],
     },
     "uniform": {
+        # T-22 (2026-11-08): the UIADD3 `.X` rows of sm121a / sm103a / sm100a get sm120's measured field lists (G run 5, rows-uniform):
+        # the harvest rows read the two carry-in predicates as `pred` / `neg` (sm121a) or a 4-bit `pred@87` (sm103a / sm100a: `UP15` for
+        # the vendor's `!UPT`) and claimed the plain form's text-inert words [90:77] through the sign-tolerant fallback (bug459a's
+        # "x3 overprint"). Carry-in predicates at [79:77] + inv 80 and [89:87] + inv 90, the operand signs as `inv` (the `.X` form).
+        "UIADD3_UR_UP_UP_UR_II_UR_UP_UP": [[12, 4, "guard", 0], [16, 8, "ureg", 1], [81, 3, "upred", 2], [84, 3, "upred", 3],
+                                          [24, 8, "ureg", 4], [72, 1, "inv", 4], [32, 32, "imm", 5], [64, 8, "ureg", 6],
+                                          [75, 1, "inv", 6], [87, 3, "upred", 7], [90, 1, "inv", 7], [77, 3, "upred", 8],
+                                          [80, 1, "inv", 8]],
+        "UIADD3_UR_UP_UP_UR_UR_UR_UP_UP": [[12, 4, "guard", 0], [16, 8, "ureg", 1], [81, 3, "upred", 2], [84, 3, "upred", 3],
+                                          [24, 8, "ureg", 4], [72, 1, "inv", 4], [32, 8, "ureg", 5], [63, 1, "inv", 5],
+                                          [64, 8, "ureg", 6], [75, 1, "inv", 6], [87, 3, "upred", 7], [90, 1, "inv", 7],
+                                          [77, 3, "upred", 8], [80, 1, "inv", 8]],
         ("UIADD3_UR_UP_UP_UR_II_UR", "64"): [[12, 4, "guard", 0], [16, 8, "ureg", 1], [81, 3, "upred", 2], [84, 3, "upred", 3],
                                              [24, 8, "ureg", 4], [72, 1, "neg", 4], [32, 32, "imm", 5], [64, 8, "ureg", 6],
                                              [75, 1, "neg", 6]],

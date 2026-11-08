@@ -6,7 +6,8 @@
 //! as witnesses). Before: sm103a / sm100a carried a junk `64` row on the UR form (fields at shifts 6 / 69 / 77, a two-bit mask --
 //! it decoded nothing) and no `64` group on the immediate form, so the publish corpus' 9 + 3 `UIADD3.64` words were holes;
 //! sm121a's `64` group of the immediate form was mis-declared (no sign fields, a reuse bit) and its 16 GB10 words re-encoded to
-//! other registers (`tests/corpus_pins.rs`). The two plain `""` harvest rows of the same keys were measured on the way. sm121a's
+//! other registers (`tests/corpus_pins.rs`). The two plain `""` harvest rows of the same keys and the two `.X` rows (whose
+//! harvest fields overprinted the plain form's text-inert words -- bug459a) were measured on the way. sm121a's
 //! three dotted `UIADD3.64_*` harvest keys are `_meta.key_aliases` of the plain keys (whole-key twins).
 use cubit::{decoder::DecodeIndex, table::IsaTable};
 use serde_json::Value;
@@ -20,6 +21,10 @@ const TABLES: [(&str, &str, usize); 3] = [
     ("tables/sm100a.json", include_str!("fixtures/sm100a_rows_uniform_nvdisasm.jsonl"), 3),
 ];
 const KEYS: [&str; 2] = ["UIADD3_UR_UP_UP_UR_UR_UR", "UIADD3_UR_UP_UP_UR_II_UR"];
+/// The `.X` (carry-in) keys, measured in the same pass with sm120's field lists (the carry-in predicates at [79:77] + inv 80
+/// and [89:87] + inv 90): their harvest rows had read the predicates as a 4-bit `pred@87` (sm103a / sm100a: `UP15, !UPT` for
+/// the vendor's `!UPT, !UPT`) or as `pred` / `neg` (sm121a) and claimed the plain form's text-inert words (bug459a's overprint).
+const X_KEYS: [&str; 2] = ["UIADD3_UR_UP_UP_UR_UR_UR_UP_UP", "UIADD3_UR_UP_UP_UR_II_UR_UP_UP"];
 
 fn table_and_index(path: &'static str) -> &'static (IsaTable, DecodeIndex) {
     static LOADED: OnceLock<Vec<(&'static str, (IsaTable, DecodeIndex))>> = OnceLock::new();
@@ -67,14 +72,15 @@ fn the_canonical_words_and_every_field_bit_round_trip() {
     for (i, (path, _, _)) in TABLES.iter().enumerate() {
         let (table, _) = table_and_index(path);
         let recs = records(i);
-        assert_eq!(recs.len(), 4, "{path}: rows in the fixture");
+        assert_eq!(recs.len(), 6, "{path}: rows in the fixture");
         for rec in &recs {
             let key = rec["key"].as_str().unwrap();
             let group = rec["group"].as_str().unwrap();
             assert_eq!(rec["status"], "measured", "{path}: {key} {group}");
-            assert!(KEYS.contains(&key) && matches!(group, "" | "64"), "{path}: {key} {group}");
+            assert!((KEYS.contains(&key) && matches!(group, "" | "64")) || (X_KEYS.contains(&key) && group == "X"), "{path}: {key} {group}");
             let t0 = rec["t0"].as_str().unwrap();
             assert_eq!(t0.contains(".64"), group == "64", "{path}: {key} {group}: {t0}");
+            assert_eq!(t0.contains(".X"), group == "X", "{path}: {key} {group}: {t0}");
             let w0 = hex(&rec["w0"]) | CTRL;
             let (k, g, text) = decode_text(path, w0).unwrap_or_else(|| panic!("{path}: {w0:032x} does not decode"));
             assert_eq!((k.as_str(), g.as_str(), text.as_str()), (key, group, t0), "{path}: {w0:032x}");
@@ -111,12 +117,11 @@ fn the_lattice_around_each_row_is_never_rendered_as_another_uiadd3_text() {
                     if let Some((k, g, text)) = decode_text(path, w0 ^ (1u128 << bit)) {
                         if text != entry[1].as_str().unwrap() {
                             // HARVEST rows rendering a lattice word vendor-false -- the uniform family's next items on these
-                            // tables, counted here, never hidden: the `.X` words (bit 74) belong to the harvest `UIADD3_…_UP_UP`
-                            // rows (sm103a / sm100a print `UP15, !UPT` for the vendor's `!UPT, !UPT`: a 4-bit carry-in window where
-                            // the vendor has 3 bits + a sign); the opcode-bit neighbours (bit 1: the ULOP3 immediate form) fall
+                            // tables, counted here, never hidden: the opcode-bit neighbours (bit 1: the ULOP3 immediate form) fall
                             // into sm103a / sm100a's harvest `ULOP3_UP_UR_UR_II_UR_II_UP` `LUT` row (a 6-bit `pred` and a 9-bit LUT
                             // where sm120's measured row has 3 + 8 bits and the `.PAND` modifier: `ULOP3.LUT UP63, …, 0x1e0` for the
-                            // vendor's `ULOP3.LUT.PAND …, 0xe0`). A measured row never renders a vendor-false text.
+                            // vendor's `ULOP3.LUT.PAND …, 0xe0`); the `.X` words (bit 74) belonged to the harvest `UIADD3_…_UP_UP`
+                            // rows until this pass measured them. A measured row never renders a vendor-false text.
                             let raw: Value = serde_json::from_slice(&cubit::table::read_table_bytes(path).unwrap()).unwrap();
                             assert!(raw["instructions"][&k]["mod_groups"][&g]["_src"].is_null(),
                                     "{path}: {class} bit {bit}: `{text}` by the measured row {k} {g} (vendor `{}`)", entry[1]);
@@ -129,11 +134,9 @@ fn the_lattice_around_each_row_is_never_rendered_as_another_uiadd3_text() {
                 let bit = bit.as_u64().unwrap();
                 if let Some((k, g, text)) = decode_text(path, w0 ^ (1u128 << bit)) {
                     if text != t0 {
-                        // a HARVEST row claiming a text-inert word through the sign-tolerant fallback (the NEEDS 56 class):
-                        // the three tables' `UIADD3_UR_UP_UP_UR_II_UR_UP_UP` `X` rows (no `_src`; `pred@87` / `neg@90` harvest fields) takes
-                        // the bit-73 and [90:77] words of the immediate form (the two carry-in predicate windows the plain form
-                        // bakes as 111) and prints `UIADD3.X …, !UPT, !UPn`; the junk key `UIADD3_UR_UP_UP_UR_UR_R_II_P` takes the
-                        // UR form's words with bits in the unused immediate window -- the uniform family's next
+                        // a HARVEST row claiming a text-inert word through the sign-tolerant fallback (the NEEDS 56 class): the
+                        // sm121a junk key `UIADD3_UR_UP_UP_UR_UR_R_II_P` takes the UR form's words with bits in the unused immediate
+                        // window (the `.X` rows did the same with the carry-in windows until this pass measured them) -- the uniform family's next
                         // sm121a item; a measured row never does this
                         let raw: Value = serde_json::from_slice(&cubit::table::read_table_bytes(path).unwrap()).unwrap();
                         let row = &raw["instructions"][&k]["mod_groups"][&g];
@@ -154,7 +157,7 @@ fn the_lattice_around_each_row_is_never_rendered_as_another_uiadd3_text() {
             }
         }
     }
-    assert!(harvest_claims > 0 && harvest_claims <= 120, "{harvest_claims} lattice words rendered vendor-false by the harvest UIADD3 .X / junk rows (the uniform family's next item)");
+    assert!(harvest_claims <= 80, "{harvest_claims} lattice words rendered vendor-false by harvest rows (63 at the T-22 tips: the sm121a junk key `UIADD3_UR_UP_UP_UR_UR_R_II_P` over the UR form's unused immediate window, the sm103a / sm100a ULOP3 LUT row -- the uniform family's next items)");
 }
 
 /// The corpus witnesses -- the 9 (sm103a: 3 UR-form + 6 immediate-form) and 3 (sm100a) `UIADD3.64` words of the B300
@@ -183,8 +186,9 @@ fn the_corpus_witnesses_round_trip() {
     }
 }
 
-/// The rows carry the tag and exactly sm120's measured field layout (mask == the fields, nothing baked under a field);
-/// sm121a's dotted `UIADD3.64_*` harvest keys are aliases of the plain key of their form.
+/// The rows carry the tag and exactly sm120's measured field layout (mask == the fields, nothing baked under a field) -- the
+/// `.X` rows included (the two carry-in predicates with their inversions, no 4-bit window); sm121a's dotted `UIADD3.64_*`
+/// harvest keys are aliases of the plain key of their form.
 #[test]
 fn the_rows_are_measured_and_the_dotted_keys_are_aliases() {
     for (path, _, _) in TABLES.iter() {
@@ -223,6 +227,19 @@ fn the_rows_are_measured_and_the_dotted_keys_are_aliases() {
                 };
                 assert_eq!(opc, want_opc, "{path}: {key} {group}: the .64 form is opcode bits [2:0] = 7");
             }
+        }
+        for key in X_KEYS {
+            let g = &ins[key]["mod_groups"]["X"];
+            assert_eq!(g["_src"], SOURCE, "{path}: {key} X");
+            let fields: Vec<(String, u64, u64)> = g["fields"].as_array().unwrap().iter()
+                .map(|f| (f["extraction"].as_str().unwrap().to_string(), f["shift"].as_u64().unwrap(), f["bits"].as_u64().unwrap())).collect();
+            for want in [("upred", 77, 3), ("inv", 80, 1), ("upred", 87, 3), ("inv", 90, 1), ("upred", 81, 3), ("upred", 84, 3), ("inv", 72, 1), ("inv", 75, 1)] {
+                assert!(fields.iter().any(|(e, s, b)| (e.as_str(), *s, *b) == want), "{path}: {key} X: field {want:?} missing from {fields:?}");
+            }
+            assert!(!fields.iter().any(|(_, s, b)| *s == 87 && *b == 4), "{path}: {key} X: the harvest's 4-bit pred@87 is gone");
+            let mut field_mask = 0u128;
+            for (_, s, b) in &fields { field_mask |= ((1u128 << b) - 1) << s; }
+            assert_eq!(hex(&g["variable_mask"]), field_mask, "{path}: {key} X: mask == the fields");
         }
         if *path == "tables/sm121a.json" {
             let aliases = raw["_meta"]["key_aliases"].as_object().unwrap();
