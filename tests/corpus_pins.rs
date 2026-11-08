@@ -173,3 +173,21 @@ fn b300_corpus_sm100a_strict() {
     // T-22 (2026-11-08): the UIADD3 `64` groups measured on -b SM100 -- the 3 UR-form words decode and re-encode (1 116 / 1 113)
     pin(&o, "sm100a B300", 1116, 1113, &[], &[("RET_R_II", 3)], &[]);
 }
+
+/// The megakernel corpus on sm120 (2026-11-08): the 32 963 distinct words nvcc 13.0 (`-arch=sm_120a`) emits for the
+/// kernels of the persistent-kernel programme of vLLM-Moet -- the primitive probe (472 + 80 words: bulk copies,
+/// mbarriers, fences at every scope, `USETMAXREG`, `CS2R`/`CS2UR` timers, the acquire / release idioms, cluster
+/// barriers), the fused persistent MoE kernels (`WS=20` / `WS=30`, with and without the cp.async staging: 427 120
+/// words over four cubins) and the hybrid's device-side collective kernel (1 744 words: `LDGSTS.E.BYPASS.128`,
+/// `LDGDEPBAR`, `DEPBAR.LE SB0`, `F2F.BF16.F32`, `ATOMG.E.EXCH.STRONG.GPU`, `MEMBAR.SC.SYS; ERRBAR; CGAERRBAR; CCTL.IVALL`).
+/// None of these kernels is in the census corpora (they are the project's own CUDA kernels, not FlashInfer's or
+/// DeepGEMM's), and two of their words had no row until this day (`UBLKCP.G.S`, `FENCE.VIEW.ASYNC.G`): the pin is exact
+/// -- every word decodes and re-encodes bit for bit -- so a table or decoder change that loses one of them fails here.
+/// `tests/fixtures/corpus_megakernel_sm120.jsonl.gz`: `hex`, `n` (occurrences), `src` (the cubins the word comes from).
+#[test]
+fn megakernel_corpus_sm120_strict() {
+    let words = read_words("tests/fixtures/corpus_megakernel_sm120.jsonl.gz");
+    assert_eq!(words.len(), 32963, "the megakernel sm120 corpus fixture");
+    let o = run("sm120", &words);
+    pin(&o, "sm120 megakernel", 32963, 32963, &[], &[], &[]);
+}

@@ -81,7 +81,13 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   barrier at most (nvcc: wrtbar + stall 4); `ctrl_class` stays unset (the static `barrier` class would drop the write barrier nvcc's
   consumers wait on — a scheduler item). Both scopes assemble; `.T` is refused (`tests/sm120_fence_view_async.rs`; bug225 / bug226e pins
   moved to the measured state). The `.G` rows on sm103a / sm100a / sm121a (where `FENCE` is absent) are open.
-- Suite 2 916 → 2 928 passed / 0 failed / 9 ignored; the form / variant pins of 13 tests moved (979 → 983, 38 838 → 38 848, 15 897 →
+- **The megakernel corpus as a suite pin** (`tests/corpus_pins.rs::megakernel_corpus_sm120_strict`,
+  `tests/fixtures/corpus_megakernel_sm120.jsonl.gz`): the 32 963 distinct words nvcc 13.0 emits for the persistent-kernel programme's
+  kernels — the primitive probe (bulk copies, mbarriers, fences, `USETMAXREG`, timers, acquire / release idioms), the fused persistent MoE
+  kernels (427 120 words over four cubins) and the hybrid's device-side collective kernel (`LDGSTS.E.BYPASS.128`, `LDGDEPBAR`, `DEPBAR.LE
+  SB0`, `F2F.BF16.F32`, `ATOMG.E.EXCH.STRONG.GPU`, the `MEMBAR.SC.SYS; ERRBAR; CGAERRBAR; CCTL.IVALL` fence). None of these kernels is in the
+  census corpora; every word decodes and re-encodes bit for bit (on the previous table two did not: `UBLKCP.G.S`, `FENCE.VIEW.ASYNC.G`).
+- Suite 2 916 → 2 929 passed / 0 failed / 9 ignored; the form / variant pins of 13 tests moved (979 → 983, 38 838 → 38 848, 15 897 →
   15 901 loader keys); census strict 1 811 600 / 1 811 600, `asm -T` 157 / 157, the 99 production sources byte-identical, and the
   megakernel probe cubins (472 + 80 words of nvcc 13.0's persistent-kernel primitives) round-trip strictly for the first time.
 
