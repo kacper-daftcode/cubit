@@ -57,8 +57,12 @@ const W_BIT33: u128 = (W_C & !(0xFFu128 << 32)) | (1u128 << 33);
 
 #[test]
 fn t254_1_structure() {
-    // sm121a DSETP inventory: exactly the 3 generic keys, donor-shaped mgs,
-    // zero typed shells, zero II/L junk.
+    // sm121a DSETP inventory: exactly the 3 generic keys, zero typed shells, zero II/L junk.
+    // Session T-20 (2026-11-08): the three keys carry the measured lattice (48 groups each = 16 comparisons
+    // x 3 booleans, `fsetp-dsetp-family-2026-11-06`, tools/probes/re_sm120_fsetp_dsetp.py --arch SM121 --
+    // the sm120 law of 2026-11-06 holds word for word on -b SM121), no longer the 2026-08-28 byte-copies of
+    // the sm103a donor rows (25 / 16 / 14 harvest groups): every donor group is one of the 48, the measured
+    // row carries the donor's groups as a subset. tests/sm121a_fsetp_dsetp.rs pins the rows themselves.
     let t = tab("sm121a");
     let donor = tab("sm103a");
     let keys: Vec<&String> = t
@@ -71,28 +75,17 @@ fn t254_1_structure() {
         3,
         "sm121a DSETP key inventory drifted: {keys:?}"
     );
-    for (k, mgs) in [
+    for (k, donor_mgs) in [
         ("DSETP_P_P_R_R_P", 25usize),
         ("DSETP_P_P_R_UR_P", 16),
         ("DSETP_P_P_R_FI_P", 14),
     ] {
         let row = t.entries.get(k).unwrap_or_else(|| panic!("{k} missing"));
-        assert_eq!(row.mod_groups.len(), mgs, "{k} mg count");
+        assert_eq!(row.mod_groups.len(), 48, "{k} mg count (the measured lattice, T-20)");
         let drow = donor.entries.get(k).unwrap();
-        let mut keys: Vec<&String> = row
-            .mod_groups
-            .keys()
-            .chain(drow.mod_groups.keys())
-            .collect();
-        keys.sort();
-        keys.dedup();
-        assert_eq!(keys.len(), mgs, "{k} mg key-set drifted");
-        for mg in keys {
-            assert_eq!(
-                format!("{:?}", row.mod_groups.get(mg).expect("graft missing mg")),
-                format!("{:?}", drow.mod_groups.get(mg).expect("donor missing mg")),
-                "{k}::{mg} != donor byte-copy"
-            );
+        assert_eq!(drow.mod_groups.len(), donor_mgs, "{k}: the sm103a donor's harvest groups (a T1 item of that table)");
+        for mg in drow.mod_groups.keys() {
+            assert!(row.mod_groups.contains_key(mg), "{k}::{mg}: a donor group outside the measured lattice");
         }
     }
     for arch in ["sm100a", "sm103a", "sm120"] {
@@ -225,10 +218,15 @@ fn t254_5_sentinels() {
     let source = format!("[{}] {} ;", cubit::scheduling::format_control_code(&ctrl), x75[2]);
     assert_eq!(encode_instruction(&cubit::parse_cuasm_line(&source, 0).unwrap(), native).unwrap(), w);
     assert!(dec(native, W_A ^ (3u128 << 74)).is_none(), "reserved INVALID3 is unsupported");
-    // Keep the pre-existing behavior of unmodified donor tables pinned.
+    // Session T-20 (2026-11-08): sm121a's DSETP rows are measured (-b SM121, the sm120 law) -- the bit-75 word is
+    // the vendor's `.XOR` there too and the INVALID3 word fails closed, exactly as on the native sm120 leg. The
+    // two donor tables keep their harvest behaviour (bit 75 read as `.OR` -- vendor-false, a T1 item of sm103a /
+    // sm100a) until their own FSETP / DSETP batch; pinned here so the drift is visible when it goes.
+    assert_eq!(x75[3], x75[2], "sm121a decodes the boolean like the measured sm120 rows");
+    assert!(dec(&tables[3], W_A ^ (3u128 << 74)).is_none(), "sm121a: reserved INVALID3 fails closed (measured rows)");
     assert_eq!(x75[0], x75[1]);
-    assert_eq!(x75[0], x75[3]);
-    let inv3: Vec<_> = [0usize, 1, 3].iter().map(|&i| dec(&tables[i], W_A ^ (3u128 << 74)).unwrap()).collect();
+    assert_eq!(x75[0], "DSETP.EQ.OR P0, PT, R22, RZ, !P0", "the donors' harvest reading of bit 75 (vendor: XOR)");
+    let inv3: Vec<_> = [0usize, 1].iter().map(|&i| dec(&tables[i], W_A ^ (3u128 << 74)).unwrap()).collect();
     assert!(inv3.windows(2).all(|w| w[0] == w[1]), "donor inv3 legs diverged: {inv3:?}");
     // 260-kand sentinel (registered, donor-side, NOT this fix): unfielded
     // operand-modifier bakes in and_base make the encoder inject modifiers
@@ -251,15 +249,14 @@ fn t254_5_sentinels() {
     let native_row = native.get("DSETP_P_P_R_R_P", "LTU,OR").unwrap();
     assert_eq!((native_row.and_base >> 62) & 1, 0);
     assert_eq!((native_row.variable_mask >> 62) & 1, 1);
-    for t in [&tables[1], &tables[3]] {
-        let mg = t
-            .entries
-            .get("DSETP_P_P_R_R_P")
-            .unwrap()
-            .mod_groups
-            .get("LTU,OR")
-            .unwrap();
-        assert_eq!(mg.and_base >> 62 & 1u128, 1u128, "260-kand bake flipped");
-        assert_eq!(mg.variable_mask >> 62 & 1u128, 0u128, "260-kand fielded");
-    }
+    // The sm103a donor keeps the 260-kand bake (a T1 item of that table); on sm121a the measured row (T-20,
+    // 2026-11-08) carries `|Rb|` as the field it is -- bit 62 in the mask, not in and_base.
+    let mg = tables[1].entries.get("DSETP_P_P_R_R_P").unwrap().mod_groups.get("LTU,OR").unwrap();
+    assert_eq!(mg.and_base >> 62 & 1u128, 1u128, "260-kand bake flipped");
+    assert_eq!(mg.variable_mask >> 62 & 1u128, 0u128, "260-kand fielded");
+    let mg = tables[3].entries.get("DSETP_P_P_R_R_P").unwrap().mod_groups.get("LTU,OR").unwrap();
+    assert_eq!(mg.and_base >> 62 & 1u128, 0u128, "sm121a: the measured row bakes no sign");
+    assert_eq!(mg.variable_mask >> 62 & 1u128, 1u128, "sm121a: |Rb| is a field of the measured row");
+    assert_eq!(dec(&tables[3], enc(&tables[3], "DSETP.LTU.OR P2, PT, R72, R116, !P4")).unwrap(),
+        "DSETP.LTU.OR P2, PT, R72, R116, !P4", "sm121a: source signs are authored, not injected");
 }
