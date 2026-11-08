@@ -149,7 +149,7 @@ fn t423_6_source_manifest_and_recanon() {
         src["base_revision"]
             .as_str()
             .unwrap()
-            .starts_with("15435a021d338bcc4ee9ee8c27a283f223acf576") /* 2026-11-06 T-11 (was c258f8a, T-10) */, // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+            .starts_with("ce51005256cb4beac53c1a6c24b5ec93087b5659") /* 2026-11-06 T-11 (was c258f8a, T-10) */, // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
         "SOURCE.json must pin canonical 57e7ecd [was ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, 1810912 = 435+434 hop, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b] (BUG-442 graft F2-iter246 z atrybucja; ride-chain): {:?}",
         src["base_revision"]
     );

@@ -1509,6 +1509,10 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
             "ADD" | "MIN" | "MAX" | "CAS" | "INC" | "DEC" | "EXCH"
             // mk35: booleans as a subop too (REDG.E.AND.STRONG.GPU; AND/AND? not LOP3)
             | "AND" | "OR" | "XOR"
+            // 2026-11-08 (session T-22, tools/probes/re_sm120_atom_aruri.py, nvdisasm 13.1 -b SM121 = SM120 = SM103 =
+            // SM100): SAFEADD is the ATOMG op 9 of the 4-bit op field [90:87] (ATOM prints INVALID9 there) and sits in the
+            // op slot like the others -- `ATOMG.E.SAFEADD.EF.64.STRONG.GPU`, never `.E.EF.SAFEADD`
+            | "SAFEADD"
             // BUG-094b: CAST/SPIN are also an operation name (ATOM.E.CAST.SPIN.64:
             // the size PRINTS after them, before STRONG)
             | "CAST" | "SPIN" => return 4,
@@ -1942,6 +1946,22 @@ fn format_operand(
         "ARURI" if ins_key.starts_with("LDGSTS") && tok == 1 => format_ldgsts_shdst(fields, raw),
         "ARURI" if ins_key.starts_with("LDGSTS") && tok == 2 => format_ldgsts_src(fields, raw,
             ef_flags == crate::elf_builder::EF_CUDA_SM120 && matches!(raw & 0xfff, 0xdae | 0xfae)),
+        // 2026-11-08 (session T-22, tools/probes/re_sm120_atom_aruri.py, nvdisasm 13.1 -b SM121 = SM120 = SM103 = SM100):
+        // the global atomics' plain uniform-indexed U32 form -- the measured keys `ATOM_P_R_ARURI_R` / `ATOMG_P_R_ARURI_R`
+        // (8 640 + 9 600 groups on sm121a) and the dotted `ATOM.E.*` / `ATOMG.E.*` harvest / `.EL` keys of the other tables --
+        // prints `[Ra.U32+URb(+off)]` with RZ printed (`[RZ.U32+URb]`, never elided, never the `???255` glyph) and the signed
+        // 23-bit offset. The width is the key's (bit 63 clear; the `.64` base is the `_ARURI64_R` twin) and is NOT read from
+        // bits [91:90]: on the atomics bit 90 is the top bit of the 4-bit op field ([90:87]: 8 EXCH, 9 SAFEADD), so the BUG-099
+        // width rule of the generic arm below would print a false `.64` for every EXCH / SAFEADD word -- bit 90 is masked
+        // out of the word handed to the formatter, which then has no width mode to read.
+        "ARURI"
+            if ins_key == "ATOM_P_R_ARURI_R"
+                || ins_key == "ATOMG_P_R_ARURI_R"
+                || ins_key.starts_with("ATOM.E.")
+                || ins_key.starts_with("ATOMG.E.") =>
+        {
+            format_plain_u32_ur(fields, raw & !(1u128 << 90), false, false, false, false, lossless)
+        }
         // BUG-038: plain uniform-indexed LDG.E/STG.E forms (class bytes 0x81/0x86)
         // render as [Rn.U32+URm(+0xoff)], not desc[UR][R.64] (that's the dARI world).
         // BUG-097: same plain-u32-ur shape on generic-memory LD_R_ARURI/ST_ARURI_R
