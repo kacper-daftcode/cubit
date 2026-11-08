@@ -4,6 +4,32 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-08 (sessions T-20 / T-21, batch 4: sm103a / sm100a LDG.256 (three address forms) + STG.256 measured on `-b SM103` / `SM100`)
+
+- **Tables vendored from blackwell-isa `39d0372`** (sm103a 650 forms / 32 916 variants from 8 784 / 25 517, sm100a 649 / 32 910
+  from 8 783 / 25 511; rows without `_src` 9 714 → 1 584 on both). G's batch 10–13 probes `tools/probes/re_sm120_ldg256.py
+  --form dARI / ARURI64 / ARURI` and `re_sm120_stg256.py` run with `--arch SM103` / `SM100` (nvdisasm 13.1): all eight runs
+  passed — every form word prints the SM120 text on both targets (the L2 = 3 plane is `INVALID3` there, a lattice plane on
+  every target); fixtures `tests/fixtures/sm103a_{ldg256_dari,ldg256_aruri64,ldg256_aruri,stg256}_nvdisasm.jsonl` and
+  `sm100a_…`. `LDG_R_R_{dARI,ARURI64,ARURI}[_II][_P]` and `STG_{dARI,ARURI,ARURI64}_R_R[_II]` created with 13 824 + 1 728
+  measured rows per table, the 7 782 + 1 164 dotted 2026-09 keys of each retired as `_meta.key_aliases`. Tests
+  `tests/sm103a_sm100a_{ldg256_dari,ldg256_aruri64,ldg256_aruri,stg256}.rs` (G's sm120 checks over the two tables; on sm103a
+  the encoder's silicon laws BUG-060 — an EFL2.256 load with an even base is refused — and BUG-077 — the descriptor form's
+  true-pair classes need an even base — are accepted exactly where they fire, the byte mapping proven under
+  `CUBIT_DISABLE_ERRATA`).
+- Re-pins of the 2026-09 EFL2.256 wave suites on their sm103a / sm100a legs (18 binaries; the sm120 arms G added per batch
+  extended to the measured legs, the measurement cited in each file): the text-inert bits of the 256-bit load (83, [95:92]) and
+  store ([74:72], 83, 87, [95:92]) fail closed on the measured rows; words nvdisasm names that the 2026-09 HOLEs stood on decode
+  through the plain keys (the EU / NA cache-code drills, the LTC × ENL2 crosses); the bare `[URb]` spelling mints the `.64`
+  word (BUG-464's rule); the NA.EFL2 descriptor spellings of LDG / STG are legal words the vendor names on SM103 / SM100 /
+  SM120 and mint (bug076 / bug077 — the "era desc spelling must be dead" pins of 2026-09 stood on the harvest's silence;
+  BUG-060 / BUG-076 keep their arms); the sm103a table-shape anchors of bug123 / bug147 (`LDG_R_R_dARI[_II]` 1 152 measured
+  groups each, `STG_dARI_R_R` present with 288, the 475-lattice keys aliases); the `_src463` / `_src465` / 468-graft key
+  censuses → 0 on the measured legs; the key / variant / `claim_forbid` counts of sm103a / sm100a and the canonical revision
+  in 58 files.
+- Gates for the batch: the B300 publish corpus strict round trip unchanged at 85 704 / 85 792 words and 288 / 328 cubins
+  strict-exact (0 cubins with a changed count); the GB10 census and the sm120 census untouched; the full suite green.
+
 ## Unreleased — 2026-11-08 (session T-20, batch 3: sm103a / sm100a REDG uniform-indexed forms measured on `-b SM103` / `SM100` — the first batch of the B300 line)
 
 - **Tables vendored from blackwell-isa `6a468a2`** (sm103a 8 784 forms / 25 517 variants from 14 926 / 22 445, sm100a 8 783 /
