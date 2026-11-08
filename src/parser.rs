@@ -311,7 +311,7 @@ fn parse_address(s: &str) -> Option<Operand> {
 /// Opcodes whose immediate operands are float values.
 const FLOAT_OPCODES: &[&str] = &[
     "UFFMA", "UFADD", "UFMUL", "UFMNMX", "UFSEL",
-    "FADD", "FMUL", "FFMA", "FSEL", "FMNMX", "FSET", "FSETP",
+    "FADD", "FMUL", "FFMA", "FFMA2", "FSEL", "FMNMX", "FSET", "FSETP",
     // UFSETP is the uniform-datapath FSETP: its immediate compare value is an
     // f32 (corpus bakes 1.0 as 0x3f800000 at bits[63:32]; nvdisasm prints "1").
     // Without float context the textual `1` parsed to Imm32(1) and silently
@@ -707,8 +707,19 @@ pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
             raw_text_override = Some(RE_H1H1A_RA.replace(&t, "${1}${2}.H1_H1${3}").to_string());
         }
 
-        for tok in &tokens {
-            let op = parse_single_operand(tok, is_float);
+        for (token_index, tok) in tokens.iter().enumerate() {
+            // The measured fourth FFMA2 immediate carries its NP marker after
+            // the numeric literal. Strip it only for value classification;
+            // raw_text retains it for the row's opmod:NP field at bit 86.
+            let numeric = if base_op == "FFMA2"
+                && token_index == 3
+                && parse_register(tok).is_none()
+            {
+                tok.strip_suffix(".NP").unwrap_or(tok)
+            } else {
+                tok
+            };
+            let op = parse_single_operand(numeric, is_float);
             // BUG-073: parse_address is strict (fold-or-fail); a bracketed
             // token that fell through to Label means the address was rejected.
             // Surface the real cause loudly instead of a generic encode miss.

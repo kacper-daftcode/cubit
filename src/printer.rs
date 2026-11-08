@@ -1874,6 +1874,9 @@ fn format_operand(
             }
         }
         "II" | "IM" | "LO" => format_imm_or_reg(fields, mod_group, ins_key, tok, raw, lossless),
+        "FI" if ins_key == "FFMA2_R_R_R_FI" && tok == 4 && (raw >> 86) & 1 != 0 => {
+            format!("{}.NP", format_float_imm(fields, lossless))
+        }
         "FI" => format_float_imm(fields, lossless),
         "L" | "SR" => format_lit_or_sysreg(fields, mod_group, raw),
         // BUG-179 (superset of parked-BUG-157): SYNCS- and ATOMS-family ARI
@@ -2428,13 +2431,33 @@ fn format_reg(
                 }
             }
             3 => {
-                // R-form t3 (UR-form t3 handled in the UR branch of
-                // format_operand): bit law b88 -> .F32 else .F32x2.HI_LO
-                if b88 {
-                    opmods.push("F32".to_string());
+                if ins_key == "FFMA2_R_R_R_FI" {
+                    // Measured immediate-D Rb fields: F32@88 and LO_HI@87.
+                    // The inherited R-form default would duplicate F32 and
+                    // discard the measured LO_HI selection.
+                    opmods.clear();
+                    if b88 {
+                        opmods.push("F32".to_string());
+                    } else {
+                        opmods.push("F32x2".to_string());
+                        opmods.push(
+                            if (raw >> 87) & 1 != 0 {
+                                "LO_HI"
+                            } else {
+                                "HI_LO"
+                            }
+                            .to_string(),
+                        );
+                    }
                 } else {
-                    opmods.push("F32x2".to_string());
-                    opmods.push("HI_LO".to_string());
+                    // R-form t3 (UR-form t3 handled in the UR branch of
+                    // format_operand): bit law b88 -> .F32 else .F32x2.HI_LO
+                    if b88 {
+                        opmods.push("F32".to_string());
+                    } else {
+                        opmods.push("F32x2".to_string());
+                        opmods.push("HI_LO".to_string());
+                    }
                 }
             }
             4 => {

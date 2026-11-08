@@ -676,6 +676,15 @@ impl DecodeIndex {
         let matched = select_best_candidate(&matches, code_clean, table)
             .ok_or_else(|| anyhow::anyhow!("no instruction matches code 0x{:032x} at opcode 0x{:04x}", code_clean, opcode_lo16))?;
 
+        // Measured FFMA2 immediate-D scalar sources reject LO_HI; their
+        // paired counterparts use the same bit for the legal lane swap.
+        if matched.key == "FFMA2_R_R_R_FI"
+            && (((code & (1u128 << 82)) != 0 && (code & (1u128 << 81)) != 0)
+                || ((code & (1u128 << 88)) != 0 && (code & (1u128 << 87)) != 0))
+        {
+            anyhow::bail!("FFMA2_R_R_R_FI scalar LO_HI is vendor INVALID3");
+        }
+
         // Get the entry from the table
         let entry = table.get(&matched.key, &matched.mod_group)
             .ok_or_else(|| anyhow::anyhow!("table entry not found for {}::{}", matched.key, matched.mod_group))?;

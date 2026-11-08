@@ -2343,6 +2343,22 @@ fn check_operand_suffixes(insn: &Instruction, entry: &crate::table::ModGroupEntr
     if matches!(fit_lint_mode(), FitLintMode::Allow) {
         return Ok(());
     }
+    if insn.key == "FFMA2_R_R_R_FI" {
+        for tok in [2usize, 3usize] {
+            let source = op_token_text(insn, tok as i32);
+            let segments: Vec<_> = source.split('.').skip(1).collect();
+            let has = |name: &str| segments.contains(&name);
+            if !has("F32") && !has("F32x2") {
+                anyhow::bail!("{source}: FFMA2 immediate source {tok} requires F32 or F32x2");
+            }
+            if (has("F32") && (has("F32x2") || has("LO_HI") || has("HI_LO")))
+                || (has("LO_HI") && has("HI_LO"))
+                || (tok == 3 && has("NP"))
+            {
+                anyhow::bail!("{source}: inconsistent FFMA2 immediate source-shape suffixes");
+            }
+        }
+    }
     // (b) family vendor-default / row-carried notations without fields
     let hsetp_default = insn.key.starts_with("HSETP");
     let ffma2_default = insn.key.starts_with("FFMA2");
