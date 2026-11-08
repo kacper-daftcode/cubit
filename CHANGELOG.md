@@ -4,6 +4,33 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-08 (sessions T-21 / T-22, batch 7 + NEEDS 59: the conversions and the FP32 ALU on sm121a / sm103a / sm100a; VIMNMX3 measured on sm103a / sm100a; sm121a's MUFU_R_L retired)
+
+- **Tables vendored from blackwell-isa `15435a0`** (sm121a 9 063 forms / 39 119 variants, rows without `_src` 10 000 → 9 575; sm103a
+  516 / 35 875, 1 280 → 898; sm100a 515 / 35 869, 1 280 → 898). `tools/probes/re_sm120_conv.py` and `re_sm120_fp32_alu.py` (G's
+  batch 6 / 8 probes) run with `--arch SM121` / `SM103` / `SM100`: every word obeys the sm120 law on the three targets (conv 2 494 form
+  + 18 glyph + 547 lattice words, FP32 ALU 1 636 + 30 + 492 + 16 neighbour, per target); the conv `apply` keeps measured rows outside
+  its lattice (T-14's sm103a MUFU packed-half lanes) and aliases the mis-tokenised keys by their `and_base`'s form. Tests
+  `tests/sm121a_conv.rs`, `tests/sm121a_fp32_alu.rs`, `tests/sm103a_sm100a_conv.rs`, `tests/sm103a_sm100a_fp32_alu.rs`.
+- **NEEDS 59** (two harvest rows the new lattice tests exposed): the sm103a / sm100a `VIMNMX3_R_R_R_R_P` / `VIMNMX3_R_R_UR_R_P` rows
+  declared the fifth operand's predicate as a 4-bit field at shift 1 — inside the opcode nibble — and claimed FMNMX words
+  (`FMNMX R4, R2, R3, PT` decoded as `VIMNMX3 R4, R2, R3, R1, P4`); the form is real (nvdisasm names it, harvest count 1 139 / 944),
+  so the three rows were measured, not deleted (`re_sm120_rows.py --family intalu --arch SM103` / `SM100`: the predicate at [89:87]
+  with its sign at 90, the `.U32` / `.S16x2` / `.RELU` bits other groups' words; `tests/sm103a_sm100a_vimnmx3.rs`). sm121a's
+  label-typed junk key `MUFU_R_L` (a whole-key twin of the measured `MUFU_R_R`; it claimed `MUFU.INVALID6.F16`) is an alias.
+  `re_sm120_rows.py`: VIMNMX3 in the `intalu` family with its measured field lists, `apply --arch / --test` for the other tables.
+- Corpus pins: B300 sm103a 3 950 / 3 962 decoded, 3 933 bit-exact (the `I2F.U16[.RZ]` ×2 and `FMUL.RZ` ×1 holes closed; the strict
+  round trip 85 704 → **85 707 / 85 792**); GB10 strict residue **40 → 17** (the 23 `FFMA_R_R_R_II` words re-encode — the measured
+  `FFMA_R_R_R_FI` row carries the `.reuse` field of the second register; left: the harvest `UIADD3` `64` group ×16, one BUG-037 refusal).
+- Re-pins of the 2026-08/09 F2I / MUFU / FADD / FMNMX wave suites on their sm121a / sm103a / sm100a legs (15 binaries, 31 tests): G's
+  sm120 arms extended to the measured legs by a documented `conv_measured(leg)` where the arm is the inert-bit convention (the F2I
+  alias bits 73 / 74 fail closed on every table; bug339 / 341 / 361 / 362 / 363 / 379_380 / 390 / 403 / 265 / 270); bug125 (the sm103a
+  F2I forms carry 512 measured groups each, the immediate typed by the source lane); bug159 / bug178 (the sm103a `MUFU_R_FI` /
+  `FMUL_R_R_FI` immediates are f32 fields, not the harvest's baked corpus constant — the vendor's `-QNAN` glyph is the display print,
+  the lossless `0xffc00000F` literal re-encodes (A8), a symbol on the typed field is refused, nothing is fabricated); bug247
+  (`.XORSIGN` / `.FTZ.NAN` measured FMNMX groups on the four legs); bug261 (the measured and_base is clear in the guard field); the
+  census pins (sm121a forms 9 064 → 9 063 after the alias).
+
 ## Unreleased — 2026-11-08 (session T-21, batch 6: ISETP / UISETP on sm121a / sm103a / sm100a, FSETP / DSETP on sm103a / sm100a, PLOP3 / P2R / R2P on the three)
 
 - **Tables vendored from blackwell-isa `0525e95`** (sm121a 9 334 forms / 36 884 variants, rows without `_src` 11 160 → 10 000;
