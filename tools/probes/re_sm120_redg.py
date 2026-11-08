@@ -34,6 +34,11 @@ keys (the harvest covered the 3 072 `.E` groups per key, one dotted key each, an
 `apply <sm120.json>` rewrites the two keys (creating them) and retires the dotted one-group keys of the two forms as
 `_meta.key_aliases` of the plain key of their operand signature (every retired key's modifier tokens name a group of
 the target).
+
+Session T-20 (2026-11-08): the same batch on `sm103a.json` and `sm100a.json` (`probe --arch SM103` / `SM100` -- the
+fixtures `tests/fixtures/sm103a_redg_aruri_nvdisasm.jsonl` / `sm100a_...`: every word of the sweep prints the same text
+as on SM120, asserted by the probe; `apply <sm103a.json>` / `<sm100a.json>`: the two plain keys created, 9 216 measured
+rows each, the 6 144 dotted harvest keys of each table retired as aliases). Test `tests/sm103a_sm100a_redg_aruri.rs`.
 """
 from __future__ import annotations
 
@@ -224,12 +229,17 @@ NOTE = ("REDG 0x98e (the global reduction, uniform-indexed address forms) measur
         "bit 81 (the descriptor form) is another key; the .64 form prints base 255 as the vendor's ???255 glyph (BUG-461).")
 
 
-def measured_row(key, mods, src=PROVENANCE):
+def measured_row(key, mods, src=PROVENANCE, note=NOTE):
     form = key.split("_")[1]
     fields = [nvprobe.field(12, 4, "guard", 0, src), nvprobe.field(24, 8, "reg", 1, src), nvprobe.field(64, 8, "ureg", 1, src),
               nvprobe.field(40, 24, "imm", 1, src), nvprobe.field(32, 8, "reg", 2, src)]
     base = word(form, mods, guard=0, ra=0, rb=0, ur=0)
-    return nvprobe.row(base, fields, src, NOTE)
+    return nvprobe.row(base, fields, src, note)
+
+
+def arch_of_table(path: pathlib.Path) -> str:
+    """The nvdisasm target of a table file (sm120.json -> SM120, sm103a.json -> SM103, sm100a.json -> SM100)."""
+    return next((a for a, t in TABLE_OF.items() if path.name.startswith(t)), "SM120")
 
 
 def same_row(old, new):
@@ -265,6 +275,9 @@ def apply(table_path):
     live_before = collections.Counter(g.get("_src") for e in ins.values() for g in e.get("mod_groups", {}).values())
     retire = dotted_keys(ins)
     template = ins[next(iter(retire))] if retire else ins["REDG_dARI_R"]
+    arch = arch_of_table(path)
+    # sm103a / sm100a (session T-20, 2026-11-08): the same law, measured on the table's own target -- the rows say so
+    note = NOTE if arch == "SM120" else NOTE.replace("(-b SM120)", f"(-b {arch}; the same text as on -b SM120 for every word of the sweep -- session T-20, 2026-11-08, on the {TABLE_OF[arch]} table)")
     rewritten = added = kept = 0
     for key in KEYS:
         old = ins.get(key)
@@ -274,7 +287,7 @@ def apply(table_path):
         old_groups = old["mod_groups"] if old else {}
         groups = {}
         for name, mods in GROUPS[key.split("_")[1]].items():
-            row = measured_row(key, mods)
+            row = measured_row(key, mods, note=note)
             prev = old_groups.get(name)
             if prev is not None and same_row(prev, row):
                 groups[name] = prev
@@ -298,8 +311,9 @@ def apply(table_path):
     prov["rows_total"] = len(rows)
     prov["rows_without_src"] = sum(1 for g in rows if g.get("_src") is None)
     prov["sources"][PROVENANCE] = {"rows": sum(1 for g in rows if g.get("_src") == PROVENANCE),
-                                   "kind": "nvdisasm 13.1 field probe (-b SM120 / SM103 / SM100)", "date": "2026-11-07",
-                                   "tool": "tools/probes/re_sm120_redg.py", "test": "tests/sm120_redg_aruri.rs"}
+                                   "kind": "nvdisasm 13.1 field probe (-b SM120 / SM103 / SM100)", "date": "2026-11-07" if arch == "SM120" else "2026-11-08",
+                                   "tool": "tools/probes/re_sm120_redg.py",
+                                   "test": "tests/sm120_redg_aruri.rs" if arch == "SM120" else "tests/sm103a_sm100a_redg_aruri.rs"}
     live_after = collections.Counter(g.get("_src") for g in rows)
     for s, n in live_before.items():
         if s and s != PROVENANCE and live_after[s] != n and prov["sources"].get(s, {}).get("rows") == n:

@@ -27,6 +27,18 @@ include!("bug452_data.inc");
 fn tab(arch: &str) -> IsaTable {
     IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()
 }
+/// Session T-20 (2026-11-08): the REDG uniform-indexed forms are measured on sm120 (G, batch 14), sm103a and sm100a
+/// (tools/probes/re_sm120_redg.py --arch SM103 / SM100); a measured row fails closed on its text-inert bits -- for
+/// REDG 0x98e with bit 91: [23:16] (the atomic's destination slot), 76, 82, 83 and [95:92] -- the convention of every
+/// measured family since T-10. The 2026-09 fuzz words of this file that carry such bits have no decode on those legs.
+fn redg_measured(leg: &str) -> bool {
+    matches!(leg, "sm120" | "sm103a" | "sm100a")
+}
+fn redg_inert_bits_set(w: u128) -> bool {
+    const INERT: u128 = (0xffu128 << 16) | (1u128 << 76) | (1u128 << 82) | (1u128 << 83) | (0xfu128 << 92);
+    (w & 0xfff) == 0x98e && (w >> 91) & 1 == 1 && (w & INERT) != 0
+}
+
 fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
     idx.decode(w, 0, t)
         .ok()
@@ -60,6 +72,10 @@ fn t452_2_l2_a64_ra255_hole() {
     for (w, leg) in REFUSE452_L2 {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
+        if redg_measured(leg) && redg_inert_bits_set(*w) {
+            assert!(dec(&t, &idx, *w).is_none(), "[{leg}] {w:#034x}: a text-inert bit set -- the measured rows fail closed (T-20)");
+            continue;
+        }
         let got =
             dec(&t, &idx, *w).unwrap_or_else(|| panic!("[{leg}] L2 HOLE after 461 {w:#034x}"));
         assert!(
@@ -114,6 +130,12 @@ fn t452_6_era_unchanged() {
     let idx = DecodeIndex::build(&t);
     for (w, want) in ERA452_UNCHANGED {
         let got = dec(&t, &idx, *w);
+        if redg_inert_bits_set(*w) {
+            // T-20: sm103a's REDG_ARURI_R / REDG_ARURI64_R are measured rows now -- the era words with a text-inert bit
+            // set ([23:16] here) fail closed like on sm120 since G's batch 14; the vendor text they carried is unchanged.
+            assert!(got.is_none(), "era word with inert bits must fail closed on the measured rows {w:#034x}: {got:?} (vendor {want})");
+            continue;
+        }
         assert_eq!(got.as_deref(), Some(*want), "era drift {w:#034x}");
     }
 }
@@ -153,7 +175,8 @@ fn t452_7_data_attribution() {
             // `REDG.E…_ARURI64_R` keys are `_meta.key_aliases` of the one measured plain key `REDG_ARURI64_R`
             // (3 072 groups, `_src` redg-aruri-family-2026-11-07, no claim_forbid -- BUG-461's glyph stays a print
             // matter); the 452 / 461 markers were the dotted keys'. The other legs are untouched.
-            if leg == "sm120" && k == "REDG_ARURI64_R" {
+            // T-20 (2026-11-08): the same on sm103a / sm100a (`--arch SM103` / `SM100`).
+            if redg_measured(leg) && k == "REDG_ARURI64_R" {
                 assert_eq!(rec["_src"], "redg-aruri-family-2026-11-07", "[{leg}] {k} measured");
                 assert_eq!(mgs_len(rec), 3072, "[{leg}] {k} groups");
                 assert!(rec["mod_groups"].as_object().unwrap().values().all(|g| g.get("claim_forbid").is_none()), "[{leg}] {k} forbid");
@@ -191,7 +214,9 @@ fn t452_7_data_attribution() {
         // key of the three remains a dotted key on that leg.
         // Batch 13 (tools/probes/re_sm120_stg256.py): the STG key is a group of the measured `STG_dARI_R_R` too -> 0.
         // Batch 14 (tools/probes/re_sm120_redg.py): the 3 072 dotted REDG `.64` keys -> the one plain key.
-        let (want_l1, want_l2) = if leg == "sm120" { (0, 1) } else { (3, 3072) };
+        // T-20: on sm103a / sm100a the REDG .64 keys are the one measured plain key too (the three LDG / STG dotted
+        // EFL2.256 keys stay harvest rows there until their batches).
+        let (want_l1, want_l2) = if leg == "sm120" { (0, 1) } else if redg_measured(leg) { (3, 1) } else { (3, 3072) };
         assert_eq!((l1, l2), (want_l1, want_l2), "[{leg}] inventory drift");
     }
 }

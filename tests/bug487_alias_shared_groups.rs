@@ -1,7 +1,7 @@
 //! BUG-487 (T-16, 2026-11-07): `_meta.key_aliases` share their target's modifier groups instead of deep-copying them.
 //!
 //! The loader used to clone the whole target entry under the retired name. That is quadratic in the measured
-//! lattices: at blackwell-isa `75e9d20` the sm120 table has 39 203 rows and 14 613 aliases whose targets carry up
+//! lattices: at blackwell-isa `6a468a2` the sm120 table has 39 203 rows and 14 613 aliases whose targets carry up
 //! to 6 144 groups (`REDG_ARURI_R`), i.e. 36 804 246 cloned rows per loaded table — `cubit decode` of one word
 //! took 21 GB and 8.5 s (3.9 GB / 1.9 s at `5cb10e5`), the test binaries 40-55 GB each, and the push gate's
 //! parallel suite drove the build host out of memory (the production worker was OOM-killed, 18:59Z). With the
@@ -74,7 +74,7 @@ fn t487_2_real_keys_own_their_maps() {
 
 #[test]
 fn t487_3_sm120_alias_amplification_is_gone() {
-    // The figure the deep copy materialised (36 804 246 rows for 39 203 real ones at 75e9d20): with shared maps the
+    // The figure the deep copy materialised (36 804 246 rows for 39 203 real ones at 6a468a2): with shared maps the
     // table's groups are counted once, and the sum over alias entries is only a view of the same maps.
     let (table, aliases) = load("sm120");
     let real_rows = table.num_groups();

@@ -39,6 +39,17 @@ fn cached_index(table: &IsaTable) -> &'static DecodeIndex {
     pool().values().find(|(fixture, _)| std::ptr::eq(fixture, table))
         .map(|(_, index)| index).expect("table must come from the immutable fixture pool")
 }
+/// Session T-20 (2026-11-08): the REDG uniform-indexed forms are measured on sm120 (G, batch 14), sm103a and sm100a
+/// (tools/probes/re_sm120_redg.py --arch SM103 / SM100); a measured row fails closed on its text-inert bits ([23:16],
+/// 76, 82, 83, [95:92] on REDG 0x98e with bit 91) -- the 2026-09 fuzz words of this file that carry such bits have no
+/// decode on those legs (the glyph law itself is pinned by the words without them).
+fn redg_measured(leg: &str) -> bool {
+    matches!(leg, "sm120" | "sm103a" | "sm100a")
+}
+fn redg_inert_bits_set(w: u128) -> bool {
+    const INERT: u128 = (0xffu128 << 16) | (1u128 << 76) | (1u128 << 82) | (1u128 << 83) | (0xfu128 << 92);
+    (w & 0xfff) == 0x98e && (w >> 91) & 1 == 1 && (w & INERT) != 0
+}
 fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
     idx.decode(w, 0, t)
         .ok()
@@ -55,13 +66,20 @@ fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
 /// werdykt glifu z nvdisasm, nie z hot-silnika -- gen461pins rc=2).
 #[test]
 fn t461_1_glyph_decode() {
+    let mut glyphs = 0;
     for (w, leg, want) in GLYPH461 {
         let t = tab(leg);
         let idx = cached_index(t);
         let got = dec(t, idx, *w);
-        assert_eq!(got.as_deref(), Some(*want), "[{leg}] glyph {w:#034x}");
         assert!(want.contains("???255.64"), "glyph shape: {want}");
+        if redg_measured(leg) && redg_inert_bits_set(*w) {
+            assert!(got.is_none(), "[{leg}] {w:#034x}: a text-inert bit set -- the measured rows fail closed (T-20): {got:?}");
+            continue;
+        }
+        assert_eq!(got.as_deref(), Some(*want), "[{leg}] glyph {w:#034x}");
+        glyphs += 1;
     }
+    assert!(glyphs >= 8, "{glyphs} glyph words still pin the ???255.64 print on the measured legs");
 }
 
 /// t461_2: kill-preserve -- bazay {0,28,127,253,254} na 2 klatkach x4 nogi
@@ -97,11 +115,11 @@ fn t461_4_census_attribution() {
     // CF_RA + 4 klucze EF-band z cf + 4 LTC-mg G2/G4 z CF_RA); canonical bd48e63
     // = 33/33/25/46.
     let want = [
-        ("sm100a", 6979u32), // 2026-11-06 T-11 (canonical 75e9d20): the IDP family measured whole (sm120 15953 -> 15964 forms, 26580 -> 26598 variants; sm103a / sm100a 14913 -> 14925, 22420 -> 22439; sm121a 23850 -> 23860, 26406 -> 26421) + the audit exceptions (FADD.SAT_R_R_R retired, DEPBAR claim_forbid) // 2026-11-06 T-7 (canonical 582dfd8): +2 claim_forbid rows per table = the ATOMG .EL 64-bit-base rows (bit 76 excluded) -> 6978 / 6977 / 7016 // T-6 (canonical 2eed3ac): +2 claim_forbid rows per table = the measured ATOMG .EL rows (bit 63 / bit 76 excluded) -> 6976 / 6975 / 7014 // RIDE476 (F2-iter299, canonical c88778e): +1 cf/noga x3 (476b fantom _II forbid; _src474 key) // RIDE475r3 (F2-iter289, INC-289e, canonical 978c091)
-        ("sm103a", 6978), // 2026-11-06 T-11 (canonical 75e9d20): the IDP family measured whole (sm120 15953 -> 15964 forms, 26580 -> 26598 variants; sm103a / sm100a 14913 -> 14925, 22420 -> 22439; sm121a 23850 -> 23860, 26406 -> 26421) + the audit exceptions (FADD.SAT_R_R_R retired, DEPBAR claim_forbid) // 2026-11-06 T-7: see above
+        ("sm100a", 6979u32), // 2026-11-06 T-11 (canonical 6a468a2): the IDP family measured whole (sm120 15953 -> 15964 forms, 26580 -> 26598 variants; sm103a / sm100a 14913 -> 14925, 22420 -> 22439; sm121a 23850 -> 23860, 26406 -> 26421) + the audit exceptions (FADD.SAT_R_R_R retired, DEPBAR claim_forbid) // 2026-11-06 T-7 (canonical 582dfd8): +2 claim_forbid rows per table = the ATOMG .EL 64-bit-base rows (bit 76 excluded) -> 6978 / 6977 / 7016 // T-6 (canonical 2eed3ac): +2 claim_forbid rows per table = the measured ATOMG .EL rows (bit 63 / bit 76 excluded) -> 6976 / 6975 / 7014 // RIDE476 (F2-iter299, canonical c88778e): +1 cf/noga x3 (476b fantom _II forbid; _src474 key) // RIDE475r3 (F2-iter289, INC-289e, canonical 978c091)
+        ("sm103a", 6978), // 2026-11-06 T-11 (canonical 6a468a2): the IDP family measured whole (sm120 15953 -> 15964 forms, 26580 -> 26598 variants; sm103a / sm100a 14913 -> 14925, 22420 -> 22439; sm121a 23850 -> 23860, 26406 -> 26421) + the audit exceptions (FADD.SAT_R_R_R retired, DEPBAR claim_forbid) // 2026-11-06 T-7: see above
 // T-6 (canonical 2eed3ac): +2 claim_forbid rows per table = the measured ATOMG .EL rows (bit 63 / bit 76 excluded) -> 6976 / 6975 / 7014 //
-        ("sm120", 10990), // G batch 13 STG.256 2026-11-07: the 576 measured STG_dARI_R_R[_II] rows carry the RZ-base claim_forbid, the 384 retired dotted dARI rows had it, 7 other retired rows had one -> 11013 // G batch 12 LDG.256 ARURI 2026-11-07: 5 retired dotted `_R_R_ARURI` rows carried a claim_forbid -> 10828 // G batch 11 LDG.256 ARURI64 2026-11-07: 4 retired dotted `_R_R_ARURI64` rows carried a claim_forbid -> 10833 // // G batch 10 LDG.256 dARI 2026-11-07: the 782 dotted / harvest `_R_R_dARI` rows with the RZ-base claim_forbid retired, the 4 608 measured LDG_R_R_dARI[_II][_P] rows carry it (desc[UR][RZ.64] is illegal on nvdisasm 13.1) -> 7011 - 782 + 4608 = 10837 // // G batch 9 FSET / FSEL / FCHK 2026-11-07: the junk FCHK_P_R_UR row carried a claim_forbid on the opcode nibble [4:1]; the measured row pins the whole opcode -> claim_forbid rows 7012 -> 7011 // 2026-11-06 T-11 (canonical 75e9d20): the IDP family measured whole (sm120 15953 -> 15964 forms, 26580 -> 26598 variants; sm103a / sm100a 14913 -> 14925, 22420 -> 22439; sm121a 23850 -> 23860, 26406 -> 26421) + the audit exceptions (FADD.SAT_R_R_R retired, DEPBAR claim_forbid) // (claim_forbid rows 7013 -> 7011: two retired BRA harvest rows carried the tag) // 2026-11-06 T-8 F2FP twins retired (canonical 09a7141): sm120 keys 16065 -> 16063, variants 26599 -> 26596, claim_forbid rows 7016 -> 7013 // 2026-11-06 T-7 (canonical 582dfd8): +2 claim_forbid rows = the ATOMG .EL 64-bit-base rows // T-6 (canonical 2eed3ac): +2 claim_forbid rows per table = the measured ATOMG .EL rows (bit 63 / bit 76 excluded) -> 6976 / 6975 / 7014 // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim) // G run 5 batch 16 (T-17): 12 claim_forbid-bearing rows gone -- the 6 retired F2FP / ATOMG twin keys (aliases) and the 6 dead F2FP_R_R_R_R junk groups, 0 census witnesses -> 11001 // 2026-11-08 T-18 b2: 32 whole-key twins retired as aliases; 2 of them carried a claim_forbid -> 11001 -> 10999 // 2026-11-08 T-19: the long tail closed -- 9 claim_forbid-bearing rows gone (the 4 duplicate F2FP_R_R_R_R spellings and the 5 F2FP `*PACK_AB_P_R_R_R` phantom-predicate keys, 0 census witnesses) -> 10999 -> 10990
-        ("sm121a", 1244), // 2026-11-06 T-11 (canonical 75e9d20): the IDP family measured whole (sm120 15953 -> 15964 forms, 26580 -> 26598 variants; sm103a / sm100a 14913 -> 14925, 22420 -> 22439; sm121a 23850 -> 23860, 26406 -> 26421) + the audit exceptions (FADD.SAT_R_R_R retired, DEPBAR claim_forbid) // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim) (121a)
+        ("sm120", 10990), // G batch 13 STG.256 2026-11-07: the 576 measured STG_dARI_R_R[_II] rows carry the RZ-base claim_forbid, the 384 retired dotted dARI rows had it, 7 other retired rows had one -> 11013 // G batch 12 LDG.256 ARURI 2026-11-07: 5 retired dotted `_R_R_ARURI` rows carried a claim_forbid -> 10828 // G batch 11 LDG.256 ARURI64 2026-11-07: 4 retired dotted `_R_R_ARURI64` rows carried a claim_forbid -> 10833 // // G batch 10 LDG.256 dARI 2026-11-07: the 782 dotted / harvest `_R_R_dARI` rows with the RZ-base claim_forbid retired, the 4 608 measured LDG_R_R_dARI[_II][_P] rows carry it (desc[UR][RZ.64] is illegal on nvdisasm 13.1) -> 7011 - 782 + 4608 = 10837 // // G batch 9 FSET / FSEL / FCHK 2026-11-07: the junk FCHK_P_R_UR row carried a claim_forbid on the opcode nibble [4:1]; the measured row pins the whole opcode -> claim_forbid rows 7012 -> 7011 // 2026-11-06 T-11 (canonical 6a468a2): the IDP family measured whole (sm120 15953 -> 15964 forms, 26580 -> 26598 variants; sm103a / sm100a 14913 -> 14925, 22420 -> 22439; sm121a 23850 -> 23860, 26406 -> 26421) + the audit exceptions (FADD.SAT_R_R_R retired, DEPBAR claim_forbid) // (claim_forbid rows 7013 -> 7011: two retired BRA harvest rows carried the tag) // 2026-11-06 T-8 F2FP twins retired (canonical 09a7141): sm120 keys 16065 -> 16063, variants 26599 -> 26596, claim_forbid rows 7016 -> 7013 // 2026-11-06 T-7 (canonical 582dfd8): +2 claim_forbid rows = the ATOMG .EL 64-bit-base rows // T-6 (canonical 2eed3ac): +2 claim_forbid rows per table = the measured ATOMG .EL rows (bit 63 / bit 76 excluded) -> 6976 / 6975 / 7014 // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim) // G run 5 batch 16 (T-17): 12 claim_forbid-bearing rows gone -- the 6 retired F2FP / ATOMG twin keys (aliases) and the 6 dead F2FP_R_R_R_R junk groups, 0 census witnesses -> 11001 // 2026-11-08 T-18 b2: 32 whole-key twins retired as aliases; 2 of them carried a claim_forbid -> 11001 -> 10999 // 2026-11-08 T-19: the long tail closed -- 9 claim_forbid-bearing rows gone (the 4 duplicate F2FP_R_R_R_R spellings and the 5 F2FP `*PACK_AB_P_R_R_R` phantom-predicate keys, 0 census witnesses) -> 10999 -> 10990
+        ("sm121a", 1244), // 2026-11-06 T-11 (canonical 6a468a2): the IDP family measured whole (sm120 15953 -> 15964 forms, 26580 -> 26598 variants; sm103a / sm100a 14913 -> 14925, 22420 -> 22439; sm121a 23850 -> 23860, 26406 -> 26421) + the audit exceptions (FADD.SAT_R_R_R retired, DEPBAR claim_forbid) // RIDE458a2 (F2-iter309, canonical 952d336): cf +1 (graft mg F2FP_R_R_R PACK_AB.RZ, klon z 100a, cf verbatim) (121a)
     ];
     for (leg, want_cf) in want {
         let v: serde_json::Value =
@@ -144,8 +162,9 @@ fn t461_4_census_attribution() {
         // `REDG.E.<op>[.cache][.type].<scope>_ARURI64_R` keys are `_meta.key_aliases` of the one measured plain key
         // `REDG_ARURI64_R` (3 072 groups, no claim_forbid -- the `???255` glyph stays a print matter, BUG-461's
         // doctrine; the `_src461` marker was the dotted keys'). The other legs are untouched.
-        if leg == "sm120" {
-            assert_eq!((n_cf, n_a64, n_a64cf, n_src461), (want_cf, 1, 0, 0), "[{leg}] census drift (G batch 14)");
+        // T-20 (2026-11-08): the same on sm103a / sm100a (`--arch SM103` / `SM100`).
+        if redg_measured(leg) {
+            assert_eq!((n_cf, n_a64, n_a64cf, n_src461), (want_cf, 1, 0, 0), "[{leg}] census drift (G batch 14 / T-20)");
             let plain = &ins["REDG_ARURI64_R"];
             assert_eq!(plain["_src"], "redg-aruri-family-2026-11-07", "[{leg}] the measured plain key");
             assert_eq!(plain["mod_groups"].as_object().unwrap().len(), 3072, "[{leg}] the .E half of the lattice");
