@@ -4,6 +4,29 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-08 (session T-21, batch 5: sm121a LDG.256 (three address forms) + STG.256 + REDG uniform-indexed forms measured on `-b SM121`; the GB10 and B300 corpora as suite pins)
+
+- **Tables vendored from blackwell-isa `f254702`** (sm121a 9 488 forms / 37 077 variants from 23 754 / 26 595; rows without
+  `_src` 25 427 → 11 160). G's batch 10–14 probes gain `--arch SM121` and `--witnesses <corpus.jsonl>` (the form's words of a
+  census corpus as `witness` fixture rows with their own control codes): `tools/probes/re_sm120_ldg256.py --form dARI /
+  ARURI64 / ARURI`, `re_sm120_stg256.py`, `re_sm120_redg.py` — all five runs passed on `-b SM121` (every form word prints the
+  SM120 text; the 99 LDG.256 + 68 STG.256 words of the GB10 census corpus obey the law). `LDG_R_R_{dARI,ARURI64,ARURI}[_II][_P]`,
+  `STG_{dARI,ARURI,ARURI64}_R_R[_II]` and `REDG_ARURI_R` / `REDG_ARURI64_R` created with the measured rows; the 14 286 dotted
+  2026-08/09 keys retired as `_meta.key_aliases` (167 corpus words moved to the plain keys, texts unchanged). Tests
+  `tests/sm121a_{ldg256_dari,ldg256_aruri64,ldg256_aruri,stg256,redg_aruri}.rs` (G's sm120 checks over this table + the GB10
+  witness words).
+- Re-pins of the sm121a legs of the 2026-09 EFL2.256 wave suites to the measured doctrine (the text-inert bits fail closed;
+  the vendor-named words the 2026-09 HOLEs stood on decode — bug476's "sm121a coverage gap" and bug475's "121a HOLE-keep"
+  closed; the R3b anomaly and 469 graft keys are aliases), the sm121a key / variant / `claim_forbid` census pins, arch_vendoring's
+  pred_inv4 probe on the measured `LDG_R_R_dARI_P` row.
+- **`tests/corpus_pins.rs` (NEEDS 56):** the GB10 census (`tests/fixtures/corpus_gb10_sm121a.jsonl.gz`, 91 927 words with
+  nvdisasm 13.0 texts) and the B300 publish corpus (`corpus_b300_sm103a.jsonl` / `corpus_b300_sm100a.jsonl`, the 3 962 + 1 116
+  distinct instruction words of the 328 cubins) are suite tests: every word decoded, printed losslessly, re-parsed and
+  re-encoded, the counts exact and the residues named (GB10: 91 927 / 91 927 decode, 40 re-encode residues of three keys;
+  sm103a: 15 holes by opcode — `UIADD3.64`, `I2F.U16`, `FMUL.RZ`, three `MOV` words with text-inert bits —, 9 BUG-080
+  refusals, 8 isolated-word artefacts; sm100a: 3 `UIADD3.64` holes, 3 artefacts). A regression of the 2026-11-06..08 class
+  (564 GB10 words without a decode for two days) fails `cargo test` now, not the field.
+
 ## Unreleased — 2026-11-08 (sessions T-20 / T-21, batch 4: sm103a / sm100a LDG.256 (three address forms) + STG.256 measured on `-b SM103` / `SM100`)
 
 - **Tables vendored from blackwell-isa `39d0372`** (sm103a 650 forms / 32 916 variants from 8 784 / 25 517, sm100a 649 / 32 910
