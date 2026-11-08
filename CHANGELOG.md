@@ -4,9 +4,15 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
-## Unreleased — 2026-11-08 (the bulk store `UBLKCP.G.S` and the async-proxy fence `FENCE.VIEW.ASYNC.G`: two forms a persistent / TMA kernel needs, measured; a silent wrong-direction encode closed)
+## Unreleased — 2026-11-08 (the bulk store `UBLKCP.G.S`, the async-proxy fence `FENCE.VIEW.ASYNC.G` and the warp votes: forms a persistent / TMA kernel needs, measured; a silent wrong-direction encode closed)
 
-- **Tables vendored from blackwell-isa `109eab5`** (sm120 38 838 → 38 842 rows, 979 → 983 forms; sm103a / sm100a / sm121a unchanged).
+- **Tables vendored from blackwell-isa `c374bad`** (sm120 38 838 → 38 848 rows, 979 → 983 forms; sm103a / sm100a / sm121a unchanged).
+- **`VOTE` / `VOTEU` measured — `.ALL` / `.ANY` / `.EQ` on the four keys.** Both opcodes (0x806 / 0x886) share one layout: guard, ballot
+  destination [23:16] (255 = RZ / URZ, elided by nvdisasm — the two-operand keys `VOTE_P_P` / `VOTEU_UP_P`), mode [73:72] (3 = INVALID3,
+  unclaimed), predicate destination [83:81], source predicate [89:87] with its negation bit 90 (`tools/probes/re_sm120_vote.py`, 516 form +
+  154 lattice words). The harvest rows (`bug226d`, `audit-fix-2026-11-06-t10`) carried `.ANY` only on `VOTEU_UR_UP_P` / `VOTE_R_P_P` with a
+  predicate baked at PT — `VOTEU.ALL UR4, UPT, PT` (a comm warp's "every lane ready") and `VOTEU.ANY UR4, UPT, P1` did not assemble — and
+  no `.EQ` anywhere; 6 → 12 rows. VOTE / VOTEU join the decoder's fail-closed bases (`tests/sm120_vote.rs`).
 - **`UBLKCP.G.S` had no row and its text minted the load.** The bulk copy's direction is the code [74:73] — 0 `.G.G`, 1 `.S.G` (the load,
   global → shared), 2 `.G.S` (the store, shared → global: PTX `cp.async.bulk.global.shared::cta.bulk_group`), 3 `.S.S` — measured with
   nvdisasm 13.1 (`tools/probes/re_sm120_ublkcp_dir.py`, 167 form + 48 lattice words). The table carried the codes 0 and 1 as the plain
@@ -26,7 +32,7 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   barrier at most (nvcc: wrtbar + stall 4); `ctrl_class` stays unset (the static `barrier` class would drop the write barrier nvcc's
   consumers wait on — a scheduler item). Both scopes assemble; `.T` is refused (`tests/sm120_fence_view_async.rs`; bug225 / bug226e pins
   moved to the measured state). The `.G` rows on sm103a / sm100a / sm121a (where `FENCE` is absent) are open.
-- Suite 2 916 → 2 924 passed / 0 failed / 9 ignored; the form / variant pins of 13 tests moved (979 → 983, 38 838 → 38 842, 15 897 →
+- Suite 2 916 → 2 928 passed / 0 failed / 9 ignored; the form / variant pins of 13 tests moved (979 → 983, 38 838 → 38 848, 15 897 →
   15 901 loader keys); census strict 1 811 600 / 1 811 600, `asm -T` 157 / 157, the 99 production sources byte-identical, and the
   megakernel probe cubins (472 + 80 words of nvcc 13.0's persistent-kernel primitives) round-trip strictly for the first time.
 

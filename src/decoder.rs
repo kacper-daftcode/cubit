@@ -519,6 +519,11 @@ impl DecodeIndex {
                 // `FENCE.VIEW.ASYNC.G` word as the `.S` row with a reserved-bit residue. Both scopes are measured rows
                 // with the guard as their only field (the donor `.T` row, illegal on SM120, is gone); fail closed.
                 "FENCE" |
+                // VOTE / VOTEU (2026-11-08, tools/probes/re_sm120_vote.py, nvdisasm 13.1): the vote's operands are a
+                // destination register and two predicates -- no sign-able source; its mode [73:72] sits in the
+                // window and the sign fallback absorbed the text-inert bits 62 / 63 / 74 / 75. Every (mode, form) of
+                // the two opcodes is a measured row with every live slot as a field; fail closed.
+                "VOTE" | "VOTEU" |
                 "UGETNEXTWORKID" | "UVIRTCOUNT" | "QSPC" | "RPCMOV" | "SHFL" |
                 "UBLKCP" | "UBLKPF" | "UBLKRED" | "R2P" | "R2UR" | "UP2UR" |
                 "LDTM" | "STTM" | "STAS" | "STSM" | "UTCCP" | "UTMALDG" |
