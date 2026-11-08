@@ -4,6 +4,32 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-08 (session T-18: the 192 wave-pinned rows take their measured status; the 2026-08/09 bug-wave suites re-pinned to the measured doctrine)
+
+- **Tables vendored from blackwell-isa `fd736a7`** (sm120 1 047 forms / 38 898 variants, from 1 083 / 38 966 at `37d030f`; sm103a /
+  sm100a / sm121a unchanged at `b214b0e`). KNOWN_ISSUES T1: **38 898 rows, 38 755 with `_src` — 143 harvest rows left** (304 at `37d030f`).
+  Session G run 5 had verified 192 of the 304 remaining rows field by field but left them harvest because 46 test binaries (67 tests) of the
+  2026-08/09 bug waves pinned their harvest structure or the tolerant decode of a text-inert bit (`EXCEPTION_PREFIXES` in
+  `tools/probes/re_sm120_rows.py`; G's NEEDS 10–12). T-18 lifts the pin and re-pins those suites to the measured doctrine (a measured row's
+  mask is its fields, fail closed on the text-inert bits — T-10's convention, every batch since). Of the 192: **93 measured** (`rows-half`
+  43 → 51, `rows-intalu` 164 → 167, `rows-memory` 199 → 270, `rows-atomic` 57 → 68), **65 aliased** (the HFMA2 integer-immediate spellings
+  `*_R_R_II_II_R*` → `*_R_R_FI_FI_R*`, the HADD2.F32 dotted twins, `F2F.F64.F32_R_R_R` → `F2F.F64.F32_R_R`, the LDC[.64]_R_cAI_II junk,
+  `ATOMS_R_ARI` → `ATOMS_R_ARURI`), **3 deleted** (unreachable; `F2IP.U8.F32.NTZ_P_R_R_R_R` is an HMMA.1688.F16 word under a conversion
+  key — no alias across mnemonics), **31 stay harvest** (their probe finds a real problem that folds into the named classes: the HADD2 /
+  HFMA2 bit-85 immediate-pair rows, the STS / STL over-wide `sub_ur`, F2FP's `.H1`). Whole-census parity (249 929 production words, old
+  engine + `655a2f1` vs new): **0 text / re-encode / key-group changes** — the measurement only narrows masks on words with no census
+  witness. The 143 left = those 31 + the 112 named exceptions.
+- **Re-pins of the 2026-08/09 bug-wave suites to the measured doctrine** (the measurement cited in each): the half / I2IP / MOVM cluster
+  (`bug265 / 271 / 272 / 274 / 275 / 276 / 279 / 282 / 283 / 284 / 285 / 286 / 288 / 296 / 330 / 419 / 226e / 340` — the widened windows and
+  the MOVM sub-op band and the HFMA2.F32 FTZ/SAT absorb window are text-inert and fail closed; the integer-immediate spellings and the
+  dotted twins are aliases; two unreachable rows are dead), LDC (`bug145 / 163 / 167 / 172` — the measured rows carry the guard field, mask =
+  fields), LDGSTS / LDS / STS / LDL / STL (`bug148 / 164 / 188 / 204 / 311 / 359 / 360 / 413ii / 415 / 420 / 425 / 425b / 427 / 433 / 438` —
+  the synthetic bit-32 / bit-72 / scale / era-band words fail closed instead of folding or tolerating; the and_base lattice deltas are
+  compared outside the measured fields; the STS_AURI b95 "era-band relax" is gone on the measured rows), and `sm120_audit_20261103` (one
+  deleted-row word now decodes to a hole). `re_sm120_rows.py`: `EXCEPTION_PREFIXES` emptied, the IMAD HI-group exclusion for the neg@72
+  law baked in, `apply` idempotent on tagged rows. The four `tests/sm120_rows_{half,intalu,memory,atomic}.rs` regenerated; era-keys alias
+  count 14 839 → 14 874. Suite 496 binaries 2 799 / 0 / 9.
+
 ## Unreleased — 2026-11-07 (session T-17, gate 1: the T1 production line's run 5 — the long tail verified row by row by session G, batch 16)
 
 - **Tables vendored from blackwell-isa `37d030f`** (sm120 1 083 forms / 38 966 variants, from 1 231 / 39 125; sm103a / sm100a /
