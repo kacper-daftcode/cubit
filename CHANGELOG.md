@@ -4,6 +4,24 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-08 (session T-22, batch 9: the UIADD3 `.64` groups on sm103a / sm100a / sm121a — the B300 corpus' last `UIADD3.64` holes, the GB10 16-word residue)
+
+- **Tables vendored from blackwell-isa `fddd1b3` + `3fb3b82`** (sm103a 516 forms / 35 876 variants, rows without `_src` 898 → 893; sm100a 515 /
+  35 870, 898 → 893; sm121a 2 150 / 50 444, 2 663 → 2 654). sm120's measured UIADD3 `.64` rows (the UR form 0x297, the immediate form
+  0x897) placed as the `64` groups of the plain keys of the three tables and re-measured there with `tools/probes/re_sm120_rows.py
+  --family uniform --arch SM103` / `SM100` / `SM121` (the corpus words as witnesses: sm103a 6 + 3, sm100a 3, sm121a 19 + 16; the plain
+  `""` rows of the two keys measured on the way); sm121a's three dotted `UIADD3.64_*` harvest keys are aliases. Test
+  `tests/sm121a_sm103a_sm100a_uiadd3_64.rs`. **The `.X` rows measured too** (`3fb3b82`): once the plain rows failed closed on their dead
+  bits [90:77], the harvest `UIADD3_…_UP_UP` rows were found claiming those words (`UP15, !UPT` / `!UPT, !UP6` for the vendor's plain
+  6-token text — bug459a's 2026-09 "x3 standing" overprint); sm120's field lists measured on the three targets, bug459a's EXACT /
+  X3STANDING cells re-pinned to the sm120 hole-parity doctrine.
+- Corpus pins (`tests/corpus_pins.rs`): **B300 85 707 → 85 721 / 85 792 words, 288 → 296 / 328 cubins strict-exact** (sm103a 3 959 /
+  3 962 decoded — the 3 `MOV` probe-cubin words with text-inert bits are the last holes —, sm100a every word decodes); **GB10 91 926 /
+  91 927 re-encode** (the one left is BUG-037's alignment refusal of a cuBLASLt `HMMA.1688.F32` word).
+- Found on the way by the lattice sweep (counted by the test, the uniform family's next items on these tables): the sm121a junk
+  key `UIADD3_UR_UP_UP_UR_UR_R_II_P` (it claims the UR form's words with bits in the unused immediate window), sm103a / sm100a's
+  harvest `ULOP3 LUT` row (a 6-bit `pred`, a 9-bit LUT, no `.PAND`: the ULOP3 immediate word renders vendor-false).
+
 ## Unreleased — 2026-11-08 (session T-22, batch 8: sm121a ATOM / ATOMG in the plain uniform-indexed form measured on `-b SM121`)
 
 - **Tables vendored from blackwell-isa `ce51005`** (sm121a 2 153 forms / 50 447 variants, rows without `_src` 9 575 → **2 663**). New
