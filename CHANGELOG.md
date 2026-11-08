@@ -4,6 +4,24 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-08 (session T-20, batch 2: sm121a FSETP / DSETP measured on `-b SM121` — the first batch of the GB10 line; a GB10 census regression closed)
+
+- **Tables vendored from blackwell-isa `75e9d20`** (sm121a 23 754 forms / 26 595 variants, from 23 860 / 26 421; rows without `_src`
+  25 685 → 25 427; the other tables unchanged). `tools/probes/re_sm120_fsetp_dsetp.py --arch SM121`: the sm120 law of 2026-11-06
+  holds word for word on SM121 (1 022 form + 12 glyph + 223 lattice words) and on all 2 688 FSETP / DSETP words of the GB10 census
+  corpus (`--witnesses`, their own control codes); 432 measured rows on the six plain keys (`FSETP_P_P_R_UR_P` created, 312 groups
+  added), 105 dotted harvest keys + the 7 junk keys of the sm120 batch retired as `_meta.key_aliases`. `apply` generalised for a
+  table whose plain keys hold a subset of the lattice (byte-identical on sm120). Test `tests/sm121a_fsetp_dsetp.rs` (6 pins).
+- **Decoder:** DSETP off the priority-3 sign-tolerant match on sm121a as on sm120 (its boolean sits in the sign window).
+- **GB10 census regression closed (KNOWN_ISSUES V3):** since G's batch 3 (2026-11-06) the FSETP decoder arm applied to every table
+  while the sm121a harvest rows had no sign fields — **564 signed FSETP words of the 91 927-word GB10 corpus had no decode** at the
+  2026-11-06..08 tips (found by running the census locally, `T/t20/gb10_census.py`); with the measured rows 91 927 / 91 927 decode,
+  1 text mismatch (`LEPC`), strict re-encode 91 887 / 91 927 (40 words outside the family, as before). The GB10 census joins the
+  gate of every change that touches the decoder or `sm121a.json`.
+- **Inventories of the three remaining tables** (KNOWN_ISSUES T1): sm121a 25 427 of 26 595 rows without `_src`, sm103a 15 858 of
+  22 445, sm100a 15 858 of 22 439 — the LDG / REDG / STG (/ ATOM / ATOMG on sm121a) lattices are 85–91 % of them.
+- Pins: the sm121a key / variant census in the bug439 / 441 / 442 / 450 / 453 / 459a / 462 / 463 / 468 / 469 / 474 / 475 / 476 data.
+
 ## Unreleased — 2026-11-08 (session T-20: the IMAD `-Ra` reading of bit 72 retired — NEEDS 53 measured compute-inert on silicon)
 
 - **Tables vendored from blackwell-isa `27b1272`** (sm120 979 forms / 38 838 variants, unchanged counts; 7 rows without `_src`,
