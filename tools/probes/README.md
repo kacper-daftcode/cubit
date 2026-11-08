@@ -16,7 +16,10 @@ The method (2026-10 onwards, `nvprobe.py` helpers):
    `INVALIDn`, text-inert).
 2. `apply <sm120.json>` writes the measured row(s) into the canonical table: `and_base` = the
    form's constant bits, `variable_mask` = exactly the measured fields (fail-closed), `count null`,
-   `_src` = the probe's provenance tag, `_note` = the measurement in one paragraph.
+   `_src` = the probe's provenance tag, `_note` = the measurement in one paragraph. Since 2026-11-08 the
+   table is written through `tools/tablefmt.py` (`nvprobe.save_table`): the note of a lattice is kept once
+   — on the family's `_meta.provenance.sources[<tag>].note` or the key — and a field's `_src` only where it
+   differs from the row's; the file is compact JSON with one row per line (`tablefmt.py --check`).
 3. A test `tests/sm120_<form>.rs` replays the fixture: every form word decodes to the row, prints
    NVIDIA's text in NVIDIA's modifier order and re-encodes bit for bit; every lattice word either
    fails to decode or prints exactly NVIDIA's text; the encoder refuses the `INVALIDn` spellings.

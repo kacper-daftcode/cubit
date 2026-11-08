@@ -125,7 +125,7 @@ A file may hold several `.entry` blocks; they become one multi-kernel cubin.
 ## Tables
 
 The four architecture tables published by blackwell-isa are vendored byte-exact under `tables/` as
-`tables/<arch>.json.gz` (gzip; 0.5–0.9 MB each instead of 38–59 MB of JSON) and pinned by revision
+`tables/<arch>.json.gz` (gzip; 0.5–0.7 MB each instead of 24–33 MB of JSON) and pinned by revision
 and SHA-256 of the decompressed JSON in `tables/SOURCE.json`. Nothing has to be unpacked: the loader
 (`cubit::table::read_table_bytes`, used by the CLI, the Python bindings and the tests) reads
 `tables/sm120.json` from the plain file when one exists and from `tables/sm120.json.gz` otherwise
@@ -135,7 +135,11 @@ JSON directly, `python3 tools/sync_table.py --unpack` writes the plain `tables/<
 suite, `--check` decompresses and verifies the pins (CI; a stale unpacked copy is an error),
 `--validate-only` checks structure, extraction vocabulary, provenance convention and the control-bit
 ratchet. The tables are data, never edited here: fixes go to blackwell-isa (`tools/probes/` holds
-the measurements that produced the SM120 rows added since 2026-10).
+the measurements that produced the SM120 rows added since 2026-10). The canonical layout — compact JSON, one
+encoding row per line, the provenance written once per level (row `_src`, key `_src` / `_note`, the family's
+law in `_meta.provenance.sources[<tag>].note`) — is produced and checked by `tools/tablefmt.py` (`--check`,
+`--rewrite`; `row_src()` / `row_note()` resolve a row's provenance); the probes write through it and
+`sync_table.py --validate-only` refuses any other layout (2026-11-08: `sm121a.json` 87 → 33 MiB, GitHub's limit is 100 MiB).
 
 | table | silicon | what the gate proves | not proved |
 |---|---|---|---|
@@ -234,9 +238,9 @@ See [docs/PYTHON_API_ARCH_SELECT.md](docs/PYTHON_API_ARCH_SELECT.md).
 
 ```
 src/            the crate (library + `cubit` binary)
-tables/         vendored ISA tables (four architectures, gzip: 2.5 MB; 183 MB of JSON unpacked) + SOURCE.json pins
+tables/         vendored ISA tables (four architectures, gzip: 2.3 MB; 108 MB of JSON unpacked) + SOURCE.json pins
 tests/          468 test files (one binary each); tests/fixtures/ = nvdisasm fixtures of measured forms (< 1 MB)
-tools/          sync_table.py (vendoring gate), asm_roundtrip.py, audit_table.py, audit_dynamic.py,
+tools/          sync_table.py (vendoring gate), tablefmt.py (canonical table layout), asm_roundtrip.py, audit_table.py, audit_dynamic.py,
                 gen_tests_index.py, check_public_surface.sh, probes/ (measurements)
 examples/       SASS kernels with host harnesses (QMMA GEMV, pipelined MMA, IMMA U8, sparse GEMV),
                 audit_manifest / audit_words / recheck_failures example binaries

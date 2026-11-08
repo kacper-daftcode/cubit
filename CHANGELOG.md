@@ -4,6 +4,32 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-08 (session T-23: the canonical tables in the compact one-row-per-line layout with the provenance written once per level — NEEDS 61 (a) + (b); `tools/tablefmt.py`)
+
+- **Tables vendored from blackwell-isa `4f72245`** — the same 38 838 / 35 876 / 35 870 / 50 444 rows (sm120 / sm103a / sm100a / sm121a; rows
+  without `_src` unchanged at 7 / 893 / 893 / 2 654), rewritten: `sm121a.json` **87.0 → 32.8 MiB**, `sm120.json` 73.6 → 28.0, `sm103a.json` /
+  `sm100a.json` 67.8 → 23.7 / 23.6 (the vendored `.gz` 1.08 → 0.69 MB on sm121a). Why: GitHub refuses files over 100 MiB and the next sm121a
+  lattices would not have fit (`T/NEEDS_OWNER.md` 61; R's decision 12:40Z). What moved: a lattice family's measurement note is written once
+  — in `_meta.provenance.sources[<tag>].note` when every row of the tag shares it, on `instructions.<key>._note` when every row of the key
+  shares it, on the row only where the row's own differs (24.0 MiB of repeated prose on sm121a); `instructions.<key>._src` is set on every
+  key whose rows all carry one tag (the rows keep their `_src`); a field carries `_src` only when measured by another tag than its row
+  (6.6 MiB); the layout is compact JSON with one encoding row per line (24 MiB of `indent=1` whitespace), `_meta` indented. For every row
+  the encoding record and the resolved provenance (tag, note, per-field tag) are identical before and after (`T/t23/probe/fmt/equiv_check.py`,
+  0 differences, idempotent); whole-census parity, the two corpus pins and every suite count are unchanged.
+- **`tools/tablefmt.py`** (new) is the canonical reader / writer: `load_table` refuses any other layout, `save_table` hoists and writes,
+  `row_src()` / `row_note()` resolve a row's provenance (row → key → tag), `--check` / `--rewrite` / `--stats`. `tools/probes/nvprobe.py`
+  and the twelve probes with their own writers go through it (`nvprobe.row()` may keep producing verbose rows — the hoisting happens on
+  save); `tools/sync_table.py --validate-only` refuses a canonical table in any other layout or with un-hoisted provenance, and documents
+  key-level `_src` tags like row tags; `tools/audit_table.py` and the loader (`IsaTable::load`: the `rows-` arm) read a row's tag as its
+  own or its key's. Tests re-pinned to the convention: a field's tag is its own or its row's (`sm120_{prmt_ur,arrives_ldgstsbar,mufu_ur,
+  hmul2_imm,ldsm_fp4,ldl_aruri,utmastg_dims}`, bug175 / 202 / 371), the `sm120_ldsm8_mt1616` snapshot projected by the same rule; the
+  42 canonical-revision pins moved once.
+- **CI (NEEDS 62):** `cargo test` in CI ran the 520 integration-test binaries one after another in the debug profile, each parsing its
+  tables cold — 1 h 50 to 3 h 35 per run on the hosted runner (six runs of 2026-11-08 still in progress at 13:00Z) against the 6-hour job
+  limit. The workflow now runs the push gate's runner, `tools/test_suite.py --release -j $(nproc) -t 2` (the same binaries built with
+  `cargo test --release --no-run`, run in parallel longest first, exit 1 on any failure), plus `cargo test --release --doc`, with
+  `Swatinem/rust-cache` for the dependency builds; `--validate-only` also checks the canonical layout.
+
 ## Unreleased — 2026-11-08 (session T-22, batch 9: the UIADD3 `.64` groups on sm103a / sm100a / sm121a — the B300 corpus' last `UIADD3.64` holes, the GB10 16-word residue)
 
 - **Tables vendored from blackwell-isa `fddd1b3` + `3fb3b82`** (sm103a 516 forms / 35 876 variants, rows without `_src` 898 → 893; sm100a 515 /
