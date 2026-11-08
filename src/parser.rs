@@ -311,7 +311,9 @@ fn parse_address(s: &str) -> Option<Operand> {
 /// Opcodes whose immediate operands are float values.
 const FLOAT_OPCODES: &[&str] = &[
     "UFFMA", "UFADD", "UFMUL", "UFMNMX", "UFSEL",
-    "FADD", "FMUL", "FFMA", "FSEL", "FMNMX", "FSET", "FSETP",
+    "FADD", "FADD2", "FMUL", "FFMA", "FSEL", "FMNMX", "FSET", "FSETP",
+    // Production FADD2_R_R_FI renders integer-looking FP32 immediates as `1`
+    // and `-1`; they encode the corresponding FP32 bits at [63:32].
     // UFSETP is the uniform-datapath FSETP: its immediate compare value is an
     // f32 (corpus bakes 1.0 as 0x3f800000 at bits[63:32]; nvdisasm prints "1").
     // Without float context the textual `1` parsed to Imm32(1) and silently
@@ -707,8 +709,16 @@ pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
             raw_text_override = Some(RE_H1H1A_RA.replace(&t, "${1}${2}.H1_H1${3}").to_string());
         }
 
-        for tok in &tokens {
-            let op = parse_single_operand(tok, is_float);
+        for (token_index, tok) in tokens.iter().enumerate() {
+            // The measured FADD2 immediate can carry `.NP`. Keep the suffix in
+            // raw_text for opmod:NP@86, but remove it for immediate type/value
+            // classification. Other opcodes and operand positions stay strict.
+            let parse_token = if base_op == "FADD2" && token_index == 2 {
+                tok.strip_suffix(".NP").unwrap_or(tok)
+            } else {
+                tok.as_str()
+            };
+            let op = parse_single_operand(parse_token, is_float);
             // BUG-073: parse_address is strict (fold-or-fail); a bracketed
             // token that fell through to Label means the address was rejected.
             // Surface the real cause loudly instead of a generic encode miss.

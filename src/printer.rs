@@ -1858,7 +1858,15 @@ fn format_operand(
             }
         }
         "II" | "IM" | "LO" => format_imm_or_reg(fields, mod_group, ins_key, tok, raw, lossless),
-        "FI" => format_float_imm(fields, lossless),
+        "FI" => {
+            let text = format_float_imm(fields, lossless);
+            if ins_key == "FADD2_R_R_FI"
+                && fields.iter().any(|f| f.extraction == "opmod:NP" && f.value != 0) {
+                format!("{text}.NP")
+            } else {
+                text
+            }
+        }
         "L" | "SR" => format_lit_or_sysreg(fields, mod_group, raw),
         // BUG-179 (superset of parked-BUG-157): SYNCS- and ATOMS-family ARI
         // rows carry the uniform-register window baked as URZ in and_base
@@ -2431,6 +2439,22 @@ fn format_reg(
                 }
             }
             _ => {}
+        }
+    }
+
+    // Measured FADD2 immediate input shape: bit82 selects scalar .F32;
+    // otherwise the vendor prints the paired HI_LO default for both bit88
+    // values. Bit88 is neutral mask space, not an independent suffix.
+    if ins_key == "FADD2_R_R_FI" && tok == 2 {
+        opmods.clear();
+        if (raw >> 82) & 1 != 0 {
+            opmods.push("F32".to_string());
+        } else {
+            opmods.push("F32x2".to_string());
+            opmods.push(if (raw >> 81) & 1 != 0 { "LO_HI" } else { "HI_LO" }.to_string());
+        }
+        if (raw >> 83) & 1 != 0 {
+            opmods.push("NP".to_string());
         }
     }
 

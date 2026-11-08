@@ -676,6 +676,13 @@ impl DecodeIndex {
         let matched = select_best_candidate(&matches, code_clean, table)
             .ok_or_else(|| anyhow::anyhow!("no instruction matches code 0x{:032x} at opcode 0x{:04x}", code_clean, opcode_lo16))?;
 
+        // The measured FADD2 immediate scalar F32|LO_HI combination is the
+        // vendor INVALID3 marker, not a legal source shape.
+        if matched.key == "FADD2_R_R_FI" && (code & (1u128 << 82)) != 0
+            && (code & (1u128 << 81)) != 0 {
+            anyhow::bail!("FADD2_R_R_FI scalar LO_HI is vendor INVALID3");
+        }
+
         // Get the entry from the table
         let entry = table.get(&matched.key, &matched.mod_group)
             .ok_or_else(|| anyhow::anyhow!("table entry not found for {}::{}", matched.key, matched.mod_group))?;
