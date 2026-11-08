@@ -263,10 +263,13 @@ fn t261_2_decode_sign_laws() {
     // 2026-11-06 (T-11): the SAT-less `FADD.SAT_R_R_R` harvest row (Ra = RZ baked) is retired -- an alias of
     // `FADD_R_R_R`; the law under test (bit 73 = |Ra|) reads the same on the plain row's own base word
     // (its harvest and_base carries guard P1 and Ra = R0).
-    let f = and_base(&t, "FADD_R_R_R", "");
+    // 2026-11-08 (T-22, batch 7: `tools/probes/re_sm120_fp32_alu.py --arch SM121`): the sm121a FADD_R_R_R row is
+    // measured -- its and_base is clear in every field bit (the guard included), so the base word is read with the
+    // guard nibble set to PT; the law under test (bit 73 = |Ra|) is unchanged.
+    let f = and_base(&t, "FADD_R_R_R", "") | (7 << 12);
     assert_eq!(
         dec(&t, (f | (2 << 72)) & M96).as_deref(),
-        Some("@P1 FADD R0, |R0|, R0")
+        Some("FADD R0, |R0|, R0")
     );
     let m = and_base(&t, "FMNMX_R_R_FI_P", "");
     assert_eq!(

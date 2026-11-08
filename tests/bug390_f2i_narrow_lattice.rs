@@ -28,6 +28,15 @@ use cubit::table::IsaTable;
 
 const M96: u128 = (1u128 << 96) - 1;
 const LEGS4: [&str; 4] = ["sm100a", "sm103a", "sm120", "sm121a"];
+
+/// T-22 2026-11-08 (batch 7, `tools/probes/re_sm120_conv.py --arch SM121 / SM103 / SM100`, fixtures
+/// `tests/fixtures/{sm121a,sm103a,sm100a}_conv_nvdisasm.jsonl`, tests `tests/{sm121a,sm103a_sm100a}_conv.rs`): the F2I
+/// rows are measured whole on every leg now (G's batch 8 measured sm120 on 2026-11-07), so the text-inert alias bits
+/// 73 / 74 fail closed on every table -- the convention of every measured family. The lattice law itself holds word
+/// for word on `-b SM121` / `SM103` / `SM100` (every probe word of the fixtures prints the sm120 text).
+fn conv_measured(leg: &str) -> bool {
+    matches!(leg, "sm120" | "sm121a" | "sm103a" | "sm100a")
+}
 const A390: u128 = 0x0030000000000006001a7311; // F64-src anchor (R26 <- R6)
 
 fn tab(arch: &str) -> IsaTable {
@@ -187,10 +196,10 @@ fn t390_1_lattice_decode_vendor_exact_x4() {
         for (b9, head) in LATTICE {
             let w = (A390 & !(0xffu128 << 72)) | (b9 << 72);
             let want = format!("{head} R26, R6");
-            // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stays on the other legs
+            // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stayed on the other legs until T-22's batch 7 measured them too (conv_measured)
             assert_eq!(
                 dec96(&t, w).as_deref(),
-                if leg == "sm120" && b9 & 0x06 != 0 { None } else { Some(want.as_str()) },
+                if conv_measured(leg) && b9 & 0x06 != 0 { None } else { Some(want.as_str()) },
                 "{leg} byte9 0x{b9:02x}"
             );
         }
@@ -484,9 +493,10 @@ fn t390_6_sm121a_tie_functional_proof() {
     for (b9, head) in LATTICE {
         let w = (A390 & !(0xffu128 << 72)) | (b9 << 72);
         let want = format!("{head} R26, R6");
+        // T-22 2026-11-08: sm121a's F2I rows are measured too (batch 7) -- the alias cells (bits 73 / 74) fail closed
         assert_eq!(
             dec96(&t121, w).as_deref(),
-            Some(want.as_str()),
+            if b9 & 0x06 != 0 { None } else { Some(want.as_str()) },
             "sm121a tie cell 0x{b9:02x}"
         );
         assert_eq!(

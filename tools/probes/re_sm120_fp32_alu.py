@@ -58,7 +58,7 @@ from re_sm120_fsetp_dsetp import F32_GLYPHS, F32_IMMS, SPECIAL  # noqa: E402
 
 PROVENANCE = "fp32-alu-family-2026-11-07"
 CTRL = 0x000f_e200 << 96
-TABLE_OF = {"SM120": "sm120", "SM103": "sm103a", "SM100": "sm100a"}
+TABLE_OF = {"SM120": "sm120", "SM103": "sm103a", "SM100": "sm100a", "SM121": "sm121a"}
 RND = ["", "RM", "RP", "RZ"]
 SCALE = ["INVALID0", "D8", "D4", "D2", "", "M2", "M4", "M8"]
 

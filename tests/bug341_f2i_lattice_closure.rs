@@ -38,6 +38,15 @@ fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
     let insn = parse_sass(&format!("{text};"), 0).unwrap();
     encode_instruction(&insn, t).map_err(|e| format!("{e}"))
 }
+/// T-22 2026-11-08 (batch 7, `tools/probes/re_sm120_conv.py --arch SM121 / SM103 / SM100`, fixtures
+/// `tests/fixtures/{sm121a,sm103a,sm100a}_conv_nvdisasm.jsonl`, tests `tests/{sm121a,sm103a_sm100a}_conv.rs`): the F2I
+/// rows are measured whole on every leg now (G's batch 8 measured sm120 on 2026-11-07): the dotted era keys are aliases
+/// of the measured `F2I_R_R`, the rows are its groups of the same (sorted) modifiers, every group carries the |Ra| / -Ra
+/// sign fields, and the text-inert alias bits 73 / 74 fail closed on every table.
+fn conv_measured(arch: &str) -> bool {
+    matches!(arch, "sm120" | "sm121a" | "sm103a" | "sm100a")
+}
+
 fn word(lane: u32, guard: u32, dst: u32, src: u32, sign: u32) -> u128 {
     0x0305u128
         | ((guard as u128) << 12)
@@ -62,9 +71,9 @@ fn t341_1_structure_owner_geometry() {
                 ("F2I.U32.NTZ_R_R", 0x30u128),
                 ("F2I.CEIL.NTZ_R_R", 0xb1u128),
             ] {
-                // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): on sm120 the dotted keys are aliases of the
-                // measured F2I_R_R -- the lane is its group's (sorted modifier name), fail-closed on bits 73 / 74
-                let r = if arch == "sm120" {
+                // 2026-11-07 (session G, tools/probes/re_sm120_conv.py; sm121a since T-22 batch 7): the dotted keys are aliases
+                // of the measured F2I_R_R -- the lane is its group's (sorted modifier name), fail-closed on bits 73 / 74
+                let r = if conv_measured(arch) {
                     let mut mods: Vec<&str> = key.trim_end_matches("_R_R").split('.').skip(1).collect();
                     mods.sort_unstable();
                     &ins["F2I_R_R"].mod_groups[&mods.join(",")]
@@ -75,7 +84,7 @@ fn t341_1_structure_owner_geometry() {
                 assert_eq!((r.and_base >> 80) & 0xff, 0x20, "{arch} {key} byte10 pin");
                 assert_eq!(
                     (r.variable_mask >> 72) & 0xff,
-                    if arch == "sm120" { 0x00 } else { 0x06 },
+                    if conv_measured(arch) { 0x00 } else { 0x06 },
                     "{arch} {key} alias tolerance"
                 );
                 assert!(
@@ -87,7 +96,7 @@ fn t341_1_structure_owner_geometry() {
                     "{arch} {key} abs field"
                 );
             }
-            let r = if arch == "sm120" { &ins["F2I_R_R"].mod_groups["FTZ,NTZ,TRUNC,U32"] } else { &ins["F2I.FTZ.U32.TRUNC.NTZ_R_R"].mod_groups[""] };
+            let r = if conv_measured(arch) { &ins["F2I_R_R"].mod_groups["FTZ,NTZ,TRUNC,U32"] } else { &ins["F2I.FTZ.U32.TRUNC.NTZ_R_R"].mod_groups[""] };
             assert_eq!((r.and_base >> 72) & 0xff, 0xf0);
             assert_eq!((r.and_base >> 80) & 0xff, 0x21);
             // BUG-363 flip (canonical fbcef1c): signs were measured legal on
@@ -2047,8 +2056,8 @@ fn t341_2_decode_matrix_law_minus_registered_drift() {
             dec(&t, base | (2u128 << 72)),
         ];
         for (i, want) in cells.iter().enumerate() {
-            // cell 3 = the alias bit 73: fail closed on the measured sm120 rows (2026-11-07, session G)
-            let want = if *arch == "sm120" && i == 3 { "HOLE" } else { *want };
+            // cell 3 = the alias bit 73: fail closed on the measured rows (sm120 2026-11-07, session G; every leg since T-22 batch 7)
+            let want = if conv_measured(arch) && i == 3 { "HOLE" } else { *want };
             assert_eq!(
                 got[i].as_deref().unwrap_or("HOLE"),
                 want,
@@ -2126,8 +2135,8 @@ fn t341_4_fail_closed_residua() {
     assert!(enc(&t, "@P0 F2I -R4, 1.5").is_err(), "F2I_R_FI sign refuse");
     for arch in ["sm120", "sm121a"] {
         let t = tab(arch);
-        if arch == "sm120" {
-            // 2026-11-07 (session G): every measured F2I group carries |Ra| 62 / -Ra 63 -- the mint is legal and vendor-true
+        if conv_measured(arch) {
+            // 2026-11-07 (session G; sm121a since T-22 batch 7): every measured F2I group carries |Ra| 62 / -Ra 63 -- the mint is legal and vendor-true
             let w = enc(&t, "F2I.NTZ R1, |R15|").expect("measured sign field");
             assert_eq!(dec(&t, w).as_deref(), Some("F2I.NTZ R1, |R15|"), "{arch} signed mint round trip");
             continue;

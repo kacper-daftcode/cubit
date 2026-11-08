@@ -58,9 +58,16 @@ fn t178_1_matching_symbols_admitted() {
     ] {
         assert_eq!(enc(&t, text).ok(), Some(w), "{text}: word drift");
     }
-    let fm = enc(&t, "FMUL R2, R3, +QNAN ;").expect("+QNAN on FMUL admitted");
+    // 2026-11-08 (T-22, batch 7: `tools/probes/re_sm120_conv.py` / `re_sm120_fp32_alu.py --arch SM103`): the sm103a
+    // FMUL_R_R_FI and MUFU_R_FI rows are measured and carry the immediate as an f32 FIELD -- there is no baked constant
+    // left for the symbol to match, so the BUG-178 admission lane no longer applies to them: the vendor's `+QNAN` /
+    // `-QNAN` glyph (payload-less) is the display print only and refuses to encode (KNOWN_ISSUES A8), the lossless
+    // `0x<8 hex>F` literal mints the word. Nothing is fabricated: a symbol on a typed field is an operand-kind error.
+    assert!(enc(&t, "FMUL R2, R3, +QNAN ;").is_err(), "FMUL: the glyph is display-only on the measured f32 field");
+    let fm = enc(&t, "FMUL R2, R3, 0x7fc00000F ;").expect("the lossless literal mints the FMUL word");
     assert_eq!((fm >> 32) as u32, 0x7FC0_0000, "FMUL +QNAN imm lane");
-    let mu = enc(&t, "MUFU.RSQ R1, -QNAN ;").expect("-QNAN on MUFU.RSQ admitted");
+    assert!(enc(&t, "MUFU.RSQ R1, -QNAN ;").is_err(), "MUFU.RSQ: the glyph is display-only on the measured f32 field");
+    let mu = enc(&t, "MUFU.RSQ R1, 0xffc00000F ;").expect("the lossless literal mints the MUFU.RSQ word");
     assert_eq!((mu >> 32) as u32, 0xFFC0_0000, "MUFU.RSQ -QNAN imm lane");
 }
 
@@ -74,13 +81,16 @@ fn t178_2_mismatched_symbols_refused() {
         ("FSEL R7, RZ, -QNAN , !P1 ;", "0x7fc00000"),
         ("FSEL R7, RZ, +SNAN , !P1 ;", "0x7fc00000"),
         ("FSEL R7, RZ, -SNAN , !P1 ;", "0x7fc00000"),
-        ("FMUL R2, R3, -QNAN ;", "0x7fc00000"),
-        ("MUFU.RSQ R1, +QNAN ;", "0xffc00000"),
-        ("MUFU.RSQ R1, +SNAN ;", "0xffc00000"),
     ] {
         let err = enc(&t, text).expect_err(&format!("{text}: must refuse"));
         assert!(err.contains("BUG-178"), "{text}: attribution missing: {err}");
         assert!(err.contains(want_baked), "{text}: baked value missing: {err}");
+    }
+    // 2026-11-08 (T-22, batch 7): FMUL / MUFU.RSQ carry a measured f32 field, not a baked constant -- every symbol is
+    // refused as an operand-kind mismatch (the glyph never encodes, A8); the sign-loss hazard cannot arise on a field
+    for text in ["FMUL R2, R3, -QNAN ;", "MUFU.RSQ R1, +QNAN ;", "MUFU.RSQ R1, +SNAN ;"] {
+        let err = enc(&t, text).expect_err(&format!("{text}: must refuse"));
+        assert!(err.contains("ext=F32"), "{text}: the typed-field arm: {err}");
     }
 }
 
@@ -92,12 +102,15 @@ fn t178_3_unknown_identifiers_refused() {
     for text in [
         "FSEL R7, RZ, FOOBAR , !P1 ;",
         "FSEL R7, RZ, QNAAN , !P1 ;",
-        "FMUL R2, R3, NaNish ;",
-        "MUFU.RSQ R1, INFINITY ;",
     ] {
         let err = enc(&t, text).expect_err(&format!("{text}: must refuse"));
         assert!(err.contains("unresolved identifier"), "{text}: wrong arm: {err}");
         assert!(err.contains("BUG-178"), "{text}: attribution missing: {err}");
+    }
+    // 2026-11-08 (T-22, batch 7): on the measured FMUL / MUFU rows the typo is refused by the typed f32 field
+    for text in ["FMUL R2, R3, NaNish ;", "MUFU.RSQ R1, INFINITY ;"] {
+        let err = enc(&t, text).expect_err(&format!("{text}: must refuse"));
+        assert!(err.contains("ext=F32"), "{text}: the typed-field arm: {err}");
     }
 }
 
@@ -184,10 +197,12 @@ fn t178_5_anchor_fixed_point() {
 #[test]
 fn t178_6_float_lane_exhaustive() {
     let t = t103();
+    // 2026-11-08 (T-22, batch 7): the float lane of baked rows is FSEL alone now -- FMUL_R_R_FI and MUFU_R_FI are
+    // measured rows with an f32 field (their NaN words encode from the lossless `0x<8 hex>F` literal, A8)
     for (good, bads) in [
         ("FSEL R7, RZ, +QNAN , !P1 ;", vec!["FSEL R7, RZ, -QNAN , !P1 ;"]),
-        ("FMUL R2, R3, +QNAN ;", vec!["FMUL R2, R3, -QNAN ;"]),
-        ("MUFU.RSQ R1, -QNAN ;", vec!["MUFU.RSQ R1, +QNAN ;", "MUFU.RSQ R1, QNAN ;"]),
+        ("FMUL R2, R3, 0x7fc00000F ;", vec!["FMUL R2, R3, -QNAN ;", "FMUL R2, R3, +QNAN ;"]),
+        ("MUFU.RSQ R1, 0xffc00000F ;", vec!["MUFU.RSQ R1, +QNAN ;", "MUFU.RSQ R1, QNAN ;", "MUFU.RSQ R1, -QNAN ;"]),
     ] {
         enc(&t, good).unwrap_or_else(|e| panic!("{good}: admitted lane broke: {e}"));
         for b in bads {

@@ -44,6 +44,15 @@ use cubit::table::IsaTable;
 const M96: u128 = (1u128 << 96) - 1;
 const LEGS4: [&str; 4] = ["sm100a", "sm103a", "sm120", "sm121a"];
 
+/// T-22 2026-11-08 (batch 7, `tools/probes/re_sm120_conv.py --arch SM121 / SM103 / SM100`, fixtures
+/// `tests/fixtures/{sm121a,sm103a,sm100a}_conv_nvdisasm.jsonl`, tests `tests/{sm121a,sm103a_sm100a}_conv.rs`): the F2I
+/// rows are measured whole on every leg now (G's batch 8 measured sm120 on 2026-11-07), so the text-inert alias bits
+/// 73 / 74 fail closed on every table -- the convention of every measured family. The lattice law itself holds word
+/// for word on `-b SM121` / `SM103` / `SM100` (every probe word of the fixtures prints the sm120 text).
+fn conv_measured(leg: &str) -> bool {
+    matches!(leg, "sm120" | "sm121a" | "sm103a" | "sm100a")
+}
+
 fn tab(arch: &str) -> IsaTable {
     IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()
 }
@@ -100,20 +109,21 @@ fn t362_1_structure_rows_carry_sign_and_alias_window() {
                 // 2026-11-06 (T-10 audit): on sm120 the dotted `F2I.{S64,U64}.TRUNC_R_R` era twins are gone
                 // (one-bit-off register fields; their words are the `F2I_R_R` row's -- see bug339) and the
                 // `F2I_R_R` groups above carry the sign window for them.
-                if leg == "sm120" && matches!(k, "F2I.S64.TRUNC_R_R" | "F2I.U64.TRUNC_R_R") {
+                // 2026-11-08 (T-22, batch 7): on sm121a too -- the 213 dotted F2I keys are aliases of the measured `F2I_R_R`
+                if matches!(leg, "sm120" | "sm121a") && matches!(k, "F2I.S64.TRUNC_R_R" | "F2I.U64.TRUNC_R_R") {
                     continue;
                 }
                 rows.push((k, ""));
             }
         }
-        let expect = if leg.starts_with("sm10") { 7 } else if leg == "sm120" { 8 } else { 10 };
+        let expect = if leg.starts_with("sm10") { 7 } else { 8 }; // sm120 / sm121a: 3 groups + 5 era twins (aliases)
         assert_eq!(rows.len(), expect, "{leg} row census");
         for (key, mg) in rows {
             let g = &t.entries[key].mod_groups[mg];
             let has = |bit: u32| g.fields.iter().any(|f| f.shift == bit && f.token_idx == 2);
             assert!(has(62) && has(63), "{leg} {key}::{mg} sign window");
-            // sm120: the measured rows fail closed on 73 / 74 (2026-11-07, session G, tools/probes/re_sm120_conv.py)
-            assert_eq!((g.variable_mask >> 73) & 3, if leg == "sm120" { 0 } else { 3 }, "{leg} {key}::{mg} alias vm");
+            // the measured rows fail closed on 73 / 74 (sm120 2026-11-07, session G; every leg since T-22 batch 7, conv_measured)
+            assert_eq!((g.variable_mask >> 73) & 3, if conv_measured(leg) { 0 } else { 3 }, "{leg} {key}::{mg} alias vm");
         }
     }
     // era-key S64/U64 parity preserved (b72 flip only in ab, not in fields/vm) -- sm121a only since
@@ -315,8 +325,8 @@ fn t362_2_decode_law_battery_vendor_exact_x4() {
     for leg in LEGS4 {
         let t = tab(leg);
         for (w, want) in words {
-            // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stays on the other legs
-            let expect = if leg == "sm120" && (*w >> 73) & 3 != 0 { None } else { Some(*want) };
+            // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stayed on the other legs until T-22's batch 7 measured them too (conv_measured)
+            let expect = if conv_measured(leg) && (*w >> 73) & 3 != 0 { None } else { Some(*want) };
             assert_eq!(dec96(&t, *w).as_deref(), expect, "{leg} {want}");
         }
     }
@@ -453,8 +463,8 @@ fn t362_5_alias_lattice_full_sweep_and_borders() {
         let t = tab(leg);
         for n in 0..16u128 {
             let w = (base & !(0xFu128 << 72)) | (n << 72);
-            // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stays on the other legs
-            let want = if leg == "sm120" && n & 6 != 0 { None } else { Some(law(n)) };
+            // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stayed on the other legs until T-22's batch 7 measured them too (conv_measured)
+            let want = if conv_measured(leg) && n & 6 != 0 { None } else { Some(law(n)) };
             assert_eq!(dec96(&t, w).as_deref(), want, "{leg} nibble {n}");
         }
     }

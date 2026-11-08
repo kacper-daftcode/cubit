@@ -225,7 +225,11 @@ fn t247_5_zero_corpus_sentinels() {
     for arch in ["sm100a", "sm103a", "sm120", "sm121a"] {
         let t = tab(arch);
         let idx = DecodeIndex::build(&t);
-        if arch == "sm120" {
+        // 2026-11-08 (T-22, batch 7: `tools/probes/re_sm120_fp32_alu.py --arch SM121 / SM103 / SM100`, fixtures
+        // `tests/fixtures/{sm121a,sm103a,sm100a}_fp32_alu_nvdisasm.jsonl`): the FMNMX rows are measured on every table
+        // (G's batch 6 measured sm120 on 2026-11-07) -- `.XORSIGN` (bit 82) and `.FTZ.NAN` are groups of the measured
+        // `FMNMX_R_R_R_P` on the four legs; the "historical fail-closed boundary" of the older tables is gone.
+        if matches!(arch, "sm120" | "sm121a" | "sm103a" | "sm100a") {
             // Independently verified with nvdisasm SM120 on2026-10-22:
             // fullgate_alu_nvdisasm.json.
             for (w, text) in [

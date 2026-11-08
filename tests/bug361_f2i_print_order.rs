@@ -42,6 +42,15 @@ fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
 }
 const LEGS4: [&str; 4] = ["sm100a", "sm103a", "sm120", "sm121a"];
 
+/// T-22 2026-11-08 (batch 7, `tools/probes/re_sm120_conv.py --arch SM121 / SM103 / SM100`, fixtures
+/// `tests/fixtures/{sm121a,sm103a,sm100a}_conv_nvdisasm.jsonl`, tests `tests/{sm121a,sm103a_sm100a}_conv.rs`): the F2I
+/// rows are measured whole on every leg now (G's batch 8 measured sm120 on 2026-11-07), so the text-inert alias bits
+/// 73 / 74 fail closed on every table -- the convention of every measured family. The lattice law itself holds word
+/// for word on `-b SM121` / `SM103` / `SM100` (every probe word of the fixtures prints the sm120 text).
+fn conv_measured(leg: &str) -> bool {
+    matches!(leg, "sm120" | "sm121a" | "sm103a" | "sm100a")
+}
+
 #[test]
 fn t361_1_decode_battery_vendor_exact_x4() {
     // classes measured drifting pre-361 (arb339/arb362 + corpus witnesses)
@@ -222,8 +231,8 @@ fn t361_1_decode_battery_vendor_exact_x4() {
     for leg in LEGS4 {
         let t = tab(leg);
         for (w, want) in words {
-            // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stays on the other legs
-            let expect = if leg == "sm120" && (*w >> 73) & 3 != 0 { None } else { Some(*want) };
+            // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stayed on the other legs until T-22's batch 7 measured them too (conv_measured)
+            let expect = if conv_measured(leg) && (*w >> 73) & 3 != 0 { None } else { Some(*want) };
             let got = dec(&t, *w);
             assert_eq!(got.as_deref(), expect, "{leg} {want} (0x{w:024x})");
         }

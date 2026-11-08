@@ -122,9 +122,9 @@ fn pin(o: &Outcome, label: &str, decoded: usize, reencoded: usize, holes_by_opco
 }
 
 /// The GB10 / Spark corpus on sm121a: every one of the 91 927 words decodes (the T-20 regression class), 91 887
-/// re-encode bit for bit; the 40 that do not are three keys outside any measured family -- `FFMA_R_R_R_II` 23 (the
-/// `.reuse` flag of the second register is not carried by the lossless print of the immediate form), the harvest
-/// `UIADD3_UR_UP_UP_UR_UR_UR` `64` group 16 (its register fields are mis-declared: `-UR6` re-encodes to other
+/// re-encode bit for bit (91 910 since T-21 batch 7: the FP32 ALU measured on sm121a gave `FFMA_R_R_R_FI` the `.reuse`
+/// field of its second register that the harvest immediate-form row lacked -- 23 words); the 17 that do not are the
+/// harvest `UIADD3_UR_UP_UP_UR_UR_UR` `64` group 16 (its register fields are mis-declared: `-UR6` re-encodes to other
 /// registers; the same form is a hole on sm103a / sm100a, see below) and `HMMA.1688.F32 R8, R6, R4, RZ` 1 (refused
 /// by BUG-037's operand-alignment law: an A operand at R6 is not 4-aligned -- a cuBLASLt word nvdisasm names) --
 /// the next GB10 batches' items.
@@ -135,14 +135,15 @@ fn gb10_corpus_sm121a_decodes_and_reencodes() {
     let o = run("sm121a", &words);
     assert!(o.undecoded.is_empty(), "[sm121a] GB10 words without a decode: {} (the 2026-11-06..08 class), the first: {:?}",
             o.undecoded.len(), o.undecoded.iter().take(8).map(|w| format!("{w:032x}")).collect::<Vec<_>>());
-    pin(&o, "sm121a GB10", 91927, 91887, &[],
-        &[("FFMA_R_R_R_II", 23), ("UIADD3_UR_UP_UP_UR_UR_UR", 16)], &[("BUG-037", 1)]);
+    // T-21 batch 7 (2026-11-08): the FP32 ALU measured on sm121a -- the 23 FFMA words re-encode bit for bit (91 887 -> 91 910)
+    pin(&o, "sm121a GB10", 91927, 91910, &[],
+        &[("UIADD3_UR_UP_UP_UR_UR_UR", 16)], &[("BUG-037", 1)]);
 }
 
 /// The B300 publish corpus, sm103a half (177 cubins, 3 962 distinct words). The residue at the T-21 batch-4 tables:
-/// 15 words without a decode -- the sm103a holes the B300 line's next batches close (`UIADD3.64` on the UR form 0x297
-/// x 3 and the immediate form 0x897 x 6: the table has no `64` group; `I2F.U16[.RZ]` 0x306 x 2: the harvest has no U16
-/// source type; `FMUL.RZ` 0x220 x 1: no rounding groups; `MOV R2, 0x0` 0x802 x 3 with text-inert bits set in [67:64] /
+/// 12 words without a decode (15 before batch 7 closed `I2F.U16[.RZ]` x 2 and `FMUL.RZ` x 1 by measuring the conversions
+/// and the FP32 ALU on sm103a) -- the sm103a holes the B300 line's next batches close (`UIADD3.64` on the UR form 0x297
+/// x 3 and the immediate form 0x897 x 6: the table has no `64` group; `MOV R2, 0x0` 0x802 x 3 with text-inert bits set in [67:64] /
 /// 80 / [79:76] -- words of the hand-written probe cubins that nvdisasm names without them); 9 words the encoder
 /// refuses on purpose (BUG-080: a guard-predicated non-EL ATOMS is silently broken on sm_103a silicon, B300 2026-08-22);
 /// `RET.REL.NODEC` x 6 and `UMOV URn, 0x0` x 2 re-encode to other bits (the PC-relative target rendered at address 0 by
@@ -153,7 +154,9 @@ fn b300_corpus_sm103a_strict() {
     let words = read_words("tests/fixtures/corpus_b300_sm103a.jsonl");
     assert_eq!(words.len(), 3962, "the B300 sm103a corpus fixture");
     let o = run("sm103a", &words);
-    pin(&o, "sm103a B300", 3947, 3930, &[(0x220, 1), (0x297, 3), (0x306, 2), (0x802, 3), (0x897, 6)],
+    // T-21 batch 7 (2026-11-08): the conversions and the FP32 ALU measured on sm103a -- the I2F.U16 x 2 and FMUL.RZ x 1 holes
+    // are closed (3 947 -> 3 950 decoded, 3 930 -> 3 933 bit-exact); the UIADD3.64 and MOV holes remain
+    pin(&o, "sm103a B300", 3950, 3933, &[(0x297, 3), (0x802, 3), (0x897, 6)],
         &[("RET_R_II", 6), ("UMOV_UR_II", 2)], &[("BUG-080", 9)]);
 }
 

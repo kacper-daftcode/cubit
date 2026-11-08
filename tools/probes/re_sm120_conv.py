@@ -54,7 +54,7 @@ from re_sm120_fsetp_dsetp import F32_GLYPHS, F32_IMMS, SPECIAL  # noqa: E402
 
 PROVENANCE = "conv-family-2026-11-07"
 CTRL = 0x000f_e200 << 96
-TABLE_OF = {"SM120": "sm120", "SM103": "sm103a", "SM100": "sm100a"}
+TABLE_OF = {"SM120": "sm120", "SM103": "sm103a", "SM100": "sm100a", "SM121": "sm121a"}
 RND_F2I = ["", "FLOOR", "CEIL", "TRUNC"]
 RND_I2F = ["", "RM", "RP", "RZ"]
 MUFU_FN = ["COS", "SIN", "EX2", "LG2", "RCP", "RSQ", "RCP64H", "RSQ64H", "SQRT", "TANH"]
@@ -460,6 +460,12 @@ def apply(table_path):
                 added += prev is None
         # the harvest spelled the unspelled defaults in some names ('F64,RM,S32' next to 'F64,RM'): duplicates, dropped
         normalise = lambda n: name_of(t for t in n.split(",") if t not in ("S32", "F32"))  # noqa: E731
+        # T-21 (2026-11-08): rows outside this lattice that carry their own measurement survive the rewrite -- the sm103a
+        # MUFU packed-half lanes of NEEDS 48 (`BF16x2,EX2` / `EX2,F16x2`, tools/probes/re_sm103_mufu_x2.py, SM103-only)
+        carried = {n: g for n, g in old_groups.items() if normalise(n) not in groups and g.get("_src")}
+        if carried:
+            print(f"  {key}: {len(carried)} measured groups outside this lattice kept with their tag: {sorted(carried)}")
+            groups.update(carried)
         missing = {normalise(n) for n in old_groups} - set(groups)
         assert not missing, f"{key}: harvest groups outside the measured lattice: {missing}"
         dups = [n for n in old_groups if normalise(n) != n]
@@ -470,15 +476,30 @@ def apply(table_path):
         ins[key] = entry
     aliases = table["_meta"].setdefault("key_aliases", {})
     retired = []
+    left = []
     for k in sorted(ins):
         stem, _, sig = k.partition("_")
         mn = stem.split(".")[0]
-        if mn in ("F2I", "I2F", "FRND") and "." in stem:
+        if mn in ("F2I", "I2F", "FRND", "MUFU") and "." in stem:
             target = {"R_R": f"{mn}_R_R", "R_UR": f"{mn}_R_UR"}.get(sig)
-            assert target, f"{k}: an operand signature outside the measured forms"
+            if target is None:
+                # T-21 (2026-11-08), sm121a: the GB10 line's mis-tokenised junk keys (`F2I.TRUNC.NTZ_R_R_II_?`, `I2F.U32_R_R_R`,
+                # `MUFU.RCP_P_R_R`, ...) -- the and_base names the form: the register form (0x3xx) of the mnemonic
+                (g,) = ins[k]["mod_groups"].values()
+                w = int(g["and_base"], 16)
+                lo, hi = BASE_OPC[mn]
+                if (w & 0xfff) in (lo, hi) and not (w >> 91) & 1:
+                    target = f"{mn}_R_R"
+                elif (w & 0xfff) in (lo | 0xc00, hi | 0xc00) and (w >> 91) & 1:
+                    target = f"{mn}_R_UR"
+                else:
+                    left.append(k)
+                    continue
             del ins[k]
             aliases[k] = target
             retired.append(k)
+    if left:
+        print(f"  {len(left)} dotted keys of the family on no measured form left as they are: {left}")
     if "MUFU_R_II" in ins:
         del ins["MUFU_R_II"]
         aliases["MUFU_R_II"] = "MUFU_R_FI"

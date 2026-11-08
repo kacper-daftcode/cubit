@@ -234,18 +234,23 @@ fn t125_6_float_imm_parser_anchor() {
 fn t125_7_table_shape() {
     let t = t103();
     let ins = &t.entries;
+    // 2026-11-08 (T-22, batch 7: `tools/probes/re_sm120_conv.py --arch SM103`, `tests/sm103a_sm100a_conv.rs`): the three
+    // F2I forms carry the whole measured lattice -- 512 groups each (round x NTZ x FTZ x dst type x src type), like the
+    // sm120 rows of G's batch 8 (2026-11-07); the 96 / 73 groups of the 2026-08/09 waves were the harvest's samples plus
+    // the grafts, and their dotted keys are `_meta.key_aliases` of the plain keys now.
     let fi = ins.get("F2I_R_FI").expect("brak klucza F2I_R_FI");
-    assert_eq!(fi.mod_groups.len(), 96);
+    assert_eq!(fi.mod_groups.len(), 512, "F2I_R_FI: the measured lattice");
     let rr = ins.get("F2I_R_R").expect("brak F2I_R_R");
-    assert_eq!(
-        rr.mod_groups.len(),
-        16 + 1 - 2 + 22 + 32 + 4,
-        "16 pre-341 + mg '' (BUG-341) - 2 legacy FTZ mgs (BUG-363 deletion, canonical fbcef1c) + 22 F64-src mgs (BUG-380, canonical a53eb20) + 32 F64-src b76=0 narrow-dst mgs (BUG-390, canonical a10350c) + 4 F64-src WIDE b76=1 TRUNC.NTZ mgs (BUG-403, canonical 2285a05)"
-    );
+    assert_eq!(rr.mod_groups.len(), 512, "F2I_R_R: the measured lattice (96 / 73 groups before batch 7)");
+    // every group: guard + dest + one immediate field at [63:32] typed by the source (f32 128 groups, bf16 128, f16 128,
+    // the high dword of an f64 128 -- the measured lattice; the 2026-08 rows knew the f32 lane only)
+    let mut typed = std::collections::BTreeMap::<String, usize>::new();
     for (mg, e) in &fi.mod_groups {
         assert_eq!(e.fields.len(), 3, "guard+dest+imm: {mg}");
-        assert!(e.fields.iter().any(|f|
-                matches!(f.extraction, cubit::table::Extraction::F32)),
-                "pole f32: {mg}");
+        let imm = e.fields.iter().find(|f| f.shift == 32).unwrap_or_else(|| panic!("immediate field at 32: {mg}"));
+        *typed.entry(format!("{:?}", imm.extraction)).or_default() += 1;
     }
+    assert_eq!(typed.len(), 4, "four immediate lanes: {typed:?}");
+    assert!(typed.values().all(|n| *n == 128), "128 groups per immediate lane: {typed:?}");
+    assert!(typed.keys().any(|k| k == "F32"), "the f32 lane: {typed:?}");
 }

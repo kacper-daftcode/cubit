@@ -39,6 +39,15 @@ use cubit::printer::to_sass;
 use cubit::table::IsaTable;
 
 const M96: u128 = (1u128 << 96) - 1;
+
+/// T-22 2026-11-08 (batch 7, `tools/probes/re_sm120_conv.py --arch SM121 / SM103 / SM100`, fixtures
+/// `tests/fixtures/{sm121a,sm103a,sm100a}_conv_nvdisasm.jsonl`, tests `tests/{sm121a,sm103a_sm100a}_conv.rs`): the F2I
+/// rows are measured whole on every leg now (G's batch 8 measured sm120 on 2026-11-07): the dotted era keys are aliases
+/// of the measured `F2I_R_R` (sm121a's 213 of them too), the rows are its groups of the same (sorted) modifiers with the
+/// same geometry on the four tables, and the text-inert alias bits 73 / 74 fail closed everywhere.
+fn conv_measured(leg: &str) -> bool {
+    matches!(leg, "sm120" | "sm121a" | "sm103a" | "sm100a")
+}
 fn tab(arch: &str) -> IsaTable {
     IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()
 }
@@ -68,7 +77,7 @@ fn t339_1_structure_clones_and_disjointness() {
                 .map(|f| (f.shift, f.bits, f.token_idx))
                 .collect::<Vec<_>>()
         };
-        if leg == "sm120" {
+        if conv_measured(leg) {
             assert_eq!((g.and_base >> 72) & 0xff, 0xd9, "{leg} S64,TRUNC lane");
             assert_eq!(g.and_base & 0xfff, 0x311, "{leg} S64,TRUNC opcode");
             assert_eq!((g.variable_mask >> 73) & 3, 0, "{leg} S64,TRUNC: 73 / 74 fail closed");
@@ -81,8 +90,11 @@ fn t339_1_structure_clones_and_disjointness() {
         // dotted era keys are gone -- their register fields sat at 17 / 33 (one bit off; `F2I.U64.TRUNC RZ, R6`
         // for nvdisasm's `R254, R12`) and every word they claimed is the `F2I_R_R` row's (`S64,TRUNC` /
         // `TRUNC,U64` groups), which is what the texts assemble through; the same b72 law holds between those groups.
-        let (s, u) = if leg == "sm120" {
-            assert!(!t.entries.contains_key("F2I.S64.TRUNC_R_R") && !t.entries.contains_key("F2I.U64.TRUNC_R_R"), "{leg}: era twins retired");
+        let (s, u) = if conv_measured(leg) {
+            // sm120: the twins were deleted (T-10); sm121a: aliases of F2I_R_R since T-22's batch 7 (encoder-visible only)
+            for k in ["F2I.S64.TRUNC_R_R", "F2I.U64.TRUNC_R_R"] {
+                assert!(t.entries.get(k).is_none_or(|e| e.encode_only), "{leg}: era twin {k} is a decoder-visible key");
+            }
             (&t.entries["F2I_R_R"].mod_groups["S64,TRUNC"], &t.entries["F2I_R_R"].mod_groups["TRUNC,U64"])
         } else {
             (&t.entries["F2I.S64.TRUNC_R_R"].mod_groups[""], &t.entries["F2I.U64.TRUNC_R_R"].mod_groups[""])
@@ -96,7 +108,7 @@ fn t339_1_structure_clones_and_disjointness() {
             1u128 << 72,
             "{leg} era b72"
         );
-        if leg != "sm120" {
+        if !conv_measured(leg) {
             assert_eq!(s.variable_mask, u.variable_mask, "{leg} era vm parity");
             assert_eq!(shape(s), shape(u), "{leg} era fields parity");
         } else {
@@ -109,7 +121,7 @@ fn t339_1_structure_clones_and_disjointness() {
         }
         // U64.F64.TRUNC era key == S64.F64.TRUNC sibling with b72 cleared (sm120, 2026-11-07, session G: the dotted
         // keys are aliases of the measured F2I_R_R -- the same b72 law between its `F64,TRUNC,U64` / `F64,S64,TRUNC` groups)
-        let (n, s64) = if leg == "sm120" {
+        let (n, s64) = if conv_measured(leg) {
             (&t.entries["F2I_R_R"].mod_groups["F64,TRUNC,U64"], &t.entries["F2I_R_R"].mod_groups["F64,S64,TRUNC"])
         } else {
             (&t.entries["F2I.U64.F64.TRUNC_R_R"].mod_groups[""], &t.entries["F2I.S64.F64.TRUNC_R_R"].mod_groups[""])
@@ -141,7 +153,8 @@ fn t339_1_structure_clones_and_disjointness() {
         let mut mods: Vec<&str> = k.trim_end_matches("_R_R").split('.').skip(1).collect();
         mods.sort_unstable();
         let a = &tab("sm120").entries["F2I_R_R"].mod_groups[&mods.join(",")];
-        let b = &l121.entries[k].mod_groups[""];
+        // 2026-11-08 (T-22, batch 7): on sm121a the dotted key is an alias of the measured F2I_R_R too -- the same group
+        let b = &l121.entries["F2I_R_R"].mod_groups[&mods.join(",")];
         assert_eq!(a.and_base & 0xfff, b.and_base & 0xfff, "{k} cross-leg opcode");
         assert_eq!((a.and_base ^ b.and_base) & !(0x7fu128 << 12) & !(0x3u128 << 73), 0, "{k} cross-leg ab");
         let relax = (0xfu128 << 12) | (0x3u128 << 73) | (0x3u128 << 62);  // guard, the alias bits, the measured sign window
@@ -238,8 +251,8 @@ fn t339_4_fail_closed_residua() {
     let lane2: u128 = (0x0030d80000000006001a7311 & !(0xFu128 << 72)) | (2u128 << 72);
     for leg in ["sm100a", "sm103a", "sm120", "sm121a"] {
         let t = tab(leg);
-        // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stays on the other legs
-        let want = if leg == "sm120" { None } else { Some("F2I.U32.F64.TRUNC R26, R6") };
+        // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stayed on the other legs until T-22's batch 7 measured them too (conv_measured)
+        let want = if conv_measured(leg) { None } else { Some("F2I.U32.F64.TRUNC R26, R6") };
         assert_eq!(dec(&t, lane2).as_deref(), want, "{leg}: B1n2 alias decode (BUG-362)");
     }
     let _t = tab("sm120");

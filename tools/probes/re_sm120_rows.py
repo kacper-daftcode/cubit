@@ -69,7 +69,7 @@ NVDISASM = "/usr/local/lib/python3.12/dist-packages/triton/backends/nvidia/bin/n
 FAMILIES = {
     "tensor": ["QMMA", "HMMA", "OMMA", "DMMA", "IMMA"],
     "half": ["HFMA2", "HMNMX2", "HADD2", "HSET2", "F2FP", "I2FP", "F2IP", "I2IP", "UF2FP", "UI2FP", "F2F", "UF2I", "UI2F"],
-    "intalu": ["VIMNMX", "IADD", "IMAD", "IADD3", "IMNMX", "IABS", "VIADD", "SGXT", "BMSK", "PRMT", "LOP3", "SEL", "MOV",
+    "intalu": ["VIMNMX", "VIMNMX3", "IADD", "IMAD", "IADD3", "IMNMX", "IABS", "VIADD", "SGXT", "BMSK", "PRMT", "LOP3", "SEL", "MOV",
                "FLO", "POPC", "BREV", "R2UR", "LDC", "S2R", "CS2R", "MOV64IUR", "LDCU", "S2UR", "FHADD", "DMUL", "DADD"],
     "uniform": ["USHF", "ULEA", "ULOP3", "UFLO", "UMOV", "UIADD3", "UIMAD", "USEL", "UIMNMX", "UBMSK", "UVIMNMX", "UPRMT",
                 "UCLEA", "UBREV", "UPOPC", "UISETP", "REDUX", "ELECT"],
@@ -204,6 +204,18 @@ MANUAL_ROW_FIELDS: dict[str, dict] = {
                                       [24, 8, "reg", 4], [72, 1, "inv", 4], [122, 1, "reuse", 4], [32, 32, "imm", 5],
                                       [64, 8, "reg", 6], [75, 1, "inv", 6], [124, 1, "reuse", 6], [87, 3, "pred", 7],
                                       [90, 1, "neg", 7], [77, 3, "pred", 8], [80, 1, "inv", 8]],
+        # T-22 (2026-11-08, NEEDS 59a; sm103a / sm100a only -- sm120 / sm121a have no VIMNMX3 key): the three-input
+        # integer min / max. The harvest declared the fifth operand's predicate as a 4-bit `pred` field at shift 1 -- inside
+        # the opcode nibble -- so the row's match ignored opcode bits 1..4 and claimed FMNMX (0x209) words (batch 7's lattice
+        # test: `FMNMX R4, R2, R3, PT` decoded as `VIMNMX3 R4, R2, R3, R1, P4`). The predicate sits at [89:87] with its sign
+        # at 90 (the canonical word `@P0 VIMNMX3 R0, R0, R0, R0, PT` carries 0b111 there), like IADD3's; the UR form had
+        # neither the guard nor the predicate declared. 0 witnesses in the B300 publish corpus for either key.
+        "VIMNMX3_R_R_R_R_P": [[12, 4, "guard", 0], [16, 8, "reg", 1], [24, 8, "reg", 2], [122, 1, "reuse", 2],
+                              [32, 8, "reg", 3], [123, 1, "reuse", 3], [64, 8, "reg", 4], [124, 1, "reuse", 4],
+                              [87, 3, "pred", 5], [90, 1, "neg", 5]],
+        "VIMNMX3_R_R_UR_R_P": [[12, 4, "guard", 0], [16, 8, "reg", 1], [24, 8, "reg", 2], [122, 1, "reuse", 2],
+                               [32, 8, "ureg", 3], [64, 8, "reg", 4], [124, 1, "reuse", 4], [87, 3, "pred", 5],
+                               [90, 1, "neg", 5]],
         ("IMAD_R_P_R_R_R", "HI,U32"): [[12, 4, "guard", 0], [16, 8, "reg", 1], [81, 3, "pred", 2], [24, 8, "reg", 3],
                                        [122, 1, "reuse", 3], [32, 8, "reg", 4], [123, 1, "reuse", 4], [64, 8, "reg", 5],
                                        [75, 1, "neg", 5], [124, 1, "reuse", 5]],
@@ -1206,9 +1218,12 @@ def apply(args):
     rows = [g for e in ins.values() for g in e.get("mod_groups", {}).values()]
     prov["rows_total"] = len(rows)
     prov["rows_without_src"] = sum(1 for g in rows if g.get("_src") is None)
+    arch = getattr(args, "arch", "SM120")
     prov["sources"][src] = {"rows": sum(1 for g in rows if g.get("_src") == src),
-                            "kind": "nvdisasm 13.1 per-row field verification over the whole word (-b SM120)", "date": DATE,
-                            "tool": f"tools/probes/re_sm120_rows.py --family {family}", "test": f"tests/sm120_rows_{family}.rs"}
+                            "kind": f"nvdisasm 13.1 per-row field verification over the whole word (-b {arch})",
+                            "date": DATE if arch == "SM120" else "2026-11-08",
+                            "tool": f"tools/probes/re_sm120_rows.py --family {family}" + ("" if arch == "SM120" else f" --arch {arch}"),
+                            "test": getattr(args, "test", None) or f"tests/sm120_rows_{family}.rs"}
     n_modelled = sum(1 for g in rows if g.get("_src") == "modelled")
     if n_modelled:
         prov["sources"]["modelled"] = {"rows": n_modelled, "kind": "kept by the project's design, not a measurement: the row's "
@@ -1248,6 +1263,8 @@ def main():
     a.add_argument("--alias", nargs=2, action="append", metavar=("JUNK", "TARGET"))
     a.add_argument("--delete", nargs="*")
     a.add_argument("--note-suffix", default=None, help="appended to the `_note` of every row this run tags")
+    a.add_argument("--arch", default="SM120", help="the nvdisasm target the fixture was measured on (the provenance entry)")
+    a.add_argument("--test", default=None, help="the cubit test that pins the rows (default tests/sm120_rows_<family>.rs)")
     args = parser.parse_args()
     if args.command == "probe":
         probe(args)

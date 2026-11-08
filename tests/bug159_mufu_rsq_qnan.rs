@@ -60,13 +60,23 @@ fn bug159_decode_parity_qnan() {
     }
 }
 
+/// 2026-11-08 (T-22, batch 7: `tools/probes/re_sm120_conv.py --arch SM103`, `tests/sm103a_sm100a_conv.rs`): the
+/// sm103a `MUFU_R_FI` row is measured now and carries the immediate as an f32 field at [63:32] like the sm120 row
+/// (G's batch 8, 2026-11-07) -- the 2026-08 harvest row baked the corpus' sole constant `0xffc00000` into `and_base`.
+/// The vendor's `-QNAN` glyph drops the payload, so it is the display print only (KNOWN_ISSUES A8, the 2026-11-04
+/// decision): the lossless print spells the payload as the `0x<8 hex>F` literal and that text re-encodes bit for bit.
 #[test]
 fn bug159_encode_byte_exact_vendor() {
     let t = t103a();
+    let idx = DecodeIndex::build(&t);
     for (text, lo, hi32) in RSQ_QNAN {
-        let got = enc(&t, text);
         let want = (*lo as u128) | ((*hi32 as u128) << 64);
-        assert_eq!(got, want, "encode byte-exact (low96): {text}");
+        let lossless = idx.decode(want, 0, &t).map(|d| cubit::printer::to_sass_lossless(&d)).expect("decode");
+        assert_eq!(lossless, text.replace("-QNAN", "0xffc00000F"), "lossless spelling of the payload: {text}");
+        assert_eq!(enc(&t, &lossless), want, "encode byte-exact (low96): {lossless}");
+        // the vendor glyph itself is display-only: no payload, no encode (A8)
+        let insn = parse_sass(text, 0).expect("parse");
+        assert!(encode_instruction(&insn, &t).is_err(), "the display glyph does not encode: {text}");
     }
 }
 
@@ -76,23 +86,30 @@ fn bug159_fixed_point_decode_encode() {
     let idx = DecodeIndex::build(&t);
     for (text, lo, hi32) in RSQ_QNAN {
         let w = (*lo as u128) | ((*hi32 as u128) << 64);
-        let got = dec(&t, &idx, w);
+        let d = idx.decode(w, 0, &t).expect("decode");
+        assert_eq!(cubit::printer::to_sass(&d), *text, "display print == nvdisasm: {text}");
+        let got = cubit::printer::to_sass_lossless(&d);
         let re = enc(&t, &got);
-        assert_eq!(re, w, "word -> text -> word fixed point: {text}");
-        assert_eq!(dec(&t, &idx, re), got, "text -> word -> text fixed point: {text}");
+        assert_eq!(re, w, "word -> lossless text -> word fixed point: {text}");
+        assert_eq!(dec(&t, &idx, re), *text, "text -> word -> display text fixed point: {text}");
     }
 }
 
+/// 2026-11-08 (T-22, batch 7): the immediate is a measured f32 field, so every f32 literal mints a legal word that
+/// decodes back to its own text (nvdisasm names `MUFU.RSQ R0, 0.5` on `-b SM103`; the 2026-08 "constant-locked window"
+/// was the harvest row's baked corpus constant, not a law of the instruction).
 #[test]
 fn bug159_fail_closed_arbitrary_imm() {
     let t = t103a();
-    // The window stays constant-locked: any immediate other than the baked
-    // -QNAN remains a hard encode error (BUG-071 default-payload guard).
-    for bad in ["MUFU.RSQ R0, 0x0", "MUFU.RSQ R0, 1", "MUFU.RSQ R0, 0.5",
-                "MUFU.RSQ R0, 0x3f800000", "MUFU.RSQ R0, -INF"] {
-        let insn = parse_sass(bad, 0).expect("parse");
-        assert!(encode_instruction(&insn, &t).is_err(), "fail-closed: {bad}");
+    let idx = DecodeIndex::build(&t);
+    for (text, want) in [("MUFU.RSQ R0, 1", "MUFU.RSQ R0, 1"), ("MUFU.RSQ R0, 0.5", "MUFU.RSQ R0, 0.5"),
+                         ("MUFU.RSQ R0, 0x3f800000F", "MUFU.RSQ R0, 1"), ("MUFU.RSQ R0, -INF", "MUFU.RSQ R0, -INF")] {
+        let w = enc(&t, text);
+        assert_eq!((w >> 32) as u32 & 0xffff_ffff, if text.ends_with("-INF") { 0xff80_0000 } else if text.ends_with("0.5") { 0x3f00_0000 } else { 0x3f80_0000 }, "{text}: the f32 field");
+        assert_eq!(dec(&t, &idx, w), want, "{text}: round trip");
     }
+    // a bare hex literal on the f32 field is the raw bit pattern (the same word as `1`)
+    assert_eq!(enc(&t, "MUFU.RSQ R0, 0x3f800000"), enc(&t, "MUFU.RSQ R0, 1"), "hex literal = raw f32 bits");
 }
 
 #[test]

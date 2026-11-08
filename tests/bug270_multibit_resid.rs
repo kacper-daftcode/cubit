@@ -138,9 +138,10 @@ fn t270_1_structure_and_skip_registry() {
                 && f.extraction == Extraction::H0NH1),
             "{arch} RRUR h0nh1 1b@86 tok3 graft missing (BUG-293 swap)"
         );
-        // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): on sm120 the dotted `FRND.F16_R_R` is an alias; the
-        // `.H1` selector (bit 60) is a field of every F16 / BF16 group of the measured `FRND_R_R` (and of F2I / MUFU)
-        let g = if arch == "sm120" { &t.entries["FRND_R_R"].mod_groups["F16"] } else { &t.entries["FRND.F16_R_R"].mod_groups[""] };
+        // 2026-11-07 (session G, tools/probes/re_sm120_conv.py; sm121a since T-22's batch 7, 2026-11-08, `--arch SM121`):
+        // the dotted `FRND.F16_R_R` is an alias on both legs; the `.H1` selector (bit 60) is a field of every F16 / BF16
+        // group of the measured `FRND_R_R` (and of F2I / MUFU)
+        let g = &t.entries["FRND_R_R"].mod_groups["F16"];
         assert!(
             g.fields.iter().any(|f| f.token_idx == 2
                 && f.shift == 60

@@ -38,6 +38,15 @@ use cubit::table::IsaTable;
 const M96: u128 = (1u128 << 96) - 1;
 const LEGS4: [&str; 4] = ["sm100a", "sm103a", "sm120", "sm121a"];
 
+/// T-22 2026-11-08 (batch 7, `tools/probes/re_sm120_conv.py --arch SM121 / SM103 / SM100`, fixtures
+/// `tests/fixtures/{sm121a,sm103a,sm100a}_conv_nvdisasm.jsonl`, tests `tests/{sm121a,sm103a_sm100a}_conv.rs`): the F2I
+/// rows are measured whole on every leg now (G's batch 8 measured sm120 on 2026-11-07): the dotted keys are aliases of
+/// the measured `F2I_R_R`, the rows are its groups of the same (sorted) modifiers, and the text-inert alias bits 73 / 74
+/// fail closed on every table -- the convention of every measured family.
+fn conv_measured(leg: &str) -> bool {
+    matches!(leg, "sm120" | "sm121a" | "sm103a" | "sm100a")
+}
+
 fn tab(arch: &str) -> IsaTable {
     IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()
 }
@@ -135,8 +144,8 @@ fn t363_1_structure_keyed_rows_and_legacy_deleted() {
         let mgs = j["instructions"]["F2I_R_R"]["mod_groups"]
             .as_object()
             .unwrap();
-        // sm120: `FTZ,NTZ` is a measured group of the full F2I lattice (2026-11-07, session G, tools/probes/re_sm120_conv.py)
-        if leg == "sm120" {
+        // `FTZ,NTZ` is a measured group of the full F2I lattice (sm120 2026-11-07, session G; every leg since T-22's batch 7)
+        if conv_measured(leg) {
             assert_eq!(mgs["FTZ,NTZ"]["_src"], "conv-family-2026-11-07", "{leg}: FTZ,NTZ measured");
         } else {
             assert!(
@@ -144,7 +153,7 @@ fn t363_1_structure_keyed_rows_and_legacy_deleted() {
                 "{leg}: FTZ,NTZ mg still present"
             );
         }
-        if leg == "sm120" {
+        if conv_measured(leg) {
             assert_eq!(mgs["FTZ,NTZ,TRUNC,U32"]["_src"], "conv-family-2026-11-07", "{leg}: FTZ,NTZ,TRUNC,U32 measured");
         } else {
             assert!(
@@ -161,7 +170,7 @@ fn t363_1_structure_keyed_rows_and_legacy_deleted() {
                 let mut mods: Vec<&str> = nm.split('.').skip(1).collect();
                 mods.sort_unstable();
                 let group = mods.join(",");
-                let row = if leg == "sm120" { &j["instructions"]["F2I_R_R"]["mod_groups"][&group] } else { &j["instructions"][&key]["mod_groups"][""] };
+                let row = if conv_measured(leg) { &j["instructions"]["F2I_R_R"]["mod_groups"][&group] } else { &j["instructions"][&key]["mod_groups"][""] };
                 assert!(row.is_object(), "{leg}: missing row {key}");
                 let ab = u128::from_str_radix(
                     row["and_base"].as_str().unwrap().trim_start_matches("0x"),
@@ -179,7 +188,7 @@ fn t363_1_structure_keyed_rows_and_legacy_deleted() {
                     16,
                 )
                 .unwrap();
-                assert_eq!(vm & (0xff << 72), if leg == "sm120" { 0 } else { 0x06u128 << 72 }, "{leg} {key} vm byte9");
+                assert_eq!(vm & (0xff << 72), if conv_measured(leg) { 0 } else { 0x06u128 << 72 }, "{leg} {key} vm byte9");
                 let flds: Vec<(u64, u64, &str)> = row["fields"]
                     .as_array()
                     .unwrap()
@@ -289,16 +298,16 @@ fn t363_3_signs_pred_and_alias_decode() {
         );
         // byte9 alias bits 73/74 text-inert (arb363 A-group)
         let w = mk(0x33, 0x21, 7, 4, 6);
-        // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stays on the other legs
+        // 2026-11-07 (session G, tools/probes/re_sm120_conv.py): the sm120 F2I rows are measured whole and fail closed on the text-inert bits 73 / 74 (the audit's convention for measured rows); the alias tolerance stayed on the other legs until T-22's batch 7 measured them too (conv_measured)
         assert_eq!(
             dec96(&t, w).as_deref(),
-            if leg == "sm120" { None } else { Some("F2I.FTZ.NTZ R4, R6") },
+            if conv_measured(leg) { None } else { Some("F2I.FTZ.NTZ R4, R6") },
             "{leg} alias"
         );
         let w = mk(0x13, 0x40, 7, 4, 6);
         assert_eq!(
             dec96(&t, w).as_deref(),
-            if leg == "sm120" { None } else { Some("F2I.BF16 R4, R6") },
+            if conv_measured(leg) { None } else { Some("F2I.BF16 R4, R6") },
             "{leg} alias"
         );
     }
@@ -394,7 +403,7 @@ fn t363_5_fail_closed_and_guards() {
                 "F2IP print intact"
             );
         }
-        if leg == "sm120" {
+        if conv_measured(leg) {
             // retained R_UR sister: UR-src text stays ENCODABLE through the
             // shared window; decode renders the vendor-canonical R form (law
             // anchored pre-fix: both texts mint the same word and nvdisasm
