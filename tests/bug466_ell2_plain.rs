@@ -55,6 +55,14 @@ fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
     encode_instruction(&parsed, t).map_err(|e| e.to_string())
 }
 const X3: [&str; 3] = ["sm100a", "sm103a", "sm120"];
+/// The legs whose 256-bit LDG / STG family is measured (one row per modifier group, fail-closed on the text-inert
+/// bits): sm120 since G's batches 10-13 (2026-11-07); sm103a / sm100a since T-20 / T-21 batch 4 (2026-11-08,
+/// `tools/probes/re_sm120_ldg256.py --arch SM103 / SM100` x 3 forms + `re_sm120_stg256.py --arch SM103 / SM100`,
+/// nvdisasm 13.1 -- every form word prints the SM120 text on both targets; fixtures
+/// `tests/fixtures/sm103a_*256*_nvdisasm.jsonl` / `sm100a_*`, tests `tests/sm103a_sm100a_*256*.rs`). All of X3 now.
+fn measured256(leg: &str) -> bool {
+    matches!(leg, "sm120" | "sm103a" | "sm100a")
+}
 
 /// t466_1: route grid -- decode == vendor text na wszystkich 90 zmierzonych
 /// komorkach x3 (pre-state = desc-form lub HOLE, dowiedzione w sesji przez
@@ -70,8 +78,9 @@ fn t466_1_route_grid() {
             // 2026-11-07 (session G, batch 13, tools/probes/re_sm120_stg256.py): the 256-bit store's measured rows
             // (`STG_{dARI,ARURI,ARURI64}_R_R[_II]`) fail closed on the text-inert bits [74:72] / 83 / 87 / [95:92]
             // (T-10's convention for measured rows); the `.S.b72` / `.S.b73` cells carry one of them.
-            if leg == "sm120" && (*w & 0xfff) == 0x97f && (*w & ((7u128 << 72) | (1u128 << 83) | (1u128 << 87) | (0xfu128 << 92))) != 0 {
-                assert_eq!(got, None, "[{leg}] {tag} {w:#034x}: inert bits fail closed (G batch 13)");
+            // T-21 batch 4 (2026-11-08): the same measured rows on sm103a / sm100a (`measured256`).
+            if measured256(leg) && (*w & 0xfff) == 0x97f && (*w & ((7u128 << 72) | (1u128 << 83) | (1u128 << 87) | (0xfu128 << 92))) != 0 {
+                assert_eq!(got, None, "[{leg}] {tag} {w:#034x}: inert bits fail closed (G batch 13 / T-21 batch 4)");
                 n += 1;
                 continue;
             }
@@ -113,9 +122,9 @@ fn t466_3_standing_snap() {
             let t = tab(leg);
             let idx = cached_index(t);
             let exp = if *snap == "HOLE" { None } else { Some(*snap) };
-            // G batch 13: the store's measured rows fail closed on the inert bits (see t466_1)
-            if leg == "sm120" && (*w & 0xfff) == 0x97f && (*w & ((7u128 << 72) | (1u128 << 83) | (1u128 << 87) | (0xfu128 << 92))) != 0 {
-                assert_eq!(dec(t, idx, *w), None, "[{leg}] {tag} {w:#034x}: inert bits fail closed (G batch 13)");
+            // G batch 13 / T-21 batch 4: the store's measured rows fail closed on the inert bits (see t466_1)
+            if measured256(leg) && (*w & 0xfff) == 0x97f && (*w & ((7u128 << 72) | (1u128 << 83) | (1u128 << 87) | (0xfu128 << 92))) != 0 {
+                assert_eq!(dec(t, idx, *w), None, "[{leg}] {tag} {w:#034x}: inert bits fail closed (G batch 13 / T-21 batch 4)");
                 continue;
             }
             assert_eq!(
@@ -256,7 +265,9 @@ fn t466_8_refuse_legacy_desc_form() {
             // rejection. On sm120 it mints and decodes back to the same text. Batch 13 (tools/probes/re_sm120_stg256.py):
             // the STG twin the same -- `STG.E.NA.ELL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12` is group
             // `256,E,ELL2,GPU,NA,STRONG` of the measured `STG_dARI_R_R`, named by nvdisasm on the three targets.
-            if leg == "sm120" {
+            // T-21 batch 4 (2026-11-08): the same measured rows on sm103a / sm100a -- the two texts mint the same words
+            // there (the NA.ELL2 class is outside the BUG-060 / BUG-077 even-base laws) and decode back.
+            if measured256(leg) {
                 let w = re.unwrap_or_else(|e| panic!("[{leg}] measured desc-form refused: {txt}: {e}"));
                 let want = if txt.starts_with("LDG") { 0x000fc2000854f908fe000004030c797eu128 } else { 0x000fc2000f54f804f8000008050c797fu128 };
                 assert_eq!(w, want, "[{leg}] {txt}");

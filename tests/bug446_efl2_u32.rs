@@ -44,6 +44,14 @@ fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
         .map(|d| to_sass(&d).trim().trim_end_matches(';').to_string())
 }
 const LEGS446: [&str; 4] = ["sm100a", "sm103a", "sm120", "sm121a"];
+/// The legs whose 256-bit LDG / STG family is measured (one row per modifier group, fail-closed on the text-inert
+/// bits): sm120 since G's batches 10-13 (2026-11-07); sm103a / sm100a since T-20 / T-21 batch 4 (2026-11-08,
+/// `tools/probes/re_sm120_ldg256.py --arch SM103 / SM100` x 3 forms + `re_sm120_stg256.py --arch SM103 / SM100`,
+/// nvdisasm 13.1 -- every form word prints the SM120 text on both targets; fixtures
+/// `tests/fixtures/sm103a_*256*_nvdisasm.jsonl` / `sm100a_*`, tests `tests/sm103a_sm100a_*256*.rs`).
+fn measured256(leg: &str) -> bool {
+    matches!(leg, "sm120" | "sm103a" | "sm100a")
+}
 fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
     let full = format!(" {text} ;");
     let parsed = parse_sass(&full, 0).map_err(|e| e.to_string())?;
@@ -116,8 +124,9 @@ fn t446_4_x3_invariant() {
         // [74:72] / 83 / 87 / [95:92] (T-10's convention for measured rows); the `b72_dead` / `b73_dead` / `b87_dead`
         // cells of this grid carry one of them (nvdisasm names the words -- the bits are text-inert on the three
         // targets -- but no production word carries them: the strict census is 1 811 600 / 1 811 600).
-        if *leg == "sm120" && (*w & 0xfff) == 0x97f && (*w & ((7u128 << 72) | (1u128 << 83) | (1u128 << 87) | (0xfu128 << 92))) != 0 {
-            assert_eq!(got, None, "[{leg}] x3 {w:#034x}: inert bits fail closed (G batch 13)");
+        // T-21 batch 4 (2026-11-08): the same measured rows on sm103a / sm100a (`measured256`).
+        if measured256(leg) && (*w & 0xfff) == 0x97f && (*w & ((7u128 << 72) | (1u128 << 83) | (1u128 << 87) | (0xfu128 << 92))) != 0 {
+            assert_eq!(got, None, "[{leg}] x3 {w:#034x}: inert bits fail closed (G batch 13 / T-21 batch 4)");
             continue;
         }
         assert_eq!(got.as_deref(), *pre, "[{leg}] x3 drift {w:#034x}");
@@ -192,7 +201,7 @@ fn t446_8_corpus() {
 #[test]
 fn t446_9_canonical_unchanged() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "6a468a2e6505999ed99ddec8f4f3dde0f2a8f06f" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "39d0372d22024b037ee16d6effdf6a7cfdb71471" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON446, "9c0e4ce", "historical fixture revision drift");
 
     // public-line hygiene: lane-side live rev-parse hermetized to the vendored manifest pin

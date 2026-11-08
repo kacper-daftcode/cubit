@@ -131,10 +131,14 @@ fn t147_5_no_width9_in_targeted_families() {
     // na sm103a po 475-R2 (pusta powloka po usunieciu defektywnych 462-mgs
     // ENL2 ltc=0; klase niosa dedykowane klucze STG.E.*.ENL2.256*_dARI_R_R).
     // Pin ABSENT zapobiega cichosci regresu (powrot zlych mgs = widoczny).
-    assert!(!t.entries.contains_key("STG_dARI_R_R"),
-        "STG_dARI_R_R must stay absent post-475 R2 (class carried by dedicated 475 keys)");
+    // 2026-11-08 (T-21 batch 4; tools/probes/re_sm120_stg256.py --arch SM103, nvdisasm 13.1): `STG_dARI_R_R` is the
+    // measured plain key of the 256-bit store's descriptor form on sm103a now (288 groups, as on sm120 since G's
+    // batch 13; the dedicated 475 keys are its `_meta.key_aliases`); its base field is the measured 8-bit Ra [31:24],
+    // so the key joins the width-9 class pin below instead of the absence pin.
+    let stg256 = t.entries.get("STG_dARI_R_R").expect("STG_dARI_R_R: the measured plain key (T-21 batch 4)");
+    assert_eq!(stg256.mod_groups.len(), 288, "STG_dARI_R_R: the measured group count");
     for key in [
-        "LDG_R_dARI", "LDG_R_ARI", "LDG_R_ARURI", "LDG_R_R_dARI",
+        "LDG_R_dARI", "LDG_R_ARI", "LDG_R_ARURI", "LDG_R_R_dARI", "STG_dARI_R_R",
         "STG_dARI_R", "STG_ARI_R", "STG_ARURI_R",
         "LDS_R_ARI", "LDS_R_ARURI", "ST_dARI_R", "ST_ARURI_R",
         "LD_R_dARI", "LDL_R_ARI", "LDSM_R_ARI", "LDC_R_cARI",

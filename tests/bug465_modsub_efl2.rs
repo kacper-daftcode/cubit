@@ -52,6 +52,14 @@ fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
         .map(|d| to_sass(&d).trim().trim_end_matches(';').to_string())
 }
 const LEGS465: [&str; 4] = ["sm100a", "sm103a", "sm120", "sm121a"];
+/// The legs whose 256-bit LDG / STG family is measured (one row per modifier group, fail-closed on the text-inert
+/// bits; the dotted 2026-09 keys retired as `_meta.key_aliases`): sm120 since G's batches 10-13 (2026-11-07);
+/// sm103a / sm100a since T-20 / T-21 batch 4 (2026-11-08, `tools/probes/re_sm120_ldg256.py --arch SM103 / SM100`
+/// x 3 forms + `re_sm120_stg256.py --arch SM103 / SM100`, nvdisasm 13.1 -- every form word prints the SM120 text on
+/// both targets; fixtures `tests/fixtures/sm103a_*256*_nvdisasm.jsonl` / `sm100a_*`, tests `tests/sm103a_sm100a_*256*.rs`).
+fn measured256(leg: &str) -> bool {
+    matches!(leg, "sm120" | "sm103a" | "sm100a")
+}
 fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
     let full = format!(" {text} ;");
     let parsed = parse_sass(&full, 0).map_err(|e| e.to_string())?;
@@ -70,8 +78,9 @@ fn t465_1_lattice_grid() {
             let got = dec(t, idx, *w);
             // 2026-11-07 (session G, batch 11): the measured sm120 rows of the 256-bit load fail closed on the
             // text-inert bits 83 / 92-95 (T-10's convention for measured rows); the `_b92` cells carry bit 92.
-            if leg == "sm120" && (*w & 0xfff) == 0x97e && (*w & ((1u128 << 83) | (0xfu128 << 92))) != 0 {
-                assert_eq!(got, None, "[{leg}] {tag} {w:#034x}: inert bits fail closed (G batch 11)");
+            // T-21 batch 4 (2026-11-08): the same measured rows on sm103a / sm100a (`measured256`); sm121a is untouched.
+            if measured256(leg) && (*w & 0xfff) == 0x97e && (*w & ((1u128 << 83) | (0xfu128 << 92))) != 0 {
+                assert_eq!(got, None, "[{leg}] {tag} {w:#034x}: inert bits fail closed (G batch 11 / T-21 batch 4)");
                 continue;
             }
             assert_eq!(
@@ -274,7 +283,9 @@ fn t465_9_atlas_audit() {
         // below checks the same pins on the plain key's group named by the tokens. The STG half stays until STG.256.
         // Batch 13 (tools/probes/re_sm120_stg256.py): the STG half (382 dotted `..._ARURI64_R_R[_II]` keys) is retired
         // into the measured plain keys `STG_ARURI64_R_R[_II]` (288 groups each) the same way -> 0 `_src465` keys on sm120.
-        let g11 = leg == "sm120";
+        // T-21 batch 4 (2026-11-08): the same on sm103a / sm100a (`measured256`; the same `_src` tags, the probes run with
+        // `--arch SM103 / SM100`); the 1 146 `_src465` keys of each table are aliases of the measured plain keys.
+        let g11 = measured256(leg);
         assert_eq!(n_src462, if g11 { 0 } else { 1146 }, "{leg}: _src465 census drift");
         for (ldg, donors) in [(true, &donors_ldg[..]), (false, &donors_stg[..])] {
             for dk in donors {
@@ -386,7 +397,7 @@ fn t465_9_atlas_audit() {
 #[test]
 fn t465_10_canonical_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "6a468a2e6505999ed99ddec8f4f3dde0f2a8f06f" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "39d0372d22024b037ee16d6effdf6a7cfdb71471" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON465, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     let src = std::fs::read_to_string("tables/SOURCE.json").unwrap();

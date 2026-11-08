@@ -67,6 +67,14 @@ fn nforms(arch: &str) -> usize {
             .unwrap();
     v["instructions"].as_object().unwrap().len()
 }
+/// The legs whose 256-bit LDG / STG family is measured (one row per modifier group, fail-closed on the text-inert
+/// bits): sm120 since G's batches 10-13 (2026-11-07); sm103a / sm100a since T-20 / T-21 batch 4 (2026-11-08,
+/// `tools/probes/re_sm120_ldg256.py --arch SM103 / SM100` x 3 forms + `re_sm120_stg256.py --arch SM103 / SM100`,
+/// nvdisasm 13.1 -- every form word prints the SM120 text on both targets; fixtures
+/// `tests/fixtures/sm103a_*256*_nvdisasm.jsonl` / `sm100a_*`, tests `tests/sm103a_sm100a_*256*.rs`).
+fn measured256(leg: &str) -> bool {
+    matches!(leg, "sm120" | "sm103a" | "sm100a")
+}
 
 /// t453_1: trailer grid -- decode == vendor x4-unanim text na kazdej celi
 /// (55 slow x 4 nogi; klasy (a) HOLE-heal i (b) TRUNC-heal).
@@ -218,15 +226,16 @@ fn t453_4_resid_holes_healed_463() {
             let idx = cached_index(t);
             // 2026-11-07 (session G, batch 10, tools/probes/re_sm120_ldg256.py): the sm120 descriptor-form rows are
             // measured (`LDG_R_R_dARI[_II][_P]`) and fail closed on the text-inert bits 83 / 92-95 (T-10's convention
-            // for measured rows); the "pole4" words of this grid carry one of them. The other legs are untouched.
-            if *leg == "sm120" && (*hw & 0xfff) == 0x97e && (*hw & ((1u128 << 83) | (0xfu128 << 92))) != 0 {
-                assert_eq!(dec(t, idx, *hw), None, "[{leg}] heal {hw:#034x}: inert bits fail closed (G batch 10)");
+            // for measured rows); the "pole4" words of this grid carry one of them. T-21 batch 4 (2026-11-08): the same
+            // measured rows on sm103a / sm100a (`measured256`); sm121a is untouched.
+            if measured256(leg) && (*hw & 0xfff) == 0x97e && (*hw & ((1u128 << 83) | (0xfu128 << 92))) != 0 {
+                assert_eq!(dec(t, idx, *hw), None, "[{leg}] heal {hw:#034x}: inert bits fail closed (G batch 10 / T-21 batch 4)");
                 continue;
             }
             // Batch 13 (tools/probes/re_sm120_stg256.py): the 256-bit store's measured rows (`STG_{dARI,ARURI,ARURI64}_R_R[_II]`)
             // fail closed on [74:72] / 83 / 87 / [95:92] the same way (no LTC width, no predicate on the store).
-            if *leg == "sm120" && (*hw & 0xfff) == 0x97f && (*hw & ((7u128 << 72) | (1u128 << 83) | (1u128 << 87) | (0xfu128 << 92))) != 0 {
-                assert_eq!(dec(t, idx, *hw), None, "[{leg}] heal {hw:#034x}: inert bits fail closed (G batch 13)");
+            if measured256(leg) && (*hw & 0xfff) == 0x97f && (*hw & ((7u128 << 72) | (1u128 << 83) | (1u128 << 87) | (0xfu128 << 92))) != 0 {
+                assert_eq!(dec(t, idx, *hw), None, "[{leg}] heal {hw:#034x}: inert bits fail closed (G batch 13 / T-21 batch 4)");
                 continue;
             }
             let got = dec(t, idx, *hw).unwrap_or_else(|| panic!("[{leg}] heal {hw:#034x} HOLE"));
@@ -309,7 +318,7 @@ fn t453_8_census_and_canonical() {
     let src: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        src["base_revision"].as_str().unwrap().starts_with("6a468a2e6505999ed99ddec8f4f3dde0f2a8f06f") /* 2026-11-06 T-11 (was c258f8a, T-10) */,
+        src["base_revision"].as_str().unwrap().starts_with("39d0372d22024b037ee16d6effdf6a7cfdb71471") /* 2026-11-06 T-11 (was c258f8a, T-10) */,
         "SOURCE.json must pin canonical {CANON453} (= BUG-453 graft, ride-after e03e0348d98b9d20ffb4ca557cfc6eae625cf995 = BUG-452 narrow): {:?}",
         src["base_revision"]
     );

@@ -106,14 +106,27 @@ fn t3_exemptions_and_060_polarity() {
     )
     .expect_err("EFL2 even base must stay fail-closed (BUG-060, plain arm)");
     assert!(format!("{e}").contains("BUG-060"), "got: {e}");
-    assert!(
+    // 2026-11-08 (T-21 batch 4; tools/probes/re_sm120_ldg256.py --form dARI --arch SM103 / SM100, nvdisasm 13.1): the
+    // NA.EFL2 descriptor form of the 256-bit load is a legal word the vendor names on SM103 / SM100 / SM120
+    // (`LDG.E.NA.EFL2.256.STRONG.GPU R8, R12, desc[UR4][R5.64]` = group `256,E,EFL2,GPU,NA,STRONG` of the measured
+    // `LDG_R_R_dARI`, 0x000fc2000850f908fe000004050c797e). The 2026-09 "era desc spelling must be dead" stood on the
+    // harvest's silence (the sm120 precedent: G batch 10, bug466 t466_8). BUG-060 keeps its arm on the desc form too:
+    // the odd base mints, the even base fails closed with the citation (asserted above for the plain spelling).
+    assert_eq!(
         enc(
             "LDG.E.NA.EFL2.256.STRONG.GPU R8, R12, desc[UR4][R5.64]",
             &t103a()
         )
-        .is_err(),
-        "era desc spelling must be dead post-447"
+        .expect("measured NA.EFL2 desc form mints on sm103a (T-21 batch 4)"),
+        0x000fc2000850f908fe000004050c797eu128,
+        "NA.EFL2 desc-form word (nvdisasm 13.1 -b SM103)"
     );
+    let e = enc(
+        "LDG.E.NA.EFL2.256.STRONG.GPU R8, R12, desc[UR4][R4.64]",
+        &t103a(),
+    )
+    .expect_err("EFL2 even base fails closed on the desc form too (BUG-060)");
+    assert!(format!("{e}").contains("BUG-060"), "got: {e}");
 }
 
 // (4) arch scoping: sm120 has no verdict -> odd trap form stays encodable.

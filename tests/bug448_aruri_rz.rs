@@ -44,6 +44,14 @@ fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
         .map(|d| to_sass(&d).trim().trim_end_matches(';').to_string())
 }
 const LEGS448: [&str; 4] = ["sm100a", "sm103a", "sm120", "sm121a"];
+/// The legs whose 256-bit LDG / STG family is measured (the `.64` twin for every group, so the bare `[URm]`
+/// spelling mints the `.64` word -- BUG-464's rule): sm120 since G's batches 11 / 13 (2026-11-07); sm103a / sm100a
+/// since T-20 / T-21 batch 4 (2026-11-08, `tools/probes/re_sm120_ldg256.py --arch SM103 / SM100` x 3 forms +
+/// `re_sm120_stg256.py --arch SM103 / SM100`, nvdisasm 13.1: every form word prints the SM120 text on both targets;
+/// fixtures `tests/fixtures/sm103a_*256*_nvdisasm.jsonl` / `sm100a_*`, tests `tests/sm103a_sm100a_*256*.rs`).
+fn measured256(leg: &str) -> bool {
+    matches!(leg, "sm120" | "sm103a" | "sm100a")
+}
 fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
     let full = format!(" {text} ;");
     let parsed = parse_sass(&full, 0).map_err(|e| e.to_string())?;
@@ -129,8 +137,9 @@ fn t448_4_elided_mints() {
             // spelling mints the `.64` word like the rest of the 256-bit family (BUG-464's rule; the vendor text is
             // the same for both twins). The explicit `[RZ.U32+URm]` keeps the U32 word (t448_5); the decode circle
             // prints the vendor text either way. Batch 13 (tools/probes/re_sm120_stg256.py): the 256-bit store's measured
-            // `STG_ARURI64_R_R[_II]` rows give the store the same rule (0x97f).
-            let mw = if leg == "sm120" && matches!(*mw & 0xfff, 0x97e | 0x97f) { *mw | (1u128 << 75) } else { *mw };
+            // `STG_ARURI64_R_R[_II]` rows give the store the same rule (0x97f). T-21 batch 4 (2026-11-08): the same
+            // measured rows on sm103a / sm100a (`measured256`).
+            let mw = if measured256(leg) && matches!(*mw & 0xfff, 0x97e | 0x97f) { *mw | (1u128 << 75) } else { *mw };
             assert_eq!(got, mw, "[{leg}] elided mint drift {vendor}");
             let back =
                 dec(&t, &idx, got).unwrap_or_else(|| panic!("[{leg}] elided circle HOLE {vendor}"));
@@ -153,8 +162,8 @@ fn t448_5_alias_mints() {
                 .unwrap_or_else(|e| panic!("[{leg}] alias elided refuse {elided}: {e}"));
             let w_rz = enc(&t, rz).unwrap_or_else(|e| panic!("[{leg}] alias rz refuse {rz}: {e}"));
             // sm120 since G batch 11: the bare spelling mints the `.64` twin (see t448_4), the `[RZ.U32+URm]`
-            // spelling the U32 word -- the two twins of one vendor text
-            let mw_el = if leg == "sm120" && matches!(*mw & 0xfff, 0x97e | 0x97f) { *mw | (1u128 << 75) } else { *mw };
+            // spelling the U32 word -- the two twins of one vendor text; sm103a / sm100a since T-21 batch 4 (`measured256`)
+            let mw_el = if measured256(leg) && matches!(*mw & 0xfff, 0x97e | 0x97f) { *mw | (1u128 << 75) } else { *mw };
             assert_eq!(w_el, mw_el, "[{leg}] elided != mint {elided}");
             assert_eq!(w_rz, *mw, "[{leg}] rz-spelling != mint {rz}");
         }

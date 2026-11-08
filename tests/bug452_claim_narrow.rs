@@ -214,9 +214,11 @@ fn t452_7_data_attribution() {
         // key of the three remains a dotted key on that leg.
         // Batch 13 (tools/probes/re_sm120_stg256.py): the STG key is a group of the measured `STG_dARI_R_R` too -> 0.
         // Batch 14 (tools/probes/re_sm120_redg.py): the 3 072 dotted REDG `.64` keys -> the one plain key.
-        // T-20: on sm103a / sm100a the REDG .64 keys are the one measured plain key too (the three LDG / STG dotted
-        // EFL2.256 keys stay harvest rows there until their batches).
-        let (want_l1, want_l2) = if leg == "sm120" { (0, 1) } else if redg_measured(leg) { (3, 1) } else { (3, 3072) };
+        // T-20: on sm103a / sm100a the REDG .64 keys are the one measured plain key too.
+        // T-21 batch 4 (2026-11-08, `tools/probes/re_sm120_ldg256.py --form dARI --arch SM103 / SM100` and
+        // `re_sm120_stg256.py --arch SM103 / SM100`, nvdisasm 13.1): the three dotted LDG / STG EFL2.256 keys are groups
+        // of the measured plain keys on sm103a / sm100a too -> (0, 1) on every measured leg.
+        let (want_l1, want_l2) = if redg_measured(leg) { (0, 1) } else { (3, 3072) };
         assert_eq!((l1, l2), (want_l1, want_l2), "[{leg}] inventory drift");
     }
 }

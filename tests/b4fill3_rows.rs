@@ -235,27 +235,20 @@ fn b4fill3_efl2_cross_matrix() {
     // healed 447 (graft 099faa0): era LDG_R_R_dARI NA/HINT mgs usuniete;
     // wszystkie 4 slowa routuja do donor-klucza 121a ARURI. HINT-era bake
     // renderowany jako policy-imm ', 0x3f' (teksty pinowane w GOLD wyzej).
-    // klucze weryfikowane maszynowo na keep.so post-447 (flip447c):
+    // 2026-11-08 (T-21 batch 4; tools/probes/re_sm120_ldg256.py --form ARURI --arch SM103, nvdisasm 13.1 -- every
+    // form word prints the SM120 text): the U32 uniform-indexed form of the 256-bit load is measured whole on sm103a
+    // (`LDG_R_R_ARURI[_II][_P]`, 1 152 groups each, as on sm120 since G's batch 12); the dotted 447 donor keys are
+    // `_meta.key_aliases` of the plain keys, so the four words route to the plain key and the group named by the
+    // vendor's modifiers (`256,E,EFL2,GPU,NA,STRONG`). The rendered texts (GOLD above) are unchanged.
     let cases = [
-        (
-            0x000824000850e1ccfe00000e04c8797eu128,
-            "LDG.E.NA.EFL2.256.STRONG.GPU_R_R_ARURI",
-        ),
-        (
-            0x000824000850e0387e00000c0334797eu128,
-            "LDG.E.NA.EFL2.256.STRONG.GPU_R_R_ARURI_II",
-        ),
-        (
-            0x000824000850e0407e00000c043c797eu128,
-            "LDG.E.NA.EFL2.256.STRONG.GPU_R_R_ARURI_II",
-        ),
-        (
-            0x000824000850e120fe000006181c797eu128,
-            "LDG.E.NA.EFL2.256.STRONG.GPU_R_R_ARURI",
-        ),
+        (0x000824000850e1ccfe00000e04c8797eu128, "LDG_R_R_ARURI"),
+        (0x000824000850e0387e00000c0334797eu128, "LDG_R_R_ARURI_II"),
+        (0x000824000850e0407e00000c043c797eu128, "LDG_R_R_ARURI_II"),
+        (0x000824000850e120fe000006181c797eu128, "LDG_R_R_ARURI"),
     ];
     for (w, key) in cases {
         let d = idx.decode(w, 0, &t).unwrap();
         assert_eq!(d.key, key, "word {w:032x} routed to {}", d.key);
+        assert_eq!(d.mod_group, "256,E,EFL2,GPU,NA,STRONG", "word {w:032x}: the measured group");
     }
 }

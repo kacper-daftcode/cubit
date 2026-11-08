@@ -114,14 +114,20 @@ fn t3_sm103a_exempt_classes_odd_base_encode() {
         &t103a(),
     )
     .expect("NA.EFL2 class exempt (silicon: 0/8 II across epochs)");
-    assert!(
-        enc(
-            "STG.E.NA.EFL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12",
-            &t103a()
-        )
-        .is_err(),
-        "era desc spelling NA.EFL2 must be dead post-447"
-    );
+    // 2026-11-08 (T-21 batch 4; tools/probes/re_sm120_stg256.py --arch SM103 / SM100, nvdisasm 13.1): the NA.EFL2
+    // descriptor form of the 256-bit store is a legal word the vendor names on SM103 / SM100 / SM120
+    // (`STG.E.NA.EFL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12` = group `256,E,EFL2,GPU,NA,STRONG` of the measured
+    // `STG_dARI_R_R`, 0x000fc2000f50f804f8000008050c797f). The 2026-09 "era desc spelling must be dead" stood on the
+    // harvest's silence (the sm120 precedent: G batch 13, bug466 t466_8); the class stays BUG-076-exempt (odd base).
+    {
+        let t = t103a();
+        let text = "STG.E.NA.EFL2.256.STRONG.GPU desc[UR4][R5.64], R8, R12";
+        let w = enc(text, &t).expect("measured NA.EFL2 desc form mints on sm103a (T-21 batch 4)");
+        assert_eq!(w, 0x000fc2000f50f804f8000008050c797fu128, "NA.EFL2 desc-form word (nvdisasm 13.1 -b SM103)");
+        let idx = DecodeIndex::build(&t);
+        let d = idx.decode(w, 0, &t).expect("measured word decodes");
+        assert_eq!(cubit::printer::to_sass(&d).trim().trim_end_matches(';').trim(), text);
+    }
     // FLIP (BUG-466, F2-iter275): tekst plain vendora
     enc(
         "STG.E.NA.ELL2.256.STRONG.GPU [R5.U32+UR4], R8, R12",

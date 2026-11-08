@@ -248,7 +248,7 @@ NOTE = ("LDG 0x97e (the 256-bit global load) measured with nvdisasm 13.1 (-b SM1
         "and [95:92] are text-inert and fail closed; bit 91 clear is illegal; desc[UR][RZ.64] is illegal (claim_forbid).")
 
 
-def measured_row(key, mods, src=PROVENANCE):
+def measured_row(key, mods, src=PROVENANCE, note=NOTE):
     form = key.split("_")[3]
     has_ii, has_p = "_II" in key, key.endswith("_P")
     fields = [nvprobe.field(12, 4, "guard", 0, src), nvprobe.field(64, 8, "reg", 1, src), nvprobe.field(16, 8, "reg", 2, src)]
@@ -264,10 +264,15 @@ def measured_row(key, mods, src=PROVENANCE):
     if has_p:
         fields.append(nvprobe.field(87, 4, "pred_inv4", tok, src))
     base = word(form, mods, guard=0, rd0=0, rd1=0, ra=0, ur=0, ii=0 if has_ii else None, pc=0)
-    row = nvprobe.row(base, fields, src, NOTE)
+    row = nvprobe.row(base, fields, src, note)
     if form == "dARI":
         row["claim_forbid"] = [{"shift": 24, "bits": 8, "values": [255]}]
     return row
+
+def arch_of_table(path: pathlib.Path) -> str:
+    """The nvdisasm target of a table file (sm120.json -> SM120, sm103a.json -> SM103, sm100a.json -> SM100)."""
+    return next((a for a, t in TABLE_OF.items() if path.name.startswith(t)), "SM120")
+
 
 
 def same_row(old, new):
@@ -299,6 +304,9 @@ def dotted_keys(ins, form):
 def apply(table_path, form):
     path = pathlib.Path(table_path)
     table = nvprobe.load_table(path)
+    arch = arch_of_table(path)
+    # sm103a / sm100a (session T-20, 2026-11-08): the same law, measured on the table's own target -- the rows say so
+    note = NOTE if arch == "SM120" else NOTE.replace("(-b SM120)", f"(-b {arch}; the same text as on -b SM120 for every form word of the sweep -- session T-20, 2026-11-08, on the {TABLE_OF[arch]} table)")
     ins = table["instructions"]
     live_before = collections.Counter(g.get("_src") for e in ins.values() for g in e.get("mod_groups", {}).values())
     retire = dotted_keys(ins, form)
@@ -312,7 +320,7 @@ def apply(table_path, form):
         old_groups = old["mod_groups"] if old else {}
         groups = {}
         for name, mods in GROUPS.items():
-            row = measured_row(key, mods)
+            row = measured_row(key, mods, note=note)
             prev = old_groups.get(name)
             if prev is not None and same_row(prev, row):
                 groups[name] = prev
@@ -336,9 +344,9 @@ def apply(table_path, form):
     prov["rows_total"] = len(rows)
     prov["rows_without_src"] = sum(1 for g in rows if g.get("_src") is None)
     prov["sources"][PROVENANCE] = {"rows": sum(1 for g in rows if g.get("_src") == PROVENANCE),
-                                   "kind": "nvdisasm 13.1 field probe (-b SM120 / SM103 / SM100)", "date": "2026-11-07",
+                                   "kind": "nvdisasm 13.1 field probe (-b SM120 / SM103 / SM100)", "date": "2026-11-07" if arch == "SM120" else "2026-11-08",
                                    "tool": "tools/probes/re_sm120_ldg256.py",
-                                   "test": "tests/sm120_ldg256_dari.rs, tests/sm120_ldg256_aruri64.rs, tests/sm120_ldg256_aruri.rs"}
+                                   "test": "tests/sm120_ldg256_dari.rs, tests/sm120_ldg256_aruri64.rs, tests/sm120_ldg256_aruri.rs" if arch == "SM120" else "tests/sm103a_sm100a_ldg256_dari.rs, tests/sm103a_sm100a_ldg256_aruri64.rs, tests/sm103a_sm100a_ldg256_aruri.rs"}
     live_after = collections.Counter(g.get("_src") for g in rows)
     for s, n in live_before.items():
         if s and s != PROVENANCE and live_after[s] != n and prov["sources"].get(s, {}).get("rows") == n:

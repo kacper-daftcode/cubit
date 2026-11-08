@@ -160,26 +160,43 @@ fn t123_7_table_shape_anchor() {
     let t = t103();
     // RIDE475R3b-w3 (INC-291a, TESTS-ONLY): kotwice ENL2 ltc=0 na
     // widthless kluczach usuniete swiadomie przez 475-R2 (defekt okien
-    // 462-mgs; arb475r3 27-sond MIS x4). Klase pokrywaja dedykowane
-    // klucze graftu 475 (R1 lattice + R3 NA/EU restore); ocalałe na
-    // widthless: LTC256B-tagged mgs + alias-mg encode_only (R3).
+    // 462-mgs; arb475r3 27-sond MIS x4). Klase pokrywaly dedykowane
+    // klucze graftu 475 (R1 lattice + R3 NA/EU restore).
+    // 2026-11-08 (T-21 batch 4; tools/probes/re_sm120_ldg256.py --form dARI --arch SM103 and
+    // tools/probes/re_sm120_stg256.py --arch SM103, nvdisasm 13.1 -- every form word prints the SM120 text):
+    // the 256-bit descriptor forms are measured whole on sm103a, as on sm120 since G's batches 10 / 13 --
+    // `LDG_R_R_dARI[_II]` carry 1 152 measured groups each (the 475-R2 "deleted" EL / EF / EU ENL2 groups are legal
+    // words the vendor names; the 2026-09 deletion stood on the harvest's window defect), `STG_dARI_R_R[_II]` 288
+    // each, and the dedicated 475-lattice keys are `_meta.key_aliases` of the plain keys. The ordinary descriptor
+    // load `LDG_R_dARI` (opcode 0x981) is outside the batch and keeps its 2026-09 shape.
     let ii = t.entries.get("LDG_R_R_dARI_II").expect("klucz II");
-    for m in ["256,E,ENL2,LTC256B", "256,CONSTANT,E,ENL2,LTC256B"] {
-        assert!(ii.mod_groups.contains_key(m), "II mod {m}");
+    assert_eq!(ii.mod_groups.len(), 1152, "LDG_R_R_dARI_II: the measured group count (T-21 batch 4)");
+    for m in ["256,E,ENL2,LTC256B", "256,CONSTANT,E,ENL2,LTC256B", "256,E,EL,ENL2", "256,E,EF,ENL2"] {
+        assert!(ii.mod_groups.contains_key(m), "II mod {m} (measured)");
     }
-    assert!(!ii.mod_groups.contains_key("256,E,EL,ENL2"), "II mod 256,E,EL,ENL2 must stay deleted (475-R2)");
-    assert!(!ii.mod_groups.contains_key("256,E,EF,ENL2"), "II mod 256,E,EF,ENL2 must stay deleted (475-R2)");
     let rr = t.entries.get("LDG_R_R_dARI").expect("klucz noimm");
-    assert!(rr.mod_groups.contains_key("256,E,ENL2"), "alias-mg encode_only (475-R3)");
-    for m in ["256,E,EL,ENL2", "256,E,EF,ENL2", "256,E,ENL2,EU"] {
-        assert!(!rr.mod_groups.contains_key(m), "noimm mod {m} must stay deleted (475-R2)");
+    assert_eq!(rr.mod_groups.len(), 1152, "LDG_R_R_dARI: the measured group count (T-21 batch 4)");
+    for m in ["256,E,ENL2", "256,E,EL,ENL2", "256,E,EF,ENL2", "256,E,ENL2,EU"] {
+        assert!(rr.mod_groups.contains_key(m), "noimm mod {m} (measured)");
     }
-    for k in ["LDG.E.EL.ENL2.256_R_R_dARI", "LDG.E.EL.ENL2.256_R_R_dARI_II",
-              "LDG.E.EF.ENL2.256_R_R_dARI", "LDG.E.EF.ENL2.256_R_R_dARI_II",
-              "LDG.E.ENL2.256_R_R_dARI", "LDG.E.EU.ENL2.256_R_R_dARI",
-              "STG.E.ENL2.256_dARI_R_R", "STG.E.EL.ENL2.256.STRONG.GPU_dARI_R_R",
-              "STG.E.EF.ENL2.256.STRONG.GPU_dARI_R_R"] {
-        assert!(t.entries.contains_key(k), "475-lattice dedicated key {k}");
+    let raw: serde_json::Value =
+        serde_json::from_str(&cubit::table::read_table_text("tables/sm103a.json").unwrap()).unwrap();
+    let aliases = raw["_meta"]["key_aliases"].as_object().expect("_meta.key_aliases");
+    for (k, target) in [
+        ("LDG.E.EL.ENL2.256_R_R_dARI", "LDG_R_R_dARI"),
+        ("LDG.E.EL.ENL2.256_R_R_dARI_II", "LDG_R_R_dARI_II"),
+        ("LDG.E.EF.ENL2.256_R_R_dARI", "LDG_R_R_dARI"),
+        ("LDG.E.EF.ENL2.256_R_R_dARI_II", "LDG_R_R_dARI_II"),
+        ("LDG.E.ENL2.256_R_R_dARI", "LDG_R_R_dARI"),
+        ("LDG.E.EU.ENL2.256_R_R_dARI", "LDG_R_R_dARI"),
+        ("STG.E.ENL2.256_dARI_R_R", "STG_dARI_R_R"),
+        ("STG.E.EL.ENL2.256.STRONG.GPU_dARI_R_R", "STG_dARI_R_R"),
+        ("STG.E.EF.ENL2.256.STRONG.GPU_dARI_R_R", "STG_dARI_R_R"),
+    ] {
+        // the loader materialises alias clones as entries (BUG-487); the raw table has no such instruction key
+        assert!(raw["instructions"].get(k).is_none(), "475-lattice key {k} retired into the measured plain key");
+        assert_eq!(aliases[k].as_str(), Some(target), "{k}: alias of the measured plain key");
+        assert!(t.entries.contains_key(k), "{k}: the loader's alias clone");
     }
     let r = t.entries.get("LDG_R_dARI").expect("LDG_R_dARI");
     for m in ["E,LU", "128,E,LU", "E,EL", "128,E,EL", "64,E,EL", "E,NA",
@@ -187,10 +204,7 @@ fn t123_7_table_shape_anchor() {
               "64,CONSTANT,E,LTC64B"] {
         assert!(r.mod_groups.contains_key(m), "single mod {m}");
     }
-    // RIDE475R3b-w3: jak wyzej -- widthless STG_dARI_R_R ABSENT na sm103a
-    // po 475-R2; EF-ENL2 klasa pokryta dedykowanym kluczem graftu.
-    assert!(!t.entries.contains_key("STG_dARI_R_R"),
-        "STG_dARI_R_R must stay absent post-475 R2 (475-lattice dedicated keys)");
-    assert!(t.entries.contains_key("STG.E.EF.ENL2.256.STRONG.GPU_dARI_R_R"),
-        "EF-ENL2 class carried by dedicated 475 key");
+    let stg = t.entries.get("STG_dARI_R_R").expect("STG_dARI_R_R: the measured plain key (T-21 batch 4)");
+    assert_eq!(stg.mod_groups.len(), 288, "STG_dARI_R_R: the measured group count");
+    assert!(stg.mod_groups.contains_key("256,E,EF,ENL2,GPU,STRONG"), "EF-ENL2 class is a measured group of the plain key");
 }

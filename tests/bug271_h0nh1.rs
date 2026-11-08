@@ -71,7 +71,7 @@ fn t271_1_structure_and_donors() {
                 continue;
             }
             // 2026-11-08 (T-18): the `_meta.key_aliases` clones (`HFMA2_R_R_R_II_II_II` -> `HFMA2_R_R_R_FI_FI` since
-            // blackwell-isa 6a468a2, the integer spelling of the f16-pair form) share their target's group map and are
+            // blackwell-isa 39d0372, the integer spelling of the f16-pair form) share their target's group map and are
             // encoder-only -- the target's rows, not more rows; count real keys only
             if e.encode_only {
                 continue;
