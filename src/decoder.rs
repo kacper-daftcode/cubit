@@ -514,6 +514,11 @@ impl DecodeIndex {
                 // op -- no sign-able operand; the LUT's high bits [76:72] sit in the window and the inert
                 // bits 62 / 63 were absorbed by the fallback. Both forms are measured rows; fail closed.
                 "PLOP3" |
+                // FENCE (2026-11-08, tools/probes/re_sm120_fence_view_async.py, nvdisasm 13.1): the async-proxy fence
+                // has no operand at all; its scope bit 72 sits in the window, and the fallback printed nvcc's
+                // `FENCE.VIEW.ASYNC.G` word as the `.S` row with a reserved-bit residue. Both scopes are measured rows
+                // with the guard as their only field (the donor `.T` row, illegal on SM120, is gone); fail closed.
+                "FENCE" |
                 "UGETNEXTWORKID" | "UVIRTCOUNT" | "QSPC" | "RPCMOV" | "SHFL" |
                 "UBLKCP" | "UBLKPF" | "UBLKRED" | "R2P" | "R2UR" | "UP2UR" |
                 "LDTM" | "STTM" | "STAS" | "STSM" | "UTCCP" | "UTMALDG" |

@@ -2811,6 +2811,35 @@ fn encode_instruction_inner(
         (insn.key.clone(), String::new()),
         (format!("{fk}_?"), String::new()),
     ]);
+    // UBLKCP: the two address-space letters are an ORDERED pair -- destination, then source
+    // (`UBLKCP.S.G` = the bulk load global -> shared, `UBLKCP.G.S` = the bulk store shared ->
+    // global; direction code [74:73] = 0 .G.G, 1 .S.G, 2 .G.S, 3 .S.S -- nvdisasm 13.1, 2026-11-08,
+    // tools/probes/re_sm120_ublkcp_dir.py). A mod-group name is the sorted modifier set, so the
+    // plain key's `G,S` group (the load) would also answer a `.G.S` text: a silent wrong-direction
+    // encode (nvcc's `cp.async.bulk.global.shared::cta` store minted as the load). The store and
+    // the shared -> shared form live on dotted keys (`UBLKCP.G.S_...`, `UBLKCP.S.S_...`, like
+    // `F2F.BF16.F32_R_R` next to `F2F.F32.F64_R_R`): for those spellings only the dotted keys may
+    // serve, and a table without the row refuses the text instead of minting the other direction.
+    if insn.opcode == "UBLKCP" {
+        let spaces: Vec<&str> = insn
+            .modifiers
+            .iter()
+            .map(|m| m.trim_start_matches('.'))
+            .filter(|m| *m == "G" || *m == "S")
+            .collect();
+        if spaces == ["G", "S"] || spaces == ["S", "S"] {
+            let dotted = format!("UBLKCP.{}.{}", spaces[0], spaces[1]);
+            candidates.retain(|(k, _)| k.starts_with(&dotted));
+            if !candidates.iter().any(|(k, g)| table.entries.get(k).is_some_and(|e| e.mod_groups.contains_key(g))) {
+                anyhow::bail!(
+                    "encode error at {}: {dotted} (the bulk copy {}) has no measured row in this table; the \
+                     sorted modifier group would select the UBLKCP.S.G word (the load) -- refused",
+                    insn.raw_text.trim(),
+                    if spaces[0] == "G" { "shared -> global, the TMA bulk store" } else { "shared -> shared" }
+                );
+            }
+        }
+    }
     // cuobjdump prints SM120 LDGSTS.128 as `LDGSTS.E.128`, while the harvested
     // table records the same encoding under the more explicit cache-policy group.
     if insn.opcode == "LDGSTS" && mod_group == "128,E" {

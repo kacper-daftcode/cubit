@@ -4,6 +4,32 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-08 (the bulk store `UBLKCP.G.S` and the async-proxy fence `FENCE.VIEW.ASYNC.G`: two forms a persistent / TMA kernel needs, measured; a silent wrong-direction encode closed)
+
+- **Tables vendored from blackwell-isa `109eab5`** (sm120 38 838 → 38 842 rows, 979 → 983 forms; sm103a / sm100a / sm121a unchanged).
+- **`UBLKCP.G.S` had no row and its text minted the load.** The bulk copy's direction is the code [74:73] — 0 `.G.G`, 1 `.S.G` (the load,
+  global → shared), 2 `.G.S` (the store, shared → global: PTX `cp.async.bulk.global.shared::cta.bulk_group`), 3 `.S.S` — measured with
+  nvdisasm 13.1 (`tools/probes/re_sm120_ublkcp_dir.py`, 167 form + 48 lattice words). The table carried the codes 0 and 1 as the plain
+  key's groups `G,G` / `G,S`; a mod-group name is the *sorted* modifier set, so nvcc 13.0's store word decoded as an unknown word and the
+  text `UBLKCP.G.S [UR4], [UR36], UR6` assembled to the load word `UBLKCP.S.G` — a kernel built from that text would have copied in the
+  wrong direction. Like the conversions (`F2F.BF16.F32_R_R` next to `F2F.F32.F64_R_R`) the ordered pair lives on dotted keys now
+  (`UBLKCP.G.S_AURI_AURI_UR[_II]`, `UBLKCP.S.S_AURI_AURI_UR[_II]`), and the encoder serves a `.G.S` / `.S.S` text from those keys only — a
+  table without the row refuses the text instead of minting the other direction (`tests/sm120_ublkcp_dir.rs`). The modifier bits 75
+  `.MULTICAST`, 81 `.LTC64B`, 82 `.LTC128B`, 83 `.SEQUENCED`, 84 `.DST_G_BYTE_MASK` are recorded as unclaimed lattice.
+- **`FENCE.VIEW.ASYNC.G` measured; the donor `.T` row retired on SM120.** The async-proxy fence (0x3c6) carried two donor rows of the
+  2026-08 census (`bug226e`): `ASYNC,S,VIEW` and `ASYNC,T,VIEW`, no fields. nvdisasm 13.1 (`tools/probes/re_sm120_fence_view_async.py`):
+  bit 72 is the scope — clear `.S` (`fence.proxy.async.shared::cta`, also nvcc's lowering of the generic `fence.proxy.async` behind
+  `MEMBAR.ALL.GPU`), set `.G` (`fence.proxy.async.global`; its word decoded as `.S` with a reserved-bit residue through the sign-bit
+  fallback and did not assemble) — the predicate guard [15:12] is live, bit 73 (`.T`, the tensor-memory scope of sm_100 / sm_103, legal
+  on `-b SM100` / `-b SM103`) is illegal on SM120 and SM121, every other bit text-inert. `FENCE` joins the decoder's fail-closed bases
+  (BUG-225 list). Control law recorded with the rows: a read barrier on the word ([115:113] ≠ 7) is illegal — the fence carries a write
+  barrier at most (nvcc: wrtbar + stall 4); `ctrl_class` stays unset (the static `barrier` class would drop the write barrier nvcc's
+  consumers wait on — a scheduler item). Both scopes assemble; `.T` is refused (`tests/sm120_fence_view_async.rs`; bug225 / bug226e pins
+  moved to the measured state). The `.G` rows on sm103a / sm100a / sm121a (where `FENCE` is absent) are open.
+- Suite 2 916 → 2 924 passed / 0 failed / 9 ignored; the form / variant pins of 13 tests moved (979 → 983, 38 838 → 38 842, 15 897 →
+  15 901 loader keys); census strict 1 811 600 / 1 811 600, `asm -T` 157 / 157, the 99 production sources byte-identical, and the
+  megakernel probe cubins (472 + 80 words of nvcc 13.0's persistent-kernel primitives) round-trip strictly for the first time.
+
 ## Unreleased — 2026-11-08 (session T-23: the canonical tables in the compact one-row-per-line layout with the provenance written once per level — NEEDS 61 (a) + (b); `tools/tablefmt.py`)
 
 - **Tables vendored from blackwell-isa `4f72245`** — the same 38 838 / 35 876 / 35 870 / 50 444 rows (sm120 / sm103a / sm100a / sm121a; rows

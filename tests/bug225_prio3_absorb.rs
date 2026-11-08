@@ -746,7 +746,11 @@ fn t225_4_exposed_bases_not_silenced() {
         (0x060e01000000000000157806u128, "VOTE"),
         (0x028801000000000000ffa886u128, "VOTEU"),
         (0x08000600000000e0000079c8u128, "USETMAXREG"),
-        (0x0000020000000000000073c6u128, "FENCE"),
+        // 2026-11-08 (tools/probes/re_sm120_fence_view_async.py, nvdisasm 13.1 -b SM120): FENCE is armed now -- both
+        // scopes are measured rows (bit 72: `.S` / `.G`), and the word this test used to keep alive through the
+        // fallback (bit 73, the donor's `.T`) is illegal on SM120 (it is sm_100 / sm_103's tensor-memory scope).
+        // The exposed base keeps decoding through its measured row: nvcc 13.0's `fence.proxy.async.global` word.
+        (0x0000010000000000000073c6u128, "FENCE"),
     ] {
         let d = idx
             .decode(w, 0, &t)

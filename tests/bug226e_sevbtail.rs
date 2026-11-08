@@ -122,8 +122,10 @@ const CURED: &[(&str, u128, u64)] = &[
         0x082018000000000600027d10,
         0x002e9e00,
     ),
-    // FENCE: T cell (era S-only key)
-    ("FENCE.VIEW.ASYNC.T", 0x0000020000000000000073c6, 0x000ee400),
+    // FENCE: the second scope cell next to the era S-only key. 2026-11-08 (tools/probes/re_sm120_fence_view_async.py,
+    // nvdisasm 13.1 -b SM120): the donor's T cell (bit 73, sm_100 / sm_103's tensor-memory scope) is illegal on
+    // SM120 and left the table; the measured second cell is `.G` (bit 72, nvcc 13.0's fence.proxy.async.global).
+    ("FENCE.VIEW.ASYNC.G", 0x0000010000000000000073c6, 0x000ee400),
     // USETMAXREG: era misroutes/ghosts cured
     (
         "USETMAXREG.DEALLOC.CTAPOOL 0x18",
@@ -181,7 +183,8 @@ fn t226e_1_structure() {
     ] {
         assert!(mg("I2F_R_R", m), "I2F_R_R[{m}] missing");
     }
-    assert!(mg("FENCE", "ASYNC,S,VIEW") && mg("FENCE", "ASYNC,T,VIEW"));
+    // (2026-11-08: the donor `ASYNC,T,VIEW` cell is illegal on SM120 and gone; the measured scopes are S and G)
+    assert!(mg("FENCE", "ASYNC,S,VIEW") && mg("FENCE", "ASYNC,G,VIEW") && !mg("FENCE", "ASYNC,T,VIEW"));
     // graft fields on the era F2F typed keys: dst 8b@16 + tok2 neg/abs
     let hasf = |k: &str, e: &str, sft: u64, tok: u64| {
         ins[k]["mod_groups"][""]["fields"]
@@ -223,6 +226,8 @@ fn t226e_3_fail_closed() {
         "USETMAXREG.TRY_ALLOC.CTAPOOL._ALLOC.CTAPOOL UP0, 0xe0 ;",
         "USETMAXREG.DEALLOC.CTAPOOL !UPT, 0x18 ;",
         "FENCE.VIEW.ASYNC.X ;",
+        // 2026-11-08: the donor's tensor-memory scope -- illegal on SM120 (nvdisasm 13.1), refused since the row left
+        "FENCE.VIEW.ASYNC.T ;",
     ] {
         if let Ok(ins) = parse_sass(ghost, 0) {
             let _ = encode_instruction(&ins, &t)
@@ -258,7 +263,7 @@ fn t226e_4_encode_roundtrips() {
         "I2F.S8 R26, R26 ;",
         "I2F.F64 R12, UR4 ;",
         "FENCE.VIEW.ASYNC.S ;",
-        "FENCE.VIEW.ASYNC.T ;",
+        "FENCE.VIEW.ASYNC.G ;",
         "USETMAXREG.DEALLOC.CTAPOOL 0x18 ;",
         "USETMAXREG.TRY_ALLOC.CTAPOOL UP0, 0xe0 ;",
     ] {
