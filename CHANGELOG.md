@@ -4,6 +4,46 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-08 (session T-19: the last 111 harvest rows of sm120 closed — 7 documented rows left)
+
+- **Tables vendored from blackwell-isa `89dc967`** (sm120 979 forms / 38 838 variants, from 1 015 / 38 866 at `7f12b68`).
+  KNOWN_ISSUES T1: **38 838 rows, 38 831 with `_src` — 7 harvest rows left, every one a documented owner item** (111 at
+  `7f12b68`): the alias-able groups of the four mixed keys `F2FP_R_R` / `FLO_R_UR` / `WARPSYNC` / `WARPSYNC_R` (a group-level
+  alias is a schema item) and `WARPSYNC.COLLECTIVE_R_II`'s 50-bit immediate (NEEDS_OWNER 55c). The decisions of NEEDS 55 (R,
+  2026-11-08 03:05Z) measured with `tools/probes/re_sm120_rows.py`: 71 rows measured with their field lists corrected from the
+  sweep (`MANUAL_ROW_FIELDS`: the destination-predicate windows narrowed to 3 bits, the STS / STL `sub_ur` 9 → 8 bits, IADD3's
+  second carry-out predicate [86:84], BSSY's `imm_shr2` target at [63:34], the `.H1` merge selector `opmod:H1` on the F2FP /
+  F2IP / UF2FP merge forms, …), 15 HADD2 / HFMA2 immediate-pair rows (bit 85 `BF16_V2` re-types both packed-half immediates —
+  a modifier bit, `PAIRED_TYPE_BITS`), the four PT-elided `IMAD.HI` / `R2UR.FILL` plain groups, 17 mis-named keys renamed to
+  the vendor's spelling (`RENAMED_FROM`), 12 keys retired as `_meta.key_aliases` (the five `CALL.REL.NOINC_*` spellings →
+  `CALL_II`, the five F2FP `*PACK_AB_P_R_R_R` phantom-predicate keys, `IADD.X_R_P_R_R_R`, the dotted
+  `ULOP3.LUT_UP_UR_UR_II_UR_II_UP`), 4 dead rows and 12 junk keys deleted (`DELETE`: every canonical word nvdisasm rejects, or
+  another form's words), 6 design rows marked `_src: "modelled"` (`MODELLED`: the IADD3.X encode / decode pair of bug089 /
+  bug012, `HFMA2_R_R_R_II_FI`'s plain group, `UBLKPF.L2_AUR_UR`, the `encode_only` retention rows of bug193 / bug092). Whole
+  production census (249 929 words): 249 929 decoded, 249 929 re-encoded bit-exact, 0 text changes; the only key / group
+  moves are the two deliberate renames (`F2FP_R_R_R_R`'s sorted group name, 2 759 words; `UIADD3_UR_UP_UP_UR_II_UR` `64`,
+  160 words).
+- **Printer:** branch targets print as full signed values — `decode_branch_target` returns the 64-bit target and
+  `fmt_branch_target` spells a backward target of an isolated word `-0x…` as nvdisasm does (the old print wrapped BSSY /
+  CALL targets to 32 bits: `0xe9696978` for `-0x16969688`); BSSY reads its target from the measured `imm_shr2` field at
+  [63:34]. `UF2FP` prints `SATFINITE` / `RELU` before the types like F2FP; `UBLKRED` prints the two address spaces, then the
+  operation, then the element type (`UBLKRED.G.S.ADD.S32`). HSET2 joins the packed-half compares' `INVALID1` half-selector
+  law (`r_hsel_invalid1_slot`). No production word changes text (whole-census parity).
+- **Encoder:** BUG-048 kept on the measured rows — on the IADD3 / IADD `.X` carry forms a `-Rn` lands on the register's
+  `inv` bit (nvdisasm 13.1 prints `~Rn` for every one of them; the harvest had `neg` and `inv` stacked on bit 63).
+- **Tests:** the six `tests/sm120_rows_*.rs` regenerated from the T-19 fixtures; `tests/sm120_rows_common.inc` knows the
+  `deleted` (a key gone whole) and `modelled` (`_src: "modelled"`, the pinning test named in the note) statuses; 30 bug-wave
+  tests re-pinned to the measured doctrine with the measurement cited in each (bug399 / 412413 / 413ii / 425 / 425b / 433 /
+  438 / 443: the bit-72 and bit-91 carriers of the STS grids fail closed on the measured rows; bug419: HADD2 / HFMA2 cells with
+  text-inert modifier bits; bug165 / 172: the measured LDC donors' masks are their fields; bug048: `~R92` on IADD3.X's bit 75;
+  bug289: the `HFMA2_R_R_R_UR` reuse drill with a live control word, bit 124 is nvdisasm-rejected; bug308: the F2IP text's
+  fourth operand is a register; sm120_era_keys: the `MOV_P0_R_II` UMOV words carry the inert bits [75:72]; the census /
+  claim_forbid / alias counts). `tests/sm120_rows_common.inc` is shared by all seven family tests.
+- **Probe tool `tools/probes/re_sm120_rows.py`:** `MANUAL_ROW_FIELDS` (per-row corrected field lists), `MANUAL_SPELLING_OK`,
+  `PAIRED_TYPE_BITS`, `MODELLED`, `DELETE`, `RENAMED_FROM`; an applied row's cubit-law field (IMAD's `neg@72`) re-probes as
+  `cubit_law`, not as a text-inert defect; a flip whose text is an existing row's spelling is a modifier bit (F2FP's bit 78
+  `PACK_AB` ↔ `MERGE_C`).
+
 ## Unreleased — 2026-11-08 (session T-18 batch 2: the exceptions phase — 32 whole-key twins retired as aliases)
 
 - **Tables vendored from blackwell-isa `7f12b68`** (sm120 1 015 forms / 38 866 variants, from 1 047 / 38 898 at `fd736a7`).
