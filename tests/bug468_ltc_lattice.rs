@@ -112,7 +112,7 @@ fn t468_5_mint_circle() {
 #[test]
 fn t468_6_census_and_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "39d0372d22024b037ee16d6effdf6a7cfdb71471" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "f254702d0c9426e2de5c96cdd97a5d2930d88d13" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON468, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     for (leg, want) in CENSUS468 {
@@ -207,6 +207,7 @@ fn t468_7_graft_vs_donor_transform() {
         // measured `LDG_R_R_ARURI[_II][_P]` keys -> 0 on sm120. T-21 batch 4 (2026-11-08): the same on sm103a / sm100a
         // (`tools/probes/re_sm120_ldg256.py --arch SM103 / SM100` x 3 forms + `re_sm120_stg256.py`; the 2 320 graft
         // keys of each table are `_meta.key_aliases` of the measured plain keys) -> 0 there too; sm121a keeps the graft.
-        assert_eq!(n, if matches!(leg, "sm120" | "sm103a" | "sm100a") { 0 } else { 2320 }, "[{leg}] graft census");
+        // T-21 batch 5: sm121a too (the five probes with --arch SM121) -> 0 on every table.
+        assert_eq!(n, 0, "[{leg}] graft census");
     }
 }

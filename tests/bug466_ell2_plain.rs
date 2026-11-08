@@ -60,8 +60,10 @@ const X3: [&str; 3] = ["sm100a", "sm103a", "sm120"];
 /// `tools/probes/re_sm120_ldg256.py --arch SM103 / SM100` x 3 forms + `re_sm120_stg256.py --arch SM103 / SM100`,
 /// nvdisasm 13.1 -- every form word prints the SM120 text on both targets; fixtures
 /// `tests/fixtures/sm103a_*256*_nvdisasm.jsonl` / `sm100a_*`, tests `tests/sm103a_sm100a_*256*.rs`). All of X3 now.
+/// sm121a since T-21 batch 5 (2026-11-08): the same five probes with `--arch SM121 --witnesses` (the GB10 census words
+/// of the forms) -- every form word prints the SM120 text; `tests/sm121a_{ldg256_dari,ldg256_aruri64,ldg256_aruri,stg256,redg_aruri}.rs`.
 fn measured256(leg: &str) -> bool {
-    matches!(leg, "sm120" | "sm103a" | "sm100a")
+    matches!(leg, "sm120" | "sm103a" | "sm100a" | "sm121a")
 }
 
 /// t466_1: route grid -- decode == vendor text na wszystkich 90 zmierzonych

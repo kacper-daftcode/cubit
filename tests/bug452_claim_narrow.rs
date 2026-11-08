@@ -31,8 +31,9 @@ fn tab(arch: &str) -> IsaTable {
 /// (tools/probes/re_sm120_redg.py --arch SM103 / SM100); a measured row fails closed on its text-inert bits -- for
 /// REDG 0x98e with bit 91: [23:16] (the atomic's destination slot), 76, 82, 83 and [95:92] -- the convention of every
 /// measured family since T-10. The 2026-09 fuzz words of this file that carry such bits have no decode on those legs.
+/// sm121a since T-21 batch 5 (2026-11-08): `re_sm120_redg.py --arch SM121` (and the LDG.256 / STG.256 probes), `tests/sm121a_redg_aruri.rs`.
 fn redg_measured(leg: &str) -> bool {
-    matches!(leg, "sm120" | "sm103a" | "sm100a")
+    matches!(leg, "sm120" | "sm103a" | "sm100a" | "sm121a")
 }
 fn redg_inert_bits_set(w: u128) -> bool {
     const INERT: u128 = (0xffu128 << 16) | (1u128 << 76) | (1u128 << 82) | (1u128 << 83) | (0xfu128 << 92);

@@ -49,8 +49,14 @@ const LEGS446: [&str; 4] = ["sm100a", "sm103a", "sm120", "sm121a"];
 /// `tools/probes/re_sm120_ldg256.py --arch SM103 / SM100` x 3 forms + `re_sm120_stg256.py --arch SM103 / SM100`,
 /// nvdisasm 13.1 -- every form word prints the SM120 text on both targets; fixtures
 /// `tests/fixtures/sm103a_*256*_nvdisasm.jsonl` / `sm100a_*`, tests `tests/sm103a_sm100a_*256*.rs`).
+/// sm121a since T-21 batch 5 (2026-11-08): the same five probes with `--arch SM121 --witnesses` (the GB10 census words
+/// of the forms) -- every form word prints the SM120 text; `tests/sm121a_{ldg256_dari,ldg256_aruri64,ldg256_aruri,stg256,redg_aruri}.rs`.
 fn measured256(leg: &str) -> bool {
-    matches!(leg, "sm120" | "sm103a" | "sm100a")
+    matches!(leg, "sm120" | "sm103a" | "sm100a" | "sm121a")
+}
+/// A 256-bit store word (0x97f) with one of the text-inert bits [74:72] / 83 / 87 / [95:92] set.
+fn store_inert_bits(w: u128) -> bool {
+    (w & 0xfff) == 0x97f && (w & ((7u128 << 72) | (1u128 << 83) | (1u128 << 87) | (0xfu128 << 92))) != 0
 }
 fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
     let full = format!(" {text} ;");
@@ -67,6 +73,13 @@ fn t446_1_heal_grid() {
     let idx = DecodeIndex::build(&t);
     for (w, vendor) in LAW446_HEAL {
         let got = dec(&t, &idx, *w);
+        // T-21 batch 5 (2026-11-08): the 256-bit store is measured on sm121a too (`measured256`); the cells of this grid
+        // that carry a text-inert bit of the store ([74:72] / 83 / 87 / [95:92]) fail closed on the measured rows, as on
+        // sm120 since G batch 13 (nvdisasm names the words; no corpus word carries the bits).
+        if store_inert_bits(*w) {
+            assert_eq!(got, None, "[sm121a] heal {w:#034x}: inert bits fail closed (T-21 batch 5)");
+            continue;
+        }
         assert_eq!(
             got.as_deref(),
             Some(*vendor),
@@ -168,6 +181,13 @@ fn t446_7_deadnorm() {
     let t = tab("sm121a");
     let idx = DecodeIndex::build(&t);
     for (law, mint) in DEADNORM446 {
+        // T-21 batch 5: the "dead" bits 72 / 73 / 87 of the store are text-inert bits the measured sm121a rows fail
+        // closed on (G batch 13's law, measured on -b SM121); the normalised mint word decodes to the vendor text.
+        if store_inert_bits(*law) {
+            assert_eq!(dec(&t, &idx, *law), None, "[sm121a] dead-bit law word {law:#034x}: inert bits fail closed (T-21 batch 5)");
+            dec(&t, &idx, *mint).expect("mint HOLE");
+            continue;
+        }
         let a = dec(&t, &idx, *law).expect("law word HOLE");
         let b = dec(&t, &idx, *mint).expect("mint HOLE");
         assert_eq!(a, b, "dead-bit render split {law:#034x}");
@@ -201,7 +221,7 @@ fn t446_8_corpus() {
 #[test]
 fn t446_9_canonical_unchanged() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "39d0372d22024b037ee16d6effdf6a7cfdb71471" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "f254702d0c9426e2de5c96cdd97a5d2930d88d13" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON446, "9c0e4ce", "historical fixture revision drift");
 
     // public-line hygiene: lane-side live rev-parse hermetized to the vendored manifest pin

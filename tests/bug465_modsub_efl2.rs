@@ -57,8 +57,10 @@ const LEGS465: [&str; 4] = ["sm100a", "sm103a", "sm120", "sm121a"];
 /// sm103a / sm100a since T-20 / T-21 batch 4 (2026-11-08, `tools/probes/re_sm120_ldg256.py --arch SM103 / SM100`
 /// x 3 forms + `re_sm120_stg256.py --arch SM103 / SM100`, nvdisasm 13.1 -- every form word prints the SM120 text on
 /// both targets; fixtures `tests/fixtures/sm103a_*256*_nvdisasm.jsonl` / `sm100a_*`, tests `tests/sm103a_sm100a_*256*.rs`).
+/// sm121a since T-21 batch 5 (2026-11-08): the same five probes with `--arch SM121 --witnesses` (the GB10 census words
+/// of the forms) -- every form word prints the SM120 text; `tests/sm121a_{ldg256_dari,ldg256_aruri64,ldg256_aruri,stg256,redg_aruri}.rs`.
 fn measured256(leg: &str) -> bool {
-    matches!(leg, "sm120" | "sm103a" | "sm100a")
+    matches!(leg, "sm120" | "sm103a" | "sm100a" | "sm121a")
 }
 fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
     let full = format!(" {text} ;");
@@ -397,7 +399,7 @@ fn t465_9_atlas_audit() {
 #[test]
 fn t465_10_canonical_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "39d0372d22024b037ee16d6effdf6a7cfdb71471" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "f254702d0c9426e2de5c96cdd97a5d2930d88d13" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON465, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     let src = std::fs::read_to_string("tables/SOURCE.json").unwrap();

@@ -54,7 +54,7 @@ PROVENANCE = "redg-aruri-family-2026-11-07"
 CTRL = 0x000f_e200 << 96
 OPC = 0x98e
 FRAME = 1 << 91  # the uniform-indexed form
-TABLE_OF = {"SM120": "sm120", "SM103": "sm103a", "SM100": "sm100a"}
+TABLE_OF = {"SM120": "sm120", "SM103": "sm103a", "SM100": "sm100a", "SM121": "sm121a"}
 ADDR = {"ARURI": 0, "ARURI64": 1}  # address form -> bit 90
 SCOPE = ["", "CONSTANT.PRIVATE", "CONSTANT.CTA", "CONSTANT.CTA.PRIVATE", "STRONG.SM.PRIVATE", "STRONG.SM",
          "STRONG.GPU.PRIVATE", "STRONG.GPU", "MMIO.GPU", "CONSTANT.SM", "STRONG.SYS", "CONSTANT.SM.PRIVATE", "MMIO.SYS",
@@ -212,14 +212,47 @@ def lattice_ok(w, t):
     return text_ok(w & ~mask, t)
 
 
-def probe(nvdisasm, arch, out, jobs):
+
+
+def witness_words(corpus: pathlib.Path, mnemonic: str, opc: int) -> list[int]:
+    """T-21: the words of a census corpus (`{"hex", "sass"}` lines; the GB10 corpus of sm121a) whose opcode is the
+    form's and whose text starts with the mnemonic, with their own control codes, distinct, sorted."""
+    import json
+    import re
+    out = set()
+    for line in corpus.read_text().splitlines():
+        if not line.strip():
+            continue
+        r = json.loads(line)
+        w = int(r["hex"], 16)
+        if (w & 0xfff) == opc and re.match(r"^(@!?U?P[T\d] )?" + mnemonic + r"\b", r["sass"]):
+            out.add(w)
+    return sorted(out)
+
+
+def probe(nvdisasm, arch, out, jobs, witnesses=None):
     words = sweep_words()
     rows = nvprobe.probe_words(nvdisasm, "redg_aruri", [(w, kind != "form") for w, kind in words], CTRL,
                                check_form=text_ok, check_lattice=lattice_ok, arch=arch, jobs=jobs)
+    n_wit = 0
+    if witnesses is not None:
+        # T-21 (2026-11-08): the census words of the table's own corpus (the GB10 corpus of sm121a), each with its own
+        # control code, checked against the law like a form word (text_ok ignores nothing: the word's bits are the law's)
+        wit_all = witness_words(witnesses, "REDG", OPC)
+        # only the words of the forms this probe measures (the opcode is shared with other address forms: the
+        # descriptor-form REDG words of the GB10 corpus are outside the uniform-indexed lattice)
+        wit = [w for w in wit_all if key_of(w) is not None]
+        if len(wit) != len(wit_all):
+            print(f"  {len(wit_all) - len(wit)} corpus words of the opcode are outside the probed forms (skipped)")
+        wrows = nvprobe.probe_words(nvdisasm, "redg_wit", [(w, False) for w in wit], 0, check_form=text_ok, arch=arch, jobs=jobs)
+        for row in wrows:
+            row["witness"] = True
+        rows += wrows
+        n_wit = len(wrows)
     nvprobe.write_fixture(out, rows)
-    n_form = sum(1 for r in rows if not r.get("lattice"))
-    keys = collections.Counter(key_of(int(r["word"], 16)) for r in rows if not r.get("lattice"))
-    print(f"{out}: {n_form} form words ({dict(keys)}), {len(rows) - n_form} lattice words ({arch})")
+    n_form = sum(1 for r in rows if not r.get("lattice") and not r.get("witness"))
+    keys = collections.Counter(key_of(int(r["word"], 16)) for r in rows if not r.get("lattice") and not r.get("witness"))
+    print(f"{out}: {n_form} form words ({dict(keys)}), {len(rows) - n_form - n_wit} lattice words, {n_wit} witness words ({arch})")
 
 
 NOTE = ("REDG 0x98e (the global reduction, uniform-indexed address forms) measured with nvdisasm 13.1 (-b SM120), "
@@ -277,7 +310,7 @@ def apply(table_path):
     template = ins[next(iter(retire))] if retire else ins["REDG_dARI_R"]
     arch = arch_of_table(path)
     # sm103a / sm100a (session T-20, 2026-11-08): the same law, measured on the table's own target -- the rows say so
-    note = NOTE if arch == "SM120" else NOTE.replace("(-b SM120)", f"(-b {arch}; the same text as on -b SM120 for every word of the sweep -- session T-20, 2026-11-08, on the {TABLE_OF[arch]} table)")
+    note = NOTE if arch == "SM120" else NOTE.replace("(-b SM120)", f"(-b {arch}; the same text as on -b SM120 for every word of the sweep -- session T-20 / T-21, 2026-11-08, on the {TABLE_OF[arch]} table)")
     rewritten = added = kept = 0
     for key in KEYS:
         old = ins.get(key)
@@ -311,9 +344,9 @@ def apply(table_path):
     prov["rows_total"] = len(rows)
     prov["rows_without_src"] = sum(1 for g in rows if g.get("_src") is None)
     prov["sources"][PROVENANCE] = {"rows": sum(1 for g in rows if g.get("_src") == PROVENANCE),
-                                   "kind": "nvdisasm 13.1 field probe (-b SM120 / SM103 / SM100)", "date": "2026-11-07" if arch == "SM120" else "2026-11-08",
+                                   "kind": "nvdisasm 13.1 field probe (-b SM120 / SM103 / SM100 / SM121)", "date": "2026-11-07" if arch == "SM120" else "2026-11-08",
                                    "tool": "tools/probes/re_sm120_redg.py",
-                                   "test": "tests/sm120_redg_aruri.rs" if arch == "SM120" else "tests/sm103a_sm100a_redg_aruri.rs"}
+                                   "test": {"SM120": "tests/sm120_redg_aruri.rs", "SM121": "tests/sm121a_redg_aruri.rs"}.get(arch, "tests/sm103a_sm100a_redg_aruri.rs")}
     live_after = collections.Counter(g.get("_src") for g in rows)
     for s, n in live_before.items():
         if s and s != PROVENANCE and live_after[s] != n and prov["sources"].get(s, {}).get("rows") == n:
@@ -333,12 +366,14 @@ def main():
     p.add_argument("--arch", default="SM120", choices=sorted(TABLE_OF))
     p.add_argument("--out", type=pathlib.Path, default=None)
     p.add_argument("--jobs", type=int, default=1)
+    p.add_argument("--witnesses", type=pathlib.Path, default=None,
+                   help="a census corpus ({hex, sass} lines; the GB10 corpus of sm121a): its words of this form become witness rows")
     a = sub.add_parser("apply")
     a.add_argument("table")
     args = parser.parse_args()
     if args.command == "probe":
         out = args.out or nvprobe.FIXTURES / f"{TABLE_OF[args.arch]}_redg_aruri_nvdisasm.jsonl"
-        probe(args.nvdisasm, args.arch, out, args.jobs)
+        probe(args.nvdisasm, args.arch, out, args.jobs, args.witnesses)
     else:
         apply(args.table)
 

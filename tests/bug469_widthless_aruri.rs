@@ -74,6 +74,20 @@ fn t469_1_heal_decode() {
 fn t469_2_anchor_parity() {
     for (w, leg, cold) in ANCH469 {
         let got = dec(leg, *w);
+        // T-21 batch 5 (2026-11-08, tools/probes/re_sm120_ldg256.py --arch SM121 --witnesses, nvdisasm 13.1): the 256-bit
+        // load is measured on sm121a -- its rows fail closed on the text-inert bits 83 / [95:92] (the convention of every
+        // measured family since T-10; the 474-ride anchors with bit 92 are such words: nvdisasm names them without it).
+        if *leg == "sm121a" && (*w & 0xfff) == 0x97e && (*w & ((1u128 << 83) | (0xfu128 << 92))) != 0 {
+            assert_eq!(got, None, "[{leg}] anchor {w:#034x}: inert bits fail closed (T-21 batch 5)");
+            continue;
+        }
+        // ... and the EU cache code (4) with a scope is a legal word of the measured lattice (nvdisasm 13.1 names it on
+        // SM121 as on SM120 / SM103 / SM100 -- G batch 12's `b86-zone` finding); the 2026-09 cold HOLE stood on the
+        // harvest's silence. The INVALID7 drill of the same grid stays a hole (the lattice leaves the code unclaimed).
+        if *leg == "sm121a" && *w == 0x000000000840e114fe0000080a10797e {
+            assert_eq!(got.as_deref(), Some("LDG.E.EU.EFL2.256.STRONG.GPU R20, R16, [R10.U32+UR8]"), "[{leg}] anchor {w:#034x} (measured legal, T-21 batch 5)");
+            continue;
+        }
         if cold.is_empty() {
             assert!(
                 got.is_none(),
@@ -117,7 +131,7 @@ fn t469_4_mint_circle() {
 #[test]
 fn t469_5_census_and_source() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "39d0372d22024b037ee16d6effdf6a7cfdb71471" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "f254702d0c9426e2de5c96cdd97a5d2930d88d13" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON469, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     for (leg, want) in CENSUS469 {
@@ -146,18 +160,20 @@ fn t469_6_graft_shape() {
     )
     .unwrap();
     let ins = raw["instructions"].as_object().unwrap();
-    // (A) verbatim graft keys
+    // (A) verbatim graft keys -- T-21 batch 5 (2026-11-08): the 256-bit load's U32 uniform-indexed form is measured on
+    // sm121a (`LDG_R_R_ARURI[_II][_P]`, 1 152 groups each); the two graft keys are `_meta.key_aliases` of the plain key
+    // and their tokens name its groups `256,E,EL,ELL2,GPU,STRONG` / `256,E,ELL2,GPU,NA,STRONG` (measured, era clear).
+    let aliases = raw["_meta"]["key_aliases"].as_object().unwrap();
     for k in [
         "LDG.E.EL.ELL2.256.STRONG.GPU_R_R_ARURI",
         "LDG.E.NA.ELL2.256.STRONG.GPU_R_R_ARURI",
     ] {
-        let rec = &ins[k];
-        assert_eq!(
-            rec["_src469"].as_str().unwrap(),
-            "bug469-2026-09-16",
-            "src469 {k}"
-        );
-        let mg = &rec["mod_groups"][""];
+        assert!(ins.get(k).is_none(), "{k}: retired into the measured plain key (T-21 batch 5)");
+        assert_eq!(aliases[k].as_str(), Some("LDG_R_R_ARURI"), "{k}: alias of the measured plain key");
+        let mut toks: Vec<&str> = k.split('_').next().unwrap().split('.').skip(1).collect();
+        toks.sort_unstable();
+        let mg = &ins["LDG_R_R_ARURI"]["mod_groups"][toks.join(",")];
+        assert_eq!(mg["_src"], "ldg256-family-2026-11-07", "{k}: the measured group");
         let ab = u128::from_str_radix(
             mg["and_base"].as_str().unwrap().trim_start_matches("0x"),
             16,

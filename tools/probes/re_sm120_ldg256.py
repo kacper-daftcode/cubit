@@ -47,7 +47,7 @@ PROVENANCE = "ldg256-family-2026-11-07"
 CTRL = 0x000f_e200 << 96
 OPC = 0x97e
 FRAME = 1 << 91  # set on every legal word of the form (clearing it is illegal)
-TABLE_OF = {"SM120": "sm120", "SM103": "sm103a", "SM100": "sm100a"}
+TABLE_OF = {"SM120": "sm120", "SM103": "sm103a", "SM100": "sm100a", "SM121": "sm121a"}
 ADDR = {"dARI": (1, 1), "ARURI64": (1, 0), "ARURI": (0, 0)}  # address form -> (bit 75, bit 76)
 SCOPE = ["", "CONSTANT.PRIVATE", "CONSTANT.CTA", "CONSTANT.CTA.PRIVATE", "CONSTANT", "STRONG.SM", "STRONG.GPU.PRIVATE",
          "STRONG.GPU", "MMIO.GPU", "CONSTANT.SM", "STRONG.SYS", "CONSTANT.SM.PRIVATE", "MMIO.SYS", "CONSTANT.VC",
@@ -230,14 +230,47 @@ def lattice_ok(w, t):
     return text_ok(w & ~mask, t)
 
 
-def probe(nvdisasm, form, arch, out, jobs):
+
+
+def witness_words(corpus: pathlib.Path, mnemonic: str, opc: int) -> list[int]:
+    """T-21: the words of a census corpus (`{"hex", "sass"}` lines; the GB10 corpus of sm121a) whose opcode is the
+    form's and whose text starts with the mnemonic, with their own control codes, distinct, sorted."""
+    import json
+    import re
+    out = set()
+    for line in corpus.read_text().splitlines():
+        if not line.strip():
+            continue
+        r = json.loads(line)
+        w = int(r["hex"], 16)
+        if (w & 0xfff) == opc and re.match(r"^(@!?U?P[T\d] )?" + mnemonic + r"\b", r["sass"]):
+            out.add(w)
+    return sorted(out)
+
+
+def probe(nvdisasm, form, arch, out, jobs, witnesses=None):
     words = sweep_words(form)
     rows = nvprobe.probe_words(nvdisasm, f"ldg256_{form.lower()}", [(w, kind != "form") for w, kind in words], CTRL,
                                check_form=text_ok, check_lattice=lattice_ok, arch=arch, jobs=jobs)
+    n_wit = 0
+    if witnesses is not None:
+        # T-21 (2026-11-08): the census words of the table's own corpus (the GB10 corpus of sm121a), each with its own
+        # control code, checked against the law like a form word (text_ok ignores nothing: the word's bits are the law's)
+        wit_all = witness_words(witnesses, "LDG", OPC)
+        # only the words of the forms this probe measures (the opcode is shared with other address forms: the
+        # descriptor-form REDG words of the GB10 corpus are outside the uniform-indexed lattice)
+        wit = [w for w in wit_all if key_of(w) is not None]
+        if len(wit) != len(wit_all):
+            print(f"  {len(wit_all) - len(wit)} corpus words of the opcode are outside the probed forms (skipped)")
+        wrows = nvprobe.probe_words(nvdisasm, "ldg_wit", [(w, False) for w in wit], 0, check_form=text_ok, arch=arch, jobs=jobs)
+        for row in wrows:
+            row["witness"] = True
+        rows += wrows
+        n_wit = len(wrows)
     nvprobe.write_fixture(out, rows)
-    n_form = sum(1 for r in rows if not r.get("lattice"))
-    keys = collections.Counter(key_of(int(r["word"], 16)) for r in rows if not r.get("lattice"))
-    print(f"{out}: {n_form} form words ({dict(keys)}), {len(rows) - n_form} lattice words ({arch})")
+    n_form = sum(1 for r in rows if not r.get("lattice") and not r.get("witness"))
+    keys = collections.Counter(key_of(int(r["word"], 16)) for r in rows if not r.get("lattice") and not r.get("witness"))
+    print(f"{out}: {n_form} form words ({dict(keys)}), {len(rows) - n_form - n_wit} lattice words, {n_wit} witness words ({arch})")
 
 
 NOTE = ("LDG 0x97e (the 256-bit global load) measured with nvdisasm 13.1 (-b SM120), tools/probes/re_sm120_ldg256.py (session G, "
@@ -306,7 +339,7 @@ def apply(table_path, form):
     table = nvprobe.load_table(path)
     arch = arch_of_table(path)
     # sm103a / sm100a (session T-20, 2026-11-08): the same law, measured on the table's own target -- the rows say so
-    note = NOTE if arch == "SM120" else NOTE.replace("(-b SM120)", f"(-b {arch}; the same text as on -b SM120 for every form word of the sweep -- session T-20, 2026-11-08, on the {TABLE_OF[arch]} table)")
+    note = NOTE if arch == "SM120" else NOTE.replace("(-b SM120)", f"(-b {arch}; the same text as on -b SM120 for every form word of the sweep -- session T-20 / T-21, 2026-11-08, on the {TABLE_OF[arch]} table)")
     ins = table["instructions"]
     live_before = collections.Counter(g.get("_src") for e in ins.values() for g in e.get("mod_groups", {}).values())
     retire = dotted_keys(ins, form)
@@ -344,9 +377,9 @@ def apply(table_path, form):
     prov["rows_total"] = len(rows)
     prov["rows_without_src"] = sum(1 for g in rows if g.get("_src") is None)
     prov["sources"][PROVENANCE] = {"rows": sum(1 for g in rows if g.get("_src") == PROVENANCE),
-                                   "kind": "nvdisasm 13.1 field probe (-b SM120 / SM103 / SM100)", "date": "2026-11-07" if arch == "SM120" else "2026-11-08",
+                                   "kind": "nvdisasm 13.1 field probe (-b SM120 / SM103 / SM100 / SM121)", "date": "2026-11-07" if arch == "SM120" else "2026-11-08",
                                    "tool": "tools/probes/re_sm120_ldg256.py",
-                                   "test": "tests/sm120_ldg256_dari.rs, tests/sm120_ldg256_aruri64.rs, tests/sm120_ldg256_aruri.rs" if arch == "SM120" else "tests/sm103a_sm100a_ldg256_dari.rs, tests/sm103a_sm100a_ldg256_aruri64.rs, tests/sm103a_sm100a_ldg256_aruri.rs"}
+                                   "test": {"SM120": "tests/sm120_ldg256_dari.rs, tests/sm120_ldg256_aruri64.rs, tests/sm120_ldg256_aruri.rs", "SM121": "tests/sm121a_ldg256_dari.rs, tests/sm121a_ldg256_aruri64.rs, tests/sm121a_ldg256_aruri.rs"}.get(arch, "tests/sm103a_sm100a_ldg256_dari.rs, tests/sm103a_sm100a_ldg256_aruri64.rs, tests/sm103a_sm100a_ldg256_aruri.rs")}
     live_after = collections.Counter(g.get("_src") for g in rows)
     for s, n in live_before.items():
         if s and s != PROVENANCE and live_after[s] != n and prov["sources"].get(s, {}).get("rows") == n:
@@ -367,13 +400,15 @@ def main():
     p.add_argument("--arch", default="SM120", choices=sorted(TABLE_OF))
     p.add_argument("--out", type=pathlib.Path, default=None)
     p.add_argument("--jobs", type=int, default=1)
+    p.add_argument("--witnesses", type=pathlib.Path, default=None,
+                   help="a census corpus ({hex, sass} lines; the GB10 corpus of sm121a): its words of this form become witness rows")
     a = sub.add_parser("apply")
     a.add_argument("--form", required=True, choices=sorted(ADDR))
     a.add_argument("table")
     args = parser.parse_args()
     if args.command == "probe":
         out = args.out or nvprobe.FIXTURES / f"{TABLE_OF[args.arch]}_ldg256_{args.form.lower()}_nvdisasm.jsonl"
-        probe(args.nvdisasm, args.form, args.arch, out, args.jobs)
+        probe(args.nvdisasm, args.form, args.arch, out, args.jobs, args.witnesses)
     else:
         apply(args.table, args.form)
 

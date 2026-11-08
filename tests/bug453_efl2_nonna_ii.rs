@@ -72,8 +72,10 @@ fn nforms(arch: &str) -> usize {
 /// `tools/probes/re_sm120_ldg256.py --arch SM103 / SM100` x 3 forms + `re_sm120_stg256.py --arch SM103 / SM100`,
 /// nvdisasm 13.1 -- every form word prints the SM120 text on both targets; fixtures
 /// `tests/fixtures/sm103a_*256*_nvdisasm.jsonl` / `sm100a_*`, tests `tests/sm103a_sm100a_*256*.rs`).
+/// sm121a since T-21 batch 5 (2026-11-08): the same five probes with `--arch SM121 --witnesses` (the GB10 census words
+/// of the forms) -- every form word prints the SM120 text; `tests/sm121a_{ldg256_dari,ldg256_aruri64,ldg256_aruri,stg256,redg_aruri}.rs`.
 fn measured256(leg: &str) -> bool {
-    matches!(leg, "sm120" | "sm103a" | "sm100a")
+    matches!(leg, "sm120" | "sm103a" | "sm100a" | "sm121a")
 }
 
 /// t453_1: trailer grid -- decode == vendor x4-unanim text na kazdej celi
@@ -318,7 +320,7 @@ fn t453_8_census_and_canonical() {
     let src: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        src["base_revision"].as_str().unwrap().starts_with("39d0372d22024b037ee16d6effdf6a7cfdb71471") /* 2026-11-06 T-11 (was c258f8a, T-10) */,
+        src["base_revision"].as_str().unwrap().starts_with("f254702d0c9426e2de5c96cdd97a5d2930d88d13") /* 2026-11-06 T-11 (was c258f8a, T-10) */,
         "SOURCE.json must pin canonical {CANON453} (= BUG-453 graft, ride-after e03e0348d98b9d20ffb4ca557cfc6eae625cf995 = BUG-452 narrow): {:?}",
         src["base_revision"]
     );

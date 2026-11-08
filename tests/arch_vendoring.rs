@@ -73,13 +73,20 @@ fn sm121a_gold_anchors_decode_exact() {
 #[test]
 fn sm121a_pred_inv4_decode_and_roundtrip() {
     let tab = t("sm121a");
-    // LDG.E.EFL2.256_R_R_dARI_P: trailing pred field at [90:87].
+    // The trailing pred field at [90:87]. T-21 (2026-11-08, batch 5 of the GB10 line): the 256-bit load is measured
+    // on sm121a (`tools/probes/re_sm120_ldg256.py --arch SM121`) -- the dotted `LDG.E.EFL2.256_R_R_dARI_P` key of
+    // 2026-09 is a `_meta.key_aliases` entry of the measured plain key `LDG_R_R_dARI_P`, whose group `256,E,EFL2` carries
+    // the same `pred_inv4` field; the and_base of that group (guard / registers / offset at 0) is the base word here.
     let base = {
-        let row = &serde_json::from_slice::<serde_json::Value>(
-            &cubit::table::read_table_bytes("tables/sm121a.json").unwrap()).unwrap()["instructions"]
-            ["LDG.E.EFL2.256_R_R_dARI_P"]["mod_groups"][""];
+        let raw = serde_json::from_slice::<serde_json::Value>(
+            &cubit::table::read_table_bytes("tables/sm121a.json").unwrap()).unwrap();
+        assert_eq!(raw["_meta"]["key_aliases"]["LDG.E.EFL2.256_R_R_dARI_P"].as_str(), Some("LDG_R_R_dARI_P"),
+                   "the 2026-09 dotted key is an alias of the measured plain key (T-21)");
+        let row = &raw["instructions"]["LDG_R_R_dARI_P"]["mod_groups"]["256,E,EFL2"];
+        assert_eq!(row["_src"], "ldg256-family-2026-11-07", "the measured row");
+        // guard 7 (none) and the canonical registers so the text is a plain instruction
         u128::from_str_radix(row["and_base"].as_str().unwrap().trim_start_matches("0x"), 16)
-            .unwrap()
+            .unwrap() | (7u128 << 12) | (4u128 << 64) | (6u128 << 16) | (2u128 << 24) | (4u128 << 32)
     };
     // window 0 = no guard pred: token omitted entirely (no phantom ", PT")
     let t0 = dec(&tab, base);
