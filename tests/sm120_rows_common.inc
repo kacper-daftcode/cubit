@@ -263,7 +263,9 @@ fn the_rows_are_measured_and_the_shadowed_keys_are_aliases() {
             // T-19 (2026-11-08): a row the project keeps by design (`_src: "modelled"`, the pinning test in the note)
             let g = &ins[key]["mod_groups"][group];
             assert_eq!(g["_src"], "modelled", "{key} {group}");
-            assert!(g["_note"].as_str().unwrap().contains(row["test"].as_str().unwrap()), "{key} {group}: the note names the test");
+            // 2026-11-08 (tools/tablefmt.py): a row's note is its own, else its key's (a one-row key carries it there)
+            let note = g["_note"].as_str().or_else(|| ins[key]["_note"].as_str()).unwrap_or_else(|| panic!("{key} {group}: no note"));
+            assert!(note.contains(row["test"].as_str().unwrap()), "{key} {group}: the note names the test");
             continue;
         }
         if status == "exception" || status == "harvest" || status == "canonical_illegal" {

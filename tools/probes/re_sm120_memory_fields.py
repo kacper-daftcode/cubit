@@ -7,6 +7,9 @@ perturbations through NVIDIA nvdisasm. No instruction/residue passthrough.
 """
 import argparse,copy,json,re,subprocess,tempfile
 from pathlib import Path
+import sys as _sys
+_sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]))
+import tablefmt  # noqa: E402  -- the canonical table layout (NEEDS 61, 2026-11-08)
 NV=Path('/usr/local/lib/python3.12/dist-packages/triton/backends/nvidia/bin/nvdisasm')
 
 def f(bits,extraction,shift,token_idx):return dict(bits=bits,extraction=extraction,shift=shift,token_idx=token_idx)
@@ -302,7 +305,7 @@ def main():
  result=dict(witnesses=evidence,derived_elision_rows=derived,probes=records,rows=len(rows),verified_probes=sum(r['verification']['status']=='verified' for r in records),invalid_probes=sum(r['verification']['status']=='invalid' for r in records),all_legal_probes_verified=True,retire_rows=retire,candidate_rows={key:dict(mod_groups={mg:r for (k,mg),r in rows.items() if k==key}) for key,_ in rows})
  o.evidence.write_text(json.dumps(result,indent=2)+'\n')
  if o.apply:
-  data=json.loads(o.canonical.read_text());ins=data['instructions']
+  data=tablefmt.load_table(o.canonical);ins=data['instructions']
   for retired in retire:
    key=retired['key']
    if key in ins:
@@ -311,6 +314,6 @@ def main():
   for (key,mg),r in rows.items():
    entry=ins.setdefault(key,dict(base_op=key.split('_')[0],operand_sig=key.split('_',1)[1],ctrl_class='ld_generic' if key.startswith('LD') else 'alu_simple',scheduling=dict(def_latency=0,is_variable_latency=True,pipe_class=0,pipe_name='UNKNOWN'),mod_groups={}))
    entry['mod_groups'][mg]=r
-  tmp=o.canonical.with_suffix('.json.memory-tmp');tmp.write_text(json.dumps(data,indent=1,ensure_ascii=True)+'\n');tmp.replace(o.canonical)
+  tablefmt.save_table(o.canonical,data)
  print(json.dumps(dict(rows=len(rows),witnesses=len(evidence),probes=len(probes),verified_probes=result['verified_probes'],invalid_probes=result['invalid_probes'])))
 if __name__=='__main__':main()

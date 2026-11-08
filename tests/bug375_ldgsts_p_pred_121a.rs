@@ -87,7 +87,8 @@ fn t375_1_structure_11_p_clones_era_pred() {
         assert_eq!(pred[0]["bits"].as_u64(), Some(3));
         assert_eq!(pred[0]["shift"].as_u64(), Some(87));
         assert_eq!(pred[0]["token_idx"].as_u64(), Some(3));
-        assert_eq!(pred[0]["_src"].as_str(), Some("bug373_375-2026-09-04"));
+        // 2026-11-08 (tools/tablefmt.py): a field carries its own `_src` only when measured by another tag than its row
+        assert_eq!(pred[0].get("_src").unwrap_or(&mg["_src"]).as_str(), Some("bug373_375-2026-09-04"));
         assert_eq!(neg.len(), 1, "{pk}: neg count");
         assert_eq!(neg[0]["shift"].as_u64(), Some(90));
         // NO pred_inv4 anywhere in the LDGSTS family (rejected lane)

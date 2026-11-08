@@ -115,7 +115,10 @@ fn the_rows_are_measured() {
     let cmp = ["F", "LT", "EQ", "LE", "GT", "NE", "GE", "T"];
     let (mut measured, mut dsv41) = (0, 0);
     for key in KEYS {
-        assert_eq!(ins[key]["_src"], SOURCE, "{key}");
+        // 2026-11-08 (tools/tablefmt.py): the key-level `_src` is the tag every row of the key carries -- the two
+        // UR-form keys hold only the dsv41 rows this probe reproduced, so their key tag is the dsv41 one
+        let key_tag = if key.contains("_R_UR_") { DSV41 } else { SOURCE };
+        assert_eq!(ins[key]["_src"], key_tag, "{key}");
         let groups = ins[key]["mod_groups"].as_object().unwrap();
         let retention = key == "UISETP_UP_UP_UR_UR_UP";
         assert_eq!(groups.len(), if retention { 97 } else { 96 }, "{key}");

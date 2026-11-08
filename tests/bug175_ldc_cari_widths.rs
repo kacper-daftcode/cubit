@@ -154,6 +154,7 @@ fn t175_5_polygon() {
         }).collect();
         assert_eq!(sig, vec![(16, 8, "reg"), (24, 8, "sub_r1"), (38, 21, "cm16_off")],
                    "{grp} canonical carrier fields");
-        for f in fs { assert_eq!(f["_src"].as_str().unwrap(), "bug175-2026-08-26"); }
+        // 2026-11-08 (tools/tablefmt.py): a field's tag is the row's unless it carries its own
+        for f in fs { assert_eq!(f.get("_src").unwrap_or(&row["_src"]).as_str().unwrap(), "bug175-2026-08-26"); }
     }
 }

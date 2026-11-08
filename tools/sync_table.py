@@ -45,6 +45,7 @@ MANIFEST = TABLES_DIR / "SOURCE.json"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from tablefile import compress_table, gz_twin, read_table_bytes  # noqa: E402
+import tablefmt  # noqa: E402  -- the canonical layout + provenance hoisting (NEEDS 61, 2026-11-08)
 
 # arch name -> canonical _meta.architecture value
 ARCH_TABLES = {
@@ -517,6 +518,19 @@ def validate_table(data: bytes, arch: str) -> dict[str, Any]:
     if extra_top_level:
         raise SyncError(f"unexpected top-level records: {', '.join(extra_top_level)}")
 
+    # 2026-11-08 (NEEDS 61): the canonical layout is tools/tablefmt.py's -- compact JSON, one encoding
+    # row per line, indent=1 `_meta` -- with the duplicated provenance hoisted (a lattice's `_note`
+    # on its key or its family's provenance entry, no per-field `_src` equal to the row's). A table
+    # written any other way is refused here so that the layout cannot drift back (sm121a.json was
+    # 87 MiB in the former indent=1 layout; GitHub refuses files over 100 MiB).
+    if not tablefmt.is_canonical(data):
+        raise SyncError("canonical table is not in the canonical layout (tools/tablefmt.py --rewrite)")
+    import copy as _copy
+    normalised = _copy.deepcopy(table)
+    tablefmt.normalize(normalised)
+    if tablefmt.dumps(normalised).encode() != data:
+        raise SyncError("canonical table carries un-hoisted provenance (tools/tablefmt.py --rewrite)")
+
     meta = table.get("_meta", {})
     if meta.get("architecture") != arch or meta.get("instruction_width") != 128:
         raise SyncError(f"canonical table is not an {arch} 128-bit ISA database")
@@ -545,6 +559,8 @@ def validate_table(data: bytes, arch: str) -> dict[str, Any]:
     for key, entry in instructions.items():
         if not isinstance(entry, dict):
             raise SyncError(f"{key} must be an object")
+        if isinstance(entry.get("_src"), str):
+            src_tags.add(entry["_src"])  # the key-level tag (every row of the key carries it)
         ctrl_class = entry.get("ctrl_class")
         if (
             ctrl_class is not None
@@ -609,7 +625,7 @@ def validate_table(data: bytes, arch: str) -> dict[str, Any]:
     undocumented = sorted(src_tags - set(provenance["sources"]))
     if undocumented:
         raise SyncError(
-            f"{len(undocumented)} row `_src` tag(s) not described in _meta.provenance.sources: "
+            f"{len(undocumented)} row / key `_src` tag(s) not described in _meta.provenance.sources: "
             f"{', '.join(undocumented[:5])}")
 
     baseline = BAKED_CTRL_BASELINE[arch]

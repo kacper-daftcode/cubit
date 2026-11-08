@@ -10,6 +10,9 @@ Run on the canonical blackwell-isa checkout, then vendor with sync_table.py.
 """
 import argparse, copy, json
 from pathlib import Path
+import sys as _sys
+_sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]))
+import tablefmt  # noqa: E402  -- the canonical table layout (NEEDS 61, 2026-11-08)
 
 def repair(data):
  ins=data['instructions']
@@ -24,5 +27,5 @@ def repair(data):
 
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('canonical_table',type=Path);a=p.parse_args()
- d=json.loads(a.canonical_table.read_text());repair(d)
- tmp=a.canonical_table.with_suffix('.json.branch-tmp');tmp.write_text(json.dumps(d,indent=1,ensure_ascii=False)+'\n');tmp.replace(a.canonical_table)
+ d=tablefmt.load_table(a.canonical_table);repair(d)
+ tablefmt.save_table(a.canonical_table,d)

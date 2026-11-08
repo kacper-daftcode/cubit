@@ -17,9 +17,12 @@ import json
 import pathlib
 import re
 import subprocess
+import sys
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 FIXTURES = REPO / "tests" / "fixtures"
+sys.path.insert(0, str(REPO / "tools"))
+import tablefmt  # noqa: E402  -- the canonical table layout + provenance hoisting (NEEDS 61, 2026-11-08)
 SCHEDULE = ((1 << 23) - 1) << 105  # control code + reuse: never part of a row
 
 _TEXT = re.compile(r"/\*0000\*/\s*(.*?)\s*;")
@@ -102,17 +105,16 @@ def field_mask(fields: list[dict]) -> int:
 
 
 def load_table(path: pathlib.Path) -> dict:
-    before = path.read_bytes()
-    table = json.loads(before)
-    # canonical formatting is `json.dumps(indent=1)` + "\n"; the wave-11 tables (2026-11-05) were
-    # written without the final newline -- accepted, `save_table` restores the canonical form
-    canonical = json.dumps(table, indent=1).encode()
-    assert before in (canonical + b"\n", canonical), "unexpected table formatting"
-    return table
+    """The canonical table, refused unless it is in the canonical layout (`tools/tablefmt.py`;
+    until 2026-11-08 the layout was `json.dumps(indent=1)` -- rewrite such a file with
+    `tools/tablefmt.py --rewrite` first)."""
+    return tablefmt.load_table(path)
 
 
 def save_table(path: pathlib.Path, table: dict) -> None:
-    path.write_text(json.dumps(table, indent=1) + "\n")
+    """Write the canonical layout; the duplicated provenance (`_note` on every row of a lattice,
+    per-field `_src` equal to the row's) is hoisted first -- `row()` may keep producing verbose rows."""
+    tablefmt.save_table(path, table)
 
 
 def row(and_base: int, fields: list[dict], src: str, note: str) -> dict:

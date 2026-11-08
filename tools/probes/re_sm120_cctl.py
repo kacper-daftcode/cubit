@@ -22,6 +22,10 @@ import json
 import pathlib
 import re
 import subprocess
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import tablefmt  # noqa: E402  -- the canonical table layout (NEEDS 61, 2026-11-08)
 
 PROVENANCE = "cctl-sm120-2026-10-25"
 SCHEDULE = ((1 << 17) - 1) << 105
@@ -88,9 +92,7 @@ def probe(nvdisasm, out=FIXTURE):
 
 def apply(table_path):
     path = pathlib.Path(table_path)
-    before = path.read_bytes()
-    table = json.loads(before)
-    assert (json.dumps(table, indent=1) + "\n").encode() == before, "unexpected table formatting"
+    table = tablefmt.load_table(path)  # refused unless in the canonical layout
     entry = table["instructions"]["CCTL_ARI"]
     assert entry["base_op"] == "CCTL" and "E,PF2" in entry["mod_groups"]
     fields = [field(12, 4, "guard", 0), field(24, 8, "sub_r0", 1), field(32, 32, "sub_imm1", 1)]
@@ -104,7 +106,7 @@ def apply(table_path):
                                        f"offset[63:32], E = bit 72, operation[90:87] = {op} ({name}); bits 73-76 add a "
                                        f"trailing immediate and bit 80 an unknown modifier - both left out of the mask.")
         added.append(key)
-    path.write_text(json.dumps(table, indent=1) + "\n")
+    tablefmt.save_table(path, table)
     print(f"CCTL_ARI: added groups {added} in {path}")
 
 

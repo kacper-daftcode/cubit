@@ -154,6 +154,15 @@ fn six_new_groups_clone_measured_siblings_and_every_old_group_stays_exact() {
                 for field in ["and_base", "_src", "_note"] {
                     value.remove(field);
                 }
+                // 2026-11-08 (tools/tablefmt.py): a field keeps its `_src` only where it differs from its row's --
+                // the clone's fields name the donor's tag, the donor's fields none; compare the geometry alone
+                if let Some(fields) = value.get_mut("fields").and_then(Value::as_array_mut) {
+                    for f in fields {
+                        let f = f.as_object_mut().unwrap();
+                        f.remove("_src");
+                        f.remove("_note");
+                    }
+                }
             }
             assert_eq!(
                 geometry, original,
@@ -162,11 +171,25 @@ fn six_new_groups_clone_measured_siblings_and_every_old_group_stays_exact() {
         }
         // The snapshot includes complete old dictionaries, including every
         // field, mask, base, count and provenance; no old row may be weakened.
-        assert_eq!(
-            Value::Object(old),
-            fixture()["old_mod_groups"][&key],
-            "{key}"
-        );
+        // 2026-11-08 (tools/tablefmt.py, NEEDS 61): the table writes provenance once per level -- a
+        // field's `_src` equal to its row's and a row's `_note` equal to its key's are not repeated;
+        // the snapshot (taken in the verbose layout) is projected by the same rule before comparing.
+        let mut snapshot = fixture()["old_mod_groups"][&key].as_object().unwrap().clone();
+        let key_note = raw["instructions"][&key].get("_note").cloned();
+        for g in snapshot.values_mut() {
+            let row_src = g.get("_src").cloned();
+            if key_note.is_some() && g.get("_note") == key_note.as_ref() {
+                g.as_object_mut().unwrap().remove("_note");
+            }
+            if let Some(fields) = g.get_mut("fields").and_then(Value::as_array_mut) {
+                for f in fields {
+                    if row_src.is_some() && f.get("_src") == row_src.as_ref() {
+                        f.as_object_mut().unwrap().remove("_src");
+                    }
+                }
+            }
+        }
+        assert_eq!(Value::Object(old), Value::Object(snapshot), "{key}");
     }
 }
 

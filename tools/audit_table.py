@@ -65,6 +65,8 @@ def audit(table: dict) -> tuple[list[dict], dict]:
         n_tok = operand_tokens(key, entry)
         for group, row in entry.get("mod_groups", {}).items():
             stats["rows"] += 1
+            # the row's provenance tag: its own `_src`, else the key's (tools/tablefmt.py, 2026-11-08)
+            row = dict(row, _src=row.get("_src", entry.get("_src"))) if "_src" not in row and entry.get("_src") else row
             ab = int(row["and_base"], 16)
             vm = int(row["variable_mask"], 16) if row.get("variable_mask") else 0
             fields = row.get("fields", [])

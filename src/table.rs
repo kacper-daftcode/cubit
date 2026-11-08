@@ -140,6 +140,10 @@ struct JsonInsKey {
     /// for pinned publish text).
     #[serde(default)]
     pub encode_only: bool,
+    /// The key's provenance tag (2026-11-08, `tools/tablefmt.py`): set when every row of the key
+    /// carries the same `_src`; a row without its own `_src` inherits it.
+    #[serde(default, rename = "_src")]
+    pub src: Option<String>,
 }
 
 /// BUG-452: claim-forbid value exclusions on a mod group (donor-first claim
@@ -929,7 +933,7 @@ impl IsaTable {
                         vm
                 };
 
-                let row_probe = jmg.src.as_deref().is_some_and(|s| s.starts_with("rows-"));
+                let row_probe = jmg.src.as_deref().or(jik.src.as_deref()).is_some_and(|s| s.starts_with("rows-"));
                 mod_groups.insert(mods, ModGroupEntry { and_base, claim_forbid: jmg.claim_forbid.iter().map(|cf| ClaimForbid { shift: cf.shift, bits: cf.bits, values: cf.values.clone() }).collect(), variable_mask, fields, encode_only: jmg.encode_only, addr_width: jmg.addr_width.clone(), row_probe });
             }
 

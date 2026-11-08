@@ -28,6 +28,10 @@ import json
 import pathlib
 import re
 import subprocess
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import tablefmt  # noqa: E402  -- the canonical table layout (NEEDS 61, 2026-11-08)
 
 PROVENANCE = "stsm8-mt168-sm120-2026-10-29"
 OPCODE = 0x844
@@ -111,9 +115,7 @@ def probe(nvdisasm, out=FIXTURE):
 
 def apply(table_path):
     path = pathlib.Path(table_path)
-    before = path.read_bytes()
-    table = json.loads(before)
-    assert (json.dumps(table, indent=1) + "\n").encode() == before, "unexpected table formatting"
+    table = tablefmt.load_table(path)  # refused unless in the canonical layout
     entry = table["instructions"][KEY]
     assert entry["base_op"] == "STSM" and entry["operand_sig"] == "ARI_R"
     groups = entry["mod_groups"]
@@ -152,7 +154,7 @@ def apply(table_path):
         groups = rebuilt
         added.append(name)
     entry["mod_groups"] = groups
-    path.write_text(json.dumps(table, indent=1) + "\n")
+    tablefmt.save_table(path, table)
     print(f"{KEY}: added groups {added} in {path}")
 
 

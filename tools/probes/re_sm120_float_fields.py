@@ -7,6 +7,9 @@ No original-word/residue field is authored.
 """
 import argparse,copy,json,re,struct,subprocess,tempfile
 from pathlib import Path
+import sys as _sys
+_sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]))
+import tablefmt  # noqa: E402  -- the canonical table layout (NEEDS 61, 2026-11-08)
 from re_sm120_memory_fields import split_operands
 NV=Path('/usr/local/lib/python3.12/dist-packages/triton/backends/nvidia/bin/nvdisasm')
 SOURCE='SM120 float RE 2026-10-22: NVIDIA mode grids and independent operand fields'
@@ -172,6 +175,6 @@ def main():
  p=argparse.ArgumentParser();p.add_argument('--table',type=Path);p.add_argument('--verify-oracle',type=Path);a=p.parse_args()
  if a.verify_oracle:verify(a.verify_oracle)
  if a.table:
-  db=apply(json.loads(a.table.read_bytes()));tmp=a.table.with_suffix('.json.float-tmp');tmp.write_text(json.dumps(db,indent=1,ensure_ascii=True)+'\n');tmp.replace(a.table)
+  db=apply(tablefmt.load_table(a.table));tablefmt.save_table(a.table,db)
  if not a.table and not a.verify_oracle:p.error('specify --table or --verify-oracle')
 if __name__=='__main__':main()

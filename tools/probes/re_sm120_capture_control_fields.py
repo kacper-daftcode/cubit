@@ -13,6 +13,9 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import sys as _sys
+_sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]))
+import tablefmt  # noqa: E402  -- the canonical table layout (NEEDS 61, 2026-11-08)
 
 PROVENANCE = "sm120-native-capture-control-2026-10-22"
 SCHEDULE = ((1 << 17) - 1) << 105
@@ -44,7 +47,7 @@ def row(anchor, fields, note):
 
 
 def apply(path):
-    db = json.loads(path.read_bytes())
+    db = tablefmt.load_table(path)
     ins = db["instructions"]
     guard = field(12, 4, "guard", 0)
     bulk = copy.deepcopy(ins["UBLKCP_AURI_AURI_UR"])
@@ -112,7 +115,8 @@ def apply(path):
                 fixed["mod_groups"][modifiers] = group
             ins[f"LDGSTS_{fixed['operand_sig']}"] = fixed
     temp = path.with_name(path.name + ".native-control.tmp")
-    temp.write_text(json.dumps(db, indent=1, ensure_ascii=True) + "\n")
+    tablefmt.normalize(db)
+    temp.write_text(tablefmt.dumps(db))
     os.replace(temp, path)
 
 

@@ -14,6 +14,9 @@ import pathlib
 import re
 import subprocess
 import tempfile
+import sys as _sys
+_sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]))
+import tablefmt  # noqa: E402  -- the canonical table layout (NEEDS 61, 2026-11-08)
 
 ANCHORS = {
     "CS2R": "000fe2000001ff000000000000107805",
@@ -675,7 +678,8 @@ def apply(table_path):
         group["claim_forbid"] = [{"shift": 24, "bits": 8, "values": [254, 255]}]
         work["mod_groups"][modifier] = group
     ins["UGETNEXTWORKID_AURI_AURI"] = work
-    output = (json.dumps(table, indent=1, ensure_ascii=True) + "\n").encode()
+    tablefmt.normalize(table)
+    output = tablefmt.dumps(table).encode()
     temporary = path.with_name(path.name + ".dsv41.tmp")
     temporary.write_bytes(output)
     temporary.replace(path)

@@ -28,6 +28,10 @@ import json
 import pathlib
 import re
 import subprocess
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import tablefmt  # noqa: E402  -- the canonical table layout (NEEDS 61, 2026-11-08)
 
 PROVENANCE = "ublkpf-l2-sm120-2026-10-29"
 OPCODE = 0x3bc
@@ -129,9 +133,7 @@ def group(fields, base, note):
 
 def apply(table_path):
     path = pathlib.Path(table_path)
-    before = path.read_bytes()
-    table = json.loads(before)
-    assert (json.dumps(table, indent=1) + "\n").encode() == before, "unexpected table formatting"
+    table = tablefmt.load_table(path)  # refused unless in the canonical layout
     ins = table["instructions"]
     if all(k in ins for k in KEYS):
         print(f"{', '.join(KEYS)}: already present in {path}")
@@ -167,7 +169,7 @@ def apply(table_path):
                 entry["mod_groups"] = {GROUP: row}
                 rebuilt[key] = entry
     table["instructions"] = rebuilt
-    path.write_text(json.dumps(table, indent=1) + "\n")
+    tablefmt.save_table(path, table)
     print(f"{', '.join(KEYS)}: added next to {LEGACY_KEY} in {path} (plain base {plain['and_base']}, desc base {desc['and_base']})")
 
 

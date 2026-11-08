@@ -16,6 +16,9 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import sys as _sys
+_sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]))
+import tablefmt  # noqa: E402  -- the canonical table layout (NEEDS 61, 2026-11-08)
 
 SOURCE = "re_sm120_tensor_fields.py: NVIDIA SM120 bit/field/mode probes 2026-10-22"
 
@@ -791,8 +794,7 @@ def main():
                    canonicalize_iadd,canonicalize_uniform_integer,canonicalize_alu_tail,
                    canonicalize_alu64,canonicalize_alu_tail2,canonicalize_fast3_alu,canonicalize_oracle_semantics,canonicalize_capture_tail_alu]:
         db=repair(db)
-    indent = next((len(line)-len(line.lstrip()) for line in before.decode().splitlines() if line.lstrip().startswith(chr(34))), 2)
-    after=(json.dumps(db,indent=indent,ensure_ascii=True)+'\n').encode()
+    tablefmt.normalize(db);after=tablefmt.dumps(db).encode()
     if after==before:print('Canonical fields already current');return
     with tempfile.NamedTemporaryFile(dir=args.table.parent,prefix=args.table.name+'.',delete=False)as target:
         target.write(after);name=target.name

@@ -104,7 +104,9 @@ fn the_measured_rows_carry_the_provenance_and_a_fail_closed_mask() {
         measured += 1;
         let mut field_mask = 0u128;
         for f in g["fields"].as_array().unwrap() {
-            assert_eq!(f["_src"], SOURCE, "{name}");
+            // 2026-11-08 (tools/tablefmt.py): a field carries its own `_src` only when it was measured by
+            // another tag than its row -- the field's tag is the row's otherwise.
+            assert_eq!(f.get("_src").unwrap_or(&g["_src"]), SOURCE, "{name}");
             let bits = ((1u128 << f["bits"].as_u64().unwrap()) - 1) << f["shift"].as_u64().unwrap();
             assert_eq!(field_mask & bits, 0, "{name}: overlapping fields");
             field_mask |= bits;

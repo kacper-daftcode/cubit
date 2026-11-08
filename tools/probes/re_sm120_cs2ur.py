@@ -20,6 +20,10 @@ import json
 import pathlib
 import re
 import subprocess
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import tablefmt  # noqa: E402  -- the canonical table layout (NEEDS 61, 2026-11-08)
 
 PROVENANCE = "cs2ur-sm120-2026-10-23"
 SCHEDULE = ((1 << 17) - 1) << 105
@@ -78,9 +82,7 @@ def probe(nvdisasm, out=FIXTURE):
 
 def apply(table_path):
     path = pathlib.Path(table_path)
-    before = path.read_bytes()
-    table = json.loads(before)
-    assert (json.dumps(table, indent=1) + "\n").encode() == before, "unexpected table formatting"
+    table = tablefmt.load_table(path)  # refused unless in the canonical layout
     ins = table["instructions"]
     fields = [field(12, 4, "guard", 0), field(16, 8, "ureg", 1), field(72, 8, "sysreg", 2)]
     entry = ins["CS2UR_UR_L"]
@@ -94,7 +96,7 @@ def apply(table_path):
     }
     removed = ins.pop("CS2UR_UR_II", None)
     assert removed is not None, "junk immediate row already gone"
-    path.write_text(json.dumps(table, indent=1) + "\n")
+    tablefmt.save_table(path, table)
     print(f"repaired CS2UR_UR_L (2 groups), removed CS2UR_UR_II in {path}")
 
 
