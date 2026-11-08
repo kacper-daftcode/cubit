@@ -138,7 +138,7 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
     // Special handling for branch instructions: decode target from raw bits
     if is_branch_op(&insn.opcode) {
         let branch_base = insn.opcode.split('.').next().unwrap_or(&insn.opcode);
-        let target = decode_branch_target(insn);
+        let target = fmt_branch_target(decode_branch_target(insn));
         let guard_prefix = if guard.is_empty() {
             String::new()
         } else {
@@ -186,7 +186,7 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
             } else {
                 "B0".to_string()
             };
-            return format!("{guard_prefix}{opcode} {barrier_str}, 0x{target:x}");
+            return format!("{guard_prefix}{opcode} {barrier_str}, {target}");
         }
         // BRA.U: uniform predicate at bits[26:24], negation at bit 27.
         // DecodedInst.opcode is the base "BRA" (the .U suffix lives in the
@@ -204,7 +204,7 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
             } else {
                 format!("UP{upred}")
             };
-            return format!("{guard_prefix}{opcode} {upred_str}, 0x{target:x}");
+            return format!("{guard_prefix}{opcode} {upred_str}, {target}");
         }
         // The measured BRX / BRXU / RET family (`brx-ret-family-2026-11-06`, tools/probes/
         // re_sm120_brx_ret.py, nvdisasm 13.1): eight keys `{BRX,BRXU,RET}[_P]_{R,UR}_II` whose rows
@@ -297,7 +297,7 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
                 return format!("{guard_prefix}{opcode} {reg_s}, {}", absolute_dword_target(insn.raw_code));
             }
             if reg != 0 && reg != 255 {
-                return format!("{guard_prefix}{opcode} R{reg}, 0x{target:x}");
+                return format!("{guard_prefix}{opcode} R{reg}, {target}");
             }
         }
         // BRA-with-predicate-AND-uniform-register operands (InsKey
@@ -321,7 +321,7 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
             } else {
                 format!("UR{ur}")
             };
-            return format!("{guard_prefix}{opcode} {pred}, {ur_s}, 0x{target:x}");
+            return format!("{guard_prefix}{opcode} {pred}, {ur_s}, {target}");
         }
         // BRA-with-predicate-operand (InsKey BRA_P_II): nvdisasm prints
         // "@Pg BRA [!]Pn, target" — Pn = bits[89:87], neg = bit90.
@@ -333,7 +333,7 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
             } else {
                 format!("{}P{}", if n == 1 { "!" } else { "" }, p)
             };
-            return format!("{guard_prefix}{opcode} {pred}, 0x{target:x}");
+            return format!("{guard_prefix}{opcode} {pred}, {target}");
         }
         // BRA.DIV URn, target (InsKey BRA_UR_II, mg "DIV"): the exception-weight
         // uniform register operand lives at bits[31:24]; without this the text
@@ -341,7 +341,7 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
         if branch_base == "BRA" && op_types.first().is_some_and(|t| t == "UR") {
             let lo64 = insn.raw_code as u64;
             let ur = (lo64 >> 24) & 0xFF;
-            return format!("{guard_prefix}{opcode} UR{ur}, 0x{target:x}");
+            return format!("{guard_prefix}{opcode} UR{ur}, {target}");
         }
         // CALL.ABS has distinct immediate (0x943) and register (0x343)
         // encodings. The immediate is an absolute signed56-bit dword
@@ -360,7 +360,7 @@ fn to_sass_impl(insn: &DecodedInst, all_reuse: bool) -> String {
             };
             return format!("{guard_prefix}{opcode} {reg_s}");
         }
-        return format!("{guard_prefix}{opcode} 0x{target:x}");
+        return format!("{guard_prefix}{opcode} {target}");
     }
 
     let is_s2r = matches!(insn.opcode.as_str(), "S2R" | "S2UR" | "CS2R");
@@ -914,19 +914,14 @@ fn signed_branch_target(insn: &DecodedInst) -> String {
 /// Decode branch target address from raw instruction bits.
 /// BRA/CALL/JMP/RET: split-word encoding with dword offset.
 /// BSSY/BSYNC/BREAK: byte offset at [63:32].
-fn decode_branch_target(insn: &DecodedInst) -> u32 {
+fn decode_branch_target(insn: &DecodedInst) -> i64 {
     let raw = insn.raw_code;
     let lo64 = raw as u64;
     if is_bssy_op(&insn.opcode) {
-        // BSSY: rel = sign_extend_32bit(bits[63:32] of instruction)
-        let rel = ((lo64 >> 32) & 0xFFFFFFFF) as i64;
-        // Sign-extend from 32 bits
-        let rel = if rel & (1 << 31) != 0 {
-            rel | (!0x7FFFFFFFi64)
-        } else {
-            rel
-        };
-        return (insn.addr as i64 + 16 + rel) as u32;
+        // BSSY (measured 2026-11-08, T-19, tools/probes/re_sm120_rows.py): the target is the signed 30-bit dword
+        // offset at [63:34] (`imm_shr2`), bits 32 / 33 are text-inert for nvdisasm; PC + 16 + offset * 4
+        let rel = sign_extend((lo64 >> 34) & 0x3FFF_FFFF, 30) << 2;
+        return insn.addr as i64 + 16 + rel;
     }
 
     // NVIDIA SM120 bit sweeps: low8@[23:16] and high48@[81:34]
@@ -936,7 +931,13 @@ fn decode_branch_target(insn: &DecodedInst) -> u32 {
     let low = (raw >> 16) & 0xff;
     let high = (raw >> 34) & 0xffff_ffff_ffff;
     let rel = sign_extend((low | (high << 8)) as u64, 56) << 2;
-    (insn.addr as i64 + 16 + rel) as u32
+    insn.addr as i64 + 16 + rel
+}
+
+/// A branch target as nvdisasm prints it: the full signed value (`-0x…` for a backward target of an isolated word
+/// at address 0; the old print wrapped it to 32 bits -- `0xe9696978` for `-0x16969688`, T-19 2026-11-08).
+fn fmt_branch_target(t: i64) -> String {
+    if t < 0 { format!("-0x{:x}", t.unsigned_abs()) } else { format!("0x{t:x}") }
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -1377,11 +1378,26 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     // RELU is the first modifier of the pack conversions.
     // 2026-11-04 (PACK_AB lattice sweep, nvdisasm 13.1: bit 77): `F2FP.SATFINITE.F16.F32.PACK_AB`,
     // `F2FP.SATFINITE.RELU.F16.F32.PACK_AB` - SATFINITE precedes RELU, both precede the types.
-    if base == "F2FP" && m == "SATFINITE" {
+    // 2026-11-08 (T-19, tools/probes/re_sm120_rows.py --family half, nvdisasm 13.1): the uniform pack conversion
+    // spells its modifiers like F2FP -- `UF2FP.SATFINITE.E4M3.F32.PACK_AB_MERGE_C`, `UF2FP.SATFINITE.RELU.E4M3.…`.
+    if matches!(base, "F2FP" | "UF2FP") && m == "SATFINITE" {
         return 0;
     }
-    if base == "F2FP" && m == "RELU" {
+    if matches!(base, "F2FP" | "UF2FP") && m == "RELU" {
         return 1;
+    }
+    // 2026-11-08 (T-19, tools/probes/re_sm120_rows.py --family memory, nvdisasm 13.1): the bulk reduction prints the
+    // two address spaces first (destination, then source -- `UBLKRED.G.S.ADD`, `UBLKRED.G.S.ADD.S32`), then the
+    // operation, then the element type and the rounding mode (`UBLKRED.G.INVALID0.ADD.F16.RN` on the sweep).
+    if base == "UBLKRED" {
+        match m {
+            "G" => return 0,
+            "S" => return 1,
+            "ADD" | "MIN" | "MAX" | "INC" | "DEC" | "AND" | "OR" | "XOR" => return 4,
+            "S32" | "U64" | "F16" | "BF16" => return 5,
+            "RN" => return 6,
+            _ => {}
+        }
     }
     // 2026-11-05 (tools/probes/re_sm100_ldtm_sttm.py, 576 words, nvdisasm 13.1 -b SM100/SM103):
     // `LDTM.16dp32bit_t16_t31.x8.PACK16BIT`, `STTM.16dp256bit.x8.EXPAND16BIT` - the shape, then the

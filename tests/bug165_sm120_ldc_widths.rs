@@ -78,7 +78,11 @@ fn t165_1_polygon() {
         // 2026-11-03 (dynamic audit batch 1): the text-inert `reuse` field at bit 122 left every
         // LDC/LDCU row (nvdisasm prints the same text with the bit set or clear).
         assert_eq!(f, ["guard", "reg", "sub_r1", "cm16_off"], "clone of '64': {f:?}");
-        assert_eq!(row["variable_mask"], ldc["64"]["variable_mask"], "vm must equal live donor");
+        // 2026-11-08 (T-19): the donor `64` row is measured (tools/probes/re_sm120_rows.py -- its mask is its fields);
+        // the clones keep the 2026-08 harvest mask, which contains the donor's
+        let (rvm, dvm) = (u128::from_str_radix(row["variable_mask"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap(),
+                          u128::from_str_radix(ldc["64"]["variable_mask"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap());
+        assert_eq!(dvm & !rvm, 0, "the measured donor's fields lie inside the clone's mask");
     }
     let ldcu = j.pointer("/instructions/LDCU_UR_cAI/mod_groups").unwrap();
     for (g, wbits) in [("U16", 2u128), ("S8", 1u128)] {

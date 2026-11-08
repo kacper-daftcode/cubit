@@ -184,9 +184,10 @@ fn t172_6_polygon() {
         let reuse = 0xfu128 << 122;
         let rvm = u128::from_str_radix(row["variable_mask"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
         let dvm = u128::from_str_radix(don["variable_mask"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
-        let measured_donor = path == "tables/sm120.json" && key == "LDC_R_cARI";
+        // (2026-11-08, T-19: the `LDC_R_cAI` / `LDCU_UR_cAI` `64` donors are measured too -- tools/probes/re_sm120_rows.py)
+        let measured_donor = path == "tables/sm120.json" && matches!(key, "LDC_R_cARI" | "LDC_R_cAI" | "LDCU_UR_cAI");
         if measured_donor {
-            assert_eq!(rvm & !reuse, dvm & !reuse, "{path} {key}/S16 vm == donor (outside the reuse bits the measured donor dropped)");
+            assert_eq!(dvm & !rvm & !reuse, 0, "{path} {key}/S16: the measured donor's fields lie inside the clone's mask");
         } else {
             assert_eq!(rvm, dvm, "{path} {key}/S16 vm == donor");
         }

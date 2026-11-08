@@ -25,16 +25,15 @@ use cubit::table::IsaTable;
 
 include!("bug433_data.inc");
 
-/// 2026-11-08 (T-18, rows-memory-2026-11-07): on sm120 these law-grid words carry a bit the measured
-/// LDS / STS / LDSM / STSM rows fail closed on -- the text-inert control / sub-UR / gap bits nvdisasm
-/// names as the base word (verified: nvdisasm text == the base text, 0 census witnesses). The measured-row
-/// convention; the three other legs keep the harvest tolerance.
-const SM120_FAIL_CLOSED: &[u128] = &[
-    0x0007c200880005e0ffffff04ff00e988u128,
-    0x0007e200880005e0ffffff04ff00e988u128,
-    0x000fc200880005e0ffffff04ff00e988u128,
-    0x000fe200880005e0ffffff04ff00e988u128,
-];
+/// 2026-11-08 (T-18, rows-memory-2026-11-07; extended by T-19 the same day): on sm120 the law-grid words of this
+/// file carry bits the measured LDS / STS / LDSM / STSM rows fail closed on -- the text-inert control / sub-UR / gap
+/// bits nvdisasm names as the base word (verified: nvdisasm text == the base text, 0 census witnesses). T-18 pinned
+/// bit 91 (the era band); T-19 narrowed `STS_ARURI_R`'s `sub_ur` field from 9 to 8 bits (bit 72 is text-inert for
+/// nvdisasm 13.1 on every width, tools/probes/re_sm120_rows.py --family memory), so the grid's bit-72 carriers fail
+/// closed too. The measured-row convention; the three other legs keep the harvest tolerance.
+fn sm120_fails_closed(w: u128) -> bool {
+    w & (1u128 << 91) != 0 || w & (1u128 << 72) != 0
+}
 
 
 fn tab(arch: &str) -> IsaTable {
@@ -77,8 +76,8 @@ fn t433_2_sts_u16_bare_ur_era_band_x4() {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
         for (w, vendor) in LAW433_U16 {
-            // T-18: the measured STS row fails closed on its text-inert era-band bits on sm120 (SM120_FAIL_CLOSED)
-            if leg == "sm120" && SM120_FAIL_CLOSED.contains(w) {
+            // T-18: the measured STS row fails closed on its text-inert era-band bits on sm120 (`sm120_fails_closed`)
+            if leg == "sm120" && sm120_fails_closed(*w) {
                 assert!(dec(&t, &idx, *w).is_none(), "[{leg}] STS.U16 {vendor}: measured row tolerates a text-inert bit");
                 continue;
             }
@@ -102,7 +101,9 @@ fn t433_3_postures_pinned_pre_post() {
             .expect("posture tag without leg suffix");
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
-        let expect = if *snapped == "HOLE" {
+        // T-19 (2026-11-08): the sm120 postures whose word carries bit 72 or 91 fail closed on the measured STS rows
+        // (see `sm120_fails_closed`); the snapped text stays the record of the harvest-era tolerance
+        let expect = if *snapped == "HOLE" || (leg == "sm120" && sm120_fails_closed(*w)) {
             None
         } else {
             Some(snapped.to_string())
@@ -133,7 +134,9 @@ fn t433_4_era_rc1_tolerance_carriers() {
         };
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
-        let expect = if *snapped == "HOLE" {
+        // T-19 (2026-11-08): the sm120 postures whose word carries bit 72 or 91 fail closed on the measured STS rows
+        // (see `sm120_fails_closed`); the snapped text stays the record of the harvest-era tolerance
+        let expect = if *snapped == "HOLE" || (leg == "sm120" && sm120_fails_closed(*w)) {
             None
         } else {
             Some(snapped.to_string())
@@ -178,8 +181,8 @@ fn t433_5_mints_refuse_canon() {
             let got = dec(&t, &idx, minted).unwrap_or_default();
             assert_eq!(&got, text, "[{leg}] circle: {text}");
             // T-18: the law-word carries text-inert era-band bits the measured sm120 row fails closed on; the mint above
-            // (clean word) still circles. (SM120_FAIL_CLOSED)
-            if leg == "sm120" && SM120_FAIL_CLOSED.contains(w) {
+            // (clean word) still circles. (`sm120_fails_closed`)
+            if leg == "sm120" && sm120_fails_closed(*w) {
                 assert!(dec(&t, &idx, *w).is_none(), "[{leg}] circle law-word: measured row tolerates a text-inert bit");
                 continue;
             }
@@ -204,7 +207,7 @@ fn t433_5_mints_refuse_canon() {
 #[test]
 fn t433_6_source_manifest_and_table_presence() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "7f12b68e829952041a9fea898b7f3c3e02fa6187" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "89dc967e3d9f5c78bd58e8d06fcee6140dac8bd1" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON433, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     let src: serde_json::Value =

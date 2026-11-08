@@ -66,6 +66,11 @@ fn t412_1_lds_ldsm_window_vendor_exact() {
         let idx = DecodeIndex::build(&t);
         let mut n = 0u32;
         for (w, tag, vendor) in LAW412_LDS {
+            if leg == "sm120" && sm120_fails_closed(w) {
+                assert!(dec(&t, &idx, w).is_none(), "[{leg}] {tag}: a measured row tolerates the text-inert bit 72");
+                n += 1;
+                continue;
+            }
             let (got, _) = dec(&t, &idx, w).unwrap_or_else(|| panic!("[{leg}] {tag} hole"));
             assert_eq!(got, vendor, "[{leg}] {tag}");
             n += 1;
@@ -76,6 +81,14 @@ fn t412_1_lds_ldsm_window_vendor_exact() {
 
 /// t412_2: STS 9-bit window incl the b72 print-inert collapse
 /// (0x100+v -> "UR{v}", 0x0ff/0x1ff -> "URZ") vendor-exact x4.
+/// 2026-11-08 (T-19, rows-memory-2026-11-07): the measured `STS_ARURI_R` rows read the UR base in 8 bits -- bit 72 is
+/// text-inert for nvdisasm 13.1 on every width (tools/probes/re_sm120_rows.py --family memory; the 2026-09 harvest kept a
+/// 9-bit window). On sm120 the grid's bit-72 carriers are holes now (the measured-row convention, 0 census witnesses); the
+/// three other legs keep the harvest tolerance.
+fn sm120_fails_closed(w: u128) -> bool {
+    w & (1u128 << 72) != 0
+}
+
 #[test]
 fn t412_2_sts_9bit_window_b72_inert() {
     for leg in LEGS {
@@ -83,6 +96,11 @@ fn t412_2_sts_9bit_window_b72_inert() {
         let idx = DecodeIndex::build(&t);
         let mut n = 0u32;
         for (w, tag, vendor) in LAW412_STS {
+            if leg == "sm120" && sm120_fails_closed(w) {
+                assert!(dec(&t, &idx, w).is_none(), "[{leg}] {tag}: a measured row tolerates the text-inert bit 72");
+                n += 1;
+                continue;
+            }
             let (got, _) = dec(&t, &idx, w).unwrap_or_else(|| panic!("[{leg}] {tag} hole"));
             assert_eq!(got, vendor, "[{leg}] {tag}");
             n += 1;
@@ -100,6 +118,11 @@ fn t412_3_rz_elided_vendor_exact() {
         let idx = DecodeIndex::build(&t);
         let mut n = 0u32;
         for (w, tag, vendor) in LAW412_RZ {
+            if leg == "sm120" && sm120_fails_closed(w) {
+                assert!(dec(&t, &idx, w).is_none(), "[{leg}] {tag}: a measured row tolerates the text-inert bit 72");
+                n += 1;
+                continue;
+            }
             let (got, _) = dec(&t, &idx, w).unwrap_or_else(|| panic!("[{leg}] {tag} hole"));
             assert_eq!(got, vendor, "[{leg}] {tag}");
             n += 1;
@@ -117,6 +140,11 @@ fn t412_4_arb399a_cells_vendor_exact() {
         let idx = DecodeIndex::build(&t);
         let mut n = 0u32;
         for (w, tag, vendor) in LAW412_399A {
+            if leg == "sm120" && sm120_fails_closed(w) {
+                assert!(dec(&t, &idx, w).is_none(), "[{leg}] {tag}: a measured row tolerates the text-inert bit 72");
+                n += 1;
+                continue;
+            }
             let (got, _) = dec(&t, &idx, w).unwrap_or_else(|| panic!("[{leg}] {tag} hole"));
             assert_eq!(got, vendor, "[{leg}] {tag}");
             n += 1;
@@ -140,6 +168,11 @@ fn t412_5_prefix_renders_must_not_reappear() {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
         let w = words[tag];
+        // T-19 (2026-11-08): a bit-72 carrier is a hole on sm120 (see `sm120_fails_closed`) -- no render to compare
+        if leg == "sm120" && sm120_fails_closed(w) {
+            assert!(dec(&t, &idx, w).is_none(), "[{leg}] {tag}: a measured row tolerates the text-inert bit 72");
+            continue;
+        }
         let (got, _) = dec(&t, &idx, w).unwrap_or_else(|| panic!("[{leg}] {tag} hole"));
         assert_ne!(got, pre_text, "[{leg}] {tag} pre-fix render reappeared");
     }
@@ -217,7 +250,7 @@ fn t413_2_sm121a_claim_map() {
 #[test]
 fn t413_3_donor_contract_and_source_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "7f12b68e829952041a9fea898b7f3c3e02fa6187" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "89dc967e3d9f5c78bd58e8d06fcee6140dac8bd1" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON412413, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     let t121 = tab("sm121a");
@@ -230,6 +263,17 @@ fn t413_3_donor_contract_and_source_pin() {
         if want_base == 0 {
             want_base = e.and_base;
             want_vm = e.variable_mask;
+        }
+        // T-19 (2026-11-08): the sm120 donor is measured (tools/probes/re_sm120_rows.py --family memory) -- its mask is
+        // its fields (the 8-bit UR base, bit 72 text-inert), a subset of the harvest mask the other legs keep
+        if leg == "sm120" {
+            // (the harvest mask was narrower than its own fields in places -- bits 40 / 41, 70 / 71, 78 / 79 of the offset,
+            // the UR base and the address scale -- so the two masks are compared only through the constant bits)
+            let either = want_vm | e.variable_mask;
+            assert_eq!(e.and_base & !either, want_base & !either, "{leg} donor base drift (outside both masks)");
+            let fields: u128 = e.fields.iter().fold(0, |m, f| m | (((1u128 << f.bits) - 1) << f.shift));
+            assert_eq!(e.variable_mask, fields, "{leg} measured donor: the mask is its fields");
+            continue;
         }
         assert_eq!(e.and_base, want_base, "{leg} donor base drift");
         assert_eq!(e.variable_mask, want_vm, "{leg} donor vm drift");

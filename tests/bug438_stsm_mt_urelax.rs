@@ -39,6 +39,35 @@ const SM120_FAIL_CLOSED: &[u128] = &[
     0x0007e200880005e0ffffff04ff00e988u128,
     0x000fc200880005e0ffffff04ff00e988u128,
     0x000fe200880005e0ffffff04ff00e988u128,
+    // 2026-11-08 (T-19, rows-memory-2026-11-07): the measured STS_ARURI_R / STL_AURI_R rows read the UR base in 8 bits --
+    // bit 72 is text-inert for nvdisasm 13.1 on every width (tools/probes/re_sm120_rows.py --family memory) -- so the
+    // grid's bit-72 carriers are holes on sm120 now (0 census witnesses; T-19 whole-census parity)
+    0x0007c200080005e0ffffff04ff00e988u128,  // was @!P6 STS.U16 [UR224+-0x1], R4
+    0x0007c200880001e0ffffff04ff00e988u128,  // was @!P6 STS.U8 [UR224+-0x1], R4
+    0x0007c200880009e0ffffff04ff00e988u128,  // was @!P6 STS [UR224+-0x1], R4
+    0x0007c20088000be0ffffff04ff00e988u128,  // was @!P6 STS.64 [UR224+-0x1], R4
+    0x0007c20088000de0ffffff04ff00e988u128,  // was @!P6 STS.128 [UR224+-0x1], R4
+    0x0007e200080001e0ffffff04ff00e988u128,  // was @!P6 STS.U8 [UR224+-0x1], R4
+    0x0007e200080005e0ffffff04ff00e988u128,  // was @!P6 STS.U16 [UR224+-0x1], R4
+    0x0007e200080007e0ffffff04ff00e988u128,  // was @!P6 STS.S16 [UR224+-0x1], R4
+    0x0007e200080009e0ffffff04ff00e988u128,  // was @!P6 STS [UR224+-0x1], R4
+    0x0007e20008000be0ffffff04ff00e988u128,  // was @!P6 STS.64 [UR224+-0x1], R4
+    0x0007e20008000de0ffffff04ff00e988u128,  // was @!P6 STS.128 [UR224+-0x1], R4
+    0x000fc200080001e0ffffff04ff00e988u128,  // was @!P6 STS.U8 [UR224+-0x1], R4
+    0x000fc200080005e0ffffff04ff00e988u128,  // was @!P6 STS.U16 [UR224+-0x1], R4
+    0x000fc200080009e0ffffff04ff00e988u128,  // was @!P6 STS [UR224+-0x1], R4
+    0x000fc20008000be0ffffff04ff00e988u128,  // was @!P6 STS.64 [UR224+-0x1], R4
+    0x000fc20008000de0ffffff04ff00e988u128,  // was @!P6 STS.128 [UR224+-0x1], R4
+    0x000fc200880001e0ffffff04ff00e988u128,  // was @!P6 STS.U8 [UR224+-0x1], R4
+    0x000fc200880007e0ffffff04ff00e988u128,  // was @!P6 STS.S16 [UR224+-0x1], R4
+    0x000fc200880009e0ffffff04ff00e988u128,  // was @!P6 STS [UR224+-0x1], R4
+    0x000fc20088000be0ffffff04ff00e988u128,  // was @!P6 STS.64 [UR224+-0x1], R4
+    0x000fc20088000de0ffffff04ff00e988u128,  // was @!P6 STS.128 [UR224+-0x1], R4
+    0x000fe200080005e0ffffff04ff00e988u128,  // was @!P6 STS.U16 [UR224+-0x1], R4
+    0x000fe200880001e0ffffff04ff00e988u128,  // was @!P6 STS.U8 [UR224+-0x1], R4
+    0x000fe200880009e0ffffff04ff00e988u128,  // was @!P6 STS [UR224+-0x1], R4
+    0x000fe20088000be0ffffff04ff00e988u128,  // was @!P6 STS.64 [UR224+-0x1], R4
+    0x000fe20088000de0ffffff04ff00e988u128,  // was @!P6 STS.128 [UR224+-0x1], R4
 ];
 
 
@@ -144,7 +173,9 @@ fn t438_5_postures_pinned_pre_post() {
             (t, idx, l)
         };
         let got = dec(&t, &idx, *w);
-        let expect = if *snapped == "HOLE" {
+        // T-19 (2026-11-08): the sm120 postures whose word the measured STS rows fail closed on (SM120_FAIL_CLOSED) are
+        // holes; the snapped text stays the record of the harvest-era tolerance
+        let expect = if *snapped == "HOLE" || (leg == "sm120" && SM120_FAIL_CLOSED.contains(w)) {
             None
         } else {
             Some(snapped.to_string())
@@ -209,7 +240,7 @@ fn t438_6_masked_mints_x4() {
 #[test]
 fn t438_7_graft_invariants_and_manifest() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "7f12b68e829952041a9fea898b7f3c3e02fa6187" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "89dc967e3d9f5c78bd58e8d06fcee6140dac8bd1" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
 
     let man: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();

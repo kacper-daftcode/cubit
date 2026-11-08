@@ -55,6 +55,13 @@ const SM120_FAIL_CLOSED: &[u128] = &[
     0x000fe2000800022000000004ff5d7984u128,
     0x000fe2000800024000000004ff5d7984u128,
     0x000fe2000800028000000004ff5d7984u128,
+    // 2026-11-08 (T-19, rows-memory-2026-11-07): the measured STS_ARURI_R / STL_AURI_R rows read the UR base in 8 bits --
+    // bit 72 is text-inert for nvdisasm 13.1 on every width (tools/probes/re_sm120_rows.py --family memory) -- so the
+    // grid's bit-72 carriers are holes on sm120 now (0 census witnesses; T-19 whole-census parity)
+    0x0001c000080009ff0000001eff000988u128,  // was @P0 STS [URZ], R30
+    0x0001c000080009ff0000011eff000988u128,  // was @P0 STS [URZ+0x1], R30
+    0x0001c000080009ff8000001eff000988u128,  // was @P0 STS [URZ+-0x800000], R30
+    0x0001c000080009ffffffff1eff000988u128,  // was @P0 STS [URZ+-0x1], R30
 ];
 
 

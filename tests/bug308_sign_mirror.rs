@@ -116,7 +116,7 @@ fn t308_3_signed_operands_fail_closed_with_attribution() {
         // group of the measured F2I_R_R carries |Ra| 62 / -Ra 63 (nvdisasm prints `F2I.U32.TRUNC.NTZ R4, -R6`):
         //   ("sm120", "@!P1 F2I.U32.TRUNC.NTZ R4, -R6"), ("sm120", "F2I.U32.NTZ R1, -R15")
         ("sm120", "@P0 F2IP.U8.F32 R4, -R6, R8, R10"),
-        ("sm120", "F2IP.S8.F32.NTZ R6, R8, |R10|, 0x6"),
+        ("sm120", "F2IP.S8.F32.NTZ R6, R8, |R10|, R6"), // (T-19 2026-11-08: the fourth operand is a register -- the `_II` junk key is gone)
         ("sm120", "@UP0 USHF.L.U32 UR3, |UR5|, 0x6, UR9"),
         ("sm121a", "@UP0 USHF.L.S32 UR3, UR5, -UR7, 0x6"), // b75 -> .W
         ("sm121a", "@UP0 USHF.L.S64 UR3, UR5, |UR7|, 0x6"), // b74 -> width

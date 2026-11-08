@@ -596,4 +596,24 @@ pub const HEAL443_SM120_FAIL_CLOSED: &[u128] = &[
     0x000fc200881008040000000404007986, // STG.f.noE.j95
     0x000fc2000c1029040000000404007986, // STG.x.CPRIV.b90
     0x000fc2000c0009040000000404007986, // STG.x.EF.b90
+    // 2026-11-08 (T-19, rows-memory-2026-11-07): the measured STS_ARURI_R rows read the UR base in 8 bits -- bit 72 is
+    // text-inert for nvdisasm 13.1 on every width (tools/probes/re_sm120_rows.py --family memory); the grid's bit-72 (and
+    // bit-91) carriers are holes on sm120 now, in the heal grid and the stable grid alike (0 census witnesses)
+    0x0007e200080001e0ffffff040000e988u128,  // was @!P6 STS.U8 [R0+UR224+-0x1], R4
+    0x0007e20008000700000000040000e988u128,  // was @!P6 STS.S16 [R0+UR0], R4
+    0x0007e200080007e07fffff040000e988u128,  // was @!P6 STS.S16 [R0+UR224+0x7fffff], R4
+    0x0007e200080007e0ffffff040000e988u128,  // was @!P6 STS.S16 [R0+UR224+-0x1], R4
+    0x0007e20008000900ffffff040000e988u128,  // was @!P6 STS [R0+UR0+-0x1], R4
+    0x0007e200080009e0ffffff040000e988u128,  // was @!P6 STS [R0+UR224+-0x1], R4
+    0x0007e200080009ffffffff040000e988u128,  // was @!P6 STS [R0+URZ+-0x1], R4
+    0x0007e20008000be0ffffff040000e988u128,  // was @!P6 STS.64 [R0+UR224+-0x1], R4
+    0x0007e20008000de0ffffff040000e988u128,  // was @!P6 STS.128 [R0+UR224+-0x1], R4
+    0x0007e200880000e0ffffff040000e988u128,  // was @!P6 STS.U8 [R0+UR224+-0x1], R4
+    0x0007e200880002e0ffffff040000e988u128,  // was @!P6 STS.S8 [R0+UR224+-0x1], R4
+    0x0007e200880002e0ffffff04ff00e988u128,  // was @!P6 STS.S8 [UR224+-0x1], R4
+    0x0007e200880006e0ffffff040000e988u128,  // was @!P6 STS.S16 [R0+UR224+-0x1], R4
+    0x0007e200880006e0ffffff04ff00e988u128,  // was @!P6 STS.S16 [UR224+-0x1], R4
+    0x0007e200880008e0ffffff040000e988u128,  // was @!P6 STS [R0+UR224+-0x1], R4
+    0x0007e20088000ae0ffffff040000e988u128,  // was @!P6 STS.64 [R0+UR224+-0x1], R4
+    0x0007e20088000ce0ffffff040000e988u128,  // was @!P6 STS.128 [R0+UR224+-0x1], R4
 ];

@@ -4941,7 +4941,17 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
             fit(insn, field, (a & 1) | ((n & 1) << 1))
         }
         Extraction::Reuse => fit(insn, field, op_reuse(insn, field.token_idx)),
-        Extraction::Inv => fit(insn, field, op_inv(insn, field.token_idx)),
+        Extraction::Inv => {
+            let mut v = op_inv(insn, field.token_idx);
+            // BUG-048 (2026-08-23), kept on the measured rows (T-19, 2026-11-08): on the carry forms of IADD3 / IADD
+            // (`.X`: a + ~b + cin with cin = PT) the author's `-Rn` is the same bit as the vendor's `~Rn`. The measured
+            // `IADD3_R_P_P_R_R_R_P_P` `X` row carries one `inv` field per register (nvdisasm 13.1 prints `~` on every
+            // one of them; the harvest had `neg` and `inv` stacked on bit 63), so the `-` glyph lands on the inversion.
+            if v == 0 && matches!(insn.opcode.as_str(), "IADD3" | "IADD") && insn.modifiers.iter().any(|m| m == ".X" || m == "X") {
+                v = op_neg(insn, field.token_idx);
+            }
+            fit(insn, field, v)
+        }
         Extraction::Abs => fit(insn, field, op_abs(insn, field.token_idx)),
         Extraction::NegAbs => {
             let a = op_abs(insn, field.token_idx);

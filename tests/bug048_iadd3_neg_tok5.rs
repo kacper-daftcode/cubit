@@ -83,8 +83,11 @@ fn bug048_render_canonical_inv_glyph() {
     let word: u128 = 0x000fe800_0010ec5c_8000000d_3b0d3210;
     let d = idx.decode(word, 0, &t120()).expect("decode golden failed");
     let text = format!("{d}");
+    // 2026-11-08 (T-19, tools/probes/re_sm120_rows.py --family intalu): the measured `IADD3_R_P_P_R_R_R_P_P` `X` row
+    // carries one `inv` field per register -- nvdisasm 13.1 prints `~R92` for bit 75 in the .X form too (the harvest's
+    // `neg` at 75 rendered `-R92`); the `-` spelling still encodes onto the inversion bits (the BUG-048 law above).
     assert!(
-        text.contains("IADD3.X R13, P0, P1, R59, ~R13, -R92"),
+        text.contains("IADD3.X R13, P0, P1, R59, ~R13, ~R92"),
         "golden render drifted: {text}"
     );
     // The newly encodable `-R25` form renders back as `~R25`

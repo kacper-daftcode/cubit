@@ -222,6 +222,14 @@ fn t399_3_mint_spelling_law() {
 /// low 8 bits, all-ones = URZ. POSTURE412 keeps the PRE-fix per-leg renders
 /// pinned so the fix footprint is explicit: every cell must now render the
 /// vendor text (computed live from POSTURE412 vendor annotation below).
+/// 2026-11-08 (T-19, rows-memory-2026-11-07): the measured `STS_ARURI_R` rows read the UR base in 8 bits -- bit 72 is
+/// text-inert for nvdisasm 13.1 on every width (tools/probes/re_sm120_rows.py --family memory; the 2026-09 harvest kept a
+/// 9-bit window). On sm120 the grid's bit-72 carriers are holes now (the measured-row convention, 0 census witnesses); the
+/// three other legs keep the harvest tolerance.
+fn sm120_fails_closed(w: u128) -> bool {
+    w & (1u128 << 72) != 0
+}
+
 #[test]
 fn t399_4_ur_sentinel_closed_vendor_exact() {
     for (li, leg) in LEGS.iter().enumerate() {
@@ -229,6 +237,10 @@ fn t399_4_ur_sentinel_closed_vendor_exact() {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
         for (word, tag, _pre_renders) in POSTURE412 {
+            if *leg == "sm120" && sm120_fails_closed(*word) {
+                assert!(dec(&t, &idx, *word).is_none(), "[{leg}] {tag}: a measured row tolerates the text-inert bit 72");
+                continue;
+            }
             let got = dec(&t, &idx, *word).unwrap_or_else(|| panic!("[{leg}] {tag} fell HOLE"));
             let vendor = POSTURE412_VENDOR
                 .iter()

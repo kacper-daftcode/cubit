@@ -22,6 +22,23 @@ include!("bug425b_data.inc");
 /// convention; the three other legs keep the harvest tolerance.
 const SM120_FAIL_CLOSED: &[u128] = &[
     0x000fc200880005e0ffffff04ff00e988u128,
+    // 2026-11-08 (T-19, rows-memory-2026-11-07): the measured STS_ARURI_R / STL_AURI_R rows read the UR base in 8 bits --
+    // bit 72 is text-inert for nvdisasm 13.1 on every width (tools/probes/re_sm120_rows.py --family memory) -- so the
+    // grid's bit-72 carriers are holes on sm120 now (0 census witnesses; T-19 whole-census parity)
+    0x000fc2000800033500000004ff009988u128,  // was @!P1 STS.S8 [UR53], R4
+    0x000fc2000800039580000004ff007988u128,  // was STS.S8 [UR149+-0x800000], R4
+    0x000fc2000800052e7fffff040a007988u128,  // was STS.U16 [R10+UR46+0x7fffff], R4
+    0x000fc2000800055263eb67040a007988u128,  // was STS.U16 [R10+UR82+0x63eb67], R4
+    0x000fc200080005af800001040a007988u128,  // was STS.U16 [R10+UR175+-0x7fffff], R4
+    0x000fc200080005ba7fffff040a007988u128,  // was STS.U16 [R10+UR186+0x7fffff], R4
+    0x000fc2000800144e800001040a00e988u128,  // was @!P6 STS.U16 [R10+UR78+-0x7fffff], R4
+    0x000fc200080015c63b9218040a007988u128,  // was STS.U16 [R10+UR198+0x3b9218], R4
+    0x000fc20008002484800000040a007988u128,  // was STS.U16 [R10+UR132+-0x800000], R4
+    0x000fc2000800456c7ffffe040a006988u128,  // was @P6 STS.U16 [R10.X4+UR108+0x7ffffe], R4
+    0x000fc200080047322e5ada04ff007988u128,  // was STS.S16 [RZ.X4+UR50+0x2e5ada], R4
+    0x000fc200080055257ffffe040a001988u128,  // was @P1 STS.U16 [R10.X4+UR37+0x7ffffe], R4
+    0x000fc20008010461ffffff040a007988u128,  // was STS.U16 [R10+UR97+-0x1], R4
+    0x000fc200080104ff7ffffe040a007988u128,  // was STS.U16 [R10+URZ+0x7ffffe], R4
 ];
 
 
@@ -137,7 +154,7 @@ fn t425b_6_canon_pin_and_claims_preservation() {
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        m["base_revision"].as_str().unwrap().starts_with("7f12b68e829952041a9fea898b7f3c3e02fa6187" /* 2026-11-06 T-11 (was c258f8a, T-10) */), /* 2026-11-06 T-10 (was b75cc20) */ // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+        m["base_revision"].as_str().unwrap().starts_with("89dc967e3d9f5c78bd58e8d06fcee6140dac8bd1" /* 2026-11-06 T-11 (was c258f8a, T-10) */), /* 2026-11-06 T-10 (was b75cc20) */ // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
         "SOURCE.json must pin canonical e03e0348d98b9d20ffb4ca557cfc6eae625cf995 (= BUG-452 narrow, ride-after 4ee843162216e75d037135b5907c819759471296, = BUG-454 graft, ride-after 589be874 (= BUG-450) (= BUG-450 graft, ride-after 099faa0 = BUG-447, ride-after e8d1af3 = BUG-443, 57e7ecd = BUG-442, ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, = BUG-435+435b, ride-after 1810912 = 435+434, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b): {:?}",
         m["base_revision"]
     );

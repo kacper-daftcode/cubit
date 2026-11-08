@@ -1247,10 +1247,13 @@ pub fn endc_pt_elide_key(key: &str) -> bool {
 }
 
 pub fn r_hsel_invalid1_slot(ins_key: &str, tok: i32) -> bool {
+    // (HSET2 joined 2026-11-08: the measured `HSET2_R_R_FI_FI_P` row -- tools/probes/re_sm120_rows.py, nvdisasm 13.1 --
+    // prints `R48.INVALID1` for hsel value 1 on its register source like the other packed-half compares)
     if ins_key.starts_with("HADD2")
         || ins_key.starts_with("HMUL2")
         || ins_key.starts_with("HMNMX2")
         || ins_key.starts_with("HSETP2")
+        || ins_key.starts_with("HSET2")
     {
         return true;
     }

@@ -9,8 +9,9 @@
 // words with their own control code), `fields_add` / `fields_fix` (what the sweep changed against the harvest row),
 // `silicon_bits` (field flips the encoder refuses on a silicon law), `shadow_only` (an encoder-only row: a sibling
 // key spells its elided operand with the same bits) and `status` (`measured` / `alias` with `target` + `alias_target`
-// / `dead` with `target` -- an unreachable row of a key that stays, deleted / `exception`, `harvest`,
-// `canonical_illegal` with `reason` -- the rows left, named).
+// / `dead` with `target` -- an unreachable row of a key that stays, deleted / `deleted` with `reason` -- a key deleted
+// whole (T-19) / `modelled` with `test` + `reason` -- a design row kept with `_src: "modelled"` (T-19) / `exception`,
+// `harvest`, `canonical_illegal` with `reason` -- the rows left, named).
 use cubit::{decoder::DecodeIndex, table::IsaTable};
 use serde_json::Value;
 use std::{collections::BTreeSet, path::PathBuf, sync::OnceLock};
@@ -248,6 +249,21 @@ fn the_rows_are_measured_and_the_shadowed_keys_are_aliases() {
             let d = index.decode(w0, 0, table).unwrap_or_else(|e| panic!("{w0:032x}: {e}"));
             assert_eq!(cubit::printer::to_sass_lossless(&d), row["t0"], "{key} {group}: {w0:032x} (target {target}, got {})", d.key);
             dead_rows += 1;
+            continue;
+        }
+        if status == "deleted" {
+            // T-19 (2026-11-08): a key deleted whole -- every canonical word nvdisasm rejects, or a junk key whose only
+            // words are another form's (the record's `reason`); nothing is asked of its words (counted with the dead rows)
+            assert!(ins.get(key).is_none(), "{key}: deleted key still there");
+            assert!(aliases.get(key).is_none(), "{key}: a deleted key must not be an alias");
+            dead_rows += 1;
+            continue;
+        }
+        if status == "modelled" {
+            // T-19 (2026-11-08): a row the project keeps by design (`_src: "modelled"`, the pinning test in the note)
+            let g = &ins[key]["mod_groups"][group];
+            assert_eq!(g["_src"], "modelled", "{key} {group}");
+            assert!(g["_note"].as_str().unwrap().contains(row["test"].as_str().unwrap()), "{key} {group}: the note names the test");
             continue;
         }
         if status == "exception" || status == "harvest" || status == "canonical_illegal" {

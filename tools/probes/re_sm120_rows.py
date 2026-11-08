@@ -84,15 +84,10 @@ FAMILIES = {
 # (key, group) -> reason: rows whose structure nvdisasm confirms but which stay harvest on purpose (named in
 # G/NEEDS_OWNER.md): the probe reports them as `exception`, apply leaves them, the test lists them
 EXCEPTIONS: dict[str, dict[tuple[str, str], str]] = {
-    "intalu": {
-        # the carry-out predicate at [83:81]: at PT the vendor elides it (`IMAD.HI R32, R64, UR96, R24`), a spelling
-        # whose plain key has no `HI` / `HI,X` group -- cubit prints the `_P_` row's explicit `PT`; the plain groups
-        # are legal words nvdisasm names (G/NEEDS_OWNER.md 11)
-        ("IMAD_R_P_R_UR_R", "HI"): "the PT carry-out word is the plain key's spelling (IMAD_R_R_UR_R has no HI group); cubit prints the explicit PT",
-        ("IMAD_R_P_R_UR_R_P", "HI,U32,X"): "the PT carry-out word is the plain key's spelling (IMAD_R_R_UR_R_P has no HI,U32,X group); cubit prints the explicit PT",
-        ("IMAD_R_P_R_UR_R_P", "HI,X"): "the PT carry-out word is the plain key's spelling (IMAD_R_R_UR_R_P has no HI,X group); cubit prints the explicit PT",
-        ("R2UR_P_UR_R", "FILL"): "the PT predicate word is the plain key's spelling (R2UR_UR_R has no FILL group); cubit prints the explicit PT",
-    },
+    # (the four PT-elided `IMAD.HI` / `R2UR.FILL` rows of G's NEEDS 11 -- the carry-out / predicate at PT is elided by
+    # the vendor, a spelling whose plain key had no `HI` / `HI,X` / `FILL` group -- left this table on 2026-11-08:
+    # session T-19 added the four plain groups (R's decision, the ISETP precedent: PT baked at [83:81]); the shorter plain
+    # key wins the PT words, the `_P_` rows keep the explicit-predicate words, both measured)
     "control": {
         ("WARPSYNC.COLLECTIVE_R_II", ""): "the immediate is a 50-bit field the vendor prints whole (0x169696969696978 for the "
                                          "probe's pattern); cubit's row reads 20 bits of it -- the collective mask / target law "
@@ -120,10 +115,20 @@ EXCEPTION_PREFIXES: dict[str, dict[str, str]] = {}
 #   `[R16+URZ+imm]`, the uniform-indexed form with URZ, which the measured `_ARURI` row's UR field covers (0 census
 #   witnesses on either; the harvest `_ARI` row claimed the inert-bit neighbours the measured row fails closed on and
 #   printed them `[imm]`, bug188's pin).
+#   T-19 (2026-11-08): `IADD.X_R_P_R_R_R` -> `IADD_R_P_R_R_P` (a one-sample harvest row -- P2 / P2 / ~Ra baked, only the
+#   registers variable -- whose word is the measured `X` group's of the plain key with the carry-in predicate spelled; no
+#   test names the key).
 MANUAL_ALIAS: dict[str, dict[str, str]] = {
-    "intalu": {"S2R_R_II": "S2R_R_L"},
+    "intalu": {"S2R_R_II": "S2R_R_L", "IADD.X_R_P_R_R_R": "IADD_R_P_R_R_P"},
     "uniform": {"UBMSK.W_UR_UR_II": "UBMSK_UR_UR_II", "UBMSK.W_UR_UR_UR": "UBMSK_UR_UR_UR"},
-    "half": {"HFMA2_R_R_II_II_R": "HFMA2_R_R_FI_FI_R"},
+    "half": {"HFMA2_R_R_II_II_R": "HFMA2_R_R_FI_FI_R",
+             # T-19: the five `_P_R_R_R` PACK_AB keys -- a phantom predicate token (no text of the form carries one); the
+             # words are the plain key's `*,F32,PACK_AB` groups' (dsv41 / wave-11 rows), which keep RZ in the unused byte
+             # [71:64] where the harvest rows kept 0 (text-inert: the alias is hand-retired, the twin rule's bit-exact
+             # re-encode does not hold on that byte)
+             "F2FP.BF16.F32.PACK_AB_P_R_R_R": "F2FP_R_R_R", "F2FP.RELU.BF16.F32.PACK_AB_P_R_R_R": "F2FP_R_R_R",
+             "F2FP.SATFINITE.BF16.F32.PACK_AB_P_R_R_R": "F2FP_R_R_R", "F2FP.SATFINITE.F16.F32.PACK_AB_P_R_R_R": "F2FP_R_R_R",
+             "F2FP.SATFINITE.RELU.F16.F32.PACK_AB_P_R_R_R": "F2FP_R_R_R"},
     "atomic": {"ATOMS_R_ARI": "ATOMS_R_ARURI"},
 }
 #   MANUAL_FIELDS: key prefix -> fields cubit keeps on the rows although nvdisasm 13.1 prints nothing for the bit. IMAD's
@@ -138,12 +143,276 @@ MANUAL_FIELDS: dict[str, dict[str, list]] = {
     "intalu": {"IMAD_": [["neg", 72, 1, 24, ["HI"]]]},  # [extraction, bit, bits, the slot shift whose token takes the field, excluded modifier tokens]
 }
 MANUAL_DEAD: dict[str, dict[tuple[str, str], str]] = {
-    "intalu": {("IMAD_R_P_R_II_R_P", "B90,U32,WIDE,X"): "IMAD_R_P_R_II_R_P"},
+    "intalu": {("IMAD_R_P_R_II_R_P", "B90,U32,WIDE,X"): "IMAD_R_P_R_II_R_P",
+               # the harvest read the special register `SRZ` of `CS2R.32 R32, SRZ` as a second register: the word is the
+               # measured `CS2R_R_L` `32` row's (sysreg field at [79:72])
+               ("CS2R_R_R", ""): "CS2R_R_L"},
+    "control": {
+        # `WARPSYNC.ALL` prints no register: the `_R` key's `ALL` row is the bit-identical twin of `WARPSYNC` `ALL` (the live
+        # row, 19 census witnesses) with a phantom operand token
+        ("WARPSYNC_R", "ALL"): "WARPSYNC",
+    },
+    "memory": {
+        # `STSM.8.MT168.2 [R32], R0`: the `_AR_R` harvest key (a bogus register field at [23:16], no offset field) is the
+        # measured `STSM_ARI_R` `2,8,MT168` row's word (stsm8-mt168-sm120-2026-10-29) with the offset 0
+        ("STSM.8.MT168.2_AR_R", ""): "STSM_ARI_R",
+        # the `CCTL.E.PF2_AR` harvest row's canonical word prints `CCTL.PF1` -- a duplicate of the `CCTL.E.PF1_AR` row
+        # (renamed `CCTL_ARI` `PF1` by T-19; the and_bases differ only in text-inert bits)
+        ("CCTL.E.PF2_AR", ""): "CCTL_ARI",
+    },
+}
+
+# --- T-19 (2026-11-08): the last 111 harvest rows (T/NEEDS_OWNER.md 55, R's decisions of 03:05Z) ---------------------
+# MANUAL_ROW_FIELDS: family -> {(key, group) | key: [[shift, bits, extraction, token_idx], ...]} -- the complete measured
+#   field list that replaces the harvest's declared fields before the canonical word is built (the field-narrowing pass of
+#   NEEDS 55a: the over-wide predicate windows (a destination predicate has no `!` bit), the 9-bit `sub_ur` of STS / STL
+#   reading the text-inert bit 72, the undeclared second carry-out predicate of IADD3 at [86:84], the undeclared UR / LUT /
+#   predicate operands of ULOP3 and UIADD3.64, the BSSY target (`imm_shr2` at [63:34], the harvest had an unnamed field),
+#   the `.H1` merge selector of F2FP at bit 72, the widened UI2F / UI2FP register fields, the measured branch-target layout
+#   of CALL.REL.NOINC, the `.reuse` slot of HFMA2's third register). A key maps to every harvest row of the key. The sweep
+#   then verifies the list like any other row: every field bit must move its own token, nothing outside the fields may
+#   move an operand of the same form, the census witnesses must fit, cubit must decode / print / re-encode.
+MANUAL_ROW_FIELDS: dict[str, dict] = {
+    "control": {
+        "BSSY_B_II": [[12, 4, "guard", 0], [16, 4, "barrier", 1], [34, 30, "imm_shr2", 2]],
+        "CALL.REL.NOINC_II": [[12, 4, "guard", 0], [16, 8, "imm_shr2", 1], [34, 48, "imm_shr10", 1]],
+        "CALL.REL.NOINC_II_II": [[12, 4, "guard", 0], [16, 8, "imm_shr2", 1], [34, 48, "imm_shr10", 1]],
+        "CALL.REL.NOINC_II_II_?": [[12, 4, "guard", 0], [16, 8, "imm_shr2", 1], [34, 48, "imm_shr10", 1]],
+        "CALL.REL.NOINC_II_II_II_?": [[12, 4, "guard", 0], [16, 8, "imm_shr2", 1], [34, 48, "imm_shr10", 1]],
+        "CALL.REL.NOINC_II_II_II_II_?": [[12, 4, "guard", 0], [16, 8, "imm_shr2", 1], [34, 48, "imm_shr10", 1]],
+        ("WARPSYNC", "ALL"): [[12, 4, "guard", 0]],
+        ("WARPSYNC_R", "ALL"): [[12, 4, "guard", 0]],
+    },
+    "intalu": {
+        ("IADD3_R_P_P_R_R_R", ""): [[12, 4, "guard", 0], [16, 8, "reg", 1], [81, 3, "pred", 2], [84, 3, "pred", 3],
+                                    [24, 8, "reg", 4], [72, 1, "neg", 4], [122, 1, "reuse", 4], [32, 8, "reg", 5],
+                                    [63, 1, "neg", 5], [123, 1, "reuse", 5], [64, 8, "reg", 6], [75, 1, "neg", 6],
+                                    [124, 1, "reuse", 6]],
+        ("IADD3_R_P_P_R_R_R_P_P", "X"): [[12, 4, "guard", 0], [16, 8, "reg", 1], [81, 3, "pred", 2], [84, 3, "pred", 3],
+                                         [24, 8, "reg", 4], [72, 1, "inv", 4], [122, 1, "reuse", 4], [32, 8, "reg", 5],
+                                         [63, 1, "inv", 5], [123, 1, "reuse", 5], [64, 8, "reg", 6], [75, 1, "inv", 6],
+                                         [124, 1, "reuse", 6], [87, 3, "pred", 7], [90, 1, "neg", 7], [77, 3, "pred", 8],
+                                         [80, 1, "inv", 8]],
+        ("IADD3_R_P_P_R_II_R", "X"): [[12, 4, "guard", 0], [16, 8, "reg", 1], [81, 3, "pred", 2], [84, 3, "pred", 3],
+                                      [24, 8, "reg", 4], [72, 1, "inv", 4], [122, 1, "reuse", 4], [32, 32, "imm", 5],
+                                      [64, 8, "reg", 6], [75, 1, "inv", 6], [124, 1, "reuse", 6], [87, 3, "pred", 7],
+                                      [90, 1, "neg", 7], [77, 3, "pred", 8], [80, 1, "inv", 8]],
+        ("IMAD_R_P_R_R_R", "HI,U32"): [[12, 4, "guard", 0], [16, 8, "reg", 1], [81, 3, "pred", 2], [24, 8, "reg", 3],
+                                       [122, 1, "reuse", 3], [32, 8, "reg", 4], [123, 1, "reuse", 4], [64, 8, "reg", 5],
+                                       [75, 1, "neg", 5], [124, 1, "reuse", 5]],
+        ("IMAD_R_P_R_R_R", "U32,WIDE"): [[12, 4, "guard", 0], [16, 8, "reg", 1], [81, 3, "pred", 2], [24, 8, "reg", 3],
+                                         [122, 1, "reuse", 3], [32, 8, "reg", 4], [123, 1, "reuse", 4], [64, 8, "reg", 5],
+                                         [75, 1, "neg", 5], [124, 1, "reuse", 5]],
+        ("IMAD_R_P_R_II_R", "U32,WIDE"): [[12, 4, "guard", 0], [16, 8, "reg", 1], [81, 3, "pred", 2], [24, 8, "reg", 3],
+                                          [122, 1, "reuse", 3], [32, 32, "imm", 4], [64, 8, "reg", 5], [75, 1, "neg", 5],
+                                          [124, 1, "reuse", 5]],
+        ("VIADD.32_R_R_R", ""): [[12, 4, "guard", 0], [16, 8, "reg", 1], [24, 8, "reg", 2], [72, 1, "neg", 2],
+                                 [122, 1, "reuse", 2], [32, 8, "reg", 3], [63, 1, "neg", 3], [123, 1, "reuse", 3]],
+    },
+    "half": {
+        ("F2IP.S8.F32.NTZ_R_R_R_R", ""): [[12, 4, "guard", 0], [16, 8, "reg", 1], [24, 8, "reg", 2], [122, 1, "reuse", 2],
+                                          [32, 8, "reg", 3], [123, 1, "reuse", 3], [64, 8, "reg", 4], [72, 1, "opmod:H1", 4],
+                                          [124, 1, "reuse", 4]],
+        ("F2FP.F16.F32.MERGE_C_R_R_R", ""): [[12, 4, "guard", 0], [16, 8, "reg", 1], [32, 8, "reg", 2], [123, 1, "reuse", 2],
+                                             [64, 8, "reg", 3], [72, 1, "opmod:H1", 3], [124, 1, "reuse", 3]],
+        "F2FP_R_R_R_R": [[12, 4, "guard", 0], [16, 8, "reg", 1], [24, 8, "reg", 2], [122, 1, "reuse", 2], [32, 8, "reg", 3],
+                         [123, 1, "reuse", 3], [64, 8, "reg", 4], [72, 1, "opmod:H1", 4], [124, 1, "reuse", 4]],
+        ("HFMA2_R_R_R_UR", ""): [[12, 4, "guard", 0], [16, 8, "reg", 1], [24, 8, "reg", 2], [72, 1, "neg", 2], [73, 1, "abs", 2],
+                                 [74, 2, "hsel", 2], [122, 1, "reuse", 2], [64, 8, "reg", 3], [81, 2, "hsel", 3], [83, 1, "abs", 3],
+                                 [84, 1, "neg", 3], [86, 1, "h0nh1", 3], [123, 1, "reuse", 3], [32, 8, "ureg", 4], [60, 2, "hsel", 4],
+                                 [62, 1, "abs", 4], [63, 1, "neg", 4]],
+        ("HSET2_R_R_FI_FI_P", "AND,EQ"): [[12, 4, "guard", 0], [16, 8, "reg", 1], [24, 8, "reg", 2], [72, 1, "neg", 2],
+                                          [73, 1, "abs", 2], [74, 2, "hsel", 2], [122, 1, "reuse", 2], [48, 16, "f16", 3],
+                                          [32, 16, "f16", 4], [87, 3, "pred", 5], [90, 1, "neg", 5]],
+        "UF2FP_UR_UR_UR_UR": [[12, 4, "guard", 0], [16, 8, "ureg", 1], [24, 8, "ureg", 2], [32, 8, "ureg", 3], [64, 8, "ureg", 4],
+                              [72, 1, "opmod:H1", 4]],
+        ("UI2F_UR_UR", "RP"): [[12, 4, "guard", 0], [16, 8, "ureg", 1], [32, 8, "ureg", 2]],
+        ("UI2FP_UR_UR", "F32,S32"): [[12, 4, "guard", 0], [16, 8, "ureg", 1], [32, 8, "ureg", 2]],
+    },
+    "memory": {
+        "STS_ARURI_R": [[12, 4, "guard", 0], [24, 8, "sub_r0", 1], [64, 8, "sub_ur1", 1], [40, 24, "sub_imm1", 1],
+                        [78, 2, "addr_scale", 1], [32, 8, "reg", 2]],
+        "STL_AURI_R": [[12, 4, "guard", 0], [64, 8, "sub_ur0", 1], [40, 24, "sub_imm1", 1], [32, 8, "reg", 2]],
+        ("LD_R_dARI", "E,STRONG,SYS"): [[12, 4, "guard", 0], [16, 8, "reg", 1], [24, 8, "sub_r1", 2], [32, 8, "sub_ur0", 2],
+                                        [40, 24, "sub_imm2", 2]],
+        ("STL_ARI_R", "EF,U8"): [[12, 4, "guard", 0], [24, 8, "sub_r0", 1], [40, 24, "sub_imm1", 1], [32, 8, "reg", 2]],
+        ("STSM.8.MT168.2_AR_R", ""): [[12, 4, "guard", 0], [24, 8, "sub_r0", 1], [40, 24, "sub_imm1", 1], [32, 8, "reg", 2]],
+        "CCTL.E.PF2_AR": [[12, 4, "guard", 0], [24, 8, "sub_r0", 1], [32, 32, "sub_imm1", 1]],
+        ("CCTL_ARI", "PF1"): [[12, 4, "guard", 0], [24, 8, "sub_r0", 1], [32, 32, "sub_imm1", 1]],
+        ("CCTL_ARI", "PF2"): [[12, 4, "guard", 0], [24, 8, "sub_r0", 1], [32, 32, "sub_imm1", 1]],
+        ("UBLKCP_AURI_AURI_UR", "G,G"): [[12, 4, "guard", 0], [32, 8, "sub_ur0", 1], [24, 8, "sub_ur0", 2], [64, 8, "ureg", 3]],
+        "UBLKRED_AURI_AURI_UR": [[12, 4, "guard", 0], [32, 8, "sub_ur0", 1], [24, 8, "sub_ur0", 2], [64, 8, "ureg", 3]],
+    },
+    "uniform": {
+        ("UIADD3_UR_UP_UP_UR_II_UR", "64"): [[12, 4, "guard", 0], [16, 8, "ureg", 1], [81, 3, "upred", 2], [84, 3, "upred", 3],
+                                             [24, 8, "ureg", 4], [72, 1, "neg", 4], [32, 32, "imm", 5], [64, 8, "ureg", 6],
+                                             [75, 1, "neg", 6]],
+        ("ULEA_UR_UP_UR_UR_II", ""): [[12, 4, "guard", 0], [16, 8, "ureg_ff", 1], [81, 3, "upred", 2], [24, 8, "ureg", 3],
+                                      [72, 1, "neg", 3], [32, 8, "ureg_ff", 4], [63, 1, "neg", 4], [75, 5, "imm", 5]],
+        ("ULEA_UR_UP_UR_II_II", ""): [[12, 4, "guard", 0], [16, 8, "ureg", 1], [81, 3, "upred", 2], [24, 8, "ureg", 3],
+                                      [72, 1, "neg", 3], [32, 32, "imm", 4], [75, 5, "imm", 5]],
+        ("ULEA_UR_UP_UR_UR_UR_II", "HI"): [[12, 4, "guard", 0], [16, 8, "ureg", 1], [81, 3, "upred", 2], [24, 8, "ureg", 3],
+                                           [72, 1, "neg", 3], [32, 8, "ureg", 4], [63, 1, "neg", 4], [64, 8, "ureg_ff", 5],
+                                           [75, 5, "imm", 6]],
+        ("ULOP3_UP_UR_UR_II_UR_II_UP", "LUT"): [[12, 4, "guard", 0], [81, 3, "upred", 1], [16, 8, "ureg", 2], [24, 8, "ureg", 3],
+                                                [32, 32, "imm", 4], [64, 8, "ureg", 5], [72, 8, "imm", 6], [87, 3, "upred", 7],
+                                                [90, 1, "inv", 7]],
+        ("ULOP3_UR_UR_UR_UR_II_UP", "LUT"): [[12, 4, "guard", 0], [16, 8, "ureg", 1], [24, 8, "ureg", 2], [32, 8, "ureg", 3],
+                                             [64, 8, "ureg", 4], [72, 8, "imm", 5], [87, 3, "upred", 6], [90, 1, "inv", 6]],
+        ("UIMNMX_UP_UP_UR_UR_UR_UP_UP", "U32"): [[12, 4, "guard", 0], [81, 3, "upred", 1], [84, 3, "upred", 2], [16, 8, "ureg", 3],
+                                                 [24, 8, "ureg", 4], [32, 8, "ureg", 5], [87, 3, "upred", 6], [90, 1, "inv", 6],
+                                                 [77, 3, "upred", 7], [80, 1, "inv", 7]],
+    },
+}
+# MANUAL_SPELLING_OK: family -> {(key, group): why} -- rows whose vendor text derives to another key by the project's
+#   design; the probe accepts the spelling and verifies the structure like any other row.
+MANUAL_SPELLING_OK: dict[str, dict[tuple[str, str], str]] = {
+    "intalu": {
+        # the constant-bank keys `_cAI` (no index register) and `_cARI` share their words at RZ: each key is the encoder's
+        # path for its own spelling, both carry the index field, the printer elides RZ -- the probe's canonical word puts a
+        # register into the field, so the text derives to the `_cARI` key (the bug165 / bug152 convention of the family)
+        ("LDC_R_cAI", "64"): "the `_cAI` key is the encoder's path for the RZ-indexed spelling `c[bank][imm]`; the row carries "
+                             "the index field like its bug165 siblings, the register-indexed words print vendor-true through it too",
+        ("LDCU_UR_cAI", "64"): "the `_cAI` key is the encoder's path for the URZ-indexed spelling `c[bank][imm]`; the row carries "
+                               "the index field like its bug152 sibling, the register-indexed words print vendor-true through it too",
+    },
+}
+# PAIRED_TYPE_BITS: family -> {mnemonic: bit} -- a modifier bit that re-types both packed-half immediates of the word at
+#   once (`BF16_V2`: the same 16-bit patterns print as bf16 instead of f16 literals). A flip that changes the mnemonic token
+#   and only the float-immediate tokens is the other group's word -- a modifier bit, not a complex change (NEEDS 55b).
+PAIRED_TYPE_BITS: dict[str, dict[str, int]] = {"half": {"HADD2": 85, "HFMA2": 85, "HSET2": 65}}
+# MODELLED: family -> {(key, group): (the test that pins it, why)} -- rows the project keeps on purpose (R, 2026-11-08):
+#   `_src: "modelled"` (design, not harvest; the T1 counter does not count them), the note names the test.
+MODELLED: dict[str, dict[tuple[str, str], tuple[str, str]]] = {
+    "intalu": {
+        ("IADD3.X_R_P_P_R_II_R_P_P", ""): ("tests/bug089_iadd3x_tailpred.rs, tests/bug012_encodeverify50.rs",
+            "the encoder's key for the 8-operand `IADD3.X Rd, Pc1, Pc2, Ra, imm, Rc, Pin1, Pin2` spelling (bug089's round "
+            "trips, bug012's opex-0x51 re-encode); its words decode through `IADD3_R_P_P_R_II_R` `X` (the project's 6-token "
+            "decode row whose printer path renders the two carry-in predicates) -- an encode-only design row, 0 census witnesses"),
+        ("IADD3_R_P_P_R_II_R", "X"): ("tests/bug089_iadd3x_tailpred.rs (bug089_junk_key_variant_absent_and_iir_fields_present), "
+            "tests/bug012_encodeverify50.rs",
+            "the project's decode row for the IADD3.X immediate form: the 6-token key carries the vendor's 8-operand text through "
+            "the printer's trailing-predicate path (the tok7 neg@90 / tok8 inv@80 fields are BUG-089's fix, pinned by name); the "
+            "sweep adds the second carry-out predicate [86:84] (tok 3) the harvest never declared and drops the duplicate `reg_ff` "
+            "at bit 80 -- the mask stays the harvest's (bug012's relaxed decode of a vendor-unknown word with bit 123 set)"),
+    },
+    "half": {
+        # the plain group of the 36-group `HFMA2_R_R_R_II_FI` key: the 2026-08/09 waves built the key as the guard-capable
+        # twin of `HFMA2_R_R_R_FI_FI` (whose rows have no guard field) with `f16_d` immediates, and pin its structure
+        # (bug265 / 270 / 274 / 279 / 285 / 288 / 330 / 354 name the key and its `` group); the sweep verifies the row
+        # (bit 85 = the paired BF16_V2 type), its canonical word decodes through `HFMA2_R_R_R_FI_FI` `` -- design, not harvest
+        ("HFMA2_R_R_R_II_FI", ""): ("tests/bug274_opsuffix.rs, tests/bug279_ftzsigns.rs, tests/bug285_bf16v2_mods.rs, "
+            "tests/bug330_iifi_tok4.rs, tests/bug354_hfma2_sparse_modlane.rs, tests/bug265_junkrows.rs, tests/bug270_multibit_resid.rs, "
+            "tests/bug288_hfma2_immfam_tok2_bf16.rs",
+            "the plain group of the wave-built `HFMA2_R_R_R_II_FI` key (36 groups, `f16_d` immediates, a guard field the "
+            "`HFMA2_R_R_R_FI_FI` rows lack): the 2026-08/09 tests pin the key's structure and its tolerant decode of the "
+            "text-inert bits [90:87]; its canonical word is the `HFMA2_R_R_R_FI_FI` `` word (0 census witnesses)"),
+    },
+    "memory": {
+        ("UBLKPF.L2_AUR_UR", ""): ("tests/sm120_ublkpf_l2.rs",
+            "the harvest-era spelling of the bulk L2 prefetch, kept by the test as the superseded key (operand_sig `AUR_UR` "
+            "pinned); its canonical word decodes through the measured `UBLKPF_AURI_UR` `L2` row (ublkpf-l2-sm120-2026-10-29) "
+            "vendor-true -- 0 census witnesses"),
+    },
+    "uniform": {
+        # the two `encode_only` retention rows of the uniform datapath (the decoder skips them: `encode_only` groups are the
+        # encoder's compatibility paths for texts the vendor never prints)
+        ("REDUX_UR_R", "AND"): ("tests/bug193_redux_and_elision.rs",
+            "an `encode_only` retention row (BUG-193): the vendor elides `.AND` on sm_120 (op 0 prints bare `REDUX`, the measured "
+            "`` row); the legacy text `REDUX.AND URd, Ra` still encodes byte-exact through this row, the decoder skips it"),
+        ("UISETP_UP_UP_UR_UR_UP", ""): ("tests/bug092_uisetp_legacy_retention.rs",
+            "an `encode_only` retention row (BUG-092): the pre-086 legacy `` group with `opaque_mod` fields keeps the frozen-era "
+            "render `UISETP.?GT.?S32.?OR UP0, UPT, URa, URb, UPT` re-encoding byte-exact; the decoder skips it (the measured "
+            "`AND,GT` / `AND,LT,U32` groups own the decode)"),
+    },
+}
+# DELETE: family -> {key: why} -- keys deleted whole (R's class (d) of NEEDS 55: every canonical word nvdisasm rejects --
+#   the lattice doctrine never claims an illegal plane -- and three junk keys whose only words are another form's; 0 census
+#   witnesses each; a CHANGELOG line per key). Status `deleted` in the fixture.
+DELETE: dict[str, dict[str, str]] = {
+    "control": {
+        "BAR.RED.POPC.DEFER_BLOCKING_II_II_P": "nvdisasm rejects every canonical word of the row (bit 9 / 11 / 54 immediate "
+                                               "fields on a junk opcode plane)",
+        "BAR.SYNC.DEFER_BLOCKING_P_II": "the row's words are the register form `BAR.SYNC Ra, Rb` (bits [39:32] move both printed "
+                                        "registers, bit 11 flips the immediate form) that no row models; the key spelled a "
+                                        "predicate + immediate and the word decoded through the `BAR.RED.POPC` junk row with the "
+                                        "wrong text -- deleted, the register forms of BAR are a documented hole (0 census witnesses)",
+    },
+    "intalu": {
+        "IADD.64.X_R_P_R_II_P": "nvdisasm rejects every canonical word of the row",
+        "IADD.64.X_R_R_II_P": "nvdisasm rejects every canonical word of the row",
+        "IADD.64_R_P_R_UR": "nvdisasm rejects every canonical word of the row",
+        "IADD.64_R_R_UR_II_II_?": "nvdisasm rejects every canonical word of the row",
+        "IADD.64_R_R_UR_II_II_II_?": "nvdisasm rejects every canonical word of the row",
+        "IADD.64_R_R_UR_UR": "nvdisasm rejects every canonical word of the row",
+        "SEL.64_R_R_R_P": "nvdisasm rejects every canonical word of the row",
+        "MOV_P_R_II": "the row's words are `UMOV URd, imm` words (opcode 0x882, measured `UMOV_UR_II`) carrying text-inert "
+                      "bits [75:72]; a cross-mnemonic junk key, 0 census witnesses",
+        "VIMNMX.S32_R_R_UR_P": "the row's words are `VIMNMX.U32 Rd, Ra, imm, Pp` words (opcode 0x848, the immediate form) with "
+                               "the text-inert bits [86:81] clear -- a plane the measured `VIMNMX_R_R_II_P` `U32` row fails "
+                               "closed on; the key is wrong in every token (S32, UR) and cubit decodes none of its words, 0 "
+                               "census witnesses",
+    },
+    "atomic": {
+        "ATOMG.E.ADD.F64.RN.STRONG.GPU_P_R_AR_R": "count 0: the harvest never saw the row's word; its canonical word is an "
+                                                   "`ATOMG.ADD.EF.F16x2.RN Pd, Rd, [Ra], Rb` word (opcode 0x3a3, the EF F16x2 "
+                                                   "plane) -- another form's, the F64 form is the measured `ATOMG_P_R_ARI_R` row",
+    },
+}
+# RENAMED_FROM: family -> {(key, group): "old key / old group"} -- rows renamed by T-19 to the vendor's spelling (R's rule for
+#   a mis-named key without census witnesses whose word no other key decodes: rename, do not alias); for the note.
+RENAMED_FROM: dict[str, dict[tuple[str, str], str]] = {
+    "intalu": {
+        ("VIADD.32_R_R_R", ""): "VIADD.U8x4_R_R_R (bit 75, the U8x4 code, is clear in the row: its words print `VIADD.32`)",
+    },
+    "half": {
+        ("F2IP.S8.F32.NTZ_R_R_R_R", ""): "F2IP.S8.F32.NTZ_R_R_R_II (the fourth operand is a register, the harvest called it an immediate)",
+        ("HSET2_R_R_FI_FI_P", "AND,EQ"): "HSET2_R_R_II_II_P (the integer spelling of two f16 immediates; the FMUL_R_R_II precedent)",
+        ("UF2FP_UR_UR_UR_UR", "E4M3,F32,PACK_AB_MERGE_C,SATFINITE"): "UF2FP.SATFINITE.E4M3.F32.PACK_AB_MERGE_C_UR_?_?_? (a partial "
+            "`?` key: the three source UR fields were URZ constants of the compiler sample)",
+        ("UF2FP_UR_UR_UR_UR", "E5M2,F32,PACK_AB_MERGE_C,SATFINITE"): "UF2FP.SATFINITE.E5M2.F32.PACK_AB_MERGE_C_UR_?_?_? (a partial "
+            "`?` key: the three source UR fields were URZ constants of the compiler sample)",
+        ("UI2F_UR_UR", "RP"): "UI2F.RP_UR_UR (dotted twin of the plain key's group; the 4- and 5-bit register fields widened to 8)",
+        ("UI2FP_UR_UR", "F32,S32"): "UI2FP.F32.S32_UR_UR (dotted twin of the plain key's group; the 4- and 5-bit register fields widened to 8)",
+    },
+    "memory": {
+        ("STL_ARI_R", "EF,U8"): "STL_P_ARI_R (a phantom predicate token; the row's bits are the `STL.EF.U8 [Ra+imm], Rb` word)",
+        ("CCTL_ARI", "PF1"): "CCTL.E.PF1_AR (the row's words print `CCTL.PF1 [Ra+imm]`: no `.E`, with an offset)",
+        ("CCTL_ARI", "PF2"): "CCTL.E.PML2_AR (the row's words print `CCTL.PF2 [Ra+imm]`: no `.E`, not PML2, with an offset)",
+        ("UBLKCP_AURI_AURI_UR", "G,G"): "UBLKCP.S.G_AUR_AUR_UR (the direction code [74:73] is 0 in the row: its words print `UBLKCP.G.G`)",
+        ("UBLKRED_AURI_AURI_UR", "ADD,G,S"): "UBLKRED.G.S.ADD_AUR_AUR_UR (the harvest baked the direction code 0, which nvdisasm "
+            "prints `UBLKRED.G.INVALID0.ADD`; the sweep names bit 74 as the `.S` source code -- set in the renamed row)",
+        ("UBLKRED_AURI_AURI_UR", "ADD,G,S,S32"): "UBLKRED.G.S.ADD.S32_AUR_AUR_UR (as `ADD,G,S`, plus bit 81 = `.S32`)",
+    },
+    "uniform": {
+        ("UIADD3_UR_UP_UP_UR_II_UR", "64"): "UIADD3.64_UR_UP_UP_UR_II_UR (dotted twin of the plain measured key; the URZ third "
+            "source at [71:64] was baked, now the `ureg` field of the sibling row)",
+        ("UIMNMX_UP_UP_UR_UR_UR_UP_UP", "U32"): "UIMNMX_P_P_UR_UR_UR_P_P `S64` (vector predicate tokens for uniform predicates and "
+            "the wrong width: the row's words print `UIMNMX.U32`)",
+    },
+    "control": {
+        ("UCGABAR_ARV", ""): "UCGABAR_ARV `_ARV` (the group token `_ARV` doubled the vendor's underscore mnemonic in cubit's print)",
+        ("UCGABAR_WAIT", ""): "UCGABAR_WAIT `_WAIT` (the group token `_WAIT` doubled the vendor's underscore mnemonic in cubit's print)",
+    },
 }
 
 
 def tag_of(family: str) -> str:
     return f"rows-{family}-{DATE}"
+
+
+def manual_law_field(family: str, key: str, group: str, f) -> bool:
+    """A field cubit keeps by its own law although nvdisasm prints nothing for the bit (MANUAL_FIELDS): on an applied
+    table the row already declares it, and a re-probe must read it as `cubit_law`, not as a text-inert defect."""
+    for prefix, extra in MANUAL_FIELDS.get(family, {}).items():
+        if not key.startswith(prefix):
+            continue
+        for ext, bit, nb, _slot, *excluded in extra:
+            if excluded and any(m in group.split(",") for m in excluded[0]):
+                continue
+            if f["extraction"] == ext and f["shift"] == bit and f["bits"] == nb:
+                return True
+    return False
 
 
 def mnemonic_of(key: str) -> str:
@@ -266,6 +535,19 @@ def diff_class(t0: str, t: str):
     return "complex", None
 
 
+def paired_type_change(t0: str, t: str, fields) -> bool:
+    """T-19 (NEEDS 55b): the flip toggles `BF16_V2` in the mnemonic and re-types the packed-half immediates of the word
+    at once (the same 16-bit patterns print as bf16 instead of f16 literals) -- the other group's word, nothing else
+    moves. The immediate tokens are the ones whose declared field is a 16-bit half (`f16` / `bf16`, or the harvest's
+    integer spelling `imm` / `f16_d` of one)."""
+    a, b = tokens(t0), tokens(t)
+    if len(a) != len(b) or a[1] == b[1] or set(a[1].split(".")) ^ set(b[1].split(".")) != {"BF16_V2"}:
+        return False
+    halves = {f["token_idx"] for f in fields if f["bits"] == 16 and f["extraction"] in ("f16", "bf16", "imm", "f16_d")}
+    changed = {i for i, (x, y) in enumerate(zip(a, b)) if x != y} - {1}
+    return bool(changed) and all(i - 1 in halves for i in changed)
+
+
 # --- oracles ---------------------------------------------------------------------------------------------------
 
 class Nvdisasm:
@@ -363,6 +645,17 @@ def probe(args):
     table = nvprobe.load_table(pathlib.Path(args.table))
     also = nvprobe.load_table(pathlib.Path(args.also_harvest_in)) if args.also_harvest_in else None
     rows = select_rows(table, args.family, set(args.keys) if args.keys else None, also)
+    # T-19: the field-narrowing pass -- the rows named in MANUAL_ROW_FIELDS are probed with their corrected field list
+    # (a copy of the row; the table itself changes in `apply`)
+    overrides = MANUAL_ROW_FIELDS.get(args.family, {})
+    narrowed = []
+    for key, group, row in rows:
+        spec = overrides.get((key, group), overrides.get(key))
+        if spec is not None:
+            row = dict(row)
+            row["fields"] = [{"shift": s, "bits": b, "extraction": e, "token_idx": t} for s, b, e, t in spec]
+        narrowed.append((key, group, row))
+    rows = narrowed
     census = load_census(pathlib.Path(args.census) if args.census else None)
     nv = Nvdisasm(args.nvdisasm, args.arch, args.jobs, pathlib.Path(args.nv_cache) if args.nv_cache else None)
     print(f"{len(rows)} harvest rows of family {args.family} ({', '.join(FAMILIES[args.family])}); nvdisasm {nv.version}")
@@ -375,6 +668,8 @@ def probe(args):
     key_of_text = {r["text"]: r for r in run_example(args.text_keys, [{"text": t} for t in cand_texts])}
 
     def spelled_by(key, group, text):
+        if (key, group) in MANUAL_SPELLING_OK.get(args.family, {}):
+            return True  # T-19: the vendor text derives to another key by the project's design (see the table)
         kt = key_of_text.get(text, {})
         return (kt.get("base_key") == key and kt.get("mod_group") == group) or \
                (kt.get("full_key") == key and group in ("", kt.get("mod_group")))
@@ -412,10 +707,14 @@ def probe(args):
         rec = {"key": key, "group": group, "fields": [[f["shift"], f["bits"], f["token_idx"], f["extraction"]] for f in fields]}
         v = {"key": key, "group": group, "count": row.get("count"), "problems": [], "reuse_add": [], "cubit": {}}
         if w0 is None:
-            rec.update(w0=None, t0=None, status="canonical_illegal", reason="nvdisasm rejects every canonical word of the row")
-            v["status"] = "canonical_illegal"
+            if key in DELETE.get(args.family, {}):
+                # T-19: class (d) -- the key goes (R's decision; the lattice doctrine never claims an illegal plane)
+                rec.update(w0=None, t0=None, status="deleted", reason=DELETE[args.family][key])
+            else:
+                rec.update(w0=None, t0=None, status="canonical_illegal", reason="nvdisasm rejects every canonical word of the row")
+            v["status"] = rec["status"]
             v["problems"].append("nvdisasm rejects every canonical word of the row")
-            stats["canonical_illegal"] += 1
+            stats[rec["status"]] += 1
             fixture.append(rec)
             verdict["rows"].append(v)
             continue
@@ -444,6 +743,9 @@ def probe(args):
                     v.setdefault("field_illegal_bits", []).append(b)
                 continue
             if t == t0:
+                if f is not None and manual_law_field(args.family, key, group, f):
+                    by_class["cubit_law"].append([b, t])  # cubit's own law on an applied row (IMAD's neg@72, NEEDS 53)
+                    continue
                 by_class["inert"].append(b)
                 if f is not None:
                     if f["extraction"] == "reuse":
@@ -511,14 +813,27 @@ def probe(args):
                     v["problems"].append(f"bit {b} outside the fields moves operand {tok} of the same form: {t!r}")
                 else:
                     by_class["operand_other"].append([b, t])  # a neighbouring form (another key): lattice
+            elif PAIRED_TYPE_BITS.get(args.family, {}).get(mnemonic_of(key)) == b and paired_type_change(t0, t, fields):
+                # T-19 (NEEDS 55b): the `BF16_V2` bit re-types both half immediates with the modifier -- the other
+                # group's word (its row carries the immediates as bf16 / f16 fields), a modifier bit
+                by_class["modifier"].append([b, t])
+                v.setdefault("paired_type", []).append(b)
             else:
-                by_class["complex"].append([b, t])
                 kt2 = key_of_text.get(t, {})
+                landing = table["instructions"].get(kt2.get("base_key") or "", {}).get("mod_groups", {}).get(kt2.get("mod_group"))
+                if landing is not None and tokens(t)[1] != toks0[1] and kt2.get("mod_group") != group:
+                    # T-19: the flip changes the mnemonic and re-reads the operands -- and the text it produces is the
+                    # spelling of an existing row of the table (F2FP's bit 78: `PACK_AB` <-> `MERGE_C`, a different
+                    # operand layout of the same key): another group's word, a modifier bit
+                    by_class["modifier"].append([b, t])
+                    v.setdefault("modifier_rows", []).append(b)
+                    continue
+                by_class["complex"].append([b, t])
                 if kt2.get("base_key") == kt.get("base_key"):
                     v["problems"].append(f"bit {b} outside the fields moves several tokens of the same form: {t!r}")
         for f in fields:
             fb = [b for b, _ in by_class["field"] if f["shift"] <= b < f["shift"] + f["bits"]]
-            if not fb and f["extraction"] != "reuse":
+            if not fb and f["extraction"] != "reuse" and not manual_law_field(args.family, key, group, f):
                 v["problems"].append(f"field {f['extraction']} [{f['shift'] + f['bits'] - 1}:{f['shift']}] tok {f['token_idx']}: no bit moves its token")
         # the measured field list: the declared fields (an integer `imm` whose operand the vendor prints as a float
         # becomes the float extraction of its width -- the harvest spelled f16 pairs as hex) plus the added ones
@@ -570,6 +885,8 @@ def probe(args):
             rec["fields_fix"] = v["fields_fix"]
         if v.get("reuse_inert"):
             rec["reuse_inert"] = v["reuse_inert"]
+        if v.get("paired_type"):
+            rec["paired_type"] = v["paired_type"]
         # cubit on the canonical word
         c0 = cubit[w0 | CTRL]
         v["cubit"] = {k: c0.get(k) for k in ("cubit_key", "cubit_group", "cubit_text_lossless", "reencode", "cubit_error", "vendor_encode") if k in c0}
@@ -630,7 +947,17 @@ def probe(args):
             if (w & ~SCHEDULE & ~fm) != (int(row["and_base"], 16) & ~SCHEDULE & ~fm):
                 v["problems"].append(f"census witness {w:032x} carries bits outside the fields")
         wave = next((r for pfx, r in EXCEPTION_PREFIXES.get(args.family, {}).items() if key.startswith(pfx)), None)
-        if (key, group) in EXCEPTIONS.get(args.family, {}):
+        if key in DELETE.get(args.family, {}):
+            # T-19: a junk key deleted whole (its words are another form's or an illegal plane; 0 census witnesses)
+            v["status"] = "deleted"
+            rec["reason"] = DELETE[args.family][key]
+        elif (key, group) in MODELLED.get(args.family, {}):
+            # T-19: a row the project keeps on purpose -- `_src: "modelled"`, the pinning test named
+            v["status"] = "modelled"
+            rec["test"], rec["reason"] = MODELLED[args.family][(key, group)]
+            if v["problems"]:
+                rec["sweep_findings"] = v["problems"]
+        elif (key, group) in EXCEPTIONS.get(args.family, {}):
             v["status"] = "exception"
             rec["reason"] = EXCEPTIONS[args.family][(key, group)]
         elif wave is not None:
@@ -665,7 +992,7 @@ def probe(args):
             # (a byte-identical row under a different signature is NOT a twin: `LDC_R_cARI` / `LDC_R_cAI` share
             # their words at RZ, but each key is the encoder's path for its own spelling -- the census writes both)
             return False
-        if v["status"] != "exception" and "shadowed_by" in v and c0["cubit_text_lossless"] == t0 \
+        if v["status"] not in ("exception", "modelled", "deleted") and "shadowed_by" in v and c0["cubit_text_lossless"] == t0 \
                 and (c0["reencode"] == "ok" or silicon(c0)) and not witness_of[(key, group)] and twin_ok(v["shadowed_by"][0]):
             if mnemonic_of(v["shadowed_by"][0]) == mnemonic_of(key):
                 v["status"] = "alias"
@@ -751,6 +1078,12 @@ def note_for(family: str, rec: dict) -> str:
     extra = f" Fields the harvest never declared, added from the sweep: {added}." if added else ""
     reuse = rec.get("reuse_inert", [])
     extra += f" Declared .reuse bits {reuse} are text-inert for nvdisasm (kept: inert on silicon, KNOWN_ISSUES A12)." if reuse else ""
+    paired = rec.get("paired_type", [])
+    extra += (f" Bit {paired} re-types both packed-half immediates together with the `BF16_V2` modifier (the other group's "
+              f"word: the same 16-bit patterns print as bf16 / f16 literals) -- a modifier bit, measured by T-19 (NEEDS 55b).") if paired else ""
+    renamed = RENAMED_FROM.get(family, {}).get((rec["key"], rec["group"]))
+    extra += (f" Renamed by session T-19 (2026-11-08) from the harvest key `{renamed}`: the old name did not spell the vendor "
+              f"text of the row's own word (R's key-naming rule: rename to the vendor's spelling; 0 census witnesses).") if renamed else ""
     return (f"Row verified field by field with nvdisasm 13.1 (-b SM120; session G run 5, {DATE}, "
             f"tools/probes/re_sm120_rows.py --family {family}): canonical word {rec['w0']} = `{rec['t0']}`; every field bit "
             f"moves its own operand token; bits outside the fields: modifier bits {mods} (other groups' words), "
@@ -800,9 +1133,41 @@ def apply(args):
         row["_src"] = src
         row["_note"] = note_for(family, rec) + (f" {args.note_suffix}" if args.note_suffix else "")
         tagged += 1
+    # T-19: the modelled rows -- `_src: "modelled"`, the pinning test in the note; a field list the sweep corrected is
+    # written (fields only: the mask widens to cover the added fields, nothing narrows -- bug012's relaxed decode)
+    modelled = 0
+    for rec in recs:
+        if rec["status"] != "modelled":
+            continue
+        entry = ins.get(rec["key"])
+        if entry is None or rec["group"] not in entry.get("mod_groups", {}):
+            continue
+        row = entry["mod_groups"][rec["group"]]
+        spec = MANUAL_ROW_FIELDS.get(family, {}).get((rec["key"], rec["group"]))
+        if spec is not None:
+            # an explicit corrected field list (the sweep's finding on a design row): written, the mask widened to cover it
+            old = {(f["shift"], f["bits"], f["extraction"], f["token_idx"]): f for f in row.get("fields", [])}
+            fields = []
+            for s, b, e, t in spec:
+                f = dict(old.get((s, b, e, t), {"_src": "modelled"}))
+                f.update({"bits": b, "extraction": e, "shift": s, "token_idx": t})
+                fields.append(f)
+            row["fields"] = fields
+            row["variable_mask"] = f"0x{int(row['variable_mask'], 16) | fields_mask(fields):032x}"
+            row["and_base"] = f"0x{int(row['and_base'], 16) & ~fields_mask(fields):032x}"
+        row["_src"] = "modelled"
+        findings = rec.get("sweep_findings")
+        row["_note"] = (f"Kept by the project's design (session T-19, 2026-11-08, R's decision): {rec['reason']}. Pinned by "
+                        f"{rec['test']}. The row probe (tools/probes/re_sm120_rows.py --family {family}) swept it like every other "
+                        f"row: canonical word {rec['w0']} = `{rec['t0']}`" + (f"; findings outside the design: {findings}" if findings else "") + ".")
+        modelled += 1
     retired, deleted = [], []
     dead = 0
     alias_targets = set(table["_meta"].get("key_aliases", {}).values()) | {rec.get("alias_target") for rec in recs}
+    for rec in recs:
+        if rec["status"] == "deleted" and rec["key"] in ins:
+            del ins[rec["key"]]
+            deleted.append(rec["key"])
     for rec in recs:
         if rec["status"] == "dead" and rec["key"] in ins and rec["group"] in ins[rec["key"]].get("mod_groups", {}):
             if len(ins[rec["key"]]["mod_groups"]) == 1 and rec["key"] in alias_targets:
@@ -830,9 +1195,16 @@ def apply(args):
     prov["sources"][src] = {"rows": sum(1 for g in rows if g.get("_src") == src),
                             "kind": "nvdisasm 13.1 per-row field verification over the whole word (-b SM120)", "date": DATE,
                             "tool": f"tools/probes/re_sm120_rows.py --family {family}", "test": f"tests/sm120_rows_{family}.rs"}
+    n_modelled = sum(1 for g in rows if g.get("_src") == "modelled")
+    if n_modelled:
+        prov["sources"]["modelled"] = {"rows": n_modelled, "kind": "kept by the project's design, not a measurement: the row's "
+                                       "`_note` names the cubit test that pins it (session T-19, 2026-11-08; KNOWN_ISSUES T1)",
+                                       "date": "2026-11-08", "tool": "tools/probes/re_sm120_rows.py (MODELLED)",
+                                       "test": "tests/sm120_rows_<family>.rs"}
     nvprobe.save_table(path, table)
-    print(f"{path}: {tagged} rows tagged {src} ({added} fields added / retyped), {len(retired)} keys retired as aliases "
-          f"{retired}, {dead} dead rows deleted ({len(deleted)} keys emptied {deleted}); rows without _src now {prov['rows_without_src']}")
+    print(f"{path}: {tagged} rows tagged {src} ({added} fields added / retyped), {modelled} rows marked modelled, {len(retired)} keys "
+          f"retired as aliases {retired}, {dead} dead rows deleted ({len(deleted)} keys emptied or deleted {deleted}); rows without "
+          f"_src now {prov['rows_without_src']}")
 
 
 def main():

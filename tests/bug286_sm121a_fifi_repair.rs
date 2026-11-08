@@ -279,7 +279,7 @@ fn t286_5_anchors_era_and_invalid_law() {
         let era = t.entries.get("HFMA2_R_R_R_FI_II").expect("era row present");
         let g = era.mod_groups.get("").unwrap();
         // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 HFMA2_R_R_R_FI_II is a `_meta.key_aliases` entry of
-        // HFMA2_R_R_R_FI_FI (blackwell-isa 7f12b68): nvdisasm prints its canonical word `HFMA2 R32, RZ, RZ, 1.875,
+        // HFMA2_R_R_R_FI_FI (blackwell-isa 89dc967): nvdisasm prints its canonical word `HFMA2 R32, RZ, RZ, 1.875,
         // 203.25` as the f16-pair form (tests/fixtures/sm120_rows_half_nvdisasm.jsonl, status `alias`), so the era
         // spelling resolves to the target's measured-era rows (encode-visible, as before) and its own harvest row is
         // gone. sm121a keeps the era row.
