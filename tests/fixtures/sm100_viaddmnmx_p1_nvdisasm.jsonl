@@ -1,0 +1,8 @@
+{"expected_group": "", "expected_key": "VIADDMNMX_R_R_R_UR_P", "family": "plain", "kind": "plain_p1", "nvidia_sass": "VIADDMNMX R10, R2, R3, UR6, P1", "rc": 0, "role": "adopt", "word": "003fd6000880010300000006020a7e46"}
+{"expected_group": "", "expected_key": "VIADDMNMX_R_R_R_UR_P", "family": "plain", "kind": "plain_np1", "nvidia_sass": "VIADDMNMX R10, R2, R3, UR6, !P1", "rc": 0, "role": "adopt", "word": "003fd6000c80010300000006020a7e46"}
+{"expected_group": "", "expected_key": "VIADDMNMX_R_R_UR_R_P", "family": "reversed", "kind": "reversed_p1", "nvidia_sass": "VIADDMNMX R10, R2, UR6, R3, P1", "rc": 0, "role": "adopt", "word": "003fd6000880010300000006020a7c46"}
+{"expected_group": "", "expected_key": "VIADDMNMX_R_R_UR_R_P", "family": "reversed", "kind": "reversed_np1", "nvidia_sass": "VIADDMNMX R10, R2, UR6, R3, !P1", "rc": 0, "role": "adopt", "word": "003fd6000c80010300000006020a7c46"}
+{"expected_group": "", "expected_key": "", "family": "negative", "kind": "plain_relu_neighbour", "nvidia_sass": "VIADDMNMX.RELU R10, R2, R3, UR6, P1", "rc": 0, "role": "neighbour-not-claimed", "word": "003fd6000880110300000006020a7e46"}
+{"expected_group": "", "expected_key": "", "family": "negative", "kind": "plain_u32_neighbour", "nvidia_sass": "VIADDMNMX.U32 R10, R2, R3, UR6, P1", "rc": 0, "role": "neighbour-not-claimed", "word": "003fd6000880000300000006020a7e46"}
+{"expected_group": "", "expected_key": "", "family": "negative", "kind": "reject_old_low_field_0", "nvidia_sass": null, "rc": 1, "role": "reject-scoped", "word": "003fd6000b80010300000006020a7046"}
+{"expected_group": "", "expected_key": "", "family": "negative", "kind": "reject_old_low_field_1", "nvidia_sass": null, "rc": 1, "role": "reject-scoped", "word": "003fd6000b80010300000006020a7246"}
