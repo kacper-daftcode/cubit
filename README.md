@@ -230,6 +230,7 @@ See [docs/PYTHON_API_ARCH_SELECT.md](docs/PYTHON_API_ARCH_SELECT.md).
 - [docs/ENCODER_GUARDS.md](docs/ENCODER_GUARDS.md) — the fail-closed guards and the silicon traps behind them
 - [docs/MERC13_COMPANIONS.md](docs/MERC13_COMPANIONS.md) — ELF companion sections: what a template rebuild copies, what a standalone build regenerates, what differs from nvcc
 - [docs/SM120_CONTROL_OPEX.md](docs/SM120_CONTROL_OPEX.md) — the measured control-code layout and the reserved yield/stall combinations
+- [docs/SM120_ASYNC_IDIOMS.md](docs/SM120_ASYNC_IDIOMS.md) — release / acquire, the async-proxy fences, mbarriers, bulk copies, `setmaxnreg` and votes as ptxas lowers and schedules them on sm_120a, with the measured laws and the scheduler's open items
 - [docs/sasstuning.md](docs/sasstuning.md), [docs/nvcc-kloop-reference.md](docs/nvcc-kloop-reference.md) — scheduling notes for hand-written kernels (measured-on-date markers inside)
 - [docs/SM120_STALLFIX_PLAN.md](docs/SM120_STALLFIX_PLAN.md), [docs/SCHED_LEGALITY_ORACLE.md](docs/SCHED_LEGALITY_ORACLE.md), [docs/POSTFIX103_STALLFIX.md](docs/POSTFIX103_STALLFIX.md) — scheduling legality
 - [tools/probes/README.md](tools/probes/README.md) — the nvdisasm measurements behind the table rows
