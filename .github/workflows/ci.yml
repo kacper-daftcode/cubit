@@ -14,18 +14,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate vendored ISA table (structure + ratchet)
-        # Both arch tables are byte-pinned to blackwell-isa revisions via
+      - name: Validate vendored ISA tables (structure, provenance convention, canonical layout, ratchet)
+        # The four arch tables are byte-pinned to blackwell-isa revisions via
         # tables/SOURCE.json; --check verifies the pins, --validate-only
-        # adds structural schema + baked-ctrl ratchet (456/1269 baselines).
+        # adds structural schema + baked-ctrl ratchet + the canonical layout
+        # (tools/tablefmt.py, 2026-11-08).
         run: python3 tools/sync_table.py --validate-only
       - name: Byte-pin vendored ISA tables
         run: python3 tools/sync_table.py --check
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+      - uses: Swatinem/rust-cache@v2
       - run: cargo build --release
-      - run: cargo test
+      - name: Test suite (release; the test binaries in parallel, longest first)
+        # 2026-11-08 (NEEDS 62): plain `cargo test` ran the ~520 integration-test binaries one after
+        # another in the debug profile, each parsing its tables cold -- 1 h 50 to 3 h 35 per run on
+        # the hosted runner against a 6-hour job limit. tools/test_suite.py is the push gate's runner:
+        # the same binaries (`cargo test --release --no-run`), run on a pool of workers, longest
+        # first, one summary line per binary, exit 1 if any binary is not `ok`. The per-process
+        # table cache (IsaTable::load) is in the library; what the runner adds is the parallelism.
+        run: python3 tools/test_suite.py --release -j "$(nproc)" -t 2
+      - name: Doc tests
+        run: cargo test --release --doc
       - run: cargo clippy --release -- -D warnings
       - run: cargo doc --no-deps
         env:
