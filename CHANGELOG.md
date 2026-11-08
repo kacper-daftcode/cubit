@@ -4,6 +4,31 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-08 (session T-20: the IMAD `-Ra` reading of bit 72 retired — NEEDS 53 measured compute-inert on silicon)
+
+- **Tables vendored from blackwell-isa `27b1272`** (sm120 979 forms / 38 838 variants, unchanged counts; 7 rows without `_src`,
+  unchanged). The 24 measured non-HI IMAD rows lose the `neg@72` field they carried as cubit's own law (BUG-296: `-Ra` at
+  bit 72, re-affirmed by T-3 on 2026-11-04 with the U32 twins; the T-19 fixture's class `cubit_law`). **Silicon (session T-19,
+  test host GPU 0, `pt-needs53`, 2026-11-08): plain `IMAD` and the same word with bit 72 set both compute a·b+c; the `-Rc`
+  control (bit 75) computes a·b−c; `IMAD.U32` agrees** — and nvdisasm 13.1 prints nothing for the bit on any IMAD form on the
+  four targets (62 / 63 text-inert too; 73 = `.U32`, 74 = `.X`, 75 = `-Rc`). Bit 72 is a text-inert bit like any other: the
+  rows fail closed on it. Whole production census (249 929 words): decoded and re-encoded bit-exact before and after, 0 text /
+  key / group changes (0 census words carry bit 72 on IMAD).
+- **Encoder (SM120):** the whole IMAD base is off the generic ALU sign emit (until now the `.HI` groups only), and a `-` / `|`
+  glyph on an IMAD register operand without a field of the row is refused with the measurement named (`NEEDS 53: IMAD has no
+  encoding for the signed / absolute operand …`) — `IMAD R5, -R4, R3, R2` used to assemble to the plain a·b+c word plus bit 72
+  (silent wrong code), `|R4|` was dropped silently, `-R3` minted the text-inert bit 63. `-Rc` (bit 75) and `-URc` (bit 63 on
+  the UR-addend form) stay as the measured fields. Other tables unchanged (their IMAD rows are harvest rows).
+- **Decoder (SM120):** the whole IMAD base is off the priority-3 sign-tolerant match and the ghost-sign post-pass: the bit-62 /
+  63 / 72 words fail closed (`no instruction matches`) — on the T-19 tree the bit-63 neighbour of `IMAD R32, R48, R80, R24`
+  decoded through the T-3 `U32` twin as `IMAD.U32 R32, |R48|, -R80, R24`; 73 / 74 / 75 decode as `.U32` / `.X` / `-Rc`.
+- **`tools/probes/re_sm120_rows.py`:** `MANUAL_FIELDS` emptied (its one entry was this law) and the inverse `RETIRED_FIELDS`
+  added — a declared field dropped before the sweep so the bit takes its measured class; the intalu family re-probed on the
+  applied table (183 / 183 rows measured, pass 2 structurally identical to pass 1). Tests: `bug296_i2ip_sign`'s IMAD control
+  re-pinned on the sm120 leg (`-Ra` / `|Ra|` refused, `-Rc` = bit 75 round-trips, the bit-72 word fails closed; the sm121a leg
+  keeps the harvest behaviour until that table's measurement), the 24 records of
+  `tests/fixtures/sm120_rows_intalu_nvdisasm.jsonl` updated, 58 revision / SHA pins moved to `27b1272`.
+
 ## Unreleased — 2026-11-08 (session T-19: the last 111 harvest rows of sm120 closed — 7 documented rows left)
 
 - **Tables vendored from blackwell-isa `89dc967`** (sm120 979 forms / 38 838 variants, from 1 015 / 38 866 at `7f12b68`).
