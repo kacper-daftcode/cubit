@@ -4,6 +4,24 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-08 (session T-22, batch 8: sm121a ATOM / ATOMG in the plain uniform-indexed form measured on `-b SM121`)
+
+- **Tables vendored from blackwell-isa `ce51005`** (sm121a 2 153 forms / 50 447 variants, rows without `_src` 9 575 → **2 663**). New
+  probe `tools/probes/re_sm120_atom_aruri.py` (modelled on `re_sm120_redg.py` and T-6's `re_sm120_atomg_el_aruri.py`): `probe --arch
+  SM121 --witnesses <corpus>` — 18 398 form words print the law's text, 55 lattice words are illegal / `INVALIDn` / inert twins / other
+  forms' words (`-b SM120` / `SM103` / `SM100` print the same text for the canonical words); `apply` creates `ATOM_P_R_ARURI_R` /
+  `ATOMG_P_R_ARURI_R` (8 640 + 9 600 groups: 2 (`.E`) × 9 / 10 ops × 5 types incl. `.128` × 6 cache × 16 scope; SAFEADD is ATOMG's op 9,
+  `INVALID9` on ATOM) and retires the 6 912 dotted one-group keys as aliases. The 15 ATOMG words of the GB10 corpus are the descriptor
+  form: 0 witnesses in this form, the census unchanged. Test `tests/sm121a_atom_aruri.rs`.
+- Printer: the atomics' `_P_R_ARURI_R` keys print `[Ra.U32+URb(+off)]` with RZ printed and the width taken from the key — on ATOM /
+  ATOMG bit 90 is the top bit of the 4-bit op field, so the generic width rule (`[91:90] == 3` → `.64`) printed a false `.64` on every
+  EXCH / SAFEADD word, and sm121a's dotted `ATOM.E.*` keys printed `desc[UR][R.64]` for a `[R.U32+UR]` word (0 GB10 witnesses);
+  `SAFEADD` joins the atomics' op slot of the modifier order. Whole-census parity 0 on the 249 929 production words.
+- **The table-size wall** (`T/NEEDS_OWNER.md` 61): `sm121a.json` is 87 MiB after this batch — GitHub refuses files over 100 MiB. The
+  ATOM rows carry a one-line `_note` (the family's law once, in `_meta.provenance.sources[tag].note`) and no per-field `_src`; the
+  next sm121a lattice waits for the owner's schema decision.
+- Census pins: sm121a forms 9 063 → 2 153, variants 39 119 → 50 447, aliases 14 835 → 21 747, claim_forbid 5 253 → 23 493.
+
 ## Unreleased — 2026-11-08 (sessions T-21 / T-22, batch 7 + NEEDS 59: the conversions and the FP32 ALU on sm121a / sm103a / sm100a; VIMNMX3 measured on sm103a / sm100a; sm121a's MUFU_R_L retired)
 
 - **Tables vendored from blackwell-isa `15435a0`** (sm121a 9 063 forms / 39 119 variants, rows without `_src` 10 000 → 9 575; sm103a
