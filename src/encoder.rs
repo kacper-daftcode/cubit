@@ -2343,6 +2343,18 @@ fn check_operand_suffixes(insn: &Instruction, entry: &crate::table::ModGroupEntr
     if matches!(fit_lint_mode(), FitLintMode::Allow) {
         return Ok(());
     }
+    if insn.key == "FMUL2_R_R_FI" {
+        let source = op_token_text(insn, 2);
+        let segments: Vec<_> = source.split('.').skip(1).collect();
+        let has = |name: &str| segments.contains(&name);
+        if !has("F32") && !has("F32x2") {
+            anyhow::bail!("{source}: FMUL2 immediate source requires F32 or F32x2");
+        }
+        if (has("F32") && (has("F32x2") || has("LO_HI") || has("HI_LO")))
+            || (has("LO_HI") && has("HI_LO")) {
+            anyhow::bail!("{source}: inconsistent FMUL2 immediate source-shape suffixes");
+        }
+    }
     // (b) family vendor-default / row-carried notations without fields
     let hsetp_default = insn.key.starts_with("HSETP");
     let ffma2_default = insn.key.starts_with("FFMA2");
@@ -2560,6 +2572,11 @@ fn check_operand_suffixes(insn: &Instruction, entry: &crate::table::ModGroupEntr
             let default_notation = (hsetp_default && seg == "H0_H0")
                 || (ffma2_default
                     && matches!(seg.as_str(), "F32" | "F32x2" | "HI_LO" | "LO_HI" | "NP"))
+                // FMUL2_R_R_FI: paired HI_LO/LO_HI and NP are measured
+                // operand fields/default notation; scalar F32 is token 2's
+                // declared opmod field. Do not admit other suffixes.
+                || (insn.key == "FMUL2_R_R_FI" && tok == 2
+                    && matches!(seg.as_str(), "F32x2" | "HI_LO" | "LO_HI" | "NP"))
                 || (plop3_sign && seg == "SIGN")
                 || (imma_sel
                     && (seg == "ROW"

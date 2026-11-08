@@ -2434,6 +2434,22 @@ fn format_reg(
         }
     }
 
+    // Measured FMUL2 immediate input shape: bit82 selects scalar .F32;
+    // otherwise the vendor prints the paired HI_LO default for both bit88
+    // values. Bit88 is neutral mask space, not an independent suffix.
+    if ins_key == "FMUL2_R_R_FI" && tok == 2 {
+        opmods.clear();
+        if (raw >> 82) & 1 != 0 {
+            opmods.push("F32".to_string());
+        } else {
+            opmods.push("F32x2".to_string());
+            opmods.push(if (raw >> 81) & 1 != 0 { "LO_HI" } else { "HI_LO" }.to_string());
+        }
+        if (raw >> 83) & 1 != 0 {
+            opmods.push("NP".to_string());
+        }
+    }
+
     // Fallback: when the register is baked into and_base (no variable field),
     // extract it from the raw instruction at the standard bit position.
     if reg.is_none() {
