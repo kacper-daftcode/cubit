@@ -122,7 +122,7 @@ fn pin(o: &Outcome, label: &str, decoded: usize, reencoded: usize, holes_by_opco
 }
 
 /// The GB10 / Spark corpus on sm121a: every one of the 91 927 words decodes (the T-20 regression class), 91 887
-/// re-encode bit for bit (91 910 since T-21 batch 7: the FP32 ALU measured on sm121a gave `FFMA_R_R_R_FI` the `.reuse`
+/// re-encode bit for bit (91 926 since T-22: the UIADD3 `64` groups measured; 91 910 since T-21 batch 7: the FP32 ALU measured on sm121a gave `FFMA_R_R_R_FI` the `.reuse`
 /// field of its second register that the harvest immediate-form row lacked -- 23 words); the 17 that do not are the
 /// harvest `UIADD3_UR_UP_UP_UR_UR_UR` `64` group 16 (its register fields are mis-declared: `-UR6` re-encodes to other
 /// registers; the same form is a hole on sm103a / sm100a, see below) and `HMMA.1688.F32 R8, R6, R4, RZ` 1 (refused
@@ -135,9 +135,11 @@ fn gb10_corpus_sm121a_decodes_and_reencodes() {
     let o = run("sm121a", &words);
     assert!(o.undecoded.is_empty(), "[sm121a] GB10 words without a decode: {} (the 2026-11-06..08 class), the first: {:?}",
             o.undecoded.len(), o.undecoded.iter().take(8).map(|w| format!("{w:032x}")).collect::<Vec<_>>());
-    // T-21 batch 7 (2026-11-08): the FP32 ALU measured on sm121a -- the 23 FFMA words re-encode bit for bit (91 887 -> 91 910)
-    pin(&o, "sm121a GB10", 91927, 91910, &[],
-        &[("UIADD3_UR_UP_UP_UR_UR_UR", 16)], &[("BUG-037", 1)]);
+    // T-21 batch 7 (2026-11-08): the FP32 ALU measured on sm121a -- the 23 FFMA words re-encode bit for bit (91 887 -> 91 910);
+    // T-22 (2026-11-08): the UIADD3 `64` groups measured on -b SM121 (sm120's rows with the corpus words as witnesses) -- the
+    // 16 words of the mis-declared harvest group re-encode (91 910 -> 91 926); the one left is BUG-037's refusal
+    pin(&o, "sm121a GB10", 91927, 91926, &[],
+        &[], &[("BUG-037", 1)]);
 }
 
 /// The B300 publish corpus, sm103a half (177 cubins, 3 962 distinct words). The residue at the T-21 batch-4 tables:
@@ -155,17 +157,19 @@ fn b300_corpus_sm103a_strict() {
     assert_eq!(words.len(), 3962, "the B300 sm103a corpus fixture");
     let o = run("sm103a", &words);
     // T-21 batch 7 (2026-11-08): the conversions and the FP32 ALU measured on sm103a -- the I2F.U16 x 2 and FMUL.RZ x 1 holes
-    // are closed (3 947 -> 3 950 decoded, 3 930 -> 3 933 bit-exact); the UIADD3.64 and MOV holes remain
-    pin(&o, "sm103a B300", 3950, 3933, &[(0x297, 3), (0x802, 3), (0x897, 6)],
+    // are closed (3 947 -> 3 950 decoded, 3 930 -> 3 933 bit-exact); T-22 (2026-11-08): the UIADD3 `64` groups measured on
+    // -b SM103 (sm120's rows, the 9 corpus words as witnesses) -- 3 959 decoded, 3 942 bit-exact; the 3 MOV probe-cubin words remain
+    pin(&o, "sm103a B300", 3959, 3942, &[(0x802, 3)],
         &[("RET_R_II", 6), ("UMOV_UR_II", 2)], &[("BUG-080", 9)]);
 }
 
-/// The B300 publish corpus, sm100a half (151 `cub_100a` cubins, 1 116 distinct words): 3 `UIADD3.64` UR-form words
-/// without a decode (the same hole as on sm103a), 3 `RET.REL.NODEC` words of the isolated-word artefact.
+/// The B300 publish corpus, sm100a half (151 `cub_100a` cubins, 1 116 distinct words): every word decodes since T-22 (the
+/// 3 `UIADD3.64` UR-form words were the last hole), 3 `RET.REL.NODEC` words of the isolated-word artefact re-encode to other bits.
 #[test]
 fn b300_corpus_sm100a_strict() {
     let words = read_words("tests/fixtures/corpus_b300_sm100a.jsonl");
     assert_eq!(words.len(), 1116, "the B300 sm100a corpus fixture");
     let o = run("sm100a", &words);
-    pin(&o, "sm100a B300", 1113, 1110, &[(0x297, 3)], &[("RET_R_II", 3)], &[]);
+    // T-22 (2026-11-08): the UIADD3 `64` groups measured on -b SM100 -- the 3 UR-form words decode and re-encode (1 116 / 1 113)
+    pin(&o, "sm100a B300", 1116, 1113, &[], &[("RET_R_II", 3)], &[]);
 }
