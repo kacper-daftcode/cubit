@@ -311,7 +311,8 @@ fn parse_address(s: &str) -> Option<Operand> {
 /// Opcodes whose immediate operands are float values.
 const FLOAT_OPCODES: &[&str] = &[
     "UFFMA", "UFADD", "UFMUL", "UFMNMX", "UFSEL",
-    "FADD", "FMUL", "FFMA", "FSEL", "FMNMX", "FSET", "FSETP",
+    "FADD", "FMUL", "FFMA", "FFMA2", "FSEL", "FMNMX", "FSET", "FSETP",
+    // Production FFMA2_R_R_FI_R carries its FP32 immediate at bits[63:32].
     // UFSETP is the uniform-datapath FSETP: its immediate compare value is an
     // f32 (corpus bakes 1.0 as 0x3f800000 at bits[63:32]; nvdisasm prints "1").
     // Without float context the textual `1` parsed to Imm32(1) and silently

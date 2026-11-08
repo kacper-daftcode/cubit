@@ -2422,7 +2422,28 @@ fn format_reg(
                 }
             }
             4 => {
-                if ur_form {
+                if ins_key == "FFMA2_R_R_FI_R" {
+                    // Measured immediate-B form carries explicit Rc shape
+                    // fields: F32@85, LO_HI@84 and NP@86. The inherited
+                    // R-form default would incorrectly force F32x2.HI_LO.
+                    opmods.clear();
+                    if (raw >> 85) & 1 != 0 {
+                        opmods.push("F32".to_string());
+                    } else {
+                        opmods.push("F32x2".to_string());
+                        opmods.push(
+                            if (raw >> 84) & 1 != 0 {
+                                "LO_HI"
+                            } else {
+                                "HI_LO"
+                            }
+                            .to_string(),
+                        );
+                    }
+                    if (raw >> 86) & 1 != 0 {
+                        opmods.push("NP".to_string());
+                    }
+                } else if ur_form {
                     // UR-form t4 = .F32 always (corpus 512/512 + graft corners)
                     opmods.push("F32".to_string());
                 } else {
