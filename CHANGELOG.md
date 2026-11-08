@@ -4,6 +4,23 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-08 (session T-18 batch 2: the exceptions phase — 32 whole-key twins retired as aliases)
+
+- **Tables vendored from blackwell-isa `7f12b68`** (sm120 1 015 forms / 38 866 variants, from 1 047 / 38 898 at `fd736a7`).
+  KNOWN_ISSUES T1: **38 866 rows, 38 755 with `_src` — 111 harvest rows left** (143 at `fd736a7`). The key-naming decisions
+  of G's NEEDS 10–12, decided by the table's existing convention "aliases for twins": 32 harvest keys whose name does not
+  spell the vendor text of their own canonical word, each a whole-key twin — the single group's canonical word decodes
+  through an existing family key with the vendor's exact text and re-encodes bit for bit, 0 census witnesses — retired as
+  `_meta.key_aliases` forwarding to the real key (ATOMG.E.{MAX.S32,MIN}.STRONG.GPU_P_R_dARI_UR → ATOMG_P_R_dARI_R; the
+  BSSY / BMOV / BREAK / CCTL.IVALL / PREEXIT / CS2R / S2UR control & sysreg mis-keys; the five IADD3 immediate mis-keys;
+  the five LOP3.LUT_*_II_II → LOP3_*_II_P; VIMNMX.S32 / VIMNMX.U32_R_R_II_II; the UIADD3 / ULOP3.LUT / UPRMT / USEL /
+  UVIMNMX uniform mis-keys). Kept as named exceptions (owner decision, the project models them deliberately with
+  dedicated tests): IADD.X_R_P_R_R_R (bug089/012), IADD3.X_R_P_P_R_II_R_P_P (bug089), UBLKPF.L2_AUR_UR (sm120_ublkpf_l2);
+  and the four mixed keys F2FP_R_R / FLO_R_UR / WARPSYNC / WARPSYNC_R (a live or non-aliasable group among theirs).
+  The five family tests regenerated (the 32 move from EXCEPTIONS to ALIAS_KEYS); era-keys alias count 14 874 → 14 906;
+  the claim_forbid census pins of bug459a / 461 / 462 / 463 / 476 re-pinned 11 001 → 10 999. Whole-census parity batch 1
+  → batch 2 (249 929 words): 0 text / re-encode / key moves. Suite 496 binaries 2 799 / 0 / 9.
+
 ## Unreleased — 2026-11-08 (session T-18: the 192 wave-pinned rows take their measured status; the 2026-08/09 bug-wave suites re-pinned to the measured doctrine)
 
 - **Tables vendored from blackwell-isa `fd736a7`** (sm120 1 047 forms / 38 898 variants, from 1 083 / 38 966 at `37d030f`; sm103a /
