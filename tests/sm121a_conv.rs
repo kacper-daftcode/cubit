@@ -15,7 +15,8 @@ const CTRL: u128 = 0x000f_e200u128 << 96;
 const PREFIXES: [&str; 4] = ["F2I_", "I2F_", "FRND_", "MUFU_"];
 /// (table, fixture, the family's retired keys that are `_meta.key_aliases` on that table)
 const TABLES: [(&str, &str, usize); 1] = [
-    ("tables/sm121a.json", include_str!("fixtures/sm121a_conv_nvdisasm.jsonl"), 249),
+    // 249 retired by batch 7 + MUFU_R_L (T-22, NEEDS 59: the label-typed junk key, a whole-key twin of the measured MUFU_R_R)
+    ("tables/sm121a.json", include_str!("fixtures/sm121a_conv_nvdisasm.jsonl"), 250),
 ];
 const FORM_WORDS: usize = 2494;
 const GLYPH_WORDS: usize = 18;
