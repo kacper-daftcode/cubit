@@ -75,15 +75,14 @@ fn t254_1_structure() {
         3,
         "sm121a DSETP key inventory drifted: {keys:?}"
     );
-    for (k, donor_mgs) in [
-        ("DSETP_P_P_R_R_P", 25usize),
-        ("DSETP_P_P_R_UR_P", 16),
-        ("DSETP_P_P_R_FI_P", 14),
-    ] {
+    // Session T-21 (2026-11-08, NEEDS 58): the sm103a / sm100a donors are measured too (`re_sm120_fsetp_dsetp.py --arch
+    // SM103 / SM100`: the same law word for word) -- the 25 / 16 / 14 harvest groups are the full 48 each now, so the
+    // donor and the sm121a table carry the same lattice (tests/sm103a_sm100a_fsetp_dsetp.rs pins the donors' rows).
+    for k in ["DSETP_P_P_R_R_P", "DSETP_P_P_R_UR_P", "DSETP_P_P_R_FI_P"] {
         let row = t.entries.get(k).unwrap_or_else(|| panic!("{k} missing"));
         assert_eq!(row.mod_groups.len(), 48, "{k} mg count (the measured lattice, T-20)");
         let drow = donor.entries.get(k).unwrap();
-        assert_eq!(drow.mod_groups.len(), donor_mgs, "{k}: the sm103a donor's harvest groups (a T1 item of that table)");
+        assert_eq!(drow.mod_groups.len(), 48, "{k}: the sm103a donor's measured lattice (T-21 batch 6)");
         for mg in drow.mod_groups.keys() {
             assert!(row.mod_groups.contains_key(mg), "{k}::{mg}: a donor group outside the measured lattice");
         }
@@ -219,41 +218,42 @@ fn t254_5_sentinels() {
     assert_eq!(encode_instruction(&cubit::parse_cuasm_line(&source, 0).unwrap(), native).unwrap(), w);
     assert!(dec(native, W_A ^ (3u128 << 74)).is_none(), "reserved INVALID3 is unsupported");
     // Session T-20 (2026-11-08): sm121a's DSETP rows are measured (-b SM121, the sm120 law) -- the bit-75 word is
-    // the vendor's `.XOR` there too and the INVALID3 word fails closed, exactly as on the native sm120 leg. The
-    // two donor tables keep their harvest behaviour (bit 75 read as `.OR` -- vendor-false, a T1 item of sm103a /
-    // sm100a) until their own FSETP / DSETP batch; pinned here so the drift is visible when it goes.
+    // the vendor's `.XOR` there too and the INVALID3 word fails closed, exactly as on the native sm120 leg.
     assert_eq!(x75[3], x75[2], "sm121a decodes the boolean like the measured sm120 rows");
     assert!(dec(&tables[3], W_A ^ (3u128 << 74)).is_none(), "sm121a: reserved INVALID3 fails closed (measured rows)");
+    // Session T-21 (2026-11-08, NEEDS 58): the two donor tables are measured as well (`re_sm120_fsetp_dsetp.py --arch
+    // SM103 / SM100`, nvdisasm 13.1: `DSETP.EQ.XOR` for the bit-75 word on both targets) -- the 2026-08 harvest reading
+    // of bit 75 as `.OR` is gone, and the INVALID3 word fails closed on every table (the decoder's DSETP sign-law arm
+    // covers the four tables since this batch).
     assert_eq!(x75[0], x75[1]);
-    assert_eq!(x75[0], "DSETP.EQ.OR P0, PT, R22, RZ, !P0", "the donors' harvest reading of bit 75 (vendor: XOR)");
-    let inv3: Vec<_> = [0usize, 1].iter().map(|&i| dec(&tables[i], W_A ^ (3u128 << 74)).unwrap()).collect();
-    assert!(inv3.windows(2).all(|w| w[0] == w[1]), "donor inv3 legs diverged: {inv3:?}");
-    // 260-kand sentinel (registered, donor-side, NOT this fix): unfielded
-    // operand-modifier bakes in and_base make the encoder inject modifiers
-    // -- DSETP MG slots {R_R_P: AND,NUM (abs62+abs73), GT,OR (abs73), LE,OR
-    // (abs73), LTU,OR (abs62); R_FI_P: AND,NE (abs73)} on all four arches.
-    // nvdisasm-verified: encode('DSETP.LTU.OR P2, PT, R72, R116, !P4') ->
-    // b62=1 -> vendor prints '|R116|'. Pin the 4-leg uniformity + the exact
-    // mg/word witness; fix = donor-side surgery [sev decision: owner].
+    assert_eq!(x75[0], x75[2], "the donors decode the boolean like the measured sm120 rows (T-21 batch 6)");
+    for i in [0usize, 1] {
+        assert!(dec(&tables[i], W_A ^ (3u128 << 74)).is_none(), "donor {i}: reserved INVALID3 fails closed (measured rows)");
+    }
+    // 260-kand sentinel (2026-08, donor-side): unfielded operand-modifier bakes in and_base made the encoder inject
+    // modifiers -- DSETP MG slots {R_R_P: AND,NUM (abs62+abs73), GT,OR (abs73), LE,OR (abs73), LTU,OR (abs62); R_FI_P:
+    // AND,NE (abs73)}; nvdisasm-verified: encode('DSETP.LTU.OR P2, PT, R72, R116, !P4') -> b62=1 -> vendor printed
+    // '|R116|'. Closed on the donors by T-21 batch 6 (NEEDS 58): the measured rows carry |Rb| / |Ra| as fields, so the
+    // source signs are authored, never injected -- on every table now.
     let q = dec(
         &tables[1],
         enc(&tables[1], "DSETP.LTU.OR P2, PT, R72, R116, !P4"),
     )
     .unwrap();
     assert_eq!(
-        q, "DSETP.LTU.OR P2, PT, R72, |R116|, !P4",
-        "260-kand witness drifted"
+        q, "DSETP.LTU.OR P2, PT, R72, R116, !P4",
+        "the donors' 260-kand bake is gone (T-21 batch 6)"
     );
     assert_eq!(dec(native, enc(native, "DSETP.LTU.OR P2, PT, R72, R116, !P4")).unwrap(),
         "DSETP.LTU.OR P2, PT, R72, R116, !P4", "native source signs must be authored");
     let native_row = native.get("DSETP_P_P_R_R_P", "LTU,OR").unwrap();
     assert_eq!((native_row.and_base >> 62) & 1, 0);
     assert_eq!((native_row.variable_mask >> 62) & 1, 1);
-    // The sm103a donor keeps the 260-kand bake (a T1 item of that table); on sm121a the measured row (T-20,
-    // 2026-11-08) carries `|Rb|` as the field it is -- bit 62 in the mask, not in and_base.
+    // The sm103a donor's measured row (T-21, 2026-11-08) and sm121a's (T-20) carry `|Rb|` as the field it is -- bit 62
+    // in the mask, not in and_base.
     let mg = tables[1].entries.get("DSETP_P_P_R_R_P").unwrap().mod_groups.get("LTU,OR").unwrap();
-    assert_eq!(mg.and_base >> 62 & 1u128, 1u128, "260-kand bake flipped");
-    assert_eq!(mg.variable_mask >> 62 & 1u128, 0u128, "260-kand fielded");
+    assert_eq!(mg.and_base >> 62 & 1u128, 0u128, "sm103a: the measured row bakes no sign (T-21 batch 6)");
+    assert_eq!(mg.variable_mask >> 62 & 1u128, 1u128, "sm103a: |Rb| is a field of the measured row");
     let mg = tables[3].entries.get("DSETP_P_P_R_R_P").unwrap().mod_groups.get("LTU,OR").unwrap();
     assert_eq!(mg.and_base >> 62 & 1u128, 0u128, "sm121a: the measured row bakes no sign");
     assert_eq!(mg.variable_mask >> 62 & 1u128, 1u128, "sm121a: |Rb| is a field of the measured row");

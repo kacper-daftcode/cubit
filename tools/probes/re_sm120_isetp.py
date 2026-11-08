@@ -45,7 +45,8 @@ import nvprobe  # noqa: E402
 PROVENANCE = "isetp-family-2026-11-06"
 DSV41 = "dsv41-sm120-2026-10-22"
 CTRL = 0x000f_e200 << 96
-TABLE_OF = {"SM120": "sm120", "SM103": "sm103a", "SM100": "sm100a"}
+TABLE_OF = {"SM120": "sm120", "SM103": "sm103a", "SM100": "sm100a", "SM121": "sm121a"}
+WIDTH64_ARCHES = ("SM120", "SM121")  # bit 80 renders .S64 / .U64 here; text-inert on SM103 / SM100 (NEEDS 46)
 CMP = ["F", "LT", "EQ", "LE", "GT", "NE", "GE", "T"]
 BOOL = ["AND", "OR", "XOR"]
 # key stem -> (opcode, frame bit 91, b operand kind, uniform datapath)
@@ -92,7 +93,7 @@ def expected_text(w: int, arch: str = "SM120") -> str | None:
     u = "U" if uniform else ""
     g = "" if guard == 7 else f"@{pred(guard & 7, guard >> 3, uniform)} "
     bool_ = (w >> 74) & 3
-    ty = TYPES[((w >> 73) & 1, (w >> 80) & 1 if arch == "SM120" else 0)]
+    ty = TYPES[((w >> 73) & 1, (w >> 80) & 1 if arch in WIDTH64_ARCHES else 0)]
     ex = (w >> 72) & 1
     mn = f"{u}ISETP.{CMP[(w >> 76) & 7]}" + (f".{ty}" if ty else "") + "." + (BOOL + ["INVALID3"])[bool_] + (".EX" if ex else "")
     reg = lambda n, ur: ("URZ" if n == 255 else f"UR{n}") if ur else ("RZ" if n == 255 else f"R{n}")  # noqa: E731
@@ -175,12 +176,46 @@ def lattice_ok(w, t, arch="SM120"):
     return t == expected_text(canon, arch)
 
 
-def probe(nvdisasm, arch, out, jobs):
+def witness_words(corpus: pathlib.Path) -> list[int]:
+    """T-21: the ISETP / UISETP words of a census corpus (`{"hex", "sass"}` lines; the GB10 corpus of sm121a), with their
+    own control codes, distinct, sorted."""
+    import json
+    import re
+    out = set()
+    for line in corpus.read_text().splitlines():
+        if not line.strip():
+            continue
+        r = json.loads(line)
+        w = int(r["hex"], 16)
+        if stem_of(w) is not None and re.match(r"^(@!?U?P[T\d] )?U?ISETP\b", r["sass"]):
+            out.add(w)
+    return sorted(out)
+
+
+def probe(nvdisasm, arch, out, jobs, witnesses=None):
     rows = nvprobe.probe_words(nvdisasm, "isetp", sweep_words(), CTRL, check_form=lambda w, t: t == expected_text(w, arch),
                                check_lattice=lambda w, t: lattice_ok(w, t, arch), arch=arch, jobs=jobs)
+    if arch not in WIDTH64_ARCHES:
+        # SM103 / SM100 (NEEDS 46): bit 80 is text-inert -- the sweep's 64-bit words print the 32-bit text; they are a
+        # lattice plane of this target (the measured rows fail closed on the bit), not form words
+        for row in rows:
+            if not row.get("lattice") and (int(row["word"], 16) >> 80) & 1:
+                row["lattice"] = True
+                row["bit80_inert"] = True
+    n_wit = 0
+    if witnesses is not None:
+        # T-21 (2026-11-08): the census words of the table's own corpus, each with its own control code, checked against
+        # the law like a form word (expected_text reads the word's .reuse bits)
+        wit = witness_words(witnesses)
+        wrows = nvprobe.probe_words(nvdisasm, "isetp_wit", [(w, False) for w in wit], 0, check_form=lambda w, t: t == expected_text(w, arch),
+                                    arch=arch, jobs=jobs)
+        for row in wrows:
+            row["witness"] = True
+        rows += wrows
+        n_wit = len(wrows)
     nvprobe.write_fixture(out, rows)
-    n_form = sum(1 for r in rows if not r.get("lattice"))
-    print(f"{out}: {n_form} form words, {len(rows) - n_form} lattice words ({arch})")
+    n_form = sum(1 for r in rows if not r.get("lattice") and not r.get("witness"))
+    print(f"{out}: {n_form} form words, {len(rows) - n_form - n_wit} lattice words, {n_wit} witness words ({arch})")
 
 
 NOTE = ("ISETP / UISETP measured with nvdisasm 13.1 (-b SM120 = SM103 = SM100), tools/probes/re_sm120_isetp.py (session G, "
@@ -191,7 +226,12 @@ NOTE = ("ISETP / UISETP measured with nvdisasm 13.1 (-b SM120 = SM103 = SM100), 
         "(ISETP; UISETP has none). [23:16], the unused part of [67:40], 79 and [95:92] text-inert and fail closed.")
 
 
-def measured_row(stem, cmp, bool_, signed, w64, ex, src=PROVENANCE):
+def arch_of_table(path: pathlib.Path) -> str:
+    """The nvdisasm target of a table file (sm120.json -> SM120, sm121a.json -> SM121, sm103a.json -> SM103, ...)."""
+    return next((a for a, t in TABLE_OF.items() if path.name.startswith(t)), "SM120")
+
+
+def measured_row(stem, cmp, bool_, signed, w64, ex, src=PROVENANCE, note=NOTE):
     _, _, bkind, uniform = FORMS[stem]
     p, n = ("upred", "inv") if uniform else ("pred", "neg")
     r = "ureg" if uniform else "reg"
@@ -207,7 +247,7 @@ def measured_row(stem, cmp, bool_, signed, w64, ex, src=PROVENANCE):
     if ex:
         fields += [nvprobe.field(68, 3, p, 6, src), nvprobe.field(71, 1, n, 6, src)]
     base = word(stem, cmp, bool_, signed, w64, ex, guard=0, pd0=0, pd1=0, a=0, b=0, pc=0, pex=0 if ex else 7)
-    return nvprobe.row(base, fields, src, NOTE)
+    return nvprobe.row(base, fields, src, note)
 
 
 def group_name(cmp, bool_, signed, w64, ex):
@@ -225,19 +265,35 @@ def apply(table_path):
     path = pathlib.Path(table_path)
     table = nvprobe.load_table(path)
     ins = table["instructions"]
-    stats = {"rewritten": 0, "added": 0, "kept_dsv41": 0}
+    arch = arch_of_table(path)
+    width64 = arch in WIDTH64_ARCHES
+    # sm121a / sm103a / sm100a (session T-21, 2026-11-08): the same law, measured on the table's own target -- the rows say so;
+    # on SM103 / SM100 bit 80 is text-inert (NEEDS 46: no 64-bit compare there), so the lattice has two types and the rows
+    # fail closed on the bit
+    if arch == "SM120":
+        note = NOTE
+    elif width64:
+        note = NOTE.replace("(-b SM120 = SM103 = SM100)", f"(-b {arch}; the SM120 law of 2026-11-06 holds word for word, the 64-bit compare included -- session T-21, 2026-11-08, on the {TABLE_OF[arch]} table)")
+    else:
+        note = NOTE.replace("(-b SM120 = SM103 = SM100)", f"(-b {arch}; the SM120 law of 2026-11-06 holds word for word EXCEPT bit 80: no 64-bit compare on this target, the bit is text-inert and the measured rows fail closed on it -- NEEDS 46; session T-21, 2026-11-08, on the {TABLE_OF[arch]} table)")
+    types = [(s_, w) for s_, w in TYPES if width64 or w == 0]
+    stats = {"rewritten": 0, "added": 0, "kept_dsv41": 0, "retired_groups": 0}
+    retired_groups = []
+    template = ins[next(k for k in FORMS if k in ins)]
     for stem in FORMS:
         for ex in (0, 1):
             key = ex_key(stem) if ex else stem
-            old = ins[key]
-            entry = {k: v for k, v in old.items() if k in ("base_op", "ctrl_class", "mercury", "operand_sig", "scheduling")}
+            old = ins.get(key)
+            entry = {k: v for k, v in (old or template).items() if k in ("base_op", "ctrl_class", "mercury", "operand_sig", "scheduling")}
+            entry["base_op"], entry["operand_sig"] = key.split("_", 1)
+            old_groups = old["mod_groups"] if old else {}
             groups = {}
             for cmp in range(8):
                 for bool_ in range(3):
-                    for signed, w64 in TYPES:
+                    for signed, w64 in types:
                         name = group_name(cmp, bool_, signed, w64, ex)
-                        row = measured_row(stem, cmp, bool_, signed, w64, ex)
-                        prev = old["mod_groups"].get(name)
+                        row = measured_row(stem, cmp, bool_, signed, w64, ex, note=note)
+                        prev = old_groups.get(name)
                         if prev is None:
                             stats["added"] += 1
                         elif prev.get("_src") == DSV41 and same_row(prev, row):
@@ -246,22 +302,55 @@ def apply(table_path):
                         else:
                             stats["rewritten"] += 1
                         groups[name] = row
-            for name, g in old["mod_groups"].items():
+            for name, g in old_groups.items():
                 if name not in groups:
-                    assert name == "" and g.get("encode_only"), f"{key}: unexpected harvest group {name!r}"
-                    groups[name] = g  # the BUG-092 retention row
+                    if name == "" and g.get("encode_only"):
+                        groups[name] = g  # the BUG-092 retention row
+                        continue
+                    # outside the measured lattice: the INVALID3 boolean groups of the sm121a harvest (nvdisasm's own
+                    # invalid glyph, a lattice plane) and the .S64 / .U64 phantom groups of sm103a / sm100a (NEEDS 46:
+                    # bit 80 is text-inert there -- their canonical words print the U32 text, and no compiler word of
+                    # 2 145 B300 cubins sets the bit); 0 corpus witnesses either way -> retired with the key's rewrite
+                    assert "INVALID3" in name or (not width64 and ("S64" in name or "U64" in name)), f"{key}: unexpected harvest group {name!r}"
+                    retired_groups.append(f"{key}::{name}")
+                    stats["retired_groups"] += 1
             entry["mod_groups"] = groups
             entry["_src"] = PROVENANCE
             ins[key] = entry
+    # the dotted one-group harvest keys (sm121a: 146 keys `[U]ISETP.<cmp>[.type].<bool>_<sig>`, census-bearing) -> aliases of
+    # the plain key of their form (the and_base names the opcode / frame / .EX bit; mis-tokenised signatures included)
+    aliases = table["_meta"].setdefault("key_aliases", {})
+    retired = []
+    for k in list(ins):
+        if not (k.startswith("ISETP.") or k.startswith("UISETP.")):
+            continue
+        groups_ = ins[k].get("mod_groups", {})
+        assert len(groups_) == 1, f"{k}: {len(groups_)} groups"
+        (g,) = groups_.values()
+        w = int(g["and_base"], 16)
+        stem = stem_of(w)
+        assert stem is not None, f"{k}: and_base on no ISETP form"
+        target = ex_key(stem) if (w >> 72) & 1 else stem
+        toks = sorted(k.split("_")[0].split(".")[1:])
+        if not width64:
+            toks = [t for t in toks if t not in ("S64", "U64")]
+        name = ",".join(toks)
+        assert name in ins[target]["mod_groups"], f"{k}: the tokens {toks} name no measured group of {target}"
+        del ins[k]
+        aliases[k] = target
+        retired.append(k)
     prov = table["_meta"]["provenance"]
     rows = [g for e in ins.values() for g in e.get("mod_groups", {}).values()]
     prov["rows_total"] = len(rows)
     prov["rows_without_src"] = sum(1 for g in rows if g.get("_src") is None)
+    test = {"SM120": "tests/sm120_isetp.rs", "SM121": "tests/sm121a_isetp.rs"}.get(arch, "tests/sm103a_sm100a_isetp.rs")
     prov["sources"][PROVENANCE] = {"rows": sum(1 for g in rows if g.get("_src") == PROVENANCE),
-                                   "kind": "nvdisasm 13.1 field probe (-b SM120 / SM103 / SM100)", "date": "2026-11-06",
-                                   "tool": "tools/probes/re_sm120_isetp.py", "test": "tests/sm120_isetp.rs"}
+                                   "kind": "nvdisasm 13.1 field probe (-b SM120 / SM103 / SM100 / SM121)", "date": "2026-11-06" if arch == "SM120" else "2026-11-08",
+                                   "tool": "tools/probes/re_sm120_isetp.py", "test": test}
     nvprobe.save_table(path, table)
-    print(f"{path}: ISETP / UISETP rows rewritten {stats['rewritten']}, added {stats['added']}, dsv41 rows kept {stats['kept_dsv41']}")
+    print(f"{path}: ISETP / UISETP rows rewritten {stats['rewritten']}, added {stats['added']}, dsv41 rows kept {stats['kept_dsv41']}, "
+          f"harvest groups outside the lattice retired {stats['retired_groups']} ({retired_groups[:3]} ...); "
+          f"{len(retired)} dotted keys retired as aliases")
 
 
 def main():
@@ -272,12 +361,13 @@ def main():
     p.add_argument("--arch", default="SM120", choices=sorted(TABLE_OF))
     p.add_argument("--out", type=pathlib.Path, default=None)
     p.add_argument("--jobs", type=int, default=1)
+    p.add_argument("--witnesses", type=pathlib.Path, default=None, help="a census corpus ({hex, sass} lines): its ISETP / UISETP words become witness rows")
     a = sub.add_parser("apply")
     a.add_argument("table")
     args = parser.parse_args()
     if args.command == "probe":
         out = args.out or nvprobe.FIXTURES / f"{TABLE_OF[args.arch]}_isetp_nvdisasm.jsonl"
-        probe(args.nvdisasm, args.arch, out, args.jobs)
+        probe(args.nvdisasm, args.arch, out, args.jobs, args.witnesses)
     else:
         apply(args.table)
 

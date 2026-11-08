@@ -106,8 +106,12 @@ fn t139_2_narrow_guard_field_fails_closed() {
 fn t139_3_legacy_payloads_byte_exact() {
     let t = t103();
     // PLOP3 lattice imm split: imm[0:3)@64 + imm_shr3[3:8)@72 carries 0x80.
+    // 2026-11-08 (T-21 batch 6, `tools/probes/re_sm120_plop3_p2r_r2p.py --arch SM103`, nvdisasm 13.1): the 2026-08 pins
+    // captured the words the harvest `PLOP3_P_P_P_P_P_II_II` row minted -- its 4-bit "pred" field at bit 2 wrote P4 into
+    // the opcode nibble, so the "PLOP3" word was 0x...7804 = `R2P PR, R0.B3, 0x0` for nvdisasm. The measured row puts P4 at
+    // [70:68] and the word is the vendor's `PLOP3.LUT P0, P1, P2, P3, P4, 0x80, 0x8` (opcode 0x81c); re-pinned to it.
     assert_eq!(enc_clean(&t, "PLOP3.LUT P0, P1, P2, P3, P4, 0x80, 0x8 ;"),
-        0x00000000017070400000000000087804u128);
+        0x0000000001107040000000000008781cu128);
     // Two's-complement negative immediate.
     assert_eq!(enc_clean(&t, "IADD3 R0, PT, PT, R1, -0x1, R2 ;"),
         0x0000000007ffe002ffffffff01007810u128);

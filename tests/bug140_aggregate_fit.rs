@@ -69,10 +69,14 @@ fn graft_bits(key: &str, mods: &str, extraction: &str, token_idx: i64, bits: u32
 fn t140_1_covered_classes_byte_exact() {
     let t = t103();
     // (a) split-window lattice imm: 0xFE = imm[0:3)@64 + imm_shr3[3:8)@72.
+    // 2026-11-08 (T-21 batch 6, `tools/probes/re_sm120_plop3_p2r_r2p.py --arch SM103`, nvdisasm 13.1): the 2026-08 pins
+    // captured the words the harvest `PLOP3_P_P_P_P_P_II_II` row minted -- its 4-bit "pred" field at bit 2 wrote P4 into
+    // the opcode nibble, so the "PLOP3" word was 0x...7804 = `R2P PR, R0.B3, 0x0` for nvdisasm. The measured row puts P4 at
+    // [70:68] and the word is the vendor's `PLOP3.LUT P0, P1, P2, P3, P4, 0x80, 0x8` (opcode 0x81c); re-pinned to it.
     assert_eq!(enc_clean(&t, "PLOP3.LUT P0, P1, P2, P3, P4, 0xFE, 0x8 ;"),
-        0x0000000001707f460000000000087804u128);
+        0x0000000001107f46000000000008781cu128);
     assert_eq!(enc_clean(&t, "PLOP3.LUT P0, P1, P2, P3, P4, 0x6, 0x8 ;"),
-        0x00000000017060460000000000087804u128);
+        0x0000000001106046000000000008781cu128);
     // (d) DEPBAR.LE count enum 0x9 in the shipped 6-bit window, and 0x3f.
     assert_eq!(enc_clean(&t, "DEPBAR.LE 0x0, 0x9 ;"),
         0x0000000000000000000082400000791au128);
@@ -123,7 +127,7 @@ fn t140_2_split_window_member_removed_bails() {
     // Bits that DO live in the remaining [0:3) window still encode (the ctl
     // payload on the same grafted row):
     assert_eq!(enc_clean(&g, "PLOP3.LUT P0, P1, P2, P3, P4, 0x6, 0x8 ;"),
-        0x00000000017060460000000000087804u128);
+        0x0000000001106046000000000008781cu128); // the measured row's word (T-21 batch 6, see t140_1)
 }
 
 // ---------------------------------------------------------------------------

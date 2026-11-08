@@ -39,7 +39,7 @@ import nvprobe  # noqa: E402
 
 PROVENANCE = "plop3-p2r-r2p-family-2026-11-06"
 CTRL = 0x000f_e200 << 96
-TABLE_OF = {"SM120": "sm120", "SM103": "sm103a", "SM100": "sm100a"}
+TABLE_OF = {"SM120": "sm120", "SM103": "sm103a", "SM100": "sm100a", "SM121": "sm121a"}
 BSEL = {0: "", 1: ".B1", 2: ".B2", 3: ".B3"}
 RETIRED = {"PLOP3.LUT_P_P_P_P_P_II_II": "PLOP3_P_P_P_P_P_II_II",
            "P2R.B1_R_R_R_II": "P2R_R_II_R_II", "P2R_R_L_R_II": "P2R_R_II_R_II", "P2R_R_R_R_II": "P2R_R_II_R_II",
@@ -199,7 +199,9 @@ def apply(table_path):
         old = ins.get(key) or ins["R2P_II_R_II"]  # R2P_II_R is new: the entry attributes of its 3-operand twin
         entry = {k: v for k, v in old.items() if k in ("base_op", "ctrl_class", "mercury", "operand_sig", "scheduling")}
         if key in ins:
-            assert set(groups) == set(old["mod_groups"]), f"{key}: {set(old['mod_groups'])}"
+            # sm120 (2026-11-06): the harvest had exactly the measured groups; sm103a / sm100a / sm121a (T-21, 2026-11-08):
+            # a subset (P2R without the .B2 / .B3 selectors), never a group outside the lattice
+            assert set(old["mod_groups"]) <= set(groups), f"{key}: harvest groups outside the lattice: {set(old['mod_groups']) - set(groups)}"
         else:
             entry["operand_sig"] = "II_R"
             entry["encode_only"] = True
@@ -221,8 +223,15 @@ def apply(table_path):
     all_rows = [g for e in ins.values() for g in e.get("mod_groups", {}).values()]
     prov["rows_total"] = len(all_rows)
     prov["rows_without_src"] = sum(1 for g in all_rows if g.get("_src") is None)
-    prov["sources"][PROVENANCE] = {"rows": n_rows, "kind": "nvdisasm 13.1 field probe (-b SM120 / SM103 / SM100)", "date": "2026-11-06",
-                                   "tool": "tools/probes/re_sm120_plop3_p2r_r2p.py", "test": "tests/sm120_plop3_p2r_r2p.rs"}
+    arch = next((a for a, t in TABLE_OF.items() if path.name.startswith(t)), "SM120")
+    # T-21 (2026-11-08): sm103a / sm100a / sm121a -- the same law measured on the table's own target (the probe run with
+    # --arch SM103 / SM100 / SM121 asserts it word by word). The sm103a / sm100a harvest PLOP3_P_P_P_P_P_II_II row carried a
+    # 4-bit "pred" field at bit 2 -- inside the opcode nibble -- and claimed every word of opcodes 0x80c..0x83c that fit
+    # its remaining bits (the bit-80 ISETP immediate words of NEEDS 46 decoded as `PLOP3.LUT P0, P3, PT, !P0, ...`).
+    prov["sources"][PROVENANCE] = {"rows": n_rows, "kind": "nvdisasm 13.1 field probe (-b SM120 / SM103 / SM100 / SM121)",
+                                   "date": "2026-11-06" if arch == "SM120" else "2026-11-08",
+                                   "tool": "tools/probes/re_sm120_plop3_p2r_r2p.py",
+                                   "test": {"SM120": "tests/sm120_plop3_p2r_r2p.rs", "SM121": "tests/sm121a_plop3_p2r_r2p.rs"}.get(arch, "tests/sm103a_sm100a_plop3_p2r_r2p.rs")}
     nvprobe.save_table(path, table)
     print(f"{path}: PLOP3 / P2R / R2P rows rewritten {n_rows}; keys retired as aliases: {retired}")
 

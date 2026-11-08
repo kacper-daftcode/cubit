@@ -367,11 +367,17 @@ def apply(table_path):
     prov["rows_total"] = len(rows)
     prov["rows_without_src"] = sum(1 for g in rows if g.get("_src") is None)
     sm121a = path.name.startswith("sm121a")
+    b300 = path.name.startswith("sm103a") or path.name.startswith("sm100a")
+    # T-21 (2026-11-08): sm103a / sm100a -- the same law measured on -b SM103 / SM100 (G's 2026-11-06 sweep recorded it; the
+    # probe runs with --arch SM103 / SM100 assert it word by word); the donors' harvest reading of bit 75 as `.OR` and the
+    # baked `|Rb|` of `DSETP LTU,OR` (NEEDS 58) go with the rewrite
     prov["sources"][PROVENANCE] = {"rows": sum(1 for g in rows if g.get("_src") == PROVENANCE),
                                    "kind": "nvdisasm 13.1 field probe (-b SM121; the sm120 law of 2026-11-06 holds word for word)" if sm121a
+                                   else "nvdisasm 13.1 field probe (-b SM103 / SM100; the sm120 law of 2026-11-06 holds word for word)" if b300
                                    else "nvdisasm 13.1 field probe (-b SM120 / SM103 / SM100)",
-                                   "date": "2026-11-08" if sm121a else "2026-11-06",
-                                   "tool": "tools/probes/re_sm120_fsetp_dsetp.py", "test": f"tests/{'sm121a' if sm121a else 'sm120'}_fsetp_dsetp.rs"}
+                                   "date": "2026-11-08" if (sm121a or b300) else "2026-11-06",
+                                   "tool": "tools/probes/re_sm120_fsetp_dsetp.py",
+                                   "test": "tests/sm121a_fsetp_dsetp.rs" if sm121a else "tests/sm103a_sm100a_fsetp_dsetp.rs" if b300 else "tests/sm120_fsetp_dsetp.rs"}
     nvprobe.save_table(path, table)
     print(f"{path}: FSETP / DSETP rows rewritten {rewritten}, groups added {added}; {len(deleted)} keys deleted (the dotted encode-only twins + "
           f"FSETP_P_P_L_L_P); {len(retired)} keys retired as aliases: {retired if len(retired) < 15 else str(len(retired)) + ' (dotted harvest keys + the junk keys)'}")
