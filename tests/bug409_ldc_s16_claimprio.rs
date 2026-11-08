@@ -194,7 +194,7 @@ fn t409_4_mint_circle_inert_drop() {
 #[test]
 fn t409_5_graft_hygiene_source_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "4f722453423db7d90a9d0f47cc4aff0f0ae58ac7" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "05b69e5cd19ab80f6cac0014fc171b5c170d7d72" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
 
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
