@@ -4,6 +4,51 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-07 (session T-17, gate 1: the T1 production line's run 5 — the long tail verified row by row by session G, batch 16)
+
+- **Tables vendored from blackwell-isa `6b41208`** (sm120 1 083 forms / 38 966 variants, from 1 231 / 39 125; sm103a / sm100a /
+  sm121a unchanged at `b214b0e`). KNOWN_ISSUES T1: **38 966 rows, 38 662 with `_src` — 304 harvest rows left** (1 034 at `3dde6e1`;
+  18 841 of 26 598 on 2026-11-06): 192 of them verify field by field (their records are in the fixtures) but stay harvest until the
+  2026-08/09 bug-wave suites that pin the tolerant decode of their text-inert bits (46 binaries, 67 tests) are re-pinned to the measured
+  doctrine — the next T batch; the other 112 are the long tail's named remainder (the `EXCEPTIONS` of `tests/sm120_rows_<family>.rs`,
+  G's NEEDS 10–12). Session G's run-5 batch 16, re-measured by T-17 (`T/t17/review/b16`, `b16b`): all 101 393 distinct words of the six
+  fixtures (the canonical word and the single-bit flips of every row with their recorded texts or rejections, the 512 census witnesses)
+  re-rendered with nvdisasm 13.1 on SM120; the whole production census (249 929 distinct words) decodes to the same display text,
+  lossless text and re-encode verdict before and after — the one key move is the 272 census words of the retired integer-spelling twin
+  `S2R_R_II`, now on their alias target `S2R_R_L` with identical text; the six tests are red on the previous table and green on this one.
+  - **The long tail verified row by row — half-precision, integer ALU, uniform datapath, control, memory, atomics** (G's `2f56ae5`,
+    taken as `6b41208` by G's own `tools/probes/re_sm120_rows.py apply --family {half,intalu,uniform,control,memory,atomic}` run on
+    T's table — the six runs reproduce G's commit byte for byte on G's base, and T's result is exactly T's base + G's delta;
+    `tests/fixtures/sm120_rows_{half,intalu,uniform,control,memory,atomic}_nvdisasm.jsonl`, `tests/sm120_rows_<family>.rs` on the
+    shared body `tests/sm120_rows_common.inc`): the method of batch 15 over the 1 034 remaining harvest rows of 85 mnemonics —
+    **571 rows measured** (`rows-half-2026-11-07` 43, `rows-intalu-…` 164, `rows-uniform-…` 95, `rows-control-…` 13, `rows-memory-…`
+    199, `rows-atomic-…` 57; 237 fields added or retyped from the sweep: undeclared guard / `-X` / `~X` / `|X|` / `!P` / `.reuse` bits,
+    f16 / bf16 immediates the harvest spelled as integers, 4-bit predicate windows split into predicate + negation; `variable_mask` =
+    exactly the field bits, fail closed on the text-inert ones), **148 shadowed twin keys retired as `_meta.key_aliases`** (dotted
+    twins, integer spellings of float-immediate forms, `?` / phantom-token junk, byte-identical rows — every one decoded through its
+    target with the vendor text; 0 census witnesses but the 272 `S2R_R_II` words above, which the target prints identically), **11
+    unreachable rows deleted** (dead rows of staying keys — the six `F2FP_R_R_R_R` junk groups, three `IADD3_R_P_P_R_*_R_P_P`
+    spellings, `IMAD_R_P_R_II_R_P` `B90,U32,WIDE,X`, `WARPSYNC_R_II` — cubit decodes their words elsewhere; 0 census witnesses).
+    **The 304 rows left:** 192 verified field by field but left harvest because the 2026-08/09 bug-wave suites pin the tolerant decode
+    of their text-inert bits (field counts, `variable_mask` equal to a donor's, inert-bit "polygons") — G hands their re-pin to T; the
+    other 112 are named exceptions (G's NEEDS 10–12): 82 keys whose name does not spell the vendor text of their own word (renames or
+    deletions — a key-naming decision), 17 over-wide harvest fields, 15 HADD2 / HFMA2 immediate-pair rows whose bit 85 re-types both
+    immediates, 12 undeclared operand bits, 8 keys whose every canonical word nvdisasm rejects, the PT-elided `IMAD.HI` / `R2UR.FILL`
+    spellings, `WARPSYNC.COLLECTIVE`'s 50-bit immediate. Engine: a row tagged `rows-<family>-…` (`ModGroupEntry::row_probe`) stays on
+    the strict / relaxed decode paths — off the broad match of memory keys and off the priority-3 sign-tolerant fallback (it has a
+    field on every live slot; the batch-14 REDG guard by tag, next to the by-name one, which stays for the `redg-aruri-family` rows);
+    LDGMC / STSM on the fallback's fail-closed list. Printer: `FHADD[.BF16][.RM|.RP|.RZ][.SAT]`, `I2FP.<dst>.<src>[.RZ]`,
+    `LDGMC.E.<op>.<type>[.RN].<strength>.<scope>`. Re-pinned on sm120: era-keys 14 691 → 14 839, the 55 revision / count pins, the
+    `bug400` LDG inert-bit words to the `_P` sibling (the measured plain row fails closed on bits 70 / 71), the claim_forbid census of
+    bug459a / bug461 / bug462 / bug476 11 013 → 11 001 (12 claim_forbid-bearing junk rows gone with the aliases and deletions);
+    `LEFT_TO_OTHER_BATCHES` of the memory / atomic tests 0 on this base (batches 12–14 are here). Of the three F2F harvest rows
+    `F2F.F64.F32_R_R_R` is an alias now and the two typed keys `F2F.BF16.F32_R_R` / `F2F.F16.F32_R_R` verify field by field (pinned by
+    `bug226e`, left for the re-pin batch) — the typed-key convention (D2) is the one the table already carries for F2F; the full
+    type-pair × rounding × FTZ lattice stays a coverage item, not a T1 one.
+- **Docs hygiene after the week (T-17):** README's `sm120.json` row carries the live T1 count and the audit's end state (0 rows;
+  the former `IMMA.SF` hypothesis is the measured `QMMA.SF` MXINT8 variant, T5) instead of the 2026-11-06 figures; KNOWN_ISSUES T1
+  carries batch 16 and the 304-row inventory.
+
 ## Unreleased — 2026-11-07 (session T-16, gate 2: the T1 production line's run 5 — the tensor-core long tail verified row by row by session G)
 
 - **Tables vendored from blackwell-isa `3dde6e1`** (sm120 1 231 forms / 39 125 variants, from 1 309 / 39 203; sm103a / sm100a /
