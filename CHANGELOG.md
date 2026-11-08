@@ -6,7 +6,7 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
 
 ## Unreleased — 2026-11-07 (session T-17, gate 1: the T1 production line's run 5 — the long tail verified row by row by session G, batch 16)
 
-- **Tables vendored from blackwell-isa `6b41208`** (sm120 1 083 forms / 38 966 variants, from 1 231 / 39 125; sm103a / sm100a /
+- **Tables vendored from blackwell-isa `37d030f`** (sm120 1 083 forms / 38 966 variants, from 1 231 / 39 125; sm103a / sm100a /
   sm121a unchanged at `b214b0e`). KNOWN_ISSUES T1: **38 966 rows, 38 662 with `_src` — 304 harvest rows left** (1 034 at `3dde6e1`;
   18 841 of 26 598 on 2026-11-06): 192 of them verify field by field (their records are in the fixtures) but stay harvest until the
   2026-08/09 bug-wave suites that pin the tolerant decode of their text-inert bits (46 binaries, 67 tests) are re-pinned to the measured
@@ -17,7 +17,7 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   lossless text and re-encode verdict before and after — the one key move is the 272 census words of the retired integer-spelling twin
   `S2R_R_II`, now on their alias target `S2R_R_L` with identical text; the six tests are red on the previous table and green on this one.
   - **The long tail verified row by row — half-precision, integer ALU, uniform datapath, control, memory, atomics** (G's `2f56ae5`,
-    taken as `6b41208` by G's own `tools/probes/re_sm120_rows.py apply --family {half,intalu,uniform,control,memory,atomic}` run on
+    taken as `37d030f` by G's own `tools/probes/re_sm120_rows.py apply --family {half,intalu,uniform,control,memory,atomic}` run on
     T's table — the six runs reproduce G's commit byte for byte on G's base, and T's result is exactly T's base + G's delta;
     `tests/fixtures/sm120_rows_{half,intalu,uniform,control,memory,atomic}_nvdisasm.jsonl`, `tests/sm120_rows_<family>.rs` on the
     shared body `tests/sm120_rows_common.inc`): the method of batch 15 over the 1 034 remaining harvest rows of 85 mnemonics —
@@ -45,6 +45,13 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
     `F2F.F64.F32_R_R_R` is an alias now and the two typed keys `F2F.BF16.F32_R_R` / `F2F.F16.F32_R_R` verify field by field (pinned by
     `bug226e`, left for the re-pin batch) — the typed-key convention (D2) is the one the table already carries for F2F; the full
     type-pair × rounding × FTZ lattice stays a coverage item, not a T1 one.
+- **T-17's re-pins for batch 16 on the sm120 leg, and one correction of the batch** (the gate's five red binaries): `bug463`'s
+  claim_forbid census 11 013 → 11 001; `bug442`'s `???0` glyph cell and 97 of `bug443`'s 210 heal cells are holes on sm120 (the
+  measured ordinary-store rows fail closed on their text-inert bits and on the `.64` uniform-indexed form `[R4.64+UR4]`, which has no
+  row of its own — a `STG_ARURI64_R` probe is the fix; the other three legs keep the heal); the `sm120_ldsm8_mt1616` snapshot carries
+  the three measured LDSM rows' form; and **the row probe's manual IMAD `-Ra` law at bit 72 (BUG-296) is withdrawn from the 12 IMAD HI
+  rows** (blackwell-isa `37d030f`): the HI packet's bit 72 is not a negation — cubit's `native_hi` law and `tests/sm120_oracle_semantics.rs`
+  (NVIDIA-confirmed inert) — so `IMAD.HI.U32.X R31, -R45, …` is refused again; the rows stay measured.
 - **Docs hygiene after the week (T-17):** README's `sm120.json` row carries the live T1 count and the audit's end state (0 rows;
   the former `IMMA.SF` hypothesis is the measured `QMMA.SF` MXINT8 variant, T5) instead of the 2026-11-06 figures; KNOWN_ISSUES T1
   carries batch 16 and the 304-row inventory.
