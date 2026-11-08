@@ -153,9 +153,28 @@ fn t296_5_encoder_decoder_parity_note() {
         assert!(e1.contains("BUG-281"), "{leg}: I2I arm regressed: {e1}");
         let e2 = enc_res(&t, "I2IP.U8.S32 R5, -R4, R3, R2").expect_err("I2IP signed");
         assert!(e2.contains("BUG-296"), "{leg}: I2IP arm regressed: {e2}");
-        // non-armed ALU control keeps its real neg/abs law (IMAD b72 = true neg)
-        let w = enc_res(&t, "IMAD R5, -R4, R3, R2").expect("IMAD signed");
-        let d = dec(&t, w).expect("IMAD decodes");
-        assert_eq!(d, "IMAD R5, -R4, R3, R2", "{leg}: IMAD sign law regressed");
+        // The IMAD control. Until session T-20 (2026-11-08) this leg pinned `IMAD R5, -R4, R3, R2` as a round
+        // trip through bit 72 (cubit's `-Ra` reading, BUG-296 / T-3). The silicon measurement of NEEDS 53
+        // (T-19, test host GPU 0, `pt-needs53`: plain `IMAD` and the same word with bit 72 set both compute
+        // a*b+c; the `-Rc` control at bit 75 computes a*b-c; nvdisasm 13.1 prints nothing for bit 72 on any
+        // IMAD form on the four targets) retired that reading on sm120: the measured rows fail closed on bit 72
+        // and the encoder refuses the sign instead of minting an inert bit. `-Rc` is the only encodable sign.
+        // On sm121a the IMAD rows are still harvest rows; the generic sign window stays until their measurement.
+        if leg == "sm120" {
+            let e3 = enc_res(&t, "IMAD R5, -R4, R3, R2").expect_err("IMAD -Ra refused on sm120 (NEEDS 53)");
+            assert!(e3.contains("NEEDS 53"), "{leg}: IMAD -Ra arm regressed: {e3}");
+            let e4 = enc_res(&t, "IMAD R5, |R4|, R3, R2").expect_err("IMAD |Ra| refused on sm120 (NEEDS 53)");
+            assert!(e4.contains("NEEDS 53"), "{leg}: IMAD |Ra| arm regressed: {e4}");
+            let w = enc_res(&t, "IMAD R5, R4, R3, -R2").expect("IMAD -Rc is the measured field at bit 75");
+            assert_eq!((w >> 75) & 1, 1, "{leg}: -Rc must be bit 75");
+            assert_eq!((w >> 72) & 1, 0, "{leg}: bit 72 must never be minted on IMAD");
+            assert_eq!(dec(&t, w).expect("IMAD -Rc decodes"), "IMAD R5, R4, R3, -R2", "{leg}: IMAD -Rc law");
+            let plain = enc_res(&t, "IMAD R5, R4, R3, R2").expect("plain IMAD");
+            assert!(dec(&t, plain | (1u128 << 72)).is_none(), "{leg}: the bit-72 IMAD word must fail closed");
+        } else {
+            let w = enc_res(&t, "IMAD R5, -R4, R3, R2").expect("IMAD signed");
+            let d = dec(&t, w).expect("IMAD decodes");
+            assert_eq!(d, "IMAD R5, -R4, R3, R2", "{leg}: IMAD sign law regressed");
+        }
     }
 }

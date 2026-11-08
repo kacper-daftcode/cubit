@@ -3225,8 +3225,16 @@ fn encode_instruction_inner(
         // arithmetic operand signs (re_sm120_bmsk_uf2i_nvdisasm.json).
         // I2FP R/UR sources likewise have text-inert62/63/72/73 bits;
         // signedness is a datatype modifier, not a register negation.
-        let native_hi = table.target_sm() == 120 && insn.opcode == "IMAD"
-            && insn.modifiers.iter().any(|m| m == ".HI");
+        // IMAD on SM120 (the whole base since session T-20, 2026-11-08; the `.HI` groups since T-17): the generic
+        // sign window carries no operand sign on IMAD. Bit 72 -- the generic `-Ra` slot, cubit's BUG-296 reading --
+        // prints nothing on any IMAD form for nvdisasm 13.1 on SM120 / SM121 / SM103 / SM100 and is compute-inert
+        // on sm_120 silicon (NEEDS 53, `pt-needs53`: plain `IMAD` and the same word with bit 72 set both compute
+        // a*b+c; the `-Rc` control, bit 75, computes a*b-c); bits 62 / 63 are text-inert on the register forms,
+        // 73 is the `.U32` modifier and 74 the `.X` form. Every real sign of the family is a field of its measured
+        // row (`-Rc` at 75; `-URc` at 63 on the UR-addend form), so the generic emit has nothing to add -- and a
+        // sign without a field is refused below instead of minting a bit the hardware ignores (silent wrong code
+        // until T-20: `IMAD R5, -R4, R3, R2` assembled to the plain a*b+c word plus bit 72).
+        let native_hi = table.target_sm() == 120 && insn.opcode == "IMAD";
         let sign_law_base = table.target_sm() == 120 && matches!(insn.opcode.as_str(), "BMSK" | "I2FP");
         let non_alu_base = matches!(
             insn.opcode.as_str(),
@@ -3406,6 +3414,36 @@ fn encode_instruction_inner(
             | Operand::UReg { neg: true, .. } | Operand::UReg { abs: true, .. }))
     {
         anyhow::bail!("{} has no signed or absolute register operand encoding on SM120: {}", insn.opcode, insn.raw_text.trim());
+    }
+
+    // NEEDS 53 fail-closed (session T-20, 2026-11-08): on SM120 a sign or abs glyph on an IMAD register operand is
+    // legal only where the measured row carries it as a field (`-Rc` at bit 75; `-URc` at bit 63 on the UR-addend
+    // form). The generic emit above is off for the base (see `native_hi`), so without this check `-Ra` / `|Ra|` /
+    // `-Rb` / `|Rb|` would assemble to the unsigned word -- the silent sign-drop the LEA / I2I / I2IP arms refuse.
+    if table.target_sm() == 120 && insn.opcode == "IMAD" {
+        for (idx, operand) in insn.operands.iter().enumerate() {
+            let (neg, abs) = match operand {
+                Operand::Reg { neg, abs, .. } | Operand::UReg { neg, abs, .. } => (*neg, *abs),
+                _ => continue,
+            };
+            let tok = (idx + 1) as i32;
+            let carried = |want_abs: bool| {
+                entry.fields.iter().any(|f| f.token_idx == tok && if want_abs {
+                    matches!(f.extraction, Extraction::Abs | Extraction::NegAbs)
+                } else {
+                    matches!(f.extraction, Extraction::Neg | Extraction::NegShl1 | Extraction::NegAbs)
+                })
+            };
+            if (neg && !carried(false)) || (abs && !carried(true)) {
+                anyhow::bail!(
+                    "NEEDS 53: IMAD has no encoding for the signed / absolute operand {} of `{}` -- bit 72 (cubit's former \
+                     `-Ra` reading, BUG-296) prints nothing for nvdisasm on any IMAD form and is compute-inert on sm_120 \
+                     silicon (pt-needs53, 2026-11-08: a*b+c with and without it); only the addend's sign is encodable \
+                     (`-Rc`, bit 75; `-URc`, bit 63 on the UR-addend form). Refusing instead of minting an inert bit.",
+                    idx + 1, insn.raw_text.trim()
+                );
+            }
+        }
     }
 
     // BUG-281 fail-closed: I2I has NO sign-modifiable register operands

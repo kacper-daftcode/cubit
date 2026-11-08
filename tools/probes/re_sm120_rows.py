@@ -131,16 +131,23 @@ MANUAL_ALIAS: dict[str, dict[str, str]] = {
              "F2FP.SATFINITE.RELU.F16.F32.PACK_AB_P_R_R_R": "F2FP_R_R_R"},
     "atomic": {"ATOMS_R_ARI": "ATOMS_R_ARURI"},
 }
-#   MANUAL_FIELDS: key prefix -> fields cubit keeps on the rows although nvdisasm 13.1 prints nothing for the bit. IMAD's
-#   bit 72: text-inert for nvdisasm on every IMAD form (`IMAD R32, R48, R80, R24` with 72 set prints the same), kept by
-#   cubit as the negation of Ra (`IMAD R5, -R4, R3, R2`; BUG-296, re-affirmed by T-3 on 2026-11-04 with the U32 twins).
-#   The row carries the field (tok = the register at the Ra slot [31:24]); the bit-72 word is neither a form word nor a
-#   lattice word of the fixture (class `cubit_law`); the owner confirms or retires the law on silicon (NEEDS 13).
-#   Not on the `HI` groups: bit 72 of the HI packet is text-inert and not a negation (cubit's `native_hi` law, pinned by
-#   tests/sm120_oracle_semantics.rs; the T-17 correction of blackwell-isa 37d030f) -- the fifth element lists the
-#   modifier tokens whose groups the field does not apply to.
-MANUAL_FIELDS: dict[str, dict[str, list]] = {
-    "intalu": {"IMAD_": [["neg", 72, 1, 24, ["HI"]]]},  # [extraction, bit, bits, the slot shift whose token takes the field, excluded modifier tokens]
+#   MANUAL_FIELDS: key prefix -> fields cubit keeps on the rows although nvdisasm 13.1 prints nothing for the bit
+#   ([extraction, bit, bits, the slot shift whose token takes the field, excluded modifier tokens]). Empty since T-20
+#   (2026-11-08). Its one entry was IMAD's bit 72 -- text-inert for nvdisasm on every IMAD form on all four targets
+#   (`IMAD R32, R48, R80, R24` with 72 set prints the same), kept by cubit as the negation of Ra (`IMAD R5, -R4, R3, R2`;
+#   BUG-296, re-affirmed by T-3 on 2026-11-04 with the U32 twins) and carried by the 24 measured non-HI IMAD rows as a
+#   `neg@72` field (class `cubit_law`) until the silicon measurement of NEEDS 53 (session T-19, 2026-11-08, test host
+#   GPU 0, `pt-needs53`: plain `IMAD` and the same word with bit 72 set both compute a.b+c; the -Rc control, bit 75,
+#   computes a.b-c; `IMAD.U32` the same). The bit has no vendor text and no silicon effect, so it is a text-inert bit
+#   like any other: the field is gone (session T-20), the rows fail closed on it, and cubit's encoder refuses `-Ra` /
+#   `|Ra|` / `-Rb` / `|Rb|` on IMAD (no field -> no bit) instead of minting a bit the hardware ignores.
+MANUAL_FIELDS: dict[str, dict[str, list]] = {}
+#   RETIRED_FIELDS: family -> {key prefix: [[extraction, bit, bits], ...]} -- the inverse of MANUAL_FIELDS: declared fields
+#   the probe drops from a row's field list before the canonical word is built, so the sweep classifies the bit on its own
+#   evidence (text-inert here) and `apply` rewrites the row without the field (the mask narrows to the fields that remain).
+#   IMAD's `neg@72` (session T-20, 2026-11-08): retired by the silicon measurement of NEEDS 53 above.
+RETIRED_FIELDS: dict[str, dict[str, list]] = {
+    "intalu": {"IMAD_": [["neg", 72, 1]]},
 }
 MANUAL_DEAD: dict[str, dict[tuple[str, str], str]] = {
     "intalu": {("IMAD_R_P_R_II_R_P", "B90,U32,WIDE,X"): "IMAD_R_P_R_II_R_P",
@@ -648,12 +655,19 @@ def probe(args):
     # T-19: the field-narrowing pass -- the rows named in MANUAL_ROW_FIELDS are probed with their corrected field list
     # (a copy of the row; the table itself changes in `apply`)
     overrides = MANUAL_ROW_FIELDS.get(args.family, {})
+    retired = RETIRED_FIELDS.get(args.family, {})
     narrowed = []
     for key, group, row in rows:
         spec = overrides.get((key, group), overrides.get(key))
         if spec is not None:
             row = dict(row)
             row["fields"] = [{"shift": s, "bits": b, "extraction": e, "token_idx": t} for s, b, e, t in spec]
+        # T-20: a declared field retired by a later measurement (RETIRED_FIELDS) is dropped before the sweep
+        gone = [g for prefix, gs in retired.items() if key.startswith(prefix) for g in gs]
+        if gone and any(f["extraction"] == e and f["shift"] == s and f["bits"] == b for f in row.get("fields", []) for e, s, b in gone):
+            row = dict(row)
+            row["fields"] = [f for f in row["fields"]
+                             if not any(f["extraction"] == e and f["shift"] == s and f["bits"] == b for e, s, b in gone)]
         narrowed.append((key, group, row))
     rows = narrowed
     census = load_census(pathlib.Path(args.census) if args.census else None)
@@ -744,7 +758,7 @@ def probe(args):
                 continue
             if t == t0:
                 if f is not None and manual_law_field(args.family, key, group, f):
-                    by_class["cubit_law"].append([b, t])  # cubit's own law on an applied row (IMAD's neg@72, NEEDS 53)
+                    by_class["cubit_law"].append([b, t])  # a field cubit keeps by its own law (MANUAL_FIELDS; empty since T-20, NEEDS 53)
                     continue
                 by_class["inert"].append(b)
                 if f is not None:

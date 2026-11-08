@@ -316,11 +316,18 @@ impl DecodeIndex {
             // ("ATOMG.E.INC ...PT, |R5|", 253 JUNK_LEGAL + 18 JUNK_INVALID on
             // flipdec_ctl). Fail closed; legal-but-unwitnessed widths are
             // coverage gaps, see blindlab results/cubitfix/199.md sec.6.
-            // IMAD is NOT in this list (tried 2026-11-04 with the U32 twins): `IMAD R5, -R4,
-            // R3, R2` carries its real neg law in bit 72 without a row field (BUG-296 pin), so
-            // the sign-tolerant match is what decodes it. The BUG-083 class (a `.U32` word
-            // printed as the signed row) is closed by the U32 twins instead: a strict match
-            // on the twin outranks the relaxed match on the signed row.
+            // IMAD is not in this list by name: on SM120 the whole base is excluded below
+            // (`native_hi`, the whole IMAD base since session T-20, 2026-11-08). Until T-20 it
+            // was kept out so that `IMAD R5, -R4, R3, R2` could decode through the sign-tolerant
+            // match (cubit's BUG-296 reading of bit 72 as `-Ra`, re-affirmed by T-3 on 2026-11-04
+            // with the U32 twins); the silicon measurement of NEEDS 53 (`pt-needs53`, 2026-11-08:
+            // bit 72 is compute-inert on IMAD, nvdisasm prints nothing for it on the four targets)
+            // retired that reading -- the measured IMAD rows fail closed on bit 72 like on every
+            // text-inert bit, and a sign-tolerant match here would turn such a word (or a bit-63
+            // word) into the `U32` twin with a ghost `-Rb` / `|Ra|` (measured on the pushed T-19
+            // tree: `IMAD R32, R48, R80, R24` with bit 63 printed `IMAD.U32 R32, |R48|, -R80, R24`).
+            // On the other tables the IMAD rows are harvest rows and keep the fallback until
+            // their own measurement.
             let is_memlike = matches!(base,
                 "LD" | "ST" |
                 "LDG" | "LDL" | "LDS" | "LDC" | "LDCU" | "STG" | "STL" | "STS" |
@@ -523,9 +530,11 @@ impl DecodeIndex {
             // UIADD3 names its source signs explicitly; bit74 selects X.
             // Masking it would turn non-X ignored carry selectors into a
             // spurious X instruction and change the decoded arithmetic.
-            let native_hi = table.target_sm() == 120 && base == "IMAD"
-                && (c.mod_group.split(',').any(|m| m == "HI")
-                    || c.key.split('_').next().unwrap_or("").split('.').any(|m| m == "HI"));
+            // IMAD on SM120: the whole base since session T-20 (2026-11-08; the `.HI` groups since T-17) --
+            // the sign window carries no operand sign on IMAD (bit 72 compute-inert on sm_120 silicon, NEEDS 53;
+            // 62 / 63 text-inert, 73 = `.U32`, 74 = `.X`, 75 = the measured `-Rc` field), every row is measured or
+            // a T-3 / T-10 row with its fields: fail closed outside the masks.
+            let native_hi = table.target_sm() == 120 && base == "IMAD";
             let sign_law_base = table.target_sm() == 120 && matches!(base, "BMSK" | "DSETP" | "I2FP" | "UIADD3");
             // (a row verified field by field names its sign bits as fields and fails closed on the rest: no fallback)
             if !(is_memlike || native_hi || sign_law_base || row_probe) {
@@ -815,9 +824,11 @@ impl DecodeIndex {
                 "UTCQMMA" | "SULD");
             // BMSK's generic sign band is text-inert on native SM120.
             // Global109 is schedule yield, never arithmetic negation.
-            let native_hi = table.target_sm() == 120 && base_op == "IMAD"
-                && (matched.mod_group.split(',').any(|m| m == "HI")
-                    || matched.key.split('_').next().unwrap_or("").split('.').any(|m| m == "HI"));
+            // IMAD on SM120: no ghost signs on any group (session T-20, 2026-11-08 -- NEEDS 53: bit 72 is
+            // compute-inert on sm_120 silicon and text-inert for nvdisasm on every IMAD form; 62 / 63 text-inert,
+            // 73 = `.U32`). The measured rows carry the real `-Rc` / `-URc` signs as fields (printed by the field
+            // path); the `.HI` groups were excluded since T-17 (`tests/sm120_oracle_semantics.rs`).
+            let native_hi = table.target_sm() == 120 && base_op == "IMAD";
             let sign_law_base = table.target_sm() == 120 && matches!(base_op, "BMSK" | "I2FP");
             if is_alu && !(is_225_armed || native_hi || sign_law_base) {
                 // BUG-392: derive operand types from the robust key parser
