@@ -171,7 +171,19 @@ fn t172_6_polygon() {
             assert!(fields.iter().any(|f| f["extraction"] == "sub_ur1" && f["shift"] == 24 && f["bits"] == 8));
             continue;
         }
-        assert_eq!(don["and_base"].as_str().unwrap(), donor_ab, "{path} {key}/{donor} drift");
+        // 2026-11-09 (T-25, rows-intalu-2026-11-07 on -b SM103; T-23's per-row pass): the sm103a donors are measured now too --
+        // a measured row's and_base is clear under its fields (the harvest baked the sample's operands there) and its mask is
+        // its fields, so the pinned donor word is compared outside the donor's fields and the vms by inclusion (as for sm120).
+        let don_measured = don["_src"].as_str().is_some_and(|s| s.starts_with("rows-"));
+        let don_fmask: u128 = don["fields"].as_array().unwrap().iter()
+            .map(|f| ((1u128 << f["bits"].as_u64().unwrap()) - 1) << f["shift"].as_u64().unwrap()).fold(0, |a, b| a | b);
+        if don_measured {
+            let gab = u128::from_str_radix(don["and_base"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
+            let pab = u128::from_str_radix(donor_ab.trim_start_matches("0x"), 16).unwrap();
+            assert_eq!(gab & !don_fmask, pab & !don_fmask, "{path} {key}/{donor} drift outside the measured fields");
+        } else {
+            assert_eq!(don["and_base"].as_str().unwrap(), donor_ab, "{path} {key}/{donor} drift");
+        }
         let row = &mg["S16"];
         assert_eq!(row["_src"].as_str().unwrap(), "bug172-2026-08-26", "{path} {key} src");
         let ab = u128::from_str_radix(row["and_base"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
@@ -185,13 +197,18 @@ fn t172_6_polygon() {
         let rvm = u128::from_str_radix(row["variable_mask"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
         let dvm = u128::from_str_radix(don["variable_mask"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
         // (2026-11-08, T-19: the `LDC_R_cAI` / `LDCU_UR_cAI` `64` donors are measured too -- tools/probes/re_sm120_rows.py)
-        let measured_donor = path == "tables/sm120.json" && matches!(key, "LDC_R_cARI" | "LDC_R_cAI" | "LDCU_UR_cAI");
+        let measured_donor = (path == "tables/sm120.json" && matches!(key, "LDC_R_cARI" | "LDC_R_cAI" | "LDCU_UR_cAI")) || don_measured;
         if measured_donor {
-            assert_eq!(dvm & !rvm & !reuse, 0, "{path} {key}/S16: the measured donor's fields lie inside the clone's mask");
+            // the measured donor's mask is exactly its fields (fail closed elsewhere); the harvest clone keeps the harvest
+            // mask -- the two are not comparable bit for bit, the clone's operand fields are the donor's (checked below)
+            assert_eq!(dvm & !don_fmask, 0, "{path} {key}/{donor}: the measured donor's mask is its fields");
+            assert!(don["fields"].as_array().unwrap().len() >= row["fields"].as_array().unwrap().len(),
+                    "{path} {key}/S16 fields <= donor");
+            let _ = reuse;
         } else {
             assert_eq!(rvm, dvm, "{path} {key}/S16 vm == donor");
+            assert_eq!(row["fields"].as_array().unwrap().len(), don["fields"].as_array().unwrap().len(),
+                       "{path} {key}/S16 fields == donor");
         }
-        assert_eq!(row["fields"].as_array().unwrap().len(), don["fields"].as_array().unwrap().len(),
-                   "{path} {key}/S16 fields == donor");
     }
 }

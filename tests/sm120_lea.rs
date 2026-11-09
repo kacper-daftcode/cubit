@@ -1,7 +1,8 @@
 //! The `LEA` family rebuilt from measurement (session T-8, 2026-11-06, NEEDS_OWNER 30 / KNOWN_ISSUES T1):
 //! `LEA[.HI][.X][.SX32] Rd, [Pd,] Ra, <b>, [Rc,] imm5 [, Pcin]` in its three operand forms (0x211 register,
 //! 0x811 imm32, 0xc11 uniform register with the frame bit 91) × the six legal modifier groups, on sm120 /
-//! sm103a / sm100a (`tools/probes/re_sm120_lea.py`, nvdisasm 13.1, text-identical on the three targets).
+//! sm103a / sm100a (`tools/probes/re_sm120_lea.py`, nvdisasm 13.1, text-identical on the three targets) and,
+//! since session T-25 (2026-11-09), on sm121a (`--arch SM121`: text-identical on every word of the probe too).
 //!
 //! Before: 56 keys / 100 harvest rows on sm120 (dozens of `?` junk keys with one sample's operands baked
 //! into `and_base`, fields at the wrong bit, the modifier bits 73 / 74 / 80 outside both `and_base` and the
@@ -21,10 +22,14 @@ use std::{path::Path, sync::OnceLock};
 
 const SOURCE: &str = "lea-family-2026-11-06";
 const CTRL: u128 = 0x000f_ca00u128 << 96;
-const TABLES: [(&str, &str); 3] = [
+const TABLES: [(&str, &str); 4] = [
     ("tables/sm120.json", include_str!("fixtures/sm120_lea_nvdisasm.jsonl")),
     ("tables/sm103a.json", include_str!("fixtures/sm103a_lea_nvdisasm.jsonl")),
     ("tables/sm100a.json", include_str!("fixtures/sm100a_lea_nvdisasm.jsonl")),
+    // 2026-11-09 (session T-25): the same probe on -b SM121 -- 824 / 824 texts identical to the SM120 fixture's; the
+    // sm121a table's 23 harvest LEA keys / 58 rows (incl. the era `LEA_P0_R_R_R_II`, whose words a `LEA.HI.X` junk row had
+    // started to claim as `LEA.HI.X …, !PT`) replaced by the 24 measured keys / 36 rows
+    ("tables/sm121a.json", include_str!("fixtures/sm121a_lea_nvdisasm.jsonl")),
 ];
 
 fn loaded() -> &'static Vec<(IsaTable, DecodeIndex)> {

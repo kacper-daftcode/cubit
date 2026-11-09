@@ -183,7 +183,15 @@ fn the_rows_are_measured_and_no_field_sits_in_the_opcode() {
             }
         }
         assert_eq!(tagged, ROWS.len() as u64, "{path}: tagged rows");
-        assert_eq!(raw["_meta"]["provenance"]["sources"][SOURCE]["rows"], tagged, "{path}: the legend");
+        // 2026-11-09 (T-25): T-23's per-row pass on -b SM103 / SM100 (blackwell-isa ddac54d / 21fc69a) tagged the rest of
+        // the integer ALU's long tail with the same `rows-intalu-2026-11-07` tag -- the legend counts every row of the tag
+        // on the table (the three VIMNMX3 rows among them), read here over the whole table
+        let all_tagged = ins
+            .values()
+            .map(|e| e["mod_groups"].as_object().unwrap().values().filter(|g| g["_src"] == SOURCE || (g.get("_src").is_none() && e["_src"] == SOURCE)).count() as u64)
+            .sum::<u64>();
+        assert!(all_tagged >= tagged, "{path}: the tag's rows");
+        assert_eq!(raw["_meta"]["provenance"]["sources"][SOURCE]["rows"], all_tagged, "{path}: the legend");
     }
 }
 

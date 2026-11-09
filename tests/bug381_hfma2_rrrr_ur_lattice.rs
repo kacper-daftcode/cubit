@@ -581,6 +581,18 @@ fn t381_1_structure_lattice_completion() {
                 let isbf = name.contains("BF16_V2");
                 let donor = if isbf { bf } else { pl };
                 let relu = name.contains("RELU");
+                // 2026-11-09 (T-25, rows-half-2026-11-07 on -b SM103 / SM100 / SM121; T-23's per-row passes): the '' and
+                // BF16_V2 donor rows are measured field by field (guard field, sign / abs fields, mask = fields) and no
+                // longer carry the harvest shape; for the lane's harvest rows the lane's SAT row -- bug381's / bug343's,
+                // never measured -- stands in as the reference.
+                let sat_ref = donor.row_probe;
+                let donor = if sat_ref {
+                    let sat = &e.mod_groups[if isbf { "BF16_V2,SAT" } else { "SAT" }];
+                    assert!(!sat.row_probe, "{leg}:{fam}: the SAT reference row is measured");
+                    sat
+                } else {
+                    donor
+                };
                 let mut want = mg.and_base ^ donor.and_base;
                 want &= !(1 << 85); // donor-relative
                 let mut law = 0u128;
@@ -598,6 +610,9 @@ fn t381_1_structure_lattice_completion() {
                 if relu {
                     law |= B79 | (0x7 << 87);
                 }
+                if sat_ref {
+                    law ^= 1 << 77; // the delta is read against the SAT row
+                }
                 assert_eq!(want, law, "{leg}:{fam}:{name}: ab delta drift");
                 // FLIP (BUG-393 / F2-iter214, canonical 8f2571b): the
                 // inert-window closure relaxes donor vm by
@@ -610,6 +625,12 @@ fn t381_1_structure_lattice_completion() {
                 } else {
                     donor.variable_mask
                 };
+                // (a measured row has its fields for its mask -- the 393 inert windows fail closed)
+                if mg.row_probe {
+                    let fm = mg.fields.iter().fold(0u128, |m, f| m | (((1u128 << f.bits) - 1) << f.shift));
+                    assert_eq!(mg.variable_mask, fm, "{leg}:{fam}:{name}: measured row: mask != fields");
+                    continue;
+                }
                 assert_eq!(
                     mg.variable_mask, want_vm,
                     "{leg}:{fam}:{name}: vm delta drift beyond 393 closure law"
@@ -634,7 +655,19 @@ fn t381_1_structure_lattice_completion() {
                     .join(",");
                 let lane = &e.mod_groups[lane_name.as_str()];
                 let dg = &d.mod_groups[""];
-                assert_eq!(dg.and_base, lane.and_base | B79, "{leg}:{dk}: ab law");
+                // (T-25: a measured lane row -- '' / BF16_V2 since rows-half-2026-11-07 -- no longer carries the harvest
+                // shape (guard field, mask = fields); the lane's SAT row stands in for the ab / vm / field laws, as above)
+                if lane.row_probe {
+                    let sat = &e.mod_groups[if lane_name.contains("BF16_V2") { "BF16_V2,SAT" } else { "SAT" }];
+                    assert_eq!(dg.and_base, (sat.and_base & !(1 << 77)) | B79, "{leg}:{dk}: ab law (against the SAT row)");
+                } else {
+                    assert_eq!(dg.and_base, lane.and_base | B79, "{leg}:{dk}: ab law");
+                }
+                let lane = if lane.row_probe {
+                    &e.mod_groups[if lane_name.contains("BF16_V2") { "BF16_V2,SAT" } else { "SAT" }]
+                } else {
+                    lane
+                };
                 assert_eq!(dg.and_base & PVF, 0, "{leg}:{dk}: pv baked into dotted ab");
                 // FLIP (BUG-393 / F2-iter214, canonical 8f2571b): lane vm
                 // gained the full closure relax, so the pv delta cancels
@@ -770,6 +803,14 @@ fn t381_5_kills_fail_closed() {
             assert!(dec(&t, *w).is_none(), "{leg}:{tag}: kill word decoded");
         }
         for (tag, w, want) in LAWFUL_393.iter() {
+            // 2026-11-09 (T-25, rows-half-2026-11-07 on -b SM103 / SM100 / SM121): the plain HFMA2_R_R_R_R row is measured on
+            // sm100a / sm103a / sm121a -- the inert bits 88 / 92 / 93 / 95 fail closed there (nvdisasm prints the base text
+            // for them, the measured row does not claim them); K4_strayb90 (a .SAT lane row, bug381's) keeps the render.
+            if leg != "sm120" && matches!(*tag, "K4_straypv2" | "K4_b92" | "K4_b93" | "K4_b95") {
+                assert!(dec(&t, *w).is_none(), "{leg}:{tag}: the measured row must fail closed on the inert bit");
+                assert_eq!(dec(&t, 0x50000000403020231u128).as_deref(), Some(*want), "{leg}:{tag}: the inert-free word");
+                continue;
+            }
             let got = dec(&t, *w).unwrap_or_else(|| panic!("{leg}:{tag}: lawful-inert word HOLE"));
             assert_eq!(&got, want, "{leg}:{tag}: lawful-inert text drift");
         }
@@ -821,7 +862,7 @@ fn t381_5_kills_fail_closed() {
     // with the 0x7c31 h0nh1 graft (canonical d908ee9 = BUG-395; rides 74a06b7 = BUG-405/406 HADD2 release + HFMA2 two-imm slot graft; rides 19363f6 = BUG-400, which rode 5d32aec = BUG-398, 96f196b = BUG-402, dd477eb = BUG-407, 8f2571b = BUG-393).
     assert!(
         // [FLIP with attribution, BUG-384 / F2-iter205]: manifest pin moves with the canonical era-key hygiene delete.
-        m["base_revision"].as_str().unwrap().starts_with("c374bad146afd10eb41aa1ccd793c09422e2ddfb") /* 2026-11-06 T-11 (was c258f8a, T-10) */,
+        m["base_revision"].as_str().unwrap().starts_with("04bcb53c9a822b46ba4d490e00662e16fb786372") /* 2026-11-06 T-11 (was c258f8a, T-10) */,
         "SOURCE.json must pin canonical 57e7ecd [was ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, 1810912 = 435+434 hop, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b, 3f6ca6f = BUG-425, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422] (BUG-442 graft F2-iter246 z atrybucja; ride-chain): {:?}",
         m["base_revision"]
     );

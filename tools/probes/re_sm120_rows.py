@@ -78,6 +78,14 @@ FAMILIES = {
     "atomic": ["ATOMG", "ATOM", "ATOMS", "REDG"],
     "control": ["WARPSYNC", "CALL", "BSSY", "BSYNC", "EXIT", "BREAK", "BAR", "MEMBAR", "NOP", "YIELD", "PREEXIT", "ERRBAR",
                 "CGAERRBAR", "ACQBULK", "ACQSHMINIT", "NANOSLEEP", "BMOV", "UCGABAR"],
+    # T-23 (2026-11-08): the mnemonics of sm121a's / sm103a's long tail that no family above and no family probe covers
+    # (the TMA reduce / prefetch, the warp-level shuffles / votes / match, the fences, the double-precision FMA, the
+    # leftover rows of mnemonics whose sm120 family probes measured other keys)
+    "misc": ["UTMAREDG", "UTMAPF", "SHFL", "VOTE", "VOTEU", "MATCH", "B2R", "CS2UR", "SYNCS", "FENCE", "BPT", "SULD", "USETMAXREG",
+             "DFMA", "FFMA", "FMNMX", "HMUL2", "PLOP3", "UPLOP3", "UFSETP", "UFFMA", "UFSEL", "UFADD", "UFMUL", "FSEL", "FSET",
+             "FCHK", "HSETP2", "UTCCP", "UTCQMMA", "UTCHMMA", "VIADDMNMX", "CREDUX", "LDTM", "STTM",
+             # SHF / LEA have sm120 family probes (rebuilt whole there); on the other tables their rows are verified per row
+             "SHF", "LEA"],
 }
 
 
@@ -249,6 +257,12 @@ MANUAL_ROW_FIELDS: dict[str, dict] = {
         ("UI2FP_UR_UR", "F32,S32"): [[12, 4, "guard", 0], [16, 8, "ureg", 1], [32, 8, "ureg", 2]],
     },
     "memory": {
+        # T-25 (2026-11-09): the plain `LDG_R_ARURI` `E` row of sm103a / sm100a (bug099 harvest) read the uniform register
+        # as a 6-bit field [37:32] -- nvdisasm prints `UR64` for bit 38 and `UR128` for bit 39 (the T-23 sweep: "bit 38
+        # outside the fields moves operand 2"), cubit printed `UR0` for `UR64`. The field is 8 bits like on every other
+        # LDG row (sm120's measured row of the same key and group has this list).
+        ("LDG_R_ARURI", "E"): [[12, 4, "guard", 0], [16, 8, "reg", 1], [24, 8, "sub_r0", 2], [32, 8, "sub_ur1", 2],
+                               [40, 24, "sub_imm2", 2]],
         "STS_ARURI_R": [[12, 4, "guard", 0], [24, 8, "sub_r0", 1], [64, 8, "sub_ur1", 1], [40, 24, "sub_imm1", 1],
                         [78, 2, "addr_scale", 1], [32, 8, "reg", 2]],
         "STL_AURI_R": [[12, 4, "guard", 0], [64, 8, "sub_ur0", 1], [40, 24, "sub_imm1", 1], [32, 8, "reg", 2]],
@@ -930,7 +944,13 @@ def probe(args):
         v["cubit"] = {k: c0.get(k) for k in ("cubit_key", "cubit_group", "cubit_text_lossless", "reencode", "cubit_error", "vendor_encode") if k in c0}
         # a re-encode the encoder refuses on a silicon law (BUG-037: multi-register MMA operands off their alignment)
         # is the `silicon_illegal` class of tools/audit_dynamic.py: the text is the vendor's, the word is not mintable
-        silicon = lambda c: str(c.get("reencode", "")).startswith("error:") and "silicon" in c["reencode"]  # noqa: E731
+        # an encoder refusal that cites a silicon measurement, not a table gap: "silicon" (BUG-037 / 008 on sm120), and
+        # on sm_103a / sm_100a (T-23) "SILICON-ILLEGAL" (BUG-077 / 088: the odd 64-bit base of a descriptor pair, the
+        # LDS / STS / LDC .64 / .128 register alignment) and BUG-080's "SILENTLY BROKEN" guarded non-EL atomics
+        def silicon(c):
+            e = str(c.get("reencode", ""))
+            return e.startswith("error:") and ("silicon" in e.lower() or "violates the sm_10" in e
+                                               or ("SILENTLY BROKEN on sm_" in e and "BUG-080" in e))
         # cubit-side findings are kept apart from the vendor-side ones: the row's structure is decided by nvdisasm; a
         # cubit text / re-encode difference is either healed by the structure apply writes (the fixed field types,
         # the added fields -- checked by re-running the probe on the applied table) or a cubit defect to fix
@@ -1106,7 +1126,7 @@ def probe(args):
 
 # --- apply -----------------------------------------------------------------------------------------------------
 
-def note_for(family: str, rec: dict) -> str:
+def note_for(family: str, rec: dict, arch: str = "SM120", session: str | None = None) -> str:
     inert = rec.get("inert", [])
     illegal = rec.get("illegal", [])
     mods = [b for b, _ in rec.get("modifier", [])]
@@ -1122,8 +1142,10 @@ def note_for(family: str, rec: dict) -> str:
     renamed = RENAMED_FROM.get(family, {}).get((rec["key"], rec["group"]))
     extra += (f" Renamed by session T-19 (2026-11-08) from the harvest key `{renamed}`: the old name did not spell the vendor "
               f"text of the row's own word (R's key-naming rule: rename to the vendor's spelling; 0 census witnesses).") if renamed else ""
-    return (f"Row verified field by field with nvdisasm 13.1 (-b SM120; session G run 5, {DATE}, "
-            f"tools/probes/re_sm120_rows.py --family {family}): canonical word {rec['w0']} = `{rec['t0']}`; every field bit "
+    who = f"session G run 5, {DATE}" if arch == "SM120" and session is None else (session or f"session T-23, 2026-11-08")
+    tool = f"tools/probes/re_sm120_rows.py --family {family}" + ("" if arch == "SM120" else f" --arch {arch}")
+    return (f"Row verified field by field with nvdisasm 13.1 (-b {arch}; {who}, "
+            f"{tool}): canonical word {rec['w0']} = `{rec['t0']}`; every field bit "
             f"moves its own operand token; bits outside the fields: modifier bits {mods} (other groups' words), "
             f"neighbouring-form bits {other}, vendor-invalid glyph planes {glyph}, illegal {illegal}, text-inert {inert} "
             f"(fail closed: the mask is the fields).{extra}")
@@ -1169,7 +1191,8 @@ def apply(args):
         row["and_base"] = f"0x{base:032x}"
         row["variable_mask"] = f"0x{mask:032x}"
         row["_src"] = src
-        row["_note"] = note_for(family, rec) + (f" {args.note_suffix}" if args.note_suffix else "")
+        row["_note"] = note_for(family, rec, getattr(args, "arch", "SM120"), getattr(args, "session", None)) \
+            + (f" {args.note_suffix}" if args.note_suffix else "")
         tagged += 1
     # T-19: the modelled rows -- `_src: "modelled"`, the pinning test in the note; a field list the sweep corrected is
     # written (fields only: the mask widens to cover the added fields, nothing narrows -- bug012's relaxed decode)
@@ -1277,6 +1300,7 @@ def main():
     a.add_argument("--note-suffix", default=None, help="appended to the `_note` of every row this run tags")
     a.add_argument("--arch", default="SM120", help="the nvdisasm target the fixture was measured on (the provenance entry)")
     a.add_argument("--test", default=None, help="the cubit test that pins the rows (default tests/sm120_rows_<family>.rs)")
+    a.add_argument("--session", default=None, help="who measured (written into the rows' `_note`; default: the T-23 passes)")
     args = parser.parse_args()
     if args.command == "probe":
         probe(args)

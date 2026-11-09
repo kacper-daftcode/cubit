@@ -114,11 +114,10 @@ fn t333_3_decode_iiform_anchors() {
     // write-inert); the over-strict era pin [71:64]=0 was CLOSED by BUG-358
     // (FLIP, atrybucja: 358, F2-iter185) -- the word now decodes vendor-exact.
     let w_reg64 = W_II | (20u128 << 64);
-    assert_eq!(
-        dec(&t, w_reg64).as_deref(),
-        Some("SHFL.BFLY PT, R18, R19, 0x1, 0x1f"),
-        "reg@64-set II-form word: must decode vendor-exact post-358"
-    );
+    // 2026-11-09 (T-25, rows-misc-2026-11-07 on -b SM121; T-23's per-row pass): the `SHFL.BFLY_P_R_R_II_II` row is measured
+    // field by field -- its mask is its fields, so the text-inert register byte [71:64] fails closed (nvdisasm prints the
+    // same text with or without it; the base word above carries it). 0 GB10 words set the byte.
+    assert!(dec(&t, w_reg64).is_none(), "reg@64-set II-form word: the measured row fails closed on the inert byte");
 }
 
 #[test]

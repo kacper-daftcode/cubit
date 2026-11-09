@@ -4,6 +4,55 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-09 (sessions T-23 / T-24 / T-25: the sm121a / sm103a / sm100a long tails verified row by row — T1 2 654 → 811 and 893 → 357 / 357 —, the decoder's fail-closed zone around a measured row, the 2026-08/09 battery re-pinned to the measured-row doctrine)
+
+- **Tables vendored from blackwell-isa `04bcb53`** (sm121a 50 444 → 49 824 rows, 2 150 → 1 624 forms, 21 750 → 22 227 aliases; sm103a 35 876 →
+  35 875 / 516 → 514; sm100a 35 870 → 35 869 / 515 → 513; sm120 unchanged). Rows without `_src` (`tools/audit_table.py --summary`): sm121a
+  **2 654 → 811**, sm103a / sm100a **893 → 357**, sm120 7. What the revision carries:
+  - **T-23's per-row passes** (`6428595` / `ddac54d` / `21fc69a`): `tools/probes/re_sm120_rows.py --arch SM121 / SM103 / SM100` — the canonical
+    word + every single-bit flip named by nvdisasm 13.1, cubit's decode / print / re-encode of every word, the GB10 census (sm121a) and the
+    B300 publish corpus (sm103a / sm100a) as witnesses — over the eight families (memory, atomic, tensor, half, intalu, uniform, misc, control):
+    sm121a 1 185 rows measured, 511 shadowed harvest keys retired as `_meta.key_aliases` clones, 52 unreachable rows deleted; sm103a / sm100a
+    529 rows measured each, 3 keys aliased, 1 dead row deleted. The 24 new tests `tests/{sm121a,sm103a,sm100a}_rows_<family>.rs` (+ fixtures)
+    pin every record: measured rows (fields, fail-closed mask), the aliases, the deleted keys, the named harvest leftovers and the `modelled`
+    retention rows (the note resolved row → key → tag, `tools/tablefmt.py`'s three levels).
+  - **T-24's correction** (`ad7804a`): two T-23 alias retirements whose targets could not decode the retired keys' words reverted
+    (`HFMA2_R_R_II_II_R` — the II immediates had fallen to a field-less dotted row printing `0x0, 0x0` for `1, 1` —, `F2FP.BF16.F32.PACK_AB_P_R_R_R`).
+  - **T-25's table fixes** (`64db08b` / `daac080` / `04bcb53`, each with its nvdisasm measurement in the commit): the sm121a junk keys that printed
+    vendor-nonexistent text for the measured rows' text-inert neighbours deleted (`LDS.128_R_AR` — `LDS.128 R91, ?AR` for `LDS.U8 R91, [R10]` —,
+    `UIADD3_UR_UP_UP_UR_UR_R_II_P`, `HADD2_R_R_II_II_II_II_?`, `MOV_P0_R_II` (a UMOV word), `QMMA.16816.F16.E4M3.E4M3_P_R_R_R_R` (a MOVM word),
+    `HFMA2_R_R_FI_FI_R` (31 rows at an illegal opcode claiming the LEA lattice's illegal words)); the sm121a **LEA family rebuilt from
+    measurement** (`re_sm120_lea.py --arch SM121`: 824 / 824 words identical to the SM120 law; 24 keys / 36 rows for 23 harvest keys / 58 rows,
+    `tests/sm120_lea.rs` on the four tables); `LDG_P_R_ARI_P` / `LDG_R_ARI_P` `.64` rows measured with the `_P_R_` claim exclusion; on sm103a /
+    sm100a the plain `LDG_R_ARURI` row's **UR field widened 6 → 8 bits** (cubit printed `UR0` for `UR64`; the word decoded through the `E,LTC128B`
+    sibling), the `LDG_P_R_dARI` rows re-measured, **`IMAD_R_R_R_R` `U32` added** (the plain `IMAD.U32 Rd, Ra, Rb, Rc` had no row — the encoder
+    minted a word its own decoder rejected, BUG-303, b9_ptx_lower's `mad.lo.cc.u32`; on the pushed tables the `.U32` was silently dropped), the
+    `REDG_P_dARI_R` retention key restored as 13 `modelled` rows (BUG-128). T-23's sm121a / sm103a / sm100a row notes say `-b SM120; session G
+    run 5` where the measurement was `-b SM121` / `SM103` / `SM100` by T-23 — a wording defect of the probe's note writer, fixed for the rows
+    T-25 wrote (`note_for(…, arch, session)`); the earlier notes are corrected with the next per-row pass.
+- **Decoder: a measured row's fail-closed zone (T-24 + T-25, `src/decoder.rs`).** A harvest sibling may take a word through the broad address
+  fallback (priority 2) only where no measured row of the opcode agrees with the word on every fixed bit outside the four standard operand slots
+  up to one more bit; on the sign-tolerant path (priority 3) a harvest sibling loses the match when it fixes a bit on which the word departs from
+  the near measured row to another value, or bakes a window bit ([75:72] / [63:62]) the word has clear. Why: T-23's passes measured the plain
+  rows but left their harvest siblings, and the sibling then absorbed the measured row's text-inert neighbour with a modifier the vendor does
+  not print — `LDG.E` + an inert bit → `LDG.E.LTC128B`, `LDS.U8` → `LDS.128 ?AR`, `IMAD.WIDE` + bit 78 → `IMAD.WIDE.U32`, `IADD3` → `IADD3.X … P0, P1`,
+  `CREDUX.MIN.S32` → `CREDUX.MIN.F32` (`T/t25/inert_check.py`: 339 / 176 / 176 such words on sm121a / sm103a / sm100a, 0 on sm120, nvdisasm 13.1
+  the truth) — the measured row fails closed on the bit and the sibling must not reopen it; the legitimate priority-3 words (`HFMA2.SAT R2, R3,
+  |UR4|, R5`, `HFMA2.BF16_V2 R0, -R0, 1, 1, R0`) stay. Production identity: **0 differences on the 249 929-word production census**, GB10
+  **91 927 / 91 927** decode (91 926 re-encode, the BUG-037 refusal), B300 **85 721 / 85 792** words (296 / 328 cubins strict-exact), the sm120
+  table byte-identical. Wrong-text words left in the 8 550 bug-wave test words: **0** on the three tables; inert-neighbour wrong texts
+  (`inert_check.py`) 17 / 17 on sm103a / sm100a and 113 on sm121a, all pre-existing (`docs/KNOWN_ISSUES.md` T1).
+- **Encoder:** the IMAD high-half rule (`native_hi`, the NEEDS 53 refusal) applies on sm120 and on every measured IMAD row (`row_probe`), not on
+  the harvest rows of the other tables.
+- **The 2026-08/09 battery re-pinned to the measured-row doctrine (84 binaries; the T-18 convention):** a word a measured row fails closed on is a
+  HOLE, read through its clean word — `tests/t25_fail_closed.inc` (`t25_closed_as`: the witness with its junk bits cleared, of the nearest row of
+  its opcode whose clean word renders the vendor text) —, structural pins switch on `row_probe` (a measured row's mask is its fields; the harvest
+  reference stands in where the donor is measured: bug381's SAT rows, bug429's `16,MT88`), the census pins moved to the vendored state
+  (forms 1 624 / 514 / 513, loader keys 23 849, claim_forbid 23 482 / 10 977 / 10 978), the 42 canonical-revision pins to `04bcb53`. Four words
+  are pinned as holes because their form is not a row of the measured table (`STG.E.U8 [R.64+UR]` on sm100a / sm103a / sm121a, bug442 / 443; the
+  predicated `.U32` ARURI loads `LDG.E P3, R7, [R69.U32+UR67+0x5bda4], !P0` / `LDG.E.LTC256B …, !P4` on sm121a, bug469) — the next rows to measure
+  (`docs/KNOWN_ISSUES.md` T1). Suite 547 / 547 binaries green.
+
 ## Unreleased — 2026-11-08 (the bulk store `UBLKCP.G.S`, the async-proxy fence `FENCE.VIEW.ASYNC.G` and the warp votes: forms a persistent / TMA kernel needs, measured; a silent wrong-direction encode closed)
 
 - **Tables vendored from blackwell-isa `c374bad`** (sm120 38 838 → 38 848 rows, 979 → 983 forms; sm103a / sm100a / sm121a unchanged).

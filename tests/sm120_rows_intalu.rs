@@ -13,6 +13,7 @@
 //! (`DELETE`: every canonical word illegal, or another form's words) and 2 design rows marked `_src: "modelled"` (`MODELLED`, the
 //! pinning test in each note). The rows left without `_src` are the documented owner items of KNOWN_ISSUES T1.
 
+const TABLE: &str = "tables/sm120.json";
 const FAMILY: &str = "intalu";
 const SOURCE: &str = "rows-intalu-2026-11-07";
 const MNEMONICS: &[&str] = &["VIMNMX", "IADD", "IMAD", "IADD3", "IMNMX", "IABS", "VIADD", "SGXT", "BMSK", "PRMT", "LOP3", "SEL", "MOV", "FLO", "POPC", "BREV", "R2UR", "LDC", "S2R", "CS2R", "MOV64IUR", "LDCU", "S2UR", "FHADD", "DMUL", "DADD"];

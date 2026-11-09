@@ -135,8 +135,14 @@ fn t175_5_polygon() {
     let mg = j.pointer("/instructions/LDC_R_cARI/mod_groups").unwrap();
     let don = &mg["64"];
     let donor_ab: u128 = 0x0000000000000a000000000000007b82; // 2026-11-03 hygiene pass: baked control word (bit 109) cleared
-    assert_eq!(don["and_base"].as_str().unwrap(),
-               format!("0x{donor_ab:032x}"), "donor '64' and_base drift");
+    // 2026-11-09 (T-25, rows-intalu-2026-11-07 on -b SM103; T-23's per-row pass): the "64" donor is measured field by field --
+    // the guard [15:12] is a field now (clear in and_base, the harvest baked `@PT` = 7), its mask is its fields. The clones
+    // (U8 / S8 / U16, bug175) keep the harvest shape, so the donor word is compared outside its fields and the vms by inclusion.
+    let don_fmask: u128 = don["fields"].as_array().unwrap().iter()
+        .map(|f| ((1u128 << f["bits"].as_u64().unwrap()) - 1) << f["shift"].as_u64().unwrap()).fold(0, |a, b| a | b);
+    let gab = u128::from_str_radix(don["and_base"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
+    assert_eq!(gab & !don_fmask, donor_ab & !don_fmask, "donor '64' and_base drift outside the measured fields");
+    assert_eq!(don["_src"].as_str().unwrap(), "rows-intalu-2026-11-07", "the donor is the measured row");
     // existing groups preserved with their pre-patch fields (162/147 domain):
     for g in ["", "64"] { assert!(mg.get(g).is_some(), "group {g} preserved"); }
     for (grp, wd) in [("U8", 0u128), ("S8", 1), ("U16", 2)] {
@@ -146,7 +152,9 @@ fn t175_5_polygon() {
             row["and_base"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
         assert_eq!((ab >> 73) & 0x7, wd, "{grp} width bits");
         assert_eq!(ab ^ donor_ab, (wd << 73) ^ (5u128 << 73), "{grp} width-only delta");
-        assert_eq!(row["variable_mask"], don["variable_mask"], "{grp} vm == donor");
+        let dvm = u128::from_str_radix(don["variable_mask"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
+        // (the measured donor's mask is exactly its fields; the bug175 clones keep the harvest mask -- compared by fields below)
+        assert_eq!(dvm & !don_fmask, 0, "{grp}: the measured donor's mask is its fields");
         let fs = row["fields"].as_array().unwrap();
         let sig: Vec<(u64, u64, &str)> = fs.iter().map(|f| {
             (f["shift"].as_u64().unwrap(), f["bits"].as_u64().unwrap(),

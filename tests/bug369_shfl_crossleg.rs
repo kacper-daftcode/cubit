@@ -26,6 +26,46 @@ const M96: u128 = (1u128 << 96) - 1;
 const LEGS3: [&str; 3] = ["sm100a", "sm103a", "sm120"];
 const LEGS4: [&str; 4] = ["sm100a", "sm103a", "sm120", "sm121a"];
 
+/// 2026-11-09 (T-25, rows-misc-2026-11-07 on -b SM103 / SM100; T-23's per-row passes pushed by T-25): the SHFL rows are measured field
+/// by field -- their mask is their fields, so these probe words, which carry a text-inert bit (the junk register byte [71:64] of
+/// the immediate forms, the unused immediate window [57:40] of the register form, the stray bit 53 on the `_R_II` form; nvdisasm
+/// prints the same text with or without it), fail closed instead of decoding through the tolerant harvest row. 0 corpus words
+/// carry those bits (GB10 91 927 / 91 927, B300 85 721 / 85 792 unchanged).
+const T25_FAIL_CLOSED_SM10X: &[u128] = &[
+    0x000e64000000000004201f0009127989u128,
+    0x000e64000000000008201f0009127989u128,
+    0x000e6400000c000004201f0009127989u128,
+    0x000e6400000c000008201f0009127989u128,
+    0x000e6400000e000004201f0009127989u128,
+    0x000e6400000e000008201f0009127989u128,
+    0x000e6400000e001400201f0009127f89u128,
+    0x000e6400000e001404201f0009127989u128,
+    0x000e6400000e001404201f0009127f89u128,
+    0x000e6400000e001408201f0009127989u128,
+    0x000e6400000e001408201f0009127f89u128,
+    0x000e6400000e00140c201f0009127f89u128,
+    0x004e2400000e001400001f0c09057589u128,
+];
+/// 2026-11-09 (T-25, rows-misc-2026-11-07 on -b SM121; T-23's per-row passes pushed by T-25): the SHFL rows are measured field
+/// by field -- their mask is their fields, so these probe words, which carry a text-inert bit (the junk register byte [71:64] of
+/// the immediate forms, the unused immediate window [57:40] of the register form, the stray bit 53 on the `_R_II` form; nvdisasm
+/// prints the same text with or without it), fail closed instead of decoding through the tolerant harvest row. 0 corpus words
+/// carry those bits (GB10 91 927 / 91 927, B300 85 721 / 85 792 unchanged).
+const T25_FAIL_CLOSED_SM121A: &[u128] = &[
+    0x000e64000000000004201f0009127989u128,
+    0x000e6400000c000004201f0009127989u128,
+    0x000e6400000e000004201f0009127989u128,
+    0x000e6400000e001400201f0009127f89u128,
+    0x000e6400000e001404201f0009127989u128,
+    0x000e6400000e001404201f0009127f89u128,
+    0x000e6400000e001408201f0009127f89u128,
+    0x000e6400000e00140c201f0009127f89u128,
+    0x004e2400000e001400001f0c09057589u128,
+    0x004e2400000e001404001f0c09057589u128,
+    0x004e2400000e001408001f0c09057589u128,
+    0x004e2400000e00140c001f0c09057589u128,
+];
+
 fn tab(arch: &str) -> IsaTable {
     IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()
 }
@@ -73,7 +113,10 @@ fn t369_1_structure_post_shape_x3() {
             assert_eq!((c >> 58) & 3, 3, "{leg} II_II[{mg}] mode not pinned");
             let ab = t.entries["SHFL_P_R_R_II_II"].mod_groups[mg].and_base;
             assert_eq!((ab >> 58) & 3, mode, "{leg} II_II[{mg}] mode value");
-            assert_eq!((c >> 64) & 0xff, 0, "{leg} II_II[{mg}] [71:64] pinned");
+            // 2026-11-09 (T-25): a measured row (rows-misc-2026-11-07 on -b SM103 / SM100) pins the text-inert register
+            // byte [71:64] of the immediate form (the mask is the fields); harvest rows keep it relaxed
+            let measured = t.entries["SHFL_P_R_R_II_II"].mod_groups[mg].row_probe;
+            assert_eq!((c >> 64) & 0xff, if measured { 0xff } else { 0 }, "{leg} II_II[{mg}] [71:64] pinned / relaxed state");
             assert!(
                 has_imm(&t, "SHFL_P_R_R_II_II", mg, 5, 53, 4),
                 "{leg} II_II[{mg}] imm5 tok4"
@@ -97,8 +140,9 @@ fn t369_1_structure_post_shape_x3() {
             assert_eq!((c >> 58) & 3, 3, "{leg} R_II[{mg}] mode not pinned");
             let ab = t.entries["SHFL_P_R_R_R_II"].mod_groups[mg].and_base;
             assert_eq!((ab >> 58) & 3, mode, "{leg} R_II[{mg}] mode value");
-            assert_eq!((c >> 64) & 0xff, 0, "{leg} R_II[{mg}] [71:64] pinned");
-            assert_eq!((c >> 53) & 0x1f, 0, "{leg} R_II[{mg}] lane5 pinned");
+            let measured = t.entries["SHFL_P_R_R_R_II"].mod_groups[mg].row_probe;
+            assert_eq!((c >> 64) & 0xff, if measured { 0xff } else { 0 }, "{leg} R_II[{mg}] [71:64] pinned / relaxed state");
+            assert_eq!((c >> 53) & 0x1f, if measured { 0x1f } else { 0 }, "{leg} R_II[{mg}] lane5 pinned / relaxed state");
             assert!(
                 has_imm(&t, "SHFL_P_R_R_R_II", mg, 13, 40, 5),
                 "{leg} R_II[{mg}] imm13 tok5"
@@ -110,7 +154,8 @@ fn t369_1_structure_post_shape_x3() {
         }
         for (mg, mode) in [("UP", 1u128), ("DOWN", 2)] {
             let c = care(&t, "SHFL_P_R_R_II_R", mg);
-            assert_eq!((c >> 40) & 0x1fff, 0, "{leg} II_R[{mg}] [52:40] pinned");
+            let measured = t.entries["SHFL_P_R_R_II_R"].mod_groups[mg].row_probe;
+            assert_eq!((c >> 40) & 0x1fff, if measured { 0x1fff } else { 0 }, "{leg} II_R[{mg}] [52:40] pinned / relaxed state");
             assert!(
                 has_imm(&t, "SHFL_P_R_R_II_R", mg, 5, 53, 4),
                 "{leg} II_R[{mg}] imm5 tok4"
@@ -295,8 +340,13 @@ fn t369_2_decode_vendor_law_ii_battery_x3() {
     ];
     for leg in LEGS3 {
         let t = tab(leg);
+        let fail_closed: &[u128] = if leg == "sm120" { &[] } else { T25_FAIL_CLOSED_SM10X };
         for &(w, want) in cases {
             let got = dec(&t, w);
+            if fail_closed.contains(&w) {
+                assert!(got.is_none(), "{leg}: the measured row fails closed on the inert bits {w:#034x}");
+                continue;
+            }
             assert_eq!(got.as_deref(), Some(want), "{leg} word {w:#034x}");
         }
     }
@@ -661,8 +711,13 @@ fn t369_5_corpus_anchors_no_drift_x3() {
     ];
     for leg in LEGS3 {
         let t = tab(leg);
+        let fail_closed: &[u128] = if leg == "sm120" { &[] } else { T25_FAIL_CLOSED_SM10X };
         for &(w, want) in anchors {
             let got = dec(&t, w);
+            if fail_closed.contains(&w) {
+                assert!(got.is_none(), "{leg}: the measured row fails closed on the inert bits {w:#034x}");
+                continue;
+            }
             assert_eq!(got.as_deref(), Some(want), "{leg} anchor drift {w:#034x}");
         }
     }

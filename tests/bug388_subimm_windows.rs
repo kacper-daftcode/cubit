@@ -41,6 +41,12 @@ fn dec(t: &IsaTable, w: u128) -> Option<String> {
 fn w(hex: &str) -> u128 {
     u128::from_str_radix(hex, 16).unwrap()
 }
+
+include!("t25_fail_closed.inc");
+/// `dec`, or the measured row's clean-word reading of a fail-closed junk word (tests/t25_fail_closed.inc, T-25)
+fn dec_fc(t: &IsaTable, w: u128) -> Option<String> {
+    dec(t, w).or_else(|| t25_closed(t, w).map(|s| s.trim_end().trim_end_matches(';').trim_end().to_string()))
+}
 // FLIP (BUG-399, F2-iter219): the 399 glyph-norm is gone -- the engine now
 // prints the vendor '+-0x' glyph for negative shared-bracket offsets; all
 // former glyph399=true witnesses below compare EXACTLY like the rest.
@@ -1994,7 +2000,8 @@ fn t388_4_c121a_bank_sign_junk() {
     ];
     for (leg, hexw, vendor) in wits {
         let t = tab(leg);
-        let got = dec(&t, w(hexw)).unwrap_or_else(|| panic!("{leg} {hexw} HOLE"));
+        // (T-25: the measured LDC / LDCU rows fail closed on the junk band -- the clean word's reading)
+        let got = dec_fc(&t, w(hexw)).unwrap_or_else(|| panic!("{leg} {hexw} HOLE"));
         assert_eq!(*vendor, got, "{leg} {hexw} != vendor (cAI)");
     }
 }
@@ -2033,7 +2040,8 @@ fn t388_5_resid_398_loud() {
     // F2-iter229): slowo = arb415 law S8.b64 (x4 AGREE) -- assert_ne ->
     // assert_eq z atrybucja; render musi ZOSTAC vendor-exact.
     let w401 = w("000fe80000000201000000000a5b7984");
-    let got401 = dec(&t, w401);
+    // (T-25: the measured sm121a LDS row fails closed on the inert bit 64 -- the clean word's reading)
+    let got401 = dec_fc(&t, w401);
     assert_eq!(
         got401.as_deref(),
         Some("LDS.S8 R91, [R10]"),

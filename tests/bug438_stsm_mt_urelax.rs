@@ -79,6 +79,12 @@ fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
         .ok()
         .map(|d| to_sass(&d).trim().trim_end_matches(';').to_string())
 }
+include!("t25_fail_closed.inc");
+/// T-25 (2026-11-09): the STS / STSM / STG rows are measured on sm100a / sm103a / sm121a as well (rows-memory-2026-11-07
+/// on -b SM100 / SM103 / SM121) and fail closed on their text-inert bits; the clean word's reading keeps the vendor pin.
+fn dec_fc(t: &IsaTable, idx: &DecodeIndex, w: u128, want: &str) -> Option<String> {
+    dec(t, idx, w).or_else(|| t25_closed_as(t, w, Some(want)).map(|s| s.trim().trim_end_matches(';').to_string()))
+}
 fn enc(t: &IsaTable, text: &str) -> Option<u128> {
     let ins = parse_sass(text, 0).ok()?;
     encode_instruction(&ins, t).ok()
@@ -100,7 +106,7 @@ fn t438_1_stsm_mt_alias_closure_x4() {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
         for (w, vendor) in LAW438_STSM_HEAL {
-            let got = dec(&t, &idx, *w)
+            let got = dec_fc(&t, &idx, *w, vendor)
                 .unwrap_or_else(|| panic!("[{leg}] STSM {vendor} HOLE (must decode)"));
             assert_eq!(&got, vendor, "[{leg}] STSM text != vendor");
         }
@@ -120,7 +126,7 @@ fn t438_2_sts_auri_width_era_band_x4() {
                 assert!(dec(&t, &idx, *w).is_none(), "[{leg}] STS {vendor}: measured row tolerates a text-inert bit");
                 continue;
             }
-            let got = dec(&t, &idx, *w).unwrap_or_else(|| panic!("[{leg}] STS {vendor} HOLE"));
+            let got = dec_fc(&t, &idx, *w, vendor).unwrap_or_else(|| panic!("[{leg}] STS {vendor} HOLE"));
             assert_eq!(&got, vendor, "[{leg}] STS text != vendor");
         }
     }
@@ -135,7 +141,7 @@ fn t438_3_stg_auri_cavity_closure_x4() {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
         for (w, vendor) in LAW438_STG_HEAL {
-            let got = dec(&t, &idx, *w).unwrap_or_else(|| panic!("[{leg}] STG {vendor} HOLE"));
+            let got = dec_fc(&t, &idx, *w, vendor).unwrap_or_else(|| panic!("[{leg}] STG {vendor} HOLE"));
             assert_eq!(&got, vendor, "[{leg}] STG text != vendor");
         }
     }
@@ -153,7 +159,7 @@ fn t438_4_stable_anchors_x4() {
                 assert!(dec(&t, &idx, *w).is_none(), "[{leg}] STABLE {vendor}: measured row tolerates a text-inert bit");
                 continue;
             }
-            let got = dec(&t, &idx, *w).unwrap_or_else(|| panic!("[{leg}] STABLE {vendor} HOLE"));
+            let got = dec_fc(&t, &idx, *w, vendor).unwrap_or_else(|| panic!("[{leg}] STABLE {vendor} HOLE"));
             assert_eq!(&got, vendor, "[{leg}] STABLE text != vendor (drift!)");
         }
     }
@@ -172,13 +178,17 @@ fn t438_5_postures_pinned_pre_post() {
             let idx = DecodeIndex::build(&t);
             (t, idx, l)
         };
-        let got = dec(&t, &idx, *w);
         // T-19 (2026-11-08): the sm120 postures whose word the measured STS rows fail closed on (SM120_FAIL_CLOSED) are
         // holes; the snapped text stays the record of the harvest-era tolerance
         let expect = if *snapped == "HOLE" || (leg == "sm120" && SM120_FAIL_CLOSED.contains(w)) {
             None
         } else {
             Some(snapped.to_string())
+        };
+        // (T-25: a snapped text on a measured leg reads through the clean word; a snapped HOLE stays a plain decode)
+        let got = match &expect {
+            Some(want) => dec_fc(&t, &idx, *w, want),
+            None => dec(&t, &idx, *w),
         };
         assert_eq!(
             got, expect,
@@ -190,11 +200,14 @@ fn t438_5_postures_pinned_pre_post() {
         let leg = leg_of(tag);
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
-        let got = dec(&t, &idx, *w);
         let expect = if *snapped == "HOLE" {
             None
         } else {
             Some(snapped.to_string())
+        };
+        let got = match &expect {
+            Some(want) => dec_fc(&t, &idx, *w, want),
+            None => dec(&t, &idx, *w),
         };
         assert_eq!(
             got, expect,
@@ -240,7 +253,7 @@ fn t438_6_masked_mints_x4() {
 #[test]
 fn t438_7_graft_invariants_and_manifest() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "c374bad146afd10eb41aa1ccd793c09422e2ddfb" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "04bcb53c9a822b46ba4d490e00662e16fb786372" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
 
     let man: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
@@ -279,11 +292,17 @@ fn t438_7_graft_invariants_and_manifest() {
         ] {
             let vm = stsm[mg]["variable_mask"].as_str().unwrap();
             let vm = u128::from_str_radix(vm.trim_start_matches("0x"), 16).unwrap();
-            assert_eq!(
-                vm & (1u128 << 80),
-                1u128 << 80,
-                "[{leg}] STSM {mg} b80 alias lost"
-            );
+            // T-25 (2026-11-09): a row measured on -b SM100 / SM103 / SM121 (rows-memory-2026-11-07) has its fields for
+            // its mask -- the b80 alias ring fails closed there; the harvest rows keep the G2 relax
+            if stsm[mg]["_src"].as_str().is_some_and(|s| s.starts_with("rows-")) {
+                assert_eq!(vm & (1u128 << 80), 0, "[{leg}] STSM {mg}: measured row must fail closed on b80");
+            } else {
+                assert_eq!(
+                    vm & (1u128 << 80),
+                    1u128 << 80,
+                    "[{leg}] STSM {mg} b80 alias lost"
+                );
+            }
         }
         let stg = &ins["STG.E_ARURI_R"]["mod_groups"]["E"];
         let fs = stg["fields"].as_array().unwrap();
@@ -301,7 +320,14 @@ fn t438_7_graft_invariants_and_manifest() {
         let junk: u128 = [81u32, 82, 83, 87, 88, 89, 92, 93, 94, 95]
             .iter()
             .fold(0u128, |a, b| a | (1u128 << b));
-        assert_eq!(vm & junk, junk, "[{leg}] STG junk-band relax lost");
+        // T-25 (2026-11-09): the STG.E_ARURI_R `E` row is measured on sm100a / sm103a / sm121a (rows-memory-2026-11-07) --
+        // its mask is its fields: the junk band fails closed, the ur-band bits 70 / 71 are the 8-bit UR field's own;
+        // sm120's harvest row keeps the G4 relax
+        if stg["_src"].as_str().is_some_and(|s| s.starts_with("rows-")) {
+            assert_eq!(vm & junk, 0, "[{leg}] STG measured row must fail closed on the junk band");
+        } else {
+            assert_eq!(vm & junk, junk, "[{leg}] STG junk-band relax lost");
+        }
         assert_eq!(
             vm & (3u128 << 70),
             3u128 << 70,
@@ -316,7 +342,8 @@ fn t438_7_graft_invariants_and_manifest() {
                 // mask is exactly its fields, so the harvest "era-band relax" (vm |= 1<<95, a text-inert bit) is gone:
                 // the row fails closed on bit 95 (the measured-row convention). sm100a / sm103a keep the harvest relax.
                 let measured = g["_src"].as_str().is_some_and(|s| s.starts_with("rows-"));
-                if leg == "sm120" && measured {
+                // T-25 (2026-11-09): the same on sm100a / sm103a (rows-memory-2026-11-07 on -b SM100 / SM103)
+                if measured {
                     assert_eq!(vm & (1u128 << 95), 0, "[{leg}] STS AURI {wd} measured: fails closed on text-inert b95");
                 } else {
                     assert_eq!(

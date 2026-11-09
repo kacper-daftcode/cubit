@@ -140,8 +140,11 @@ fn t153_6_fix_is_printer_only() {
     // field at bits[24:32), and CALL_II still carries only "NOINC,REL".
     let t = t103a();
     let g = &t.entries["CALL_R"].mod_groups["ABS,NOINC"];
-    assert_eq!(g.fields.len(), 1, "CALL_R[ABS,NOINC] must have the single Ra field");
-    let f = &g.fields[0];
+    // 2026-11-09 (T-25, rows-control-2026-11-07 on -b SM103; T-23's per-row pass): the row is measured field by field -- the
+    // sweep added the guard field [15:12] the harvest never declared; the register stays the single operand field.
+    assert_eq!(g.fields.len(), 2, "CALL_R[ABS,NOINC]: the Ra field and the guard");
+    assert!(g.fields.iter().any(|f| f.shift == 12 && f.bits == 4), "guard field [15:12]");
+    let f = g.fields.iter().find(|f| f.shift == 24).expect("Ra field");
     assert_eq!((f.shift, f.bits), (24, 8), "Ra window");
     assert!(!t.entries["CALL_II"].mod_groups.contains_key("ABS,NOINC")
             && !t.entries["CALL_II"].mod_groups.contains_key("ABS"),

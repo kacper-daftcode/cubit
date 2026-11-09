@@ -25,6 +25,41 @@ use cubit::table::{Extraction, IsaTable};
 const M96: u128 = (1u128 << 96) - 1;
 const LEGS: [&str; 4] = ["sm100a", "sm103a", "sm120", "sm121a"];
 
+/// 2026-11-09 (T-25, rows-misc-2026-11-07 on -b SM103 / SM100; T-23's per-row passes pushed by T-25): the SHFL rows are measured field
+/// by field -- their mask is their fields, so these probe words, which carry a text-inert bit (the junk register byte [71:64] of
+/// the immediate forms, the unused immediate window [57:40] of the register form, the stray bit 53 on the `_R_II` form; nvdisasm
+/// prints the same text with or without it), fail closed instead of decoding through the tolerant harvest row. 0 corpus words
+/// carry those bits (GB10 91 927 / 91 927, B300 85 721 / 85 792 unchanged).
+const T25_FAIL_CLOSED_SM10X: &[u128] = &[
+    0x000064000000001000201f0b0a127389u128,
+    0x000064000000001004201f0b0a127389u128,
+    0x000064000000001008201f0b0a127389u128,
+    0x00006400000000100c201f0b0a127389u128,
+    0x00006400000200100c201f0b0a129389u128,
+    0x00006400000c001000201f0b0a127389u128,
+    0x00006400000c001004201f0b0a127389u128,
+    0x00006400000c001008201f0b0a127389u128,
+    0x00006400000c00100c201f0b0a127389u128,
+    0x00006400000e001000201f0b0a127389u128,
+    0x00006400000e001004201f0b0a127389u128,
+    0x00006400000e001008201f0b0a127389u128,
+    0x00006400000e00100c201f0b0a127389u128,
+];
+/// 2026-11-09 (T-25, rows-misc-2026-11-07 on -b SM121; T-23's per-row passes pushed by T-25): the SHFL rows are measured field
+/// by field -- their mask is their fields, so these probe words, which carry a text-inert bit (the junk register byte [71:64] of
+/// the immediate forms, the unused immediate window [57:40] of the register form, the stray bit 53 on the `_R_II` form; nvdisasm
+/// prints the same text with or without it), fail closed instead of decoding through the tolerant harvest row. 0 corpus words
+/// carry those bits (GB10 91 927 / 91 927, B300 85 721 / 85 792 unchanged).
+const T25_FAIL_CLOSED_SM121A: &[u128] = &[
+    0x000064000000001004201f0b0a127389u128,
+    0x00006400000000100c201f0b0a127389u128,
+    0x00006400000200100c201f0b0a129389u128,
+    0x00006400000c001004201f0b0a127389u128,
+    0x00006400000c00100c201f0b0a127389u128,
+    0x00006400000e001004201f0b0a127389u128,
+    0x00006400000e00100c201f0b0a127389u128,
+];
+
 fn tab(arch: &str) -> IsaTable {
     IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()
 }
@@ -59,7 +94,10 @@ fn t368_1_structure_vm_relax_and_121a_completion() {
         let t = tab(leg);
         for (mg, mode) in [("BFLY", 3u128), ("DOWN", 2), ("IDX", 0), ("UP", 1)] {
             let c = care(&t, "SHFL_P_R_R_R_R", mg);
-            assert_eq!((c >> 40) & 0x3ffff, 0, "{leg} R-form[{mg}] [57:40] pinned");
+            // 2026-11-09 (T-25): a measured row (rows-misc-2026-11-07 on -b SM103 / SM100) pins the unused immediate window
+            // [57:40] (fail-closed on the text-inert bits: the mask is the fields); the harvest rows keep it relaxed
+            let measured = t.entries["SHFL_P_R_R_R_R"].mod_groups[mg].row_probe;
+            assert_eq!((c >> 40) & 0x3ffff, if measured { 0x3ffff } else { 0 }, "{leg} R-form[{mg}] [57:40] pinned / relaxed state");
             assert_eq!((c >> 58) & 3, 3, "{leg} R-form[{mg}] mode not pinned");
             let ab = t.entries["SHFL_P_R_R_R_R"].mod_groups[mg].and_base;
             assert_eq!((ab >> 58) & 3, mode, "{leg} R-form[{mg}] mode value");
@@ -70,15 +108,18 @@ fn t368_1_structure_vm_relax_and_121a_completion() {
         }
     }
     let t = tab("sm121a");
+    // (2026-11-09, T-25: `SHFL.BFLY_P_R_R_R_R` is a `_meta.key_aliases` entry of `SHFL_P_R_R_R_R` since T-23's per-row pass --
+    // the dotted twin's row is the plain key's BFLY row, checked below)
+    assert!(t.entries["SHFL.BFLY_P_R_R_R_R"].encode_only, "121a: the dotted BFLY twin is an alias clone");
     for (key, mg, mode) in [
-        ("SHFL.BFLY_P_R_R_R_R", "", 3u128),
-        ("SHFL_P_R_R_R_R", "BFLY", 3),
+        ("SHFL_P_R_R_R_R", "BFLY", 3u128),
         ("SHFL_P_R_R_R_R", "UP", 1),
         ("SHFL_P_R_R_R_R", "DOWN", 2),
         ("SHFL_P_R_R_R_R", "IDX", 0),
     ] {
         let c = care(&t, key, mg);
-        assert_eq!((c >> 40) & 0x3ffff, 0, "121a {key}[{mg}] [57:40] pinned");
+        let measured = t.entries[key].mod_groups[mg].row_probe;
+        assert_eq!((c >> 40) & 0x3ffff, if measured { 0x3ffff } else { 0 }, "121a {key}[{mg}] [57:40] pinned / relaxed state");
         assert_eq!((c >> 58) & 3, 3, "121a {key}[{mg}] mode not pinned");
         let ab = t.entries[key].mod_groups[mg].and_base;
         assert_eq!((ab >> 58) & 3, mode, "121a {key}[{mg}] mode value");
@@ -204,8 +245,17 @@ fn t368_2_decode_vendor_law_rr_battery() {
     ];
     for leg in LEGS {
         let t = tab(leg);
+        let fail_closed: &[u128] = match leg {
+            "sm100a" | "sm103a" => T25_FAIL_CLOSED_SM10X,
+            "sm121a" => T25_FAIL_CLOSED_SM121A,
+            _ => &[],
+        };
         for &(w, want) in cases {
             let got = dec(&t, w);
+            if fail_closed.contains(&w) {
+                assert!(got.is_none(), "{leg}: the measured row fails closed on the inert bits {w:#034x}");
+                continue;
+            }
             assert_eq!(got.as_deref(), Some(want), "{leg} word {w:#034x}");
         }
     }

@@ -181,7 +181,11 @@ fn t249_1_structure() {
         assert_eq!(ga.fields.len(), gb.fields.len(), "donor parity {key}");
         for leg in ["sm120", "sm121a"] {
             let gc = &tab(leg).entries[key].mod_groups[""];
-            if leg == "sm120" && key != "FSEL_R_R_II_P" {
+            // 2026-11-09 (T-25, rows-misc-2026-11-07 on -b SM103 / SM100; T-23's per-row passes): the donors' rows are
+            // measured field by field now -- their mask is their fields and their and_base is clear under them -- while
+            // the sm121a clones keep the bug249 harvest shape; where exactly one side is measured, the parity is the
+            // structural one used for the measured sm120 rows below (the opcode and the operand fields).
+            if (leg == "sm120" && key != "FSEL_R_R_II_P") || gc.row_probe != gb.row_probe {
                 // 2026-11-07 (session G, tools/probes/re_sm120_fset_fsel_fchk.py): the sm120 rows are measured whole --
                 // the donor's opcode and operand fields, the guard, the sign windows; no harvest count, the FI / UR
                 // forms without the donor's unused reuse bits (text-inert on them) -- parity with the donor is the law's

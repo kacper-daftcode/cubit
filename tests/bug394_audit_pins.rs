@@ -204,13 +204,37 @@ fn t394_1_era_base_decode() {
 /// work/bug393/) makes all four windows inert on every leg, so the
 /// fail-closed posture is superseded by lawful-accept parity. b91 kill +
 /// INVALID markers stay HOLE (t394_3 stands).
+///
+/// 2026-11-09 (T-25; rows-half-2026-11-07 on -b SM100 / SM103 / SM121, T-23's per-row passes): the HFMA2_R_R_R_R '' and
+/// BF16_V2 rows are measured field by field on sm100a / sm103a / sm121a -- the four windows are text-inert and the
+/// measured row fails closed on them (its mask is its fields); sm120's harvest rows keep the 393 relax. A stray word is a
+/// HOLE exactly when the clean word's row is measured; the clean word renders the vendor base text on every leg.
+const INERT_393: u128 = (0xffffu128 << 40) | (0xfu128 << 56) | (0xfu128 << 87) | (0xfu128 << 92);
 #[test]
 fn t394_2_inert_doctrine() {
     let tabs: Vec<IsaTable> = LEGS4.iter().map(|a| tab(a)).collect();
     for (w, ven, _pre_393_dense_match_only, tag) in T394_2 {
         for li in 0..4usize {
-            let got = dec96(&tabs[li], w)
-                .unwrap_or_else(|| panic!("leg {} post-393 inert must decode {tag}", LEGS4[li]));
+            let t = &tabs[li];
+            let idx = DecodeIndex::build(t);
+            let d = match idx.decode(w & M96, 0, t) {
+                Ok(d) => d,
+                Err(_) => {
+                    assert!(w & INERT_393 != 0, "leg {} {tag}: HOLE on a clean word", LEGS4[li]);
+                    let d = idx
+                        .decode(w & M96 & !INERT_393, 0, t)
+                        .unwrap_or_else(|_| panic!("leg {} {tag}: the clean word is a HOLE", LEGS4[li]));
+                    assert!(
+                        t.entries[&d.key].mod_groups[&d.mod_group].row_probe,
+                        "leg {} {tag}: a harvest row fails closed ({}[{}])",
+                        LEGS4[li],
+                        d.key,
+                        d.mod_group
+                    );
+                    d
+                }
+            };
+            let got = to_sass(&d);
             assert_eq!(
                 got.trim_end_matches(';').trim(),
                 ven,

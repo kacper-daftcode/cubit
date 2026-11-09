@@ -672,6 +672,13 @@ fn t225_3b_shfl_b63_vendor_true_post382() {
     ] {
         let t = load(&format!("tables/{leg}.json"));
         let idx = DecodeIndex::build(&t);
+        // 2026-11-09 (T-25, rows-misc-2026-11-07 on -b SM103 / SM100; T-23's per-row passes): the SHFL immediate rows of
+        // sm100a / sm103a are measured field by field -- their mask is their fields, so the text-inert b63 fails closed
+        // (nvdisasm prints the plain text for it; the plain word decodes). sm120 keeps its bug229 rows and the decode.
+        if leg != "sm120" {
+            assert!(idx.decode(w1 & M96, 0, &t).is_err(), "{leg}: the measured SHFL row fails closed on the inert b63");
+            continue;
+        }
         let d = idx
             .decode(w1 & M96, 0, &t)
             .unwrap_or_else(|e| panic!("{leg}: 382 vendor-true b63 word HOLE: {e}"));
@@ -704,14 +711,9 @@ fn t225_3c_shfl_b62_region_vendor_true_post387() {
     ] {
         let t = load(&format!("tables/{leg}.json"));
         let idx = DecodeIndex::build(&t);
-        let d = idx
-            .decode(word & M96, 0, &t)
-            .unwrap_or_else(|e| panic!("{leg}: 387 vendor-true word HOLE {word:024x}: {e}"));
-        assert_eq!(
-            to_sass(&d).trim_end_matches([';', ' ']),
-            "SHFL.DOWN P0, R0, R0, 0x0, 0x0",
-            "{leg} wrong-text {word:024x}"
-        );
+        // 2026-11-09 (T-25): the measured SHFL rows (rows-misc-2026-11-07 on -b SM103 / SM100) fail closed on the text-inert
+        // [63:61] window -- the vendor prints the plain text for every one of these words, the plain word decodes (t225_3a).
+        assert!(idx.decode(word & M96, 0, &t).is_err(), "{leg}: the measured SHFL row fails closed on the inert bits {word:024x}");
     }
 }
 

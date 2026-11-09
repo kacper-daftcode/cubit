@@ -128,15 +128,10 @@ fn t296_4_cross_read_siblings_still_decode() {
         // (tests/fixtures/sm120_rows_half_nvdisasm.jsonl): b62 is text-inert for nvdisasm and the measured row's mask is
         // its fields, so the word fails closed (no ghost print is possible on a word that does not decode); sm121a
         // keeps the 282 widen.
-        if leg == "sm120" {
+        // 2026-11-09 (T-25, rows-half-2026-11-07 on -b SM121): sm121a's plain row is measured the same way.
+        {
             assert!(dec(&t, w_payload | (1u128 << 62)).is_none(), "{leg}: a measured row tolerates the text-inert b62");
             assert_eq!(dec(&t, w_payload).as_deref(), Some("I2IP.U8.S32 R5, R4, R3, R2"), "{leg}: base word");
-        } else {
-            assert_eq!(
-                dec(&t, w_payload | (1u128 << 62)).as_deref(),
-                Some("I2IP.U8.S32 R5, R4, R3, R2"),
-                "{leg}: b62 inert law drift"
-            );
         }
     }
 }
@@ -160,7 +155,9 @@ fn t296_5_encoder_decoder_parity_note() {
         // IMAD form on the four targets) retired that reading on sm120: the measured rows fail closed on bit 72
         // and the encoder refuses the sign instead of minting an inert bit. `-Rc` is the only encodable sign.
         // On sm121a the IMAD rows are still harvest rows; the generic sign window stays until their measurement.
-        if leg == "sm120" {
+        // 2026-11-09 (T-25): they are measured now (rows-intalu-2026-11-07 on -b SM121, T-23's per-row pass) and the
+        // encoder's NEEDS 53 rule follows the measured row on every table -- the same refusal on both legs.
+        if leg == "sm120" || leg == "sm121a" {
             let e3 = enc_res(&t, "IMAD R5, -R4, R3, R2").expect_err("IMAD -Ra refused on sm120 (NEEDS 53)");
             assert!(e3.contains("NEEDS 53"), "{leg}: IMAD -Ra arm regressed: {e3}");
             let e4 = enc_res(&t, "IMAD R5, |R4|, R3, R2").expect_err("IMAD |Ra| refused on sm120 (NEEDS 53)");

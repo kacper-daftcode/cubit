@@ -132,10 +132,12 @@ fn t327_1_structure_graft_and_donors() {
                 0,
                 "{leg}[{mgn}]: ab carries sign bits"
             );
+            // 2026-11-09 (T-25, rows-half-2026-11-07 on -b SM121): a measured row's mask is its fields -- the abs fields
+            // 62 / 73 are inside it there (the relaxed match reaches them on the bug243 sm120 rows through the field list)
             assert_eq!(
                 mg.variable_mask & (B62 | B73),
-                0,
-                "{leg}[{mgn}]: vm covers sign bits"
+                if mg.row_probe { B62 | B73 } else { 0 },
+                "{leg}[{mgn}]: vm / sign-field state"
             );
         }
         // lane bakes unchanged (320 geometry)
@@ -145,9 +147,10 @@ fn t327_1_structure_graft_and_donors() {
         assert_eq!(ab("FMZ") ^ ab(""), 1 << 76, "{leg}: FMZ bake drift");
         assert_eq!(ab("F32,FMZ") ^ ab(""), (1 << 76) | (1 << 78));
         assert_eq!(ab("BF16_V2,FMZ") ^ ab("BF16_V2"), 1 << 76);
-        // inert-band relax from 320 intact
+        // inert-band relax from 320 intact (T-25: fail-closed on the measured sm121a rows -- the mask is the fields)
         for mgn in GRAFT_MGS {
-            assert_eq!(e.mod_groups[mgn].variable_mask & BAND, BAND);
+            let mg = &e.mod_groups[mgn];
+            assert_eq!(mg.variable_mask & BAND, if mg.row_probe { 0 } else { BAND });
         }
     }
     // donors mg set: {'' , BF16_V2} pre-381.
@@ -173,12 +176,17 @@ fn t327_1_structure_graft_and_donors() {
                 .filter(|f| f.extraction == Extraction::Abs && f.shift == 83)
                 .count();
             assert_eq!(cnt83, 1, "{leg}[{mgn}]: abs@83 tok4 missing (BUG-371)");
-            assert!(
-                !mg.fields
-                    .iter()
-                    .any(|f| f.extraction == Extraction::Abs && matches!(f.shift, 62 | 73)),
-                "{leg}[{mgn}]: donor grafted beyond 371 scope!"
-            );
+            // 2026-11-09 (T-25, rows-half-2026-11-07 on -b SM103 / SM100; T-23's per-row passes): a donor row measured field by
+            // field carries the abs bits 62 / 73 as fields where nvdisasm prints `|R|` for them -- the sweep's finding, the
+            // 392-kand poverty closed by measurement; the harvest donor rows stay without them.
+            if !mg.row_probe {
+                assert!(
+                    !mg.fields
+                        .iter()
+                        .any(|f| f.extraction == Extraction::Abs && matches!(f.shift, 62 | 73)),
+                    "{leg}[{mgn}]: donor grafted beyond 371 scope!"
+                );
+            }
         }
     }
 }
@@ -257,6 +265,16 @@ fn t327_2_decode_law_vendor_equal() {
     for leg in ["sm120", "sm121a"] {
         let t = tab(leg);
         for (extra, want) in cases {
+            // 2026-11-09 (T-25): on sm121a the measured rows fail closed on the text-inert band [55:40] (rows-half-2026-11-07
+            // on -b SM121); the band-free word carries the vendor text
+            if leg == "sm121a" && extra & BAND != 0 {
+                // (the '' / BF16_V2 rows are measured and fail closed; the bug320 lane rows keep the relaxed band)
+                match dec(&t, HOST | extra) {
+                    None => assert_eq!(dec(&t, HOST | (extra & !BAND)).as_deref(), Some(*want), "{leg}: the band-free word at extra={extra:#x}"),
+                    Some(got) => assert_eq!(&got, want, "{leg}: decode law drift on extra={extra:#x}"),
+                }
+                continue;
+            }
             let got =
                 dec(&t, HOST | extra).unwrap_or_else(|| panic!("{leg}: HOLE on extra={extra:#x}"));
             assert_eq!(&got, want, "{leg}: decode law drift on extra={extra:#x}");
@@ -442,9 +460,15 @@ fn t327_5_anchors_293_320_324_intact() {
         );
         // the live WRONG cell pre-fix (5-reg row winning the inert flip40
         // word) renders vendor-true post-delete:
-        assert_eq!(
-            &dec(&t, ERA_5R ^ (1 << 40)).unwrap(),
-            "@P4 HFMA2 R2, R28.H0_H0, R1.H0_H0, R2.H0_H0"
-        );
+        // 2026-11-09 (T-25, rows-half-2026-11-07 on -b SM121): on sm121a the measured row fails closed on the text-inert
+        // bit 40 instead (the vendor's text is the base word's, asserted above); sm120's bug243 row keeps the relaxed band.
+        if leg == "sm121a" {
+            assert!(dec(&t, ERA_5R ^ (1 << 40)).is_none(), "{leg}: the measured row fails closed on the inert flip40");
+        } else {
+            assert_eq!(
+                &dec(&t, ERA_5R ^ (1 << 40)).unwrap(),
+                "@P4 HFMA2 R2, R28.H0_H0, R1.H0_H0, R2.H0_H0"
+            );
+        }
     }
 }

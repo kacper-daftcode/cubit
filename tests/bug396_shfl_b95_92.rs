@@ -63,6 +63,32 @@ fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
     encode_instruction(&insn, t).map_err(|e| format!("encode: {e}"))
 }
 
+/// 2026-11-09 (T-25; rows-misc-2026-11-07 on -b SM100 / SM103 / SM121, T-23's per-row passes): a SHFL row measured field
+/// by field fails closed on the text-inert bits (nvdisasm prints the clean text for them; the row's mask is its fields and
+/// does not claim them), the harvest rows keep the relax. A junk word is a HOLE exactly when the clean word's row is
+/// measured; the clean word keeps the vendor text either way.
+fn expect_inert(t: &IsaTable, w: u128, inert: u128, text: &str, tag: &str) {
+    let idx = cached_index(t);
+    let render = |d: &cubit::decoder::DecodedInst| to_sass(d).trim_end().trim_end_matches(';').to_string();
+    match idx.decode(w & M96, 0, t) {
+        Ok(d) => assert_eq!(render(&d), text, "{tag} wrong-text {w:#034x}"),
+        Err(_) => {
+            assert!(w & inert != 0, "{tag} HOLE on {w:#034x}");
+            let d = idx
+                .decode(w & !inert & M96, 0, t)
+                .unwrap_or_else(|_| panic!("{tag} HOLE on the clean word of {w:#034x}"));
+            assert_eq!(render(&d), text, "{tag} clean-word wrong-text {w:#034x}");
+            assert!(
+                t.entries[&d.key].mod_groups[&d.mod_group].row_probe,
+                "{tag} a harvest row fails closed on {w:#034x} ({}[{}])",
+                d.key,
+                d.mod_group
+            );
+        }
+    }
+}
+const INERT_ALL: u128 = RELAX | PREV387 | PREV382;
+
 #[test]
 fn t396_1_structure_relax_rows_x4_legs() {
     let era: &[(&str, &[&str])] = &[
@@ -83,22 +109,28 @@ fn t396_1_structure_relax_rows_x4_legs() {
                     fmask |= ((1u128 << f.bits) - 1) << f.shift;
                 }
                 let care = M96 & !(vm | fmask);
-                assert_eq!(
-                    care & RELAX,
-                    0,
-                    "{leg} {k}[{mg}] window [95:92] still pinned"
-                );
+                if g.row_probe {
+                    // (T-25: the measured row's mask is its fields; the inert windows fail closed)
+                    assert_eq!(vm, fmask, "{leg} {k}[{mg}] measured row: mask != fields");
+                    assert_eq!(fmask & INERT_ALL, 0, "{leg} {k}[{mg}] inert window became fields");
+                } else {
+                    assert_eq!(
+                        care & RELAX,
+                        0,
+                        "{leg} {k}[{mg}] window [95:92] still pinned"
+                    );
+                    assert_eq!(
+                        care & PREV387,
+                        0,
+                        "{leg} {k}[{mg}] [63:61] (387) relax lost"
+                    );
+                    assert_eq!(
+                        care & PREV382,
+                        0,
+                        "{leg} {k}[{mg}] [90:88] (382) relax lost"
+                    );
+                }
                 assert_eq!((care >> 91) & 1, 1, "{leg} {k}[{mg}] b91 kill-pin lost");
-                assert_eq!(
-                    care & PREV387,
-                    0,
-                    "{leg} {k}[{mg}] [63:61] (387) relax lost"
-                );
-                assert_eq!(
-                    care & PREV382,
-                    0,
-                    "{leg} {k}[{mg}] [90:88] (382) relax lost"
-                );
                 assert_eq!(RELAX & fmask, 0, "{leg} {k}[{mg}] relax overlaps fields");
                 n += 1;
             }
@@ -117,12 +149,13 @@ fn t396_1_structure_relax_rows_x4_legs() {
         ("SHFL_P_R_R_R_II", "DOWN"),
         ("SHFL_P_R_R_R_II", "UP"),
         ("SHFL.IDX_P_R_R_R_II", ""),
-        ("SHFL.BFLY_P_R_R_R_R", ""),
+        // ("SHFL.BFLY_P_R_R_R_R", "") -- since T-23's per-row pass an alias clone of SHFL_P_R_R_R_R (its BFLY row below)
         ("SHFL_P_R_R_R_R", "BFLY"),
         ("SHFL_P_R_R_R_R", "DOWN"),
         ("SHFL_P_R_R_R_R", "IDX"),
         ("SHFL_P_R_R_R_R", "UP"),
     ];
+    assert!(t.entries["SHFL.BFLY_P_R_R_R_R"].encode_only, "sm121a SHFL.BFLY_P_R_R_R_R: an alias clone (T-25)");
     for (k, mg) in ka {
         let g = &t.entries[*k].mod_groups[*mg];
         let vm = g.variable_mask;
@@ -131,22 +164,28 @@ fn t396_1_structure_relax_rows_x4_legs() {
             fmask |= ((1u128 << f.bits) - 1) << f.shift;
         }
         let care = M96 & !(vm | fmask);
-        assert_eq!(
-            care & RELAX,
-            0,
-            "sm121a {k}[{mg}] window [95:92] still pinned"
-        );
+        if g.row_probe {
+            assert_eq!(vm, fmask, "sm121a {k}[{mg}] measured row: mask != fields");
+            assert_eq!(fmask & INERT_ALL, 0, "sm121a {k}[{mg}] inert window became fields");
+        } else {
+            assert_eq!(
+                care & RELAX,
+                0,
+                "sm121a {k}[{mg}] window [95:92] still pinned"
+            );
+            assert_eq!(
+                care & PREV387,
+                0,
+                "sm121a {k}[{mg}] [63:61] (387) relax lost"
+            );
+        }
         assert_eq!((care >> 91) & 1, 1, "sm121a {k}[{mg}] b91 kill-pin lost");
-        assert_eq!(
-            care & PREV387,
-            0,
-            "sm121a {k}[{mg}] [63:61] (387) relax lost"
-        );
     }
-    // '_?' residuum rows stay pinned w.r.t. [95:92] (celowo nietkniete)
+    // '_?' residuum rows: since T-23's per-row pass `_meta.key_aliases` clones of the measured dotted keys (encode-only)
     for k in ["SHFL.BFLY_P_R_R_II_II_?", "SHFL.IDX_P_R_R_R_II_?"] {
-        let g = &t.entries[k].mod_groups[""];
-        let vm = g.variable_mask;
+        let e = &t.entries[k];
+        assert!(e.encode_only, "sm121a {k}: the residuum key is an alias clone");
+        let vm = e.mod_groups[""].variable_mask;
         assert_eq!(vm & RELAX, 0, "sm121a {k} residuum relaxed?!");
     }
 }
@@ -859,8 +898,7 @@ fn t396_2_vendor_window_words_decode_clean_x4() {
     for (w, exp) in cases {
         for leg in LEGS {
             let t = tab(leg);
-            let got = dec(t, *w).unwrap_or_else(|| panic!("{leg} HOLE on {w:#034x}"));
-            assert_eq!(&got, exp, "{leg} wrong-text on {w:#034x}");
+            expect_inert(t, *w, INERT_ALL, exp, leg);
         }
     }
 }
@@ -945,8 +983,7 @@ fn t396_5_flips_with_attribution_era_class() {
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
         for w in [w_ball, w_cross] {
-            let got = dec(t, w).unwrap_or_else(|| panic!("{leg} t225-window HOLE"));
-            assert_eq!(&got, "SHFL.DOWN P0, R0, R0, 0x0, 0x0", "{leg} wrong-text");
+            expect_inert(t, w, INERT_ALL, "SHFL.DOWN P0, R0, R0, 0x0, 0x0", &format!("{leg} t225-window"));
         }
     }
     // II_R IDX/BFLY absent x4 = residuum no-claim 358/368 sec.6: mint musi

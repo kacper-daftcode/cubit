@@ -191,9 +191,14 @@ fn t270_1_structure_and_skip_registry() {
         );
     }
     // sm121a-only legs
+    // 2026-11-09 (T-25): the sm121a `HFMA2_R_R_FI_FI_R` key is deleted (blackwell-isa, T-25): a junk key whose 31 rows had
+    // the and_base 0x11 (an illegal opcode), a register field inside the opcode nibble and duplicate reuse fields -- every
+    // canonical word a LEA glyph, 0 GB10 witnesses. The live sm121a immediate-form rows are `HFMA2_R_R_II_II_R`'s (T-24);
+    // the 270 law (no multi-bit sign field, the tok5 neg@84) is checked there.
     let t = tab("sm121a");
+    assert!(!t.entries.contains_key("HFMA2_R_R_FI_FI_R"), "sm121a: the junk FI_FI_R key stays deleted");
     for mg in ["", "BF16_V2"] {
-        let g = &t.entries["HFMA2_R_R_FI_FI_R"].mod_groups[mg];
+        let g = &t.entries["HFMA2_R_R_II_II_R"].mod_groups[mg];
         assert!(!g
             .fields
             .iter()
@@ -203,7 +208,7 @@ fn t270_1_structure_and_skip_registry() {
                 && f.shift == 84
                 && f.bits == 1
                 && f.extraction == Extraction::Neg),
-            "FIFIR tok5 neg@84 missing ({mg})"
+            "IIIIR tok5 neg@84 missing ({mg})"
         );
     }
     // sm121a FI_FI BF16_V2 junk mg: DELETED by BUG-265 (same closure);
@@ -466,7 +471,10 @@ fn t270_5_anchors_registrations() {
     // covering 112 vendor-decodable 'HFMA2 4R+reuse' words; removal=holes,
     // synthesis = 278-kand). FRND.CEIL anchor RETIRED by the 265 phantom
     // deletion (see t265_1).
-    assert!(t.entries.contains_key("HADD2_R_R_II_II_II_II_?"));
+    // 2026-11-09 (T-25): the HADD2 `?` bucket is deleted on sm121a too (blackwell-isa, T-25: it printed
+    // `HADD2 R32, R48, 0x0, 0x118, 0, 0, UR0` for the measured HADD2_R_R_R rows' text-inert neighbours; its 112 words
+    // decode through the measured HFMA2 / HADD2 register rows, as on sm120 since BUG-484).
+    assert!(!t.entries.contains_key("HADD2_R_R_II_II_II_II_?"));
     assert!(!t.entries.contains_key("FRND.F16.CEIL_R_R"));
     // FLIP t270_5: 271-sentinel RETIRED (BUG-289 FIXED, F2-iter161,
     // canonical 57d1448): HFMA2_R_R_R_UR is now armed with the measured

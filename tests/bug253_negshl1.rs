@@ -73,7 +73,9 @@ fn t253_1_structure() {
             }
         }
     }
-    assert_eq!(shapes.len(), 12, "sm121a NegShl1 inventory drifted");
+    // 2026-11-09 (T-25, rows-intalu-2026-11-07 / rows-half-2026-11-07 on -b SM121; T-23's per-row passes): the DFMA rows
+    // measured field by field carry their `neg_shl1` sign windows as fields -- 12 -> 39 slots, the same three placements.
+    assert_eq!(shapes.len(), 39, "sm121a NegShl1 inventory drifted");
     for (_, _, tok, shift, bits) in &shapes {
         assert_eq!(*bits, 2, "NegShl1 must be a 2-bit window");
         assert!(

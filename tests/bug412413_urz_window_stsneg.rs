@@ -88,6 +88,14 @@ fn t412_1_lds_ldsm_window_vendor_exact() {
 fn sm120_fails_closed(w: u128) -> bool {
     w & (1u128 << 72) != 0
 }
+include!("t25_fail_closed.inc");
+/// T-25 (2026-11-09): the STS rows are measured on sm100a / sm103a as well (rows-memory-2026-11-07 on -b SM100 / SM103) --
+/// a bit-72 carrier is a hole on every measured leg; the clean word's reading (tests/t25_fail_closed.inc) keeps the pin.
+fn dec_fc(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<(String, String)> {
+    dec(t, idx, w).or_else(|| {
+        t25_closed(t, w).map(|s| (s.trim().trim_end_matches(';').to_string(), String::from("(fail-closed: the clean word's row)")))
+    })
+}
 
 #[test]
 fn t412_2_sts_9bit_window_b72_inert() {
@@ -101,7 +109,7 @@ fn t412_2_sts_9bit_window_b72_inert() {
                 n += 1;
                 continue;
             }
-            let (got, _) = dec(&t, &idx, w).unwrap_or_else(|| panic!("[{leg}] {tag} hole"));
+            let (got, _) = dec_fc(&t, &idx, w).unwrap_or_else(|| panic!("[{leg}] {tag} hole"));
             assert_eq!(got, vendor, "[{leg}] {tag}");
             n += 1;
         }
@@ -145,7 +153,7 @@ fn t412_4_arb399a_cells_vendor_exact() {
                 n += 1;
                 continue;
             }
-            let (got, _) = dec(&t, &idx, w).unwrap_or_else(|| panic!("[{leg}] {tag} hole"));
+            let (got, _) = dec_fc(&t, &idx, w).unwrap_or_else(|| panic!("[{leg}] {tag} hole"));
             assert_eq!(got, vendor, "[{leg}] {tag}");
             n += 1;
         }
@@ -173,7 +181,7 @@ fn t412_5_prefix_renders_must_not_reappear() {
             assert!(dec(&t, &idx, w).is_none(), "[{leg}] {tag}: a measured row tolerates the text-inert bit 72");
             continue;
         }
-        let (got, _) = dec(&t, &idx, w).unwrap_or_else(|| panic!("[{leg}] {tag} hole"));
+        let (got, _) = dec_fc(&t, &idx, w).unwrap_or_else(|| panic!("[{leg}] {tag} hole"));
         assert_ne!(got, pre_text, "[{leg}] {tag} pre-fix render reappeared");
     }
 }
@@ -250,7 +258,7 @@ fn t413_2_sm121a_claim_map() {
 #[test]
 fn t413_3_donor_contract_and_source_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "c374bad146afd10eb41aa1ccd793c09422e2ddfb" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "04bcb53c9a822b46ba4d490e00662e16fb786372" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON412413, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     let t121 = tab("sm121a");
@@ -266,7 +274,8 @@ fn t413_3_donor_contract_and_source_pin() {
         }
         // T-19 (2026-11-08): the sm120 donor is measured (tools/probes/re_sm120_rows.py --family memory) -- its mask is
         // its fields (the 8-bit UR base, bit 72 text-inert), a subset of the harvest mask the other legs keep
-        if leg == "sm120" {
+        // T-25 (2026-11-09): sm100a / sm103a measured as well (rows-memory-2026-11-07 on -b SM100 / SM103)
+        if e.row_probe {
             // (the harvest mask was narrower than its own fields in places -- bits 40 / 41, 70 / 71, 78 / 79 of the offset,
             // the UR base and the address scale -- so the two masks are compared only through the constant bits)
             let either = want_vm | e.variable_mask;
@@ -278,14 +287,22 @@ fn t413_3_donor_contract_and_source_pin() {
         assert_eq!(e.and_base, want_base, "{leg} donor base drift");
         assert_eq!(e.variable_mask, want_vm, "{leg} donor vm drift");
     }
+    // T-25 (2026-11-09): the three sibling legs are measured, sm121a keeps the bug412413 harvest row (the 9-bit UR field
+    // over bit 72) -- the shapes are compared through the constant bits outside both masks, as above
+    let either = want_vm | e121.variable_mask;
     assert_eq!(
-        e121.and_base, want_base,
-        "sm121a is not the donor shape (base)"
+        e121.and_base & !either, want_base & !either,
+        "sm121a is not the donor shape (base, outside both masks)"
     );
-    assert_eq!(
-        e121.variable_mask, want_vm,
-        "sm121a is not the donor shape (vm)"
-    );
+    if e121.row_probe {
+        let fields: u128 = e121.fields.iter().fold(0, |m, f| m | (((1u128 << f.bits) - 1) << f.shift));
+        assert_eq!(e121.variable_mask, fields, "sm121a measured donor: the mask is its fields");
+    } else {
+        assert_eq!(
+            e121.variable_mask, 0x3fe3e008001313ffffffcffff00f000u128,
+            "sm121a is not the donor shape (vm; the bug412413 harvest mask)"
+        );
+    }
     // FLIP F2-iter238 (BUG-425 graft 52cb73c, z atrybucja): the donor row
     // gains the measured addr_scale field {2b@78,tok1} (arb425 law x4:
     // b78=.X4 b79=.X8 both=.X16 uniform on the ARURI frame); and_base/vm

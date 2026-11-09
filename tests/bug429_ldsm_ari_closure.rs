@@ -161,8 +161,16 @@ fn t429_4_census_and_donor_shape() {
         let num = |v: &serde_json::Value| -> u128 {
             u128::from_str_radix(v.as_str().unwrap().trim_start_matches("0x"), 16).unwrap()
         };
-        let donor = &ari["16,M88"];
-        let dab = num(&donor["and_base"]);
+        // 2026-11-09 (T-25, rows-memory-2026-11-07 on -b SM100 / SM103; T-23's per-row passes): the frame-own `16,M88`
+        // donor is measured on sm100a / sm103a (its guard a field, its mask its fields) and no longer carries the harvest
+        // geometry the bug429 rows were cloned from; the `16,MT88` row -- bug429's own, never measured -- stands in as the
+        // donor reference (its enum code removed from the and_base).
+        let donor = if ari["16,M88"]["_src"].as_str().is_some_and(|s| s.starts_with("rows-")) {
+            &ari["16,MT88"]
+        } else {
+            &ari["16,M88"]
+        };
+        let dab = num(&donor["and_base"]) & !(0x7u128 << 78);
         let dvm = num(&donor["variable_mask"]);
         let donor_fields: Vec<(&str, u64, u64)> = donor["fields"]
             .as_array()
@@ -225,7 +233,7 @@ fn t429_5_source_pins_52cb73c() {
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     // ride-after flip F2-iter240 (BUG-435+434 graft): 1810912 canonical (was 70eb0fe = BUG-416 F2-iter239, 52cb73c = BUG-425+425b F2-iter238, 616f185 = BUG-429 F2-iter237, a5e6d0a = BUG-427 F2-iter236, 2a631d5 = BUG-426 F2-iter235)
     assert!(
-        m["base_revision"].as_str().unwrap().starts_with("c374bad146afd10eb41aa1ccd793c09422e2ddfb") /* 2026-11-06 T-11 (was c258f8a, T-10) */, // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+        m["base_revision"].as_str().unwrap().starts_with("04bcb53c9a822b46ba4d490e00662e16fb786372") /* 2026-11-06 T-11 (was c258f8a, T-10) */, // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
         "SOURCE.json must pin canonical 57e7ecd [was ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, 1810912 = 435+434 hop, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b, 3f6ca6f = BUG-425, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422] (BUG-442 graft F2-iter246 z atrybucja; ride-chain): {:?}",
         m["base_revision"]
     );

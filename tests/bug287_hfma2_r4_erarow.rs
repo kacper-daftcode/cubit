@@ -69,13 +69,15 @@ fn t287_1_structure_transplant_census() {
     let g = &a.entries["HFMA2_R_R_R_R"].mod_groups[""];
     let r = &b.entries["HFMA2_R_R_R_R"].mod_groups[""];
     assert_eq!(g.and_base & M96, r.and_base & M96, "ab <96 != sm120");
-    assert_eq!(
-        g.variable_mask & M96,
-        r.variable_mask & M96,
-        "vm <96 != sm120"
-    );
+    // 2026-11-09 (T-25, rows-half-2026-11-07 on -b SM121; T-23's per-row pass): the sm121a row is measured field by field
+    // -- its mask is exactly its fields (the same 18 fields as sm120's bug243 row), while sm120's keeps the wave-era
+    // text-inert windows ([55:40], BUG-320) in its mask; the fields agree, the masks differ by the text-inert bits only.
+    let fields_mask: u128 = g.fields.iter().fold(0, |m, f| m | (((1u128 << f.bits) - 1) << f.shift));
+    assert_eq!(g.variable_mask, fields_mask, "sm121a: the measured row's mask is its fields");
+    let r_fields: u128 = r.fields.iter().fold(0, |m, f| m | (((1u128 << f.bits) - 1) << f.shift));
+    assert_eq!(fields_mask, r_fields, "the two rows declare the same fields");
     assert_eq!(g.and_base & !M96, 0, "ab >=96 era convention moved");
-    assert_eq!(g.variable_mask >> 96, 0x1c000000, "vm >=96 era ctl moved");
+    assert_eq!(g.variable_mask >> 96, 0x1c000000, "vm >=96: the three reuse fields");
     let has = |ex: Extraction, sh: u32, ti: i32, bits: u32| {
         g.fields
             .iter()

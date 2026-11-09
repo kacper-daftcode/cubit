@@ -78,6 +78,9 @@ struct DecodeCandidate {
     broad_relaxed_match_mask: u128, // relaxed_match_mask also ignoring standard reg slots
     #[allow(dead_code)]
     record_count: usize,           // for disambiguation
+    /// The row was verified field by field over the whole word (`_src` = `rows-<family>-…`): its mask is its fields
+    /// and it fails closed on every other bit (T-24: closes the broad fallback in its neighbourhood).
+    row_probe: bool,
 }
 
 impl DecodeIndex {
@@ -193,6 +196,7 @@ impl DecodeIndex {
                     relaxed_match_mask,
                     broad_relaxed_match_mask,
                     record_count: 0,
+                    row_probe: mg.row_probe,
                 };
                 // The opcode map key uses and_base bits [11:0], but declared
                 // fields may own some of those bits (e.g. UTCHMMA dsel2@10):
@@ -249,6 +253,31 @@ impl DecodeIndex {
         // (no predicate guard). Exclude guard bits from the match check so that an
         // instruction like `@!P0 LDCU.64 UR4, ...` still matches its table entry.
         let guard_mask: u128 = 0xF000; // bits [15:12] = predicate guard
+        // 2026-11-08 (session T-24): the broad address-match is closed inside a measured row's fail-closed zone.
+        // A row verified field by field (`row_probe`, `_src = rows-<family>-…`, tools/probes/re_sm120_rows.py) has a
+        // field on every live slot and fails closed on every other bit of its canonical word (T-10's convention). The
+        // sm120 table reached that state whole (G's families, T-18 / T-19); on sm121a / sm103a / sm100a the per-row
+        // passes (T-23) measured the plain rows but left their harvest siblings, and the broad address-fallback
+        // (priority 2, for `_ARI/_AI/_dARI/_ARURI` keys with a missing base slot) then absorbed a word one text-inert
+        // bit away from a measured row into a sibling that prints a modifier the vendor does not: `LDG.E` + an inert
+        // bit -> `LDG.E.LTC128B`, `LDS.U8` + an inert bit -> `LDS.128 ?AR`, `REDG … [R]` -> `… |R|` (T/t24/inert_check.py,
+        // 149 / 93 / 93 such words on the three tables; none on sm120; 0 production-census / GB10 / B300 words affected).
+        // The measured row fails closed on the bit; the broad sibling must not reopen it. The relaxed and priority-3
+        // (sign-tolerant: `|UR|`, `-UR.H0_NH1`) paths stay open -- those name real operand modifiers nvdisasm renders.
+        // Scope: only the broad path, only inside a measured row's fail-closed zone.
+        // 2026-11-08 (session T-25): the zone is the measured row's own broad neighbourhood -- the word agrees with the
+        // row on every fixed bit outside the four standard operand slots ([23:16], [31:24], [63:32], [71:64]: the bits the
+        // broad path itself ignores) up to one more bit. T-24's Hamming-1 rule left the words with two junk bits in the
+        // operand byte [71:64] open (bits 70 + 71 of the bug432 `URZ`-cavity LDG words, the `, !P4` trailing predicate
+        // next to the LTC bits): `LDG.E P3, R7, [R69.64+UR67+0x5bda4], P0` + bits 70 / 71 printed `LDG.E.LTC128B …`
+        // through the harvest `E,LTC128B` sibling of the measured `LDG_P_R_ARURI_P` `E` row (sm121a), the `_P`
+        // trailing-predicate word printed without its predicate through `LDG.E_R_ARURI`, and on sm103a / sm100a the
+        // bug435 `LDG_P_R_dARI` rows printed a phantom `PT,` destination for the measured `LDG_R_dARI` `E,LTC256B`
+        // row's neighbour (T/t25/scan.py over the 8 550 bug-wave words; nvdisasm 13.1 the truth). A harvest sibling
+        // may broad-match a word only where no measured row of the opcode does.
+        let std_slots: u128 = (0xFF_u128 << 16) | (0xFF_u128 << 24) | (0xFFFFFFFF_u128 << 32) | (0xFF_u128 << 64);
+        let near_measured = candidates.iter().any(|c| c.row_probe
+            && ((code_clean ^ c.and_base) & c.match_mask & !guard_mask & !std_slots).count_ones() <= 1);
         let mut matches: Vec<(&DecodeCandidate, u8)> = candidates.iter().filter_map(|c| {
             // BUG-452: claim-forbid guard — value exclusions of the claim
             // cube (donor-first narrowing, e.g. base==255 on a64/desc ARURI
@@ -294,9 +323,40 @@ impl DecodeIndex {
                 || c.key.contains("dARI") || c.key.contains("ARURI"))
                 && !row_probe
                 && !matches!(c.key.as_str(), "REDG_ARURI_R" | "REDG_ARURI64_R");
-            if no_fields || is_mem_addr {
+            // T-24: a harvest sibling may not broad-absorb a measured row's text-inert neighbour (see above).
+            if (no_fields || is_mem_addr) && (c.row_probe || !near_measured) {
                 let broad = (code_clean & c.broad_relaxed_match_mask & !guard_mask) == (c.and_base & c.broad_relaxed_match_mask & !guard_mask);
                 if broad { return Some((c, 2u8)); }    // priority 2 = broad-only
+            }
+            // 2026-11-09 (session T-25): the zone rule on the sign-tolerant path below, in two conditions. The window
+            // [75:72] / [63:62] also carries the type and form law of the integer and uniform families whose plain rows the
+            // per-row passes measured on sm121a / sm103a / sm100a (bit 73 = `.U32` on IMAD / UIMAD, 74 = `.X` on IADD3 / IADD
+            // / ULEA, the type code of CREDUX / REDUX, VIMNMX's lane type), so a harvest sibling of another group matched the
+            // measured row's text-inert neighbour with those bits masked and printed its own modifiers for it: `IMAD.WIDE` +
+            // bit 78 -> `IMAD.WIDE.U32`, `IADD3 …` + an inert bit -> `IADD3.X … P0, P1`, `ULEA.HI.SX32` -> `ULEA.HI.SX32.X`,
+            // `CREDUX.MIN.S32` -> `CREDUX.MIN.F32` (T/t25/inert_check.py: 339 / 176 / 176 such words on the three tables, 0
+            // on sm120). A blanket block (no sign-tolerant match near a measured row) is too wide -- the sibling is often the
+            // RIGHT row and the sign tolerance its only route: `HFMA2.SAT R2, R3, |UR4|, R5` is the bug381 `SAT` row's word one
+            // modifier bit (77) away from the measured plain row, `HFMA2.BF16_V2 R0, -R0, 1, 1, R0` the bug243 row's one RELU bit
+            // (79) away from the measured `.RELU` row. What tells them apart, with nvdisasm 13.1 the truth: the right sibling
+            // BAKES every bit on which the word departs from the measured row (SAT at 77, RELU clear at 79) and tolerates only
+            // a sign bit the word has and it does not bake; the wrong one either leaves a departure bit open (bit 78 of the
+            // IMAD word is in its tolerant mask) or bakes a window bit the word lacks (`.U32` at 73, `.X` at 74). So a
+            // non-measured candidate loses the sign-tolerant match when (1) it fixes a bit on which the word departs from a
+            // near measured row to another value than the word's, or (2) its and_base sets a window bit the word has clear.
+            // The sibling's own words strict-match it as before; nothing nvdisasm names through it is lost.
+            if near_measured && !c.row_probe {
+                let sign_bits: u128 = (3u128 << 62) | (3u128 << 72) | (3u128 << 74);
+                let departs = candidates.iter().filter(|m| m.row_probe
+                        && ((code_clean ^ m.and_base) & m.match_mask & !guard_mask & !std_slots).count_ones() <= 1)
+                    .any(|m| {
+                        let d = (code_clean ^ m.and_base) & m.match_mask & !guard_mask;
+                        (code_clean ^ c.and_base) & d & c.match_mask != 0
+                    });
+                let bakes_missing = c.and_base & !code_clean & sign_bits & c.match_mask != 0;
+                if departs || bakes_missing {
+                    return None;
+                }
             }
             // Priority 3 (last resort): ALU sign-bit tolerant match. The generic
             // abs/neg modifier bits (Rb: 62/63, Ra: 72/73, Rc: 74/75) are added

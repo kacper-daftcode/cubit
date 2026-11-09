@@ -403,11 +403,9 @@ fn t274_4_corpus_neutral_companions() {
             "{arch}: FI_FI BF16_V2 era junk fingerprint back"
         );
         // BUG-484 (2026-11-06, T-7): the sm120 `HADD2_R_R_R` row is rebuilt from measurement and the 278-kand keeper `HADD2_R_R_II_II_II_II_?` is retired there — its witness (an HFMA2 word) decodes through `HFMA2_R_R_R_R` since the September HFMA2 closures; sm121a keeps the era state.
-        assert_eq!(
-            t.entries.contains_key("HADD2_R_R_II_II_II_II_?"),
-            arch == "sm121a",
-            "{arch}: 278 keeper state"
-        );
+        // 2026-11-09 (T-25): deleted on sm121a as well (blackwell-isa, T-25 -- the bucket printed vendor-nonexistent text
+        // for the measured HADD2_R_R_R rows' text-inert neighbours).
+        assert!(!t.entries.contains_key("HADD2_R_R_II_II_II_II_?"), "{arch}: the 278 keeper stays deleted");
         // '// 265-line phantoms stay pruned for the family neighbors:'
         assert!(
             !t.entries.contains_key("HFMA2_R_R_II_II_II_II_?"),

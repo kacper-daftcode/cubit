@@ -44,6 +44,12 @@ fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
         .ok()
         .map(|d| to_sass(&d).trim().trim_end_matches(';').to_string())
 }
+include!("t25_fail_closed.inc");
+/// T-25 (2026-11-09): the STS / STSM / STG rows are measured on sm100a / sm103a / sm121a as well (rows-memory-2026-11-07
+/// on -b SM100 / SM103 / SM121) and fail closed on their text-inert bits; the clean word's reading keeps the vendor pin.
+fn dec_fc(t: &IsaTable, idx: &DecodeIndex, w: u128, want: &str) -> Option<String> {
+    dec(t, idx, w).or_else(|| t25_closed_as(t, w, Some(want)).map(|s| s.trim().trim_end_matches(';').to_string()))
+}
 fn enc(t: &IsaTable, text: &str) -> Option<u128> {
     let ins = parse_sass(text, 0).ok()?;
     encode_instruction(&ins, t).ok()
@@ -59,7 +65,7 @@ fn t433_1_stsm_m88_count_closure_x4() {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
         for (w, vendor) in LAW433_STSM {
-            let got = dec(&t, &idx, *w)
+            let got = dec_fc(&t, &idx, *w, vendor)
                 .unwrap_or_else(|| panic!("[{leg}] STSM {vendor} HOLE (must decode)"));
             assert_eq!(&got, vendor, "[{leg}] STSM text != vendor");
         }
@@ -81,7 +87,7 @@ fn t433_2_sts_u16_bare_ur_era_band_x4() {
                 assert!(dec(&t, &idx, *w).is_none(), "[{leg}] STS.U16 {vendor}: measured row tolerates a text-inert bit");
                 continue;
             }
-            let got = dec(&t, &idx, *w).unwrap_or_else(|| panic!("[{leg}] STS.U16 {vendor} HOLE"));
+            let got = dec_fc(&t, &idx, *w, vendor).unwrap_or_else(|| panic!("[{leg}] STS.U16 {vendor} HOLE"));
             assert_eq!(&got, vendor, "[{leg}] STS.U16 text != vendor");
         }
     }
@@ -108,7 +114,11 @@ fn t433_3_postures_pinned_pre_post() {
         } else {
             Some(snapped.to_string())
         };
-        let got = dec(&t, &idx, *w);
+        // (T-25: a snapped text on a measured leg reads through the clean word; a snapped HOLE stays a plain decode)
+        let got = match &expect {
+            Some(want) => dec_fc(&t, &idx, *w, want),
+            None => dec(&t, &idx, *w),
+        };
         assert_eq!(
             got, expect,
             "[{leg}] posture {tag_leg} drift (must stay pinned)"
@@ -141,7 +151,10 @@ fn t433_4_era_rc1_tolerance_carriers() {
         } else {
             Some(snapped.to_string())
         };
-        let got = dec(&t, &idx, *w);
+        let got = match &expect {
+            Some(want) => dec_fc(&t, &idx, *w, want),
+            None => dec(&t, &idx, *w),
+        };
         assert_eq!(got, expect, "[{leg}] era-tolerance {tag_leg} drift");
         assert!(
             got.is_some(),
@@ -207,7 +220,7 @@ fn t433_5_mints_refuse_canon() {
 #[test]
 fn t433_6_source_manifest_and_table_presence() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "c374bad146afd10eb41aa1ccd793c09422e2ddfb" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "04bcb53c9a822b46ba4d490e00662e16fb786372" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON433, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     let src: serde_json::Value =

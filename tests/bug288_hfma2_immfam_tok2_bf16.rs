@@ -367,9 +367,10 @@ fn t288_5_fail_closed_and_siblings_untouched() {
         // HFMA2_R_R_R_FI_FI -- nvdisasm prints their canonical words (`HFMA2 R32, -RZ, RZ, 0, 0`) as the f16-pair form
         // (tests/fixtures/sm120_rows_half_nvdisasm.jsonl, status `alias`); the spellings resolve to the measured-era
         // FI_FI rows, the shells themselves are gone. sm121a keeps them.
+        // 2026-11-09 (T-25): on sm121a too the shells are alias clones since T-23's per-row pass (`HFMA2_R_R_R_II_II_II` ->
+        // `HFMA2_R_R_R_II_FI`, the integer spelling of the immediate form) -- encoder-only, their target's rows.
         for k in ["HFMA2_R_R_R_II_II_II", "HFMA2_R_R_R_II_II_II_?"] {
-            if arch == "sm120" {
-                assert!(t.entries[k].encode_only, "{k}: an alias clone of HFMA2_R_R_R_FI_FI");
+            if t.entries[k].encode_only {
                 continue;
             }
             let mg = &t.entries[k].mod_groups[""];

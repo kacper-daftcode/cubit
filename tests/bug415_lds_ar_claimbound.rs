@@ -184,6 +184,14 @@ fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<(String, String)> {
         .map(|d| (to_sass(&d), format!("{}|{}", d.key, d.mod_group)))
         .ok()
 }
+include!("t25_fail_closed.inc");
+/// T-25 (2026-11-09): the LDS rows are measured on sm100a / sm103a (rows-memory-2026-11-07 on -b SM100 / SM103) and the
+/// `LDS_R_ARI` `S8` row on sm121a (-b SM121): they fail closed on the junk band [71:64]; the clean word's reading keeps
+/// the vendor pin (the claim of a HOLE is not a claim -- `CLOSED` stands in for the row).
+const CLOSED: &str = "(fail-closed: the clean word's row)";
+fn dec_fc(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<(String, String)> {
+    dec(t, idx, w).or_else(|| t25_closed(t, w).map(|s| (s, CLOSED.to_string())))
+}
 /// t415_1: sm121a class cells decode vendor-exact x36 and claim the
 /// contract rows (S8 -> LDS_R_ARI|S8, U16 -> LDS_R_ARI|U16, U8 junk ->
 /// LDS.U8_R_ARI, U8 base -> LDS_R_ARI|U8).
@@ -193,10 +201,12 @@ fn t415_1_sm121a_vendor_exact_claims() {
     let idx = DecodeIndex::build(&t);
     let mut n = 0u32;
     for (word, tag, vendor) in PROBES415 {
-        let (got, km) = dec(&t, &idx, word).unwrap_or_else(|| panic!("[{tag}] hole"));
+        let (got, km) = dec_fc(&t, &idx, word).unwrap_or_else(|| panic!("[{tag}] hole"));
         assert_eq!(got, vendor, "[{tag}] render drift");
         let want = CLAIM415.iter().find(|(tg, _)| *tg == tag).unwrap().1;
-        assert_eq!(km, want, "[{tag}] claim drift: {km}");
+        if km != CLOSED {
+            assert_eq!(km, want, "[{tag}] claim drift: {km}");
+        }
         n += 1;
     }
     assert_eq!(n, 36, "class set drifted");
@@ -212,7 +222,7 @@ fn t415_2_era_fallback_must_not_reappear() {
     let mut n = 0u32;
     for tag in PRE415_AR {
         let (word, _, vendor) = PROBES415.iter().find(|(_, tg, _)| *tg == tag).unwrap();
-        let (got, _) = dec(&t, &idx, *word).unwrap();
+        let (got, _) = dec_fc(&t, &idx, *word).unwrap();
         assert!(
             !got.contains("?AR"),
             "[{tag}] era fallback '?AR' reappeared"
@@ -239,7 +249,8 @@ fn t415_3_sibling_legs_invariant() {
                 n += 1;
                 continue;
             }
-            let (got, _) = dec(&t, &idx, word).unwrap_or_else(|| panic!("[{arch} {tag}] hole"));
+            // (T-25: sm100a / sm103a measured as well -- the clean word's reading)
+            let (got, _) = dec_fc(&t, &idx, word).unwrap_or_else(|| panic!("[{arch} {tag}] hole"));
             assert_eq!(&got, vendor, "[{arch} {tag}] drift");
             n += 1;
         }
@@ -259,7 +270,7 @@ fn t415_4_mint_circle_junk_drop() {
     let idx = DecodeIndex::build(&t);
     let mut n = 0u32;
     for (word, tag, _vendor) in PROBES415 {
-        let (txt, _) = dec(&t, &idx, word).unwrap();
+        let (txt, _) = dec_fc(&t, &idx, word).unwrap();
         let ins = parse_sass(&format!("{txt} ;"), 0).unwrap();
         let remint = encode_instruction(&ins, &t).unwrap();
         // payload domain: canonical cell == word with the band zeroed
@@ -291,7 +302,7 @@ fn t415_4_mint_circle_junk_drop() {
 #[test]
 fn t415_5_boundaries_and_graft_hygiene() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "c374bad146afd10eb41aa1ccd793c09422e2ddfb" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "04bcb53c9a822b46ba4d490e00662e16fb786372" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON415, "9c0e4cec355119065444f59d0710de372b9d0577", "historical fixture revision drift");
 
     // FLIP (BUG-420, F2-iter232, canonical 0eddad5): the six HOLE415
@@ -315,10 +326,14 @@ fn t415_5_boundaries_and_graft_hygiene() {
                 .find(|(w2, t2, _)| *w2 == word && **t2 == newtag)
                 .map(|(_, _, e)| *e)
                 .unwrap_or_else(|| panic!("{newtag} absent from LAW420 decode pins"));
+            // (T-25: the LDS rows measured on the other legs fail closed as well -- the clean word's reading)
             let got = idx
                 .decode(word, 0, &t)
-                .map(|d| to_sass(&d).trim().trim_end_matches(';').to_string())
-                .unwrap_or_else(|_| panic!("[{arch}] {newtag} regressed to HOLE"));
+                .map(|d| to_sass(&d))
+                .ok()
+                .or_else(|| t25_closed(&t, word))
+                .map(|s| s.trim().trim_end_matches(';').to_string())
+                .unwrap_or_else(|| panic!("[{arch}] {newtag} regressed to HOLE"));
             assert_eq!(got, exp, "[{arch}] {newtag}");
         }
     }
@@ -364,21 +379,18 @@ fn t415_5_boundaries_and_graft_hygiene() {
         )
         .unwrap()
     };
-    assert_eq!(
-        vm_of("LDS_R_ARI", "S8") & band,
-        band,
-        "S8 owning row lost the band"
-    );
+    // 2026-11-09 (T-25, rows-memory-2026-11-07 on -b SM121): the S8 owning row is measured -- its mask is its fields, the
+    // band fails closed; the U16 row keeps the 415 band; the U8 rescuer key is an alias clone of LDS_R_ARI (its U8 row)
+    assert_eq!(tabj["instructions"]["LDS_R_ARI"]["mod_groups"]["S8"]["_src"], "rows-memory-2026-11-07", "S8 owning row measured");
+    assert_eq!(vm_of("LDS_R_ARI", "S8") & band, 0, "S8 owning row (measured) must fail closed on the band");
     assert_eq!(
         vm_of("LDS_R_ARI", "U16") & band,
         band,
         "U16 owning row lost the band"
     );
-    assert_eq!(
-        vm_of("LDS.U8_R_ARI", "") & band,
-        band,
-        "U8 rescuer arm lost the band"
-    );
+    assert_eq!(tabj["_meta"]["key_aliases"]["LDS.U8_R_ARI"], "LDS_R_ARI", "U8 rescuer key: an alias clone (T-25)");
+    // (the U8 band words read through the clean word, t415_1 / t415_4: the plain key's U8 row never carried the band)
+    assert_eq!(vm_of("LDS_R_ARI", "U8") & band, 0, "U8 owning row: the band stays outside the mask");
     for key in ["LDS.S8_R_AR", "LDS.U16_R_AR", "LDS.U8_R_AR"] {
         assert_eq!(
             vm_of(key, "") & band,

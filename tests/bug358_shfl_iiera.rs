@@ -31,6 +31,29 @@ use cubit::table::{Extraction, IsaTable};
 
 const M96: u128 = (1u128 << 96) - 1;
 
+/// 2026-11-09 (T-25, rows-misc-2026-11-07 on -b SM121; T-23's per-row passes pushed by T-25): the SHFL rows are measured field
+/// by field -- their mask is their fields, so these probe words, which carry a text-inert bit (the junk register byte [71:64] of
+/// the immediate forms, the unused immediate window [57:40] of the register form, the stray bit 53 on the `_R_II` form; nvdisasm
+/// prints the same text with or without it), fail closed instead of decoding through the tolerant harvest row. 0 corpus words
+/// carry those bits (GB10 91 927 / 91 927, B300 85 721 / 85 792 unchanged).
+const T25_FAIL_CLOSED_SM121A: &[u128] = &[
+    0x000e6400000e000000201f0009127589u128,
+    0x000e6400000e000004201f0009127589u128,
+    0x000e6400000e000004201f0009127989u128,
+    0x000e6400000e000008201f0009127589u128,
+    0x000e6400000e00000c201f0009127589u128,
+    0x000e6400000e001400201f0009127f89u128,
+    0x000e6400000e001408201f0009127f89u128,
+    0x000e6400000e00140c201f0009127f89u128,
+    0x000e6400000e00ff00201f0009127f89u128,
+    0x000e6400000e00ff08201f0009127f89u128,
+    0x000e6400000e00ff0c201f0009127f89u128,
+    0x004e2400000e001400001f0c09057589u128,
+    0x004e2400000e00140c001f0c09057589u128,
+    0x004e2400000e00ff00001f0c09057589u128,
+    0x004e2400000e00ff0c001f0c09057589u128,
+];
+
 fn tab(arch: &str) -> IsaTable {
     IsaTable::load(std::path::Path::new(&format!("tables/{arch}.json"))).unwrap()
 }
@@ -109,10 +132,15 @@ fn t358_1_structure_pred81_fields_and_vm_relax() {
             .filter(|f| f.extraction == Extraction::Pred && f.shift == 12)
             .count();
         assert_eq!(bad12, 0, "{key}[{mgn}]: stale guard-slot pred(4,12) field");
+        // 2026-11-09 (T-25): a measured row's mask is its fields -- the pred field [83:81] and the imm13 [52:40] stay
+        // variable, the text-inert register byte [71:64] of the immediate forms is fail-closed (T-23's per-row pass on
+        // -b SM121); the rows still harvest (bug358 / bug368 tags) keep the relaxed window.
+        let fields_mask: u128 = mg.fields.iter().fold(0, |m, f| m | (((1u128 << f.bits) - 1) << f.shift));
+        let want = if mg.row_probe { *vmwin & fields_mask } else { *vmwin };
         assert_eq!(
             mg.variable_mask & *vmwin,
-            *vmwin,
-            "{key}[{mgn}]: vm window not relaxed"
+            want,
+            "{key}[{mgn}]: vm window relax / fail-closed state"
         );
     }
     // II_R DOWN clone: delta law vs UP (mode bits [59:58] 1->2), mirror fields/vm
@@ -121,8 +149,14 @@ fn t358_1_structure_pred81_fields_and_vm_relax() {
     let dn = &e.mod_groups["DOWN"];
     assert_eq!((up.and_base >> 58) & 3, 1, "II_R UP mode drift");
     assert_eq!((dn.and_base >> 58) & 3, 2, "II_R DOWN mode drift");
-    assert_eq!(up.and_base ^ dn.and_base, 0x3u128 << 58);
-    assert_eq!(up.variable_mask, dn.variable_mask);
+    // (T-25: the UP row is measured -- its and_base is clear under its fields and its mask is its fields --, the DOWN clone
+    // keeps the bug358 shape; compare outside the fields)
+    let fm = |g: &cubit::table::ModGroupEntry| g.fields.iter().fold(0u128, |m, f| m | (((1u128 << f.bits) - 1) << f.shift));
+    let outside = !(fm(up) | fm(dn));
+    assert_eq!((up.and_base ^ dn.and_base) & outside, 0x3u128 << 58);
+    if up.row_probe == dn.row_probe {
+        assert_eq!(up.variable_mask, dn.variable_mask);
+    }
     let tf = |mg: &cubit::table::ModGroupEntry| {
         let mut v: Vec<(u32, String, u32, u32)> = mg
             .fields
@@ -139,7 +173,9 @@ fn t358_1_structure_pred81_fields_and_vm_relax() {
         v.sort();
         v
     };
-    assert_eq!(tf(up), tf(dn), "II_R DOWN field mirror drift");
+    // (T-25: the measured UP row carries the guard field [15:12] the sweep added; the DOWN clone never declared it)
+    let no_guard = |v: Vec<(u32, String, u32, u32)>| v.into_iter().filter(|f| f.1 != "Guard").collect::<Vec<_>>();
+    assert_eq!(no_guard(tf(up)), no_guard(tf(dn)), "II_R DOWN field mirror drift");
 }
 
 #[test]
@@ -417,6 +453,10 @@ fn t358_2_decode_law_vendor_text_x_probe_battery() {
         ), // E-RR-p7
     ];
     for (w, want) in cases {
+        if T25_FAIL_CLOSED_SM121A.contains(w) {
+            assert!(dec(&t, *w).is_none(), "the measured row fails closed on the inert bit {w:#034x}");
+            continue;
+        }
         let got = dec(&t, *w).unwrap_or_else(|| format!("<HOLE {w:#x}>"));
         assert_eq!(got, *want, "decode drift {w:#034x}");
     }
@@ -530,7 +570,15 @@ fn t358_4_fail_closed_residua_stay_hole() {
     let want_by_mode = ["SHFL.IDX", "SHFL.UP", "SHFL.DOWN", "SHFL.BFLY"];
     for mode in [0u128, 1, 2, 3] {
         let w = (wii4 & !(0xffu128 << 8) & !(0x3u128 << 58)) | (0x73u128 << 8) | (mode << 58);
-        let got = dec(&t, w).expect("368-flip: R-form junk[57:40] word HOLEs");
+        // 2026-11-09 (T-25): the measured R-form rows (BFLY / UP, rows-misc-2026-11-07 on -b SM121) fail closed on the
+        // junk window [57:40]; the bug368 rows (IDX / DOWN) keep the tolerant law
+        let measured = t.entries["SHFL_P_R_R_R_R"].mod_groups[want_by_mode[mode as usize].trim_start_matches("SHFL.")].row_probe;
+        let got = dec(&t, w);
+        if measured {
+            assert!(got.is_none(), "368-flip: the measured R-form row fails closed on the junk window (mode {mode})");
+            continue;
+        }
+        let got = got.expect("368-flip: R-form junk[57:40] word HOLEs");
         assert!(
             got.starts_with(want_by_mode[mode as usize]) && got.ends_with("R0, R0"),
             "368-flip: R-form junk-window law (mode {mode}): {got}"

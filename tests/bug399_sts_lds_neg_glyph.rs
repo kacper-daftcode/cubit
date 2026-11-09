@@ -54,6 +54,11 @@ fn tab(arch: &str) -> IsaTable {
 fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
     idx.decode(w, 0, t).map(|d| to_sass(&d)).ok()
 }
+include!("t25_fail_closed.inc");
+/// `dec`, or the measured row's clean-word reading of a fail-closed junk word (tests/t25_fail_closed.inc, T-25)
+fn dec_fc(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
+    dec(t, idx, w).or_else(|| t25_closed(t, w))
+}
 fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
     let ins = parse_sass(text, 0).map_err(|e| e.to_string())?;
     encode_instruction(&ins, t).map_err(|e| e.to_string())
@@ -241,7 +246,9 @@ fn t399_4_ur_sentinel_closed_vendor_exact() {
                 assert!(dec(&t, &idx, *word).is_none(), "[{leg}] {tag}: a measured row tolerates the text-inert bit 72");
                 continue;
             }
-            let got = dec(&t, &idx, *word).unwrap_or_else(|| panic!("[{leg}] {tag} fell HOLE"));
+            // (T-25: the STS rows are measured on sm100a / sm103a / sm121a as well -- rows-memory-2026-11-07 on -b SM100 /
+            // SM103 / SM121; the text-inert bit 72 fails closed there, the clean word's reading is the pin)
+            let got = dec_fc(&t, &idx, *word).unwrap_or_else(|| panic!("[{leg}] {tag} fell HOLE"));
             let vendor = POSTURE412_VENDOR
                 .iter()
                 .find(|(tg, _)| tg == tag)

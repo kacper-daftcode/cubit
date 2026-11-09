@@ -16,7 +16,9 @@ const CTRL: u128 = 0x000f_e200u128 << 96;
 const PREFIXES: [&str; 4] = ["FADD_", "FMUL_", "FFMA_", "FMNMX_"];
 /// (table, fixture, the family's retired keys that are `_meta.key_aliases` on that table)
 const TABLES: [(&str, &str, usize); 1] = [
-    ("tables/sm121a.json", include_str!("fixtures/sm121a_fp32_alu_nvdisasm.jsonl"), 25),
+    // 2026-11-09 (T-25): 25 -> 37 family aliases -- T-23's per-row pass on -b SM121 (blackwell-isa 6428595) retired 12 more
+    // shadowed FADD / FMUL / FFMA / FMNMX harvest keys as aliases of the measured plain keys
+    ("tables/sm121a.json", include_str!("fixtures/sm121a_fp32_alu_nvdisasm.jsonl"), 37),
 ];
 const FORM_WORDS: usize = 1636;
 const GLYPH_WORDS: usize = 30;

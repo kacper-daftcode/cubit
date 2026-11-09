@@ -94,7 +94,10 @@ fn t264_1_structure() {
         );
         // F2-iter143 (BUG-271): b86 variable on BOTH hosts — HFMA2 via the
         // era window (now field-armed), HMUL2 via the text-inert reclaim.
-        assert_eq!((vm >> 86) & 1, 1, "{key} vmask b86 (271)");
+        // 2026-11-09 (T-25, rows-half-2026-11-07 on -b SM121; T-23's per-row pass): the HMUL2 row is measured field by
+        // field -- its mask is its fields, so the text-inert b86 is fail-closed now (the measured-row convention; the
+        // HFMA2 host keeps it as the h0nh1 field). 0 GB10 words carry the bit.
+        assert_eq!((vm >> 86) & 1, if has86 { 1 } else { 0 }, "{key} vmask b86 (271; T-25: fail-closed on the measured HMUL2 row)");
     }
     // donors byte-untouched: hsel-only shape, no sign fields at [63:62].
     for leg in ["sm100a", "sm103a", "sm120"] {
@@ -107,10 +110,15 @@ fn t264_1_structure() {
                     .any(|f| f.token_idx == 3 && f.extraction == ex && f.shift == sh)
             };
             assert!(has(Extraction::HalfSel, 60), "{leg} {key} donor hsel drift");
-            assert!(
-                !has(Extraction::Abs, 62) && !has(Extraction::Neg, 63),
-                "{leg} {key} donor touched"
-            );
+            // 2026-11-09 (T-25, rows-misc-2026-11-07 / rows-half-2026-11-07 on -b SM103 / SM100; T-23's per-row passes): a
+            // donor row measured field by field carries the UR operand's sign bits as fields where nvdisasm prints them
+            // (`-UR` at 63, `|UR|` at 62) -- the sweep's finding, not a touch; the harvest donors stay sign-field-free.
+            if !g.row_probe {
+                assert!(
+                    !has(Extraction::Abs, 62) && !has(Extraction::Neg, 63),
+                    "{leg} {key} donor touched"
+                );
+            }
         }
     }
 }
@@ -225,14 +233,12 @@ fn t264_4_decode_window_laws() {
     assert!(dec(&t, hfa | (1 << 86) | (3 << 60)).is_none(), "INVALID7");
     // HMUL2 host: b86 vendor TEXT-INERT (arb271 D + arb307d plain) =
     // reclaim w/o field
-    assert_eq!(
-        dec(&t, base | (1 << 86)).as_deref(),
-        Some("HMUL2 R3, R12, UR8")
-    );
-    assert_eq!(
-        dec(&t, base | (1 << 86) | (2 << 60)).as_deref(),
-        Some("HMUL2 R3, R12, UR8.H0_H0")
-    );
+    // 2026-11-09 (T-25, rows-half-2026-11-07 on -b SM121): the HMUL2_R_R_UR rows are measured field by field -- the
+    // text-inert b86 fails closed (the mask is the fields); the base words decode the vendor text.
+    assert!(dec(&t, base | (1 << 86)).is_none(), "the measured HMUL2 row fails closed on the inert b86");
+    assert_eq!(dec(&t, base).as_deref(), Some("HMUL2 R3, R12, UR8"));
+    assert!(dec(&t, base | (1 << 86) | (2 << 60)).is_none(), "the measured HMUL2 row fails closed on the inert b86 (hsel word)");
+    assert_eq!(dec(&t, base | (2 << 60)).as_deref(), Some("HMUL2 R3, R12, UR8.H0_H0"));
     // BUG-307 discriminant spot-law: the same window words with b85 set
     // print the BF16_V2 mnemonic (arb307 A x4).
     assert_eq!(
@@ -289,7 +295,10 @@ fn t264_5_registration_sentinels() {
     // 265-kand anchor: phantom head row KEPT (265 measured: only mask for
     // 112 vendor-decodable 'HFMA2 4R+reuse' words; removal=hole-ification;
     // synthesis = 278-kand, owner scope).
-    assert!(t.entries.contains_key("HADD2_R_R_II_II_II_II_?"));
+    // 2026-11-09 (T-25): the `?` key is deleted on sm121a as well (blackwell-isa, T-25) -- it printed
+    // `HADD2 R32, R48, 0x0, 0x118, 0, 0, UR0` for the measured `HADD2_R_R_R` rows' text-inert neighbours; the 112 words
+    // it covered decode through the measured HFMA2 / HADD2 register rows (the sm120 state since BUG-484).
+    assert!(!t.entries.contains_key("HADD2_R_R_II_II_II_II_?"), "the junk key stays deleted");
     // 270 witness byte-stable (corpus value=1 = pure b72 neg).
     assert_eq!(
         dec(&t, 0xfc600000001ff00000000ff037431 & M96).as_deref(),

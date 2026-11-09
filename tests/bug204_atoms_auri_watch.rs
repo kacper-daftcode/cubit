@@ -108,13 +108,12 @@ fn t204_4_b72_vendor_inert_decode_parity() {
         // the harvest tolerance on the AURI form too (not measured in this batch).
         let w = word(0x00000000ffff698c, 0x0001e40009000206 | (1u64 << 8)); // AURI +b72
         let w2 = word(0x000000030007738c, 0x004e280001000200 | (1u64 << 8)); // ARI +b72
-        if p == &T120 {
+        // 2026-11-09 (T-25, rows-atomic-2026-11-07 on -b SM103 / SM100; T-23's per-row passes): the AURI row is measured on the
+        // other two tables as well -- the same fail-closed law on the inert b72 on every leg; the base word decodes vendor-true.
+        {
             assert!(dec(&t, &idx, w).is_none(), "{p}: measured AURI row must fail closed on the inert b72");
             let base = word(0x00000000ffff698c, 0x0001e40009000206);
             assert_eq!(dec(&t, &idx, base).as_deref(), Some("@P6 ATOMS.MAX.S32 RZ, [UR6], R0"), "{p} base AURI");
-        } else {
-            let got = dec(&t, &idx, w).expect("b72 word decode hole");
-            assert_eq!(got, "@P6 ATOMS.MAX.S32 RZ, [UR6], R0", "{p} b72 inert parity");
         }
         let got2 = dec(&t, &idx, w2).expect("b72 ARI word decode hole");
         assert_eq!(got2, "ATOMS.MAX.S32 R7, [R0], R3", "{p} b72 ARI inert parity");

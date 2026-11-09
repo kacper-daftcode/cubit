@@ -174,7 +174,8 @@ fn t265_1_structure_deletions_and_renames() {
         // whole word; tests/fixtures/sm120_rows_half_nvdisasm.jsonl): the guard is a field (and_base 0x239), the
         // `.reuse` bits 122-124 are fields and the mask is exactly the fields -- the wave-era widened windows are
         // text-inert and fail closed (the measured-row convention). sm121a keeps the wave structure.
-        if leg == "sm120" {
+        // 2026-11-09 (T-25, rows-half-2026-11-07 on -b SM121; T-23's per-row pass): sm121a's row is measured the same way.
+        if leg == "sm120" || leg == "sm121a" {
             assert_eq!(ab, 0x239, "{leg}: I2IP '' and_base drift (measured: the guard is a field)");
             assert_eq!(vm, 0x1c000000000001ff000000fffffff000u128, "{leg}: I2IP '' vmask drift (measured: the fields)");
             continue;
@@ -277,15 +278,8 @@ fn t265_2_poison_rows_closed_and_hole_parity() {
         // (nvdisasm 13.1 over the whole word; tests/fixtures/sm120_rows_half_nvdisasm.jsonl): bits 80 / 81 are text-inert
         // (the record's `inert` list) and the measured row's mask is its fields, so the word fails closed -- the
         // measured-row convention (T-10, every batch since); the vendor's text is still that of the base word.
-        if leg == "sm120" {
-            assert!(dec(&t, (0x239u128 | (3 << 80)) & M96).is_none(), "{leg}: a measured row tolerates text-inert bits 80 / 81");
-        } else {
-            assert_eq!(
-                dec(&t, (0x239u128 | (3 << 80)) & M96).as_deref(),
-                Some("@P0 I2IP.U8.S32 R0, R0, R0, R0"),
-                "{leg}: 276 (80,81) reclaim missing"
-            );
-        }
+        // 2026-11-09 (T-25, rows-half-2026-11-07 on -b SM121): the sm121a row is measured as well -- the same fail-closed law.
+        assert!(dec(&t, (0x239u128 | (3 << 80)) & M96).is_none(), "{leg}: a measured row tolerates text-inert bits 80 / 81");
     }
 }
 
@@ -413,11 +407,9 @@ fn t265_5_keepers_and_registrations() {
     // BUG-484 (2026-11-06, T-7): the sm120 `HADD2_R_R_R` row is rebuilt from measurement and the 278-kand keeper `HADD2_R_R_II_II_II_II_?` is retired there — its witness (an HFMA2 word) decodes through `HFMA2_R_R_R_R` since the September HFMA2 closures; sm121a keeps the era state.
     for leg in ["sm120", "sm121a"] {
         let t = tab(leg);
-        assert_eq!(
-            t.entries.contains_key("HADD2_R_R_II_II_II_II_?"),
-            leg == "sm121a",
-            "{leg}: keeper row state"
-        );
+        // 2026-11-09 (T-25): the `?` key is deleted on sm121a as well (it printed vendor-nonexistent text for the measured
+        // HADD2_R_R_R rows' text-inert neighbours; blackwell-isa, T-25); the 278 witness decodes through the HFMA2 rows.
+        assert!(!t.entries.contains_key("HADD2_R_R_II_II_II_II_?"), "{leg}: the junk keeper stays deleted");
         assert!(
             dec(&t, w2 & M96).is_some(),
             "{leg}: 278 witness became a hole"

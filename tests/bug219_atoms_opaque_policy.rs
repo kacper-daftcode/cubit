@@ -86,10 +86,15 @@ fn t219_2_b72_inert_parity() {
     for tp in [T120, T103, T100] {
         let t = tab(tp);
         let idx = DecodeIndex::build(&t);
-        let got = idx
-            .decode(word(B72.0, B72.1), 0, &t)
-            .map(|d| to_sass(&d))
-            .unwrap_or_else(|_| panic!("{tp}: b72-inert word must absorb like the anchor"));
+        let got = idx.decode(word(B72.0, B72.1), 0, &t).map(|d| to_sass(&d));
+        // 2026-11-09 (T-25, rows-atomic-2026-11-07 on -b SM103 / SM100; T-23's per-row passes): on sm103a / sm100a the ATOMS
+        // uniform-indexed row is measured field by field -- its mask is its fields, so the text-inert b72 (nvdisasm prints
+        // the anchor glyph for it) fails closed instead of absorbing; the anchor word itself decodes (t219_1). 0 B300 words.
+        if tp != T120 {
+            assert!(got.is_err(), "{tp}: the measured row fails closed on the inert b72, got {got:?}");
+            continue;
+        }
+        let got = got.unwrap_or_else(|_| panic!("{tp}: b72-inert word must absorb like the anchor"));
         assert_eq!(
             got, ANCHOR_GLYPH,
             "{tp}: b72 inert parity drift vs vendor print"

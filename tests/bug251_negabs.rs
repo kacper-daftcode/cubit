@@ -88,7 +88,10 @@ fn t251_1_structure() {
         .flat_map(|g| g.fields.iter())
         .filter(|f| f.extraction == Extraction::NegShl1)
         .count();
-    assert_eq!(shl, 12, "NegShl1 inventory (253-kand)");
+    // 2026-11-09 (T-25, rows-intalu-2026-11-07 / rows-half-2026-11-07 on -b SM121; T-23's per-row passes): the DFMA rows
+    // measured field by field carry their `neg_shl1` sign windows as fields now -- 12 -> 39 slots, all DFMA (bug253 pins
+    // the shapes).
+    assert_eq!(shl, 39, "NegShl1 inventory (253-kand; T-25: the measured DFMA rows)");
     let nf: usize = t
         .entries
         .values()

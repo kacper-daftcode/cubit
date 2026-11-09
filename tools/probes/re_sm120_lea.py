@@ -218,7 +218,7 @@ def measured_group(form, group, with_pd):
     return nvprobe.row(base, fields, src, note)
 
 
-def apply(table_path):
+def apply(table_path, arch="SM120"):
     path = pathlib.Path(table_path)
     table = nvprobe.load_table(path)
     ins = table["instructions"]
@@ -264,9 +264,20 @@ def apply(table_path):
     rows = [g for e in ins.values() for g in e.get("mod_groups", {}).values()]
     prov["rows_total"] = len(rows)
     prov["rows_without_src"] = sum(1 for g in rows if g.get("_src") is None)
+    if arch == "SM121":
+        # 2026-11-09 (session T-25): the same probe on -b SM121 (tests/fixtures/sm121a_lea_nvdisasm.jsonl, 824 / 824 texts
+        # identical to the SM120 fixture's) -- the rows' notes name the target they were measured on
+        for e in new_entries.values():
+            for g in e["mod_groups"].values():
+                g["_note"] = g["_note"].replace("measured with nvdisasm 13.1 -b SM120 (-b SM103 / -b SM100 text-identical), "
+                                                "tools/probes/re_sm120_lea.py (session T-8, 2026-11-06)",
+                                                "measured with nvdisasm 13.1 -b SM121 (text-identical to -b SM120 on every word of "
+                                                "the probe), tools/probes/re_sm120_lea.py --arch SM121 (session T-25, 2026-11-09; the "
+                                                "sm120 law of session T-8, 2026-11-06)")
     sources[PROVENANCE] = {
         "rows": added,
-        "kind": "nvdisasm 13.1 field probe (-b SM120 / SM103 / SM100 text-identical)",
+        "kind": ("nvdisasm 13.1 field probe (-b SM121, text-identical to -b SM120 on every word; session T-25, 2026-11-09)"
+                 if arch == "SM121" else "nvdisasm 13.1 field probe (-b SM120 / SM103 / SM100 text-identical)"),
         "date": "2026-11-06",
         "tool": "tools/probes/re_sm120_lea.py",
         "test": "tests/sm120_lea.rs",
@@ -285,11 +296,12 @@ def main():
     p.add_argument("--arch", default="SM120")
     a = sub.add_parser("apply")
     a.add_argument("table")
+    a.add_argument("--arch", default="SM120", help="the nvdisasm target the family was measured on (the provenance text)")
     args = parser.parse_args()
     if args.command == "probe":
         probe(args.nvdisasm, args.out, args.arch)
     else:
-        apply(args.table)
+        apply(args.table, args.arch)
 
 
 if __name__ == "__main__":

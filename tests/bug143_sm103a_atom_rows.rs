@@ -110,9 +110,15 @@ fn t143_2_popc_urz_sentinel_render_and_encode() {
     // default for an absent UR is also 0xFF)
     let full = enc(&t, "ATOMS.POPC.INC.32 RZ, [R0+URZ+0x44]");
     let short = enc(&t, "ATOMS.POPC.INC.32 RZ, [R0+0x44]");
-    assert_eq!(full, short, "both spellings carry 0xFF in the UR window");
+    // 2026-11-09 (T-25, rows-atomic-2026-11-07 on -b SM103; T-23's per-row pass): the ATOMS rows are measured field by field
+    // now, so the UR window [71:64] is a real field (sm120's doctrine since T-18, bug145): `[R0+URZ+0x44]` keeps the 0xFF
+    // sentinel and renders `+URZ+`, the UR-less spelling `[R0+0x44]` encodes UR0 through the register-address key -- two
+    // words, one byte apart, each rendering its own vendor text (nvdisasm names the second `[R0+UR0+0x44]`).
+    assert_eq!(full ^ short, 0xffu128 << 64, "the two spellings differ exactly in the UR window");
     let back = dec(&t, &idx, full);
     assert!(back.contains("+URZ+"), "render must carry the URZ token, got: {back}");
+    let back_short = dec(&t, &idx, short);
+    assert!(back_short.contains("+UR0+") || back_short.contains("[R0+0x44]"), "the UR0 word renders its own text, got: {back_short}");
 }
 
 #[test]

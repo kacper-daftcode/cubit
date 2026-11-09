@@ -107,8 +107,11 @@ fn the_rows_are_measured_and_the_junk_keys_are_aliases() {
     let mut left: Vec<&str> = ins.keys().filter(|k| k.starts_with("PLOP3") || k.starts_with("P2R") || k.starts_with("R2P"))
         .filter(|k| !KEYS.contains(&k.as_str()) && k.as_str() != "R2P_II_R").map(|k| k.as_str()).collect();
     left.sort_unstable();
-    assert_eq!(left, ["PLOP3.LUT_P1_P_P_P_P_P_II_II", "PLOP3.LUT_P_P_P_P_UP_II_II", "PLOP3.LUT_P_P_R_R_R_II_II"]);
+    // (2026-11-09, T-25: the dotted twin of the UP form, `PLOP3.LUT_P_P_P_P_UP_II_II`, is an alias of the plain UP key
+    // since T-23's per-row pass on -b SM121 -- blackwell-isa 6428595)
+    assert_eq!(left, ["PLOP3.LUT_P1_P_P_P_P_P_II_II", "PLOP3.LUT_P_P_R_R_R_II_II"]);
     let aliases = raw["_meta"]["key_aliases"].as_object().unwrap();
+    assert_eq!(aliases["PLOP3.LUT_P_P_P_P_UP_II_II"], "PLOP3_P_P_P_P_UP_II_II", "the dotted UP twin (T-23 / T-25)");
     for (old, new) in ALIASES {
         assert_eq!(aliases[old], new, "{old}");
     }

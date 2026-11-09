@@ -3263,7 +3263,10 @@ fn encode_instruction_inner(
         // row (`-Rc` at 75; `-URc` at 63 on the UR-addend form), so the generic emit has nothing to add -- and a
         // sign without a field is refused below instead of minting a bit the hardware ignores (silent wrong code
         // until T-20: `IMAD R5, -R4, R3, R2` assembled to the plain a*b+c word plus bit 72).
-        let native_hi = table.target_sm() == 120 && insn.opcode == "IMAD";
+        // 2026-11-09 (session T-25): the same law on every table whose IMAD row is a measured one (`row_probe`, the T-23
+        // per-row passes on sm121a / sm103a / sm100a): a measured row names its real signs as fields and fails closed on
+        // bit 72, so minting it there assembled a word the decoder rejects (bug296's sm121a leg under the measured rows).
+        let native_hi = insn.opcode == "IMAD" && (table.target_sm() == 120 || entry.row_probe);
         let sign_law_base = table.target_sm() == 120 && matches!(insn.opcode.as_str(), "BMSK" | "I2FP");
         let non_alu_base = matches!(
             insn.opcode.as_str(),
@@ -3449,7 +3452,12 @@ fn encode_instruction_inner(
     // legal only where the measured row carries it as a field (`-Rc` at bit 75; `-URc` at bit 63 on the UR-addend
     // form). The generic emit above is off for the base (see `native_hi`), so without this check `-Ra` / `|Ra|` /
     // `-Rb` / `|Rb|` would assemble to the unsigned word -- the silent sign-drop the LEA / I2I / I2IP arms refuse.
-    if table.target_sm() == 120 && insn.opcode == "IMAD" {
+    // 2026-11-09 (session T-25): on the other tables the rule follows the row -- a measured IMAD row (`row_probe`) refuses the
+    // sign it has no field for, exactly as on sm120; a harvest row keeps the generic window until its measurement.
+    if std::env::var_os("CUBIT_DEBUG_ENCODE").is_some() {
+        eprintln!("DBG entry key={} mg={} row_probe={} fields={}", selected_key, selected_mg, entry.row_probe, entry.fields.len());
+    }
+    if insn.opcode == "IMAD" && (table.target_sm() == 120 || entry.row_probe) {
         for (idx, operand) in insn.operands.iter().enumerate() {
             let (neg, abs) = match operand {
                 Operand::Reg { neg, abs, .. } | Operand::UReg { neg, abs, .. } => (*neg, *abs),

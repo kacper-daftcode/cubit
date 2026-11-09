@@ -39,6 +39,32 @@ fn dec96(t: &IsaTable, w: u128) -> Option<String> {
 
 include!("bug393_data.inc");
 
+/// 2026-11-09 (T-25; rows-half-2026-11-07 on -b SM100 / SM103 / SM121, T-23's per-row passes): the HFMA2_R_R_R_R '' and
+/// BF16_V2 rows are measured field by field on sm100a / sm103a / sm121a -- the 393 windows [55:40] / [59:56] / [90:87] /
+/// [95:92] are text-inert for nvdisasm and the measured row fails closed on them (its mask is its fields); the sm120 harvest
+/// rows keep the 393 relax. A window word is a HOLE exactly when the clean word's row is measured; the clean word renders
+/// the vendor base text on every leg.
+const INERT_393: u128 = (0xffffu128 << 40) | (0xfu128 << 56) | (0xfu128 << 87) | (0xfu128 << 92);
+fn expect_window(t: &IsaTable, leg: &str, word: u128, want: &str) {
+    let idx = DecodeIndex::build(t);
+    match idx.decode(word & M96, 0, t) {
+        Ok(d) => assert_eq!(to_sass(&d), want, "leg {leg} word {word:024x}"),
+        Err(_) => {
+            assert!(word & INERT_393 != 0, "leg {leg} word {word:024x}: HOLE on a clean word");
+            let d = idx
+                .decode(word & M96 & !INERT_393, 0, t)
+                .unwrap_or_else(|_| panic!("leg {leg} word {word:024x}: the clean word is a HOLE"));
+            assert_eq!(to_sass(&d), want, "leg {leg} word {word:024x}: clean-word text");
+            assert!(
+                t.entries[&d.key].mod_groups[&d.mod_group].row_probe,
+                "leg {leg} word {word:024x}: a harvest row fails closed ({}[{}])",
+                d.key,
+                d.mod_group
+            );
+        }
+    }
+}
+
 #[test]
 fn t393_1_base_anchors_vendor_exact() {
     // the two claim bases decode to the vendor text on all four legs;
@@ -62,13 +88,7 @@ fn t393_2_window_edges_cured() {
     // x12 per base; [55:40] edges were already MATCH on dense).
     let tabs: Vec<IsaTable> = LEGS4.iter().map(|a| tab(a)).collect();
     for (leg, word, want) in EDGES {
-        let got = dec96(&tabs[leg], word);
-        assert_eq!(
-            got.as_deref(),
-            Some(want),
-            "leg {} word {word:024x}",
-            LEGS4[leg]
-        );
+        expect_window(&tabs[leg], LEGS4[leg], word, want);
     }
 }
 
@@ -78,13 +98,7 @@ fn t393_3_joint_balls_cured() {
     // to the vendor base text on every leg (vendor re-probed at pinning).
     let tabs: Vec<IsaTable> = LEGS4.iter().map(|a| tab(a)).collect();
     for (leg, word, want) in BALLS {
-        let got = dec96(&tabs[leg], word);
-        assert_eq!(
-            got.as_deref(),
-            Some(want),
-            "leg {} word {word:024x}",
-            LEGS4[leg]
-        );
+        expect_window(&tabs[leg], LEGS4[leg], word, want);
     }
 }
 
@@ -125,13 +139,7 @@ fn t393_6_sparse_parity_full_window() {
     // (pre: dense-only MATCH). Asserted against vendor base text.
     let tabs: Vec<IsaTable> = LEGS4[..2].iter().map(|a| tab(a)).collect();
     for (leg, word, want) in PARITY16 {
-        let got = dec96(&tabs[leg], word);
-        assert_eq!(
-            got.as_deref(),
-            Some(want),
-            "leg {} word {word:024x}",
-            LEGS4[leg]
-        );
+        expect_window(&tabs[leg], LEGS4[leg], word, want);
     }
 }
 

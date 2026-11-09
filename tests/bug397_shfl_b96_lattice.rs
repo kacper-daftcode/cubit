@@ -33,6 +33,31 @@ fn tab(arch: &str) -> IsaTable {
 
 include!("bug397_data.inc");
 
+/// 2026-11-09 (T-25; rows-misc-2026-11-07 on -b SM100 / SM103 / SM121, T-23's per-row passes): a SHFL row measured field
+/// by field fails closed on the text-inert bits -- [95:92] (396), [63:61] (387), [90:88] (382): nvdisasm prints the clean
+/// text for them, the row's mask is its fields and does not claim them --, the sm120 harvest rows keep the relax. Five of
+/// the 20 F2-era anchors carry bit 93 (none of the production census' 3 320 SHFL words does): they and their b96+ lattice
+/// are HOLEs on the measured legs; the clean word (the inert bits cleared) renders the pinned text on every leg.
+const INERT_SHFL: u128 = (0xfu128 << 92) | (0x7u128 << 61) | (0x7u128 << 88);
+fn render_or_closed(t: &IsaTable, idx: &DecodeIndex, word: u128, tag: &str) -> String {
+    match idx.decode(word & M96, 0, t) {
+        Ok(d) => to_sass(&d),
+        Err(e) => {
+            assert!(word & INERT_SHFL != 0, "[{tag}] {word:032x}: {e}");
+            let d = idx
+                .decode(word & M96 & !INERT_SHFL, 0, t)
+                .unwrap_or_else(|e| panic!("[{tag}] clean word of {word:032x}: {e}"));
+            assert!(
+                t.entries[&d.key].mod_groups[&d.mod_group].row_probe,
+                "[{tag}] a harvest row fails closed on {word:032x} ({}[{}])",
+                d.key,
+                d.mod_group
+            );
+            to_sass(&d)
+        }
+    }
+}
+
 /// t397_1: 20 clean anchors decode vendor-verbatim on all four legs.
 #[test]
 fn t397_1_clean_anchors_vendor_verbatim() {
@@ -40,10 +65,8 @@ fn t397_1_clean_anchors_vendor_verbatim() {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
         for (word, want) in W397_ANCHORS {
-            let d = idx
-                .decode(word & M96, 0, &t)
-                .unwrap_or_else(|e| panic!("[{leg}] anchor {word:032x}: {e}"));
-            assert_eq!(to_sass(&d), want, "[{leg}] anchor render drift {word:032x}");
+            let got = render_or_closed(&t, &idx, word, &format!("{leg}] anchor"));
+            assert_eq!(got, want, "[{leg}] anchor render drift {word:032x}");
         }
     }
 }
@@ -57,11 +80,9 @@ fn t397_2_perbit_inert_lattice() {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
         for (word, ai) in W397_PERBIT {
-            let d = idx
-                .decode(word & M96, 0, &t)
-                .unwrap_or_else(|e| panic!("[{leg}] perbit {word:032x}: {e}"));
+            let got = render_or_closed(&t, &idx, word, &format!("{leg}] perbit"));
             assert_eq!(
-                to_sass(&d),
+                got,
                 W397_ANCHORS[ai].1,
                 "[{leg}] bit not inert vs anchor {}: {word:032x}",
                 W397_ANCHORS[ai].1
@@ -77,10 +98,8 @@ fn t397_3_composition_inert() {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
         for (word, ai) in W397_COMPO {
-            let d = idx
-                .decode(word & M96, 0, &t)
-                .unwrap_or_else(|e| panic!("[{leg}] compo {word:032x}: {e}"));
-            assert_eq!(to_sass(&d), W397_ANCHORS[ai].1);
+            let got = render_or_closed(&t, &idx, word, &format!("{leg}] compo"));
+            assert_eq!(got, W397_ANCHORS[ai].1);
         }
     }
 }
@@ -95,10 +114,7 @@ fn t397_4_control_ball_engine_posture() {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
         for word in W397_KILL {
-            let d = idx
-                .decode(word & M96, 0, &t)
-                .unwrap_or_else(|e| panic!("[{leg}] kill-ball {word:032x}: {e}"));
-            let got = to_sass(&d);
+            let got = render_or_closed(&t, &idx, word, &format!("{leg}] kill-ball"));
             assert!(
                 got.starts_with("SHFL."),
                 "[{leg}] kill-ball misroute: {got}"

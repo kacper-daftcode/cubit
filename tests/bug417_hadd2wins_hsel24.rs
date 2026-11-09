@@ -73,6 +73,12 @@ fn text_of(t: &IsaTable, w: u128) -> Option<String> {
     let idx = DecodeIndex::build(t);
     idx.decode(w, 0, t).map(|d| to_sass(&d)).ok()
 }
+include!("t25_fail_closed.inc");
+/// T-25 (2026-11-09): the HADD2 / HFMA2 rows are measured on sm100a / sm103a / sm121a as well (rows-half-2026-11-07 on
+/// -b SM100 / SM103 / SM121) and fail closed on their text-inert bits; the clean word's reading keeps the vendor pin.
+fn text_fc(t: &IsaTable, w: u128, want: &str) -> Option<String> {
+    text_of(t, w).or_else(|| t25_closed_as(t, w, Some(want)))
+}
 fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
     let ins = parse_sass(text, 0).map_err(|e| e.to_string())?;
     encode_instruction(&ins, t).map_err(|e| e.to_string())
@@ -216,7 +222,8 @@ fn t417_3_encode_loud_and_circles() {
 fn t417_4_untouched_posture_tripwire() {
     for (w, tag, leg, vendor, post, src) in POSTURE417_419 {
         let t = tab(leg);
-        let got = text_of(&t, *w).unwrap_or_else(|| "HOLE".to_string());
+        // (a doctrine-pinned HOLE -- the INVALID3 cells -- is read through the plain decode, never through the clean word)
+        let got = if *post == "HOLE" { text_of(&t, *w) } else { text_fc(&t, *w, post) }.unwrap_or_else(|| "HOLE".to_string());
         assert_eq!(
             got.as_str(), *post,
             "posture drift ({src}) on {tag} word 0x{w:032x}: engine {got:?} != pinned {post:?} (vendor {vendor:?})"
@@ -285,8 +292,11 @@ fn t417_6_row_shape_audit() {
         ("sm120", "HFMA2_R_R_FI_FI_R"),
         ("sm120", "HFMA2_R_R_II_II_R"),
         ("sm121a", "HFMA2_R_R_II_II_R"),
-        ("sm121a", "HFMA2_R_R_FI_FI_R"),
+        // ("sm121a", "HFMA2_R_R_FI_FI_R") -- deleted 2026-11-09 (T-25, blackwell-isa daac080): a junk harvest key
+        // (and_base 0x11 in the opcode byte, a field over the opcode nibble) whose 31 rows claimed the illegal words of
+        // the LEA lattice (tests/sm120_lea.rs on sm121a); the `II_II_R` key carries the sm121a R-final route
     ];
+    assert!(tab("sm121a").get("HFMA2_R_R_FI_FI_R", "").is_none(), "sm121a HFMA2_R_R_FI_FI_R: deleted (T-25)");
     for (leg, key) in rows {
         let t = tab(leg);
         for mg in ["", "BF16_V2"] {
@@ -313,7 +323,7 @@ fn t417_7_source_and_vm_ratchet() {
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").expect("SOURCE.json"))
             .expect("SOURCE.json parse");
     assert!(
-        m["base_revision"].as_str().unwrap().starts_with("c374bad146afd10eb41aa1ccd793c09422e2ddfb" /* 2026-11-06 T-11 (was c258f8a, T-10) */), // 2026-11-06 T-10 (was b75cc20 T-9) // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+        m["base_revision"].as_str().unwrap().starts_with("04bcb53c9a822b46ba4d490e00662e16fb786372" /* 2026-11-06 T-11 (was c258f8a, T-10) */), // 2026-11-06 T-10 (was b75cc20 T-9) // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
         "SOURCE.json must pin canonical 57e7ecd [was ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, 1810912 = 435+434 hop, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b, 3f6ca6f = BUG-425, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422] (BUG-442 graft F2-iter246 z atrybucja; ride-chain): {:?}",
         m["base_revision"]
     );

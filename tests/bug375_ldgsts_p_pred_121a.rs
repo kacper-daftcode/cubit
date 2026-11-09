@@ -102,10 +102,22 @@ fn t375_1_structure_11_p_clones_era_pred() {
             mg["and_base"], ins[*k]["mod_groups"][""]["and_base"],
             "{pk}: ab != donor"
         );
-        assert_eq!(
-            mg["variable_mask"], ins[*k]["mod_groups"][""]["variable_mask"],
-            "{pk}: vm != donor"
-        );
+        // 2026-11-09 (T-25, rows-memory-2026-11-07 on -b SM121; T-23's per-row pass): the 11 base rows are measured field
+        // by field -- their mask is their fields (the text-inert bits [63:60] fail closed), the bug373_375 `_P` clones keep
+        // the donor's harvest mask; the base's mask then is a subset of the clone's.
+        let donor = &ins[*k]["mod_groups"][""];
+        let vm = |g: &serde_json::Value| u128::from_str_radix(g["variable_mask"].as_str().unwrap().trim_start_matches("0x"), 16).unwrap();
+        if donor["_src"].as_str().unwrap_or("").starts_with("rows-") {
+            let fields_mask = donor["fields"].as_array().unwrap().iter().fold(0u128, |m, f| {
+                m | (((1u128 << f["bits"].as_u64().unwrap()) - 1) << f["shift"].as_u64().unwrap())
+            });
+            assert_eq!(vm(donor), fields_mask, "{pk}: the measured donor's mask is its fields");
+        } else {
+            assert_eq!(
+                mg["variable_mask"], donor["variable_mask"],
+                "{pk}: vm != donor"
+            );
+        }
         clones += 1;
     }
     // BUG-386 flip (canonical dbe5e91): +6 base-gap dotted keys per side.

@@ -90,6 +90,12 @@ fn text_of(t: &IsaTable, w: u128) -> Option<String> {
     let idx = cached_index(t);
     idx.decode(w, 0, t).map(|d| to_sass(&d)).ok()
 }
+include!("t25_fail_closed.inc");
+/// T-25 (2026-11-09): the HADD2 / HFMA2 rows are measured on sm100a / sm103a / sm121a as well (rows-half-2026-11-07 on
+/// -b SM100 / SM103 / SM121) and fail closed on their text-inert bits; the clean word's reading keeps the vendor pin.
+fn text_fc(t: &IsaTable, w: u128, want: &str) -> Option<String> {
+    text_of(t, w).or_else(|| t25_closed_as(t, w, Some(want)))
+}
 fn enc(t: &IsaTable, text: &str) -> Result<u128, String> {
     let ins = parse_sass(text, 0).map_err(|e| e.to_string())?;
     encode_instruction(&ins, t).map_err(|e| e.to_string())
@@ -144,7 +150,7 @@ fn t419_1_law_grid_vendor_exact() {
             );
             continue;
         }
-        let got = text_of(t, *w).unwrap_or_else(|| "HOLE".to_string());
+        let got = text_fc(t, *w, vendor).unwrap_or_else(|| "HOLE".to_string());
         assert_eq!(
             got.as_str(),
             *vendor,
@@ -319,7 +325,8 @@ fn t419_5_row_shape_audit() {
         // its own dotted key (HADD2.F32.FTZ_R_R_FI), so bit 80 is a modifier bit (another group's word), not a field,
         // and the measured row's mask is its fields: b80 is NOT in its vm. The three other legs keep the absorb window.
         let fs = t.get("HADD2.F32.SAT_R_R_FI", "").unwrap();
-        if leg == "sm120" {
+        // T-25 (2026-11-09): the same on the legs T-23's per-row passes measured (`row_probe`)
+        if fs.row_probe {
             assert_eq!(fs.variable_mask & (1 << 80), 0, "{leg}: measured F32,SAT must fail closed on the b80 FTZ modifier");
             assert!(t.get("HADD2.F32.FTZ.SAT_R_R_FI", "").is_some() || t.get("HADD2.F32.FTZ_R_R_FI", "").is_some(),
                 "{leg}: FTZ is its own measured key");
@@ -354,20 +361,26 @@ fn t419_5_row_shape_audit() {
             let _ = t
                 .get("HFMA2.RELU_R_R_FI_FI_R_P", "")
                 .unwrap_or_else(|| panic!("{leg}: RELU dotted key missing"));
-            let relu_tok6_pred = t
-                .get("HFMA2_R_R_FI_FI_R", "RELU")
-                .unwrap_or_else(|| panic!("{leg}: parent RELU mg missing"));
-            assert!(
-                relu_tok6_pred.encode_only,
-                "{leg}: parent RELU mg must be encode_only"
-            );
+            // (2026-11-09, T-25: on sm121a the junk parent `HFMA2_R_R_FI_FI_R` is deleted -- blackwell-isa daac080, the
+            // LEA-lattice claimant --, the dotted RELU decode key above stands alone; the II_II_R parent carries the route)
+            if let Some(relu_tok6_pred) = t.get("HFMA2_R_R_FI_FI_R", "RELU") {
+                assert!(
+                    relu_tok6_pred.encode_only,
+                    "{leg}: parent RELU mg must be encode_only"
+                );
+            } else {
+                assert_eq!(leg, "sm121a", "{leg}: parent RELU mg missing");
+            }
         }
         if leg != "sm121a" {
             continue;
         }
         // 121a junk surgery: no tok0 junk reg fields over [76:96):
+        // (2026-11-09, T-25: the junk key `HFMA2_R_R_FI_FI_R` itself is deleted on sm121a -- blackwell-isa daac080;
+        // the surgery's invariant is read on the surviving R-final parent)
+        assert!(t.get("HFMA2_R_R_FI_FI_R", "").is_none(), "sm121a: HFMA2_R_R_FI_FI_R deleted (T-25)");
         for mg in ["", "BF16_V2"] {
-            let m = t.get("HFMA2_R_R_FI_FI_R", mg).unwrap();
+            let m = t.get("HFMA2_R_R_II_II_R", mg).unwrap();
             for f in &m.fields {
                 assert!(
                     !(f.token_idx == 0 && f.bits == 8 && f.shift >= 76 && f.shift < 96),
@@ -400,7 +413,7 @@ fn t419_7_source_pin() {
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        m["base_revision"].as_str().unwrap().starts_with("c374bad146afd10eb41aa1ccd793c09422e2ddfb") /* 2026-11-06 T-11 (was c258f8a, T-10) */, // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+        m["base_revision"].as_str().unwrap().starts_with("04bcb53c9a822b46ba4d490e00662e16fb786372") /* 2026-11-06 T-11 (was c258f8a, T-10) */, // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
         "SOURCE.json must pin canonical 57e7ecd [was ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, 1810912 = 435+434 hop, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b, 3f6ca6f = BUG-425, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422] (BUG-442 graft F2-iter246 z atrybucja; ride-chain): {:?}",
         m["base_revision"]
     );

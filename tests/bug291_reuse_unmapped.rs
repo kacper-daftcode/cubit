@@ -99,11 +99,14 @@ fn t291_2_keep_lanes_mint_unchanged() {
             "{leg} tok4@64"
         );
     }
-    // t266_5 sibling pin, unchanged-on-purpose: the LEA_P0 reuse lane on
+    // t266_5 sibling pin, unchanged-on-purpose: the LEA reuse lane on
     // sm121a (slot bits from the operand flag)
+    // 2026-11-09 (T-25): the sm121a LEA family is rebuilt from measurement (`tools/probes/re_sm120_lea.py --arch SM121`,
+    // tests/sm120_lea.rs) -- the era key `LEA_P0_R_R_R_II` (a spelling nvdisasm never prints) is gone; the vendor's
+    // spelling of the same lane carries the slot bit.
     let t121 = tab("sm121a");
-    let w = enc(&t121, "LEA_P0 R22, R18, R19.reuse, 0x1");
-    assert_eq!((w >> 122) & 7, 2, "LEA_P0 .reuse slot bit lost");
+    let w = enc(&t121, "LEA R22, R18, R19.reuse, 0x1");
+    assert_eq!((w >> 122) & 7, 2, "LEA .reuse slot bit lost");
     // Native SM120 bit sweeps disprove the historical UIADD3 reuse field.
     // Correct explicit row repair must preserve the uniform reuse rejection.
     let t = tab("sm120");

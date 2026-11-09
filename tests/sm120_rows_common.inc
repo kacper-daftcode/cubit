@@ -1,6 +1,7 @@
-// Shared body of the `sm120_rows_<family>` tests (session G run 5, 2026-11-07; KNOWN_ISSUES T1): the per-row
+// Shared body of the `sm120_rows_<family>` tests (session G run 5, 2026-11-07; KNOWN_ISSUES T1) and of the other
+// tables' row passes (`sm121a_rows_<family>` / `sm103a_rows_<family>` / `sm100a_rows_<family>`, session T-23): the per-row
 // field verification of the remaining harvest rows, measured by `tools/probes/re_sm120_rows.py` against nvdisasm
-// 13.1 over the whole 128-bit word. The including file defines `FAMILY`, `SOURCE`, `MNEMONICS`, `FIXTURE`,
+// 13.1 over the whole 128-bit word. The including file defines `TABLE`, `FAMILY`, `SOURCE`, `MNEMONICS`, `FIXTURE`,
 // `MEASURED_ROWS`, `ALIAS_ROWS`, `DEAD_ROWS`, `ALIAS_KEYS`, `FORM_WORDS`, `WITNESS_WORDS`, `LEFT_TO_OTHER_BATCHES`
 // and `EXCEPTIONS` (rows of the family's mnemonics that stay without `_src`, each with its reason). Fixture format:
 // one header line, then one record per probed row -- `w0` / `t0` (the canonical word and NVIDIA's text), `fields`
@@ -17,7 +18,9 @@ use serde_json::Value;
 use std::{collections::BTreeSet, path::PathBuf, sync::OnceLock};
 
 fn table_path() -> PathBuf {
-    std::env::var_os("CUBIT_TABLE").map(PathBuf::from).unwrap_or_else(|| "tables/sm120.json".into())
+    // T-23 (2026-11-08): the including file names its table (`TABLE`) -- the same body serves the sm121a / sm103a /
+    // sm100a row passes (`tests/<table>_rows_<family>.rs`, fixtures measured with `--arch SM121` / `SM103` / `SM100`)
+    std::env::var_os("CUBIT_TABLE").map(PathBuf::from).unwrap_or_else(|| TABLE.into())
 }
 
 fn table_and_index() -> &'static (IsaTable, DecodeIndex) {
@@ -84,9 +87,16 @@ fn reencode(table: &IsaTable, word: u128, text: &str) -> Result<u128, String> {
 }
 
 /// The word prints NVIDIA's text and re-encodes bit for bit -- or, when the encoder refuses the text on a silicon
-/// law (BUG-037: a multi-register MMA operand off its alignment; BUG-008: IMAD.WIDE's odd pair base), prints it
-/// only. Returns whether the word decoded through `(key, group)` itself: a word whose text elides an operand (`PT`,
+/// law (BUG-037: a multi-register MMA operand off its alignment; BUG-008: IMAD.WIDE's odd pair base; on sm_103a /
+/// sm_100a BUG-077 / 088's odd pairs and register alignment and BUG-080's guarded non-EL atomics, "SILENTLY BROKEN"
+/// on the B300 -- T-23), prints it only. Returns whether the word decoded through `(key, group)` itself: a word whose text elides an operand (`PT`,
 /// `RZ`, `URZ`) may decode through the sibling key that spells the elided form -- same text, same bits.
+/// An encoder refusal that cites a silicon measurement rather than a table gap: "silicon" in the message (BUG-037 /
+/// 008), "SILICON-ILLEGAL on sm_103a" (BUG-077 / 088), BUG-080's "SILENTLY BROKEN on sm_103a" guarded atomics.
+fn silicon_law(e: &str) -> bool {
+    e.to_lowercase().contains("silicon") || (e.contains("SILENTLY BROKEN on sm_") && e.contains("BUG-080"))
+}
+
 fn check_form(word: u128, vendor: &str, key: &str, group: &str, silicon_ok: bool) -> bool {
     let (table, index) = table_and_index();
     let decoded = index.decode(word, 0, table).unwrap_or_else(|e| panic!("{word:032x} ({vendor}): {e}"));
@@ -94,7 +104,7 @@ fn check_form(word: u128, vendor: &str, key: &str, group: &str, silicon_ok: bool
     assert_eq!(cubit::printer::to_sass_lossless(&decoded), vendor, "{word:032x} ({key} {group})");
     match reencode(table, word, vendor) {
         Ok(w) => assert_eq!(w, word, "{vendor}"),
-        Err(e) if silicon_ok && e.contains("silicon") => {}
+        Err(e) if silicon_ok && silicon_law(&e) => {}
         Err(e) => panic!("{vendor}: {e}"),
     }
     (decoded.key.as_str(), decoded.mod_group.as_str()) == (key, group)
@@ -173,7 +183,7 @@ fn the_lattice_around_each_row_is_fail_closed_and_vendor_true_where_claimed() {
                         assert_eq!(cubit::printer::to_sass_lossless(&d), text, "{word:032x} (bit {bit} of {key}, {class})");
                         match reencode(table, word, text) {
                             Ok(w) => assert_eq!(w, word, "{text}"),
-                            Err(e) if e.contains("silicon") => {}
+                            Err(e) if silicon_law(&e) => {}
                             Err(_) if class == "glyph" => {}
                             Err(e) => panic!("{text}: {e}"),
                         }
@@ -263,8 +273,14 @@ fn the_rows_are_measured_and_the_shadowed_keys_are_aliases() {
             // T-19 (2026-11-08): a row the project keeps by design (`_src: "modelled"`, the pinning test in the note)
             let g = &ins[key]["mod_groups"][group];
             assert_eq!(g["_src"], "modelled", "{key} {group}");
-            // 2026-11-08 (tools/tablefmt.py): a row's note is its own, else its key's (a one-row key carries it there)
-            let note = g["_note"].as_str().or_else(|| ins[key]["_note"].as_str()).unwrap_or_else(|| panic!("{key} {group}: no note"));
+            // 2026-11-08 (tools/tablefmt.py): a row's note is its own, else its key's (a one-row key carries it there),
+            // else the tag's (`_meta.provenance.sources.modelled.note` -- T-25: a table whose modelled rows all share one
+            // note carries it there, tablefmt's third level)
+            let note = g["_note"]
+                .as_str()
+                .or_else(|| ins[key]["_note"].as_str())
+                .or_else(|| raw["_meta"]["provenance"]["sources"]["modelled"]["note"].as_str())
+                .unwrap_or_else(|| panic!("{key} {group}: no note"));
             assert!(note.contains(row["test"].as_str().unwrap()), "{key} {group}: the note names the test");
             continue;
         }

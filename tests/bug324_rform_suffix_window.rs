@@ -1643,10 +1643,12 @@ fn t324_1_structure_graft_and_donors() {
                     !mgn.contains("F32"),
                     "{leg} {key}[{mgn}] HMUL2 F32 = INVALID1"
                 );
-                assert_ne!(
-                    mg.variable_mask & (1u128 << 79),
-                    0,
-                    "{leg} {key}[{mgn}] b79 text-inert relax"
+                // 2026-11-09 (T-25, rows-half-2026-11-07 / rows-misc-2026-11-07 on -b SM121): the sm121a HMUL2 rows are
+                // measured field by field -- the text-inert b79 is fail-closed there (the mask is the fields)
+                assert_eq!(
+                    mg.variable_mask & (1u128 << 79) != 0,
+                    !mg.row_probe,
+                    "{leg} {key}[{mgn}] b79 text-inert relax / fail-closed state"
                 );
             }
             for mgn in [
@@ -1719,6 +1721,13 @@ fn t324_2_decode_vendor_exact_x2() {
         // sm121a row; the donor-mirror rebuild decodes every 0x232 legal
         // probe vendor-exact, same as sm120 -- measured in t348_2 and
         // routex348)
+        // 2026-11-09 (T-25, rows-half-2026-11-07 on -b SM121): the sm121a HMUL2 rows are measured field by field -- the
+        // three probe words that carry a text-inert bit (b79; the stray bit 3 of the `_08` cases) fail closed there, the
+        // vendor's text being the plain word's (nvdisasm prints the same text with or without the bit).
+        if matches!(*tag, "A_c32_b79" | "B_c32_08" | "C_c32_08") {
+            assert!(dec(&t121, *w).is_none(), "sm121a: the measured row fails closed on the inert bit ({tag})");
+            continue;
+        }
         assert_eq!(
             dec(&t121, *w).as_deref(),
             Some(*text),

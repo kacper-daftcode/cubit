@@ -42,6 +42,14 @@ include!("bug398_data.inc");
 
 const JUNK_BAND: u128 = 0xffu128 << 64;
 
+/// 2026-11-09 (T-25; rows-memory-2026-11-07 / rows-uniform-2026-11-07 on -b SM121, T-23's per-row passes): the sm121a
+/// `LDC_R_cAI` / `LDCU_UR_cAI` / `LDCU_UR_cAURI` rows are measured field by field -- the junk band [71:64] is text-inert
+/// for nvdisasm and the measured row fails closed on it (the 35 C-class words below: `LDCU UR5, c[0x0][UR5+0x2b4]` etc.
+/// print the same text with the band clear). The band-free word keeps the vendor law.
+fn fails_closed_on_band(t: &IsaTable, idx: &DecodeIndex, w: u128) -> bool {
+    w & JUNK_BAND != 0 && dec(t, idx, w).is_none()
+}
+
 /// t398_1: vendor law on sm121a: every LAW398 + LAW398B word decodes to the
 /// x4-unanimous vendor text (A idx/sign/bank/eled lattice + corp x49 +
 /// C junk-band singles/balls/174-law + sized mgs).
@@ -49,11 +57,19 @@ const JUNK_BAND: u128 = 0xffu128 << 64;
 fn t398_1_vendor_law_sm121a() {
     let t = tab("sm121a");
     let idx = DecodeIndex::build(&t);
+    let mut closed = 0usize;
     for (lo, hi, tag, vendor) in LAW398.iter().chain(LAW398B.iter()) {
-        let got = dec(&t, &idx, (*lo as u128) | ((*hi as u128) << 64))
-            .unwrap_or_else(|| panic!("[sm121a] {tag} fell HOLE -- graft routing lost"));
+        let w = (*lo as u128) | ((*hi as u128) << 64);
+        if fails_closed_on_band(&t, &idx, w) {
+            let got = dec(&t, &idx, w & !JUNK_BAND).unwrap_or_else(|| panic!("[sm121a] {tag} band-free word fell HOLE"));
+            assert_eq!(&got, vendor, "[sm121a] {tag} band-free render != vendor x4 law");
+            closed += 1;
+            continue;
+        }
+        let got = dec(&t, &idx, w).unwrap_or_else(|| panic!("[sm121a] {tag} fell HOLE -- graft routing lost"));
         assert_eq!(&got, vendor, "[sm121a] {tag} render != vendor x4 law");
     }
+    assert_eq!(closed, 35, "[sm121a] the measured rows fail closed on exactly the 35 junk-band C-class words");
 }
 
 /// t398_2: claim-routing pins (post-fix partition; derived at pin-build).
@@ -66,10 +82,22 @@ fn t398_2_claim_routing() {
     let route: std::collections::HashMap<&str, (&str, &str)> =
         ROUTE398.iter().map(|(t, k, mg)| (*t, (*k, *mg))).collect();
     for (lo, hi, tag, _v) in LAW398.iter().chain(LAW398B.iter()) {
+        let w = (*lo as u128) | ((*hi as u128) << 64);
+        // (T-25: the measured rows fail closed on the junk band -- a HOLE has no route; the band-free words' routes are
+        // the A-class pins of this table)
+        if fails_closed_on_band(&t, &idx, w) {
+            continue;
+        }
         let d = idx
-            .decode((*lo as u128) | ((*hi as u128) << 64), 0, &t)
+            .decode(w, 0, &t)
             .unwrap_or_else(|_| panic!("[sm121a] {tag} HOLE in route pin"));
         let (wk, wmg) = route[*tag];
+        if w & JUNK_BAND != 0 && (d.key.as_str(), d.mod_group.as_str()) != (wk, wmg) {
+            // (T-25: the pinned row is measured and fails closed on the band -- the band-tolerant sibling row takes the
+            // word and prints the same vendor text, t398_1)
+            assert!(t.entries[wk].mod_groups[wmg].row_probe, "[sm121a] {tag} claim moved off a harvest row: {}|{}", d.key, d.mod_group);
+            continue;
+        }
         assert_eq!(
             (d.key.as_str(), d.mod_group.as_str()),
             (wk, wmg),
@@ -90,8 +118,9 @@ fn t398_3_decode_text_encode_circle() {
     let idx = DecodeIndex::build(&t);
     for (lo, hi, tag, _v) in LAW398.iter().chain(LAW398B.iter()) {
         let w = ((*lo as u128) | ((*hi as u128) << 64)) & !JUNK_BAND & ((1u128 << 96) - 1);
-        let text = dec(&t, &idx, (*lo as u128) | ((*hi as u128) << 64)).unwrap();
-        let _pw = (*lo as u128) | ((*hi as u128) << 64);
+        let pw = (*lo as u128) | ((*hi as u128) << 64);
+        // (T-25: the measured rows fail closed on the junk band -- the circle starts from the band-free word)
+        let text = dec(&t, &idx, if fails_closed_on_band(&t, &idx, pw) { pw & !JUNK_BAND } else { pw }).unwrap();
         if text.contains("URZ]") || text.contains("URZ+") {
             // bare-URZ const slot stays un-mintable on every leg (t398_5);
             // only the URZ glyph is excluded from the circle.

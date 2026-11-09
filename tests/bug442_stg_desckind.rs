@@ -47,6 +47,12 @@ fn dec(t: &IsaTable, idx: &DecodeIndex, w: u128) -> Option<String> {
         .ok()
         .map(|d| to_sass(&d).trim().trim_end_matches(';').to_string())
 }
+include!("t25_fail_closed.inc");
+/// T-25 (2026-11-09): the STG rows are measured on sm100a / sm103a / sm121a (rows-memory-2026-11-07 on -b SM100 / SM103 /
+/// SM121, T-23's per-row passes) and fail closed on their text-inert bits; the clean word's reading keeps the vendor pin.
+fn dec_fc(t: &IsaTable, idx: &DecodeIndex, w: u128, want: &str) -> Option<String> {
+    dec(t, idx, w).or_else(|| t25_closed_as(t, w, Some(want)).map(|s| s.trim().trim_end_matches(';').to_string()))
+}
 const LEGS_442: [&str; 4] = ["sm100a", "sm103a", "sm120", "sm121a"];
 /// t442_1: healed grid -- decode == vendor text x4 legs on every (1,1)
 /// free-form word (10 words x4; dup tag arb438b.STG.j90 == A.j90 folded).
@@ -56,7 +62,7 @@ fn t442_1_healed_grid_x4() {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
         for (w, vendor) in LAW442_HEAL {
-            let got = dec(&t, &idx, *w);
+            let got = dec_fc(&t, &idx, *w, vendor);
             assert_eq!(
                 got.as_deref(),
                 Some(*vendor),
@@ -74,7 +80,7 @@ fn t442_2_stable_anchors_x4() {
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
         for (w, vendor) in LAW442_STABLE {
-            let got = dec(&t, &idx, *w);
+            let got = dec_fc(&t, &idx, *w, vendor);
             assert_eq!(
                 got.as_deref(),
                 Some(*vendor),
@@ -119,7 +125,7 @@ fn t442_4_standing_gaps_documented() {
         let leg = tag.rsplit('.').next().unwrap();
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
-        let got = dec(&t, &idx, *w);
+        let got = if *snapped == "HOLE" { dec(&t, &idx, *w) } else { dec_fc(&t, &idx, *w, snapped) };
         if *snapped == "HOLE" {
             assert_eq!(got, None, "[{leg}] gap cell decodes {tag}: {got:?}");
         } else {
@@ -179,7 +185,7 @@ fn t442_5_masked_mints_and_circles() {
 #[test]
 fn t442_6_source_manifest_and_invariants() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "c374bad146afd10eb41aa1ccd793c09422e2ddfb" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "04bcb53c9a822b46ba4d490e00662e16fb786372" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
 
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
@@ -215,10 +221,16 @@ fn t442_6_source_manifest_and_invariants() {
                     16,
                 )
                 .unwrap();
-                assert!(
-                    vm & (1u128 << 90) != 0,
-                    "[{leg}] {key} vm b90 must be relaxed (G2)"
-                );
+                // T-25 (2026-11-09): a row measured on -b SM100 / SM103 / SM121 (rows-memory-2026-11-07) has its fields
+                // for its mask -- bit 90 (the address-width selector of the `.64` form) fails closed there
+                if mg["_src"].as_str().is_some_and(|s| s.starts_with("rows-")) {
+                    assert_eq!(vm & (1u128 << 90), 0, "[{leg}] {key} measured row must fail closed on b90");
+                } else {
+                    assert!(
+                        vm & (1u128 << 90) != 0,
+                        "[{leg}] {key} vm b90 must be relaxed (G2)"
+                    );
+                }
                 assert_eq!(
                     mg["addr_width"].as_str(),
                     Some("U32"),
@@ -337,7 +349,7 @@ fn t442_7_sm121a_key_census_and_donor_parity() {
     let i121 = raw121["instructions"].as_object().unwrap();
     assert_eq!(
         i121.len(),
-        2150 /* T-22 2026-11-08 UIADD3 .64 (canonical 3fb3b82): the .64 groups measured on the three tables; sm121a's 3 dotted UIADD3.64 keys -> aliases: forms 2153 -> 2150 (loader-visible 2148), variants 50447 -> 50444, aliases 21747 -> 21750, num_keys unchanged; sm103a / sm100a variants 35875 -> 35876 / 35869 -> 35870 // T-22 2026-11-08 ATOM / ATOMG lattice (canonical 3fb3b82): ATOM_P_R_ARURI_R / ATOMG_P_R_ARURI_R measured on -b SM121 (8 640 + 9 600 groups with claim_forbid on bits 63 / 76), 6 912 dotted keys retired as aliases -- sm121a forms 9063 -> 2153 (loader-visible 9061 -> 2151), variants 39119 -> 50447, aliases 14835 -> 21747, num_keys 23896 -> 23898, claim_forbid 5253 -> 23493 // T-22 2026-11-08 NEEDS 59 (canonical 3fb3b82): sm121a MUFU_R_L retired as an alias of MUFU_R_R -- forms 9064 -> 9063 (loader-visible 9062 -> 9061), aliases 14834 -> 14835, num_keys unchanged; sm103a / sm100a VIMNMX3 rows measured (fields only) //  T-21 2026-11-08 batch 7 (canonical 3fb3b82): the float conversions (F2I / I2F / FRND / MUFU) and the FP32 ALU measured on sm121a / sm103a / sm100a -- dotted / junk keys retired as aliases: sm121a forms 9334 -> 9064 (loader-visible 9332 -> 9062), variants 36884 -> 39127, aliases 14561 -> 14834, num_keys 23893 -> 23896; sm103a forms 651 -> 516, variants 33532 -> 35875, aliases 14294 -> 14433, num_keys 14945 -> 14949; sm100a 650 -> 515, 33526 -> 35869, 14944 -> 14948; claim_forbid unchanged //  */ /* T-21 2026-11-08 batch 6 (canonical 3fb3b82): ISETP / UISETP measured on sm121a / sm103a / sm100a (-b SM121: the SM120 law incl. the 64-bit compare, 146 dotted keys retired as aliases, 224 INVALID3 harvest groups retired; -b SM103 / SM100: bit 80 text-inert and fail-closed, NEEDS 46, the four phantom .S64 / .U64 groups retired), FSETP / DSETP on sm103a / sm100a (NEEDS 58), PLOP3 / P2R / R2P on the three tables (R2P_II_R created; 9 sm121a junk keys retired as aliases): sm121a forms 9488 -> 9334 (loader-visible 9486 -> 9332), variants 37077 -> 36884, aliases 14406 -> 14561, num_keys 23892 -> 23893; sm103a forms 650 -> 651, variants 32916 -> 33532, num_keys 14944 -> 14945; sm100a 649 -> 650, 32910 -> 33526, 14943 -> 14944; claim_forbid unchanged //  */ /* T-21 2026-11-08 (canonical 3fb3b82): sm121a LDG.256 x 3 forms + STG.256 + REDG ARURI / ARURI64 measured on -b SM121 (G's batch 10-14 probes with --arch SM121 --witnesses; 167 GB10 corpus words moved to the plain keys, texts unchanged) -- 14 286 dotted harvest keys retired as aliases: sm121a forms 23754 -> 9488 (loader-visible 23752 -> 9486), variants 26595 -> 37077, claim_forbid 1244 -> 5253 (the 4 608 measured LDG_R_R_dARI rows + 576 STG_dARI rows carry the RZ-base claim_forbid; the 781 + 193 retired dotted dARI keys had it), num_keys with the alias clones 23872 -> 23892 //  */ /* T-20 2026-11-08 (canonical 3fb3b82): sm121a FSETP / DSETP measured on -b SM121, 105 dotted + 7 junk keys retired as aliases, FSETP_P_P_R_UR_P created: 23860 -> 23754 */ /* 2026-11-06 T-11: the IDP family measured whole + the audit exceptions: 23850 -> 23860 */, // WAVE-11 INTEGRATION (2026-11-05, canonical e99598a (wave 11; pin now 2eed3ac)): +25 keys (lane October canon) = raw 23850 // was: 2026-11-04 (canonical 6f11f6b): -20 / -10 era keys -> _meta.key_aliases, +LDL_R_ARURI (sm120) // RIDE476 (F2-iter299, canonical c88778e): +8 sm121a keys (476 LDG NA-side x8) -> raw 23833 (loader 23831) // RIDE475R3b-w2 (F2-iter290, INC-289e followup battery475-final 6xA, canonical 978c0918): +2 sm121a keys {anomalie LDG.E.NA/EU.ENL2.256_R_R_dARI verbatim restore; R3b 978c0918}; zmierzone raw len 23825 (loader 23823 po -2 _errata twardy offset) // was: 23823 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146 graft x4 nogi (dARI modsub lattice E*L2.256 frame b76=1: klon 6 donorow *_dARI EFL2.256/noga, fields/vm PARITY) + rekanon 462-mgs ENL2 [489-absorb: DELETE 13/13/7 mgs + 2 anomalie 121a; REPLACE 9 heritage _src462] -> raw 14865/14865/16003/23823; loader 121a 23821 (offset -2 _errata stoi); cf 1166/1166/1164/1181 // was: 22688 // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468) // was: 19233 ride F2-iter282 BUG-469: +6 sm121a keys (widthless ARURI graft: 2x ELL2.256 R_R_ARURI donor-103a verbatim-era0 + mg R/R_P/P_R/P_R_P plain-band + 4x EF-band P_R_ARURI_P; canonical bd48e63) // ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145) // was: flip-ride 467: -5 sm121a keys (degenerate era-rows delete; canonical 668f842)
+        1624 /* T-25 2026-11-09 (canonical 04bcb53; T-23's per-row pass on -b SM121 6428595 + T-25's daac080 / 64db08b): 511 shadowed harvest keys retired as `_meta.key_aliases` clones, 52 unreachable rows and the junk keys deleted (HFMA2_R_R_FI_FI_R, LEA_P0_R_R_R_II, …), the LEA family rebuilt from measurement (56 keys -> 24): sm121a forms 2150 -> 1624, aliases 21750 -> 22227, claim_forbid 23493 -> 23482 */ /* T-22 2026-11-08 UIADD3 .64 (canonical 3fb3b82): the .64 groups measured on the three tables; sm121a's 3 dotted UIADD3.64 keys -> aliases: forms 2153 -> 2150 (loader-visible 2148), variants 50447 -> 50444, aliases 21747 -> 21750, num_keys unchanged; sm103a / sm100a variants 35875 -> 35876 / 35869 -> 35870 // T-22 2026-11-08 ATOM / ATOMG lattice (canonical 3fb3b82): ATOM_P_R_ARURI_R / ATOMG_P_R_ARURI_R measured on -b SM121 (8 640 + 9 600 groups with claim_forbid on bits 63 / 76), 6 912 dotted keys retired as aliases -- sm121a forms 9063 -> 2153 (loader-visible 9061 -> 2151), variants 39119 -> 50447, aliases 14835 -> 21747, num_keys 23896 -> 23898, claim_forbid 5253 -> 23493 // T-22 2026-11-08 NEEDS 59 (canonical 3fb3b82): sm121a MUFU_R_L retired as an alias of MUFU_R_R -- forms 9064 -> 9063 (loader-visible 9062 -> 9061), aliases 14834 -> 14835, num_keys unchanged; sm103a / sm100a VIMNMX3 rows measured (fields only) //  T-21 2026-11-08 batch 7 (canonical 3fb3b82): the float conversions (F2I / I2F / FRND / MUFU) and the FP32 ALU measured on sm121a / sm103a / sm100a -- dotted / junk keys retired as aliases: sm121a forms 9334 -> 9064 (loader-visible 9332 -> 9062), variants 36884 -> 39127, aliases 14561 -> 14834, num_keys 23893 -> 23896; sm103a forms 651 -> 516, variants 33532 -> 35875, aliases 14294 -> 14433, num_keys 14945 -> 14949; sm100a 650 -> 515, 33526 -> 35869, 14944 -> 14948; claim_forbid unchanged //  */ /* T-21 2026-11-08 batch 6 (canonical 3fb3b82): ISETP / UISETP measured on sm121a / sm103a / sm100a (-b SM121: the SM120 law incl. the 64-bit compare, 146 dotted keys retired as aliases, 224 INVALID3 harvest groups retired; -b SM103 / SM100: bit 80 text-inert and fail-closed, NEEDS 46, the four phantom .S64 / .U64 groups retired), FSETP / DSETP on sm103a / sm100a (NEEDS 58), PLOP3 / P2R / R2P on the three tables (R2P_II_R created; 9 sm121a junk keys retired as aliases): sm121a forms 9488 -> 9334 (loader-visible 9486 -> 9332), variants 37077 -> 36884, aliases 14406 -> 14561, num_keys 23892 -> 23893; sm103a forms 650 -> 651, variants 32916 -> 33532, num_keys 14944 -> 14945; sm100a 649 -> 650, 32910 -> 33526, 14943 -> 14944; claim_forbid unchanged //  */ /* T-21 2026-11-08 (canonical 3fb3b82): sm121a LDG.256 x 3 forms + STG.256 + REDG ARURI / ARURI64 measured on -b SM121 (G's batch 10-14 probes with --arch SM121 --witnesses; 167 GB10 corpus words moved to the plain keys, texts unchanged) -- 14 286 dotted harvest keys retired as aliases: sm121a forms 23754 -> 9488 (loader-visible 23752 -> 9486), variants 26595 -> 37077, claim_forbid 1244 -> 5253 (the 4 608 measured LDG_R_R_dARI rows + 576 STG_dARI rows carry the RZ-base claim_forbid; the 781 + 193 retired dotted dARI keys had it), num_keys with the alias clones 23872 -> 23892 //  */ /* T-20 2026-11-08 (canonical 3fb3b82): sm121a FSETP / DSETP measured on -b SM121, 105 dotted + 7 junk keys retired as aliases, FSETP_P_P_R_UR_P created: 23860 -> 23754 */ /* 2026-11-06 T-11: the IDP family measured whole + the audit exceptions: 23850 -> 23860 */, // WAVE-11 INTEGRATION (2026-11-05, canonical e99598a (wave 11; pin now 2eed3ac)): +25 keys (lane October canon) = raw 23850 // was: 2026-11-04 (canonical 6f11f6b): -20 / -10 era keys -> _meta.key_aliases, +LDL_R_ARURI (sm120) // RIDE476 (F2-iter299, canonical c88778e): +8 sm121a keys (476 LDG NA-side x8) -> raw 23833 (loader 23831) // RIDE475R3b-w2 (F2-iter290, INC-289e followup battery475-final 6xA, canonical 978c0918): +2 sm121a keys {anomalie LDG.E.NA/EU.ENL2.256_R_R_dARI verbatim restore; R3b 978c0918}; zmierzone raw len 23825 (loader 23823 po -2 _errata twardy offset) // was: 23823 // RIDE475 (F2-iter288 BUG-475, canonical PENDING-475): +1146 graft x4 nogi (dARI modsub lattice E*L2.256 frame b76=1: klon 6 donorow *_dARI EFL2.256/noga, fields/vm PARITY) + rekanon 462-mgs ENL2 [489-absorb: DELETE 13/13/7 mgs + 2 anomalie 121a; REPLACE 9 heritage _src462] -> raw 14865/14865/16003/23823; loader 121a 23821 (offset -2 _errata stoi); cf 1166/1166/1164/1181 // was: 22688 // RIDE474 (F2-iter285 BUG-474, canonical PENDING-474): +3454/+3454/+3454/+3455 twins _ARURI U32 (b75=0 sib calej rodziny plain ARURI64 464/465/468) // was: 19233 ride F2-iter282 BUG-469: +6 sm121a keys (widthless ARURI graft: 2x ELL2.256 R_R_ARURI donor-103a verbatim-era0 + mg R/R_P/P_R/P_R_P plain-band + 4x EF-band P_R_ARURI_P; canonical bd48e63) // ride F2-iter280 BUG-468: +2320 keys (LTC-sel [74:73] lattice closure plain ARURI64 + NA LTC128B/256B; canonical 08a6145) // was: flip-ride 467: -5 sm121a keys (degenerate era-rows delete; canonical 668f842)
         "sm121a key census must equal the BUG-443 post state (8 T2 + 11 T3 noE-cross keys)"
     );
     let a = &i121["STG_ARURI_R"]["mod_groups"];
@@ -367,7 +379,16 @@ fn t442_8_scope443_closed_x4() {
         let leg = tag.rsplit('.').next().unwrap();
         let t = tab(leg);
         let idx = DecodeIndex::build(&t);
-        let got = dec(&t, &idx, *w);
+        // 2026-11-09 (T-25, rows-memory-2026-11-07 on -b SM100 / SM103 / SM121): the `[R.64+UR]` spelling of STG.E.U8
+        // (bit 90 set) is not a row of the three measured tables -- the measured `E,U8` row (U32, bit 90 clear) fails
+        // closed on it and the 443 heal's harvest tolerance is gone with the row: a HOLE, not a text (KNOWN_ISSUES T1,
+        // T/REPORT.md Part 25 §2: a `.64` U8 row to measure); sm120 carries the genuine native row (t442_9).
+        if tag.starts_with("B.bU8.j90.") && leg != "sm120" {
+            assert!(t.entries["STG.E.U8_ARURI_R"].mod_groups["E,U8"].row_probe, "[{leg}] {tag}: the U8 row is measured");
+            assert_eq!(dec(&t, &idx, *w), None, "[{leg}] {tag}: the .64 U8 word is a hole on the measured leg");
+            continue;
+        }
+        let got = dec_fc(&t, &idx, *w, vendor);
         assert_eq!(
             got.as_deref(),
             Some(*vendor),

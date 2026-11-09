@@ -94,7 +94,8 @@ fn t276_1_structure_deletions_widen_and_donors() {
         // whole word, tests/fixtures/sm120_rows_half_nvdisasm.jsonl): the guard is a field (and_base 0x239), the
         // `.reuse` bits 122-124 are fields and the mask is exactly the fields -- the widened windows (80,81) / (62,63) /
         // [95:82] \ b91 are text-inert and fail closed (the measured-row convention). sm121a keeps the wave state.
-        if leg == "sm120" {
+        // 2026-11-09 (T-25): sm121a's row is measured the same way now (T-23's per-row passes, pushed by T-25) -- the sm120 branch holds on both legs.
+        if leg == "sm120" || leg == "sm121a" {
             assert_eq!(ab, 0x239, "{leg}: I2IP '' and_base drift (measured: the guard is a field)");
             assert_eq!(vm, 0x1c000000000001ff000000fffffff000u128, "{leg}: I2IP '' vmask drift (measured: the fields)");
         } else {
@@ -182,18 +183,13 @@ fn t276_2_former_lattice_bases_post_state() {
         // measured field by field; its text-inert bit 74 fails closed like every measured family's inert bits
         // (T-10's convention), so the bare word (b74 = 0) is a hole again and the canonical mint (b74 = 1)
         // carries the text. sm121a keeps the BUG-280 reclaim.
-        if leg == "sm120" {
+        // 2026-11-09 (T-25, rows-tensor-2026-11-07 on -b SM121): the sm121a lane row is measured the same way.
+        {
             assert_eq!(dec(&t, 0x27a).as_deref(), None, "{leg}: measured lane row fails closed on inert b74");
             assert_eq!(
                 dec(&t, 0x27a | (1 << 74)).as_deref(),
                 Some("@P0 QMMA.16816.F16.E4M3.E4M3 R0, R0, R0, R0"),
                 "{leg}: canonical lane word decode drift"
-            );
-        } else {
-            assert_eq!(
-                dec(&t, 0x27a).as_deref(),
-                Some("@P0 QMMA.16816.F16.E4M3.E4M3 R0, R0, R0, R0"),
-                "{leg}: 280-armed 0x27a decode drift"
             );
         }
         // 0x238 / 0x2000238 (vendor 2-op I2I.U8.S32.SAT territory): junk
@@ -229,16 +225,9 @@ fn t276_2_former_lattice_bases_post_state() {
         // (tests/fixtures/sm120_rows_memory_nvdisasm.jsonl): the sub-op band [36:32] is text-inert for nvdisasm (the
         // record's `inert` list) and the measured row's mask is its fields (guard, Rd, Ra) -- the band words fail
         // closed (the measured-row convention); nvdisasm's text for them is still the base word's.
+        // (2026-11-09, T-25: sm121a's MOVM row is measured too -- rows-memory-2026-11-07 on -b SM121)
         for w in [0x70000023au128, 0xb0000023au128, 0x30000023au128] {
-            if leg == "sm120" {
-                assert!(dec(&t, w).is_none(), "{leg}: a measured row tolerates the text-inert sub-op band at {w:#x}");
-                continue;
-            }
-            assert_eq!(
-                dec(&t, w).as_deref(),
-                Some("@P0 MOVM.16.MT88 R0, R0"),
-                "{leg}: 283-armed MOVM cluster drift at {w:#x}"
-            );
+            assert!(dec(&t, w).is_none(), "{leg}: a measured row tolerates the text-inert sub-op band at {w:#x}");
         }
         // corpus QMMA witness (qc_75_77.cubin routes here, routex276 n=1/leg)
         let w: u128 = 0xff600000004340000000c0834727au128 & M96;
@@ -310,7 +299,8 @@ fn t276_4_widen_laws_vendor_equal() {
         // 2026-11-08 (T-18, rows-half-2026-11-07): on sm120 the measured I2IP.U8.S32_R_R_R_R row fails closed on the
         // text-inert (80,81) window (the `inert` list of its fixture record; the mask is the fields) -- the vendor text
         // of those words is the base word's, and the payload registers / the H1 arm still compose without the window.
-        if leg == "sm120" {
+        // 2026-11-09 (T-25): sm121a's row is measured the same way now (T-23's per-row passes, pushed by T-25) -- the sm120 branch holds on both legs.
+        if leg == "sm120" || leg == "sm121a" {
             for v in 1u128..4 {
                 assert!(dec(&t, 0x7239 | (v << 80)).is_none(), "{leg}: a measured row tolerates (80,81)={v}");
             }
@@ -357,7 +347,9 @@ fn t276_5_keepers_registrations_and_anchors() {
     for leg in ["sm120", "sm121a"] {
         let t = tab(leg);
         // BUG-484 (2026-11-06, T-7): the sm120 `HADD2_R_R_R` row is rebuilt from measurement and the 278-kand keeper `HADD2_R_R_II_II_II_II_?` is retired there — its witness (an HFMA2 word) decodes through `HFMA2_R_R_R_R` since the September HFMA2 closures; sm121a keeps the era state.
-        assert_eq!(t.entries.contains_key("HADD2_R_R_II_II_II_II_?"), leg == "sm121a", "{leg}");
+        // 2026-11-09 (T-25): the `?` keeper is deleted on sm121a as well (blackwell-isa, T-25); the witness decodes through
+        // the measured HFMA2 rows on both legs.
+        assert!(!t.entries.contains_key("HADD2_R_R_II_II_II_II_?"), "{leg}: the junk keeper stays deleted");
         assert!(dec(&t, w2 & M96).is_some(), "{leg}: 278 witness holed");
         // 275-kand: I2IP '' bit73 still unfielded payload-gap
         let g = &t.entries["I2IP.U8.S32_R_R_R_R"].mod_groups[""];

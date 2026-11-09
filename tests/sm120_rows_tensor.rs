@@ -4,6 +4,7 @@
 //! field words, 21 census witnesses), 78 shadowed keys (78 rows) retired as aliases, 0 unreachable
 //! rows of staying keys deleted, 0 named exceptions. Fixture `tests/fixtures/sm120_rows_tensor_nvdisasm.jsonl`; the test body is `tests/sm120_rows_common.inc`.
 
+const TABLE: &str = "tables/sm120.json";
 const FAMILY: &str = "tensor";
 const SOURCE: &str = "rows-tensor-2026-11-07";
 const MNEMONICS: &[&str] = &["QMMA", "HMMA", "OMMA", "DMMA", "IMMA"];

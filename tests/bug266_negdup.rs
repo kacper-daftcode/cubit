@@ -169,20 +169,23 @@ fn t266_2_decode_ghost_free() {
 #[test]
 fn t266_3_shadow_restored() {
     // True windows print again (arb266 vendor-equal witnesses).
+    // 2026-11-09 (T-25): the sm121a LEA family is rebuilt from measurement (`tools/probes/re_sm120_lea.py --arch SM121`,
+    // tests/sm120_lea.rs) -- the era key `LEA_P0_R_R_R_II` is gone and the words print the vendor's spelling
+    // (`LEA R22, R18, -R19, 0x1`; nvdisasm 13.1 -b SM121) instead of the harvest key's name.
     let t = tab("sm121a");
     assert_eq!(
         dec(&t, W_LEA_A & M96).as_deref(),
-        Some("LEA_P0 R22, R18, -R19, 0x1")
+        Some("LEA R22, R18, -R19, 0x1")
     );
     assert_eq!(
         dec(&t, W_LEA_C & M96).as_deref(),
-        Some("LEA_P0 R147, -R147, RZ, 0x6")
+        Some("LEA R147, -R147, RZ, 0x6")
     );
     // W_LEA_B carries both symptoms: tok2 ghost '-' gone AND tok3 '-'
     // restored (vendor ctl-carrying: '@P2 LEA R13, R28.reuse, -R28, 0x3').
     assert_eq!(
         dec(&t, W_LEA_B & M96).as_deref(),
-        Some("@P2 LEA_P0 R13, R28, -R28, 0x3")
+        Some("@P2 LEA R13, R28, -R28, 0x3")
     );
     // HFMA2 BF16_V2-era tok4: era dup neg@124 gone, true neg@84 prints
     // through. tok3 suffix FLIPPED 2026-08-29 (BUG-264/267): '.H0_H0'
@@ -249,7 +252,7 @@ fn t266_5_encode_no_fabrication() {
     // owned by .reuse authoring (explicit fields + apply_reuse_encoding).
     let t = tab("sm121a");
     for text in [
-        "LEA_P0 R22, R18, -R19, 0x1",
+        "LEA R22, R18, -R19, 0x1",
         "FSET.BF.F.AND R8, -R4, R7, P2",
         "HADD2 R8, -R4, 0, 0",
     ] {
@@ -263,8 +266,8 @@ fn t266_5_encode_no_fabrication() {
     }
     // .reuse authority survives the deletion (slot bits from operand flag);
     // byte-stable roundtrip of reuse-carrying corpus witnesses.
-    let w = enc(&t, "LEA_P0 R22, R18, R19.reuse, 0x1");
-    assert_eq!((w >> 122) & 7, 2, "LEA_P0 .reuse slot bit lost");
+    let w = enc(&t, "LEA R22, R18, R19.reuse, 0x1");
+    assert_eq!((w >> 122) & 7, 2, "LEA .reuse slot bit lost");
     for (t2, witness) in [
         (tab("sm120"), W_HMMA16816),
         (tab("sm120"), W_HMMA1688),
@@ -297,8 +300,9 @@ fn t266_5_encode_no_fabrication() {
         .contains(", UR8.H0_H0,"));
     // 265-kand anchor: phantom head row still registered on sm121a (removal queued);
     // BUG-484 (2026-11-06, T-7): the sm120 `HADD2_R_R_R` row is rebuilt from measurement and the 278-kand keeper `HADD2_R_R_II_II_II_II_?` is retired there — its witness (an HFMA2 word) decodes through `HFMA2_R_R_R_R` since the September HFMA2 closures; sm121a keeps the era state.
+    // (2026-11-09, T-25: the `?` keeper is deleted on sm121a as well -- blackwell-isa, T-25)
     for leg in ["sm120", "sm121a"] {
         let t = tab(leg);
-        assert_eq!(t.entries.contains_key("HADD2_R_R_II_II_II_II_?"), leg == "sm121a");
+        assert!(!t.entries.contains_key("HADD2_R_R_II_II_II_II_?"), "{leg}: the junk keeper stays deleted");
     }
 }

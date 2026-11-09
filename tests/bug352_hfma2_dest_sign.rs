@@ -84,11 +84,14 @@ fn t352_1_structure_census_zero_tok1_sign_fields() {
     // closure: HFMA2[.<mods>.]RELU_R_R_FI_FI_R_P; 6 RELU mgs live in
     // mod_groups and do not move the counter) = 50/50; dense +20 (the 10
     // FI_FI dotted + the 10 II_II dotted) = 108/108.
+    // 2026-11-09 (T-25, blackwell-isa daac080): -1 HFMA2* key on sm121a -- the junk harvest key `HFMA2_R_R_FI_FI_R`
+    // (and_base 0x11 in the opcode byte, a field over the opcode nibble; its 31 rows claimed the illegal words of the
+    // LEA lattice, tests/sm120_lea.rs on sm121a) deleted = 107; the other legs stand.
     let want_counts = [
         ("sm100a", 50usize),
         ("sm103a", 50),
         ("sm120", 108),
-        ("sm121a", 108),
+        ("sm121a", 107),
     ];
     for (leg, n) in want_counts {
         let t = tab(leg);

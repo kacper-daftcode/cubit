@@ -74,7 +74,8 @@ fn t275_1_structure_narrow_and_donors() {
             let g = &e.mod_groups[""];
             let ab: u128 = g.and_base;
             let vm: u128 = g.variable_mask;
-            let measured = leg == "sm120" && nk == "I2IP.U8.S32_R_R_R_R"; // T-18: the measured plain row
+            // T-18: the measured plain row; 2026-11-09 (T-25, rows-half-2026-11-07 on -b SM121): sm121a's plain row too
+            let measured = nk == "I2IP.U8.S32_R_R_R_R";
             if measured {
                 assert_eq!(ab, AB_MEASURED_I2IP, "{leg}: {nk} and_base drift (measured row: the guard is a field)");
                 assert_eq!(vm, VM_MEASURED_I2IP, "{leg}: {nk} vmask drift (measured row: the mask is the fields)");
@@ -216,15 +217,10 @@ fn t275_5_registrations_anchors_tripwires() {
         // this exact word), twin pin in t284_5.
         // 2026-11-08 (T-18): on sm120 the measured row fails closed on the text-inert [90:87] window (see the
         // constants above); sm121a keeps the 284 widen.
-        if leg == "sm120" {
+        // 2026-11-09 (T-25): sm121a's row is measured the same way now (T-23's per-row passes, pushed by T-25) -- the sm120 branch holds on both legs.
+        {
             assert!(dec(&t, 0x30000000000000000007239u128).is_none(), "{leg}: a measured row tolerates the text-inert [90:87] window");
             assert_eq!(dec(&t, 0x7239u128).as_deref(), Some("I2IP.U8.S32 R0, R0, R0, R0"), "{leg}: the base word");
-        } else {
-            assert_eq!(
-                dec(&t, 0x30000000000000000007239u128).as_deref(),
-                Some("I2IP.U8.S32 R0, R0, R0, R0"),
-                "{leg}: 284-window word decode drift"
-            );
         }
         // b73+b86 stays a hole: b86 armed text-inert by 284 but the b73
         // marker (275 narrow) keeps the word care-rejected.
@@ -247,15 +243,10 @@ fn t275_5_registrations_anchors_tripwires() {
         // 2026-11-08 (T-18, rows-memory-2026-11-07): on sm120 the measured MOVM.16.MT88_R_R row fails closed on its
         // text-inert sub-op band [36:32] (the measured-row convention; tests/bug283_movm_lane.rs) -- the base word
         // carries the anchor there.
-        if leg == "sm120" {
+        // 2026-11-09 (T-25): sm121a's row is measured the same way now (T-23's per-row passes, pushed by T-25) -- the sm120 branch holds on both legs.
+        {
             assert!(dec(&t, 0x70000023a).is_none(), "{leg}: a measured row tolerates the MOVM sub-op band");
             assert_eq!(dec(&t, 0x23a).as_deref(), Some("@P0 MOVM.16.MT88 R0, R0"), "{leg}: MOVM base anchor");
-        } else {
-            assert_eq!(
-                dec(&t, 0x70000023a).as_deref(),
-                Some("@P0 MOVM.16.MT88 R0, R0"),
-                "{leg}: 283-armed MOVM anchor"
-            );
         }
         // BUG-272 FLIP (was: 272-class tripwire): '.???2'/unknown
         // operand-suffix text now FAILS CLOSED on encode (272 gate;

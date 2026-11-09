@@ -161,11 +161,21 @@ fn t343_1_structure_graft_and_donors() {
         // bits are the LIVE pred-elision field (measured on the closure
         // lattice: f87->P6 f88->P5 f89->P3 f90->!PT, x4 legs AGREE;
         // work/bug393/measure393_closure.json). Law-aware equality:
-        assert_eq!(
-            re.variable_mask,
-            pl.variable_mask & !(0xfu128 << 87),
-            "{leg}: RELU mg vm drift vs plain beyond the live pv window"
-        );
+        // 2026-11-09 (T-25, rows-half-2026-11-07 on -b SM121): on sm121a both rows are measured -- each mask is exactly its
+        // own fields; the RELU row's text-inert bits (incl. the pv window, baked 7) are fail-closed like the plain row's.
+        let fm = |g: &cubit::table::ModGroupEntry| g.fields.iter().fold(0u128, |m, f| m | (((1u128 << f.bits) - 1) << f.shift));
+        if pl.row_probe || re.row_probe {
+            // (on sm121a the plain row is measured, the RELU row is bug343's: each measured row's mask is its fields, the
+            // harvest one keeps its relaxed windows -- the two are not comparable bit for bit)
+            if pl.row_probe { assert_eq!(pl.variable_mask, fm(pl), "{leg}: plain mg mask = its fields (measured)"); }
+            if re.row_probe { assert_eq!(re.variable_mask, fm(re), "{leg}: RELU mg mask = its fields (measured)"); }
+        } else {
+            assert_eq!(
+                re.variable_mask,
+                pl.variable_mask & !(0xfu128 << 87),
+                "{leg}: RELU mg vm drift vs plain beyond the live pv window"
+            );
+        }
         assert!(
             !re.fields.iter().any(|f| f.extraction == Extraction::Pred),
             "{leg}: base RELU mg gained a pred field"
@@ -223,6 +233,12 @@ fn t343_1_structure_graft_and_donors() {
         let e = &t.entries["HFMA2_R_R_R_R"];
         assert_eq!(e.mod_groups.len(), 36, "{leg}: donor family census");
         for (mg, g) in &e.mod_groups {
+            // 2026-11-09 (T-25, rows-half-2026-11-07 on -b SM103 / SM100; T-23's per-row passes): a donor row measured field
+            // by field carries neg@63 (and neg@72) as fields where nvdisasm prints `-R` for the bit -- the sweep's finding,
+            // not a graft; the harvest donor rows keep the pre-381 state.
+            if g.row_probe {
+                continue;
+            }
             assert!(
                 !g.fields
                     .iter()
@@ -582,11 +598,18 @@ fn t343_4_fail_closed_doctrine_edges() {
         // (elided-PT render; 289-doctrine pin superseded by measured law
         // -- measure393_closure.json tetrads '' x4 legs + balls AGREE).
         // Lawful-accept: the word decodes to the bare base text.
-        assert_eq!(
-            dec(&t, HOST | (0x7 << 87)).as_deref(),
-            Some("HFMA2 R1, R2, R3, R4"),
-            "{leg}: stray pv band no longer decodes to bare base text!"
-        );
+        // 2026-11-09 (T-25, rows-half-2026-11-07 on -b SM121): on sm121a the measured plain row fails closed on the stray
+        // pv band (text-inert for nvdisasm: the bare text is the base word's, which decodes).
+        if leg == "sm121a" {
+            assert!(dec(&t, HOST | (0x7 << 87)).is_none(), "{leg}: the measured row fails closed on the stray pv band");
+            assert_eq!(dec(&t, HOST).as_deref(), Some("HFMA2 R1, R2, R3, R4"), "{leg}: the base word");
+        } else {
+            assert_eq!(
+                dec(&t, HOST | (0x7 << 87)).as_deref(),
+                Some("HFMA2 R1, R2, R3, R4"),
+                "{leg}: stray pv band no longer decodes to bare base text!"
+            );
+        }
     }
     // donors: mod lanes were HOLE pre-381 (byte-invariant tables).
     // FLIP (BUG-381, F2-iter203, canonical 3cb31e4): the sparse 0x231

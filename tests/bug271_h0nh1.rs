@@ -108,20 +108,9 @@ fn t271_1_structure_and_donors() {
         // (T-18: on sm120 HFMA2_R_R_R_II_II_II is an alias of HFMA2_R_R_R_FI_FI -- nvdisasm prints its canonical word
         // `HFMA2 R32, -RZ, RZ, 0, 0` as the f16-pair form, tests/fixtures/sm120_rows_half_nvdisasm.jsonl -- so the
         // II_II_II spelling resolves to the measured FI_FI rows; the 288-kand hole is the target's business now)
-        let g = &t.entries["HFMA2_R_R_R_II_II_II"].mod_groups[""];
-        if leg == "sm120" {
-            assert!(t.entries["HFMA2_R_R_R_II_II_II"].encode_only, "{leg}: II_II_II is an alias clone");
-        } else {
-        assert_eq!(
-            g.fields
-                .iter()
-                .filter(|f| f.extraction == Extraction::H0NH1)
-                .count(),
-            0
-        );
-        let vm: u128 = g.variable_mask;
-        assert_eq!(vm & (1 << 86), 0, "{leg}: II_II_II widened?");
-        }
+        // 2026-11-09 (T-25): on sm121a too the key is an alias clone since T-23's per-row pass (`HFMA2_R_R_R_II_II_II` ->
+        // `HFMA2_R_R_R_II_FI`, the integer spelling of the immediate form) -- encoder-only, its target's rows.
+        assert!(t.entries["HFMA2_R_R_R_II_II_II"].encode_only, "{leg}: II_II_II is an alias clone");
     }
     // sm121a BF16 hosts:
     let t = tab("sm121a");
@@ -132,7 +121,9 @@ fn t271_1_structure_and_donors() {
         && f.token_idx == 3));
     let g = &t.entries["HMUL2_R_R_UR"].mod_groups["BF16_V2"];
     let vmh: u128 = g.variable_mask;
-    assert_ne!(vmh & (1 << 86), 0, "HMUL2 reclaim lost");
+    // 2026-11-09 (T-25, rows-half-2026-11-07 on -b SM121): the HMUL2 rows are measured field by field -- the text-inert
+    // b86 is fail-closed (the mask is the fields), no reclaim and no field.
+    assert_eq!(vmh & (1 << 86), 0, "HMUL2: the measured row fails closed on the text-inert b86");
     assert!(
         !g.fields.iter().any(|f| f.extraction == Extraction::H0NH1),
         "HMUL2: b86 is vendor text-inert — reclaim must NOT carry a field"
@@ -261,21 +252,15 @@ fn t271_2_decode_laws_vendor_exact() {
     // HMUL2 reclaim: b86 vendor TEXT-INERT (arb271 D) — text-equal, no ghost.
     // BUG-307: hb carries b85=0 -> plain prints (arb307c x4).
     let hb = W_HML & !(0xFu128 << 60);
-    assert_eq!(
-        dec(&t, hb | (1 << 86)).as_deref(),
-        Some("HMUL2 R3, R12, UR8")
-    );
-    assert_eq!(
-        dec(&t, hb | (1 << 86) | (2 << 60)).as_deref(),
-        Some("HMUL2 R3, R12, UR8.H0_H0")
-    );
-    assert_eq!(
-        dec(&t, hb | (1 << 86) | (1 << 60)).as_deref(),
-        // FLIPPED F2-iter151 (BUG-297 landed): hsel v1 on the HMUL2 UR slot
-        // is the vendor '.INVALID1' (arb273 C4 + arb297b Hc1 x4 models);
-        // b86 stays text-inert on this host (arb271 D).
-        Some("HMUL2 R3, R12, UR8.INVALID1")
-    );
+    // 2026-11-09 (T-25, rows-half-2026-11-07 on -b SM121): the HMUL2_R_R_UR rows are measured field by field -- the
+    // text-inert b86 fails closed (the mask is the fields); the words without it carry the texts (the base, the hsel
+    // v2 `.H0_H0`, the vendor's `.INVALID1` for hsel v1 -- BUG-297).
+    for extra in [0u128, 2 << 60, 1 << 60] {
+        assert!(dec(&t, hb | (1 << 86) | extra).is_none(), "the measured HMUL2 row fails closed on the inert b86 ({extra:#x})");
+    }
+    assert_eq!(dec(&t, hb).as_deref(), Some("HMUL2 R3, R12, UR8"));
+    assert_eq!(dec(&t, hb | (2 << 60)).as_deref(), Some("HMUL2 R3, R12, UR8.H0_H0"));
+    assert_eq!(dec(&t, hb | (1 << 60)).as_deref(), Some("HMUL2 R3, R12, UR8.INVALID1"));
 }
 
 #[test]
