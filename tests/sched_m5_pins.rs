@@ -26,6 +26,8 @@ fn cost(lat: f64) -> CostModel {
         ]
         .into_iter()
         .collect(),
+        dep_latency_cy: None,
+        dep_latency_default_cy: None,
     }
 }
 

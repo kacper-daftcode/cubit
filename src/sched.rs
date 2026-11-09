@@ -114,9 +114,165 @@ pub struct CostModel {
     pub credits_default: f64,
     #[serde(default)]
     pub credits: BTreeMap<String, f64>,
+    /// BARRACUDA cost model v2 (tables/cost_sm103a_20261107.json, B300 night
+    /// slot 2026-11-07): producer class x consumer kind -> latency in cycles,
+    /// semantics `avail(consumer) = start(producer) + L` (the stall-floor
+    /// measurement: consumer directly next at stall S == S cycles). Absent
+    /// (v1 files) = the legacy single `dep_link_latency_slots` after the
+    /// producer's END, byte for byte the M4.6 behaviour.
+    #[serde(default)]
+    pub dep_latency_cy: Option<Vec<DepLatencyRow>>,
+    /// v2: latency for an edge class the table does not name (counted in
+    /// the `dep_class_defaulted` tripwire like `credits_default`).
+    #[serde(default)]
+    pub dep_latency_default_cy: Option<ValueCy>,
+}
+
+/// One row of the v2 per-class dependency-latency table.
+#[derive(Debug, Clone, Deserialize)]
+pub struct DepLatencyRow {
+    /// Producer class key: base opcode, with the measured distinctions kept
+    /// (`IADD3.X`, `IMAD.WIDE`, `F2FP.PACK` / `F2FP.UNPACK`, `MUFU.EX2`).
+    pub producer_class: String,
+    /// data | carry | sel | guard | uniform | xread | r2ur.
+    pub consumer_kind: String,
+    /// Cycles; None = variable latency (scoreboard only) without a timing
+    /// chain -- priced with the default.
+    #[serde(rename = "L_cy", default)]
+    pub l_cy: Option<f64>,
+    #[serde(default)]
+    pub scoreboard_only: bool,
+}
+
+/// `{"value": x, ...}` scalar sections of the v2 file (notes ignored).
+#[derive(Debug, Clone, Deserialize)]
+pub struct ValueCy {
+    #[serde(default)]
+    pub value: Option<f64>,
+}
+
+/// Dependency-latency model handed to the ready-time simulation.
+#[derive(Debug, Clone)]
+pub struct EdgeLat {
+    legacy_slots: f64,
+    per_edge: Option<HashMap<(u32, u32), f64>>,
+}
+
+impl EdgeLat {
+    pub fn legacy(slots: f64) -> Self {
+        Self { legacy_slots: slots, per_edge: None }
+    }
+
+    pub fn per_class(map: HashMap<(u32, u32), f64>, default_cy: f64) -> Self {
+        Self { legacy_slots: default_cy, per_edge: Some(map) }
+    }
+
+    pub fn is_per_class(&self) -> bool {
+        self.per_edge.is_some()
+    }
+
+    /// Earliest start of consumer `b` given producer `a` started at
+    /// `start_a` and ended at `end_a` (end = start + credit + stall).
+    pub fn avail(&self, a: u32, b: u32, start_a: f64, end_a: f64) -> f64 {
+        match &self.per_edge {
+            Some(m) => start_a + m.get(&(a, b)).copied().unwrap_or(self.legacy_slots),
+            None => end_a + self.legacy_slots,
+        }
+    }
+
+    /// Edge weight for the critical-path height.
+    pub fn height_add(&self, a: u32, b: u32) -> f64 {
+        match &self.per_edge {
+            Some(m) => m.get(&(a, b)).copied().unwrap_or(self.legacy_slots),
+            None => self.legacy_slots,
+        }
+    }
 }
 
 impl CostModel {
+    pub fn has_per_class_latency(&self) -> bool {
+        self.dep_latency_cy.as_ref().map_or(false, |v| !v.is_empty())
+    }
+
+    /// Default latency of the v2 model (falls back to the legacy link).
+    pub fn default_latency_cy(&self) -> f64 {
+        self.dep_latency_default_cy
+            .as_ref()
+            .and_then(|v| v.value)
+            .unwrap_or(self.dep_link_latency_slots)
+    }
+
+    /// Producer-class key of the v2 table (mirror of BARRACUDA
+    /// `model_sm103a_20261107._mnemonic`): modifiers carry a leading dot.
+    pub fn producer_class(ins: &Instruction) -> String {
+        let base = ins.opcode.as_str();
+        let has = |m: &str| ins.modifiers.iter().any(|x| x == m);
+        match base {
+            "F2FP" => {
+                if ins.modifiers.iter().any(|m| m.starts_with(".PACK")) {
+                    "F2FP.PACK".to_string()
+                } else if ins.modifiers.iter().any(|m| m.starts_with(".UNPACK")) {
+                    "F2FP.UNPACK".to_string()
+                } else {
+                    base.to_string()
+                }
+            }
+            "MUFU" => match ins.modifiers.first() {
+                Some(m) => format!("MUFU{m}"),
+                None => base.to_string(),
+            },
+            "IADD3" | "UIADD3" | "IMAD" if has(".X") => format!("{base}.X"),
+            "IMAD" if has(".WIDE") => "IMAD.WIDE".to_string(),
+            _ => base.to_string(),
+        }
+    }
+
+    /// Consumer kind of a RAW edge; None for ordering-only edges (WAR / WAW
+    /// / mem-chain), which carry no latency in the per-class model.
+    pub fn consumer_kind(cls: EdgeClass, prod: &Instruction, cons: &Instruction) -> Option<&'static str> {
+        match cls {
+            EdgeClass::RawR => Some(if cons.opcode == "R2UR" { "r2ur" } else { "data" }),
+            EdgeClass::RawUr => Some(if cons.opcode.starts_with('U') { "uniform" } else { "xread" }),
+            EdgeClass::RawP => {
+                let px = pred_liveness::pred_xfer(prod, XferMode::Strict);
+                match &cons.guard {
+                    Some(g) if !g.uniform && px.defs.contains(&g.pred) => Some("guard"),
+                    _ if cons.modifiers.iter().any(|m| m == ".X") => Some("carry"),
+                    _ => Some("sel"),
+                }
+            }
+            EdgeClass::RawUp => {
+                let px = pred_liveness::pred_xfer(prod, XferMode::Strict);
+                match &cons.guard {
+                    Some(g) if g.uniform && px.udefs.contains(&g.pred) => Some("guard"),
+                    _ => Some("uniform"),
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// (latency cycles, defaulted) of one edge under the v2 table. Ordering
+    /// edges are 0; a RAW edge whose (producer class, consumer kind) has no
+    /// row takes `dep_latency_default_cy` and is counted by the caller.
+    pub fn edge_latency_cy(&self, cls: EdgeClass, prod: &Instruction, cons: &Instruction) -> (f64, bool) {
+        let kind = match Self::consumer_kind(cls, prod, cons) {
+            Some(k) => k,
+            None => return (0.0, false),
+        };
+        let rows = match &self.dep_latency_cy {
+            Some(r) => r,
+            None => return (self.dep_link_latency_slots, false),
+        };
+        let pc = Self::producer_class(prod);
+        let find = |p: &str| rows.iter().find(|r| r.producer_class == p && r.consumer_kind == kind);
+        let row = find(&pc).or_else(|| if pc.starts_with("MUFU.") { find("MUFU") } else { None });
+        match row {
+            Some(r) => (r.l_cy.unwrap_or_else(|| self.default_latency_cy()), false),
+            None => (self.default_latency_cy(), true),
+        }
+    }
+
     pub fn load(path: &std::path::Path) -> Result<Self> {
         let text = crate::table::read_table_text(path)
             .with_context(|| format!("sched: cannot read cost model {}", path.display()))?;
@@ -250,6 +406,14 @@ pub struct KernelSchedReport {
     /// (tripwire for cost-table completion, like `class_fallback`).
     #[serde(default)]
     pub credits_defaulted: usize,
+    /// M3: "legacy" (single dep_link_latency_slots after the producer end)
+    /// or "per_class" (v2 dep_latency_cy after the producer start).
+    #[serde(default)]
+    pub dep_latency_model: String,
+    /// M3: RAW edges priced with dep_latency_default_cy because the v2 table
+    /// names neither (producer class, consumer kind) (tripwire).
+    #[serde(default)]
+    pub dep_class_defaulted: usize,
 }
 
 /// M4.6 per-window report entry.
@@ -739,6 +903,8 @@ fn run_file_identity(
             unknown_classes: Vec::new(),
             windows: Vec::new(),
             credits_defaulted: 0,
+            dep_latency_model: "legacy".to_string(),
+            dep_class_defaulted: 0,
         });
     }
 
@@ -1049,9 +1215,10 @@ fn simulate_order_span(
     order: &[u32],
     insns: &[Instruction],
     credits: &HashMap<u32, f64>,
-    lat: f64,
+    lat: &EdgeLat,
     pred: &HashMap<u32, Vec<u32>>,
 ) -> f64 {
+    let mut start: HashMap<u32, f64> = HashMap::new();
     let mut end: HashMap<u32, f64> = HashMap::new();
     let mut cursor = 0.0f64;
     let mut span = 0.0f64;
@@ -1065,12 +1232,13 @@ fn simulate_order_span(
                 // `end`; an inverted one is ignored here so the cost number
                 // is still well-defined for the report.
                 if let Some(&pe) = end.get(&p) {
-                    avail = avail.max(pe + lat);
+                    avail = avail.max(lat.avail(p, i, start[&p], pe));
                 }
             }
         }
         let t = cursor.max(avail);
         let e = t + credits[&i] + insns[i as usize].ctrl.stall as f64;
+        start.insert(i, t);
         end.insert(i, e);
         cursor = e;
         span = span.max(e);
@@ -1082,7 +1250,7 @@ fn schedule_segment(
     movers: &[u32],
     insns: &[Instruction],
     credits: &HashMap<u32, f64>,
-    lat: f64,
+    lat: &EdgeLat,
     succ: &HashMap<u32, Vec<u32>>,
     pred: &HashMap<u32, Vec<u32>>,
     height: &HashMap<u32, f64>,
@@ -1142,7 +1310,7 @@ fn schedule_segment(
         if let Some(ss) = succ.get(&v) {
             for &s in ss {
                 let a = avail.entry(s).or_insert(0.0);
-                *a = a.max(e + lat);
+                *a = a.max(lat.avail(v, s, t, e));
                 let d = indeg.get_mut(&s).expect("segment indegree");
                 *d -= 1;
                 if *d == 0 {
@@ -1414,6 +1582,8 @@ fn run_file_list(
                     unknown_classes: Vec::new(),
                     windows: Vec::new(),
                     credits_defaulted: 0,
+                    dep_latency_model: "legacy".to_string(),
+                    dep_class_defaulted: 0,
                 });
                 continue;
             }
@@ -1495,6 +1665,7 @@ fn run_file_list(
         let mut perm: Vec<u32> = (0..n as u32).collect();
         let mut win_reports = Vec::new();
         let mut credits_defaulted = 0usize;
+        let mut dep_class_defaulted = 0usize;
         let mut credits: HashMap<u32, f64> = HashMap::new();
         for i in 0..n as u32 {
             if movable.contains(&i) {
@@ -1521,6 +1692,9 @@ fn run_file_list(
             let in_win: BTreeSet<u32> = (ws..we).collect();
             let mut succ: HashMap<u32, Vec<u32>> = HashMap::new();
             let mut pred: HashMap<u32, Vec<u32>> = HashMap::new();
+            // M3 (cost model v2): per-class edge latency map for this
+            // window, or the legacy single link when the file has no table.
+            let mut edge_lat_map: HashMap<(u32, u32), f64> = HashMap::new();
             {
                 let mut seen: BTreeSet<(u32, u32)> = BTreeSet::new();
                 for &(a, b, cls) in &g.edges {
@@ -1538,8 +1712,28 @@ fn run_file_list(
                         succ.entry(a).or_default().push(b);
                         pred.entry(b).or_default().push(a);
                     }
+                    if cost.has_per_class_latency() {
+                        let (l, defaulted) = cost.edge_latency_cy(
+                            cls,
+                            &k.instructions[a as usize],
+                            &k.instructions[b as usize],
+                        );
+                        if defaulted {
+                            dep_class_defaulted += 1;
+                        }
+                        // several classes on one pair: the longest latency wins
+                        let e = edge_lat_map.entry((a, b)).or_insert(0.0);
+                        if l > *e {
+                            *e = l;
+                        }
+                    }
                 }
             }
+            let edge_lat = if cost.has_per_class_latency() {
+                EdgeLat::per_class(edge_lat_map, cost.default_latency_cy())
+            } else {
+                EdgeLat::legacy(cost.dep_link_latency_slots)
+            };
             // critical-path heights on the interior DAG (movers only)
             let mut height: HashMap<u32, f64> = HashMap::new();
             {
@@ -1573,7 +1767,7 @@ fn run_file_list(
                 for &v in topo.iter().rev() {
                     let h = succ.get(&v).map(|ss| {
                         ss.iter()
-                            .map(|s2| height[s2] + cost.dep_link_latency_slots)
+                            .map(|s2| height[s2] + edge_lat.height_add(v, *s2))
                             .fold(0.0f64, f64::max)
                     });
                     height.insert(v, credits[&v] + h.unwrap_or(0.0));
@@ -1610,7 +1804,7 @@ fn run_file_list(
                     seg,
                     &k.instructions,
                     &credits,
-                    cost.dep_link_latency_slots,
+                    &edge_lat,
                     &s_pred,
                 );
                 let (order, after) = match &replay_order {
@@ -1625,7 +1819,7 @@ fn run_file_list(
                             &forced,
                             &k.instructions,
                             &credits,
-                            cost.dep_link_latency_slots,
+                            &edge_lat,
                             &s_pred,
                         );
                         (forced, a)
@@ -1635,7 +1829,7 @@ fn run_file_list(
                             seg,
                             &k.instructions,
                             &credits,
-                            cost.dep_link_latency_slots,
+                            &edge_lat,
                             &s_succ,
                             &s_pred,
                             &height,
@@ -1731,6 +1925,8 @@ fn run_file_list(
             unknown_classes: Vec::new(),
             windows: win_reports,
             credits_defaulted,
+            dep_latency_model: if cost.has_per_class_latency() { "per_class" } else { "legacy" }.to_string(),
+            dep_class_defaulted,
         });
     }
 

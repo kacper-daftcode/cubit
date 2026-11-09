@@ -19,6 +19,8 @@ fn cost() -> CostModel {
         dep_link_latency_slots: 8.0,
         credits_default: 1.0,
         credits: [("IADD3".to_string(), 1.0)].into_iter().collect(),
+        dep_latency_cy: None,
+        dep_latency_default_cy: None,
     }
 }
 
