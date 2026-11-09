@@ -191,7 +191,7 @@ impl EdgeLat {
 
 impl CostModel {
     pub fn has_per_class_latency(&self) -> bool {
-        self.dep_latency_cy.as_ref().map_or(false, |v| !v.is_empty())
+        self.dep_latency_cy.as_ref().is_some_and(|v| !v.is_empty())
     }
 
     /// Default latency of the v2 model (falls back to the legacy link).
