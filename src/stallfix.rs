@@ -161,6 +161,43 @@ pub struct StallRules {
     /// v3 R10 at d2 (SM120: 6).
     #[serde(default)]
     pub floor_uguard_d2: u8,
+    // v3-data keys (B300 stall floors 2026-11-07, BARRACUDA
+    // tables/stallfix_sm103a_v3_20261107.json): producer classes the v0..v3
+    // allowlist never carried. Every one defaults to 0 / false = no rule, so
+    // existing rule files keep their behaviour byte for byte.
+    /// R12: IMAD / IMAD.WIDE data result -> consumer at d0 (measured 5) / d1 (3).
+    #[serde(default)]
+    pub floor_imad_d0: u8,
+    #[serde(default)]
+    pub floor_imad_d1: u8,
+    /// R13: FFMA / FMUL / HFMA2 / FMUL2 data result -> consumer at d0 (4) / d1 (3).
+    #[serde(default)]
+    pub floor_fma_d0: u8,
+    #[serde(default)]
+    pub floor_fma_d1: u8,
+    /// R14: F2FP (PACK_AB / UNPACK_B) result -> consumer at d0 (4).
+    #[serde(default)]
+    pub floor_f2fp_d0: u8,
+    /// R15: UMOV UR -> uniform consumer at d0 (measured 0 = any S>=1 clean).
+    #[serde(default)]
+    pub floor_umov_d0: u8,
+    /// R9 refined: vector R write -> R2UR read at d0 (measured 4; 0 = use
+    /// floor_r2ur_d0 for both directions as before).
+    #[serde(default)]
+    pub floor_r2ur_in_d0: u8,
+    /// R9 refined: R2UR UR write -> consumer at d1 (6) / d2 (4).
+    #[serde(default)]
+    pub floor_r2ur_out_d1: u8,
+    #[serde(default)]
+    pub floor_r2ur_out_d2: u8,
+    /// R16: a MUFU result read within d<=3 without a write barrier on the
+    /// MUFU is a violation (S15 leaves 63 % of threads wrong): scoreboard only.
+    #[serde(default)]
+    pub mufu_scoreboard_only: bool,
+    /// Informational: the measured guard-d0 floor when guard_d0_forbid is
+    /// set because it exceeds cap_stall (sm_103a: 13 > 11).
+    #[serde(default)]
+    pub measured_guard_d0: u8,
     #[serde(default)]
     pub rules_version: String,
     #[serde(default)]
@@ -242,6 +279,15 @@ impl StallRules {
             ("floor_xread_d1", self.floor_xread_d1),
             ("floor_xread_d2", self.floor_xread_d2),
             ("floor_uguard_d2", self.floor_uguard_d2),
+            ("floor_imad_d0", self.floor_imad_d0),
+            ("floor_imad_d1", self.floor_imad_d1),
+            ("floor_fma_d0", self.floor_fma_d0),
+            ("floor_fma_d1", self.floor_fma_d1),
+            ("floor_f2fp_d0", self.floor_f2fp_d0),
+            ("floor_umov_d0", self.floor_umov_d0),
+            ("floor_r2ur_in_d0", self.floor_r2ur_in_d0),
+            ("floor_r2ur_out_d1", self.floor_r2ur_out_d1),
+            ("floor_r2ur_out_d2", self.floor_r2ur_out_d2),
         ] {
             if f > self.cap_stall {
                 bail!(
@@ -466,6 +512,27 @@ struct UProd {
     up_isetp: BTreeSet<u8>,
     /// UIADD3.X UP carry-out defs -- R7 chain member (ucarry class).
     up_carry: BTreeSet<u8>,
+    /// v3-data R12..R14/R16: data result (R defs) of a measured producer
+    /// class (imad / fma / f2fp / mufu) -- see `data_class`.
+    r_data: BTreeSet<u8>,
+    data_class: Option<&'static str>,
+    /// v3-data R15: UMOV UR defs.
+    ur_umov: BTreeSet<u8>,
+}
+
+/// v3-data producer classes measured on B300 2026-11-07 (stall floors v5):
+/// IMAD / IMAD.WIDE (5 at d0, 3 at d1), FFMA / FMUL / HFMA2 / FMUL2 (4 / 3),
+/// F2FP pack / unpack (4), MUFU (scoreboard only). IMAD.X (carry form) is
+/// not a measured data producer.
+fn data_producer_class(ins: &Instruction) -> Option<&'static str> {
+    match ins.opcode.as_str() {
+        "IMAD" if ins.modifiers.iter().any(|m| m == ".X") => None,
+        "IMAD" => Some("imad"),
+        "FFMA" | "FMUL" | "HFMA2" | "FMUL2" => Some("fma"),
+        "F2FP" => Some("f2fp"),
+        "MUFU" => Some("mufu"),
+        _ => None,
+    }
 }
 
 fn uprod(ins: &Instruction) -> UProd {
@@ -481,6 +548,13 @@ fn uprod(ins: &Instruction) -> UProd {
         }
         if ins.opcode == "R2UR" {
             p.ur_r2ur = rx.udefs.clone();
+        }
+        if let Some(dc) = data_producer_class(ins) {
+            p.r_data = rx.rdefs.clone();
+            p.data_class = Some(dc);
+        }
+        if ins.opcode == "UMOV" {
+            p.ur_umov = rx.udefs.clone();
         }
     }
     let px = pred_xfer(ins, XferMode::Strict);
@@ -596,7 +670,9 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                     || !up.ur_r2ur.is_empty()
                     || !up.r_vec.is_empty()
                     || !up.up_isetp.is_empty()
-                    || !up.up_carry.is_empty();
+                    || !up.up_carry.is_empty()
+                    || !up.r_data.is_empty()
+                    || !up.ur_umov.is_empty();
                 if ws_set.is_empty() && !up_any {
                     continue;
                 }
@@ -606,6 +682,9 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                 let mut live_r_vec = up.r_vec.clone();
                 let mut live_up_isetp = up.up_isetp.clone();
                 let mut live_up_carry = up.up_carry.clone();
+                let mut live_r_data = up.r_data.clone();
+                let mut live_ur_umov = up.ur_umov.clone();
+                let data_class = up.data_class;
                 // scan consumers at slot distance 1..3 inside the same window
                 let mut d = 1u32;
                 while d <= 3
@@ -614,7 +693,9 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                         && live_ur_r2ur.is_empty()
                         && live_r_vec.is_empty()
                         && live_up_isetp.is_empty()
-                        && live_up_carry.is_empty())
+                        && live_up_carry.is_empty()
+                        && live_r_data.is_empty()
+                        && live_ur_umov.is_empty())
                 {
                     let j = i + d;
                     if j >= we || win_of[j as usize] != wpos as i64 {
@@ -661,12 +742,41 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                             });
                             if hit {
                                 let f = floors.get_mut(&(kidx, i)).unwrap();
-                                meets(f, rules.floor_r2ur_d0, "R9-r2ur");
+                                // v3-data: the vector -> R2UR hop measured 4 on
+                                // B300 2026-11-07 (floor_r2ur_in_d0); 0 keeps the
+                                // v2 "either direction" value.
+                                if rules.floor_r2ur_in_d0 > 0 {
+                                    meets(f, rules.floor_r2ur_in_d0, "R9-r2ur-in-d0");
+                                } else {
+                                    meets(f, rules.floor_r2ur_d0, "R9-r2ur");
+                                }
                             }
                         }
                         if cons_alu && !crx.uuses.is_disjoint(&live_ur_r2ur) {
                             let f = floors.get_mut(&(kidx, i)).unwrap();
                             meets(f, rules.floor_r2ur_d0, "R9-r2ur");
+                        }
+                        // v3-data R12..R14: measured data-producer classes at d0.
+                        if let Some(dc) = data_class {
+                            if crx.known && !crx.ruses.is_disjoint(&live_r_data) {
+                                let floor = match dc {
+                                    "imad" => Some((rules.floor_imad_d0, "R12-imad-d0")),
+                                    "fma" => Some((rules.floor_fma_d0, "R13-fma-d0")),
+                                    "f2fp" => Some((rules.floor_f2fp_d0, "R14-f2fp-d0")),
+                                    _ => None,
+                                };
+                                if let Some((fl, why)) = floor {
+                                    if fl > 0 {
+                                        let f = floors.get_mut(&(kidx, i)).unwrap();
+                                        meets(f, fl, why);
+                                    }
+                                }
+                            }
+                        }
+                        // v3-data R15: UMOV UR -> uniform consumer at d0.
+                        if rules.floor_umov_d0 > 0 && cons_alu && !crx.uuses.is_disjoint(&live_ur_umov) {
+                            let f = floors.get_mut(&(kidx, i)).unwrap();
+                            meets(f, rules.floor_umov_d0, "R15-umov-d0");
                         }
                         // R10: UISETP UP write -> uniform @UP guard (d0).
                         if let Some(g) = &cons.guard {
@@ -695,7 +805,33 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                                 meets(f, rules.floor_xread_d1, "R8-xread-d1");
                             }
                         }
+                        // v3-data R12/R13 at d1 (IMAD 3, FMA-pipe 3; F2FP free).
+                        if let Some(dc) = data_class {
+                            if crx.known && !crx.ruses.is_disjoint(&live_r_data) {
+                                let floor = match dc {
+                                    "imad" => Some((rules.floor_imad_d1, "R12-imad-d1")),
+                                    "fma" => Some((rules.floor_fma_d1, "R13-fma-d1")),
+                                    _ => None,
+                                };
+                                if let Some((fl, why)) = floor {
+                                    if fl > 0 {
+                                        let f = floors.get_mut(&(kidx, i)).unwrap();
+                                        meets(f, fl, why);
+                                    }
+                                }
+                            }
+                        }
+                        // v3-data R9 out-hop at d1 (R2UR UR -> consumer: 6).
+                        if rules.floor_r2ur_out_d1 > 0 && cons_alu && !crx.uuses.is_disjoint(&live_ur_r2ur) {
+                            let f = floors.get_mut(&(kidx, i)).unwrap();
+                            meets(f, rules.floor_r2ur_out_d1, "R9-r2ur-out-d1");
+                        }
                     } else if d == 3 {
+                        // v3-data R9 out-hop at d2 (R2UR UR -> consumer: 4).
+                        if rules.floor_r2ur_out_d2 > 0 && cons_alu && !crx.uuses.is_disjoint(&live_ur_r2ur) {
+                            let f = floors.get_mut(&(kidx, i)).unwrap();
+                            meets(f, rules.floor_r2ur_out_d2, "R9-r2ur-out-d2");
+                        }
                         // v3: R8 at d2 (SM120: 2) and R10 at d2 (SM120: 6).
                         if rules.floor_xread_d2 > 0 && !live_ur_alu.is_empty() && cons_alu
                             && !is_uniform_op(cons) && !crx.uuses.is_disjoint(&live_ur_alu)
@@ -709,6 +845,27 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                                 meets(f, rules.floor_uguard_d2, "R10-uguard-d2");
                             }
                         }
+                    }
+                    // v3-data R16: MUFU result read at d<=3 while the MUFU carries
+                    // no write barrier -- no stall legalizes it (B300 2026-11-07:
+                    // S15 still 410 176 / 655 360 threads wrong). Violation.
+                    if rules.mufu_scoreboard_only && data_class == Some("mufu") && crx.known
+                        && !crx.ruses.is_disjoint(&live_r_data) && prod_ins.ctrl.write_bar >= 6
+                    {
+                        d1_violations.push(serde_json::json!({
+                            "kernel": k.name, "prod_idx": i,
+                            "prod_op": prod_ins.opcode_full,
+                            "prod_stall": prod_ins.ctrl.stall,
+                            "cons_idx": j,
+                            "cons_op": cons.opcode_full,
+                            "dist": d - 1,
+                            "class": "mufu",
+                            "reason": "MUFU result consumed without a write barrier on the \
+                                MUFU: variable latency, stall counts up to S15 leave the \
+                                consumer wrong (B300 2026-11-07 stall floors, NEEDS_SCOREBOARD). \
+                                Set a write barrier on the MUFU and wait on it at the consumer."
+                        }));
+                        live_r_data.clear();
                     }
                     // v3 R11 (SM120): a tracked P consumed as a predicate DATA
                     // operand (SEL P0, PLOP3 inputs, ...): neither a guard nor a
@@ -911,6 +1068,10 @@ pub fn run_file(text: &str, plan: &StallFixPlan, rules: &StallRules) -> Result<S
                         }
                         for r in &crx.rdefs {
                             live_r_vec.remove(r);
+                            live_r_data.remove(r);
+                        }
+                        for u in &crx.udefs {
+                            live_ur_umov.remove(u);
                         }
                     }
                     for u in &cpx.udefs {
