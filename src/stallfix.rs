@@ -526,6 +526,10 @@ struct UProd {
 /// not a measured data producer.
 fn data_producer_class(ins: &Instruction) -> Option<&'static str> {
     match ins.opcode.as_str() {
+        // Display aliases are simple integer forms, not the measured
+        // arithmetic IMAD producer. Do not apply the latency of the latter.
+        "IMAD" if [".MOV", ".IADD", ".SHL", ".SHR"]
+            .iter().any(|m| ins.modifiers.iter().any(|x| x == m)) => None,
         "IMAD" if ins.modifiers.iter().any(|m| m == ".X") => None,
         "IMAD" => Some("imad"),
         "FFMA" | "FMUL" | "HFMA2" | "FMUL2" => Some("fma"),

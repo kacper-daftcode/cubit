@@ -207,6 +207,17 @@ impl CostModel {
     pub fn producer_class(ins: &Instruction) -> String {
         let base = ins.opcode.as_str();
         let has = |m: &str| ins.modifiers.iter().any(|x| x == m);
+        // nvdisasm's IMAD.MOV/IADD/SHL/SHR are display aliases of simple
+        // integer forms, not evidence for the measured arithmetic IMAD
+        // latency. Keep the alias in the class so it cannot inherit IMAD's
+        // specialized row; a table may classify it explicitly later.
+        if base == "IMAD" {
+            for alias in [".MOV", ".IADD", ".SHL", ".SHR"] {
+                if has(alias) {
+                    return format!("IMAD{alias}");
+                }
+            }
+        }
         match base {
             "F2FP" => {
                 if ins.modifiers.iter().any(|m| m.starts_with(".PACK")) {

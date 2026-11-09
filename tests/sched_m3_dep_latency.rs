@@ -91,3 +91,19 @@ fn t_m3_v2_unknown_class_counts_default() {
     assert_eq!(k.dep_latency_model, "per_class");
     assert_eq!(k.dep_class_defaulted, 1);
 }
+
+#[test]
+fn t_m3_imad_display_aliases_are_not_arithmetic_imad() {
+    for (text, alias) in [
+        ("IMAD.MOV.U32 R2, RZ, RZ, 0x1", "IMAD.MOV"),
+        ("IMAD.IADD R2, R0, R1, RZ", "IMAD.IADD"),
+        ("IMAD.SHL.U32 R2, R0, 0x1, RZ", "IMAD.SHL"),
+        ("IMAD.SHR R2, R0, 0x1, RZ", "IMAD.SHR"),
+    ] {
+        let ins = cubit::parse_sass(text, 0).unwrap();
+        assert_eq!(ins.opcode, "IMAD");
+        assert_eq!(CostModel::producer_class(&ins), alias);
+    }
+    let wide = cubit::parse_sass("IMAD.WIDE.U32 R2, R0, R1, RZ", 0).unwrap();
+    assert_eq!(CostModel::producer_class(&wide), "IMAD.WIDE");
+}

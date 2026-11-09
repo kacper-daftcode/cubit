@@ -125,6 +125,26 @@ fn r14_f2fp_d0() {
 }
 
 #[test]
+fn imad_display_aliases_do_not_use_the_arithmetic_floor() {
+    let elevated = V3.replace(r#""floor_imad_d0": 5"#, r#""floor_imad_d0": 9"#);
+    let rules = StallRules::from_str_json(&elevated).unwrap();
+    for (index, alias) in [
+        "IMAD.MOV.U32 R6, RZ, RZ, 0x1",
+        "IMAD.IADD R6, R4, R5, RZ",
+        "IMAD.SHL.U32 R6, R4, 0x1, RZ",
+        "IMAD.SHR R6, R4, 0x1, RZ",
+    ].into_iter().enumerate() {
+        let src = kern(&[
+            &format!("[B------:R-:W-:-:S04] {alias}"),
+            "[B------:R-:W-:-:S04] IADD3 R8, PT, PT, R6, R5, RZ",
+            "EXIT",
+        ]);
+        let run = run_file(&src, &pl("[[0,2]]"), &rules).unwrap();
+        assert!(raise_of(&run, 0).is_none(), "alias {index} inherited IMAD floor");
+    }
+}
+
+#[test]
 fn r16_mufu_without_scoreboard_is_a_violation() {
     let src = kern(&[
         "[B------:R-:W-:-:S15] MUFU.RCP R6, R4",
