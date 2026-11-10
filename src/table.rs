@@ -160,6 +160,17 @@ pub struct JsonClaimForbid {
     pub values: Vec<u64>,
 }
 
+/// Selector window measured on QMUL4's two packed inputs (bits [74:76] and [59:61]).
+pub const QMUL4_SELECTORS: [&str; 8] = [
+    "B3210", "B3", "B2", "B1", "B0", "N7654", "N3210", "N6420",
+];
+
+/// Selector windows measured on QADD4 (Ra [76:74], Rc [87:85]).
+pub const QADD4_RA_SELECTORS: [&str; 8] = [
+    "B3210", "B3", "B2", "B1", "B0", "N7654", "N3210", "N6420",
+];
+pub const QADD4_RC_SELECTORS: [&str; 5] = ["B3210", "B3", "B2", "B1", "B0"];
+
 #[derive(Deserialize)]
 struct JsonModGroup {
     pub and_base: String,
@@ -246,6 +257,9 @@ pub enum Extraction {
     ByteSel,
     F2fpScaleSel,
     F2fpRaByteSel,
+    Qmul4Sel,
+    Qadd4RaSel,
+    Qadd4RcSel,
     // Half-register pair selector parsed from raw text (.H0_H0/.H0_H1/.H1_H1):
     // sm_103a fp16x2-class ops encode it as 2 bits (none=0, H0_H1=1, H0_H0=2,
     // H1_H1=3), empirically pure over the corpus.
@@ -343,6 +357,9 @@ fn parse_extraction(s: &str) -> Result<Extraction> {
         "byte_sel" => Extraction::ByteSel,
         "f2fp_scale_sel" => Extraction::F2fpScaleSel,
         "f2fp_ra_b1" | "f2fp_ra_b2" => Extraction::F2fpRaByteSel,
+        "qmul4_sel" => Extraction::Qmul4Sel,
+        "qadd4_ra_sel" => Extraction::Qadd4RaSel,
+        "qadd4_rc_sel" => Extraction::Qadd4RcSel,
         "hsel" => Extraction::HalfSel,
         "h0nh1" => Extraction::H0NH1,
         "addr_scale" => Extraction::AddrScale,

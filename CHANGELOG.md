@@ -4,8 +4,34 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
-## Unreleased — 2026-11-10 (session T-27: a test of the suite that failed at random)
+## Unreleased — 2026-11-10 (session T-27: batch 6 of the B300 lane's candidate forms on sm103a / sm100a — `QMUL4` and `QADD4` with their operand selectors (55 refs taken); a test of the suite that failed at random)
 
+- **Tables vendored from blackwell-isa `1fb517a`: batch 6 of the B300 measurement lane's candidates — `QMUL4` and `QADD4`** (two more of the
+  review refs `hidden-b300/*`, `qmul4` and `qadd4`; 55 of the 68 refs are taken; sm103a 545 → 549 forms, 37 524 → 37 530 rows; sm100a
+  544 → 548, 37 518 → 37 524; the rows of sm120 / sm121a unchanged; rows without `_src` unchanged, 336). Forms added (6 rows per table):
+  **`QMUL4.E4M3x4.E2M1x4.E4M3x4[.SATFINITE] Rd, Ra.<sel>, Rb.<sel>`** (opcode 0x27c — the packed FP4 × FP8 multiply of the vendor's
+  production code, three production witnesses; a selector is mandatory on each source: `.B3210`, `.B3` … `.B0`, `.N7654`, `.N3210`,
+  `.N6420` — three bits at [76:74] and [61:59] —, sign and abs on both) and **`QADD4.E4M3x4.E2M1x4[.SATFINITE] Rd, Ra.<sel>, Rc.<sel>`**
+  (0x27d — a controlled vendor-text form, the lane has no production witness of it: the same eight selectors on `Ra`; `.B3210` / `.B3` …
+  `.B0` on `Rc` at [87:85], whose values 5 – 7 nvdisasm prints as `.INVALID5` … `.INVALID7` and the rows refuse). Each form also
+  assembles from the spelling with the modifier in the mnemonic (an encode-only twin key `<op>.SATFINITE_R_R_R`). Vendor text and CPU
+  round trips of complete words, no execution claim. **Engine — the candidates' own changes, applied as written behind the lines of the
+  scaled F2FP unpack** (their bases are 46 / 48 commits old; ten "both added a line here" conflicts): three extractions `qmul4_sel`,
+  `qadd4_ra_sel`, `qadd4_rc_sel` (loader, encoder, decoder, printer, `tools/sync_table.py`), each read only on its own opcode, and
+  `QADD4` among the decoder's opcodes without a sign-tolerant fallback. **The gatekeeper's checks.** The engine differential:
+  1 688 900 words — every row of the four tables (its constant word, each field at all ones, random fillings) and the sign-window
+  combinations of the new keys — through the engine and tables before the batch and after it: 1 657 942 decode, print and re-assemble
+  identically, 26 430 are refused by both, **4 528 differ, every one a word of the two new keys on sm103a / sm100a that had no row
+  before; no word of sm120 / sm121a and no word of an existing row changes.** nvdisasm 13.1 on all 4 528: the 1 497 without a reuse flag
+  print the vendor's text and re-assemble to themselves; the 3 031 with a reuse flag in the list's otherwise empty control word are
+  refused by nvdisasm as control words, and with the production control word of the lane's first witness in its place every one prints
+  the vendor's text and round-trips (3 011 distinct words). The two fixtures named again with nvdisasm 13.1 on `-b SM103` and
+  `-b SM100` (the lane measured with 13.3 on SM103; the rows are on both tables): 3 170 word / target pairs, 2 624 texts identical,
+  546 without text on both, none different. **Pins moved to `main`'s table layout, none of them of the measurement:** a source's
+  `rows` counts every row that resolves to its tag — 3, the twin key included (the lane declared 2); a field's own `_src` reads
+  "absent or equal"; the twin key's row is compared with its key-level note resolved. Ten refs are pending (the five packed-FP32
+  immediate forms, where the compiler sets a bit the candidates' rows leave clear; `vimnmx3` and the four `VIADDMNMX` refs, which
+  change rows measured since their bases), `movm` is returned to the lane.
 - **`tests/kand058_ufadd_imm_neg.rs` no longer races on its own scratch table.** The test wrote its two-row table to a temporary file
   named by the process id and the Debug text of `Instant::now()`; two of its test threads that read the clock at the same reading shared
   the path, and one thread's rewrite emptied the file the other was parsing (`floatimm_negative`: "failed to parse table JSON — EOF while

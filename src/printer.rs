@@ -1006,6 +1006,9 @@ fn norm_ext(s: &str) -> String {
         "None" => return "none".to_string(),
         "F2fpScaleSel" => return "f2fp_scale_sel".to_string(),
         "F2fpRaByteSel" => return "f2fp_ra_byte_sel".to_string(),
+        "Qmul4Sel" => return "qmul4_sel".to_string(),
+        "Qadd4RaSel" => return "qadd4_ra_sel".to_string(),
+        "Qadd4RcSel" => return "qadd4_rc_sel".to_string(),
         "Cm16Off" => return "cm16off".to_string(),
         "Cm17Off" => return "cm17off".to_string(),
         _ => {}
@@ -2349,6 +2352,15 @@ fn format_reg(
                     f2fp_b1 = f.value != 0;
                 } else if f.shift == 88 {
                     f2fp_b2 = f.value != 0;
+                }
+            }
+            "qmul4_sel" => opmods.push(crate::table::QMUL4_SELECTORS[f.value as usize].to_string()),
+            "qadd4_ra_sel" => opmods.push(crate::table::QADD4_RA_SELECTORS[f.value as usize].to_string()),
+            "qadd4_rc_sel" => {
+                if let Some(selector) = crate::table::QADD4_RC_SELECTORS.get(f.value as usize) {
+                    opmods.push(selector.to_string());
+                } else {
+                    opmods.push(format!("INVALID{}", f.value));
                 }
             }
             _ => {}

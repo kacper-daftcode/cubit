@@ -425,6 +425,9 @@ impl DecodeIndex {
                 // Every legal (function, type) pair is a row; fail closed otherwise.
                 "MUFU" |
                 "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "QMMA" |
+                // QADD4's measured signs are Ra@72/73 and Rc@83/84. Standard
+                // sign-fallback bits are text-inert and must not be absorbed.
+                "QADD4" |
                 // LDGMC / STSM (2026-11-07, session G run 5, re_sm120_rows.py --family memory): memory ops without
                 // sign-able operands; the multicast reduction's op / type law sits in the window. Fail closed.
                 "LDGMC" | "STSM" |
@@ -845,6 +848,8 @@ impl DecodeIndex {
                 // (state dst / address uses); the generic neg arm polluted
                 // SYNCS.CCTL decodes with a phantom neg@72 field (arb224).
                 "BAR" | "S2R" | "S2UR" | "LDSM" | "LDGSTS" | "SYNCS" | "QMMA" |
+                // QADD4 names every legal sign explicitly; do not invent Rb signs.
+                "QADD4" |
                 // BUG-282: I2IP has no sign-modifiable register operands -
                 // vendor x4 prints b62/b63 text-inert across the family
                 // (arb282 E2: plain / regs payloads / with-suffix combos).
@@ -1467,6 +1472,9 @@ fn extraction_name(e: &Extraction) -> String {
         Extraction::Reuse => "reuse".into(),
         Extraction::F2fpScaleSel => "f2fp_scale_sel".into(),
         Extraction::F2fpRaByteSel => "f2fp_ra_byte_sel".into(),
+        Extraction::Qmul4Sel => "qmul4_sel".into(),
+        Extraction::Qadd4RaSel => "qadd4_ra_sel".into(),
+        Extraction::Qadd4RcSel => "qadd4_rc_sel".into(),
         Extraction::Neg => "neg".into(),
         // BUG-251: NegAbs must not fall to the catch-all ("negabs" from Debug
         // lowercase never matches the printer's "neg_abs" arm) — the sm121a DSETP

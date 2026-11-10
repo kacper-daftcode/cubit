@@ -9,7 +9,7 @@
 
 use crate::ir::{Instruction, Operand};
 use crate::scheduling;
-use crate::table::{Extraction, Field, IsaTable};
+use crate::table::{Extraction, Field, IsaTable, QADD4_RA_SELECTORS, QADD4_RC_SELECTORS, QMUL4_SELECTORS};
 use anyhow::{Context, Result};
 use std::sync::LazyLock;
 
@@ -21,6 +21,12 @@ static GUARD_PREFIX_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
 });
 static BYTE_SELECTOR_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
     regex::Regex::new(r"\.B(\d)").unwrap()
+});
+static QMUL4_SELECTOR_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"\.(B3210|N3210|N7654|N6420|B[0-3])(?:$|[^A-Za-z0-9_])").unwrap()
+});
+static QADD4_SELECTOR_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"\.(B3210|N3210|N7654|N6420|B[0-3])(?:$|[^A-Za-z0-9_])").unwrap()
 });
 
 // ---------------------------------------------------------------------------
@@ -198,7 +204,7 @@ fn extraction_accepts(ext: &Extraction, op: &Operand) -> bool {
         // Flags / guard / opaque mods are non-discriminating: they read optional
         // attributes (neg/abs/reuse/...) and legitimately default to 0.
         Guard | GuardLo3 | GuardNeg | Neg | NegShl1 | Reuse | Inv | Abs | NegAbs | ByteSel
-        | F2fpScaleSel | F2fpRaByteSel
+        | F2fpScaleSel | F2fpRaByteSel | Qmul4Sel | Qadd4RaSel | Qadd4RcSel
         | HalfSel | H0NH1 | OpaqueModifier | OpModFlag(_) | MnemMod(..) | UrExpl | UrExplInv
         | YieldInv | AddrScale | None => true,
 
@@ -2587,6 +2593,10 @@ fn check_operand_suffixes(insn: &Instruction, entry: &crate::table::ModGroupEntr
                     }
                     Extraction::F2fpScaleSel => F2FP_SCALE_SELECTORS.contains(&seg.as_str()),
                     Extraction::F2fpRaByteSel => matches!(seg.as_str(), "B0" | "B1" | "B2" | "B3"),
+                    Extraction::Qmul4Sel => matches!(seg.as_str(),
+                        "B3210" | "B3" | "B2" | "B1" | "B0" | "N7654" | "N3210" | "N6420"),
+                    Extraction::Qadd4RaSel => QADD4_RA_SELECTORS.contains(&seg.as_str()),
+                    Extraction::Qadd4RcSel => QADD4_RC_SELECTORS.contains(&seg.as_str()),
                     _ => false,
                 }
             });
@@ -5072,6 +5082,27 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
             fit(insn, field, (a & 1) << 1 | (n & 1))
         }
         Extraction::ByteSel => fit(insn, field, op_byte_sel(insn, field.token_idx)),
+        Extraction::Qmul4Sel => {
+            let value = op_qmul4_sel(insn, field.token_idx).ok_or_else(|| {
+                let token = field.token_idx;
+                anyhow::anyhow!("missing QMUL4 selector on operand {token}; use one of {QMUL4_SELECTORS:?}")
+            })?;
+            fit(insn, field, value)
+        }
+        Extraction::Qadd4RaSel => {
+            let value = op_qadd4_sel(insn, field.token_idx, &QADD4_RA_SELECTORS).ok_or_else(|| {
+                let token = field.token_idx;
+                anyhow::anyhow!("missing QADD4 Ra selector on operand {token}; use one of {QADD4_RA_SELECTORS:?}")
+            })?;
+            fit(insn, field, value)
+        }
+        Extraction::Qadd4RcSel => {
+            let value = op_qadd4_sel(insn, field.token_idx, &QADD4_RC_SELECTORS).ok_or_else(|| {
+                let token = field.token_idx;
+                anyhow::anyhow!("missing/invalid QADD4 Rc selector on operand {token}; use one of {QADD4_RC_SELECTORS:?}")
+            })?;
+            fit(insn, field, value)
+        }
         Extraction::F2fpScaleSel => {
             let value = op_f2fp_scale_sel(insn, field.token_idx).ok_or_else(|| {
                 anyhow::anyhow!("missing scale selector on F2FP operand {}; use H0,H1,B0,B1,B2,B3", field.token_idx)
@@ -5966,6 +5997,28 @@ fn op_byte_sel(insn: &Instruction, tok: i32) -> u64 {
         }
     }
     0
+}
+
+fn op_qmul4_sel(insn: &Instruction, tok: i32) -> Option<u64> {
+    if tok <= 0 || insn.opcode != "QMUL4" {
+        return None;
+    }
+    let text = GUARD_PREFIX_RE.replace(insn.raw_text.trim().trim_end_matches(';').trim(), "");
+    let operands = text.split_once(char::is_whitespace)?.1;
+    let token = operands.split(',').nth((tok - 1) as usize)?;
+    let sel = QMUL4_SELECTOR_RE.captures(token)?.get(1)?.as_str();
+    QMUL4_SELECTORS.iter().position(|name| *name == sel).map(|n| n as u64)
+}
+
+fn op_qadd4_sel(insn: &Instruction, tok: i32, selectors: &[&str]) -> Option<u64> {
+    if tok <= 0 || insn.opcode != "QADD4" {
+        return None;
+    }
+    let text = GUARD_PREFIX_RE.replace(insn.raw_text.trim().trim_end_matches(";").trim(), "");
+    let operands = text.split_once(char::is_whitespace)?.1;
+    let token = operands.split(',').nth((tok - 1) as usize)?;
+    let sel = QADD4_SELECTOR_RE.captures(token)?.get(1)?.as_str();
+    selectors.iter().position(|name| *name == sel).map(|n| n as u64)
 }
 
 const F2FP_SCALE_SELECTORS: [&str; 6] = ["H0", "H1", "B0", "B1", "B2", "B3"];
