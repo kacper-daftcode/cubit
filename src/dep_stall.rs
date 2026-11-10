@@ -219,7 +219,8 @@ impl DepLatTable {
             // exact cell; the high half of a multi-register operand falls back on its low half
             // (never cheaper in the census); a role the scan could not resolve (`*`) takes the
             // largest cell of the pair. Nothing else borrows another role's number: the low half
-            // of an IMAD.WIDE addend needs 5 where its high half needs 3 (silicon 2026-11-10).
+            // of an IMAD.WIDE addend needs 5 (silicon 2026-11-10: 99 kernels fail at 4) where
+            // ptxas schedules its high half from 3.
             let low = role.strip_suffix('h').map(|r| (pc.clone(), cc.clone(), r.to_string()));
             let l = if let Some(l) = self.cells.get(&(pc.clone(), cc.clone(), role.clone())) {
                 *l
@@ -1164,5 +1165,72 @@ mod tests {
         // and without them the legaliser says so instead of emitting a short distance
         let mut q = k.clone();
         assert!(!apply(&mut q, &t).unresolved.is_empty());
+    }
+
+    /// The table is never below a silicon measurement (the result files of 2026-11-10 under
+    /// `tools/stallfloor/`): a pair floor of harness v5 (the smallest clean producer stall with
+    /// the consumer right behind it), and every stall at which a population of harness v6 has a
+    /// failing kernel. Red on the table as first generated: the two registers of an IMAD.WIDE
+    /// addend shared one role, the low half took the high half's 4 and 99 kernels of the
+    /// population run failed there (IADD3 / MOV / SHF producers).
+    #[test]
+    fn no_cell_is_below_a_silicon_measurement() {
+        let t = table();
+        let price = |p: &str, c: &str, role: &str| -> u8 {
+            let key = |r: &str| (p.to_string(), c.to_string(), r.to_string());
+            if let Some(l) = t.cells.get(&key(role)) {
+                *l
+            } else if let Some(l) = role.strip_suffix('h').and_then(|r| t.cells.get(&key(r))) {
+                *l
+            } else if t.is_mma_class(c) {
+                t.defaults.mma_input
+            } else if role == "g" || role == "gc" {
+                t.defaults.guard
+            } else if role == "p" {
+                t.defaults.pred_operand
+            } else if role.starts_with('u') {
+                t.defaults.uniform
+            } else {
+                t.defaults.data
+            }
+        };
+        let rows = |text: &str| -> Vec<serde_json::Value> {
+            let j: serde_json::Value = serde_json::from_str(text).unwrap();
+            j["cells"].as_array().unwrap().clone()
+        };
+        let (mut floors, mut failing) = (0, 0);
+        for text in [
+            include_str!("../tools/stallfloor/stall_floors_sm120_20261110_pairs.json"),
+            include_str!("../tools/stallfloor/stall_floors_sm120_20261110_pairs_b.json"),
+            include_str!("../tools/stallfloor/stall_floors_sm120_20261110_store_data.json"),
+        ] {
+            for c in rows(text) {
+                let Some(floor) = c["floor_d0"].as_u64() else { continue };
+                let (p, cc, role) = (c["producer"].as_str().unwrap(), c["consumer"].as_str().unwrap(), c["role"].as_str().unwrap());
+                let l = price(p, cc, role);
+                assert!(u64::from(l) >= floor, "{p} -> {cc} {role}: the table has {l}, the measured floor is {floor}");
+                floors += 1;
+            }
+        }
+        for text in [
+            include_str!("../tools/stallfloor/stall_floors_sm120_20261110_cells.json"),
+            include_str!("../tools/stallfloor/stall_floors_sm120_20261110_cells_b.json"),
+        ] {
+            for c in rows(text) {
+                if c["failing"].as_u64().unwrap() == 0 {
+                    continue;
+                }
+                let (p, rest) = c["cell"].as_str().unwrap().split_once(" -> ").unwrap();
+                let (cc, role) = rest.rsplit_once(' ').unwrap();
+                let (stall, l) = (c["stall"].as_u64().unwrap(), price(p, cc, role));
+                assert!(
+                    u64::from(l) > stall,
+                    "{p} -> {cc} {role}: the table has {l}, {} of {} kernels fail on silicon at S{stall:02}",
+                    c["failing"], c["kernels"]
+                );
+                failing += 1;
+            }
+        }
+        assert!(floors >= 50 && failing >= 200, "the result files are read: {floors} floors, {failing} failing populations");
     }
 }

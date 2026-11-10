@@ -1,0 +1,28 @@
+{
+ "run": "stall-floor harness v5b (MMA: result -> FMUL, -> the accumulate operand of the next MMA, two MMAs back to back), sm_120 test host GPU 0, 2026-11-10: distance = S + 15 x pad (1..30), 32 CTAs x 1 024 threads x 256 iterations x 20 launches, S15 + 3 pads reference",
+ "arch": "sm_120",
+ "threads": 1024,
+ "ctas": 32,
+ "reps": 20,
+ "harness": "v5 pair floors (2026-11-10)",
+ "gpu": "",
+ "references": {"mma_acc": "ok (30206 distinct checksums, 32768 non-zero of 32768)", "mma_any": "ok (30222 distinct checksums, 32768 non-zero of 32768)", "mma_data": "ok (32768 distinct checksums, 32768 non-zero of 32768)"},
+ "floors": {
+  "mma_acc/pad0_d0": 1,
+  "mma_acc/pad1_d1": 1,
+  "mma_any/pad0_d0": 1,
+  "mma_any/pad1_d1": 1,
+  "mma_data/pad0_d0": "NONE",
+  "mma_data/pad1_d1": 5
+ },
+ "mismatches": {
+  "mma_acc/pad0_d0": {"15": 0, "14": 0, "13": 0, "12": 0, "11": 0, "10": 0, "9": 0, "8": 0, "7": 0, "6": 0, "5": 0, "4": 0, "3": 0, "2": 0, "1": 0},
+  "mma_acc/pad1_d1": {"15": 0, "14": 0, "13": 0, "12": 0, "11": 0, "10": 0, "9": 0, "8": 0, "7": 0, "6": 0, "5": 0, "4": 0, "3": 0, "2": 0, "1": 0},
+  "mma_any/pad0_d0": {"15": 0, "14": 0, "13": 0, "12": 0, "11": 0, "10": 0, "9": 0, "8": 0, "7": 0, "6": 0, "5": 0, "4": 0, "3": 0, "2": 0, "1": 0},
+  "mma_any/pad1_d1": {"15": 0, "14": 0, "13": 0, "12": 0, "11": 0, "10": 0, "9": 0, "8": 0, "7": 0, "6": 0, "5": 0, "4": 0, "3": 0, "2": 0, "1": 0},
+  "mma_data/pad0_d0": {"15": 655360, "14": 655360, "13": 655360, "12": 655360, "11": 655360, "10": 655360, "9": 655360, "8": 655360, "7": 655360, "6": 655360, "5": 655360, "4": 655360, "3": 655360, "2": 655360, "1": 655360},
+  "mma_data/pad1_d1": {"15": 0, "14": 0, "13": 0, "12": 0, "11": 0, "10": 0, "9": 0, "8": 0, "7": 0, "6": 0, "5": 0, "4": 655360, "3": 655360, "2": 655360, "1": 655360}
+ },
+ "cells": [],
+ "skipped": 0
+}

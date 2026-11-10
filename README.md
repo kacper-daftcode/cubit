@@ -82,6 +82,13 @@ time-neutral — the decision whether the rule stays the default is the owner's,
 `CUBIT_GUARDED_READER_SETTLES=1` lets the first reader of a load settle its write barrier guarded or not
 (ptxas's practice; measured 2026-11-06: the 89 production MoE sources are byte-identical under it, V's
 sparse-MLA kernel loses 6 prologue waits, bits identical, time within noise — opt-in, KNOWN_ISSUES A24).
+`CUBIT_SCHED2=1` selects the dependency-aware stall model (a stall is charged where a consumer needs it, not
+after every producer); with `CUBIT_SCHED2_LAT=sm120` the latencies come from the pair table
+`tables/dep_latency_sm120.json` (ptxas's practice, measured on sm_120 silicon) and hold on every control-flow
+path, and `CUBIT_MMA_PTXAS=1` replaces the MMA writeback drains by ptxas's issue distances. Measured on the
+sparse-MLA attention kernel: bits identical, −15 % time (stall cycles −48 %). All three are opt-in and for
+sm_120; `CUBIT_DEP_VERIFY=1` reports every fixed-latency dependency below the table on any path, also on a
+frozen kernel (KNOWN_ISSUES A26; the harness and its results: [tools/stallfloor/](tools/stallfloor/README.md)).
 `CUBIT_VERIFY=1` runs the read-only scoreboard verifier on every kernel it
 assembles (frozen or scheduled) and prints each unprotected RAW / broken WAR; `CUBIT_VERIFY_RBPROBE=1`
 adds the read-barrier coverage probe of the legality oracle (`tools/sched_oracle.py`, KNOWN_ISSUES A4).

@@ -4,6 +4,57 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-10 (session SCH-1: the automatic scheduler on sm_120 — the `CUBIT_SCHED2` failures root-caused and fixed, a pair-latency table measured on sm_120 silicon, ptxas's MMA discipline; every switch opt-in, the default schedule unchanged)
+
+- **`CUBIT_SCHED2`: the scoreboard arming rule — the fix for both silicon failures of the opt-in stall model** (`49f8340`). RULE 2 put the yield flag
+  on a scoreboard producer whose waiter is the very next instruction, one cycle behind it (`MUFU.EX2 [W:Y:S01]` / `FSEL [B]`,
+  `MUFU.LG2 [W:Y:S01]` / `FADD [B]`); the waiter passes its wait before the barrier is armed and reads the stale register. Isolated on
+  sm_120 silicon (32 CTAs × 1 024 threads × 256 iterations × 20 launches): `MUFU`, `SHFL`, `LDC` and `LDS` setters alike — every thread
+  wrong with yield at S01, clean without the yield, at S02, or with one instruction between; ptxas never schedules it (0 of ~70 000
+  setter → first-waiter pairs of the sm_120 census closer than 2). Under `CUBIT_SCHED2` a waiter is now never closer than 2 issue cycles
+  behind the instruction that set its barrier; `CUBIT_SCHED2_NOARM=1` keeps the old schedule for A/B runs. The default scheduler emits the
+  same adjacency without the yield flag and is correct — it is not touched (KNOWN_ISSUES A26).
+- **`CUBIT_SCHED2_LAT=sm120|<file>` (with `CUBIT_SCHED2`): a dependency latency is a property of the pair, enforced on every control-flow
+  path.** `tables/dep_latency_sm120.json` prices a fixed-latency dependency by (producer class, consumer class, operand role): same unit 4,
+  cross unit 5, predicate into a guard 13 but into a select 5, into an MMA fragment 7, the low half of an `IMAD.WIDE` addend 5 where its
+  high half, read later, needs 4. `src/dep_stall.rs` computes, on the final instruction list and the final barriers, the minimum issue
+  distance from every producer to every reader over the control-flow graph (fall-through, taken branches, joins, back edges) and raises
+  stalls until every requirement holds — it never lowers a stall and never touches a hand-scheduled line. The issue spacing of the shared
+  pipes (memory 4, `LDC` 8, multiplier 2 / 4, `BAR` → memory 6, MMA 16) and the arming rule run through the same machinery. A requirement
+  stalls cannot reach fails the assembly; a table of another architecture is refused (latencies are measured per architecture: no sm_103a
+  number is in the sm_120 table).
+- **`CUBIT_MMA_PTXAS=1` (with the table): the warp-cooperative MMA as ptxas schedules it** — no `@!UPT UIADD3` writeback drain behind the
+  MMA; two MMAs never closer than 16 issue cycles, the accumulate operand of the next MMA 29 behind the previous one, any other reader 28
+  (the table's `mma` rows; 39 624 HMMA / QMMA of the census); one `NOP` where two text-adjacent MMAs need the 16 cycles. Default: the
+  drain scheme, unchanged.
+- **Small switches of the same family**: `CUBIT_SCHED2_YIELD=loads` (the default scheduler's yield policy under SCHED2's stalls),
+  `CUBIT_DEP_VERIFY=1` (read-only: every fixed-latency dependency below its table latency on some path, waits inside the arming distance,
+  spacings — also on frozen kernels), `CUBIT_DEP_CELLS=<file>` (one JSON line per requirement a schedule rests on, for weighing the
+  table's cells by execution count).
+- **The table is measured, not copied** (test host, 4× RTX PRO 6000 Server Edition, GPU 0; `tools/stallfloor/`, harness v5 / v6 with an
+  S15 reference kernel per pair as the oracle). 533 cells = the minimum distance ptxas ever schedules, dense cells only (166 cubins,
+  1 811 600 instructions; `examples/depdump.rs` + `dep_latency_census.py`). Silicon: 45 pair floors, every one at or below its cell;
+  populations of 20 624 kernels over 200 cells (random registers, yield flag, neighbours) at the cell's latency and one cycle below —
+  8 958 of 10 312 fail one cycle below, 99 failed AT the latency, all in three cells whose role had merged the two halves of an
+  `IMAD.WIDE` addend (split into `r3` / `r3h`, re-measured clean; `dep_stall::tests::no_cell_is_below_a_silicon_measurement` pins the
+  table against the result files). MMA: result → ALU reader floor 20 (row 28); the accumulate operand and two MMAs back to back are
+  clean at every distance 1…30 — the tensor pipe interlocks them, the rows keep ptxas's spacing. Producer → store data floor 3 (cells
+  5). The table regenerates byte for byte from the files in `tools/stallfloor/` (`gen_dep_latency.py`).
+- **The store latch (NEEDS_OWNER 38 (ii)) measured** (`latch_gen.py` / `latch_run.py`): a bare `STS` / `STG` whose data register is
+  overwritten d issue cycles later stores the NEW value under load — at 32 warps per SM `STS` is wrong on every thread for d ≤ 19, on
+  96 % of the threads at 20, 66–77 % at 21–30, last mismatch at 48 (`STG`: 56); with one warp per SM it is clean from d = 1; without the
+  overwriter, or with a read barrier on the store and the overwriter waiting on it, clean at every distance. A store's operand latch is
+  the memory pipe's service time, not a count of issue cycles: cubit's rule (a read barrier, never a distance) stays (KNOWN_ISSUES A27).
+- **On the kernel the model was written for** (the sparse-MLA prefill attention `sparse_mla_prefill_v41` of vLLM-Moet, 2 535
+  instructions; its own harness, µs per launch at four shapes, the shipped schedule in the same rounds): stall cycles per token-warp
+  67 807 → 44 165 (`CUBIT_SCHED2`) → 41 979 (+ the table) → 35 555 (+ `CUBIT_MMA_PTXAS`); time 1 058 / 1 153 / 2 503 / 1 025 →
+  933 / 1 021 / 2 240 / 903 → 922 / 1 011 / 2 222 / 892 → **898 / 986 / 2 162 / 864 (−15.1 / −14.5 / −13.6 / −15.7 %)**; output and lse
+  bit-identical on 8 synthetic cases and 8 real-prefill dumps, 30 warm launches and 30 fresh processes each. Stall cycles −48 % buy
+  −15 % of time: ncu on the last schedule shows the fixed-stall `wait` at 2.78 of 9.4 warp-cycles per issued instruction (5.34 of 10.0
+  before) and the tensor-pipe throttle, the scoreboards and the barrier taking up what the stalls released.
+- **Default path**: the 99 production sources re-assemble with identical `.text` and control words, the attention build with the
+  switches off equals its pinned reference; `tests/sched2_dep_latency.rs` (11 tests, 9 red before the change) and 6 unit tests.
+
 ## Unreleased — 2026-11-10 (session T-26: the review queue — the B300 latency model of pull request 3; `USETMAXREG` measured and the SM120 async idioms document from the megakernel branch; the sm_120 scheduler session's opt-in switches; the first two batches (33 refs) of the B300 lane's candidate forms on sm103a / sm100a)
 
 - **`cubit asm` on sm_120, opt-in: `CUBIT_SCHED2` with the scoreboard arming rule, a pair-latency table enforced on every control-flow path
@@ -18,7 +69,8 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   branch target or behind a join can no longer sit below its latency; a requirement stalls cannot reach fails the assembly.
   `CUBIT_DEP_VERIFY=1` / `CUBIT_DEP_CELLS=<file>` are the read-only forms. **Without a switch nothing changes**: the 99 production sources
   assemble byte-identically and the attention build is the pinned one (the push gate's checks). `tests/sched2_dep_latency.rs` (11) + 5 unit
-  tests; the scheduler session's own CHANGELOG / KNOWN_ISSUES text and its stall-floor harness follow in its next commit.
+  tests; the scheduler session's own text is the section above (KNOWN_ISSUES A26 / A27; the stall-floor harness and its result files:
+  `tools/stallfloor/README.md`).
 - **A report of 2026-09-18 pinned as a test** (`979365c`, `tests/sm120_omma_uri_split.rs`; reported by ComradePenguin-1917 in pull request 2
   and blackwell-isa pull request 1): the SM120 OMMA block-scale operand `URi` is an eight-bit register number split across `ureg` [62:60] +
   `ureg_shr3` [77:73] (255 = `URZ`); in September the table declared one four-bit field and the printer assigned each slice instead of

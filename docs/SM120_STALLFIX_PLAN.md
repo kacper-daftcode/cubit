@@ -113,7 +113,17 @@ Readings:
 
 - The `r2ur` floor (v3 kernels, `tools/stallfloor/stallfloor_gen.py --paths r2ur`).
 - ~~The S12–S15 band without yield~~ — measured 2026-11-05 (executes; guard d0 = 13); `cap_stall` 15.
-- Floors for the fp16 / fp32 ALU producers (`HADD2`, `HMUL2`, `F2FP`, `FMUL`, `FFMA`) and the HMMA chain:
-  the classes that dominate a hand-scheduled attention kernel (1 776 of 2 663 instructions of the sparse-MLA
-  kernel sit at S05 with no measured floor) — harness v5 paths with an S15 reference kernel as the oracle.
-- Guard-d1 consumer classes other than data (isetp / atomic) and the 1×32 geometry.
+- ~~Floors for the fp16 / fp32 ALU producers (`HADD2`, `HMUL2`, `F2FP`, `FMUL`, `FFMA`) and the HMMA chain~~ —
+  measured 2026-11-10 with harness v5 / v6 (an S15 reference kernel per pair as the oracle;
+  [tools/stallfloor/README.md](../tools/stallfloor/README.md)): `F2FP.UNPACK` → `HADD2.F32` / `HMUL2` 5,
+  `HADD2.F32` → `F2FP.PACK` 5, `F2FP.PACK` → `HMUL2` 5, `FMUL` → `F2FP.PACK` 5, `FADD` / `FMUL` / `FFMA` → `FADD` 4,
+  `FADD` → `FMUL` / `MUFU` 4, `FADD` / `FMUL` → `FSEL` 5, `FMUL` → `FMNMX` 5; HMMA result → ALU reader 20 (the
+  accumulate operand of the next HMMA and two HMMAs back to back are interlocked by the tensor pipe: clean at every
+  distance). **A floor is a property of the (producer, consumer) pair** — `IMAD` → `IMAD` 4 but `IMAD` → `IADD3` 5,
+  `FMUL` → `FADD` 4 but `FMUL` → `F2FP.PACK` 5 — so a per-producer rule key of this pass (`floor_imad_d0`,
+  `floor_fma_d0`, `floor_f2fp_d0`) can only carry the largest of its pairs: 5 / 5 / 5 on sm_120. No value of the
+  SM120 `stallfix` section was changed; the automatic scheduler reads the pair table instead
+  (`CUBIT_SCHED2_LAT=sm120`, `tables/dep_latency_sm120.json`, KNOWN_ISSUES A26).
+- Guard-d1 consumer classes other than data (isetp / atomic) and the 1×32 geometry. (2026-11-10: the predicate →
+  guard floor is 13 / 11 / 9 at d0 / d1 / d2 for `ISETP` and `FSETP` producers alike; a predicate into a select
+  operand — `SEL`, `FSEL` — is 5.)
