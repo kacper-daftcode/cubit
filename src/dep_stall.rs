@@ -522,6 +522,14 @@ struct Flow {
 
 fn build_flow(insns: &[Instruction]) -> Flow {
     let n = insns.len();
+    // CUBIT_SYNC_CLASSES: the control-flow graph of nvcc's layout (`cfg_flow`): `BRA.DIV` falls
+    // through, a register-indirect dispatch reaches its case blocks -- with the text walk below
+    // the fast path behind every `BRA.DIV` is unreachable and stays unlegalised.
+    if crate::sync_class::enabled() {
+        let c = crate::cfg_flow::Cfg::build(insns);
+        let falls: Vec<bool> = (0..n).map(|i| c.succ[i].contains(&(i + 1))).collect();
+        return Flow { succ: c.succ, pred: c.pred, falls };
+    }
     let mut addr2idx: HashMap<u32, usize> = HashMap::new();
     for (i, ins) in insns.iter().enumerate() {
         let a = if ins.addr > 0 || i == 0 { ins.addr } else { (i * 16) as u32 };
@@ -593,6 +601,14 @@ fn semantics(insns: &[Instruction], t: &DepLatTable) -> Vec<Sem> {
                 uses.retain(|k| *k != KEY_UNI + 63);
             }
             let (mut res_uses, mut res_defs) = t.resource_use_def(ins);
+            // CUBIT_SYNC_CLASSES: an instruction under `@!PT` never executes (ptxas's pads in
+            // front of a run of `LDGSTS`, three `@!PT LDS RZ, [RZ]` at S01): no member of a pipe
+            if crate::sync_class::enabled() && crate::sync_class::never_executes(ins) {
+                uses.clear();
+                defs.clear();
+                res_uses.clear();
+                res_defs.clear();
+            }
             if t.only_barriers {
                 uses.clear();
                 defs.clear();
@@ -745,6 +761,9 @@ pub struct Report {
     pub rounds: usize,
     pub defaulted: Vec<String>,
     pub unresolved: Vec<Violation>,
+    /// `CUBIT_SYNC_CLASSES`: requirements between two hand-scheduled instructions that the
+    /// schedule does not meet (the author's distances; not repaired, not fatal)
+    pub frozen_pairs: usize,
 }
 
 struct Need {
@@ -1168,6 +1187,16 @@ pub fn apply(insns: &mut [Instruction], t: &DepLatTable) -> Report {
         if ins.ctrl.stall >= 12 || (binding[i] && ins.ctrl.stall >= 3 && !mem_like) {
             ins.ctrl.yield_flag = false;
         }
+    }
+    // CUBIT_SYNC_CLASSES: a requirement between two hand-scheduled instructions that nothing
+    // between them could carry is the author's -- in a partly frozen kernel the frozen text is
+    // ptxas's own schedule, and ptxas schedules below the table's defaults (and below a few
+    // cells: `SHFL [S02]` -> `LDS`) where the table has no dense census. Reported, not fatal.
+    if crate::sync_class::enabled() {
+        let (frozen, open): (Vec<Violation>, Vec<Violation>) =
+            std::mem::take(&mut rep.unresolved).into_iter().partition(|v| insns[v.producer].hand_sched && insns[v.consumer].hand_sched);
+        rep.unresolved = open;
+        rep.frozen_pairs = frozen.len();
     }
     let mut d: Vec<String> = defaulted.into_iter().collect();
     d.sort();

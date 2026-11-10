@@ -249,6 +249,15 @@ fn is_barrier_insn(op: &str) -> bool {
 /// instead — matching nvcc behavior where IMAD.WIDE gets stall=6, wbar=7.
 fn insn_needs_write_bar(insn: &Instruction, table: Option<&IsaTable>, sched2: bool) -> bool {
     let op = insn.opcode.as_str();
+    // CUBIT_SYNC_CLASSES: a synchronisation word's class decides. The predicate of a phase check
+    // (`SYNCS.PHASECHK.TRANS64[.TRYWAIT]`) and of `USETMAXREG.TRY_ALLOC` is a scoreboard result;
+    // the fence, the mbarrier init and `SYNCS.CCTL.IVALL` set a barrier the next word of their
+    // family waits (an ordering token). The copy group's scoreboard 0 is pinned by the allocator.
+    if crate::sync_class::enabled() {
+        if let Some(c) = crate::sync_class::classify(insn) {
+            return matches!(c.write_bar, crate::sync_class::WriteBar::Result | crate::sync_class::WriteBar::Token(_));
+        }
+    }
     // Cooperative MMA writeback is NOT scoreboardable on SM120 (write_bar ignored by HW;
     // empirically re-confirmed). It is synced by a timing drain in the main.rs post-pass.
     if is_warp_mma(op) {
@@ -327,6 +336,20 @@ fn insn_is_ctrl(insn: &Instruction, table: Option<&IsaTable>) -> bool {
 /// - MUFU: wait_mask corrupts opex_0 table decode → FORBIDDEN
 /// - IADD3+RZ: hi[7:0]=0xFF forced; wait_mask causes ILLEGAL_INSTRUCTION
 fn insn_can_set_wait_mask(insn: &Instruction, table: Option<&IsaTable>) -> bool {
+    // CUBIT_SYNC_CLASSES: the synchronisation words, control flow and `BAR` carry their wait
+    // themselves, as ptxas schedules them (`[B-1----] @!P0 BRA` behind a phase check,
+    // `[B--2---] @!P0 NANOSLEEP.SYNCS`, `[B---3--] CCTL.IVALL` behind an acquire load). Their
+    // static table classes are honoured by the assembler's control-code injection.
+    // The two "cannot wait" laws of the default path are not ptxas's on sm_120 either: 131 `MUFU`
+    // words and 689 `IADD3 ..., RZ` words of the served MoE cubin carry a wait mask
+    // (`[B0-----] MUFU.RCP R8, R8` behind `I2F.RP R8 [W0]`). Under the switch every instruction
+    // waits itself -- no operand swap, no producer-side latch stall, no wait parked on the
+    // instruction that happens to stand in front in the text.
+    if crate::sync_class::enabled() {
+        // ... except the words ptxas never lets wait (`LDGSTS`, `SYNCS.ARRIVE`, the re-check
+        // `SYNCS.PHASECHK`, `FENCE`): their wait goes on the instruction in front.
+        return !crate::sync_class::never_waits(insn);
+    }
     if let Some(cc) = table.and_then(|t| t.ctrl_class(&insn.key)) {
         if !cc.can_set_wait_mask() {
             return false;
@@ -348,6 +371,11 @@ fn insn_can_set_wait_mask(insn: &Instruction, table: Option<&IsaTable>) -> bool 
 ///
 /// Hardware-verified: IADD3+RZ cannot set write_bar (hi[7:0]=0xFF forced).
 fn insn_can_set_write_bar(insn: &Instruction, table: Option<&IsaTable>) -> bool {
+    // CUBIT_SYNC_CLASSES: a synchronisation word carries its write / read barrier whatever
+    // its table class says (`SYNCS.*` rows are `none`, `FENCE` has no class).
+    if crate::sync_class::enabled() && crate::sync_class::classify(insn).is_some() {
+        return true;
+    }
     if let Some(cc) = table.and_then(|t| t.ctrl_class(&insn.key)) {
         if !cc.can_set_write_bar() {
             return false;
@@ -1074,6 +1102,15 @@ fn atom_access_regs(opcode_full: &str) -> u16 {
 pub(crate) fn dest_regs(insn: &Instruction) -> Vec<(bool, u16)> {
     let mut out = Vec::new();
     let op = insn.opcode.as_str();
+    // CUBIT_SYNC_CLASSES: the words that name their operands themselves write no register
+    // (`SYNCS.ARRIVE.TRANS64 RZ, ...`, `SYNCS.EXCH.64 URZ, ...`); a phase check and
+    // `USETMAXREG.TRY_ALLOC` write their predicate -- a result the generic scan does not see.
+    if crate::sync_class::enabled() && crate::sync_class::owns_operands(insn) {
+        if let Some((u, p)) = crate::sync_class::result_pred(insn) {
+            out.push((u, if u { 64 + p as u16 } else { PRED_KEY + p as u16 }));
+        }
+        return out;
+    }
     if is_store(op) || is_control_flow(op) || is_barrier_insn(op) {
         return out;
     }
@@ -1173,6 +1210,14 @@ pub(crate) fn dest_regs(insn: &Instruction) -> Vec<(bool, u16)> {
         if let Some(Operand::Reg { num, .. }) = insn.operands.get(1) {
             out.push((false, *num as u16));
         }
+        // CUBIT_SYNC_CLASSES: ... and a real predicate destination is a result of the same
+        // write-back (`SHFL.BFLY P6, R18, R19, R16, R17` in every collective region of nvcc):
+        // the `ISETP P6` behind it must not overtake it.
+        if crate::sync_class::enabled() {
+            if let Some(Operand::Pred { num, .. }) = insn.operands.first() {
+                if *num < 7 { out.push((false, PRED_KEY + *num as u16)); }
+            }
+        }
     }
     // Pred outputs for ISETP, LEA, IADD3, etc.
     // ISETP: operand 0 = P0 (primary result), operand 1 = PT (secondary)
@@ -1193,6 +1238,17 @@ pub(crate) fn dest_regs(insn: &Instruction) -> Vec<(bool, u16)> {
 pub(crate) fn src_regs(insn: &Instruction) -> Vec<(bool, u16)> {
     let mut out = Vec::new();
     let op = insn.opcode.as_str();
+    // CUBIT_SYNC_CLASSES: every register operand of these words is a source (the address of
+    // `ARRIVES.LDGSTSBAR.64.ARVCNT [UR4]` is operand 0; a bulk copy reads all three operands).
+    if crate::sync_class::enabled() && crate::sync_class::owns_operands(insn) {
+        out = crate::sync_class::source_regs(insn);
+        if let Some(g) = &insn.guard {
+            if g.pred < 7 {
+                out.push((g.uniform, if g.uniform { 64 + g.pred as u16 } else { PRED_KEY + g.pred as u16 }));
+            }
+        }
+        return out;
+    }
     let is_mma = matches!(op, "QMMA" | "HMMA" | "IMMA" | "DMMA");
     let is_wide_src = insn.opcode_full.contains("WIDE");
     // BUG-110: for WIDE forms the 64-bit addend is the last NON-PREDICATE
@@ -1703,6 +1759,8 @@ pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
         // Phase 2: apply scheduling
         insns[i].ctrl.wait_mask = wait_mask;
         insns[i].ctrl.stall = min_stall;
+        // the stall the instruction's own sources ask for (before the per-class producer stalls)
+        let phase1_stall = min_stall;
 
         // Tungsten per-class constraints:
         // IADD3: stall 1-3 hardware forbidden; with wait_mask: min stall=5
@@ -1767,7 +1825,13 @@ pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
             // (>1 CTA/SM). (Root-caused by stall minimisation vs ptxas at 4-CTA.)
             // CUBIT_SCHED2: kept as a WAR-protection stall (ptxas uses a read-barrier; the
             // diff cost is small — only loop-carried gather loads). Drop with NOMEMSTALL.
+            // CUBIT_SYNC_CLASSES: not there -- the heuristic reads loops off the text (every
+            // backward branch a back-edge), so on nvcc's layout, where the out-of-line slow
+            // paths return backwards, it holds half the loads of a hot loop at S10; the
+            // allocator's scans run on the control-flow graph under the switch and the next
+            // iteration's reader waits the load's barrier.
             if (!st.stage3 || st.mem_war_stall)
+                && !crate::sync_class::enabled()
                 && load_result_loop_carried(insns, i)
                 && std::env::var("CUBIT_FIX_LOAD").as_deref() != Ok("0") {
                 insns[i].ctrl.stall = insns[i].ctrl.stall.max(LOAD_LOOPCARRY_STALL);
@@ -1951,7 +2015,12 @@ pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
                 if st.pending_drain != 0 {
                     insns[i].ctrl.wait_mask |= st.pending_drain;
                     st.pending_drain = 0;
-                    insns[i].ctrl.stall = insns[i].ctrl.stall.max(8);
+                    // (CUBIT_SYNC_CLASSES: this pass's barriers are re-derived on the control-flow
+                    // graph by `reallocate_barriers`; the drain's retirement stall of its text-order
+                    // allocation would stay behind as eight idle cycles on a load that drains nothing)
+                    if !crate::sync_class::enabled() {
+                        insns[i].ctrl.stall = insns[i].ctrl.stall.max(8);
+                    }
                 }
                 st.current_load_barrier = Some(nb);
                 st.current_batch_kind = kind;
@@ -2148,6 +2217,40 @@ pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
             }
         }
 
+        // CUBIT_SYNC_CLASSES: a synchronisation word's stall is its class's issue floor -- not an
+        // ALU latency. Under the stage-3 rules it keeps what the next instruction's fixed-latency
+        // sources charged to it (the look-ahead deficit); in the default model what its own
+        // sources asked for.
+        if crate::sync_class::enabled() {
+            if let Some(c) = crate::sync_class::classify(&insns[i]) {
+                let floor = crate::sync_class::stall_of(insns, i, &c);
+                let carried = if st.stage3 { insns[i].ctrl.stall } else { phase1_stall };
+                // (a never-executed pad carries nothing of its opcode's class: the legaliser
+                // adds what the instruction behind it needs)
+                let s = if crate::sync_class::never_executes(&insns[i]) {
+                    floor
+                } else if floor == 0 && carried <= 1 {
+                    0
+                } else {
+                    carried.max(floor)
+                };
+                insns[i].ctrl.stall = s;
+                insns[i].ctrl.yield_flag = c.yield_flag && s != 0 && s < 12;
+            } else if crate::sync_class::is_unlisted_transfer(&insns[i]) {
+                // a register-indirect branch is a branch: S05 with yield (ptxas: 58 of 58 `BRX`)
+                insns[i].ctrl.stall = insns[i].ctrl.stall.max(crate::sync_class::TRANSFER_STALL);
+                insns[i].ctrl.yield_flag = insns[i].ctrl.stall < 12;
+            } else if crate::sync_class::enters_collective(insns, i) {
+                // nothing is in flight when the warp's mask changes (ptxas: S07, no yield)
+                insns[i].ctrl.stall = insns[i].ctrl.stall.max(crate::sync_class::COLLECTIVE_ENTRY_STALL);
+                insns[i].ctrl.yield_flag = false;
+            } else if crate::sync_class::collective_region(insns, i).is_some() && insn_needs_write_bar(&insns[i], table, true) {
+                // the region's shuffle: both barriers, waited by ENDCOLLECTIVE right behind it
+                insns[i].ctrl.stall = crate::sync_class::COLLECTIVE_BODY_STALL;
+                insns[i].ctrl.yield_flag = true;
+            }
+        }
+
         st.clock += insns[i].ctrl.stall as usize;
     }
 
@@ -2156,7 +2259,23 @@ pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
     // scheduler's default S01 on unreachable instructions.
     if st.stage3 {
         if let Some(last_exit) = insns.iter().rposition(|x| x.opcode == "EXIT") {
-            for x in insns.iter_mut().skip(last_exit + 1) {
+            // CUBIT_SYNC_CLASSES: only the dead tail (the self-branch and the NOPs behind it). A
+            // kernel of nvcc keeps live out-of-line blocks behind its last EXIT -- the suspend
+            // loops of its mbarrier waits, the fallbacks of its collective regions, a whole
+            // warp group's code: zeroing every stall there left them to the legaliser alone.
+            let mut tail = last_exit + 1;
+            if crate::sync_class::enabled() {
+                let n = insns.len();
+                tail = n;
+                while tail > last_exit + 1 {
+                    let x = &insns[tail - 1];
+                    let xa = if x.addr > 0 { x.addr } else { ((tail - 1) * 16) as u32 };
+                    let dead = x.opcode == "NOP" || (x.opcode == "BRA" && x.guard.is_none() && branch_target(x) == Some(xa));
+                    if !dead { break; }
+                    tail -= 1;
+                }
+            }
+            for x in insns.iter_mut().skip(tail) {
                 if x.hand_sched { continue; }
                 x.ctrl.stall = 0;
                 x.ctrl.yield_flag = false;
@@ -2455,6 +2574,11 @@ fn record_defs(st: &mut SchedulerState, insn: &Instruction, idx: usize, barrier:
                 st.ureg_defs[reg as usize] = Some(def);
             }
         } else if reg >= PRED_KEY {
+            // CUBIT_SYNC_CLASSES: a phase check's predicate is synchronised by its write barrier,
+            // not by the fixed predicate latency (no stall is charged for it)
+            if crate::sync_class::enabled() && crate::sync_class::result_pred(insn).is_some() {
+                continue;
+            }
             let pidx = (reg - PRED_KEY) as usize;
             if pidx < st.pred_defs.len() {
                 st.pred_defs[pidx] = Some(PredDef { clock, is_carry });
@@ -3068,16 +3192,55 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
     // BUG-478: forward control flow for path-following consumer / overwriter scans.
     let flow = FlowInfo::build(insns);
 
-    let writes: Vec<Vec<u16>> = insns.iter()
+    #[allow(unused_mut)]
+    let mut writes: Vec<Vec<u16>> = insns.iter()
         .map(|x| dest_regs(x).into_iter().map(|(u, r)| rk(u, r)).collect()).collect();
-    let reads: Vec<Vec<u16>> = insns.iter()
+    #[allow(unused_mut)]
+    let mut reads: Vec<Vec<u16>> = insns.iter()
         .map(|x| src_regs(x).into_iter().map(|(u, r)| rk(u, r)).collect()).collect();
+    // CUBIT_SYNC_CLASSES: the ordering tokens of the synchronisation words (the async-proxy
+    // fence, the mbarrier init) are pseudo-registers here -- the word that sets one gets a write
+    // barrier, the next word of the family waits it; and the acquire's `CCTL.IVALL` reads what
+    // the `.STRONG` load in front of it writes (the invalidate waits the load's barrier).
+    let sync_on = crate::sync_class::enabled();
+    if sync_on {
+        for i in 0..n {
+            if let Some(crate::sync_class::WriteBar::Token(t)) = crate::sync_class::classify(&insns[i]).map(|c| c.write_bar) {
+                writes[i].push(t);
+            }
+            for t in crate::sync_class::token_reads(&insns[i]) {
+                if !reads[i].contains(&t) { reads[i].push(t); }
+            }
+            if let Some(k) = crate::sync_class::acquire_load(insns, i) {
+                for w in writes[k].clone() {
+                    if !reads[i].contains(&w) { reads[i].push(w); }
+                }
+            }
+            // the end of a collective region waits what the region produced
+            if let Some((_, e)) = crate::sync_class::collective_region(insns, i) {
+                for w in writes[i].clone() {
+                    if !reads[e].contains(&w) { reads[e].push(w); }
+                }
+            }
+        }
+    }
+    // A kernel that commits a copy group (`LDGDEPBAR`, `UTMACMDFLUSH`) keeps scoreboard 0 for it.
+    let sb0_reserved = sync_on && insns.iter().any(crate::sync_class::commits_group);
+    // CUBIT_SYNC_CLASSES: the scans run on the control-flow graph (`cfg_flow`) instead of the
+    // text: nvcc's layout keeps slow paths behind the last EXIT that return with a backward
+    // `BRA` (not loops), `BRA.DIV` falls through, `BRX` dispatches through a table.
+    let cfg = if sync_on { Some(crate::cfg_flow::Cfg::build(insns)) } else { None };
     let mut can_wait: Vec<bool> = insns.iter().map(|x| insn_can_set_wait_mask(x, table)).collect();
     let can_wb: Vec<bool> = insns.iter().map(|x| insn_can_set_write_bar(x, table)).collect();
     // A consumer is "guarded" if it executes under a non-PT predicate (may be skipped) —
     // then a following reader still needs the producer's write-barrier wait.
     let guarded: Vec<bool> = insns.iter()
         .map(|x| x.guard.as_ref().is_some_and(|g| g.pred < 7)).collect();
+    // (the register key of each instruction's guard predicate, for CUBIT_SYNC_CLASSES)
+    let guard_key: Vec<Option<u16>> = insns.iter()
+        .map(|x| x.guard.as_ref().filter(|g| g.pred < 7)
+            .map(|g| rk(g.uniform, if g.uniform { 64 + g.pred as u16 } else { PRED_KEY + g.pred as u16 })))
+        .collect();
 
     let mut uses: Vec<BarUse> = Vec::new();
     // Fixed barrier colour for uses pushed by the PINNED pass below (None for
@@ -3135,7 +3298,9 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         // their pipe). CUBIT_SHARED_BATCH=1 restores the old unsafe shared batching (A/B).
         let shared_batch_unsafe =
             std::env::var("CUBIT_SHARED_BATCH").ok().as_deref() == Some("1");
-        let batchable = !is_variable_latency_sched2(op) && op != "REDUX" && op != "SHFL";
+        // (a synchronisation word's result / token is never batched: its own scoreboard)
+        let is_sync_word = |k: usize| sync_on && crate::sync_class::classify(&insns[k]).is_some();
+        let batchable = !is_variable_latency_sched2(op) && op != "REDUX" && op != "SHFL" && !is_sync_word(i);
         let kind = load_kind_sched2(op);
         let w0 = width_of(insns[i].opcode_full.as_str());
         let key0 = load_addr_key(&insns[i]);
@@ -3151,7 +3316,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
                 let prodj = insn_needs_write_bar(&insns[j], table, true)
                     && !is_warp_mma(opj) && can_wb[j] && !insns[j].hand_sched;
                 if prodj {
-                    let batchablej = !is_variable_latency_sched2(opj) && opj != "REDUX" && opj != "SHFL";
+                    let batchablej = !is_variable_latency_sched2(opj) && opj != "REDUX" && opj != "SHFL" && !is_sync_word(j);
                     if !batchablej || load_kind_sched2(opj) != kind
                         || opj != op || width_of(insns[j].opcode_full.as_str()) != w0 { break; }
                     if !(kind == 2 && shared_batch_unsafe) {
@@ -3185,25 +3350,47 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         let mut gd: Vec<u16> = group.iter().flat_map(|&g| writes[g].clone()).collect();
         gd.sort_unstable();
         gd.dedup();
-        let (waiters, _wrap) = raw_consumers(
-            &reads,
-            &writes,
-            &guarded,
-            &flow,
-            last,
-            &gd,
-            ltop[last],
-            lback[last],
-            &edges,
-            n,
-        );
+        // CUBIT_SYNC_CLASSES: a reader whose GUARD is the pending result cannot be skipped
+        // before the result is there (`SYNCS...TRYWAIT P5 [W0]` / `@!P5 BRA [B0]`): it settles
+        // the barrier like an unguarded reader (ptxas: no second waiter behind it).
+        let guarded_here: Vec<bool> = if cfg.is_some() {
+            (0..n).map(|j| guarded[j] && !guard_key[j].is_some_and(|k| gd.contains(&k))).collect()
+        } else {
+            Vec::new()
+        };
+        let (waiters, live_on) = match &cfg {
+            Some(c) => {
+                let (w, on) = c.first_consumers(&reads, &writes, &guarded_here, &group, &gd, guarded_reader_settles());
+                (w, Some(on))
+            }
+            None => {
+                let (w, _wrap) = raw_consumers(
+                    &reads,
+                    &writes,
+                    &guarded,
+                    &flow,
+                    last,
+                    &gd,
+                    ltop[last],
+                    lback[last],
+                    &edges,
+                    n,
+                );
+                (w, None)
+            }
+        };
         if !waiters.is_empty() {
             // the waiters after which the load has certainly issued: the unguarded ones -- every
             // waiter under the NEEDS 37 switch (a guarded waiter's wait is honoured too)
             let settles = guarded_reader_settles();
-            let stops: Vec<usize> = waiters.iter().copied().filter(|&w| settles || !guarded[w]).collect();
+            let stops: Vec<usize> = waiters.iter().copied()
+                .filter(|&w| settles || !(if cfg.is_some() { guarded_here[w] } else { guarded[w] }))
+                .collect();
             for &g in &group { raw_stop[g] = stops.clone(); }
-            let segs = build_segs(group[0], &waiters, ltop[last], lback[last], &edges);
+            let segs = match &live_on {
+                Some(on) => crate::cfg_flow::runs(on),
+                None => build_segs(group[0], &waiters, ltop[last], lback[last], &edges),
+            };
             uses.push(BarUse {
                 setters: group.clone(),
                 waiters,
@@ -3248,10 +3435,35 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
             // over-allocates the PV-loop scoreboards (recycle pressure → wrong at 2 CTAs/SM).
             let dests = dest_gprs(&insns[idx]);
             let a = load_addr_gprs(&insns[idx]);
-            let mut v = if a.iter().any(|x| dests.contains(x)) { Vec::new() } else { a };
+            let mut v = if a.iter().any(|x| dests.contains(x)) { Vec::new() } else { a.clone() };
             // BUG-482: an atomic / reduction latches its DATA late like a store (ptxas: a
             // read barrier on every `ATOMS.MAX.S32 RZ, [..], R58`); protect it too.
             for r in atom_data_gprs(&insns[idx]) { if !v.contains(&r) { v.push(r); } }
+            // CUBIT_SYNC_CLASSES: the address of a self-referencing load is read late as well
+            // (ptxas: `[R0:W5] LDG.E.CONSTANT R4, desc[UR8][R4.64]` -- the pair R4:R5 is the
+            // address, an overwriter of R5 waits).
+            if sync_on && v.is_empty() {
+                for r in a { if !dests.contains(&r) && !v.contains(&r) { v.push(r); } }
+            }
+            // ... and a producer of this class without an address (`SHFL`) reads its register
+            // operands late: see the arm below.
+            if sync_on && v.is_empty() && load_addr_gprs(&insns[idx]).is_empty() {
+                for (u, r) in src_regs(&insns[idx]) {
+                    if !u && r < 255 && !dests.contains(&(r as u8)) && !v.contains(&(r as u8)) { v.push(r as u8); }
+                }
+            }
+            v
+        } else if sync_on && insn_needs_write_bar(&insns[idx], table, true) && crate::sync_class::classify(&insns[idx]).is_none() {
+            // CUBIT_SYNC_CLASSES: every scoreboarded producer reads its register operands in its
+            // own pipe, after issue -- `SHFL` (62 of the 64 in fc1 carry a read barrier under
+            // ptxas: `[R2:W3] SHFL.IDX PT, R8, R4, RZ, 0x1f` ... `[B--2---] MOV R4, R9`), `MUFU`,
+            // `F2I` / `I2F`, `POPC` / `FLO`. The barrier is set only where an overwriter stands
+            // in front of the result's first waiter.
+            let dests = dest_gprs(&insns[idx]);
+            let mut v: Vec<u8> = Vec::new();
+            for (u, r) in src_regs(&insns[idx]) {
+                if !u && r < 255 && !dests.contains(&(r as u8)) && !v.contains(&(r as u8)) { v.push(r as u8); }
+            }
             v
         } else { Vec::new() }
     };
@@ -3266,13 +3478,31 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         // data). Both are real WARs at high occupancy and are load-bearing for correctness
         // (dropping the loop-carried load-address rb corrupts the gather: 337/340 wrong).
         let mut waiters: Vec<usize> = Vec::new();
-        for (ow, _w) in war_overwriter(&writes, &flow, idx, &opk, &raw_stop[idx], rb_early, ltop[idx], lback[idx], &edges, n) {
-            if !waiters.contains(&ow) {
-                waiters.push(ow);
+        let region = if sync_on && insn_needs_write_bar(&insns[idx], table, true) { crate::sync_class::collective_region(insns, idx) } else { None };
+        let segs = match &cfg {
+            Some(_) if region.is_some() => {
+                // CUBIT_SYNC_CLASSES: inside a collective region the read barrier is set
+                // whatever follows, and the region's end waits it
+                let e = region.unwrap().1;
+                waiters = vec![e];
+                vec![(idx, e)]
             }
-        }
+            Some(c) => {
+                let (w, on) = c.first_overwriters(&writes, idx, &opk, &raw_stop[idx], rb_early);
+                waiters = w;
+                crate::cfg_flow::runs(&on)
+            }
+            None => {
+                for (ow, _w) in war_overwriter(&writes, &flow, idx, &opk, &raw_stop[idx], rb_early, ltop[idx], lback[idx], &edges, n) {
+                    if !waiters.contains(&ow) {
+                        waiters.push(ow);
+                    }
+                }
+                Vec::new()
+            }
+        };
         if waiters.is_empty() { continue; }
-        let segs = build_segs(idx, &waiters, ltop[idx], lback[idx], &edges);
+        let segs = if cfg.is_some() { segs } else { build_segs(idx, &waiters, ltop[idx], lback[idx], &edges) };
         uses.push(BarUse {
             setters: vec![idx],
             waiters,
@@ -3280,6 +3510,26 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
             segs,
         });
         pin_of.push(None);
+    }
+
+    // ---- CUBIT_SYNC_CLASSES: read barriers on the late operands of the synchronisation words ----
+    // An mbarrier word and a bulk copy read their operands (the barrier's address, the parity /
+    // transaction count, the copy's two addresses and size -- GPRs or uniform registers) after
+    // issue, like a store; ptxas puts a read barrier on the word and the overwriter waits it
+    // (`[R2:W3] SYNCS.EXCH.64 URZ, [UR37], UR4` ... `[B--2---] UMOV UR4, UR36`).
+    if sync_on {
+        for idx in 0..n {
+            if insns[idx].hand_sched { continue; }
+            let Some(c) = crate::sync_class::classify(&insns[idx]) else { continue };
+            if !c.late_operands { continue; }
+            let opk: Vec<u16> = crate::sync_class::source_regs(&insns[idx]).into_iter().map(|(u, r)| rk(u, r)).collect();
+            if opk.is_empty() { continue; }
+            let c = cfg.as_ref().expect("the control-flow graph exists under the switch");
+            let (waiters, on) = c.first_overwriters(&writes, idx, &opk, &raw_stop[idx], rb_early);
+            if waiters.is_empty() { continue; }
+            uses.push(BarUse { setters: vec![idx], waiters, is_rb: true, segs: crate::cfg_flow::runs(&on) });
+            pin_of.push(None);
+        }
     }
 
     // ---- A19 experiment (CUBIT_RB_CHAIN=1, default off; KNOWN_ISSUES A19, T-9 2026-11-06) ----
@@ -3358,9 +3608,17 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         if gd.is_empty() {
             continue;
         }
-        let (waiters, _wrap) = raw_consumers(
-            &reads, &writes, &guarded, &flow, i, &gd, ltop[i], lback[i], &edges, n,
-        );
+        let (waiters, live_on) = match &cfg {
+            Some(c) => {
+                let guarded_here: Vec<bool> = (0..n).map(|j| guarded[j] && !guard_key[j].is_some_and(|k| gd.contains(&k))).collect();
+                let (w, on) = c.first_consumers(&reads, &writes, &guarded_here, &[i], &gd, guarded_reader_settles());
+                (w, Some(on))
+            }
+            None => {
+                let (w, _wrap) = raw_consumers(&reads, &writes, &guarded, &flow, i, &gd, ltop[i], lback[i], &edges, n);
+                (w, None)
+            }
+        };
         let auto_waiters: Vec<usize> = waiters
             .into_iter()
             .filter(|&w| !insns[w].hand_sched)
@@ -3368,7 +3626,10 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         if auto_waiters.is_empty() {
             continue;
         }
-        let segs = build_segs(i, &auto_waiters, ltop[i], lback[i], &edges);
+        let segs = match &live_on {
+            Some(on) => crate::cfg_flow::runs(on),
+            None => build_segs(i, &auto_waiters, ltop[i], lback[i], &edges),
+        };
         uses.push(BarUse {
             setters: vec![i],
             waiters: auto_waiters,
@@ -3391,11 +3652,24 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         if late.is_empty() { continue; }
         let opk: Vec<u16> = late.iter().map(|&r| rk(false, r as u16)).collect();
         let mut waiters: Vec<usize> = Vec::new();
-        for (ow, _w) in war_overwriter(&writes, &flow, i, &opk, &raw_stop[i], rb_early, ltop[i], lback[i], &edges, n) {
-            if !insns[ow].hand_sched && !waiters.contains(&ow) { waiters.push(ow); }
+        let mut live_on: Option<Vec<usize>> = None;
+        match &cfg {
+            Some(c) => {
+                let (w, on) = c.first_overwriters(&writes, i, &opk, &raw_stop[i], rb_early);
+                waiters = w.into_iter().filter(|&ow| !insns[ow].hand_sched).collect();
+                live_on = Some(on);
+            }
+            None => {
+                for (ow, _w) in war_overwriter(&writes, &flow, i, &opk, &raw_stop[i], rb_early, ltop[i], lback[i], &edges, n) {
+                    if !insns[ow].hand_sched && !waiters.contains(&ow) { waiters.push(ow); }
+                }
+            }
         }
         if waiters.is_empty() { continue; }
-        let segs = build_segs(i, &waiters, ltop[i], lback[i], &edges);
+        let segs = match &live_on {
+            Some(on) => crate::cfg_flow::runs(on),
+            None => build_segs(i, &waiters, ltop[i], lback[i], &edges),
+        };
         uses.push(BarUse { setters: vec![i], waiters, is_rb: true, segs });
         pin_of.push(Some(b));
     }
@@ -3434,6 +3708,11 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         order.sort_by_key(|&u| (pin_of[u].is_some() || use_span(u) <= sb_long_thr, uses[u].segs.len() == 1, uses[u].segs[0].0));
     }
     let mut occ_long = vec![0u8; n];
+    if cfg.is_some() && !sb_long_keep {
+        // (CUBIT_SYNC_CLASSES, occupancy by execution paths: the long-lived uses first, then in text order)
+        let span_of = |u: usize| -> usize { uses[u].segs.iter().map(|&(a, b)| b - a + 1).sum() };
+        order.sort_by_key(|&u| (span_of(u) <= 64, uses[u].segs[0].0));
+    }
     let mut occ = vec![0u8; n];
     let mut assigned: Vec<u8> = vec![7; uses.len()];
     let mut inject_wait = vec![0u8; n];
@@ -3472,7 +3751,9 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         }
         let span: usize = uses[u].segs.iter().map(|&(a, b)| b.saturating_sub(a)).sum();
         let is_long = sb_share && span > sb_long;
-        let first_colour: u8 = if is_long { (NUM_BARRIERS as u8).saturating_sub(2) } else { 0 };
+        // (CUBIT_SYNC_CLASSES: scoreboard 0 is the copy group's in a kernel that commits one)
+        let lowest: u8 = if sb0_reserved { 1 } else { 0 };
+        let first_colour: u8 = if is_long { (NUM_BARRIERS as u8).saturating_sub(2) } else { lowest };
         let mut chosen: Option<u8> = None;
         if sb_long_keep && is_long {
             // CUBIT_SB_LONG_KEEP: the long WRITE uses (prefetch loads) share the top scoreboard, the long
@@ -3506,9 +3787,9 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
                 // waiters keep their wait (they harmlessly over-wait) — protection is never
                 // dropped, only serialised.
                 let first = uses[u].setters[0];
-                let mut best = 0u8;
+                let mut best = lowest;
                 let mut best_cost = usize::MAX;
-                for b in 0..NUM_BARRIERS as u8 {
+                for b in lowest..NUM_BARRIERS as u8 {
                     if occ[first] & (1 << b) != 0 { continue; }
                     let cost = sidx.iter().filter(|&&i| occ[i] & (1 << b) != 0).count();
                     if cost < best_cost { best_cost = cost; best = b; }
@@ -3573,6 +3854,17 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
     for j in 0..n {
         if inject_wait[j] != 0 && !insns[j].hand_sched && can_wait[j] {
             insns[j].ctrl.wait_mask |= inject_wait[j];
+        }
+    }
+    // CUBIT_SYNC_CLASSES: the copy group's scoreboard is 0 -- `LDGDEPBAR` sets it as a write
+    // barrier, `UTMACMDFLUSH` as a read barrier, `DEPBAR.LE SB0, n` names it.
+    if sync_on {
+        for ins in insns.iter_mut().filter(|x| !x.hand_sched) {
+            match crate::sync_class::classify(ins) {
+                Some(c) if c.write_bar == crate::sync_class::WriteBar::Group => ins.ctrl.write_bar = 0,
+                Some(c) if c.group_read_bar => ins.ctrl.read_bar = 0,
+                _ => {}
+            }
         }
     }
 

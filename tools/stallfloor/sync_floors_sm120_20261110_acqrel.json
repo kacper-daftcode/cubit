@@ -1,0 +1,79 @@
+{
+ "run": "block pr-cs-1, 2026-11-10 10:29Z; test host, 4x NVIDIA RTX PRO 6000 Blackwell Server Edition, GPU 0, 400 W, clocks.sm 2 355-2 362 MHz; probe kernel `p_acqrel` of sync_probes.cu (nvcc 13.0, sm_120a), 32 CTAs x 32 threads, 20 launches per variant; wrong = threads whose checksum differs from the reference kernel's (ptxas's own schedule); -1 = launch fault, -2 = no return (process killed)",
+ "arch": "sm_120",
+ "harness": "v7 synchronisation words (2026-11-10)",
+ "reps": 20,
+ "geometry": {
+  "p_acqrel": [
+   32,
+   32
+  ]
+ },
+ "references": {
+  "p_acqrel": "ok (1024 distinct checksums of 1024 threads)"
+ },
+ "floors": {
+  "rel_cgaerrbar": 1,
+  "rel_chain_S01": 1,
+  "rel_membar": 1
+ },
+ "variants": {
+  "acq_ivall_early": {
+   "group": "acq_ivall_early",
+   "x": null,
+   "wrong": 0,
+   "of": 20480,
+   "identical_to_reference": false
+  },
+  "acq_ivall_nop": {
+   "group": "acq_no_ivall (control)",
+   "x": null,
+   "wrong": 10240,
+   "of": 20480,
+   "identical_to_reference": false
+  },
+  "rel_membar_S01": {
+   "group": "rel_membar",
+   "x": 1,
+   "wrong": 0,
+   "of": 20480,
+   "identical_to_reference": false
+  },
+  "rel_cga_S01": {
+   "group": "rel_cgaerrbar",
+   "x": 1,
+   "wrong": 0,
+   "of": 20480,
+   "identical_to_reference": false
+  },
+  "rel_membar_S03": {
+   "group": "rel_membar",
+   "x": 3,
+   "wrong": 0,
+   "of": 20480,
+   "identical_to_reference": false
+  },
+  "rel_cga_S03": {
+   "group": "rel_cgaerrbar",
+   "x": 3,
+   "wrong": 0,
+   "of": 20480,
+   "identical_to_reference": false
+  },
+  "rel_chain_S01": {
+   "group": "rel_chain_S01",
+   "x": 1,
+   "wrong": 0,
+   "of": 20480,
+   "identical_to_reference": false
+  },
+  "rel_membar_nop": {
+   "group": "rel_no_membar (control)",
+   "x": null,
+   "wrong": 0,
+   "of": 20480,
+   "identical_to_reference": false
+  }
+ },
+ "skipped": 0
+}

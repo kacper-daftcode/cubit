@@ -1,0 +1,13 @@
+// CUBIT_SYNC_CLASSES fixture: the suspend form of an mbarrier wait (nvcc: `cuda::barrier::wait`).
+.entry mbar_sleep
+    .param u64 io
+    LDC.64 R4, c[0x0][0x380] ;
+    LDC R7, c[0x0][0x388] ;
+L_slow:
+    SYNCS.PHASECHK.TRANS64.TRYWAIT P0, [R4+URZ], R7 ;
+    @!P0 NANOSLEEP.SYNCS 0x989680 ;
+    @!P0 SYNCS.PHASECHK.TRANS64 P0, [R4+URZ], R7 ;
+    @!P0 BRA L_slow ;
+    MOV R8, R7 ;
+    EXIT ;
+.endentry

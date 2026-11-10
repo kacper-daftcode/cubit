@@ -1,0 +1,10 @@
+[B------:R-:W0:Y:S01] S2UR UR5, SR_CgaCtaId ;
+[B------:R-:W-:-:S13] UMOV UR4, 0x400 ;
+[B0-----:R-:W-:Y:S01] ULEA UR6, UR5, UR4, 0x18 ;
+[B------:R-:W-:Y:S01] UMOV UR4, 0x1 ;
+[B------:R-:W-:Y:S01] FENCE.VIEW.ASYNC.S ;
+[B------:R-:W-:-:S11] SYNCS.CCTL.IVALL ;
+[B------:R-:W-:Y:S01] SYNCS.EXCH.64 URZ, [UR6], UR4 ;
+[B------:R-:W-:Y:S01] UMOV UR4, 0x2 ;
+[B------:R-:W-:Y:S06] BAR.SYNC.DEFER_BLOCKING 0x0 ;
+[B------:R-:W-:Y:S05] EXIT ;

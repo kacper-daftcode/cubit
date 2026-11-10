@@ -1,0 +1,8 @@
+[B------:R-:W0:Y:S04] LDC.64 R4, c[0x0][0x380] ;
+[B------:R-:W1:Y:S04] LDC R7, c[0x0][0x388] ;
+L_20:  [B01----:R-:W-:-:S05] SYNCS.PHASECHK.TRANS64.TRYWAIT P0, [R4+URZ], R7 ;
+[B------:R-:W-:-:S05] @!P0 NANOSLEEP.SYNCS 0x989680 ;
+[B------:R-:W-:-:S05] @!P0 SYNCS.PHASECHK.TRANS64 P0, [R4+URZ], R7 ;
+[B------:R-:W-:-:S05] @!P0 BRA L_20 ;
+[B------:R-:W-:-:S05] MOV R8, R7 ;
+[B------:R-:W-:-:S05] EXIT ;

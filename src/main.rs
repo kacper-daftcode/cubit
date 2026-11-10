@@ -4617,6 +4617,11 @@ fn cmd_asm_directive_format(
         // allocator (and bails when a dependency cannot be reached), so schedule() may leave the
         // fixed latencies to it. No other caller of schedule() gets that from the environment.
         cubit::scheduling_pass::DEP_LEGALISER_FOLLOWS.store(true, std::sync::atomic::Ordering::Relaxed);
+        // CUBIT_SYNC_CLASSES=1 (opt-in): the control classes of the synchronisation words
+        // (`src/sync_class.rs`). Under it a branch carries its wait itself, so no drain
+        // instruction is inserted in front of a back-edge: a kernel of nvcc keeps its layout
+        // (its register-indirect dispatches and the template's offset records stay valid).
+        let sync_classes = cubit::sync_class::enabled();
         cubit::scheduling_pass::schedule(&mut insns_with_ctrl, Some(table));
         // Barrier allocation: the unified interval-based allocator (reallocate_barriers, run
         // at the END below, after all instruction insertions) re-derives RAW write-barriers +
@@ -5310,6 +5315,11 @@ fn cmd_asm_directive_format(
                 let is_store = |op: &str| matches!(op, "STG" | "STS" | "STL" | "ST" | "STGX");
                 let mut any_acc_store = false;
                 for insn in insns_with_ctrl.iter_mut() {
+                    // (CUBIT_SYNC_CLASSES: a hand-scheduled store keeps the read barrier its
+                    // author gave it -- its waiters are frozen with it)
+                    if sync_classes && insn.hand_sched {
+                        continue;
+                    }
                     if is_store(&insn.opcode)
                         && insn.operands.iter().any(|o| {
                             matches!(o,
@@ -5350,6 +5360,11 @@ fn cmd_asm_directive_format(
                 // uniform backward branches; is_pad=false are barrier drains.
                 let mut inserts: Vec<(usize, u8, bool)> = Vec::new();
                 for (i, insn) in insns_with_ctrl.iter_mut().enumerate() {
+                    // (CUBIT_SYNC_CLASSES: the back-edge waits itself, the uniform predicate's
+                    // distance to its branch is the latency table's -- nothing is inserted)
+                    if sync_classes {
+                        break;
+                    }
                     if insn.opcode == "BRA" {
                         if let Some(target) = insn.operands.iter().find_map(|o| match o {
                             cubit::ir::Operand::Imm32(v) => Some(*v as u32),
@@ -5508,6 +5523,12 @@ fn cmd_asm_directive_format(
                     def.name, dt.arch, rep.raised, rep.added_cycles, rep.rounds, rep.defaulted.len(),
                     if rep.defaulted.is_empty() { String::new() } else { format!(": {}", rep.defaulted.join(", ")) }
                 );
+                if rep.frozen_pairs > 0 {
+                    println!(
+                        "  {}: dep-latency: {} requirements between two hand-scheduled instructions are below the table (the author's distances, left as written)",
+                        def.name, rep.frozen_pairs
+                    );
+                }
                 if !rep.unresolved.is_empty() {
                     for v in rep.unresolved.iter().take(12) {
                         eprintln!("  ERROR [{}] dep-latency unresolved: {}", def.name, cubit::dep_stall::describe(&insns_with_ctrl, v));
@@ -5637,6 +5658,15 @@ fn cmd_asm_directive_format(
             }
         }
 
+        // CUBIT_SYNC_CLASSES: a reuse flag of the source text holds only under the vendor's law
+        // (yield, stall 1 or 2); where this schedule gave the word another stall it is dropped.
+        if sync_classes && !fully_frozen {
+            let dropped = cubit::sync_class::settle_reuse(&mut insns_with_ctrl);
+            if dropped > 0 {
+                println!("  {}: {} reuse flags dropped (the word's stall is not 1 or 2 in this schedule)", def.name, dropped);
+            }
+        }
+
         let mut code_bytes = vec![0u8; insns_with_ctrl.len() * 16];
         let (mut enc, mut fail) = (0u64, 0u64);
 
@@ -5685,8 +5715,14 @@ fn cmd_asm_directive_format(
                     // the ISA default S01, which under-stalls every BRA/BAR/BSYNC/BSSY and
                     // corrupts results even at 1 CTA/SM. A fresh asm is never hand_sched, so this
                     // never affects a disasm→reencode round-trip. (c) CUBIT_SCHED2 (legacy gate).
-                    let reinject = cubit::scheduling_pass::is_static_sched_reinject(&insn.opcode)
-                        && (insn.hand_sched || !fully_frozen);
+                    // CUBIT_SYNC_CLASSES: every instruction of a static table class gets the
+                    // scheduler's control code (the synchronisation words `CCTL.IVALL`, `ERRBAR`,
+                    // `CGAERRBAR`, `MEMBAR.*`, `DEPBAR`, `LDGDEPBAR`, `UTMACMDFLUSH`,
+                    // `ENDCOLLECTIVE`; `EXIT` with its wait) -- for the other classes the
+                    // injection rewrites the field the encoder already wrote.
+                    let reinject = (cubit::scheduling_pass::is_static_sched_reinject(&insn.opcode)
+                        && (insn.hand_sched || !fully_frozen))
+                        || (sync_classes && !insn.hand_sched && !fully_frozen);
                     if reinject {
                         let sched = cubit::scheduling::encode_control_code(&insn.ctrl);
                         code128 = cubit::scheduling::inject_sched_into_code128(code128, sched);
@@ -5712,7 +5748,10 @@ fn cmd_asm_directive_format(
         // Post-encoding: set BRA convergence barrier IDs from BSSY regions.
         // SKIP for fully-frozen kernels: their branch byte-3 barrier IDs are the
         // author's own (a re-analysis would renumber and break byte fidelity).
-        if !fully_frozen {
+        // CUBIT_SYNC_CLASSES: not written. ptxas never puts a convergence-barrier id into
+        // byte 3 of a branch (0 of 4 836 plain `BRA` words of the served MoE cubin; only
+        // `BRA.DIV` / `.CONV` carry a uniform register there), and the measured rows reject it.
+        if !fully_frozen && !sync_classes {
             cubit::scheduling_pass::apply_convergence_barriers(&mut code_bytes, &insns_with_ctrl);
         }
 

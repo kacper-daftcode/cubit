@@ -1,0 +1,6 @@
+[B------:R-:W-:-:S05] USETMAXREG.DEALLOC.CTAPOOL 0x20 ;
+L_10:  [B------:R-:W-:-:S05] USETMAXREG.TRY_ALLOC.CTAPOOL UP0, 0x68 ;
+[B------:R-:W-:-:S02] UIADD3 URZ, UPT, UPT, URZ, URZ, URZ ;
+[B------:R-:W-:-:S05] BRA.U !UP0, L_10 ;
+[B------:R-:W-:-:S05] MOV R8, 0x1 ;
+[B------:R-:W-:-:S05] EXIT ;

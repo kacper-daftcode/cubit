@@ -1,0 +1,121 @@
+{
+ "run": "block pr-cs-1, 2026-11-10 10:27Z; test host, 4x NVIDIA RTX PRO 6000 Blackwell Server Edition, GPU 0, 400 W, clocks.sm 2 355-2 362 MHz; probe kernel `p_mbars` of sync_probes.cu (nvcc 13.0, sm_120a), 32 CTAs x 1024 threads, 20 launches per variant; wrong = threads whose checksum differs from the reference kernel's (ptxas's own schedule); -1 = launch fault, -2 = no return (process killed)",
+ "arch": "sm_120",
+ "harness": "v7 synchronisation words (2026-11-10)",
+ "reps": 20,
+ "geometry": {
+  "p_mbars": [
+   32,
+   1024
+  ]
+ },
+ "references": {
+  "p_mbars": "ok (32767 distinct checksums of 32768 threads)"
+ },
+ "floors": {
+  "mbars_bar": 2,
+  "mbars_bar_noyield": 1,
+  "mbars_nobar": "NONE"
+ },
+ "variants": {
+  "mbars_bar_S01": {
+   "group": "mbars_bar",
+   "x": 1,
+   "wrong": 327680,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "mbars_bar_S02": {
+   "group": "mbars_bar",
+   "x": 2,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": true
+  },
+  "mbars_bar_S03": {
+   "group": "mbars_bar",
+   "x": 3,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "mbars_bar_noY_S01": {
+   "group": "mbars_bar_noyield",
+   "x": 1,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "mbars_nobar_S01": {
+   "group": "mbars_nobar",
+   "x": 1,
+   "wrong": 327680,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "mbars_nobar_S02": {
+   "group": "mbars_nobar",
+   "x": 2,
+   "wrong": 327680,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "mbars_nobar_S03": {
+   "group": "mbars_nobar",
+   "x": 3,
+   "wrong": 327680,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "mbars_nobar_S04": {
+   "group": "mbars_nobar",
+   "x": 4,
+   "wrong": 327680,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "mbars_nobar_S05": {
+   "group": "mbars_nobar",
+   "x": 5,
+   "wrong": 327680,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "mbars_nobar_S06": {
+   "group": "mbars_nobar",
+   "x": 6,
+   "wrong": 327680,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "mbars_nobar_S08": {
+   "group": "mbars_nobar",
+   "x": 8,
+   "wrong": 327680,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "mbars_nobar_S10": {
+   "group": "mbars_nobar",
+   "x": 10,
+   "wrong": 327680,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "mbars_nobar_S12": {
+   "group": "mbars_nobar",
+   "x": 12,
+   "wrong": 327680,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "mbars_nobar_S15": {
+   "group": "mbars_nobar",
+   "x": 15,
+   "wrong": 327680,
+   "of": 655360,
+   "identical_to_reference": false
+  }
+ },
+ "skipped": 0
+}

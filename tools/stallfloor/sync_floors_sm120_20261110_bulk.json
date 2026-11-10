@@ -1,0 +1,132 @@
+{
+ "run": "block pr-cs-2, 2026-11-10 11:49Z, one process per variant; test host, 4x NVIDIA RTX PRO 6000 Blackwell Server Edition, GPU 0, 400 W, clocks.sm 2 355-2 362 MHz; probe kernel `p_bulk` of sync_probes.cu (nvcc 13.0, sm_120a), 32 CTAs x 1024 threads, 20 launches per variant; wrong = threads whose checksum differs from the reference kernel's (ptxas's own schedule); -1 = launch fault, -2 = no return (process killed)",
+ "arch": "sm_120",
+ "harness": "v7 synchronisation words, one process per variant (2026-11-10)",
+ "reps": 20,
+ "geometry": {
+  "p_bulk": [
+   32,
+   1024
+  ]
+ },
+ "references": {
+  "p_bulk": "ok (32768 distinct checksums of 32768 threads)"
+ },
+ "floors": {
+  "bulk_depbar": 1,
+  "bulk_load_stall": 12,
+  "bulk_membar_cta": 1
+ },
+ "variants": {
+  "bulk_ld_S01": {
+   "group": "bulk_load_stall",
+   "x": 1,
+   "wrong": -1,
+   "of": 655360,
+   "identical_to_reference": false,
+   "state": "FAULT (RuntimeError: CUDA driver error 719 cuCtxSynchronize)"
+  },
+  "bulk_ld_S02": {
+   "group": "bulk_load_stall",
+   "x": 2,
+   "wrong": -1,
+   "of": 655360,
+   "identical_to_reference": false,
+   "state": "FAULT (RuntimeError: CUDA driver error 719 cuCtxSynchronize)"
+  },
+  "bulk_ld_S04": {
+   "group": "bulk_load_stall",
+   "x": 4,
+   "wrong": -1,
+   "of": 655360,
+   "identical_to_reference": false,
+   "state": "FAULT (RuntimeError: CUDA driver error 719 cuCtxSynchronize)"
+  },
+  "bulk_ld_S08": {
+   "group": "bulk_load_stall",
+   "x": 8,
+   "wrong": -1,
+   "of": 655360,
+   "identical_to_reference": false,
+   "state": "FAULT (RuntimeError: CUDA driver error 719 cuCtxSynchronize)"
+  },
+  "bulk_ld_S12": {
+   "group": "bulk_load_stall",
+   "x": 12,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": true
+  },
+  "bulk_ld_noR": {
+   "group": "bulk_load_norb",
+   "x": null,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "bulk_arrive_noR": {
+   "group": "bulk_arrive_norb",
+   "x": null,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "bulk_fence_noW": {
+   "group": "bulk_fence_nowb",
+   "x": null,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "bulk_membar_S01": {
+   "group": "bulk_membar_cta",
+   "x": 1,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "bulk_membar_S03": {
+   "group": "bulk_membar_cta",
+   "x": 3,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "bulk_st_noR": {
+   "group": "bulk_store_norb",
+   "x": null,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "bulk_flush_noR": {
+   "group": "bulk_flush_norb",
+   "x": null,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "bulk_depbar_S01": {
+   "group": "bulk_depbar",
+   "x": 1,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "bulk_depbar_S02": {
+   "group": "bulk_depbar",
+   "x": 2,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "bulk_depbar_S04": {
+   "group": "bulk_depbar",
+   "x": 4,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": true
+  }
+ },
+ "skipped": 0
+}

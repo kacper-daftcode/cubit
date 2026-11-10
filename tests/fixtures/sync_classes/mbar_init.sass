@@ -1,0 +1,14 @@
+// CUBIT_SYNC_CLASSES fixture: the async-proxy fence, the mbarrier init and the __syncthreads behind it.
+.entry mbar_init
+    .param u64 io
+    S2UR UR5, SR_CgaCtaId ;
+    UMOV UR4, 0x400 ;
+    ULEA UR6, UR5, UR4, 0x18 ;
+    UMOV UR4, 0x1 ;
+    FENCE.VIEW.ASYNC.S ;
+    SYNCS.CCTL.IVALL ;
+    SYNCS.EXCH.64 URZ, [UR6], UR4 ;
+    UMOV UR4, 0x2 ;
+    BAR.SYNC.DEFER_BLOCKING 0x0 ;
+    EXIT ;
+.endentry

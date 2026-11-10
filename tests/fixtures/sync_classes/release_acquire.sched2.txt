@@ -1,0 +1,13 @@
+[B------:R-:W0:Y:S04] LDC.64 R4, c[0x0][0x380] ;
+[B------:R-:W1:Y:S04] LDCU.64 UR6, c[0x0][0x358] ;
+[B------:R-:W2:Y:S04] LDC R11, c[0x0][0x388] ;
+[B------:R-:W-:Y:S01] MEMBAR.ALL.CTA ;
+[B------:R-:W-:Y:S01] MEMBAR.ALL.GPU ;
+[B------:R-:W-:Y:S01] ERRBAR ;
+[B------:R-:W-:Y:S01] CGAERRBAR ;
+[B012---:R-:W-:Y:S04] STG.E.STRONG.GPU desc[UR6][R4.64], R11 ;
+[B------:R-:W0:Y:S04] LDG.E.STRONG.GPU R8, desc[UR6][R4.64] ;
+[B------:R-:W-:Y:S01] CCTL.IVALL ;
+[B0-----:R-:W-:-:S11] IADD3 R9, PT, PT, RZ, 0x1, R8 ;
+[B------:R-:W-:Y:S04] STG.E desc[UR6][R4.64+0x8], R9 ;
+[B------:R-:W-:Y:S05] EXIT ;

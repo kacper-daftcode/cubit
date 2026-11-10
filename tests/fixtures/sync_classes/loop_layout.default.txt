@@ -1,0 +1,14 @@
+[B------:R-:W0:Y:S04] LDC.64 R2, c[0x0][0x380] ;
+[B------:R-:W1:Y:S04] LDC R7, c[0x0][0x388] ;
+[B------:R-:W2:Y:S04] LDCU.64 UR6, c[0x0][0x358] ;
+[B------:R-:W-:-:S05] MOV R6, RZ ;
+[B------:R-:W-:-:S05] MOV R5, RZ ;
+L_50:  [B0-2---:R4:W3:Y:S04] LDG.E R4, desc[UR6][R2.64] ;
+[B------:R-:W-:-:S05] IADD3 R5, PT, PT, R5, 0x1, RZ ;
+[B----4-:R-:W-:-:S05] IADD.64 R2, R2, 0x4 ;
+[B-1----:R-:W-:-:S14] ISETP.NE.AND P0, PT, R5, R7, PT ;
+[B------:R-:W-:-:S12] UIADD3 URZ, UPT, UPT, URZ, URZ, URZ ;
+[B------:R-:W-:-:S05] @P0 BRA L_50 ;
+[B---3--:R-:W-:-:S05] IADD3 R6, PT, PT, RZ, R4, R6 ;
+[B------:R-:W-:-:S04] STG.E desc[UR6][R2.64], R6 ;
+[B------:R-:W-:-:S05] EXIT ;

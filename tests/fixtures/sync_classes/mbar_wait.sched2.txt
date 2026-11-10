@@ -1,0 +1,7 @@
+[B------:R-:W0:Y:S08] LDC.64 R4, c[0x0][0x380] ;
+[B------:R-:W1:-:S04] LDC R7, c[0x0][0x388] ;
+L_20:  [B01----:R-:W-:Y:S01] SYNCS.PHASECHK.TRANS64.TRYWAIT P0, [R4+URZ], R7 ;
+[B------:R-:W-:Y:S05] @!P0 BRA L_20 ;
+[B------:R-:W-:Y:S01] SYNCS.ARRIVE.TRANS64.A1T0 RZ, [R4+URZ], RZ ;
+[B------:R-:W-:Y:S01] IADD3 R4, PT, PT, R4, 0x8, RZ ;
+[B------:R-:W-:Y:S05] EXIT ;

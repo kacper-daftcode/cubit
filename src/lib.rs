@@ -22,6 +22,7 @@
 #![allow(clippy::needless_range_loop)]
 #![allow(clippy::collapsible_match)]
 
+pub mod cfg_flow;
 pub mod ctrl_class;
 pub mod decoder;
 pub mod dep_stall;
@@ -52,6 +53,7 @@ pub mod sass_file;
 pub mod sched;
 pub mod stallfix;
 pub mod store_paths;
+pub mod sync_class;
 pub mod scheduling;
 pub mod scheduling_pass;
 pub mod table;

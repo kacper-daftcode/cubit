@@ -1,0 +1,26 @@
+// CUBIT_SYNC_CLASSES fixture: a partly frozen kernel. Everything but one MOV carries its author's control code
+// (`[B:R:W:Y:S]` = hand-scheduled); the guarded store of the MMA accumulator sets read barrier 4 and the frozen
+// branch behind it waits scoreboard 4. A frozen instruction's control code is not the scheduler's to rewrite.
+.entry frozen_store
+    .param u64 io
+    [B------:R-:W0:Y:S04] LDC.64 R2, c[0x0][0x380] ;
+    [B------:R-:W1:Y:S04] LDCU.64 UR8, c[0x0][0x358] ;
+    [B------:R-:W-:Y:S01] MOV R8, RZ ;
+    [B------:R-:W-:Y:S01] MOV R9, RZ ;
+    [B------:R-:W-:Y:S01] MOV R12, RZ ;
+    [B------:R-:W-:Y:S01] MOV R13, RZ ;
+    [B------:R-:W-:Y:S01] MOV R4, RZ ;
+    [B------:R-:W-:Y:S01] MOV R5, RZ ;
+    [B------:R-:W-:Y:S01] MOV R6, RZ ;
+    [B------:R-:W-:-:S07] MOV R7, RZ ;
+    [B------:R-:W-:-:S15] HMMA.16816.F32 R4, R8, R12, R4 ;
+    [B------:R-:W-:-:S13] NOP ;
+    [B------:R-:W-:-:S13] ISETP.NE.AND P4, PT, R9, RZ, PT ;
+    [B01----:R4:W-:Y:S01] @!P4 STG.E.64 desc[UR8][R2.64], R4 ;
+    [B------:R-:W-:-:S13] ISETP.NE.AND P4, PT, R13, RZ, PT ;
+    [B----4-:R-:W-:Y:S05] @P4 BRA L_done ;
+    MOV R20, R21 ;
+    [B------:R-:W-:Y:S01] IMAD.WIDE.U32 R4, R20, 0x14, R22 ;
+L_done:
+    [B------:R-:W-:Y:S05] EXIT ;
+.endentry

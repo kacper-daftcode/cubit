@@ -1,0 +1,18 @@
+// CUBIT_SYNC_CLASSES fixture: a loop whose load is pending at the back-edge -- the branch waits itself, nothing is inserted.
+.entry loop_layout
+    .param u64 io
+    LDC.64 R2, c[0x0][0x380] ;
+    LDC R7, c[0x0][0x388] ;
+    LDCU.64 UR6, c[0x0][0x358] ;
+    MOV R6, RZ ;
+    MOV R5, RZ ;
+L_top:
+    LDG.E R4, desc[UR6][R2.64] ;
+    IADD3 R5, PT, PT, R5, 0x1, RZ ;
+    IADD.64 R2, R2, 0x4 ;
+    ISETP.NE.AND P0, PT, R5, R7, PT ;
+    @P0 BRA L_top ;
+    IADD3 R6, PT, PT, R6, R4, RZ ;
+    STG.E desc[UR6][R2.64], R6 ;
+    EXIT ;
+.endentry

@@ -1,0 +1,17 @@
+// CUBIT_SYNC_CLASSES fixture: the release chain in front of a `.STRONG` store and the acquire behind a `.STRONG` load.
+.entry release_acquire
+    .param u64 io
+    LDC.64 R4, c[0x0][0x380] ;
+    LDCU.64 UR6, c[0x0][0x358] ;
+    LDC R11, c[0x0][0x388] ;
+    MEMBAR.ALL.CTA ;
+    MEMBAR.ALL.GPU ;
+    ERRBAR ;
+    CGAERRBAR ;
+    STG.E.STRONG.GPU desc[UR6][R4.64], R11 ;
+    LDG.E.STRONG.GPU R8, desc[UR6][R4.64] ;
+    CCTL.IVALL ;
+    IADD3 R9, PT, PT, R8, 0x1, RZ ;
+    STG.E desc[UR6][R4.64+0x8], R9 ;
+    EXIT ;
+.endentry

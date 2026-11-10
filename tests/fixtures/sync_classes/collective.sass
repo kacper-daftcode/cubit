@@ -1,0 +1,26 @@
+// CUBIT_SYNC_CLASSES fixture: a `shfl.sync` as nvcc emits it -- the fast path behind `BRA.DIV`, the collective
+// fallback out of line behind the EXIT, returning with a backward branch.
+.entry collective
+    .param u64 io
+    LDC R4, c[0x0][0x380] ;
+    LDC.64 R2, c[0x0][0x388] ;
+    LDCU.64 UR8, c[0x0][0x358] ;
+    UMOV UR4, 0xffffffff ;
+    BRA.DIV UR4, L_slow ;
+    SHFL.IDX PT, R8, R4, RZ, 0x1f ;
+L_join:
+    IADD3 R9, PT, PT, R8, 0x1, RZ ;
+    MOV R4, R9 ;
+    STG.E desc[UR8][R2.64], R9 ;
+    EXIT ;
+L_slow:
+    MOV R16, RZ ;
+    MOV R17, 0x1f ;
+    MOV R10, 0xffffffff ;
+    MOV R21, R4 ;
+    WARPSYNC.COLLECTIVE R10, L_c ;
+L_c:
+    SHFL.IDX P6, R8, R4, R16, R17 ;
+    ENDCOLLECTIVE ;
+    BRA L_join ;
+.endentry

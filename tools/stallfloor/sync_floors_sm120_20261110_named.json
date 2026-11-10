@@ -1,0 +1,113 @@
+{
+ "run": "block pr-cs-1, 2026-11-10 10:29Z; test host, 4x NVIDIA RTX PRO 6000 Blackwell Server Edition, GPU 0, 400 W, clocks.sm 2 355-2 362 MHz; probe kernel `p_named` of sync_probes.cu (nvcc 13.0, sm_120a), 32 CTAs x 1024 threads, 20 launches per variant; wrong = threads whose checksum differs from the reference kernel's (ptxas's own schedule); -1 = launch fault, -2 = no return (process killed)",
+ "arch": "sm_120",
+ "harness": "v7 synchronisation words (2026-11-10)",
+ "reps": 20,
+ "geometry": {
+  "p_named": [
+   32,
+   1024
+  ]
+ },
+ "references": {
+  "p_named": "ok (32767 distinct checksums of 32768 threads)"
+ },
+ "floors": {
+  "named_arv": 1,
+  "named_sync_lds": 6
+ },
+ "variants": {
+  "named_arv_S01": {
+   "group": "named_arv",
+   "x": 1,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "named_arv_S02": {
+   "group": "named_arv",
+   "x": 2,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "named_arv_S03": {
+   "group": "named_arv",
+   "x": 3,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "named_arv_S04": {
+   "group": "named_arv",
+   "x": 4,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "named_arv_S05": {
+   "group": "named_arv",
+   "x": 5,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "named_arv_S06": {
+   "group": "named_arv",
+   "x": 6,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": true
+  },
+  "named_arv_S08": {
+   "group": "named_arv",
+   "x": 8,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "named_sync_S01": {
+   "group": "named_sync_lds",
+   "x": 1,
+   "wrong": 327680,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "named_sync_S02": {
+   "group": "named_sync_lds",
+   "x": 2,
+   "wrong": 327680,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "named_sync_S03": {
+   "group": "named_sync_lds",
+   "x": 3,
+   "wrong": 327680,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "named_sync_S04": {
+   "group": "named_sync_lds",
+   "x": 4,
+   "wrong": 327680,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "named_sync_S05": {
+   "group": "named_sync_lds",
+   "x": 5,
+   "wrong": 327680,
+   "of": 655360,
+   "identical_to_reference": false
+  },
+  "named_sync_S06": {
+   "group": "named_sync_lds",
+   "x": 6,
+   "wrong": 0,
+   "of": 655360,
+   "identical_to_reference": true
+  }
+ },
+ "skipped": 0
+}

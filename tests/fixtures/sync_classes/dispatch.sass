@@ -1,0 +1,26 @@
+// CUBIT_SYNC_CLASSES fixture: a register-indirect dispatch (`BRX` through a jump table), reuse flags of ptxas's
+// schedule on the text, and an async copy whose address comes straight from a load.
+.entry dispatch
+    .param u64 io
+    LDC.64 R2, c[0x0][0x380] ;
+    LDC R20, c[0x0][0x388] ;
+    LDCU.64 UR8, c[0x0][0x358] ;
+    MOV R6, RZ ;
+    IADD3 R7, PT, PT, R20.reuse, 0x1, RZ ;
+    IADD3 R8, PT, PT, R20.reuse, 0x2, RZ ;
+    IMAD R9, R20, R7, RZ ;
+    SHF.L.U32 R21, R20, 0x2, RZ ;
+    LDC R50, c[0x2][R21] ;
+    BRX R50 -0xa0 ;
+L_a:
+    MOV R6, R7 ;
+    BRA L_j ;
+    MOV R6, R8 ;
+    BRA L_j ;
+L_j:
+    LDS.64 R4, [R6+0x100] ;
+    IADD3 R10, PT, PT, R9, R6, RZ ;
+    LDGSTS.E.BYPASS.128 [R10], desc[UR8][R4.64] ;
+    STG.E desc[UR8][R2.64], R9 ;
+    EXIT ;
+.endentry

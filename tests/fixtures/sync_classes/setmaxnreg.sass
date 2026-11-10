@@ -1,0 +1,10 @@
+// CUBIT_SYNC_CLASSES fixture: setmaxnreg -- the register-pool allocation's predicate and its retry branch.
+.entry setmaxnreg
+    .param u64 io
+    USETMAXREG.DEALLOC.CTAPOOL 0x20 ;
+L_retry:
+    USETMAXREG.TRY_ALLOC.CTAPOOL UP0, 0x68 ;
+    BRA.U !UP0, L_retry ;
+    MOV R8, 0x1 ;
+    EXIT ;
+.endentry

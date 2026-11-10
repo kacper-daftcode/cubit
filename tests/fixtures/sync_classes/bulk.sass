@@ -1,0 +1,21 @@
+// CUBIT_SYNC_CLASSES fixture: a bulk copy global -> shared, its commit, the copy-group wait; scoreboard 0 is the group's.
+.entry bulk
+    .param u64 io
+    LDC.64 R2, c[0x0][0x380] ;
+    LDCU.64 UR4, c[0x0][0x388] ;
+    LDCU.64 UR8, c[0x0][0x358] ;
+    S2UR UR5, SR_CgaCtaId ;
+    UMOV UR7, 0x400 ;
+    ULEA UR42, UR5, UR7, 0x18 ;
+    UMOV UR6, 0x1000 ;
+    FENCE.VIEW.ASYNC.S ;
+    UBLKCP.S.G [UR42], [UR4], UR6 ;
+    UMOV UR6, 0x2000 ;
+    UTMACMDFLUSH ;
+    LDG.E R4, desc[UR8][R2.64] ;
+    LDGDEPBAR ;
+    DEPBAR.LE SB0, 0x0 ;
+    IADD3 R5, PT, PT, R4, 0x1, RZ ;
+    STG.E desc[UR8][R2.64+0x8], R5 ;
+    EXIT ;
+.endentry

@@ -1,0 +1,17 @@
+[B------:R-:W0:Y:S04] LDC.64 R2, c[0x0][0x380] ;
+[B------:R-:W1:Y:S04] LDCU.64 UR4, c[0x0][0x388] ;
+[B------:R-:W1:Y:S04] LDCU.64 UR8, c[0x0][0x358] ;
+[B------:R-:W2:-:S01] S2UR UR5, SR_CgaCtaId ;
+[B------:R-:W-:-:S05] UMOV UR7, 0x400 ;
+[B--2---:R-:W-:-:S05] ULEA UR42, UR5, UR7, 0x18 ;
+[B------:R-:W-:-:S05] UMOV UR6, 0x1000 ;
+[B------:R-:W-:-:S01] FENCE.VIEW.ASYNC.S ;
+[B------:R-:W-:-:S05] UBLKCP.S.G [UR42], [UR4], UR6 ;
+[B------:R-:W-:-:S05] UMOV UR6, 0x2000 ;
+[B------:R-:W-:Y:S01] UTMACMDFLUSH ;
+[B01----:R-:W2:Y:S04] LDG.E R4, desc[UR8][R2.64] ;
+[B------:R-:W-:Y:S01] LDGDEPBAR ;
+[B------:R-:W-:Y:S01] DEPBAR.LE SB0, 0x0 ;
+[B--2---:R-:W-:-:S07] IADD3 R5, PT, PT, RZ, 0x1, R4 ;
+[B------:R-:W-:-:S04] STG.E desc[UR8][R2.64+0x8], R5 ;
+[B------:R-:W-:-:S05] EXIT ;

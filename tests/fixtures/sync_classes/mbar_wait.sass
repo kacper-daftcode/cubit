@@ -1,0 +1,12 @@
+// CUBIT_SYNC_CLASSES fixture: the spin form of an mbarrier wait and the arrive behind it.
+.entry mbar_wait
+    .param u64 io
+    LDC.64 R4, c[0x0][0x380] ;
+    LDC R7, c[0x0][0x388] ;
+L_poll:
+    SYNCS.PHASECHK.TRANS64.TRYWAIT P0, [R4+URZ], R7 ;
+    @!P0 BRA L_poll ;
+    SYNCS.ARRIVE.TRANS64.A1T0 RZ, [R4+URZ], RZ ;
+    IADD3 R4, PT, PT, R4, 0x8, RZ ;
+    EXIT ;
+.endentry
