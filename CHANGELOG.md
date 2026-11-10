@@ -6,6 +6,25 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
 
 ## Unreleased — 2026-11-10 (session T-26: the review queue — the B300 latency model of pull request 3; `USETMAXREG` measured and the SM120 async idioms document from the megakernel branch; the first batch of the B300 lane's candidate forms on sm103a / sm100a)
 
+- **`cubit asm` on sm_120, opt-in: `CUBIT_SCHED2` with the scoreboard arming rule, a pair-latency table enforced on every control-flow path
+  (`CUBIT_SCHED2_LAT=sm120`), ptxas's MMA discipline (`CUBIT_MMA_PTXAS=1`)** (`49f8340`, the sm_120 scheduler session's commit). `CUBIT_SCHED2=1`
+  built the production attention kernel wrong on silicon: its yield rule put the yield flag on a scoreboard producer one cycle in front of
+  its waiter (`MUFU.EX2 [W:Y:S01]` / `FSEL [B]`), and the waiter read the stale register — measured in isolation on MUFU / SHFL / LDC / LDS
+  setters (655 360 of 655 360 thread-runs wrong; clean without the yield, at S02, or with one instruction between); a waiter is now never
+  closer than two issue cycles behind the instruction that set its barrier (`CUBIT_SCHED2_NOARM=1` = the old schedule). With
+  `CUBIT_SCHED2_LAT` the fixed-latency dependencies are priced per (producer class, consumer class, operand role) pair from
+  `tables/dep_latency_sm120.json` (533 cells: ptxas's practice in the sm_120 census, checked on sm_120 silicon; arch-locked — refused against
+  another architecture's ISA table) by a forward min-distance dataflow on the final instruction list (`src/dep_stall.rs`), so a consumer at a
+  branch target or behind a join can no longer sit below its latency; a requirement stalls cannot reach fails the assembly.
+  `CUBIT_DEP_VERIFY=1` / `CUBIT_DEP_CELLS=<file>` are the read-only forms. **Without a switch nothing changes**: the 99 production sources
+  assemble byte-identically and the attention build is the pinned one (the push gate's checks). `tests/sched2_dep_latency.rs` (11) + 5 unit
+  tests; the scheduler session's own CHANGELOG / KNOWN_ISSUES text and its stall-floor harness follow in its next commit.
+- **A report of 2026-09-18 pinned as a test** (`979365c`, `tests/sm120_omma_uri_split.rs`; reported by ComradePenguin-1917 in pull request 2
+  and blackwell-isa pull request 1): the SM120 OMMA block-scale operand `URi` is an eight-bit register number split across `ureg` [62:60] +
+  `ureg_shr3` [77:73] (255 = `URZ`); in September the table declared one four-bit field and the printer assigned each slice instead of
+  merging them. Both were fixed in October from measurement (blackwell-isa `fcb8132` / `59561b2`, cubit `94489ed`); the test holds the
+  report's cases — every OMMA key × `UR0`..`UR63`, `URZ` (1 040 texts, each word named the same by nvdisasm 13.1), the `.reuse` at bit 51,
+  the `CS2R` / `CS2UR` system-register reads.
 - **`sched`: per-class dependency latency (cost-model schema 2; pull request 3, `94e7dae`).** A cost file may carry `dep_latency_cy` — rows
   (producer class, consumer kind) → cycles — and `dep_latency_default_cy`; a RAW edge is then priced from the producer's *start*
   (`avail(consumer) = start(producer) + L`, the semantics of the stall-floor measurement), ordering edges (WAR / WAW / memory chain) carry no
