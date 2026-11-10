@@ -93,7 +93,7 @@ const EXCEPTIONS: &[(&str, &str, &str)] = &[
     ("SYNCS_R_AURI_R", "ARRIVE,RED,TRANS64", "bit 40 outside the fields moves operand 2 of the same form: 'SYNCS.ARRIVE.TRANS64.RED R16, [UR32+0x1], R48'"),
     ("SYNCS_R_AURI_R", "ARRIVE,TRANS64", "field bit 72 (sub_ur0 tok 2) is text-inert"),
     ("USETMAXREG_II", "CTAPOOL,DEALLOC", "field bit 42 (imm tok 1) is text-inert"),
-    ("USETMAXREG_UP_II", "CTAPOOL,TRY_ALLOC", "field bit 15 (pred tok 1) moves guard 0: 'USETMAXREG.TRY_ALLOC.CTAPOOL UP0, 0x25a'"),
+    ("USETMAXREG_UP_II", "CTAPOOL,TRY_ALLOC", "re-measured since: rows-hidden-b300-usetmaxreg-try-alloc-2026-11-08 (a candidate form of the B300 measurement lane, taken on 2026-11-10 -- complete-word fixture tests/hidden_b300_usetmaxreg_try_alloc.rs); this pass had found: field bit 15 (pred tok 1) moves guard 0: 'USETMAXREG.TRY_ALLOC.CTAPOOL UP0, 0x25a'"),
     ("UTCCP_II_II", "128dp128bit,2CTA,S,T", "bit 56 outside the fields moves operand 1 of the same form: 'UTCCP.T.S.2CTA.128dp128bit tmem[UR0+0x10000], gdesc[UR0]'"),
     ("UTCCP_II_II", "128dp128bit,S,T", "bit 56 outside the fields moves operand 1 of the same form: 'UTCCP.T.S.128dp128bit tmem[UR0+0x10000], gdesc[UR0]'"),
     ("UTCCP_II_II", "2CTA,2x64dp128bit_lw01_lw23,S,T", "bit 56 outside the fields moves operand 1 of the same form: 'UTCCP.T.S.2CTA.2x64dp128bit_lw01_lw23 tmem[UR0+0x10000], gdesc[UR0]'"),

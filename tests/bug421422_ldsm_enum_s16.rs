@@ -158,6 +158,22 @@ fn t421_4_structure_census() {
             expected_aruri.sort_unstable();
             expected_auri.sort_unstable();
         }
+        if leg == "sm100a" || leg == "sm103a" {
+            // 2026-11-10 (session T-26, batch 4 of the B300 measurement lane's candidates): the compressed-matrix loads
+            // LDSM.U4x16P64TO8 / .U6x16P32TO8 measured on sm103a / sm100a (hidden-b300/ldsm-unpack, hidden-b300/ldsm-m816-counts;
+            // tests/hidden_b300_ldsm_unpack.rs, hidden_b300_ldsm_m816_counts.rs). Every original group and check stays pinned.
+            expected_aruri.extend([
+                "2,M816,U4x16P64TO8", "2,M816,U6x16P32TO8", "4,M816,U4x16P64TO8", "4,M816,U6x16P32TO8",
+                "M816,U4x16P64TO8", "M816,U6x16P32TO8", "MT1616,U4x16P64TO8",
+            ]);
+            expected_auri.extend([
+                "2,M816,U4x16P64TO8", "2,M816,U6x16P32TO8", "4,M816,U4x16P64TO8", "4,M816,U6x16P32TO8",
+                "M816,U4x16P64TO8", "M816,U6x16P32TO8", "MT1616,U4x16P64TO8",
+                "MT1616,U6x16P32TO8",
+            ]);
+            expected_aruri.sort_unstable();
+            expected_auri.sort_unstable();
+        }
         assert_eq!(s1, expected_aruri, "[{leg}] ARURI mg-set drift");
         let mut s2 = auri.clone();
         s2.sort_unstable();
@@ -240,12 +256,12 @@ fn t421_5_source_pins_52cb73c() {
     let m: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     assert!(
-        m["base_revision"].as_str().unwrap().starts_with("05068b63fbed413edb967566c6c81a6764e3c23f") /* 2026-11-06 T-11 (was c258f8a, T-10) */, // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+        m["base_revision"].as_str().unwrap().starts_with("5629154c53c08aa91ec528226e0ac7bd65ad3d6a") /* 2026-11-06 T-11 (was c258f8a, T-10) */, // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
         "SOURCE.json must pin canonical 57e7ecd [was ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, 1810912 = 435+434 hop, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b, 3f6ca6f = BUG-425, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422] (BUG-442 graft F2-iter246 z atrybucja; ride-chain): {:?}",
         m["base_revision"]
     );
     // Current vendoring carries the unchanged historical graft at a new cut.
-    const CURRENT_VENDORED_CANON: &str = "05068b63fbed413edb967566c6c81a6764e3c23f" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "5629154c53c08aa91ec528226e0ac7bd65ad3d6a" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(m["base_revision"].as_str().unwrap(), CURRENT_VENDORED_CANON);
     assert_eq!(CANON421422, "9c0e4cec355119065444f59d0710de372b9d0577");
 }

@@ -136,6 +136,17 @@ fn t429_4_census_and_donor_shape() {
             .collect();
         got.sort();
         let mut expected = want.to_vec();
+        if leg == "sm100a" || leg == "sm103a" {
+            // 2026-11-10 (session T-26, batch 4 of the B300 measurement lane's candidates): the compressed-matrix
+            // loads LDSM.U4x16P64TO8 / .U6x16P32TO8 measured on this address form on sm103a / sm100a
+            // (hidden-b300/ldsm-unpack, hidden-b300/ldsm-m816-counts; tests/hidden_b300_ldsm_unpack.rs,
+            // hidden_b300_ldsm_m816_counts.rs). The original 15 groups and their donor assertions below stay pinned.
+            expected.extend([
+                "2,M816,U4x16P64TO8", "2,M816,U6x16P32TO8", "4,M816,U4x16P64TO8", "4,M816,U6x16P32TO8",
+                "M816,U4x16P64TO8", "M816,U6x16P32TO8", "MT1616,U4x16P64TO8",
+            ]);
+            expected.sort_unstable();
+        }
         if leg == "sm120" {
             // Independently measured byte-matrix x1/x2 closure. The original
             // 15 groups and their BUG-429 donor assertions below stay pinned.
@@ -233,7 +244,7 @@ fn t429_5_source_pins_52cb73c() {
         serde_json::from_str(&std::fs::read_to_string("tables/SOURCE.json").unwrap()).unwrap();
     // ride-after flip F2-iter240 (BUG-435+434 graft): 1810912 canonical (was 70eb0fe = BUG-416 F2-iter239, 52cb73c = BUG-425+425b F2-iter238, 616f185 = BUG-429 F2-iter237, a5e6d0a = BUG-427 F2-iter236, 2a631d5 = BUG-426 F2-iter235)
     assert!(
-        m["base_revision"].as_str().unwrap().starts_with("05068b63fbed413edb967566c6c81a6764e3c23f") /* 2026-11-06 T-11 (was c258f8a, T-10) */, // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
+        m["base_revision"].as_str().unwrap().starts_with("5629154c53c08aa91ec528226e0ac7bd65ad3d6a") /* 2026-11-06 T-11 (was c258f8a, T-10) */, // ride F2-iter278 (BUG-467 canonical graft 668f842; was 67b54f4 BUG-466)
         "SOURCE.json must pin canonical 57e7ecd [was ffa3244 = BUG-441, bb1ba6c = BUG-438, 54c5b02 = BUG-439, 3032686 = BUG-423, 61858fb = BUG-433, 0a6b178 = BUG-435+434+435b, 1810912 = 435+434 hop, 70eb0fe = BUG-416, 52cb73c = BUG-425+425b, 3f6ca6f = BUG-425, 616f185 = BUG-429, a5e6d0a = BUG-427, 2a631d5 = BUG-426, 291ed59b = BUG-424, 13e13b6 = BUG-421+422] (BUG-442 graft F2-iter246 z atrybucja; ride-chain): {:?}",
         m["base_revision"]
     );

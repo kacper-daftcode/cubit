@@ -68,7 +68,7 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
 - **Default path**: the 99 production sources re-assemble with identical `.text` and control words, the attention build with the
   switches off equals its pinned reference; `tests/sched2_dep_latency.rs` (11 tests, 9 red before the change) and 6 unit tests.
 
-## Unreleased — 2026-11-10 (session T-26: the review queue — the B300 latency model of pull request 3; `USETMAXREG` measured and the SM120 async idioms document from the megakernel branch; the sm_120 scheduler session's opt-in switches; the first three batches (35 refs) of the B300 lane's candidate forms on sm103a / sm100a; the scaled F2FP unpack on the four tables)
+## Unreleased — 2026-11-10 (session T-26: the review queue — the B300 latency model of pull request 3; `USETMAXREG` measured and the SM120 async idioms document from the megakernel branch; the sm_120 scheduler session's opt-in switches; the first four batches (42 refs) of the B300 lane's candidate forms on sm103a / sm100a; the scaled F2FP unpack on the four tables)
 
 - **`cubit asm` on sm_120, opt-in: `CUBIT_SCHED2` with the scoreboard arming rule, a pair-latency table enforced on every control-flow path
   (`CUBIT_SCHED2_LAT=sm120`), ptxas's MMA discipline (`CUBIT_MMA_PTXAS=1`)** (`49f8340`, the sm_120 scheduler session's commit). `CUBIT_SCHED2=1`
@@ -121,6 +121,33 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   sign-bit fallback any more (`tests/sm120_usetmaxreg.rs`). `nvprobe.nvdisasm_text` accepts nvdisasm's second rejection spelling
   (`undefined value … for table 'TABLES_opex_0'`) as an illegal word.
 
+- **Tables vendored from blackwell-isa `5629154`: batch 4 of the B300 measurement lane's candidates** (seven more of the review refs
+  `hidden-b300/*` — the ones of the lane's first days, 7–8 November, that change no engine code; 42 of the 68 refs are taken; sm103a
+  533 → 534 forms, 37 366 → 37 418 rows; sm100a 532 → 533, 37 360 → 37 412; sm120 / sm121a unchanged). **Rows without `_src`: sm103a /
+  sm100a 339 → 338** (`USETMAXREG.TRY_ALLOC.CTAPOOL UPd, count` re-measured: guard, UPd [83:81], the ten-bit count — after the constant
+  bits under its fields were cleared the row is, field for field, the row SM120 carries from its own measurement of 2026-11-08).
+  Forms added: **the compressed-matrix loads `LDSM.U4x16P64TO8` / `LDSM.U6x16P32TO8 Rd, [addr]`** on the three address forms — the `M816`
+  shape ×1 / ×2 / ×4 on both datatypes, `MT1616` on U4 and, with a uniform-only address, on U6 (22 rows from two refs; four rows the
+  second ref measured again are kept once, under the first ref's tag); **`F2FP.<E2M1|E3M2|S2_6>.F32.PACK_AB_MERGE_C Rd, Ra, Rb, Rc`**
+  with `SATFINITE` / `RELU` / `RS` (24 rows; the two E2M1 forms SM120 has measured since 2026-10-22 carry the same bits);
+  **`STSM.8.MT168 [addr], Rs`** ×1 / ×2 / ×4 on the register and the register + uniform address forms. Each with its complete-word
+  fixture and test (`tests/hidden_b300_<name>.rs`); text and CPU round trips, no execution claim. **Brought to the measured-row form by
+  the gatekeeper (blackwell-isa `5629154`, no change of the measurement):** the 24 pack-merge rows carried the whole control code [127:105]
+  in their mask next to the fields — the mask is the fields now (decoding unchanged: the control code is stripped before a word is
+  matched); the `USETMAXREG` row's constant bits cleared under its fields. **Known and left:** each pack-merge form sits under two group
+  names with identical bits — the sorted one and the vendor's modifier order — because on these two tables the decoder and encoder go
+  through the vendor-order name (as for the harvest E4M3 / E5M2 pairs already there; SM120 has the sorted name alone); one pass over the key
+  removes the fourteen pairs. **Not taken: `hidden-b300/movm`** — its six rows leave the bits outside their fields open in the mask and
+  its fixture adopts 534 text-inert words whose text assembles to a different word; a measured row fails closed on those bits. Returned to
+  the lane. **Pins moved to the batch:** the three pack-merge tests each required the other two types to stay unclaimed and
+  unassemblable (now: a sibling's measured word prints the vendor text through the sibling's row, never through a group of the candidate
+  under test; 4 / 8 / 8 such words); the second LDSM ref's tag counts its fourteen own rows; a field's own `_src` reads "absent or equal"
+  (the canonical layout writes a tag once per level); the legacy censuses of the LDSM groups (`bug426`, `bug429`) carry the lane's
+  compressed-matrix groups on sm103a / sm100a (22 / 22 / 23 groups) next to the original fifteen. **Gatekeeper check:** the ten fixtures
+  named again with nvdisasm 13.1 on a second host, every word on `-b SM103` and `-b SM100` — 35 100 word / target pairs: 30 808 texts
+  identical, 4 290 without text on both, and one word that 13.1 names `F2FP.SATFINITE.E0M3.F32.PACK_AB_MERGE_C` where the lane's 13.3
+  prints no line (unclaimed either way); on the 53 rows taken per table the mask is the fields' bits, the constant bits are clear under
+  it and carry no control bit.
 - **The scaled F2FP unpack on the four tables — `F2FP.BF16.<E2M1|E2M3|E3M2|E4M3|E5M2>[.RELU][.SATFINITE].UNPACK_B Rd, Rs, Rscale.<sel>`
   (opcode 0x63e; tables vendored from blackwell-isa `05068b6`: batch 3 of the B300 lane's candidates + the same rows measured for SM120 /
   SM121A).** The unpack of a low-precision pair to bf16 with an E8M0 block scale taken from a register: the scale selector [26:24] is
