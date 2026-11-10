@@ -19,7 +19,7 @@ const ALIAS_KEYS: &[(&str, &str)] = &[
 /// Rows of the family's mnemonics that stay without `_src` (key, group, reason) -- the probe's verdict names each.
 const EXCEPTIONS: &[(&str, &str, &str)] = &[
     ("ELECT_P_UR_P", "", "field bit 1 (pred tok 3) moves complex None: 'PREEXIT'"),
-    ("UFLO_UR_UR", "U32", "cubit mishandles the row's words (not tagged; T-23): field word bit 63: cubit 'UFLO.U32 UR16, UR32' re-encode mismatch:000fe200080e000000000020001072bd for 'UFLO.U32 UR16, ~UR32'"),
+    ("UFLO_UR_UR", "U32", "re-measured since: rows-uflo-production-2026-11-08 (a candidate form of the B300 measurement lane, taken on 2026-11-10 -- complete-word fixture tests/hidden_b300_*.rs); this pass had found: cubit mishandles the row's words (not tagged; T-23): field word bit 63: cubit 'UFLO.U32 UR16, UR32' re-encode mismatch:000fe200080e000000000020001072bd for 'UFLO.U32 UR16, ~UR32'"),
     ("UIMAD_UR_UP_UR_II_UR", "U32,WIDE", "field bit 84 (pred tok 2) is text-inert"),
     ("UIMAD_UR_UP_UR_UR_UR", "U32,WIDE", "field bit 84 (pred tok 2) is text-inert"),
     ("UIMAD_UR_UR_II_UR", "U32", "cubit mishandles the row's words (not tagged; T-23): field word bit 75: cubit 'UIMAD UR32, UR48, 0x5a5a5a5a, -UR64' re-encode mismatch:000fe2000f8e0a405a5a5a5a302078a4 for 'UIMAD.U32 UR32, UR48, 0x5a5a5a5a, -UR64'"),

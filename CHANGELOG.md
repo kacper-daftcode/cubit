@@ -4,7 +4,7 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
-## Unreleased — 2026-11-10 (session T-26: the review queue — the B300 latency model of pull request 3; `USETMAXREG` measured and the SM120 async idioms document from the megakernel branch; the first batch of the B300 lane's candidate forms on sm103a / sm100a)
+## Unreleased — 2026-11-10 (session T-26: the review queue — the B300 latency model of pull request 3; `USETMAXREG` measured and the SM120 async idioms document from the megakernel branch; the sm_120 scheduler session's opt-in switches; the first two batches (33 refs) of the B300 lane's candidate forms on sm103a / sm100a)
 
 - **`cubit asm` on sm_120, opt-in: `CUBIT_SCHED2` with the scoreboard arming rule, a pair-latency table enforced on every control-flow path
   (`CUBIT_SCHED2_LAT=sm120`), ptxas's MMA discipline (`CUBIT_MMA_PTXAS=1`)** (`49f8340`, the sm_120 scheduler session's commit). `CUBIT_SCHED2=1`
@@ -56,6 +56,31 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   sign-bit fallback any more (`tests/sm120_usetmaxreg.rs`). `nvprobe.nvdisasm_text` accepts nvdisasm's second rejection spelling
   (`undefined value … for table 'TABLES_opex_0'`) as an illegal word.
 
+- **Tables vendored from blackwell-isa `c3b2d5e`: batch 2 of the B300 measurement lane's candidates** (23 more of the review refs
+  `hidden-b300/*` — the ones without engine changes on the bases of 8–9.11; sm103a 517 → 533 forms, 35 894 → 37 346 rows; sm100a 516 → 532,
+  35 888 → 37 340; sm120 / sm121a unchanged). **Rows without `_src`: sm103a / sm100a 357 → 339** — eighteen harvest rows per table are
+  re-measured by the lane (`F2F.F16.F32` plain / `.RM` / `.RP`, `FCHK P, R, UR`, twelve `HSETP2` groups incl. two dual-immediate ones,
+  `SYNCS.ARRIVE.TRANS64.RED.A0TR`, `UFLO.U32`): exactly the rows whose defects session T-23 had named as exceptions (a sign / abs /
+  half-selector bit outside the fields moving an operand, a 9-bit uniform field, a predicate field at the wrong position).
+  Forms added: `BMSK Rd, Ra, Rb|URb`, `BMSK.W`, `UBMSK` (UR / immediate), `UBREV`, `UFLO` (the four `SH` / `U32` groups);
+  `F2F.BF16.F16` / `F2F.F16.BF16`; `F2F.F16.F32` with the sign fields, the three rounding modes and the four `FTZ` rows; the `FSET.BF`
+  comparison family on the three operand forms `R, R, R` / `R, R, FIMM` / `R, R, UR` (96 groups each); **`HSETP2` complete on the register,
+  uniform and dual-immediate forms** (384 groups each; the register and uniform rows are, group for group, the rows SM120 carries from its
+  own measurement of 2026-11-06 — the only difference is the lane's fail-closed list on the unused reuse bits); `FMNMX3.NAN`; plain
+  `VHMNMX`; `I2I.S8.S32.SAT`, `I2IP.S8.S32.SAT`, `I2FP.F32.U32.RZ`; `R2UR.OR P, UR, R`; `SHF R, R, R, UR` (left / right). Each with its
+  complete-word fixture and test (`tests/hidden_b300_<name>.rs`); text and CPU round trips, no execution claim.
+  **A change of meaning on sm103a / sm100a to know about: a bare `HSETP2` register operand and `.H0_H0` are different words** —
+  `HSETP2.GEU.AND P1, PT, R9, R24, PT` (selector 0) and `… R9.H0_H0, R24.H0_H0 …` (selector 2) are both named by nvdisasm (13.1 and 13.3,
+  `-b SM103` / `SM100` / `SM120`) exactly as written; until now the two spellings encoded to the same word (the harvest rows baked selector
+  2, the printer added `.H0_H0` as a default notation). Compiler output always carries the suffix, so the B300 corpus is unchanged;
+  hand-written text that relied on the bare spelling meaning `.H0_H0` must say `.H0_H0` (`tests/bug272_enopsuffix.rs`, re-pinned to the
+  five measured words; `tests/b9_ptx_lower.rs`: `HSETP2.GTU` assembles now, the PTX lowering of the f16 / bf16 `setp` forms stays refused).
+  **How the batch was taken:** as batch 1 (row deltas, pins re-derived); three pins of the lane's tests that describe one candidate alone
+  moved to the batch (`F2F_R_R` has ten groups when the four F2F refs meet; the plain `BMSK` word next to `BMSK.W` decodes through the
+  sibling's row; the plain `R2UR` group next to `R2UR.OR` is `main`'s measured row); the six `sm103a` / `sm100a` `rows_{half,misc,uniform}`
+  tests of 2026-11-08 keep their fixtures, and the 18 exceptions per table the lane closed say `re-measured since: <tag>` in their reason
+  (`tests/sm120_rows_common.inc` then requires exactly that tag on the row). **Gatekeeper check:** all 65 676 fixture words (46 files)
+  named again with nvdisasm 13.1 on a second host — 64 426 texts identical, 1 250 without text on both, none different.
 - **Tables vendored from blackwell-isa `0f20ae6`: batch 1 of the B300 measurement lane's candidates** (the review refs `hidden-b300/*`,
   ten one-commit pairs measuring production forms of sm_103a / sm_100a with nvdisasm 13.3 on the B300 host; sm103a 514 → 517 forms,
   35 875 → 35 894 rows; sm100a 513 → 516, 35 869 → 35 888; sm120 / sm121a unchanged; rows without `_src` unchanged at 357 / 357 — every

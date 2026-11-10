@@ -107,9 +107,12 @@ fn t294_1_structure_adds_and_donors() {
     }
     for leg in ["sm100a", "sm103a"] {
         let t = tab(leg);
+        // hidden-b300 measured this exact production form; the other variants
+        // remain donor-only and must still be absent on these two tables.
+        assert!(t.entries.contains_key("I2I.S8.S32.SAT_R_R"));
         assert!(
-            !t.entries.keys().any(|k| k.starts_with("I2I.")),
-            "{leg}: donor carries the family"
+            !t.entries.keys().any(|k| k.starts_with("I2I.") && k != "I2I.S8.S32.SAT_R_R"),
+            "{leg}: an unmeasured I2I neighbour was admitted"
         );
     }
 }

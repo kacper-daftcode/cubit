@@ -195,24 +195,28 @@ fn t272_2_consumed_suffixes_vendor_exact() {
 
 #[test]
 fn t272_3_default_notations_stay() {
-    // HSETP* vendor default '.H0_H0' (printer law; corpus 100% of HSETP2
-    // records). Two row shapes, both must keep working:
+    // Fresh SM103/SM100 measurements distinguish bare selector zero from
+    // explicit .H0_H0 (selector two) on BOTH sources. Keep each exact instead
+    // of inheriting an alias from the old partial-table representation.
     let t = tab("sm103a");
-    //  (i) rows WITHOUT an hsel field (e.g. GEU mg) -- pure notation, word
-    //      equals the bare spelling (this is the (b)-class surface)
     let p_geu = enc(&t, "HSETP2.GEU.AND P1, PT, R9, R24, PT");
+    let p_geu_h0 = enc(&t, "HSETP2.GEU.AND P1, PT, R9.H0_H0, R24.H0_H0, PT");
+    assert_ne!(p_geu & M96, p_geu_h0 & M96, "GEU bare/H0_H0 are distinct");
     assert_eq!(
-        enc(&t, "HSETP2.GEU.AND P1, PT, R9.H0_H0, R24.H0_H0, PT"),
-        p_geu,
-        "HSETP2/GEU .H0_H0 default changed"
+        p_geu & M96,
+        0x000fc40003f2e0000000001809007234u128 & M96
     );
-    //  (ii) rows WITH an hsel field (e.g. GT mg, v1@61 on the source slot)
-    //      -- consumed by the field (candidate (a)); exact-word pin
-    let p_gt = enc(&t, "HSETP2.GT.AND P1, PT, R9, R24, PT");
     assert_eq!(
-        enc(&t, "HSETP2.GT.AND P1, PT, R9.H0_H0, R24.H0_H0, PT"),
-        p_gt | (1 << 61),
-        "HSETP2/GT .H0_H0 field value changed"
+        p_geu_h0 & M96,
+        0x000fc40003f2e8002000001809007234u128 & M96
+    );
+    assert_eq!(
+        enc(&t, "HSETP2.GT.AND P1, PT, R9, R24, PT") & M96,
+        0x000fc40003f240000000001809007234u128 & M96
+    );
+    assert_eq!(
+        enc(&t, "HSETP2.GT.AND P1, PT, R9.H0_H0, R24.H0_H0, PT") & M96,
+        0x000fc40003f248002000001809007234u128 & M96
     );
     // FFMA2 lane decorations (BUG-234 print law: row fields only carry
     // t2's non-default mods; t3/t4 defaults + t2 .HI_LO are pure vendor

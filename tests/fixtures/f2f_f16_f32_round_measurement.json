@@ -1,0 +1,337 @@
+{
+  "accepted_unnamed": 0,
+  "counts_per_target": {
+    "SM100": {
+      "adjacent_modifier": 13,
+      "control_plane": 87,
+      "negative": 219,
+      "other_family": 15,
+      "positive": 1914
+    },
+    "SM103": {
+      "adjacent_modifier": 13,
+      "control_plane": 87,
+      "negative": 219,
+      "other_family": 15,
+      "positive": 1914
+    }
+  },
+  "cross_target_rc_text_differences": [],
+  "cuda_contexts": 0,
+  "gpu_launches": 0,
+  "nvdisasm_sha256": "5842e6adf9e232c9503a804915f158a576473e542577c070da3be49390474140",
+  "nvdisasm_version": "nvdisasm: NVIDIA (R) CUDA disassembler\nCopyright (c) 2005-2026 NVIDIA Corporation\nBuilt on Tue_Jun_09_02:42:28_PM_PDT_2026\nCuda compilation tools, release 13.3, V13.3.73\nBuild cuda_13.3.r13.3/compiler.38244171_0\n",
+  "origins": {
+    "cubit": "9d7fad29cf23ee6e0a12811194d8460ae029d4f3",
+    "isa": "c374bad146afd10eb41aa1ccd793c09422e2ddfb"
+  },
+  "per_round": {
+    "RM": {
+      "canonical_zero_control_text": "F2F.F16.F32.RM R0, R0",
+      "canonical_zero_control_word": "00000000002048000000000000007304",
+      "counts": {
+        "adjacent_modifier": 5,
+        "control_plane": 29,
+        "negative": 73,
+        "other_family": 5,
+        "positive": 638
+      },
+      "generations": {
+        "base": 1,
+        "control_plane": 29,
+        "field": 525,
+        "ftz_sign": 3,
+        "reuse_control": 7,
+        "sign": 3,
+        "sign_guard": 45,
+        "sign_registers": 64,
+        "single_lower_bit": 73
+      },
+      "text_inert_lower_bits": [
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        81,
+        82,
+        83,
+        87,
+        88,
+        89,
+        90,
+        92,
+        93,
+        94,
+        95
+      ]
+    },
+    "RP": {
+      "canonical_zero_control_text": "F2F.F16.F32.RP R0, R0",
+      "canonical_zero_control_word": "00000000002088000000000000007304",
+      "counts": {
+        "adjacent_modifier": 4,
+        "control_plane": 29,
+        "negative": 73,
+        "other_family": 5,
+        "positive": 638
+      },
+      "generations": {
+        "base": 1,
+        "control_plane": 29,
+        "field": 525,
+        "ftz_sign": 3,
+        "reuse_control": 7,
+        "sign": 3,
+        "sign_guard": 45,
+        "sign_registers": 64,
+        "single_lower_bit": 72
+      },
+      "text_inert_lower_bits": [
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        81,
+        82,
+        83,
+        87,
+        88,
+        89,
+        90,
+        92,
+        93,
+        94,
+        95
+      ]
+    },
+    "RZ": {
+      "canonical_zero_control_text": "F2F.F16.F32.RZ R0, R0",
+      "canonical_zero_control_word": "000000000020c8000000000000007304",
+      "counts": {
+        "adjacent_modifier": 4,
+        "control_plane": 29,
+        "negative": 73,
+        "other_family": 5,
+        "positive": 638
+      },
+      "generations": {
+        "base": 1,
+        "control_plane": 29,
+        "field": 525,
+        "ftz_sign": 3,
+        "reuse_control": 7,
+        "sign": 3,
+        "sign_guard": 45,
+        "sign_registers": 64,
+        "single_lower_bit": 72
+      },
+      "text_inert_lower_bits": [
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        81,
+        82,
+        83,
+        87,
+        88,
+        89,
+        90,
+        92,
+        93,
+        94,
+        95
+      ]
+    }
+  },
+  "plain_source_observations": 58,
+  "plain_source_unique": 44,
+  "prior_inventory": {
+    "path": "/root/sm103a/pubwave/hidden-b300/current-residuals/out/summary.json",
+    "reused_without_repeating_k31_audit": true,
+    "sha256": "54e3b1c44580a6f30266779029cb54d3ac1cb1f50facf3189219db8f9756c137"
+  },
+  "raw_records": 4496,
+  "raw_sha256": "f71033c7dc9ab47ba9e2d620adc826671e89c3c65cf75e46e145ce1d91ab02f7",
+  "requested_unique_words": 2248,
+  "rounded_source_observations": 0,
+  "scope": "all 16 H survey fixtures; fresh complete F2F.F16.F32 RM/RP/RZ operand/sign lattice",
+  "source_tag": "rows-f2f-f16-f32-round-2026-11-09",
+  "sources": [
+    {
+      "path": "survey/fixtures/forms_undecodable_sm100a.jsonl",
+      "sha256": "3daf894779142f982a934e71755aa07d1bfff8b0a4c20d0c1f5a730d2a47c25b"
+    },
+    {
+      "path": "survey/fixtures/forms_undecodable_sm103a.jsonl",
+      "sha256": "7a58c24e63d7e95d82bbd4ed1bbba02fd1bd52122c195775aababb0d402452e6"
+    },
+    {
+      "path": "survey/fixtures/ptx_probe_forms_sm103a.jsonl",
+      "sha256": "47a33fbf673ed334a7e4173de8d967664f4bebb8fefb61ef01dd4ea939855610"
+    },
+    {
+      "path": "survey/fixtures/rt_batched_gemm_sm100f.jsonl",
+      "sha256": "636ca994dabd01a24fdf6232f98b918e091a376862be03b1f8228bd26e5ceebf"
+    },
+    {
+      "path": "survey/fixtures/rt_batched_gemm_sm103a.jsonl",
+      "sha256": "112bb7063b3a9b73e019c97436b1259e94cd05f7b6688b1f227ce347c1c96a0c"
+    },
+    {
+      "path": "survey/fixtures/rt_deep-gemm_sm_100.jsonl",
+      "sha256": "385ef25e5ec5481ea2ec6efe79c56fe0fb7fc076d7e788b6a30db73a8f781fe6"
+    },
+    {
+      "path": "survey/fixtures/rt_fmha_sm100a.jsonl",
+      "sha256": "522b12ed844f99a2a3d817b3feee9f681cea400bd07df6516570ee8eff93af96"
+    },
+    {
+      "path": "survey/fixtures/rt_fmha_sm100f.jsonl",
+      "sha256": "63407a523544777d7d52aa9e790df6a65f948fa59e3d6c20bdb4b242a08c5fe9"
+    },
+    {
+      "path": "survey/fixtures/rt_fmha_sm103a.jsonl",
+      "sha256": "73a29374ba7af6de47732b0fc2082567084b80af0adaaf9eca117f4b0a3c4689"
+    },
+    {
+      "path": "survey/fixtures/rt_gemm_sm100f.jsonl",
+      "sha256": "8547371d4d90e57b1ffc59877f546928ae185e202866856e3245e63034b5da3f"
+    },
+    {
+      "path": "survey/fixtures/rt_ref_dgjit_sm_103.jsonl",
+      "sha256": "22df9c0113e525b46d797ee0461b3efe6881ca7684a013bf80787c2fa78c51b5"
+    },
+    {
+      "path": "survey/fixtures/rt_ref_so_sm_100.jsonl",
+      "sha256": "17427e158825d351508527dc7cd3c549e6c3d2495899ce0b16290efdf7700b2d"
+    },
+    {
+      "path": "survey/fixtures/rt_ref_torch_sm_100.jsonl",
+      "sha256": "b283dbf8664b397cef82cadc21b7c5560af0381a87b1cde9dd00bf47cd9d38d2"
+    },
+    {
+      "path": "survey/fixtures/rt_ref_torch_sm_100a.jsonl",
+      "sha256": "8bd7bca92cf80f35be35675b61fd87da5b787f865eafc6035b05cd782e9b4106"
+    },
+    {
+      "path": "survey/fixtures/rt_ref_torch_sm_103.jsonl",
+      "sha256": "db16f4c0305f13ce28976eee924941051739182f3ed6177a9b4843641b3ec269"
+    },
+    {
+      "path": "survey/fixtures/rt_ref_vllm_sm_100.jsonl",
+      "sha256": "c60a8074617548fca93bc5014e7511d386c02e72628c52c61c02566b2fc0095f"
+    }
+  ]
+}

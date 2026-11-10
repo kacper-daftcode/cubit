@@ -2497,8 +2497,8 @@ fn b9p18_setp_b16_zee_law() {
 
 #[test]
 fn b9p18_setp_f16_fail_closed() {
-    // vector + bf16 forms: no vendor-anchored sm_103a lowering (tables lack
-    // the dual-pred lane rows; BF16 cmp groups absent) -> aggregate unsupported.
+    // vector + bf16 forms: no vendor-anchored sm_103a lowering route;
+    // measured table support alone must not enable these PTX paths.
     for snippet in [
         "setp.gt.f16x2 %p1|%p2, %r1, %r2;",
         "setp.gt.bf16 %p1, %rs1, %rs2;",
@@ -2542,11 +2542,14 @@ fn b9p18_setp_f16_fail_closed() {
             assert!(lower_kernel(&k[0]).is_err(), "unordered f16 cmp must fail closed: {}", t);
         }
     }
-    // GTU table surface stays tight: no mod group -> encode must fail
+    // Keep the PTX lowering fail-closed, but do not confuse it with the
+    // independently measured GTU SASS table surface (HIDDEN-B300 HSETP2).
     let tab = table();
     let insn = cubit::parser::parse_sass("HSETP2.GTU.AND P0, PT, R4.H0_H0, R7.H0_H0, PT", 0).expect("parse");
-    assert!(cubit::encoder::encode_instruction(&insn, &tab).is_err(),
-        "GTU group absent -> encode fail-closed");
+    let encoded = cubit::encoder::encode_instruction(&insn, &tab)
+        .expect("freshly licensed GTU table group");
+    assert_eq!(encoded & 0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFFu128,
+               0x000fc40003f0c8002000000704007234u128 & 0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFFu128);
 }
 
 #[test]

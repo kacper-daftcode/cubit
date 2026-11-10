@@ -286,9 +286,22 @@ fn the_rows_are_measured_and_the_shadowed_keys_are_aliases() {
         }
         if status == "exception" || status == "harvest" || status == "canonical_illegal" {
             // a row the probe leaves, named (its reason is in the record and in EXCEPTIONS): still harvest
-            assert!(EXCEPTIONS.iter().any(|(k, g, _)| *k == key && *g == group), "{key} {group}: exception not listed");
+            let listed = EXCEPTIONS
+                .iter()
+                .find(|(k, g, _)| *k == key && *g == group)
+                .unwrap_or_else(|| panic!("{key} {group}: exception not listed"));
             if let Some(g) = ins.get(key).and_then(|e| e["mod_groups"].get(group)) {
-                assert!(g["_src"].is_null(), "{key} {group}: a named exception carries a tag");
+                // T-26 (2026-11-10): an exception a LATER measurement closed says so in its reason -- it starts with
+                // `re-measured since: <tag>` -- and the row then carries exactly that tag (its own, else its key's:
+                // tools/tablefmt.py hoists a tag every row of a key shares). The fixture record stays what this
+                // pass found; the reason keeps the finding after the tag.
+                if let Some(rest) = listed.2.strip_prefix("re-measured since: ") {
+                    let tag = rest.split_whitespace().next().unwrap();
+                    let have = g["_src"].as_str().or_else(|| ins[key]["_src"].as_str());
+                    assert_eq!(have, Some(tag), "{key} {group}: the tag of a re-measured exception");
+                } else {
+                    assert!(g["_src"].is_null(), "{key} {group}: a named exception carries a tag");
+                }
             }
             continue;
         }
