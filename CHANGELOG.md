@@ -81,7 +81,7 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   `tests/sched2_dep_latency.rs` with the schedule the parent built pinned next to it (three stalls 4 → 5); all four are red on the
   previous table. The default path does not read the table.
 
-## Unreleased — 2026-11-10 (session T-27: `CUBIT_VERIFY` checks the read barriers of stores on every path — three unprotected store → overwriter pairs of a production kernel had passed as "0 broken WAR"; batch 6 of the B300 lane's candidate forms on sm103a / sm100a — `QMUL4` and `QADD4` with their operand selectors (55 refs taken); a test of the suite that failed at random)
+## Unreleased — 2026-11-10 (session T-27: `CUBIT_VERIFY` checks the read barriers of stores on every path — three unprotected store → overwriter pairs of a production kernel had passed as "0 broken WAR"; batches 6 and 7 of the B300 lane's candidate forms on sm103a / sm100a — `QMUL4` / `QADD4` with their operand selectors, the uniform-source `VIMNMX3` forms, one more scaled F2FP form (57 of 69 refs taken); a test of the suite that failed at random)
 
 - **`CUBIT_VERIFY` checks the read barriers of stores on every path of the flow graph** (`src/store_paths.rs`; lines `STORE PATH: …` and
   `CUBIT_VERIFY_PATHS: N …`, `VerifyReport.store_paths`; read-only). A store reads its address and data registers when the memory pipe
@@ -104,6 +104,29 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   four registers). `tests/store_paths_verify.rs` (the frozen listing of `v43b` as the fixture: the three pairs, the unchanged bytes,
   the report's counts) + 4 unit tests. **Not fixed here: the allocator itself** — `war_overwriter` looks for the next iteration's
   overwriter along the same text, which is why the wait was placed where only the non-final iterations pass (KNOWN_ISSUES A30).
+- **Tables vendored from blackwell-isa `6bb25fa`: batch 7 of the B300 measurement lane's candidates — the uniform-source `VIMNMX3` forms
+  and `F2FP.SATFINITE.E4M3.F16.UNPACK_B_MERGE_C`** (`hidden-b300/vimnmx3` and the lane's 69th review ref
+  `hidden-b300/f2fp-e4m3-f16-unpack-merge-c`, published on 2026-11-10; 57 of the 69 refs are taken; sm103a 37 530 → 37 538 rows, sm100a
+  37 524 → 37 532, forms unchanged; sm120 / sm121a unchanged; rows without `_src` unchanged, 336). **`VIMNMX3[.U32|.U16x2|.S16x2][.RELU]
+  Rd, Ra, URb, Rc, Pd`** (opcode 0xc0f): seven new groups on `VIMNMX3_R_R_UR_R_P` — the integer / packed type and `RELU`, the predicate
+  with its negation, reuse on `Ra` and `Rc`. The plain group is the row measured on 2026-11-07; the candidate's row has the same
+  `and_base`, mask and fields, so the measured row and its tag stay and it gains the one thing the candidate adds: **the reuse flag of the
+  uniform operand (bit 123) is refused** — the row decoded a word with that bit to the plain text, and nvdisasm 13.1 refuses the word on
+  `-b SM103` and `-b SM100` with an empty and with a production control word. **`F2FP.SATFINITE.E4M3.F16.UNPACK_B_MERGE_C Rd, Rs,
+  Rc[.H1]`** (0x23e; one new group on `F2FP_R_R_R`; 194 production observations / 189 distinct words; no engine change; its test runs as
+  the lane wrote it). **Engine — the vimnmx3 candidate's own change, as written** (7 lines): `VIMNMX3` among the decoder's opcodes
+  without a sign-tolerant fallback, and the printer puts its type modifier in front of `RELU` (`VIMNMX3.U32.RELU`); sm120 / sm121a have
+  no `VIMNMX3` key. **The gatekeeper's checks.** The engine differential — 1 692 763 words (every row of the four tables and the
+  sign-window words of the `VIMNMX3` keys; engine and tables before the batch against after): 1 660 043 identical, 27 848 refused by
+  both, **4 872 differ, every one a word of `VIMNMX3_R_R_UR_R_P` that had no row before** (the measured register form
+  `VIMNMX3_R_R_R_R_P` does not move; nothing on sm120 / sm121a). nvdisasm 13.1 on all 4 872: the 1 338 without a reuse flag print the
+  vendor's text and round-trip; the 3 534 with one are refused in the list's empty control word and print the vendor's text and
+  round-trip with a production control word (3 492 distinct). The fixtures named again with nvdisasm 13.1 on both targets: `VIMNMX3`
+  1 444 word / target pairs, 1 362 identical, 82 without text on both, 0 different; the two F2FP files 6 616 pairs, 4 430 identical,
+  2 184 without text on both, and one neighbour word (opcode 0x22c) on both targets that nvdisasm 13.3 names `CLMAD.HI` and 13.1 does
+  not. **Pins moved to `main`'s layout, none of the measurement:** the lane's source counts its seven new `VIMNMX3` rows (it declares
+  eight: the plain one is the measured row), that group keeps its tag and the tags of its own fields, a field's own `_src` reads
+  "absent or equal".
 - **Tables vendored from blackwell-isa `1fb517a`: batch 6 of the B300 measurement lane's candidates — `QMUL4` and `QADD4`** (two more of the
   review refs `hidden-b300/*`, `qmul4` and `qadd4`; 55 of the 68 refs are taken; sm103a 545 → 549 forms, 37 524 → 37 530 rows; sm100a
   544 → 548, 37 518 → 37 524; the rows of sm120 / sm121a unchanged; rows without `_src` unchanged, 336). Forms added (6 rows per table):

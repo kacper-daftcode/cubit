@@ -1149,6 +1149,10 @@ fn format_opcode(base: &str, mod_group: &str, key: &str) -> String {
 /// the legacy register-form F2I_R_R rows keep their alphabetical/priority
 /// prints (gold-locked pre-125 renders — do NOT unify silently).
 fn mod_priority_for_key(base: &str, _key: &str, m: &str) -> u8 {
+    // VIMNMX3 prints its scalar/packed integer type before the independent clamp.
+    if base == "VIMNMX3" && matches!(m, "U32" | "U16x2" | "S16x2") {
+        return 4;
+    }
     // BUG-226d: IDP prints the accumulate form before the low/high selector
     // (vendor `IDP.2A.LO.U16.U8`, never `IDP.LO.2A...`, 27 corpus witnesses).
     if base == "IDP" && (m == "2A" || m == "4A") {

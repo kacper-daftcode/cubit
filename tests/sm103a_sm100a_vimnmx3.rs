@@ -166,11 +166,19 @@ fn the_rows_are_measured_and_no_field_sits_in_the_opcode() {
         let raw: Value = serde_json::from_slice(&cubit::table::read_table_bytes(path).unwrap()).unwrap();
         let ins = raw["instructions"].as_object().unwrap();
         let mut tagged = 0u64;
+        // 2026-11-10 (batch 7 of the B300 lane's candidates, hidden-b300/vimnmx3): the typed / RELU groups of the
+        // uniform-source key are the lane's measured rows under its own tag (tests/hidden_b300_vimnmx3.rs); the
+        // three rows of this file are unchanged, the plain uniform row with the refusal of bit 123 added
+        let mut lane = 0u64;
         for (key, e) in ins {
             if !key.starts_with("VIMNMX3") {
                 continue;
             }
             for (name, g) in e["mod_groups"].as_object().unwrap() {
+                if key == "VIMNMX3_R_R_UR_R_P" && !name.is_empty() && g["_src"] == "hidden-b300-vimnmx3-ur-2026-11-07" {
+                    lane += 1;
+                    continue;
+                }
                 assert_eq!(g["_src"], SOURCE, "{path}: {key} {name}");
                 assert!(ROWS.iter().any(|(k, gn, _)| k == key && gn == name), "{path}: {key} {name}: a row the probe did not see");
                 for f in g["fields"].as_array().unwrap() {
@@ -183,6 +191,7 @@ fn the_rows_are_measured_and_no_field_sits_in_the_opcode() {
             }
         }
         assert_eq!(tagged, ROWS.len() as u64, "{path}: tagged rows");
+        assert_eq!(lane, 7, "{path}: the lane's uniform-source rows");
         // 2026-11-09 (T-25): T-23's per-row pass on -b SM103 / SM100 (blackwell-isa ddac54d / 21fc69a) tagged the rest of
         // the integer ALU's long tail with the same `rows-intalu-2026-11-07` tag -- the legend counts every row of the tag
         // on the table (the three VIMNMX3 rows among them), read here over the whole table
