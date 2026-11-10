@@ -27,11 +27,10 @@ Guards are active by default; the ones that shape how you write SASS:
   `STS`→`LDS` ordering.
 - **Carry-in negation lives on `.X` forms** — a negated carry-in that has no
   bit in the selected form is a hard error, never a silent downgrade.
-- **A wide IMAD's pairs start on even registers (SM120)** — `IMAD.WIDE[.U32] Rd, [Pn,] Ra, Rb, Rc` computes
-  `Rd:Rd+1 = Ra * Rb + Rc:Rc+1`; an odd `Rc` or an odd `Rd` faults the launch (CUDA 715, measured in the
-  4-operand and in the 5-operand `PT` spelling — one machine word) and is a hard error. With a real carry-out
-  predicate (`Pn` ≠ `PT`: another word) an odd pair is not measured: it assembles with a warning. The even
-  idiom is silent.
+- **A wide IMAD's pairs start on even registers (SM120)** — `IMAD.WIDE[.U32][.X] Rd, [Pn,] Ra, Rb, Rc[, Pcin]` computes
+  `Rd:Rd+1 = Ra * Rb + Rc:Rc+1`; an odd `Rd`, an odd register `Rc` or an odd uniform `URc` (the uniform addend is a
+  pair too) faults the launch (CUDA 715, measured in every form: 4-operand and `PT` spelling, with a real carry-out
+  predicate, with a carry-in, with a uniform addend) and is a hard error. The even idiom is silent.
 - **Frozen `DEPBAR`/`MEMBAR` keep their control word** — fully-static barrier
   classes retain the `[B:R:W:Y:S]` prefix on re-encode.
 - **REGCOUNT follows driver legality** — clamped to the 255 hardware maximum;

@@ -850,7 +850,6 @@ fn check_native_imad_hi_modifiers(
 /// BUG-008 shape detector: a wide IMAD on sm_120 in either spelling --
 /// `IMAD.WIDE[.U32][.X] Rd, Ra, Rb, Rc` or `IMAD.WIDE[.U32][.X] Rd, Pn, Ra, Rb, Rc`
 /// (the carry-out spelling; with `PT` it is the 4-operand machine word, bit for bit).
-/// Returns `(Rd, Some(Rc))`, or `(Rd, None)` when the addend is RZ or an immediate.
 ///
 /// A wide IMAD computes `Rd:Rd+1 = Ra * Rb + Rc:Rc+1`: the c operand and the
 /// destination are 64-bit register PAIRS named by their base register -- the
@@ -872,10 +871,22 @@ fn check_native_imad_hi_modifiers(
 /// DESTINATION pair with an even addend (`IMAD.WIDE.U32 R13, PT, R0, 0x10000, R8`),
 /// which had been a warning. Both are refused by `check_imad_wide_odd_pair`.
 ///
-/// The third value: a REAL carry-out predicate (`P0`..`P6`) stands behind the destination.
-/// That is another machine word than the measured one (the predicate field), and what an odd
-/// pair does in it is not measured: it is warned about, not refused.
-fn imad_wide_pairs(insn: &Instruction, table: &IsaTable) -> Option<(u8, Option<u8>, bool)> {
+/// Measured 2026-11-10, second set (`tools/ra/gen_carry_probes.py`, results
+/// `tools/ra/carry_probes_sm120_20261110.json`; 16 kernels, the first set's pair
+/// `imadw_c_b8` exact / `imadw_c_b9` 715 again as the harness's proof): the pair
+/// law does not depend on the form --
+///
+/// * a REAL carry-out predicate: `IMAD.WIDE.U32 R12, P0, R6, 0x10000, R9` -> 715,
+///   `IMAD.WIDE.U32 R13, P0, R6, 0x10000, R8` -> 715 (even controls: the product);
+/// * the carry-in form: `IMAD.WIDE.U32.X R12, R6, 0x10000, R9, P0` -> 715,
+///   `IMAD.WIDE.U32.X R13, R6, 0x10000, R8, P0` -> 715 (controls: sum + carry-in);
+/// * a uniform addend: `IMAD.WIDE.U32 R13, R6, R7, UR6` -> 715, and the uniform
+///   addend is a 64-bit pair itself: `IMAD.WIDE.U32 R12, R6, R7, UR7` -> 715
+///   (control with UR6: pair(UR6:UR7) + a*b).
+///
+/// Returns `(Rd, register addend, uniform addend)`; an addend is `None` when it
+/// is RZ / URZ, an immediate, or the other kind.
+fn imad_wide_pairs(insn: &Instruction, table: &IsaTable) -> Option<(u8, Option<u8>, Option<u8>)> {
     if insn.opcode != "IMAD" || !insn.modifiers.iter().any(|m| m == ".WIDE") {
         return None;
     }
@@ -895,15 +906,13 @@ fn imad_wide_pairs(insn: &Instruction, table: &IsaTable) -> Option<(u8, Option<u
     if srcs.len() < 3 {
         return None;
     }
-    let c = match srcs[srcs.len() - 1] {
-        Operand::Reg { num, .. } if *num != 255 => Some(*num),
-        _ => None,
+    // the addend is the last source: a register pair, or a uniform pair (`Rd, Ra, Rb, URc`)
+    let (c, uc) = match srcs[srcs.len() - 1] {
+        Operand::Reg { num, .. } if *num != 255 => (Some(*num), None),
+        Operand::UReg { num, is_zero: false, .. } => (None, Some(*num)),
+        _ => (None, None),
     };
-    let carry = matches!(
-        insn.operands.get(1),
-        Some(Operand::Pred { num, .. } | Operand::UPred { num, .. }) if *num < 7
-    );
-    Some((d, c, carry))
+    Some((d, c, uc))
 }
 
 /// BUG-132: reject when the lookup chain's selected row cannot express every
@@ -1320,22 +1329,11 @@ pub fn errata_warnings(insn: &Instruction, table: &IsaTable) -> Vec<String> {
     // BUG-008: a wide IMAD's destination and addend are 64-bit pairs named by their
     // base register (`Rd:Rd+1 = Ra * Rb + Rc:Rc+1`) -- the spelling nvcc emits for every
     // 64-bit address computation, so the even-register idiom is not reported. An odd
-    // base of either pair is refused by check_imad_wide_odd_pair (both measured to
-    // fault). CUBIT_NOTE_IDIOMS=1 prints an informational note for the even idiom.
-    if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() {
-        if let Some((d, c, carry)) = imad_wide_pairs(insn, table) {
-            let odd = d % 2 == 1 || c.is_some_and(|c| c % 2 == 1);
-            if carry && odd {
-                // a real carry-out predicate: another word than the measured one
-                out.push(format!(
-                    "{:?}: a wide IMAD's destination and addend are 64-bit register pairs, and a pair \
-                     on an ODD register faults on sm_120 silicon in the word without a carry-out \
-                     predicate (BUG-008: CUDA_ERROR_ILLEGAL_INSTRUCTION 715, addend and destination). \
-                     With a carry-out predicate the pair rule is not measured: this text assembles, \
-                     with this warning. Use even pairs.",
-                    insn.raw_text.trim()
-                ));
-            } else if let (Some(c), false, true) = (c, odd, std::env::var_os("CUBIT_NOTE_IDIOMS").is_some()) {
+    // base of any of its pairs is refused by check_imad_wide_odd_pair (measured to fault
+    // in every form). CUBIT_NOTE_IDIOMS=1 prints an informational note for the even idiom.
+    if std::env::var_os("CUBIT_DISABLE_ERRATA").is_none() && std::env::var_os("CUBIT_NOTE_IDIOMS").is_some() {
+        if let Some((d, Some(c), _)) = imad_wide_pairs(insn, table) {
+            if d % 2 == 0 && c % 2 == 0 {
                 out.push(format!(
                     "note: {:?} accumulates the 64-bit pair R{c}:R{} (IMAD.WIDE pair idiom, \
                      as nvcc spells it); the text names the pair by its base register.",
@@ -1628,19 +1626,29 @@ fn check_atom_desc_pair_parity_sm103(insn: &Instruction, table: &IsaTable) -> Re
 /// The even spelling is nvcc's own idiom (23 339 destinations and 18 437 addends
 /// in the sm_120 census, none odd) and encodes silently; an odd pair is refused
 /// here (CUBIT_DISABLE_ERRATA keeps the escape hatch for RE tooling; decode stays
-/// full-fidelity). With a real carry-out predicate (`IMAD.WIDE Rd, P3, ...`) the word
-/// is another one and its pair rule is not measured: not refused, warned about.
+/// full-fidelity) -- in every form: with or without a carry-out predicate, the
+/// carry-in form, a register or a uniform addend (second probe set, see
+/// `imad_wide_pairs`).
 fn check_imad_wide_odd_pair(insn: &Instruction, table: &IsaTable) -> Result<()> {
-    // refused: the measured word (no carry-out predicate, or `PT`). A real carry-out predicate
-    // makes another word, whose pair rule is not measured (`errata_warnings` says so).
-    if let Some((d, c, false)) = imad_wide_pairs(insn, table) {
+    if let Some((d, c, uc)) = imad_wide_pairs(insn, table) {
+        if let Some(u) = uc.filter(|u| u % 2 == 1) {
+            anyhow::bail!(
+                "{:?}: IMAD.WIDE reads a uniform addend as the 64-bit uniform pair URc:URc+1 and an \
+                 ODD pair base faults on sm_120 silicon (BUG-008, measured 2026-11-10 on RTX PRO 6000 \
+                 Blackwell: `IMAD.WIDE.U32 R12, R6, R7, UR7` -> CUDA_ERROR_ILLEGAL_INSTRUCTION 715, the \
+                 same kernel with UR6 stores pair(UR6:UR7) + a*b). Here c = UR{u} (pair UR{u}:UR{}). \
+                 Use an even uniform register; CUBIT_DISABLE_ERRATA=1 assembles the word anyway (RE tooling).",
+                insn.raw_text.trim(), u + 1
+            );
+        }
         if let Some(c) = c.filter(|c| c % 2 == 1) {
             anyhow::bail!(
                 "{:?}: IMAD.WIDE reads c as the 64-bit register pair Rc:Rc+1 and an ODD pair base \
                  faults on sm_120 silicon (BUG-008, measured 2026-11-03 on RTX PRO 6000 Server \
                  Edition: `IMAD.WIDE.U32 R10, R4, R5, R7` -> CUDA_ERROR_ILLEGAL_INSTRUCTION 715, the \
                  same kernel with R6 stores pair(R6:R7) + a*b; 2026-11-10: the 5-operand spelling \
-                 `IMAD.WIDE.U32 R12, PT, R0, 0x10000, R9` faults alike -- it is the same word). \
+                 `IMAD.WIDE.U32 R12, PT, R0, 0x10000, R9` faults alike -- it is the same word -- and so \
+                 do the forms with a carry-out predicate and with a carry-in). \
                  Here c = R{c} (pair R{c}:R{}). Use an even base register or c = RZ; \
                  CUBIT_DISABLE_ERRATA=1 assembles the word anyway (RE tooling).",
                 insn.raw_text.trim(), c + 1
@@ -1651,7 +1659,8 @@ fn check_imad_wide_odd_pair(insn: &Instruction, table: &IsaTable) -> Result<()> 
                 "{:?}: IMAD.WIDE writes d as the 64-bit register pair Rd:Rd+1 and an ODD pair base \
                  faults on sm_120 silicon (BUG-008, measured 2026-11-10 on RTX PRO 6000 Blackwell: \
                  `IMAD.WIDE.U32 R13, PT, R0, 0x10000, R8` -> CUDA_ERROR_ILLEGAL_INSTRUCTION 715, the \
-                 same kernel with R12 stores the product; nvcc: 23 339 destinations in the sm_120 \
+                 same kernel with R12 stores the product; with a carry-out predicate, in the carry-in \
+                 form and with a uniform addend alike; nvcc: 23 339 destinations in the sm_120 \
                  census, none odd). Here the destination R{d} (pair R{d}:R{}) is odd. Use an even \
                  destination; CUBIT_DISABLE_ERRATA=1 assembles the word anyway (RE tooling).",
                 insn.raw_text.trim(), d + 1

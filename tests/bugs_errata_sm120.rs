@@ -222,8 +222,9 @@ fn bug007_stg_desc_words_decode_as_stg() {
 // was accepted with any c (this test pinned it; the full register allocation
 // produced 55 such words in the attention kernel and `asm` took them all) and
 // the odd destination was a warning. Both are refused now, in both spellings of
-// that word; with a real carry-out predicate (another word, unmeasured) an odd
-// pair assembles with a warning.
+// that word -- and, measured the same day by a second probe set, in every other
+// form: with a real carry-out predicate, in the carry-in form, with a uniform
+// addend (whose own pair must be even as well).
 // sm_103a (ptxas-faithful corpus) stays quiet.
 #[test]
 fn bug008_wide_cpair_even_silent_odd_c_refused() {
@@ -247,14 +248,34 @@ fn bug008_wide_cpair_even_silent_odd_c_refused() {
             && !e.contains("the 5-operand form"), "{e}");
     let e = enc_err(&t120(), "IMAD.WIDE.U32 R12, PT, R0, 0x10000, R9 ;");
     assert!(e.contains("c = R9 (pair R9:R10)"), "{e}");
-    // a real carry-out predicate makes ANOTHER word (the predicate field): what an odd pair does there is
-    // not measured -- the text assembles and warns (the measured-row test re-assembles such a field word)
-    for text in ["IMAD.WIDE.U32 R46, P2, R34, R35, R19 ;", "IMAD.WIDE.U32 R33, P3, R64, 0x5a5a5a5a, R24 ;"] {
-        assert_ne!(enc(&t120(), text), 0, "{text}");
-        let w = warns(&t120(), text);
-        assert!(w.iter().any(|m| m.contains("BUG-008") && m.contains("not measured")), "{text}: {w:?}");
+    // the pair law does not depend on the form: measured 2026-11-10 (second probe set, 715 each) with a real
+    // carry-out predicate, in the carry-in form and with a uniform addend -- whose pair must be even too
+    for text in [
+        "IMAD.WIDE.U32 R46, P2, R34, R35, R19 ;",        // odd addend, carry-out predicate
+        "IMAD.WIDE.U32 R33, P3, R64, 0x5a5a5a5a, R24 ;", // odd destination, carry-out predicate
+        "IMAD.WIDE.U32.X R12, R6, 0x10000, R9, P0 ;",    // odd addend, carry-in form
+        "IMAD.WIDE.U32.X R13, R6, 0x10000, R8, P0 ;",    // odd destination, carry-in form
+        "IMAD.WIDE.U32 R13, R6, R7, UR6 ;",              // odd destination, uniform addend
+        "IMAD.WIDE.U32 R12, R6, R7, UR7 ;",              // odd uniform addend pair
+        "IMAD.WIDE R12, R6, R7, UR7 ;",
+    ] {
+        let e = enc_err(&t120(), text);
+        assert!(e.contains("BUG-008") && e.contains("silicon") && e.contains("2026-11-10"), "{text}: {e}");
     }
-    assert!(warns(&t120(), "IMAD.WIDE.U32 R46, P2, R34, R35, R18 ;").is_empty());
+    assert!(enc_err(&t120(), "IMAD.WIDE.U32 R12, R6, R7, UR7 ;").contains("c = UR7 (pair UR7:UR8)"));
+    // their even forms assemble without a word (the probes' controls)
+    for text in [
+        "IMAD.WIDE.U32 R46, P2, R34, R35, R18 ;",
+        "IMAD.WIDE.U32 R12, P0, R6, 0x10000, R8 ;",
+        "IMAD.WIDE.U32.X R12, R6, 0x10000, R8, P0 ;",
+        "IMAD.WIDE.U32 R12, R6, R7, UR6 ;",
+        "IMAD.WIDE.U32 R12, R6, UR7, R8 ;", // a uniform MULTIPLIER is one register: any number
+    ] {
+        assert_ne!(enc(&t120(), text), 0, "{text}");
+        assert!(warns(&t120(), text).is_empty(), "{text}");
+    }
+    // sm_103a: no such guard (its own laws are check_wide_mem_reg_align_sm103's)
+    assert_ne!(enc(&t103a(), "IMAD.WIDE.U32 R12, R6, R7, UR7 ;"), 0);
     // odd destination: measured 2026-11-10 -> refused, in both spellings, with any addend
     for text in [
         "IMAD.WIDE.U32 R47, R34, 0x3d1, R18 ;",

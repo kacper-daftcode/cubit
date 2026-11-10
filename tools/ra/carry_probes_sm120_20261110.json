@@ -1,0 +1,195 @@
+{
+ "imadw_c_b8": {
+  "shape": "imadw_c",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   822569776,
+   2137449172,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "imadwp_c_b8": {
+  "shape": "imadwp_c",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "WRONG (32 words; thread 0 got ['0x23440000', '0x1', '0x0'] expected ['0x23440000', '0x1', '0x1']; deterministic True)",
+  "words_t0": [
+   591659008,
+   1,
+   0,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "imadwp_d_b12": {
+  "shape": "imadwp_d",
+  "base": 12,
+  "on_grid": true,
+  "verdict": "WRONG (32 words; thread 0 got ['0x23440000', '0x1', '0x0'] expected ['0x23440000', '0x1', '0x1']; deterministic True)",
+  "words_t0": [
+   591659008,
+   1,
+   0,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "imadwp_nc_b8": {
+  "shape": "imadwp_nc",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "WRONG (32 words; thread 0 got ['0x23440000', '0x2', '0x1'] expected ['0x23440000', '0x2', '0x0']; deterministic True)",
+  "words_t0": [
+   591659008,
+   2,
+   1,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "imadwu_c_b6": {
+  "shape": "imadwu_c",
+  "base": 6,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   591659008,
+   1,
+   0,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "imadwu_d_b12": {
+  "shape": "imadwu_d",
+  "base": 12,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   591659008,
+   1,
+   0,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "imadwx_c_b8": {
+  "shape": "imadwx_c",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   591659009,
+   1,
+   0,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "imadwx_c0_b8": {
+  "shape": "imadwx_c0",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   591659008,
+   1,
+   0,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "imadwx_d_b12": {
+  "shape": "imadwx_d",
+  "base": 12,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   591659009,
+   1,
+   0,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "imadw_c_b9": {
+  "shape": "imadw_c",
+  "base": 9,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "imadwp_c_b9": {
+  "shape": "imadwp_c",
+  "base": 9,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "imadwp_d_b13": {
+  "shape": "imadwp_d",
+  "base": 13,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "imadwu_c_b7": {
+  "shape": "imadwu_c",
+  "base": 7,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "imadwu_d_b13": {
+  "shape": "imadwu_d",
+  "base": 13,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "imadwx_c_b9": {
+  "shape": "imadwx_c",
+  "base": 9,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ },
+ "imadwx_d_b13": {
+  "shape": "imadwx_d",
+  "base": 13,
+  "on_grid": false,
+  "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
+  "words_t0": null
+ }
+}

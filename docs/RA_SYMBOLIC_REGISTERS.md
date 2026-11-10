@@ -109,9 +109,9 @@ CUDA_ERROR_ILLEGAL_INSTRUCTION (715): the addend and the destination of `IMAD.WI
 `STS.64` / `STS.128`, the address pair of `LDG` and `STG`, an odd uniform pair; MMA tuples per BUG-037.
 The vendor never leaves it: in 1 811 600 instructions of nvcc / ptxas output for sm_120 no
 multi-register operand of any kind is off the grid (`tools/ra/align_census_sm120.json`). **The assembler
-does not check it for you** — every one of the 38 probes assembled without a warning (KNOWN_ISSUES A28);
-`cubit roundtrip-strict` on the cubin catches the `IMAD.WIDE` addend only. Let the allocator place
-multi-register values, or keep to the grid by hand.
+checks it for the wide IMAD only** (BUG-008: an odd destination or addend pair is refused, in every form);
+the other 21 off-grid shapes of the probes assemble without a warning (KNOWN_ISSUES A28). Let the
+allocator place multi-register values, or keep to the grid by hand.
 
 Without `--target` the pass is the target-neutral one it always was: no grid, the role table's
 footprints (one register for a `desc` address, for `CS2R`, for `LDSM.2`), every write a kill. On sm_120

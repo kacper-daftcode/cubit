@@ -50,14 +50,18 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   times within ±0.3 % at every shape, as for two further numberings.
 - **The register grid of sm_120 is silicon law** (`tools/ra/`): 38 probe kernels, every multi-register operand off its grid
   faults the launch (CUDA 715) — 23 of 23, 15 shapes; ptxas is never off it in 1 811 600 census instructions.
-- **BUG-008: the wide IMAD's pairs are checked in both spellings, addend and destination.** The guard saw only the 4-operand
-  spelling: `IMAD.WIDE.U32 R10, PT, R4, R5, R7` assembled silently to the word that faults (and the message recommended
-  that spelling). The odd addend in the `PT` spelling and an odd destination pair are measured to fault and are hard errors now
-  (`CUBIT_DISABLE_ERRATA=1` assembles them for RE). With a real carry-out predicate (`Pn` ≠ `PT`: another word) an odd pair is
-  not measured and warns (the measured rows of the table re-assemble such field words; their eleven odd-destination words
-  without a carry-out predicate carry the `silicon_bits` mark in `tests/fixtures/sm120_rows_intalu_nvdisasm.jsonl` now, the
-  mark the row probe gives a field word the encoder refuses on a silicon law). The other 21 off-grid shapes still assemble:
-  KNOWN_ISSUES A28 (1).
+- **BUG-008: the wide IMAD's pairs are checked in every form — addend, destination, uniform addend.** The guard saw only
+  the 4-operand spelling: `IMAD.WIDE.U32 R10, PT, R4, R5, R7` assembled silently to the word that faults (and the message
+  recommended that spelling). Measured on silicon (two probe sets, `tools/ra/`): a pair on an odd register ends the launch
+  with CUDA 715 whatever the form — the odd addend in the `PT` spelling, an odd destination, both again with a real
+  carry-out predicate (`IMAD.WIDE.U32 R12, P0, …`) and in the carry-in form (`.X`), an odd destination with a uniform
+  addend, and an odd uniform addend pair (`IMAD.WIDE.U32 R12, R6, R7, UR7`). All are hard errors now
+  (`CUBIT_DISABLE_ERRATA=1` assembles them for RE). The measured rows of the table re-assemble such field words: the 32
+  that are refused now carry the `silicon_bits` mark in `tests/fixtures/sm120_rows_intalu_nvdisasm.jsonl` (the mark the
+  row probe gives a field word the encoder refuses on a silicon law; written by that rule, 784 field words of the 16
+  `IMAD.WIDE` rows re-assembled). Not decided: whether the predicate behind `Rd` is the carry of the 64-bit sum (the
+  probes' guard read it too early; `tools/ra/gen_carry_probes.py --set3` is the four kernels that tell). The other 21
+  off-grid shapes still assemble: KNOWN_ISSUES A28 (1).
 - `docs/RA_SYMBOLIC_REGISTERS.md`: how to write a generator with symbolic registers and what the pass guarantees.
   `tools/ra/ra_equiv.py`: an independent check of a renaming (its own footprints, liveness and control flow).
   Tests: `tests/ra_sm120_attention.rs`, `ra_sm120_target.rs`, `ra_sm120_target_cli.rs`.
