@@ -4610,6 +4610,32 @@ fn cmd_asm_directive_format(
         let mma_wait = (std::env::var("CUBIT_MMA_WAIT").is_ok()
             || std::env::var("CUBIT_SCHED2").is_ok())
             && std::env::var("CUBIT_NO_MMA_WAIT").is_err();
+        // CUBIT_MMA_PTXAS=1 (opt-in, with CUBIT_SCHED2 + CUBIT_SCHED2_LAT): ptxas's discipline for the
+        // warp-cooperative MMA chain as the sm_120 census shows it on 39 624 HMMA / QMMA -- the MMA
+        // waits its input barriers itself and issues at S01, NO `@!UPT UIADD3` drain follows it, and
+        // the result is synchronised by issue distance alone: two MMAs never closer than 16, the
+        // accumulate operand of the next MMA of a chain 29 after the previous one, any other reader
+        // 28 (the `mma` rows of the dependency-latency table; `dep_stall::apply` enforces them on
+        // every path). Two directly adjacent MMAs get one NOP between them to carry the 16 cycles
+        // (ptxas: `HMMA S15; NOP S01; HMMA`). Default: the drain scheme below, unchanged.
+        let mma_ptxas = std::env::var("CUBIT_MMA_PTXAS").ok().as_deref() == Some("1");
+        let dep_table = cubit::dep_stall::DepLatTable::from_env()?;
+        if dep_table.is_some() && std::env::var("CUBIT_SCHED2").is_err() {
+            anyhow::bail!("CUBIT_SCHED2_LAT needs CUBIT_SCHED2=1 (the table replaces SCHED2's per-opcode latencies)");
+        }
+        if mma_ptxas && dep_table.is_none() {
+            anyhow::bail!("CUBIT_MMA_PTXAS=1 needs CUBIT_SCHED2=1 CUBIT_SCHED2_LAT=<table>: without the legaliser nothing keeps the MMA distances");
+        }
+        if let Some(dt) = &dep_table {
+            // arch lock: latencies are measured per architecture (an sm_103a number is not an sm_120 number)
+            let sm = table.target_sm();
+            if !dt.arch_matches(sm) {
+                anyhow::bail!(
+                    "CUBIT_SCHED2_LAT: the dependency-latency table is for {} but the ISA table is SM{sm} -- latencies are measured per architecture",
+                    dt.arch
+                );
+            }
+        }
 
         // Post-scheduling: insert UIADD3 URZ drain before each warp MMA (QMMA/HMMA/…).
         // SM120 MMA wait_mask breaks warp-cooperative accumulation (each bit = 2x loss).
@@ -4719,7 +4745,9 @@ fn cmd_asm_directive_format(
                             // CUBIT_MMA_WAIT: ptxas runs the cooperative HMMA tight (small stall)
                             // and settles on the following NOP; default uses the heavy .max(11).
                             None => {
-                                if mma_wait {
+                                if mma_ptxas {
+                                    insn.ctrl.stall.max(1)
+                                } else if mma_wait {
                                     insn.ctrl.stall.max(2)
                                 } else {
                                     insn.ctrl.stall.max(11)
@@ -4736,7 +4764,7 @@ fn cmd_asm_directive_format(
                 // before the loop-exit store reads D. Too short a settle leaves the LAST-
                 // committed accumulator register (empirically R6/c2) stale on ~half the
                 // d-slices -> wrong output. Tunable via CUBIT_MMA_WAIT_STALL (default 13).
-                if mma_wait {
+                if mma_wait && !mma_ptxas {
                     let settle: u8 = std::env::var("CUBIT_MMA_WAIT_STALL")
                         .ok()
                         .and_then(|s| s.parse().ok())
@@ -5201,9 +5229,27 @@ fn cmd_asm_directive_format(
                         );
                     }
                 }
-                for idx in inserts.into_iter().rev() {
-                    for &s in drains.iter().rev() {
-                        insns_with_ctrl.insert(idx, wb_drain(s));
+                if !mma_ptxas {
+                    for idx in inserts.into_iter().rev() {
+                        for &s in drains.iter().rev() {
+                            insns_with_ctrl.insert(idx, wb_drain(s));
+                        }
+                    }
+                }
+                if let Some(dt) = &dep_table {
+                    // CUBIT_SCHED2_LAT: a pad where one stall field cannot carry a row of the table
+                    // between two text-adjacent instructions -- two MMAs back to back (16), an MMA
+                    // right in front of a reader of its result (28 / 29). With CUBIT_MMA_PTXAS no
+                    // writeback drain stands there (ptxas: `HMMA S15; NOP S01; HMMA`); with the drains
+                    // kept it only fires where none was inserted. "drain" in the text marks the pad
+                    // as an inserted instruction for the branch-target fixup below.
+                    for (idx, k) in cubit::dep_stall::pads_needed(&insns_with_ctrl, dt).into_iter().rev() {
+                        for _ in 0..k {
+                            let mut nop = cubit::parse_sass("NOP", 0)?;
+                            nop.hand_sched = false;
+                            nop.raw_text = "NOP /* MMA issue spacing (inserted pad, drain class) */".into();
+                            insns_with_ctrl.insert(idx, nop);
+                        }
                     }
                 }
                 for (i, insn) in insns_with_ctrl.iter_mut().enumerate() {
@@ -5417,10 +5463,87 @@ fn cmd_asm_directive_format(
         // distance); reallocate just fixes the load/store barriers. Legacy path keeps its own.
         if !fully_frozen {
             cubit::scheduling_pass::reallocate_barriers(&mut insns_with_ctrl, Some(table));
+            // CUBIT_SCHED2_LAT: the dependency-latency legaliser, on the final instruction list and
+            // the final barriers (a producer the allocator scoreboarded is not a fixed-latency one).
+            if dep_table.is_none() && std::env::var("CUBIT_SCHED2").is_ok() && std::env::var("CUBIT_SCHED2_NOARM").is_err() {
+                // Plain CUBIT_SCHED2: the scoreboard arming rule (a waiter never one cycle behind the
+                // instruction that set its barrier) -- RULE 2 put the yield flag on `MUFU [W:S01]` in
+                // front of its waiter and the waiter read the stale register on silicon.
+                let bt = cubit::dep_stall::DepLatTable::barriers_only(2);
+                let rep = cubit::dep_stall::apply(&mut insns_with_ctrl, &bt);
+                if rep.raised > 0 {
+                    println!("  {}: scoreboard arming: {} stalls raised by {} cycles", def.name, rep.raised, rep.added_cycles);
+                }
+            }
+            if let Some(dt) = &dep_table {
+                let rep = cubit::dep_stall::apply(&mut insns_with_ctrl, dt);
+                println!(
+                    "  {}: dep-latency ({}): {} stalls raised by {} cycles in {} rounds, {} pair classes priced with a default{}",
+                    def.name, dt.arch, rep.raised, rep.added_cycles, rep.rounds, rep.defaulted.len(),
+                    if rep.defaulted.is_empty() { String::new() } else { format!(": {}", rep.defaulted.join(", ")) }
+                );
+                if !rep.unresolved.is_empty() {
+                    for v in rep.unresolved.iter().take(12) {
+                        eprintln!("  ERROR [{}] dep-latency unresolved: {}", def.name, cubit::dep_stall::describe(&insns_with_ctrl, v));
+                    }
+                    anyhow::bail!(
+                        "{}: {} fixed-latency dependencies cannot be reached with stalls on the instructions between producer and consumer (padding needed)",
+                        def.name, rep.unresolved.len()
+                    );
+                }
+            }
         } else if std::env::var("CUBIT_VERIFY").is_ok() {
             // Preserve mode skips the allocator, but the read-only scoreboard verifier
             // still runs so hand-scheduled kernels report a CUBIT_VERIFY line.
             cubit::scheduling_pass::verify_scoreboard_public(&insns_with_ctrl, Some(table));
+        }
+
+        // CUBIT_DEP_VERIFY=1 (read-only; also on a [CC]-frozen kernel): every fixed-latency dependency
+        // below its latency of the table (CUBIT_SCHED2_LAT, default the bundled sm_120 table) on some
+        // control-flow path -- the fixed-latency half of the legality oracle with the pair table.
+        if std::env::var("CUBIT_DEP_VERIFY").is_ok() {
+            let dt = match &dep_table {
+                Some(t) => t.clone(),
+                None => cubit::dep_stall::DepLatTable::from_json(cubit::dep_stall::SM120_TABLE)?,
+            };
+            let viol = cubit::dep_stall::check(&insns_with_ctrl, &dt);
+            let cells = viol.iter().filter(|v| !v.defaulted && v.kind == "raw").count();
+            let arm = viol.iter().filter(|v| v.kind == "barrier-arm").count();
+            let res = viol.iter().filter(|v| v.kind != "raw").count() - arm;
+            let dflt = viol.iter().filter(|v| v.defaulted).count();
+            println!(
+                "  {}: DEP_VERIFY {} below a table cell, {} waits closer than the arming distance to their barrier's setter, {} below a resource spacing, {} below a default ({} instructions, table {})",
+                def.name, cells, arm, res, dflt, insns_with_ctrl.len(), dt.arch
+            );
+            let lim: usize = std::env::var("CUBIT_DEP_VERIFY").ok().and_then(|s| s.parse().ok()).filter(|n| *n > 1).unwrap_or(20);
+            for v in viol.iter().filter(|v| !v.defaulted && v.kind == "raw").take(lim) {
+                println!("    DEP cell {}", cubit::dep_stall::describe(&insns_with_ctrl, v));
+            }
+            for v in viol.iter().filter(|v| v.kind != "raw").take(lim) {
+                println!("    DEP res  {}", cubit::dep_stall::describe(&insns_with_ctrl, v));
+            }
+            for v in viol.iter().filter(|v| v.defaulted).take(lim) {
+                println!("    DEP dflt {}", cubit::dep_stall::describe(&insns_with_ctrl, v));
+            }
+        }
+
+        // CUBIT_DEP_CELLS=<file> (read-only): one JSON line per requirement of the table on this kernel
+        // -- producer / consumer index and class, operand role, need, the tightest distance the
+        // schedule gives it -- for the tools that weigh a schedule's cells by execution count.
+        if let Ok(path) = std::env::var("CUBIT_DEP_CELLS") {
+            use std::io::Write;
+            let dt = match &dep_table {
+                Some(t) => t.clone(),
+                None => cubit::dep_stall::DepLatTable::from_json(cubit::dep_stall::SM120_TABLE)?,
+            };
+            let mut f = std::fs::OpenOptions::new().create(true).append(true).open(&path)?;
+            for e in cubit::dep_stall::usage(&insns_with_ctrl, &dt) {
+                writeln!(
+                    f,
+                    "{{\"kernel\":\"{}\",\"prod\":{},\"cons\":{},\"pc\":\"{}\",\"cc\":\"{}\",\"role\":\"{}\",\"need\":{},\"have\":{},\"kind\":\"{}\",\"defaulted\":{}}}",
+                    def.name, e.producer, e.consumer, e.producer_class, e.consumer_class, e.role, e.need, e.have, e.kind, e.defaulted
+                )?;
+            }
         }
 
         // Encode instructions (use insns_with_ctrl.len() which may be larger after stall gap insertion)

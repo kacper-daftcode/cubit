@@ -1,0 +1,25 @@
+.entry resources
+    .reg R0-R31
+    .param u64 out
+    .param u32 a
+    .param u32 b
+    S2R R0, SR_TID.X ;
+    LDCU.64 UR4, c[0x0][0x358] ;
+    LDC.64 R2, c[0x0][0x380] ;
+    LDC R4, c[0x0][0x388] ;
+    LDC R5, c[0x0][0x38c] ;
+    SHF.L.U32 R6, R0, 0x2, RZ ;
+    LDS R8, [R6+0x0] ;
+    LDS R9, [R6+0x4] ;
+    LDS R10, [R6+0x8] ;
+    IMAD.WIDE.U32 R12, R0, R4, RZ ;
+    IMAD.WIDE.U32 R14, R0, R5, RZ ;
+    IMAD R16, R0, R4, RZ ;
+    IMAD R17, R0, R5, RZ ;
+    IADD3 R18, PT, PT, R8, R9, R10 ;
+    IADD3 R18, PT, PT, R18, R12, R14 ;
+    IADD3 R18, PT, PT, R18, R16, R17 ;
+    IMAD.WIDE.U32 R2, R0, 0x4, R2 ;
+    STG.E desc[UR4][R2.64], R18 ;
+    EXIT ;
+.endentry

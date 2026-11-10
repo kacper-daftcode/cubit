@@ -1,0 +1,43 @@
+.entry branch_target
+    .reg R0-R15
+    .param u64 out
+    S2R R0, SR_TID.X ;
+    LDCU.64 UR4, c[0x0][0x358] ;
+    LDC.64 R2, c[0x0][0x380] ;
+    ISETP.NE.U32.AND P1, PT, R0, RZ, PT ;
+    IADD3 R4, PT, PT, R0, 0x1, RZ ;
+    IADD3 R5, PT, PT, R0, 0x2, RZ ;
+    IADD3 R6, PT, PT, R0, 0x3, RZ ;
+    IADD3 R7, PT, PT, R0, 0x4, RZ ;
+    IADD3 R8, PT, PT, R0, 0x5, RZ ;
+    IADD3 R9, PT, PT, R0, 0x6, RZ ;
+    IADD3 R10, PT, PT, R0, 0x7, RZ ;
+    IADD3 R11, PT, PT, R0, 0x8, RZ ;
+    IADD3 R12, PT, PT, R0, 0x9, RZ ;
+    IADD3 R13, PT, PT, R0, 0xa, RZ ;
+    IADD3 R14, PT, PT, R0, 0xb, RZ ;
+    IADD3 R15, PT, PT, R0, 0xc, RZ ;
+    IADD3 R4, PT, PT, R4, 0x1, RZ ;
+    IADD3 R5, PT, PT, R5, 0x2, RZ ;
+    ISETP.LT.U32.AND P0, PT, R0, 0x10, PT ;
+    @P1 BRA skip ;
+    IADD3 R6, PT, PT, R6, 0x3, RZ ;
+    IADD3 R7, PT, PT, R7, 0x4, RZ ;
+    IADD3 R8, PT, PT, R8, 0x5, RZ ;
+    IADD3 R9, PT, PT, R9, 0x6, RZ ;
+    IADD3 R10, PT, PT, R10, 0x7, RZ ;
+    IADD3 R11, PT, PT, R11, 0x8, RZ ;
+    IADD3 R12, PT, PT, R12, 0x9, RZ ;
+    IADD3 R13, PT, PT, R13, 0xa, RZ ;
+    IADD3 R14, PT, PT, R14, 0xb, RZ ;
+    IADD3 R15, PT, PT, R15, 0xc, RZ ;
+    IADD3 R6, PT, PT, R6, 0x3, RZ ;
+    IADD3 R7, PT, PT, R7, 0x4, RZ ;
+    IADD3 R8, PT, PT, R8, 0x5, RZ ;
+    IADD3 R9, PT, PT, R9, 0x6, RZ ;
+skip:
+    @P0 IADD3 R3, PT, PT, R0, 0x2, RZ ;
+    IMAD.WIDE.U32 R2, R0, 0x4, R2 ;
+    STG.E desc[UR4][R2.64], R3 ;
+    EXIT ;
+.endentry

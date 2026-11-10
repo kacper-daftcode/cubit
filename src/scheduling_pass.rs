@@ -44,7 +44,7 @@ const STORE_OPERAND_READ_STALL: u8 = 4;
 // causing the loop to always use the stale P1 value (0 from ISETP) and run 0 times.
 const LATENCY_CARRY_PRED_BRANCH: u8 = 10;
 
-fn is_long_latency(op: &str) -> bool {
+pub(crate) fn is_long_latency(op: &str) -> bool {
     matches!(op,
         "LDG" | "LDL" | "LDS" | "LDC" | "LDCU" | "LDGX" | "LDSM" | "LDGSTS" |
         "LD"  | "LDGDEPBAR" |
@@ -70,7 +70,7 @@ fn is_udp_async_result(op: &str) -> bool {
     matches!(op, "UTCATOMSWS" | "LDTM")
 }
 
-fn is_store(op: &str) -> bool {
+pub(crate) fn is_store(op: &str) -> bool {
     matches!(op, "STG" | "STS" | "STL" | "ST" | "STGX")
 }
 
@@ -206,7 +206,7 @@ fn load_addr_key(insn: &Instruction) -> Option<(u16, i64)> {
     None
 }
 
-fn is_control_flow(op: &str) -> bool {
+pub(crate) fn is_control_flow(op: &str) -> bool {
     matches!(op, "EXIT" | "BRA" | "RET" | "BREAK" | "CONT" | "KILL" | "JMP" | "CALL" |
                  "BSSY" | "BSYNC" | "BBREAK" | "BMOV")
 }
@@ -287,7 +287,7 @@ fn insn_needs_write_bar(insn: &Instruction, table: Option<&IsaTable>, sched2: bo
 
 /// Warp-cooperative tensor-core MMA ops. On SM120 these all use the same
 /// writeback-sync path (no usable write_bar; stall + @!UPT drains).
-fn is_warp_mma(op: &str) -> bool {
+pub(crate) fn is_warp_mma(op: &str) -> bool {
     matches!(op, "QMMA" | "HMMA" | "IMMA" | "DMMA")
 }
 
@@ -447,7 +447,7 @@ fn store_precedes_backedge(insns: &[Instruction], i: usize) -> bool {
     false
 }
 
-fn branch_target(insn: &Instruction) -> Option<u32> {
+pub(crate) fn branch_target(insn: &Instruction) -> Option<u32> {
     // BUG-486: register-indirect control flow has no static target. `RET.REL.NODEC R2, 0x0`
     // returns to R2 + imm, `BRX R4, 0x10` / `JMX` dispatch through the register and
     // `CALL.ABS.NOINC 0x0` carries a relocation; their immediate must not resolve to an
@@ -744,8 +744,11 @@ fn sched2_branch_stall(insns: &[Instruction], i: usize) -> Option<u8> {
             if is_d { dmma = true; }
         }
         if low {
+            // `CUBIT_MMA_PTXAS=1`: the MMA -> consumer distances around the back-edge are the
+            // legaliser's (dep_stall), so the branch keeps the plain settle stall.
+            let dflt: u8 = if std::env::var("CUBIT_MMA_PTXAS").ok().as_deref() == Some("1") { 5 } else { 11 };
             let v: u8 = std::env::var("CUBIT_MMA_BACKEDGE").ok()
-                .and_then(|s| s.parse().ok()).unwrap_or(11);
+                .and_then(|s| s.parse().ok()).unwrap_or(dflt);
             return Some(v);
         }
         if dmma { return Some(8); }
@@ -845,12 +848,22 @@ struct SchedulerState {
     yield_lut: bool,
     /// RULE 2 disabled (CUBIT_SCHED2_NOYIELD=1): leave yields untouched (GPU on/off A/B).
     no_yield: bool,
+    /// `CUBIT_SCHED2_YIELD=loads`: the DEFAULT scheduler's yield policy under SCHED2's stalls --
+    /// loads / special-register reads / SHFL and the MMAs yield, nothing else does (no RULE 2).
+    /// The policy the attention kernel's SCHED2 stalls are bit-exact with on silicon (2026-11-10).
+    yield_loads: bool,
     /// CUBIT_SCHED2 RULE 1 safety margin (CUBIT_SCHED2_MARGIN, default 1). The deficit
     /// uses the LEARNED MODE latency, which under-predicts ~12% of RAW pairs (report 1d) —
     /// a stale read on cubit's fragile cooperative-MMA / dequant chains. A small +margin
     /// over-stalls (gap = L+margin) to stay on the safe side. margin=0 = pure mode latency
     /// (best diff, but breaks the MMA kernels); margin=1 is the correctness default.
     deficit_margin: usize,
+    /// `CUBIT_SCHED2_LAT` (with `CUBIT_SCHED2`): the fixed-latency RAW deficits are NOT charged
+    /// here on the instruction text — `dep_stall::apply` charges them after the barrier allocator
+    /// on the final instruction list, per pair of the latency table and on every control-flow
+    /// path. `schedule()` then leaves only the structural stalls (memory issue spacing, BAR,
+    /// branches, the store / load WAR margins).
+    dep_lat: bool,
     /// CUBIT_SCHED2: keep the load/store WAR-protection producer stalls (occupancy-safe
     /// gather-address / store-operand latch margin). ptxas protects these with read-
     /// barriers instead; cubit's rb pass does not yet cover every case, so the stalls are
@@ -891,7 +904,12 @@ impl SchedulerState {
             sched2: std::env::var("CUBIT_SCHED2").is_ok(),
             stage3: std::env::var("CUBIT_SCHED2").is_ok(),
             yield_lut: std::env::var("CUBIT_SCHED2_YIELD").ok().as_deref() == Some("lut"),
-            no_yield: std::env::var("CUBIT_SCHED2_NOYIELD").is_ok(),
+            no_yield: std::env::var("CUBIT_SCHED2_NOYIELD").is_ok()
+                || std::env::var("CUBIT_SCHED2_YIELD").ok().as_deref() == Some("loads"),
+            yield_loads: std::env::var("CUBIT_SCHED2").is_ok()
+                && std::env::var("CUBIT_SCHED2_YIELD").ok().as_deref() == Some("loads"),
+            dep_lat: std::env::var("CUBIT_SCHED2").is_ok()
+                && std::env::var("CUBIT_SCHED2_LAT").is_ok_and(|v| !v.is_empty() && v != "0"),
             mem_war_stall: std::env::var("CUBIT_SCHED2_NOMEMSTALL").is_err(),
             deficit_margin: std::env::var("CUBIT_SCHED2_MARGIN").ok()
                 .and_then(|s| s.parse().ok()).unwrap_or(1),
@@ -1039,7 +1057,7 @@ fn atom_access_regs(opcode_full: &str) -> u16 {
     }
 }
 
-fn dest_regs(insn: &Instruction) -> Vec<(bool, u16)> {
+pub(crate) fn dest_regs(insn: &Instruction) -> Vec<(bool, u16)> {
     let mut out = Vec::new();
     let op = insn.opcode.as_str();
     if is_store(op) || is_control_flow(op) || is_barrier_insn(op) {
@@ -1158,7 +1176,7 @@ fn dest_regs(insn: &Instruction) -> Vec<(bool, u16)> {
     out
 }
 
-fn src_regs(insn: &Instruction) -> Vec<(bool, u16)> {
+pub(crate) fn src_regs(insn: &Instruction) -> Vec<(bool, u16)> {
     let mut out = Vec::new();
     let op = insn.opcode.as_str();
     let is_mma = matches!(op, "QMMA" | "HMMA" | "IMMA" | "DMMA");
@@ -1720,7 +1738,7 @@ pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
         // CONSECUTIVE same-pipe loads (memory issue throughput) and lets isolated loads
         // run at S01. That spacing + the load yield are applied in the stage-3 end-block.
         if is_long_latency(op) && !is_store(op) {
-            if !st.stage3 {
+            if !st.stage3 || st.yield_loads {
                 insns[i].ctrl.yield_flag = true;
             }
             // Memory-issue / address-WAR margin (delays the overwriter so the load latches
@@ -2074,7 +2092,7 @@ pub fn schedule(insns: &mut [Instruction], table: Option<&IsaTable>) {
             } else {
                 // RULE 1: charge the binding RAW latency to the gap BEFORE the next
                 // instruction (the deficit), now that i (and all prior) are recorded.
-                let deficit = sched2_raw_deficit(insns, &st, i + 1, issue_clock);
+                let deficit = if st.dep_lat { 0 } else { sched2_raw_deficit(insns, &st, i + 1, issue_clock) };
                 let mut s = insns[i].ctrl.stall.max(deficit).max(1);
                 // Issue-throughput spacing: consecutive same-pipe ops (global/shared
                 // memory, IMAD.WIDE) are spaced regardless of data deps.

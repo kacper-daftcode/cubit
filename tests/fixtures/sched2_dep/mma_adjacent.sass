@@ -1,0 +1,27 @@
+.entry mma_adjacent
+    .reg R0-R79
+    .param u64 out
+    S2R R0, SR_TID.X ;
+    LDCU.64 UR4, c[0x0][0x358] ;
+    LDC.64 R2, c[0x0][0x380] ;
+    IMAD R76, R0, 0x0, RZ ;
+    IADD3 R77, PT, PT, R76, 0x200, RZ ;
+    LDSM.16.M88.4 R64, [R76+0x0] ;
+    LDS R72, [R77+0x0] ;
+    LDS R73, [R77+0x10] ;
+    LDSM.16.M88.4 R68, [R76+0x20] ;
+    LDS R74, [R77+0x20] ;
+    LDS R75, [R77+0x30] ;
+    HMMA.16816.F32.BF16 R28, R64, R72, RZ ;
+    LDSM.16.M88.4 R64, [R76+0x40] ;
+    LDS R72, [R77+0x40] ;
+    LDS R73, [R77+0x50] ;
+    HMMA.16816.F32.BF16 R28, R68, R74, R28 ;
+    HMMA.16816.F32.BF16 R32, R68, R74, RZ ;
+    HMMA.16816.F32.BF16 R28, R64, R72, R28 ;
+    FADD.FTZ R4, R28, R32 ;
+    FADD.FTZ R4, R4, R29 ;
+    IMAD.WIDE.U32 R2, R0, 0x4, R2 ;
+    STG.E desc[UR4][R2.64], R4 ;
+    EXIT ;
+.endentry

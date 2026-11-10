@@ -24,6 +24,7 @@
 
 pub mod ctrl_class;
 pub mod decoder;
+pub mod dep_stall;
 pub mod directives;
 pub mod eiattr;
 pub mod elf;

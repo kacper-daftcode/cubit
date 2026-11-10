@@ -1,0 +1,36 @@
+.entry join
+    .reg R0-R15
+    .param u64 out
+    S2R R0, SR_TID.X ;
+    LDCU.64 UR4, c[0x0][0x358] ;
+    LDC.64 R2, c[0x0][0x380] ;
+    ISETP.NE.U32.AND P1, PT, R0, RZ, PT ;
+    IADD3 R4, PT, PT, R0, 0x1, RZ ;
+    IADD3 R5, PT, PT, R0, 0x2, RZ ;
+    IADD3 R6, PT, PT, R0, 0x3, RZ ;
+    IADD3 R7, PT, PT, R0, 0x4, RZ ;
+    @P1 BRA other ;
+    ISETP.LT.U32.AND P0, PT, R0, 0x10, PT ;
+    BRA join ;
+other:
+    ISETP.GT.U32.AND P0, PT, R0, 0x20, PT ;
+    IADD3 R4, PT, PT, R4, 0x1, RZ ;
+    IADD3 R5, PT, PT, R5, 0x2, RZ ;
+    IADD3 R6, PT, PT, R6, 0x3, RZ ;
+    IADD3 R7, PT, PT, R7, 0x4, RZ ;
+    IADD3 R4, PT, PT, R4, 0x1, RZ ;
+    IADD3 R5, PT, PT, R5, 0x2, RZ ;
+    IADD3 R6, PT, PT, R6, 0x3, RZ ;
+    IADD3 R7, PT, PT, R7, 0x4, RZ ;
+    IADD3 R4, PT, PT, R4, 0x1, RZ ;
+    IADD3 R5, PT, PT, R5, 0x2, RZ ;
+    IADD3 R6, PT, PT, R6, 0x3, RZ ;
+    IADD3 R7, PT, PT, R7, 0x4, RZ ;
+    IADD3 R4, PT, PT, R4, 0x1, RZ ;
+    IADD3 R5, PT, PT, R5, 0x2, RZ ;
+join:
+    @P0 IADD3 R3, PT, PT, R0, 0x2, RZ ;
+    IMAD.WIDE.U32 R2, R0, 0x4, R2 ;
+    STG.E desc[UR4][R2.64], R3 ;
+    EXIT ;
+.endentry

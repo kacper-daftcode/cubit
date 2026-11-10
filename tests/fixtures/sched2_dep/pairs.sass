@@ -1,0 +1,26 @@
+.entry pairs
+    .reg R0-R31
+    .param u64 out
+    S2R R0, SR_TID.X ;
+    LDCU.64 UR4, c[0x0][0x358] ;
+    LDC.64 R2, c[0x0][0x380] ;
+    IADD3 R4, PT, PT, R0, 0x1, RZ ;
+    IADD3 R5, PT, PT, R4, 0x2, RZ ;
+    IMAD R6, R5, 0x3, RZ ;
+    IMAD R7, R6, 0x5, RZ ;
+    IADD3 R8, PT, PT, R7, 0x7, RZ ;
+    ISETP.LT.U32.AND P0, PT, R8, 0x100, PT ;
+    SEL R9, R8, R7, P0 ;
+    I2FP.F32.U32 R10, R9 ;
+    FMUL.FTZ R11, R10, 0.5 ;
+    FADD.FTZ R12, R11, 1 ;
+    FADD.FTZ R13, R12, R11 ;
+    FSETP.GT.FTZ.AND P1, PT, R13, R12, PT ;
+    FSEL R14, R13, R12, P1 ;
+    FMNMX.FTZ R15, R14, R13, !PT ;
+    ISETP.GE.U32.AND P2, PT, R0, 0x8, PT ;
+    @P2 FADD.FTZ R15, R15, 1 ;
+    IMAD.WIDE.U32 R2, R0, 0x4, R2 ;
+    STG.E desc[UR4][R2.64], R15 ;
+    EXIT ;
+.endentry
