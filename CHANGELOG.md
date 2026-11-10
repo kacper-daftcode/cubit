@@ -212,6 +212,12 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   `VIMNMX_R_P_P_R_R_P` `S16x2` (sm103a / sm100a `rows_intalu`) reads "re-measured since: <the lane's tag>"; `sm103a_sm100a_fp32_alu`
   lets the `FMNMX.IS_A` neighbours decode through the new keys (the lane's own edit); the SGXT row model the lane kept at the repository
   root is `tests/fixtures/sgxt_u32_table_model.json`.
+- **The vendor's degenerate glyphs and the frozen path (KNOWN_ISSUES A23; the owner's decision of 2026-11-10 to let the frozen path
+  carry them): already carried — pinned.** A word nvdisasm prints as `LDG.E.LTC128B R4, [???255.64+UR6+0x10]` is printed that way by
+  `disassemble`, and that text cannot be assembled; `disassemble --frozen` has re-assembled every non-branch line before writing it since
+  2026-07-31 and writes such a word as `__raw__0x<128 bits>`, so `asm -T` of the frozen listing reproduces the cubin.
+  `tests/a23_degenerate_glyph_frozen.rs` builds a cubin with the four glyph words of T-11's audit and takes it through plain listing,
+  frozen listing and `asm -T`: byte-identical. No engine change; A23 is closed.
 - **`FHADD` has operand roles** (blackwell-isa `018a927`: `operand_roles.base_ops.FHADD`, class `alu` — dest first, two register
   sources). The measured row of `FHADD[.BF16] Rd, Ra[.H1], Rb` (ptxas's mixed bf16 → f32 accumulate) had no role entry, so
   `cubit sched --mode list`, `ra`, `stallfix` and the register liveness stopped on it ("unknown operand roles"); reported by session
