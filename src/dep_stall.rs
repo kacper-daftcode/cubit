@@ -1079,6 +1079,29 @@ mod tests {
         assert_eq!(t.latency(&mma, &ins("FMUL.FTZ R28, R28, R23"), 28), (28, false));
     }
 
+    /// The scaled BF16 unpack (`F2FP.BF16.<fmt>.UNPACK_B Rd, Rs[.sel], Rscale.B0`, opcode 0x63e -- two codes of
+    /// Rs times 2^(a byte of Rscale - 127)) is of the class F2FP.UNPACK: its source is role r1, its scale
+    /// register r2, and every pair a dequant written with it is made of is priced at or above the floor
+    /// measured on sm_120 silicon (tools/stallfloor/stall_floors_sm120_20261110_pairs_d.json).
+    #[test]
+    fn the_scaled_unpack_is_priced_as_f2fp_unpack() {
+        let t = table();
+        let unp = ins("F2FP.BF16.E4M3.UNPACK_B R6, R4.H1, R17.B0");
+        assert_eq!(dep_class(&unp), "F2FP.UNPACK");
+        assert_eq!(dep_class(&ins("F2FP.BF16.E2M1.UNPACK_B R6, R4.B3, R18.B0")), "F2FP.UNPACK");
+        // (latency, priced with a default). Into its source (r1): SHF has a cell (floor 4), SEL the default (floor 5)
+        assert_eq!(t.latency(&ins("SHF.R.U32.HI R4, RZ, 0x8, R5"), &unp, 4), (4, false));
+        assert_eq!(t.latency(&ins("SEL R4, R5, R7, P2"), &unp, 4), (6, true));
+        // into its scale register (r2): the default (floor 5)
+        assert_eq!(t.latency(&ins("MOV R17, R19"), &unp, 17), (6, true));
+        // its result: HMUL2's first operand the default (floor 5), the second the cell (floor 5),
+        // a store's data the default (floors 3, and 1 for the last register of STS.128)
+        assert_eq!(t.latency(&unp, &ins("HMUL2.BF16_V2 R8, R6, R5"), 6), (6, true));
+        assert_eq!(t.latency(&unp, &ins("HMUL2.BF16_V2 R8, R5, R6.H0_H0"), 6), (5, false));
+        assert_eq!(t.latency(&unp, &ins("STS.128 [R9], R4"), 6), (6, true));
+        assert_eq!(t.latency(&unp, &ins("STS [R9], R6"), 6), (6, true));
+    }
+
     fn ins(s: &str) -> Instruction {
         let mut i = crate::parse_sass(s, 0).unwrap();
         i.hand_sched = false;
@@ -1209,6 +1232,7 @@ mod tests {
             include_str!("../tools/stallfloor/stall_floors_sm120_20261110_store_data.json"),
             include_str!("../tools/stallfloor/stall_floors_sm120_20261110_pairs_c.json"),
             include_str!("../tools/stallfloor/stall_floors_sm120_20261110_store_addr.json"),
+            include_str!("../tools/stallfloor/stall_floors_sm120_20261110_pairs_d.json"),
         ] {
             for c in rows(text) {
                 let Some(floor) = c["floor_d0"].as_u64() else { continue };

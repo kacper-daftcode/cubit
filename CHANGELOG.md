@@ -27,6 +27,15 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   MMA; two MMAs never closer than 16 issue cycles, the accumulate operand of the next MMA 29 behind the previous one, any other reader 28
   (the table's `mma` rows; 39 624 HMMA / QMMA of the census); one `NOP` where two text-adjacent MMAs need the 16 cycles. Default: the
   drain scheme, unchanged.
+- **The scaled BF16 unpack under the table (`F2FP.BF16.<E4M3|E2M1>.UNPACK_B Rd, Rs[.sel], Rscale.B0`, the row of `89564ac`): measured,
+  no cell moved.** It is of the class `F2FP.UNPACK` (source r1, scale register r2). Harness v5 on sm_120 silicon
+  (`tools/stallfloor/pairfloor_gen_d.py`, 175 kernels; `stall_floors_sm120_20261110_pairs_d.json`): `MOV` → its scale register 5, `SEL` →
+  its source 5, `SHF` → its source 4, its result → `HMUL2` 5 (either operand), → `STS` data 3, → the last register of `STS.128` 1 — the
+  floors of the plain forms of the class, all at or below the cells and the default 6 that price them (`dep_stall`'s
+  `no_cell_is_below_a_silicon_measurement` now reads the file; `the_scaled_unpack_is_priced_as_f2fp_unpack`). A dequant written with it
+  — eight unpacks behind their loads' barriers, two `STS.128`; the unit scale code, the byte selectors, `HMUL2` by a block scale —
+  schedules at S01 per unpack under `CUBIT_SCHED2_LAT=sm120` (`tests/sched2_dep_latency.rs`
+  `the_scaled_unpack_dequant_holds_the_table`, fixture `dequant_unpackb.sass`); the table file changes in its `provenance` only.
 - **Small switches of the same family**: `CUBIT_SCHED2_YIELD=loads` (the default scheduler's yield policy under SCHED2's stalls),
   `CUBIT_DEP_VERIFY=1` (read-only: every fixed-latency dependency below its table latency on some path, waits inside the arming distance,
   spacings — also on frozen kernels), `CUBIT_DEP_CELLS=<file>` (one JSON line per requirement a schedule rests on, for weighing the

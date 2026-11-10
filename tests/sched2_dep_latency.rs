@@ -315,6 +315,48 @@ fn the_latency_is_a_property_of_the_pair() {
     assert!(cycles(&new) + 10 <= cycles(&old), "table {} vs per-producer {}", cycles(&new), cycles(&old));
 }
 
+/// The scaled BF16 unpack (`F2FP.BF16.<fmt>.UNPACK_B Rd, Rs[.sel], Rscale.B0`: two codes of Rs times
+/// 2^(a byte of Rscale - 127); the table row of `89564ac`) in the two arms of a dequant. It is of
+/// the class F2FP.UNPACK: under the table it issues at S01 behind its loads' barriers, and every
+/// pair holds its price -- MOV / SEL into it 6 (the default; sm_120 silicon floor 5), its result
+/// into a store's data 6 (the default; floor 3) and into HMUL2 6 / 5 (floor 5 either operand).
+/// Floors: `tools/stallfloor/stall_floors_sm120_20261110_pairs_d.json`.
+#[test]
+fn the_scaled_unpack_dequant_holds_the_table() {
+    let b = build("dequant_unpackb", &with(&POLICY, &[("CUBIT_SCHED2", "1"), ("CUBIT_SCHED2_LAT", "sm120"), ("CUBIT_MMA_PTXAS", "1")]));
+    // the first unpack waits for the load of its source and for the load of its scale byte
+    let u0 = idx(&b, "F2FP.BF16.E4M3.UNPACK_B R4, R20, R24.B0", 0);
+    for load in ["LDG.E.128 R20", "LDG.E.U8 R24"] {
+        let wb = b.lines[idx(&b, load, 0)].wb.unwrap_or_else(|| panic!("{load} sets no write barrier"));
+        assert!((b.lines[u0].wait >> wb) & 1 == 1, "the unpack does not wait for {load}: {:?}", b.lines[u0]);
+    }
+    // the unpacks of a task issue back to back
+    for n in 0..7 {
+        let i = idx(&b, "F2FP.BF16.E4M3.UNPACK_B R", n);
+        assert_eq!(b.lines[i].stall, 1, "{:?}", b.lines[i]);
+    }
+    let at = |starts: &str| idx(&b, starts, 0);
+    let d = |from: &str, to: &str| dist(&b, at(from), at(to));
+    // its result -> the store that reads it
+    assert!(d("F2FP.BF16.E4M3.UNPACK_B R11", "STS.128 [R1+0x10], R8") >= 6, "{}", b.listing.join("\n"));
+    assert!(d("F2FP.BF16.E4M3.UNPACK_B R7", "STS.128 [R1], R4") >= 6, "{}", b.listing.join("\n"));
+    // MOV -> its scale register, SEL -> its source
+    assert!(d("MOV R12, 0x7f", "F2FP.BF16.E4M3.UNPACK_B R14") >= 6, "{}", b.listing.join("\n"));
+    assert!(d("SEL R16", "F2FP.BF16.E2M1.UNPACK_B R4, R16") >= 6, "{}", b.listing.join("\n"));
+    assert!(d("SEL R17", "F2FP.BF16.E2M1.UNPACK_B R8, R17") >= 6, "{}", b.listing.join("\n"));
+    // its result -> HMUL2: the value (first operand) and the block scale (second operand, .H0_H0)
+    assert!(d("F2FP.BF16.E2M1.UNPACK_B R11", "HMUL2.BF16_V2 R11") >= 6, "{}", b.listing.join("\n"));
+    assert!(d("F2FP.BF16.E4M3.UNPACK_B R14", "HMUL2.BF16_V2 R4") >= 5, "{}", b.listing.join("\n"));
+    let v = dep_verify("dequant_unpackb", &b);
+    assert_eq!((v.0, v.1, v.2, v.3), (0, 0, 0, 0), "{}", v.4);
+    for pair in ["F2FP.UNPACK -> STS", "F2FP.UNPACK -> HMUL2", "MOV -> F2FP.UNPACK", "SEL -> F2FP.UNPACK"] {
+        assert!(b.log.contains(pair), "{pair} is priced with a default and named:\n{}", b.log);
+    }
+    // without the switches the kernel assembles as any other (the default scheduler: S05 per unpack)
+    let dflt = build("dequant_unpackb", &[]);
+    assert!(dflt.lines.iter().filter(|l| l.text.starts_with("F2FP.BF16.E")).all(|l| l.stall == 5), "{}", dflt.listing.join("\n"));
+}
+
 /// Issue spacing of the shared pipes, whatever the registers: LDC 8, IMAD.WIDE -> IMAD(.WIDE) 4,
 /// IMAD -> IMAD 2, memory 4. Plain SCHED2 packs the multiplies and the constant loads tighter.
 #[test]
