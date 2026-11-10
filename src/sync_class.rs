@@ -51,6 +51,9 @@
 //!   write-after-read distance no barrier covers): an MMA its source registers for 8 cycles
 //!   (wrong bits at 2 and at 4, identical at 6), a uniform-datapath instruction its uniform
 //!   operands for 3 against a `UMOV` (a fault at 1 and at 2);
+//! * **law — `F2F` is a scoreboard result** (`unlisted_scoreboard_result`): no variable-latency
+//!   list named it; its reader 2 … 15 cycles behind and without a wait gives wrong bits (`BREV`
+//!   the same by census);
 //! * **law — the collective region** (below): the instruction in front of `WARPSYNC.COLLECTIVE`
 //!   at S01 / S02 is an illegal-instruction fault, the region's `SHFL` at S01 gives wrong bits;
 //! * practice — a result has landed before the warp's thread set changes (`settle_need`): 7 cycles
@@ -416,6 +419,32 @@ pub fn settle_reuse(insns: &mut [Instruction]) -> usize {
         }
     }
     dropped
+}
+
+/// Instructions whose result is a scoreboard result and that the scheduler's variable-latency
+/// lists do not name. The lists were learned from cubit's own kernels and a production census;
+/// an instruction those corpora do not have, or have rarely, is in none of them and was priced
+/// as a fixed-latency instruction with the table's default.
+///
+/// * **`F2F`** (`F2F.BF16.F32 R17, R88`, the float-format conversion): the served MoE cubin has
+///   104, and ptxas reads every one of their results behind a scoreboard wait — 52 carry a write
+///   barrier, and the first reader of each of the other 52 waits the barrier of a later `F2F` it
+///   reads as well (the conversions complete in issue order; smallest distance 4, never without
+///   a wait). cubit had `F2F.BF16.F32 R87, R87 ; ... ; PRMT R16, R16, 0x5410, R87` six cycles
+///   apart and no wait, and the served `fc2` packed stale halves into its BF16 output: wrong
+///   bits in every call. Silicon, alone on ptxas's own schedule of that kernel (the write
+///   barriers of its four barriered `F2F` and the waits of their `PRMT` removed): wrong bits with
+///   the reader 2, 6, 9, 12 and 15 cycles behind — no distance replaces the barrier. With `F2F`
+///   a scoreboard result the whole `fc2` scheduled by cubit is bit-identical (190 calls).
+/// * **`BREV`** — by census only: all 48 of the production census carry a write barrier (cubit:
+///   none, stall 5 – 6). No kernel of ours has one and no silicon run exists; the vendor's
+///   practice is followed.
+///
+/// `tools/stallfloor/scoreboard_class_census.py` lists the opcodes whose results a corpus never
+/// reads without a scoreboard: `LDG`, `LDCU`, `LDC`, `LD`, `S2R`, `S2UR`, `F2I`, `FLO`, `POPC`,
+/// `ATOM`, `ATOMG`, the `SYNCS` results — and these two.
+pub fn unlisted_scoreboard_result(op: &str) -> bool {
+    matches!(op, "F2F" | "BREV")
 }
 
 /// How long a reader HOLDS a source register against a fast overwriter: the minimum issue
@@ -925,6 +954,10 @@ mod tests {
         assert!(never_waits(&first("    @!P0 SYNCS.PHASECHK.TRANS64 P0, [R3+URZ], R0 ;\n")));
         assert!(!never_waits(&first("    SYNCS.PHASECHK.TRANS64.TRYWAIT P0, [R3+URZ], R0 ;\n")));
         assert!(!never_waits(&first("    LDS R4, [R5] ;\n")));
+        // what the vendor scoreboards and no list of the scheduler names
+        assert!(unlisted_scoreboard_result(first("    F2F.BF16.F32 R17, R88 ;\n").opcode.as_str()));
+        assert!(unlisted_scoreboard_result(first("    BREV R5, R4 ;\n").opcode.as_str()));
+        assert!(!unlisted_scoreboard_result(first("    F2FP.BF16.F32.PACK_AB R17, R88, R89 ;\n").opcode.as_str()));
     }
 
     #[test]

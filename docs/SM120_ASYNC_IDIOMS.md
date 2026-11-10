@@ -147,6 +147,7 @@ ptxas's schedules of the served MoE cubin (36 kernels, 128 528 instructions) and
 | **law** | the high half of a 64-bit address base is a use: `LEA R4, … ; LEA.HI.X R5, … ; LDG … [R4.64]` reads `R5` (and the descriptor `UR8:UR9`) | never below 5: 34 581 sites | `LEA.HI.X` → `LDG` at 1: **CUDA_ERROR_ILLEGAL_ADDRESS** (at six store sites of `fc2`: identical — the register held the same upper word) | `wide_address_uses` |
 | law (census) | the high half of a 64-bit register operand is a use: `IADD.64 R28, R28, UR4` reads `R29` and `UR5`; `ISETP.*64`, `MOV.64`, `SEL.64`; the target of `BRX` / `RET` | never below 5: 15 681 sites (4 when one 64-bit instruction wrote both halves; 4 for a transfer's target) | no control of its own; the `BRX` target at 1 (5 sites): identical — a sign extension that does not change | `wide_operand_uses` |
 | **law** | a predicate destination is a result: `LOP3.LUT Pd, Rd, …` defines `Pd` AND `Rd` (also `UISETP`'s uniform predicate, `R2P` / `P2R`, the second register of `LDCU.64`) | 13 to a guard: 59 084 sites, none below; `Rd` to its reader 4 | the eight `LOP3` → guard distances of `fc1` at 1: **wrong bits** in 10 of 10 calls | `certified_xfer`, `predicate_register_xfer` |
+| **law** | `F2F` (the float-format conversion, `F2F.BF16.F32`) is a scoreboard result — it was in no variable-latency list of the scheduler (they were learned from kernels without one) and was priced with the table's default 6 | every one of 104 results is read behind a scoreboard wait: 52 `F2F` carry a write barrier, the first reader of each of the other 52 waits the barrier of a later `F2F` it reads as well | the four barriered `F2F` of `fc2` without their barrier, the `PRMT` behind them without its wait and 2, 6, 9, 12, 15 cycles behind: **wrong bits** at every one — no distance replaces the barrier | `unlisted_scoreboard_result` (with `BREV`: 48 of 48 with a write barrier in the census, no silicon run) |
 | **law** | an MMA holds its source registers against a fixed-latency overwriter (a load may follow at once: its result lands late) | 8: 56 723 sites, 16 524 at exactly 8, 28 below in two classes; never a read barrier on an MMA (0 of 39 624) | the overwriter at 2 and at 4 cycles behind a `QMMA`: **wrong bits**; at 6: identical. (cubit's own schedule of that loop tail had the overwriter at 2 behind a read barrier on the MMA, waited by the overwriter: wrong bits — the barrier does not replace the distance) | `hold_need`, `hold_operands` |
 | **law** | a uniform-datapath reader (`ULEA`, `UIADD3`, `UIMAD`, `UISETP`, `ULOP3`, `USHF`, …) holds its uniform operands against a `UMOV` (a per-thread reader of the uniform register is followed at 1) | 3: 2 246 sites, 683 at exactly 3, none below | `ULEA UR4, UR5, UR4 ; UMOV UR5` at 1 and at 2: **CUDA_ERROR_ILLEGAL_ADDRESS** — 3 is the floor | `hold_need`, `hold_operands` |
 | practice | a result has landed before a word that changes the warp's thread set: a register / a predicate / an MMA 7 / 13 / 29 cycles in front of `BSYNC`, `CALL`, `WARPSYNC.COLLECTIVE`, `NANOSLEEP.SYNCS` (`EXIT` 6 / 13 / 29), an MMA 14 in front of a conditional `BRA` | no site below on 22 698 per-thread sites; MMA → `BRA` 1 298 sites | 11 controls — a register 1 / 4 in front of `BSYNC.RECONVERGENT` (also in `fc2`'s chain of per-thread branches, where the warp really splits), 6 / 2 in front of `BSYNC`, a `QMMA` 8 / 2 / 6 – 7 in front of a guarded `BRA`, 19 in front of `BSYNC`: identical. Not run alone: the predicate rows, `CALL`, `NANOSLEEP.SYNCS`, `EXIT` | `settle_need` |
@@ -166,43 +167,53 @@ all of it: one card type (Server Edition, ≤ 2 430 MHz), 10 calls per control, 
 Scheduled by cubit from the plain instruction text — no control code of ptxas kept — with
 `CUBIT_SYNC_CLASSES=1 CUBIT_SCHED2=1 CUBIT_SCHED2_LAT=sm120 CUBIT_MMA_PTXAS=1`, assembled over ptxas's cubin (`asm -T`,
 no `--allow-stale-metadata`), run in the served module on the test host (RTX PRO 6000 Server Edition) against two
-recorded dumps, 4 096 and 256 rows, three timed rounds:
+recorded dumps, 4 096 and 256 rows, three timed rounds with ptxas's cubin first and last in every round:
 
-| kernel | bits | kernel time against ptxas's schedule |
+| kernel | bits | kernel time against ptxas's schedule, 4 096 / 256 rows |
 |---|---|---|
-| `fc1_kernel_wg<4,1>` | **identical: 7 of 7 processes, 190 calls** | **+16.7 % at 4 096 rows** (1 043.1 against 893.4 µs), +1.3 % at 256 rows |
+| `fc1_kernel_wg<4,1>` | **identical: 7 of 7 processes, 190 calls** | **+16.7 %** (1 043.1 against 893.4 µs) / +1.3 % |
+| `fc2_kernel_ws<4,1>` | **identical: 7 of 7 processes, 190 calls** | **+12.7 %** (642.9 against 570.1 µs) / +0.6 % |
+| both in one module | identical: 7 of 7 processes, 190 calls | `fc1` +16.8 %, `fc2` +9.5 % / +1.3 %, +0.6 % |
 | `fc1`, only the hand-off loops by cubit | identical, 190 calls | −0.1 % / 0.0 % |
-| `fc2_kernel_ws<4,1>` | **wrong** (30 of 30 calls) | +12.6 % |
-| `fc2`, every region by cubit except the top-k sum (instructions 822 … 1151 as ptxas scheduled them) | identical in 3 processes (70 calls), then CUDA_ERROR_LAUNCH_FAILED in the 4th | +9.6 % / +0.5 % |
+| `fc1` with `CUBIT_SB_SHARE=1 CUBIT_RB_EARLY=32` | identical: 7 of 7 processes, 190 calls | **+6.3 %** / +0.3 % |
+| `fc2` with `CUBIT_SB_SHARE=1 CUBIT_RB_EARLY=32` | CUDA_ERROR_LAUNCH_FAILED in the first process (Xid 43, no SM exception) | – |
 
-The time is the barrier allocator's, not the stall model's. Crossed schedules of `fc1`: ptxas's barriers with cubit's
-stalls **+1.2 %** (identical bits), cubit's barriers with ptxas's stalls **+17.8 %** (identical bits). ptxas spreads its
-369 write barriers over the six scoreboards (119 on scoreboard 0) and 438 instructions wait; cubit puts 294 of 384 on
-scoreboard 0 and 964 instructions wait — a wait on a crowded scoreboard waits for every producer on it. In `fc2` the
-wrong bits are in cubit's barrier fields of the sum region (ptxas's stalls with cubit's barriers in that region alone:
-wrong), and the path-aware check (`tools/sbcheck.py`) passes the schedule.
+The bits are right; the time is the barrier allocator's, not the stall model's. Crossed schedules of `fc1`: ptxas's
+barriers with cubit's stalls **+1.2 %** (identical bits), cubit's barriers with ptxas's stalls **+17.8 %** (identical
+bits). ptxas spreads its 369 write barriers over the six scoreboards (119 on scoreboard 0) and 438 instructions wait;
+cubit puts 294 of 384 on scoreboard 0 and 964 instructions wait — a wait on a crowded scoreboard waits for every
+producer on it. With the scoreboards shared as counters (`CUBIT_SB_SHARE`, the policy of the attention kernel) 153 of
+`fc1`'s 384 write barriers stay on scoreboard 0, 786 instructions wait, and the cost falls to +6.3 %.
 
 ## Open items
 
-1. **`fc2`**: what in cubit's barrier fields of the top-k sum region gives wrong bits (the region holds the acquire
-   loop, eight guarded `.STRONG.128` loads on per-thread predicates and a chain of per-thread branches; neither the
-   read barriers of its line controls nor of its `.STRONG` loads are the cause — dropped from ptxas's schedule, the
-   bits hold), and the launch failure seen once in four processes with that region kept from ptxas.
-2. **The allocator's cost** on a kernel of this size: +17.8 % on `fc1`, +11.8 % on `fc2` with ptxas's own stalls
-   (`fc2`: 266 of 339 write barriers on scoreboard 0 against ptxas's 87 of 325; 832 waiting instructions against 356).
+1. **A launch failure without an SM exception (Xid 43) on `fc2`**, seen in three builds and in none of the others: with
+   `CUBIT_SB_SHARE=1` (the first process), and with one region of the kernel kept as ptxas scheduled it inside cubit's
+   schedule (once after 70 clean calls, once at the first call) — while the kernel scheduled whole by cubit without
+   sharing is clean in 380 calls. Not understood; `tools/sbcheck.py` passes all three.
+2. **The allocator's cost** on a kernel of this size: +16.7 % on `fc1`, +12.7 % on `fc2` (`fc2`: 268 of 347 write
+   barriers on scoreboard 0 against ptxas's 87 of 325; 837 waiting instructions against 356). Shared scoreboards take
+   `fc1` to +6.3 %; ptxas's own allocation is the bound (+1.2 % with cubit's stalls).
 3. Write-after-read by distance is implemented for the two classes with a silicon run (MMA, uniform datapath against
    `UMOV`). The census has more classes whose minimum is above 1 on dense counts (`IADD3` → `IADD3` 2 on 14 693
    sites, `LOP3` → `LOP3` 2 on 20 825, `PRMT` → `PRMT` 2 on 15 325, `IADD.64` → `IADD3` 3) while others are followed
    at 1 (`FMUL` → `FMUL` 6 553 times); cubit's `fc1` has 23 such sites below ptxas and gives identical bits. Not
    modelled, not measured.
 4. The MMA hold is ptxas's 8; the silicon floor on this card is 5 or 6 (4 wrong, 6 identical).
-5. Whether `LDGSTS` / `SYNCS.ARRIVE` / the re-check need to be free of a wait mask is not a law (a wait gives identical
+5. The scheduler's variable-latency lists were learned from corpora, and a corpus without an instruction teaches
+   nothing about it. `tools/stallfloor/scoreboard_class_census.py` lists the opcodes whose results ptxas never reads
+   without a scoreboard in the two corpora: `LDG`, `LDCU`, `LDC`, `LD`, `S2R`, `S2UR`, `F2I`, `FLO`, `POPC`, `ATOM`,
+   `ATOMG`, the `SYNCS` results, `F2F` and `BREV`. The last two were in no list; under the switch both are scoreboard
+   results — `F2F` with its silicon run, `BREV` by the census alone (48 of 48 with a write barrier; no kernel of ours
+   has one). An instruction that neither corpus contains is still unknown.
+6. Whether `LDGSTS` / `SYNCS.ARRIVE` / the re-check need to be free of a wait mask is not a law (a wait gives identical
    bits); the scheduler follows ptxas.
-6. `UTMALDG` / `UTMASTG` (the tensor-map forms) and `FENCE.VIEW.ASYNC.G` take the class of their bulk / fence sibling;
+7. `UTMALDG` / `UTMASTG` (the tensor-map forms) and `FENCE.VIEW.ASYNC.G` take the class of their bulk / fence sibling;
    no probe kernel uses them.
-7. The sleep form of an mbarrier wait: ptxas chains a read barrier from one `TRYWAIT` to the next
+8. The sleep form of an mbarrier wait: ptxas chains a read barrier from one `TRYWAIT` to the next
    (`[B0-----:R0:W1] SYNCS.PHASECHK.TRANS64.TRYWAIT` at the head of the suspend loop, 5 of 5 in the served `fc1`); the
    scheduler sets a read barrier only where an operand is overwritten.
-8. A partly frozen kernel (some lines with a `[B:R:W:Y:S]` prefix, some without) is safe only where the path-aware check
-   (`tools/sbcheck.py`) is clean: an unfrozen producer does not take the scoreboard its frozen reader waits.
-9. The stall behind `BAR.ARV` is 8 (ptxas's value in the megakernel probe); the measured floor is 1.
+9. A partly frozen kernel (some lines with a `[B:R:W:Y:S]` prefix, some without) is safe only where the path-aware check
+   (`tools/sbcheck.py`) is clean: an unfrozen producer does not take the scoreboard its frozen reader waits — and
+   item 1 says that a clean check is not the whole story.
+10. The stall behind `BAR.ARV` is 8 (ptxas's value in the megakernel probe); the measured floor is 1.

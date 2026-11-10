@@ -257,6 +257,10 @@ fn insn_needs_write_bar(insn: &Instruction, table: Option<&IsaTable>, sched2: bo
         if let Some(c) = crate::sync_class::classify(insn) {
             return matches!(c.write_bar, crate::sync_class::WriteBar::Result | crate::sync_class::WriteBar::Token(_));
         }
+        // ... and `F2F` / `BREV` are scoreboard results (ptxas: every reader of one waits)
+        if crate::sync_class::unlisted_scoreboard_result(op) {
+            return true;
+        }
     }
     // Cooperative MMA writeback is NOT scoreboardable on SM120 (write_bar ignored by HW;
     // empirically re-confirmed). It is synced by a timing drain in the main.rs post-pass.
@@ -637,6 +641,8 @@ fn is_variable_latency_sched2(op: &str) -> bool {
         "F2I" | "I2F" |
         "FLO" | "POPC"
     )
+    // CUBIT_SYNC_CLASSES: `F2F` and `BREV` belong to the set (their own barrier, never in a load batch)
+    || (crate::sync_class::enabled() && crate::sync_class::unlisted_scoreboard_result(op))
 }
 
 // ── CUBIT_SCHED2 stage-3 learned rules ────────────────────────────────────────

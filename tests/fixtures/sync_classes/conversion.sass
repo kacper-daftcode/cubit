@@ -1,0 +1,21 @@
+// CUBIT_SYNC_CLASSES fixture: `F2F` (the float-format conversion) and `BREV` are scoreboard results. The vendor reads
+// every `F2F.BF16.F32` behind a scoreboard wait (the BF16 pack of two sums: `F2F ; F2F ; PRMT`) and sets a write barrier
+// on every `BREV`; as fixed-latency instructions they were priced with the table's default and their readers did not
+// wait.
+.entry conversion
+    .param u64 io
+    LDC.64 R2, c[0x0][0x380] ;
+    LDCU.64 UR8, c[0x0][0x358] ;
+    LDG.E R4, desc[UR8][R2.64] ;
+    LDG.E R5, desc[UR8][R2.64+0x4] ;
+    FADD R6, R4, R5 ;
+    FADD R7, R4, -R5 ;
+    F2F.BF16.F32 R8, R6 ;
+    F2F.BF16.F32 R9, R7 ;
+    PRMT R10, R8, 0x5410, R9 ;
+    BREV R11, R4 ;
+    IADD3 R12, PT, PT, R11, 0x1, RZ ;
+    STG.E desc[UR8][R2.64+0x8], R10 ;
+    STG.E desc[UR8][R2.64+0xc], R12 ;
+    EXIT ;
+.endentry

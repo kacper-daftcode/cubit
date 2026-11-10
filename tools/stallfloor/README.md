@@ -124,3 +124,9 @@ exactly 8) and a `UMOV` 3 cycles behind a uniform-datapath reader (2 246 sites, 
 on the straight-line text and looks only at the overwriter's own wait mask: a pair coupled through a scoreboard (a wait
 on the instruction in front of the overwriter) is listed although it is covered.
 
+`scoreboard_class_census.py` asks a corpus which instruction classes its assembler synchronises with a scoreboard: per
+opcode the results with a write barrier, and for the others whether their first reader waits. An opcode whose results
+are never read without a scoreboard is a scoreboard class whatever a variable-latency list says — ptxas's schedules
+give `LDG`, `LDCU`, `LDC`, `LD`, `S2R`, `S2UR`, `F2I`, `FLO`, `POPC`, `ATOM`, `ATOMG`, the `SYNCS` results, and two
+that were in no list of cubit: `F2F` (silicon: wrong bits at every distance up to 15 without its barrier) and `BREV`.
+

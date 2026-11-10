@@ -16,12 +16,14 @@
 //! half of a 64-bit address or operand (the reader stood ONE cycle behind its producer), and it
 //! let an instruction rewrite a register 1 - 2 cycles behind an MMA or a uniform-datapath
 //! instruction that reads it. Each of them alone on ptxas's own schedule is wrong bits or a
-//! fault on silicon (the last five tests in front of the default-path pin).
+//! fault on silicon; and it had `F2F` in no variable-latency list (the six tests in front of the
+//! default-path pin).
 //!
 //! Every test pins the property the switch adds; `the_default_path_is_byte_for_byte` pins what
 //! origin/main built from the same fixtures without the switch (`*.default.txt`, `*.sched2.txt`,
 //! `default_path.sha256`: written by the binary of `c507a7c` for the first eleven fixtures, by the
-//! binary of `cbe37f4` for the five added with the operand laws; `e0fd6e5` builds all 32).
+//! binary of `cbe37f4` for the five added with the operand laws, of `e0fd6e5` for `conversion`;
+//! `e0fd6e5` builds all 34).
 
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -39,7 +41,7 @@ const FIX: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/sync_clas
 const SWITCH: (&str, &str) = ("CUBIT_SYNC_CLASSES", "1");
 /// The default stall model and the dependency-aware one (`CUBIT_SCHED2` + the sm_120 table).
 const MODELS: [&[(&str, &str)]; 2] = [&[SWITCH], &[SWITCH, ("CUBIT_SCHED2", "1"), ("CUBIT_SCHED2_LAT", "sm120")]];
-const FIXTURES: [&str; 16] = [
+const FIXTURES: [&str; 17] = [
     "mbar_wait",
     "mbar_sleep",
     "mbar_init",
@@ -56,6 +58,7 @@ const FIXTURES: [&str; 16] = [
     "landing",
     "operand_hold",
     "line_control",
+    "conversion",
 ];
 
 #[derive(Debug, Clone)]
@@ -476,6 +479,24 @@ fn a_cache_control_on_one_line_reads_its_address_late() {
 }
 
 #[test]
+fn a_float_format_conversion_is_a_scoreboard_result() {
+    // `F2F` was in no variable-latency list: a fixed-latency instruction priced with the table's default, its
+    // reader 6 cycles behind and without a wait. ptxas reads every `F2F` result behind a scoreboard wait (104 of
+    // 104 in the served MoE cubin); on silicon the reader 2, 6, 9, 12 and 15 cycles behind an `F2F` without its
+    // barrier gives wrong bits (ptxas's own schedule of the served fc2 with only that changed)
+    for env in MODELS {
+        let b = build("conversion", env);
+        for f2f in ["F2F.BF16.F32 R8", "F2F.BF16.F32 R9"] {
+            let w = at(&b, f2f).wb.unwrap_or_else(|| panic!("{env:?}: `{f2f}` sets no write barrier:\n{}", b.listing));
+            assert!(at(&b, "PRMT R10").waits(w), "{env:?}: the reader of `{f2f}` waits scoreboard {w}:\n{}", b.listing);
+        }
+        // `BREV`: ptxas sets a write barrier on every one (48 of 48 in the production census; no silicon run)
+        let w = at(&b, "BREV R11").wb.unwrap_or_else(|| panic!("{env:?}: `BREV` sets no write barrier:\n{}", b.listing));
+        assert!(at(&b, "IADD3 R12").waits(w), "{env:?}: the reader of `BREV` waits scoreboard {w}:\n{}", b.listing);
+    }
+}
+
+#[test]
 fn the_default_path_is_byte_for_byte() {
     let pins = std::fs::read_to_string(format!("{FIX}/default_path.sha256")).unwrap();
     let mut checked = 0;
@@ -495,5 +516,5 @@ fn the_default_path_is_byte_for_byte() {
             checked += 1;
         }
     }
-    assert_eq!(checked, 32);
+    assert_eq!(checked, 34);
 }

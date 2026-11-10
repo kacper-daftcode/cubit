@@ -100,10 +100,10 @@ frozen kernel (KNOWN_ISSUES A26; the harness and its results: [tools/stallfloor/
 `CUBIT_SYNC_CLASSES=1` gives the synchronisation words their control classes (mbarriers, bulk copies, the async-proxy
 fence, the release / acquire chains, `setmaxnreg`, collective regions), completes the scheduler's operand model for the
 forms nvcc emits (predicate destinations, the high half of a 64-bit address or operand, the operand hold of an MMA and of
-the uniform datapath) and runs the barrier allocator and the latency legaliser on the control-flow graph of an nvcc
+the uniform datapath, `F2F` as a scoreboard result) and runs the barrier allocator and the latency legaliser on the control-flow graph of an nvcc
 kernel without inserting an instruction — the switch under which a kernel of nvcc is scheduled from its plain
-instruction text and assembled over ptxas's cubin (`asm -T`). Opt-in, sm_120, floors and laws measured on silicon; of the
-two served MoE kernels one gives identical bits (16.7 % slower than ptxas's schedule), the other does not yet
+instruction text and assembled over ptxas's cubin (`asm -T`). Opt-in, sm_120, floors and laws measured on silicon; the two
+served MoE kernels scheduled this way give identical bits, 16.7 % and 12.7 % slower than ptxas's schedule
 ([docs/SM120_ASYNC_IDIOMS.md](docs/SM120_ASYNC_IDIOMS.md), KNOWN_ISSUES A29).
 `CUBIT_VERIFY=1` runs the read-only scoreboard verifier on every kernel it
 assembles (frozen or scheduled) and prints each unprotected RAW / broken WAR, and each store whose registers are

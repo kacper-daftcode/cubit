@@ -1,0 +1,14 @@
+[B------:R-:W0:Y:S04] LDC.64 R2, c[0x0][0x380] ;
+[B------:R-:W1:Y:S04] LDCU.64 UR8, c[0x0][0x358] ;
+[B01----:R-:W2:Y:S04] LDG.E R4, desc[UR8][R2.64] ;
+[B------:R-:W2:Y:S04] LDG.E R5, desc[UR8][R2.64+0x4] ;
+[B--2---:R-:W-:-:S06] FADD R6, R4, R5 ;
+[B------:R-:W-:-:S06] FADD R7, R4, -R5 ;
+[B------:R-:W-:-:S05] F2F.BF16.F32 R8, R6 ;
+[B------:R-:W-:-:S05] F2F.BF16.F32 R9, R7 ;
+[B------:R-:W-:-:S05] PRMT R10, R8, 0x5410, R9 ;
+[B------:R-:W-:-:S05] BREV R11, R4 ;
+[B------:R-:W-:-:S05] IADD3 R12, PT, PT, R11, 0x1, RZ ;
+[B------:R-:W-:-:S04] STG.E desc[UR8][R2.64+0x8], R10 ;
+[B------:R-:W-:-:S04] STG.E desc[UR8][R2.64+0xc], R12 ;
+[B------:R-:W-:-:S05] EXIT ;
