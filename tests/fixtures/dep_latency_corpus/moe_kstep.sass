@@ -1,0 +1,70 @@
+// One k64 step of a 2-bit MoE GEMM kernel in the shape of the production sources (vLLM-Moet kernels/sass/moe_w2_mm_*):
+// PRMT-LUT decode of the codes into the B fragments, two QMMA.SF per k32, the fold of the accumulators into the
+// masters (FFMA), the accumulators zeroed, the next pair. A scheduling fixture: assembled, never launched.
+.entry moe_kstep
+    .reg R0-R61
+    .param u64 d_a
+    .param u64 d_c
+    .shared .align 16 smem[4096]
+
+    S2R R34, SR_TID.X ;
+    LDCU.64 UR4, c[0x0][0x358] ;
+    UMOV UR6, 0x0 ;
+    LDC.64 R58, c[0x0][0x380] ;
+    LDC.64 R42, c[0x0][0x388] ;
+    LOP3.LUT R54, R34, 0x1f, RZ, 0xc0, !PT ;
+    SHF.L.U32 R0, R54, 0x5, RZ ;
+    IMAD.WIDE.U32 R58, PT, R0, 0x1, R58 ;
+    MOV R28, 0x7f7f7f7f ;
+    MOV R27, 0x4838b8c8 ;
+    MOV R48, RZ ; MOV R49, RZ ; MOV R52, RZ ; MOV R53, RZ ;
+    MOV R40, RZ ; MOV R41, RZ ; MOV R44, RZ ; MOV R45, RZ ;
+    LDG.E R30, desc[UR4][R58.64+0x18] ;
+    LDG.E.64 R24, desc[UR4][R58.64+0x10] ;
+    LDG.E.U8 R26, desc[UR4][R58.64+0x1c] ;
+    LDG.E.128 R4, desc[UR4][R58.64] ;
+    MOV R0, R24 ;
+    LOP3.LUT R1, R0, 0x3, RZ, 0xc0, !PT ;
+    LOP3.LUT R2, R0, 0xc, RZ, 0xc0, !PT ;
+    LOP3.LUT R3, R0, 0x30, RZ, 0xc0, !PT ;
+    LOP3.LUT R0, R0, 0xc0, RZ, 0xc0, !PT ;
+    IMAD R1, R2, 0x4, R1 ;
+    IMAD R1, R3, 0x10, R1 ;
+    IMAD R1, R0, 0x40, R1 ;
+    PRMT R32, R27, R1, RZ ;
+    SHF.R.U32.HI R0, RZ, 0x8, R24 ;
+    LOP3.LUT R1, R0, 0x3, RZ, 0xc0, !PT ;
+    LOP3.LUT R2, R0, 0xc, RZ, 0xc0, !PT ;
+    IMAD R1, R2, 0x4, R1 ;
+    PRMT R33, R27, R1, RZ ;
+    MOV R0, R25 ;
+    LOP3.LUT R1, R0, 0x3, RZ, 0xc0, !PT ;
+    LOP3.LUT R2, R0, 0xc, RZ, 0xc0, !PT ;
+    IMAD R1, R2, 0x4, R1 ;
+    PRMT R36, R27, R1, RZ ;
+    SHF.R.U32.HI R0, RZ, 0x8, R25 ;
+    LOP3.LUT R1, R0, 0x3, RZ, 0xc0, !PT ;
+    LOP3.LUT R2, R0, 0xc, RZ, 0xc0, !PT ;
+    IMAD R1, R2, 0x4, R1 ;
+    PRMT R37, R27, R1, RZ ;
+    QMMA.SF.16832.F32.E4M3.E4M3.E8 R40, R4, R32, R40, R28, R26, UR6 ;
+    QMMA.SF.16832.F32.E4M3.E4M3.E8 R44, R4, R36, R44, R28, R26, UR6 ;
+    FFMA R48, R40, R30, R48 ;
+    FFMA R49, R41, R30, R49 ;
+    FFMA R52, R44, R30, R52 ;
+    FFMA R53, R45, R30, R53 ;
+    MOV R40, RZ ; MOV R41, RZ ;
+    MOV R44, RZ ; MOV R45, RZ ;
+    QMMA.SF.16832.F32.E4M3.E4M3.E8 R40, R4, R36, R40, R28, R26, UR6 ;
+    QMMA.SF.16832.F32.E4M3.E4M3.E8 R44, R4, R32, R44, R28, R26, UR6 ;
+    FFMA R48, R40, R30, R48 ;
+    FFMA R49, R41, R30, R49 ;
+    FFMA R52, R44, R30, R52 ;
+    FFMA R53, R45, R30, R53 ;
+    SHF.L.U32 R14, R54, 0x4, RZ ;
+    MOV R15, RZ ;
+    IADD.64 R16, R14, R42 ;
+    STG.E.64 desc[UR4][R16.64], R48 ;
+    STG.E.64 desc[UR4][R16.64+0x8], R52 ;
+    EXIT ;
+.endentry
