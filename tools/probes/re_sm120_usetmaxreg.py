@@ -11,8 +11,8 @@ printed in hex, the count itself (0x18 = 24, 0xe0 = 224; ptxas emits multiples o
 what the hardware does with the other values is a silicon question, not an encoding one), the operation [73:72] (1 = DEALLOC,
 2 = TRY_ALLOC; 0 and 3 illegal), the pool bit 74 (set = `.CTAPOOL`; clear prints the vendor glyph `.???0` -- an unnamed
 pool, unclaimed), bit 75 text-inert, the predicate destination [83:81] on TRY_ALLOC (a UP; on DEALLOC the field is
-text-inert and nvcc writes 7 there -- the row bakes 7 and fails closed on the rest), bit 91 illegal, the reuse bits 122-124
-illegal (a control-word law: no reuse flag on this opcode), every other bit text-inert.
+text-inert and nvcc writes 7 there -- the row bakes 7 and fails closed on the rest), bit 91 required (clear = illegal), the
+reuse bits 122-124 illegal (a control-word law: no reuse flag on this opcode), every other bit text-inert.
 
 Before this probe `USETMAXREG_II` (`audit-fix-2026-11-06-t10`) had no guard field and `USETMAXREG_UP_II` was a native-capture
 row (`sm120-native-capture-control-2026-10-22`), neither measured per field (KNOWN_ISSUES T1 exception 9; megakernel item 1:
