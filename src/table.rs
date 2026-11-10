@@ -160,12 +160,12 @@ pub struct JsonClaimForbid {
     pub values: Vec<u64>,
 }
 
-/// Selector window measured on QMUL4's two packed inputs (bits [74:76] and [59:61]).
+/// Selector window measured on QMUL4's two packed inputs (bits `[76:74]` and `[61:59]`).
 pub const QMUL4_SELECTORS: [&str; 8] = [
     "B3210", "B3", "B2", "B1", "B0", "N7654", "N3210", "N6420",
 ];
 
-/// Selector windows measured on QADD4 (Ra [76:74], Rc [87:85]).
+/// Selector windows measured on QADD4 (Ra `[76:74]`, Rc `[87:85]`).
 pub const QADD4_RA_SELECTORS: [&str; 8] = [
     "B3210", "B3", "B2", "B1", "B0", "N7654", "N3210", "N6420",
 ];
