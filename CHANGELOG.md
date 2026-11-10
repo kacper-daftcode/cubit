@@ -23,8 +23,29 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   `tests/sched2_dep_latency.rs` with the schedule the parent built pinned next to it (three stalls 4 → 5); all four are red on the
   previous table. The default path does not read the table.
 
-## Unreleased — 2026-11-10 (session T-27: batch 6 of the B300 lane's candidate forms on sm103a / sm100a — `QMUL4` and `QADD4` with their operand selectors (55 refs taken); a test of the suite that failed at random)
+## Unreleased — 2026-11-10 (session T-27: `CUBIT_VERIFY` checks the read barriers of stores on every path — three unprotected store → overwriter pairs of a production kernel had passed as "0 broken WAR"; batch 6 of the B300 lane's candidate forms on sm103a / sm100a — `QMUL4` and `QADD4` with their operand selectors (55 refs taken); a test of the suite that failed at random)
 
+- **`CUBIT_VERIFY` checks the read barriers of stores on every path of the flow graph** (`src/store_paths.rs`; lines `STORE PATH: …` and
+  `CUBIT_VERIFY_PATHS: N …`, `VerifyReport.store_paths`; read-only). A store reads its address and data registers when the memory pipe
+  serves it, so whoever rewrites one of them must first wait on the store's read barrier (KNOWN_ISSUES A27). The scoreboard simulation
+  behind "N broken WAR" could not check that in a kernel with control flow: it does not track shared stores at all, and its loop pass
+  re-walks the TEXT of the loop body, so a wait that sits in a block the last iteration branches around counted as protection. **Found
+  on a production kernel** (the sm_120 scheduler session, with a path walk of the frozen listing written independently in Python): in
+  `sparse_mla_prefill_v43` / `v43b` three `STS.128` of the in-loop dequant have their data quads rewritten by the next chunk's
+  `LDSM.16.M88.4` 58 / 67 issue cycles later with nobody having waited on their read barriers (4 pairs in `v42`; the shipped kernel and
+  the `v41s1` schedules: none) — and `CUBIT_VERIFY` said "0 broken WAR". The new check walks from every store that holds a read barrier
+  along every path — both outcomes of a guarded branch, loops included, a predicate known from the last branch on it until something
+  writes it — to the first writer of each register the store reads; a path with no wait on the store's barrier is a finding, reported
+  with the smallest issue distance. **It reproduces the independent walk row for row** (store, overwriter, register, barrier, distance)
+  on the six attention listings (0 / 0 / 0 / 4 / 3 / 3) and on the 116 committed production cubins it was run on (112 × 0; 4, 3, 3,
+  and 12 on an old build of the state kernel — here 8 + the 4 of the class counted apart, below). **The vendor's own schedules are clean under it:** in the 166 listings of the sm_120 census, 0 pairs on a data
+  register of any store and 0 on the address pair of a global store; 97 pairs (two copies of each) sit on the ADDRESS register of a
+  shared store, 8 to 24 issue cycles behind it — ptxas does not wait there — so that class is printed as a second count (`+ N …`) and
+  is not in `N`. The three old counters and their line are unchanged ("broken WAR" keeps its meaning; the new line says what it could
+  not see); a write is taken from the scheduler's operand model and from the register allocator's sm_120 footprints (`LDSM.….4` writes
+  four registers). `tests/store_paths_verify.rs` (the frozen listing of `v43b` as the fixture: the three pairs, the unchanged bytes,
+  the report's counts) + 4 unit tests. **Not fixed here: the allocator itself** — `war_overwriter` looks for the next iteration's
+  overwriter along the same text, which is why the wait was placed where only the non-final iterations pass (KNOWN_ISSUES A30).
 - **Tables vendored from blackwell-isa `1fb517a`: batch 6 of the B300 measurement lane's candidates — `QMUL4` and `QADD4`** (two more of the
   review refs `hidden-b300/*`, `qmul4` and `qadd4`; 55 of the 68 refs are taken; sm103a 545 → 549 forms, 37 524 → 37 530 rows; sm100a
   544 → 548, 37 518 → 37 524; the rows of sm120 / sm121a unchanged; rows without `_src` unchanged, 336). Forms added (6 rows per table):

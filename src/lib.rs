@@ -51,6 +51,7 @@ pub mod python;
 pub mod sass_file;
 pub mod sched;
 pub mod stallfix;
+pub mod store_paths;
 pub mod scheduling;
 pub mod scheduling_pass;
 pub mod table;

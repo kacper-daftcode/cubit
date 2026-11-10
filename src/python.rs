@@ -952,6 +952,9 @@ fn verify_report<'py>(py: Python<'py>, text: &str) -> PyResult<Vec<Bound<'py, Py
         kd.set_item("unresolved_reg_target", rep.unresolved_reg_target)?;
         kd.set_item("unresolved_const_base", rep.unresolved_const_base)?;
         kd.set_item("unresolved_outtarget", rep.unresolved_outtarget)?;
+        kd.set_item("store_paths", rep.store_paths)?;
+        kd.set_item("store_paths_bare", rep.store_paths_bare)?;
+        kd.set_item("store_paths_shared_addr", rep.store_paths_shared_addr)?;
         out.push(kd);
     }
     Ok(out)

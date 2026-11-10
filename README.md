@@ -98,7 +98,9 @@ definitions, `BRA.DIV`, split 64-bit pairs) and `CUBIT_SCHED2_STRICT=1` refuses 
 `CUBIT_DEP_VERIFY=1` reports every fixed-latency dependency below the table on any path, also on a
 frozen kernel (KNOWN_ISSUES A26; the harness and its results: [tools/stallfloor/](tools/stallfloor/README.md)).
 `CUBIT_VERIFY=1` runs the read-only scoreboard verifier on every kernel it
-assembles (frozen or scheduled) and prints each unprotected RAW / broken WAR; `CUBIT_VERIFY_RBPROBE=1`
+assembles (frozen or scheduled) and prints each unprotected RAW / broken WAR, and each store whose registers are
+rewritten on some path of the flow graph with no wait on the store's read barrier (`STORE PATH`, `CUBIT_VERIFY_PATHS`);
+`CUBIT_VERIFY_RBPROBE=1`
 adds the read-barrier coverage probe of the legality oracle (`tools/sched_oracle.py`, KNOWN_ISSUES A4).
 
 ## Commands

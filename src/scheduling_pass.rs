@@ -44,7 +44,7 @@ const LATENCY_S2R: u8 = 4;      // S2R, CS2R
 /// `src_regs` / `dest_regs`. GPRs occupy 0..=254 (R255 = RZ is never keyed), so predicates sit
 /// above the GPR file; before 2026-11-05 they were keyed as `128 + n` in a `u8`, which made every
 /// GPR R128..R254 look like a predicate (no scoreboard, no read barrier — session V's "BUG gpr128").
-const PRED_KEY: u16 = 256;
+pub(crate) const PRED_KEY: u16 = 256;
 // Stores latch their source operands (address + data) a few cycles after issue.
 // A following writer of a store source reg (pointer bump / accumulator re-zero)
 // must be held off this long so the store reads the intended values (WAR).
@@ -90,7 +90,7 @@ pub(crate) fn is_store(op: &str) -> bool {
 /// few cycles AFTER issue. A later writer of one of these before the latch is a store-
 /// operand WAR (the store commits stale data); ptxas protects it with a read-barrier on
 /// the store (e.g. the `STS.64_AR` gather-address staging). Excludes the address base.
-fn store_data_gprs(insn: &Instruction) -> Vec<u8> {
+pub(crate) fn store_data_gprs(insn: &Instruction) -> Vec<u8> {
     if !is_store(insn.opcode.as_str()) { return Vec::new(); }
     let bases: Vec<u8> = mem_addr_base_regs(insn).into_iter()
         .filter(|(u, _)| !*u).map(|(_, r)| r).collect();
@@ -162,7 +162,7 @@ pub fn guarded_reader_settles() -> bool {
 /// store lands at the wrong location — a real WAR that ptxas protects with a read-barrier
 /// and that races only at high occupancy (>1 CTA/SM). Global stores use a 64-bit address
 /// pair (base, base+1); shared/local use a single register.
-fn store_addr_gprs(insn: &Instruction) -> Vec<u8> {
+pub(crate) fn store_addr_gprs(insn: &Instruction) -> Vec<u8> {
     let op = insn.opcode.as_str();
     if !is_store(op) { return Vec::new(); }
     let wide = matches!(op, "STG" | "STGX" | "ST" | "ATOMG" | "RED" | "REDG" | "ATOM");
@@ -774,7 +774,7 @@ fn sched2_branch_stall(insns: &[Instruction], i: usize) -> Option<u8> {
 
 // ── Register tracking ────────────────────────────────────────────────────────
 
-const NUM_BARRIERS: usize = 6;
+pub(crate) const NUM_BARRIERS: usize = 6;
 const BARRIER_MASK: u8 = (1u8 << NUM_BARRIERS) - 1; // 0x3F
 
 /// Max loads CUBIT_SCHED2 will batch onto a single counting write barrier. Generous
@@ -3615,6 +3615,16 @@ pub struct VerifyReport {
     /// of `unresolved_edges` (BUG-370): static-target class whose target is
     /// outside this kernel, or whose Label operand never resolved.
     pub unresolved_outtarget: usize,
+    /// store -> overwriter pairs that some path of the flow graph reaches without a wait on the
+    /// store's read barrier (`store_paths::unwaited_store_overwrites`; not part of `war`, which
+    /// is the count of the scoreboard simulation along the text)
+    pub store_paths: usize,
+    /// of `store_paths`: pairs of a store that carries no read barrier (probe mode only)
+    pub store_paths_bare: usize,
+    /// such pairs on the ADDRESS register of a shared / local store — not in `store_paths`: the
+    /// vendor's assembler rewrites those registers from 8 issue cycles behind the store without
+    /// a wait (97 pairs in the sm_120 census; 0 on a data register, 0 on a global store)
+    pub store_paths_shared_addr: usize,
 }
 
 /// BUG-370: classification of a statically UNRESOLVABLE control-flow edge,
@@ -4159,11 +4169,35 @@ fn run_verify(insns: &[Instruction], table: Option<&IsaTable>, print: bool, rb_p
             );
         }
     }
+    // The stores' read barriers on every path of the flow graph (`store_paths`): the simulation
+    // above follows the text and does not track shared stores, so a wait the last iteration
+    // branches around passed as protection. Reported next to the three counts, not inside them.
+    let (shared_addr, paths): (Vec<_>, Vec<_>) = crate::store_paths::unwaited_store_overwrites(insns, rb_probe)
+        .into_iter()
+        .partition(|f| crate::store_paths::is_shared_store_address(insns, f));
+    rep.store_paths = paths.len();
+    rep.store_paths_bare = paths.iter().filter(|f| f.read_bar.is_none()).count();
+    rep.store_paths_shared_addr = shared_addr.len();
     if print {
+        for f in &paths {
+            eprintln!("{}", crate::store_paths::describe(insns, f));
+        }
         eprintln!(
             "CUBIT_VERIFY: {} unprotected RAW, {} broken WAR, {} recycle-stale",
             rep.raw, rep.war, rep.recycle
         );
+        if rep.store_paths > 0 {
+            eprintln!(
+                "CUBIT_VERIFY_PATHS: {} store -> overwriter pair(s) reached on a path with no wait on the store's read barrier ({} of them on a store without one); not in the counts above",
+                rep.store_paths, rep.store_paths_bare
+            );
+        }
+        if rep.store_paths_shared_addr > 0 {
+            eprintln!(
+                "CUBIT_VERIFY_PATHS: + {} such pair(s) on the address register of a shared / local store (not counted: the vendor's assembler rewrites those from 8 issue cycles behind the store)",
+                rep.store_paths_shared_addr
+            );
+        }
         if rep.unresolved_edges > 0 {
             eprintln!(
                 "CUBIT_VERIFY_LOOP: {} unresolvable control-flow edge(s); loop-carried scoreboard relations across them are UNVERIFIED",
