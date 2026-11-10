@@ -4,6 +4,32 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-10 (session SCH-3: the stall-floor probes as one tool with an absolute, host-computed oracle; the store cells of the sm_120 dependency table re-measured — no cell moves; tools and result files only, no source line changes)
+
+- **`tools/stallfloor/probe.py` — one request, one isolated kernel family, an absolute oracle.** A request names a producer and a
+  consumer form (`raw`), a store and an overwriter form (`war`), two loads (`ord`) or a tensor form (`mma`) and what is swept — the
+  issue distance, the occupancy (1 … 32 warps per SM, the served MoE kernels' grids), the memory traffic in front. `gen` builds one
+  frozen kernel per point and computes on the host the checksum every thread must end with, for "right" and for each failure
+  hypothesis; `run` classifies every thread of every launch (one process per request); no reference kernel is the judge. The
+  tensor family needs no fragment layout (uniform fragments, integer-valued accumulators: each result is its accumulator + K·a·b).
+  `gen` refuses a kernel text the card would trap on (a 64-bit pair on an odd register). `tools/stallfloor/README.md`, harness v8.
+- **The store latch against that oracle (KNOWN_ISSUES A27): the earlier distances were lower bounds.** An ALU instruction that
+  rewrites the data or address register of a bare store: right from 1 at one warp per SM, from 105 at 8 warps with an idle memory
+  pipe, at no distance up to 300 at 8 warps with 15 stores in front or (a shared store) at 32 warps; a global store at 32 warps
+  without traffic from 90 … 300. A load that rewrites it never reached the store
+  (six store / load pairs, also across the shared and the global pipe; 0 of 1.03 × 10^11 events each). The rule — a wait on the
+  store's read barrier, never a distance — is unchanged.
+- **Producer → store data 3, → the last register of `STS.128` 1, → `STS` address 1, → `LDS` address 4** at 1 / 8 / 32 warps per SM —
+  the v5 floors, now absolute; every cell of the table is at or above them.
+- **Two block-scaled MMAs of one warp are right at every issue distance from 1** (`QMMA.SF.16832.F32.E4M3.E2M1.E8`; another
+  accumulator, the same, under guards; the served kernels' grids; also `HMMA.16816.F32` / `.BF16`): the resource row `mma` (16) is
+  the vendor's spacing, not a silicon floor. **The operand hold of an MMA: a fixed-latency instruction that rewrites a register of
+  the A fragment changes the result up to 4 cycles behind the MMA and never from 5** (the vendor keeps 8).
+- Pairs the vendor's schedule of the served MoE kernels holds below the table, measured: `F2FP.SATFINITE…PACK_AB → IMAD.SHL.U32` 5,
+  `IADD.64 → SHF.L.U64.HI` 5 (defaults 6; the vendor at 5), `UMOV → UIADD3` 1 (cell 4; the vendor at 2), `UMOV → MOV R, UR` 1
+  (uniform default 13); `UIADD3 → UIADD3` 4, `UIADD3 → MOV R, UR` 6 and `CS2R → IMAD / IADD3 / LOP3` 6 are exactly the table's prices.
+  Result files `tools/stallfloor/probe_sm120_20261110_b*.json`. No cell is changed by this entry.
+
 ## Unreleased — 2026-11-10 (sessions CS-1 / CS-2: control classes of the synchronisation words — mbarriers, bulk copies, fences, release / acquire, `setmaxnreg`, collective regions —, the scheduler on the control-flow graph of an nvcc kernel, and the operand laws such a kernel needs; one opt-in switch, the default schedule unchanged)
 
 - **`CUBIT_SYNC_CLASSES=1` (opt-in, sm_120): the synchronisation words have control classes** (`src/sync_class.rs`). Until now a

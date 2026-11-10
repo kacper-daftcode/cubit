@@ -130,3 +130,67 @@ are never read without a scoreboard is a scoreboard class whatever a variable-la
 give `LDG`, `LDCU`, `LDC`, `LD`, `S2R`, `S2UR`, `F2I`, `FLO`, `POPC`, `ATOM`, `ATOMG`, the `SYNCS` results, and two
 that were in no list of cubit: `F2F` (silicon: wrong bits at every distance up to 15 without its barrier) and `BREV`.
 
+## Harness v8 (2026-11-10): the probe service — one request, one isolated kernel family, an absolute oracle
+
+`probe.py` turns the method of the earlier harnesses into one tool with one difference: **no reference kernel is the
+judge.** A request names two forms and what is swept; `gen` builds one frozen kernel per point (every control code is in
+the text, nothing is scheduled) and computes on the host, from the kernel's own instruction list, the checksum every
+thread must end with — for "everything right" and for each failure hypothesis; `run` launches each kernel 20 times and
+puts every thread of every launch into one class. The earlier harnesses compared with a reference kernel (the producer
+at S15, or an overwriter 105 cycles behind a store); for the store latch that reference was itself affected and the
+comparison under-reported (KNOWN_ISSUES A27).
+
+| kind | question | forms |
+|---|---|---|
+| `raw` | from which issue distance does a consumer see a producer's result | producers `IADD3` (also `-R + imm`), `IMAD`, `IMAD.SHL`, `IMAD.WIDE`, `IADD.64`, `LOP3`, `MOV`, `SHF`, `SEL`, `PRMT`, `CS2R` (pair form), `FADD`, `FMUL`, `F2FP.SATFINITE.BF16.F32.PACK_AB`, uniform `UMOV` / `UIADD3`; consumers `STS` data / address, the first / last register of `STS.128`, `STG` data, `LDS` address, `IADD3` r1 / r2, `IMAD` r1 / r3, `IMAD.SHL`, `IADD.64` low / high word, `SHF.L.U32`, `SHF.L.U64.HI`, `LOP3`, `MOV`, `SEL`, `PRMT`, `I2FP`, `LEA`, uniform `UIADD3` / `MOV R, UR` |
+| `war` | from which distance may an instruction rewrite a register a BARE store reads | stores `STS` / `STS.128` / `STG` data, `STS` / `STG` address; overwriters `LOP3`, `IADD3` (adds a constant: the number of late iterations per thread is read from the checksum), `MOV`, `LDS`, `LDS.128`, `LDSM`, `LDG`; controls without the overwriter and with a read barrier + wait |
+| `ord` | is an OLDER load without a write barrier landed when a YOUNGER load's barrier clears (the reader waits only on the younger one's) | `LDS`–`LDS`, `LDS`–`LDSM`, `LDS.128`–`LDS`, `LDS`–`LDG`, `LDG`–`LDS`, `LDG`–`LDG`; control: the older load carries its own barrier |
+| `mma` | two tensor instructions of one warp d cycles apart (another accumulator, the same, under guards; the vendor's `NOP` shape); ONE tensor instruction and a rewrite of a fragment register d cycles behind it (the operand hold) | `QMMA.SF.16832.F32.E4M3.E2M1.E8`, `HMMA.16816.F32`, `HMMA.16816.F32.BF16` |
+
+Swept: the distance (one stall 1…15 on the tested instruction + fillers of 15; `"via": "fill"` = stall 1 + fillers of
+1), the occupancy (`w1` … `w32` = 1 … 32 warps on every SM of a 188-SM card; `g32` = 32 CTAs × 32 warps, the geometry of
+v5; `w12` = one CTA of 12 warps per SM; `c2w9` = 2 CTAs of 9 warps per SM), the memory traffic in front (K stores of a
+constant at stall S, shared or global). A request may carry `wanted` — the distance a schedule move asks for — and the
+verdict then says whether the floor covers it.
+
+How the oracle stays honest: the vectorised host model is checked against an independent scalar interpreter at
+generation; a series has a result only when its own control (no overwriter / the largest distance) is right in 100 % of
+the threads — otherwise `oracle: FAILED` (the runner then keeps the control's raw output and, per kernel, the count of
+threads equal to it, so the relative reading survives and the model can be repaired on the CPU). The tensor family
+needs no knowledge of the fragment layout: every A element is the same code (1.0 on even iterations, 2.0 on odd), every
+B element the same code (1.0 in the first fragment, 2.0 in the second), unit block scales, accumulators = integer-valued
+floats 2^23 + k per thread and register — each result is its accumulator + K·a·b, an integer add on the bit pattern.
+Every address a kernel can form — right or stale — is the thread's own 64 bytes of shared memory or its own two words
+of the output buffer; kernels use R0–R31 with `.regcount 40`.
+
+```bash
+python3 tools/stallfloor/probe.py list                                   # the catalogue
+python3 tools/stallfloor/probe.py gen requests.json --out batch/         # CPU: kernels, family.json, model.npz per request
+python3 tools/stallfloor/probe.py run batch/ [--reps 20] [--limit-s 600] # GPU host: result.json per request, floors.json
+python3 tools/stallfloor/probe.py floor batch/                           # one line per request: `floor: <pair> = N (conditions)`
+python3 tools/stallfloor/probe.py adapt <emu120.gate json | dir> --out requests.json   # a search loop's gate requests -> requests
+python3 tools/stallfloor/probe.py selftest                               # the model against the scalar interpreter (CPU)
+PROBE_FAKE=1 python3 tools/stallfloor/probe.py run batch/                # the runner's logic without a card
+```
+
+Cost: 0.6 CPU-seconds per kernel to assemble; on the card 2.9 s per request of ≈ 270 kernels (27 requests, 7 392
+kernels × 20 launches: 78 s) + ≈ 10 s per block.
+
+Result files (2026-11-10, RTX PRO 6000 Blackwell Server Edition, GPU 0 of the test host, 400 W, core clock 2 356 – 2 370
+MHz while busy; one file per batch: every request with its floor per condition, the distances at which every thread
+was right and the classes at the others, the table cell it was compared with, conditions and provenance):
+
+| file | what it holds |
+|---|---|
+| `probe_sm120_20261110_b1.json` | **the store cells against the absolute oracle** (27 requests, 7 392 kernels). Producer → store operand / load address, the same floor at 1 / 8 / 32 warps per SM and at 32 warps on 32 SMs: `LOP3` / `IADD3` / `FADD` / `FMUL` → `STS` data 3, `IADD3` → the first register of `STS.128` 3, `MOV` / `IADD3` → its last register 1, `IADD3` / `MOV` / `FADD` → `STG` data 3, `IADD3` / `IMAD` / `LOP3` → `STS` address 1, → `LDS` address 4 — the numbers of the v5 files, no cell moves; with 15 stores issued in front every one of them is 1 (a store or load reads its operands when the memory pipe serves it). **A register of a bare store rewritten behind it by an ALU instruction — first distance at which every thread is right: one warp per SM 1 (the last register of `STS.128`: 4); one warp with 15 of its own stores in front 150 (wrong in every thread up to 105); 8 warps per SM, nothing in front 105 (`STG` address 75); 8 warps with 15 stores in front, and 32 warps: none up to 300 for a shared store** (one cell of the five differs: `STS` data at 32 warps on 32 SMs without traffic, 300; a global store at 32 warps without traffic: 90 on 32 SMs, 300 (data) / 225 (address) on 188; with 15 global stores in front 225 on 32 SMs, none up to 300 on 188 and at 8 warps; one warp with 15 global stores in front: 13). Controls: no overwriter, and read barrier + wait — 0 wrong of 4.7 × 10^8 thread-launches each. **A LOAD as the overwriter never reached the store**: `STS` ← `LDS`, `STS.128` ← `LDS.128` / `LDSM`, `STG` ← `LDG`, and across the pipes `STG` ← `LDS`, `STS` ← `LDG` — 0 of 4.02 × 10^8 thread-launches per pair (1.03 × 10^11 store → overwrite events), distances 1 … 75 and 105, four occupancies, with and without 15 stores in front: a measured exemption (the memory pipe serves a warp's instructions in issue order — inferred), not a rule for the scheduler |
+| `probe_sm120_20261110_b4.json`, `_b5.json` | **two `QMMA.SF.16832.F32.E4M3.E2M1.E8` of one warp: right at every distance 1 … 16 (to 60)** — another accumulator with the same A fragment and another B fragment, the same accumulator, both under guards on two predicates, the second under a false guard; the distance as the first MMA's stall and as `QMMA [S(d−1)] ; NOP [S01] ; QMMA`; 1 / 8 / 16 / 32 warps per SM, one CTA of 12 warps per SM, 2 CTAs of 9 warps per SM; 1.49 × 10^9 thread-launches, 0 wrong. The resource row `mma` (16) is the vendor's spacing, not a silicon floor — as the v5e file says for `…E4M3.E4M3` against a reference kernel. **The operand hold (`_b5.json`): a `MOV` / `IADD3` that rewrites a register of the A fragment d cycles behind the MMA changes the result up to 4 and never from 5** (1 / 8 / 12 / 32 warps per SM and 2 × 9); the vendor keeps 8 |
+| `probe_sm120_20261110_b6.json` | the same for `HMMA.16816.F32` and `HMMA.16816.F32.BF16`: two back to back right from 1; A-fragment hold 5 |
+| `probe_sm120_20261110_b3.json`, `_b2.json` | pairs the served MoE kernels' vendor schedule holds below the table: `F2FP.SATFINITE.BF16.F32.PACK_AB` → `IMAD.SHL.U32` 5 (default 6; the vendor 5), `IADD.64` → `SHF.L.U64.HI` 5 (default 6; the vendor 5), `IMAD.WIDE` → `SHF.L.U64.HI` 5, `UMOV` → `UIADD3` 1 (cell 4; the vendor 2), `UMOV` → `MOV R, UR` 1 (uniform default 13; the vendor 2), `UIADD3` → `UIADD3` 4 and → `MOV R, UR` 6 (the cells exactly), `CS2R Rn, SRZ` → `IMAD` / `IADD3` / `LOP3` 6 (cell / default 6 exactly) |
+
+A floor here is a measurement with its conditions on ONE card model. The table changes only by a commit with the result
+file beside the cell; none is proposed with these files.
+
+Two things the first day taught, both now in the tool: **a 64-bit register pair must sit on an even register** — cubit
+assembles `IADD.64 R13, R6, 0x4`, the card answers "Misaligned Register" (Xid 13) at the first launch; `gen` refuses such
+a text (and a 128-bit or tensor operand off a multiple of four). And the runner runs **one process per request**: a
+kernel that traps ends its own request, not the batch.
