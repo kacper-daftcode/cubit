@@ -1,0 +1,17 @@
+// ptxas's predicate-result LOP3 in front of the instruction it guards (the shape of the served MoE kernels:
+// `LOP3.LUT P4, RZ, R21, 0x7fffff, ...` / `@P4 IADD3 R21, ...`). The scheduler's operand model has no
+// definition for it: under CUBIT_SCHED2 the pair is issued one cycle apart.
+.entry blind
+    .reg R0-R15
+    .param u64 out
+    S2R R0, SR_TID.X ;
+    LDCU.64 UR4, c[0x0][0x358] ;
+    LDC.64 R2, c[0x0][0x380] ;
+    IADD3 R4, PT, PT, R0, 0x7, RZ ;
+    IMAD R5, R4, 0x3, RZ ;
+    LOP3.LUT P5, RZ, R5, 0x10, RZ, 0xc0, !PT ;
+    @P5 IADD3 R5, PT, PT, R5, 0x1, RZ ;
+    IMAD.WIDE.U32 R2, R0, 0x4, R2 ;
+    STG.E desc[UR4][R2.64], R5 ;
+    EXIT ;
+.endentry

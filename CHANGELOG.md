@@ -162,6 +162,15 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   (`dep_stall::apply_library_path`). The table stays a `cubit asm` feature — on the library path `CUBIT_SCHED2_LAT` gives plain
   `CUBIT_SCHED2`'s stream. `cubit asm` output is unchanged under every switch, the default path everywhere
   (`tests/sched2_library_path.rs`; KNOWN_ISSUES A26).
+- **`CUBIT_SCHED2`: the instructions the dependency model does not see are named, and `CUBIT_SCHED2_STRICT=1` refuses a kernel that has
+  one.** The switch charges a stall where a consumer needs it, so a producer without a definition in the scheduler's operand model, or a
+  read missing from it, gets none — and neither the table's legaliser nor `CUBIT_DEP_VERIFY` can know. Every whole-kernel `CUBIT_SCHED2`
+  build of the ptxas-compiled MoE kernels of the serving stack faulted on sm_120 silicon on such forms: the predicate-result
+  `LOP3.LUT Pn, Rd, …`, definitions of uniform predicates (`UISETP`, `VOTEU`), `BRA.DIV` / `BRA.CONV` / `BRX`, 64-bit operands whose
+  halves have different producers. `dep_stall::blind_spots` lists them; `cubit asm` prints the list under `CUBIT_SCHED2` and under
+  `CUBIT_DEP_VERIFY` (only when it is not empty), and with `CUBIT_SCHED2_STRICT=1` writes no kernel. No stall of any kernel changes; the
+  attention kernel has no such form and builds byte for byte with and without the strict switch (`tests/sched2_blind_spots.rs`, which also
+  pins the minimal case of the hole; KNOWN_ISSUES A26). The operand model itself is not extended here — the default scheduler shares it.
 - **The table's MMA → reader row is a measured floor, not ptxas's caution: result registers 2 and 3 of an `HMMA` need 28 issue cycles.**
   The session's own probe read the first result register only and reported "floor 20"; a second session's per-register probes
   (`tools/stallfloor/mma_result_registers_sm120_20261110_em.json`, 60 kernels × 20 launches) show registers 0 / 1 clean from 20 and

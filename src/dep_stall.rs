@@ -873,6 +873,85 @@ fn raise_linear(insns: &mut [Instruction], binding: &mut [bool], def: usize, c: 
     deficit
 }
 
+/// The instructions of a kernel whose results or reads the dependency model does not see.
+///
+/// The legaliser prices a dependency it can name: a definition from `scheduling_pass::dest_regs`
+/// read through `scheduling_pass::src_regs`. A producer or a read missing from those sets has no
+/// requirement at all - `apply` leaves the pair wherever `schedule()` put it (one cycle apart
+/// under `CUBIT_SCHED2`) and `check` reports nothing. This is the list of the forms known to be
+/// missing (found 2026-11-10 by an independent def / use model on kernels compiled by ptxas,
+/// whose `CUBIT_SCHED2` builds fault on silicon):
+///
+///  * `LOP3.LUT Pn, Rd, ...` - the predicate-result form: neither `Pn` nor `Rd` is a definition
+///    (`Rd` is taken for a source);
+///  * a definition of a uniform predicate (`UISETP ... UPn`, `VOTEU UPn`, any other producer
+///    whose first operand is `UPn`);
+///  * `BRA.DIV` / `BRA.CONV` / `BRX` / `JMX` - the uniform operand is not read, and the flow
+///    graph takes the first two for unconditional and follows no indexed branch;
+///  * a 64-bit operand whose two halves have different producers: the upper register of
+///    `[Rn.64]` and of the sources of `IADD.64` is not read, so only the producer of the lower
+///    half is priced (a pair written by one `IMAD.WIDE` / `LDC.64` / `IADD.64` is fine).
+///
+/// Empty for a kernel the switches are certified on. `cubit asm` prints the list under
+/// `CUBIT_SCHED2` and refuses to write the kernel under `CUBIT_SCHED2_STRICT=1`;
+/// `CUBIT_DEP_VERIFY=1` prints it for any kernel. Text order stands in for the flow graph when
+/// the producers of the two halves are compared (a loop-carried pair written by two instructions
+/// is found; a pair written on two paths by one instruction each may be missed).
+pub fn blind_spots(insns: &[Instruction]) -> Vec<(usize, &'static str)> {
+    let mut out = Vec::new();
+    // last text-order writer of every general register
+    let mut last_def: HashMap<u16, usize> = HashMap::new();
+    for (i, ins) in insns.iter().enumerate() {
+        let first_upred = matches!(ins.operands.first(), Some(Operand::UPred { num, .. }) if *num < 7);
+        let first_pred = matches!(ins.operands.first(), Some(Operand::Pred { num, .. }) if *num < 7);
+        if ins.opcode == "LOP3" && (first_pred || first_upred) {
+            out.push((i, "a predicate-result LOP3: its predicate and its register result are no definitions"));
+        } else if first_upred && !ins.opcode.starts_with("BRA") {
+            out.push((i, "a uniform predicate is defined: not a definition"));
+        }
+        let full = ins.opcode_full.as_str();
+        if full.starts_with("BRA.DIV") || full.starts_with("BRA.CONV") || ins.opcode == "BRX" || ins.opcode == "JMX" {
+            out.push((i, "a branch the flow graph does not follow / whose uniform operand is not read"));
+        }
+        // 64-bit operands: the upper register is not in the use set
+        let mut pairs: Vec<u8> = Vec::new();
+        for o in &ins.operands {
+            match o {
+                Operand::Desc { base_reg: Some(b), base_reg_suffix: Some(sfx), .. }
+                | Operand::Addr { base_reg: Some(b), base_reg_suffix: Some(sfx), .. }
+                    if sfx == "64" || sfx == ".64" =>
+                {
+                    pairs.push(*b)
+                }
+                _ => {}
+            }
+        }
+        if ins.opcode == "IADD" && ins.modifiers.iter().any(|m| m == ".64") {
+            for o in ins.operands.iter().skip(1) {
+                if let Operand::Reg { num, .. } = o {
+                    pairs.push(*num);
+                }
+            }
+        }
+        for b in pairs {
+            if b >= 254 {
+                continue;
+            }
+            let (lo, hi) = (last_def.get(&u16::from(b)), last_def.get(&(u16::from(b) + 1)));
+            if lo != hi {
+                out.push((i, "a 64-bit operand whose halves have different producers: the upper register is not read"));
+                break;
+            }
+        }
+        for (uniform, k) in sp::dest_regs(ins) {
+            if !uniform && k < 255 {
+                last_def.insert(k, i);
+            }
+        }
+    }
+    out
+}
+
 /// The legaliser for the callers of `schedule()` + `reallocate_barriers()` that are not
 /// `cubit asm` - the library's `assemble`, the Python module: under `CUBIT_SCHED2` the scoreboard
 /// arming rule, exactly as `cubit asm` runs it behind the allocator (`CUBIT_SCHED2_NOARM` keeps
@@ -1134,6 +1213,52 @@ mod tests {
 
     /// The CUBIT_SCHED2 failure of 2026-11-10 as data: `MUFU [W0:Y:S01]` with its waiter right
     /// behind it. The arming rule sees it, raises the setter by one cycle and nothing else.
+    fn kernel(lines: &[&str]) -> Vec<Instruction> {
+        let text = format!(".entry k\nL_0:\n{}\n.endentry\n", lines.iter().map(|l| format!("    {l}")).collect::<Vec<_>>().join("\n"));
+        crate::sass_file::parse_sass_file_str(&text).unwrap().kernels.remove(0).instructions
+    }
+
+    /// The forms the dependency model has no definition or read for are named, one by one; a
+    /// 64-bit pair written by one instruction is not one of them.
+    #[test]
+    fn blind_spots_names_what_the_model_cannot_see() {
+        let one = |l: &str| blind_spots(&kernel(&[l]));
+        // ptxas's predicate-result LOP3, with and without a register result
+        assert_eq!(one("LOP3.LUT P5, RZ, R33, 0x10, RZ, 0xc0, !PT ;").len(), 1);
+        assert_eq!(one("LOP3.LUT P5, R4, R31, 0xff, RZ, 0xc0, !PT ;").len(), 1);
+        assert!(one("LOP3.LUT R4, R4, R31, RZ, 0xc0, !PT ;").is_empty(), "the plain form is seen");
+        // uniform predicate definitions; the branch that reads one is seen
+        assert_eq!(one("UISETP.GE.AND UP0, UPT, UR4, 0x40, UPT ;").len(), 1);
+        assert_eq!(one("VOTEU.ANY UP0, P4 ;").len(), 1);
+        assert!(one("BRA.U !UP0, L_0 ;").is_empty());
+        assert!(one("ISETP.NE.AND P6, PT, R14, RZ, PT ;").is_empty());
+        // branches outside the flow graph
+        assert_eq!(one("BRA.DIV UR4, L_0 ;").len(), 1);
+        // 64-bit operands: one producer for both halves is fine, two producers are not
+        let fine = kernel(&["IMAD.WIDE.U32 R6, R64, R73, R28 ;", "LDG.E.128 R88, desc[UR4][R6.64] ;"]);
+        assert!(blind_spots(&fine).is_empty(), "{:?}", blind_spots(&fine));
+        let fine = kernel(&["IADD.64 R20, R20, R32 ;", "STG.E.64 desc[UR8][R20.64], R34 ;"]);
+        assert_eq!(blind_spots(&fine).len(), 0, "the pair of one IADD.64 (its own sources are unwritten here)");
+        let split = kernel(&["LEA R26, R4, R6, 0x2 ;", "LEA.HI.X R27, R4, R7, R5, 0x2, P0 ;", "STG.E.128 desc[UR8][R26.64], R8 ;"]);
+        let b = blind_spots(&split);
+        assert_eq!(b.len(), 1, "{b:?}");
+        assert_eq!(b[0].0, 2, "the store reads a pair with two producers");
+        let split = kernel(&["MOV R36, R2 ;", "MOV R37, RZ ;", "IADD.64 R24, R24, R36 ;"]);
+        assert_eq!(blind_spots(&split).iter().map(|x| x.0).collect::<Vec<_>>(), [2], "the upper half of an IADD.64 source");
+    }
+
+    /// The attention kernel - the kernel the switches are certified on - has none.
+    #[test]
+    fn the_attention_kernel_has_no_blind_spot() {
+        let sf = crate::sass_file::parse_sass_file_str(include_str!("../tests/fixtures/sb_long_keep/attention_prefetch.sass")).unwrap();
+        let k = &sf.kernels[0].instructions;
+        assert!(k.len() > 1400);
+        let wide = k.iter().filter(|i| i.operands.iter().any(|o| matches!(o, Operand::Desc { base_reg_suffix: Some(x), .. } if x == "64"))).count();
+        assert!(wide >= 60, "its 64-bit addresses are checked: {wide}");
+        let b = blind_spots(k);
+        assert!(b.is_empty(), "{:?}", b.iter().map(|(i, w)| format!("[{i}] {} -- {w}", k[*i].raw_text.trim())).collect::<Vec<_>>());
+    }
+
     #[test]
     fn the_arming_rule_finds_and_repairs_a_waiter_one_cycle_behind_its_setter() {
         let t = DepLatTable::barriers_only(2);

@@ -5518,6 +5518,30 @@ fn cmd_asm_directive_format(
                     );
                 }
             }
+            // CUBIT_SCHED2: the model charges a stall where a consumer needs it, so a producer or a
+            // read it cannot see gets none. Name them; CUBIT_SCHED2_STRICT=1 refuses the kernel.
+            if std::env::var("CUBIT_SCHED2").is_ok() {
+                let blind = cubit::dep_stall::blind_spots(&insns_with_ctrl);
+                if !blind.is_empty() {
+                    println!(
+                        "  {}: CUBIT_SCHED2: {} instruction(s) whose results or reads the dependency model does not see - no stall is charged for them:",
+                        def.name,
+                        blind.len()
+                    );
+                    for (i, why) in blind.iter().take(8) {
+                        println!("    [{}] {} -- {}", i, insns_with_ctrl[*i].raw_text.trim(), why);
+                    }
+                    if std::env::var("CUBIT_SCHED2_STRICT").is_ok_and(|v| !v.is_empty() && v != "0") {
+                        anyhow::bail!(
+                            "{}: CUBIT_SCHED2_STRICT: {} instruction(s) outside the dependency model (the first: [{}] {}); build this kernel with the default scheduler",
+                            def.name,
+                            blind.len(),
+                            blind[0].0,
+                            insns_with_ctrl[blind[0].0].raw_text.trim()
+                        );
+                    }
+                }
+            }
         } else if std::env::var("CUBIT_VERIFY").is_ok() {
             // Preserve mode skips the allocator, but the read-only scoreboard verifier
             // still runs so hand-scheduled kernels report a CUBIT_VERIFY line.
@@ -5550,6 +5574,18 @@ fn cmd_asm_directive_format(
             }
             for v in viol.iter().filter(|v| v.defaulted).take(lim) {
                 println!("    DEP dflt {}", cubit::dep_stall::describe(&insns_with_ctrl, v));
+            }
+            // what the counts above cannot contain: producers and reads outside the dependency model
+            let blind = cubit::dep_stall::blind_spots(&insns_with_ctrl);
+            if !blind.is_empty() {
+                println!(
+                    "  {}: DEP_VERIFY blind: {} instruction(s) whose results or reads the dependency model does not see (not in the counts above)",
+                    def.name,
+                    blind.len()
+                );
+                for (i, why) in blind.iter().take(lim) {
+                    println!("    DEP blind [{}] {} -- {}", i, insns_with_ctrl[*i].raw_text.trim(), why);
+                }
             }
         }
 

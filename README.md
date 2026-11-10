@@ -92,7 +92,10 @@ path, and `CUBIT_MMA_PTXAS=1` replaces the MMA writeback drains by ptxas's issue
 sparse-MLA attention kernel: bits identical, −15 % time (stall cycles −48 %). All three are opt-in and for
 sm_120, and the table is a `cubit asm` feature: `cubit::assemble` and the Python module do not honour
 `CUBIT_SCHED2_LAT` (they have no legaliser behind the passes; under plain `CUBIT_SCHED2` they run the
-scoreboard arming rule). `CUBIT_DEP_VERIFY=1` reports every fixed-latency dependency below the table on any path, also on a
+scoreboard arming rule). They are certified on hand-written kernels: `cubit asm` names the instructions whose
+results or reads the dependency model does not see (ptxas's predicate-result `LOP3`, uniform predicate
+definitions, `BRA.DIV`, split 64-bit pairs) and `CUBIT_SCHED2_STRICT=1` refuses a kernel that has one.
+`CUBIT_DEP_VERIFY=1` reports every fixed-latency dependency below the table on any path, also on a
 frozen kernel (KNOWN_ISSUES A26; the harness and its results: [tools/stallfloor/](tools/stallfloor/README.md)).
 `CUBIT_VERIFY=1` runs the read-only scoreboard verifier on every kernel it
 assembles (frozen or scheduled) and prints each unprotected RAW / broken WAR; `CUBIT_VERIFY_RBPROBE=1`
