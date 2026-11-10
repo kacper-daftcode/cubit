@@ -191,5 +191,69 @@
   "on_grid": false,
   "verdict": "FAULT [CUDA driver error 715 in cuCtxSynchronize] at sync 0",
   "words_t0": null
+ },
+ "imadwq_no_p0_b8": {
+  "shape": "imadwq_no_p0",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   591659008,
+   2,
+   0,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "imadwq_no_p1_b8": {
+  "shape": "imadwq_no_p1",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   591659008,
+   2,
+   0,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "imadwq_ov_p0_b8": {
+  "shape": "imadwq_ov_p0",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   591659008,
+   1,
+   1,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
+ },
+ "imadwq_ov_p1_b8": {
+  "shape": "imadwq_ov_p1",
+  "base": 8,
+  "on_grid": true,
+  "verdict": "OK",
+  "words_t0": [
+   591659008,
+   1,
+   1,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559,
+   3735928559
+  ]
  }
 }

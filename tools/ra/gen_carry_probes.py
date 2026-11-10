@@ -19,7 +19,9 @@ controls return the right sum (the carry-in controls: + 1 with the carry-in set,
 with a carry-out predicate are reported WRONG for their third word only: the `@P0` guard sits 6 issue cycles behind the
 IMAD and saw the predicate's value from BEFORE it -- that set does not decide whether the predicate is the carry.
 `--set3` is the four kernels that do (the guard 21 issue cycles behind, both polarities, with and without overflow:
-"carry" reads 1 1 0 0, "not written" 0 1 0 1, "inverted" 0 0 1 1).
+"carry" reads 1 1 0 0, "not written" 0 1 0 1, "inverted" 0 0 1 1). Their result (same day, same card, in the same
+JSON as `imadwq_*`): **1 1 0 0 -- the predicate is the carry of the 64-bit sum**, set with an overflow and cleared
+without one whatever it held before. Six issue cycles behind the IMAD a guard still reads the earlier value.
 
     gen_align_probes.py <first>                          the first set (its imadw_c pair is copied from there)
     gen_carry_probes.py <outdir> <first>                 -> <outdir>/<name>.sass + index.json;  assemble each with

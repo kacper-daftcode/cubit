@@ -160,6 +160,9 @@ launches × 16 cases and 30 fresh processes × 16 cases, and as fast as the hand
 shape (within ±0.3 %, the spread between rounds) — as are two further numberings made by permuting the
 plan's 4-register blocks. The register numbers themselves cost nothing; what the hand numbering knew
 was the grid, and where not to share a register.
+The `--no-share` builds of both texts passed the same gate on a
+second card of that model (716 / 784 / 1 712 / 745 and 659 / 725 / 1 614 / 679 µs against the hand-numbered
+717 / 784 / 1 716 / 759 and 659 / 725 / 1 613 / 680).
 
 `sparse_mla_prefill_v43` (the next kernel of the family: 1 484 source instructions, R0–R129 numbered by
 hand, register count 136; a second prefetch load one chunk ahead), re-numbered from zero the same day:
@@ -184,4 +187,9 @@ elsewhere went away). It cost nothing measurable — waits in between had alread
 with a prefetch is re-numbered are the waits on the prefetch's own scoreboard: compare them
 (`cubit disassemble --frozen`, the `[B……]` field) as well as bits and time. And 127 registers are one more than
 a register count of 128 holds (126): the pass takes the best of three placement orders and does not search
-further — if the granule matters to you, look at `full.r.watermark` against `peak_live_r`.
+further — if the granule matters to you, look at `full.r.watermark` against `peak_live_r`. For this kernel a plan
+with 126 registers exists: the pass's plan with one symbol moved onto a register whose value it never meets
+(`--mode apply --target sm120` accepts it; the scan cannot see it, because it places a value by the interval
+from its first write to its last read). Certified the same way: register count 128, bit-identical, 584 / 645 /
+1 465 / 602 µs, 32 control words differ, none on the prefetch's scoreboard. On a Server Edition card the three
+builds of the table read 724 / 800 / 1 826 / 724, 724 / 800 / 1 825 / 723 and 724 / 800 / 1 824 / 723 µs.

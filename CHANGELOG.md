@@ -69,9 +69,10 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   (`CUBIT_DISABLE_ERRATA=1` assembles them for RE). The measured rows of the table re-assemble such field words: the 32
   that are refused now carry the `silicon_bits` mark in `tests/fixtures/sm120_rows_intalu_nvdisasm.jsonl` (the mark the
   row probe gives a field word the encoder refuses on a silicon law; written by that rule, 784 field words of the 16
-  `IMAD.WIDE` rows re-assembled). Not decided: whether the predicate behind `Rd` is the carry of the 64-bit sum (the
-  probes' guard read it too early; `tools/ra/gen_carry_probes.py --set3` is the four kernels that tell). The other 21
-  off-grid shapes still assemble: KNOWN_ISSUES A28 (1).
+  `IMAD.WIDE` rows re-assembled). The predicate behind `Rd` is the carry of the 64-bit sum (four more kernels,
+  `tools/ra/gen_carry_probes.py --set3`), and a guard six issue cycles behind the IMAD — where the default schedule
+  puts one — still reads its earlier value: KNOWN_ISSUES A2. The other 21 off-grid shapes still assemble:
+  KNOWN_ISSUES A28 (1).
 - `docs/RA_SYMBOLIC_REGISTERS.md`: how to write a generator with symbolic registers and what the pass guarantees. With the measured
   tables of the attention kernel: v41 / v42 (125 registers for 126 numerals, 0 control words differ) and v43 (127 for 130;
   4 of 1 489 control words differ with sharing, 0 with `--no-share`; bits and times the hand-numbered kernel's in both).
