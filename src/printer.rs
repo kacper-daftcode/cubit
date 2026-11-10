@@ -1004,6 +1004,8 @@ fn norm_ext(s: &str) -> String {
         "SysRegHi4" => return "sysreg_hi4".to_string(),
         "SysRegHi1" => return "sysreg_hi1".to_string(),
         "None" => return "none".to_string(),
+        "F2fpScaleSel" => return "f2fp_scale_sel".to_string(),
+        "F2fpRaByteSel" => return "f2fp_ra_byte_sel".to_string(),
         "Cm16Off" => return "cm16off".to_string(),
         "Cm17Off" => return "cm17off".to_string(),
         _ => {}
@@ -2308,6 +2310,8 @@ fn format_reg(
     let mut inv = false;
     let mut reuse = false;
     let mut opmods: Vec<String> = Vec::new();
+    let mut f2fp_b1 = false;
+    let mut f2fp_b2 = false;
 
     for f in fields {
         let e = norm_ext(&f.extraction);
@@ -2328,6 +2332,19 @@ fn format_reg(
             // like the raw-bit sideband (same vendor law — see
             // reuse_print_visible).
             "reuse" => reuse = f.value != 0 && reuse_print_visible(raw),
+            "f2fp_scale_sel" => {
+                let selector = ["H0", "H1", "B0", "B1", "B2", "B3"];
+                if let Some(name) = selector.get(f.value as usize) {
+                    opmods.push((*name).to_string());
+                }
+            }
+            "f2fp_ra_byte_sel" => {
+                if f.shift == 72 {
+                    f2fp_b1 = f.value != 0;
+                } else if f.shift == 88 {
+                    f2fp_b2 = f.value != 0;
+                }
+            }
             _ => {}
         }
         // Operand-level modifier flags (.F32x2.HI_LO etc.) live as opmod:NAME
@@ -2387,6 +2404,11 @@ fn format_reg(
                 opmods.push(name.to_string());
             }
         }
+    }
+
+    if f2fp_b1 || f2fp_b2 {
+        let suffix = if f2fp_b1 && f2fp_b2 { "B3" } else if f2fp_b1 { "B1" } else { "B2" };
+        opmods.push(suffix.to_string());
     }
 
     // HSETP/HSETP2 with no hsel field: nvdisasm prints the default half-selector

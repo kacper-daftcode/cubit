@@ -1460,6 +1460,8 @@ fn extraction_name(e: &Extraction) -> String {
         Extraction::Imm => "imm".into(),
         Extraction::ImmShr(n) => format!("imm_shr{n}"),
         Extraction::Reuse => "reuse".into(),
+        Extraction::F2fpScaleSel => "f2fp_scale_sel".into(),
+        Extraction::F2fpRaByteSel => "f2fp_ra_byte_sel".into(),
         Extraction::Neg => "neg".into(),
         // BUG-251: NegAbs must not fall to the catch-all ("negabs" from Debug
         // lowercase never matches the printer's "neg_abs" arm) — the sm121a DSETP

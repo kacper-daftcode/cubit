@@ -198,6 +198,7 @@ fn extraction_accepts(ext: &Extraction, op: &Operand) -> bool {
         // Flags / guard / opaque mods are non-discriminating: they read optional
         // attributes (neg/abs/reuse/...) and legitimately default to 0.
         Guard | GuardLo3 | GuardNeg | Neg | NegShl1 | Reuse | Inv | Abs | NegAbs | ByteSel
+        | F2fpScaleSel | F2fpRaByteSel
         | HalfSel | H0NH1 | OpaqueModifier | OpModFlag(_) | MnemMod(..) | UrExpl | UrExplInv
         | YieldInv | AddrScale | None => true,
 
@@ -2553,6 +2554,8 @@ fn check_operand_suffixes(insn: &Instruction, entry: &crate::table::ModGroupEntr
                             && seg.starts_with('B')
                             && seg[1..].chars().all(|c| c.is_ascii_digit())
                     }
+                    Extraction::F2fpScaleSel => F2FP_SCALE_SELECTORS.contains(&seg.as_str()),
+                    Extraction::F2fpRaByteSel => matches!(seg.as_str(), "B0" | "B1" | "B2" | "B3"),
                     _ => false,
                 }
             });
@@ -5038,6 +5041,18 @@ fn extract_value(insn: &Instruction, field: &Field) -> Result<u64> {
             fit(insn, field, (a & 1) << 1 | (n & 1))
         }
         Extraction::ByteSel => fit(insn, field, op_byte_sel(insn, field.token_idx)),
+        Extraction::F2fpScaleSel => {
+            let value = op_f2fp_scale_sel(insn, field.token_idx).ok_or_else(|| {
+                anyhow::anyhow!("missing scale selector on F2FP operand {}; use H0,H1,B0,B1,B2,B3", field.token_idx)
+            })?;
+            fit(insn, field, value)
+        }
+        Extraction::F2fpRaByteSel => {
+            let value = op_f2fp_ra_sel(insn, field.token_idx, field.shift).ok_or_else(|| {
+                anyhow::anyhow!("invalid E2M1 source byte selector on operand {}", field.token_idx)
+            })?;
+            fit(insn, field, value)
+        }
         Extraction::LblPat(pat) => {
             // Double-bracket operands (Operand::Desc) carry the UR id structurally;
             // raw scraping only understands the single-bracket desc[URn] form.
@@ -5920,6 +5935,40 @@ fn op_byte_sel(insn: &Instruction, tok: i32) -> u64 {
         }
     }
     0
+}
+
+const F2FP_SCALE_SELECTORS: [&str; 6] = ["H0", "H1", "B0", "B1", "B2", "B3"];
+
+/// Selector zero is H0, not an omitted suffix: the scale selector is mandatory.
+fn op_f2fp_scale_sel(insn: &Instruction, tok: i32) -> Option<u64> {
+    if insn.opcode != "F2FP" {
+        return None;
+    }
+    let token = op_token_text(insn, tok);
+    let suffix = token.split('.').next_back();
+    F2FP_SCALE_SELECTORS.iter().position(|name| Some(*name) == suffix)
+        .map(|n| n as u64)
+}
+
+/// E2M1 uses (b88,b72) = B3/B2/B1/B0. Fit each bit separately.
+fn op_f2fp_ra_sel(insn: &Instruction, tok: i32, shift: u32) -> Option<u64> {
+    if insn.opcode != "F2FP" {
+        return None;
+    }
+    let token = op_token_text(insn, tok);
+    let value = match token.split('.').next_back() {
+        Some("B3") => 3,
+        Some("B2") => 2,
+        Some("B1") => 1,
+        Some("B0") => 0,
+        _ if !token.contains('.') => 0,
+        _ => return None,
+    };
+    match shift {
+        72 => Some(value & 1),
+        88 => Some((value >> 1) & 1),
+        _ => None,
+    }
 }
 
 /// Raw text of operand `tok` (1-based over the operand list; brackets and

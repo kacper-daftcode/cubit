@@ -55,7 +55,7 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
 - **Default path**: the 99 production sources re-assemble with identical `.text` and control words, the attention build with the
   switches off equals its pinned reference; `tests/sched2_dep_latency.rs` (11 tests, 9 red before the change) and 6 unit tests.
 
-## Unreleased — 2026-11-10 (session T-26: the review queue — the B300 latency model of pull request 3; `USETMAXREG` measured and the SM120 async idioms document from the megakernel branch; the sm_120 scheduler session's opt-in switches; the first two batches (33 refs) of the B300 lane's candidate forms on sm103a / sm100a)
+## Unreleased — 2026-11-10 (session T-26: the review queue — the B300 latency model of pull request 3; `USETMAXREG` measured and the SM120 async idioms document from the megakernel branch; the sm_120 scheduler session's opt-in switches; the first three batches (35 refs) of the B300 lane's candidate forms on sm103a / sm100a; the scaled F2FP unpack on the four tables)
 
 - **`cubit asm` on sm_120, opt-in: `CUBIT_SCHED2` with the scoreboard arming rule, a pair-latency table enforced on every control-flow path
   (`CUBIT_SCHED2_LAT=sm120`), ptxas's MMA discipline (`CUBIT_MMA_PTXAS=1`)** (`49f8340`, the sm_120 scheduler session's commit). `CUBIT_SCHED2=1`
@@ -108,6 +108,32 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   sign-bit fallback any more (`tests/sm120_usetmaxreg.rs`). `nvprobe.nvdisasm_text` accepts nvdisasm's second rejection spelling
   (`undefined value … for table 'TABLES_opex_0'`) as an illegal word.
 
+- **The scaled F2FP unpack on the four tables — `F2FP.BF16.<E2M1|E2M3|E3M2|E4M3|E5M2>[.RELU][.SATFINITE].UNPACK_B Rd, Rs, Rscale.<sel>`
+  (opcode 0x63e; tables vendored from blackwell-isa `05068b6`: batch 3 of the B300 lane's candidates + the same rows measured for SM120 /
+  SM121A).** The unpack of a low-precision pair to bf16 with an E8M0 block scale taken from a register: the scale selector [26:24] is
+  printed on the scale register (`.H0`, `.H1`, `.B0`..`.B3` — mandatory, selector 0 is `.H0`; 6 / 7 are the vendor's `INVALID6` /
+  `INVALID7` and unclaimed), the source half [88] as `Rs.H1`, for E2M1 the source byte (bits 88 / 72) as `Rs.B1` / `.B2` / `.B3`; RELU bit
+  75, SATFINITE bit 77. No table had a row at 0x63e (`no instruction matches opcode 0x063e`). **sm103a / sm100a:** the lane's refs
+  `hidden-b300/f2fp-unpackb` (20 rows per table: five source types × plain / RELU / SATFINITE / both; 2 396 complete words per target) and
+  `hidden-b300/f2fp-e4m3-source-h1` (the plain E4M3 row measured a second time to the same fields — the table keeps the row once, under
+  the first tag; its 23-word fixture is a second witness) — 35 of the 68 refs are taken; rows 37 346 → 37 366 / 37 340 → 37 360, rows
+  without `_src` unchanged (339). **sm120 / sm121a: the same 20 rows, measured, not copied** — the 2 406 distinct words of the lane's two
+  lattices named again with nvdisasm 13.1 on `-b SM120` and `-b SM121`, one word per call: identical on the two targets and identical to
+  `-b SM103` / `-b SM100` (328 named — 212 of them the rows' words —, 914 printed with a vendor glyph, 1 164 rejected; against the lane's
+  nvdisasm 13.3 records every text and rejection agrees except 128 glyph words on which 13.3 exits 0 without an instruction line); the rows
+  carry tags of their own, sm120 38 848 → 38 868 rows, sm121a 49 824 → 49 844. **Why sm120:** the scheduler session executed
+  `F2FP.BF16.E4M3.UNPACK_B Rd, Rs, Rscale.B0` / `.H0` and the E2M1 twin on sm_120 silicon — equal to the five-instruction dequantisation on
+  all 65 536 byte pairs × 256 scale bytes, both halves — and the production attention kernel's two-instruction dequant needs the word as
+  text; the other types and selectors are text-measured only, nothing was executed on GB10. **Engine (the lane's change, reviewed and taken
+  as written):** two extractions — `f2fp_scale_sel` (the mandatory selector suffix; refused on any opcode but F2FP) and `f2fp_ra_b1` /
+  `f2fp_ra_b2` (the E2M1 source byte, one bit each) — in the table loader, encoder, decoder and printer; `tools/sync_table.py` knows the
+  three names and gains `--stage-only` (vendor without the built-in `cargo test`). `tests/hidden_b300_f2fp_unpackb.rs`,
+  `tests/hidden_b300_f2fp_e4m3_source_h1.rs` (two pins of the second ref that describe it alone moved to the batch: the tag on the row, and
+  three of its "unclaimed" neighbours that are words of measured sibling rows and must print the vendor text through them) and
+  **`tests/sm120_f2fp_unpackb_scaled.rs`** (sm120 / sm121a: the 212 words decode to nvdisasm's text and re-encode, the other 2 162
+  instruction words of the lattice fail closed — text-inert neighbours, the unclaimed types E0M3 / S2_6, the immediate-scale form at
+  0xe3e —, `F2FP.BF16.E4M3.UNPACK_B R11, R2, R5.B0` assembles from text to the compiler's word, the rows equal sm103a's field for field).
+  The immediate-scale form `… Rd, Rs, FIMM.<sel>` (0xe3e) has no row yet on any table.
 - **Tables vendored from blackwell-isa `c3b2d5e`: batch 2 of the B300 measurement lane's candidates** (23 more of the review refs
   `hidden-b300/*` — the ones without engine changes on the bases of 8–9.11; sm103a 517 → 533 forms, 35 894 → 37 346 rows; sm100a 516 → 532,
   35 888 → 37 340; sm120 / sm121a unchanged). **Rows without `_src`: sm103a / sm100a 357 → 339** — eighteen harvest rows per table are

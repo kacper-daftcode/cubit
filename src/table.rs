@@ -244,6 +244,8 @@ pub enum Extraction {
     /// FloatImm behaves like F32.
     F32Cast,
     ByteSel,
+    F2fpScaleSel,
+    F2fpRaByteSel,
     // Half-register pair selector parsed from raw text (.H0_H0/.H0_H1/.H1_H1):
     // sm_103a fp16x2-class ops encode it as 2 bits (none=0, H0_H1=1, H0_H0=2,
     // H1_H1=3), empirically pure over the corpus.
@@ -339,6 +341,8 @@ fn parse_extraction(s: &str) -> Result<Extraction> {
         "abs" => Extraction::Abs,
         "neg_abs" => Extraction::NegAbs,
         "byte_sel" => Extraction::ByteSel,
+        "f2fp_scale_sel" => Extraction::F2fpScaleSel,
+        "f2fp_ra_b1" | "f2fp_ra_b2" => Extraction::F2fpRaByteSel,
         "hsel" => Extraction::HalfSel,
         "h0nh1" => Extraction::H0NH1,
         "addr_scale" => Extraction::AddrScale,
