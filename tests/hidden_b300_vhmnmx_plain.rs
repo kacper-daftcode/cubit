@@ -83,7 +83,8 @@ fn measured_production_and_field_words_roundtrip() {
         let group = &entry["mod_groups"][""];
         assert_eq!(group["_src"], SOURCE);
         assert_eq!(hex(&group["and_base"]) >> 96, 0);
-        let fields = group["fields"].as_array().unwrap();
+        let fields: Vec<_> = group["fields"].as_array().unwrap().iter()
+            .filter(|field| field["extraction"] != "hsel").collect();
         let expected = [(4, 12, 0, "guard"), (8, 16, 1, "reg"), (8, 24, 2, "reg"),
                         (1, 72, 2, "neg"), (1, 73, 2, "abs"), (8, 32, 3, "reg"),
                         (1, 62, 3, "abs"), (1, 63, 3, "neg"), (8, 64, 4, "reg"),
@@ -119,6 +120,13 @@ fn unlicensed_and_text_inert_words_do_not_enter_vhmnmx() {
             }
             let word = hex(&row["word"]);
             if let Ok(decoded) = index.decode(word, 0, table) {
+                if kind == "adjacent_modifier" && has_unadopted_modifier(row["nvidia_sass"].as_str().unwrap()) {
+                    assert_ne!(decoded.key, "VHMNMX_R_R_R_R_P", "{arch} overmatch {kind} {word:032x}");
+                    continue;
+                } else if kind == "adjacent_modifier" {
+                    // The measured modifier adoption legalizes these words.
+                    continue;
+                }
                 assert_ne!(decoded.key, "VHMNMX_R_R_R_R_P", "{arch} overmatch {kind} {word:032x}");
             }
             if kind == "negative" {
@@ -129,4 +137,8 @@ fn unlicensed_and_text_inert_words_do_not_enter_vhmnmx() {
         assert_eq!((negative, adjacent, other, control), (42, 11, 4, 29),
                    "{arch}: complete raw negative/control census");
     }
+}
+
+fn has_unadopted_modifier(text: &str) -> bool {
+    text.contains("VHMNMX.INVALID1 ") || text.contains(".FTZ ") || text.contains(".XORSIGN ")
 }

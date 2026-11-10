@@ -1182,7 +1182,7 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
     }
     // NVIDIA packed min/max places the vector type before its independent
     // mode flags (HMNMX2.BF16_V2.FTZ.NAN.XORSIGN).
-    if base == "HMNMX2" {
+    if matches!(base, "HMNMX2" | "VHMNMX") {
         match m {
             "BF16_V2" => return 0,
             "FTZ" => return 1,
@@ -1215,9 +1215,9 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
         }
     }
     // 2026-11-07 (session G run 5, tools/probes/re_sm120_rows.py --family intalu, nvdisasm 13.1): the mixed-precision
-    // FHADD prints the type, then the rounding, then SAT -- `FHADD.BF16.RM.SAT`, `FHADD.RZ.SAT` (the generic ranks
-    // put SAT before the rounding).
-    if base == "FHADD" {
+    // FHADD and the production-anchored FHFMA print type, rounding, then SAT -- `FHADD.BF16.RM.SAT`,
+    // `FHFMA.BF16.RZ.SAT` (the generic ranks put SAT before the rounding).
+    if matches!(base, "FHADD" | "FHFMA") {
         match m {
             "BF16" => return 0,
             "RM" | "RP" | "RZ" => return 1,
@@ -1242,7 +1242,7 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
         match m {
             "E" => return 0,
             "ADD" | "MIN" | "MAX" | "HPADD" | "AND" | "OR" | "XOR" | "INC" | "DEC" => return 1,
-            "32" | "64" | "S32" | "S64" | "U32" | "U64" | "F32" | "F32x4" | "F64" | "F16x2" | "F16x8" | "BF16x2" | "BF16x8" => return 2,
+            "32" | "64" | "S32" | "S64" | "U32" | "U64" | "F32" | "F32x2" | "F32x4" | "F64" | "F16x2" | "F16x8" | "BF16x2" | "BF16x4" | "BF16x8" => return 2,
             "RN" => return 3,
             "STRONG" | "CONSTANT" | "WEAK" | "MMIO" => return 4,
             "SYS" | "GPU" | "CTA" | "SM" => return 5,
@@ -1462,13 +1462,15 @@ fn mod_priority_for(base: &str, m: &str) -> u8 {
         }
     }
     // BUG-157: SYNCS — nvdisasm order is ARRIVE/PHASECHK < TRANS64 < RED <
-    // A1T0/A0TR (vendor corpus: SYNCS.ARRIVE.TRANS64.RED.A1T0, never
+    // OPTOUT < A-selector (vendor corpus: SYNCS.ARRIVE.TRANS64.RED.A1T0, never
     // .ARRIVE.RED.TRANS64); TRYWAIT follows TRANS64 on the PHASECHK side.
+    // HIDDEN-B300 measured A0T1/A0TR/A0TX/ART0 and OPTOUT on SM103/SM100.
     if base == "SYNCS" {
         match m {
             "TRANS64" => return 6,
             "RED" | "TRYWAIT" => return 7,
-            "A1T0" | "A0TR" => return 8,
+            "OPTOUT" => return 8,
+            "A1T0" | "A0T1" | "A0TR" | "A0TX" | "ART0" => return 9,
             _ => {}
         }
     }
@@ -1808,6 +1810,10 @@ fn format_operand(
         // literal "PR" for the baked imm slot. Measured x4 models on 6 imm
         // values (arb313 D, BUG-313): 'P2R R6, PR, R12, 0x80000000'.
         "II" if ins_key.starts_with("P2R") && tok == 2 => "PR".to_string(),
+        // Uniform-predicate bank token: UPR is the architectural destination
+        // of UR2UP and the second operand of UP2UR, never the numeral zero.
+        "II" if (ins_key.starts_with("UP2UR") && tok == 2)
+            || (ins_key.starts_with("UR2UP") && tok == 1) => "UPR".to_string(),
         // DEPBAR first operand is a scoreboard id; nvdisasm prints SB<n>.
         "II" if ins_key.starts_with("DEPBAR") && tok == 1 => {
             let n = fields
@@ -1924,7 +1930,7 @@ fn format_operand(
         // address with .64 unconditionally ([R3.64] odd legal, arb180 s3).
         "ARI" | "AI" if ins_key.starts_with("LDGSTS") && tok == 2 => format_ldgsts_src(fields, raw,
             ef_flags == crate::elf_builder::EF_CUDA_SM120 && matches!(raw & 0xfff, 0xdae | 0xfae)),
-        "ARI" | "AI" if ins_key.starts_with("STAS") && tok == 1 => format_addr_wide64(fields, raw),
+        "ARI" | "AI" | "ARURI" if ins_key.starts_with("STAS") && tok == 1 => format_addr_wide64(fields, raw),
         "ARI" | "AI" => format_addr(fields, raw, rz_signed_elide(ins_key)),
         // STS/LDS/LDSM use [R+UR+off] format, not desc[UR][R.64+off].
         // starts_with covers size-suffixed variants: STS.64, LDS.128, etc.
@@ -3023,11 +3029,15 @@ fn format_imm(fields: &[&DecodedField], _mod_group: &str, ins_key: &str, lossles
             // `UCLEA UR0, UPT, UR0, 0x8000, 0x1`, `UBMSK.W UR0, UR0, 0xffffffff`).
             // P2R / R2P: the 32-bit predicate masks print unsigned too (session G, 2026-11-06,
             // tools/probes/re_sm120_plop3_p2r_r2p.py: `P2R R17, PR, RZ, 0xffffffff`, `R2P PR, R0, 0x80000000`).
+            // UP2UR's immediate is likewise a uniform predicate mask: `UP2UR.B3 UR0, UPR, UR0, 0xffffffff` (the B300 lane's
+            // measurement of the B3 form, nvdisasm 13.3) and the same on the plain, B1 and B2 words (nvdisasm 13.1 on the four
+            // targets, session T-26 2026-11-10) -- every group of the key, not B3 alone.
             let is_unsigned_op = ins_key.starts_with("VIADDMNMX")
                 || ins_key.starts_with("UCLEA")
                 || ins_key.starts_with("UBMSK")
                 || ins_key.starts_with("P2R")
                 || ins_key.starts_with("R2P")
+                || ins_key.starts_with("UP2UR")
                 || ins_key.starts_with("MOV")
                 || ins_key.starts_with("UMOV")
                 || ins_key.starts_with("SHF")
@@ -3037,6 +3047,8 @@ fn format_imm(fields: &[&DecodedField], _mod_group: &str, ins_key: &str, lossles
                 || ins_key.starts_with("USEL")
                 || ins_key.starts_with("LEA")
                 || ins_key.starts_with("ULEA")
+                // USGXT has an independent, measured unsigned imm32.
+                || ins_key.starts_with("USGXT")
                 || ins_key.starts_with("LOP3")
                 || ins_key.starts_with("ULOP3");
             let is_setp = ins_key.starts_with("ISETP")
@@ -3741,11 +3753,9 @@ fn format_addr_wide64(fields: &[&DecodedField], raw: u128) -> String {
     };
     let mut inner = format!("{reg_s}.64");
     if let Some(un) = ur_reg {
-        let ur_s = if un == 63 {
-            "URZ".to_string()
-        } else {
-            format!("UR{un}")
-        };
+        // HIDDEN-B300 STAS.64/128: 0xff means the separate no-UR form;
+        // UR63 is an ordinary named register here, not the URZ glyph.
+        let ur_s = format!("UR{un}");
         inner.push('+');
         inner.push_str(&ur_s);
     }

@@ -612,7 +612,12 @@ impl DecodeIndex {
             // DSETP: measured on sm120 (G, 2026-11-06), on sm121a (T-20, 2026-11-08, the same law on -b SM121) and on
             // sm103a / sm100a (T-21, 2026-11-08, `re_sm120_fsetp_dsetp.py --arch SM103 / SM100`; NEEDS 58) -- every table
             // now: the boolean [75:74] sits in the window and a sign-tolerant match printed the INVALID3 word as `.XOR`.
-            let sign_law_base = (table.target_sm() == 120 && matches!(base, "BMSK" | "I2FP" | "UIADD3")) || base == "DSETP";
+            // VIMNMX on B300 carries packed16 type/modifier law in the same
+            // window; its source operands have no floating-point sign syntax.
+            // Without this arm the fallback renders U16x2/UR reuse refusals as U32.
+            let sign_law_base = (table.target_sm() == 120 && matches!(base, "BMSK" | "I2FP" | "UIADD3"))
+                || base == "DSETP"
+                || (matches!(table.target_sm(), 100 | 103) && base == "VIMNMX");
             // (a row verified field by field names its sign bits as fields and fails closed on the rest: no fallback)
             if !(is_memlike || native_hi || sign_law_base || row_probe) {
                 let sign_bits: u128 = (3u128 << 62) | (3u128 << 72) | (3u128 << 74);

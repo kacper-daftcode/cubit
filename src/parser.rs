@@ -321,7 +321,12 @@ const FLOAT_OPCODES: &[&str] = &[
     // `MUFU.RCP64H R4, 0` / `, 1` are `MUFU_R_FI` words (2026-11-06, T-10; the integer-typed
     // `MUFU_R_II [RCP64H]` harvest twin is retired).
     "MUFU",
-    "HADD2", "HMUL2", "HFMA2", "HSET2", "HSETP2",
+    "HADD2", "HMUL2", "HFMA2", "HSET2", "HSETP2", "HMNMX2",
+    // HMNMX2 has two independent f16 immediates at [47:32] and [63:48].
+    // nvdisasm prints integral values without a decimal point (65504, -448),
+    // so these literals need the same FloatImm context as the other packed-
+    // half families above to select HMNMX2_R_R_FI_FI_P (measured on SM103 /
+    // SM100, tools/probes/re_b300_hmnmx2.py).
     // F2I imm-form (BUG-125, F2I_R_FI): fresh nvcc-13.3 emit `F2I.U32.CEIL.NTZ
     // R0, 16` bakes the f32 immediate 0x41800000 at bits [63:32]; without float
     // context the textual `16` parsed to Imm32(16) and encoded 0x00000010 in the

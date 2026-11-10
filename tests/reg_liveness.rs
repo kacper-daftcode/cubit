@@ -211,3 +211,22 @@ fn t_ldg256_two_reg_two_quads() {
     assert_eq!(x.uuses, v(&[4]));
     assert!(x.known);
 }
+
+/// 2026-11-10 (session T-26, blackwell-isa 018a927; reported by session BQ-1 from the production Triton top-k-sum
+/// kernel): `FHADD[.BF16] Rd, Ra[.H1], Rb` -- ptxas's mixed bf16 -> f32 accumulate -- had a measured row and no role
+/// entry, so `sched --mode list`, `ra`, `stallfix` and this module stopped on it ("unknown operand roles"). It is a
+/// dest-first ALU with two register sources.
+#[test]
+fn fhadd_is_a_dest_first_alu() {
+    assert_eq!(cubit::reg_liveness::role_class("FHADD"), Some("alu"));
+    for (sass, def, uses) in [
+        ("FHADD.BF16 R63, R42.H1, R63 ;", 63, [42, 63]),
+        ("FHADD.BF16 R62, R42, R62 ;", 62, [42, 62]),
+        ("FHADD.RZ.SAT R4, R5, R6 ;", 4, [5, 6]),
+    ] {
+        let x = xfer(sass);
+        assert!(x.known, "{sass}");
+        assert_eq!(x.rdefs, v(&[def]), "{sass}");
+        assert_eq!(x.ruses, v(&uses), "{sass}");
+    }
+}

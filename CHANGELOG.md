@@ -88,7 +88,7 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
 - **Default path**: the 99 production sources re-assemble with identical `.text` and control words, the attention build with the
   switches off equals its pinned reference; `tests/sched2_dep_latency.rs` (11 tests, 9 red before the change) and 6 unit tests.
 
-## Unreleased — 2026-11-10 (session T-26: the review queue — the B300 latency model of pull request 3; `USETMAXREG` measured and the SM120 async idioms document from the megakernel branch; the sm_120 scheduler session's opt-in switches; the first four batches (42 refs) of the B300 lane's candidate forms on sm103a / sm100a; the scaled F2FP unpack on the four tables)
+## Unreleased — 2026-11-10 (session T-26: the review queue — the B300 latency model of pull request 3; `USETMAXREG` measured and the SM120 async idioms document from the megakernel branch; the sm_120 scheduler session's opt-in switches; the first five batches (53 refs) of the B300 lane's candidate forms on sm103a / sm100a; the scaled F2FP unpack on the four tables; the CI's clippy)
 
 - **`cubit asm` on sm_120, opt-in: `CUBIT_SCHED2` with the scoreboard arming rule, a pair-latency table enforced on every control-flow path
   (`CUBIT_SCHED2_LAT=sm120`), ptxas's MMA discipline (`CUBIT_MMA_PTXAS=1`)** (`49f8340`, the sm_120 scheduler session's commit). `CUBIT_SCHED2=1`
@@ -168,6 +168,55 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   identical, 4 290 without text on both, and one word that 13.1 names `F2FP.SATFINITE.E0M3.F32.PACK_AB_MERGE_C` where the lane's 13.3
   prints no line (unclaimed either way); on the 53 rows taken per table the mask is the fields' bits, the constant bits are clear under
   it and carry no control bit.
+- **Tables vendored from blackwell-isa `018a927`: batch 5 of the B300 measurement lane's candidates** (eleven more of the review refs
+  `hidden-b300/*` — the ones whose cubit side changes a line or two of the engine; 53 of the 68 refs are taken; sm103a 534 → 545 forms,
+  37 418 → 37 524 rows; sm100a 533 → 544, 37 412 → 37 518; the rows of sm120 / sm121a unchanged). **Rows without `_src`: sm103a / sm100a
+  338 → 336** (the plain `STAS [Ra.64+imm], Rs` and `VIMNMX.S16x2 Rd, Pd, Pe, Ra, Rb, Pc` re-measured). Forms added (106 rows per table):
+  **`FHFMA.BF16[.RM|.RP|.RZ][.SAT] Rd, Ra, Rb, Rc`** (the mixed bf16 / f32 fused multiply-add; `.H1` on the two bf16 sources);
+  **`HMNMX2[.BF16_V2][.FTZ][.NAN][.XORSIGN]`** in the register form `Rd, Ra, Rb, Pc` and with two f16 / bf16 immediates;
+  **`STAS`, `STAS.64`, `STAS.128`** on `[Ra.64+imm]` and `[Ra.64+URb+imm]`; **the `SYNCS.ARRIVE.TRANS64.RED[.OPTOUT]` selectors `.A0T1` /
+  `.A0TR` / `.A0TX` / `.ART0`**; **`FMNMX[.FTZ][.NAN][.XORSIGN].IS_A Rd, Pd, Ra, {Rb | URb | fimm}, Pc`** (the float min / max with its
+  predicate output); **`LDGMC.E.{ADD.F32 | .F32x2 | .F32x4 | HPADD.F16x2 | .F16x8 | .BF16x2 | .BF16x4 | .BF16x8}.RN.STRONG.SYS Rd,
+  [Ra.64+URb+imm]`**; **`VIMNMX.{S16x2 | U16x2}[.RELU]`** with a register or a uniform second source; **`USGXT URd, URa, imm`**,
+  **`SGXT.U32 Rd, Ra, URb`**; **`VHMNMX[.BF16_V2][.NAN]`** with `.H0_H0` / `.H1_H1` on each source; **`UP2UR.B3 URd, UPR, URs, imm`**
+  and **`UR2UP UPR, URs.B3`**. Each with its complete-word fixture and test (`tests/hidden_b300_<name>.rs`); text and CPU round trips,
+  no execution claim. **Engine — the candidates' own changes, applied as written:** the printer ranks `FHFMA`'s modifiers as `FHADD`'s
+  (type, rounding, `SAT`), `VHMNMX`'s as `HMNMX2`'s, knows `F32x2` / `BF16x4` among `LDGMC`'s types, prints `SYNCS`'s `.OPTOUT` and then
+  the A-selector last (`A0T1`, `A0TX`, `ART0` are new), prints a uniform-indexed `STAS` address as `[Ra.64+URb]` (and `UR63` by its name
+  there), `USGXT`'s immediate unsigned, and the bank token `UPR` for `UP2UR`'s second and `UR2UP`'s first operand (the harvest row of
+  `UP2UR` printed `0x0` there); the encoder accepts `UPR` on `UR2UP`; the parser reads `HMNMX2`'s integral immediates as floats (they
+  did not assemble); on sm103a / sm100a `VIMNMX` has no sign-tolerant fallback. **One change widened by the gatekeeper:** the candidate
+  printed `UP2UR.B3`'s immediate unsigned; nvdisasm 13.1 prints `0xffffffff` for the plain, `.B1`, `.B2` and `.B3` words on all four
+  targets, so every group of the key prints unsigned (`tests/sm103a_up2ur_imm_unsigned.rs`). **Two changes not taken, shown
+  unnecessary:** fmnmx-is-a-schedule's rank for `IS_A` (the generic rank already prints it last; its three tests pass without) and
+  sgxt-u32-production's second look at `claim_forbid` entries at or above bit 96 (the candidate filter evaluates every exclusion on the
+  complete word since BUG-512 / 518; its two tests pass without). **Brought to the measured-row form by the gatekeeper (blackwell-isa
+  `3a30f62`; what the rows claim gets narrower):** the `FHFMA` and `HMNMX2` rows carried every text-inert bit of their lattice as a
+  one-bit field without an extraction (34 / 37 / 17 bits per row), so a word with such a bit set decoded to the text of the word without
+  it — the fields are gone, the rows fail closed on those bits (472 + 180 fixture words per table are refused now; none of the 389 + 629
+  production witnesses has such a bit set, and every other adopted word, the production ones included, re-assembles to itself: 1 418 and
+  3 604 words over the two tables, where the candidates asserted the exact round trip for a part); the `USGXT` row's constant bits
+  cleared under its guard field. **The gatekeeper's engine differential (new with this batch):** every row of the four tables — its
+  constant word, each field at all ones, random fillings; 3 143 050 words — decoded, printed and re-assembled by the engine before and
+  after the `src/` changes on the same tables: 2 250 words differ, all on sm103a / sm100a and all in keys this batch adds or
+  re-measures; of the 630 sent to nvdisasm 13.1 the new text is the vendor's in 500, the word re-assembles now where it did not in 74,
+  48 are synthetic control words nvdisasm refuses and both engines decode, 6 are `.INVALID1` spellings neither re-assembles, and 2 were
+  the plain `UP2UR` immediate (fixed by the widening above); none where the old engine was right and the new one wrong; **no word of
+  sm120 / sm121a changes.** For the decoder arm, 14 960 words around the `VIMNMX` rows with every combination of the six sign-window bits:
+  1 476 differ, all on sm103a / sm100a, all refusals of words the fallback had absorbed — 1 069 printed a text nvdisasm does not print
+  for the word, 221 nvdisasm refuses, 186 were text-inert neighbours that did not re-assemble to themselves. The twenty fixtures named
+  again with nvdisasm 13.1 on a second host: 121 498 word / target pairs, 118 244 texts identical, 3 254 without text on both, none
+  different. **Superseded, not taken separately:** `hidden-b300/fmnmx-is-a` (the same 24 rows with `claim_forbid` lists on the
+  scheduler's bits, which rejected real scheduled words — the lane's own repair is the ref taken). **Pins moved to the batch:** a field's
+  own `_src` reads "absent or equal"; the `USGXT` test pins the cleared `and_base`; the per-row pass's exception on
+  `VIMNMX_R_P_P_R_R_P` `S16x2` (sm103a / sm100a `rows_intalu`) reads "re-measured since: <the lane's tag>"; `sm103a_sm100a_fp32_alu`
+  lets the `FMNMX.IS_A` neighbours decode through the new keys (the lane's own edit); the SGXT row model the lane kept at the repository
+  root is `tests/fixtures/sgxt_u32_table_model.json`.
+- **`FHADD` has operand roles** (blackwell-isa `018a927`: `operand_roles.base_ops.FHADD`, class `alu` — dest first, two register
+  sources). The measured row of `FHADD[.BF16] Rd, Ra[.H1], Rb` (ptxas's mixed bf16 → f32 accumulate) had no role entry, so
+  `cubit sched --mode list`, `ra`, `stallfix` and the register liveness stopped on it ("unknown operand roles"); reported by session
+  BQ-1 from the production Triton top-k-sum kernel of the MoE (20 of its 176 instructions). `tests/reg_liveness.rs`
+  `fhadd_is_a_dest_first_alu`.
 - **The scaled F2FP unpack on the four tables — `F2FP.BF16.<E2M1|E2M3|E3M2|E4M3|E5M2>[.RELU][.SATFINITE].UNPACK_B Rd, Rs, Rscale.<sel>`
   (opcode 0x63e; tables vendored from blackwell-isa `05068b6`: batch 3 of the B300 lane's candidates + the same rows measured for SM120 /
   SM121A).** The unpack of a low-precision pair to bf16 with an E8M0 block scale taken from a register: the scale selector [26:24] is

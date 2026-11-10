@@ -72,7 +72,7 @@ const EXCEPTIONS: &[(&str, &str, &str)] = &[
     ("VIMNMX_R_P_P_R_II_P", "", "bit 81 outside the fields moves operand 2 of the same form: 'VIMNMX R32, P6, PT, R48, 0x5a5a5a5a, PT'"),
     ("VIMNMX_R_P_P_R_II_P", "U32", "bit 87 outside the fields moves operand 6 of the same form: 'VIMNMX.U32 R16, PT, PT, R32, 0x5a5a5a5a, P6'"),
     ("VIMNMX_R_P_P_R_R_P", "", "bit 81 outside the fields moves operand 2 of the same form: 'VIMNMX R32, P6, PT, R48, R80, PT'"),
-    ("VIMNMX_R_P_P_R_R_P", "S16x2", "bit 81 outside the fields moves operand 2 of the same form: 'VIMNMX.S16x2 R32, P6, PT, R48, R64, PT'"),
+    ("VIMNMX_R_P_P_R_R_P", "S16x2", "re-measured since: rows-vimnmx-packed16-2026-11-08 (a candidate form of the B300 measurement lane, taken on 2026-11-10 -- complete-word fixture tests/hidden_b300_*.rs); this pass had found: bit 81 outside the fields moves operand 2 of the same form: 'VIMNMX.S16x2 R32, P6, PT, R48, R64, PT'"),
     ("VIMNMX_R_P_P_R_R_P", "U32", "bit 81 outside the fields moves operand 2 of the same form: 'VIMNMX.U32 R32, P6, PT, R48, R80, PT'"),
     ("VIMNMX_R_P_P_R_UR_P", "", "bit 81 outside the fields moves operand 2 of the same form: 'VIMNMX R32, P6, PT, R48, UR80, PT'"),
     ("VIMNMX_R_P_P_R_UR_P", "U32", "bit 87 outside the fields moves operand 6 of the same form: 'VIMNMX.U32 R16, PT, PT, R32, UR64, P6'"),

@@ -1,0 +1,492 @@
+{
+  "and_base": "0x00000000080000000000000000000c1a",
+  "claim_forbid": [
+    {
+      "bits": 1,
+      "shift": 1,
+      "values": [
+        0
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 5,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 6,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 7,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 9,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 10,
+      "values": [
+        0
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 11,
+      "values": [
+        0
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 40,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 41,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 42,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 43,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 44,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 45,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 46,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 47,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 48,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 49,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 50,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 51,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 52,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 53,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 54,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 55,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 56,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 57,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 58,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 59,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 60,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 61,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 62,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 63,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 64,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 65,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 66,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 67,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 68,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 69,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 70,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 71,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 72,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 74,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 76,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 77,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 78,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 79,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 80,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 81,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 82,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 83,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 84,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 85,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 86,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 87,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 88,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 89,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 90,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 91,
+      "values": [
+        0
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 92,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 93,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 94,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 95,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 123,
+      "values": [
+        1
+      ]
+    },
+    {
+      "bits": 1,
+      "shift": 124,
+      "values": [
+        1
+      ]
+    }
+  ],
+  "counts": {
+    "adjacent_modifier": 2,
+    "control_plane": 33,
+    "field": 781,
+    "negative": 67,
+    "other_family": 5,
+    "positive": 784
+  },
+  "fields": [
+    {
+      "bits": 4,
+      "extraction": "guard",
+      "shift": 12,
+      "token_idx": 0
+    },
+    {
+      "bits": 8,
+      "extraction": "reg",
+      "shift": 16,
+      "token_idx": 1
+    },
+    {
+      "bits": 8,
+      "extraction": "reg",
+      "shift": 24,
+      "token_idx": 2
+    },
+    {
+      "bits": 8,
+      "extraction": "ureg_ff",
+      "shift": 32,
+      "token_idx": 3
+    },
+    {
+      "bits": 1,
+      "extraction": "reuse",
+      "shift": 122,
+      "token_idx": 2
+    }
+  ],
+  "key": "SGXT.U32_R_R_UR",
+  "parent": "c374bad146afd10eb41aa1ccd793c09422e2ddfb",
+  "rows_per_arch": 1,
+  "scope": "Two production SGXT.U32 R,R,UR words, measured by independent complete 128-bit nvdisasm 13.3 V13.3.73 requests on SM103 and SM100. Guard[15:12], Rd[23:16], Ra[31:24], URc[39:32] and only measured reuse bits are variable. Vendor-refused, text-inert and adjacent alternatives stay fail-closed via exact matching or measured claim_forbid singletons. Synthetic scheduling, not execution, numerical conversion, sign extension, register-role or timing semantics is claimed.",
+  "source": "rows-sgxt-u32-production-2026-11-09",
+  "variable_mask": "0x0400000000000000000000fffffff000"
+}

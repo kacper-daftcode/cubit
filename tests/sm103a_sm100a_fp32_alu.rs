@@ -124,7 +124,16 @@ fn the_lattice_around_the_form_is_never_rendered_as_another_text() {
                 (None, Ok(d)) => panic!("{}: lattice word {word:032x} ({:?}) decodes as {}", TABLES[i].0, row["nvidia_sass"], cubit::printer::to_sass_lossless(&d)),
                 (Some(_), Err(_)) => n_neighbour += 1,
                 (Some(nb), Ok(d)) => {
-                    assert!(!is_family_key(&d.key), "{}: neighbour word {word:032x} ({nb}) claimed by {}", TABLES[i].0, d.key);
+                    let measured_is_a = nb == "FMNMX.IS_A" && matches!(d.key.as_str(),
+                        "FMNMX_R_P_R_R_P" | "FMNMX_R_P_R_FI_P" | "FMNMX_R_P_R_UR_P");
+                    if measured_is_a {
+                        // The separate HIDDEN-B300 measurement promoted this
+                        // neighbour into its own family; keep all other
+                        // neighbour claims and exact vendor text fail-closed.
+                        assert_eq!(cubit::printer::to_sass_lossless(&d), row["nvidia_sass"].as_str().unwrap());
+                    } else {
+                        assert!(!is_family_key(&d.key), "{}: neighbour word {word:032x} ({nb}) claimed by {}", TABLES[i].0, d.key);
+                    }
                     n_neighbour += 1;
                 }
             }

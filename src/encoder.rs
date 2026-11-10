@@ -1870,7 +1870,7 @@ fn check_label_baked_symbol(insn: &Instruction, entry: &crate::table::ModGroupEn
         // construction. Scoped per opcode so `FSEL .., PR` still refuses.
         let system_symbol = match insn.opcode.as_str() {
             "P2R" | "R2P" => name == "PR",
-            "UP2UR" => name == "UPR",
+            "UP2UR" | "UR2UP" => name == "UPR",
             "RPCMOV" => name.eq_ignore_ascii_case("Rpc.LO"),
             // BMOV.64's first operand is the special register ATEXIT_PC (nvdisasm 13.1 on the
             // four targets, T-11 2026-11-06); the row carries the token without a field
