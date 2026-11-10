@@ -1,0 +1,21 @@
+.entry broadcast
+    .reg R0-R15
+    .param u64 out
+    S2R R0, SR_TID.X ;
+    LDCU.64 UR6, c[0x0][0x358] ;
+    LDC.64 R2, c[0x0][0x380] ;
+    IADD3 R3, PT, PT, R0, 0x40, RZ ;
+    ISETP.NE.U32.AND P0, PT, R0, RZ, PT ;
+    MOV R5, RZ ;
+    MOV R6, RZ ;
+    R2UR P1, UR4, R3 ;
+    PLOP3.LUT P2, PT, P1, PT, PT, 0x80, 0x8 ;
+    @!P1 IADD3 R5, PT, PT, R5, 0x1, RZ ;
+    UIADD3 UR5, UPT, UPT, UR4, 0x8, URZ ;
+    IADD3 R6, PT, PT, R6, UR5, RZ ;
+    SEL R6, R6, RZ, P2 ;
+    IADD3 R5, PT, PT, R5, R6, RZ ;
+    IMAD.WIDE.U32 R2, R0, 0x4, R2 ;
+    STG.E desc[UR6][R2.64], R5 ;
+    EXIT ;
+.endentry

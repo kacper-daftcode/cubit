@@ -81,8 +81,23 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   `tests/sched2_dep_latency.rs` with the schedule the parent built pinned next to it (three stalls 4 → 5); all four are red on the
   previous table. The default path does not read the table.
 
-## Unreleased — 2026-11-10 (session T-27: `CUBIT_VERIFY` checks the read barriers of stores on every path — three unprotected store → overwriter pairs of a production kernel had passed as "0 broken WAR"; batches 6 and 7 of the B300 lane's candidate forms on sm103a / sm100a — `QMUL4` / `QADD4` with their operand selectors, the uniform-source `VIMNMX3` forms, one more scaled F2FP form (57 of 69 refs taken); a test of the suite that failed at random)
+## Unreleased — 2026-11-10 (session T-27: `CUBIT_VERIFY` checks the read barriers of stores on every path — three unprotected store → overwriter pairs of a production kernel had passed as "0 broken WAR"; batches 6 and 7 of the B300 lane's candidate forms on sm103a / sm100a — `QMUL4` / `QADD4` with their operand selectors, the uniform-source `VIMNMX3` forms, one more scaled F2FP form (57 of 69 refs taken); a test of the suite that failed at random; the two results of `R2UR Pd, URd, Rs`)
 
+- **`R2UR Pd, URd, Rs` has two results — the uniform register and a per-thread predicate — and the scheduler saw neither**
+  (`dest_regs_plain` / `src_regs_plain` in `src/scheduling_pass.rs`; `tests/r2ur_pred_dest.rs`, fixtures
+  `tests/fixtures/r2ur_pred/`). The operand convention takes operand 0 for the destination; operand 0 of this form is a predicate, so
+  the instruction had no destination and its uniform register was listed as a source. Nothing waited for either result: in cubit's
+  schedule of a kernel of nvcc with the idiom `@P0 R2UR P1, UR4, R3 ; @P0 PLOP3.LUT P0, PT, P1, … ; @!P1 ARRIVES.LDGSTSBAR.64.ARVCNT [UR4]`
+  the guarded word stood 4 / 9 / 9 / 12 issue cycles behind the `R2UR` and the `PLOP3` one to three, and `CUBIT_DEP_VERIFY` called it
+  clean — found by an independent legality gate that prices a predicate destination as a result. ptxas, on every site of the form in
+  the 166 listings of the sm_120 census, a served 36-kernel cubin and that kernel (93 sites, 40 more with a modifier): the guard 13
+  cycles behind the `R2UR` at 53 of 53 sites, the predicate as an operand 8 at 133 of 133, the first reader of the uniform register
+  never closer than 13. Now both are definitions on every path: the default scheduler charges its `R2UR` latency (8) to their readers,
+  the dependency table its defaults (a predicate into a guard 13, into an operand 6, a uniform register 13 — **the table has no cell
+  for the form; its operand default is two cycles below ptxas's 8, a cell for the table's census**), and `CUBIT_DEP_VERIFY` names
+  the readers of a schedule that ignores them (12 lines on the schedule above, 0 new on the vendor's text of the same kernel, of the
+  served cubin and of the two census listings that carry the form — its counts there are unchanged). No production source carries the
+  form (0 of 101); a kernel without it builds the same bytes.
 - **The same check covers the asynchronous copy `LDGSTS`: its address registers are read when the copy is served** (`src/store_paths.rs`,
   `the_address_pair_of_an_asynchronous_copy_is_read_late`). Found on silicon by the schedule-search session the same evening: the
   vendor's own `fc2` kernel with the wait on the copy's read barrier dropped from two instructions — `MOV R61, RZ` nine instructions

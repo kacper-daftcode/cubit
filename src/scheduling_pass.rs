@@ -1230,6 +1230,21 @@ pub(crate) fn dest_regs_plain(insn: &Instruction) -> Vec<(bool, u16)> {
             }
         }
     }
+    // `R2UR Pd, URd, Rs` -- the broadcast form of the register -> uniform move writes the uniform
+    // register (operand 1) AND a per-thread predicate (operand 0). The generic match above sees
+    // neither (operand 0 is a predicate), so no reader waited for them: the guard of
+    // `@!P1 ARRIVES.LDGSTSBAR.64.ARVCNT [UR4]` behind `@P0 R2UR P1, UR4, R3` was scheduled 4 / 9 /
+    // 9 / 12 issue cycles behind it and `PLOP3.LUT P0, PT, P1, ...` one. ptxas (93 sites + 40 with
+    // a modifier in the sm_120 census, the served MoE cubin and the persistent kernel): the guard
+    // 13 at 53 of 53 sites, the predicate as an operand 8 at 133 of 133, the uniform register 13.
+    if op == "R2UR" {
+        if let Some(Operand::Pred { num, .. }) = insn.operands.first() {
+            if *num < 7 { out.push((false, PRED_KEY + *num as u16)); }
+            if let Some(Operand::UReg { num, .. }) = insn.operands.get(1) {
+                if *num < 63 { out.push((true, *num as u16)); }
+            }
+        }
+    }
     // SHFL: operand 0 is the dst PREDICATE, the register result is operand 1.
     // Record the register so consumers see SHFL (with its write barrier) as producer.
     if op == "SHFL" {
@@ -1323,9 +1338,12 @@ pub(crate) fn src_regs_plain(insn: &Instruction) -> Vec<(bool, u16)> {
     // source made the verifier report a false RAW (`SHFL.IDX PT, R35, …` "reads" the R35 an
     // LDS.128 was still writing) and gave the allocator a false waiter.
     let shfl_pd_rd = op == "SHFL" && matches!(insn.operands.first(), Some(Operand::Pred { .. }));
+    // `R2UR Pd, URd, Rs`: operand 0 is the predicate result, operand 1 the uniform result
+    // (`dest_regs_plain`); the one source is the register behind them.
+    let r2ur_pd_urd = op == "R2UR" && matches!(insn.operands.first(), Some(Operand::Pred { .. }));
     let start = if is_store(op) || is_reduction(op) { 0 }
         else if let Some(rd) = atom_rd_index(insn) { rd + 1 }
-        else if shfl_pd_rd
+        else if shfl_pd_rd || r2ur_pd_urd
             || (insn.opcode_full.contains(".256")
                 && matches!(insn.operands.first(), Some(Operand::Reg { .. }))
                 && matches!(insn.operands.get(1), Some(Operand::Reg { .. }))) { 2 }
