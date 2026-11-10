@@ -4,7 +4,7 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
-## Unreleased — 2026-11-10 (session T-26: the review queue — the B300 latency model of pull request 3; `USETMAXREG` measured and the SM120 async idioms document from the megakernel branch)
+## Unreleased — 2026-11-10 (session T-26: the review queue — the B300 latency model of pull request 3; `USETMAXREG` measured and the SM120 async idioms document from the megakernel branch; the first batch of the B300 lane's candidate forms on sm103a / sm100a)
 
 - **`sched`: per-class dependency latency (cost-model schema 2; pull request 3, `94e7dae`).** A cost file may carry `dep_latency_cy` — rows
   (producer class, consumer kind) → cycles — and `dep_latency_default_cy`; a RAW edge is then priced from the producer's *start*
@@ -36,6 +36,24 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   (KNOWN_ISSUES T1 exception 9, closed); USETMAXREG joins the decoder's fail-closed bases — none of BUG-225's four exposed bases is on the
   sign-bit fallback any more (`tests/sm120_usetmaxreg.rs`). `nvprobe.nvdisasm_text` accepts nvdisasm's second rejection spelling
   (`undefined value … for table 'TABLES_opex_0'`) as an illegal word.
+
+- **Tables vendored from blackwell-isa `0f20ae6`: batch 1 of the B300 measurement lane's candidates** (the review refs `hidden-b300/*`,
+  ten one-commit pairs measuring production forms of sm_103a / sm_100a with nvdisasm 13.3 on the B300 host; sm103a 514 → 517 forms,
+  35 875 → 35 894 rows; sm100a 513 → 516, 35 869 → 35 888; sm120 / sm121a unchanged; rows without `_src` unchanged at 357 / 357 — every
+  row added is measured). New forms, each with its fixture of complete probe records and a test (`tests/hidden_b300_<name>.rs`:
+  every positive word decodes to the row, prints nvdisasm's text and re-encodes; the negatives fail closed):
+  `ATOMS.MAX Rd, [Ra+URb+imm], Rc` (new key `ATOMS_R_ARURI_R`) and `ATOMS.MIN Rd, [URa+imm], Rb` (`ATOMS_R_AURI_R`); `UMEMSETS.64
+  [URa+imm], URZ, URb` (new key `UMEMSETS_AURI_UR_UR`); `F2F.BF16.F32 Rd, URs` (the source also as `-URs`, `|URs|`, `-|URs|`) with the four rounding modes × FTZ (eight groups
+  of `F2F_R_UR`); `F2FP.BF16.E8.UNPACK_B Rd, Rs` (`F2FP_R_R`); `UBLKRED.G.S.ADD.{F16,BF16,F32,F64}.RN [URa], [URb], URc` (new key
+  `UBLKRED_AURI_AURI_UR`); `STL.U16` / `STL.U8 [Ra+imm], Rb` (`STL_ARI_R`); `LDG.E.S16 Rd, desc[URa][Rb.64+imm]` (`LDG_R_dARI`).
+  The lane's evidence is nvdisasm text and CPU round trips — no execution claim is made for any of the forms.
+  **How the candidates were taken:** each blackwell-isa candidate re-applied as its row delta (not a textual cherry-pick: the count and
+  revision pins of ~55 legacy tests are re-derived, not merged); `F2F.BF16.F32 R, UR` was proposed twice from the same base — the
+  later row (with the fail-closed list over the text-inert bits) is the table's, the earlier candidate's production fixture reads it
+  through the later tag; the masks of the new rows carry the `0x` prefix. **Gatekeeper check:** all 49 098 fixture words named again
+  with nvdisasm 13.1 on a second host — every text identical, every negative without text on both. **Fixtures of this lane are
+  vendored gzip-compressed** (`tests/fixtures/<name>.jsonl.gz`, read through `tests/hb300_fixture.inc`; digests of the decompressed
+  bytes in `tests/fixtures/hidden_b300.sha256`): the 22 files are 45 MB of complete nvdisasm records, 3.3 MB compressed.
 
 ## Unreleased — 2026-11-09 (sessions T-23 / T-24 / T-25: the sm121a / sm103a / sm100a long tails verified row by row — T1 2 654 → 811 and 893 → 357 / 357 —, the decoder's fail-closed zone around a measured row, the 2026-08/09 battery re-pinned to the measured-row doctrine)
 
