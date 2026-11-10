@@ -4,6 +4,16 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-10 (session T-27: a test of the suite that failed at random)
+
+- **`tests/kand058_ufadd_imm_neg.rs` no longer races on its own scratch table.** The test wrote its two-row table to a temporary file
+  named by the process id and the Debug text of `Instant::now()`; two of its test threads that read the clock at the same reading shared
+  the path, and one thread's rewrite emptied the file the other was parsing (`floatimm_negative`: "failed to parse table JSON — EOF while
+  parsing a value at line 1 column 0"). Measured on the test binary alone: 259 failing runs of 10 000 at three test threads and 8 of
+  10 000 at two (the suite's setting — one push gate went red on it); with a counter of the process in the name 0 of 20 000 and 0 of
+  10 000 (0 of 10 000 at sixteen threads). The file is removed once the table is loaded (every run used to leave four in the temporary
+  directory). No other test names a file by the clock; the encoder is not touched.
+
 ## Unreleased — 2026-11-10 (session SD-1: the sm_120 dependency table checked against the other hand-written production kernels — evidence only, no behaviour change)
 
 - **The pair-latency table beyond the attention kernel: `QMMA.SF` and `IADD.64` in the census, 31 more pair floors on two card types**

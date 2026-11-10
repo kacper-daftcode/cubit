@@ -28,13 +28,21 @@ fn table_ufadd() -> IsaTable {
         r#"{{"UFADD_UR_UR_FI": {{"mod_groups": {{"": {{"and_base": "0x0", "fields": {fields} }}}}}},
         "UFADD_UR_UR_II": {{"mod_groups": {{"": {{"and_base": "0x0", "fields": {fields} }}}}}}}}"#
     );
+    // One file per call: the process id + a counter of this process. The name used to end in the
+    // Debug text of `Instant::now()`; two test threads that read the clock at the same reading
+    // shared one path, and the `fs::write` of one (truncate, then write) emptied the file the
+    // other was parsing — "EOF while parsing a value at line 1 column 0", 259 of 10 000 runs
+    // of this binary at three test threads. The file is removed once the table is loaded.
+    static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let p = std::env::temp_dir().join(format!(
-        "kand058_ufadd_{}_{:?}.json",
+        "kand058_ufadd_{}_{}.json",
         std::process::id(),
-        std::time::Instant::now()
+        SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
     std::fs::write(&p, json).unwrap();
-    IsaTable::load(&p).unwrap()
+    let table = IsaTable::load(&p);
+    let _ = std::fs::remove_file(&p);
+    table.unwrap()
 }
 
 fn enc(text: &str) -> u128 {
