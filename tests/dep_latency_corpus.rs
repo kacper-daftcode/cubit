@@ -10,7 +10,8 @@
 //! `census_pairs_slots_sm120.json` holds its rows (142 rows, 146 962 pairs of the 166 frozen sm_120 listings).
 //!
 //! What is pinned here: whatever the table charges for such a pair -- an MMA row, a default, one day a cell -- is
-//! never below ptxas's dense practice for it, and the MMA rows are ptxas's numbers for QMMA exactly.
+//! never below ptxas's dense practice for it nor below a floor measured on silicon, and the MMA rows are ptxas's
+//! numbers for QMMA exactly -- the reader row being the floor of a QMMA's result registers 2 / 3.
 
 use serde_json::Value;
 use std::collections::HashMap;
@@ -19,6 +20,7 @@ use std::process::Command;
 const TABLE: &str = include_str!("../tables/dep_latency_sm120.json");
 const SLOTS: &str = include_str!("../tools/stallfloor/census_pairs_slots_sm120.json");
 const FLOORS_E: &str = include_str!("../tools/stallfloor/stall_floors_sm120_20261110_pairs_e.json");
+const QMMA_REGS: &str = include_str!("../tools/stallfloor/mma_result_registers_sm120_20261110_qmma.json");
 
 struct Table {
     cells: HashMap<(String, String, String), u64>,
@@ -185,8 +187,9 @@ fn no_price_is_below_a_silicon_floor_of_the_corpus_pairs() {
     // LUT selector behind a LOP3 (4): cells that must not be lowered
     assert_eq!(tight, ["ISETP -> BRA gc", "ISETP -> EXIT gc", "LOP3 -> PRMT r2"], "the pairs priced exactly at their floor");
     assert_eq!(j["floors_rtx"], j["floors"], "the floors do not move with the core clock");
-    // the QMMA rows: a reader of the result needs 20 issue cycles (as HMMA -> FMUL), the accumulate operand of the
-    // next QMMA and two QMMAs back to back are interlocked by the tensor pipe (clean from distance 1)
+    // the QMMA rows: a reader of result register 0 needs 20 issue cycles (as HMMA -> FMUL; the other registers:
+    // `the_reader_row_is_the_floor_of_the_upper_result_registers_of_a_qmma`), the accumulate operand of the next QMMA
+    // and two QMMAs back to back are interlocked by the tensor pipe (clean from distance 1)
     let m = &j["mma_floors"];
     assert_eq!(m["qmma_data"].as_u64(), Some(20));
     assert_eq!(m["qmma_acc"].as_u64(), Some(1));
@@ -223,6 +226,43 @@ fn the_state_kernel_pairs_are_priced_at_or_above_their_floors() {
         assert!(s.starts_with("ok"), "{pair}: {s}");
         assert_eq!(s.contains("WEAK"), pair == "shf_sts_d", "{pair}: {s}");
     }
+}
+
+/// The reader row against every result register of a QMMA (`pairfloor_gen_e.py` pairs `qmma_data`, `qmma_data_r1..3`;
+/// two runs on each of two card types, the same verdict of every kernel): registers 0 / 1 are readable from 20 issue
+/// cycles, **registers 2 / 3 only from 28 -- the `to_data` row exactly**, as for HMMA. The row has no margin on the
+/// upper registers and must not be lowered.
+#[test]
+fn the_reader_row_is_the_floor_of_the_upper_result_registers_of_a_qmma() {
+    let t = table();
+    let j: Value = serde_json::from_str(QMMA_REGS).unwrap();
+    let mut floor = [0u64; 4];
+    for f in j["floors"].as_array().unwrap() {
+        let k = f["result_register"].as_u64().unwrap() as usize;
+        floor[k] = floor[k].max(f["last_wrong"].as_u64().unwrap() + 1);
+        assert_eq!(f["clean_from"].as_u64().unwrap(), floor[k]);
+    }
+    assert_eq!(floor, [20, 20, 28, 28]);
+    assert_eq!(t.to_data, 28, "the row is the floor of result registers 2 / 3");
+    assert!(t.to_acc >= t.to_data);
+    // every kernel, every run on either card: wrong below the floor of its register, clean from it up to 45 cycles
+    let (mut n, mut top) = (0, [0u64; 4]);
+    for k in j["kernels"].as_array().unwrap() {
+        let (r, d) = (k["result_register"].as_u64().unwrap() as usize, k["distance"].as_u64().unwrap());
+        let runs = k["mismatching_threads"].as_array().unwrap();
+        assert_eq!(runs.len(), 4, "two runs on each card");
+        for w in runs {
+            assert_eq!(w.as_u64().unwrap() != 0, d < floor[r], "{}: result register {r} at {d} cycles", k["kernel"]);
+        }
+        top[r] = top[r].max(d);
+        n += 1;
+    }
+    assert_eq!(n, 165);
+    assert_eq!(top, [30, 45, 45, 45]);
+    // the slot census: ptxas never reads a QMMA result earlier than the row (min 28 over 13 204 FFMA readers)
+    let rows = slot_rows();
+    let min = rows.iter().filter(|r| r["prod"] == "QMMA" && r["cons"] != "QMMA").map(|r| r["min"].as_u64().unwrap()).min().unwrap();
+    assert_eq!(min, t.to_data);
 }
 
 // ---------------------------------------------------------------------------------------------------------------

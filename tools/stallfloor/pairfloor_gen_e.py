@@ -11,8 +11,8 @@ Skeleton, oracle and index layout of pairfloor_gen_b.py / pairfloor_gen_c.py (on
           store data: SHF -> STS, FMUL -> STG, FFMA -> the upper register of STG.64
   uniform UIADD3 -> UISETP, UMOV -> UIADD3, R2UR -> UIADD3 (the uniform loop counters of the state-prefill kernel)
   guard   ISETP -> the guard of BRA and of EXIT
-  qmma    QMMA result -> FFMA, -> the accumulate operand of the next QMMA, two QMMAs back to back
-          (distance = S + 15 * NPAD, as the HMMA rows of v5b)
+  qmma    QMMA result -> FFMA (result register 0; registers 1 / 2 / 3 as `qmma_data_r1..3`), -> the accumulate operand
+          of the next QMMA, two QMMAs back to back (distance = S + 15 * NPAD, as the HMMA rows of v5b)
   input   MOV -> the accumulate operand of a QMMA (first register and an upper one), PRMT -> its B fragment,
           LOP3 -> its B scale byte, F2FP.PACK / LOP3 -> the upper register of an HMMA B fragment
 
@@ -156,10 +156,11 @@ def qmma_text(name, pair, s, npad, reference=False):
     body = qfrag()
     pads = [PAD15] * (3 if reference else npad)
     st = 15 if reference else s
-    if pair == "qmma_data":            # QMMA result -> FFMA (the fold of the MoE kernels: masters += acc * As)
+    if pair.startswith("qmma_data"):   # QMMA result -> FFMA (the fold of the MoE kernels: masters += acc * As);
+        k = int(pair[-1]) if pair != "qmma_data" else 0      # qmma_data_r<k>: the reader takes result register k
         body.append(f"{B.ctrl(st)} {QMMA} R16, R20, R24, RZ, R26, R27, UR6 ;")
         body += pads
-        body.append(f"{SAFE} FFMA R8, R16, R14, RZ ;")
+        body.append(f"{SAFE} FFMA R8, R{16 + k}, R14, RZ ;")
         body.append(f"{SAFE} {FOLD}")
     elif pair == "qmma_acc":           # QMMA result -> the accumulate operand of the next QMMA
         body.append(f"{B.ctrl(st)} {QMMA} R16, R20, R24, RZ, R26, R27, UR6 ;")
@@ -227,6 +228,13 @@ def text(name, pair, d, s, reference=False):
     return t.replace("    L_skip:", "L_skip:")
 
 
+# the QMMA rows: `qmma_data` reads result register 0; `qmma_data_r1..3` the other three (distance 1..45) -- an MMA's
+# result registers do not become readable together (HMMA: registers 0 / 1 from 20 issue cycles, 2 / 3 from 28)
+QMMA_ROWS = {"qmma_data": "QMMA -> FFMA r1", "qmma_acc": "QMMA -> QMMA r3", "qmma_any": "QMMA -> QMMA (issue spacing)",
+             "qmma_data_r1": "QMMA result register 1 -> FFMA r1", "qmma_data_r2": "QMMA result register 2 -> FFMA r1",
+             "qmma_data_r3": "QMMA result register 3 -> FFMA r1"}
+
+
 def jobs_of(pairs):
     jobs = []
     for pair in pairs:
@@ -238,11 +246,11 @@ def jobs_of(pairs):
                 for s in range(1, 16 if p.get("guard") else 9):
                     nm = f"pf_{pair}_d{d}_s{s:02d}"
                     jobs.append((nm, text(nm, pair, d, s), dict(meta, distance=d, stall=s, reference=False)))
-        elif pair in ("qmma_data", "qmma_acc", "qmma_any"):
-            cell = {"qmma_data": "QMMA -> FFMA r1", "qmma_acc": "QMMA -> QMMA r3", "qmma_any": "QMMA -> QMMA (issue spacing)"}[pair]
+        elif pair in QMMA_ROWS:
+            cell = QMMA_ROWS[pair]
             jobs.append((f"pf_{pair}_ref", qmma_text(f"pf_{pair}_ref", pair, 15, 3, True),
                          dict(pair=pair, cell=cell, distance=-1, stall=-1, reference=True)))
-            for npad in (0, 1):
+            for npad in ((0, 1, 2) if pair.startswith("qmma_data_r") else (0, 1)):
                 for s in range(1, 16):
                     nm = f"pf_{pair}_p{npad}_s{s:02d}"
                     jobs.append((nm, qmma_text(nm, pair, s, npad),
@@ -261,7 +269,7 @@ def jobs_of(pairs):
     return jobs
 
 
-ALL = list(PAIRS) + ["qmma_data", "qmma_acc", "qmma_any"] + list(QIN)
+ALL = list(PAIRS) + ["qmma_data", "qmma_acc", "qmma_any"] + list(QIN) + ["qmma_data_r1", "qmma_data_r2", "qmma_data_r3"]
 
 
 def main():

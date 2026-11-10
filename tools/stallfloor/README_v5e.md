@@ -5,8 +5,8 @@ sparse-MLA attention kernel binds on. The other hand-written kernels that are as
 the MoE GEMM kernels on 2-bit / FP4 / quintal weight planes (`QMMA.SF`, a `PRMT` LUT decode, 64-bit address arithmetic)
 and the state-prefill kernel — bind on other pairs. The v5e files of this directory are the evidence for those: 92
 auto-scheduled production sources, 53 954 binding register requirements per warp under the three switches
-(`CUBIT_SCHED2=1 CUBIT_SCHED2_LAT=sm120 CUBIT_MMA_PTXAS=1`), every one of them now on a silicon run or an MMA row at or
-below what the table charges. Nothing here changes the table or the scheduler; `tests/dep_latency_corpus.rs` pins what
+(`CUBIT_SCHED2=1 CUBIT_SCHED2_LAT=sm120 CUBIT_MMA_PTXAS=1`), every one of them now on a silicon run or an MMA row, none
+above what the table charges. Nothing here changes the table or the scheduler; `tests/dep_latency_corpus.rs` pins what
 the files say against the table.
 
 | file | role |
@@ -14,9 +14,10 @@ the files say against the table.
 | `slot_census.py` | the ptxas pair census of `dep_latency_census.py` for the two instruction forms the register-liveness model does not know — the 7-operand `QMMA.SF` form and `IADD.64` (`depdump` prints `known: false`, no defs, no uses), so `census_pairs_sm120.json` has no row with either as producer or consumer. Their operands are taken from the operand slots; walk, classes and roles are the original's |
 | `census_pairs_slots_sm120.json` | its rows over the 166 frozen sm_120 listings (12 448 QMMA): 142 (producer, consumer, role) rows with QMMA or IADD.64 on either side, 146 962 pairs |
 | `qmma_census.py` | the same listings around QMMA only, including what is not a register pair: the issue spacing between two MMAs |
-| `pairfloor_gen_e.py` | CPU side, the harness v5 skeleton and oracle (one S15 reference kernel per pair): the LUT decode (`IMAD → PRMT`, `PRMT → LOP3`, `LOP3 → PRMT`), 64-bit address arithmetic (`SHF → IMAD.WIDE` multiplier, producers → either operand of `IADD.64`, `IADD.64 → IADD.64`), `IADD.64` → the address of a global store / load, store data, guards of `BRA` / `EXIT`, the QMMA rows (result → `FFMA`, → the accumulate operand of the next QMMA, two QMMAs back to back; distance = S + 15 × pad), producers → QMMA / HMMA operands, uniform loop counters (`UIADD3 → UISETP`, `UMOV` / `R2UR → UIADD3`) |
+| `pairfloor_gen_e.py` | CPU side, the harness v5 skeleton and oracle (one S15 reference kernel per pair): the LUT decode (`IMAD → PRMT`, `PRMT → LOP3`, `LOP3 → PRMT`), 64-bit address arithmetic (`SHF → IMAD.WIDE` multiplier, producers → either operand of `IADD.64`, `IADD.64 → IADD.64`), `IADD.64` → the address of a global store / load, store data, guards of `BRA` / `EXIT`, the QMMA rows (result → `FFMA` on each of the four result registers, → the accumulate operand of the next QMMA, two QMMAs back to back; distance = S + 15 × pad), producers → QMMA / HMMA operands, uniform loop counters (`UIADD3 → UISETP`, `UMOV` / `R2UR → UIADD3`) |
 | `pairfloor_run_e.py` | GPU side: `pairfloor_run.py` plus a per-thread scratch buffer as third kernel parameter (a global store's address probe writes its own words there), a shared read-only table for the load probe, and one process per pair (`--isolate`) |
 | `stall_floors_sm120_20261110_pairs_e.json` | the result: 31 pairs, 874 probe kernels, two card types (`run`, `run_rtx`, `run_new_pairs` say what was launched where) — identical floors and an identical clean / dirty verdict of every kernel in every run |
+| `mma_result_registers_sm120_20261110_qmma.json` | the reader of a QMMA result by result register (`qmma_data`, `qmma_data_r1..3`: 165 kernels, distance 1 … 45), in the layout of `mma_result_registers_sm120_20261110_em.json` (what `gen_dep_latency.py --mma-registers` reads): registers 0 / 1 clean from 20, **registers 2 / 3 from 28** — the HMMA picture |
 
 ```bash
 python3 tools/stallfloor/slot_census.py <dir with *.dep.jsonl> census_pairs_slots_sm120.json tables/dep_latency_sm120.json
@@ -62,13 +63,15 @@ sources; they are candidates for cells when a kernel that uses them is scheduled
 
 32 CTAs × 1 024 threads × 256 iterations × 20 launches per kernel; floors at distance 0 / 1 / 2 (fillers between producer
 and consumer). Two card types: RTX PRO 6000 Blackwell Server Edition (core clock ≤ 2 370 MHz, two runs) and Workstation
-Edition (core clock up to 2 820 MHz, two runs of the first 20 pairs, three of the last 11). **Every floor and the clean /
-dirty verdict of every one of the 843 swept kernels is the same in every run on both cards** — a floor here is a count
-of issue cycles, not a setup time.
+Edition (core clock up to 2 820 MHz, two runs of the first 20 pairs, three of the last 11, two of the QMMA result
+registers). **Every floor and the clean / dirty verdict of every one of the 978 swept kernels is the same in every run
+on both cards** — down to the fraction of wrong threads one cycle below a floor: a floor here is a count of issue
+cycles, not a setup time.
 
 | pair (role) | floor d0 / d1 / d2 | the table charges |
 |---|---|---|
-| QMMA → FFMA | **20** (wrong on every thread at 1 … 19) | 28 (MMA row) |
+| QMMA result registers 0 / 1 → FFMA | **20** (wrong at every distance 1 … 19) | 28 (MMA row) |
+| QMMA result registers 2 / 3 → FFMA | **28** (wrong on every thread to 24, on a quarter of them at 27) | **28 (MMA row) — at the floor** |
 | QMMA → the accumulate operand of the next QMMA; two QMMAs back to back | clean at every distance 1 … 30 (the tensor pipe interlocks them) | 29 / 16 |
 | ISETP → BRA (gc) | 13 / 11 / 9 | **13 (cell) — at the floor** |
 | ISETP → EXIT (gc) | 13 / 11 / 9 | **13 (cell) — at the floor** |
@@ -99,9 +102,11 @@ of issue cycles, not a setup time.
 | UMOV → UIADD3 (u1) | clean from S01 | 4 (cell) |
 | UIADD3 → UISETP (u0) | 4 / 1 / 1 | **4 (cell) — at the floor** |
 
-QMMA behaves as HMMA does: a reader of the result needs 20 issue cycles, the accumulate chain and the issue spacing are
-enforced by the tensor pipe itself. An address is read when the memory pipe serves the instruction (`IADD.64 → STG` /
+QMMA behaves as HMMA does, register for register: a reader of result registers 0 / 1 needs 20 issue cycles, of
+registers 2 / 3 28 — the `to_data` row exactly, as `mma_result_registers_sm120_20261110_em.json` shows for HMMA — and the
+accumulate chain and the issue spacing are enforced by the tensor pipe itself. In the 89 MoE sources under the three
+switches the first reader of result register 0 / 1 / 2 / 3 is 28 / 29 / 36 / 37 cycles behind its QMMA at the earliest. An address is read when the memory pipe serves the instruction (`IADD.64 → STG` /
 `LDG` clean from S01), as `stall_floors_sm120_20261110_store_addr.json` shows for `STS`. A uniform register written through `R2UR` is the slowest path measured
-on sm_120 so far: 8 issue cycles (the uniform default is 13). **Four prices are exactly the floor** —
-`ISETP → BRA` gc, `ISETP → EXIT` gc, `LOP3 → PRMT` r2, `UIADD3 → UISETP` u0 — cells that must not be lowered; everything else has at least one cycle of margin. The additive
+on sm_120 so far: 8 issue cycles (the uniform default is 13). **Five prices are exactly the floor** —
+the MMA reader row (28) for result registers 2 / 3, and `ISETP → BRA` gc, `ISETP → EXIT` gc, `LOP3 → PRMT` r2, `UIADD3 → UISETP` u0 — they must not be lowered; everything else has at least one cycle of margin. The additive
 model (the sum of the stalls from producer to consumer ≥ the pair's latency) holds on every d1 / d2 floor.

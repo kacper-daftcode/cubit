@@ -28,6 +28,14 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   ≤ 2 820 MHz — the same floors and the same verdict of every kernel in every run): `QMMA → FFMA` 20, the QMMA chain and spacing
   interlocked by the tensor pipe, `R2UR → UIADD3` 8, everything else 1 … 5. **No price is below a floor; four are exactly the floor —
   `ISETP →` the guard of `BRA` / `EXIT` (13), `LOP3 → PRMT` (4), `UIADD3 → UISETP` (4).** No cell, default or source line changes.
+- **The MMA reader row is the floor of a QMMA's upper result registers, as it is for HMMA**
+  (`tools/stallfloor/mma_result_registers_sm120_20261110_qmma.json`, the layout of the HMMA file). `QMMA.SF` result register k → `FFMA`,
+  nothing waited, distance 1 … 45, two runs on each of the two card types with the same verdict of all 165 kernels: registers 0 / 1 are
+  wrong at every distance up to 19 and clean from 20; **registers 2 / 3 are wrong up to 27 — on every thread to 24, on a quarter of them
+  at 27 — and clean from 28, the `to_data` row exactly.** The first measurement of the row (20) had read register 0. ptxas never reads a
+  QMMA result earlier than 28 (13 204 `FFMA` readers); the 89 MoE GEMM sources under the three switches read registers 0 / 1 / 2 / 3 at
+  28 / 29 / 36 / 37 cycles at the earliest. `pairfloor_gen_e.py` gains the three pairs (`qmma_data_r1..3`, 138 kernels; its other 874
+  kernels are byte for byte what they were); `tests/dep_latency_corpus.rs` pins the four floors against the row. No cell moves.
 
 ## Unreleased — 2026-11-10 (session RA-1: `cubit ra` on a production sm_120 kernel — the register allocator certified on the sparse-MLA prefill attention kernel; two fixes of the pass, `--target sm120` and `--no-share` opt-in, the default allocation unchanged)
 
