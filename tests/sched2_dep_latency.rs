@@ -357,6 +357,63 @@ fn the_scaled_unpack_dequant_holds_the_table() {
     assert!(dflt.lines.iter().filter(|l| l.text.starts_with("F2FP.BF16.E")).all(|l| l.stall == 5), "{}", dflt.listing.join("\n"));
 }
 
+/// The two registers of a 64-bit product are not ready together (2026-11-10, sm_120 silicon, `IMAD.WIDE` -> a
+/// reader of one register of its result, nothing waited: the low register is readable from 1-3 issue cycles, the
+/// high one from 3-5; `tools/stallfloor/stall_floors_sm120_20261110_em_blk3.json`). ptxas reads the low register
+/// from 3 and the high one never closer than 5, or 4 into the multiplier (the census split by result register,
+/// `census_pairs_result_sm120.json`). The table's cells were mined from the merged pairs, so a reader of the HIGH
+/// register was charged the LOW register's minimum where that is the closer: `-> LOP3`, `-> LEA` and the second
+/// addend of `IADD3` at 4 against a floor of 5. `cbe37f4` built exactly that (fixture `wide_high.cbe37f4.txt`).
+#[test]
+fn the_upper_register_of_a_wide_product_is_read_later() {
+    let env = [("CUBIT_SCHED2", "1"), ("CUBIT_SCHED2_LAT", "sm120")];
+    let new = build("wide_high", &env);
+    // every IMAD.WIDE stands right in front of the only reader of the register in question
+    let want: [(&str, u32, &str); 6] = [
+        ("IMAD.WIDE.U32 R6,", 5, "high register -> LOP3 (the pair's cell 4 is the low register's)"),
+        ("IMAD.WIDE.U32 R10,", 4, "low register -> LOP3"),
+        ("IMAD.WIDE.U32 R14,", 5, "high register -> LEA"),
+        ("IMAD.WIDE.U32 R18,", 4, "low register -> LEA"),
+        ("IMAD.WIDE.U32 R22,", 5, "high register -> the second addend of IADD3"),
+        ("IMAD.WIDE.U32 R26,", 4, "the 64-bit chain: the next product's addend takes both registers at the pair's 4"),
+    ];
+    for (start, stall, why) in want {
+        assert_eq!(new.lines[idx(&new, start, 0)].stall, stall, "{why}: {:?}", new.lines[idx(&new, start, 0)]);
+    }
+    let v = dep_verify("wide_high_new", &new);
+    assert_eq!((v.0, v.1, v.2, v.3), (0, 0, 0, 0), "{}", v.4);
+    // what the parent built: the same text, the three high-register readers one cycle too close -- and the
+    // read-only check with today's table says so on that listing
+    let old = pinned("wide_high", "cbe37f4");
+    assert_eq!(old.len(), new.listing.len());
+    let moved: Vec<(&String, &String)> = old.iter().zip(new.listing.iter()).filter(|(a, b)| a != b).collect();
+    assert_eq!(moved.len(), 3, "{moved:?}");
+    for (a, b) in &moved {
+        assert!(a.contains(":S04] IMAD.WIDE.U32 R") && b.contains(":S05] IMAD.WIDE.U32 R"), "{a} / {b}");
+    }
+    let parent = Built { lines: old.iter().filter_map(|l| parse_line(l)).collect(), listing: old.clone(), frozen: frozen_of("wide_high", &old), log: String::new() };
+    let v = dep_verify("wide_high_old", &parent);
+    assert_eq!((v.0, v.1, v.2, v.3), (3, 0, 0, 0), "{}", v.4);
+}
+
+/// A frozen source of a fixture kernel from pinned listing lines (the header of the built kernel's own frozen text).
+fn frozen_of(name: &str, listing: &[String]) -> String {
+    let b = build(name, &[]);
+    let mut out = String::new();
+    let mut it = listing.iter();
+    for l in b.frozen.lines() {
+        if parse_line(l).is_some() {
+            out.push_str("    ");
+            out.push_str(it.next().expect("as many instruction lines as the pinned listing"));
+        } else {
+            out.push_str(l);
+        }
+        out.push('\n');
+    }
+    assert!(it.next().is_none());
+    out
+}
+
 /// Issue spacing of the shared pipes, whatever the registers: LDC 8, IMAD.WIDE -> IMAD(.WIDE) 4,
 /// IMAD -> IMAD 2, memory 4. Plain SCHED2 packs the multiplies and the constant loads tighter.
 #[test]

@@ -1,0 +1,28 @@
+// The two registers of a 64-bit product, each read by the instruction right behind the IMAD.WIDE that wrote it: the
+// stall on the IMAD.WIDE is the price of that pair. (1) (3) (5) read the HIGH register, (2) (4) the low one, (6) is the
+// 64-bit chain of an address computation (the next product's addend takes the pair).
+.entry wide_high
+    .reg R0-R31
+    .param u64 out
+    S2R R0, SR_TID.X ;
+    LDCU.64 UR4, c[0x0][0x358] ;
+    LDC.64 R2, c[0x0][0x380] ;
+    IADD3 R4, PT, PT, R0, 0x1, RZ ;
+    IADD3 R5, PT, PT, R0, 0x3, RZ ;
+    IMAD.WIDE.U32 R6, R4, R5, RZ ;
+    LOP3.LUT R8, R7, R5, RZ, 0x3c, !PT ;
+    IMAD.WIDE.U32 R10, R8, R5, RZ ;
+    LOP3.LUT R12, R10, R5, RZ, 0x3c, !PT ;
+    IMAD.WIDE.U32 R14, R12, R5, RZ ;
+    LEA R16, R15, R5, 0x2 ;
+    IMAD.WIDE.U32 R18, R16, R5, RZ ;
+    LEA R20, R18, R5, 0x2 ;
+    IMAD.WIDE.U32 R22, R20, R5, RZ ;
+    IADD3 R24, PT, PT, R5, R23, RZ ;
+    IMAD.WIDE.U32 R26, R24, R5, RZ ;
+    IMAD.WIDE.U32 R28, R4, R5, R26 ;
+    IADD3 R30, PT, PT, R28, R29, RZ ;
+    IMAD.WIDE.U32 R2, R0, 0x4, R2 ;
+    STG.E desc[UR4][R2.64], R30 ;
+    EXIT ;
+.endentry

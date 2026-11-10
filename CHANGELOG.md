@@ -4,6 +4,25 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-10 (session SCH-2: two prices of the sm_120 dependency table that were one cycle short — opt-in path only)
+
+- **`CUBIT_SCHED2_LAT=sm120`: the upper register of an `IMAD.WIDE` result is priced apart, and `CS2R → IMAD` is 6**
+  (`tables/dep_latency_sm120.json`: section `result_high`, one pair cell; `src/dep_stall.rs`; `tools/stallfloor/README.md`).
+  A second session's probe (`stall_floors_sm120_20261110_em_blk3.json`: 392 kernels, three geometries, 20 launches) found the first
+  kernels that the table called safe and silicon did not: a reader of the HIGH register of a 64-bit product one cycle too close
+  (`IMAD.WIDE → LOP3` / `→ LEA` at the cell's 4: wrong; clean from 5), and `CS2R Rn, SRZ → IMAD` at the cell's 5 (clean from 6). The
+  two registers of a wide product are not ready together: low from 1–3 issue cycles, high from 3–5. ptxas knows — the census split
+  by result register (`result_register_census.py`, 63 701 pairs) has the low register read from 3 and the high one never closer than
+  5, or 4 into the multiplier — but the cells were mined from the merged pairs. Now a reader of the upper register takes the larger of
+  the pair's cell and its own (`result_high.cells`: 7, by the dense-cell rule of the table), and without one the pair's cell lifted to
+  the largest measured floor (5). `CS2R → IMAD` takes the measured 6 (its 24 census pairs are the 32-bit form). **Nothing else moves:**
+  532 of the 533 pair cells are byte for byte, the generator without the two new options still writes the previous table, a table
+  without the section loads and prices as before, and no production kernel has either form — the attention cubins (`v41s1`, `v42`,
+  `v43`, `v43b`, `v41s1b`) and the MoE schedule set rebuild to their digests. Tests: three in `src/dep_stall.rs` (every floor of the
+  probe at or below what that register's reader is charged) and `the_upper_register_of_a_wide_product_is_read_later` in
+  `tests/sched2_dep_latency.rs` with the schedule the parent built pinned next to it (three stalls 4 → 5); all four are red on the
+  previous table. The default path does not read the table.
+
 ## Unreleased — 2026-11-10 (session T-27: batch 6 of the B300 lane's candidate forms on sm103a / sm100a — `QMUL4` and `QADD4` with their operand selectors (55 refs taken); a test of the suite that failed at random)
 
 - **Tables vendored from blackwell-isa `1fb517a`: batch 6 of the B300 measurement lane's candidates — `QMUL4` and `QADD4`** (two more of the

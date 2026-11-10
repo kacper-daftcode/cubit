@@ -54,6 +54,21 @@ struct CellJson {
     l: u8,
 }
 
+/// The upper register of a multi-register result, priced apart for the producers named here: the
+/// two halves of a 64-bit product are not ready together. Silicon (2026-11-10, `IMAD.WIDE`): the
+/// low register is readable from 1-3 issue cycles, the high one from 3-5; ptxas reads the low one
+/// from 3 and the high one never closer than 5, or 4 into the multiplier (the census split by
+/// result register). `cells` = ptxas's practice for a reader of the upper register where the census
+/// is dense; `floor` = the largest floor measured for such a reader (what one without a cell is
+/// never charged less than). A table without the section prices both registers with the pair's cell.
+#[derive(Debug, Clone, Deserialize)]
+struct ResultHighJson {
+    producers: Vec<String>,
+    floor: u8,
+    #[serde(default)]
+    cells: Vec<CellJson>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 struct DefaultsJson {
     data: u8,
@@ -96,6 +111,8 @@ struct TableJson {
     #[serde(default)]
     barrier_arm: Option<BarrierArmJson>,
     #[serde(default)]
+    result_high: Option<ResultHighJson>,
+    #[serde(default)]
     cells: Vec<CellJson>,
 }
 
@@ -110,6 +127,11 @@ pub struct DepLatTable {
     pub arch: String,
     cells: HashMap<(String, String, String), u8>,
     any_role: HashMap<(String, String), u8>,
+    /// Cells of the readers of an upper result register (`result_high.cells`), same key.
+    cells_high: HashMap<(String, String, String), u8>,
+    /// The producers whose upper result register is priced apart, and the floor of such a
+    /// reader where no `cells_high` entry names it.
+    result_high: Option<(HashSet<String>, u8)>,
     defaults: DefaultsJson,
     mma: MmaJson,
     resources: Vec<ResourceJson>,
@@ -139,10 +161,16 @@ impl DepLatTable {
             let e = any_role.entry((c.producer.clone(), c.consumer.clone())).or_insert(0);
             *e = (*e).max(c.l);
         }
+        let mut cells_high = HashMap::new();
+        for c in j.result_high.iter().flat_map(|r| r.cells.iter()) {
+            cells_high.insert((c.producer.clone(), c.consumer.clone(), c.role.clone()), c.l);
+        }
         Ok(Self {
             arch: j.arch,
             cells,
             any_role,
+            cells_high,
+            result_high: j.result_high.map(|r| (r.producers.into_iter().collect(), r.floor)),
             defaults: j.defaults,
             mma: j.mma,
             resources: j.resources,
@@ -160,6 +188,8 @@ impl DepLatTable {
             arch: "any".into(),
             cells: HashMap::new(),
             any_role: HashMap::new(),
+            cells_high: HashMap::new(),
+            result_high: None,
             defaults: DefaultsJson { data: 0, mma_input: 0, guard: 0, pred_operand: 0, uniform: 0 },
             mma: MmaJson { classes: Vec::new(), to_mma_accumulate: 0, to_data: 0 },
             resources: Vec::new(),
@@ -214,6 +244,14 @@ impl DepLatTable {
             let acc = cons_mma && roles.iter().any(|r| r == "r3" || r == "r3h");
             return (if acc { self.mma.to_mma_accumulate } else { self.mma.to_data }, false);
         }
+        // a read of an UPPER register of a multi-register result is priced apart for the producers
+        // of `result_high` (the high half of an IMAD.WIDE product: silicon 5 into IADD3 / LEA /
+        // LOP3 / SHF / MOV / SEL and 4 into ISETP / IMAD where the low half needs 1-3)
+        let high_floor = self
+            .result_high
+            .as_ref()
+            .filter(|(producers, _)| producers.contains(&pc) && upper_result_register(prod, key))
+            .map(|(_, floor)| *floor);
         let mut best: u8 = 0;
         let mut defaulted = false;
         for role in &roles {
@@ -223,14 +261,15 @@ impl DepLatTable {
             // of an IMAD.WIDE addend needs 5 (silicon 2026-11-10: 99 kernels fail at 4) where
             // ptxas schedules its high half from 3.
             let low = role.strip_suffix('h').map(|r| (pc.clone(), cc.clone(), r.to_string()));
-            let l = if let Some(l) = self.cells.get(&(pc.clone(), cc.clone(), role.clone())) {
+            let mut role_defaulted = false;
+            let mut l = if let Some(l) = self.cells.get(&(pc.clone(), cc.clone(), role.clone())) {
                 *l
             } else if let Some(l) = low.as_ref().and_then(|k| self.cells.get(k)) {
                 *l
             } else if let Some(l) = self.any_role.get(&(pc.clone(), cc.clone())).filter(|_| role == "*") {
                 *l
             } else {
-                defaulted = true;
+                role_defaulted = true;
                 if cons_mma {
                     self.defaults.mma_input
                 } else if role == "g" || role == "gc" {
@@ -243,6 +282,21 @@ impl DepLatTable {
                     self.defaults.data
                 }
             };
+            if let Some(floor) = high_floor {
+                // the larger of the pair's cell and the upper register's own cell (ptxas's practice
+                // for it, where dense); without one the pair's cell, never below the largest floor
+                // measured for an upper register. A default already is above that floor.
+                let own = self
+                    .cells_high
+                    .get(&(pc.clone(), cc.clone(), role.clone()))
+                    .or_else(|| low.as_ref().and_then(|k| self.cells_high.get(k)));
+                match own {
+                    Some(h) => l = l.max(*h),
+                    None if !role_defaulted => l = l.max(floor),
+                    None => {}
+                }
+            }
+            defaulted |= role_defaulted;
             best = best.max(l);
         }
         (best.saturating_add(self.margin).min(CAP), defaulted)
@@ -338,6 +392,17 @@ pub fn dep_class(insn: &Instruction) -> String {
         "MOV" if has(".64") => "MOV.64".into(),
         _ => op.into(),
     }
+}
+
+/// `key` is a register ABOVE the first one of `prod`'s multi-register result (the high half of
+/// an `IMAD.WIDE` product, the second register of a `.64` result).
+fn upper_result_register(prod: &Instruction, key: u16) -> bool {
+    if key >= KEY_PRED {
+        return false;
+    }
+    let dests = sp::dest_regs(prod);
+    let gpr = |k: u16| dests.iter().any(|(uniform, d)| !*uniform && *d == k);
+    gpr(key) && dests.iter().any(|(uniform, d)| !*uniform && *d < key)
 }
 
 /// Operand roles in which `cons` reads `key` (several when the register is named twice;
@@ -1433,5 +1498,107 @@ mod tests {
         upper.dedup();
         assert_eq!(upper, [2, 3], "the result registers with a failing distance in the probe's range");
         assert_eq!(worst, 28, "the measured floor of the upper result registers");
+    }
+
+    /// The two registers of a 64-bit product are not ready together. Probe of 2026-11-10 (`IMAD.WIDE`
+    /// -> a reader of its low / of its high register, nothing waited, stalls 1..7, three geometries,
+    /// 20 launches; `stall_floors_sm120_20261110_em_blk3.json`): the low register is readable from
+    /// 1-3 issue cycles, the high one from 3-5. ptxas reads the low one from 3 and the high one never
+    /// closer than 5, or 4 into the multiplier (`census_pairs_result_sm120.json`). The cells were
+    /// mined from the merged pairs, so a reader of the HIGH register was charged the LOW register's
+    /// minimum where that is the closer -- red on that table: `-> LOP3`, `-> LEA` and the second
+    /// addend of `IADD3` at 4 against a measured 5.
+    #[test]
+    fn the_upper_register_of_a_wide_product_is_priced_apart() {
+        let t = table();
+        let wide = ins("IMAD.WIDE.U32 R6, R4, R5, RZ");
+        // the reader of R6 (low) and of R7 (high) in the same role, and the two prices
+        let readers: [(&str, &str, &str, u8, u8); 10] = [
+            ("LOP3 r1", "LOP3.LUT R8, R6, R5, RZ, 0x3c, !PT", "LOP3.LUT R8, R7, R5, RZ, 0x3c, !PT", 4, 5),
+            ("LEA r1", "LEA R8, R6, R5, 0x2", "LEA R8, R7, R5, 0x2", 4, 5),
+            ("IADD3 r2", "IADD3 R8, PT, PT, R5, R6, RZ", "IADD3 R8, PT, PT, R5, R7, RZ", 4, 5),
+            ("IADD3 r1", "IADD3 R8, PT, PT, R6, R5, RZ", "IADD3 R8, PT, PT, R7, R5, RZ", 5, 5),
+            ("MOV r1", "MOV R8, R6", "MOV R8, R7", 5, 5),
+            ("SEL r1", "SEL R8, R6, R5, P2", "SEL R8, R7, R5, P2", 5, 5),
+            ("ISETP r0", "ISETP.LT.U32.AND P4, PT, R6, R5, PT", "ISETP.LT.U32.AND P4, PT, R7, R5, PT", 5, 5),
+            ("IMAD r1", "IMAD R8, R6, R5, RZ", "IMAD R8, R7, R5, RZ", 4, 4),
+            ("SHF r3", "SHF.R.U32.HI R8, RZ, 0x3, R6", "SHF.R.U32.HI R8, RZ, 0x3, R7", 6, 6),
+            ("STS r1", "STS [R9], R6", "STS [R9], R7", 6, 6),
+        ];
+        for (what, lo, hi, want_lo, want_hi) in readers {
+            assert_eq!(t.latency(&wide, &ins(lo), 6).0, want_lo, "low register -> {what}");
+            assert_eq!(t.latency(&wide, &ins(hi), 7).0, want_hi, "high register -> {what}");
+        }
+        // the 64-bit chain of an address computation keeps its price: the next product's addend takes
+        // the pair, low into low and high into high (the multiplier interlocks them: clean from 1)
+        let next = ins("IMAD.WIDE.U32 R10, R4, R5, R6");
+        assert_eq!((t.latency(&wide, &next, 6).0, t.latency(&wide, &next, 7).0), (4, 4));
+        // the high register as the LOW half of an addend has no cell of its own: the pair's 4, lifted
+        // to the largest floor measured for an upper register
+        assert_eq!(t.latency(&wide, &ins("IMAD.WIDE.U32 R10, R4, R5, R7"), 7).0, 5);
+        // only the producers the table names are split: both registers of a 64-bit MOV keep one price
+        let mov = ins("MOV.64 R6, R4");
+        let l = |key| t.latency(&mov, &ins("IADD3 R8, PT, PT, R6, R7, RZ"), key).0;
+        assert_eq!(l(6), l(7));
+        // every floor of the probe is at or below what the reader of that register is charged
+        let j: serde_json::Value =
+            serde_json::from_str(include_str!("../tools/stallfloor/stall_floors_sm120_20261110_em_blk3.json")).unwrap();
+        let (mut low, mut high) = (0, 0);
+        for f in j["floors"].as_array().unwrap().iter().filter(|f| f["family"] == "wh") {
+            let what = f["what"].as_str().unwrap().strip_prefix("IMAD.WIDE -> ").unwrap();
+            let (_, lo, hi, _, _) = readers.iter().find(|r| r.0 == what).unwrap_or_else(|| panic!("no reader text for {what}"));
+            let floor = j["geometries"].as_object().unwrap().keys().map(|g| f[g]["clean_from"].as_u64().unwrap()).max().unwrap();
+            let (text, key) = if f["which"] == "hi" { (hi, 7) } else { (lo, 6) };
+            let charged = t.latency(&wide, &ins(text), key).0;
+            assert!(u64::from(charged) >= floor, "{what}, {} register: charged {charged}, measured floor {floor}", f["which"]);
+            if f["which"] == "hi" {
+                high += 1;
+                assert!(floor <= u64::from(t.result_high.as_ref().unwrap().1), "{what}: floor {floor} above `result_high.floor`");
+            } else {
+                low += 1;
+            }
+        }
+        assert_eq!((low, high), (9, 9), "the probe's pairs are read");
+    }
+
+    /// `CS2R Rn, SRZ` (the pair form: a 64-bit zero) into `IMAD` / `IADD3`: wrong at stalls 1..5 and
+    /// clean at 6 for either register on silicon (the same probe). The cell `CS2R -> IMAD` was 5: the
+    /// census pairs behind it are the 32-bit form (`CS2R.32 Rn, SR_CgaSize`), one class with the pair
+    /// form. The cell takes the measured 6.
+    #[test]
+    fn cs2r_into_the_multiplier_holds_the_pair_forms_floor() {
+        let t = table();
+        let zero = ins("CS2R R6, SRZ");
+        assert_eq!(t.latency(&zero, &ins("IMAD R8, R6, R5, R4"), 6), (6, false));
+        assert_eq!(t.latency(&zero, &ins("IADD3 R8, PT, PT, R6, R5, RZ"), 6), (6, true));
+        let j: serde_json::Value =
+            serde_json::from_str(include_str!("../tools/stallfloor/stall_floors_sm120_20261110_em_blk3.json")).unwrap();
+        let mut n = 0;
+        for f in j["floors"].as_array().unwrap().iter().filter(|f| f["family"] == "cs") {
+            for g in j["geometries"].as_object().unwrap().keys() {
+                assert_eq!(f[g]["clean_from"].as_u64(), Some(6), "{}: {g}", f["what"]);
+                n += 1;
+            }
+        }
+        assert_eq!(n, 12, "two readers, two registers, three geometries");
+    }
+
+    /// A table without the section (every table written before it, a deployment's own copy) loads
+    /// and prices both registers with the pair's cell, as before; the section does not touch the
+    /// pair cells (a binary that does not know it reads the same 533 cells).
+    #[test]
+    fn a_table_without_the_result_split_prices_the_pair() {
+        let mut j: serde_json::Value = serde_json::from_str(SM120_TABLE).unwrap();
+        let section = j.as_object_mut().unwrap().remove("result_high").expect("the bundled table has the section");
+        assert_eq!(section["producers"], serde_json::json!(["IMAD.WIDE"]));
+        assert_eq!(section["floor"], 5);
+        assert_eq!(section["cells"].as_array().unwrap().len(), 7);
+        assert_eq!(j["cells"].as_array().unwrap().len(), 533);
+        let old = DepLatTable::from_json(&j.to_string()).unwrap();
+        let wide = ins("IMAD.WIDE.U32 R6, R4, R5, RZ");
+        let lop3 = ins("LOP3.LUT R8, R7, R5, RZ, 0x3c, !PT");
+        assert_eq!((old.latency(&wide, &lop3, 7).0, table().latency(&wide, &lop3, 7).0), (4, 5));
+        let addend = ins("IADD3 R8, PT, PT, R5, R7, RZ");
+        assert_eq!((old.latency(&wide, &addend, 7).0, table().latency(&wide, &addend, 7).0), (4, 5));
     }
 }

@@ -5,7 +5,14 @@
   (2) stall floors measured on sm_120 silicon (tools/stallfloor): a measured floor above the census minimum raises the cell;
       a measured floor below it is recorded (`silicon`) but the cell keeps ptxas's value (never below the vendor's practice).
 
+  (3) the result register read (--result-census, --result-floors): the upper register of a multi-register result is priced
+      apart for the producers of RESULT_HIGH. Its readers get their own cells (`result_high.cells`), mined from the census
+      split by result register (result_register_census.py) with the rule of (1); a reader without such a cell keeps the
+      pair's cell but never less than the largest floor measured for an upper register (`result_high.floor`). The cells
+      of (1) and (2) are not touched by it: a binary that does not know `result_high` reads the table as before.
+
 usage: gen_dep_latency.py census_pairs.json out.json [--floors pair_floors.json ...] [--v6 cells.json ...]
+                          [--mma-registers file] [--result-census census_pairs_result.json --result-floors floors.json]
 """
 import sys, json, argparse, collections
 
@@ -15,6 +22,9 @@ VARIABLE = ["LDG", "LDS", "LDSM", "LDL", "LDC", "LDCU", "LD", "LDGSTS", "S2R", "
 MMA = ["HMMA", "QMMA", "IMMA", "DMMA"]
 MIN_N, MIN_AT = 50, 8
 MAX_TIGHT = 7     # a fixed-latency ALU pair is never above 7 (-> MMA fragment) in the census' dense spikes
+# producers whose upper result register is priced apart: the two halves of a 64-bit product are not ready together
+# (silicon: the low register is readable from 1-3 issue cycles, the high one from 3-5; ptxas: low from 3, high from 4 / 5)
+RESULT_HIGH = ["IMAD.WIDE"]
 
 
 def main():
@@ -28,7 +38,12 @@ def main():
     ap.add_argument("--v6", nargs="*", default=[], help="results of the population harness (cellfloor_run.py cells.json)")
     ap.add_argument("--mma-registers", help="MMA result register k -> an ordinary reader, per register "
                     "(mma_result_registers_sm120_*.json): the `to_data` row must hold every register's floor")
+    ap.add_argument("--result-census", help="the census split by RESULT register (result_register_census.py): "
+                    "cells for the readers of an upper register of the producers in RESULT_HIGH")
+    ap.add_argument("--result-floors", help="silicon by result register (stall_floors_sm120_20261110_em_blk3.json: "
+                    "IMAD.WIDE low / high register -> reader, either register of the pair form of CS2R -> reader)")
     a = ap.parse_args()
+    assert bool(a.result_census) == bool(a.result_floors), "--result-census and --result-floors go together"
     rows = json.load(open(a.census))
     cells = {}
     skipped = collections.Counter()
@@ -158,6 +173,8 @@ def main():
                 c["basis"] += f"; RAISED from {c['L']} (fails on silicon at S{Lt:02d}) to the data default"
                 c["L"] = max(Lt + 1, doc["defaults"]["data"])
             c["silicon"] = (c.get("silicon", "") + "; " if c.get("silicon") else "") + note
+    if a.result_census:
+        result_high(a, doc, idx)
     out_cells.sort(key=lambda c: (c["producer"], c["consumer"], c["role"]))
     if a.mma_registers:
         mr = json.load(open(a.mma_registers))
@@ -193,6 +210,78 @@ def main():
     print(f"{len(out_cells)} cells; skipped {dict(skipped)}")
     by = collections.Counter(c["L"] for c in out_cells)
     print("L histogram:", sorted(by.items()))
+
+
+def result_high(a, doc, idx):
+    """`result_high`: the cells of the readers of an UPPER register of a multi-register result (RESULT_HIGH), the floor of
+    such a reader without a cell, and the silicon of --result-floors on the cells of the producers it measured."""
+    hidx = {}
+    for r in json.load(open(a.result_census)):
+        p, c, role = r["prod"], r["cons"], r["role"]
+        if r["part"] != "high" or p not in RESULT_HIGH or role == "r?":
+            continue
+        if r["n"] < MIN_N or r["n_min"] < MIN_AT or r["min"] > MAX_TIGHT:
+            continue                       # not dense, or never tight: no cell of its own (the rule of the ordinary cells)
+        hidx[(p, c, role)] = {"producer": p, "consumer": c, "role": role, "L": max(r["min"], 4),
+                              "basis": f"ptxas census min {r['min']} x {r['n_min']} of {r['n']} readers of the result's upper register"}
+    fl = json.load(open(a.result_floors))
+    hi, lo, pair = {}, {}, {}
+    for f in fl["floors"]:
+        if f["family"] not in ("wh", "cs"):
+            continue
+        p, rest = f["what"].split(" -> ")
+        c, role = rest.rsplit(" ", 1)
+        floor = max(f[g]["clean_from"] for g in fl["geometries"])      # the strictest geometry of the run
+        d = {"hi": hi, "lo": lo}.get(f["which"], pair)
+        d[(p, c, role)] = max(d.get((p, c, role), 0), floor)
+    assert hi and all(k[0] in RESULT_HIGH for k in hi), "the result-register floors are of the producers in RESULT_HIGH"
+    doc["comment"] += (" `result_high`: a reader of an UPPER register of a multi-register result of the producers named there"
+                       " (the high half of a 64-bit product is ready later than its low half) takes the larger of the pair's"
+                       " cell and the cell of `result_high.cells` for it; where the census has no dense cell for the upper"
+                       " register it takes the pair's cell, but never less than `result_high.floor`.")
+    doc["provenance"]["silicon"].append(
+        f"result registers ({fl['run']}; {', '.join(fl['geometries'].values())}; 20 launches per kernel, S15 reference): "
+        f"IMAD.WIDE low / high register -> reader, {len(lo)} + {len(hi)} pairs; either register of the pair form "
+        f"`CS2R Rn, SRZ` -> reader, {len(pair)} pairs")
+    # the pair form of CS2R: one number for both registers; a floor above the cell raises it (the rule of --floors)
+    for key, floor in sorted(pair.items()):
+        c = idx.get(key)
+        if c is None:
+            doc["provenance"].setdefault("measured_without_cell", []).append(
+                {"producer": key[0], "consumer": key[1], "role": key[2], "floor_d0": floor, "harness": "pr-em-3"})
+            continue
+        if floor > c["L"]:
+            c["basis"] += f"; RAISED from {c['L']} by the silicon floor"
+            c["L"] = floor
+        c["silicon"] = ((c["silicon"] + "; ") if c.get("silicon") else "") + (
+            f"floor d0 S{floor:02d} on either register of the pair form `CS2R Rn, SRZ` (the census pairs are the 32-bit form)")
+    measured = []
+    for key in sorted(set(hi) | set(lo)):
+        c, h = idx.get(key), hidx.get(key)
+        if c is not None and key in lo:
+            assert lo[key] <= c["L"], f"{key}: the cell {c['L']} is below the low register's floor {lo[key]}"
+        if h is not None and key in hi:
+            assert hi[key] <= h["L"], f"{key}: the upper register's cell {h['L']} is below its floor {hi[key]}"
+            h["silicon"] = f"floor d0 S{hi[key]:02d}"
+        measured.append({"producer": key[0], "consumer": key[1], "role": key[2], "floor_low": lo.get(key),
+                         "floor_high": hi.get(key), "cell": c["L"] if c else None, "cell_high": h["L"] if h else None})
+    floor = max(hi.values())
+    for m in measured:                     # what a reader of the upper register is charged, pair by pair
+        if m["floor_high"] is None:
+            continue
+        dflt = doc["defaults"]["data"]
+        price = max(m["cell"], m["cell_high"]) if m["cell_high"] is not None and m["cell"] is not None else (
+            m["cell_high"] if m["cell_high"] is not None else (max(m["cell"], floor) if m["cell"] is not None else dflt))
+        assert price >= m["floor_high"], f"{m}: an upper-register reader is charged {price}"
+        m["charged_high"] = price
+    doc["result_high"] = {
+        "producers": RESULT_HIGH, "floor": floor,
+        "basis": "the largest floor measured for a reader of the upper register of an IMAD.WIDE result (silicon: -> IADD3 / LEA / "
+                 "LOP3 / SHF / MOV / SEL 5, -> ISETP / IMAD 4, -> STS data 3; the low register 3 / 3 / 3 / 3 / 2 / 2 / 2 / 1 / 1); "
+                 "ptxas reads the upper register never closer than 5, or 4 into the multiplier (census split by result register)",
+        "cells": [hidx[k] for k in sorted(hidx)],
+        "measured": measured,
+    }
 
 
 if __name__ == "__main__":

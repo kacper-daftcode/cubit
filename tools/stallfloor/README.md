@@ -40,13 +40,18 @@ model of an instruction is needed and any producer / consumer pair cubit can ass
 | `gen_dep_latency.py` | builds the table from the census pairs and the result files; a measured floor above a cell raises it, a floor below it is recorded only |
 | `mma_result_registers_sm120_20261110_em.json` | `HMMA` result register k → `FMUL` / `FADD` with nothing waited, per register and distance (23…32; 60 kernels × 20 launches, 32 CTAs × 1 024 threads × 256 iterations; measured by a second session with its own probe kernels, family `mr2`): registers 0 / 1 clean over the range (their floor is 20), **registers 2 / 3 wrong up to 27 and clean from 28** — the table's MMA → reader row is their floor exactly; `gen_dep_latency.py --mma-registers` checks the row against it and writes the note |
 | `census_pairs_sm120.json` | the pair matrix of the sm_120 census (166 nvcc / ptxas cubins, 1 811 600 instructions): 1 109 (producer, consumer, role) rows with their distance histograms |
+| `result_register_census.py`, `census_pairs_result_sm120.json` | the same census for the fixed-latency producers that write more than one register (`IMAD.WIDE`, `MOV.64`, `SEL`), split by which register of the result the consumer reads: 80 rows, 63 701 pairs. ptxas reads the LOW register of an `IMAD.WIDE` result from 3 issue cycles (`→ LOP3` 3 × 36, `→ IADD3` second addend 3 × 8) and the HIGH one never closer than 5 (`→ IADD3` 5 × 2 100, `→ SHFL` 5 × 758), or 4 into the multiplier (`→ IMAD` 4 × 403 / 4 × 808, the high half of the next `IMAD.WIDE`'s addend 4 × 354) |
+| `stall_floors_sm120_20261110_em_blk3.json` | a second session's probe by result register (392 kernels × 3 geometries — 32 × 1 024, 188 × 256, 188 × 32 threads — × 20 launches; families `wh`, `cs` are the table's): `IMAD.WIDE` low / high register → `IADD3` 3 / 5, `LEA` 3 / 5, `LOP3` 3 / 5, `SHF` 3 / 5, `MOV` 2 / 5, `SEL` 2 / 5, `ISETP` 2 / 4, `IMAD` 1 / 4, `STS` data 1 / 3; either register of the pair form `CS2R Rn, SRZ` → `IMAD` / `IADD3` 6. `gen_dep_latency.py --result-census … --result-floors …` writes the table's section `result_high` from the two files (7 cells for the readers of the upper register, the floor 5 for a reader without one) and raises `CS2R → IMAD` from 5 to 6; the other families of the file (the accumulate operand of an MMA, a taken branch, the MMA result registers again) are on record |
 
 ```bash
 # the table, byte for byte, from the files of this directory
 python3 tools/stallfloor/gen_dep_latency.py tools/stallfloor/census_pairs_sm120.json tables/dep_latency_sm120.json \
     --floors tools/stallfloor/stall_floors_sm120_20261110_{pairs,pairs_b,store_data,pairs_c,store_addr,pairs_d}.json \
     --v6 tools/stallfloor/stall_floors_sm120_20261110_{cells,cells_b}.json \
-    --mma-registers tools/stallfloor/mma_result_registers_sm120_20261110_em.json
+    --mma-registers tools/stallfloor/mma_result_registers_sm120_20261110_em.json \
+    --result-census tools/stallfloor/census_pairs_result_sm120.json \
+    --result-floors tools/stallfloor/stall_floors_sm120_20261110_em_blk3.json
+# (without the last two options: the table as it was before the split by result register, byte for byte)
 # a run (CPU: kernels; GPU host: launches)
 python3 tools/stallfloor/pairfloor_gen.py --cubit target/release/cubit --table tables/sm120.json.gz --out kernels_pair/
 python3 tools/stallfloor/pairfloor_run.py kernels_pair/ --reps 20 --out floors.json
