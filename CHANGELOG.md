@@ -4,6 +4,21 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-10 (session SD-1: the sm_120 dependency table checked against the other hand-written production kernels — evidence only, no behaviour change)
+
+- **The pair-latency table beyond the attention kernel: `QMMA.SF` and `IADD.64` in the census, 31 more pair floors on two card types**
+  (`tools/stallfloor/README_v5e.md`, `tests/dep_latency_corpus.rs`). The 92 auto-scheduled production sources of vLLM-Moet (89 MoE GEMM
+  kernels on 2-bit / FP4 / quintal planes, the state-prefill kernel, the two attention kernels) assemble with
+  `CUBIT_SCHED2=1 CUBIT_SCHED2_LAT=sm120 CUBIT_MMA_PTXAS=1` — the same instruction words, both verifiers clean, the MoE set's stall cycles
+  per warp 704 309 → 325 130 — and bind on pairs the table's census could not see: the register-liveness model has no def / use rule for
+  the 7-operand `QMMA.SF` form nor for `IADD.64` (`depdump`: `known: false`), so `census_pairs_sm120.json` holds no row through either.
+  `slot_census.py` and `qmma_census.py` mine them through the operand slots (142 rows, 146 962 pairs): ptxas's practice for QMMA is exactly
+  the MMA rows (a reader 28, the accumulate operand 29, issue spacing 16, an ALU result into a fragment 7) and no default is below ptxas's
+  dense practice. Silicon (harness v5e, 874 probe kernels; RTX PRO 6000 Blackwell Server Edition at ≤ 2 370 MHz and Workstation Edition at
+  ≤ 2 820 MHz — the same floors and the same verdict of every kernel in every run): `QMMA → FFMA` 20, the QMMA chain and spacing
+  interlocked by the tensor pipe, `R2UR → UIADD3` 8, everything else 1 … 5. **No price is below a floor; four are exactly the floor —
+  `ISETP →` the guard of `BRA` / `EXIT` (13), `LOP3 → PRMT` (4), `UIADD3 → UISETP` (4).** No cell, default or source line changes.
+
 ## Unreleased — 2026-11-10 (session RA-1: `cubit ra` on a production sm_120 kernel — the register allocator certified on the sparse-MLA prefill attention kernel; two fixes of the pass, `--target sm120` and `--no-share` opt-in, the default allocation unchanged)
 
 - **`cubit ra` reads the attention kernel.** Every mode refused it (`unknown predicate-role op(s): VIMNMX.S32, FMNMX.FTZ`, then
