@@ -160,3 +160,28 @@ launches × 16 cases and 30 fresh processes × 16 cases, and as fast as the hand
 shape (within ±0.3 %, the spread between rounds) — as are two further numberings made by permuting the
 plan's 4-register blocks. The register numbers themselves cost nothing; what the hand numbering knew
 was the grid, and where not to share a register.
+
+`sparse_mla_prefill_v43` (the next kernel of the family: 1 484 source instructions, R0–R129 numbered by
+hand, register count 136; a second prefetch load one chunk ahead), re-numbered from zero the same day:
+
+| | hand-numbered | `--target sm120` | `--target sm120 --no-share` |
+|---|---|---|---|
+| numerals changed | — | 3 758 | 3 758 |
+| registers, register count | 130, 136 | 127, 136 | 130, 136 |
+| alive at once (lower bound) | 115 | 115 | 115 |
+| `CUBIT_VERIFY`, `CUBIT_DEP_VERIFY`, strict round trip | clean | clean | clean |
+| control words that differ from the hand-numbered build | — | 4 of 1 489 | 0 |
+| waits on the prefetch's scoreboard (all / before its first reader) | 34 / 1 | 34 / 1, the same instructions | 34 / 1 |
+| µs at the four shapes (Workstation Edition, 7 rounds) | 586 / 647 / 1 467 / 607 | 587 / 648 / 1 469 / 601 | 587 / 647 / 1 470 / 599 |
+
+Bit-identical in the same gate (30 warm launches and 30 fresh processes × 16 cases), and within 2 µs of the
+hand-numbered kernel on eight dumps of a real prefill. Here sharing did change the schedule — the dependency
+of §2 in a production kernel: by hand the address pair of the new prefetch load sits on two registers nothing
+else uses; the default allocation gave it the pair that holds the address of the gather's last load, issued
+twenty instructions earlier, and the address computation got a wait for that load's address latch (three waits
+elsewhere went away). It cost nothing measurable — waits in between had already drained that scoreboard — and
+`--no-share` has none of it. What must not move when a kernel
+with a prefetch is re-numbered are the waits on the prefetch's own scoreboard: compare them
+(`cubit disassemble --frozen`, the `[B……]` field) as well as bits and time. And 127 registers are one more than
+a register count of 128 holds (126): the pass takes the best of three placement orders and does not search
+further — if the granule matters to you, look at `full.r.watermark` against `peak_live_r`.
