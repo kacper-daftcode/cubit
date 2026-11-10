@@ -149,7 +149,11 @@ pub fn pred_xfer(insn: &Instruction, mode: XferMode) -> PredXfer {
             }
             wide || (is_x && insn.modifiers.len() == 1)
         }
-        "ISETP" => {
+        // FSETP (2026-11-10, the sm_120 attention kernel: `FSETP.GT.FTZ.AND P1, PT, R26, RZ, PT`)
+        // is ISETP's float twin, same table shape `P_P_R_{R,UR,FI}_P`: two predicate
+        // destinations, then the combine input. Strict only: Compat keeps predcheck.py's
+        // family list.
+        "ISETP" | "FSETP" if op == "ISETP" || mode == XferMode::Strict => {
             for (ord, &idx) in p.iter().enumerate() {
                 if ord < 2 {
                     def_at(&mut x, idx);
@@ -233,6 +237,22 @@ pub fn pred_xfer(insn: &Instruction, mode: XferMode) -> PredXfer {
             if let Some(&last) = p.last() {
                 use_at(&mut x, last);
             }
+            true
+        }
+        // Strict-only delta (2026-11-10, the sm_120 attention kernel): the min/max family with
+        // ONE predicate operand, in the last slot -- `FMNMX.FTZ R2, R28, R29, !PT`,
+        // `VIMNMX.S32 R2, R2, R18, PT`, `HMNMX2 Rd, Ra, Rb, P` (table rows `*_R_R_{R,UR,II,FI}_P`).
+        // The predicate selects MIN (true) or MAX (false): a data operand, read like SEL's.
+        // Any other shape (sm_103a's `VIMNMX R, P, P, R, R, P` with two predicates behind the
+        // destination) stays outside the family: no evidence for the roles of those slots.
+        // Compat stays blind (predcheck.py parity), exactly as for SEL.
+        "FMNMX" | "VIMNMX" | "HMNMX2"
+            if mode == XferMode::Strict
+                && p.len() == 1
+                && p[0] == insn.operands.len() - 1
+                && has_up.is_empty() =>
+        {
+            use_at(&mut x, p[0]);
             true
         }
         "BRA" if convdiv => {

@@ -135,14 +135,19 @@ fn t61_6_unknown_predicate_family_fails_closed() {
     // A predicate-carrying instruction outside the pred_liveness families -- the RA
     // pass must refuse the run, not pass it through. (SEL/FSEL/DSEL used to be the
     // example; since 2026-11-04 the Strict transfer knows their selector read for the
-    // SM120 stallfix R11 rule, so FSETP - predicate destinations, not modelled - is
-    // the unknown family here.)
-    let src = ksrc("    FSETP.GT.AND P3, PT, R1, R2, PT ;\n");
+    // SM120 stallfix R11 rule. FSETP was the example after that; since 2026-11-10 it is
+    // modelled as ISETP's twin (the sm_120 attention kernel, tests/ra_sm120_attention.rs),
+    // so HSETP2 - the packed-half compare, predicate destinations, not modelled - is the
+    // unknown family here.)
+    let src = ksrc("    HSETP2.GT.AND P3, PT, R1, R2, PT ;\n");
     let err = run_file(&src, RaMode::Identity).unwrap_err();
     assert!(
         format!("{err:#}").contains("unknown predicate-role"),
-        "FSETP-with-pred must fail closed: {err:#}"
+        "HSETP2-with-pred must fail closed: {err:#}"
     );
+    // FSETP's two destinations and its combine input are known now: the run goes through
+    let src = ksrc("    FSETP.GT.AND P3, PT, R1, R2, PT ;\n");
+    assert!(run_file(&src, RaMode::Identity).is_ok(), "FSETP is ISETP's shape");
     // SEL's selector predicate is a known read now: the run goes through
     let src = ksrc("    SEL R0, R1, R2, P3 ;\n");
     assert!(run_file(&src, RaMode::Identity).is_ok(), "SEL selector read is modelled");

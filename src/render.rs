@@ -226,6 +226,153 @@ pub fn render_operand(op: &Operand) -> Result<String> {
     render_operand_r(op, None)
 }
 
+// ---------------------------------------------------------------------------
+// Register operand selectors (`R88.H1`, `R4.H0_H0`, `R86.B0`, `|R56|.F32x2.HI_LO`)
+//
+// [`Operand::Reg`] / [`Operand::UReg`] carry the register, its sign / abs / invert marks and
+// `.reuse` -- nothing else. Every other dotted suffix of a bare register token lives in the
+// instruction's source text only, and the encoder reads it from there (half and byte selects,
+// operand modifier flags, the scale selector of the scaled F2FP unpack). A renderer that prints
+// a register operand from the structured form alone drops those suffixes: the text still
+// assembles wherever the selector has a default, into a different instruction
+// (`F2FP.F16.E4M3.UNPACK_B R5, R88.H1` -> `... R5, R88`: bytes 0-1 instead of 2-3), and
+// `structural_eq` could not see it because neither parse carries the suffix. Found 2026-11-10 on
+// the sm_120 attention kernel (`cubit ra --mode full`: 608 selectors gone, the output assembled).
+//
+// Rule: a bare register operand whose source token carries a suffix chain besides `.reuse` is
+// re-printed from that token with only the register name replaced; `structural_eq` compares the
+// chains of both sides, so a suffix that is dropped, moved or changed fails the proof.
+// Tokens without such a chain render canonically, byte for byte as before.
+
+/// Per-operand source tokens of one instruction (`Instruction::raw_text`): the guard, the
+/// opcode, the `!rsd[...]` overlay and a `&` scheduling annotation removed; commas split at
+/// bracket depth 0. The encoder's view of the same text (`raw_op_tokens`).
+pub fn raw_operand_tokens(raw: &str) -> Vec<String> {
+    let t = raw.trim().trim_end_matches(';').trim();
+    let t = match t.find('&') {
+        Some(p) => &t[..p],
+        None => t,
+    };
+    let t = match t.find("!rsd[") {
+        Some(p) => &t[..p],
+        None => t,
+    };
+    let mut t = t.trim();
+    if t.starts_with('@') {
+        t = match t.find(char::is_whitespace) {
+            Some(p) => t[p..].trim_start(),
+            None => "",
+        };
+    }
+    let Some(p) = t.find(char::is_whitespace) else {
+        return Vec::new();
+    };
+    let mut tokens = Vec::new();
+    let mut depth = 0i32;
+    let mut cur = String::new();
+    for ch in t[p..].chars() {
+        match ch {
+            '[' | '(' => {
+                depth += 1;
+                cur.push(ch);
+            }
+            ']' | ')' => {
+                depth -= 1;
+                cur.push(ch);
+            }
+            ',' if depth == 0 => {
+                tokens.push(cur.trim().to_string());
+                cur.clear();
+            }
+            _ => cur.push(ch),
+        }
+    }
+    if !cur.trim().is_empty() {
+        tokens.push(cur.trim().to_string());
+    }
+    tokens
+}
+
+fn is_reg_name(base: &str) -> bool {
+    let digits = |s: &str| !s.is_empty() && s.chars().all(|c| c.is_ascii_digit());
+    base == "RZ"
+        || base == "URZ"
+        || base.strip_prefix("UR").is_some_and(digits)
+        || base.strip_prefix('R').is_some_and(digits)
+}
+
+/// Byte range of the register name inside a bare register token (`-|R56|.F32x2` -> `R56`).
+fn reg_name_span(tok: &str) -> Option<(usize, usize)> {
+    if tok.contains('[') || tok.contains(']') {
+        return None;
+    }
+    let b = tok.as_bytes();
+    let mut i = 0;
+    while i < b.len() && (b[i] == b'-' || b[i] == b'~') {
+        i += 1;
+    }
+    if i < b.len() && b[i] == b'|' {
+        i += 1;
+    }
+    let start = i;
+    while i < b.len() && b[i] != b'.' && b[i] != b'|' {
+        i += 1;
+    }
+    is_reg_name(&tok[start..i]).then_some((start, i))
+}
+
+/// The dotted suffix segments of a bare register token besides `reuse`, in source order
+/// (`R88.H1` -> `["H1"]`, `|R56|.F32x2.HI_LO` -> `["F32x2", "HI_LO"]`, `R5.reuse` -> `[]`).
+/// `None` when the token is not a bare register (brackets, immediates, labels, predicates).
+pub fn reg_token_selectors(tok: &str) -> Option<Vec<String>> {
+    let (_, end) = reg_name_span(tok)?;
+    Some(
+        tok[end..]
+            .split(['.', '|'])
+            .filter(|s| !s.is_empty() && *s != "reuse")
+            .map(str::to_string)
+            .collect(),
+    )
+}
+
+/// `(operand index, selector chain)` for every bare register token of the instruction's source
+/// text that carries one -- what the structured operands do not hold.
+pub fn selector_signature(ins: &Instruction) -> Vec<(usize, Vec<String>)> {
+    raw_operand_tokens(&ins.raw_text)
+        .iter()
+        .enumerate()
+        .filter_map(|(i, tok)| match reg_token_selectors(tok) {
+            Some(segs) if !segs.is_empty() => Some((i, segs)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// A register operand whose source token carries selectors: that token with the register name
+/// replaced by the operand's (current) register. `None` -> render canonically: no selectors, or
+/// the token does not describe this operand (other domain, other sign / abs / invert / reuse
+/// marks -- the proof then reports the lost chain).
+fn render_reg_with_selectors(op: &Operand, tok: &str) -> Option<String> {
+    let (name, uniform, neg, abs, inv, reuse) = match op {
+        Operand::Reg { num, neg, abs, inv, reuse } => (reg_name(*num), false, *neg, *abs, *inv, *reuse),
+        Operand::UReg { num, neg, abs, inv, reuse, is_zero } => {
+            (ureg_name(*num, *is_zero), true, *neg, *abs, *inv, *reuse)
+        }
+        _ => return None,
+    };
+    if reg_token_selectors(tok)?.is_empty() {
+        return None;
+    }
+    let (start, end) = reg_name_span(tok)?;
+    let prefix = &tok[..start];
+    let same_marks = tok[start..end].starts_with('U') == uniform
+        && prefix.contains('-') == neg
+        && prefix.contains('~') == inv
+        && prefix.contains('|') == abs
+        && tok.contains(".reuse") == reuse;
+    same_marks.then(|| format!("{prefix}{name}{}", &tok[end..]))
+}
+
 fn render_payload(ins: &Instruction, labels: Option<&LabelResolver>) -> Result<String> {
     // Raw verbatim words carry no structure; raw_text holds the canonical
     // `__raw__0x<hex>` token (parser contract).
@@ -256,9 +403,16 @@ fn render_payload(ins: &Instruction, labels: Option<&LabelResolver>) -> Result<S
     s.push_str(&ins.opcode_full);
     if !ins.operands.is_empty() {
         s.push(' ');
+        // source tokens, usable only when they line up with the parsed operands one to one
+        let toks = raw_operand_tokens(&ins.raw_text);
+        let lined_up = toks.len() == ins.operands.len();
         let mut parts = Vec::with_capacity(ins.operands.len());
-        for op in &ins.operands {
-            parts.push(render_operand_r(op, labels)?);
+        for (i, op) in ins.operands.iter().enumerate() {
+            let with_selectors = if lined_up { render_reg_with_selectors(op, &toks[i]) } else { None };
+            parts.push(match with_selectors {
+                Some(t) => t,
+                None => render_operand_r(op, labels)?,
+            });
         }
         s.push_str(&parts.join(", "));
     }
@@ -433,8 +587,10 @@ pub fn run_file(text: &str, verify: bool) -> Result<String> {
 
 /// Instruction-count + operand-level structural equality between two parsed
 /// files (the render self-check: parse(render(X)) must equal parse(X)).
-/// Compares everything the ENCODER consumes: opcode/guard/operands/ctrl/rsd
-/// plus the label-anchor map. raw_text is excluded by design.
+/// Compares what the ENCODER consumes: opcode/guard/operands/ctrl/rsd, the
+/// label-anchor map, and -- from `raw_text`, where alone they live -- the
+/// selector chains of the bare register operands ([`selector_signature`]).
+/// The rest of raw_text (spacing, comments, number spelling) is excluded.
 pub fn structural_eq(a: &SassFile, b: &SassFile) -> Result<()> {
     if a.kernels.len() != b.kernels.len() {
         bail!("render verify: kernel count {} != {}", a.kernels.len(), b.kernels.len());
@@ -468,6 +624,23 @@ pub fn structural_eq(a: &SassFile, b: &SassFile) -> Result<()> {
                     ia.opcode_full,
                     ia,
                     ib
+                );
+            }
+            // What the operands above do not hold and the encoder reads from the text: the
+            // selector chains of the bare register tokens.
+            let (sa, sb) = (selector_signature(ia), selector_signature(ib));
+            if sa != sb {
+                bail!(
+                    "render verify: kernel {} insn {i} ({}): register operand selectors differ \
+                     -- source `{}` has {:?}, the rendered text `{}` has {:?} (operand index, \
+                     suffix chain). The encoder takes these suffixes from the text; a renderer \
+                     that loses one emits a different instruction",
+                    ka.name,
+                    ia.opcode_full,
+                    ia.raw_text.trim(),
+                    sa,
+                    ib.raw_text.trim(),
+                    sb
                 );
             }
         }
