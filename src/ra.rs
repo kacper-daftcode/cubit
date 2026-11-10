@@ -262,6 +262,18 @@ pub struct KernelRaReport {
     /// M4.3b allocator stats (mode == "full" only).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub full: Option<crate::ra_full::FullAllocStats>,
+    /// The target policy the run was made under (`--target`; absent without one).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target: Option<String>,
+    /// Under a target: the register count the output's `.reg` line gives the cubin (the
+    /// highest register of the plan + 1 + the two shadow registers, in granules of 8).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub regcount: Option<u32>,
+    /// Under a target, full mode: the largest number of R registers that hold a value at one
+    /// point of the kernel -- no renaming without splitting a value can use fewer; the
+    /// distance to `full.r.watermark` is what the grid and the scan's order cost.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peak_live_r: Option<usize>,
     /// M4.3b: the computed renaming map (mode == "full" only) -- exported so
     /// the decode-transfer gate can renumber the ORIGINAL kernel's decoded
     /// stream and compare against the renamed kernel's decoded stream.
@@ -1260,6 +1272,23 @@ pub struct RaRun {
 /// contract -- window sanity, boundary-dead pins, span integrity,
 /// per-instruction injectivity -- plus the splice-emission proof.
 pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
+    run_file_opts(text, mode, &RaOptions::default())
+}
+
+/// What a run may be told besides its mode. The default is the pass as it always was.
+#[derive(Debug, Clone, Default)]
+pub struct RaOptions {
+    /// The silicon a full allocation (or an applied plan) is made for: hardware footprints,
+    /// the register grid, guard-aware liveness, the span audit and the `.reg` rewrite of
+    /// [`crate::ra_target`]. `None` = none of it.
+    pub target: Option<crate::ra_target::RaTarget>,
+}
+
+/// [`run_file`] with options.
+pub fn run_file_opts(text: &str, mode: RaMode, opts: &RaOptions) -> Result<RaRun> {
+    if opts.target.is_some() && !matches!(mode, RaMode::Full | RaMode::ApplyFile(_)) {
+        bail!("ra: --target shapes an allocation: it goes with --mode full or --mode apply");
+    }
     let file = crate::sass_file::parse_sass_file_str_strict(text)
         .context("ra: strict parse failed")?;
     let is_identity = matches!(mode, RaMode::Identity);
@@ -1284,7 +1313,10 @@ pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
     let mut reports = Vec::new();
     let mut all_edits: BTreeMap<(usize, usize), Vec<OperandChange>> = BTreeMap::new();
     for (kidx, (src_k, k)) in file.kernels.iter().zip(out.kernels.iter_mut()).enumerate() {
-        let xfers: Vec<RegXfer> = src_k.instructions.iter().map(reg_liveness::reg_xfer).collect();
+        let xfers: Vec<RegXfer> = match opts.target {
+            Some(t) => src_k.instructions.iter().map(|i| crate::ra_target::target_xfer(t, i)).collect(),
+            None => src_k.instructions.iter().map(reg_liveness::reg_xfer).collect(),
+        };
         let unknown: Vec<String> = src_k
             .instructions
             .iter()
@@ -1324,25 +1356,63 @@ pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
                 unknown_pred[..unknown_pred.len().min(8)].join(", ")
             );
         }
+        let mut peak_live_r: Option<usize> = None;
         let (mut plan, mut full_stats) = match &mode {
             RaMode::Full => {
-                let live = reg_liveness::liveness(&src_k.instructions);
-                let plive = crate::pred_liveness::liveness(
-                    &src_k.instructions,
-                    crate::pred_liveness::XferMode::Strict,
-                );
-                let (p, st) = crate::ra_full::plan_full_kernel_live(
+                let (live, plive) = match opts.target {
+                    Some(_) => crate::ra_target::target_liveness(&src_k.instructions, &xfers, &pxfers),
+                    None => (
+                        reg_liveness::liveness(&src_k.instructions),
+                        crate::pred_liveness::liveness(
+                            &src_k.instructions,
+                            crate::pred_liveness::XferMode::Strict,
+                        ),
+                    ),
+                };
+                let orders: &[crate::ra_full::GroupOrder] = match opts.target {
+                    Some(_) => &crate::ra_target::GROUP_ORDERS,
+                    None => &[crate::ra_full::GroupOrder::FirstLive],
+                };
+                let (p, st) = crate::ra_full::plan_full_kernel_orders(
                     &src_k.name,
                     &xfers,
                     &live,
                     &pxfers,
                     &plive,
                     &src_k.instructions,
+                    orders,
                 )?;
+                if opts.target.is_some() {
+                    // A register that is live at the entry is read on some path before anything
+                    // wrote it. The target-neutral pass pins such a register to its numeral (the
+                    // sm_103a corpus carries state in at the entry); a kernel written for an
+                    // allocator has none, and a pin on a freely chosen numeral would silently set
+                    // the register count.
+                    if !st.entry_pins.is_empty() {
+                        bail!(
+                            "ra: kernel {} reads {} register(s) before any instruction wrote them on \
+                             some path: {}",
+                            src_k.name,
+                            st.entry_pins.len(),
+                            st.entry_pins.join(", ")
+                        );
+                    }
+                    crate::ra_target::audit_spans(&src_k.name, &src_k.instructions, &xfers, &p.r, &p.ur)?;
+                    peak_live_r = live.iter().map(|row| row.rlive_out.union(&row.rdefs).count()).max();
+                }
                 (p, Some(st))
             }
             RaMode::ApplyFile(ap) => {
-                let live = reg_liveness::liveness(&src_k.instructions);
+                let (live, plive) = match opts.target {
+                    Some(_) => crate::ra_target::target_liveness(&src_k.instructions, &xfers, &pxfers),
+                    None => (
+                        reg_liveness::liveness(&src_k.instructions),
+                        crate::pred_liveness::liveness(
+                            &src_k.instructions,
+                            crate::pred_liveness::XferMode::Strict,
+                        ),
+                    ),
+                };
                 // The plan is authoritative INPUT here; subset semantics:
                 // kernels/registers the plan does not name map to themselves.
                 let kp = ap.get(&src_k.name)?;
@@ -1350,10 +1420,6 @@ pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
                 crate::ra_full::audit_injectivity_pub(&src_k.name, &live, &p)?;
                 // M6.3: predicate co-occurrence sets + audit (def-tuple
                 // anti-tearing rides on this) and the p/up typo trap.
-                let plive = crate::pred_liveness::liveness(
-                    &src_k.instructions,
-                    crate::pred_liveness::XferMode::Strict,
-                );
                 let co = crate::ra_full::build_pred_cosets(
                     &pxfers,
                     &plive,
@@ -1361,6 +1427,9 @@ pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
                 );
                 crate::ra_full::audit_pred_injectivity_pub(&src_k.name, &co, &p)?;
                 validate_coverage_apply(&p, &xfers, &pxfers)?;
+                if opts.target.is_some() {
+                    crate::ra_target::audit_spans(&src_k.name, &src_k.instructions, &xfers, &p.r, &p.ur)?;
+                }
                 (p, None)
             }
             _ => {
@@ -1438,6 +1507,38 @@ pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
         if let Some(st) = full_stats.as_mut() {
             st.renamed = changed;
         }
+        // Under a target the output declares the registers the plan uses (module docs of
+        // ra_target): `.reg R0-R<highest home>`; an explicit `.regcount` must cover it.
+        let mut target_regcount: Option<u32> = None;
+        if opts.target.is_some() {
+            let highest = src_k
+                .instructions
+                .iter()
+                .zip(xfers.iter())
+                .flat_map(|(_, x)| x.rdefs.iter().chain(x.ruses.iter()))
+                .map(|r| plan.r.get(r).copied().unwrap_or(*r) as u32)
+                .max();
+            if let Some(hi) = highest {
+                if hi > 252 {
+                    bail!(
+                        "ra: kernel {} needs R{hi}: the largest register count (255) leaves R0..R252 \
+                         usable (KNOWN_ISSUES A1)",
+                        src_k.name
+                    );
+                }
+                k.resources.max_reg = Some(hi);
+                if let Some(n) = k.resources.regcount {
+                    if n < hi + 3 {
+                        bail!(
+                            "ra: kernel {} declares `.regcount {n}` but the allocation reaches R{hi}: \
+                             a register count N leaves R0..R(N-3) usable (KNOWN_ISSUES A1)",
+                            src_k.name
+                        );
+                    }
+                }
+            }
+            target_regcount = Some(k.resources.reg_count());
+        }
         if is_identity && changed != 0 {
             bail!(
                 "ra: identity mode changed {} numeral(s) in {} -- internal error",
@@ -1466,6 +1567,9 @@ pub fn run_file(text: &str, mode: RaMode) -> Result<RaRun> {
             span_notes,
             span_notes_total,
             full: full_stats,
+            target: opts.target.map(|t| t.name().to_string()),
+            regcount: target_regcount,
+            peak_live_r,
             plan: if matches!(mode, RaMode::Full | RaMode::ApplyFile(_)) {
                 Some(plan.to_json_maps())
             } else {

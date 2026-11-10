@@ -341,10 +341,53 @@ fn first_live_pos(groups_members: &BTreeSet<u8>, live: &[InsRegLive], dom: RegDo
     best
 }
 
-fn allocate_domain(
+/// The order in which the linear scan places the groups that are not pinned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GroupOrder {
+    /// First-live position, then size descending, then anchor: the order of M4.3b, the only
+    /// one the target-neutral pass uses.
+    FirstLive,
+    /// Size descending, then first-live position, then anchor: the wide groups take their
+    /// grid positions first and the single registers fill what is left between them.
+    WideFirst,
+    /// Required alignment descending, then size descending, then first-live position.
+    GridFirst,
+}
+
+/// The placement with the lowest watermark over the given orders (the first of equals):
+/// with a register grid the first-live order leaves holes that another order fills.
+fn allocate_domain_best(
     xfers: &[RegXfer],
     live: &[InsRegLive],
     dom: RegDom,
+    orders: &[GroupOrder],
+) -> Result<(BTreeMap<u8, u8>, FullDomainStats, Vec<String>)> {
+    let mut best: Option<(BTreeMap<u8, u8>, FullDomainStats, Vec<String>)> = None;
+    let mut first_err = None;
+    for &o in orders {
+        match allocate_domain_ordered(xfers, live, dom, o) {
+            Ok(cand) => {
+                if best.as_ref().is_none_or(|b| cand.1.watermark < b.1.watermark) {
+                    best = Some(cand);
+                }
+            }
+            Err(e) => {
+                first_err.get_or_insert(e);
+            }
+        }
+    }
+    match (best, first_err) {
+        (Some(b), _) => Ok(b),
+        (None, Some(e)) => Err(e),
+        (None, None) => bail!("ra full: no group order given"),
+    }
+}
+
+fn allocate_domain_ordered(
+    xfers: &[RegXfer],
+    live: &[InsRegLive],
+    dom: RegDom,
+    group_order: GroupOrder,
 ) -> Result<(BTreeMap<u8, u8>, FullDomainStats, Vec<String>)> {
     let (dom_excl, pool_max) = match dom {
         RegDom::R => (255u8, R_POOL_MAX),
@@ -410,13 +453,33 @@ fn allocate_domain(
         .copied()
         .filter(|a| !placement.contains_key(a))
         .collect();
-    order.sort_by_key(|&a| {
-        (
-            first_live_pos(&groups[&a], live, dom),
-            std::cmp::Reverse(groups[&a].len() as u8),
-            a,
-        )
-    });
+    let group_grid = |a: u8| -> u8 {
+        groups[&a].iter().filter_map(|m| sym_align.get(m).copied()).max().unwrap_or(1)
+    };
+    match group_order {
+        GroupOrder::FirstLive => order.sort_by_key(|&a| {
+            (
+                first_live_pos(&groups[&a], live, dom),
+                std::cmp::Reverse(groups[&a].len() as u8),
+                a,
+            )
+        }),
+        GroupOrder::WideFirst => order.sort_by_key(|&a| {
+            (
+                std::cmp::Reverse(groups[&a].len() as u8),
+                first_live_pos(&groups[&a], live, dom),
+                a,
+            )
+        }),
+        GroupOrder::GridFirst => order.sort_by_key(|&a| {
+            (
+                std::cmp::Reverse(group_grid(a)),
+                std::cmp::Reverse(groups[&a].len() as u8),
+                first_live_pos(&groups[&a], live, dom),
+                a,
+            )
+        }),
+    }
 
     // occupied phys slots: base..base+len -> group anchor
     let mut occupied: Vec<(u8, u8, u8)> = placement
@@ -778,8 +841,22 @@ pub fn plan_full_kernel_live(
     plive: &[PredInsLive],
     insns: &[Instruction],
 ) -> Result<(crate::ra::RegPlan, FullAllocStats)> {
-    let (rmap, rstats, rpins) = allocate_domain(xfers, live, RegDom::R)?;
-    let (urmap, ustats, upins) = allocate_domain(xfers, live, RegDom::UR)?;
+    plan_full_kernel_orders(kname, xfers, live, pxfers, plive, insns, &[GroupOrder::FirstLive])
+}
+
+/// [`plan_full_kernel_live`] over several group orders: per register domain the placement with
+/// the lowest watermark is kept (`ra_target`: a register grid makes the order matter).
+pub fn plan_full_kernel_orders(
+    kname: &str,
+    xfers: &[RegXfer],
+    live: &[InsRegLive],
+    pxfers: &[PredXfer],
+    plive: &[PredInsLive],
+    insns: &[Instruction],
+    orders: &[GroupOrder],
+) -> Result<(crate::ra::RegPlan, FullAllocStats)> {
+    let (rmap, rstats, rpins) = allocate_domain_best(xfers, live, RegDom::R, orders)?;
+    let (urmap, ustats, upins) = allocate_domain_best(xfers, live, RegDom::UR, orders)?;
     let co = build_pred_cosets(pxfers, plive, insns);
     let pconf = pred_conflicts(&co.p);
     let upconf = pred_conflicts(&co.up);

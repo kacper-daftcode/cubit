@@ -1,0 +1,357 @@
+{
+ "sources": 166,
+ "instructions": 1811600,
+ "shapes": {
+  "ATOMG desc[..][R.64] address pair": {
+   "n": 116,
+   "on_grid": 116,
+   "off_grid": 0,
+   "residues": {
+    "0": 116
+   },
+   "first_off_grid": []
+  },
+  "ATOMG desc[UR].. descriptor pair": {
+   "n": 116,
+   "on_grid": 116,
+   "off_grid": 0,
+   "residues": {
+    "0": 116
+   },
+   "first_off_grid": []
+  },
+  "CS2R dest (64-bit)": {
+   "n": 22116,
+   "on_grid": 22116,
+   "off_grid": 0,
+   "residues": {
+    "0": 22116
+   },
+   "first_off_grid": []
+  },
+  "HMMA A": {
+   "n": 27176,
+   "on_grid": 27176,
+   "off_grid": 0,
+   "residues": {
+    "0": 27176
+   },
+   "first_off_grid": []
+  },
+  "HMMA B": {
+   "n": 27176,
+   "on_grid": 27176,
+   "off_grid": 0,
+   "residues": {
+    "0": 27176
+   },
+   "first_off_grid": []
+  },
+  "HMMA C": {
+   "n": 26330,
+   "on_grid": 26330,
+   "off_grid": 0,
+   "residues": {
+    "0": 26330
+   },
+   "first_off_grid": []
+  },
+  "HMMA D": {
+   "n": 27176,
+   "on_grid": 27176,
+   "off_grid": 0,
+   "residues": {
+    "0": 27176
+   },
+   "first_off_grid": []
+  },
+  "IMAD.WIDE addend pair (c)": {
+   "n": 18437,
+   "on_grid": 18437,
+   "off_grid": 0,
+   "residues": {
+    "0": 18437
+   },
+   "first_off_grid": []
+  },
+  "IMAD.WIDE dest pair": {
+   "n": 23339,
+   "on_grid": 23339,
+   "off_grid": 0,
+   "residues": {
+    "0": 23339
+   },
+   "first_off_grid": []
+  },
+  "LD desc[..][R.64] address pair": {
+   "n": 1452,
+   "on_grid": 1452,
+   "off_grid": 0,
+   "residues": {
+    "0": 1452
+   },
+   "first_off_grid": []
+  },
+  "LD desc[UR].. descriptor pair": {
+   "n": 1452,
+   "on_grid": 1452,
+   "off_grid": 0,
+   "residues": {
+    "0": 1452
+   },
+   "first_off_grid": []
+  },
+  "LDC.64 dest": {
+   "n": 7009,
+   "on_grid": 7009,
+   "off_grid": 0,
+   "residues": {
+    "0": 7009
+   },
+   "first_off_grid": []
+  },
+  "LDCU.128 dest (UR)": {
+   "n": 104,
+   "on_grid": 104,
+   "off_grid": 0,
+   "residues": {
+    "0": 104
+   },
+   "first_off_grid": []
+  },
+  "LDCU.64 dest (UR)": {
+   "n": 8102,
+   "on_grid": 8102,
+   "off_grid": 0,
+   "residues": {
+    "0": 8102
+   },
+   "first_off_grid": []
+  },
+  "LDG desc[..][R.64] address pair": {
+   "n": 22295,
+   "on_grid": 22295,
+   "off_grid": 0,
+   "residues": {
+    "0": 22295
+   },
+   "first_off_grid": []
+  },
+  "LDG desc[UR].. descriptor pair": {
+   "n": 22295,
+   "on_grid": 22295,
+   "off_grid": 0,
+   "residues": {
+    "0": 22295
+   },
+   "first_off_grid": []
+  },
+  "LDG.128 dest": {
+   "n": 3142,
+   "on_grid": 3142,
+   "off_grid": 0,
+   "residues": {
+    "0": 3142
+   },
+   "first_off_grid": []
+  },
+  "LDG.64 dest": {
+   "n": 1282,
+   "on_grid": 1282,
+   "off_grid": 0,
+   "residues": {
+    "0": 1282
+   },
+   "first_off_grid": []
+  },
+  "LDGSTS desc[..][R.64] address pair": {
+   "n": 2905,
+   "on_grid": 2905,
+   "off_grid": 0,
+   "residues": {
+    "0": 2905
+   },
+   "first_off_grid": []
+  },
+  "LDGSTS desc[UR].. descriptor pair": {
+   "n": 2905,
+   "on_grid": 2905,
+   "off_grid": 0,
+   "residues": {
+    "0": 2905
+   },
+   "first_off_grid": []
+  },
+  "LDL.64 dest": {
+   "n": 44,
+   "on_grid": 44,
+   "off_grid": 0,
+   "residues": {
+    "0": 44
+   },
+   "first_off_grid": []
+  },
+  "LDS.128 dest": {
+   "n": 13872,
+   "on_grid": 13872,
+   "off_grid": 0,
+   "residues": {
+    "0": 13872
+   },
+   "first_off_grid": []
+  },
+  "LDS.64 dest": {
+   "n": 2633,
+   "on_grid": 2633,
+   "off_grid": 0,
+   "residues": {
+    "0": 2633
+   },
+   "first_off_grid": []
+  },
+  "LDSM x2 dest": {
+   "n": 8284,
+   "on_grid": 8284,
+   "off_grid": 0,
+   "residues": {
+    "0": 8284
+   },
+   "first_off_grid": []
+  },
+  "LDSM x4 dest": {
+   "n": 19190,
+   "on_grid": 19190,
+   "off_grid": 0,
+   "residues": {
+    "0": 19190
+   },
+   "first_off_grid": []
+  },
+  "MOV.64 dest": {
+   "n": 4121,
+   "on_grid": 4121,
+   "off_grid": 0,
+   "residues": {
+    "0": 4121
+   },
+   "first_off_grid": []
+  },
+  "QMMA A": {
+   "n": 12448,
+   "on_grid": 12448,
+   "off_grid": 0,
+   "residues": {
+    "0": 12448
+   },
+   "first_off_grid": []
+  },
+  "QMMA B": {
+   "n": 12448,
+   "on_grid": 12448,
+   "off_grid": 0,
+   "residues": {
+    "0": 12448
+   },
+   "first_off_grid": []
+  },
+  "QMMA C": {
+   "n": 8794,
+   "on_grid": 8794,
+   "off_grid": 0,
+   "residues": {
+    "0": 8794
+   },
+   "first_off_grid": []
+  },
+  "QMMA D": {
+   "n": 12448,
+   "on_grid": 12448,
+   "off_grid": 0,
+   "residues": {
+    "0": 12448
+   },
+   "first_off_grid": []
+  },
+  "REDG desc[..][R.64] address pair": {
+   "n": 100,
+   "on_grid": 100,
+   "off_grid": 0,
+   "residues": {
+    "0": 100
+   },
+   "first_off_grid": []
+  },
+  "REDG desc[UR].. descriptor pair": {
+   "n": 100,
+   "on_grid": 100,
+   "off_grid": 0,
+   "residues": {
+    "0": 100
+   },
+   "first_off_grid": []
+  },
+  "STG desc[..][R.64] address pair": {
+   "n": 18062,
+   "on_grid": 18062,
+   "off_grid": 0,
+   "residues": {
+    "0": 18062
+   },
+   "first_off_grid": []
+  },
+  "STG desc[UR].. descriptor pair": {
+   "n": 18062,
+   "on_grid": 18062,
+   "off_grid": 0,
+   "residues": {
+    "0": 18062
+   },
+   "first_off_grid": []
+  },
+  "STG.128 data": {
+   "n": 498,
+   "on_grid": 498,
+   "off_grid": 0,
+   "residues": {
+    "0": 498
+   },
+   "first_off_grid": []
+  },
+  "STG.64 data": {
+   "n": 2704,
+   "on_grid": 2704,
+   "off_grid": 0,
+   "residues": {
+    "0": 2704
+   },
+   "first_off_grid": []
+  },
+  "STL.64 data": {
+   "n": 80,
+   "on_grid": 80,
+   "off_grid": 0,
+   "residues": {
+    "0": 80
+   },
+   "first_off_grid": []
+  },
+  "STS.128 data": {
+   "n": 1768,
+   "on_grid": 1768,
+   "off_grid": 0,
+   "residues": {
+    "0": 1768
+   },
+   "first_off_grid": []
+  },
+  "STS.64 data": {
+   "n": 2460,
+   "on_grid": 2460,
+   "off_grid": 0,
+   "residues": {
+    "0": 2460
+   },
+   "first_off_grid": []
+  }
+ }
+}

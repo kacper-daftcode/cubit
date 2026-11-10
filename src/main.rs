@@ -136,6 +136,14 @@ enum Commands {
         /// is given, to keep stdout free for piping the sass).
         #[arg(long)]
         report: Option<PathBuf>,
+        /// The silicon the allocation is made for (with --mode full / apply): "sm120" places
+        /// 64-bit pairs on even registers and quads on multiples of four, reads the 64-bit
+        /// address and descriptor of `desc[UR][R.64]`, the pair `CS2R` and `LDSM.2` write,
+        /// keeps a value alive across a guarded overwrite, audits the plan against these
+        /// footprints and rewrites `.reg` to the registers the plan uses. Omit for the
+        /// target-neutral pass.
+        #[arg(long)]
+        target: Option<String>,
     },
     /// Instruction-reordering scheduler pass: list-schedule declared windows of a .sass file under a cost model.
     ///
@@ -366,7 +374,8 @@ fn main() -> Result<()> {
             input,
             output,
             report,
-        } => cmd_ra(&mode, plan.as_deref(), &input, output.as_deref(), report.as_deref()),
+            target,
+        } => cmd_ra(&mode, plan.as_deref(), &input, output.as_deref(), report.as_deref(), target.as_deref()),
         Commands::Sched {
             mode,
             table,
@@ -454,7 +463,11 @@ fn cmd_ra(
     input: &Path,
     output: Option<&Path>,
     report: Option<&Path>,
+    target: Option<&str>,
 ) -> Result<()> {
+    let opts = cubit::ra::RaOptions {
+        target: target.map(cubit::ra_target::RaTarget::parse).transpose()?,
+    };
     let parsed = match (cubit::ra::parse_mode_kind(mode)?, plan_path) {
         ("identity", None) => cubit::ra::RaMode::Identity,
         ("identity", Some(_)) => anyhow::bail!("ra: --plan is only valid with --mode pin"),
@@ -480,7 +493,7 @@ fn cmd_ra(
     };
     let text = std::fs::read_to_string(input)
         .with_context(|| format!("cannot read {}", input.display()))?;
-    let run = cubit::ra::run_file(&text, parsed)
+    let run = cubit::ra::run_file_opts(&text, parsed, &opts)
         .with_context(|| format!("ra pass failed on {}", input.display()))?;
     let rep = &run.report;
     let json = serde_json::to_string_pretty(rep)?;

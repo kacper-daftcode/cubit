@@ -36,6 +36,7 @@ pub mod parser;
 pub mod pred_liveness;
 pub mod ra;
 pub mod ra_full;
+pub mod ra_target;
 pub mod render;
 pub mod roundtrip_audit;
 pub mod reg_liveness;
