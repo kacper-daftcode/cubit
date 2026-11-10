@@ -89,6 +89,13 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   (`dep_stall::apply_library_path`). The table stays a `cubit asm` feature — on the library path `CUBIT_SCHED2_LAT` gives plain
   `CUBIT_SCHED2`'s stream. `cubit asm` output is unchanged under every switch, the default path everywhere
   (`tests/sched2_library_path.rs`; KNOWN_ISSUES A26).
+- **The table's MMA → reader row is a measured floor, not ptxas's caution: result registers 2 and 3 of an `HMMA` need 28 issue cycles.**
+  The session's own probe read the first result register only and reported "floor 20"; a second session's per-register probes
+  (`tools/stallfloor/mma_result_registers_sm120_20261110_em.json`, 60 kernels × 20 launches) show registers 0 / 1 clean from 20 and
+  registers 2 / 3 wrong up to 27, clean from 28. The row stays 28 (no cell or row changes; `tables/dep_latency_sm120.json` changes in the
+  `mma` note and in `provenance` only and regenerates byte for byte with the README command, which gains `--mma-registers`); the unit test
+  `the_mma_data_row_holds_every_result_register` fails if the row is ever lowered below a register's floor. The attention kernel reads the
+  four registers at 28 / 29 / 30 / 31, as ptxas does (KNOWN_ISSUES A26).
 - **The scaled BF16 unpack under the table (`F2FP.BF16.<E4M3|E2M1>.UNPACK_B Rd, Rs[.sel], Rscale.B0`, the row of `89564ac`): measured,
   no cell moved.** It is of the class `F2FP.UNPACK` (source r1, scale register r2). Harness v5 on sm_120 silicon
   (`tools/stallfloor/pairfloor_gen_d.py`, 175 kernels; `stall_floors_sm120_20261110_pairs_d.json`): `MOV` → its scale register 5, `SEL` →

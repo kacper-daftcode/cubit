@@ -38,13 +38,15 @@ model of an instruction is needed and any producer / consumer pair cubit can ass
 | `latch_gen.py`, `latch_run.py`, `latch_summary.py` | the store-latch probe: a bare `STS` / `STG` whose data / address register is overwritten d issue cycles behind it; controls without the overwriter and with a read barrier; geometries 32 × 1 024, 376 × 1 024, 188 × 32 (one warp per SM), and the load series 188 × 64 … 1 024 (2 … 32 warps on every SM) |
 | `dep_latency_census.py` | ptxas's practice: the minimum issue distance per (producer class, consumer class, operand role) over frozen listings (`cargo run --release --example depdump -- k.frozen.sass > k.dep.jsonl` per cubin) |
 | `gen_dep_latency.py` | builds the table from the census pairs and the result files; a measured floor above a cell raises it, a floor below it is recorded only |
+| `mma_result_registers_sm120_20261110_em.json` | `HMMA` result register k → `FMUL` / `FADD` with nothing waited, per register and distance (23…32; 60 kernels × 20 launches, 32 CTAs × 1 024 threads × 256 iterations; measured by a second session with its own probe kernels, family `mr2`): registers 0 / 1 clean over the range (their floor is 20), **registers 2 / 3 wrong up to 27 and clean from 28** — the table's MMA → reader row is their floor exactly; `gen_dep_latency.py --mma-registers` checks the row against it and writes the note |
 | `census_pairs_sm120.json` | the pair matrix of the sm_120 census (166 nvcc / ptxas cubins, 1 811 600 instructions): 1 109 (producer, consumer, role) rows with their distance histograms |
 
 ```bash
 # the table, byte for byte, from the files of this directory
 python3 tools/stallfloor/gen_dep_latency.py tools/stallfloor/census_pairs_sm120.json tables/dep_latency_sm120.json \
     --floors tools/stallfloor/stall_floors_sm120_20261110_{pairs,pairs_b,store_data,pairs_c,store_addr,pairs_d}.json \
-    --v6 tools/stallfloor/stall_floors_sm120_20261110_{cells,cells_b}.json
+    --v6 tools/stallfloor/stall_floors_sm120_20261110_{cells,cells_b}.json \
+    --mma-registers tools/stallfloor/mma_result_registers_sm120_20261110_em.json
 # a run (CPU: kernels; GPU host: launches)
 python3 tools/stallfloor/pairfloor_gen.py --cubit target/release/cubit --table tables/sm120.json.gz --out kernels_pair/
 python3 tools/stallfloor/pairfloor_run.py kernels_pair/ --reps 20 --out floors.json

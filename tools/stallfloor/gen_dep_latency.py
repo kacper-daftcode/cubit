@@ -26,6 +26,8 @@ def main():
                     "b12x, CUTLASS MXFP8), 1 811 600 instructions, cubit disassemble --frozen; fixed-latency producer -> "
                     "consumer pairs on fall-through paths")
     ap.add_argument("--v6", nargs="*", default=[], help="results of the population harness (cellfloor_run.py cells.json)")
+    ap.add_argument("--mma-registers", help="MMA result register k -> an ordinary reader, per register "
+                    "(mma_result_registers_sm120_*.json): the `to_data` row must hold every register's floor")
     a = ap.parse_args()
     rows = json.load(open(a.census))
     cells = {}
@@ -157,6 +159,29 @@ def main():
                 c["L"] = max(Lt + 1, doc["defaults"]["data"])
             c["silicon"] = (c.get("silicon", "") + "; " if c.get("silicon") else "") + note
     out_cells.sort(key=lambda c: (c["producer"], c["consumer"], c["role"]))
+    if a.mma_registers:
+        mr = json.load(open(a.mma_registers))
+        # floor of a result register = one above the last distance at which a reader saw a wrong value
+        floors = collections.defaultdict(int)
+        for fl in mr["floors"]:
+            if fl["last_wrong"] is not None:
+                floors[fl["result_register"]] = max(floors[fl["result_register"]], fl["last_wrong"] + 1)
+        worst = max(floors.values())
+        assert doc["mma"]["to_data"] >= worst, f"MMA -> reader row {doc['mma']['to_data']} below a measured floor {worst}"
+        by_floor = collections.defaultdict(list)
+        for r, fl in sorted(floors.items()):
+            by_floor[fl].append(str(r))
+        per = "; ".join(f"result register{'s' if len(rs) > 1 else ''} {' / '.join(rs)}: wrong up to {fl - 1}, clean from {fl}"
+                        for fl, rs in sorted(by_floor.items()))
+        old = "HMMA -> FMUL floor 20; "
+        assert old in doc["mma"]["comment"]
+        doc["mma"]["comment"] = doc["mma"]["comment"].replace(
+            old, f"HMMA -> FMUL floor 20 on result registers 0 and 1; a second probe (result register k -> FMUL / FADD, "
+                 f"nothing waited, distances 23..32): {per} -- `to_data` is the floor of the upper registers, without a "
+                 f"margin; ")
+        doc["provenance"]["silicon"].append(
+            f"MMA result registers ({mr['what']}), {mr['geometry']}, core clock <= 2 370 MHz, 2026-11-10: "
+            f"{len(mr['kernels'])} kernels")
     with open(a.out, "w") as f:
         f.write("{\n")
         keys = [k for k in doc if k != "cells"]

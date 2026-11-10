@@ -1278,4 +1278,35 @@ mod tests {
         }
         assert!(floors >= 50 && failing >= 200, "the result files are read: {floors} floors, {failing} failing populations");
     }
+
+    /// The MMA -> reader row against a per-register probe (2026-11-10: `HMMA` result register k
+    /// -> `FMUL` / `FADD`, nothing waited, distances 23..32): the upper two result registers
+    /// are wrong up to 27 issue cycles and clean from 28, the lower two are clean over the whole
+    /// range (their floor is 20). The row has to hold every register - it is the floor of the
+    /// upper two, without a margin.
+    #[test]
+    fn the_mma_data_row_holds_every_result_register() {
+        let t = table();
+        let j: serde_json::Value =
+            serde_json::from_str(include_str!("../tools/stallfloor/mma_result_registers_sm120_20261110_em.json")).unwrap();
+        let (mut worst, mut upper) = (0u64, Vec::new());
+        for f in j["floors"].as_array().unwrap() {
+            let Some(last_wrong) = f["last_wrong"].as_u64() else { continue };
+            let reg = f["result_register"].as_u64().unwrap();
+            let floor = last_wrong + 1;
+            assert_eq!(f["clean_from"].as_u64(), Some(floor), "result register {reg}: clean from the distance above the last wrong one");
+            assert!(
+                u64::from(t.mma.to_data) >= floor,
+                "MMA -> reader: the row has {}, result register {reg} needs {floor} ({})",
+                t.mma.to_data,
+                f["reader"]
+            );
+            worst = worst.max(floor);
+            upper.push(reg);
+        }
+        upper.sort_unstable();
+        upper.dedup();
+        assert_eq!(upper, [2, 3], "the result registers with a failing distance in the probe's range");
+        assert_eq!(worst, 28, "the measured floor of the upper result registers");
+    }
 }
