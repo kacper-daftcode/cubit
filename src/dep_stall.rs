@@ -268,7 +268,7 @@ impl DepLatTable {
                 continue;
             }
             if let Some(then) = &r.then {
-                for (name, _) in then.iter() {
+                for name in then.keys() {
                     if let Some(j) = self.resources.iter().position(|x| &x.name == name) {
                         if !defs.contains(&j) {
                             defs.push(j);
