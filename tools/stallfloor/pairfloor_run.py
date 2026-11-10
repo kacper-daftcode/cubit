@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""GPU side of the SM120 pair stall-floor harness v5 (see pairfloor_gen.py, pairfloor_gen_b.py; pattern:
+"""GPU side of the SM120 pair stall-floor harness v5 (see pairfloor_gen.py, pairfloor_gen_b.py, pairfloor_gen_c.py; pattern:
 stallfloor_run.py).
 
     python3 pairfloor_run.py <kernel dir> [--reps 10] [--out floors.json] [--limit-s N]

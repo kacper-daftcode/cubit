@@ -19,7 +19,8 @@ is the store -> load order, not the latch), `rb_*` = the store carries a read ba
 fillers behind the store.
 Geometries (CTAs x threads per CTA): g32 = 32 x 1 024 (32 warps on each of 32 SMs), g376 = 376 x 1 024 (2 CTAs on every
 SM of a 188-SM device: 64 warps per SM, the occupancy the 2026-06 store race was seen at), w188 = 188 x 32 (one warp
-per SM: no other warp competes for the memory pipe).
+per SM: no other warp competes for the memory pipe), w2 / w4 / w8 / w16 / w32 = 188 x 64 ... 1 024 (2 ... 32 warps on
+every SM: how the latch delay grows with the number of warps storing at once).
 
     python3 latch_gen.py --cubit <cubit> --table <sm120.json> --out kernels_latch/
 """
@@ -35,7 +36,9 @@ SAFE = "[B------:R-:W-:-:S15]"
 PAD15 = "[B------:R-:W-:-:S15] IADD3 R15, PT, PT, R15, 0x1, RZ ;"
 REPEAT = 256
 THREADS = 1024
-GEOM = {"g32": (32, 1024), "g376": (376, 1024), "w188": (188, 32)}
+GEOM = {"g32": (32, 1024), "g376": (376, 1024), "w188": (188, 32),
+        # the load series: 188 CTAs (one per SM of a 188-SM device) x 2 / 4 / 8 / 16 / 32 warps
+        "w2": (188, 64), "w4": (188, 128), "w8": (188, 256), "w16": (188, 512), "w32": (188, 1024)}
 REF_PADS = 6
 
 

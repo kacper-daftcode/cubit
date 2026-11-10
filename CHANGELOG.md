@@ -40,11 +40,24 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   table against the result files). MMA: result → ALU reader floor 20 (row 28); the accumulate operand and two MMAs back to back are
   clean at every distance 1…30 — the tensor pipe interlocks them, the rows keep ptxas's spacing. Producer → store data floor 3 (cells
   5). The table regenerates byte for byte from the files in `tools/stallfloor/` (`gen_dep_latency.py`).
+- **The cells the attention kernel binds on that were census-only, measured** (harness v5c, `pairfloor_gen_c.py`; two identical
+  runs + a store-address run): `IADD3` / `IMAD` → `LDS` address 4, → `STS` address and `IMAD.WIDE` → `LDG` address clean from S01 (a
+  memory instruction reads its address when the pipe serves it), `FADD` / `FMNMX` → `SHFL` 3, `F2FP.PACK` / `FSEL` → `STG` data 3 (cells
+  5); `ISETP` → the guard of a store / a load 13 / 11 / 9 at d0 / d1 / d2 (cell 13); the high half of an `IMAD.WIDE` addend clean from
+  S01 (cell 4). No latency of the table moved: twelve more cells carry a `silicon` note (213 of 533), the pinning unit test reads the
+  two new result files. Every binding requirement of that kernel now rests on a silicon run at or below its cell.
+- **`dep_stall`: the accumulate operand of an MMA is all four of its registers** — after the `r3` / `r3h` split of multi-register
+  third operands the lookup priced only the first register of an MMA's accumulate operand with the `mma.to_mma_accumulate` row and
+  the upper three with `mma.to_data`. With the shipped rows (29 / 28) the binding value is the same 29 and no schedule moves; a table
+  whose accumulate row is below its reader row was priced wrong. `dep_stall::tests::bundled_table_parses_and_names_the_measured_pairs`
+  asserts the row on each of the four registers.
 - **The store latch (NEEDS_OWNER 38 (ii)) measured** (`latch_gen.py` / `latch_run.py`): a bare `STS` / `STG` whose data register is
   overwritten d issue cycles later stores the NEW value under load — at 32 warps per SM `STS` is wrong on every thread for d ≤ 19, on
-  96 % of the threads at 20, 66–77 % at 21–30, last mismatch at 48 (`STG`: 56); with one warp per SM it is clean from d = 1; without the
+  96 % of the threads at 20, 63–77 % at 21–30, last mismatch at 48 (`STG`: 56); with one warp per SM it is clean from d = 1; without the
   overwriter, or with a read barrier on the store and the overwriter waiting on it, clean at every distance. A store's operand latch is
   the memory pipe's service time, not a count of issue cycles: cubit's rule (a read barrier, never a distance) stays (KNOWN_ISSUES A27).
+  The load series (one CTA per SM, 1 … 32 warps storing in lockstep): `STS` clean from d = 1 up to 8 warps per SM, last mismatch at 12
+  with 16 warps and at 48 with 32; `STG` clean up to 4 warps, 6 with 8, 38 with 16.
 - **On the kernel the model was written for** (the sparse-MLA prefill attention `sparse_mla_prefill_v41` of vLLM-Moet, 2 535
   instructions; its own harness, µs per launch at four shapes, the shipped schedule in the same rounds): stall cycles per token-warp
   67 807 → 44 165 (`CUBIT_SCHED2`) → 41 979 (+ the table) → 35 555 (+ `CUBIT_MMA_PTXAS`); time 1 058 / 1 153 / 2 503 / 1 025 →

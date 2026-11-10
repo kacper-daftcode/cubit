@@ -30,11 +30,11 @@ model of an instruction is needed and any producer / consumer pair cubit can ass
 
 | file | role |
 |---|---|
-| `pairfloor_gen.py`, `pairfloor_gen_b.py` | v5, CPU side: one kernel per (pair, distance 0..2, producer stall, yield) + the S15 reference per pair. `_b`: scoreboard arming (setter with / without yield, waiter 1..3 behind), MMA rows (distance = S + 15 × pad), memory operands |
+| `pairfloor_gen.py`, `pairfloor_gen_b.py`, `pairfloor_gen_c.py` | v5, CPU side: one kernel per (pair, distance 0..2, producer stall, yield) + the S15 reference per pair. `_b`: scoreboard arming (setter with / without yield, waiter 1..3 behind), MMA rows (distance = S + 15 × pad), memory operands. `_c`: address operands of loads and stores, → `SHFL`, `STG` data, guards of memory instructions, the high half of an `IMAD.WIDE` addend — with what `_b`'s memory probes got wrong fixed (a stale address is still a valid address; no bare store is rewritten behind; a store's slot is read back position-weighted) |
 | `memdata_gen.py` | v5: producer → store data (`STS`, the last register of `STS.128`) |
 | `pairfloor_run.py` | v5, GPU side: 32 CTAs × 1 024 threads × 256 iterations × `--reps` launches per kernel; `FLOOR <pair> d<d> = Sxx` = the smallest clean stall with every larger one clean |
 | `cellfloor_gen.py`, `cellfloor_run.py` | v6: populations per table cell — N kernels at the cell's latency L (must all pass) and at L − 1 … (the sensitivity side), each a random draw of registers, yield flag and 0–3 unrelated neighbours in front of the producer |
-| `latch_gen.py`, `latch_run.py`, `latch_summary.py` | the store-latch probe: a bare `STS` / `STG` whose data / address register is overwritten d issue cycles behind it; controls without the overwriter and with a read barrier; geometries 32 × 1 024, 376 × 1 024, 188 × 32 (one warp per SM) |
+| `latch_gen.py`, `latch_run.py`, `latch_summary.py` | the store-latch probe: a bare `STS` / `STG` whose data / address register is overwritten d issue cycles behind it; controls without the overwriter and with a read barrier; geometries 32 × 1 024, 376 × 1 024, 188 × 32 (one warp per SM), and the load series 188 × 64 … 1 024 (2 … 32 warps on every SM) |
 | `dep_latency_census.py` | ptxas's practice: the minimum issue distance per (producer class, consumer class, operand role) over frozen listings (`cargo run --release --example depdump -- k.frozen.sass > k.dep.jsonl` per cubin) |
 | `gen_dep_latency.py` | builds the table from the census pairs and the result files; a measured floor above a cell raises it, a floor below it is recorded only |
 | `census_pairs_sm120.json` | the pair matrix of the sm_120 census (166 nvcc / ptxas cubins, 1 811 600 instructions): 1 109 (producer, consumer, role) rows with their distance histograms |
@@ -42,7 +42,7 @@ model of an instruction is needed and any producer / consumer pair cubit can ass
 ```bash
 # the table, byte for byte, from the files of this directory
 python3 tools/stallfloor/gen_dep_latency.py tools/stallfloor/census_pairs_sm120.json tables/dep_latency_sm120.json \
-    --floors tools/stallfloor/stall_floors_sm120_20261110_{pairs,pairs_b,store_data}.json \
+    --floors tools/stallfloor/stall_floors_sm120_20261110_{pairs,pairs_b,store_data,pairs_c,store_addr}.json \
     --v6 tools/stallfloor/stall_floors_sm120_20261110_{cells,cells_b}.json
 # a run (CPU: kernels; GPU host: launches)
 python3 tools/stallfloor/pairfloor_gen.py --cubit target/release/cubit --table tables/sm120.json.gz --out kernels_pair/
@@ -60,8 +60,11 @@ says what was launched):
 | `stall_floors_sm120_20261110_cells_b.json` | v6, 13 cells × stalls L − 3 … L + 1 × 64 kernels × 10 launches: the corrected `IMAD.WIDE` addend cells (fail one below, clean at L) and seven pairs the attention kernel prices with the default 6 (floors 4–5) |
 | `stall_floors_sm120_20261110_mma.json` | HMMA result → `FMUL`: wrong at every distance ≤ 19, clean from 20 (table 28). HMMA → the accumulate operand of the next HMMA, and two HMMAs back to back: clean at every distance 1…30 — the tensor pipe interlocks them; the rows 29 / 16 are ptxas's spacing, not a silicon floor |
 | `stall_floors_sm120_20261110_store_data.json` | `F2FP.PACK` / `FADD` / `FSEL` / `IADD3` → `STS` data: 3 (cells 5); the last register of `STS.128`: clean from S01 (read late) |
+| `stall_floors_sm120_20261110_pairs_c.json` | the cells the attention kernel binds on that were census-only (two identical runs): `F2FP.PACK` / `FSEL` → `STG` data 3, `FADD` / `FMNMX` → `SHFL` 3, `IADD3` / `IMAD` → `LDS` address 4 (cells 5); `ISETP` → the guard of a store / a load 13 / 11 / 9 at d0 / d1 / d2 (cell 13); `SHF` → `IADD3` second addend 4 (default 6); the high half of an `IMAD.WIDE` addend and the `IMAD.WIDE` → `LDG` address low half clean from S01 |
+| `stall_floors_sm120_20261110_store_addr.json` | `IADD3` / `IMAD` → the address of `STS`, position-weighted read-back: clean from S01 at d0–d2 (cells 5) — a store reads its address when the memory pipe serves it |
 | `store_latch_sm120_20261110.json` | bare `STS` / `STG`, data or address register overwritten 1…45 cycles later, 32 warps per SM: wrong on every thread to 19, 62–98 % of threads at 20–30, still 1–9 % at 45. The references at 64 warps per SM and of `STS.128` (overwriter at 60) were not deterministic |
 | `store_latch_sm120_20261110_controls.json` | the same to 75 cycles (reference at 105) with controls: 32 warps per SM — last mismatch at 48 (`STS`) / 56 (`STG`); one warp per SM — clean from 1; no overwriter — clean; read barrier + waiting overwriter — clean. A bare store reads its operands when the memory pipe serves it (KNOWN_ISSUES A27) |
+| `store_latch_sm120_20261110_series.json` | the load series: one CTA per SM on 188 SMs with 1 / 2 / 4 / 8 / 16 / 32 warps storing in lockstep, the data register overwritten 1…60 cycles behind the bare store. Last distance with a wrong thread — `STS`: none up to 8 warps, 12 at 16, 48 at 32; `STG`: none up to 4 warps, 6 at 8, 38 at 16 (reference not deterministic at 32). The distance a bare store needs grows with the number of warps that have stores in flight |
 
 Reading the numbers. A pair floor is a count of issue cycles of a synchronous pipeline, measured at the test host's core
 clock; a kernel scheduled from the table is to be bit-checked at the production clock before it ships. The additive model

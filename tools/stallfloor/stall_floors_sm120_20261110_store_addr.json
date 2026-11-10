@@ -1,0 +1,31 @@
+{
+ "run": "stall-floor harness v5c, the store-address pairs with a position-weighted read-back (the store's slot is read back as w0 + 3*w1 + 5*w2 + 7*w3, so a store that lands one word off changes the checksum), sm_120 test host GPU 0, 2026-11-10: IADD3 / IMAD -> the address register of STS; distance 0..2 x stall 1..8, 32 CTAs x 1 024 threads x 256 iterations x 20 launches, S15 reference per pair. Clean from S01 at every distance: a store reads its address when the memory pipe serves it, not at issue (the store-latch files)",
+ "arch": "sm_120",
+ "threads": 1024,
+ "ctas": 32,
+ "reps": 20,
+ "harness": "v5 pair floors (2026-11-10)",
+ "gpu": "",
+ "references": {"iadd3_sts_a": "ok (32768 distinct checksums, 32768 non-zero of 32768)", "imad_sts_a": "ok (32768 distinct checksums, 32768 non-zero of 32768)"},
+ "floors": {
+  "iadd3_sts_a_d0": 1,
+  "iadd3_sts_a_d1": 1,
+  "iadd3_sts_a_d2": 1,
+  "imad_sts_a_d0": 1,
+  "imad_sts_a_d1": 1,
+  "imad_sts_a_d2": 1
+ },
+ "mismatches": {
+  "iadd3_sts_a_d0": {"8": 0, "7": 0, "6": 0, "5": 0, "4": 0, "3": 0, "2": 0, "1": 0},
+  "iadd3_sts_a_d1": {"8": 0, "7": 0, "6": 0, "5": 0, "4": 0, "3": 0, "2": 0, "1": 0},
+  "iadd3_sts_a_d2": {"8": 0, "7": 0, "6": 0, "5": 0, "4": 0, "3": 0, "2": 0, "1": 0},
+  "imad_sts_a_d0": {"8": 0, "7": 0, "6": 0, "5": 0, "4": 0, "3": 0, "2": 0, "1": 0},
+  "imad_sts_a_d1": {"8": 0, "7": 0, "6": 0, "5": 0, "4": 0, "3": 0, "2": 0, "1": 0},
+  "imad_sts_a_d2": {"8": 0, "7": 0, "6": 0, "5": 0, "4": 0, "3": 0, "2": 0, "1": 0}
+ },
+ "cells": [
+  {"producer": "IADD3", "consumer": "STS", "role": "a0", "floor_d0": 1, "pair": "iadd3_sts_a", "note": "the address is read when the store is served"},
+  {"producer": "IMAD", "consumer": "STS", "role": "a0", "floor_d0": 1, "pair": "imad_sts_a", "note": "the address is read when the store is served"}
+ ],
+ "skipped": 0
+}

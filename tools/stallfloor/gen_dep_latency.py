@@ -122,7 +122,7 @@ def main():
             elif isinstance(floor, int) and floor > c["L"]:
                 c["basis"] += f"; RAISED from {c['L']} by the silicon floor"
                 c["L"] = floor
-            c["silicon"] = f"floor d0 S{floor:02d}" if isinstance(floor, int) else str(floor)
+            c["silicon"] = (f"floor d0 S{floor:02d}" if isinstance(floor, int) else str(floor)) + (f" ({f['note']})" if f.get("note") else "")
     # population harness v6: per cell, kernels at the tested latency Lt and at Lt - 1 (random registers / yield / neighbours)
     for fp in a.v6:
         v6 = json.load(open(fp))

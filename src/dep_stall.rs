@@ -209,8 +209,9 @@ impl DepLatTable {
         let cons_mma = self.is_mma_class(&cc);
         let roles = roles_of(cons, key);
         if self.is_mma_class(&pc) {
-            // the accumulate operand of an MMA is its last register operand (position 3)
-            let acc = cons_mma && roles.iter().any(|r| r == "r3");
+            // the accumulate operand of an MMA is its last register operand (position 3): all
+            // four registers of it (`r3` and the upper ones, `r3h`)
+            let acc = cons_mma && roles.iter().any(|r| r == "r3" || r == "r3h");
             return (if acc { self.mma.to_mma_accumulate } else { self.mma.to_data }, false);
         }
         let mut best: u8 = 0;
@@ -1069,9 +1070,12 @@ mod tests {
         let setp = ins("ISETP.LT.U32.AND P0, PT, R4, R5, PT");
         assert_eq!(t.latency(&setp, &ins("@P0 IADD3 R8, PT, PT, R4, R5, RZ"), KEY_PRED), (13, false));
         assert_eq!(t.latency(&setp, &ins("SEL R8, R4, R5, P0"), KEY_PRED), (5, false));
-        // MMA: 29 into the accumulate operand, 28 into anything else
+        // MMA: 29 into the accumulate operand -- every register of it --, 28 into anything else
         let mma = ins("HMMA.16816.F32.BF16 R28, R64, R72, R28");
-        assert_eq!(t.latency(&mma, &ins("HMMA.16816.F32.BF16 R28, R68, R74, R28"), 28), (29, false));
+        let next = ins("HMMA.16816.F32.BF16 R28, R68, R74, R28");
+        for key in 28..32 {
+            assert_eq!(t.latency(&mma, &next, key), (29, false), "accumulate register R{key}");
+        }
         assert_eq!(t.latency(&mma, &ins("FMUL.FTZ R28, R28, R23"), 28), (28, false));
     }
 
@@ -1203,6 +1207,8 @@ mod tests {
             include_str!("../tools/stallfloor/stall_floors_sm120_20261110_pairs.json"),
             include_str!("../tools/stallfloor/stall_floors_sm120_20261110_pairs_b.json"),
             include_str!("../tools/stallfloor/stall_floors_sm120_20261110_store_data.json"),
+            include_str!("../tools/stallfloor/stall_floors_sm120_20261110_pairs_c.json"),
+            include_str!("../tools/stallfloor/stall_floors_sm120_20261110_store_addr.json"),
         ] {
             for c in rows(text) {
                 let Some(floor) = c["floor_d0"].as_u64() else { continue };
