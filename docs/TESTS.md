@@ -578,6 +578,7 @@ Conventions: a `bugNNN_*.rs` file is the executable specification of one numbere
 | `hidden_b300_vhmnmx_plain.rs` | 2 | Plain full-register VHMNMX: vendor-text encoding only, not execution semantics. |
 | `hidden_b300_vimnmx3.rs` | 2 | Measured VIMNMX3 UR form, including the newly observed U16x2 type. |
 | `hidden_b300_vimnmx_packed16.rs` | 2 | B300 VIMNMX packed16 register/UR vendor-text lattice; no execution claim. |
+| `k1_experts_forms.rs` | 3 | K1 ExpertsKernel production forms measured with nvdisasm on SM103 and SM100. No GPU execution is claimed by these encoding tests. |
 | `kand058_ufadd_imm_neg.rs` | 3 | CANDIDATE-058 (SPARK sm_121a iter7, errata landing): UFADD with a negative immediate — an encoder-semantics hole. HW (nvcc sm_121a gold): * `UFADD UR7, UR6, -0.12400979548692703247` -> f32 pattern ..63 PLUS bit2=1 (sign mirror); cubit gave bit2=0 (op_neg … |
 | `legacy_template_asm.rs` | 6 | The address-listing template CLI must apply all 128 authored bits and refuse a source instruction that cannot be encoded or matched safely. |
 | `legality_diff.rs` | 5 | `cubit legality-diff <seed.jsonl> <candidate.jsonl>`: the rule a candidate schedule is held to against its seed (`legality::compare`, 2026-11-11) -- **no finding the seed does not have, and none CLOSER than the seed has it.** |

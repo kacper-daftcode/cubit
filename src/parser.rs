@@ -354,6 +354,27 @@ const FLOAT_OPCODES: &[&str] = &[
 fn parse_single_operand(s: &str, is_float_context: bool) -> Operand {
     let s = s.trim();
 
+    // DEPBAR's brace list is one mask operand, not a comma-separated operand list.
+    // Scoreboard N occupies bit N of the mask; the lossless printer emits descending ids.
+    if let Some(inner) = s.strip_prefix('{').and_then(|v| v.strip_suffix('}')) {
+        let mut mask = 0u8;
+        let mut valid = !inner.trim().is_empty();
+        for token in inner.split(',') {
+            match token.trim().parse::<u8>() {
+                Ok(scoreboard) if scoreboard <= 5 && mask & (1 << scoreboard) == 0 => {
+                    mask |= 1 << scoreboard;
+                }
+                _ => {
+                    valid = false;
+                    break;
+                }
+            }
+        }
+        if valid {
+            return Operand::Imm32(mask as i64);
+        }
+    }
+
     // BUG-091: nvdisasm branch-target form `\`(.L_x_0)` — the backtick-paren
     // literal must unwrap to the plain label name; previously the whole
     // string (backticks included) became a Label that could never match the
@@ -671,8 +692,8 @@ pub fn parse_sass(text: &str, addr: u32) -> Result<Instruction> {
         let mut tokens = Vec::new();
         for ch in operands_str.chars() {
             match ch {
-                '[' | '(' => { depth += 1; current.push(ch); }
-                ']' | ')' => { depth -= 1; current.push(ch); }
+                '[' | '(' | '{' => { depth += 1; current.push(ch); }
+                ']' | ')' | '}' => { depth -= 1; current.push(ch); }
                 ',' if depth == 0 => {
                     tokens.push(current.trim().to_string());
                     current.clear();

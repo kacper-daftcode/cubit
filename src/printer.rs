@@ -1172,6 +1172,17 @@ fn mod_priority_for_key(base: &str, _key: &str, m: &str) -> u8 {
 
 /// Opcode-aware modifier priority (overrides generic mod_priority for specific cases).
 fn mod_priority_for(base: &str, m: &str) -> u8 {
+    // K1's uniform CCTL deep-invalidate form uses the vendor order
+    // CCTL.E.C.LDCU.IV.DEEP; the group key stays alphabetically sorted.
+    if base == "CCTL" {
+        match m {
+            "C" => return 4,
+            "LDCU" => return 5,
+            "IV" => return 6,
+            "DEEP" => return 7,
+            _ => {}
+        }
+    }
     // NVIDIA places the memory-order mode before its scope.
     if base == "MEMBAR" && matches!(m, "SC" | "ALL") {
         return 0;
@@ -1821,7 +1832,14 @@ fn format_operand(
         // of UR2UP and the second operand of UP2UR, never the numeral zero.
         "II" if (ins_key.starts_with("UP2UR") && tok == 2)
             || (ins_key.starts_with("UR2UP") && tok == 1) => "UPR".to_string(),
-        // DEPBAR first operand is a scoreboard id; nvdisasm prints SB<n>.
+        // The plain K1 DEPBAR operand is a six-bit dependency mask printed as one brace list.
+        "II" if ins_key == "DEPBAR_II" && tok == 1 => {
+            let mask = fields.first().map(|f| f.value as u8).unwrap_or(0);
+            let ids: Vec<String> = (0..=5).rev().filter(|id| mask & (1 << id) != 0)
+                .map(|id| id.to_string()).collect();
+            format!("{{{}}}", ids.join(","))
+        }
+        // DEPBAR.LE's first operand is a scoreboard id; nvdisasm prints SB<n>.
         "II" if ins_key.starts_with("DEPBAR") && tok == 1 => {
             let n = fields
                 .iter()

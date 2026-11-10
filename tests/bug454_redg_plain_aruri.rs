@@ -183,7 +183,7 @@ fn t454_8_era_mint_continuity() {
 #[test]
 fn t454_7_canonical_pin() {
     // Current byte-pinned cut; historical fixture provenance remains unchanged.
-    const CURRENT_VENDORED_CANON: &str = "6bb25fa2c4b303253a66a304c2f86c36a4b2e46c" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
+    const CURRENT_VENDORED_CANON: &str = "ff1c320524269718e93dab28532400927583091f" /* 2026-11-06 T-11 (was c258f8a, T-10) */ /* 2026-11-06 T-10 (was b75cc20, T-9) */;
     assert_eq!(CANON454, "9c0e4ce", "historical fixture revision drift");
 
     let _test_env_guard = ERRATA_LOCK.lock().unwrap();
