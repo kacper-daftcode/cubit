@@ -206,15 +206,24 @@ fn bug007_stg_desc_words_decode_as_stg() {
 }
 
 // ── BUG-008 ─────────────────────────────────────────────────────────────────
-// 4-operand IMAD.WIDE with a register c: c and d are 64-bit pairs named by
-// their even base register (Rd:Rd+1 = Ra * Rb + Rc:Rc+1) — nvcc's spelling
-// for every 64-bit address computation (190 sites in the served MoE kernels),
-// so the even idiom is silent. Measured 2026-11-03 on 4x RTX PRO 6000 Server
-// Edition (cubit-assembled probes bug008_{even,odd,pt,rz}): even c stores
-// pair(c_lo, c_hi) + a*b, the 5-operand PT form equals it, c = RZ zero-extends,
-// and an ODD c faults the launch (CUDA_ERROR_ILLEGAL_INSTRUCTION 715) — so the
-// odd-c spelling is a hard error naming the register, the pair and the
-// measurement; an odd DESTINATION pair is not measured and stays a warning.
+// A wide IMAD's c and d are 64-bit pairs named by their even base register
+// (Rd:Rd+1 = Ra * Rb + Rc:Rc+1) — nvcc's spelling for every 64-bit address
+// computation (190 sites in the served MoE kernels), so the even idiom is
+// silent. Measured 2026-11-03 on 4x RTX PRO 6000 Server Edition (cubit-assembled
+// probes bug008_{even,odd,pt,rz}): even c stores pair(c_lo, c_hi) + a*b, the
+// 5-operand PT form equals it, c = RZ zero-extends, and an ODD c faults the
+// launch (CUDA_ERROR_ILLEGAL_INSTRUCTION 715) — a hard error naming the
+// register, the pair and the measurement.
+// Measured 2026-11-10 (RTX PRO 6000 Blackwell Server Edition, the register-grid
+// probes of tools/ra/): the odd c in the 5-operand spelling
+// (`IMAD.WIDE.U32 R12, PT, R0, 0x10000, R9` — the same machine word as the
+// 4-operand spelling) faults too, and so does an odd DESTINATION pair
+// (`IMAD.WIDE.U32 R13, PT, R0, 0x10000, R8`). Until then the 5-operand spelling
+// was accepted with any c (this test pinned it; the full register allocation
+// produced 55 such words in the attention kernel and `asm` took them all) and
+// the odd destination was a warning. Both are refused now, in both spellings of
+// that word; with a real carry-out predicate (another word, unmeasured) an odd
+// pair assembles with a warning.
 // sm_103a (ptxas-faithful corpus) stays quiet.
 #[test]
 fn bug008_wide_cpair_even_silent_odd_c_refused() {
@@ -229,16 +238,57 @@ fn bug008_wide_cpair_even_silent_odd_c_refused() {
             && e.contains("CUDA_ERROR_ILLEGAL_INSTRUCTION"), "{e}");
     let e = enc_err(&t120(), "IMAD.WIDE R10, R4, R5, R7 ;");
     assert!(e.contains("BUG-008") && e.contains("c = R7 (pair R7:R8)"), "{e}");
-    // odd destination: not measured, warns
-    let w = warns(&t120(), "IMAD.WIDE.U32 R47, R34, 0x3d1, R18 ;");
-    assert!(w.iter().any(|m| m.contains("BUG-008") && m.contains("destination R47 (pair R47:R48)")), "{w:?}");
-    assert_ne!(enc(&t120(), "IMAD.WIDE.U32 R47, R34, 0x3d1, R18 ;"), 0);
-    // RZ, the 5-operand form and sm_103a are untouched
+    // the 5-operand spelling of the same word (PT carry-out): refused too, and no longer the remedy the message names
+    let four = encode_instruction_unchecked("IMAD.WIDE.U32 R10, R4, R5, R7 ;");
+    let five = encode_instruction_unchecked("IMAD.WIDE.U32 R10, PT, R4, R5, R7 ;");
+    assert_eq!(four, five, "one machine word, two spellings");
+    let e = enc_err(&t120(), "IMAD.WIDE.U32 R46, PT, R34, R35, R19 ;");
+    assert!(e.contains("BUG-008") && e.contains("c = R19 (pair R19:R20)") && e.contains("5-operand spelling")
+            && !e.contains("the 5-operand form"), "{e}");
+    let e = enc_err(&t120(), "IMAD.WIDE.U32 R12, PT, R0, 0x10000, R9 ;");
+    assert!(e.contains("c = R9 (pair R9:R10)"), "{e}");
+    // a real carry-out predicate makes ANOTHER word (the predicate field): what an odd pair does there is
+    // not measured -- the text assembles and warns (the measured-row test re-assembles such a field word)
+    for text in ["IMAD.WIDE.U32 R46, P2, R34, R35, R19 ;", "IMAD.WIDE.U32 R33, P3, R64, 0x5a5a5a5a, R24 ;"] {
+        assert_ne!(enc(&t120(), text), 0, "{text}");
+        let w = warns(&t120(), text);
+        assert!(w.iter().any(|m| m.contains("BUG-008") && m.contains("not measured")), "{text}: {w:?}");
+    }
+    assert!(warns(&t120(), "IMAD.WIDE.U32 R46, P2, R34, R35, R18 ;").is_empty());
+    // odd destination: measured 2026-11-10 -> refused, in both spellings, with any addend
+    for text in [
+        "IMAD.WIDE.U32 R47, R34, 0x3d1, R18 ;",
+        "IMAD.WIDE.U32 R13, PT, R0, 0x10000, R8 ;",
+        "IMAD.WIDE.U32 R13, PT, R0, 0x10000, RZ ;",
+    ] {
+        let e = enc_err(&t120(), text);
+        assert!(e.contains("BUG-008") && e.contains("destination R") && e.contains("is odd") && e.contains("2026-11-10"), "{text}: {e}");
+    }
+    assert!(enc_err(&t120(), "IMAD.WIDE.U32 R47, R34, 0x3d1, R18 ;").contains("destination R47 (pair R47:R48)"));
+    // nothing warns any more: the two traps are errors, the idiom is silent
+    assert!(warns(&t120(), "IMAD.WIDE.U32 R47, R34, 0x3d1, R18 ;").is_empty());
+    // RZ, the even 5-operand form, the 32-bit IMAD and sm_103a are untouched
     assert!(warns(&t120(), "IMAD.WIDE.U32 R46, R34, 0x3d1, RZ ;").is_empty());
+    assert_ne!(enc(&t120(), "IMAD.WIDE.U32 R46, R34, 0x3d1, RZ ;"), 0);
     assert!(warns(&t120(), "IMAD.WIDE.U32 R46, PT, R34, R35, R18 ;").is_empty());
-    assert_ne!(enc(&t120(), "IMAD.WIDE.U32 R46, PT, R34, R35, R19 ;"), 0);
+    assert_eq!(enc(&t120(), "IMAD.WIDE.U32 R46, PT, R34, R35, R18 ;"), enc(&t120(), "IMAD.WIDE.U32 R46, R34, R35, R18 ;"));
+    assert_ne!(enc(&t120(), "IMAD R47, R34, 0x3d1, R19 ;"), 0);
     assert!(warns(&t103a(), "IMAD.WIDE.U32 R2, R5, 0x8, R2 ;").is_empty());
     assert_ne!(enc(&t103a(), "IMAD.WIDE.U32 R4, R5, R6, R7 ;"), 0);
+    assert_ne!(enc(&t103a(), "IMAD.WIDE.U32 R5, PT, R5, R6, R7 ;"), 0);
+}
+
+/// The word a text encodes to on sm_120 with the errata layer off (`CUBIT_DISABLE_ERRATA=1`
+/// through the command line: the switch is read from the environment, which a test must not set
+/// for its neighbours).
+fn encode_instruction_unchecked(text: &str) -> String {
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_cubit"))
+        .args(["asm-text", text, "-t", "tables/sm120.json"])
+        .env("CUBIT_DISABLE_ERRATA", "1")
+        .output()
+        .expect("run cubit");
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    String::from_utf8_lossy(&out.stdout).lines().find(|l| l.starts_with("0x")).expect("a word").to_string()
 }
 
 // ── BUG-009 (ported at source) ──────────────────────────────────────────────

@@ -1,7 +1,7 @@
 //! `cubit ra --mode full --target sm120` through the command line, on the production attention
-//! kernel (fixture `ra_sm120/sparse_mla_prefill_v42.sass`): the target-neutral allocation
-//! assembles into a cubin the strict round trip refuses (55 `IMAD.WIDE` words with an odd addend
-//! pair -- BUG-008, CUDA 715 at launch), the targeted one assembles with the kernel's own build
+//! kernel (fixture `ra_sm120/sparse_mla_prefill_v42.sass`): the target-neutral allocation is
+//! refused by the assembler (55 `IMAD.WIDE` words with an odd addend pair -- BUG-008, CUDA 715
+//! at launch; with the errata layer off the strict round trip refuses them), the targeted one assembles with the kernel's own build
 //! switches into a cubin that round-trips word for word, keeps the register count of the
 //! hand-numbered build and its schedule in every control word. Written against the command
 //! line of `c507a7c` (red there: the kernel is refused, `--target` does not exist).
@@ -56,12 +56,23 @@ fn the_allocated_kernel_assembles_and_round_trips_only_with_the_target() {
     build(&src, &p("hand.cubin"));
     let (ok, log) = cubit(&["roundtrip-strict", &p("hand.cubin"), "-t", TABLE], &[]);
     assert!(ok && log.contains("1454/1454"), "{log}");
-    // target-neutral allocation: assembles, and is not sm_120 code -- 55 IMAD.WIDE words with an odd addend pair
+    // target-neutral allocation: not sm_120 code -- 55 IMAD.WIDE words with an odd addend pair. The assembler
+    // refuses them (BUG-008, both spellings since the same day) ...
     let (ok, log) = cubit(&["ra", &src, "--mode", "full", "-o", &p("neutral.sass"), "--report", &p("neutral.json")], &[]);
     assert!(ok, "{log}");
-    build(&p("neutral.sass"), &p("neutral.cubin"));
-    let (ok, log) = cubit(&["roundtrip-strict", &p("neutral.cubin"), "-t", TABLE], &[]);
-    assert!(!ok && log.contains("1399/1454"), "the target-neutral plan must still be refused by the strict round trip: {log}");
+    let neutral_cubin = p("neutral.cubin");
+    let asm_neutral = ["asm", &p("neutral.sass"), "-t", TABLE, "-o", &neutral_cubin, "--kernel", "sparse_mla_prefill_v41", "--mercury-stub", &stub];
+    let (ok, log) = cubit(&asm_neutral, &BUILD_ENV);
+    assert!(!ok && log.contains("BUG-008") && log.contains("ODD pair base"), "{log}");
+    assert!(!std::path::Path::new(&neutral_cubin).exists(), "nothing is written");
+    // ... and with the errata layer off they assemble into a cubin the strict round trip refuses word by word
+    let mut env = BUILD_ENV.to_vec();
+    env.push(("CUBIT_DISABLE_ERRATA", "1"));
+    let (ok, log) = cubit(&asm_neutral, &env);
+    assert!(ok, "{log}");
+    let (ok, log) = cubit(&["roundtrip-strict", &neutral_cubin, "-t", TABLE], &[]);
+    // 55 with an odd addend pair, 20 more with an odd destination pair only
+    assert!(!ok && log.contains("1379/1454"), "75 words of the target-neutral plan must be refused by the strict round trip: {log}");
     // with the target: every word round-trips
     let (ok, log) = cubit(&["ra", &src, "--mode", "full", "--target", "sm120", "-o", &p("sm120.sass"), "--report", &p("sm120.json")], &[]);
     assert!(ok, "{log}");

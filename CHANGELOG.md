@@ -49,8 +49,15 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   Edition) output and lse identical on 8 synthetic cases and 8 real-prefill dumps in 30 warm launches and 30 fresh processes,
   times within ±0.3 % at every shape, as for two further numberings.
 - **The register grid of sm_120 is silicon law** (`tools/ra/`): 38 probe kernels, every multi-register operand off its grid
-  faults the launch (CUDA 715) — 23 of 23, 15 shapes; ptxas is never off it in 1 811 600 census instructions. `cubit asm`
-  takes these words (the BUG-008 guard sees only the 4-operand `IMAD.WIDE` spelling): KNOWN_ISSUES A28.
+  faults the launch (CUDA 715) — 23 of 23, 15 shapes; ptxas is never off it in 1 811 600 census instructions.
+- **BUG-008: the wide IMAD's pairs are checked in both spellings, addend and destination.** The guard saw only the 4-operand
+  spelling: `IMAD.WIDE.U32 R10, PT, R4, R5, R7` assembled silently to the word that faults (and the message recommended
+  that spelling). The odd addend in the `PT` spelling and an odd destination pair are measured to fault and are hard errors now
+  (`CUBIT_DISABLE_ERRATA=1` assembles them for RE). With a real carry-out predicate (`Pn` ≠ `PT`: another word) an odd pair is
+  not measured and warns (the measured rows of the table re-assemble such field words; their eleven odd-destination words
+  without a carry-out predicate carry the `silicon_bits` mark in `tests/fixtures/sm120_rows_intalu_nvdisasm.jsonl` now, the
+  mark the row probe gives a field word the encoder refuses on a silicon law). The other 21 off-grid shapes still assemble:
+  KNOWN_ISSUES A28 (1).
 - `docs/RA_SYMBOLIC_REGISTERS.md`: how to write a generator with symbolic registers and what the pass guarantees.
   `tools/ra/ra_equiv.py`: an independent check of a renaming (its own footprints, liveness and control flow).
   Tests: `tests/ra_sm120_attention.rs`, `ra_sm120_target.rs`, `ra_sm120_target_cli.rs`.
