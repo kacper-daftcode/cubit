@@ -3392,6 +3392,34 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
     // (2 segments) are coloured first since they are the most constrained.
     let mut order: Vec<usize> = (0..uses.len()).collect();
     order.sort_by_key(|&u| (uses[u].segs.len() == 1, uses[u].segs[0].0));
+    // CUBIT_SB_LONG_KEEP=1 (with CUBIT_SB_SHARE=1; default off): a prefetch keeps its scoreboard
+    // to itself. Scoreboards are counters, so every wait on a scoreboard waits for everything
+    // counted on it. Without the switch three kinds of use end up on the scoreboard of a long
+    // prefetch (loads whose readers are a chunk of compute away) and their waits drain it in
+    // the middle of the compute it was issued to overlap:
+    //  * a short use whose setter comes earlier in the text is coloured first and takes
+    //    scoreboard 4 or 5 while it is still free;
+    //  * a short use that overflows shares "the busiest" scoreboard over its segment - the
+    //    long one, live all across it;
+    //  * the READ barrier of a store whose data registers are next written far away on some
+    //    path is itself a long use, coloured from the top two - and its waiter is the first
+    //    instruction that rewrites the register (sm_120 sparse_mla_prefill_v42: the dequant's
+    //    last STS.128 of chunk c, waited by the second LDSM of chunk c+1's QK: `[B--2-4-]` /
+    //    the fifth: `[B-1---5]` - the gather was in flight for four k-steps, not for the chunk;
+    //    one extra load in the loop moved the gather to scoreboard 4, where the FIRST
+    //    instruction of QK waited for it).
+    // Under the switch: long uses are coloured before short ones; long WRITE uses (the loads)
+    // share the top scoreboard, long READ-barrier uses (store latches) the one below it; a
+    // short use neither takes nor shares a scoreboard on which a long use is live anywhere
+    // over its segment. Waits only move between scoreboards - protection is never dropped.
+    let sb_long_keep = std::env::var("CUBIT_SB_SHARE").ok().as_deref() == Some("1")
+        && std::env::var("CUBIT_SB_LONG_KEEP").ok().as_deref() == Some("1");
+    let sb_long_thr: usize = std::env::var("CUBIT_SB_LONG").ok().and_then(|s| s.parse().ok()).unwrap_or(256);
+    let use_span = |u: usize| -> usize { uses[u].segs.iter().map(|&(a, b)| b.saturating_sub(a)).sum() };
+    if sb_long_keep {
+        order.sort_by_key(|&u| (pin_of[u].is_some() || use_span(u) <= sb_long_thr, uses[u].segs.len() == 1, uses[u].segs[0].0));
+    }
+    let mut occ_long = vec![0u8; n];
     let mut occ = vec![0u8; n];
     let mut assigned: Vec<u8> = vec![7; uses.len()];
     let mut inject_wait = vec![0u8; n];
@@ -3432,7 +3460,14 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         let is_long = sb_share && span > sb_long;
         let first_colour: u8 = if is_long { (NUM_BARRIERS as u8).saturating_sub(2) } else { 0 };
         let mut chosen: Option<u8> = None;
+        if sb_long_keep && is_long {
+            // CUBIT_SB_LONG_KEEP: the long WRITE uses (prefetch loads) share the top scoreboard, the long
+            // READ-barrier uses (a store's operands whose next writer is far, on some path) the one
+            // below it - a wait for a store's latch never drains the loads in flight.
+            chosen = Some(if uses[u].is_rb { NUM_BARRIERS as u8 - 2 } else { NUM_BARRIERS as u8 - 1 });
+        }
         for b in first_colour..NUM_BARRIERS as u8 {
+            if chosen.is_some() { break; }
             if sidx.iter().all(|&i| occ[i] & (1 << b) == 0) { chosen = Some(b); break; }
         }
         if chosen.is_none() && sb_share {
@@ -3440,6 +3475,8 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
             let mut best = first_colour;
             let mut best_cost = usize::MAX;
             for b in first_colour..NUM_BARRIERS as u8 {
+                // CUBIT_SB_LONG_KEEP: a short use never shares with a long one
+                if sb_long_keep && !is_long && sidx.iter().any(|&i| occ_long[i] & (1 << b) != 0) { continue; }
                 let free = sidx.iter().filter(|&&i| occ[i] & (1 << b) == 0).count();
                 if free < best_cost { best_cost = free; best = b; }
             }
@@ -3468,6 +3505,7 @@ pub fn reallocate_barriers(insns: &mut [Instruction], table: Option<&IsaTable>) 
         };
         assigned[u] = b;
         for &i in &sidx { occ[i] |= 1 << b; }
+        if is_long { for &i in &sidx { occ_long[i] |= 1 << b; } }
     }
 
     if std::env::var("CUBIT_DUMP_USES").is_ok() {

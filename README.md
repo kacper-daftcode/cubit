@@ -73,7 +73,10 @@ Instruction syntax is NVIDIA's (`nvdisasm` output). On SM120 kernel parameters s
 freezes the control code of that instruction. `CUBIT_SB_SHARE=1` selects the scoreboard-sharing
 colouring (counter semantics, ptxas's practice): bit-identical results on the 84 production MoE
 kernels it was measured on and time-neutral there (+0.3 %), 1.6× on scoreboard-starved kernels such
-as the sparse-MLA attention; it stays opt-in (KNOWN_ISSUES A13). `CUBIT_RB_CHAIN=1` adds the 2026-06
+as the sparse-MLA attention; it stays opt-in (KNOWN_ISSUES A13). With it, `CUBIT_SB_LONG_KEEP=1` gives a
+prefetch its scoreboard to itself (long loads on the top scoreboard, long store latches on the one below,
+no short use shares either): without it a wait that belongs to something else drains the prefetch in the
+middle of the compute it was issued to overlap. `CUBIT_RB_CHAIN=1` adds the 2026-06
 read-barrier chain on sub-word global loads; with `CUBIT_SB_SHARE=1` it reproduces the shipped speed of
 the MC4 MoE prefill kernels (K ≥ 4096) and costs 3–30 % on most others — a per-kernel switch, also
 opt-in (KNOWN_ISSUES A19). `CUBIT_MMA_SRC_RB=0` drops the read barrier cubit puts on an MMA for its

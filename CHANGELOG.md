@@ -27,6 +27,17 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   MMA; two MMAs never closer than 16 issue cycles, the accumulate operand of the next MMA 29 behind the previous one, any other reader 28
   (the table's `mma` rows; 39 624 HMMA / QMMA of the census); one `NOP` where two text-adjacent MMAs need the 16 cycles. Default: the
   drain scheme, unchanged.
+- **`CUBIT_SB_LONG_KEEP=1` (opt-in, with `CUBIT_SB_SHARE=1`): a prefetch keeps its scoreboard to itself.** Scoreboards are counters, so a
+  wait on a scoreboard waits for everything counted on it. Under the sharing policy three kinds of use ended up on the scoreboard of a long
+  prefetch and drained it early: a short use coloured before the long ones, a short use that overflowed onto "the busiest" scoreboard, and
+  the read barrier of a store whose data registers are next written far away (a long use itself). In the production attention kernel the
+  fifth `LDSM` of the QK chain waited for all 16 gather loads (`[B-1---5]`); one more load in the loop moved the gather to scoreboard 4,
+  where the first instruction of QK waited. Under the switch the colouring takes long uses first, puts long loads on the top scoreboard and
+  long store latches on the one below, and never lets a short use share either; waits move between scoreboards, none is dropped
+  (`CUBIT_VERIFY` 0 / 0, `CUBIT_DEP_VERIFY` clean on the kernel). RTX PRO 6000, the kernel's own text: −1.4…−2.0 % where the gather misses the
+  cache (random indices), ±0 on real prefill inputs; what it buys is that the prefetch survives changes of the kernel's text. Default off:
+  every existing build is byte-identical (`tests/sb_long_keep.rs`: the drain pinned without the switch, absent with it; the same with the gather's scoreboard pinned by control codes - a pin
+  alone does not keep the prefetch; opt-in; KNOWN_ISSUES A13).
 - **The scaled BF16 unpack under the table (`F2FP.BF16.<E4M3|E2M1>.UNPACK_B Rd, Rs[.sel], Rscale.B0`, the row of `89564ac`): measured,
   no cell moved.** It is of the class `F2FP.UNPACK` (source r1, scale register r2). Harness v5 on sm_120 silicon
   (`tools/stallfloor/pairfloor_gen_d.py`, 175 kernels; `stall_floors_sm120_20261110_pairs_d.json`): `MOV` → its scale register 5, `SEL` →
