@@ -91,3 +91,50 @@ fn t_m3_v2_unknown_class_counts_default() {
     assert_eq!(k.dep_latency_model, "per_class");
     assert_eq!(k.dep_class_defaulted, 1);
 }
+
+/// nvdisasm's display aliases of IMAD are members of the measured IMAD class -- B300 (sm_103a) silicon, 2026-11-09, the
+/// stall-floor harness of 2026-11-07 (588 cubit-assembled kernels, consumer `IADD3 R8, PT, PT, R6, R5, RZ`, 655 360
+/// thread-runs per kernel): floors d0 / d1 / d2 = 5 / 3 / 0 for every form below, as for the `IMAD` and `IMAD.WIDE.U32`
+/// controls of the same run; `MOV`, `IADD3` and `LOP3.LUT` measure 4 / 0 / 0. ptxas agrees (no alias -> ALU-consumer pair
+/// with a producer stall below 5 in 240 sm_103a cubins of one image and in the 328 cubins of the B300 publish corpus).
+/// The table and the limits are in the review of cubit pull request 3; a separate alias class (priced with the 4-cycle
+/// default) was proposed there without a measurement and is contradicted by this one. `IMAD.SHR` is not listed: no
+/// witness in compiler output, no table row.
+#[test]
+fn t_m3_imad_display_aliases_take_the_measured_imad_class() {
+    let measured = [
+        "IMAD.MOV.U32 R6, RZ, RZ, R4",
+        "IMAD.MOV R6, RZ, RZ, -R4",
+        "IMAD.IADD R6, R4, 0x1, R5",
+        "IMAD.SHL.U32 R6, R4, 0x8, RZ",
+        "IMAD.HI.U32 R6, R4, R5, RZ",
+        "IMAD.U32 R6, R4, 0x38, RZ",
+        "IMAD.U32 R6, RZ, RZ, UR8",
+        "IMAD R6, R4, R5, RZ",
+    ];
+    // not measured (a constant has no stale value the harness could tell apart): stays in the class, the conservative side
+    let unmeasured = ["IMAD.MOV.U32 R6, RZ, RZ, 0x1"];
+    for text in measured.iter().chain(unmeasured.iter()) {
+        let ins = cubit::parse_sass(text, 0).unwrap();
+        assert_eq!(ins.opcode, "IMAD", "{text}");
+        assert_eq!(CostModel::producer_class(&ins), "IMAD", "{text}");
+    }
+    let wide = cubit::parse_sass("IMAD.WIDE.U32 R6, R4, R5, RZ", 0).unwrap();
+    assert_eq!(CostModel::producer_class(&wide), "IMAD.WIDE");
+    // the ALU controls of the same run are their own classes
+    for (text, class) in [("MOV R6, R4", "MOV"), ("IADD3 R6, PT, PT, R4, R5, RZ", "IADD3"), ("LOP3.LUT R6, R4, R5, RZ, 0x3c, !PT", "LOP3")] {
+        let ins = cubit::parse_sass(text, 0).unwrap();
+        assert_eq!(CostModel::producer_class(&ins), class, "{text}");
+    }
+    // end to end: an alias -> IADD3 edge is priced by the table's IMAD row (5 cycles), not by the default (4) -- with the
+    // IMAD row removed the same edge is the one defaulted edge of the kernel
+    let text = ".entry k\n    [B------:R-:W-:-:S00] IMAD.MOV.U32 R2, RZ, RZ, R0 ;\n    [B------:R-:W-:-:S00] IADD3 R3, R2, 0x1, RZ ;\n    [B------:R-:W-:-:S00] IADD3 R10, R10, 0x1, RZ ;\n    [B------:R-:W-:-:S00] IADD3 R11, R11, 0x1, RZ ;\n    EXIT ;\n.endentry\n";
+    let pl = || SchedMode::List(serde_json::from_str::<SchedPlan>(r#"{"kernels":{"k":{"windows":[[0,4]]}}}"#).unwrap());
+    let cm = CostModel::from_str_json(V2).unwrap();
+    let run = run_file_cost(text, pl(), &table(), Some(&cm)).expect("list run");
+    assert_eq!(run.report.kernels[0].dep_class_defaulted, 0, "the alias edge is priced by the IMAD row");
+    let no_imad = V2.replace(r#"{"producer_class":"IMAD","consumer_kind":"data","L_cy":5.0,"scoreboard_only":false},"#, "");
+    let cm = CostModel::from_str_json(&no_imad).unwrap();
+    let run = run_file_cost(text, pl(), &table(), Some(&cm)).expect("list run");
+    assert_eq!(run.report.kernels[0].dep_class_defaulted, 1, "without the IMAD row the alias edge is the defaulted one");
+}

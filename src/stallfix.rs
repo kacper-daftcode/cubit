@@ -524,6 +524,16 @@ struct UProd {
 /// IMAD / IMAD.WIDE (5 at d0, 3 at d1), FFMA / FMUL / HFMA2 / FMUL2 (4 / 3),
 /// F2FP pack / unpack (4), MUFU (scoreboard only). IMAD.X (carry form) is
 /// not a measured data producer.
+///
+/// nvdisasm's display aliases of IMAD (`IMAD.MOV`, `IMAD.IADD`, `IMAD.SHL`)
+/// and the `.U32` / `.HI` forms are members of the `imad` class by
+/// measurement (B300, 2026-11-09, the same harness: 5 / 3 / 0 for each of
+/// them and for the IMAD / IMAD.WIDE controls, 4 / 0 / 0 for MOV / IADD3 /
+/// LOP3; at S04 in front of an adjacent IADD3 consumer more than 99.8 % of
+/// the thread-runs read the stale register). A rule that takes them out of
+/// the class lets `IMAD.MOV.U32 ... S04` + its consumer through -- a wrong
+/// result on silicon. The constant load `IMAD.MOV.U32 R, RZ, RZ, imm` is not
+/// measured and keeps the class floor (raise-only: the conservative side).
 fn data_producer_class(ins: &Instruction) -> Option<&'static str> {
     match ins.opcode.as_str() {
         "IMAD" if ins.modifiers.iter().any(|m| m == ".X") => None,

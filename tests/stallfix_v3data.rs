@@ -124,6 +124,50 @@ fn r14_f2fp_d0() {
     assert!(rules.iter().any(|r| r == "R14-f2fp-d0"), "{rules:?}");
 }
 
+/// nvdisasm's display aliases of IMAD take the measured IMAD floors -- B300 (sm_103a) silicon, 2026-11-09, the stall-floor
+/// harness of 2026-11-07 (588 cubit-assembled kernels, this consumer, 655 360 thread-runs per kernel): d0 / d1 / d2 =
+/// 5 / 3 / 0 for every producer below, as for the `IMAD` and `IMAD.WIDE.U32` controls of the same run; with the producer
+/// at S04 and the consumer directly behind it more than 99.8 % of the thread-runs are wrong, S05 is clean. `MOV`,
+/// `IADD3` and `LOP3.LUT` measure 4 / 0 / 0 (the global floor). The table and the limits are in the review of cubit pull
+/// request 3: the proposal there to take the aliases out of the class had no measurement and this one contradicts it.
+/// `IMAD.SHR` is not listed -- no witness in compiler output, no table row.
+#[test]
+fn imad_display_aliases_take_the_measured_imad_floor() {
+    let consumer = "[B------:R-:W-:-:S04] IADD3 R8, PT, PT, R6, R5, RZ";
+    let filler = "[B------:R-:W-:-:S04] IADD3 R15, PT, PT, R15, 0x1, RZ";
+    for producer in [
+        "IMAD.MOV.U32 R6, RZ, RZ, R4",
+        "IMAD.MOV R6, RZ, RZ, -R4",
+        "IMAD.IADD R6, R4, 0x1, R5",
+        "IMAD.SHL.U32 R6, R4, 0x8, RZ",
+        "IMAD.HI.U32 R6, R4, R5, RZ",
+        "IMAD.U32 R6, R4, 0x38, RZ",
+        "IMAD.U32 R6, RZ, RZ, UR8",
+        "IMAD R6, R4, R5, RZ",
+        // not measured (a constant has no stale value to tell apart): keeps the class floor, the conservative side
+        "IMAD.MOV.U32 R6, RZ, RZ, 0x1",
+    ] {
+        // d0: S04 in front of the adjacent consumer is the wrong result on silicon -> raised to 5 by R12
+        let src = kern(&[&format!("[B------:R-:W-:-:S04] {producer}"), consumer, "EXIT"]);
+        let run = run_file(&src, &pl("[[0,2]]"), &v3()).unwrap();
+        let (old, new, rules) = raise_of(&run, 0).unwrap_or_else(|| panic!("{producer}: S04 at d0 must be raised"));
+        assert_eq!((old, new), (4, 5), "{producer}");
+        assert!(rules.iter().any(|r| r == "R12-imad-d0"), "{producer}: {rules:?}");
+        // d1: the floor 3 is below the global floor; it shows in the attribution of a producer written below it
+        let src = kern(&[&format!("[B------:R-:W-:-:S02] {producer}"), filler, consumer, "EXIT"]);
+        let run = run_file(&src, &pl("[[0,3]]"), &v3()).unwrap();
+        let (old, new, rules) = raise_of(&run, 0).unwrap_or_else(|| panic!("{producer}: S02 at d1 must be raised"));
+        assert_eq!((old, new), (2, 4), "{producer}");
+        assert!(rules.iter().any(|r| r == "R12-imad-d1"), "{producer}: {rules:?}");
+    }
+    // the ALU controls of the same run: S04 in front of the adjacent consumer is clean on silicon and stays as written
+    for producer in ["MOV R6, R4", "IADD3 R6, PT, PT, R4, R5, RZ", "LOP3.LUT R6, R4, R5, RZ, 0x3c, !PT"] {
+        let src = kern(&[&format!("[B------:R-:W-:-:S04] {producer}"), consumer, "EXIT"]);
+        let run = run_file(&src, &pl("[[0,2]]"), &v3()).unwrap();
+        assert!(raise_of(&run, 0).is_none(), "{producer}: the ALU class keeps the global floor");
+    }
+}
+
 #[test]
 fn r16_mufu_without_scoreboard_is_a_violation() {
     let src = kern(&[

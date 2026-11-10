@@ -204,6 +204,20 @@ impl CostModel {
 
     /// Producer-class key of the v2 table (mirror of BARRACUDA
     /// `model_sm103a_20261107._mnemonic`): modifiers carry a leading dot.
+    ///
+    /// Every IMAD form without `.X` / `.WIDE` is the class `IMAD` -- by
+    /// measurement, not by default. nvdisasm's display aliases `IMAD.MOV`,
+    /// `IMAD.IADD`, `IMAD.SHL` and the `.U32` / `.HI` forms have the stall
+    /// floors of the arithmetic IMAD on sm_103a silicon: 5 / 3 / 0 at d0 /
+    /// d1 / d2 in front of an IADD3 consumer, where `MOV`, `IADD3` and
+    /// `LOP3` measure 4 / 0 / 0 in the same run (B300, 2026-11-09, the
+    /// stall-floor harness of 2026-11-07, 655 360 thread-runs per kernel;
+    /// the table is in the review of cubit pull request 3). ptxas schedules
+    /// them the same way: an alias whose result the next ALU instruction
+    /// reads never carries a stall below 5. Not measured: the constant load
+    /// `IMAD.MOV.U32 R, RZ, RZ, imm` (a constant has no stale value to tell
+    /// apart) -- it stays in the class, the conservative side; `IMAD.SHR`
+    /// has no witness in compiler output and no table row.
     pub fn producer_class(ins: &Instruction) -> String {
         let base = ins.opcode.as_str();
         let has = |m: &str| ins.modifiers.iter().any(|x| x == m);

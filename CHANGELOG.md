@@ -4,6 +4,30 @@ User-visible changes, newest first. Table syncs name the blackwell-isa revision 
 (`tables/SOURCE.json` pins it byte for byte). Numbered `BUG-NNN` entries are the encoder /
 decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `docs/TESTS.md`).
 
+## Unreleased — 2026-11-10 (session T-26: the review queue — the B300 latency model of pull request 3)
+
+- **`sched`: per-class dependency latency (cost-model schema 2; pull request 3, `94e7dae`).** A cost file may carry `dep_latency_cy` — rows
+  (producer class, consumer kind) → cycles — and `dep_latency_default_cy`; a RAW edge is then priced from the producer's *start*
+  (`avail(consumer) = start(producer) + L`, the semantics of the stall-floor measurement), ordering edges (WAR / WAW / memory chain) carry no
+  latency, and an edge whose class the table does not name takes the default and is counted in the report's new `dep_class_defaulted`
+  (`dep_latency_model` says `legacy` or `per_class`). A file without the table — the vendored sm_103a `cost_model` section, every existing
+  plan — keeps the single `dep_link_latency_slots` after the producer's end, byte for byte (`tests/sched_m3_dep_latency.rs`).
+- **`stallfix`: the producer classes of the B300 stall-floor measurement of 2026-11-07 (pull request 3, `26a1681`).** New optional rule keys,
+  each defaulting to "no rule" so that the vendored sm_103a (v2) and SM120 (v4) sections behave as before: `floor_imad_d0` / `_d1` (IMAD /
+  IMAD.WIDE data result → consumer, measured 5 / 3), `floor_fma_d0` / `_d1` (FFMA / FMUL / HFMA2 / FMUL2, 4 / 3), `floor_f2fp_d0` (F2FP pack /
+  unpack, 4), `floor_umov_d0` (0), the R2UR boundary split into `floor_r2ur_in_d0` (4) and `floor_r2ur_out_d1` / `_d2` (6 / 4), and
+  `mufu_scoreboard_only` (a MUFU result read within three slots without a write barrier on the MUFU is a violation: no stall count up to S15
+  makes it right). The rule values are data of the rule file, scope-locked by `arch`; no shipped section carries them yet
+  (`tests/stallfix_v3data.rs`).
+- **The IMAD display aliases are members of the measured IMAD class** — `IMAD.MOV`, `IMAD.IADD`, `IMAD.SHL` and the `.U32` / `.HI` forms have
+  the stall floors of the arithmetic IMAD on sm_103a silicon (5 / 3 / 0 at d0 / d1 / d2 in front of an IADD3 consumer; MOV / IADD3 / LOP3 4 / 0 /
+  0 in the same run; B300, 2026-11-09, 588 kernels × 655 360 thread-runs — the table is in the review of pull request 3), and ptxas never
+  schedules an alias → ALU-consumer pair with a producer stall below 5 (240 sm_103a cubins of one image; the 328 cubins of the B300 publish
+  corpus). The pull request's third commit (a separate alias class priced with the 4-cycle default and exempt from `floor_imad_d0`) had no
+  measurement behind it and is not taken; `t_m3_imad_display_aliases_take_the_measured_imad_class` and
+  `imad_display_aliases_take_the_measured_imad_floor` pin the measured membership instead. Not measured: the constant load
+  `IMAD.MOV.U32 R, RZ, RZ, imm` (kept in the class, the conservative side) and the edges into an IMAD, carry, guard or cross-domain consumer.
+
 ## Unreleased — 2026-11-09 (sessions T-23 / T-24 / T-25: the sm121a / sm103a / sm100a long tails verified row by row — T1 2 654 → 811 and 893 → 357 / 357 —, the decoder's fail-closed zone around a measured row, the 2026-08/09 battery re-pinned to the measured-row doctrine)
 
 - **Tables vendored from blackwell-isa `04bcb53`** (sm121a 50 444 → 49 824 rows, 2 150 → 1 624 forms, 21 750 → 22 227 aliases; sm103a 35 876 →
