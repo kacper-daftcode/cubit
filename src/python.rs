@@ -935,6 +935,8 @@ fn verify_report<'py>(py: Python<'py>, text: &str) -> PyResult<Vec<Bound<'py, Py
         let mut insns = k.instructions.clone();
         crate::scheduling_pass::schedule(&mut insns, Some(&table));
         crate::scheduling_pass::reallocate_barriers(&mut insns, Some(&table));
+        // CUBIT_SCHED2: the scoreboard arming rule, as `cubit asm` runs it behind the allocator
+        crate::dep_stall::apply_library_path(&mut insns);
         let rep = crate::scheduling_pass::verify_scoreboard_report(&insns, Some(&table));
         let kd = PyDict::new(py);
         kd.set_item("name", &k.name)?;

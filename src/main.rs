@@ -4591,6 +4591,10 @@ fn cmd_asm_directive_format(
         // dropped barrier-waits, shortened branch/BAR stalls, reallocated rb, inserted drains).
         let fully_frozen =
             !insns_with_ctrl.is_empty() && insns_with_ctrl.iter().all(|x| x.hand_sched);
+        // CUBIT_SCHED2_LAT: this path runs the dependency-latency legaliser behind the barrier
+        // allocator (and bails when a dependency cannot be reached), so schedule() may leave the
+        // fixed latencies to it. No other caller of schedule() gets that from the environment.
+        cubit::scheduling_pass::DEP_LEGALISER_FOLLOWS.store(true, std::sync::atomic::Ordering::Relaxed);
         cubit::scheduling_pass::schedule(&mut insns_with_ctrl, Some(table));
         // Barrier allocation: the unified interval-based allocator (reallocate_barriers, run
         // at the END below, after all instruction insertions) re-derives RAW write-barriers +

@@ -72,6 +72,8 @@ pub fn assemble(code: &str, base_addr: u32, table: &IsaTable) -> anyhow::Result<
     let mut insns = resolve_labels(stmts, base_addr);
     scheduling_pass::schedule(&mut insns, Some(table));
     scheduling_pass::reallocate_barriers(&mut insns, Some(table));
+    // CUBIT_SCHED2: the scoreboard arming rule, as `cubit asm` runs it behind the allocator
+    dep_stall::apply_library_path(&mut insns);
     let count = insns.len();
     let mut bytes = Vec::with_capacity(count * 16);
     for insn in &insns {

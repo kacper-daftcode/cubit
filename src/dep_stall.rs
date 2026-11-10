@@ -873,6 +873,21 @@ fn raise_linear(insns: &mut [Instruction], binding: &mut [bool], def: usize, c: 
     deficit
 }
 
+/// The legaliser for the callers of `schedule()` + `reallocate_barriers()` that are not
+/// `cubit asm` - the library's `assemble`, the Python module: under `CUBIT_SCHED2` the scoreboard
+/// arming rule, exactly as `cubit asm` runs it behind the allocator (`CUBIT_SCHED2_NOARM` keeps
+/// the old schedule there and here). `CUBIT_SCHED2_LAT` is NOT honoured on these paths:
+/// `schedule()` keeps charging the fixed latencies itself unless its caller has declared a
+/// legaliser (`scheduling_pass::DEP_LEGALISER_FOLLOWS`), because the table path also needs the
+/// pads and the MMA discipline that `cubit asm` builds around it. Returns `None` when
+/// `CUBIT_SCHED2` is off (the default path is untouched).
+pub fn apply_library_path(insns: &mut [Instruction]) -> Option<Report> {
+    if std::env::var("CUBIT_SCHED2").is_err() || std::env::var("CUBIT_SCHED2_NOARM").is_ok() {
+        return None;
+    }
+    Some(apply(insns, &DepLatTable::barriers_only(2)))
+}
+
 /// The legaliser: raise stalls until no fixed-latency dependency of the table is violated
 /// on any control-flow path. Hand-scheduled (`[CC]`) instructions are never changed.
 pub fn apply(insns: &mut [Instruction], t: &DepLatTable) -> Report {

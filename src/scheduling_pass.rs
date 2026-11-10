@@ -14,6 +14,18 @@ use crate::ctrl_class::{CtrlClass, iadd3_rc2_is_rz};
 use crate::ir::{Instruction, Operand};
 use crate::table::IsaTable;
 
+/// Set by a caller of [`schedule`] that runs the dependency-latency legaliser
+/// (`dep_stall::apply` with the table of `CUBIT_SCHED2_LAT`) on the result - `cubit asm` does,
+/// and refuses to write a kernel the legaliser cannot make legal.
+///
+/// Under `CUBIT_SCHED2` + `CUBIT_SCHED2_LAT`, `schedule()` leaves the fixed-latency RAW deficits
+/// to that legaliser. The environment alone must not switch them off: `cubit::assemble`, the
+/// Python module and anything else that calls the passes directly have no legaliser behind
+/// them, and with the switch in the environment they emitted every fixed-latency pair one cycle
+/// apart (`ISETP` -> its guard at S01). Without this flag `schedule()` charges the fixed
+/// latencies itself, as under plain `CUBIT_SCHED2`.
+pub static DEP_LEGALISER_FOLLOWS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 // ── Latency model (SM120 / Blackwell) ────────────────────────────────────────
 
 const LATENCY_ALU: u8 = 4;      // IADD3, LOP3, SHF, SEL, MOV, PRMT
@@ -862,7 +874,8 @@ struct SchedulerState {
     /// here on the instruction text — `dep_stall::apply` charges them after the barrier allocator
     /// on the final instruction list, per pair of the latency table and on every control-flow
     /// path. `schedule()` then leaves only the structural stalls (memory issue spacing, BAR,
-    /// branches, the store / load WAR margins).
+    /// branches, the store / load WAR margins). Only for a caller that runs that legaliser
+    /// ([`DEP_LEGALISER_FOLLOWS`]).
     dep_lat: bool,
     /// CUBIT_SCHED2: keep the load/store WAR-protection producer stalls (occupancy-safe
     /// gather-address / store-operand latch margin). ptxas protects these with read-
@@ -909,7 +922,8 @@ impl SchedulerState {
             yield_loads: std::env::var("CUBIT_SCHED2").is_ok()
                 && std::env::var("CUBIT_SCHED2_YIELD").ok().as_deref() == Some("loads"),
             dep_lat: std::env::var("CUBIT_SCHED2").is_ok()
-                && std::env::var("CUBIT_SCHED2_LAT").is_ok_and(|v| !v.is_empty() && v != "0"),
+                && std::env::var("CUBIT_SCHED2_LAT").is_ok_and(|v| !v.is_empty() && v != "0")
+                && DEP_LEGALISER_FOLLOWS.load(std::sync::atomic::Ordering::Relaxed),
             mem_war_stall: std::env::var("CUBIT_SCHED2_NOMEMSTALL").is_err(),
             deficit_margin: std::env::var("CUBIT_SCHED2_MARGIN").ok()
                 .and_then(|s| s.parse().ok()).unwrap_or(1),

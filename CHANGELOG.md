@@ -38,6 +38,17 @@ decoder findings whose executable specification is `tests/bugNNN_*.rs` (index: `
   cache (random indices), ±0 on real prefill inputs; what it buys is that the prefetch survives changes of the kernel's text. Default off:
   every existing build is byte-identical (`tests/sb_long_keep.rs`: the drain pinned without the switch, absent with it; the same with the gather's scoreboard pinned by control codes - a pin
   alone does not keep the prefetch; opt-in; KNOWN_ISSUES A13).
+- **`CUBIT_SCHED2` / `CUBIT_SCHED2_LAT` outside `cubit asm`: the library path no longer emits an illegal schedule when the switches are in
+  the environment.** `cubit asm` runs `schedule()`, `reallocate_barriers()` and then the legaliser `dep_stall::apply`; `cubit::assemble` and
+  the Python module's verifier ran the first two only, while `schedule()` read the switches from the environment. With `CUBIT_SCHED2_LAT`
+  set it left every fixed-latency dependency to a legaliser that never came (`ISETP` → its guard at S01, measured floor 13; an `IMAD.WIDE`
+  producer at S01); under plain `CUBIT_SCHED2` the arming rule was missing (`MUFU [W:Y:S01]` one cycle in front of its waiter — the
+  schedule that reads a stale register on sm_120 silicon). Found by running cubit's own suite with the switches set (14 tests that call the
+  passes directly failed on missing stalls). Now `schedule()` leaves the fixed latencies to the legaliser only for a caller that declared
+  one (`scheduling_pass::DEP_LEGALISER_FOLLOWS`; `cubit asm` sets it), and `assemble` / the Python verifier run the arming rule
+  (`dep_stall::apply_library_path`). The table stays a `cubit asm` feature — on the library path `CUBIT_SCHED2_LAT` gives plain
+  `CUBIT_SCHED2`'s stream. `cubit asm` output is unchanged under every switch, the default path everywhere
+  (`tests/sched2_library_path.rs`; KNOWN_ISSUES A26).
 - **The scaled BF16 unpack under the table (`F2FP.BF16.<E4M3|E2M1>.UNPACK_B Rd, Rs[.sel], Rscale.B0`, the row of `89564ac`): measured,
   no cell moved.** It is of the class `F2FP.UNPACK` (source r1, scale register r2). Harness v5 on sm_120 silicon
   (`tools/stallfloor/pairfloor_gen_d.py`, 175 kernels; `stall_floors_sm120_20261110_pairs_d.json`): `MOV` → its scale register 5, `SEL` →
